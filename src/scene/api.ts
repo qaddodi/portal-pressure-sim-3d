@@ -21,6 +21,8 @@ import type { Gestures } from './gesture/controller.ts';
 import { createFrameQueue } from './gesture/frame-queue.ts';
 
 export const cel = new CelScene();
+/** A dive between the body, the lobule and the sinusoid: a little longer than a move between two body shots (950 ms), because it covers a few hundred times the distance. */
+export const DIVE_MS = 1250;
 
 /** The gestures' asks for "the next frame", run by the clock's tween phase (Stage.tsx). */
 export const frames = createFrameQueue(() => clock.invalidate('gesture'));
@@ -39,11 +41,12 @@ export const sceneApi = {
   },
   /** Show the body, the lobule or the sinusoid and fly to it, straight from wherever the camera is (the view left behind stays up until the camera lands). `cam` is a lobule camera ('lobule', 'lobule:triad'…). */
   showView(v: FigureView, room: Room, cam: LobuleCam = 'lobule'): void {
+    const from = cel.view;
     if (v === 'circuit') cel.setCircuitUpright(useCircuitTurn.getState().upright);
     cel.setView(v);
-    // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together
-    const ms = v === 'body' || v === 'circuit' ? cel.circuit.changeMs() : undefined;
-    this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot() : lobuleShot(cam), room, ms || undefined);
+    // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together; body, lobule and sinusoid are one dive through the liver (camera/rig.ts blends it geometrically) that takes the dive's time
+    const ms = (v === 'body' || v === 'circuit' ? cel.circuit.changeMs() : 0) || (from === v ? undefined : DIVE_MS);
+    this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot() : lobuleShot(cam), room, ms);
     clock.invalidate('circuit');
   },
   /** The Circuit's quarter turn: stand the map upright (flow bottom to top) or lay it wide; the camera follows on the same 480 ms. Remembered across visits. */

@@ -1,0 +1,83 @@
+// What colour a lobule vessel wears under the colour lens: a port of the 2D lobule's `inkOf`/`tubeRGB` (lobule-zoom-field.js), on the scene's own lens ramps
+// (lenses/model.ts, the 2D app's colormap copied per look). A vessel has a colour at each end and the GPU blends along it; here every vertex of a tube carries
+// its own, which is the same straight line in colour between the two ends (the sinusoid's value runs from the central vein's to the inlet's by `sinW`).
+//   seg: 'pv' the portal venule (end-on), 'in' the inlet venule (w along it 0 at the tract .. 1 at the sinusoids), 'sin' a sinusoid or anastomosis (w = sinW(rho), 1 at
+//   the lobule's edge, 0 at the central vein), 'cv' the central vein.
+import { DELTA_RANGE, DROP_MAX, HEAT_MAX, MPS_TO_LPM, type LensId, flowPos, oxygenPos, samplerFor } from '../lenses/model.ts';
+import { LENS_SHARED, LENS_TOKENS } from '../lenses/tokens.copied.ts';
+import { delta3, hexToRgb01, type Rgb } from '../lenses/oklab.ts';
+import { velPos } from '../lenses/vel-normal.copied.js';
+import { NODES } from '../../engine/hales/portal/topology.js';
+import type { LookId } from '../palette.ts';
+import type { LobuleModel } from './model.ts';
+import { LOBULE_PALETTES } from './tones.ts';
+
+export type Seg = 'pv' | 'in' | 'sin' | 'cv';
+const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+/** The lobule's own pressure steps are shown to the half mmHg, as the 2D painter does (qP). */
+const qP = (v: number) => Math.round(v * 2) / 2;
+
+/** How far out along the sinusoids a point is, weighted as the 2D painter does: 0 at the central vein, 1 at the lobule's edge (sinW). */
+export const sinW = (rho: number): number => clamp((rho - 0.075) / (0.92 - 0.075), 0, 1) ** 0.8;
+
+const NI: Record<string, number> = Object.fromEntries((NODES as { id: string }[]).map((n, i) => [n.id, i]));
+/** The lobule's three node pressures against a reference (the healthy patient's, a pinned moment's, a slide's): the Change, Congestion and `since` lenses. Null: no change. */
+export function lobuleDelta(m: Pick<LobuleModel, 'P1' | 'P2' | 'P3'>, ref: ArrayLike<number> | null): [number, number, number] {
+  if (!ref) return [0, 0, 0];
+  return [m.P1 - ref[NI.RPV!]!, m.P2 - ref[NI.SIN_R!]!, m.P3 - ref[NI.CV_R!]!];
+}
+
+export interface InkContext {
+  lens: LensId;
+  look: LookId;
+  model: LobuleModel;
+  /** node pressures the Change lenses count from (null: none) */
+  ref: ArrayLike<number> | null;
+  /** how drained the sinusoids are toward the tissue's shade, 0..1 (capillarization, the eased fibSin) */
+  fibSin: number;
+}
+
+const VEL_RANGE: [number, number] = [1 / 1.5, 1.5];
+const SHADE: Rgb = hexToRgb01('#603A5C');   // (the 2D --lz-shade)
+const NEUTRAL_GREY: Rgb = hexToRgb01(LENS_SHARED.neutral);
+const tmp: Rgb = [0, 0, 0];
+
+/** The colour (sRGB 0..1, written into `out`) a lobule vessel wears at `w` along it, under the lens. */
+export function inkAt(c: InkContext, seg: Seg, w: number, out: Rgb): Rgb {
+  const m = c.model, lens = c.lens, tok = LENS_TOKENS[c.look];
+  let v: Rgb;
+  if (lens === 'pressure' || lens === 'delta' || lens === 'since' || lens === 'heat') {
+    const d = lens === 'pressure' ? null : lobuleDelta(m, c.ref);
+    const v0 = d ? d[0] : qP(m.P1), v1 = d ? d[1] : qP(m.P2), v2 = d ? d[2] : qP(m.P3);
+    const x = seg === 'pv' ? v0 : seg === 'in' ? lerp(v0, v1, 0.6 * w) : seg === 'cv' ? v2 : v2 + (v1 - v2) * w;
+    if (lens === 'pressure') v = samplerFor(c.look, 'pressure').at(qP(x), tmp);
+    else if (lens === 'heat') v = samplerFor(c.look, 'heat').at(Math.max(0, qP(x)) / HEAT_MAX, tmp);
+    else v = delta3(hexToRgb01(LENS_SHARED.deltaLow), hexToRgb01(LENS_SHARED.deltaMid), hexToRgb01(LENS_SHARED.deltaHigh), qP(x), DELTA_RANGE, tmp);
+  } else if (lens === 'oxygen') {
+    const [a, b, cc] = m.oxy;
+    const sat = seg === 'pv' ? a : seg === 'in' ? lerp(a, b, w) : seg === 'cv' ? cc : cc + (b - cc) * w;
+    v = samplerFor(c.look, 'oxygen').at(oxygenPos(sat), tmp);
+  } else if (lens === 'origin' || lens === 'firstpass') {
+    v = NEUTRAL_GREY;   // (the 2D app greys the lumen and draws the origin lanes over it)
+  } else if (lens === 'neutral') {
+    const P = LOBULE_PALETTES[c.look].tones, a = hexToRgb01(P.portal), b = hexToRgb01(P.sys), k = seg === 'cv' ? 1 : seg === 'sin' ? 1 - w : 0;
+    v = [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)];
+  } else if (lens === 'drop' || lens === 'flow' || lens === 'velocity' || lens === 'direction') {
+    const e = seg === 'sin' ? 'sin' : seg === 'cv' ? 'post' : 'pre';
+    if (lens === 'drop') v = samplerFor(c.look, 'drop').at(Math.abs(e === 'pre' ? m.P1 - m.P2 : e === 'sin' ? m.P2 - m.P3 : m.P3 - m.P4) / DROP_MAX, tmp);
+    else if (lens === 'direction') v = hexToRgb01(m.rev[e] ? tok.flowReversed : tok.flowNormal);
+    else if (lens === 'flow') v = samplerFor(c.look, 'flow').at(flowPos(Math.abs(m.Qs[e]) * MPS_TO_LPM), tmp);
+    else v = samplerFor(c.look, 'velocity').at(velPos(Math.abs(m.Qs[e]) / Math.max(1e-6, Math.abs(m.Q0[e] ?? m.Qs[e])), VEL_RANGE), tmp);
+  } else {   // 'system' and anything else: the pressure's own colours, not rounded (the 2D default)
+    const x = seg === 'pv' || seg === 'in' ? m.P1 : seg === 'cv' ? m.P3 : m.P3 + (m.P2 - m.P3) * w;
+    v = samplerFor(c.look, 'pressure').at(x, tmp);
+  }
+  out[0] = v[0]; out[1] = v[1]; out[2] = v[2];
+  // capillarized sinusoids are drained toward the lobule's shade, never brighter (dullSinusoidInto)
+  if (seg === 'sin' && c.fibSin > 0) {
+    const f = 0.4 * clamp(c.fibSin, 0, 1), l = 0.299 * out[0] + 0.587 * out[1] + 0.114 * out[2];
+    for (let i = 0; i < 3; i++) out[i] = out[i]! + (l + (SHADE[i]! - l) * 0.35 - out[i]!) * f;
+  }
+  return out;
+}

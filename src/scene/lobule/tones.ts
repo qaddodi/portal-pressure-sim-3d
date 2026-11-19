@@ -5,7 +5,7 @@ import { LOOKS, type LookId } from '../../looks/looks.ts';
 import { PALETTES, type Palette, type ToneKey, hexToRgb255 } from '../palette.ts';
 
 export const EXTRA_TONES = [
-  'cord1', 'cord2', 'cord3', 'sin0', 'sin1', 'sin2', 'artery', 'bile', 'lymph', 'amber', 'collagen', 'stellate', 'kupffer', 'fen', 'disse',
+  'cord1', 'cord2', 'cord3', 'floor', 'sin0', 'sin1', 'sin2', 'artery', 'bile', 'lymph', 'amber', 'collagen', 'stellate', 'kupffer', 'fen', 'disse',
 ] as const;
 export type ExtraTone = (typeof EXTRA_TONES)[number];
 
@@ -37,6 +37,7 @@ export function extendPalette(p: Palette, id: LookId): Palette {
   tones.cord1 = cordHex(p.tones.liver, 1, dark);
   tones.cord2 = cordHex(p.tones.liver, 2, dark);
   tones.cord3 = cordHex(p.tones.liver, 3, dark);
+  tones.floor = mix(l.plate, tones.cord2, 0.45);
   // blood in the sinusoid is portal blood becoming hepatic-vein blood: portal tone toward systemic by generation
   tones.sin0 = mix(p.tones.portal, p.tones.sys, 0.2);
   tones.sin1 = mix(p.tones.portal, p.tones.sys, 0.5);

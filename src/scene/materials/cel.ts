@@ -63,6 +63,10 @@ export class CelObject {
   /** Reveal fraction along uv.x: parts beyond it are cut (the catheter feeding in). 1 shows all. */
   setReveal(r: number): void { this.toon.uniforms.reveal.value = r; this.ink.uniforms.reveal.value = r; }
 
+  /** How much of the object is drawn, 1 all (the default) to 0 none: it dissolves in a fixed pixel pattern, so it never pops (the dive into the liver dissolves the body). */
+  setFade(f: number): void { this.toon.uniforms.fade!.value = f; }
+  get fade(): number { return this.toon.uniforms.fade!.value as number; }
+
   readonly opts: CelOptions;
 
   constructor(geometry: BufferGeometry, opts: CelOptions, shared: CelShared) {
@@ -74,12 +78,14 @@ export class CelObject {
     this.toon = new ShaderMaterial({
       vertexShader: TOON_VS,
       fragmentShader: TOON_FS,
+      // a geometry with an `ink` attribute carries its own colour at each vertex (setInk): the shader reads it in place of the tone
+      defines: geometry.getAttribute('ink') ? { VERTEX_INK: '' } : undefined,
       uniforms: {
         color: { value: new Color() }, shade: { value: new Color() }, light: shared.light,
         bands: { value: opts.bands }, spec: { value: opts.spec }, inflate: { value: 0 },
         len: { value: v?.len ?? 1 }, time: shared.time, radius: { value: v?.radius ?? 0 }, baseD: { value: v?.baseD ?? 1 },
         vdata: shared.vdata, vdataSize: shared.vdataSize, vindex: { value: v?.index ?? 0 }, useData: { value: 0 },
-        stubSpeed: { value: v?.stubSpeed ?? 0 }, reveal: { value: 1 }, fade: { value: 1 }, flowAmount: { value: 0 }, flowBands: { value: 0 },
+        stubSpeed: { value: v?.stubSpeed ?? 0 }, reveal: { value: 1 }, fade: { value: 1 }, inkShade: { value: 0.62 }, inkAmount: { value: 0 }, flowAmount: { value: 0 }, flowBands: { value: 0 },
         markColor: { value: new Color() }, markReversed: { value: new Color() },
       },
     });
@@ -88,8 +94,8 @@ export class CelObject {
       fragmentShader: INK_FS,
       side: BackSide,
       uniforms: {
-        color: { value: new Color() }, hiColor: { value: new Color() }, inflate: this.toon.uniforms.inflate,
-        px: { value: opts.px }, res: shared.res, len: this.toon.uniforms.len, reveal: this.toon.uniforms.reveal, fade: this.toon.uniforms.fade,
+        color: { value: new Color() }, hiColor: { value: new Color() }, inflate: this.toon.uniforms.inflate, fade: this.toon.uniforms.fade,
+        px: { value: opts.px }, res: shared.res, len: this.toon.uniforms.len, reveal: this.toon.uniforms.reveal,
         hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 },
       },
     });
@@ -104,6 +110,7 @@ export class CelObject {
   applyPalette(p: Palette): void {
     const base = rawColor(p.tones[this.tone]);
     const ink = rawColor(p.ink);
+    this.toon.uniforms.inkShade!.value = p.shade;
     (this.toon.uniforms.color.value as Color).copy(base);
     (this.toon.uniforms.shade.value as Color).copy(base).multiplyScalar(p.shade).lerp(ink, 0.08);
     (this.ink.uniforms.color.value as Color).copy(ink);
@@ -125,13 +132,8 @@ export class CelObject {
     this.toon.uniforms.flowBands.value = bands ? 1 : 0;
   }
 
-  /** How much of the object shows, 0 to 1 (the organs leave as the figure turns into the Circuit). Under 1 it blends; at 0 nothing is drawn. */
-  setFade(a: number): void {
-    this.toon.uniforms.fade.value = a;
-    const blend = a < 1;
-    for (const m of [this.toon, this.ink]) { m.transparent = blend; m.depthWrite = !blend; }
-    this.group.visible = a > 0.001;
-  }
+  /** How much of the vertex colour (the geometry's `ink` attribute) shows in place of the tone: 1 all, 0 none. Only objects built with the attribute. */
+  setInkAmount(a: number): void { this.toon.uniforms.inkAmount!.value = a; }
 
   setUseData(on: boolean): void { this.toon.uniforms.useData.value = on ? 1 : 0; }
 

@@ -20,6 +20,9 @@ import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, indexOf } from '../engine/vessel-data.ts';
 import { latest, patient } from '../engine/store.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
+import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
+import { LOBULE_R, LOBULE_T, SINUSOID_L } from './lobule/shots.ts';
+import type { Vec3 } from './anatomy/vessels.ts';
 import { SinusoidView } from './sinusoid/index.ts';
 import { organsReady } from './organs/meshes.ts';
 import { clock } from '../clock/frame.ts';
@@ -31,7 +34,7 @@ import { circuitBounds } from './circuit/shots.ts';
 import { CircuitView } from './circuit/view.ts';
 import { CIRCUIT_NODES, MAP_LOOKS } from './circuit/data.copied.ts';
 
-/** What the figure shows: the body, the Circuit (the body's vessels flown onto a flat map), the liver lobule (hexagon) or one sinusoid. The two small views stand away from the body in the same scene. */
+/** What the figure shows: the body, the Circuit (the body's vessels flown onto a flat map), the liver lobule (hexagon) or one sinusoid. The two small views stand INSIDE the liver (the lobule in the liver, the sinusoid in the lobule). */
 export type FigureView = 'body' | 'circuit' | 'lobule' | 'sinusoid';
 
 // The cel-shaded scene for the HVPG slice, as plain three.js so the clock (src/clock/) owns the one frame loop and the R3F Stage is
@@ -45,6 +48,23 @@ const STUB_Q: Record<string, number> = {
   V_SPL: 5, SV_MID: 5, SV_CONF: 6.7, SMV_CONF: 10, LGV_CONF: 1.6, PV_TRUNK: 18.3, PVH_R: 11, PVH_L: 7.3,
   RHV_IVC: 9, MHV_IVC: 8.2, LHV_IVC: 7, IVC_IS: 34.3, IVCS_RA: 59.3, SVC_RA: 24,
 };
+
+/** The body dissolves as the camera goes into the liver: whole at DIVE_OUT scene units from the lobule's place, gone at DIVE_IN (the right lobe's surface is about 0.85 from it). */
+export const DIVE_OUT = 1.9, DIVE_IN = 0.7;
+/** How much of the body is drawn with the camera `d` scene units from the lobule's place: 1 whole, 0 gone (smoothstep between DIVE_IN and DIVE_OUT). */
+export function bodyFade(d: number): number { const t = Math.min(1, Math.max(0, (d - DIVE_IN) / (DIVE_OUT - DIVE_IN))); return t * t * (3 - 2 * t); }
+
+/** The corners (scene units) of the lobule's box and of the sinusoid's: what the hand's pan and zoom keep on screen while each is the view. */
+export function lobuleCorners(): Vec3[] {
+  const out: Vec3[] = [];
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) out.push(lobuleWorld([sx * LOBULE_R, sy * LOBULE_R * 0.866, sz * LOBULE_T / 2]) as Vec3);
+  return out;
+}
+export function sinusoidCorners(): Vec3[] {
+  const out: Vec3[] = [];
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) out.push(sinusoidWorld([sx * (SINUSOID_L / 2 + 0.3), sy * 1.4, sz * 1.0]) as Vec3);
+  return out;
+}
 
 /** Healthy diameter of every topology edge (mm), the reference the engine's live diameter swells against. */
 const BASE_D = new Map<string, number>((EDGES as { id: string; d?: number }[]).map((e) => [e.id, e.d ?? 1]));
@@ -81,8 +101,12 @@ export class CelScene {
   private readonly leaving: CelObject[] = [];
   private lastFade = 1;
   private figureView: FigureView = 'body';
+  private readonly dive = new Group();
+  private readonly sinFrame = new Group();
+  private fadeNow = 1;
   private presence!: PresenceTracks;
   private collateralsOn = false;
+  private bloodOpts = { chevrons: true, keyChevrons: false };
   private readonly plate: Mesh;
   private readonly byEdge = new Map<string, CelObject>();
   private look: LookId;
@@ -128,7 +152,10 @@ export class CelScene {
     this.lens.setContext({ healthy: null, ref: null });
     const vo = { look: this.look, phone: this.phone, flowMode: opts.flowMode ?? DEFAULT_FLOW_MODE, reduceMotion: opts.reduceMotion };
     this.lobule = new LobuleView(this.shared, vo); this.sinus = new SinusoidView(this.shared, vo);
-    this.scene.add(this.lobule.group, this.sinus.group, this.mapLayer.group);
+    // the lobule stands inside the liver, the sinusoid inside the lobule (lobule/frames.ts): two frames, each a place and a scale
+    this.dive.position.set(...LIVER_POINT); this.dive.scale.setScalar(LOBULE_SCALE);
+    this.sinFrame.position.set(...SIN_LOCAL); this.sinFrame.scale.setScalar(SIN_REL);
+    this.sinFrame.add(this.sinus.group); this.dive.add(this.lobule.group, this.sinFrame); this.scene.add(this.dive, this.mapLayer.group);
     this.lobule.setVisible(false); this.sinus.setVisible(false);
     this.applyLook(this.look);
   }
@@ -218,11 +245,12 @@ export class CelScene {
   // ---- lens and blood ------------------------------------------------------------------------
 
   /** Colour the veins by a lens (the Layers menu's ten, a deck's 'system' and 'since', or 'neutral' for the plain anatomy). */
-  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.moving = true; }
+  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.lobule.setLens(lens); this.moving = true; }
   /** The healthy patient at rest (the engine's `healthyProfile`): the reference the change, congestion, velocity and direction lenses compare to. */
   setHealthy(h: { P: ArrayLike<number>; Q: ArrayLike<number>; D: ArrayLike<number> }): void {
     this.lens.setContext({ healthy: { Q: h.Q, D: h.D, P: h.P }, ref: Float32Array.from(h.P) });
     this.blood.streams.setHealthy(h);
+    this.lobule.setReference(Float32Array.from(h.P));
     this.moving = true;
   }
   /** Count Change and Congestion from a pinned moment's node pressures (Compare > Change), or from the healthy patient again (null). */
@@ -238,6 +266,8 @@ export class CelScene {
     if (o.keyChevrons !== undefined) patch.keyChevrons = o.keyChevrons;
     if (o.presenting !== undefined) patch.presenting = o.presenting;
     this.flow.setOptions(patch);
+    this.bloodOpts = { chevrons: o.chevrons ?? this.bloodOpts.chevrons, keyChevrons: (o.keyChevrons ?? this.bloodOpts.keyChevrons) || !!o.presenting };
+    this.lobule.setBlood(this.bloodOpts);
     this.moving = true;
   }
 
@@ -274,6 +304,7 @@ export class CelScene {
   /** Show the body, the lobule or the sinusoid: the others are hidden and cost nothing (nothing is built or compiled here; the views were made at start). The camera is the caller's. */
   setView(v: FigureView, now = performance.now()): void {
     this.figureView = v;
+    this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? sinusoidCorners() : null);
     // the view being left stays drawn until the camera has landed on the new one (nothing pops while it flies); then it is hidden
     this.body.visible ||= v === 'body' || v === 'circuit';
     // the body turns into the map (or back) on the camera's own clock, from wherever it stands
@@ -332,10 +363,25 @@ export class CelScene {
   }
   private settleViews(): void {
     const v = this.figureView;
-    this.body.visible = v === 'body' || v === 'circuit';
+    this.body.visible = v === 'body' || v === 'circuit' || this.fadeNow > 0;
     this.lobule.setVisible(v === 'lobule'); this.sinus.setVisible(v === 'sinusoid');
     this.hideLeftBehind = false;
   }
+  /** The body dissolves as the camera goes into the liver and comes back as it leaves (a function of the camera's distance to the lobule's place, so the dive in and the way out are the same picture run both ways). */
+  private fadeBody(): void {
+    const f = bodyFade(this.rig.camera.position.distanceTo(this.livePoint));
+    if (f === this.fadeNow || (Math.abs(f - this.fadeNow) < 1e-3 && f > 0 && f < 1)) return;
+    this.fadeNow = f;
+    for (const o of this.objects) o.setFade(f);
+    const m = this.plate.material as MeshBasicMaterial;
+    m.transparent = f < 0.999; m.opacity = f; m.needsUpdate = true;
+    this.body.visible = f > 0 || this.figureView === 'body';
+    this.moving = true;
+  }
+  private readonly livePoint = new Vector3(...LIVER_POINT);
+  /** How much of the body is drawn now (1 whole, 0 gone): for tests and tags. */
+  get bodyShown(): number { return this.fadeNow; }
+
   /** The model's state into the small views (from the engine's newest frame, the healthy reference and the patient's parameters); `snap` shows it at once. */
   private feedViews(snap: boolean): void {
     const f = latest.frame;
@@ -383,6 +429,7 @@ export class CelScene {
     this.shared.time.value = (now / 1000) % 1000;
     const camMoving = this.rig.update(now);
     const circMoving = this.stepCircuit(now, dt);
+    this.fadeBody();
     if (this.hideLeftBehind && !camMoving && !this.circuit.moving) this.settleViews();
     const hiMoving = this.highlight.step(dt);
     this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
@@ -401,7 +448,7 @@ export class CelScene {
     const fade = 1 - t;
     if (fade !== this.lastFade) {
       this.lastFade = fade;
-      for (const o of this.leaving) o.setFade(fade);
+      for (const o of this.leaving) { o.setFade(fade); o.group.visible = fade > 0.001; }
       const m = this.plate.material as MeshBasicMaterial;
       m.transparent = fade < 1; m.opacity = fade; this.plate.visible = fade > 0.001;
     }

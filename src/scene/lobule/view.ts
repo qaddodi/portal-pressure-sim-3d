@@ -12,17 +12,20 @@
 //
 // Lymph chevrons run on the ducts (the terminal lymphatics, the tracts' lymphatics and the space of Disse beside each sinusoid) while the Lymph layer is
 // on, out along Disse toward the tract (owner, 5d3b7e86: hepatic lymph rises in cirrhosis, and the chevrons quicken with it). The sinusoid view shows none.
-import { Group, Matrix4, Quaternion, SphereGeometry, Vector3 } from 'three';
+import { type BufferGeometry, ExtrudeGeometry, Group, Matrix4, Quaternion, Shape, SphereGeometry, Vector3 } from 'three';
 import { CelObject, type CelShared } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
 import type { LookId } from '../../looks/looks.ts';
-import { type FlowMarkMode, DEFAULT_FLOW_MODE, FLOW_FADE_MS, PULSE_MS, markSpeed, targetAmount } from '../flow.ts';
+import { type FlowMarkMode, DEFAULT_FLOW_MODE, FLOW_FADE_MS, PULSE_MS, markSpeed } from '../flow.ts';
+import type { LensId } from '../lenses/model.ts';
 import { Batch, type V3 } from './batch.ts';
 import { type Course, type LobuleNet, type P2, buildLobule, zoneOf } from './geometry.ts';
 import { type LobuleModel, easeToward, lymphRate, lymphSeal } from './model.ts';
 import { LOBULE_PARTS, type LobulePartName, PartSet } from './parts.ts';
 import { LOBULE_PALETTES, tone } from './tones.ts';
 import { LOBULE_R, LOBULE_T, lobuleToScene, slabZ } from './shots.ts';
+import { lobuleWorld } from './frames.ts';
+import { type InkContext, type Seg, inkAt, sinW } from './ink.ts';
 import { WASH_DELAY_MS, washAmount, washFront, washProgress } from './wash.ts';
 
 const R = LOBULE_R;
@@ -30,8 +33,8 @@ const MARK_PITCHES = 5;   // a chevron period is this many tube radii
 
 /** Scene radii of the parts (lobule radii × R). The sinusoid's is the 2D app's lumen, drawn about twice as wide; the rest keep the 2D ratios. */
 const RAD = {
-  s0: 0.012 * R, s1: 0.0138 * R, s2: 0.0156 * R, an: 0.0085 * R, in: 0.02 * R, tw: 0.012 * R,
-  pv: 0.042 * R, ha: 0.016 * R, bd: 0.02 * R, lv: 0.016 * R, cv: 0.07 * R, lt: 0.011 * R, ly: 0.02 * R,
+  s0: 0.0095 * R, s1: 0.0109 * R, s2: 0.0124 * R, an: 0.0068 * R, in: 0.0135 * R, tw: 0.0072 * R,
+  pv: 0.042 * R, ha: 0.015 * R, bd: 0.013 * R, lv: 0.013 * R, cv: 0.07 * R, lt: 0.0085 * R, ly: 0.0165 * R,
 } as const;
 
 /** What the slides name, as the 2D deck's terms: which parts carry chevrons in flow-mark option A. */
@@ -74,6 +77,13 @@ export class LobuleView {
   /** Every object the view draws (for palette, ink width and disposal). */
   readonly objects: CelObject[] = [];
   private marked: Marked[] = [];
+  /** The parts that colour themselves along their length under the lens: each tube's two end colours (now and where they are going) and the vertices they fill. */
+  private inked: { geo: BufferGeometry; seg: Seg; courses: Course[]; tubes: { start: number; rings: number; ring: number }[]; goal: Float32Array; cur: Float32Array; fresh: boolean }[] = [];
+  private lens: LensId = 'pressure';
+  private ref: ArrayLike<number> | null = null;
+  private model: LobuleModel | null = null;
+  private inkDirty = true;
+  private blood = { chevrons: true, key: false };
   private cur: Cur = { ...REST };
   private goal: Cur = { ...REST };
   private lit = new Set<LobulePartName>();
@@ -113,8 +123,9 @@ export class LobuleView {
 
   // ---- building ------------------------------------------------------------------------------------------------------------------
 
-  private make(part: LobulePartName, b: Batch, toneKey: Parameters<typeof tone>[0], opts: { bands: 2 | 3; px: number; chevrons?: { pitch: number; speed: () => number; dir?: 1 | -1; lymph?: boolean } }): CelObject {
+  private make(part: LobulePartName, b: Batch, toneKey: Parameters<typeof tone>[0], opts: { bands: 2 | 3; px: number; chevrons?: { pitch: number; speed: () => number; dir?: 1 | -1; lymph?: boolean }; ink?: { seg: Seg; courses?: Course[] } }): CelObject {
     const c = opts.chevrons;
+    if (opts.ink) b.withInk();
     const o = new CelObject(b.build(), {
       tone: tone(toneKey), bands: opts.bands, spec: 0, px: opts.px,
       // a vessel as far as the shader goes: marks along uv.x. uv.x is already in chevron periods (arc ÷ pitch), so len is the shader's own 0.45 per mark.
@@ -123,6 +134,11 @@ export class LobuleView {
     this.objects.push(o);
     const p = this.set.get(part);
     p.group.add(o.group);
+    if (opts.ink) {
+      o.setInkAmount(1);
+      const courses = opts.ink.courses ?? [], tubes = courses.length ? b.tubes : [];
+      this.inked.push({ geo: o.toonMesh.geometry, seg: opts.ink.seg, courses, tubes, goal: new Float32Array(Math.max(1, tubes.length) * 6), cur: new Float32Array(Math.max(1, tubes.length) * 6), fresh: true });
+    }
     if (c) this.marked.push({ obj: o, part, amount: 0, dir: c.dir ?? 1, speed: c.speed, lymph: !!c.lymph });
     return o;
   }
@@ -140,7 +156,12 @@ export class LobuleView {
       for (const c of cs) { const p = c.pts[0]!; b.tube([p3(p, -T / 2), p3(p, T / 2)], { radius, radial: 12, capped: true, uvx: () => 0 }); }
       return b;
     };
-    const bloodSpeed = (key: 'flow' | 'portal' | 'art') => () => markSpeed(Math.max(-3, Math.min(3, this.cur[key])) * 8);
+    // the blood's marks run at the 2D painter's speeds (lobule-zoom.js: sinusoids vS x 1, 1.45, 2.05 with vS = 15 sqrt(flow); inlets 24 sqrt|portal|, the arteriole's twig 30 sqrt(art)),
+    // here in marks a second (the 15 is 1.4 marks/s); a sinusoid whose flow has stopped or reversed runs no marks, as in 2D
+    const U = 1.4 / 15;
+    const sinSpeed = (k: number) => () => U * 15 * k * Math.sqrt(Math.max(0, this.cur.flow));
+    const inSpeed = () => U * 24 * Math.sign(this.cur.portal) * Math.sqrt(Math.abs(this.cur.portal));
+    const twSpeed = () => U * 30 * Math.sqrt(Math.max(0, this.cur.art));
     const lymphSpeed = () => markSpeed(8 * Math.min(6, Math.max(0.2, this.cur.lymphRate)));
 
     // cords: three zones of hepatocyte plates, ellipsoid beads on the cords (radial length, tangential width, half a slab thick)
@@ -148,28 +169,36 @@ export class LobuleView {
     const cb = [new Batch(), new Batch(), new Batch()];
     const m = new Matrix4(), q = new Quaternion(), pos = new Vector3(), sc = new Vector3(), axis = new Vector3(0, 0, 1);
     for (const c of net.cells) {
-      const z = zoneOf(c.q), at = p3([c.x, c.y], -0.04);
+      const z = zoneOf(c.q), at = p3([c.x, c.y], -0.045);
       q.setFromAxisAngle(axis, -c.a);
       pos.set(at[0], at[1], at[2]);
-      sc.set((c.l * R) / 2 * 0.92, (c.w * R) / 2 * 0.92, T * 0.34 * (0.9 + 0.2 * c.tone));
+      // (a hepatocyte plate seen from the front is a flat rounded tile with a nucleus, as the 2D app draws it: low relief, never a bead standing out of the slab)
+      sc.set((c.l * R) / 2 * 0.94, (c.w * R) / 2 * 0.94, 0.05 * (0.85 + 0.3 * c.tone));
       m.compose(pos, q, sc);
       cb[z - 1]!.shape(bead, m);
     }
-    const cords = cb.map((b, i) => this.make('cords', b, (`cord${i + 1}` as 'cord1'), { bands: 3, px: 1.0 }));
+    const cords = cb.map((b, i) => this.make('cords', b, (`cord${i + 1}` as 'cord1'), { bands: 2, px: 0.7 }));
+    // the floor of the slab: a hexagon of tissue under the cells (the 2D app's pink between them), its edge the limiting plate
+    const fb = new Batch(), hexShape = new Shape();
+    net.corners.forEach(([x, y], i) => (i ? hexShape.lineTo(x * R, y * R) : hexShape.moveTo(x * R, y * R)));
+    hexShape.closePath();
+    m.compose(pos.set(lobuleToScene(0, 0, 0)[0], lobuleToScene(0, 0, 0)[1], -0.33), q.identity(), sc.set(1, 1, 1));
+    fb.shape(new ExtrudeGeometry(hexShape, { depth: 0.05, bevelEnabled: false }), m);
+    this.make('cords', fb, 'floor', { bands: 2, px: 1.1 });
 
     // sinusoids: three generations and the links; blood runs from the portal end to the central end (negative when the lobule's flow reverses)
-    const s0 = this.make('sinusoids', tubeSet(by('s0'), RAD.s0), 'sin0', { bands: 2, px: 1.0, chevrons: { pitch: RAD.s0 * MARK_PITCHES, speed: bloodSpeed('flow') } });
-    const s1 = this.make('sinusoids', tubeSet(by('s1'), RAD.s1), 'sin1', { bands: 2, px: 1.0, chevrons: { pitch: RAD.s1 * MARK_PITCHES, speed: bloodSpeed('flow') } });
-    const s2 = this.make('sinusoids', tubeSet(by('s2'), RAD.s2), 'sin2', { bands: 2, px: 1.0, chevrons: { pitch: RAD.s2 * MARK_PITCHES, speed: bloodSpeed('flow') } });
-    const an = this.make('sinusoids', tubeSet(by('an'), RAD.an), 'sin1', { bands: 2, px: 0.9 });
-    const inlets = this.make('inlets', tubeSet(by('in'), RAD.in, 0, 8), 'portal', { bands: 2, px: 1.2, chevrons: { pitch: RAD.in * MARK_PITCHES, speed: bloodSpeed('portal') } });
+    const s0 = this.make('sinusoids', tubeSet(by('s0'), RAD.s0), 'sin0', { bands: 2, px: 0.9, ink: { seg: 'sin', courses: by('s0') }, chevrons: { pitch: RAD.s0 * MARK_PITCHES, speed: sinSpeed(1) } });
+    const s1 = this.make('sinusoids', tubeSet(by('s1'), RAD.s1), 'sin1', { bands: 2, px: 0.9, ink: { seg: 'sin', courses: by('s1') }, chevrons: { pitch: RAD.s1 * MARK_PITCHES, speed: sinSpeed(1.45) } });
+    const s2 = this.make('sinusoids', tubeSet(by('s2'), RAD.s2), 'sin2', { bands: 2, px: 0.9, ink: { seg: 'sin', courses: by('s2') }, chevrons: { pitch: RAD.s2 * MARK_PITCHES, speed: sinSpeed(2.05) } });
+    const an = this.make('sinusoids', tubeSet(by('an'), RAD.an), 'sin1', { bands: 2, px: 0.8, ink: { seg: 'sin', courses: by('an') } });
+    const inlets = this.make('inlets', tubeSet(by('in'), RAD.in, 0, 8), 'portal', { bands: 2, px: 1.1, ink: { seg: 'in', courses: by('in') }, chevrons: { pitch: RAD.in * MARK_PITCHES, speed: inSpeed } });
 
     // the portal tracts: venule, arteriole (with the twig that feeds the first stretch of a sinusoid), ductule; the lymphatic is the lymph part's
-    const pv = this.make('portal-tracts', axial(by('pv'), RAD.pv), 'portal', { bands: 2, px: 1.2 });
+    const pv = this.make('portal-tracts', axial(by('pv'), RAD.pv), 'portal', { bands: 2, px: 1.1, ink: { seg: 'pv' } });
     const ha = this.make('portal-tracts', axial(by('ha'), RAD.ha), 'artery', { bands: 2, px: 1.0 });
     const bd = this.make('portal-tracts', axial(by('bd'), RAD.bd), 'bile', { bands: 2, px: 1.0 });
-    const tw = this.make('portal-tracts', tubeSet(by('tw'), RAD.tw, 0, 6), 'artery', { bands: 2, px: 0.9, chevrons: { pitch: RAD.tw * MARK_PITCHES, speed: bloodSpeed('art') } });
-    const cv = this.make('central-vein', axial(by('cv'), RAD.cv), 'sys', { bands: 2, px: 1.4 });
+    const tw = this.make('portal-tracts', tubeSet(by('tw'), RAD.tw, 0, 6), 'artery', { bands: 2, px: 0.9, chevrons: { pitch: RAD.tw * MARK_PITCHES, speed: twSpeed } });
+    const cv = this.make('central-vein', axial(by('cv'), RAD.cv), 'sys', { bands: 2, px: 1.2, ink: { seg: 'cv' } });
 
     // lymph: the tracts' lymphatics (end-on), the terminal lymphatics along the edges (toward the tract) and the space of Disse beside each sinusoid (out toward the plate, so against the blood)
     const lv = this.make('lymph', axial(by('lv'), RAD.lv), 'lymph', { bands: 2, px: 0.9 });
@@ -217,7 +246,7 @@ export class LobuleView {
   get palette(): Palette { return LOBULE_PALETTES[this.look]; }
 
   applyLook(look: LookId): void {
-    this.look = look;
+    this.look = look; this.inkDirty = true;
     const p = LOBULE_PALETTES[look];
     for (const o of this.objects) { o.applyPalette(p); o.setPhone(this.phone); }
     this.dirty = true;
@@ -226,11 +255,15 @@ export class LobuleView {
 
   // ---- what the slide and the model say -------------------------------------------------------------------------------------------
 
-  setVisible(v: boolean): void { this.visible = v; this.group.visible = v; this.dirty = true; if (!v) this.washOn = false; }
+  setVisible(v: boolean): void {
+    this.visible = v; this.group.visible = v; this.dirty = true; if (!v) this.washOn = false;
+    if (v) for (const e of this.inked) e.fresh = true;   // (opens already in the lens's colours: nothing eases in while the view was away)
+  }
   get isVisible(): boolean { return this.visible; }
 
   /** Targets from the engine's frame (lobuleModel). They ease in; nothing jumps. */
   setModel(m: LobuleModel): void {
+    this.model = m; this.inkDirty = true;
     const g = this.goal;
     g.fibSin = m.fibSin; g.fibPre = m.fibPre; g.fibPost = m.fibPost; g.congU = m.congU; g.septU = m.septU; g.act = m.act;
     g.lum = m.zone.sin ** -0.12 * (1 + 0.5 * m.congU);
@@ -249,6 +282,13 @@ export class LobuleView {
 
   setLit(parts: Iterable<LobulePartName>): void { this.lit = new Set(parts); this.dirty = true; }
   setFlowMode(mode: FlowMarkMode): void { this.mode = mode; this.dirty = true; }
+  /** The colour lens the vessels wear (the Layers menu's, as the 2D lobule colours its lumen by it); the colours ease over about a third of a second. */
+  setLens(lens: LensId): void { if (lens === this.lens) return; this.lens = lens; this.inkDirty = true; this.dirty = true; }
+  get currentLens(): LensId { return this.lens; }
+  /** The node pressures the Change, Congestion and `since` lenses count from (the healthy patient's, a pinned moment's, a slide's). */
+  setReference(ref: ArrayLike<number> | null): void { this.ref = ref; this.inkDirty = true; this.dirty = true; }
+  /** The Blood menu: moving blood (chevrons) on or off, and key routes only (then only the parts a slide names carry them). */
+  setBlood(b: { chevrons: boolean; keyChevrons: boolean }): void { this.blood = { chevrons: b.chevrons, key: b.keyChevrons }; this.dirty = true; }
   /** Option D: a change happened (a preset, a slider, a treatment). */
   pulse(nowMs: number): void { this.pulseStart = nowMs; this.pulseUntil = nowMs + PULSE_MS; this.dirty = true; }
 
@@ -276,14 +316,67 @@ export class LobuleView {
     // the wash
     if (this.washOn) { const kk = washProgress(now - this.washAt, this.reduce); if (kk !== this.washK) { this.washK = kk; moving = true; } if (kk < 1) moving = true; }
     // chevrons: each marked object fades to its goal
-    const pulse = now >= this.pulseUntil ? 0 : Math.min(1, (this.pulseUntil - now) / 1000, (now - this.pulseStart) / FLOW_FADE_MS);
     for (const mk of this.marked) {
-      const goal = mk.lymph ? this.lyFade : targetAmount(this.mode, this.lit.has(mk.part), pulse);
+      // blood: the Blood menu's chevrons, as the 2D lobule shows them (all of them, or the parts the slide names when "key chevrons only"); the lymph's follow its layer
+      const goal = mk.lymph ? this.lyFade : this.blood.chevrons && (!this.blood.key || this.lit.has(mk.part)) ? 1 : 0;
       if (mk.amount !== goal) { mk.amount = Math.abs(goal - mk.amount) <= k ? goal : mk.amount + Math.sign(goal - mk.amount) * k; moving = true; }
       if (mk.amount > 0.001) moving = true;   // marks run: keep asking for frames
     }
+    if (this.updateInk(dt)) moving = true;
     this.apply();
     return moving;
+  }
+
+  private inkFib = -1;
+  private readonly rgb: [number, number, number] = [0, 0, 0];
+  private readonly rgb2: [number, number, number] = [0, 0, 0];
+  /** The vessels' colours under the lens: each tube's two end colours (the 2D painter's `tubeRGB`), eased toward the lens's now, and written along the tube. True while they move. */
+  private updateInk(dt: number): boolean {
+    const m = this.model;
+    if (!m) return false;
+    const fib = this.cur.fibSin;
+    if (this.inkDirty || Math.abs(fib - this.inkFib) > 0.004) {
+      this.inkDirty = false; this.inkFib = fib;
+      const ctx: InkContext = { lens: this.lens, look: this.look, model: m, ref: this.ref, fibSin: fib };
+      for (const e of this.inked) {
+        if (!e.courses.length) { const w = e.seg === 'cv' ? 1 : 0; inkAt(ctx, e.seg, w, this.rgb); e.goal[0] = this.rgb[0]; e.goal[1] = this.rgb[1]; e.goal[2] = this.rgb[2]; continue; }
+        e.courses.forEach((c, i) => {
+          const n = c.rho.length, w0 = e.seg === 'sin' ? sinW(c.rho[0]!) : 0, w1 = e.seg === 'sin' ? sinW(c.rho[n - 1]!) : 1;
+          inkAt(ctx, e.seg, w0, this.rgb); inkAt(ctx, e.seg, w1, this.rgb2);
+          for (let k = 0; k < 3; k++) { e.goal[i * 6 + k] = this.rgb[k]!; e.goal[i * 6 + 3 + k] = this.rgb2[k]!; }
+        });
+      }
+    }
+    const k = this.reduce ? 1 : 1 - Math.exp(-Math.max(0, dt) / 140);
+    let moving = false;
+    for (const e of this.inked) {
+      let changed = e.fresh;
+      for (let i = 0; i < e.goal.length; i++) {
+        const d = e.goal[i]! - e.cur[i]!;
+        if (e.fresh) e.cur[i] = e.goal[i]!;
+        else if (Math.abs(d) > 4e-4) { e.cur[i] = e.cur[i]! + d * k; changed = true; moving = true; }
+        else if (d !== 0) { e.cur[i] = e.goal[i]!; changed = true; }
+      }
+      e.fresh = false;
+      if (changed) this.writeInk(e);
+    }
+    return moving;
+  }
+
+  private writeInk(e: LobuleView['inked'][number]): void {
+    const a = e.geo.getAttribute('ink') as import('three').BufferAttribute, arr = a.array as Float32Array;
+    if (!e.courses.length) { for (let v = 0; v < a.count; v++) { arr[v * 3] = e.cur[0]!; arr[v * 3 + 1] = e.cur[1]!; arr[v * 3 + 2] = e.cur[2]!; } }
+    else {
+      e.tubes.forEach((t, i) => {
+        const o = i * 6;
+        for (let r = 0; r < t.rings; r++) {
+          const f = t.rings > 1 ? r / (t.rings - 1) : 0;
+          const R_ = e.cur[o]! + (e.cur[o + 3]! - e.cur[o]!) * f, G_ = e.cur[o + 1]! + (e.cur[o + 4]! - e.cur[o + 1]!) * f, B_ = e.cur[o + 2]! + (e.cur[o + 5]! - e.cur[o + 2]!) * f;
+          for (let j = 0; j < t.ring; j++) { const v = (t.start + r * t.ring + j) * 3; arr[v] = R_; arr[v + 1] = G_; arr[v + 2] = B_; }
+        }
+      });
+    }
+    a.needsUpdate = true;
   }
 
   /** Writes the eased state into the objects' uniforms (inflate, reveal, flow marks, visibility). Cheap: a few dozen assignments. */
@@ -325,12 +418,14 @@ export class LobuleView {
 
   // ---- tags, picking, warming -----------------------------------------------------------------------------------------------------
 
-  /** Scene points of the places tags name: the centre, each triad ('triad:0' to 'triad:5'), the zones ('zone:1' periportal, 'zone:2' midzonal, 'zone:3' pericentral). */
+  /** Scene (world) points of the places tags name: the centre, each triad ('triad:0' to 'triad:5'), the zones ('zone:1' periportal, 'zone:2' midzonal, 'zone:3' pericentral).
+   *  The lobule stands inside the liver, so these are points of the liver, a hundred times closer together than the lobule's own units. */
   anchor(name: string, out: V3 = [0, 0, 0]): V3 {
-    if (name === 'centre') return lobuleToScene(0, 0, slabZ(0, 0) + LOBULE_T / 2, out);
-    if (name.startsWith('triad:')) { const t = this.net.triads[Number(name.slice(6))]; if (t) return lobuleToScene(t.x, t.y, slabZ(t.x, t.y) + LOBULE_T / 2, out); }
-    if (name.startsWith('zone:')) { const rr = { 1: 0.82, 2: 0.5, 3: 0.2 }[Number(name.slice(5)) as 1 | 2 | 3] ?? 0.5; return lobuleToScene(Math.cos(Math.PI / 6) * rr, Math.sin(Math.PI / 6) * rr, slabZ(0.7, 0.4) + LOBULE_T / 2, out); }
-    return lobuleToScene(0, 0, 0, out);
+    const w = (x: number, y: number, z: number) => lobuleWorld(lobuleToScene(x, y, z, out), out);
+    if (name === 'centre') return w(0, 0, slabZ(0, 0) + LOBULE_T / 2);
+    if (name.startsWith('triad:')) { const t = this.net.triads[Number(name.slice(6))]; if (t) return w(t.x, t.y, slabZ(t.x, t.y) + LOBULE_T / 2); }
+    if (name.startsWith('zone:')) { const rr = { 1: 0.82, 2: 0.5, 3: 0.2 }[Number(name.slice(5)) as 1 | 2 | 3] ?? 0.5; return w(Math.cos(Math.PI / 6) * rr, Math.sin(Math.PI / 6) * rr, slabZ(0.7, 0.4) + LOBULE_T / 2); }
+    return w(0, 0, 0);
   }
 
   /** The part whose toon mesh a ray hits first (for tap-to-explain), or null. */

@@ -14,8 +14,20 @@ export const VESSEL_TEXEL = {
   a: 'downstreamPressure',
 } as const;
 
+/** The dive's dissolve: a part fades by dropping a growing share of its pixels in a fixed screen pattern (interleaved gradient noise), so an object can be there, half there
+ *  and gone with no alpha and no sorting, and never pops. `fade` 1 draws everything (one compare), 0 nothing. The toon, ink and vessel passes use the same pattern, so an
+ *  object's ink goes with its fill. */
+export const FADE_GLSL = /* glsl */ `
+uniform float fade;
+bool fadedOut() { return fade < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= fade; }
+`;
+
 export const TOON_VS = /* glsl */ `
 attribute vec3 tang;
+#ifdef VERTEX_INK
+attribute vec3 ink;
+varying vec3 vInk;
+#endif
 uniform float inflate;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
@@ -40,10 +52,14 @@ void main() {
   vT = normalize(normalMatrix * tang);
   vV = normalize(-mv.xyz);
   vUv = uv;
+#ifdef VERTEX_INK
+  vInk = ink;
+#endif
   gl_Position = projectionMatrix * mv;
 }`;
 
 export const TOON_FS = /* glsl */ `
+${FADE_GLSL}
 uniform vec3 color;
 uniform vec3 shade;
 uniform vec3 light;
@@ -57,11 +73,16 @@ uniform float vindex;
 uniform float useData;
 uniform float stubSpeed;
 uniform float reveal;
-uniform float fade;
 uniform float flowAmount;
 uniform float flowBands;
 uniform vec3 markColor;
 uniform vec3 markReversed;
+// a part that carries its own colour at each vertex (the lobule's vessels wear the colour lens along their length): the vertex colour in place of the tone, its shade a fixed share of it
+uniform float inkShade;
+uniform float inkAmount;
+#ifdef VERTEX_INK
+varying vec3 vInk;
+#endif
 varying vec3 vN;
 varying vec3 vV;
 varying vec3 vT;
@@ -91,6 +112,7 @@ float flowMask(float speed, float across) {
 
 void main() {
   if (reveal < 0.9999 && vUv.x > reveal) discard;
+  if (fadedOut()) discard;
   vec3 n = normalize(vN);
   vec3 l = normalize((viewMatrix * vec4(light, 0.0)).xyz);
   float d = dot(n, l) * 0.5 + 0.5;
@@ -98,7 +120,13 @@ void main() {
   float f = fract(q);
   float w = fwidth(q) * 0.75;
   float b = (floor(q) + smoothstep(0.5 - w, 0.5 + w, f)) / bands;
-  vec3 c = mix(shade, color, clamp(b, 0.0, 1.0));
+  vec3 base = color;
+  vec3 sh = shade;
+#ifdef VERTEX_INK
+  base = mix(color, vInk, inkAmount);
+  sh = mix(shade, vInk * inkShade, inkAmount);
+#endif
+  vec3 c = mix(sh, base, clamp(b, 0.0, 1.0));
   float ndv = max(dot(n, vV), 0.0);
   float rim = smoothstep(0.66, 0.70, 1.0 - ndv) * step(0.5, d);
   float sp = spec * smoothstep(0.962, 0.972, max(dot(reflect(-l, n), vV), 0.0));
@@ -118,7 +146,7 @@ void main() {
     c = mix(c, mc, m * (flowBands > 0.5 ? 0.30 : 0.85));
   }
   c += rim * 0.10 + sp * 0.32;
-  gl_FragColor = vec4(c, fade);
+  gl_FragColor = vec4(c, 1.0);
 }`;
 
 export const INK_VS = /* glsl */ `
@@ -151,10 +179,10 @@ void main() {
 }`;
 
 export const INK_FS = /* glsl */ `
+${FADE_GLSL}
 uniform vec3 color;
 uniform vec3 hiColor;
 uniform float reveal;
-uniform float fade;
 varying float vHi;
 varying float vU;
-void main() { if (reveal < 0.9999 && vU > reveal) discard; gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), fade); }`;
+void main() { if (reveal < 0.9999 && vU > reveal) discard; if (fadedOut()) discard; gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), 1.0); }`;

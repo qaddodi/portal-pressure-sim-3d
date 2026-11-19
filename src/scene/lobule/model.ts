@@ -3,6 +3,7 @@
 // the two apps agree (tests/scene-lobule-model.test.ts). One representative lobule stands for the whole liver, read from the right lobe.
 import { EDGES, NODES } from '../../engine/hales/portal/topology.js';
 import { LYMPH, sinusoidPull, tissueP } from '../../engine/hales/portal/lymph.js';
+import { oxygenSat } from '../lenses/blood-model.ts';
 
 const NI: Record<string, number> = Object.fromEntries((NODES as { id: string }[]).map((n, i) => [n.id, i]));
 const EI: Record<string, number> = Object.fromEntries((EDGES as { id: string }[]).map((e, i) => [e.id, i]));
@@ -31,6 +32,10 @@ export interface LobuleModel {
   zone: { pre: number; sin: number; post: number };
   /** pressures at the portal venule, the sinusoids, the central vein and the hepatic vein, mmHg */
   P1: number; P2: number; P3: number; P4: number;
+  /** flows of the three beds (portal inflow, sinusoids, hepatic outflow: edges PRE_R, SIN_RR, POST_R_RHV; mL/s) and the healthy patient's, for the lenses that colour by them */
+  Qs: { pre: number; sin: number; post: number }; Q0: { pre: number; sin: number; post: number };
+  /** oxygen saturation 0..1 at the portal venule, the sinusoids' inlet and the central vein (the oxygen lens) */
+  oxy: [number, number, number];
   /** flows against the healthy patient (1 = normal) */
   flow: number; portal: number; art: number;
   /** which zone's flow runs backwards */
@@ -61,8 +66,12 @@ export function lobuleModel(f: LobuleFrame, healthy?: HealthyRef | null, params?
     post: revOf(Q[EI[LOBE.post]!]!, HQ?.[EI[LOBE.post]!]),
   };
   const fibSin = clamp(Math.log(zone.sin) / 3.2, 0, 1);
+  const bed = (id: string) => Q[EI[id]!]!, bed0 = (id: string) => HQ?.[EI[id]!] ?? bed(id);
+  const ox = oxygenSat(Q, P).node;
   return {
     zone, P1, P2, P3, P4,
+    Qs: { pre: bed(LOBE.pre), sin: bed(LOBE.q), post: bed(LOBE.post) }, Q0: { pre: bed0(LOBE.pre), sin: bed0(LOBE.q), post: bed0(LOBE.post) },
+    oxy: [ox[NI[LOBE.pv]!]!, ox[NI[LOBE.sin]!]!, ox[NI[LOBE.cv]!]!],
     flow: ratio(LOBE.q), portal: ratio(LOBE.pre), art: ratio(LOBE.a), rev,
     lymph: asc?.hepLymph ?? 0, lymph0: healthy?.hepLymph || 0.8, lyProt: asc?.lymphProt ?? 0.88, sigma: asc?.lymphSigma ?? 0.15, iap: asc?.iap ?? 5, alb: p.albumin ?? 4,
     s: sc, cong, fibSin,
