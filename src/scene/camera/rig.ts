@@ -62,6 +62,7 @@ export class CameraRig {
   private hand: View = { k: 1, x: 0, y: 0 };
   private handFrom: View = { k: 1, x: 0, y: 0 };
   private handTween = false;
+  private placedFirst = false;
   readonly reduceMotion: boolean;
 
   constructor(shot: ShotName | Shot = 'title', room?: Room, reduceMotion = false) {
@@ -80,11 +81,23 @@ export class CameraRig {
   }
 
   get isMoving(): boolean { return this.active; }
+  /** Whether the camera has its first real shot and room; nothing is drawn before. */
+  get placed(): boolean { return this.placedFirst; }
   get pose(): Readonly<Pose> { return this.cur; }
 
   /** Fly to a shot (and a room) in one straight move. Called again mid-flight, the new move starts from where the camera is now. */
   goTo(shot: ShotName | Shot, room: Room, now: number, ms = SHOT_MS, keepHand = false): void {
     const s = typeof shot === 'string' ? SHOTS[shot] : shot;
+    // The first shot with a real room is where the camera starts, not somewhere it flies to: until then it has no pose worth showing (the constructor's
+    // title shot filling a canvas that has no size yet), so it is put there at once and nothing is drawn before. (Mohammad, 19 Nov: the figure started at the
+    // top left and zoomed in.)
+    if (!this.placedFirst && room.w > 1 && room.h > 1) {
+      this.placedFirst = true;
+      this.cur = { shot: copyShot(s), room: copyRoom(room) };
+      this.from = this.to = this.cur;
+      this.orbit = this.orbitFrom = 0; this.active = false; this.handTween = false; this.dirty = true;
+      return;
+    }
     this.from = { shot: copyShot(this.cur.shot), room: copyRoom(this.cur.room) };
     this.to = { shot: copyShot(s), room: copyRoom(room) };
     // a new shot takes the hand's zoom and pan back to the shot's own framing, in the same move

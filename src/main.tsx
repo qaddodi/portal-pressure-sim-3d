@@ -9,6 +9,9 @@ import { fontsReady } from './boot/fonts.ts';
 import { bootEngine } from './engine/index.ts';
 import { App } from './App.tsx';
 import { mountPerf } from './ui/perf/mount.ts';
+import { hasWebGL2 } from './boot/webgl.ts';
+import { NoWebGL } from './ui/shell/NoWebGL.tsx';
+import { registerPwa } from './pwa/register.ts';
 import { mountCharts } from './ui/charts/gallery/mount.tsx';
 
 const dark = window.matchMedia('(prefers-color-scheme: dark)');
@@ -26,6 +29,7 @@ async function start() {
     createRoot(document.getElementById('root')!).render(<StrictMode><ParityPage /></StrictMode>);
     return;
   }
+  if (!hasWebGL2()) { createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }
   const [fonts] = await Promise.all([fontsReady(), bootEngine().catch((err) => { console.error(err); })]);
   if (!fonts) console.warn('[boot] fonts were late; continuing with fallback faces');
   createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);

@@ -87,7 +87,7 @@ test('the head: its value flips left near the right edge, the first value stands
   assert.equal(headLeft(100, 50, 40, 13, 330, [[110, 150, 30, 60]]), true);
   const s = flowTimeSeries(await trailOf('healthy', 'cirr-decomp', ['pv', 'pvFlow']), 'meal')!;
   const c = ctxOf('light'), early = flowTimeFrame({ ser: s, clock: 'meal', keys: MEAL_LINES }, -5, c).frame, late = flowTimeFrame({ ser: s, clock: 'meal', keys: MEAL_LINES }, 40, c).frame;
-  const heads = (f: typeof early) => f.shapes.filter((x): x is TextShape => x.k === 'text' && x.weight === 700 && x.size > 13.5);
+  const heads = (f: typeof early) => f.shapes.filter((x): x is TextShape => x.k === 'text' && x.weight === 700 && Math.abs(x.size - 1.1 * c.type.sm) < 1e-9);
   assert.ok(heads(early).every((t) => t.alpha === 0), 'near the start the head value waits');
   assert.ok(heads(late).every((t) => t.alpha === 1));
   assert.equal(heads(late).length, 2);
