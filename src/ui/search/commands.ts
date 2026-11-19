@@ -5,7 +5,7 @@ import { norm, type Command } from './match.ts';
 import { useShell, LENS_IDS } from '../shell/store.ts';
 import { sceneApi } from '../../scene/api.ts';
 import type { LensId } from '../../scene/lenses/model.ts';
-import { isWiredCommand } from './wired.ts';
+import { isWiredCommand, TESTS_PANE } from './wired.ts';
 import { useSettings } from '../../state/settings.ts';
 import { LOOK_IDS, type LookId } from '../../looks/looks.ts';
 import { runFeature, type FeatureId } from '../shell/features.ts';
@@ -15,6 +15,8 @@ import { loadPatient } from '../menu/patients.ts';
 import { PLAYABLE } from '../menu/library.ts';
 import { lensToast } from '../shell/words.ts';
 import { notYet } from '../shell/words.ts';
+import { useTests } from '../tests/store.ts';
+import { BUILT_PANES } from '../tests/panes.ts';
 
 export interface Extra extends Command { wired: boolean }
 
@@ -24,6 +26,10 @@ const FEATURE_OF: Record<string, FeatureId> = { 'Undo (back one change)': 'undo'
 /** The work behind a 2D command, or null where it is not in the 3D app yet. */
 function work(group: string, title: string): ((n: number | null) => void) | null {
   const sh = () => useShell.getState();
+  if (group === 'Tests') {
+    const pane = TESTS_PANE[title];
+    if (pane && BUILT_PANES.includes(pane)) return () => useTests.getState().show(pane);
+  }
   if (group === 'Time') {
     if (title in DAYS) return () => jump(DAYS[title]);
     if (title === 'Until something happens') return () => jump('event');

@@ -6,6 +6,7 @@ import type { ViewId } from './views.ts';
 import { toggleKey } from './views.ts';
 import { notYet } from './words.ts';
 import { freeRoom } from './room.ts';
+import { cutRoom } from '../tests/room.ts';
 import { sceneApi } from '../../scene/api.ts';
 
 const label = (v: ViewId) => UI.views.find((x) => x.id === v)!.label;
@@ -13,7 +14,7 @@ const label = (v: ViewId) => UI.views.find((x) => x.id === v)!.label;
 /** Put the figure's view on the scene and fly the camera to it (the Circuit is the Anatomy body until its batch lands). */
 export function showView(v: ViewId): void {
   const { vp, device } = useUi.getState();
-  const room = freeRoom(vp, device);
+  const room = cutRoom(freeRoom(vp, device));
   sceneApi.showView(v === 'lobule' ? 'lobule' : v === 'sinusoid' ? 'sinusoid' : 'body', room);
 }
 

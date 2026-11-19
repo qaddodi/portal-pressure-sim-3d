@@ -23,6 +23,9 @@ import { useBlood } from '../../scene/blood/options.ts';
 import { useLabels } from '../../scene/labels/store.ts';
 import { Legend } from '../../scene/lenses/Legend.tsx';
 import { footHeight } from './room.ts';
+import { useTestsRoom } from '../tests/room.ts';
+import { roomWith } from '../tests/place.ts';
+import { TestsLayer } from '../tests/TestsLayer.tsx';
 
 /** The screen's size and its safe areas, measured when either changes (never per frame). Free play needs it too: the talk's own UI measures only while it is mounted. */
 function useViewport(probe: React.RefObject<HTMLDivElement | null>) {
@@ -45,13 +48,14 @@ function useFreeCamera() {
   const mode = useShell((s) => s.mode);
   const refit = useShell((s) => s.refit);
   const vp = useUi((s) => s.vp), device = useUi((s) => s.device);
+  const testsPlace = useTestsRoom((s) => s.place);   // (the Tests card takes room from the figure)
   const entered = useRef(false);
   useEffect(() => {
     if (mode !== 'free' || vp.w <= 0) { entered.current = false; return; }
-    const room = freeRoom(vp, device);
+    const room = roomWith(freeRoom(vp, device), testsPlace);
     if (room.w <= 0 || room.h <= 0) return;
     if (!entered.current) { entered.current = true; showView(useShell.getState().view); } else sceneApi.setRoom(room);
-  }, [mode, vp, device]);
+  }, [mode, vp, device, testsPlace]);
   const seen = useRef(refit);
   useEffect(() => { if (refit !== seen.current) { seen.current = refit; sceneApi.refit(); } }, [refit]);
 }
@@ -85,6 +89,7 @@ export function Shell() {
           </div>
         )}
         <div className="sh-key" data-hidden={mode === 'deck'} style={{ bottom: `calc(var(--safe-b, 0px) + ${bottom ? footHeight(device) : 18}px)` }}><Legend /></div>
+        {mode === 'free' && <TestsLayer />}
         <Sheets />
         <Toast />
         <Diagnostics />

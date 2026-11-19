@@ -13,6 +13,7 @@ import { settle, setSpeed, step, togglePlay } from '../shell/transport.ts';
 import { leaveTalk } from '../shell/talk.ts';
 import { openGuide } from '../shell/HelpSheets.tsx';
 import { SETTLED, lensToast, speedToast } from '../shell/words.ts';
+import { useTests } from '../tests/store.ts';
 
 export function targetOf(el: EventTarget | null): Target {
   const t = el as HTMLElement | null;
@@ -33,6 +34,7 @@ export function carryOut(a: KeyAction): void {
     case 'close':
       if (sh.dialog) useShell.setState({ dialog: null });
       else if (sh.sheet) sh.close();
+      else if (useTests.getState().open) { const t = useTests.getState(); if (t.why) t.closeWhy(); else t.close(); }   // (the Tests card: its Why? first, then the card)
       else if (sh.mode === 'deck') leaveTalk();
       break;
     case 'undo': runFeature('undo', UI.playbar.menu[2]); break;
