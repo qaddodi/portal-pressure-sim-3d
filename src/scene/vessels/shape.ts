@@ -4,11 +4,12 @@ import type { Vec3 } from '../anatomy/vessels.ts';
 import { len3, x3, y3 } from '../frame2d.ts';
 import { TIER_Z } from '../frame2d.ts';
 import { coilCourses } from './coil.ts';
-import { NODE_Z, type NetVessel } from './network.ts';
+import { NETWORK_BY_ID, NODE_Z, type NetVessel } from './network.ts';
+import { CAV, cavChannels, cavGrowth } from './cav.ts';
 import { type Course, tubularFor } from './tubes.ts';
 
-export interface ShapeState { wig: number; spr: number; /** strands drawn (a closed, dotted collateral has none) */ strandsOn: boolean; /** a feeder group's 0 to 1 live share */ live: number }
-export const REST: ShapeState = { wig: 0, spr: 1, strandsOn: true, live: 1 };
+export interface ShapeState { wig: number; spr: number; /** how far the collaterals are recruited, 0 to 1 (the cavernoma's channels grow with it) */ rec: number; /** strands drawn (a closed, dotted collateral has none) */ strandsOn: boolean; /** a feeder group's 0 to 1 live share */ live: number }
+export const REST: ShapeState = { wig: 0, spr: 1, rec: 1, strandsOn: true, live: 1 };
 
 const smooth = (u: number) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
 /** The course in the scene: x and y by the one linear map; depth is the vessel's tier between, easing over its first and last quarter to the depth of the node it meets, so
@@ -24,7 +25,15 @@ const minR = len3(0.35);
 export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
   const plan = v.plan!, z = TIER_Z[v.tier];
   if (plan.kind === 'coil') {
-    const { main, strands } = coilCourses(v.id, plan.base as [number, number][], plan.coils, s.wig, s.spr);
+    const coiled = coilCourses(v.id, plan.base as [number, number][], plan.coils, s.wig, s.spr);
+    const { main } = coiled;
+    let { strands } = coiled;
+    if (v.id === 'C8') {
+      // the cavernoma: channels in the frame of the clotted trunk (its two pieces), grown with the recruitment, each whole and joined at both ends
+      const trunk = ['PV_TRUNK_1', 'PV_TRUNK'].map((id) => (NETWORK_BY_ID.get(id)!.plan as unknown as { base: [number, number][] }).base);
+      const ch = cavChannels(trunk, main);
+      strands = ch.map((pts, i) => ({ pts, k: Math.max(0.001, CAV[i]!.k * cavGrowth(i, s.rec)) }));
+    }
     const zf = NODE_Z.get(v.from), zt = NODE_Z.get(v.to);
     const m = to3(main, z, zf, zt);
     return [{ pts: m, radius: v.radius, taper: v.taper, flare: v.flare }, ...strands.map((c) => (s.strandsOn ? { pts: to3(c.pts, z, zf, zt), radius: Math.max(minR, v.radius * c.k) } : { pts: m, radius: v.radius, taper: v.taper, flare: v.flare }))];
