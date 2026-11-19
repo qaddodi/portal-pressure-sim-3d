@@ -7,6 +7,7 @@ import { CATHS, type CathState, type Deck, type EqPart, type Slide, type SlideTi
 import { planSlide } from './plan.ts';
 import { controlsOf } from '../controls.ts';
 import { playsLapse } from './lapse.ts';
+import { instrumentOf } from '../../ui/talk/slide-instrument.generated.js';
 import type { CopiedDeck, CopiedSlide } from './types.ts';
 
 const TAG = /<(mi|mo|msub)\b([^>]*)>(.*?)<\/\1>/g;
@@ -85,7 +86,11 @@ export function slideOf(deckId: string, s: CopiedSlide, i: number, prevCath: Cat
 const COPIED = new Map<string, CopiedDeck>();
 export const copiedOf = (id: string): CopiedDeck | undefined => COPIED.get(id);
 
-export function toDeck(c: CopiedDeck): Deck {
+/** Every slide through 2D's own slide-instrument.js, as the presenter does once a deck is loaded: a time-lapse slide that names no instrument gets the flow-time chart of its two tiles, a procedure slide its event graph. */
+const withInstruments = (c: CopiedDeck): CopiedDeck => ({ ...c, slides: c.slides.map((s) => (instrumentOf(s) ?? s) as CopiedSlide) });
+
+export function toDeck(c0: CopiedDeck): Deck {
+  const c = withInstruments(c0);
   COPIED.set(c.id, c);
   let cath: CathState | undefined;
   const slides = c.slides.map((s, i) => { const x = slideOf(c.id, s, i, cath); if (x.cath) cath = x.cath; else if (!s.cathKeep) cath = undefined; return x; });
