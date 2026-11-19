@@ -22,5 +22,5 @@ export const BUILT_PANES: readonly PaneId[] = [
   // hvpg
   // doppler
   // endoscopy
-  // fibroscan
+  'fibroscan',
 ];
