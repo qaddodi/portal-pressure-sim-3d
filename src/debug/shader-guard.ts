@@ -28,7 +28,8 @@ export function plainFor(m: ShaderMaterial): MeshBasicMaterial {
 /** The kind a failure is filed under: a vessel's program has the `inkColor` uniform, the rest are named by the material or the mesh. */
 export const kindOf = (m: ShaderMaterial, mesh: Object3D): string => ((m.uniforms as Record<string, unknown>).inkColor ? 'vessel' : m.name || mesh.name || 'scene');
 
-export function installShaderGuard(renderer: GuardRenderer, root: Object3D, after: () => void = () => undefined): () => void {
+/** `extras`: materials drawn outside the scene graph (the anti-aliasing pass's); one whose program is refused is told through its `userData.onFail`. */
+export function installShaderGuard(renderer: GuardRenderer, root: Object3D, after: () => void = () => undefined, extras: () => readonly Material[] = () => []): () => void {
   const before = renderer.debug.onShaderError;
   const handler = (gl: GuardGL, program: unknown, vs: unknown, fs: unknown): void => {
     const log = [gl.getShaderInfoLog(vs), gl.getShaderInfoLog(fs), gl.getProgramInfoLog(program)].map((s) => (s ?? '').trim()).filter(Boolean).join('\n');
@@ -37,13 +38,15 @@ export function installShaderGuard(renderer: GuardRenderer, root: Object3D, afte
       const m = (o as Mesh).material as Material | undefined;
       if (isShader(m) && (renderer.properties.get(m) as { currentProgram?: { program?: unknown } } | undefined)?.currentProgram?.program === program) worn.push({ mesh: o as Mesh, m });
     });
+    const lent: Material[] = [];
+    for (const m of extras()) if ((renderer.properties.get(m) as { currentProgram?: { program?: unknown } } | undefined)?.currentProgram?.program === program) { lent.push(m); (m.userData as { onFail?: () => void }).onFail?.(); }
     for (const { mesh, m } of worn) {
       // a veil (the faint copy over the organs, and its depth-only pass) has no plain form worth drawing: the solid tube it veils is drawn
       if ((m.defines as Record<string, unknown> | undefined)?.VEIL) mesh.visible = false;
       else mesh.material = plainFor(m);
     }
-    reportShaderFailure({ kind: worn.length ? kindOf(worn[0]!.m, worn[0]!.mesh) : 'scene', meshes: worn.length, log });
-    console.error(`[shader] a program the device refused; ${worn.length} mesh(es) drawn plain\n${log}`);
+    reportShaderFailure({ kind: worn.length ? kindOf(worn[0]!.m, worn[0]!.mesh) : lent.length ? 'post aa' : 'scene', meshes: worn.length + lent.length, log });
+    console.error(`[shader] a program the device refused; ${worn.length} mesh(es) drawn plain${lent.length ? ', the anti-aliasing pass is off' : ''}\n${log}`);
     after();
   };
   renderer.debug.onShaderError = handler;

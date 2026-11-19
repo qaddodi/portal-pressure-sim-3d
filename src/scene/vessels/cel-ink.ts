@@ -24,7 +24,11 @@ const clamp = (x: number, a: number, b: number): number => Math.min(Math.max(x, 
 const smoothstep = (a: number, b: number, x: number): number => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
 /** The outline's width in device px for a tube of screen radius `rDev` device px. */
-export const inkWidthDev = (rDev: number): number => clamp(CEL.LINE_R * rDev, CEL.LINE_MIN, CEL.LINE_MAX);
+export const inkWidthDev = (rDev: number): number => clamp(CEL.LINE_R * rDev, CEL.LINE_MIN, CEL.LINE_MAX) * inkTaper(rDev);
+/** The outline's floor (1.5 device px) would swallow a lumen under it: at a radius of 0.5 px the line is 1.5 each side of a 1 px lumen, 25 % colour. Below `TAPER_TO` device px of radius the line
+ *  thins with the lumen (from nothing at `TAPER_FROM`), so the smallest branches keep their colour; from `TAPER_TO` up it is the 2D line. A picked vessel's ring is not tapered. */
+export const TAPER_FROM = 0.3, TAPER_TO = 1.5;
+export const inkTaper = (rDev: number): number => smoothstep(TAPER_FROM, TAPER_TO, rDev);
 
 /** The tones at a pixel: `across` -1..1 across the tube, `side` the unit screen direction (view axes, y up) of the tube's cross axis, `rDev` its radius in device px. Returns the
  *  multiplier on the fill (1 - 0.17 shadow) and the share lifted toward white (0.15 lit); both are 0 on a hairline. */

@@ -69,7 +69,7 @@ function sampleCurve(c: CatmullRomCurve3, n: number): Vector3[] {
 }
 
 /** The map course as a curve in the scene (dense enough that the rounded corners keep their shape). */
-function mapCurve(dense: [number, number][]): CatmullRomCurve3 {
+export function mapCurve(dense: [number, number][]): CatmullRomCurve3 {
   const { total } = cumulative(dense);
   const n = Math.max(24, Math.min(600, Math.ceil(total / 2.5)));
   const pts = resample(dense, n).map(([x, y]) => { const p = mapToScene(x, y); return new Vector3(p[0], p[1], p[2]); });
