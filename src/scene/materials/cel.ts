@@ -1,5 +1,5 @@
 import {
-  BackSide, type BufferGeometry, Color, DataTexture, FloatType, Group, LinearSRGBColorSpace, Mesh, NearestFilter, RGBAFormat, ShaderMaterial, type Texture, Vector2, Vector3,
+  BackSide, type BufferGeometry, Color, DataTexture, FloatType, Group, KeepStencilOp, LinearSRGBColorSpace, Mesh, NearestFilter, NotEqualStencilFunc, ReplaceStencilOp, RGBAFormat, ShaderMaterial, type Texture, Vector2, Vector3,
 } from 'three';
 import { INK_FS, INK_VS, TOON_FS, TOON_VS } from './shaders.ts';
 import { type Palette, type ToneKey, flowMarkColours, highlightColour } from '../palette.ts';
@@ -42,6 +42,8 @@ export interface CelOptions {
   spec: 0 | 1;
   /** Ink width in CSS pixels (section 3). */
   px: number;
+  /** A tube of the vessels' own look (plexus strands, varices): the three screen-lit tones and no rim, not the world-lit bands (materials/shaders.ts TUBE_TONES). */
+  tubeTones?: boolean;
   /** Vessels only: the texel of this vessel in the data texture, its curve length, tube radius, healthy diameter (mm) and the flow speed used until data arrives. */
   vessel?: { index: number; len: number; stubSpeed: number; radius: number; baseD: number };
 }
@@ -79,7 +81,7 @@ export class CelObject {
       vertexShader: TOON_VS,
       fragmentShader: TOON_FS,
       // a geometry with an `ink` attribute carries its own colour at each vertex (setInk): the shader reads it in place of the tone
-      defines: geometry.getAttribute('ink') ? { VERTEX_INK: '' } : undefined,
+      ...(geometry.getAttribute('ink') || opts.tubeTones ? { defines: { ...(geometry.getAttribute('ink') ? { VERTEX_INK: '' } : {}), ...(opts.tubeTones ? { TUBE_TONES: '' } : {}) } } : {}),
       uniforms: {
         color: { value: new Color() }, shade: { value: new Color() }, light: shared.light,
         bands: { value: opts.bands }, spec: { value: opts.spec }, inflate: { value: 0 },
@@ -133,6 +135,8 @@ export class CelObject {
     this.ink.uniforms.inkA!.value = alpha;
     this.ink.transparent = alpha < 1;
     this.ink.depthWrite = alpha >= 1;
+    // one outline round the union, as the vessels' (vessels/vessel-object.ts hullMat): a pixel takes the ink once, strands crossing each other and their vein included
+    this.ink.stencilWrite = alpha < 1; this.ink.stencilRef = 1; this.ink.stencilFunc = NotEqualStencilFunc; this.ink.stencilFail = KeepStencilOp; this.ink.stencilZFail = KeepStencilOp; this.ink.stencilZPass = ReplaceStencilOp;
     this.basePx = devPx / Math.max(dpr, 1);
     this.ink.uniforms.px.value = this.basePx;
     this.toon.uniforms.spec.value = 0;

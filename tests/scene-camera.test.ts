@@ -201,7 +201,7 @@ test('the scene draws only the background until the camera is placed, then the f
   const { CelScene } = await import('../src/scene/scene.ts');
   const s = new CelScene();
   const calls: string[] = [];
-  const gl = { autoClear: true, setClearColor: () => {}, render: () => { calls.push('render'); }, clear: () => { calls.push('clear'); }, clearDepth: () => { calls.push('depth'); } } as never;
+  const gl = { autoClear: true, setClearColor: () => {}, render: () => { calls.push('render'); }, clear: () => { calls.push('clear'); }, clearDepth: () => { calls.push('depth'); }, clearStencil: () => {} } as never;
   s.resize(800, 600);
   s.render(gl);
   s.goTo('play', { x: 300, y: 80, w: 480, h: 420 }, 0);

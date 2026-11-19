@@ -634,7 +634,7 @@ export class CelScene {
     cam.layers.set(0);
     gl.render(this.scene, cam);
     gl.autoClear = false;
-    gl.clearDepth();
+    gl.clearDepth(); gl.clearStencil();   // (the outlines' stencil goes with the depth: each pass inks a pixel once, vessel-object.ts hullMat)
     cam.layers.set(VESSEL_LAYER);
     gl.render(this.scene, cam);
     gl.autoClear = ac;
