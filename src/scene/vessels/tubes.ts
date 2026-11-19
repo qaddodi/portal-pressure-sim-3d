@@ -13,6 +13,8 @@ export interface Course {
   /** the fillet collars at the two ends where this tube ends on a trunk (network.ts Flare): extra radius at the wall that melts into the tube over `span` */
   /** a varix's beading (varix-bead.js): the radius swells and narrows along it by `b`, phase `ph`, from `u0`, one bead every `lambda` of the course's `len` (2D units) */
   bead?: { b: number; ph: number; u0: number; lambda: number; len: number };
+  /** the ends that carry on into another tube, which need no cap (network.ts `joined`) */
+  capless?: readonly [boolean, boolean];
   flare?: readonly [{ add: number; wall: number; span: number } | null, { add: number; wall: number; span: number } | null];
 }
 const smooth = (u: number) => u * u * (3 - 2 * u);
@@ -68,7 +70,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     tube.setAttribute('tang', new Float32BufferAttribute(tang, 3));
     const group: BufferGeometry[] = [tube];
     for (const end of [0, 1]) {
-      const capR = open ? c.radius * factorAt(c.taper, end) + flareAdd(c.flare?.[end], 0) : HAIR;
+      const capR = open && !c.capless?.[end] ? c.radius * factorAt(c.taper, end) + flareAdd(c.flare?.[end], 0) : HAIR;
       const s = new SphereGeometry(capR, 14, 10);
       const pos = curve.getPointAt(end), t = curve.getTangentAt(end);
       s.translate(pos.x, pos.y, pos.z);
@@ -78,7 +80,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
       s.setAttribute('tang', new Float32BufferAttribute(tg, 3));
       group.push(s);
     }
-    for (const e of [1, 2]) group[e]!.setAttribute('rk', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(open ? (c.radius * factorAt(c.taper, e - 1) + flareAdd(c.flare?.[e - 1], 0)) / radius0 : 0), 1));
+    for (const e of [1, 2]) group[e]!.setAttribute('rk', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(open && !c.capless?.[e - 1] ? (c.radius * factorAt(c.taper, e - 1) + flareAdd(c.flare?.[e - 1], 0)) / radius0 : 0), 1));
     const tubeCount = tube.attributes.position!.count, capCount = group[1]!.attributes.position!.count;
     runs.push({ curve, tubular: seg, radial: RADIAL, tubeStart: at, tubeCount, capStart: at + tubeCount, capCount });
     at += tubeCount + 2 * capCount;

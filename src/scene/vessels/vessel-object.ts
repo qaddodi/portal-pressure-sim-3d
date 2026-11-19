@@ -153,17 +153,25 @@ export class VesselObject extends CelObject {
     (this.toon.uniforms.fadeA!.value as Vector4).w = this.tip.a1 + (1 - this.tip.a1) * whole;
   }
 
-  private veil: { mesh: Mesh; mat: ShaderMaterial; overLayer: number; faint: boolean; whole: boolean } | null = null;
+  private veil: { mesh: Mesh; depth: Mesh; mat: ShaderMaterial; pre: ShaderMaterial; overLayer: number; faint: boolean; whole: boolean } | null = null;
   /** A vessel the 2D figure draws behind the organs (BACK_EDGES; the cava above all): it is drawn with the organs, so one in front hides it, and again over them at 0.4, the organ's veil, so
    *  it shows through faintly (stage.js VEIL_K). `faint`: faded along its whole course as well (the cava, F_VEIL), not only where an organ is over it. `overLayer` is the camera layer of what is drawn over the organs. */
   setBehindOrgans(overLayer: number, faint: boolean): void {
     if (this.veil) return;
     const mat = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, side: DoubleSide, transparent: true, depthWrite: false, defines: { VEIL: 1 } });
+    // The veil is one layer, not several: a depth-only pass (same shader, so the same silhouette, pushed a hair farther) comes first for every veiled vessel, and the colour pass then draws only
+    // where it is the nearest. Without it the tube's own back faces, its ink and the round caps of the next piece blend over each other and show as dark ball joints and a dark core (Mohammad's
+    // iPhone, 19 Nov 2026: "the cava ghost shows dark ball joints").
+    const pre = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, side: DoubleSide, transparent: true, colorWrite: false, depthWrite: true, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, defines: { VEIL: 1 } });
+    const depth = new Mesh(this.toonMesh.geometry, pre);
+    depth.matrixAutoUpdate = true; depth.renderOrder = 1;
+    depth.layers.set(overLayer);
+    this.group.add(depth);
     const mesh = new Mesh(this.toonMesh.geometry, mat);
-    mesh.matrixAutoUpdate = true; mesh.renderOrder = 1;
+    mesh.matrixAutoUpdate = true; mesh.renderOrder = 2;
     mesh.layers.set(overLayer);
     this.group.add(mesh);
-    this.veil = { mesh, mat, overLayer, faint, whole: false };
+    this.veil = { mesh, depth, mat, pre, overLayer, faint, whole: false };
     // drawn with the organs (layer 0), or, faint all along, not drawn solid at all (its mesh stays for picking, on a layer no pass draws)
     this.toonMesh.layers.set(faint ? FAINT_ONLY_LAYER : 0);
   }
@@ -174,13 +182,13 @@ export class VesselObject extends CelObject {
     if (!v) return;
     v.mat.uniforms.veilA!.value = 0.4 + 0.6 * k;
     const whole = k >= 1;
-    v.mesh.visible = !whole;
+    v.mesh.visible = v.depth.visible = !whole;
     if (whole !== v.whole) {
       v.whole = whole;
       this.toonMesh.layers.set(whole ? v.overLayer : v.faint ? FAINT_ONLY_LAYER : 0);
     }
   }
-  override dispose(): void { this.veil?.mat.dispose(); super.dispose(); }
+  override dispose(): void { this.veil?.mat.dispose(); this.veil?.pre.dispose(); super.dispose(); }
 
   /** A closed potential collateral: a dotted thread with no ink. */
   setDotted(on: boolean): void { this.toon.uniforms.dotted!.value = on ? 1 : 0; this.toon.uniforms.hullOn!.value = on ? 0 : 1; }
