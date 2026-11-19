@@ -5,7 +5,7 @@ import { LOOKS, type LookId } from '../../looks/looks.ts';
 import { PALETTES, type Palette, type ToneKey, hexToRgb255 } from '../palette.ts';
 
 export const EXTRA_TONES = [
-  'cord1', 'cord2', 'cord3', 'floor', 'sin0', 'sin1', 'sin2', 'artery', 'bile', 'lymph', 'amber', 'collagen', 'stellate', 'kupffer', 'fen', 'disse',
+  'cord1', 'cord2', 'cord3', 'floor', 'sin0', 'sin1', 'sin2', 'artery', 'bile', 'lymph', 'amber', 'collagen', 'stellate', 'kupffer', 'fen', 'disse', 'endo', 'nucleus', 'bileLight',
 ] as const;
 export type ExtraTone = (typeof EXTRA_TONES)[number];
 
@@ -51,6 +51,9 @@ export function extendPalette(p: Palette, id: LookId): Palette {
   tones.kupffer = dark ? '#8DB0D8' : '#5B7FAE';
   tones.fen = l.ink;
   tones.disse = mix(l.plate, tones.lymph, 0.35);
+  tones.endo = mix(l.plate, l.ink, 0.16);
+  tones.nucleus = mix(tones.cord3, l.ink, 0.28);
+  tones.bileLight = mix(l.plate, tones.bile, 0.45);
   return { ...p, tones: tones as Palette['tones'] };
 }
 

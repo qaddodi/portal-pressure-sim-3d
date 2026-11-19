@@ -17,6 +17,8 @@ export interface TubeOptions {
   radial?: number;
   /** Flat caps at both ends (axial vessels seen end-on). */
   capped?: boolean;
+  /** Squash the tube's depth (z) to this share of its width: a channel cut along its length reads as a flat band with a rounded face (the sinusoid's lumen), and its chevrons still point. */
+  squash?: number;
 }
 
 export class Batch {
@@ -60,8 +62,10 @@ export class Batch {
       for (let j = 0; j <= radial; j++) {
         const a = (j / radial) * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
         const nx = N.x * c + B.x * s, ny = N.y * c + B.y * s, nz = N.z * c + B.z * s;
-        this.pos.push(P[i]!.x + nx * r, P[i]!.y + ny * r, P[i]!.z + nz * r);
-        this.nor.push(nx, ny, nz);
+        const k = o.squash ?? 1;
+        this.pos.push(P[i]!.x + nx * r, P[i]!.y + ny * r, P[i]!.z + nz * r * k);
+        if (k === 1) this.nor.push(nx, ny, nz);
+        else { const l = Math.hypot(nx, ny, nz / k) || 1; this.nor.push(nx / l, ny / l, nz / k / l); }
         this.uv.push(ux, j / radial);
         this.tan.push(T[i]!.x, T[i]!.y, T[i]!.z);
         this.count++;
