@@ -11,7 +11,7 @@
 // The 2D coordinates are kept: x in micrometres along the flow (portal end left), y across, DOWN in the shader (its upper Disse is y < 0); here the plane's y runs up and the shader's
 // is its mirror. The dive (WP8) drives `setDive(g)`: 0 as the camera leaves the lobule, 1 as it lands, the tissue coming in over all of it and its detail last, as 2D's zoom does.
 import {
-  AddEquation, BufferAttribute, BufferGeometry, CustomBlending, DoubleSide, DynamicDrawUsage, Group, Mesh, OneFactor, OneMinusSrcAlphaFactor, Points, RawShaderMaterial, Vector2, Vector3, Vector4,
+  AddEquation, BufferAttribute, BufferGeometry, CustomBlending, DoubleSide, DynamicDrawUsage, GLSL3, Group, Mesh, OneFactor, OneMinusSrcAlphaFactor, Points, RawShaderMaterial, Vector2, Vector3, Vector4,
 } from 'three';
 import type { CelObject, CelShared } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
@@ -126,8 +126,11 @@ export class SinusoidView {
     quad.setAttribute('position', new BufferAttribute(new Float32Array([-h, -h, 0, h, -h, 0, h, h, 0, -h, h, 0]), 3));
     quad.setIndex([0, 1, 2, 0, 2, 3]);
     const mk = (vs: string, fs: string, uni: Record<string, Uniform>) => {
+      // A RawShaderMaterial gets three's own `#define` lines in front of its source, so a `#version` inside the source is no longer the first thing and the driver refuses it
+      // ('#version directive must occur before anything else'): the version goes in `glslVersion`, which three puts first (found by tests/glsl-compile.test.ts, which builds the text three builds).
+      const noVersion = (src: string) => src.replace(/^#version 300 es\n/, '');
       const m = new RawShaderMaterial({
-        vertexShader: vs, fragmentShader: fs, uniforms: uni, side: DoubleSide, depthTest: false, depthWrite: false, transparent: true,
+        glslVersion: GLSL3, vertexShader: noVersion(vs), fragmentShader: noVersion(fs), uniforms: uni, side: DoubleSide, depthTest: false, depthWrite: false, transparent: true,
         blending: CustomBlending, blendEquation: AddEquation, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
       });
       this.mats.push(m);

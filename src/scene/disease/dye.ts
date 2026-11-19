@@ -39,6 +39,9 @@ interface FrameArrays { Qf?: ArrayLike<number>; Q: ArrayLike<number>; D: ArrayLi
 interface Overlay { mesh: Mesh; k: number; has: boolean }
 
 /** A vessel's mean velocity in cm/s from its flow (mL/s) and diameter (mm). */
+/** The two programs, for tests/glsl-compile.test.ts and ?gl (src/debug/gl-programs.ts). */
+export { VS as DYE_VS, FS as DYE_FS };
+
 export const velocityOf = (q: number, dmm: number): number => q / (Math.PI * (Math.max(dmm, 0.1) / 20) ** 2);
 
 export class DyeLayer {

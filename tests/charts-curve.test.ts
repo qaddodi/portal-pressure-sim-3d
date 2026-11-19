@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { pinned2D } from './two-d-pin.ts';
 import * as P0 from '../src/ui/charts/curve/curve-pure.generated.js';
 import * as C0 from '../src/ui/charts/curve/course-pure.generated.js';
 import { curveFrame, curveGeo, withAtX } from '../src/ui/charts/curve/frame.ts';
@@ -137,8 +137,9 @@ test('the plot keeps its height when the key needs a row: more rows only come fr
   assert.ok(G.keyH >= 1.5 * c.type.sm);
 });
 
-test('the copied 2D code is what the 2D app has (when its checkout is here)', { skip: !existsSync('/home/claude/portal-pressure-simulator/src/ui/tool-curve.js') }, () => {
-  execFileSync('node', ['scripts/copy-chart-curve.mjs', '--from', '/home/claude/portal-pressure-simulator', '--check'], { stdio: 'pipe' });
+const two = pinned2D('src/ui/tool-curve.js');
+test('the copied 2D code is what the 2D app has at the pin (when its checkout is here)', { skip: two.skip }, () => {
+  execFileSync('node', ['scripts/copy-chart-curve.mjs', '--from', two.repo, '--check'], { stdio: 'pipe' });
 });
 
 test('the sweep is asked of the worker as the presenter asks it: the steps, from the slide\'s own state, then the dots made from a preset on fresh models', async () => {

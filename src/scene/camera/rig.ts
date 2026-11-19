@@ -15,8 +15,8 @@ export const ORBIT_PER_PX = 0.006;
  *  (touch, mouse, pen and trackpad all arrive as pointer events); Stage.tsx calls nothing else. */
 export const dragToOrbit = (start: number, dx: number): number => start - dx * ORBIT_PER_PX;
 
-/** The turn `t` ms after the hand lifted from `x0` (radians) at rest: a critically damped spring home to the shot, `(x0 (1 + ωs)) e^(-ωs)` with s in seconds. It never overshoots,
- *  is `x0` at 0 and settles (under a thousandth of a radian) in about 1.3 s at ORBIT_HOME_OMEGA. The gesture controller steps it; this is the one place its shape lives. */
+/** The turn `t` ms after Fit started it home from `x0` (radians): a critically damped spring home to the shot, `(x0 (1 + ωs)) e^(-ωs)` with s in seconds. It never overshoots,
+ *  is `x0` at 0 and settles (under a thousandth of a radian) in about 1.3 s at ORBIT_HOME_OMEGA. The gesture controller steps it on Fit (refit); this is the one place its shape lives. */
 export const orbitHome = (x0: number, t: number, omega = ORBIT_HOME_OMEGA): number => {
   const s = Math.max(0, t) / 1000;
   return x0 * (1 + omega * s) * Math.exp(-omega * s);
@@ -87,6 +87,8 @@ export class CameraRig {
   private active = false;
   private orbit = 0;
   private orbitFrom = 0;
+  /** Where the turn is heading with the move in flight: 0 (a new shot starts square on), or where it stands when only the room changed (a card opened). */
+  private orbitTo = 0;
   private width = 1;
   private height = 1;
   private dirty = true;
@@ -144,6 +146,7 @@ export class CameraRig {
     this.handTween = keepHand ? this.handTween : this.hand.k !== 1 || this.hand.x !== 0 || this.hand.y !== 0;
     this.t0 = now;
     this.dur = reducedMs(ms, this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
+    this.orbitTo = keepHand ? (this.active ? this.orbitTo : this.orbit) : 0;
     this.orbitFrom = this.orbit;
     this.active = true;
     this.dirty = true;
@@ -156,7 +159,7 @@ export class CameraRig {
   setOrbit(rad: number): boolean {
     const o = Math.max(-ORBIT_LIMIT, Math.min(ORBIT_LIMIT, rad));
     if (o === this.orbit) return false;
-    this.orbit = o; this.orbitFrom = o; this.dirty = true;
+    this.orbit = o; this.orbitFrom = o; this.orbitTo = o; this.dirty = true;
     return true;
   }
   get orbitAngle(): number { return this.orbit; }
@@ -203,8 +206,8 @@ export class CameraRig {
     if (this.active) {
       const k = this.dur <= 0 ? 1 : Math.min(1, (now - this.t0) / this.dur);
       this.cur = blendPose(this.from, this.to, easeInOutCubic(k));
-      // the orbit eases back to centre with the shot: a new shot always starts square on
-      this.orbit = lerp(this.orbitFrom, 0, easeInOutCubic(k));
+      // the orbit eases back to centre with the shot (a new shot always starts square on), but a change of room alone (a card opening) leaves the turn the viewer chose
+      this.orbit = lerp(this.orbitFrom, this.orbitTo, easeInOutCubic(k));
       if (this.handTween) { lerpView(this.handFrom, { k: 1, x: 0, y: 0 }, easeInOutCubic(k), this.hand); if (k >= 1) this.handTween = false; }
       if (k >= 1) this.active = false; else moving = true;
       this.dirty = true;

@@ -13,6 +13,7 @@ import { useShell } from '../../shell/store.ts';
 import { useSettings } from '../../../state/settings.ts';
 import { readerList } from '../core/registry.copied.js';
 import { buildLabel } from '../../shell/build-pill.ts';
+import { shaderFailures } from '../../../debug/shader-fail.ts';
 
 /** The sliders: what was changed from the loaded patient's own settings (a difference, never the whole tree), or null for none or when no patient base is known. */
 export function paramsDelta(): Record<string, unknown> | null {
@@ -69,6 +70,9 @@ export async function packetNow({ note = '' }: { note?: string } = {}): Promise<
     text = `(the screen report failed: ${(e as Error)?.message ?? e})`;
     findings = [{ rule: 'screen-failed', what: 'The screen report could not be made', where: String((e as Error)?.message ?? e) }];
   }
+  // a program this device's driver refused is the first thing a bug packet says: the parts that wore it are drawn plain (src/debug/shader-guard.ts)
+  const refused = shaderFailures().map((f) => ({ rule: 'shader-failed', what: `A ${f.kind} shader was refused by this device's driver (${f.meshes} part${f.meshes === 1 ? '' : 's'} drawn plain)`, where: f.log.replace(/\s+/g, ' ').slice(0, 400), why: 'A GPU refuses a program no node test compiles; open ?gl for every program', owner: 'src/debug/shader-guard.ts', scope: 'gpu' }));
+  if (refused.length) findings = [...refused, ...(findings ?? [])];
   const mem = app.memory;
   return buildPacket({ state, link, screen, screenText: text, history, findings, watchFindings, device: deviceInfo(), build: buildInfo(), health: { errors: caughtCount(), ...(mem.gpuMB != null ? { gpuMB: Math.round(mem.gpuMB) } : {}) } }, { note });
 }
