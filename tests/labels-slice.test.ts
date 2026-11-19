@@ -159,3 +159,27 @@ test('the figure key stands where the 2D app docks it, clear of every label, and
     assert.equal(h.ctl.out.length, 0, 'the key fades with the labels while the picture moves');
   }
 });
+
+test('the organs\' names (Figure > Labels) stand in the view, clear of the cards and of one another, on every screen and every slide', () => {
+  let most = 0;
+  for (const screen of Object.keys(SCREENS) as (keyof typeof SCREENS)[]) {
+    const vp = SCREENS[screen], view: Box = { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom };
+    stops.forEach((s, i) => {
+      if (s.kind === 'slide' && s.slide.scene && s.slide.scene.view !== 'body') return;
+      const h = harness(screen, i);
+      if (h.lab.cath) return;      // the catheter hides the names
+      h.ctl.setState({ ...NO_STATE, named: h.lab.named, cath: h.lab.cath, organNames: true });
+      h.settle();
+      const organs = h.ctl.out.filter((d) => d.id.startsWith('organ:'));
+      if (screen === 'mac') most = Math.max(most, organs.length);
+      for (const d of organs) {
+        const b: Box = { x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h };
+        assert.ok(b.x0 >= view.x0 - 0.01 && b.y0 >= view.y0 - 0.01 && b.x1 <= view.x1 + 0.01 && b.y1 <= view.y1 + 0.01, `${screen} ${i}: ${d.id} left the view`);
+        for (const c of h.blockers) assert.ok(!hits(b, c), `${screen} ${i}: ${d.id} stands under a card`);
+      }
+      const all = h.ctl.out.map((d) => ({ id: d.id, b: { x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h } as Box }));
+      for (let a = 0; a < all.length; a++) for (let b = a + 1; b < all.length; b++) assert.ok(!hits(all[a].b, grow(all[b].b, 2)), `${screen} ${i}: ${all[a].id} overlaps ${all[b].id}`);
+    });
+  }
+  assert.ok(most >= 3, `a framing of the whole body names ${most} organs on the Mac`);
+});
