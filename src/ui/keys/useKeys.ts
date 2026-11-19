@@ -37,7 +37,7 @@ export function carryOut(a: KeyAction): void {
     case 'close':
       if (sh.dialog) useShell.setState({ dialog: null });
       else if (sh.sheet) sh.close();
-      else if (useTests.getState().open) useTests.getState().close();   // (the Tests card; its Why? is the shared sheet above, closed first)
+      else if (useTests.getState().open) useTests.getState().back();   // (the Tests card; its Why? is the shared sheet above, closed first)
       else if (useTreat.getState().open) useTreat.getState().setOpen(false);
       else if (useSelection.getState().sel) selectStructure(null);
       else if (sh.view === 'sinusoid') goToView('lobule');   // (2D: Esc in the sinusoid backs out to the lobule)
