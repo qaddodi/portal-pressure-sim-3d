@@ -9,12 +9,13 @@ import { registerFeature } from '../shell/features.ts';
 import { Timeline, type EventIn, type Snap, type TimelineHost } from './model.ts';
 import { announce } from './announce.ts';
 import { useTimeline } from './store.ts';
+import { yoursLabelOf } from '../patients/yours-labels.ts';
 
 export { fmtClock, captureFrame } from './model.ts';
 export type { Entry, Pinned } from './model.ts';
 
 /** 2D: patientLabel (readouts-text.js): the preset's label, or Custom once the parameters have been moved. */
-export const patientLabel = (id: string | null = useEngine.getState().presetId): string => UI.presets.find((p) => p.id === id)?.label || 'Custom';
+export const patientLabel = (id: string | null = useEngine.getState().presetId): string => UI.presets.find((p) => p.id === id)?.label || yoursLabelOf(id) || 'Custom';
 
 let labels: (params: unknown) => Map<string, string> = () => new Map();
 /** The Treat batch hands over 2D's activeInterventions (key to label of every active change) so a change is named as it is in 2D. */
