@@ -3,13 +3,13 @@
 // its own, which is the same straight line in colour between the two ends (the sinusoid's value runs from the central vein's to the inlet's by `sinW`).
 //   seg: 'pv' the portal venule (end-on), 'in' the inlet venule (w along it 0 at the tract .. 1 at the sinusoids), 'sin' a sinusoid or anastomosis (w = sinW(rho), 1 at
 //   the lobule's edge, 0 at the central vein), 'cv' the central vein.
-import { DELTA_RANGE, DROP_MAX, HEAT_MAX, MPS_TO_LPM, type LensId, flowPos, oxygenPos, samplerFor } from '../lenses/model.ts';
+import { DELTA_RANGE, DROP_MAX, HEAT_MAX, MPS_TO_LPM, type LensId, firstPassColours, flowPos, originColours, oxygenPos, samplerFor } from '../lenses/model.ts';
 import { LENS_SHARED, LENS_TOKENS } from '../lenses/tokens.copied.ts';
 import { delta3, hexToRgb01, type Rgb } from '../lenses/oklab.ts';
 import { velPos } from '../lenses/vel-normal.copied.js';
 import { NODES } from '../../engine/hales/portal/topology.js';
 import type { LookId } from '../palette.ts';
-import type { LobuleModel } from './model.ts';
+import type { Lane, LaneSet, LobuleModel } from './model.ts';
 import { LOBULE_PALETTES } from './tones.ts';
 
 export type Seg = 'pv' | 'in' | 'sin' | 'cv';
@@ -79,5 +79,36 @@ export function inkAt(c: InkContext, seg: Seg, w: number, out: Rgb): Rgb {
     const f = 0.4 * clamp(c.fibSin, 0, 1), l = 0.299 * out[0] + 0.587 * out[1] + 0.114 * out[2];
     for (let i = 0; i < 3; i++) out[i] = out[i]! + (l + (SHADE[i]! - l) * 0.35 - out[i]!) * f;
   }
+  return out;
+}
+
+/** Where across a vessel the three colour samples sit (-1 one wall, +1 the other): the tube's vertices take colours between them. */
+export const LANE_X = [-0.67, 0, 0.67] as const;
+const ORIGIN_COLS = originColours(), PASS_COLS = firstPassColours();
+
+/** The three colours across a lobule vessel at `w` along it (written into `out`, 9 numbers). Under every lens but Blood origin and First pass the three are the one colour of `inkAt`; under those
+ *  the blood's sources run as lanes side by side (the 2D app's streams of the vessel), each as wide as its share, the sources in the lens's order and the systemic remainder last. */
+export function inkLanes(c: InkContext, seg: Seg, w: number, out: number[]): number[] {
+  const lens = c.lens;
+  if (lens !== 'origin' && lens !== 'firstpass') {
+    inkAt(c, seg, w, tmp);
+    for (let i = 0; i < 3; i++) { out[i * 3] = tmp[0]; out[i * 3 + 1] = tmp[1]; out[i * 3 + 2] = tmp[2]; }
+    return out;
+  }
+  const Ls = c.model.lanes, NONE: Lane = [[0, 0, 0, 0], [0, 0, 0, 0]], L: LaneSet = (lens === 'origin' ? Ls?.origin : Ls?.pass) ?? { pre: NONE, sin: NONE, post: NONE }, cols = lens === 'origin' ? ORIGIN_COLS : PASS_COLS;
+  // the blend at this place: the sinusoid's starts in the inlet's (w = 1, the portal end) and ends in the hepatic outflow's (w = 0); the inlets and the portal venule carry the inflow's
+  const lane = seg === 'cv' ? L.post : seg === 'sin' ? L.sin : L.pre;
+  const k = seg === 'sin' ? 1 - w : seg === 'in' ? w : 0;
+  const f: number[] = [];
+  let sum = 0;
+  for (let i = 0; i < 4; i++) { const v = clamp(lerp(lane[0][i] ?? 0, lane[1][i] ?? 0, k), 0, 1); f.push(v); sum += v; }
+  f.push(Math.max(0, 1 - sum)); sum = 0; for (const v of f) sum += v;
+  LANE_X.forEach((x, s) => {
+    const t = (x + 1) / 2 * sum;
+    let acc = 0, pick = 4;
+    for (let i = 0; i < 5; i++) { acc += f[i]!; if (t <= acc) { pick = i; break; } }
+    const col = cols[pick]!;
+    out[s * 3] = col[0]; out[s * 3 + 1] = col[1]; out[s * 3 + 2] = col[2];
+  });
   return out;
 }

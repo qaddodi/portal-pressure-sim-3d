@@ -20,6 +20,12 @@ import { startFeed } from './feed.ts';
 import { notYet } from '../shell/words.ts';
 import { useShell } from '../shell/store.ts';
 
+// each instrument is its own file in its own folder (a thread works in one folder; the stubs say "not in the 3D app yet" until the instrument lands)
+const ProfilePane = lazy(() => import('./profile/ProfilePane.tsx').then((m) => ({ default: m.ProfilePane })));
+const IrPane = lazy(() => import('./ir/IrPane.tsx').then((m) => ({ default: m.IrPane })));
+const DopplerPane = lazy(() => import('./doppler/DopplerPane.tsx').then((m) => ({ default: m.DopplerPane })));
+const EndoPane = lazy(() => import('./endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));
+const FibroPane = lazy(() => import('./fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
 const TrialsPane = lazy(() => import('../trials/TrialsPane.tsx').then((m) => ({ default: m.TrialsPane })));
 
 /** The panes built so far; a tab whose pane is not here yet says so in a line (never a dead tab). */
@@ -29,8 +35,11 @@ const BUILT: Partial<Record<PaneId, (p: PaneProps) => ReactNode>> = {
   readouts: (p) => <ReadoutsPane narrow={p.narrow} />,
   abdomen: (p) => <AbdomenPane square={p.square} />,
   scope: (p) => <PressureTab own="scope" {...p} />,
-  // (the chart along the circuit is not built yet: its view of the Pressure tab says so in a line, beside the working Over time view)
   profile: (p) => <PressureTab own="profile" {...p} />,
+  hvpg: (p) => <Suspense fallback={null}><IrPane {...p} /></Suspense>,
+  doppler: (p) => <Suspense fallback={null}><DopplerPane {...p} /></Suspense>,
+  endoscopy: (p) => <Suspense fallback={null}><EndoPane {...p} /></Suspense>,
+  fibroscan: (p) => <Suspense fallback={null}><FibroPane {...p} /></Suspense>,
 };
 export function registerPane(id: PaneId, render: (p: PaneProps) => ReactNode): void { BUILT[id] = render; }
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { samplerFor } from '../src/scene/lenses/model.ts';
-import { inkAt, lobuleDelta, sinW } from '../src/scene/lobule/ink.ts';
+import { inkAt, inkLanes, lobuleDelta, sinW } from '../src/scene/lobule/ink.ts';
 import { LobuleView } from '../src/scene/lobule/view.ts';
 import type { LobuleModel } from '../src/scene/lobule/model.ts';
 import type { BufferAttribute } from 'three';
@@ -65,4 +65,21 @@ test('the sinusoids\' geometry carries a colour per vertex, from the portal end\
   assert.ok(near(at0(), start('oxygen'), 1e-3), 'landed on the oxygen colour');
   const last = a.count - 1;
   assert.ok(last > 100 && Array.from(a.array.slice(last * 3, last * 3 + 3)).every((x) => x >= 0 && x <= 1));
+});
+
+test('under Blood origin the sources run as lanes side by side across the vessel (the 2D streams), each as wide as its share, the systemic remainder last; other lenses give one colour three times', () => {
+  const lanes = { pre: [[1, 0, 0, 0], [1, 0, 0, 0]], sin: [[0.5, 0.25, 0, 0], [0, 0, 0, 0.25]], post: [[0, 0, 0, 0], [0, 0, 0, 0]] } as const;
+  const m = model({ lanes: { origin: lanes as never, pass: lanes as never } });
+  const out = new Array(9).fill(0);
+  // the portal inflow is all SMV: three samples of the one colour
+  inkLanes(ctx({ lens: 'origin', model: m }), 'pv', 0, out);
+  assert.ok(near(out.slice(0, 3), out.slice(3, 6)) && near(out.slice(3, 6), out.slice(6, 9)));
+  // the sinusoid's portal end (w = 1) is half SMV, a quarter IMV, a quarter systemic: its lanes differ across the vessel
+  inkLanes(ctx({ lens: 'origin', model: m }), 'sin', 1, out);
+  assert.ok(!near(out.slice(0, 3), out.slice(6, 9), 0.05), 'two sides, two sources');
+  // its central end (w = 0) is a quarter hepatic artery, three quarters systemic
+  const a = out.slice(); inkLanes(ctx({ lens: 'origin', model: m }), 'sin', 0, out);
+  assert.ok(!near(a.slice(0, 3), out.slice(0, 3), 0.05), 'the blend changes along the sinusoid');
+  inkLanes(ctx({ model: m }), 'sin', 1, out);
+  assert.ok(near(out.slice(0, 3), out.slice(3, 6)) && near(out.slice(3, 6), out.slice(6, 9)), 'pressure lens: one colour');
 });
