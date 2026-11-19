@@ -185,3 +185,19 @@ test('the three readiness tables read the same answer for every tool kind', () =
   // every slide that names a tool has its need
   for (const t of TOOLS) assert.ok(needsOf(t.s as never).includes(`tool:${t.kind}`));
 });
+
+test('the hold-to-strain button is carried by every slide that asks for it, and its readiness flags are true', () => {
+  const strained = SLIDES.filter((x) => x.s.strain);
+  assert.ok(strained.length >= 1, 'a deck uses strain');
+  for (const x of strained) {
+    const c = controlsOf(x.s);
+    assert.ok(c?.strain, `${x.at}: the strain button`);
+    const v = x.s.strain as unknown;
+    const want = rec(v) && typeof v.label === 'string' && v.label.trim() ? v.label.trim() : 'Hold to strain';
+    assert.equal(c!.strain!.label, want, x.at);
+  }
+  for (const x of SLIDES.filter((y) => !y.s.strain)) assert.equal(controlsOf(x.s)?.strain, undefined, `${x.at}: no strain button`);
+  assert.equal(hookOf('fig:strain')!.landed(), true);
+  const evidence = readFileSync(new URL('../src/ui/cards/SlideControls.tsx', import.meta.url), 'utf8');
+  assert.ok(/strainHold\(/.test(evidence), 'SlideControls drives strainHold');
+});

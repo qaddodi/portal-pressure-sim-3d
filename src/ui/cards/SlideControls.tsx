@@ -3,7 +3,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import type { Deck, Slide } from '../../decks/schema.ts';
 import { useLapse, lapseText } from '../../decks/hp/lapse.ts';
-import { pickCompare, dragWhatIf, whatIfStart, pickScale, dragToolOption, toolOptionStart } from '../talk/controls-run.ts';
+import { pickCompare, dragWhatIf, whatIfStart, pickScale, dragToolOption, toolOptionStart, strainHold } from '../talk/controls-run.ts';
 
 const SCALE_LABEL = { anatomy: 'Anatomy', lobule: 'Lobule', sinusoid: 'Sinusoid' } as const;
 
@@ -16,6 +16,7 @@ export function SlideControls({ slide, deck }: { slide: Slide; deck: Deck }) {
       {c.scales && <ScalePill slide={slide} deck={deck} i={i} />}
       {c.compare && <Compare slide={slide} deck={deck} i={i} />}
       {c.whatIf && <WhatIf slide={slide} deck={deck} i={i} />}
+      {c.strain && <Strain label={c.strain.label} slideKey={slide.id} />}
     </>
   );
 }
@@ -58,6 +59,26 @@ function WhatIf({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
         {w.ends ? <span className="pzi-e">{w.ends[1]}</span> : null}
       </div>
       {w.unit ? <output className="pzi-v">{shown}</output> : null}
+    </div>
+  );
+}
+
+/** A button that works only while it is held (2D strainEl): pressed, the engine's Valsalva starts; let go (a lost pointer, a blur, a hidden page, the slide leaving too), the model recovers. */
+function Strain({ label, slideKey }: { label: string; slideKey: string }) {
+  const [down, setDown] = useState(false);
+  const release = () => { setDown(false); strainHold(false); };
+  const press = () => { setDown(true); strainHold(true); };
+  useEffect(() => {
+    const hidden = () => { if (document.hidden) release(); };
+    document.addEventListener('visibilitychange', hidden);
+    return () => { document.removeEventListener('visibilitychange', hidden); strainHold(false); };
+  }, [slideKey]);
+  return (
+    <div className="pz-ab pz-strain" role="group" aria-label="Strain on the live model">
+      <button type="button" className="pz-abb pz-strain-b" aria-pressed={down} aria-label={`${label}: press and hold, let go to recover`} title="Press and hold"
+        onPointerDown={(e) => { if (e.button) return; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* (no capture: the leave and cancel events below let go) */ } press(); }}
+        onPointerUp={release} onPointerCancel={release} onLostPointerCapture={release} onBlur={release} onContextMenu={(e) => e.preventDefault()}
+        onKeyDown={(e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); press(); } }} onKeyUp={(e) => { if (e.key === ' ' || e.key === 'Enter') release(); }}>{label}</button>
     </div>
   );
 }

@@ -14,6 +14,8 @@ export interface SlideControls {
   whatIf?: WhatIf;
   /** the scale pill: the scales offered, the slide's own first, and the camera each lands on (a lobule camera name, or the anatomy's region) */
   scales?: { own: Scale; list: Scale[]; cam: Partial<Record<Scale, string>> };
+  /** the hold-to-strain button (2D `strain: true` or `{ label }`): the engine's Valsalva while it is held */
+  strain?: { label: string };
 }
 
 /** The beta-blocker response control (2D nsbb-response.js): three buttons that set the engine's nsbbGain; the slide's own gain marks its button. */
@@ -76,8 +78,18 @@ function scalesOf(s: CopiedSlide): SlideControls['scales'] {
   return list.length > 1 ? { own, list, cam } : undefined;
 }
 
+/** The hold-to-strain button's label ('Hold to strain' unless the slide names one). */
+function strainOf(s: CopiedSlide): SlideControls['strain'] {
+  const v = s.strain as unknown;
+  if (v !== true && !rec(v)) return undefined;
+  const label = rec(v) && typeof v.label === 'string' && v.label.trim() ? v.label.trim() : 'Hold to strain';
+  return { label };
+}
+
 export function controlsOf(s: CopiedSlide): SlideControls | undefined {
   const c: SlideControls = {};
+  const strain = strainOf(s);
+  if (strain) c.strain = strain;
   const compare = compareOf(s), whatIf = whatIfOf(s), scales = scalesOf(s);
   if (compare) c.compare = compare;
   if (whatIf) c.whatIf = whatIf;

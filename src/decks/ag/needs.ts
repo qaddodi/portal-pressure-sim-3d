@@ -103,7 +103,7 @@ export function hookOf(id: string): Hook | null {
     case 'present': return { owner: 'B12', what: 'the presenter plays any deck by its id, with the scene plate of each slide', landed: ready }   // (decks/all.ts);
     case 'fig': case 'card': case 'field': {
       const f = Object.values(FIELD_HOOKS).find((h) => h.id === id);
-      if (f) return { owner: f.owner, what: f.what, landed: ['card:vignette', 'card:terms', 'card:equation', 'card:what-if', 'card:case-question', 'card:response', 'card:question'].includes(id) ? ready : claimed };
+      if (f) return { owner: f.owner, what: f.what, landed: ['card:vignette', 'card:terms', 'card:equation', 'card:what-if', 'card:case-question', 'card:response', 'card:question', 'fig:strain'].includes(id) ? ready : claimed }   // (fig:strain: the hold-to-strain button, ui/cards/SlideControls.tsx Strain + controls-run.ts strainHold);
       return family === 'field' ? { owner: 'B12', what: `the slide field "${rest}"`, landed: claimed } : null;
     }
     default: return null;

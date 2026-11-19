@@ -3,6 +3,7 @@
 // a scale is the scene's view. The slide's own state comes back whenever the slide is shown again (hp/link.ts morphs to it).
 import { engine } from '../../engine/index.ts';
 import { useStates } from '../../decks/hp/calc.ts';
+import { stopLapse } from '../../decks/hp/lapse.ts';
 import { patchOf, valueAt, type CompareOpt, type Scale } from '../../decks/controls.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { LENS_IDS, type LensId, DEFAULT_LENS } from '../../scene/lenses/model.ts';
@@ -67,4 +68,17 @@ export function pickScale(deck: Deck, i: number, scale: Scale, land?: string): v
   const shot = land && land !== 'fit' ? (() => { try { const p = camPlan(land); return p.kind === 'body' ? p.shot : null; } catch { return null; } })() : null;
   const fit = (() => { const p = camPlan('fit'); return p.kind === 'body' ? p.shot : null; })();
   sceneApi.showShot('body', shot ?? (land === 'fit' ? fit : own) ?? fit!, room);
+}
+
+// ── the hold-to-strain button (2D presenter-lapse.js strainHold): the engine's Valsalva, on only while it is held ──
+let strainHeld = false;
+/** Press (true) or let go (false). A treatment button's rule: two clocks must not drive the model, so a time-lapse or a procedure in play ends first. The engine lets go by itself after 30 s. */
+export function strainHold(on: boolean): void {
+  if (on === strainHeld) return;
+  strainHeld = on;
+  if (!on) { engine().send({ type: 'action', action: { kind: 'strain', on: false } }); return; }
+  stopLapse();
+  sceneApi.procedure.stop();
+  engine().send({ type: 'run', running: true, clock: 'hemo', speed: 1 });
+  engine().send({ type: 'action', action: { kind: 'strain', on: true } });
 }
