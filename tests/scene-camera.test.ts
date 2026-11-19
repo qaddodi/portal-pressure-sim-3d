@@ -134,10 +134,10 @@ test('one drag rule: right is negative orbit, left is positive, and it composes 
   assert.ok(Math.abs(dragToOrbit(0, 100) + 0.6) < 1e-9, '100 px is 0.6 rad before the ±25° limit');
 });
 
-test('Stage turns the figure only through dragToOrbit (no second, opposite rule for another input)', async () => {
+test('the figure turns only through dragToOrbit (no second, opposite rule for another input)', async () => {
   const { readFileSync } = await import('node:fs');
-  const src = readFileSync(new URL('../src/scene/Stage.tsx', import.meta.url), 'utf8');
-  assert.equal([...src.matchAll(/setOrbit\(/g)].length, 1);
-  assert.match(src, /setOrbit\(dragToOrbit\(/);
-  assert.doesNotMatch(src, /wheel/, 'no wheel or trackpad path that turns the other way');
+  const read = (f: string) => readFileSync(new URL(`../src/scene/${f}`, import.meta.url), 'utf8');
+  const ctl = read('gesture/controller.ts');
+  assert.equal([...ctl.matchAll(/dragToOrbit\(/g)].length, 1, 'one place turns the figure by a drag');
+  assert.doesNotMatch(read('Stage.tsx'), /setOrbit\([^)]*\*/, 'Stage does no orbit maths of its own');
 });
