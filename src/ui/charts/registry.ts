@@ -3,6 +3,18 @@
 import type { ChartCtx } from './Chart.tsx';
 import type { Frame } from './scene.ts';
 import { ZONES, zonesFrame } from './criteria/zones.ts';
+import { flowsFrame } from './flows/frame.ts';
+import { ROUTES, LIVER, OTHER, type Part } from './flows/parts.ts';
+import { trialFrame } from './trial/frame.ts';
+import { TRIALS } from './trial/trials.generated.ts';
+import type { Fit } from './trial/model.ts';
+
+const part = (id: string, pct: number): Part => {
+  const r = id === 'liver' ? LIVER : id === 'other' ? OTHER : ROUTES.find((x) => x[0] === id)!;
+  return { id, name: r[1], tone: r[2], pct };
+};
+const SPLIT = [part('liver', 62), part(ROUTES[0]![0], 21), part(ROUTES[1]![0], 11), part('other', 6)];
+const trialSpecimen = (id: string, fit: Fit | null, label: string): Specimen => ({ id: `${id}${fit ? '-' + fit.verdict : ''}`, label, build: (c) => trialFrame(TRIALS[id]!, fit, c) });
 
 export interface Specimen { id: string; label: string; build(c: ChartCtx): Frame }
 export interface ChartKind {
@@ -26,8 +38,11 @@ export const CHARTS: ChartKind[] = [
   todo('profile', 'Pressure profile along the circuit', 33),
   todo('path', 'Guideline path map', 33),
   todo('curve', 'One quantity against another, or a parameter sweep, with its course', 25),
-  todo('trial', 'A trial: arms, shares, effect, fit to the patient', 18),
-  todo('flows', 'Portal blood bar: where the blood goes', 12),
+  { kind: 'trial', what: 'A trial: arms, shares, effect, fit to the patient', slides: 18, status: 'done',
+    specimens: [trialSpecimen(Object.keys(TRIALS)[0]!, null, 'A trial, as the Tests card shows it'), trialSpecimen(Object.keys(TRIALS)[0]!, { verdict: 'no', rows: [{ rule: 'Child-Pugh B or C', state: 'no', value: 'A' }] }, 'On a slide: the patient does not fit'),
+      trialSpecimen(Object.keys(TRIALS)[1]!, { verdict: 'fits', met: 3, of: 3, rows: [] }, 'On a slide: the patient fits')] },
+  { kind: 'flows', what: 'Portal blood bar: where the blood goes', slides: 12, status: 'done',
+    specimens: [{ id: 'portal', label: 'Where the portal blood goes (cirrhosis)', build: (c) => flowsFrame({ of: 'portal', parts: SPLIT, healthy: [part('liver', 100)], tiers: null }, c).frame }] },
   todo('lumen', 'A vessel cross-section: open, clot, stent', 7),
   todo('evgraph', 'Event graph: PPG and a second line after an event', 8),
   todo('forest', 'Forest plot of trials'),
