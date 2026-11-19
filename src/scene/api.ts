@@ -6,6 +6,8 @@ import { CelScene } from './scene.ts';
 import type { Room } from './camera/room.ts';
 import type { Shot, ShotName } from './camera/shots.ts';
 import type { CatheterState } from './catheter.ts';
+import type { PlayOptions } from './procedures/layer.ts';
+import type { CATH_END } from './procedures/copied/cath-arrival.js';
 import { create } from 'zustand';
 import { engine } from '../engine/boot.ts';
 import type { LensId } from './lenses/model.ts';
@@ -68,6 +70,18 @@ export const sceneApi = {
   zoomStep(factor: number): void { gesturesRef.current?.zoomStep(factor); clock.invalidate('zoom'); },
   /** Catheter route advance 0..1 and balloon 0..1; the caller tweens them on the clock. */
   setCatheter(s: CatheterState): void { cel.setCatheter(s); clock.invalidate('catheter'); },
+  /** The procedures' devices (B5): the 2D app's own choreography (proc-anim.js `procFrame`) drawn on its routes. Every kind of `PROCS`, the measurements and the plugs. */
+  procedure: {
+    /** Play a procedure ('tips', 'brto', 'bato', 'tipscoil', 'hvpgcath', …) from `from` to `to` ms of its own time (default the whole), at the 2D pace times `speed`. */
+    play(kind: string, o?: PlayOptions): void { cel.procs.play(kind, performance.now(), o); clock.invalidate('procedure'); },
+    /** Put a procedure at time t ms at once (a step's end, a jump). */
+    seek(kind: string, t: number): void { cel.procs.seek(kind, t); clock.invalidate('procedure'); },
+    /** The HVPG catheter in one of the deck's states (route, free, wedge, result, blocked), `advance` how far in (0..1). */
+    hvpg(mode: keyof typeof CATH_END, advance = 1): void { cel.procs.showHvpg(mode, advance); clock.invalidate('procedure'); },
+    /** Stop the move; with `keep` the last frame stays up. */
+    stop(keep = false): void { cel.procs.stop(keep); clock.invalidate('procedure'); },
+    get playing(): { kind: string; t: number } | null { return cel.procs.playing; },
+  },
   /** Edge IDs the slide talks about; in flow-mark option A these (and the picked vessel) carry chevrons. */
   setNamedVessels(ids: readonly string[]): void { cel.setNamedVessels(ids); clock.invalidate('named-vessels'); },
   /** Pick a vessel by edge ID, or clear with null. */
