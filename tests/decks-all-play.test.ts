@@ -54,7 +54,7 @@ test('the quick check pages by whole questions, none dropped', () => {
   assert.equal(decks.get('hvpg')!.checks.length, 4, 'the HVPG talk keeps all four of the 2D questions');
 });
 
-import { stopsOf, viewAt } from '../src/ui/deck/presenter-machine.ts';
+import { stopsOf, viewAt, goto } from '../src/ui/deck/presenter-machine.ts';
 import { caseOf } from '../src/decks/schema.ts';
 
 test('a question slide is asked on a card of its own first (two beats), and a slide with a case keeps its case', () => {
@@ -65,7 +65,8 @@ test('a question slide is asked on a card of its own first (two beats), and a sl
       const stop = stops[i + 1]!;
       if (stop.kind !== 'slide') return;
       assert.equal(stop.beats, caseOf(s) ? 2 : 1, `${id}/${s.id}`);
-      if (s.question) { questions++; assert.ok(!s.vignette, `${id}/${s.id}: only a slide with no case and no patient of its own is asked`); assert.equal(viewAt(stops, { stop: i + 1, beat: 0 }).words, 'case'); assert.equal(viewAt(stops, { stop: i + 1, beat: 1 }).words, 'teach'); }
+      if (s.question) { questions++; assert.ok(!s.vignette, `${id}/${s.id}: only a slide with no case and no patient of its own is asked`); assert.equal(viewAt(stops, { stop: i + 1, beat: 0 }).words, 'case'); assert.equal(viewAt(stops, { stop: i + 1, beat: 1 }).words, 'teach'); assert.deepEqual(goto(stops, i + 1), { stop: i + 1, beat: 1 }, `${id}/${s.id}: a jump lands on the slide, not on its question`); }
+      else if (s.vignette) assert.deepEqual(goto(stops, i + 1), { stop: i + 1, beat: 0 }, `${id}/${s.id}: a jump to a case still shows the case`);
     });
   }
   assert.ok(questions >= 8, `question slides (${questions})`);

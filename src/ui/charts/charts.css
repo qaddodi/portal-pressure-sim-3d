@@ -55,3 +55,8 @@
 .pzc-kl b { font-weight: 600; color: var(--text); }
 .pzc-sw { display: block; flex: none; width: 22px; height: 14px; border-radius: 4px; background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--text) 42%, var(--surface-3, var(--edge))) 0 2px, var(--surface-3, var(--edge)) 0 4.95px); }
 @media (prefers-reduced-motion: reduce) { .pzc-m > i { transition: none; } }
+
+/* the earlier reading, faint beside a live instrument (2D ghost): a label and its number, in the card's quiet ink */
+.pz-ghost { margin: 0 0 .4em; display: flex; gap: .5em; align-items: baseline; font: 500 max(12px, var(--fs-data, 13px))/1.2 var(--ui, system-ui); color: var(--text-3); font-variant-numeric: tabular-nums; }
+.pz-ghost b { font-weight: 600; color: var(--text-2); }
+.pz-vitals { width: 100%; }

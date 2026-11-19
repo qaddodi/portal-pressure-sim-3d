@@ -42,7 +42,12 @@ export function back(stops: Stop[], p: Pos): Pos {
 }
 
 /** Jump to the start of a stop (the progress dots). */
-export const goto = (stops: Stop[], stop: number): Pos => ({ stop: Math.max(0, Math.min(stops.length - 1, stop | 0)), beat: 0 });
+/** Lands on a stop from outside the walk (the outline, a link, opening the deck at a slide). A slide that is only a question (2D `question`, no case or procedure with it) is asked
+ *  when the talk walks up to it with Next, so a jump skips its card and lands on the slide itself, as 2D does; Back from there still reaches the card. */
+export const goto = (stops: Stop[], stop: number): Pos => {
+  const at = Math.max(0, Math.min(stops.length - 1, stop | 0)), s = stops[at];
+  return { stop: at, beat: s?.kind === 'slide' && s.beats > 1 && caseOf(s.slide)?.kicker === 'Question' ? 1 : 0 };
+};
 
 export const samePos = (a: Pos, b: Pos) => a.stop === b.stop && a.beat === b.beat;
 export const isFirst = (p: Pos) => p.stop === 0 && p.beat === 0;

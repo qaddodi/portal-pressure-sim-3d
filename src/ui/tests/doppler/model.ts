@@ -11,7 +11,10 @@ import { EDGES, dopplerK } from '../../../engine/hales/portal/topology.js';
 import { clamp, fmt } from '../copied/num.copied.js';
 import { windowIndexFor, scaleFor, fitScale } from '../copied/dopplerWindow.copied.js';
 import { lineBand } from '../copied/doppler-synth.copied.js';
-import { pulsatility } from '../copied/doppler-marks.copied.js';
+import { pulsatility, caliperFrame, caliperLevel, caliperX, CAL_FADE, pairOf, pairBand, pairScale, PAIR_GAP, riForms } from '../copied/doppler-marks.copied.js';
+import { smooth01 } from '../copied/motion.copied.js';
+import { D_SURFACE } from '../copied/motion.copied.js';
+import { hvWaves, type WavePts } from './waves.ts';
 import { createReading } from './copied/doppler-reading.copied.js';
 import { EI, PROBES, SEGS, SETTINGS, SWEEP_SECONDS, STAT_TITLE, num, PAD_L, PAD_R } from './copied/doppler-tables.copied.js';
 import { dopplerColor, shadeColor, THETA } from './copied/doppler-colours.copied.js';
@@ -57,12 +60,35 @@ export class DopplerModel {
   private scaleSt = { scale: null as number | null, baseF: null as number | null, settleAt: 0, refit: false };
   private tDisp: number | null = null;
   private wallLast = 0;
+  /** a slide's own options (2D doppler.js configure): the velocity scale fixed at ± nyq cm/s with the baseline at base (0 top to 1 bottom), calipers, the paired trace, the hepatic vein's waves named */
+  private opts = { fixed: null as { nyq: number; base: number } | null, calipers: false, pair: false, waves: false };
+  private calMk = { hi: { on: false, from: 0, to: 0, at: 0 }, lo: { on: false, from: 0, to: 0, at: 0 } };
+  private wl: { pts: WavePts; sgn: number; alpha: number; out: boolean } | null = null;
+  private labAt = 0;
+  private pairSc: { id: string; scale: number; base: number; at: number } | null = null;
+  private motion = false;
+  private ink: Rgba = [0.2431, 0.8784, 0.6471, 1];
 
   get sweep(): number { return SWEEP_SECONDS[this.sweepIndex]!; }
+  /** True while a mark or a letter is easing (the pane asks for frames until it is still, even with the model paused). */
+  get busy(): boolean { return this.motion; }
+
+  /** A slide's own options (2D `configure`): the display mode (the next slide returns to Spectrum unless it names one), calipers, the paired trace, a fixed velocity scale (scale: ± cm/s, the Nyquist limit,
+   *  so faster flow aliases; baseline: 0 at the top of the trace to 1 at the bottom, 0.5 when not given) and the hepatic vein's waves. */
+  configure(t: { mode?: string; calipers?: boolean; pair?: boolean; scale?: number; baseline?: number; waves?: boolean } | null | undefined): void {
+    const m: DopMode = t?.mode === 'color' || t?.mode === 'colour' || t?.mode === 'velocity' ? 'velocity' : t?.mode === 'variance' ? 'variance' : 'spectrum';
+    this.mode = m;
+    this.opts.calipers = !!t?.calipers; this.calMk.hi.on = this.calMk.lo.on = false;
+    if (this.opts.pair !== !!t?.pair) { this.opts.pair = !!t?.pair; this.pairSc = null; }
+    const nyq = Number(t?.scale), b = Number(t?.baseline);
+    const next = nyq > 0 ? { nyq: clamp(nyq, 5, 400), base: Math.round(clamp(Number.isFinite(b) ? b : 0.5, 0.15, 0.85) * 100) / 100 } : null;
+    if (next?.nyq !== this.opts.fixed?.nyq || next?.base !== this.opts.fixed?.base) { this.opts.fixed = next; this.scaleSt.scale = null; this.scaleSt.baseF = null; }
+    if (this.opts.waves !== !!t?.waves) { this.opts.waves = !!t?.waves; this.wl = null; }
+  }
 
   private sync() { this.rd.sync({ buf: this.buf, beatN: this.beatN, probe: this.probe, frame: this.frame, gi: this.gi, heldTo: this.heldTo, invert: this.invert }); }
   private clearBuf() {
-    this.buf.length = 0; this.beatN = 0; this.lastPh = NaN; this.rd.facs.clear(); this.heldTo = null; this.scaleSt.scale = null; this.scaleSt.baseF = null; this.scaleSt.refit = false; this.tDisp = null;
+    this.buf.length = 0; this.beatN = 0; this.lastPh = NaN; this.rd.facs.clear(); this.heldTo = null; this.wl = null; this.pairSc = null; this.calMk.hi.on = this.calMk.lo.on = false; this.scaleSt.scale = null; this.scaleSt.baseF = null; this.scaleSt.refit = false; this.tDisp = null;
   }
 
   /** Forget the record (the page's own began again, or its past was filled in in front): the next ingest reads it afresh. */
@@ -87,12 +113,12 @@ export class DopplerModel {
     if (T.length && T[T.length - 1]! < this.lastT - 1e-9) { this.clearBuf(); this.lastT = -Infinity; }   // (the page's record began again)
     let lo = 0, hi = T.length;
     while (lo < hi) { const m = (lo + hi) >> 1; if (T[m]! <= this.lastT) lo = m + 1; else hi = m; }
-    const vel = rec.ch.vel, ph = rec.ch.ph;
+    const vel = rec.ch.vel, ph = rec.ch.ph, pair = rec.ch[pairOf(this.rd.meta().kind) === 'PV_TRUNK' ? 'pvVel' : 'hvVel'];
     if (f.clock === 'disease') { this.sync(); return; }   // (a time lapse has no bedside samples: the trace holds the last seconds it has)
     for (let i = lo; i < T.length; i++) {
       const t = T[i]!, v = vel[i]!;
       // (A sample with no velocity is of another vessel, from before the probe moved: it draws no line, so it is not recorded; its beat still counts.)
-      if (Number.isFinite(v)) this.buf.push([t, v, NaN]);
+      if (Number.isFinite(v)) this.buf.push([t, v, pair[i] ?? NaN]);
       const p = ph[i];
       if (p != null && Number.isFinite(p)) { if (p < this.lastPh - 0.5) this.rd.beatT[this.beatN++ % 16] = t; this.lastPh = p; }
       this.lastT = t;
@@ -220,7 +246,8 @@ export class DopplerModel {
   }
 
   /** The chart frame for a box w × h (CSS px) at wall time `nowMs`. `ink` is the box's own colours (the monitor is black in every look, as the 2D one is). */
-  frameFor(w: number, h: number, nowMs: number, label: string): Frame {
+  frameFor(w: number, h: number, nowMs: number, label: string, ink?: Rgba): Frame {
+    if (ink) this.ink = ink;
     const shapes: Shape[] = [];
     const out: Frame = { w, h, shapes, label };
     const white = (a: number): Rgba => [1, 1, 1, a];
@@ -229,7 +256,13 @@ export class DopplerModel {
     this.sync();
     const rd = this.rd, f = this.frame;
     const padL = PAD_L as number, padR = PAD_R as number, padT = 26, padB = 20, yLab = 13;
-    const W = Math.max(1, Math.round(w - padL - padR)), H = Math.max(1, Math.round(h - padT - padB));
+    // (A slide's paired trace takes a band at the foot of the trace area: the main trace is shorter by it, the card the same size.)
+    const W = Math.max(1, Math.round(w - padL - padR)), Hall = Math.max(1, Math.round(h - padT - padB)), PB = this.opts.pair ? pairBand(Hall) as number : 0, H = PB ? Hall - PB - PAIR_GAP : Hall;
+    this.motion = false;
+    // (this frame's time, and the calipers' pick from it, before the strip: the index there is the marks' own, this frame)
+    const tNow0 = this.buf.length >= 2 ? this.clockNow(nowMs) : null;
+    const kind0: string = this.probe ? rd.meta().kind : 'portal';
+    const cal = this.opts.calipers && tNow0 != null && this.probe ? this.caliperNow(tNow0, W, rd, kind0) : null;
     const text = (x: number, y: number, s: string, o: Partial<Extract<Shape, { k: 'text' }>> = {}) => { shapes.push({ k: 'text', x, y, s, size: 12, weight: 500, color: white(0.5), baseline: 'middle', ...o }); };
     const pm: Any = this.probe ? rd.meta() : (PROBES as Any[])[0];
     const gate = this.probe && rd.isStentProbe() ? rd.gateOf() as string : '';
@@ -238,7 +271,23 @@ export class DopplerModel {
     const lw = measure(name, 12, 600);
     const mm = this.probe ? rd.svMm() as number : 4;
     const settings = (SETTINGS as string[][][][])[this.mode === 'spectrum' ? 0 : 1]![mm]![this.sweepIndex]!;
-    const x0 = padL + lw + 12, room = w - padR - x0 - 6;
+    let x0 = padL + lw + 12;
+    // (the calipers' index in the marks' colour, first after the probe's name: the pulsatility on a vein, the resistive index written out on an artery)
+    const doppler = this.dopplerInk();
+    if (cal && kind0 !== 'artery') {
+      const pi = `PI ${fmt(Math.max(0, Math.min(3, cal.pi)), 2)}`;
+      text(x0, yLab, pi, { weight: 700, color: doppler, key: 'cal-pi' });
+      x0 += measure(pi, 12, 700) + 12;
+    } else if (cal) {
+      const ri = this.riOf(cal, rd);
+      if (ri) {
+        const spare = w - padR - x0 - 6 - measure(settings[0]!, 12, 500) - 12;
+        let fi = 0; while (fi < 3 && measure(ri[fi]!, 12, 700) > spare) fi++;
+        text(x0, yLab, ri[fi]!, { weight: 700, color: doppler, key: 'cal-ri' });
+        x0 += measure(ri[fi]!, 12, 700) + 12;
+      }
+    }
+    const room = w - padR - x0 - 6;
     let np = settings.length;
     while (np > 1 && measure(settings[np - 1]!, 12, 500) > room) np--;
     if (measure(settings[np - 1]!, 12, 500) <= room) text(x0, yLab, settings[np - 1]!, { key: 'settings' });
@@ -247,7 +296,7 @@ export class DopplerModel {
       text(w / 2, h / 2, f?.clock === 'disease' ? 'Doppler sampling needs real time: return to the seconds clock.' : 'Acquiring…', { anchor: 'middle', color: white(0.55), key: 'acq' });
       return out;
     }
-    const tNow = this.clockNow(nowMs), sweep = this.sweep;
+    const tNow = tNow0!, sweep = this.sweep;
     // Scale: the peak fills about 85% of its side, on the scanner's own velocity steps. Like a sonographer, the display changes scale or baseline only when the signal would clip or has
     // stayed small for a few seconds, never continuously.
     let pos = 0, neg = 0;
@@ -272,7 +321,7 @@ export class DopplerModel {
     const tbRaw = pos + neg < 1 ? 0.5 : pos > 0 && neg < pos * 0.08 ? 0.88 : neg > 0 && pos < neg * 0.08 ? 0.12 : clamp(0.1 + 0.8 * (pos / (pos + neg)), 0.12, 0.88);
     const tbF = Math.round(tbRaw * 10) / 10;
     const fits = st.scale != null && need <= st.scale && (pos >= neg) === (st.baseF == null || st.baseF >= 0.5);
-    fitScale(st, { fixed: null, holding, fits, target, tbF, tNow });
+    fitScale(st, { fixed: this.opts.fixed, holding, fits, target, tbF, tNow });
     const scale = st.scale as number, baseF = st.baseF as number;
     const baseY = Math.round(H * baseF);
     const pxPerV = (baseF >= 0.5 ? baseY : H - baseY) / scale;
@@ -327,6 +376,10 @@ export class DopplerModel {
       if (major && y > padT + 5 && y < padT + H - 5) text(padL + W + 13, y, v === 0 ? '0' : num(v), { color: white(0.78), key: `tick${q}` });
     }
     text(w - 6, 13, 'cm/s', { anchor: 'end', key: 'unit' });
+    const xAt = (t: number) => padL + (NC - 1 - (cNow - Math.floor(t * cps))) * COL;
+    this.waveLetters(shapes, pm, tNow, sweep, sgn, k, pxPerV, padT, baseY, H, W, padL, xAt, nowMs);
+    if (cal) this.calipersDraw(shapes, cal, nowMs, sgn, k, gf, pxPerV, padT, baseY, H, W, padL);
+    if (PB) this.pairDraw(shapes, kind0, tNow, sweep, padT + H + PAIR_GAP, PB, padL, W, xAt, text);
     // one tick a second along the bottom, scrolling with the trace
     for (let sec = Math.ceil(tNow - sweep); sec <= tNow; sec++) {
       const x = Math.round(padL + ((sec - (tNow - sweep)) / sweep) * W);
@@ -334,6 +387,106 @@ export class DopplerModel {
     }
     void THETA;
     return out;
+  }
+
+
+  private dopplerInk(): Rgba { return this.ink; }
+
+  /** The calipers' pick for this frame (2D calNow): on a portal vein they stand on the beat the reading's pulsatility and pattern come from. */
+  private caliperNow(tNow: number, W: number, rd: Any, kind: string) {
+    const r = rd.reading(), beat = kind === 'portal' && r && r.beatPi >= 0;
+    const c = caliperFrame(this.buf, tNow, this.sweep, W, 2, beat ? r.beatB0 : NaN, beat ? r.beatB1 : NaN) as { hi: number[]; lo: number[]; pi: number; gf?: number } | null;
+    if (c) c.gf = rd.gateFactor();
+    else { this.calMk.hi.on = this.calMk.lo.on = false; }
+    return c;
+  }
+
+  /** The artery's working, "RI = (PSV − EDV) / PSV = (62 − 20) / 62 = 0.68", the four forms longest first, from the marks as they print. */
+  private riOf(cal: { hi: number[]; lo: number[]; pi: number; gf?: number }, rd: Any): string[] | null {
+    if (!this.probe) return null;
+    const sg0 = rd.pol() as number, k0 = dopplerK(EDGES[EI[this.probe]!]) as number, gf = cal.gf ?? 1;
+    const a = Math.round(sg0 * cal.hi[1]! * k0 * gf), b = Math.round(sg0 * cal.lo[1]! * k0 * gf);
+    const flip = Math.abs(a) >= Math.abs(b) ? 1 : -1, psv = Math.abs(flip === 1 ? a : b), edv = flip === 1 ? b : a, sg = (flip === 1 ? a : b) < 0 ? -1 : 1;
+    return riForms(psv, sg * edv, Math.round(Math.max(0, cal.pi) * 100) / 100) as string[];
+  }
+
+  /** The hepatic vein's a, S, v and D named on the newest settled whole beat (2D drawWaves): the letters are pinned to that beat's own moments so they scroll with it; when the beat is about to leave
+   *  the screen they fade out and the next whole beat gets them, fading in. */
+  private waveLetters(shapes: Shape[], pm: Any, tNow: number, sweep: number, sgn: number, k: number, pxPerV: number, padT: number, baseY: number, H: number, W: number, padL: number, xAt: (t: number) => number, nowMs: number): void {
+    if (!(this.opts.waves && pm?.kind === 'hepatic')) { this.wl = null; return; }
+    const dtL = this.labAt ? Math.min(0.1, (nowMs - this.labAt) / 1000) : 0; this.labAt = nowMs;
+    const edge = tNow - sweep + 0.7;   // a beat starting before this is about to leave
+    let wl = this.wl;
+    if (wl && (wl.sgn !== sgn || wl.pts[0][0] < edge)) wl.out = true;
+    if (!wl || (wl.out && wl.alpha <= 0)) {
+      wl = this.wl = null;
+      const pts = hvWaves(this.buf, tNow - sweep, tNow, sgn);
+      if (pts && pts[0][0] >= edge) wl = this.wl = { pts, sgn, alpha: 0, out: false };
+    }
+    if (!wl) return;
+    wl.alpha = clamp(wl.alpha + (wl.out ? -1 : 1) * dtL / (D_SURFACE / 1000), 0, 1);
+    if (wl.out ? wl.alpha > 0 : wl.alpha < 1) this.motion = true;
+    const A = smooth01(wl.alpha), PX = 20;
+    for (const [t, lv, name] of wl.pts) {
+      const up = name === 'a', x = xAt(t), y0 = padT + baseY - lv * k * pxPerV, y = up ? Math.min(y0, padT + baseY) : y0;
+      if (x < padL + 2 || x > padL + W - 2) continue;
+      const ty = clamp(y + (up ? -5 : 5), padT + (up ? PX + 1 : 0), padT + H - (up ? 0 : PX + 1));
+      shapes.push({ k: 'text', x, y: ty, s: name, size: PX, weight: 700, color: [1, 1, 1, A], anchor: 'middle', baseline: up ? 'alphabetic' : 'top', halo: { color: [0, 0, 0, 0.9 * A], w: 5 }, key: `wave-${name}` });
+    }
+  }
+
+  /** A slide's calipers: a dashed line at the highest and at the lowest velocity of the last 3 s across the trace, an upright caliper with end ticks between them at its left end and the two speeds
+   *  beside its ends. When a new extreme arrives or the old one leaves, its line eases to the new level (CAL_FADE). */
+  private calipersDraw(shapes: Shape[], cal: { hi: number[]; lo: number[]; gf?: number }, nowMs: number, sgn: number, k: number, gf: number, pxPerV: number, padT: number, baseY: number, H: number, W: number, padL: number): void {
+    const dop = this.ink, dark: Rgba = [0, 0, 0, 0.85], gfc = cal.gf ?? gf;
+    const calY = (v: number) => clamp(padT + baseY - sgn * v * k * gfc * pxPerV, padT + 2, padT + H - 2);
+    const level = (m: { on: boolean; from: number; to: number; at: number }, v: number) => {
+      if (!m.on) { m.on = true; m.from = v; m.to = v; m.at = nowMs; }
+      else if (m.to !== v) { m.from = caliperLevel(m.from, m.to, (nowMs - m.at) / 1000); m.to = v; m.at = nowMs; }
+      if ((nowMs - m.at) / 1000 < CAL_FADE) this.motion = true;
+      return Math.round(calY(caliperLevel(m.from, m.to, (nowMs - m.at) / 1000))) + 0.5;
+    };
+    const xc = caliperX(padL, 4) as number, x1 = padL + W, T = 4;
+    const lvHi = level(this.calMk.hi, cal.hi[1]!), lvLo = level(this.calMk.lo, cal.lo[1]!);
+    const pen = (c: Rgba, w: number, dash?: number[]) => ({ color: c, w, ...(dash ? { dash } : {}) });
+    const lines: [number, number, number, number][] = [[xc, lvHi, x1, lvHi], [xc, lvLo, x1, lvLo]];
+    const ends: [number, number, number, number][] = [[xc, lvHi, xc, lvLo], [xc - T, lvHi, xc + T, lvHi], [xc - T, lvLo, xc + T, lvLo]];
+    for (const [a, b, c, d] of lines) shapes.push({ k: 'line', x1: a, y1: b, x2: c, y2: d, pen: pen(dark, 3.5, [4, 3]) });
+    for (const [a, b, c, d] of lines) shapes.push({ k: 'line', x1: a, y1: b, x2: c, y2: d, pen: pen([dop[0], dop[1], dop[2], 0.95], 1.5, [4, 3]) });
+    for (const [a, b, c, d] of ends) shapes.push({ k: 'line', x1: a, y1: b, x2: c, y2: d, pen: pen(dark, 3.5) });
+    for (const [a, b, c, d] of ends) shapes.push({ k: 'line', x1: a, y1: b, x2: c, y2: d, pen: pen(dop, 1.5) });
+    // the two speeds beside the upright's ends: numbers only, in the bracket's colour, outside their lines (the other side where there is no room)
+    const hiTop = lvHi <= lvLo, room = 11 / 2 + 3, top = padT + 11 / 2, bot = padT + H - 11 / 2;
+    const num1 = (v: number, y: number, want: number, key: string) => {
+      const fits = (sd: number) => (sd < 0 ? y - room >= top : y + room <= bot), side = fits(want) ? want : fits(-want) ? -want : want;
+      shapes.push({ k: 'text', x: xc + 4 + 3, y: clamp(y + side * room, top, bot), s: num(Math.round(sgn * v * k * gfc)), size: 11, weight: 700, color: dop, baseline: 'middle', halo: { color: dark, w: 3.5 }, key });
+    };
+    num1(cal.hi[1]!, lvHi, hiTop ? -1 : 1, 'cal-hi'); num1(cal.lo[1]!, lvLo, hiTop ? 1 : -1, 'cal-lo');
+  }
+
+  /** A slide's paired trace: the paired vessel's velocity over the same seconds, beat for beat, slim, in a band of its own under the main trace with its own scale, named above its band. */
+  private pairDraw(shapes: Shape[], kind: string, tNow: number, sweep: number, y0: number, PB: number, padL: number, W: number, xAt: (t: number) => number, text: (x: number, y: number, s: string, o?: Partial<Extract<Shape, { k: 'text' }>>) => void): void {
+    const id = pairOf(kind) as string, pm = (PROBES as Any[]).find((q) => q.id === id)!, kp = dopplerK(EDGES[EI[id]!]) as number;
+    const sg = (pm.away ? -1 : 1) * (this.invert ? -1 : 1) * kp;
+    let pos = 0, neg = 0;
+    for (const p of this.buf) { if (p[0]! < tNow - sweep || p[0]! > tNow || !Number.isFinite(p[2]!)) continue; const v = sg * p[2]!; if (v > pos) pos = v; if (-v > neg) neg = -v; }
+    // (its scale holds still as the main one does: it grows at once when the trace would clip, and shrinks only after 3 s)
+    const want = pairScale(pos, neg) as { scale: number; base: number }, need = Math.max(pos, neg, 8) / 0.85;
+    let ps = this.pairSc;
+    const set = () => { ps = this.pairSc = { id, scale: want.scale, base: want.base, at: tNow }; };
+    if (!ps || ps.id !== id || need > ps.scale || (want.base >= 0.5) !== (ps.base >= 0.5)) set();
+    else if (want.scale < ps.scale || Math.abs(want.base - ps.base) > 0.15) { if (tNow - ps.at > 3) set(); }
+    else ps.at = tNow;
+    const sc = this.pairSc!, by = y0 + Math.round(PB * sc.base), ppv = (sc.base >= 0.5 ? by - y0 : y0 + PB - by) / sc.scale;
+    shapes.push({ k: 'rect', x: padL, y: y0, w: W, h: PB, fill: [1, 1, 1, 0.06], key: 'pair-plate' });
+    shapes.push({ k: 'rect', x: padL, y: by, w: W, h: 1, fill: [1, 1, 1, 0.5], key: 'pair-base' });
+    const pts: number[] = [];
+    for (const p of this.buf) { if (p[0]! < tNow - sweep || p[0]! > tNow || !Number.isFinite(p[2]!)) continue; pts.push(xAt(p[0]!), clamp(by - sg * p[2]! * ppv, y0, y0 + PB)); }
+    if (pts.length > 3) shapes.push({ k: 'clip', x: padL, y: y0, w: W, h: PB }, { k: 'path', pts, pen: { color: [1, 1, 1, 0.9], w: 1.5, join: 'round' }, key: 'pair-line' }, { k: 'unclip' });
+    text(padL, y0 - PAIR_GAP + 7, pm.short, { weight: 600, color: [1, 1, 1, 0.86], key: 'pair-name' });
+    const up = sc.base >= 0.5, ey = up ? y0 + 6 : y0 + PB - 6;
+    text(padL + W + 13, ey, num(up ? sc.scale : -sc.scale), { color: [1, 1, 1, 0.78], key: 'pair-top' });
+    if (Math.abs(by - ey) >= 14) text(padL + W + 13, by, '0', { color: [1, 1, 1, 0.78], key: 'pair-zero' });
   }
 
   /** One band stretch's colour: the grey spectrum, or the colour map's own (2D doppler-synth.js shade, dopplerColor.js). */
