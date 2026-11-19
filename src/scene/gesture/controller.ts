@@ -1,5 +1,5 @@
 import { ORBIT_PER_PX, dragToOrbit, orbitHome } from '../camera/rig.ts';
-import { ORBIT_HOME_MS, ORBIT_LIMIT } from '../camera/shots.ts';
+import { ORBIT_LIMIT } from '../camera/shots.ts';
 import { CAM_MS_MAX, type View, carried, camMs, createGlideTracker, easeMove, lerpView, springSlope } from './ease.ts';
 import { FLICK, runFlick } from './flick.ts';
 import {
@@ -9,8 +9,9 @@ import { createWheelGlide, isPadWheel } from './wheel-glide.ts';
 
 // The figure's gestures, on every device. The 2D app's pan and zoom, ported number for number (src/ui/stage-gestures.js there): zoom about the pointer,
 // the soft limits and their spring-back, the rubber band past the figure, the flick, the wheel glide, the trackpad's pinch and two-finger scroll, a double click.
-// What the 3D figure adds is the turn: one finger or the mouse turns it (within ±25°), and the figure follows the hand. The atlas is the rest state (owner, 19 Nov):
-// 1.2 s after the hand lifts the turn springs back to the shot, critically damped (orbitHome).
+// What the 3D figure adds is the turn: one finger or the mouse turns it (within ±25°), and the figure follows the hand. The turn stays where the hand left it (owner, 19 Nov, after the
+// independent review: a spring-back undid the angle the viewer chose); it goes home to the shot only on Fit, a second tap on the view pill or the 0 key (refit),
+// and a new shot (a slide, a catheter step, another view) eases it home with the move (camera/rig.ts).
 //
 //   one finger / mouse drag        turn the figure (±25°, with momentum); Shift, middle button: pan
 //   two fingers                    pinch to zoom and pan together: the point under the midpoint stays under it
@@ -71,6 +72,8 @@ export interface Gestures {
   readonly active: boolean;
   /** A button took over (Fit, a zoom button, a new shot): stop what the hand started, and ignore the trackpad's momentum still arriving. */
   handsOff(): void;
+  /** A guided step (a slide, a catheter step) is about to bring the turn home with the camera: stop the turn's own momentum and return so they do not fight it. */
+  turnOff(): void;
   /** Glide the hand's view home to the shot's own framing. */
   refit(): void;
   /** A zoom button: zoom about the middle of the room by `factor` (the 2D app's 1.4), gliding. */
@@ -138,7 +141,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
 
   // ── the spring-back: back inside the limits, never lost ────────────────────────────────────────────────────────────────────────
   let springAsk = 0;
-  const springBack = () => { orbitHomeSoon(); springAsk ||= env.ask(springRead); };
+  const springBack = () => { springAsk ||= env.ask(springRead); };
   function springRead() {
     springAsk = 0;
     if (drag || flicking || wheelGlide.active) { if (wheelGlide.active) settleSoon(60); return; }
@@ -182,17 +185,11 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     orbitId = env.ask(step);
   }
 
-  // ── the turn's return: the atlas is the rest state, so the turn comes home to the shot a moment after the hand lifts ───────────────
-  let homeT = 0, homeId = 0;
-  function stopOrbitHome() { if (homeT) env.clearTimer(homeT); homeT = 0; if (homeId) env.cancel(homeId); homeId = 0; }
-  function orbitHomeSoon() {
+  // ── the turn's return: only Fit (refit) brings a turn home, critically damped; a free drag leaves the figure at the angle the viewer chose ──
+  let homeId = 0;
+  function stopOrbitHome() { if (homeId) env.cancel(homeId); homeId = 0; }
+  function orbitToShot() {
     stopOrbitHome();
-    if (host.orbit() === 0) return;
-    homeT = env.timer(startHome, ORBIT_HOME_MS);
-  }
-  function startHome() {
-    homeT = 0;
-    if (orbitId) { homeT = env.timer(startHome, 100); return; }   // the momentum is still carrying it: wait for it to die away
     const o0 = host.orbit();
     if (o0 === 0) return;
     if (env.reduceMotion()) { host.setOrbit(0); return; }
@@ -354,9 +351,8 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     const tr = d.trail, tb = tr.length - 3, dt = tb >= 0 ? tr[tb]! - tr[0]! : 0;
     const flickable = d.moved && !(d.type === 'pan' && d.noFling) && tb >= 6 && dt >= 30 && env.now() - tr[tb]! < 50;
     if (d.type === 'rotate') {
-      if (!d.moved) { orbitHomeSoon(); if (ev.type === 'pointerup') tap(ev); return; }
+      if (!d.moved) { if (ev.type === 'pointerup') tap(ev); return; }
       if (flickable) orbitMomentum((-(tr[tb + 1]! - tr[1]!) / dt) * ORBIT_PER_PX);   // pixels per ms to radians per ms, the same sign as the drag
-      orbitHomeSoon();
       return;
     }
     if (!d.moved) { if (ev.type === 'pointerup') tap(ev); return; }
@@ -387,7 +383,8 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   return {
     get active() { return gestureOn() || wheelGlide.active || !!animId || !!orbitId || !!homeId; },
     handsOff,
-    refit() { handsOff(); fit = null; animateTo({ ...IDENTITY }, undefined, null); },
+    turnOff() { stopOrbitMomentum(); stopOrbitHome(); },
+    refit() { handsOff(); fit = null; animateTo({ ...IDENTITY }, undefined, null); orbitToShot(); },
     animateTo(to, ms) { handsOff(); animateTo(to, ms, null); },
     zoomStep(factor) { handsOff(); const c = host.centre(); animZoomAt(c.x, c.y, factor); },
     dispose() {

@@ -42,7 +42,7 @@ wrote linear values straight out and looked darker.)
 
 | Input | Does |
 |---|---|
-| one finger / mouse drag | turns the figure within ±25° (`dragToOrbit`, the one rule), momentum on release; 1.2 s after the hand lifts the turn springs back to the shot (critically damped, `orbitHome`) |
+| one finger / mouse drag | turns the figure within ±25° (`dragToOrbit`, the one rule), momentum on release; the turn stays where the viewer leaves it, and only Fit, a second tap on the view pill or the 0 key (refit) brings it home (critically damped, `orbitHome`); a new shot eases it home with the move |
 | two fingers | pinch zoom and pan together; the point under the midpoint stays under it; one finger left after a pinch pans, never taps or throws |
 | Shift-drag, middle button | pan, flick on release |
 | Mac trackpad two-finger scroll | pan on the rubber band |

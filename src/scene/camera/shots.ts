@@ -48,6 +48,5 @@ export const SHOTS: Readonly<Record<ShotName, Shot>> = {
 export const SHOT_MS = 950;
 /** Gentle limited orbit around the shot, radians (±25°). */
 export const ORBIT_LIMIT = (25 * Math.PI) / 180;
-/** After the hand lifts, the turn waits this long and then returns to the shot (critically damped; `ORBIT_HOME_OMEGA` is its stiffness, rad/s: about 1.3 s to settle). */
-export const ORBIT_HOME_MS = 1200;
+/** Fit brings a turn home as a critically damped spring (`orbitHome` in rig.ts); `ORBIT_HOME_OMEGA` is its stiffness, rad/s: about 1.3 s to settle. A free drag is not brought home: the angle the viewer left stays. */
 export const ORBIT_HOME_OMEGA = 7;

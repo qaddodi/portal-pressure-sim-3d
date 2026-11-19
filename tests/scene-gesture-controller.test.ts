@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createGestures, isSystemEdge, type GestureEnv, type GestureHost } from '../src/scene/gesture/controller.ts';
 import { dragToOrbit, orbitHome } from '../src/scene/camera/rig.ts';
-import { ORBIT_HOME_MS, ORBIT_LIMIT } from '../src/scene/camera/shots.ts';
+import { ORBIT_LIMIT } from '../src/scene/camera/shots.ts';
 import { K_MAX, K_MIN, rectUnder } from '../src/scene/gesture/view.ts';
 import type { View } from '../src/scene/gesture/ease.ts';
 
@@ -216,62 +216,63 @@ test('dispose removes every listener and every pending frame or timer', () => {
   assert.equal(r.asks + r.timers, 0);
 });
 
-// ── the atlas is the rest state: the turn springs back to the shot 1.2 s after the hand lifts (owner's decision B, 19 Nov) ──────────────
+// ── the turn stays where the viewer leaves it; only Fit brings it home (owner, 19 Nov, after the independent review) ──────────────────
 const turn = (r: ReturnType<typeof rig>) => { r.ptr('pointerdown', 1, 400, 300); r.ptr('pointermove', 1, 440, 300); r.advance(16); r.ptr('pointermove', 1, 540, 300); };
 
-test('the turn waits 1.2 s after the hand lifts, then returns to the shot and goes quiet', () => {
+test('after a free drag the figure stays at the angle the viewer left, however long it waits', () => {
   const r = rig();
   turn(r); r.advance(200);                       // held still before letting go: no momentum
   r.ptr('pointerup', 1, 540, 300);
   const turned = r.orbit;
   assert.ok(Math.abs(turned) > 0.1);
-  r.run(ORBIT_HOME_MS - 100);
-  assert.equal(r.orbit, turned, 'it holds for a moment: the viewer is looking at the turn');
-  r.run(400);
-  assert.ok(Math.abs(r.orbit) < Math.abs(turned) && Math.abs(r.orbit) > 0, 'then it is on its way home');
-  r.run(2000);
-  assert.equal(r.orbit, 0, 'and lands exactly on the shot');
-  assert.equal(r.asks, 0, 'nothing asks for another frame once it is home');
+  r.run(10000);
+  assert.equal(r.orbit, turned, 'no spring-back');
+  assert.equal(r.asks, 0, 'and nothing asks for a frame');
+  assert.equal(r.timers, 0);
+});
+
+test('a pan, a pinch or a tap on a turned figure leaves the turn alone', () => {
+  const r = rig();
+  turn(r); r.advance(200); r.ptr('pointerup', 1, 540, 300);
+  const turned = r.orbit;
+  r.ptr('pointerdown', 3, 400, 300, { shiftKey: true }); r.ptr('pointermove', 3, 460, 300, { shiftKey: true }); r.advance(16); r.ptr('pointermove', 3, 520, 300, { shiftKey: true });
+  r.advance(200); r.ptr('pointerup', 3, 520, 300, { shiftKey: true });
+  r.ptr('pointerdown', 4, 300, 200); r.ptr('pointerup', 4, 301, 200);
+  r.run(6000);
+  assert.equal(r.orbit, turned);
+});
+
+test('Fit brings the turn home: critically damped, never past the shot, and quiet once it lands', () => {
+  const r = rig();
+  turn(r); r.advance(200); r.ptr('pointerup', 1, 540, 300);
+  const turned = r.orbit, sign = Math.sign(turned);
+  r.g.refit();
+  r.run(300);
+  assert.ok(Math.abs(r.orbit) < Math.abs(turned) && r.orbit * sign > 0, 'on its way');
+  for (let ms = 0; ms < 3000; ms += 16) { r.run(16); assert.ok(r.orbit * sign >= 0, `at ${ms} ms`); }
+  assert.equal(r.orbit, 0, 'lands exactly on the shot');
+  r.run(100);
+  assert.equal(r.asks, 0);
   assert.equal(r.g.active, false);
 });
 
-test('the return never overshoots the shot: the turn keeps its sign all the way home', () => {
+test('touching the figure while Fit is bringing the turn home stops it where it is', () => {
   const r = rig();
   turn(r); r.advance(200); r.ptr('pointerup', 1, 540, 300);
-  const sign = Math.sign(r.orbit);
-  for (let ms = 0; ms < 4000; ms += 16) { r.run(16); assert.ok(r.orbit * sign >= 0, `at ${ms} ms`); }
-});
-
-test('touching the figure again stops the return where it is; letting go starts the wait over', () => {
-  const r = rig();
-  turn(r); r.advance(200); r.ptr('pointerup', 1, 540, 300);
-  r.run(ORBIT_HOME_MS + 300);
+  r.g.refit(); r.run(300);
   const mid = r.orbit;
   assert.ok(mid !== 0);
-  r.ptr('pointerdown', 2, 400, 300);             // a new hand: the spring lets go at once
-  r.run(500);
+  r.ptr('pointerdown', 2, 400, 300);
+  r.run(1000);
   assert.equal(r.orbit, mid);
-  r.ptr('pointerup', 2, 400, 300);               // a tap, not a turn: the turn still comes home after its wait
-  r.run(ORBIT_HOME_MS + 2500);
-  assert.equal(r.orbit, 0);
 });
 
-test('a pan or a pinch that ends on a turned figure brings the turn home too', () => {
-  const r = rig();
-  turn(r); r.advance(200); r.ptr('pointerup', 1, 540, 300);
-  r.run(300);
-  r.ptr('pointerdown', 3, 400, 300, { shiftKey: true }); r.ptr('pointermove', 3, 460, 300, { shiftKey: true }); r.advance(16); r.ptr('pointermove', 3, 520, 300, { shiftKey: true });
-  r.advance(200); r.ptr('pointerup', 3, 520, 300, { shiftKey: true });
-  r.run(ORBIT_HOME_MS + 3000);
-  assert.equal(r.orbit, 0);
-});
-
-test('Reduce Motion: the turn is put back in one step after the wait, no glide', () => {
+test('Fit with Reduce Motion puts the turn back in one step', () => {
   const r = rig({});
   (r.env as { reduceMotion(): boolean }).reduceMotion = () => true;
   turn(r); r.advance(200); r.ptr('pointerup', 1, 540, 300);
   assert.ok(r.orbit !== 0);
-  r.run(ORBIT_HOME_MS + 100);
+  r.g.refit();
   assert.equal(r.orbit, 0);
 });
 
@@ -282,4 +283,19 @@ test('orbitHome is a critically damped spring: x0 at the start, never past zero,
   assert.ok(orbitHome(ORBIT_LIMIT, 1500) < 1e-3);
   assert.equal(orbitHome(-0.3, 0), -0.3);
   assert.ok(orbitHome(-0.3, 400) > -0.3 && orbitHome(-0.3, 400) < 0);
+});
+
+test('turnOff (a guided step is bringing the turn home) stops the turn\'s momentum and a Fit glide, so nothing fights the camera', () => {
+  const r = rig();
+  r.ptr('pointerdown', 1, 400, 300); r.ptr('pointermove', 1, 440, 300); r.advance(16); r.ptr('pointermove', 1, 500, 300); r.advance(16); r.ptr('pointermove', 1, 560, 300); r.advance(8); r.ptr('pointerup', 1, 560, 300);
+  r.run(32);
+  const o = r.orbit;
+  r.g.turnOff();
+  r.run(2000);
+  assert.equal(r.orbit, o, 'the thrown turn stopped where it was');
+  r.g.refit(); r.run(100);
+  const mid = r.orbit;
+  r.g.turnOff(); r.run(2000);
+  assert.equal(r.orbit, mid, 'a Fit glide stopped too');
+  assert.equal(r.g.active, false);
 });

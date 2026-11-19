@@ -83,8 +83,12 @@ export const sceneApi = {
   setCaudatePin(on: boolean): void { cel.setCaudatePin(on); clock.invalidate('caudate'); },
   /** The lobule's Layers menu (the 2D app starts with lymph on). */
   setLobuleLayers(l: Partial<LobuleLayers>): void { cel.setLobuleLayers(l); clock.invalidate('lobule-layers'); },
-  /** The cards changed room (a card opened, the phone turned): move the room alone. */
-  setRoom(room: Room, ms?: number): void { cel.rig.setRoom(room, performance.now(), ms); clock.invalidate('room'); },
+  /** The cards changed room (a card opened, the phone turned): move the room alone; the viewer's turn stays. `homeTurn`: a slide or catheter step asked for the shot the camera is already on, and still brings the turn home. */
+  setRoom(room: Room, ms?: number, homeTurn = false): void {
+    if (homeTurn) gesturesRef.current?.turnOff();
+    cel.rig.setRoom(room, performance.now(), ms, homeTurn);
+    clock.invalidate('room');
+  },
   /** Glide the hand's zoom and pan home to the shot's own framing (a second tap on the active view, a Fit button). */
   refit(): void { gesturesRef.current?.refit(); clock.invalidate('refit'); },
   /** The zoom buttons (+ and − keys): the 2D app's 1.4 about the middle of the room. */
