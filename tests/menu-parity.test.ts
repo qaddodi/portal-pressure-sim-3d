@@ -117,3 +117,10 @@ test('glide runs its frames to 1 and then says it is done; follow writes the num
   f.set(3); f.set(7); f.flush(); f.stop();
   assert.deepEqual(wrote, [7]);
 });
+
+test('the Patients list is headed by 2D\'s From readings door (menu.js onFromReadings), which opens the readings sheet', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/ui/menu/UMenu.tsx', import.meta.url), 'utf8');
+  assert.match(src, /className="um-row um-fromread"[^>]*onClick=\{\(\) => \{ close\(\); openFromReadings\(\); \}\}/);
+  assert.ok(src.indexOf('um-fromread') < src.indexOf('groups.map((g) => (\n            <div key={g.group}'), 'the door comes before the patient groups');
+});

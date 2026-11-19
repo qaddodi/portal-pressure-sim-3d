@@ -8,6 +8,7 @@ import { NOT_MEASURABLE } from '../../engine/hales/portal/pressure-cuts.js';
 import { lcFirst } from '../../engine/hales/portal/lc-first.js';
 import { bedsideMean } from '../../engine/hales/portal/bedside-mean.js';
 import { fmt } from '../charts/fmt.ts';
+import { HEADING as WAVE_HEADING, CUT as WAVE_CUT, waveVessel, waveMax, waveWords, type Trace } from './table-wave.ts';
 
 const TILES = TILE as Record<string, { x?: number; d?: number }>;
 const COLNAMES = COLS as Record<string, string>;
@@ -18,12 +19,13 @@ export type Fp = Record<string, number | null | undefined>;
 export const DEFAULT_COLS = ['pv', 'whvp', 'fhvp', 'ivc', 'ra', 'hvpg', 'ppg'];
 
 /** A row once its patient is known: `i` is the slide it stands on (its stop's number), -1 for a patient of its own; `f` the model's numbers there, null while they are being worked out. */
-export interface ResolvedRow { spec: TableRowSpec; i: number; f: Fp | null; title: string; kicker: string }
+/** `trace`: the Doppler column's trace at this row's state (undefined until asked for, null when the model gave none). */
+export interface ResolvedRow { spec: TableRowSpec; i: number; f: Fp | null; title: string; kicker: string; trace?: Trace | null }
 
 export interface Cell {
   /** the column (a tile key, or 'saag' / 'tp') */
   k: string;
-  kind: 'pend' | 'blank' | 'removed' | 'none' | 'ref' | 'dir';
+  kind: 'pend' | 'blank' | 'removed' | 'none' | 'ref' | 'dir' | 'wave';
   /** the number as the column prints it, with its unit for a hint */
   text: string;
   /** -2 to 2: the arrow (0 is the dot: within normal, or unchanged) */
@@ -33,6 +35,8 @@ export interface Cell {
   miss: string;
   /** what a screen reader says */
   sr: string;
+  /** a 'wave' cell: the vessel, the scale (cm/s to the edge), the trace (null: not in yet) and the hover words */
+  wave?: { vessel: string; max: number; trace: Trace | null; pending: boolean; title: string };
 }
 export interface RowModel { key: string; i: number; head: string; site: string; title: string; vs: string; cont: boolean; focus: boolean; ref: boolean; cells: Cell[]; notes: string[] }
 export interface ColModel { k: string; label: string; cut: string }
@@ -73,6 +77,11 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
   const cell = (k: string, r: ResolvedRow, n: number): Cell => {
     const base: Cell = { k, kind: 'dir', text: '', arrow: 0, rate: null, eff: null, miss: '', sr: '' };
     if (blank(r).includes(k)) return { ...base, kind: 'blank', sr: NOT_MEASURABLE.toLowerCase() };
+    if (k === 'wave') {
+      if (!r.f) return { ...base, kind: 'pend', sr: 'calculating' };
+      const vessel = waveVessel(r.spec, spec), max = waveMax(spec), trace = r.trace ?? null, w = waveWords(trace, vessel, max);
+      return { ...base, kind: 'wave', sr: w.sr, wave: { vessel, max, trace, pending: r.trace === undefined, title: w.title } };
+    }
     if (!r.f || (rel && !isRef(r, n) && !refOfRow(r))) return { ...base, kind: 'pend', sr: 'calculating' };
     if (k === 'spleen' && !(fpv(k, r.f) > 0)) return { ...base, kind: 'removed', text: 'Removed', sr: 'removed' };
     const text = valueText(k, r.f);
@@ -94,7 +103,7 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
       { k: 'tp', kind: 'dir', text: fmt(r.f.tp, 1), arrow: hiP ? 1 : -1, rate: null, eff: null, miss: '', sr: `protein ${hiP ? `${TP_HIGH} or more` : `under ${TP_HIGH}`}, ${fmt(r.f.tp, 1)} g/dL` },
     ];
   };
-  const colModels: ColModel[] = [...cols.map((k) => ({ k, label: COLNAMES[k] || k, cut: CUTS[k] ?? '' })), ...(ascCols ? [{ k: 'saag', label: 'SAAG', cut: CUTS.saag ?? '' }, { k: 'tp', label: 'Prot.', cut: CUTS.tp ?? '' }] : [])];
+  const colModels: ColModel[] = [...cols.map((k) => (k === 'wave' ? { k, label: WAVE_HEADING, cut: WAVE_CUT } : { k, label: COLNAMES[k] || k, cut: CUTS[k] ?? '' })), ...(ascCols ? [{ k: 'saag', label: 'SAAG', cut: CUTS.saag ?? '' }, { k: 'tp', label: 'Prot.', cut: CUTS.tp ?? '' }] : [])];
   const headRows = rows.map((r) => ({ kicker: r.kicker, site: r.spec.site }));
   const rowModels = rows.map((r, n): RowModel => ({
     key: r.spec.key ?? r.spec.id ?? `r${n}`, i: r.i, head: headOf(headRows[n]), site: r.spec.site ?? 'none', title: r.title,

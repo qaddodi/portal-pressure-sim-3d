@@ -10,7 +10,7 @@ export function TilesCard({ spec, ids }: { spec: TileSpec; ids: readonly string[
   const results = useStates((s) => s.results[spec.deck]);
   const at = (id: string | null) => { const i = id ? ids.indexOf(id) : -1; return i >= 0 ? results?.[i]?.fp ?? null : null; };
   const phone = useUi((s) => isPhone(deviceClass(s.vp.w, s.vp.h)));
-  const rows = tileRows(spec, at(spec.slide), at(deltaFrom(spec, ids)), keysFor(spec, phone));
+  const rows = tileRows(spec, at(spec.slide), at(deltaFrom(spec, ids)), keysFor(spec, phone), spec.resp ? at(deltaFrom({ ...spec, delta: spec.resp }, ids)) : null);
   if (!rows.length) return null;
   return (
     <div className="hp-tiles">

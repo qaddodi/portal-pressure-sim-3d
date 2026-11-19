@@ -28,6 +28,7 @@ import { timelineEntry } from './timeline/entry.ts';
 import { smallEntry } from './small/entry.ts';
 import { traceEntry } from './trace/entry.ts';
 import { vitalsEntry } from './vitals/entry.ts';
+import { wallsEntry } from './walls/entry.ts';
 import { menuEntry } from './menu/entry.ts';
 
 /** A smooth made-up time-lapse for a gallery specimen: [day, a, b] rows rising (or falling) along an ease. Specimens show a look, not a patient. */
@@ -98,6 +99,7 @@ export const CHARTS: ChartKind[] = [
   smallEntry,
   traceEntry,
   vitalsEntry,
+  wallsEntry,
   menuEntry,
 ];
 

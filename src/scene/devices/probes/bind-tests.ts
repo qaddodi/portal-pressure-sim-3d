@@ -4,20 +4,25 @@ import { useTests } from '../../../ui/tests/store.ts';
 import { useProbes, type DopplerSeg } from './state.ts';
 import { useScope } from '../../../ui/tests/endo/scope-state.ts';
 import { MEASURES } from '../../procedures/copied/proc-anim.js';
+import { EDGES, isStent, stentGate } from '../../../engine/hales/portal/topology.js';
+import { patient } from '../../../engine/index.ts';
 import { useDopplerProbe } from '../../../ui/tests/doppler/probe-state.ts';
 
 /** Starts following the Tests card; returns the remover. */
 export function bindTests(): () => void {
   const sync = (): void => {
     const t = useTests.getState(), p = useProbes.getState();
-    const on = (pane: string): boolean => t.open && t.pane === pane;
-    if (p.doppler.on !== on('doppler')) p.setDoppler({ on: on('doppler') });
-    if (p.fibro.on !== on('fibroscan') || p.fibro.organ !== t.fibro) p.setFibro({ on: on('fibroscan'), organ: t.fibro });
-    if (p.endoscope.on !== on('endoscopy')) p.setEndoscope({ on: on('endoscopy') });
+    // (an instrument a deck slide has up keeps its device on the figure however the Tests card changes: p.slide, written by ui/talk/ToolCard.tsx)
+    const on = (pane: string, slide: boolean): boolean => slide || (t.open && t.pane === pane);
+    if (p.doppler.on !== on('doppler', p.slide.doppler)) p.setDoppler({ on: on('doppler', p.slide.doppler) });
+    if (p.fibro.on !== on('fibroscan', p.slide.fibro) || p.fibro.organ !== t.fibro) p.setFibro({ on: on('fibroscan', p.slide.fibro), organ: t.fibro });
+    if (p.endoscope.on !== on('endoscopy', p.slide.endoscope)) p.setEndoscope({ on: on('endoscopy', p.slide.endoscope) });
   };
   // the Doppler pane's vessel and sample gate (a stent's third) place the probe
   const syncDop = (): void => {
-    const d = useDopplerProbe.getState(), seg: DopplerSeg = d.gate === 'proximal' || d.gate === 'mid' || d.gate === 'distal' ? d.gate : null, p = useProbes.getState().doppler;
+    // (the third of a stent the gate stands at: 'site' is the stent's tightest narrowing, no gate the mid stent; 2D stentGate. A vessel that is no stent has none.)
+    const d = useDopplerProbe.getState(), edge = (EDGES as { id: string }[]).find((e) => e.id === d.probe);
+    const seg: DopplerSeg = isStent(edge) ? (stentGate(d.gate, patient.params, d.probe) as DopplerSeg) : null, p = useProbes.getState().doppler;
     if (p.edge !== d.probe || p.seg !== seg) useProbes.getState().setDoppler({ edge: d.probe, seg });
   };
   // the Endoscopy pane's work: a band press loads and fires the ligator for a few seconds; the EUS measurement sends the needle to the station its step names
@@ -31,6 +36,6 @@ export function bindTests(): () => void {
     if (p.mode !== mode || p.station !== station) useProbes.getState().setEndoscope({ mode, station });
   };
   sync(); syncDop(); syncScope();
-  const offs = [useTests.subscribe(sync), useDopplerProbe.subscribe(syncDop), useScope.subscribe(syncScope)];
+  const offs = [useTests.subscribe(sync), useProbes.subscribe((s, prev) => { if (s.slide !== prev.slide) sync(); }), useDopplerProbe.subscribe(syncDop), useScope.subscribe(syncScope)];
   return () => { clearTimeout(timer); offs.forEach((f) => f()); };
 }

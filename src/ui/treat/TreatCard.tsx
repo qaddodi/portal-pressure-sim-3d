@@ -1,14 +1,17 @@
-// The Treat card, as the 2D app's (main.js openTreat, chart.js treatBody and treatChanges, treat-page.js): a title with "n running" and a close button, three tabs
-// (Drugs, Fluids, Procedures), the orders, and the Changes list. On a laptop or an iPad on its side Changes is a section under the orders; on a phone it is one row that
-// slides its list in as a page of its own (nothing scrolls inside a card). Always in the page and faded in and out, so nothing pops; its words are the 2D app's
+// The Treat card, as the 2D app's (main.js openTreat, chart.js treatBody and treatChanges, treat-page.js, card-glide.js): the same markup, class for class, so the 2D stylesheets (src/ui/css2d) style it:
+// a title with "n running" and a close button (.tc-head.card-head), three tabs (.instr-tabs.treat-tabs: Drugs, Fluids, Procedures; the chosen one is the one gliding piece, seg-glide.copied.ts),
+// the orders (.treat-pane), and the Changes list (.section.chart-sec: closed until opened and then remembered, keep.ts). On a phone Changes is one row (.tcp-row) that slides its list in as a page of its own
+// (.tc-page, page-push.ts), the sheet standing Full while the page is up; on a laptop or an iPad on its side it is the section under the orders. A phone's or an upright iPad's card is a sheet over the dock
+// that opens at Half (as tall as its words, up to Full: sheetHeight, treat.css), and its height glides when a tab, the Changes section or the page changes it (glideCard: the card's plate is scaled, its
+// words ride, the parts below the change ride and the parts whose foot opens are cut by a clip). Always in the page and faded in and out, so nothing pops; its words are the 2D app's
 // (treat.generated.ts) and its numbers the engine's: an order only edits the patient's settings (orders.ts).
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import './treat.css';
-import { Icon } from '../shell/icons.tsx';
-import { OrderIcon } from '../action/icons.tsx';
+import { I } from '../shell/icons.tsx';
 import { useUi } from '../ui-store.ts';
+import { useThumb } from '../shell/thumb.ts';
+import { layoutClass, layoutVars } from '../shell/room.ts';
 import { isPhone } from '../layout/device.ts';
-import { usesBottomBar } from '../shell/room.ts';
 import { useTreat } from './store.ts';
 import { TABS, drugChips, fluids, giveFluid, procedures, pressChip, ranOn, type TabId } from './orders.ts';
 import { appEnv } from './env.ts';
@@ -16,63 +19,71 @@ import { TREAT_WORDS } from './treat.generated.ts';
 import { activeInterventions, factTarget, treatCount } from '../action/changes.ts';
 import { currentParams, presetBase, updateParams, useParamsTick, type Params } from '../action/params.ts';
 import { selectStructure } from '../action/selection.ts';
+import { glideCard } from './glide.ts';
+import { startSegGlideOn } from './seg-glide.copied.ts';
+import { pushPage, type Pushed } from './page-push.ts';
+import { openSet, remember, startsOpen } from './keep.ts';
+import { D_SMALL, reduced } from '../a11y/motion.ts';
 
 const L = TREAT_WORDS.lines.labels;
+const EASE_ARRIVE = 'cubic-bezier(.2, .8, .2, 1)';   // (2D ease.js)
+
+type Active = ReturnType<typeof activeInterventions>[number];
 
 /** What the patient came with is a fact about them, not a change to undo; the rest is the learner's own. */
 function useChanges() {
   useParamsTick((s) => s.tick);
   const p = currentParams() as Params | null;
-  if (!p) return { about: [], mine: [], p: null as Params | null };
+  if (!p) return { about: [] as Active[], mine: [] as Active[], p: null as Params | null };
   const base = presetBase();
   const baseLabels = new Set(base ? activeInterventions(base).map((a) => a.label) : []);
   const active = activeInterventions(p);
   return { about: active.filter((a) => baseLabels.has(a.label)), mine: active.filter((a) => !baseLabels.has(a.label)), p };
 }
 
-const splitLabel = (label: string): [string, string | null] => { const m = /^(.*?)\s+([×\d].*)$/.exec(label); return m ? [m[1], m[2]] : [label, null]; };
+const splitLabel = (label: string): [string, string | null] => { const m = /^(.*?)\s+([×\d].*)$/.exec(label); return m ? [m[1]!, m[2]!] : [label, null]; };
 const clearAll = () => updateParams((q) => { const base = presetBase(); if (base) return structuredClone(base); for (const a of activeInterventions(q)) a.remove(q); return q; }, { label: L.clearAll });
 
-function Row({ a, undo }: { a: ReturnType<typeof activeInterventions>[number]; undo: boolean }) {
+function Row({ a, undo }: { a: Active; undo: boolean }) {
   const [name, value] = splitLabel(a.label);
   const go = !undo ? factTarget(a.key) : null;
   if (go) {
     return (
-      <div className="tr-chg" data-about role="listitem">
-        <button type="button" className="tr-chg-go" title={L.showIt} aria-label={`${a.label}: ${L.showIt.toLowerCase()}`} onClick={() => selectStructure(go)}>
-          <span className="tr-chg-n">{name}</span>{value && <span className="tr-chg-v">{value}</span>}<Icon n="chev-right" className="tr-chg-ch" />
+      <div className="chg about" role="listitem">
+        <button type="button" className="chg-go" title={L.showIt} aria-label={`${a.label}: ${L.showIt.toLowerCase()}`} onClick={() => selectStructure(go)}>
+          <span className="chg-n">{name}</span>{value && <span className="chg-v">{value}</span>}<I n="chev-right" className="chg-ch" />
         </button>
       </div>
     );
   }
   return (
-    <div className="tr-chg" data-about={!undo || undefined} role="listitem">
-      <span className="tr-chg-n">{name}</span>{value && <span className="tr-chg-v">{value}</span>}
-      {undo && <button type="button" className="tr-ib tr-chg-x" aria-label={`Undo ${a.label}`} title={L.undoThis} onClick={() => updateParams((q) => { a.remove(q); return q; }, { label: `Remove ${a.label}` })}><Icon n="close" /></button>}
+    <div className={`chg${undo ? '' : ' about'}`} role="listitem">
+      <span className="chg-n">{name}</span>{value && <span className="chg-v">{value}</span>}
+      {undo && <button type="button" className="ib chg-x" aria-label={`Undo ${a.label}`} title={L.undoThis} onClick={() => updateParams((q) => { a.remove(q); return q; }, { label: `Remove ${a.label}` })}><I n="close" /></button>}
     </div>
   );
 }
 
-/** The Changes list and its Clear all (the one the section and the phone's page both show). */
-function ChangesList({ about, mine }: { about: ReturnType<typeof activeInterventions>; mine: ReturnType<typeof activeInterventions> }) {
+/** The Changes list (2D chart.js changes()): "About this patient" and "Your changes", the hint while there are none, and Clear all. */
+function ChangesBody({ about, mine }: { about: Active[]; mine: Active[] }) {
   return (
     <>
-      <div className="tr-list" role="list" data-n={mine.length}>
-        {about.length > 0 && <div className="tr-sub">{L.aboutThis}</div>}
+      <div className="chg-list" role="list" data-n={mine.length}>
+        {about.length > 0 && <div className="chg-sub">{L.aboutThis}</div>}
         {about.map((a) => <Row key={`about:${a.label}`} a={a} undo={false} />)}
-        {about.length > 0 && <div className="tr-sub">{L.yours}</div>}
+        {about.length > 0 && <div className="chg-sub">{L.yours}</div>}
         {mine.map((a) => <Row key={`mine:${a.label}`} a={a} undo />)}
       </div>
-      {mine.length === 0 && <p className="tr-empty"><b>{L.nothing[0]}</b>{L.nothing[1]}</p>}
-      {mine.length > 0 && <button type="button" className="tr-link" onClick={clearAll}>{L.clear}</button>}
+      <p className="fd-empty" hidden={mine.length > 0}><b>{L.nothing[0]}</b>{L.nothing[1]}</p>
+      <button type="button" className="link chg-clear" hidden={mine.length === 0} onClick={clearAll}>{L.clear}</button>
     </>
   );
 }
 
 function Chip({ id, label, note, on }: { id: string; label: string; note: string; on: boolean }) {
   return (
-    <button type="button" className="tr-chip" aria-pressed={on} title={note} onClick={() => pressChip(id)}>
-      <span className="tr-chip-t">{label}</span><span className="tr-chip-dot" aria-hidden="true"><Icon n="check" /></span>
+    <button type="button" className="order-chip" aria-pressed={on} title={note} onClick={() => pressChip(id)}>
+      <span className="oc-t" data-t={label}>{label}</span><span className="oc-dot"><I n="check" /></span>
     </button>
   );
 }
@@ -82,92 +93,167 @@ function Fluid({ id, label, sub }: { id: string; label: string; sub: string }) {
   const t = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(t.current), []);
   return (
-    <button type="button" className="tr-order tr-fluid" data-given={given || undefined} title={`${label}: ${sub}`}
+    <button type="button" className="order-btn fluid-btn" data-given={given ? '' : undefined} title={`${label}: ${sub}`}
       onClick={() => { giveFluid(appEnv, id); setGiven(true); clearTimeout(t.current); t.current = setTimeout(() => setGiven(false), 1400); }}>
-      <span className="tr-order-t">{label}<small>{sub}</small></span>
+      <span className="ob-t">{label}<small>{sub}</small></span>
     </button>
-  );
-}
-
-function Panes({ p, tab }: { p: Params; tab: TabId }) {
-  const onTab = (id: TabId, node: ReactNode, cls = '') => <div key={id} className={`tr-pane-in ${cls}`} data-off={id !== tab || undefined} inert={id !== tab} aria-hidden={id !== tab}>{node}</div>;
-  return (
-    <div className="tr-pane">
-      {onTab('drugs', <div className="tr-chips">{drugChips().map((c) => <Chip key={c.id} id={c.id} label={c.label} note={c.note} on={c.get(p)} />)}</div>)}
-      {onTab('fluids', <div className="tr-grid tr-three">{fluids().map((f) => <Fluid key={f.id} {...f} />)}</div>)}
-      {onTab('procs', (
-        <div className="tr-grid">
-          {procedures().map((x) => {
-            const on = !!x.placed?.(p);
-            return (
-              <button key={x.id} type="button" className="tr-order" data-on={on || undefined} title={`${x.long}: ${x.sub}`} aria-label={on ? `${x.long}, in place` : x.long} onClick={() => x.run(appEnv)}>
-                <OrderIcon n={x.icon} className="tr-ic" /><span className="tr-order-t">{x.label}</span>
-                <span className="tr-tick" aria-hidden="true"><Icon n="check" /></span>
-              </button>
-            );
-          })}
-        </div>
-      ))}
-    </div>
   );
 }
 
 export function TreatCard() {
   const open = useTreat((s) => s.open), tab = useTreat((s) => s.tab), page = useTreat((s) => s.changesPage);
-  const device = useUi((s) => s.device);
-  const phone = isPhone(device), bottom = usesBottomBar(device);
+  const device = useUi((s) => s.device), vp = useUi((s) => s.vp);
+  const thumb = useThumb(), phone = isPhone(device);
   const { about, mine, p } = useChanges();
-  const ref = useRef<HTMLElement>(null);
+  const ref = useRef<HTMLElement>(null), tabsRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null), paneRef = useRef<HTMLDivElement>(null), rowRef = useRef<HTMLButtonElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null), secRef = useRef<HTMLDetailsElement>(null);
   const drag = useRef<{ y: number } | null>(null);
+  const [gone, setGone] = useState<Record<string, boolean>>({ fluids: true, procs: true });   // (a pane whose fade is over takes no height: 2D tp-gone)
+  const [mounted, setMounted] = useState(false), [top, setTop] = useState(0);
+  const push = useRef<Pushed | null>(null), glides = useRef<Animation[]>([]), closing = useRef(false);
+  const pending = useRef<{ h0: number; parts: () => GlideParts } | null>(null);
   const n = p ? treatCount(p) : 0;
+  const foot = thumb;   // (a sheet over the dock stands on its foot: its plate scales about the foot and the words ride, card-glide.js)
+
+  type GlideParts = { ride?: (Element | null)[]; cut?: (Element | null)[]; free?: (Element | null)[] };
+  /** Asks for the card's height change that the next render makes to glide, from the height it has now (2D chart.js show(): h0 read in the tap, the glide started once the change is laid out). */
+  const ask = useCallback((parts: () => GlideParts = () => ({})) => { const c = ref.current; if (c && !reduced() && useTreat.getState().open) pending.current = { h0: c.offsetHeight, parts }; }, []);
+  /** The pane is as tall as the tab shown (2D chart.js spare(): a taller tab fading out is cut at it, not scrolled into the card's body). */
+  const spare = useCallback(() => {
+    const pane = paneRef.current; if (!pane) return;
+    const on = pane.querySelector<HTMLElement>(':scope > :not(.tp-off)'); if (!on) return;
+    const cs = getComputedStyle(pane);
+    pane.style.height = `${on.offsetHeight + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)}px`;
+  }, []);
+  useLayoutEffect(() => {
+    spare();
+    const g = pending.current; pending.current = null;
+    const c = ref.current;
+    if (g && c) glides.current = glideCard(c, g.h0, c.offsetHeight, { foot, prior: glides.current, ...g.parts() });
+  });
+  // the panes change height with their words (a chip's note, a wrapped tile): the pane follows the tab shown
+  useEffect(() => {
+    const pane = paneRef.current; if (!pane || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(spare);
+    for (const c of Array.from(pane.children)) ro.observe(c);
+    return () => ro.disconnect();
+  }, [spare]);
+  // the tab strip's one gliding piece (the 2D stylesheet draws it)
+  useEffect(() => (ref.current ? startSegGlideOn(ref.current) : undefined), []);
+  // Changes is remembered open across opens and visits (2D chart.js section(): `open`, pps.chartOpen3): the section the card makes finds it as it was left (a phone's page always shows it open)
+  const keptSection = useCallback((d: HTMLDetailsElement | null) => { secRef.current = d; if (d) d.open = d.closest('.tc-page') ? true : startsOpen('changes', openSet()); }, []);
   // a phone has room for one card: the Changes page goes with the card
-  useEffect(() => { if (!open && page) useTreat.getState().showChanges(false); }, [open, page]);
+  useEffect(() => {
+    if (!open && (page || mounted)) { push.current = null; setMounted(false); useTreat.getState().showChanges(false); }
+  }, [open, page, mounted]);
+  // the page: slides in from the right over the tabs and the body when it is mounted (2D treat-page.js open())
+  useLayoutEffect(() => {
+    const el = pageRef.current, card = ref.current;
+    if (!mounted || !el || !card) return;
+    const away = [tabsRef.current, bodyRef.current].filter((e): e is HTMLDivElement => !!e);
+    push.current = pushPage(el, away, card.offsetWidth, {
+      plate: true,
+      onPop: () => { useTreat.getState().showChanges(false); rowRef.current?.focus({ preventScroll: true }); },
+      onGone: () => { push.current = null; setMounted(false); },
+    });
+  }, [mounted]);
   if (!p) return null;
   const close = () => useTreat.getState().setOpen(false);
+  const setTab = (id: TabId) => {
+    if (id === tab) return;
+    // (A tab that changes the card's height glides it: the Changes row under the list rides from where it stood and the list's cut at its foot opens or closes with the plate.)
+    ask(() => { const pane = paneRef.current; return { ride: [pane?.nextElementSibling ?? null], cut: [pane, bodyRef.current], free: [bodyRef.current] }; });
+    setGone((g) => (g[id] ? { ...g, [id]: false } : g));
+    useTreat.getState().setTab(id);
+  };
+  const openPage = () => {
+    if (mounted) return;
+    ask();
+    setTop(tabsRef.current?.offsetTop ?? 0);   // (read in the tap itself, once: the page stands where the tabs stood and runs to the sheet's foot)
+    setMounted(true); useTreat.getState().showChanges(true);
+  };
+  const closePage = () => { ask(); push.current?.pop(0); };
+  // Changes opens and shuts by the card's glide (2D chart.js section(): done in the tap itself so no frame is drawn at the new height first; closing fades the words first, then folds and glides)
+  const onSummary = (e: React.MouseEvent) => {
+    const d = secRef.current, card = ref.current;
+    if (!d || !card || reduced() || closing.current) { if (closing.current) e.preventDefault(); else if (d) remember('changes', !d.open); return; }
+    e.preventDefault();
+    const h0 = card.offsetHeight, tc = bodyRef.current;
+    if (!d.open) {
+      d.open = true; remember('changes', true);
+      glides.current = glideCard(card, h0, card.offsetHeight, { foot, prior: glides.current, cut: [d, tc], free: [tc] });
+      return;
+    }
+    closing.current = true;
+    const a = (d.lastElementChild as HTMLElement).animate([{ opacity: 1 }, { opacity: 0 }], { duration: D_SMALL * 0.6, easing: EASE_ARRIVE, fill: 'forwards' });
+    const fold = () => { closing.current = false; const was = card.offsetHeight; d.open = false; remember('changes', false); a.cancel(); glides.current = glideCard(card, was, card.offsetHeight, { foot, prior: glides.current }); };
+    void a.finished.then(fold, fold);
+  };
   // pull the sheet down to put it away (a phone's bottom sheet: transform only, written to the element; never through state)
-  const onDown = (e: React.PointerEvent) => { if (!bottom) return; drag.current = { y: e.clientY }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); };
+  const onDown = (e: React.PointerEvent) => { if (!thumb || (e.target as Element).closest('button')) return; drag.current = { y: e.clientY }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); };
   const onMove = (e: React.PointerEvent) => { const d = drag.current; if (!d || !ref.current) return; ref.current.style.transition = 'none'; ref.current.style.transform = `translateY(${Math.max(0, e.clientY - d.y)}px)`; };
   const onUp = (e: React.PointerEvent) => { const d = drag.current; drag.current = null; const el = ref.current; if (!d || !el) return; const dy = e.clientY - d.y; el.style.transition = ''; el.style.transform = ''; if (dy > 70) close(); };
+  const sections = (
+    <details ref={keptSection} className="section chart-sec" data-id="changes">
+      <summary onClick={onSummary}><span>{L.changes}</span><span className="count fd-count" hidden={mine.length === 0}>{mine.length || ''}</span><I n="chev-down" className="chev" /></summary>
+      <div className="section-body"><ChangesBody about={about} mine={mine} /></div>
+    </details>
+  );
+  const paneOf = (id: TabId, cls: string, node: React.ReactNode) => {
+    const off = id !== tab;
+    return (
+      <div key={id} className={`${cls}${off ? ' tp-off' : ''}${off && gone[id] ? ' tp-gone' : ''}`} inert={off} aria-hidden={off}
+        onTransitionEnd={(e) => { if (e.target === e.currentTarget && e.propertyName === 'visibility') setGone((g) => (g[id] === off ? g : { ...g, [id]: off })); }}>
+        {node}
+      </div>
+    );
+  };
+  const vars = layoutVars(vp, layoutClass(thumb)) as React.CSSProperties;
   return (
-    <section ref={ref} className="tr-card" data-open={open} data-bottom={bottom || undefined} data-device={device} data-page={page || undefined} role="dialog" aria-label={L.treat} inert={!open}>
-      <div className="tr-grab" aria-hidden="true" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}><i /></div>
-      <header className="tr-head" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-        <h2>{L.treat}</h2><span className="tr-meta" data-on={n > 0 || undefined}>{n ? `${n} running` : ''}</span>
-        <button type="button" className="tr-ib" aria-label="Close Treat" title="Close (Esc)" onClick={close}><Icon n="close" /></button>
-      </header>
-      <div className="tr-stage" data-page={page || undefined}>
-        <div className="tr-main" inert={page}>
-          <div className="tr-tabs" role="tablist" aria-label="Treatments">
-            {TABS.map(([id, label]) => {
-              const v = ranOn(id, p);
+    <section ref={ref} className="treat-card tr-card has-plate" id="treatCard" data-open={open} data-bottom={thumb} data-device={device} data-page={page || undefined} style={vars} role="dialog" aria-label={L.treat} inert={!open}>
+      <div className="sheet-plate" aria-hidden="true" />
+      <div className="tr-in">
+        <div className="tc-head card-head" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+          <h2 className="card-title"><span>{L.treat}</span></h2><span className="card-meta">{n ? `${n} running` : ''}</span>
+          <button type="button" className="ib card-close" aria-label="Close Treat" title="Close (Esc)" onClick={close}><I n="close" /></button>
+        </div>
+        <div ref={tabsRef} className="instr-tabs treat-tabs" role="tablist" aria-label="Treatments" inert={page}>
+          {TABS.map(([id, label]) => {
+            const v = ranOn(id, p);
+            return (
+              <button key={id} type="button" role="tab" className="instr-tab" data-tab={id} aria-selected={tab === id} aria-label={v ? `${label}, ${v} running` : label} onClick={() => setTab(id)}>
+                <span className="tt-l">{label}{id !== 'fluids' && <span className={`tt-n${v > 0 ? ' on' : ''}`} aria-hidden="true">{v || ''}</span>}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div ref={bodyRef} className="tc-body" inert={page}>
+          <div ref={paneRef} className="treat-pane">
+            {paneOf('drugs', 'order-chips', drugChips().map((c) => <Chip key={c.id} id={c.id} label={c.label} note={c.note} on={c.get(p)} />))}
+            {paneOf('fluids', 'order-grid three', fluids().map((f) => <Fluid key={f.id} {...f} />))}
+            {paneOf('procs', 'order-grid', procedures().map((x) => {
+              const on = !!x.placed?.(p);
               return (
-                <button key={id} type="button" role="tab" className="tr-tab" aria-selected={tab === id} aria-label={v ? `${label}, ${v} running` : label} onClick={() => useTreat.getState().setTab(id)}>
-                  <span className="tr-tab-l">{label}<span className="tr-tab-n" data-on={v > 0 || undefined} aria-hidden="true">{v || ''}</span></span>
+                <button key={x.id} type="button" className="order-btn" data-on={on ? '' : undefined} title={`${x.long}: ${x.sub}`} aria-label={on ? `${x.long}, in place` : x.long} onClick={() => x.run(appEnv)}>
+                  <I n={x.icon} className="ac-ic" /><span className="ob-t">{x.label}</span>
+                  {x.placed && <span className="ob-on" aria-hidden="true"><I n="check" /></span>}
                 </button>
               );
-            })}
+            }))}
           </div>
-          <div className="tr-body">
-            <Panes p={p} tab={tab} />
-            {phone ? (
-              <button type="button" className="tr-row" aria-haspopup="dialog" onClick={() => useTreat.getState().showChanges(true)}>
-                <span className="tr-row-t">{L.changes}</span><span className="tr-row-n" data-on={mine.length > 0 || undefined}>{mine.length || ''}</span><Icon n="chev-right" />
-              </button>
-            ) : (
-              <details className="tr-sec">
-                <summary><span>{L.changes}</span><span className="tr-count" data-on={mine.length > 0 || undefined}>{mine.length || 0}</span><Icon n="chev-down" className="tr-chev" /></summary>
-                <div className="tr-sec-body"><ChangesList about={about} mine={mine} /></div>
-              </details>
-            )}
-          </div>
+          {phone ? (
+            <button ref={rowRef} type="button" className="tcp-row" aria-haspopup="dialog" onClick={openPage}>
+              <span className="tcp-t">{L.changes}</span><span className="tcp-n">{mine.length || ''}</span><I n="chev-right" />
+            </button>
+          ) : sections}
         </div>
-        {phone && (
-          <div className="tr-page" role="group" aria-label={L.changes} inert={!page}>
-            <div className="tr-page-head">
-              <button type="button" className="tr-back" onClick={() => useTreat.getState().showChanges(false)}><Icon n="chev-left" />{L.treat}</button>
-              <span className="tr-page-title">{L.changes}</span>
+        {phone && mounted && (
+          <div ref={pageRef} className="tc-page" role="group" aria-label={L.changes} style={{ top }}>
+            <div className="tcp-head">
+              <button type="button" className="tcp-back" onClick={closePage}><I n="chev-left" />{L.treat}</button>
+              <span className="tcp-title">{L.changes}</span>
             </div>
-            <div className="tr-page-body"><ChangesList about={about} mine={mine} /></div>
+            <div className="tcp-body">{sections}</div>
           </div>
         )}
       </div>

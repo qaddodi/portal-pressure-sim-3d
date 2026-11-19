@@ -24,9 +24,16 @@ test('the response control is three gains, the slide\'s own marked (usual unless
   assert.deepEqual(strong.opts.map((o) => !!o.own), [false, false, true]);
 });
 
-test('a compare that moves an instrument (gate, tool) is left to the Tests cards', () => {
-  assert.equal(controlsOf(slide({ compare: [{ label: 'Hepatic', gate: 'a' }, { label: 'Portal', gate: 'b', own: true }] })), undefined);
-  assert.equal(controlsOf(slide({ whatIf: { label: 'Air', tool: 'air', min: 0, max: 1 } })), undefined);
+test('a compare that moves an instrument (gate, tool) is carried: the sample spot or the option, and the slide\'s own button puts its own options back', () => {
+  const g = controlsOf(slide({ compare: [{ label: 'Hepatic', gate: 'a' }, { label: 'Portal', gate: 'b', own: true }] }))!.compare!;
+  assert.deepEqual(g.opts.map((o) => o.gate), ['a', 'b']);
+  assert.equal(g.opts[1]!.own, true);
+  assert.match(g.name, /Sample the stent/);
+  const t = controlsOf(slide({ compare: [{ label: 'No red signs', tool: { red: false } }, { label: 'Red signs', own: true }] }))!.compare!;
+  assert.deepEqual(t.opts[0]!.tool, { red: false });
+  assert.deepEqual(t.opts[1]!.tool, {}, 'own, in a row that moves an instrument, is an empty patch');
+  const w = controlsOf(slide({ whatIf: { label: 'Air', tool: 'air', min: 0, max: 20 } }))!.whatIf!;
+  assert.deepEqual([w.tool, w.paths, w.min, w.max], ['air', [], 0, 20]);
 });
 
 test('a what-if slider reads its paths, and a value patches every path', () => {

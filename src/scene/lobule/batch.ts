@@ -17,6 +17,9 @@ export interface TubeOptions {
   radial?: number;
   /** Flat caps at both ends (axial vessels seen end-on). */
   capped?: boolean;
+  /** A vessel seen end-on (a short capped cylinder along z): every vertex also carries what the disc shading reads (disc.ts): `disc` (the share of the radius, 0 at the centre and 1 at the rim, -1 on the wall; and the direction
+   *  from the centre in the 2D plane, y down), `dctr` (the disc's centre, so the disc can be scaled about it) and `mouth` (the rim's mask words, set by the view). */
+  disc?: boolean;
   /** Squash the tube's depth (z) to this share of its width: a channel cut along its length reads as a flat band with a rounded face (the sinusoid's lumen), and its chevrons still point. */
   squash?: number;
 }
@@ -27,6 +30,11 @@ export class Batch {
   private uv: number[] = [];
   private tan: number[] = [];
   private idx: number[] = [];
+  private dsc: number[] = [];
+  private dct: number[] = [];
+  private discOn = false;
+  /** Each tube's vertices: where they start and how many (a disc's mouth mask is written to all of its own). */
+  readonly spans: { start: number; count: number }[] = [];
   private count = 0;
   /** Where each tube's rings start in the vertex list: for a part that colours itself along its length (the `ink` attribute, see `withInk`). */
   readonly tubes: { start: number; rings: number; ring: number }[] = [];
@@ -68,9 +76,11 @@ export class Batch {
         else { const l = Math.hypot(nx, ny, nz / k) || 1; this.nor.push(nx / l, ny / l, nz / k / l); }
         this.uv.push(ux, j / radial);
         this.tan.push(T[i]!.x, T[i]!.y, T[i]!.z);
+        this.dsc.push(-1, nx, -ny); this.dct.push(P[i]!.x, P[i]!.y);   // (the wall: no pale band on it; its direction is the mask's, in the 2D plane, y down)
         this.count++;
       }
     }
+    if (o.disc) this.discOn = true;
     const ring = radial + 1;
     for (let i = 0; i < n - 1; i++) for (let j = 0; j < radial; j++) {
       const a = base + i * ring + j, b = a + ring, c = b + 1, d = a + 1;
@@ -81,7 +91,7 @@ export class Batch {
         const sign = end === 0 ? -1 : 1, axis = T[end]!.clone().multiplyScalar(sign);
         const ux = o.uvx ? o.uvx(end, end === 0 ? 0 : arc) : (end === 0 ? 0 : arc);
         const centre = this.count;
-        this.pos.push(P[end]!.x, P[end]!.y, P[end]!.z); this.nor.push(axis.x, axis.y, axis.z); this.uv.push(ux, 0.5); this.tan.push(T[end]!.x, T[end]!.y, T[end]!.z); this.count++;
+        this.pos.push(P[end]!.x, P[end]!.y, P[end]!.z); this.nor.push(axis.x, axis.y, axis.z); this.uv.push(ux, 0.5); this.tan.push(T[end]!.x, T[end]!.y, T[end]!.z); this.dsc.push(0, 0, 0); this.dct.push(P[end]!.x, P[end]!.y); this.count++;
         const first = this.count;
         const r = typeof o.radius === 'number' ? o.radius : o.radius(end, n);
         const B = new Vector3().crossVectors(T[end]!, new Vector3(Math.abs(T[end]!.y) < 0.9 ? 0 : 1, Math.abs(T[end]!.y) < 0.9 ? 1 : 0, 0)).normalize();
@@ -89,11 +99,13 @@ export class Batch {
         for (let j = 0; j <= radial; j++) {
           const a = (j / radial) * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
           this.pos.push(P[end]!.x + (Nn.x * c + B.x * s) * r, P[end]!.y + (Nn.y * c + B.y * s) * r, P[end]!.z + (Nn.z * c + B.z * s) * r);
-          this.nor.push(axis.x, axis.y, axis.z); this.uv.push(ux, j / radial); this.tan.push(T[end]!.x, T[end]!.y, T[end]!.z); this.count++;
+          this.nor.push(axis.x, axis.y, axis.z); this.uv.push(ux, j / radial); this.tan.push(T[end]!.x, T[end]!.y, T[end]!.z);
+          this.dsc.push(1, Nn.x * c + B.x * s, -(Nn.y * c + B.y * s)); this.dct.push(P[end]!.x, P[end]!.y); this.count++;
         }
         for (let j = 0; j < radial; j++) { if (end === 0) this.idx.push(centre, first + j + 1, first + j); else this.idx.push(centre, first + j, first + j + 1); }
       }
     }
+    this.spans.push({ start: base, count: this.count - base });
     return arc;
   }
 
@@ -107,6 +119,7 @@ export class Batch {
       v.fromBufferAttribute(p, i).applyMatrix4(m);
       w.fromBufferAttribute(nm, i).applyMatrix3(nmat).normalize();
       this.pos.push(v.x, v.y, v.z); this.nor.push(w.x, w.y, w.z); this.uv.push(uvx, 0.5); this.tan.push(...tang);
+      this.dsc.push(-1, 0, 0); this.dct.push(m.elements[12]!, m.elements[13]!);
       this.count++;
     }
     if (ix) for (let i = 0; i < ix.count; i++) this.idx.push(base + ix.getX(i));
@@ -120,6 +133,11 @@ export class Batch {
     g.setAttribute('uv', new Float32BufferAttribute(this.uv, 2));
     g.setAttribute('tang', new Float32BufferAttribute(this.tan, 3));
     if (this.inkOn) g.setAttribute('ink', new Float32BufferAttribute(new Float32Array(this.count * 3).fill(0.6), 3));
+    if (this.discOn) {
+      g.setAttribute('disc', new Float32BufferAttribute(this.dsc, 3));
+      g.setAttribute('dctr', new Float32BufferAttribute(this.dct, 2));
+      g.setAttribute('mouth', new Float32BufferAttribute(new Float32Array(this.count * 3), 3));
+    }
     g.setIndex(this.idx);
     g.computeBoundingSphere();
     return g;

@@ -9,6 +9,7 @@ import { NODE_POS_2D } from '../vessels/paths.copied.ts';
 import { x3, y3 } from '../frame2d.ts';
 import { LABEL_NAMES as N } from './names.copied.ts';
 import type { Dir } from './geometry.ts';
+import { TARGETS_FIG } from './figure2d.copied.ts';
 
 export type StationKind = 'vessel' | 'point' | 'organ';
 
@@ -45,7 +46,7 @@ const extra = new Set<string>(N.ANAT_EXTRA);
 const chips = new Set<string>(N.CHIP_NODES);
 
 const curves = new Map<string, CatmullRomCurve3>();
-const curveOf = (edge: string): CatmullRomCurve3 | null => {
+export const curveOf = (edge: string): CatmullRomCurve3 | null => {
   let c = curves.get(edge);
   if (!c) {
     // (the course the scene draws, as it is drawn: the 2D figure's own x and y, and the depth the tube has, which eases from its tier to its end node's depth over each end (shape.ts to3), so the
@@ -82,8 +83,8 @@ const ORGAN_POINTS: Record<string, [number, number, number]> = Object.fromEntrie
 
 const DIRS: Record<string, readonly Dir[]> = {
   CONF: ['W', 'SW', 'E'], SV: ['S', 'SE', 'E'], SMV: ['E', 'SE', 'W'], SIN_R: ['W', 'SW', 'NW'], RHV: ['W', 'NW', 'N'], IVCS: ['E', 'NE', 'SE'],
-  IVCI: ['E', 'SE', 'NE'], RA: ['E', 'NE', 'SE'], VAR: ['E', 'NE', 'SE'], GV: ['E', 'NE', 'SE'], MHV: ['S', 'SW', 'W'], LHV: ['S', 'SE', 'E'], RPV: ['N', 'NW', 'W'], LPV: ['N', 'NE', 'E'],
-  LGV: ['E', 'NE', 'SE'],
+  IVCI: ['E', 'SE', 'NE'], RA: ['E', 'NE', 'SE'], VAR: ['E', 'NE', 'SE'], MHV: ['S', 'SW', 'W'], LHV: ['S', 'SE', 'E'], RPV: ['N', 'NW', 'W'], LPV: ['N', 'NE', 'E'],
+  LGV: ['E', 'NE', 'SE'], GV: ['N', 'W', 'S'],
 };
 
 function vesselStation(id: string): Station | null {
@@ -126,11 +127,13 @@ export const stationById = (id: string): Station | undefined => STATIONS.find((s
 /** The station a drawn vessel's label belongs to (a vessel is picked by edge ID; its station is the one whose label hangs from it). */
 export const stationOfVessel = (edge: string): string | null => STATIONS.find((s) => s.vessel === edge)?.id ?? null;
 
-/** Which stations a deck term points at (the deck's `terms` field names figure parts by these ids). Stations are in the 2D app's vocabulary;
- *  the table grows as decks come over (a test fails on a term it does not know, so none is silently ignored). */
-export const TERM_STATIONS: Readonly<Record<string, readonly string[]>> = {
-  ra: ['RA'], ivc: ['IVCS', 'IVCI'], hv: ['RHV'], fhvp: ['RHV'], whvp: ['SIN_R'], pv: ['CONF'], sv: ['SV'], smv: ['SMV'], var: ['VAR'],
-};
+/** Which stations a deck term points at (the deck's `terms` field names figure parts by these ids). The words are the 2D app's own (TARGETS, figure2d.copied.ts: each term's station, vessels, organ
+ *  and colour); a term with no station of its own (an organ, the Circuit's resistors, a lobule part) answers with no station, and what it lights is the figure link's (ui/deck/figure-plan.ts). The first
+ *  lines are the ones that light more than the 2D target's one station (the cava's two stretches). */
+const ALSO: Readonly<Record<string, readonly string[]>> = { ivc: ['IVCS', 'IVCI'] };
+export const TERM_STATIONS: Readonly<Record<string, readonly string[]>> = Object.fromEntries(
+  Object.entries(TARGETS_FIG).map(([k, t]) => [k, ALSO[k] ?? (t.node ? [t.node] : [])]),
+);
 
 export function stationsOfTerms(terms: readonly string[]): Set<string> {
   const out = new Set<string>();

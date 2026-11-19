@@ -16,7 +16,7 @@ import { lobuleSelAt, onArteriole, ARTERIOLES, ARTERIOLE_REACH } from '../src/ui
 import { buildLobule } from '../src/scene/lobule/geometry.ts';
 import { claims } from '../src/parity/b9x.ts';
 
-const draw = (id: string, x: number, y: number, o: Partial<Draw> = {}): Draw => ({ id, kind: 'station', alpha: 1, x, y, w: 60, h: 20, form: 0, value: '', dot: null, rev: false, pad: { x: 0, y: 0 }, leader: null, ...o });
+const draw = (id: string, x: number, y: number, o: Partial<Draw> = {}): Draw => ({ id, kind: 'station', alpha: 1, x, y, w: 60, h: 20, form: 0, value: '', dot: null, rev: false, pad: { x: 0, y: 0 }, leader: null, ...o } as Draw);
 
 test('a label is hit inside its box (with a finger\'s slack), the topmost first; a faded label, an organ\'s name and the key are not buttons', () => {
   const out = [draw('VAR', 100, 100), draw('RA', 130, 100)];

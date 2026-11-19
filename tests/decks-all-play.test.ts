@@ -64,7 +64,7 @@ test('a question slide is asked on a card of its own first (two beats), and a sl
     d.slides.forEach((s, i) => {
       const stop = stops[i + 1]!;
       if (stop.kind !== 'slide') return;
-      assert.equal(stop.beats, caseOf(s) ? 2 : 1, `${id}/${s.id}`);
+      assert.equal(stop.beats, (caseOf(s) ? 2 : 1) + (s.beats?.length ?? 0), `${id}/${s.id}`);   // (a slide's camera beats are views after its own)
       if (s.question) { questions++; assert.ok(!s.vignette, `${id}/${s.id}: only a slide with no case and no patient of its own is asked`); assert.equal(viewAt(stops, { stop: i + 1, beat: 0 }).words, 'case'); assert.equal(viewAt(stops, { stop: i + 1, beat: 1 }).words, 'teach'); assert.deepEqual(goto(stops, i + 1), { stop: i + 1, beat: 1 }, `${id}/${s.id}: a jump lands on the slide, not on its question`); }
       else if (s.vignette) assert.deepEqual(goto(stops, i + 1), { stop: i + 1, beat: 0 }, `${id}/${s.id}: a jump to a case still shows the case`);
     });

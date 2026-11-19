@@ -7,7 +7,8 @@ import { useTests } from '../tests/store.ts';
 import { useEngine } from '../../engine/index.ts';
 import { patient } from '../../engine/store.ts';
 import { usePick, sceneApi } from '../../scene/api.ts';
-import { bindScene, scenePicked, useSelection } from './selection.ts';
+import { bindScene, scenePicked, selectStructure, useSelection } from './selection.ts';
+import { useLobulePick } from '../../scene/lobule/pick-store.ts';
 import { onParamsChange, presetBase, presetStarted } from './params.ts';
 import { activeInterventions } from './changes.ts';
 import { setInterventionLabels, timeline } from '../timeline/index.ts';
@@ -37,6 +38,12 @@ export function startActions(): () => void {
   off.push(startShunting());   // Add shunt: the targets glow, a tap on one makes the shunt (shunt.ts)
   bindScene((id) => { if (usePick.getState().picked !== id) sceneApi.pick(id); });
   off.push(usePick.subscribe((s) => scenePicked(s.picked)));
+  // a tap on the lobule: its part's card (2D hitInto), and a second tap on the same part puts it away; a tap on nothing clears a lobule card
+  off.push(useLobulePick.subscribe((s) => {
+    const cur = useSelection.getState().sel, p = s.picked;
+    if (!p) { if (cur?.type === 'lobule') selectStructure(null); return; }
+    selectStructure(cur?.type === 'lobule' && cur.part === p.part && cur.zone === p.zone ? null : p);
+  }));
   // a structure selected on a phone puts Treat away (2D onSelect)
   off.push(useSelection.subscribe((s, prev) => { if (s.sel && s.sel !== prev.sel && isPhone(useUi.getState().device) && useTreat.getState().open) useTreat.getState().setOpen(false); }));
   // a phone has room for one sheet (2D openPanel, openTreat): the Tests card coming up puts Treat away (Treat's Paracentesis opens Ascites), and Treat coming up puts Tests away
