@@ -4,6 +4,8 @@
 // folds as it turns from one plane to the other. The vessels the plain peel cannot carry (those that reverse, those with a pinned end) add their track (morph.ts).
 // At circT 0 nothing here runs: the body is drawn exactly as it was. At circT 1 the vertex is exactly the map course's.
 import { PEEL_DL } from './data.copied.ts';
+import { MAP_K } from './map.ts';
+import { PEEL_SPAN } from './peel.ts';
 
 /** Attribute and uniform declarations, put before `void main` of the vessel's vertex shader. */
 export const CIRCUIT_VS_HEAD = /* glsl */ `
@@ -11,6 +13,8 @@ attribute vec3 cC;
 attribute vec3 tC;
 attribute vec3 fr;
 attribute vec2 pk;
+// the lengths of the vessel's two courses (body, map), scene units: the speed of each along the vessel's own 0 to 1
+attribute vec2 cl;
 uniform float circT;
 uniform vec2 circRot;
 uniform vec3 circM;
@@ -18,6 +22,8 @@ uniform float circRow;
 uniform vec2 circTrackSize;
 uniform sampler2D circTrack;
 const float CIRC_DL = ${PEEL_DL.toFixed(4)};
+const float CIRC_MAPK = ${MAP_K.toFixed(6)};
+const float CIRC_SPAN = ${PEEL_SPAN.toFixed(1)};
 float circPeel(float t, float r) {
   if (t <= 0.0) return 0.0;
   if (t >= 1.0) return 1.0;
@@ -25,6 +31,13 @@ float circPeel(float t, float r) {
   if (x <= 0.0) return 0.0;
   if (x >= 1.0) return 1.0;
   return x * x * (3.0 - 2.0 * x);
+}
+// how fast the share of the change moves with the rank (peel.ts peelSlope)
+float circPeelSlope(float t, float r) {
+  if (t <= 0.0 || t >= 1.0) return 0.0;
+  float x = (t - CIRC_DL * r) / (1.0 - CIRC_DL);
+  if (x <= 0.0 || x >= 1.0) return 0.0;
+  return 6.0 * x * (1.0 - x) * (-CIRC_DL / (1.0 - CIRC_DL));
 }
 vec3 circTurnPt(vec3 p) {
   vec2 d = p.xy - circM.xy;
@@ -41,9 +54,13 @@ void circuitMorph(inout vec3 P, inout vec3 Nn, inout vec3 Tn) {
   vec3 N0 = circFrameN(tang);
   vec3 cA = position - radius * (fr.x * N0 + fr.y * cross(tang, N0) + fr.z * tang);
   float w = circPeel(circT, pk.x);
-  vec3 cen = mix(cA, circTurnPt(cC), w);
-  vec3 Tm = mix(tang, circTurnDir(tC), w);
-  vec3 T = dot(Tm, Tm) > 1e-6 ? normalize(Tm) : tang;
+  vec3 cT = circTurnPt(cC);
+  vec3 cen = mix(cA, cT, w);
+  // the direction of the moving centreline is its derivative along the vessel: (1 - w) A' + w C' + w' (C - A), the last term the flow peel's own gradient (the rank changes along the
+  // vessel, so the share of the change does too); a plain blend of the two directions is up to a quarter off mid-change, this is exact (it is 'tang' and 'tC' at either end)
+  float rs = (pk.x > 0.0 && pk.x < 1.0) ? cl.y * tC.x / CIRC_MAPK / CIRC_SPAN : 0.0;
+  vec3 Tm = (1.0 - w) * (tang * cl.x) + w * (circTurnDir(tC) * cl.y) + circPeelSlope(circT, pk.x) * rs * (cT - cA);
+  vec3 T = dot(Tm, Tm) > 1e-9 ? normalize(Tm) : tang;
   if (circRow >= 0.0) {
     float f = pk.y * (circTrackSize.x - 1.0);
     float i0 = floor(f);

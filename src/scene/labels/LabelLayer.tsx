@@ -101,6 +101,7 @@ export function LabelLayer() {
       reversed: (edge) => { const f = latest.frame, ref = patient.reference; if (!f) return false; const k = indexOf(edge); return flowReversed(f.Qf[k] ?? 0, ref ? (ref.Q[k] ?? 0) : 0); },
       pressure: (node) => { const f = latest.frame, i = NODE_AT.get(node); return f && i !== undefined ? (f.Pf[i] ?? null) : null; },
       reading: (k) => ui.getState().readings[k] ?? null,
+      hidden: () => cel.circuit.t > 0 || cel.circuit.toCircuit,
       cathere: (tip: Vector3, ahead: Vector3) => {
         const c = cel.catheter;
         if (c.current.advance < 0.999) return 0;
