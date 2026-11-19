@@ -22,9 +22,9 @@ const toggleFull = () => {
 export function useDeckInput() {
   useEffect(() => {
     let digits = '', timer: ReturnType<typeof setTimeout> | undefined;
-    // the laser is the talk's own: made with it, put away on the next slide and when the talk ends (2D: reset())
-    const laser = createLaser();
-    const offPos = useUi.subscribe((st, prev) => { if (st.pos !== prev.pos) laser.set(false); });
+    // the laser is the talk's own: made with it, kept from slide to slide, put away under the black screen and when the talk ends (2D ink-gl.js: active() is "a talk, not blacked")
+    const laser = createLaser({ active: () => { const u = useUi.getState(); return !!u.deck && !u.black; } });
+    const offPos = useUi.subscribe((st, prev) => { if (st.black && !prev.black) laser.set(false); });
     const clear = () => { digits = ''; clearTimeout(timer); };
     const down = (e: KeyboardEvent) => {
       if (e.key === 'Tab') keyboardNav = true;
@@ -64,7 +64,7 @@ function carryOut(a: ClickAct, ui: ReturnType<typeof useUi.getState>, sh: Return
     case 'jump': ui.setJump(); break;
     case 'presenter': if (!openPresenterView()) sh.say(W.noNotesWindow, 'bad'); break;
     case 'laser': laser.toggle(); break;
-    case 'swallow': break;
-    case 'escape': if (laser.on) laser.set(false); else if (ui.black) ui.setBlack(false); else leaveTalk(); break;
+    case 'swallow': if (a.clear) d.clear(); break;
+    case 'escape': if (ui.black) ui.setBlack(false); else leaveTalk(); break;
   }
 }
