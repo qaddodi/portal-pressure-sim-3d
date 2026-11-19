@@ -1,0 +1,40 @@
+/* Tests > Ascites (2D app-*.css .ab-*): flat values and tiles to read, then the controls in one vocabulary (a stepper, the app's switch, one button). */
+.ab-main { display: flex; flex-direction: column; gap: 14px; }
+.ab-read { display: flex; flex-direction: column; gap: 12px; }
+.ab-vol { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.ab-dial-box { flex: none; position: relative; }
+.ab-gauge { flex: none; width: var(--ab-bw); }
+.ab-dp { flex: 1 1 0; min-width: 96px; display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding-left: 6px; }
+.ab-dp-k { font: 600 12px / 1 var(--ui); color: var(--text-3); letter-spacing: 0.02em; }
+.ab-dp-vol { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.ab-dp-l { display: inline-flex; align-items: baseline; gap: 3px; font: 600 15px / 1 var(--ui); font-variant-numeric: tabular-nums; }
+.ab-dp-l small { font: 500 12px / 1 var(--ui); color: var(--text-3); }
+.ab-dp-sb { width: 32px; height: 32px; border-radius: 999px; border: 1px solid var(--edge); background: transparent; color: var(--text); font: 600 16px / 1 var(--ui); }
+.ab-dp-sb:disabled { opacity: 0.4; }
+.ab-dp-alb { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border: 0; background: transparent; text-align: left; }
+.ab-dp-at { display: flex; flex-direction: column; gap: 1px; } .ab-dp-at b { font: 600 13px / 1.1 var(--ui); } .ab-dp-at small { font: 500 12px / 1.1 var(--ui); color: var(--text-3); }
+.ab-dp-alb[data-warn] .ab-dp-at small { color: var(--caution); }
+.ab-drain { height: 34px; border-radius: 999px; border: 0; background: var(--accent); color: var(--on-accent, #fff); font: 600 13px / 1 var(--ui); }
+.ab-drain:disabled { opacity: 0.45; }
+.ab-trend { font: 500 13px / 1.2 var(--ui); color: var(--text-2); font-variant-numeric: tabular-nums; text-align: center; }
+.ab-iap { display: flex; flex-direction: column; gap: 6px; }
+.ab-kv { display: flex; justify-content: space-between; align-items: baseline; font: 500 13px / 1.2 var(--ui); color: var(--text-2); }
+.ab-v { display: inline-flex; gap: 6px; align-items: baseline; } .ab-v b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
+.ab-w[data-sev="caution"] { color: var(--caution); } .ab-w[data-sev="danger"] { color: var(--danger); }
+.ab-iap-bar { position: relative; height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--text) 8%, var(--surface)); overflow: hidden; }
+.ab-iap-fill { position: absolute; inset: 0; transform-origin: 0 50%; background: var(--ok); transition: transform 280ms cubic-bezier(0.2, 0.7, 0.2, 1), background-color 200ms; }
+.ab-iap-fill[data-sev="caution"] { background: var(--caution); } .ab-iap-fill[data-sev="danger"] { background: var(--danger); }
+.ab-iap-mark { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--surface); }
+.ab-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; position: relative; }
+.ab-tile { margin: 0; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--text) 6%, var(--surface)); display: flex; flex-direction: column; gap: 2px; }
+.ab-tile dt { font: 500 12px / 1.1 var(--ui); color: var(--text-3); } .ab-tile dd { margin: 0; font: 650 16px / 1.1 var(--ui); font-variant-numeric: tabular-nums; }
+.ab-u { margin-left: 3px; font: 500 12px / 1 var(--ui); color: var(--text-3); }
+.ab-why { display: none; grid-column: 1 / -1; font: 500 12px / 1.2 var(--ui); color: var(--text-3); text-align: center; }
+.ab-tiles[data-empty] .ab-tile { opacity: 0.45; } .ab-tiles[data-empty] .ab-why { display: block; }
+.ab-ctl { display: flex; flex-direction: column; gap: 4px; }
+.ab-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border: 0; background: transparent; text-align: left; width: 100%; }
+.ab-txt { display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto; } .ab-txt b { font: 600 14px / 1.2 var(--ui); } .ab-txt small { font: 500 12px / 1.2 var(--ui); color: var(--text-3); }
+.ab-end { flex: none; }
+.switch-vis { flex: none; position: relative; width: 38px; height: 22px; border-radius: 999px; background: color-mix(in srgb, var(--text) 18%, var(--surface)); transition: background-color 200ms; }
+.switch-vis i { position: absolute; left: 2px; top: 2px; width: 18px; height: 18px; border-radius: 999px; background: #fff; transition: transform 200ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+[aria-checked="true"] > .switch-vis { background: var(--accent); } [aria-checked="true"] > .switch-vis i { transform: translateX(16px); }
