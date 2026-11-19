@@ -3,7 +3,7 @@
 // a removed spleen, the grey of a lens other than Pressure, blood in the stomach. Meshes come from meshes.ts (the organs thread) in the shared frame; this file never
 // builds one. Everything moves on the clock: `update(now)` returns true while something eases, and nothing is touched when nothing moves.
 import { type BufferGeometry, Color, Group, Vector3, Vector4 } from 'three';
-import { ORGAN_FS, ORGAN_VS } from './organ-shader.ts';
+import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from './organ-shader.ts';
 import type { OrganTones2D } from '../../looks/organ-tones.copied.ts';
 import { ORGAN_MESHES } from './meshes.ts';
 import { CelObject, type CelShared } from '../materials/cel.ts';
@@ -37,8 +37,14 @@ export function organLayerAlpha(p: Palette, id: string): number {
 }
 const rgba = (v: readonly number[]) => new Vector4(v[0]! / 255, v[1]! / 255, v[2]! / 255, v[3]!);
 
-/** Puts 2D's organ painter (organ-shader.ts) in place of the toon fill: the uniforms the paint fills each look, and the organ's own box for the gradient. */
-function useOrganShader(o: CelObject, g: BufferGeometry): void {
+/** 2D's drawing order (back to front), the gut last: the gut is depth-tested behind the organs already drawn, which is 2D's #gutHide (the gut cut away under the
+ *  liver, stomach, spleen and kidney), and lies on bare page elsewhere. */
+export const ORGAN_ORDER = ['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach', 'duodenum', 'liver', 'bowel', 'colon'];
+
+/** Puts 2D's organ painter (organ-shader.ts) in place of the toon fill: the uniforms the paint fills each look, and the organ's own box for the gradient.
+ *  The fill is blended at the layer's opacity, so organs show through each other; it writes depth, and each organ's outline is drawn right after it, so the
+ *  hull is hidden behind its own fill and shows only round the silhouette. */
+function useOrganShader(o: CelObject, g: BufferGeometry, id: string): void {
   if (!g.boundingBox) g.computeBoundingBox();
   const b = g.boundingBox!;
   const m = o.toon;
@@ -48,7 +54,17 @@ function useOrganShader(o: CelObject, g: BufferGeometry): void {
     ogLight: { value: new Vector4() }, ogDark: { value: new Vector4() }, volShade: { value: new Vector4() },
     box: { value: new Vector4(b.min.x, b.max.y, b.max.x - b.min.x, b.max.y - b.min.y) },
   });
+  m.transparent = true; m.depthWrite = true;
   m.needsUpdate = true;
+  const ink = o.ink;
+  ink.vertexShader = ORGAN_INK_VS;
+  ink.uniforms.dpr = { value: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1 };
+  // in the sorted (transparent) list too, so it keeps its place right after its own fill; it stays opaque (pre-mixed against the page)
+  ink.transparent = true;
+  ink.needsUpdate = true;
+  const i = Math.max(0, ORGAN_ORDER.indexOf(id));
+  o.toonMesh.renderOrder = 2 * i;
+  for (const c of o.group.children) if (c !== o.toonMesh) c.renderOrder = 2 * i + 1;
 }
 
 const pivot = (c: readonly [number, number]) => new Vector3(x3(c[0]), y3(c[1]), 0);
@@ -96,8 +112,9 @@ export class OrganLayer {
       const g = make();
       if (PAINTED.has(id)) { if (!g.getAttribute('normal')) g.computeVertexNormals(); this.paints.set(id, new VertexPaint(g, id as 'liver' | 'spleen' | 'stomach')); }
       const o = new CelObject(g, { tone: st.tone, bands: 3, spec: 0, px: st.px }, this.shared);
-      useOrganShader(o, g);
+      useOrganShader(o, g, id);
       if (this.phone) o.setPhone(true);
+      o.ink.uniforms.px!.value = st.px;
       this.objects.push(o); this.byId.set(id, o); this.group.add(o.group);
       if (id === 'liver') {
         this.liverGeometry = g;
@@ -109,7 +126,8 @@ export class OrganLayer {
   }
 
   applyLook(p: Palette): void { this.palette = p; this.dirtyColours = true; }
-  setPhone(phone: boolean): void { this.phone = phone; for (const o of this.objects) o.setPhone(phone); }
+  /** The organ outline is in the figure's units (ORGAN_INK_VS), so it needs no phone trim: keep 2D's 1.1 (kidney 1.4) on every device. */
+  setPhone(phone: boolean): void { this.phone = phone; for (const [id, o] of this.byId) { o.setPhone(phone); o.ink.uniforms.px!.value = ORGAN_STYLE[id]!.px; } }
   /** A lens other than Pressure greys the organs (organ-dim.js: saturation 0.12, opacity 0.72) and eases in 420 ms (D_SURFACE). */
   setLensGrey(on: boolean): void { this.grey = on; }
   /** The patient's disease for the next frames. `instant` takes it at once (a new patient, the first frame: nothing eases across a jump). */

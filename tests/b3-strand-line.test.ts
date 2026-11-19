@@ -19,7 +19,7 @@ test('every drawn strand has a soft ink in the look\'s casing, 1.5 device px, no
       assert.ok(obj!.ink.transparent && !obj!.ink.depthWrite, `${host}: the ink is blended`);
       const a = u.inkA!.value as number;
       assert.ok(Math.abs(a - c.a) < 1e-6 || Math.abs(a - c.a * 0.5) < 1e-6, `${host}: alpha ${a}`);
-      assert.ok(Math.abs((u.px!.value as number) - 0.5) < 1e-6, `${host}: 1.5 device px on a 3x screen is 0.5 CSS px`);
+      assert.ok(Math.abs((u.px!.value as number) - (host.startsWith('SIN') ? 0.25 : 0.5)) < 1e-6, `${host}: 1.5 device px (a bed's hairlines 0.75) on a 3x screen is 0.5 (0.25) CSS px`);
       assert.equal(obj!.toon.uniforms.spec!.value, 0, `${host}: no glint`);
       const col = u.color!.value as { r: number; g: number; b: number };
       assert.ok(Math.abs(col.r - c.rgb[0] / 255) < 1e-6, `${host}: casing ink, not the palette's black`);

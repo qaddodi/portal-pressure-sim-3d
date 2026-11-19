@@ -12,42 +12,32 @@ import { OrderIcon } from '../../action/icons.tsx';
 import { appEnv } from '../../treat/env.ts';
 import { procLabel } from '../../../scene/procedures/copied/procedure-names.js';
 import { gastricUp } from '../../../engine/hales/portal/scenario.js';
-import { fmt } from '../copied/num.copied.js';
-import { airRatio } from '../copied/endo-size.copied.js';
 import { scopeTear } from '../copied/endo-motion.copied.js';
-import { endoscopyLabel } from '../copied/instrument-aria.copied.js';
 import { ENDO_WORDS as W } from '../copied/endo-words.copied.js';
 import { metricsOf } from '../frame.ts';
 import type { PaneProps } from '../TestsLayer.tsx';
 import { FieldMotion, OverlayMotion, type ScopeIn } from './motion.ts';
 import { scopeFrame, type OverlayState } from './frame.ts';
-import { EusPpg } from './EusPpg.tsx';
+import { EusButton, EusPanel, useEusReset } from './EusPpg.tsx';
 import { WallView } from './WallView.tsx';
 import { useScope } from './scope-state.ts';
+import { readingsOf, scopeOptions, type EndoOpt } from './readings.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
 const still = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/** What the readings print for a frame (one place: the pane renders it and the test reads it). */
-export function readingsOf(f: Any, airOpt = 0) {
-  const m = metricsOf(f), vx = m?.varix;
-  if (!vx) return null;
-  const nb = Math.round(f.bands || 0), present = !!vx.present;
-  const grade: string = vx.grade.label;
-  const diam = `${fmt(vx.d * (airRatio(vx.air, airOpt) as number), 1)} mm`;
-  const red = !present ? W.red.none : vx.redWale ? `${W.red.word}${W.red.more}` : W.red.none;
-  return { present, grade, sev: grade === 'Small' ? 'caution' : grade === 'None' ? 'ok' : 'danger', diam, wall: `${fmt(vx.w, 1)} mm`, red, redOn: red !== W.red.none, bands: nb, label: endoscopyLabel({ present, grade, diam, red: red !== W.red.none, bands: nb }) as string };
-}
-
-function ScopeView({ square }: { square: number }) {
-  const json = useEngine((s) => { void s.frames; return JSON.stringify(readingsOf(latest.frame)); });
+function ScopeView({ square, opt }: { square: number; opt: EndoOpt }) {
+  const json = useEngine((s) => { void s.frames; return JSON.stringify(readingsOf(latest.frame, opt)); });
   const r = useMemo(() => (json && json !== 'null' ? JSON.parse(json) as NonNullable<ReturnType<typeof readingsOf>> : null), [json]);
+  const optRef = useRef(opt); optRef.current = opt;
   const painter = useRef<ChartPainter | null>(null), ctx = useRef<ChartCtx | null>(null);
   const field = useRef(new FieldMotion()), over = useRef(new OverlayMotion());
   const look = useLookId();
   const dirty = useRef(true), hold = useRef<{ release(): void } | null>(null), key = useRef('');
   const preset = useEngine((s) => s.presetId);
+  const eus = useScope((s) => s.eus);
+  useEusReset(preset);
 
   const build = (c: ChartCtx) => {
     const f = latest.frame as Any, o = over.current, fm = field.current.state, m = metricsOf(f);
@@ -59,7 +49,7 @@ function ScopeView({ square }: { square: number }) {
     const f = latest.frame as Any, m = metricsOf(f), c = ctx.current, p = painter.current;
     if (!f || !m?.varix || !c || !p) return;
     const vx = m.varix;
-    const inp: ScopeIn = { d: vx.d, ratio: vx.ratio, air: vx.air, bands: f.bands || 0, snap: f.running === false || !!f.jump };
+    const inp: ScopeIn = { d: vx.d, ratio: vx.ratio, air: vx.air, bands: f.bands || 0, snap: f.running === false || !!f.jump, airOpt: optRef.current.air, redOpt: optRef.current.red };
     const busy = field.current.step(inp, now);
     const bleedNow = !!(f.bleed?.active && f.bleed.site === 'VAR');
     const moving = over.current.step(now, { balloon: !!f.params?.balloonEso, shut: gastricUp(f.params || {}), bleedNow, total: f.bleed?.total ?? 0, still: still() });
@@ -78,19 +68,20 @@ function ScopeView({ square }: { square: number }) {
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   // a new patient lands where the model is (nothing eases across a jump)
   useEffect(() => { field.current.reset(); dirty.current = true; key.current = ''; clock.invalidate('endo-scope'); }, [preset]);
-  useEffect(() => { dirty.current = true; clock.invalidate('endo-scope'); }, [look, square]);
+  useEffect(() => { dirty.current = true; clock.invalidate('endo-scope'); }, [look, square, opt.air, opt.red]);   // a slide's air or red: the field eases to it as it does to any change
   useEffect(() => { useScope.getState().setBands(r?.bands ?? 0); }, [r?.bands]);
 
   const present = r?.present ?? false;
   const pal = paletteOf(look);
   void pal;
   return (
-    <div className="en-view" data-view="scope">
+    <div className="en-view" data-view="scope" data-eus={eus}>
       <div className="endo-stage en-stage">
         <div className="en-pic" style={{ ['--en-sq' as string]: `${square}px` }}>
           <Chart tag="endo-scope" painter={painter} deps={[square, look]} label={r?.label ?? W.viewAria} build={(c) => { ctx.current = c; return build(c); }} />
         </div>
         <span className="endo-pos">{W.position}</span>
+        <EusPanel width={square} />
       </div>
       <div className="en-side chart-side">
         {r && (
@@ -99,21 +90,24 @@ function ScopeView({ square }: { square: number }) {
             <div className="endo-g" title={W.gradeTip}><dt>{W.tiles.grade}</dt><dd className="endo-grade" data-sev={r.sev}><b /><span>{r.grade}</span></dd></div>
             <div className="endo-tile"><dt>{W.tiles.diameter}</dt><dd className="endo-num">{r.diam}</dd></div>
             <div className="endo-tile"><dt>{W.tiles.wall}<span className="endo-dt-x">{W.tiles.wallX}</span></dt><dd className="endo-num">{r.wall}</dd></div>
+            {opt.readings && W.pressures.map((p, i) => <div key={p.name} className="endo-tile endo-pr" title={p.title}><dt>{p.name}</dt><dd className="endo-num">{r.pressures[i]}</dd></div>)}
             <div className="endo-chip endo-red" data-on={r.redOn} title={W.redTip}><dt>{W.tiles.stigmata}</dt><dd className="endo-chip-v" data-long={r.redOn ? '' : undefined}><span>{r.redOn ? W.red.word : W.red.none}</span><span className="endo-more">{r.redOn ? W.red.more : ''}</span></dd></div>
           </dl>
         )}
         <button type="button" className="btn primary en-band" disabled={!present} title={present ? '' : W.noBand} onClick={() => { useScope.getState().band(); appEnv.action({ kind: 'band' }); }}>
           <OrderIcon n="band" className="ac-ic" />{procLabel('band')}
         </button>
-        <EusPpg />
+        <EusButton />
       </div>
     </div>
   );
 }
 void scopeTear;
 
-export function EndoPane({ square }: PaneProps) {
+export function EndoPane({ square, options }: PaneProps & { /** a slide's own options (2D tool: air, red, readings) */ options?: Record<string, unknown> | null }) {
   const view = useScope((s) => s.view);
+  const air = scopeOptions(options).air, red = scopeOptions(options).red, readings = scopeOptions(options).readings;
+  const opt = useMemo(() => ({ air, red, readings }), [air, red, readings]);
   useEffect(() => { useScope.getState().setActive(true); return () => useScope.getState().setActive(false); }, []);
   const sq = Math.max(150, Math.round(square));
   return (
@@ -123,7 +117,7 @@ export function EndoPane({ square }: PaneProps) {
           <button key={id} type="button" className="ps-btn" data-view={id} aria-pressed={view === id} onClick={() => useScope.getState().setView(id as 'scope' | 'wall')}>{label}</button>
         ))}
       </div>
-      {view === 'scope' ? <ScopeView square={sq} /> : <WallView square={sq} />}
+      {view === 'scope' ? <ScopeView square={sq} opt={opt} /> : <WallView square={sq} />}
     </div>
   );
 }

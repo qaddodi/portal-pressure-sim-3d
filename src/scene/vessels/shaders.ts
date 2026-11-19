@@ -107,7 +107,8 @@ ${CIRCUIT_VS_CALL}
     // (the line was a fixed 1.2 to 1.8 CSS px, 3.6 to 5.4 device px on a phone, a black rope on every thin strand)
     float wpc = c.w * 2.0 / (res.y * projectionMatrix[1][1]) * 300.0;   // the figure's units under one CSS px here
     float rDev = vR / max(wpc, 1e-6) * dpr;
-    float inkPx = clamp(0.14 * rDev, 1.5, 3.0) / dpr;
+    // (thinned with a lumen under 1.5 device px of radius, so the smallest branches keep their colour: cel-ink.ts inkTaper)
+    float inkPx = clamp(0.14 * rDev, 1.5, 3.0) * smoothstep(0.3, 1.5, rDev) / dpr;
     c.xy += nd * (inkPx + hiPx * vHi) * 2.0 / res * c.w;
   }
   vW = c.w;
