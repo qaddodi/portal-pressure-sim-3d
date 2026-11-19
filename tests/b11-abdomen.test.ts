@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { createCore } from '../src/engine/host/worker-core.js';
 import type { EngineFrame } from '../src/engine/protocol.ts';
-import { abView, bellyFrame, dialFrame, bellyW, dialW, WORDS, albuminText, albuminTip } from '../src/ui/tests/abdomen/model.ts';
+import { abView, dialFrame, riseTxt, slideTxt, RATE_ARROW, WORDS, albuminText, albuminTip } from '../src/ui/tests/abdomen/model.ts';
 import { paletteOf } from '../src/ui/charts/palette.ts';
 
 async function frameFor(preset: string): Promise<{ frame: EngineFrame & { params: unknown } }> {
@@ -43,28 +43,22 @@ test('a healthy patient has no fluid: dashes in the tiles, the empty belly, the 
   assert.equal(abView(null, null, null), null);
 });
 
-test('the belly and the dial are frames: words inside the belly, the knob and arcs on the dial, in every look', async () => {
+test('the dial is a frame (the knob and arcs, in every look); the belly is 2D\'s own element, its fluid and the pressure bar written as 2D writes them', async () => {
   const { frame } = await frameFor('cirr-decomp');
   const v = abView(frame.metrics, frame.params, 300)!;
   for (const look of ['light', 'soft', 'dark', 'navy', 'black'] as const) {
     const pal = paletteOf(look);
-    const b = bellyFrame(v, 160, pal);
-    assert.deepEqual(words(b).sort(), [v.grade, 'L', v.num, `▲ 300 mL/day`].sort());
-    assert.ok(b.shapes.some((s) => (s as { key?: string }).key === 'fluid'));
-    const d = dialFrame(v.iap, v.iap, dialW(160), 160, pal);
+    const d = dialFrame(v.iap, v.iap, 95, 160, pal);
     assert.ok(words(d).includes(String(Math.round(v.iap))) && words(d).includes('IAP') && words(d).includes('mmHg'));
     assert.ok(d.shapes.some((s) => (s as { key?: string }).key === 'band-ok'));
   }
-  const empty = bellyFrame({ ...v, fill: 0, rate: '' }, 160, paletteOf('light'));
-  assert.ok(!empty.shapes.some((s) => (s as { key?: string }).key === 'fluid'));
   const high = dialFrame(24, 24, 60, 128, paletteOf('light'));
   assert.ok(high.shapes.some((s) => (s as { key?: string }).key === 'live-danger'), 'above 20 the red arc is lit');
   assert.ok(!dialFrame(5, 5, 60, 128, paletteOf('light')).shapes.some((s) => (s as { key?: string }).key === 'live-caution'));
-});
-
-test('the belly takes its width from the card as the 2D card does, 96 to 250 px; the dial is 76:128 of it', () => {
-  assert.equal(bellyW(200), 96); assert.equal(bellyW(500), 214); assert.equal(bellyW(1200), 250);
-  assert.equal(dialW(128), 76);
+  // 2D instruments.js riseTxt and slideTxt: the fluid risen by whole percents, the bar slid in by tenths
+  assert.equal(riseTxt(0), '0px 100%'); assert.equal(riseTxt(0.85), '0px 15%'); assert.equal(riseTxt(v.fill), `0px ${100 - Math.round(v.fill * 100)}%`);
+  assert.equal(slideTxt(0), '-100% 0px'); assert.equal(slideTxt(0.4), '-60% 0px'); assert.equal(slideTxt(2), '0% 0px');
+  assert.deepEqual(RATE_ARROW, { up: '▲', down: '▼', steady: '' });
 });
 
 test('albumin: optional up to 5 L, advised above it unless given, 8 g a litre', () => {

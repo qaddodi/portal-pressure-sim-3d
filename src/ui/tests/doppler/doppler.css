@@ -1,4 +1,0 @@
-/* Tests > Doppler. The pane is 2D's own markup (.dop-head, .dop-main, .dop-box, .dop-report, .dop-stats, the usual-range gauge...), styled by the 2D stylesheets loaded whole (src/ui/css2d) and by the
-   dock card's Doppler rules re-scoped to the Tests card (copied/doppler-2d.copied.css, scripts/copy-b11-doppler.mjs). What is ours is only the monitor's box: the chart drawer's canvas fills it and its
-   height is the card's plot height (set inline), so 2D's dock sizing (aspect ratio, container size) is not used. */
-.dop-box { position: relative; width: 100%; overflow: hidden; flex: none; min-height: 0; }

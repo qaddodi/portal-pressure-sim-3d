@@ -18,6 +18,7 @@ import { headOf, heroOf, createEase } from './live.ts';
 import { TRACES, RANGES, LAG_S, TRACE_OF, traceFrame, traceLabel, activeTraces, traceColour, type Range, type TraceId, type TraceView } from './model.ts';
 import { useTrace } from './store.ts';
 import { hiddenNow, useHidden, useMeasured } from '../hidden.ts';
+import { Cv, useCv, usePaneHost } from '../Cv.tsx';
 
 /** The heart rate the strip is timed to (2D rateNow). */
 const rateOf = (hr: number) => Math.min(220, Math.max(30, hr > 20 ? hr : 70));
@@ -36,7 +37,8 @@ export function OverTimePane({ plot }: { plot: number }) {
   const cross = useRef<number | null>(null);
   const now = useRef({ range, stripDays });
   now.current = { range, stripDays };
-  const h = Math.max(150, Math.round(plot));
+  // the trace takes the height the 2D stylesheet leaves its box (.instrument-view.pt .pt-box: what is left of the card, 180 px at least), read by an observer
+  const h0 = Math.max(150, Math.round(plot)), cv = useCv(h0), h = cv.h, host = usePaneHost();
   // the header, as strings: a re-render only when a word changes
   const hid = useHidden(), measuredHv = useMeasured((s) => s.lastHVPG?.hvpg ?? null);
   const hero = useEngine((s) => { void s.frames; const m = metricsOf(latest.frame); return JSON.stringify(heroOf(m?.hvpg, now.current.range, hid, measuredHv)); });
@@ -120,7 +122,7 @@ export function OverTimePane({ plot }: { plot: number }) {
   const label = useMemo(() => traceLabel({ range }, +hv.num, activeTraces({ chosen, range })), [range, chosen, hv.num]);
   const pal = paletteOf(useLookId());
   return (
-    <div className="pt">
+    <div className={`pt ${host.view}`} data-pane="scope">
       <div className="pt-head">
         <div className="pt-hero">
           <span className="pt-k">HVPG</span>
@@ -128,14 +130,16 @@ export function OverTimePane({ plot }: { plot: number }) {
           <span className="pt-st"><span className="pt-sev" data-sev={hv.sev}>{hv.word}</span><span className="pt-delta" data-dir={hv.dir}>{hv.delta}</span></span>
         </div>
       </div>
-      <div ref={box} className="pt-box" style={{ height: h }}
+      <div ref={box} className="chart-box pt-box" style={host.box(h0)}
         onPointerEnter={() => { over.current = true; readLeft(); }}
         onPointerMove={(e) => { if (e.pointerType === 'mouse' || e.buttons) setCross(e); }}
         onPointerDown={(e) => { over.current = true; readLeft(); setCross(e); }}
         onPointerLeave={clearCross} onPointerCancel={clearCross}
         onPointerUp={(e) => { if (e.pointerType !== 'mouse') clearCross(); }}>
-        <Chart tag="trace" painter={painter} deps={[range, chosen, smooth, ekg, lane, h, hid]} label={label}
-          build={(c) => { ctx.current = c; return traceFrame(record, view(), { w: c.w, h, pal: c.pal, fs: c.type.sm }, (k, lo, hi) => ease.current.fn(k, lo, hi, performance.now())).frame; }} />
+        <Cv at={cv.ref}>
+          <Chart tag="trace" painter={painter} deps={[range, chosen, smooth, ekg, lane, h, hid]} label={label}
+            build={(c) => { ctx.current = c; return traceFrame(record, view(), { w: c.w, h, pal: c.pal, fs: c.type.sm }, (k, lo, hi) => ease.current.fn(k, lo, hi, performance.now())).frame; }} />
+        </Cv>
       </div>
       <div className="pt-chips" role="group" aria-label="Traces">
         {TRACES.map((t) => (

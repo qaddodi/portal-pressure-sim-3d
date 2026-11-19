@@ -5,12 +5,12 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { flushSync } from 'react-dom';
 import './tests.css';
 import './trace/trace.css';
-import './abdomen/abdomen.css';
 import './dock/dock-side.generated.css';
 import { useUi } from '../ui-store.ts';
 import { layoutOf, cardScale } from '../layout/rules2d.ts';
 import { registerFeature } from '../shell/features.ts';
 import { useTests } from './store.ts';
+import { PaneHost } from './Cv.tsx';
 import { TABS, PANE_ORDER, tabOf, shortName, tinyName, PANES, type PaneId } from './panes.ts';
 import { testsPlace, sideVars, HEAD_H } from './place.ts';
 import { useTestsRoom } from './room.ts';
@@ -275,7 +275,8 @@ export function TestsLayer() {
   slots.sort((a, b) => PANE_ORDER.indexOf(a.id) - PANE_ORDER.indexOf(b.id));
   const render = (id: PaneId) => {
     const body = BUILT[id];
-    return body ? <div style={{ display: 'contents' }}>{body({ narrow, plot: vars.plot, square: vars.square, roomy })}</div> : <p className="t-note t-pane">{notYet(PANES[id].name)}</p>;
+    // (no element between the pane and its view: 2D's child rules, .dock-pane > .instrument-view, reach it; the provider says this is the dock, where the 2D stylesheet sizes every box)
+    return body ? <PaneHost.Provider value="dock">{body({ narrow, plot: vars.plot, square: vars.square, roomy })}</PaneHost.Provider> : <p className="t-note t-pane">{notYet(PANES[id].name)}</p>;
   };
 
   const style = {

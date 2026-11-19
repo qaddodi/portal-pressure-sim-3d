@@ -1,5 +1,5 @@
 // Tests > Ascites (2D instruments.js createAbdomen): the fluid as a belly that fills, the abdominal pressure as a dial and a slim bar, the tap's three numbers (SAAG, fluid protein,
-// fluid albumin), and what the learner changes: serum albumin, diuretics, and paracentesis (litres, albumin, Drain). Pure here: the view of a frame, and the belly's and the dial's frames.
+// fluid albumin), and what the learner changes: serum albumin, diuretics, and paracentesis (litres, albumin, Drain). Pure here: the view of a frame, the belly's and the bar's fills as 2D writes them, and the dial's frame.
 import type { Frame, Shape } from '../../charts/scene.ts';
 import type { Palette } from '../../charts/palette.ts';
 import type { Rgba } from '../../charts/colour.ts';
@@ -58,45 +58,15 @@ export function abView(m: M, params: M, held: number | null): AbView | null {
   };
 }
 
-/** The belly's size as the card gives it (2D --ab-bw: from the card's width, 96 to 250 px). */
-export const bellyW = (cardW: number): number => Math.round(Math.max(96, Math.min(cardW - 208, 45.5 * cardW / 100 - 14, 250)));
-export const dialW = (bw: number): number => Math.round(bw * 76 / 128);
+/** The belly's fluid, as 2D writes it (instruments.js riseTxt: risen by sliding up inside the belly, whole percents; `fill` is 0 to 1). */
+export const riseTxt = (fill: number): string => `0px ${100 - Math.round(fill * 100)}%`;
+/** The pressure bar's fill, as 2D writes it (instruments.js slideTxt: slid in from the left inside its track, tenths of a percent; `share` is 0 to 1). */
+export const slideTxt = (share: number): string => `${Math.round(Math.max(0, Math.min(1, share)) * 1000) / 10 - 100}% 0px`;
+/** The daily balance's arrow (2D rateLabel). */
+export const RATE_ARROW = { up: '▲', down: '▼', steady: '' } as const;
 
 const sevTok = (s: string): string => (s === 'danger' ? 'danger' : s === 'caution' ? 'caution' : 'ok');
 const ink = (pal: Palette, tok: string): Rgba => (pal.has(`${tok}-ink`) ? pal.tok(`${tok}-ink`) : pal.tok(tok));
-const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
-
-/** The belly: a round vessel the fluid rises in, with the volume, its grade and the daily balance written inside (2D .ab-belly). */
-export function bellyFrame(v: AbView, bw: number, pal: Palette): Frame {
-  const w = bw, h = bw, r = bw / 2, text = pal.tok('text'), t2 = pal.tok('text-2');
-  const shapes: Shape[] = [];
-  shapes.push({ k: 'rect', x: 1, y: 1, w: w - 2, h: h - 2, r: r - 1, fill: pal.tok('surface'), key: 'belly' });
-  const asc = pal.has('ascites') ? pal.tok('ascites') : pal.tok('caution');
-  if (v.fill > 0) {
-    const fh = (h - 2) * v.fill;
-    shapes.push({ k: 'clip', x: 1, y: 1, w: w - 2, h: h - 2, r: r - 1 });
-    shapes.push({ k: 'rect', x: 1, y: h - 1 - fh, w: w - 2, h: fh + 2, fill: withAlpha(asc, 0.72), key: 'fluid' });
-    shapes.push({ k: 'unclip' });
-  }
-  shapes.push({ k: 'rect', x: 1, y: 1, w: w - 2, h: h - 2, r: r - 1, pen: { color: withAlpha(pal.tok('text-3'), 0.45), w: 2 }, key: 'belly-rim' });
-  const halo = { color: pal.tok('surface'), w: 5 };
-  const nSize = clamp(0.22 * bw, 12, 72), uSize = Math.max(12, 0.5 * nSize), gSize = clamp(0.085 * bw, 12, 26), rSize = clamp(0.07 * bw, 12, 22);
-  // the number, its grade and the daily balance stand in the middle as one column, the balance's line kept even when it is empty (the litres and the grade never move)
-  const gap = 0.03 * bw, hs = [nSize * 1.0, gSize * 1.1, rSize * 1.1], total = hs[0]! + hs[1]! + hs[2]! + gap * 2;
-  let y = (h - total) / 2;
-  shapes.push({ k: 'text', x: w / 2 - uSize * 0.4, y: y + hs[0]! / 2, s: v.num, size: nSize, weight: 600, color: text, anchor: 'middle', baseline: 'middle', halo, key: 'vol' });
-  shapes.push({ k: 'text', x: w / 2 + measureNum(v.num, nSize) / 2 + 2, y: y + hs[0]! * 0.62, s: 'L', size: uSize, weight: 500, color: t2, anchor: 'start', baseline: 'middle', halo, key: 'unit' });
-  y += hs[0]! + gap;
-  shapes.push({ k: 'text', x: w / 2, y: y + hs[1]! / 2, s: v.grade, size: gSize, weight: 600, color: text, anchor: 'middle', baseline: 'middle', halo, key: 'grade' });
-  y += hs[1]! + gap;
-  if (v.rate) {
-    const arrow = v.rateDir === 'up' ? '▲ ' : v.rateDir === 'down' ? '▼ ' : '';
-    shapes.push({ k: 'text', x: w / 2, y: y + hs[2]! / 2, s: arrow + v.rate, size: rSize, weight: 500, color: v.rateDir === 'up' ? ink(pal, 'caution') : v.rateDir === 'down' ? ink(pal, 'ok') : t2, anchor: 'middle', baseline: 'middle', halo, key: 'rate' });
-  }
-  return { w, h, shapes, label: `Ascites ${v.num} L, ${v.grade}${v.rate ? `, ${v.rate}` : ''}` };
-}
-// (a digit's width in Inter's tabular figures is about 0.6 of the size; the full stop 0.3)
-const measureNum = (s: string, size: number) => [...s].reduce((a, c) => a + (c === '.' ? 0.3 : 0.6) * size, 0);
 
 /** The abdominal pressure as the left half of a dial: 0 at the bottom, 30 mmHg at the top, green below 12, amber to 20, red above; the coloured arc fills to the reading and a knob rides the ring.
  *  One drawing in a 76 × 128 box (2D iapDial), scaled to the box. `shown` is the knob's value as it glides, the reading otherwise. */
