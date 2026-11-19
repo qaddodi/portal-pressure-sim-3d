@@ -1,0 +1,31 @@
+import { FOV, type Shot } from './shots.ts';
+
+// Room first (look-and-feel.md section 8): the cards take their room, then the camera frames the subject in the free room left over,
+// by shifting the projection centre. The art is never squeezed and the camera never fights the cards.
+
+/** A rectangle in CSS pixels of the canvas: the free room the cards leave. */
+export interface Room { x: number; y: number; w: number; h: number }
+
+/** Fraction of the room the subject may fill; the rest is breathing room. */
+export const FILL = 0.92;
+
+export function fullRoom(width: number, height: number): Room { return { x: 0, y: 0, w: width, h: height }; }
+
+/** The nearest camera distance at which the shot's half extents fit in the room. */
+export function fitDistance(half: [number, number], room: Room, viewportH: number): number {
+  const tan = Math.tan((FOV * Math.PI) / 360);
+  const perPx = viewportH / (2 * tan); // pixels per world unit at distance 1
+  const needW = (half[0] * 2) / (Math.max(room.w, 1) * FILL);
+  const needH = (half[1] * 2) / (Math.max(room.h, 1) * FILL);
+  return Math.max(needW, needH) * perPx;
+}
+
+/** The distance to use: the shot's own, or further out when the free room is too small for it. */
+export function effectiveDistance(shot: Pick<Shot, 'r' | 'half'>, room: Room, viewportH: number): number {
+  return Math.max(shot.r, fitDistance(shot.half, room, viewportH));
+}
+
+/** The projection shift (pixels) that moves the picture's centre from the middle of the canvas to the middle of the room. */
+export function viewOffset(room: Room, width: number, height: number): { x: number; y: number } {
+  return { x: width / 2 - (room.x + room.w / 2), y: height / 2 - (room.y + room.h / 2) };
+}

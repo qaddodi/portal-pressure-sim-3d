@@ -1,0 +1,65 @@
+// The lobule's and the sinusoid's camera shots, as the 2D app's slide cameras name them (decks: cam 'lobule' | 'lobule:fit' | 'lobule:triad' |
+// 'lobule:sinusoid' | 'lobule:central' | 'sinusoid'). A shot is the same `Shot` the rest of the scene uses, so `sceneApi.goTo(shot, room)` flies to
+// it straight from wherever the camera is (no fit waypoint, 950 ms), fitted into the room the cards leave free. These views sit away from the body
+// in the one scene (LOBULE_ORIGIN, SINUSOID_ORIGIN), so opening one is a camera move and nothing is built: the views open instantly (owner, 17 Nov).
+import type { Shot } from '../camera/shots.ts';
+import type { V3 } from './batch.ts';
+
+/** The lobule's radius in scene units (the body plate is about 4.6 wide) and the slab's thickness. */
+export const LOBULE_R = 3;
+export const LOBULE_T = 0.9;
+/** Where the views stand in the scene. Away from the body (which spans about ±3.5), so they never overlap it and the camera flies between them. */
+export const LOBULE_ORIGIN: V3 = [24, 0, 0];
+export const SINUSOID_ORIGIN: V3 = [48, 0, 0];
+/** The sinusoid's drawn length (portal end at -L/2, central vein end at +L/2). */
+export const SINUSOID_L = 6;
+
+export type LobuleCam = 'lobule' | 'lobule:fit' | 'lobule:triad' | 'lobule:sinusoid' | 'lobule:central' | 'sinusoid';
+export const LOBULE_CAMS: readonly LobuleCam[] = ['lobule', 'lobule:fit', 'lobule:triad', 'lobule:sinusoid', 'lobule:central', 'sinusoid'];
+
+/** The 2D app's framing of a part: how far from the portal corner (the left one, at angle π) toward the centre the station is, and the zoom over the fit. */
+const STATION = {
+  fit: { wf: 1, zoom: 1 },
+  triad: { wf: 0.12, zoom: 2 },
+  sinusoid: { wf: 0.5, zoom: 2 },
+  central: { wf: 1, zoom: 2 },
+} as const;
+
+/** Frontal, a hair above, so the slab reads as a slab. The viewer can orbit ±25° from here (the camera rig's limit). */
+const YAW = -0.1, PITCH = 0.14;
+/** Half extents of the whole lobule's hexagon in the view plane (a hexagon of radius R: R wide, 0.866 R high, with the neighbours' hint). */
+const FIT_HALF: [number, number] = [LOBULE_R * 1.12, LOBULE_R * 1.0];
+
+/** The shot for a lobule camera name. */
+export function lobuleShot(cam: LobuleCam): Shot {
+  const [ox, oy, oz] = LOBULE_ORIGIN;
+  if (cam === 'sinusoid') return sinusoidShot();
+  const part = cam === 'lobule' || cam === 'lobule:fit' ? 'fit' : (cam.slice(7) as 'triad' | 'sinusoid' | 'central');
+  const st = STATION[part];
+  // the corner at angle π (x = -1) is the portal tract the 2D framing starts from; the station lies wf of the way from it to the centre.
+  // The whole lobule and the central vein look at the centre.
+  const along = part === 'fit' || part === 'central' ? 0 : -1 + st.wf;
+  return {
+    yaw: YAW, pitch: PITCH,
+    r: part === 'fit' ? 6 : 2.5,
+    target: [ox + along * LOBULE_R, oy, oz],
+    half: [FIT_HALF[0] / st.zoom, FIT_HALF[1] / st.zoom],
+  };
+}
+
+/** The sinusoid view's shot: the whole length of one cut sinusoid, portal end left. */
+export function sinusoidShot(): Shot {
+  const [ox, oy, oz] = SINUSOID_ORIGIN;
+  return { yaw: -0.06, pitch: 0.1, r: 3, target: [ox, oy, oz], half: [SINUSOID_L / 2 + 0.4, 1.9] };
+}
+
+/** Lobule coordinates (the 2D plane: x right, y DOWN, in lobule radii) to the scene, on the slab's middle plane plus z. */
+export function lobuleToScene(x: number, y: number, z = 0, out: V3 = [0, 0, 0]): V3 {
+  out[0] = LOBULE_ORIGIN[0] + x * LOBULE_R; out[1] = LOBULE_ORIGIN[1] - y * LOBULE_R; out[2] = LOBULE_ORIGIN[2] + z;
+  return out;
+}
+
+/** The slab's z at a place: a gentle smooth swell so the courses lie at different depths and the picture reads as a thick slice. A function of position, so tubes that meet at a point are at the same depth. */
+export function slabZ(x: number, y: number): number {
+  return LOBULE_T * 0.16 * Math.sin(2.3 * x + 1.1) * Math.cos(2.1 * y + 0.4);
+}

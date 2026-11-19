@@ -1,0 +1,30 @@
+/* Global ground rules. Look tokens (--bg, --surface, --text…) are written onto :root by applyLook (src/looks/looks.ts). */
+:root {
+  --ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display: 'Source Serif 4', Georgia, serif;
+  --safe-t: env(safe-area-inset-top, 0px); --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px); --safe-l: env(safe-area-inset-left, 0px);
+  --ease-arrive: cubic-bezier(.2, .7, .2, 1);
+  --ease-move: cubic-bezier(.65, 0, .35, 1);
+  --z-stage: 1; --z-cards: 10; --z-tags: 5; --z-chrome: 20; --z-perf: 100;
+  --bg: #F1EBE0; --surface: #FCF9F3; --text: #1B1710; --text-2: #463F34; --accent: #2E4BB8;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 400 17px/1.5 var(--ui);
+  font-variant-numeric: lining-nums tabular-nums;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  overflow: hidden; overscroll-behavior: none; touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#root { position: fixed; inset: 0; }
+
+/* Nothing in the app is selectable, callable or flashed (owner, 19 Nov 2026: "text is selectable, should not be"). One rule on every element, so a new UI root
+   inherits it without asking: no text selection, no iOS long-press callout (copy / look up / share), no tap highlight, no dragging of pictures.
+   The only exceptions are things the reader types into (a field, an editable region), and a block that opts in with .selectable. tests/ui-no-select.test.ts holds this. */
+*, *::before, *::after { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+img, canvas, svg { -webkit-user-drag: none; user-drag: none; }
+input, textarea, [contenteditable=""], [contenteditable="true"], .selectable { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+button { font: inherit; color: inherit; }

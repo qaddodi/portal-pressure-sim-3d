@@ -1,0 +1,41 @@
+{
+  "name": "portal-pressure-sim-3d",
+  "version": "0.1.0",
+  "description": "3D cel-shaded rebuild of the portal pressure simulator, consuming hales-engine.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/build.mjs",
+    "preview": "vite preview --outDir dist",
+    "test": "node --test --test-concurrency=4 \"tests/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "lint": "node scripts/lint.mjs",
+    "check": "npm run typecheck && npm run lint && npm test",
+    "sync:engine": "node scripts/sync-engine.mjs",
+    "gen:engine-fixture": "node scripts/gen-engine-fixture.mjs",
+    "sync:inventory": "node scripts/sync-inventory.mjs",
+    "gen:strings": "node scripts/gen-ui-strings.mjs"
+  },
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "dependencies": {
+    "@react-three/fiber": "^9.8.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "three": "^0.187.0",
+    "zustand": "^5.1.0"
+  },
+  "devDependencies": {
+    "@shaderfrog/glsl-parser": "^7.0.1",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.187.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}
