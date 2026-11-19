@@ -32,6 +32,7 @@ The rig tweens every field straight from the current pose to the next (no fit wa
 | `flow.ts` | the four flow-mark options behind `useSettings().flowMarks`; speed curve (`markSpeed`) |
 | `catheter.ts` | HVPG route and balloon from `{advance, balloon}` |
 | `gesture/` | the figure's hands, ported from the 2D app (`stage-gestures.js`): `view.ts` limits and rubber band, `ease.ts` glide curves, `flick.ts`, `wheel-glide.ts`, `frame-queue.ts` (every glide asks the clock for a frame, never rAF), `controller.ts` events |
+| `camera/tilt.ts`, `tilt-input.ts` | the gentle tilt (Settings > Figure depth > Tilt): pure core (target, easing, clamp, locks) and the pointer / device-orientation listeners |
 | `scene.ts` | assembles it; `update(now)` returns true while anything moves |
 
 Colour: the cel shaders do their banding in sRGB space (the spec's factors are written that way) and write their output as is, so a flat area is
@@ -61,3 +62,7 @@ The lens (`rig.fov`: 14 to 35 and back, with the dolly zoom, 0.3 s to 1.3 s of a
 Everything else the dive does is a function of the camera's DISTANCE from the liver's place, so the way out is the way in run backward however the move is reversed or resized: the cutaway window in the organs' wash
 (`ORGAN_CUT`, the organ shader's `cut`: opens from 5.5 to 1.9 units out, soft edge, shut in every body shot), the body's dissolve (`bodyFade`), the sinusoid's tissue (`diveShare`) and the neighbours' focus
 (`fieldSoft`, against the distance the lobule is framed at in this room). A card opened mid-dive keeps the dive's remaining time (`rig.setRoom`). `scene.stepPortrait` tells the sinusoid view when the room is portrait.
+
+## The gentle tilt (depth upgrade 3, 19 Nov 2026)
+
+An owner-approved exception to match-2D: the figure turns at most 3.5° (yaw) and 2.5° (pitch) toward the pointer on a laptop, or with the device's orientation on a phone or tablet (a dead zone, and the held position follows a steady hand over 4 s). It is an offset added to the shot's yaw and pitch in `rig.apply`, never kept in the hand's or the orbit's state, so Fit, Home and refit return to the exact rest view and `rig.fitRect` is measured with it off. Picking and tags use the same `rig.camera`, so they follow the tilted picture. It eases (260 ms in, 140 ms out) inside `rig.update`, so a frame is asked for only while it eases; the listeners (passive, on the window, never touching the gesture controller) wake the clock once per meaningful change. It is square (eased to zero) while a gesture runs, a camera move runs, or the view is not the body; with Reduce Motion or the switch off it is zero with no easing. iOS asks for motion data inside the first tap (never on load); a refusal leaves the pointer as the only input. `tests/scene-tilt.test.ts`.
