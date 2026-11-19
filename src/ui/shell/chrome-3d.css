@@ -1,0 +1,14 @@
+/* The only CSS of ours the lifted 2D chrome needs: it sits over the 3D canvas instead of the 2D figure. The 2D stylesheets (src/ui/css2d) are copied unchanged and style everything else. */
+:root { --pps-mark: url("../brand/icons/mark.png"); }
+.sh-root > .app { position: absolute; inset: 0; background: transparent; pointer-events: none; height: 100%; }
+.sh-root > .app > .stage-wrap { background: none; pointer-events: none; }
+.sh-root > .app :is(.topbar > *, .vdock, .zoom-pill, .stage-credit) { pointer-events: auto; }
+.sh-root > .app .stage-view { pointer-events: none; }
+.sh-root > .app .stage-credit { pointer-events: none; }
+.sh-root > .app :is(.topbar, .vdock, .zoom-pill)[data-hidden="true"], .sh-root[data-mode="deck"] > .app :is(.topbar, .vdock, .zoom-pill, .stage-credit) { opacity: 0; pointer-events: none !important; }
+.sh-root[data-mode="deck"] > .app * { pointer-events: none !important; }
+.sh-root > .app .stage-credit.placed { opacity: 1; }
+/* the Present column's action row (B12); the rest of the shell is the 2D stylesheet */
+.sh-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.sh-acts .sh-btn { min-height: 44px; padding: 0 16px; }
+.sh-acts .sh-btn[data-primary="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
