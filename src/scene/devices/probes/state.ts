@@ -9,7 +9,7 @@ export type DopplerSeg = 'proximal' | 'mid' | 'distal' | null;
 
 export interface ProbeState {
   /** The ultrasound probe: on a vessel (edge ID), at its gate (a stent's sampled third in `seg`). */
-  doppler: { on: boolean; edge: string; seg: DopplerSeg };
+  doppler: { on: boolean; edge: string; seg: DopplerSeg; /** a slide's tool.points: the figure calls out all three of a stent's points (2D pinDoppler points) */ points?: boolean };
   /** The FibroScan probe on the skin over an organ. */
   fibro: { on: boolean; organ: FibroOrgan };
   /** The endoscope down the esophagus. `u`: how far in it is, 0 to 1 (unset: all the way to its work place, eased); `needle`: the EUS needle out, 0 to 1 (unset: out in 'eus', away elsewhere); `station`: the EUS-PPG's two stations. */

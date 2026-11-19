@@ -17,14 +17,15 @@ export const scopeOptions = (t?: Record<string, unknown> | null): EndoOpt => ({
 const NO_OPT: EndoOpt = { air: 0, red: null, readings: false };
 
 /** What the readings print for a frame (one place: the pane renders it and the test reads it). */
-export function readingsOf(f: Any, opt: EndoOpt = NO_OPT) {
+export function readingsOf(f: Any, opt: EndoOpt = NO_OPT, pin: { d: number; ptm: number } | null = null) {
   const m = metricsOf(f), vx = m?.varix;
   if (!vx) return null;
   const nb = Math.round(f.bands || 0), present = !!vx.present;
   const grade: string = vx.grade.label;
-  const diam = `${fmt(vx.d * (airRatio(vx.air, opt.air) as number), 1)} mm`;
+  const rest = pin && Number.isFinite(pin.d) ? pin.d : vx.d;   // (a slide's own number when it has one: the size the tiles and the words show)
+  const diam = `${fmt(rest * (airRatio(vx.air, opt.air) as number), 1)} mm`;
   const red = !present ? W.red.none : (opt.red ?? vx.redWale) ? `${W.red.word}${W.red.more}` : W.red.none;
-  const inV = vx.ptm as number;
+  const inV = (pin && Number.isFinite(pin.ptm) ? pin.ptm : vx.ptm) as number;
   return {
     present, grade, sev: grade === 'Small' ? 'caution' : grade === 'None' ? 'ok' : 'danger', diam, wall: `${fmt(vx.w, 1)} mm`, red, redOn: red !== W.red.none, bands: nb,
     // the three pressures of a lesson slide: the varix's, the lumen's (the air's) and the difference across its wall

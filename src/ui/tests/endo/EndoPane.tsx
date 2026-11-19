@@ -21,14 +21,17 @@ import { scopeFrame, type OverlayState } from './frame.ts';
 import { EusButton, EusPanel, useEusReset } from './EusPpg.tsx';
 import { WallView } from './WallView.tsx';
 import { useScope } from './scope-state.ts';
+import { useSlidePin, pinnedVarix } from '../slide/pin.ts';
 import { readingsOf, scopeOptions, type EndoOpt } from './readings.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
 const still = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-function ScopeView({ square, opt }: { square: number; opt: EndoOpt }) {
-  const json = useEngine((s) => { void s.frames; return JSON.stringify(readingsOf(latest.frame, opt)); });
+function ScopeView({ square, opt, slide }: { square: number; opt: EndoOpt; slide: boolean }) {
+  useSlidePin((s) => s.n);   // (a slide's own numbers: the readings follow the state it pins)
+  const pin = slide ? pinnedVarix() : null, pinRef = useRef(pin); pinRef.current = pin;
+  const json = useEngine((s) => { void s.frames; return JSON.stringify(readingsOf(latest.frame, opt, slide ? pinnedVarix() : null)); });
   const r = useMemo(() => (json && json !== 'null' ? JSON.parse(json) as NonNullable<ReturnType<typeof readingsOf>> : null), [json]);
   const optRef = useRef(opt); optRef.current = opt;
   const painter = useRef<ChartPainter | null>(null), ctx = useRef<ChartCtx | null>(null);
@@ -49,7 +52,7 @@ function ScopeView({ square, opt }: { square: number; opt: EndoOpt }) {
     const f = latest.frame as Any, m = metricsOf(f), c = ctx.current, p = painter.current;
     if (!f || !m?.varix || !c || !p) return;
     const vx = m.varix;
-    const inp: ScopeIn = { d: vx.d, ratio: vx.ratio, air: vx.air, bands: f.bands || 0, snap: f.running === false || !!f.jump, airOpt: optRef.current.air, redOpt: optRef.current.red };
+    const inp: ScopeIn = { d: pinRef.current && Number.isFinite(pinRef.current.d) ? pinRef.current.d : vx.d, ratio: vx.ratio, air: vx.air, bands: f.bands || 0, snap: f.running === false || !!f.jump, airOpt: optRef.current.air, redOpt: optRef.current.red };
     const busy = field.current.step(inp, now);
     const bleedNow = !!(f.bleed?.active && f.bleed.site === 'VAR');
     const moving = over.current.step(now, { balloon: !!f.params?.balloonEso, shut: gastricUp(f.params || {}), bleedNow, total: f.bleed?.total ?? 0, still: still() });
@@ -104,7 +107,7 @@ function ScopeView({ square, opt }: { square: number; opt: EndoOpt }) {
 }
 void scopeTear;
 
-export function EndoPane({ square, options }: PaneProps & { /** a slide's own options (2D tool: air, red, readings) */ options?: Record<string, unknown> | null }) {
+export function EndoPane({ square, options }: PaneProps & { /** a slide's own options (2D tool: air, red, readings); given, the pane is a slide's data card and reads the slide's own numbers (slide/pin.ts) */ options?: Record<string, unknown> | null }) {
   const view = useScope((s) => s.view);
   const air = scopeOptions(options).air, red = scopeOptions(options).red, readings = scopeOptions(options).readings;
   const opt = useMemo(() => ({ air, red, readings }), [air, red, readings]);
@@ -117,7 +120,7 @@ export function EndoPane({ square, options }: PaneProps & { /** a slide's own op
           <button key={id} type="button" className="ps-btn" data-view={id} aria-pressed={view === id} onClick={() => useScope.getState().setView(id as 'scope' | 'wall')}>{label}</button>
         ))}
       </div>
-      {view === 'scope' ? <ScopeView square={sq} opt={opt} /> : <WallView square={sq} />}
+      {view === 'scope' ? <ScopeView square={sq} opt={opt} slide={!!options} /> : <WallView square={sq} slide={!!options} />}
     </div>
   );
 }
