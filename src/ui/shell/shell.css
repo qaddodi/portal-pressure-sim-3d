@@ -168,7 +168,7 @@
 .sh-nogl div { max-width: 420px; } .sh-nogl h1 { font: 600 26px / 1.2 var(--display); margin: 0 0 10px; } .sh-nogl p { margin: 0 0 18px; color: var(--text-2); font-size: 16px; line-height: 1.45; }
 .sh-nogl a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 22px; border-radius: 999px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; }
 
-@media (prefers-reduced-motion: reduce) { .sh-root, .sh-root * { transition-duration: 1ms !important; } }
+/* Reduce Motion: src/ui/a11y/reduced.css */
 
 /* the sheets' extras */
 .sh-hit-row b { font-weight: 600; color: var(--accent); }
