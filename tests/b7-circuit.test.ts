@@ -226,11 +226,15 @@ test('the Circuit shot looks straight at the map and the hand is kept to the map
 // ── the scene ──
 test('the scene turns the body into the map: the organs leave, the vessels stay, and going back (or to the lobule) lets the body settle', async () => {
   const { CelScene } = await import('../src/scene/scene.ts');
+  const bin = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
+  const { setOrganData } = await import('../src/scene/organs/meshes.ts');
   const s = new CelScene();
+  setOrganData(bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength));
+  await new Promise((r) => setTimeout(r, 0));   // the organs layer builds when the file is in
   s.resize(800, 600);
   s.goTo('play', { x: 0, y: 60, w: 800, h: 480 }, 0, 0);
   s.update(0);
-  const organ = s.objects.find((o) => !s.vessels.includes(o))!;
+  const organ = s.disease.organs.objects[0]!;
   assert.equal(organ.group.visible, true);
   s.setCircuitUpright(false, 0);
   s.setView('circuit', 0);

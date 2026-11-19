@@ -1,7 +1,7 @@
 import { Color, type DataTexture, Group, Mesh, MeshBasicMaterial, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
-import { BODY_PLATE_Z, FIGURE_Z, ORGANS, PLATE_BOUNDS, VARICES, blob, bodyPlateGeometry } from './anatomy/placeholder.ts';
+import { BODY_PLATE_Z, FIGURE_Z, PLATE_BOUNDS, bodyPlateGeometry } from './anatomy/placeholder.ts';
 import { buildVessel } from './anatomy/vessels.ts';
-import { NETWORK, type NetVessel, courseOf, presenceOf } from './vessels/network.ts';
+import { NETWORK, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { VesselObject } from './vessels/vessel-object.ts';
 import { LensField } from './lenses/field.ts';
@@ -19,12 +19,14 @@ import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, indexOf } from '../engine/vessel-data.ts';
 import { latest, patient } from '../engine/store.ts';
+import { x3, y3 } from './frame2d.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
 import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
 import { LOBULE_R, LOBULE_T, SINUSOID_L } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
 import { SinusoidView } from './sinusoid/index.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
+import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
 import { organsReady } from './organs/meshes.ts';
 import { clock } from '../clock/frame.ts';
 import { COURSES } from './circuit/course.ts';
@@ -95,6 +97,8 @@ export class CelScene {
   /** The blood's streams (the chevrons' distance, speed and reversed flag, from the 2D app's own stream model). */
   readonly blood = new BloodField();
   /** The lobule and sinusoid views (B8), built once, hidden until the view is chosen (setView). */
+  /** The organs and the disease states on the figure (B4). */
+  readonly disease: DiseaseLayer;
   readonly lobule: LobuleView;
   readonly sinus: SinusoidView;
   /** The Circuit: the change between the body and the map, and the map's quarter turn (src/scene/circuit/). */
@@ -129,22 +133,12 @@ export class CelScene {
     this.scene.add(this.body);
     this.body.add(this.plate);
 
-    // The organs' vertex data is a static file (src/scene/organs/meshes.ts): they join the scene when it is in, and ask for a frame.
-    organsReady.then(() => {
-      for (const def of ORGANS) {
-        const o = new CelObject(def.geometry(), { tone: def.tone, bands: 3, spec: 0, px: def.px }, this.shared);
-        if (def.position) o.group.position.set(...def.position);
-        if (def.rotation) o.group.rotation.set(...def.rotation);
-        this.add(o); this.leaving.push(o);
-      }
-      clock.invalidate('organs');
-    }, (e) => console.error(e));
     for (const def of NETWORK) this.addVessel(def);
-    for (const v of VARICES) {
-      const o = new CelObject(blob(v.r * 0.5, v.r * 0.5, v.r * 0.5, 0, 0, 14), { tone: 'portal', bands: 2, spec: 1, px: 1 }, this.shared);
-      o.group.position.set(0.34 + Math.cos(v.angle) * 0.035, v.y - 0.85, 0.06 + Math.sin(v.angle) * 0.035);   // on the lower oesophagus (2D x 800, y 170 to 220)
-      this.add(o); this.leaving.push(o);
-    }
+    // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
+    this.disease = new DiseaseLayer(this.shared, this.vessels);
+    this.body.add(this.disease.group);
+    // The organs' vertex data is a static file (src/scene/organs/meshes.ts): the organ layer builds them when it is in, in the patient's state, and asks for a frame.
+    organsReady.then(() => { this.disease.organs.build(); this.moving = true; clock.invalidate('organs'); }, (e) => console.error(e));
     this.catheter = new Catheter(this.shared);
     this.body.add(this.catheter.group);
     this.objects.push(...this.catheter.objects); this.leaving.push(...this.catheter.objects);
@@ -198,6 +192,7 @@ export class CelScene {
     this.mapLayer.applyLook(look, p.ink, MAP_LOOKS[look]?.ground ?? p.bg);
     for (const o of this.objects) { o.applyPalette(p); o.setPhone(this.phone); }
     this.procs.applyPalette(p);
+    this.disease.applyLook(look, p); this.disease.setPhone(this.phone);
     this.lens.setLook(look);
     this.lobule.applyLook(look); this.sinus.applyLook(look); this.feedSinusInk();
     this.moving = true;
@@ -219,6 +214,7 @@ export class CelScene {
     this.phone = phone;
     for (const o of this.objects) o.setPhone(phone);
     this.procs.setPhone(phone);
+    this.disease.setPhone(phone);
     this.lobule.setPhone(phone); this.sinus.setPhone(phone);
     this.moving = true;
   }
@@ -240,7 +236,7 @@ export class CelScene {
     const f = latest.frame;
     this.lens.onFrame(f);
     this.blood.streams.onFrame(f);
-    if (f) this.syncPresence(f, !this.sawFrame);
+    if (f) { this.syncPresence(f, !this.sawFrame); this.feedDisease(f, !this.sawFrame); }
     this.procs.syncStents(f, patient.params, f ? (f.jump || !this.sawFrame) : false);
     this.procs.syncBands((f as { bands?: number } | null)?.bands ?? 0, f ? (f.jump || !this.sawFrame) : false);
     this.procs.syncTamponade(patient.params as never, f ? (f.jump || !this.sawFrame) : false);
@@ -249,6 +245,15 @@ export class CelScene {
     this.moving = true;
   }
   private sawFrame = false;
+
+  /** The patient's disease into the organ and disease layers (src/scene/disease/): the newest frame, the patient's parameters, the healthy pressures. */
+  private feedDisease(f: NonNullable<typeof latest.frame>, first: boolean): void {
+    this.disease.feed(f as never, (patient.params ?? null) as DiseaseParams | null, (patient.reference?.P as ArrayLike<number> | undefined) ?? null, {
+      instant: first || f.jump,
+      presence: (id) => (this.presence.isDrawn(id) ? 1 : 0),
+      recruit: (id, fr) => recruitFrac(id, fr as never),
+    }, f.jump);
+  }
 
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
   private syncPresence(f: NonNullable<typeof latest.frame>, instant: boolean): void {
@@ -261,7 +266,7 @@ export class CelScene {
   // ---- lens and blood ------------------------------------------------------------------------
 
   /** Colour the veins by a lens (the Layers menu's ten, a deck's 'system' and 'since', or 'neutral' for the plain anatomy). */
-  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.lobule.setLens(lens); this.feedSinusInk(); this.moving = true; }
+  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.lobule.setLens(lens); this.feedSinusInk(); this.disease.setLensGrey(lens !== 'pressure' && lens !== 'neutral'); this.moving = true; }
   /** The healthy patient at rest (the engine's `healthyProfile`): the reference the change, congestion, velocity and direction lenses compare to. */
   setHealthy(h: { P: ArrayLike<number>; Q: ArrayLike<number>; D: ArrayLike<number> }): void {
     this.lens.setContext({ healthy: { Q: h.Q, D: h.D, P: h.P }, ref: Float32Array.from(h.P) });
@@ -396,6 +401,7 @@ export class CelScene {
     if (f === this.fadeNow || (Math.abs(f - this.fadeNow) < 1e-3 && f > 0 && f < 1)) return;
     this.fadeNow = f;
     for (const o of this.objects) o.setFade(f);
+    for (const o of this.disease.organs.objects) o.setFade(f);
     const m = this.plate.material as MeshBasicMaterial;
     m.transparent = f < 0.999; m.opacity = f; m.needsUpdate = true;
     this.body.visible = f > 0 || this.figureView === 'body';
@@ -466,7 +472,8 @@ export class CelScene {
     const presMoving = this.presence.step(dt);
     const viewMoving = this.lobule.update(now) || this.sinus.update(now);
     const procMoving = this.procs.update(now);
-    const needs = this.moving || procMoving || camMoving || circMoving || hiMoving || flowActive || lensMoving || presMoving || viewMoving;
+    const diseaseMoving = this.disease.update(now);
+    const needs = diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || flowActive || lensMoving || presMoving || viewMoving;
     this.moving = false;
     return needs;
   }
@@ -477,7 +484,7 @@ export class CelScene {
     const fade = 1 - t;
     if (fade !== this.lastFade) {
       this.lastFade = fade;
-      for (const o of this.leaving) { o.setFade(fade); o.group.visible = fade > 0.001; }
+      for (const o of [...this.leaving, ...this.disease.organs.objects]) { o.setFade(fade); o.group.visible = fade > 0.001; }
       const m = this.plate.material as MeshBasicMaterial;
       m.transparent = fade < 1; m.opacity = fade; this.plate.visible = fade > 0.001;
     }
@@ -492,6 +499,7 @@ export class CelScene {
 
   dispose(): void {
     this.lens.dispose();
+    this.disease.dispose();
     this.blood.streams.texture.dispose();
     for (const o of this.objects) o.dispose();
     this.procs.dispose();
