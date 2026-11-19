@@ -1,0 +1,111 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { Vector3 } from 'three';
+import { CameraRig, blendPose, easeInOutCubic, lerpAngle } from '../src/scene/camera/rig.ts';
+import { SHOTS, SHOT_MS, ORBIT_LIMIT, FOV } from '../src/scene/camera/shots.ts';
+import { effectiveDistance, fitDistance, fullRoom, viewOffset } from '../src/scene/camera/room.ts';
+
+test('the camera goes straight from any shot to any shot: halfway is the plain average, no fit waypoint', () => {
+  const a = { shot: SHOTS.title, room: fullRoom(800, 600) };
+  const b = { shot: SHOTS.wedge, room: { x: 480, y: 60, w: 300, h: 500 } };
+  const m = blendPose(a, b, 0.5);
+  assert.ok(Math.abs(m.shot.r - (a.shot.r + b.shot.r) / 2) < 1e-9);
+  assert.ok(Math.abs(m.shot.target[1] - (a.shot.target[1] + b.shot.target[1]) / 2) < 1e-9);
+  assert.ok(Math.abs(m.room.x - 240) < 1e-9);
+  // and at every step the distance stays between the two ends (it never pulls out to fit everything first)
+  for (let k = 0; k <= 1; k += 0.1) {
+    const p = blendPose(a, b, k);
+    assert.ok(p.shot.r <= Math.max(a.shot.r, b.shot.r) + 1e-9 && p.shot.r >= Math.min(a.shot.r, b.shot.r) - 1e-9);
+  }
+});
+
+test('turning takes the short way round', () => {
+  assert.ok(Math.abs(lerpAngle(3.0, -3.0, 0.5) - Math.PI) < 0.2 || Math.abs(lerpAngle(3.0, -3.0, 0.5) + Math.PI) < 0.2);
+  assert.ok(Math.abs(lerpAngle(0.1, 0.3, 0.5) - 0.2) < 1e-9);
+});
+
+test('ease in-out cubic, 950 ms', () => {
+  assert.equal(easeInOutCubic(0), 0);
+  assert.equal(easeInOutCubic(1), 1);
+  assert.equal(easeInOutCubic(0.5), 0.5);
+  assert.ok(easeInOutCubic(0.25) < 0.25 && easeInOutCubic(0.75) > 0.75);
+  assert.equal(SHOT_MS, 950);
+});
+
+test('a move lasts 950 ms and the rig says so while it moves, then goes quiet', () => {
+  const rig = new CameraRig('title');
+  rig.resize(800, 600);
+  rig.update(0);
+  rig.goTo('free', fullRoom(800, 600), 1000);
+  assert.equal(rig.update(1000), true);
+  assert.equal(rig.update(1500), true);
+  assert.equal(rig.update(1949), true);
+  assert.equal(rig.update(1950), false);
+  assert.equal(rig.isMoving, false);
+  assert.ok(Math.abs(rig.pose.shot.r - SHOTS.free.r) < 1e-9 || rig.pose.shot.r > 0);
+  assert.equal(rig.update(2000), false);
+});
+
+test('a new move mid-flight starts from where the camera is, not from the old shot', () => {
+  const rig = new CameraRig('title');
+  rig.resize(800, 600);
+  rig.goTo('free', fullRoom(800, 600), 0);
+  rig.update(475);
+  const mid = rig.pose.shot.r;
+  rig.goTo('wedge', fullRoom(800, 600), 475);
+  rig.update(475);
+  assert.ok(Math.abs(rig.pose.shot.r - mid) < 1e-9);
+});
+
+test('room first: a smaller free room pulls the camera back so the subject still fits, never closer than the shot', () => {
+  const big = fullRoom(1280, 800);
+  const small = { x: 0, y: 0, w: 330, h: 300 };
+  const s = SHOTS.free;
+  assert.ok(effectiveDistance(s, small, 800) > effectiveDistance(s, big, 800));
+  assert.ok(effectiveDistance(s, big, 800) >= s.r);
+  assert.ok(fitDistance(s.half, small, 800) > fitDistance(s.half, big, 800));
+});
+
+test('the subject really fits the room it was fitted to (projected extent <= 92% of the room)', () => {
+  const rig = new CameraRig('free');
+  rig.resize(852, 393);
+  const room = { x: 405, y: 20, w: 388, h: 353 };
+  rig.goTo('free', room, 0, 0);
+  rig.update(0);
+  const shot = SHOTS.free;
+  const c = new Vector3(...shot.target);
+  const right = new Vector3(1, 0, 0).applyQuaternion(rig.camera.quaternion);
+  const up = new Vector3(0, 1, 0).applyQuaternion(rig.camera.quaternion);
+  const px = (v: Vector3) => rig.project(v);
+  const o = px(c);
+  const e = px(c.clone().addScaledVector(right, shot.half[0]));
+  const u = px(c.clone().addScaledVector(up, shot.half[1]));
+  assert.ok(Math.abs(e.x - o.x) <= room.w / 2, `width ${Math.abs(e.x - o.x)} vs ${room.w / 2}`);
+  assert.ok(Math.abs(u.y - o.y) <= room.h / 2, `height ${Math.abs(u.y - o.y)} vs ${room.h / 2}`);
+  // and the subject centre sits in the middle of the room
+  assert.ok(Math.abs(o.x - (room.x + room.w / 2)) < 1 && Math.abs(o.y - (room.y + room.h / 2)) < 1, `centre ${o.x},${o.y}`);
+});
+
+test('the projection shift moves the picture centre to the room centre', () => {
+  const off = viewOffset({ x: 400, y: 0, w: 400, h: 600 }, 800, 600);
+  assert.deepEqual(off, { x: -200, y: 0 });
+});
+
+test('orbit is limited to 25 degrees either way and the field of view is the mocks\'', () => {
+  const rig = new CameraRig('free');
+  rig.setOrbit(10);
+  assert.equal(rig.orbitAngle, ORBIT_LIMIT);
+  rig.setOrbit(-10);
+  assert.equal(rig.orbitAngle, -ORBIT_LIMIT);
+  assert.ok(Math.abs(ORBIT_LIMIT - 0.4363) < 1e-3);
+  assert.equal(FOV, 30);
+});
+
+test('a new shot always starts square on: the orbit eases back to centre with the move', () => {
+  const rig = new CameraRig('free');
+  rig.resize(800, 600);
+  rig.setOrbit(0.3);
+  rig.goTo('wedge', fullRoom(800, 600), 0);
+  rig.update(950);
+  assert.ok(Math.abs(rig.orbitAngle) < 1e-9);
+});
