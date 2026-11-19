@@ -12,6 +12,7 @@ import { useParamsTick } from '../../action/params.ts';
 import { useTests } from '../store.ts';
 import type { PaneProps } from '../TestsLayer.tsx';
 import { Monitor } from './Monitor.tsx';
+import { HandOver } from './HandOver.tsx';
 import { hvpgSource, ppgSource } from './sources.ts';
 import { R, useRun, phase, values, busy, startHvpg, playProc, startPpg, closePpg, resetAll, watchButtons, procSay, ppgCaption, ppgShown, hvpgRunning } from './run.ts';
 import { sideOf, NOTE } from './side.ts';
@@ -44,9 +45,7 @@ function Measure({ h }: { h: number }) {
           ))}
         </dl>
       </div>
-      {ppg
-        ? <div className="ir-fade" key="ppg"><Monitor src={ppgSource} h={h} deps={[R.ppg.take]} onClick={closePpg} /></div>
-        : <div className="ir-fade" key="hvpg"><Monitor src={hvpgSource} h={h} deps={[ph, R.result, R.blocked, side.open]} /></div>}
+      <HandOver over={ppg} top={<Monitor src={ppgSource} h={h} deps={[R.ppg.take]} onClick={closePpg} />} base={<Monitor src={hvpgSource} h={h} deps={[ph, R.result, R.blocked, side.open]} />} />
       <div className="chart-side ir-side">
         {!ppg && (
           <ol className="hvpg-steps">

@@ -5,6 +5,7 @@ import type { Shot } from '../../scene/camera/shots.ts';
 import type { LobuleCam } from '../../scene/lobule/shots.ts';
 import { DEFAULT_LENS, LENS_IDS, type LensId } from '../../scene/lenses/model.ts';
 import { STATIONS, TERM_STATIONS } from '../../scene/labels/stations.ts';
+import { RES_KEYS, type ResKey } from '../../scene/circuit/res-model.ts';
 import { camPlan, type CamPlan } from './cams.ts';
 import { needsOf, readiness, missingStations, missingTerms, type Readiness } from './hooks.ts';
 import { stepOf, type Step } from './numbers.ts';
@@ -24,6 +25,16 @@ export interface SceneDirective {
   labels: string[];
   /** Figure parts the slide's words point at (the 2D term targets: ra, ivc, lobule:sinusoid …), for the labels and the lobule's lit parts. */
   terms: string[];
+  /** A Circuit slide: the part of the map it frames (circuit units), the resistors it draws (its `sites`) and whether it is about the caudate lobe (its lane shows). Null off the Circuit. */
+  circuit: CircuitDirective | null;
+}
+
+export interface CircuitDirective {
+  box: readonly [number, number, number, number];
+  /** the 2D `kMax`: the slide's closest zoom, as a multiple of the whole map's fit (null: none) */
+  kMax: number | null;
+  resistors: ResKey[];
+  caudate: boolean;
 }
 
 export interface SlidePlan {
@@ -51,14 +62,30 @@ export function lensOf(name: string | null | undefined): LensId {
 
 export const termList = (t: CopiedSlide['terms']): string[] => (!t ? [] : Array.isArray(t) ? [...t] : [...new Set(Object.values(t))]);
 
+/** The resistors a slide draws on the map: its `sites` that are resistors ('rLiver', 'rColl', 'rGut'; the other sites are readings or the split marker). */
+export function resistorsOf(s: CopiedSlide): ResKey[] {
+  const sites = Array.isArray(s.sites) ? (s.sites as unknown[]) : [];
+  return RES_KEYS.filter((k) => sites.includes(k));
+}
+/** A slide about the caudate lobe (2D: its terms or a mark name it) draws the caudate's own lane in the Circuit. */
+export function caudateOf(s: CopiedSlide): boolean {
+  const named = (x: unknown): boolean => x === 'caudate' || x === 'caudateLobe' || x === 'caudate-lobe';
+  const terms = Array.isArray(s.terms) ? s.terms : s.terms && typeof s.terms === 'object' ? Object.values(s.terms) : [];
+  if (terms.some(named)) return true;
+  const marks = ([] as unknown[]).concat((s.marks ?? s.mark ?? []) as unknown[]);
+  return marks.some((m) => !!m && typeof m === 'object' && named((m as { organ?: unknown }).organ));
+}
+
 export function planSlide(deck: string, s: CopiedSlide, index: number): SlidePlan {
-  const cam = camPlan(s.cam, s.view);
+  // (a Circuit slide with a `zone` and no `cam` frames that zone's region: the 2D presenter's zoneCam)
+  const cam = camPlan(s.cam == null && s.view === 'circuit' && !s.visual && typeof s.zone === 'string' ? s.zone : s.cam, s.view);
   const view: FigureView = cam.kind === 'circuit' ? 'circuit' : cam.kind === 'lobule' ? (cam.name === 'sinusoid' ? 'sinusoid' : 'lobule') : 'body';
   const fit = camPlan("fit");
   const shot: Shot = cam.kind === "circuit" ? (fit as Extract<CamPlan, { kind: "body" }>).shot : cam.shot;   // (the Circuit view is batch B7's: until it lands the figure stays on the body)
   const scene: SceneDirective = {
     shot, lobuleCam: cam.kind === 'lobule' ? cam.name : null, view,
     lens: lensOf(s.lens), labels: (s.labels ?? []).filter((id) => STATION_IDS.has(id)), terms: termList(s.terms),
+    circuit: cam.kind === 'circuit' ? { box: cam.box, kMax: typeof s.kMax === 'number' ? s.kMax : null, resistors: resistorsOf(s), caudate: caudateOf(s) } : null,
   };
   return { deck, id: s.id, index, cam, scene, step: stepOf(s), needs: needsOf(s), readiness: readiness(s), missing: { stations: missingStations(s), terms: missingTerms(s) } };
 }
