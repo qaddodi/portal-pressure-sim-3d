@@ -17,6 +17,7 @@ import { triggerCardVerb, cardIsOpen } from '../action/ActionCard.tsx';
 import { openGuide } from '../shell/HelpSheets.tsx';
 import { SETTLED, lensToast, speedToast } from '../shell/words.ts';
 import { useTests } from '../tests/store.ts';
+import { escStep } from './escape.ts';
 
 export function targetOf(el: EventTarget | null): Target {
   const t = el as HTMLElement | null;
@@ -34,15 +35,19 @@ export function carryOut(a: KeyAction): void {
   switch (a.type) {
     case 'search-toggle': sh.toggle('search'); break;
     case 'search-open': sh.open('search'); break;
-    case 'close':
-      if (sh.dialog) useShell.setState({ dialog: null });
-      else if (sh.sheet) sh.close();
-      else if (useTests.getState().open) useTests.getState().back();   // (the Tests card; its Why? is the shared sheet above, closed first)
-      else if (useTreat.getState().open) useTreat.getState().setOpen(false);
-      else if (useSelection.getState().sel) selectStructure(null);
-      else if (sh.view === 'sinusoid') goToView('lobule');   // (2D: Esc in the sinusoid backs out to the lobule)
-      else if (sh.mode === 'deck') leaveTalk();
+    case 'close': {
+      const tests = useTests.getState();
+      const step = escStep({ dialog: !!sh.dialog, sheet: !!sh.sheet, testsOpen: tests.open, testsFocus: tests.open && tests.state === 'focus', treatOpen: useTreat.getState().open,
+        sinusoid: sh.view === 'sinusoid', selection: !!useSelection.getState().sel, talk: sh.mode === 'deck' });
+      if (step === 'dialog') useShell.setState({ dialog: null });
+      else if (step === 'sheet') sh.close();
+      else if (step === 'tests-focus' || step === 'tests') tests.back();   // (the Tests card; its Why? is the shared sheet above, closed first)
+      else if (step === 'treat') useTreat.getState().setOpen(false);
+      else if (step === 'selection') selectStructure(null);
+      else if (step === 'sinusoid') goToView('lobule');   // (2D: Esc in the sinusoid backs out to the lobule)
+      else if (step === 'talk') leaveTalk();
       break;
+    }
     case 'undo': runFeature('undo', UI.playbar.menu[2]); break;
     case 'redo': runFeature('redo', 'Redo'); break;
     case 'play-pause': togglePlay(); break;

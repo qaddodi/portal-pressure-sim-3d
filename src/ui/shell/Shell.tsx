@@ -33,6 +33,7 @@ import { startCompare } from '../compare/bind.ts';
 import { startTimeline } from '../timeline/index.ts';
 import { startHistory } from '../history/bind.ts';
 import { startActions } from '../action/boot.ts';
+import { TreatCard } from '../treat/TreatCard.tsx';
 
 /** The screen's size and its safe areas, measured when either changes (never per frame). Free play needs it too: the talk's own UI measures only while it is mounted. */
 function useViewport(probe: React.RefObject<HTMLDivElement | null>) {
@@ -115,6 +116,8 @@ export function Shell() {
             <Credit />
             <Dock thumb={thumb} />
           </main>
+          {/* (2D index.html: #treatCard is a child of #app. Its stylesheet reads what .app defines (--gap, --card-head-pad, --top-h, --panel-w, --top-safe) and every `.app …` rule: outside it the card had no padding and sat in the corner) */}
+          {mode !== 'deck' && <TreatCard />}
         </div>
         <CompareBanner />
         {mode === 'free' && <TestsLayer />}
