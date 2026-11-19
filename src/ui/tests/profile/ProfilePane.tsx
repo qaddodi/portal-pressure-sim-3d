@@ -14,11 +14,12 @@ import { NOTE, LEGEND } from './copied/consts.copied.js';
 import { itemsOf, newLock, profileFrame, type ProfileInput } from './model.ts';
 import type { PaneProps } from '../TestsLayer.tsx';
 import { metricsOf } from '../frame.ts';
+import { hiddenNow, useHidden } from '../hidden.ts';
 
 type M = Record<string, number | undefined>;
 
 /** A frame's inputs: the shown pressures (the beat-filtered ones where the frame has them), its metrics, the healthy reference and the pinned moment. */
-export function inputOf(hidden: ReadonlySet<string> | null = null): ProfileInput | null {
+export function inputOf(hidden: ReadonlySet<string> | null = hiddenNow()): ProfileInput | null {
   const f = latest.frame;
   if (!f) return null;
   const snap = useCompare.getState().snap;
@@ -29,7 +30,7 @@ const keyOf = (i: ProfileInput): string => {
   let s = '';
   for (let k = 0; k < i.P.length; k++) s += `${Math.round(i.P[k]! * 10)},`;
   const m = i.metrics ?? {};
-  return `${s}|${m.whvp?.toFixed?.(1)}|${m.fhvp?.toFixed?.(1)}|${m.pv?.toFixed?.(1)}|${m.ivc?.toFixed?.(1)}|${i.healthy ? 1 : 0}|${i.snap ? i.snap[0] : ''}`;
+  return `${s}|${m.whvp?.toFixed?.(1)}|${m.fhvp?.toFixed?.(1)}|${m.pv?.toFixed?.(1)}|${m.ivc?.toFixed?.(1)}|${i.healthy ? 1 : 0}|${i.hidden?.has('trueHVPG') ? 1 : 0}${i.hidden?.has('pv') ? 1 : 0}|${i.snap ? i.snap[0] : ''}`;
 };
 
 export function ProfilePane({ plot }: PaneProps) {
@@ -40,10 +41,11 @@ export function ProfilePane({ plot }: PaneProps) {
   const snap = useCompare((s) => s.snap);
   const [label, setLabel] = useState('');
   useEngine((s) => s.presetId);
+  const hidden = useHidden();
   // the readings under the chart follow the model's frames, at the model's own rate
   const frames = useEngine((s) => s.frames);
   void frames;
-  const rows = useMemo(() => readings(metricsOf(latest.frame) as M | null, null), [frames]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const rows = useMemo(() => readings(metricsOf(latest.frame) as M | null, hidden), [frames, hidden]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const draw = (glide: boolean) => {
     const c = ctx.current, p = painter.current, inp = inputOf();
@@ -62,7 +64,7 @@ export function ProfilePane({ plot }: PaneProps) {
       const k = keyOf(inp);
       if (k !== last.current) { draw(true); clock.invalidate('profile'); }
       const now = performance.now();
-      if (now - spoke > 1000) { spoke = now; const items = profileLabel(itemsOf(inp), false); setLabel((o) => (o === items ? o : items)); }
+      if (now - spoke > 1000) { spoke = now; const items = profileLabel(itemsOf(inp), !!inp.hidden?.has('pv')); setLabel((o) => (o === items ? o : items)); }
     });
     return off;
   }, [h]);  // eslint-disable-line react-hooks/exhaustive-deps

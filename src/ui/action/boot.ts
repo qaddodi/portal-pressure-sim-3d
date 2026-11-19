@@ -3,6 +3,7 @@
 import { registerFeature } from '../shell/features.ts';
 import { useShell } from '../shell/store.ts';
 import { useTreat } from '../treat/store.ts';
+import { useTests } from '../tests/store.ts';
 import { useEngine } from '../../engine/index.ts';
 import { patient } from '../../engine/store.ts';
 import { usePick, sceneApi } from '../../scene/api.ts';
@@ -45,6 +46,9 @@ export function startActions(): () => void {
   }));
   // a structure selected on a phone puts Treat away (2D onSelect)
   off.push(useSelection.subscribe((s, prev) => { if (s.sel && s.sel !== prev.sel && isPhone(useUi.getState().device) && useTreat.getState().open) useTreat.getState().setOpen(false); }));
+  // a phone has room for one sheet (2D openPanel, openTreat): the Tests card coming up puts Treat away (Treat's Paracentesis opens Ascites), and Treat coming up puts Tests away
+  off.push(useTests.subscribe((s, prev) => { if (s.open && !prev.open && isPhone(useUi.getState().device) && useTreat.getState().open) useTreat.getState().setOpen(false); }));
+  off.push(useTreat.subscribe((s, prev) => { if (s.open && !prev.open && isPhone(useUi.getState().device) && useTests.getState().open) useTests.getState().close(); }));
   // the loaded patient's own settings: what it came with is a fact about it, not a change
   const keepBase = () => { const s = useEngine.getState(); if (s.status === 'ready' && s.presetId && patient.params && !presetBase()) presetStarted(s.presetId, patient.params); };
   keepBase();

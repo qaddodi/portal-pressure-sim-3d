@@ -15,7 +15,7 @@ import type { LensId } from './lenses/model.ts';
 import type { FigureView } from './scene.ts';
 import { isPortrait } from './sinusoid/index.ts';
 import { lobuleShot, sinusoidShot, type LobuleCam, type LobuleLayers } from './lobule/index.ts';
-import { circuitShot } from './circuit/shots.ts';
+import { circuitShot, circuitBoxShot } from './circuit/shots.ts';
 import type { ResKey } from './circuit/res-model.ts';
 import { TURN_MS } from './circuit/data.copied.ts';
 import { useCircuitTurn } from './circuit/pref.ts';
@@ -65,11 +65,23 @@ export const sceneApi = {
     this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot(isPortrait(room.w, room.h), Math.min(room.w, room.h)) : lobuleShot(cam), room, ms);
     clock.invalidate('circuit');
   },
+  /** Show the Circuit framed on a part of the map (a slide's region: a box in map units, `kMax` its closest zoom), or the whole map; the resistors and the caudate lane that the slide asks for come with it. */
+  showCircuit(room: Room, o: { box?: readonly [number, number, number, number] | null; kMax?: number | null; resistors?: readonly ResKey[]; caudate?: boolean } = {}): void {
+    const upright = useCircuitTurn.getState().upright;
+    cel.setCircuitUpright(upright);
+    cel.setView('circuit');
+    cel.setResistors(o.resistors ?? []); cel.setCaudatePin(!!o.caudate);
+    const whole = !o.box || (o.box[0] <= 30 && o.box[1] <= 30 && o.box[2] >= 1360 && o.box[3] >= 730);
+    this.goTo(whole ? circuitShot(upright) : circuitBoxShot(o.box!, upright, o.kMax ?? null), room, cel.circuit.changeMs() || undefined);
+    clock.invalidate('circuit');
+  },
   /** Show a view and fly to a shot of the caller's own (a ported deck slide's camera), fitted into the room the cards leave free. */
   showShot(v: FigureView, shot: ShotName | Shot, room: Room): void {
-    if (cel.view !== v) cel.setView(v);
-    // the sinusoid's deck camera is the wide one; a portrait room turns it top to bottom and frames it as 2D does
-    this.goTo(v === 'sinusoid' && typeof shot !== 'string' ? sinusoidShot(isPortrait(room.w, room.h), Math.min(room.w, room.h)) : shot, room);
+    const from = cel.view;
+    if (from !== v) cel.setView(v);
+    if (from === 'circuit' && v !== 'circuit') { cel.setResistors([]); cel.setCaudatePin(false); }
+    // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together
+    this.goTo(v === 'sinusoid' && typeof shot !== 'string' ? sinusoidShot(isPortrait(room.w, room.h), Math.min(room.w, room.h)) : shot, room, from !== v && (v === 'body' || from === 'circuit') ? cel.circuit.changeMs() || undefined : undefined);
   },
   /** The Circuit's quarter turn: stand the map upright (flow bottom to top) or lay it wide; the camera follows on the same 480 ms. Remembered across visits. */
   setCircuitUpright(on: boolean, room: Room): void {
@@ -133,6 +145,8 @@ export const sceneApi = {
   setLens(lens: LensId, instant = false): void { useLens.setState({ lens }); cel.setLens(lens, performance.now(), instant); clock.invalidate('lens'); },
   /** Compare's Change view: Change and Congestion count from a pinned moment's pressures; null goes back to the healthy reference. */
   setLensRef(P: ArrayLike<number> | null): void { cel.setLensRef(P); clock.invalidate('lens'); },
+  /** A "change since" slide's baseline: the node pressures (the state of the slide before, a named slide's, a lapse's start) the Since lens counts from; null goes back to the state the figure showed as the lens came in. */
+  setSinceRef(P: ArrayLike<number> | null): void { cel.setSinceRef(P); clock.invalidate('lens'); },
   /** The Blood menu: chevrons, key chevrons only, potential collaterals (the other two are the cards' and tags' business). Remembered across visits. */
   setBlood(patch: Partial<BloodChoice>, presenting = false): void {
     useBlood.getState().set(patch);

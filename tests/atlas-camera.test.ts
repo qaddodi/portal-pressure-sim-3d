@@ -8,7 +8,8 @@ import { CameraRig } from '../src/scene/camera/rig.ts';
 import { FOV, SHOTS, lensDistance, type ShotName } from '../src/scene/camera/shots.ts';
 import { fitDistance, fullRoom } from '../src/scene/camera/room.ts';
 import { ORBIT_LIMIT } from '../src/scene/camera/shots.ts';
-import { NETWORK } from '../src/scene/vessels/network.ts';
+import { NETWORK, NETWORK_BY_ID, NODE_Z } from '../src/scene/vessels/network.ts';
+import { REST as AT_REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { STATIONS, nodeZ } from '../src/scene/labels/stations.ts';
 import { TIER_Z } from '../src/scene/frame2d.ts';
 
@@ -30,6 +31,9 @@ test('the lens is long (14°), and a shot frames what it framed at 30°: the dis
   // the room solver follows the same lens: the same half extents need the longer distance
   assert.ok(fitDistance([2, 1.8], fullRoom(900, 700), 700) > 12);
 });
+
+/** A vessel's course as it is drawn (its depth eases to its end nodes': shape.ts), which is what a dot has to stand on. */
+const drawn = (id: string) => coursesOf(NETWORK_BY_ID.get(id)!, AT_REST)[0]!.pts;
 
 /** The canvas distance (px) from a point to a polyline, both given in scene units, and the pixel radius of a tube at that depth. */
 function pxDistance(rig: CameraRig, p: Vector3, line: readonly (readonly number[])[]): number {
@@ -57,15 +61,17 @@ test('every station dot stands on a vessel it names: inside the drawn tube (+2 p
     rig.goTo(name, fullRoom(w, h), 0, 0); rig.update(0); rig.setOrbit(orbit); rig.update(1);
     for (const s of STATIONS) {
       if (s.kind === 'organ') continue;
-      const p = s.at(0.5, new Vector3());
+    for (const u of s.slides ? [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1] : [0.5]) {
+      const p = s.at(u, new Vector3());
       const near = NETWORK.filter((v) => (s.vessel ? v.id === s.vessel : v.from === s.node || v.to === s.node));
       assert.ok(near.length, s.id);
-      const best = Math.min(...near.map((v) => pxDistance(rig, p, v.pts) - pxRadius(rig, p, v.radius)));
-      assert.ok(best <= 2, `${s.id} at ${w}x${h}, ${name}, orbit ${orbit}: the dot is ${best.toFixed(1)} px off the tube's edge`);
+      const best = Math.min(...near.map((v) => pxDistance(rig, p, drawn(v.id)) - pxRadius(rig, p, v.radius)));
+      assert.ok(best <= 2, `${s.id} at u=${u}, ${w}x${h}, ${name}, orbit ${orbit}: the dot is ${best.toFixed(1)} px off the tube's edge`);
       checked++;
     }
+    }
   }
-  assert.ok(checked > 100);
+  assert.ok(checked > 500);
 });
 
 test('Lower IVC and the SMV: at every rest shot and across the whole ±25° turn, each dot (and so its leader tip) stays on its own tube, never on the other', () => {
@@ -78,16 +84,16 @@ test('Lower IVC and the SMV: at every rest shot and across the whole ±25° turn
     rig.resize(w, h); rig.goTo(name, fullRoom(w, h), 0, 0); rig.update(0); rig.setOrbit(orbit); rig.update(1);
     for (const [own, other] of [[ivc, smv], [smv, ivc]] as const) {
       const p = own.at(0.5, new Vector3()), a = tube(own.vessel!), b = tube(other.vessel!);
-      assert.ok(pxDistance(rig, p, a.pts) - pxRadius(rig, p, a.radius) <= 2, `${own.id} on its own tube (${w}x${h}, ${name}, ${orbit.toFixed(2)})`);
-      assert.ok(pxDistance(rig, p, b.pts) - pxRadius(rig, p, b.radius) > 2, `${own.id} is not on ${other.id}'s tube (${w}x${h}, ${name}, ${orbit.toFixed(2)})`);
+      assert.ok(pxDistance(rig, p, drawn(a.id)) - pxRadius(rig, p, a.radius) <= 2, `${own.id} on its own tube (${w}x${h}, ${name}, ${orbit.toFixed(2)})`);
+      assert.ok(pxDistance(rig, p, drawn(b.id)) - pxRadius(rig, p, b.radius) > 2, `${own.id} is not on ${other.id}'s tube (${w}x${h}, ${name}, ${orbit.toFixed(2)})`);
     }
   }
 });
 
 test('a point station stands at the depth of its vessel, not on the front tier: the atrium on the cava, the varices on the collaterals', () => {
   assert.equal(nodeZ('RA'), TIER_Z.back);
-  assert.equal(nodeZ('VAR'), TIER_Z.mid);
-  assert.ok(Math.abs(nodeZ('SIN_R') - TIER_Z.net) < 1e-9);
+  assert.ok(Math.abs(nodeZ('VAR') - TIER_Z.mid) < 0.05);
+  for (const id of ['RA', 'SIN_R', 'VAR']) assert.equal(nodeZ(id), NODE_Z.get(id), `${id}: where the vessels that meet there are drawn`);
   for (const id of ['RA', 'SIN_R', 'VAR']) {
     const s = STATIONS.find((x) => x.id === id)!;
     assert.equal(s.at(0, new Vector3()).z, nodeZ(id), id);
@@ -108,4 +114,11 @@ test('the deck link tells the camera a step happened, so a slide on the same sho
   assert.ok(/sync\(s\.pos !== prev\.pos \|\| s\.stops !== prev\.stops\)/.test(link));
   const api = readFileSync('src/scene/api.ts', 'utf8');
   assert.ok(/homeTurn\) gesturesRef\.current\?\.turnOff\(\)/.test(api));
+});
+
+test('the cava rises toward the hepatic veins, and the dot rises with it: "IVC" at the junction end is on the tube in a turned view (iPhone, 19 Nov: 15 px left of the cava)', () => {
+  const cava = drawn('IVCS_RA');
+  assert.ok(cava[0]![2] > cava[Math.floor(cava.length / 2)]![2] + 0.2, 'the drawn cava is nearer the viewer at the junction than at its middle');
+  const ivc = STATIONS.find((x) => x.id === 'IVCS')!;
+  assert.ok(Math.abs(ivc.at(0, new Vector3()).z - cava[0]![2]) < 1e-6, 'the dot at the junction end is at the depth the tube is drawn at there, not the tier\'s');
 });

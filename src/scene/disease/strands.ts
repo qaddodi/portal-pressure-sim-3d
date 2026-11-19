@@ -14,7 +14,7 @@ import { CelObject, type CelShared } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import type { LookId } from '../../looks/looks.ts';
-import { CASING, inkWidthDev } from '../vessels/cel-ink.ts';
+import { CASING, CEL } from '../vessels/cel-ink.ts';
 import { hostCourse } from './course.ts';
 import { mix, rgbOf, type RGB } from '../organs/organ-look.ts';
 import { recolour } from './paint.ts';
@@ -115,7 +115,7 @@ export class StrandLayer {
   private line(s: Strand): void {
     if (!s.obj) return;
     const c = CASING[this.look], sin = SIN_EDGES.has(s.host);
-    s.obj.setSoftInk(c.rgb, c.a * (sin ? 0.5 : 1), inkWidthDev(0), this.dpr);
+    s.obj.setSoftInk(c.rgb, c.a * (sin ? 0.5 : 1), sin ? 0.75 : CEL.LINE_MIN, this.dpr);   // (a bed's hairline strands: half a line, as a thin lumen keeps its colour, cel-ink.ts inkTaper)
   }
   setPhone(phone: boolean): void { for (const s of this.strands) s.obj?.setPhone(phone); }
 
@@ -165,7 +165,7 @@ export class StrandLayer {
     const g = ringTube(pts, radii, 9, true);
     if (s.host === 'C1a') this.paintWale(g, wale);
     if (!s.obj) {
-      s.obj = new CelObject(g, { tone: 'portal', bands: 2, spec: 1, px: sin ? 0.6 : 0.9 }, this.shared);
+      s.obj = new CelObject(g, { tone: 'portal', bands: 2, spec: 1, px: sin ? 0.6 : 0.9, tubeTones: true }, this.shared);
       this.group.add(s.obj.group);
       if (this.palette) { s.obj.applyPalette(this.palette); if (sin) recolour(s.obj, faint(rgbOf(this.palette.tones.portal), rgbOf(this.palette.body)), this.palette); }
       this.line(s);

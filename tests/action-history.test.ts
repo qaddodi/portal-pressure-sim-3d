@@ -8,7 +8,7 @@ test('an action has the 2D History label', () => {
   assert.equal(actionLabel({ kind: 'infuse', fluid: 'crystalloid' }), '1 L crystalloid');
   assert.equal(actionLabel({ kind: 'infuse', fluid: 'prbc' }), '1 unit PRBC');
   assert.equal(actionLabel({ kind: 'infuse', fluid: 'albumin' }), 'Albumin infusion');
-  assert.equal(actionLabel({ kind: 'band' }), 'Band ligation');
+  assert.equal(actionLabel({ kind: 'band' }), 'Band (EVL)');
   assert.equal(actionLabel({ kind: 'paracentesis', mL: 5000, albumin: true }), 'Paracentesis 5.0 L + albumin');
   assert.equal(actionLabel({ kind: 'paracentesis', mL: 2500, albumin: false }), 'Paracentesis 2.5 L');
   assert.equal(actionLabel({ kind: 'hemorrhage', mL: 500 }), 'Hemorrhage 500 mL');

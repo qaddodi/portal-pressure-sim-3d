@@ -9,13 +9,14 @@ export const CEL = { DIR: [-0.70710678, 0.70710678] as const, SHADE_AT: -0.16, L
 /** The screen direction toward the light in the view's own axes (x right, y UP): the top left. (2D's is y down: (-0.707, -0.707).) */
 export const CEL_DIR_VIEW = CEL.DIR;
 
-/** The look's casing (tokens.css): the outline ink and its alpha; `lensA` is the alpha under a colour lens (the dark looks' --casing-a: .38 on .stage-wrap.cmap). */
-export const CASING: Readonly<Record<LookId, { rgb: readonly [number, number, number]; a: number; lensA: number }>> = {
-  light: { rgb: [59, 44, 34], a: 0.64, lensA: 0.64 },
-  soft: { rgb: [51, 37, 26], a: 0.66, lensA: 0.66 },
-  dark: { rgb: [14, 11, 9], a: 0.3, lensA: 0.38 },
-  navy: { rgb: [6, 10, 20], a: 0.34, lensA: 0.38 },
-  black: { rgb: [0, 0, 0], a: 0.38, lensA: 0.38 },
+/** The look's casing (tokens.css --casing-rgb / --casing-a) in the Anatomy, and `circ` its casing in the Circuit (`.stage-wrap.cmap`, which is the Circuit view and not a colour lens: stage-frame.js 250): only the
+ *  dark look changes there (ink 0 0 0, alpha .38); Navy and Black keep theirs, Light and Soft are unchanged. The shader mixes the two by the Circuit's share (`circT`). */
+export const CASING: Readonly<Record<LookId, { rgb: readonly [number, number, number]; a: number; circ: { rgb: readonly [number, number, number]; a: number } }>> = {
+  light: { rgb: [59, 44, 34], a: 0.64, circ: { rgb: [59, 44, 34], a: 0.64 } },
+  soft: { rgb: [51, 37, 26], a: 0.66, circ: { rgb: [51, 37, 26], a: 0.66 } },
+  dark: { rgb: [14, 11, 9], a: 0.3, circ: { rgb: [0, 0, 0], a: 0.38 } },
+  navy: { rgb: [6, 10, 20], a: 0.34, circ: { rgb: [6, 10, 20], a: 0.34 } },
+  black: { rgb: [0, 0, 0], a: 0.38, circ: { rgb: [0, 0, 0], a: 0.38 } },
 };
 /** A dark lumen's light rim on the dark looks (tokens.css --vessel-rim-a: .3 there, 0 on the light looks): its alpha. */
 export const RIM_A: Readonly<Record<LookId, number>> = { light: 0, soft: 0, dark: 0.3, navy: 0.3, black: 0.3 };
@@ -24,7 +25,11 @@ const clamp = (x: number, a: number, b: number): number => Math.min(Math.max(x, 
 const smoothstep = (a: number, b: number, x: number): number => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
 /** The outline's width in device px for a tube of screen radius `rDev` device px. */
-export const inkWidthDev = (rDev: number): number => clamp(CEL.LINE_R * rDev, CEL.LINE_MIN, CEL.LINE_MAX);
+export const inkWidthDev = (rDev: number): number => clamp(CEL.LINE_R * rDev, CEL.LINE_MIN, CEL.LINE_MAX) * inkTaper(rDev);
+/** The outline's floor (1.5 device px) would swallow a lumen under it: at a radius of 0.5 px the line is 1.5 each side of a 1 px lumen, 25 % colour. Below `TAPER_TO` device px of radius the line
+ *  thins with the lumen (from nothing at `TAPER_FROM`), so the smallest branches keep their colour; from `TAPER_TO` up it is the 2D line. A picked vessel's ring is not tapered. */
+export const TAPER_FROM = 0.3, TAPER_TO = 1.5;
+export const inkTaper = (rDev: number): number => smoothstep(TAPER_FROM, TAPER_TO, rDev);
 
 /** The tones at a pixel: `across` -1..1 across the tube, `side` the unit screen direction (view axes, y up) of the tube's cross axis, `rDev` its radius in device px. Returns the
  *  multiplier on the fill (1 - 0.17 shadow) and the share lifted toward white (0.15 lit); both are 0 on a hairline. */

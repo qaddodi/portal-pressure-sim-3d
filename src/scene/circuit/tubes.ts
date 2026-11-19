@@ -3,6 +3,7 @@
 // attributes with the body course set equal to the map course, so the map's quarter turn takes them along, and they are drawn only as the map comes in (the ramp of the change) -
 // the body never shows them. Each fades with the map and with its own presence (a branch with its parent; the caudate lane while a slide is about the caudate; a shunt while open).
 import { Group, Vector3 } from 'three';
+import { TIER_Z, x3, y3 } from '../frame2d.ts';
 import { EDGES } from '../../engine/hales/portal/topology.js';
 import { indexOf, hasVessel } from '../../engine/vessel-data.ts';
 import { buildTube } from '../anatomy/vessels.ts';
@@ -14,7 +15,8 @@ import type { Palette } from '../palette.ts';
 import { NETWORK_BY_ID, radiusOf, widthPx } from '../vessels/network.ts';
 import { VesselObject, type LensShared } from '../vessels/vessel-object.ts';
 import { attachCircuit } from './geometry.ts';
-import { CIRCUIT_D, CIRCUIT_TREES, CUSTOM_EDGES, NODE_CIRCUIT, ROUTER_STATIONS, VB_CIRC } from './data.copied.ts';
+import { CIRCUIT_D, CIRCUIT_TREES, CUSTOM_EDGES, CUSTOM_SHUNT_PATH, NODE_CIRCUIT, ROUTER_STATIONS, VB_CIRC } from './data.copied.ts';
+import { mapCurve } from './course.ts';
 import { mapToScene } from './map.ts';
 import { courseOf, cumulative, resample } from './paths.ts';
 import type { CircuitShared } from './uniforms.ts';
@@ -28,6 +30,8 @@ const edgeById = new Map(edges.map((e) => [e.id, e]));
 const MIN_BRANCH_W = 1.2;
 /** The caudate lane's own colour is its vein's; this is how long it takes to come in or go (ms), as a vessel that comes and goes does. */
 const EASE_MS = 320;
+/** The camera layer of everything drawn over the organs (scene.ts VESSEL_LAYER). */
+const VESSEL_LAYER = 1;
 
 /** A course (map units) as scene points, even in arc length and dense enough that corners keep their rounding. */
 function scenePoints(dense: readonly (readonly [number, number])[]): Vector3[] {
@@ -36,12 +40,19 @@ function scenePoints(dense: readonly (readonly [number, number])[]): Vector3[] {
   return resample(dense, n).map(([x, y]) => { const p = mapToScene(x, y); return new Vector3(p[0], p[1], p[2]); });
 }
 
+/** The body course of a custom shunt as scene points: its anatomy-plate path (custom-shunt-paths.js) in the plate's own frame, at the tier of the vessels drawn over the rest (2D: an `over` lane). */
+function bodyPoints(d: string, n: number): Vector3[] {
+  return resample(courseOf(d), n).map(([x, y]) => new Vector3(x3(x), y3(y), TIER_Z.over));
+}
+
 export type TubeKind = 'tree' | 'caud' | 'custom';
-interface Entry { id: string; kind: TubeKind; obj: VesselObject; parent: string; goal: number; amount: number }
+interface Entry { id: string; kind: TubeKind; obj: VesselObject; parent: string; goal: number; amount: number; /** a custom shunt closed and opened again: the old tube eases out and goes */ dead?: boolean; /** the vessel's two course lengths (scene units), when it has two */ lens?: readonly [number, number] }
 
 export interface TubesContext {
   /** the map's ramp of the change (0 the body, 1 the map) */
   ramp: number;
+  /** the change's own share (0 the body, 1 the map): a vessel with two courses is drawn on both, carried between them by it */
+  t: number;
   /** the dive's fade of the whole body (1 whole) */
   body: number;
   /** whether the vessel is drawn now (its presence) */
@@ -76,10 +87,22 @@ export class CircuitTubes {
     if (caud && d && hasVessel('CAUD')) this.add('CAUD', 'caud', 'CAUD', courseOf(d), radiusOf(widthPx(caud, caud.d ?? caud.dMax ?? 2)), 'sys', caud.d ?? caud.dMax ?? 2, 0);
   }
 
-  private add(id: string, kind: TubeKind, edge: string, dense: [number, number][], radius: number, tone: 'portal' | 'sys', baseD: number, widthKind: 0 | 1 | 2): Entry {
-    const built = buildTube(scenePoints(dense), radius, true, 0);
-    // the body course IS the map course: the morph only turns it (the tube is the body's own where the map is not showing, and hidden then)
-    attachCircuit(built, { curveA: built.curve, curveC: built.curve, lenA: built.length, lenC: built.length } as never, radius);
+  /** `body`: the body course of a vessel that lies on the body too (a custom shunt: custom-shunt-paths.js); the tube is built along it and the map course carries it, as every vessel of the figure is. */
+  private add(id: string, kind: TubeKind, edge: string, dense: [number, number][], radius: number, tone: 'portal' | 'sys', baseD: number, widthKind: 0 | 1 | 2, body?: string): Entry {
+    const mapPts = scenePoints(dense);
+    let built, courseLens: readonly [number, number] | undefined;
+    if (body) {
+      const curveC = mapCurve(dense), lenC = curveC.getLength();
+      // as many slices as the map course's rounded corners need (geometry.ts slicesFor: 24 to a scene unit of the longer course)
+      const apts = bodyPoints(body, Math.max(12, Math.min(600, Math.ceil(lenC * 24))));
+      built = buildTube(apts, radius, true, Math.min(360, Math.max(16, Math.ceil(lenC * 24))));
+      attachCircuit(built, { curveA: built.curve, curveC, lenA: built.length, lenC } as never, radius);
+      courseLens = [built.length, lenC];
+    } else {
+      built = buildTube(mapPts, radius, true, 0);
+      // the body course IS the map course: the morph only turns it (the tube is the body's own where the map is not showing, and hidden then)
+      attachCircuit(built, { curveA: built.curve, curveC: built.curve, lenA: built.length, lenC: built.length } as never, radius);
+    }
     const { shared, lens, blood, circuit } = this.deps;
     const o = new VesselObject(built.geometry, {
       tone, artery: false, lensIndex: indexOf(edge), widthKind, bands: 2, spec: 1, px: kind === 'tree' ? 0.9 : 1.2,
@@ -88,11 +111,13 @@ export class CircuitTubes {
     o.edge = { id: edge, from: edgeById.get(edge)?.from ?? '', to: edgeById.get(edge)?.to ?? '', length: built.length };
     o.group.visible = false;
     o.setFade(0);
+    // drawn over the organs with the rest of the figure's vessels (scene.ts VESSEL_LAYER)
+    o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     if (this.palette) o.applyPalette(this.palette);
     o.setPhone(this.phone);
     o.setUseData(this.useData);
     this.group.add(o.group);
-    const e: Entry = { id, kind, obj: o, parent: edge, goal: 0, amount: 0 };
+    const e: Entry = { id, kind, obj: o, parent: edge, goal: 0, amount: 0, lens: courseLens };
     this.entries.push(e);
     return e;
   }
@@ -125,7 +150,8 @@ export class CircuitTubes {
       router.addLine(dense, true);
       this.routed.set(id, dense);
       const e = edgeById.get(id)!, dmm = open[id]!;
-      this.add(id, 'custom', id, dense, radiusOf(widthPx(e, dmm)), e.portal ? 'portal' : 'sys', dmm, 0);
+      for (const old of this.entries) if (old.id === id) old.dead = true;
+      this.add(id, 'custom', id, dense, radiusOf(widthPx(e, dmm)), e.portal ? 'portal' : 'sys', dmm, 0, CUSTOM_SHUNT_PATH[id]);
       done.push(id);
     }
     return done;
@@ -135,11 +161,19 @@ export class CircuitTubes {
   update(dtMs: number, c: TubesContext): boolean {
     const k = Math.min(1, dtMs / EASE_MS);
     let moving = false;
+    for (let i = this.entries.length - 1; i >= 0; i--) {
+      const gone = this.entries[i]!;
+      // a closed shunt's tube, once it has eased out and its route is forgotten (or a newer one stands for it), is let go
+      if (gone.kind === 'custom' && gone.amount === 0 && (gone.dead || !this.routed.has(gone.id))) { this.group.remove(gone.obj.group); gone.obj.dispose(); this.entries.splice(i, 1); }
+    }
     for (const e of this.entries) {
-      const want = e.kind === 'caud' ? c.caudPin : e.kind === 'custom' ? (c.open[e.id] ?? 0) > 0 : c.drawn(e.parent);
-      e.goal = want && c.ramp > 0 ? 1 : 0;
+      const want = e.dead ? false : e.kind === 'caud' ? c.caudPin : e.kind === 'custom' ? (c.open[e.id] ?? 0) > 0 : c.drawn(e.parent);
+      // a custom shunt lies on the body too: it is on while it is open, in either view (the map-only branches wait for the map)
+      e.goal = want && (e.lens || c.ramp > 0) ? 1 : 0;
       if (e.amount !== e.goal) { e.amount = Math.abs(e.goal - e.amount) <= k ? e.goal : e.amount + Math.sign(e.goal - e.amount) * k; moving = true; }
-      const f = c.ramp * e.amount * c.body;
+      const f = (e.lens ? 1 : c.ramp) * e.amount * c.body;
+      // the flow marks keep their pitch in scene units: the vessel's length is its body course's, then the map course's (circuit/view.ts)
+      if (e.lens) (e.obj.toon.uniforms.len as { value: number }).value = e.lens[0] + (e.lens[1] - e.lens[0]) * c.t;
       e.obj.setFade(f);
       e.obj.group.visible = f > 0.002;
     }

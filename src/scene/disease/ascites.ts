@@ -102,5 +102,11 @@ export class AscitesLayer {
     for (const m2 of [this.fill, this.band]) { (m2.geometry.getAttribute('position') as import('three').BufferAttribute).needsUpdate = true; }
     return true;
   }
+  /** Whether a 2D point is in the pool: inside the belly's wall and below the surface (2D stage-hover.js organAt: `wy > fluidSurf(wx)` inside the abdomen). False while there is none. */
+  holds(x: number, y: number): boolean {
+    if (this.poolA <= 0 || this.body < 0.5 || !Number.isFinite(this.lastH)) return false;
+    const cr = crossings(polyOf(this.lastStep), x);
+    return !!cr && y <= cr[1] && y > Math.max(fluidBase(x, this.lastH), cr[0]);
+  }
   dispose(): void { for (const m of [this.fill, this.band]) { m.geometry.dispose(); (m.material as MeshBasicMaterial).dispose(); } }
 }

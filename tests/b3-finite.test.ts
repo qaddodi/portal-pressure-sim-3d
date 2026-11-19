@@ -23,6 +23,11 @@ test('every vessel\'s geometry is finite in every state, and a tube of no radius
       }
       const rk = g.getAttribute('rk');
       for (let i = 0; i < rk.count; i++) assert.ok(rk.getX(i) >= 0, `${def.id} rk ${rk.getX(i)}`);
+      // the shader normalizes the tangent and the normal: one of no length is a NaN in the fragment, a black pixel (the fill is lit from them)
+      for (const name of ['tang', 'normal']) {
+        const a = g.getAttribute(name);
+        for (let i = 0; i < a.count; i++) { const l = Math.hypot(a.getX(i), a.getY(i), a.getZ(i)); assert.ok(l > 0.99 && l < 1.01, `${def.id} ${JSON.stringify(o)}: ${name}[${i}] has length ${l}`); }
+      }
     }
   }
 });

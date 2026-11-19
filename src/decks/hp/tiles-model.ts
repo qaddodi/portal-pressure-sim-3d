@@ -4,7 +4,10 @@ import { TILE } from '../../ui/charts/tiles.generated.ts';
 import { fmt } from '../../ui/charts/fmt.ts';
 import { valueText, type Fp } from './numbers.ts';
 
-export interface TileSpec { deck: string; slide: string; keys: string[]; key: string[]; /** a slide id, the slide before (true), or none */ delta: string | boolean | null }
+export interface TileSpec { deck: string; slide: string; keys: string[]; key: string[]; /** a slide id, the slide before (true), or none */ delta: string | boolean | null; /** the readings left once the slide's chart shows its own (2D card-tiles.js ownKeys), for a laptop or tablet and for a phone */ own?: { wide: string[]; phone: string[] } }
+
+/** The keys the card prints on this screen: the slide's tiles less those its chart or instrument already shows (2D ownKeys). */
+export const keysFor = (spec: TileSpec, onPhone: boolean): string[] => (spec.own ? (onPhone ? spec.own.phone : spec.own.wide) : spec.keys);
 
 /** The slide a tile's change counts from: the one named, or the one before when the slide says `delta: true`. */
 export function deltaFrom(spec: TileSpec, ids: readonly string[]): string | null {
@@ -25,8 +28,8 @@ export function deltaOf(key: string, now: Fp | null, before: Fp | null): { text:
   return { text: `${diff > 0 ? '+' : ''}${fmt(diff, d)}`, good };
 }
 
-export function tileRows(spec: TileSpec, now: Fp | null, before: Fp | null): TileRow[] {
-  return spec.keys.filter((k) => TILE[k]).map((k) => ({
+export function tileRows(spec: TileSpec, now: Fp | null, before: Fp | null, shown?: readonly string[]): TileRow[] {
+  return spec.keys.filter((k) => TILE[k] && (!shown || shown.includes(k))).map((k) => ({
     key: k, name: TILE[k]!.t, sub: TILE[k]!.s ?? '', text: valueText(k, now), key_: spec.key.includes(k),
     delta: spec.delta ? deltaOf(k, now, before) : null,
   }));

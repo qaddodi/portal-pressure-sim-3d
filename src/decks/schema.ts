@@ -27,10 +27,12 @@ export interface SlideScene {
   labels: string[];
   /** figure parts the words point at (2D term targets) */
   terms: string[];
+  /** a Circuit slide: the part of the map it frames, the resistors it draws, the caudate lane (hp/plan.ts CircuitDirective); null off the Circuit */
+  circuit?: { box: readonly [number, number, number, number]; kMax: number | null; resistors: string[]; caudate: boolean } | null;
 }
 
 /** The data card of tiles: which readings, the key ones, and the state the change counts from. The numbers come from the slide's own state in the engine, never from the deck. */
-export interface SlideTiles { deck: string; slide: string; keys: string[]; key: string[]; delta: string | boolean | null }
+export interface SlideTiles { deck: string; slide: string; keys: string[]; key: string[]; delta: string | boolean | null; /** the readings the card prints once its chart's own are left out (2D card-tiles.js ownKeys: a flow-time chart's two lines on a laptop or tablet unless keepTiles, the number a FibroScan or monitor shows large), on a wide screen and on a phone */ own?: { wide: string[]; phone: string[] } }
 
 /** A slide's patient: the preset to load and the parameter changes over it (the engine's own shape), as the 2D deck's `preset` and `params`. */
 export interface SlideModel { preset: string; params?: unknown; days?: number }

@@ -60,5 +60,55 @@ export const ENDO_WORDS = {
       "wall",
       "Wall mechanics"
     ]
-  ]
+  ],
+  "pressures": [
+    {
+      "name": "Intravariceal",
+      "title": "Intravariceal pressure."
+    },
+    {
+      "name": "Intraluminal",
+      "title": "Intraluminal esophageal pressure around the varix, set by insufflation (simulated)."
+    },
+    {
+      "name": "Transmural",
+      "title": "Transmural pressure = intravariceal − intraluminal pressure: the pressure that distends the varix wall."
+    }
+  ],
+  "wall": {
+    "aria": "Varix cross-section: transmural pressure stretches the varix wall",
+    "cap": "Laplace’s law: ",
+    "formula": "σ = ΔP · r / w",
+    "lawName": "Laplace’s law",
+    "stress": [
+      "Wall stress (model)",
+      "Wall stress"
+    ],
+    "dp": [
+      "Transmural ΔP",
+      "ΔP"
+    ],
+    "radius": "Radius r",
+    "wall": "Wall w",
+    "index": [
+      "Stress index",
+      "Index"
+    ],
+    "units": [
+      "mmHg",
+      "mm",
+      "mm"
+    ],
+    "of": " of rupture threshold",
+    "above": "above the rupture threshold",
+    "tear": "% of the rupture threshold",
+    "note": "A wider varix, higher transmural pressure and a thinner wall all raise the stress. Remodeling enlarges the varix and thins its wall over months; a balloon raises the pressure outside it. ",
+    "names": [
+      "r",
+      "σ",
+      "w",
+      "lumen",
+      "muscle"
+    ]
+  }
 };

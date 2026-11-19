@@ -4,7 +4,7 @@
 // flips its hook here and every slide that waited for it counts as wired in the same push.
 import { CHARTS } from '../../ui/charts/registry.ts';
 import { TILE } from '../../ui/charts/tiles.generated.ts';
-import { LENS_IDS } from '../../scene/lenses/model.ts';
+import { LENS_IDS, SINCE_BASELINE_FED } from '../../scene/lenses/model.ts';
 import { CATHS } from '../schema.ts';
 import { UI } from '../../ui/strings.generated.ts';
 import type { CopiedSlide } from './types.ts';
@@ -84,25 +84,25 @@ export function hookOf(id: string): Hook | null {
       return { owner: 'ENGINE', what: `the model step "${rest}"`, landed: ready };
     case 'reading': return { owner: 'B12', what: `the "${rest}" reading, worked out by the data card from the slide's own state (not an engine tile)`, landed: claimed };
     case 'tile': return { owner: 'B10', what: `the ${rest} reading`, landed: () => rest in TILE };
-    case 'data': return { owner: id === 'data:tiles' ? 'B12' : 'B10', what: id === 'data:tiles' ? 'the data card of tiles' : `the ${rest} of the data card`, landed: id === 'data:tiles' ? ready : claimed };
-    case 'tool': return { owner: 'B10', what: `the ${rest} instrument or chart`, landed: () => CHARTS.find((c) => c.kind === rest)?.status === 'done' };
-    case 'lens': return { owner: 'B3', what: `the ${rest} colour lens`, landed: () => (LENS_IDS as readonly string[]).includes(rest) };
+    case 'data': return { owner: id === 'data:tiles' ? 'B12' : 'B10', what: id === 'data:tiles' ? 'the data card of tiles' : `the ${rest} of the data card`, landed: id === 'data:tiles' || id === 'data:graph' ? ready : claimed }   // (data:graph: the event graph of a procedure slide reads the slide's `graph` (charts/evgraph/model.ts); on a flow-time or `graph: false` slide the field stays inert, as in 2D);
+    case 'tool': return { owner: 'B10', what: `the ${rest} instrument or chart`, landed: () => CHARTS.find((c) => c.kind === (rest === 'course' ? 'curve' : rest))?.status === 'done' }   // (the 2D `course` tool is the curve chart's second mode, CurveCard);
+    case 'lens': return { owner: 'B3', what: `the ${rest} colour lens`, landed: () => (LENS_IDS as readonly string[]).includes(rest) && (rest !== 'since' || SINCE_BASELINE_FED) };
     case 'cath': return { owner: 'B5', what: `the catheter's ${rest} state`, landed: () => (CATHS as readonly string[]).includes(rest) };
     case 'procedure': return { owner: 'B5', what: `the ${rest} procedure`, landed: claimed };
-    case 'view': return { owner: 'B7', what: 'the Circuit view', landed: claimed };
+    case 'view': return { owner: 'B7', what: 'the Circuit view', landed: ready };   // (scene/circuit, ui/deck/scene-link.ts showCircuit, 19 Nov)
     case 'scale':
       if (rest === 'switch') return { owner: 'B12', what: 'the Anatomy, Lobule and Sinusoid pill the slide offers', landed: ready }   // (ui/cards/SlideControls.tsx);
       return { owner: 'B8', what: `the ${rest} view`, landed: ready };
     case 'visual': {
       // plane, all-patients and ladders are charts of B10 (the presenter's visual card mounts them); the summary table is ui/cards/TableCard.tsx; the rest (outline, check…) are B12's
-      const chart = ({ plane: 'plane', allpatients: 'small', ladders: 'ladder' } as Record<string, string>)[rest];
+      const chart = ({ plane: 'plane', 'plane-options': 'plane', allpatients: 'small', ladders: 'ladder' } as Record<string, string>)[rest];
       return { owner: chart ? 'B10' : 'B12', what: `the ${rest} visual over the figure`, landed: chart ? () => CHARTS.find((c) => c.kind === chart)?.status === 'done' : rest === 'table' ? ready : claimed };
     }
     case 'compare': return { owner: 'B12', what: `the compare buttons (${rest})`, landed: ['own', 'params', 'preset', 'slide', 'lens'].includes(rest) ? ready : claimed }   // (gate and tool buttons move an instrument: the Tests cards);
     case 'present': return { owner: 'B12', what: 'the presenter plays any deck by its id, with the scene plate of each slide', landed: ready }   // (decks/all.ts);
     case 'fig': case 'card': case 'field': {
       const f = Object.values(FIELD_HOOKS).find((h) => h.id === id);
-      if (f) return { owner: f.owner, what: f.what, landed: ['card:vignette', 'card:terms', 'card:equation', 'card:what-if', 'card:case-question', 'card:response', 'card:question'].includes(id) ? ready : claimed };
+      if (f) return { owner: f.owner, what: f.what, landed: ['card:vignette', 'card:terms', 'card:equation', 'card:what-if', 'card:case-question', 'card:response', 'card:question', 'card:chart-foot', 'card:cohort'].includes(id) ? ready : claimed };
       return family === 'field' ? { owner: 'B12', what: `the slide field "${rest}"`, landed: claimed } : null;
     }
     default: return null;
