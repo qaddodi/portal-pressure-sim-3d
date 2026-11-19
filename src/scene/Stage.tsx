@@ -46,7 +46,13 @@ function SceneBridge() {
   const raycaster = useRef(new Raycaster());
 
   // the one draw of the frame: the cel scene on the R3F renderer (a positive priority stops R3F drawing its own)
-  useFrame(() => { cel.render(gl); lookCapture.run(gl.domElement); }, 1);   // (the look board reads the canvas in this task, when it asked)
+  useFrame(() => {
+    cel.render(gl);
+    lookCapture.run(gl.domElement);   // (the look board reads the canvas in this task, when it asked)
+    // the canvas comes in once, with its first drawn frame (until then the page's own ground shows, never the context's black); a reduced-motion viewer gets it at once
+    const el = gl.domElement;
+    if (el.style.opacity !== '1') { el.style.transition = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'none' : 'opacity 200ms ease-out'; el.style.opacity = '1'; }
+  }, 1);
 
   useEffect(() => {
     cel.resize(size.width, size.height);
@@ -55,6 +61,7 @@ function SceneBridge() {
 
   // fail loud, not invisible (WP10): a program the device's driver refuses is drawn plain, and the ?perf bar says so; ?gl borrows this renderer to compile every program once
   useEffect(() => {
+    if (gl.domElement.style.opacity !== '1') gl.domElement.style.opacity = '0';   // (comes in with the first drawn frame, below)
     setRenderer(gl);
     const off = installShaderGuard(gl, cel.scene, () => clock.invalidate('shader-failed'), () => [cel.post.material]);
     return () => { off(); setRenderer(null); };
