@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#F1EBE0">
   <meta name="color-scheme" content="light dark">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="./brand/icon-32.png">
+  <link rel="apple-touch-icon" href="./brand/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Portal Sim">
   <title>Portal Pressure 3D</title>
   <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/source-serif-4-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -12,6 +18,9 @@
   <style>
     /* the first paint is the Light ground (or Dark when the device is), never white: main.ts applies the saved look before React starts */
     html, body { margin: 0; background: #F1EBE0; }
+    /* and nothing selectable from the first paint (the full rule is in src/ui/shell/global.css) */
+    * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+    input, textarea, [contenteditable=""], [contenteditable="true"], .selectable { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
     @media (prefers-color-scheme: dark) { html, body { background: #1A1917; } }
   </style>
 </head>
