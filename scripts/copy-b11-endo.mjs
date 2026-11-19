@@ -4,6 +4,8 @@
 //                                              noise it uses. The 3D app draws the field as a cel-shaded vector frame on the charts' shared GPU drawer (it makes no shader of its own),
 //                                              from the same columns the 2D shader and its CPU twin draw.
 //   src/ui/tests/copied/endo-words.copied.js   the words of the Endoscopy card (instruments.js createEndoscopy, eus-ppg.js), cut by pattern; a pattern that finds nothing is an error.
+//   src/ui/tests/copied/wall-geometry.copied.js  Wall mechanics' layout (wall-geometry.js, byte for byte but its one import): where the ring, the varix and every name go, from the names' ink.
+//   src/ui/tests/endo/wall.copied.css          the Wall mechanics tiles' rules (styles/app-09-tests.css, the "Wall mechanics in the Tests card" block) with the 2D dock's selector prefix swapped for `.en-wall`.
 //   src/ui/tests/copied/scope-tokens.copied.js the scope's colour tokens (styles/tokens.css :root: --scope-*, --endo-*, --red-wale), look-independent in 2D.
 // Usage: node scripts/copy-b11-endo.mjs --from <2D checkout> [--check]    (--check writes nothing and fails when a file would change)
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -76,7 +78,53 @@ const read = (p) => readFileSync(`${from}/${p}`, 'utf8');
   const sw = /\[\['scope', '([^']+)'\], \['wall', '([^']+)'\]\]/.exec(dock);
   if (!sw) throw new Error('no endoscopy view switch');
   W.views = [['scope', sw[1]], ['wall', sw[2]]];
+  // the three pressures of a lesson slide (the readings option): the tiles that join the list after the wall
+  W.pressures = [...ins.matchAll(/class: 'endo-tile endo-pr', title: '([^']+)' \}, h\('dt', \{\}, '([^']+)'\)/g)].map((m) => ({ name: m[2], title: m[1] }));
+  if (W.pressures.length !== 3) throw new Error('no three pressure tiles');
+  // Wall mechanics (instruments.js createVarixWall): its caption, the tiles' names (long and short), units and the stress's sentences
+  {
+    const a = ins.indexOf('export function createVarixWall'), b = ins.indexOf('// ── Ascites (L2c)');
+    if (a < 0 || b < a) throw new Error('instruments.js: createVarixWall moved');
+    const w = ins.slice(a, b);
+    const g = (re, what) => { const m = re.exec(w); if (!m) throw new Error(`createVarixWall: no ${what}`); return m.slice(1); };
+    const [aria] = g(/role: 'img', 'aria-label': '([^']+)'/, 'the picture label');
+    const [cap, formula] = g(/h\('span', \{ class: 'wall-cap' \}, '([^']+)'\), '([^']+)'\)\);/, 'the caption');
+    const [lawName] = g(/item\('endo-g wall-law', h\('dt', \{\}, '([^']+)'\)/, 'the law tile');
+    const [stressLong, stressShort] = g(/item\('endo-stress', name\('([^']+)', '([^']+)'\)/, 'the stress tile');
+    const [dpLong, dpShort] = g(/item\('endo-tile', name\('([^']+)', '([^']+)'\), ptm\)/, 'the ΔP tile');
+    const [radius] = g(/item\('endo-tile', h\('dt', \{\}, '([^']+)'\), rad\)/, 'the radius tile');
+    const [wallName] = g(/item\('endo-tile', h\('dt', \{\}, '([^']+)'\), wal\)/, 'the wall tile');
+    const [idxLong, idxShort] = g(/item\('endo-tile', name\('([^']+)', '([^']+)'\), idx\)/, 'the index tile');
+    const [uP, uR, uW] = g(/const ptm = num\('([^']*)'\), rad = num\('([^']*)'\), wal = num\('([^']*)'\)/, 'the units');
+    const [ofWord] = g(/h\('span', \{ class: 'wall-of' \}, '([^']+)'\)/, 'the share word');
+    const [above] = g(/share > 1 \? '([^']+)'/, 'the above-threshold sentence');
+    const note = g(/h\('div', \{ class: 'ctl-sub' \}, '([^']+)' \+ WALL_MEANING\)/, 'the note')[0];
+    const tear = /const tearTxt = intCache\(\(n\) => `\$\{n\}([^`]+)`\)/.exec(ins);
+    if (!tear) throw new Error('instruments.js: no tearTxt');
+    const names = /const WALL_NAMES = \[([^\]]+)\]/.exec(ins);
+    if (!names) throw new Error('createVarixWall: no WALL_NAMES');
+    W.wall = { aria, cap, formula, lawName, stress: [stressLong, stressShort], dp: [dpLong, dpShort], radius, wall: wallName, index: [idxLong, idxShort], units: [uP, uR, uW], of: ofWord, above, tear: tear[1], note, names: names[1].split(',').map((x) => x.trim().replace(/'/g, '')) };
+  }
   put('endo-words.copied.js', HEAD('instruments.js createEndoscopy, eus-ppg.js, dock.js') + `export const ENDO_WORDS = ${JSON.stringify(W, null, 2)};\n`);
+}
+
+// ── Wall mechanics' layout ──
+{
+  const src = read('src/ui/wall-geometry.js');
+  if (!/import \{ clamp \} from '\.\/num\.js';/.test(src)) throw new Error('wall-geometry.js: its import moved');
+  put('wall-geometry.copied.js', HEAD('wall-geometry.js') + src.replace("from './num.js'", "from './num.copied.js'"));
+}
+// ── Wall mechanics' tile rules, scoped to the 3D pane ──
+{
+  const css = read('styles/app-09-tests.css');
+  const a = css.indexOf('/* Wall mechanics in the Tests card'), b = css.indexOf('/* Doppler report:');
+  if (a < 0 || b < a) throw new Error('app-09-tests.css: the Wall mechanics block moved');
+  const PFX = '.instrument-workspace .dock-pane[data-pane="endoscopy"] > .wall-view';
+  const block = css.slice(a, b).split(PFX).join('.en-wall');
+  if (block.includes('.instrument-workspace')) throw new Error('app-09-tests.css: a Wall mechanics rule has another prefix');
+  const url = new URL('../endo/wall.copied.css', dir);
+  const text = `/* GENERATED by scripts/copy-b11-endo.mjs from the 2D app at ${commit.slice(0, 8)} (styles/app-09-tests.css, Wall mechanics block; the dock's selector prefix is .en-wall here). Do not edit; run the script again. */\n${block}`;
+  if (!(existsSync(url) && readFileSync(url, 'utf8') === text)) { changed.push('endo/wall.copied.css'); if (!check) writeFileSync(url, text); }
 }
 
 // ── the colour tokens ──

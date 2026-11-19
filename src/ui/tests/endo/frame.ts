@@ -9,6 +9,7 @@ import { SCOPE_TOKENS } from '../copied/scope-tokens.copied.js';
 import { parseColour } from '../../charts/colour.ts';
 import { scopeTear } from '../copied/endo-motion.copied.js';
 import { bleedShapes } from './bleed.ts';
+import { mottlePatches, netFade, netLines, patchRadius } from './mucosa.ts';
 import {
   INK, TAU, bead, centreAt, h2, knuckleAt, lit, mucosa, nz, profile, rhoOf, sstep, varixColour, veinWeight, w0, wallLight, zLineAt,
   type FieldState,
@@ -56,6 +57,19 @@ export function scopeFrame(v: ScopeView, size: number, pal: Palette): Frame {
     out({ k: 'path', pts, closed: true, fill: lit(mix(mucosa(z), ZL, k), z, rhoOf(z)) });
   };
   zring(-0.25, 0.35); zring(0, 0.85);
+  // the mucosal mottling (the shader's 0.93 + 0.12 · mott: the wall is not one flat pink): soft patches lighter or darker than the wall's mean, then the fine submucosal vessels (the shader's
+  // two ridged noises): a thin red-violet net along the wall, lost with depth. Both lie under the columns, as the shader mixes the vein over them.
+  for (const m of mottlePatches()) {
+    const rho = rhoOf(m.z), [x, y] = P(rho, m.th);
+    out({ k: 'circle', cx: x, cy: y, r: Math.max(1.5, patchRadius(rho) * R), fill: m.d > 0 ? [1, 1, 1, Math.min(0.14, m.d * 1.5)] : [0, 0, 0, Math.min(0.1, -m.d)] });
+  }
+  const netW = Math.max(1, R * 0.008);
+  for (const ln of netLines()) {
+    const pts: number[] = [];
+    for (let k = 0; k < ln.pts.length; k += 2) { const [x, y] = P(rhoOf(ln.pts[k + 1]!), ln.pts[k]!); pts.push(x, y); }
+    const c = lit(INK.vessels, ln.z, rhoOf(ln.z));
+    out({ k: 'path', pts, pen: { color: [c[0], c[1], c[2], Math.min(0.5, ln.weight * 1.9 * netFade(ln.z))], w: netW, cap: 'round', join: 'round' } });
+  }
   const deep = mix(mucosa(6), ZL, 0.85);
   for (let i = 0; i < 12; i++) {
     const z0 = 5.9 * Math.pow(22 / 5.9, i / 12), z1 = 5.9 * Math.pow(22 / 5.9, (i + 1) / 12), zm = Math.sqrt(z0 * z1);

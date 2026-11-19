@@ -10,7 +10,7 @@ const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
 const SURFACES = [
   '.topbar .tb-face', '.topbar .float-pill', '.zoom-pill', '.vdock > .vd-face', '.nb-views > .vp-face', '.sv-legend',
   '.sh-sheet', '.sh-pop', '.sh-dialog', '.dk-jump', '.toast', '.modal', '.pal', '.why-pop',
-  '.tr-card', '.ac-card', '.t-card', '.cmp-banner', '.dk-card', '.dk-strip', '.pz-shade', '.pz-data', '.pz-case', '.pz-scales', '.pz-fk', '.cl-glass',
+  '.tr-card', '.ac-card', '.t-card', '.cmp-banner', '.dk-card', '.dk-strip', '.pz-shade', '.pz-data', '.pz-case', '.pz-scales', '.pz-fk', '.cl-glass', '.lb-key',
 ];
 test('the one glass lists every panel, menu, pill and card', () => {
   for (const s of SURFACES) assert.ok(bare.includes(s), `${s} is not in glass.css`);

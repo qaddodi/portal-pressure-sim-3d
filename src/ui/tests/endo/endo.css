@@ -23,4 +23,10 @@
 .eus-panel .hvpg-kv::after { content: 'mmHg'; font-size: 12px; font-weight: 500; color: var(--text-3); }
 .eus-panel .hvpg-kv dd { min-width: 3.2ch; }
 .eus-panel .hvpg-caption { min-height: 0; font-size: 12.5px; line-height: 1.4; }
-.en-wall { padding: 8px 2px; }
+/* Wall mechanics lays out as the scope does: the picture beside its tiles on a wide card, the tiles under it (four to a row) on a narrow one. The tiles' own rules are 2D's (wall.copied.css). */
+@container (min-width: 440px) { .en-view[data-view="wall"] { grid-template-columns: auto minmax(0, 1fr); } }
+@container (max-width: 439px) { .en-wall .endo-read { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.en-wall .endo-pos { white-space: normal; text-align: center; }
+/* the view that comes in fades up where the other was (2D dock.js setEndoSub: opacity only, --d-small; a fade is not motion, so Reduce Motion keeps it) */
+@keyframes en-view-in { from { opacity: 0; } }
+.en-view { animation: en-view-in var(--d-small, 240ms) var(--ease-arrive, cubic-bezier(.2, .8, .2, 1)); }
