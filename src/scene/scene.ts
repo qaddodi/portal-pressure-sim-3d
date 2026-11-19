@@ -504,7 +504,7 @@ export class CelScene {
     if (f === this.fadeNow || (Math.abs(f - this.fadeNow) < 1e-3 && f > 0 && f < 1)) return;
     this.fadeNow = f;
     for (const o of this.objects) o.setFade(f);
-    this.disease.setFade(f);
+    this.disease.setFade(Math.min(f, this.lastFade));
     this.body.visible = f > 0 || this.figureView === 'body';
     this.moving = true;
   }
@@ -600,7 +600,7 @@ export class CelScene {
     if (fade !== this.lastFade) {
       this.lastFade = fade;
       for (const o of [...this.leaving, ...this.disease.organs.objects]) { o.setFade(fade); o.group.visible = fade > 0.001; }
-      this.disease.setFade(fade);
+      this.disease.setFade(Math.min(fade, this.fadeNow));
     }
     this.mapLayer.set(mapRamp(t), this.circuit.rr);
     this.procs.setFade(fade);

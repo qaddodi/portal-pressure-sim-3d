@@ -47,10 +47,13 @@ export class ClotLayer {
   private shared: CelShared;
   private palette: Palette | null = null;
   private look: LookId = 'light';
+  private fade = 1;
   constructor(shared: CelShared) { this.shared = shared; }
 
   applyLook(look: LookId, p: Palette): void { this.look = look; this.palette = p; for (const c of this.clots.values()) if (c.obj) recolour(c.obj, clotColour(look, p), p); }
   setPhone(phone: boolean): void { for (const c of this.clots.values()) c.obj?.setPhone(phone); }
+  /** The body's dissolve (disease/index.ts setFade): a clot is part of the anatomy, so the Circuit does not keep it. */
+  setFade(f: number): void { this.fade = f; for (const c of this.clots.values()) if (c.obj) { c.obj.setFade(f); c.obj.group.visible = c.cur > 0.003 && f > 0.001; } }
 
   /** The params' thrombus map. `instant` (a new patient) takes it whole. Returns true while a clot grows or shrinks. */
   set(thrombus: Record<string, number>, dt: number, instant = false): boolean {
@@ -76,12 +79,13 @@ export class ClotLayer {
       c.obj = new CelObject(g, { tone: 'heart', bands: 3, spec: 0, px: 0.9 }, this.shared);
       this.group.add(c.obj.group);
       if (this.palette) { c.obj.applyPalette(this.palette); recolour(c.obj, clotColour(this.look, this.palette), this.palette); }
+      c.obj.setFade(this.fade);
     } else {
       const old = new Set<import('three').BufferGeometry>();
       for (const m of c.obj.group.children) { const mesh = m as import('three').Mesh; old.add(mesh.geometry); mesh.geometry = g; }
       for (const o of old) o.dispose();
     }
-    c.obj.group.visible = true;
+    c.obj.group.visible = this.fade > 0.001;
   }
 
   /** The clots drawn now, by vein, with their shown occlusion. */

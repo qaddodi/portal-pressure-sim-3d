@@ -43,7 +43,7 @@ export interface StrandInputs {
   wale?: number;
 }
 
-interface Strand { host: string; i: number; obj: CelObject | null; key: string; pts: Vector3[]; chan: (typeof CAV_CHANNELS.C8)[number] | null; k: number; ph: number; off: number; ua: number | null; ub: number | null }
+interface Strand { host: string; i: number; obj: CelObject | null; key: string; pts: Vector3[]; chan: (typeof CAV_CHANNELS.C8)[number] | null; k: number; ph: number; off: number; ua: number | null; ub: number | null; on: boolean }
 
 /** One strand's samples in the figure's plane (2D units), from its host course (stage-paths.js braid: a span's one chord normal, otherwise the local normal). */
 export function strandPoints(host: Vector3[], off: number, u0: number, span: [number, number] | null, ph: number, soft: boolean): Vector3[] {
@@ -77,6 +77,8 @@ export class StrandLayer {
   private trunkZ = 0.46;
   private look: LookId = 'light';
   private dpr = 1;
+  /** How much of the anatomy is shown, 0..1 (DiseaseLayer.setFade: the dive into the liver, the Circuit's change). The strands belong to the anatomy: they dissolve with the body, and one made while it is away stays away. */
+  private fade = 1;
   constructor(shared: CelShared) {
     this.shared = shared;
     for (const host of HOSTS) {
@@ -84,7 +86,7 @@ export class StrandLayer {
       if (!c) continue;
       STRANDS[host]!.forEach((row, i) => {
         const [off, ph, k, ua, ub] = row as [number, number, number, number | undefined, number | undefined];
-        this.strands.push({ host, i, obj: null, key: '', pts: c.pts, chan: CAV_CHANNELS[host]?.[i] ?? null, k, ph, off, ua: ua ?? null, ub: ub ?? null });
+        this.strands.push({ host, i, obj: null, key: '', pts: c.pts, chan: CAV_CHANNELS[host]?.[i] ?? null, k, ph, off, ua: ua ?? null, ub: ub ?? null, on: false });
       });
     }
     const t = hostCourse('PV_TRUNK');
@@ -97,6 +99,11 @@ export class StrandLayer {
   applyLook(p: Palette, look: LookId = this.look): void {
     this.palette = p; this.look = look;
     for (const s of this.strands) { if (!s.obj) continue; s.obj.applyPalette(p); if (SIN_EDGES.has(s.host)) recolour(s.obj, faint(rgbOf(p.tones.portal), rgbOf(p.body)), p); this.line(s); s.key = ''; }   // (a changed look paints the wale again)
+  }
+  /** The body's dissolve (disease/index.ts setFade, the one owner): a strand shows while it is wanted (`on`, from the model) and the anatomy is. */
+  setFade(f: number): void {
+    this.fade = f;
+    for (const s of this.strands) if (s.obj) { s.obj.setFade(f); s.obj.group.visible = s.on && f > 0.001; }
   }
   /** The renderer's pixel ratio: the strands' line is held in device pixels (the same rule as the vessels', cel-ink.ts). */
   setDpr(dpr: number): void {
@@ -141,7 +148,8 @@ export class StrandLayer {
     const key = `${amount}|${bead}|${wale}`;
     if (key === s.key) return false;
     s.key = key;
-    if (amount <= 0.01) { if (s.obj) s.obj.group.visible = false; return false; }
+    s.on = amount > 0.01;
+    if (!s.on) { if (s.obj) s.obj.group.visible = false; return false; }
     const r = base.radius * s.k * Math.max(0.25, amount);
     let pts: Vector3[];
     if (s.chan && this.trunk) {
@@ -162,8 +170,9 @@ export class StrandLayer {
       if (this.palette) { s.obj.applyPalette(this.palette); if (sin) recolour(s.obj, faint(rgbOf(this.palette.tones.portal), rgbOf(this.palette.body)), this.palette); }
       this.line(s);
       if (s.host === 'C1a') s.obj.setInkAmount(1);
+      s.obj.setFade(this.fade);
     } else for (const m of s.obj.group.children) { const mesh = m as import('three').Mesh; mesh.geometry.dispose(); mesh.geometry = g; }
-    s.obj.group.visible = true;
+    s.obj.group.visible = this.fade > 0.001;
     return amount !== present * live * grow;
   }
 

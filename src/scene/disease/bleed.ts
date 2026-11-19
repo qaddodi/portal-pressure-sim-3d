@@ -23,15 +23,20 @@ export class BleedLayer {
   private key = '';
   private palette: Palette | null = null; private look: LookId = 'light';
   private shared: CelShared;
+  private body = 1;
+  private wanted = false;
   constructor(shared: CelShared) { this.shared = shared; this.group.visible = false; }
+  /** The body's dissolve (disease/index.ts setFade): the stream is drawn on the anatomy, so it goes with it. */
+  setFade(f: number): void { this.body = f; this.obj?.setFade(f); this.group.visible = this.wanted && f > 0.001; }
   applyLook(look: LookId, p: Palette): void { this.look = look; this.palette = p; if (this.obj) recolour(this.obj, bloodColour(look, p), p); }
   /** True while the stream fades or runs (a steady stream needs no frames of its own). */
   set(b: BleedState, dt: number, instant = false): boolean {
     if (b.active) this.last = { ...b };
     const moving = this.fade.to(b.active ? 1 : 0, dt, instant);
     const a = this.fade.value;
-    this.group.visible = a > 0.003 && !!this.last;
-    if (!this.group.visible) return moving;
+    this.wanted = a > 0.003 && !!this.last;
+    this.group.visible = this.wanted && this.body > 0.001;
+    if (!this.wanted) return moving;
     const s = this.last!;
     const rows = bleedShapes({ site: s.site, total: s.total }, s.rate, { varix: SITES.varix, fundus: SITES.fundus });
     const st = rows[1] as number[];   // [x0, y0, x1, y1, r0, r1, alpha, kind 2]
@@ -48,6 +53,7 @@ export class BleedLayer {
       if (!this.obj) {
         this.obj = new CelObject(g, { tone: 'heart', bands: 2, spec: 1, px: 0.8 }, this.shared);
         this.group.add(this.obj.group);
+        this.obj.setFade(this.body);
         if (this.palette) { this.obj.applyPalette(this.palette); recolour(this.obj, bloodColour(this.look, this.palette), this.palette); }
       } else for (const m of this.obj.group.children) { const mesh = m as Mesh; mesh.geometry.dispose(); mesh.geometry = g; }
     }

@@ -75,6 +75,9 @@ export class DyeLayer {
     for (const [id, i] of this.index) { const v = NETWORK_BY_ID.get(id); this.net.len[i] = v ? pathLen(v.pts) * 300 : 0; }
   }
 
+  /** The body's dissolve (disease/index.ts setFade): the dye is laid on the anatomy's vessels, so the Circuit does not keep it. */
+  setFade(f: number): void { this.amount.value = f; for (const o of this.overlays) (o.mesh.material as ShaderMaterial).visible = f > 0.001; }
+
   /** Injects into a vessel (edge ID) at `at` (0..1 along the flow) for DYE_SECONDS, or until release() with `hold`. False for a vessel that does not exist. */
   inject(edgeId: string, at = 0, opts: { seconds?: number; hold?: boolean } = {}): boolean {
     const k = this.index.get(edgeId);

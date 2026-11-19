@@ -114,7 +114,16 @@ export class DiseaseLayer {
   }
 
   /** The body's dissolve (the dive into the liver, the Circuit): the organs and the lines drawn on the body go with it. */
-  setFade(f: number): void { for (const o of this.organs.objects) o.setFade(f); this.landmarks.setFade(f); this.clamps.setFade(f); }
+  setFade(f: number): void {
+    this.body = f;
+    for (const o of this.organs.objects) o.setFade(f);
+    this.landmarks.setFade(f); this.clamps.setFade(f);
+    // everything that lies on the anatomy goes with it, and what is made while it is away stays away (the Circuit has its own schematic of the disease)
+    this.strands.setFade(f); this.clots.setFade(f); this.bleed.setFade(f); this.ascites.setFade(f); this.dye.setFade(f);
+    this.moving = true;
+  }
+  /** How much of the anatomy is shown now, 0..1 (the one value every overlay follows). */
+  body = 1;
 
   dispose(): void { this.landmarks.dispose(); this.clamps.dispose(); this.organs.dispose(); this.clots.dispose(); this.strands.dispose(); this.ascites.dispose(); this.bleed.dispose(); this.dye.dispose(); }
 }

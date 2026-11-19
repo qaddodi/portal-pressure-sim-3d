@@ -51,6 +51,7 @@ export class AscitesLayer {
   private fill: Mesh; private band: Mesh;
   private pf = new Float32Array(COLS * 2 * 3); private pb = new Float32Array(COLS * 2 * 3);
   private lastH = NaN; private lastStep = -1;
+  private body = 1; private poolA = 0;
   /** The pool's level in 2D units at the middle of the belly (x 712), for the tests and the labels; null while there is no pool. */
   surface: number | null = null;
   constructor() {
@@ -68,6 +69,14 @@ export class AscitesLayer {
     this.fill = mk(this.pf, FLUID_RGBA[3]); this.band = mk(this.pb, 0.55);
     (this.band.material as MeshBasicMaterial).color.setHex(0xf6dc86);
   }
+  /** The body's dissolve (disease/index.ts setFade): the pool lies in the belly, so it fades with the anatomy. */
+  setFade(f: number): void { this.body = f; this.apply(); }
+  private apply(): void {
+    const show = this.poolA > 0 && this.body > 0.001;
+    this.fill.visible = this.band.visible = show;
+    (this.fill.material as MeshBasicMaterial).opacity = FLUID_RGBA[3] * this.poolA * this.body;
+    (this.band.material as MeshBasicMaterial).opacity = 0.55 * this.poolA * this.body;
+  }
   /** The wall's bulge in 2D units shown now (the bowel floats up with it: bowel group moves by 26/34 of it). */
   bulge = 0;
   /** `ml` is the shown (sprung) volume. Returns true when the picture changed. */
@@ -76,10 +85,8 @@ export class AscitesLayer {
     this.bulge = step / 2;
     const { h } = fluidLevel(ml);
     const show = fade > 0;
-    this.fill.visible = this.band.visible = show;
+    this.poolA = fade; this.apply();
     if (!show) { this.surface = null; return false; }
-    const m = this.fill.material as MeshBasicMaterial, mb = this.band.material as MeshBasicMaterial;
-    m.opacity = FLUID_RGBA[3] * fade; mb.opacity = 0.55 * fade;
     this.surface = fluidBase(712, h);
     if (Math.abs(h - this.lastH) < 0.25 && step === this.lastStep) return false;
     this.lastH = h; this.lastStep = step;
