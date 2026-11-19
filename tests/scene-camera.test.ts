@@ -36,6 +36,7 @@ test('a move lasts 950 ms and the rig says so while it moves, then goes quiet', 
   const rig = new CameraRig('title');
   rig.resize(800, 600);
   rig.update(0);
+  rig.goTo('title', fullRoom(800, 600), 0);   // the first shot is put in place; every one after it flies
   rig.goTo('free', fullRoom(800, 600), 1000);
   assert.equal(rig.update(1000), true);
   assert.equal(rig.update(1500), true);
@@ -49,6 +50,7 @@ test('a move lasts 950 ms and the rig says so while it moves, then goes quiet', 
 test('a new move mid-flight starts from where the camera is, not from the old shot', () => {
   const rig = new CameraRig('title');
   rig.resize(800, 600);
+  rig.goTo('title', fullRoom(800, 600), 0);
   rig.goTo('free', fullRoom(800, 600), 0);
   rig.update(475);
   const mid = rig.pose.shot.r;
@@ -140,4 +142,40 @@ test('the figure turns only through dragToOrbit (no second, opposite rule for an
   const ctl = read('gesture/controller.ts');
   assert.equal([...ctl.matchAll(/dragToOrbit\(/g)].length, 1, 'one place turns the figure by a drag');
   assert.doesNotMatch(read('Stage.tsx'), /setOrbit\([^)]*\*/, 'Stage does no orbit maths of its own');
+});
+
+test('the first shot is where the camera starts: no fly-in from the title shot, and nothing is drawn before it', () => {
+  const room = { x: 300, y: 80, w: 480, h: 420 };
+  const rig = new CameraRig('title');
+  assert.equal(rig.placed, false);
+  rig.goTo('play', room, 0);
+  assert.equal(rig.placed, true);
+  assert.equal(rig.isMoving, false, 'no move to run');
+  assert.equal(rig.update(0), false);
+  assert.deepEqual(rig.pose.room, room);
+  assert.equal(rig.pose.shot.r, SHOTS.play.r);
+  rig.resize(800, 600);
+  rig.update(16);
+  assert.deepEqual(rig.pose.room, room, 'a size arriving later does not move it');
+  rig.goTo('wedge', room, 100);
+  assert.equal(rig.isMoving, true, 'the second shot flies');
+});
+
+test('a call with no real room yet (the cards not measured) does not place the camera', () => {
+  const rig = new CameraRig('title');
+  rig.goTo('play', { x: 0, y: 0, w: 0, h: 0 }, 0);
+  assert.equal(rig.placed, false);
+});
+
+test('the scene draws only the background until the camera is placed, then the figure', async () => {
+  const { CelScene } = await import('../src/scene/scene.ts');
+  const s = new CelScene();
+  const calls: string[] = [];
+  const gl = { render: () => { calls.push('render'); }, clear: () => { calls.push('clear'); } } as never;
+  s.resize(800, 600);
+  s.render(gl);
+  s.goTo('play', { x: 300, y: 80, w: 480, h: 420 }, 0);
+  s.update(0);
+  s.render(gl);
+  assert.deepEqual(calls, ['clear', 'render']);
 });
