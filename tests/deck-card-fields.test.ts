@@ -273,8 +273,8 @@ test('a need counts as landed on the cards only with a file that prints it', () 
   assert.match(src('src/ui/cards/TableCard.tsx'), /noteHeads/);
   assert.match(src('src/ui/charts/small/AllPatientsCard.tsx'), /chartFoot/);
   assert.match(src('src/ui/cards/SlideControls.tsx'), /useVariant/);
-  // an instrument, a lens, a data card that no card draws stays open
-  for (const open of ['data:spans']) assert.equal(hookOf(open)?.landed(), false, open);
+  // the Circuit's bracket is the figure's (labels/figure-cards.ts), judged in tests/deck-spans.test.ts
+  assert.equal(hookOf('data:spans')?.landed(), true);
 });
 
 test('every slide of decks A to G that waits on a field of the cards names only what the cards do not carry', async () => {

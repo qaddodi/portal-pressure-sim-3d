@@ -1,5 +1,5 @@
 // The talk draws what the slide's own fields ask of the figure: the stations its words light (in their colours), the vessels it names (one after another for a glowSeq), the organs it
-// outlines, a spotlight, the cards of its marks, sites, steps and calipers, the Circuit's resistors, and the colours of a `since` lens counted from another slide's state. It reads the
+// outlines, a spotlight, the cards of its marks, sites, steps and calipers, the Circuit's brackets (`span`), the Circuit's resistors, and the colours of a `since` lens counted from another slide's state. It reads the
 // copied 2D slide (copiedOf), works out its plan (figure-plan.ts) and the scene's calls (figure-calls.ts), and applies them; a slide change starts from nothing, so what the slide before
 // lit never stays. The shot, the lens and the catheter are scene-link.ts's; the station names' own placing is the labels'. Nothing here runs per frame but the glow sequence's clock system.
 import { sceneApi } from '../../scene/api.ts';
@@ -67,7 +67,7 @@ export function linkFigure(): () => void {
     sceneApi.setResistors(c.res);
     sceneApi.setCaudatePin(c.caudate);
     t0 = performance.now();
-    useFigure.getState().set({ cards: c.cards, calipers: c.calipers, t0 });
+    useFigure.getState().set({ cards: c.cards, calipers: c.calipers, spans: c.spans, t0 });
   };
 
   const sync = () => {
@@ -92,7 +92,7 @@ export function linkFigure(): () => void {
     key = next;
     if (sameSlide) {
       // the numbers arrived (the slide's state came in): only the cards' words change, never what is lit
-      useFigure.getState().set({ cards: calls.cards, calipers: calls.calipers });
+      useFigure.getState().set({ cards: calls.cards, calipers: calls.calipers, spans: calls.spans });
     } else apply(calls);
     if (since) { setSince(since); sinceOn = true; } else if (sinceOn) { setSince(null); sinceOn = false; }
   };
