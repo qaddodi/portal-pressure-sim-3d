@@ -4,6 +4,7 @@
 import { Stage } from './scene/Stage.tsx';
 import { Shell } from './ui/shell/Shell.tsx';
 import { useEngine } from './engine/index.ts';
+import { BuildPill } from './ui/shell/BuildPill.tsx';
 
 export function App() {
   const status = useEngine((s) => s.status);
@@ -11,6 +12,7 @@ export function App() {
     <>
       <Stage />
       <Shell />
+      <BuildPill />
       {status === 'crashed' && <CrashNotice />}
     </>
   );
