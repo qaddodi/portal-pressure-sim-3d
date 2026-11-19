@@ -34,10 +34,9 @@ export const PLAY_TITLES = {
 export const ZOOM_TITLES = { in: 'Zoom in (or scroll / pinch)', out: 'Zoom out', fit: 'Fit the figure to the view (0)' } as const;
 
 /** Flow marks A to D (the owner picks one after trying them; the scene reads the setting). 3D only. */
-export const FLOW_MARKS_TITLE = 'Flow marks';
-export const FLOW_LABEL: Record<string, [string, string]> = {
-  A: ['A', 'Chevrons on what the slide is about'], B: ['B', 'Chevrons everywhere, fainter off the topic'], C: ['C', 'Soft light bands everywhere'], D: ['D', 'Marks only after a change'],
-};
 export const PATIENT_FAILED = 'That patient did not load.';
 /** 2D: src/ui/main.js sendFeedback() */
 export const FEEDBACK = { subject: 'Portal Pressure Simulator feedback', ask: 'What happened, and what did you expect to happen?', keep: 'Please keep these details:' } as const;
+
+/** The corner credit of the 2D page (index.html, `.stage-credit`). */
+export const CREDIT = '© 2026 Mohammad Almeqdadi, MD';

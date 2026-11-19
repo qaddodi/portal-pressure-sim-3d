@@ -1,3 +1,4 @@
+import { reduced, reducedMs } from '../../ui/a11y/motion.ts';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from '../anatomy/placeholder.ts';
 import { type View, lerpView } from '../gesture/ease.ts';
@@ -63,6 +64,8 @@ export class CameraRig {
   private handFrom: View = { k: 1, x: 0, y: 0 };
   private handTween = false;
   private placedFirst = false;
+  /** The plate the hand may pan the figure within (the body's plate, or the Circuit's map), as a rectangle in the plane at depth z. */
+  private bounds: { x0: number; x1: number; y0: number; y1: number; z: number } = { ...PLATE_BOUNDS, z: FIGURE_Z };
   readonly reduceMotion: boolean;
 
   constructor(shot: ShotName | Shot = 'title', room?: Room, reduceMotion = false) {
@@ -104,7 +107,7 @@ export class CameraRig {
     this.handFrom = { ...this.hand };
     this.handTween = keepHand ? this.handTween : this.hand.k !== 1 || this.hand.x !== 0 || this.hand.y !== 0;
     this.t0 = now;
-    this.dur = this.reduceMotion ? 0 : ms;
+    this.dur = reducedMs(ms, this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
     this.orbitFrom = this.orbit;
     this.active = true;
     this.dirty = true;
@@ -134,15 +137,18 @@ export class CameraRig {
   }
   get stageSize(): { w: number; h: number } { return { w: this.width, h: this.height }; }
 
-  /** The figure's rectangle on screen in the shot's own framing (hand at the fit): the bounds the hand may pan the figure within. */
+  /** What the figure's edge is kept to: the body's plate, or the Circuit's map (the view calls this when it changes). */
+  setBounds(b: { x0: number; x1: number; y0: number; y1: number; z: number }): void { this.bounds = { ...b }; }
+
+  /** The figure's plate rectangle on screen in the shot's own framing (hand at the fit): the bounds the hand may pan the figure within. */
   fitRect(): Rect {
     const keep = { ...this.hand };
     this.hand.k = 1; this.hand.x = 0; this.hand.y = 0;
     this.apply();
-    const b = PLATE_BOUNDS;
+    const b = this.bounds;
     const rect: Rect = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
     for (const [x, y] of [[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]] as const) {
-      const p = this.project(new Vector3(x, y, FIGURE_Z));
+      const p = this.project(new Vector3(x, y, b.z));
       rect.x0 = Math.min(rect.x0, p.x); rect.x1 = Math.max(rect.x1, p.x); rect.y0 = Math.min(rect.y0, p.y); rect.y1 = Math.max(rect.y1, p.y);
     }
     this.hand.k = keep.k; this.hand.x = keep.x; this.hand.y = keep.y;

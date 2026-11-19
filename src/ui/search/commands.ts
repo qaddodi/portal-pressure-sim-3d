@@ -5,7 +5,7 @@ import { norm, type Command } from './match.ts';
 import { useShell, LENS_IDS } from '../shell/store.ts';
 import { sceneApi } from '../../scene/api.ts';
 import type { LensId } from '../../scene/lenses/model.ts';
-import { isWiredCommand } from './wired.ts';
+import { isWiredCommand, TESTS_PANE } from './wired.ts';
 import { useSettings } from '../../state/settings.ts';
 import { LOOK_IDS, type LookId } from '../../looks/looks.ts';
 import { runFeature, type FeatureId } from '../shell/features.ts';
@@ -15,6 +15,10 @@ import { loadPatient } from '../menu/patients.ts';
 import { PLAYABLE } from '../menu/library.ts';
 import { lensToast } from '../shell/words.ts';
 import { notYet } from '../shell/words.ts';
+import { useTests } from '../tests/store.ts';
+import { BUILT_PANES } from '../tests/panes.ts';
+import { commandWork, commandOffered } from '../treat/palette-orders.ts';
+import { appEnv } from '../treat/env.ts';
 
 export interface Extra extends Command { wired: boolean }
 
@@ -24,11 +28,16 @@ const FEATURE_OF: Record<string, FeatureId> = { 'Undo (back one change)': 'undo'
 /** The work behind a 2D command, or null where it is not in the 3D app yet. */
 function work(group: string, title: string): ((n: number | null) => void) | null {
   const sh = () => useShell.getState();
+  if (group === 'Tests') {
+    const pane = TESTS_PANE[title];
+    if (pane && BUILT_PANES.includes(pane)) return () => useTests.getState().show(pane);
+  }
   if (group === 'Time') {
     if (title in DAYS) return () => jump(DAYS[title]);
     if (title === 'Until something happens') return () => jump('event');
     if (title === 'Restart this patient') return () => restart();
   }
+  if (group === 'Treat' || group === 'Change') return commandWork(appEnv, group, title);
   if (group === 'View') {
     const lens = UI.lenses.find((l) => title === `Colored by ${l.name.toLowerCase()}`);
     if (lens) return () => { sceneApi.setLens(lens.id as LensId); sh().say(lensToast(lens.name, lens.note)); };
@@ -55,6 +64,7 @@ export function buildCommands(start: (deckId: string) => void): Extra[] {
     out.push({ group, title, kw: norm(`${title} ${kw}`), num, hint, wired: isWiredCommand(group, title), run: run ?? (() => { if (feat) runFeature(feat, title); else useShell.getState().say(notYet(title)); }) });
   };
   for (const c of UI.search.commands) {
+    if ((c.group === 'Treat' || c.group === 'Change') && !commandOffered(c.group, c.title)) continue;   // (a take-down is offered only for what is in place)
     if (c.group === 'App' && c.title.startsWith('Appearance: ')) { const l = UI.looks.find((x) => c.title === `Appearance: ${x.name}`); add(c.group, c.title, work(c.group, c.title), `theme look color colour palette ${l && l.id !== 'light' && l.id !== 'soft' ? 'dark' : l?.id ?? ''} ${l?.id === 'navy' || l?.id === 'black' ? l.id : ''}`, null, ''); continue; }
     if (c.group === 'View' && c.title.startsWith('Colored by ')) { const l = UI.lenses.find((x) => c.title === `Colored by ${x.name.toLowerCase()}`); add(c.group, c.title, work(c.group, c.title), `color colour lens ${l?.note ?? ''}`, null, ''); continue; }
     add(c.group, c.title, work(c.group, c.title), c.kw, c.num, c.hint, FEATURE_OF[c.title]);

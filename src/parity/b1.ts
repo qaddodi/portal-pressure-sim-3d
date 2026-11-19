@@ -14,8 +14,8 @@ const yes = new Set<string>();   // helper sets read as "these are wired"
 // ── top bar, view pills, zoom group ──
 const TOP_WIRED = new Set(['btnMenu', 'btnBlood', 'btnLayers', 'legend', 'btnSettings', 'btnPalette', 'btnHistory']);
 for (const t of UI.topbar) claim(`topbar:${t.id}`, TOP_WIRED.has(t.id));
-for (const v of UI.views) claim(`view:${v.id}`, v.id !== 'circuit');
-for (const z of UI.zoomGroup) claim(`zoom:${z.id}`, z.id !== 'rotateCircuit');
+for (const v of UI.views) claim(`view:${v.id}`, true);   // (the Circuit pill: B7)
+for (const z of UI.zoomGroup) claim(`zoom:${z.id}`, true);   // (Turn upright: B7)
 
 // ── play bar ──
 const PB_WIRED = new Set(['Pause', 'Restart this patient', 'Playback speed', 'Jump ahead', 'History', 'Compare from here']);
@@ -55,7 +55,7 @@ claim('platform:works offline', false);
 const BLOOD_WIRED = new Set(['Chevrons', 'Key chevrons only', 'Potential collaterals', 'Organ names']);
 for (const r of UI.menus.blood) claim(`menu:Blood/${r.label}`, BLOOD_WIRED.has(r.label));
 for (const r of UI.menus.lobule) claim(`menu:Layers/${r.label}`, r.label !== 'Bile');
-for (const r of UI.menus.layersPhone) claim(`menu:Layers (phone)/${r.label}`, r.label === 'Fit to screen');
+for (const r of UI.menus.layersPhone) claim(`menu:Layers (phone)/${r.label}`, r.label === 'Fit to screen' || r.label === 'Turn upright');
 for (const l of UI.lenses) claim(`menu:Lens/${l.name}`, true);
 
 // ── phone bottom bar and the main menu's tabs ──
@@ -63,9 +63,7 @@ for (const t of UI.menus.thumbTabs) claim(`bottombar:${t.label}`, t.id !== 'trea
 for (const t of UI.menus.mainMenu.tabs) claim(`mainmenu:tab/${t.label}`, true);
 
 // ── behaviours (the 2D shell's rules, ui/shell/views.ts and the components) ──
-const BEH_PRESENT_ONLY = new Set([
-  'view pills: Anatomy and Circuit turn the figure between the two views',
-]);
+const BEH_PRESENT_ONLY = new Set<string>([]);   // (the Anatomy ⇄ Circuit turn is B7's, wired)
 for (const b of UI.menus.behaviours) claim(`behaviour:${b}`, !BEH_PRESENT_ONLY.has(b));
 void yes;
 

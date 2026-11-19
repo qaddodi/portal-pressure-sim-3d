@@ -1,0 +1,13 @@
+PPS RUN REPORT v1 · phone-check · 2026-11-19 12:00 UTC · 90 s
+Build: b3058ef3
+Device: name iPhone 15
+Scope: look dark
+Health: peakMB 410
+
+FINDINGS (2: 2 fail, 0 warn, 0 note)
+1. [fail] fit-small: Card pz-data has lettering under 12 px, at 3/9. Owner: src/ui/card-type.js.
+2. [fail] edge-cutoff: a line runs past the card.
+
+-----BEGIN REPORT JSON-----
+{"kind":"pps-run-report","v":1,"tool":"phone-check","build":{"commit":"b3058ef3"},"device":{"name":"iPhone 15"},"scope":{"look":"dark"},"started":"2026-11-19T12:00:00.000Z","ms":90000,"findings":[{"rule":"fit-small","sev":"fail","what":"Card pz-data has lettering under 12 px","where":"at 3/9","owner":"src/ui/card-type.js"},{"rule":"edge-cutoff","sev":"fail","what":"a line runs past the card","where":""}],"total":2,"health":{"peakMB":410},"notes":[],"missing":[],"sum":"75a42301"}
+-----END REPORT JSON-----

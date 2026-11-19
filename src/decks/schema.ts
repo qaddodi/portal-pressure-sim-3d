@@ -16,6 +16,9 @@ export type ReadingKey = (typeof READING_KEYS)[number];
 /** One piece of an equation under a title: <mi> names a quantity, <mo> an operator. `tone` colours a quantity as the ladder does. */
 export interface EqPart { tag: 'mi' | 'mo'; text: string; tone?: 'wedge' | 'free' }
 
+/** A slide's patient: the preset to load and the parameter changes over it (the engine's own shape), as the 2D deck's `preset` and `params`. */
+export interface SlideModel { preset: string; params?: unknown; days?: number }
+
 export interface Slide {
   id: string;
   kicker: string;
@@ -28,7 +31,10 @@ export interface Slide {
   eq?: EqPart[];
   /** The ladder (data) card: which readings, which one is the result. Absent: no data card on this slide. */
   ladder?: { rows: ReadingKey[]; result?: 'hvpg' };
-  cath: CathState;
+  /** The catheter state the slide asks for; a slide with no catheter (most talks' slides) leaves it out. */
+  cath?: CathState;
+  /** The patient the slide stands on (a 2D preset id with its parameter changes): the model takes it when the slide is shown. A slide without one keeps the patient it is on. */
+  model?: SlideModel;
   notes: string;
   ask?: [string, string];
   shot: ShotName;
@@ -44,6 +50,12 @@ export interface Deck {
   slides: Slide[];
   /** The quick check: [question, answer]. */
   checks: [string, string][];
+  /** The outline's own sections, [name, [the kickers or slide ids each holds]] (a deck whose kicker groups are not three to five sets them). */
+  sections?: [string, string[]][];
+  /** The name in the tab at each card's top right (the 2D menu's short name); a deck without one shows its title when that is 24 characters or fewer. */
+  head?: string;
+  /** A deck built from a script, or imported, that lives on this device (the Present menu's "Your scripts"). */
+  mine?: boolean;
 }
 
 const TOKEN = /\{([^}]*)\}/g;
@@ -68,7 +80,7 @@ export function validateDeck(deck: Deck): string[] {
     ids.add(s.id);
     for (const f of ['kicker', 'title', 'line', 'notes'] as const) text(s[f], `${at} ${f}`);
     if (!(SHOTS as readonly string[]).includes(s.shot)) bad.push(`${at} names the unknown shot "${s.shot}"`);
-    if (!(CATHS as readonly string[]).includes(s.cath)) bad.push(`${at} names the unknown catheter state "${s.cath}"`);
+    if (s.cath !== undefined && !(CATHS as readonly string[]).includes(s.cath)) bad.push(`${at} names the unknown catheter state "${s.cath}"`);
     for (const m of (s.line ?? '').matchAll(TOKEN)) {
       const body = m[1].trim();
       if (CUT_RE.test(body)) continue;

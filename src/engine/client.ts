@@ -15,10 +15,13 @@ export interface ClientHandlers {
 }
 
 type Reply = Extract<FromWorker, { reqId: number }>;
+/** One slide of a 'sequence': the model's fingerprint (the readings a table or a handout prints) and the parameters it ended on. */
+export interface SeqStep { type: 'seqStep'; reqId: number; i: number; fp: Record<string, number | null>; params: unknown; [k: string]: unknown }
 
 export class EngineClient {
   private nextId = 1;
   private waiting = new Map<number, { resolve(m: FromWorker): void; reject(e: Error): void }>();
+  private steps = new Map<number, (m: SeqStep) => void>();
   private worker: WorkerLike;
   private h: ClientHandlers;
   constructor(worker: WorkerLike, h: ClientHandlers) {
@@ -39,8 +42,19 @@ export class EngineClient {
     });
   }
 
+  /** A chain of steps worked out off screen, each from the one before (preset, params, days…): the worker posts each as it is ready; this resolves with all of them. */
+  sequence(steps: unknown[], base?: unknown): Promise<SeqStep[]> {
+    const reqId = this.nextId++, got: SeqStep[] = [];
+    return new Promise<SeqStep[]>((resolve, reject) => {
+      this.steps.set(reqId, (m) => { got[m.i] = m; });
+      this.waiting.set(reqId, { resolve: () => { this.steps.delete(reqId); resolve(got); }, reject: (e) => { this.steps.delete(reqId); reject(e); } });
+      this.worker.postMessage({ type: 'sequence', steps, base, reqId });
+    });
+  }
+
   private receive(m: FromWorker) {
     if (m.type === 'frame') { this.h.onFrame(m); return; }
+    if (m.type === 'seqStep') { this.steps.get(m.reqId)?.(m as unknown as SeqStep); return; }
     if (m.type === 'crash') { this.h.onCrash(m.message); this.failAll(new Error(m.message)); return; }
     const reqId = (m as { reqId?: number }).reqId;
     if (reqId == null) return;

@@ -115,9 +115,9 @@ export function CardLayer({ deck }: { deck: Deck }) {
     if (e.phase === 'in') snaps[e.key] = now;
     const sn = snaps[e.key] ?? now;
     switch (e.id) {
-      case 'title': return <TitleCard deck={deck} onStart={() => useUi.getState().go(1)} onNext={() => move('next')} page={sn.at} pages={sn.pages} />;
+      case 'title': return <TitleCard deck={deck} page={sn.at} pages={sn.pages} />;
       case 'case': return <CaseCard slide={sn.slide!} page={sn.at} pages={sn.pages} />;
-      case 'teach': return <TeachingCard slide={sn.slide!} read={read} page={sn.at} pages={sn.pages} trim={sn.trim} />;
+      case 'teach': return <TeachingCard slide={sn.slide!} deck={deck} read={read} page={sn.at} pages={sn.pages} trim={sn.trim} />;
       case 'ladder': return sn.slide?.ladder ? <LadderCard ladder={sn.slide.ladder} readings={readings} /> : null;
       case 'check': return <CheckCard deck={deck} />;
     }

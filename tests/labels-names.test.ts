@@ -117,7 +117,8 @@ test('what a screen reader hears: the name, the pressure, and only an unusual fl
 test('the figure\'s labels and key are hidden from a screen reader (the walk speaks for them) and the key is an image with words', () => {
   const src = readFileSync('src/scene/labels/LabelLayer.tsx', 'utf8');
   assert.match(src, /className="lb-layer" aria-hidden="true"/);
-  assert.match(src, /role="img" aria-label=\{model\.aria\}/);
+  assert.match(src, /role=\{twin \? undefined : 'img'\} aria-label=\{twin \? undefined : model\.aria\}/, 'the key is an image with words; its hidden twin is not announced');
+  assert.match(src, /aria-hidden=\{twin \? true : undefined\}/);
 });
 
 test('a station that is not one vessel, and an organ\'s name, stand where the 2D figure puts them (through the one map, frame2d.ts)', async () => {

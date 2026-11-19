@@ -3,7 +3,7 @@
 // nothing here imports the engine, and nothing in the engine imports this.
 
 import { create } from 'zustand';
-import type { ReadingKey } from '../decks/schema.ts';
+import type { ReadingKey, Deck } from '../decks/schema.ts';
 import type { Rect, Viewport } from './layout/device.ts';
 import { deviceClass, type DeviceClass } from './layout/device.ts';
 import type { Plan } from './layout/plan.ts';
@@ -21,6 +21,18 @@ export interface Boxes {
 }
 
 export interface UiState {
+  /** The talk on show (built in, or one of your own); null in free play. */
+  deck: Deck | null;
+  /** Where the talk opens, as a 2D slide number minus one (0 = the outline). */
+  startAt: number;
+  /** Rises with every start, so starting the talk already on show (From the start) opens it again. */
+  nonce: number;
+  openDeck(deck: Deck | null, at?: number): void;
+  /** The black screen (B, . or W) and the slide list (G) are over the talk. */
+  black: boolean;
+  jump: boolean;
+  setBlack(on?: boolean): void;
+  setJump(on?: boolean): void;
   stops: Stop[];
   pos: Pos;
   /** +1 forward, -1 back: which way the last move went (the cards enter from the side that says so). */
@@ -35,7 +47,7 @@ export interface UiState {
   /** How many pages the words card on show has (1 = whole). Set by the card layer once the card is measured. */
   pageCount: number;
   setPageCount(n: number): void;
-  setStops(stops: Stop[]): void;
+  setStops(stops: Stop[], at?: number): void;
   move(m: Move): void;
   go(stop: number): void;
   setViewport(vp: Viewport): void;
@@ -49,6 +61,14 @@ const emptyFree: Rect = { x: 0, y: 0, w: 0, h: 0 };
 const sameRect = (a: Rect | null, b: Rect | null) => (a === b) || (!!a && !!b && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h);
 
 export const useUi = create<UiState>((set, get) => ({
+  deck: null,
+  startAt: 0,
+  nonce: 0,
+  openDeck: (deck, at = 0) => set({ deck, startAt: at, nonce: get().nonce + 1, black: false, jump: false }),
+  black: false,
+  jump: false,
+  setBlack: (on) => set({ black: on ?? !get().black }),
+  setJump: (on) => set({ jump: on ?? !get().jump }),
   stops: [],
   pos: first(),
   dir: 1,
@@ -61,7 +81,7 @@ export const useUi = create<UiState>((set, get) => ({
   pageCount: 1,
   setPageCount: (n) => { if (get().pageCount !== n) set({ pageCount: n }); },
 
-  setStops: (stops) => set({ stops, pos: first(), wallet: walletStart(), page: 0, pageCount: 1 }),
+  setStops: (stops, at = 0) => set({ stops, pos: at > 0 ? goto(stops, at) : first(), wallet: walletStart(), page: 0, pageCount: 1 }),
 
   move: (m) => {
     const { stops, pos, wallet, page, pageCount } = get();
