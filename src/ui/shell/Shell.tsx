@@ -88,7 +88,7 @@ export function Shell() {
   useEffect(() => syncTransport(), []);
   useEffect(() => { const offs = [startTimeline(), startCompare(), startHistory()]; return () => offs.forEach((o) => o()); }, []);
   useEffect(() => startActions(), []);
-  useEffect(() => { const f = useShell.getState().figure; sceneApi.setLobuleLayers({ lymph: f.lymph, zones: f.zones }); }, []);
+  useEffect(() => { const f = useShell.getState().figure; sceneApi.setLobuleLayers({ lymph: f.lymph, zones: f.zones, bile: f.bile }); }, []);
   // what the Blood menu remembers goes to the scene and the labels once at boot (the menu then tells them itself)
   useEffect(() => { const b = useBlood.getState(); sceneApi.setBlood({}); useLabels.getState().set({ organNames: b.labels }); }, []);
   useEffect(() => { void applyDeepLink(location.search); }, []);

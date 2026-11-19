@@ -14,6 +14,7 @@ export const LOBULE_PARTS = [
   'portal-tracts',  // the six triads: portal venule, hepatic arteriole (and its twig), bile ductule
   'central-vein',
   'lymph',          // each tract's lymphatic, the terminal lymphatics and the space of Disse beside each sinusoid
+  'bile',           // the Bile layer: canaliculi between the plates, canals of Hering along the edges, the ductules (arrowheads run out toward the tract)
   'stellate',       // stellate cells in the space of Disse
   'septa',          // portal-central septa of advanced cirrhosis
   'cuffs',          // collagen collars round the tracts and the central vein
