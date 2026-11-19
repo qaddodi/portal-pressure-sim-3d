@@ -33,6 +33,13 @@ export class LensField {
   private lastCompute = -1e9;
   private dirty = true;
   private fade = 1;
+  /** The network the Since lens counts its change from (2D: stage.js sinceP, set by a slide through changeRef; until one is set, the state the figure showed as the lens came in). */
+  private since: Float32Array | null = null;
+  /** True while `since` is that arrival state (taken by the lens itself) and not one a slide set. */
+  private sinceAuto = false;
+  /** True while Compare's pinned moment is the reference (it outranks the Since reference, as in 2D REF()). */
+  private refIsCompare = false;
+  private readonly sinceCtx: LensContext = { healthy: null, ref: null };
 
   constructor() {
     this.shared.lensGradA.value = this.texFrom.grad; this.shared.lensLaneA.value = this.texFrom.lanes;
@@ -45,9 +52,19 @@ export class LensField {
   /** The colours the arriving lens gives (a copy-free view, valid until the next recompute): for tests and labels. */
   get data(): LensData { return this.to; }
 
-  setContext(ctx: LensContext): void { this.ctx = ctx; this.dirty = true; }
+  setContext(ctx: LensContext): void { this.ctx = ctx; this.refIsCompare = false; this.dirty = true; }
   /** The pressures Change and Congestion count from: the healthy patient's, or a pinned moment's (Compare); null = healthy. */
-  setRef(ref: ArrayLike<number> | null): void { this.ctx = { ...this.ctx, ref: ref ?? this.healthyRef }; this.dirty = true; }
+  setRef(ref: ArrayLike<number> | null): void { this.refIsCompare = ref != null; this.ctx = { ...this.ctx, ref: ref ?? this.healthyRef }; this.dirty = true; }
+  /** A slide hands the Since lens the network it counts from (the state of the slide before, or a named one; a lapse's start). Null puts the arrival state back in its place. */
+  setSinceRef(P: ArrayLike<number> | null): void {
+    this.since = P ? Float32Array.from(P) : null; this.sinceAuto = false; this.dirty = true;
+  }
+  /** The node pressures the Since lens counts from now (a copy-free view): a slide's, else the state the lens came in on, else the healthy patient's. */
+  get sinceReference(): ArrayLike<number> | null {
+    if (this.refIsCompare) return this.ctx.ref;
+    if (!this.since && this.frame && this._lens === 'since') { this.since = Float32Array.from(this.frame.Pf ?? this.frame.P); this.sinceAuto = true; }
+    return this.since ?? this.ctx.ref;
+  }
   private get healthyRef(): ArrayLike<number> | null { return this.ctx.healthy?.P ? Float32Array.from(this.ctx.healthy.P) : null; }
   setLook(look: LookId): void { this.look = look; this.dirty = true; }
 
@@ -59,7 +76,9 @@ export class LensField {
     this.shared.lensModeA.value = this.shared.lensModeB.value;
     for (let i = 0; i < 5; i++) this.shared.laneColA.value[i]!.copy(this.shared.laneColB.value[i]!);
     this.texFrom.grad.needsUpdate = this.texFrom.lanes.needsUpdate = true;
+    if (lens !== 'since' && this.sinceAuto) { this.since = null; this.sinceAuto = false; }   // (the arrival state is only for the lens that took it)
     this._lens = lens;
+    if (lens === 'since') void this.sinceReference;   // (takes the state the figure shows as the lens comes in, before any newer frame moves it)
     this.compute(now);
     if (instant) { this.fade = 1; this.shared.lensMix.value = 1; } else { this.fade = 0; this.t0 = now; this.shared.lensMix.value = 0; }
   }
@@ -68,7 +87,11 @@ export class LensField {
 
   private compute(now: number): void {
     this.lastCompute = now; this.dirty = false;
-    if (this.frame) computeLens(this._lens, this.frame, this.look, this.ctx, this.to);
+    if (this.frame) {
+      let ctx = this.ctx;
+      if (this._lens === 'since') { ctx = this.sinceCtx; ctx.healthy = this.ctx.healthy; ctx.ref = this.sinceReference; }
+      computeLens(this._lens, this.frame, this.look, ctx, this.to);
+    }
     else { this.to.lens = this._lens; this.to.mode = 0; this.to.grad.fill(0); this.to.lanes.fill(0); }
     const palette = this._lens === 'firstpass' ? firstPassColours() : originColours();
     for (let i = 0; i < 5; i++) this.shared.laneColB.value[i]!.set(palette[i]![0], palette[i]![1], palette[i]![2]);

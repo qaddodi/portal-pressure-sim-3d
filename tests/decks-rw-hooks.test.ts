@@ -8,7 +8,7 @@ import { registerBuiltinHooks } from '../src/decks/rw/hooks-builtin.ts';
 import { dependencies, playable } from '../src/decks/rw/plan.ts';
 import { claims } from '../src/parity/b13c.ts';
 import { RW_IDS, DECKS, built } from './decks-rw-helpers.ts';
-import { LENS_IDS } from '../src/scene/lenses/model.ts';
+import { LENS_IDS, SINCE_BASELINE_FED } from '../src/scene/lenses/model.ts';
 import { CHARTS } from '../src/ui/charts/registry.ts';
 
 registerBuiltinHooks();
@@ -29,7 +29,7 @@ for (const id of RW_IDS) {
 }
 
 test('what exists today is read from its own tables: the twelve lenses, the done charts, the catheter\'s four states and the lobule views', () => {
-  for (const l of LENS_IDS) assert.ok(hasHook(`lens:${l}`), l);
+  for (const l of LENS_IDS) assert.equal(hasHook(`lens:${l}`), l !== 'since' || SINCE_BASELINE_FED, l);   // (Since waits for a slide to hand it its baseline: scene/lenses/model.ts)
   for (const c of CHARTS) assert.equal(hasHook(`tool:${c.kind}`), c.status === 'done', c.kind);
   for (const c of ['route', 'free', 'wedge', 'result']) assert.ok(hasHook(`device:hvpg-catheter:${c}`));
   assert.ok(!hasHook('device:hvpg-catheter:blocked'), 'the blocked catheter (Budd–Chiari) is B5\'s');
