@@ -100,6 +100,7 @@ export const CARD_LANDED: Readonly<Record<string, string>> = {
   'visual:plane-options': 'src/ui/talk/ToolCard.tsx',    // the plane visual hands the slide's own plane to the chart
   'visual:walls': 'src/ui/charts/walls/WallsCard.tsx',   // the two walls
   'reading:res': 'src/ui/talk/table-model.ts',           // the table's intrahepatic resistance column (the engine's rih)
+  'reading:wave': 'src/ui/cards/WaveCell.tsx',             // the summary table's Doppler wave column (talk/table-wave.ts)
   'reading:hvpgFall': 'src/decks/hp/derived-tiles.ts',   // the response tile: the fall from the slide `hvpgResp` names
 };
 

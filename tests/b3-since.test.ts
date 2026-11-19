@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { frameFor } from './b3-frames.ts';
 import { LensField } from '../src/scene/lenses/field.ts';
-import { lensColourAt, computeLens, LENS_IDS } from '../src/scene/lenses/model.ts';
+import { lensColourAt, computeLens, LENS_IDS, SINCE_BASELINE_FED } from '../src/scene/lenses/model.ts';
 import { claims } from '../src/parity/b3.ts';
 
 const h = await frameFor('healthy');
@@ -52,10 +52,10 @@ test('the arrival state belongs to the Since lens only: leaving it forgets it', 
   f.dispose();
 });
 
-test('the parity claims: all twelve lens rows are claimed from the table; Since is present until a slide feeds its baseline', () => {
+test('the parity claims: all twelve lens rows are claimed from the table; Since is wired once a slide feeds its baseline (the deck's figure link)', () => {
   assert.equal(claims.length, LENS_IDS.length);
   const by = new Map(claims.map((x) => [x.id, x.wired]));
   for (const id of LENS_IDS) assert.ok(by.has(`lens:${id}`), id);
-  assert.equal(by.get('lens:since'), false);
-  assert.equal(claims.filter((x) => x.wired).length, 11);
+  assert.equal(by.get('lens:since'), SINCE_BASELINE_FED);
+  assert.equal(claims.filter((x) => x.wired).length, SINCE_BASELINE_FED ? 12 : 11);
 });
