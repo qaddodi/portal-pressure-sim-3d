@@ -7,3 +7,10 @@ export const ART_FADE_2D: Record<string, { in?: number; out?: number }> = {"A_HE
 export const TIP_CONNECT_2D: Record<string, readonly string[]> = {"LGV_CONF":["C1a"]};
 /** Veins that run on out of the plate fade out between these two heights (2D y, world units). */
 export const FADE_DOWN_Y_2D: Record<string, readonly [number, number]> = {"C4":[892,928],"EPI_ILI":[870,925],"ILI_IVC":[800,870],"V_UP":[38,4]};
+/** Veins that fade into the vessel they sink into (stage-geo.js FADE_IN): a linear mask [x1, y1, x2, y2, offset, alpha at the end (default 0.3)], 2D units, solid at the offset. */
+export const FADE_IN_2D: Record<string, readonly number[]> = {"RHV_IVC":[604,226,616,204,0,0.5],"MHV_IVC":[604,246,615,228,0,0.5],"LHV_IVC":[641,206,630,192,0,0.5],"LRV_IVC":[642,625,624,625,0,0.8333333333333334],"RRV_IVC":[602,660,615,673,0,0],"CAUD":[566,326,620,350,0.45],"C5":[852,520,862,618,0.6]};
+/** The liver beds (stage-geo.js SIN_FADE): faded along their course, from the portal end's node to the venous end's: [offset of the faintest point, alpha at the start, there, mode 3]. */
+export const SIN_EDGES_2D: readonly string[] = ["SIN_RR","SIN_LL"];
+export const SIN_FADE_ROW_2D: readonly number[] = [0.5, 0.8, 0.36, 3];
+/** The ascending lumbar collateral's ghost behind the liver (SIN_FADE.C9): [x1, y1, x2, y2, offset, alpha at the start, faintest, mode 3]. */
+export const SIN_FADE_C9_2D: readonly number[] = [0, 520, 0, 172, 0.65, 1, 0.55, 3];

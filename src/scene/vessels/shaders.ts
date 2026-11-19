@@ -39,9 +39,10 @@ uniform float hiAhead;
 uniform float hiBehind;
 uniform float hiPx;
 uniform float dpr;   // device pixels to a CSS pixel (the renderer's pixel ratio)
-// the fade at a free end (2D's TIP_FADE, ART_FADE, FADE_DOWN_Y): mode 1 runs along the vessel (uv.x), mode 2 down the figure (y); (from, to, alpha at from, alpha at to); fadeKeep 1: the Circuit does not let go of it
+// the fade at a free end (2D's TIP_FADE, ART_FADE, FADE_DOWN_Y, FADE_IN, SIN_FADE): mode 1 runs along the vessel (uv.x), mode 2 down the figure (y), mode 3 along a line (the 2D linear mask, solid from the offset), mode 4 along a line with a dip (faintest at the offset, solid at the end); (from, to, alpha at from, alpha at to); fadeKeep 1: the Circuit does not let go of it
 uniform float fadeMode;
 uniform vec4 fadeA;
+uniform vec4 fadeLine;   // modes 3 and 4: a line across the figure, scene (x1, y1, x2, y2); fadeA is then (offset, -, alpha at the start, alpha at the end)
 uniform float fadeKeep;
 varying float vFade;
 varying vec3 vN;
@@ -73,7 +74,18 @@ ${CIRCUIT_VS_CALL}
   vUv = uv;
   vHull = hull;
   float fa = 1.0;
-  if (fadeMode > 0.5) {
+  if (fadeMode > 2.5) {
+    // tube-geo.js tubeAlpha: the projection of the point on the line
+    vec2 fd = fadeLine.zw - fadeLine.xy;
+    float fv = dot(position.xy - fadeLine.xy, fd) / max(dot(fd, fd), 1e-9);
+    if (fadeMode > 3.5) {
+      fv = clamp(fv, 0.0, 1.0);
+      fa = fv < fadeA.x ? mix(fadeA.z, fadeA.w, smoothstep(0.0, max(fadeA.x, 1e-4), fv)) : mix(fadeA.w, 1.0, smoothstep(fadeA.x, 1.0, fv));
+    } else {
+      fa = mix(fadeA.z, fadeA.w, clamp((fv - fadeA.x) / max(1.0 - fadeA.x, 1e-4), 0.0, 1.0));
+    }
+    fa = mix(fa, 1.0, circT * (1.0 - fadeKeep));
+  } else if (fadeMode > 0.5) {
     float fs = fadeMode < 1.5 ? uv.x : position.y;
     float ft = clamp((fs - fadeA.x) / (abs(fadeA.y - fadeA.x) < 1e-5 ? 1e-5 : fadeA.y - fadeA.x), 0.0, 1.0);
     fa = mix(fadeA.z, fadeA.w, ft);
