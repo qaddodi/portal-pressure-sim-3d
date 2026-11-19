@@ -2,7 +2,10 @@
 // stays in the list (type "tips 8" and it is there) and says so when run; the empty field offers only what works.
 import { UI } from '../strings.generated.ts';
 import { norm, type Command } from './match.ts';
-import { useShell, LENS_IDS, type LensId } from '../shell/store.ts';
+import { useShell, LENS_IDS } from '../shell/store.ts';
+import { sceneApi } from '../../scene/api.ts';
+import type { LensId } from '../../scene/lenses/model.ts';
+import { isWiredCommand } from './wired.ts';
 import { useSettings } from '../../state/settings.ts';
 import { LOOK_IDS, type LookId } from '../../looks/looks.ts';
 import { runFeature, type FeatureId } from '../shell/features.ts';
@@ -28,7 +31,7 @@ function work(group: string, title: string): ((n: number | null) => void) | null
   }
   if (group === 'View') {
     const lens = UI.lenses.find((l) => title === `Colored by ${l.name.toLowerCase()}`);
-    if (lens) return () => { sh().set({ lens: lens.id as LensId }); sh().say(lensToast(lens.name, lens.note)); };
+    if (lens) return () => { sceneApi.setLens(lens.id as LensId); sh().say(lensToast(lens.name, lens.note)); };
     if (title === 'Anatomy view') return () => { goToView('anatomic'); };
     if (title === 'Circuit view') return () => { goToView('circuit'); };
     if (title === 'Lobule view') return () => { goToView('lobule'); };
@@ -44,13 +47,12 @@ function work(group: string, title: string): ((n: number | null) => void) | null
   }
   return null;
 }
-export const isWiredCommand = (group: string, title: string) => work(group, title) !== null;
 
 /** Every command the search offers, with the work behind it where there is some. Rebuilt on open (cheap: a few hundred rows). */
 export function buildCommands(start: (deckId: string) => void): Extra[] {
   const out: Extra[] = [];
   const add = (group: string, title: string, run: ((n: number | null) => void) | null, kw: string, num: string | null, hint: string, feat?: FeatureId) => {
-    out.push({ group, title, kw: norm(`${title} ${kw}`), num, hint, wired: !!run, run: run ?? (() => { if (feat) runFeature(feat, title); else useShell.getState().say(notYet(title)); }) });
+    out.push({ group, title, kw: norm(`${title} ${kw}`), num, hint, wired: isWiredCommand(group, title), run: run ?? (() => { if (feat) runFeature(feat, title); else useShell.getState().say(notYet(title)); }) });
   };
   for (const c of UI.search.commands) {
     if (c.group === 'App' && c.title.startsWith('Appearance: ')) { const l = UI.looks.find((x) => c.title === `Appearance: ${x.name}`); add(c.group, c.title, work(c.group, c.title), `theme look color colour palette ${l && l.id !== 'light' && l.id !== 'soft' ? 'dark' : l?.id ?? ''} ${l?.id === 'navy' || l?.id === 'black' ? l.id : ''}`, null, ''); continue; }

@@ -36,6 +36,7 @@ test('a move lasts 950 ms and the rig says so while it moves, then goes quiet', 
   const rig = new CameraRig('title');
   rig.resize(800, 600);
   rig.update(0);
+  rig.goTo('title', fullRoom(800, 600), 0);   // the first shot is put in place; every one after it flies
   rig.goTo('free', fullRoom(800, 600), 1000);
   assert.equal(rig.update(1000), true);
   assert.equal(rig.update(1500), true);
@@ -49,6 +50,7 @@ test('a move lasts 950 ms and the rig says so while it moves, then goes quiet', 
 test('a new move mid-flight starts from where the camera is, not from the old shot', () => {
   const rig = new CameraRig('title');
   rig.resize(800, 600);
+  rig.goTo('title', fullRoom(800, 600), 0);
   rig.goTo('free', fullRoom(800, 600), 0);
   rig.update(475);
   const mid = rig.pose.shot.r;
@@ -140,4 +142,71 @@ test('the figure turns only through dragToOrbit (no second, opposite rule for an
   const ctl = read('gesture/controller.ts');
   assert.equal([...ctl.matchAll(/dragToOrbit\(/g)].length, 1, 'one place turns the figure by a drag');
   assert.doesNotMatch(read('Stage.tsx'), /setOrbit\([^)]*\*/, 'Stage does no orbit maths of its own');
+});
+
+test('the first shot is where the camera starts: no fly-in from the title shot, and nothing is drawn before it', () => {
+  const room = { x: 300, y: 80, w: 480, h: 420 };
+  const rig = new CameraRig('title');
+  assert.equal(rig.placed, false);
+  rig.goTo('play', room, 0);
+  assert.equal(rig.placed, true);
+  assert.equal(rig.isMoving, false, 'no move to run');
+  assert.equal(rig.update(0), false);
+  assert.deepEqual(rig.pose.room, room);
+  assert.equal(rig.pose.shot.r, SHOTS.play.r);
+  rig.resize(800, 600);
+  rig.update(16);
+  assert.deepEqual(rig.pose.room, room, 'a size arriving later does not move it');
+  rig.goTo('wedge', room, 100);
+  assert.equal(rig.isMoving, true, 'the second shot flies');
+});
+
+test('a call with no real room yet (the cards not measured) does not place the camera', () => {
+  const rig = new CameraRig('title');
+  rig.goTo('play', { x: 0, y: 0, w: 0, h: 0 }, 0);
+  assert.equal(rig.placed, false);
+});
+
+test('the scene draws only the background until the camera is placed, then the figure', async () => {
+  const { CelScene } = await import('../src/scene/scene.ts');
+  const s = new CelScene();
+  const calls: string[] = [];
+  const gl = { render: () => { calls.push('render'); }, clear: () => { calls.push('clear'); } } as never;
+  s.resize(800, 600);
+  s.render(gl);
+  s.goTo('play', { x: 300, y: 80, w: 480, h: 420 }, 0);
+  s.update(0);
+  s.render(gl);
+  assert.deepEqual(calls, ['clear', 'render']);
+});
+
+test('every shot looks at the 2D figure\'s own places (frame2d.ts), not at the old plate\'s', async () => {
+  const { x3, y3 } = await import('../src/scene/frame2d.ts');
+  const { SHOTS: S } = await import('../src/scene/camera/shots.ts');
+  const inFigure = (t: readonly number[]) => t[0]! >= x3(0) && t[0]! <= x3(1400) && t[1]! >= y3(1000) && t[1]! <= y3(-100);
+  for (const [name, s] of Object.entries(S)) assert.ok(inFigure(s.target), `${name} target ${s.target}`);
+  // the hepatic-vein shots are centred on the right hepatic vein's own place (2D x 500 to 620, y 206 to 246), on the viewer's left of the trunk
+  for (const n of ['free', 'wedge', 'hvpg'] as const) {
+    assert.ok(S[n].target[0] < x3(620) && S[n].target[0] > x3(440), n);
+    assert.ok(Math.abs(S[n].target[1] - y3(240)) < 0.4, n);
+  }
+  // the whole-figure shots take in the figure's own extent
+  assert.ok(S.play.half[1] * 2 >= y3(60) - y3(960), 'play keeps the whole bed');
+  assert.ok(S.title.half[0] >= 1.9);
+});
+
+test('anchors sit on the vessels they name', async () => {
+  const { CelScene } = await import('../src/scene/scene.ts');
+  const { courseOf } = await import('../src/scene/vessels/network.ts');
+  const s = new CelScene();
+  const near = (name: 'ra' | 'ivc' | 'rhv' | 'pv' | 'spleen', id: string) => {
+    const a = s.anchor(name);
+    return Math.min(...courseOf(id).map((p) => Math.hypot(p[0] - a.x, p[1] - a.y, p[2] - a.z)));
+  };
+  assert.ok(near('ra', 'SVC_RA') < 1e-6);
+  assert.ok(near('ivc', 'IVC_IS') < 1e-6);
+  assert.ok(near('rhv', 'RHV_IVC') < 1e-6);
+  assert.ok(near('pv', 'PV_TRUNK') < 1e-6);
+  assert.ok(near('spleen', 'V_SPL') < 1e-6);
+  s.dispose();
 });

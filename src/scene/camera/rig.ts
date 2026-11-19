@@ -1,5 +1,5 @@
 import { PerspectiveCamera, Vector3 } from 'three';
-import { BODY_PLATE_Z, PLATE_BOUNDS } from '../anatomy/placeholder.ts';
+import { FIGURE_Z, PLATE_BOUNDS } from '../anatomy/placeholder.ts';
 import { type View, lerpView } from '../gesture/ease.ts';
 import type { Rect } from '../gesture/view.ts';
 import { type Room, effectiveDistance, viewOffset } from './room.ts';
@@ -62,6 +62,7 @@ export class CameraRig {
   private hand: View = { k: 1, x: 0, y: 0 };
   private handFrom: View = { k: 1, x: 0, y: 0 };
   private handTween = false;
+  private placedFirst = false;
   readonly reduceMotion: boolean;
 
   constructor(shot: ShotName | Shot = 'title', room?: Room, reduceMotion = false) {
@@ -80,11 +81,23 @@ export class CameraRig {
   }
 
   get isMoving(): boolean { return this.active; }
+  /** Whether the camera has its first real shot and room; nothing is drawn before. */
+  get placed(): boolean { return this.placedFirst; }
   get pose(): Readonly<Pose> { return this.cur; }
 
   /** Fly to a shot (and a room) in one straight move. Called again mid-flight, the new move starts from where the camera is now. */
   goTo(shot: ShotName | Shot, room: Room, now: number, ms = SHOT_MS, keepHand = false): void {
     const s = typeof shot === 'string' ? SHOTS[shot] : shot;
+    // The first shot with a real room is where the camera starts, not somewhere it flies to: until then it has no pose worth showing (the constructor's
+    // title shot filling a canvas that has no size yet), so it is put there at once and nothing is drawn before. (Mohammad, 19 Nov: the figure started at the
+    // top left and zoomed in.)
+    if (!this.placedFirst && room.w > 1 && room.h > 1) {
+      this.placedFirst = true;
+      this.cur = { shot: copyShot(s), room: copyRoom(room) };
+      this.from = this.to = this.cur;
+      this.orbit = this.orbitFrom = 0; this.active = false; this.handTween = false; this.dirty = true;
+      return;
+    }
     this.from = { shot: copyShot(this.cur.shot), room: copyRoom(this.cur.room) };
     this.to = { shot: copyShot(s), room: copyRoom(room) };
     // a new shot takes the hand's zoom and pan back to the shot's own framing, in the same move
@@ -121,7 +134,7 @@ export class CameraRig {
   }
   get stageSize(): { w: number; h: number } { return { w: this.width, h: this.height }; }
 
-  /** The body plate's rectangle on screen in the shot's own framing (hand at the fit): the bounds the hand may pan the figure within. */
+  /** The figure's rectangle on screen in the shot's own framing (hand at the fit): the bounds the hand may pan the figure within. */
   fitRect(): Rect {
     const keep = { ...this.hand };
     this.hand.k = 1; this.hand.x = 0; this.hand.y = 0;
@@ -129,7 +142,7 @@ export class CameraRig {
     const b = PLATE_BOUNDS;
     const rect: Rect = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
     for (const [x, y] of [[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]] as const) {
-      const p = this.project(new Vector3(x, y, BODY_PLATE_Z));
+      const p = this.project(new Vector3(x, y, FIGURE_Z));
       rect.x0 = Math.min(rect.x0, p.x); rect.x1 = Math.max(rect.x1, p.x); rect.y0 = Math.min(rect.y0, p.y); rect.y1 = Math.max(rect.y1, p.y);
     }
     this.hand.k = keep.k; this.hand.x = keep.x; this.hand.y = keep.y;

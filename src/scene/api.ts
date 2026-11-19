@@ -9,6 +9,8 @@ import type { CatheterState } from './catheter.ts';
 import { create } from 'zustand';
 import { engine } from '../engine/boot.ts';
 import type { LensId } from './lenses/model.ts';
+import type { FigureView } from './scene.ts';
+import { lobuleShot, sinusoidShot, type LobuleCam, type LobuleLayers } from './lobule/index.ts';
 import { useLens } from './lenses/store.ts';
 import { useBlood } from './blood/options.ts';
 import type { BloodChoice } from './blood/options.ts';
@@ -32,10 +34,19 @@ export const sceneApi = {
     cel.goTo(shot, room, performance.now(), ms);
     clock.invalidate('shot');
   },
+  /** Show the body, the lobule or the sinusoid and fly to it, straight from wherever the camera is (the view left behind stays up until the camera lands). `cam` is a lobule camera ('lobule', 'lobule:triad'…). */
+  showView(v: FigureView, room: Room, cam: LobuleCam = 'lobule'): void {
+    cel.setView(v);
+    this.goTo(v === 'body' ? 'play' : v === 'sinusoid' ? sinusoidShot() : lobuleShot(cam), room);
+  },
+  /** The lobule's Layers menu (the 2D app starts with lymph on). */
+  setLobuleLayers(l: Partial<LobuleLayers>): void { cel.setLobuleLayers(l); clock.invalidate('lobule-layers'); },
   /** The cards changed room (a card opened, the phone turned): move the room alone. */
   setRoom(room: Room, ms?: number): void { cel.rig.setRoom(room, performance.now(), ms); clock.invalidate('room'); },
   /** Glide the hand's zoom and pan home to the shot's own framing (a second tap on the active view, a Fit button). */
   refit(): void { gesturesRef.current?.refit(); clock.invalidate('refit'); },
+  /** The zoom buttons (+ and − keys): the 2D app's 1.4 about the middle of the room. */
+  zoomStep(factor: number): void { gesturesRef.current?.zoomStep(factor); clock.invalidate('zoom'); },
   /** Catheter route advance 0..1 and balloon 0..1; the caller tweens them on the clock. */
   setCatheter(s: CatheterState): void { cel.setCatheter(s); clock.invalidate('catheter'); },
   /** Edge IDs the slide talks about; in flow-mark option A these (and the picked vessel) carry chevrons. */

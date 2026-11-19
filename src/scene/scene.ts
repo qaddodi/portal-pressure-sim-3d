@@ -1,7 +1,7 @@
-import { Color, type DataTexture, Mesh, MeshBasicMaterial, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { Color, type DataTexture, Group, Mesh, MeshBasicMaterial, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { BODY_PLATE_Z, ORGANS, VARICES, blob, bodyPlateGeometry } from './anatomy/placeholder.ts';
 import { buildVessel } from './anatomy/vessels.ts';
-import { NETWORK, type NetVessel, presenceOf } from './vessels/network.ts';
+import { NETWORK, type NetVessel, courseOf, presenceOf } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { VesselObject } from './vessels/vessel-object.ts';
 import { LensField } from './lenses/field.ts';
@@ -17,7 +17,12 @@ import { CelObject, type CelShared, createShared } from './materials/cel.ts';
 import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, indexOf } from '../engine/vessel-data.ts';
-import { latest } from '../engine/store.ts';
+import { latest, patient } from '../engine/store.ts';
+import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
+import { SinusoidView } from './sinusoid/index.ts';
+
+/** What the figure shows: the body, the liver lobule (hexagon) or one sinusoid. The two small views stand away from the body in the same scene. */
+export type FigureView = 'body' | 'lobule' | 'sinusoid';
 
 // The cel-shaded scene for the HVPG slice, as plain three.js so the clock (src/clock/) owns the one frame loop and the R3F Stage is
 // only the canvas around it. Order inside a frame, set by the clock: engine frame, tweens, camera, render, tag positions.
@@ -43,6 +48,8 @@ export interface SceneOptions {
 
 export class CelScene {
   readonly scene = new Scene();
+  /** Everything of the body (plate, organs, vessels, catheter): hidden as one while the lobule or the sinusoid is the view. */
+  private readonly body = new Group();
   readonly rig: CameraRig;
   readonly shared: CelShared = createShared();
   readonly objects: CelObject[] = [];
@@ -52,6 +59,10 @@ export class CelScene {
   readonly flow: BloodMarks;
   /** The colour lens (src/scene/lenses/): what colour every vein wears, crossfaded on the clock. */
   readonly lens = new LensField();
+  /** The lobule and sinusoid views (B8), built once, hidden until the view is chosen (setView). */
+  readonly lobule: LobuleView;
+  readonly sinus: SinusoidView;
+  private figureView: FigureView = 'body';
   private presence!: PresenceTracks;
   private collateralsOn = false;
   private readonly plate: Mesh;
@@ -70,7 +81,8 @@ export class CelScene {
 
     this.plate = new Mesh(bodyPlateGeometry(), new MeshBasicMaterial({ color: PALETTES[this.look].body }));
     this.plate.position.z = BODY_PLATE_Z;
-    this.scene.add(this.plate);
+    this.scene.add(this.body);
+    this.body.add(this.plate);
 
     for (const def of ORGANS) {
       const o = new CelObject(def.geometry(), { tone: def.tone, bands: 3, spec: 0, px: def.px }, this.shared);
@@ -85,7 +97,7 @@ export class CelScene {
       this.add(o);
     }
     this.catheter = new Catheter(this.shared);
-    this.scene.add(this.catheter.group);
+    this.body.add(this.catheter.group);
     this.objects.push(...this.catheter.objects);
 
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
@@ -93,17 +105,21 @@ export class CelScene {
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
     this.flow.setMode(opts.flowMode ?? DEFAULT_FLOW_MODE);
     this.lens.setContext({ healthy: null, ref: null });
+    const vo = { look: this.look, phone: this.phone, flowMode: opts.flowMode ?? DEFAULT_FLOW_MODE, reduceMotion: opts.reduceMotion };
+    this.lobule = new LobuleView(this.shared, vo); this.sinus = new SinusoidView(this.shared, vo);
+    this.scene.add(this.lobule.group, this.sinus.group);
+    this.lobule.setVisible(false); this.sinus.setVisible(false);
     this.applyLook(this.look);
   }
 
-  private add(o: CelObject): void { this.objects.push(o); this.scene.add(o.group); }
+  private add(o: CelObject): void { this.objects.push(o); this.body.add(o.group); }
 
   private addVessel(def: NetVessel): void {
     const built = buildVessel({ ...def, tone: def.tone === 'artery' ? 'portal' : def.tone });
     const q = STUB_Q[def.id] ?? 1;
     const o = new VesselObject(built.geometry, {
-      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.id), bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
-      vessel: { index: indexOf(def.id), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: BASE_D.get(def.id) ?? 1 },
+      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.id), widthKind: def.widthKind, bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
+      vessel: { index: indexOf(def.id), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: def.baseD },
     }, this.shared, this.lens.shared);
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     this.add(o);
@@ -122,6 +138,7 @@ export class CelScene {
     (this.plate.material as MeshBasicMaterial).color.set(p.body);
     for (const o of this.objects) { o.applyPalette(p); o.setPhone(this.phone); }
     this.lens.setLook(look);
+    this.lobule.applyLook(look); this.sinus.applyLook(look);
     this.moving = true;
   }
 
@@ -131,6 +148,7 @@ export class CelScene {
   setPhone(phone: boolean): void {
     this.phone = phone;
     for (const o of this.objects) o.setPhone(phone);
+    this.lobule.setPhone(phone); this.sinus.setPhone(phone);
     this.moving = true;
   }
 
@@ -152,6 +170,7 @@ export class CelScene {
     this.lens.onFrame(f);
     if (f) this.syncPresence(f, !this.sawFrame);
     this.sawFrame = !!f;
+    if (this.figureView !== 'body') this.feedViews(false);
     this.moving = true;
   }
   private sawFrame = false;
@@ -206,10 +225,42 @@ export class CelScene {
   /** Free play: pick a vessel by edge ID (or clear it with null). */
   pick(id: string | null): void { this.highlight.set(id); this.syncNamed(); }
 
-  setFlowMode(mode: FlowMarkMode): void { this.flow.setMode(mode); this.moving = true; }
+  setFlowMode(mode: FlowMarkMode): void { this.flow.setMode(mode); this.lobule.setFlowMode(mode); this.sinus.setFlowMode(mode); this.moving = true; }
+
+  // ---- the figure's view: body, lobule, sinusoid ---------------------------------------------
+
+  get view(): FigureView { return this.figureView; }
+  /** Show the body, the lobule or the sinusoid: the others are hidden and cost nothing (nothing is built or compiled here; the views were made at start). The camera is the caller's. */
+  setView(v: FigureView): void {
+    this.figureView = v;
+    // the view being left stays drawn until the camera has landed on the new one (nothing pops while it flies); then it is hidden
+    this.body.visible ||= v === 'body';
+    if (v === 'lobule') this.lobule.setVisible(true);
+    if (v === 'sinusoid') this.sinus.setVisible(true);
+    this.hideLeftBehind = true;
+    if (v !== 'body') this.feedViews(true);
+    this.moving = true;
+  }
+  private hideLeftBehind = false;
+  private settleViews(): void {
+    const v = this.figureView;
+    this.body.visible = v === 'body';
+    this.lobule.setVisible(v === 'lobule'); this.sinus.setVisible(v === 'sinusoid');
+    this.hideLeftBehind = false;
+  }
+  /** The model's state into the small views (from the engine's newest frame, the healthy reference and the patient's parameters); `snap` shows it at once. */
+  private feedViews(snap: boolean): void {
+    const f = latest.frame;
+    if (!f) return;
+    const m = lobuleModel({ P: f.P, Q: f.Q, params: patient.params ?? undefined, metrics: f.metrics }, patient.reference, patient.params);
+    if (this.figureView === 'lobule') snap ? this.lobule.snapModel(m) : this.lobule.setModel(m);
+    else if (this.figureView === 'sinusoid') snap ? this.sinus.snapTargets(sinusoidTargets(m)) : this.sinus.setTargets(sinusoidTargets(m));
+  }
+  setLobuleLayers(l: Partial<LobuleLayers>): void { this.lobule.setLayers(l); this.moving = true; }
 
   /** The vessel whose body a pointer ray hits first, for tap-to-pick. */
   pickAt(x: number, y: number, raycaster: Raycaster): string | null {
+    if (this.figureView !== 'body') return null;
     raycaster.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
     const hits = raycaster.intersectObjects(this.vessels.map((v) => v.toonMesh), false);
     for (const h of hits) {
@@ -219,16 +270,12 @@ export class CelScene {
     return null;
   }
 
-  /** Scene point of a named place, for tags and pins. Valid names: tip, ra, ivc, rhv, pv. */
+  /** Scene point of a named place, for tags and pins: a point on the 2D figure's own vessel, carried by the one map (frame2d.ts), so a tag sits on the vein. */
   anchor(name: 'tip' | 'ra' | 'ivc' | 'rhv' | 'pv' | 'spleen', out = new Vector3()): Vector3 {
-    switch (name) {
-      case 'tip': return this.catheter.curve.getPointAt(1, out);
-      case 'ra': return out.set(-0.35, 2.4, -0.5);
-      case 'ivc': return out.set(-0.4, 0.2, -0.6);
-      case 'rhv': return out.set(-0.95, 1.4, -0.45);
-      case 'pv': return out.set(-0.2, 0.62, 0.7);
-      case 'spleen': return out.set(1.9, 1.0, -0.45);
-    }
+    if (name === 'tip') return this.catheter.curve.getPointAt(1, out);
+    const [id, at] = ANCHORS[name];
+    const c = courseOf(id), p = c[Math.round(at * (c.length - 1))]!;
+    return out.set(p[0], p[1], p[2]);
   }
 
   // ---- the frame -----------------------------------------------------------------------------
@@ -246,16 +293,19 @@ export class CelScene {
     this.lastNow = now;
     this.shared.time.value = (now / 1000) % 1000;
     const camMoving = this.rig.update(now);
+    if (this.hideLeftBehind && !camMoving) this.settleViews();
     const hiMoving = this.highlight.step(dt);
     const flowActive = this.flow.step(now, dt);
     const lensMoving = this.lens.step(now);
     const presMoving = this.presence.step(dt);
-    const needs = this.moving || camMoving || hiMoving || flowActive || lensMoving || presMoving;
+    const viewMoving = this.lobule.update(now) || this.sinus.update(now);
+    const needs = this.moving || camMoving || hiMoving || flowActive || lensMoving || presMoving || viewMoving;
     this.moving = false;
     return needs;
   }
 
-  render(gl: WebGLRenderer): void { gl.render(this.scene, this.rig.camera); }
+  /** Until the camera has its first real shot and room only the background is drawn, so the figure's first picture is already in its place. */
+  render(gl: WebGLRenderer): void { if (this.rig.placed) gl.render(this.scene, this.rig.camera); else gl.clear(); }
 
   dispose(): void {
     this.lens.dispose();
@@ -264,5 +314,10 @@ export class CelScene {
     (this.plate.material as MeshBasicMaterial).dispose();
   }
 }
+
+/** Where each named place is: the vessel's id and how far along its 2D course (0 to 1). */
+const ANCHORS = {
+  ra: ['SVC_RA', 1], ivc: ['IVC_IS', 0.5], rhv: ['RHV_IVC', 0.5], pv: ['PV_TRUNK', 0.5], spleen: ['V_SPL', 0],
+} as const satisfies Record<string, readonly [string, number]>;
 
 export { SHOTS };

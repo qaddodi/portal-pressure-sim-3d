@@ -1,8 +1,8 @@
 // The legend art of each colour lens: a swatch gradient for the lens menu and the top bar's key. Placeholder art for the 3D look until the lens batch (B3) draws the
 // real legends from the scene's own ramps; the lens NAMES and notes are the 2D app's (strings.generated.ts).
-import type { LensId } from './store.ts';
+import type { LensId } from '../../scene/lenses/model.ts';
 
-export const LENS_ART: Record<LensId, string> = {
+export const LENS_ART: Partial<Record<LensId, string>> = {
   pressure: 'linear-gradient(90deg, #3F7FCB, #5FB3A4, #E3C04B, #D9722B, #B8326F)',
   delta: 'linear-gradient(90deg, #3F7FCB, #D8D3C8, #D9482B)',
   heat: 'linear-gradient(90deg, #E9E1D2, #E3B24B, #C23F2A)',
