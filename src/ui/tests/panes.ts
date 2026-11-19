@@ -21,6 +21,6 @@ export const BUILT_PANES: readonly PaneId[] = [
   'profile',
   'hvpg',
   'doppler',
-  // endoscopy
+  'endoscopy',
   'fibroscan',
 ];
