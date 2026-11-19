@@ -8,7 +8,7 @@ import { COURSES } from '../src/scene/circuit/course.ts';
 import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, CIRCUIT_TREES, CIRCUIT_ZONES, CUSTOM_EDGES, CUSTOM_SHUNT_PATH, LANE_CAPTIONS, NODE_CIRCUIT, RES_LABEL, RES_LIVER, RES_SIZES, ROUTER_STATIONS, ZONE_SHORT } from '../src/scene/circuit/data.copied.ts';
 import { mapToScene } from '../src/scene/circuit/map.ts';
 import { PEEL_SPAN, peelAt, peelRank, peelSlope } from '../src/scene/circuit/peel.ts';
-import { TURN_DIR, buildCaptions, type CapCtx } from '../src/scene/circuit/captions.ts';
+import { TURN_DIR, ZONE_ORGAN, LANE_SPOTS, along, buildCaptions, type CapCtx } from '../src/scene/circuit/captions.ts';
 import { RES_KEYS, RES_TEETH, quantScale, resAmp, resHeat, resInk, resText, resWidth, resWidthFit, zigzag } from '../src/scene/circuit/res-model.ts';
 import { resShape } from '../src/scene/circuit/resistors.ts';
 import { courseOf } from '../src/scene/circuit/paths.ts';
@@ -155,6 +155,47 @@ test('a lane is captioned only while its vessel is drawn, in two lines beside a 
   assert.match(one.forms[0]!.name, /\n/, 'cut in two beside the zigzag');
   const bare = buildCaptions(fakeCtx({ laneDrawn: (id) => id === 'C1b' })).meta.get('lane:C1b')!;
   assert.doesNotMatch(bare.forms[0]!.name, /\n/);
+});
+test('upright, a zone title runs up the map\'s left edge, turned (its placed box is the turned one), and the Liver\'s and the Heart\'s open their cards', () => {
+  const wide = buildCaptions(fakeCtx());
+  // standing the map up turns the screen's points a quarter: x, y -> y, -x (the left edge is the band row of the wide map's top)
+  const up = buildCaptions(fakeCtx({ upright: true, proj: (x, y) => [60 + (y - 30) * 0.7, 20 + (x - 30) * 0.7], view: { x0: 0, y0: 0, x1: 600, y1: 1000 } }));
+  const zw = wide.items.find((i) => i.id === 'z:Portal veins')!, zu = up.items.find((i) => i.id === 'z:Portal veins')!;
+  assert.equal(wide.meta.get('z:Portal veins')!.rot, false);
+  assert.equal(up.meta.get('z:Portal veins')!.rot, true);
+  assert.ok(Math.abs(zu.forms[0]!.w - zw.forms[0]!.h) < 1e-9 && Math.abs(zu.forms[0]!.h - zw.forms[0]!.w) < 1e-9, 'width and height swap when it stands turned');
+  assert.deepEqual(ZONE_ORGAN, { 'Liver · sinusoids': 'liver', Heart: 'heart' });
+  assert.equal(wide.meta.get('z:Liver · sinusoids')!.link, 'liver');
+  assert.equal(wide.meta.get('z:Heart')?.link, 'heart');
+  assert.equal(wide.meta.get('z:Portal veins')!.link, undefined);
+  // a wide title keeps 14 px (half its height and 2) below the top of the free room, even where the map's top has scrolled out of it
+  const high = buildCaptions(fakeCtx({ proj: (x, y) => [x * 0.7, y * 0.7 - 400], view: { x0: 0, y0: 40, x1: 1000, y1: 600 } }));
+  for (const i of high.items.filter((q) => q.id.startsWith('z:'))) assert.ok(i.ay - i.forms[0]!.h / 2 >= 40, `${i.id} stays in the free room`);
+});
+test('a lane\'s caption tries its spots along the lane, N then S, and takes the first where no other vessel touches it', () => {
+  assert.deepEqual([...LANE_SPOTS], [0.5, 0.3, 0.7, 0.15, 0.85]);
+  const course = courseOf(CIRCUIT_D.C6!);
+  const mid = along(course, 0.5), end = along(course, 1);
+  assert.ok(Math.hypot(end.p[0] - course[course.length - 1]![0], end.p[1] - course[course.length - 1]![1]) < 1e-6);
+  assert.notDeepEqual(mid.p, along(course, 0.3).p);
+  const asked: { box: { x0: number; y0: number; x1: number; y1: number }; own: string }[] = [];
+  const free = buildCaptions(fakeCtx({ laneDrawn: (id) => id === 'C6', clear: (box, own) => { asked.push({ box, own }); return true; } })).items.find((i) => i.id === 'lane:C6')!;
+  assert.equal(asked.length, 1, 'the first spot is clear: no more asked');
+  assert.equal(asked[0]!.own, 'C6', 'a lane is not kept clear of itself');
+  // the first spot (the middle, above the lane) is taken: the next is tried (below it, then 12 px out, then along)
+  let n = 0;
+  const next = buildCaptions(fakeCtx({ laneDrawn: (id) => id === 'C6', clear: () => ++n > 1 })).items.find((i) => i.id === 'lane:C6')!;
+  assert.equal(n, 2);
+  assert.ok(Math.abs(next.ay - free.ay) > 1, 'another side of the lane');
+  // no clear spot anywhere: it stands beside the middle, as a lane's caption always had
+  const none = buildCaptions(fakeCtx({ laneDrawn: (id) => id === 'C6', clear: () => false })).items.find((i) => i.id === 'lane:C6');
+  assert.ok(none, 'never dropped for want of a clear spot');
+  assert.equal(n >= 2, true);
+  // upright, a lane that runs up the screen is written turned
+  const run = buildCaptions(fakeCtx({ upright: true, laneDrawn: (id) => id === 'C6', proj: (x, y) => [y * 0.7, x * 0.7] }));
+  const wideRun = buildCaptions(fakeCtx({ laneDrawn: (id) => id === 'C6' }));
+  assert.equal(wideRun.meta.get('lane:C6')!.rot, false, 'wide, nothing is turned');
+  assert.equal(typeof run.meta.get('lane:C6')!.rot, 'boolean');
 });
 test('the resistors\' readings must stand, and "vs healthy liver" rides once, on the outermost', () => {
   const b = buildCaptions(fakeCtx({ res: { rLiver: 2.4, rColl: 5.1, rGut: 1.2 } }));

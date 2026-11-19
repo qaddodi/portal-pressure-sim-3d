@@ -126,7 +126,26 @@ void main() {
   base = mix(color, vInk, inkAmount);
   sh = mix(shade, vInk * inkShade, inkAmount);
 #endif
+#ifdef TUBE_TONES
+  // a tube of the vessels' own look (a plexus strand, a varix): the three tones lit from the top left of the SCREEN (vessels/shaders.ts, 2D celTones), not the world-lit bands, so a varix beside its
+  // vein shades as the vein does and keeps its tones as the figure turns. rDev, the radius in device px, is read from how fast across changes (it is the lateral position over the radius).
+  vec3 sideX = cross(normalize(vT), normalize(vV));
+  float sideL = length(sideX);
+  vec3 side0 = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
+  float across0 = dot(n, side0);
+  float rDev0 = 1.0 / max(fwidth(across0), 1e-3);
+  vec2 sideS = side0.xy;
+  float sl0 = length(sideS);
+  sideS = sl0 > 1e-4 ? sideS / sl0 : vec2(1.0, 0.0);
+  float sT = across0 * dot(sideS, vec2(-0.70710678, 0.70710678));
+  float etT = 0.5 / max(rDev0, 1e-3), hwT = smoothstep(1.5, 3.5, rDev0);
+  float shadowT = 1.0 - smoothstep(-0.16 - etT, -0.16 + etT, sT);
+  float litT = smoothstep(0.24 - etT, 0.24 + etT, sT);
+  vec3 c = base * (1.0 - hwT * 0.17 * shadowT);
+  c = mix(c, vec3(1.0), 0.15 * hwT * litT);
+#else
   vec3 c = mix(sh, base, clamp(b, 0.0, 1.0));
+#endif
   float ndv = max(dot(n, vV), 0.0);
   float rim = smoothstep(0.66, 0.70, 1.0 - ndv) * step(0.5, d);
   float sp = spec * smoothstep(0.962, 0.972, max(dot(reflect(-l, n), vV), 0.0));
@@ -145,7 +164,9 @@ void main() {
     vec3 mc = speed < 0.0 ? markReversed : markColor;
     c = mix(c, mc, m * (flowBands > 0.5 ? 0.30 : 0.85));
   }
+#ifndef TUBE_TONES
   c += rim * 0.10 + sp * 0.32;
+#endif
   gl_FragColor = vec4(c, 1.0);
 }`;
 

@@ -7,6 +7,8 @@ import { createPortal } from 'react-dom';
 import { useShell, type Sheet } from './store.ts';
 import { useOutside } from './Pop.tsx';
 import { I } from './icons.tsx';
+import { placePopover } from './place.ts';
+import { pushPage, type Push } from './page-push.ts';
 
 /** 2D util.js STACK_MQ: the one breakpoint at which a menu is a bottom sheet (a phone, or a tablet held upright). */
 export const STACK_MQ = '(max-width: 767px), (max-width: 1100px) and (orientation: portrait)';
@@ -33,20 +35,42 @@ function anchorFor(kind: string): HTMLElement | null {
   return seen.find((e) => e.closest('.dk-settings')) ?? seen[0] ?? null;
 }
 
-/** 2D util.js placeAt, for a popover: under the button (over it when there is no room), clamped 8 px inside the screen. Writes `translate` once as it opens and on a resize. */
-export function placeMenu(el: HTMLElement, anchor: HTMLElement, align: 'start' | 'end', side: 'below' | 'above'): void {
-  const r = anchor.getBoundingClientRect(), w = el.offsetWidth, hh = el.offsetHeight, vh = innerHeight, margin = 8, gap = 8;
-  const x = align === 'end' ? r.right - w : r.left;
-  let y = side === 'above' ? r.top - hh - gap : r.bottom + gap;
-  if (side === 'below' && y + hh > vh - margin) y = Math.max(margin, r.top - hh - gap);
-  y = Math.min(Math.max(margin, y), Math.max(margin, vh - hh - margin));
-  el.style.translate = `clamp(${margin}px, ${Math.round(x)}px, calc(100vw - ${Math.round(w)}px - ${margin}px)) ${Math.round(y)}px`;
-  el.style.setProperty('--pop-y', y < r.top ? '4px' : '-4px');
-}
-
-/** A page pushed inside a menu (2D util.js menuPush): History and Help from Settings. It lies over the menu's rows at the menu's own height and scrolls by itself; the rows slide away under it. */
+/** A page pushed inside a menu (2D util.js menuPush): History and Help from Settings. It lies over the menu's rows at the menu's own height and scrolls by itself; the rows slide away under it
+ *  (page-push.ts: the slide and the swipe right that takes it with the finger are written by the clock). */
 export interface MenuPage { back: string; title: string; body: ReactNode }
-export const PAGE_MS = 280;   // 2D --d-small
+export const PAGE_MS = 280;   // 2D --d-small (240) and a frame or two: a page stays mounted while its slide runs
+
+/** 2D util.js menuExitMs: a sheet, and a menu from the thumb dock (which settles in over --d-small), take --d-small both ways; any other, --d-flip. */
+export const menuExitMs = (sheet: boolean, fromDock: boolean, thumb: boolean): number => (sheet || (fromDock && thumb) ? 240 : MENU_LEAVE_MS);
+
+/** The page pushed over a menu's rows, on 2D's pushPage: it slides in, follows a swipe right and slides away; `pushed` going false (or a back tap) sends it back first. */
+function MenuPageView({ page, pushed, geo, leaving, onPop, onBack, onClose }: {
+  page: MenuPage; pushed: boolean; geo: { h: number; top: number; ch: number } | null; leaving: boolean; onPop(): void; onBack?: () => void; onClose(): void;
+}) {
+  const el = useRef<HTMLDivElement>(null);
+  const push = useRef<Push | null>(null);
+  const cb = useRef({ onPop, onBack });
+  cb.current = { onPop, onBack };
+  useLayoutEffect(() => {
+    const p = el.current, away = p?.parentElement?.querySelector<HTMLElement>(':scope > .menu-root');
+    if (!p || !away) return;
+    // (the page's width is read once, in the tap that pushed it)
+    const inst = pushPage(p, [away], p.parentElement!.offsetWidth, { onPop: () => { cb.current.onPop(); cb.current.onBack?.(); } });
+    push.current = inst;
+    return () => { inst.dispose(); push.current = null; };
+  }, []);
+  useEffect(() => { if (!pushed && !leaving) push.current?.pop(0); }, [pushed, leaving]);
+  return (
+    <div ref={el} className="menu-page" role="group" aria-label={page.title} inert={!pushed} style={geo ? { top: geo.top, height: geo.ch } : undefined}>
+      <div className="sheet-head">
+        <button type="button" className="menu-item menu-back" onClick={() => push.current?.pop(0)}><I n="chev-left" />{page.back}</button>
+        <span className="sheet-t">{page.title}</span>
+        <button type="button" className="ib" aria-label="Close" onClick={onClose}><I n="close" /></button>
+      </div>
+      {page.body}
+    </div>
+  );
+}
 
 export function MenuPop({ kind, label, title, cls = 'app-menu', align = 'end', side = 'below', from = kind, page = null, onBack, children }: {
   kind: Exclude<Sheet, null>; label: string; title: string; cls?: string; align?: 'start' | 'end'; side?: 'below' | 'above'; /** the opener's `data-opens`, when it is not this menu's own name (Help opens from Settings) */ from?: string;
@@ -54,8 +78,9 @@ export function MenuPop({ kind, label, title, cls = 'app-menu', align = 'end', s
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const open = useOutside(kind, ref);
-  const { shown, leaving } = usePresence(open);
   const [sheet, setSheet] = useState(() => typeof matchMedia === 'function' && matchMedia(STACK_MQ).matches);
+  const thumb = typeof document !== 'undefined' && document.documentElement.classList.contains('thumb-ui');
+  const { shown, leaving } = usePresence(open, menuExitMs(sheet, sheet || !!anchorFor(from)?.closest('.vdock'), thumb));
   useEffect(() => {
     const mq = matchMedia(STACK_MQ), f = () => setSheet(mq.matches);
     f(); mq.addEventListener('change', f);
@@ -75,7 +100,7 @@ export function MenuPop({ kind, label, title, cls = 'app-menu', align = 'end', s
   useLayoutEffect(() => {
     const el = ref.current;
     if (!shown || !el || sheet) return;
-    const put = () => { const a = anchorFor(from); if (a) placeMenu(el, a, align, side); };
+    const put = () => { const a = anchorFor(from); if (a) placePopover(el, a, { align, place: side }); };
     put();
     addEventListener('resize', put);
     return () => removeEventListener('resize', put);
@@ -92,16 +117,7 @@ export function MenuPop({ kind, label, title, cls = 'app-menu', align = 'end', s
     <div ref={ref} className={`menu ${cls}${sheet ? ' as-sheet from-dock' : ''}${leaving ? ' leaving' : ''}${pushed ? ' pushed' : ''}`} role="dialog" aria-modal={sheet || undefined} aria-label={label} data-kind={kind} inert={!open}
       style={onBack && geo && pg.shown ? { height: geo.h } : undefined}>
       {onBack ? <div className="menu-root" inert={pushed}>{rows}</div> : rows}
-      {onBack && pg.shown && pageNow && (
-        <div className={`menu-page${pg.leaving ? ' out' : ''}`} role="group" aria-label={pageNow.title} inert={!pushed} style={geo ? { top: geo.top, height: geo.ch } : undefined}>
-          <div className="sheet-head">
-            <button type="button" className="menu-item menu-back" onClick={onBack}><I n="chev-left" />{pageNow.back}</button>
-            <span className="sheet-t">{pageNow.title}</span>
-            <button type="button" className="ib" aria-label="Close" onClick={close}><I n="close" /></button>
-          </div>
-          {pageNow.body}
-        </div>
-      )}
+      {onBack && pg.shown && pageNow && <MenuPageView page={pageNow} pushed={pushed} geo={geo} leaving={leaving} onPop={() => undefined} onBack={onBack} onClose={close} />}
     </div>
   );
   return createPortal(<>{sheet && <div className={`um-scrim${leaving ? ' out' : ''}`} onPointerDown={close} />}{menu}</>, root);

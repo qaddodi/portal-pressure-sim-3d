@@ -88,8 +88,8 @@ export class PostAA {
     const w = Math.max(1, Math.floor(this.size.x)), h = Math.max(1, Math.floor(this.size.y));
     if (!this.rt || this.rt.width !== w || this.rt.height !== h) {
       this.rt?.dispose();
-      // (no depth sharing and no samples: the two passes of the figure clear and refill the depth in this texture as they did on the canvas)
-      this.rt = new WebGLRenderTarget(w, h, { depthBuffer: true, stencilBuffer: false, minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false, samples: 0 });
+      // (a stencil with the depth: the vessels' outlines mark it so each pixel is inked once, vessels/vessel-object.ts hullMat; no depth sharing and no samples: the two passes of the figure clear and refill the depth in this texture as they did on the canvas)
+      this.rt = new WebGLRenderTarget(w, h, { depthBuffer: true, stencilBuffer: true, minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false, samples: 0 });
       (this.material.uniforms.resolution!.value as Vector2).set(1 / w, 1 / h);
     }
     return this.rt;

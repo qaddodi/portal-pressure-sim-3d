@@ -167,7 +167,9 @@ uniform float projY;
 uniform vec2 res;
 uniform float dpr;
 uniform float casingA;      // the look's casing alpha (2D --casing-a)
-uniform float casingLensA;  // and under a colour lens
+uniform float casingCircA;  // and in the Circuit (2D .stage-wrap.cmap), by circT
+uniform vec3 inkColorCirc;
+uniform float circT;
 uniform vec4 rimInk;        // a dark lumen's light rim on the dark looks: rgb, alpha (0 on the light looks)
 varying float vW;
 varying float vR;
@@ -265,13 +267,12 @@ void main() {
   if (vHull > 0.5) {
     // the ink: the hull's back faces only, in the ink colour, warming to the highlight colour where the vessel is picked
     if (gl_FrontFacing || hullOn < 0.5) discard;
-    // the outline in the look's casing colour at its alpha (2D: --casing-a, less under a colour lens; a vessel behind an organ keeps half of it; a picked vessel's ring is solid)
-    float lensOn = lensUse > 0.5 && max(lensModeA, lensModeB) > 0.5 ? 1.0 : 0.0;
-    float ca = mix(casingA, casingLensA, lensOn);
+    // the outline in the look's casing colour at its alpha (2D: --casing-a, and the Circuit's own on the dark look (.stage-wrap.cmap), by the Circuit's share; a vessel behind an organ keeps half of it; a picked vessel's ring is solid)
+    float ca = mix(casingA, casingCircA, circT);
 #ifdef VEIL
     ca *= 0.5;
 #endif
-    gl_FragColor = vec4(mix(inkColor, hiColor, clamp(vHi, 0.0, 1.0)), mix(ca, 1.0, clamp(vHi, 0.0, 1.0)) * VEIL_A * vFade);
+    gl_FragColor = vec4(mix(mix(inkColor, inkColorCirc, circT), hiColor, clamp(vHi, 0.0, 1.0)), mix(ca, 1.0, clamp(vHi, 0.0, 1.0)) * VEIL_A * vFade);
     return;
   }
   if (!gl_FrontFacing) discard;
