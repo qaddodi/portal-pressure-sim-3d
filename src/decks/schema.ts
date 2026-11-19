@@ -48,6 +48,8 @@ export interface TableRowSpec {
   ref?: boolean;
   blank?: string[]; miss?: string[]; missPart?: string[]; calm?: string[];
   note?: string | string[];
+  /** the vessel of this row's Doppler trace (the `wave` column); the slide's `wave` otherwise */
+  wave?: string;
 }
 export interface TableSpec {
   /** the readings, as tile keys; the 2D default is PV, WHVP, FHVP, IVC, RA, HVPG, PPG with the ascites pair */
@@ -56,6 +58,8 @@ export interface TableSpec {
   /** the arrows compare each row with the first ('first') */
   vs?: string;
   asc?: boolean; rowHead?: string; foot?: string; note?: string | string[]; calm?: string[]; focusRow?: string;
+  /** the `wave` column's vessel for every row, and the scale of its traces in cm/s (50 by default) */
+  wave?: string; waveMax?: number;
 }
 
 export interface Slide {

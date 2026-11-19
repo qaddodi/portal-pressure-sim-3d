@@ -34,10 +34,10 @@ const knownTerms = (t: CopiedSlide['terms']): Record<string, string> | undefined
   return Object.keys(out).length ? out : undefined;
 };
 
-/** The 2D summary table (`visual: 'table'`: cols, of, vs, asc, rowHead, foot, note, calm, focusRow) as the table card's spec. */
+/** The 2D summary table (`visual: 'table'`: cols, of, vs, asc, rowHead, foot, note, calm, focusRow, wave, waveMax) as the table card's spec. */
 export function tableOf(s: CopiedSlide): TableSpec | undefined {
   if (s.visual !== 'table' || !Array.isArray(s.of)) return undefined;
-  const pick = ['cols', 'of', 'vs', 'asc', 'rowHead', 'foot', 'note', 'calm', 'focusRow'] as const;
+  const pick = ['cols', 'of', 'vs', 'asc', 'rowHead', 'foot', 'note', 'calm', 'focusRow', 'wave', 'waveMax'] as const;
   return Object.fromEntries(pick.filter((k) => s[k] != null).map((k) => [k, s[k]])) as unknown as TableSpec;
 }
 
