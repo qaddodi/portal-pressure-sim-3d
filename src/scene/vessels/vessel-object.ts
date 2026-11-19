@@ -90,7 +90,7 @@ export class VesselObject extends CelObject {
         px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 },
-        fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeKeep: { value: 0 },
+        veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeKeep: { value: 0 },
         lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, chainTex: blood.chainTex, projY: blood.projY, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 1 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
@@ -147,8 +147,13 @@ export class VesselObject extends CelObject {
     if (!this.tip) return;
     (this.toon.uniforms.fadeA!.value as Vector4).z = joined ? 1 : this.tip.a0;
   }
+  /** A vein fading into the faint cava (fades.ts ivcJoin): `whole` 0..1 is how far the cava is shown whole, and the fade lets go by as much (its alpha at the wall rises from its own to 1). */
+  setIvcWhole(whole: number): void {
+    if (!this.tip) return;
+    (this.toon.uniforms.fadeA!.value as Vector4).w = this.tip.a1 + (1 - this.tip.a1) * whole;
+  }
 
-  private veil: { mesh: Mesh; mat: ShaderMaterial; wholeLayer: number } | null = null;
+  private veil: { mesh: Mesh; mat: ShaderMaterial; overLayer: number; faint: boolean; whole: boolean } | null = null;
   /** A vessel the 2D figure draws behind the organs (BACK_EDGES; the cava above all): it is drawn with the organs, so one in front hides it, and again over them at 0.4, the organ's veil, so
    *  it shows through faintly (stage.js VEIL_K). `faint`: faded along its whole course as well (the cava, F_VEIL), not only where an organ is over it. `overLayer` is the camera layer of what is drawn over the organs. */
   setBehindOrgans(overLayer: number, faint: boolean): void {
@@ -158,9 +163,22 @@ export class VesselObject extends CelObject {
     mesh.matrixAutoUpdate = true; mesh.renderOrder = 1;
     mesh.layers.set(overLayer);
     this.group.add(mesh);
-    this.veil = { mesh, mat, wholeLayer: 0 };
+    this.veil = { mesh, mat, overLayer, faint, whole: false };
     // drawn with the organs (layer 0), or, faint all along, not drawn solid at all (its mesh stays for picking, on a layer no pass draws)
     this.toonMesh.layers.set(faint ? FAINT_ONLY_LAYER : 0);
+  }
+  /** The cava shown whole (2D's F_WHOLE, selected or named): the organs do not fade it. It eases over from the veil's 0.4 to 1, and once whole it is drawn solid over the organs, in its tier
+   *  behind every vessel of the network; back, it is the veil again. */
+  setWholeShare(k: number): void {
+    const v = this.veil;
+    if (!v) return;
+    v.mat.uniforms.veilA!.value = 0.4 + 0.6 * k;
+    const whole = k >= 1;
+    v.mesh.visible = !whole;
+    if (whole !== v.whole) {
+      v.whole = whole;
+      this.toonMesh.layers.set(whole ? v.overLayer : v.faint ? FAINT_ONLY_LAYER : 0);
+    }
   }
   override dispose(): void { this.veil?.mat.dispose(); super.dispose(); }
 
