@@ -224,7 +224,7 @@ test('blood\'s chevrons follow the Blood menu as in the 2D lobule: on for every 
   assert.ok(litParts(['lobule:triad']).has('portal-tracts') && litParts(['lobule:triad']).has('sinusoids'));
   const v = new LobuleView(createShared());
   v.setVisible(true); v.snapModel(model());
-  const blood = marked(v).filter((o) => !v.set.get('lymph').group.children.includes(o.group));
+  const blood = marked(v).filter((o) => !v.set.get('lymph').group.children.includes(o.group) && !v.set.get('bile').group.children.includes(o.group));
   let t = settle(v);
   assert.ok(blood.length >= 5);
   for (const o of blood) assert.equal(flowOf(o), 1, 'the blood moves, nothing named');
@@ -330,4 +330,33 @@ test('a state target eases and lands exactly (the lobule\'s own use of easeTowar
   const cur = { a: 0 };
   while (easeToward(cur, { a: 1 }, 16));
   assert.equal(cur.a, 1);
+});
+
+test('the Bile layer is off at first; turning it on grows the canaliculi and canals out of nothing, and their arrowheads run out toward the tract (against the blood)', () => {
+  const v = new LobuleView(createShared());
+  v.setVisible(true); v.snapModel(model()); let t = settle(v);
+  const bile = v.set.get('bile').group;
+  assert.equal(bile.visible, false, 'off by default');
+  const objs = v.objects.filter((o) => bile.children.includes(o.group));
+  assert.equal(objs.length, 2, 'channels and canals');
+  v.setLayers({ bile: true });
+  v.update(t += 16); assert.ok(bile.visible, 'on at the first frame of the fade');
+  assert.ok((objs[0]!.toon.uniforms.inflate!.value as number) < 0, 'still growing');
+  t = settle(v, t);
+  for (const o of objs) { assert.ok(Math.abs(o.toon.uniforms.inflate!.value as number) < 1e-6, 'full size'); assert.equal(flowOf(o), 1, 'arrowheads on'); assert.ok(speedOf(o) < 0, 'run against the blood'); }
+  v.setLayers({ bile: false }); t = settle(v, t);
+  assert.equal(bile.visible, false);
+});
+
+test('the Zones layer tints each zone\'s cells toward the 2D zone colours and eases back off', () => {
+  const v = new LobuleView(createShared());
+  v.setVisible(true); v.snapModel(model()); let t = settle(v);
+  const col = (i: number) => (v.parts.cords[i]!.toon.uniforms.color.value as { r: number; g: number; b: number }).b;
+  const before = [0, 1, 2].map(col);
+  v.setLayers({ zones: true }); t = settle(v, t);
+  const after = [0, 1, 2].map(col);
+  assert.ok(after[2]! > before[2]!, 'zone 3 turns violet (more blue)');
+  assert.ok(after[0]! < before[0]!, 'zone 1 turns red (less blue)');
+  v.setLayers({ zones: false }); t = settle(v, t);
+  assert.ok(Math.abs(col(2) - before[2]!) < 1e-6);
 });

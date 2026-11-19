@@ -2,7 +2,10 @@
 // `tubeRGB`), they ease toward the lens's now (a third of a second, so a lens switch crossfades and a slider moves them smoothly), and the vertices between take the straight
 // line between the two, as the GPU blends a 2D vessel's ends. The geometry carries an `ink` attribute (Batch.withInk), CelObject reads it (setInkAmount).
 import type { BufferAttribute, BufferGeometry } from 'three';
-import { type InkContext, type Seg, inkAt } from './ink.ts';
+import { type InkContext, type Seg, LANE_X, inkLanes } from './ink.ts';
+
+/** Floats per tube in the goal and current colours: three colours across (the lanes) at each of its two ends. */
+const STRIDE = 18;
 
 export interface InkTubes {
   geo: BufferGeometry;
@@ -22,11 +25,11 @@ export class InkSet {
   private ctx: InkContext | null = null;
   private dirty = true;
   private fib = -1;
-  private readonly a: [number, number, number] = [0, 0, 0];
-  private readonly b: [number, number, number] = [0, 0, 0];
+  private readonly a: number[] = new Array(9).fill(0);
+  private readonly b: number[] = new Array(9).fill(0);
 
   add(geo: BufferGeometry, seg: Seg, tubes: InkTubes['tubes'] = [], ends: [number, number][] = []): void {
-    const n = Math.max(1, tubes.length) * 6;
+    const n = Math.max(1, tubes.length) * STRIDE;
     this.entries.push({ geo, seg, tubes, ends, fresh: true, goal: new Float32Array(n), cur: new Float32Array(n) });
   }
   /** The lens, look, model and reference now (a new one eases in). */
@@ -42,10 +45,10 @@ export class InkSet {
     if (this.dirty || Math.abs(c.fibSin - this.fib) > 0.004) {
       this.dirty = false; this.fib = c.fibSin;
       for (const e of this.entries) {
-        if (!e.tubes.length) { inkAt(c, e.seg, e.seg === 'cv' ? 1 : 0, this.a); for (let k = 0; k < 3; k++) e.goal[k] = this.a[k]!; continue; }
+        if (!e.tubes.length) { inkLanes(c, e.seg, e.seg === 'cv' ? 1 : 0, this.a); for (let k = 0; k < 9; k++) e.goal[k] = this.a[k]!; continue; }
         e.ends.forEach(([w0, w1], i) => {
-          inkAt(c, e.seg, w0, this.a); inkAt(c, e.seg, w1, this.b);
-          for (let k = 0; k < 3; k++) { e.goal[i * 6 + k] = this.a[k]!; e.goal[i * 6 + 3 + k] = this.b[k]!; }
+          inkLanes(c, e.seg, w0, this.a); inkLanes(c, e.seg, w1, this.b);
+          for (let k = 0; k < 9; k++) { e.goal[i * STRIDE + k] = this.a[k]!; e.goal[i * STRIDE + 9 + k] = this.b[k]!; }
         });
       }
     }
@@ -68,14 +71,21 @@ export class InkSet {
 
 function write(e: InkTubes): void {
   const a = e.geo.getAttribute('ink') as BufferAttribute, arr = a.array as Float32Array;
-  if (!e.tubes.length) { for (let v = 0; v < a.count; v++) { arr[v * 3] = e.cur[0]!; arr[v * 3 + 1] = e.cur[1]!; arr[v * 3 + 2] = e.cur[2]!; } }
+  if (!e.tubes.length) { for (let v = 0; v < a.count; v++) { arr[v * 3] = e.cur[3]!; arr[v * 3 + 1] = e.cur[4]!; arr[v * 3 + 2] = e.cur[5]!; } }
   else {
     e.tubes.forEach((t, i) => {
-      const o = i * 6;
+      const o = i * STRIDE;
       for (let r = 0; r < t.rings; r++) {
         const f = t.rings > 1 ? r / (t.rings - 1) : 0;
-        const R_ = e.cur[o]! + (e.cur[o + 3]! - e.cur[o]!) * f, G_ = e.cur[o + 1]! + (e.cur[o + 4]! - e.cur[o + 1]!) * f, B_ = e.cur[o + 2]! + (e.cur[o + 5]! - e.cur[o + 2]!) * f;
-        for (let j = 0; j < t.ring; j++) { const v = (t.start + r * t.ring + j) * 3; arr[v] = R_; arr[v + 1] = G_; arr[v + 2] = B_; }
+        for (let j = 0; j < t.ring; j++) {
+          // the vertex's place across the tube (cos of its angle round it: the tube's frame keeps one side of it facing along the screen), between the three colour samples
+          const x = Math.cos((j / Math.max(1, t.ring - 1)) * Math.PI * 2), at = x <= LANE_X[0] ? 0 : x >= LANE_X[2] ? 2 : x < 0 ? (x - LANE_X[0]) / (0 - LANE_X[0]) : 1 + x / LANE_X[2];
+          const s0 = Math.min(1, Math.floor(at)), u = at - s0, v = (t.start + r * t.ring + j) * 3;
+          for (let k = 0; k < 3; k++) {
+            const c0 = e.cur[o + s0 * 3 + k]! * (1 - u) + e.cur[o + (s0 + 1) * 3 + k]! * u, c1 = e.cur[o + 9 + s0 * 3 + k]! * (1 - u) + e.cur[o + 9 + (s0 + 1) * 3 + k]! * u;
+            arr[v + k] = c0 + (c1 - c0) * f;
+          }
+        }
       }
     });
   }

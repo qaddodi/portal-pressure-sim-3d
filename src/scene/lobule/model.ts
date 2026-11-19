@@ -3,7 +3,7 @@
 // the two apps agree (tests/scene-lobule-model.test.ts). One representative lobule stands for the whole liver, read from the right lobe.
 import { EDGES, NODES } from '../../engine/hales/portal/topology.js';
 import { LYMPH, sinusoidPull, tissueP } from '../../engine/hales/portal/lymph.js';
-import { oxygenSat } from '../lenses/blood-model.ts';
+import { ORIGIN_N, originFractions, oxygenSat } from '../lenses/blood-model.ts';
 
 const NI: Record<string, number> = Object.fromEntries((NODES as { id: string }[]).map((n, i) => [n.id, i]));
 const EI: Record<string, number> = Object.fromEntries((EDGES as { id: string }[]).map((e, i) => [e.id, i]));
@@ -27,6 +27,15 @@ export interface LobuleFrame {
   metrics?: unknown;
 }
 
+/** One bed's blend at its start and at its end (ORIGIN_N shares each). */
+export type Lane = readonly [ReadonlyArray<number>, ReadonlyArray<number>];
+export interface LaneSet { pre: Lane; sin: Lane; post: Lane }
+const laneOf = (r: { own: Float32Array; end: Float32Array }, id: string): Lane => {
+  const k = EI[id]! * ORIGIN_N;
+  return [Array.from(r.own.subarray(k, k + ORIGIN_N)), Array.from(r.end.subarray(k, k + ORIGIN_N))];
+};
+const laneSet = (r: { own: Float32Array; end: Float32Array }): LaneSet => ({ pre: laneOf(r, LOBE.pre), sin: laneOf(r, LOBE.q), post: laneOf(r, LOBE.post) });
+
 export interface LobuleModel {
   /** zone resistances against healthy (1 = healthy) */
   zone: { pre: number; sin: number; post: number };
@@ -34,6 +43,9 @@ export interface LobuleModel {
   P1: number; P2: number; P3: number; P4: number;
   /** flows of the three beds (portal inflow, sinusoids, hepatic outflow: edges PRE_R, SIN_RR, POST_R_RHV; mL/s) and the healthy patient's, for the lenses that colour by them */
   Qs: { pre: number; sin: number; post: number }; Q0: { pre: number; sin: number; post: number };
+  /** where the blood comes from, for the Blood origin and First pass lenses: per bed (the portal inflow, the sinusoids, the hepatic outflow) the blend it starts in and the one it ends in,
+   *  the four named sources' shares (the rest is systemic). Lanes of these colours run side by side in the vessel. */
+  lanes?: { origin: LaneSet; pass: LaneSet };
   /** oxygen saturation 0..1 at the portal venule, the sinusoids' inlet and the central vein (the oxygen lens) */
   oxy: [number, number, number];
   /** flows against the healthy patient (1 = normal) */
@@ -71,6 +83,7 @@ export function lobuleModel(f: LobuleFrame, healthy?: HealthyRef | null, params?
   return {
     zone, P1, P2, P3, P4,
     Qs: { pre: bed(LOBE.pre), sin: bed(LOBE.q), post: bed(LOBE.post) }, Q0: { pre: bed0(LOBE.pre), sin: bed0(LOBE.q), post: bed0(LOBE.post) },
+    lanes: { origin: laneSet(originFractions(Q, P, false)), pass: laneSet(originFractions(Q, P, true)) },
     oxy: [ox[NI[LOBE.pv]!]!, ox[NI[LOBE.sin]!]!, ox[NI[LOBE.cv]!]!],
     flow: ratio(LOBE.q), portal: ratio(LOBE.pre), art: ratio(LOBE.a), rev,
     lymph: asc?.hepLymph ?? 0, lymph0: healthy?.hepLymph || 0.8, lyProt: asc?.lymphProt ?? 0.88, sigma: asc?.lymphSigma ?? 0.15, iap: asc?.iap ?? 5, alb: p.albumin ?? 4,
