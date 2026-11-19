@@ -210,7 +210,7 @@ export function TreatCard() {
   };
   const vars = layoutVars(vp, layoutClass(thumb)) as React.CSSProperties;
   return (
-    <section ref={ref} className="treat-card tr-card has-plate" id="treatCard" data-open={open} data-bottom={thumb} data-device={device} data-page={page || undefined} style={vars} role="dialog" aria-label={L.treat} inert={!open}>
+    <section ref={ref} className="treat-card tr-card has-plate" id="treatCard" hidden={!open} data-open={open} data-bottom={thumb} data-device={device} data-page={page || undefined} style={vars} role="dialog" aria-label={L.treat} inert={!open}>
       <div className="sheet-plate" aria-hidden="true" />
       <div className="tr-in">
         <div className="tc-head card-head" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
