@@ -1,0 +1,54 @@
+// The list of every shader source in the app, by file, and the programs they make. tests/glsl-compile.test.ts compiles them all in glslang (node, no browser); the ?gl page
+// (gl-check.tsx) compiles them on the device. A file that holds GLSL and is not in GL_FILES fails the test: add it here, with how its programs are found.
+import type { Object3D } from 'three';
+import { type Program, collectMaterials, lateMaterialProgram, rawProgram, templateConstants } from './gl-programs.ts';
+import { INK_FS, INK_VS, TOON_FS, TOON_VS } from '../scene/materials/shaders.ts';
+import { VESSEL_FS, VESSEL_VS } from '../scene/vessels/shaders.ts';
+import { DOT_FS, DOT_VS, PLATE_FS, PLATE_VS } from '../scene/circuit/map-layer.ts';
+import { RES_FS, RES_VS } from '../scene/circuit/resistors.ts';
+import { DYE_FS, DYE_VS } from '../scene/disease/dye.ts';
+import { CHART_FS, CHART_VS } from '../ui/charts/gl.ts';
+import { SYNTH_FS, SYNTH_VS } from '../ui/tests/copied/doppler-synth.copied.js';
+
+/** Where the app's GLSL lives (a path under src/), and how its programs reach the check. A new file with a shader goes here, or the test fails. */
+export const GL_FILES: Record<string, string> = {
+  'scene/materials/shaders.ts': 'cel toon and ink (every organ, lobule and sinusoid part, the devices): found on the scene graph',
+  'scene/vessels/shaders.ts': 'the vessel, with its veil (VEIL define): found on the scene graph',
+  'scene/circuit/shader.ts': 'the Circuit morph, spliced into the vessel shader: part of the vessel program',
+  'scene/circuit/map-layer.ts': 'the Circuit plate and dots: found on the scene graph',
+  'scene/circuit/resistors.ts': 'the Circuit resistor ribbons (made when the Circuit opens): registered by name',
+  'scene/disease/dye.ts': 'the dye overlay (made when a bolus is given): registered by name',
+  'scene/devices/device-object.ts': 'a device wears the toon shader with an alpha: found on the scene graph',
+  'ui/charts/gl.ts': 'the charts\' shared drawer: registered by name',
+  'ui/tests/copied/doppler-synth.copied.js': 'the Doppler spectrum: registered by name',
+  'ui/tests/fibro/copied/fibro-gl.copied.js': 'the FibroScan map: its private templates are read from the file\'s text',
+};
+
+/** Source text → name, so a program found on the scene graph is called what it is. */
+export function namedSources(): Map<string, string> {
+  return new Map<string, string>([
+    [VESSEL_VS, 'vessel'], [VESSEL_FS, 'vessel'], [TOON_VS, 'toon'], [TOON_FS, 'toon'], [INK_VS, 'ink'], [INK_FS, 'ink'],
+    [DYE_VS, 'dye overlay'], [DYE_FS, 'dye overlay'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'],
+  ]);
+}
+
+/** The programs the scene graph does not hold until something happens (a Circuit, a dye bolus) and the ones outside the scene (charts, Doppler, FibroScan). */
+export function rawPrograms(fibroText: string): Program[] {
+  const fibro = templateConstants(fibroText);
+  const out = [
+    lateMaterialProgram('circuit resistors', RES_VS, RES_FS),
+    lateMaterialProgram('dye overlay', DYE_VS, DYE_FS),
+    rawProgram('charts', CHART_VS, CHART_FS),
+    rawProgram('doppler spectrum', SYNTH_VS, SYNTH_FS),
+  ];
+  if (fibro.VS && fibro.FS) out.push(rawProgram('fibroscan map', fibro.VS, fibro.FS));
+  if (fibro.VS && fibro.SHOW_FS) out.push(rawProgram('fibroscan map (show)', fibro.VS, fibro.SHOW_FS));
+  return out;
+}
+
+/** Every program: the scene graph's, then the ones registered by hand. */
+export function allPrograms(root: Object3D, fibroText: string): Program[] {
+  const found = collectMaterials(root, namedSources());
+  const have = new Set(found.map((p) => p.vertexGlsl + p.fragmentGlsl));
+  return [...found, ...rawPrograms(fibroText).filter((p) => !have.has(p.vertexGlsl + p.fragmentGlsl))];
+}

@@ -165,6 +165,7 @@ Address flags, where each works (live site, or the preview and a local run only)
 | Flag | Where | Group | What it does |
 |---|---|---|---|
 | `?perf` | everywhere | Measure | The clock's frame panel: median, p95 and worst frame work, the frames over 20 ms with the phase and who asked for them; Copy (src/ui/perf). |
+| `?gl` | everywhere | Measure | Every shader program the app can use, compiled on this device: one line each, green or red, with the driver's own log and Copy (src/debug/gl-check.tsx). Open it once per build on the iPhone, the iPad and the Mac. |
 | `?watch` | preview and local run | Measure | The motion recorder (preview copy or a local run): keeps 20 seconds of camera, label and card numbers, judges them with the motion rules and shows a red dot with the findings (src/ui/debug/watch). |
 | `?debug` | preview and local run | Pages | The debug page (the card gallery, with Report and Full check on its bar; the motion recorder is on by default). ?debug=check is the Phone check, ?debug=full its long walk, ?debug=frame the device frame. |
 | `?gallery` | preview and local run | Pages | The old spelling of ?debug (?gallery&sweep=... runs the Sweep; the sweeps still open it so). (old spelling of ?debug) |
