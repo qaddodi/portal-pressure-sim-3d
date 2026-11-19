@@ -115,7 +115,8 @@ test('the shot: halves swap on a tall screen; with the room\'s short side the pl
   const µm = (s: ReturnType<typeof sinusoidShot>) => (s.half[0] * 2) / FILL / SIN_SCALE / (SINUSOID_L / 97.4);
   assert.ok(Math.abs(µm(phone) - acrossUm(390)) < 1e-6, `a phone shows ${acrossUm(390).toFixed(1)} µm across its width, shows ${µm(phone).toFixed(1)}`);
   assert.ok(Math.abs(µm(ipad) - acrossUm(820)) < 1e-6);
-  assert.ok(restScale(390) >= 3 && restScale(5000) <= 14);
+  assert.ok(restScale(390) >= 3);
+  assert.ok(Math.abs(restScale(820) - (820 * FILL) / acrossUm(820)) < 1e-9, 'the camera\'s own scale: across µm fill FILL of the short side');
 });
 
 test('the box the hand keeps on screen turns with the plane', () => {

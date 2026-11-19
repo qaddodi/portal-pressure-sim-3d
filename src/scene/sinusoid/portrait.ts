@@ -1,6 +1,8 @@
 // The sinusoid on a portrait screen (2D: sinusoid-view.js ensureGeo, layoutEnds, stepView). A screen narrower than 0.95 of its height runs the sinusoid TOP TO BOTTOM (portal end up),
 // 2D turning its drawing by ang = PI / 2 on a y-down screen. Here the plane's own group is turned, so the tissue, the pores, the albumin, the names' anchors and the hits all turn
 // together; the plane's y runs up, so the same turn is -PI / 2. Pure numbers, no GPU: tests/scene-sinusoid-portrait.test.ts.
+import { FILL } from '../camera/room.ts';
+
 
 /** 2D's rule: a stage narrower than 0.95 of its height is a portrait stage (W < H * 0.95). */
 export const isPortrait = (w: number, h: number): boolean => w < h * 0.95;
@@ -17,9 +19,9 @@ const smooth = (a: number, b: number, x: number) => { const t = clamp((x - a) / 
 
 /** How many micrometres show across the free room's short side (2D: lerp(40, 54, smooth(380, 720, short))): both plates whole on a large screen, closer in on a phone. */
 export const acrossUm = (shortPx: number): number => lerp(40, 54, smooth(380, 720, shortPx));
-/** Pixels per micrometre the view rests at in a free room whose short side is `shortPx` (2D: VW.tk = clamp(short / across, 3, 14)). */
-export const restScale = (shortPx: number): number => clamp(shortPx / acrossUm(shortPx), 3, 14);
-
+/** Pixels per micrometre the camera rests at in a free room whose short side is `shortPx`: `across` µm fill FILL of that side (sinusoidShot frames it so; 2D: VW.tk = short / across, kept to 3 at least).
+ *  The scene gives it to the view (setScreen) and the names lay themselves out against it, so the arrows and the names agree with the picture. */
+export const restScale = (shortPx: number): number => Math.max(3, (shortPx * FILL) / acrossUm(shortPx));
 /** The ends' arrows stand this far (px) inside the free room's ends: the arrow and its gaps (A = 22 + 26) halved, plus the 8 px of margin on a wide screen (2D: layoutEnds). */
 export const END_INSET = { wide: 8 + (22 + 26) / 2, tall: (22 + 26) / 2 } as const;
 /** Where the end arrows stand and how big they are (µm along the sinusoid from the view's centre: the portal venule's, the central vein's, the arrow's size), for a free room that is
