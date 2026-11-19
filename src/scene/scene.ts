@@ -95,8 +95,8 @@ export class CelScene {
     }
     for (const def of NETWORK) this.addVessel(def);
     for (const v of VARICES) {
-      const o = new CelObject(blob(v.r, v.r, v.r, 0, 0, 14), { tone: 'portal', bands: 2, spec: 1, px: 1 }, this.shared);
-      o.group.position.set(0.48 + Math.cos(v.angle) * 0.12, v.y, -0.12 + Math.sin(v.angle) * 0.12);
+      const o = new CelObject(blob(v.r * 0.5, v.r * 0.5, v.r * 0.5, 0, 0, 14), { tone: 'portal', bands: 2, spec: 1, px: 1 }, this.shared);
+      o.group.position.set(0.34 + Math.cos(v.angle) * 0.035, v.y - 0.85, 0.06 + Math.sin(v.angle) * 0.035);   // on the lower oesophagus (2D x 800, y 170 to 220)
       this.add(o);
     }
     this.catheter = new Catheter(this.shared);
