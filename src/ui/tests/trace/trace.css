@@ -1,4 +1,4 @@
-/* Tests > Pressure > Over time. The header, the pills and the range switch are the 2D app's own rules (src/ui/css2d/app-06-plate.css, .pt-*, lifted unchanged); only the card's
-   column and the chart's box are laid here. The chart box takes the pointer for the crosshair: a sideways drag stays the card's, a vertical one scrolls (2D .pt-box canvas). */
-.pt { display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
-.pt-box { position: relative; width: 100%; touch-action: pan-y; cursor: crosshair; -webkit-user-select: none; user-select: none; }
+/* Tests > Pressure > Over time is 2D's own markup (pressure-time.js: .instrument-view.pt, .pt-head, .chart-box.pt-box, .pt-chips, .pt-ctl), laid out and dressed by the 2D stylesheet
+   (src/ui/css2d/app-06-plate.css). What is ours is the pointer on the chart's box: the 2D rule is on its canvas (copied for the chart's .cv), and the crosshair's handlers are on the box here, so
+   the box takes the same touch behaviour: a sideways drag stays the card's, a vertical one scrolls, and the words are not selected by a drag. */
+.pt-box { touch-action: pan-y; cursor: crosshair; -webkit-user-select: none; user-select: none; }

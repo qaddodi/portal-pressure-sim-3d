@@ -11,11 +11,14 @@ import { useParamsTick } from '../../action/params.ts';
 import { SWEEPS, LABEL, NO_WAIST, WORKING, SETTLE_MS, curveToolOf, sweepMatters } from './copied/curves-parts.copied.js';
 import { liveParams, paramsId, ringFp, sweepKey } from './curves-model.ts';
 import type { StentId } from './store.ts';
+import { useCv } from '../Cv.tsx';
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const NOTE = `Solid: the stent in this patient, each point settled. Dashed: the same shunt on a bench (the stent with its tract into the veins), with a fixed ${BENCH_DP} mmHg from its portal end to its hepatic end and no circulation to answer. The lines are worked out for the patient as they stand when this view opens, and again when the patient, the stent or the day changes; the dashed line stands at the stent as it is now, and moves as you edit it.`;
 
-export function CurvesView({ which, h }: { which: StentId; h: number }) {
+export function CurvesView({ which, h: h0 }: { which: StentId; h: number }) {
+  // the chart takes the height the 2D stylesheet leaves it (.ir-chart: what is left of the card, 150 px at least), read by an observer
+  const box = useCv(h0), h = box.h;
   const [sweep, setSweep] = useState<string>('diameter');
   useParamsTick((s) => s.tick);
   const k = which === 'DIPS' ? 'dips' : 'tips';
@@ -62,7 +65,7 @@ export function CurvesView({ which, h }: { which: StentId; h: number }) {
       <div className="pressure-switch ir-sweep" role="group" aria-label="Setting to vary">
         {(SWEEPS as string[]).map((s) => <button key={s} type="button" className="ps-btn" data-sweep={s} aria-pressed={s === sweep} onClick={() => setSweep(s)}>{(LABEL as Record<string, string>)[s]}</button>)}
       </div>
-      <div className="ir-chart"><CurveCard tool={tool} slide={slide} live={live} id={drawn?.id} run={run} height={h} /></div>
+      <div className="ir-chart" ref={box.ref}><CurveCard tool={tool} slide={slide} live={live} id={drawn?.id} run={run} height={h} /></div>
       <p className="ctl-sub ir-note ir-work" aria-live="polite">{WORKING}</p>
       <p className="ctl-sub ir-note ir-warn">{NO_WAIST}</p>
       <p className="ctl-sub ir-note">{NOTE}</p>

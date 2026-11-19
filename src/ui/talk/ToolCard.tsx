@@ -50,7 +50,7 @@ import { startFeed } from '../tests/feed.ts';
 import { useTests } from '../tests/store.ts';
 import { setDopplerProbe, useDopplerProbe } from '../tests/doppler/probe-state.ts';
 import '../tests/tests.css';
-import '../tests/abdomen/abdomen.css';
+import { PaneHost } from '../tests/Cv.tsx';
 const DopplerPane = lazy(() => import('../tests/doppler/DopplerPane.tsx').then((m) => ({ default: m.DopplerPane })));
 const FibroPane = lazy(() => import('../tests/fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
 const EndoPane = lazy(() => import('../tests/endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));
@@ -149,9 +149,9 @@ function Instrument({ kind, tool }: { kind: string; tool: Rec }) {
   const p = { narrow: w < 470, plot, square: plot, roomy: false };
   return (
     <div className="dock-pane-host" data-instrument={kind}>
-      <Suspense fallback={null}>
+      <PaneHost.Provider value="slide"><Suspense fallback={null}>
         {kind === 'doppler' ? <DopplerPane {...p} options={tool} /> : kind === 'fibroscan' ? <FibroPane {...p} /> : kind === 'hvpg' ? <IrPane {...p} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} options={tool} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : <ReadoutsPane narrow={p.narrow} />}
-      </Suspense>
+      </Suspense></PaneHost.Provider>
     </div>
   );
 }

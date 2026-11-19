@@ -1,9 +1,7 @@
 // Wall mechanics, the Endoscopy tab's second view (2D instruments.js createVarixWall): a cross-section of the esophagus with the varix in its wall, and Laplace's law as readings in the
 // same tiles and meter as the scope view. The picture is a frame on the charts' shared GPU drawer (wall.ts, laid out by the 2D wall-geometry.js by the names' ink); the tiles are the 2D markup,
-// styled by its rules (wall.copied.css). It follows the model: each frame of the engine draws the picture again where a number moved, and a tile's words change only when they print differently.
+// styled by the 2D stylesheet's own rules (the view is 2D's `.instrument-view.wall-view` in the Endoscopy pane). It follows the model: each frame of the engine draws the picture again where a number moved, and a tile's words change only when they print differently.
 import { useEffect, useMemo, useRef } from 'react';
-import './endo.css';
-import './wall.copied.css';
 import { latest, onFrame, useEngine } from '../../../engine/index.ts';
 import { NODES } from '../../../engine/hales/portal/topology.js';
 import { Chart, useLookId, type ChartCtx } from '../../charts/Chart.tsx';
@@ -12,6 +10,7 @@ import type { Frame } from '../../charts/scene.ts';
 import { ENDO_WORDS } from '../copied/endo-words.copied.js';
 import { createWallGeometry } from '../copied/wall-geometry.copied.js';
 import { metricsOf } from '../frame.ts';
+import { Cv, useCv, usePaneHost } from '../Cv.tsx';
 import { wallFontSize, wallFrame, wallReadings, wallShare, WALL_NOTE, type WallVarix } from './wall.ts';
 
 const W = ENDO_WORDS.wall;
@@ -28,6 +27,7 @@ export function WallView({ square }: { square: number }) {
   const painter = useRef<ChartPainter | null>(null), ctx = useRef<ChartCtx | null>(null);
   const geom = useRef(createWallGeometry()), key = useRef('');
   const look = useLookId();
+  const cv = useCv(square), host = usePaneHost(), side = cv.measured && cv.w > 0 ? Math.min(cv.w, cv.h) : 0;
 
   const frameNow = (c: ChartCtx, force: boolean): Frame | null => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -43,14 +43,19 @@ export function WallView({ square }: { square: number }) {
   useEffect(() => { key.current = ''; }, [look, square]);
 
   return (
-    <div className="en-view en-wall" data-view="wall">
-      <div className="endo-stage en-stage">
-        <div className="en-pic" style={{ ['--en-sq' as string]: `${square}px` }}>
-          <Chart tag="endo-wall" painter={painter} deps={[square, look]} label={W.aria} glide={false} build={(c) => { ctx.current = c; return frameNow(c, true) ?? { ...none, w: c.w, h: c.w }; }} />
+    <div className={`${host.view} wall-view`} data-pane="varixwall">
+      <div className="endo-stage">
+        <div className="chart-box square wall-box" style={host.slide ? { width: square, height: square } : undefined}>
+          <Cv at={cv.ref}>
+            {/* (the picture is a square; 2D's box may be wider than tall, or 16 px taller than wide: the square stands in its middle) */}
+            <div style={side ? { position: 'absolute', left: Math.round((cv.w - side) / 2), top: Math.round((cv.h - side) / 2), width: side, height: side } : undefined}>
+              <Chart tag="endo-wall" painter={painter} deps={[square, look]} label={W.aria} glide={false} build={(c) => { ctx.current = c; return frameNow(c, true) ?? { ...none, w: c.w, h: c.w }; }} />
+            </div>
+          </Cv>
         </div>
         <span className="endo-pos"><span className="wall-cap">{W.cap}</span>{W.formula}</span>
       </div>
-      <div className="en-side chart-side">
+      <div className="chart-side">
         <dl className="endo-read">
           <div className="endo-g wall-law"><dt>{W.lawName}</dt><dd className="wall-formula">{W.formula}</dd></div>
           <div className="endo-stress">

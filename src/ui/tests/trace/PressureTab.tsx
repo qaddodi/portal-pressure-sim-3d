@@ -17,13 +17,14 @@ function View({ id, p }: { id: PaneId; p: PaneProps }) {
 
 export function PressureTab({ own, ...p }: PaneProps & { own: PaneId }) {
   const show = useTests((s) => s.show);
-  if (p.roomy) return <div className="pt-stack"><View id="profile" p={p} /><View id="scope" p={p} /></div>;
+  if (p.roomy) return <><View id="profile" p={p} /><View id="scope" p={p} /></>;
+  // 2D's own markup (dock.js pressureSwitch: the switch is the pane's first child, its view the next), so the 2D stylesheet's rules for a pane's view reach the view
   return (
-    <div className="pt-tab">
+    <>
       <div className="pressure-switch" role="group" aria-label="Pressure view">
         {PRESSURE_VIEWS.map(([id, label]) => <button key={id} type="button" className="ps-btn" data-view={id} aria-pressed={id === own} onClick={() => { if (id !== own) show(id); }}>{label}</button>)}
       </div>
       <View id={own} p={p} />
-    </div>
+    </>
   );
 }

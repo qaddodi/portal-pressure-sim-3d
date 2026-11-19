@@ -1,8 +1,7 @@
 // Tests > Endoscopy (2D instruments.js createEndoscopy, dock.js): the endoscopic view of the distal esophagus: the varices as the model has them (size, red wale and cherry-red marks, the bleed),
 // the bands placed and the Band (EVL) button, five readings (bands placed, grade, diameter, wall thickness, stigmata), EUS-PPG (EusPpg.tsx), and Wall mechanics as the second view (WallView.tsx).
 // The picture is a frame on the charts' shared GPU drawer (frame.ts, built from the 2D shader's own columns); it eases as the 2D scope does (motion.ts) on the one clock.
-import { useEffect, useMemo, useRef } from 'react';
-import './endo.css';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { clock } from '../../../clock/frame.ts';
 import { latest, onFrame, useEngine } from '../../../engine/index.ts';
 import { Chart, useLookId, type ChartCtx } from '../../charts/Chart.tsx';
@@ -18,7 +17,8 @@ import { metricsOf } from '../frame.ts';
 import type { PaneProps } from '../TestsLayer.tsx';
 import { FieldMotion, OverlayMotion, type ScopeIn } from './motion.ts';
 import { scopeFrame, type OverlayState } from './frame.ts';
-import { EusButton, EusPanel, useEusReset } from './EusPpg.tsx';
+import { EusPpg, useEusReset } from './EusPpg.tsx';
+import { Cv, useCv, usePaneHost } from '../Cv.tsx';
 import { WallView } from './WallView.tsx';
 import { useScope } from './scope-state.ts';
 import { readingsOf, scopeOptions, type EndoOpt } from './readings.ts';
@@ -36,7 +36,7 @@ function ScopeView({ square, opt }: { square: number; opt: EndoOpt }) {
   const look = useLookId();
   const dirty = useRef(true), hold = useRef<{ release(): void } | null>(null), key = useRef('');
   const preset = useEngine((s) => s.presetId);
-  const eus = useScope((s) => s.eus);
+  const cv = useCv(square), host = usePaneHost();
   useEusReset(preset);
 
   const build = (c: ChartCtx) => {
@@ -75,15 +75,16 @@ function ScopeView({ square, opt }: { square: number; opt: EndoOpt }) {
   const pal = paletteOf(look);
   void pal;
   return (
-    <div className="en-view" data-view="scope" data-eus={eus}>
-      <div className="endo-stage en-stage">
-        <div className="en-pic" style={{ ['--en-sq' as string]: `${square}px` }}>
-          <Chart tag="endo-scope" painter={painter} deps={[square, look]} label={r?.label ?? W.viewAria} build={(c) => { ctx.current = c; return build(c); }} />
+    <div className={host.view} data-pane="endoscopy">
+      <div className="endo-stage">
+        <div className="chart-box square" style={host.slide ? { width: square, height: square } : undefined}>
+          <Cv at={cv.ref}>
+            <Chart tag="endo-scope" painter={painter} deps={[square, look]} label={r?.label ?? W.viewAria} build={(c) => { ctx.current = c; return build(c); }} />
+          </Cv>
         </div>
         <span className="endo-pos">{W.position}</span>
-        <EusPanel width={square} />
       </div>
-      <div className="en-side chart-side">
+      <div className="chart-side">
         {r && (
           <dl className="endo-read">
             <div className="endo-chip" data-on={r.bands !== 0}><dt>{W.tiles.bands}<span className="endo-dt-x">{W.tiles.bandsX}</span></dt><dd className="endo-chip-v">{r.bands}</dd></div>
@@ -94,10 +95,10 @@ function ScopeView({ square, opt }: { square: number; opt: EndoOpt }) {
             <div className="endo-chip endo-red" data-on={r.redOn} title={W.redTip}><dt>{W.tiles.stigmata}</dt><dd className="endo-chip-v" data-long={r.redOn ? '' : undefined}><span>{r.redOn ? W.red.word : W.red.none}</span><span className="endo-more">{r.redOn ? W.red.more : ''}</span></dd></div>
           </dl>
         )}
-        <button type="button" className="btn primary en-band" disabled={!present} title={present ? '' : W.noBand} onClick={() => { useScope.getState().band(); appEnv.action({ kind: 'band' }); }}>
+        <button type="button" className="btn primary" disabled={!present} title={present ? '' : W.noBand} onClick={() => { useScope.getState().band(); appEnv.action({ kind: 'band' }); }}>
           <OrderIcon n="band" className="ac-ic" />{procLabel('band')}
         </button>
-        <EusButton />
+        <EusPpg width={square} />
       </div>
     </div>
   );
@@ -110,14 +111,25 @@ export function EndoPane({ square, options }: PaneProps & { /** a slide's own op
   const opt = useMemo(() => ({ air, red, readings }), [air, red, readings]);
   useEffect(() => { useScope.getState().setActive(true); return () => useScope.getState().setActive(false); }, []);
   const sq = Math.max(150, Math.round(square));
+  // 2D's own markup (instruments.js createEndoscopy, createVarixWall; dock.js puts the view switch, the pane's own row, above the views and writes the open view on the pane as data-sub, which the 2D
+  // stylesheet shows one view by). The pane is the Tests card's own element, so its data-sub is written on it here, before the paint, and taken off when the tab is left.
+  const host = usePaneHost(), slide = host.slide;
+  useLayoutEffect(() => {
+    const pane = slide ? null : document.getElementById('pane-endoscopy');   // (the tab's panel: the id is 2D's own, dock.js `'pane-' + id`)
+    if (!pane) return;
+    pane.dataset.sub = view;
+    return () => { delete pane.dataset.sub; };
+  }, [view, slide]);
   return (
-    <div className="en" data-pane="endoscopy" data-sub={view}>
-      <div className="pressure-switch t-seg" role="group" aria-label={W.switchAria}>
-        {(W.views as [string, string][]).map(([id, label]) => (
-          <button key={id} type="button" className="ps-btn" data-view={id} aria-pressed={view === id} onClick={() => useScope.getState().setView(id as 'scope' | 'wall')}>{label}</button>
-        ))}
-      </div>
-      {view === 'scope' ? <ScopeView square={sq} opt={opt} /> : <WallView square={sq} />}
-    </div>
+    <>
+      {!host.slide && (
+        <div className="pressure-switch" role="group" aria-label={W.switchAria}>
+          {(W.views as [string, string][]).map(([id, label]) => (
+            <button key={id} type="button" className="ps-btn" data-view={id} aria-pressed={view === id} onClick={() => useScope.getState().setView(id as 'scope' | 'wall')}>{label}</button>
+          ))}
+        </div>
+      )}
+      {view === 'scope' ? <ScopeView key="scope" square={sq} opt={opt} /> : <WallView key="wall" square={sq} />}
+    </>
   );
 }

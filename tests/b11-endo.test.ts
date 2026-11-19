@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { FieldMotion, OverlayMotion, type ScopeIn } from '../src/ui/tests/endo/motion.ts';
 import { scopeFrame } from '../src/ui/tests/endo/frame.ts';
 import { bleedShapes } from '../src/ui/tests/endo/bleed.ts';
@@ -91,12 +91,14 @@ test('Wall mechanics is built: the stub is gone and its layout, words and rules 
   const view = readFileSync(new URL('../src/ui/tests/endo/WallView.tsx', import.meta.url), 'utf8');
   assert.doesNotMatch(view, /not in the 3D app yet/);
   const copy = readFileSync(new URL('../scripts/copy-b11-endo.mjs', import.meta.url), 'utf8');
-  for (const f of ['wall-geometry.copied.js', 'wall.copied.css']) assert.ok(copy.includes(f), `the copy script makes ${f}`);
+  assert.ok(copy.includes('wall-geometry.copied.js'), 'the copy script makes wall-geometry.copied.js');
   assert.equal(readFileSync(new URL('../src/ui/tests/copied/wall-geometry.copied.js', import.meta.url), 'utf8').includes("from './num.copied.js'"), true);
   assert.deepEqual([...WALL_NAMES], ['r', 'σ', 'w', 'lumen', 'muscle']);
-  const css = readFileSync(new URL('../src/ui/tests/endo/wall.copied.css', import.meta.url), 'utf8');
-  assert.doesNotMatch(css, /instrument-workspace/);
-  assert.match(css, /\.en-wall \.endo-read > div/);
+  // the tiles' rules are the 2D stylesheet's own, reached by 2D's own markup: no re-scoped copy, no class of ours
+  assert.ok(!existsSync(new URL('../src/ui/tests/endo/wall.copied.css', import.meta.url)), 'the re-scoped copy of the tiles\' rules is gone');
+  assert.match(view, /className=\{`\$\{host\.view\} wall-view`\} data-pane="varixwall"/);
+  assert.match(view, /chart-box square wall-box/);
+  assert.doesNotMatch(view, /en-wall|en-view|en-stage|en-pic|en-side/);
 });
 
 test('the names are set by their ink: the glyph atlas gives a word its own box', () => {

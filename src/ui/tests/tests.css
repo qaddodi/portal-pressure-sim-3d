@@ -27,6 +27,3 @@
 .t-note { margin: 12px 0; color: var(--text-2); font: 500 var(--t-sm, 13px) / 1.4 var(--ui); }
 .t-pane { animation: t-pane 220ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 @keyframes t-pane { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.t-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; border: 1px solid var(--edge); background: var(--surface); margin-bottom: 10px; }
-.t-seg button { border: 0; border-radius: 999px; padding: 6px 14px; background: transparent; color: var(--text-2); font: 600 var(--t-sm, 13px) / 1 var(--ui); }
-.t-seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); }

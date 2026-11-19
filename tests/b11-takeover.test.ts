@@ -33,7 +33,10 @@ test('the EUS-PPG and the PPG by IR use the 2D takeover, not a clock of their ow
   const eus = readFileSync(new URL('../src/ui/tests/endo/eus-run.ts', import.meta.url), 'utf8'), ir = readFileSync(new URL('../src/ui/tests/ir/run.ts', import.meta.url), 'utf8');
   for (const src of [eus, ir]) { assert.match(src, /createTakeover/); assert.doesNotMatch(src, /\bHOLD_MS\s*=|setTimeout/); }
   const pane = readFileSync(new URL('../src/ui/tests/endo/EndoPane.tsx', import.meta.url), 'utf8');
-  assert.match(pane, /<EusPanel/); assert.match(pane, /data-eus=\{eus\}/);
+  // the panel is inside 2D's own .eus-ppg, whose data-state (the takeover's phase) the 2D stylesheet lays the panel over the picture by (scope-card.css)
+  assert.match(pane, /<EusPpg /);
+  const eusView = readFileSync(new URL('../src/ui/tests/endo/EusPpg.tsx', import.meta.url), 'utf8');
+  assert.match(eusView, /className="eus-ppg" data-eus="" data-state=\{phase\}/); assert.match(eusView, /className="eus-panel"/);
   assert.match(readFileSync(new URL('../src/ui/tests/ir/IrPane.tsx', import.meta.url), 'utf8'), /<HandOver/);
 });
 

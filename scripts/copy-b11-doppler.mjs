@@ -129,7 +129,7 @@ put('doppler-gl.copied.js', HEAD('doppler-gl.js, the display pass FS') + [
 // ── the Tests card's Doppler rules: 2D's `.instrument-workspace` rules for the report, the tiles, the usual-range gauge and the switches, re-scoped to the 3D Tests card ──
 // (2D scopes the dock card's look to `.instrument-workspace` (and `.float-ui`); the 3D card is `.t-card`, so each such selector is rewritten with the same number of classes, which keeps the
 // rules' order of strength: `.instrument-workspace.float-ui` becomes `.t-card.t-card`. Layout of the dock (the side card, the phone's sheet, the presenter's cards, the box's size) is left out:
-// the Tests card lays the monitor out itself, doppler.css. The rules that are not scoped to the dock apply as they stand, from the 2D stylesheets loaded whole.)
+// the dock's own rules reach the pane as they stand now that the Tests card is 2D's .instrument-workspace and its view 2D's .instrument-view. The rules that are not scoped to the dock apply as they stand, from the 2D stylesheets loaded whole.)
 const KEEP_TOK = /\.dop-(modes|mode-opt|btns|inv|tint|stats|speed|range|track|band|mark|ticks|vel|dir|pattern|seg|g-)|\.dop-report \.dop-stats|\.instrument-view\.dop \.dop-stats/;
 const DROP_TOK = /\.side\b|#app|\.pz|thumb|\.sheet|\.has-tool|data-kind|presenting|dock-pane|panel-open|instrument-focus|\.dop-box|\.dop-main|\.dop-head|\.dop-vessel|\.dop-sweep|\.dop-note|\.nat\b/;
 function splitTop(sel, ch) { const out = []; let d = 0, a = 0; for (let i = 0; i < sel.length; i++) { const c = sel[i]; if (c === '(' || c === '[') d++; else if (c === ')' || c === ']') d--; else if (c === ch && d === 0) { out.push(sel.slice(a, i)); a = i + 1; } } out.push(sel.slice(a)); return out.map((x) => x.trim()).filter(Boolean); }

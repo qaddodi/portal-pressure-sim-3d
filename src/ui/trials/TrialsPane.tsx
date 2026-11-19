@@ -63,14 +63,16 @@ export function TrialsPane() {
   const toggle = (k: FoldKey) => setFolds((f) => ({ ...f, [k]: !f[k] }));
   const nearIds = sections.closest.map((p) => p.t.id);
   return (
-    <div className="tr-pane" data-mode={mode}>
-      <div className="tr-sw" role="group" aria-label="Trials view">
-        {(['list', 'forest'] as const).map((v) => <button key={v} type="button" aria-pressed={mode === v} onClick={() => setMode(v)}>{v === 'list' ? 'List' : 'Forest'}</button>)}
+    <div className="instrument-view trials-view" data-pane="trials" data-mode={mode}>
+      {/* 2D's own mount (trials-pane.js createTrialsPane): the view, its List | Forest switch (the control Pressure and Scope use), the head, and the body that holds the one shown */}
+      <div className="pressure-switch" role="group" aria-label="Trials view">
+        {(['list', 'forest'] as const).map((v) => <button key={v} type="button" className="ps-btn" data-view={v} aria-pressed={mode === v} onClick={() => setMode(v)}>{v === 'list' ? 'List' : 'Forest'}</button>)}
       </div>
       <div className="tr-hd">
         <div className="tr-t">Trials for this patient</div>
         <div className="tr-s">{[facts.hvpg == null ? (facts.blocked ? 'HVPG not measurable' : '') : `HVPG ${facts.hvpg.toFixed(1)} mmHg`, facts.varix, facts.ascites].filter(Boolean).join(' · ')}</div>
       </div>
+      <div className="tr-body">
       {mode === 'forest' ? (
         <div className="tr-forest"><ForestCard ids={TRIAL_IDS} highlight={nearIds} selected={openId} onSelect={(id) => { setOpenId(id); setMode('list'); }} /></div>
       ) : (
@@ -107,6 +109,7 @@ export function TrialsPane() {
           {Object.keys(TRIALS).length === 0 && <p className="tr-none">No trials.</p>}
         </div>
       )}
+      </div>
     </div>
   );
 }

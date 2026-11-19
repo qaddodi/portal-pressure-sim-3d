@@ -15,6 +15,7 @@ import { itemsOf, newLock, profileFrame, type ProfileInput } from './model.ts';
 import type { PaneProps } from '../TestsLayer.tsx';
 import { metricsOf } from '../frame.ts';
 import { hiddenNow, useHidden } from '../hidden.ts';
+import { Cv, useCv, usePaneHost } from '../Cv.tsx';
 
 type M = Record<string, number | undefined>;
 
@@ -34,7 +35,8 @@ const keyOf = (i: ProfileInput): string => {
 };
 
 export function ProfilePane({ plot }: PaneProps) {
-  const h = Math.max(150, Math.round(plot));
+  // the chart takes the height the 2D stylesheet gives its box (.dock-pane[data-pane="profile"] .chart-box), read by an observer (Cv.tsx)
+  const h0 = Math.max(150, Math.round(plot)), cv = useCv(h0), h = cv.h, host = usePaneHost();
   const painter = useRef<ChartPainter | null>(null), ctx = useRef<ChartCtx | null>(null);
   const lock = useRef(newLock());
   const last = useRef('');
@@ -71,9 +73,9 @@ export function ProfilePane({ plot }: PaneProps) {
 
   const aria = label || 'Pressure profile along the selected path';
   return (
-    <div className="dock-pane" data-pane="profile" style={{ position: 'relative', inset: 'auto', display: 'flex', flexDirection: 'column', gap: 12, padding: 0, overflow: 'visible' }}>
-      <div className="chart-box" style={{ height: h }}>
-        <Chart tag="profile" painter={painter} deps={[h, snap]} label={aria}
+    <div className={host.view} data-pane="profile">
+      <div className="chart-box" style={host.box(h0)}>
+        <Cv at={cv.ref}><Chart tag="profile" painter={painter} deps={[h, snap]} label={aria}
           build={(c) => {
             ctx.current = c;
             const inp = inputOf();
@@ -81,7 +83,7 @@ export function ProfilePane({ plot }: PaneProps) {
             const out = profileFrame(inp, { w: c.w, h, pal: c.pal }, lock.current);
             out.frame.label = aria; last.current = keyOf(inp);
             return out.frame;
-          }} />
+          }} /></Cv>
       </div>
       <div className="chart-side">
         <div className="legend-inline">

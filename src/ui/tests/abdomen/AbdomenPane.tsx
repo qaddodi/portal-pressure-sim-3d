@@ -1,6 +1,8 @@
-// Tests > Ascites and paracentesis (2D instruments.js createAbdomen). What you read first, flat and unpressable: the belly with the litres, its grade and the daily balance, the pressure dial
-// beside it, the drain on its other side, the abdominal pressure as a slim bar, and the tap's three numbers; then what you change: serum albumin and diuretics, in the app's control words.
+// Tests > Ascites and paracentesis (2D instruments.js createAbdomen). What you read first, flat and unpressable: the belly with the litres, its grade and the daily balance (2D's own element, filled by the stylesheet), the pressure dial
+// beside it (a chart frame), the drain on its other side, the abdominal pressure as a slim bar, and the tap's three numbers; then what you change: serum albumin and diuretics, in the app's control words.
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { I } from '../../shell/icons.tsx';
+import { usePaneHost } from '../Cv.tsx';
 import { clock } from '../../../clock/frame.ts';
 import { latest, useEngine } from '../../../engine/index.ts';
 import { Chart, type ChartCtx, useLookId } from '../../charts/Chart.tsx';
@@ -10,7 +12,7 @@ import { updateParams } from '../../action/params.ts';
 import { appEnv } from '../../treat/env.ts';
 import { balanceHold } from '../copied/balance-hold.copied.js';
 import { metricsOf, paramsNow } from '../frame.ts';
-import { abView, bellyFrame, dialFrame, bellyW, dialW, WORDS, albuminTip, albuminText, IAP_MAX, type AbView } from './model.ts';
+import { abView, dialFrame, riseTxt, slideTxt, RATE_ARROW, WORDS, albuminTip, albuminText, IAP_MAX, type AbView } from './model.ts';
 
 const hold = balanceHold();
 let held: number | null = null;
@@ -21,38 +23,30 @@ function viewNow(): AbView | null {
   return abView(metricsOf(latest.frame), paramsNow(), hold.shown ?? held);
 }
 
-function Stepper({ label, unit, value, min, max, step, dp, onSet, cls = '' }: { label: string; unit: string; value: number; min: number; max: number; step: number; dp: number; onSet(v: number): void; cls?: string }) {
+/** 2D's stepper (instruments.js stepper, and the litres to drain): − value +, the value between the buttons. `less` and `more` are the buttons' names. */
+function Stepper({ label, less, more, unit, value, min, max, step, dp, onSet, cls = '', live = false }: { label: string; less: string; more: string; unit: string; value: number; min: number; max: number; step: number; dp: number; onSet(v: number): void; cls?: string; live?: boolean }) {
   const go = (d: number) => onSet(+Math.min(max, Math.max(min, value + d)).toFixed(dp));
   return (
-    <div className={`ab-dp-vol ${cls}`} role="group" aria-label={label}>
-      <button type="button" className="ab-dp-sb" aria-label={`${label}: less`} disabled={value <= min} onClick={() => go(-step)}>−</button>
-      <output className="ab-dp-l" aria-live="polite"><span className="ab-dp-n">{fmt(value, dp)}</span><small>{unit}</small></output>
-      <button type="button" className="ab-dp-sb" aria-label={`${label}: more`} disabled={value >= max} onClick={() => go(step)}>+</button>
+    <div className={`ab-dp-vol${cls ? ` ${cls}` : ''}`} role="group" aria-label={label}>
+      <button type="button" className="ab-dp-sb" aria-label={less} disabled={value <= min} onClick={() => go(-step)}>−</button>
+      <output className="ab-dp-l" aria-live={live ? 'polite' : undefined}><span className="ab-dp-n">{fmt(value, dp)}</span><small>{unit}</small></output>
+      <button type="button" className="ab-dp-sb" aria-label={more} disabled={value >= max} onClick={() => go(step)}>+</button>
     </div>
   );
 }
 
 export function AbdomenPane({ square }: { square?: number }) {
-  void square;
   const json = useEngine((s) => { void s.frames; return JSON.stringify(viewNow()); });
   const v = useMemo(() => (json ? JSON.parse(json) as AbView : null), [json]);
-  const root = useRef<HTMLDivElement>(null);
-  const [cardW, setCardW] = useState(360);
-  useEffect(() => {
-    const el = root.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => setCardW(Math.round(el.getBoundingClientRect().width)));
-    ro.observe(el); setCardW(Math.round(el.getBoundingClientRect().width));
-    return () => ro.disconnect();
-  }, []);
   const [L, setL] = useState(5);
   const [alb, setAlb] = useState(true);
   const warn = L > 5 && !alb;
-  const bw = bellyW(cardW), dw = dialW(bw);
-  const bellyPainter = useRef<ChartPainter | null>(null), dialPainter = useRef<ChartPainter | null>(null);
+  const dialPainter = useRef<ChartPainter | null>(null);
   const dialCtx = useRef<ChartCtx | null>(null);
   const knob = useRef<{ shown: number; goal: number }>({ shown: NaN, goal: 0 });
-  const pal = useLookId();
+  const pal = useLookId(), host = usePaneHost();
+  // the dial is one drawing in a 76 × 128 box (2D iapDial), as wide as the 2D stylesheet makes its box (--ab-dw)
+  const dial = (c: ChartCtx, iap: number, shown: number) => dialFrame(iap, shown, c.w, Math.round(c.w * 128 / 76), c.pal);
 
   // the knob eases round the ring to the reading (2D knobStep: D_SURFACE on the arrive curve); a still dial costs nothing
   const goal = v ? Math.min(Math.max(0, Math.round(v.iap) || 0), IAP_MAX) : 0;
@@ -61,7 +55,7 @@ export function AbdomenPane({ square }: { square?: number }) {
     k.goal = goal;
     if (!Number.isFinite(k.shown)) k.shown = goal;
     const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const draw = () => { const c = dialCtx.current; if (c && v) dialPainter.current?.show(dialFrame(v.iap, k.shown, dw, bw, c.pal), false); };
+    const draw = () => { const c = dialCtx.current; if (c && v) dialPainter.current?.show(dial(c, v.iap, k.shown), false); };
     if (reduce || Math.abs(k.goal - k.shown) < 0.01) { k.shown = goal; draw(); return; }
     const h = clock.hold('ab-dial');
     const off = clock.on('tween', (f) => {
@@ -71,37 +65,47 @@ export function AbdomenPane({ square }: { square?: number }) {
       if (k.shown === k.goal) { off(); h.release(); }
     });
     return () => { off(); h.release(); };
-  }, [goal, dw, bw, pal]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [goal, pal]);   // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!v) return <p className="t-note">The model is not running yet.</p>;
+  if (!v) return <p className="ctl-sub">The model is not running yet.</p>;
   const fluid = v.fluid;
+  // (A slide's card has no 2D wrapper yet, so its belly keeps the size it is handed; in the Tests card the 2D stylesheet sizes it.)
+  // 2D's own markup (instruments.js createAbdomen), laid out and dressed by the 2D stylesheet (.instrument-view.ab: the belly between the dial and the drain, the tap's tiles, then the two rows; two
+  // columns on a wide sheet). The belly is 2D's element: the fluid rises by sliding up inside it (translate, whole percents), the litres, the grade and the daily balance written in it.
   return (
-    <div className="ab" data-pane="abdomen" ref={root}>
+    <div className={`ab ${host.view}`} data-pane="abdomen" data-belly="84">
       <div className="ab-main">
         <div className="ab-read">
-          <div className="ab-vol" style={{ ['--ab-bw' as string]: `${bw}px` }}>
-            <div className="ab-dial-box" style={{ width: dw }} title={WORDS.dialTip}>
-              <Chart tag="ab-dial" painter={dialPainter} deps={[bw, dw, json]} label={`Intra-abdominal pressure ${Math.round(v.iap)} mmHg`}
-                build={(c) => { dialCtx.current = c; return dialFrame(v.iap, Number.isFinite(knob.current.shown) ? knob.current.shown : v.iap, dw, bw, c.pal); }} />
-            </div>
-            <div className="ab-gauge" title={v.gradeTip} data-sev={v.sev}>
-              <Chart tag="ab-belly" painter={bellyPainter} deps={[bw, json]} label={`Ascites ${v.num} litres, ${v.grade}`} build={(c) => bellyFrame(v, bw, c.pal)} />
+          <div className="ab-vol">
+            <div className="ab-vol-l"><div className="ab-trend">{v.trend}</div></div>
+            <div className="ab-gauge">
+              <div className="ab-belly" style={host.slide && square ? { width: square, height: square } : undefined}>
+                <i className="ab-belly-fill" style={{ translate: riseTxt(v.fill) }} />
+                <div className="ab-big">
+                  <b data-sev={v.sev}><span>{v.num}</span><small>L</small></b>
+                  <span className="ab-grade" data-sev={v.sev} title={v.gradeTip}>{v.grade}</span>
+                  <span className="ab-rate" data-dir={v.rateDir}><i className="ab-rate-a" aria-hidden="true">{v.rate ? RATE_ARROW[v.rateDir] : ''}</i><span>{v.rate}</span></span>
+                </div>
+              </div>
+              <div className="ab-dial-box svg-gl-box" title={WORDS.dialTip}>
+                <Chart tag="ab-dial" painter={dialPainter} deps={[json]} label={`Intra-abdominal pressure ${Math.round(v.iap)} mmHg`}
+                  build={(c) => { dialCtx.current = c; return dial(c, v.iap, Number.isFinite(knob.current.shown) ? knob.current.shown : v.iap); }} />
+              </div>
             </div>
             <div className="ab-dp" role="group" aria-label={WORDS.paracentesis}>
               <div className="ab-dp-k">{WORDS.drain}</div>
-              <Stepper label={WORDS.volumeToDrain} unit="L" value={L} min={1} max={10} step={0.5} dp={1} onSet={setL} />
-              <button type="button" className="ab-dp-alb" role="switch" aria-checked={alb} data-warn={warn || undefined} title={albuminTip(L, warn)} onClick={() => setAlb(!alb)}>
-                <span className="ab-dp-at"><b>{WORDS.albumin}</b><small>{albuminText(L, alb)}</small></span>
+              <Stepper label={WORDS.volumeToDrain} less={WORDS.decrease} more={WORDS.increase} unit="L" value={L} min={1} max={10} step={0.5} dp={1} onSet={setL} live />
+              <button type="button" className={`ab-dp-alb${warn ? ' ab-warn' : ''}`} role="switch" aria-checked={alb} title={albuminTip(L, warn)} onClick={() => setAlb(!alb)}>
+                <span className="ab-dp-at"><b>{WORDS.albumin}</b><small className={warn ? 'ab-warn' : undefined}>{albuminText(L, alb)}</small></span>
                 <span className="switch-vis" aria-hidden="true"><i /></span>
               </button>
               <button type="button" className="ab-drain" disabled={!fluid} onClick={() => appEnv.action({ kind: 'paracentesis', mL: L * 1000, albumin: alb })}>{fluid ? WORDS.drain : WORDS.noAscites}</button>
             </div>
           </div>
-          <div className="ab-trend" aria-live="off">{v.trend}</div>
           <div className="ab-iap">
             <div className="ab-kv"><span>{WORDS.iapKey}</span><span className="ab-v"><b>{v.iapNum}</b><span className="ab-w" data-sev={v.iapSev}>{v.iapWord}</span></span></div>
             <div className="ab-iap-bar" role="img" title={WORDS.iapTip} aria-label={`${WORDS.iapKey} ${v.iapNum}`}>
-              <i className="ab-iap-fill" data-sev={v.iapSev} style={{ transform: `scaleX(${v.iapFill})` }} />
+              <i className="ab-iap-fill" data-sev={v.iapSev} style={{ translate: slideTxt(v.iapFill) }} />
               <i className="ab-iap-mark" style={{ left: '40%' }} /><i className="ab-iap-mark" style={{ left: '66.7%' }} />
             </div>
           </div>
@@ -114,10 +118,12 @@ export function AbdomenPane({ square }: { square?: number }) {
         </div>
         <div className="ab-ctl">
           <div className="ab-row">
+            <I n="drop" />
             <span className="ab-txt"><b>{WORDS.serumAlbumin}</b></span>
-            <span className="ab-end">{v.serum != null && <Stepper label={WORDS.serumAlbumin} unit="g/dL" value={v.serum} min={1.5} max={5} step={0.1} dp={1} cls="ab-sa" onSet={(x) => updateParams((p) => { p.albumin = x; return p; }, { label: WORDS.serumAlbumin })} />}</span>
+            <span className="ab-end">{v.serum != null && <Stepper label={WORDS.serumAlbumin} less={`${WORDS.serumAlbumin}: less`} more={`${WORDS.serumAlbumin}: more`} unit="g/dL" value={v.serum} min={1.5} max={5} step={0.1} dp={1} cls="ab-sa" onSet={(x) => updateParams((p) => { p.albumin = x; return p; }, { label: WORDS.serumAlbumin })} />}</span>
           </div>
           <button type="button" className="ab-row ab-tg" role="switch" aria-checked={v.diuretics} title={WORDS.diureticsTip} onClick={() => updateParams((p) => { p.diuretics = !p.diuretics; return p; }, { label: WORDS.diuretics })}>
+            <I n="pill" />
             <span className="ab-txt"><b>{WORDS.diuretics}</b><small>{WORDS.diureticsSub}</small></span>
             <span className="switch-vis" aria-hidden="true"><i /></span>
           </button>
