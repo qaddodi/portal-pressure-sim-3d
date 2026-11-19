@@ -150,10 +150,9 @@ test('the wash overlay is hidden until the wash runs, grows its front with the t
 test('every part of both views exists as a named, placeholder part, ready for the artist to swap in', () => {
   const l = new LobuleView(createShared()), s = new SinusoidView(createShared());
   assert.deepEqual([...l.set.parts.keys()], [...LOBULE_PARTS]);
-  assert.deepEqual([...s.set.parts.keys()], [...SINUSOID_PARTS]);
+  assert.deepEqual([...s.set.parts.keys()], [...SINUSOID_PARTS]);   // (the sinusoid is one drawn shader on a plane, in its first part: tests/scene-sinusoid-lift.test.ts)
   assert.deepEqual(l.set.remaining(), [...LOBULE_PARTS]);
   for (const name of LOBULE_PARTS) assert.ok(l.set.get(name).group.children.length > 0, `lobule part ${name} has placeholder art`);
-  for (const name of SINUSOID_PARTS) assert.ok(s.set.get(name).group.children.length > 0, `sinusoid part ${name} has placeholder art`);
 });
 
 test('swapping a part replaces its placeholder and nothing else; the state, the wash and the shots go on addressing the part', async () => {
@@ -252,19 +251,6 @@ test('the marks run at the 2D painter\'s speeds (sinusoids 1 : 1.45 : 2.05 of sq
   assert.ok(Math.abs(speedOf(still)) < 0.3, 'the smoke drifts slowly');
 });
 
-test('the sinusoid view carries NO lymph chevrons: only the blood\'s lumen is a marked vessel, and the lymph duct and the space of Disse have no marks', () => {
-  const s = new SinusoidView(createShared());
-  const vessels = s.objects.filter((o) => o.isVessel);
-  assert.equal(vessels.length, 1);
-  assert.ok(s.set.get('lumen').group.children.includes(vessels[0]!.group));
-  for (const name of ['lymph-duct', 'disse'] as const) for (const o of s.objects.filter((o) => s.set.get(name).group.children.includes(o.group))) assert.equal(o.isVessel, false, `${name} has no marks`);
-  s.setVisible(true); settle(s);
-  assert.equal(flowOf(vessels[0]!), 1, 'the blood moves on the lumen');
-  // and the lobule has no marks on anything but the vessels it names
-  const l = new LobuleView(createShared());
-  assert.ok(marked(l).length >= 5);
-});
-
 // ---- states ------------------------------------------------------------------------------------------------------------------------
 
 const targets = (o: Partial<SinusoidTargets> = {}): SinusoidTargets => ({ por: 1, col: 0, bm: 0, mv: 1, act: 0, lum: 1, pinch: 0, v: 1, filt: 1, prot: 1, ...o });
@@ -284,36 +270,6 @@ test('the lobule\'s disease states come out of nothing and ease in: collagen col
   assert.ok(cuffs.every((c) => c.visible));
   assert.ok(s2() > 0, 'congested zone-3 sinusoids dilate');
   assert.ok(z3() < 0, 'zone 3 cells drop out with congestion');
-});
-
-test('the sinusoid\'s states: sealed pores shrink the sieve plates away, collagen and the membrane come out of nothing, the stellate cell swells and squeezes the lumen, filtration swells Disse', () => {
-  const s = new SinusoidView(createShared());
-  s.setVisible(true); s.snapTargets(targets()); settle(s);
-  const infl = (o: CelObject) => o.toon.uniforms.inflate!.value as number;
-  const { pores, bm, collagen, disse, stellate: cell, lumen } = s.parts;
-  assert.ok(Math.abs(infl(pores[0]!)) < 1e-9); assert.ok(Math.abs(infl(lumen)) < 1e-9); assert.equal(bm.group.visible, false); assert.equal(collagen.group.visible, false);
-  s.setTargets(targets({ por: 0.1, col: 0.9, bm: 0.9, act: 0.9, pinch: 0.2, lum: 0.78, filt: 4 }));
-  settle(s, 2000, 4000);
-  assert.ok(infl(pores[0]!) < -0.02, 'pores closed');
-  assert.ok(bm.group.visible && collagen.group.visible);
-  assert.ok(infl(cell) > 0.02, 'activated');
-  assert.ok(infl(lumen) < -0.08, 'squeezed and narrowed');
-  assert.ok(infl(disse) > 0.005, 'Disse swells with the filtration (less what the collagen takes)');
-});
-
-test('the sinusoid\'s wedge amber starts at the central end and runs back toward the portal end; a dive after the lobule\'s wash carries on', () => {
-  const s = new SinusoidView(createShared());
-  s.setVisible(true); s.startWash(0); s.update(0);
-  const w = s.objects.find((o) => s.set.get('wash').group.children.includes(o.group))!;
-  assert.equal(w.group.visible, false);
-  s.update(WASH_DELAY_MS + 1700);
-  assert.ok(w.group.visible);
-  const k1 = w.ink.uniforms.reveal!.value as number;
-  s.update(WASH_DELAY_MS + 3000);
-  assert.ok((w.ink.uniforms.reveal!.value as number) > k1);
-  // the overlay's course runs from the central end (the last point of the lumen's)
-  const pos = w.toonMesh.geometry.getAttribute('position');
-  assert.ok(pos.getX(0) > pos.getX(pos.count - 1) - 0.01 + 1, 'its first ring is at the central (right) end');
 });
 
 test('a batch builds tubes with every attribute the cel shaders read, and caps close an end-on vessel', () => {

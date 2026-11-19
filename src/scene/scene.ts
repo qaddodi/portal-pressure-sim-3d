@@ -25,10 +25,10 @@ import { TEXTURE_WIDTH, hasVessel, indexOf } from '../engine/vessel-data.ts';
 import { latest, patient } from '../engine/store.ts';
 import { x3, y3 } from './frame2d.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
-import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
+import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_POINT, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
 import { LOBULE_R, LOBULE_T, SINUSOID_L } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
-import { SinusoidView } from './sinusoid/index.ts';
+import { SinusoidView, diveShare } from './sinusoid/index.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
 import { ProbeLayer } from './devices/probes/layer.ts';
@@ -509,6 +509,13 @@ export class CelScene {
     this.moving = true;
   }
   private readonly livePoint = new Vector3(...LIVER_POINT);
+  private readonly sinPoint = new Vector3(...SIN_POINT);
+  /** The sinusoid's tissue is one opaque plane to every edge of the screen once the camera has landed on it (the lobule is then hidden: nothing of the lobule is ever seen through or around it). While the
+   *  camera flies between the lobule and the sinusoid (the view being left stays drawn until it lands) the tissue comes in over the lobule by how close the camera is, as 2D's zoom does it. */
+  private stepSinusDive(): void {
+    const flying = this.hideLeftBehind && this.sinus.isVisible;
+    this.sinus.setDive(flying ? diveShare(this.rig.camera.position.distanceTo(this.sinPoint), 2.5 * LOBULE_SCALE, 3 * SIN_SCALE) : null);
+  }
   /** How much of the body is drawn now (1 whole, 0 gone): for tests and tags. */
   get bodyShown(): number { return this.fadeNow; }
 
@@ -575,6 +582,7 @@ export class CelScene {
     const lensMoving = this.lens.step(now);
     const presMoving = this.presence.step(dt);
     const shapeMoving = this.shapes.step(dt);
+    this.stepSinusDive();
     const viewMoving = this.lobule.update(now) || this.sinus.update(now);
     const procMoving = this.procs.update(now);
     const diseaseMoving = this.disease.update(now);
@@ -618,6 +626,7 @@ export class CelScene {
     gl.setClearColor(this.clearColor());
     // Two passes, as the 2D figure paints: the organs first, then the vessels (and what is in them) over the cleared depth, so no organ's relief ever hides a vessel and a joined
     // vessel never looks cut. (The vessels keep their own depth among themselves: their tiers.)
+    this.sinus.setDpr(gl.getPixelRatio?.() ?? 1);
     const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;
     cam.layers.set(0);
     gl.render(this.scene, cam);
