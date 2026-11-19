@@ -12,6 +12,8 @@ import { refitFigure, flipView, zoomFigure } from '../shell/view-actions.ts';
 import { settle, setSpeed, step, togglePlay } from '../shell/transport.ts';
 import { leaveTalk } from '../shell/talk.ts';
 import { useTreat } from '../treat/store.ts';
+import { useSelection, selectStructure } from '../action/selection.ts';
+import { triggerCardVerb, cardIsOpen } from '../action/ActionCard.tsx';
 import { openGuide } from '../shell/HelpSheets.tsx';
 import { SETTLED, lensToast, speedToast } from '../shell/words.ts';
 import { useTests } from '../tests/store.ts';
@@ -37,6 +39,7 @@ export function carryOut(a: KeyAction): void {
       else if (sh.sheet) sh.close();
       else if (useTests.getState().open) useTests.getState().close();   // (the Tests card; its Why? is the shared sheet above, closed first)
       else if (useTreat.getState().open) useTreat.getState().setOpen(false);
+      else if (useSelection.getState().sel) selectStructure(null);
       else if (sh.mode === 'deck') leaveTalk();
       break;
     case 'undo': runFeature('undo', UI.playbar.menu[2]); break;
@@ -66,7 +69,8 @@ export function carryOut(a: KeyAction): void {
     case 'treat': runFeature('treat', 'Treat'); break;
     case 'compare': runFeature('compare', 'Compare'); break;
     case 'dye': runFeature('dye', 'Inject dye'); break;
-    case 'card-verb': case 'ignore': break;
+    case 'card-verb': triggerCardVerb(a.n); break;
+    case 'ignore': break;
   }
 }
 
@@ -74,7 +78,7 @@ export function useKeys() {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       const sh = useShell.getState();
-      const a = decideKey(e, { target: targetOf(e.target), searchOpen: sh.sheet === 'search', sheetOpen: sh.sheet !== null || sh.dialog !== null, talk: sh.mode === 'deck', keysOn: useSettings.getState().keys, inSinusoid: sh.view === 'sinusoid', cardOpen: false });
+      const a = decideKey(e, { target: targetOf(e.target), searchOpen: sh.sheet === 'search', sheetOpen: sh.sheet !== null || sh.dialog !== null, talk: sh.mode === 'deck', keysOn: useSettings.getState().keys, inSinusoid: sh.view === 'sinusoid', cardOpen: cardIsOpen() });
       if (!a) return;
       if (a.type === 'ignore') { if (a.prevent) e.preventDefault(); return; }
       if (a.type === 'play-pause' ? a.prevent : a.type === 'search-toggle' || a.type === 'search-open' || a.type === 'help') e.preventDefault();
