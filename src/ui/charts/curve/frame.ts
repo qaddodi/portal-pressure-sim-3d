@@ -278,7 +278,7 @@ function drawOnce(spec: CurveSpec, c: ChartCtx, w: number, h: number, f: number,
   const atX = spec.atX ?? goal?.x;
   const cx = ok ? X(clamp(goal!.x as number, Math.min(G.x0, G.x1), Math.max(G.x0, G.x1))) : 0;
   const cxNow = atX != null && Number.isFinite(atX) ? X(clamp(atX, Math.min(G.x0, G.x1), Math.max(G.x0, G.x1))) : cx;
-  if (ok) atShapes.push({ k: 'line', x1: cxNow, x2: cxNow, y1: xk ? B - 0.8 * f : T - 0.4 * f, y2: B, pen: stroke(lk('cv.at', { atx: !!xk })) });
+  if (ok) atShapes.push({ k: 'line', x1: cxNow, x2: cxNow, y1: xk ? B - 0.8 * f : T - 0.4 * f, y2: B, pen: stroke(lk('cv.at', { atx: !!xk })), key: 'cv-at' });
   const ob: Any = { segs, boxes: [] as number[][], lines: [...cutVs.filter((q: Any) => !held(q)).map((q: Any) => ({ y: YL(q.v), x0: L, x1: R, w: 5 })), { y: B, x0: L, x1: R }],
     bounds: [L + 1, T - 1.3 * f, R - 1, B - 0.15 * f], cutBounds: [L, T - 0.1 * f, R, B - 0.1 * f], inside: [0, 0, G.w, G.h] };
   const rr = Math.max(5, f * 0.45) + 2, ddr = dr + 2;
@@ -379,4 +379,10 @@ export function curveFrame(spec: CurveSpec, c: ChartCtx): CurveOut {
   // with against, names that found no clear spot: the key of the lines above the plot, the plot a little shorter
   if (out.G.ag && !out.G.alt && !out.fits) out = drawOnce(spec, c, w, h, f, !!out.G.stepKey, true);
   return out;
+}
+
+/** The same frame with the case's line at x (shown units): the line glides after its goal while the words stand where they were placed (2D moveAt: a frame of the glide moves that line and nothing else). */
+export function withAtX(out: CurveOut, x: number): Frame {
+  const G = out.G, px = G.L + (G.R - G.L) * (clamp(x, Math.min(G.x0, G.x1), Math.max(G.x0, G.x1)) - G.x0) / ((G.x1 - G.x0) || 1);
+  return { ...out.frame, shapes: out.frame.shapes.map((s) => (s.k === 'line' && s.key === 'cv-at' ? { ...s, x1: px, x2: px } : s)) };
 }

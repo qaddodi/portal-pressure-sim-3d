@@ -4,15 +4,16 @@ import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import * as P0 from '../src/ui/charts/curve/curve-pure.generated.js';
 import * as C0 from '../src/ui/charts/curve/course-pure.generated.js';
-import { curveFrame, curveGeo } from '../src/ui/charts/curve/frame.ts';
+import { curveFrame, curveGeo, withAtX } from '../src/ui/charts/curve/frame.ts';
 import { courseFrame, flattenPath } from '../src/ui/charts/curve/course-frame.ts';
-import { goalOf } from '../src/ui/charts/curve/data.ts';
+import { courseWork, curveWork, goalOf } from '../src/ui/charts/curve/data.ts';
 import { AGAINST_TOOL, COURSE_TOOL, RELATION_TOOL, TIPS_TOOL, courseSeriesSpecimen, sweepStates } from '../src/ui/charts/curve/specimens.ts';
 import { ctxOf, eachLook, judge } from './charts-helpers.ts';
 import type { TextShape } from '../src/ui/charts/scene.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const P: any = P0, C: any = C0;
+type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const words = (f: { shapes: readonly { k: string }[] }) => (f.shapes.filter((s) => s.k === 'text') as TextShape[]).map((s) => s.s);
 
 test('the sweep: the setting\'s values, and one step each carrying its whole patch', () => {
@@ -138,4 +139,43 @@ test('the plot keeps its height when the key needs a row: more rows only come fr
 
 test('the copied 2D code is what the 2D app has (when its checkout is here)', { skip: !existsSync('/home/claude/portal-pressure-simulator/src/ui/tool-curve.js') }, () => {
   execFileSync('node', ['scripts/copy-chart-curve.mjs', '--from', '/home/claude/portal-pressure-simulator', '--check'], { stdio: 'pipe' });
+});
+
+test('the sweep is asked of the worker as the presenter asks it: the steps, from the slide\'s own state, then the dots made from a preset on fresh models', async () => {
+  const calls: { steps: Any[]; from: unknown }[] = [];
+  const run = async (steps: Any[], from?: unknown) => { calls.push({ steps, from }); return steps.map((s, i) => ({ fp: { hvpg: 10 + i, lsm: 20 + i, ppg: s.params?.tips?.d ?? 0, liver: 50 }, snap: { i } })); };
+  const w = await curveWork(TIPS_TOOL, { fp: { ppg: 10 } }, run);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]!.from, undefined, 'a sweep starts from the slide\'s state');
+  assert.equal(calls[0]!.steps.length, 7);
+  assert.deepEqual(w!.s.ys[0], [6, 7, 8, 9, 10, 11, 12]);
+  calls.length = 0;
+  const t = { ...RELATION_TOOL, dots: [{ slide: 'a', name: 'A' }, { preset: 'healthy', name: 'B' }], patient: { preset: 'healthy' } };
+  const r = await curveWork(t, { fp: {} }, run, (id) => ({ lsm: 7, hvpg: 3, id } as never));
+  assert.equal(calls[0]!.from, null, 'a curve on a patient of its own starts from a fresh model');
+  assert.equal(calls[1]!.from, null);
+  assert.equal(calls[1]!.steps.length, 1, 'only the preset dot is worked out');
+  assert.equal(r!.dd[0].fp.lsm, 7, 'a slide\'s dot reads that slide\'s fingerprint');
+  assert.equal(r!.dd[1].fp.hvpg, 10);
+});
+
+test('the course runs its head from a fresh model and its treatments from the head\'s last state', async () => {
+  const calls: { n: number; from: unknown }[] = [];
+  const run = async (steps: unknown[], from?: unknown) => { calls.push({ n: steps.length, from }); return steps.map((_, i) => ({ fp: { asc: 1000 + i }, snap: `s${calls.length}.${i}` })); };
+  const ser = await courseWork(COURSE_TOOL, run);
+  assert.deepEqual(calls.map((c) => c.n), [16, 56]);
+  assert.equal(calls[0]!.from, null);
+  assert.equal(calls[1]!.from, 's1.15');
+  assert.equal(ser.tails.length, 2);
+});
+
+test('a glide of the case\'s line moves that line and nothing else', () => {
+  const c = ctxOf('light', 330, 'desktop');
+  const ser = P.curveSeries(TIPS_TOOL, sweepStates(TIPS_TOOL, (d: number) => ({ ppg: 20 - d, liver: 2 * d })));
+  const out = curveFrame({ tool: TIPS_TOOL, ser, goal: { x: 8, ys: [12, 16] } }, c);
+  const moved = withAtX(out, 11);
+  const at = (f: typeof out.frame) => f.shapes.find((s) => s.k === 'line' && s.key === 'cv-at') as { x1: number };
+  assert.ok(at(moved).x1 > at(out.frame).x1);
+  assert.equal(moved.shapes.length, out.frame.shapes.length);
+  assert.deepEqual(moved.shapes.filter((s) => s.k === 'text'), out.frame.shapes.filter((s) => s.k === 'text'));
 });
