@@ -3,7 +3,7 @@ import { caseOf, type Deck, type ReadingKey, type Slide } from '../../decks/sche
 import { useUi } from '../ui-store.ts';
 import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
 import { planLayout, widthOf, stepsFor, type CardId, type Need, type Plan } from '../layout/plan.ts';
-import { isSideways } from '../layout/rules2d.ts';
+import { isSideways, layoutOf } from '../layout/rules2d.ts';
 import type { Rect } from '../layout/device.ts';
 import { useStack } from './useStack.ts';
 import type { Entry, Wanted } from './stack.ts';
@@ -12,7 +12,7 @@ import { TitleCard } from './TitleCard.tsx';
 import { CaseCard } from './CaseCard.tsx';
 import { TeachingCard } from './TeachingCard.tsx';
 import { LadderCard } from './LadderCard.tsx';
-import { TilesCard } from '../../decks/hp/TilesCard.tsx';
+import { TilesCard, TilesHead } from './TilesCard.tsx';
 import { CheckCard } from './CheckCard.tsx';
 import { TableCard } from './TableCard.tsx';
 import { ToolCard } from '../talk/ToolCard.tsx';
@@ -114,6 +114,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   if (!view) return null;
   const read = (k: string, at?: string) => readings[at ? `${k}@${at}` : k];
   const gap = gapOf(readings);
+  const stacked = layoutOf(vp.w, vp.h) === 'stack' || layoutOf(vp.w, vp.h) === 'tab';
   // each card draws what it was given when it came in, so a card that is leaving keeps its own words while it goes
   const snaps = snapRef.current;
   const now: Snap = { slide: view.slide, pages, at, trim };
@@ -127,21 +128,24 @@ export function CardLayer({ deck }: { deck: Deck }) {
       case 'table': return sn.slide?.table ? <TableCard deck={deck} slide={sn.slide} /> : sn.slide ? <ToolCard deck={deck} slide={sn.slide} /> : null;
       case 'ladder': return (
         <>
+          {sn.slide?.tiles ? <TilesHead deckId={deck.id} slideId={sn.slide.id} /> : null}
           {sn.slide && hasToolChart(sn.slide) ? <ToolCard deck={deck} slide={sn.slide} /> : null}
-          {sn.slide?.ladder ? <LadderCard ladder={sn.slide.ladder} readings={readings} /> : sn.slide?.tiles ? <TilesCard spec={sn.slide.tiles} ids={deck.slides.map((x) => x.id)} /> : null}
+          {sn.slide?.ladder ? <LadderCard ladder={sn.slide.ladder} readings={readings} /> : sn.slide?.tiles ? <TilesCard deckId={deck.id} slideId={sn.slide.id} /> : null}
         </>
       );
       case 'check': return <CheckCard deck={deck} page={sn.at} pages={sn.pages} />;
     }
   };
   const labelOf = (id: CardId) => ({ title: 'Talk', case: 'Case', teach: 'Slide', ladder: 'Pressures', table: 'Summary', check: 'Quick check' })[id];
+  // a data card of tiles wears the 2D card's own state classes (presenter.js dataIn): every such card is tiles-only, a floating screen's is a column under the words, an instrument's has-tool and tool-only
+  const dataClass = (e: Entry) => { const sl = snaps[e.key]?.slide; return sl?.tiles ? ['tiles-only', stacked ? '' : 'col', sl.tool ? 'has-tool tool-only' : ''].filter(Boolean).join(' ') : undefined; };
   const frames = (stack: ReturnType<typeof useStack>, slot: 'words' | 'data') => stack.entries.map((e) => {
     const placed = e.phase === 'in' ? (slot === 'words' ? wordsShown : dataShown)?.rect : undefined;
     const rect = placed ?? last.current[e.key] ?? ZERO;
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
       <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onGone={stack.gone} label={labelOf(e.id)}
-        pointer={swipe} overflow={plan.overflow.includes(e.id) && e.phase === 'in'}>
+        pointer={swipe} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? dataClass(e) : undefined}>
         {content(e)}
       </CardFrame>
     );
