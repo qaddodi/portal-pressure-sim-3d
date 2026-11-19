@@ -1,7 +1,7 @@
 // Simple organs inflated from the 2D app's organ outlines (art/organs-simple/build.py). Shared frame:
 // X=(x-700)/300, Y=-(y-556)/300, organs straddle z=0, every front face at z <= 0.26. The esophagus is part of 'stomach' (2D SEAM_D).
 import { BufferGeometry, Float32BufferAttribute } from 'three';
-import data from './organs-data.json';
+import data from './organs-data.json' with { type: 'json' };
 
 type Raw = { p: number[]; i: number[] };
 const make = (id: string) => () => {

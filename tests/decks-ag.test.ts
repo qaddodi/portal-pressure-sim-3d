@@ -43,8 +43,9 @@ test('the batch is the 14 decks whose ids run A to G, all of the 2D inventory\'s
 });
 
 test('the copy is the 2D app\'s: with a 2D checkout at hand, scripts/copy-decks-ag.mjs --check finds no difference', (t) => {
-  const twoD = process.env.PPS_2D_CHECKOUT ?? join(root, '..', 'portal-pressure-simulator');
-  if (!existsSync(join(twoD, 'src/ui/decks.js'))) { t.skip('no 2D checkout beside this one (set PPS_2D_CHECKOUT)'); return; }
+  // (only when asked: whatever the 2D clone beside this one happens to have checked out differs from machine to machine)
+  const twoD = process.env.PPS_2D_CHECKOUT;
+  if (!twoD || !existsSync(join(twoD, 'src/ui/decks.js'))) { t.skip('set PPS_2D_CHECKOUT to the 2D checkout the copy was made from'); return; }
   execFileSync('node', ['scripts/copy-decks-ag.mjs', '--from', twoD, '--check', '--no-numbers'], { cwd: root, stdio: 'pipe' });
 });
 
