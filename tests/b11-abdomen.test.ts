@@ -5,6 +5,7 @@ import { createCore } from '../src/engine/host/worker-core.js';
 import type { EngineFrame } from '../src/engine/protocol.ts';
 import { abView, dialFrame, riseTxt, slideTxt, RATE_ARROW, WORDS, albuminText, albuminTip } from '../src/ui/tests/abdomen/model.ts';
 import { paletteOf } from '../src/ui/charts/palette.ts';
+import { pinned2D } from './two-d-pin.ts';
 
 async function frameFor(preset: string): Promise<{ frame: EngineFrame & { params: unknown } }> {
   const out: Array<{ type: string } & Record<string, unknown>> = [];
@@ -66,8 +67,8 @@ test('albumin: optional up to 5 L, advised above it unless given, 8 g a litre', 
   assert.match(albuminTip(7, true), /^For >5 L, give albumin \(56 g, 8 g per liter/);
 });
 
-test('every label this pane writes is in the 2D source word for word (checked when the 2D checkout is at hand)', { skip: !existsSync(process.env.PPS_2D_REPO ?? '/workspace/portal-pressure-simulator/src/ui/instruments.js') && 'no 2D checkout' }, () => {
-  const src = readFileSync(`${process.env.PPS_2D_REPO ?? '/workspace/portal-pressure-simulator'}/src/ui/instruments.js`, 'utf8');
+test('every label this pane writes is in the 2D source word for word (checked when the 2D checkout is at hand)', { skip: pinned2D('src/ui/instruments.js').skip }, () => {
+  const src = readFileSync(`${pinned2D('src/ui/instruments.js').repo}/src/ui/instruments.js`, 'utf8');
   const skip = new Set(['unit']);
   for (const [k, val] of Object.entries(WORDS)) {
     if (skip.has(k)) continue;

@@ -7,6 +7,7 @@ import { ORGAN, ORGAN_WORDS, DEPTH_TXT, TIME_TXT, WIN0, WIN1, DEPTH0, DEPTH_SPAN
 import { paletteOf } from '../src/ui/charts/palette.ts';
 import { BUILT_PANES } from '../src/ui/tests/panes.ts';
 import type { TextShape, LineShape } from '../src/ui/charts/scene.ts';
+import { pinned2D } from './two-d-pin.ts';
 
 const pal = paletteOf('light');
 const words = (f: ReturnType<typeof fibroFrame>) => f.shapes.filter((s): s is TextShape => s.k === 'text');
@@ -73,6 +74,6 @@ test('the pane draws only on the one clock, takes the map from the chart pool\'s
   assert.ok(/clock\.hold\(TAG\)/.test(pane) && /setUnder\(under\)/.test(pane));
   const gl = readFileSync(new URL('../src/ui/charts/gl.ts', import.meta.url), 'utf8');
   assert.ok(/under\(gl, pw, ph, this\.gen\)/.test(gl), 'the drawer calls the picture under the shapes');
-  const two = process.env.PPS_2D_DIR;
-  if (two && existsSync(`${two}/src/ui/fibroscan.js`)) execFileSync('node', ['scripts/copy-b11-fibro.mjs', '--from', two, '--check'], { stdio: 'pipe' });
+  const two = pinned2D('src/ui/fibroscan.js');
+  if (!two.skip) execFileSync('node', ['scripts/copy-b11-fibro.mjs', '--from', two.repo, '--check'], { stdio: 'pipe' });
 });

@@ -44,3 +44,12 @@ test('every faded vessel is blended and a line fade is on its own vessel in the 
   }
   s.dispose();
 });
+
+test('the azygos tributary (2D FEEDERS.AZY_SVC) fades out down the figure by FEEDER_FADE_Y, so it never ends in a hook; other feeders keep no fade', () => {
+  const f = fadeOf('AZY_SVC~F', false, 'AZY_SVC')!;
+  assert.equal(f.mode, 2);
+  assert.equal(f.from, y3(110)); assert.equal(f.to, y3(176));
+  assert.equal(f.a0, 1); assert.equal(f.a1, 0);
+  assert.equal(fadeOf('C3~F', false, 'C3'), null);
+  assert.match(readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8'), /fadeOf\(def\.id, def\.tone === 'artery', def\.feeder\?\.host\)/);
+});

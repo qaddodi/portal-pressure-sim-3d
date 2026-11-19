@@ -115,9 +115,10 @@ export function Shell() {
             <Credit />
             <Dock thumb={thumb} />
           </main>
+          {/* the Tests dock is a child of .app, as in 2D: the lifted stylesheets reach it through `.app.dock-open` (shell/InApp.tsx) */}
+          {mode === 'free' && <TestsLayer />}
         </div>
         <CompareBanner />
-        {mode === 'free' && <TestsLayer />}
         <Sheets />
         <Toast />
         <Diagnostics />

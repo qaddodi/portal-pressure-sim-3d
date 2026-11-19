@@ -14,6 +14,8 @@ import { engine } from '../engine/boot.ts';
 import type { LensId } from './lenses/model.ts';
 import type { FigureView } from './scene.ts';
 import { isPortrait } from './sinusoid/index.ts';
+/** Whether the sinusoid runs top to bottom: 2D's rule on the STAGE (sinusoid-view.js ensureGeo(W, H): W < H * 0.95), not on the room the cards leave (a card at the foot of a phone does not turn it sideways). */
+const stagePortrait = (): boolean => { const s = cel.rig.stageSize; return isPortrait(s.w, s.h); };
 import { lobuleShot, sinusoidShot, type LobuleCam, type LobuleLayers } from './lobule/index.ts';
 import { circuitShot, circuitBoxShot } from './circuit/shots.ts';
 import type { ResKey } from './circuit/res-model.ts';
@@ -62,7 +64,7 @@ export const sceneApi = {
     cel.setView(v);
     // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together; body, lobule and sinusoid are one dive through the liver (camera/rig.ts blends it geometrically) that takes the dive's time
     const ms = (v === 'body' || v === 'circuit' ? cel.circuit.changeMs() : 0) || diveMs(from, v);
-    this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot(isPortrait(room.w, room.h), Math.min(room.w, room.h)) : lobuleShot(cam), room, ms);
+    this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot(stagePortrait(), Math.min(room.w, room.h)) : lobuleShot(cam), room, ms);
     clock.invalidate('circuit');
   },
   /** Show the Circuit framed on a part of the map (a slide's region: a box in map units, `kMax` its closest zoom), or the whole map; the resistors and the caudate lane that the slide asks for come with it. */
@@ -81,7 +83,7 @@ export const sceneApi = {
     if (from !== v) cel.setView(v);
     if (from === 'circuit' && v !== 'circuit') { cel.setResistors([]); cel.setCaudatePin(false); }
     // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together
-    this.goTo(v === 'sinusoid' && typeof shot !== 'string' ? sinusoidShot(isPortrait(room.w, room.h), Math.min(room.w, room.h)) : shot, room, from !== v && (v === 'body' || from === 'circuit') ? cel.circuit.changeMs() || undefined : undefined);
+    this.goTo(v === 'sinusoid' && typeof shot !== 'string' ? sinusoidShot(stagePortrait(), Math.min(room.w, room.h)) : shot, room, from !== v && (v === 'body' || from === 'circuit') ? cel.circuit.changeMs() || undefined : undefined);
   },
   /** The Circuit's quarter turn: stand the map upright (flow bottom to top) or lay it wide; the camera follows on the same 480 ms. Remembered across visits. */
   setCircuitUpright(on: boolean, room: Room): void {
@@ -110,7 +112,7 @@ export const sceneApi = {
   setRoom(room: Room, ms?: number, homeTurn = false): void {
     if (homeTurn) gesturesRef.current?.turnOff();
     // the phone turned while the sinusoid is up: its shot is a different one on the other screen shape (top to bottom, 2D's framing), so the move is to that
-    if (cel.view === 'sinusoid' && isPortrait(room.w, room.h) !== isPortrait(cel.rig.targetRoom.w, cel.rig.targetRoom.h)) { this.goTo(sinusoidShot(isPortrait(room.w, room.h), Math.min(room.w, room.h)), room, ms); return; }
+    if (cel.view === 'sinusoid' && stagePortrait() !== cel.isPortrait) { this.goTo(sinusoidShot(stagePortrait(), Math.min(room.w, room.h)), room, ms); return; }
     cel.rig.setRoom(room, performance.now(), ms, homeTurn);
     clock.invalidate('room');
   },

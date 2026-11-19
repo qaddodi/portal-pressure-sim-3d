@@ -233,6 +233,8 @@ put('src/scene/blood/blood.copied.js', `${HEAD('blood.js')}${blood}`);
 // ---------- the fades at a vessel's free end (anatomy.js TIP_FADE, ART_FADE, TIP_CONNECT; stage-geo.js FADE_DOWN_Y) ----------
 const fadeDown = /const FADE_DOWN_Y = (\{[^}]*\});/.exec(stageGeo);
 if (!fadeDown) throw new Error('FADE_DOWN_Y not found in stage-geo.js');
+const feederFade = /const FEEDER_FADE_Y = (\{[^}]*\});/.exec(stageGeo);
+if (!feederFade) throw new Error('FEEDER_FADE_Y not found in stage-geo.js');
 const fadeIn = /const FADE_IN = (\{[^}]*\});/.exec(stageGeo);
 if (!fadeIn) throw new Error('FADE_IN not found in stage-geo.js');
 const sinC9 = /SIN_FADE\.C9 = (\[[^\]]*\]);/.exec(stageGeo);
@@ -247,6 +249,8 @@ export const ART_FADE_2D: Record<string, { in?: number; out?: number }> = ${JSON
 export const TIP_CONNECT_2D: Record<string, readonly string[]> = ${JSON.stringify(A.TIP_CONNECT)};
 /** Veins that run on out of the plate fade out between these two heights (2D y, world units). */
 export const FADE_DOWN_Y_2D: Record<string, readonly [number, number]> = ${JSON.stringify(new Function(`return ${fadeDown[1]}`)())};
+/** A tributary that sinks into a retroperitoneal vein fades out down the figure between these two heights (stage-geo.js FEEDER_FADE_Y: the azygos's), solid above the first. */
+export const FEEDER_FADE_Y_2D: Record<string, readonly [number, number]> = ${JSON.stringify(new Function(`return ${feederFade[1]}`)())};
 /** Veins that fade into the vessel they sink into (stage-geo.js FADE_IN): a linear mask [x1, y1, x2, y2, offset, alpha at the end (default 0.3)], 2D units, solid at the offset. */
 export const FADE_IN_2D: Record<string, readonly number[]> = ${JSON.stringify(new Function(`return ${fadeIn[1]}`)())};
 /** The liver beds (stage-geo.js SIN_FADE): faded along their course, from the portal end's node to the venous end's: [offset of the faintest point, alpha at the start, there, mode 3]. */

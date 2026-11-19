@@ -10,7 +10,7 @@ export const PIN = 'b3058ef3';
 /** The 2D checkout at the pin that holds `file`, as { repo } to run against, or { skip } (a reason) for the test's options. */
 export function pinned2D(file: string): { repo: string; skip: false } | { repo: ''; skip: string } {
   const here = new URL('..', import.meta.url).pathname;
-  const candidates = [process.env.PPS_2D_REPO, '/home/claude/portal-pressure-simulator', `${here}../portal-pressure-simulator`].filter((p): p is string => !!p);
+  const candidates = [process.env.PPS_2D_REPO, process.env.PPS_2D_CHECKOUT, process.env.PPS_2D_DIR, '/home/claude/portal-pressure-simulator', `${here}../portal-pressure-simulator`].filter((p): p is string => !!p);
   let other = '';
   for (const repo of candidates) {
     if (!existsSync(`${repo}/${file}`)) continue;

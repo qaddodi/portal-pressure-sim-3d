@@ -8,6 +8,7 @@ import type { Form, Item } from '../labels/solver.ts';
 import { type Measure, type Vp, boxSize, nameRun, stationRuns } from '../labels/type.ts';
 import { lymphText } from '../../ui/action/lymph-day.ts';
 import type { LobuleNet, P2 } from './geometry.ts';
+import { DISC_R, RS_N } from './widths.ts';
 
 /** Where each zone's name stands along the radius to the flat bottom edge, in shares of the apothem (2D ZONE_Q), and the radius's direction (down, in 2D's y-down plane). */
 export const ZONE_Q = [0.83, 0.51, 0.2] as const;
@@ -27,6 +28,8 @@ export interface CapCtx {
   layers: { zones: boolean; lymph: boolean };
   /** the slide names these station keys (they stand first) */
   must?: ReadonlySet<string>;
+  /** whether a canvas point is on screen and clear of the cards (the tract the names are about is one whose venule is: 2D labels the bottom tract of what it shows) */
+  inView?(x: number, y: number): boolean;
   /** every part of the lobule is unmeasured (the model has no pressures): the readings are '?' */
   hide?: boolean;
 }
@@ -51,11 +54,20 @@ export function sidesToward(dx: number, dy: number): Dir[] {
 }
 
 /** The tract the tract names are about: the one lowest on the canvas now (2D labels the lobule's bottom tract, where its zone names stand too). */
-export function labelledTriad(ctx: Pick<CapCtx, 'proj' | 'net'>): number {
-  let best = 0, by = -Infinity;
+export function labelledTriad(ctx: Pick<CapCtx, 'proj' | 'net' | 'inView'>): number {
+  let best = -1, by = -Infinity;
+  for (const t of ctx.net.triads) {
+    const [x, y] = ctx.proj(t.x, t.y);
+    if (ctx.inView && !ctx.inView(x, y)) continue;   // (a tract off screen has no names to put: the lowest one in view takes them)
+    if (y > by + 1e-6) { by = y; best = t.i; }
+  }
+  if (best >= 0) return best;
   for (const t of ctx.net.triads) { const y = ctx.proj(t.x, t.y)[1]; if (y > by + 1e-6) { by = y; best = t.i; } }
   return best;
 }
+
+/** The radius of what a station names, in lobule radii: the disc of an end-on vessel, the lumen of a sinusoid (2D lobule-zoom-field.js radiusAt). */
+export const STATION_R: Record<CapKey, number> = { triad: DISC_R.pv, sin: RS_N, cv: DISC_R.cv, ha: DISC_R.ha, bd: DISC_R.bd, lymph: DISC_R.lv };
 
 /** Where a station's dot stands on the plate (its own units): the tract's venule, arteriole, ductule and lymphatic, the middle of a sinusoid of the tract's side, the centre. */
 export function stationAt(net: CapCtx['net'], tri: number, k: CapKey): P2 {
@@ -78,9 +90,12 @@ export function stationAt(net: CapCtx['net'], tri: number, k: CapKey): P2 {
 const form = (text: string, w: number, h: number): Form => ({ text, w, h });
 
 /** Everything the lobule says now: the solver's items and what each writes. */
-export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<string, CapMeta>; tri: number } {
+export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<string, CapMeta>; tri: number; keep: { id: string; x: number; y: number; r: number }[]; lines: [number, number, number, number][] } {
   const items: Item[] = [], meta = new Map<string, CapMeta>(), { vp, measure } = ctx;
   const tri = labelledTriad(ctx);
+  // how big a lobule radius is on the canvas now: a vessel's disc and lumen, as the names must clear them
+  const o0 = ctx.proj(0, 0), o1 = ctx.proj(1, 0), pxR = Math.hypot(o1[0] - o0[0], o1[1] - o0[1]) || 1;
+  const rOf = (k: CapKey) => Math.max(2, STATION_R[k] * pxR);
 
   // ── the zone names: on the radius to the flat bottom edge, at 0.83, 0.51 and 0.20 of the apothem ──
   if (ctx.layers.zones) {
@@ -97,6 +112,26 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
   const venule = ctx.proj(ctx.net.triads[tri]!.x, ctx.net.triads[tri]!.y);
   const keys: CapKey[] = ['triad', 'sin', 'cv', 'ha', 'bd'];
   if (ctx.layers.lymph) keys.push('lymph');
+  // the tract's spokes (2D tractFan): the arteriole's, the ductule's and the lymphatic's names stand out along the ray from the venule through what they name; the venule's own straight out from the
+  // central vein when the lymph's is not shown, else between the arteriole's and the lymphatic's, so the four run round the tract in the order of what they name and no leader crosses another
+  const cvAt = ctx.proj(0, 0);
+  const unit = (dx: number, dy: number, fb: readonly [number, number]): [number, number] => { const l = Math.hypot(dx, dy); return l < 1e-6 ? [fb[0], fb[1]] : [dx / l, dy / l]; };
+  const out = unit(venule[0] - cvAt[0], venule[1] - cvAt[1], [0, 1]);
+  const spokeOf: Partial<Record<CapKey, [number, number]>> = {};
+  for (const k of ['ha', 'bd', 'lymph'] as const) { if (k === 'lymph' && !ctx.layers.lymph) continue; const a = ctx.proj(...stationAt(ctx.net, tri, k)); spokeOf[k] = unit(a[0] - venule[0], a[1] - venule[1], out); }
+  if (ctx.layers.lymph && spokeOf.lymph) { const base = spokeOf.ha ?? spokeOf.bd!; spokeOf.triad = unit(base[0] + spokeOf.lymph[0], base[1] + spokeOf.lymph[1], out); } else spokeOf.triad = out;
+  const keep: { id: string; x: number; y: number; r: number }[] = [], lines: [number, number, number, number][] = [];
+  // the discs of the vessels seen end-on (the tract's four, the central vein): no name stands on one, no leader runs across another's
+  for (const k of ['triad', 'ha', 'bd', 'lymph', 'cv'] as const) {
+    if (k === 'lymph' && !ctx.layers.lymph) continue;
+    const a = ctx.proj(...stationAt(ctx.net, tri, k)); keep.push({ id: k, x: a[0], y: a[1], r: rOf(k) });
+  }
+  // the courses (sinusoids, inlets, twigs): a name avoids standing across one (a soft cost in the solver)
+  for (const c of ctx.net.courses) {
+    if (c.kind !== 's0' && c.kind !== 's1' && c.kind !== 's2' && c.kind !== 'in') continue;
+    let prev: [number, number] | null = null;
+    for (let i = 0; i < c.pts.length; i += 3) { const q = ctx.proj(c.pts[i]![0], c.pts[i]![1]); if (prev) lines.push([prev[0], prev[1], q[0], q[1]]); prev = q; }
+  }
   for (const k of keys) {
     const w = WORDS[k], at = stationAt(ctx.net, tri, k), [ax, ay] = ctx.proj(at[0], at[1]);
     const reads = READ[k] !== null;
@@ -107,12 +142,12 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
     if (reads) { forms.push(mk(w.short, false)); formsM.push({ name: w.short, value: false }); }
     forms.push(mk('', reads)); formsM.push({ name: '', value: reads });
     // a tract name stands out along the ray from the venule through what it names (its spoke); the others on the side their dot faces
-    const spoke = k === 'ha' || k === 'bd' || k === 'lymph' ? [ax - venule[0], ay - venule[1]] : k === 'triad' ? [venule[0] - ctx.proj(0, 0)[0], venule[1] - ctx.proj(0, 0)[1]] : k === 'cv' ? [0, 1] : [0, -1];
+    const spoke = spokeOf[k] ?? (k === 'cv' ? [0, 1] : [0, -1]);
     const must = !!ctx.must?.has(k);
-    items.push({ id: k, ax, ay, au: 0.5, forms, pri: must ? 100 : w.pri, must, dirs: sidesToward(spoke[0]!, spoke[1]!), vw: 5 });
+    items.push({ id: k, ax, ay, au: 0.5, forms, pri: must ? 100 : w.pri, must, dirs: sidesToward(spoke[0]!, spoke[1]!), vw: rOf(k), ...(k === 'triad' || k === 'ha' || k === 'bd' || k === 'lymph' ? { face: { cx: venule[0], cy: venule[1], ux: spoke[0]!, uy: spoke[1]! } } : {}) });
     meta.set(k, { id: k, kind: 'station', forms: formsM, read: READ[k], label: w.name, target: w.target });
   }
-  return { items, meta, tri };
+  return { items, meta, tri, keep, lines };
 }
 
 /** The reading a station carries, as text (the model's own numbers, one place so a test reads what the layer writes). */

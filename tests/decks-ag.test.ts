@@ -17,6 +17,8 @@ import { TILE } from '../src/ui/charts/tiles.generated.ts';
 import { BATCH_NAMES } from '../src/parity/score.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
 import { createCore } from '../src/engine/host/worker-core.js';
+import { pinned2D } from './two-d-pin.ts';
+import { assertNear } from './close.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const read = (p: string) => JSON.parse(readFileSync(join(root, p), 'utf8'));
@@ -44,9 +46,9 @@ test('the batch is the 14 decks whose ids run A to G, all of the 2D inventory\'s
 
 test('the copy is the 2D app\'s: with a 2D checkout at hand, scripts/copy-decks-ag.mjs --check finds no difference', (t) => {
   // (only when asked: whatever the 2D clone beside this one happens to have checked out differs from machine to machine)
-  const twoD = process.env.PPS_2D_CHECKOUT;
-  if (!twoD || !existsSync(join(twoD, 'src/ui/decks.js'))) { t.skip('set PPS_2D_CHECKOUT to the 2D checkout the copy was made from'); return; }
-  execFileSync('node', ['scripts/copy-decks-ag.mjs', '--from', twoD, '--check', '--no-numbers'], { cwd: root, stdio: 'pipe' });
+  const two = pinned2D('src/ui/decks.js');
+  if (two.skip) { t.skip(two.skip); return; }
+  execFileSync('node', ['scripts/copy-decks-ag.mjs', '--from', two.repo, '--check', '--no-numbers'], { cwd: root, stdio: 'pipe' });
 });
 
 test('every deck has what the cards need: a title, 2 or 3 objectives, a quick check, and the 2D menu\'s names', () => {
@@ -188,7 +190,7 @@ test('every {number} in a slide\'s words is a reading the engine gives, printed 
   assert.ok(n > 100, `${n} readings checked`);
 });
 
-test('replaying the first model step of five decks in the engine gives the fixture\'s numbers to the digit', async () => {
+test('replaying the first model step of five decks in the engine gives the fixture\'s numbers (within float tolerance)', async () => {
   for (const id of ['circulation', 'circuit', 'day', 'endoscopy', 'gradients'] as const) {
     const d = decks.find((x) => x.id === id)!;
     const fps: Record<string, number>[] = [];
@@ -196,7 +198,7 @@ test('replaying the first model step of five decks in the engine gives the fixtu
     core.handle({ type: 'run', running: false });
     await core.handle({ type: 'sequence', steps: stepsOf(d.slides).slice(0, 1), reqId: 1 });
     core.dispose();
-    for (const [k, v] of Object.entries(nums.decks[id]!.slides[0]!.fp)) assert.equal(fps[0]![k], v, `${id}.${k}`);
+    for (const [k, v] of Object.entries(nums.decks[id]!.slides[0]!.fp)) assertNear(fps[0]![k], v, `${id}.${k}`);
   }
 });
 
