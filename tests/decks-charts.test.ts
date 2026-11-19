@@ -22,7 +22,7 @@ test('slides with a chart tool or visual get a data card; the count of chart sli
     d.slides.forEach((s, i) => {
       if (!hasChart(s)) return;
       charts++;
-      const pos = { stop: i + 1, beat: s.vignette ? 1 : 0 };
+      const pos = { stop: i + 1, beat: s.vignette || s.question ? 1 : 0 };
       const v = viewAt(stops, pos);
       assert.ok(v.data, `${id}/${s.id} has a data card`);
       assert.equal(v.data, hasToolChart(s) ? 'ladder' : 'table', `${id}/${s.id}`);

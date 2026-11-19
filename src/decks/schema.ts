@@ -66,6 +66,8 @@ export interface Slide {
   line: string;
   /** A case opens the slide on its own card first (a beat before the slide). */
   vignette?: string;
+  /** A question slide (2D `question`): asked on a card of its own before the slide, which is its answer. Not on a slide that has a case, a patient of its own or a procedure. */
+  question?: string;
   /** The one short question a case may end on, on its own line under the case (2D `caseQ`). */
   caseQ?: string;
   /** A caution under the line (2D `caveat`) and the source of the claim (2D `cite`). */
@@ -98,6 +100,9 @@ export interface Slide {
   /** the line under the equation (what its letters stand for) */
   eqLegend?: string;
 }
+
+/** The words of a slide's first card (its case, or its question) and its kicker; null when the slide opens on its words. */
+export const caseOf = (s: Slide): { kicker: string; text: string } | null => (s.vignette ? { kicker: 'Case', text: s.vignette } : s.question ? { kicker: 'Question', text: s.question } : null);
 
 export interface Deck {
   id: string;
