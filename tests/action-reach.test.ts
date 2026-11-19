@@ -13,13 +13,13 @@ import { claims } from '../src/parity/b9x.ts';
 const inv: { rows: { id: string }[] } = JSON.parse(readFileSync('parity/inventory.json', 'utf8'));
 const ids = new Set(inv.rows.map((r) => r.id));
 
-test('every vessel card\'s Doppler button points the probe at that vessel, then shows the pane (2D: probe, showPane, select(null))', () => {
+test('every vessel card\'s Doppler button shows the pane and lets go of the card (the probe goes to the card\'s vessel in the Tests handler: tests/b11-orders.test.ts)', () => {
   for (const id of ['PV_TRUNK', 'C1a', 'TIPS', 'S_PC', 'A_HEP', 'SV_CONF']) {
     const d = cardFor({ type: 'edge', id })!.verbs.find((v: Verb) => v.type === 'button' && v.id === 'doppler') as Extract<Verb, { type: 'button' }> | undefined;
     assert.ok(d, id);
     const calls: string[] = [];
-    d.run({ probe: (x) => calls.push(`probe ${x}`), feature: (f) => calls.push(`feature ${f}`), select: (s) => calls.push(`select ${s === null ? 'null' : '?'}`), update() {}, action() {} } as Act);
-    assert.deepEqual(calls, [`probe ${id}`, 'feature doppler', 'select null'], id);
+    d.run({ feature: (f) => calls.push(`feature ${f}`), select: (s) => calls.push(`select ${s === null ? 'null' : '?'}`), update() {}, action() {} } as Act);
+    assert.deepEqual(calls, ['feature doppler', 'select null'], id);
   }
 });
 

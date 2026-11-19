@@ -6,6 +6,10 @@ import { SCALE, RATE } from './copied/table-marks.copied.js';
 import { fmt, clamp } from './copied/num.copied.js';
 import { hvBlocked, SEV_OF_RATE, NOT_MEASURABLE, NOT_SHOWN } from '../../engine/hales/portal/pressure-cuts.js';
 import type { M } from './frame.ts';
+import { useMeasured } from './hidden.ts';
+
+// the HVPG tile's measured value (2D dock.js TILES: `measured: () => store.get().lastHVPG`)
+(hooks as { lastHVPG: () => unknown }).lastHVPG = () => useMeasured.getState().lastHVPG;
 
 export { hooks };
 export type Band = 'ok' | 'caution' | 'danger' | 'critical' | 'none';

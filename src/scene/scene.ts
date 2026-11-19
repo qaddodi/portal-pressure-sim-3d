@@ -1,4 +1,4 @@
-import { Box3, Color, type DataTexture, Group, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { Box3, Color, type DataTexture, Group, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { MAPPED, NETWORK, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
@@ -23,7 +23,9 @@ import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, hasVessel, indexOf } from '../engine/vessel-data.ts';
 import { latest, patient } from '../engine/store.ts';
-import { x3, y3 } from './frame2d.ts';
+import { x2d, x3, y2d, y3 } from './frame2d.ts';
+import { type FigureHit, organHit } from './organs/pick.ts';
+import { FLUID_Z } from './disease/ascites.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers, type LobulePartName } from './lobule/index.ts';
 import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
 import { LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L } from './lobule/shots.ts';
@@ -551,18 +553,8 @@ export class CelScene {
     const hits = raycaster.intersectObjects(this.vessels.map((v) => v.toonMesh), false);
     for (const h of hits) {
       const o = this.vessels.find((v) => v.toonMesh === h.object);
-      if (o) return o.edge!.id;
+      if (o && o.group.visible) return o.edge!.id;   // (a vessel not drawn, a collateral not yet open, takes no tap)
     }
-    return null;
-  }
-
-  /** The organ a tap lands on, in the body view (2D organAt: the heart, the liver and the spleen open their cards): the organ's id, or null. A hidden organ (the body turned into the map) is not there. */
-  pickOrganAt(x: number, y: number, raycaster: Raycaster): string | null {
-    if (this.figureView !== 'body' || !this.body.visible) return null;
-    raycaster.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
-    const tappable = TAPPABLE_MESHES.map((id) => this.disease.organs.byId.get(id)).filter((o): o is NonNullable<typeof o> => !!o && o.group.visible);
-    const hits = raycaster.intersectObjects(tappable.map((o) => o.toonMesh), false);
-    for (const h of hits) { const o = tappable.find((t) => t.toonMesh === h.object); if (o) return TAPPABLE_MESHES.find((id) => this.disease.organs.byId.get(id) === o) ?? null; }
     return null;
   }
 
@@ -574,6 +566,42 @@ export class CelScene {
     const part = this.lobule.partAt(hits);
     const p = hits[0]?.point;
     return part && p ? { part, x: (p.x - LOBULE_ORIGIN[0]) / LOBULE_R, y: -(p.y - LOBULE_ORIGIN[1]) / LOBULE_R } : null;
+  }
+
+  /** What a tap at canvas point (x, y) opens, in the 2D app's order (stage.js pick): the vessel under it, else the nearest vessel within reach of the finger (12 px, 18 for a touch),
+   *  else the organ under it (the liver with its lobe, the heart, the spleen), else the belly's fluid, else nothing. Only the body takes organ and fluid taps (the Circuit has no organs). */
+  pickTargetAt(x: number, y: number, raycaster: Raycaster, touch = false): FigureHit | null {
+    const edge = this.pickAt(x, y, raycaster) ?? (this.figureView === 'body' ? this.nearVessel(x, y, touch ? 18 : 12) : null);
+    if (edge) return { type: 'edge', id: edge };
+    if (this.figureView !== 'body' || this.circuit.t > 0.5 || this.bodyShown < 0.5) return null;
+    const o = this.disease.organs.pick(raycaster);   // (the ray is the one pickAt set)
+    if (o) return organHit(o.id, x2d(o.x));
+    const at = raycaster.ray.intersectPlane(new Plane(new Vector3(0, 0, 1), -FLUID_Z), new Vector3());
+    if (at && this.disease.ascites.holds(x2d(at.x), y2d(at.y))) return organHit('abdomen', x2d(at.x));
+    return null;
+  }
+
+  /** The drawn vessel nearest the point within `reach` CSS px of its edge (screen space, from the courses as laid; 2D nearbyEdge), or null. */
+  private nearVessel(x: number, y: number, reach: number): string | null {
+    const a = new Vector3(), b = new Vector3(), pa = { x: 0, y: 0 }, pb = { x: 0, y: 0 };
+    const one = this.rig.project(b.set(1, 0, 0), pb), zero = this.rig.project(a.set(0, 0, 0), pa);
+    const k = Math.hypot(one.x - zero.x, one.y - zero.y);   // CSS px in a scene unit at the figure's plane
+    let best: string | null = null, bestD = reach;
+    for (const v of NETWORK) {
+      if (v.plan?.kind === 'feeder' || this.presence.stateOf(v.id) !== 'shown' || !this.byEdge.get(v.id)?.group.visible) continue;
+      const half = v.radius * k, pts = v.pts;
+      let px = NaN, py = NaN;
+      for (const p of pts) {
+        this.rig.project(a.set(p[0], p[1], p[2]), pb);
+        if (!Number.isNaN(px)) {
+          const dx = pb.x - px, dy = pb.y - py, L = dx * dx + dy * dy || 1, u = Math.max(0, Math.min(1, ((x - px) * dx + (y - py) * dy) / L));
+          const d = Math.hypot(px + dx * u - x, py + dy * u - y) - half;
+          if (d < bestD) { bestD = d; best = v.id; }
+        }
+        px = pb.x; py = pb.y;
+      }
+    }
+    return best;
   }
 
   /** Scene point of a named place, for tags and pins: a point on the 2D figure's own vessel, carried by the one map (frame2d.ts), so a tag sits on the vein. */
@@ -686,7 +714,6 @@ export class CelScene {
 
 /** The camera layer of everything drawn over the organs: the vessels, the catheter, the varices. */
 /** The organs a tap opens a card for in the body view (2D ORGAN_KEYS: the heart, the liver, the spleen; the heart is two meshes). */
-export const TAPPABLE_MESHES = ['liver', 'heart', 'heart-ra', 'spleen'] as const;
 const VESSEL_LAYER = 1;
 
 /** Where each named place is: the vessel's id and how far along its 2D course (0 to 1). */

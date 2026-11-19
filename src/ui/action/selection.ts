@@ -17,15 +17,13 @@ export function bindScene(light: (id: string | null) => void): void { lightVesse
 
 const same = (a: Sel | null, b: Sel | null) => a === b || (!!a && !!b && JSON.stringify(a) === JSON.stringify(b));
 
-/** Select a structure (or clear with null). A vessel is lit in the scene; the card follows.
- *  The abdomen has no card: ascites has one home, the Ascites instrument, so selecting it (Treat's Paracentesis, a station, the search) opens that instead (main.js select). */
+/** Ascites has one home, the Tests card's Ascites pane (2D main.js select): selecting the abdomen (Treat's Paracentesis, the search's "Ascites", the fluid's station) opens
+ *  it instead of a card that would sit over the vessels, and nothing stays selected. */
+const isAbdomen = (sel: Sel | null): boolean => !!sel && ((sel.type === 'organ' && sel.id === 'abdomen') || (sel.type === 'node' && sel.id === 'EPI'));
+
+/** Select a structure (or clear with null). A vessel is lit in the scene; the card follows. */
 export function selectStructure(sel: Sel | null): void {
-  if (sel?.type === 'organ' && sel.id === 'abdomen') {
-    if (useSelection.getState().sel) useSelection.setState({ sel: null });
-    lightVessel?.(null);
-    useTests.getState().show('abdomen');
-    return;
-  }
+  if (isAbdomen(sel)) { selectStructure(null); useTests.getState().show('abdomen'); return; }
   if (!same(useSelection.getState().sel, sel)) useSelection.setState({ sel });
   lightVessel?.(sel && sel.type === 'edge' ? sel.id : null);
 }
@@ -41,3 +39,6 @@ export function scenePicked(id: string | null): void {
   if (id == null) { if (cur?.type === 'edge') useSelection.setState({ sel: null }); return; }
   if (!(cur?.type === 'edge' && cur.id === id)) useSelection.setState({ sel: { type: 'edge', id } });
 }
+
+/** Whether a mode holds the scene's taps (the shunt waiting for its target). */
+export const scenePicksHeld = (): boolean => pickHold != null;

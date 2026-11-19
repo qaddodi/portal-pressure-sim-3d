@@ -22,6 +22,8 @@ import { cel, frames, gesturesRef, sceneApi } from './api.ts';
 import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
 import { type GestureTarget, createGestures } from './gesture/controller.ts';
+import { type Sel, selectStructure, useSelection } from '../ui/action/selection.ts';
+import { tapSelect } from '../ui/action/tap-select.ts';
 
 const vesselData = new VesselData();
 cel.bindData(vesselData.texture);
@@ -108,13 +110,16 @@ function SceneBridge() {
       fitRect: () => cel.rig.fitRect(),
       orbit: () => cel.rig.orbitAngle,
       setOrbit: (rad) => { const changed = cel.rig.setOrbit(rad); if (changed) clock.invalidate('orbit'); return changed; },
-      tap: (x, y) => {
+      // a tap picks what 2D's does (src/ui/action/tap-select.ts): a vessel, an organ (liver with its lobe, heart, spleen) or the belly's fluid; a tap on nothing puts the selection away
+      tap: (x, y, touch) => {
         if (useDeck.getState().mode !== 'free') return;
-        tapFigure(x, y, raycaster.current);   // (a vessel, else the organ under the finger, else nothing; in the lobule, the part: src/ui/action/tap.ts)
+        if (cel.view === 'lobule') tapFigure(x, y, raycaster.current);   // (the lobule's part under the finger: src/ui/action/tap.ts)
+        else tapSelect(cel.pickTargetAt(x, y, raycaster.current, !!touch), { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: cel.view === 'body' });
       },
-      picked: () => cel.highlight.picked,
-      setPicked: (id) => sceneApi.pick(id),
-      context: (x, y) => { const hit = cel.pickAt(x, y, raycaster.current); if (hit) sceneApi.pick(hit); },
+      picked: () => useSelection.getState().sel,
+      setPicked: (sel) => selectStructure(sel as Sel | null),
+      // right click and long press open the card of what is under the pointer and never close it (2D's contextmenu)
+      context: (x, y, touch) => { const hit = cel.pickTargetAt(x, y, raycaster.current, !!touch); if (hit) tapSelect(hit, { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: true }, false); },
     }, {
       now: () => performance.now(),
       ask: frames.ask, cancel: frames.cancel,

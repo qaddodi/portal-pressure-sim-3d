@@ -123,7 +123,7 @@ export function FibroPane({ plot }: PaneProps) {
   const label = fibroscanLabel(organ, none ? null : model, none ? '' : r.word[organ]);
   return (
     <div className="fs-pane">
-      <div className="pressure-switch t-seg fs-organ" role="group" aria-label="Organ">
+      <div className="pressure-switch fs-organ" role="group" aria-label="Organ">
         {(ORGAN_WORDS as [OrganId, string][]).map(([id, name]) => <button key={id} type="button" className="ps-btn" data-organ={id} aria-pressed={id === organ} onClick={() => { if (id !== organ) setFibro(id); }}>{name}</button>)}
       </div>
       <div className="fs-box" style={{ height: h }} data-organ={organ}>

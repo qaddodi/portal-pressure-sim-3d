@@ -22,8 +22,6 @@ export interface Act {
   update(patchOrFn: Record<string, unknown> | ((p: Params) => Params), o: { label: string }): void;
   select(sel: Sel | null): void;
   feature(id: FeatureId, name: string): void;
-  /** Point the Doppler's probe at a vessel (2D: the vessel card's Doppler button asks the model to sample that vessel, then shows the pane). */
-  probe(id: string): void;
   action(a: { kind: string; [k: string]: unknown }): void;
 }
 
@@ -88,7 +86,7 @@ const HEP_ART = new Set(['A_HEP', 'A_HR', 'A_HL']);
 const PETAL_COLL = new Set(['C8']);   // (collaterals that carry portal blood TOWARD the liver: the cavernoma bypasses the clot into the portal hilum)
 const PRESENT_ONLY_ESO = new Set(['C1a', 'C1b']), PRESENT_ONLY_GAS = new Set(['C2', 'C5']);
 
-const dopplerOn = (id: string): Verb => ({ type: 'button', id: 'doppler', label: 'Doppler', icon: 'doppler', run: (a) => { a.probe(id); a.feature('doppler', 'Doppler'); a.select(null); } });
+const dopplerOn = (_id: string): Verb => ({ type: 'button', id: 'doppler', label: 'Doppler', icon: 'doppler', run: (a) => { a.feature('doppler', 'Doppler'); a.select(null); } });
 const dye: Verb = { type: 'dye', id: 'dye', label: 'Inject dye', short: 'Dye', icon: 'drop', run: (a) => a.feature('dye', 'Inject dye') };
 
 function varixVerbs(site: 'eso' | 'gas'): Verb[] {

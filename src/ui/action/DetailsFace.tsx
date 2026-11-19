@@ -1,6 +1,7 @@
 // The card's Details face (2D: the inspector's selection panel, opened by tapping the card's name): the same structure as 2D builds it. The kicker and name with Back, the
 // direction word, the readings in a grid, Doppler here and Why this value?, the vessel's own line, About; a compartment lists the vessels that meet there. Readings are
 // worked out from the newest frame by details.ts and the face re-renders only when a printed word changes.
+import { setDopplerProbe } from '../tests/doppler/probe-state.ts';
 import { useEffect, useState } from 'react';
 import { Icon } from '../shell/icons.tsx';
 import { useEngine } from '../../engine/store.ts';
@@ -48,7 +49,7 @@ function Panel({ d, onBack }: { d: Details; onBack(): void }) {
         {d.stats.map((s, i) => <div key={s.k} className={`ac-stat${s.wide ? ' wide' : ''}`}><span className="k">{s.k}</span><span className="v">{texts[i]}</span></div>)}
       </div>
       <div className="ac-as">
-        {d.probe && <button type="button" className="ac-btn" onClick={() => { appAct.probe(d.probe!); appAct.feature('doppler', 'Doppler'); }}><Icon n="doppler" className="ac-ic" /><span className="ac-bl">{WORDS.doppler}</span></button>}
+        {d.probe && <button type="button" className="ac-btn" onClick={() => { setDopplerProbe(d.probe!); appAct.feature('doppler', 'Doppler'); }}><Icon n="doppler" className="ac-ic" /><span className="ac-bl">{WORDS.doppler}</span></button>}
         {d.why && <button type="button" className="ac-btn" onClick={() => void openWhy(d.why!)}><Icon n="bulb" className="ac-ic" /><span className="ac-bl">{WORDS.why}</span></button>}
       </div>
       {d.note && <p className="ac-dnote">{d.note}</p>}

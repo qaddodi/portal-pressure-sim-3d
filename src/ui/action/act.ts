@@ -4,12 +4,10 @@ import { updateParams } from './params.ts';
 import { selectStructure } from './selection.ts';
 import { runFeature } from '../shell/features.ts';
 import { sendAction } from './send.ts';
-import { setDopplerProbe } from '../tests/doppler/probe-state.ts';
 
 export const appAct: Act = {
   update: (patchOrFn, o) => { updateParams(patchOrFn as never, o); },
   select: (sel) => selectStructure(sel),
   feature: (id, name) => { runFeature(id, name); },
-  probe: (id) => setDopplerProbe(id),
   action: (action) => sendAction(action),
 };
