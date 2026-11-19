@@ -2,16 +2,17 @@
 // with no switch; elsewhere the tab keeps a small switch, "Along the circuit" / "Over time".
 import type { PaneId } from '../panes.ts';
 import { useTests } from '../store.ts';
-import { notYet } from '../../shell/words.ts';
-import { BUILT_PANES } from '../panes.ts';
+import { lazy, Suspense } from 'react';
 import { OverTimePane } from './OverTimePane.tsx';
 import type { PaneProps } from '../TestsLayer.tsx';
+
+const ProfilePane = lazy(() => import('../profile/ProfilePane.tsx').then((m) => ({ default: m.ProfilePane })));
 
 export const PRESSURE_VIEWS: readonly (readonly [PaneId, string])[] = [['profile', 'Along the circuit'], ['scope', 'Over time']];
 
 function View({ id, p }: { id: PaneId; p: PaneProps }) {
   if (id === 'scope') return <OverTimePane plot={p.roomy ? Math.min(p.plot, 230) : p.plot} />;
-  return BUILT_PANES.includes('profile') ? null : <p className="t-note">{notYet('Pressure along the circuit')}</p>;
+  return <Suspense fallback={null}><ProfilePane {...p} /></Suspense>;
 }
 
 export function PressureTab({ own, ...p }: PaneProps & { own: PaneId }) {
