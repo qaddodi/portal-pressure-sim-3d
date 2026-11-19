@@ -14,6 +14,7 @@ interface DopplerProbe {
   setGate(g: Gate | null): void;
 }
 
+
 export const useDopplerProbe = create<DopplerProbe>((set) => ({
   probe: 'PV_TRUNK', gate: null,
   setGate: (gate) => set({ gate }),

@@ -1,8 +1,23 @@
 // What the labels need from the talk and the viewer, in one small store the label layer subscribes to. The deck link (deck-link.ts) and the
 // scene's pick write it; nothing here knows a deck.
 import { create } from 'zustand';
+import type { Vector3 } from 'three';
 import type { CathState } from '../../decks/schema.ts';
 import type { FigCard, FigCaliper, FigSpan } from './figure-cards.ts';
+import type { CathText, CalloutKind } from './cath-show.ts';
+import type { Tone } from './cath.ts';
+
+/** A procedure's own reading cards on the figure (2D proc-anim.js `labels`: the EUS-PPG's PV at the portal target, HV at the hepatic one, then the summary): the layer places them as the catheter's. `text` is written in place as a reading settles. */
+export interface ProcCards {
+  kinds: readonly CalloutKind[];
+  /** changes when the cards' kinds, names or tones do: the layer solves their places again then */
+  sig: string;
+  kickers: { f: string; w: string; h: string };
+  tones: { f: Tone; w: Tone };
+  text: CathText;
+  /** the two points the cards point to, in the figure's own space: `tip` the one 'f' stands at, `ahead` the one 'w' does; false while the scene has none */
+  points(tip: Vector3, ahead: Vector3): boolean;
+}
 
 export interface LabelsState {
   /** Stations the slide's words light (a colour each: `tones`); every other label steps back while any is lit. */
@@ -14,13 +29,16 @@ export interface LabelsState {
   cath: CathState | null;
   /** The lens whose key the slide shows (null: none). */
   key: string | null;
+  /** A procedure that wants the figure's names out of its way while it works (2D proc-anim.js `quiet`: the EUS-PPG's and the IR pressures' needles). */
+  quiet: boolean;
+  proc: ProcCards | null;
   /** Blood menu option: organ names on the figure (off until the Blood menu lands in batch B1/B3). */
   organNames: boolean;
   set(p: Partial<Omit<LabelsState, 'set'>>): void;
 }
 
 export const useLabels = create<LabelsState>((set) => ({
-  named: new Set(), shown: new Set(), tones: {}, cath: null, key: null, organNames: false,
+  named: new Set(), shown: new Set(), tones: {}, cath: null, key: null, organNames: false, quiet: false, proc: null,
   set: (p) => set(p),
 }));
 

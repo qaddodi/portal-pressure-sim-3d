@@ -1,4 +1,4 @@
-// The slide to instrument and chart hookup (ui/talk/ToolCard.tsx): every tool kind and every option of a tool that any copied 2D slide uses is handled, derived from the decks, pure (no browser).
+// The slide to instrument and chart hookup (ui/talk/ToolCard.tsx, its body ToolCardBody.tsx): every tool kind and every option of a tool that any copied 2D slide uses is handled, derived from the decks, pure (no browser).
 // A new kind or option in a 2D deck fails here until ToolCard (through ui/talk/instruments.ts and the chart registry) carries it, and a readiness flag is held to the evidence that backs it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

@@ -3,7 +3,6 @@
 // the portal vein's congestion index, a stent's three gates). The vessel menu, the display (Spectrum, Color, Variance), Invert and the sweep window are the 2D controls.
 // The words and judgements are the 2D app's (copied: copied/doppler-*.copied.js); the spectrum is drawn on the GPU by the shared chart drawer (model.ts says how).
 import { useEffect, useRef, useState } from 'react';
-import './doppler.css';
 import './copied/doppler-2d.copied.css';
 import { I } from '../../shell/icons.tsx';
 import { EDGES } from '../../../engine/hales/portal/topology.js';
@@ -19,6 +18,7 @@ import { PROBES, EI, PAD_L, PAD_R, probeName } from './copied/doppler-tables.cop
 import { DOPPLER_MODES } from './copied/doppler-colours.copied.js';
 import { setDopplerProbe, useDopplerProbe, type Gate } from './probe-state.ts';
 import { spectrumUnder } from './spectrum-gl.ts';
+import { Cv, useCv, usePaneHost } from '../Cv.tsx';
 import { useSlidePin } from '../slide/pin.ts';
 
 const same = (a: Report | null, b: Report) => !!a && JSON.stringify(a) === JSON.stringify(b);
@@ -41,7 +41,8 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
   const gate = useDopplerProbe((s) => s.gate);
   const dirty = useRef(true);
   const lastRep = useRef<Report | null>(null);
-  const h = Math.max(150, Math.round(p.plot));
+  // the spectrum is drawn at the size the 2D stylesheet gives its box (.dop-box: 1.6 to 1 beside the report, the height left on a sheet), read by an observer (Cv.tsx)
+  const h0 = Math.max(150, Math.round(p.plot)), cv = useCv(h0), h = cv.h, host = usePaneHost();
   const ctxRef = useRef<ChartCtx | null>(null);
   const aria = useRef('Spectral Doppler');
 
@@ -137,15 +138,15 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
         </div>
       </div>
       <div className="dop-main">
-        <div className="chart-box dark dop-box" style={{ height: h }}>
-          <Chart tag="doppler" painter={painter} glide={false} deps={[mode, invert, sweepIndex, h, probe, gate, optKey]} label={rep?.aria || 'Spectral Doppler'}
+        <div className="chart-box dark dop-box" style={host.box(h0)}>
+          <Cv at={cv.ref}><Chart tag="doppler" painter={painter} glide={false} deps={[mode, invert, sweepIndex, h, probe, gate, optKey]} label={rep?.aria || 'Spectral Doppler'}
             build={(c) => {
               ctxRef.current = c;
               m.dpr = dprNow();
               m.pickWindow(c.w - (PAD_L as number) - (PAD_R as number));
               if (m.sweepIndex !== sweepIndex) queueMicrotask(() => setSweepIndex(m.sweepIndex));
               return m.frameFor(c.w, h, performance.now(), aria.current, c.pal.tok('doppler'));
-            }} />
+            }} /></Cv>
         </div>
         <div className="dop-report">
           <b className="dop-dir" data-sev={rep?.sev || undefined}>{rep ? rep.dir : '—'}</b>

@@ -9,7 +9,7 @@ import { Chart } from '../../charts/Chart.tsx';
 import { fmt } from '../../charts/fmt.ts';
 import { stentState } from '../../charts/stent/model.ts';
 import { Icon } from '../../shell/icons.tsx';
-import { KEYS, SUBS, stentLine } from './copied/tips-parts.copied.js';
+import { KEYS, SUBS } from './copied/tips-parts.copied.js';
 import { CompareView } from './CompareView.tsx';
 import { CurvesView } from './CurvesView.tsx';
 import { newKeep, tipsFigureFrame } from './tips-figure.ts';
@@ -80,7 +80,6 @@ export function TipsView({ h }: { h: number }) {
               return <span key={t.id} className="ir-kv" data-k={t.id} title={t.title} aria-label={`${t.k}: ${v == null ? 'not measured' : `${fmt(v, t.d)} ${t.u}`}`}><em>{t.k}</em><b>{v == null ? '—' : fmt(v, t.d)}</b><u>{t.u}</u></span>;
             })}
           </div>
-          <p className="ctl-sub ir-stent-line">{stentLine(st as never)}</p>
           <div className="se-zone ir-zone">
             <Figure id={at} lens={lens} />
             {st && <StentEditor id={at} lead />}

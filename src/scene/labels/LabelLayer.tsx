@@ -20,6 +20,8 @@ import { STATIONS } from './stations.ts';
 import { bindLabelHits, labelNodeAt } from './hit.ts';
 import { useSelection } from '../../ui/action/selection.ts';
 import { buildCath } from './cath-dom.ts';
+import { buildProbeLabels } from './probe-labels-dom.ts';
+import { addLabelBox, beginLabelBoxes } from './probe-boxes.ts';
 import { cathVars, cathLook } from './cath.ts';
 import { KEY_LENSES, keyModel, schemeOf } from './key.ts';
 import { linkLabelsToDeck } from './deck-link.ts';
@@ -153,6 +155,8 @@ export function LabelLayer() {
     }
     // the catheter's reading cards: built once, written by cath-dom.ts as transform and opacity
     const cath = buildCath(root);
+    // the Tests devices' readings (the FibroScan probe's screen, the Doppler gate's callout)
+    const probeLabels = buildProbeLabels(root);
     const keyRec: Rec = { root: keyHost.current!, shown: false, tx: '', op: '', form: -1, size: '', value: '', leadTx: '', anchorTx: '' };
     recs.set('key', keyRec);
 
@@ -173,7 +177,7 @@ export function LabelLayer() {
     // ── state in ──
     const pushState = () => {
       const l = useLabels.getState();
-      ctl.setState({ named: l.named, shown: l.shown, tones: l.tones, picked: usePick.getState().picked, cath: l.cath, organNames: l.organNames, key: l.key });
+      ctl.setState({ named: l.named, shown: l.shown, tones: l.tones, picked: usePick.getState().picked, cath: l.cath, organNames: l.organNames, quiet: l.quiet, proc: l.proc, key: l.key });
       clock.invalidate('labels-state');
     };
     pushState();
@@ -201,11 +205,15 @@ export function LabelLayer() {
       for (const d of ctl.out) { const r = recs.get(d.id); if (r) { seen.add(d.id); paint(r, d, ctl); } }
       for (const [id, r] of recs) if (!seen.has(id)) hide(r);
       cath.paint(ctl.cath);
+      // the boxes the Doppler probe keeps off, and the probes' own readings
+      beginLabelBoxes();
+      for (const d of ctl.out) if (d.kind === 'station' && d.alpha > 0.05) addLabelBox(d.x, d.y, d.w, d.h);
+      probeLabels.paint();
       if (wantFrames && !hold) hold = clock.hold('labels');
       else if (!wantFrames && hold) { hold.release(); hold = null; }
     }, 0);
 
-    return () => { figCards.destroy(); offFigure(); cath.destroy(); offHits(); offTags(); offLabels(); offPick(); offUi(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
+    return () => { figCards.destroy(); offFigure(); cath.destroy(); probeLabels.destroy(); offHits(); offTags(); offLabels(); offPick(); offUi(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
   }, []);
 
   return (

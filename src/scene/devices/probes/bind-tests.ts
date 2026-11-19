@@ -7,6 +7,9 @@ import { MEASURES } from '../../procedures/copied/proc-anim.js';
 import { EDGES, isStent, stentGate } from '../../../engine/hales/portal/topology.js';
 import { patient } from '../../../engine/index.ts';
 import { useDopplerProbe } from '../../../ui/tests/doppler/probe-state.ts';
+import { useUi } from '../../../ui/ui-store.ts';
+import { useTestsRoom } from '../../../ui/tests/room.ts';
+import { clock } from '../../../clock/frame.ts';
 
 /** Starts following the Tests card; returns the remover. */
 export function bindTests(): () => void {
@@ -32,10 +35,13 @@ export function bindTests(): () => void {
     if (e.bandTick !== lastTick) { lastTick = e.bandTick; bandUntil = performance.now() + 3000; clearTimeout(timer); timer = setTimeout(syncScope, 3050); }
     const steps = (MEASURES as unknown as { eus: { steps: [string][] } }).eus.steps;
     const station: 'pv' | 'hv' = e.step >= 0 && steps[e.step]?.[0] === 'hv' ? 'hv' : 'pv';
-    const mode = e.eus !== 'idle' ? 'eus' : performance.now() < bandUntil ? 'band' : 'scope';
+    const mode = e.eus === 'run' ? 'eus' : performance.now() < bandUntil ? 'band' : 'scope';
     if (p.mode !== mode || p.station !== station) useProbes.getState().setEndoscope({ mode, station });
   };
   sync(); syncDop(); syncScope();
-  const offs = [useTests.subscribe(sync), useProbes.subscribe((s, prev) => { if (s.slide !== prev.slide) sync(); }), useDopplerProbe.subscribe(syncDop), useScope.subscribe(syncScope)];
+  // the cards the devices keep clear of moved (a slide's card, the Tests card's place, the bars): they look again (the 2D probe reads the page's boxes four times a second)
+  const offBoxes = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes || s.vp !== p.vp) clock.invalidate('probe-cards'); });
+  const offRoom = useTestsRoom.subscribe((s, p) => { if (s.place !== p.place) clock.invalidate('probe-cards'); });
+  const offs = [useTests.subscribe(sync), useProbes.subscribe((s, prev) => { if (s.slide !== prev.slide) sync(); }), useDopplerProbe.subscribe(syncDop), useScope.subscribe(syncScope), offBoxes, offRoom];
   return () => { clearTimeout(timer); offs.forEach((f) => f()); };
 }

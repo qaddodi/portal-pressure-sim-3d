@@ -21,6 +21,7 @@ import { useIr, stentsNow } from './store.ts';
 import { NO_STENT_WHY } from './copied/tips-parts.copied.js';
 import { TipsView } from './TipsView.tsx';
 import { hvpgNote, useMeasured } from '../hidden.ts';
+import { usePaneHost } from '../Cv.tsx';
 
 const touch = (e: React.PointerEvent, go: () => void, disabled: boolean) => { if (e.pointerType !== 'mouse' && !disabled) go(); };
 const KV: [keyof ReturnType<typeof values>, string][] = [['fhvp', 'FHVP'], ['whvp', 'WHVP'], ['hvpg', 'HVPG']];
@@ -47,8 +48,10 @@ function Measure({ h }: { h: number }) {
           ))}
         </dl>
       </div>
-      <HandOver over={ppg} top={<Monitor src={ppgSource} h={h} deps={[R.ppg.take]} onClick={closePpg} />} base={<Monitor src={hvpgSource} h={h} deps={[ph, R.result, R.blocked, side.open]} />} />
-      <div className="chart-side ir-side">
+      <HandOver over={ppg}
+        base={(at) => <Monitor boxRef={at} src={hvpgSource} h={h} deps={[ph, R.result, R.blocked, side.open]} />}
+        top={(at) => <div className="hvpg-ir" data-state={R.ppg.take}><div className="pz-mon pz-reading"><Monitor boxRef={at} src={ppgSource} h={h} deps={[R.ppg.take]} onClick={closePpg} /></div></div>} />
+      <div className="chart-side">
         {!ppg && (
           <ol className="hvpg-steps">
             {STEPS.map((s, i) => <li key={String(s[0])} data-step={s[0]} data-state={side.steps[i] || undefined} title={String(s[2])}><span>{s[3]}</span></li>)}
@@ -77,7 +80,7 @@ function Measure({ h }: { h: number }) {
 export function IrPane(p: PaneProps) {
   const view = useIr((s) => s.view), setView = useIr((s) => s.setView), openStent = useIr((s) => s.openStent);
   useParamsTick((s) => s.tick);
-  const ids = stentsNow(), has = ids.length > 0;
+  const ids = stentsNow(), has = ids.length > 0, host = usePaneHost();
   const h = Math.max(190, Math.round(p.narrow ? Math.min(p.plot, 220) : p.plot));
 
   // a new patient starts with no measurement; the pane going away stops what plays
@@ -95,14 +98,17 @@ export function IrPane(p: PaneProps) {
   // a stent taken away with the TIPS view open sends it back to Measure
   useEffect(() => { if (!has && view === 'tips') setView('measure'); }, [has, view, setView]);
 
+  // 2D's own markup (hvpg-proc.js, ir-tips.js; dock.js puts the switch, the pane's head row, before the view): the 2D stylesheet lays it out, and shows one view by data-view
   return (
-    <div className="ir-pane" data-pane="hvpg" data-view={view}>
-      <div className="pressure-switch ir-switch t-seg" role="group" aria-label="IR view">
+    <>
+      <div className="pressure-switch ir-switch" role="group" aria-label="IR view">
         <button type="button" className="ps-btn" data-view="measure" aria-pressed={view === 'measure'} onClick={() => setView('measure')}>Measure</button>
         <button type="button" className={`ps-btn${has ? '' : ' off'}`} data-view="tips" aria-pressed={view === 'tips'} aria-disabled={!has}
           onClick={() => { if (!has) { useShell.getState().say(NO_STENT_WHY); return; } setView('tips'); }}><span>{ids.includes('TIPS') || !ids.length ? 'TIPS' : ids[0]}</span></button>
       </div>
-      {view === 'tips' ? <TipsView h={h} /> : <Measure h={h} />}
-    </div>
+      <div className={host.view} data-pane="hvpg" data-view={view}>
+        {view === 'tips' ? <TipsView h={h} /> : <Measure h={h} />}
+      </div>
+    </>
   );
 }

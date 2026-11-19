@@ -6,6 +6,7 @@ import { clock } from '../../../clock/frame.ts';
 import { latest } from '../../../engine/index.ts';
 import { sceneApi } from '../../../scene/api.ts';
 import { READS, markAt, specOf } from '../../../scene/procedures/copied/proc-anim.js';
+import { runCards, type CardRun } from '../../../scene/labels/proc-cards.ts';
 import { useShell } from '../../shell/store.ts';
 import { createTakeover } from '../copied/monitor-takeover.copied.js';
 import { EUS, type Reads } from './eus-words.ts';
@@ -28,6 +29,7 @@ export const tk = createTakeover({ onChange: (p: string) => { const ph = p as 'i
   phase(): 'idle' | 'run' | 'hold'; shown(): boolean; start(): void; finish(done: boolean): void; close(): void; reset(): void; dispose(): void;
 };
 
+let cards: CardRun | null = null;   // (the readings' cards on the figure, and the names standing aside: 2D quiet)
 let hold: { release(): void } | null = null;
 const wake = () => { hold ||= clock.hold('eus-ppg'); };
 const sleep = () => { hold?.release(); hold = null; };
@@ -43,23 +45,26 @@ export function playEus(): void {
   resetMonitor();   // (a new run: the monitor starts afresh, waiting for the needle)
   wake(); bump();
   const spec = specOf('eus') as { capture(i: number, rd: unknown, f: unknown): void };
+  cards?.end(); cards = runCards('eus', { quiet: true });
   sceneApi.procedure.play('eus', {
     onFrame: (r) => {
       const t = sceneApi.procedure.playing?.t ?? 0;
       eusAt(t);
+      cards?.frame(t, latest.frame);
       if (r.step !== E.step && r.step >= 0) { E.step = r.step; useScope.getState().setEus('run', r.step); bump(); }
       // each reading is taken once its callout has come (the needle has reached the vein and the pressure has settled): the model's frame then
       const mk = r.step < 0 ? -1 : t >= markAt('eus', r.step) ? r.step : r.step - 1;
       for (let i = E.got + 1; i <= mk; i++) { spec.capture(i, readsRef.eus, latest.frame); E.got = i; bump(); }
       if (t >= EUS.T.end - 1) E.done = true;
     },
-    onEnd: () => { E.run = false; M.run = false; E.step = -1; tk.finish(E.done); pinLive(); sleep(); bump(); },
+    onEnd: () => { cards?.end(); cards = null; E.run = false; M.run = false; E.step = -1; tk.finish(E.done); pinLive(); sleep(); bump(); },
   });
 }
 
 /** The card going away, or a new patient: stop what plays and give the scope back (2D dispose / tk.reset). */
 export function resetEus(): void {
   if (sceneApi.procedure.playing?.kind === 'eus') sceneApi.procedure.stop();
+  cards?.end(); cards = null;
   E.run = false; M.run = false; E.step = -1; E.done = false;
   tk.reset(); sleep(); bump();
 }

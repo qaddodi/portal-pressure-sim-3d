@@ -8,6 +8,7 @@
 // how big a card is (the 2D app asks the page; here it is worked out from the text's width, so node can judge it), where the stack's rows
 // stand, and the leaders' paths. Pure: no DOM, no three.js.
 import { LS, rolePx, type Vp } from './type.ts';
+import { DEVICE_TOKENS } from '../procedures/copied/device-tokens.copied.ts';
 import type { Box } from './geometry.ts';
 import { outline } from './cath2d/callout-outline.copied.js';
 import { PTR, KEEP } from './cath2d/callout-ptr.copied.js';
@@ -19,8 +20,8 @@ const C = LS.CATH;
 export { PTR, KEEP, PILL_GAP };
 
 export type CalloutKind = 'f' | 'w' | 's';
-/** The reading's colour: the free vein's blue, the wedged vein's, or the band the HVPG falls in. */
-export type Tone = 'free' | 'wedge' | 'ok' | 'caution' | 'danger';
+/** The reading's colour: the free vein's blue, the wedged vein's, the portal vein's (the EUS needle's), or the band the HVPG falls in. */
+export type Tone = 'free' | 'wedge' | 'pv' | 'ivc' | 'ok' | 'caution' | 'danger';
 export interface Reading { kicker: string; value: string; unit: string; tone: Tone }
 export interface Rect { x: number; y: number; w: number; h: number }
 export type Measure = (text: string, size: number, weight: number, trackPx?: number) => number;
@@ -66,7 +67,7 @@ const INK = {
 } as const;
 const inkVars = (look: string): Record<string, string> => {
   const k = INK[look === 'light' || look === 'soft' ? look : 'dark'], mix = (c: string, n: number) => (n >= 100 ? `var(${c})` : `color-mix(in srgb, var(${c}) ${n}%, var(--cl-text))`);
-  return { '--cl-hv-ink': mix('--cl-hv', k.tr), '--cl-wedge-ink': mix('--cl-wedge', k.tr), '--cl-ok-ink': mix('--cl-ok', k.ok), '--cl-caution-ink': mix('--cl-caution', k.caution), '--cl-danger-ink': mix('--cl-danger', k.danger) };
+  return { '--cl-hv-ink': mix('--cl-hv', k.tr), '--cl-wedge-ink': mix('--cl-wedge', k.tr), '--cl-pv-ink': mix('--cl-pv', k.tr), '--cl-ivc-ink': mix('--cl-ivc', k.tr), '--cl-ok-ink': mix('--cl-ok', k.ok), '--cl-caution-ink': mix('--cl-caution', k.caution), '--cl-danger-ink': mix('--cl-danger', k.danger) };
 };
 
 /** The ink and glass of a look for these cards (the look's own tokens, copied): the free and wedged tones, the bands, the glass tint and its hairline. */
@@ -74,7 +75,7 @@ export function cathLook(look: string): Record<string, string> {
   const t = (LS.LOOKS as Record<string, Record<string, string>>)[look];
   if (!t) throw new Error(`no label ink for the look "${look}"`);
   return {
-    '--cl-hv': t['tr-hv'], '--cl-wedge': t['tr-wedge'], '--cl-ok': t['ok'], '--cl-caution': t['caution'], '--cl-danger': t['danger'],
+    '--cl-hv': t['tr-hv'], '--cl-wedge': t['tr-wedge'], '--cl-pv': (DEVICE_TOKENS as Record<string, { trPv: string }>)[look]?.trPv ?? t['tr-wedge'], '--cl-ivc': (DEVICE_TOKENS as Record<string, { trIvc: string }>)[look]?.trIvc ?? t['tr-hv'], '--cl-ok': t['ok'], '--cl-caution': t['caution'], '--cl-danger': t['danger'],
     '--cl-text': t['text'], '--cl-text3': t['text-3'], '--cl-edge': t['hairline'], '--cl-surface': t['surface'],
     // the words' ink: the colour a step toward the text colour so it clears 4.5:1 (tokens.css --tr-hv-ink, --ok-ink… per look)
     ...inkVars(look),

@@ -57,7 +57,6 @@ import { useToolPatch, withPatch } from './tool-options.ts';
 import { HvpgTool } from './HvpgTool.tsx';
 import { ReadingTool } from './ReadingTool.tsx';
 import '../tests/tests.css';
-import '../tests/abdomen/abdomen.css';
 const DopplerPane = lazy(() => import('../tests/doppler/DopplerPane.tsx').then((m) => ({ default: m.DopplerPane })));
 const FibroPane = lazy(() => import('../tests/fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
 const EndoPane = lazy(() => import('../tests/endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));

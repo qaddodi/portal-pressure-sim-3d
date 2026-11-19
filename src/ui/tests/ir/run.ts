@@ -7,13 +7,15 @@ import { clock } from '../../../clock/frame.ts';
 import { latest, patient } from '../../../engine/index.ts';
 import { sceneApi } from '../../../scene/api.ts';
 import type { ShotName } from '../../../scene/camera/shots.ts';
-import { PROCS, PROC_KINDS, MEASURES, READS, specOf, markAt, procBlocked as procBlockedJs, procOffered as procOfferedJs } from '../../../scene/procedures/copied/proc-anim.js';
+import { PROCS, PROC_KINDS, MEASURES, READS, specOf, markAt, stepMarks, procBlocked as procBlockedJs, procOffered as procOfferedJs } from '../../../scene/procedures/copied/proc-anim.js';
 import { ppgWord } from '../../../engine/hales/portal/pressure-cuts.js';
 import { T, newWave, syncWave } from '../copied/hvpg-clock.copied.js';
 import { createTakeover } from '../copied/monitor-takeover.copied.js';
 import { scriptOf, phaseOf } from './copied/reading-scripts.copied.js';
 import { TB, hvBlocked } from './hvpg.ts';
 import { updateParams } from '../../action/params.ts';
+import { runCards, type CardRun } from '../../../scene/labels/proc-cards.ts';
+import { setProcMarks, type ProcMark } from '../../../scene/labels/proc-marks.ts';
 import { useShell } from '../../shell/store.ts';
 import { goToView } from '../../shell/view-actions.ts';
 import { useUi } from '../../ui-store.ts';
@@ -75,6 +77,7 @@ export const phase = (): 'idle' | 'enter' | 'free' | 'wedge' | 'result' | 'abort
 };
 
 // ── the HVPG measurement ──
+let cards: CardRun | null = null;   // (the reading cards on the figure for the run that plays: the catheter's FHVP, WHVP and the HVPG; the PPG's IVC, portal vein and PPG)
 export function startHvpg(): void {
   if (busy() || !latest.frame) return;
   hidePpg();
@@ -82,8 +85,9 @@ export function startHvpg(): void {
   R.result = null; R.t0 = performance.now(); R.t = 0; R.cam = ''; R.blocked = hvBlocked(params());
   R.snap = { ...live() };
   // the catheter on the figure: the whole procedure, or, for a thrombosed vein, as far as the ostium (2D figureBlocked: it probes and is withdrawn)
+  cards?.end(); cards = R.blocked ? null : runCards('hvpgcath', { capture: true });
   if (R.blocked) sceneApi.procedure.play('hvpgcath', { to: T.zoom + 600, keep: true });
-  else sceneApi.procedure.play('hvpgcath');
+  else sceneApi.procedure.play('hvpgcath', { onFrame: () => cards?.frame(sceneApi.procedure.playing?.t ?? 0, latest.frame), onEnd: () => { cards?.end(); cards = null; } });
   wake(); bump();
 }
 function finish(): void {
@@ -103,6 +107,7 @@ function stepHvpg(): void {
   if (t >= tEnd()) { if (R.blocked) sceneApi.procedure.stop(); bump(); }
 }
 export function resetHvpg(): void {
+  cards?.end(); cards = null;
   if (hvpgRunning()) sceneApi.procedure.stop();
   R.t0 = null; R.t = 0; R.result = null; R.snap = null; R.blocked = false; R.cam = '';
   bump();
@@ -118,16 +123,19 @@ export function playProc(kind: string): void {
   onBody();
   const T0 = (PROCS as Record<string, { T: { apply: number }; label: string; apply: (p: unknown) => unknown }>)[kind]!;
   R.procKind = kind; R.procStep = 0; R.procApplied = false; R.procCam = '';
+  let shown = -3;   // (the step whose callout stands on the figure: 2D onMark; a step's word once the step has happened, none while it plays)
   sceneApi.procedure.play(kind, {
     onFrame: (rec) => {
       const t = sceneApi.procedure.playing?.t ?? 0;
+      const mk = rec.step < 0 ? -2 : t >= markAt(kind, rec.step) ? rec.step : -1;
+      if (mk !== shown && mk > -2) { shown = mk; setProcMarks(mk >= 0 ? (stepMarks(kind, mk) as ProcMark[]) : []); }
       if (rec.step !== R.procStep && rec.step >= 0) { R.procStep = rec.step; bump(); }
       const shot = String(rec.shot || '');
       if (shot && shot !== R.procCam) { R.procCam = shot; camTo(shot); }
       // the model takes the change as the sequence passes its apply time
       if (!R.procApplied && t >= T0.T.apply) { R.procApplied = true; updateParams((p) => T0.apply(p) as never, { label: T0.label }); }
     },
-    onEnd: () => { R.procKind = ''; R.procStep = -1; camTo('home'); bump(); },
+    onEnd: () => { setProcMarks([]); R.procKind = ''; R.procStep = -1; camTo('home'); bump(); },
   });
   wake(); bump();
 }
@@ -142,6 +150,7 @@ const tk = createTakeover({ onChange: (ph: string) => { R.ppg.take = ph as 'idle
 export function hidePpg(): void {
   const p = R.ppg;
   if (p.run) sceneApi.procedure.stop();
+  cards?.end(); cards = null;
   p.run = false; p.kind = ''; p.step = -1; p.done = false; p.tk = {};
   tk.reset();
 }
@@ -152,10 +161,12 @@ function beginPpg(kind: 'irivc' | 'irpv'): void {
   if (rd) for (const k in rd) rd[k] = NaN;
   p.kind = kind; p.step = -1; p.mark = -3;
   const P = specOf(kind) as { capture(i: number, rd: unknown, f: unknown): void; steps: unknown[][] };
+  cards?.end(); cards = runCards(kind, { quiet: true });
   sceneApi.procedure.play(kind, {
     onFrame: (rec) => {
       const t = sceneApi.procedure.playing?.t ?? 0;
       p.tk[kind] = t;
+      cards?.frame(t, latest.frame);
       if (rec.step !== p.step && rec.step >= 0) { p.step = rec.step; bump(); }
       // each reading is taken as its callout comes (2D playProcedure: capture at the step's mark)
       const mk = rec.step < 0 ? -2 : t >= markAt(kind, rec.step) ? rec.step : -1;
@@ -164,6 +175,7 @@ function beginPpg(kind: 'irivc' | 'irpv'): void {
       if (shot && shot !== R.procCam) { R.procCam = shot; camTo(shot); }
     },
     onEnd: () => {
+      cards?.end(); cards = null;
       if (kind === 'irivc') { beginPpg('irpv'); return; }   // the second approach goes on by itself, from its start
       p.run = false; p.kind = ''; p.step = -1; p.done = true; camTo('home'); R.procCam = '';
       tk.finish(true);
@@ -216,7 +228,7 @@ function tick(): void {
 }
 
 /** A new patient or a jump in time starts with no measurement. */
-export function resetAll(): void { hidePpg(); if (R.procKind) { sceneApi.procedure.stop(); R.procKind = ''; R.procStep = -1; } resetHvpg(); sleep(); }
+export function resetAll(): void { hidePpg(); if (R.procKind) { sceneApi.procedure.stop(); R.procKind = ''; R.procStep = -1; setProcMarks([]); } resetHvpg(); sleep(); }
 
 // the names the Watch row lists, in 2D's order, with what each says and whether it is offered (hidden) or can be played (dimmed) for this patient
 export interface WatchBtn { kind: string; name: string; hidden: boolean; off: boolean; on: boolean }

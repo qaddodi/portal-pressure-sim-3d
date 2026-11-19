@@ -118,7 +118,7 @@ export function buildCath(parent: HTMLElement): CathDom {
         brace.style.left = `${px(g.brace.x)}px`; brace.style.top = '0px';
         brace.setAttribute('width', String(g.brace.w)); brace.setAttribute('height', String(px(g.brace.h))); bpath.setAttribute('d', g.brace.d);
         for (let j = 0; j < 2; j++) {
-          lead[j].setAttribute('d', s.leaders.d[j]); lead[j].setAttribute('data-tone', j === 0 ? 'wedge' : 'free'); dot[j].setAttribute('data-tone', j === 0 ? 'wedge' : 'free');
+          lead[j].setAttribute('d', s.leaders.d[j]); lead[j].setAttribute('data-tone', s.rows[j].tone); dot[j].setAttribute('data-tone', s.rows[j].tone);
           dot[j].setAttribute('cx', String(px(s.leaders.dots[j][0]))); dot[j].setAttribute('cy', String(px(s.leaders.dots[j][1])));
         }
       }
