@@ -4,6 +4,7 @@
 //   src/scene/lenses/words.copied.ts     the lens names and lines of the Layers menu (main.js LENSES)
 //   src/scene/vessels/paths.copied.ts    the anatomy's node places and vessel courses (anatomy.js), sampled to points, with its drawn / hidden sets
 //   src/scene/lenses/vel-normal.copied.js  velNormal.js, import paths rewritten to this repo's engine copy
+//   src/scene/blood/blood.copied.js        blood.js whole (the streams: displaySpeed, advanceStream, the reversal hold, KEY_CHEV_IDS); three imports stubbed (the bleed's stomach pool is not used here)
 // Usage: node scripts/copy-b3-data.mjs --from <2D checkout> [--check]    (--check writes nothing and fails when a file would change)
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -78,25 +79,16 @@ export const LENS_WORDS: readonly (readonly [string, string, string])[] = ${JSON
 `);
 
 // ---------- vessel paths ----------
-const anat = read('src/ui/anatomy.js');
-const objectLiteral = (name) => {
-  const start = anat.indexOf(`export const ${name} = {`);
-  if (start < 0) throw new Error(`${name} not found`);
-  let i = anat.indexOf('{', start), depth = 0, j = i;
-  for (; j < anat.length; j++) { const c = anat[j]; if (c === '{') depth++; else if (c === '}' && --depth === 0) break; }
-  return new Function(`return (${anat.slice(i, j + 1)})`)();
-};
-const setLiteral = (name) => {
-  const m = new RegExp(`export const ${name} = new Set\\((\\[[\\s\\S]*?\\])\\);`).exec(anat);
-  if (!m) throw new Error(`${name} not found`);
-  return [...new Function(`return (${m[1]})`)()];
-};
-const NODE_POS = objectLiteral('NODE_POS');
-const EDGE_PATH = objectLiteral('EDGE_PATH');
-const num = (s) => s.match(/-?\d*\.?\d+(?:e-?\d+)?/gi).map(Number);
-/** Samples an SVG path of M, L and C commands (all this app's courses are) to points, 8 steps a curve. */
-function sample(d) {
-  const toks = d.match(/[MLC]|-?\d*\.?\d+/g);
+// The courses are the 2D figure's own (stage-geo.js: geo[id].A): the anatomy's SVG path (anatomy.js, with its junction pieces cut), sampled at 64 equal
+// steps of arc length (stage-paths.js sample) and, for a vein, the gentle meander fixed per vessel by its id (stage-paths.js meander); collaterals and
+// shunts are drawn as they are. Nothing is moved, scaled or smoothed here: the 3D scene maps world units to its own by one linear map (src/scene/frame2d.ts).
+const A = await import(pathToFileURL(`${from}/src/ui/anatomy.js`).href);
+const TOPO = await import(new URL('../src/engine/hales/portal/topology.js', import.meta.url).href);
+const N_SAMPLES = 64;
+const EDGE_PATH = A.EDGE_PATH;
+/** The points of an SVG path of M, L and C commands, dense (the curve cut in 200 steps), with the running arc length. */
+function dense(d) {
+  const toks = d.match(/[MLC]|-?\d*\.?\d+(?:e-?\d+)?/gi);
   const pts = [];
   let i = 0, cmd = '', cx = 0, cy = 0;
   while (i < toks.length) {
@@ -104,22 +96,60 @@ function sample(d) {
     if (cmd === 'M' || cmd === 'L') { cx = Number(toks[i++]); cy = Number(toks[i++]); pts.push([cx, cy]); }
     else if (cmd === 'C') {
       const [x1, y1, x2, y2, x3, y3] = toks.slice(i, i + 6).map(Number); i += 6;
-      for (let s = 1; s <= 8; s++) {
-        const t = s / 8, u = 1 - t;
-        pts.push([u * u * u * cx + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3, u * u * u * cy + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y3]);
-      }
+      for (let k = 1; k <= 200; k++) { const t = k / 200, u = 1 - t; pts.push([u * u * u * cx + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3, u * u * u * cy + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y3]); }
       cx = x3; cy = y3;
     } else throw new Error(`unsupported path command in ${d.slice(0, 30)}`);
   }
   return pts;
 }
-void num;
-const round = (v) => Math.round(v * 10) / 10;
-const paths = Object.fromEntries(Object.entries(EDGE_PATH).map(([id, d]) => [id, sample(d).map(([x, y]) => [round(x), round(y)])]));
-const nodes = Object.fromEntries(Object.entries(NODE_POS).map(([id, [a]]) => [id, a]));
-const sets = Object.fromEntries(['HIDDEN_EDGES', 'ANAT_HIDDEN', 'CONTEXT_EDGES', 'NEEDS_C3', 'IVC_EDGES', 'BACK_EDGES'].map((n) => [n, setLiteral(n)]));
-const hiddenNodes = setLiteral('HIDDEN_NODES');
-put('src/scene/vessels/paths.copied.ts', `${HEAD('anatomy.js NODE_POS, EDGE_PATH and the drawn/hidden sets')}// World units of the 2D anatomy (1400 x 1000, the patient's right on the viewer's left). Courses are sampled from the 2D app's SVG paths.
+/** stage-paths.js sample: N_SAMPLES points at equal arc length along the path (getPointAtLength). */
+function sample(d) {
+  const P = dense(d), cum = [0];
+  for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+  const L = cum[cum.length - 1], out = [];
+  let k = 1;
+  for (let i = 0; i < N_SAMPLES; i++) {
+    const at = (L * i) / (N_SAMPLES - 1);
+    while (k < P.length - 1 && cum[k] < at) k++;
+    const seg = cum[k] - cum[k - 1] || 1, t = Math.min(1, Math.max(0, (at - cum[k - 1]) / seg));
+    out.push([P[k - 1][0] + (P[k][0] - P[k - 1][0]) * t, P[k - 1][1] + (P[k][1] - P[k - 1][1]) * t]);
+  }
+  return out;
+}
+/** stage-paths.js meander, as written there. */
+function meander(pts, id) {
+  let L = 0;
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) { L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); cum.push(L); }
+  const amp = Math.min(4.5, L * 0.02);
+  if (amp < 0.8) return pts;
+  let hsh = 0;
+  for (const c of id) hsh = (hsh * 31 + c.charCodeAt(0)) >>> 0;
+  const ph = (hsh % 628) / 100, k = (Math.PI * 2 * (0.7 + (hsh % 5) * 0.12)) / L;
+  return pts.map((p, i) => {
+    if (i === 0 || i === pts.length - 1) return p;
+    const a = pts[i - 1], b = pts[i + 1];
+    let nx = -(b[1] - a[1]), ny = b[0] - a[0];
+    const n = Math.hypot(nx, ny) || 1; nx /= n; ny /= n;
+    const u = cum[i] / L;
+    const o = amp * Math.sin(Math.PI * u) * (0.72 * Math.sin(k * cum[i] + ph) + 0.28 * Math.sin(2.3 * k * cum[i] + 2 * ph));
+    return [p[0] + nx * o, p[1] + ny * o];
+  });
+}
+const round = (v) => Math.round(v * 100) / 100;
+const paths = {};
+for (const e of TOPO.EDGES) {
+  const d = EDGE_PATH[e.id];
+  if (!d) continue;
+  const raw = sample(d);
+  const pts = (e.kind === 'collateral' && !e.spontaneous) || e.kind === 'shunt' ? raw : meander(raw, e.id);
+  paths[e.id] = pts.map(([x, y]) => [round(x), round(y)]);
+}
+const nodes = Object.fromEntries(Object.entries(A.NODE_POS).map(([id, [a]]) => [id, a]));
+const setOf = (n) => [...A[n]];
+const sets = Object.fromEntries(['HIDDEN_EDGES', 'ANAT_HIDDEN', 'CONTEXT_EDGES', 'NEEDS_C3', 'IVC_EDGES', 'BACK_EDGES', 'REX_UNDER'].map((n) => [n, setOf(n)]));
+const hiddenNodes = setOf('HIDDEN_NODES');
+put('src/scene/vessels/paths.copied.ts', `${HEAD('anatomy.js NODE_POS, EDGE_PATH and the drawn/hidden sets; stage-paths.js sample and meander')}// World units of the 2D anatomy (1400 x 1000, the patient's right on the viewer's left, y down). Courses are the 2D figure's own 64 samples a vessel.
 export const NODE_POS_2D: Record<string, readonly [number, number]> = ${JSON.stringify(nodes)};
 export const EDGE_PATH_2D: Record<string, readonly (readonly [number, number])[]> = ${JSON.stringify(paths)};
 export const HIDDEN_EDGES: ReadonlySet<string> = new Set(${JSON.stringify(sets.HIDDEN_EDGES)});
@@ -128,6 +158,7 @@ export const CONTEXT_EDGES: ReadonlySet<string> = new Set(${JSON.stringify(sets.
 export const NEEDS_C3: ReadonlySet<string> = new Set(${JSON.stringify(sets.NEEDS_C3)});
 export const IVC_EDGES: ReadonlySet<string> = new Set(${JSON.stringify(sets.IVC_EDGES)});
 export const BACK_EDGES: ReadonlySet<string> = new Set(${JSON.stringify(sets.BACK_EDGES)});
+export const REX_UNDER: ReadonlySet<string> = new Set(${JSON.stringify(sets.REX_UNDER)});
 export const HIDDEN_NODES: ReadonlySet<string> = new Set(${JSON.stringify(hiddenNodes)});
 `);
 
@@ -137,6 +168,13 @@ const vel = read('src/ui/velNormal.js')
   .replace("'../engine/portal/flow-cuts.js'", "'../../engine/hales/portal/flow-cuts.js'")
   .replace("'../engine/portal/stent-geom.js'", "'../../engine/hales/portal/stent-geom.js'");
 put('src/scene/lenses/vel-normal.copied.js', `${HEAD('velNormal.js')}${vel}`);
+
+// ---------- blood.js (the streams the chevrons ride) ----------
+const blood = read('src/ui/blood.js')
+  .replace("'../engine/portal/flow-cuts.js'", "'../../engine/hales/portal/flow-cuts.js'")
+  .replace("import { lumenSurface, lumenAt } from './stomach-lumen.js';", '// (stomach-lumen.js is not used here: the bleed\'s pool belongs to the procedures)\nconst lumenSurface = () => 0, lumenAt = () => [0, 0];')
+  .replace("import { D_SURFACE, smooth01 } from './motion.js';", "const D_SURFACE = 420;   // (ease.js)\nconst smooth01 = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));   // (num.js)");
+put('src/scene/blood/blood.copied.js', `${HEAD('blood.js')}${blood}`);
 
 const sha = createHash('sha256').update(JSON.stringify(changed)).digest('hex').slice(0, 6);
 if (check) { if (changed.length) { console.error(`out of date (${sha}): ${changed.join(', ')}`); process.exit(1); } console.log('copy-b3-data: up to date'); }

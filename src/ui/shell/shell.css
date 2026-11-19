@@ -45,8 +45,20 @@
 
 /* the lens button: its name and a legend */
 .sh-lens { gap: 10px; }
-.sh-legend { width: 56px; height: 8px; border-radius: 4px; flex: none; }
-.sh-lens-name { min-width: 3.4em; text-align: left; }
+/* (the legend stands in the pill as the 2D app's `.legend` does: the title in two right-aligned lines, then a 168 x 30 scale with a notch and a number
+   under each mark; the compact caption stands in below 1600 px, no title on a phone. Numbers and sizes are the 2D app's styles/app.css, 205-235.) */
+.sh-lens-name { display: none; }
+.sh-lens .lg { display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 0 4px; }
+.sh-lens .lg-title, .sh-lens .lg-cap { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; font-size: 12px; color: var(--text-3); font-weight: 500; text-align: right; white-space: nowrap; margin-right: 4px; }
+.sh-lens .lg-title b, .sh-lens .lg-cap b { color: var(--text-2); font-weight: 600; }
+.sh-lens .lg-cap { display: none; }
+@media (max-width: 1599px) { .sh-lens .lg[data-variant="bar"] .lg-title { display: none; } .sh-lens .lg[data-variant="bar"] .lg-cap { display: flex; } }
+@media (max-width: 760px) { .sh-lens .lg-title, .sh-lens .lg-cap { display: none !important; } }
+.sh-lens .lg-bar-wrap { position: relative; width: 168px; height: 30px; padding: 0; margin: 0 10px; }
+.sh-lens .lg-bar { position: absolute; left: 0; right: 0; top: 4px; height: 8px; border-radius: 2px; }
+.sh-lens .lg-tick { top: 12px; bottom: auto; height: 3px; margin-left: -.5px; background: var(--text-2); opacity: .7; }
+.sh-lens .lg-nums span, .sh-lens .lg-nums span:first-child, .sh-lens .lg-nums span:last-child { top: 15px; transform: translateX(-50%); font-size: 12px; font-weight: 600; color: var(--text-2); }
+.sh-lens .lg-dots { gap: 4px 10px; flex-wrap: nowrap; }
 
 /* ── popovers (anchored to their button, always in the page) ── */
 .sh-anchor { position: relative; display: inline-flex; }
@@ -77,25 +89,8 @@
 .sh-grid .sh-row .sh-d { grid-column: 2; }
 .sh-grid .sh-row[aria-checked="true"] { background: var(--accent-soft); }
 
-/* ── the play bar ── */
-.sh-play { position: absolute; left: calc(var(--safe-l, 0px) + var(--sh-pad-x)); bottom: calc(var(--safe-b, 0px) + 14px); display: flex; align-items: center; gap: var(--sh-gap); transition: opacity 240ms var(--sh-ease); }
-.sh-play[data-hidden="true"] { opacity: 0; pointer-events: none; } .sh-play[data-hidden="true"] * { pointer-events: none !important; }
-.sh-split { pointer-events: auto; display: inline-flex; align-items: center; height: var(--sh-h); border-radius: 999px; border: 1px solid var(--edge); background: var(--surface);
-  box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 8px 22px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.4)); }
-.sh-split button { height: 100%; border: 0; background: transparent; min-width: var(--sh-h); padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; font: 600 14px / 1 var(--ui); }
-.sh-split > * + * { border-left: 1px solid var(--edge); }
-.sh-split > :first-child, .sh-split > :first-child > button { border-radius: 999px 0 0 999px; } .sh-split > :last-child, .sh-split > :last-child > button { border-radius: 0 999px 999px 0; }
-.sh-split .sh-anchor { height: 100%; } .sh-split .sh-anchor > button { height: 100%; }
-.sh-split button:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
-.sh-time { pointer-events: auto; min-width: 5.2em; text-align: center; font: 600 15px / 1 var(--ui); font-variant-numeric: tabular-nums lining-nums; color: var(--text); }
-.sh-read { pointer-events: auto; display: inline-flex; align-items: baseline; gap: 6px; height: var(--sh-h); padding: 0 14px; border-radius: 999px; border: 1px solid var(--edge); background: var(--surface); align-self: center; align-items: center; }
-.sh-read b { font: 600 12px / 1 var(--ui); letter-spacing: 0.06em; color: var(--text-3); }
-.sh-read span { font: 600 16px / 1 var(--ui); font-variant-numeric: tabular-nums lining-nums; }
-.sh-read small { font: 500 12px / 1 var(--ui); color: var(--text-2); }
-.sh-read[data-sev="danger"] span { color: var(--danger); } .sh-read[data-sev="caution"] span { color: var(--caution); } .sh-read[data-sev="ok"] span { color: var(--ok); }
-
 /* ── the zoom group ── */
-.sh-zoom { position: absolute; right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); bottom: calc(var(--safe-b, 0px) + 14px); display: flex; flex-direction: column; gap: 6px; transition: opacity 240ms var(--sh-ease); }
+.sh-zoom { position: absolute; right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); bottom: calc(var(--safe-b, 0px) + var(--sh-dock-gap, 12px) + 60px + 10px); display: flex; flex-direction: column; gap: 6px; transition: opacity 240ms var(--sh-ease); }
 .sh-zoom[data-hidden="true"] { opacity: 0; pointer-events: none; } .sh-zoom[data-hidden="true"] * { pointer-events: none !important; }
 .sh-zoom .sh-pill { padding: 0; width: var(--sh-h); justify-content: center; }
 .sh-zoom [data-folded="true"] { height: 0; opacity: 0; border-width: 0; pointer-events: none; margin-top: -6px; overflow: hidden; }
@@ -107,8 +102,7 @@
 .sh-thumb { pointer-events: auto; display: grid; grid-template-columns: repeat(5, 1fr); height: 56px; margin: 0 -12px; padding: 0 calc(var(--safe-r, 0px) + 12px) var(--safe-b, 0px) calc(var(--safe-l, 0px) + 12px); box-sizing: content-box; background: var(--surface); border-top: 1px solid var(--edge); }
 .sh-thumb button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 56px; border: 0; background: transparent; font: 600 11px / 1 var(--ui); color: var(--text-2); }
 .sh-thumb button[aria-expanded="true"], .sh-thumb button[aria-pressed="true"] { color: var(--accent); }
-.sh-root[data-bottom="true"] > .sh-play, .sh-root[data-bottom="true"] > .sh-zoom { display: none; }
-.sh-foot .sh-play { position: static; }
+.sh-root[data-bottom="true"] > .sh-zoom { display: none; }
 
 /* ── sheets: the main menu, Settings, Search, Help (a panel on a laptop, a sheet from the foot on a phone) ── */
 .sh-sheet { position: absolute; z-index: 3; display: flex; flex-direction: column; overflow: hidden; pointer-events: auto; border: 1px solid var(--edge); background: var(--surface); border-radius: 18px;
@@ -221,7 +215,7 @@
 .sh-nogl div { max-width: 420px; } .sh-nogl h1 { font: 600 26px / 1.2 var(--display); margin: 0 0 10px; } .sh-nogl p { margin: 0 0 18px; color: var(--text-2); font-size: 16px; line-height: 1.45; }
 .sh-nogl a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 22px; border-radius: 999px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; }
 
-@media (prefers-reduced-motion: reduce) { .sh-root, .sh-root * { transition-duration: 1ms !important; } }
+/* Reduce Motion: src/ui/a11y/reduced.css */
 
 /* the sheets' extras */
 .sh-hit-row b { font-weight: 600; color: var(--accent); }
@@ -250,5 +244,3 @@
 .sh-diag-box[data-on="true"] { opacity: 1; visibility: visible; transition-delay: 0s; }
 
 /* the colour key (B3's Legend) stands under the figure, centred; it fades with the talk */
-.sh-key { position: absolute; left: 50%; transform: translateX(-50%); --lg-title: 12px; --lg-num: 12px; --lg-width: 200px; pointer-events: none; transition: opacity 240ms var(--sh-ease); }
-.sh-key[data-hidden="true"] { opacity: 0; }

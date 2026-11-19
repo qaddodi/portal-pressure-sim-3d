@@ -8,9 +8,13 @@ import { HelpMenu, Guide } from './HelpSheets.tsx';
 import { LayersSheet } from './FigureMenu.tsx';
 import { usesBottomBar } from './room.ts';
 import { useUi } from '../ui-store.ts';
+import { HistorySheet } from '../history/HistorySheet.tsx';
+import { DifferencesSheet } from '../compare/CompareUi.tsx';
+import { WhySheet } from '../why/WhySheet.tsx';
 import { RESET } from './words.ts';
 import { resetEverything } from './reset.ts';
 import { DeckDialogs } from '../deck/DeckDialogs.tsx';
+import { TreatCard } from '../treat/TreatCard.tsx';
 
 function ResetDialog() {
   const open = useShell((s) => s.dialog === 'reset');
@@ -37,8 +41,12 @@ export function Sheets() {
   return (
     <>
       <MenuSheet />
+      {!talk && <TreatCard />}
       {bottom && !talk && <LayersSheet />}
       {!talk && <SettingsSheet place="top" />}
+      <HistorySheet />
+      <DifferencesSheet />
+      <WhySheet />
       <SearchSheet />
       <HelpMenu />
       <Guide />

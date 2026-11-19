@@ -4,7 +4,8 @@
 // topology edge, so a station whose vessel is not drawn yet simply has no label (a test lists them).
 import { CatmullRomCurve3, Vector3 } from 'three';
 import { VESSELS, vesselPoints } from '../anatomy/vessels.ts';
-import { VARICES } from '../anatomy/placeholder.ts';
+import { NODE_POS_2D } from '../vessels/paths.copied.ts';
+import { TIER_Z, x3, y3 } from '../frame2d.ts';
 import { LABEL_NAMES as N } from './names.copied.ts';
 import type { Dir } from './geometry.ts';
 
@@ -51,24 +52,20 @@ const curveOf = (edge: string): CatmullRomCurve3 | null => {
   return c;
 };
 
-/** Fixed scene points for stations that are not one vessel: the right atrium, the right liver's sinusoids, the varices (placeholder anatomy;
- *  tuned again when the artist's model arrives, and the only numbers here that are not copied). */
-const VAR_MEAN: [number, number, number] = (() => {
-  let x = 0, y = 0, z = 0;
-  for (const v of VARICES) { x += 0.48 + Math.cos(v.angle) * 0.12; y += v.y; z += -0.12 + Math.sin(v.angle) * 0.12; }
-  const n = VARICES.length;
-  return [x / n, y / n, z / n + 0.2];
-})();
-const POINTS: Record<string, [number, number, number]> = {
-  RA: [-0.35, 2.4, -0.1],
-  SIN_R: [-1.0, 0.85, 0.55],
-  VAR: VAR_MEAN,
-};
-/** Where an organ's name stands (drawn on the organ; no leader). */
-const ORGAN_POINTS: Record<string, [number, number, number]> = {
-  liver: [-0.9, 0.75, 0.62], spleen: [1.9, 1.0, -0.1], stomach: [1.05, 1.15, 0.5],
-};
+/** Fixed scene points for stations that are not one vessel: the right atrium, the right liver's sinusoids, the varices. Where each stands is the 2D
+ *  figure's own place for it (NODE_POS_2D), carried onto the scene by the one map (frame2d.ts), on the front vessel tier; an organ's name stands where
+ *  the 2D app puts it (ORGAN_LABELS, copied), on the organ's front face. */
+const at2d = (x: number, y: number, z: number): [number, number, number] => [x3(x), y3(y), z];
+const nodeAt = (id: string): [number, number, number] => { const p = NODE_POS_2D[id]; if (!p) throw new Error(`the 2D map has no place for ${id}`); return at2d(p[0], p[1], TIER_Z.front); };
+const POINTS: Record<string, [number, number, number]> = { RA: nodeAt('RA'), SIN_R: nodeAt('SIN_R'), VAR: nodeAt('VAR') };
+/** The plane of an organ's front face (frame2d.ts: organs lie behind z = 0.26). */
+const ORGAN_FRONT = 0.26;
 const ORGAN_WORD: Record<string, string> = { liver: 'Liver', spleen: 'Spleen', stomach: 'Stomach' };
+const ORGAN_POINTS: Record<string, [number, number, number]> = Object.fromEntries(Object.entries(ORGAN_WORD).map(([id, word]) => {
+  const p = (N.ORGAN_AT as Record<string, readonly [number, number]>)[word];
+  if (!p) throw new Error(`the 2D app has no organ name "${word}"`);
+  return [id, at2d(p[0], p[1], ORGAN_FRONT)];
+}));
 
 const DIRS: Record<string, readonly Dir[]> = {
   CONF: ['W', 'SW', 'E'], SV: ['S', 'SE', 'E'], SMV: ['E', 'SE', 'W'], SIN_R: ['W', 'SW', 'NW'], RHV: ['W', 'NW', 'N'], IVCS: ['E', 'NE', 'SE'],
