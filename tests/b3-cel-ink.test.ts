@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Color } from 'three';
-import { CASING, CEL, RIM_A, celTones, inkWidthDev } from '../src/scene/vessels/cel-ink.ts';
+import { CASING, CEL, RIM_A, TAPER_TO, celTones, inkTaper, inkWidthDev } from '../src/scene/vessels/cel-ink.ts';
 import { LOOK_IDS, PALETTES } from '../src/scene/palette.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { CelScene } from '../src/scene/scene.ts';
@@ -12,7 +12,7 @@ test('the outline is 0.14 of the radius held between 1.5 and 3 device px: a hair
   assert.equal(inkWidthDev(10), 1.5);
   assert.ok(Math.abs(inkWidthDev(15) - 2.1) < 1e-9);
   assert.equal(inkWidthDev(60), 3);
-  assert.match(VESSEL_VS, /clamp\(0\.14 \* rDev, 1\.5, 3\.0\) \/ dpr/);
+  assert.match(VESSEL_VS, /clamp\(0\.14 \* rDev, 1\.5, 3\.0\) \* smoothstep\(0\.3, 1\.5, rDev\) \/ dpr/);
 });
 
 test('three tones lit from the top left of the screen: shadow on the far side, lift on the near, nothing on a hairline, and the same wherever the tube lies in the view', () => {
@@ -67,4 +67,20 @@ test('the ink is its own blended draw after the opaque bodies: a material for th
   const g = o.toonMesh.geometry, n = g.getIndex()!.count;
   assert.deepEqual(g.groups.map((x) => [x.start, x.count, x.materialIndex]), [[0, n / 2, 0], [n / 2, n / 2, 1]]);
   s.dispose();
+});
+
+test('a sub-pixel lumen keeps its colour: the line thins under 1.5 device px of radius, so at 0.5 px the lumen is most of the width, and from 1.5 px up it is the 2D line', () => {
+  const share = (r: number) => (2 * r) / (2 * r + 2 * inkWidthDev(r));   // colour's share of the outer width
+  assert.ok(share(0.5) > 0.8, `0.5 px radius: ${share(0.5)} (was 0.25 with the 1.5 px floor)`);
+  assert.ok(share(0.3) > 0.99, 'a lumen of 0.3 px radius is all colour');
+  assert.equal(inkTaper(TAPER_TO), 1); assert.equal(inkWidthDev(TAPER_TO), 1.5);
+  assert.equal(inkWidthDev(2), 1.5, 'the 2D line from there on');
+  let last = 0; for (let r = 0; r <= 4; r += 0.1) { const w = inkWidthDev(r); assert.ok(w >= last - 1e-12, 'the line never thins as the vessel widens'); last = w; }
+});
+
+test('the vessel shader holds the same taper and leaves the picked ring alone', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
+  assert.match(src, /clamp\(0\.14 \* rDev, 1\.5, 3\.0\) \* smoothstep\(0\.3, 1\.5, rDev\) \/ dpr/);
+  assert.match(src, /\(inkPx \+ hiPx \* vHi\)/);
 });

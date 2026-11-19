@@ -21,6 +21,7 @@ const imp = (p) => import(pathToFileURL(`${from}/${p}`).href);
 const A = await imp('src/ui/anatomy.js');
 const T = await imp('src/engine/portal/topology.js');
 const CN = await imp('src/ui/circuit-nodes.js');
+const CSP = await imp('src/ui/custom-shunt-paths.js');
 const PEEL = await imp('src/ui/flow-peel.js');
 const TT = await imp('src/ui/theme-tokens.js');
 const MOTION = await imp('src/ui/motion.js');
@@ -145,6 +146,8 @@ export const NODE_CIRCUIT: Readonly<Record<string, readonly [number, number]>> =
 export const ROUTER_STATIONS: readonly (readonly [number, number])[] = ${JSON.stringify(routerStations)};
 /** The custom shunts the engine can open: [edge, from, to]. */
 export const CUSTOM_EDGES: readonly (readonly [string, string, string])[] = ${JSON.stringify(customEdges)};
+/** Each custom shunt's course on the body (SVG path in the anatomy plate's units: custom-shunt-paths.js), the course it is drawn on in the Anatomy as it opens. */
+export const CUSTOM_SHUNT_PATH: Readonly<Record<string, string>> = ${JSON.stringify(CSP.CUSTOM_SHUNT_PATH)};
 `;
 
 const same = existsSync(target) && readFileSync(target, 'utf8') === body && existsSync(routerTarget) && readFileSync(routerTarget, 'utf8') === routerBody;

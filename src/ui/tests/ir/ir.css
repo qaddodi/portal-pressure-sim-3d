@@ -4,10 +4,15 @@
 .ir-pane .t-seg { align-self: flex-start; margin-bottom: 0; }
 .ir-pane .chart-box { flex: none; position: relative; min-width: 0; }
 .ir-pane .chart-side { display: flex; flex-direction: column; gap: 10px; width: auto; overflow: visible; }
-.ir-fade { animation: ir-fade 280ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.ir-fade { animation: ir-fade var(--d-small, 240ms) cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 @keyframes ir-fade { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .ir-fade { animation: none; } }
 .ir-switch .ps-btn.off { opacity: .42; }
 .ir-tips { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .ir-stent-line { margin: 0; }
 .ir-editor { min-width: 0; }
+/* The curves and the compare table take their own height here (the 2D dock gave them the card's remaining height with flex-basis 0; this card's pane is as tall as its parts). */
+.ir-tips > .ir-curves { flex: none; }
+.ir-curves .ir-chart { flex: none; min-height: 0; display: block; }
+.ir-curves .ir-chart .pz-curve { height: auto; }
+.ir-tips .tf-chart { min-width: 0; }
