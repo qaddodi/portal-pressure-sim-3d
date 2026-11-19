@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import type { Deck, Slide } from '../../decks/schema.ts';
 import { useLapse, lapseText } from '../../decks/hp/lapse.ts';
 import { pickCompare, dragWhatIf, whatIfStart, pickScale } from '../talk/controls-run.ts';
+import { useVariant } from '../talk/variant-words.ts';
 
 const SCALE_LABEL = { anatomy: 'Anatomy', lobule: 'Lobule', sinusoid: 'Sinusoid' } as const;
 
@@ -24,7 +25,8 @@ function Compare({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
   const { opts, name } = slide.controls!.compare!;
   const own = Math.max(0, opts.findIndex((o) => o.own));
   const [on, setOn] = useState(own);
-  useEffect(() => setOn(own), [slide.id, own]);
+  // a slide shown again starts with its own words and its own button
+  useEffect(() => { setOn(own); useVariant.getState().set(`${deck.id}/${slide.id}`, null); }, [slide.id, own, deck.id]);
   return (
     <div className="pz-ab" role="group" aria-label={name}>
       {opts.map((o, k) => (

@@ -10,6 +10,8 @@ export type Piece =
   /** A number typed in braces (a rule from the literature, not the patient): outlined like a cut-off. */
   | { t: 'literal'; text: string }
   | { t: 'cutoff'; text: string }
+  /** A figure's numbered marker ({#2}): the glow step of that number, set in the line as the figure's own black circle. */
+  | { t: 'step'; n: number }
   | { t: 'term'; label: string; term: string }
   | { t: 'bold'; text: string };
 
@@ -37,7 +39,7 @@ export function parseLine(line: string): Piece[] {
       const tk = parseToken(body);
       if (tk.kind === 'cut') out.push({ t: 'cutoff', text: tk.text.replace(/ /g, '\u00a0') });
       else if (tk.kind === 'value') out.push({ t: 'value', key: tk.key, decimals: tk.whole ? 0 : null, ...(tk.at ? { at: tk.at } : {}) });
-      else if (tk.kind === 'step') out.push({ t: 'literal', text: String(tk.n) });
+      else if (tk.kind === 'step') out.push({ t: 'step', n: tk.n });
       // a typed number or quantity ({6 to 8 g}, {2 to 3 mg/24 h}): a rule, outlined. A bare word is a mistyped reading and stays an error.
       else if (/[\d%]/.test(tk.text)) out.push({ t: 'literal', text: tk.text });
       else throw new Error(`the line has {${body}}, which is no reading or cut-off`);
@@ -71,6 +73,8 @@ export function plainLine(pieces: Piece[], read: (k: string, at?: string) => num
       case 'bold': return p.text;
       case 'term': return p.label;
       case 'cutoff': return p.text;
+      case 'literal': return p.text;
+      case 'step': return String(p.n);
       case 'value': return `${fmtPressure(read(p.key), p.decimals)}${read(p.key) == null ? '' : ' mmHg'}`;
     }
   }).join('');

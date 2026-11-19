@@ -3,7 +3,8 @@
 // a scale is the scene's view. The slide's own state comes back whenever the slide is shown again (hp/link.ts morphs to it).
 import { engine } from '../../engine/index.ts';
 import { useStates } from '../../decks/hp/calc.ts';
-import { patchOf, valueAt, type CompareOpt, type Scale } from '../../decks/controls.ts';
+import { patchOf, valueAt, speaks, variantWords, type CompareOpt, type Scale } from '../../decks/controls.ts';
+import { useVariant } from './variant-words.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { LENS_IDS, type LensId, DEFAULT_LENS } from '../../scene/lenses/model.ts';
 import { LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
@@ -16,26 +17,43 @@ export const EASE_MS = 700, MORPH_MS = 1100, SLIDER_EASE_MS = 350;
 
 const stateOf = (deck: Deck, i: number) => useStates.getState().results[deck.id]?.[i];
 const presetSnaps = new Map<string, Promise<unknown>>();
-/** The state of a patient (a preset), worked out off screen once. */
-const snapOfPreset = (preset: string): Promise<unknown> => {
-  let p = presetSnaps.get(preset);
-  if (!p) { p = engine().sequence([{ preset }]).then((r) => r[0]?.snap); presetSnaps.set(preset, p); p.catch(() => presetSnaps.delete(preset)); }
+/** A patient's state (2D xKey: the preset with the params, days and relax a button gives it), worked out off screen once. */
+const xKey = (o: { preset: string; params?: unknown; days?: number }): string => o.preset + (o.params || o.days ? JSON.stringify([o.params, o.days]) : '');
+const snapOfPatient = (o: CompareOpt): Promise<unknown> => {
+  const key = xKey(o as { preset: string });
+  let p = presetSnaps.get(key);
+  if (!p) {
+    p = engine().sequence([{ preset: o.preset!, ...(o.params ? { params: o.params } : {}), ...(o.days ? { days: o.days } : {}) }]).then((r) => r[0]?.snap);
+    presetSnaps.set(key, p); p.catch(() => presetSnaps.delete(key));
+  }
   return p;
 };
 const morph = (snap: unknown) => { if (snap) engine().send({ type: 'morph', snap, ms: MORPH_MS }); };
 
-/** A compare button: the slide's own state, a treatment's parameters, another patient, another slide's state, or a lens. `i` is the slide's index in the deck. */
+/** A compare button, by what it does (decks/controls.ts howOf, 2D abChoice): switch the lens, ease the model to a state (a patient, another slide's, the slide's own), or patch the live
+ *  parameters. A button that speaks brings its words to the card (variant-words.ts). `i` is the slide's index in the deck. */
 export async function pickCompare(deck: Deck, i: number, o: CompareOpt): Promise<void> {
-  if (o.lens) {
-    const own = deck.slides[i]?.scene?.lens ?? DEFAULT_LENS;
-    const lens = o.own && !(LENS_IDS as readonly string[]).includes(o.lens) ? own : o.lens;
+  const slide = deck.slides[i];
+  if (!slide) return;
+  const key = `${deck.id}/${slide.id}`;
+  if (o.how === 'lens') {
+    const own = slide.scene?.lens ?? DEFAULT_LENS;
+    const lens = o.own && !(LENS_IDS as readonly string[]).includes(o.lens ?? '') ? own : o.lens!;
     if ((LENS_IDS as readonly string[]).includes(lens)) sceneApi.setLens(lens as LensId);
     return;
   }
-  if (o.params) { engine().send({ type: 'setParams', params: o.params, settle: false, ease: EASE_MS }); return; }
-  if (o.preset) { morph(await snapOfPreset(o.preset)); return; }
-  if (o.slide) { const j = deck.slides.findIndex((s) => s.id === o.slide); if (j >= 0) morph(stateOf(deck, j)?.snap); return; }
-  if (o.own) morph(stateOf(deck, i)?.snap);
+  const at = o.slide ? deck.slides.find((s) => s.id === o.slide) ?? null : null;
+  const words = variantWords(slide, o, at);
+  if (o.how === 'params') {
+    engine().send({ type: 'setParams', params: o.params ?? {}, settle: false, ease: EASE_MS });
+    // (only a row where some button speaks brings words: a row of plain parameter buttons keeps the slide's)
+    if (speaks(slide.controls?.compare?.opts ?? [])) useVariant.getState().set(key, words);
+    return;
+  }
+  const j = o.slide ? deck.slides.findIndex((s) => s.id === o.slide) : i;
+  const snap = o.preset ? await snapOfPatient(o) : stateOf(deck, j)?.snap;
+  morph(snap);
+  useVariant.getState().set(key, words);
 }
 
 /** The what-if slider: one value at its parameter paths, eased in. */

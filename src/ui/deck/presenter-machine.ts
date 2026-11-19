@@ -20,7 +20,7 @@ export interface Pos { stop: number; beat: number }
 export function stopsOf(deck: Deck): Stop[] {
   return [
     { kind: 'title' },
-    ...deck.slides.map((slide): Stop => ({ kind: 'slide', slide, beats: caseOf(slide) ? 2 : 1 })),
+    ...deck.slides.map((slide): Stop => ({ kind: 'slide', slide, beats: (caseOf(slide) ? 1 : 0) + 1 + (slide.beats?.length ?? 0) })),
     { kind: 'check' },
   ];
 }
@@ -46,7 +46,9 @@ export function back(stops: Stop[], p: Pos): Pos {
  *  when the talk walks up to it with Next, so a jump skips its card and lands on the slide itself, as 2D does; Back from there still reaches the card. */
 export const goto = (stops: Stop[], stop: number): Pos => {
   const at = Math.max(0, Math.min(stops.length - 1, stop | 0)), s = stops[at];
-  return { stop: at, beat: s?.kind === 'slide' && s.beats > 1 && caseOf(s.slide)?.kicker === 'Question' ? 1 : 0 };
+  // (a slide with beats is opened on its last view, so it stands with its whole point made: 2D slide-beats.js)
+  const ends = s?.kind === 'slide' && !caseOf(s.slide) && (s.slide.beats?.length ?? 0) > 0;
+  return { stop: at, beat: s?.kind === 'slide' && s.beats > 1 && caseOf(s.slide)?.kicker === 'Question' ? 1 : ends ? s.beats - 1 : 0 };
 };
 
 export const samePos = (a: Pos, b: Pos) => a.stop === b.stop && a.beat === b.beat;
@@ -66,6 +68,8 @@ export interface View {
   number: number; of: number;
 }
 
+const dataOf = (s: Slide): CardId | null => (s.ladder || s.tiles || hasToolChart(s) ? 'ladder' : s.table || hasVisualChart(s) ? 'table' : null);
+
 export function viewAt(stops: Stop[], p: Pos, lastShot: ShotName | Shot = lastSlideShot(stops)): View {
   const s = stops[p.stop];
   const of = stops.length, number = p.stop + 1;
@@ -73,9 +77,12 @@ export function viewAt(stops: Stop[], p: Pos, lastShot: ShotName | Shot = lastSl
   if (s.kind === 'title') return { words: 'title', data: null, slide: null, shot: TITLE_SHOT, scene: null, cath: null, number, of };
   if (s.kind === 'check') return { words: 'check', data: null, slide: null, shot: lastScene ? lastScene.shot : lastShot, scene: lastScene, cath: null, number, of };
   const caseBeat = !!caseOf(s.slide) && p.beat === 0;
+  // the figure's views after the slide's own (2D `beats`): one per Next, the words and the data staying; a beat past the case beat is the slide itself (0) or one of its beats
+  const view = Math.max(0, p.beat - (caseOf(s.slide) ? 1 : 0)), beat = view > 0 ? s.slide.beats?.[view - 1] : undefined;
+  if (beat) return { words: 'teach', data: dataOf(s.slide), slide: s.slide, shot: beat.shot, scene: beat, cath: s.slide.cath ?? null, number, of };
   return {
     words: caseBeat ? 'case' : 'teach',
-    data: caseBeat ? null : s.slide.ladder || s.slide.tiles || hasToolChart(s.slide) ? 'ladder' : s.slide.table || hasVisualChart(s.slide) ? 'table' : null,
+    data: caseBeat ? null : dataOf(s.slide),
     slide: s.slide, shot: s.slide.scene ? s.slide.scene.shot : s.slide.shot ?? TITLE_SHOT, scene: s.slide.scene ?? null, cath: s.slide.cath ?? null, number, of,
   };
 }

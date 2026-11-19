@@ -46,7 +46,7 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
               );
             })}
           </div>
-          {r.notes.filter(Boolean).map((t, j) => <p key={j} className="dk-tnote">{t}</p>)}
+          {r.notes.map((t, j) => (t ? <p key={j} className="dk-tnote">{model.noteHeads[j] ? <b className="dk-tnh">{model.noteHeads[j]}</b> : null}{t}</p> : null))}
         </section>
       ))}
       <p className="dk-tfoot">{model.legend}</p>

@@ -29,6 +29,7 @@ import { ShiftCard } from '../charts/shift/ShiftCard.tsx';
 import { shiftData, stateOfStep, shiftTrail } from '../charts/shift/data.ts';
 import { LaddersCard } from '../charts/ladder/LaddersCard.tsx';
 import { AllPatientsCard } from '../charts/small/AllPatientsCard.tsx';
+import { WallsCard } from '../charts/walls/WallsCard.tsx';
 import { ghostOf } from './ghost.ts';
 import { useProbes } from '../../scene/devices/probes/state.ts';
 import { StiffCard } from '../charts/stiff/StiffCard.tsx';
@@ -118,6 +119,7 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'visual:plane': return <PlaneVisual deck={deck} cs={cs} fpOf={fpOf} />;
     case 'visual:ladders': return <LaddersCard slide={cs as never} deck={copied as never} />;
     case 'visual:allpatients': return <AllPatientsCard slide={cs as never} deck={copied as never} />;
+    case 'visual:walls': return <WallsCard />;
     case 'doppler': case 'fibroscan': case 'abdomen': case 'reading': case 'hvpg': case 'scope': case 'wall': {
       const ghost = ghostOf(cs as never, i, copied.slides as never, fpOf as never, stateOf);
       return <>{ghost ? <p className="pz-ghost"><span>{ghost.label}</span><b>{ghost.value}</b></p> : null}<Instrument kind={kind} tool={tool} /></>;

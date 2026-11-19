@@ -75,7 +75,7 @@ const TABLE: Feature[] = [
   done('whatIf', 'B12', 'A slider that drags one parameter of the live model', 'src/ui/cards/SlideControls.tsx'),
   done('response', 'B12', 'The beta-blocker response buttons', 'src/decks/controls.ts'),
   done('time-lapse', 'B12', 'The slide\'s days play on the live figure as a time-lapse', 'src/decks/hp/lapse.ts'),
-  hook('beats', 'B12', 'A slide with several camera beats'),
+  done('beats', 'B12', 'A slide with several camera beats: one view of the figure per Next, the words and the data staying', 'src/ui/deck/presenter-machine.ts'),
   hook('since', 'B3', 'The Since lens: change since another slide\'s state'),
 ];
 

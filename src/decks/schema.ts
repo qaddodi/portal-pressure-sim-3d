@@ -30,7 +30,7 @@ export interface SlideScene {
 }
 
 /** The data card of tiles: which readings, the key ones, and the state the change counts from. The numbers come from the slide's own state in the engine, never from the deck. */
-export interface SlideTiles { deck: string; slide: string; keys: string[]; key: string[]; delta: string | boolean | null }
+export interface SlideTiles { deck: string; slide: string; keys: string[]; key: string[]; delta: string | boolean | null; /** the response tile's baseline (2D `hvpgResp`): a slide id, or true for the slide before */ resp?: string | true }
 
 /** A slide's patient: the preset to load and the parameter changes over it (the engine's own shape), as the 2D deck's `preset` and `params`. */
 export interface SlideModel { preset: string; params?: unknown; days?: number }
@@ -99,6 +99,19 @@ export interface Slide {
   tiles?: SlideTiles;
   /** the line under the equation (what its letters stand for) */
   eqLegend?: string;
+  /** The level of portal hypertension the slide is about (2D `site`: pre, presin, sin, postsin, post, cardiac); it names and colours the card's level tab. */
+  site?: string;
+  /** The level rail under the line (2D `rail`): every level named ('all') or the slide's own level marked (true). */
+  rail?: 'all' | true;
+  /** Two guidelines side by side under the line (2D `sides`). `text` takes the line's own tokens. */
+  sides?: { who: string; text: string }[];
+  /** `pill: false` (2D): no value of the line is set in a pill unless the line braces it. */
+  pill?: false;
+  /** The causes under the line (2D `causes`, `causesHead`). */
+  causes?: string[];
+  causesHead?: string;
+  /** The views of the figure after the slide's own, one per Next (2D `beats`: the camera each beat asks for; the words and the data stay). */
+  beats?: SlideScene[];
 }
 
 /** The words of a slide's first card (its case, or its question) and its kicker; null when the slide opens on its words. */
