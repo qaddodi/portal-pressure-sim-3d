@@ -62,7 +62,9 @@ test('the whole layer takes every preset, eases, and keeps every number and ever
 test('presence of collaterals follows the model: a healthy patient shows none, a decompensated one shows plexuses', () => {
   const scene = new CelScene(); const d = scene.disease;
   const feed = (id: string) => { const s = states.get(id)!; d.feed(s.frame, s.params, s.healthyP, { instant: true, presence: (v) => presenceOf(NETWORK.find((n) => n.id === v) ?? { id: v, kind: 'vein' } as never, s.frame as never, { collaterals: true }) === 'shown' ? 1 : 0, recruit: (v, f) => recruitFrac(v, f as never) }, true); for (let i = 0; i < 30; i++) d.update(1000 + i * 33); };
-  feed('healthy'); const none = Object.values(d.strands.drawn()).reduce((a, b) => a + b, 0);
-  feed('cirr-decomp'); const some = Object.values(d.strands.drawn()).reduce((a, b) => a + b, 0);
+  // (the sinusoids' own faint strands are anatomy, drawn on a healthy liver: only the collaterals' plexuses follow the disease)
+  const plexuses = () => Object.entries(d.strands.drawn()).filter(([id]) => !id.startsWith('SIN_')).reduce((a, [, b]) => a + b, 0);
+  feed('healthy'); const none = plexuses();
+  feed('cirr-decomp'); const some = plexuses();
   assert.equal(none, 0); assert.ok(some > 0, `${some} strands drawn for decompensated`);
 });

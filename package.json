@@ -15,6 +15,7 @@
     "sync:engine": "node scripts/sync-engine.mjs",
     "gen:engine-fixture": "node scripts/gen-engine-fixture.mjs",
     "sync:inventory": "node scripts/sync-inventory.mjs",
+    "debug": "node scripts/debug.mjs",
     "gen:strings": "node scripts/gen-ui-strings.mjs"
   },
   "license": "UNLICENSED",

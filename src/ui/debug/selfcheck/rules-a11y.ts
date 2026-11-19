@@ -21,5 +21,5 @@ registerRule({ id: 'a11y-lang', family: 'a11y', owner: 'index.html', why: 'The d
 registerRule({ id: 'a11y-control-name', family: 'a11y', owner: 'src/ui/shell/TopBar.tsx', why: 'Every control has a name: an icon-only button carries an aria-label (WCAG 4.1.2)',
   check: (r: Record<string, any>) => (r.a11y?.unnamed ?? []).map((u: string) => ({ what: `Control ${u} has no name`, where: 'no text, aria-label or title' })) });
 
-registerRule({ id: 'a11y-colour-cue', family: 'a11y', owner: 'src/ui/a11y/cues.ts', why: 'Colour is never the only cue: every value shown by colour also has a number, an arrow, a dash pattern or a word (WCAG 1.4.1; docs/accessibility.md)',
+registerRule({ id: 'a11y-colour-cue', family: 'a11y', owner: 'src/ui/debug/screen/raw.ts', why: 'Colour is never the only cue: every value shown by colour also has a number, an arrow, a dash pattern or a word (WCAG 1.4.1; docs/accessibility.md)',
   check: (r: Record<string, any>) => (r.a11y?.cues?.bare ?? []).map((c: { el: string; tone: string }) => ({ what: `${c.el} is coloured "${c.tone}" with no words behind it`, where: 'give it its number or word, or an aria-label naming the state' })) });

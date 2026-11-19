@@ -31,6 +31,7 @@ export const AREA_GROUPS: { group: string; areas: string[] }[] = [
   { group: 'Behaviours of the shell', areas: ['behaviour'] },
   { group: 'Patients (presets)', areas: ['preset'] },
   { group: 'Colour lenses', areas: ['lens'] },
+  { group: 'Organs and disease looks (figure)', areas: ['figure'] },
   { group: 'Treat (drugs, fluids, procedures)', areas: ['treat'] },
   { group: 'Tests (instruments and probes)', areas: ['tests'] },
   { group: 'Charts', areas: ['chart'] },

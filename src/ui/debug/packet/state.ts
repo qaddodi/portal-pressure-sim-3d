@@ -12,8 +12,62 @@ const ID = /^[\w-]{1,40}$/;
 const FIGURE_FLAGS = ['chevrons', 'keyChevrons', 'chips', 'collaterals', 'labels', 'zones', 'lymph', 'bile'];
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
 
-export interface Extras { look?: string; lens?: string; view?: string; labels?: string; figure?: Record<string, boolean>; running?: boolean; speed?: number; vw?: number; vh?: number; dpr?: number }
+export interface Cam { orbit: number; k: number; x: number; y: number }
+export interface Extras {
+  look?: string; lens?: string; view?: string; labels?: string; figure?: Record<string, boolean>; running?: boolean; speed?: number; vw?: number; vh?: number; dpr?: number;
+  /** the figure's turn (degrees), zoom and pan (the 2D share link's `cam`, with the turn the 3D figure adds) */
+  cam?: Cam;
+  /** the vessel picked (a topology edge id) */
+  sel?: string;
+  /** what was changed from the patient's own settings: the sliders (the 2D share link's `params`, a nested difference, not the whole tree) */
+  params?: Record<string, unknown>;
+}
 export interface PacketState { v: number; preset: string | null; script?: string; slide?: number; x: Extras }
+
+const UNSAFE = new Set(['__proto__', 'constructor', 'prototype']);
+const KEY = /^[\w .:-]{1,48}$/;
+const MAX_NODES = 400, MAX_DEPTH = 8, MAX_STR = 80, MAX_ARR = 64;
+
+/** Settings that differ between two parameter trees (the 2D app's diffParams): the nested object of what is different (arrays and leaves replaced whole), or null for none. */
+export function diffParams(base: unknown, now: unknown): Record<string, unknown> | null {
+  if (!isObj(now)) return null;
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(now)) {
+    if (UNSAFE.has(k)) continue;
+    const a = isObj(base) ? base[k] : undefined, b = now[k];
+    if (isObj(b)) { const d = diffParams(isObj(a) ? a : {}, b); if (d) out[k] = d; } else if (JSON.stringify(a) !== JSON.stringify(b)) out[k] = b;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/** The same difference as a flat list for people: { 'a.b.c': [was, now] } (the 2D app's changedFrom). */
+export function changedFrom(base: unknown, now: unknown, path = '', out: Record<string, [unknown, unknown]> = {}): Record<string, [unknown, unknown]> {
+  if (!isObj(now)) return out;
+  for (const k of Object.keys(now)) {
+    const p = path ? `${path}.${k}` : k, a = isObj(base) ? base[k] : undefined, b = now[k];
+    if (isObj(b)) changedFrom(a, b, p, out); else if (JSON.stringify(a) !== JSON.stringify(b)) out[p] = [a === undefined ? null : a, b];
+  }
+  return out;
+}
+
+/** A parameter difference read from an address anyone can edit: plain objects, finite numbers, booleans, short strings and short arrays of those; no prototype keys, bounded in depth and size. Null when nothing is left. */
+export function cleanParams(x: unknown): Record<string, unknown> | null {
+  let nodes = 0;
+  const leaf = (v: unknown): unknown => (typeof v === 'number' ? (Number.isFinite(v) ? v : undefined) : typeof v === 'boolean' ? v : typeof v === 'string' ? (v.length <= MAX_STR ? v : undefined) : v === null ? null : undefined);
+  const walk = (o: Record<string, unknown>, depth: number): Record<string, unknown> | null => {
+    if (depth > MAX_DEPTH) return null;
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(o)) {
+      if (UNSAFE.has(k) || !KEY.test(k) || ++nodes > MAX_NODES) continue;
+      const v = o[k];
+      if (isObj(v)) { const d = walk(v, depth + 1); if (d) out[k] = d; }
+      else if (Array.isArray(v)) { if (v.length <= MAX_ARR && v.every((e) => typeof e === 'number' ? Number.isFinite(e) : typeof e === 'boolean' || (typeof e === 'string' && e.length <= MAX_STR))) { nodes += v.length; out[k] = [...v]; } }
+      else { const l = leaf(v); if (l !== undefined) out[k] = l; }
+    }
+    return Object.keys(out).length ? out : null;
+  };
+  return isObj(x) ? walk(x, 0) : null;
+}
 
 /** Keeps only what the app can apply from a link's `#x` (it is read from an address anyone can edit). */
 export function cleanExtras(x: unknown): Extras {
@@ -28,15 +82,29 @@ export function cleanExtras(x: unknown): Extras {
   if (typeof x.speed === 'number' && Number.isFinite(x.speed) && x.speed >= 0 && x.speed <= 1000) o.speed = x.speed;
   for (const k of ['vw', 'vh'] as const) { const v = x[k]; if (typeof v === 'number' && Number.isFinite(v) && v >= 200 && v <= 5000) o[k] = Math.round(v); }
   if (typeof x.dpr === 'number' && Number.isFinite(x.dpr) && x.dpr >= 0.5 && x.dpr <= 5) o.dpr = Math.round(x.dpr * 100) / 100;
+  if (isObj(x.cam)) {
+    const c = x.cam, n = (v: unknown, lo: number, hi: number): number | null => (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? v : null);
+    const orbit = n(c.orbit, -25, 25), k = n(c.k, 0.2, 20), px = n(c.x, -8000, 8000), py = n(c.y, -8000, 8000);
+    if (orbit != null && k != null && px != null && py != null) o.cam = { orbit: Math.round(orbit * 10) / 10, k: Math.round(k * 1000) / 1000, x: Math.round(px), y: Math.round(py) };
+  }
+  if (typeof x.sel === 'string' && ID.test(x.sel)) o.sel = x.sel;
+  const params = cleanParams(x.params);
+  if (params) o.params = params;
   return o;
 }
 
 /** What the app shows now, from the screen's own snapshot (the stores) and the figure's switches. */
-export function captureState(app: AppSnapshot, extra: { figure?: Record<string, unknown>; labels?: string; running?: boolean; speed?: number } = {}): PacketState {
+export function captureState(app: AppSnapshot, extra: { figure?: Record<string, unknown>; labels?: string; running?: boolean; speed?: number; params?: unknown } = {}): PacketState {
   const x: Record<string, unknown> = { look: app.look, lens: app.lens, view: app.view, labels: extra.labels, vw: app.vp.w, vh: app.vp.h, dpr: app.dpr };
   if (extra.figure) x.figure = extra.figure;
   if (extra.running != null) x.running = extra.running;
   if (extra.speed != null && extra.speed !== 1) x.speed = extra.speed;
+  // the camera, only when the hand has moved it (a slide's own framing is the deep link's); the sliders as the difference from the patient's own settings
+  const cam = app.camera;
+  if (cam.orbitDeg !== 0 || cam.zoom !== 1 || cam.pan[0] !== 0 || cam.pan[1] !== 0) x.cam = { orbit: cam.orbitDeg, k: cam.zoom, x: cam.pan[0], y: cam.pan[1] };
+  if (app.picked) x.sel = app.picked;
+  // (in a talk the slide sets the patient's settings itself, so the sliders are not part of the link)
+  if (extra.params && app.mode !== 'deck') x.params = extra.params;
   const state: PacketState = { v: STATE_V, preset: app.patient, x: cleanExtras(x) };
   if (app.mode === 'deck' && app.deck?.id) { state.script = app.deck.id; state.slide = app.deck.number; }
   return state;

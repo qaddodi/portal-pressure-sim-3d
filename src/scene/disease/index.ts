@@ -10,6 +10,9 @@ import type { LookId } from '../../looks/looks.ts';
 import { OrganLayer } from '../organs/layer.ts';
 import { AscitesLayer } from './ascites.ts';
 import { BleedLayer } from './bleed.ts';
+import { ClampLayer } from './clamps.ts';
+import { Landmarks } from './landmarks.ts';
+import { varixWale } from './copied/varix-bead.js';
 import { ClotLayer } from './clots.ts';
 import { DyeLayer } from './dye.ts';
 import { Eased, FluidFollow } from './follow.ts';
@@ -36,36 +39,45 @@ export class DiseaseLayer {
   readonly strands: StrandLayer;
   readonly ascites = new AscitesLayer();
   readonly bleed: BleedLayer;
+  /** the narrowings (stenosis) and their arrowheads */
+  readonly clamps: ClampLayer;
+  /** the flank line (ascites) and the navel's ring (caput medusae) */
+  readonly landmarks = new Landmarks();
   readonly dye: DyeLayer;
   private fluid = new FluidFollow();
   private bandsShown = new Eased(0, 0.2, 0.01);
   private frame: FrameData | null = null;
+  private stenosis: Record<string, number> = {};
   private ctx: FeedContext | null = null;
   private targets: BodyTargets | null = null;
   private instant = true;
   private lastNow = -1;
   private moving = true;
+  private lensGrey = false;
   /** the lens greys the organs; set by the scene when the colour lens changes */
-  setLensGrey(on: boolean): void { this.organs.setLensGrey(on); this.moving = true; }
+  setLensGrey(on: boolean): void { this.lensGrey = on; this.organs.setLensGrey(on); this.moving = true; }
 
   constructor(shared: CelShared, vessels: readonly CelObject[]) {
     this.organs = new OrganLayer(shared);   // (built when the organs file is in: OrganLayer.build)
     this.clots = new ClotLayer(shared);
     this.strands = new StrandLayer(shared);
     this.bleed = new BleedLayer(shared);
+    this.clamps = new ClampLayer(shared);
+    for (const v of vessels) if (v.edge) this.clamps.bind(v.edge.id, v.toonMesh.geometry);
     this.dye = new DyeLayer(vessels.filter((v) => v.edge).map((v) => ({ id: v.edge!.id, geometry: v.toonMesh.geometry })));
-    this.group.add(this.organs.group, this.ascites.group, this.clots.group, this.strands.group, this.bleed.group, this.dye.group);
+    this.group.add(this.organs.group, this.landmarks.group, this.ascites.group, this.clots.group, this.clamps.group, this.strands.group, this.bleed.group, this.dye.group);
   }
 
   applyLook(look: LookId, p: Palette): void {
-    this.organs.applyLook(p); this.clots.applyLook(look, p); this.strands.applyLook(p); this.bleed.applyLook(look, p); this.moving = true;
+    this.organs.applyLook(p); this.clots.applyLook(look, p); this.strands.applyLook(p); this.bleed.applyLook(look, p); this.clamps.applyLook(look, p); this.landmarks.applyLook(look); this.moving = true;
   }
-  setPhone(phone: boolean): void { this.organs.setPhone(phone); this.clots.setPhone(phone); this.strands.setPhone(phone); this.moving = true; }
+  setPhone(phone: boolean): void { this.organs.setPhone(phone); this.clots.setPhone(phone); this.strands.setPhone(phone); this.clamps.setPhone(phone); this.moving = true; }
 
   /** The newest model state. `params` are the patient's parameters (null until the first preset loads); `healthyP` the healthy node pressures. */
   feed(f: FrameData, params: DiseaseParams | null, healthyP: ArrayLike<number> | null, ctx: FeedContext, jump = false): void {
     this.frame = f; this.ctx = ctx;
     this.targets = bodyTargets(f, params ?? {}, healthyP);
+    this.stenosis = { ...(params?.stenosis ?? {}) };
     if (jump || ctx.instant) this.instant = true;
     this.organs.setBody(this.targets, this.instant);
     this.moving = true;
@@ -84,17 +96,25 @@ export class DiseaseLayer {
     moving = this.fluid.follow(t.ascites, dt, inst) || moving;
     this.ascites.set(this.fluid.shown);
     this.organs.setBowelLift(this.ascites.bulge / 34 * 26);
+    this.landmarks.setAscites(this.fluid.shown);
+    moving = this.landmarks.setCaput(ctx.recruit('C3', f), dt, inst) || moving;
     moving = this.clots.set(t.thrombus, dt, inst) || moving;
+    moving = this.clamps.set(this.stenosis, ctx.presence, dt, inst) || moving;
     moving = this.bandsShown.to(t.bands, dt, inst) || moving;
     const m = f.metrics ?? {};
     moving = this.strands.set({
       presence: ctx.presence, recruit: (id) => ctx.recruit(id, f), bands: this.bandsShown.value,
       varixD: { varix: (m.varix?.d as number | undefined) ?? null, gastricVarix: (m.gastricVarix?.d as number | undefined) ?? null },
+      // the red wale: on the pressure lens only (the other lenses' colours are data), by the wall-stress ratio and the varix's size (stage-tubes.js)
+      wale: this.lensGrey ? 0 : varixWale(!!(m.varix as { redWale?: boolean } | undefined)?.redWale, ((m.varix as { ratioMean?: number; ratio?: number } | undefined)?.ratioMean ?? (m.varix as { ratio?: number } | undefined)?.ratio) as number, t.varix.VAR),
     }, dt * 1000, inst) || moving;
     moving = this.bleed.set(t.bleed, dt, inst) || moving;
     moving = this.dye.step(dt, f) || moving;
     return moving;
   }
 
-  dispose(): void { this.organs.dispose(); this.clots.dispose(); this.strands.dispose(); this.ascites.dispose(); this.bleed.dispose(); this.dye.dispose(); }
+  /** The body's dissolve (the dive into the liver, the Circuit): the organs and the lines drawn on the body go with it. */
+  setFade(f: number): void { for (const o of this.organs.objects) o.setFade(f); this.landmarks.setFade(f); this.clamps.setFade(f); }
+
+  dispose(): void { this.landmarks.dispose(); this.clamps.dispose(); this.organs.dispose(); this.clots.dispose(); this.strands.dispose(); this.ascites.dispose(); this.bleed.dispose(); this.dye.dispose(); }
 }

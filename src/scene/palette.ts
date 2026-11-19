@@ -6,7 +6,7 @@ export { LOOK_IDS };
 export type { LookId };
 
 /** Keys of the scene's painted parts. Vessel keys pick the tone; `cath` and `balloon` are the HVPG catheter. */
-export type ToneKey = 'liver' | 'spleen' | 'gut' | 'stomach' | 'heart' | 'portal' | 'sys' | 'cath' | 'balloon';
+export type ToneKey = 'liver' | 'spleen' | 'kidney' | 'gut' | 'stomach' | 'heart' | 'portal' | 'sys' | 'cath' | 'balloon';
 
 export interface Palette {
   /** Canvas clear colour, the app's ground. */
@@ -57,7 +57,7 @@ export function paletteFor(id: LookId): Palette {
     bg: l.bg, body: l.plate, ink: l.ink, shade: l.shadeK,
     highlight: l.scheme === 'dark' ? 'white' : 'deep',
     tones: {
-      liver: organ(l.liver), spleen: organ(l.spleen), gut: organ(l.gut), stomach: organ(l.stomach), heart: organ(l.heart), portal: l.portal, sys: l.systemic,
+      liver: organ(l.liver), spleen: organ(l.spleen), kidney: organ(l.kidney), gut: organ(l.gut), stomach: organ(l.stomach), heart: organ(l.heart), portal: l.portal, sys: l.systemic,
       cath: id === 'light' ? CATHETER_LIGHT : id === 'soft' ? CATHETER_SOFT : CATHETER_DARK, balloon: l.caution,
     },
   };

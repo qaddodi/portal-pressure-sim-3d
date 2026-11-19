@@ -23,6 +23,11 @@ export const STRAND_SOFT: ReadonlySet<string> = new Set(["C8"]);
 export const SIN_EDGES: ReadonlySet<string> = new Set(["SIN_RR","SIN_LL"]);
 export const SEAM_D = "M775 -90 L 799 -90 L 798 0 C 800 90 805 190 811 238 C 813 250 822 256 840 247 C 850 242 859 241 868 242 C 910 238 948 260 966 296 C 984 332 990 380 984 424 C 976 480 940 524 886 546 C 846 562 796 566 756 552 C 738 546 724 536 714 522 L 708 508 C 712 498 722 494 734 494 C 764 494 794 484 812 462 C 822 450 828 436 830 420 C 834 392 830 350 822 320 C 815 298 804 282 798 268 C 793 256 790 244 788 222 C 785 160 781 90 776 0 Z";
 export const SPLEEN_PSE_BADGE: readonly number[] = [18,50];
+/** The embolized spleen's infarct: the edge of the dead lower part (the stroke) and the area it closes below (anatomy.js). */
+export const SPLEEN_PSE_EDGE = "M990 352 C 1012 344 1026 358 1046 346 C 1066 334 1086 342 1120 324";
+export const SPLEEN_PSE_AREA = "M990 352 C 1012 344 1026 358 1046 346 C 1066 334 1086 342 1120 324 L 1120 480 L 990 480 Z";
+/** The navel's ring: where the navel's ring is drawn (organs[umbilicus].circle: x, y, r). */
+export const UMBILICUS: readonly number[] = [500,800,5];
 /** A lens other than Pressure takes the organs to this saturation and opacity (organ-dim.js LENS_GREY). */
 export const LENS_GREY: { sat: number; dim: number } = {"sat":0.12,"dim":0.72};
 export const LUMA: readonly number[] = [0.299,0.587,0.114];
