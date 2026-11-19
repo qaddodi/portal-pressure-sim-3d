@@ -13,5 +13,5 @@ const make = (id: string) => () => {
   return g;
 };
 export const ORGAN_MESHES: Record<string, () => BufferGeometry> = Object.fromEntries(
-  ['heart', 'heart-ra', 'liver', 'spleen', 'stomach', 'kidney-l', 'bowel', 'colon'].map((id) => [id, make(id)]),
+  ['heart', 'heart-ra', 'liver', 'spleen', 'stomach', 'kidney-l', 'duodenum', 'bowel', 'colon'].map((id) => [id, make(id)]),
 );
