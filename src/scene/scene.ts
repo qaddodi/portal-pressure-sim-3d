@@ -184,6 +184,8 @@ export class CelScene {
     this.blood.streams.onFrame(f);
     if (f) this.syncPresence(f, !this.sawFrame);
     this.procs.syncStents(f, patient.params, f ? (f.jump || !this.sawFrame) : false);
+    this.procs.syncBands((f as { bands?: number } | null)?.bands ?? 0, f ? (f.jump || !this.sawFrame) : false);
+    this.procs.syncTamponade(patient.params as never, f ? (f.jump || !this.sawFrame) : false);
     this.sawFrame = !!f;
     if (this.figureView !== 'body') this.feedViews(false);
     this.moving = true;

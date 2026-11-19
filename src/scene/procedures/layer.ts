@@ -8,6 +8,8 @@ import type { Palette } from '../palette.ts';
 import { ProcCatheter, type CatheterState, type RingName } from '../devices/catheters/proc-catheter.ts';
 import { route3d, stopsOf } from './route3d.ts';
 import { StentDevice } from '../devices/stent/stent-device.ts';
+import { Tamponade } from '../devices/balloons/tamponade.ts';
+import { Bands } from '../devices/bands.ts';
 import { procFrame as procFrameJs, specOf } from './copied/proc-anim.js';
 import { CATH_END } from './copied/cath-arrival.js';
 
@@ -55,7 +57,11 @@ export class ProcedureLayer {
   /** The TIPS's and the DIPS's stents, each on its own shunt vessel. */
   readonly stents = new Map<'TIPS' | 'DIPS', StentDevice>();
   private lastTick = -1;
-  constructor(shared: CelShared) { this.shared = shared; this.group.name = 'procedures'; }
+  /** The tamponade tube and its two balloons, driven by params.balloonGas and params.balloonEso. */
+  readonly tamponade: Tamponade;
+  /** The ligation bands on the esophageal varices, as many as the engine counts. */
+  readonly bands: Bands;
+  constructor(shared: CelShared) { this.shared = shared; this.group.name = 'procedures'; this.tamponade = new Tamponade(shared); this.group.add(this.tamponade.group); this.bands = new Bands(shared); this.group.add(this.bands.group); }
 
   /** Every object the layer draws, for the scene's look and phone switches and for disposal. */
   get objects() { return [...this.caths.values()].flatMap((c) => c.objects); }
@@ -70,6 +76,14 @@ export class ProcedureLayer {
     this.stents.set(id, s);
     return s;
   }
+  /** The model's band count (engine frame `bands`). */
+  syncBands(count: number, instant = false): void { this.bands.want(count, instant); this.dirty = true; }
+  /** The patient's tube: which balloons are up. `instant` puts it there at once (a new patient). */
+  syncTamponade(params: { balloonGas?: boolean; balloonEso?: boolean } | null, instant = false): void {
+    this.tamponade.want(!!params?.balloonGas, !!params?.balloonEso);
+    if (instant) this.tamponade.snap();
+    this.dirty = true;
+  }
   /** The engine's newest frame and params: each stent follows its shunt's diameter and shape. */
   syncStents(frame: { D: ArrayLike<number> } | null, params: unknown, instant = false): boolean {
     let moved = false;
@@ -78,8 +92,8 @@ export class ProcedureLayer {
     return moved;
   }
 
-  applyPalette(p: Palette): void { this.palette = p; for (const c of this.caths.values()) c.applyPalette(p); for (const s of this.stents.values()) s.applyPalette(p); this.dirty = true; }
-  setPhone(phone: boolean): void { this.phone = phone; for (const c of this.caths.values()) c.setPhone(phone); for (const s of this.stents.values()) s.setPhone(phone); this.dirty = true; }
+  applyPalette(p: Palette): void { this.palette = p; for (const c of this.caths.values()) c.applyPalette(p); for (const s of this.stents.values()) s.applyPalette(p); this.tamponade.applyPalette(p); this.bands.applyPalette(p); this.dirty = true; }
+  setPhone(phone: boolean): void { this.phone = phone; for (const c of this.caths.values()) c.setPhone(phone); for (const s of this.stents.values()) s.setPhone(phone); this.tamponade.setPhone(phone); this.bands.setPhone(phone); this.dirty = true; }
 
   /** The route a procedure's catheter travels (its spec's `route`, else the kind itself), or null for one with no catheter (a graft, a scope). */
   routeKindOf(kind: string): string | null {
@@ -186,6 +200,8 @@ export class ProcedureLayer {
     const dt = this.lastTick < 0 ? 16 : Math.min(100, now - this.lastTick); this.lastTick = now;
     let stentMoving = false;
     for (const s of this.stents.values()) stentMoving = s.update(dt) || stentMoving;
+    stentMoving = this.tamponade.update(dt) || stentMoving;
+    stentMoving = this.bands.update(dt) || stentMoving;
     const r = this.run;
     if (r) {
       const t = Math.min(r.to, r.from + (now - r.t0) * r.speed);
@@ -199,5 +215,5 @@ export class ProcedureLayer {
     return d || stentMoving;
   }
 
-  dispose(): void { for (const o of this.objects) o.dispose(); for (const s of this.stents.values()) s.dispose(); }
+  dispose(): void { for (const o of this.objects) o.dispose(); for (const s of this.stents.values()) s.dispose(); this.tamponade.dispose(); this.bands.dispose(); }
 }

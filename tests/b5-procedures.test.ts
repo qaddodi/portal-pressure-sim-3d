@@ -112,3 +112,62 @@ test('stops: the TIPS has a tract and a right portal vein as shares of its way i
   const st = stopsOf(route3d('tips')!);
   assert.ok(st.tract && st.tract[0] > 0 && st.tract[1] > st.tract[0] && st.tract[1] <= 1.5, JSON.stringify(st.tract));
 });
+
+test('the tamponade tube goes in, fills the gastric balloon, then the esophageal one; let down, the reverse', () => {
+  const s = new CelScene();
+  const t = s.procs.tamponade;
+  t.want(false, false); t.update(16); assert.equal(t.update(16), false, 'nothing moves with no tube');
+  t.want(true, false);
+  let sawTubeFirst = false;
+  for (let i = 0; i < 400; i++) {
+    t.update(16);
+    if (t.state.adv > 0 && t.state.gas === 0) sawTubeFirst = true;
+    assert.ok(!(t.state.eso > 0 && t.state.gas < 1), 'the esophageal balloon only on a full gastric one');
+  }
+  assert.ok(sawTubeFirst, 'the tube slides in before the balloon fills');
+  assert.equal(t.state.adv, 1); assert.equal(t.state.gas, 1); assert.equal(t.state.eso, 0);
+  assert.equal(t.gas.group.visible, true); assert.equal(t.eso.group.visible, false);
+  t.want(true, true);
+  for (let i = 0; i < 200; i++) t.update(16);
+  assert.equal(t.state.eso, 1); assert.equal(t.eso.group.visible, true);
+  // let down: the esophageal balloon first, then the gastric, then the tube comes out
+  t.want(false, false);
+  let eso0 = -1, gas0 = -1, adv0 = -1;
+  for (let i = 0; i < 600; i++) {
+    t.update(16);
+    if (eso0 < 0 && Number(t.state.eso) === 0) eso0 = i;
+    if (gas0 < 0 && Number(t.state.gas) === 0) gas0 = i;
+    if (adv0 < 0 && Number(t.state.adv) === 0) adv0 = i;
+  }
+  assert.ok(eso0 >= 0 && eso0 < gas0 && gas0 < adv0, `down in order: ${eso0} ${gas0} ${adv0}`);
+  assert.equal(t.group.visible, false);
+  s.dispose();
+});
+
+test('the esophageal balloon cannot be up on a tube whose gastric balloon is not (scenario.js gastricUp)', () => {
+  const s = new CelScene();
+  const t = s.procs.tamponade;
+  t.want(false, true);
+  for (let i = 0; i < 400; i++) t.update(16);
+  assert.equal(t.state.gas, 1, 'asking for the esophageal balloon puts the gastric one up first');
+  assert.equal(t.state.eso, 1);
+  s.dispose();
+});
+
+test('the ligation bands follow the engine\'s count: one platinum ring each, up to four, fading as they come and go', () => {
+  const s = new CelScene();
+  const b = s.procs.bands;
+  assert.equal(b.rings.length, 4);
+  s.procs.syncBands(2, true); b.update(16);
+  assert.deepEqual(b.rings.map((r) => r.group.visible), [true, true, false, false]);
+  s.procs.syncBands(9);   // capped at the engine's four
+  assert.equal(b.goal, 4);
+  for (let i = 0; i < 200; i++) b.update(16);
+  assert.ok(b.rings.every((r) => r.group.visible), 'all four');
+  s.procs.syncBands(0);
+  b.update(16);
+  assert.ok(b.rings[3]!.group.visible, 'a band does not vanish in one frame');
+  for (let i = 0; i < 300; i++) b.update(16);
+  assert.ok(b.rings.every((r) => !r.group.visible));
+  s.dispose();
+});
