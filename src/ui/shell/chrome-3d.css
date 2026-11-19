@@ -12,3 +12,13 @@
 .sh-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .sh-acts .sh-btn { min-height: 44px; padding: 0 16px; }
 .sh-acts .sh-btn[data-primary="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* the 2D dialog (About the model, References, Privacy) sits in the shell, whose root takes no taps */
+.sh-root > .modal-back.show { pointer-events: auto; }
+/* the 2D menus, the palette and the sheet scrim sit in the shell, whose root takes no taps */
+.sh-root > .menu:not(.leaving), .sh-root > .um-scrim:not(.out), .sh-root > .pal-back:not([hidden]):not(.leaving) { pointer-events: auto; }
+/* a menu that is a bottom sheet (the stacked layout) comes up and goes down on the compositor (2D writes it in the page's frames, sheet-ride.js; 3D has no sheet layer, so CSS does it) */
+@keyframes mn-sheet-in { from { translate: 0 100%; opacity: 0; } to { translate: 0 0; opacity: 1; } }
+@keyframes mn-sheet-out { from { translate: 0 0; opacity: 1; } to { translate: 0 100%; opacity: 0; } }
+.sh-root > .menu.as-sheet { animation: mn-sheet-in var(--d-surface, .42s) var(--ease, cubic-bezier(.2, .7, .2, 1)) both; }
+.sh-root > .menu.as-sheet.leaving { animation: mn-sheet-out var(--d-flip, .18s) var(--ease-in, ease-in) forwards; }
+@media (prefers-reduced-motion: reduce) { .sh-root > .menu.as-sheet, .sh-root > .menu.as-sheet.leaving { animation-duration: 1ms; } }
