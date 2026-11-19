@@ -13,7 +13,9 @@ import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
 import { BloodField } from './blood/field.ts';
 import { CameraRig } from './camera/rig.ts';
-import type { Room } from './camera/room.ts';
+import { cutUniform, fieldSoft } from './camera/dive.ts';
+import { ORGAN_CUT } from './organs/layer.ts';
+import { effectiveDistance, type Room } from './camera/room.ts';
 import { SHOTS, type Shot, type ShotName } from './camera/shots.ts';
 import { Catheter, type CatheterState } from './catheter.ts';
 import { DEFAULT_FLOW_MODE, FLOW_FADE_MS, type FlowMarkMode, markSpeed } from './flow.ts';
@@ -26,7 +28,7 @@ import { latest, patient } from '../engine/store.ts';
 import { x3, y3 } from './frame2d.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
 import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
-import { LOBULE_R, LOBULE_T, SINUSOID_L } from './lobule/shots.ts';
+import { LOBULE_R, LOBULE_T, SINUSOID_L, lobuleShot } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
 import { SinusoidView, diveShare } from './sinusoid/index.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
@@ -516,6 +518,36 @@ export class CelScene {
     const flying = this.hideLeftBehind && this.sinus.isVisible;
     this.sinus.setDive(flying ? diveShare(this.rig.pose.shot.r, 2.5 * LOBULE_SCALE, 3 * SIN_SCALE) : null);
   }
+  /** The dive's cutaway window in the organs' wash and the field's focus: both are functions of the camera's distance to the place dived to, so the way in and the way out are one picture run both ways,
+   *  however the move is reversed, held or resized by a card (camera/dive.ts). Nothing changes at rest: every body shot is outside the window. */
+  private stepCutaway(): void {
+    const cam = this.rig.camera, d = cam.position.distanceTo(this.livePoint);
+    const p = this.divePt.copy(this.livePoint).project(cam);
+    cutUniform(d, p.x, p.y, cam.aspect, this.cutArr);
+    const was = ORGAN_CUT.value.z;
+    ORGAN_CUT.value.set(this.cutArr[0], this.cutArr[1], this.cutArr[2], this.cutArr[3]);
+    this.lobule.field.setSoft(fieldSoft(d, this.lobuleRest()));
+    if (was !== this.cutArr[2] && (was > -1 || this.cutArr[2] > -1)) this.moving = true;
+  }
+  /** A portrait room (narrower than tall, 2D's `W < H * 0.95`) runs the sinusoid top to bottom: the sinusoid view takes it (SinusoidView.setPortrait, the sinusoid worker's), and the shot asks for it (sinusoidShot(portrait)). */
+  private portrait = false;
+  private stepPortrait(): void {
+    const r = this.rig.targetRoom, p = r.w < r.h * 0.95;
+    if (p === this.portrait) return;
+    this.portrait = p;
+    (this.sinus as { setPortrait?: (portrait: boolean) => void }).setPortrait?.(p);   // TODO(merge): the sinusoid worker's API; a no-op until it lands
+    this.moving = true;
+  }
+  get isPortrait(): boolean { return this.portrait; }
+  /** The distance the camera sits at with the whole lobule framed in the room it has (kept per room size). */
+  private restKey = ''; private restD = 0.1;
+  private lobuleRest(): number {
+    const r = this.rig.targetRoom, key = `${r.w}x${r.h}x${this.height}`;
+    if (key !== this.restKey) { this.restKey = key; this.restD = effectiveDistance(lobuleShot('lobule'), r, this.height); }
+    return this.restD;
+  }
+  private readonly divePt = new Vector3();
+  private readonly cutArr: [number, number, number, number] = [0, 0, -1, 1];
   /** How much of the body is drawn now (1 whole, 0 gone): for tests and tags. */
   get bodyShown(): number { return this.fadeNow; }
 
@@ -583,6 +615,8 @@ export class CelScene {
     const presMoving = this.presence.step(dt);
     const shapeMoving = this.shapes.step(dt);
     this.stepSinusDive();
+    this.stepCutaway();
+    this.stepPortrait();
     const viewMoving = this.lobule.update(now) || this.sinus.update(now);
     const procMoving = this.procs.update(now);
     const diseaseMoving = this.disease.update(now);

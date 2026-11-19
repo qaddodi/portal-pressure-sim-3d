@@ -12,6 +12,7 @@ uniform vec4 box;
 varying vec3 vN;
 varying vec3 vV;
 varying vec2 vBox;
+varying vec4 vClip;
 void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
   vN = normalize(normalMatrix * normal);
@@ -22,6 +23,7 @@ void main() {
   vInk = ink;
 #endif
   gl_Position = projectionMatrix * mv;
+  vClip = gl_Position;
 }`;
 
 export const ORGAN_FS = /* glsl */ `
@@ -35,6 +37,9 @@ uniform vec4 volShade;
 uniform vec3 page;
 uniform float layer;
 uniform float inkAmount;
+// the dive's cutaway window (atlas-look-plan 3.1): x, y the dive point on the screen (ndc), z the radius that is cleared (ndc half-heights; below 0 nothing is), w the aspect; the same for every organ
+uniform vec4 cut;
+varying vec4 vClip;
 #ifdef VERTEX_INK
 varying vec3 vInk;
 #endif
@@ -43,6 +48,10 @@ varying vec3 vV;
 varying vec2 vBox;
 void main() {
   if (fadedOut()) discard;
+  // the window: the wash clears round the dive point, soft at its edge (the colour goes to the page's, then the organ is not drawn), so the lobule shows inside
+  vec2 q = vClip.xy / vClip.w - cut.xy;
+  float win = smoothstep(cut.z, cut.z + 0.3, length(vec2(q.x * cut.w, q.y)));
+  if (win < 0.004) discard;
   vec3 n = normalize(vN);
   // the gradient from the box's (.15,0) to (.85,1)
   vec2 g = vec2(0.7, 1.0);
@@ -66,5 +75,5 @@ void main() {
   vec2 side = length(n.xy) > 1e-4 ? normalize(n.xy) : vec2(0.0);
   float lit = smoothstep(0.62, 0.8, turn) * clamp(dot(side, vec2(-0.6, 0.8)), 0.0, 1.0);
   fill = mix(fill, ogLight.rgb, ogLight.a * 0.58 * lit);
-  gl_FragColor = vec4(mix(page, fill, layer), 1.0);
+  gl_FragColor = vec4(mix(page, fill, layer * win), 1.0);
 }`;

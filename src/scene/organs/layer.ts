@@ -38,13 +38,16 @@ export function organLayerAlpha(p: Palette, id: string): number {
 const rgba = (v: readonly number[]) => new Vector4(v[0]! / 255, v[1]! / 255, v[2]! / 255, v[3]!);
 
 /** Puts 2D's organ painter (organ-shader.ts) in place of the toon fill: the uniforms the paint fills each look, and the organ's own box for the gradient. */
+/** The dive's cutaway window, one for every organ (scene.ts writes it each frame from the camera's distance to the place dived to; camera/dive.ts cutUniform). Nothing cleared at rest. */
+export const ORGAN_CUT: { value: Vector4 } = { value: new Vector4(0, 0, -1, 1) };
+
 function useOrganShader(o: CelObject, g: BufferGeometry): void {
   if (!g.boundingBox) g.computeBoundingBox();
   const b = g.boundingBox!;
   const m = o.toon;
   m.vertexShader = ORGAN_VS; m.fragmentShader = ORGAN_FS;
   Object.assign(m.uniforms, {
-    o1: { value: new Color() }, o2: { value: new Color() }, page: { value: new Color() }, layer: { value: 0.55 },
+    cut: ORGAN_CUT, o1: { value: new Color() }, o2: { value: new Color() }, page: { value: new Color() }, layer: { value: 0.55 },
     ogLight: { value: new Vector4() }, ogDark: { value: new Vector4() }, volShade: { value: new Vector4() },
     box: { value: new Vector4(b.min.x, b.max.y, b.max.x - b.min.x, b.max.y - b.min.y) },
   });

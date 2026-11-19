@@ -22,13 +22,14 @@ import { useLens } from './lenses/store.ts';
 import { useBlood } from './blood/options.ts';
 import type { BloodChoice } from './blood/options.ts';
 import type { Gestures } from './gesture/controller.ts';
+import { DIVE_BODY_MS, diveMs } from './camera/dive.ts';
 import { createFrameQueue } from './gesture/frame-queue.ts';
 
 export const cel = new CelScene();
 /** The Tests card drives the Doppler, FibroScan and endoscope devices on the figure (src/scene/devices/probes/). */
 export const stopProbeBinding = bindTests();
 /** A dive between the body, the lobule and the sinusoid: a little longer than a move between two body shots (950 ms), because it covers a few hundred times the distance. */
-export const DIVE_MS = 1250;
+export const DIVE_MS = DIVE_BODY_MS;
 
 /** The gestures' asks for "the next frame", run by the clock's tween phase (Stage.tsx). */
 export const frames = createFrameQueue(() => clock.invalidate('gesture'));
@@ -59,7 +60,7 @@ export const sceneApi = {
     if (v === 'circuit') cel.setCircuitUpright(useCircuitTurn.getState().upright);
     cel.setView(v);
     // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together; body, lobule and sinusoid are one dive through the liver (camera/rig.ts blends it geometrically) that takes the dive's time
-    const ms = (v === 'body' || v === 'circuit' ? cel.circuit.changeMs() : 0) || (from === v ? undefined : DIVE_MS);
+    const ms = (v === 'body' || v === 'circuit' ? cel.circuit.changeMs() : 0) || diveMs(from, v);
     this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot() : lobuleShot(cam), room, ms);
     clock.invalidate('circuit');
   },
