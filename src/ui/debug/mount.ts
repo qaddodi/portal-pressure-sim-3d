@@ -6,6 +6,8 @@ import { isPreview } from './gate.ts';
 export async function mountDebug(): Promise<void> {
   if (!isPreview()) return;
   if (flagOn('watch') || debugPage()) (await import('./watch/mount.ts')).mountWatch();
+  const page = debugPage();
+  if (page) (await import('./page/page.ts')).mountPage(page);
   // the bug packet (chord, long press on the PREVIEW pill, pps.packet) is on every preview page, as in the 2D app
   (await import('./packet/trigger.ts')).installPacketTrigger();
 }
