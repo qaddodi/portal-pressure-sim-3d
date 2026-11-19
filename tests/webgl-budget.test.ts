@@ -44,6 +44,8 @@ test('a chart, a card or a deck never makes a chart canvas by hand: it goes thro
     if (f === join('src', 'ui', 'charts', 'painter.ts') || f === join('src', 'scene', 'labels', 'LabelLayer.tsx') || f === PROBE) continue;
     // (the lobule's plate: the 2D painter's 2D canvas, sent as a texture of the scene's own context; it makes no GL context of its own)
     if (f === join('src', 'scene', 'lobule', 'plate.ts')) { assert.ok(!/getContext\(\s*['"`]webgl/.test(readFileSync(f, 'utf8')), 'the plate\'s canvas is 2D only'); continue; }
+    // (the look board's pixel reader: a 2D canvas to read a picture's bytes, on the debug page only)
+    if (f === join('src', 'debug', 'look-pixels.ts')) { assert.ok(!/getContext\(\s*['"`]webgl/.test(readFileSync(f, 'utf8')), 'the look board\'s canvases are 2D only'); continue; }
     const t = strip(readFileSync(f, 'utf8'));
     if (/createElement\(\s*['"`]canvas['"`]\s*\)/.test(t)) bad.push(f);
   }

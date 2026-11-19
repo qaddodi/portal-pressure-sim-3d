@@ -15,7 +15,7 @@ const css2d = () => readdirSync(new URL('../src/ui/css2d/', import.meta.url)).fi
 
 test('the card puts a pane\'s parts straight into .dock-pane: no wrapper between the pane and its view, so 2D\'s child rules (.dock-pane > .instrument-view) reach it', () => {
   const layer = read('src/ui/tests/TestsLayer.tsx');
-  assert.match(layer, /<PaneHost\.Provider key=\{pane\} value="dock">\{body\(/, 'a context provider renders no element');
+  assert.match(layer, /<PaneHost\.Provider value="dock">\{body\(/, 'a context provider renders no element');
   assert.doesNotMatch(layer, /display: 'contents'/);
   // the 2D sheets do lean on that child relation
   assert.ok((css2d().match(/\.dock-pane(\[[^\]]*\])*(\.active)? > \.instrument-view/g) ?? []).length > 40);
@@ -86,9 +86,9 @@ test('every container the panes\' 2D container queries ask for is on 2D\'s own e
   const have = new Set([...all.matchAll(/container-name: ([\w-]+)/g), ...all.matchAll(/container: ([\w-]+) \//g)].map((m) => m[1]!));
   for (const n of named) assert.ok(have.has(n), `@container ${n}: no element is named ${n}`);
   const layer = read('src/ui/tests/TestsLayer.tsx');
-  assert.match(layer, /className=\{`t-card dock instrument-workspace float-ui/); assert.match(layer, /className="dock-pane active" data-pane=\{pane\}/);
+  assert.match(layer, /instrument-workspace float-ui/); assert.match(layer, /className=\{`dock-pane \$\{cls\}`\} data-pane=\{id\} id=\{leaver == null \? `pane-\$\{id\}` : undefined\}/);
   // the side card says one column the way 2D does (.instrument-workspace.side { --one-col: 1 }), and the card hands 2D's two sizes to its panes
-  assert.match(layer, /place\.kind === 'side' \? ' side' : ''/); assert.match(layer, /--plot-h/); assert.match(layer, /--square-size/);
+  assert.match(layer, /side \? ' side' : ''/); assert.match(layer, /--plot-h/); assert.match(layer, /--square-size/);
   // nothing of ours overrides a container on the card or the pane
   for (const f of ['src/ui/tests/tests.css', 'src/ui/tests/ir/ir.css', 'src/ui/tests/trace/trace.css']) assert.doesNotMatch(read(f), /container(-type|-name)?\s*:/, `${f} sets a container`);
 });

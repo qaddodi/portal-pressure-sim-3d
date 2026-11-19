@@ -65,7 +65,7 @@ export function WallView({ square, slide = false }: { square: number; slide?: bo
             <dd className="endo-stress-v">{r?.stress ?? ''}</dd>
             <b className="wall-big" data-sev={r?.state}><span>{r?.pct ?? ''}</span><small>%<span className="wall-of">{W.of}</span></small></b>
             <span className="wall-sev" data-sev={r?.state}>{r?.word ?? ''}</span>
-            <span className="endo-bar" aria-hidden="true" data-sev={r?.state}><i style={{ translate: r?.fill }} /></span>
+            <span className="endo-bar" aria-hidden="true" data-sev={r?.barState}><i style={{ translate: r?.fill }} /></span>
           </div>
           <div className="endo-tile"><Name long={W.dp[0]!} short={W.dp[1]!} /><Num v={r?.ptm ?? ''} unit={W.units[0]!} /></div>
           <div className="endo-tile"><dt>{W.radius}</dt><Num v={r?.r ?? ''} unit={W.units[1]!} /></div>

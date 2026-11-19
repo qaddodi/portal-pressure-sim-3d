@@ -6,7 +6,8 @@ import { useLayoutEffect, useMemo, useRef, type RefObject } from 'react';
 import { copiedOf } from '../../decks/hp/deck.ts';
 import { useStates } from '../../decks/hp/calc.ts';
 import type { CopiedSlide } from '../../decks/hp/types.ts';
-import { layoutOf } from '../layout/rules2d.ts';
+import { layoutOf, isShortSide } from '../layout/rules2d.ts';
+import { cardTitle, titleUnits } from '../talk/tool-title.ts';
 import { useUi } from '../ui-store.ts';
 import { tilesAt, type SlideTiles, type TileView } from './tiles-2d.ts';
 import { Roll } from './Roll.tsx';
@@ -23,16 +24,18 @@ export function useSlideTiles(deckId: string, slideId: string): SlideTiles | nul
   }, [copied, results, slideId, vp.w, vp.h]);
 }
 
-/** The card's header (.pz-dh): its title, and an instrument card's readings beside it. A tiles card with no instrument is "The patient" (presenter-start.js dhT). */
+/** The card's header (.pz-dh): its title, and an instrument card's readings beside it. The title is 2D's cardTitle (presenter-question.js): the slide's own `dataTitle`, else its instrument's
+ *  (ui/talk/tool-title.ts), else "The patient" for a tiles card with no instrument; a phone, or a phone held sideways, takes the short form of a long one. A unit in it keeps its own case (.pz-unit). */
 export function TilesHead({ deckId, slideId }: { deckId: string; slideId: string }) {
   const t = useSlideTiles(deckId, slideId);
+  const vp = useUi((s) => s.vp);
   const copied = copiedOf(deckId)?.slides.find((s) => s.id === slideId);
-  if (!t || !copied) return null;
-  const title = copied.dataTitle ? String(copied.dataTitle) : copied.tool ? '' : 'The patient';
-  const heads = t.toolOnly ? t.tiles.filter((x) => t.head.includes(x.k)) : [];
+  if (!copied) return null;
+  const lay = layoutOf(vp.w, vp.h), title = cardTitle(copied, lay === 'stack' || lay === 'tab' || isShortSide(vp.w, vp.h));
+  const heads = t?.toolOnly ? t.tiles.filter((x) => t.head.includes(x.k)) : [];
   return (
     <div className="pz-dh">
-      <span>{title}</span>
+      <span>{titleUnits(title).map((p, i) => (i % 2 ? <span key={i} className="pz-unit">{p}</span> : p))}</span>
       <span className="pz-hr" data-n={heads.length}>
         {heads.map((x) => (
           <span key={x.k} className={`pz-hi${x.key ? ' key' : ''}`} data-rate={x.rate} data-measured={['hvpg', 'hvpgFall', 'ppg'].includes(x.k) ? '' : undefined}>

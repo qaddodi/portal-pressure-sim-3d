@@ -27,6 +27,7 @@ import { useLabels } from '../../scene/labels/store.ts';
 import { useTestsRoom } from '../tests/room.ts';
 import { roomWith } from '../tests/place.ts';
 import { TestsLayer } from '../tests/TestsLayer.tsx';
+import { useTestsAppClasses } from '../tests/dock/app-classes.ts';
 import { CompareBanner } from '../compare/CompareUi.tsx';
 import { startCompare } from '../compare/bind.ts';
 import { startTimeline } from '../timeline/index.ts';
@@ -100,13 +101,14 @@ export function Shell() {
   useEffect(() => { const b = useBlood.getState(); sceneApi.setBlood({}); useLabels.getState().set({ organNames: b.labels }); }, []);
   useEffect(() => { void applyDeepLink(location.search); }, []);
   const thumb = useThumb();
+  const testsCls = useTestsAppClasses();   // (dock-open, instrument-focus, tests-grad, dock-side: what the Tests card tells .app)
   usePublishedLayout(appRef, thumb);
   return (
     <>
       {mode === 'deck' && <DeckUi />}
       <div className="sh-root" data-device={device} data-bottom={thumb} data-mode={mode}>
         <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'env(safe-area-inset-top, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }} />
-        <div className={`app${thumb ? ' thumb' : ''}${view === 'sinusoid' ? ' sin-focus' : ''}`} id="app" ref={appRef}>
+        <div className={`app${thumb ? ' thumb' : ''}${view === 'sinusoid' ? ' sin-focus' : ''}${testsCls}`} id="app" ref={appRef}>
           <TopBar />
           <main className={`stage-wrap${view === 'circuit' ? ' cmap' : ''}`} id="stageWrap" aria-label="Figure">
             <div className={`stage-view${view === 'lobule' || view === 'sinusoid' ? ' in-lobule' : ''}`} id="stageView"><ZoomGroup /></div>
