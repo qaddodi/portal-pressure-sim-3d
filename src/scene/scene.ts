@@ -624,6 +624,7 @@ export class CelScene {
   render(gl: WebGLRenderer): void {
     if (!this.rig.placed) { gl.clear(); return; }
     gl.setClearColor(this.clearColor());
+    this.blood.shared.dpr.value = gl.getPixelRatio?.() ?? 1;   // (the vessels' line is held in device px)
     // Two passes, as the 2D figure paints: the organs first, then the vessels (and what is in them) over the cleared depth, so no organ's relief ever hides a vessel and a joined
     // vessel never looks cut. (The vessels keep their own depth among themselves: their tiers.)
     this.sinus.setDpr(gl.getPixelRatio?.() ?? 1);

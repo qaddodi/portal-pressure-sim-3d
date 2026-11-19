@@ -2,9 +2,11 @@
 // as the 2D figure does it (stage-diaphragm.js updateOrgans): the liver's shape (cirrhosis) and dusk (congestion), a scale of the spleen with the model's size, a ghost of
 // a removed spleen, the grey of a lens other than Pressure, blood in the stomach. Meshes come from meshes.ts (the organs thread) in the shared frame; this file never
 // builds one. Everything moves on the clock: `update(now)` returns true while something eases, and nothing is touched when nothing moves.
-import { type BufferGeometry, Group, Vector3 } from 'three';
+import { type BufferGeometry, Color, Group, Vector3, Vector4 } from 'three';
+import { ORGAN_FS, ORGAN_VS } from './organ-shader.ts';
+import type { OrganTones2D } from '../../looks/organ-tones.copied.ts';
 import { ORGAN_MESHES } from './meshes.ts';
-import { CelObject, type CelShared, rawColor } from '../materials/cel.ts';
+import { CelObject, type CelShared } from '../materials/cel.ts';
 import { type Palette, type ToneKey } from '../palette.ts';
 import { LIVER_PIVOT, SPLEEN_CENTER, LENS_GREY } from '../disease/copied/anatomy-b4.ts';
 import { liverShrink, liverSurface } from '../disease/copied/liver-morph.js';
@@ -17,11 +19,37 @@ import { POOL_SHARE } from '../disease/copied/bleed-shapes.js';
 import { LiverShape } from './liver-shape.ts';
 import { x3, y3 } from '../frame2d.ts';
 
-/** The tone each 2D organ takes (looks.ts has a token for each; the atrium takes the heart's) and the ink's width on a Mac or iPad. */
-export const ORGAN_STYLE: Record<string, { tone: ToneKey; px: number }> = {
-  heart: { tone: 'heart', px: 1.5 }, 'heart-ra': { tone: 'heart', px: 1.5 }, liver: { tone: 'liver', px: 1.8 }, spleen: { tone: 'spleen', px: 1.8 },
-  stomach: { tone: 'stomach', px: 1.5 }, duodenum: { tone: 'stomach', px: 1.4 }, 'kidney-l': { tone: 'kidney', px: 1.5 }, bowel: { tone: 'gut', px: 1.4 }, colon: { tone: 'gut', px: 1.5 },
+type Og = keyof OrganTones2D['tones'];
+/** The tone each 2D organ takes, its 2D painter's tones (--og-<og>-1/2/3; anatomy.js `tone`), the outline's width (2D: 1.1 px, the kidney 1.4) and alpha (.62, the kidney .95, the atrium .35),
+ *  and which layer opacity it sits at (the gut at --gut-a, the kidney at its own, the rest at the organ layer's). */
+export const ORGAN_STYLE: Record<string, { tone: ToneKey; og: Og; px: number; inkA: number; layer: 'organ' | 'gut' | 'kidney' }> = {
+  heart: { tone: 'heart', og: 'heart', px: 1.1, inkA: 0.62, layer: 'organ' }, 'heart-ra': { tone: 'heart', og: 'ra', px: 1.1, inkA: 0.35, layer: 'organ' },
+  liver: { tone: 'liver', og: 'liver', px: 1.1, inkA: 0.62, layer: 'organ' }, spleen: { tone: 'spleen', og: 'spleen', px: 1.1, inkA: 0.62, layer: 'organ' },
+  stomach: { tone: 'stomach', og: 'stomach', px: 1.1, inkA: 0.62, layer: 'organ' }, duodenum: { tone: 'stomach', og: 'stomach', px: 1.1, inkA: 0.62, layer: 'organ' },
+  'kidney-l': { tone: 'kidney', og: 'kidney', px: 1.4, inkA: 0.95, layer: 'kidney' }, bowel: { tone: 'gut', og: 'gut', px: 1.1, inkA: 0.62, layer: 'gut' }, colon: { tone: 'gut', og: 'gut', px: 1.1, inkA: 0.62, layer: 'gut' },
 };
+
+/** The layer opacity an organ sits at in a look. */
+export function organLayerAlpha(p: Palette, id: string): number {
+  const st = ORGAN_STYLE[id];
+  if (!st) return p.organLayer;
+  return st.layer === 'kidney' ? p.kidneyLayer : st.layer === 'gut' ? p.organs.gutA : p.organLayer;
+}
+const rgba = (v: readonly number[]) => new Vector4(v[0]! / 255, v[1]! / 255, v[2]! / 255, v[3]!);
+
+/** Puts 2D's organ painter (organ-shader.ts) in place of the toon fill: the uniforms the paint fills each look, and the organ's own box for the gradient. */
+function useOrganShader(o: CelObject, g: BufferGeometry): void {
+  if (!g.boundingBox) g.computeBoundingBox();
+  const b = g.boundingBox!;
+  const m = o.toon;
+  m.vertexShader = ORGAN_VS; m.fragmentShader = ORGAN_FS;
+  Object.assign(m.uniforms, {
+    o1: { value: new Color() }, o2: { value: new Color() }, page: { value: new Color() }, layer: { value: 0.55 },
+    ogLight: { value: new Vector4() }, ogDark: { value: new Vector4() }, volShade: { value: new Vector4() },
+    box: { value: new Vector4(b.min.x, b.max.y, b.max.x - b.min.x, b.max.y - b.min.y) },
+  });
+  m.needsUpdate = true;
+}
 
 const pivot = (c: readonly [number, number]) => new Vector3(x3(c[0]), y3(c[1]), 0);
 
@@ -68,6 +96,7 @@ export class OrganLayer {
       const g = make();
       if (PAINTED.has(id)) { if (!g.getAttribute('normal')) g.computeVertexNormals(); this.paints.set(id, new VertexPaint(g, id as 'liver' | 'spleen' | 'stomach')); }
       const o = new CelObject(g, { tone: st.tone, bands: 3, spec: 0, px: st.px }, this.shared);
+      useOrganShader(o, g);
       if (this.phone) o.setPhone(true);
       this.objects.push(o); this.byId.set(id, o); this.group.add(o.group);
       if (id === 'liver') {
@@ -123,15 +152,17 @@ export class OrganLayer {
   private paint(): boolean {
     const p = this.palette;
     if (!p) return false;
-    const plate = rgbOf(p.body), ink = rgbOf(p.ink), dark = p.highlight === 'white';
-    const k = { plate, dark, bleed: rgbOf('#8E1A20'), bg: rgbOf(p.bg) };
+    // the organs lie on the page, not on a plate (2D's #backdrop is off): a dimmed or ghosted organ goes toward the page
+    const page = rgbOf(p.bg), dark = p.highlight === 'white';
+    const k = { plate: page, dark, bleed: rgbOf('#8E1A20'), bg: page };
     for (const [id, o] of this.byId) {
       const s: OrganState = { ...PLAIN, sat: this.sat.value, dim: this.dimmed.value };
       if (id === 'liver') { const ls = this.liverFollow.shown; s.congestion = ls.congestion; s.tint = ls.tint; s.cirrhosisNod = liverSurface(ls.cirrhosis).nod; }
       if (id === 'spleen') s.ghost = this.ghost.value;
-      const base = rgbOf(p.tones[o.tone]);
-      const c = organColour(base, s, k), ik = organInk(ink, s, k);
-      this.setColours(o, c, ik, p.shade);
+      const st = ORGAN_STYLE[id]!, og = p.organs.tones[st.og];
+      const t1 = rgbOf(og[0]), t2 = rgbOf(og[1]), base = mix(t1, t2, 0.5);
+      const c = organColour(base, s, k);
+      this.setColours(o, organColour(t1, s, k), organColour(t2, s, k), c, organInk(rgbOf(og[2]), s, k), st.inkA, organLayerAlpha(p, id), page, p.organs);
       const vp = this.paints.get(id);
       if (!vp) continue;
       // what varies over the surface: the vertices carry it (an organ that has none of it shows its one colour)
@@ -139,7 +170,7 @@ export class OrganLayer {
       if (id === 'liver' && s.cirrhosisNod > 0.004) { vp.fillLiver(c, organColour(base, { ...s, septum: 1 }, k)); on = true; }
       else if (id === 'spleen' && this.infarct.value > 0.004) {
         const dead = organColour(base, { ...s, dead: 1 }, k);
-        vp.fillSpleen(c, dead, mix(ik, c, 0.1), this.infarct.value); on = true;
+        vp.fillSpleen(c, dead, mix(organInk(rgbOf(og[2]), s, k), c, 0.1), this.infarct.value); on = true;
       } else if (id === 'stomach' && this.blood.value > 0.004) {
         vp.fillStomach(c, organColour(base, { ...s, blood: this.blood.value }, k), lumenSurface(POOL_SHARE * this.pool.value)); on = true;
       }
@@ -148,11 +179,16 @@ export class OrganLayer {
     return false;
   }
 
-  private setColours(o: CelObject, c: RGB, ink: RGB, shade: number): void {
-    const u = o.toon.uniforms, col = u.color!.value as ReturnType<typeof rawColor>, sh = u.shade!.value as ReturnType<typeof rawColor>;
-    col.setRGB(c[0], c[1], c[2]);
-    sh.setRGB(c[0] * shade * 0.92 + ink[0] * 0.08, c[1] * shade * 0.92 + ink[1] * 0.08, c[2] * shade * 0.92 + ink[2] * 0.08);
-    (o.ink.uniforms.color!.value as typeof col).setRGB(ink[0], ink[1], ink[2]);
+  /** The painter's uniforms: the two gradient stops, the organ's one colour (what the vertex paint is measured from), the page, the layer, and the outline:
+   *  the organ's own third tone at its alpha under the layer, pre-mixed against the page (2D: .62 × .55, so about a third), never black. */
+  private setColours(o: CelObject, t1: RGB, t2: RGB, c: RGB, o3: RGB, inkA: number, layer: number, page: RGB, og: OrganTones2D): void {
+    const u = o.toon.uniforms;
+    (u.o1!.value as Color).setRGB(t1[0], t1[1], t1[2]); (u.o2!.value as Color).setRGB(t2[0], t2[1], t2[2]);
+    (u.color!.value as Color).setRGB(c[0], c[1], c[2]); (u.page!.value as Color).setRGB(page[0], page[1], page[2]);
+    u.layer!.value = layer;
+    (u.ogLight!.value as Vector4).copy(rgba(og.light)); (u.ogDark!.value as Vector4).copy(rgba(og.dark)); (u.volShade!.value as Vector4).copy(rgba(og.volShade));
+    const ink = mix(page, o3, Math.min(1, inkA * layer));
+    (o.ink.uniforms.color!.value as Color).setRGB(ink[0], ink[1], ink[2]);
   }
 
   /** The gut floats up on ascites: the bowel moves up by `units` of the 2D figure (drawAscites: -bulge / 34 * 26). */
