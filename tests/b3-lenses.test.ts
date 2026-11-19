@@ -155,25 +155,24 @@ test('key chevrons: the portal story and the liver keep marks; side branches los
   assert.equal(keyChevron('AZY_SVC', (id) => id === 'C9'), true);
 });
 
-test('the Blood menu gates the marks: off shows none, key-only keeps the key routes, a closed collateral carries none', () => {
+test('the Blood menu gates the heads: off shows none, key-only keeps the key routes, a closed collateral carries none', () => {
   const on = { chevrons: true, keyChevrons: false, presenting: false };
-  assert.equal(markGoal('A', true, 0, on, false, true), 1);
-  assert.equal(markGoal('A', true, 0, { ...on, chevrons: false }, true, true), 0);
-  assert.equal(markGoal('A', true, 0, { ...on, keyChevrons: true }, false, true), 0);
-  assert.equal(markGoal('A', true, 0, { ...on, keyChevrons: true }, true, true), 1);
-  assert.equal(markGoal('A', true, 0, { ...on, presenting: true }, false, true), 0, 'presenting always keeps key chevrons only');
-  assert.equal(markGoal('A', true, 0, on, true, false), 0);
+  assert.equal(markGoal(on, false, true), 1);
+  assert.equal(markGoal({ ...on, chevrons: false }, true, true), 0);
+  assert.equal(markGoal({ ...on, keyChevrons: true }, false, true), 0);
+  assert.equal(markGoal({ ...on, keyChevrons: true }, true, true), 1);
+  assert.equal(markGoal({ ...on, presenting: true }, false, true), 0, 'presenting always keeps key chevrons only');
+  assert.equal(markGoal(on, true, false), 0);
 });
 
-test('marks fade at the highlight\'s speed, never switch', () => {
+test('heads fade at the highlight\'s speed, never switch', () => {
   const fake = { edge: { id: 'PV_TRUNK' }, amount: 0, setFlow(a: number) { this.amount = a; } };
   const b = new BloodMarks([fake as never]);
-  b.setNamed(['PV_TRUNK']);
   let last = 0;
-  for (let t = 0; t < 400; t += 16) { b.step(t, 16); assert.ok(fake.amount >= last && fake.amount - last <= 16 / 180 + 1e-9); last = fake.amount; }
+  for (let t = 0; t < 400; t += 16) { b.step(16); assert.ok(fake.amount >= last && fake.amount - last <= 16 / 180 + 1e-9); last = fake.amount; }
   assert.equal(last, 1);
   b.setOptions({ chevrons: false });
-  b.step(500, 16);
+  b.step(16);
   assert.ok(fake.amount < 1 && fake.amount > 0);
 });
 
@@ -181,4 +180,63 @@ test('newLensData has the 208 x 2 x RGBA layout the shader reads', () => {
   const d = newLensData();
   assert.equal(d.grad.length, 208 * 2 * 4); assert.equal(d.lanes.length, 208 * 2 * 4);
   assert.equal(LENS_EDGE_COUNT, 208);
+});
+
+// ---- the flow heads are the 2D app's ----
+import { readFileSync } from 'node:fs';
+import { Streams } from '../src/scene/blood/streams.ts';
+import { displaySpeed, PERIOD } from '../src/scene/blood/blood.copied.js';
+import { edgeIndex as edgeIx } from '../src/scene/lenses/model.ts';
+
+const squash = (t: string) => t.replace(/\/\/.*$/gm, '').replace(/\s+/g, ' ').trim();
+test('the head\'s shape and the spacing lattice are the 2D shader\'s text (needs PPS_2D_REPO)', { skip: !process.env.PPS_2D_REPO }, () => {
+  const src = squash(readFileSync(`${process.env.PPS_2D_REPO}/src/ui/chevron-glsl.js`, 'utf8'));
+  const mine = squash(VESSEL_FS);
+  for (const fn of ['float chevD(float u, float ay, float hw) {', 'vec2 chevHead(float u, float ay, float hw, float px, float rev) {', 'float chevKeep(float j, float n0, float lv) {']) {
+    const at = src.indexOf(fn);
+    assert.ok(at >= 0, `${fn} in 2D`);
+    // the function's body, up to its closing brace at depth 0
+    let d = 0, end = at;
+    for (let i = src.indexOf('{', at); i < src.length; i++) { if (src[i] === '{') d++; else if (src[i] === '}' && --d === 0) { end = i + 1; break; } }
+    assert.ok(mine.includes(src.slice(at, end)), `${fn} is the 2D text`);
+  }
+  const orange = squash(readFileSync(`${process.env.PPS_2D_REPO}/src/ui/veins-gl.js`, 'utf8'));
+  const o = orange.indexOf('float chevOrange(vec3 c) {');
+  assert.ok(mine.includes(orange.slice(o, orange.indexOf('}', o) + 1)), 'chevOrange');
+  assert.match(src, /CHEV_PITCH = 130/); assert.match(mine, /130\.0 \* wpc/);
+  const heads = readFileSync(`${process.env.PPS_2D_REPO}/src/ui/blood-heads.js`, 'utf8');
+  assert.match(heads, /clamp\(0\.5 \* R, 4\.0 \* cssPx \* pxW, 8\.0 \* cssPx \* pxW\)/); assert.match(heads, /STILL_A = 0\.3, THIN_LO = 1\.5, THIN_HI = 2\.5/); assert.match(mine, /clamp\(0\.5 \* R, 4\.0 \* wpc, 8\.0 \* wpc\)/);
+});
+
+test('the inks are the 2D rule: dark head on a light lumen, cream on a dark one, orange reversed, sepia rim', () => {
+  assert.match(VESSEL_FS, /smoothstep\(0\.175, 0\.205/);
+  assert.match(VESSEL_FS, /mix\(markDark, base \* 0\.3, 0\.2\)/);
+  assert.match(VESSEL_FS, /vec3\(0\.2314, 0\.1725, 0\.1333\)/);   // 59, 44, 34: the Light look's outline sepia
+});
+
+test('streams: a flowing vein\'s heads run at the 2D display speed, a still one stands, a reversed one runs the other way and is flagged', async () => {
+  const s = new Streams();
+  s.setHealthy(h.healthy as never);
+  s.onFrame(c.frame as never);
+  let t = 0;
+  for (; t < 8000; t += 100) s.step(t);   // past the 3 s mean and the reversal hold's settle
+  const pv = edgeIx.get('PV_TRUNK')!;
+  assert.ok(s.speedOf(pv) !== 0);
+  assert.ok(Math.abs(s.speedOf(pv)) <= displaySpeed(1000), 'bounded by the display curve');
+  const tex = s.texture.image.data as Float32Array;
+  assert.equal(tex.length, 208 * 4);
+  assert.ok(tex[pv * 4]! >= 0 && tex[pv * 4]! < PERIOD, 'distance wraps inside the stream period');
+  assert.ok(s.step(t + 100) || true);
+  let reversed = 0;
+  for (let k = 0; k < 208; k++) if (tex[k * 4 + 2]! > 0.5) reversed++;
+  assert.ok(reversed > 0, 'a decompensated patient has reversed veins');
+  // standing blood: a vessel with no flow keeps its heads in place
+  for (let k = 0; k < 208; k++) if (s.speedOf(k) === 0) assert.equal(tex[k * 4 + 1], 0);
+  s.texture.dispose();
+});
+
+test('streams advance with time and not with frames: the same seconds, the same distance', () => {
+  const run = (step: number) => { const s = new Streams(); s.setHealthy(h.healthy as never); s.onFrame(c.frame as never); for (let t = 0; t <= 6000; t += step) s.step(t); const d = (s.texture.image.data as Float32Array)[edgeIx.get('PV_TRUNK')! * 4]!; s.texture.dispose(); return d; };
+  const a = run(16), b = run(50);
+  assert.ok(Math.abs(a - b) < 0.05 * Math.max(1, Math.abs(a)), `${a} vs ${b}`);
 });

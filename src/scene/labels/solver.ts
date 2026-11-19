@@ -129,7 +129,10 @@ interface Cand { dx: number; dy: number; cost: number; tail?: { below: boolean; 
 
 // A callout's pointer (callout-ptr.js): it reaches PTR past the card's edge, stays KEEP from the card's sides, and leans at most SLANT px per px of length.
 export const PTR = 11, KEEP = 28;
-const ROOM_BASE = 18, CALL_GAPS = [18, 24, 32, 42, 54, 68, 84, 100], SLANT = 1.3;
+// (14 and 16 are the squeezed gaps, tried at a cost: on a phone's narrow band between two cards a reading card with 18 px between it and its point
+// does not fit by a few px, and a card a little closer to its point beats no card)
+export const CALL_MIN_GAP = 14;
+const ROOM_BASE = 18, CALL_GAPS = [18, 24, 32, 42, 54, 68, 84, 100, 16, CALL_MIN_GAP], SLANT = 1.3;
 const CALL_LEANS = Array.from({ length: 27 }, (_, i) => i * 0.04);
 
 function calloutCands(f: Form, below: boolean): Cand[] {
@@ -139,7 +142,7 @@ function calloutCands(f: Form, below: boolean): Cand[] {
     const ax = l * w * sg;
     const len = PTR + g - ROOM_BASE, base = Math.max(KEEP - w / 2, Math.min(w / 2 - KEEP, ax));
     if (Math.abs(ax - base) > SLANT * len + 14) continue;
-    out.push({ dx: -ax - w / 2, dy: side ? g : -g - h, cost: (g - ROOM_BASE) * 0.8 + (Math.abs(ax) / w) * 16 + (side === below ? 0 : 10), tail: { below: side, ax } });
+    out.push({ dx: -ax - w / 2, dy: side ? g : -g - h, cost: (g < ROOM_BASE ? (ROOM_BASE - g) * 6 + 4 : (g - ROOM_BASE) * 0.8) + (Math.abs(ax) / w) * 16 + (side === below ? 0 : 10), tail: { below: side, ax } });
   }
   return out;
 }
@@ -158,7 +161,9 @@ function candidates(it: Anchored, f: Form, wide: boolean): Cand[] {
 
 export function solve(input: SolveInput): Solved {
   const { view, lines = [] } = input;
-  const blockers = input.blockers.map((b) => grow(b, AIR_BLOCKER));
+  const blockersAir = input.blockers.map((b) => grow(b, AIR_BLOCKER));
+  // (the last resort for a label that must stand: it may touch a card's edge, never lie under it)
+  const blockersRaw = input.blockers;
   const inner: Box = { x0: view.x0 + VIEW_INSET, y0: view.y0 + VIEW_INSET, x1: view.x1 - VIEW_INSET, y1: view.y1 - VIEW_INSET };
   const hidden: string[] = [];
   const items: Anchored[] = [];
@@ -181,6 +186,7 @@ export function solve(input: SolveInput): Solved {
   const dropped: string[] = [];
 
   const tryItem = (it: Anchored, relax: 0 | 1 | 2) => {
+    const blockers = relax >= 2 ? blockersRaw : blockersAir;
     let best: { cost: number; form: number; c: Cand; box: Box; leader: boolean; seg: Seg | null } | null = null;
     for (let fi = 0; fi < it.forms.length; fi++) {
       const f = it.forms[fi];
