@@ -44,7 +44,7 @@ test('a chart-look row is claimed only when a chart of the registry really reads
 });
 
 test('the options a chart is said to honour are in its mount or its chart folder', () => {
-  const tool = readFileSync('src/ui/talk/ToolCard.tsx', 'utf8') + readFileSync('src/ui/deck/from2d/card-tiles.js', 'utf8');   // (keepTiles is the tiles card's: 2D ownKeys)
+  const tool = readFileSync('src/ui/talk/ToolCard.tsx', 'utf8') + readFileSync('src/ui/talk/ToolCardBody.tsx', 'utf8') + readFileSync('src/ui/deck/from2d/card-tiles.js', 'utf8');   // (keepTiles is the tiles card's: 2D ownKeys)
   const FOLDER: Record<string, string> = { course: 'curve', stent: 'stent', evgraph: 'evgraph' };
   for (const [kind, opts] of Object.entries(TOOL_OPTIONS)) {
     const dir = `src/ui/charts/${FOLDER[kind] ?? kind}`;
@@ -55,7 +55,7 @@ test('the options a chart is said to honour are in its mount or its chart folder
 });
 
 test('a tool claimed wired is mounted by ToolCard (a case for its kind)', () => {
-  const tool = readFileSync('src/ui/talk/ToolCard.tsx', 'utf8');
+  const tool = readFileSync('src/ui/talk/ToolCard.tsx', 'utf8') + readFileSync('src/ui/talk/ToolCardBody.tsx', 'utf8');
   for (const c of claims) {
     const m = /^tool:(.+)$/.exec(c.id);
     if (!m || !c.wired) continue;
@@ -90,7 +90,7 @@ test('the hooks this batch landed are registered, each held to the thing that do
   for (const h of ['card:tiles', 'tool:menu', 'tool:course']) assert.ok(hasHook(h), h);
   assert.ok(registeredHooks().includes('card:tiles'));
   for (const h of ['tool:menu', 'tool:course', 'card:chart-foot', 'card:cohort', 'data:graph', 'visual:plane-options']) assert.ok(hookOf(h)!.landed(), `ag hook ${h}`);
-  assert.ok(readFileSync('src/ui/talk/ToolCard.tsx', 'utf8').includes('<MenuCard'));
+  assert.ok(readFileSync('src/ui/talk/ToolCard.tsx', 'utf8') + readFileSync('src/ui/talk/ToolCardBody.tsx', 'utf8').includes('<MenuCard'));
   assert.ok(readFileSync('src/ui/cards/CardLayer.tsx', 'utf8').includes('<TilesCard'));
 });
 
