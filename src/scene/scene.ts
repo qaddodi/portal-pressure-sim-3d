@@ -165,7 +165,7 @@ export class CelScene {
     (this.plate.material as MeshBasicMaterial).color.set(p.body);
     for (const o of this.objects) { o.applyPalette(p); o.setPhone(this.phone); }
     this.lens.setLook(look);
-    this.lobule.applyLook(look); this.sinus.applyLook(look);
+    this.lobule.applyLook(look); this.sinus.applyLook(look); this.feedSinusInk();
     this.moving = true;
   }
 
@@ -211,11 +211,11 @@ export class CelScene {
   // ---- lens and blood ------------------------------------------------------------------------
 
   /** Colour the veins by a lens (the Layers menu's ten, a deck's 'system' and 'since', or 'neutral' for the plain anatomy). */
-  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.lobule.setLens(lens); this.moving = true; }
+  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.lobule.setLens(lens); this.feedSinusInk(); this.moving = true; }
   /** The healthy patient at rest (the engine's `healthyProfile`): the reference the change, congestion, velocity and direction lenses compare to. */
   setHealthy(h: { P: ArrayLike<number>; Q: ArrayLike<number>; D: ArrayLike<number> }): void {
     this.lens.setContext({ healthy: { Q: h.Q, D: h.D, P: h.P }, ref: Float32Array.from(h.P) });
-    this.lobule.setReference(Float32Array.from(h.P));
+    this.lobule.setReference(Float32Array.from(h.P)); this.feedSinusInk();
     this.moving = true;
   }
   /** The Blood menu: chevrons on or off, key routes only, and potential collaterals (dotted routes). */
@@ -226,7 +226,7 @@ export class CelScene {
     }
     this.flow.setOptions({ chevrons: o.chevrons, keyChevrons: o.keyChevrons, presenting: o.presenting } as Partial<BloodOptions>);
     this.blood = { chevrons: o.chevrons ?? this.blood.chevrons, keyChevrons: (o.keyChevrons ?? this.blood.keyChevrons) || !!o.presenting };
-    this.lobule.setBlood(this.blood);
+    this.lobule.setBlood(this.blood); this.sinus.setBlood(this.blood);
     this.moving = true;
   }
 
@@ -300,8 +300,13 @@ export class CelScene {
     if (!f) return;
     const m = lobuleModel({ P: f.P, Q: f.Q, params: patient.params ?? undefined, metrics: f.metrics }, patient.reference, patient.params);
     if (this.figureView === 'lobule') snap ? this.lobule.snapModel(m) : this.lobule.setModel(m);
-    else if (this.figureView === 'sinusoid') snap ? this.sinus.snapTargets(sinusoidTargets(m)) : this.sinus.setTargets(sinusoidTargets(m));
+    else if (this.figureView === 'sinusoid') {
+      snap ? this.sinus.snapTargets(sinusoidTargets(m)) : this.sinus.setTargets(sinusoidTargets(m));
+      this.lobule.snapModel(m);   // (the lobule is hidden; it keeps the model the sinusoid's colour is worked out from)
+      this.feedSinusInk();
+    }
   }
+  private feedSinusInk(): void { const c = this.lobule.inkContext(); if (c) this.sinus.setInk(c); }
   setLobuleLayers(l: Partial<LobuleLayers>): void { this.lobule.setLayers(l); this.moving = true; }
 
   /** The vessel whose body a pointer ray hits first, for tap-to-pick. */

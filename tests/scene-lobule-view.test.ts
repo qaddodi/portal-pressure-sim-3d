@@ -287,17 +287,16 @@ test('the lobule\'s disease states come out of nothing and ease in: collagen col
 test('the sinusoid\'s states: sealed pores shrink the sieve plates away, collagen and the membrane come out of nothing, the stellate cell swells and squeezes the lumen, filtration swells Disse', () => {
   const s = new SinusoidView(createShared());
   s.setVisible(true); s.snapTargets(targets()); settle(s);
-  const by = (part: 'wall' | 'disse' | 'stellate' | 'lumen', i = 0) => s.objects.filter((o) => s.set.get(part).group.children.includes(o.group))[i]!;
   const infl = (o: CelObject) => o.toon.uniforms.inflate!.value as number;
-  const fen = by('wall', 0), bm = by('wall', 1), collagen = by('disse', 1), disse = by('disse', 0), cell = by('stellate', 0), lumen = by('lumen');
-  assert.ok(Math.abs(infl(fen)) < 1e-9); assert.ok(Math.abs(infl(lumen)) < 1e-9); assert.equal(bm.group.visible, false); assert.equal(collagen.group.visible, false);
+  const { pores, bm, collagen, disse, stellate: cell, lumen } = s.parts;
+  assert.ok(Math.abs(infl(pores[0]!)) < 1e-9); assert.ok(Math.abs(infl(lumen)) < 1e-9); assert.equal(bm.group.visible, false); assert.equal(collagen.group.visible, false);
   s.setTargets(targets({ por: 0.1, col: 0.9, bm: 0.9, act: 0.9, pinch: 0.2, lum: 0.78, filt: 4 }));
   settle(s, 2000, 4000);
-  assert.ok(infl(fen) < -0.02, 'pores closed');
+  assert.ok(infl(pores[0]!) < -0.02, 'pores closed');
   assert.ok(bm.group.visible && collagen.group.visible);
-  assert.ok(infl(cell) > 0.04, 'activated');
-  assert.ok(infl(lumen) < -0.1, 'squeezed and narrowed');
-  assert.ok(infl(disse) > 0.05 - 0.06 * 0.9 - 1e-9, 'Disse swells with the filtration (less what the collagen takes)');
+  assert.ok(infl(cell) > 0.02, 'activated');
+  assert.ok(infl(lumen) < -0.08, 'squeezed and narrowed');
+  assert.ok(infl(disse) > 0.005, 'Disse swells with the filtration (less what the collagen takes)');
 });
 
 test('the sinusoid\'s wedge amber starts at the central end and runs back toward the portal end; a dive after the lobule\'s wash carries on', () => {

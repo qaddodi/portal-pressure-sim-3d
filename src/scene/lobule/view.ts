@@ -25,7 +25,8 @@ import { LOBULE_PARTS, type LobulePartName, PartSet } from './parts.ts';
 import { LOBULE_PALETTES, tone } from './tones.ts';
 import { LOBULE_R, LOBULE_T, lobuleToScene, slabZ } from './shots.ts';
 import { lobuleWorld } from './frames.ts';
-import { type InkContext, type Seg, inkAt, sinW } from './ink.ts';
+import { type InkContext, type Seg, sinW } from './ink.ts';
+import { InkSet } from './ink-set.ts';
 import { WASH_DELAY_MS, washAmount, washFront, washProgress } from './wash.ts';
 
 const R = LOBULE_R;
@@ -77,12 +78,11 @@ export class LobuleView {
   /** Every object the view draws (for palette, ink width and disposal). */
   readonly objects: CelObject[] = [];
   private marked: Marked[] = [];
-  /** The parts that colour themselves along their length under the lens: each tube's two end colours (now and where they are going) and the vertices they fill. */
-  private inked: { geo: BufferGeometry; seg: Seg; courses: Course[]; tubes: { start: number; rings: number; ring: number }[]; goal: Float32Array; cur: Float32Array; fresh: boolean }[] = [];
+  /** The parts that colour themselves along their length under the lens (ink-set.ts). */
+  private readonly inks = new InkSet();
   private lens: LensId = 'pressure';
   private ref: ArrayLike<number> | null = null;
   private model: LobuleModel | null = null;
-  private inkDirty = true;
   private blood = { chevrons: true, key: false };
   private cur: Cur = { ...REST };
   private goal: Cur = { ...REST };
@@ -136,8 +136,8 @@ export class LobuleView {
     p.group.add(o.group);
     if (opts.ink) {
       o.setInkAmount(1);
-      const courses = opts.ink.courses ?? [], tubes = courses.length ? b.tubes : [];
-      this.inked.push({ geo: o.toonMesh.geometry, seg: opts.ink.seg, courses, tubes, goal: new Float32Array(Math.max(1, tubes.length) * 6), cur: new Float32Array(Math.max(1, tubes.length) * 6), fresh: true });
+      const courses = opts.ink.courses ?? [], seg = opts.ink.seg;
+      this.inks.add(o.toonMesh.geometry, seg, courses.length ? b.tubes : [], courses.map((c): [number, number] => [seg === 'sin' ? sinW(c.rho[0]!) : 0, seg === 'sin' ? sinW(c.rho[c.rho.length - 1]!) : 1]));
     }
     if (c) this.marked.push({ obj: o, part, amount: 0, dir: c.dir ?? 1, speed: c.speed, lymph: !!c.lymph });
     return o;
@@ -246,7 +246,7 @@ export class LobuleView {
   get palette(): Palette { return LOBULE_PALETTES[this.look]; }
 
   applyLook(look: LookId): void {
-    this.look = look; this.inkDirty = true;
+    this.look = look; this.pushInk();
     const p = LOBULE_PALETTES[look];
     for (const o of this.objects) { o.applyPalette(p); o.setPhone(this.phone); }
     this.dirty = true;
@@ -257,13 +257,13 @@ export class LobuleView {
 
   setVisible(v: boolean): void {
     this.visible = v; this.group.visible = v; this.dirty = true; if (!v) this.washOn = false;
-    if (v) for (const e of this.inked) e.fresh = true;   // (opens already in the lens's colours: nothing eases in while the view was away)
+    if (v) this.inks.freshen();   // (opens already in the lens's colours: nothing eases in while the view was away)
   }
   get isVisible(): boolean { return this.visible; }
 
   /** Targets from the engine's frame (lobuleModel). They ease in; nothing jumps. */
   setModel(m: LobuleModel): void {
-    this.model = m; this.inkDirty = true;
+    this.model = m; this.pushInk();
     const g = this.goal;
     g.fibSin = m.fibSin; g.fibPre = m.fibPre; g.fibPost = m.fibPost; g.congU = m.congU; g.septU = m.septU; g.act = m.act;
     g.lum = m.zone.sin ** -0.12 * (1 + 0.5 * m.congU);
@@ -283,10 +283,13 @@ export class LobuleView {
   setLit(parts: Iterable<LobulePartName>): void { this.lit = new Set(parts); this.dirty = true; }
   setFlowMode(mode: FlowMarkMode): void { this.mode = mode; this.dirty = true; }
   /** The colour lens the vessels wear (the Layers menu's, as the 2D lobule colours its lumen by it); the colours ease over about a third of a second. */
-  setLens(lens: LensId): void { if (lens === this.lens) return; this.lens = lens; this.inkDirty = true; this.dirty = true; }
+  setLens(lens: LensId): void { if (lens === this.lens) return; this.lens = lens; this.pushInk(); this.dirty = true; }
   get currentLens(): LensId { return this.lens; }
   /** The node pressures the Change, Congestion and `since` lenses count from (the healthy patient's, a pinned moment's, a slide's). */
-  setReference(ref: ArrayLike<number> | null): void { this.ref = ref; this.inkDirty = true; this.dirty = true; }
+  setReference(ref: ArrayLike<number> | null): void { this.ref = ref; this.pushInk(); this.dirty = true; }
+  /** What the vessels' colour is worked out from now (the sinusoid view colours its lumen the same way); null before the first model. */
+  inkContext(): InkContext | null { return this.model ? { lens: this.lens, look: this.look, model: this.model, ref: this.ref, fibSin: this.cur.fibSin } : null; }
+  private pushInk(): void { if (this.model) this.inks.set({ lens: this.lens, look: this.look, model: this.model, ref: this.ref, fibSin: this.cur.fibSin }); }
   /** The Blood menu: moving blood (chevrons) on or off, and key routes only (then only the parts a slide names carry them). */
   setBlood(b: { chevrons: boolean; keyChevrons: boolean }): void { this.blood = { chevrons: b.chevrons, key: b.keyChevrons }; this.dirty = true; }
   /** Option D: a change happened (a preset, a slider, a treatment). */
@@ -322,62 +325,11 @@ export class LobuleView {
       if (mk.amount !== goal) { mk.amount = Math.abs(goal - mk.amount) <= k ? goal : mk.amount + Math.sign(goal - mk.amount) * k; moving = true; }
       if (mk.amount > 0.001) moving = true;   // marks run: keep asking for frames
     }
-    if (this.updateInk(dt)) moving = true;
+    if (this.inks.step(dt, this.reduce)) moving = true;
     this.apply();
     return moving;
   }
 
-  private inkFib = -1;
-  private readonly rgb: [number, number, number] = [0, 0, 0];
-  private readonly rgb2: [number, number, number] = [0, 0, 0];
-  /** The vessels' colours under the lens: each tube's two end colours (the 2D painter's `tubeRGB`), eased toward the lens's now, and written along the tube. True while they move. */
-  private updateInk(dt: number): boolean {
-    const m = this.model;
-    if (!m) return false;
-    const fib = this.cur.fibSin;
-    if (this.inkDirty || Math.abs(fib - this.inkFib) > 0.004) {
-      this.inkDirty = false; this.inkFib = fib;
-      const ctx: InkContext = { lens: this.lens, look: this.look, model: m, ref: this.ref, fibSin: fib };
-      for (const e of this.inked) {
-        if (!e.courses.length) { const w = e.seg === 'cv' ? 1 : 0; inkAt(ctx, e.seg, w, this.rgb); e.goal[0] = this.rgb[0]; e.goal[1] = this.rgb[1]; e.goal[2] = this.rgb[2]; continue; }
-        e.courses.forEach((c, i) => {
-          const n = c.rho.length, w0 = e.seg === 'sin' ? sinW(c.rho[0]!) : 0, w1 = e.seg === 'sin' ? sinW(c.rho[n - 1]!) : 1;
-          inkAt(ctx, e.seg, w0, this.rgb); inkAt(ctx, e.seg, w1, this.rgb2);
-          for (let k = 0; k < 3; k++) { e.goal[i * 6 + k] = this.rgb[k]!; e.goal[i * 6 + 3 + k] = this.rgb2[k]!; }
-        });
-      }
-    }
-    const k = this.reduce ? 1 : 1 - Math.exp(-Math.max(0, dt) / 140);
-    let moving = false;
-    for (const e of this.inked) {
-      let changed = e.fresh;
-      for (let i = 0; i < e.goal.length; i++) {
-        const d = e.goal[i]! - e.cur[i]!;
-        if (e.fresh) e.cur[i] = e.goal[i]!;
-        else if (Math.abs(d) > 4e-4) { e.cur[i] = e.cur[i]! + d * k; changed = true; moving = true; }
-        else if (d !== 0) { e.cur[i] = e.goal[i]!; changed = true; }
-      }
-      e.fresh = false;
-      if (changed) this.writeInk(e);
-    }
-    return moving;
-  }
-
-  private writeInk(e: LobuleView['inked'][number]): void {
-    const a = e.geo.getAttribute('ink') as import('three').BufferAttribute, arr = a.array as Float32Array;
-    if (!e.courses.length) { for (let v = 0; v < a.count; v++) { arr[v * 3] = e.cur[0]!; arr[v * 3 + 1] = e.cur[1]!; arr[v * 3 + 2] = e.cur[2]!; } }
-    else {
-      e.tubes.forEach((t, i) => {
-        const o = i * 6;
-        for (let r = 0; r < t.rings; r++) {
-          const f = t.rings > 1 ? r / (t.rings - 1) : 0;
-          const R_ = e.cur[o]! + (e.cur[o + 3]! - e.cur[o]!) * f, G_ = e.cur[o + 1]! + (e.cur[o + 4]! - e.cur[o + 1]!) * f, B_ = e.cur[o + 2]! + (e.cur[o + 5]! - e.cur[o + 2]!) * f;
-          for (let j = 0; j < t.ring; j++) { const v = (t.start + r * t.ring + j) * 3; arr[v] = R_; arr[v + 1] = G_; arr[v + 2] = B_; }
-        }
-      });
-    }
-    a.needsUpdate = true;
-  }
 
   /** Writes the eased state into the objects' uniforms (inflate, reveal, flow marks, visibility). Cheap: a few dozen assignments. */
   private apply(): void {

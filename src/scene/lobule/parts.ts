@@ -26,7 +26,8 @@ export const SINUSOID_PARTS = [
   'lumen',          // the blood's channel, with the Kupffer cell's bump
   'wall',           // endothelium: fenestrae (sieve plates), basement membrane
   'disse',          // the space of Disse, its collagen and the lymph it fills
-  'hepatocytes',    // the two plates either side
+  'hepatocytes',    // the two plates either side, their cells and nuclei
+  'canaliculi',     // the bile canaliculi between neighbouring cells, mid-plate, with their tight junctions
   'stellate',       // the stellate cell, with its squeeze
   'kupffer',
   'lymph-duct',     // the lymph's way out toward the portal tract (no flow marks here)
