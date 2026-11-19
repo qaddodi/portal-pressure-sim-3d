@@ -18,7 +18,7 @@ sceneApi.refit()                        // glide the hand's pan and zoom home to
 ```
 
 Shots (`camera/shots.ts`): `title`, `route`, `free`, `wedge`, `hvpg`, `play`, `pick`. A shot says what to look at and how much of the body it needs;
-the room solver (`camera/room.ts`) pulls the camera back when the free room is too small, and shifts the projection into the room's centre.
+The anatomy is a long lens (FOV 14°) and rests face on (yaw 0, pitch 0 in `title`, `play`, `pick`), so the plate lines up with the 2D app's; only the catheter shots keep a small turn. The room solver (`camera/room.ts`) pulls the camera back when the free room is too small, and shifts the projection into the room's centre.
 The rig tweens every field straight from the current pose to the next (no fit waypoint), including the room, so a card move and a shot can overlap.
 
 ## Where things live
@@ -42,7 +42,7 @@ wrote linear values straight out and looked darker.)
 
 | Input | Does |
 |---|---|
-| one finger / mouse drag | turns the figure within ±25° (`dragToOrbit`, the one rule), momentum on release |
+| one finger / mouse drag | turns the figure within ±25° (`dragToOrbit`, the one rule), momentum on release; 1.2 s after the hand lifts the turn springs back to the shot (critically damped, `orbitHome`) |
 | two fingers | pinch zoom and pan together; the point under the midpoint stays under it; one finger left after a pinch pans, never taps or throws |
 | Shift-drag, middle button | pan, flick on release |
 | Mac trackpad two-finger scroll | pan on the rubber band |

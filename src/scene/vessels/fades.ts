@@ -2,8 +2,8 @@
 // colon, the kidney) fade in from nothing over the first part of their length; the hepatic artery fades in at its start and its branches out at their ends, where they turn into
 // sinusoids; the veins that run on out of the plate fade out down it. A fading tip is solid to its end while a collateral attaches there (TIP_CONNECT).
 import { EDGES } from '../../engine/hales/portal/topology.js';
-import { y3 } from '../frame2d.ts';
-import { ART_FADE_2D, FADE_DOWN_Y_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
+import { x3, y3 } from '../frame2d.ts';
+import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, SIN_EDGES_2D, SIN_FADE_C9_2D, SIN_FADE_ROW_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
 import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D } from './paths.copied.ts';
 
 /** stage-geo.js IVC_NODES, IVC_JOIN_LEN, HEPATIC_VEINS: a vein that ends on the faint cava fades into it over its last 60 units (12 for the portocaval and mesocaval shunts), so the join is seamless. */
@@ -24,9 +24,11 @@ export function ivcJoinSpan(id: string): number {
 }
 
 export interface TipFade {
-  /** 1: along the vessel (0 to 1), 2: down the figure (scene y) */
-  mode: 1 | 2;
+  /** 1: along the vessel (0 to 1), 2: down the figure (scene y), 3: along a line across the figure (2D's linear mask: solid from `from` = its offset), 4: along a line, with a dip (faintest at `from`, solid at the end) */
+  mode: 1 | 2 | 3 | 4;
   from: number; to: number;
+  /** modes 3 and 4: the line, scene (x1, y1, x2, y2) */
+  line?: readonly [number, number, number, number];
   /** alpha at `from` and at `to` */
   a0: number; a1: number;
   /** the Circuit does not let go of it (the artery's fades hold in both views) */
@@ -35,6 +37,23 @@ export interface TipFade {
   connect: readonly string[];
   /** a fade into the faint cava: it goes while the cava is drawn whole (selected or named) */
   ivcJoin?: boolean;
+}
+
+const sceneLine = (x1: number, y1: number, x2: number, y2: number): readonly [number, number, number, number] => [x3(x1), y3(y1), x3(x2), y3(y2)];
+const SIN_SET: ReadonlySet<string> = new Set(SIN_EDGES_2D);
+/** stage-geo.js SIN_FADE: a liver bed is faded along its course (the line from its portal node to its venous one), faintest mid-lobe, solid at its end; the ascending lumbar collateral dips behind the liver the same way, down the figure. */
+function sinFade(id: string): TipFade | null {
+  if (id === 'C9') { const r = SIN_FADE_C9_2D; return { mode: 4, from: r[4]!, to: 1, a0: r[5]!, a1: r[6]!, line: sceneLine(r[0]!, r[1]!, r[2]!, r[3]!), keep: false, connect: [] }; }
+  const e = edgeById.get(id), a = e && NODE_POS_2D[e.from], b = e && NODE_POS_2D[e.to];
+  if (!SIN_SET.has(id) || !a || !b) return null;
+  const r = SIN_FADE_ROW_2D;
+  return { mode: 4, from: r[0]!, to: 1, a0: r[1]!, a1: r[2]!, line: sceneLine(a[0], a[1], b[0], b[1]), keep: false, connect: [] };
+}
+/** stage-geo.js FADE_IN: a vein fades into the vessel it sinks into (the hepatic veins and the renal veins into the cava, the caudate vein, C5 into the renal vein). */
+function fadeIn(id: string): TipFade | null {
+  const r = FADE_IN_2D[id];
+  if (!r) return null;
+  return { mode: 3, from: r[4]!, to: 1, a0: 1, a1: r[5] ?? 0.3, line: sceneLine(r[0]!, r[1]!, r[2]!, r[3]!), keep: false, connect: [] };
 }
 
 /** The fade of a vessel, or null for one that has none. */
@@ -48,5 +67,5 @@ export function fadeOf(id: string, isArtery: boolean): TipFade | null {
   if (join > 0) return { mode: 1, from: 1 - join, to: 1, a0: 1, a1: IVC_JOIN_ALPHA, keep: false, connect: [], ivcJoin: true };
   const down = FADE_DOWN_Y_2D[id];
   if (down) return { mode: 2, from: y3(down[0]), to: y3(down[1]), a0: 1, a1: 0, keep: false, connect: [] };
-  return null;
+  return sinFade(id) ?? fadeIn(id);
 }
