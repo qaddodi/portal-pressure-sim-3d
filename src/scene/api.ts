@@ -15,6 +15,7 @@ import type { LensId } from './lenses/model.ts';
 import type { FigureView } from './scene.ts';
 import { lobuleShot, sinusoidShot, type LobuleCam, type LobuleLayers } from './lobule/index.ts';
 import { circuitShot } from './circuit/shots.ts';
+import type { ResKey } from './circuit/res-model.ts';
 import { TURN_MS } from './circuit/data.copied.ts';
 import { useCircuitTurn } from './circuit/pref.ts';
 import { useLens } from './lenses/store.ts';
@@ -76,6 +77,10 @@ export const sceneApi = {
   },
   /** Where a station stands in the Circuit now (scene point, turned with the map), for labels; null off the map. */
   circuitStation: (id: string, out?: Vector3): Vector3 | null => cel.circuitStation(id, out),
+  /** The resistors a slide asks for ('rLiver', 'rColl', 'rGut'): zigzags and "R liver x2.3" readings on the Circuit's map. An empty list clears them. */
+  setResistors(keys: readonly ResKey[]): void { cel.setResistors(keys); clock.invalidate('resistors'); },
+  /** A slide is about the caudate lobe: the Circuit draws the caudate's own lane. */
+  setCaudatePin(on: boolean): void { cel.setCaudatePin(on); clock.invalidate('caudate'); },
   /** The lobule's Layers menu (the 2D app starts with lymph on). */
   setLobuleLayers(l: Partial<LobuleLayers>): void { cel.setLobuleLayers(l); clock.invalidate('lobule-layers'); },
   /** The cards changed room (a card opened, the phone turned): move the room alone. */
