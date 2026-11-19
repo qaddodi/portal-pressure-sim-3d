@@ -70,6 +70,8 @@ export class DopplerModel {
   private motion = false;
   private ink: Rgba = [0.2431, 0.8784, 0.6471, 1];
   /** time lapse (2D doppler.js): the shift that makes the bedside samples follow the replay, the template of the last beats, the replay's own state, and where the next bedside sample is to land */
+  /** whether the Speed tile is shown: a vessel with a usual range has it (2D showStat(Speed, !!normal)); kept while a new vessel acquires */
+  private speedOn = false;
   private tOff = 0;
   private tpl: { t0: number; L: number; pts: number[][]; mean: number; pm: number; hasPair: boolean } | null = null;
   private synth: { t: number; wall: number; mean: number; target: number; amp: number; still: boolean; flat?: boolean } | null = null;
@@ -268,6 +270,7 @@ export class DopplerModel {
     }
     // the usual range as the Speed tile's own small scale
     const normal = rd.normalOf(p) as number[] | null;
+    this.speedOn = !!normal; T('Speed').show = !!normal;
     let gauge: Gauge | null = null;
     if (normal) {
       const n0 = normal[0]!, n1 = normal[1]!, openEnd = !Number.isFinite(n1);
@@ -294,7 +297,7 @@ export class DopplerModel {
     const mk = (k: string, label: string, show: boolean): Tile => ({ k, label, v: '—', unit: '', show, title: STAT_TITLE[k as keyof typeof STAT_TITLE] });
     void r;
     return [
-      mk('Speed', 'Speed', true), mk('Peak', 'Max', true), mk('Trough', 'Trough', !stent), mk('Pulsatility', 'Pulsatility', !stent && kind !== 'hepatic' && kind !== 'ivc'),
+      mk('Speed', 'Speed', this.speedOn), mk('Peak', 'Max', true), mk('Trough', 'Trough', !stent), mk('Pulsatility', 'Pulsatility', !stent && kind !== 'hepatic' && kind !== 'ivc'),
       mk('CI', 'CI', this.probe === 'PV_TRUNK'), ...(SEGS as string[][]).map(([seg, name]) => ({ ...mk(name, name, stent), seg })),
     ];
   }

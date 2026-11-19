@@ -4,6 +4,9 @@
 // The words and judgements are the 2D app's (copied: copied/doppler-*.copied.js); the spectrum is drawn on the GPU by the shared chart drawer (model.ts says how).
 import { useEffect, useRef, useState } from 'react';
 import './doppler.css';
+import './copied/doppler-2d.copied.css';
+import { I } from '../../shell/icons.tsx';
+import { EDGES } from '../../../engine/hales/portal/topology.js';
 import { clock } from '../../../clock/frame.ts';
 import { onFrame, latest } from '../../../engine/index.ts';
 import { Chart, type ChartCtx } from '../../charts/Chart.tsx';
@@ -12,7 +15,7 @@ import type { ChartPainter } from '../../charts/painter.ts';
 import { feed } from '../feed.ts';
 import type { PaneProps } from '../TestsLayer.tsx';
 import { DopplerModel, WINDOWS, type DopMode, type Report } from './model.ts';
-import { PROBES, PAD_L, PAD_R, probeName } from './copied/doppler-tables.copied.js';
+import { PROBES, EI, PAD_L, PAD_R, probeName } from './copied/doppler-tables.copied.js';
 import { DOPPLER_MODES } from './copied/doppler-colours.copied.js';
 import { setDopplerProbe, useDopplerProbe, type Gate } from './probe-state.ts';
 import { spectrumUnder } from './spectrum-gl.ts';
@@ -84,22 +87,52 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
 
   const modes = DOPPLER_MODES as { id: DopMode; label: string; short: string }[];
   const kind = rep?.kind ?? 'portal';
+  const g = rep?.gauge ?? null;
+  // (the gauge's middle runs between its two round ends' centres, 4 px in from each: its share of the track less the two half ends; the track's width is read when the browser reports a new one, 2D gaugeWrite)
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [trackW, setTrackW] = useState(0);
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el || typeof ResizeObserver !== 'function') return;
+    const ro = new ResizeObserver((es) => { const w = es[0]?.contentRect?.width || 0; if (w && Math.abs(w - trackW) > 0.5) setTrackW(w); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [!!g, trackW]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const sw = g ? Math.max(0.001, (g.p1 - g.p0) / 100) : 1;
+  const kMid = trackW > 8 ? Math.max(0, (sw * trackW - 8) / (trackW - 8)) : sw;
+  const gaugeEl = g && (
+    <div className="dop-range" data-out={String(!!g.out)} title={g.title}>
+      <div className="dop-track" ref={trackRef}>
+        <i className="dop-band dop-band-caps">
+          <i className="dop-bm" style={{ translate: `${g.p0}cqw 0`, scale: `${kMid.toFixed(4)} 1` }} />
+          <i className="dop-bc" style={{ translate: `${g.p0}cqw 0` }} />
+          <i className="dop-bc" style={{ translate: `calc(${g.p1}cqw - 8px) 0` }} />
+        </i>
+        <i className="dop-mark" style={{ translate: `${g.pm}cqw 0` }} />
+      </div>
+      <div className="dop-ticks">
+        <span className="dop-g-zero" data-u="" style={{ translate: `${g.pz}cqw 0` }}>0</span>
+        <span className="dop-g-lo" data-u={g.open ? 'cm/s' : ''} style={{ translate: `${g.p0}cqw 0` }}>{g.n0}</span>
+        <span className="dop-g-hi" data-u="cm/s" hidden={g.open} style={{ translate: `${g.p1}cqw 0` }}>{g.open ? '' : g.n1}</span>
+      </div>
+    </div>
+  );
   return (
-    <div className="dop" data-pane="doppler" data-kind={kind}>
+    <div className="dop instrument-view" data-pane="doppler" data-kind={kind}>
       <div className="dop-head">
-        <select className="dop-vessel" aria-label="Vessel" value={probe} onChange={(e) => setDopplerProbe(e.target.value)}>
-          {(PROBES as { id: string }[]).map((x) => <option key={x.id} value={x.id}>{probeName(x)}</option>)}
+        <select className="select dop-vessel" aria-label="Vessel" value={probe} onChange={(e) => setDopplerProbe(e.target.value)}>
+          {(PROBES as { id: string }[]).map((x) => <option key={x.id} value={x.id} title={EDGES[EI[x.id]!].label}>{probeName(x)}</option>)}
         </select>
         <div className="dop-btns">
-          <div className="dop-modes t-seg" role="group" aria-label="Doppler display">
+          <div className="dop-modes" role="group" aria-label="Doppler display">
             {modes.map((x) => <button key={x.id} type="button" className="dop-mode-opt" data-mode={x.id} aria-pressed={mode === x.id} title={`Doppler display: ${x.label}`} onClick={() => { m.mode = x.id; setMode(x.id); }}>{x.short}</button>)}
           </div>
           <button type="button" className="dop-tint dop-inv" aria-pressed={invert} title="Invert the display: show flow away from the probe above the baseline; swaps the toward/away colors" onClick={() => { m.invert = !m.invert; setInvert(m.invert); }}><i aria-hidden="true">⇅</i><span className="dop-lbl">Invert</span></button>
-          <button type="button" className="dop-tint dop-sweep" title={`Sweep window: ${WINDOWS[sweepIndex]} seconds. Tap to cycle.`} aria-label={`Doppler sweep duration: ${WINDOWS[sweepIndex]} seconds. Activate to cycle.`} onClick={() => { m.cycleSweep(); setSweepIndex(m.sweepIndex); }}><span className="dop-sweep-label">{WINDOWS[sweepIndex]} s</span></button>
+          <button type="button" className="dop-tint dop-sweep" title={`Sweep window: ${WINDOWS[sweepIndex]} seconds. Tap to cycle.`} aria-label={`Doppler sweep duration: ${WINDOWS[sweepIndex]} seconds. Activate to cycle.`} onClick={() => { m.cycleSweep(); setSweepIndex(m.sweepIndex); }}><I n="clock" /><span className="dop-sweep-label">{WINDOWS[sweepIndex]} s</span></button>
         </div>
       </div>
       <div className="dop-main">
-        <div className="dop-box" style={{ height: h }}>
+        <div className="chart-box dark dop-box" style={{ height: h }}>
           <Chart tag="doppler" painter={painter} glide={false} deps={[mode, invert, sweepIndex, h, probe, gate, optKey]} label={rep?.aria || 'Spectral Doppler'}
             build={(c) => {
               ctxRef.current = c;
@@ -112,31 +145,19 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
         <div className="dop-report">
           <b className="dop-dir" data-sev={rep?.sev || undefined}>{rep ? rep.dir : '—'}</b>
           <div className="dop-velrow">
-            <span className="dop-vel" hidden={!!rep?.none}><b>{rep && !rep.acquiring ? rep.vel : '—'}</b><small>cm/s</small></span>
-            <span className="dop-pattern">{rep?.pattern || ''}</span>
+            <span className="dop-vel" hidden={!!rep?.none} data-out={String(!!g?.out)}><b>{rep && !rep.acquiring ? rep.vel : '—'}</b><small>cm/s<span className="dop-mean" /></small></span>
+            <div className="dop-pattern">{rep?.pattern || ''}</div>
           </div>
           <dl className="dop-stats">
             {(rep?.tiles ?? []).map((t) => (
-              <div key={t.k} className={t.k === 'Speed' ? 'dop-speed' : undefined} hidden={!t.show} data-out={t.out || undefined} data-on={t.here || undefined} title={t.title}>
+              <div key={t.k} className={[t.k === 'Speed' ? 'dop-speed' : '', t.here ? 'on' : ''].filter(Boolean).join(' ') || undefined} hidden={!t.show} data-out={t.k === 'Speed' || t.seg ? String(!!t.out) : undefined} title={t.title}>
                 <dt aria-label={t.k === 'CI' ? 'Congestion index' : undefined}>
                   {t.seg
                     ? <button type="button" className="dop-seg" aria-pressed={!!t.here} title={`Sample the stent at its ${t.label.toLowerCase()} end`} aria-label={`${t.label}, ${t.v} centimeters per second${t.here ? ', sampling here' : ''}. Activate to sample here.`} onClick={() => setGate(t.seg as Gate)}>{t.label}</button>
                     : t.label}
                 </dt>
                 <dd>{t.v}{t.unit && t.v !== '—' ? <small>{t.unit}</small> : null}</dd>
-                {t.k === 'Speed' && rep?.gauge && (
-                  <div className="dop-range" data-out={rep.gauge.out || undefined} title={rep.gauge.title}>
-                    <div className="dop-track">
-                      <i className="dop-band" style={{ translate: `${rep.gauge.p0}cqw 0`, scale: `${Math.max(0.001, (rep.gauge.p1 - rep.gauge.p0) / 100)} 1` }} />
-                      <i className="dop-mark" style={{ translate: `${rep.gauge.pm}cqw 0` }} />
-                    </div>
-                    <div className="dop-ticks">
-                      <span className="dop-g-zero" style={{ translate: `${rep.gauge.pz}cqw 0` }}>0</span>
-                      <span style={{ translate: `${rep.gauge.p0}cqw 0` }}>{rep.gauge.n0}</span>
-                      {!rep.gauge.open && <span style={{ translate: `${rep.gauge.p1}cqw 0` }}>{rep.gauge.n1}</span>}
-                    </div>
-                  </div>
-                )}
+                {t.k === 'Speed' && gaugeEl}
               </div>
             ))}
           </dl>
