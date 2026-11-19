@@ -4,6 +4,7 @@
 import { useEffect, useMemo, type ReactNode } from 'react';
 import './tests.css';
 import './trace/trace.css';
+import './abdomen/abdomen.css';
 import { useUi } from '../ui-store.ts';
 import { layoutOf, radius, cardScale } from '../layout/rules2d.ts';
 import { registerFeature } from '../shell/features.ts';
@@ -13,6 +14,7 @@ import { testsPlace } from './place.ts';
 import { useTestsRoom } from './room.ts';
 import { TIcon, TAB_ICON } from './icons.tsx';
 import { ReadoutsPane } from './ReadoutsPane.tsx';
+import { AbdomenPane } from './abdomen/AbdomenPane.tsx';
 import { PressureTab } from './trace/PressureTab.tsx';
 import { startFeed } from './feed.ts';
 import { notYet } from '../shell/words.ts';
@@ -21,6 +23,7 @@ import { notYet } from '../shell/words.ts';
 export interface PaneProps { narrow: boolean; /** a plot's height and a square's (dock-vars.js) */ plot: number; square: number; /** a card with room for two instruments at once (a side card 600 px tall or more) */ roomy: boolean }
 const BUILT: Partial<Record<PaneId, (p: PaneProps) => ReactNode>> = {
   readouts: (p) => <ReadoutsPane narrow={p.narrow} />,
+  abdomen: (p) => <AbdomenPane square={p.square} />,
   scope: (p) => <PressureTab own="scope" {...p} />,
   // (the chart along the circuit is not built yet: its view of the Pressure tab says so in a line, beside the working Over time view)
   profile: (p) => <PressureTab own="profile" {...p} />,

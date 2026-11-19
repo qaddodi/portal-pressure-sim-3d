@@ -24,11 +24,13 @@ export const FILES = [
   'scope-lens-rule', 'endo-size', 'endo-columns', 'endo-motion',
   'trace-lanes', 'trace-tape', 'trace-labels', 'trace-room', 'trace-callouts-math',
   'pressure-along', 'hvpg-balloon', 'ekg', 'drop-front', 'limit-label',
-  'instrument-aria', 'vital-read', 'table-marks', 'lymph-day', 'dock-vars',
+  'instrument-aria', 'vital-read', 'table-marks', 'lymph-day', 'dock-vars', 'balance-hold',
 ].filter((n) => n !== 'trace-callouts-math');
 const SLICES = {
   // endo-motion.js reads the bleed's strength from blood.js (1,000 lines of the 2D figure's blood): only its two lines are taken.
   'blood-slice': { file: 'blood', lines: [/^export const BLEED_STEADY\b/, /^export const bleedPulse\b/, /^export const poolFill\b/] },
+  // The Ascites pane's tables (instruments.js): the grade's words and ratings, the abdominal pressure's bands and words. (Each line is exported as it stands.)
+  'abdomen-slice': { file: 'instruments', lines: [/^const SEV = \[/, /^const GRADE = \[/, /^const GRADE_TIP = \[/, /^const IAP_MAX = /, /^const iapSev = /, /^const IAP_WORD = /, /^const IAP_SAY = /, /^const r1 = /] },
 };
 
 const dir = new URL('../src/ui/tests/copied/', import.meta.url);
@@ -60,7 +62,7 @@ function rewrite(name, src) {
 for (const n of FILES) put(`${n}.copied.js`, HEAD(`${n}.js`) + rewrite(n, read(`src/ui/${n}.js`)));
 for (const [n, s] of Object.entries(SLICES)) {
   const lines = read(`src/ui/${s.file}.js`).split('\n');
-  const take = s.lines.map((re) => { const l = lines.find((x) => re.test(x)); if (!l) throw new Error(`${s.file}.js has no line for ${re}`); return l; });
+  const take = s.lines.map((re) => { const l = lines.find((x) => re.test(x)); if (!l) throw new Error(`${s.file}.js has no line for ${re}`); return l.replace(/^const /, 'export const ').replace(/\s*\/\/ \(.*$/, ''); });
   put(`${n}.copied.js`, HEAD(`${s.file}.js, ${take.length} lines`) + take.join('\n') + '\n');
 }
 
