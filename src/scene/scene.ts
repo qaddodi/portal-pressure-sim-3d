@@ -308,7 +308,8 @@ export class CelScene {
     return needs;
   }
 
-  render(gl: WebGLRenderer): void { gl.render(this.scene, this.rig.camera); }
+  /** Until the camera has its first real shot and room only the background is drawn, so the figure's first picture is already in its place. */
+  render(gl: WebGLRenderer): void { if (this.rig.placed) gl.render(this.scene, this.rig.camera); else gl.clear(); }
 
   dispose(): void {
     this.lens.dispose();
