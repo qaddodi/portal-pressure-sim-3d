@@ -7,6 +7,7 @@ import { Vector3 } from 'three';
 import { CameraRig } from '../src/scene/camera/rig.ts';
 import { FOV, SHOTS, lensDistance, type ShotName } from '../src/scene/camera/shots.ts';
 import { fitDistance, fullRoom } from '../src/scene/camera/room.ts';
+import { ORBIT_LIMIT } from '../src/scene/camera/shots.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
 import { STATIONS, nodeZ } from '../src/scene/labels/stations.ts';
 import { TIER_Z } from '../src/scene/frame2d.ts';
@@ -65,6 +66,22 @@ test('every station dot stands on a vessel it names: inside the drawn tube (+2 p
     }
   }
   assert.ok(checked > 100);
+});
+
+test('Lower IVC and the SMV: at every rest shot and across the whole ±25° turn, each dot (and so its leader tip) stays on its own tube, never on the other', () => {
+  const ivc = STATIONS.find((s) => s.id === 'IVCI')!, smv = STATIONS.find((s) => s.id === 'SMV')!;
+  assert.ok(ivc.vessel && smv.vessel && ivc.vessel !== smv.vessel);
+  const tube = (id: string) => NETWORK.find((v) => v.id === id)!;
+  for (const [w, h] of [[390, 700], [1280, 800]] as const) for (const name of REST) for (let k = -5; k <= 5; k++) {
+    const orbit = (k / 5) * ORBIT_LIMIT;
+    const rig = new CameraRig(name);
+    rig.resize(w, h); rig.goTo(name, fullRoom(w, h), 0, 0); rig.update(0); rig.setOrbit(orbit); rig.update(1);
+    for (const [own, other] of [[ivc, smv], [smv, ivc]] as const) {
+      const p = own.at(0.5, new Vector3()), a = tube(own.vessel!), b = tube(other.vessel!);
+      assert.ok(pxDistance(rig, p, a.pts) - pxRadius(rig, p, a.radius) <= 2, `${own.id} on its own tube (${w}x${h}, ${name}, ${orbit.toFixed(2)})`);
+      assert.ok(pxDistance(rig, p, b.pts) - pxRadius(rig, p, b.radius) > 2, `${own.id} is not on ${other.id}'s tube (${w}x${h}, ${name}, ${orbit.toFixed(2)})`);
+    }
+  }
 });
 
 test('a point station stands at the depth of its vessel, not on the front tier: the atrium on the cava, the varices on the collaterals', () => {
