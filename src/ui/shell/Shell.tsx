@@ -3,6 +3,7 @@
 // The sheets, the toast and the diagnostics are the same in both.
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import './shell.css';
+import './dock.css';
 import { DeckUi } from '../DeckUi.tsx';
 import { useUi } from '../ui-store.ts';
 import { useShell } from './store.ts';
@@ -21,8 +22,13 @@ import { applyDeepLink } from './open-link.ts';
 import { showView } from './view-actions.ts';
 import { useBlood } from '../../scene/blood/options.ts';
 import { useLabels } from '../../scene/labels/store.ts';
-import { Legend } from '../../scene/lenses/Legend.tsx';
-import { footHeight } from './room.ts';
+import { useTestsRoom } from '../tests/room.ts';
+import { roomWith } from '../tests/place.ts';
+import { TestsLayer } from '../tests/TestsLayer.tsx';
+import { CompareBanner } from '../compare/CompareUi.tsx';
+import { startCompare } from '../compare/bind.ts';
+import { startTimeline } from '../timeline/index.ts';
+import { startHistory } from '../history/bind.ts';
 import { startActions } from '../action/boot.ts';
 
 /** The screen's size and its safe areas, measured when either changes (never per frame). Free play needs it too: the talk's own UI measures only while it is mounted. */
@@ -46,13 +52,14 @@ function useFreeCamera() {
   const mode = useShell((s) => s.mode);
   const refit = useShell((s) => s.refit);
   const vp = useUi((s) => s.vp), device = useUi((s) => s.device);
+  const testsPlace = useTestsRoom((s) => s.place);   // (the Tests card takes room from the figure)
   const entered = useRef(false);
   useEffect(() => {
     if (mode !== 'free' || vp.w <= 0) { entered.current = false; return; }
-    const room = freeRoom(vp, device);
+    const room = roomWith(freeRoom(vp, device), testsPlace);
     if (room.w <= 0 || room.h <= 0) return;
     if (!entered.current) { entered.current = true; showView(useShell.getState().view); } else sceneApi.setRoom(room);
-  }, [mode, vp, device]);
+  }, [mode, vp, device, testsPlace]);
   const seen = useRef(refit);
   useEffect(() => { if (refit !== seen.current) { seen.current = refit; sceneApi.refit(); } }, [refit]);
 }
@@ -66,6 +73,7 @@ export function Shell() {
   useKeys();
   useFreeCamera();
   useEffect(() => syncTransport(), []);
+  useEffect(() => { const offs = [startTimeline(), startCompare(), startHistory()]; return () => offs.forEach((o) => o()); }, []);
   useEffect(() => startActions(), []);
   useEffect(() => { const f = useShell.getState().figure; sceneApi.setLobuleLayers({ lymph: f.lymph, zones: f.zones }); }, []);
   // what the Blood menu remembers goes to the scene and the labels once at boot (the menu then tells them itself)
@@ -86,7 +94,8 @@ export function Shell() {
             <ThumbBar />
           </div>
         )}
-        <div className="sh-key" data-hidden={mode === 'deck'} style={{ bottom: `calc(var(--safe-b, 0px) + ${bottom ? footHeight(device) : 18}px)` }}><Legend /></div>
+        <CompareBanner />
+        {mode === 'free' && <TestsLayer />}
         <Sheets />
         <Toast />
         <Diagnostics />

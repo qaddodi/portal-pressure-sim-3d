@@ -1,0 +1,63 @@
+/* The Tests card. Colours are the look's tokens (--surface --text --text-2 --text-3 --accent --accent-soft --ok --caution --danger --edge --shadow-rgb --sa); fonts --ui and --display.
+   Always in the page and fading: the card comes in by opacity and a small rise, never pops. Per-frame writes are transform and opacity only. Type sizes are custom properties the
+   layer sets from the card type scale (data text is never under 12 px). */
+.t-pos { position: absolute; left: 0; top: 0; z-index: var(--z-cards, 10); pointer-events: none; will-change: transform; font-family: var(--ui); color: var(--text); font-variant-numeric: tabular-nums lining-nums; }
+.t-pos[data-live="true"] { transition: transform 280ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+.t-plate { position: absolute; inset: 0; border-radius: var(--t-r, 18px); pointer-events: none; opacity: 0; transform: translateY(16px);
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 12px 32px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6));
+  transition: opacity 280ms cubic-bezier(0.2, 0.7, 0.2, 1), transform 280ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+.t-card { position: relative; box-sizing: border-box; width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; border-radius: var(--t-r, 18px); border: 1px solid var(--edge); background: var(--surface);
+  opacity: 0; visibility: hidden; transform: translateY(16px); transition: opacity 280ms cubic-bezier(0.2, 0.7, 0.2, 1), transform 280ms cubic-bezier(0.2, 0.7, 0.2, 1), visibility 0s linear 280ms; }
+.t-pos[data-open="true"] { pointer-events: auto; }
+.t-pos[data-open="true"] .t-card { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+.t-pos[data-open="true"] .t-plate { opacity: 1; transform: none; }
+.t-pos[data-open="false"] .t-card * { pointer-events: none; }
+.t-card [hidden] { display: none !important; }
+.t-card button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.t-card :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.t-head { display: flex; align-items: center; gap: 8px; padding: 12px 12px 6px 18px; flex: none; }
+.t-title { margin: 0; font: 650 var(--t-title, 18px) / 1.1 var(--display, var(--ui)); letter-spacing: -0.01em; flex: 1 1 auto; }
+.t-x { width: 36px; height: 36px; border-radius: 999px; border: 0; background: transparent; display: grid; place-items: center; color: var(--text-2); }
+.t-x:hover { background: var(--accent-soft); }
+.t-ic { width: 20px; height: 20px; flex: none; }
+
+.t-tabs { display: flex; gap: 2px; padding: 2px 10px 8px; flex: none; }
+.t-tab { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 2px 6px; border: 0; border-radius: 12px; background: transparent; color: var(--text-3);
+  font: 600 var(--t-sm, 13px) / 1.1 var(--ui); transition: color 200ms, background-color 200ms; }
+.t-tab[aria-selected="true"] { color: var(--text); background: var(--accent-soft); }
+.t-tab:hover { color: var(--text); }
+.t-tab span { white-space: nowrap; overflow: hidden; text-overflow: clip; max-width: 100%; }
+.t-tab .t-full { display: inline; } .t-tab .t-short { display: none; }
+.t-pos[data-narrow="true"] .t-tab .t-full { display: none; } .t-pos[data-narrow="true"] .t-tab .t-short { display: inline; }
+
+.t-body { position: relative; flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 4px 18px 18px; overscroll-behavior: contain; }
+.t-pane { animation: t-pane 220ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes t-pane { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.t-note { margin: 12px 0; color: var(--text-2); font: 500 var(--t-sm, 13px) / 1.4 var(--ui); }
+.t-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; border: 1px solid var(--edge); background: var(--surface); margin-bottom: 10px; }
+.t-seg button { border: 0; border-radius: 999px; padding: 6px 14px; background: transparent; color: var(--text-2); font: 600 var(--t-sm, 13px) / 1 var(--ui); }
+.t-seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); }
+
+/* ── Readouts ── */
+.rp-group { margin: 0 0 14px; }
+.rp-cap { margin: 0 0 8px; font: 600 11px / 1 var(--ui); letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-3); }
+.rp-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.rp-tile { position: relative; text-align: left; border: 1px solid var(--edge); border-radius: 12px; background: var(--surface); padding: 9px 10px 10px; display: flex; flex-direction: column; gap: 3px; min-width: 0;
+  transition: background-color 200ms; }
+.rp-tile:hover:not([data-static]) { background: color-mix(in srgb, var(--surface) 92%, var(--text)); }
+.rp-k { font: 600 var(--t-sm, 13px) / 1.2 var(--ui); color: var(--text-2); }
+.rp-v { font: 650 22px / 1.1 var(--display, var(--ui)); letter-spacing: -0.01em; transition: color 240ms; }
+.rp-v .rp-u { font: 500 var(--t-sm, 13px) / 1 var(--ui); color: var(--text-3); margin-left: 4px; }
+.rp-s { font: 600 var(--t-sm, 13px) / 1.2 var(--ui); color: var(--text-3); transition: color 240ms; }
+.rp-bar { position: relative; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--text) 10%, transparent); margin-top: 4px; overflow: hidden; }
+.rp-fill { position: absolute; top: 0; bottom: 0; left: 0; right: 0; border-radius: 3px; background: var(--text-3); transform-origin: 0 50%; transition: transform 320ms cubic-bezier(0.2, 0.7, 0.2, 1), background-color 240ms; }
+.rp-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--text) 40%, transparent); }
+.rp-tile[data-sev="ok"] .rp-v, .rp-tile[data-sev="ok"] .rp-s { color: var(--ok-ink, var(--ok)); }
+.rp-tile[data-sev="caution"] .rp-v, .rp-tile[data-sev="caution"] .rp-s { color: var(--caution-ink, var(--caution)); }
+.rp-tile[data-sev="danger"] .rp-v, .rp-tile[data-sev="danger"] .rp-s, .rp-tile[data-sev="critical"] .rp-v, .rp-tile[data-sev="critical"] .rp-s { color: var(--danger-ink, var(--danger)); }
+.rp-tile[data-sev="ok"] .rp-fill { background: var(--ok); } .rp-tile[data-sev="caution"] .rp-fill { background: var(--caution); }
+.rp-tile[data-sev="danger"] .rp-fill, .rp-tile[data-sev="critical"] .rp-fill { background: var(--danger); }
+.rp-tile[data-sev="none"] .rp-v { color: var(--text-3); }
+.rp-tr { margin-left: 6px; font-size: 11px; color: var(--text-3); }
+

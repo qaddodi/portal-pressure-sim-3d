@@ -6,7 +6,7 @@ import { STORAGE_PREFIX } from '../../state/settings.ts';
 import type { ViewId } from './views.ts';
 import type { LensId } from '../../scene/lenses/model.ts';
 
-export type Sheet = 'menu' | 'settings' | 'search' | 'help' | 'history' | 'guide' | 'blood' | 'layers' | 'lens' | 'speed' | 'jump' | null;
+export type Sheet = 'menu' | 'settings' | 'search' | 'help' | 'history' | 'compare' | 'why' | 'guide' | 'blood' | 'layers' | 'lens' | 'speed' | 'jump' | null;
 export type MenuTab = 'present' | 'patients';
 /** The ten lenses of the 2D menu, in its order (the scene's own list also holds the two a slide uses). */
 export const LENS_IDS: readonly LensId[] = UI.lenses.map((l) => l.id as LensId);
@@ -70,7 +70,7 @@ export const TOAST_MS = 3200;
 export const useShell = create<ShellState>((set, get) => ({
   mode: 'free',
   view: 'anatomic',
-  ready: { circuit: false, anatomic: true, lobule: true, sinusoid: true },
+  ready: { circuit: true, anatomic: true, lobule: true, sinusoid: true },
   sheet: null, dialog: null, menuTab: 'present', menuQuery: '', helpSection: null, toast: null,
   figure: loadFigure(),
   transport: { running: false, speed: 1, lapse: 0, time: '0:00', day: 0 },

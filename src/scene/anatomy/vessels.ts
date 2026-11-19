@@ -124,13 +124,16 @@ export interface VesselGeometry {
   curve: CatmullRomCurve3;
   /** Arc length of the centreline in scene units. */
   length: number;
+  /** Slices along the tube and sides round it: vertex (i, j) of the tube is i * (radial + 1) + j; the two end caps follow (the Circuit's morph reads this layout). */
+  tubular: number;
+  radial: number;
 }
 
 /** A tube along the centreline with round caps merged in, so a vessel is one geometry and two draw calls (toon and ink). uv.x = distance along
  *  the flow (0 to 1), uv.y = angle round; `tang` is the unit tangent for the flow chevrons. */
-export function buildTube(points: Vector3[], radius: number, caps = true): VesselGeometry {
+export function buildTube(points: Vector3[], radius: number, caps = true, minSlices = 0): VesselGeometry {
   const curve = new CatmullRomCurve3(points);
-  const tubular = Math.max(16, Math.round(curve.getLength() * 30));
+  const tubular = Math.max(16, Math.round(curve.getLength() * 30), minSlices);
   const radial = 14;
   const tube = new TubeGeometry(curve, tubular, radius, radial, false);
   const tang: number[] = [];
@@ -156,11 +159,11 @@ export function buildTube(points: Vector3[], radius: number, caps = true): Vesse
     }
   }
   const geometry = parts.length > 1 ? mergeGeometries(parts, false)! : tube;
-  return { geometry, curve, length: curve.getLength() };
+  return { geometry, curve, length: curve.getLength(), tubular, radial };
 }
 
-export function buildVessel(def: VesselDef): VesselGeometry {
-  return buildTube(vesselPoints(def), def.radius, true);
+export function buildVessel(def: VesselDef, minSlices = 0): VesselGeometry {
+  return buildTube(vesselPoints(def), def.radius, true, minSlices);
 }
 
 export const VESSEL_IDS: readonly string[] = VESSELS.map((v) => v.id);

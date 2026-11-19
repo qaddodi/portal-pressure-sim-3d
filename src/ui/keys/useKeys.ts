@@ -16,6 +16,7 @@ import { useSelection, selectStructure } from '../action/selection.ts';
 import { triggerCardVerb, cardIsOpen } from '../action/ActionCard.tsx';
 import { openGuide } from '../shell/HelpSheets.tsx';
 import { SETTLED, lensToast, speedToast } from '../shell/words.ts';
+import { useTests } from '../tests/store.ts';
 
 export function targetOf(el: EventTarget | null): Target {
   const t = el as HTMLElement | null;
@@ -36,6 +37,7 @@ export function carryOut(a: KeyAction): void {
     case 'close':
       if (sh.dialog) useShell.setState({ dialog: null });
       else if (sh.sheet) sh.close();
+      else if (useTests.getState().open) useTests.getState().close();   // (the Tests card; its Why? is the shared sheet above, closed first)
       else if (useTreat.getState().open) useTreat.getState().setOpen(false);
       else if (useSelection.getState().sel) selectStructure(null);
       else if (sh.mode === 'deck') leaveTalk();

@@ -4,12 +4,12 @@
 import { HVPG_COPIED } from './hvpg.copied.ts';
 import type { Deck, Slide, ShotName, ReadingKey } from './schema.ts';
 
-interface Plate { shot: ShotName; ladder?: { rows: ReadingKey[]; result?: 'hvpg' } }
+interface Plate { shot: ShotName; ladder?: { rows: ReadingKey[]; result?: 'hvpg' }; model?: { preset: string } }
 
 /** What the 3D adds to each copied slide. The ladder grows with the teaching: the free slide shows what is free, the wedge adds the wedged
  *  pressure, the result slide adds the subtraction. The route slide has no data card (nothing is measured yet). */
 const THREE_D: Record<string, Plate> = {
-  route: { shot: 'route' },
+  route: { shot: 'route', model: { preset: 'csph' } },   // (the patient the talk opens on, as the 2D deck's `preset`)
   free: { shot: 'free', ladder: { rows: ['ivc', 'fhvp'] } },
   wedge: { shot: 'wedge', ladder: { rows: ['ivc', 'fhvp', 'whvp'] } },
   hvpg: { shot: 'hvpg', ladder: { rows: ['whvp', 'fhvp', 'ivc'], result: 'hvpg' } },
