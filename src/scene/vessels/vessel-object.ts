@@ -1,4 +1,4 @@
-import { BufferAttribute, BufferGeometry, Color, DataTexture, DoubleSide, FloatType, NearestFilter, RGBAFormat, ShaderMaterial, Vector3, type Texture } from 'three';
+import { BufferAttribute, BufferGeometry, Color, DataTexture, DoubleSide, FloatType, Mesh, NearestFilter, RGBAFormat, ShaderMaterial, Vector3, type Texture } from 'three';
 import { CelObject, type CelOptions, type CelShared, rawColor } from '../materials/cel.ts';
 import { PALETTES, type Palette } from '../palette.ts';
 import { VESSEL_FS, VESSEL_VS } from './shaders.ts';
@@ -65,6 +65,9 @@ export function withHull(g: BufferGeometry): BufferGeometry {
   return out;
 }
 
+/** The camera layer nothing is drawn from: the cava's solid mesh, kept only to be picked. */
+export const FAINT_ONLY_LAYER = 2;
+
 const lookOf = (p: Palette): LookId => ((Object.keys(PALETTES) as LookId[]).find((id) => PALETTES[id] === p) ?? 'light');
 
 /** One vessel: the scene's CelObject (highlight, flow-mark fade) with the toon and ink passes merged into one lens- and blood-aware draw. `ink`
@@ -128,6 +131,22 @@ export class VesselObject extends CelObject {
     geo.computeBoundingSphere();
     this.toon.uniforms.len!.value = len;
   }
+
+  private veil: { mesh: Mesh; mat: ShaderMaterial; wholeLayer: number } | null = null;
+  /** A vessel the 2D figure draws behind the organs (BACK_EDGES; the cava above all): it is drawn with the organs, so one in front hides it, and again over them at 0.4, the organ's veil, so
+   *  it shows through faintly (stage.js VEIL_K). `faint`: faded along its whole course as well (the cava, F_VEIL), not only where an organ is over it. `overLayer` is the camera layer of what is drawn over the organs. */
+  setBehindOrgans(overLayer: number, faint: boolean): void {
+    if (this.veil) return;
+    const mat = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, side: DoubleSide, transparent: true, depthWrite: false, defines: { VEIL: 1 } });
+    const mesh = new Mesh(this.toonMesh.geometry, mat);
+    mesh.matrixAutoUpdate = true; mesh.renderOrder = 1;
+    mesh.layers.set(overLayer);
+    this.group.add(mesh);
+    this.veil = { mesh, mat, wholeLayer: 0 };
+    // drawn with the organs (layer 0), or, faint all along, not drawn solid at all (its mesh stays for picking, on a layer no pass draws)
+    this.toonMesh.layers.set(faint ? FAINT_ONLY_LAYER : 0);
+  }
+  override dispose(): void { this.veil?.mat.dispose(); super.dispose(); }
 
   /** A closed potential collateral: a dotted thread with no ink. */
   setDotted(on: boolean): void { this.toon.uniforms.dotted!.value = on ? 1 : 0; this.toon.uniforms.hullOn!.value = on ? 0 : 1; }

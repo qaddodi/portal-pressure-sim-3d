@@ -85,6 +85,12 @@ ${CIRCUIT_VS_CALL}
 
 export const VESSEL_FS = /* glsl */ `
 ${FADE_GLSL}
+// a vessel behind the organs is drawn a second time over them with VEIL defined: the organ's veil (stage's VEIL_K 0.6: a vessel behind an organ shows at 0.4)
+#ifdef VEIL
+const float VEIL_A = 0.4;
+#else
+const float VEIL_A = 1.0;
+#endif
 uniform vec3 color;
 uniform vec3 inkColor;
 uniform float shadeK;
@@ -201,7 +207,7 @@ void main() {
   if (vHull > 0.5) {
     // the ink: the hull's back faces only, in the ink colour, warming to the highlight colour where the vessel is picked
     if (gl_FrontFacing || hullOn < 0.5) discard;
-    gl_FragColor = vec4(mix(inkColor, hiColor, clamp(vHi, 0.0, 1.0)), 1.0);
+    gl_FragColor = vec4(mix(inkColor, hiColor, clamp(vHi, 0.0, 1.0)), VEIL_A);
     return;
   }
   if (!gl_FrontFacing) discard;
@@ -280,5 +286,5 @@ void main() {
       c = c * (1.0 - ha) + core * ac + rimc * ar * (1.0 - ac);
     }
   }
-  gl_FragColor = vec4(c, 1.0);
+  gl_FragColor = vec4(c, VEIL_A);
 }`;
