@@ -5,18 +5,27 @@
 //   - the esophageal strands go as bands close them (the count drawn follows the model's whole count in a moment: band-ease.js)
 //   - the varices bead with their size (varix-bead.js beadRadius); the fundal ones on a longer period
 //   - a plexus draws on and retracts with its vessel (the presence the vessels use), so nothing pops
-import { Group, Vector3 } from 'three';
+import { BufferAttribute, type BufferGeometry, Float32BufferAttribute, Group, Vector3 } from 'three';
 import { CAV_CHANNELS, SIN_EDGES, STRANDS, STRAND_FROM, STRAND_SOFT } from './copied/anatomy-b4.ts';
 import { cavGrow, cavStrand, trunkFrame } from './copied/cavernoma-strand.js';
 import { BEAD_SITE, beadLambda, beadRadius, varixBead } from './copied/varix-bead.js';
+import { SIN_PERFUSION, sinStrandRadius } from './copied/sin-perfusion.js';
 import { CelObject, type CelShared } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import { hostCourse } from './course.ts';
+import { mix, rgbOf, type RGB } from '../organs/organ-look.ts';
+import { recolour } from './paint.ts';
 import { ringTube, sampleAlong } from './tube.ts';
 
 const N = 44;
-const HOSTS = Object.keys(STRANDS).filter((id) => !SIN_EDGES.has(id));
+// (the sinusoids' own strands, SIN_RR and SIN_LL, are drawn faint and fine: sin-perfusion.js)
+const HOSTS = Object.keys(STRANDS);
+/** The red wale's colour (tokens.css --red-wale), and where along the strand it lies: over the middle, easing in and out over 15% of its length at each end (stage-vessels.js). */
+export const RED_WALE = rgbOf('#E8404A');
+export const waleEnvelope = (u: number): number => { const k = (a: number, b: number) => { const t = Math.min(1, Math.max(0, (u - a) / (b - a))); return t * t * (3 - 2 * t); }; return k(0.1, 0.25) * (1 - k(0.75, 0.9)); };
+/** The faint colour of a sinusoid strand: the portal tone most of the way to the plate (SIN_PERFUSION.fade, 0.4 of its strength). */
+const faint = (tone: RGB, plate: RGB): RGB => mix(plate, tone, SIN_PERFUSION.fade);
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 export interface StrandInputs {
@@ -28,6 +37,8 @@ export interface StrandInputs {
   bands: number;
   /** the model's varix diameters (mm) by metrics key, or null */
   varixD: { varix: number | null; gastricVarix: number | null };
+  /** the esophageal strands' share of the red wale colour, 0..WALE_MAX (varixWale: 0 off the pressure lens) */
+  wale?: number;
 }
 
 interface Strand { host: string; i: number; obj: CelObject | null; key: string; pts: Vector3[]; chan: (typeof CAV_CHANNELS.C8)[number] | null; k: number; ph: number; off: number; ua: number | null; ub: number | null }
@@ -79,7 +90,10 @@ export class StrandLayer {
     }
   }
 
-  applyLook(p: Palette): void { this.palette = p; for (const s of this.strands) s.obj?.applyPalette(p); }
+  applyLook(p: Palette): void {
+    this.palette = p;
+    for (const s of this.strands) { if (!s.obj) continue; s.obj.applyPalette(p); if (SIN_EDGES.has(s.host)) recolour(s.obj, faint(rgbOf(p.tones.portal), rgbOf(p.body)), p); s.key = ''; }   // (a changed look paints the wale again)
+  }
   setPhone(phone: boolean): void { for (const s of this.strands) s.obj?.setPhone(phone); }
 
   /** Steps the plexuses toward `in`; true while one is drawing on or retracting. */
@@ -107,7 +121,8 @@ export class StrandLayer {
     const d = site ? (inp.varixD as Record<string, number | null>)[site] : null;
     const bead = site && d != null ? Math.round(varixBead(d) * 100) / 100 : 0;
     const amount = Math.round(present * live * grow * 50) / 50;
-    const key = `${amount}|${bead}`;
+    const wale = s.host === 'C1a' ? Math.round((inp.wale ?? 0) * 100) / 100 : 0;
+    const key = `${amount}|${bead}|${wale}`;
     if (key === s.key) return false;
     s.key = key;
     if (amount <= 0.01) { if (s.obj) s.obj.group.visible = false; return false; }
@@ -119,15 +134,27 @@ export class StrandLayer {
     } else pts = strandPoints(base.pts, s.off, STRAND_FROM[s.host] ?? 0, s.ua != null && s.ub != null ? [s.ua, s.ub] : null, s.ph, STRAND_SOFT.has(s.host));
     let len = 0; for (let i = 1; i < pts.length; i++) len += pts[i]!.distanceTo(pts[i - 1]!);
     const len2d = len * 300, lambda = beadLambda(s.host);
-    const radii = pts.map((_, i) => Math.max(1e-4, beadRadius(r, bead, i / (pts.length - 1), len2d, s.ph, STRAND_FROM[s.host] ?? 0, lambda)));
+    const sin = SIN_EDGES.has(s.host), width2d = 2 * base.radius * 300;
+    const radii = pts.map((_, i) => Math.max(1e-4, sin
+      ? sinStrandRadius(base.radius * s.k * 300, width2d, i / (pts.length - 1), s.ua != null && s.ub != null ? [s.ua, s.ub] : null) / 300 * Math.max(0.25, amount)
+      : beadRadius(r, bead, i / (pts.length - 1), len2d, s.ph, STRAND_FROM[s.host] ?? 0, lambda)));
     const g = ringTube(pts, radii, 9, true);
+    if (s.host === 'C1a') this.paintWale(g, wale);
     if (!s.obj) {
-      s.obj = new CelObject(g, { tone: 'portal', bands: 2, spec: 1, px: 0.9 }, this.shared);
+      s.obj = new CelObject(g, { tone: 'portal', bands: 2, spec: 1, px: sin ? 0.6 : 0.9 }, this.shared);
       this.group.add(s.obj.group);
-      if (this.palette) s.obj.applyPalette(this.palette);
+      if (this.palette) { s.obj.applyPalette(this.palette); if (sin) recolour(s.obj, faint(rgbOf(this.palette.tones.portal), rgbOf(this.palette.body)), this.palette); }
+      if (s.host === 'C1a') s.obj.setInkAmount(1);
     } else for (const m of s.obj.group.children) { const mesh = m as import('three').Mesh; mesh.geometry.dispose(); mesh.geometry = g; }
     s.obj.group.visible = true;
     return amount !== present * live * grow;
+  }
+
+  /** The esophageal strands' own colour at each vertex: the portal tone, a share `wale` of the way to the red wale over the strand's middle (it is there on every esophageal strand, as the geometry's `ink` attribute the cel shader reads). */
+  private paintWale(g: BufferGeometry, wale: number): void {
+    const uv = g.getAttribute('uv') as BufferAttribute, n = uv.count, a = new Float32Array(n * 3), tone = this.palette ? rgbOf(this.palette.tones.portal) : [0.7, 0.2, 0.4] as RGB;
+    for (let i = 0; i < n; i++) { const c = mix(tone, RED_WALE, wale * waleEnvelope(uv.getX(i))); a[i * 3] = c[0]; a[i * 3 + 1] = c[1]; a[i * 3 + 2] = c[2]; }
+    g.setAttribute('ink', new Float32BufferAttribute(a, 3));
   }
 
   /** How many strands are drawn now, by vessel (for the tests and the parity table). */

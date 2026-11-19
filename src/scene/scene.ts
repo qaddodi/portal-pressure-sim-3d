@@ -1,8 +1,10 @@
-import { Color, type DataTexture, Group, Mesh, MeshBasicMaterial, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { Box3, Color, type DataTexture, Group, Mesh, MeshBasicMaterial, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { BODY_PLATE_Z, FIGURE_Z, PLATE_BOUNDS, bodyPlateGeometry } from './anatomy/placeholder.ts';
-import { buildVessel } from './anatomy/vessels.ts';
-import { NETWORK, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
+import { MAPPED, NETWORK, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
+import { ShapeTracks } from './vessels/shape-track.ts';
+import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
+import { buildTubes } from './vessels/tubes.ts';
 import { VesselObject } from './vessels/vessel-object.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
@@ -17,7 +19,7 @@ import { Highlight } from './highlight.ts';
 import { CelObject, type CelShared, createShared } from './materials/cel.ts';
 import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
-import { TEXTURE_WIDTH, indexOf } from '../engine/vessel-data.ts';
+import { TEXTURE_WIDTH, hasVessel, indexOf } from '../engine/vessel-data.ts';
 import { latest, patient } from '../engine/store.ts';
 import { x3, y3 } from './frame2d.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
@@ -27,16 +29,22 @@ import type { Vec3 } from './anatomy/vessels.ts';
 import { SinusoidView } from './sinusoid/index.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
+import { ProbeLayer } from './devices/probes/layer.ts';
 import { organsReady } from './organs/meshes.ts';
 import { clock } from '../clock/frame.ts';
 import { COURSES } from './circuit/course.ts';
-import { attachCircuit, slicesFor } from './circuit/geometry.ts';
+import { attachRuns, slicesFor } from './circuit/geometry.ts';
 import { mapToScene, turnScenePt } from './circuit/map.ts';
 import { MapLayer, mapRamp } from './circuit/map-layer.ts';
 import { circuitBounds } from './circuit/shots.ts';
 import { CircuitView } from './circuit/view.ts';
-import { CIRCUIT_NODES, MAP_LOOKS } from './circuit/data.copied.ts';
+import { CIRCUIT_NODES, MAP_LOOKS, VB_CIRC } from './circuit/data.copied.ts';
+import { CircuitTubes } from './circuit/tubes.ts';
+import { ResistorLayer } from './circuit/resistors.ts';
+import { RES_KINDS, type ResKey, resRatio } from './circuit/res-model.ts';
+import { MAP_K } from './circuit/map.ts';
 
+const CIRC_MID: readonly [number, number] = [VB_CIRC[0] + VB_CIRC[2] / 2, VB_CIRC[1] + VB_CIRC[3] / 2];
 /** What the figure shows: the body, the Circuit (the body's vessels flown onto a flat map), the liver lobule (hexagon) or one sinusoid. The two small views stand INSIDE the liver (the lobule in the liver, the sinusoid in the lobule). */
 export type FigureView = 'body' | 'circuit' | 'lobule' | 'sinusoid';
 
@@ -90,6 +98,8 @@ export class CelScene {
   readonly catheter: Catheter;
   /** Every device a procedure puts on the figure (B5): the catheters on their routes, the stent, the tamponade tube, bands. */
   readonly procs: ProcedureLayer;
+  /** The Tests card's devices on the figure (B11): the Doppler probe, the FibroScan probe, the endoscope with its ligator cap and EUS needle. */
+  readonly probes: ProbeLayer;
   readonly highlight: Highlight;
   readonly flow: BloodMarks;
   /** The colour lens (src/scene/lenses/): what colour every vein wears, crossfaded on the clock. */
@@ -104,6 +114,14 @@ export class CelScene {
   /** The Circuit: the change between the body and the map, and the map's quarter turn (src/scene/circuit/). */
   readonly circuit = new CircuitView();
   private readonly mapLayer = new MapLayer();
+  /** What only the map has: the liver's branch trees, the caudate's lane, the custom shunts a learner opened (circuit/tubes.ts). */
+  readonly tubes: CircuitTubes;
+  /** The resistors' zigzags on the map, and which of them a slide asks for (circuit/resistors.ts). */
+  readonly resistors: ResistorLayer;
+  private resWant = new Set<ResKey>();
+  private resNow: Partial<Record<ResKey, number>> = {};
+  private caudPin = false;
+  private openShunts: Record<string, number> = {};
   /** The organs, varices and catheter: what leaves as the figure turns into the map (the vessels stay and fly). */
   private readonly leaving: CelObject[] = [];
   private lastFade = 1;
@@ -112,6 +130,8 @@ export class CelScene {
   private readonly sinFrame = new Group();
   private fadeNow = 1;
   private presence!: PresenceTracks;
+  private shapes!: ShapeTracks;
+  private healthyQ: ArrayLike<number> | undefined;
   private collateralsOn = false;
   private bloodOpts = { chevrons: true, keyChevrons: false };
   private readonly plate: Mesh;
@@ -141,14 +161,26 @@ export class CelScene {
     organsReady.then(() => { this.disease.organs.build(); this.moving = true; clock.invalidate('organs'); }, (e) => console.error(e));
     this.catheter = new Catheter(this.shared);
     this.body.add(this.catheter.group);
+    this.catheter.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     this.objects.push(...this.catheter.objects); this.leaving.push(...this.catheter.objects);
+    this.tubes = new CircuitTubes(this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
+    this.body.add(this.tubes.group);
+    this.resistors = new ResistorLayer(this.shared.res);
+    this.mapLayer.group.add(this.resistors.group);
     this.procs = new ProcedureLayer(this.shared);
     this.body.add(this.procs.group);
+    this.procs.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     for (const id of ['TIPS', 'DIPS'] as const) this.procs.addStent(id, this.byEdge.get(id) as VesselObject);
+    this.probes = new ProbeLayer(this.shared, {
+      organBox: (organ) => { const o = this.disease.organs.byId.get(organ); return o ? new Box3().setFromObject(o.group) : null; },
+      kpa: (organ) => { const m = latest.frame?.metrics as Record<string, number | null | undefined> | undefined; return m?.[organ === 'spleen' ? 'ssm' : 'lsm'] ?? null; },
+    });
+    this.body.add(this.probes.group);
 
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
     this.flow = new BloodMarks(this.vessels);
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
+    this.shapes = new ShapeTracks(NETWORK, this.byEdge as unknown as Map<string, VesselObject>);
     this.lens.setContext({ healthy: null, ref: null });
     const vo = { look: this.look, phone: this.phone, flowMode: opts.flowMode ?? DEFAULT_FLOW_MODE, reduceMotion: opts.reduceMotion };
     this.lobule = new LobuleView(this.shared, vo); this.sinus = new SinusoidView(this.shared, vo);
@@ -163,15 +195,19 @@ export class CelScene {
   private add(o: CelObject): void { this.objects.push(o); this.body.add(o.group); }
 
   private addVessel(def: NetVessel): void {
-    const built = buildVessel({ ...def, tone: def.tone === 'artery' ? 'portal' : def.tone }, slicesFor(def.id));
-    attachCircuit(built, COURSES.get(def.id)!, def.radius);
-    const q = STUB_Q[def.id] ?? 1;
+    const courses = coursesOf(def, REST);
+    const built = buildTubes(courses, tubularOf(def, slicesFor(def.id)), def.radius);
+    const circ = COURSES.get(def.id);
+    if (circ) attachRuns(built.geometry, built.runs, circ, def.radius);
+    const q = STUB_Q[def.lensId] ?? 1;
     const o = new VesselObject(built.geometry, {
-      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.id), widthKind: def.widthKind, bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
-      vessel: { index: indexOf(def.id), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: def.baseD },
+      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.lensId), widthKind: def.widthKind, bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
+      vessel: { index: indexOf(def.lensId), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: def.baseD },
     }, this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
-    this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
+    if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
+    else this.leaving.push(o);   // a fan of tributaries has no map course: it leaves with the organs as the figure turns into the map
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
+    o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     this.add(o);
     this.vessels.push(o);
     this.byEdge.set(def.id, o);
@@ -191,7 +227,8 @@ export class CelScene {
     (this.plate.material as MeshBasicMaterial).color.set(p.body);
     this.mapLayer.applyLook(look, p.ink, MAP_LOOKS[look]?.ground ?? p.bg);
     for (const o of this.objects) { o.applyPalette(p); o.setPhone(this.phone); }
-    this.procs.applyPalette(p);
+    this.procs.applyPalette(p); this.probes.applyPalette(p);
+    this.tubes.applyPalette(p); this.resistors.setLook(look);
     this.disease.applyLook(look, p); this.disease.setPhone(this.phone);
     this.lens.setLook(look);
     this.lobule.applyLook(look); this.sinus.applyLook(look); this.feedSinusInk();
@@ -213,7 +250,7 @@ export class CelScene {
   setPhone(phone: boolean): void {
     this.phone = phone;
     for (const o of this.objects) o.setPhone(phone);
-    this.procs.setPhone(phone);
+    this.procs.setPhone(phone); this.probes.setPhone(phone); this.tubes.setPhone(phone);
     this.disease.setPhone(phone);
     this.lobule.setPhone(phone); this.sinus.setPhone(phone);
     this.moving = true;
@@ -224,6 +261,7 @@ export class CelScene {
   /** Reads flow, pressure and diameter from the engine's per-vessel texture (src/engine/vessel-data.ts) from now on; null goes back to the stub. */
   bindData(texture: DataTexture | null): void {
     for (const o of this.vessels) o.setUseData(!!texture);
+    this.tubes.setUseData(!!texture);
     if (texture) {
       this.shared.vdata.value = texture;
       this.shared.vdataSize.value.set(TEXTURE_WIDTH, 1);
@@ -241,6 +279,7 @@ export class CelScene {
     this.procs.syncBands((f as { bands?: number } | null)?.bands ?? 0, f ? (f.jump || !this.sawFrame) : false);
     this.procs.syncTamponade(patient.params as never, f ? (f.jump || !this.sawFrame) : false);
     this.sawFrame = !!f;
+    this.syncCircuitData(f);
     if (this.figureView !== 'body') this.feedViews(false);
     this.moving = true;
   }
@@ -257,7 +296,8 @@ export class CelScene {
 
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
   private syncPresence(f: NonNullable<typeof latest.frame>, instant: boolean): void {
-    for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn }), instant || f.jump);
+    for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn }, this.healthyQ), instant || f.jump);
+    this.shapes.onFrame(f as never, performance.now(), this.healthyQ, instant || !!f.jump);
     const rexOn = this.presence.stateOf('REX') === 'shown';
     if (rexOn !== this.procs.isRexUnder) this.procs.setRexUnder(rexOn, (id) => this.vesselObject(id));
     this.flow.setDrawn((id) => this.presence.stateOf(id) === 'shown', (id) => this.presence.stateOf(id) === 'shown' && NETWORK.some((v) => v.id === id && v.kind === 'collateral'));
@@ -272,6 +312,8 @@ export class CelScene {
     this.lens.setContext({ healthy: { Q: h.Q, D: h.D, P: h.P }, ref: Float32Array.from(h.P) });
     this.blood.streams.setHealthy(h);
     this.lobule.setReference(Float32Array.from(h.P)); this.feedSinusInk();
+    this.healthyQ = h.Q;
+    if (latest.frame) this.syncPresence(latest.frame, false);
     this.moving = true;
   }
   /** Count Change and Congestion from a pinned moment's node pressures (Compare > Change), or from the healthy patient again (null). */
@@ -320,6 +362,9 @@ export class CelScene {
     this.moving = true;
   }
 
+  /** Light a set of vessels at once (the shunt's valid targets); an empty list puts them out. */
+  markVessels(ids: readonly string[]): void { this.highlight.setOnly(ids); this.moving = true; }
+
   /** Free play: pick a vessel by edge ID (or clear it with null). */
   pick(id: string | null): void { this.highlight.set(id); this.syncNamed(); }
 
@@ -355,6 +400,45 @@ export class CelScene {
     if (this.figureView === 'circuit') this.rig.setBounds(circuitBounds(on));
     this.moving = true;
   }
+  /** The resistors a slide asks for ('rLiver', 'rColl', 'rGut'): their zigzags and readings show on the map. An empty list clears them. */
+  setResistors(keys: readonly ResKey[]): void {
+    this.resWant = new Set(keys);
+    this.syncCircuitData(latest.frame);
+    this.moving = true;
+  }
+  /** A slide is about the caudate lobe: the caudate's own lane shows in the Circuit (2D: stage-outlines.js pinOrgans). */
+  setCaudatePin(on: boolean): void { this.caudPin = on; this.moving = true; }
+  /** The resistors showing now and their ratios against the healthy liver (for the captions). */
+  get resistorsNow(): Readonly<Partial<Record<ResKey, number>>> { return this.resNow; }
+  /** The engine's newest frame into the map's own parts: the resistors' ratios, and the custom shunts that are open (routed once each). */
+  private syncCircuitData(f: typeof latest.frame): void {
+    const healthy = patient.reference ? { P: patient.reference.P, Q: patient.reference.Q } : null;
+    const next: Partial<Record<ResKey, number>> = {};
+    if (f && healthy) for (const key of this.resWant) { const r = resRatio(RES_KINDS[key], { P: f.Pf ?? f.P, Q: f.Qf ?? f.Q }, healthy, patient.params); if (r != null) next[key] = r; }
+    this.resNow = next;
+    const cs = ((patient.params as { customShunts?: Record<string, number> } | null)?.customShunts) ?? {};
+    const open: Record<string, number> = {};
+    for (const id of Object.keys(cs)) if (cs[id]! > 0 && (!f || !hasVessel(id) || (f.D[indexOf(id)] ?? 0) > 0)) open[id] = cs[id]!;
+    this.openShunts = open;
+    if (this.tubes.routeOpen(open).length) this.moving = true;
+  }
+  /** A map point (units) on the canvas now, turned with the map and seen through the camera (CSS px). */
+  mapPoint(x: number, y: number, out = { x: 0, y: 0 }): { x: number; y: number } {
+    const p = mapToScene(x, y), q = turnScenePt(p[0], p[1], this.circuit.rr);
+    return this.rig.project(this.tmpMap.set(q[0], q[1], p[2]), out);
+  }
+  private readonly tmpMap = new Vector3();
+  /** Pixels a map unit takes on the canvas now (the map's scale as the camera and the hand's zoom make it). */
+  mapScale(): number {
+    const a = this.mapPoint(CIRC_MID[0], CIRC_MID[1]), ax = a.x, ay = a.y, b = this.mapPoint(CIRC_MID[0] + 100, CIRC_MID[1]);
+    return Math.hypot(b.x - ax, b.y - ay) / 100;
+  }
+  /** Whether a station's dot is on (a vessel at it is drawn). */
+  stationOn(id: string): boolean { return (this.stationsOf.get(id) ?? []).some((e) => this.presence.stateOf(e) === 'shown'); }
+  /** Whether a vessel is drawn solid now. */
+  vesselDrawn(id: string): boolean { return this.presence.stateOf(id) === 'shown'; }
+  /** The hand's zoom over the shot's own framing (1 = as framed). */
+  get handZoom(): number { return this.rig.handZoom; }
   /** A station's place in the scene on the map as it stands (turned with the map); for the labels. Null for a name the map does not have. */
   circuitStation(id: string, out = new Vector3()): Vector3 | null {
     const s = CIRCUIT_NODES[id];
@@ -362,9 +446,9 @@ export class CelScene {
     const p = mapToScene(s.at[0], s.at[1]), q = turnScenePt(p[0], p[1], this.circuit.rr);
     return out.set(q[0], q[1], p[2]);
   }
-  private readonly stationsOf = (() => {
+  readonly stationsOf = (() => {
     const m = new Map<string, string[]>();
-    for (const v of NETWORK) for (const n of [v.from, v.to]) { const a = m.get(n) ?? []; a.push(v.id); m.set(n, a); }
+    for (const v of MAPPED) for (const n of [v.from, v.to]) { const a = m.get(n) ?? []; a.push(v.id); m.set(n, a); }
     return m;
   })();
   /** The vessel the pointer is on, in the Circuit: the nearest drawn course within a thumb's reach (screen px). */
@@ -373,7 +457,7 @@ export class CelScene {
     const rr = this.circuit.rr, reach = this.phone ? 16 : 10;
     let best: string | null = null, bestD = reach * reach;
     const v3 = new Vector3(), a = { x: 0, y: 0 };
-    for (const v of NETWORK) {
+    for (const v of MAPPED) {
       if (this.presence.stateOf(v.id) !== 'shown') continue;
       const pts = COURSES.get(v.id)!.mapPts;
       let px = NaN, py = NaN;
@@ -401,7 +485,7 @@ export class CelScene {
     if (f === this.fadeNow || (Math.abs(f - this.fadeNow) < 1e-3 && f > 0 && f < 1)) return;
     this.fadeNow = f;
     for (const o of this.objects) o.setFade(f);
-    for (const o of this.disease.organs.objects) o.setFade(f);
+    this.disease.setFade(f);
     const m = this.plate.material as MeshBasicMaterial;
     m.transparent = f < 0.999; m.opacity = f; m.needsUpdate = true;
     this.body.visible = f > 0 || this.figureView === 'body';
@@ -430,6 +514,7 @@ export class CelScene {
   pickAt(x: number, y: number, raycaster: Raycaster): string | null {
     if (this.figureView === 'circuit') return this.pickCircuit(x, y);
     if (this.figureView !== 'body') return null;
+    raycaster.layers.enable(VESSEL_LAYER);
     raycaster.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
     const hits = raycaster.intersectObjects(this.vessels.map((v) => v.toonMesh), false);
     for (const h of hits) {
@@ -470,10 +555,13 @@ export class CelScene {
     const flowActive = this.flow.step(dt) || this.blood.streams.step(now);
     const lensMoving = this.lens.step(now);
     const presMoving = this.presence.step(dt);
+    const shapeMoving = this.shapes.step(dt);
     const viewMoving = this.lobule.update(now) || this.sinus.update(now);
     const procMoving = this.procs.update(now);
     const diseaseMoving = this.disease.update(now);
-    const needs = diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || flowActive || lensMoving || presMoving || viewMoving;
+    if (diseaseMoving) this.tagOverOrgans();
+    const probesMoving = this.probes.update(now, this.circuit.t > 0.02);
+    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || flowActive || lensMoving || presMoving || shapeMoving || viewMoving;
     this.moving = false;
     return needs;
   }
@@ -485,28 +573,59 @@ export class CelScene {
     if (fade !== this.lastFade) {
       this.lastFade = fade;
       for (const o of [...this.leaving, ...this.disease.organs.objects]) { o.setFade(fade); o.group.visible = fade > 0.001; }
+      this.disease.setFade(fade);
       const m = this.plate.material as MeshBasicMaterial;
       m.transparent = fade < 1; m.opacity = fade; this.plate.visible = fade > 0.001;
     }
     this.mapLayer.set(mapRamp(t), this.circuit.rr);
+    this.procs.setFade(fade);
+    const ramp = mapRamp(t);
+    const tubesMoving = this.tubes.update(dt, { ramp, body: this.fadeNow, drawn: (id) => this.vesselDrawn(id), caudPin: this.caudPin, open: this.openShunts });
+    this.resistors.setAlpha(ramp);
+    let resMoving = false;
+    if (ramp > 0) { this.resistors.set(this.resNow, this.mapScale()); resMoving = this.resistors.step(dt); }
     let dots = false;
     if (t > 0) dots = this.mapLayer.stepDots((id) => (this.stationsOf.get(id) ?? []).some((e) => this.presence.stateOf(e) === 'shown'), Math.min(1, dt / 280));
-    return moving || dots;
+    return moving || dots || tubesMoving || resMoving;
+  }
+
+  /** What the disease layer puts on the vessels (clots, plexus strands, the bleed, the dye) is drawn with them, over the organs (the layers are made as the states come on, so they are tagged as they move). */
+  private tagOverOrgans(): void {
+    const d = this.disease;
+    for (const g of [d.clots.group, d.strands.group, d.bleed.group, d.dye.group]) g.traverse((c) => { if (c.layers.mask !== 2) c.layers.set(VESSEL_LAYER); });
   }
 
   /** Until the camera has its first real shot and room only the background is drawn, so the figure's first picture is already in its place. */
-  render(gl: WebGLRenderer): void { if (this.rig.placed) { gl.setClearColor(this.clearColor()); gl.render(this.scene, this.rig.camera); } else gl.clear(); }
+  render(gl: WebGLRenderer): void {
+    if (!this.rig.placed) { gl.clear(); return; }
+    gl.setClearColor(this.clearColor());
+    // Two passes, as the 2D figure paints: the organs first, then the vessels (and what is in them) over the cleared depth, so no organ's relief ever hides a vessel and a joined
+    // vessel never looks cut. (The vessels keep their own depth among themselves: their tiers.)
+    const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;
+    cam.layers.set(0);
+    gl.render(this.scene, cam);
+    gl.autoClear = false;
+    gl.clearDepth();
+    cam.layers.set(VESSEL_LAYER);
+    gl.render(this.scene, cam);
+    gl.autoClear = ac;
+    cam.layers.mask = mask;
+  }
 
   dispose(): void {
     this.lens.dispose();
     this.disease.dispose();
     this.blood.streams.texture.dispose();
     for (const o of this.objects) o.dispose();
-    this.procs.dispose();
+    this.procs.dispose(); this.probes.dispose();
+    this.tubes.dispose(); this.resistors.dispose();
     this.plate.geometry.dispose();
     (this.plate.material as MeshBasicMaterial).dispose();
   }
 }
+
+/** The camera layer of everything drawn over the organs: the vessels, the catheter, the varices. */
+const VESSEL_LAYER = 1;
 
 /** Where each named place is: the vessel's id and how far along its 2D course (0 to 1). */
 const ANCHORS = {

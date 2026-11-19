@@ -60,7 +60,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const wide = Math.round(widthOf(vp, pair, step));
   const hit = (key: string) => heights[`${key}@${wide}`];
   const h = (key: string) => hit(key)?.h ?? 0;
-  const pages = view ? Math.min(pagesMap[pagesKey] ?? 1, maxPages(view.words, view.slide?.vignette && view.words === 'case' ? view.slide.vignette : view.slide?.line)) : 1;
+  const capOf = (v: NonNullable<typeof view>) => maxPages(v.words, v.slide?.vignette && v.words === 'case' ? v.slide.vignette : v.slide?.line, v.words === 'check' ? deck.checks.length : 0);
+  const pages = view ? Math.min(pagesMap[pagesKey] ?? 1, capOf(view)) : 1;
   const at = clampPage(page, pages);
   const sig = `${wordsKey}|${pages}|${at}|${stepAt}|${vp.w}x${vp.h}`;
   sigRef.current = sig;
@@ -84,10 +85,10 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const tooTallPair = sideways && (tooTall || (pair && plan.overflow.includes(view?.data ?? 'ladder') && dataHit?.sig === sig));
   useLayoutEffect(() => {
     if (!view) return;
-    const cap = maxPages(view.words, view.slide?.vignette && view.words === 'case' ? view.slide.vignette : view.slide?.line);
+    const cap = capOf(view);
     if (tooTallPair && stepAt < nSteps) { setStepMap((m) => ({ ...m, [pagesKey]: stepAt + 1 })); return; }
     if (tooTall && pages < cap) setPagesMap((m) => ({ ...m, [pagesKey]: pages + 1 }));
-  }, [tooTall, tooTallPair, stepAt, nSteps, pages, pagesKey, view]);
+  }, [tooTall, tooTallPair, stepAt, nSteps, pages, pagesKey, view, deck.checks.length]);
   useLayoutEffect(() => { setPageCount(pages); }, [pages, setPageCount, wordsKey]);
 
   // a leaving card stays where it was while it goes
@@ -123,7 +124,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
       case 'teach': return <TeachingCard slide={sn.slide!} deck={deck} read={read} page={sn.at} pages={sn.pages} trim={sn.trim} />;
       case 'table': return sn.slide?.table ? <TableCard deck={deck} slide={sn.slide} /> : null;
       case 'ladder': return sn.slide?.ladder ? <LadderCard ladder={sn.slide.ladder} readings={readings} /> : sn.slide?.tiles ? <TilesCard spec={sn.slide.tiles} ids={deck.slides.map((x) => x.id)} /> : null;
-      case 'check': return <CheckCard deck={deck} />;
+      case 'check': return <CheckCard deck={deck} page={sn.at} pages={sn.pages} />;
     }
   };
   const labelOf = (id: CardId) => ({ title: 'Talk', case: 'Case', teach: 'Slide', ladder: 'Pressures', table: 'Summary', check: 'Quick check' })[id];

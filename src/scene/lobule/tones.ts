@@ -5,7 +5,7 @@ import { LOOKS, type LookId } from '../../looks/looks.ts';
 import { PALETTES, type Palette, type ToneKey, hexToRgb255 } from '../palette.ts';
 
 export const EXTRA_TONES = [
-  'cord1', 'cord2', 'cord3', 'floor', 'sin0', 'sin1', 'sin2', 'artery', 'bile', 'lymph', 'amber', 'collagen', 'stellate', 'kupffer', 'fen', 'disse', 'endo', 'nucleus', 'bileLight',
+  'cord1', 'cord2', 'cord3', 'floor', 'field', 'sin0', 'sin1', 'sin2', 'artery', 'bile', 'lymph', 'amber', 'collagen', 'stellate', 'kupffer', 'fen', 'disse', 'endo', 'nucleus', 'bileLight',
 ] as const;
 export type ExtraTone = (typeof EXTRA_TONES)[number];
 
@@ -21,39 +21,44 @@ export function cordTone(rgb: [number, number, number], q: number, dark = false)
   const k = (dark ? 0.12 : 0.16) * (1 - s);
   return [rgb[0] * (1 - 0.35 * k), rgb[1] * (1 - 0.8 * k), rgb[2] * (1 - k)];
 }
-/** The three zones' cord tones, from the look's liver tone (zone representatives q = 0.85, 0.5, 0.15). */
-export function cordHex(liver: string, zone: 1 | 2 | 3, dark: boolean): string {
+/** The hepatocyte's own tone per look, the 2D lobule's pale salmon plates (the handout shots: about #D0A39E between the cords, #C58B74 in congested zone 3), not the organ's liver brown. */
+const CELL_BASE: Record<'light' | 'soft' | 'dark', string> = { light: '#DCA898', soft: '#CD9684', dark: '#B58C84' };
+/** The three zones' cord tones. Zone 3 (around the central vein) is deeper and warmer, as the 2D cordTone does it. */
+export function cordHex(look: LookId, zone: 1 | 2 | 3, dark: boolean): string {
   const q = zone === 1 ? 0.85 : zone === 2 ? 0.5 : 0.15;
-  const [r, g, b] = hexToRgb255(liver);
-  // the 2D tone eases work in 0..1; the zone's deepening is stronger here so three flat bands read as three zones
+  const base = LOOKS[look].scheme === 'dark' ? CELL_BASE.dark : look === 'soft' ? CELL_BASE.soft : CELL_BASE.light;
+  const [r, g, b] = hexToRgb255(base);
   const c = cordTone([r / 255, g / 255, b / 255], q, dark);
   return hex(c[0] * 255, c[1] * 255, c[2] * 255);
 }
 
-/** The palette with the lobule's and sinusoid's own tones added. */
+/** The palette with the lobule's and sinusoid's own tones added. Values come from the 2D tokens (styles/tokens.css --lz-*, --sv-gl-*), per scheme. */
 export function extendPalette(p: Palette, id: LookId): Palette {
   const l = LOOKS[id], dark = l.scheme === 'dark';
   const tones: Record<string, string> = { ...p.tones };
-  tones.cord1 = cordHex(p.tones.liver, 1, dark);
-  tones.cord2 = cordHex(p.tones.liver, 2, dark);
-  tones.cord3 = cordHex(p.tones.liver, 3, dark);
-  tones.floor = mix(l.plate, tones.cord2, 0.45);
-  // blood in the sinusoid is portal blood becoming hepatic-vein blood: portal tone toward systemic by generation
+  tones.cord1 = cordHex(id, 1, dark);
+  tones.cord2 = cordHex(id, 2, dark);
+  tones.cord3 = cordHex(id, 3, dark);
+  // the tissue between the plates: a little deeper than the cells, so each tile reads as a tile
+  tones.floor = mix(tones.cord2, l.ink, dark ? 0.1 : 0.14);
+  // the neighbouring lobules: the same tissue with a third of its contrast cut, toward the page (NEIGHBOUR_FLAT)
+  tones.field = mix(tones.floor, l.bg, 0.3);
+  // blood in the sinusoid is portal blood becoming hepatic-vein blood: portal tone toward systemic by generation (the lens colours override it on the tubes)
   tones.sin0 = mix(p.tones.portal, p.tones.sys, 0.2);
   tones.sin1 = mix(p.tones.portal, p.tones.sys, 0.5);
   tones.sin2 = mix(p.tones.portal, p.tones.sys, 0.8);
   tones.artery = l.danger;
-  tones.bile = dark ? '#A4AD5E' : '#7C8A34';
-  tones.lymph = dark ? '#8FCFA0' : '#6FAE80';
+  tones.bile = dark ? '#A3A55F' : '#7C8040';          // --bile-duct, --lz-duct-cell
+  tones.lymph = dark ? '#6F9A7C' : '#CBE2C0';          // --lz-lymph over the cells: a clear, faint green (paler than the bile duct)
   tones.amber = l.caution;
-  tones.collagen = dark ? '#C9B692' : '#D8C6A0';
-  tones.stellate = dark ? '#E0B25A' : '#C99432';
-  tones.kupffer = dark ? '#8DB0D8' : '#5B7FAE';
+  tones.collagen = dark ? '#C9B692' : '#CDAF7E';       // --lz-septum / --collagen, deeper so it reads on the pale cells
+  tones.stellate = dark ? '#C99A72' : '#D9AE82';       // --sv-gl-hsc-quiet over --sv-gl-hsc-active
+  tones.kupffer = dark ? '#9C86C6' : '#B296D6';        // --sv-gl-kupffer
   tones.fen = l.ink;
-  tones.disse = mix(l.plate, tones.lymph, 0.35);
-  tones.endo = mix(l.plate, l.ink, 0.16);
-  tones.nucleus = mix(tones.cord3, l.ink, 0.28);
-  tones.bileLight = mix(l.plate, tones.bile, 0.45);
+  tones.disse = mix(tones.cord2, tones.lymph, dark ? 0.55 : 0.7);
+  tones.endo = dark ? '#7C7694' : '#D2CBE6';           // --sv-gl-endo-sheet
+  tones.nucleus = dark ? '#7A4F63' : '#9A6272';        // --sv-gl-nucleus, lighter so the cell stays pink around it
+  tones.bileLight = mix(tones.cord2, tones.bile, 0.35);
   return { ...p, tones: tones as Palette['tones'] };
 }
 

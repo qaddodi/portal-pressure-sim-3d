@@ -21,3 +21,10 @@ What the 2D figure draws, in 3D: every vessel by engine edge ID, the moving bloo
 
 ## Draw calls
 One draw per vessel: the geometry holds the tube twice (`withHull`, attribute `hull` 0 for the body, 1 for the ink's hull) and the vessel shader draws the body's front faces and the hull's back faces (pushed out in screen pixels) in the same mesh. 55 vessels plus the organs are 86 meshes (about 52 to 70 of them visible for a patient), under the spec's 100. `CelObject.ink` stays as the highlight's handle on the merged material's uniforms.
+
+## Joins, depth and braids (19 Nov, evening)
+
+- **Vessels are drawn over the organs** (`CelScene.render`): the organs in one pass, the depth cleared, then everything on camera layer 1 (vessels, catheter, varices). No organ relief cuts a vessel, as in the 2D figure.
+- **Depth continues through a node** (`NODE_Z`, `shape.ts to3`): a vessel keeps its tier between its ends and eases to the depth of the node it meets over its first and last quarter, so joined vessels meet in one place in a turned view.
+- **Run-ons taper** (`NetVessel.taper`, `tubes.ts`): where exactly two vessels meet, both ease to their mean width over the last third (the 2D tubes' own end profile, `tubeRadius`).
+- **Coil, braids, tributaries**: `coil.ts` (literal ports of `wiggle`, `braid`, `blendFrom`, `strandAt`), `coil.copied.ts` (generated: STRANDS, STRAND_FROM, FEEDERS as `feedGeo` shapes them), `shape.ts`, `shape-track.ts` (a collateral coils as it opens, the varices' strands fan with their varix; positions are rewritten in place, vertex counts are fixed at rest). Not yet: the cavernoma's channels (C8), bands' effect on strands, the varices' bead.

@@ -41,6 +41,8 @@ export interface TextShape {
   /** letter spacing, em */
   ls?: number;
   italic?: boolean;
+  /** the word turned this many degrees about its anchor point (the station names of a narrow chart, -30) */
+  rot?: number;
   /** opacity 0..1 (a label that fades, never slides) */
   alpha?: number;
   key?: string;

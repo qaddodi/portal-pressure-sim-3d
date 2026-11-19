@@ -4,6 +4,7 @@
 //   src/scene/lenses/words.copied.ts     the lens names and lines of the Layers menu (main.js LENSES)
 //   src/scene/vessels/paths.copied.ts    the anatomy's node places and vessel courses (anatomy.js), sampled to points, with its drawn / hidden sets
 //   src/scene/lenses/vel-normal.copied.js  velNormal.js, import paths rewritten to this repo's engine copy
+//   src/scene/vessels/fork-joins.copied.js  fork-joins.js whole (nodeJoinsInto: the pair at a node that runs on, flareScale, sideEndScale)
 //   src/scene/blood/blood.copied.js        blood.js whole (the streams: displaySpeed, advanceStream, the reversal hold, KEY_CHEV_IDS); three imports stubbed (the bleed's stomach pool is not used here)
 // Usage: node scripts/copy-b3-data.mjs --from <2D checkout> [--check]    (--check writes nothing and fails when a file would change)
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -145,6 +146,59 @@ for (const e of TOPO.EDGES) {
   const pts = (e.kind === 'collateral' && !e.spontaneous) || e.kind === 'shunt' ? raw : meander(raw, e.id);
   paths[e.id] = pts.map(([x, y]) => [round(x), round(y)]);
 }
+// The feeders (stage-geo.js feedGeo): the fan of tributaries at the umbilicus (caput medusae, C3), the azygos's ascending channel, the caudate vein's tributaries and collaterals.
+const { wiggleAt } = await import(pathToFileURL(`${from}/src/ui/wiggle-math.js`).href);
+const smooth01 = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
+/** stage-paths.js wiggle, as written there. */
+function wiggle(pts, amp, seed, hold = 0) {
+  if (amp < 0.3) return pts;
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const L = cum[cum.length - 1] || 1;
+  const k = Math.max(1.5, Math.round(L / 90)) * Math.PI * 2 / L;
+  return pts.map((p, i) => {
+    if (i === 0 || i === pts.length - 1) return p;
+    const a = pts[i - 1], b = pts[i + 1];
+    let nx = -(b[1] - a[1]), ny = b[0] - a[0];
+    const n = Math.hypot(nx, ny) || 1; nx /= n; ny /= n;
+    const u = cum[i] / L;
+    let env = Math.min(1, u * 6, (1 - u) * 6);
+    if (hold) env *= smooth01((u - hold) / (1.4 * hold)) * smooth01((1 - u - hold) / (1.4 * hold));
+    const w = wiggleAt(amp, env, cum[i], k, seed);
+    return [p[0] + nx * w, p[1] + ny * w];
+  });
+}
+const feeders = {};
+for (const [id, fd] of Object.entries(A.FEEDERS)) {
+  const list = [...(fd.fan ? A.fanFeeders(fd.fan).map((x) => ({ ...x, fan: true, when: fd.fan.when, out: !!fd.fan.out })) : []), ...(fd.paths || []).map((d, i) => ({ d, k: 1, when: fd.when, src: fd.from?.[i] }))];
+  feeders[id] = list.map(({ d, k, fan, when, src, out }, i) => {
+    const pts = sample(d);
+    const shaped = fan ? wiggle(pts, (2.2 + 1.2 * k) * (fd.fan.wig ?? 1), i * 2.3 + 1) : fd.wig ? wiggle(pts, fd.wig, i * 2.3 + 1) : fd.exact ? pts : meander(pts, id + i);
+    const o = { k: round(k), fan: !!fan, when: when ?? null, src: src ?? null, out: !!out, pts: (out ? shaped.slice().reverse() : shaped).map(([x, y]) => [round(x), round(y)]) };
+    return o;
+  });
+}
+const strandRows = Object.fromEntries(Object.entries(A.STRANDS).filter(([id]) => id !== 'C8'));
+const coil = { STRANDS: strandRows, STRAND_FROM: A.STRAND_FROM, STRAND_SOFT: [...A.STRAND_SOFT], STRAND_HOLD: A.STRAND_HOLD, WIG_CAP: A.WIG_CAP, FEEDER_META: Object.fromEntries(Object.entries(A.FEEDERS).map(([id, f]) => [id, { when: f.when ?? null, from: f.from ?? null, exact: !!f.exact }])) };
+const stageGeo = read('src/ui/stage-geo.js');
+const straight = /const STRAIGHT_COLL = new Set\((\[[^\]]*\])\)/.exec(stageGeo);
+if (!straight) throw new Error('STRAIGHT_COLL not found in stage-geo.js');
+coil.STRAIGHT_COLL = new Function(`return ${straight[1]}`)();
+put('src/scene/vessels/coil.copied.ts', `${HEAD('anatomy.js STRANDS, STRAND_FROM, STRAND_SOFT, STRAND_HOLD, WIG_CAP, FEEDERS; stage-geo.js feedGeo and STRAIGHT_COLL')}/** [lateral offset at mid-course, serpentine phase, caliber fraction, (from, to: the stretch the strand lives on)] per collateral that braids (the cavernoma's C8 is not here). */
+export const STRANDS_2D: Record<string, readonly (readonly number[])[]> = ${JSON.stringify(coil.STRANDS)};
+/** Where along the vessel its strands leave the trunk (0 to 1). */
+export const STRAND_FROM_2D: Record<string, number> = ${JSON.stringify(coil.STRAND_FROM)};
+export const STRAND_SOFT_2D: ReadonlySet<string> = new Set(${JSON.stringify(coil.STRAND_SOFT)});
+export const STRAND_HOLD_2D = ${coil.STRAND_HOLD};
+export const WIG_CAP_2D: Record<string, number> = ${JSON.stringify(coil.WIG_CAP)};
+/** The collaterals that stay uncoiled. */
+export const STRAIGHT_COLL_2D: ReadonlySet<string> = new Set(${JSON.stringify(coil.STRAIGHT_COLL)});
+export interface Feeder2D { k: number; fan: boolean; when: string | null; src: string | null; out: boolean; pts: readonly (readonly [number, number])[] }
+/** The tributaries drawn on a vessel (stage-geo.js feedGeo), already shaped (wiggled or meandered) and in flow order. */
+export const FEEDERS_2D: Record<string, readonly Feeder2D[]> = ${JSON.stringify(feeders)};
+export const FEEDER_META_2D: Record<string, { when: string | null; from: readonly string[] | null; exact: boolean }> = ${JSON.stringify(coil.FEEDER_META)};
+`);
+
 const nodes = Object.fromEntries(Object.entries(A.NODE_POS).map(([id, [a]]) => [id, a]));
 const setOf = (n) => [...A[n]];
 const sets = Object.fromEntries(['HIDDEN_EDGES', 'ANAT_HIDDEN', 'CONTEXT_EDGES', 'NEEDS_C3', 'IVC_EDGES', 'BACK_EDGES', 'REX_UNDER'].map((n) => [n, setOf(n)]));
@@ -175,6 +229,9 @@ const blood = read('src/ui/blood.js')
   .replace("import { lumenSurface, lumenAt } from './stomach-lumen.js';", '// (stomach-lumen.js is not used here: the bleed\'s pool belongs to the procedures)\nconst lumenSurface = () => 0, lumenAt = () => [0, 0];')
   .replace("import { D_SURFACE, smooth01 } from './motion.js';", "const D_SURFACE = 420;   // (ease.js)\nconst smooth01 = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));   // (num.js)");
 put('src/scene/blood/blood.copied.js', `${HEAD('blood.js')}${blood}`);
+
+// ---------- fork-joins.js (which ends run on into each other at a node, and the flare and the side-end narrowing of a vein drawn onto another) ----------
+put('src/scene/vessels/fork-joins.copied.js', `${HEAD('fork-joins.js')}${read('src/ui/fork-joins.js')}`);
 
 const sha = createHash('sha256').update(JSON.stringify(changed)).digest('hex').slice(0, 6);
 if (check) { if (changed.length) { console.error(`out of date (${sha}): ${changed.join(', ')}`); process.exit(1); } console.log('copy-b3-data: up to date'); }

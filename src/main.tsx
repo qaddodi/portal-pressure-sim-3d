@@ -4,6 +4,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './ui/shell/global.css';
 import './ui/css2d/index.css';   // the 2D app's stylesheets, copied unchanged (scripts/copy-2d-css.mjs); the lifted chrome is styled by them
+import './ui/glass.css';   // the one glass for every panel, menu, pill and card (tests/glass.test.ts)
 import { applyLook, resolveLook } from './looks/looks.ts';
 import { useSettings, applyGlass } from './state/settings.ts';
 import { fontsReady } from './boot/fonts.ts';
@@ -18,6 +19,8 @@ import { mountTrials } from './ui/trials/mount.tsx';
 import { mountA11y } from './ui/a11y/mount.ts';
 import { installCaught } from './ui/debug/caught.ts';
 import { mountDebug } from './ui/debug/mount.ts';
+import { isPreview } from './ui/debug/gate.ts';
+import { isFrameRequest } from './ui/debug/frame/request.ts';
 
 const dark = window.matchMedia('(prefers-color-scheme: dark)');
 const paint = () => applyLook(resolveLook(useSettings.getState().look, dark.matches));
@@ -38,6 +41,12 @@ async function start() {
   if (new URLSearchParams(location.search).has('presenter-view')) {
     const { run } = await import('./ui/deck/presenter-window.ts');
     run();
+    return;
+  }
+  // ?debug=frame (the preview copy and a local run only): the device frame, an outer page that holds the app in one iframe at a phone's or iPad's size. It starts no app.
+  if (isPreview() && isFrameRequest(location.search)) {
+    const { bootFrame } = await import('./ui/debug/frame/frame.ts');
+    bootFrame();
     return;
   }
   if (!hasWebGL2()) { createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }

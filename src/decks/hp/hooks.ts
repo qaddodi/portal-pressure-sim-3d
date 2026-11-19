@@ -57,7 +57,7 @@ const TABLE: Feature[] = [
   hook('tool:wall', 'B11', 'The varix wall in cross-section'),
   hook('tool:reading', 'B11', 'A readout list with a Why? for each'),
   { id: 'tool:course', batch: 'B10', what: 'A course over days', landed: chartDone('curve'), evidence: chartDone('curve') ? 'src/ui/charts/curve/CurveCard.tsx' : undefined },
-  hook('visual:table', 'B12', 'The summary table over the dimmed figure'),
+  done('visual:table', 'B12', 'The summary table over the dimmed figure', 'src/ui/cards/TableCard.tsx'),
   { id: 'visual:plane', batch: 'B10', what: 'A plane over the dimmed figure', landed: chartDone('plane'), evidence: chartDone('plane') ? 'src/ui/charts/plane/PlaneCard.tsx' : undefined },
   // the figure
   hook('procedure:eus', 'B11', 'EUS-PPG: the echoendoscope and needle on the figure'),
@@ -68,13 +68,13 @@ const TABLE: Feature[] = [
   hook('ripple', 'B3', 'Pulse ripples along the vessels'),
   hook('calipers', 'B11', 'Calipers on a varix or the spleen'),
   hook('layers:zones', 'B8', 'The lobule\'s zone bands'),
-  hook('scales', 'B12', 'The Anatomy / Lobule / Sinusoid scale switch on the slide'),
+  done('scales', 'B12', 'The Anatomy / Lobule / Sinusoid scale switch on the slide', 'src/ui/cards/SlideControls.tsx'),
   hook('view:circuit', 'B7', 'The Circuit view'),
   // what the person can do on the slide
-  hook('compare', 'B12', 'Compare buttons that switch the live model between states'),
-  hook('whatIf', 'B12', 'A slider that drags one parameter of the live model'),
-  hook('response', 'B12', 'The beta-blocker response buttons'),
-  hook('time-lapse', 'B12', 'The slide\'s days play on the live figure as a time-lapse'),
+  done('compare', 'B12', 'Compare buttons that switch the live model between states', 'src/ui/talk/controls-run.ts'),
+  done('whatIf', 'B12', 'A slider that drags one parameter of the live model', 'src/ui/cards/SlideControls.tsx'),
+  done('response', 'B12', 'The beta-blocker response buttons', 'src/decks/controls.ts'),
+  done('time-lapse', 'B12', 'The slide\'s days play on the live figure as a time-lapse', 'src/decks/hp/lapse.ts'),
   hook('beats', 'B12', 'A slide with several camera beats'),
   hook('since', 'B3', 'The Since lens: change since another slide\'s state'),
 ];

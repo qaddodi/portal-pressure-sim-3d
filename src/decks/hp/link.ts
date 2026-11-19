@@ -7,6 +7,7 @@ import { tokensOf } from '../../ui/text/tokens.ts';
 import type { Deck } from '../schema.ts';
 import { ensureStates, useStates } from './calc.ts';
 import { copiedOf } from './deck.ts';
+import { playLapse, playsLapse, stopLapse } from './lapse.ts';
 
 /** How long the figure takes to ease to the next slide's state (ms). */
 export const MORPH_MS = 1100;
@@ -51,10 +52,20 @@ export function linkStates(deck: Deck): () => void {
     }
     useUi.getState().setReadings(r);
     const snap = res?.[i]?.snap;
-    if (snap && snap !== morphed) { morphed = snap; try { engine().send({ type: 'morph', snap, ms: MORPH_MS }); } catch { /* the engine is not up yet: the first slide is shown when it is */ } }
+    if (snap && snap !== morphed) {
+      morphed = snap;
+      const cs = stop.kind === 'slide' ? copied.slides[i] : undefined;
+      if (playsLapse(cs, i) && res?.[i - 1]?.snap) {
+        // a time-lapse: the days play on the live figure from the slide before's state, then it eases to this slide's computed end
+        playLapse(`${deck.id}/${ids[i]}`, cs, res[i - 1]!.snap, snap, () => {}, window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+      } else {
+        stopLapse();
+        try { engine().send({ type: 'morph', snap, ms: MORPH_MS }); } catch { /* the engine is not up yet: the first slide is shown when it is */ }
+      }
+    }
   };
   sync();
   const offUi = useUi.subscribe((s, p) => { if (s.pos !== p.pos || s.stops !== p.stops) sync(); });
   const offStates = useStates.subscribe((s, p) => { if (s.results[deck.id] !== p.results[deck.id]) sync(); });
-  return () => { offUi(); offStates(); };
+  return () => { offUi(); offStates(); stopLapse(); };
 }

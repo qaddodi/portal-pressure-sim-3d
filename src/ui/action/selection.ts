@@ -22,8 +22,13 @@ export function selectStructure(sel: Sel | null): void {
   lightVessel?.(sel && sel.type === 'edge' ? sel.id : null);
 }
 
+/** A mode that takes the scene's taps for itself (the shunt waiting for its target): while one is held, a pick goes to it and the selection stays. Returns the remover. */
+let pickHold: ((id: string | null) => void) | null = null;
+export function holdScenePicks(f: (id: string | null) => void): () => void { pickHold = f; return () => { if (pickHold === f) pickHold = null; }; }
+
 /** The scene picked (or un-picked) a vessel by a tap: the selection follows it. */
 export function scenePicked(id: string | null): void {
+  if (pickHold) { pickHold(id); return; }
   const cur = useSelection.getState().sel;
   if (id == null) { if (cur?.type === 'edge') useSelection.setState({ sel: null }); return; }
   if (!(cur?.type === 'edge' && cur.id === id)) useSelection.setState({ sel: { type: 'edge', id } });

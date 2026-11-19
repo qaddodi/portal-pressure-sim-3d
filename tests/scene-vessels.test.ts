@@ -1,3 +1,4 @@
+import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EDGES, JUNCTION_PIECES } from '../src/engine/hales/portal/topology.js';
@@ -91,7 +92,7 @@ test('a vessel is one draw: body and ink share one mesh and one material', () =>
 
 test('every vessel object knows its edge and its data texel', () => {
   const s = new CelScene();
-  for (const o of s.vessels) assert.equal(o.toon.uniforms.vindex.value, indexOf(o.edge!.id));
+  for (const o of s.vessels) assert.equal(o.toon.uniforms.vindex.value, indexOf((NETWORK_BY_ID.get(o.edge!.id)?.lensId ?? o.edge!.id)));
   s.dispose();
 });
 

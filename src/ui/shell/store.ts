@@ -23,7 +23,8 @@ export interface Figure {
 }
 export const FIGURE_DEFAULTS: Figure = { chevrons: true, keyChevrons: false, chips: true, collaterals: true, labels: true, labelLevel: 'key', zones: false, lymph: true, bile: false };
 
-export interface Toast { id: number; text: string; tone: 'info' | 'bad' }
+export interface ToastAction { label: string; run(): void }
+export interface Toast { id: number; text: string; tone: 'info' | 'bad'; action?: ToastAction }
 export interface Transport { running: boolean; speed: number; lapse: number; time: string; day: number }
 
 interface ShellState {
@@ -34,7 +35,9 @@ interface ShellState {
   ready: Record<ViewId, boolean>;
   sheet: Sheet;
   /** a small dialog over everything (Reset everything?) */
-  dialog: 'reset' | null;
+  dialog: 'reset' | 'about' | 'privacy' | null;
+  /** the About page's section to scroll to (References) */
+  aboutSection: 'refs' | null;
   menuTab: MenuTab;
   menuQuery: string;
   helpSection: 'keys' | 'present' | null;
@@ -49,7 +52,8 @@ interface ShellState {
   open(sheet: Exclude<Sheet, null>): void;
   close(): void;
   toggle(sheet: Exclude<Sheet, null>): void;
-  say(text: string, tone?: 'info' | 'bad'): void;
+  /** One line at the foot; with an `action` it stays ACTION_MS and carries a button (Send feedback's "Copy the full report"). */
+  say(text: string, tone?: 'info' | 'bad', action?: ToastAction): void;
   setFigure(p: Partial<Figure>): void;
   markViewReady(v: ViewId): void;
 }
@@ -66,12 +70,14 @@ const saveFigure = (f: Figure) => { try { localStorage.setItem(KEY, JSON.stringi
 
 let toastId = 0, toastTimer: ReturnType<typeof setTimeout> | undefined;
 export const TOAST_MS = 3200;
+/** A toast with a button stays long enough to reach it. */
+export const ACTION_MS = 9000;
 
 export const useShell = create<ShellState>((set, get) => ({
   mode: 'free',
   view: 'anatomic',
   ready: { circuit: true, anatomic: true, lobule: true, sinusoid: true },
-  sheet: null, dialog: null, menuTab: 'present', menuQuery: '', helpSection: null, toast: null,
+  sheet: null, dialog: null, aboutSection: null, menuTab: 'present', menuQuery: '', helpSection: null, toast: null,
   figure: loadFigure(),
   transport: { running: false, speed: 1, lapse: 0, time: '0:00', day: 0 },
   patientId: 'csph',
@@ -80,10 +86,10 @@ export const useShell = create<ShellState>((set, get) => ({
   open: (sheet) => set({ sheet }),
   close: () => { if (get().sheet) set({ sheet: null }); },
   toggle: (sheet) => set({ sheet: get().sheet === sheet ? null : sheet }),
-  say: (text, tone = 'info') => {
+  say: (text, tone = 'info', action) => {
     clearTimeout(toastTimer);
-    set({ toast: { id: ++toastId, text, tone } });
-    toastTimer = setTimeout(() => { if (get().toast?.id === toastId) set({ toast: null }); }, TOAST_MS);
+    set({ toast: { id: ++toastId, text, tone, ...(action ? { action } : {}) } });
+    toastTimer = setTimeout(() => { if (get().toast?.id === toastId) set({ toast: null }); }, action ? ACTION_MS : TOAST_MS);
   },
   setFigure: (p) => { const f = { ...get().figure, ...p }; set({ figure: f }); saveFigure(f); },
   markViewReady: (v) => set({ ready: { ...get().ready, [v]: true } }),

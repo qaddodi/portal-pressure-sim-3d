@@ -1,0 +1,114 @@
+// The 2D figure's coiling collaterals and their braids, as stage-paths.js wiggle / braid / blendFrom and stage-frame.js strandAt draw them (literal ports; the
+// tests compare them with the 2D source when PPS_2D_REPO is set). A collateral coils as it opens (stage-tubes.js: amplitude 1.5 + 3.5 of its opening once
+// past a quarter), the varices' strands fan out as far as their varix is big, and the strands leave and rejoin their trunk (anatomy.js STRANDS).
+import { STRANDS_2D, STRAND_FROM_2D, STRAND_HOLD_2D, STRAND_SOFT_2D, STRAIGHT_COLL_2D, WIG_CAP_2D } from './coil.copied.ts';
+
+export type P2 = [number, number];
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const smooth01 = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
+const wiggleAt = (amp: number, env: number, d: number, k: number, seed: number) => amp * env * Math.sin(d * k + seed);   // (wiggle-math.js: the second harmonic is parked at 0)
+
+/** stage-paths.js wiggle: a smooth serpentine along the course (a wave every 90 units or so), tapered to nothing at both ends. */
+export function wiggle(pts: readonly P2[], amp: number, seed: number, hold = 0): P2[] {
+  if (amp < 0.3) return pts as P2[];
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
+  const L = cum[cum.length - 1] || 1;
+  const k = Math.max(1.5, Math.round(L / 90)) * Math.PI * 2 / L;
+  return pts.map((p, i): P2 => {
+    if (i === 0 || i === pts.length - 1) return p;
+    const a = pts[i - 1]!, b = pts[i + 1]!;
+    let nx = -(b[1] - a[1]), ny = b[0] - a[0];
+    const n = Math.hypot(nx, ny) || 1; nx /= n; ny /= n;
+    const u = cum[i]! / L;
+    let env = Math.min(1, u * 6, (1 - u) * 6);
+    if (hold) env *= smooth01((u - hold) / (1.4 * hold)) * smooth01((1 - u - hold) / (1.4 * hold));
+    const w = wiggleAt(amp, env, cum[i]!, k, seed);
+    return [p[0] + nx * w, p[1] + ny * w];
+  });
+}
+
+/** stage-paths.js braid: a lateral offset of `off` at mid-course easing to zero at both ends (or at `u0` and the far end), or over a stretch `span`. */
+export function braid(pts: readonly P2[], off: number, u0 = 0, span: readonly [number, number] | null = null, ph = 0, soft = false): P2[] {
+  if (Math.abs(off) < 0.3) return pts as P2[];
+  if (span) {
+    const [ua, ub] = span, n0 = pts.length - 1, A = pts[0]!, B = pts[n0]!;
+    const cl = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1, nx = -(B[1] - A[1]) / cl, ny = (B[0] - A[0]) / cl;
+    return pts.map((p, i): P2 => {
+      const v = (i / n0 - ua) / (ub - ua);
+      if (v <= 0 || v >= 1) return p;
+      const o = off * Math.sin(Math.PI * v) ** 1.4 * (1 + 0.1 * Math.sin(3 * Math.PI * v + ph));
+      return [p[0] + nx * o, p[1] + ny * o];
+    });
+  }
+  const A = pts[0]!, B = pts[pts.length - 1]!, cl = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1, cx = -(B[1] - A[1]) / cl, cy = (B[0] - A[0]) / cl;
+  return pts.map((p, i): P2 => {
+    if (i === 0 || i === pts.length - 1) return p;
+    const a = pts[i - 1]!, b = pts[i + 1]!;
+    let nx = -(b[1] - a[1]), ny = b[0] - a[0];
+    const n = Math.hypot(nx, ny) || 1; nx /= n; ny /= n;
+    if (soft) { nx = cx; ny = cy; }
+    const s = Math.sin(Math.PI * clamp((i / (pts.length - 1) - u0) / (1 - u0), 0, 1));
+    const o = off * (soft ? s * s : s);
+    return [p[0] + nx * o, p[1] + ny * o];
+  });
+}
+
+/** stage-paths.js blendFrom: `a` up to `u0` along, `b` after, joined over the next eighth. */
+export function blendFrom(a: readonly P2[], b: readonly P2[], u0: number): P2[] {
+  const n = a.length - 1;
+  return a.map((p, i): P2 => { const e = clamp((i / n - u0) / 0.12, 0, 1), k = e * e * (3 - 2 * e); return [lerp(p[0], b[i]![0], k), lerp(p[1], b[i]![1], k)]; });
+}
+
+// ---- varix size (varix-look.js) ----
+export const LOOK_SITE: Record<string, 'VAR' | 'GV'> = { C1a: 'VAR', C1b: 'VAR', C2: 'GV', C5: 'GV' };
+const VARIX_REST_MM = 2, VARIX_FULL_MM = { VAR: 7, GV: 8 };
+/** How big a varix is, 0 (a resting vein) to 1 (its full size and up). No reading: 1. */
+export const varixSize = (site: 'VAR' | 'GV', d: number | undefined): number => (Number.isFinite(d) ? clamp(((d as number) - VARIX_REST_MM) / (VARIX_FULL_MM[site] - VARIX_REST_MM), 0, 1) : 1);
+/** How far the strands fan out from the vessel against their full spread. */
+export const varixSpreadK = (size: number): number => 0.55 + 0.45 * size;
+/** How far the varices have grown (store.js varixGrowth): 0 at the 2.5 mm cut-off, 1 at about 5.5 mm; none when absent. */
+export const varixGrowth = (present: boolean, d: number | undefined): number => (present && Number.isFinite(d) ? clamp(((d as number) - 2.5) / 3, 0.2, 1) : 0);
+
+// ---- the coil of one collateral ----
+export const COIL_MAX = 5;
+export const isCoiling = (id: string, kind: string, spontaneous: boolean): boolean => kind === 'collateral' && !spontaneous && !STRAIGHT_COLL_2D.has(id);
+
+/** A collateral's coil and spread, eased as stage-tubes.js eases them: coiled once it has grown past a quarter (straight again below a fifth), the target moving
+ *  only for a change over 0.6, the coil following it with a quarter-second time constant. */
+export class CoilState {
+  wig = 0; wigT = 0; spr = 1; sprT = 1;
+  /** `shown`: how far the vessel is open (0 to 1); `spread`: the strands' target spread. Returns true while the shape is still changing. */
+  step(shown: number, spread: number, dtMs: number, instant: boolean): boolean {
+    const coiled = this.wigT > 0 ? shown > 0.2 : shown > 0.25;
+    const w = coiled ? 1.5 + 3.5 * shown : 0;
+    const before = this.wig * 1000 + this.spr;
+    if (Math.abs(w - this.wigT) > 0.6) this.wigT = w;
+    this.sprT = spread;
+    const k = instant ? 1 : -Math.expm1(-dtMs / 1000 / 0.25);
+    const d = this.wigT - this.wig;
+    this.wig = Math.abs(d) < 0.03 ? this.wigT : this.wig + d * k;
+    const e = this.sprT - this.spr;
+    this.spr = Math.abs(e) < 0.005 ? this.sprT : this.spr + e * k;
+    return this.wig !== this.wigT || this.spr !== this.sprT || before !== this.wig * 1000 + this.spr;
+  }
+}
+
+export interface CoilCourse { pts: P2[]; k: number }
+/** The 2D course of a collateral (or a liver bed) and its strands at coil `wig` and spread `spr`, as stage-frame.js builds them in the anatomic view. */
+export function coilCourses(id: string, base: readonly P2[], coils: boolean, wig: number, spr: number): { main: P2[]; strands: CoilCourse[] } {
+  const u0 = STRAND_FROM_2D[id] ?? 0;
+  let main = base as P2[];
+  if (coils) { const wz = wiggle(base, Math.min(wig, WIG_CAP_2D[id] ?? Infinity), id.length); main = u0 ? blendFrom(base, wz, u0) : wz; }
+  const rows = STRANDS_2D[id] ?? [];
+  const soft = STRAND_SOFT_2D.has(id), sp0 = LOOK_SITE[id] ? spr : 1;
+  const strands = rows.map((r): CoilCourse => {
+    const [off, ph, k, ua, ub] = r as [number, number, number, number?, number?];
+    const fan = off * sp0, amp = 0.8 * wig + 3;
+    let sp = ua != null ? braid(base, fan, 0, [ua, ub!], ph) : soft ? wiggle(braid(main, fan, u0, null, 0, true), amp, ph, STRAND_HOLD_2D) : wiggle(braid(base, fan, u0), amp, ph);
+    if (u0) sp = blendFrom(main, sp, u0);
+    return { pts: sp, k };
+  });
+  return { main, strands };
+}

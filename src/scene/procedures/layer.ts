@@ -76,6 +76,16 @@ export class ProcedureLayer {
     this.stents.set(id, s);
     return s;
   }
+  private fadeNow = 1;
+  /** The devices dissolve as the figure turns into the Circuit (1 whole, 0 gone): nothing of a procedure stands on the map. */
+  setFade(f: number): void {
+    if (f === this.fadeNow) return;
+    this.fadeNow = f;
+    const all = [...this.objects, ...[...this.stents.values()].flatMap((s) => s.objects), ...this.tamponade.objects, ...this.bands.objects];
+    for (const o of all) o.setFade(f);
+    this.group.visible = f > 0.001;
+    this.dirty = true;
+  }
   /** The model's band count (engine frame `bands`). */
   syncBands(count: number, instant = false): void { this.bands.want(count, instant); this.dirty = true; }
   /** The patient's tube: which balloons are up. `instant` puts it there at once (a new patient). */

@@ -15,5 +15,7 @@ export function registerBuiltinHooks(): void {
   const chartDone = (k: string) => CHARTS.some((c) => c.kind === k && c.status === 'done');
   for (const [hook, kind] of [['tool:course', 'curve'], ['visual:plane', 'plane'], ['visual:allpatients', 'small'], ['visual:ladders', 'ladder']] as const) if (chartDone(kind)) registerHook(hook);
   for (const c of CATHS) registerHook(`device:hvpg-catheter:${c}`);                        // S2: route, free, wedge, result
+  // B12: the presenter plays any deck by id, with case question, summary table, scale pill, live compare buttons, response, what-if and the time-lapse (ui/cards/SlideControls.tsx, hp/lapse.ts)
+  for (const id of ['presenter:deck', 'engine:steps', 'time:lapse', 'slider:whatIf', 'card:response', 'card:case-question', 'view:scales', 'visual:table', 'compare:params', 'compare:preset', 'compare:slide', 'compare:lens']) registerHook(id);
   for (const id of ['view:lobule', 'view:sinusoid', 'view:wash', 'view:layers']) registerHook(id);   // B8: the lobule and sinusoid scenes, the wedge's wash, the zone bands
 }
