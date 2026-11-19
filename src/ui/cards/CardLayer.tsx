@@ -106,7 +106,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   });
 
   if (!view) return null;
-  const read = (k: ReadingKey) => readings[k];
+  const read = (k: string, at?: string) => readings[at ? `${k}@${at}` : k];
   const gap = gapOf(readings);
   // each card draws what it was given when it came in, so a card that is leaving keeps its own words while it goes
   const snaps = snapRef.current;

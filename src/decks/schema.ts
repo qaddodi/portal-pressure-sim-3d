@@ -14,7 +14,23 @@ export const READING_KEYS = ['whvp', 'fhvp', 'hvpg', 'ivc', 'ra', 'pv', 'ppg'] a
 export type ReadingKey = (typeof READING_KEYS)[number];
 
 /** One piece of an equation under a title: <mi> names a quantity, <mo> an operator. `tone` colours a quantity as the ladder does. */
-export interface EqPart { tag: 'mi' | 'mo'; text: string; tone?: 'wedge' | 'free' }
+export interface EqPart { tag: 'mi' | 'mo'; text: string; tone?: 'wedge' | 'free'; /** a subscript (P with portal vein below it) */ sub?: string }
+
+/** What the scene is asked to show for a slide that is not one of the slice's named shots (batch B13: derived from the 2D deck's own camera, lens and labels). */
+export interface SlideScene {
+  shot: import('../scene/camera/shots.ts').Shot;
+  /** the lobule or sinusoid camera name when the slide is in one of those views */
+  lobuleCam: import('../scene/lobule/shots.ts').LobuleCam | null;
+  view: 'body' | 'lobule' | 'sinusoid' | 'circuit';
+  lens: import('../scene/lenses/model.ts').LensId;
+  /** stations labelled on the figure */
+  labels: string[];
+  /** figure parts the words point at (2D term targets) */
+  terms: string[];
+}
+
+/** The data card of tiles: which readings, the key ones, and the state the change counts from. The numbers come from the slide's own state in the engine, never from the deck. */
+export interface SlideTiles { deck: string; slide: string; keys: string[]; key: string[]; delta: string | boolean | null }
 
 export interface Slide {
   id: string;
@@ -28,10 +44,16 @@ export interface Slide {
   eq?: EqPart[];
   /** The ladder (data) card: which readings, which one is the result. Absent: no data card on this slide. */
   ladder?: { rows: ReadingKey[]; result?: 'hvpg' };
-  cath: CathState;
+  /** The catheter the slide shows; absent when it shows none. */
+  cath?: CathState;
   notes: string;
   ask?: [string, string];
-  shot: ShotName;
+  /** A named shot of the slice, or (a ported deck) `scene`. */
+  shot?: ShotName;
+  scene?: SlideScene;
+  tiles?: SlideTiles;
+  /** the line under the equation (what its letters stand for) */
+  eqLegend?: string;
 }
 
 export interface Deck {
@@ -44,10 +66,13 @@ export interface Deck {
   slides: Slide[];
   /** The quick check: [question, answer]. */
   checks: [string, string][];
+  /** Where a slide's numbers come from: `live` (the engine the figure runs, the slice) or `states` (each slide's own state, computed off screen). */
+  numbers?: 'live' | 'states';
 }
 
+import { parseToken } from '../ui/text/tokens.ts';
+
 const TOKEN = /\{([^}]*)\}/g;
-const KEY_RE = /^([a-z]+)(?::(\d))?$/;
 const CUT_RE = /^(>=|<=|>|<)\s*\d+(\.\d+)?(\s+[A-Za-zµ%/]+)?$/;
 
 /** Every problem found in a deck, as readable sentences; an empty list is a valid deck. */
@@ -67,13 +92,13 @@ export function validateDeck(deck: Deck): string[] {
     if (ids.has(s.id)) bad.push(`${at} is a second slide with the same id`);
     ids.add(s.id);
     for (const f of ['kicker', 'title', 'line', 'notes'] as const) text(s[f], `${at} ${f}`);
-    if (!(SHOTS as readonly string[]).includes(s.shot)) bad.push(`${at} names the unknown shot "${s.shot}"`);
-    if (!(CATHS as readonly string[]).includes(s.cath)) bad.push(`${at} names the unknown catheter state "${s.cath}"`);
+    if (!s.scene && !(SHOTS as readonly string[]).includes(s.shot as string)) bad.push(`${at} names the unknown shot "${s.shot}"`);
+    if (s.cath && !(CATHS as readonly string[]).includes(s.cath)) bad.push(`${at} names the unknown catheter state "${s.cath}"`);
     for (const m of (s.line ?? '').matchAll(TOKEN)) {
       const body = m[1].trim();
       if (CUT_RE.test(body)) continue;
-      const k = KEY_RE.exec(body);
-      if (!k || !(READING_KEYS as readonly string[]).includes(k[1])) bad.push(`${at} line has the token {${body}}, which is no reading or cut-off`);
+      const tk = parseToken(body);
+      if (tk.kind === 'literal' && !/[\d%]/.test(tk.text)) bad.push(`${at} line has the token {${body}}, which is no reading or cut-off`);
     }
     if (/\{[^}]*$/.test(s.line ?? '') || /^[^{]*\}/.test(s.line ?? '')) bad.push(`${at} line has an unbalanced brace`);
     for (const r of s.ladder?.rows ?? []) if (!(READING_KEYS as readonly string[]).includes(r)) bad.push(`${at} ladder names the unknown reading "${r}"`);

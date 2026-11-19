@@ -39,6 +39,11 @@ export const sceneApi = {
     cel.setView(v);
     this.goTo(v === 'body' ? 'play' : v === 'sinusoid' ? sinusoidShot() : lobuleShot(cam), room);
   },
+  /** Show a view and fly to a shot of the caller's own (a ported deck slide's camera), fitted into the room the cards leave free. */
+  showShot(v: FigureView, shot: ShotName | Shot, room: Room): void {
+    if (cel.view !== v) cel.setView(v);
+    this.goTo(shot, room);
+  },
   /** The lobule's Layers menu (the 2D app starts with lymph on). */
   setLobuleLayers(l: Partial<LobuleLayers>): void { cel.setLobuleLayers(l); clock.invalidate('lobule-layers'); },
   /** The cards changed room (a card opened, the phone turned): move the room alone. */

@@ -1,8 +1,8 @@
-import type { ReadingKey, Slide } from '../../decks/schema.ts';
+import type { Slide } from '../../decks/schema.ts';
 import { Line } from './Line.tsx';
 import { sentences, pageOf } from './pages.ts';
 
-export function TeachingCard({ slide, read, page, pages, trim = false }: { slide: Slide; read: (k: ReadingKey) => number | null | undefined; page: number; pages: number; trim?: boolean }) {
+export function TeachingCard({ slide, read, page, pages, trim = false }: { slide: Slide; read: (k: string, at?: string) => number | null | undefined; page: number; pages: number; trim?: boolean }) {
   const text = pageOf(sentences(slide.line), pages, page).join(' ');
   const eq = slide.eq && page === 0;
   return (
