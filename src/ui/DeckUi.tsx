@@ -11,6 +11,7 @@ import { CardLayer } from './cards/CardLayer.tsx';
 import { PresenterBar } from './deck/PresenterBar.tsx';
 import { useDeckInput } from './deck/useDeckInput.ts';
 import { linkScene } from './deck/scene-link.ts';
+import { linkProcs } from './deck/procs-link.ts';
 import { linkModel } from './talk/deck-model.ts';
 import { linkStates } from '../decks/hp/link.ts';
 import { JumpList, BlackScreen } from './deck/JumpList.tsx';
@@ -41,6 +42,8 @@ export function DeckUi() {
 
   // the scene follows the talk: the shot, the room the cards leave, the catheter
   useEffect(() => linkScene(), []);
+  // the slide's procedures, stented veins, lobule layers and wash
+  useEffect(() => linkProcs(), []);
   // the slide's patient, when it names one
   useEffect(() => linkModel(), []);
 

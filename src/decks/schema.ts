@@ -6,7 +6,7 @@ export const SHOTS = ['title', 'route', 'free', 'wedge', 'hvpg'] as const;
 export type ShotName = (typeof SHOTS)[number];
 
 /** The catheter state a slide asks for (the scene's catheter.ts plays it). */
-export const CATHS = ['route', 'free', 'wedge', 'result'] as const;
+export const CATHS = ['route', 'free', 'wedge', 'result', 'blocked'] as const;
 export type CathState = (typeof CATHS)[number];
 
 /** The readings a line or a ladder may name. Each is one engine value (mmHg). */

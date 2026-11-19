@@ -3,6 +3,7 @@
 import { LENS_IDS } from '../../scene/lenses/model.ts';
 import { CHARTS } from '../../ui/charts/registry.ts';
 import { CATHS } from '../schema.ts';
+import { PROCEDURE_PLAYS } from '../../scene/procedures/plays.ts';
 import { registerHook } from './hooks.ts';
 
 let done = false;
@@ -17,5 +18,8 @@ export function registerBuiltinHooks(): void {
   for (const c of CATHS) registerHook(`device:hvpg-catheter:${c}`);                        // S2: route, free, wedge, result
   // B12: the presenter plays any deck by id, with case question, summary table, scale pill, live compare buttons, response, what-if and the time-lapse (ui/cards/SlideControls.tsx, hp/lapse.ts)
   for (const id of ['presenter:deck', 'engine:steps', 'time:lapse', 'slider:whatIf', 'card:response', 'card:case-question', 'card:question', 'view:scales', 'visual:table', 'compare:params', 'compare:preset', 'compare:slide', 'compare:lens']) registerHook(id);
+  // B5: a slide's procedure plays on the figure with its steps and Play button, a vein's stent, the catheter kept across the lobule dive (ui/deck/procs-link.ts, ui/cards/ProcRow.tsx)
+  for (const k of PROCEDURE_PLAYS) registerHook(`procedure:${k}`);
+  for (const id of ['device:stent', 'device:hvpg-catheter:keep']) registerHook(id);
   for (const id of ['view:lobule', 'view:sinusoid', 'view:wash', 'view:layers']) registerHook(id);   // B8: the lobule and sinusoid scenes, the wedge's wash, the zone bands
 }

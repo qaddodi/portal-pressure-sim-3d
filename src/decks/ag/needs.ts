@@ -6,6 +6,7 @@ import { CHARTS } from '../../ui/charts/registry.ts';
 import { TILE } from '../../ui/charts/tiles.generated.ts';
 import { LENS_IDS } from '../../scene/lenses/model.ts';
 import { CATHS } from '../schema.ts';
+import { PROCEDURE_PLAYS } from '../../scene/procedures/plays.ts';
 import { UI } from '../../ui/strings.generated.ts';
 import type { CopiedSlide } from './types.ts';
 import { slideShots, type ShotSpec } from './shots.ts';
@@ -88,7 +89,7 @@ export function hookOf(id: string): Hook | null {
     case 'tool': return { owner: 'B10', what: `the ${rest} instrument or chart`, landed: () => CHARTS.find((c) => c.kind === rest)?.status === 'done' };
     case 'lens': return { owner: 'B3', what: `the ${rest} colour lens`, landed: () => (LENS_IDS as readonly string[]).includes(rest) };
     case 'cath': return { owner: 'B5', what: `the catheter's ${rest} state`, landed: () => (CATHS as readonly string[]).includes(rest) };
-    case 'procedure': return { owner: 'B5', what: `the ${rest} procedure`, landed: claimed };
+    case 'procedure': return { owner: 'B5', what: `the ${rest} procedure`, landed: () => PROCEDURE_PLAYS.has(rest) };   // (played on the figure by ui/deck/procs-link.ts)
     case 'view': return { owner: 'B7', what: 'the Circuit view', landed: claimed };
     case 'scale':
       if (rest === 'switch') return { owner: 'B12', what: 'the Anatomy, Lobule and Sinusoid pill the slide offers', landed: ready }   // (ui/cards/SlideControls.tsx);
@@ -102,7 +103,7 @@ export function hookOf(id: string): Hook | null {
     case 'present': return { owner: 'B12', what: 'the presenter plays any deck by its id, with the scene plate of each slide', landed: ready }   // (decks/all.ts);
     case 'fig': case 'card': case 'field': {
       const f = Object.values(FIELD_HOOKS).find((h) => h.id === id);
-      if (f) return { owner: f.owner, what: f.what, landed: ['card:vignette', 'card:terms', 'card:equation', 'card:what-if', 'card:case-question', 'card:response', 'card:question'].includes(id) ? ready : claimed };
+      if (f) return { owner: f.owner, what: f.what, landed: ['card:vignette', 'card:terms', 'card:equation', 'card:what-if', 'card:case-question', 'card:response', 'card:question', 'fig:stented', 'fig:layers'].includes(id) ? ready : claimed };   // (fig:stented, fig:layers: ui/deck/procs-link.ts)
       return family === 'field' ? { owner: 'B12', what: `the slide field "${rest}"`, landed: claimed } : null;
     }
     default: return null;

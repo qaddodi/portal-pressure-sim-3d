@@ -8,6 +8,8 @@ import type { Palette } from '../palette.ts';
 import { ProcCatheter, type CatheterState, type RingName } from '../devices/catheters/proc-catheter.ts';
 import { route3d, stopsOf } from './route3d.ts';
 import { StentDevice } from '../devices/stent/stent-device.ts';
+import { VeinStent, canStent } from '../devices/stent/vein-stent.ts';
+import { OSTIUM_U } from './ostium.ts';
 import { Tamponade } from '../devices/balloons/tamponade.ts';
 import { Bands } from '../devices/bands.ts';
 import { procFrame as procFrameJs, specOf } from './copied/proc-anim.js';
@@ -57,6 +59,11 @@ export class ProcedureLayer {
   /** The TIPS's and the DIPS's stents, each on its own shunt vessel. */
   readonly stents = new Map<'TIPS' | 'DIPS', StentDevice>();
   private lastTick = -1;
+  /** The stents a slide shows in veins the model has no device for (`stented`), by edge id; kept once made and eased in and out. */
+  private readonly veinStents = new Map<string, VeinStent>();
+  private lastFrame: { D: ArrayLike<number> } | null = null;
+  /** The ring the HVPG catheter reads in when its state is set without one (a deck slide's catheter: free, wedge, blocked). */
+  keptRing: RingName | null = null;
   /** The tamponade tube and its two balloons, driven by params.balloonGas and params.balloonEso. */
   readonly tamponade: Tamponade;
   /** The ligation bands on the esophageal varices, as many as the engine counts. */
@@ -81,7 +88,7 @@ export class ProcedureLayer {
   setFade(f: number): void {
     if (f === this.fadeNow) return;
     this.fadeNow = f;
-    const all = [...this.objects, ...[...this.stents.values()].flatMap((s) => s.objects), ...this.tamponade.objects, ...this.bands.objects];
+    const all = [...this.objects, ...[...this.stents.values()].flatMap((s) => s.objects), ...[...this.veinStents.values()].flatMap((s) => s.objects), ...this.tamponade.objects, ...this.bands.objects];
     for (const o of all) o.setFade(f);
     this.group.visible = f > 0.001;
     this.dirty = true;
@@ -97,13 +104,38 @@ export class ProcedureLayer {
   /** The engine's newest frame and params: each stent follows its shunt's diameter and shape. */
   syncStents(frame: { D: ArrayLike<number> } | null, params: unknown, instant = false): boolean {
     let moved = false;
+    this.lastFrame = frame;
     for (const s of this.stents.values()) moved = s.sync(frame, params as never, instant) || moved;
+    for (const s of this.veinStents.values()) moved = s.sync(frame) || moved;
     if (moved) this.dirty = true;
     return moved;
   }
 
-  applyPalette(p: Palette): void { this.palette = p; for (const c of this.caths.values()) c.applyPalette(p); for (const s of this.stents.values()) s.applyPalette(p); this.tamponade.applyPalette(p); this.bands.applyPalette(p); this.dirty = true; }
-  setPhone(phone: boolean): void { this.phone = phone; for (const c of this.caths.values()) c.setPhone(phone); for (const s of this.stents.values()) s.setPhone(phone); this.tamponade.setPhone(phone); this.bands.setPhone(phone); this.dirty = true; }
+  /** The veins a slide shows stented (edge ids): the stent comes in over each, and goes out of those the list leaves. An id the scene has no vein for is ignored. Returns the ids shown. */
+  setStented(ids: readonly string[], instant = false): string[] {
+    const want = new Set(ids.filter(canStent));
+    for (const id of want) {
+      let v = this.veinStents.get(id);
+      if (!v) {
+        v = new VeinStent(id, this.shared);
+        if (this.palette) v.applyPalette(this.palette);
+        v.setPhone(this.phone);
+        v.setFade(this.fadeNow);
+        this.group.add(v.group);
+        this.veinStents.set(id, v);
+      }
+      v.want(true, instant);
+      v.sync(this.lastFrame);
+    }
+    for (const [id, v] of this.veinStents) if (!want.has(id)) v.want(false, instant);
+    this.dirty = true;
+    return [...want];
+  }
+  /** The veins whose stent is in or coming in. */
+  get stentedIds(): string[] { return [...this.veinStents].filter(([, v]) => v.goal > 0).map(([id]) => id); }
+
+  applyPalette(p: Palette): void { this.palette = p; for (const c of this.caths.values()) c.applyPalette(p); for (const s of this.stents.values()) s.applyPalette(p); for (const s of this.veinStents.values()) s.applyPalette(p); this.tamponade.applyPalette(p); this.bands.applyPalette(p); this.dirty = true; }
+  setPhone(phone: boolean): void { this.phone = phone; for (const c of this.caths.values()) c.setPhone(phone); for (const s of this.stents.values()) s.setPhone(phone); for (const s of this.veinStents.values()) s.setPhone(phone); this.tamponade.setPhone(phone); this.bands.setPhone(phone); this.dirty = true; }
 
   /** The route a procedure's catheter travels (its spec's `route`, else the kind itself), or null for one with no catheter (a graft, a scope). */
   routeKindOf(kind: string): string | null {
@@ -159,14 +191,15 @@ export class ProcedureLayer {
     if (this.shown && this.shown !== c) this.shown.set({ ...this.shown.current, u: 0, opacity: 0 });
     this.shown = c; this.lastKind = 'hvpgcath';
     Object.assign(this.frame, rec);
-    c?.set({ u: advance, balloon, column: balloon, opacity: rec.opacity, needle: 0, wire: 0, flash: 0, coil: 0, ring, columnTone: 'trWedge', clock });
+    c?.set({ u: advance, balloon, column: balloon, opacity: rec.opacity, needle: 0, wire: 0, flash: 0, coil: 0, ring: ring ?? this.keptRing, columnTone: 'trWedge', clock });
     this.dirty = true;
   }
 
   /** Where a catheter step ends, the HVPG's route, free, wedge, result and blocked (cath-arrival.js CATH_END), at once; `advance` is how far in the tip is (0..1). */
   showHvpg(mode: keyof typeof CATH_END, advance = 1, clock = 0): void {
     const e = CATH_END[mode];
-    this.showHvpgState(advance, e.balloon, e.ring as RingName | null, clock);
+    // a blocked hepatic vein: the tip only reaches the ostium (2D stage-cath.js `ostium`), however far in the caller says
+    this.showHvpgState(mode === 'blocked' ? advance * OSTIUM_U : advance, e.balloon, e.ring as RingName | null, clock);
   }
 
   /** Play a procedure from `from` to `to` (default the whole of it) on the scene's frames. */
@@ -210,6 +243,7 @@ export class ProcedureLayer {
     const dt = this.lastTick < 0 ? 16 : Math.min(100, now - this.lastTick); this.lastTick = now;
     let stentMoving = false;
     for (const s of this.stents.values()) stentMoving = s.update(dt) || stentMoving;
+    for (const s of this.veinStents.values()) stentMoving = s.update(dt) || stentMoving;
     stentMoving = this.tamponade.update(dt) || stentMoving;
     stentMoving = this.bands.update(dt) || stentMoving;
     const r = this.run;
@@ -225,5 +259,5 @@ export class ProcedureLayer {
     return d || stentMoving;
   }
 
-  dispose(): void { for (const o of this.objects) o.dispose(); for (const s of this.stents.values()) s.dispose(); this.tamponade.dispose(); this.bands.dispose(); }
+  dispose(): void { for (const o of this.objects) o.dispose(); for (const s of this.stents.values()) s.dispose(); for (const s of this.veinStents.values()) s.dispose(); this.tamponade.dispose(); this.bands.dispose(); }
 }

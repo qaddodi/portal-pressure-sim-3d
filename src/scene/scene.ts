@@ -533,6 +533,11 @@ export class CelScene {
   }
   private feedSinusInk(): void { const c = this.lobule.inkContext(); if (c) this.sinus.setInk(c); }
   setLobuleLayers(l: Partial<LobuleLayers>): void { this.lobule.setLayers(l); this.moving = true; }
+  /** The wedge's wash (a slide that says `wash`): amber from the central vein along the sinusoids, counted from `landedAtMs` in both small views. Off clears it. */
+  setWash(on: boolean, landedAtMs = performance.now()): void {
+    if (on) { this.lobule.startWash(landedAtMs); this.sinus.startWash(landedAtMs); } else { this.lobule.stopWash(); this.sinus.stopWash(); }
+    this.moving = true;
+  }
 
   /** The vessel whose body a pointer ray hits first, for tap-to-pick. */
   pickAt(x: number, y: number, raycaster: Raycaster): string | null {

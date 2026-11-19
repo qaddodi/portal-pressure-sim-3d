@@ -4,6 +4,7 @@ import { Line } from './Line.tsx';
 import { sentences, pageOf } from './pages.ts';
 import { NameTab } from './NameTab.tsx';
 import { SlideControls, LapseRow } from './SlideControls.tsx';
+import { ProcRow } from './ProcRow.tsx';
 import type { Deck } from '../../decks/schema.ts';
 
 export function TeachingCard({ slide, deck, read, page, pages, trim = false }: { slide: Slide; deck?: Deck; read: (k: string, at?: string) => number | null | undefined; page: number; pages: number; trim?: boolean }) {
@@ -29,6 +30,7 @@ export function TeachingCard({ slide, deck, read, page, pages, trim = false }: {
       {slide.caveat && page >= pages - 1 ? <p className="pz-caveat">{slide.caveat}</p> : null}
       {slide.cite && page >= pages - 1 ? <p className="pz-cite">{slide.cite}</p> : null}
       {deck && slide.lapse && page >= pages - 1 ? <LapseRow slide={slide} deck={deck} /> : null}
+      {deck && page >= pages - 1 ? <ProcRow slide={slide} deck={deck} /> : null}
       {deck && slide.controls && page >= pages - 1 ? <SlideControls slide={slide} deck={deck} /> : null}
     </>
   );
