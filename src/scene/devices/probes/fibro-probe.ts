@@ -61,6 +61,8 @@ export class FibroProbe {
   deg = 45;
   /** the tip on the screen now (px), the probe's turn there (degrees clockwise from +x, y down), and its body's box: what the reading's labels stand by */
   readonly screenAt = { x: 0, y: 0, turn: 45, placed: false, headOp: 1 };
+  /** the stiffness the probe's screen reads (kPa), eased to the model's over 0.6 s as 2D scan.k is; null before the model has one */
+  reading: number | null = null;
 
   constructor(shared: CelShared) {
     const fixed = (organ: FibroOrgan) => SCAN.COLOUR[organ] as string;
@@ -178,7 +180,12 @@ export class FibroProbe {
       this.beam.visible = vis; this.beamMat.opacity = this.shown;
     }
     this.screenAt.placed = vis;
-    if (!vis) { this.fronts = []; return moving; }
+    if (!vis) { this.fronts = []; this.reading = null; return moving; }
+    if (kpa != null && Number.isFinite(kpa)) {
+      const was = this.reading;
+      this.reading = was == null || (env?.reduceMotion?.() ?? false) ? kpa : was + (kpa - was) * (1 - Math.exp(-Math.max(0, dtMs) / 1000 / 0.6));
+      if (Math.abs(this.reading - kpa) < 0.005) this.reading = kpa;
+    }
     // where it stands on the screen and how it turns there
     const spleen = this.organ === 'spleen', dt = Math.max(0, dtMs) / 1000;
     if (env) {

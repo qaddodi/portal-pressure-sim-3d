@@ -99,3 +99,17 @@
 .lb-walk button { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; background: none; }
 .lb-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
+
+/* ── the Tests devices' readings (probe-labels.ts decides, probe-labels-dom.ts writes transform and opacity only) ──
+   The FibroScan probe's screen: the stiffness and "kPa" on its display, turned with its body (2D .scan-probe .sp-read, .sp-unit: 12 px, the number at 700, the unit at 600, the orange of the
+   waves darkened). The Doppler gate's callout: the vessel's name, its velocity and the unit, set as a station's label is (the same halo, ink and type), fading with the probe. */
+.pl { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform, opacity; white-space: nowrap; transform-origin: 0 0; line-height: 1; }
+.pl[data-on] { visibility: visible; }
+.pl-scan { font: 700 12px Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--fibroscan) 12%, black); }
+.pl-scan .pl-scan-unit { margin-left: 2px; font-size: 12px; font-weight: 600; color: color-mix(in srgb, var(--fibroscan) 30%, black); }
+.pl-dop { display: flex; align-items: baseline; font-family: var(--font-ui, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif); font-variant-numeric: tabular-nums; padding: 2px var(--lb-pad-x, 3px); }
+.pl-dop > span { -webkit-text-stroke: var(--lb-halo-w) var(--lb-halo); paint-order: stroke fill; stroke-linejoin: round; }
+.pl-dop .pl-dop-name { font-size: var(--lb-f-name); font-weight: var(--lb-w-name); color: var(--lb-name); }
+.pl-dop .pl-dop-val { margin-left: var(--lb-g-val); font-size: var(--lb-f-val); font-weight: var(--lb-w-val); color: var(--lb-val); }
+.pl-dop .pl-dop-unit { margin-left: 2.5px; font-size: calc(var(--lb-f-val) * 0.72); font-weight: 500; color: var(--lb-name); }
+.pl-dop[data-none] .pl-dop-unit { display: none; }
