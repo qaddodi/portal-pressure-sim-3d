@@ -41,7 +41,9 @@ test('the organ painter blends at the layer\'s opacity, fades without dots and k
   assert.doesNotMatch(ORGAN_FS, /if \(fadedOut\(\)\)/, 'the dive fades the layer, no dots');
   assert.match(ORGAN_FS, /vInk - color/);
   assert.match(ORGAN_VS, /attribute vec3 ink/);
-  assert.match(ORGAN_FS, /gl_FragColor = vec4\(fill, layer \* fade \* win\)/, 'blended at the layer, so organs show through each other');
+  // (the organ fill setting: with `solid` 0 the alpha is the layer's opacity, exactly as before; tests/organ-depth.test.ts)
+  assert.match(ORGAN_FS, /float a = mix\(layer, 1\.0, solid\);/);
+  assert.match(ORGAN_FS, /gl_FragColor = vec4\(fill, a \* fade \* win\)/, 'blended at the layer, so organs show through each other');
 });
 
 const twoD = pinned2D('styles/tokens.css');
