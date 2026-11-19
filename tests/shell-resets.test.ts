@@ -23,5 +23,11 @@ test('our element resets never outweigh the lifted 2D one-class rules (the top-b
 test('shell.css keeps its two button resets at zero weight', () => {
   const s = readFileSync(new URL('../src/ui/shell/shell.css', import.meta.url), 'utf8');
   assert.match(s, /^:where\(\.sh-root button\) \{ font: inherit;/m);
-  assert.match(s, /^:where\(\.sh-root button\) \{ border: 0; background: transparent; padding: 0; \}/m);
+  // the border/background/padding reset stops at #app: 2D resets none of them there (.sheet-grab is the browser's padding 1px 6px, 2px border, cursor default)
+  assert.match(s, /^:where\(\.sh-root button:not\(#app button\)\) \{ border: 0; background: transparent; padding: 0; \}/m);
+});
+
+test('the shell font stack is 2D\'s --font-ui whole (Inter Fallback, Roboto, Helvetica, Arial included)', () => {
+  const stack = (t: string) => /--(?:font-)?ui:\s*([^;]+);/.exec(t)![1]!.trim();
+  assert.equal(stack(readFileSync(new URL('../src/ui/shell/global.css', import.meta.url), 'utf8')), stack(readFileSync(new URL('../src/ui/css2d/tokens.css', import.meta.url), 'utf8')));
 });
