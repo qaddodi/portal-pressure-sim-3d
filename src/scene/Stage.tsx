@@ -19,6 +19,7 @@ import { aaMode } from './post-aa.ts';
 import { installShaderGuard } from '../debug/shader-guard.ts';
 import { setRenderer } from '../debug/gl-ref.ts';
 import { sinusoidTap } from './sinusoid/explain-store.ts';
+import { lookCapture } from '../debug/look-hook.ts';
 import { lobulePicked } from './lobule/pick-store.ts';
 import { lobuleSel } from './lobule/pick.ts';
 import { cel, frames, gesturesRef, sceneApi } from './api.ts';
@@ -27,6 +28,8 @@ import { dragToOrbit } from './camera/rig.ts';
 import { type GestureTarget, createGestures } from './gesture/controller.ts';
 import { type Sel, selectStructure, useSelection } from '../ui/action/selection.ts';
 import { tapSelect } from '../ui/action/tap-select.ts';
+import { labelHit } from '../ui/action/label-tap.ts';
+import { labelAt } from './labels/hit.ts';
 
 const vesselData = new VesselData();
 cel.bindData(vesselData.texture);
@@ -44,7 +47,7 @@ function SceneBridge() {
   const raycaster = useRef(new Raycaster());
 
   // the one draw of the frame: the cel scene on the R3F renderer (a positive priority stops R3F drawing its own)
-  useFrame(() => { cel.render(gl); }, 1);
+  useFrame(() => { cel.render(gl); lookCapture.run(gl.domElement); }, 1);   // (the look board reads the canvas in this task, when it asked)
 
   useEffect(() => {
     cel.resize(size.width, size.height);
@@ -118,7 +121,9 @@ function SceneBridge() {
         if (cel.view === 'sinusoid' && sinusoidTap(x, y, useDeck.getState().mode === 'deck')) return;   // (2D's explain rule: a tap on a sinusoid name, in a talk: sinusoid/explain-store.ts)
         if (useDeck.getState().mode !== 'free') return;
         if (cel.view === 'lobule') { const h = cel.pickLobule(x, y, raycaster.current); lobulePicked(h ? lobuleSel(h) : null); return; }   // (the lobule's parts, by 2D's own rule: lobule/pick.ts)
-        tapSelect(cel.pickTargetAt(x, y, raycaster.current, !!touch), { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: cel.view === 'body' });
+        // a station's label above the figure takes the tap first and opens the structure it stands for (2D's label is a button over the stage: src/ui/action/label-tap.ts)
+        const node = cel.view === 'body' ? labelAt(x, y) : null;
+        tapSelect((node ? labelHit(node) : null) ?? cel.pickTargetAt(x, y, raycaster.current, !!touch), { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: cel.view === 'body' });
       },
       picked: () => useSelection.getState().sel,
       setPicked: (sel) => selectStructure(sel as Sel | null),

@@ -9,6 +9,8 @@ import { LENS_IDS, SINCE_BASELINE_FED } from '../../scene/lenses/model.ts';
 import { CATHS } from '../schema.ts';
 import { PROCEDURE_PLAYS } from '../../scene/procedures/plays.ts';
 import { UI } from '../../ui/strings.generated.ts';
+import { lapseGraphOf } from '../../ui/charts/flowtime/lapse-graph.generated.js';
+import { stepOf } from '../hp/numbers.ts';
 import type { CopiedSlide } from './types.ts';
 import { slideShots, type ShotSpec } from './shots.ts';
 
@@ -27,6 +29,8 @@ const ready = (): boolean => true;
 const claimed = (): boolean => false;
 /** What the figure link draws (src/ui/deck/figure-link.ts: plan, calls, cards, organ outlines; tests/deck-figure-link.test.ts judges every slide's calls). */
 const FIGURE_LANDED = new Set(['fig:labels', 'fig:mark', 'fig:glow', 'fig:glow-steps', 'fig:sites']);
+/** data:graph, held to the things that do it: 2D's own lapse-graph.js names the chart's two lines, and the deck's model step asks the engine for that chart's trail (the flow-time tool is mounted by ui/talk/ToolCard.tsx). */
+const graphReady = (): boolean => lapseGraphOf({ lapse: {}, tiles: ['pv', 'pvFlow'] })?.lines.length === 2 && !!stepOf({ id: 'g', days: 1, tool: { kind: 'flowtime' } } as never).trail;
 
 /** The kinds of action the engine host applies (worker-core.js applyAction). */
 export const ACTION_KINDS = ['infuse', 'hemorrhage', 'retain', 'band', 'paracentesis', 'valsalva', 'strain', 'rupture', 'stopBleed'] as const;
@@ -61,7 +65,7 @@ const FIELD_HOOKS: Record<string, { id: string; owner: Owner; what: string }> = 
   chartFoot: { id: 'card:chart-foot', owner: 'B10', what: 'the chart footnote' },
   graph: { id: 'data:graph', owner: 'B10', what: 'the time-lapse graph on the teaching card' },
   plane: { id: 'visual:plane-options', owner: 'B10', what: 'the plane\'s options' },
-  span: { id: 'data:spans', owner: 'B10', what: 'the profile\'s brackets' },
+  span: { id: 'data:spans', owner: 'B10', what: 'the Circuit\'s bracket between two stations, with its reading' },
   glow: { id: 'fig:glow', owner: 'B6', what: 'the outlines the slide lights' },
   glowSeq: { id: 'fig:glow-steps', owner: 'B6', what: 'the numbered glow steps' },
   lapseGlow: { id: 'fig:glow-steps', owner: 'B6', what: 'the numbered glow steps' },
@@ -98,8 +102,10 @@ export const CARD_LANDED: Readonly<Record<string, string>> = {
   'card:chart-foot': 'src/ui/charts/small/AllPatientsCard.tsx',  // and its footnote
   'data:graph': 'src/ui/talk/ToolCard.tsx',              // a time-lapse's graph is its instrument card: the copy gives the slide the flow-time or procedure chart (2D slide-instrument.js), the data card mounts it
   'visual:plane-options': 'src/ui/talk/ToolCard.tsx',    // the plane visual hands the slide's own plane to the chart
+  'data:spans': 'src/scene/labels/figure-cards.ts',      // the Circuit's bracket under a span of stations and its reading (ui/deck/figure-plan.ts spans, figure-calls.ts, labels/span-math.ts)
   'visual:walls': 'src/ui/charts/walls/WallsCard.tsx',   // the two walls
   'reading:res': 'src/ui/talk/table-model.ts',           // the table's intrahepatic resistance column (the engine's rih)
+  'reading:wave': 'src/ui/cards/WaveCell.tsx',             // the summary table's Doppler wave column (talk/table-wave.ts)
   'reading:hvpgFall': 'src/decks/hp/derived-tiles.ts',   // the response tile: the fall from the slide `hvpgResp` names
 };
 
@@ -117,7 +123,7 @@ export function hookOf(id: string): Hook | null {
       return { owner: 'ENGINE', what: `the model step "${rest}"`, landed: ready };
     case 'reading': return { owner: 'B12', what: `the "${rest}" reading, worked out by the data card from the slide's own state (not an engine tile)`, landed: id in CARD_LANDED ? ready : claimed };
     case 'tile': return { owner: 'B10', what: `the ${rest} reading`, landed: () => rest in TILE };
-    case 'data': return { owner: id === 'data:tiles' ? 'B12' : 'B10', what: id === 'data:tiles' ? 'the data card of tiles' : `the ${rest} of the data card`, landed: id === 'data:tiles' || id === 'data:graph' || id in CARD_LANDED ? ready : claimed }   // (data:graph: the event graph of a procedure slide reads the slide's `graph` (charts/evgraph/model.ts); on a flow-time or `graph: false` slide the field stays inert, as in 2D);
+    case 'data': return { owner: id === 'data:tiles' ? 'B12' : 'B10', what: id === 'data:tiles' ? 'the data card of tiles' : `the ${rest} of the data card`, landed: id === 'data:tiles' || id in CARD_LANDED ? ready : id === 'data:graph' ? graphReady : claimed }   // (data:graph: the event graph of a procedure slide reads the slide's `graph` (charts/evgraph/model.ts); on a flow-time or `graph: false` slide the field stays inert, as in 2D);
     case 'tool': return { owner: 'B10', what: `the ${rest} instrument or chart`, landed: () => toolLanded(rest) };
     case 'lens': return { owner: 'B3', what: `the ${rest} colour lens`, landed: () => (LENS_IDS as readonly string[]).includes(rest) && (rest !== 'since' || SINCE_BASELINE_FED) };
     case 'cath': return { owner: 'B5', what: `the catheter's ${rest} state`, landed: () => (CATHS as readonly string[]).includes(rest) };

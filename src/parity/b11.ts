@@ -19,7 +19,26 @@ const GALLERY: Record<string, string[]> = {
 for (const [pane, states] of Object.entries(GALLERY)) for (const st of states) for (const twin of ['', '#2']) out.push({ id: `card:tests-${pane}/${st}${twin}`, wired: BUILT_PANES.includes(pane as PaneId) });
 
 // the 2D gallery's slide instruments (`tool: { kind }` on a slide, ui/talk/ToolCard.tsx mounts the Tests pane): the three FibroScan cards, the scope's three (air, red wale, readings: EndoPane's `options`),
-// the abdomen and the varix wall. (The HVPG monitor's frozen free / wedge / result cards, the measurement monitors, Doppler's gates and ghosts, the traces and the vitals are the deck threads'.)
+// the abdomen and the varix wall.
 for (const id of ['fibroscan/liver', 'fibroscan/spleen', 'fibroscan/no-spleen', 'scope/varix', 'scope/insufflation', 'scope/no-wale', 'abdomen/ascites', 'wall/varix']) out.push({ id: `card:${id}`, wired: true });
+
+// The rest of the slide instruments (ui/talk/ToolCard.tsx): each is claimed because the card exists with the slide's options, not for the deck's hooks, which the deck thread flips.
+//  Doppler (22): every vessel, the display modes, the waves, the pair with its calipers, the stent's gates, the fixed scale and baseline, the scope as the probe, the earlier reading as a ghost (tests/b11-slide.test.ts lists the 22).
+//  hvpg (4): the HVPG tracing as a data card (slide/HvpgCard.tsx): free, wedge and result with the catheter on the figure, and the card with no catheter that takes a reading for each Next.
+//  reading (4): the measurement monitor following a procedure's clock (slide/ReadingCard.tsx): present, wired once the deck's procedure player calls readingCard.procAt each frame it runs.
+//  trace (7): beat by beat on EKG paper (slide/BeatCard.tsx) and the talk chart (charts/trace); vitals (4): the bedside monitor (charts/vitals).
+const SLIDE_CARDS: [string, boolean][] = [
+  ...['pv-spectrum', 'pv-color', 'pv-variance', 'hv-waves', 'pair-calipers', 'artery', 'reversed', 'no-flow', 'splenic', 'ivc', 'varix', 'paraumbilical', 'scope-probe', 'eus-glue', 'tips-proximal', 'tips-mid', 'tips-distal', 'tips-site', 'aliasing', 'aliasing-baseline', 'ghost-before', 'ghost'].map((x): [string, boolean] => [`doppler/${x}`, true]),
+  ...['free', 'wedge', 'result', 'card'].map((x): [string, boolean] => [`hvpg/${x}`, true]),
+  ...['hvpgcath', 'eus', 'irivc', 'tipsgrad'].map((x): [string, boolean] => [`reading/${x}`, false]),
+  ...['beats', 'beats-plain', 'beats-delta', 'talk', 'talk-steps', 'talk-since', 'talk-milestones'].map((x): [string, boolean] => [`trace/${x}`, true]),
+  ...['default', 'output', 'hold', 'alarm'].map((x): [string, boolean] => [`vitals/${x}`, true]),
+];
+for (const [id, wired] of SLIDE_CARDS) out.push({ id: `card:${id}`, wired });
+// the deck's `tool: { kind }` rows: the instruments the card mounts (the reading card waits for the procedure's clock)
+for (const k of ['doppler', 'hvpg', 'fibroscan', 'scope', 'abdomen', 'wall', 'trace', 'vitals']) out.push({ id: `tool:${k}`, wired: true });
+out.push({ id: 'tool:reading', wired: false });
+// the Ascites pane's pressure dial wears 2D's inst.* numbers (charts/looks2d/chart-looks/inst.js is copied; the dial itself is hand-laid in tests/abdomen/model.ts dialFrame)
+out.push({ id: 'chart:inst', wired: false });
 
 export const claims: readonly Claim[] = out;

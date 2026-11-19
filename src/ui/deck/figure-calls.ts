@@ -5,7 +5,7 @@ import type { FigurePlan } from './figure-plan.ts';
 import { toneCss } from './figure-plan.ts';
 import { ORGAN_STYLE } from '../../scene/organs/layer.ts';
 import { SITE_DEF_2D, SPLEEN_AXIS_2D, ORGAN_ANCHOR_2D, VAL_TONE_2D } from '../../scene/labels/figure2d.copied.ts';
-import type { FigCard, FigCaliper, Anchor } from '../../scene/labels/figure-cards.ts';
+import type { FigCard, FigCaliper, FigSpan, Anchor } from '../../scene/labels/figure-cards.ts';
 import type { ResKey } from '../../scene/circuit/res-model.ts';
 import { NETWORK_BY_ID } from '../../scene/vessels/network.ts';
 import { valueText, parseToken, VALUE_PENDING } from '../../decks/hp/numbers.ts';
@@ -36,11 +36,13 @@ export interface FigureCalls {
   caudate: boolean;
   cards: FigCard[];
   calipers: FigCaliper[];
+  /** The Circuit's brackets, each with its words filled from the slide's numbers. */
+  spans: FigSpan[];
   /** Whatever the plan names that is not drawn: 2D draws nothing for it either (a ripple's halo, a lobule's pointer), or it is another view's. */
   notDrawn: string[];
 }
 
-export const EMPTY_CALLS: FigureCalls = { named: [], pins: [], normalSpleen: false, marked: [], res: [], caudate: false, cards: [], calipers: [], notDrawn: [] };
+export const EMPTY_CALLS: FigureCalls = { named: [], pins: [], normalSpleen: false, marked: [], res: [], caudate: false, cards: [], calipers: [], spans: [], notDrawn: [] };
 
 /** The words of a clot mark that follows the model (callout-math.js clotWords). */
 export function clotWords(v: number | undefined): string | null {
@@ -122,8 +124,11 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
     calipers.push({ id: c.id, line: { across: c.edge }, text });
   }
 
+  // spans: a bracket on the Circuit between two stations, its words read from the slide's numbers
+  const spans: FigSpan[] = plan.spans.map((sp, i) => ({ id: `span:${i}`, from: sp.from, to: sp.to, text: liveLabel(sp.label, fp) }));
+
   if (plan.ripple) notDrawn.push('ripple (2D draws no halo: stage-glow.js, 13 Nov 2026)');
-  return { named, pins, normalSpleen: plan.normalOutline.includes('spleen'), marked, res: plan.res, caudate: plan.caudate, cards, calipers, notDrawn };
+  return { named, pins, normalSpleen: plan.normalOutline.includes('spleen'), marked, res: plan.res, caudate: plan.caudate, cards, calipers, spans, notDrawn };
 }
 
 export { toneCss };

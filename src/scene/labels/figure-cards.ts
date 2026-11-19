@@ -13,10 +13,13 @@ import { stationById, curveOf, nodeZ, ORGAN_FRONT } from './stations.ts';
 import { NODE_POS_2D } from '../vessels/paths.copied.ts';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { x3, y3 } from '../frame2d.ts';
+import { spanOf, spanStrokes } from './span-math.ts';
 
 /** Where a card points: a vessel's middle, a station, a point of the 2D plate (organs, the spleen's ends), or a node of the 2D figure. */
 export type Anchor = { edge: string } | { station: string } | { at2d: readonly [number, number] } | { node: string } | { lobule: string };
 
+/** A bracket on the Circuit between two stations (a slide's `span`): its words, as printed, standing under its middle. */
+export interface FigSpan { id: string; from: string; to: string; text: string }
 export type CardKind = 'mark' | 'site' | 'step' | 'split';
 export interface FigCard {
   id: string; kind: CardKind;
@@ -101,6 +104,8 @@ export interface CardDeps {
   spleenScale(): number;
   /** A place of the lobule view ('triad:0', 'centre', 'zone:2'), scene point; null when that view is not the figure now. */
   lobule(name: string, out: Vector3): Vector3 | null;
+  /** The Circuit once it is the figure: pixels one map unit covers, and a map point (units) on the canvas; null while another view is. */
+  circuit(): { k: number; project(x: number, y: number, out: { x: number; y: number }): { x: number; y: number } } | null;
 }
 
 /** The point a card names, scene units; null when the 3D figure does not have it. */
@@ -115,13 +120,16 @@ export function anchorPoint(a: Anchor, out: Vector3, lobule?: CardDeps['lobule']
 }
 
 interface Rec { card: Card; spec: FigCard; a: number; box: CardOut | null; sig: string; root: HTMLElement; split?: { n: HTMLElement; lt: HTMLElement; l: HTMLElement; s: HTMLElement } }
+interface SpanRec { root: HTMLElement; segs: HTMLElement[]; tx: string[]; card: Card; spec: FigSpan; a: number; box: CardOut | null }
 interface CalRec { root: HTMLElement; line: HTMLElement; ticks: [HTMLElement, HTMLElement]; tickTx: string; card: Card; spec: FigCaliper; a: number; tx: string; box: CardOut | null }
 
 export class FigureCards {
   private cards: FigCard[] = [];
   private calipers: FigCaliper[] = [];
+  private spans: FigSpan[] = [];
   private readonly recs = new Map<string, Rec>();
   private readonly cals = new Map<string, CalRec>();
+  private readonly spanRecs = new Map<string, SpanRec>();
   private t0 = 0;
   private lastMove = -1e9;
   private last = -1;
@@ -139,8 +147,8 @@ export class FigureCards {
   constructor(parent: HTMLElement, deps: CardDeps) { this.parent = parent; this.deps = deps; }
 
   /** The slide's cards (replacing the last slide's: what it stood leaves with it). `t0` is when the slide landed (the steps count from it). */
-  set(cards: readonly FigCard[], calipers: readonly FigCaliper[] = [], t0 = this.deps.now()): void {
-    this.cards = [...cards]; this.calipers = [...calipers]; this.t0 = t0; this.dirty = true;
+  set(cards: readonly FigCard[], calipers: readonly FigCaliper[] = [], t0 = this.deps.now(), spans: readonly FigSpan[] = []): void {
+    this.cards = [...cards]; this.calipers = [...calipers]; this.spans = [...spans]; this.t0 = t0; this.dirty = true;
   }
   markDirty(): void { this.dirty = true; }
 
@@ -171,6 +179,19 @@ export class FigureCards {
     return { root, line, ticks, tickTx: '', card, spec, a: 0, tx: '', box: null };
   }
 
+  private makeSpan(spec: FigSpan): SpanRec {
+    const root = document.createElement('div'); root.className = 'cl-span'; this.parent.appendChild(root);
+    const segs = [0, 1, 2].map(() => { const k = document.createElement('i'); k.className = 'cl-span-seg'; root.appendChild(k); return k; });
+    const card = makeCard(this.parent, 'cl cl-pill cl-fig');
+    card.root.dataset.fig = 'span';
+    return { root, segs, tx: ['', '', ''], card, spec, a: 0, box: null };
+  }
+
+  /** A reading's card size: one line of words in the card's own type. */
+  private textSize(text: string, t: CathType): { w: number; h: number } {
+    return { w: ceil2(this.deps.measure(text, t.name, LS.CATH.NAME.weight, LS.CATH.NAME.track * t.name) + 2 * t.padX + 2 * t.border), h: ceil2(t.padTop + t.padBottom + 2 * t.border + normal(t.name)) };
+  }
+
   /** One frame (the clock's tags phase). Returns true while cards still need frames (fading, or waiting to return). */
   tick(): boolean {
     const d = this.deps, now = d.now(), dt = this.last < 0 ? 16 : Math.min(100, now - this.last);
@@ -187,6 +208,10 @@ export class FigureCards {
     const wantCal = new Set(this.calipers.map((c) => c.id));
     for (const [id, r] of this.cals) if (!wantCal.has(id) && r.a <= 0) { r.root.remove(); r.card.root.remove(); this.cals.delete(id); }
     for (const c of this.calipers) { let r = this.cals.get(c.id); if (!r) { r = this.makeCaliper(c); this.cals.set(c.id, r); } r.spec = c; }
+
+    const wantSpan = new Set(this.spans.map((c) => c.id));
+    for (const [id, r] of this.spanRecs) if (!wantSpan.has(id) && r.a <= 0) { r.root.remove(); r.card.root.remove(); this.spanRecs.delete(id); }
+    for (const c of this.spans) { let r = this.spanRecs.get(c.id); if (!r) { r = this.makeSpan(c); this.spanRecs.set(c.id, r); } r.spec = c; }
 
     // where each named place stands now; any that moved hides the cards until the picture is still
     let moved = d.cameraMoving();
@@ -210,13 +235,28 @@ export class FigureCards {
       anchors.set('cal:' + c.id, mid);
       if (!was || Math.abs(was.x - mid.x) > 0.35 || Math.abs(was.y - mid.y) > 0.35) moved = true;
     }
+    // each bracket's three strokes on the canvas (the map's own points, so the turn and the camera carry it), and the middle of its line
+    const circ = this.spans.length ? d.circuit() : null;
+    const strokes = new Map<string, [number, number, number, number][]>();
+    for (const c of this.spans) {
+      const at = circ && spanOf(c.from, c.to, circ.k);
+      if (!circ || !at) continue;
+      const out = spanStrokes(at).map(([p, q]) => { const a = circ.project(p[0], p[1], { x: 0, y: 0 }), b = circ.project(q[0], q[1], { x: 0, y: 0 }); return [a.x, a.y, b.x, b.y] as [number, number, number, number]; });
+      strokes.set(c.id, out);
+      const l = out[0]!, mid = { x: (l[0] + l[2]) / 2, y: (l[1] + l[3]) / 2 };
+      for (const [k, p] of [['m', mid], ['a', { x: l[0], y: l[1] }], ['b', { x: l[2], y: l[3] }]] as const) {
+        const key = `span:${c.id}:${k}`, was = this.anchors.get(key);
+        anchors.set(key, p);
+        if (!was || Math.abs(was.x - p.x) > 0.35 || Math.abs(was.y - p.y) > 0.35) moved = true;
+      }
+    }
     this.anchors = anchors;
     if (moved) this.lastMove = now;
     const hold = now - this.lastMove < FADE.settleMs;
 
     // solve once the picture is still and something changed
     const blockers = d.blockers();
-    const sig = [this.cards.map((c) => c.id + c.text + (c.value ?? '')).join(','), this.calipers.map((c) => c.id + c.text).join(','), view.x0, view.y0, view.x1, view.y1, blockers.map((b) => `${Math.round(b.x0)},${Math.round(b.y0)},${Math.round(b.x1)},${Math.round(b.y1)}`).join(';'), vp.w, vp.h].join('|');
+    const sig = [this.cards.map((c) => c.id + c.text + (c.value ?? '')).join(','), this.calipers.map((c) => c.id + c.text).join(','), this.spans.map((c) => c.id + c.text + (strokes.has(c.id) ? 1 : 0)).join(','), view.x0, view.y0, view.x1, view.y1, blockers.map((b) => `${Math.round(b.x0)},${Math.round(b.y0)},${Math.round(b.x1)},${Math.round(b.y1)}`).join(';'), vp.w, vp.h].join('|');
     if (!hold && (this.dirty || sig !== this.sig)) {
       this.sig = sig; this.dirty = false;
       const ins: CardIn[] = [];
@@ -226,10 +266,17 @@ export class FigureCards {
         const w = ceil2(d.measure(c.text, t.name, LS.CATH.NAME.weight, LS.CATH.NAME.track * t.name) + 2 * t.padX + 2 * t.border), h = ceil2(t.padTop + t.padBottom + 2 * t.border + normal(t.name));
         ins.push({ id: 'cal:' + c.id, x: (e[0] + e[2]) / 2, y: (e[1] + e[3]) / 2, w, h, below: false });
       }
+      // a bracket's reading stands under the middle of its line
+      for (const c of this.spans) {
+        const l = strokes.get(c.id)?.[0]; if (!l) continue;
+        const s = this.textSize(c.text, t);
+        ins.push({ id: 'span:' + c.id, x: (l[0] + l[2]) / 2, y: (l[1] + l[3]) / 2, w: s.w, h: s.h, below: true });
+      }
       const outs = placeCards(ins, view, blockers);
       const by = new Map(outs.map((o) => [o.id, o]));
       for (const [id, r] of this.recs) { r.box = by.get(id) ?? null; r.sig = ''; }
       for (const [id, r] of this.cals) r.box = by.get('cal:' + id) ?? null;
+      for (const [id, r] of this.spanRecs) r.box = by.get('span:' + id) ?? null;
       this.boxes = outs.filter((o) => o.ok).map((o) => o.box);
     }
 
@@ -250,6 +297,13 @@ export class FigureCards {
       if (next !== r.a) busy = true;
       r.a = next;
       this.paintCaliper(r, t, ends.get(id));
+    }
+    for (const [id, r] of this.spanRecs) {
+      const live = wantSpan.has(id) && !!r.box?.ok && !hold && strokes.has(id);
+      const next = Math.min(1, Math.max(0, r.a + (live ? inn : -out)));
+      if (next !== r.a) busy = true;
+      r.a = next;
+      this.paintSpan(r, t, strokes.get(id));
     }
     // a step that has not come yet keeps frames coming until it does
     for (const c of this.cards) if ((c.at ?? 0) > age) busy = true;
@@ -344,10 +398,37 @@ export class FigureCards {
     fade(r.card, r.a);
   }
 
+  /** A bracket: its line and the tick at each end (a thin ink line each, moved by transform), and its reading in the card's glass under it. */
+  private paintSpan(r: SpanRec, t: CathType, st: [number, number, number, number][] | undefined): void {
+    if (r.a <= 0 || !st || !r.box) {
+      if (r.root.hasAttribute('data-on')) { r.root.removeAttribute('data-on'); r.root.style.opacity = '0'; show(r.card, false); fadeKids(r.card, 0); }
+      return;
+    }
+    r.root.setAttribute('data-on', '');
+    st.forEach((e, i) => {
+      const len = Math.hypot(e[2] - e[0], e[3] - e[1]), ang = Math.atan2(e[3] - e[1], e[2] - e[0]);
+      const tx = `translate3d(${Math.round(e[0] * 100) / 100}px,${Math.round(e[1] * 100) / 100}px,0) rotate(${ang.toFixed(4)}rad) scaleX(${Math.round(len * 100) / 100})`;
+      if (tx !== r.tx[i]) { r.tx[i] = tx; r.segs[i]!.style.transform = tx; }
+    });
+    r.root.style.opacity = String(Math.round(r.a * 1000) / 1000);
+    show(r.card, true);
+    const { w, h } = this.textSize(r.spec.text, t);
+    size(r.card, w, h);
+    const key = `${r.spec.text}|${r.box.dir}|${Math.round(r.box.ax)}|${w}`;
+    if (r.card.shape !== key) {
+      words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'free' } as Reading);
+      r.card.n.style.display = 'none'; r.card.u.style.display = 'none'; r.card.root.dataset.tone = 'note';
+      shape(r.card, pillGlass(w, h, t.radius, r.box.dir === 'none' ? 'none' : r.box.dir, r.box.ax), key);
+    }
+    place(r.card, r.box.x0, r.box.y0);
+    fade(r.card, r.a);
+  }
+
   destroy(): void {
     for (const r of this.recs.values()) r.root.remove();
     for (const r of this.cals.values()) { r.root.remove(); r.card.root.remove(); }
-    this.recs.clear(); this.cals.clear();
+    for (const r of this.spanRecs.values()) { r.root.remove(); r.card.root.remove(); }
+    this.recs.clear(); this.cals.clear(); this.spanRecs.clear();
   }
 }
 

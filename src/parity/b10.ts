@@ -8,8 +8,13 @@
 //   card:<id>      the 2D gallery's specimen (ui/charts/gallery/catalog.generated.ts, copied by scripts/copy-chart-catalog.mjs): a slide as a 2D deck writes it. Present = its chart is done (or its
 //                  tiles are all readings the app knows); wired = the presenter mounts that chart, the chart reads every option the specimen sets, and every other feature the slide needs has
 //                  landed (the rw hook table, the same the deck rows use: a specimen on the Circuit view waits for the Circuit view).
-// Not claimed, on purpose (see the report): `chart:inst` (the Tests abdomen dial's looks, nothing draws with them), the 2D data card's head (the tool's name beside its readings), the time-lapse
-// graph on a teaching card (2D lapse-graph.js), the still column / SAAG quadrant / walls of `chart:card`.
+// Built after the first round (the rows themselves were claimed already; what they say is now true): the data card's heading (ui/talk/tool-title.ts, drawn by ui/cards/TilesCard.tsx TilesHead for every
+// card with an instrument: 2D's cardTitle), and the time-lapse graph. At the 2D pin the graph is the slide's instrument card (slide-instrument.js, PC-6), not part of the teaching card: the copied decks
+// name its flow-time chart as the slide's tool, and what was missing was the deck steps' ask for its trail (hp/numbers.ts stepOf: `trail`, and a procedure's `before`), so every flow-time and
+// event-graph card was drawn with no data. `data:graph` (decks/ag/needs.ts) now reads the thing that does it.
+// Not claimed, on purpose: `chart:inst` (the Tests abdomen dial's looks: no chart of src/ui/charts draws with them, the abdomen pane is the Tests thread's), `chart:small` stays present only (the timeline
+// clock chart, ui/charts/timeline, is mounted by no page: 2D mounts it in the play bar's .tl-time, src/ui/shell/PlayBar.tsx, which needs the jump's {from, days} from ui/timeline), the still column /
+// SAAG quadrant / walls of `chart:card`, and `data:spans` (the slide field `span` is the Circuit figure's bracket and live words, ext-callouts.js, not a chart).
 import { CHARTS } from '../ui/charts/registry.ts';
 import { LOOKS, HOSTS } from '../ui/charts/looks2d/chart-looks/index.js';
 import * as DSL from '../ui/charts/looks2d/chart-looks/dsl.js';

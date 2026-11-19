@@ -59,7 +59,7 @@ export const curveOf = (edge: string): CatmullRomCurve3 | null => {
   return c;
 };
 
-/** Fixed scene points for stations that are not one vessel: the right atrium, the right liver's sinusoids, the varices. Where each stands is the 2D
+/** Fixed scene points for stations that are not one vessel: the right atrium, the right liver's sinusoids, the varices and the fundal varices. Where each stands is the 2D
  *  figure's own place for it (NODE_POS_2D), carried onto the scene by the one map (frame2d.ts), at the depth the vessels that meet there are drawn at (nodeZ): a
  *  dot put on the front tier hung 0.4 to 0.8 of a unit in front of the atrium's back-tier cava, which a turned camera shows as a dot off its vessel. An organ's name stands where the 2D app puts it (ORGAN_LABELS, copied), on the organ's front face. */
 const at2d = (x: number, y: number, z: number): [number, number, number] => [x3(x), y3(y), z];
