@@ -9,27 +9,32 @@
 .lb, .lb-call, .lb-key-wrap, .lb-lead, .lb-anchor { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform, opacity; }
 .lb[data-on], .lb-call[data-on], .lb-key-wrap[data-on], .lb-lead[data-on], .lb-anchor[data-on] { visibility: visible; }
 
-/* ── a station's pill: a dot in its vein's colour, the name, the reading ── */
-.lb { display: flex; align-items: center; gap: 6px; box-sizing: border-box; padding: 0 10px; border-radius: 999px; white-space: nowrap;
-  background: var(--glass); border: 1px solid var(--edge); font: 600 13px / 1 var(--ui, system-ui); color: var(--text); }
-.lb .lb-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--text-3)); }
-.lb[data-tone="portal"] { --c: var(--vein-portal); }
-.lb[data-tone="sys"] { --c: var(--vein-systemic); }
-.lb .lb-name { min-width: 0; }
-.lb .lb-val { margin-left: auto; position: relative; display: inline-block; font-weight: 700; text-align: right; }
-.lb[data-region] { justify-content: center; font-weight: 600; color: var(--text-2); }
-.lb[data-region] .lb-dot, .lb[data-region] .lb-val { display: none; }
+/* ── a station's label, as the 2D app draws it: no backing, a small name in the quiet ink, the reading large and bold, a halo round every
+   letter, a thin leader to a small ring on the vessel. Sizes, weights, gaps, the halo and the look's ink are custom properties the layer
+   writes from the copied 2D values (type.ts); this file holds no figure of its own. ── */
+.lb { display: flex; align-items: baseline; box-sizing: border-box; padding: 0 var(--lb-pad-x); white-space: nowrap;
+  font-family: var(--font-ui, Inter, "Inter Fallback", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif); font-variant-numeric: tabular-nums; }
+/* (a strut stands the baseline where the 2D app writes it: --b from the top of the box, written with the size) */
+.lb::before { content: ""; align-self: baseline; display: block; width: 0; height: var(--b, 0px); }
+.lb > span { line-height: 1; -webkit-text-stroke: var(--lb-halo-w) var(--lb-halo); paint-order: stroke fill; stroke-linejoin: round; }
+.lb .lb-name { min-width: 0; font-size: var(--lb-f-name); font-weight: var(--lb-w-name); color: var(--lb-name); }
+.lb .lb-val { margin-left: var(--lb-g-val); position: relative; display: inline-block; font-size: var(--lb-f-val); font-weight: var(--lb-w-val); color: var(--lb-val); }
+.lb[data-form="2"] .lb-val { margin-left: 0; }
+.lb .lb-rev { display: none; margin-left: var(--lb-g-rev); font-size: var(--lb-f-rev); font-weight: var(--lb-w-rev); color: var(--lb-rev); }
+.lb[data-rev] .lb-rev { display: inline-block; }
+.lb[data-region] { justify-content: center; }
+.lb[data-region] .lb-name { font-size: var(--lb-f-organ); font-weight: var(--lb-w-organ); letter-spacing: var(--lb-track-organ); color: var(--lb-organ); }
+.lb[data-region] .lb-val, .lb[data-region] .lb-rev { display: none; }
 
 /* the number rolls when it changes (400 ms, transform and opacity; the box keeps the width of the longest text) */
 .lb-roll { position: relative; display: inline-block; }
 .lb-roll > .lb-cur { display: inline-block; }
 .lb-roll > .lb-old { position: absolute; right: 0; top: 0; }
 
-/* ── a leader: one hairline from the station's dot to its pill (scaled, so its width is never written) ── */
-.lb-lead { width: 1px; height: 1px; transform-origin: 0 0; background: var(--text-3); }
-.lb-anchor { width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; box-sizing: border-box; border: 1.5px solid var(--c, var(--text-3)); background: var(--surface); }
-.lb-anchor[data-tone="portal"] { --c: var(--vein-portal); }
-.lb-anchor[data-tone="sys"] { --c: var(--vein-systemic); }
+/* ── a leader: one hairline from the ring on the vessel to its words (scaled, so its width is never written), and the ring ── */
+.lb-lead { width: 1px; height: var(--lb-lead-w); transform-origin: 0 50%; background: var(--lb-leader); }
+.lb-anchor { width: var(--lb-ring); height: var(--lb-ring); margin: calc(var(--lb-ring) / -2) 0 0 calc(var(--lb-ring) / -2); border-radius: 50%; box-sizing: border-box;
+  border: var(--lb-ring-w) solid var(--lb-name); background: var(--lb-ring-fill); }
 
 /* ── a reading card with a pointer (the catheter's FHVP, WHVP and the HVPG they give) ── */
 .lb-call { box-sizing: border-box; padding: 9px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--edge); white-space: nowrap;

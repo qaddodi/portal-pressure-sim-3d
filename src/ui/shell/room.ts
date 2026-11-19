@@ -4,7 +4,9 @@ import type { Rect, Viewport } from '../layout/device.ts';
 import { isPhone, type DeviceClass } from '../layout/device.ts';
 
 export const TOP_BAR_H = 52;          // buttons 44 px, 4 px above and below
-export const PLAY_BAR_H = 52;
+export const PLAY_BAR_H = 60;         // the dock's timeline row (2D .vdock .stage-bar.bottom); with the readouts above it on a phone it is PHONE_DOCK_H
+export const PHONE_DOCK_H = 96;       // timeline row 52 + the readouts strip
+export const DOCK_GAP = 12;
 export const THUMB_BAR_H = 56;        // the bottom bar's tabs
 export const VIEW_ROW_H = 44;         // the view pills' row above the play bar on a phone
 
@@ -13,8 +15,9 @@ export const usesBottomBar = (d: DeviceClass): boolean => d === 'phone-portrait'
 
 /** The height the foot of the screen takes (above the bottom safe area). */
 export function footHeight(d: DeviceClass): number {
-  if (usesBottomBar(d)) return THUMB_BAR_H + PLAY_BAR_H + (isPhone(d) && d === 'phone-landscape' ? 0 : VIEW_ROW_H) + 8;
-  return PLAY_BAR_H + 16;
+  if (d === 'phone-landscape') return THUMB_BAR_H + 52 + 8;   // the play bar beside the readouts (2D: a phone on its side)
+  if (usesBottomBar(d)) return THUMB_BAR_H + PHONE_DOCK_H + VIEW_ROW_H + 8;
+  return PLAY_BAR_H + DOCK_GAP + 8;
 }
 
 export function freeRoom(vp: Viewport, d: DeviceClass): Rect {

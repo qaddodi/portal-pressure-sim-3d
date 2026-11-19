@@ -174,14 +174,14 @@
 /* NOTE: never gate the glass on `@media (prefers-reduced-transparency: no-preference)` or `not (...)`: a browser that does not know the feature (Safari, on every device the
    owner tests on) treats the whole query as false, and the glass never applies. The glass is the default; reduced transparency is the override below it. */
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  html:not([data-noglass]) :is(.dk-card, .dk-strip, .dk-bar, .dk-panel, .sh-pill, .sh-seg, .sh-split, .sh-read, .sh-thumb, .sh-sheet, .sh-pop, .sh-dialog) {
+  html:not([data-noglass]) :is(.dk-card, .dk-strip, .dk-bar, .dk-panel, .sh-pill, .sh-seg, .vdock, .sh-thumb, .sh-sheet, .sh-pop, .sh-dialog) {
     background: color-mix(in srgb, var(--surface) 66%, transparent);
     -webkit-backdrop-filter: blur(22px) saturate(1.15); backdrop-filter: blur(22px) saturate(1.15);
   }
   /* the settings panel is over the cards and the pill: a touch more surface so its chips read */
   html:not([data-noglass]) :is(.dk-panel, .sh-sheet, .sh-pop, .sh-dialog) { background: color-mix(in srgb, var(--surface) 82%, transparent); }
   @media (prefers-reduced-transparency: reduce) {
-    html:not([data-noglass]) :is(.dk-card, .dk-strip, .dk-bar, .dk-panel, .sh-pill, .sh-seg, .sh-split, .sh-read, .sh-thumb, .sh-sheet, .sh-pop, .sh-dialog) {
+    html:not([data-noglass]) :is(.dk-card, .dk-strip, .dk-bar, .dk-panel, .sh-pill, .sh-seg, .vdock, .sh-thumb, .sh-sheet, .sh-pop, .sh-dialog) {
       background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none;
     }
   }

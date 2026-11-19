@@ -12,13 +12,13 @@ const claim = (id: string, wired: boolean) => { out.push({ id, wired }); };
 const yes = new Set<string>();   // helper sets read as "these are wired"
 
 // ── top bar, view pills, zoom group ──
-const TOP_WIRED = new Set(['btnMenu', 'btnBlood', 'btnLayers', 'legend', 'btnSettings', 'btnPalette']);
+const TOP_WIRED = new Set(['btnMenu', 'btnBlood', 'btnLayers', 'legend', 'btnSettings', 'btnPalette', 'btnHistory']);
 for (const t of UI.topbar) claim(`topbar:${t.id}`, TOP_WIRED.has(t.id));
 for (const v of UI.views) claim(`view:${v.id}`, v.id !== 'circuit');
 for (const z of UI.zoomGroup) claim(`zoom:${z.id}`, z.id !== 'rotateCircuit');
 
 // ── play bar ──
-const PB_WIRED = new Set(['Pause', 'Restart this patient', 'Playback speed', 'Jump ahead']);
+const PB_WIRED = new Set(['Pause', 'Restart this patient', 'Playback speed', 'Jump ahead', 'History', 'Compare from here']);
 for (const c of UI.playbar.controls) claim(`playbar:${c}`, PB_WIRED.has(c));
 for (const j of UI.playbar.jumps) claim(`playbar:jump ${j.short}`, true);
 for (const v of UI.playbar.speeds) claim(`playbar:speed ${v}×`, true);
@@ -36,9 +36,9 @@ for (const l of UI.looks) claim(`look:${l.id}`, true);
 for (const p of UI.helpPages) claim(`help:${p.label}`, p.label === 'Guide' || p.label === 'Keyboard shortcuts');
 
 // ── shortcuts: the key map (keys/keymap.ts, carried out in keys/useKeys.ts). Wired = the key does what the 2D one does here. ──
-const KEYS_WIRED = new Set(['Run the model/Space', 'Run the model/[ ]', 'Run the model/.', 'Run the model/Z', 'Change the view/A', 'Change the view/L', 'Change the view/+ / − / 0', 'Change the view/Ctrl/⌘ K or /', 'Change the view/?', 'Reach and act/Esc',
+const KEYS_WIRED = new Set(['Run the model/Space', 'Run the model/[ ]', 'Run the model/.', 'Run the model/Z', 'Run the model/Ctrl/⌘ Z', 'Run the model/P', 'Change the view/A', 'Change the view/L', 'Change the view/+ / − / 0', 'Change the view/Ctrl/⌘ K or /', 'Change the view/?', 'Reach and act/Esc',
   'While presenting/Home · End', 'While presenting/?', 'While presenting/→ · Space · Enter']);
-const KEYS_PRESENT = new Set(['Run the model/Ctrl/⌘ Z', 'Run the model/P', 'Run the model/J', 'Change the view/I', 'Change the view/T', 'While presenting/← · Backspace', 'While presenting/↑ · ↓', 'While presenting/Esc']);
+const KEYS_PRESENT = new Set(['Run the model/J', 'Change the view/I', 'Change the view/T', 'While presenting/← · Backspace', 'While presenting/↑ · ↓', 'While presenting/Esc']);
 for (const s of UI.shortcuts) { const k = `${s.group}/${s.keys}`; if (KEYS_WIRED.has(k)) claim(`shortcut:${k}`, !k.startsWith('While presenting/→'));  else if (KEYS_PRESENT.has(k)) claim(`shortcut:${k}`, false); }
 
 // ── search: the commands the 2D palette lists in its App, Time and View groups; each is wired where commands.ts has work behind it ──
