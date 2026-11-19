@@ -91,7 +91,7 @@ const asList = <T,>(v: T | T[] | null | undefined): T[] => (v == null ? [] : Arr
 /** Every feature a slide needs, in a stable order, as ids of FEATURES (an unknown one is added to the table by its owner, and a test fails until it is). */
 export function needsOf(s: CopiedSlide): string[] {
   const need = new Set<string>(['words', 'shot']);
-  if (s.vignette) need.add('case');
+  if (s.vignette || s.question) need.add('case');
   if (s.data === 'tiles' && s.tiles?.length) need.add('tiles');
   const tk = toolKind(s.tool);
   if (tk) need.add(`tool:${tk}`);

@@ -17,9 +17,9 @@ import { setDopplerProbe, useDopplerProbe, type Gate } from './probe-state.ts';
 
 const same = (a: Report | null, b: Report) => !!a && JSON.stringify(a) === JSON.stringify(b);
 
-export function DopplerPane(p: PaneProps) {
+export function DopplerPane(p: PaneProps & { /** the display a slide opens it on (2D tool.mode) */ mode?: DopMode }) {
   const model = useRef<DopplerModel | null>(null);
-  if (!model.current) model.current = new DopplerModel();
+  if (!model.current) { model.current = new DopplerModel(); if (p.mode) model.current.mode = p.mode; }
   const m = model.current;
   const painter = useRef<ChartPainter | null>(null);
   const [mode, setMode] = useState<DopMode>(m.mode);
