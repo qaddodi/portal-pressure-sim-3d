@@ -125,7 +125,7 @@ export const sceneApi = {
     /** The HVPG catheter in one of the deck's states (route, free, wedge, result, blocked), `advance` how far in (0..1). */
     hvpg(mode: keyof typeof CATH_END, advance = 1): void { cel.procs.showHvpg(mode, advance); clock.invalidate('procedure'); },
     /** Where the tip is now (scene units), for the camera that follows it; null with no catheter out. */
-    tip(out: Vector3): Vector3 | null { return cel.procs.tipPosition(out); },
+    tip(out: Vector3): Vector3 | null { return cel.procs.tipPosition(out) ?? cel.probes.glueFocus(out); },
     /** Stop the move; with `keep` the last frame stays up. */
     stop(keep = false): void { cel.procs.stop(keep); clock.invalidate('procedure'); },
     get playing(): { kind: string; t: number } | null { return cel.procs.playing; },
