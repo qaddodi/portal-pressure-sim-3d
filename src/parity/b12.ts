@@ -9,4 +9,6 @@ const act = (label: string): Claim => ({ id: `mainmenu:action/${label}`, wired: 
 export const claims: readonly Claim[] = [
   act(W.fromStart), act(W.present), act(W.presenterView), act(W.copyLink), act(W.printNotes), act(W.yourScriptsImport), act(W.addState),
   { id: 'card:sheet/menu-present', wired: true },
+  // The summary table is built (table-model.ts, the 2D cut-offs and arrows) but drawn as blocks, one per patient, not the 2D grid, and no deck uses it yet: present, not wired.
+  { id: 'card:visual/table', wired: false },
 ];

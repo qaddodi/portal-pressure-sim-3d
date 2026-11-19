@@ -19,6 +19,29 @@ export interface EqPart { tag: 'mi' | 'mo'; text: string; tone?: 'wedge' | 'free
 /** A slide's patient: the preset to load and the parameter changes over it (the engine's own shape), as the 2D deck's `preset` and `params`. */
 export interface SlideModel { preset: string; params?: unknown; days?: number }
 
+/** A summary table over the figure's data card (the 2D `visual: 'table'`): one row per patient (a slide's state, by id, or a patient of its own), one column per reading. */
+export interface TableRowSpec {
+  /** a slide of this deck: the row is the patient the slide stands on */
+  id?: string;
+  /** a patient of its own (a row no slide shows): its preset and parameter changes */
+  preset?: string; params?: unknown; days?: number;
+  title?: string; kicker?: string; site?: string; key?: string;
+  /** the row's arrows compare with this slide id (or this row's key) instead of the first row */
+  vs?: string;
+  /** the reference row: keeps its numbers, the anchor for the arrows */
+  ref?: boolean;
+  blank?: string[]; miss?: string[]; missPart?: string[]; calm?: string[];
+  note?: string | string[];
+}
+export interface TableSpec {
+  /** the readings, as tile keys; the 2D default is PV, WHVP, FHVP, IVC, RA, HVPG, PPG with the ascites pair */
+  cols?: string[];
+  of: (string | TableRowSpec)[];
+  /** the arrows compare each row with the first ('first') */
+  vs?: string;
+  asc?: boolean; rowHead?: string; foot?: string; note?: string | string[]; calm?: string[]; focusRow?: string;
+}
+
 export interface Slide {
   id: string;
   kicker: string;
@@ -35,6 +58,8 @@ export interface Slide {
   cath?: CathState;
   /** The patient the slide stands on (a 2D preset id with its parameter changes): the model takes it when the slide is shown. A slide without one keeps the patient it is on. */
   model?: SlideModel;
+  /** A summary table in the data card's place. */
+  table?: TableSpec;
   notes: string;
   ask?: [string, string];
   shot: ShotName;

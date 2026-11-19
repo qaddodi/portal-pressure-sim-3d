@@ -13,6 +13,7 @@ import { hasWebGL2 } from './boot/webgl.ts';
 import { NoWebGL } from './ui/shell/NoWebGL.tsx';
 import { registerPwa } from './pwa/register.ts';
 import { mountCharts } from './ui/charts/gallery/mount.tsx';
+import { mountTrials } from './ui/trials/mount.tsx';
 import { mountA11y } from './ui/a11y/mount.ts';
 import { installCaught } from './ui/debug/caught.ts';
 
@@ -45,5 +46,6 @@ async function start() {
   mountA11y();   // the live region, the figure's description, slide announcements, Reduce Motion fades (batch B14)
   mountPerf();
   mountCharts();   // ?charts: the charts gallery (batch B10)
+  mountTrials();   // ?trials: the Trials pane on its own (batch B12; the Tests card mounts the same pane)
 }
 void start();

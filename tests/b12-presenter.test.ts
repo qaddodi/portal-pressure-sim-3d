@@ -130,3 +130,86 @@ test('the files copied from the 2D app are the 2D app\'s, character for characte
   if (!two || !existsSync(join(two, 'src/ui/deck-source.js'))) return;
   assert.deepEqual(copyAll(two, true), [], 'run node scripts/copy-presenter.mjs --from <2D checkout>');
 });
+
+// ── the summary table ──
+import { tableModel, DEFAULT_COLS, bpText, valueText } from '../src/ui/talk/table-model.ts';
+import type { ResolvedRow } from '../src/ui/talk/table-model.ts';
+import { CUT, dirAbs, COLS } from '../src/ui/deck/from2d/table-marks.js';
+
+const healthy = { pv: 6, whvp: 6, fhvp: 3, ivc: 3, ra: 3, hvpg: 3, ppg: 3, asc: 0, saag: 0, tp: 0 };
+const cirrhosis = { pv: 21, whvp: 19, fhvp: 3, ivc: 3, ra: 3, hvpg: 16, ppg: 18, asc: 3000, saag: 1.6, tp: 1.2 };
+const row = (id: string, f: Record<string, number> | null, o: object = {}): ResolvedRow => ({ spec: { id, ...o }, i: 1, f, title: id, kicker: 'Levels' });
+
+test('a summary table against normal: an arrow past the red cut-off is double and red, a normal reading is the dot, ascites is the SAAG and protein pair or "None"', () => {
+  const m = tableModel({ of: ['a', 'b'] }, [row('a', healthy), row('b', cirrhosis)]);
+  assert.equal(m.rel, false); assert.equal(m.cols.length, DEFAULT_COLS.length + 2, 'the default columns and the ascites pair');
+  const hv = (r: number) => m.rows[r].cells[DEFAULT_COLS.indexOf('hvpg')];
+  assert.equal(hv(0).arrow, 0); assert.equal(hv(0).rate, null);
+  assert.equal(hv(1).arrow, 2); assert.equal(hv(1).rate, 'hi'); assert.equal(hv(1).text, '16.0', 'a gradient to one decimal');
+  assert.equal(m.rows[1].cells[DEFAULT_COLS.indexOf('pv')].text, '21', 'a pressure in whole mmHg');
+  assert.match(hv(1).sr, /^well above normal, 16\.0 mmHg$/);
+  assert.equal(m.rows[0].cells.at(-1)!.text, 'None', 'no ascites: None, one cell');
+  assert.equal(m.rows[1].cells.at(-2)!.k, 'saag'); assert.equal(m.rows[1].cells.at(-2)!.arrow, 1, 'SAAG ≥ the portal cut: up');
+  assert.match(m.legend, /↑ above normal, ↓ below; ↑↑ ↓↓ past the red cut-off/);
+  assert.ok(m.cols.every((c) => c.label === (COLS as Record<string, string>)[c.k] || ['saag', 'tp'].includes(c.k)));
+  assert.equal(dirAbs('hvpg', cirrhosis), 2);
+  assert.ok(CUT.hvpg, 'a column names its cut-offs (tap a heading)');
+});
+
+test('a table that compares with the first row: arrows read higher and lower with better and worse; a row not worked out yet waits; a blank column is a ring; a name can be of its own', () => {
+  const after = { ...cirrhosis, hvpg: 8, ppg: 9, pv: 14, whvp: 11 };
+  const m = tableModel({ vs: 'first', cols: ['hvpg', 'ppg', 'asc'], of: ['a', 'b', 'c'] }, [row('a', cirrhosis, { ref: true }), row('b', after, { blank: ['asc'] }), row('c', null)]);
+  assert.equal(m.rel, true); assert.equal(m.ascCols, false, 'cols given: no ascites pair');
+  assert.equal(m.rows[0].cells[0].kind, 'ref');
+  const c = m.rows[1].cells[0];
+  assert.equal(c.kind, 'dir'); assert.ok(c.arrow < 0, 'lower'); assert.equal(c.eff, 'good', 'a lower HVPG is better'); assert.match(c.sr, /^(much )?lower, 8\.0 mmHg$/);
+  assert.equal(m.rows[1].cells[2].kind, 'blank');
+  assert.equal(m.rows[2].cells[0].kind, 'pend'); assert.equal(m.rows[2].cells[0].sr, 'calculating');
+  assert.match(m.legend, /Green better, red worse/);
+  assert.match(m.legend, /^↑ higher, ↓ lower than /);
+});
+
+test('a row\'s arrow can be compared with a named row, and a heading shared with the row above is printed once', () => {
+  const a = row('a', healthy, { key: 'base' }), b = row('b', cirrhosis, { vs: 'base' }), c = row('c', cirrhosis, { vs: 'base' });
+  b.kicker = c.kicker = 'Intrahepatic · Sinusoidal';
+  const m = tableModel({ of: ['a', 'b', 'c'] }, [a, b, c]);
+  assert.equal(m.rel, true, 'a row with its own comparison reads relative to it');
+  assert.match(m.rows[1].vs, /^vs a$/);
+  assert.equal(m.rows[1].head, 'Sinusoidal'); assert.equal(m.rows[1].cont, false); assert.equal(m.rows[2].cont, true);
+  assert.match(m.legend, /the row named under each/);
+});
+
+test('numbers in a table read as the vitals and the tiles print them', () => {
+  assert.equal(bpText(117, 69, 85), '117/69 (85)'); assert.equal(bpText(undefined, undefined, 85), 'MAP 85'); assert.equal(bpText(1, 1, NaN), '—');
+  assert.equal(valueText('hvpg', { hvpg: -0.04 }), '0.0'); assert.equal(valueText('hvpg', {}), '—');
+  assert.equal(valueText('asc', { asc: 3000 }), '3.0', 'ascites in litres');
+});
+
+// ── the trials pane ──
+import { TRIAL_IDS, sortTrials, closestOf, chipsOf, ratesOf, pipsOf, sourceLine, patientFacts, historyOf, CLOSEST_MAX } from '../src/ui/trials/trials-model.ts';
+import { TRIALS } from '../src/ui/charts/trial/trials.generated.ts';
+
+const compensated = { hvpg: 12, varix: { d: 3, grade: { label: 'Small' }, present: true }, ascites: { volume: 0, grade: 0 }, bleeding: false };
+test('the trials against a patient: every trial is in one place, the closest are at most two, a trial that fails names the rule, a row reads its rates and its source', () => {
+  const facts = patientFacts(compensated, { cirrhosis: 1 });
+  assert.equal(facts.hvpg, 12); assert.equal(facts.varix, 'Small varices'); assert.equal(facts.ascites, 'No ascites');
+  const s = closestOf(sortTrials(TRIAL_IDS, compensated, { cirrhosis: 1 }, facts, historyOf({ decompensated: false })));
+  const all = [...s.closest, ...s.also, ...s.no, ...s.unknown].map((p) => p.t.id).sort();
+  assert.deepEqual(all, [...TRIAL_IDS].sort(), 'each trial once');
+  assert.ok(s.closest.length <= CLOSEST_MAX);
+  assert.ok(s.no.length > 0 && s.no.every((p) => p.fit.verdict === 'no'));
+  const chips = chipsOf(s.no);
+  assert.ok(chips.length > 0 && chips.every((c, i) => i === 0 || chips[i - 1].ids.length >= c.ids.length), 'the most common rule first');
+  assert.equal(chips.reduce((n, c) => n + c.ids.length, 0) <= s.no.length, true);
+  const pre = TRIALS.predesci!;
+  assert.match(ratesOf(pre)[0], /^\d+%$/); assert.match(sourceLine(pre), /^Lancet 2019 · Villanueva · 201 randomized · PMID 30910320$/);
+  assert.match(pipsOf(sortTrials(['predesci'], compensated, { cirrhosis: 1 }, facts).fits.concat(sortTrials(['predesci'], compensated, { cirrhosis: 1 }, facts).possible, sortTrials(['predesci'], compensated, { cirrhosis: 1 }, facts).no, sortTrials(['predesci'], compensated, { cirrhosis: 1 }, facts).unknown)[0].fit), /^[yxo]*$/);
+});
+test('a patient who is bleeding or has ascites fails the compensated trials; a blocked hepatic vein has no HVPG; history says what the model cannot', () => {
+  const sick = { ...compensated, bleeding: true, ascites: { volume: 3000, grade: 2 } };
+  const s = sortTrials(['predesci'], sick, { cirrhosis: 1 }, patientFacts(sick, { cirrhosis: 1 }));
+  assert.equal(s.no.length, 1, 'PREDESCI wants compensated cirrhosis');
+  assert.equal(historyOf({ decompensated: true })?.decompensated, true);
+  assert.equal(historyOf({ decompensated: false }, true)?.source, 'session', 'a session that saw a decompensation says so');
+  assert.equal(historyOf(null), null);
+});
