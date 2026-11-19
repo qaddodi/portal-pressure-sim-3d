@@ -1,12 +1,13 @@
 import { Color, type DataTexture, Group, Mesh, MeshBasicMaterial, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { BODY_PLATE_Z, ORGANS, VARICES, blob, bodyPlateGeometry } from './anatomy/placeholder.ts';
 import { buildVessel } from './anatomy/vessels.ts';
-import { NETWORK, type NetVessel, presenceOf } from './vessels/network.ts';
+import { NETWORK, type NetVessel, courseOf, presenceOf } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { VesselObject } from './vessels/vessel-object.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
+import { BloodField } from './blood/field.ts';
 import { CameraRig } from './camera/rig.ts';
 import type { Room } from './camera/room.ts';
 import { SHOTS, type Shot, type ShotName } from './camera/shots.ts';
@@ -59,6 +60,8 @@ export class CelScene {
   readonly flow: BloodMarks;
   /** The colour lens (src/scene/lenses/): what colour every vein wears, crossfaded on the clock. */
   readonly lens = new LensField();
+  /** The blood's streams (the chevrons' distance, speed and reversed flag, from the 2D app's own stream model). */
+  readonly blood = new BloodField();
   /** The lobule and sinusoid views (B8), built once, hidden until the view is chosen (setView). */
   readonly lobule: LobuleView;
   readonly sinus: SinusoidView;
@@ -103,7 +106,6 @@ export class CelScene {
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
     this.flow = new BloodMarks(this.vessels);
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
-    this.flow.setMode(opts.flowMode ?? DEFAULT_FLOW_MODE);
     this.lens.setContext({ healthy: null, ref: null });
     const vo = { look: this.look, phone: this.phone, flowMode: opts.flowMode ?? DEFAULT_FLOW_MODE, reduceMotion: opts.reduceMotion };
     this.lobule = new LobuleView(this.shared, vo); this.sinus = new SinusoidView(this.shared, vo);
@@ -118,9 +120,9 @@ export class CelScene {
     const built = buildVessel({ ...def, tone: def.tone === 'artery' ? 'portal' : def.tone });
     const q = STUB_Q[def.id] ?? 1;
     const o = new VesselObject(built.geometry, {
-      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.id), bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
-      vessel: { index: indexOf(def.id), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: BASE_D.get(def.id) ?? 1 },
-    }, this.shared, this.lens.shared);
+      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.id), widthKind: def.widthKind, bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
+      vessel: { index: indexOf(def.id), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: def.baseD },
+    }, this.shared, this.lens.shared, this.blood.shared);
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     this.add(o);
     this.vessels.push(o);
@@ -168,6 +170,7 @@ export class CelScene {
   dataChanged(): void {
     const f = latest.frame;
     this.lens.onFrame(f);
+    this.blood.streams.onFrame(f);
     if (f) this.syncPresence(f, !this.sawFrame);
     this.sawFrame = !!f;
     if (this.figureView !== 'body') this.feedViews(false);
@@ -188,15 +191,22 @@ export class CelScene {
   /** The healthy patient at rest (the engine's `healthyProfile`): the reference the change, congestion, velocity and direction lenses compare to. */
   setHealthy(h: { P: ArrayLike<number>; Q: ArrayLike<number>; D: ArrayLike<number> }): void {
     this.lens.setContext({ healthy: { Q: h.Q, D: h.D, P: h.P }, ref: Float32Array.from(h.P) });
+    this.blood.streams.setHealthy(h);
     this.moving = true;
   }
+  /** Count Change and Congestion from a pinned moment's node pressures (Compare > Change), or from the healthy patient again (null). */
+  setLensRef(P: ArrayLike<number> | null): void { this.lens.setRef(P); this.moving = true; }
   /** The Blood menu: chevrons on or off, key routes only, and potential collaterals (dotted routes). */
   setBlood(o: Partial<BloodOptions> & { collaterals?: boolean }): void {
     if (o.collaterals !== undefined && o.collaterals !== this.collateralsOn) {
       this.collateralsOn = o.collaterals;
       if (latest.frame) this.syncPresence(latest.frame, false);
     }
-    this.flow.setOptions({ chevrons: o.chevrons, keyChevrons: o.keyChevrons, presenting: o.presenting } as Partial<BloodOptions>);
+    const patch: Partial<BloodOptions> = {};
+    if (o.chevrons !== undefined) patch.chevrons = o.chevrons;
+    if (o.keyChevrons !== undefined) patch.keyChevrons = o.keyChevrons;
+    if (o.presenting !== undefined) patch.presenting = o.presenting;
+    this.flow.setOptions(patch);
     this.moving = true;
   }
 
@@ -218,14 +228,14 @@ export class CelScene {
     const ids = new Set(this.named);
     const picked = this.highlight.picked;
     if (picked) { const host = NETWORK.find((v) => v.id === picked)?.host; for (const v of NETWORK) if (v.host === host) ids.add(v.id); }
-    this.flow.setNamed(ids);
     this.moving = true;
   }
 
   /** Free play: pick a vessel by edge ID (or clear it with null). */
   pick(id: string | null): void { this.highlight.set(id); this.syncNamed(); }
 
-  setFlowMode(mode: FlowMarkMode): void { this.flow.setMode(mode); this.lobule.setFlowMode(mode); this.sinus.setFlowMode(mode); this.moving = true; }
+  /** (The 2D app has one style of flow head; the four options of the first slice are gone. Kept for the views that still take a mode.) */
+  setFlowMode(mode: FlowMarkMode): void { this.lobule.setFlowMode(mode); this.sinus.setFlowMode(mode); this.moving = true; }
 
   // ---- the figure's view: body, lobule, sinusoid ---------------------------------------------
 
@@ -270,16 +280,12 @@ export class CelScene {
     return null;
   }
 
-  /** Scene point of a named place, for tags and pins. Valid names: tip, ra, ivc, rhv, pv. */
+  /** Scene point of a named place, for tags and pins: a point on the 2D figure's own vessel, carried by the one map (frame2d.ts), so a tag sits on the vein. */
   anchor(name: 'tip' | 'ra' | 'ivc' | 'rhv' | 'pv' | 'spleen', out = new Vector3()): Vector3 {
-    switch (name) {
-      case 'tip': return this.catheter.curve.getPointAt(1, out);
-      case 'ra': return out.set(-0.35, 2.4, -0.5);
-      case 'ivc': return out.set(-0.4, 0.2, -0.6);
-      case 'rhv': return out.set(-0.95, 1.4, -0.45);
-      case 'pv': return out.set(-0.2, 0.62, 0.7);
-      case 'spleen': return out.set(1.9, 1.0, -0.45);
-    }
+    if (name === 'tip') return this.catheter.curve.getPointAt(1, out);
+    const [id, at] = ANCHORS[name];
+    const c = courseOf(id), p = c[Math.round(at * (c.length - 1))]!;
+    return out.set(p[0], p[1], p[2]);
   }
 
   // ---- the frame -----------------------------------------------------------------------------
@@ -299,7 +305,8 @@ export class CelScene {
     const camMoving = this.rig.update(now);
     if (this.hideLeftBehind && !camMoving) this.settleViews();
     const hiMoving = this.highlight.step(dt);
-    const flowActive = this.flow.step(now, dt);
+    this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
+    const flowActive = this.flow.step(dt) || this.blood.streams.step(now);
     const lensMoving = this.lens.step(now);
     const presMoving = this.presence.step(dt);
     const viewMoving = this.lobule.update(now) || this.sinus.update(now);
@@ -313,10 +320,16 @@ export class CelScene {
 
   dispose(): void {
     this.lens.dispose();
+    this.blood.streams.texture.dispose();
     for (const o of this.objects) o.dispose();
     this.plate.geometry.dispose();
     (this.plate.material as MeshBasicMaterial).dispose();
   }
 }
+
+/** Where each named place is: the vessel's id and how far along its 2D course (0 to 1). */
+const ANCHORS = {
+  ra: ['SVC_RA', 1], ivc: ['IVC_IS', 0.5], rhv: ['RHV_IVC', 0.5], pv: ['PV_TRUNK', 0.5], spleen: ['V_SPL', 0],
+} as const satisfies Record<string, readonly [string, number]>;
 
 export { SHOTS };

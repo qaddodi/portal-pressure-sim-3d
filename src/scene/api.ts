@@ -54,9 +54,11 @@ export const sceneApi = {
   /** Pick a vessel by edge ID, or clear with null. */
   pick(id: string | null): void { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },
   /** Option D: marks run for a few seconds after a change (a preset, a slider, a treatment). */
-  flowPulse(): void { cel.flow.trigger(performance.now()); clock.invalidate('flow-pulse'); },
+  flowPulse(): void { /* the 2D app has no pulse option: nothing to trigger */ clock.invalidate('flow-pulse'); },
   /** Colour the veins by a lens (the Layers menu's ten, a slide's `system` or `since`, or 'neutral' for the plain anatomy). They crossfade in 420 ms. */
   setLens(lens: LensId, instant = false): void { useLens.setState({ lens }); cel.setLens(lens, performance.now(), instant); clock.invalidate('lens'); },
+  /** Compare's Change view: Change and Congestion count from a pinned moment's pressures; null goes back to the healthy reference. */
+  setLensRef(P: ArrayLike<number> | null): void { cel.setLensRef(P); clock.invalidate('lens'); },
   /** The Blood menu: chevrons, key chevrons only, potential collaterals (the other two are the cards' and tags' business). Remembered across visits. */
   setBlood(patch: Partial<BloodChoice>, presenting = false): void {
     useBlood.getState().set(patch);

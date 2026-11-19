@@ -2,6 +2,7 @@ import { BufferGeometry, Shape, ShapeGeometry, SphereGeometry, Vector3 } from 't
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { ToneKey } from '../palette.ts';
 import { type Vec3, buildTube } from './vessels.ts';
+import { x3, y3 } from '../frame2d.ts';
 
 // Procedural placeholder organs, until the artist's glTF arrives (look-and-feel.md: "the slice judges the look system, the anatomy only as
 // placeholder"). Frontal view; the patient's right is on the viewer's left. Same coordinates as vessels.ts.
@@ -66,5 +67,7 @@ export function bodyPlateGeometry(): ShapeGeometry {
   return new ShapeGeometry(torso, 32);
 }
 export const BODY_PLATE_Z = -1.35;
-/** The plate's extent (scene units): what the gestures keep the middle of the free room inside of, so the figure is never lost. */
-export const PLATE_BOUNDS = { x0: -2.6, x1: 2.6, y0: -2.7, y1: 3.3 } as const;
+/** The figure's extent (scene units; the 2D figure's content, x 380 to 1100, y 0 to 1000 by frame2d.ts): what the gestures keep the middle of the free room inside of, so the figure is never lost. */
+/** The depth the figure's rectangle is measured at (the vessels' tiers run from -0.32 to 0.54; organs straddle 0). */
+export const FIGURE_Z = 0.2;
+export const PLATE_BOUNDS = { x0: x3(380), x1: x3(1100), y0: y3(1000), y1: y3(0) } as const;

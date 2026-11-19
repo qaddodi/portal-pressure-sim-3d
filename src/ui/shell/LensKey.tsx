@@ -5,6 +5,7 @@ import { useLens } from '../../scene/lenses/store.ts';
 import { legendFor } from '../../scene/lenses/legend.ts';
 import { resolveLook } from '../../looks/looks.ts';
 import { useSettings } from '../../state/settings.ts';
+import { useCompare } from '../compare/store.ts';
 import { I } from './icons.tsx';
 
 function useLookId() {
@@ -13,7 +14,9 @@ function useLookId() {
   return resolveLook(useSettings((s) => s.look), dark);
 }
 
-export function LensKey({ reference = 'healthy' }: { reference?: string }) {
+/** The colour key; while Compare shows its Change view (D), the key's scale is the one the figure is judged against (the "then" patient, as the previous shell passed it). */
+export function LensKey() {
+  const reference = useCompare((c) => (c.snap && c.view === 'D' ? c.snap.when : undefined)) ?? 'healthy';
   const lens = useLens((s) => s.lens);
   const look = useLookId();
   const g = legendFor(lens, look, reference);

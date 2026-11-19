@@ -3,7 +3,7 @@
 // at ≥25 kPa, the rest is indeterminate; a patient who cannot take an NSBB can skip the screening EGD at LSM <20 kPa with platelets ≥150 (the hatch).
 import type { ChartCtx } from '../Chart.tsx';
 import { linear } from '../axes.ts';
-import { withAlpha, mix } from '../colour.ts';
+import { look } from '../looks.ts';
 import type { Frame, Shape } from '../scene.ts';
 
 /** The cut-offs, in kPa and ×10³/µL. */
@@ -60,21 +60,21 @@ export function hatchSegments(x: number, y: number, w: number, h: number, gap = 
 
 /** The zones graph of a card of width ctx.w as a frame (the card never changes size with the case: the height follows the width only). */
 export function zonesFrame(fig: ZonesFig, c: ChartCtx, label: string): Frame {
-  const { pal } = c, W = c.w, ph = plotHeight(W);
+  const W = c.w, ph = plotHeight(W);
   const fs = Math.max(12, Math.min(14, c.type.sm)), sm = 12;
   const X = linear(fig.x[0], fig.x[1], 0, W), Y = linear(fig.y[0], fig.y[1], ph, 0);
-  const text = pal.tok('text'), halo = { color: pal.tok('surface'), w: 3 };
-  const tint = (r: Rate) => (r === 'ok' ? mix('srgb', pal.tok('ok'), 34, [0, 0, 0, 0]) : r === 'mid' ? mix('srgb', pal.tok('caution'), 28, [0, 0, 0, 0]) : mix('srgb', pal.tok('danger'), 32, [0, 0, 0, 0]));
+  const lk = (key: string, state: Record<string, unknown> = {}) => look(c, { host: 'crit' }, key, state);
   const shapes: Shape[] = [{ k: 'clip', x: 0, y: 0, w: W, h: ph, r: plotR(W, ph) }];
-  for (const z of fig.zones) shapes.push({ k: 'rect', x: X(z.x[0]), y: Y(z.y[1]), w: X(z.x[1]) - X(z.x[0]), h: Y(z.y[0]) - Y(z.y[1]), fill: tint(z.rate) });
+  for (const z of fig.zones) shapes.push({ k: 'rect', x: X(z.x[0]), y: Y(z.y[1]), w: X(z.x[1]) - X(z.x[0]), h: Y(z.y[0]) - Y(z.y[1]), fill: lk('crit.zone', { rate: z.rate }).fill });
   if (fig.hatch) {
-    const h = fig.hatch;
-    for (const [x1, y1, x2, y2] of hatchSegments(X(h.x[0]), Y(h.y[1]), X(h.x[1]) - X(h.x[0]), Y(h.y[0]) - Y(h.y[1]))) shapes.push({ k: 'line', x1: x1!, y1: y1!, x2: x2!, y2: y2!, pen: { color: withAlpha(text, 0.3), w: 2 } });
+    const h = fig.hatch, hatch = lk('crit.hatch').fill!;
+    for (const [x1, y1, x2, y2] of hatchSegments(X(h.x[0]), Y(h.y[1]), X(h.x[1]) - X(h.x[0]), Y(h.y[0]) - Y(h.y[1]))) shapes.push({ k: 'line', x1: x1!, y1: y1!, x2: x2!, y2: y2!, pen: { color: hatch, w: 2 } });
   }
   shapes.push({ k: 'unclip' });
-  const word = (x: number, y: number, s: string, quiet: boolean, anchor: 'start' | 'middle' | 'end', size: number): Shape => ({
-    k: 'text', x, y, s, size, weight: quiet ? 500 : 600, color: quiet ? pal.tok('text-2') : text, anchor, halo,
-  });
+  const word = (x: number, y: number, s: string, quiet: boolean, anchor: 'start' | 'middle' | 'end', size: number): Shape => {
+    const l = lk('crit.word', { q: quiet });
+    return { k: 'text', x, y, s, size, weight: l.weight, color: l.fill!, anchor, halo: l.halo };
+  };
   for (const z of fig.zones) if (z.name && z.at) shapes.push(word(X(z.at[0]), Y(z.at[1]) + fs * 0.36, z.name, false, 'middle', fs));
   const by = ph - 8;
   for (const k of fig.xTicks) shapes.push(word(X(k), by, String(k), false, 'middle', sm));

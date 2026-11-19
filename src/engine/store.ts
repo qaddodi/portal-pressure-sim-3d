@@ -32,8 +32,18 @@ export interface HealthyRef { P: Float64Array | number[]; Q: Float64Array | numb
 export const patient: { reference: HealthyRef | null; params: unknown; paramsVersion: number } = { reference: null, params: null, paramsVersion: 0 };
 export function setParams(params: unknown) { if (params == null) return; patient.params = params; patient.paramsVersion++; }
 
+/** The newest frame the engine made, whatever the page shows (the shown one is `latest`: Compare's Then view holds a pinned frame there, see `holdFrame`). */
+export const live: { frame: EngineFrame | null } = { frame: null };
+let held: EngineFrame | null = null;
+/** Show a pinned frame in place of the live one (Compare > Then), or null to go back to the live model. The headline numbers and the timeline stay live. */
+export function holdFrame(f: EngineFrame | null) {
+  held = f;
+  latest.frame = f ?? live.frame; latest.version++;
+}
+
 export function adoptFrame(f: EngineFrame) {
-  latest.frame = f; latest.version++;
+  live.frame = f;
+  if (!held) { latest.frame = f; latest.version++; }
   if (f.params !== undefined) setParams(f.params);
   const m: Metrics = f.metrics;
   const s = useEngine.getState();
