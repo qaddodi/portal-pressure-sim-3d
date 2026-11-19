@@ -1,5 +1,5 @@
-import { ORBIT_PER_PX, dragToOrbit } from '../camera/rig.ts';
-import { ORBIT_LIMIT } from '../camera/shots.ts';
+import { ORBIT_PER_PX, dragToOrbit, orbitHome } from '../camera/rig.ts';
+import { ORBIT_HOME_MS, ORBIT_LIMIT } from '../camera/shots.ts';
 import { CAM_MS_MAX, type View, carried, camMs, createGlideTracker, easeMove, lerpView, springSlope } from './ease.ts';
 import { FLICK, runFlick } from './flick.ts';
 import {
@@ -9,7 +9,8 @@ import { createWheelGlide, isPadWheel } from './wheel-glide.ts';
 
 // The figure's gestures, on every device. The 2D app's pan and zoom, ported number for number (src/ui/stage-gestures.js there): zoom about the pointer,
 // the soft limits and their spring-back, the rubber band past the figure, the flick, the wheel glide, the trackpad's pinch and two-finger scroll, a double click.
-// What the 3D figure adds is the turn: one finger or the mouse turns it (within ±25°), and the figure follows the hand.
+// What the 3D figure adds is the turn: one finger or the mouse turns it (within ±25°), and the figure follows the hand. The atlas is the rest state (owner, 19 Nov):
+// 1.2 s after the hand lifts the turn springs back to the shot, critically damped (orbitHome).
 //
 //   one finger / mouse drag        turn the figure (±25°, with momentum); Shift, middle button: pan
 //   two fingers                    pinch to zoom and pan together: the point under the midpoint stays under it
@@ -137,7 +138,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
 
   // ── the spring-back: back inside the limits, never lost ────────────────────────────────────────────────────────────────────────
   let springAsk = 0;
-  const springBack = () => { springAsk ||= env.ask(springRead); };
+  const springBack = () => { orbitHomeSoon(); springAsk ||= env.ask(springRead); };
   function springRead() {
     springAsk = 0;
     if (drag || flicking || wheelGlide.active) { if (wheelGlide.active) settleSoon(60); return; }
@@ -179,6 +180,33 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
       if (Math.abs(v) > 0.00006) orbitId = env.ask(step);
     };
     orbitId = env.ask(step);
+  }
+
+  // ── the turn's return: the atlas is the rest state, so the turn comes home to the shot a moment after the hand lifts ───────────────
+  let homeT = 0, homeId = 0;
+  function stopOrbitHome() { if (homeT) env.clearTimer(homeT); homeT = 0; if (homeId) env.cancel(homeId); homeId = 0; }
+  function orbitHomeSoon() {
+    stopOrbitHome();
+    if (host.orbit() === 0) return;
+    homeT = env.timer(startHome, ORBIT_HOME_MS);
+  }
+  function startHome() {
+    homeT = 0;
+    if (orbitId) { homeT = env.timer(startHome, 100); return; }   // the momentum is still carrying it: wait for it to die away
+    const o0 = host.orbit();
+    if (o0 === 0) return;
+    if (env.reduceMotion()) { host.setOrbit(0); return; }
+    const t0 = env.now();
+    let last = o0;
+    const step = (now: number) => {
+      homeId = 0;
+      if (host.orbit() !== last) return;   // something else moved the turn (a new shot eases it home itself): not ours to carry on
+      const o = orbitHome(o0, now - t0);
+      if (Math.abs(o) < 1e-4) { host.setOrbit(0); return; }
+      host.setOrbit(o); last = host.orbit();
+      homeId = env.ask(step);
+    };
+    homeId = env.ask(step);
   }
 
   // ── wheel, trackpad ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -270,7 +298,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     if (ev.isPrimary) pointers.clear();
     pointers.set(ev.pointerId, [ev.clientX, ev.clientY]);
     fit = null;
-    host.holdHand(); stopAnim(); stopFlick(); stopOrbitMomentum(); wheelGlide.cancel(); hand.begin(); env.clearTimer(settleT);
+    host.holdHand(); stopAnim(); stopFlick(); stopOrbitMomentum(); stopOrbitHome(); wheelGlide.cancel(); hand.begin(); env.clearTimer(settleT);
     (el as GestureTarget).setPointerCapture?.(ev.pointerId);
     if (pointers.size >= 2) { drag = pointers.size === 2 ? startPinch() : drag; return; }
     if (ev.button === 2) { drag = { type: 'ignore' }; return; }   // the context menu is the pick's
@@ -326,8 +354,9 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     const tr = d.trail, tb = tr.length - 3, dt = tb >= 0 ? tr[tb]! - tr[0]! : 0;
     const flickable = d.moved && !(d.type === 'pan' && d.noFling) && tb >= 6 && dt >= 30 && env.now() - tr[tb]! < 50;
     if (d.type === 'rotate') {
-      if (!d.moved) { if (ev.type === 'pointerup') tap(ev); return; }
+      if (!d.moved) { orbitHomeSoon(); if (ev.type === 'pointerup') tap(ev); return; }
       if (flickable) orbitMomentum((-(tr[tb + 1]! - tr[1]!) / dt) * ORBIT_PER_PX);   // pixels per ms to radians per ms, the same sign as the drag
+      orbitHomeSoon();
       return;
     }
     if (!d.moved) { if (ev.type === 'pointerup') tap(ev); return; }
@@ -356,13 +385,13 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   on(el, 'contextmenu', onContext);
 
   return {
-    get active() { return gestureOn() || wheelGlide.active || !!animId || !!orbitId; },
+    get active() { return gestureOn() || wheelGlide.active || !!animId || !!orbitId || !!homeId; },
     handsOff,
     refit() { handsOff(); fit = null; animateTo({ ...IDENTITY }, undefined, null); },
     animateTo(to, ms) { handsOff(); animateTo(to, ms, null); },
     zoomStep(factor) { handsOff(); const c = host.centre(); animZoomAt(c.x, c.y, factor); },
     dispose() {
-      handsOff();
+      handsOff(); stopOrbitHome();
       for (const off of offs) off();
       offs.length = 0;
     },
