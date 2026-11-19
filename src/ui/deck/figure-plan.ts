@@ -6,7 +6,7 @@ import type { CopiedSlide } from '../../decks/hp/types.ts';
 import { STATIONS } from '../../scene/labels/stations.ts';
 import { NETWORK_BY_ID } from '../../scene/vessels/network.ts';
 import { HIDDEN_EDGES } from '../../scene/vessels/paths.copied.ts';
-import { EDGES } from '../../engine/hales/portal/topology.js';
+import { ENGINE_EDGE_IDS } from '../../decks/hp/figure-engine.ts';
 import { ORGAN_STYLE } from '../../scene/organs/layer.ts';
 import { RES_KEYS, type ResKey } from '../../scene/circuit/res-model.ts';
 import { spanOf } from '../../scene/labels/span-math.ts';
@@ -22,7 +22,7 @@ export const expandIds = (v: Json): Json[] => list(v as Json).flatMap((g) => (ty
 
 const STATION_IDS = new Set(STATIONS.map((s) => s.id));
 /** A vessel the 3D figure draws, or one the 2D figure hides too (HIDDEN_EDGES: nothing to light). The engine's edges that no tube stands for are unknown. */
-const ENGINE_EDGES = new Set((EDGES as { id: string }[]).map((e) => e.id));
+const ENGINE_EDGES = ENGINE_EDGE_IDS;
 export const isVessel = (id: string): boolean => NETWORK_BY_ID.has(id);
 const vesselKnown = (id: string): boolean => NETWORK_BY_ID.has(id) || HIDDEN_EDGES.has(id) || (ENGINE_EDGES.has(id) && false);
 const ORGAN_IDS = new Set(Object.keys(ORGAN_STYLE));

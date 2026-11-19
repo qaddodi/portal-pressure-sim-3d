@@ -13,7 +13,7 @@ import { useShell } from '../shell/store.ts';
 import { viewAt } from './presenter-machine.ts';
 import { copiedOf } from '../../decks/hp/deck.ts';
 import { currentParams, updateParams } from '../action/params.ts';
-import { latest } from '../../engine/index.ts';
+import { latestMetrics } from '../../decks/hp/figure-engine.ts';
 import { useProbes } from '../../scene/devices/probes/state.ts';
 import { route3d } from '../../scene/procedures/route3d.ts';
 import { CATH_END } from '../../scene/procedures/copied/cath-arrival.js';
@@ -107,7 +107,7 @@ export function linkProcs(): () => void {
     stopPlay();
     const g = gen, p = plan, sp = specFor(p.kind);
     if (!sp) return;
-    const params = currentParams(), m = (latest.frame?.metrics ?? null) as never;
+    const params = currentParams(), m = latestMetrics() as never;
     // (A patient who already has the result has it taken back first, and the play puts it back.)
     const had = !!params && sp.had(params);
     const before = had ? (sp.undo(structuredClone(params)) as unknown) : params;

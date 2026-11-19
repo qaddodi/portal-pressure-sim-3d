@@ -15,6 +15,7 @@ import { BloodField } from './blood/field.ts';
 import { CameraRig } from './camera/rig.ts';
 import { cutUniform, fieldSoft } from './camera/dive.ts';
 import { ORGAN_CUT } from './organs/layer.ts';
+import { quietOf } from './camera/quiet.ts';
 import { effectiveDistance, type Room } from './camera/room.ts';
 import { SHOTS, type Shot, type ShotName } from './camera/shots.ts';
 import { Catheter, type CatheterState } from './catheter.ts';
@@ -682,6 +683,7 @@ export class CelScene {
     this.lastNow = now;
     this.shared.time.value = (now / 1000) % 1000;
     const camMoving = this.rig.update(now);
+    this.disease.organs.setQuiet(quietOf(this.rig.orbitAngle));   // (quiet depth on a turn: the organs' wash eases back as the figure turns)
     const circMoving = this.stepCircuit(now, dt);
     this.fadeBody();
     if (this.hideLeftBehind && !camMoving && !this.circuit.moving) this.settleViews();

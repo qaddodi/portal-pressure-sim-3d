@@ -4,8 +4,7 @@
 // lit never stays. The shot, the lens and the catheter are scene-link.ts's; the station names' own placing is the labels'. Nothing here runs per frame but the glow sequence's clock system.
 import { sceneApi } from '../../scene/api.ts';
 import { clock } from '../../clock/frame.ts';
-import { latest, indexOf } from '../../engine/index.ts';
-import { NODES } from '../../engine/hales/portal/topology.js';
+import { nodePressure, edgeIndex } from '../../decks/hp/figure-engine.ts';
 import { useUi } from '../ui-store.ts';
 import { viewAt } from './presenter-machine.ts';
 import { useFigure } from '../../scene/labels/store.ts';
@@ -15,7 +14,6 @@ import { copiedOf } from '../../decks/hp/deck.ts';
 import { figurePlan } from './figure-plan.ts';
 import { figureCalls, EMPTY_CALLS, type FigureCalls, type Fp, type Reads } from './figure-calls.ts';
 
-const NODE_AT = new Map<string, number>((NODES as unknown as ([string] | { id: string })[]).map((n, i) => [Array.isArray(n) ? n[0] : (n as { id: string }).id, i]));
 
 /** The scene's own entry for a lens counted from another state; the lenses batch adds it (`setSinceRef`), so until then a slide with this lens is asked for nothing here. */
 type SinceApi = { setSinceRef?: (P: ArrayLike<number> | null) => void };
@@ -38,8 +36,8 @@ function readsOf(deckId: string, index: number): Reads {
   const r = useStates.getState().results[deckId]?.[index];
   return {
     fp: (r?.fp as Fp | undefined) ?? null, params: (r?.params as Reads['params']) ?? null,
-    pressure: (node) => { const f = latest.frame, i = NODE_AT.get(node); return f && i !== undefined ? (f.Pf?.[i] ?? null) : null; },
-    indexOf,
+    pressure: nodePressure,
+    indexOf: edgeIndex,
   };
 }
 
