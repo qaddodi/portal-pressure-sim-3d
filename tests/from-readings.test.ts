@@ -12,6 +12,7 @@ import { yoursRecord } from '../src/engine/hales/portal/yours.js';
 import { createInverseRemote } from '../src/ui/readings/copied/inverse-remote.copied.js';
 import { saveYours, readYours, removeYours } from '../src/ui/readings/copied/yours-store.copied.js';
 import { isYours, yoursName } from '../src/ui/readings/yours.ts';
+import { pinned2D } from './two-d-pin.ts';
 
 const dir = 'src/ui/readings/copied';
 const src = JSON.parse(readFileSync(`${dir}/SOURCE.json`, 'utf8')) as { source: string; hashes: Record<string, string> };
@@ -26,9 +27,9 @@ test('every copied file is the 2D file, unedited, and its imports are files of t
   }
 });
 
-const twoD = process.env.PPS_2D_DIR || '';
-test('the copy is what the 2D app has now (PPS_2D_DIR)', { skip: !twoD || !existsSync(`${twoD}/src/ui/from-readings.js`) }, () => {
-  assert.match(execFileSync('node', ['scripts/copy-from-readings.mjs', '--from', twoD, '--check'], { encoding: 'utf8' }), /is current/);
+const two = pinned2D('src/ui/from-readings.js');
+test('the copy is what the 2D app has at the pin (PPS_2D_REPO)', { skip: two.skip }, () => {
+  assert.match(execFileSync('node', ['scripts/copy-from-readings.mjs', '--from', two.repo, '--check'], { encoding: 'utf8' }), /is current/);
 });
 
 test('the shim gives the copied flow every helper it imports', () => {

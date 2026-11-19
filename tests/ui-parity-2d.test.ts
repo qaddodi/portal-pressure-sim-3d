@@ -10,6 +10,7 @@ import {
   titleFloorK, SHORT_H, SIDEWAYS_MAX_H, GRIP, WIDE, TITLE_RATIO, WALLET_STEPS,
 } from '../src/ui/layout/rules2d.ts';
 import { execFileSync } from 'node:child_process';
+import { pinned2D } from './two-d-pin.ts';
 
 const fx = JSON.parse(readFileSync(new URL('./fixtures/parity-2d.json', import.meta.url), 'utf8'));
 const near = (a: number, b: number, what: string, tol = 1e-6) => assert.ok(Math.abs(a - b) <= tol, `${what}: 3D ${a} vs 2D ${b}`);
@@ -70,11 +71,11 @@ test('the wallet tries its columns in the 2D order: three usual widths in each o
   assert.deepEqual(WALLET_STEPS.map((s) => `${s.room}.${s.col}`), ['0.0', '0.1', '0.2', '1.0', '1.1', '1.2', '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6']);
 });
 
-// Opt in with PPS_2D_DIR=<2D checkout>: the fixture is then checked against that checkout as well, so a 2D rule change that is not in the fixture is seen.
+// Opt in with PPS_2D_REPO=<2D checkout at the pin>: the fixture is then checked against that checkout as well, so a 2D rule change that is not in the fixture is seen.
 // (Off by default: a clone on another commit must not turn this thread's tests red; run scripts/gen-parity-2d.mjs after a 2D card change.)
-const twoD = process.env.PPS_2D_DIR || '';
-test('the fixture is what the 2D app gives now (PPS_2D_DIR)', { skip: !twoD || !existsSync(`${twoD}/src/ui/card-scale.js`) }, () => {
+const two = pinned2D('src/ui/card-scale.js');
+test('the fixture is what the 2D app gives at the pin (PPS_2D_REPO)', { skip: two.skip }, () => {
   let out = '';
-  try { out = execFileSync('node', ['scripts/gen-parity-2d.mjs', '--from', twoD, '--check'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); } catch (e) { assert.fail(String((e as { stderr?: string }).stderr ?? e)); }
+  try { out = execFileSync('node', ['scripts/gen-parity-2d.mjs', '--from', two.repo, '--check'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); } catch (e) { assert.fail(String((e as { stderr?: string }).stderr ?? e)); }
   assert.match(out, /matches/);
 });

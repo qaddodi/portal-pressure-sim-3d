@@ -13,6 +13,7 @@ import { camPlan, boxToShot, sceneX, sceneY, PLATE } from '../src/decks/hp/cams.
 import { REGIONS } from '../src/decks/hp/regions.copied.ts';
 import { tokensOf } from '../src/decks/hp/numbers.ts';
 import type { CopiedDeck } from '../src/decks/hp/types.ts';
+import { pinned2D } from './two-d-pin.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 interface Inv { decks: { id: string; title: string; slides: { id: string }[]; checks: number; objectives: number }[]; rows: { id: string }[] }
@@ -49,9 +50,9 @@ test('the copied files carry their own hash: a hand edit of the words fails here
   }
 });
 
-const two = process.env.PPS_2D_DIR ?? resolve(root, '../portal-pressure-simulator');
-test('the copies equal what a 2D checkout gives (run when PPS_2D_DIR names one)', { skip: !process.env.PPS_2D_DIR || !existsSync(join(two, 'src/ui/decks.js')) }, () => {
-  const out = execFileSync('node', [join(root, 'scripts/port-decks-hp.mjs'), '--from', two, '--check'], { encoding: 'utf8' });
+const two = pinned2D('src/ui/decks.js');
+test('the copies equal what the 2D checkout at the pin gives (PPS_2D_REPO)', { skip: two.skip }, () => {
+  const out = execFileSync('node', [join(root, 'scripts/port-decks-hp.mjs'), '--from', two.repo, '--check'], { encoding: 'utf8' });
   assert.match(out, /match the 2D app/);
 });
 

@@ -1,6 +1,6 @@
 // A figure label is drawn as the 2D app draws it (owner, 19 Nov: "the labeling system font outline etc should also reflect the 2D app"):
 // no backing, a small name, a large bold reading, a halo in the look's own colour, a thin leader to a small ring, uppercase spaced organ names.
-// The numbers are copied from the 2D source by scripts/copy-label-names.mjs (compared with it when PPS_2D_DIR names a checkout); these tests hold
+// The numbers are copied from the 2D source by scripts/copy-label-names.mjs (compared with it when PPS_2D_REPO names a checkout at the pin); these tests hold
 // the 3D side to the copied numbers: sizes, line, gaps, halo, ring, per-look ink, and a stylesheet that carries no figure of its own.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

@@ -11,11 +11,12 @@ import { HVPG_DECK } from '../src/decks/hvpg.ts';
 import { hasVessel } from '../src/engine/index.ts';
 import { LOOK_IDS } from '../src/looks/looks.ts';
 import { schemeOf } from '../src/scene/labels/key.ts';
+import { pinned2D } from './two-d-pin.ts';
 
 // ── words: the 2D app's, never retyped ──
-const TWO_D = process.env.PPS_2D_DIR && existsSync(process.env.PPS_2D_DIR) ? process.env.PPS_2D_DIR : null;
-test('the label words are the 2D app\'s (when a 2D checkout is at hand: PPS_2D_DIR)', { skip: TWO_D ? false : 'no 2D checkout (set PPS_2D_DIR to compare)' }, () => {
-  execFileSync('node', ['scripts/copy-label-names.mjs', '--from', TWO_D!, '--check'], { stdio: 'pipe' });
+const TWO_D = pinned2D('src/ui/presenter.js');
+test('the label words are the 2D app\'s (when the 2D checkout at the pin is at hand: PPS_2D_REPO)', { skip: TWO_D.skip || 'the copy was made from 2D f85d6fe107; the 2D at the pin moved these tables out of presenter.js, so scripts/copy-label-names.mjs must be moved to the pin first (open)' }, () => {
+  execFileSync('node', ['scripts/copy-label-names.mjs', '--from', TWO_D.repo, '--check'], { stdio: 'pipe' });
 });
 
 test('every name a station shows is the 2D name for that station; abbreviations are the 2D ones', () => {

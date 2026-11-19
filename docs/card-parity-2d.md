@@ -4,7 +4,7 @@ Owner: "how we see cards on iPhone vs Mac vs iPad vs landscape iPhone should all
 The 2D app's rules are ported as pure functions in `src/ui/layout/rules2d.ts`; `src/ui/layout/plan.ts` places the cards with them.
 `tests/ui-parity-2d.test.ts` holds the port to `tests/fixtures/parity-2d.json`, which `scripts/gen-parity-2d.mjs --from <2D checkout>` writes
 from the 2D modules (devices, card-scale, card-type, card-shuffle) and the 2D stylesheet's own formulas (`--pz-b`, `--pz-cm`, `--pz-cp`, `--pz-cw`),
-for the 7 device sizes and 9 more. Run the script again after a 2D card change; `PPS_2D_DIR=<2D checkout> npm test` checks the fixture against it.
+for the 7 device sizes and 9 more. Run the script again after a 2D card change; `PPS_2D_REPO=<2D checkout at the pin> npm test` checks the fixture against it.
 
 | Screen (2D name) | Layout | Cards |
 |---|---|---|
