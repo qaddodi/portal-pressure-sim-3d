@@ -1,7 +1,7 @@
 import { Color, type DataTexture, Group, Mesh, MeshBasicMaterial, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
-import { BODY_PLATE_Z, ORGANS, VARICES, blob, bodyPlateGeometry } from './anatomy/placeholder.ts';
+import { BODY_PLATE_Z, bodyPlateGeometry } from './anatomy/placeholder.ts';
 import { buildVessel } from './anatomy/vessels.ts';
-import { NETWORK, type NetVessel, presenceOf } from './vessels/network.ts';
+import { NETWORK, type NetVessel, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { VesselObject } from './vessels/vessel-object.ts';
 import { LensField } from './lenses/field.ts';
@@ -18,8 +18,10 @@ import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, indexOf } from '../engine/vessel-data.ts';
 import { latest, patient } from '../engine/store.ts';
+import { x3, y3 } from './frame2d.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
 import { SinusoidView } from './sinusoid/index.ts';
+import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
 
 /** What the figure shows: the body, the liver lobule (hexagon) or one sinusoid. The two small views stand away from the body in the same scene. */
 export type FigureView = 'body' | 'lobule' | 'sinusoid';
@@ -60,6 +62,8 @@ export class CelScene {
   /** The colour lens (src/scene/lenses/): what colour every vein wears, crossfaded on the clock. */
   readonly lens = new LensField();
   /** The lobule and sinusoid views (B8), built once, hidden until the view is chosen (setView). */
+  /** The organs and the disease states on the figure (B4). */
+  readonly disease: DiseaseLayer;
   readonly lobule: LobuleView;
   readonly sinus: SinusoidView;
   private figureView: FigureView = 'body';
@@ -84,18 +88,10 @@ export class CelScene {
     this.scene.add(this.body);
     this.body.add(this.plate);
 
-    for (const def of ORGANS) {
-      const o = new CelObject(def.geometry(), { tone: def.tone, bands: 3, spec: 0, px: def.px }, this.shared);
-      if (def.position) o.group.position.set(...def.position);
-      if (def.rotation) o.group.rotation.set(...def.rotation);
-      this.add(o);
-    }
     for (const def of NETWORK) this.addVessel(def);
-    for (const v of VARICES) {
-      const o = new CelObject(blob(v.r, v.r, v.r, 0, 0, 14), { tone: 'portal', bands: 2, spec: 1, px: 1 }, this.shared);
-      o.group.position.set(0.48 + Math.cos(v.angle) * 0.12, v.y, -0.12 + Math.sin(v.angle) * 0.12);
-      this.add(o);
-    }
+    // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
+    this.disease = new DiseaseLayer(this.shared, this.vessels);
+    this.body.add(this.disease.group);
     this.catheter = new Catheter(this.shared);
     this.body.add(this.catheter.group);
     this.objects.push(...this.catheter.objects);
@@ -137,6 +133,7 @@ export class CelScene {
     const p = PALETTES[look];
     (this.plate.material as MeshBasicMaterial).color.set(p.body);
     for (const o of this.objects) { o.applyPalette(p); o.setPhone(this.phone); }
+    this.disease.applyLook(look, p); this.disease.setPhone(this.phone);
     this.lens.setLook(look);
     this.lobule.applyLook(look); this.sinus.applyLook(look);
     this.moving = true;
@@ -148,6 +145,7 @@ export class CelScene {
   setPhone(phone: boolean): void {
     this.phone = phone;
     for (const o of this.objects) o.setPhone(phone);
+    this.disease.setPhone(phone);
     this.lobule.setPhone(phone); this.sinus.setPhone(phone);
     this.moving = true;
   }
@@ -168,12 +166,21 @@ export class CelScene {
   dataChanged(): void {
     const f = latest.frame;
     this.lens.onFrame(f);
-    if (f) this.syncPresence(f, !this.sawFrame);
+    if (f) { this.syncPresence(f, !this.sawFrame); this.feedDisease(f, !this.sawFrame); }
     this.sawFrame = !!f;
     if (this.figureView !== 'body') this.feedViews(false);
     this.moving = true;
   }
   private sawFrame = false;
+
+  /** The patient's disease into the organ and disease layers (src/scene/disease/): the newest frame, the patient's parameters, the healthy pressures. */
+  private feedDisease(f: NonNullable<typeof latest.frame>, first: boolean): void {
+    this.disease.feed(f as never, (patient.params ?? null) as DiseaseParams | null, (patient.reference?.P as ArrayLike<number> | undefined) ?? null, {
+      instant: first || f.jump,
+      presence: (id) => (this.presence.isDrawn(id) ? 1 : 0),
+      recruit: (id, fr) => recruitFrac(id, fr as never),
+    }, f.jump);
+  }
 
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
   private syncPresence(f: NonNullable<typeof latest.frame>, instant: boolean): void {
@@ -184,7 +191,7 @@ export class CelScene {
   // ---- lens and blood ------------------------------------------------------------------------
 
   /** Colour the veins by a lens (the Layers menu's ten, a deck's 'system' and 'since', or 'neutral' for the plain anatomy). */
-  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.moving = true; }
+  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.disease.setLensGrey(lens !== 'pressure' && lens !== 'neutral'); this.moving = true; }
   /** The healthy patient at rest (the engine's `healthyProfile`): the reference the change, congestion, velocity and direction lenses compare to. */
   setHealthy(h: { P: ArrayLike<number>; Q: ArrayLike<number>; D: ArrayLike<number> }): void {
     this.lens.setContext({ healthy: { Q: h.Q, D: h.D, P: h.P }, ref: Float32Array.from(h.P) });
@@ -278,7 +285,7 @@ export class CelScene {
       case 'ivc': return out.set(-0.4, 0.2, -0.6);
       case 'rhv': return out.set(-0.95, 1.4, -0.45);
       case 'pv': return out.set(-0.2, 0.62, 0.7);
-      case 'spleen': return out.set(1.9, 1.0, -0.45);
+      case 'spleen': return out.set(x3(1040), y3(362), 0);
     }
   }
 
@@ -303,7 +310,8 @@ export class CelScene {
     const lensMoving = this.lens.step(now);
     const presMoving = this.presence.step(dt);
     const viewMoving = this.lobule.update(now) || this.sinus.update(now);
-    const needs = this.moving || camMoving || hiMoving || flowActive || lensMoving || presMoving || viewMoving;
+    const diseaseMoving = this.disease.update(now);
+    const needs = diseaseMoving || this.moving || camMoving || hiMoving || flowActive || lensMoving || presMoving || viewMoving;
     this.moving = false;
     return needs;
   }
@@ -313,6 +321,7 @@ export class CelScene {
 
   dispose(): void {
     this.lens.dispose();
+    this.disease.dispose();
     for (const o of this.objects) o.dispose();
     this.plate.geometry.dispose();
     (this.plate.material as MeshBasicMaterial).dispose();
