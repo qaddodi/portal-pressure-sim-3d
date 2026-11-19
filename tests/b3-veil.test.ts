@@ -9,7 +9,9 @@ import { FAINT_ONLY_LAYER } from '../src/scene/vessels/vessel-object.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 
 const s = new CelScene();
-const veilMeshes = (id: string) => s.vesselObject(id)!.group.children.filter((c) => (c as { material?: { defines?: Record<string, unknown> } }).material?.defines?.VEIL);
+const veilAll = (id: string) => s.vesselObject(id)!.group.children.filter((c) => (c as { material?: { defines?: Record<string, unknown> } }).material?.defines?.VEIL);
+/** The colour pass of the veil (its depth-only pass, drawn first, has colorWrite off). */
+const veilMeshes = (id: string) => veilAll(id).filter((c) => (c as unknown as { material: { colorWrite: boolean } }).material.colorWrite);
 
 test('every vessel the 2D figure puts behind the organs has its faint copy over them', () => {
   for (const id of BACK_EDGES) {
@@ -47,4 +49,15 @@ test('a faint-only vessel can still be picked', () => {
   // a ray along the cava would hit it: the mesh is on the layer the raycaster enables
   const o = s.vesselObject('IVC_IS')!;
   assert.ok(o.toonMesh.layers.isEnabled(FAINT_ONLY_LAYER));
+});
+
+test('the veil has a depth-only pass first, so the colour pass blends one layer where tubes, ink and caps overlap (no dark ball joints)', () => {
+  for (const id of ['IVC_IS', 'IVCS_RA', 'ILI_IVC']) {
+    const all = veilAll(id) as unknown as { renderOrder: number; material: { colorWrite: boolean; depthWrite: boolean; polygonOffset: boolean } }[];
+    const pre = all.find((c) => !c.material.colorWrite)!, col = all.find((c) => c.material.colorWrite)!;
+    assert.ok(pre && col, `${id} has both passes`);
+    assert.equal(pre.material.depthWrite, true); assert.equal(pre.material.polygonOffset, true);
+    assert.equal(col.material.depthWrite, false);
+    assert.ok(pre.renderOrder < col.renderOrder, 'the depth pass is drawn first');
+  }
 });

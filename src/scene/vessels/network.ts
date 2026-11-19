@@ -41,6 +41,8 @@ export interface NetVessel {
   /** where this vessel ends on a trunk without running on into it (a branch of a fork): a collar that blooms where the branch meets the host's wall, the 2D figure's fillet (the smooth union of the
    *  two tubes, blend k of fork-joins / vein-joins kOf): `add` more radius at the wall, `wall` the distance from the end to the host's wall, `span` the length the collar takes to melt into the tube */
   flare?: readonly [Flare | null, Flare | null];
+  /** the ends that run on into another vessel (a node of exactly two, or the pair the 2D rule picks at a fork), their tubes meeting end to end: no round cap there (a cap is a ball of ink and, in the veil, a second layer where the two tubes overlap) */
+  joined?: readonly [boolean, boolean];
   /** a tributary group: drawn only while its rule holds (`when`: null always; 'caput' with the paraumbilical collateral; 'caudate' with the caudate vein's rise) */
   feeder?: { host: string; when: string | null };
 }
@@ -165,6 +167,14 @@ export const NODE_Z: ReadonlyMap<string, number> = (() => {
     if (a.v === b.v || a.v.kind === 'collateral' || b.v.kind === 'collateral' || a.v.widthKind !== b.v.widthKind) return;
     const m = (a.v.radius + b.v.radius) / 2;
     for (const x of [a, b]) { const cur = t.get(x.v) ?? [1, 1]; cur[x.end] = m / x.v.radius; t.set(x.v, cur); }
+    // their courses carry on through the join (outward directions opposite, within 25 degrees): the tubes meet end to end, so neither needs its cap
+    const da = outward(a.v, a.end), db = outward(b.v, b.end);
+    if (da && db && da[0] * db[0] + da[1] * db[1] + da[2] * db[2] < -0.9) for (const x of [a, b]) { const j = x.v.joined ? [...x.v.joined] as [boolean, boolean] : [false, false] as [boolean, boolean]; j[x.end] = true; x.v.joined = j; }
+  };
+  const outward = (v: NetVessel, end: 0 | 1): [number, number, number] | null => {
+    const p = v.pts, n = p.length, a = end ? p[n - 1]! : p[0]!, b = end ? p[n - 4 >= 0 ? n - 4 : 0]! : p[3 < n ? 3 : n - 1]!;
+    const d: [number, number, number] = [a[0] - b[0], a[1] - b[1], a[2] - b[2]], l = Math.hypot(d[0], d[1], d[2]);
+    return l > 1e-9 ? [d[0] / l, d[1] / l, d[2] / l] : null;
   };
   const at = new Map<string, { v: NetVessel; end: 0 | 1 }[]>();
   for (const v of NETWORK) if (!v.feeder) { for (const [n, end] of [[v.from, 0], [v.to, 1]] as const) { const a = at.get(n) ?? []; a.push({ v, end }); at.set(n, a); } }
@@ -187,6 +197,8 @@ export const MAPPED: readonly NetVessel[] = NETWORK.filter((v) => !v.feeder);
   for (const list of at.values()) {
     if (list.length < 3) continue;
     const mains = list.filter((e) => e.v.kind !== 'collateral');
+    // (a trunk drawn faint, the cava behind the organs, has no wall to blend into: the collar would show as a bulb on the branch's end)
+    if (list.some((e) => IVC_EDGES.has(e.v.id))) continue;
     const hostR = Math.max(...(mains.length ? mains : list).map((e) => e.v.radius));
     for (const { v, end } of list) {
       if (runOn.has(`${v.id}|${end}`) || v.radius >= 0.9 * hostR) continue;
