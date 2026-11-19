@@ -47,6 +47,9 @@ for (const c of UI.search.commands) if (SEARCH_GROUPS.has(c.group)) claim(`searc
 
 // ── platform: deep links ──
 for (const d of UI.platform.deepLinks) claim(`platform:deep link ?${d}=`, true);
+// Built (manifest, icons, the build's service worker) but not yet tried on a device, so present and not wired.
+claim('platform:installable PWA', false);
+claim('platform:works offline', false);
 
 // ── figure menus: Blood, Layers, Lens, the phone's Layers page ──
 const BLOOD_WIRED = new Set(['Chevrons', 'Key chevrons only', 'Potential collaterals', 'Organ names']);
