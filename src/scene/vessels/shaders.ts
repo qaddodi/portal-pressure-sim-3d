@@ -14,6 +14,7 @@
 
 import { CIRCUIT_VS_CALL, CIRCUIT_VS_HEAD } from '../circuit/shader.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
+import { QUIET_BACK } from '../camera/quiet.ts';
 
 export const VESSEL_VS = /* glsl */ `
 attribute vec3 tang;
@@ -170,6 +171,9 @@ uniform float casingA;      // the look's casing alpha (2D --casing-a)
 uniform float casingCircA;  // and in the Circuit (2D .stage-wrap.cmap), by circT
 uniform vec3 inkColorCirc;
 uniform float circT;
+uniform float wallLine;     // 1 on an artery: a lighter inner line, the wall, at a quarter of the radius in from the edge (visual review 10.5), so an artery reads apart from a vein without colour
+uniform float quietK;       // quiet depth on a turn (camera/quiet.ts): the back tier eases toward the page by QUIET_BACK of this, 0 face on
+uniform vec3 pageCol;       // the plate colour it eases toward
 uniform vec4 rimInk;        // a dark lumen's light rim on the dark looks: rgb, alpha (0 on the light looks)
 varying float vW;
 varying float vR;
@@ -309,6 +313,10 @@ void main() {
   // a dark lumen on the dark looks (where the outline is no darker than the ground) gets a light edge a device pixel wide just inside its wall (2D rimInk)
   float lumY = dot(base, vec3(0.299, 0.587, 0.114));
   c = mix(c, rimInk.rgb, rimInk.a * (1.0 - smoothstep(0.2, 0.4, lumY)) * smoothstep(-2.0, -1.0, (abs(across) - 1.0) * rDev) * smoothstep(1.5, 3.5, rDev));
+
+  // (an artery's wall: a line a device pixel wide, 0.25 R inside the edge, 22% toward white, on a tube wide enough to carry it)
+  c = mix(c, vec3(1.0), 0.22 * wallLine * smoothstep(3.0, 6.0, rDev) * (1.0 - smoothstep(0.3, 1.0, abs(abs(across) - 0.75) * rDev)));
+  c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
 
   float vel = 0.0;
   float dmm = 8.0;

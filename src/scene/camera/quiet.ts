@@ -4,6 +4,8 @@ export const QUIET_FROM_DEG = 8;
 export const QUIET_TO_DEG = 25;   // the orbit is clamped to 25 degrees (rig.setOrbit)
 export const QUIET_WASH = 0.25;
 export const QUIET_STEPS = 20;
+/** The back tier (the cava, the azygos: the vessels behind the organs) eases toward the page by this much on a full turn (vessels/shaders.ts quietK). */
+export const QUIET_BACK = 0.08;
 
 /** 0 face on (and up to 8 degrees), 1 at the end of the turn, smooth between (the turn is signed: left or right is the same). */
 export function quietOf(orbitRad: number): number {

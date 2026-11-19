@@ -152,6 +152,8 @@ export class CelScene {
   /** The cava's pieces, and the veins that fade into it: shown whole (2D's F_WHOLE) while the cava is picked or named, eased over FLOW_FADE_MS so nothing pops. */
   private readonly cava: VesselObject[] = [];
   private readonly ivcJoins: VesselObject[] = [];
+  /** The vessels of the back tier: they ease toward the page on a turn (quiet depth). */
+  private readonly back: VesselObject[] = [];
   private cavaGoal = 0;
   private cavaWhole = 0;
   private readonly tipFades: { o: VesselObject; connect: readonly string[] }[] = [];
@@ -226,7 +228,7 @@ export class CelScene {
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     const fade = def.feeder ? null : fadeOf(def.id, def.tone === 'artery');
     if (fade) { o.setTipFade(fade); this.tipFades.push({ o, connect: fade.connect }); if (fade.ivcJoin) this.ivcJoins.push(o); }
-    if (BACK_EDGES.has(def.id)) { o.setBehindOrgans(VESSEL_LAYER, IVC_EDGES.has(def.id)); if (IVC_EDGES.has(def.id)) this.cava.push(o); }
+    if (BACK_EDGES.has(def.id)) { o.setBehindOrgans(VESSEL_LAYER, IVC_EDGES.has(def.id)); this.back.push(o); if (IVC_EDGES.has(def.id)) this.cava.push(o); }
     this.add(o);
     this.vessels.push(o);
     this.byEdge.set(def.id, o);
@@ -683,7 +685,9 @@ export class CelScene {
     this.lastNow = now;
     this.shared.time.value = (now / 1000) % 1000;
     const camMoving = this.rig.update(now);
-    this.disease.organs.setQuiet(quietOf(this.rig.orbitAngle));   // (quiet depth on a turn: the organs' wash eases back as the figure turns)
+    const quiet = quietOf(this.rig.orbitAngle);
+    for (const o of this.back) o.setQuiet(quiet);
+    this.disease.organs.setQuiet(quiet);   // (quiet depth on a turn: the organs' wash eases back as the figure turns)
     const circMoving = this.stepCircuit(now, dt);
     this.fadeBody();
     if (this.hideLeftBehind && !camMoving && !this.circuit.moving) this.settleViews();
