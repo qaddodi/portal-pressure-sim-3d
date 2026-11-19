@@ -205,6 +205,9 @@ export class ProcedureLayer {
   /** The tip's scene position now, for tags and the camera (null with no catheter out). */
   tipPosition(out: Vector3): Vector3 | null { return this.shown && this.frame.u > 0.001 ? this.shown.tipAt(this.frame.u, out) : null; }
 
+  /** The point a little ahead of the tip along the route (where a wedged reading's card points), null with no catheter out. */
+  aheadPosition(out: Vector3, share = 0.04): Vector3 | null { return this.shown && this.frame.u > 0.001 ? this.shown.tipAt(Math.min(1, this.frame.u + share), out) : null; }
+
   /** Steps the move on the clock. True while it plays, or draws once more. */
   update(now: number): boolean {
     const dt = this.lastTick < 0 ? 16 : Math.min(100, now - this.lastTick); this.lastTick = now;

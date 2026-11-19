@@ -157,6 +157,10 @@ export const sceneApi = {
   anchor: (name: Parameters<CelScene['anchor']>[0], out?: Vector3): Vector3 => cel.anchor(name, out),
   /** Where a scene point lands on the canvas now (CSS px), for tags written in the clock's tags phase. */
   project: (p: Vector3, out?: { x: number; y: number }): { x: number; y: number } => cel.rig.project(p, out),
+  /** The EUS-PPG's targets in the world (the cards of its readings point at them): the hepatic vein's into `tip`, the portal vein's into `ahead`. */
+  eusTargets: (tip: Vector3, ahead: Vector3): boolean => cel.eusTargets(tip, ahead),
+  /** The two points a measurement's reading cards point to (the catheter's tip and the point ahead of it; the EUS-PPG's targets), in the world. */
+  procPoints: (kind: string, tip: Vector3, ahead: Vector3): boolean => cel.procPoints(kind, tip, ahead),
   /** True while the camera is in flight; tags fade out meanwhile and back in 180 ms after it lands. */
   get cameraMoving(): boolean { return cel.rig.isMoving; },
   /** True once the camera has its first real shot (nothing is drawn before). */

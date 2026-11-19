@@ -29,6 +29,10 @@ export interface CathIn {
   /** Canvas px of the catheter's tip and of the point ahead of it; null while the catheter is not there yet. `got`: 0 not there, 1 tip there, 2 wedged. */
   tip: Pt | null; ahead: Pt | null; got: 0 | 1 | 2;
   text: CathText;
+  /** A procedure's own cards (the EUS-PPG's: PV at the portal target, HV at the hepatic one, the summary): which stand, their names and the portal card's tone. Absent: the catheter's. */
+  kinds?: readonly CalloutKind[];
+  kickers?: { f: string; w: string; h: string };
+  tones?: { f: Tone; w: Tone };
 }
 
 /** The cards a catheter state shows (hvpg-proc.js): the free reading at the tip; the wedged reading ahead of it with the free one kept where it was taken;
@@ -44,7 +48,7 @@ export function calloutsFor(cath: CathState | null): CalloutKind[] {
 }
 
 export const toneOf = (hv: number | null): Tone => (hv == null || !Number.isFinite(hv) ? 'caution' : hvpgSev(hv));
-const reading = (kind: 'free' | 'wedge' | 'result', value: string, tone: Tone): Reading => ({ kicker: N[kind].kicker, value, unit: N[kind].unit, tone });
+const reading = (kind: 'free' | 'wedge' | 'result', value: string, tone: Tone, kicker?: string): Reading => ({ kicker: kicker ?? N[kind].kicker, value, unit: N[kind].unit, tone });
 
 export interface PillDraw {
   id: PillId; reading: Reading;
@@ -92,10 +96,10 @@ export class CathShow {
 
   /** Where the cards stand, worked out for the picture as it is now (the camera still): called when something changed. */
   solve(inp: CathIn): void {
-    const kinds = calloutsFor(inp.cath), t = cathType(inp.vp);
+    const kinds = inp.kinds ?? calloutsFor(inp.cath), t = cathType(inp.vp);
     const pills = new Map<PillId, PillTarget>();
     let sum: SumTarget | null = null;
-    const rf = reading('free', inp.text.f, 'free'), rw = reading('wedge', inp.text.w, 'wedge'), rh = reading('result', inp.text.h, toneOf(inp.text.hv));
+    const rf = reading('free', inp.text.f, inp.tones?.f ?? 'free', inp.kickers?.f), rw = reading('wedge', inp.text.w, inp.tones?.w ?? 'wedge', inp.kickers?.w), rh = reading('result', inp.text.h, toneOf(inp.text.hv), inp.kickers?.h);
     const ids = kinds.filter((k): k is PillId => k !== 's').filter((id) => inp.got >= (id === 'f' ? 1 : 2));
     if (ids.length && inp.tip && inp.ahead) {
       const items = ids.map((id) => {

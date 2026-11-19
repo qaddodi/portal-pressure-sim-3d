@@ -306,3 +306,63 @@ test('the echoendoscope follows the EUS-PPG\'s procedure frame: the way in, the 
   assert.equal(sc.needle, 0); assert.equal(sc.flash, 0); assert.equal(sc.read, 0);
   sc.dispose();
 });
+
+// ── a measurement's reading cards and the names standing aside (2D proc-anim.js `labels`, `quiet`) ──
+import { cardsOf, toneOfCls } from '../src/scene/labels/proc-cards.ts';
+import { useLabels, type ProcCards } from '../src/scene/labels/store.ts';
+import { LabelController, NO_STATE } from '../src/scene/labels/controller.ts';
+import { specOf, READS } from '../src/scene/procedures/copied/proc-anim.js';
+import { markPoint } from '../src/scene/labels/focus-marks.ts';
+
+const blankCards = (): ProcCards => ({ kinds: [], sig: '', kickers: { f: '', w: '', h: '' }, tones: { f: 'free', w: 'wedge' }, text: { f: '', w: '', h: '', hv: null }, points: () => false });
+
+test('the EUS-PPG\'s cards: PV at the portal target while the needle reads, HV after it, then the summary with their difference, in the veins\' own tones', () => {
+  const spec = specOf('eus') as { T: Record<string, number>; labels(t: number, rd: unknown, f: unknown, out: unknown[]): unknown[]; markT: number[] };
+  const rd = (READS as unknown as { eus: Record<string, number> }).eus, T = spec.T, out: unknown[] = [], cards = blankCards();
+  rd.pv = 14.2; rd.hv = 6.1; rd.ppg = 8.1;
+  assert.deepEqual(cardsOf(spec.labels(T.pvRead0! - 10, rd, null, out) as never, cards).kinds, [], 'nothing before the needle reads');
+  let r = cardsOf(spec.labels(T.pvRead0! + 50, rd, null, out) as never, cards);
+  assert.deepEqual(r.kinds, ['w']); assert.equal(cards.kickers.w, 'PV'); assert.equal(cards.tones.w, 'pv');
+  r = cardsOf(spec.labels(T.hvRead0! + 50, rd, null, out) as never, cards);
+  assert.deepEqual(r.kinds, ['w', 'f']); assert.equal(cards.kickers.f, 'HV'); assert.equal(cards.tones.f, 'free');
+  r = cardsOf(spec.labels(spec.markT[3]! + 50, rd, null, out) as never, cards);
+  assert.deepEqual(r.kinds, ['s']);
+  assert.equal(cards.kickers.h, 'EUS-PPG'); assert.equal(cards.text.h, cards.text.h.trim()); assert.ok(Math.abs((cards.text.hv ?? NaN) - 8.1) < 1e-9, 'the result stands as the difference');
+  assert.ok(cards.text.w.includes('14') && cards.text.f.includes('6'), 'the rows carry the readings');
+  // the names and tones are part of the card's signature: a change of them is a new solve
+  const a = cardsOf(spec.labels(T.pvRead0! + 50, rd, null, out) as never, cards).sig;
+  assert.notEqual(a, r.sig);
+  assert.equal(toneOfCls('result danger', 'free'), 'danger'); assert.equal(toneOfCls('ivc', 'free'), 'ivc'); assert.equal(toneOfCls(undefined, 'wedge'), 'wedge');
+});
+
+test('the IR pressures\' cards stand at the tip: the IVC, then the portal vein, then the gradient in its band', () => {
+  const iv = specOf('irivc') as { T: Record<string, number>; labels(t: number, rd: unknown, f: unknown, out: unknown[]): unknown[] };
+  const pv = specOf('irpv') as { T: Record<string, number>; labels(t: number, rd: unknown, f: unknown, out: unknown[]): unknown[] };
+  const r = READS as unknown as Record<string, Record<string, number>>, out: unknown[] = [], cards = blankCards();
+  r.irivc!.iv = 9; r.irpv!.pv = 21; r.irpv!.iv = 9; r.irpv!.ppg = 12;
+  assert.deepEqual(cardsOf(iv.labels(iv.T.read0! + 20, r.irivc, { metrics: { ivc: 9 } }, out) as never, cards).kinds, ['f']);
+  assert.equal(cards.kickers.f, 'IVC'); assert.equal(cards.tones.f, 'ivc');
+  assert.deepEqual(cardsOf(pv.labels(pv.T.read0! + 20, r.irpv, { metrics: { pv: 21 } }, out) as never, cards).kinds, ['w']);
+  assert.equal(cards.kickers.w, 'PORTAL VEIN');
+  assert.deepEqual(cardsOf(pv.labels(pv.T.res0! + 20, r.irpv, null, out) as never, cards).kinds, ['f']);
+  assert.equal(cards.kickers.f, 'PPG'); assert.ok(['ok', 'caution', 'danger'].includes(cards.tones.f), 'the gradient takes its band\'s colour');
+});
+
+test('quiet: the figure\'s names stand aside while a measurement plays, and a procedure\'s cards replace the catheter\'s', () => {
+  const ctl = new LabelController({ now: () => 0, project: (_p: unknown, out: { x: number; y: number }) => out, cameraMoving: () => false, free: () => ({ x0: 0, y0: 0, x1: 800, y1: 600 }), view: () => ({ x0: 0, y0: 56, x1: 800, y1: 600 }), blockers: () => [],
+    measure: (t: string, s: number) => t.length * s * 0.55, vp: () => ({ w: 800, h: 600, safe: { top: 0, bottom: 0, left: 0, right: 0 } }), words: () => null, reversed: () => false, pressure: () => 10, reading: () => 10, hidden: () => false, cathere: () => 0 } as unknown as ConstructorParameters<typeof LabelController>[0]);
+  ctl.setState({ ...NO_STATE, named: new Set(['LHV']), quiet: false });
+  const some = ctl.active().length;
+  ctl.setState({ ...NO_STATE, named: new Set(['LHV']), quiet: true });
+  assert.ok(some > 0 && ctl.active().length === 0, 'quiet takes the names away (they fade, 2D cathHid)');
+  const pc = blankCards(); pc.text.f = '5.0'; pc.text.w = '9.0';
+  ctl.setState({ ...NO_STATE, proc: pc });
+  assert.equal(ctl.cathText(), pc.text, 'the cards print the procedure\'s own words');
+  assert.equal(useLabels.getState().quiet, false);
+});
+
+test('a step\'s callout stands on the vessel it works on: a point on that vessel, none for a vessel the figure does not draw', () => {
+  const p = markPoint({ edges: ['PV_TRUNK'], label: '1 Needle in', num: '1', word: 'Needle in', f: 0.5 }, new Vector3());
+  assert.ok(p && Number.isFinite(p.x) && Number.isFinite(p.y));
+  assert.equal(markPoint({ edges: ['NOT_A_VESSEL'], label: 'x' }, new Vector3()), null);
+});

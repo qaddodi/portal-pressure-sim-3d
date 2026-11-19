@@ -17,6 +17,7 @@ import { LS, boxSize, organRun, stationRuns } from './type.ts';
 import { dockKey, type Dock } from './key-dock.ts';
 import type { Rect, Viewport } from '../../ui/layout/device.ts';
 import type { CathState, ReadingKey } from '../../decks/schema.ts';
+import type { ProcCards } from './store.ts';
 import { CathShow, calloutsFor, type CathFrame, type CathText, type CalloutKind } from './cath-show.ts';
 
 export interface LabelDeps {
@@ -56,11 +57,15 @@ export interface LabelState {
   picked: string | null;
   cath: CathState | null;
   organNames: boolean;
+  /** a procedure asks the figure's names to stand aside while it works (2D `quiet`) */
+  quiet: boolean;
+  /** a procedure's own reading cards (the EUS-PPG's) in place of the catheter's */
+  proc: ProcCards | null;
   /** The lens whose colour key the slide shows on the figure (names.copied.ts LENS_KEY), or null for none. */
   key: string | null;
 }
 
-export const NO_STATE: LabelState = { named: new Set(), picked: null, cath: null, organNames: false, key: null };
+export const NO_STATE: LabelState = { named: new Set(), picked: null, cath: null, organNames: false, quiet: false, proc: null, key: null };
 
 /** Space between the key and the edge of the free room. */
 export const KEY_MARGIN = 12;
@@ -170,7 +175,7 @@ export class LabelController {
     const list: Meta[] = [];
     // Under the HVPG catheter the figure's names are hidden: "the HVPG catheter's readings stand alone, so it hides them" (stage.js setCatheter, `cath-on`; a
     // treatment keeps them). They fade out as the catheter comes in and back as it goes.
-    if (HIDE_UNDER_CATHETER && st.cath) return list;
+    if (HIDE_UNDER_CATHETER && (st.cath || st.quiet)) return list;
     const picked = st.picked ? STATIONS.find((s) => s.vessel === st.picked)?.id ?? null : null;
     for (const s of STATIONS) {
       if (s.kind === 'organ') { if (st.organNames) list.push(this.metaOf(s)); continue; }
@@ -233,7 +238,7 @@ export class LabelController {
     }
     this.anchors = anchors;
     // the catheter's two points move with the picture too: where the tip and the point ahead stand now
-    const got = d.cathere(this.cTip, this.cAhead);
+    const pr = this.state.proc, got = pr ? (pr.points(this.cTip, this.cAhead) ? 2 : 0) : d.cathere(this.cTip, this.cAhead);
     const tipPx = got ? d.project(this.cTip, { x: 0, y: 0 }) : null, aheadPx = got ? d.project(this.cAhead, { x: 0, y: 0 }) : null;
     const nowTip: [number, number] | null = tipPx ? [tipPx.x, tipPx.y] : null, nowAhead: [number, number] | null = aheadPx ? [aheadPx.x, aheadPx.y] : null;
     const movedPt = (a: [number, number] | null, b: [number, number] | null) => (a === null) !== (b === null) || (!!a && !!b && (Math.abs(a[0] - b[0]) > 0.35 || Math.abs(a[1] - b[1]) > 0.35));
@@ -247,13 +252,13 @@ export class LabelController {
     this.dock = this.keyDock();
     const keyBox = this.dock?.box ?? null;
     if (keyBox) blockers.push(keyBox);
-    const cathSig = this.state.cath ? `${this.cGot}|${this.cTipPx ? Math.round(this.cTipPx[0]) + ',' + Math.round(this.cTipPx[1]) : '-'}|${this.cAheadPx ? Math.round(this.cAheadPx[0]) + ',' + Math.round(this.cAheadPx[1]) : '-'}` : '';
-    const sig = cathSig + '|' + (keyBox ? boxKey(keyBox) : '-') + '|' + setSig + '|' + boxKey(view) + '|' + blockers.map(boxKey).join(';') + '|' + [...this.state.named].sort().join(',') + this.state.cath;
+    const cathSig = this.state.cath || this.state.proc ? `${this.state.proc?.sig ?? ''}|${this.cGot}|${this.cTipPx ? Math.round(this.cTipPx[0]) + ',' + Math.round(this.cTipPx[1]) : '-'}|${this.cAheadPx ? Math.round(this.cAheadPx[0]) + ',' + Math.round(this.cAheadPx[1]) : '-'}` : '';
+    const sig = cathSig + '|' + (keyBox ? boxKey(keyBox) : '-') + '|' + setSig + '|' + boxKey(view) + '|' + blockers.map(boxKey).join(';') + '|' + [...this.state.named].sort().join(',') + this.state.cath + (this.state.proc?.sig ?? '');
     if (!hold && (this.dirty || sig !== this.sig)) {
       this.sig = sig; this.dirty = false;
       this.metas = next;
       // the catheter's cards stand first (cath.ts: the 2D app's own placing, clear of the cards and the key); the stations keep clear of them
-      this.show.solve({ vp: d.vp(), cath: this.state.cath, measure: d.measure, band: this.cathBand(view), blockers, tip: this.cTipPx, ahead: this.cAheadPx, got: this.cGot, text: this.cathText() });
+      this.show.solve({ vp: d.vp(), cath: this.state.cath, measure: d.measure, band: this.cathBand(view), blockers, tip: this.cTipPx, ahead: this.cAheadPx, got: this.cGot, text: this.cathText(), ...(this.state.proc ? { kinds: this.state.proc.kinds, kickers: this.state.proc.kickers, tones: this.state.proc.tones } : {}) });
       this.solveNow(metas, view, [...blockers, ...this.show.boxes]);
       if (keyBox) this.wants.set('key', { p: { id: 'key', form: 0, dx: keyBox.x0, dy: keyBox.y0, w: keyBox.x1 - keyBox.x0, h: keyBox.y1 - keyBox.y0, leader: false, au: 0.5 }, dim: false });
     }
@@ -349,6 +354,7 @@ export class LabelController {
   }
   /** The readings as the cards print them now: the free and wedged pressures, and the HVPG they give. */
   cathText(): CathText {
+    if (this.state.proc) return this.state.proc.text;
     const r = this.deps.reading.bind(this.deps), f = (v: number | null) => fmtPressure(v, null, false);
     return { f: f(r('fhvp')), w: f(r('whvp')), h: f(r('hvpg')), hv: r('hvpg') };
   }

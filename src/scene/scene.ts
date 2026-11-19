@@ -365,6 +365,19 @@ export class CelScene {
 
   /** The deck's catheter (route, free, wedge, hvpg): drawn by the procedure layer on the HVPG route of the 2D figure, so it is the same device the Tests card plays. The slice catheter keeps the state
    *  (the labels read its tip) and draws nothing. */
+  /** The EUS-PPG's two targets in the world, for the cards that point to them: `tip` the hepatic vein's (the HV card), `ahead` the portal vein's (the PV card, 2D's `ahead`). */
+  eusTargets(tip: Vector3, ahead: Vector3): boolean {
+    this.probes.scope.targetAt(1, tip); this.probes.scope.targetAt(0, ahead);
+    this.body.localToWorld(tip); this.body.localToWorld(ahead);
+    return true;
+  }
+  /** The two points a measurement's cards point to (proc-anim.js `at`: 'tip' and 'ahead'), in the world: the EUS-PPG's targets, or the procedure's catheter tip and the point just ahead of it. False with none out. */
+  procPoints(kind: string, tip: Vector3, ahead: Vector3): boolean {
+    if (kind === 'eus') return this.eusTargets(tip, ahead);
+    if (!this.procs.tipPosition(tip) || !this.procs.aheadPosition(ahead)) return false;
+    this.body.localToWorld(tip); this.body.localToWorld(ahead);
+    return true;
+  }
   setCatheter(s: CatheterState & { ring?: 'free' | 'wedge' | 'bad' | null }): void {
     this.catheter.set(s);
     this.catheter.group.visible = false;

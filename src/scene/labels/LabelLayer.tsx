@@ -19,6 +19,7 @@ import { keyVars } from './key-dock.ts';
 import { STATIONS } from './stations.ts';
 import { buildCath } from './cath-dom.ts';
 import { buildProbeLabels } from './probe-labels-dom.ts';
+import { buildFocusMarks } from './focus-marks.ts';
 import { addLabelBox, beginLabelBoxes } from './probe-boxes.ts';
 import { cathVars, cathLook } from './cath.ts';
 import { KEY_LENSES, keyModel, schemeOf } from './key.ts';
@@ -134,6 +135,8 @@ export function LabelLayer() {
     const cath = buildCath(root);
     // the Tests devices' readings (the FibroScan probe's screen, the Doppler gate's callout)
     const probeLabels = buildProbeLabels(root);
+    const marks = buildFocusMarks(root);
+    let markT = performance.now();
     const keyRec: Rec = { root: keyHost.current!, shown: false, tx: '', op: '', form: -1, size: '', value: '', leadTx: '', anchorTx: '' };
     recs.set('key', keyRec);
 
@@ -154,7 +157,7 @@ export function LabelLayer() {
     // ── state in ──
     const pushState = () => {
       const l = useLabels.getState();
-      ctl.setState({ named: l.named, picked: usePick.getState().picked, cath: l.cath, organNames: l.organNames, key: l.key });
+      ctl.setState({ named: l.named, picked: usePick.getState().picked, cath: l.cath, organNames: l.organNames, quiet: l.quiet, proc: l.proc, key: l.key });
       clock.invalidate('labels-state');
     };
     pushState();
@@ -185,11 +188,12 @@ export function LabelLayer() {
       beginLabelBoxes();
       for (const d of ctl.out) if (d.kind === 'station' && d.alpha > 0.05) addLabelBox(d.x, d.y, d.w, d.h);
       probeLabels.paint();
-      if (wantFrames && !hold) hold = clock.hold('labels');
-      else if (!wantFrames && hold) { hold.release(); hold = null; }
+      const mnow = performance.now(), markBusy = marks.paint(Math.min(100, mnow - markT)); markT = mnow;
+      if ((wantFrames || markBusy) && !hold) hold = clock.hold('labels');
+      else if (!wantFrames && !markBusy && hold) { hold.release(); hold = null; }
     }, 0);
 
-    return () => { cath.destroy(); probeLabels.destroy(); offTags(); offLabels(); offPick(); offUi(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
+    return () => { cath.destroy(); probeLabels.destroy(); marks.destroy(); offTags(); offLabels(); offPick(); offUi(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
   }, []);
 
   return (

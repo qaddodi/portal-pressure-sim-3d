@@ -153,6 +153,8 @@ export class EndoScope {
       this.targets[i] = [q[0], q[1]];
     });
   }
+  /** One of the two targets in the scope's plane (0 the portal vein's, 1 the hepatic vein's): where the EUS-PPG's cards point. */
+  targetAt(i: 0 | 1, out: Vector3): Vector3 { return at3(this.targets[i]!, out); }
   /** The aim's target now: between the two (the 2D TGT). */
   private target(out: P2 = [0, 0]): P2 {
     const a = this.targets[0], b = this.targets[1], k = this.tgt;
