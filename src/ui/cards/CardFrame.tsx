@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Poin
 import type { Rect } from '../layout/device.ts';
 import type { Entry } from './stack.ts';
 import { EXIT_MS } from './stack.ts';
+import { useUi } from '../ui-store.ts';
+import { layoutOf, radius } from '../layout/rules2d.ts';
 
 interface Props {
   entry: Entry;
@@ -18,6 +20,8 @@ interface Props {
 
 /** One card: placed by transform, sized exactly to its content with a glide, invisible until its words are laid out, then it rises in. */
 export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow }: Props) {
+  const vp = useUi((s) => s.vp);
+  const r = Math.round(radius(vp.w, vp.h, layoutOf(vp.w, vp.h)));
   const cardRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const plateRef = useRef<HTMLDivElement>(null);
@@ -55,7 +59,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     anims.current.forEach((a) => a.cancel());
     if (rect.h > prev) {
       anims.current = [
-        card.animate([{ clipPath: `inset(0 0 ${rect.h - prev}px 0 round 16px)` }, { clipPath: 'inset(0 0 0 0 round 16px)' }], opts),
+        card.animate([{ clipPath: `inset(0 0 ${rect.h - prev}px 0 round ${r}px)` }, { clipPath: `inset(0 0 0 0 round ${r}px)` }], opts),
         plate.animate([{ transform: `scaleY(${prev / rect.h})` }, { transform: 'scaleY(1)' }], opts),
       ];
       anims.current[0].onfinish = () => anims.current.forEach((a) => a.cancel());
@@ -63,7 +67,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
       setAnimH(prev);
       const k = rect.h / prev;
       anims.current = [
-        card.animate([{ clipPath: 'inset(0 0 0 0 round 16px)' }, { clipPath: `inset(0 0 ${prev - rect.h}px 0 round 16px)` }], opts),
+        card.animate([{ clipPath: `inset(0 0 0 0 round ${r}px)` }, { clipPath: `inset(0 0 ${prev - rect.h}px 0 round ${r}px)` }], opts),
         plate.animate([{ transform: 'scaleY(1)' }, { transform: `scaleY(${k})` }], opts),
       ];
       anims.current[0].onfinish = () => setAnimH(null);

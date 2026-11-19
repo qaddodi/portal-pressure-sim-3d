@@ -1,4 +1,6 @@
-// What kind of screen this is, and the type each kind sets. Text never shrinks to fit: these sizes are the floor and the whole scale.
+// What kind of screen this is, and the type it sets. Text never shrinks to fit: these sizes are the floor and the whole scale.
+
+import { layoutOf, isSideways, cardScale } from './rules2d.ts';
 
 export type DeviceClass = 'desktop' | 'tablet-portrait' | 'phone-portrait' | 'phone-landscape';
 
@@ -6,42 +8,51 @@ export interface Insets { top: number; right: number; bottom: number; left: numb
 export interface Rect { x: number; y: number; w: number; h: number }
 export interface Viewport { w: number; h: number; safe: Insets }
 
-/** Mac and iPad landscape are `desktop`; an iPad held upright is `tablet-portrait`; an iPhone is a phone in either hold (shorter side under 600 px). */
+/** The 2D app's classes (rules2d.ts, from its media queries): an iPhone held sideways is `phone-landscape` (the wallet), an iPhone upright `phone-portrait`,
+ *  an iPad upright `tablet-portrait` (the phone stack at 70 % width), Mac and iPad on its side `desktop`. */
 export function deviceClass(w: number, h: number): DeviceClass {
-  const short = Math.min(w, h);
-  if (short < 600) return w > h ? 'phone-landscape' : 'phone-portrait';
-  return h > w ? 'tablet-portrait' : 'desktop';
+  if (isSideways(w, h)) return 'phone-landscape';
+  const l = layoutOf(w, h);
+  return l === 'stack' ? 'phone-portrait' : l === 'tab' ? 'tablet-portrait' : 'desktop';
 }
 
 export const isPhone = (c: DeviceClass) => c === 'phone-portrait' || c === 'phone-landscape';
 
-/** The type of every card, in px (docs/look-and-feel.md section 5). One table: the CSS reads it as custom properties, the tests judge it. */
+/** The type of every card, in px: the 2D app's roles (rules2d.ts cardScale) for this screen. One table: the CSS reads it as custom properties, the tests judge it. */
 export interface TypeScale {
   deckTitle: number; slideTitle: number; body: number; data: number; kicker: number; bigNumber: number;
   /** line-height multipliers */
   deckTitleLead: number; slideTitleLead: number; bodyLead: number;
 }
 
-const MAC: TypeScale = { deckTitle: 44, slideTitle: 26, body: 17, data: 13, kicker: 11, bigNumber: 40, deckTitleLead: 1.08, slideTitleLead: 1.18, bodyLead: 1.5 };
-export const TYPE: Record<DeviceClass, TypeScale> = {
-  desktop: MAC,
-  'tablet-portrait': MAC,
-  'phone-portrait': { ...MAC, deckTitle: 32, slideTitle: 22, body: 16, bodyLead: 1.45, slideTitleLead: 1.2 },
-  'phone-landscape': { ...MAC, deckTitle: 28, slideTitle: 22, body: 16, bodyLead: 1.45, slideTitleLead: 1.2, bigNumber: 32 },
-};
+/** What the 2D stylesheet gives the teaching card on this screen: the stacked layouts set the line in its label role and the heading in its value role
+ *  (styles/app-05-presenter-cards.css .pz.stack); every floating card sets the line in body and the heading in title. */
+export function typeFor(w: number, h: number): TypeScale {
+  const layout = layoutOf(w, h);
+  const text = cardScale({ vw: w, vh: h, layout, part: 'text', card: true });
+  const data = cardScale({ vw: w, vh: h, layout, part: 'data' });
+  const stacked = layout === 'stack' || layout === 'tab';
+  const body = stacked ? text.lab : text.body;
+  const slideTitle = stacked ? text.val : text.title;
+  return {
+    deckTitle: stacked ? text.big : text.title, slideTitle, body, kicker: stacked ? text.lab : text.cap, data: Math.max(12, data.lab), bigNumber: data.big,
+    deckTitleLead: 1.06, slideTitleLead: 1.06, bodyLead: 1.4,
+  };
+}
 
-/** The floors the owner set (rule list of 19 Nov): body 17 Mac and iPad, 16 iPhone; a slide title at least 1.4× the body (1.33× on a phone where the text needs
- *  the room); data text and tags at least 12 px; the kicker is a label (11 px caps). */
-export const FLOORS = { body: { mac: 17, phone: 16 }, titleRatio: { mac: 1.4, phone: 1.33 }, data: 12 } as const;
+/** The floors the owner set (rule list of 19 Nov): body 17 on a floating card, 16 on a stacked one; a slide title at least 1.4× the body (1.33× on a stacked screen where
+ *  the text needs the room); data text and tags at least 12 px. */
+export const FLOORS = { body: { floating: 17, stacked: 16 }, titleRatio: { floating: 1.4, stacked: 1.33 }, data: 12 } as const;
 
-export function checkTypeScale(c: DeviceClass, t: TypeScale = TYPE[c]): string[] {
+export function checkTypeScale(w: number, h: number, t: TypeScale = typeFor(w, h)): string[] {
   const bad: string[] = [];
-  const phone = isPhone(c);
-  const body = phone ? FLOORS.body.phone : FLOORS.body.mac;
-  if (t.body < body) bad.push(`${c}: body ${t.body} px is under ${body}`);
-  const ratio = phone ? FLOORS.titleRatio.phone : FLOORS.titleRatio.mac;
-  if (t.slideTitle / t.body < ratio) bad.push(`${c}: slide title ${t.slideTitle} px is ${(t.slideTitle / t.body).toFixed(2)}× the body, under ${ratio}×`);
-  if (t.data < FLOORS.data) bad.push(`${c}: data text ${t.data} px is under ${FLOORS.data}`);
-  if (t.deckTitle < t.slideTitle) bad.push(`${c}: the deck title is smaller than a slide title`);
+  const l = layoutOf(w, h), stacked = l === 'stack' || l === 'tab', at = `${w}×${h}`;
+  const body = stacked ? FLOORS.body.stacked : FLOORS.body.floating;
+  if (t.body < body - 1e-9) bad.push(`${at}: body ${t.body} px is under ${body}`);
+  const ratio = stacked ? FLOORS.titleRatio.stacked : FLOORS.titleRatio.floating;
+  if (t.slideTitle / t.body < ratio - 1e-6) bad.push(`${at}: slide title ${t.slideTitle} px is ${(t.slideTitle / t.body).toFixed(2)}× the body, under ${ratio}×`);
+  if (t.data < FLOORS.data) bad.push(`${at}: data text ${t.data} px is under ${FLOORS.data}`);
+  if (t.kicker < FLOORS.data) bad.push(`${at}: kicker ${t.kicker} px is under ${FLOORS.data}`);
+  if (t.deckTitle < t.slideTitle) bad.push(`${at}: the deck title is smaller than a slide title`);
   return bad;
 }

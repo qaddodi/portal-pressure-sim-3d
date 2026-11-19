@@ -9,11 +9,13 @@
   color: var(--text); font-variant-numeric: tabular-nums lining-nums; -webkit-font-smoothing: antialiased;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --move: 280ms;
-  --pad-x: 26px; --pad-y: 24px;
+  --pad-x: 26px; --pad-y: 24px; --r: 16px;
   --rise: 20px; --drop: 28px;
   -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
 }
-.deck-ui[data-device="phone-portrait"], .deck-ui[data-device="phone-landscape"] { --pad-x: 20px; --pad-y: 18px; --rise: 16px; }
+.deck-ui[data-device="phone-portrait"], .deck-ui[data-device="phone-landscape"] { --rise: 16px; }
+/* a stacked screen's data card: the 2D app's 10 px by 12 px */
+.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-card[data-card="ladder"] .dk-in { padding: 10px 12px; }
 .deck-ui [hidden] { display: none !important; }
 
 /* ── a card's place (transform only) and its surface ── */
@@ -23,11 +25,11 @@
 /* "Soft lift" (19 Nov pick): surface, 1 px hairline, two-layer shadow in the look's shadow colour; no backdrop blur. */
 .dk-card {
   position: relative; box-sizing: border-box; overflow: hidden; pointer-events: auto;
-  background: var(--surface); border: 1px solid var(--edge); border-radius: 16px;
+  background: var(--surface); border: 1px solid var(--edge); border-radius: var(--r);
   touch-action: pan-x pan-y;
 }
 /* the shadow lives on a plate behind the card so a height glide can scale it (clip-path would cut a shadow off) */
-.dk-plate { position: absolute; left: 0; top: 0; width: 100%; border-radius: 16px; transform-origin: 50% 0; pointer-events: none;
+.dk-plate { position: absolute; left: 0; top: 0; width: 100%; border-radius: var(--r); transform-origin: 50% 0; pointer-events: none;
   box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 12px 32px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6)); }
 .dk-plate[data-phase="wait"] { opacity: 0; visibility: hidden; }
 .dk-plate[data-phase="in"] { animation: dk-in var(--move) var(--ease) both; }
@@ -81,7 +83,7 @@
 .dk-ladder-head { display: flex; justify-content: space-between; align-items: baseline; }
 .dk-ladder-head span { color: var(--text-2); font-size: var(--fs-data); }
 .dk-ladder { display: grid; gap: 7px; margin-top: 10px; }
-.dk-row { display: grid; grid-template-columns: 92px 1fr 52px; align-items: center; gap: 10px; font-size: var(--fs-data); animation: dk-fade var(--move) var(--ease) both; }
+.dk-row { display: grid; grid-template-columns: 7em 1fr 3.8em; align-items: center; gap: 10px; font-size: var(--fs-data); animation: dk-fade var(--move) var(--ease) both; }
 .dk-row .dk-bar { height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--text) 9%, transparent); position: relative; overflow: hidden; }
 .dk-row .dk-bar i { position: absolute; inset: 0; border-radius: 4px; background: var(--c, var(--text-3)); transform-origin: 0 50%; transform: scaleX(var(--w, 0)); transition: transform 400ms var(--ease); }
 .dk-row b { text-align: right; font-weight: 600; }
@@ -113,8 +115,11 @@
 .dk-strip-text { display: flex; align-items: baseline; min-width: 0; flex: 1 1 auto; }
 
 /* ── the presenter bar ── */
-.dk-bar { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 10px; pointer-events: none; font-size: var(--fs-data); color: var(--text-2); }
+.dk-bar { position: absolute; display: flex; align-items: center; gap: 10px; pointer-events: none; font-size: var(--fs-data); color: var(--text-2); }
 .dk-bar > * { pointer-events: auto; }
+.dk-bar[data-edge="right"] { flex-direction: column; align-items: center; justify-content: flex-start; }
+.dk-bar[data-edge="right"] :is(.dk-dots, .dk-count) { display: none; }
+.dk-bar[data-edge="right"] .dk-nav { flex-direction: column; }
 .dk-bar .dk-bar-title { font: 600 14px / 1.2 var(--display, "Source Serif 4", Georgia, serif); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .dk-dots { display: flex; gap: 5px; align-items: center; margin-left: auto; }
 .dk-dots button { appearance: none; border: 0; background: transparent; position: relative; width: 18px; height: 44px; margin: -19px 0; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -155,6 +160,9 @@
   box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 12px 32px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6));
   opacity: 0; visibility: hidden; transform: translateY(-8px); transition: opacity 180ms linear, transform 280ms var(--ease), visibility 0s linear 280ms; }
 .dk-panel[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+.dk-bar[data-edge="foot"] .dk-panel { top: auto; bottom: 52px; transform: translateY(8px); }
+.dk-bar[data-edge="right"] .dk-panel { top: 0; right: 52px; transform: translateX(8px); }
+.dk-bar[data-edge] .dk-panel[data-open="true"] { transform: none; }
 .dk-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .dk-chip { font: 600 13px / 1 var(--ui, system-ui); min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--edge); background: transparent; color: var(--text); cursor: pointer; }
 .dk-chip[aria-pressed="true"] { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }

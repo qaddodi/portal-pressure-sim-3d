@@ -7,8 +7,15 @@ import type { Room } from './camera/room.ts';
 import type { Shot, ShotName } from './camera/shots.ts';
 import type { CatheterState } from './catheter.ts';
 import { create } from 'zustand';
+import type { Gestures } from './gesture/controller.ts';
+import { createFrameQueue } from './gesture/frame-queue.ts';
 
 export const cel = new CelScene();
+
+/** The gestures' asks for "the next frame", run by the clock's tween phase (Stage.tsx). */
+export const frames = createFrameQueue(() => clock.invalidate('gesture'));
+/** The live gesture controller, set by Stage while mounted. */
+export const gesturesRef: { current: Gestures | null } = { current: null };
 
 /** The vessel picked in free play (topology edge ID), for the data card. */
 export const usePick = create<{ picked: string | null }>(() => ({ picked: null }));
@@ -16,11 +23,14 @@ export const usePick = create<{ picked: string | null }>(() => ({ picked: null }
 export const sceneApi = {
   /** Fly the camera to a named shot, fitted into the room the cards leave free. One straight move from wherever it is (950 ms). */
   goTo(shot: ShotName | Shot, room: Room, ms?: number): void {
+    gesturesRef.current?.handsOff();   // a new shot ends what the hand started: its zoom and pan come home with the move
     cel.goTo(shot, room, performance.now(), ms);
     clock.invalidate('shot');
   },
   /** The cards changed room (a card opened, the phone turned): move the room alone. */
   setRoom(room: Room, ms?: number): void { cel.rig.setRoom(room, performance.now(), ms); clock.invalidate('room'); },
+  /** Glide the hand's zoom and pan home to the shot's own framing (a second tap on the active view, a Fit button). */
+  refit(): void { gesturesRef.current?.refit(); clock.invalidate('refit'); },
   /** Catheter route advance 0..1 and balloon 0..1; the caller tweens them on the clock. */
   setCatheter(s: CatheterState): void { cel.setCatheter(s); clock.invalidate('catheter'); },
   /** Edge IDs the slide talks about; in flow-mark option A these (and the picked vessel) carry chevrons. */
