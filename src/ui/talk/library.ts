@@ -9,7 +9,7 @@ import { NO_ROOM, dec, enc, exportName, newId, readMine, writeMine, type Script,
 import { askText, confirmDialog, showLink } from '../deck/dialogs.ts';
 import { parseDeckSource, checkDeck } from '../deck/from2d/deck-source.js';
 import { W } from '../deck/words.ts';
-import { deckOf } from '../deck/deck-of.ts';
+import { knownTalk, loadDeck } from '../deck/deck-of.ts';
 import { startTalk } from '../shell/talk.ts';
 import { openHandout } from '../deck/handout.ts';
 import { openPresenterView } from '../deck/presenter-link.ts';
@@ -106,9 +106,10 @@ export function readScriptLink(): string | boolean {
 
 /** Opens a talk by id at a slide; says so when there is none. */
 export function present(id: string, at = 0): boolean {
-  if (!deckOf(id)) { say(W.notFound, 'bad'); return false; }
+  if (!knownTalk(id)) { say(W.notFound, 'bad'); return false; }
   useShell.getState().close();
   return startTalk(id, at);
 }
-export const notes = (id: string): void => { const d = deckOf(id); if (d) void openHandout(d); };
+/** Print notes: the tab opens inside the tap (so it is not blocked) and the talk is read into it, when it is one read on opening. */
+export const notes = (id: string): void => { if (!knownTalk(id)) { say(W.notFound, 'bad'); return; } void openHandout(loadDeck(id)).catch(() => say(W.notFound, 'bad')); };
 export const presenterView = (id: string, at = 0): void => { const ok = openPresenterView(); if (!ok) say(W.noNotesWindow, 'bad'); present(id, at); };
