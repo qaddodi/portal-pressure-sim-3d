@@ -94,7 +94,7 @@ export class SinusoidView {
   private ang = 0;
   private angVel = 0;
   /** The screen the view is on (setScreen): px per µm and the free room's length along the flow (px); null until the scene says (then 2D's defaults hold). */
-  private screen: { k: number; along: number; stage: number } | null = null;
+  private screen: { k: number; along: number; stage: number; centre: number } | null = null;
   /** How much each end's name shows (0 to 1), which its arrow follows (2D: endShown; 1 outside a talk). */
   private endShown: [number, number] = [1, 1];
   private washLand = -1;
@@ -217,21 +217,21 @@ export class SinusoidView {
   private target(): number { return this.portrait ? PORTRAIT_ANGLE : 0; }
   /** What the scene knows of the screen: `k`, CSS px per µm along the plane now, and `along`, the free room's length in px in the flow's direction, and `stage`, the whole canvas's (the traffic runs over what is on screen, cards or no). The end arrows stand 32 px (24 on a tall screen)
    *  inside the room's ends and the traffic runs over the stretch on screen, as 2D lays them out (layoutEnds, VW.vis). Without it the defaults hold (arrows at ±46 µm, traffic over ±70). */
-  setScreen(k: number, along: number, stage = along): void {
+  setScreen(k: number, along: number, stage = along, centre = 0): void {
     if (!(k > 0) || !(along > 0)) { if (this.screen) { this.screen = null; this.dirty = true; } return; }
     const s = this.screen;
-    if (s && Math.abs(s.k - k) < 1e-3 * k && Math.abs(s.along - along) < 0.5 && Math.abs(s.stage - stage) < 0.5) return;
-    this.screen = { k, along, stage: Math.max(stage, along) }; this.dirty = true;
-    // the traffic runs over the stretch on screen, a little past it each way (2D: VW.vis = a0 - 8 .. a1 + 8, within the laid-out reach)
-    const half = Math.min(REACH, this.screen.stage / 2 / k + 8);
-    this.VW.vis[0] = -half; this.VW.vis[1] = half;
+    if (s && Math.abs(s.k - k) < 1e-3 * k && Math.abs(s.along - along) < 0.5 && Math.abs(s.stage - stage) < 0.5 && Math.abs(s.centre - centre) < 1e-3) return;
+    this.screen = { k, along, stage: Math.max(stage, along), centre }; this.dirty = true;
+    // the traffic runs over the stretch on screen, a little past it each way (2D: VW.vis = a0 - 8 .. a1 + 8, within the laid-out reach); `centre` is where the screen's middle is along the flow (µm from the sinusoid's own)
+    const half = this.screen.stage / 2 / k + 8;
+    this.VW.vis[0] = Math.max(-REACH, centre - half); this.VW.vis[1] = Math.min(REACH, centre + half);
   }
   /** How much each end's name shows (0 to 1); its arrow follows it (a presenter slide that is not about an end dims both). */
   setEndShown(inEnd: number, outEnd: number): void { if (inEnd !== this.endShown[0] || outEnd !== this.endShown[1]) { this.endShown = [inEnd, outEnd]; this.dirty = true; } }
   /** The ends' arrows now: the portal venule's and the central vein's place (µm along from the middle) and the arrow's size. */
   get ends(): readonly [number, number, number] {
     const s = this.screen;
-    return s ? endsFor(s.k, s.along, this.portrait, UM.lum * this.cur.lum) : [END_DEFAULT[0], END_DEFAULT[1], Math.min(END_DEFAULT[2], UM.lum * this.cur.lum * 0.95)];
+    return s ? endsFor(s.k, s.along, this.portrait, UM.lum * this.cur.lum, s.centre) : [END_DEFAULT[0], END_DEFAULT[1], Math.min(END_DEFAULT[2], UM.lum * this.cur.lum * 0.95)];
   }
 
   // (The marks of the 2D sinusoid are the lumen's own streaks, set by the blood's speed; the Blood menu's chevron options act on the vessels and the lobule.)
