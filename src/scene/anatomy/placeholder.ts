@@ -1,12 +1,9 @@
-import { BufferGeometry, Shape, ShapeGeometry, SphereGeometry, Vector3 } from 'three';
+import { BufferGeometry, SphereGeometry, Vector3 } from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { ToneKey } from '../palette.ts';
-import { type Vec3, buildTube } from './vessels.ts';
 import { x3, y3 } from '../frame2d.ts';
-import { ORGAN_MESHES } from '../organs/meshes.ts';
 
-// Procedural placeholder organs, until the artist's glTF arrives (look-and-feel.md: "the slice judges the look system, the anatomy only as
-// placeholder"). Frontal view; the patient's right is on the viewer's left. Same coordinates as vessels.ts.
+// What is left of the first slice's placeholders: the lumpy ellipsoid the catheter's balloon is made of, and the figure's depth and extent. The placeholder organs and the body
+// plate are gone (the organs are the 2D outlines given depth, src/scene/organs; 2D draws no torso plate).
 
 /** A smooth, lumpy ellipsoid. Vertices are welded first so the normals have no seam. */
 export function blob(sx: number, sy: number, sz: number, amount: number, seed: number, segments = 40): BufferGeometry {
@@ -25,46 +22,7 @@ export function blob(sx: number, sy: number, sz: number, amount: number, seed: n
   return g;
 }
 
-export interface OrganDef {
-  id: string;
-  tone: ToneKey;
-  /** Ink width in px on a Mac or iPad (section 3). */
-  px: number;
-  geometry: () => BufferGeometry;
-  position?: Vec3;
-  rotation?: Vec3;
-}
-
-const tube = (pts: Vec3[], r: number) => () => buildTube(pts.map((q) => new Vector3(...q)), r, true).geometry;
-
-const sbPoints: Vec3[] = [];
-for (let i = 0; i <= 36; i++) sbPoints.push([0.72 * Math.sin(i * 0.62), -0.55 - i * 0.042, 0.22 + 0.1 * Math.cos(i * 0.9)]);
-
-// The organs are the 2D figure's own outlines given smooth depth (src/scene/organs, art/organs-simple/build.py), already in the shared frame.
-// 'kidney-l' takes the spleen's tone until the looks table has a kidney tone.
-export const ORGANS: readonly OrganDef[] = ([
-  ['heart', 'heart', 1.5], ['heart-ra', 'heart', 1.5], ['liver', 'liver', 1.8], ['spleen', 'spleen', 1.8], ['stomach', 'stomach', 1.5],
-  ['kidney-l', 'spleen', 1.5], ['duodenum', 'stomach', 1.4], ['colon', 'gut', 1.5], ['bowel', 'gut', 1.4],
-] as const).map(([id, tone, px]) => ({ id, tone, px, geometry: ORGAN_MESHES[id] }));
-
-/** Small oesophageal varices (small parts: 2 bands, thin ink). Shown from the pick on, they ride the lower oesophagus. */
-export const VARICES: readonly { angle: number; y: number; r: number }[] = [
-  { angle: 0.2, y: 1.95, r: 0.05 }, { angle: 2.2, y: 2.05, r: 0.045 }, { angle: 4.1, y: 2.12, r: 0.05 }, { angle: 5.4, y: 1.98, r: 0.04 },
-];
-
-/** The flat body plate behind the organs: no shading, no ink, so the figure reads as a plate in a book. */
-export function bodyPlateGeometry(): ShapeGeometry {
-  const torso = new Shape();
-  torso.moveTo(-2.3, -2.7);
-  torso.bezierCurveTo(-2.5, -1, -2.6, 1.2, -2.35, 2.4);
-  torso.bezierCurveTo(-2.1, 3.0, -1.2, 3.25, 0, 3.3);
-  torso.bezierCurveTo(1.2, 3.25, 2.1, 3.0, 2.35, 2.4);
-  torso.bezierCurveTo(2.6, 1.2, 2.5, -1, 2.3, -2.7);
-  torso.closePath();
-  return new ShapeGeometry(torso, 32);
-}
-export const BODY_PLATE_Z = -1.35;
-/** The figure's extent (scene units; the 2D figure's content, x 380 to 1100, y 0 to 1000 by frame2d.ts): what the gestures keep the middle of the free room inside of, so the figure is never lost. */
 /** The depth the figure's rectangle is measured at (the vessels' tiers run from -0.32 to 0.54; organs straddle 0). */
 export const FIGURE_Z = 0.2;
+/** The figure's extent (scene units; the 2D figure's content, x 380 to 1100, y 0 to 1000 by frame2d.ts): what the gestures keep the middle of the free room inside of, so the figure is never lost. */
 export const PLATE_BOUNDS = { x0: x3(380), x1: x3(1100), y0: y3(1000), y1: y3(0) } as const;

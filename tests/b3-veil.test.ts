@@ -39,7 +39,7 @@ test('a vessel in front of the organs is drawn over them, solid, and has no veil
 
 test('the veil is the fragment shader at 0.4, opaque otherwise', () => {
   assert.match(VESSEL_FS, /#ifdef VEIL\s+const float VEIL_A = 0\.4;\s+#else\s+const float VEIL_A = 1\.0;/);
-  assert.equal((VESSEL_FS.match(/gl_FragColor = vec4\([^;]*VEIL_A\);/g) ?? []).length, 2, 'the ink and the body both carry it');
+  assert.equal((VESSEL_FS.match(/gl_FragColor = vec4\([^;]*VEIL_A \* vFade\);/g) ?? []).length, 2, 'the ink and the body both carry it');
   assert.ok(!/gl_FragColor = vec4\([^;]*, 1\.0\);/.test(VESSEL_FS), 'no opaque write is left');
 });
 
