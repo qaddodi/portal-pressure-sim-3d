@@ -230,6 +230,19 @@ const blood = read('src/ui/blood.js')
   .replace("import { D_SURFACE, smooth01 } from './motion.js';", "const D_SURFACE = 420;   // (ease.js)\nconst smooth01 = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));   // (num.js)");
 put('src/scene/blood/blood.copied.js', `${HEAD('blood.js')}${blood}`);
 
+// ---------- the fades at a vessel's free end (anatomy.js TIP_FADE, ART_FADE, TIP_CONNECT; stage-geo.js FADE_DOWN_Y) ----------
+const fadeDown = /const FADE_DOWN_Y = (\{[^}]*\});/.exec(stageGeo);
+if (!fadeDown) throw new Error('FADE_DOWN_Y not found in stage-geo.js');
+put('src/scene/vessels/fades.copied.ts', `${HEAD('anatomy.js TIP_FADE, ART_FADE, TIP_CONNECT; stage-geo.js FADE_DOWN_Y')}/** A vein that ends in the organ it drains fades in from nothing over this share of its length, from its first point (pieces already scaled). */
+export const TIP_FADE_2D: Record<string, number> = ${JSON.stringify(A.TIP_FADE)};
+/** The hepatic artery's fades: \`in\` over the share of its length from its start, \`out\` over the share at its end. */
+export const ART_FADE_2D: Record<string, { in?: number; out?: number }> = ${JSON.stringify(A.ART_FADE)};
+/** A fading tip is drawn solid to its end while any of these collaterals is open. */
+export const TIP_CONNECT_2D: Record<string, readonly string[]> = ${JSON.stringify(A.TIP_CONNECT)};
+/** Veins that run on out of the plate fade out between these two heights (2D y, world units). */
+export const FADE_DOWN_Y_2D: Record<string, readonly [number, number]> = ${JSON.stringify(new Function(`return ${fadeDown[1]}`)())};
+`);
+
 // ---------- fork-joins.js (which ends run on into each other at a node, and the flare and the side-end narrowing of a vein drawn onto another) ----------
 put('src/scene/vessels/fork-joins.copied.js', `${HEAD('fork-joins.js')}${read('src/ui/fork-joins.js')}`);
 

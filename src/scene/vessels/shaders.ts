@@ -38,6 +38,11 @@ uniform float hiOffset;
 uniform float hiAhead;
 uniform float hiBehind;
 uniform float hiPx;
+// the fade at a free end (2D's TIP_FADE, ART_FADE, FADE_DOWN_Y): mode 1 runs along the vessel (uv.x), mode 2 down the figure (y); (from, to, alpha at from, alpha at to); fadeKeep 1: the Circuit does not let go of it
+uniform float fadeMode;
+uniform vec4 fadeA;
+uniform float fadeKeep;
+varying float vFade;
 varying vec3 vN;
 varying vec3 vV;
 varying vec3 vT;
@@ -66,6 +71,14 @@ ${CIRCUIT_VS_CALL}
   vV = normalize(-mv.xyz);
   vUv = uv;
   vHull = hull;
+  float fa = 1.0;
+  if (fadeMode > 0.5) {
+    float fs = fadeMode < 1.5 ? uv.x : position.y;
+    float ft = clamp((fs - fadeA.x) / (abs(fadeA.y - fadeA.x) < 1e-5 ? 1e-5 : fadeA.y - fadeA.x), 0.0, 1.0);
+    fa = mix(fadeA.z, fadeA.w, ft);
+    fa = mix(fa, 1.0, circT * (1.0 - fadeKeep));
+  }
+  vFade = fa;
   vHi = 0.0;
   vR = radius * rk * swell * 300.0;   // the tube's half width in the 2D figure's units
   vec4 c = projectionMatrix * mv;
@@ -132,6 +145,7 @@ uniform vec2 res;
 varying float vW;
 varying float vR;
 varying float vHull;
+varying float vFade;
 varying float vHi;
 varying vec3 vN;
 varying vec3 vV;
@@ -207,7 +221,7 @@ void main() {
   if (vHull > 0.5) {
     // the ink: the hull's back faces only, in the ink colour, warming to the highlight colour where the vessel is picked
     if (gl_FrontFacing || hullOn < 0.5) discard;
-    gl_FragColor = vec4(mix(inkColor, hiColor, clamp(vHi, 0.0, 1.0)), VEIL_A);
+    gl_FragColor = vec4(mix(inkColor, hiColor, clamp(vHi, 0.0, 1.0)), VEIL_A * vFade);
     return;
   }
   if (!gl_FrontFacing) discard;
@@ -286,5 +300,5 @@ void main() {
       c = c * (1.0 - ha) + core * ac + rimc * ar * (1.0 - ac);
     }
   }
-  gl_FragColor = vec4(c, VEIL_A);
+  gl_FragColor = vec4(c, VEIL_A * vFade);
 }`;
