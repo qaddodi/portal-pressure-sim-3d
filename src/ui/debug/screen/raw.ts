@@ -78,7 +78,7 @@ export function collectLabels(doc: Document, win: Window): RawLabel[] {
     out.push({ name, kind, x: r1(b.left), y: r1(b.top), w: r1(b.width), h: r1(b.height), opacity: Math.round(op * 100) / 100, on: el.hasAttribute('data-on'), tone: el.dataset.tone ?? '' });
   };
   doc.querySelectorAll<HTMLElement>('.lb').forEach((el) => read(el, 'label', (el.querySelector('.lb-name')?.textContent ?? '').trim()));
-  doc.querySelectorAll<HTMLElement>('.lb-call').forEach((el) => read(el, 'callout', `callout ${el.dataset.k ?? ''}`.trim()));
+  doc.querySelectorAll<HTMLElement>('.cl-pill, .cl-sum').forEach((el) => read(el, 'callout', `callout ${el.dataset.k ?? ''}`.trim()));
   const key = doc.querySelector<HTMLElement>('.lb-key');
   if (key) read(key, 'key', 'colour key');
   return out;
