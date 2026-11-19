@@ -125,9 +125,10 @@ export function LabelLayer() {
       project: deps.project, cameraMoving: deps.cameraMoving,
       view: () => deps.view(), blockers: () => { const b = ui.getState().boxes; return [b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox); },
       vp: () => ui.getState().vp, measure: deps.measure, now: deps.now, spleenScale: () => cel.disease.organs.spleenScaleNow,
+      circuit: () => (cel.view === 'circuit' && cel.circuit.t >= 1 ? { k: cel.mapScale(), project: (x, y, out) => cel.mapPoint(x, y, out) } : null),
       lobule: (name, out) => { if (cel.view !== 'lobule') return null; const a = cel.lobule.anchor(name, [0, 0, 0]); return out.set(a[0], a[1], a[2]); },
     });
-    const pushFigure = () => { const f = useFigure.getState(); figCards.set(f.cards, f.calipers, f.t0); clock.invalidate('figure-cards'); };
+    const pushFigure = () => { const f = useFigure.getState(); figCards.set(f.cards, f.calipers, f.t0, f.spans); clock.invalidate('figure-cards'); };
     pushFigure();
     const offFigure = useFigure.subscribe(pushFigure);
     const ctl = new LabelController(deps);

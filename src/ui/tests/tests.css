@@ -30,3 +30,7 @@
 .t-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; border: 1px solid var(--edge); background: var(--surface); margin-bottom: 10px; }
 .t-seg button { border: 0; border-radius: 999px; padding: 6px 14px; background: transparent; color: var(--text-2); font: 600 var(--t-sm, 13px) / 1 var(--ui); }
 .t-seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); }
+
+/* The shell around the panes (src/ui/tests/dock/): the sheet's grab handle takes no touch over the thumb dock (2D app-10-thumb-dock.css `.app.thumb :is(.panel-grab, .sheet-grab)`: the pull works from anywhere
+   in the card, dock/pull.ts); the card is not inside .app here, so the sheet kind says it. The divider and the guide line are the 2D sheets' own (app-06-plate.css, app-07-floating.css). */
+.t-pos[data-kind="sheet"] .sheet-grab { pointer-events: none; }

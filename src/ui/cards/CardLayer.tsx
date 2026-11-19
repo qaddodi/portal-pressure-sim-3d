@@ -128,7 +128,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
       case 'table': return sn.slide?.table ? <TableCard deck={deck} slide={sn.slide} /> : sn.slide ? <ToolCard deck={deck} slide={sn.slide} /> : null;
       case 'ladder': return (
         <>
-          {sn.slide?.tiles ? <TilesHead deckId={deck.id} slideId={sn.slide.id} /> : null}
+          {sn.slide?.tiles || (sn.slide && hasToolChart(sn.slide)) ? <TilesHead deckId={deck.id} slideId={sn.slide.id} /> : null}
           {sn.slide && hasToolChart(sn.slide) ? <ToolCard deck={deck} slide={sn.slide} /> : null}
           {sn.slide?.ladder ? <LadderCard ladder={sn.slide.ladder} readings={readings} /> : sn.slide?.tiles ? <TilesCard deckId={deck.id} slideId={sn.slide.id} /> : null}
         </>
@@ -138,7 +138,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   };
   const labelOf = (id: CardId) => ({ title: 'Talk', case: 'Case', teach: 'Slide', ladder: 'Pressures', table: 'Summary', check: 'Quick check' })[id];
   // a data card of tiles wears the 2D card's own state classes (presenter.js dataIn): every such card is tiles-only, a floating screen's is a column under the words, an instrument's has-tool and tool-only
-  const dataClass = (e: Entry) => { const sl = snaps[e.key]?.slide; return sl?.tiles ? ['tiles-only', stacked ? '' : 'col', sl.tool ? 'has-tool tool-only' : ''].filter(Boolean).join(' ') : undefined; };
+  const dataClass = (e: Entry) => { const sl = snaps[e.key]?.slide; return sl?.tiles || (sl && hasToolChart(sl)) ? ['tiles-only', stacked ? '' : 'col', sl.tool ? 'has-tool tool-only' : ''].filter(Boolean).join(' ') : undefined; };
   const frames = (stack: ReturnType<typeof useStack>, slot: 'words' | 'data') => stack.entries.map((e) => {
     const placed = e.phase === 'in' ? (slot === 'words' ? wordsShown : dataShown)?.rect : undefined;
     const rect = placed ?? last.current[e.key] ?? ZERO;

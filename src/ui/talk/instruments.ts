@@ -25,7 +25,7 @@ export const INSTRUMENTS: readonly InstrumentEntry[] = [
   { kind: 'scope', options: [...COMMON, 'open', 'readings', 'air', 'red'], evidence: 'src/ui/tests/endo/EndoPane.tsx', status: 'plays' },
   { kind: 'hvpg', options: [...COMMON, 'catheter'], evidence: 'src/ui/talk/HvpgTool.tsx', status: 'plays' },
   { kind: 'reading', options: [...COMMON, 'of'], evidence: 'src/ui/talk/ReadingTool.tsx', status: 'plays' },
-  { kind: 'wall', options: [...COMMON], evidence: 'src/ui/tests/endo/WallView.tsx', status: 'partial', gap: 'Wall mechanics is not drawn in the 3D app yet (WallView.tsx says so): the card shows its note' },
+  { kind: 'wall', options: [...COMMON], evidence: 'src/ui/tests/endo/WallView.tsx', status: 'plays' },
 ];
 
 export const instrumentOf = (kind: unknown): InstrumentEntry | undefined => INSTRUMENTS.find((x) => x.kind === kind);

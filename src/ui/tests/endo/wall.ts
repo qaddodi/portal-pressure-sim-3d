@@ -98,10 +98,18 @@ export function wallReadings(v: WallVarix, pin = NaN) {
     ptm: wr.ptm, r: wr.r, w: wr.w, index: wr.index, share,
     /** the sentence the stress tile keeps (hidden in the Tests card, read by a screen reader) */
     stress: share > 1 ? W.above : `${Math.round(share * 100)}${W.tear}`,
-    pct: String(Math.round(shown * 100)), state, word: (WALL_WORDS as Record<string, string>)[state]!,
+    pct: String(Math.round(shown * 100)), state, /** the meter's bar keeps the model's own share (2D: stressBar sev = wallState(share)), the big number and its word the slide's */ barState: wallState(share), word: (WALL_WORDS as Record<string, string>)[state]!,
     /** the meter's fill slid in from the left inside its track (instruments.js slideTxt: tenths of a percent) */
     fill: `${Math.round(clamp(share, 0, 1) * 1000) / 10 - 100}% 0px`,
   };
 }
 export const WALL_NOTE = ENDO_WORDS.wall.note + WALL_MEANING;
 export { wallShare };
+
+/** A slide pins the stress its screen shows (2D createVarixWall pin(fp): fp.wall of the slide's state); a what-if or a time-lapse pins a new one every few frames, so each eases into the last
+ *  (35% of the way) when it comes inside a second of it. NaN: nothing pinned, the model's own. */
+export interface WallPin { v: number; t: number }
+export function pinWall(prev: WallPin, x: unknown, now: number): WallPin {
+  const n = typeof x === 'number' && Number.isFinite(x) ? x : NaN;
+  return { v: !Number.isFinite(n) ? NaN : Number.isFinite(prev.v) && now - prev.t < 1000 ? prev.v + (n - prev.v) * 0.35 : n, t: now };
+}

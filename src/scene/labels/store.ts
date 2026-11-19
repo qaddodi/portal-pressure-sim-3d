@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import type { Vector3 } from 'three';
 import type { CathState } from '../../decks/schema.ts';
-import type { FigCard, FigCaliper } from './figure-cards.ts';
+import type { FigCard, FigCaliper, FigSpan } from './figure-cards.ts';
 import type { CathText, CalloutKind } from './cath-show.ts';
 import type { Tone } from './cath.ts';
 
@@ -46,8 +46,10 @@ export const useLabels = create<LabelsState>((set) => ({
 export interface FigureState {
   cards: readonly FigCard[];
   calipers: readonly FigCaliper[];
+  /** The Circuit's brackets between two stations (a slide's `span`). */
+  spans: readonly FigSpan[];
   /** when the slide landed (performance.now), for the numbered steps */
   t0: number;
   set(p: Partial<Omit<FigureState, 'set'>>): void;
 }
-export const useFigure = create<FigureState>((set) => ({ cards: [], calipers: [], t0: 0, set: (p) => set(p) }));
+export const useFigure = create<FigureState>((set) => ({ cards: [], calipers: [], spans: [], t0: 0, set: (p) => set(p) }));
