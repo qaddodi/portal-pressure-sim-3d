@@ -49,3 +49,12 @@ test('the main menu is on 2D\'s .umenu markup and the old sh-* menu is gone', ()
   assert.ok(/usePresence/.test(menu) && /inert=\{!open\}/.test(menu), 'the menu leaves by .out and takes no tap while it goes');
   assert.ok(/Sheets/.test(src('src/ui/shell/Sheets.tsx')) && src('src/ui/shell/Sheets.tsx').includes('<UMenu />'));
 });
+
+test('History and Help are pages pushed inside Settings, on 2D\'s .menu-page markup', () => {
+  const pop = src('src/ui/shell/Menu.tsx'), settings = src('src/ui/settings/SettingsSheet.tsx');
+  const css = src('src/ui/css2d/app-02-controls.css');
+  for (const c of ['menu-root', 'menu-page', 'menu-back', 'pushed']) { assert.ok(pop.includes(c), `${c} in the menu markup`); assert.ok(new RegExp(`\\.${c}\\b`).test(css), `.${c} is in 2D's stylesheet`); }
+  assert.ok(/push\('history'\)/.test(settings) && /push\('help'\)/.test(settings), 'the History and Help rows push a page');
+  assert.ok(!/runFeature\('history'/.test(settings) && !/sheet: 'help'/.test(settings), 'neither closes Settings to open its own sheet');
+  assert.ok(/inert=\{pushed\}/.test(pop) && /inert=\{!pushed\}/.test(pop), 'the rows under a page take no touch, and a page that has gone takes none');
+});

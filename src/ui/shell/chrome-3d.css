@@ -26,3 +26,13 @@
 .um-inline.on { animation: um-inline-in var(--d-small, .28s) var(--ease, cubic-bezier(.2, .7, .2, 1)) both; }
 .um-inline.on.out { animation: um-inline-out var(--d-small, .28s) var(--ease, cubic-bezier(.2, .7, .2, 1)) forwards; }
 @media (prefers-reduced-motion: reduce) { .sh-root > .menu.as-sheet, .sh-root > .menu.as-sheet.leaving, .sh-root > .umenu.sheet, .sh-root > .umenu.sheet.out { animation-duration: 1ms; } }
+
+/* a page pushed inside a menu (History and Help from Settings, 2D util.js menuPush): the page slides in from the right, the rows slide away left; 2D moves them in the cards' frames,
+   3D does it on the compositor (translate and opacity only) */
+@keyframes mp-in { from { translate: 100% 0; opacity: .6; } to { translate: 0 0; opacity: 1; } }
+@keyframes mp-out { from { translate: 0 0; opacity: 1; } to { translate: 100% 0; opacity: .6; } }
+.menu > .menu-root { transition: translate var(--d-small, .28s) var(--ease, ease), opacity var(--d-small, .28s) var(--ease, ease); }
+.menu.pushed > .menu-root { translate: -28% 0; opacity: 0; }
+.menu > .menu-page { animation: mp-in var(--d-small, .28s) var(--ease, cubic-bezier(.2, .7, .2, 1)) both; }
+.menu > .menu-page.out { animation: mp-out var(--d-small, .28s) var(--ease-in, ease-in) forwards; }
+@media (prefers-reduced-motion: reduce) { .menu > .menu-root { transition-duration: 1ms; } .menu > .menu-page, .menu > .menu-page.out { animation-duration: 1ms; } }

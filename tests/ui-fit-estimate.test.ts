@@ -31,7 +31,7 @@ function estimate(id: CardId, slideIdx: number, vp: Vp, pair: boolean, step: num
   if (id === 'teach') {
     const plain = (m: string) => plainLine(parseLine(m), () => 11.6);
     const chars = longest(s.line, plain);
-    h += t.kicker + 10 + lines(s.title, trim ? t.slideTitleTrim : t.slideTitle, inner, 0.5) * (trim ? t.slideTitleTrim : t.slideTitle) * t.slideTitleLead + 2 + (s.eq ? 10 + t.body * 1.2 + 12 : 10) + lines('x'.repeat(chars), t.body, inner, 0.54) * t.body * t.bodyLead;
+    h += (pages > 1 ? t.kicker + 10 : 0) + lines(s.title, trim ? t.slideTitleTrim : t.slideTitle, inner, 0.5) * (trim ? t.slideTitleTrim : t.slideTitle) * t.slideTitleLead + 2 + (s.eq ? 10 + t.body * 1.2 + 12 : 10) + lines('x'.repeat(chars), t.body, inner, 0.54) * t.body * t.bodyLead;
   } else if (id === 'case') h += t.kicker + 10 + lines('x'.repeat(longest(s.vignette!, (m) => m)), t.body, inner, 0.54) * t.body * t.bodyLead;
   else if (id === 'ladder') h += 14 + 10 + (s.ladder!.rows.length * (t.data * 1.3 + 7)) + (s.ladder!.result ? 12 + 10 + 30 : 0);
   else if (id === 'check') {
