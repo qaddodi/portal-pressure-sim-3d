@@ -22,6 +22,7 @@ import { cathVars, cathLook } from './cath.ts';
 import { KEY_LENSES, keyModel, schemeOf } from './key.ts';
 import { linkLabelsToDeck } from './deck-link.ts';
 import { useLabels } from './store.ts';
+import { toneCss } from '../../ui/deck/figure-plan.ts';
 import { VesselWalk } from './VesselWalk.tsx';
 import { Vector3 } from 'three';
 import { MOTION } from '../../clock/tween.ts';
@@ -60,6 +61,7 @@ interface Rec {
   rolling?: HTMLElement | null;
   leadTx: string; anchorTx: string;
   rev?: boolean;
+  tone?: string;
 }
 
 export function LabelLayer() {
@@ -150,7 +152,7 @@ export function LabelLayer() {
     // ── state in ──
     const pushState = () => {
       const l = useLabels.getState();
-      ctl.setState({ named: l.named, picked: usePick.getState().picked, cath: l.cath, organNames: l.organNames, key: l.key });
+      ctl.setState({ named: l.named, shown: l.shown, tones: l.tones, picked: usePick.getState().picked, cath: l.cath, organNames: l.organNames, key: l.key });
       clock.invalidate('labels-state');
     };
     pushState();
@@ -226,6 +228,10 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
     }
   }
   if (d.kind === 'station') {
+    // the colour the slide's words give this station (2D .lb.term): written when the slide changes it, never in a moving frame
+    const tone = d.tone ? toneCss(d.tone) : '';
+    if ((r.tone ?? '') !== tone) { r.tone = tone; if (tone) { el.style.setProperty('--lb-tone', tone); el.setAttribute('data-tone', ''); } else { el.style.removeProperty('--lb-tone'); el.removeAttribute('data-tone'); }
+      for (const x of [r.anchor, r.lead]) if (x) { if (tone) { x.style.setProperty('--lb-tone', tone); x.setAttribute('data-tone', ''); } else { x.style.removeProperty('--lb-tone'); x.removeAttribute('data-tone'); } } }
     if (d.value !== r.value && r.cur) {
       const was = r.value;
       r.value = d.value;

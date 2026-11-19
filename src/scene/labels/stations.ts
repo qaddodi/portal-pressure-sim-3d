@@ -8,6 +8,7 @@ import { NODE_POS_2D } from '../vessels/paths.copied.ts';
 import { x3, y3 } from '../frame2d.ts';
 import { LABEL_NAMES as N } from './names.copied.ts';
 import type { Dir } from './geometry.ts';
+import { TARGETS_FIG } from './figure2d.copied.ts';
 
 export type StationKind = 'vessel' | 'point' | 'organ';
 
@@ -80,7 +81,7 @@ export function nodeZ(id: string): number {
   return best.z;
 }
 const nodeAt = (id: string): [number, number, number] => at2d(NODE_POS_2D[id]![0], NODE_POS_2D[id]![1], nodeZ(id));
-const POINTS: Record<string, [number, number, number]> = { RA: nodeAt('RA'), SIN_R: nodeAt('SIN_R'), VAR: nodeAt('VAR') };
+const POINTS: Record<string, [number, number, number]> = { RA: nodeAt('RA'), SIN_R: nodeAt('SIN_R'), VAR: nodeAt('VAR'), GV: nodeAt('GV') };
 /** The plane of an organ's front face (frame2d.ts: organs lie behind z = 0.26). */
 export const ORGAN_FRONT = 0.26;
 /** Every organ the 2D app names (ORGAN_LABELS): its id here, and the word the 2D plate writes. */
@@ -94,7 +95,7 @@ const ORGAN_POINTS: Record<string, [number, number, number]> = Object.fromEntrie
 const DIRS: Record<string, readonly Dir[]> = {
   CONF: ['W', 'SW', 'E'], SV: ['S', 'SE', 'E'], SMV: ['E', 'SE', 'W'], SIN_R: ['W', 'SW', 'NW'], RHV: ['W', 'NW', 'N'], IVCS: ['E', 'NE', 'SE'],
   IVCI: ['E', 'SE', 'NE'], RA: ['E', 'NE', 'SE'], VAR: ['E', 'NE', 'SE'], MHV: ['S', 'SW', 'W'], LHV: ['S', 'SE', 'E'], RPV: ['N', 'NW', 'W'], LPV: ['N', 'NE', 'E'],
-  LGV: ['E', 'NE', 'SE'],
+  LGV: ['E', 'NE', 'SE'], GV: ['N', 'W', 'S'],
 };
 
 function vesselStation(id: string): Station | null {
@@ -128,7 +129,7 @@ function organStation(id: string): Station {
 /** Every station the 3D scene can label now, in the 2D app's order of importance. */
 export const STATIONS: readonly Station[] = [
   ...Object.keys(lv).filter((id) => !(id in POINTS) && !!names[id]).map(vesselStation).filter((s): s is Station => !!s),
-  ...['RA', 'SIN_R', 'VAR'].map(pointStation).filter((s): s is Station => !!s),
+  ...['RA', 'SIN_R', 'VAR', 'GV'].map(pointStation).filter((s): s is Station => !!s),
   ...Object.keys(ORGAN_POINTS).map(organStation),
 ].sort((a, b) => b.pri - a.pri || (a.id < b.id ? -1 : 1));
 
@@ -137,11 +138,13 @@ export const stationById = (id: string): Station | undefined => STATIONS.find((s
 /** The station a drawn vessel's label belongs to (a vessel is picked by edge ID; its station is the one whose label hangs from it). */
 export const stationOfVessel = (edge: string): string | null => STATIONS.find((s) => s.vessel === edge)?.id ?? null;
 
-/** Which stations a deck term points at (the deck's `terms` field names figure parts by these ids). Stations are in the 2D app's vocabulary;
- *  the table grows as decks come over (a test fails on a term it does not know, so none is silently ignored). */
-export const TERM_STATIONS: Readonly<Record<string, readonly string[]>> = {
-  ra: ['RA'], ivc: ['IVCS', 'IVCI'], hv: ['RHV'], fhvp: ['RHV'], whvp: ['SIN_R'], pv: ['CONF'], sv: ['SV'], smv: ['SMV'], var: ['VAR'],
-};
+/** Which stations a deck term points at (the deck's `terms` field names figure parts by these ids). The words are the 2D app's own (TARGETS, figure2d.copied.ts: each term's station, vessels, organ
+ *  and colour); a term with no station of its own (an organ, the Circuit's resistors, a lobule part) answers with no station, and what it lights is the figure link's (ui/deck/figure-plan.ts). The first
+ *  lines are the ones that light more than the 2D target's one station (the cava's two stretches). */
+const ALSO: Readonly<Record<string, readonly string[]>> = { ivc: ['IVCS', 'IVCI'] };
+export const TERM_STATIONS: Readonly<Record<string, readonly string[]>> = Object.fromEntries(
+  Object.entries(TARGETS_FIG).map(([k, t]) => [k, ALSO[k] ?? (t.node ? [t.node] : [])]),
+);
 
 export function stationsOfTerms(terms: readonly string[]): Set<string> {
   const out = new Set<string>();

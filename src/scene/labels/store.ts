@@ -4,8 +4,12 @@ import { create } from 'zustand';
 import type { CathState } from '../../decks/schema.ts';
 
 export interface LabelsState {
-  /** Stations the slide's words point at. */
+  /** Stations the slide's words light (a colour each: `tones`); every other label steps back while any is lit. */
   named: ReadonlySet<string>;
+  /** Stations the slide asks to have shown (its `labels`), whether or not its words light them: they join the figure's own names and dim nothing. */
+  shown: ReadonlySet<string>;
+  /** The colour token (2D: 'pv', '--tour-sys', 'accent') each lit station's words take. */
+  tones: Readonly<Record<string, string>>;
   cath: CathState | null;
   /** The lens whose key the slide shows (null: none). */
   key: string | null;
@@ -15,6 +19,6 @@ export interface LabelsState {
 }
 
 export const useLabels = create<LabelsState>((set) => ({
-  named: new Set(), cath: null, key: null, organNames: false,
+  named: new Set(), shown: new Set(), tones: {}, cath: null, key: null, organNames: false,
   set: (p) => set(p),
 }));

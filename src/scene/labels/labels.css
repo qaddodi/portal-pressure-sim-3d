@@ -20,6 +20,10 @@
 .lb .lb-name { min-width: 0; font-size: var(--lb-f-name); font-weight: var(--lb-w-name); color: var(--lb-name); }
 .lb .lb-val { margin-left: var(--lb-g-val); position: relative; display: inline-block; font-size: var(--lb-f-val); font-weight: var(--lb-w-val); color: var(--lb-val); }
 .lb[data-form="2"] .lb-val { margin-left: 0; }
+/* a station the slide's words light takes the term's colour (2D .lb.term: the station colour, a step toward the text so it reads on every look) */
+.lb[data-tone] .lb-name, .lb[data-tone] .lb-val { color: color-mix(in srgb, var(--lb-tone) 80%, var(--lb-val)); }
+.lb-anchor[data-tone] { border-color: var(--lb-tone); }
+.lb-lead[data-tone] { background: var(--lb-tone); }
 .lb .lb-rev { display: none; margin-left: var(--lb-g-rev); font-size: var(--lb-f-rev); font-weight: var(--lb-w-rev); color: var(--lb-rev); }
 .lb[data-rev] .lb-rev { display: inline-block; }
 .lb[data-region] { justify-content: center; }
