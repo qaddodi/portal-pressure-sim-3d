@@ -8,18 +8,18 @@ export function TitleCard({ deck, page, pages }: { deck: Deck; page: number; pag
   const outline = outlineOf(deck);
   return (
     <>
-      {head && <h1 className="dk-title dk-title--deck dk-dtitle">{deck.title}</h1>}
-      <h2 className="dk-title dk-outline-title" style={{ margin: '14px 0 0' }}>{OUTLINE_TITLE}{pages > 1 ? <span className="dk-pageno dk-kicker"> · {page + 1} of {pages}</span> : null}</h2>
-      <div className="dk-outline">
+      {head && <h1 className="pz-h">{deck.title}</h1>}
+      <p className="pz-line">{OUTLINE_TITLE}{pages > 1 ? <span className="dk-pageno"> · {page + 1} of {pages}</span> : null}</p>
+      <div className="pz-outline">
         {head && (
           <section>
-            <h3 className="dk-sub">{OUTLINE_HEAD}</h3>
+            <h2 className="pz-sub">{OUTLINE_HEAD}</h2>
             <ol>{outline.map((k) => <li key={k}>{k}</li>)}</ol>
           </section>
         )}
         {objectives && deck.objectives.length > 0 && (
-          <section className="dk-obj-card">
-            <h3 className="dk-sub">{OBJECTIVES_HEAD}</h3>
+          <section className="pzo-obj">
+            <h2 className="pz-sub">{OBJECTIVES_HEAD}</h2>
             <ul>{deck.objectives.map((o) => <li key={o}>{o}</li>)}</ul>
           </section>
         )}

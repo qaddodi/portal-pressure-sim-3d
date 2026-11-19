@@ -1,5 +1,5 @@
-// The dock (play bar and key readouts) is the 2D timeline's markup and its effective sizes, not a look-alike: the class names, the structure and the numbers of
-// styles/app-07-floating.css, app-08-cards.css and app-09-tests.css (the later file wins). With PPS_2D_REPO set, each number is also found in the 2D CSS.
+// The dock (play bar and key readouts) is the 2D timeline's markup under the 2D stylesheets themselves (src/ui/css2d, copied byte for byte): the class names, the structure
+// and the numbers of app-07-floating.css, app-08-cards.css and app-09-tests.css (the later file wins). The numbers are looked up in the copied 2D CSS (and in the 2D checkout when PPS_2D_REPO is set).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
@@ -7,8 +7,9 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const css = readFileSync(join(root, 'src/ui/shell/dock.css'), 'utf8');
-const tsx = readFileSync(join(root, 'src/ui/shell/PlayBar.tsx'), 'utf8');
+const FILES = ['app-07-floating.css', 'app-08-cards.css', 'app-09-tests.css'];
+const css = FILES.map((f) => readFileSync(join(root, 'src/ui/css2d', f), 'utf8')).join('\n');
+const tsx = readFileSync(join(root, 'src/ui/shell/Dock.tsx'), 'utf8') + readFileSync(join(root, 'src/ui/shell/PlayBar.tsx'), 'utf8');   // (the dock's frame first, then the row and the strip it holds)
 const two = process.env.PPS_2D_REPO;
 
 // [what, a line of dock.css that holds it, a line of the 2D CSS that holds it]
@@ -24,13 +25,13 @@ const NUMBERS: [string, RegExp, RegExp][] = [
   ['a phone: the timeline row is 52 px and the readouts stand above it', /height: 52px; padding: 0 6px;/, /\.vdock \.stage-bar\.bottom \{ height: 52px; padding: 0 6px; \}/],
 ];
 
-test('the dock keeps the 2D numbers', () => {
-  for (const [what, mine] of NUMBERS) assert.match(css, mine, `dock.css lost: ${what}`);
+test('the dock keeps the 2D numbers (in the copied 2D stylesheets)', () => {
+  for (const [what, , theirs] of NUMBERS) assert.match(css, theirs, `the copied 2D CSS no longer says: ${what}`);
 });
 
 test('the dock keeps the 2D numbers in the 2D CSS too (needs PPS_2D_REPO)', { skip: !two || !existsSync(join(two ?? '', 'styles')) }, () => {
-  const all = ['app-07-floating.css', 'app-08-cards.css', 'app-09-tests.css'].map((f) => readFileSync(join(two!, 'styles', f), 'utf8')).join('\n');
-  for (const [what, , theirs] of NUMBERS) assert.match(all, theirs, `the 2D CSS no longer says: ${what}; dock.css must follow it`);
+  const all = FILES.map((f) => readFileSync(join(two!, 'styles', f), 'utf8')).join('\n');
+  for (const [what, , theirs] of NUMBERS) assert.match(all, theirs, `the 2D CSS no longer says: ${what}; re-copy it (node scripts/copy-2d-css.mjs)`);
 });
 
 test('the play bar has the 2D timeline\'s structure and class names', () => {
@@ -40,10 +41,10 @@ test('the play bar has the 2D timeline\'s structure and class names', () => {
   const at = (s: string) => tsx.indexOf(s);
   assert.ok(at('className="tl-left"') < at('className="tl-time"') && at('className="tl-time"') < at('className="tl-jumps"') && at('className="tl-jumps"') < at('className="tl-hist"') && at('className="tl-hist"') < at('className="tl-pin"'));
   // the strip comes after the row in the markup (the grid puts it right, or above on a phone)
-  assert.ok(at('className="stage-bar bottom"') < at('className="readouts"'));
+  assert.ok(at('<Timeline') < at('<Readouts'));
 });
 
 test('Restart is in the page and hidden, as in 2D; History shows on every size', () => {
-  assert.match(css, /\.vdock \.tl-restart \{ display: none; \}/);
-  assert.doesNotMatch(css, /\.tl-hist \{[^}]*display: none/);
+  assert.match(css, /\.tl-restart[^{]*\{[^}]*display: none/);
+  assert.doesNotMatch(css, /\.vdock \.tl-hist \{[^}]*display: none/);
 });

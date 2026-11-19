@@ -1,13 +1,12 @@
-import { Legend } from '../../scene/lenses/Legend.tsx';
-import { useCompare } from '../compare/store.ts';
+// The top bar, on the 2D app's own markup and class names (index.html #topbar): the patient pill (.tb-id), the figure's pill (.stage-bar.top > .sb-right: Layers, Blood and the colour key) and the actions pill
+// (.top-right: Treat, Tests, History, Settings, Search). Its stylesheet is the 2D app's (src/ui/css2d), copied unchanged; nothing here styles it.
 import { UI } from '../strings.generated.ts';
-import { useUi } from '../ui-store.ts';
 import { useShell, LENS_IDS } from './store.ts';
 import { useLens } from '../../scene/lenses/store.ts';
 import { sceneApi } from '../../scene/api.ts';
 import type { LensId } from '../../scene/lenses/model.ts';
 import { Anchored } from './Pop.tsx';
-import { Icon } from './icons.tsx';
+import { I } from './icons.tsx';
 import { LENS_ART } from './lens-art.ts';
 import { VIEWS, pillHidden, tapView, type ViewId } from './views.ts';
 import { runFeature, type FeatureId } from './features.ts';
@@ -15,22 +14,22 @@ import { notYet } from './words.ts';
 import { goToView, refitFigure } from './view-actions.ts';
 import { FigureMenu } from './FigureMenu.tsx';
 import { keyLabel } from './platform.ts';
+import { LensKey } from './LensKey.tsx';
 
 interface Tb { id: string; label: string | null; title: string | null; text: string | null }
 export const tb = (id: string): Tb => UI.topbar.find((t) => t.id === id) as unknown as Tb;
 const labelOf = (id: string) => tb(id).label ?? tb(id).text ?? id;
 
-/** The pill row of views: Circuit, Anatomy, Lobule, Sinusoid. A second tap on the active view refits it; Sinusoid folds in only while the lobule is up. */
+/** The view switch (Circuit, Anatomy, Lobule, Sinusoid): 2D's #viewSeg. A second tap on the active view refits it; Sinusoid shows only while the lobule is up. */
 export function ViewPills() {
   const view = useShell((s) => s.view);
   const ready = useShell((s) => s.ready);
   return (
-    <div className="sh-seg" role="group" aria-label="View" data-view-pills>
+    <div className="seg" id="viewSeg" role="group" aria-label="View" data-view-pills>
       {VIEWS.map((v) => {
         const hidden = pillHidden(v.id, view);
         return (
-          <button key={v.id} type="button" aria-pressed={view === v.id} data-hidden={hidden} data-pending={!ready[v.id]} tabIndex={hidden ? -1 : 0} aria-hidden={hidden || undefined}
-            title={UI.views.find((x) => x.id === v.id)?.label} onClick={() => tapPill(v.id, view)}>{v.label}</button>
+          <button key={v.id} type="button" data-view={v.id} aria-pressed={view === v.id} hidden={hidden} data-pending={!ready[v.id] || undefined} title={UI.views.find((x) => x.id === v.id)?.label} onClick={() => tapPill(v.id, view)}>{v.label}</button>
         );
       })}
     </div>
@@ -41,18 +40,17 @@ function tapPill(id: ViewId, cur: ViewId) {
   if (t.type === 'refit') refitFigure(); else goToView(t.view);
 }
 
-/** The colour legend and lens name; the lens menu opens from it. */
+/** The lens button: the colour key and a chevron (2D's #btnLayers). The lens menu opens from it. */
 export function LensButton() {
   const lens = useLens((s) => s.lens);
-  const cmp = useCompare((c) => c.snap), cmpView = useCompare((c) => c.view);
-  const name = UI.lenses.find((l) => l.id === lens)?.name ?? '';
   return (
-    <Anchored sheet="lens" label={labelOf('btnLayers')} width={440} button={({ id, open, toggle }) => (
-      <button type="button" className="sh-pill sh-lens" data-opens="lens" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} title={tb('btnLayers').title ?? undefined} onClick={toggle}>
-        <span className="sh-lens-name">{name}</span>
-        <Legend variant="bar" reference={cmp && cmpView === 'D' ? cmp.when : undefined} />
-        <Icon n="chev-down" className="sh-chev" />
-      </button>)}>
+    <Anchored sheet="lens" label={labelOf('btnLayers')} width={440} align="end" button={({ id, open, toggle, ref }) => (
+      <div ref={ref as React.Ref<HTMLDivElement>} className="lens-btn" id="btnLayers" role="button" tabIndex={0} data-opens="lens" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} title={tb('btnLayers').title ?? undefined}
+        onClick={toggle} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}>
+        <span className="lens-name" id="colorModeLabel">{UI.lenses.find((l) => l.id === lens)?.name ?? ''}</span>
+        <LensKey />
+        <I n="chev-down" className="chev" />
+      </div>)}>
       <LensMenu />
     </Anchored>
   );
@@ -74,44 +72,53 @@ function LensMenu() {
 }
 export function setLens(id: LensId) { sceneApi.setLens(id); }
 
-function Pill({ id, icon, feature, text, compact }: { id: string; icon: string; feature: FeatureId; text?: string; compact: boolean }) {
+function Act({ id, icon, feature, extra, className = '' }: { id: string; icon: string; feature: FeatureId; extra?: React.ReactNode; className?: string }) {
   const t = tb(id);
   return (
-    <button type="button" className="sh-pill" data-icon-only={compact || undefined} aria-label={t.label ?? text} title={t.title ?? undefined} aria-haspopup="dialog" onClick={() => runFeature(feature, text ?? t.label ?? id)}>
-      <Icon n={icon} />{!compact && <span>{text ?? t.text}</span>}
+    <button type="button" className={`${className} tb-act`.trim()} id={id} aria-label={t.label ?? undefined} title={t.title ?? undefined} aria-haspopup="dialog" onClick={() => runFeature(feature, t.label ?? id)}>
+      <I n={icon} /><span>{t.text}</span>{extra}
     </button>
   );
 }
 
-/** The top bar of a laptop or an iPad held sideways; a phone or an upright iPad keeps the menu and the lens here and the rest at the foot. */
-export function TopBar({ bottom, pills = !bottom }: { bottom: boolean; pills?: boolean }) {
+/** The top bar as index.html has it. A phone or an upright iPad (the 2D "thumb" layout) keeps the patient and the colour key here, the rest in the dock's tab row. */
+export function TopBar() {
   const mode = useShell((s) => s.mode);
   const sheet = useShell((s) => s.sheet);
   const view = useShell((s) => s.view);
   const patientId = useShell((s) => s.patientId);
-  const vw = useUi((s) => s.vp.w);
-  const compact = vw < 1240;
+  const lobule = view === 'lobule' || view === 'sinusoid';
   const patient = UI.presets.find((p) => p.id === patientId)?.label ?? '';
   const menu = tb('btnMenu');
   return (
-    <header className="sh-top" data-hidden={mode === 'deck'} aria-label="Top bar">
-      <button type="button" className="sh-pill sh-menu-btn" data-opens="menu" aria-haspopup="dialog" aria-expanded={sheet === 'menu'} aria-label={menu.label ?? undefined} title={menu.title ?? undefined} onClick={() => useShell.getState().toggle('menu')}>
-        <Icon n="menu" /><span className="sh-name">{patient}</span>
-      </button>
-      {pills && <ViewPills />}
-      {!bottom && <div className="sh-anchor" style={{ opacity: view === 'lobule' || view === 'sinusoid' ? 1 : 0, pointerEvents: view === 'lobule' || view === 'sinusoid' ? 'auto' : 'none', transition: 'opacity 200ms' }}><FigureMenu kind="layers" /></div>}
-      {!bottom && <FigureMenu kind="blood" />}
-      <LensButton />
-      <span className="sh-grow" />
-      {!bottom && <>
-        <Pill id="btnTreat" icon="pill" feature="treat" compact={compact} />
-        <Pill id="tabInstruments" icon="gauge" feature="tests" compact={compact} />
-        <Pill id="btnHistory" icon="clock" feature="history" compact={compact} />
-        <button type="button" className="sh-pill" data-icon-only data-opens="settings" aria-haspopup="dialog" aria-expanded={sheet === 'settings'} aria-label={tb('btnSettings').label ?? undefined} title={tb('btnSettings').title ?? undefined} onClick={() => useShell.getState().toggle('settings')}><Icon n="gear" /></button>
-        <button type="button" className="sh-pill" data-icon-only={compact || undefined} data-opens="search" aria-haspopup="dialog" aria-expanded={sheet === 'search'} aria-label={tb('btnPalette').label ?? undefined} title={tb('btnPalette').title ?? undefined} onClick={() => useShell.getState().toggle('search')}>
-          <Icon n="search" />{!compact && <span>Search</span>}{!compact && <kbd>{keyLabel('Ctrl/⌘ K')}</kbd>}
+    <header className="topbar float-ui stage-blocker" id="topbar" data-hidden={mode === 'deck' || undefined} aria-label="Top bar">
+      <div className="float-pill tb-id">
+        <span className="tb-face" aria-hidden="true" />
+        <button type="button" className="menu-btn" id="btnMenu" data-opens="menu" aria-haspopup="dialog" aria-expanded={sheet === 'menu'} aria-label={menu.label ?? undefined} title={menu.title ?? undefined} onClick={() => useShell.getState().toggle('menu')}>
+          <i className="brand-mark" aria-hidden="true" />
+          <span className="scenario-v" id="scenarioName">{patient}</span>
+          <I n="chev-down" className="chev" />
         </button>
-      </>}
+      </div>
+      <div className="stage-bar top" id="stageTop">
+        <div className="sb-left" />
+        <div className="sb-right has-face">
+          <span className="tb-face" aria-hidden="true" />
+          <FigureMenu kind="layers" hidden={!lobule} />
+          <FigureMenu kind="blood" />
+          <LensButton />
+        </div>
+      </div>
+      <div className="top-right float-pill stage-blocker">
+        <Act id="btnTreat" icon="pill" feature="treat" />
+        <Act id="tabInstruments" icon="gauge" feature="tests" className="measure-launch" />
+        <Act id="btnHistory" icon="clock" feature="history" extra={<b className="tb-hc" aria-hidden="true" />} />
+        <span className="tb-sep" aria-hidden="true" />
+        <button type="button" className="ib" id="btnSettings" data-opens="settings" aria-haspopup="dialog" aria-expanded={sheet === 'settings'} aria-label={tb('btnSettings').label ?? undefined} title={tb('btnSettings').title ?? undefined} onClick={() => useShell.getState().toggle('settings')}><I n="gear" /></button>
+        <button type="button" className="pal-btn" id="btnPalette" data-opens="search" aria-expanded={sheet === 'search'} aria-label={tb('btnPalette').label ?? undefined} title={tb('btnPalette').title ?? undefined} onClick={() => useShell.getState().toggle('search')}>
+          <I n="search" /><span className="pal-l">Search</span><kbd>{keyLabel('Ctrl/⌘ K')}</kbd>
+        </button>
+      </div>
     </header>
   );
 }

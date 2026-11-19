@@ -3,26 +3,29 @@
 // The sheets, the toast and the diagnostics are the same in both.
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import './shell.css';
-import './dock.css';
+import './chrome-3d.css';
 import { DeckUi } from '../DeckUi.tsx';
 import { useUi } from '../ui-store.ts';
 import { useShell } from './store.ts';
-import { TopBar, ViewPills } from './TopBar.tsx';
-import { PlayBar } from './PlayBar.tsx';
+import { TopBar } from './TopBar.tsx';
+import { Dock } from './Dock.tsx';
+import { Credit } from './Credit.tsx';
+import { useThumb } from './thumb.ts';
 import { ZoomGroup } from './ZoomGroup.tsx';
-import { ThumbBar } from './ThumbBar.tsx';
 import { Sheets } from './Sheets.tsx';
 import { Toast } from './Toast.tsx';
 import { Diagnostics } from './Diagnostics.tsx';
 import { useKeys } from '../keys/useKeys.ts';
 import { syncTransport } from './transport.ts';
-import { usesBottomBar, freeRoom } from './room.ts';
+import { freeRoom, layoutVars, layoutClass } from './room.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { applyDeepLink } from './open-link.ts';
 import { showView } from './view-actions.ts';
 import { useBlood } from '../../scene/blood/options.ts';
 import { useLabels } from '../../scene/labels/store.ts';
-import { footHeight } from './room.ts';
+import { useTestsRoom } from '../tests/room.ts';
+import { roomWith } from '../tests/place.ts';
+import { TestsLayer } from '../tests/TestsLayer.tsx';
 import { CompareBanner } from '../compare/CompareUi.tsx';
 import { startCompare } from '../compare/bind.ts';
 import { startTimeline } from '../timeline/index.ts';
@@ -49,23 +52,36 @@ function useViewport(probe: React.RefObject<HTMLDivElement | null>) {
 function useFreeCamera() {
   const mode = useShell((s) => s.mode);
   const refit = useShell((s) => s.refit);
-  const vp = useUi((s) => s.vp), device = useUi((s) => s.device);
+  const vp = useUi((s) => s.vp);
+  const thumb = useThumb();
+  const testsPlace = useTestsRoom((s) => s.place);   // (the Tests card takes room from the figure)
   const entered = useRef(false);
   useEffect(() => {
     if (mode !== 'free' || vp.w <= 0) { entered.current = false; return; }
-    const room = freeRoom(vp, device);
+    const room = roomWith(freeRoom(vp, layoutClass(thumb)), testsPlace);
     if (room.w <= 0 || room.h <= 0) return;
     if (!entered.current) { entered.current = true; showView(useShell.getState().view); } else sceneApi.setRoom(room);
-  }, [mode, vp, device]);
+  }, [mode, vp, thumb, testsPlace]);
   const seen = useRef(refit);
   useEffect(() => { if (refit !== seen.current) { seen.current = refit; sceneApi.refit(); } }, [refit]);
+}
+
+/** What 2D's main.js publishes on .app after measuring the bars: the cards, the zoom pill and the toast read them. Set when the screen or the layout changes, never per frame. */
+function usePublishedLayout(app: React.RefObject<HTMLDivElement | null>, thumb: boolean) {
+  const vp = useUi((s) => s.vp);
+  useLayoutEffect(() => {
+    const el = app.current;
+    if (!el || vp.w <= 0) return;
+    for (const [k, v] of Object.entries(layoutVars(vp, layoutClass(thumb)))) el.style.setProperty(k, v);
+  }, [app, vp, thumb]);
 }
 
 export function Shell() {
   const probe = useRef<HTMLDivElement>(null);
   const mode = useShell((s) => s.mode);
   const device = useUi((s) => s.device);
-  const bottom = usesBottomBar(device);
+  const view = useShell((s) => s.view);
+  const appRef = useRef<HTMLDivElement>(null);
   useViewport(probe);
   useKeys();
   useFreeCamera();
@@ -76,22 +92,23 @@ export function Shell() {
   // what the Blood menu remembers goes to the scene and the labels once at boot (the menu then tells them itself)
   useEffect(() => { const b = useBlood.getState(); sceneApi.setBlood({}); useLabels.getState().set({ organNames: b.labels }); }, []);
   useEffect(() => { void applyDeepLink(location.search); }, []);
+  const thumb = useThumb();
+  usePublishedLayout(appRef, thumb);
   return (
     <>
       {mode === 'deck' && <DeckUi />}
-      <div className="sh-root" data-device={device} data-bottom={bottom} data-mode={mode}>
+      <div className="sh-root" data-device={device} data-bottom={thumb} data-mode={mode}>
         <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'env(safe-area-inset-top, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }} />
-        <TopBar bottom={bottom} pills={!bottom || device === 'phone-landscape'} />
-        {!bottom && <PlayBar phone={false} />}
-        {!bottom && <ZoomGroup />}
-        {bottom && (
-          <div className="sh-foot" data-hidden={mode === 'deck'} style={mode === 'deck' ? { opacity: 0, pointerEvents: 'none' } : undefined}>
-            {device !== 'phone-landscape' && <div className="sh-view-row"><ViewPills /></div>}
-            <PlayBar phone />
-            <ThumbBar />
-          </div>
-        )}
+        <div className={`app${thumb ? ' thumb' : ''}${view === 'sinusoid' ? ' sin-focus' : ''}`} id="app" ref={appRef}>
+          <TopBar />
+          <main className={`stage-wrap${view === 'circuit' ? ' cmap' : ''}`} id="stageWrap" aria-label="Figure">
+            <div className={`stage-view${view === 'lobule' || view === 'sinusoid' ? ' in-lobule' : ''}`} id="stageView"><ZoomGroup /></div>
+            <Credit />
+            <Dock thumb={thumb} />
+          </main>
+        </div>
         <CompareBanner />
+        {mode === 'free' && <TestsLayer />}
         <Sheets />
         <Toast />
         <Diagnostics />

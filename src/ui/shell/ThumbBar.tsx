@@ -1,8 +1,7 @@
-// The bottom bar of a phone and an upright iPad: Treat, Tests, Search, Layers, Settings (the 2D app's thumb dock). A second tap on a tab closes it. Layers shows only in
-// the lobule view (it is dimmed and inert elsewhere, kept in place so the bar never changes its shape).
+// The thumb dock's tab row (2D main.js wireThumbBar): Treat, Tests, Search, Layers, Settings as .nb-tab buttons in nav#thumbBar. A second tap on a tab closes it. Layers is dimmed and inert outside the lobule.
 import { UI } from '../strings.generated.ts';
 import { useShell } from './store.ts';
-import { Icon } from './icons.tsx';
+import { I } from './icons.tsx';
 import { runFeature, type FeatureId } from './features.ts';
 
 const ICON: Record<string, string> = { treat: 'pill', tests: 'gauge', search: 'search', layers: 'layers', settings: 'gear' };
@@ -13,14 +12,14 @@ export function ThumbBar() {
   const view = useShell((s) => s.view);
   const lobule = view === 'lobule' || view === 'sinusoid';
   return (
-    <nav className="sh-thumb" aria-label="Main">
+    <nav className="thumb-bar" id="thumbBar" aria-label="Patient tools">
       {UI.menus.thumbTabs.map((t) => {
         const sheetId = t.id === 'search' ? 'search' : t.id === 'settings' ? 'settings' : t.id === 'layers' ? 'layers' : null;
         const off = t.id === 'layers' && !lobule;
         return (
-          <button key={t.id} type="button" disabled={off} data-opens={sheetId ?? undefined} aria-expanded={sheetId ? sheet === sheetId : undefined} aria-haspopup={sheetId ? 'dialog' : undefined}
+          <button key={t.id} type="button" className="nb-tab" data-tab={t.id} disabled={off} data-opens={sheetId ?? undefined} aria-expanded={sheetId ? sheet === sheetId : undefined} aria-haspopup={sheetId ? 'dialog' : undefined}
             onClick={() => { if (sheetId) useShell.getState().toggle(sheetId); else runFeature(FEATURE[t.id], t.label); }}>
-            <Icon n={ICON[t.id]} /><span>{t.label}</span>
+            <I n={ICON[t.id]} /><span className="nb-l">{t.label}</span>
           </button>
         );
       })}
