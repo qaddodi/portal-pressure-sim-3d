@@ -1,4 +1,4 @@
-import { Color, type DataTexture, Group, Mesh, MeshBasicMaterial, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { Box3, Color, type DataTexture, Group, Mesh, MeshBasicMaterial, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { BODY_PLATE_Z, FIGURE_Z, PLATE_BOUNDS, bodyPlateGeometry } from './anatomy/placeholder.ts';
 import { buildVessel } from './anatomy/vessels.ts';
 import { NETWORK, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
@@ -27,6 +27,7 @@ import type { Vec3 } from './anatomy/vessels.ts';
 import { SinusoidView } from './sinusoid/index.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
+import { ProbeLayer } from './devices/probes/layer.ts';
 import { organsReady } from './organs/meshes.ts';
 import { clock } from '../clock/frame.ts';
 import { COURSES } from './circuit/course.ts';
@@ -90,6 +91,8 @@ export class CelScene {
   readonly catheter: Catheter;
   /** Every device a procedure puts on the figure (B5): the catheters on their routes, the stent, the tamponade tube, bands. */
   readonly procs: ProcedureLayer;
+  /** The Tests card's devices on the figure (B11): the Doppler probe, the FibroScan probe, the endoscope with its ligator cap and EUS needle. */
+  readonly probes: ProbeLayer;
   readonly highlight: Highlight;
   readonly flow: BloodMarks;
   /** The colour lens (src/scene/lenses/): what colour every vein wears, crossfaded on the clock. */
@@ -145,6 +148,11 @@ export class CelScene {
     this.procs = new ProcedureLayer(this.shared);
     this.body.add(this.procs.group);
     for (const id of ['TIPS', 'DIPS'] as const) this.procs.addStent(id, this.byEdge.get(id) as VesselObject);
+    this.probes = new ProbeLayer(this.shared, {
+      organBox: (organ) => { const o = this.disease.organs.byId.get(organ); return o ? new Box3().setFromObject(o.group) : null; },
+      kpa: (organ) => { const m = latest.frame?.metrics as Record<string, number | null | undefined> | undefined; return m?.[organ === 'spleen' ? 'ssm' : 'lsm'] ?? null; },
+    });
+    this.body.add(this.probes.group);
 
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
     this.flow = new BloodMarks(this.vessels);
@@ -191,7 +199,7 @@ export class CelScene {
     (this.plate.material as MeshBasicMaterial).color.set(p.body);
     this.mapLayer.applyLook(look, p.ink, MAP_LOOKS[look]?.ground ?? p.bg);
     for (const o of this.objects) { o.applyPalette(p); o.setPhone(this.phone); }
-    this.procs.applyPalette(p);
+    this.procs.applyPalette(p); this.probes.applyPalette(p);
     this.disease.applyLook(look, p); this.disease.setPhone(this.phone);
     this.lens.setLook(look);
     this.lobule.applyLook(look); this.sinus.applyLook(look); this.feedSinusInk();
@@ -213,7 +221,7 @@ export class CelScene {
   setPhone(phone: boolean): void {
     this.phone = phone;
     for (const o of this.objects) o.setPhone(phone);
-    this.procs.setPhone(phone);
+    this.procs.setPhone(phone); this.probes.setPhone(phone);
     this.disease.setPhone(phone);
     this.lobule.setPhone(phone); this.sinus.setPhone(phone);
     this.moving = true;
@@ -473,7 +481,8 @@ export class CelScene {
     const viewMoving = this.lobule.update(now) || this.sinus.update(now);
     const procMoving = this.procs.update(now);
     const diseaseMoving = this.disease.update(now);
-    const needs = diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || flowActive || lensMoving || presMoving || viewMoving;
+    const probesMoving = this.probes.update(now, this.circuit.t > 0.02);
+    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || flowActive || lensMoving || presMoving || viewMoving;
     this.moving = false;
     return needs;
   }
@@ -502,7 +511,7 @@ export class CelScene {
     this.disease.dispose();
     this.blood.streams.texture.dispose();
     for (const o of this.objects) o.dispose();
-    this.procs.dispose();
+    this.procs.dispose(); this.probes.dispose();
     this.plate.geometry.dispose();
     (this.plate.material as MeshBasicMaterial).dispose();
   }

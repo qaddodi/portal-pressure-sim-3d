@@ -3,6 +3,7 @@
 import { Vector3 } from 'three';
 import { clock } from '../clock/frame.ts';
 import { CelScene } from './scene.ts';
+import { bindTests } from './devices/probes/bind-tests.ts';
 import type { Room } from './camera/room.ts';
 import type { Shot, ShotName } from './camera/shots.ts';
 import type { CatheterState } from './catheter.ts';
@@ -23,6 +24,8 @@ import type { Gestures } from './gesture/controller.ts';
 import { createFrameQueue } from './gesture/frame-queue.ts';
 
 export const cel = new CelScene();
+/** The Tests card drives the Doppler, FibroScan and endoscope devices on the figure (src/scene/devices/probes/). */
+export const stopProbeBinding = bindTests();
 /** A dive between the body, the lobule and the sinusoid: a little longer than a move between two body shots (950 ms), because it covers a few hundred times the distance. */
 export const DIVE_MS = 1250;
 
