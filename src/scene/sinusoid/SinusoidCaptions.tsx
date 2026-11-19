@@ -26,7 +26,7 @@ import { framePoint } from './portrait.ts';
 import { setSinusoidPlaced, useSinusoidNames } from './explain-store.ts';
 
 const SETTLE_MS = 180, FADE_MS = 180;
-interface El { root: HTMLElement; rows: HTMLElement[]; lead: HTMLElement | null; tx: string; size: string; words: string }
+interface El { root: HTMLElement; rows: HTMLElement[]; lead: HTMLElement | null; ring: HTMLElement | null; ringTx: string; tx: string; size: string; words: string }
 
 export function SinusoidCaptions() {
   const layer = useRef<HTMLDivElement>(null);
@@ -68,7 +68,9 @@ export function SinusoidCaptions() {
       r.dataset.target = `sinusoid:${id}`;
       root.appendChild(r);
       const lead = document.createElement('i'); lead.className = 'lb-lead'; root.appendChild(lead);
-      const e: El = { root: r, rows: [], lead, tx: '', size: '', words: '' };
+      // (2D's leader ends in a dot on the part it names, the stage's paper round it and the text ink's ring: label-captions.js leadMarks)
+      const ring = document.createElement('i'); ring.className = 'lb-anchor'; root.appendChild(ring);
+      const e: El = { root: r, rows: [], lead, ring, ringTx: '', tx: '', size: '', words: '' };
       els.set(id, e);
       return e;
     };
@@ -86,7 +88,7 @@ export function SinusoidCaptions() {
       placed = level === 'none' ? [] : built;
       setSinusoidPlaced(placed);
       const stand = new Set<string>(placed.map(key));
-      for (const [id, e] of els) if (!stand.has(id)) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); }
+      for (const [id, e] of els) if (!stand.has(id)) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); e.ring?.removeAttribute('data-on'); }
       for (const p of placed) {
         const e = els.get(p.key) ?? make(p.key);
         const ln = linesOf(p.name, p.value, p.key, st.explain);
@@ -144,8 +146,15 @@ export function SinusoidCaptions() {
               e.lead.style.opacity = String(Math.round(o * 1000) / 1000); e.lead.setAttribute('data-on', '');
             } else e.lead.removeAttribute('data-on');
           }
+          if (e.ring) {
+            if (p.leader) {
+              const rt = `translate(${Math.round(p.leader.x2 * 100) / 100}px,${Math.round(p.leader.y2 * 100) / 100}px)`;
+              if (rt !== e.ringTx) { e.ring.style.transform = rt; e.ringTx = rt; }
+              e.ring.style.opacity = String(Math.round(o * 1000) / 1000); e.ring.setAttribute('data-on', '');
+            } else e.ring.removeAttribute('data-on');
+          }
         }
-        if (alpha === 0) for (const e of els.values()) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); }
+        if (alpha === 0) for (const e of els.values()) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); e.ring?.removeAttribute('data-on'); }
       }
       // the end arrows follow their names (2D: a presenter slide that is not about an end dims both; outside a talk, 1)
       const endA = on ? Math.max(0, Math.min(1, alpha)) : 0;
@@ -161,7 +170,7 @@ export function SinusoidCaptions() {
     const offEx = useSinusoidNames.subscribe((s, p) => { if (s.explain !== p.explain || s.lit !== p.lit) wake(); });
     void document.fonts?.ready.then(wake);
     void DIM_ALPHA; void SINUSOID_L;
-    return () => { off(); offShell(); offUi(); offUi2(); offEx(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); } };
+    return () => { off(); offShell(); offUi(); offUi2(); offEx(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
   }, []);
 
   return <div ref={layer} className="lb-layer cc-layer sv-layer" aria-hidden="true" />;
