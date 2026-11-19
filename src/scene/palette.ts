@@ -1,7 +1,7 @@
 // What the scene paints with, derived from the one looks table (src/looks/looks.ts: look-and-feel.md sections 2, 3, 4 and 9).
 // The catheter's silver and the balloon's amber are the only tones the scene adds; the balloon is the look's caution colour.
 import { LOOKS, LOOK_IDS, type LookId } from '../looks/looks.ts';
-import { ORGAN_TONES_2D, ORGAN_LAYER_2D, KIDNEY_LAYER_2D, type OrganTones2D } from '../looks/organ-tones.copied.ts';
+import { ORGAN_TONES_2D, type OrganTones2D } from '../looks/organ-tones.copied.ts';
 
 export { LOOK_IDS };
 export type { LookId };
@@ -22,12 +22,9 @@ export interface Palette {
   highlight: 'deep' | 'white';
   /** 2D's organ painter for this look (--og-*: three tones per organ, light, dark, volume shade, the gut's opacity), copied by scripts/copy-organ-tones.mjs. */
   organs: OrganTones2D;
-  /** The organ layer's opacity on the page (2D's #organs > .organ; Soft 0.72, decision A of the atlas-look plan) and the kidney's own. */
+  /** The organ layer's opacity on the page (2D's #organs > .organ, Soft's own) and the kidney's own. */
   organLayer: number; kidneyLayer: number;
 }
-
-/** Soft's organ layer: 2D draws Soft's darker tones at the same .55, which washes them out on its darker page; decision A of the plan (19 Nov) takes .72. */
-export const SOFT_ORGAN_LAYER = 0.72;
 
 const CATHETER_LIGHT = '#C9CCD2';
 const CATHETER_SOFT = '#C4C6CC';
@@ -64,7 +61,7 @@ export function paletteFor(id: LookId): Palette {
   return {
     bg: l.bg, body: l.plate, ink: l.ink, shade: l.shadeK,
     highlight: l.scheme === 'dark' ? 'white' : 'deep',
-    organs: ORGAN_TONES_2D[id], organLayer: id === 'soft' ? SOFT_ORGAN_LAYER : ORGAN_LAYER_2D, kidneyLayer: KIDNEY_LAYER_2D,
+    organs: ORGAN_TONES_2D[id], organLayer: ORGAN_TONES_2D[id].layer, kidneyLayer: ORGAN_TONES_2D[id].kidney,
     tones: {
       liver: organ(l.liver), spleen: organ(l.spleen), kidney: organ(l.kidney), gut: organ(l.gut), stomach: organ(l.stomach), heart: organ(l.heart), portal: l.portal, sys: l.systemic,
       cath: id === 'light' ? CATHETER_LIGHT : id === 'soft' ? CATHETER_SOFT : CATHETER_DARK, balloon: l.caution,
