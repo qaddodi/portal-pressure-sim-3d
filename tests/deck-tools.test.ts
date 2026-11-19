@@ -164,7 +164,8 @@ test('a tool kind is landed only with evidence: a chart the registry calls done,
     const inst = instrumentOf(k)?.status === 'plays';
     assert.equal(toolLanded(k), chart || inst, `${k}: landed ${toolLanded(k)}, chart ${chart}, instrument ${inst}`);
   }
-  assert.equal(toolLanded('wall'), false, 'Wall mechanics is not drawn in the 3D app: its slides keep waiting');
+  assert.equal(toolLanded('wall'), true, 'Wall mechanics is drawn: the scope pane\'s second view, opened by the slide');
+  assert.equal(toolEvidence('wall'), 'src/ui/tests/endo/WallView.tsx');
   assert.equal(toolLanded('menu'), true);
   assert.equal(toolLanded('course'), true);
 });

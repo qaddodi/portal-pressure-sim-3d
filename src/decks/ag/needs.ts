@@ -65,7 +65,7 @@ const FIELD_HOOKS: Record<string, { id: string; owner: Owner; what: string }> = 
   chartFoot: { id: 'card:chart-foot', owner: 'B10', what: 'the chart footnote' },
   graph: { id: 'data:graph', owner: 'B10', what: 'the time-lapse graph on the teaching card' },
   plane: { id: 'visual:plane-options', owner: 'B10', what: 'the plane\'s options' },
-  span: { id: 'data:spans', owner: 'B10', what: 'the profile\'s brackets' },
+  span: { id: 'data:spans', owner: 'B10', what: 'the Circuit\'s bracket between two stations, with its reading' },
   glow: { id: 'fig:glow', owner: 'B6', what: 'the outlines the slide lights' },
   glowSeq: { id: 'fig:glow-steps', owner: 'B6', what: 'the numbered glow steps' },
   lapseGlow: { id: 'fig:glow-steps', owner: 'B6', what: 'the numbered glow steps' },
@@ -102,6 +102,7 @@ export const CARD_LANDED: Readonly<Record<string, string>> = {
   'card:chart-foot': 'src/ui/charts/small/AllPatientsCard.tsx',  // and its footnote
   'data:graph': 'src/ui/talk/ToolCard.tsx',              // a time-lapse's graph is its instrument card: the copy gives the slide the flow-time or procedure chart (2D slide-instrument.js), the data card mounts it
   'visual:plane-options': 'src/ui/talk/ToolCard.tsx',    // the plane visual hands the slide's own plane to the chart
+  'data:spans': 'src/scene/labels/figure-cards.ts',      // the Circuit's bracket under a span of stations and its reading (ui/deck/figure-plan.ts spans, figure-calls.ts, labels/span-math.ts)
   'visual:walls': 'src/ui/charts/walls/WallsCard.tsx',   // the two walls
   'reading:res': 'src/ui/talk/table-model.ts',           // the table's intrahepatic resistance column (the engine's rih)
   'reading:wave': 'src/ui/cards/WaveCell.tsx',             // the summary table's Doppler wave column (talk/table-wave.ts)
