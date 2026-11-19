@@ -3,9 +3,9 @@
 // Words and priorities are copied; only the 3D anchors are written here. The vessels are the scene's (anatomy/vessels.ts), named by
 // topology edge, so a station whose vessel is not drawn yet simply has no label (a test lists them).
 import { CatmullRomCurve3, Vector3 } from 'three';
-import { NETWORK_BY_ID } from '../vessels/network.ts';
+import { NETWORK, NETWORK_BY_ID } from '../vessels/network.ts';
 import { NODE_POS_2D } from '../vessels/paths.copied.ts';
-import { TIER_Z, x3, y3 } from '../frame2d.ts';
+import { x3, y3 } from '../frame2d.ts';
 import { LABEL_NAMES as N } from './names.copied.ts';
 import type { Dir } from './geometry.ts';
 
@@ -57,10 +57,29 @@ const curveOf = (edge: string): CatmullRomCurve3 | null => {
 };
 
 /** Fixed scene points for stations that are not one vessel: the right atrium, the right liver's sinusoids, the varices. Where each stands is the 2D
- *  figure's own place for it (NODE_POS_2D), carried onto the scene by the one map (frame2d.ts), on the front vessel tier; an organ's name stands where
- *  the 2D app puts it (ORGAN_LABELS, copied), on the organ's front face. */
+ *  figure's own place for it (NODE_POS_2D), carried onto the scene by the one map (frame2d.ts), at the depth of the vessel that passes through it: the
+ *  vessels stand in tiers (frame2d.ts TIER_Z), and a dot put on the front tier hung 0.4 to 0.8 of a unit in front of the atrium's back-tier cava,
+ *  which a turned or perspective camera shows as a dot off its vessel. An organ's name stands where the 2D app puts it (ORGAN_LABELS, copied), on the organ's front face. */
 const at2d = (x: number, y: number, z: number): [number, number, number] => [x3(x), y3(y), z];
-const nodeAt = (id: string): [number, number, number] => { const p = NODE_POS_2D[id]; if (!p) throw new Error(`the 2D map has no place for ${id}`); return at2d(p[0], p[1], TIER_Z.front); };
+/** The depth of a topology node: the tier of the drawn vessel that ends at it and passes nearest its place in the 2D figure. */
+export function nodeZ(id: string): number {
+  const p = NODE_POS_2D[id];
+  if (!p) throw new Error(`the 2D map has no place for ${id}`);
+  const px = x3(p[0]), py = y3(p[1]);
+  let best: { d: number; z: number } | null = null;
+  for (const v of NETWORK) {
+    if (v.from !== id && v.to !== id) continue;
+    for (let i = 0; i + 1 < v.pts.length; i++) {
+      const a = v.pts[i]!, b = v.pts[i + 1]!, dx = b[0] - a[0], dy = b[1] - a[1];
+      const t = Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+      const d = Math.hypot(px - a[0] - t * dx, py - a[1] - t * dy);
+      if (!best || d < best.d) best = { d, z: a[2] };
+    }
+  }
+  if (!best) throw new Error(`no drawn vessel ends at ${id}`);
+  return best.z;
+}
+const nodeAt = (id: string): [number, number, number] => at2d(NODE_POS_2D[id]![0], NODE_POS_2D[id]![1], nodeZ(id));
 const POINTS: Record<string, [number, number, number]> = { RA: nodeAt('RA'), SIN_R: nodeAt('SIN_R'), VAR: nodeAt('VAR') };
 /** The plane of an organ's front face (frame2d.ts: organs lie behind z = 0.26). */
 export const ORGAN_FRONT = 0.26;

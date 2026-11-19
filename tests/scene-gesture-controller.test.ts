@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createGestures, isSystemEdge, type GestureEnv, type GestureHost } from '../src/scene/gesture/controller.ts';
-import { dragToOrbit } from '../src/scene/camera/rig.ts';
-import { ORBIT_LIMIT } from '../src/scene/camera/shots.ts';
+import { dragToOrbit, orbitHome } from '../src/scene/camera/rig.ts';
+import { ORBIT_HOME_MS, ORBIT_LIMIT } from '../src/scene/camera/shots.ts';
 import { K_MAX, K_MIN, rectUnder } from '../src/scene/gesture/view.ts';
 import type { View } from '../src/scene/gesture/ease.ts';
 
@@ -214,4 +214,72 @@ test('dispose removes every listener and every pending frame or timer', () => {
   r.g.dispose();
   assert.equal(r.el.count() + r.win.count(), 0);
   assert.equal(r.asks + r.timers, 0);
+});
+
+// ── the atlas is the rest state: the turn springs back to the shot 1.2 s after the hand lifts (owner's decision B, 19 Nov) ──────────────
+const turn = (r: ReturnType<typeof rig>) => { r.ptr('pointerdown', 1, 400, 300); r.ptr('pointermove', 1, 440, 300); r.advance(16); r.ptr('pointermove', 1, 540, 300); };
+
+test('the turn waits 1.2 s after the hand lifts, then returns to the shot and goes quiet', () => {
+  const r = rig();
+  turn(r); r.advance(200);                       // held still before letting go: no momentum
+  r.ptr('pointerup', 1, 540, 300);
+  const turned = r.orbit;
+  assert.ok(Math.abs(turned) > 0.1);
+  r.run(ORBIT_HOME_MS - 100);
+  assert.equal(r.orbit, turned, 'it holds for a moment: the viewer is looking at the turn');
+  r.run(400);
+  assert.ok(Math.abs(r.orbit) < Math.abs(turned) && Math.abs(r.orbit) > 0, 'then it is on its way home');
+  r.run(2000);
+  assert.equal(r.orbit, 0, 'and lands exactly on the shot');
+  assert.equal(r.asks, 0, 'nothing asks for another frame once it is home');
+  assert.equal(r.g.active, false);
+});
+
+test('the return never overshoots the shot: the turn keeps its sign all the way home', () => {
+  const r = rig();
+  turn(r); r.advance(200); r.ptr('pointerup', 1, 540, 300);
+  const sign = Math.sign(r.orbit);
+  for (let ms = 0; ms < 4000; ms += 16) { r.run(16); assert.ok(r.orbit * sign >= 0, `at ${ms} ms`); }
+});
+
+test('touching the figure again stops the return where it is; letting go starts the wait over', () => {
+  const r = rig();
+  turn(r); r.advance(200); r.ptr('pointerup', 1, 540, 300);
+  r.run(ORBIT_HOME_MS + 300);
+  const mid = r.orbit;
+  assert.ok(mid !== 0);
+  r.ptr('pointerdown', 2, 400, 300);             // a new hand: the spring lets go at once
+  r.run(500);
+  assert.equal(r.orbit, mid);
+  r.ptr('pointerup', 2, 400, 300);               // a tap, not a turn: the turn still comes home after its wait
+  r.run(ORBIT_HOME_MS + 2500);
+  assert.equal(r.orbit, 0);
+});
+
+test('a pan or a pinch that ends on a turned figure brings the turn home too', () => {
+  const r = rig();
+  turn(r); r.advance(200); r.ptr('pointerup', 1, 540, 300);
+  r.run(300);
+  r.ptr('pointerdown', 3, 400, 300, { shiftKey: true }); r.ptr('pointermove', 3, 460, 300, { shiftKey: true }); r.advance(16); r.ptr('pointermove', 3, 520, 300, { shiftKey: true });
+  r.advance(200); r.ptr('pointerup', 3, 520, 300, { shiftKey: true });
+  r.run(ORBIT_HOME_MS + 3000);
+  assert.equal(r.orbit, 0);
+});
+
+test('Reduce Motion: the turn is put back in one step after the wait, no glide', () => {
+  const r = rig({});
+  (r.env as { reduceMotion(): boolean }).reduceMotion = () => true;
+  turn(r); r.advance(200); r.ptr('pointerup', 1, 540, 300);
+  assert.ok(r.orbit !== 0);
+  r.run(ORBIT_HOME_MS + 100);
+  assert.equal(r.orbit, 0);
+});
+
+test('orbitHome is a critically damped spring: x0 at the start, never past zero, under a thousandth of a radian by 1.5 s', () => {
+  assert.equal(orbitHome(0.4, 0), 0.4);
+  let last = 0.4;
+  for (let t = 0; t <= 3000; t += 10) { const o = orbitHome(0.4, t); assert.ok(o <= last + 1e-12 && o >= 0); last = o; }
+  assert.ok(orbitHome(ORBIT_LIMIT, 1500) < 1e-3);
+  assert.equal(orbitHome(-0.3, 0), -0.3);
+  assert.ok(orbitHome(-0.3, 400) > -0.3 && orbitHome(-0.3, 400) < 0);
 });
