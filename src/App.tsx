@@ -14,7 +14,7 @@ export function App() {
       <Stage />
       <LabelLayer />
       <Shell />
-      <BuildPill />
+      {import.meta.env.VITE_CHANNEL === 'preview' && <BuildPill />}
       {status === 'crashed' && <CrashNotice />}
     </>
   );
