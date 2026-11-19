@@ -31,6 +31,12 @@ async function start() {
     createRoot(document.getElementById('root')!).render(<StrictMode><ParityPage /></StrictMode>);
     return;
   }
+  // ?presenter-view=<session>: the notes window of a talk (text only, no engine, no GL).
+  if (new URLSearchParams(location.search).has('presenter-view')) {
+    const { run } = await import('./ui/deck/presenter-window.ts');
+    run();
+    return;
+  }
   if (!hasWebGL2()) { createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }
   const [fonts] = await Promise.all([fontsReady(), bootEngine().catch((err) => { console.error(err); })]);
   if (!fonts) console.warn('[boot] fonts were late; continuing with fallback faces');
