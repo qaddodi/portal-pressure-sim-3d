@@ -2,7 +2,7 @@
 // the data card (tiles) from the slide's fields, and `numbers: 'states'`, so every number a slide prints comes from that slide's own state in the engine.
 // Nothing here is typed per slide; a slide that asks for something the 3D figure cannot do yet keeps its words and its shot and is listed by hooks.ts.
 import { TERM_STATIONS } from '../../scene/labels/stations.ts';
-import { CATHS, type CathState, type Deck, type EqPart, type Slide, type SlideTiles } from '../schema.ts';
+import { CATHS, type CathState, type Deck, type EqPart, type Slide, type SlideTiles, type TableSpec } from '../schema.ts';
 import { planSlide } from './plan.ts';
 import type { CopiedDeck, CopiedSlide } from './types.ts';
 
@@ -32,6 +32,17 @@ const knownTerms = (t: CopiedSlide['terms']): Record<string, string> | undefined
   return Object.keys(out).length ? out : undefined;
 };
 
+/** The 2D summary table (`visual: 'table'`: cols, of, vs, asc, rowHead, foot, note, calm, focusRow) as the table card's spec. */
+export function tableOf(s: CopiedSlide): TableSpec | undefined {
+  if (s.visual !== 'table' || !Array.isArray(s.of)) return undefined;
+  const pick = ['cols', 'of', 'vs', 'asc', 'rowHead', 'foot', 'note', 'calm', 'focusRow'] as const;
+  return Object.fromEntries(pick.filter((k) => s[k] != null).map((k) => [k, s[k]])) as unknown as TableSpec;
+}
+
+const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
+/** A 2D `cite` is a string or a list of them (one line each); the card prints them joined. */
+const citeOf = (v: unknown): string | undefined => (Array.isArray(v) ? v.filter((x) => typeof x === 'string').join(' · ') || undefined : str(v));
+
 export function slideOf(deckId: string, s: CopiedSlide, i: number, prevCath: CathState | undefined): Slide {
   const plan = planSlide(deckId, s, i);
   const cath = (CATHS as readonly string[]).includes(s.cath ?? '') ? (s.cath as CathState) : s.cathKeep ? prevCath : undefined;   // ('blocked' is a hook of batch B5)
@@ -40,13 +51,19 @@ export function slideOf(deckId: string, s: CopiedSlide, i: number, prevCath: Cat
   const eq = s.eq ? eqParts(s.eq[0]!) : undefined;
   const terms = knownTerms(s.terms);
   const scene = { ...plan.scene, terms: plan.scene.terms.filter((t) => t in TERM_STATIONS) };
+  const table = tableOf(s);
   return {
-    id: s.id, kicker: s.kicker, title: s.title, line: s.line, notes: s.notes,
+    id: s.id, kicker: s.kicker ?? '', title: s.title ?? '', line: s.line ?? '', notes: s.notes ?? '',
     ...(s.vignette ? { vignette: s.vignette } : {}),
+    ...(str(s.caseQ) ? { caseQ: str(s.caseQ) } : {}),
+    ...(str(s.caveat) ? { caveat: str(s.caveat) } : {}),
+    ...(citeOf(s.cite) ? { cite: citeOf(s.cite) } : {}),
+    ...(s.visual ? { visual: s.visual } : {}),
+    ...(table ? { table } : {}),
     ...(terms ? { terms } : {}),
     ...(eq ? { eq } : {}),
     ...(s.eq?.[1] ? { eqLegend: s.eq[1] } : {}),
-    ...(s.ask ? { ask: s.ask } : {}),
+    ...(Array.isArray(s.ask) && s.ask[0] ? { ask: s.ask } : {}),
     ...(cath ? { cath } : {}),
     ...(tiles ? { tiles } : {}),
     scene,
