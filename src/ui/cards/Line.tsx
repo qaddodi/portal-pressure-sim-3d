@@ -16,7 +16,7 @@ export function Line({ text, read, terms }: { text: string; read: (k: string, at
       case 'value': {
         // a reading as its tile prints it, with its unit (the blood pressure beside its two numbers, the platelets in thousands)
         const v = read(p.key, p.at);
-        const text = v == null ? '…' : valueText(p.key, { [p.key]: v, sbp: read('sbp'), dbp: read('dbp') }, p.decimals === 0);
+        const text = v == null ? '…' : valueText(p.key, { [p.key]: v, sbp: read('sbp', p.at), dbp: read('dbp', p.at) }, p.decimals === 0);
         return <span key={i} className="dk-num"><Roll text={text} /></span>;
       }
     }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isSwapSwipe, isTap, swap, walletStart, resetForSlide, stripLabel, other } from '../src/ui/wallet/wallet-machine.ts';
-import { stopsOf, next, back, first, last, goto, viewAt, keyMove, swipeMove, apply, isLast, lastSlideShot } from '../src/ui/deck/presenter-machine.ts';
+import { stopsOf, next, back, first, last, goto, viewAt, keyMove, swipeMove, apply, isLast, lastSlideShot, lastSlideScene } from '../src/ui/deck/presenter-machine.ts';
 import { reconcile, drop } from '../src/ui/cards/stack.ts';
 import { HVPG_DECK } from '../src/decks/hvpg.ts';
 
@@ -25,11 +25,13 @@ test('the wallet swaps and a new slide brings the words back without counting as
 
 const stops = stopsOf(HVPG_DECK);
 
-test('the talk plays title, route (case then slide), free, wedge, HVPG, quick check', () => {
-  assert.deepEqual(stops.map((s) => (s.kind === 'slide' ? s.slide.id : s.kind)), ['title', 'route', 'free', 'wedge', 'hvpg', 'check']);
+test('the talk plays title, the 13 slides of the 2D deck (a case first where a slide has one), quick check', () => {
+  assert.deepEqual(stops.map((s) => (s.kind === 'slide' ? s.slide.id : s.kind)), ['title', 'route', 'free', 'wedge', 'wedge-sinusoid', 'hvpg', 'presin', 'ppg', 'eus', 'eus-ladder', 'heart', 'bc', 'plane', 'summary', 'check']);
   const walk = [first()]; for (let p = first(), n = next(stops, p); n.stop !== p.stop || n.beat !== p.beat; p = n, n = next(stops, p)) walk.push(n);
-  assert.deepEqual(walk.map((p) => `${p.stop}.${p.beat}`), ['0.0', '1.0', '1.1', '2.0', '3.0', '4.0', '5.0']);
-  assert.deepEqual(last(stops), { stop: 5, beat: 0 });
+  const beats = stops.flatMap((s, i) => Array.from({ length: s.kind === 'slide' ? s.beats : 1 }, (_, b) => `${i}.${b}`));
+  assert.deepEqual(walk.map((p) => `${p.stop}.${p.beat}`), beats);
+  assert.ok(beats.includes('1.1') && !beats.includes('2.1'), 'the route slide has a case beat, the free slide has none');
+  assert.deepEqual(last(stops), { stop: 14, beat: 0 });
   assert.ok(isLast(stops, last(stops)));
   assert.deepEqual(next(stops, last(stops)), last(stops), 'Next at the end stays');
   assert.deepEqual(back(stops, first()), first(), 'Back at the start stays');
@@ -38,7 +40,7 @@ test('the talk plays title, route (case then slide), free, wedge, HVPG, quick ch
 test('Back from the first beat of a slide lands on the last beat of the slide before', () => {
   assert.deepEqual(back(stops, { stop: 2, beat: 0 }), { stop: 1, beat: 1 });
   assert.deepEqual(back(stops, { stop: 1, beat: 1 }), { stop: 1, beat: 0 });
-  assert.deepEqual(goto(stops, 99), { stop: 5, beat: 0 });
+  assert.deepEqual(goto(stops, 99), { stop: 14, beat: 0 });
 });
 
 test('what is on screen: the case alone first, then words with the ladder where the slide has one', () => {
@@ -47,9 +49,9 @@ test('what is on screen: the case alone first, then words with the ladder where 
   assert.deepEqual([v(1, 0).words, v(1, 0).data], ['case', null]);
   assert.deepEqual([v(1, 1).words, v(1, 1).data], ['teach', null], 'the route slide has no data card');
   assert.deepEqual([v(2).words, v(2).data, v(2).cath, v(2).shot], ['teach', 'ladder', 'free', 'free']);
-  assert.deepEqual([v(4).words, v(4).data, v(4).cath], ['teach', 'ladder', 'result']);
-  assert.deepEqual([v(5).words, v(5).data, v(5).shot], ['check', null, lastSlideShot(stops)], 'the figure stays where the result left it');
-  assert.equal(v(3).number, 4); assert.equal(v(3).of, 6);
+  assert.deepEqual([v(5).words, v(5).data, v(5).cath], ['teach', 'ladder', 'result']);
+  assert.deepEqual([v(14).words, v(14).data, v(14).shot], ['check', null, lastSlideScene(stops)?.shot ?? lastSlideShot(stops)], 'the figure stays where the result left it');
+  assert.equal(v(3).number, 4); assert.equal(v(3).of, 15);
 });
 
 test('keys and swipes: forward, back, first, last; a sideways swipe moves the talk, a vertical one does not', () => {

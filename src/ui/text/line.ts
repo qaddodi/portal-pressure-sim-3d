@@ -35,7 +35,7 @@ export function parseLine(line: string): Piece[] {
     else {
       const body = m[3].trim();
       const tk = parseToken(body);
-      if (tk.kind === 'cut') out.push({ t: 'cutoff', text: tk.text });
+      if (tk.kind === 'cut') out.push({ t: 'cutoff', text: tk.text.replace(/ /g, '\u00a0') });
       else if (tk.kind === 'value') out.push({ t: 'value', key: tk.key, decimals: tk.whole ? 0 : null, ...(tk.at ? { at: tk.at } : {}) });
       else if (tk.kind === 'step') out.push({ t: 'literal', text: String(tk.n) });
       // a typed number or quantity ({6 to 8 g}, {2 to 3 mg/24 h}): a rule, outlined. A bare word is a mistyped reading and stays an error.

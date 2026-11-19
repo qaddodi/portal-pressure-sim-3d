@@ -32,6 +32,9 @@ export interface SlideScene {
 /** The data card of tiles: which readings, the key ones, and the state the change counts from. The numbers come from the slide's own state in the engine, never from the deck. */
 export interface SlideTiles { deck: string; slide: string; keys: string[]; key: string[]; delta: string | boolean | null }
 
+/** A slide's patient: the preset to load and the parameter changes over it (the engine's own shape), as the 2D deck's `preset` and `params`. */
+export interface SlideModel { preset: string; params?: unknown; days?: number }
+
 export interface Slide {
   id: string;
   kicker: string;
@@ -44,8 +47,10 @@ export interface Slide {
   eq?: EqPart[];
   /** The ladder (data) card: which readings, which one is the result. Absent: no data card on this slide. */
   ladder?: { rows: ReadingKey[]; result?: 'hvpg' };
-  /** The catheter the slide shows; absent when it shows none. */
+  /** The catheter state the slide asks for; a slide with no catheter (most talks' slides) leaves it out. */
   cath?: CathState;
+  /** The patient the slide stands on (a 2D preset id with its parameter changes): the model takes it when the slide is shown. A slide without one keeps the patient it is on. */
+  model?: SlideModel;
   notes: string;
   ask?: [string, string];
   /** A named shot of the slice, or (a ported deck) `scene`. */
@@ -68,6 +73,12 @@ export interface Deck {
   checks: [string, string][];
   /** Where a slide's numbers come from: `live` (the engine the figure runs, the slice) or `states` (each slide's own state, computed off screen). */
   numbers?: 'live' | 'states';
+  /** The outline's own sections, [name, [the kickers or slide ids each holds]] (a deck whose kicker groups are not three to five sets them). */
+  sections?: [string, string[]][];
+  /** The name in the tab at each card's top right (the 2D menu's short name); a deck without one shows its title when that is 24 characters or fewer. */
+  head?: string;
+  /** A deck built from a script, or imported, that lives on this device (the Present menu's "Your scripts"). */
+  mine?: boolean;
 }
 
 import { parseToken } from '../ui/text/tokens.ts';
@@ -93,7 +104,7 @@ export function validateDeck(deck: Deck): string[] {
     ids.add(s.id);
     for (const f of ['kicker', 'title', 'line', 'notes'] as const) text(s[f], `${at} ${f}`);
     if (!s.scene && !(SHOTS as readonly string[]).includes(s.shot as string)) bad.push(`${at} names the unknown shot "${s.shot}"`);
-    if (s.cath && !(CATHS as readonly string[]).includes(s.cath)) bad.push(`${at} names the unknown catheter state "${s.cath}"`);
+    if (s.cath !== undefined && !(CATHS as readonly string[]).includes(s.cath)) bad.push(`${at} names the unknown catheter state "${s.cath}"`);
     for (const m of (s.line ?? '').matchAll(TOKEN)) {
       const body = m[1].trim();
       if (CUT_RE.test(body)) continue;

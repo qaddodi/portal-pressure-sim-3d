@@ -3,16 +3,19 @@
 import { useShell } from './store.ts';
 import { useUi } from '../ui-store.ts';
 import { parseDeepLink, queryFromId } from './deep-link.ts';
-import { isPlayable } from '../menu/library.ts';
+import { deckOf } from '../deck/deck-of.ts';
+import { readScriptLink } from '../talk/library.ts';
 import { loadPatient } from '../menu/patients.ts';
 import { startTalk } from './talk.ts';
 import { noPatientCalled, notYet } from './words.ts';
 import { UI } from '../strings.generated.ts';
 
 export async function applyDeepLink(search: string): Promise<void> {
+  // A shared script (#script=…) adds itself to this device's library; the menu opens at Present so it shows (the 2D app opens it at Your scripts).
+  if (readScriptLink()) { useShell.setState({ mode: 'free', sheet: 'menu', menuTab: 'present' }); return; }
   const l = parseDeepLink(search), sh = useShell.getState();
   if (l.script) {
-    if (!isPlayable(l.script.id)) { useShell.setState({ mode: 'free', sheet: 'menu', menuTab: 'present' }); sh.say(notYet('That presentation')); return; }
+    if (!deckOf(l.script.id)) { useShell.setState({ mode: 'free', sheet: 'menu', menuTab: 'present' }); sh.say(notYet('That presentation')); return; }
     startTalk(l.script.id);
     const slide = l.script.slide;
     if (slide > 0) { const off = useUi.subscribe((s) => { if (s.stops.length) { off(); useUi.getState().go(slide); } }); if (useUi.getState().stops.length) { off(); useUi.getState().go(slide); } }

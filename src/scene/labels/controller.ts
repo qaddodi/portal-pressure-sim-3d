@@ -13,6 +13,8 @@ import { STATIONS, type Station } from './stations.ts';
 import { LABEL_NAMES } from './names.copied.ts';
 import { fmtPressure } from '../../ui/text/line.ts';
 import { LS, boxSize, organRun, stationRuns } from './type.ts';
+import { dockKey, type Dock } from './key-dock.ts';
+import type { Rect, Viewport } from '../../ui/layout/device.ts';
 import type { CathState, ReadingKey } from '../../decks/schema.ts';
 
 export interface LabelDeps {
@@ -28,8 +30,10 @@ export interface LabelDeps {
   blockers(): Box[];
   /** Text width in px (the pill's font); called at build time only, never per frame. */
   measure(text: string, size: number, weight: number, track?: number): number;
-  /** The screen's size (CSS px): label type sizes follow its short side, as the 2D app's do. */
-  vp(): { w: number; h: number };
+  /** The screen (CSS px, with its safe insets): label type sizes follow its short side, as the 2D app's do, and the key docks by the screen's layout. */
+  vp(): Viewport;
+  /** The words' card, when one stands (the sideways phone's key keeps clear of it). */
+  words(): Rect | null;
   /** Whether the blood in a vessel (a topology edge) runs backwards now: its station then carries the reversal mark. */
   reversed(edge: string): boolean;
   /** A station's pressure (mmHg) from the engine's newest frame, null when unknown. */
@@ -75,6 +79,8 @@ export interface Draw {
   dot: { x: number; y: number } | null;
   /** The station's blood runs backwards now (the reversal mark shows after its reading). */
   rev: boolean;
+  /** The key's dock (its wrap width and least height; key only). */
+  dock?: Dock | null;
   /** Padding round the words inside the box (the 2D app's), px. */
   pad: { x: number; y: number };
   /** Leader from the dot to the box (station only; when the label stands away from its vessel). */
@@ -119,6 +125,9 @@ export class LabelController {
   private readonly pt = { x: 0, y: 0 };
   private firstTick = true;
   private keySize: { w: number; h: number } | null = null;
+  private keyNatural: { w: number; h: number } | null = null;
+  /** The dock the key stands at now (its wrap width and minimum height go to the element). */
+  dock: Dock | null = null;
   readonly out: Draw[] = [];
   /** Items the last solve could not place at all (a test asserts none in the slice's framings). */
   dropped: string[] = [];
@@ -129,18 +138,24 @@ export class LabelController {
 
   setState(s: LabelState): void { this.state = s; this.dirty = true; }
   markDirty(): void { this.dirty = true; }
-  /** The key's measured size (its element is laid out once, invisible, and reports here). */
+  /** The key's size as drawn (its element reports it): on one line, or wrapped where the dock wraps it. */
   setKeySize(w: number, h: number): void {
     if (this.keySize && Math.abs(this.keySize.w - w) < 0.5 && Math.abs(this.keySize.h - h) < 0.5) return;
     this.keySize = { w, h }; this.dirty = true;
   }
-  /** Where the key stands (the lower right of the free room), or null when it has no words or no size yet. */
-  keyBox(): Box | null {
-    if (!this.state.key || !this.keySize) return null;
-    const f = this.deps.free(), { w, h } = this.keySize;
-    if (f.x1 - f.x0 < w + KEY_MARGIN * 2) return null;
-    return { x0: f.x1 - KEY_MARGIN - w, y0: f.y1 - KEY_MARGIN - h, x1: f.x1 - KEY_MARGIN, y1: f.y1 - KEY_MARGIN };
+  /** The key's size on one line, whatever it is drawn at now (a hidden twin of it reports it): the dock decides by this, so wrapping never feeds back. */
+  setKeyNatural(w: number, h: number): void {
+    if (this.keyNatural && Math.abs(this.keyNatural.w - w) < 0.5 && Math.abs(this.keyNatural.h - h) < 0.5) return;
+    this.keyNatural = { w, h }; this.dirty = true;
   }
+  /** Where the key docks (key-dock.ts: the 2D app's own places), or null when it has no words or no size yet. */
+  keyDock(): Dock | null {
+    if (!this.state.key) return null;
+    const natural = this.keyNatural ?? this.keySize;
+    if (!natural) return null;
+    return dockKey({ vp: this.deps.vp(), words: this.deps.words(), natural, wrapped: this.keySize });
+  }
+  keyBox(): Box | null { return this.keyDock()?.box ?? null; }
   /** Fonts or sizes changed: forms are measured again. */
   invalidateForms(): void { this.formCache.clear(); this.dirty = true; }
 
@@ -242,7 +257,8 @@ export class LabelController {
 
     // 2. solve once the picture is still and something changed (the labelled set, a card, the view, the words)
     const view = d.view(), blockers = [...d.blockers()];
-    const keyBox = this.keyBox();
+    this.dock = this.keyDock();
+    const keyBox = this.dock?.box ?? null;
     if (keyBox) blockers.push(keyBox);
     const sig = (keyBox ? boxKey(keyBox) : '-') + '|' + setSig + '|' + boxKey(view) + '|' + blockers.map(boxKey).join(';') + '|' + [...this.state.named].sort().join(',') + this.state.cath;
     if (!hold && (this.dirty || sig !== this.sig)) {
@@ -260,7 +276,7 @@ export class LabelController {
     for (const [id, s] of this.fader.frame) {
       if (s.alpha <= 0) continue;
       if (id === 'key') {
-        this.out.push({ id, kind: 'key', alpha: s.alpha, x: s.p.dx, y: s.p.dy, w: s.p.w, h: s.p.h, form: 0, value: '', dot: null, rev: false, pad: { x: 0, y: 0 }, leader: null, tail: null });
+        this.out.push({ id, kind: 'key', alpha: s.alpha, x: s.p.dx, y: s.p.dy, w: s.p.w, h: s.p.h, form: 0, value: '', dot: null, rev: false, pad: { x: 0, y: 0 }, leader: null, tail: null, dock: this.dock });
         continue;
       }
       const m = this.metas.get(id) ?? next.get(id);

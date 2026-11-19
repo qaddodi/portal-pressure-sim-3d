@@ -45,8 +45,20 @@
 
 /* the lens button: its name and a legend */
 .sh-lens { gap: 10px; }
-.sh-legend { width: 56px; height: 8px; border-radius: 4px; flex: none; }
-.sh-lens-name { min-width: 3.4em; text-align: left; }
+/* (the legend stands in the pill as the 2D app's `.legend` does: the title in two right-aligned lines, then a 168 x 30 scale with a notch and a number
+   under each mark; the compact caption stands in below 1600 px, no title on a phone. Numbers and sizes are the 2D app's styles/app.css, 205-235.) */
+.sh-lens-name { display: none; }
+.sh-lens .lg { display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 0 4px; }
+.sh-lens .lg-title, .sh-lens .lg-cap { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; font-size: 12px; color: var(--text-3); font-weight: 500; text-align: right; white-space: nowrap; margin-right: 4px; }
+.sh-lens .lg-title b, .sh-lens .lg-cap b { color: var(--text-2); font-weight: 600; }
+.sh-lens .lg-cap { display: none; }
+@media (max-width: 1599px) { .sh-lens .lg[data-variant="bar"] .lg-title { display: none; } .sh-lens .lg[data-variant="bar"] .lg-cap { display: flex; } }
+@media (max-width: 760px) { .sh-lens .lg-title, .sh-lens .lg-cap { display: none !important; } }
+.sh-lens .lg-bar-wrap { position: relative; width: 168px; height: 30px; padding: 0; margin: 0 10px; }
+.sh-lens .lg-bar { position: absolute; left: 0; right: 0; top: 4px; height: 8px; border-radius: 2px; }
+.sh-lens .lg-tick { top: 12px; bottom: auto; height: 3px; margin-left: -.5px; background: var(--text-2); opacity: .7; }
+.sh-lens .lg-nums span, .sh-lens .lg-nums span:first-child, .sh-lens .lg-nums span:last-child { top: 15px; transform: translateX(-50%); font-size: 12px; font-weight: 600; color: var(--text-2); }
+.sh-lens .lg-dots { gap: 4px 10px; flex-wrap: nowrap; }
 
 /* ── popovers (anchored to their button, always in the page) ── */
 .sh-anchor { position: relative; display: inline-flex; }
@@ -151,12 +163,59 @@
 .sh-btns { display: flex; justify-content: flex-end; gap: 10px; } .sh-btn { min-height: 44px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--edge); background: transparent; font: 600 14px / 1 var(--ui); }
 .sh-btn[data-danger="true"] { background: var(--danger); border-color: var(--danger); color: #fff; }
 
+/* the library's dialogs (a name, a link, the import box) */
+.sh-dialog--deck { margin-top: 0; translate: 0 -50%; max-height: calc(100svh - 32px); overflow: hidden; }
+.sh-field { display: grid; gap: 6px; margin: 0 0 18px; font: 600 13px / 1.2 var(--ui); color: var(--text-2); }
+.sh-field input, .sh-field-in, .sh-imp { width: 100%; box-sizing: border-box; min-height: 44px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--edge); background: var(--bg); color: var(--text); font: 400 16px / 1.35 var(--ui); }
+.sh-field-in { margin: 0 0 18px; }
+.sh-imp { display: block; margin: 12px 0 14px; resize: none; font: 400 13px / 1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.sh-err { margin: 0 0 12px; color: var(--danger); font: 600 14px / 1.35 var(--ui); }
+.sh-btn[data-primary="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.sh-btn svg { width: 18px; height: 18px; vertical-align: -4px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* the Present menu: a talk's row, its ⓘ preview and its acts; your scripts */
+.sh-lrow { display: grid; grid-template-columns: 1fr 44px; align-items: center; }
+.sh-lrow > .sh-row { min-width: 0; }
+.sh-info { width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--text-3); display: grid; place-items: center; }
+.sh-info svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sh-info[aria-expanded="true"] { color: var(--accent); }
+.sh-pv { grid-column: 1 / -1; margin: 0 10px 8px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--text) 5%, transparent); display: grid; gap: 8px; }
+.sh-pv-meta { font: 600 12px / 1.2 var(--ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.sh-pv h3 { margin: 0; font: 600 17px / 1.25 var(--display); }
+.sh-pv p { margin: 0; font: 400 14px / 1.4 var(--ui); color: var(--text-2); }
+.sh-pv ul { margin: 0; padding-left: 1.2em; font: 400 14px / 1.4 var(--ui); color: var(--text-2); }
+.sh-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.sh-acts .sh-btn { min-height: 44px; padding: 0 16px; }
+.sh-acts .sh-btn[data-primary="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.sh-gl { display: flex; align-items: center; justify-content: space-between; }
+.sh-gacts { display: flex; gap: 4px; }
+.sh-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--accent); font: 600 14px / 1 var(--ui); }
+.sh-link svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.sh-note { margin: 4px 10px 12px; color: var(--text-3); font: 400 14px / 1.4 var(--ui); }
+
+/* ── the slide list (G) and the black screen (B . W) ── */
+.dk-jump { position: absolute; left: 50%; bottom: calc(max(88px, env(safe-area-inset-bottom, 0px) + 60px)); transform: translate(-50%, 0); width: min(560px, calc(100% - 24px)); max-height: min(70svh, calc(100% - 120px)); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--edge); border-radius: 18px; box-shadow: 0 12px 40px rgb(0 0 0 / 0.22); overflow: hidden; pointer-events: auto; opacity: 0; visibility: hidden; transition: opacity 200ms var(--ease-arrive), transform 200ms var(--ease-arrive), visibility 0s linear 200ms; }
+.dk-jump[data-open="true"] { opacity: 1; visibility: visible; transition-delay: 0s; }
+.dk-jump:not([data-open="true"]) { transform: translate(-50%, 8px); }
+.dk-jump-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px 8px 18px; font: 600 15px var(--ui); color: var(--text); }
+.dk-jump-h button { width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--text-2); display: grid; place-items: center; }
+.dk-jump-h svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.dk-jump-list { overflow-y: auto; padding: 0 8px 10px; }
+.dk-jump-list h3 { margin: 10px 10px 4px; font: 600 12px var(--ui); letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-3); }
+.dk-jump-list ol { list-style: none; margin: 0; padding: 0; }
+.dk-jump-list button { width: 100%; min-height: 44px; display: grid; grid-template-columns: 32px 1fr; align-items: center; column-gap: 8px; padding: 6px 10px; border: 0; border-radius: 12px; background: transparent; text-align: left; font: 500 15px var(--ui); color: var(--text); }
+.dk-jump-list button:hover, .dk-jump-list button:focus-visible { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.dk-jump-list button[aria-current="true"] { background: var(--accent-soft); font-weight: 600; }
+.dk-jump-list .n { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.dk-black { position: fixed; inset: 0; z-index: 90; background: #000; opacity: 0; pointer-events: none; transition: opacity 220ms var(--ease-arrive); }
+.dk-black[data-on="true"] { opacity: 1; pointer-events: auto; cursor: none; }
+
 /* no WebGL 2 */
 .sh-nogl { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: var(--bg); color: var(--text); font-family: var(--ui); z-index: var(--z-chrome, 20); }
 .sh-nogl div { max-width: 420px; } .sh-nogl h1 { font: 600 26px / 1.2 var(--display); margin: 0 0 10px; } .sh-nogl p { margin: 0 0 18px; color: var(--text-2); font-size: 16px; line-height: 1.45; }
 .sh-nogl a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 22px; border-radius: 999px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; }
 
-@media (prefers-reduced-motion: reduce) { .sh-root, .sh-root * { transition-duration: 1ms !important; } }
+/* Reduce Motion: src/ui/a11y/reduced.css */
 
 /* the sheets' extras */
 .sh-hit-row b { font-weight: 600; color: var(--accent); }
@@ -185,5 +244,3 @@
 .sh-diag-box[data-on="true"] { opacity: 1; visibility: visible; transition-delay: 0s; }
 
 /* the colour key (B3's Legend) stands under the figure, centred; it fades with the talk */
-.sh-key { position: absolute; left: 50%; transform: translateX(-50%); --lg-title: 12px; --lg-num: 12px; --lg-width: 200px; pointer-events: none; transition: opacity 240ms var(--sh-ease); }
-.sh-key[data-hidden="true"] { opacity: 0; }

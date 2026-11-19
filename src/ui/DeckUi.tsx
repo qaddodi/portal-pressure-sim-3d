@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import './deck-ui.css';
-import { HVPG_DECK } from '../decks/hvpg.ts';
 import { useEngine } from '../engine/index.ts';
 import { useDeck } from '../state/deck.ts';
 import { useUi } from './ui-store.ts';
@@ -11,6 +10,10 @@ import { CardLayer } from './cards/CardLayer.tsx';
 import { PresenterBar } from './deck/PresenterBar.tsx';
 import { useDeckInput } from './deck/useDeckInput.ts';
 import { linkScene } from './deck/scene-link.ts';
+import { linkModel } from './talk/deck-model.ts';
+import { linkStates } from '../decks/hp/link.ts';
+import { JumpList, BlackScreen } from './deck/JumpList.tsx';
+import { noteResume } from './deck/resume.ts';
 
 /** The talk's UI: cards, the wallet, the presenter bar. One overlay above the stage; it measures itself, so it needs only a positioned, full-size parent. */
 export function DeckUi() {
@@ -19,26 +22,38 @@ export function DeckUi() {
   const device = useUi((s) => s.device);
   const vp = useUi((s) => s.vp);
   const setViewport = useUi((s) => s.setViewport);
+  const deck = useUi((s) => s.deck);
+  const nonce = useUi((s) => s.nonce);
   const hasStops = useUi((s) => s.stops.length > 0);
   useDeckInput();
 
   // the talk: its stops, mirrored into the deck store the scene reads (slide 0 is the title)
   useEffect(() => {
-    const stops = stopsOf(HVPG_DECK);
-    useUi.getState().setStops(stops);
-    useDeck.getState().open(HVPG_DECK.id, stops.length - 1, 0);
-    return useUi.subscribe((s, prev) => { if (s.pos.stop !== prev.pos.stop) useDeck.getState().goto(s.pos.stop); });
-  }, []);
+    if (!deck) return;
+    const stops = stopsOf(deck);
+    const at = Math.min(useUi.getState().startAt, stops.length - 1);
+    useUi.getState().setStops(stops, at);
+    useDeck.getState().open(deck.id, stops.length - 1, at);
+    const note = () => { const s = useUi.getState(); noteResume(deck.id, s.pos.stop, s.stops.length); };
+    return useUi.subscribe((s, prev) => { if (s.pos.stop !== prev.pos.stop) { useDeck.getState().goto(s.pos.stop); note(); } });
+  }, [deck, nonce]);
 
   // the scene follows the talk: the shot, the room the cards leave, the catheter
   useEffect(() => linkScene(), []);
+  // the slide's patient, when it names one
+  useEffect(() => linkModel(), []);
 
-  // the engine's headline numbers, mirrored for the cards
+  // a talk whose slides each have their own state: the cards print that state, and the figure eases to it
+  const ownStates = deck?.numbers === 'states';
+  useEffect(() => (deck && ownStates ? linkStates(deck) : undefined), [deck, ownStates, nonce]);
+
+  // the engine's headline numbers, mirrored for the cards (a talk with states of its own prints those instead)
   useEffect(() => {
+    if (ownStates) return;
     const push = (s: ReturnType<typeof useEngine.getState>) => useUi.getState().setReadings({ whvp: s.whvp, fhvp: s.fhvp, hvpg: s.hvpg, ivc: s.ivc, ra: s.ra, pv: s.pv });
     push(useEngine.getState());
     return useEngine.subscribe(push);
-  }, []);
+  }, [ownStates]);
 
   // the screen: its size and its safe areas, measured when either changes (never per frame)
   useLayoutEffect(() => {
@@ -69,8 +84,10 @@ export function DeckUi() {
   return (
     <div ref={root} className="deck-ui" data-device={device} data-layout={layout} data-sideways={sideways || undefined} style={{ position: 'fixed', zIndex: 'var(--z-cards)' as unknown as number, ...vars }}>
       <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'env(safe-area-inset-top, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }} />
-      {hasStops && <PresenterBar title={HVPG_DECK.title} />}
-      {hasStops && <CardLayer deck={HVPG_DECK} />}
+      {deck && hasStops && <PresenterBar title={deck.title} />}
+      {deck && hasStops && <CardLayer deck={deck} />}
+      {deck && hasStops && <JumpList />}
+      {deck && <BlackScreen />}
     </div>
   );
 }

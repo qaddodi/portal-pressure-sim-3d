@@ -1,7 +1,7 @@
 // The talk tells the labels two things: which parts of the figure the slide's words point at (its `terms` field), and which catheter
 // reading the slide is at. Both follow the presenter's position; nothing else here reads a deck.
 import { useUi } from '../../ui/ui-store.ts';
-import { viewAt, lastSlideShot, type Stop } from '../../ui/deck/presenter-machine.ts';
+import { viewAt, lastSlideShot, lastCath, type Stop } from '../../ui/deck/presenter-machine.ts';
 import type { CathState, Slide } from '../../decks/schema.ts';
 import { stationsOfTerms } from './stations.ts';
 import { useLabels } from './store.ts';
@@ -11,13 +11,14 @@ import { useLabels } from './store.ts';
 export function labelsAt(stops: Stop[], pos: { stop: number; beat: number }): { named: Set<string>; cath: CathState | null } {
   if (!stops.length) return { named: new Set(), cath: null };
   const s = stops[pos.stop];
-  if (s.kind === 'check') return { named: new Set(), cath: 'result' };
+  if (s.kind === 'check') return { named: new Set(), cath: lastCath(stops) ?? null };
   const v = viewAt(stops, pos, lastSlideShot(stops));
   if (!v.slide || v.words === 'case') return { named: new Set(), cath: null };
   return { named: namedBy(v.slide), cath: v.cath };
 }
 
-export const namedBy = (slide: Slide): Set<string> => stationsOfTerms(Object.values(slide.terms ?? {}));
+/** The stations a slide names: those its words point at, and the ones a ported slide asks to label outright. */
+export const namedBy = (slide: Slide): Set<string> => new Set([...stationsOfTerms(Object.values(slide.terms ?? {})), ...(slide.scene?.labels ?? [])]);
 
 export function linkLabelsToDeck(): () => void {
   const sync = () => {
