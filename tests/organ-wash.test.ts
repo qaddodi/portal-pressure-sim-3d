@@ -1,7 +1,7 @@
 // WP1: the organs are 2D's quiet wash: the copied --og-* tones, laid on the page at the organ layer's opacity, outlined in their own third tone, never black.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { pinned2D } from './two-d-pin.ts';
 import { execFileSync } from 'node:child_process';
 import { PALETTES, LOOK_IDS, luminance } from '../src/scene/palette.ts';
 import { ORGAN_STYLE, organLayerAlpha } from '../src/scene/organs/layer.ts';
@@ -45,7 +45,7 @@ test('the organ painter pre-mixes against the page and keeps the dive\'s dissolv
   assert.match(ORGAN_FS, /gl_FragColor = vec4\(mix\(page, fill, layer\), 1\.0\)/, 'opaque: no blending');
 });
 
-const twoD = process.env.PPS_2D_REPO ?? '../portal-pressure-simulator';
-test('the copied tones equal the 2D app\'s (copy-organ-tones --check)', { skip: !existsSync(`${twoD}/styles/tokens.css`) && 'no 2D checkout' }, () => {
-  execFileSync('node', ['scripts/copy-organ-tones.mjs', '--from', twoD, '--check'], { stdio: 'pipe' });
+const twoD = pinned2D('styles/tokens.css');
+test('the copied tones equal the 2D app\'s at the pin (copy-organ-tones --check)', { skip: twoD.skip }, () => {
+  execFileSync('node', ['scripts/copy-organ-tones.mjs', '--from', twoD.repo, '--check'], { stdio: 'pipe' });
 });
