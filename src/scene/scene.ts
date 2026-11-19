@@ -605,7 +605,7 @@ export class CelScene {
     this.mapLayer.set(mapRamp(t), this.circuit.rr);
     this.procs.setFade(fade);
     const ramp = mapRamp(t);
-    const tubesMoving = this.tubes.update(dt, { ramp, body: this.fadeNow, drawn: (id) => this.vesselDrawn(id), caudPin: this.caudPin, open: this.openShunts });
+    const tubesMoving = this.tubes.update(dt, { ramp, t, body: this.fadeNow, drawn: (id) => this.vesselDrawn(id), caudPin: this.caudPin, open: this.openShunts });
     this.resistors.setAlpha(ramp);
     let resMoving = false;
     if (ramp > 0) { this.resistors.set(this.resNow, this.mapScale()); resMoving = this.resistors.step(dt); }

@@ -8,9 +8,19 @@
 .en-pic > * { width: 100%; height: 100%; }
 .en-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .en-band { align-self: flex-start; }
-.en-side .eus-ppg { position: static; }
-/* the EUS result is held over the scope as an overlay panel while it runs (and a few seconds after) */
-.en-view[data-view="scope"] { position: relative; }
-.eus-ppg .eus-panel { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 12px; border-radius: 12px; background: var(--card, rgba(255, 255, 255, 0.92)); box-shadow: 0 2px 12px rgb(0 0 0 / 0.18); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 180ms ease, visibility 0s linear 180ms; }
-.eus-ppg[data-state="run"] .eus-panel, .eus-ppg[data-state="hold"] .eus-panel { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 180ms ease; }
+/* The monitor takes the scope's place for the run and the few seconds its result is held, then fades away and the scope fades back (2D scope-card.css .eus-panel, monitor-takeover.js; data-state is
+   its phase: idle, run, hold). The panel lies over the picture's stage; the picture and its caption fade out as it fades in. Only opacity moves (Reduce Motion keeps the fade). */
+.en-stage > .eus-panel { position: absolute; inset: 0; z-index: 2; display: grid; gap: 8px; align-content: center; padding: 12px; border-radius: var(--r-card); background: var(--surface); box-shadow: inset 0 0 0 1px var(--hairline); opacity: 0; visibility: hidden; pointer-events: none; cursor: default; outline: none; transition: opacity var(--d-small) var(--ease), visibility 0s linear var(--d-small); }
+.en-stage > .eus-panel:is([data-state="run"], [data-state="hold"]) { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity var(--d-small) var(--ease); }
+.en-stage > .eus-panel[data-state="hold"] { cursor: pointer; }
+.en-stage > .eus-panel:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.en-stage > .eus-panel .pz-reading { margin-top: 0; min-width: 0; }
+.en-pic, .endo-pos { transition: opacity var(--d-small) var(--ease); }
+.en-view[data-eus="run"] :is(.en-pic, .endo-pos), .en-view[data-eus="hold"] :is(.en-pic, .endo-pos) { opacity: 0; }
+.eus-panel .hvpg-kv { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-start; gap: 2px 16px; }
+.eus-panel .hvpg-kv > div { display: flex; align-items: baseline; gap: 6px; }
+.eus-panel .hvpg-kv dt::after { content: none; }
+.eus-panel .hvpg-kv::after { content: 'mmHg'; font-size: 12px; font-weight: 500; color: var(--text-3); }
+.eus-panel .hvpg-kv dd { min-width: 3.2ch; }
+.eus-panel .hvpg-caption { min-height: 0; font-size: 12.5px; line-height: 1.4; }
 .en-wall { padding: 8px 2px; }

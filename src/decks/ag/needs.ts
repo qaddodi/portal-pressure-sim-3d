@@ -89,7 +89,7 @@ export function hookOf(id: string): Hook | null {
     case 'lens': return { owner: 'B3', what: `the ${rest} colour lens`, landed: () => (LENS_IDS as readonly string[]).includes(rest) };
     case 'cath': return { owner: 'B5', what: `the catheter's ${rest} state`, landed: () => (CATHS as readonly string[]).includes(rest) };
     case 'procedure': return { owner: 'B5', what: `the ${rest} procedure`, landed: claimed };
-    case 'view': return { owner: 'B7', what: 'the Circuit view', landed: claimed };
+    case 'view': return { owner: 'B7', what: 'the Circuit view', landed: ready };   // (scene/circuit, ui/deck/scene-link.ts showCircuit, 19 Nov)
     case 'scale':
       if (rest === 'switch') return { owner: 'B12', what: 'the Anatomy, Lobule and Sinusoid pill the slide offers', landed: ready }   // (ui/cards/SlideControls.tsx);
       return { owner: 'B8', what: `the ${rest} view`, landed: ready };

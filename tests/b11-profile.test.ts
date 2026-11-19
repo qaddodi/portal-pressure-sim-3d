@@ -116,3 +116,32 @@ test('a turned word glides its turn like its place (morph.ts blends rot)', () =>
 test('the copied files are what the 2D app has', { skip: !process.env.PPS_2D_REPO || !existsSync(`${process.env.PPS_2D_REPO}/src/ui/charts.js`) }, () => {
   execFileSync('node', ['scripts/copy-b11-profile.mjs', '--from', process.env.PPS_2D_REPO!, '--check'], { stdio: 'pipe' });
 });
+
+// ── the readouts a case leaves unmeasured (2D store.js hiddenNow) ──
+import { hiddenOf, SHOW_HVPG } from '../src/ui/tests/hidden.ts';
+const clotted = { thrombus: { RHV_IVC: 0.9 } }, open = { thrombus: { RHV_IVC: 0 } };
+
+test('hiddenNow: the HVPG shows (2D showHvpg, 11 Nov 2026) except where the hepatic vein takes no catheter; a slide shows the figures as they are', () => {
+  assert.equal(SHOW_HVPG, true);
+  assert.equal(hiddenOf({ params: open }), null);
+  assert.ok(hiddenOf({ params: clotted })!.has('trueHVPG'), 'a clotted right hepatic vein: the HVPG stays unmeasured');
+  assert.equal(hiddenOf({ params: clotted, presenting: true }), null, 'a Presenter slide shows it as it is');
+  assert.equal(hiddenOf({ params: clotted, measured: true })!.has('trueHVPG'), true, 'measured or not, a blocked vein has no HVPG');
+  const base = new Set(['pv']);
+  const both = hiddenOf({ params: clotted, base })!;
+  assert.ok(both.has('pv') && both.has('trueHVPG'), 'a view\'s own hidden set is kept');
+  assert.equal(hiddenOf({ params: clotted, base }), both, 'one set per change of view (never a new one per frame)');
+});
+
+test('the Pressure chart leaves the HVPG bracket out and its figure reads "—" while the HVPG is unmeasured; PPG and the portal vein stay', () => {
+  const hidden = hiddenOf({ params: clotted });
+  const rows = readings(metrics, hidden);
+  const hv = rows.find((r) => r.id === 'hvpg')!, ppg = rows.find((r) => r.id === 'ppg')!;
+  assert.equal(hv.word, ''); assert.equal(hv.sev, ''); assert.notEqual(hv.text, '8.0');
+  assert.equal(ppg.text, '13.0');
+  const shown = words(profileFrame(input(), { w: 700, h: 300, pal }, newLock()).frame).map((t) => t.s);
+  const cut = words(profileFrame(input({ hidden }), { w: 700, h: 300, pal }, newLock()).frame).map((t) => t.s);
+  assert.ok(shown.includes('HVPG ') && shown.includes('8.0'));
+  assert.ok(!cut.includes('HVPG ') && !cut.includes('8.0'), `the HVPG bracket and pill are gone: ${cut.join('|')}`);
+  assert.ok(cut.includes('PPG ') && cut.includes('13.0'));
+});
