@@ -11,3 +11,8 @@
 .ir-tips { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .ir-stent-line { margin: 0; }
 .ir-editor { min-width: 0; }
+/* The curves and the compare table take their own height here (the 2D dock gave them the card's remaining height with flex-basis 0; this card's pane is as tall as its parts). */
+.ir-tips > .ir-curves { flex: none; }
+.ir-curves .ir-chart { flex: none; min-height: 0; display: block; }
+.ir-curves .ir-chart .pz-curve { height: auto; }
+.ir-tips .tf-chart { min-width: 0; }
