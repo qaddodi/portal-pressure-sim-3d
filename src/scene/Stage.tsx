@@ -12,17 +12,18 @@ import { VesselData, latest } from '../engine/index.ts';
 import { resolveLook } from '../looks/looks.ts';
 import { useDeck } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
-import { cel, sceneApi } from './api.ts';
+import { cel, frames, gesturesRef, sceneApi } from './api.ts';
+import { type GestureTarget, createGestures } from './gesture/controller.ts';
 
 const vesselData = new VesselData();
 cel.bindData(vesselData.texture);
 clock.on('engine', () => { if (vesselData.update(latest.frame, latest.version)) { cel.dataChanged(); clock.invalidate('vessel-data'); } }, 0);
+clock.on('tween', (f) => frames.run(f.time), 0);
 clock.on('camera', (f) => { if (cel.update(f.time)) clock.invalidate('scene'); }, 0);
 export { vesselData };
 
 /** A phone is the small side under 500 CSS px (portrait or landscape): its ink is 0.2 px lighter on organs (spec section 3). */
 const isPhone = () => Math.min(innerWidth, innerHeight) < 500;
-const TAP_PX = 6;
 
 function SceneBridge() {
   const gl = useThree((s) => s.gl);
@@ -53,29 +54,34 @@ function SceneBridge() {
     return () => { un(); dark.removeEventListener('change', paint); };
   }, [gl]);
 
-  // a tap on a vessel picks it (free play only); a drag turns the figure a little (±25°)
+  // the figure's gestures (src/scene/gesture/): turn, pinch, pan, wheel and trackpad, the 2D app's pan and zoom ported
   useEffect(() => {
     const el = gl.domElement;
-    let down: { x: number; y: number; orbit: number; moved: boolean } | null = null;
-    const onDown = (e: PointerEvent) => { down = { x: e.clientX, y: e.clientY, orbit: cel.rig.orbitAngle, moved: false }; el.setPointerCapture(e.pointerId); };
-    const onMove = (e: PointerEvent) => {
-      if (!down) return;
-      const dx = e.clientX - down.x;
-      if (Math.abs(dx) > TAP_PX || Math.abs(e.clientY - down.y) > TAP_PX) down.moved = true;
-      if (down.moved && cel.rig.setOrbit(down.orbit + dx * 0.006)) clock.invalidate('orbit');
-    };
-    const onUp = (e: PointerEvent) => {
-      const d = down; down = null;
-      if (!d || d.moved || useDeck.getState().mode !== 'free') return;
-      const r = el.getBoundingClientRect();
-      const hit = cel.pickAt(e.clientX - r.left, e.clientY - r.top, raycaster.current);
-      sceneApi.pick(hit && hit === cel.highlight.picked ? null : hit);
-    };
-    el.addEventListener('pointerdown', onDown);
-    el.addEventListener('pointermove', onMove);
-    el.addEventListener('pointerup', onUp);
-    el.addEventListener('pointercancel', () => { down = null; });
-    return () => { el.removeEventListener('pointerdown', onDown); el.removeEventListener('pointermove', onMove); el.removeEventListener('pointerup', onUp); };
+    const g = createGestures(el as unknown as GestureTarget, {
+      hand: () => cel.rig.handView,
+      setHand: (v) => { cel.rig.setHand(v); clock.invalidate('hand'); },
+      holdHand: () => cel.rig.holdHand(),
+      centre: () => cel.rig.roomCentre(),
+      fitRect: () => cel.rig.fitRect(),
+      orbit: () => cel.rig.orbitAngle,
+      setOrbit: (rad) => { const changed = cel.rig.setOrbit(rad); if (changed) clock.invalidate('orbit'); return changed; },
+      tap: (x, y) => {
+        if (useDeck.getState().mode !== 'free') return;
+        const hit = cel.pickAt(x, y, raycaster.current);
+        sceneApi.pick(hit && hit === cel.highlight.picked ? null : hit);
+      },
+      picked: () => cel.highlight.picked,
+      setPicked: (id) => sceneApi.pick(id),
+      context: (x, y) => { const hit = cel.pickAt(x, y, raycaster.current); if (hit) sceneApi.pick(hit); },
+    }, {
+      now: () => performance.now(),
+      ask: frames.ask, cancel: frames.cancel,
+      timer: (fn, ms) => window.setTimeout(fn, ms), clearTimer: (id) => window.clearTimeout(id),
+      reduceMotion: () => matchMedia('(prefers-reduced-motion: reduce)').matches,
+      viewport: () => cel.rig.stageSize,
+    }, window as unknown as GestureTarget);
+    gesturesRef.current = g;
+    return () => { g.dispose(); gesturesRef.current = null; };
   }, [gl]);
 
   return null;

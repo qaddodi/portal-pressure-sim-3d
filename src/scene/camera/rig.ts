@@ -1,6 +1,17 @@
 import { PerspectiveCamera, Vector3 } from 'three';
+import { BODY_PLATE_Z, PLATE_BOUNDS } from '../anatomy/placeholder.ts';
+import { type View, lerpView } from '../gesture/ease.ts';
+import type { Rect } from '../gesture/view.ts';
 import { type Room, effectiveDistance, viewOffset } from './room.ts';
 import { FOV, ORBIT_LIMIT, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
+
+/** Radians of turn per pixel of drag. */
+export const ORBIT_PER_PX = 0.006;
+
+/** The orbit angle after a drag of `dx` CSS pixels (positive = to the right) from `start`. The figure follows the finger or pointer: its front
+ *  face moves the way the drag moves, which means the camera swings the other way, so yaw goes down as dx goes up. One rule for every input
+ *  (touch, mouse, pen and trackpad all arrive as pointer events); Stage.tsx calls nothing else. */
+export const dragToOrbit = (start: number, dx: number): number => start - dx * ORBIT_PER_PX;
 
 export const easeInOutCubic = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
@@ -47,6 +58,10 @@ export class CameraRig {
   private height = 1;
   private dirty = true;
   private readonly pos = new Vector3();
+  /** The hand's view on top of the shot: zoom k (the camera's own zoom, about the projection centre) and a pan in canvas px. Identity = the shot's framing. */
+  private hand: View = { k: 1, x: 0, y: 0 };
+  private handFrom: View = { k: 1, x: 0, y: 0 };
+  private handTween = false;
   readonly reduceMotion: boolean;
 
   constructor(shot: ShotName | Shot = 'title', room?: Room, reduceMotion = false) {
@@ -68,10 +83,13 @@ export class CameraRig {
   get pose(): Readonly<Pose> { return this.cur; }
 
   /** Fly to a shot (and a room) in one straight move. Called again mid-flight, the new move starts from where the camera is now. */
-  goTo(shot: ShotName | Shot, room: Room, now: number, ms = SHOT_MS): void {
+  goTo(shot: ShotName | Shot, room: Room, now: number, ms = SHOT_MS, keepHand = false): void {
     const s = typeof shot === 'string' ? SHOTS[shot] : shot;
     this.from = { shot: copyShot(this.cur.shot), room: copyRoom(this.cur.room) };
     this.to = { shot: copyShot(s), room: copyRoom(room) };
+    // a new shot takes the hand's zoom and pan back to the shot's own framing, in the same move
+    this.handFrom = { ...this.hand };
+    this.handTween = keepHand ? this.handTween : this.hand.k !== 1 || this.hand.x !== 0 || this.hand.y !== 0;
     this.t0 = now;
     this.dur = this.reduceMotion ? 0 : ms;
     this.orbitFrom = this.orbit;
@@ -79,8 +97,8 @@ export class CameraRig {
     this.dirty = true;
   }
 
-  /** The cards changed room (a card opened, the phone turned): move the room alone, same curve. */
-  setRoom(room: Room, now: number, ms = SHOT_MS): void { this.goTo(this.to.shot, room, now, ms); }
+  /** The cards changed room (a card opened, the phone turned): move the room alone, same curve; the hand's zoom stays (cards opening keep the zoom). */
+  setRoom(room: Room, now: number, ms = SHOT_MS): void { this.goTo(this.to.shot, room, now, ms, true); }
 
   /** Limited orbit by drag, ±25°, clamped. Returns true when it changed (a frame is needed). */
   setOrbit(rad: number): boolean {
@@ -91,6 +109,34 @@ export class CameraRig {
   }
   get orbitAngle(): number { return this.orbit; }
 
+  get handView(): Readonly<View> { return this.hand; }
+  /** The hand puts the figure where its fingers are. */
+  setHand(v: View): void { this.hand.k = v.k; this.hand.x = v.x; this.hand.y = v.y; this.dirty = true; }
+  /** The hand takes the camera: a shot's return of the hand to its fit stops where it is. */
+  holdHand(): void { this.handTween = false; }
+  /** The middle of the free room, in canvas px: what the figure is zoomed about. */
+  roomCentre(): { x: number; y: number } {
+    const r = this.cur.room.w > 1 ? this.cur.room : { x: 0, y: 0, w: this.width, h: this.height };
+    return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+  }
+  get stageSize(): { w: number; h: number } { return { w: this.width, h: this.height }; }
+
+  /** The body plate's rectangle on screen in the shot's own framing (hand at the fit): the bounds the hand may pan the figure within. */
+  fitRect(): Rect {
+    const keep = { ...this.hand };
+    this.hand.k = 1; this.hand.x = 0; this.hand.y = 0;
+    this.apply();
+    const b = PLATE_BOUNDS;
+    const rect: Rect = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    for (const [x, y] of [[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]] as const) {
+      const p = this.project(new Vector3(x, y, BODY_PLATE_Z));
+      rect.x0 = Math.min(rect.x0, p.x); rect.x1 = Math.max(rect.x1, p.x); rect.y0 = Math.min(rect.y0, p.y); rect.y1 = Math.max(rect.y1, p.y);
+    }
+    this.hand.k = keep.k; this.hand.x = keep.x; this.hand.y = keep.y;
+    this.apply();
+    return rect;
+  }
+
   /** Steps the tween and writes the camera. Returns true while the camera is still moving (the clock needs another frame). */
   update(now: number): boolean {
     let moving = false;
@@ -99,6 +145,7 @@ export class CameraRig {
       this.cur = blendPose(this.from, this.to, easeInOutCubic(k));
       // the orbit eases back to centre with the shot: a new shot always starts square on
       this.orbit = lerp(this.orbitFrom, 0, easeInOutCubic(k));
+      if (this.handTween) { lerpView(this.handFrom, { k: 1, x: 0, y: 0 }, easeInOutCubic(k), this.hand); if (k >= 1) this.handTween = false; }
       if (k >= 1) this.active = false; else moving = true;
       this.dirty = true;
     }
@@ -117,7 +164,8 @@ export class CameraRig {
     this.camera.position.copy(this.pos);
     this.camera.lookAt(tx, ty, tz);
     const off = viewOffset(room.w > 1 ? room : { x: 0, y: 0, w, h }, w, h);
-    this.camera.setViewOffset(w, h, off.x, off.y, w, h);
+    this.camera.zoom = this.hand.k;
+    this.camera.setViewOffset(w, h, off.x - this.hand.x, off.y - this.hand.y, w, h);
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld(); // so tags projected before the next render see this pose
   }
