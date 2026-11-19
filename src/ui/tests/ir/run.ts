@@ -1,0 +1,231 @@
+// What the IR pane does while something plays (2D hvpg-proc.js start / play / loop, ir-ppg.js, monitor-takeover.js): the HVPG measurement on its own clock, a treatment played on the anatomy (the
+// pane's "Watch" row), and the PPG by IR played the same way. The figure's catheter is the scene's procedure layer (sceneApi.procedure, the 2D app's own choreography); the numbers on the
+// monitor are the model's. State the pane's words depend on lives here, in one place, and `bump()` tells React when a word changes: nothing here re-renders per frame, only when a phase,
+// a step or a reading changes. The monitors read `R` (the kept record) on the clock's tween phase.
+import { create } from 'zustand';
+import { clock } from '../../../clock/frame.ts';
+import { latest, patient } from '../../../engine/index.ts';
+import { sceneApi } from '../../../scene/api.ts';
+import type { ShotName } from '../../../scene/camera/shots.ts';
+import { PROCS, PROC_KINDS, MEASURES, READS, specOf, markAt, procBlocked as procBlockedJs, procOffered as procOfferedJs } from '../../../scene/procedures/copied/proc-anim.js';
+import { ppgWord } from '../../../engine/hales/portal/pressure-cuts.js';
+import { T, newWave, syncWave } from '../copied/hvpg-clock.copied.js';
+import { scriptOf, phaseOf } from './copied/reading-scripts.copied.js';
+import { TB, hvBlocked } from './hvpg.ts';
+import { updateParams } from '../../action/params.ts';
+import { useShell } from '../../shell/store.ts';
+import { goToView } from '../../shell/view-actions.ts';
+import { useUi } from '../../ui-store.ts';
+import { freeRoom } from '../../shell/room.ts';
+import { cutRoom } from '../room.ts';
+import type { MonitorState } from './monitor.ts';
+
+export interface Readings { fhvp: number; whvp: number; hvpg: number }
+type Obj = Record<string, number>;
+// the 2D copy's `m = null` default types its metrics argument as null: the real one is the frame's metrics
+const procBlocked = procBlockedJs as (kind: string, p: unknown, m?: Obj | null) => string | null | false;
+const procOffered = procOfferedJs as (kind: string, p: unknown, m?: Obj | null) => boolean;
+
+/** The HVPG measurement's kept state (2D hvpg-proc.js: t0, t, result, snap, blocked). */
+export const R = {
+  t0: null as number | null, t: 0, result: null as (Readings & { t?: number; day?: number }) | null, snap: null as Readings | null, blocked: false,
+  cam: '' as string,
+  // a treatment played from the Watch row
+  procKind: '', procStep: -1, procT: 0, procApplied: false, procCam: '', playT: 0,
+  // the PPG by IR (ir-ppg.js): the kinds' clocks, the step, the phase of the takeover
+  ppg: { run: false, kind: '' as '' | 'irivc' | 'irpv', step: -1, done: false, take: 'idle' as 'idle' | 'run' | 'hold', tk: {} as Record<string, number>, mark: -3, holdId: 0 as unknown as ReturnType<typeof setTimeout> | 0 },
+  wave: newWave(),
+};
+export const tEnd = (): number => (R.blocked ? TB.end : T.end);
+export const hvpgRunning = (): boolean => R.t0 != null && R.t < tEnd();
+export const busy = (): boolean => hvpgRunning() || !!R.procKind || R.ppg.run;
+
+/** Bumps when a word on the pane changes (a phase, a step, a reading, a button's state). */
+export const useRun = create<{ n: number }>(() => ({ n: 0 }));
+const bump = () => useRun.setState((s) => ({ n: s.n + 1 }));
+
+const say = (t: string) => useShell.getState().say(t);
+const metrics = (): Obj | null => (latest.frame?.metrics ?? null) as Obj | null;
+const params = () => patient.params as unknown;
+
+// ── the loop: one clock hold while anything plays, one tween callback ──
+let hold: { release(): void } | null = null, off: (() => void) | null = null;
+function wake(): void {
+  if (off) return;
+  hold = clock.hold('ir');
+  off = clock.on('tween', () => tick());
+}
+function sleep(): void { off?.(); off = null; hold?.release(); hold = null; }
+
+const room = () => { const { vp, device } = useUi.getState(); return cutRoom(freeRoom(vp, device)); };
+/** The 2D step shots on the 3D camera's: the route down from the neck, the tip close up, home. */
+const SHOT: Record<string, ShotName> = { route: 'route', way: 'route', tip: 'hvpg', fill: 'hvpg', free: 'free', wedge: 'wedge', home: 'play' };
+function camTo(name: string): void { const s = SHOT[name]; if (s) sceneApi.goTo(s, room()); }
+/** A catheter is drawn on the body, so the view leaves the Circuit, the lobule and the sinusoid first (2D leaveFor). */
+function onBody(): void { if (useShell.getState().view !== 'anatomic') goToView('anatomic'); }
+
+const live = (): Readings => { const m = metrics(); return { fhvp: m?.fhvp ?? 0, whvp: m?.whvp ?? 0, hvpg: m?.hvpg ?? 0 }; };
+/** The readings the HVPG pane shows now: the captured ones, the snapshot taken as the catheter started, else the live model's. */
+export const values = (): Readings => R.result || R.snap || live();
+export const phase = (): 'idle' | 'enter' | 'free' | 'wedge' | 'result' | 'abort' => {
+  const t = R.t;
+  return R.t0 == null && !R.result ? 'idle' : R.blocked ? (t < TB.abort ? 'enter' : 'abort') : t < T.free ? 'enter' : t < T.inflate ? 'free' : t < T.result ? 'wedge' : 'result';
+};
+
+// ── the HVPG measurement ──
+export function startHvpg(): void {
+  if (busy() || !latest.frame) return;
+  hidePpg();
+  onBody();
+  R.result = null; R.t0 = performance.now(); R.t = 0; R.cam = ''; R.blocked = hvBlocked(params());
+  R.snap = { ...live() };
+  // the catheter on the figure: the whole procedure, or, for a thrombosed vein, as far as the ostium (2D figureBlocked: it probes and is withdrawn)
+  if (R.blocked) sceneApi.procedure.play('hvpgcath', { to: T.zoom + 600, keep: true });
+  else sceneApi.procedure.play('hvpgcath');
+  wake(); bump();
+}
+function finish(): void {
+  const f = latest.frame;
+  if (!f?.metrics) return;
+  R.result = { ...(R.snap || { fhvp: f.metrics.fhvp as number, whvp: f.metrics.whvp as number, hvpg: f.metrics.hvpg as number }), t: f.t, day: f.day };
+  bump();
+}
+function stepHvpg(): void {
+  R.t = Math.min(tEnd(), performance.now() - (R.t0 as number));
+  if (!R.result && !R.blocked && R.t >= T.result) finish();
+  // the camera: the route while the catheter travels, the tip close up for the readings, then back
+  const t = R.t, want = t < T.zoom ? 'route' : (R.blocked ? t < TB.back + 1500 : t < T.back) ? 'tip' : 'home';
+  if (want !== R.cam && (want !== 'route' || t > 250)) { R.cam = want; camTo(want); }
+  if (R.blocked && t >= TB.back && sceneApi.procedure.playing == null) sceneApi.procedure.stop();
+  if (t >= tEnd()) { if (R.blocked) sceneApi.procedure.stop(); bump(); }
+}
+export function resetHvpg(): void {
+  if (hvpgRunning()) sceneApi.procedure.stop();
+  R.t0 = null; R.t = 0; R.result = null; R.snap = null; R.blocked = false; R.cam = '';
+  bump();
+}
+
+// ── a treatment played on the anatomy (the Watch row) ──
+export const procState = () => ({ kind: R.procKind, step: R.procStep });
+export function playProc(kind: string): void {
+  if (performance.now() - R.playT < 600 || busy()) return;
+  R.playT = performance.now();
+  const why = procBlocked(kind, params(), metrics());
+  if (why) { say(why); return; }
+  onBody();
+  const T0 = (PROCS as Record<string, { T: { apply: number }; label: string; apply: (p: unknown) => unknown }>)[kind]!;
+  R.procKind = kind; R.procStep = 0; R.procApplied = false; R.procCam = '';
+  sceneApi.procedure.play(kind, {
+    onFrame: (rec) => {
+      const t = sceneApi.procedure.playing?.t ?? 0;
+      if (rec.step !== R.procStep && rec.step >= 0) { R.procStep = rec.step; bump(); }
+      const shot = String(rec.shot || '');
+      if (shot && shot !== R.procCam) { R.procCam = shot; camTo(shot); }
+      // the model takes the change as the sequence passes its apply time
+      if (!R.procApplied && t >= T0.T.apply) { R.procApplied = true; updateParams((p) => T0.apply(p) as never, { label: T0.label }); }
+    },
+    onEnd: () => { R.procKind = ''; R.procStep = -1; camTo('home'); bump(); },
+  });
+  wake(); bump();
+}
+
+// ── the PPG by IR (ir-ppg.js) ──
+const HOLD_MS = 6000;
+const SLIDE = { procedure: { kind: 'irivc', then: 'irpv' } };
+export const ppgScript = (): { clock: { now(tk: Obj): number }; vals(fp: unknown, o: Obj): Obj } & Record<string, unknown> => scriptOf(SLIDE.procedure) as never;
+const fpLive = { ivc: NaN, pv: NaN, ppg: NaN };
+export const ppgShown = (): boolean => R.ppg.take !== 'idle';
+function ppgTake(next: 'idle' | 'run' | 'hold'): void { if (R.ppg.take !== next) { R.ppg.take = next; bump(); } }
+export function hidePpg(): void {
+  const p = R.ppg;
+  if (p.holdId) { clearTimeout(p.holdId as ReturnType<typeof setTimeout>); p.holdId = 0; }
+  if (p.run) sceneApi.procedure.stop();
+  p.run = false; p.kind = ''; p.step = -1; p.done = false; p.tk = {};
+  ppgTake('idle');
+}
+/** A tap on the held result takes it away. */
+export function closePpg(): void { const p = R.ppg; if (p.take === 'hold') { if (p.holdId) clearTimeout(p.holdId as ReturnType<typeof setTimeout>); p.holdId = 0; ppgTake('idle'); } }
+function beginPpg(kind: 'irivc' | 'irpv'): void {
+  const p = R.ppg, rd = (READS as Record<string, Record<string, number>>)[kind];
+  if (rd) for (const k in rd) rd[k] = NaN;
+  p.kind = kind; p.step = -1; p.mark = -3;
+  const P = specOf(kind) as { capture(i: number, rd: unknown, f: unknown): void; steps: unknown[][] };
+  sceneApi.procedure.play(kind, {
+    onFrame: (rec) => {
+      const t = sceneApi.procedure.playing?.t ?? 0;
+      p.tk[kind] = t;
+      if (rec.step !== p.step && rec.step >= 0) { p.step = rec.step; bump(); }
+      // each reading is taken as its callout comes (2D playProcedure: capture at the step's mark)
+      const mk = rec.step < 0 ? -2 : t >= markAt(kind, rec.step) ? rec.step : -1;
+      if (mk !== p.mark && mk > -2) { p.mark = mk; if (mk >= 0 && rd) P.capture(mk, rd, latest.frame); }
+      const shot = String(rec.shot || '');
+      if (shot && shot !== R.procCam) { R.procCam = shot; camTo(shot); }
+    },
+    onEnd: () => {
+      if (kind === 'irivc') { beginPpg('irpv'); return; }   // the second approach goes on by itself, from its start
+      p.run = false; p.kind = ''; p.step = -1; p.done = true; camTo('home'); R.procCam = '';
+      ppgTake('hold');
+      p.holdId = setTimeout(() => { p.holdId = 0; ppgTake('idle'); }, HOLD_MS);
+      bump();
+    },
+  });
+}
+export function startPpg(): void {
+  const p = R.ppg;
+  if (performance.now() - R.playT < 600 || p.run || busy()) return;
+  R.playT = performance.now();
+  const why = procBlocked('irivc', params(), metrics()) || procBlocked('irpv', params(), metrics());
+  if (why) { say(why); return; }
+  onBody();
+  if (p.holdId) { clearTimeout(p.holdId as ReturnType<typeof setTimeout>); p.holdId = 0; }
+  p.tk = {}; p.done = false; p.run = true; R.procCam = '';
+  ppgTake('run');
+  beginPpg('irivc');
+  wake(); bump();
+}
+/** The words under the pane while the PPG plays or holds its result ('' when it has nothing to say). */
+export function ppgCaption(): string {
+  const p = R.ppg;
+  if (p.run) return p.kind && p.step >= 0 ? String((MEASURES as Record<string, { steps: string[][] }>)[p.kind]!.steps[p.step]![2]) : '';
+  if (!p.done || p.take === 'idle') return '';
+  const rd = (READS as Record<string, Record<string, number>>).irpv!, ppg = rd.ppg!, word = (v: number) => (Number.isFinite(v) ? v.toFixed(1) : '—');
+  return Number.isFinite(ppg) ? `${ppgWord(ppg, true)}. PPG = PV − IVC = ${word(rd.pv!)} − ${word(rd.iv!)} = ${word(ppg)} mmHg.` : '';
+}
+/** What the PPG's monitor is handed now. */
+export function ppgMonitor(out: { st: MonitorState; v: Obj }): MonitorState {
+  const S = ppgScript(), p = R.ppg;
+  const m = metrics();
+  if (!p.run && p.take === 'run') { /* between the two approaches */ }
+  if (m && !p.run) { fpLive.ivc = m.ivc as number; fpLive.pv = m.pv as number; fpLive.ppg = m.ppg as number; }
+  S.vals(fpLive, out.v);
+  const st = out.st;
+  st.ph = phaseOf(S, p.tk) as MonitorState['ph'];
+  const t = S.clock.now(p.tk);
+  st.t = Number.isFinite(t) ? t : 0;
+  st.running = true; st.probing = false; st.wave = R.wave;
+  st.v = out.v;
+  if (st.ph === 'run') syncWave(R.wave, latest.frame, st.t, performance.now());
+  return st;
+}
+
+// ── the loop's step ──
+function tick(): void {
+  if (hvpgRunning()) stepHvpg();
+  const any = hvpgRunning() || !!R.procKind || R.ppg.run;
+  if (!any) { sleep(); bump(); }
+}
+
+/** A new patient or a jump in time starts with no measurement. */
+export function resetAll(): void { hidePpg(); if (R.procKind) { sceneApi.procedure.stop(); R.procKind = ''; R.procStep = -1; } resetHvpg(); sleep(); }
+
+// the names the Watch row lists, in 2D's order, with what each says and whether it is offered (hidden) or can be played (dimmed) for this patient
+export interface WatchBtn { kind: string; name: string; hidden: boolean; off: boolean; on: boolean }
+export function watchButtons(): WatchBtn[] {
+  const p = params(), m = metrics();
+  return (PROC_KINDS as string[]).map((k) => ({
+    kind: k, name: (PROCS as Record<string, { name: string }>)[k]!.name,
+    hidden: !procOffered(k, p, m) && R.procKind !== k, off: !!procBlocked(k, p, m), on: R.procKind === k,
+  }));
+}
+/** The step a treatment on the Watch row says now. */
+export const procSay = (): string => (R.procKind ? String((PROCS as Record<string, { steps: string[][] }>)[R.procKind]!.steps[Math.max(0, R.procStep)]![2]) : '');
