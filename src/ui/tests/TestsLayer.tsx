@@ -1,7 +1,7 @@
 // The Tests card (2D dock.js "Instruments card"): a card on the right of a wide screen, a sheet over the foot of a phone or an upright iPad, with a row of tabs (Pressure, IR,
 // Doppler, Endoscopy, Ascites, FibroScan, Readouts, Trials; Over time lives under Pressure). Always in the page and fading; the instrument on show is remembered on the device.
 // The Tests button, the I key and the search commands open it through the shell's `tests` feature.
-import { useEffect, useMemo, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useMemo, type ReactNode } from 'react';
 import './tests.css';
 import './trace/trace.css';
 import './abdomen/abdomen.css';
@@ -18,10 +18,14 @@ import { AbdomenPane } from './abdomen/AbdomenPane.tsx';
 import { PressureTab } from './trace/PressureTab.tsx';
 import { startFeed } from './feed.ts';
 import { notYet } from '../shell/words.ts';
+import { useShell } from '../shell/store.ts';
+
+const TrialsPane = lazy(() => import('../trials/TrialsPane.tsx').then((m) => ({ default: m.TrialsPane })));
 
 /** The panes built so far; a tab whose pane is not here yet says so in a line (never a dead tab). */
 export interface PaneProps { narrow: boolean; /** a plot's height and a square's (dock-vars.js) */ plot: number; square: number; /** a card with room for two instruments at once (a side card 600 px tall or more) */ roomy: boolean }
 const BUILT: Partial<Record<PaneId, (p: PaneProps) => ReactNode>> = {
+  trials: () => <Suspense fallback={null}><TrialsPane /></Suspense>,
   readouts: (p) => <ReadoutsPane narrow={p.narrow} />,
   abdomen: (p) => <AbdomenPane square={p.square} />,
   scope: (p) => <PressureTab own="scope" {...p} />,
@@ -43,6 +47,12 @@ export function TestsLayer() {
   useEffect(() => { startFeed(); }, []);
   // the Tests button, the I key and the palette
   useEffect(() => registerFeature('tests', () => useTests.getState().toggle()), []);
+  // the card buttons that open an instrument: Doppler, Endoscope, FibroScan (a liver or spleen card), and "Test TIPS in IR" (the stent's card)
+  useEffect(() => {
+    const show = (id: PaneId) => () => { useShell.getState().close(); useTests.getState().show(id); };
+    const offs = [registerFeature('doppler', show('doppler')), registerFeature('endoscopy', show('endoscopy')), registerFeature('fibroscan', show('fibroscan')), registerFeature('ir', show('hvpg'))];
+    return () => offs.forEach((f) => f());
+  }, []);
   // the figure keeps the room the card leaves
   useEffect(() => {
     useTestsRoom.setState({ place: open ? place : null });

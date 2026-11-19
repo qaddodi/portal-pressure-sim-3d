@@ -10,6 +10,8 @@ import { bindScene, scenePicked, useSelection } from './selection.ts';
 import { presetBase, presetStarted } from './params.ts';
 import { useUi } from '../ui-store.ts';
 import { isPhone } from '../layout/device.ts';
+import { injectDye } from './dye.ts';
+import { goToView } from '../shell/view-actions.ts';
 
 export function startActions(): () => void {
   const off: (() => void)[] = [];
@@ -19,6 +21,11 @@ export function startActions(): () => void {
     if (!t.open) { useShell.getState().close(); if (isPhone(useUi.getState().device)) useSelection.setState({ sel: null }); }
     t.toggle();
   }));
+  // the card buttons the other batches own: Inject dye (the J key too), and the lobule and sinusoid views a liver card opens
+  off.push(registerFeature('dye', () => injectDye({})));
+  off.push(registerFeature('view:lobule', () => { goToView('lobule'); }));
+  off.push(registerFeature('view:sinusoid', () => { goToView('sinusoid'); }));
+  off.push(registerFeature('view:circuit', () => { goToView('circuit'); }));
   bindScene((id) => { if (usePick.getState().picked !== id) sceneApi.pick(id); });
   off.push(usePick.subscribe((s) => scenePicked(s.picked)));
   // a structure selected on a phone puts Treat away (2D onSelect)
