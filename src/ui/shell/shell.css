@@ -196,7 +196,7 @@
 /* ════════ the 2D app's chrome, from its stylesheets (every number is in metrics.ts with the rule it comes from) ════════ */
 .sh-root { --sh-shadow-pill: 1px 1px 2px rgb(var(--shadow-rgb, 0 0 0) / 0.08), inset 0 0 0 1px var(--edge); }
 /* (these two element resets weigh nothing, `:where` over the whole selector: `.sh-root button` weighed more than the 2D one-class rules, so it won every tie and stripped `.tb-act` of its padding 0 11px, border, background and its 600 14px font) */
-:where(.sh-root button) { border: 0; background: transparent; padding: 0; }
+:where(.sh-root button:not(#app button)) { border: 0; background: transparent; padding: 0; }   /* (inside #app the buttons are 2D's: it resets none of these, its own rules set what they need and the rest is the browser's: .sheet-grab is padding 1px 6px, a 2px border, cursor default) */
 .sh-root :where(.sh-ic) { flex: none; }
 .sh-chev { width: 16px; height: 16px; color: var(--text-3); transition: rotate 200ms var(--sh-ease); }
 [aria-expanded="true"] > .sh-chev, [aria-expanded="true"] .sh-chev { rotate: 180deg; }
