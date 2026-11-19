@@ -2,7 +2,7 @@
 // owns each need and whether it has landed. A need whose batch has not landed is a CLAIMED HOOK: the slide is present (its words, steps and shot are here) but not
 // wired until the need's `landed()` is true. The parity claims (src/parity/b13a.ts) and tests/decks-ag-needs.test.ts read this, so a batch that lands a feature
 // flips its hook here and every slide that waited for it counts as wired in the same push.
-import { CHARTS } from '../../ui/charts/registry.ts';
+import { chartDone } from '../../ui/charts/kinds.ts';
 import { toolLanded } from '../../ui/talk/tool-landed.ts';
 import { TILE } from '../../ui/charts/tiles.generated.ts';
 import { LENS_IDS, SINCE_BASELINE_FED } from '../../scene/lenses/model.ts';
@@ -135,7 +135,7 @@ export function hookOf(id: string): Hook | null {
     case 'visual': {
       // plane, all-patients and ladders are charts of B10 (the presenter's visual card mounts them); the summary table is ui/cards/TableCard.tsx; the rest (outline, check…) are B12's
       const chart = ({ plane: 'plane', 'plane-options': 'plane', allpatients: 'small', ladders: 'ladder', walls: 'walls' } as Record<string, string>)[rest];
-      return { owner: chart ? 'B10' : 'B12', what: `the ${rest} visual over the figure`, landed: chart ? () => CHARTS.find((c) => c.kind === chart)?.status === 'done' : rest === 'table' ? ready : claimed };
+      return { owner: chart ? 'B10' : 'B12', what: `the ${rest} visual over the figure`, landed: chart ? () => chartDone(chart) : rest === 'table' ? ready : claimed };
     }
     case 'compare': return { owner: 'B12', what: `the compare buttons (${rest})`, landed: rest.split('+').every((k) => COMPARE_LANDED.includes(k)) ? ready : claimed }   // (gate and tool buttons move an instrument: the Tests cards);
     case 'present': return { owner: 'B12', what: 'the presenter plays any deck by its id, with the scene plate of each slide', landed: ready }   // (decks/all.ts);
