@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { criteriaRow, criteriaRows, criteriaMet, criteriaReading, cutParts, verdictParts, keyLine, criteriaHasCase } from '../src/ui/charts/criteria/rows.ts';
-import { ZONES, bavenoRects, hatchSegments, zonesFrame, plotHeight, BAVENO } from '../src/ui/charts/criteria/zones.ts';
+import { ZONES, bavenoRects, hatchSegments, hatchSlivers, zonesFrame, plotHeight, BAVENO } from '../src/ui/charts/criteria/zones.ts';
 import { ctxOf, eachLook, judge } from './charts-helpers.ts';
 
 test('rows: a plain string, a tuple and an object read into one shape; empty ones are dropped; at most four', () => {
@@ -55,6 +55,21 @@ test('the hatch stripes stay inside their rectangle and are 7 px apart across', 
   }
   const cs = segs.map(([x1, y1]) => x1! + y1!);
   assert.ok(Math.abs(cs[1]! - cs[0]! - 7 * Math.SQRT2) < 1e-6);
+});
+
+test('the hatch is drawn as filled slivers: 2 px stripes (2·√2 across x + y) 7 px apart, wholly inside the rectangle', () => {
+  const sl = hatchSlivers(10, 20, 80, 40);
+  assert.ok(sl.length > 10);
+  const area = (p: number[]) => { let a = 0; for (let i = 0; i < p.length; i += 2) { const j = (i + 2) % p.length; a += p[i]! * p[j + 1]! - p[j]! * p[i + 1]!; } return Math.abs(a) / 2; };
+  for (const p of sl) for (let i = 0; i < p.length; i += 2) assert.ok(p[i]! >= 10 - 1e-6 && p[i]! <= 90 + 1e-6 && p[i + 1]! >= 20 - 1e-6 && p[i + 1]! <= 60 + 1e-6);
+  // a stripe wholly inside is a 2 px wide band: its area is 2 px times its length
+  const mid = sl[Math.floor(sl.length / 2)]!;
+  assert.ok(area(mid) > 0);
+  // together the stripes cover 2/7 of the rectangle
+  assert.ok(Math.abs(sl.reduce((a, p) => a + area(p), 0) / (80 * 40) - 2 / 7) < 0.02);
+  const f = zonesFrame(ZONES['first-visit']!, ctxOf('light', 330), 'z');
+  assert.ok(f.shapes.filter((s) => s.k === 'path' && s.closed && s.fill).length >= 10);
+  assert.ok(!f.shapes.some((s) => s.k === 'line'), 'no stroked hatch lines');
 });
 
 test('the zones graph in every look: words ≥12 px, inside the box, height from the width only, names where the zones are', () => {
