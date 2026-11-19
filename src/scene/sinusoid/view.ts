@@ -26,6 +26,7 @@ import { washProgress } from '../lobule/wash.ts';
 import { type InkContext } from '../lobule/ink.ts';
 import { rng } from '../lobule/geometry.ts';
 import { type Pore, SEED, SLOT, UM, cellEdge, nucAt, poreAt, poreOpenness } from './layout.ts';
+import { type NameGeom, type NamePlacement, type NamesInput, layoutNames } from './names.ts';
 import { PORTRAIT_ANGLE, endsFor, framePoint, glideTurn, planePoint, turnAt, xkFor } from './portrait.ts';
 import { SINUSOID_FS, SINUSOID_PFS, SINUSOID_PVS, SINUSOID_UNIFORMS, SINUSOID_VS } from './gl.copied.ts';
 import { createGeom, createTraffic } from './traffic.copied.js';
@@ -344,6 +345,11 @@ export class SinusoidView {
     out[0] = p[0]; out[1] = p[1]; out[2] = p[2];
     return out;
   }
+
+  /** The widths and places the names stand on (2D's halfW, wallIn, hepIn, disseW and the fixed cells), as the shader draws them now. */
+  get nameGeom(): NameGeom { return { xs: this.geo.xs, xk: this.geo.xk, pores: this.geo.pores, ...this.g }; }
+  /** 2D's names laid out for this screen (names.ts): the label layer gives the plane's place on screen, the free room and a measure; the stellate cell's state is the view's own. Level names, leaders, µm named. */
+  names(inp: Omit<NamesInput, 'g' | 'act' | 'portrait'>): NamePlacement[] { return layoutNames({ ...inp, g: this.nameGeom, act: this.cur.act, portrait: this.portrait }); }
 
   /** A point of this view's frame (what `anchor` returns, plane units) as micrometres along and across (y down, as the shader has it), whatever the plane's turn: for hits. */
   micrometres(fx: number, fy: number): { x: number; y: number } { return planePoint(fx, fy, U, this.ang); }
