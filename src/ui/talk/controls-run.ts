@@ -9,7 +9,10 @@ import { LENS_IDS, type LensId, DEFAULT_LENS } from '../../scene/lenses/model.ts
 import { LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
 import { camPlan } from '../../decks/hp/cams.ts';
 import { useUi } from '../ui-store.ts';
+import { useToolPatch } from './tool-options.ts';
+import { useDopplerProbe, type Gate } from '../tests/doppler/probe-state.ts';
 import type { Deck } from '../../decks/schema.ts';
+import { copiedOf } from '../../decks/hp/deck.ts';
 
 /** How long a treatment button takes to settle the model (ms), and a patient or a slide to ease over. */
 export const EASE_MS = 700, MORPH_MS = 1100, SLIDER_EASE_MS = 350;
@@ -26,6 +29,9 @@ const morph = (snap: unknown) => { if (snap) engine().send({ type: 'morph', snap
 
 /** A compare button: the slide's own state, a treatment's parameters, another patient, another slide's state, or a lens. `i` is the slide's index in the deck. */
 export async function pickCompare(deck: Deck, i: number, o: CompareOpt): Promise<void> {
+  // a button that moves an instrument: the Doppler's sample spot, or one option of the slide's instrument; the model is left alone (2D abPick)
+  if (o.gate) { useDopplerProbe.getState().setGate(o.gate as Gate); return; }
+  if (o.tool) { useToolPatch.getState().set(slideKey(deck, i), o.tool); return; }
   if (o.lens) {
     const own = deck.slides[i]?.scene?.lens ?? DEFAULT_LENS;
     const lens = o.own && !(LENS_IDS as readonly string[]).includes(o.lens) ? own : o.lens;
@@ -37,6 +43,13 @@ export async function pickCompare(deck: Deck, i: number, o: CompareOpt): Promise
   if (o.slide) { const j = deck.slides.findIndex((s) => s.id === o.slide); if (j >= 0) morph(stateOf(deck, j)?.snap); return; }
   if (o.own) morph(stateOf(deck, i)?.snap);
 }
+
+/** The key a slide's instrument options are kept under. */
+export const slideKey = (deck: Deck, i: number): string => `${deck.id}/${deck.slides[i]?.id ?? ''}`;
+/** A what-if slider on an instrument (`tool: 'air'`): one option moved, the model left alone. */
+export function dragToolOption(deck: Deck, i: number, name: string, x: number): void { useToolPatch.getState().one(slideKey(deck, i), name, x); }
+/** Where an instrument slider starts: the slide's own option, else the low end. */
+export const toolOptionStart = (deck: Deck, i: number, name: string, min: number): number => { const v = (copiedOf(deck.id)?.slides[i]?.tool as Record<string, unknown> | undefined)?.[name]; return typeof v === 'number' ? v : min; };
 
 /** The what-if slider: one value at its parameter paths, eased in. */
 export function dragWhatIf(paths: readonly string[], x: number): void { engine().send({ type: 'setParams', params: patchOf(paths, x), settle: false, ease: SLIDER_EASE_MS }); }

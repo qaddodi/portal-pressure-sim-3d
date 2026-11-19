@@ -1,11 +1,13 @@
 // The live controls a slide puts on its teaching card (the 2D slide's `compare`, `whatIf`, `response` and `scales`), as plain data. Pure: the card draws them
 // (ui/cards/SlideControls.tsx) and ui/deck/controls-run.ts carries them out on the live model. Read from the copied 2D slide, never typed per slide.
-// A compare list that moves an instrument (`gate`, `tool`) belongs to the Tests cards (B11), so it is left out here and its slide keeps the hook.
+// A compare list or a what-if slider that moves an instrument (`gate`, `tool`) is carried like the others: `gate` is the Doppler's sample spot, `tool` the patch laid over the slide's own
+// instrument options (ui/talk/tool-options.ts); neither touches the model (2D presenter-lapse.js abPick, whatIfEl).
 import type { CopiedSlide } from './hp/types.ts';
 
 /** One button of a compare group: what it switches, by the first field it has. `own` marks the slide's own state (pressed when the slide opens). */
-export interface CompareOpt { label: string; short?: string; own?: boolean; params?: Record<string, unknown>; preset?: string; slide?: string; lens?: string }
-export interface WhatIf { label: string; paths: string[]; min: number; max: number; step: number; ends?: [string, string]; unit?: string }
+export interface CompareOpt { label: string; short?: string; own?: boolean; params?: Record<string, unknown>; preset?: string; slide?: string; lens?: string; gate?: string; tool?: Record<string, unknown> }
+/** `tool`: the instrument option the slider moves (no `paths`: the model is left alone). */
+export interface WhatIf { label: string; paths: string[]; min: number; max: number; step: number; ends?: [string, string]; unit?: string; tool?: string }
 export type Scale = 'anatomy' | 'lobule' | 'sinusoid';
 export interface SlideControls {
   compare?: { opts: CompareOpt[]; name: string };
@@ -29,22 +31,25 @@ function compareOf(s: CopiedSlide): SlideControls['compare'] {
   }
   const list = s.compare as unknown;
   if (!Array.isArray(list) || !list.length) return undefined;
-  if (list.some((o) => rec(o) && ('gate' in o || 'tool' in o))) return undefined;
   const opts: CompareOpt[] = list.filter(rec).map((o) => ({
     label: String(o.label ?? ''), ...(typeof o.short === 'string' ? { short: o.short } : {}), ...(o.own ? { own: true } : {}),
     ...(rec(o.params) ? { params: o.params } : {}), ...(typeof o.preset === 'string' ? { preset: o.preset } : {}),
     ...(typeof o.slide === 'string' ? { slide: o.slide } : {}), ...(typeof o.lens === 'string' ? { lens: o.lens } : {}),
+    ...(typeof o.gate === 'string' ? { gate: o.gate } : {}), ...(rec(o.tool) ? { tool: o.tool } : {}),
   }));
-  const lens = opts.some((o) => o.lens), params = opts.some((o) => o.params && 'fenestrae' in o.params);
-  return { opts, name: lens ? 'Color the vessels by' : params ? 'Open or close the fenestrae on the live model' : 'Switch treatment on the live model' };
+  // (the slide's own button, in a row that moves an instrument, puts the slide's own options back: abChoice `tool: null`, an empty patch here)
+  if (opts.some((o) => o.tool)) for (const o of opts) if (o.own && !o.tool && !o.gate && !o.lens && !o.preset && !o.slide) o.tool = {};
+  const lens = opts.some((o) => o.lens), params = opts.some((o) => o.params && 'fenestrae' in o.params), gate = opts.some((o) => o.gate), tool = opts.some((o) => o.tool);
+  return { opts, name: lens ? 'Color the vessels by' : gate ? 'Sample the stent at' : tool ? 'Change the instrument\'s view' : params ? 'Open or close the fenestrae on the live model' : 'Switch treatment on the live model' };
 }
 
 function whatIfOf(s: CopiedSlide): WhatIf | undefined {
   const w = s.whatIf;
-  if (!rec(w) || w.tool || w.param == null) return undefined;   // (a tool slider moves an instrument's option: the Tests cards)
+  if (!rec(w) || (w.param == null && typeof w.tool !== 'string')) return undefined;
   const min = Number(w.min), max = Number(w.max);
   return {
-    label: String(w.label ?? ''), paths: ([] as unknown[]).concat(w.param).map(String), min, max, step: Number(w.step) || (max - min) / 20,
+    label: String(w.label ?? ''), paths: w.param == null ? [] : ([] as unknown[]).concat(w.param).map(String), min, max, step: Number(w.step) || (max - min) / 20,
+    ...(typeof w.tool === 'string' ? { tool: w.tool } : {}),
     ...(Array.isArray(w.ends) ? { ends: [String(w.ends[0]), String(w.ends[1])] as [string, string] } : {}),
     ...(typeof w.unit === 'string' ? { unit: w.unit } : {}),
   };

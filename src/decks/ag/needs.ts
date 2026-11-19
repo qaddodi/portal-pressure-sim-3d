@@ -3,6 +3,7 @@
 // wired until the need's `landed()` is true. The parity claims (src/parity/b13a.ts) and tests/decks-ag-needs.test.ts read this, so a batch that lands a feature
 // flips its hook here and every slide that waited for it counts as wired in the same push.
 import { CHARTS } from '../../ui/charts/registry.ts';
+import { toolLanded } from '../../ui/talk/tool-landed.ts';
 import { TILE } from '../../ui/charts/tiles.generated.ts';
 import { LENS_IDS } from '../../scene/lenses/model.ts';
 import { CATHS } from '../schema.ts';
@@ -85,7 +86,7 @@ export function hookOf(id: string): Hook | null {
     case 'reading': return { owner: 'B12', what: `the "${rest}" reading, worked out by the data card from the slide's own state (not an engine tile)`, landed: claimed };
     case 'tile': return { owner: 'B10', what: `the ${rest} reading`, landed: () => rest in TILE };
     case 'data': return { owner: id === 'data:tiles' ? 'B12' : 'B10', what: id === 'data:tiles' ? 'the data card of tiles' : `the ${rest} of the data card`, landed: id === 'data:tiles' ? ready : claimed };
-    case 'tool': return { owner: 'B10', what: `the ${rest} instrument or chart`, landed: () => CHARTS.find((c) => c.kind === rest)?.status === 'done' };
+    case 'tool': return { owner: 'B10', what: `the ${rest} instrument or chart`, landed: () => toolLanded(rest) };
     case 'lens': return { owner: 'B3', what: `the ${rest} colour lens`, landed: () => (LENS_IDS as readonly string[]).includes(rest) };
     case 'cath': return { owner: 'B5', what: `the catheter's ${rest} state`, landed: () => (CATHS as readonly string[]).includes(rest) };
     case 'procedure': return { owner: 'B5', what: `the ${rest} procedure`, landed: claimed };
@@ -98,7 +99,7 @@ export function hookOf(id: string): Hook | null {
       const chart = ({ plane: 'plane', allpatients: 'small', ladders: 'ladder' } as Record<string, string>)[rest];
       return { owner: chart ? 'B10' : 'B12', what: `the ${rest} visual over the figure`, landed: chart ? () => CHARTS.find((c) => c.kind === chart)?.status === 'done' : rest === 'table' ? ready : claimed };
     }
-    case 'compare': return { owner: 'B12', what: `the compare buttons (${rest})`, landed: ['own', 'params', 'preset', 'slide', 'lens'].includes(rest) ? ready : claimed }   // (gate and tool buttons move an instrument: the Tests cards);
+    case 'compare': return { owner: 'B12', what: `the compare buttons (${rest})`, landed: ['own', 'params', 'preset', 'slide', 'lens', 'gate', 'tool'].includes(rest) ? ready : claimed }   // (gate and tool buttons move an instrument's sample spot or option, not the model: ui/talk/controls-run.ts pickCompare, tool-options.ts);
     case 'present': return { owner: 'B12', what: 'the presenter plays any deck by its id, with the scene plate of each slide', landed: ready }   // (decks/all.ts);
     case 'fig': case 'card': case 'field': {
       const f = Object.values(FIELD_HOOKS).find((h) => h.id === id);
