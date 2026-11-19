@@ -1,0 +1,167 @@
+{
+  "about": "The words of the 3D build's two tester guides that differ from the 2D app's (scripts/copy-guides.py reads this table). Everything else, the pictures included, is the 2D guides as they are: the 3D app lifts the 2D shell 1:1. A paragraph is rewritten in its own text block, with the same size, leading and start, and may not grow past the lines it had (a picture sits under it); `find` is a piece of the old words and must be in the block or the script stops, so a changed 2D guide is noticed. `width` is the paragraph's width in points. Runs are [words, bold]; a \\n in the words is a line break.",
+  "url": {
+    "from": "https://qaddodi.github.io/portal-pressure-simulator/preview/",
+    "to": "https://qaddodi.github.io/portal-pressure-sim-3d/preview/"
+  },
+  "files": {
+    "beta-start-guide": {
+      "title": "Portal Pressure Simulator: beta tester start-up guide (3D)",
+      "subtitle": {
+        "from": "Beta tester start-up guide",
+        "to": "Beta tester start-up guide, 3D build"
+      },
+      "paragraphs": [
+        {
+          "page": 0,
+          "size": 9.6,
+          "leading": 13.27,
+          "runs": [
+            [
+              "Go to ",
+              false
+            ],
+            [
+              "https://qaddodi.github.io/portal-pressure-sim-3d/preview/",
+              true
+            ],
+            [
+              " in a current browser on a Mac, iPad or iPhone. Nothing to install and no account. This is the 3D build of the simulator, not the 2D app. ",
+              false
+            ],
+            [
+              "iPhone or iPad:",
+              true
+            ],
+            [
+              " in Safari tap Share, then ",
+              false
+            ],
+            [
+              "Add to Home Screen",
+              true
+            ],
+            [
+              ", and open the app from its icon for the full-screen view. The small orange ",
+              false
+            ],
+            [
+              "PREVIEW",
+              true
+            ],
+            [
+              " tab at the top shows which build you are on. Tap it to load the newest version.",
+              false
+            ]
+          ],
+          "find": "A short loading screen",
+          "width": 504
+        },
+        {
+          "page": 1,
+          "size": 9.6,
+          "leading": 13.27,
+          "runs": [
+            [
+              "Tap the ",
+              false
+            ],
+            [
+              "gear",
+              true
+            ],
+            [
+              " (Settings, in the bottom bar on iPhone), then ",
+              false
+            ],
+            [
+              "Send feedback",
+              true
+            ],
+            [
+              ". It starts an email to Mohammad with your build, device, screen, a link to the exact view you were on and a short report of what the app's own checks found. Nothing is sent until you send the email. Settings also has ",
+              false
+            ],
+            [
+              "Appearance",
+              true
+            ],
+            [
+              " (Light, Soft, Dark, Navy, Black or System).",
+              false
+            ]
+          ],
+          "find": "a card also asks once",
+          "width": 504
+        }
+      ]
+    },
+    "beta-start-guide-iphone": {
+      "title": "Portal Pressure Simulator: beta tester start-up guide, 3D build (iPhone)",
+      "subtitle": {
+        "from": "Beta tester start-up guide",
+        "to": "Beta tester start-up guide, 3D build"
+      },
+      "paragraphs": [
+        {
+          "page": 0,
+          "size": 12,
+          "leading": 16.5,
+          "runs": [
+            [
+              "Go to\n",
+              false
+            ],
+            [
+              "https://qaddodi.github.io/portal-pressure-sim-3d/preview/\n",
+              true
+            ],
+            [
+              "in a current browser on a Mac, iPad or iPhone. Nothing to install and no account. This is the 3D build of the simulator, not the 2D app.",
+              false
+            ]
+          ],
+          "find": "A short loading screen",
+          "width": 350
+        },
+        {
+          "page": 5,
+          "size": 12,
+          "leading": 16.5,
+          "runs": [
+            [
+              "Tap the ",
+              false
+            ],
+            [
+              "gear",
+              true
+            ],
+            [
+              " (Settings, in the bottom bar on iPhone), then ",
+              false
+            ],
+            [
+              "Send feedback",
+              true
+            ],
+            [
+              ". It starts an email to Mohammad with your build, device, screen, a link to the exact view and a short report of what the app's own checks found. Nothing is sent until you send the email. Settings also has ",
+              false
+            ],
+            [
+              "Appearance",
+              true
+            ],
+            [
+              " (Light, Soft, Dark, Navy, Black or System).",
+              false
+            ]
+          ],
+          "find": "a card",
+          "width": 350
+        }
+      ]
+    }
+  }
+}
