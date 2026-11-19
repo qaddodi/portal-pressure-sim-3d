@@ -4,6 +4,7 @@
 //   src/ui/tests/doppler/copied/doppler-tables.copied.js   the probes (vessel, name, kind, usual range), the stent notes, the resistive-index words, the settings words, the tiles' hover words, `num`
 //   src/ui/tests/doppler/copied/doppler-reading.copied.js  `createReading(env)`: the reading (3 s mean, peak, trough, the median beat), the stent's gates, the vessel's usual range and `interpret` (the words after the number)
 //   src/ui/tests/doppler/copied/gate-factors.copied.js     gate-factors.js whole
+//   src/ui/tests/doppler/copied/doppler-gl.copied.js        the trace's display pass shader (the noise floor and the wall filter), spliced with the line shader by spectrum-gl.ts
 //   src/ui/tests/doppler/copied/doppler-colours.copied.js  the colour maps' tokens (--dop-*) and the display modes (dopplerColor.js), the probe's beam angle (dop-probe.js)
 // Usage: node scripts/copy-b11-doppler.mjs --from <2D checkout> [--check]    (--check writes nothing and fails when a file would change)
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -114,6 +115,15 @@ put('doppler-colours.copied.js', HEAD('dopplerColor.js, styles/tokens.css --dop-
   `import { clamp01 } from '../../copied/num.copied.js';`,
   /\/\*\* Colour for one instant[\s\S]*?\n\}\n/.exec(colour)[0].replace(/map\(\)/g, 'MAP'),
   /\/\*\* Softened, brightness-modulated[\s\S]*?\n\}\n/.exec(colour)[0].replace(/map\(\)\.WHITE/g, 'MAP.WHITE'),
+].join('\n') + '\n');
+// ── the trace's display pass (doppler-gl.js FS): the noise floor and the wall filter's dark band, laid over the spectrum's lines ──
+const glSrc = read('src/ui/doppler-gl.js');
+const displayFs = /^const FS = `([\s\S]*?)`;/m.exec(glSrc)?.[1];
+if (!displayFs || !/floorAt/.test(displayFs)) throw new Error('doppler-gl.js has no display shader FS');
+put('doppler-gl.copied.js', HEAD('doppler-gl.js, the display pass FS') + [
+  `// The trace's picture: the spectrum ring, the noise floor over it and the wall filter's dark band (2D draws it in the chart drawer's context, one fragment a pixel).`,
+  `// The 3D app draws the lines in the same pass (spectrum-gl.ts splices doppler-synth's shader into this one: no ring), so a line's pixels are the 2D ones.`,
+  `export const DISPLAY_FS = \`${displayFs}\`;`,
 ].join('\n') + '\n');
 if (changed.length) { console.log(`${check ? 'would change' : 'wrote'}: ${changed.join(', ')}`); if (check) process.exit(1); }
 else console.log('src/ui/tests/doppler/copied is current');

@@ -7,6 +7,7 @@ import './doppler.css';
 import { clock } from '../../../clock/frame.ts';
 import { onFrame, latest } from '../../../engine/index.ts';
 import { Chart, type ChartCtx } from '../../charts/Chart.tsx';
+import { MAX_DPR } from '../../charts/gl.ts';
 import type { ChartPainter } from '../../charts/painter.ts';
 import { feed } from '../feed.ts';
 import type { PaneProps } from '../TestsLayer.tsx';
@@ -14,12 +15,15 @@ import { DopplerModel, WINDOWS, type DopMode, type Report } from './model.ts';
 import { PROBES, PAD_L, PAD_R, probeName } from './copied/doppler-tables.copied.js';
 import { DOPPLER_MODES } from './copied/doppler-colours.copied.js';
 import { setDopplerProbe, useDopplerProbe, type Gate } from './probe-state.ts';
+import { spectrumUnder } from './spectrum-gl.ts';
 
 const same = (a: Report | null, b: Report) => !!a && JSON.stringify(a) === JSON.stringify(b);
+/** The chart canvas's pixel ratio (charts/gl.ts): a spectral line is one of its pixels wide. */
+const dprNow = () => Math.min(MAX_DPR, Math.max(1, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1));
 
 export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool: mode, calipers, pair, scale, baseline, waves); the next slide returns to the defaults unless it names them */ options?: Record<string, unknown> }) {
   const model = useRef<DopplerModel | null>(null);
-  if (!model.current) { model.current = new DopplerModel(); if (p.options) model.current.configure(p.options); }
+  if (!model.current) { model.current = new DopplerModel(); model.current.gpu = typeof WebGL2RenderingContext !== 'undefined'; if (p.options) model.current.configure(p.options); }
   const m = model.current;
   const painter = useRef<ChartPainter | null>(null);
   const [mode, setMode] = useState<DopMode>(m.mode);
@@ -43,9 +47,17 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
   const draw = () => {
     const c = ctxRef.current, pt = painter.current;
     if (!c || !pt) return;
+    m.dpr = dprNow();
     pt.show(m.frameFor(c.w, h, performance.now(), aria.current, c.pal.tok('doppler')), false);
     if (m.busy) clock.invalidate('doppler');   // (a mark or a letter is easing: frames until it is still, with the model paused too)
   };
+  // the spectrum's pixels are 2D's own shaders, drawn under the chart's shapes on the shared context (spectrum-gl.ts); where that cannot be built the shapes lay the spectrum instead
+  useEffect(() => {
+    const pt = painter.current;
+    if (!pt || !m.gpu) return;
+    pt.setUnder(spectrumUnder(() => (m.gpu ? m.spec : null), () => { m.gpu = false; dirty.current = true; clock.invalidate('doppler'); }));
+    return () => { painter.current?.setUnder(null); };
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     // the record opens full: the model reads the page's kept record, and the model's own past when that is short
     if (latest.frame) { m.ingest(latest.frame); refresh(); }
@@ -88,9 +100,10 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
       </div>
       <div className="dop-main">
         <div className="dop-box" style={{ height: h }}>
-          <Chart tag="doppler" painter={painter} deps={[mode, invert, sweepIndex, h, probe, gate, optKey]} label={rep?.aria || 'Spectral Doppler'}
+          <Chart tag="doppler" painter={painter} glide={false} deps={[mode, invert, sweepIndex, h, probe, gate, optKey]} label={rep?.aria || 'Spectral Doppler'}
             build={(c) => {
               ctxRef.current = c;
+              m.dpr = dprNow();
               m.pickWindow(c.w - (PAD_L as number) - (PAD_R as number));
               if (m.sweepIndex !== sweepIndex) queueMicrotask(() => setSweepIndex(m.sweepIndex));
               return m.frameFor(c.w, h, performance.now(), aria.current, c.pal.tok('doppler'));
