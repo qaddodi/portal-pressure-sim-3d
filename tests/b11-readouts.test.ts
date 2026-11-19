@@ -10,6 +10,7 @@ import { ReadoutsLive, type LiveDeps, type FeedCtx } from '../src/ui/tests/reado
 import { odoPlan } from '../src/ui/tests/readouts/odo.ts';
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { pinned2D } from './two-d-pin.ts';
 
 /** A real frame and the patient's parameters, as the app has them (the frame carries its params only on a change; `patient.params` keeps them). */
 async function frameFor(preset: string): Promise<{ frame: EngineFrame & { params: unknown } }> {
@@ -183,9 +184,9 @@ test('the Readouts pane holds the From-readings door and opens the shared flow',
 });
 
 test('the copy script is current against the 2D checkout, where there is one', () => {
-  const twoD = process.env.PPS_2D_REPO ?? '/home/claude/portal-pressure-simulator';
-  if (!existsSync(`${twoD}/src/ui/display-state.js`)) return;
-  const r = spawnSync('node', ['scripts/copy-b11-readouts.mjs', '--from', twoD, '--check'], { cwd: new URL('..', import.meta.url).pathname, encoding: 'utf8' });
+  const two = pinned2D('src/ui/display-state.js');
+  if (two.skip) return;
+  const r = spawnSync('node', ['scripts/copy-b11-readouts.mjs', '--from', two.repo, '--check'], { cwd: new URL('..', import.meta.url).pathname, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 

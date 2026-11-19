@@ -9,6 +9,7 @@ import { READS } from '../src/scene/procedures/copied/proc-anim.js';
 import { scriptOf } from '../src/ui/tests/ir/copied/reading-scripts.copied.js';
 import { EUS_AR, monitorHeight, captionOf } from '../src/ui/tests/endo/eus-words.ts';
 import type { TextShape } from '../src/ui/charts/scene.ts';
+import { pinned2D } from './two-d-pin.ts';
 
 const words = (f: { shapes: readonly { k: string }[] }) => (f.shapes.filter((s) => s.k === 'text') as TextShape[]).map((s) => s.s);
 function timer() {
@@ -41,9 +42,9 @@ test('the EUS-PPG and the PPG by IR use the 2D takeover, not a clock of their ow
 });
 
 test('the copy of monitor-takeover.js is the 2D file (when the 2D checkout is there)', () => {
-  const from = process.env.PPS_2D_REPO ?? '/home/claude/portal-pressure-simulator';
-  if (!existsSync(`${from}/src/ui/monitor-takeover.js`)) return;
-  execFileSync('node', ['scripts/copy-b11-takeover.mjs', '--from', from, '--check'], { stdio: 'pipe' });
+  const two = pinned2D('src/ui/monitor-takeover.js');
+  if (two.skip) return;
+  execFileSync('node', ['scripts/copy-b11-takeover.mjs', '--from', two.repo, '--check'], { stdio: 'pipe' });
 });
 
 test('the EUS monitor waits for the needle, then follows its clock: PV, the hepatic vein, the EUS-PPG', () => {

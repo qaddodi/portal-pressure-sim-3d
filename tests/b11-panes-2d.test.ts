@@ -8,9 +8,10 @@ import { execFileSync } from 'node:child_process';
 import { cvRules, rulesOf, splitTop } from '../scripts/copy-b11-panes.mjs';
 import { cvHeight } from '../src/ui/tests/cv-size.ts';
 import { riseTxt, slideTxt } from '../src/ui/tests/abdomen/model.ts';
+import { pinned2D } from './two-d-pin.ts';
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
-const TWO_D = process.env.PPS_2D_REPO ?? '/home/claude/portal-pressure-simulator';
+const TWO_D = pinned2D('src/ui/instruments.js').repo;
 const css2d = () => readdirSync(new URL('../src/ui/css2d/', import.meta.url)).filter((f) => f.endsWith('.css') && f !== 'index.css').map((f) => read(`src/ui/css2d/${f}`)).join('\n');
 
 test('the card puts a pane\'s parts straight into .dock-pane: no wrapper between the pane and its view, so 2D\'s child rules (.dock-pane > .instrument-view) reach it', () => {
