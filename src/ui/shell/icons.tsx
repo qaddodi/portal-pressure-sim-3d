@@ -16,8 +16,15 @@ const P: Record<string, string> = {
   zones: 'M4 12a8 8 0 1 0 16 0 8 8 0 0 0-16 0zM8 12a4 4 0 1 0 8 0 4 4 0 0 0-8 0z', lymph: 'M12 4v5M12 15v5M5 12h5M14 12h5', bile: 'M12 3.5s5 5.5 5 9a5 5 0 0 1-10 0c0-3.5 5-9 5-9z',
   share: 'M12 4v11M8 8l4-4 4 4M5 14v6h14v-6', download: 'M12 4v11M8 11l4 4 4-4M5 20h14', print: 'M7 9V4h10v5M7 17H4v-7h16v7h-3M7 14h10v6H7z', scenario: 'M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM5 20c0-4 3-6 7-6s7 2 7 6',
 };
+
+/** The 2D app's own glyphs (its icon atlas, one mask per icon); a name the atlas lacks falls back to the stroke paths above. */
+export const ATLAS = new Set(['select', 'probe', 'pinch', 'clot', 'fibrosis', 'stent', 'band', 'occlude', 'balloon', 'catheter', 'doppler', 'endoscope', 'needle', 'play', 'playlapse', 'lapse', 'ffwd', 'pause', 'settle', 'ff', 'undo', 'rewind', 'redo', 'share', 'theme', 'help', 'layers', 'panel', 'clock', 'gear', 'search', 'sliders', 'gauge', 'chart', 'book', 'case', 'compare', 'explore', 'tools', 'plus', 'minus', 'rotate', 'fit', 'fullscreen', 'shrink', 'close', 'camera', 'chev-down', 'chev-right', 'chev-left', 'arrow-left', 'menu', 'more', 'info', 'reset', 'check', 'alert', 'bulb', 'scenario', 'projector', 'drop', 'pill', 'heart', 'liver', 'vessel', 'bell', 'download', 'print', 'grid', 'activity', 'chevrons', 'tag', 'zones', 'lymph', 'route', 'mail', 'lock']);
 export function Icon({ n, className }: { n: string; className?: string }) {
+  const cls = `sh-ic${className ? ` ${className}` : ''}`;
+  if (ATLAS.has(n)) return <i className={`${cls} ic ic-${n}`} aria-hidden="true" />;
   const d = P[n] ?? P.info;
-  const fill = n === 'play' || n === 'playlapse';
-  return <svg className={`sh-ic${className ? ` ${className}` : ''}`} viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill={fill ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
+  return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
 }
+
+/** An icon of the 2D atlas as its markup has it, `<i class="ic ic-NAME">` (no wrapper class of ours: the 2D stylesheet sizes it in each place). */
+export const I = ({ n, className = '' }: { n: string; className?: string }) => <i className={`ic ic-${n}${className ? ` ${className}` : ''}`} aria-hidden="true" />;

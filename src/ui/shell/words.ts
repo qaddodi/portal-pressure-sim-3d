@@ -41,3 +41,6 @@ export const FLOW_LABEL: Record<string, [string, string]> = {
 export const PATIENT_FAILED = 'That patient did not load.';
 /** 2D: src/ui/main.js sendFeedback() */
 export const FEEDBACK = { subject: 'Portal Pressure Simulator feedback', ask: 'What happened, and what did you expect to happen?', keep: 'Please keep these details:' } as const;
+
+/** The corner credit of the 2D page (index.html, `.stage-credit`). */
+export const CREDIT = '© 2026 Mohammad Almeqdadi, MD';

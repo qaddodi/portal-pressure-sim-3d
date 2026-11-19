@@ -3,7 +3,7 @@ import { UI } from '../strings.generated.ts';
 import { useEngine } from '../../engine/index.ts';
 import { useShell } from './store.ts';
 import { Anchored } from './Pop.tsx';
-import { Icon } from './icons.tsx';
+import { I } from './icons.tsx';
 import { runFeature } from './features.ts';
 import { jump, restart, setSpeed, settle, togglePlay } from './transport.ts';
 import { PLAY_TITLES, SETTLED } from './words.ts';
@@ -40,48 +40,74 @@ function JumpMenu({ compare }: { compare: boolean }) {
   );
 }
 
-function Readout({ label, value, sev, word }: { label: string; value: number | null; sev: string; word: string }) {
+const SCALE_MAX = 25;   // (2D dock.js TILES: scale [0, 25] for both)
+const pos = (v: number) => Math.min(1, Math.max(0, v / SCALE_MAX));
+
+/** One headline reading, as 2D's tile-el.js builds it: .metric.primary.inert > .k, .v (.val, .unit), .rb (.rb-fill, .rb-tick), .s (.status). */
+function Tile({ id, k, value, from, sev, word, ticks }: { id: string; k: string; value: number | null; from: number; sev: string; word: string; ticks: number[] }) {
+  const shown = value == null ? null : value.toFixed(1);
   return (
-    <div className="sh-read" data-sev={value == null ? undefined : sev} role="group" aria-label={label}>
-      <b>{label}</b><span>{value == null ? '—' : value.toFixed(1)}</span><small>{value == null ? '' : `mmHg · ${word}`}</small>
+    <div className={`metric inert primary${value == null ? ' hidden-val' : ''}`} data-id={id} data-sev={value == null ? 'none' : sev} role="group"
+      aria-label={value == null ? k : `${k}: ${shown} mmHg, ${word}`} title={k}>
+      <span className="k">{k}</span>
+      <span className="v"><span className="val" style={{ ['--vr' as string]: 'round(up, calc(3ch + 0.26em), 1px)' }}>{shown ?? '—'}</span><span className="unit">mmHg</span><span className="tr" aria-hidden="true" /></span>
+      <span className="rb" aria-hidden="true"><i className="rb-fill" style={{ ['--fl' as string]: pos(from), ['--fw' as string]: value == null ? 0 : pos(value) - pos(from) }} />{ticks.map((t) => <i key={t} className="rb-tick" style={{ left: `${pos(t) * 100}%` }} />)}</span>
+      <span className="s"><span className="status">{word}</span><span className="cmp" /></span>
     </div>
   );
 }
 
-/** Play, speed, restart, the clock, jumps, History, Compare and the two headline readouts. Play and pause, speed, jumps, restart and settle reach the engine. */
-export function PlayBar({ phone }: { phone: boolean }) {
-  const { running, speed, lapse, time } = useShell((s) => s.transport);
-  const mode = useShell((s) => s.mode);
+/** The dock's readout strip: HVPG and PPG (2D dock.js PRIMARY). */
+export function Readouts() {
   const hvpg = useEngine((s) => s.hvpg), pv = useEngine((s) => s.pv), ivc = useEngine((s) => s.ivc);
   const ppg = pv != null && ivc != null ? pv - ivc : null;
+  return (
+    <section className="readouts" id="strip" aria-label="Clinical readouts">
+      <div className="ro-row">
+        <div className="ro-group" data-group="pressure" role="group" aria-label="Pressure">
+          <span className="ro-cap" aria-hidden="true">Pressure</span>
+          <div className="ro-tiles">
+            <Tile id="hvpg" k="HVPG" value={hvpg} from={0} sev={hvpg == null ? 'ok' : (cuts.hvpgSev(hvpg) as string)} word={hvpg == null ? '' : (cuts.hvpgWord(hvpg) as string)} ticks={[cuts.HVPG_CUTS.amber, cuts.HVPG_CUTS.red]} />
+            <Tile id="ppg" k="PPG" value={ppg} from={ivc != null ? pos(ivc) * SCALE_MAX : 0} sev={ppg == null ? 'ok' : (cuts.ppgSev(ppg) as string)} word={ppg == null ? '' : (cuts.ppgWord(ppg) as string)} ticks={[cuts.PPG_CUTS.amber, cuts.PPG_CUTS.red]} />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** The timeline row of the dock, as 2D's timeline.js builds it: .tl-left > .tl-split (.tl-speed, .ib.play) and .tl-restart, .tl-time, .tl-jumps > .tl-ff, .tl-hist, .tl-pin. */
+export function Timeline({ phone }: { phone: boolean }) {
+  const { running, speed, lapse, time } = useShell((s) => s.transport);
   const hold = useRef<{ t: ReturnType<typeof setTimeout> | undefined; held: boolean }>({ t: undefined, held: false });
   const lap = pb.lapses.find((l) => l.days === lapse);
   const speedText = lapse ? (lap ? lap.short : `${lapse} d/s`) : `${speed}×`;
-  const hvpgSev = hvpg == null ? 'ok' : (cuts.hvpgSev(hvpg) as string), ppgSev = ppg == null ? 'ok' : (cuts.ppgSev(ppg) as string);
   return (
-    <div className="sh-play" data-hidden={mode === 'deck'} role="group" aria-label="Playback">
-      <div className="sh-split">
-        <Anchored sheet="speed" place="above" align="start" width={280} label={PLAY_TITLES.speed} button={({ id, open, toggle }) => (
-          <button type="button" data-opens="speed" aria-haspopup="menu" aria-expanded={open} aria-controls={id} title={PLAY_TITLES.speed} aria-label={`${pb.controls[2]}, ${speedText}`} onClick={toggle}>{speedText}</button>)}>
-          <SpeedMenu />
-        </Anchored>
-        <button type="button" aria-label={running ? 'Pause' : 'Play'} title={PLAY_TITLES.playPause}
-          onPointerDown={() => { hold.current.held = false; clearTimeout(hold.current.t); hold.current.t = setTimeout(() => { hold.current.held = true; useShell.getState().open('speed'); }, HOLD_MS); }}
-          onPointerUp={() => clearTimeout(hold.current.t)} onPointerLeave={() => clearTimeout(hold.current.t)} onPointerCancel={() => clearTimeout(hold.current.t)} onContextMenu={(e) => e.preventDefault()}
-          onClick={() => { if (hold.current.held) { hold.current.held = false; return; } togglePlay(); }}>
-          <Icon n={running ? 'pause' : lapse ? 'playlapse' : 'play'} />
-        </button>
-        <button type="button" aria-label={pb.controls[1]} title={PLAY_TITLES.restart} onClick={restart}><Icon n="reset" /></button>
+    <div className="timeline" id="timeline" role="group" aria-label="Timeline">
+      <div className="tl-left">
+        <div className="tl-split">
+          <Anchored sheet="speed" place="above" align="start" width={280} label={PLAY_TITLES.speed} button={({ id, open, toggle, ref }) => (
+            <button type="button" ref={ref} className={`tl-speed${lapse ? ' lapse' : ''}`} data-opens="speed" aria-haspopup="menu" aria-expanded={open} aria-controls={id} title={PLAY_TITLES.speed} aria-label={`${pb.controls[2]}, ${speedText}`} onClick={toggle}>{speedText}</button>)}>
+            <SpeedMenu />
+          </Anchored>
+          <button type="button" className={`ib play${lapse && !running ? ' lapse' : ''}`} aria-label={running ? 'Pause' : 'Play'} title={PLAY_TITLES.playPause}
+            onPointerDown={() => { hold.current.held = false; clearTimeout(hold.current.t); hold.current.t = setTimeout(() => { hold.current.held = true; useShell.getState().open('speed'); }, HOLD_MS); }}
+            onPointerUp={() => clearTimeout(hold.current.t)} onPointerLeave={() => clearTimeout(hold.current.t)} onPointerCancel={() => clearTimeout(hold.current.t)} onContextMenu={(e) => e.preventDefault()}
+            onClick={() => { if (hold.current.held) { hold.current.held = false; return; } togglePlay(); }}>
+            <I n={running ? 'pause' : lapse ? 'playlapse' : 'play'} />
+          </button>
+        </div>
+        <button type="button" className="ib tl-restart" aria-label={pb.controls[1]} title={PLAY_TITLES.restart} onClick={restart}><I n="reset" /></button>
       </div>
-      <span className="sh-time" aria-live="off">{time}</span>
-      <Anchored sheet="jump" place="above" align={phone ? 'end' : 'start'} width={300} label={pb.controls[4]} button={({ id, open, toggle }) => (
-        <button type="button" className="sh-pill" data-icon-only data-opens="jump" aria-haspopup="menu" aria-expanded={open} aria-controls={id} aria-label={pb.controls[4]} title={PLAY_TITLES.ffwd} onClick={toggle}><Icon n="ffwd" /></button>)}>
-        <JumpMenu compare={phone} />
-      </Anchored>
-      {!phone && <button type="button" className="sh-pill" aria-haspopup="dialog" aria-label={pb.controls[3]} title={PLAY_TITLES.history} onClick={() => runFeature('history', pb.controls[3])}><Icon n="clock" /><span>{pb.controls[3]}</span></button>}
-      {!phone && <button type="button" className="sh-pill" aria-pressed="false" aria-label={pb.controls[5]} title={PLAY_TITLES.compare} onClick={() => runFeature('compare', pb.controls[5])}><Icon n="compare" /><span>Compare</span></button>}
-      {!phone && <Readout label="HVPG" value={hvpg} sev={hvpgSev} word={hvpg == null ? '' : (cuts.hvpgWord(hvpg) as string)} />}
-      {!phone && <Readout label="PPG" value={ppg} sev={ppgSev} word={ppg == null ? '' : (cuts.ppgWord(ppg) as string)} />}
+      <span className="tl-time" aria-live="off"><span className="tl-t-long">{time}</span><span className="tl-t-short" aria-hidden="true">{time}</span></span>
+      <div className="tl-jumps">
+        <Anchored sheet="jump" place="above" align="end" width={300} label={pb.controls[4]} button={({ id, open, toggle, ref }) => (
+          <button type="button" ref={ref} className="ib tl-ff" data-opens="jump" aria-haspopup="menu" aria-expanded={open} aria-controls={id} aria-label={pb.controls[4]} title={PLAY_TITLES.ffwd} onClick={toggle}><I n="ffwd" /></button>)}>
+          <JumpMenu compare={phone} />
+        </Anchored>
+      </div>
+      <button type="button" className="tl-hist" aria-haspopup="dialog" aria-label={pb.controls[3]} title={PLAY_TITLES.history} onClick={() => runFeature('history', pb.controls[3])}><I n="clock" className="mi-ic" /><span className="tl-hl">{pb.controls[3]}</span><span className="tl-hc" /></button>
+      <button type="button" className="tl-pin" aria-pressed="false" aria-label={pb.controls[5]} title={PLAY_TITLES.compare} onClick={() => runFeature('compare', pb.controls[5])}><I n="compare" className="mi-ic" /><span>Compare</span></button>
     </div>
   );
 }

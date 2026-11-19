@@ -1,4 +1,4 @@
-/* Global ground rules. Look tokens (--bg, --surface, --text…) are written onto :root by applyLook (src/looks/looks.ts). */
+/* Global ground rules. Look tokens (--bg, --surface, --text…) come from the 2D stylesheet (src/ui/css2d/tokens.css) by html[data-theme] and [data-palette], set by applyLook (src/looks/looks.ts); the scene's own tones are written inline. */
 :root {
   --ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --display: 'Source Serif 4', Georgia, serif;
@@ -7,7 +7,6 @@
   --ease-arrive: cubic-bezier(.2, .7, .2, 1);
   --ease-move: cubic-bezier(.65, 0, .35, 1);
   --z-stage: 1; --z-cards: 10; --z-tags: 5; --z-chrome: 20; --z-perf: 100;
-  --bg: #F1EBE0; --surface: #FCF9F3; --text: #1B1710; --text-2: #463F34; --accent: #2E4BB8;
 }
 *, *::before, *::after { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
