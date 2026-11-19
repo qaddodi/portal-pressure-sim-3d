@@ -20,4 +20,11 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 #root { position: fixed; inset: 0; }
+
+/* Nothing in the app is selectable, callable or flashed (owner, 19 Nov 2026: "text is selectable, should not be"). One rule on every element, so a new UI root
+   inherits it without asking: no text selection, no iOS long-press callout (copy / look up / share), no tap highlight, no dragging of pictures.
+   The only exceptions are things the reader types into (a field, an editable region), and a block that opts in with .selectable. tests/ui-no-select.test.ts holds this. */
+*, *::before, *::after { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+img, canvas, svg { -webkit-user-drag: none; user-drag: none; }
+input, textarea, [contenteditable=""], [contenteditable="true"], .selectable { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 button { font: inherit; color: inherit; }
