@@ -1,4 +1,7 @@
 // The main menu's search and its words, as the 2D menu.js has them (fold, matches, filter, GROUP_WHERE). Plain functions, so a node test reaches them.
+// @ts-ignore the pinned engine copy is plain JS
+import * as cuts from '../../engine/hales/portal/pressure-cuts.js';
+import { fmt } from '../tests/copied/num.copied.js';
 
 /** menu.js GROUP_WHERE: the words beside a patient group's name. */
 export const GROUP_WHERE: Record<string, string> = {
@@ -29,3 +32,25 @@ export function emptyNote(tab: 'present' | 'patients', here: number, there: numb
 
 /** menu.js stepping with the arrow keys over the visible rows: the next index, or -1 for "back to the search field". */
 export const stepRow = (i: number, dir: 1 | -1, n: number): number => (dir === -1 && i === 0 ? -1 : Math.max(0, Math.min(n - 1, i + dir)));
+
+// ── The patient preview's chips (menu.js patientPreview) ──
+/** What a settled snapshot of a patient holds (snapshots.copied.js). */
+export interface Snap { P: number[]; hvpg: number; pv: number; pvFlow: number; ascites: number; fp?: { ppg?: number | null } }
+export interface Chip { cls: string; title: string; word: string; value: string }
+
+/** menu.js shownOf: a value as it prints, as a number, so the colour answers the figure on the chip. */
+export const shownOf = (v: number, d = 1): number => (Number.isFinite(v) ? +v.toFixed(d) + 0 : v);
+type Cuts = { sevOfCuts(c: unknown, v: number): 'ok' | 'caution' | 'danger'; HVPG_CUTS: unknown; PPG_CUTS: unknown };
+/** menu.js sev: the standing cut-offs (HVPG amber 5, red 10; PPG amber 6, red 12, from the engine's one table) as the chip classes ok, low, high. */
+const sev = (c: unknown, v: number): 'ok' | 'low' | 'high' => ({ ok: 'ok', caution: 'low', danger: 'high' } as const)[(cuts as Cuts).sevOfCuts(c, v)];
+const one = (v: number) => fmt(v, 1) as string;   // (one decimal, as the tiles and the bar print the same gradients: "17.2", never "17")
+
+/** The chips under a patient's curve: HVPG, PPG (when the snapshot has one), PV, and Hepatofugal when the portal flow runs away from the liver. */
+export function chipsOf(s: Snap): Chip[] {
+  const out: Chip[] = [{ cls: 'hp-chip ' + sev((cuts as Cuts).HVPG_CUTS, shownOf(s.hvpg)), title: 'Hepatic venous pressure gradient', word: 'HVPG ', value: one(s.hvpg) }];
+  const ppg = s.fp?.ppg;
+  if (ppg != null) out.push({ cls: 'hp-chip ' + sev((cuts as Cuts).PPG_CUTS, shownOf(ppg)), title: 'Portal pressure gradient (portal vein − IVC)', word: 'PPG ', value: one(ppg) });
+  out.push({ cls: 'hp-chip', title: 'Portal vein pressure', word: 'PV ', value: fmt(s.pv, 1) as string });
+  if (s.pvFlow < -0.05) out.push({ cls: 'hp-chip rev', title: 'Portal flow is reversed, away from the liver', word: 'Hepatofugal', value: '' });
+  return out;
+}
