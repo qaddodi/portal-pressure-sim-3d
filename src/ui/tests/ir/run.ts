@@ -20,6 +20,7 @@ import { useUi } from '../../ui-store.ts';
 import { freeRoom } from '../../shell/room.ts';
 import { cutRoom } from '../room.ts';
 import type { MonitorState } from './monitor.ts';
+import { useMeasured } from '../hidden.ts';
 
 export interface Readings { fhvp: number; whvp: number; hvpg: number }
 type Obj = Record<string, number>;
@@ -89,6 +90,7 @@ function finish(): void {
   const f = latest.frame;
   if (!f?.metrics) return;
   R.result = { ...(R.snap || { fhvp: f.metrics.fhvp as number, whvp: f.metrics.whvp as number, hvpg: f.metrics.hvpg as number }), t: f.t, day: f.day };
+  useMeasured.getState().mark(R.result);   // (2D hvpg-proc.js: store.lastHVPG and hvpgMeasured, so the readouts, the charts and the trials hear it)
   bump();
 }
 function stepHvpg(): void {

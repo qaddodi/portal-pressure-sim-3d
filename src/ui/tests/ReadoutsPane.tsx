@@ -20,7 +20,7 @@ function Tile({ r, trend, vital, flash }: { r: Row; trend: string; vital: boolea
   const show = useTests((s) => s.show);
   const go = () => {
     if (r.pane) { show(r.pane as never); return; }
-    if (r.id === 'hvpg' && r.band === 'none' && r.word === 'Not measured') { show('hvpg'); return; }   // (an HVPG not yet measured opens the procedure that measures it)
+    if (r.id === 'hvpg' && r.band === 'none') { show('hvpg'); return; }   // (an HVPG not yet measured opens the procedure that measures it)
     if (r.why) openWhy(r.why);
   };
   const interactive = !!(r.why || r.pane);
@@ -81,7 +81,7 @@ export function ReadoutsPane(_: { narrow?: boolean }) {
   };
   const sys = vitalRows(m, useShellRunning(), now, vitals.current);
   return (
-    <>
+    <div className="rp-body" data-pane="readouts" style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
       {GROUP_LIST.map(([g, label], gi) => (
         <section key={g} className="rp-group" data-group={g} aria-label={label}>
           <h3 className="rp-cap">{label}</h3>
@@ -92,7 +92,7 @@ export function ReadoutsPane(_: { narrow?: boolean }) {
         <h3 className="rp-cap">{SYSTEMIC_CAP}</h3>
         <div className="rp-tiles">{sys.map((r) => <Tile key={r.id} r={r} vital flash={flashOf(r.id, r.band)} trend="" />)}</div>
       </section>
-    </>
+    </div>
   );
 }
 const useShellRunning = () => useShell((s) => s.transport.running);
