@@ -11,6 +11,7 @@ import { useUi } from '../ui-store.ts';
 import { RESET } from './words.ts';
 import { resetEverything } from './reset.ts';
 import { TreatCard } from '../treat/TreatCard.tsx';
+import { ActionCard } from '../action/ActionCard.tsx';
 
 function ResetDialog() {
   const open = useShell((s) => s.dialog === 'reset');
@@ -37,6 +38,7 @@ export function Sheets() {
   return (
     <>
       <MenuSheet />
+      {!talk && <ActionCard />}
       {!talk && <TreatCard />}
       {bottom && !talk && <LayersSheet />}
       {!talk && <SettingsSheet place="top" />}
