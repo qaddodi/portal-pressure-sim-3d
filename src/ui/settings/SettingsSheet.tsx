@@ -51,14 +51,21 @@ function useFullscreen() {
   return { on, can, toggle: () => { void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => undefined); } };
 }
 
+/** "What's wrong here?" (2D main.js: after Send feedback, on the preview copy only, where the bug packet has loaded): the same sheet as holding the orange PREVIEW pill. */
+function WrongHere() {
+  const open = (window as unknown as { pps?: { packet?: { open?: () => void } } }).pps?.packet?.open;
+  if (!open) return null;
+  return <button type="button" className="sh-row" onClick={() => { useShell.getState().close(); open(); }}><Icon n="help" /><span className="sh-t">What&apos;s wrong here?</span></button>;
+}
+
 function Item({ row }: { row: Row }) {
   const close = () => useShell.getState().close();
   const fs = useFullscreen();
   const l = row.label;
   if (l === 'Send feedback') {
     const email = feedbackEmail();
-    if (!email) return null;
-    return <button type="button" className="sh-row" onClick={() => { close(); location.href = feedbackHref(email, { build: `PREVIEW · ${String(import.meta.env.VITE_BUILD ?? 'local').split('@').pop()}`, device: navigator.userAgent, screen: `${innerWidth} × ${innerHeight} at ${devicePixelRatio}×`, view: location.href }); }}><Icon n="mail" /><span className="sh-t">{l}</span></button>;
+    if (!email) return <WrongHere />;
+    return <><button type="button" className="sh-row" onClick={() => { close(); location.href = feedbackHref(email, { build: `PREVIEW · ${String(import.meta.env.VITE_BUILD ?? 'local').split('@').pop()}`, device: navigator.userAgent, screen: `${innerWidth} × ${innerHeight} at ${devicePixelRatio}×`, view: location.href }); }}><Icon n="mail" /><span className="sh-t">{l}</span></button><WrongHere /></>;
   }
   if (l === 'Enter full screen') {
     if (!fs.can) return /iPhone|iPod/.test(navigator.userAgent) && !matchMedia('(display-mode: standalone)').matches ? <p className="sh-note">{FULLSCREEN.iphone}</p> : null;

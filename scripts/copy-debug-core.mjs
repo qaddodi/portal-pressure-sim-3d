@@ -6,6 +6,7 @@
 //   src/ui/debug/core/emit.copied.js      each runner's results as a Run report                        (report/emit.js)
 //   src/ui/debug/core/packet.copied.js    the bug packet, its text and JSON block                      (packet/packet.js)
 //   src/ui/debug/core/diff.copied.js      compare two screens and two lists of findings                (packet/diff.js)
+//   src/ui/debug/core/press.copied.js     the chord and the long press on the PREVIEW pill            (packet/press.js)
 //   src/ui/debug/core/short.copied.js     the short report Send feedback carries                       (packet/short.js)
 //   src/ui/debug/core/history.copied.js   the motion recorder's history, packed                        (watch/history.js)
 //   src/ui/debug/core/rules.copied.js     the self-check rules registry                                (selfcheck/rules.js)
@@ -26,7 +27,7 @@ const check = args.includes('--check');
 if (!from || !existsSync(`${from}/src/ui/report/finding.js`)) { console.error('usage: copy-debug-core.mjs --from <2D checkout> [--check]'); process.exit(2); }
 
 export const FILES = [
-  ['report/finding.js', 'finding'], ['report/run.js', 'run'], ['report/emit.js', 'emit'], ['packet/packet.js', 'packet'], ['packet/diff.js', 'diff'],
+  ['report/finding.js', 'finding'], ['report/run.js', 'run'], ['report/emit.js', 'emit'], ['packet/packet.js', 'packet'], ['packet/diff.js', 'diff'], ['packet/press.js', 'press'],
   ['packet/short.js', 'short'], ['watch/history.js', 'history'], ['selfcheck/rules.js', 'rules'], ['screen/registry.js', 'registry'], ['screen/settle.js', 'settle'], ['screen/text.js', 'text'],
 ];
 const flat = Object.fromEntries(FILES.map(([src, name]) => [src.split('/').pop(), name]));
