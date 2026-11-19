@@ -5,7 +5,8 @@ import { PresenceTracks } from './vessels/presence-track.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
-import { VesselObject } from './vessels/vessel-object.ts';
+import { FAINT_ONLY_LAYER, VesselObject } from './vessels/vessel-object.ts';
+import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
@@ -204,6 +205,7 @@ export class CelScene {
     else this.leaving.push(o);   // a fan of tributaries has no map course: it leaves with the organs as the figure turns into the map
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
+    if (BACK_EDGES.has(def.id)) o.setBehindOrgans(VESSEL_LAYER, IVC_EDGES.has(def.id));
     this.add(o);
     this.vessels.push(o);
     this.byEdge.set(def.id, o);
@@ -507,7 +509,7 @@ export class CelScene {
   pickAt(x: number, y: number, raycaster: Raycaster): string | null {
     if (this.figureView === 'circuit') return this.pickCircuit(x, y);
     if (this.figureView !== 'body') return null;
-    raycaster.layers.enable(VESSEL_LAYER);
+    raycaster.layers.enable(VESSEL_LAYER); raycaster.layers.enable(FAINT_ONLY_LAYER);
     raycaster.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
     const hits = raycaster.intersectObjects(this.vessels.map((v) => v.toonMesh), false);
     for (const h of hits) {

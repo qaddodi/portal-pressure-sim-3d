@@ -26,6 +26,8 @@ export interface Station {
   /** A reading: the topology node whose pressure the label carries (none for an organ's name). */
   node: string | null;
   dirs: readonly Dir[];
+  /** An organ's name: where the 2D plate puts it (ORGAN_LABELS), in 2D world units. */
+  at2d?: readonly [number, number];
   /** The dot's course in the scene (a vessel) or its fixed point. */
   at: (u: number, out: Vector3) => Vector3;
   /** Whether the dot may slide along a course. */
@@ -59,8 +61,9 @@ const at2d = (x: number, y: number, z: number): [number, number, number] => [x3(
 const nodeAt = (id: string): [number, number, number] => { const p = NODE_POS_2D[id]; if (!p) throw new Error(`the 2D map has no place for ${id}`); return at2d(p[0], p[1], TIER_Z.front); };
 const POINTS: Record<string, [number, number, number]> = { RA: nodeAt('RA'), SIN_R: nodeAt('SIN_R'), VAR: nodeAt('VAR') };
 /** The plane of an organ's front face (frame2d.ts: organs lie behind z = 0.26). */
-const ORGAN_FRONT = 0.26;
-const ORGAN_WORD: Record<string, string> = { liver: 'Liver', spleen: 'Spleen', stomach: 'Stomach' };
+export const ORGAN_FRONT = 0.26;
+/** Every organ the 2D app names (ORGAN_LABELS): its id here, and the word the 2D plate writes. */
+const ORGAN_WORD: Record<string, string> = { liver: 'Liver', spleen: 'Spleen', stomach: 'Stomach', colon: 'Colon', kidney: 'Kidney', bowel: 'Small bowel', esophagus: 'Esophagus', heart: 'Right atrium' };
 const ORGAN_POINTS: Record<string, [number, number, number]> = Object.fromEntries(Object.entries(ORGAN_WORD).map(([id, word]) => {
   const p = (N.ORGAN_AT as Record<string, readonly [number, number]>)[word];
   if (!p) throw new Error(`the 2D app has no organ name "${word}"`);
@@ -98,7 +101,7 @@ function organStation(id: string): Station {
   const p = ORGAN_POINTS[id];
   // the 2D app's own word for the organ (ORGAN_LABELS), so the name is copied, not typed
   const word = (N.ORGAN_NAMES as readonly string[]).find((w) => w === ORGAN_WORD[id]) ?? ORGAN_WORD[id];
-  return { id: `organ:${id}`, kind: 'organ', name: word, abbr: null, vessel: null, pri: 2, core: false, node: null, dirs: [], at: (_u, out) => out.set(p[0], p[1], p[2]), slides: false, tone: null };
+  return { id: `organ:${id}`, kind: 'organ', at2d: (N.ORGAN_AT as Record<string, readonly [number, number]>)[word] as readonly [number, number], name: word, abbr: null, vessel: null, pri: 2, core: false, node: null, dirs: [], at: (_u, out) => out.set(p[0], p[1], p[2]), slides: false, tone: null };
 }
 
 /** Every station the 3D scene can label now, in the 2D app's order of importance. */

@@ -7,12 +7,12 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-/** Every file under `dir` as a path relative to it, '/'-separated, without the worker itself or the build note. */
+/** Every file under `dir` as a path relative to it, '/'-separated, without the worker itself, the build note and the tester guides (two 2.6 MB PDFs testers open from a link: not worth holding offline). */
 export function listFiles(dir) {
   const out = [];
   const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else out.push(relative(dir, p).split('\\').join('/')); } };
   walk(dir);
-  return out.filter((f) => f !== 'sw.js' && f !== 'build-info.txt').sort();
+  return out.filter((f) => f !== 'sw.js' && f !== 'build-info.txt' && !f.startsWith('guides/')).sort();
 }
 
 export function buildSw({ build, files }) {
