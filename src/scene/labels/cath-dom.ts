@@ -28,7 +28,7 @@ function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, parent: Element): S
 /** A reading card: glass first (behind the words), then name, number and unit. */
 function makeCard(parent: Element, cls: string): Card {
   const root = el('div', cls, parent);
-  const glass = el('i', 'cl-glass cl-hair', root); glass.setAttribute('aria-hidden', 'true'); glass.setAttribute('data-gl', '');
+  const glass = el('i', 'cl-glass cl-hair', root); glass.setAttribute('aria-hidden', 'true'); 
   const svg = svgEl('svg', glass); svg.setAttribute('preserveAspectRatio', 'none');
   const path = svgEl('path', svg);
   const k = el('small', 'cl-k', root), n = el('b', 'cl-n', root), u = el('span', 'cl-u', root);
@@ -76,11 +76,11 @@ export interface CathDom { paint(f: CathFrame): void; destroy(): void }
 
 export function buildCath(parent: HTMLElement): CathDom {
   const C = LS.CATH;
-  const pills = { f: makeCard(parent, 'lb-call cl'), w: makeCard(parent, 'lb-call cl') };
+  const pills = { f: makeCard(parent, 'cl cl-pill'), w: makeCard(parent, 'cl cl-pill') };
   pills.f.root.dataset.k = 'f'; pills.w.root.dataset.k = 'w';
 
   // the stack
-  const sum = el('div', 'lb-call cl-sum', parent); sum.dataset.k = 's';
+  const sum = el('div', 'cl-sum', parent); sum.dataset.k = 's';
   const rows = [makeCard(sum, 'cl cl-row'), makeCard(sum, 'cl cl-row')] as const;
   const calc = makeCard(sum, 'cl cl-row cl-calc');
   const brace = svgEl('svg', sum); brace.setAttribute('class', 'cl-brace');

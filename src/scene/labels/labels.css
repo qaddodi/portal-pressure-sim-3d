@@ -40,8 +40,8 @@
    shape, the card and its pointer: clipped from one path, its 1 px hairline that path stroked inside it), then the name, the number and the unit. Sizes, paddings, type
    and tones are the layer's custom properties (--cl-*, written from cath.ts cathVars and cathLook); this file holds no figure of its own. Opacity is written on a
    card's children and never on the card: a faded ancestor would stop its glass seeing the figure behind it. ── */
-.lb-call, .cl-sum { position: absolute; left: 0; top: 0; visibility: hidden; will-change: transform; }
-.lb-call[data-on], .cl-sum[data-on] { visibility: visible; }
+.cl-pill, .cl-sum { position: absolute; left: 0; top: 0; visibility: hidden; will-change: transform; }
+.cl-pill[data-on], .cl-sum[data-on] { visibility: visible; }
 .cl { box-sizing: border-box; isolation: isolate; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--cl-gap);
   padding: var(--cl-pad); border: var(--cl-border) solid transparent; border-radius: var(--cl-r); white-space: nowrap;
   font: 500 12px / normal var(--font-ui, Inter, "Inter Fallback", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif); color: var(--cl-text);
@@ -57,15 +57,9 @@
 .cl .cl-u { font-size: var(--cl-unit); font-weight: var(--cl-unit-w); margin-top: var(--cl-unit-lift); color: var(--cl-text3); }
 /* the result's HVPG: its name in the quiet ink, its number in its band's colour */
 .cl[data-tone="ok"] .cl-k, .cl[data-tone="caution"] .cl-k, .cl[data-tone="danger"] .cl-k { color: var(--cl-text3); letter-spacing: var(--cl-track-result); }
-/* the glass: the 2D app's own (.cl-glass, .cl-hair in app-06-plate.css give its tint place and hairline); the blur is the browser's, behind the card where it stands */
-.lb-layer .cl-glass[data-gl] { background: var(--glass-tint, color-mix(in srgb, var(--cl-surface) 66%, transparent)); }
+/* the glass: its tint, blur and the browser's fallbacks are src/ui/glass.css's (.cl-glass is in its one list); the shape is the clip, the hairline the 2D app's .cl-hair rule */
 .lb-layer .cl-glass svg { position: absolute; left: 0; top: 0; overflow: visible; }
 .lb-layer .cl-glass path { fill: none; stroke: var(--glass-edge, var(--cl-edge)); stroke-width: 2; stroke-linejoin: miter; }
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  html:not([data-noglass]) .lb-layer .cl-glass[data-gl] { -webkit-backdrop-filter: blur(22px) saturate(1.15); backdrop-filter: blur(22px) saturate(1.15); }
-  @media (prefers-reduced-transparency: reduce) { html:not([data-noglass]) .lb-layer .cl-glass[data-gl] { background: color-mix(in srgb, var(--cl-surface) 96%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; } }
-}
-html[data-noglass] .lb-layer .cl-glass[data-gl] { background: var(--cl-surface); }
 
 /* the result: both readings stacked, a bracket joining them, the HVPG they give beside it, a thin leader from each reading to its point */
 .cl-sum > .cl-row { position: absolute; left: 0; top: 0; will-change: transform; visibility: hidden; }
