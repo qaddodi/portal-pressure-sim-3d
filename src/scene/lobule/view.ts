@@ -21,6 +21,7 @@ import type { LookId } from '../../looks/looks.ts';
 import { type FlowMarkMode, DEFAULT_FLOW_MODE, FLOW_FADE_MS, PULSE_MS, markSpeed } from '../flow.ts';
 import type { LensId } from '../lenses/model.ts';
 import { Batch, type V3 } from './batch.ts';
+import { shadeUniforms } from './shading.ts';
 import { type Course, type LobuleNet, type P2, buildLobule, zoneOf } from './geometry.ts';
 import { type LobuleModel, easeToward, lymphRate, lymphSeal, smooth } from './model.ts';
 import { LOBULE_PARTS, type LobulePartName, PartSet } from './parts.ts';
@@ -36,15 +37,22 @@ import { LobulePlate, type MakeCanvas, defaultCanvas } from './plate.ts';
 import { ZonesOverlay } from './zones.ts';
 import { NeighbourField, fieldQuantizer } from './field.ts';
 import { lookColours } from './lz-colours.ts';
+import { DISC_EDGE } from './from2d/disc-glsl.generated.js';
+import { AN_K, DISC_R, LT_R, RS_N, TW_R, inletRadius, sinRadius, twigR } from './widths.ts';
+import { type Disc, type Joiner, buildDiscs, writeMouths } from './mouths.ts';
+import { lobuleShade } from './shading.ts';
 
 const R = LOBULE_R;
 const MARK_PITCHES = 5;   // a chevron period is this many tube radii
 
 /** Scene radii of the parts (lobule radii × R). The sinusoid's is the 2D app's lumen, drawn about twice as wide; the rest keep the 2D ratios. */
 const RAD = {
-  s0: 0.0095 * R, s1: 0.0109 * R, s2: 0.0124 * R, an: 0.0068 * R, in: 0.0135 * R, tw: 0.0072 * R,
-  pv: 0.042 * R, ha: 0.015 * R, bd: 0.013 * R, lv: 0.013 * R, cv: 0.07 * R, lt: 0.0085 * R, ly: 0.0132 * R, bc: 0.0046 * R, bh: 0.0075 * R,
+  // (2D's own, healthy: widths.ts, lobule-zoom-field.js radiusAt; a sinusoid's is the radius at the middle of its course, the profile along it is drawn from sinRadius)
+  s0: RS_N * 1.15 * R, s1: RS_N * 1.15 * R, s2: RS_N * 1.15 * R, an: RS_N * AN_K * R, in: 0.012 * R, tw: TW_R.base * R,
+  pv: DISC_R.pv * R, ha: DISC_R.ha * R, bd: DISC_R.bd * R, lv: DISC_R.lv * R, cv: DISC_R.cv * R, lt: LT_R * R, ly: 0.0132 * R, bc: 0.0046 * R, bh: 0.0075 * R,
 } as const;
+/** 2D's three dark shares of a sinusoid kind that congestion widens (zone 3: 1 - smooth(0.24, 0.56, rho), at the middle of each generation): radiusAt's `1 + 1.5 congU z3`. */
+const CONG_Z3 = { s0: 0, s1: 0.4, s2: 0.95, an: 0.3 } as const;
 
 /** A disc's half thickness (an end-on vessel is a flat disc on the plate) and how far under its sinusoid the space of Disse's band lies. */
 const DISC_T = 0.008, DISSE_DZ = 0.03;
@@ -68,6 +76,17 @@ export function litParts(terms: Iterable<string>): Set<LobulePartName> {
   if (has.has('lobule:central') || has.has('lobule:triad')) out.add('sinusoids');
   return out;
 }
+
+/** The vessels seen end-on, drawn as discs. */
+type DiscKind = 'pv' | 'ha' | 'bd' | 'cv' | 'lv';
+interface DiscInfo {
+  obj: CelObject; geo: BufferGeometry; cs: Course[]; b: Batch; discs: Disc[]; pool: Map<number, Joiner>; radiiOf: Map<number, Float64Array>;
+  setPool(p: Joiner[]): void;
+}
+/** Ids of the Bile layer's canals of Hering as vessels that may join a ductule (courses have ids from 0; these are far above them). */
+const CANAL_ID = 1_000_000;
+/** 2D's lymphatic caliber against the healthy flow (lobule-zoom-field.js lyWr): 1 at a normal rate. */
+const lyWr = (lr: number, k: number) => 1 + k * smooth(1, 4, lr) - 0.12 * (1 - smooth(0.3, 1, lr));
 
 export interface LobuleLayers { lymph: boolean; zones: boolean; bile: boolean }
 export interface LobuleViewOptions { look?: LookId; phone?: boolean; flowMode?: FlowMarkMode; reduceMotion?: boolean; canvas?: MakeCanvas }
@@ -165,14 +184,17 @@ export class LobuleView {
     return net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an').map((c) => ({ c, r: RAD[c.kind as 's0' | 's1' | 's2' | 'an'] / R }));
   }
 
-  private make(part: LobulePartName, b: Batch, toneKey: Parameters<typeof tone>[0], opts: { bands: 2 | 3; px: number; chevrons?: { pitch: number; speed: () => number; dir?: 1 | -1; lymph?: boolean; bile?: boolean }; ink?: { seg: Seg; courses?: Course[] } }): CelObject {
+  private make(part: LobulePartName, b: Batch, toneKey: Parameters<typeof tone>[0], opts: { bands: 2 | 3; px: number; radius?: number; disc?: { join: boolean; inkRadius?: number }; chevrons?: { pitch: number; speed: () => number; dir?: 1 | -1; lymph?: boolean; bile?: boolean }; ink?: { seg: Seg; courses?: Course[] } }): CelObject {
     const c = opts.chevrons;
     if (opts.ink) b.withInk();
-    const o = new CelObject(b.build(), {
+    const geo = b.build();
+    const o = new CelObject(geo, {
       tone: tone(toneKey), bands: opts.bands, spec: 0, px: opts.px,
       // a vessel as far as the shader goes: marks along uv.x. uv.x is already in chevron periods (arc ÷ pitch), so len is the shader's own 0.45 per mark.
       vessel: c ? { index: 0, len: 0.45, stubSpeed: 0, radius: 0, baseD: 1 } : undefined,
     }, this.shared);
+    // 2D's shading: three screen-space tones, the line by caliber, a disc's pale band and its wall opened at the mouths (shading.ts)
+    lobuleShade(o, geo, this.dprU, { radius: opts.radius ?? RAD.s0, disc: !!opts.disc, join: opts.disc?.join, inkRadius: opts.disc?.inkRadius });
     this.objects.push(o);
     const p = this.set.get(part);
     p.group.add(o.group);
@@ -185,21 +207,45 @@ export class LobuleView {
     return o;
   }
 
+  /** An end-on vessel kind: its discs (batch order), the vessels that may join them, and their mouth masks. Built once; `refreshDiscs` writes the masks again when the radii they depend on have moved. */
+  private readonly discInfo = new Map<DiscKind, DiscInfo>();
+  private discKey = '';
+  private readonly dprU = { value: 1 };
+  /** The drawing buffer's pixel ratio (the scene's render asks the renderer): the lines are held to device pixels (2D's clamp(0.14 R, 1.5, 3)). */
+  setDpr(dpr: number): void { if (dpr !== this.dprU.value) { this.dprU.value = dpr; this.dirty = true; } }
+
+  private disc(kind: DiscKind, part: LobulePartName, cs: Course[], axial: (cs: Course[], radius: number) => Batch, toneKey: Parameters<typeof tone>[0], pool: Joiner[], ink?: { seg: Seg }): CelObject {
+    const b = axial(cs, RAD[kind]);
+    const o = this.make(part, b, toneKey, { bands: 2, px: INK.disc, radius: RAD[kind], disc: { join: false }, ink });
+    const geo = o.toonMesh.geometry;
+    const info: DiscInfo = {
+      obj: o, geo, cs, b, discs: [], pool: new Map(), radiiOf: new Map(),
+      setPool: (p: Joiner[]) => { info.discs = buildDiscs(cs, b, DISC_R[kind], p); info.pool = new Map(p.map((j) => [j.id, j])); this.discKey = ''; this.dirty = true; },
+    };
+    this.discInfo.set(kind, info);
+    info.setPool(pool);
+    return o;
+  }
+
   private build(): void {
     const net = this.net;
     const by = (...k: Course['kind'][]) => net.courses.filter((c) => k.includes(c.kind));
-    const tubeSet = (cs: Course[], radius: number, dz = 0, radial = 7) => {
-      const b = new Batch(), pitch = radius * MARK_PITCHES;
-      for (const c of cs) b.tube(c.pts.map((p) => p3(p, dz)), { radius, radial, uvx: (_i, arc) => arc / pitch });
+    // (a tube's radius is a number, or by course the radius at each sample: 2D's profile along it, widths.ts; `mean` is the one the chevrons' pitch and the line's width are worked from)
+    const tubeSet = (cs: Course[], radius: number | ((c: Course) => (i: number, n: number) => number), dz = 0, radial = 7, mean = typeof radius === 'number' ? radius : RAD.s0) => {
+      const b = new Batch(), pitch = mean * MARK_PITCHES;
+      for (const c of cs) b.tube(c.pts.map((p) => p3(p, dz)), { radius: typeof radius === 'number' ? radius : radius(c), radial, uvx: (_i, arc) => arc / pitch });
       return b;
     };
     // a vessel seen end-on (the central vein, the tract's venule, arteriole, ductule and lymphatic): a flat disc on the plate, as 2D's celDisc, not a
     // column standing out of it (the hexagonal prism of IMG_5637). Its face looks at the camera, so it is one flat tone inside its outline.
     const axial = (cs: Course[], radius: number) => {
       const b = new Batch();
-      for (const c of cs) { const p = c.pts[Math.floor(c.pts.length / 2)]!; b.tube([p3(p, -DISC_T), p3(p, DISC_T)], { radius, radial: 48, capped: true, uvx: () => 0 }); }
+      for (const c of cs) { const p = c.pts[Math.floor(c.pts.length / 2)]!; b.tube([p3(p, -DISC_T), p3(p, DISC_T)], { radius, radial: 48, capped: true, disc: true, uvx: () => 0 }); }
       return b;
     };
+    const sinR = (c: Course) => (i: number) => sinRadius(c.kind as 's0' | 's1' | 's2' | 'an', c.rho[i]!) * R;
+    const inR = (c: Course) => (i: number, n: number) => inletRadius(i, n, Math.hypot(c.pts[i]![0] - c.pts[0]![0], c.pts[i]![1] - c.pts[0]![1])) * R;
+    const twR = (c: Course) => (i: number, n: number) => twigR(i / (n - 1), RS_N) * R;
     // the blood's marks run at the 2D painter's speeds (lobule-zoom.js: sinusoids vS x 1, 1.45, 2.05 with vS = 15 sqrt(flow); inlets 24 sqrt|portal|, the arteriole's twig 30 sqrt(art)),
     // here in marks a second (the 15 is 1.4 marks/s); a sinusoid whose flow has stopped or reversed runs no marks, as in 2D
     const U = 1.4 / 15;
@@ -215,21 +261,22 @@ export class LobuleView {
 
     // sinusoids: three generations and the links; blood runs from the portal end to the central end (negative when the lobule's flow reverses).
     // Outlines as 2D's (clamp(0.14 R, 1.5, 3) device px: about half a CSS px on these thin tubes), in the casing colour (applyLook)
-    const s0 = this.make('sinusoids', tubeSet(by('s0'), RAD.s0), 'sin0', { bands: 2, px: INK.sin, ink: { seg: 'sin', courses: by('s0') }, chevrons: { pitch: RAD.s0 * MARK_PITCHES, speed: sinSpeed(1) } });
-    const s1 = this.make('sinusoids', tubeSet(by('s1'), RAD.s1), 'sin1', { bands: 2, px: INK.sin, ink: { seg: 'sin', courses: by('s1') }, chevrons: { pitch: RAD.s1 * MARK_PITCHES, speed: sinSpeed(1.45) } });
-    const s2 = this.make('sinusoids', tubeSet(by('s2'), RAD.s2), 'sin2', { bands: 2, px: INK.sin, ink: { seg: 'sin', courses: by('s2') }, chevrons: { pitch: RAD.s2 * MARK_PITCHES, speed: sinSpeed(2.05) } });
-    const an = this.make('sinusoids', tubeSet(by('an'), RAD.an), 'sin1', { bands: 2, px: INK.thin, ink: { seg: 'sin', courses: by('an') } });
-    const inlets = this.make('inlets', tubeSet(by('in'), RAD.in, 0, 8), 'portal', { bands: 2, px: INK.inlet, ink: { seg: 'in', courses: by('in') }, chevrons: { pitch: RAD.in * MARK_PITCHES, speed: inSpeed } });
+    const s0 = this.make('sinusoids', tubeSet(by('s0'), sinR), 'sin0', { bands: 2, px: INK.sin, ink: { seg: 'sin', courses: by('s0') }, chevrons: { pitch: RAD.s0 * MARK_PITCHES, speed: sinSpeed(1) } });
+    const s1 = this.make('sinusoids', tubeSet(by('s1'), sinR), 'sin1', { bands: 2, px: INK.sin, ink: { seg: 'sin', courses: by('s1') }, chevrons: { pitch: RAD.s1 * MARK_PITCHES, speed: sinSpeed(1.45) } });
+    const s2 = this.make('sinusoids', tubeSet(by('s2'), sinR), 'sin2', { bands: 2, px: INK.sin, ink: { seg: 'sin', courses: by('s2') }, chevrons: { pitch: RAD.s2 * MARK_PITCHES, speed: sinSpeed(2.05) } });
+    const an = this.make('sinusoids', tubeSet(by('an'), sinR, 0, 7, RAD.an), 'sin1', { bands: 2, px: INK.thin, ink: { seg: 'sin', courses: by('an') } });
+    const inlets = this.make('inlets', tubeSet(by('in'), inR, 0, 8, RAD.in), 'portal', { bands: 2, px: INK.inlet, ink: { seg: 'in', courses: by('in') }, chevrons: { pitch: RAD.in * MARK_PITCHES, speed: inSpeed } });
 
     // the portal tracts: venule, arteriole (with the twig that feeds the first stretch of a sinusoid), ductule; the lymphatic is the lymph part's
-    const pv = this.make('portal-tracts', axial(by('pv'), RAD.pv), 'portal', { bands: 2, px: INK.disc, ink: { seg: 'pv' } });
-    const ha = this.make('portal-tracts', axial(by('ha'), RAD.ha), 'artery', { bands: 2, px: INK.disc });
-    const bd = this.make('portal-tracts', axial(by('bd'), RAD.bd), 'bile', { bands: 2, px: INK.disc });
-    const tw = this.make('portal-tracts', tubeSet(by('tw'), RAD.tw, 0, 6), 'artery', { bands: 2, px: INK.thin, chevrons: { pitch: RAD.tw * MARK_PITCHES, speed: twSpeed } });
-    const cv = this.make('central-vein', axial(by('cv'), RAD.cv), 'sys', { bands: 2, px: INK.disc, ink: { seg: 'cv' } });
+    const joiners = (cs: Course[]): Joiner[] => cs.map((c) => ({ id: c.id, pts: c.pts }));
+    const pv = this.disc('pv', 'portal-tracts', by('pv'), axial, 'portal', joiners(by('in')), { seg: 'pv' });
+    const ha = this.disc('ha', 'portal-tracts', by('ha'), axial, 'artery', joiners(by('tw')));
+    const bd = this.disc('bd', 'portal-tracts', by('bd'), axial, 'bile', []);
+    const tw = this.make('portal-tracts', tubeSet(by('tw'), twR, 0, 6, RAD.tw), 'artery', { bands: 2, px: INK.thin, chevrons: { pitch: RAD.tw * MARK_PITCHES, speed: twSpeed } });
+    const cv = this.disc('cv', 'central-vein', by('cv'), axial, 'sys', joiners(by('s0', 's1', 's2', 'an')), { seg: 'cv' });
 
     // lymph: the tracts' lymphatics (end-on discs), the terminal lymphatics along the edges (toward the tract) and the space of Disse beside each sinusoid
-    const lv = this.make('lymph', axial(by('lv'), RAD.lv), 'lymph', { bands: 2, px: INK.disc });
+    const lv = this.disc('lv', 'lymph', by('lv'), axial, 'lymph', joiners(by('lt')));
     const lt = this.make('lymph', tubeSet(by('lt'), RAD.lt, 0, 6), 'lymph', { bands: 2, px: INK.thin, chevrons: { pitch: RAD.lt * MARK_PITCHES, speed: lymphSpeed, lymph: true } });
     // the space of Disse: a flat pale band under its sinusoid, so only its rim shows either side (2D's Wet Disse sleeve, drawn under the sinusoid), with no
     // outline and no light of its own: no second tube wound round the first (the "rope" of IMG_5637). Its course runs inward, the lymph outward, so the marks run backwards
@@ -241,7 +288,7 @@ export class LobuleView {
     // bile (the Bile layer): the canaliculi run between neighbouring plates, from the centre out toward the edge (the blood runs the other way), the canals of Hering gather them
     // along the edge into each tract's ductule. Arrowheads run out toward the tract, against the blood.
     const bileSpeed = () => markSpeed(2.2 * Math.min(1.6, Math.max(0.3, Math.sqrt(Math.max(0.05, this.cur.flow)))));
-    const chB = new Batch(), hrB = new Batch();
+    const chB = new Batch(), hrB = new Batch(), canalPool: Joiner[] = [];
     const mid = (a: Course, b: Course, i: number): P2 => [(a.pts[i]![0] + b.pts[i]![0]) / 2, (a.pts[i]![1] + b.pts[i]![1]) / 2];
     const s0c = by('s0');
     const channel = (cs: Course[], i0: number, i1: number, canals: boolean) => {
@@ -258,6 +305,7 @@ export class LobuleView {
           // (from the ductule out along the edge, bowed in a little, to the first plate: the canal of Hering)
           for (let j = 0; j <= 8; j++) { const u = j / 8; pc.push([bd[0] + (p0[0] - bd[0]) * u + (tr.x - 0) * -0.012 * Math.sin(Math.PI * u), bd[1] + (p0[1] - bd[1]) * u + (tr.y - 0) * -0.012 * Math.sin(Math.PI * u)]); }
           hrB.tube(pc.map((p) => p3(p, 0.014)), { radius: RAD.bh, radial: 6, uvx: (_i, arc) => arc / (RAD.bh * MARK_PITCHES) });
+          canalPool.push({ id: CANAL_ID + canalPool.length, pts: pc });
         }
       });
     };
@@ -267,6 +315,8 @@ export class LobuleView {
     const bc = this.make('bile', chB, 'bile', { bands: 2, px: INK.thin, chevrons: { pitch: RAD.bc * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
     const bh = this.make('bile', hrB, 'bile', { bands: 2, px: INK.thin, chevrons: { pitch: RAD.bh * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
     this.bileObjs = [bc, bh];
+    // the ductule's wall opens where a canal of Hering joins it (2D: mouths while the Bile layer is on, mouthsNoBile while it is off)
+    this.discInfo.get('bd')!.setPool(canalPool);
 
     // the wedge's wash: amber over the sinusoids (cut by the front's radius in uv.x) and the central vein
     const wb = new Batch();
@@ -298,6 +348,9 @@ export class LobuleView {
     const cell = L.dark ? (() => { const g = L.rgb01('--og-liver-2'), c = L.rgb01('--og-liver-1'); return new Color(g[0] + (c[0] - g[0]) * 0.28, g[1] + (c[1] - g[1]) * 0.28, g[2] + (c[2] - g[2]) * 0.28); })() : new Color(...L.rgb01('--og-liver-1'));
     const ink = cell.clone().lerp(casing, ca);
     for (const o of this.objects) (o.ink.uniforms.color.value as Color).copy(ink);
+    // the triad's three vessels and the inlet venule carry a dark outline of their own colour, the venule's blue, the arteriole's red, the ductule's olive (2D: EDGE, at 0.92), the rest the common casing
+    const edges: [CelObject, readonly number[]][] = [[this.o.pv, DISC_EDGE.pv], [this.o.inlets, DISC_EDGE.in], [this.o.ha, DISC_EDGE.ha], [this.o.bd, DISC_EDGE.bd]];
+    for (const [o, e] of edges) (o.ink.uniforms.color.value as Color).setRGB(cell.r + (e[0]! - cell.r) * 0.92, cell.g + (e[1]! - cell.g) * 0.92, cell.b + (e[2]! - cell.b) * 0.92);
     // the space of Disse is one flat tone (no light, no outline); the lymph's marks are soft bands with an amber core, as 2D's
     for (const o of this.flat) (o.toon.uniforms.shade.value as Color).copy(o.toon.uniforms.color.value as Color);
     for (const mk of this.marked) if (mk.layer === 'lymph') { rawColor(p.tones['amber' as never] as string, mk.obj.toon.uniforms.markColor.value as Color); rawColor(p.tones['amber' as never] as string, mk.obj.toon.uniforms.markReversed.value as Color); }
@@ -324,7 +377,7 @@ export class LobuleView {
     this.model = m; this.pushInk();
     const g = this.goal;
     g.fibSin = m.fibSin; g.fibPre = m.fibPre; g.fibPost = m.fibPost; g.congU = m.congU; g.septU = m.septU; g.act = m.act;
-    g.lum = m.zone.sin ** -0.12 * (1 + 0.5 * m.congU);
+    g.lum = m.zone.sin ** -0.12;   // (2D radiusAt: the sinusoid's width is / sin^0.12 and, by zone 3's share of each generation, x (1 + 1.5 congU))
     g.flow = m.rev.sin ? -Math.abs(m.flow) : Math.abs(m.flow);
     g.portal = m.rev.pre ? -Math.abs(m.portal) : Math.abs(m.portal);
     g.art = Math.abs(m.art);
@@ -415,13 +468,14 @@ export class LobuleView {
     const c = this.cur, o = this.o;
     const infl = (obj: CelObject, v: number) => { obj.toon.uniforms.inflate.value = v; };
     // sinusoids: capillarized ones narrow, congested zone 3 ones dilate (the 2D lumen width)
-    const lumK = c.lum - 1;
-    infl(o.s0, RAD.s0 * lumK * 0.6); infl(o.s1, RAD.s1 * lumK * 0.9); infl(o.s2, RAD.s2 * (lumK + 0.8 * c.congU)); infl(o.an, RAD.an * lumK * 0.6);
+    const sinF = (k: keyof typeof CONG_Z3) => c.lum * (1 + 1.5 * c.congU * CONG_Z3[k]) - 1;
+    infl(o.s0, RAD.s0 * sinF('s0')); infl(o.s1, RAD.s1 * sinF('s1')); infl(o.s2, RAD.s2 * sinF('s2')); infl(o.an, RAD.an * sinF('an'));
     // (zone 3's cells dropping out with congestion, the stellate cells activating and the collagen of fibrosis and cirrhosis are painted on the plate, as 2D paints them)
     // lymph: the whole part shrinks away with its layer; no group is hidden until it has gone
     const f = this.lyFade;
     this.set.get('lymph').group.visible = f > 0.002;
-    infl(o.lv, -RAD.lv * (1 - f)); infl(o.lt, -RAD.lt * (1 - f)); infl(o.ly, -RAD.ly * (1 - f) + 0.004 * c.seal);
+    infl(o.lt, -RAD.lt * (1 - f)); infl(o.ly, -RAD.ly * (1 - f) + 0.004 * c.seal);
+    this.updateDiscs();
     // bile: the Bile layer's canaliculi and canals shrink away with it; the ductules at the tracts swell a little while it is on
     const bf = this.bileFade;
     this.set.get('bile').group.visible = bf > 0.002;
@@ -440,6 +494,41 @@ export class LobuleView {
       const a = washAmount(k) / 0.85;
       o.washSin.setReveal(front);
       infl(o.washSin, -0.02 + 0.03 * a); infl(o.washCv, -0.05 + 0.08 * a);
+    }
+  }
+
+  /** The end-on vessels' radii by the state (2D radiusAt: the central vein widens with congestion and narrows with post-sinusoidal fibrosis, the venule narrows with pre-sinusoidal, the arteriole follows the arterial inflow,
+   *  the lymphatic the drainage and its layer) and the masks of their mouths, worked out from the radii as drawn and written again whenever those move (lobule-mouths.js mouthWords). */
+  private updateDiscs(): void {
+    const c = this.cur, lyF = this.lyFade;
+    const k: Record<DiscKind, number> = {
+      cv: ((DISC_R.cv + 0.05 * c.congU) * (1 - 0.3 * c.fibPost)) / DISC_R.cv, pv: 1 / (1 + 0.35 * c.fibPre), ha: Math.min(2.2, Math.max(0.6, c.art)) ** 0.3,
+      bd: 1, lv: lyWr(c.lymphRate, 0.4) * lyF,
+    };
+    const f = (kind: 's0' | 's1' | 's2' | 'an') => c.lum * (1 + 1.5 * c.congU * CONG_Z3[kind]);
+    const key = [k.cv, k.pv, k.ha, k.lv, c.lum, c.congU, c.fibPre, c.art, this.layers.bile ? 1 : 0].map((x) => x.toFixed(3)).join();
+    if (key === this.discKey) return;
+    this.discKey = key;
+    const join = (kind: DiscKind): boolean => kind !== 'bd' || this.layers.bile;
+    for (const [kind, info] of this.discInfo) {
+      const radiiOf = (j: Joiner): ArrayLike<number> => {
+        let a = info.radiiOf.get(j.id);
+        if (!a) { a = new Float64Array(j.pts.length); info.radiiOf.set(j.id, a); }
+        const course = j.id < CANAL_ID ? this.net.courses[j.id]! : null, n = j.pts.length;
+        for (let i = 0; i < n; i++) {
+          a[i] = !course ? RAD.bh / R
+            : kind === 'cv' ? sinRadius(course.kind as 's0' | 's1' | 's2' | 'an', course.rho[i]!) * f(course.kind as 's0' | 's1' | 's2' | 'an')
+            : kind === 'pv' ? inletRadius(i, n, Math.hypot(course.pts[i]![0] - course.pts[0]![0], course.pts[i]![1] - course.pts[0]![1])) / (1 + 0.45 * c.fibPre)
+            : kind === 'ha' ? twigR(i / (n - 1), RS_N) : LT_R * lyWr(c.lymphRate, 0.4);
+        }
+        return a;
+      };
+      const sh = shadeUniforms(info.obj), rim = (DISC_R[kind] * k[kind]);
+      sh.discK.value = Math.max(k[kind], 1e-4);
+      const jr = join(kind) ? writeMouths(info.geo, info.discs, info.pool, () => Math.max(rim, 1e-3), radiiOf) : writeMouths(info.geo, info.discs.map((d) => ({ ...d, site: null })), info.pool, () => rim, radiiOf);
+      sh.discJoin.value = join(kind) && info.discs.some((d) => d.site) ? 1 : 0;
+      // (the wall of a disc that vessels join is one line as wide as theirs: 2D discWall)
+      sh.inkR.value = (jr > 0 ? jr : rim) * R;
     }
   }
 

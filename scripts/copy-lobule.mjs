@@ -83,7 +83,43 @@ const lz = (() => {
   return `${head('styles/tokens.css', ': the lobule\'s colours that are the same in every look')}export const LZ_TOKENS = {\n${rows.join('\n')}\n};\n`;
 })();
 
-const files = [['lobule-paint.generated.js', paint], ['lobule-look.generated.js', look], ['field-tile.generated.js', tile], ['lz-tokens.generated.js', lz]];
+
+// The vessels seen end-on (discs): 2D's rim-mask maths (lobule-mouths.js, as it is), the GLSL of the pale band, the wall line and the mask's reader (tube-cel-glsl.js, veins-mesh-glsl.js,
+// pulled out by function name), and the triad's own outline colours and the vessels' radii rules (lobule-zoom-field.js EDGE, BD_FILL, radiusAt's rules), so the 3D disc is shaded with 2D's own text.
+const mouths = (() => {
+  let t = read('src/ui/lobule-mouths.js');
+  t = swap(t, "import { N_SAMPLES } from './veins-mesh.js';", 'const N_SAMPLES = 64;   // (veins-mesh.js N_SAMPLES, copied)');
+  return head('src/ui/lobule-mouths.js') + t;
+})();
+
+/** The text of a GLSL function (or const block) from `text`, from its head to its matching closing brace. */
+function fnText(text, headStr) {
+  const at = text.indexOf(headStr);
+  if (at < 0) throw new Error(`${headStr} not found`);
+  let i = text.indexOf('{', at), depth = 0;
+  for (; i < text.length; i++) { if (text[i] === '{') depth++; else if (text[i] === '}' && --depth === 0) return text.slice(at, i + 1); }
+  throw new Error(`${headStr} has no closing brace`);
+}
+const disc = (() => {
+  const cel = read('src/ui/tube-cel-glsl.js'), mesh = read('src/ui/veins-mesh-glsl.js');
+  const lim = /export const CEL = \{[^}]*LINE_MIN: ([\d.]+), LINE_MAX: ([\d.]+), LINE_R: ([\d.]+) \};/.exec(cel);
+  if (!lim) throw new Error('CEL line numbers not found in tube-cel-glsl.js');
+  const sub = (s) => s.replace('${lit(CEL.LINE_R)}', lim[3]).replace('${lit(CEL.LINE_MIN)}', lim[1]).replace('${lit(CEL.LINE_MAX)}', lim[2]);
+  const parts = [fnText(cel, 'vec3 celRing('), sub(fnText(cel, 'float discWall(')), fnText(cel, 'float discLine('), fnText(cel, 'vec3 celDisc('), fnText(mesh, 'float ringOpen(')];
+  const edge = /const EDGE = (\{[^}]*\}), BD_FILL = (\[[^\]]*\]);/.exec(read('src/ui/lobule-zoom-field.js'));
+  if (!edge) throw new Error('EDGE not found in lobule-zoom-field.js');
+  const ink = (text) => JSON.stringify(text);
+  return `${head('src/ui/tube-cel-glsl.js', ': GLSL pulled out by function name')}/** The GLSL of a disc cut across: ringOpen (the mouth mask's reader), celRing (the pale band), discWall, discLine, celDisc (tube-cel-glsl.js; veins-mesh-glsl.js). */
+export const DISC_GLSL = ${ink(parts.slice(4).concat(parts.slice(0, 4)).join('\n\n') + '\n')};
+/** The triad's outlines (lobule-zoom-field.js EDGE), 0..1 rgb, and the bile ductule's fill (BD_FILL). */
+export const DISC_EDGE = ${edge[1]};
+export const BD_FILL = ${edge[2]};
+/** The line's width in device px by caliber (tube-cel-glsl.js CEL: LINE_R of the radius held between LINE_MIN and LINE_MAX). */
+export const DISC_LINE = { min: ${lim[1]}, max: ${lim[2]}, r: ${lim[3]} };
+`;
+})();
+
+const files = [['lobule-mouths.generated.js', mouths], ['disc-glsl.generated.js', disc], ['lobule-paint.generated.js', paint], ['lobule-look.generated.js', look], ['field-tile.generated.js', tile], ['lz-tokens.generated.js', lz]];
 const check = process.argv.includes('--check');
 const strip = (s) => s.replace(/ at [0-9a-f]{7,40}\. Do not edit/, ' at X. Do not edit');
 let bad = 0;

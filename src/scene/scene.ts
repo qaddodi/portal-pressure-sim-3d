@@ -630,6 +630,7 @@ export class CelScene {
     // Two passes, as the 2D figure paints: the organs first, then the vessels (and what is in them) over the cleared depth, so no organ's relief ever hides a vessel and a joined
     // vessel never looks cut. (The vessels keep their own depth among themselves: their tiers.)
     this.sinus.setDpr(gl.getPixelRatio?.() ?? 1);
+    this.lobule.setDpr(gl.getPixelRatio?.() ?? 1);
     const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;
     cam.layers.set(0);
     gl.render(this.scene, cam);
