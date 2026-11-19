@@ -13,14 +13,14 @@ import { BAR } from '../../ui/layout/plan.ts';
 import { useUi } from '../../ui/ui-store.ts';
 import { useShell } from '../../ui/shell/store.ts';
 import { cel } from '../api.ts';
-import { type Box, leaderGeom, rectToBox } from '../labels/geometry.ts';
+import { leaderGeom } from '../labels/geometry.ts';
 import { DIM_ALPHA, labelOpacity } from '../labels/alpha.ts';
 import { makeMeasure } from '../labels/LabelLayer.tsx';
 import { LS, baselineAt, lineSize, lookVars, nameRun, typeVars, valueRun } from '../labels/type.ts';
 import { sinusoidWorld } from '../lobule/frames.ts';
 import { SINUSOID_L } from '../lobule/shots.ts';
 import { type NamePlacement } from './names.ts';
-import { buildSinusoidNames, linesOf, namesOn, placeOf } from './captions.ts';
+import { buildSinusoidNames, linesOf, namesFree, namesOn, placeOf } from './captions.ts';
 import { U } from './view.ts';
 import { framePoint } from './portrait.ts';
 import { setSinusoidPlaced, useSinusoidNames } from './explain-store.ts';
@@ -74,13 +74,13 @@ export function SinusoidCaptions() {
     };
 
     const solveNow = () => {
-      const { vp, boxes } = useUi.getState();
+      const { vp } = useUi.getState();
       const level = useShell.getState().figure.labelLevel;
       const m = cel.lobule.inkContext()?.model ?? null;
       const st = useSinusoidNames.getState();
-      const free = rectToBox(boxes.free);
+      const free = namesFree(cel.rig.targetRoom, { w: vp.w, h: vp.h });
       const built = buildSinusoidNames({
-        view: cel.sinus, proj, vp, measure, stage: { w: vp.w, h: vp.h }, free: { l: free.x0, t: free.y0, r: free.x1, b: free.y1 }, insTop: vp.safe.top + BAR,
+        view: cel.sinus, proj, vp, measure, stage: { w: vp.w, h: vp.h }, free, insTop: vp.safe.top + BAR,
         model: m ? { P1: m.P1, P2: m.P2, P3: m.P3, lymph: m.lymph, lyProt: m.lyProt } : null, explain: st.explain, lit: st.lit,
       });
       placed = level === 'none' ? [] : built;
@@ -116,10 +116,10 @@ export function SinusoidCaptions() {
       lastRefs = refs;
       const still = on && now - lastMove >= SETTLE_MS;
       if (still) {
-        const { vp, boxes } = useUi.getState(), st = useSinusoidNames.getState();
+        const { vp } = useUi.getState(), st = useSinusoidNames.getState();
         const m = cel.lobule.inkContext()?.model;
-        const fr = rectToBox(boxes.free);
-        const s = [vp.w, vp.h, refs, cel.sinus.isPortrait, useShell.getState().figure.labelLevel, [fr.x0, fr.y0, fr.x1, fr.y1].map(Math.round).join(','), lookRef.current, st.explain, [...st.lit].join(' '),
+        const fr = namesFree(cel.rig.targetRoom, { w: vp.w, h: vp.h });
+        const s = [vp.w, vp.h, refs, cel.sinus.isPortrait, useShell.getState().figure.labelLevel, [fr.l, fr.t, fr.r, fr.b].join(','), lookRef.current, st.explain, [...st.lit].join(' '),
           Math.round(cel.sinus.porosity * 100), m ? [m.P1, m.P2, m.P3].map((x) => x.toFixed(1)).join(',') + Math.round(m.lymph * 100) + Math.round(m.lyProt * 100) : '-'].join('|');
         if (s !== sig) { sig = s; solveNow(); }
       }
@@ -157,7 +157,7 @@ export function SinusoidCaptions() {
     const off = clock.on('tags', tick, 1);
     const wake = () => { sig = ''; clock.invalidate('sinusoid-captions'); };
     const offShell = useShell.subscribe(wake);
-    const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) wake(); });
+    const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) wake(); });   // (the room itself is read each frame in the signature: it moves with the camera's room, which the cards and the shell set)
     const offEx = useSinusoidNames.subscribe((s, p) => { if (s.explain !== p.explain || s.lit !== p.lit) wake(); });
     void document.fonts?.ready.then(wake);
     void DIM_ALPHA; void SINUSOID_L;

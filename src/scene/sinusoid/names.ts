@@ -85,8 +85,11 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
     const yc = y + side * (across / 2) / k;
     const sc = toScreen(x, yc);
     let cx = sc[0];
-    const cy = sc[1], cx0 = cx;
-    if (!alongName) cx = clamp(cx, w / 2 + 4, W - w / 2 - 4);   // a level name stays on screen
+    let cy = sc[1];
+    const cx0 = cx;
+    // a name stays inside the free room whatever the scale puts under it (a wide stretch at a large scale throws the plates' names past the room's top and foot: the leader still reaches what it names)
+    if (!V) cy = clamp(cy, Math.min(fe.t + hh / 2 + 4, (fe.t + fe.b) / 2), Math.max(fe.b - hh / 2 - 4, (fe.t + fe.b) / 2));
+    if (!alongName) cx = clamp(cx, Math.min(Math.max(w / 2 + 4, fe.l + w / 2), W / 2), Math.max(Math.min(W - w / 2 - 4, fe.r - w / 2), W / 2));   // a level name stays on screen and in the free room
     if (!V) {
       // across the screen every name is level: it steps clear of the ends' names and stays in the free room
       for (const b of endBox) if (b && cy + hh / 2 > b.y0 - 4 && cy - hh / 2 < b.y1 + 4) cx = b.u ? Math.min(cx, b.x0 - 14 - w / 2) : Math.max(cx, b.x1 + 14 + w / 2);
@@ -99,13 +102,46 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
   };
   const half = (R: NamePlacement, alongName = false) => (alongName ? R.w : Math.abs(R.w * Math.cos(ang)) + Math.abs(R.hh * Math.sin(ang))) / 2 / k;
   /** 2D leader(): from the name's box to what it names, none when the name already sits on it (gap under LEAD_ON, kept to LEAD_OFF). */
+  const aim = new Map<NameKey, [number, number]>();
   const leader = (R: NamePlacement, x: number, y: number, had = false) => {
+    aim.set(R.key, [x, y]);
     const [tx, ty] = toScreen(x, y);
     const vert = Math.abs(tx - R.cx) < R.w / 2 - 2 && Math.abs(ty - R.cy) > R.hh / 2 + 6;
     const sx = vert ? tx : R.cx + Math.sign(tx - R.cx) * (R.w / 2 + 3), sy = vert ? R.cy + Math.sign(ty - R.cy) * (R.hh / 2 + 3) : clamp(ty, R.cy - R.hh / 2 + 4, R.cy + R.hh / 2 - 4);
     const gap = boxGap({ x0: R.cx - R.w / 2, x1: R.cx + R.w / 2, y0: R.cy - R.hh / 2, y1: R.cy + R.hh / 2 }, tx, ty);
     const on = (gap > LEAD_ON || (had && gap >= LEAD_OFF)) && (vert || Math.sign(tx - R.cx) === Math.sign(tx - sx));
     R.leader = on ? { x1: sx, y1: sy, x2: tx, y2: ty, tx: x, ty: y } : null;
+  };
+
+  /** 2D's declutter, here for every size: names that still overlap (a large text size, a small room, a card open) step apart, the later one moving the least way that clears every other and keeps it
+   *  in the free room; the ends stay where their arrows are. A name that has moved gets its leader again from what it names. */
+  const settle = (list: NamePlacement[]): NamePlacement[] => {
+    const GAP = 4, bx = (n: NamePlacement) => ({ x0: n.cx - n.w / 2, x1: n.cx + n.w / 2, y0: n.cy - n.hh / 2, y1: n.cy + n.hh / 2 });
+    const hits = (a: NamePlacement, cx: number, cy: number, b: NamePlacement) => cx - a.w / 2 < b.cx + b.w / 2 + GAP && cx + a.w / 2 > b.cx - b.w / 2 - GAP && cy - a.hh / 2 < b.cy + b.hh / 2 + GAP && cy + a.hh / 2 > b.cy - b.hh / 2 - GAP;
+    const inside = (a: NamePlacement, cx: number, cy: number) => cx - a.w / 2 >= fe.l - 0.5 && cx + a.w / 2 <= fe.r + 0.5 && cy - a.hh / 2 >= fe.t - 0.5 && cy + a.hh / 2 <= fe.b + 0.5;
+    const moved = new Set<NamePlacement>();
+    for (let pass = 0; pass < 3; pass++) {
+      let any = false;
+      for (let i = 0; i < list.length; i++) {
+        const a = list[i]!;
+        if (a.end) continue;
+        const clash = list.filter((b) => b !== a && hits(a, a.cx, a.cy, b));
+        if (!clash.length) continue;
+        let best: [number, number] | null = null, bd = Infinity;
+        for (const b of clash) {
+          const bb = bx(b);
+          for (const [cx, cy] of [[bb.x0 - GAP - a.w / 2, a.cy], [bb.x1 + GAP + a.w / 2, a.cy], [a.cx, bb.y0 - GAP - a.hh / 2], [a.cx, bb.y1 + GAP + a.hh / 2]] as const) {
+            if (!inside(a, cx, cy) || list.some((o) => o !== a && hits(a, cx, cy, o))) continue;
+            const d = Math.hypot(cx - a.cx, cy - a.cy);
+            if (d < bd) { bd = d; best = [cx, cy]; }
+          }
+        }
+        if (best) { a.cx = best[0]; a.cy = best[1]; moved.add(a); any = true; }
+      }
+      if (!any) break;
+    }
+    for (const a of moved) { const t = aim.get(a.key); if (t) leader(a, t[0], t[1], !!a.leader); }
+    return list;
   };
 
   // ── the ends: the portal venule above (left of) the vessel, the central vein below (right of) it, each with its arrow outside the name (2D layoutEnds) ──
@@ -171,7 +207,7 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
         leader(region('bc', 'Bile\ncanaliculus', '', best.xe + best.al, best.sg * midTall(best.xe)), best.xe, yd + best.sg * 1.4);
       }
     }
-    return out;
+    return settle(out);
   }
 
   // ── across the screen (2D layoutTags) ──
@@ -229,7 +265,7 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
     const x = pickTags(0.8), sg = 1, sd = SEED.plateDn, xe = canaliculusAt(Math.round(x / CELL), sd), yd = sg * (g.hepIn(xe) + UM.hep * 0.5);
     leader(region('bc', 'Bile canaliculus', '', xe, yd + sg * 3, { side: 1 }), xe, yd + sg * 1.4);
   }
-  return out;
+  return settle(out);
 }
 
 /** A tap at (x, y) (px): the key of the explainable name drawn there, or null (2D explainHit: label-explain.js hitLabel with 8 px of slop, the names that have a note, the canaliculus only while it is named). */
