@@ -40,10 +40,12 @@ interface Props {
   className?: string;
   /** the chart's painter, for a card that moves its picture itself every frame (the cross-section follows the model) */
   painter?: { current: ChartPainter | null };
+  /** false: a new frame for the same box is set at once (a card that eases its own numbers every frame, the profile) */
+  glide?: boolean;
 }
 
 /** One chart: a box that takes its width from the card, a GPU canvas for the shapes and a text layer for the words. */
-export function Chart({ build, deps, label, tag = 'chart', className, painter: painterOut }: Props) {
+export function Chart({ build, deps, label, tag = 'chart', className, painter: painterOut, glide = true }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const painter = useRef<ChartPainter | null>(null);
   const [w, setW] = useState(0);
@@ -75,7 +77,7 @@ export function Chart({ build, deps, label, tag = 'chart', className, painter: p
     const frame = build({ w, pal: paletteOf(look), type, look });
     // a new width or look is set at once; the same chart with new numbers glides
     const key = `${w}|${look}|${device}`;
-    p.show(frame, !first.current && key === lastKey.current);
+    p.show(frame, glide && !first.current && key === lastKey.current);
     first.current = false;
     lastKey.current = key;
   // eslint-disable-next-line react-hooks/exhaustive-deps
