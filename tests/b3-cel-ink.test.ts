@@ -38,9 +38,9 @@ test('the shader holds the same numbers, and has no specular and no world-lit ba
   assert.ok(!/dot\(n, l\) \* 0\.5/.test(VESSEL_FS), 'no world-lit bands');
 });
 
-test('every look wears 2D\'s casing: its ink and alpha (less under a lens on the dark looks), a veiled vessel half, and the dark looks\' light rim', () => {
+test('every look wears 2D\'s casing: its ink and alpha (the dark look\'s own in the Circuit, by its share, not by a lens being on), a veiled vessel half, and the dark looks\' light rim', () => {
   assert.deepEqual(Object.keys(CASING).sort(), [...LOOK_IDS].sort());
-  assert.equal(CASING.light.a, 0.64); assert.equal(CASING.soft.a, 0.66); assert.equal(CASING.dark.a, 0.3); assert.equal(CASING.dark.lensA, 0.38);
+  assert.equal(CASING.light.a, 0.64); assert.equal(CASING.soft.a, 0.66); assert.equal(CASING.dark.a, 0.3); assert.equal(CASING.dark.circ.a, 0.38); assert.deepEqual(CASING.dark.circ.rgb, [0, 0, 0]); assert.equal(CASING.navy.circ.a, 0.34, 'only the dark look changes in the Circuit');
   assert.equal(RIM_A.light, 0); assert.equal(RIM_A.dark, 0.3);
   const s = new CelScene();
   const o = s.vesselObject('PV_TRUNK')!;
@@ -48,7 +48,7 @@ test('every look wears 2D\'s casing: its ink and alpha (less under a lens on the
     o.applyPalette(PALETTES[id]);
     const u = o.toon.uniforms;
     assert.equal(u.casingA!.value, CASING[id].a, id);
-    assert.equal(u.casingLensA!.value, CASING[id].lensA, id);
+    assert.equal(u.casingCircA!.value, CASING[id].circ.a, id);
     const c = u.inkColor!.value as Color;
     assert.ok(Math.abs(c.r - CASING[id].rgb[0] / 255) < 1e-6 && Math.abs(c.b - CASING[id].rgb[2] / 255) < 1e-6, `${id} ink`);
   }
@@ -83,4 +83,31 @@ test('the vessel shader holds the same taper and leaves the picked ring alone', 
   const src = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
   assert.match(src, /clamp\(0\.14 \* rDev, 1\.5, 3\.0\) \* smoothstep\(0\.3, 1\.5, rDev\) \/ dpr/);
   assert.match(src, /\(inkPx \+ hiPx \* vHi\)/);
+});
+
+test('one outline round the union: the hull marks the stencil once per pixel, the stencil is asked for and cleared with the depth, and a strand\'s ink shares it (2D tube-joint.js)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { NotEqualStencilFunc, ReplaceStencilOp } = await import('three');
+  const s = new CelScene();
+  const o = s.vesselObject('PV_TRUNK')!;
+  const mats = (o.toonMesh.material as import('three').ShaderMaterial[]);
+  const hull = mats[1]!;
+  assert.ok(hull.stencilWrite && hull.stencilRef === 1 && hull.stencilFunc === NotEqualStencilFunc && hull.stencilZPass === ReplaceStencilOp, 'the hull inks a pixel once');
+  assert.ok(!mats[0]!.stencilWrite, 'the body does not touch the stencil');
+  const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
+  assert.match(read('../src/scene/Stage.tsx'), /stencil: true/);
+  assert.match(read('../src/scene/scene.ts'), /gl\.clearDepth\(\); gl\.clearStencil\(\)/);
+  const st = (s.disease.strands as unknown as { strands: { obj: { ink: import('three').ShaderMaterial; toon: import('three').ShaderMaterial } | null }[] });
+  assert.ok(st.strands.length > 0);
+  s.dispose();
+});
+
+test('a strand has the tube tones, so a varix beside its vein shades as the vein does', async () => {
+  const { presetState } = await import('./b4-presets.ts');
+  const s = new CelScene(); const d = s.disease;
+  d.feed((await presetState('cirr-decomp')).frame as never, {}, null, { instant: true, presence: () => 1, recruit: () => 1 }, true); d.update(1000);
+  const drawn = (d.strands as unknown as { strands: { obj: { toon: import('three').ShaderMaterial; ink: import('three').ShaderMaterial; group: { visible: boolean } } | null }[] }).strands.filter((x) => x.obj?.group.visible);
+  assert.ok(drawn.length > 4);
+  for (const x of drawn) { assert.ok('TUBE_TONES' in (x.obj!.toon.defines ?? {})); assert.ok(x.obj!.ink.stencilWrite, 'its ink is inked once'); }
+  s.dispose();
 });

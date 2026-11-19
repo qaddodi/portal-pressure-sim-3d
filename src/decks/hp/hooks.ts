@@ -9,7 +9,7 @@
 // Rule for this table: a feature is listed once, with ONE owner. A slide that needs a feature nobody owns fails the test, so none is forgotten.
 import { CHARTS } from '../../ui/charts/registry.ts';
 import { STATIONS, TERM_STATIONS } from '../../scene/labels/stations.ts';
-import { LENS_IDS } from '../../scene/lenses/model.ts';
+import { LENS_IDS, SINCE_BASELINE_FED } from '../../scene/lenses/model.ts';
 import type { CopiedSlide } from './types.ts';
 
 export interface Feature {
@@ -76,7 +76,7 @@ const TABLE: Feature[] = [
   done('response', 'B12', 'The beta-blocker response buttons', 'src/decks/controls.ts'),
   done('time-lapse', 'B12', 'The slide\'s days play on the live figure as a time-lapse', 'src/decks/hp/lapse.ts'),
   hook('beats', 'B12', 'A slide with several camera beats'),
-  hook('since', 'B3', 'The Since lens: change since another slide\'s state'),
+  { id: 'since', batch: 'B3', what: 'The Since lens: change since another slide\'s state', landed: SINCE_BASELINE_FED, evidence: SINCE_BASELINE_FED ? 'src/scene/lenses/field.ts' : undefined },
 ];
 
 export const FEATURES: ReadonlyMap<string, Feature> = new Map(TABLE.map((f) => [f.id, f]));

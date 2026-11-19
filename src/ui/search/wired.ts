@@ -4,6 +4,7 @@ import { EDGES, PART_OF } from '../../engine/hales/portal/topology.js';
 import { UI } from '../strings.generated.ts';
 import { BUILT_PANES, type PaneId } from '../tests/panes.ts';
 import { isOrderCommand } from '../treat/palette-orders.ts';
+import { GO_TO } from './goto.ts';
 
 const DAYS = new Set(['+1 week', '+1 month', '+6 months', '+1 year', 'Until something happens', 'Restart this patient', 'Undo (back one change)', 'Compare from here']);
 const APP = new Set(['Home', 'Reset everything', 'Guide & shortcuts', 'Light / dark theme', 'Copy share link']);
@@ -26,6 +27,7 @@ export function isWiredCommand(group: string, title: string): boolean {
   if (group === 'View') return title === 'Anatomy view' || title === 'Circuit view' || UI.lenses.some((l) => title === `Colored by ${l.name.toLowerCase()}`);
   if (group === 'App') return APP.has(title) || UI.looks.some((l) => title === `Appearance: ${l.name}`);
   if (group === 'Patient') return true;
+  if (group === 'Go to') return GO_TO.has(title);   // (B6: select the vessel or organ, as 2D's palette does)
   if (group === 'Treat' || group === 'Change') return isOrderCommand(group, title);   // (B9: the orders)
   return false;
 }

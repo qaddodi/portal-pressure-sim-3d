@@ -12,3 +12,8 @@
 .lb.cc-res .lb-name { font-weight: 600; color: var(--lb-name); }
 .lb.cc-res .lb-val { font-weight: 650; color: var(--lb-val); margin-left: var(--lb-g-val); }
 .lb.cc-res .cc-key { font-weight: 500; font-size: 9.5px; color: var(--lb-name); }
+
+/* a zone title that opens a card (the Liver's and the Heart's, as in 2D): the one caption that takes the pointer */
+.lb.cc-zone.cc-link { pointer-events: auto; cursor: pointer; }
+.lb.cc-zone.cc-link:hover .lb-name, .lb.cc-zone.cc-link:focus-visible .lb-name { text-decoration: underline; text-underline-offset: 2px; }
+.lb.cc-zone, .lb.cc-lane { transform-origin: 50% 50%; }
