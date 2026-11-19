@@ -3,12 +3,13 @@
 import { engine, useEngine } from '../../engine/index.ts';
 import { useShell } from '../shell/store.ts';
 import { UI } from '../strings.generated.ts';
+import { PATIENT_FAILED } from '../shell/words.ts';
 
 export async function loadPatient(id: string): Promise<boolean> {
   if (!UI.presets.some((p) => p.id === id)) return false;
   try {
     await engine().request({ type: 'preset', id });
-  } catch (e) { useShell.getState().say('That patient did not load.', 'bad'); console.error(e); return false; }
+  } catch (e) { useShell.getState().say(PATIENT_FAILED, 'bad'); console.error(e); return false; }
   useEngine.setState({ presetId: id });
   useShell.setState({ patientId: id });
   return true;

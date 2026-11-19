@@ -173,11 +173,11 @@
    a browser without backdrop blur, or reduced transparency: the solid surface, as before. */
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   @media (prefers-reduced-transparency: no-preference) {
-    html:not([data-noglass]) :is(.dk-card, .dk-strip, .dk-bar, .dk-panel) {
+    html:not([data-noglass]) :is(.dk-card, .dk-strip, .dk-bar, .dk-panel, .sh-pill, .sh-seg, .sh-split, .sh-read, .sh-thumb, .sh-sheet, .sh-pop, .sh-dialog) {
       background: color-mix(in srgb, var(--surface) 66%, transparent);
       -webkit-backdrop-filter: blur(22px) saturate(1.15); backdrop-filter: blur(22px) saturate(1.15);
     }
     /* the settings panel is over the cards and the pill: a touch more surface so its chips read */
-    html:not([data-noglass]) .dk-panel { background: color-mix(in srgb, var(--surface) 82%, transparent); }
+    html:not([data-noglass]) :is(.dk-panel, .sh-sheet, .sh-pop, .sh-dialog) { background: color-mix(in srgb, var(--surface) 82%, transparent); }
   }
 }
