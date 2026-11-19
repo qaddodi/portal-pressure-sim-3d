@@ -8,6 +8,14 @@ import { ROUTES, LIVER, OTHER, type Part } from './flows/parts.ts';
 import { trialFrame } from './trial/frame.ts';
 import { TRIALS } from './trial/trials.generated.ts';
 import type { Fit } from './trial/model.ts';
+import { stiffFrame } from './stiff/frame.ts';
+import { saagFrame } from './saag/frame.ts';
+import { readingOf, type Pt } from './saag/model.ts';
+
+const SAAG_PTS: Pt[] = [
+  { name: 'Cirrhosis', saag: 2.1, tp: 1.4, own: true, modeled: true }, { name: 'Right heart failure', saag: 2.0, tp: 3.9, own: false, modeled: true },
+  { name: 'Peritoneal disease', saag: 0.6, tp: 3.8, own: false, modeled: false },
+];
 
 const part = (id: string, pct: number): Part => {
   const r = id === 'liver' ? LIVER : id === 'other' ? OTHER : ROUTES.find((x) => x[0] === id)!;
@@ -48,9 +56,12 @@ export const CHARTS: ChartKind[] = [
   todo('forest', 'Forest plot of trials'),
   todo('plane', 'Two-quantity plane with zones (CSPH plane, stiffness × platelets)'),
   todo('fluid', 'Starling forces and the fluid window', 2),
-  todo('saag', 'SAAG and protein plane'),
+  { kind: 'saag', what: 'SAAG and protein plane', status: 'done',
+    specimens: [{ id: 'plane', label: 'SAAG against ascitic protein, with a reading', build: (c) => saagFrame(SAAG_PTS, c, { read: readingOf(2.1, 1.4) }) }, { id: 'empty', label: 'No patient with fluid to tap', build: (c) => saagFrame([], c) }] },
   todo('shift', 'Change from healthy'),
-  todo('stiffness', 'Stiffness bar under the FibroScan number', 8),
+  { kind: 'stiffness', what: 'Stiffness bar under the FibroScan number', slides: 8, status: 'done',
+    specimens: [{ id: 'liver', label: 'Liver, 20 kPa, platelets 128', build: (c) => stiffFrame({ lsm: 20, plt: 128, note: true }, c) }, { id: 'spleen', label: 'Spleen, 64 kPa', build: (c) => stiffFrame({ lsm: 64, organ: 'spleen', note: true }, c) },
+      { id: 'congested', label: 'Congested liver: the rules do not apply', build: (c) => stiffFrame({ lsm: 18, plt: 140, ctx: 'congested', note: true }, c) }] },
   todo('stent', 'Stent pictures: drop, trace, waist'),
   todo('timeline', 'The model timeline with two clocks'),
   todo('small', 'Small multiples: the phone grid of cases'),
