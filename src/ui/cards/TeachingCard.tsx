@@ -14,7 +14,8 @@ export function TeachingCard({ slide, deck, read, page, pages, trim = false }: {
   return (
     <>
       {deck && <NameTab deck={deck} />}
-      <div className="pz-kick" data-site="none">{slide.kicker}{pages > 1 ? <span className="dk-pageno"> · {page + 1} of {pages}</span> : null}</div>
+      {/* 2D's words card has no kicker row: the slide's name is its title (presenter-question.js). A card that splits into pages (a phone on its side, 3D only) says which page this is. */}
+      {pages > 1 ? <div className="pz-kick" data-site="none"><span className="dk-pageno">{page + 1} of {pages}</span></div> : null}
       <h2 className="pz-h" style={kick}>{slide.title}</h2>
       {eq && slide.eq && (
         <div className="pz-eq" role="math" aria-label={slide.eq.map((p) => (p.sub ? `${p.text} ${p.sub}` : p.text)).join(' ')}>
