@@ -42,6 +42,7 @@ import { circuitBounds } from './circuit/shots.ts';
 import { CircuitView } from './circuit/view.ts';
 import { CIRCUIT_NODES, MAP_LOOKS, VB_CIRC } from './circuit/data.copied.ts';
 import { CircuitTubes } from './circuit/tubes.ts';
+import { PostAA } from './post-aa.ts';
 import { ResistorLayer } from './circuit/resistors.ts';
 import { RES_KINDS, type ResKey, resRatio } from './circuit/res-model.ts';
 import { MAP_K } from './circuit/map.ts';
@@ -128,6 +129,8 @@ export class CelScene {
   private readonly leaving: CelObject[] = [];
   private lastFade = 1;
   private figureView: FigureView = 'body';
+  /** The anti-aliasing pass over the whole figure (post-aa.ts). */
+  readonly post = new PostAA();
   private readonly dive = new Group();
   private readonly sinFrame = new Group();
   private fadeNow = 1;
@@ -631,12 +634,16 @@ export class CelScene {
     // vessel never looks cut. (The vessels keep their own depth among themselves: their tiers.)
     this.sinus.setDpr(gl.getPixelRatio?.() ?? 1);
     const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;
+    // the figure is drawn into a texture of the canvas's size and filtered onto the canvas once (post-aa.ts), unless the pass is off or the device refused it
+    const into = this.post.target(gl);
+    if (into) gl.setRenderTarget(into);
     cam.layers.set(0);
     gl.render(this.scene, cam);
     gl.autoClear = false;
     gl.clearDepth(); gl.clearStencil();   // (the outlines' stencil goes with the depth: each pass inks a pixel once, vessel-object.ts hullMat)
     cam.layers.set(VESSEL_LAYER);
     gl.render(this.scene, cam);
+    if (into) { gl.setRenderTarget(null); this.post.resolve(gl); }
     gl.autoClear = ac;
     cam.layers.mask = mask;
   }
@@ -648,7 +655,7 @@ export class CelScene {
     this.blood.chain.texture.dispose();
     for (const o of this.objects) o.dispose();
     this.procs.dispose(); this.probes.dispose();
-    this.tubes.dispose(); this.resistors.dispose();
+    this.tubes.dispose(); this.resistors.dispose(); this.post.dispose();
   }
 }
 
