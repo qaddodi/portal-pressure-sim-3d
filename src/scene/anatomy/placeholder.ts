@@ -66,3 +66,5 @@ export function bodyPlateGeometry(): ShapeGeometry {
   return new ShapeGeometry(torso, 32);
 }
 export const BODY_PLATE_Z = -1.35;
+/** The plate's extent (scene units): what the gestures keep the middle of the free room inside of, so the figure is never lost. */
+export const PLATE_BOUNDS = { x0: -2.6, x1: 2.6, y0: -2.7, y1: 3.3 } as const;
