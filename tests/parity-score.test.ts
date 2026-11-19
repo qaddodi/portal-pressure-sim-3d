@@ -50,3 +50,14 @@ test('the score, per batch (printed; the same numbers the ?parity page shows)', 
   assert.equal(sc.byArea.reduce((n, g) => n + g.tally.y, 0), sc.total.y, 'every inventory row lands in one area group');
   assert.ok(!sc.byArea.some((g) => g.group === 'Other'), 'an inventory area has no group on the ?parity page: add it to AREA_GROUPS in src/parity/score.ts');
 });
+
+test('"matches 2D" is only what the owner checked: every id in matches.ts is a wired claim in the inventory, and the tally counts them apart from present and wired', async () => {
+  const { MATCHES } = await import('../src/parity/matches.ts');
+  const wired = new Set((await claims()).flatMap((f) => f.claims.filter((c) => c.wired).map((c) => c.id)));
+  for (const id of MATCHES) { assert.ok(byId.has(id), `${id} is not in the inventory`); assert.ok(wired.has(id), `${id} is listed as matching but no batch claims it wired`); }
+  const rows = inventory.rows.slice(0, 3);
+  const s = score(rows, rows.map((r) => ({ id: r.id, wired: true, file: 'x.ts' })), [rows[0]!.id]);
+  assert.deepEqual(s.total, { y: 3, x: 3, w: 3, m: 1 });
+  const none = score(rows, rows.map((r) => ({ id: r.id, wired: true, file: 'x.ts' })));
+  assert.equal(none.total.m, 0, 'wired is never "matches 2D" on its own');
+});
