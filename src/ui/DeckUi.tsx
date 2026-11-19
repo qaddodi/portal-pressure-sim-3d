@@ -1,0 +1,66 @@
+import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
+import './deck-ui.css';
+import { HVPG_DECK } from '../decks/hvpg.ts';
+import { useEngine } from '../engine/index.ts';
+import { useDeck } from '../state/deck.ts';
+import { useUi } from './ui-store.ts';
+import { stopsOf } from './deck/presenter-machine.ts';
+import { TYPE } from './layout/device.ts';
+import { CardLayer } from './cards/CardLayer.tsx';
+import { PresenterBar } from './deck/PresenterBar.tsx';
+import { useDeckInput } from './deck/useDeckInput.ts';
+
+/** The talk's UI: cards, the wallet, the presenter bar. One overlay above the stage; it measures itself, so it needs only a positioned, full-size parent. */
+export function DeckUi() {
+  const root = useRef<HTMLDivElement>(null);
+  const probe = useRef<HTMLDivElement>(null);
+  const device = useUi((s) => s.device);
+  const setViewport = useUi((s) => s.setViewport);
+  const hasStops = useUi((s) => s.stops.length > 0);
+  useDeckInput();
+
+  // the talk: its stops, mirrored into the deck store the scene reads (slide 0 is the title)
+  useEffect(() => {
+    const stops = stopsOf(HVPG_DECK);
+    useUi.getState().setStops(stops);
+    useDeck.getState().open(HVPG_DECK.id, stops.length - 1, 0);
+    return useUi.subscribe((s, prev) => { if (s.pos.stop !== prev.pos.stop) useDeck.getState().goto(s.pos.stop); });
+  }, []);
+
+  // the engine's headline numbers, mirrored for the cards
+  useEffect(() => {
+    const push = (s: ReturnType<typeof useEngine.getState>) => useUi.getState().setReadings({ whvp: s.whvp, fhvp: s.fhvp, hvpg: s.hvpg, ivc: s.ivc, ra: s.ra, pv: s.pv });
+    push(useEngine.getState());
+    return useEngine.subscribe(push);
+  }, []);
+
+  // the screen: its size and its safe areas, measured when either changes (never per frame)
+  useLayoutEffect(() => {
+    const el = root.current, pr = probe.current;
+    if (!el || !pr) return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(pr);
+      const px = (v: string) => Math.round(parseFloat(v) || 0);
+      setViewport({ w: Math.round(r.width), h: Math.round(r.height), safe: { top: px(cs.paddingTop), right: px(cs.paddingRight), bottom: px(cs.paddingBottom), left: px(cs.paddingLeft) } });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener('orientationchange', measure);
+    return () => { ro.disconnect(); window.removeEventListener('orientationchange', measure); };
+  }, [setViewport]);
+
+  const t = TYPE[device];
+  const vars = {
+    '--fs-deck': `${t.deckTitle}px`, '--lh-deck': t.deckTitleLead, '--fs-title': `${t.slideTitle}px`, '--lh-title': t.slideTitleLead,
+    '--fs-body': `${t.body}px`, '--lh-body': t.bodyLead, '--fs-data': `${t.data}px`, '--fs-kicker': `${t.kicker}px`, '--fs-big': `${t.bigNumber}px`,
+  } as CSSProperties;
+  return (
+    <div ref={root} className="deck-ui" data-device={device} style={{ position: 'fixed', zIndex: 'var(--z-cards)' as unknown as number, ...vars }}>
+      <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'env(safe-area-inset-top, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }} />
+      {hasStops && <PresenterBar title={HVPG_DECK.title} />}
+      {hasStops && <CardLayer deck={HVPG_DECK} />}
+    </div>
+  );
+}
