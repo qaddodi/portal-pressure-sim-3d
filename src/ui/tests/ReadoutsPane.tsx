@@ -6,6 +6,7 @@ import { tileRows, vitalRows, GROUP_LIST, SYSTEMIC_CAP, type Row } from './reado
 import { useTests } from './store.ts';
 import { useShell } from '../shell/store.ts';
 import { openWhy } from '../why/store.ts';
+import { hiddenNow } from './hidden.ts';
 
 const TREND_S = 5, TREND_FRAC = 0.03;   // (readouts-pane.js: a sustained change over five seconds, larger than 3 % of the scale)
 
@@ -37,7 +38,7 @@ export function ReadoutsPane({ narrow }: { narrow: boolean }) {
   if (!f) return null;
   const m = f.metrics, params = paramsNow();
   const now = performance.now();
-  const groups = tileRows(m, params);
+  const groups = tileRows(m, params, hiddenNow());
   const trendOf = (id: string, v: number | null, span: number): string => {
     if (v == null || !Number.isFinite(v)) { hist.current.delete(id); return ''; }
     const hs = hist.current.get(id) ?? [];
