@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
-import { CameraRig, blendPose, easeInOutCubic, lerpAngle } from '../src/scene/camera/rig.ts';
+import { CameraRig, blendPose, dragToOrbit, easeInOutCubic, lerpAngle } from '../src/scene/camera/rig.ts';
 import { SHOTS, SHOT_MS, ORBIT_LIMIT, FOV } from '../src/scene/camera/shots.ts';
 import { effectiveDistance, fitDistance, fullRoom, viewOffset } from '../src/scene/camera/room.ts';
 
@@ -108,4 +108,36 @@ test('a new shot always starts square on: the orbit eases back to centre with th
   rig.goTo('wedge', fullRoom(800, 600), 0);
   rig.update(950);
   assert.ok(Math.abs(rig.orbitAngle) < 1e-9);
+});
+
+test('dragging turns the figure with the finger: a drag to the right moves the figure\'s front to the right on screen', () => {
+  const room = fullRoom(800, 600);
+  const shot = SHOTS.free;
+  const front = new Vector3(...shot.target).add(new Vector3(0, 0, 1)); // a point on the near side of the figure, toward the viewer
+  const rig = new CameraRig('free');
+  rig.resize(800, 600);
+  rig.goTo('free', room, 0, 0);
+  rig.update(0);
+  const x0 = rig.project(front).x;
+  rig.setOrbit(dragToOrbit(0, 100)); // 100 px to the right
+  rig.update(1);
+  assert.ok(rig.project(front).x > x0, 'front moves right');
+  rig.setOrbit(dragToOrbit(0, -100)); // 100 px to the left
+  rig.update(2);
+  assert.ok(rig.project(front).x < x0, 'front moves left');
+});
+
+test('one drag rule: right is negative orbit, left is positive, and it composes from where the figure already is', () => {
+  assert.ok(dragToOrbit(0, 50) < 0);
+  assert.ok(dragToOrbit(0, -50) > 0);
+  assert.equal(dragToOrbit(0.2, 0), 0.2);
+  assert.ok(Math.abs(dragToOrbit(0, 100) + 0.6) < 1e-9, '100 px is 0.6 rad before the ±25° limit');
+});
+
+test('Stage turns the figure only through dragToOrbit (no second, opposite rule for another input)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/scene/Stage.tsx', import.meta.url), 'utf8');
+  assert.equal([...src.matchAll(/setOrbit\(/g)].length, 1);
+  assert.match(src, /setOrbit\(dragToOrbit\(/);
+  assert.doesNotMatch(src, /wheel/, 'no wheel or trackpad path that turns the other way');
 });

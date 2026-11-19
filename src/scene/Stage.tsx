@@ -13,6 +13,7 @@ import { resolveLook } from '../looks/looks.ts';
 import { useDeck } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
 import { cel, sceneApi } from './api.ts';
+import { dragToOrbit } from './camera/rig.ts';
 
 const vesselData = new VesselData();
 cel.bindData(vesselData.texture);
@@ -62,7 +63,7 @@ function SceneBridge() {
       if (!down) return;
       const dx = e.clientX - down.x;
       if (Math.abs(dx) > TAP_PX || Math.abs(e.clientY - down.y) > TAP_PX) down.moved = true;
-      if (down.moved && cel.rig.setOrbit(down.orbit + dx * 0.006)) clock.invalidate('orbit');
+      if (down.moved && cel.rig.setOrbit(dragToOrbit(down.orbit, dx))) clock.invalidate('orbit');
     };
     const onUp = (e: PointerEvent) => {
       const d = down; down = null;

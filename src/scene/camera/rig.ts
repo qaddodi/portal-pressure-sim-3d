@@ -2,6 +2,14 @@ import { PerspectiveCamera, Vector3 } from 'three';
 import { type Room, effectiveDistance, viewOffset } from './room.ts';
 import { FOV, ORBIT_LIMIT, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
 
+/** Radians of turn per pixel of drag. */
+export const ORBIT_PER_PX = 0.006;
+
+/** The orbit angle after a drag of `dx` CSS pixels (positive = to the right) from `start`. The figure follows the finger or pointer: its front
+ *  face moves the way the drag moves, which means the camera swings the other way, so yaw goes down as dx goes up. One rule for every input
+ *  (touch, mouse, pen and trackpad all arrive as pointer events); Stage.tsx calls nothing else. */
+export const dragToOrbit = (start: number, dx: number): number => start - dx * ORBIT_PER_PX;
+
 export const easeInOutCubic = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 
