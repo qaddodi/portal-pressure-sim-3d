@@ -36,9 +36,9 @@ test('no stylesheet in the app turns selection back on (outside the exception)',
       const on = /(?:-webkit-)?user-select\s*:\s*(text|auto|all|contain)/.exec(m[2]);
       if (!on) continue;
       const sel = m[1].trim().replace(/\s+/g, ' ');
-      assert.ok(f.endsWith('global.css') && sel.includes('contenteditable'), `${f}: "${sel}" turns selection on`);
+      assert.ok((f.endsWith('global.css') || f.includes('/css2d/')) && sel.includes('contenteditable'), `${f}: "${sel}" turns selection on`);   // (the lifted 2D stylesheets turn it on for contenteditable only)
     }
-    assert.ok(!/-webkit-touch-callout\s*:\s*default/.test(text) || f.endsWith('global.css'), `${f} turns the callout back on`);
+    assert.ok(!/-webkit-touch-callout\s*:\s*default/.test(text) || f.endsWith('global.css') || f.includes('/css2d/'), `${f} turns the callout back on`);
   }
 });
 

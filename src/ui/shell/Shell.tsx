@@ -3,6 +3,7 @@
 // The sheets, the toast and the diagnostics are the same in both.
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import './shell.css';
+import './dock.css';
 import { DeckUi } from '../DeckUi.tsx';
 import { useUi } from '../ui-store.ts';
 import { useShell } from './store.ts';
@@ -22,6 +23,10 @@ import { showView } from './view-actions.ts';
 import { useBlood } from '../../scene/blood/options.ts';
 import { useLabels } from '../../scene/labels/store.ts';
 import { footHeight } from './room.ts';
+import { CompareBanner } from '../compare/CompareUi.tsx';
+import { startCompare } from '../compare/bind.ts';
+import { startTimeline } from '../timeline/index.ts';
+import { startHistory } from '../history/bind.ts';
 
 /** The screen's size and its safe areas, measured when either changes (never per frame). Free play needs it too: the talk's own UI measures only while it is mounted. */
 function useViewport(probe: React.RefObject<HTMLDivElement | null>) {
@@ -64,6 +69,7 @@ export function Shell() {
   useKeys();
   useFreeCamera();
   useEffect(() => syncTransport(), []);
+  useEffect(() => { const offs = [startTimeline(), startCompare(), startHistory()]; return () => offs.forEach((o) => o()); }, []);
   useEffect(() => { const f = useShell.getState().figure; sceneApi.setLobuleLayers({ lymph: f.lymph, zones: f.zones }); }, []);
   // what the Blood menu remembers goes to the scene and the labels once at boot (the menu then tells them itself)
   useEffect(() => { const b = useBlood.getState(); sceneApi.setBlood({}); useLabels.getState().set({ organNames: b.labels }); }, []);
@@ -83,6 +89,7 @@ export function Shell() {
             <ThumbBar />
           </div>
         )}
+        <CompareBanner />
         <Sheets />
         <Toast />
         <Diagnostics />

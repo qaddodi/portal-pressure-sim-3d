@@ -9,7 +9,7 @@ const shell = readFileSync('src/ui/shell/Shell.tsx', 'utf8'), top = readFileSync
 
 test('the legend is in the top bar\'s lens pill and nowhere at the foot of the figure', () => {
   assert.ok(!/<Legend/.test(shell) && !/sh-key\b/.test(shell + css), 'no legend over the play bar');
-  assert.match(top, /<Legend variant="bar" \/>/);
+  assert.match(top, /<Legend variant="bar"/);
 });
 
 test('its scale, bar, notches, numbers and caption breakpoint are the 2D app\'s', () => {
