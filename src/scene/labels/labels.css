@@ -6,8 +6,8 @@
 .lb-layer { position: fixed; inset: 0; z-index: var(--z-tags, 5); pointer-events: none; overflow: hidden;
   font-family: var(--ui, "Inter", system-ui, sans-serif); font-variant-numeric: tabular-nums lining-nums; color: var(--text); -webkit-font-smoothing: antialiased; }
 
-.lb, .lb-call, .lb-key-wrap, .lb-lead, .lb-anchor { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform, opacity; }
-.lb[data-on], .lb-call[data-on], .lb-key-wrap[data-on], .lb-lead[data-on], .lb-anchor[data-on] { visibility: visible; }
+.lb, .lb-key-wrap, .lb-lead, .lb-anchor { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform, opacity; }
+.lb[data-on], .lb-key-wrap[data-on], .lb-lead[data-on], .lb-anchor[data-on] { visibility: visible; }
 
 /* ── a station's label, as the 2D app draws it: no backing, a small name in the quiet ink, the reading large and bold, a halo round every
    letter, a thin leader to a small ring on the vessel. Sizes, weights, gaps, the halo and the look's ink are custom properties the layer
@@ -36,25 +36,45 @@
 .lb-anchor { width: var(--lb-ring); height: var(--lb-ring); margin: calc(var(--lb-ring) / -2) 0 0 calc(var(--lb-ring) / -2); border-radius: 50%; box-sizing: border-box;
   border: var(--lb-ring-w) solid var(--lb-name); background: var(--lb-ring-fill); }
 
-/* ── a reading card with a pointer (the catheter's FHVP, WHVP and the HVPG they give) ── */
-.lb-call { box-sizing: border-box; padding: 9px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--edge); white-space: nowrap;
-  box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 8px 20px -8px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.4)); }
-.lb-call .lb-row { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; height: 22px; }
-.lb-call .lb-k { font: 600 11px / 1 var(--ui, system-ui); letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-3); }
-.lb-call .lb-n { font: 700 17px / 1.2 var(--ui, system-ui); }
-.lb-call .lb-u { font: 500 12px / 1 var(--ui, system-ui); color: var(--text-2); margin-left: 4px; }
-.lb-call[data-k="f"] .lb-k, .lb-call .lb-row[data-tone="free"] .lb-k { color: color-mix(in srgb, var(--sys) 80%, var(--text)); }
-.lb-call[data-k="w"] .lb-k, .lb-call .lb-row[data-tone="wedge"] .lb-k { color: color-mix(in srgb, var(--caution) 80%, var(--text)); }
-.lb-call:not([data-k="s"]) { display: flex; flex-direction: column; justify-content: center; gap: 4px; }
-.lb-call:not([data-k="s"]) .lb-row { height: auto; display: block; }
-.lb-call:not([data-k="s"]) .lb-k { display: block; margin-bottom: 4px; }
-.lb-call[data-k="s"] .lb-calc { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--edge); height: 28px; }
-.lb-call[data-sev="ok"] .lb-calc .lb-n { color: color-mix(in srgb, var(--ok) 80%, var(--text)); }
-.lb-call[data-sev="caution"] .lb-calc .lb-n { color: color-mix(in srgb, var(--caution) 75%, var(--text)); }
-.lb-call[data-sev="danger"] .lb-calc .lb-n { color: color-mix(in srgb, var(--danger) 85%, var(--text)); }
-.lb-call .lb-tail, .lb-call .lb-tail-e { position: absolute; left: 0; top: 0; pointer-events: none; }
-.lb-call .lb-tail-e { background: color-mix(in srgb, var(--text) 20%, var(--surface)); }
-.lb-call .lb-tail { background: var(--surface); }
+/* ── the catheter's reading cards (the 2D app's .cath-label, .cath-sum, callout.js: cath-dom.ts builds them, cath.ts holds every number). A card is its glass (one
+   shape, the card and its pointer: clipped from one path, its 1 px hairline that path stroked inside it), then the name, the number and the unit. Sizes, paddings, type
+   and tones are the layer's custom properties (--cl-*, written from cath.ts cathVars and cathLook); this file holds no figure of its own. Opacity is written on a
+   card's children and never on the card: a faded ancestor would stop its glass seeing the figure behind it. ── */
+.cl-pill, .cl-sum { position: absolute; left: 0; top: 0; visibility: hidden; will-change: transform; }
+.cl-pill[data-on], .cl-sum[data-on] { visibility: visible; }
+.cl { box-sizing: border-box; isolation: isolate; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--cl-gap);
+  padding: var(--cl-pad); border: var(--cl-border) solid transparent; border-radius: var(--cl-r); white-space: nowrap;
+  font: 500 12px / normal var(--font-ui, Inter, "Inter Fallback", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif); color: var(--cl-text);
+  --c-ink: var(--cl-text); --c: var(--cl-text); }
+.cl[data-tone="free"] { --c: var(--cl-hv); --c-ink: var(--cl-hv-ink); }
+.cl[data-tone="wedge"] { --c: var(--cl-wedge); --c-ink: var(--cl-wedge-ink); }
+.cl[data-tone="ok"] { --c: var(--cl-ok); --c-ink: var(--cl-ok-ink); }
+.cl[data-tone="caution"] { --c: var(--cl-caution); --c-ink: var(--cl-caution-ink); }
+.cl[data-tone="danger"] { --c: var(--cl-danger); --c-ink: var(--cl-danger-ink); }
+.cl > * { opacity: 0; }
+.cl .cl-k { font-size: var(--cl-name); font-weight: var(--cl-name-w); letter-spacing: var(--cl-track); color: var(--c-ink); }
+.cl .cl-n { font-size: var(--cl-num); line-height: var(--cl-num-line); font-weight: var(--cl-num-w); font-variant-numeric: tabular-nums; color: var(--c-ink); }
+.cl .cl-u { font-size: var(--cl-unit); font-weight: var(--cl-unit-w); margin-top: var(--cl-unit-lift); color: var(--cl-text3); }
+/* the result's HVPG: its name in the quiet ink, its number in its band's colour */
+.cl[data-tone="ok"] .cl-k, .cl[data-tone="caution"] .cl-k, .cl[data-tone="danger"] .cl-k { color: var(--cl-text3); letter-spacing: var(--cl-track-result); }
+/* the glass: its tint, blur and the browser's fallbacks are src/ui/glass.css's (.cl-glass is in its one list); the shape is the clip, the hairline the 2D app's .cl-hair rule */
+.lb-layer .cl-glass svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.lb-layer .cl-glass path { fill: none; stroke: var(--glass-edge, var(--cl-edge)); stroke-width: 2; stroke-linejoin: miter; }
+
+/* the result: both readings stacked, a bracket joining them, the HVPG they give beside it, a thin leader from each reading to its point */
+.cl-sum > .cl-row { position: absolute; left: 0; top: 0; will-change: transform; visibility: hidden; }
+.cl-sum[data-on] > .cl-row { visibility: visible; }
+/* a short free band (a phone's) keeps each reading to one line: name, value, unit */
+.cl-sum[data-tight] > .cl-row { flex-direction: row; align-items: baseline; gap: var(--cl-tgap); padding: var(--cl-tpad); border-radius: var(--cl-tr); }
+.cl-sum[data-tight] > .cl-row .cl-n { font-size: var(--cl-tnum); }
+.cl-sum[data-tight] > .cl-row .cl-u { margin-top: 0; }
+.cl-brace { position: absolute; overflow: visible; flex: none; opacity: 0; }
+.cl-brace path { fill: none; stroke: var(--cl-text3); stroke-width: var(--cl-brace-w); stroke-linecap: round; stroke-linejoin: round; }
+.cl-leads { position: absolute; left: 0; top: 0; overflow: visible; opacity: 0; }
+.cl-leads .lead { fill: none; stroke-width: var(--cl-lead-w); stroke: var(--cl-text3); stroke-linejoin: round; }
+.cl-leads .lead-dot { stroke: var(--cl-surface); stroke-width: var(--cl-dot-w); fill: var(--cl-text3); }
+.cl-leads [data-tone="free"].lead { stroke: var(--cl-hv); } .cl-leads [data-tone="free"].lead-dot { fill: var(--cl-hv); }
+.cl-leads [data-tone="wedge"].lead { stroke: var(--cl-wedge); } .cl-leads [data-tone="wedge"].lead-dot { fill: var(--cl-wedge); }
 
 /* ── the figure key: the 2D app's pill (`.pz-fk`): the nav pill's glass and corners, the lens named, then its scale or its swatches. Sizes are the 2D
    pill's, written as properties (key-dock.ts keyVars); where it stands is key-dock.ts's. A gradient key stacks its name over its bar. ── */

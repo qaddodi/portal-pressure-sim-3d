@@ -9,7 +9,6 @@ import { flowReversed } from '../lenses/vel-normal.copied.js';
 import { NODES } from '../../engine/hales/portal/topology.js';
 import { useSettings } from '../../state/settings.ts';
 import { resolveLook } from '../../looks/looks.ts';
-import { hvpgSev } from '../../ui/cuts.ts';
 import { BAR } from '../../ui/layout/plan.ts';
 import { useUi } from '../../ui/ui-store.ts';
 import { cel, sceneApi, usePick } from '../api.ts';
@@ -18,7 +17,8 @@ import { LabelController, type Draw, type LabelDeps } from './controller.ts';
 import { baselineAt, lookVars, typeVars } from './type.ts';
 import { keyVars } from './key-dock.ts';
 import { STATIONS } from './stations.ts';
-import { LABEL_NAMES } from './names.copied.ts';
+import { buildCath } from './cath-dom.ts';
+import { cathVars, cathLook } from './cath.ts';
 import { KEY_LENSES, keyModel, schemeOf } from './key.ts';
 import { linkLabelsToDeck } from './deck-link.ts';
 import { useLabels } from './store.ts';
@@ -58,10 +58,7 @@ interface Rec {
   name?: HTMLElement;
   cur?: HTMLElement;
   rolling?: HTMLElement | null;
-  tail?: string;
   leadTx: string; anchorTx: string;
-  rows?: { n: HTMLElement; text: string }[];
-  calcRow?: HTMLElement | null;
   rev?: boolean;
 }
 
@@ -131,28 +128,8 @@ export function LabelLayer() {
       }
       recs.set(s.id, rec);
     }
-    const N = LABEL_NAMES.CALLOUTS;
-    const makeRow = (parent: HTMLElement, kicker: string, tone: string | null) => {
-      const row = mk('div', 'lb-row', parent); if (tone) row.dataset.tone = tone;
-      mk('span', 'lb-k', row).textContent = kicker;
-      const v = mk('span', 'lb-v', row);
-      const n = mk('span', 'lb-n', v); mk('span', 'lb-u', v).textContent = N.free.unit;
-      return { row, n };
-    };
-    for (const k of ['f', 'w', 's'] as const) {
-      const el = mk('div', 'lb-call'); el.dataset.k = k;
-      const rows: { n: HTMLElement; text: string }[] = [];
-      let calcRow: HTMLElement | null = null;
-      if (k === 'f') rows.push({ ...makeRow(el, N.free.kicker, 'free'), text: '' });
-      else if (k === 'w') rows.push({ ...makeRow(el, N.wedge.kicker, 'wedge'), text: '' });
-      else {
-        rows.push({ ...makeRow(el, N.wedge.kicker, 'wedge'), text: '' }, { ...makeRow(el, N.free.kicker, 'free'), text: '' });
-        const c = makeRow(el, N.result.kicker, null); c.row.classList.add('lb-calc'); calcRow = c.row; rows.push({ n: c.n, text: '' });
-      }
-      const te = mk('i', 'lb-tail-e', el), t = mk('i', 'lb-tail', el);
-      void te; void t;
-      recs.set('callout:' + k, { root: el, shown: false, tx: '', op: '', form: -1, size: '', value: '', tail: '', leadTx: '', anchorTx: '', rows, calcRow });
-    }
+    // the catheter's reading cards: built once, written by cath-dom.ts as transform and opacity
+    const cath = buildCath(root);
     const keyRec: Rec = { root: keyHost.current!, shown: false, tx: '', op: '', form: -1, size: '', value: '', leadTx: '', anchorTx: '' };
     recs.set('key', keyRec);
 
@@ -181,7 +158,7 @@ export function LabelLayer() {
     const offPick = usePick.subscribe(pushState);
     // the 2D type at this screen (sizes follow the short side) and the look's own ink, halo and ring: written on the layer, never in a frame
     const putVars = (v: Record<string, string>) => { for (const [k, val] of Object.entries(v)) root.style.setProperty(k, val); };
-    const applyType = () => { const { vp } = ui.getState(); putVars(typeVars(vp)); putVars(lookVars(lookRef.current, vp)); ctl.invalidateForms(); clock.invalidate('labels-type'); };
+    const applyType = () => { const { vp } = ui.getState(); putVars(typeVars(vp)); putVars(lookVars(lookRef.current, vp)); putVars(cathVars(vp)); putVars(cathLook(lookRef.current)); ctl.invalidateForms(); clock.invalidate('labels-type'); };
     applyType();
     const offUi = ui.subscribe((s, p) => { if (s.vp !== p.vp) applyType(); if (s.boxes !== p.boxes || s.vp !== p.vp) { ctl.markDirty(); clock.invalidate('labels-boxes'); } });
     applyTypeRef.current = applyType;
@@ -199,11 +176,12 @@ export function LabelLayer() {
       seen.clear();
       for (const d of ctl.out) { const r = recs.get(d.id); if (r) { seen.add(d.id); paint(r, d, ctl); } }
       for (const [id, r] of recs) if (!seen.has(id)) hide(r);
+      cath.paint(ctl.cath);
       if (wantFrames && !hold) hold = clock.hold('labels');
       else if (!wantFrames && hold) { hold.release(); hold = null; }
     }, 0);
 
-    return () => { offTags(); offLabels(); offPick(); offUi(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-call, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
+    return () => { cath.destroy(); offTags(); offLabels(); offPick(); offUi(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
   }, []);
 
   return (
@@ -267,42 +245,7 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
         r.lead.setAttribute('data-on', ''); r.lead.style.opacity = op;
       } else { r.lead.removeAttribute('data-on'); r.lead.style.opacity = '0'; }
     }
-  } else {
-    // a callout's numbers (written when they change) and its pointer (written when its geometry changes: only at a new spot)
-    const k = d.id.slice(8) as 'f' | 'w' | 's';
-    const t = ctl.calloutText(k);
-    const vals = [...t.rows.map((x) => x.value), ...(t.calc ? [t.calc.value] : [])];
-    r.rows?.forEach((row, i) => { if (vals[i] !== undefined && vals[i] !== row.text) { row.text = vals[i]; row.n.textContent = vals[i]; } });
-    if (k === 's' && t.calc) el.dataset.sev = hvpgSev(Number(vals[2].replace('−', '-')) || 0);
-    if (d.tail) {
-      const key = `${d.tail.below}|${Math.round(d.tail.fromX)}|${Math.round(d.tail.tipX)}|${Math.round(d.tail.tipY)}|${Math.round(d.w)}|${Math.round(d.h)}`;
-      if (key !== r.tail) { r.tail = key; paintTail(el, d); }
-    }
   }
-}
-
-/** The pointer: a triangle from the card's edge to the dot, clipped from its own box (written once per spot). */
-function paintTail(el: HTMLElement, d: Draw): void {
-  const t = d.tail!;
-  const half = 11;                                 // PTR: the pointer's half width at the card's edge
-  const baseY = t.below ? 0 : d.h;                 // the card edge it leaves (a card below its point has the pointer on its top edge)
-  const into = t.below ? 1 : -1;                   // 1 px into the card, so the join has no line
-  const pts: [number, number][] = [[t.fromX - half, baseY + into], [t.tipX, t.tipY], [t.fromX + half, baseY + into]];
-  const grow = (p: [number, number], e: number): [number, number] => {
-    const cx = (pts[0][0] + pts[2][0]) / 2, cy = baseY;
-    const vx = p[0] - cx, vy = p[1] - cy, len = Math.hypot(vx, vy) || 1;
-    return [p[0] + (vx / len) * e, p[1] + (vy / len) * e];
-  };
-  const place = (node: HTMLElement, poly: [number, number][]) => {
-    const xs = poly.map((p) => p[0]), ys = poly.map((p) => p[1]);
-    const x0 = Math.min(...xs), y0 = Math.min(...ys), w = Math.max(...xs) - x0, h = Math.max(...ys) - y0;
-    node.style.left = `${px(x0 - 1)}px`; node.style.top = `${px(y0 - 1)}px`; node.style.width = `${px(w)}px`; node.style.height = `${px(h)}px`;
-    node.style.clipPath = `polygon(${poly.map((p) => `${px(p[0] - x0)}px ${px(p[1] - y0)}px`).join(',')})`;
-  };
-  const edge = el.querySelector('.lb-tail-e') as HTMLElement, face = el.querySelector('.lb-tail') as HTMLElement;
-  place(edge, [grow(pts[0], 1.2), grow(pts[1], 1.2), grow(pts[2], 1.2)]);
-  place(face, pts);
-  // the card's own border runs under the pointer's base: the face covers it
 }
 
 /** A number that changes rolls: the old one goes up and out, the new one comes up from below (400 ms, transform and opacity). */

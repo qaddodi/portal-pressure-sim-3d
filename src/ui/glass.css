@@ -1,0 +1,53 @@
+/* ── THE glass: one style for every panel, menu, pill and card (Mohammad, 19 Nov 2026: "blur doesn't work for the menus, the UI and the cards; make it work and unified") ──
+   2D's rule (glass-gl.js CARD, 11 Nov 2026: "Tint and blur of glass should be the same EVERYWHERE"): the figure behind the glass blurred at 22 px with saturation 1.15, under the
+   surface at 66 % (--glass-tint, app-03-layouts.css, from --pz-frost). 2D draws that in the figure's GPU canvas and marks the glass [data-gl]; the 3D app has no such canvas
+   layer, and every lifted 2D rule says "glass without [data-gl] is the solid surface" (app-11-deck-visuals.css), so lifted pills, menus and cards showed solid or merely
+   translucent. Here the browser blurs what is behind the glass, on the compositor, with the one pair of numbers below; this file is the only place that does.
+   Why !important: the lifted 2D sheets (never edited) pin their glass to the solid surface with rules of very high specificity; this one list overrides them all and nothing else sets glass.
+   Off (html[data-noglass], Settings > Blur effect), reduced transparency, or a browser with no backdrop blur: the lifted sheets' own solid look, untouched.
+   Backdrop blur only sees the page behind it up to the nearest ancestor that is itself glass (a backdrop root), so glass is never nested: a glass whose box holds another glass or
+   a popover carries its frost on a face (a child painted behind its words: .vd-face, .dk-bar::before), as 2D's .tb-face does. tests/glass.test.ts holds the list and these rules. */
+:root { --glass-blur: 22px; --glass-sat: 1.15; }
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html:not([data-noglass]) :is(
+    /* the figure's chrome (2D main.js CHROME): the patient and figure pills' faces, the actions pill, the zoom pill, the dock's face, the view pill's face, the sinusoid legend */
+    .topbar .tb-face:not([data-ghost]), .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg, .zoom-pill, .vdock > .vd-face, .nb-views > .vp-face, .sv-legend,
+    /* menus, sheets, dialogs and popovers (the shell's, and 2D's own names for the same) */
+    .sh-sheet, .sh-pop, .sh-dialog, .dk-jump, .menu, .umenu, .why-pop, .um-pv.on, .modal, .pal, .tooltip, .toast,
+    /* cards: Treat, the action cards, the Tests card, the Compare banner, the teaching, data, case and check cards, the figure key, the catheter's reading cards (.cl-glass: one shape, the card and its pointer, clipped from one path) */
+    .tr-card, .ac-card, .t-card, .cmp-banner, .dk-card, .dk-strip, .pz-shade, .pz-data:not(.pz-sheet), .pz-case, .pz-scales, .pz-fk, .cl-glass
+  ) {
+    background: var(--glass-tint) !important;
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) !important;
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) !important;
+  }
+  /* the upright and wide teaching cards' split sheet: its own box is no glass, its two pieces are (2D app-09-tests.css: a third panel round them was a bug) */
+  html:not([data-noglass]) :is(.pz.stack.stack .pz-data.pz-sheet, .pz.pz-wide.pz-wide .pz-data.pz-sheet)::before,
+  html:not([data-noglass]) :is(.pz.stack.stack .pz-data.pz-sheet, .pz.pz-wide.pz-wide .pz-data.pz-sheet)::after {
+    background: var(--glass-tint) !important;
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) !important;
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) !important;
+  }
+  /* the presenter pill holds the Settings sheet, a glass of its own: its frost is a face behind its words, not the pill itself */
+  html:not([data-noglass]) .dk-bar { isolation: isolate; background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  html:not([data-noglass]) .dk-bar::before {
+    content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+    background: var(--glass-tint); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  }
+  /* the dock holds the view pill, which stands above it: its frost is the .vd-face child, and the dock's own fill goes */
+  html:not([data-noglass]) .vdock { isolation: isolate; background: transparent !important; }
+  .vdock > .vd-face { position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; }
+  @media (prefers-reduced-transparency: reduce) {
+    html:not([data-noglass]) :is(
+      .topbar .tb-face:not([data-ghost]), .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg, .zoom-pill, .vdock > .vd-face, .nb-views > .vp-face, .sv-legend,
+      .sh-sheet, .sh-pop, .sh-dialog, .dk-jump, .menu, .umenu, .why-pop, .um-pv.on, .modal, .pal, .tooltip, .toast,
+      .tr-card, .ac-card, .t-card, .cmp-banner, .dk-card, .dk-strip, .pz-shade, .pz-data:not(.pz-sheet), .pz-case, .pz-scales, .pz-fk, .cl-glass
+    ), html:not([data-noglass]) .dk-bar::before {
+      background: var(--surface) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+    }
+  }
+}
+/* where there is no backdrop blur the vdock keeps the lifted sheet's own fill, and its face is empty */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .vdock > .vd-face { display: none; } }
+html[data-noglass] .vdock > .vd-face { display: none; }

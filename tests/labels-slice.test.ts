@@ -72,8 +72,12 @@ for (const [name, vp] of Object.entries(SCREENS) as [keyof typeof SCREENS, (type
       // (On the sideways iPhone the wallet's card stays centred as in 2D, leaving two strips beside it; a name that would fall under the card
       // drops or fades there and is never kept by moving the card: so there, only what is shown is judged, and the strips still carry labels.)
       const never = new Set([...h.lab.named, 'CONF']);
-      if (name !== 'iphone-landscape') assert.deepEqual(h.ctl.dropped.filter((d) => never.has(d)), [], `a named station or the portal vein was dropped (${h.ctl.dropped})`);
-      assert.ok(h.ctl.out.length >= (name === 'iphone-landscape' ? 2 : 3), `only ${h.ctl.out.length} labels shown`);
+      // Under the HVPG catheter the figure's names are hidden, as in 2D (`cath-on`): its cards stand alone.
+      if (h.lab.cath) assert.equal(h.ctl.out.filter((d) => d.kind === 'station').length, 0, 'the names are hidden under the catheter');
+      else {
+        if (name !== 'iphone-landscape') assert.deepEqual(h.ctl.dropped.filter((d) => never.has(d)), [], `a named station or the portal vein was dropped (${h.ctl.dropped})`);
+        assert.ok(h.ctl.out.length >= (name === 'iphone-landscape' ? 2 : 3), `only ${h.ctl.out.length} labels shown`);
+      }
       const boxes = h.ctl.out.map((d) => ({ id: d.id, box: { x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h } as Box }));
       for (const { id, box } of boxes) {
         for (const c of h.blockers) assert.ok(!hits(box, c), `${id} stands under a card`);
@@ -81,24 +85,33 @@ for (const [name, vp] of Object.entries(SCREENS) as [keyof typeof SCREENS, (type
       }
       for (let a = 0; a < boxes.length; a++) for (let b = a + 1; b < boxes.length; b++) assert.ok(!hits(boxes[a].box, grow(boxes[b].box, 2)), `${boxes[a].id} overlaps ${boxes[b].id}`);
       for (const n of h.lab.named) {
+        if (h.lab.cath) break;
         const st = STATIONS.find((x) => x.id === n)!;
         const shown = h.ctl.out.some((d) => d.id === st.id), hidden = h.ctl.hiddenIds.includes(st.id);
         assert.ok(shown || hidden, `${n} is named by the slide but neither shown nor hidden`);
       }
+      // the catheter's reading cards: the slide's cards all stand (none dropped), in the view, never on one another, and clear of the screen's cards
       const want = h.lab.cath === 'free' ? 1 : h.lab.cath === 'wedge' ? 2 : h.lab.cath === 'result' ? 1 : 0;
-      const calls = h.ctl.out.filter((d) => d.kind === 'callout').length;
-      if (name === 'iphone-landscape') {
-        // beside the centred wallet card the strips are narrower than a reading card: one that cannot stand there is left out, never put under the card
-        const strip = Math.max(Math.min(...h.blockers.map((c) => c.x0)) - view.x0, view.x1 - Math.max(...h.blockers.map((c) => c.x1)));
-        assert.ok(calls <= want && (calls === want || strip < 190), `reading cards: ${calls} of ${want} (widest strip ${Math.round(strip)} px)`);
-      } else assert.equal(calls, want, 'the slide\'s reading cards stand');
+      const calls = h.ctl.cath.pills.length + (h.ctl.cath.sum ? 1 : 0);
+      assert.equal(calls, want, 'the slide\'s reading cards stand');
+      const cards = h.ctl.cathCards();
+      cards.forEach((c, n) => {
+        assert.ok(c.x0 >= view.x0 - 0.01 && c.y0 >= view.y0 - 0.01 && c.x1 <= view.x1 + 0.01 && c.y1 <= view.y1 + 0.01, `cath card ${n} left the view`);
+        for (let m = n + 1; m < cards.length; m++) assert.ok(!hits(c, grow(cards[m], 2)), `cath card ${n} overlaps ${m}`);
+        const under = h.blockers.some((b) => hits(c, b));
+        if (name === 'iphone-landscape') {
+          // beside the centred wallet card the strips can be narrower than a card: the 2D app then stands it where it covers least, and so do we (never dropped)
+          const strip = Math.max(Math.min(...h.blockers.map((b) => b.x0)) - view.x0, view.x1 - Math.max(...h.blockers.map((b) => b.x1)));
+          assert.ok(!under || strip < c.x1 - c.x0, `cath card ${n} stands under a card although a strip of ${Math.round(strip)} px is wide enough`);
+        } else assert.ok(!under, `cath card ${n} stands under a card`);
+      });
       for (const d of h.ctl.out) assert.ok(d.alpha > 0.99 || d.alpha === 0.65 || d.alpha < 1, 'drawn at a sensible opacity');
     });
   });
 }
 
 test('labels are hidden while the camera moves and return only after it has stopped for the settle time', () => {
-  const h = harness('mac', 3);
+  const h = harness('mac', 10);
   h.settle();
   assert.ok(h.ctl.out.length > 0);
   h.setMoving(true);
@@ -112,14 +125,14 @@ test('labels are hidden while the camera moves and return only after it has stop
 });
 
 test('on the first frame nothing pops in: every label starts invisible and fades up', () => {
-  const h = harness('mac', 3);
+  const h = harness('mac', 10);
   let first = -1;
   for (let i = 0; i < 100; i++) { h.advance(16); h.ctl.tick(); if (h.ctl.out.length && first < 0) { first = i; assert.ok(h.ctl.out.every((d) => d.alpha < 0.2), 'the first drawn frame is nearly transparent'); } }
   assert.ok(first > 0);
 });
 
 test('a slide that names parts of the figure dims the others to 65 %; with nothing named nothing is dim', () => {
-  const free = harness('mac', 2);       // route: names RA, IVC, hepatic vein
+  const free = harness('mac', 10);      // heart: names RA, IVC, hepatic vein (no catheter: the catheter hides the names)
   free.settle();
   const dimmed = free.ctl.out.filter((d) => d.kind === 'station' && Math.abs(d.alpha - 0.65) < 1e-9).map((d) => d.id);
   const bright = free.ctl.out.filter((d) => d.kind === 'station' && d.alpha === 1).map((d) => d.id);

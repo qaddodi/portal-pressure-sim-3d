@@ -43,7 +43,10 @@ export class TextLayer {
       if (style !== sl.style) { sl.el.style.cssText = style; sl.style = style; sl.t = ''; sl.o = ''; }
       if (w.s !== sl.text) { sl.el.textContent = w.s; sl.text = w.s; }
       const dx = w.anchor === 'end' ? -100 : w.anchor === 'middle' ? -50 : 0;
-      const t = `translate3d(${Math.round(w.x * 100) / 100}px,${Math.round((w.y - TextLayer.lift(w.baseline) * w.size) * 100) / 100}px,0) translateX(${dx}%)`;
+      // (a turned word turns about its anchor: the box's own corner moves to the anchor first, so the letters end where the point is, whichever way it is turned)
+      const t = w.rot
+        ? `translate3d(${Math.round(w.x * 100) / 100}px,${Math.round(w.y * 100) / 100}px,0) rotate(${Math.round(w.rot * 100) / 100}deg) translate(${dx}%,${-TextLayer.lift(w.baseline) * w.size}px)`
+        : `translate3d(${Math.round(w.x * 100) / 100}px,${Math.round((w.y - TextLayer.lift(w.baseline) * w.size) * 100) / 100}px,0) translateX(${dx}%)`;
       if (t !== sl.t) { sl.el.style.transform = t; sl.t = t; }
       const o = String(Math.round((w.alpha ?? 1) * 1000) / 1000);
       if (o !== sl.o) { sl.el.style.opacity = o; sl.o = o; }

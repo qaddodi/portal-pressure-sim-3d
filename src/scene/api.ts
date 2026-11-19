@@ -42,6 +42,14 @@ export const sceneApi = {
     cel.goTo(shot, room, performance.now(), ms);
     clock.invalidate('shot');
   },
+  /** Put the hand's view back (a state link: the figure turned `orbit` radians, zoom `k`, panned `x` `y` px): what a person's fingers left, set at once, held until the next shot. */
+  setCameraView(v: { orbit?: number; k?: number; x?: number; y?: number }): void {
+    const h = cel.rig.handView;
+    cel.rig.holdHand();
+    cel.rig.setHand({ k: v.k ?? h.k, x: v.x ?? h.x, y: v.y ?? h.y });
+    if (v.orbit != null) cel.rig.setOrbit(v.orbit);
+    clock.invalidate('hand');
+  },
   /** Show the body, the lobule or the sinusoid and fly to it, straight from wherever the camera is (the view left behind stays up until the camera lands). `cam` is a lobule camera ('lobule', 'lobule:triad'…). */
   showView(v: FigureView, room: Room, cam: LobuleCam = 'lobule'): void {
     const from = cel.view;
@@ -92,8 +100,19 @@ export const sceneApi = {
     stop(keep = false): void { cel.procs.stop(keep); clock.invalidate('procedure'); },
     get playing(): { kind: string; t: number } | null { return cel.procs.playing; },
   },
+  /** Dye (the 2D app's injectDye): into vessel `id` (default the gut's veins, as in mesenteric portography); `hold` keeps it going until release(). */
+  dye: {
+    inject(id: string | null, o: { hold?: boolean } = {}): void {
+      const edge = id && cel.disease.dye.inject(id, 0.15, { hold: !!o.hold }) ? id : (cel.disease.dye.inject('V_INT', 0, { hold: !!o.hold }), 'V_INT');
+      void edge; clock.invalidate('dye');
+    },
+    release(): void { cel.disease.dye.release(); clock.invalidate('dye'); },
+    get active(): boolean { return cel.disease.dye.active; },
+  },
   /** Edge IDs the slide talks about; in flow-mark option A these (and the picked vessel) carry chevrons. */
   setNamedVessels(ids: readonly string[]): void { cel.setNamedVessels(ids); clock.invalidate('named-vessels'); },
+  /** Light exactly these vessels (edge IDs), as the shunt's valid targets glow; [] puts them out. Replaces the pick. */
+  markVessels(ids: readonly string[]): void { cel.markVessels(ids); clock.invalidate('mark'); },
   /** Pick a vessel by edge ID, or clear with null. */
   pick(id: string | null): void { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },
   /** Option D: marks run for a few seconds after a change (a preset, a slider, a treatment). */
@@ -120,4 +139,6 @@ export const sceneApi = {
   project: (p: Vector3, out?: { x: number; y: number }): { x: number; y: number } => cel.rig.project(p, out),
   /** True while the camera is in flight; tags fade out meanwhile and back in 180 ms after it lands. */
   get cameraMoving(): boolean { return cel.rig.isMoving; },
+  /** True once the camera has its first real shot (nothing is drawn before). */
+  get placed(): boolean { return cel.rig.placed; },
 };

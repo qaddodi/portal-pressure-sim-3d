@@ -14,11 +14,8 @@ import { LOOK_IDS, LOOK_LABELS } from '../../../looks/looks.ts';
 import { useSettings } from '../../../state/settings.ts';
 import { flagValue, flagNumber, debugPage } from '../flags.ts';
 import { attach } from '../pps.ts';
-import { appSnapshot } from '../screen/app.ts';
-import { screenNow } from '../packet/sources.ts';
-import { packetNow } from '../packet/sources.ts';
-import { stateLink, captureState, baseOf } from '../packet/state.ts';
-import { useShell } from '../../shell/store.ts';
+import { screenNow, packetNow, stateNow } from '../packet/sources.ts';
+import { stateLink, baseOf } from '../packet/state.ts';
 import { togglePlay } from '../../shell/transport.ts';
 import { latest } from '../../../engine/index.ts';
 void buildCatalog;
@@ -121,7 +118,7 @@ export function mountPage(kind: 'gallery' | 'check' | 'full' | 'frame'): void {
   const paintLooks = () => { const cur = document.documentElement.dataset.look; lookBtns.forEach(([id, b]) => b.setAttribute('aria-pressed', String(id === cur))); dark(); };
   sec('Look', row(...lookBtns.map(([, b]) => b)));
   const frozen = btn('Freeze', () => { togglePlay(); setTimeout(() => { const run = latest.frame?.running; frozen.setAttribute('aria-pressed', String(run === false)); }, 200); });
-  sec('The page', row(frozen, btn('Shoot', () => { root.setAttribute('data-shoot', ''); }), btn('Copy link', () => { const s = appSnapshot(), sh = useShell.getState(); const link = stateLink(captureState(s, { figure: { ...sh.figure } as Record<string, unknown>, labels: sh.figure.labelLevel, running: sh.transport.running, speed: sh.transport.speed }), baseOf(location)); void navigator.clipboard?.writeText(link).then(() => { status.textContent = 'Link copied.'; }); show(link); }),
+  sec('The page', row(frozen, btn('Shoot', () => { root.setAttribute('data-shoot', ''); }), btn('Copy link', () => { const link = stateLink(stateNow(), baseOf(location)); void navigator.clipboard?.writeText(link).then(() => { status.textContent = 'Link copied.'; }); show(link); }),
     btn('Check', () => { void busyWhile('Checking this screen', async () => { const t = Date.now(); const f = screenNow().findings as { rule: string; what: string; where?: string }[]; const { checkRun } = await import('../core/api.ts'); showRun(checkRun(f.map((x) => ({ kind: x.rule, text: x.what, where: x.where })), { size: `${innerWidth}x${innerHeight}`, look: document.documentElement.dataset.look, title: nameEl.textContent ?? '', at: new Date(t).toISOString() })); }); })));
   const spec = el('input', '', undefined, { type: 'text', placeholder: 'Specimens: all, slide:hvpg, view, sheet:help … (empty: one of each)', 'aria-label': 'Specimens to sweep' }) as HTMLInputElement;
   const looksIn = el('input', '', undefined, { type: 'text', placeholder: 'Looks: light,dark (empty: this look)', 'aria-label': 'Looks to sweep' }) as HTMLInputElement;
@@ -133,10 +130,20 @@ export function mountPage(kind: 'gallery' | 'check' | 'full' | 'frame'): void {
       showRun(run);
     });
   };
+  // A walk the browser ended part way (an iPhone tab kill) is written down after every step in sessionStorage; the same tab, opened again, resumes after it and says so (?fresh=1 forgets it).
+  const WALK = 'pps.walk';
+  const walkMark = (v: { full: boolean; done: number; label: string } | null) => { try { if (v) sessionStorage.setItem(WALK, JSON.stringify(v)); else sessionStorage.removeItem(WALK); } catch { /* blocked: no resume */ } };
+  const walkWas = (full: boolean): { done: number; label: string } | null => { try { const v = JSON.parse(sessionStorage.getItem(WALK) || 'null'); return v && v.full === full && v.done > 0 && flagValue('fresh') !== '1' ? v : null; } catch { return null; } };
   const walk = async (full: boolean) => {
     await busyWhile(full ? 'Full check' : 'Phone check', async () => {
       const only = flagValue('only'); const js = journeys().filter((j) => !only || only.split(',').includes(j.id));
-      const { report } = await runCheck(js, { settle, problems, errors: caughtCount, memoryMB, info: { device: `${innerWidth}x${innerHeight}`, look: document.documentElement.dataset.look ?? '', build: String(import.meta.env.VITE_BUILD ?? 'dev') } }, { full, steps: flagValue('steps') !== '0', shouldStop: () => stop, onStep: (d, n, r) => { status.textContent = `${full ? 'Full' : 'Phone'} check ${d} of ${n}: ${r.journey} > ${r.label}`; } });
+      const was = walkWas(full);
+      if (flagValue('fresh') === '1') walkMark(null);
+      const { report } = await runCheck(js, { settle, problems, errors: caughtCount, memoryMB, info: { device: `${innerWidth}x${innerHeight}`, look: document.documentElement.dataset.look ?? '', build: String(import.meta.env.VITE_BUILD ?? 'dev') } }, { full, steps: flagValue('steps') !== '0', from: was?.done ?? 0, shouldStop: () => stop, onStep: (d, n, r) => { walkMark({ full, done: d, label: `${r.journey} > ${r.label}` }); status.textContent = `${full ? 'Full' : 'Phone'} check ${d} of ${n}: ${r.journey} > ${r.label}`; } });
+      walkMark(null);   // (it ended on its own: nothing to resume)
+      if (was) report.notes.push(`RESUMED: the browser ended this tab part way; the walk went on after step ${was.done} (${was.label}). Steps 1 to ${was.done} were walked by the page before it.`);
+      // the ledger rides in the report's notes, so a Full check read later still says what the estimate stood at each tab kill
+      try { const { killLedgerLines } = await import('../kill/mount.ts'); report.notes.push(...killLedgerLines()); } catch { /* no storage: no ledger */ }
       showRun(report);
     });
   };
@@ -175,6 +182,5 @@ export function mountPage(kind: 'gallery' | 'check' | 'full' | 'frame'): void {
   const sw = flagValue('sweep');
   if (auto) setTimeout(() => { void walk(auto === 'full'); }, 600);
   else if (sw != null) setTimeout(() => { void sweep(sw === '' ? '' : sw, (flagValue('look') ?? '').split(',').filter(Boolean)); }, 600);
-  else if (kind === 'frame') { status.textContent = 'The device frame (?debug=frame) is not in the 3D app yet; the page opens as a plain gallery.'; }
   void flagNumber; void debugPage;
 }

@@ -6,12 +6,25 @@ import { appSnapshot } from '../screen/app.ts';
 import { collectDom } from '../screen/raw.ts';
 import { buildScreen, screenText } from '../screen/build.ts';
 import { recorder } from '../watch/mount.ts';
-import { captureState, stateLink, baseOf } from './state.ts';
+import { captureState, stateLink, baseOf, diffParams, type PacketState } from './state.ts';
+import { presetBase, currentParams } from '../../action/params.ts';
 import { caughtCount } from '../caught.ts';
 import { useShell } from '../../shell/store.ts';
 import { useSettings } from '../../../state/settings.ts';
 import { readerList } from '../core/registry.copied.js';
 import { buildLabel } from '../../shell/build-pill.ts';
+
+/** The sliders: what was changed from the loaded patient's own settings (a difference, never the whole tree), or null for none or when no patient base is known. */
+export function paramsDelta(): Record<string, unknown> | null {
+  const base = presetBase(), now = currentParams();
+  return base && now ? diffParams(base, now) : null;
+}
+
+/** The state of the app as it is now: the patient, the talk and slide, the look, the figure's switches, the camera, the picked vessel and the sliders. */
+export function stateNow(app = appSnapshot()): PacketState {
+  const sh = useShell.getState();
+  return captureState(app, { figure: { ...sh.figure } as Record<string, unknown>, labels: sh.figure.labelLevel, running: sh.transport.running, speed: sh.transport.speed, params: paramsDelta() });
+}
 
 /** The screen report as it is now, with the self-check findings (the state rules; the motion rules when the recorder holds a history). */
 export function screenNow(detail: 'summary' | 'full' = 'summary'): Record<string, any> {
@@ -37,8 +50,8 @@ export function deviceInfo(): Record<string, unknown> {
  * The packet for the screen as it is now. note: what the person wrote. Never throws: a part that cannot be made is named in the packet's `missing` or in a finding.
  */
 export async function packetNow({ note = '' }: { note?: string } = {}): Promise<Record<string, any>> {
-  const app = appSnapshot(), sh = useShell.getState();
-  const state = captureState(app, { figure: { ...sh.figure } as Record<string, unknown>, labels: sh.figure.labelLevel, running: sh.transport.running, speed: sh.transport.speed });
+  const app = appSnapshot();
+  const state = stateNow(app);
   const link = stateLink(state, baseOf(location));
   let screen: Record<string, any> | null = null, text = '', findings: unknown[] | null = null, history: unknown = null, watchFindings: unknown[] = [];
   const rec = recorder();

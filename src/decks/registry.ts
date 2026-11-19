@@ -5,6 +5,7 @@
 import type { Deck } from './schema.ts';
 import { HVPG_DECK } from './hvpg.ts';
 import { registerHpDecks } from './hp/register.ts';
+import { registerAllDecks } from './all.ts';
 
 const decks = new Map<string, Deck>();
 export function registerDeck(d: Deck): void { decks.set(d.id, d); }
@@ -27,6 +28,7 @@ export async function loadBuiltin(id: string): Promise<Deck | null> {
 
 registerDeck(HVPG_DECK);
 registerHpDecks(registerLazyDeck);
+registerAllDecks(registerLazyDeck);   // (A to G and R to W: every talk of the 2D menu opens by its id)
 
 /** A built-in talk by id (an old id the 2D app renamed opens its successor: `DECK_ALIAS` in ui/menu/library.ts). */
 export const builtinDeck = (id: string): Deck | null => decks.get(id) ?? null;

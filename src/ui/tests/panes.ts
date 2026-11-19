@@ -15,4 +15,12 @@ export const shortName = (id: PaneId): string => (SHORT as Record<string, string
 export const tinyName = (id: PaneId): string => (TINY as Record<string, string>)[id] ?? shortName(id);
 
 /** The instruments that are built in the 3D app (their tab shows the pane); the others say "not in the 3D app yet". tests/b11-parity.test.ts keeps this equal to what TestsLayer renders. */
-export const BUILT_PANES: readonly PaneId[] = ['readouts', 'scope', 'abdomen'];
+export const BUILT_PANES: readonly PaneId[] = [
+  'readouts', 'scope', 'abdomen', 'trials',
+  // (one line per instrument, each its own thread's: a thread adds its own)
+  'profile',
+  // hvpg
+  'doppler',
+  // endoscopy
+  'fibroscan',
+];

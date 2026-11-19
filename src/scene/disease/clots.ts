@@ -1,6 +1,7 @@
 // Clots (thrombus): the 2D figure's lumpy plug that lies against one wall of the vein, grows from that wall as the occlusion rises, lengthens, and at full occlusion
 // spans the lumen with blunt ends (clot-shape.js: clotSpan, clotRadius, clotShift, clotSide, all copied). The clot is the whole vein's: a vein the engine cuts in pieces has
-// one. In 3D the vein's wall is opaque, so the clot is drawn a little over the lumen (CLOT_OVER) and shows as a swelling on one side; at full occlusion it wraps the vessel.
+// one. In 3D the vein's wall is opaque, so the clot is drawn inside the lumen's own width, as 2D draws it (never wider than the vein: 19 Nov, "oversized clots"), and lifted toward the
+// viewer so it rides the wall's front: a swelling on one side that fills the vein at full occlusion.
 // A clot thickens and thins with its parameter in a moment (lesion-ease.js) and never pops: a new clot grows from nothing, a lysed one shrinks to nothing.
 import { Group, Vector3 } from 'three';
 import { clotRadius, clotShift, clotSide, clotSpan, hashSeed } from './copied/clot-shape.js';
@@ -12,8 +13,10 @@ import { lesionStep } from './follow.ts';
 import { clotColour, recolour } from './paint.ts';
 import { ringTube, sampleAlong } from './tube.ts';
 
-/** How much wider than the lumen the clot is drawn, so it shows over the wall. */
-export const CLOT_OVER = 1.32;
+/** How wide the clot may be against the lumen: the whole of it, as 2D (it was 1.32, a plug a third wider than its vein). */
+export const CLOT_OVER = 1;
+/** How far toward the viewer the clot's centre rides the wall's front (a share of the lumen's height at the clot's place), so the opaque wall does not hide it. */
+export const CLOT_LIFT = 0.55;
 export const CLOT_RINGS = 28;
 
 interface Clot { id: string; goal: number; cur: number; obj: CelObject | null; builtFor: number }
@@ -31,7 +34,8 @@ export function clotShapeOf(pts: Vector3[], R: number, v: number, id: string): {
     const nx = ty / l, ny = -tx / l;   // in the figure's plane, the normal the 2D figure shifts along
     const r = clotRadius(v, W, i / (on.length - 1), seed);
     const sh = clotShift(W, r, side);
-    centres.push(new Vector3(on[i]!.x + nx * sh, on[i]!.y + ny * sh, on[i]!.z));
+    const lift = CLOT_LIFT * Math.sqrt(Math.max(0, R * R - sh * sh));
+    centres.push(new Vector3(on[i]!.x + nx * sh, on[i]!.y + ny * sh, on[i]!.z + lift));
     radii.push(Math.max(1e-4, r));
   }
   return { centres, radii };
