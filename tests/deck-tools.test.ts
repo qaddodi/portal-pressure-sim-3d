@@ -31,7 +31,7 @@ for (const id of RW_IDS) DECKS.push({ id, slides: (await RW_LOADERS[id]!()).slid
 const SLIDES = DECKS.flatMap((d) => d.slides.map((s) => ({ at: `${d.id}/${s.id}`, s })));
 const TOOLS = SLIDES.filter((x) => rec(x.s.tool)).map((x) => ({ at: x.at, s: x.s, tool: x.s.tool as Rec, kind: String((x.s.tool as Rec).kind) }));
 
-const SOURCE = readFileSync(new URL('../src/ui/talk/ToolCard.tsx', import.meta.url), 'utf8');
+const SOURCE = readFileSync(new URL('../src/ui/talk/ToolCardBody.tsx', import.meta.url), 'utf8');
 
 test('the decks carry the whole set of slides, and a good share of them put a tool in the data card', () => {
   assert.ok(SLIDES.length >= 508, `slides (${SLIDES.length})`);
