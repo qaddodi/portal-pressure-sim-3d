@@ -23,6 +23,10 @@ export interface CapMeta {
   /** for a resistor: its key and the reading's text */
   res?: ResKey;
   label?: string;
+  /** upright, a zone title or a lane that runs up the screen is written turned to read bottom to top (2D `it.rot`); the placed box is the turned one */
+  rot?: boolean;
+  /** a zone title that opens an organ's card when tapped (2D: the Liver's and the Heart's, there being no organ to click in the Circuit) */
+  link?: string;
 }
 
 export interface CapCtx {
@@ -54,6 +58,29 @@ export interface CapCtx {
   resLane(key: ResKey): readonly (readonly [number, number])[] | null;
   /** the stations that must stand (a slide names them, or one is picked) */
   must: ReadonlySet<string>;
+  /** a box on the canvas that stands in the free room, off the cards, and on no vessel's line but `own`'s: where a lane's caption may go beside its lane (absent: any box) */
+  clear?(box: Box, own: string): boolean;
+}
+
+/** The zone titles that open a card (2D stage-label-solve.js: `{ 'Liver · sinusoids': 'liver', Heart: 'heart' }`). */
+export const ZONE_ORGAN: Readonly<Record<string, string>> = { 'Liver · sinusoids': 'liver', Heart: 'heart' };
+/** The places along a lane its caption tries, in order (2D stage.js `laneAlt`: the middle first, then 0.3, 0.7, 0.15, 0.85 of its run). */
+export const LANE_SPOTS: readonly number[] = [0.5, 0.3, 0.7, 0.15, 0.85];
+
+/** The point a share `u` of the way along a polyline (by length), and the way it runs there. */
+export function along(course: readonly (readonly [number, number])[], u: number): { p: [number, number]; q: [number, number] } {
+  let total = 0;
+  for (let i = 1; i < course.length; i++) total += Math.hypot(course[i]![0] - course[i - 1]![0], course[i]![1] - course[i - 1]![1]);
+  const at = (f: number): [number, number] => {
+    let want = Math.min(1, Math.max(0, f)) * total;
+    for (let i = 1; i < course.length; i++) {
+      const a = course[i - 1]!, b = course[i]!, d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (want <= d || i === course.length - 1) { const k = d > 1e-9 ? Math.min(1, want / d) : 0; return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]; }
+      want -= d;
+    }
+    return [course[0]![0], course[0]![1]];
+  };
+  return { p: at(u), q: at(Math.min(1, u + 0.03)) };
 }
 
 const SHORT = LABEL_NAMES.SHORT as Record<string, string>;
@@ -120,6 +147,7 @@ export function buildCaptions(ctx: CapCtx): Built {
   }
 
   // ── the zone titles ──
+  // (Upright, the title runs up the map's left edge, turned to read bottom to top, centred on the visible part of its band; it keeps 8 px from the canvas's edge, and a wide one 14 px from its top.)
   for (const [txt, x0, x1] of CIRCUIT_ZONES) {
     const span = bandSpan(ctx, x0, x1);
     const tries = [txt, ...(ZONE_SHORT[txt] ?? [])];
@@ -128,10 +156,11 @@ export function buildCaptions(ctx: CapCtx): Built {
       const need = span.vertical ? b.h : b.w;
       if (span.hi - span.lo < need + 8) continue;
       const along = (span.lo + span.hi) / 2;
-      const [px, py] = span.vertical ? [span.at[0], along] : [along, span.at[1]];
+      const px = span.vertical ? Math.max(span.at[0], ctx.view.x0 + b.h / 2 + 8) : along;
+      const py = span.vertical ? along : Math.max(span.at[1], ctx.view.y0 + b.h / 2 + 2);
       const id = `z:${txt}`;
-      items.push({ id, ax: px, ay: py, au: 0.5, forms: [form(t, b.w, b.h)], pri: 60, region: true });
-      meta.set(id, { id, kind: 'zone', forms: [{ name: t, value: false }] });
+      items.push({ id, ax: px, ay: py, au: 0.5, forms: [span.vertical ? form(t, b.h, b.w) : form(t, b.w, b.h)], pri: 60, region: true });
+      meta.set(id, { id, kind: 'zone', forms: [{ name: t, value: false }], rot: span.vertical, link: ZONE_ORGAN[txt] });
       break;
     }
   }
@@ -164,13 +193,35 @@ export function buildCaptions(ctx: CapCtx): Built {
     const lines = cut > 0 ? [cap.slice(0, cut), cap.slice(cut + 1)] : [cap];
     const sizes = lines.map((l) => boxSize([{ ...nameRun(l), size: 10, weight: 550 }], vp, measure));
     const w = Math.max(...sizes.map((s) => s.w)), h = sizes.reduce((a, s) => a + s.h, 0);
-    const m = Math.floor((course.length - 1) / 2), p = course[m]!, q = course[Math.min(course.length - 1, m + 1)]!;
-    const [ax, ay] = ctx.proj(p[0], p[1]), [bx, by] = ctx.proj(q[0], q[1]);
-    const horizontal = Math.abs(bx - ax) >= Math.abs(by - ay);
-    const gap = 5;
-    const cx = horizontal ? ax : ax + w / 2 + gap, cy = horizontal ? ay - h / 2 - gap : ay;
-    items.push({ id: `lane:${id}`, ax: cx, ay: cy, au: 0.5, forms: [form(cap, w, h)], pri: 1, region: true });
-    meta.set(`lane:${id}`, { id: `lane:${id}`, kind: 'lane', forms: [{ name: lines.join('\n'), value: false }] });
+    // The caption stands beside its lane at the first of its spots where no other vessel touches it and it is in the free room (2D laneU / laneAlt: N then S of a run, 3 px and then 12 px off the
+    // lane's edge; upright, one that runs up the screen is turned and goes E then W of it); with no such spot it takes the middle's, as before.
+    const pts = (u: number) => { const { p, q } = along(course, u); const [ax, ay] = ctx.proj(p[0], p[1]), [bx, by] = ctx.proj(q[0], q[1]); return { ax, ay, bx, by }; };
+    const place = (u: number): { cx: number; cy: number; rot: boolean; box: Box } | null => {
+      const { ax, ay, bx, by } = pts(u);
+      const rot = ctx.upright && Math.abs(by - ay) > Math.abs(bx - ax) * 1.2;
+      const ww = rot ? h : w, hh = rot ? w : h;
+      const vertical = !rot && Math.abs(by - ay) > Math.abs(bx - ax);
+      const half = 3 + 2.5;
+      const spots: [number, number][] = rot || vertical ? [[1, 0], [-1, 0]] : [[0, -1], [0, 1]];
+      for (const gap of [half, 12 + 2.5]) for (const [sx, sy] of spots) {
+        const cx = ax + sx * (ww / 2 + gap), cy = ay + sy * (hh / 2 + gap);
+        const box = { x0: cx - ww / 2 - 2, y0: cy - hh / 2 - 2, x1: cx + ww / 2 + 2, y1: cy + hh / 2 + 2 };
+        if (!ctx.clear || ctx.clear(box, id)) return { cx, cy, rot, box };
+      }
+      return null;
+    };
+    let got: ReturnType<typeof place> = null;
+    if (ctx.clear) for (const u of LANE_SPOTS) { got = place(u); if (got) break; }
+    if (!got) {
+      // (no clear spot: the middle's, beside it, as every lane had been)
+      const { ax, ay, bx, by } = pts(0.5);
+      const horizontal = Math.abs(bx - ax) >= Math.abs(by - ay), rot = ctx.upright && Math.abs(by - ay) > Math.abs(bx - ax) * 1.2, gap = 5;
+      const ww = rot ? h : w;
+      got = { cx: horizontal ? ax : ax + ww / 2 + gap, cy: horizontal ? ay - h / 2 - gap : ay, rot, box: { x0: 0, y0: 0, x1: 0, y1: 0 } };
+    }
+    const fw = got.rot ? h : w, fh = got.rot ? w : h;
+    items.push({ id: `lane:${id}`, ax: got.cx, ay: got.cy, au: 0.5, forms: [form(cap, fw, fh)], pri: 1, region: true });
+    meta.set(`lane:${id}`, { id: `lane:${id}`, kind: 'lane', forms: [{ name: lines.join('\n'), value: false }], rot: got.rot });
   }
   return { items, meta };
 }
