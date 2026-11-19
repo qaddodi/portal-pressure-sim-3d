@@ -21,6 +21,8 @@ export interface ScreenEnv {
   reduceMotion?(): boolean;
   /** The camera is in a glide (a shot, a card's room): a probe not yet shown waits for it to land. */
   moving?(): boolean;
+  /** A slide is presenting: the FibroScan probe turns away from the slide's cards then (2D scanCards), not for the dock's card. */
+  presenting?(): boolean;
 }
 
 /** The figure's plane at a scene point: screen = origin + [a b; c d] * (x, y) per scene unit. `sc` is the mean scale (px per scene unit), `inv` the inverse map. */

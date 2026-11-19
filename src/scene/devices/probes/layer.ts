@@ -34,7 +34,7 @@ export class ProbeLayer {
     const s = useProbes.getState();
     const on = (b: boolean) => b && !away;
     const a = this.doppler.update(dt, on(s.doppler.on), s.doppler.edge, s.doppler.seg, this.env.screen ?? null, now);
-    const f = this.fibro.update(dt, now, on(s.fibro.on), s.fibro.organ, this.env.organBox, this.env.kpa(s.fibro.organ));
+    const f = this.fibro.update(dt, now, on(s.fibro.on), s.fibro.organ, this.env.organBox, this.env.kpa(s.fibro.organ), this.env.screen ?? null);
     const e = this.scope.update(dt, on(s.endoscope.on), s.endoscope.mode, s.endoscope.station, s.endoscope.u, s.endoscope.needle);
     return a || f || e;
   }

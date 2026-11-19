@@ -32,6 +32,9 @@ import { SinusoidView, diveShare } from './sinusoid/index.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
 import { ProbeLayer } from './devices/probes/layer.ts';
+import { probeCards } from './devices/probes/cards.ts';
+import { probeAvoid } from './labels/probe-boxes.ts';
+import { useUi } from '../ui/ui-store.ts';
 import { organsReady } from './organs/meshes.ts';
 import { clock } from '../clock/frame.ts';
 import { COURSES } from './circuit/course.ts';
@@ -182,6 +185,15 @@ export class CelScene {
     this.probes = new ProbeLayer(this.shared, {
       organBox: (organ) => { const o = this.disease.organs.byId.get(organ); return o ? new Box3().setFromObject(o.group) : null; },
       kpa: (organ) => { const m = latest.frame?.metrics as Record<string, number | null | undefined> | undefined; return m?.[organ === 'spleen' ? 'ssm' : 'lsm'] ?? null; },
+      screen: {
+        project: (p, out) => this.rig.project(this.body.localToWorld(p.clone()), out),
+        size: () => this.rig.stageSize,
+        cards: () => probeCards(),
+        avoid: () => probeAvoid(),
+        reduceMotion: () => !!opts.reduceMotion,
+        moving: () => this.rig.isMoving,
+        presenting: () => useUi.getState().deck != null,
+      },
     });
     this.body.add(this.probes.group);
 
