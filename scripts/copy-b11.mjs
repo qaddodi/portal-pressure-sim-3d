@@ -24,7 +24,7 @@ export const FILES = [
   'scope-lens-rule', 'endo-size', 'endo-columns', 'endo-motion',
   'trace-lanes', 'trace-tape', 'trace-labels', 'trace-room', 'trace-callouts-math',
   'pressure-along', 'hvpg-balloon', 'ekg', 'drop-front', 'limit-label',
-  'instrument-aria', 'vital-read', 'table-marks', 'lymph-day', 'dock-vars', 'balance-hold',
+  'instrument-aria', 'vital-read', 'table-marks', 'lymph-day', 'dock-vars', 'balance-hold', 'idle-keys',
   'wrap-label', 'sorted', 'freewheel',
 ].filter((n) => n !== 'trace-callouts-math');
 const SLICES = {
@@ -89,6 +89,11 @@ put('dock-tiles.copied.js', HEAD('dock.js TILES and GROUPS') + tiles + '\n');
 const words = [
   one(/^  const SHORT = /).trim(), one(/^  const TINY = /).trim(), one(/^  const ORDER = /).trim(),
 ].map((l) => l.replace(/^const (\w+) =/, 'export const $1 =').replace(/\.filter\(\(id\) => byId\[id\]\)/, '')).join('\n');
-put('dock-words.copied.js', HEAD('dock.js SHORT, TINY, ORDER') + words + '\n');
+// the tab icons: the first word of each INFO line of dock.js (INFO[id][0], svgIcon's atlas name)
+const infoAt = lineOf(/^  const INFO = \{/);
+const icons = [];
+for (let i = infoAt + 1; !/^  \};/.test(dock[i]); i++) { const m = /^    (\w+): \['(\w+)',/.exec(dock[i]); if (m) icons.push(`${m[1]}: '${m[2]}'`); }
+if (icons.length < 9) throw new Error(`dock.js INFO has ${icons.length} icons`);
+put('dock-words.copied.js', HEAD('dock.js SHORT, TINY, ORDER, INFO icons') + words + `\nexport const TAB_ICONS = { ${icons.join(', ')} };\n`);
 
 if (changed.length) { console.log(`${check ? 'would change' : 'wrote'}: ${changed.join(', ')}`); if (check) process.exit(1); } else console.log('src/ui/tests/copied is current');
