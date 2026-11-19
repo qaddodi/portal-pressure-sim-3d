@@ -1,6 +1,7 @@
 // The shell gaps the audit found against the 2D app (docs/shell-gaps.md), one test each: the update offer is a toast with a Reload button, Shift C and ? in a talk do what 2D's keyboard.js does,
 // the page has the 2D page's head and loading cover, the laser is in the talk, and the parity claims say what the code now does.
 import { test } from 'node:test';
+import { escStep } from '../src/ui/keys/escape.ts';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -47,7 +48,12 @@ test('Shift C is the lens key too, ? in a talk opens the guide at While presenti
   assert.equal(decideKey({ key: 'c', code: 'KeyC' }, ctx), null, 'plain C is nothing');
   const keys = src('src/ui/keys/useKeys.ts');
   assert.match(keys, /case 'help': openGuide\(sh\.mode === 'deck' \? 'present' : null\)/);
-  assert.match(keys, /sh\.view === 'sinusoid'\) goToView\('lobule'\)/);
+  // Esc in the sinusoid (2D keyboard.js): with nothing else up it is the sinusoid step, which the key handler answers by going to the lobule; a selected structure's card goes first
+  const none = { dialog: false, sheet: false, testsOpen: false, testsFocus: false, treatOpen: false, sinusoid: false, selection: false, talk: false };
+  assert.equal(escStep({ ...none, sinusoid: true }), 'sinusoid');
+  assert.equal(escStep({ ...none, sinusoid: true, selection: true }), 'selection');
+  assert.equal(escStep({ ...none, sinusoid: true, treatOpen: true }), 'treat');
+  assert.match(keys, /step === 'sinusoid'\)\s*goToView\('lobule'\)/, 'and that step goes to the lobule');
   assert.match(keys, /a\.type === 'zoom'/, 'a held + or - must not scroll the page behind');
   assert.equal(decideKey({ key: '?', code: 'Slash', shiftKey: true }, { ...ctx, talk: true })?.type, 'help', 'a talk keeps ? and /');
 });
