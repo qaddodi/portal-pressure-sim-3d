@@ -111,7 +111,7 @@ test('a vessel that runs on into exactly one other meets it at the mean width: n
 test('a shape that changes keeps its vertex count, so its positions are rewritten in place', () => {
   for (const id of ['C1a', 'C2', 'C4', 'C7', 'C8', 'C3~F:caput', 'CAUD~F:caudate']) {
     const v = NETWORK_BY_ID.get(id)!, tub = tubularOf(v);
-    const a = buildTubes(coursesOf(v, REST), tub, v.radius).geometry, b = buildTubes(coursesOf(v, { wig: 5, spr: 0.55, rec: 0.5, strandsOn: false, live: 0.5 }), tub, v.radius).geometry;
+    const a = buildTubes(coursesOf(v, REST), tub, v.radius).geometry, b = buildTubes(coursesOf(v, { wig: 5, spr: 0.55, rec: 0.5, bead: 0.2, bands: 2, strandsOn: false, live: 0.5 }), tub, v.radius).geometry;
     assert.equal(a.getAttribute('position').count, b.getAttribute('position').count, id);
     assert.equal(a.getAttribute('rk').count, a.getAttribute('position').count, `${id} rk`);
   }
@@ -150,4 +150,40 @@ test('a channel grows with the recruitment: none before it begins, whole after',
   assert.equal(cavGrowth(5, 0.2), 0);
   assert.equal(cavGrowth(0, 1), 1);
   assert.ok(cavGrowth(1, 0.2) > 0 && cavGrowth(1, 0.2) < 1);
+});
+
+// ── the bands and the bead (the esophageal varices) ──
+import { VESSEL_VS } from '../src/scene/vessels/shaders.ts';
+test('each band closes one strand of the varices\' plexus and the rest shrink by 14 % a band (to four)', () => {
+  const v = NETWORK_BY_ID.get('C1a')!;
+  const rad = (bands: number) => coursesOf(v, { ...REST, bands }).map((c) => c.radius);
+  const r0 = rad(0), r1 = rad(1), r2 = rad(2), r4 = rad(4);
+  assert.ok(r0.length >= 2 && r0.slice(1).every((r) => r > 0), 'no band: every strand is there');
+  assert.equal(r1[1], 0, 'one band closes the first strand');
+  assert.ok(r1[2]! > 0);
+  assert.equal(r2[2], 0, 'two bands close the second');
+  assert.ok(Math.abs(r1[0]! - r0[0]! * (1 - 0.14)) < 1e-9, 'the main channel shrinks by 14 % a band');
+  assert.ok(Math.abs(r4[0]! - r0[0]! * (1 - 0.56)) < 1e-9);
+  assert.ok(Math.abs(rad(7)[0]! - r4[0]!) < 1e-9, 'more than four bands shrink no further');
+  // the other vessels do not feel the bands
+  const w = NETWORK_BY_ID.get('C2')!;
+  assert.deepEqual(coursesOf(w, { ...REST, bands: 3 }).map((c) => c.radius), coursesOf(w, REST).map((c) => c.radius));
+});
+
+test('the varices bead by their size: the strands of the esophageal and fundal varices, and the gastrorenal shunt itself', () => {
+  const sw = (v: ReturnType<typeof NETWORK_BY_ID.get>, bead: number) => buildTubes(coursesOf(v!, { ...REST, bead }), tubularOf(v!), v!.radius).geometry.getAttribute('rk');
+  for (const id of ['C1a', 'C2', 'C5']) {
+    const v = NETWORK_BY_ID.get(id)!;
+    const a = sw(v, 0), b = sw(v, 0.3);
+    let moved = 0;
+    for (let i = 0; i < a.count; i++) if (Math.abs(a.getX(i) - b.getX(i)) > 1e-4) moved++;
+    assert.ok(moved > 20, `${id} has beads`);
+  }
+  const v = NETWORK_BY_ID.get('C4')!;
+  const a = sw(v, 0), b = sw(v, 0.3);
+  for (let i = 0; i < a.count; i++) assert.equal(a.getX(i), b.getX(i), 'the rectal veins do not bead');
+});
+
+test('a tube of no radius is not drawn, not even its ink', () => {
+  assert.match(VESSEL_VS, /if \(rk <= 0\.0\) gl_Position = vec4\(2\.0, 2\.0, 2\.0, 1\.0\);/);
 });

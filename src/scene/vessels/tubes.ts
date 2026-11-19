@@ -3,6 +3,7 @@
 import { BufferGeometry, CatmullRomCurve3, Float32BufferAttribute, SphereGeometry, TubeGeometry, Vector3 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Vec3 } from '../anatomy/vessels.ts';
+import { beadRadius } from './varix-bead.copied.js';
 
 export interface Course {
   pts: Vec3[]; radius: number;
@@ -10,6 +11,8 @@ export interface Course {
    *  two vessels that run on into one another meet at one width */
   taper?: readonly [number, number];
   /** the fillet collars at the two ends where this tube ends on a trunk (network.ts Flare): extra radius at the wall that melts into the tube over `span` */
+  /** a varix's beading (varix-bead.js): the radius swells and narrows along it by `b`, phase `ph`, from `u0`, one bead every `lambda` of the course's `len` (2D units) */
+  bead?: { b: number; ph: number; u0: number; lambda: number; len: number };
   flare?: readonly [{ add: number; wall: number; span: number } | null, { add: number; wall: number; span: number } | null];
 }
 const smooth = (u: number) => u * u * (3 - 2 * u);
@@ -45,7 +48,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     const P = new Vector3(), pos = tube.attributes.position as Float32BufferAttribute;
     for (let k = 0; k <= seg; k++) {
       const u = k / seg;
-      const f = factorAt(c.taper, u) + (flareAdd(c.flare?.[0], u * clen) + flareAdd(c.flare?.[1], (1 - u) * clen)) / c.radius;
+      const f = (factorAt(c.taper, u) + (flareAdd(c.flare?.[0], u * clen) + flareAdd(c.flare?.[1], (1 - u) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) : 1);
       curve.getPointAt(k / seg, P);
       for (let j = 0; j <= RADIAL; j++) {
         const at = k * (RADIAL + 1) + j;

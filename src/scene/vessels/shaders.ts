@@ -94,6 +94,8 @@ ${CIRCUIT_VS_CALL}
   }
   vW = c.w;
   gl_Position = c;
+  // a tube of no radius (a strand a band has closed, a channel not yet grown) is not drawn: not even its ink, which has a width of its own on screen
+  if (rk <= 0.0) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
 }`;
 
 export const VESSEL_FS = /* glsl */ `
