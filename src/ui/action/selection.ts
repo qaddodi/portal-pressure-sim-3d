@@ -1,6 +1,7 @@
 // What is selected on the figure: a vessel, an organ, a lobule part. The tap-anything card shows for it. A vessel the scene picks (a tap on the figure) selects itself; a
 // card, a Changes row, the search or Treat selects by this module, and a vessel is lit in the scene while it is the selection. One selection at a time, as in the 2D app.
 import { create } from 'zustand';
+import { useTests } from '../tests/store.ts';
 
 export type Sel =
   | { type: 'edge'; id: string }
@@ -16,8 +17,15 @@ export function bindScene(light: (id: string | null) => void): void { lightVesse
 
 const same = (a: Sel | null, b: Sel | null) => a === b || (!!a && !!b && JSON.stringify(a) === JSON.stringify(b));
 
-/** Select a structure (or clear with null). A vessel is lit in the scene; the card follows. */
+/** Select a structure (or clear with null). A vessel is lit in the scene; the card follows.
+ *  The abdomen has no card: ascites has one home, the Ascites instrument, so selecting it (Treat's Paracentesis, a station, the search) opens that instead (main.js select). */
 export function selectStructure(sel: Sel | null): void {
+  if (sel?.type === 'organ' && sel.id === 'abdomen') {
+    if (useSelection.getState().sel) useSelection.setState({ sel: null });
+    lightVessel?.(null);
+    useTests.getState().show('abdomen');
+    return;
+  }
   if (!same(useSelection.getState().sel, sel)) useSelection.setState({ sel });
   lightVessel?.(sel && sel.type === 'edge' ? sel.id : null);
 }
