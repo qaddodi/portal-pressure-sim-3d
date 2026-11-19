@@ -17,6 +17,7 @@ import { figureDpr, msaaFor } from './quality.ts';
 import { aaMode } from './post-aa.ts';
 import { installShaderGuard } from '../debug/shader-guard.ts';
 import { setRenderer } from '../debug/gl-ref.ts';
+import { lookCapture } from '../debug/look-hook.ts';
 import { cel, frames, gesturesRef, sceneApi } from './api.ts';
 import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
@@ -38,7 +39,7 @@ function SceneBridge() {
   const raycaster = useRef(new Raycaster());
 
   // the one draw of the frame: the cel scene on the R3F renderer (a positive priority stops R3F drawing its own)
-  useFrame(() => { cel.render(gl); }, 1);
+  useFrame(() => { cel.render(gl); lookCapture.run(gl.domElement); }, 1);   // (the look board reads the canvas in this task, when it asked)
 
   useEffect(() => {
     cel.resize(size.width, size.height);
