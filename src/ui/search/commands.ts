@@ -19,6 +19,7 @@ import { useTests } from '../tests/store.ts';
 import { BUILT_PANES } from '../tests/panes.ts';
 import { commandWork, commandOffered } from '../treat/palette-orders.ts';
 import { appEnv } from '../treat/env.ts';
+import { goTo, GO_TO } from './goto.ts';
 
 export interface Extra extends Command { wired: boolean }
 
@@ -37,6 +38,7 @@ function work(group: string, title: string): ((n: number | null) => void) | null
     if (title === 'Until something happens') return () => jump('event');
     if (title === 'Restart this patient') return () => restart();
   }
+  if (group === 'Go to' && GO_TO.has(title)) return () => { goTo(title); };
   if (group === 'Treat' || group === 'Change') return commandWork(appEnv, group, title);
   if (group === 'View') {
     const lens = UI.lenses.find((l) => title === `Colored by ${l.name.toLowerCase()}`);
@@ -69,6 +71,7 @@ export function buildCommands(start: (deckId: string) => void): Extra[] {
     if (c.group === 'View' && c.title.startsWith('Colored by ')) { const l = UI.lenses.find((x) => c.title === `Colored by ${x.name.toLowerCase()}`); add(c.group, c.title, work(c.group, c.title), `color colour lens ${l?.note ?? ''}`, null, ''); continue; }
     add(c.group, c.title, work(c.group, c.title), c.kw, c.num, c.hint, FEATURE_OF[c.title]);
   }
+  if (!out.some((c) => c.group === 'Go to' && c.title === 'Ascites')) add('Go to', 'Ascites', work('Go to', 'Ascites'), 'organ select', null, '');   // (2D lists it; the inventory's Go to rows stop at the spleen)
   for (const p of UI.presets) add('Patient', p.label, () => { void loadPatient(p.id); }, `scenario preset ${p.group}`, null, '');
   for (const d of UI.decks) if (d.id in PLAYABLE) add('Present', d.short, () => start(d.id), `${d.title} ${d.summary} present presentation deck talk slides`, null, '');
   return out;
