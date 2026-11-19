@@ -9,21 +9,25 @@ import { DeviceObject, type DeviceOptions, type DeviceTone } from '../device-obj
 import { allocTube, makeRings, writeRings, type Ring } from '../tube-rings.ts';
 
 /** The colour a part wears when it is not one of the device table's: a hex, or a function of the look's device tokens. */
-export type PartColour = string | ((t: DeviceTokens) => string);
+export type PartColour = string | ((t: DeviceTokens, look: LookId) => string);
 
 const lookOf = (p: Palette): LookId => ((Object.keys(PALETTES) as LookId[]).find((id) => PALETTES[id] === p) ?? 'light');
 
 export class ProbePart extends DeviceObject {
-  private readonly colour: PartColour | null;
+  private colour: PartColour | null;
+  private pal: Palette | null = null;
   constructor(geometry: BufferGeometry, tone: DeviceTone, shared: CelShared, colour: PartColour | null = null, o: DeviceOptions = {}) {
     super(geometry, tone, shared, o, 'ink');
     this.colour = colour;
     this.group.visible = false;
   }
+  /** Changes the colour the part wears (a ring that is the portal vein's, then the hepatic vein's) and paints it in the look it is in. */
+  recolour(c: PartColour): void { if (c === this.colour) return; this.colour = c; if (this.pal) this.applyPalette(this.pal); }
   override applyPalette(p: Palette): void {
     super.applyPalette(p);
+    this.pal = p;
     if (!this.colour) return;
-    const hex = typeof this.colour === 'function' ? this.colour(DEVICE_TOKENS[lookOf(p)]) : this.colour;
+    const look = lookOf(p), hex = typeof this.colour === 'function' ? this.colour(DEVICE_TOKENS[look], look) : this.colour;
     const base = rawColor(hex);
     (this.toon.uniforms.color!.value as Color).copy(base);
     (this.toon.uniforms.shade!.value as Color).copy(base).multiplyScalar(p.shade);

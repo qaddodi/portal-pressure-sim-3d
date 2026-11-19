@@ -30,7 +30,7 @@ export function bindTests(): () => void {
     if (e.bandTick !== lastTick) { lastTick = e.bandTick; bandUntil = performance.now() + 3000; clearTimeout(timer); timer = setTimeout(syncScope, 3050); }
     const steps = (MEASURES as unknown as { eus: { steps: [string][] } }).eus.steps;
     const station: 'pv' | 'hv' = e.step >= 0 && steps[e.step]?.[0] === 'hv' ? 'hv' : 'pv';
-    const mode = e.eus !== 'idle' ? 'eus' : performance.now() < bandUntil ? 'band' : 'scope';
+    const mode = e.eus === 'run' ? 'eus' : performance.now() < bandUntil ? 'band' : 'scope';
     if (p.mode !== mode || p.station !== station) useProbes.getState().setEndoscope({ mode, station });
   };
   sync(); syncDop(); syncScope();
