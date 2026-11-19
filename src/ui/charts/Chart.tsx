@@ -38,10 +38,12 @@ interface Props {
   /** a name the clock shows in ?perf */
   tag?: string;
   className?: string;
+  /** the chart's painter, for a card that moves its picture itself every frame (the cross-section follows the model) */
+  painter?: { current: ChartPainter | null };
 }
 
 /** One chart: a box that takes its width from the card, a GPU canvas for the shapes and a text layer for the words. */
-export function Chart({ build, deps, label, tag = 'chart', className }: Props) {
+export function Chart({ build, deps, label, tag = 'chart', className, painter: painterOut }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const painter = useRef<ChartPainter | null>(null);
   const [w, setW] = useState(0);
@@ -57,12 +59,13 @@ export function Chart({ build, deps, label, tag = 'chart', className }: Props) {
     if (!el) return;
     const p = new ChartPainter(tag);
     painter.current = p;
+    if (painterOut) painterOut.current = p;
     el.append(p.box);
     const measure = () => setW(Math.round(el.getBoundingClientRect().width));
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
-    return () => { ro.disconnect(); p.dispose(); painter.current = null; first.current = true; };
+    return () => { ro.disconnect(); p.dispose(); painter.current = null; if (painterOut) painterOut.current = null; first.current = true; };
   }, [tag]);
 
   const lastKey = useRef('');
