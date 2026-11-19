@@ -7,7 +7,7 @@ import { CelScene } from '../src/scene/scene.ts';
 /** Runs the scene's frames from `from` to `to` ms at 16 ms, as the clock would. */
 const run = (s: CelScene, from: number, to: number) => { for (let t = from; t <= to; t += 16) s.update(t); };
 
-test('option A is the default (owner, 19 Nov), and the settings switch holds the others', () => assert.equal(DEFAULT_FLOW_MODE, 'A'));
+test('the flow.ts options still exist for the views that take them (option A is the default there)', () => assert.equal(DEFAULT_FLOW_MODE, 'A'));
 
 test('A: marks only on named vessels; B: all, fainter off topic; C: all; D: only while the pulse runs', () => {
   assert.equal(targetAmount('A', true, 0), 1);
@@ -38,54 +38,31 @@ test('the shader uses the same speed curve as the CPU', () => {
   assert.match(TOON_FS, /0\.3 \+ 0\.55 \* sqrt\(min\(a, 60\.0\) \/ 20\.0\)/);
 });
 
-test('A in the scene: still vessels show no marks; the picked one and the named ones do, with a fade', () => {
+// (19 Nov, owner: "flow marks suck, I want chevrons like the 2D app". The 2D app has one style of flow head and the Blood menu's two choices; the four
+// options A to D of the first slice are gone from the vessels. flow.ts stays for the views that still take a mode.)
+test('every drawn vessel carries the 2D app\'s flow heads, faded in; Key chevrons only keeps the portal story', () => {
   const s = new CelScene();
   const amt = (id: string) => s.vessels.find((o) => o.edge!.id === id)!.toon.uniforms.flowAmount.value as number;
-  run(s, 0, 32);
-  assert.equal(amt('PV_TRUNK'), 0);
-  s.setNamedVessels(['RHV_IVC']);
-  run(s, 48, 400);
+  run(s, 0, 400);
+  assert.equal(amt('PV_TRUNK'), 1);
   assert.equal(amt('RHV_IVC'), 1);
-  assert.equal(amt('PV_TRUNK'), 0);
-  s.pick('PV_TRUNK');
+  s.setBlood({ keyChevrons: true });
   run(s, 416, 800);
-  assert.equal(amt('PV_TRUNK'), 1, 'the picked vessel carries marks');
-  s.pick(null);
+  assert.equal(amt('PV_TRUNK'), 1);
+  assert.equal(amt('V_KID_L'), 0, 'a side vein loses its heads under Key chevrons only');
+  s.setBlood({ chevrons: false });
   run(s, 816, 1200);
   assert.equal(amt('PV_TRUNK'), 0);
   s.dispose();
 });
 
-test('naming one piece of a vein the engine cuts in pieces names the whole vein', () => {
+test('picking a vessel changes no vessel\'s heads (the pick is an outline, not a flow option)', () => {
   const s = new CelScene();
-  s.setNamedVessels(['RHV_IVC']);
-  run(s, 0, 400);
   const amt = (id: string) => s.vessels.find((o) => o.edge!.id === id)!.toon.uniforms.flowAmount.value as number;
-  assert.equal(amt('RHV_IVC'), 1);
-  assert.equal(amt('RHV_IVC_1'), 1);
-  assert.equal(amt('MHV_IVC'), 0);
-  s.dispose();
-});
-
-test('switching to C paints soft bands on every vessel', () => {
-  const s = new CelScene();
-  s.setFlowMode('C');
   run(s, 0, 400);
-  for (const o of s.vessels) { assert.equal(o.toon.uniforms.flowAmount.value, 1); assert.equal(o.toon.uniforms.flowBands.value, 1); }
-  s.dispose();
-});
-
-test('option D: marks run after a change and are gone seconds later', () => {
-  const s = new CelScene();
-  s.setFlowMode('D');
-  const o = s.vessels[0]!;
-  run(s, 0, 96);
-  assert.equal(o.toon.uniforms.flowAmount.value, 0);
-  s.flow.trigger(100);
-  run(s, 112, 500);
-  assert.ok((o.toon.uniforms.flowAmount.value as number) > 0.9);
-  run(s, 6000, 6400);
-  assert.equal(o.toon.uniforms.flowAmount.value, 0);
+  s.pick('PV_TRUNK');
+  run(s, 416, 800);
+  assert.equal(amt('PV_TRUNK'), 1); assert.equal(amt('RHV_IVC'), 1);
   s.dispose();
 });
 

@@ -10,6 +10,8 @@ export interface Palette {
   /** A token of the 2D chart looks by its name without the dashes ('text', 'surface-2', 'tr-wedge'). A name that does not exist throws: never a quiet fallback. */
   tok(name: string): Rgba;
   has(name: string): boolean;
+  /** Every token of this look (the 2D chart looks resolve their colours through it, so a chart and the card agree). */
+  table(): Readonly<Record<string, Rgba>>;
   mix: typeof mix;
   alpha(c: Rgba, a: number): Rgba;
 }
@@ -41,6 +43,7 @@ export function paletteOf(id: LookId): Palette {
       return c;
     },
     has: (name) => name in table,
+    table: () => table,
     mix,
     alpha: withAlpha,
   };

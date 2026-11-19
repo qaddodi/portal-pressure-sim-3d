@@ -1,8 +1,7 @@
-// Moving blood: which vessels carry chevrons and how strongly. The four flow-mark styles (A to D, look-and-feel.md section 11) decide what a vessel
-// shows; the Blood menu then gates it: chevrons off shows none, "key chevrons only" keeps the portal story (blood.js keyChevron), and a vessel that
-// is not drawn (a closed collateral) carries none. Mark amounts fade at the highlight's 180 ms, so nothing pops.
+// Moving blood: which vessels carry the 2D app's flow heads. The Blood menu gates it: chevrons off shows none, "key chevrons only" keeps the portal story (blood.js keyChevron), and a vessel that
+// is not drawn (a closed collateral) carries none. Amounts fade at the highlight's 180 ms, so nothing pops.
 import type { CelObject } from '../materials/cel.ts';
-import { DEFAULT_FLOW_MODE, FLOW_FADE_MS, type FlowMarkMode, PULSE_MS, targetAmount } from '../flow.ts';
+import { FLOW_FADE_MS } from '../flow.ts';
 import { EDGES } from '../../engine/hales/portal/topology.js';
 
 /** The vessels that keep their chevrons under "Key chevrons only" (blood.js KEY_CHEV_IDS): the portal inflow, the hepatic veins, the liver's beds. */
@@ -21,46 +20,40 @@ export function keyChevron(id: string, open: (id: string) => boolean = () => fal
 
 export interface BloodOptions { chevrons: boolean; keyChevrons: boolean; presenting: boolean }
 
-/** What fraction of a vessel's marks the style and the menu allow (0..1), before fading. */
-export function markGoal(mode: FlowMarkMode, named: boolean, pulse: number, o: BloodOptions, key: boolean, drawn: boolean): number {
+/** Whether a vessel carries heads (1) or not (0), before fading: the 2D app has one style of flow head and the Blood menu's two choices (Chevrons, Key
+ *  chevrons only, which is always on while presenting); a vessel that is not drawn (a closed collateral) carries none. */
+export function markGoal(o: BloodOptions, key: boolean, drawn: boolean): number {
   if (!o.chevrons || !drawn) return 0;
-  const base = targetAmount(mode, named, pulse);
-  return o.keyChevrons || o.presenting ? (key ? base : 0) : base;
+  return o.keyChevrons || o.presenting ? (key ? 1 : 0) : 1;
 }
 
-interface Track { obj: CelObject; id: string; named: boolean; amount: number; key: boolean; drawn: boolean }
+interface Track { obj: CelObject; id: string; amount: number; key: boolean; drawn: boolean }
 
 export class BloodMarks {
-  mode: FlowMarkMode = DEFAULT_FLOW_MODE;
   options: BloodOptions = { chevrons: true, keyChevrons: false, presenting: false };
   private tracks = new Map<string, Track>();
-  private pulseStart = -Infinity;
-  private pulseUntil = -Infinity;
 
   constructor(vessels: readonly CelObject[]) {
-    for (const o of vessels) if (o.edge) this.tracks.set(o.edge.id, { obj: o, id: o.edge.id, named: false, amount: 0, key: keyChevron(o.edge.id), drawn: true });
+    for (const o of vessels) if (o.edge) this.tracks.set(o.edge.id, { obj: o, id: o.edge.id, amount: 0, key: keyChevron(o.edge.id), drawn: true });
   }
 
-  setMode(mode: FlowMarkMode): void { this.mode = mode; }
   setOptions(o: Partial<BloodOptions>): void { this.options = { ...this.options, ...o }; }
-  setNamed(ids: Iterable<string>): void { const s = new Set(ids); for (const t of this.tracks.values()) t.named = s.has(t.id); }
   /** The scene says which vessels are drawn now (a closed collateral is not), and which collaterals are open, for the key rule. */
   setDrawn(drawn: (id: string) => boolean, open: (id: string) => boolean): void {
     for (const t of this.tracks.values()) { t.drawn = drawn(t.id); t.key = keyChevron(t.id, open); }
   }
-  /** Option D: a change happened. */
-  trigger(nowMs: number): void { this.pulseStart = nowMs; this.pulseUntil = nowMs + PULSE_MS; }
 
-  /** Fades each vessel's marks toward its goal. Returns true while marks are showing or fading. */
-  step(nowMs: number, dtMs: number): boolean {
-    const pulse = nowMs >= this.pulseUntil ? 0 : Math.min(1, (this.pulseUntil - nowMs) / 1000, (nowMs - this.pulseStart) / FLOW_FADE_MS);
+  /** Fades each vessel's heads toward its goal at the highlight's 180 ms (the 2D app's 0.15 s). Returns true only while a fade runs: heads moving along a vessel are the streams' business (streams.ts). */
+  step(dtMs: number): boolean {
     const k = Math.min(1, dtMs / FLOW_FADE_MS);
     let active = false;
     for (const t of this.tracks.values()) {
-      const goal = markGoal(this.mode, t.named, pulse, this.options, t.key, t.drawn);
-      t.amount = Math.abs(goal - t.amount) <= k ? goal : t.amount + Math.sign(goal - t.amount) * k;
-      t.obj.setFlow(t.amount, this.mode === 'C');
-      if (t.amount > 0.001) active = true;
+      const goal = markGoal(this.options, t.key, t.drawn);
+      if (t.amount !== goal) {
+        t.amount = Math.abs(goal - t.amount) <= k ? goal : t.amount + Math.sign(goal - t.amount) * k;
+        t.obj.setFlow(t.amount, false);
+        active = true;
+      }
     }
     return active;
   }
