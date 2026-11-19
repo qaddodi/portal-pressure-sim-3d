@@ -1,0 +1,65 @@
+// Each engine frame, pressure, flow and width of every vessel go into one small float texture: one texel per vessel (edge), in the
+// engine's edge order. Shaders read colour shifts, swelling and flow-mark speed from it by the vessel's index, so a new engine frame
+// costs one texture upload and no per-vessel work on the CPU beyond filling this array.
+//
+//   texel r = pressure at the vessel's upstream end   (mmHg, eased: Pf)
+//   texel g = flow                                    (mL/s, signed, eased: Qf; negative = reversed)
+//   texel b = diameter                                (mm)
+//   texel a = pressure at the downstream end          (mmHg, eased)
+//
+// The vessel's name is its topology edge id (PV_TRUNK, SMV, SV…); `indexOf(id)` is the mapping from engine to mesh.
+import { DataTexture, FloatType, NearestFilter, RGBAFormat } from 'three';
+import { EDGES, NODES } from './hales/portal/topology.js';
+import type { EngineFrame } from './protocol.ts';
+
+interface Edge { id: string; from: string; to: string }
+const edges = EDGES as Edge[];
+const nodeIndex = new Map<string, number>((NODES as { id: string }[]).map((n, i) => [n.id, i]));
+
+export const EDGE_IDS: readonly string[] = edges.map((e) => e.id);
+export const EDGE_COUNT = edges.length;
+const indexById = new Map(EDGE_IDS.map((id, i) => [id, i]));
+export const indexOf = (id: string): number => {
+  const i = indexById.get(id);
+  if (i === undefined) throw new Error(`no vessel named ${id} in the engine's topology`);
+  return i;
+};
+export const hasVessel = (id: string) => indexById.has(id);
+
+const fromNode = Int16Array.from(edges.map((e) => nodeIndex.get(e.from) ?? -1));
+const toNode = Int16Array.from(edges.map((e) => nodeIndex.get(e.to) ?? -1));
+
+/** Width of the data texture: one row, one texel per vessel (a few hundred at most). */
+export const TEXTURE_WIDTH = EDGE_COUNT;
+
+/** Fill `out` (length 4 × EDGE_COUNT) from a frame. Pure, allocation-free: tests call it without a GPU. */
+export function fillVesselData(f: Pick<EngineFrame, 'Pf' | 'Qf' | 'D'>, out: Float32Array): Float32Array {
+  for (let i = 0; i < EDGE_COUNT; i++) {
+    const a = fromNode[i]!, b = toNode[i]!;
+    out[i * 4] = a >= 0 ? f.Pf[a]! : 0;
+    out[i * 4 + 1] = f.Qf[i]!;
+    out[i * 4 + 2] = f.D[i]!;
+    out[i * 4 + 3] = b >= 0 ? f.Pf[b]! : 0;
+  }
+  return out;
+}
+
+/** The texture the scene's materials sample. Created once; `update` is called from the clock's engine phase. */
+export class VesselData {
+  readonly data = new Float32Array(EDGE_COUNT * 4);
+  readonly texture = new DataTexture(this.data, TEXTURE_WIDTH, 1, RGBAFormat, FloatType);
+  private seen = -1;
+  constructor() {
+    this.texture.minFilter = NearestFilter; this.texture.magFilter = NearestFilter;
+    this.texture.generateMipmaps = false; this.texture.needsUpdate = true;
+  }
+  /** Adopt a frame if it is newer than the one already in the texture. Returns whether the texture changed. */
+  update(frame: EngineFrame | null, version: number): boolean {
+    if (!frame || version === this.seen) return false;
+    this.seen = version;
+    fillVesselData(frame, this.data);
+    this.texture.needsUpdate = true;
+    return true;
+  }
+  dispose() { this.texture.dispose(); }
+}

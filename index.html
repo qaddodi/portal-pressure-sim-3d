@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#F1EBE0">
+  <meta name="color-scheme" content="light dark">
+  <title>Portal Pressure 3D</title>
+  <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/source-serif-4-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fonts/fonts.css">
+  <style>
+    /* the first paint is the Light ground (or Dark when the device is), never white: main.ts applies the saved look before React starts */
+    html, body { margin: 0; background: #F1EBE0; }
+    @media (prefers-color-scheme: dark) { html, body { background: #1A1917; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="./src/main.tsx"></script>
+</body>
+</html>
