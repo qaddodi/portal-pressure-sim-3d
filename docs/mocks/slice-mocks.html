@@ -1,0 +1,486 @@
+<title>3D Slice Mocks</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap">
+<style>
+/* Layout: a quiet review page; one device at a time, drawn at its real CSS size and scaled to fit. Inside each device the app's own look tokens apply. */
+:root {
+  --page: #eceae6; --page-ink: #22201c; --page-ink-2: #5d584f; --page-line: #d3cfc7; --page-chip: #ffffff; --page-accent: #2E4BB8;
+  --ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --display: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --page: #141312; --page-ink: #ece8e1; --page-ink-2: #a9a296; --page-line: #2f2c28; --page-chip: #1f1d1b; --page-accent: #8fa6ff; color-scheme: dark } }
+:root[data-theme="dark"] { --page: #141312; --page-ink: #ece8e1; --page-ink-2: #a9a296; --page-line: #2f2c28; --page-chip: #1f1d1b; --page-accent: #8fa6ff; color-scheme: dark }
+html, body { height: 100%; }
+body { background: var(--page); color: var(--page-ink); font-family: var(--ui); }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 24px; display: grid; gap: 14px; max-width: 1400px; margin: 0 auto; }
+header { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: baseline; }
+header h1 { font: 600 20px/1.2 var(--display); margin: 0; }
+header p { margin: 0; color: var(--page-ink-2); font-size: 13px; max-width: 70ch; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+.seg { display: flex; flex-wrap: wrap; gap: 4px; }
+.seg button { font: 500 13px var(--ui); color: var(--page-ink); background: var(--page-chip); border: 1px solid var(--page-line); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--page-accent); border-color: var(--page-accent); color: #fff; }
+.seg button:focus-visible { outline: 2px solid var(--page-accent); outline-offset: 2px; }
+.lbl { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--page-ink-2); }
+.caption { color: var(--page-ink-2); font-size: 13px; max-width: 80ch; min-height: 2.6em; }
+.holder { position: relative; overflow: hidden; }
+.device { position: absolute; left: 0; top: 0; transform-origin: 0 0; background: #0b0b0c; padding: 12px; box-shadow: 0 30px 60px -30px #0008; display: none; }
+.device.on { display: block; }
+.device.mac { border-radius: 18px; padding: 10px; }
+.device.phone { border-radius: 58px; }
+.island { position: absolute; background: #000; border-radius: 20px; z-index: 5; }
+
+/* ---------- inside the app: look tokens (values from the current app's styles/tokens.css) ---------- */
+.screen { position: relative; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--ui);
+  -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums lining-nums; }
+.device.mac .screen { border-radius: 8px; }
+.device.phone .screen { border-radius: 46px; }
+.screen[data-look="light"] { --bg:#F1EBE0; --surface:#FCF9F3; --glass:rgba(252,249,243,.92); --text:#1B1710; --text-2:#463F34; --text-3:#5A5347; --accent:#2E4BB8; --accent-soft:rgba(46,75,184,.10); --ok:#157A58; --caution:#B07A0A; --danger:#C23F2A; --sys:#3F7FCB; --edge:rgba(59,44,34,.12); --shadow-rgb:46 22 34; --sa:.16; }
+.screen[data-look="soft"]  { --bg:#DDD0B9; --surface:#F0E9DC; --glass:rgba(240,233,220,.84); --text:#1F1A12; --text-2:#463E31; --text-3:#514838; --accent:#3652B8; --accent-soft:rgba(54,82,184,.11); --ok:#0F6B57; --caution:#845200; --danger:#AA3622; --sys:#3F7FCB; --edge:rgba(51,37,26,.14); --shadow-rgb:46 22 34; --sa:.18; }
+.screen[data-look="dark"]  { --bg:#1A1917; --surface:#242321; --glass:rgba(30,29,27,.95); --text:#EEEBE5; --text-2:#B7B1A8; --text-3:#A69E95; --accent:#7C9BFF; --accent-soft:rgba(124,155,255,.13); --ok:#34C38F; --caution:#F0B43C; --danger:#F2634D; --sys:#79AEEF; --edge:rgba(255,255,255,.08); --shadow-rgb:0 0 0; --sa:.5; }
+.screen[data-look="navy"]  { --bg:#0E1422; --surface:#161E30; --glass:rgba(16,23,42,.95); --text:#E9EDF6; --text-2:#A9B2C7; --text-3:#8F99B3; --accent:#7C9BFF; --accent-soft:rgba(124,155,255,.13); --ok:#34C38F; --caution:#F0B43C; --danger:#F2634D; --sys:#79AEEF; --edge:rgba(255,255,255,.08); --shadow-rgb:0 0 0; --sa:.5; }
+.screen[data-look="black"] { --bg:#000000; --surface:#0D0D0E; --glass:rgba(10,10,11,.95); --text:#F4F4F5; --text-2:#B6B6BC; --text-3:#9C9CA4; --accent:#7C9BFF; --accent-soft:rgba(124,155,255,.13); --ok:#34C38F; --caution:#F0B43C; --danger:#F2634D; --sys:#79AEEF; --edge:rgba(255,255,255,.09); --shadow-rgb:0 0 0; --sa:.6; }
+.gl { position: absolute; inset: 0; }
+.gl canvas { display: block; width: 100%; height: 100%; }
+
+/* Card: "Soft lift" (19 Nov pick), no backdrop blur. */
+.card { position: absolute; background: var(--surface); border-radius: 16px; border: 1px solid var(--edge);
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / calc(var(--sa) * .8)), 0 12px 32px -10px rgb(var(--shadow-rgb) / calc(var(--sa) * 1.6)); }
+.kicker { font: 600 11px/1 var(--ui); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
+.ttl { font-family: var(--display); font-weight: 600; letter-spacing: -.005em; text-wrap: balance; margin: 0; color: var(--text); }
+.body { margin: 0; color: var(--text); text-wrap: pretty; }
+.muted { color: var(--text-2); }
+.num { font-variant-numeric: tabular-nums lining-nums; font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 600 12px/1 var(--ui); padding: 5px 9px; border-radius: 999px; }
+.pill.danger { background: color-mix(in srgb, var(--danger) 14%, transparent); color: color-mix(in srgb, var(--danger) 85%, var(--text)); }
+.pill.caution { background: color-mix(in srgb, var(--caution) 16%, transparent); color: color-mix(in srgb, var(--caution) 75%, var(--text)); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; }
+.btn { font: 600 14px var(--ui); border-radius: 999px; padding: 10px 18px; border: 1px solid var(--edge); background: transparent; color: var(--text); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.eq { font: 500 17px/1 var(--display); display: flex; gap: 8px; align-items: baseline; margin: 10px 0 12px; }
+.eq .w { color: color-mix(in srgb, var(--caution) 80%, var(--text)); font-weight: 600; }
+.eq .f { color: color-mix(in srgb, var(--sys) 80%, var(--text)); font-weight: 600; }
+
+/* 3D-anchored tags: moved by transform only, from the same frame as the camera. */
+.tag { position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none; will-change: transform, opacity; transition: opacity .18s ease;
+  font: 600 12px/1 var(--ui); color: var(--text); background: var(--glass); border: 1px solid var(--edge); padding: 6px 9px; border-radius: 999px; white-space: nowrap;
+  box-shadow: 0 4px 12px -6px rgb(var(--shadow-rgb) / var(--sa)); }
+.tag .dot { margin-right: 6px; vertical-align: 0; }
+
+/* Ladder (a GPU chart in the app; DOM here for the mock). */
+.ladder { display: grid; gap: 7px; margin-top: 10px; }
+.lrow { display: grid; grid-template-columns: 86px 1fr 58px; align-items: center; gap: 10px; font-size: 13px; }
+.lrow .bar { height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--text) 9%, transparent); position: relative; }
+.lrow .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--c, var(--text-3)); }
+.lrow b { text-align: right; font-weight: 600; }
+.gap { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--edge); font-size: 13px; }
+
+/* Topbar inside app */
+.topbar { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 10px; z-index: 4; font-size: 13px; color: var(--text-2); }
+.topbar .brand { font: 600 14px var(--display); color: var(--text); }
+.ico { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--glass); border: 1px solid var(--edge); color: var(--text); font-size: 15px; }
+.prog { display: flex; gap: 5px; align-items: center; }
+.prog i { width: 6px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--text) 22%, transparent); }
+.prog i.on { width: 18px; background: var(--accent); }
+
+/* Wallet (sideways iPhone, 19 Nov): one card centred, the other as a strip at the foot. */
+.wcard { transition: transform .28s cubic-bezier(.2,.7,.2,1), opacity .22s ease; }
+.wcard.away { opacity: 0; transform: translateY(calc(-50% + 28px)) !important; pointer-events: none; }
+.strip { position: absolute; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 14px; height: 44px; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--edge); font-size: 13px; cursor: pointer; color: var(--text);
+  box-shadow: 0 8px 20px -10px rgb(var(--shadow-rgb) / calc(var(--sa) * 1.4)); transition: opacity .2s ease; }
+.strip .grip { width: 28px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 25%, transparent); }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { font: 600 13px var(--ui); padding: 8px 12px; border-radius: 999px; border: 1px solid var(--edge); background: transparent; color: var(--text); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
+.err { padding: 24px; color: #c23f2a; }
+@media (prefers-reduced-motion: reduce) { .wcard, .strip, .tag { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>3D slice mocks</h1>
+    <p>Live mocks of four screens for the HVPG slice, in the cel-shaded look. Placeholder anatomy, real deck text, the current app's five looks. Drag the figure to turn it a little.</p>
+  </header>
+  <div class="controls">
+    <span class="lbl">Screen</span>
+    <div class="seg" id="screens">
+      <button type="button" data-s="title" aria-pressed="true">Deck title</button>
+      <button type="button" data-s="slide" aria-pressed="false">Slide with card</button>
+      <button type="button" data-s="wallet" aria-pressed="false">Sideways iPhone wallet</button>
+      <button type="button" data-s="pick" aria-pressed="false">Vessel highlight</button>
+    </div>
+    <span class="lbl">Look</span>
+    <div class="seg" id="looks">
+      <button type="button" data-l="light" aria-pressed="true">Light</button>
+      <button type="button" data-l="soft" aria-pressed="false">Soft</button>
+      <button type="button" data-l="dark" aria-pressed="false">Dark</button>
+      <button type="button" data-l="navy" aria-pressed="false">Navy</button>
+      <button type="button" data-l="black" aria-pressed="false">Black</button>
+    </div>
+    <div class="seg"><button type="button" id="actual" aria-pressed="false">Actual size</button></div>
+  </div>
+  <div class="caption" id="caption"></div>
+  <div class="holder" id="holder">
+
+    <!-- 1. Deck title, Mac 1280 x 800 -->
+    <div class="device mac on" id="dev-title" data-w="1280" data-h="800">
+      <div class="screen" data-look="light" style="width:1280px;height:800px">
+        <div class="gl"></div>
+        <div class="topbar" style="padding:18px 24px"><span class="brand">Portal Pressure</span><span style="margin-left:auto">Talks</span><span class="ico">◐</span></div>
+        <div class="card" style="left:48px;top:96px;width:500px;padding:32px 34px 30px">
+          <div class="kicker">Core talk · 15 minutes · 9 slides</div>
+          <h2 class="ttl" style="font-size:44px;line-height:1.08;margin:14px 0 14px">Measuring HVPG and PPG</h2>
+          <p class="body muted" style="font-size:17px;line-height:1.5">How the HVPG is measured and interpreted, where it misleads, and when to measure the PPG instead.</p>
+          <div class="kicker" style="margin-top:24px">By the end you can</div>
+          <ul class="body" style="font-size:16px;line-height:1.45;margin:10px 0 0;padding-left:20px;display:grid;gap:6px">
+            <li>Describe how the free and wedged hepatic venous pressures are recorded</li>
+            <li>Calculate the HVPG and state its 5 and 10 mmHg cut-offs</li>
+            <li>Recognize when the HVPG misleads, and use the PPG instead</li>
+          </ul>
+          <div style="display:flex;gap:10px;margin-top:28px"><span class="btn primary">Start talk</span><span class="btn">Handout</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Slide with card, Mac 1280 x 800 -->
+    <div class="device mac" id="dev-slide" data-w="1280" data-h="800">
+      <div class="screen" data-look="light" style="width:1280px;height:800px">
+        <div class="gl"></div>
+        <div class="topbar" style="padding:18px 24px"><span class="ico">←</span><span>Measuring HVPG and PPG</span>
+          <span class="prog" style="margin-left:auto"><i></i><i></i><i></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i></span><span class="num" style="margin-left:8px">4 / 9</span></div>
+        <div class="card" style="left:40px;top:80px;width:430px;padding:24px 26px 24px">
+          <div class="kicker">Measuring portal pressure</div>
+          <h2 class="ttl" style="font-size:26px;line-height:1.18;margin:10px 0 2px">HVPG measures the pressure drop across the sinusoids</h2>
+          <div class="eq"><span>HVPG</span><span>=</span><span class="w">WHVP</span><span>−</span><span class="f">FHVP</span></div>
+          <p class="body" style="font-size:17px;line-height:1.5">In this case the HVPG is <span class="num">12 mmHg</span>, which is ≥<span class="num">10 mmHg</span>: clinically significant portal hypertension.</p>
+        </div>
+        <div class="card" style="right:40px;bottom:40px;width:330px;padding:18px 20px 18px" data-ladder></div>
+      </div>
+    </div>
+
+    <!-- 3. Sideways iPhone wallet, 852 x 393 -->
+    <div class="device phone" id="dev-wallet" data-w="852" data-h="393">
+      <div class="island" style="left:22px;top:146px;width:37px;height:126px"></div>
+      <div class="screen" data-look="light" style="width:852px;height:393px">
+        <div class="gl"></div>
+        <div class="topbar" style="padding:12px 59px 0 0;justify-content:flex-end"><span class="num">4 / 9</span><span class="ico">✕</span></div>
+        <div class="card wcard" id="wTeach" style="left:59px;top:50%;transform:translateY(-50%);width:330px;padding:18px 20px 18px">
+          <div class="kicker">Measuring portal pressure</div>
+          <h2 class="ttl" style="font-size:22px;line-height:1.2;margin:8px 0 0">HVPG measures the pressure drop across the sinusoids</h2>
+          <div class="eq" style="font-size:16px;margin:8px 0 8px"><span>HVPG</span><span>=</span><span class="w">WHVP</span><span>−</span><span class="f">FHVP</span></div>
+          <p class="body" style="font-size:16px;line-height:1.45">In this case the HVPG is <span class="num">12 mmHg</span>, which is ≥<span class="num">10 mmHg</span>: clinically significant portal hypertension.</p>
+        </div>
+        <div class="card wcard away" id="wData" style="left:59px;top:50%;transform:translateY(-50%);width:330px;padding:16px 18px 16px" data-ladder></div>
+        <div class="strip" id="wStrip" style="left:59px;width:330px;bottom:12px"><span id="wStripText">Pressures · <span class="num">HVPG 12 mmHg</span></span><span class="grip"></span></div>
+      </div>
+    </div>
+
+    <!-- 4. Vessel highlight, iPhone portrait 393 x 852 -->
+    <div class="device phone" id="dev-pick" data-w="393" data-h="852">
+      <div class="island" style="left:145px;top:23px;width:126px;height:37px"></div>
+      <div class="screen" data-look="light" style="width:393px;height:852px">
+        <div class="gl"></div>
+        <div class="topbar" style="padding:62px 16px 0"><span class="brand">Portal Pressure</span><span style="margin-left:auto">Cirrhosis, CSPH</span></div>
+        <div class="card" style="left:12px;right:12px;bottom:34px;padding:18px 18px 16px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <div class="kicker" id="pkKind">Portal vein</div><span class="pill danger" id="pkPill"><span class="dot"></span>PPG 14 · high</span></div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin:10px 0 4px"><span class="num ttl" style="font-family:var(--ui);font-size:40px;line-height:1" id="pkVal">21</span><span class="muted" style="font-size:16px">mmHg</span></div>
+          <p class="body muted" style="font-size:15px;line-height:1.4" id="pkLine">Flow 1.1 L/min toward the liver. The outline runs on downstream, where this blood goes next.</p>
+          <div class="chips" style="margin-top:14px" id="pkChips">
+            <button type="button" class="chip" data-v="pv" aria-pressed="true">Portal vein</button>
+            <button type="button" class="chip" data-v="spl" aria-pressed="false">Splenic vein</button>
+            <button type="button" class="chip" data-v="smv" aria-pressed="false">SMV</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<template id="ladderTpl">
+  <div style="display:flex;justify-content:space-between;align-items:baseline"><div class="kicker">Pressures</div><span class="muted" style="font-size:12px">mmHg</span></div>
+  <div class="ladder">
+    <div class="lrow"><span>Portal vein</span><span class="bar"><i style="width:84%;--c:color-mix(in srgb,var(--danger) 70%,var(--text-3))"></i></span><b class="num">21</b></div>
+    <div class="lrow"><span>WHVP</span><span class="bar"><i style="width:80%;--c:var(--caution)"></i></span><b class="num">20</b></div>
+    <div class="lrow"><span>FHVP</span><span class="bar"><i style="width:32%;--c:var(--sys)"></i></span><b class="num">8</b></div>
+    <div class="lrow"><span>IVC</span><span class="bar"><i style="width:28%;--c:var(--sys)"></i></span><b class="num">7</b></div>
+    <div class="lrow"><span>Right atrium</span><span class="bar"><i style="width:20%;--c:var(--sys)"></i></span><b class="num">5</b></div>
+  </div>
+  <div class="gap"><span>HVPG = 20 − 8 = <span class="num">12</span></span><span class="pill danger"><span class="dot"></span>≥10 · CSPH</span></div>
+</template>
+
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ---------- page plumbing ----------
+document.querySelectorAll('[data-ladder]').forEach(el => el.append(document.getElementById('ladderTpl').content.cloneNode(true)));
+const holder = document.getElementById('holder'), caption = document.getElementById('caption');
+const CAPTIONS = {
+  title: 'Deck title on a Mac (1280 × 800). The card takes its room first; the camera then frames the body in the room left over, by shifting the projection, not by moving or squeezing the art.',
+  slide: 'A slide with its teaching card and data card. The camera moves to the liver shot; the catheter tags ride their 3D points on the same clock. Title is 26 px against 17 px body (1.5×).',
+  wallet: 'Sideways iPhone (852 × 393): the wallet. One card centred in its column, the other as a strip at the foot. Tap the strip to swap. Text stays 16 px; the figure yields its room instead.',
+  pick: 'iPhone portrait: a picked vessel gets a bolder outline in its own deep colour (white on dark looks) that runs on downstream and fades, and only briefly upstream. Nothing else is dimmed.'
+};
+let screen = 'title', look = 'light', actual = false;
+
+function fit() {
+  const dev = document.getElementById('dev-' + screen);
+  const w = +dev.dataset.w + 24, h = +dev.dataset.h + 24;
+  const avail = holder.parentElement.clientWidth - 32 > 0 ? holder.clientWidth : 360;
+  const maxH = Math.max(320, innerHeight - holder.getBoundingClientRect().top - 24);
+  const s = actual ? 1 : Math.min(1, avail / w, maxH / h);
+  dev.style.transform = `scale(${s})`;
+  holder.style.height = (h * s) + 'px';
+}
+new ResizeObserver(fit).observe(holder);
+addEventListener('resize', fit);
+
+// ---------- looks: 3D colours (organ and vessel tones from the current app's tokens) ----------
+const LOOKS = {
+  light: { bg:'#F1EBE0', body:'#E8DFD0', liver:'#905b49', spleen:'#7a5f78', gut:'#af826e', stomach:'#a67a6c', heart:'#9d575c', portal:'#B8326F', sys:'#3F7FCB', ink:'#3b2c22', shade:.62, hi:'deep', cath:'#c9ccd2', balloon:'#B07A0A' },
+  soft:  { bg:'#DDD0B9', body:'#cec6b7', liver:'#774433', spleen:'#634962', gut:'#956a57', stomach:'#8d6255', heart:'#834046', portal:'#A8306A', sys:'#3A74B8', ink:'#33251a', shade:.64, hi:'deep', cath:'#c4c6cc', balloon:'#845200' },
+  dark:  { bg:'#1A1917', body:'#262421', liver:'#A88C82', spleen:'#93889A', gut:'#ac9289', stomach:'#A99088', heart:'#AE8387', portal:'#E06AA2', sys:'#79AEEF', ink:'#0e0b09', shade:.5, hi:'white', cath:'#d9dbe0', balloon:'#F0B43C' },
+  navy:  { bg:'#0E1422', body:'#1A2238', liver:'#A88C82', spleen:'#93889A', gut:'#ac9289', stomach:'#A99088', heart:'#AE8387', portal:'#E06AA2', sys:'#79AEEF', ink:'#05080f', shade:.5, hi:'white', cath:'#d9dbe0', balloon:'#F0B43C' },
+  black: { bg:'#000000', body:'#0F0F11', liver:'#A88C82', spleen:'#93889A', gut:'#ac9289', stomach:'#A99088', heart:'#AE8387', portal:'#E06AA2', sys:'#79AEEF', ink:'#000000', shade:.48, hi:'white', cath:'#d9dbe0', balloon:'#F0B43C' },
+};
+
+// ---------- renderer ----------
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false }); }
+catch (e) { holder.innerHTML = '<p class="err">These mocks need WebGL, which this browser did not provide.</p>'; throw e; }
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+const LIGHT = new THREE.Vector3(-0.45, 0.75, 0.55).normalize();
+const RES = new THREE.Vector2(1, 1);
+const clock = { t: 0 };
+
+// Toon body: banded light, hard rim, hard specular (vessels), optional flow marks scrolling along the tube.
+const toonVS = `
+uniform float inflate; varying vec3 vN; varying vec3 vV; varying vec2 vUv;
+void main(){ vec3 p = position + normal * inflate; vec4 mv = modelViewMatrix * vec4(p,1.0);
+  vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); vUv = uv; gl_Position = projectionMatrix * mv; }`;
+const toonFS = `
+uniform vec3 color; uniform vec3 shade; uniform vec3 light; uniform float bands; uniform float spec;
+uniform float flow; uniform float len; uniform float time;
+varying vec3 vN; varying vec3 vV; varying vec2 vUv;
+void main(){ vec3 n = normalize(vN); vec3 l = normalize((viewMatrix * vec4(light,0.0)).xyz);
+  float d = dot(n,l)*0.5+0.5; float q = d*bands; float f = fract(q); float w = fwidth(q)*0.75;
+  float b = (floor(q) + smoothstep(0.5-w, 0.5+w, f)) / bands;
+  vec3 c = mix(shade, color, clamp(b, 0.0, 1.0));
+  float ndv = max(dot(n, vV), 0.0);
+  float rim = smoothstep(0.66, 0.70, 1.0 - ndv) * step(0.5, d);
+  float sp = spec * smoothstep(0.962, 0.972, max(dot(reflect(-l, n), vV), 0.0));
+  if (flow != 0.0) { float m = fract(vUv.x * len * 2.4 - time * flow);
+    float band = smoothstep(0.0, 0.06, m) * (1.0 - smoothstep(0.16, 0.24, m));
+    c = mix(c, c * 1.22 + 0.04, band * 0.55); }
+  c += rim * 0.10 + sp * 0.32; gl_FragColor = vec4(c, 1.0); }`;
+// Ink hull: back faces pushed out by a width in screen pixels, so lines stay even at any zoom.
+const outVS = `
+uniform float inflate; uniform float px; uniform vec2 res; uniform float hiA; uniform float hiSpan; uniform float hiFromEnd; uniform float hiPx;
+varying float vHi;
+void main(){ vec3 p = position + normal * inflate; vec4 c = projectionMatrix * modelViewMatrix * vec4(p,1.0);
+  float d = hiFromEnd > 0.5 ? 1.0 - uv.x : uv.x;
+  vHi = hiA * (1.0 - smoothstep(0.0, hiSpan, d));
+  vec2 nd = (projectionMatrix * vec4(normalMatrix * normal, 0.0)).xy; float l = length(nd);
+  nd = l > 1e-5 ? nd / l : vec2(0.0);
+  c.xy += nd * (px + hiPx * vHi) * 2.0 / res * c.w; gl_Position = c; }`;
+const outFS = `uniform vec3 color; uniform vec3 hiColor; varying float vHi; void main(){ gl_FragColor = vec4(mix(color, hiColor, clamp(vHi,0.0,1.0)), 1.0); }`;
+
+const objs = [];
+function toon(geo, key, o = {}) {
+  const mat = new THREE.ShaderMaterial({ vertexShader: toonVS, fragmentShader: toonFS, extensions: { derivatives: true },
+    uniforms: { color: { value: new THREE.Color() }, shade: { value: new THREE.Color() }, light: { value: LIGHT },
+      bands: { value: o.bands || 3 }, spec: { value: o.spec || 0 }, inflate: { value: 0 }, flow: { value: o.flow || 0 }, len: { value: o.len || 1 }, time: { value: 0 } } });
+  const om = new THREE.ShaderMaterial({ vertexShader: outVS, fragmentShader: outFS, side: THREE.BackSide,
+    uniforms: { color: { value: new THREE.Color() }, hiColor: { value: new THREE.Color() }, inflate: mat.uniforms.inflate, px: { value: o.px || 1.4 }, res: { value: RES },
+      hiA: { value: 0 }, hiSpan: { value: 1 }, hiFromEnd: { value: 0 }, hiPx: { value: 1.6 } } });
+  const g = new THREE.Group(); g.add(new THREE.Mesh(geo, om), new THREE.Mesh(geo, mat));
+  if (o.pos) g.position.set(...o.pos); if (o.rot) g.rotation.set(...o.rot);
+  scene.add(g); const rec = { g, mat, om, key, name: o.name }; objs.push(rec); return rec;
+}
+function lumpy(geo, amt, seed) {
+  const p = geo.attributes.position, v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i);
+    v.multiplyScalar(1 + amt * Math.sin(v.x * 3.1 + seed) * Math.cos(v.y * 2.7 - seed) * Math.sin(v.z * 2.3 + seed * 2)); p.setXYZ(i, v.x, v.y, v.z); }
+  geo.computeVertexNormals(); return geo;
+}
+const blob = (sx, sy, sz, amt, seed, seg = 48) => { const g = lumpy(new THREE.SphereGeometry(1, seg, Math.round(seg * .66)), amt, seed); g.scale(sx, sy, sz); return g; };
+const V = (a) => new THREE.Vector3(...a);
+function vessel(pts, r, key, o = {}) {
+  const curve = new THREE.CatmullRomCurve3(pts.map(V));
+  const rec = toon(new THREE.TubeGeometry(curve, Math.max(24, pts.length * 18), r, 16, false), key, { bands: 2, spec: 1, px: o.px || 1.2, flow: o.flow || 0, len: curve.getLength(), name: o.name });
+  // round caps so open tube ends never show
+  for (const end of [pts[0], pts[pts.length - 1]]) if (o.caps !== false) { const c = toon(new THREE.SphereGeometry(r, 16, 12), key, { bands: 2, spec: 1, px: o.px || 1.2, pos: end }); c.cap = rec; }
+  rec.curve = curve; return rec;
+}
+
+// ---------- placeholder anatomy (frontal: the patient's right is on the viewer's left) ----------
+const torso = new THREE.Shape();
+torso.moveTo(-2.3, -2.7); torso.bezierCurveTo(-2.5, -1, -2.6, 1.2, -2.35, 2.4); torso.bezierCurveTo(-2.1, 3.0, -1.2, 3.25, 0, 3.3);
+torso.bezierCurveTo(1.2, 3.25, 2.1, 3.0, 2.35, 2.4); torso.bezierCurveTo(2.6, 1.2, 2.5, -1, 2.3, -2.7); torso.closePath();
+const plate = new THREE.Mesh(new THREE.ShapeGeometry(torso, 32), new THREE.MeshBasicMaterial({ color: '#E8DFD0' }));
+plate.position.z = -1.35; scene.add(plate);
+
+toon(blob(.55, .46, .42, .05, 3.3), 'heart', { pos: [-0.35, 2.55, -0.55] });
+toon(blob(1.35, .95, .85, .06, 1.3), 'liver', { pos: [-0.8, 1.05, -0.15], rot: [0, 0, -0.16], px: 1.8, name: 'liver' });
+toon(blob(.95, .5, .55, .05, 2.2), 'liver', { pos: [0.5, 1.28, 0.0], rot: [0, 0, -0.28], px: 1.8 });
+toon(blob(.38, .62, .3, .05, 2.1), 'spleen', { pos: [1.9, 1.0, -0.45], rot: [0, 0, 0.5], px: 1.6 });
+vessel([[0.55, 1.75, 0.05], [1.05, 1.45, 0.25], [1.28, 0.95, 0.3], [1.0, 0.5, 0.35], [0.45, 0.55, 0.4]], 0.3, 'stomach', { px: 1.6 });
+vessel([[0.55, 1.75, 0.05], [0.42, 2.25, -0.2], [0.3, 2.9, -0.4]], 0.11, 'stomach', { px: 1.3 });                       // oesophagus
+const colon = vessel([[-1.35, -2.2, 0.05], [-1.45, -0.9, 0.12], [-1.25, -0.15, 0.25], [0, -0.05, 0.35], [1.25, -0.15, 0.25], [1.5, -0.9, 0.12], [1.35, -2.2, 0.05]], 0.24, 'gut', { px: 1.5 });
+const sb = []; for (let i = 0; i <= 36; i++) sb.push([0.72 * Math.sin(i * 0.62), -0.55 - i * 0.042, 0.22 + 0.1 * Math.cos(i * 0.9)]);
+vessel(sb, 0.16, 'gut', { px: 1.3 });
+
+// veins: systemic in blue, portal in the portal colour; flow marks scroll at the engine's speed (a constant here)
+vessel([[-0.35, -2.6, -0.6], [-0.4, -0.6, -0.6], [-0.48, 1.0, -0.62], [-0.42, 2.2, -0.55]], 0.14, 'sys', { flow: 0.55, name: 'ivc' });
+vessel([[-1.45, 1.2, -0.3], [-0.95, 1.4, -0.45], [-0.5, 1.6, -0.58]], 0.055, 'sys', { flow: 0.4, name: 'rhv' });
+vessel([[-0.3, 0.9, 0.05], [-0.42, 1.3, -0.3], [-0.48, 1.62, -0.56]], 0.05, 'sys', { flow: 0.4 });
+vessel([[0.5, 1.2, 0.05], [0.0, 1.5, -0.25], [-0.44, 1.66, -0.56]], 0.05, 'sys', { flow: 0.4 });
+const CONF = [0.15, 0.35, 0.75], HIL = [-0.55, 0.92, 0.42];
+const P = {
+  pv:  vessel([CONF, [-0.15, 0.6, 0.68], HIL], 0.095, 'portal', { flow: 0.5, name: 'pv' }),
+  rpv: vessel([HIL, [-1.0, 1.0, 0.3], [-1.5, 1.05, 0.1]], 0.06, 'portal', { flow: 0.45 }),
+  lpv: vessel([HIL, [-0.15, 1.12, 0.36], [0.55, 1.28, 0.26]], 0.055, 'portal', { flow: 0.45 }),
+  spl: vessel([[1.75, 0.82, -0.25], [1.3, 0.55, 0.3], [0.7, 0.42, 0.66], CONF], 0.07, 'portal', { flow: 0.5, name: 'spl' }),
+  smv: vessel([CONF, [0.22, -0.3, 0.82], [0.28, -1.05, 0.84], [0.15, -1.95, 0.8]], 0.08, 'portal', { flow: -0.5, name: 'smv' }),
+  lgv: vessel([[0.45, 0.42, 0.72], [0.72, 1.0, 0.6], [0.62, 1.62, 0.4]], 0.035, 'portal', { flow: 0.35 }),
+};
+// small varices on the lower oesophagus
+for (const [a, y, r] of [[0.2, 1.95, .05], [2.2, 2.05, .045], [4.1, 2.12, .05], [5.4, 1.98, .04]])
+  toon(new THREE.SphereGeometry(r, 14, 10), 'portal', { bands: 2, spec: 1, px: 1, pos: [0.48 + Math.cos(a) * 0.12, y, -0.12 + Math.sin(a) * 0.12] });
+
+// HVPG catheter: jugular route through the right atrium and IVC into the right hepatic vein, balloon at the tip
+const cath = [vessel([[-0.42, 3.4, -0.5], [-0.42, 2.2, -0.55], [-0.48, 1.62, -0.6], [-0.9, 1.42, -0.42], [-1.2, 1.3, -0.33]], 0.018, 'cath', { px: 0.9, caps: false })];
+cath.push(toon(blob(.075, .055, .055, 0, 0, 20), 'balloon', { pos: [-1.24, 1.29, -0.31], rot: [0, 0, -0.35], bands: 2, spec: 1, px: 1.1 }));
+const cathParts = () => objs.filter(o => o.key === 'cath' || o.key === 'balloon');
+
+function applyLook() {
+  const L = LOOKS[look];
+  scene.background = new THREE.Color(L.bg); plate.material.color.set(L.body);
+  for (const o of objs) { const c = new THREE.Color(L[o.key]);
+    o.mat.uniforms.color.value.copy(c); o.mat.uniforms.shade.value.copy(c).multiplyScalar(L.shade).lerp(new THREE.Color(L.ink), 0.08);
+    o.om.uniforms.color.value.set(L.ink); }
+  setHighlight(currentPick);
+  document.querySelectorAll('.screen').forEach(s => s.dataset.look = look);
+}
+
+// ---------- vessel highlight: "long ahead, short behind" ----------
+let currentPick = null;
+const HI = { // for each pick: [vessel, strength, span along the vessel, measured from which end]
+  pv:  [['pv', 1, 9, 0], ['rpv', 1, 0.9, 0], ['lpv', 1, 0.9, 0], ['spl', .7, .28, 1], ['smv', .7, .22, 0]],
+  spl: [['spl', 1, 9, 0], ['pv', 1, 0.9, 0], ['smv', .6, .18, 0]],
+  smv: [['smv', 1, 9, 0], ['pv', 1, 0.9, 0], ['spl', .6, .22, 1]],
+};
+function setHighlight(pick) {
+  currentPick = pick; const L = LOOKS[look];
+  for (const o of objs) { o.om.uniforms.hiA.value = 0; o.mat.uniforms.inflate.value = 0; }
+  if (!pick) return;
+  for (const [k, a, span, end] of HI[pick]) { const rec = P[k];
+    const hc = L.hi === 'white' ? new THREE.Color('#ffffff') : new THREE.Color(L.portal).multiplyScalar(0.5);
+    for (const o of objs.filter(x => x === rec || x.cap === rec)) {
+      o.om.uniforms.hiA.value = o === rec ? a : (span > 5 ? a : 0); o.om.uniforms.hiSpan.value = span; o.om.uniforms.hiFromEnd.value = end;
+      o.om.uniforms.hiColor.value.copy(hc); }
+  }
+  P[pick].mat.uniforms.inflate.value = 0.012;   // a small lift on the pick itself
+}
+
+// ---------- shots, free room and tags ----------
+const SHOTS = {
+  title:  { yaw: 0.32, pitch: 0.06, r: 11.5, tgt: [0.1, 0.35, 0], free: [560, 60, 720, 740] },
+  slide:  { yaw: -0.3, pitch: 0.1, r: 6.4, tgt: [-0.55, 1.15, -0.2], free: [480, 60, 800, 500] },
+  wallet: { yaw: -0.28, pitch: 0.08, r: 8.6, tgt: [-0.45, 1.1, -0.2], free: [405, 40, 388, 353] },
+  pick:   { yaw: 0.18, pitch: 0.12, r: 15.5, tgt: [0.15, 0.55, 0.2], free: [0, 104, 393, 460] },
+};
+const TAGS = {
+  title: [],
+  slide: [['Balloon wedged · WHVP 20', [-1.24, 1.29, -0.31], 'caution'], ['IVC · 7', [-0.4, 0.2, -0.6], 'sys'], ['Right atrium · 5', [-0.35, 2.4, -0.5], 'sys']],
+  wallet: [['Balloon wedged · 20', [-1.24, 1.29, -0.31], 'caution'], ['IVC · 7', [-0.4, 0.2, -0.6], 'sys']],
+  pick: [['Portal vein · 21', [-0.2, 0.62, 0.7], 'danger'], ['Splenic vein', [1.25, 0.55, 0.32], 'text-3'], ['SMV', [0.26, -0.8, 0.84], 'text-3']],
+};
+const tagEls = {};
+for (const s of Object.keys(TAGS)) {
+  const scr = document.querySelector('#dev-' + s + ' .screen');
+  tagEls[s] = TAGS[s].map(([text, p, c]) => { const el = document.createElement('div'); el.className = 'tag';
+    el.innerHTML = `<span class="dot" style="color:var(--${c})"></span>${text}`; scr.append(el); return { el, p: V(p) }; });
+}
+
+const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let cur = null, from = null, to = null, t0 = 0, DUR = 950, orbit = 0;
+const lerp = (a, b, k) => a + (b - a) * k;
+function shotCopy(s) { return { yaw: s.yaw, pitch: s.pitch, r: s.r, tgt: V(s.tgt), free: [...s.free] }; }
+
+function show(s) {
+  screen = s;
+  document.querySelectorAll('.device').forEach(d => d.classList.toggle('on', d.id === 'dev-' + s));
+  document.querySelectorAll('#screens button').forEach(b => b.setAttribute('aria-pressed', b.dataset.s === s));
+  caption.textContent = CAPTIONS[s];
+  const dev = document.getElementById('dev-' + s);
+  dev.querySelector('.gl').append(renderer.domElement);
+  const W = +dev.dataset.w, H = +dev.dataset.h; renderer.setSize(W, H, false); RES.set(W, H); camera.aspect = W / H;
+  for (const o of cathParts()) o.g.visible = s === 'slide' || s === 'wallet';
+  setHighlight(s === 'pick' ? (document.querySelector('#pkChips [aria-pressed="true"]')?.dataset.v || 'pv') : null);
+  from = cur ? { ...cur, tgt: cur.tgt.clone(), free: [...cur.free] } : shotCopy(SHOTS[s]); to = shotCopy(SHOTS[s]); t0 = performance.now(); orbit = 0;
+  if (!cur) cur = shotCopy(SHOTS[s]);
+  fit();
+}
+document.getElementById('screens').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) show(b.dataset.s); });
+document.getElementById('looks').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return;
+  look = b.dataset.l; document.querySelectorAll('#looks button').forEach(x => x.setAttribute('aria-pressed', x === b)); applyLook(); });
+document.getElementById('actual').addEventListener('click', (e) => { actual = !actual; e.currentTarget.setAttribute('aria-pressed', actual); fit(); });
+
+// wallet swap
+const wT = document.getElementById('wTeach'), wD = document.getElementById('wData'), wS = document.getElementById('wStripText');
+let walletData = false;
+document.getElementById('wStrip').addEventListener('click', () => { walletData = !walletData;
+  wT.classList.toggle('away', walletData); wD.classList.toggle('away', !walletData);
+  wS.innerHTML = walletData ? 'Slide · <span class="num">HVPG across the sinusoids</span>' : 'Pressures · <span class="num">HVPG 12 mmHg</span>'; });
+
+// vessel pick
+const PK = { pv: ['Portal vein', '21', 'Flow 1.1 L/min toward the liver. The outline runs on downstream, where this blood goes next.'],
+  spl: ['Splenic vein', '22', 'Flow 0.45 L/min toward the portal vein. Downstream, the outline carries on into the portal vein.'],
+  smv: ['Superior mesenteric vein', '22', 'Flow 0.7 L/min toward the portal vein. Downstream, the outline carries on into the portal vein.'] };
+document.getElementById('pkChips').addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (!b) return;
+  document.querySelectorAll('#pkChips .chip').forEach(x => x.setAttribute('aria-pressed', x === b));
+  const [k, v, line] = PK[b.dataset.v]; pkKind.textContent = k; pkVal.textContent = v; pkLine.textContent = line; setHighlight(b.dataset.v); });
+const pkKind = document.getElementById('pkKind'), pkVal = document.getElementById('pkVal'), pkLine = document.getElementById('pkLine');
+
+// gentle limited orbit by drag
+let drag = null;
+holder.addEventListener('pointerdown', (e) => { if (e.target.closest('.card, .strip, button')) return; drag = { x: e.clientX, o: orbit }; });
+addEventListener('pointermove', (e) => { if (drag) orbit = Math.max(-0.45, Math.min(0.45, drag.o + (e.clientX - drag.x) * 0.006)); });
+addEventListener('pointerup', () => { drag = null; });
+
+// ---------- the one clock: tween, camera, render, then tags ----------
+const v = new THREE.Vector3();
+function frame(now) {
+  clock.t = now / 1000;
+  if (to) { const k = reduce ? 1 : Math.min(1, (now - t0) / DUR), e = ease(k);
+    cur.yaw = lerp(from.yaw, to.yaw, e); cur.pitch = lerp(from.pitch, to.pitch, e); cur.r = lerp(from.r, to.r, e); cur.tgt.lerpVectors(from.tgt, to.tgt, e);
+    cur.free = from.free.map((x, i) => lerp(x, to.free[i], e)); if (k >= 1) to = null; }
+  const dev = document.getElementById('dev-' + screen); const W = +dev.dataset.w, H = +dev.dataset.h;
+  const yaw = cur.yaw + orbit;
+  camera.position.set(cur.tgt.x + Math.sin(yaw) * Math.cos(cur.pitch) * cur.r, cur.tgt.y + Math.sin(cur.pitch) * cur.r, cur.tgt.z + Math.cos(yaw) * Math.cos(cur.pitch) * cur.r);
+  camera.lookAt(cur.tgt);
+  const [fx, fy, fw, fh] = cur.free;                      // frame the subject in the free room: shift the projection centre
+  camera.setViewOffset(W, H, W / 2 - (fx + fw / 2), H / 2 - (fy + fh / 2), W, H);
+  camera.updateProjectionMatrix();
+  for (const o of objs) o.mat.uniforms.time.value = reduce ? 0 : clock.t;
+  renderer.render(scene, camera);
+  for (const t of tagEls[screen] || []) {
+    v.copy(t.p).project(camera);
+    const x = (v.x * 0.5 + 0.5) * W, y = (-v.y * 0.5 + 0.5) * H;
+    t.el.style.transform = `translate(${(x + 10).toFixed(1)}px, ${(y - 30).toFixed(1)}px)`;
+    t.el.style.opacity = to ? 0 : 1;                       // tags fade out during a camera move, back in when it lands
+  }
+  requestAnimationFrame(frame);
+}
+applyLook(); show('title'); requestAnimationFrame(frame);
+</script>
