@@ -1,0 +1,131 @@
+{
+ "stats": {
+  "liver": {
+   "tris": 22076,
+   "quads": 11038,
+   "polys": 11038,
+   "verts": 11040,
+   "dropped": 0
+  },
+  "gallbladder": {
+   "tris": 1306,
+   "quads": 653,
+   "polys": 653,
+   "verts": 655,
+   "dropped": 0
+  },
+  "spleen": {
+   "tris": 3398,
+   "quads": 1699,
+   "polys": 1699,
+   "verts": 1701,
+   "dropped": 0
+  },
+  "stomach": {
+   "tris": 9664,
+   "quads": 4832,
+   "polys": 4832,
+   "verts": 4834,
+   "dropped": 0
+  },
+  "appendix": {
+   "tris": 820,
+   "quads": 410,
+   "polys": 410,
+   "verts": 412,
+   "dropped": 0
+  },
+  "duodenum": {
+   "tris": 3830,
+   "quads": 1915,
+   "polys": 1915,
+   "verts": 1917,
+   "dropped": 0
+  },
+  "pancreas": {
+   "tris": 4694,
+   "quads": 2347,
+   "polys": 2347,
+   "verts": 2349,
+   "dropped": 0
+  },
+  "small_bowel": {
+   "tris": 23754,
+   "quads": 11877,
+   "polys": 11877,
+   "verts": 11857,
+   "dropped": 0
+  },
+  "colon": {
+   "tris": 13484,
+   "quads": 6742,
+   "polys": 6742,
+   "verts": 6744,
+   "dropped": 0
+  },
+  "kidney_left": {
+   "tris": 2804,
+   "quads": 1402,
+   "polys": 1402,
+   "verts": 1404,
+   "dropped": 0
+  },
+  "kidney_right": {
+   "tris": 3028,
+   "quads": 1514,
+   "polys": 1514,
+   "verts": 1516,
+   "dropped": 0
+  },
+  "heart": {
+   "tris": 6640,
+   "quads": 3320,
+   "polys": 3320,
+   "verts": 3322,
+   "dropped": 0
+  },
+  "right_atrium": {
+   "tris": 2212,
+   "quads": 1106,
+   "polys": 1106,
+   "verts": 1108,
+   "dropped": 0
+  },
+  "aorta": {
+   "tris": 4604,
+   "quads": 2302,
+   "polys": 2302,
+   "verts": 2304,
+   "dropped": 0
+  },
+  "diaphragm": {
+   "tris": 5000,
+   "quads": 2500,
+   "polys": 2500,
+   "verts": 2502,
+   "dropped": 0
+  },
+  "falciform_ligament": {
+   "tris": 428,
+   "quads": 208,
+   "polys": 220,
+   "verts": 232,
+   "dropped": 0
+  },
+  "umbilicus": {
+   "tris": 768,
+   "quads": 384,
+   "polys": 384,
+   "verts": 384,
+   "dropped": 0
+  },
+  "body_plate": {
+   "tris": 133,
+   "quads": 0,
+   "polys": 133,
+   "verts": 135,
+   "dropped": 0
+  }
+ },
+ "total_tris": 108643
+}
