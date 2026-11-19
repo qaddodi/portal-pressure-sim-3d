@@ -1,0 +1,120 @@
+// The data card's tiles, on the 2D app's own markup (presenter-cards.js buildTiles) and so its own stylesheet (src/ui/css2d): per tile the name (.pzt-k), the number and its unit
+// (.pzt-vu > .pzt-v + small), the rating's word (.pzt-r), the line that says where it started (.pzt-d) and the scale bar (.pzt-bar: bands, cut-off ticks and numbers, a ring where it
+// started and a dot where it is). Which tiles, their words and their numbers are tiles-2d.ts, from the slide's own state in the engine; this file only draws them.
+// An instrument card's readings stand in its header row instead (.pz-dh > .pz-hr > .pz-hi) and its tiles card is not drawn (2D: .pz-data.tool-only .pz-tiles is hidden).
+import { useLayoutEffect, useMemo, useRef, type RefObject } from 'react';
+import { copiedOf } from '../../decks/hp/deck.ts';
+import { useStates } from '../../decks/hp/calc.ts';
+import type { CopiedSlide } from '../../decks/hp/types.ts';
+import { layoutOf } from '../layout/rules2d.ts';
+import { useUi } from '../ui-store.ts';
+import { tilesAt, type SlideTiles, type TileView } from './tiles-2d.ts';
+import { Roll } from './Roll.tsx';
+
+/** A slide's tiles from its state: the slide's own (the last one before it that changed the patient, as 2D has it), the state its change counts from, and the page's phone-ness. */
+export function useSlideTiles(deckId: string, slideId: string): SlideTiles | null {
+  const results = useStates((s) => s.results[deckId]);
+  const vp = useUi((s) => s.vp);
+  const copied = copiedOf(deckId);
+  return useMemo(() => {
+    if (!copied) return null;
+    const lay = layoutOf(vp.w, vp.h);
+    return tilesAt(copied.slides as CopiedSlide[], results as never, (copied.slides as CopiedSlide[]).findIndex((x) => x.id === slideId), lay === 'stack' || lay === 'tab');
+  }, [copied, results, slideId, vp.w, vp.h]);
+}
+
+/** The card's header (.pz-dh): its title, and an instrument card's readings beside it. A tiles card with no instrument is "The patient" (presenter-start.js dhT). */
+export function TilesHead({ deckId, slideId }: { deckId: string; slideId: string }) {
+  const t = useSlideTiles(deckId, slideId);
+  const copied = copiedOf(deckId)?.slides.find((s) => s.id === slideId);
+  if (!t || !copied) return null;
+  const title = copied.dataTitle ? String(copied.dataTitle) : copied.tool ? '' : 'The patient';
+  const heads = t.toolOnly ? t.tiles.filter((x) => t.head.includes(x.k)) : [];
+  return (
+    <div className="pz-dh">
+      <span>{title}</span>
+      <span className="pz-hr" data-n={heads.length}>
+        {heads.map((x) => (
+          <span key={x.k} className={`pz-hi${x.key ? ' key' : ''}`} data-rate={x.rate} data-measured={['hvpg', 'hvpgFall', 'ppg'].includes(x.k) ? '' : undefined}>
+            <span className="pz-hk">{x.head.name}</span><b><Roll text={x.head.text} /></b><small hidden={!x.head.unit}>{x.head.unit}</small>
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
+export function Tile({ t }: { t: TileView }) {
+  const b = t.bar;
+  return (
+    <div className={`pz-tile${b ? ' scaled' : ''}${t.key ? ' key' : ''}`} data-rate={t.rate}>
+      <span className="pzt-k" data-s={t.short ?? undefined}>{t.name}</span>
+      <span className={`pzt-vu${t.pct ? ' pct' : ''}`}><span className="pzt-v"><Roll text={t.text} /></span><small hidden={!t.unit}>{t.unit}</small></span>
+      <span className="pzt-r">{t.word}</span>
+      <span className="pzt-d">{t.delta}</span>
+      <span className={`pzt-bar${b ? '' : ' empty'}`} aria-hidden="true">
+        <span className="pzb-track">
+          <span className="pzb-zs">{b?.zones.map((z, i) => <i key={i} className="pzb-z" data-rate={z.rate} style={{ left: `${z.left}%`, width: `${z.width}%` }} />)}</span>
+          {b?.ticks.map((x, i) => <i key={i} className="pzb-t" style={{ left: `${x}%` }} />)}
+          {b && <i className="pzb-link" hidden={b.was == null} style={b.was == null || b.now == null ? undefined : { translate: `${Math.min(b.now, b.was)}% 0`, scale: `${(Math.abs(b.now - b.was) / 100).toFixed(4)} 1` }} />}
+          {b && <i className="pzb-was" hidden={b.was == null} style={{ translate: `clamp(4.5px, ${b.was ?? 0}%, calc(100% - 4.5px)) 0` }} />}
+          {b && <i className="pzb-now" hidden={b.now == null} style={{ translate: `clamp(6px, ${b.now ?? 0}%, calc(100% - 6px)) 0` }} />}
+        </span>
+        {b?.labels.map((l, i) => <span key={i} className="pzb-l" style={{ left: `${l.left}%` }}>{l.text}</span>)}
+      </span>
+    </div>
+  );
+}
+
+/** The 2D card fit that is a decision of layout, not of the numbers (presenter-zoom.js fitCards): a name wider than its tile takes its short form, then wraps; a scale bar's cut-off
+ *  numbers stay inside it, and where two would come within 8 px of each other it shows none; a row whose bars show no number keeps no row for them. Read once, written once. */
+export function useTileFit(row: RefObject<HTMLDivElement | null>, sig: string) {
+  useLayoutEffect(() => {
+    const el = row.current;
+    if (!el) return;
+    const fit = () => {
+      const names = [...el.querySelectorAll<HTMLElement>('.pzt-k')];
+      const room = (k: HTMLElement) => { const t = k.parentElement!, cs = getComputedStyle(t); return t.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight); };
+      names.forEach((k) => k.classList.remove('wrap', 'short'));
+      names.filter((k) => k.dataset.s).forEach((k) => { const r = room(k); if (r > 0 && k.scrollWidth > r + 0.5) k.classList.add('short'); });
+      names.forEach((k) => { const r = room(k); if (r > 0 && k.scrollWidth > r + 0.5) k.classList.add('wrap'); });
+      const bars = [...el.querySelectorAll<HTMLElement>('.pzt-bar')].map((bar) => ({ bar, ls: [...bar.querySelectorAll<HTMLElement>('.pzb-l')] }));
+      bars.forEach(({ ls }) => ls.forEach((l) => l.classList.remove('lo', 'hi', 'off')));
+      const boxes = bars.map((b) => ({ B: b.bar.getBoundingClientRect(), rs: b.ls.map((l) => l.getBoundingClientRect()) }));
+      let anyShown = false, measured = true;
+      bars.forEach(({ ls }, n) => {
+        const { B, rs } = boxes[n]!;
+        if (!B.width) { measured = false; return; }
+        let end = -Infinity, clash = false;
+        ls.forEach((l, i) => {
+          const r = rs[i]!;
+          if (!r.width) return;
+          let left = r.left, right = r.right;
+          if (r.left < B.left) { l.classList.add('lo'); left += r.width / 2; right += r.width / 2; } else if (r.right > B.right) { l.classList.add('hi'); left -= r.width / 2; right -= r.width / 2; }
+          if (left < end + 8) clash = true; else end = right;
+        });
+        if (clash) ls.forEach((l) => l.classList.add('off'));
+        else if (ls.length) anyShown = true;
+      });
+      if (measured && bars.length) el.classList.toggle('pzb-nonum', !anyShown);
+    };
+    fit();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [row, sig]);
+}
+
+/** The tiles of a slide that has them and no instrument (an instrument card's readings are its header's: TilesHead). */
+export function TilesCard({ deckId, slideId }: { deckId: string; slideId: string }) {
+  const t = useSlideTiles(deckId, slideId);
+  const row = useRef<HTMLDivElement>(null);
+  useTileFit(row, t ? t.tiles.map((x) => `${x.k}${x.text}`).join('|') : '');
+  if (!t || t.toolOnly) return null;
+  return (
+    <div className="pz-tiles" ref={row} data-n={t.tiles.length} data-keys={t.keys.join()}>
+      {t.tiles.map((x) => <Tile key={x.k} t={x} />)}
+    </div>
+  );
+}
