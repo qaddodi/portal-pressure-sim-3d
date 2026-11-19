@@ -19,7 +19,7 @@ import { LS, baselineAt, fontPx, lookVars, typeVars } from '../labels/type.ts';
 import { type CapMeta, buildLobuleCaptions, readingText } from './captions.ts';
 
 const SETTLE_MS = 180, FADE_MS = 180;
-interface El { root: HTMLElement; name: HTMLElement; val: HTMLElement | null; lead: HTMLElement | null; tx: string; text: string; valText: string; size: string }
+interface El { root: HTMLElement; name: HTMLElement; val: HTMLElement | null; lead: HTMLElement | null; ring: HTMLElement | null; ringTx: string; tx: string; text: string; valText: string; size: string }
 const boxKey = (b: Box): string => `${Math.round(b.x0)},${Math.round(b.y0)},${Math.round(b.x1)},${Math.round(b.y1)}`;
 
 export function LobuleCaptions() {
@@ -62,13 +62,14 @@ export function LobuleCaptions() {
       r.className = `lb cc cc-${m.kind}`;
       r.dataset.target = m.target;
       const name = document.createElement('span'); name.className = 'lb-name'; r.appendChild(name);
-      let val: HTMLElement | null = null, lead: HTMLElement | null = null;
+      let val: HTMLElement | null = null, lead: HTMLElement | null = null, ring: HTMLElement | null = null;
       if (m.kind === 'station') {
         val = document.createElement('span'); val.className = 'lb-val'; r.appendChild(val);
         lead = document.createElement('i'); lead.className = 'lb-lead'; root.appendChild(lead);
+        ring = document.createElement('i'); ring.className = 'lb-anchor'; root.appendChild(ring);   // (2D draws the dot on what each name names, leader or none)
       }
       root.appendChild(r);
-      const e: El = { root: r, name, val, lead, tx: '', text: '', valText: '', size: '' };
+      const e: El = { root: r, name, val, lead, ring, ringTx: '', tx: '', text: '', valText: '', size: '' };
       els.set(id, e);
       return e;
     };
@@ -78,14 +79,17 @@ export function LobuleCaptions() {
       const level = useShell.getState().figure.labelLevel;
       const m = cel.lobule.inkContext()?.model ?? null;
       const L = cel.lobule.currentLayers;
-      const built = buildLobuleCaptions({ proj, vp, measure, net: cel.lobule.net, layers: { zones: L.zones, lymph: L.lymph }, hide: !m });
+      const vw = view(), bl = blockers();
+      const ROOM = 64;   // (a tract takes the names only with room round it for them: the venule at least this far inside the view)
+      const inView = (x: number, y: number) => x > vw.x0 + ROOM && x < vw.x1 - ROOM && y > vw.y0 + ROOM && y < vw.y1 - ROOM && !bl.some((b) => x > b.x0 && x < b.x1 && y > b.y0 && y < b.y1);
+      const built = buildLobuleCaptions({ proj, vp, measure, net: cel.lobule.net, layers: { zones: L.zones, lymph: L.lymph }, hide: !m, inView });
       const items = level === 'none' ? built.items.filter((it) => it.id.startsWith('z:')) : built.items;
-      const out = solve({ items, view: view(), blockers: blockers(), lines: [] });
+      const out = solve({ items, view: vw, blockers: bl, lines: built.lines, keep: built.keep });
       placed = new Map(out.placed.map((p) => [p.id, p]));
       metas = built.meta;
       itemsNow = new Map(items.map((it) => [it.id, it]));
       const stand = new Set(placed.keys());
-      for (const [id, e] of els) if (!stand.has(id)) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); }
+      for (const [id, e] of els) if (!stand.has(id)) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); e.ring?.removeAttribute('data-on'); }
       for (const [id, p] of placed) {
         const mt = metas.get(id)!;
         const e = els.get(id) ?? make(id, mt);
@@ -135,6 +139,11 @@ export function LobuleCaptions() {
           if (tx !== e.tx) { e.root.style.transform = tx; e.tx = tx; }
           e.root.style.opacity = String(Math.round(alpha * 1000) / 1000);
           e.root.setAttribute('data-on', '');
+          if (e.ring) {
+            const rt = `translate(${Math.round(it.ax * 100) / 100}px,${Math.round(it.ay * 100) / 100}px)`;
+            if (rt !== e.ringTx) { e.ring.style.transform = rt; e.ringTx = rt; }
+            e.ring.style.opacity = String(Math.round(alpha * 1000) / 1000); e.ring.setAttribute('data-on', '');
+          }
           if (e.lead) {
             if (p.leader) {
               const g = leaderGeom(it.ax, it.ay, { x0: bx, y0: by, x1: bx + p.w, y1: by + p.h });
@@ -143,7 +152,7 @@ export function LobuleCaptions() {
             } else e.lead.removeAttribute('data-on');
           }
         }
-        if (alpha === 0) for (const e of els.values()) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); }
+        if (alpha === 0) for (const e of els.values()) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); e.ring?.removeAttribute('data-on'); }
       }
       const busy = alpha !== to || (on && !still);
       if (busy && !hold) hold = clock.hold('lobule-captions');
@@ -154,7 +163,7 @@ export function LobuleCaptions() {
     const offShell = useShell.subscribe(wake);
     const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) wake(); });
     void document.fonts?.ready.then(wake);
-    return () => { off(); offShell(); offUi(); offUi2(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); } };
+    return () => { off(); offShell(); offUi(); offUi2(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
   }, []);
 
   return <div ref={layer} className="lb-layer cc-layer" aria-hidden="true" />;
