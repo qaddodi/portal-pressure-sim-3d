@@ -146,7 +146,7 @@ test('names stand on the right places: portal end left, the upper Disse above th
   const a = (n: string) => v.anchor(n);
   assert.ok(a('in')[0] < a('out')[0] && a('in')[1] === 0);
   assert.ok(a('disse')[1] > a('lumen')[1] && a('hsc')[1] > a('lumen')[1], 'the upper Disse and the stellate cell above the axis');
-  assert.ok(a('hep')[1] > a('disse')[1], 'the plate beyond Disse');
+  assert.ok(a('hep')[1] < a('lumen')[1], 'wide: the hepatocyte is named in the lower plate beside the lymph, as 2D\'s hepR does (tall: the right plate, with the stellate cell)');
   assert.ok(a('kup')[1] < a('lumen')[1] + 1e-9 || a('kup')[1] < 0.5 * UM.lum * U, 'the Kupffer cell low in the lumen');
   assert.ok(a('fen')[1] > 0, 'the fenestrae of the upper lining');
 });

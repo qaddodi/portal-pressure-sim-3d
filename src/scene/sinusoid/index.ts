@@ -2,6 +2,7 @@
 export { SinusoidView, diveShare } from './view.ts';
 export type { SinusoidViewOptions } from './view.ts';
 export { sinusoidTargets } from '../lobule/model.ts';
-export { sinusoidShot, SINUSOID_L, SINUSOID_ORIGIN } from '../lobule/shots.ts';
+export { sinusoidShot, sinusoidBox, SINUSOID_L, SINUSOID_ORIGIN } from '../lobule/shots.ts';
 export { SINUSOID_PARTS } from '../lobule/parts.ts';
 export type { SinusoidPartName } from '../lobule/parts.ts';
+export { PORTRAIT_ANGLE, acrossUm, endsFor, isPortrait, restScale } from './portrait.ts';

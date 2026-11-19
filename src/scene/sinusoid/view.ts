@@ -26,6 +26,7 @@ import { washProgress } from '../lobule/wash.ts';
 import { type InkContext } from '../lobule/ink.ts';
 import { rng } from '../lobule/geometry.ts';
 import { type Pore, SEED, SLOT, UM, cellEdge, nucAt, poreAt, poreOpenness } from './layout.ts';
+import { PORTRAIT_ANGLE, endsFor, framePoint, glideTurn, planePoint, turnAt, xkFor } from './portrait.ts';
 import { SINUSOID_FS, SINUSOID_PFS, SINUSOID_PVS, SINUSOID_UNIFORMS, SINUSOID_VS } from './gl.copied.ts';
 import { createGeom, createTraffic } from './traffic.copied.js';
 import { createPalette } from './palette.copied.js';
@@ -37,8 +38,10 @@ export const U = SINUSOID_L / SPAN_UM;
 export const PLANE_HALF = 80;
 /** The stretch (µm) the traffic runs over, a little wider than the shot. */
 const VIS = 70;
-/** Where the end arrows stand (µm), as 2D lays them beside the names of the portal venule and the central vein. */
-const END = [-46, 46, 3.5] as const;
+/** Where the end arrows stand (µm) before the screen is known (`setScreen`), as 2D lays them beside the names of the portal venule and the central vein. */
+const END_DEFAULT: readonly [number, number, number] = [-46, 46, 3.5];
+/** The most of the sinusoid the traffic runs over (µm each way): the fenestrae are laid out that far (2D: geo.x0..x1). */
+const REACH = 130;
 
 export interface SinusoidViewOptions { look?: LookId; phone?: boolean; flowMode?: FlowMarkMode; reduceMotion?: boolean }
 
@@ -85,6 +88,15 @@ export class SinusoidView {
   private washK = 0;
   private dpr = 1;
   private dive: number | null = null;
+  /** A portrait screen runs the sinusoid top to bottom (setPortrait): the plane's own turn (radians, eased), its velocity and where it is heading. */
+  private portrait = false;
+  private ang = 0;
+  private angVel = 0;
+  /** The screen the view is on (setScreen): px per µm and the free room's length along the flow (px); null until the scene says (then 2D's defaults hold). */
+  private screen: { k: number; along: number; stage: number } | null = null;
+  /** How much each end's name shows (0 to 1), which its arrow follows (2D: endShown; 1 outside a talk). */
+  private endShown: [number, number] = [1, 1];
+  private washLand = -1;
   private readonly res: Vector2;
   private readonly ink = { ctx: null as InkContext | null };
   // 2D's own placement and traffic, copied (traffic.copied.js, palette.copied.js)
@@ -191,6 +203,36 @@ export class SinusoidView {
   setDive(g: number | null): void { if (g !== this.dive) { this.dive = g; this.dirty = true; } }
   get diveShareNow(): number | null { return this.dive; }
 
+  /** A portrait screen (2D's W < H * 0.95: see portrait.ts isPortrait) runs the sinusoid top to bottom, the portal end up: the plane turns, and everything on it with it (tissue, pores,
+   *  albumin, anchors, hits). The Kupffer cell moves nearer the middle (2D: xk 12 against 22). Hidden, it turns at once; shown, it glides (or follows the dive's share while the camera flies in). */
+  setPortrait(portrait: boolean): void {
+    if (portrait === this.portrait) return;
+    this.portrait = portrait; this.geo.xk = xkFor(portrait); this.dirty = true;
+    if (!this.visible || this.reduce) { this.ang = this.target(); this.angVel = 0; this.group.rotation.z = this.ang; }
+  }
+  get isPortrait(): boolean { return this.portrait; }
+  /** The plane's turn now, radians (0 wide, PORTRAIT_ANGLE tall). */
+  get turn(): number { return this.ang; }
+  private target(): number { return this.portrait ? PORTRAIT_ANGLE : 0; }
+  /** What the scene knows of the screen: `k`, CSS px per µm along the plane now, and `along`, the free room's length in px in the flow's direction, and `stage`, the whole canvas's (the traffic runs over what is on screen, cards or no). The end arrows stand 32 px (24 on a tall screen)
+   *  inside the room's ends and the traffic runs over the stretch on screen, as 2D lays them out (layoutEnds, VW.vis). Without it the defaults hold (arrows at ±46 µm, traffic over ±70). */
+  setScreen(k: number, along: number, stage = along): void {
+    if (!(k > 0) || !(along > 0)) { if (this.screen) { this.screen = null; this.dirty = true; } return; }
+    const s = this.screen;
+    if (s && Math.abs(s.k - k) < 1e-3 * k && Math.abs(s.along - along) < 0.5 && Math.abs(s.stage - stage) < 0.5) return;
+    this.screen = { k, along, stage: Math.max(stage, along) }; this.dirty = true;
+    // the traffic runs over the stretch on screen, a little past it each way (2D: VW.vis = a0 - 8 .. a1 + 8, within the laid-out reach)
+    const half = Math.min(REACH, this.screen.stage / 2 / k + 8);
+    this.VW.vis[0] = -half; this.VW.vis[1] = half;
+  }
+  /** How much each end's name shows (0 to 1); its arrow follows it (a presenter slide that is not about an end dims both). */
+  setEndShown(inEnd: number, outEnd: number): void { if (inEnd !== this.endShown[0] || outEnd !== this.endShown[1]) { this.endShown = [inEnd, outEnd]; this.dirty = true; } }
+  /** The ends' arrows now: the portal venule's and the central vein's place (µm along from the middle) and the arrow's size. */
+  get ends(): readonly [number, number, number] {
+    const s = this.screen;
+    return s ? endsFor(s.k, s.along, this.portrait, UM.lum * this.cur.lum) : [END_DEFAULT[0], END_DEFAULT[1], Math.min(END_DEFAULT[2], UM.lum * this.cur.lum * 0.95)];
+  }
+
   // (The marks of the 2D sinusoid are the lumen's own streaks, set by the blood's speed; the Blood menu's chevron options act on the vessels and the lobule.)
   setLit(_parts: Iterable<SinusoidPartName>): void { /* nothing here wears flow marks */ }
   setFlowMode(_mode: FlowMarkMode): void { /* as above */ }
@@ -210,7 +252,20 @@ export class SinusoidView {
     let moving = this.dirty;
     this.dirty = false;
     if (easeToward(this.cur as unknown as Record<string, number>, this.goal as unknown as Record<string, number>, this.reduce ? 1e6 : dt)) moving = true;
-    if (this.washOn) { const k = washProgress(now - this.washAt, this.reduce); if (k !== this.washK) { this.washK = k; moving = true; } if (k < 1) moving = true; }
+    // the turn: while the camera flies between the lobule and this view it follows the dive's share (the lobule turns into the tall view in one move, and out again by the same frames
+    // reversed); at rest it glides to the target (a phone turned in the view), at once with Reduce Motion
+    if (this.dive != null) { const a = turnAt(this.target(), this.dive); if (a !== this.ang) { this.ang = a; this.angVel = 0; moving = true; } }
+    else if (this.ang !== this.target()) {
+      if (this.reduce) { this.ang = this.target(); this.angVel = 0; } else { const g = glideTurn(this.ang, this.angVel, this.target(), dt / 1000); this.ang = g.a; this.angVel = g.v; }
+      moving = true;
+    }
+    this.group.rotation.z = this.ang;
+    // the wedged column's wash (2D: only while a slide asks for it, and once the view has landed; it begins afresh each time it lands)
+    const wantWash = this.washOn && this.dive == null;
+    if (!wantWash) this.washLand = -1; else if (this.washLand < 0) this.washLand = Math.max(now, this.washAt);
+    const wk = wantWash ? washProgress(now - this.washLand, this.reduce) : 0;
+    if (wk !== this.washK) { this.washK = wk; moving = true; }
+    if (wantWash && wk < 1) moving = true;
     const run = !this.reduce, sec = dt / 1000;
     this.traffic.setDt(run ? sec : 0);
     if (run) { this.traffic.stepMovers(sec); moving = true; }
@@ -235,8 +290,10 @@ export class SinusoidView {
     num('uHscA', g.wallIn(geo.xs) + g.disseW(geo.xs) * 0.5 + 0.8);
     num('uCol', S.col); num('uBm', S.bm); num('uMv', S.mv); num('uAct', S.act); num('uPor', S.por);
     num('uFlow', T.flowX); num('uLym', T.lymX); num('uLyF', clamp(0.32 * S.filt ** 1.5, 0.06, 1.75)); num('uDir', Math.sign(S.v || 1));
-    vec<Vector4>('uEnd').set(END[0], END[1], Math.min(END[2], UM.lum * S.lum * 0.95), 0.95);
-    vec<Vector2>('uEndA').set(1, 1);
+    const E = this.ends;
+    vec<Vector4>('uEnd').set(E[0], E[1], E[2], 0.95);
+    vec<Vector2>('uEndA').set(this.endShown[0], this.endShown[1]);
+    vec<Vector4>('uWedge').set(this.washK > 0 ? 1 : 0, this.washK, 0, 0);
     // the zoom from the lobule (sinusoid-view.js): the tissue comes in over all of it at once as the zoom lands, its detail (fenestrae, microvilli, cells, traffic) last
     const d = this.dive;
     if (d != null) {
@@ -258,10 +315,10 @@ export class SinusoidView {
 
   // ---- places, for the names ----------------------------------------------------------------------------------------------------
 
-  /** Scene points (this view's own units, y up) of the places tags name (the 2D app's captions): 'in' (blood arrives, portal end), 'out' (to the central vein), 'lumen', 'fen', 'disse', 'hep', 'hsc', 'kup', 'lymph', 'canaliculus'. */
+  /** Scene points (this view's own units, y up, turned with the plane: a portrait screen's names stand on the sinusoid as it runs top to bottom) of the places tags name (the 2D app's captions): 'in' (blood arrives, portal end), 'out' (to the central vein), 'lumen', 'fen', 'disse', 'hep', 'hsc', 'kup', 'lymph', 'canaliculus'. */
   anchor(name: string, out: [number, number, number] = [0, 0, 0]): [number, number, number] {
     const g = this.g, geo = this.geo;
-    const at = (xum: number, yDown: number): [number, number, number] => [xum * U, -yDown * U, 0];
+    const at = (xum: number, yDown: number): [number, number, number] => framePoint(xum, yDown, U, this.ang);
     // a fenestra of the upper lining near x that no nucleus's swell covers (a pore under a cell body is not seen), the one that stays open longest
     const pore = (x: number): number => {
       let best = x, bs = Infinity;
@@ -277,15 +334,19 @@ export class SinusoidView {
       return best;
     };
     const P: Record<string, [number, number, number]> = {
-      in: at(END[0], 0), out: at(END[1], 0), lumen: at(0, 0),
-      fen: at(pore(10), -(g.wallIn(10) - UM.endo / 2)), disse: at(24, -(g.wallIn(24) + g.disseW(24) * 0.5)),
-      hep: at(8, -(g.hepIn(8) + UM.hep * 0.7)), hsc: at(geo.xs, -(g.wallIn(geo.xs) + g.disseW(geo.xs) * 0.5 + 0.8)),
+      in: at(this.ends[0], 0), out: at(this.ends[1], 0), lumen: at(0, 0),
+      // (2D's layouts: wide, the space of Disse is named in the upper plate and the hepatocyte in the lower, beside the lymph (disseR, hepR); tall, Disse is on the left (y > 0) and the hepatocyte in the right plate with the stellate cell)
+      fen: at(pore(10), -(g.wallIn(10) - UM.endo / 2)), disse: at(24, (this.portrait ? 1 : -1) * (g.wallIn(24) + g.disseW(24) * 0.5)),
+      hep: at(8, (this.portrait ? -1 : 1) * (g.hepIn(8) + UM.hep * 0.7)), hsc: at(geo.xs, -(g.wallIn(geo.xs) + g.disseW(geo.xs) * 0.5 + 0.8)),
       kup: at(geo.xk, g.halfW(geo.xk) - 2), lymph: at(-VIS + 6, g.hepIn(-VIS) + 1.2), canaliculus: at(cellEdge(1, SEED.plateUp), -(g.hepIn(0) + UM.hep / 2)),
     };
     const p = P[name] ?? at(0, 0);
     out[0] = p[0]; out[1] = p[1]; out[2] = p[2];
     return out;
   }
+
+  /** A point of this view's frame (what `anchor` returns, plane units) as micrometres along and across (y down, as the shader has it), whatever the plane's turn: for hits. */
+  micrometres(fx: number, fy: number): { x: number; y: number } { return planePoint(fx, fy, U, this.ang); }
 
   warm(gl: { compile?: (s: Group, c: unknown) => void }, camera: unknown): void {
     const was = this.group.visible;
