@@ -6,7 +6,7 @@ import { notYet } from './words.ts';
 
 export type FeatureId =
   | 'treat' | 'tests' | 'history' | 'compare' | 'undo' | 'redo' | 'dye' | 'advanced' | 'feedback' | 'lens' | 'blood' | 'rotate' | 'zoom-in' | 'zoom-out'
-  | 'doppler' | 'endoscopy' | 'fibroscan' | 'ir' | 'shunt' | 'view:circuit' | 'view:lobule' | 'view:sinusoid' | 'guide-about' | 'guide-references' | 'guide-privacy' | 'figure-detail';
+  | 'doppler' | 'endoscopy' | 'fibroscan' | 'abdomen' | 'ir' | 'shunt' | 'view:circuit' | 'view:lobule' | 'view:sinusoid' | 'guide-about' | 'guide-references' | 'guide-privacy' | 'figure-detail';
 
 const handlers = new Map<FeatureId, () => void>();
 /** A batch hands over the work behind a control. Returns the remover. */

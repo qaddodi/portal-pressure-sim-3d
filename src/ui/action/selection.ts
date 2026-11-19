@@ -1,6 +1,7 @@
 // What is selected on the figure: a vessel, an organ, a lobule part. The tap-anything card shows for it. A vessel the scene picks (a tap on the figure) selects itself; a
 // card, a Changes row, the search or Treat selects by this module, and a vessel is lit in the scene while it is the selection. One selection at a time, as in the 2D app.
 import { create } from 'zustand';
+import { hasFeature, runFeature } from '../shell/features.ts';
 
 export type Sel =
   | { type: 'edge'; id: string }
@@ -18,6 +19,9 @@ const same = (a: Sel | null, b: Sel | null) => a === b || (!!a && !!b && JSON.st
 
 /** Select a structure (or clear with null). A vessel is lit in the scene; the card follows. */
 export function selectStructure(sel: Sel | null): void {
+  // The belly has one home, the Ascites instrument: selecting the abdomen (the fluid on the figure, a station, the command palette, Treat's paracentesis) opens it in place of a card
+  // that would sit over the vessels (2D main.js select).
+  if (sel?.type === 'organ' && sel.id === 'abdomen' && hasFeature('abdomen')) { selectStructure(null); runFeature('abdomen', 'Ascites'); return; }
   if (!same(useSelection.getState().sel, sel)) useSelection.setState({ sel });
   lightVessel?.(sel && sel.type === 'edge' ? sel.id : null);
 }
@@ -33,3 +37,6 @@ export function scenePicked(id: string | null): void {
   if (id == null) { if (cur?.type === 'edge') useSelection.setState({ sel: null }); return; }
   if (!(cur?.type === 'edge' && cur.id === id)) useSelection.setState({ sel: { type: 'edge', id } });
 }
+
+/** Whether a mode holds the scene's taps (the shunt waiting for its target). */
+export const scenePicksHeld = (): boolean => pickHold != null;

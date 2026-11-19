@@ -56,10 +56,10 @@ export function TestsLayer() {
   useEffect(() => { startFeed(); }, []);
   // the Tests button, the I key and the palette
   useEffect(() => registerFeature('tests', () => useTests.getState().toggle()), []);
-  // the card buttons that open an instrument: Doppler, Endoscope, FibroScan (a liver or spleen card), and "Test TIPS in IR" (the stent's card)
+  // the card buttons that open an instrument: Doppler, Endoscope, FibroScan (a liver or spleen card), Ascites (a tap on the belly's fluid), and "Test TIPS in IR" (the stent's card)
   useEffect(() => {
     const show = (id: PaneId) => () => { useShell.getState().close(); useTests.getState().show(id); };
-    const offs = [registerFeature('doppler', show('doppler')), registerFeature('endoscopy', show('endoscopy')), registerFeature('fibroscan', show('fibroscan')), registerFeature('ir', show('hvpg'))];
+    const offs = [registerFeature('doppler', show('doppler')), registerFeature('endoscopy', show('endoscopy')), registerFeature('fibroscan', show('fibroscan')), registerFeature('abdomen', show('abdomen')), registerFeature('ir', show('hvpg'))];
     return () => offs.forEach((f) => f());
   }, []);
   // the figure keeps the room the card leaves

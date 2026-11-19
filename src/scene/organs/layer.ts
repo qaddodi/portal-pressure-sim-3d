@@ -2,7 +2,8 @@
 // as the 2D figure does it (stage-diaphragm.js updateOrgans): the liver's shape (cirrhosis) and dusk (congestion), a scale of the spleen with the model's size, a ghost of
 // a removed spleen, the grey of a lens other than Pressure, blood in the stomach. Meshes come from meshes.ts (the organs thread) in the shared frame; this file never
 // builds one. Everything moves on the clock: `update(now)` returns true while something eases, and nothing is touched when nothing moves.
-import { type BufferGeometry, Color, Group, Vector3, Vector4 } from 'three';
+import { type BufferGeometry, Color, Group, type Raycaster, Vector3, Vector4 } from 'three';
+import { PICK_OF } from './pick.ts';
 import { ORGAN_FS, ORGAN_VS } from './organ-shader.ts';
 import type { OrganTones2D } from '../../looks/organ-tones.copied.ts';
 import { ORGAN_MESHES } from './meshes.ts';
@@ -193,6 +194,21 @@ export class OrganLayer {
 
   /** The gut floats up on ascites: the bowel moves up by `units` of the 2D figure (drawAscites: -bulge / 34 * 26). */
   setBowelLift(units: number): void { const b = this.byId.get('bowel'); if (b) b.group.position.y = units / 300; }
+
+  /** The organ a pointer ray hits first among the ones that take a tap (liver, heart with its atrium, spleen: pick.ts), as the 2D organ id the tap opens, and where (scene x). Null for none. */
+  pick(rc: Raycaster): { id: 'liver' | 'heart' | 'spleen'; x: number } | null {
+    const meshes = [];
+    for (const [id, o] of this.byId) {
+      if (!PICK_OF[id] || !o.group.visible) continue;
+      o.group.updateWorldMatrix(true, false);
+      o.toonMesh.geometry.computeBoundingSphere();   // (the liver's shape changes with cirrhosis: the sphere the ray tests first is made anew, never kept from the healthy one)
+      meshes.push(o.toonMesh);
+    }
+    const hit = rc.intersectObjects(meshes, false)[0];
+    if (!hit) return null;
+    for (const [id, o] of this.byId) if (o.toonMesh === hit.object) return { id: PICK_OF[id]!, x: hit.point.x };
+    return null;
+  }
 
   /** The 2D organs this layer draws, for the parity table. */
   get ids(): string[] { return [...this.byId.keys()]; }
