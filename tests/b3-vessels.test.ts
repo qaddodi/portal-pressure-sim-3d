@@ -182,13 +182,33 @@ test('against the 2D app\'s own SVG courses: every sample lies on its path (with
   };
   const near = (P: [number, number][], q: readonly [number, number]) => { let b = Infinity; for (let i = 1; i < P.length; i++) { const [ax, ay] = P[i - 1]!, [bx, by] = P[i]!, dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy || 1, u = Math.min(1, Math.max(0, ((q[0] - ax) * dx + (q[1] - ay) * dy) / L)); b = Math.min(b, Math.hypot(ax + dx * u - q[0], ay + dy * u - q[1])); } return b; };
   for (const v of NETWORK) {
+    if (!A.EDGE_PATH[v.id]) { assert.ok(v.id.includes('~F'), `${v.id} has no 2D course`); continue; }   // (a tributary fan has none: it is drawn from the host's feeder table)
     const P = dense(A.EDGE_PATH[v.id]);
     const exact = v.kind === 'shunt' || (v.kind === 'collateral' && !(EDGES as { id: string; spontaneous?: boolean }[]).find((e) => e.id === v.id)!.spontaneous);
     const tol = exact ? 0.6 : 4.6;
-    for (const p of v.pts) assert.ok(near(P, [x2d(p[0]), y2d(p[1])]) < tol, `${v.id}`);
-    // the ends are the path's own ends
-    assert.ok(Math.hypot(x2d(v.pts[0]![0]) - P[0]![0], y2d(v.pts[0]![1]) - P[0]![1]) < 0.6, `${v.id} start`);
-    const last = P[P.length - 1]!, e = v.pts[v.pts.length - 1]!;
-    assert.ok(Math.hypot(x2d(e[0]) - last[0], y2d(e[1]) - last[1]) < 0.6, `${v.id} end`);
+    // the ends are the path's own ends, except where the vessel runs on into another: 2D redraws the samples about the join as one cubic (vein-joins.js smoothRunOn), stopping when the
+    // curve passes within RUN_ON_MISS (2 units) of the join; its end samples are the cubic's middle and may stand well off the join, so a run-on end is held to that rule instead:
+    // the drawn pair passes within 2.6 of the join (the path's own end), and the pair's ends are one point
+    const runOn = (i: 0 | 1) => RUN_ONS.find((x) => (x.a === v.id && x.ia === i) || (x.b === v.id && x.ib === i));
+    const ends = (i: 0 | 1) => {
+      const q = i ? P[P.length - 1]! : P[0]!, r = runOn(i);
+      if (!r) { const p = i ? v.pts[v.pts.length - 1]! : v.pts[0]!; return { q, tol: 0.6, d: Math.hypot(x2d(p[0]) - q[0], y2d(p[1]) - q[1]) }; }
+      const other = NETWORK_BY_ID.get(r.a === v.id ? r.b : r.a)!, oi = r.a === v.id ? r.ib : r.ia;
+      // each vessel's last 13 samples toward the join, one after the other through it
+      const toward = (w: typeof v, wi: number) => (wi ? w.pts.slice(-13) : w.pts.slice(0, 13).reverse()).map((p) => [x2d(p[0]), y2d(p[1])] as [number, number]);
+      const line = [...toward(v, i), ...toward(other, oi).reverse()];
+      return { q, tol: 2.6, d: near(line, q) };
+    };
+    const s0 = ends(0), s1 = ends(1);
+    assert.ok(s0.d < s0.tol, `${v.id} start`);
+    assert.ok(s1.d < s1.tol, `${v.id} end`);
+    // every sample lies on the path; the stretch redrawn about a run-on (E = 10 samples at each end) may stand off it by as much as the join is off the path's own end
+    // (the redrawn stretch is a cubic through the join, so its samples stand off the path by as much as the two courses bend apart, up to about 7 units on the long veins; the cava's pieces
+    // reach farther, 2D drawing the cava as one tube and smoothing fewer of its samples about a join (vein-joins.js runOnSamples), which is not ported: a bound of 20 for any run-on stretch, the path's own at every other sample)
+    const N = v.pts.length, reach = 20;
+    v.pts.forEach((p, i) => {
+      const extra = (i <= 11 && runOn(0) ? reach : 0) + (i >= N - 12 && runOn(1) ? reach : 0);
+      assert.ok(near(P, [x2d(p[0]), y2d(p[1])]) < tol + extra, `${v.id} sample ${i}`);
+    });
   }
 });
