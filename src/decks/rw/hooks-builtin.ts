@@ -14,6 +14,8 @@ export function registerBuiltinHooks(): void {
   // (the 2D `course` tool is the curve chart's second mode; the plane, all-patients and ladders visuals are charts too: a slide's visual card, mounted by the presenter, draws them)
   const chartDone = (k: string) => CHARTS.some((c) => c.kind === k && c.status === 'done');
   for (const [hook, kind] of [['tool:course', 'curve'], ['visual:plane', 'plane'], ['visual:allpatients', 'small'], ['visual:ladders', 'ladder']] as const) if (chartDone(kind)) registerHook(hook);
+  // B10/B12: the data card of tiles is one card for every deck (CardLayer mounts hp/TilesCard.tsx from the slide's `tiles`: each reading from the slide's own engine state, the key ones strong, the change from another state)
+  registerHook('card:tiles');
   for (const c of CATHS) registerHook(`device:hvpg-catheter:${c}`);                        // S2: route, free, wedge, result
   // B12: the presenter plays any deck by id, with case question, summary table, scale pill, live compare buttons, response, what-if and the time-lapse (ui/cards/SlideControls.tsx, hp/lapse.ts)
   for (const id of ['presenter:deck', 'engine:steps', 'time:lapse', 'slider:whatIf', 'card:response', 'card:case-question', 'card:question', 'view:scales', 'visual:table', 'compare:params', 'compare:preset', 'compare:slide', 'compare:lens']) registerHook(id);
