@@ -25,7 +25,7 @@ import { TEXTURE_WIDTH, hasVessel, indexOf } from '../engine/vessel-data.ts';
 import { latest, patient } from '../engine/store.ts';
 import { x3, y3 } from './frame2d.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
-import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_POINT, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
+import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
 import { LOBULE_R, LOBULE_T, SINUSOID_L } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
 import { SinusoidView, diveShare } from './sinusoid/index.ts';
@@ -509,12 +509,12 @@ export class CelScene {
     this.moving = true;
   }
   private readonly livePoint = new Vector3(...LIVER_POINT);
-  private readonly sinPoint = new Vector3(...SIN_POINT);
   /** The sinusoid's tissue is one opaque plane to every edge of the screen once the camera has landed on it (the lobule is then hidden: nothing of the lobule is ever seen through or around it). While the
-   *  camera flies between the lobule and the sinusoid (the view being left stays drawn until it lands) the tissue comes in over the lobule by how close the camera is, as 2D's zoom does it. */
+   *  camera flies between the lobule and the sinusoid (the view being left stays drawn until it lands) the tissue comes in over the lobule by how far the dive has gone (the pose's own distance: the
+   *  shots' `r`, blended geometrically, whatever the room and the screen), as 2D's zoom does it. */
   private stepSinusDive(): void {
     const flying = this.hideLeftBehind && this.sinus.isVisible;
-    this.sinus.setDive(flying ? diveShare(this.rig.camera.position.distanceTo(this.sinPoint), 2.5 * LOBULE_SCALE, 3 * SIN_SCALE) : null);
+    this.sinus.setDive(flying ? diveShare(this.rig.pose.shot.r, 2.5 * LOBULE_SCALE, 3 * SIN_SCALE) : null);
   }
   /** How much of the body is drawn now (1 whole, 0 gone): for tests and tags. */
   get bodyShown(): number { return this.fadeNow; }

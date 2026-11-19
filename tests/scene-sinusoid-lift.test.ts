@@ -170,3 +170,22 @@ test('the cut was drawn over a zoomed lobule: once the camera has landed on the 
   s.dispose();
 });
 const SinusoidOut = { yaw: 0, pitch: 0, r: 2.5 * LOBULE_SCALE, target: sinusoidShot().target, half: [3 * LOBULE_SCALE, 2 * LOBULE_SCALE] as [number, number] };
+
+// ---- the shaders compile (the Khronos reference compiler, where installed: apt-get install glslang-tools) -------------------------------------------------------
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+const haveGlslang = spawnSync('glslangValidator', ['--version']).status === 0;
+function compile(stage: 'vert' | 'frag', source: string): { ok: boolean; log: string } {
+  const file = join(mkdtempSync(join(tmpdir(), 'glsl-')), `s.${stage}`);
+  writeFileSync(file, source);
+  const r = spawnSync('glslangValidator', ['-S', stage, file], { encoding: 'utf8' });
+  return { ok: r.status === 0, log: (r.stdout + r.stderr).split(file).join(stage) };
+}
+test('the plane\'s shaders compile: the 3D vertex stage, 2D\'s tissue fragment shader, the sprites', { skip: !haveGlslang && 'no glslangValidator' }, () => {
+  for (const [stage, src, name] of [['vert', SINUSOID_VS, 'plane vertex'], ['frag', SINUSOID_FS, 'tissue fragment'], ['vert', SINUSOID_PVS, 'sprite vertex'], ['frag', SINUSOID_PFS, 'sprite fragment']] as const) {
+    const r = compile(stage, src);
+    assert.ok(r.ok, `${name}: ${r.log}`);
+  }
+});
