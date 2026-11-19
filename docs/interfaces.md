@@ -33,7 +33,7 @@ R3F: `<Canvas frameloop="never">` with `<ClockBridge/>` (`src/clock/r3f.tsx`) in
 ## Engine (`src/engine/`, import from `../engine/index.ts`)
 
 - `bootEngine()` (called by `main.tsx`): starts the worker, loads the slice patient `csph`, adopts frames. Frames of any other patient are never shown before it.
-- `useEngine(selector)`: `{ status: 'booting'|'ready'|'crashed', presetId, hvpg, whvp, fhvp, crash }`; re-renders only when a headline number moves.
+- `useEngine(selector)`: `{ status: 'booting'|'ready'|'crashed', presetId, hvpg, whvp, fhvp, pv, ivc, ra, crash }` (mmHg or null; `useEngine.subscribe` it to mirror readings into your own store, so the engine never imports a UI store); re-renders only when a headline number moves.
 - `latest.frame` / `latest.version`: the newest `EngineFrame` outside React (read in clock systems). Arrays: `P`, `Pf` per node; `Q`, `Qf`, `D` per edge (topology order).
 - `engine().send({type, …})` / `engine().request({type, …})` (promise): the worker's messages, typed in `protocol.ts` (`preset`, `setParams`, `action`, `morph`, `sequence`, `explain`, `metrics`…).
   Deck numbers (`{hvpg}`) come from `request({type:'metrics'})` / frames, as in the 2D app.
