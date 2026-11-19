@@ -19,6 +19,7 @@ import { PressureTab } from './trace/PressureTab.tsx';
 import { startFeed } from './feed.ts';
 import { notYet } from '../shell/words.ts';
 import { useShell } from '../shell/store.ts';
+import { probeSelected } from './from-orders.ts';
 
 // each instrument is its own file in its own folder (a thread works in one folder; the stubs say "not in the 3D app yet" until the instrument lands)
 const ProfilePane = lazy(() => import('./profile/ProfilePane.tsx').then((m) => ({ default: m.ProfilePane })));
@@ -59,7 +60,7 @@ export function TestsLayer() {
   // the card buttons that open an instrument: Doppler, Endoscope, FibroScan (a liver or spleen card), and "Test TIPS in IR" (the stent's card)
   useEffect(() => {
     const show = (id: PaneId) => () => { useShell.getState().close(); useTests.getState().show(id); };
-    const offs = [registerFeature('doppler', show('doppler')), registerFeature('endoscopy', show('endoscopy')), registerFeature('fibroscan', show('fibroscan')), registerFeature('ir', show('hvpg'))];
+    const offs = [registerFeature('doppler', () => { probeSelected(); show('doppler')(); }), registerFeature('endoscopy', show('endoscopy')), registerFeature('fibroscan', show('fibroscan')), registerFeature('ir', show('hvpg'))];
     return () => offs.forEach((f) => f());
   }, []);
   // the figure keeps the room the card leaves
