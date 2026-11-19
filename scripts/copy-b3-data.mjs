@@ -4,6 +4,7 @@
 //   src/scene/lenses/words.copied.ts     the lens names and lines of the Layers menu (main.js LENSES)
 //   src/scene/vessels/paths.copied.ts    the anatomy's node places and vessel courses (anatomy.js), sampled to points, with its drawn / hidden sets
 //   src/scene/lenses/vel-normal.copied.js  velNormal.js, import paths rewritten to this repo's engine copy
+//   src/scene/vessels/fork-joins.copied.js  fork-joins.js whole (nodeJoinsInto: the pair at a node that runs on, flareScale, sideEndScale)
 //   src/scene/blood/blood.copied.js        blood.js whole (the streams: displaySpeed, advanceStream, the reversal hold, KEY_CHEV_IDS); three imports stubbed (the bleed's stomach pool is not used here)
 // Usage: node scripts/copy-b3-data.mjs --from <2D checkout> [--check]    (--check writes nothing and fails when a file would change)
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -228,6 +229,9 @@ const blood = read('src/ui/blood.js')
   .replace("import { lumenSurface, lumenAt } from './stomach-lumen.js';", '// (stomach-lumen.js is not used here: the bleed\'s pool belongs to the procedures)\nconst lumenSurface = () => 0, lumenAt = () => [0, 0];')
   .replace("import { D_SURFACE, smooth01 } from './motion.js';", "const D_SURFACE = 420;   // (ease.js)\nconst smooth01 = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));   // (num.js)");
 put('src/scene/blood/blood.copied.js', `${HEAD('blood.js')}${blood}`);
+
+// ---------- fork-joins.js (which ends run on into each other at a node, and the flare and the side-end narrowing of a vein drawn onto another) ----------
+put('src/scene/vessels/fork-joins.copied.js', `${HEAD('fork-joins.js')}${read('src/ui/fork-joins.js')}`);
 
 const sha = createHash('sha256').update(JSON.stringify(changed)).digest('hex').slice(0, 6);
 if (check) { if (changed.length) { console.error(`out of date (${sha}): ${changed.join(', ')}`); process.exit(1); } console.log('copy-b3-data: up to date'); }
