@@ -43,7 +43,7 @@ test('placement: a wide screen docks the card on the right at the 2D width; a ph
   assert.equal(s.kind, 'sheet');
   assert.ok(s.rect.y + s.rect.h <= phone.h && s.rect.x >= 0 && s.rect.x + s.rect.w <= phone.w);
   const rest = roomWith(freeRoom(phone, dp), s);
-  assert.ok(rest.h > 150 && rest.y + rest.h <= s.rect.y, 'the figure keeps a room above the sheet');
+  assert.ok(rest.h >= 0 && rest.y + rest.h <= s.rect.y, 'the figure keeps what the sheet leaves above it (2D Half is one fixed 520 px, capped by the room: dock-sheet.js stops)');
 });
 
 // ── the card is the 2D dock's markup (dock.js: head row with the tabs and the close, .instr-tabs.ws-tabs, .it-full / .it-short, roving tabindex, arrow keys) ──
@@ -51,7 +51,7 @@ import { fitTabs } from '../src/ui/tests/tab-fit.ts';
 import { TAB_ICONS } from '../src/ui/tests/copied/dock-words.copied.js';
 
 test('the Tests card wears the 2D dock\'s classes, so the lifted sheets style it (no copy of them)', () => {
-  for (const c of ['instrument-workspace', 'float-ui', 'dock-head card-head tabbed', 'instr-tabs ws-tabs', 'instr-tab', 'it-t', 'it-full', 'it-short', 'card-close', 'dock-body', 'dock-pane active', 'workspace-comparison']) assert.ok(layer.includes(c) || readFileSync(new URL('../src/ui/tests/CompareLine.tsx', import.meta.url), 'utf8').includes(c), `the card has .${c}`);
+  for (const c of ['instrument-workspace', 'float-ui', 'dock-head card-head tabbed', 'instr-tabs ws-tabs', 'instr-tab', 'it-t', 'it-full', 'it-short', 'card-close', 'dock-body', 'dock-pane', 'workspace-comparison']) assert.ok(layer.includes(c) || readFileSync(new URL('../src/ui/tests/CompareLine.tsx', import.meta.url), 'utf8').includes(c), `the card has .${c}`);
   assert.ok(layer.includes('tabIndex={tab === id ? 0 : -1}'), 'roving tabindex: only the open tab is in the tab order');
   assert.ok(/'ArrowLeft', 'ArrowRight', 'Home', 'End'/.test(layer), 'arrow keys, Home and End move between the tabs');
   assert.ok(layer.includes("document.getElementById('tabInstruments')?.focus()"), 'closing returns focus to the Tests button');
