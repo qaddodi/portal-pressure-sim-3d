@@ -28,7 +28,7 @@ test('search: an empty field offers a few of each thing, in the placeholder\'s o
   const cmds = UI.search.commands.map((c) => command(c.group, c.title, () => undefined, { kw: c.kw, num: c.num, hint: c.hint }));
   const empty = search(cmds, '', UI.search.emptyOrder);
   for (const g of Object.keys(EMPTY_QUOTA)) assert.ok(empty.filter((h) => h.c.group === g).length <= EMPTY_QUOTA[g as keyof typeof EMPTY_QUOTA]);
-  const order = empty.map((h) => UI.search.emptyOrder.indexOf(h.c.group));
+  const order = empty.map((h) => (UI.search.emptyOrder as readonly string[]).indexOf(h.c.group));
   assert.deepEqual(order, [...order].sort((a, b) => a - b));
   const tips = search(cmds, 'tips 8', UI.search.emptyOrder);
   assert.equal(tips[0].c.title, 'TIPS');
