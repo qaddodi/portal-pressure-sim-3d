@@ -2,7 +2,7 @@
 // A small store the scene reads and the Tests panes (and the cards' buttons) write; nothing here draws. bind-tests.ts keeps `on` in step with the Tests card (open on that instrument).
 import { create } from 'zustand';
 
-export type ScopeMode = 'scope' | 'band' | 'eus';
+export type ScopeMode = 'scope' | 'band' | 'eus' | 'glue';
 export type FibroOrgan = 'liver' | 'spleen';
 /** A stent's three places the Doppler samples (topology STENT_SITES keys), or null for the vessel's own gate. */
 export type DopplerSeg = 'proximal' | 'mid' | 'distal' | null;
