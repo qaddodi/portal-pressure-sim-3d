@@ -7,9 +7,10 @@ import { DopplerProbe } from './doppler-probe.ts';
 import { FibroProbe } from './fibro-probe.ts';
 import { EndoScope } from './scope.ts';
 import { useProbes, type FibroOrgan } from './state.ts';
+import type { ScreenEnv } from './screen.ts';
 
 /** What the layer asks of the scene: an organ's box in the figure (null while it is not built), and the stiffness the FibroScan reads (kPa). */
-export interface ProbeEnv { organBox(organ: FibroOrgan): Box3 | null; kpa(organ: FibroOrgan): number | null }
+export interface ProbeEnv { organBox(organ: FibroOrgan): Box3 | null; kpa(organ: FibroOrgan): number | null; /** the screen the devices keep clear of the cards on (the scene's; tests leave it out) */ screen?: ScreenEnv }
 
 export class ProbeLayer {
   readonly group = new Group();
@@ -32,7 +33,7 @@ export class ProbeLayer {
     this.last = now;
     const s = useProbes.getState();
     const on = (b: boolean) => b && !away;
-    const a = this.doppler.update(dt, on(s.doppler.on), s.doppler.edge, s.doppler.seg);
+    const a = this.doppler.update(dt, on(s.doppler.on), s.doppler.edge, s.doppler.seg, this.env.screen ?? null, now);
     const f = this.fibro.update(dt, now, on(s.fibro.on), s.fibro.organ, this.env.organBox, this.env.kpa(s.fibro.organ));
     const e = this.scope.update(dt, on(s.endoscope.on), s.endoscope.mode, s.endoscope.station, s.endoscope.u, s.endoscope.needle);
     return a || f || e;
@@ -43,6 +44,6 @@ export class ProbeLayer {
   applyPalette(p: Palette): void { this.doppler.applyPalette(p); this.fibro.applyPalette(p); this.scope.applyPalette(p); }
   setPhone(phone: boolean): void { this.doppler.setPhone(phone); this.fibro.setPhone(phone); this.scope.setPhone(phone); }
   /** True when a device is on the figure or asked for (the clock keeps drawing while the FibroScan's waves run). */
-  get active(): boolean { const s = useProbes.getState(); return s.doppler.on || s.fibro.on || s.endoscope.on || this.doppler.shown > 0 || this.fibro.shown > 0 || this.scope.d > 0.5; }
+  get active(): boolean { const s = useProbes.getState(); return s.doppler.on || s.fibro.on || s.endoscope.on || this.doppler.active || this.fibro.shown > 0 || this.scope.d > 0.5; }
   dispose(): void { this.doppler.dispose(); this.fibro.dispose(); this.scope.dispose(); }
 }
