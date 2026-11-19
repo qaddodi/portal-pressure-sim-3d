@@ -36,12 +36,16 @@ test('CSS variables exist for every look and agree with the table', () => {
   for (const id of LOOK_IDS) { const v = lookVars(id); assert.equal(v['--bg'], LOOKS[id].bg); assert.equal(v['--vein-portal'], LOOKS[id].portal); }
 });
 
-test('settings: the flow-mark style defaults to A and survives bad storage', () => {
-  assert.equal(DEFAULTS.flowMarks, 'A');
+test('settings: the app opens on Light as the 2D page does, a chosen look is kept, and bad storage falls back', () => {
+  assert.equal(DEFAULTS.look, 'light');
   assert.deepEqual(parseSettings(null), DEFAULTS);
   assert.deepEqual(parseSettings('{not json'), DEFAULTS);
-  assert.equal(parseSettings('{"look":"navy","flowMarks":"C"}').flowMarks, 'C');
-  assert.equal(parseSettings('{"look":"nope","flowMarks":"Z"}').look, 'system');
+  assert.equal(parseSettings('{"look":"navy","lookChosen":true}').look, 'navy');
+  assert.equal(parseSettings('{"look":"system","lookChosen":true}').look, 'system');
+  // a "system" written by the old default (no choice made) is not a choice: the first screen is Light
+  assert.equal(parseSettings('{"look":"system"}').look, 'light');
+  assert.equal(parseSettings('{"look":"nope","lookChosen":true}').look, 'light');
+  assert.ok(!('flowMarks' in parseSettings(null)), 'the Flow marks setting is gone');
 });
 
 test('Blur effect is on by default on every device, kept, and off is the solid look (html[data-noglass])', async () => {
