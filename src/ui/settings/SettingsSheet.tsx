@@ -7,7 +7,10 @@ import { useSettings, FIGURE_DETAIL } from '../../state/settings.ts';
 import type { LookChoice } from '../../looks/looks.ts';
 import { useShell } from '../shell/store.ts';
 import { useUi } from '../ui-store.ts';
-import { MenuPop, MenuGroup, MenuItem, MenuToggle } from '../shell/Menu.tsx';
+import { MenuPop, MenuGroup, MenuItem, MenuToggle, type MenuPage } from '../shell/Menu.tsx';
+import { HelpRows } from '../shell/HelpSheets.tsx';
+import { HistoryList } from '../history/HistoryList.tsx';
+import { HIST } from '../history/words.ts';
 import { I } from '../shell/icons.tsx';
 import { runFeature } from '../shell/features.ts';
 import { usesBottomBar } from '../shell/room.ts';
@@ -57,7 +60,8 @@ function WrongHere() {
   return <MenuItem icon="help" label="What's wrong here?" onClick={() => { useShell.getState().close(); open(); }} />;
 }
 
-function Item({ row }: { row: Row }) {
+type PageId = 'history' | 'help';
+function Item({ row, push }: { row: Row; push(p: PageId): void }) {
   const close = () => useShell.getState().close();
   const fs = useFullscreen();
   const l = row.label;
@@ -71,9 +75,9 @@ function Item({ row }: { row: Row }) {
     return <MenuItem icon="fullscreen" label={fs.on ? FULLSCREEN.exit : FULLSCREEN.enter} title={FULLSCREEN.hint} onClick={fs.toggle} />;
   }
   const go = () => {
-    if (l === 'Help') useShell.setState({ sheet: 'help' });
+    if (l === 'Help') push('help');
     else if (l === 'Reset everything…') useShell.setState({ sheet: null, dialog: 'reset' });
-    else if (l === 'History') { close(); runFeature('history', l); }
+    else if (l === 'History') push('history');
     else if (l === 'Advanced physiology') { close(); runFeature('advanced', l); }
   };
   return <MenuItem icon={ICON[l] ?? 'info'} label={l} onClick={go} />;
@@ -101,8 +105,13 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
   const talk = useShell((s) => s.mode === 'deck');
   const phone = usesBottomBar(useUi((s) => s.device));
   const label = UI.topbar.find((t) => t.id === 'btnSettings')!.label!;
+  // History and Help are pages inside this menu (2D menu recs P4): they slide in over the rows with a back row, and the menu stays open
+  const [pageId, setPageId] = useState<PageId | null>(null);
+  const open = useShell((s) => s.sheet === 'settings');
+  useEffect(() => { if (!open) setPageId(null); }, [open]);
+  const page: MenuPage | null = pageId === 'history' ? { back: label, title: HIST.title, body: <HistoryList /> } : pageId === 'help' ? { back: label, title: 'Help', body: <HelpRows /> } : null;
   return (
-    <MenuPop kind="settings" label={label} title={label} align="end" side={place === 'bar' ? 'above' : 'below'}>
+    <MenuPop kind="settings" label={label} title={label} align="end" side={place === 'bar' ? 'above' : 'below'} page={page} onBack={() => setPageId(null)}>
       {SECTIONS.map((sec, i) => {
         const rows = sec.rows.filter((r) => !(r.phone && !phone) && !(r.talk === false && talk));
         if (!rows.length) return null;
@@ -112,7 +121,7 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
               if (row.label.startsWith('Figure detail: ')) return null;
               if (row.label === 'Figure detail') return <FigureDetail key={row.label} />;
               if (row.kind === 'switch') return <Switch key={row.label} row={row} />;
-              return <Item key={row.label} row={row} />;
+              return <Item key={row.label} row={row} push={setPageId} />;
             })}
           </MenuGroup>
         );

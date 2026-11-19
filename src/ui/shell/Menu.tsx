@@ -44,8 +44,13 @@ export function placeMenu(el: HTMLElement, anchor: HTMLElement, align: 'start' |
   el.style.setProperty('--pop-y', y < r.top ? '4px' : '-4px');
 }
 
-export function MenuPop({ kind, label, title, cls = 'app-menu', align = 'end', side = 'below', from = kind, children }: {
-  kind: Exclude<Sheet, null>; label: string; title: string; cls?: string; align?: 'start' | 'end'; side?: 'below' | 'above'; /** the opener's `data-opens`, when it is not this menu's own name (Help opens from Settings) */ from?: string; children: ReactNode;
+/** A page pushed inside a menu (2D util.js menuPush): History and Help from Settings. It lies over the menu's rows at the menu's own height and scrolls by itself; the rows slide away under it. */
+export interface MenuPage { back: string; title: string; body: ReactNode }
+export const PAGE_MS = 280;   // 2D --d-small
+
+export function MenuPop({ kind, label, title, cls = 'app-menu', align = 'end', side = 'below', from = kind, page = null, onBack, children }: {
+  kind: Exclude<Sheet, null>; label: string; title: string; cls?: string; align?: 'start' | 'end'; side?: 'below' | 'above'; /** the opener's `data-opens`, when it is not this menu's own name (Help opens from Settings) */ from?: string;
+  /** the page pushed over the rows (and `onBack` to pop it); a menu that passes `onBack` keeps its rows in `.menu-root`, as 2D does */ page?: MenuPage | null; onBack?: () => void; children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const open = useOutside(kind, ref);
@@ -57,6 +62,16 @@ export function MenuPop({ kind, label, title, cls = 'app-menu', align = 'end', s
     return () => mq.removeEventListener('change', f);
   }, []);
   const root = typeof document === 'undefined' ? null : document.querySelector('.sh-root');
+  // the pushed page: kept while it slides back out, and given the menu's box as it was when the page was pushed (read once, in that tap)
+  const kept = useRef<MenuPage | null>(null);
+  if (page) kept.current = page;
+  const pg = usePresence(!!page && open, PAGE_MS);
+  const [geo, setGeo] = useState<{ h: number; top: number; ch: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (page && open && el && !geo) setGeo({ h: el.offsetHeight, top: el.scrollTop, ch: el.clientHeight });
+    else if (!pg.shown && geo) setGeo(null);
+  }, [page, open, pg.shown, geo]);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!shown || !el || sheet) return;
@@ -67,10 +82,26 @@ export function MenuPop({ kind, label, title, cls = 'app-menu', align = 'end', s
   }, [shown, sheet, from, align, side]);
   if (!shown || !root) return null;
   const close = () => useShell.getState().close();
+  const rows = (<>
+    {sheet && <div className="sheet-head"><span className="sheet-t">{title}</span><button type="button" className="ib" aria-label="Close" onClick={close}><I n="close" /></button></div>}
+    {children}
+  </>);
+  const pushed = !!onBack && !!page && open;
+  const pageNow = kept.current;
   const menu = (
-    <div ref={ref} className={`menu ${cls}${sheet ? ' as-sheet from-dock' : ''}${leaving ? ' leaving' : ''}`} role="dialog" aria-modal={sheet || undefined} aria-label={label} data-kind={kind} inert={!open}>
-      {sheet && <div className="sheet-head"><span className="sheet-t">{title}</span><button type="button" className="ib" aria-label="Close" onClick={close}><I n="close" /></button></div>}
-      {children}
+    <div ref={ref} className={`menu ${cls}${sheet ? ' as-sheet from-dock' : ''}${leaving ? ' leaving' : ''}${pushed ? ' pushed' : ''}`} role="dialog" aria-modal={sheet || undefined} aria-label={label} data-kind={kind} inert={!open}
+      style={onBack && geo && pg.shown ? { height: geo.h } : undefined}>
+      {onBack ? <div className="menu-root" inert={pushed}>{rows}</div> : rows}
+      {onBack && pg.shown && pageNow && (
+        <div className={`menu-page${pg.leaving ? ' out' : ''}`} role="group" aria-label={pageNow.title} inert={!pushed} style={geo ? { top: geo.top, height: geo.ch } : undefined}>
+          <div className="sheet-head">
+            <button type="button" className="menu-item menu-back" onClick={onBack}><I n="chev-left" />{pageNow.back}</button>
+            <span className="sheet-t">{pageNow.title}</span>
+            <button type="button" className="ib" aria-label="Close" onClick={close}><I n="close" /></button>
+          </div>
+          {pageNow.body}
+        </div>
+      )}
     </div>
   );
   return createPortal(<>{sheet && <div className={`um-scrim${leaving ? ' out' : ''}`} onPointerDown={close} />}{menu}</>, root);
