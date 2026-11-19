@@ -12,3 +12,5 @@
 .sh-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .sh-acts .sh-btn { min-height: 44px; padding: 0 16px; }
 .sh-acts .sh-btn[data-primary="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* the 2D dialog (About the model, References, Privacy) sits in the shell, whose root takes no taps */
+.sh-root > .modal-back.show { pointer-events: auto; }

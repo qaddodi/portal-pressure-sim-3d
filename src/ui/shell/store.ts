@@ -34,7 +34,9 @@ interface ShellState {
   ready: Record<ViewId, boolean>;
   sheet: Sheet;
   /** a small dialog over everything (Reset everything?) */
-  dialog: 'reset' | null;
+  dialog: 'reset' | 'about' | 'privacy' | null;
+  /** the About page's section to scroll to (References) */
+  aboutSection: 'refs' | null;
   menuTab: MenuTab;
   menuQuery: string;
   helpSection: 'keys' | 'present' | null;
@@ -71,7 +73,7 @@ export const useShell = create<ShellState>((set, get) => ({
   mode: 'free',
   view: 'anatomic',
   ready: { circuit: true, anatomic: true, lobule: true, sinusoid: true },
-  sheet: null, dialog: null, menuTab: 'present', menuQuery: '', helpSection: null, toast: null,
+  sheet: null, dialog: null, aboutSection: null, menuTab: 'present', menuQuery: '', helpSection: null, toast: null,
   figure: loadFigure(),
   transport: { running: false, speed: 1, lapse: 0, time: '0:00', day: 0 },
   patientId: 'csph',
