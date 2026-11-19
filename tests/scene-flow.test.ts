@@ -56,6 +56,17 @@ test('A in the scene: still vessels show no marks; the picked one and the named 
   s.dispose();
 });
 
+test('naming one piece of a vein the engine cuts in pieces names the whole vein', () => {
+  const s = new CelScene();
+  s.setNamedVessels(['RHV_IVC']);
+  run(s, 0, 400);
+  const amt = (id: string) => s.vessels.find((o) => o.edge!.id === id)!.toon.uniforms.flowAmount.value as number;
+  assert.equal(amt('RHV_IVC'), 1);
+  assert.equal(amt('RHV_IVC_1'), 1);
+  assert.equal(amt('MHV_IVC'), 0);
+  s.dispose();
+});
+
 test('switching to C paints soft bands on every vessel', () => {
   const s = new CelScene();
   s.setFlowMode('C');

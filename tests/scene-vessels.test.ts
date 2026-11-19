@@ -1,13 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { EDGES } from '../src/engine/hales/portal/topology.js';
-import { VESSELS, buildVessel, vesselPoints } from '../src/scene/anatomy/vessels.ts';
+import { EDGES, JUNCTION_PIECES } from '../src/engine/hales/portal/topology.js';
+import { HOSTS, VESSELS, buildVessel, vesselPoints } from '../src/scene/anatomy/vessels.ts';
 import { EDGE_IDS, hasVessel, indexOf } from '../src/engine/vessel-data.ts';
 import { CelScene } from '../src/scene/scene.ts';
 
 const edges = EDGES as { id: string; from: string; to: string; d?: number }[];
 
-test('every drawn vessel is named by a topology edge, with the same end nodes', () => {
+test('every drawn vessel is named by a topology edge, and its ends are the engine\'s own nodes', () => {
   for (const v of VESSELS) {
     const e = edges.find((x) => x.id === v.id);
     assert.ok(e, `${v.id} is not an engine edge`);
@@ -15,6 +15,17 @@ test('every drawn vessel is named by a topology edge, with the same end nodes', 
     assert.equal(e.to, v.to, `${v.id} to`);
     assert.ok(hasVessel(v.id));
   }
+});
+
+test('where the engine cuts a vein in pieces (a shunt joins it part-way), every piece is drawn, in order along the one centreline', () => {
+  for (const host of HOSTS) {
+    const pieces = (JUNCTION_PIECES as Record<string, string[]>)[host.id] ?? [host.id];
+    assert.deepEqual(VESSELS.filter((v) => v.host === host.id).map((v) => v.id), pieces, host.id);
+  }
+  assert.ok(VESSELS.some((v) => v.id === 'PV_TRUNK_1'), 'the portal trunk is two pieces, joined where the coronary vein enters');
+  const pts = (id: string) => vesselPoints(VESSELS.find((v) => v.id === id)!);
+  const a = pts('PV_TRUNK_1'), b = pts('PV_TRUNK');
+  assert.ok(a.at(-1)!.distanceTo(b[0]!) < 1e-6, 'pieces meet exactly');
 });
 
 test('vessel names are unique and each has its own data texel', () => {
@@ -25,13 +36,22 @@ test('vessel names are unique and each has its own data texel', () => {
 });
 
 test('centrelines run with the flow: each vessel starts where its upstream neighbour ends', () => {
-  const end = (id: string) => { const p = vesselPoints(VESSELS.find((v) => v.id === id)!); return p[p.length - 1]!; };
-  const start = (id: string) => vesselPoints(VESSELS.find((v) => v.id === id)!)[0]!;
-  for (const [a, b] of [['V_SPL', 'SV_MID'], ['SV_MID', 'SV_CONF'], ['PV_TRUNK', 'PVH_R'], ['PV_TRUNK', 'PVH_L'], ['IVC_IS', 'IVCS_RA']] as const) {
-    assert.ok(end(a).distanceTo(start(b)) < 0.02, `${a} end to ${b} start: ${end(a).distanceTo(start(b)).toFixed(3)}`);
+  const byId = new Map(VESSELS.map((v) => [v.id, vesselPoints(v)]));
+  let joins = 0;
+  for (const v of VESSELS) for (const w of VESSELS) {
+    if (v.to !== w.from) continue;
+    const gap = byId.get(v.id)!.at(-1)!.distanceTo(byId.get(w.id)![0]!);
+    assert.ok(gap < 0.05, `${v.id} end to ${w.id} start: ${gap.toFixed(3)}`);
+    joins++;
   }
-  for (const id of ['SV_CONF', 'SMV_CONF', 'LGV_CONF']) assert.ok(end(id).distanceTo(start('PV_TRUNK')) < 0.02, `${id} meets the confluence`);
-  for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) assert.ok(end(id).distanceTo(start('IVCS_RA')) < 0.7, `${id} reaches the cava`);
+  assert.ok(joins >= 8, `only ${joins} joins checked`);
+  // the confluence: the splenic and mesenteric veins meet the portal trunk's start
+  const trunk = byId.get('PV_TRUNK_1')![0]!;
+  for (const id of ['SV_CONF', 'SMV_CONF']) assert.ok(byId.get(id)!.at(-1)!.distanceTo(trunk) < 0.05, id);
+  // the coronary vein joins the trunk part-way along it, not at its start
+  const lgv = byId.get('LGV_CONF')!.at(-1)!;
+  assert.ok(lgv.distanceTo(trunk) > 0.2);
+  assert.ok(lgv.distanceTo(byId.get('PV_TRUNK')![0]!) < 0.05);
 });
 
 test('a vessel is one geometry with uv.x along the flow from 0 to 1 and a tangent per vertex', () => {

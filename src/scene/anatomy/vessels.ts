@@ -3,6 +3,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { ToneKey } from '../palette.ts';
+import { EDGES, JUNCTIONS, JUNCTION_PIECES } from '../../engine/hales/portal/topology.js';
 
 // Placeholder vessels for the HVPG slice. Every drawn vessel is named by its hales-engine topology edge ID, so the engine-to-mesh map is
 // the name (slice-plan.md section 3). Centrelines run in the direction of flow (edge `from` to edge `to`), so uv.x on the tube is the
@@ -12,17 +13,29 @@ import type { ToneKey } from '../palette.ts';
 export type Vec3 = [number, number, number];
 
 export interface VesselDef {
-  /** hales-engine topology edge ID. */
+  /** hales-engine topology edge ID (a piece's own ID when the engine splits the vein where a shunt or collateral joins it). */
   id: string;
-  /** Topology node ids at the two ends (from, to). */
+  /** The whole vein this piece belongs to (its own ID when the vein is not split). */
+  host: string;
+  /** Topology node ids at the two ends (from, to), read from the engine's topology. */
   from: string;
   to: string;
   tone: Extract<ToneKey, 'portal' | 'sys'>;
   radius: number;
-  /** Centreline control points in flow order, or a slice of a shared chain. */
+  label: string;
+  /** Centreline control points in flow order. */
+  pts: Vec3[];
+}
+
+/** A vein as drawn: its whole course; the engine's pieces of it are cut from it by their share of the length. */
+interface HostDef {
+  id: string;
+  tone: Extract<ToneKey, 'portal' | 'sys'>;
+  radius: number;
   pts?: Vec3[];
   chain?: { name: string; t0: number; t1: number };
-  label: string;
+  /** Ends on the vein where this junction node sits (a vein that joins another part-way along it), not at the host's own end. */
+  endsAtJunction?: string;
 }
 
 const CONF: Vec3 = [0.15, 0.35, 0.75];
@@ -34,35 +47,77 @@ export const CHAINS: Record<string, Vec3[]> = {
   ivc: [[-0.35, -2.6, -0.6], [-0.4, -0.6, -0.6], [-0.48, 1.0, -0.62], [-0.44, 1.66, -0.56], [-0.4, 2.35, -0.5]],
 };
 
-export const VESSELS: readonly VesselDef[] = [
-  { id: 'V_SPL', from: 'SPL', to: 'SVD', tone: 'portal', radius: 0.06, chain: { name: 'splenic', t0: 0, t1: 0.34 }, label: 'Splenic vein (distal)' },
-  { id: 'SV_MID', from: 'SVD', to: 'SV', tone: 'portal', radius: 0.065, chain: { name: 'splenic', t0: 0.34, t1: 0.62 }, label: 'Splenic vein (mid)' },
-  { id: 'SV_CONF', from: 'SV', to: 'CONF', tone: 'portal', radius: 0.07, chain: { name: 'splenic', t0: 0.62, t1: 1 }, label: 'Splenic vein (proximal)' },
-  { id: 'SMV_CONF', from: 'SMV', to: 'CONF', tone: 'portal', radius: 0.08, pts: [[0.15, -1.95, 0.8], [0.28, -1.05, 0.84], [0.22, -0.3, 0.82], CONF], label: 'Superior mesenteric vein' },
-  { id: 'LGV_CONF', from: 'LGV', to: 'CONF', tone: 'portal', radius: 0.035, pts: [[0.62, 1.62, 0.4], [0.72, 1.0, 0.6], [0.45, 0.5, 0.72], CONF], label: 'Left gastric (coronary) vein' },
-  { id: 'PV_TRUNK', from: 'CONF', to: 'PVH', tone: 'portal', radius: 0.095, pts: [CONF, [-0.15, 0.6, 0.68], HILUM], label: 'Portal vein' },
-  { id: 'PVH_R', from: 'PVH', to: 'RPV', tone: 'portal', radius: 0.06, pts: [HILUM, [-1.0, 1.0, 0.3], [-1.5, 1.05, 0.1]], label: 'Right portal vein' },
-  { id: 'PVH_L', from: 'PVH', to: 'LPV', tone: 'portal', radius: 0.055, pts: [HILUM, [-0.15, 1.12, 0.36], [0.55, 1.28, 0.26]], label: 'Left portal vein' },
-  { id: 'RHV_IVC', from: 'RHV', to: 'IVCS', tone: 'sys', radius: 0.055, pts: [[-1.45, 1.2, -0.3], [-0.95, 1.4, -0.45], [-0.46, 1.64, -0.58]], label: 'Right hepatic vein' },
-  { id: 'MHV_IVC', from: 'MHV', to: 'IVCS', tone: 'sys', radius: 0.05, pts: [[-0.3, 0.9, 0.05], [-0.42, 1.3, -0.3], [-0.46, 1.64, -0.58]], label: 'Middle hepatic vein' },
-  { id: 'LHV_IVC', from: 'LHV', to: 'IVCS', tone: 'sys', radius: 0.05, pts: [[0.5, 1.2, 0.05], [0, 1.5, -0.25], [-0.46, 1.64, -0.58]], label: 'Left hepatic vein' },
-  { id: 'IVC_IS', from: 'IVCI', to: 'IVCS', tone: 'sys', radius: 0.14, chain: { name: 'ivc', t0: 0, t1: 0.855 }, label: 'IVC' },
-  { id: 'IVCS_RA', from: 'IVCS', to: 'RA', tone: 'sys', radius: 0.14, chain: { name: 'ivc', t0: 0.855, t1: 1 }, label: 'IVC' },
-  { id: 'SVC_RA', from: 'SVC', to: 'RA', tone: 'sys', radius: 0.12, pts: [[-0.42, 3.6, -0.5], [-0.42, 3.0, -0.52], [-0.4, 2.5, -0.5]], label: 'Superior vena cava' },
+export const HOSTS: readonly HostDef[] = [
+  { id: 'V_SPL', tone: 'portal', radius: 0.06, chain: { name: 'splenic', t0: 0, t1: 0.34 } },
+  { id: 'SV_MID', tone: 'portal', radius: 0.065, chain: { name: 'splenic', t0: 0.34, t1: 0.62 } },
+  { id: 'SV_CONF', tone: 'portal', radius: 0.07, chain: { name: 'splenic', t0: 0.62, t1: 1 } },
+  { id: 'SMV_CONF', tone: 'portal', radius: 0.08, pts: [[0.15, -1.95, 0.8], [0.28, -1.05, 0.84], [0.22, -0.3, 0.82], CONF] },
+  { id: 'LGV_CONF', tone: 'portal', radius: 0.035, pts: [[0.62, 1.62, 0.4], [0.72, 1.0, 0.6], [0.45, 0.5, 0.72]], endsAtJunction: 'PVT_L' },
+  { id: 'PV_TRUNK', tone: 'portal', radius: 0.095, pts: [CONF, [-0.15, 0.6, 0.68], HILUM] },
+  { id: 'PVH_R', tone: 'portal', radius: 0.06, pts: [HILUM, [-1.0, 1.0, 0.3], [-1.5, 1.05, 0.1]] },
+  { id: 'PVH_L', tone: 'portal', radius: 0.055, pts: [HILUM, [-0.15, 1.12, 0.36], [0.55, 1.28, 0.26]] },
+  { id: 'RHV_IVC', tone: 'sys', radius: 0.055, pts: [[-1.45, 1.2, -0.3], [-0.95, 1.4, -0.45], [-0.46, 1.64, -0.58]] },
+  { id: 'MHV_IVC', tone: 'sys', radius: 0.05, pts: [[-0.3, 0.9, 0.05], [-0.42, 1.3, -0.3], [-0.46, 1.64, -0.58]] },
+  { id: 'LHV_IVC', tone: 'sys', radius: 0.05, pts: [[0.5, 1.2, 0.05], [0, 1.5, -0.25], [-0.46, 1.64, -0.58]] },
+  { id: 'IVC_IS', tone: 'sys', radius: 0.14, chain: { name: 'ivc', t0: 0, t1: 0.855 } },
+  { id: 'IVCS_RA', tone: 'sys', radius: 0.14, chain: { name: 'ivc', t0: 0.855, t1: 1 } },
+  { id: 'SVC_RA', tone: 'sys', radius: 0.12, pts: [[-0.42, 3.6, -0.5], [-0.42, 3.0, -0.52], [-0.4, 2.5, -0.5]] },
 ];
 
 const V = (a: Vec3) => new Vector3(a[0], a[1], a[2]);
+const edgeById = new Map((EDGES as { id: string; from: string; to: string; label?: string; share?: number }[]).map((e) => [e.id, e]));
 
-/** Control points of a def, slicing its chain by arc length when it has one. */
-export function vesselPoints(def: VesselDef): Vector3[] {
-  if (def.pts) return def.pts.map(V);
-  const c = def.chain!;
-  const master = new CatmullRomCurve3(CHAINS[c.name].map(V));
+/** A host's whole centreline, slicing its chain by arc length when it has one. */
+function hostPath(h: HostDef): Vector3[] {
+  if (h.pts) return h.pts.map(V);
+  const c = h.chain!;
+  const master = new CatmullRomCurve3(CHAINS[c.name]!.map(V));
   const n = Math.max(4, Math.round((c.t1 - c.t0) * 24));
   const out: Vector3[] = [];
   for (let i = 0; i <= n; i++) out.push(master.getPointAt(c.t0 + ((c.t1 - c.t0) * i) / n));
   return out;
 }
+
+/** Where on its host vein a junction node sits (fraction of the course), from the engine's own table. */
+function junctionAt(node: string): { host: string; at: number } | null {
+  const j = (JUNCTIONS as unknown as [string, string, number][]).find((row) => row[0] === node);
+  return j ? { host: j[1], at: j[2] } : null;
+}
+
+const hostPaths = new Map<string, CatmullRomCurve3>();
+const pathOf = (id: string): CatmullRomCurve3 => {
+  let c = hostPaths.get(id);
+  if (!c) { c = new CatmullRomCurve3(hostPath(HOSTS.find((h) => h.id === id)!)); hostPaths.set(id, c); }
+  return c;
+};
+
+/** The vessels to draw: every piece the engine cuts each host into (one when the vein is whole), each named by its own edge ID. */
+export const VESSELS: readonly VesselDef[] = HOSTS.flatMap((h): VesselDef[] => {
+  const ids = (JUNCTION_PIECES as Record<string, string[]>)[h.id] ?? [h.id];
+  const host = pathOf(h.id);
+  let points = hostPath(h);
+  if (h.endsAtJunction) {
+    const j = junctionAt(h.endsAtJunction);
+    if (j) points = [...points, pathOf(j.host).getPointAt(j.at)];
+  }
+  let cum = 0;
+  return ids.map((id): VesselDef => {
+    const e = edgeById.get(id);
+    if (!e) throw new Error(`no engine edge ${id}`);
+    const share = ids.length === 1 ? 1 : (e.share ?? 1 / ids.length);
+    const c0 = cum, c1 = cum + share;
+    cum = c1;
+    let pts: Vec3[];
+    if (ids.length === 1) pts = points.map((p) => [p.x, p.y, p.z] as Vec3);
+    else {
+      const n = Math.max(3, Math.round(share * 18));
+      pts = Array.from({ length: n + 1 }, (_, i) => { const p = host.getPointAt(Math.min(1, c0 + ((c1 - c0) * i) / n)); return [p.x, p.y, p.z] as Vec3; });
+    }
+    return { id, host: h.id, from: e.from, to: e.to, tone: h.tone, radius: h.radius, label: e.label ?? id, pts };
+  });
+});
+
+export const vesselPoints = (def: VesselDef): Vector3[] => def.pts.map(V);
 
 export interface VesselGeometry {
   geometry: BufferGeometry;

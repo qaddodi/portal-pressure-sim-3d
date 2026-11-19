@@ -33,16 +33,19 @@ export const PICK_LIFT = 0.012;
 /** Fade in and out of the outline, ms. */
 export const HIGHLIGHT_FADE_MS = 180;
 
-/** Which vessels carry the outline for a pick, and where along the flow each one starts. Walks the topology both ways. */
-export function computeHighlight(pickId: string, edges: readonly HighlightEdge[], range: HighlightRange = DEFAULT_RANGE): Map<string, HighlightSpec> {
+/** Which vessels carry the outline for a pick, and where along the flow each one starts. Walks the topology both ways. A pick is a group
+ *  when the engine cuts a vein into pieces (a vein with a shunt joining part-way along it is one vein to the eye): every piece is the pick. */
+export function computeHighlight(pick: string | readonly string[], edges: readonly HighlightEdge[], range: HighlightRange = DEFAULT_RANGE): Map<string, HighlightSpec> {
+  const ids = typeof pick === 'string' ? [pick] : pick;
   const byId = new Map(edges.map((e) => [e.id, e]));
-  const pick = byId.get(pickId);
+  const group = ids.map((id) => byId.get(id)).filter((e): e is HighlightEdge => !!e);
   const out = new Map<string, HighlightSpec>();
-  if (!pick) return out;
-  out.set(pick.id, { dir: 0, offset: 0 });
+  if (!group.length) return out;
+  for (const e of group) out.set(e.id, { dir: 0, offset: 0 });
+  const nodes = new Set(group.flatMap((e) => [e.from, e.to]));
 
-  // downstream: edges that leave the node this one flows into
-  const down = [{ node: pick.to, offset: 0 }];
+  // downstream: edges that leave any node of the pick
+  const down = [...nodes].map((node) => ({ node, offset: 0 }));
   while (down.length) {
     const { node, offset } = down.shift()!;
     if (offset >= range.ahead) continue;
@@ -52,8 +55,8 @@ export function computeHighlight(pickId: string, edges: readonly HighlightEdge[]
       down.push({ node: e.to, offset: offset + e.length });
     }
   }
-  // upstream: edges that flow into the node this one leaves
-  const up = [{ node: pick.from, offset: 0 }];
+  // upstream: edges that flow into any node of the pick (short)
+  const up = [...nodes].map((node) => ({ node, offset: 0 }));
   while (up.length) {
     const { node, offset } = up.shift()!;
     if (offset >= range.behind) continue;
@@ -87,8 +90,10 @@ export class Highlight {
   private range: HighlightRange;
   private edges: HighlightEdge[];
   picked: string | null = null;
+  private hostOf: ReadonlyMap<string, string>;
 
-  constructor(objects: readonly CelObject[], range: HighlightRange = DEFAULT_RANGE) {
+  constructor(objects: readonly CelObject[], range: HighlightRange = DEFAULT_RANGE, hostOf: ReadonlyMap<string, string> = new Map()) {
+    this.hostOf = hostOf;
     this.range = range;
     this.edges = [];
     for (const o of objects) {
@@ -103,7 +108,7 @@ export class Highlight {
 
   set(id: string | null): void {
     this.picked = id && this.tracks.has(id) ? id : null;
-    const spec = this.picked ? computeHighlight(this.picked, this.edges, this.range) : new Map<string, HighlightSpec>();
+    const spec = this.picked ? computeHighlight(this.group(this.picked), this.edges, this.range) : new Map<string, HighlightSpec>();
     for (const [eid, t] of this.tracks) {
       const s = spec.get(eid);
       t.target = s ? 1 : 0;
@@ -114,6 +119,12 @@ export class Highlight {
         u.hiOffset.value = s.offset;
       }
     }
+  }
+
+  /** All the pieces of the vein a picked piece belongs to. */
+  private group(id: string): string[] {
+    const host = this.hostOf.get(id) ?? id;
+    return this.edges.filter((e) => (this.hostOf.get(e.id) ?? e.id) === host).map((e) => e.id);
   }
 
   step(dtMs: number): boolean {

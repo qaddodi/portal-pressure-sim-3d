@@ -77,7 +77,7 @@ export class CelScene {
     this.scene.add(this.catheter.group);
     this.objects.push(...this.catheter.objects);
 
-    this.highlight = new Highlight(this.vessels);
+    this.highlight = new Highlight(this.vessels, undefined, new Map(VESSELS.map((v) => [v.id, v.host])));
     this.flow = new FlowMarks(this.vessels);
     this.flow.setMode(opts.flowMode ?? DEFAULT_FLOW_MODE);
     this.applyLook(this.look);
@@ -143,13 +143,16 @@ export class CelScene {
 
   /** The vessels a slide talks about (they carry flow marks in option A), by edge ID. The picked vessel is always included. */
   setNamedVessels(ids: readonly string[]): void {
-    this.named = new Set(ids);
+    // a vein the engine cuts in pieces is one vein: naming any piece (or the host) names them all
+    const hosts = new Set(ids.map((id) => VESSELS.find((v) => v.id === id)?.host ?? id));
+    this.named = new Set(VESSELS.filter((v) => hosts.has(v.host)).map((v) => v.id));
     this.syncNamed();
   }
   private named = new Set<string>();
   private syncNamed(): void {
     const ids = new Set(this.named);
-    if (this.highlight.picked) ids.add(this.highlight.picked);
+    const picked = this.highlight.picked;
+    if (picked) { const host = VESSELS.find((v) => v.id === picked)?.host; for (const v of VESSELS) if (v.host === host) ids.add(v.id); }
     this.flow.setNamed(ids);
     this.moving = true;
   }
