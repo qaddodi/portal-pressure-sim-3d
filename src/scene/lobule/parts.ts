@@ -19,6 +19,7 @@ export const LOBULE_PARTS = [
   'septa',          // portal-central septa of advanced cirrhosis
   'cuffs',          // collagen collars round the tracts and the central vein
   'wash',           // the wedged column's amber over the sinusoids and the central vein
+  'field',          // the neighbouring lobules round this one (the dive's field): flat hexagons with their veins, softer with distance
 ] as const;
 export type LobulePartName = (typeof LOBULE_PARTS)[number];
 

@@ -5,13 +5,12 @@
 // At circT 0 nothing here runs: the body is drawn exactly as it was. At circT 1 the vertex is exactly the map course's.
 import { PEEL_DL } from './data.copied.ts';
 
-/** Attribute and uniform declarations, put before `void main` of the vessel's vertex shader. */
+/** Attribute and uniform declarations, put before `void main` of the vessel's vertex shader, after its own (`radius`, `rk`, `tang` and `position` are the vessel's: declaring one here is a redefinition, which a real GPU refuses and the whole vessel then draws nothing). */
 export const CIRCUIT_VS_HEAD = /* glsl */ `
 attribute vec3 cC;
 attribute vec3 tC;
 attribute vec3 fr;
 attribute vec2 pk;
-attribute float rk;   // the tube's own radius as a share of the vessel's (also declared by the vessel's vertex shader, which puts this block after it)
 uniform float circT;
 uniform vec2 circRot;
 uniform vec3 circM;

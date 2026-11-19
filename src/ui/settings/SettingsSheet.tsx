@@ -12,7 +12,8 @@ import { I } from '../shell/icons.tsx';
 import { runFeature } from '../shell/features.ts';
 import { usesBottomBar } from '../shell/room.ts';
 import { FULLSCREEN } from '../shell/words.ts';
-import { feedbackEmail, feedbackHref } from '../shell/feedback.ts';
+import { feedbackEmail } from '../shell/feedback.ts';
+import { sendFeedback } from '../shell/send-feedback.ts';
 import { SECTIONS, type Row } from './rows.ts';
 
 const ICON: Record<string, string> = { 'Send feedback': 'mail', History: 'clock', Help: 'help', 'Enter full screen': 'fullscreen', 'Blur effect': 'layers', 'Sharp while moving': 'layers', 'Keyboard shortcuts': 'grid', 'Advanced physiology': 'sliders', 'Show frame rate': 'gauge', 'Show frame breakdown': 'gauge', 'Reset everything…': 'reset' };
@@ -63,7 +64,7 @@ function Item({ row }: { row: Row }) {
   if (l === 'Send feedback') {
     const email = feedbackEmail();
     if (!email) return <WrongHere />;
-    return <><MenuItem icon="mail" label={l} onClick={() => { close(); location.href = feedbackHref(email, { build: `PREVIEW · ${String(import.meta.env.VITE_BUILD ?? 'local').split('@').pop()}`, device: navigator.userAgent, screen: `${innerWidth} × ${innerHeight} at ${devicePixelRatio}×`, view: location.href }); }} /><WrongHere /></>;
+    return <><MenuItem icon="mail" label={l} onClick={() => { close(); void sendFeedback(email); }} /><WrongHere /></>;
   }
   if (l === 'Enter full screen') {
     if (!fs.can) return /iPhone|iPod/.test(navigator.userAgent) && !matchMedia('(display-mode: standalone)').matches ? <small className="mm-role-note fs-hint">{FULLSCREEN.iphone}</small> : null;

@@ -13,6 +13,8 @@ import { setInterventionLabels, timeline } from '../timeline/index.ts';
 import { useUi } from '../ui-store.ts';
 import { isPhone } from '../layout/device.ts';
 import { injectDye } from './dye.ts';
+import { startShunting } from './shunt.ts';
+import './stent/StentPanel.tsx';   // (registers the stent editor as the card's 'stent' panel)
 import { goToView } from '../shell/view-actions.ts';
 
 export function startActions(): () => void {
@@ -31,6 +33,7 @@ export function startActions(): () => void {
   // History: a change is named as the 2D app names it (activeInterventions), and every learner change is one entry (a slider drag is one: the timeline debounces it)
   setInterventionLabels((p) => new Map(activeInterventions(p as never).map((a) => [a.key, a.label])));
   off.push(onParamsChange(({ label, history }) => { if (history) timeline.noteChange(label); }));
+  off.push(startShunting());   // Add shunt: the targets glow, a tap on one makes the shunt (shunt.ts)
   bindScene((id) => { if (usePick.getState().picked !== id) sceneApi.pick(id); });
   off.push(usePick.subscribe((s) => scenePicked(s.picked)));
   // a structure selected on a phone puts Treat away (2D onSelect)

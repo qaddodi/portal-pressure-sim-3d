@@ -102,6 +102,9 @@
   font: 600 14px / 1.35 var(--ui); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 220ms var(--sh-ease), transform 220ms var(--sh-ease), visibility 0s linear 220ms; z-index: 4; }
 .sh-toast[data-on="true"] { opacity: 1; visibility: visible; transform: translate(-50%, 0); transition-delay: 0s; }
 .sh-toast[data-tone="bad"] { background: var(--danger); color: #fff; }
+.sh-toast[data-action] { display: flex; align-items: center; gap: 14px; }
+.sh-toast[data-on="true"][data-action] { pointer-events: auto; }
+.sh-toast-act { font: inherit; font-weight: 700; color: inherit; min-height: 34px; padding: 0 12px; border-radius: 9px; border: 1px solid currentColor; background: transparent; cursor: pointer; white-space: nowrap; }
 
 /* a Reset dialog */
 .sh-dialog { position: absolute; z-index: 5; left: 50%; top: 50%; width: min(420px, calc(100vw - 32px)); margin: -90px 0 0 calc(min(420px, 100vw - 32px) / -2); padding: 22px; border-radius: 18px; border: 1px solid var(--edge); background: var(--surface); pointer-events: auto;
