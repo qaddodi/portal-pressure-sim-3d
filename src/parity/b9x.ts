@@ -23,12 +23,7 @@ for (const r of structureRows()) {
 // ── Reach and act ──
 const key = (k: string) => decideKey({ key: k }, { target: 'page', searchOpen: false, sheetOpen: false, talk: false, keysOn: true, cardOpen: true });
 const shortcut = (keys: string, wired: boolean) => out.push({ id: rowId('shortcut', `Reach and act/${keys}`), wired });
-// Click: a tap on a vessel, an organ or a lobule part opens its card (tap.ts)
-shortcut('Click', NETWORK_BY_ID.size > 0 && Object.keys(ORGAN_TAP).length > 0 && Object.keys(LOBULE_TAP).length > 0);
-// 1 – 9 run the open card's controls (ActionCard.triggerCardVerb, through useKeys)
-shortcut('1 – 9', [1, 2, 3, 4, 5, 6, 7, 8, 9].every((n) => key(String(n))?.type === 'card-verb'));
-// Tab · Enter: one stop per drawn vessel, then the organs 2D's walk ends on; Enter opens the card (VesselWalk)
-shortcut('Tab · Enter', NETWORK_BY_ID.size > 0 && WALK_ORGANS.length === 3);
+// (Click, 1 – 9 and Tab · Enter are claimed by b1.ts, the shell batch's key table; tests/action-reach.test.ts holds the three to what this batch built.)
 // The arrows follow the flow from the vessel in focus, as 2D's do (its stage handles Left and Right only; Up and Down are not the figure's in either app), and Shift does not stop them.
 const follows = step('PV_TRUNK', 'down', 1) !== null && step('PV_TRUNK', 'up', 1) !== null;
 shortcut('← → ↑ ↓', follows);
