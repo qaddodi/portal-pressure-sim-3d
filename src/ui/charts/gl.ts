@@ -20,6 +20,10 @@ const ATTRS = { antialias: true, alpha: true, premultipliedAlpha: true, stencil:
 
 type Surface = HTMLCanvasElement | OffscreenCanvas;
 
+/** A picture drawn into the chart's buffer before its shapes (the FibroScan's shear-wave map): called with the context, the buffer's size in device px and a generation number that changes
+ *  when the context is made again (its programs and textures must be made again then). It may change any GL state; the drawer sets back what the shapes need after it. */
+export type Under = (gl: WebGL2RenderingContext, w: number, h: number, gen: number) => void;
+
 /** One WebGL2 context on a surface, with the chart program: paint(mesh, …) draws a mesh into the surface's buffer. */
 class Drawer {
   private gl: WebGL2RenderingContext | null = null;
@@ -28,6 +32,8 @@ class Drawer {
   private vao: WebGLVertexArrayObject | null = null;
   private uSize: WebGLUniformLocation | null = null;
   lost = false;
+  /** counts the times the context was made (a restored context has none of an `Under`'s programs) */
+  gen = 0;
 
   readonly surface: Surface;
   private onLost: () => void;
@@ -44,6 +50,7 @@ class Drawer {
     const gl = this.surface.getContext('webgl2', ATTRS) as WebGL2RenderingContext | null;
     this.gl = gl;
     if (!gl) return;
+    this.gen++;
     const sh = (type: number, src: string) => { const s = gl.createShader(type)!; gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(`chart shader: ${gl.getShaderInfoLog(s)}`); return s; };
     const p = gl.createProgram()!;
     gl.attachShader(p, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, FS));
@@ -62,7 +69,7 @@ class Drawer {
   }
 
   /** Draw `mesh` (CSS px, a box w × h) into a buffer of pw × ph pixels. */
-  paint(mesh: Mesh, w: number, h: number, pw: number, ph: number) {
+  paint(mesh: Mesh, w: number, h: number, pw: number, ph: number, under: Under | null = null) {
     const gl = this.gl;
     if (!gl || !this.ok) return false;
     const s = this.surface;
@@ -71,6 +78,12 @@ class Drawer {
     gl.clearColor(0, 0, 0, 0); gl.clearStencil(0);
     gl.disable(gl.STENCIL_TEST);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
+    if (under) {
+      under(gl, pw, ph, this.gen);
+      // (what the picture may have changed, put back for the shapes)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, pw, ph);
+      gl.activeTexture(gl.TEXTURE0); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    }
     gl.useProgram(this.prog);
     gl.uniform2f(this.uSize, w, h);
     gl.bindVertexArray(this.vao);
@@ -121,6 +134,8 @@ export class ChartGL {
   private last: Mesh | null = null;
   /** Called after the context came back and the last picture was drawn again. */
   onRestored: (() => void) | null = null;
+  /** A picture under the shapes (set by a painter that has one). */
+  under: Under | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -147,9 +162,9 @@ export class ChartGL {
     const pw = Math.max(1, Math.round(this.w * this.dpr)), ph = Math.max(1, Math.round(this.h * this.dpr));
     if (this.show) {
       const d = sharedDrawer();
-      if (!d || !d.paint(mesh, this.w, this.h, pw, ph)) return;
+      if (!d || !d.paint(mesh, this.w, this.h, pw, ph, this.under)) return;
       this.show.transferFromImageBitmap((d.surface as OffscreenCanvas).transferToImageBitmap());
-    } else this.own?.paint(mesh, this.w, this.h, pw, ph);
+    } else this.own?.paint(mesh, this.w, this.h, pw, ph, this.under);
   }
 
   dispose() {

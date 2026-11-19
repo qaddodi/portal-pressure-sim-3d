@@ -2,7 +2,7 @@
 // drawn to the new one (blend, 280 ms, the app's arrive curve) or sets it at once; a still chart costs nothing (no frame is asked for).
 import { clock } from '../../clock/frame.ts';
 import { easeArrive, MOTION } from '../../clock/tween.ts';
-import { ChartGL } from './gl.ts';
+import { ChartGL, type Under } from './gl.ts';
 import { tessellate } from './geometry.ts';
 import { blend } from './morph.ts';
 import type { Frame } from './scene.ts';
@@ -37,6 +37,11 @@ export class ChartPainter {
     // drawing happens in the clock's render phase, once per frame that asked
     this.offRender = clock.on('render', (f) => this.frame(f.time), 5);
   }
+
+  /** A picture drawn under the shapes on every draw (the FibroScan's map); null takes it away. The pane asks for a frame itself when the picture moves. */
+  setUnder(fn: Under | null) { this.gl.under = fn; this.dirty = true; clock.invalidate(this.tag); }
+  /** Draw the frame now shown again (the picture under it moved). */
+  redraw() { this.dirty = true; clock.invalidate(this.tag); }
 
   get frame_(): Frame | null { return this.shown; }
   get words(): string[] { return this.text.words; }

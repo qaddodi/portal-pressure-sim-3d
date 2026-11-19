@@ -46,7 +46,7 @@ function lerpShape(a: Shape, b: Shape, t: number): Shape {
     case 'text': {
       const q = b as TextShape;
       // the words change at the middle; the letters stay where the new ones go
-      return { ...q, s: t < 0.5 ? a.s : q.s, x: lerp(a.x, q.x, t), y: lerp(a.y, q.y, t), size: lerp(a.size, q.size, t), color: lerpC(a.color, q.color, t), alpha: lerp(a.alpha ?? 1, q.alpha ?? 1, t) };
+      return { ...q, s: t < 0.5 ? a.s : q.s, x: lerp(a.x, q.x, t), y: lerp(a.y, q.y, t), size: lerp(a.size, q.size, t), rot: a.rot === undefined && q.rot === undefined ? undefined : lerp(a.rot ?? 0, q.rot ?? 0, t), color: lerpC(a.color, q.color, t), alpha: lerp(a.alpha ?? 1, q.alpha ?? 1, t) };
     }
     default: return t < 0.5 ? a : b;
   }
