@@ -14,6 +14,7 @@ sceneApi.pick('PV_TRUNK' | null)        // vessel highlight; usePick() holds the
 sceneApi.anchor('tip' | 'ra' | 'ivc' | 'rhv' | 'pv' | 'spleen')   // scene points for tags
 sceneApi.project(point)                 // where a scene point is on the canvas now (CSS px); sceneApi.cameraMoving is true in flight
 sceneApi.flowPulse()                    // option D only
+sceneApi.refit()                        // glide the hand's pan and zoom home to the shot's framing (the Fit button, a second tap on the active view)
 ```
 
 Shots (`camera/shots.ts`): `title`, `route`, `free`, `wedge`, `hvpg`, `play`, `pick`. A shot says what to look at and how much of the body it needs;
@@ -30,8 +31,25 @@ The rig tweens every field straight from the current pose to the next (no fit wa
 | `highlight.ts` | downstream/upstream walk of the topology; fade in and out (180 ms) |
 | `flow.ts` | the four flow-mark options behind `useSettings().flowMarks`; speed curve (`markSpeed`) |
 | `catheter.ts` | HVPG route and balloon from `{advance, balloon}` |
+| `gesture/` | the figure's hands, ported from the 2D app (`stage-gestures.js`): `view.ts` limits and rubber band, `ease.ts` glide curves, `flick.ts`, `wheel-glide.ts`, `frame-queue.ts` (every glide asks the clock for a frame, never rAF), `controller.ts` events |
 | `scene.ts` | assembles it; `update(now)` returns true while anything moves |
 
 Colour: the cel shaders do their banding in sRGB space (the spec's factors are written that way) and write their output as is, so a flat area is
 exactly the token hex. The body plate and the clear colour go through three's own colour management and land on the same hex. (The first mocks
 wrote linear values straight out and looked darker.)
+
+## Gestures (`gesture/controller.ts`, all numbers as in the 2D app)
+
+| Input | Does |
+|---|---|
+| one finger / mouse drag | turns the figure within ±25° (`dragToOrbit`, the one rule), momentum on release |
+| two fingers | pinch zoom and pan together; the point under the midpoint stays under it; one finger left after a pinch pans, never taps or throws |
+| Shift-drag, middle button | pan, flick on release |
+| Mac trackpad two-finger scroll | pan on the rubber band |
+| trackpad pinch, Ctrl/⌘ + wheel, Safari gesture events | zoom about the pointer; the page itself never zooms |
+| mouse wheel | zoom about the pointer, glided about 100 ms |
+| double click | zoom ×2 about the point (Shift: out); touch never |
+
+Zoom 0.6 to 6 (stretches a little past, springs back after 220 ms); the figure can never be lost (its edge may not pass the room's middle). Touches within
+12 px of the sides or 34 px of the foot are the system's. Cards and the wallet are page elements above the canvas, so a gesture that starts on one never
+reaches the figure. A new shot or Fit stops what the hand started (`handsOff`) and the hand's view glides home with the camera.

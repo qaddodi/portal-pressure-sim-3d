@@ -5,7 +5,8 @@ import { useEngine } from '../engine/index.ts';
 import { useDeck } from '../state/deck.ts';
 import { useUi } from './ui-store.ts';
 import { stopsOf } from './deck/presenter-machine.ts';
-import { TYPE } from './layout/device.ts';
+import { typeFor } from './layout/device.ts';
+import { layoutOf, isSideways, cardPad, radius } from './layout/rules2d.ts';
 import { CardLayer } from './cards/CardLayer.tsx';
 import { PresenterBar } from './deck/PresenterBar.tsx';
 import { useDeckInput } from './deck/useDeckInput.ts';
@@ -16,6 +17,7 @@ export function DeckUi() {
   const root = useRef<HTMLDivElement>(null);
   const probe = useRef<HTMLDivElement>(null);
   const device = useUi((s) => s.device);
+  const vp = useUi((s) => s.vp);
   const setViewport = useUi((s) => s.setViewport);
   const hasStops = useUi((s) => s.stops.length > 0);
   useDeckInput();
@@ -55,13 +57,17 @@ export function DeckUi() {
     return () => { ro.disconnect(); window.removeEventListener('orientationchange', measure); };
   }, [setViewport]);
 
-  const t = TYPE[device];
+  const layout = layoutOf(vp.w, vp.h), sideways = isSideways(vp.w, vp.h);
+  const t = typeFor(vp.w, vp.h);
+  // the 2D app's card padding (--pz-cp; a stacked card's words 13 px in from its 8 px margin) and corner radius (--pz-r)
+  const pad = cardPad(vp.w, vp.h);
   const vars = {
-    '--fs-deck': `${t.deckTitle}px`, '--lh-deck': t.deckTitleLead, '--fs-title': `${t.slideTitle}px`, '--lh-title': t.slideTitleLead,
+    '--fs-deck': `${t.deckTitle}px`, '--lh-deck': t.deckTitleLead, '--fs-title': `${t.slideTitle}px`, '--fs-title-trim': `${t.slideTitleTrim}px`, '--lh-title': t.slideTitleLead,
     '--fs-body': `${t.body}px`, '--lh-body': t.bodyLead, '--fs-data': `${t.data}px`, '--fs-kicker': `${t.kicker}px`, '--fs-big': `${t.bigNumber}px`,
+    '--pad-x': `${pad.x}px`, '--pad-y': `${pad.y}px`, '--r': `${Math.round(radius(vp.w, vp.h, layout))}px`,
   } as CSSProperties;
   return (
-    <div ref={root} className="deck-ui" data-device={device} style={{ position: 'fixed', zIndex: 'var(--z-cards)' as unknown as number, ...vars }}>
+    <div ref={root} className="deck-ui" data-device={device} data-layout={layout} data-sideways={sideways || undefined} style={{ position: 'fixed', zIndex: 'var(--z-cards)' as unknown as number, ...vars }}>
       <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'env(safe-area-inset-top, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }} />
       {hasStops && <PresenterBar title={HVPG_DECK.title} />}
       {hasStops && <CardLayer deck={HVPG_DECK} />}

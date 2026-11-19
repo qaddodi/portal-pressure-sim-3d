@@ -2,7 +2,8 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Deck, ReadingKey, Slide } from '../../decks/schema.ts';
 import { useUi } from '../ui-store.ts';
 import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
-import { planLayout, widthOf, type CardId, type Need, type Plan } from '../layout/plan.ts';
+import { planLayout, widthOf, stepsFor, type CardId, type Need, type Plan } from '../layout/plan.ts';
+import { isSideways } from '../layout/rules2d.ts';
 import type { Rect } from '../layout/device.ts';
 import { useStack } from './useStack.ts';
 import type { Entry, Wanted } from './stack.ts';
@@ -20,7 +21,7 @@ import { gapOf } from './ladder-model.ts';
 import { maxPages, clampPage } from './pages.ts';
 
 const ZERO: Rect = { x: 0, y: 0, w: 0, h: 0 };
-interface Snap { slide: Slide | null; pages: number; at: number }
+interface Snap { slide: Slide | null; pages: number; at: number; trim: boolean }
 
 /** Every card on screen: what the presenter says is up, where the planner puts it, kept through a leave and an enter. */
 export function CardLayer({ deck }: { deck: Deck }) {
@@ -46,17 +47,24 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const setPageCount = useUi((s) => s.setPageCount);
 
   const wordsKey = view ? (view.slide && (view.words === 'teach' || view.words === 'case') ? `${view.words}:${view.slide.id}` : view.words) : '';
-  const dev = useUi((s) => s.device);
-  const hit = (key: string, id: CardId) => heights[`${key}@${Math.round(widthOf(dev, id, vp))}`];
-  const h = (key: string, id: CardId) => hit(key, id)?.h ?? 0;
   const pagesKey = `${wordsKey}@${vp.w}x${vp.h}`;
+  // iPhone on its side: the cards take the narrowest column that holds them, widening a step at a time (fewer lines of the same type), never a smaller type
+  const sideways = isSideways(vp.w, vp.h), pair = !!view?.data;
+  const [stepMap, setStepMap] = useState<Record<string, number>>({});
+  const nSteps = stepsFor(vp, pair);
+  // past the widest column the title takes one step down (never under 1.4× the words), then the words page: the body never shrinks
+  const stepAt = sideways ? Math.min(stepMap[pagesKey] ?? 0, nSteps) : 0;
+  const step = Math.min(stepAt, nSteps - 1), trim = stepAt >= nSteps;
+  const wide = Math.round(widthOf(vp, pair, step));
+  const hit = (key: string) => heights[`${key}@${wide}`];
+  const h = (key: string) => hit(key)?.h ?? 0;
   const pages = view ? Math.min(pagesMap[pagesKey] ?? 1, maxPages(view.words, view.slide?.vignette && view.words === 'case' ? view.slide.vignette : view.slide?.line)) : 1;
   const at = clampPage(page, pages);
-  const sig = `${wordsKey}|${pages}|${at}|${vp.w}x${vp.h}`;
+  const sig = `${wordsKey}|${pages}|${at}|${stepAt}|${vp.w}x${vp.h}`;
   sigRef.current = sig;
 
-  const needs: Need[] = view ? [{ id: view.words, slot: 'words', h: h(wordsKey, view.words) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h('ladder', 'ladder') }] : [])] : [];
-  const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active), [vp, wallet.active, needs.map((n) => `${n.id}:${n.slot}:${n.h}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
+  const needs: Need[] = view ? [{ id: view.words, slot: 'words', h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h('ladder') }] : [])] : [];
+  const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step), [vp, wallet.active, step, needs.map((n) => `${n.id}:${n.slot}:${n.h}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const wordsShown = plan.cards.find((c) => c.slot === 'words');
   const dataShown = plan.cards.find((c) => c.slot === 'data');
@@ -66,13 +74,17 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const wordsStack = useStack(wordsWanted), dataStack = useStack(dataWanted), stripStack = useStack(stripWanted);
 
   // a words card taller than its room asks for one more page (only on a measurement of the page now showing); the count goes to the presenter
-  const wordsHit = view ? hit(wordsKey, view.words) : undefined;
+  const wordsHit = view ? hit(wordsKey) : undefined;
+  const dataHit = view?.data ? hit('ladder') : undefined;
   const tooTall = !!view && plan.overflow.includes(view.words) && wordsHit?.sig === sig;
+  // a pair that does not fit its column at this step widens to the next step first; only past the widest does the words card split
+  const tooTallPair = sideways && (tooTall || (pair && plan.overflow.includes('ladder') && dataHit?.sig === sig));
   useLayoutEffect(() => {
     if (!view) return;
     const cap = maxPages(view.words, view.slide?.vignette && view.words === 'case' ? view.slide.vignette : view.slide?.line);
+    if (tooTallPair && stepAt < nSteps) { setStepMap((m) => ({ ...m, [pagesKey]: stepAt + 1 })); return; }
     if (tooTall && pages < cap) setPagesMap((m) => ({ ...m, [pagesKey]: pages + 1 }));
-  }, [tooTall, pages, pagesKey, view]);
+  }, [tooTall, tooTallPair, stepAt, nSteps, pages, pagesKey, view]);
   useLayoutEffect(() => { setPageCount(pages); }, [pages, setPageCount, wordsKey]);
 
   // a leaving card stays where it was while it goes
@@ -87,9 +99,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   useLayoutEffect(() => { if (settled) publishPlan(plan); }, [plan, settled, publishPlan]);
 
   // phones: a vertical swipe on a card swaps the wallet; anywhere: a sideways swipe on a card moves the talk
-  const phone = plan.device === 'phone-portrait' || plan.device === 'phone-landscape';
   const swipe = useGesture((g) => {
-    if (phone && plan.strip && isSwapSwipe(g)) { swapWallet(); return; }
+    if (plan.strip && isSwapSwipe(g)) { swapWallet(); return; }
     const m = swipeMove(g.dx, g.dy, g.ms);
     if (m) move(m);
   });
@@ -99,14 +110,14 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const gap = gapOf(readings);
   // each card draws what it was given when it came in, so a card that is leaving keeps its own words while it goes
   const snaps = snapRef.current;
-  const now: Snap = { slide: view.slide, pages, at };
+  const now: Snap = { slide: view.slide, pages, at, trim };
   const content = (e: Entry) => {
     if (e.phase === 'in') snaps[e.key] = now;
     const sn = snaps[e.key] ?? now;
     switch (e.id) {
       case 'title': return <TitleCard deck={deck} onStart={() => useUi.getState().go(1)} onNext={() => move('next')} page={sn.at} pages={sn.pages} />;
       case 'case': return <CaseCard slide={sn.slide!} page={sn.at} pages={sn.pages} />;
-      case 'teach': return <TeachingCard slide={sn.slide!} read={read} page={sn.at} pages={sn.pages} />;
+      case 'teach': return <TeachingCard slide={sn.slide!} read={read} page={sn.at} pages={sn.pages} trim={sn.trim} />;
       case 'ladder': return sn.slide?.ladder ? <LadderCard ladder={sn.slide.ladder} readings={readings} /> : null;
       case 'check': return <CheckCard deck={deck} />;
     }
@@ -117,7 +128,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     const rect = placed ?? last.current[e.key] ?? ZERO;
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
-      <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || widthOf(plan.device, e.id, vp) }} onHeight={onHeight} onGone={stack.gone} label={labelOf(e.id)}
+      <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onGone={stack.gone} label={labelOf(e.id)}
         pointer={swipe} overflow={plan.overflow.includes(e.id) && e.phase === 'in'}>
         {content(e)}
       </CardFrame>

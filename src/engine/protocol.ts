@@ -15,6 +15,8 @@ export type ToWorker =
   | { type: 'probe'; id: string }
   | { type: 'beat'; on: boolean }
   | { type: 'settle' }
+  /** jump the disease clock ahead (+1 wk, +1 mo, +6 mo), or run until the next event; the shell's play bar sends it as the 2D timeline does */
+  | { type: 'advance'; days?: number; untilEvent?: boolean }
   | { type: 'action'; action: { kind: string; [k: string]: unknown } }
   | { type: 'snapshot'; reqId?: number }
   | { type: 'restore'; snap: unknown }

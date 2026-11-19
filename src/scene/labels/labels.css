@@ -1,0 +1,69 @@
+/* The figure's labels, callouts and key (src/scene/labels). Colours are the look's tokens (--glass --surface --edge --text --text-2 --text-3 --sys
+   --caution --danger --ok --vein-portal --vein-systemic --shadow-rgb --sa). Per-frame writes are transform and opacity only; sizes are set when a
+   label takes a new spot (while it is invisible), never in a frame. Opacity is written by the layer from alpha.ts (the one place that knows the
+   dim value), so this file holds no opacity but 0 (hidden) and 1. */
+
+.lb-layer { position: fixed; inset: 0; z-index: var(--z-tags, 5); pointer-events: none; overflow: hidden;
+  font-family: var(--ui, "Inter", system-ui, sans-serif); font-variant-numeric: tabular-nums lining-nums; color: var(--text); -webkit-font-smoothing: antialiased; }
+
+.lb, .lb-call, .lb-key-wrap, .lb-lead, .lb-anchor { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform, opacity; }
+.lb[data-on], .lb-call[data-on], .lb-key-wrap[data-on], .lb-lead[data-on], .lb-anchor[data-on] { visibility: visible; }
+
+/* ── a station's pill: a dot in its vein's colour, the name, the reading ── */
+.lb { display: flex; align-items: center; gap: 6px; box-sizing: border-box; padding: 0 10px; border-radius: 999px; white-space: nowrap;
+  background: var(--glass); border: 1px solid var(--edge); font: 600 13px / 1 var(--ui, system-ui); color: var(--text); }
+.lb .lb-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--text-3)); }
+.lb[data-tone="portal"] { --c: var(--vein-portal); }
+.lb[data-tone="sys"] { --c: var(--vein-systemic); }
+.lb .lb-name { min-width: 0; }
+.lb .lb-val { margin-left: auto; position: relative; display: inline-block; font-weight: 700; text-align: right; }
+.lb[data-region] { justify-content: center; font-weight: 600; color: var(--text-2); }
+.lb[data-region] .lb-dot, .lb[data-region] .lb-val { display: none; }
+
+/* the number rolls when it changes (400 ms, transform and opacity; the box keeps the width of the longest text) */
+.lb-roll { position: relative; display: inline-block; }
+.lb-roll > .lb-cur { display: inline-block; }
+.lb-roll > .lb-old { position: absolute; right: 0; top: 0; }
+
+/* ── a leader: one hairline from the station's dot to its pill (scaled, so its width is never written) ── */
+.lb-lead { width: 1px; height: 1px; transform-origin: 0 0; background: var(--text-3); }
+.lb-anchor { width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; box-sizing: border-box; border: 1.5px solid var(--c, var(--text-3)); background: var(--surface); }
+.lb-anchor[data-tone="portal"] { --c: var(--vein-portal); }
+.lb-anchor[data-tone="sys"] { --c: var(--vein-systemic); }
+
+/* ── a reading card with a pointer (the catheter's FHVP, WHVP and the HVPG they give) ── */
+.lb-call { box-sizing: border-box; padding: 9px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--edge); white-space: nowrap;
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 8px 20px -8px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.4)); }
+.lb-call .lb-row { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; height: 22px; }
+.lb-call .lb-k { font: 600 11px / 1 var(--ui, system-ui); letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-3); }
+.lb-call .lb-n { font: 700 17px / 1.2 var(--ui, system-ui); }
+.lb-call .lb-u { font: 500 12px / 1 var(--ui, system-ui); color: var(--text-2); margin-left: 4px; }
+.lb-call[data-k="f"] .lb-k, .lb-call .lb-row[data-tone="free"] .lb-k { color: color-mix(in srgb, var(--sys) 80%, var(--text)); }
+.lb-call[data-k="w"] .lb-k, .lb-call .lb-row[data-tone="wedge"] .lb-k { color: color-mix(in srgb, var(--caution) 80%, var(--text)); }
+.lb-call:not([data-k="s"]) { display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.lb-call:not([data-k="s"]) .lb-row { height: auto; display: block; }
+.lb-call:not([data-k="s"]) .lb-k { display: block; margin-bottom: 4px; }
+.lb-call[data-k="s"] .lb-calc { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--edge); height: 28px; }
+.lb-call[data-sev="ok"] .lb-calc .lb-n { color: color-mix(in srgb, var(--ok) 80%, var(--text)); }
+.lb-call[data-sev="caution"] .lb-calc .lb-n { color: color-mix(in srgb, var(--caution) 75%, var(--text)); }
+.lb-call[data-sev="danger"] .lb-calc .lb-n { color: color-mix(in srgb, var(--danger) 85%, var(--text)); }
+.lb-call .lb-tail, .lb-call .lb-tail-e { position: absolute; left: 0; top: 0; pointer-events: none; }
+.lb-call .lb-tail-e { background: color-mix(in srgb, var(--text) 20%, var(--surface)); }
+.lb-call .lb-tail { background: var(--surface); }
+
+/* ── the figure key ── */
+.lb-key-wrap { display: block; }
+.lb-key { display: flex; align-items: center; gap: 0.55em; box-sizing: border-box; padding: 6px 14px 7px; border-radius: 999px; white-space: nowrap;
+  background: var(--glass); border: 1px solid var(--edge); font: 400 12px / 1.25 var(--ui, system-ui); color: var(--text-2); }
+.lb-key b { font-weight: 600; color: var(--text); }
+.lb-key .lb-bar { width: 4em; height: 0.5em; border-radius: 999px; flex: none; }
+.lb-key .lb-ends { display: inline-flex; align-items: center; gap: 0.45em; }
+.lb-key .lb-items { display: inline-flex; align-items: center; gap: 0.9em; }
+.lb-key .lb-k { display: inline-flex; align-items: center; gap: 0.35em; }
+.lb-key .lb-sw { width: 1.1em; height: 0.5em; border-radius: 999px; flex: none; }
+
+/* ── the keyboard walk: real buttons, out of sight, one per vessel; the figure shows the focus as the vessel's highlight ── */
+.lb-walk { position: fixed; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.lb-walk button { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; background: none; }
+.lb-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+

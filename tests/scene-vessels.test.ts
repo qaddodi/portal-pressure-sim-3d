@@ -63,16 +63,50 @@ test('a vessel is one geometry with uv.x along the flow from 0 to 1 and a tangen
   assert.equal(g.attributes.tang!.count, g.attributes.position!.count);
 });
 
+// 55 vessels at one draw each (the ink hull and the toon body are two copies in one geometry, vessel-object.ts withHull) plus the organs.
 test('the scene stays inside the draw-call budget (spec: under 100)', () => {
   const s = new CelScene();
   let meshes = 0;
-  s.scene.traverse((o) => { if ((o as { isMesh?: boolean }).isMesh) meshes++; });
+  s.scene.traverseVisible((o) => { if ((o as { isMesh?: boolean }).isMesh) meshes++; });   // (the lobule and sinusoid views are hidden until chosen and draw nothing)
   assert.ok(meshes < 100, `${meshes} draw calls`);
+  s.setView('lobule'); s.setView('body');
+  s.dispose();
+});
+
+test('a vessel is one draw: body and ink share one mesh and one material', () => {
+  const s = new CelScene();
+  for (const o of s.vessels) {
+    let n = 0;
+    o.group.traverse((c) => { if ((c as { isMesh?: boolean }).isMesh) n++; });
+    assert.equal(n, 1, o.edge!.id);
+    const h = o.toonMesh.geometry.getAttribute('hull');
+    assert.ok(h && h.count === o.toonMesh.geometry.getAttribute('position').count, 'hull attribute');
+    // the highlight's handle on the ink writes the merged material's own uniforms
+    assert.equal(o.ink.uniforms.hiOn, o.toon.uniforms.hiOn);
+    assert.equal(o.ink.uniforms.inflate, o.toon.uniforms.inflate);
+  }
   s.dispose();
 });
 
 test('every vessel object knows its edge and its data texel', () => {
   const s = new CelScene();
   for (const o of s.vessels) assert.equal(o.toon.uniforms.vindex.value, indexOf(o.edge!.id));
+  s.dispose();
+});
+
+test('the figure\'s views: the new one shows at once, the one left behind is hidden when the camera has landed (nothing pops)', () => {
+  const s = new CelScene();
+  const drawn = () => { let n = 0; s.scene.traverseVisible((o) => { if ((o as { isMesh?: boolean }).isMesh) n++; }); return n; };
+  const body = drawn();
+  s.setView('lobule');
+  assert.ok(s.lobule.isVisible && drawn() > body, 'the lobule is up and the body still drawn while the camera flies');
+  s.update(100);
+  assert.ok(s.lobule.isVisible && !s.sinus.isVisible);
+  assert.ok(drawn() < body, 'landed: only the lobule is drawn');
+  s.setView('sinusoid'); s.update(200);
+  assert.ok(s.sinus.isVisible && !s.lobule.isVisible);
+  s.setView('body'); assert.ok(drawn() > 0);
+  s.update(300);
+  assert.equal(drawn(), body, 'back on the body, as it was');
   s.dispose();
 });

@@ -21,8 +21,20 @@ export const useEngine = create<EngineState>(() => ({ status: 'booting', presetI
 
 export const latest: { frame: EngineFrame | null; version: number } = { frame: null, version: 0 };
 
+/** The healthy patient's reference (node pressures, edge flows, hepatic lymph in mL/min): what flows and congestion are measured against. */
+export interface HealthyRef { P: Float64Array | number[]; Q: Float64Array | number[]; hepLymph?: number }
+/**
+ * Outside React, read in clock systems:
+ *  - `reference`: the healthy reference, fetched once at boot (null until then)
+ *  - `params`: the patient's parameters, kept from presetLoaded and from every frame that carries them (frames carry them only on a change);
+ *    `paramsVersion` counts changes.
+ */
+export const patient: { reference: HealthyRef | null; params: unknown; paramsVersion: number } = { reference: null, params: null, paramsVersion: 0 };
+export function setParams(params: unknown) { if (params == null) return; patient.params = params; patient.paramsVersion++; }
+
 export function adoptFrame(f: EngineFrame) {
   latest.frame = f; latest.version++;
+  if (f.params !== undefined) setParams(f.params);
   const m: Metrics = f.metrics;
   const s = useEngine.getState();
   const r = m as { pv?: number; ivc?: number; ra?: number } & typeof m;
