@@ -10,10 +10,15 @@ export const mix = (a: RGB, b: RGB, t: number): [number, number, number] => [a[0
 
 /** The 2D liver's congestion colours (tokens.css --lv-cong-base and its alpha, light looks and dark looks), its septa and its nodules. */
 export const LIVER_TOKENS = {
-  light: { cong: rgbOf('#6E1F38'), congA: 0.44 },
-  dark: { cong: rgbOf('#2A0C18'), congA: 0.3 },
-  nodule: rgbOf('#C9955C'), nodA: 0.216,
+  light: { cong: rgbOf('#6E1F38'), congA: 0.44, sep: rgbOf('#FFF4E6'), sepA: 0.25, nod: rgbOf('#C9955C'), nodA: 0.216 },
+  dark: { cong: rgbOf('#2A0C18'), congA: 0.3, sep: rgbOf('#E8C4AE'), sepA: 0.21, nod: rgbOf('#6E4428'), nodA: 0.2025 },
 };
+/** A septum is painted twice as pale as 2D's flat fill (the 3D liver has no gloss beneath, so at 2D's strength a wall and a nodule would differ by 2%). */
+export const SEPTUM_BOOST = 1;
+/** How much of the pool's red the stomach wall takes below the blood's surface (the 2D pool is drawn at 0.92). */
+export const POOL_TINT = 0.75;
+/** The embolized spleen's dead part: the stage's colour at 0.8 (app-06-plate.css .pse-dead), and its edge line at 0.7. */
+export const PSE_DEAD_A = 0.8, PSE_EDGE_A = 0.7;
 /** What a lens other than Pressure does to the organs (organ-dim.js LENS_GREY), and the ghost a removed spleen is (stage-diaphragm.js: opacity 0.14). */
 export { LENS_GREY };
 export const SPLENIC_GHOST = 0.14;
@@ -25,14 +30,16 @@ export interface OrganState {
   dim: number;
   /** a ghosted organ: share of itself left (1 whole) */
   ghost: number;
-  /** liver only */
-  congestion: number; tint: number; cirrhosisNod: number;
+  /** liver only: `septum` 0 inside a nodule, 1 on the pale fibrous wall between two (the 2D lv-sep under lv-nod) */
+  congestion: number; tint: number; cirrhosisNod: number; septum: number;
+  /** spleen only: the infarcted lower part, 0..1 (partial embolization), toward the stage's colour */
+  dead: number;
   /** stomach only: blood in it, 0..1 */
   blood: number;
 }
-export const PLAIN: OrganState = { sat: 1, dim: 1, ghost: 1, congestion: 0, tint: 0, cirrhosisNod: 0, blood: 0 };
+export const PLAIN: OrganState = { sat: 1, dim: 1, ghost: 1, congestion: 0, tint: 0, cirrhosisNod: 0, septum: 0, dead: 0, blood: 0 };
 
-export interface OrganInks { plate: RGB; dark: boolean; bleed: RGB }
+export interface OrganInks { plate: RGB; dark: boolean; bleed: RGB; /** the stage's colour (2D --stage-bg) */ bg: RGB }
 
 export function organColour(base: RGB, s: OrganState, k: OrganInks): [number, number, number] {
   let c: [number, number, number] = [base[0], base[1], base[2]];
@@ -40,8 +47,13 @@ export function organColour(base: RGB, s: OrganState, k: OrganInks): [number, nu
   const tk = k.dark ? LIVER_TOKENS.dark : LIVER_TOKENS.light;
   const dusk = Math.min(1, s.congestion * tk.congA * 1.6 + s.tint * (1 - smooth01(s.congestion / 0.5)) * 0.5);
   if (dusk > 0) c = mix(c, tk.cong, dusk);
-  if (s.cirrhosisNod > 0) c = mix(c, LIVER_TOKENS.nodule, s.cirrhosisNod * LIVER_TOKENS.nodA * 0.9);
-  if (s.blood > 0) c = mix(c, k.bleed, 0.45 * s.blood);
+  // cirrhosis: the pale septa lie over the whole liver and the tawny nodules over them, so a nodule is tawny on pale and a septum only pale (stage-organs.js lv.sep, lv.nod)
+  if (s.cirrhosisNod > 0) {
+    c = mix(c, tk.sep, s.cirrhosisNod * tk.sepA * (1 + SEPTUM_BOOST * s.septum));
+    if (s.septum < 1) c = mix(c, tk.nod, s.cirrhosisNod * tk.nodA * (1 - s.septum));
+  }
+  if (s.dead > 0) c = mix(c, k.bg, PSE_DEAD_A * s.dead);
+  if (s.blood > 0) c = mix(c, k.bleed, POOL_TINT * s.blood);
   if (s.sat < 1) { const l = LUMA[0]! * c[0] + LUMA[1]! * c[1] + LUMA[2]! * c[2]; c = [l + (c[0] - l) * s.sat, l + (c[1] - l) * s.sat, l + (c[2] - l) * s.sat]; }
   const a = s.dim * s.ghost;
   if (a < 1) c = mix(k.plate, c, a);

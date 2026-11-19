@@ -1,0 +1,156 @@
+// The disease looks of 19 Nov: the kidney's own colour, the pale septa between the liver's nodules, the embolized spleen's dead part, the stomach's pool of blood, the narrowings and
+// their arrowheads, the navel's ring and the flank line, the sinusoids' faint strands and the red wale, and a clot that is never wider than its vein.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { BoxGeometry, BufferGeometry, type BufferAttribute, Vector3 } from 'three';
+import type { CelShared } from '../src/scene/materials/cel.ts';
+import { PALETTES, paletteFor } from '../src/scene/palette.ts';
+import { LOOKS, LOOK_IDS } from '../src/looks/looks.ts';
+import { ORGAN_STYLE, OrganLayer } from '../src/scene/organs/layer.ts';
+import { PLAIN, organColour, rgbOf } from '../src/scene/organs/organ-look.ts';
+import { septumAt } from '../src/scene/organs/liver-shape.ts';
+import { PAINTED, VertexPaint, infarctAt, infarctEdgeY } from '../src/scene/organs/vertex-paint.ts';
+import { CelScene } from '../src/scene/scene.ts';
+import { bodyTargets } from '../src/scene/disease/targets.ts';
+import { clotShapeOf } from '../src/scene/disease/clots.ts';
+import { waistNarrow, waistSigma, isClampable, CLAMP } from '../src/scene/disease/clamps.ts';
+import { FLANK_Z, Landmarks, flankPoints, ribbon } from '../src/scene/disease/landmarks.ts';
+import { RED_WALE, waleEnvelope } from '../src/scene/disease/strands.ts';
+import { varixWale } from '../src/scene/disease/copied/varix-bead.js';
+import { x3, y3 } from '../src/scene/frame2d.ts';
+import { presetState } from './b4-presets.ts';
+
+const shared = (s: CelScene) => (s as unknown as { shared: CelShared }).shared;
+
+test('the kidney has its own plum in every look (2D --organ-kidney), not the spleen\'s', () => {
+  assert.equal(ORGAN_STYLE['kidney-l']!.tone, 'kidney');
+  assert.equal(LOOKS.light.kidney, '#895F7A'); assert.equal(LOOKS.soft.kidney, '#724963'); assert.equal(LOOKS.dark.kidney, '#A07E8E');
+  for (const id of LOOK_IDS) assert.notEqual(PALETTES[id].tones.kidney, PALETTES[id].tones.spleen, id);
+});
+
+test('the septa: a thin pale wall between nodules, not a blur over the liver', () => {
+  let walls = 0, n = 0;
+  for (let x = 300; x < 900; x += 3) for (let y = 150; y < 540; y += 3) { const s = septumAt(x, y); assert.ok(s >= 0 && s <= 1); n++; if (s > 0.5) walls++; }
+  assert.ok(walls / n > 0.04 && walls / n < 0.3, `septa cover ${(100 * walls / n).toFixed(1)}% of the liver`);
+});
+
+test('cirrhosis: a septum is paler than a nodule, which is tawny on pale; no cirrhosis, no difference', () => {
+  const k = { plate: rgbOf('#E8DFD0'), dark: false, bleed: rgbOf('#8E1A20'), bg: rgbOf('#F1EBE0') }, base = rgbOf('#905B49');
+  const lum = (c: readonly number[]) => 0.3 * c[0]! + 0.59 * c[1]! + 0.11 * c[2]!;
+  const nod = organColour(base, { ...PLAIN, cirrhosisNod: 1 }, k), sep = organColour(base, { ...PLAIN, cirrhosisNod: 1, septum: 1 }, k), plain = organColour(base, PLAIN, k);
+  assert.ok(lum(sep) > lum(nod) && lum(sep) > lum(plain), 'the septum is the palest');
+  assert.deepEqual(organColour(base, { ...PLAIN, septum: 1 }, k), plain, 'a healthy liver has no septa');
+});
+
+test('the infarct lies below its edge line and nowhere else; a partial embolization paints the spleen\'s lower part toward the stage', async () => {
+  const y = infarctEdgeY(1050)!;
+  assert.ok(y > 330 && y < 360);
+  assert.equal(infarctAt(1050, y - 20).dead, 0); assert.equal(infarctAt(1050, y + 20).dead, 1);
+  assert.ok(infarctAt(1050, y).line > 0.9 && infarctAt(1050, y + 30).line === 0);
+  assert.deepEqual(infarctAt(900, y + 20), { dead: 0, line: 0 }, 'outside the stroke\'s span nothing is dead');
+  const s = new CelScene(); const palette = paletteFor('light');
+  const mk = () => new BoxGeometry(0.4, 1.4, 0.1, 3, 24, 1).translate(x3(1050), y3(420), 0);
+  const o = new OrganLayer(shared(s), { spleen: mk });
+  o.applyLook(palette);
+  const t = bodyTargets((await presetState('cirr-decomp')).frame, { splenicRx: 1 }, null);
+  o.setBody(t, true); for (let i = 0; i < 90; i++) o.update(1000 + i * 33);
+  const sp = o.byId.get('spleen')!;
+  assert.equal((sp.toon.uniforms.inkAmount!.value as number), 1, 'the vertices carry the colour');
+  const ink = sp.toonMesh.geometry.getAttribute('ink') as BufferAttribute, pos = sp.toonMesh.geometry.getAttribute('position');
+  let top = -1, bot = -1;
+  for (let i = 0; i < ink.count; i++) { const yy = pos.getY(i); if (top < 0 && yy > y3(300)) top = i; if (bot < 0 && yy < y3(470)) bot = i; }
+  assert.notDeepEqual([ink.getX(top), ink.getY(top), ink.getZ(top)], [ink.getX(bot), ink.getY(bot), ink.getZ(bot)], 'the dead part is another colour');
+  o.setBody({ ...t, splenicRx: 0 }, false); for (let i = 0; i < 120; i++) o.update(5000 + i * 33);
+  assert.equal((sp.toon.uniforms.inkAmount!.value as number), 0, 'a whole spleen is one colour again');
+  o.dispose(); s.dispose?.();
+});
+
+test('the bleed\'s pool tints the stomach below its surface only, and not the whole organ', async () => {
+  const s = new CelScene(); const palette = paletteFor('light');
+  const mk = () => new BoxGeometry(0.5, 1.2, 0.1, 3, 30, 1).translate(x3(850), y3(400), 0);
+  const o = new OrganLayer(shared(s), { stomach: mk });
+  o.applyLook(palette);
+  const t = bodyTargets((await presetState('cirr-decomp')).frame, {}, null);
+  o.setBody({ ...t, bleed: { active: true, site: 'VAR', rate: 90, total: 900 } }, true); for (let i = 0; i < 120; i++) o.update(1000 + i * 33);
+  const st = o.byId.get('stomach')!, ink = st.toonMesh.geometry.getAttribute('ink') as BufferAttribute, pos = st.toonMesh.geometry.getAttribute('position');
+  const red = (i: number) => ink.getX(i) - ink.getZ(i);
+  let high = Infinity, low = -Infinity;
+  for (let i = 0; i < ink.count; i++) { if (pos.getY(i) > y3(280)) high = Math.min(high, red(i)); if (pos.getY(i) < y3(520)) low = Math.max(low, red(i)); }
+  assert.ok(low > high + 0.05, 'the lower stomach is redder than the upper');
+  o.dispose(); s.dispose?.();
+});
+
+test('the painted organs are the three that vary over their surface', () => { assert.deepEqual([...PAINTED].sort(), ['liver', 'spleen', 'stomach']); assert.equal(typeof VertexPaint, 'function'); });
+
+test('a clot is never wider than its vein, and rides the front of the wall', () => {
+  const R = 0.04, pts = Array.from({ length: 20 }, (_, i) => new Vector3(i * 0.02, 0, 0.4));
+  for (const v of [0.1, 0.4, 0.8, 1]) {
+    const { centres, radii } = clotShapeOf(pts, R, v, 'PV_TRUNK');
+    for (let i = 0; i < centres.length; i++) {
+      assert.ok(Math.abs(centres[i]!.y) + radii[i]! <= R * 0.9 + 1e-9, `v ${v}: inside the lumen's width`);
+      assert.ok(centres[i]!.z > 0.4, 'toward the viewer');
+    }
+  }
+});
+
+test('a stenosis pinches the vessel at its middle in the 2D waist, and a vessel with none is untouched', () => {
+  const sig = waistSigma(8, 200);
+  assert.equal(waistNarrow(0.6, 0.5, sig), 0.6);
+  assert.ok(waistNarrow(0.6, 0.5 + 3 * sig, sig) < 0.001, 'smooth back to the full lumen');
+  assert.ok(waistNarrow(0.6, 0.5 + sig, sig) > 0.2 && waistNarrow(0.6, 0.5 + sig, sig) < 0.3);
+  assert.ok(isClampable('IVCS_RA') && !isClampable('TIPS') && !isClampable('NOT_A_VESSEL'));
+  assert.ok(CLAMP.len > 0);
+  const s = new CelScene(); const c = s.disease.clamps;
+  assert.equal(c.set({ IVCS_RA: 0.6 }, () => 1, 0.016, true), false);
+  assert.equal(c.shown().IVCS_RA, 0.6);
+  const v = s.vesselObject('IVCS_RA')!, nar = v.toonMesh.geometry.getAttribute('narrow') as BufferAttribute, uv = v.toonMesh.geometry.getAttribute('uv') as BufferAttribute;
+  let mid = 0, end = 1;
+  for (let i = 0; i < nar.count; i++) { if (Math.abs(uv.getX(i) - 0.5) < 0.1) mid = Math.max(mid, nar.getX(i)); if (uv.getX(i) < 0.02) end = Math.min(end, nar.getX(i)); }
+  assert.ok(mid > 0.5 && mid > end, `narrow ${mid.toFixed(2)} at the middle, ${end.toFixed(2)} at the end`);
+  assert.equal(c.group.children[0]!.visible, true, 'the arrowheads');
+  c.set({ IVCS_RA: 0.6 }, () => 0, 0.016, true); assert.deepEqual(c.shown(), {}, 'a vessel that is not drawn has no clamp');
+  c.set({}, () => 1, 0.016, true);
+  for (let i = 0; i < nar.count; i++) assert.equal(nar.getX(i), 0);
+  s.dispose?.();
+});
+
+test('the navel\'s ring comes with the paraumbilical vein, in steps, and the flank line only with ascites', () => {
+  const l = new Landmarks();
+  l.setAscites(0); l.setCaput(0, 0.016, true); assert.deepEqual(l.state(), { flank: false, step: -1, navel: 0 });
+  l.setCaput(0.6, 0.016, true); assert.equal(l.state().navel, 1);
+  l.setCaput(0.3, 0.016, true); assert.ok(l.state().navel > 0 && l.state().navel < 1, 'a quarter step');
+  l.setAscites(2000); const st = l.state(); assert.equal(st.flank, true); assert.ok(st.step > 0);
+  l.setFade(0); assert.equal(l.state().flank, false, 'it goes with the body');
+  const pts = flankPoints(0); assert.deepEqual(pts[0], [336, 470]); assert.deepEqual(pts[pts.length - 1], [1088, 470]);
+  const g = ribbon(pts, 0.7, FLANK_Z); assert.equal(g.getAttribute('position').count, pts.length * 2);
+  const b = flankPoints(68); assert.ok(b[Math.floor(b.length / 4)]![0] < pts[Math.floor(pts.length / 4)]![0], 'the wall bulges outward');
+  l.dispose();
+});
+
+test('the sinusoids\' strands are drawn, faint and fine; the wale lies over the middle of the esophageal strands only', async () => {
+  const s = new CelScene(); const d = s.disease;
+  const f = (await presetState('cirr-decomp')).frame;
+  d.feed(f as never, {}, null, { instant: true, presence: () => 1, recruit: () => 1 }, true);
+  d.update(1000);
+  assert.ok((d.strands.drawn().SIN_RR ?? 0) > 0, 'a sinusoid strand is drawn');
+  assert.ok(waleEnvelope(0.5) === 1 && waleEnvelope(0.05) === 0 && waleEnvelope(0.95) === 0);
+  assert.equal(varixWale(false, 1, 1), 0); assert.ok(varixWale(true, 1, 1) > 0);
+  assert.ok(RED_WALE[0] > 0.8);
+  s.dispose?.();
+});
+
+test('a cirrhotic liver is painted with its septa; a healthy one is one colour', async () => {
+  const s = new CelScene(); const palette = paletteFor('light');
+  const mk = () => new BoxGeometry(1.0, 0.8, 0.1, 40, 32, 1).translate(x3(560), y3(350), 0);
+  const o = new OrganLayer(shared(s), { liver: mk });
+  o.applyLook(palette);
+  const set = async (id: string) => { const p = await presetState(id); o.setBody(bodyTargets(p.frame, p.params, p.healthyP), true); for (let i = 0; i < 60; i++) o.update(1000 + i * 33); };
+  await set('healthy');
+  assert.equal(o.byId.get('liver')!.toon.uniforms.inkAmount!.value, 0);
+  await set('cirr-decomp');
+  const liver = o.byId.get('liver')!, ink = liver.toonMesh.geometry.getAttribute('ink') as BufferAttribute;
+  assert.equal(liver.toon.uniforms.inkAmount!.value, 1);
+  let lo = 9, hi = 0; for (let i = 0; i < ink.count; i++) { lo = Math.min(lo, ink.getX(i)); hi = Math.max(hi, ink.getX(i)); }
+  assert.ok(hi - lo > 0.01, 'walls and nodules differ');
+  o.dispose(); s.dispose?.();
+});

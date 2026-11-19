@@ -4,6 +4,7 @@
 import { useMemo, useState } from 'react';
 import inventory from '../../parity/inventory.json';
 import { MATCHES } from './matches.ts';
+import { B4_ROWS } from './b4-rows.ts';
 import { score, pct, BATCH_NAMES, type Claimed, type Row, type Tally } from './score.ts';
 import type { Claim } from './claim.ts';
 import './parity.css';
@@ -30,7 +31,7 @@ function Bar({ t }: { t: Tally }) {
 const Nums = ({ t }: { t: Tally }) => <span className="pp-nums"><b>{t.x}</b> of {t.y}<small> · {t.w} wired · {t.m} match 2D · {pct(t)}%</small></span>;
 
 export function ParityPage() {
-  const rows = inventory.rows as Row[];
+  const rows = [...(inventory.rows as Row[]), ...B4_ROWS];
   const s = useMemo(() => score(rows, claimed(), MATCHES), [rows]);
   const [showAll, setShowAll] = useState(false);
   const [batch, setBatch] = useState<string | null>(null);

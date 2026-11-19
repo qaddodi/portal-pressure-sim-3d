@@ -7,11 +7,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import type { Claim } from '../src/parity/claim.ts';
 import { score } from '../src/parity/score.ts';
+import { B4_ROWS } from '../src/parity/b4-rows.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 interface Row { id: string; area: string; batch: string; label: string }
 const inventory = JSON.parse(readFileSync(join(root, 'parity/inventory.json'), 'utf8')) as { rows: Row[]; generatedFrom: { commit: string } };
-const byId = new Map(inventory.rows.map((r) => [r.id, r]));
+// (B4 keeps its own rows for the figure's pictures: the 2D inventory lists controls, words, decks and cards, not what the figure draws)
+const allRows = [...inventory.rows, ...B4_ROWS];
+const byId = new Map(allRows.map((r) => [r.id, r]));
 
 async function claims(): Promise<{ file: string; claims: readonly Claim[] }[]> {
   const dir = join(root, 'src/parity');
@@ -43,7 +46,7 @@ test('every claimed row is in the inventory, and no row is claimed twice', async
 
 test('the score, per batch (printed; the same numbers the ?parity page shows)', async () => {
   const claimed = (await claims()).flatMap(({ file, claims: list }) => list.map((c) => ({ ...c, file })));
-  const sc = score(inventory.rows, claimed);
+  const sc = score(allRows, claimed);
   const batches = sc.byBatch.map(({ batch, tally }) => `${batch} ${tally.x}/${tally.y}`).join(' · ');
   console.log(`parity: ${sc.total.x} of ${sc.total.y} rows present, ${sc.total.w} wired (2D ${inventory.generatedFrom.commit.slice(0, 8)}) | ${batches}`);
   assert.ok(sc.total.x <= sc.total.y);

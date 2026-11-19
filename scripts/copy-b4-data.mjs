@@ -46,7 +46,7 @@ function copyModule(file, name = file) {
   });
   put(`${DIR}/${name}`, `${HEAD(`src/ui/${file}`)}${text}`);
 }
-for (const f of ['stomach-lumen.js', 'num.js', 'clot-shape.js', 'cavernoma-strand.js', 'organ-ease.js', 'fluid-step.js', 'varix-look.js', 'varix-bead.js', 'liver-geo.js']) copyModule(f);
+for (const f of ['sin-perfusion.js', 'stomach-lumen.js', 'num.js', 'clot-shape.js', 'cavernoma-strand.js', 'organ-ease.js', 'fluid-step.js', 'varix-look.js', 'varix-bead.js', 'liver-geo.js']) copyModule(f);
 // liver-morph.js: its `smooth01` comes from motion.js in 2D, which is num.js's own (motion.js re-exports it)
 copyModule('liver-morph.js');
 
@@ -111,6 +111,11 @@ export const STRAND_SOFT: ReadonlySet<string> = new Set(${J([...A.STRAND_SOFT])}
 export const SIN_EDGES: ReadonlySet<string> = new Set(${J([...A.SIN_EDGES])});
 export const SEAM_D = ${J(A.SEAM_D)};
 export const SPLEEN_PSE_BADGE: readonly number[] = ${J(A.SPLEEN_PSE_BADGE)};
+/** The embolized spleen's infarct: the edge of the dead lower part (the stroke) and the area it closes below (anatomy.js). */
+export const SPLEEN_PSE_EDGE = ${J(A.SPLEEN_PSE_EDGE)};
+export const SPLEEN_PSE_AREA = ${J(A.SPLEEN_PSE_AREA)};
+/** The navel's ring: where the navel's ring is drawn (organs[umbilicus].circle: x, y, r). */
+export const UMBILICUS: readonly number[] = ${J(A.ORGANS.find((o) => o.id === 'umbilicus').circle)};
 /** A lens other than Pressure takes the organs to this saturation and opacity (organ-dim.js LENS_GREY). */
 export const LENS_GREY: { sat: number; dim: number } = ${J(OD.LENS_GREY)};
 export const LUMA: readonly number[] = ${J(OD.LUMA)};
