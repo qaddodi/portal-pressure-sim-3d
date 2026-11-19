@@ -11,6 +11,9 @@ export function registerBuiltinHooks(): void {
   done = true;
   for (const id of LENS_IDS) registerHook(`lens:${id}`);                                   // B3: every lens has its ramp and a crossfade
   for (const c of CHARTS) if (c.status === 'done') registerHook(`tool:${c.kind}`);         // B10: a chart is done when its model, card, tests and gallery specimen are in
+  // (the 2D `course` tool is the curve chart's second mode; the plane, all-patients and ladders visuals are charts too: a slide's visual card, mounted by the presenter, draws them)
+  const chartDone = (k: string) => CHARTS.some((c) => c.kind === k && c.status === 'done');
+  for (const [hook, kind] of [['tool:course', 'curve'], ['visual:plane', 'plane'], ['visual:allpatients', 'small'], ['visual:ladders', 'ladder']] as const) if (chartDone(kind)) registerHook(hook);
   for (const c of CATHS) registerHook(`device:hvpg-catheter:${c}`);                        // S2: route, free, wedge, result
   for (const id of ['view:lobule', 'view:sinusoid', 'view:wash', 'view:layers']) registerHook(id);   // B8: the lobule and sinusoid scenes, the wedge's wash, the zone bands
 }

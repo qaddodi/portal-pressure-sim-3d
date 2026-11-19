@@ -3,6 +3,7 @@ import { Chart } from '../Chart.tsx';
 import { engine } from '../../../engine/index.ts';
 import type { CopiedDeck } from '../../../decks/rw/types.ts';
 import type { RunSteps } from '../../../decks/rw/numbers.ts';
+import { ProfileCard } from '../profile/ProfileCard.tsx';
 import { ladderData, type LadderData } from './data.ts';
 import { namesFrame, stripFrame } from './frame.ts';
 import { causeFit, headOf, pillReadings, stripLabel, type Fp, type LadderRow, type OfRow } from './model.ts';
@@ -52,10 +53,13 @@ function CellHead({ r }: { r: LadderRow }) {
   );
 }
 
+/** A wide screen's cell: the profile chart for the row, in the ladder's cell variant (2D tool-profile.js in 'cell'). */
+const inCell = (r: LadderRow, healthy: Fp | null): ReactNode => <ProfileCard fp={r.f} healthy={healthy} cell={{}} />;
+
 /** The six levels side by side (2D visual: 'ladders'): each case in a cell of its own, the site and cause in its first row, its Gut to heart chart under it. A phone draws each case on one
  *  line (the strip) with the stations named once over the six; a wide screen's cell holds `chart`, the profile chart for the row (the `profile` chart; absent, the cell shows the strip).
  *  slide: the slide with its `of` rows; deck: the deck it is in (a row names a slide of it); data: the rows when the caller has them (a specimen, a test); run: how to ask the model. */
-export function LaddersCard({ slide, deck, data: given, run = engineRun, chart }: { slide: { id: string; of?: readonly OfRow[] }; deck: CopiedDeck; data?: LadderData | null; run?: RunSteps; chart?: (row: LadderRow, healthy: Fp | null) => ReactNode }) {
+export function LaddersCard({ slide, deck, data: given, run = engineRun, chart = inCell }: { slide: { id: string; of?: readonly OfRow[] }; deck: CopiedDeck; data?: LadderData | null; run?: RunSteps; chart?: (row: LadderRow, healthy: Fp | null) => ReactNode }) {
   const [got, setGot] = useState<LadderData | null>(null);
   useEffect(() => {
     if (given !== undefined) return;

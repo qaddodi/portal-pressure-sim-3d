@@ -93,7 +93,11 @@ export function hookOf(id: string): Hook | null {
     case 'scale':
       if (rest === 'switch') return { owner: 'B12', what: 'the Anatomy, Lobule and Sinusoid pill the slide offers', landed: claimed };
       return { owner: 'B8', what: `the ${rest} view`, landed: ready };
-    case 'visual': return { owner: 'B12', what: `the ${rest} visual over the figure`, landed: claimed };
+    case 'visual': {
+      // plane, all-patients and ladders are charts of B10 (the presenter's visual card mounts them); the others (table, outline, check…) are B12's
+      const chart = ({ plane: 'plane', allpatients: 'small', ladders: 'ladder' } as Record<string, string>)[rest];
+      return { owner: chart ? 'B10' : 'B12', what: `the ${rest} visual over the figure`, landed: chart ? () => CHARTS.find((c) => c.kind === chart)?.status === 'done' : claimed };
+    }
     case 'compare': return { owner: 'B12', what: `the compare buttons (${rest})`, landed: claimed };
     case 'present': return { owner: 'B12', what: 'the presenter plays any deck by its id, with the scene plate of each slide', landed: claimed };
     case 'fig': case 'card': case 'field': {
