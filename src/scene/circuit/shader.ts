@@ -5,7 +5,7 @@
 // At circT 0 nothing here runs: the body is drawn exactly as it was. At circT 1 the vertex is exactly the map course's.
 import { PEEL_DL } from './data.copied.ts';
 
-/** Attribute and uniform declarations, put before `void main` of the vessel's vertex shader. */
+/** Attribute and uniform declarations, put before `void main` of the vessel's vertex shader, after its own (`radius`, `rk`, `tang` and `position` are the vessel's: declaring one here is a redefinition, which a real GPU refuses and the whole vessel then draws nothing). */
 export const CIRCUIT_VS_HEAD = /* glsl */ `
 attribute vec3 cC;
 attribute vec3 tC;
@@ -39,7 +39,7 @@ void circuitMorph(inout vec3 P, inout vec3 Nn, inout vec3 Tn) {
   if (circT <= 0.0) return;
   // the body course's centre at this vertex, from the vertex's own offset (so w = 0 gives back the body's vertex exactly)
   vec3 N0 = circFrameN(tang);
-  vec3 cA = position - radius * (fr.x * N0 + fr.y * cross(tang, N0) + fr.z * tang);
+  vec3 cA = position - radius * rk * (fr.x * N0 + fr.y * cross(tang, N0) + fr.z * tang);
   float w = circPeel(circT, pk.x);
   vec3 cen = mix(cA, circTurnPt(cC), w);
   vec3 Tm = mix(tang, circTurnDir(tC), w);
@@ -57,7 +57,7 @@ void circuitMorph(inout vec3 P, inout vec3 Nn, inout vec3 Tn) {
   vec3 N = circFrameN(T);
   vec3 B = cross(T, N);
   vec3 off = fr.x * N + fr.y * B + fr.z * T;
-  P = cen + radius * off;
+  P = cen + radius * rk * off;
   Nn = normalize(off);
   Tn = T;
 }

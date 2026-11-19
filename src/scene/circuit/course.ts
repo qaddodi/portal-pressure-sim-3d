@@ -3,7 +3,7 @@
 // Also each sample's flow rank (from its column in the wide map), the courses in the frame of their own chord (a vessel that reverses between the views), and the ends
 // that join another vessel part-way along it in one view and at a station in the other (the left gastric vein on the portal trunk), pinned to their host.
 import { CatmullRomCurve3, Vector3 } from 'three';
-import { NETWORK, type NetVessel } from '../vessels/network.ts';
+import { MAPPED, type NetVessel } from '../vessels/network.ts';
 import { vesselPoints } from '../anatomy/vessels.ts';
 import { CIRCUIT_D, VB_CIRC } from './data.copied.ts';
 import { MAP_K, mapToScene, sceneToMap } from './map.ts';
@@ -118,7 +118,7 @@ function findPins(list: readonly NetVessel[], by: Map<string, CircuitCourse>): v
 
 function build(): Map<string, CircuitCourse> {
   const by = new Map<string, CircuitCourse>();
-  for (const v of NETWORK) {
+  for (const v of MAPPED) {
     const dense = mapCourse(v.id);
     if (!dense) throw new Error(`no circuit course for ${v.id}`);
     const curveA = bodyCurve(v), curveC = mapCurve(dense);
@@ -127,7 +127,7 @@ function build(): Map<string, CircuitCourse> {
     for (let i = 0; i < N_TRACK; i++) rank[i] = peelRank(sceneToMap(C[i]!.x, C[i]!.y)[0]);
     by.set(v.id, { id: v.id, curveA, curveC, lenA: curveA.getLength(), lenC: curveC.getLength(), A, C, rank, sA: chordShape(A), sC: chordShape(C), pins: null, mapPts: dense });
   }
-  findPins(NETWORK, by);
+  findPins(MAPPED, by);
   return by;
 }
 

@@ -14,10 +14,12 @@ export const LOBULE_PARTS = [
   'portal-tracts',  // the six triads: portal venule, hepatic arteriole (and its twig), bile ductule
   'central-vein',
   'lymph',          // each tract's lymphatic, the terminal lymphatics and the space of Disse beside each sinusoid
+  'bile',           // the Bile layer: canaliculi between the plates, canals of Hering along the edges, the ductules (arrowheads run out toward the tract)
   'stellate',       // stellate cells in the space of Disse
   'septa',          // portal-central septa of advanced cirrhosis
   'cuffs',          // collagen collars round the tracts and the central vein
   'wash',           // the wedged column's amber over the sinusoids and the central vein
+  'field',          // the neighbouring lobules round this one (the dive's field): flat hexagons with their veins, softer with distance
 ] as const;
 export type LobulePartName = (typeof LOBULE_PARTS)[number];
 

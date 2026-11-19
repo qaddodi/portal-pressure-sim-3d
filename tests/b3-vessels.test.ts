@@ -17,7 +17,7 @@ test('every vessel the 2D figure draws is a vessel here, named by its engine edg
   const have = new Set(NETWORK.map((v) => v.id));
   for (const id of DRAWN_EDGE_IDS) assert.ok(have.has(id), `${id} is missing from the network`);
   assert.equal(have.size, NETWORK.length, 'ids are unique');
-  for (const v of NETWORK) assert.ok(hasVessel(v.id) && EDGE_IDS[indexOf(v.id)] === v.id, `${v.id} has a texel`);
+  for (const v of NETWORK) assert.ok(hasVessel(v.lensId) && EDGE_IDS[indexOf(v.lensId)] === v.lensId, `${v.id} has a texel`);
 });
 
 test('hidden edges (the wedge, the diode, the caudate, the surgical shunts) are not in the network', () => {
@@ -113,6 +113,7 @@ test('the vessel vertex shader parses, and body and ink are told apart by `hull`
 // ---- the vessels are the 2D figure's, point for point ----
 test('every vessel is its 2D course through the one linear map: back through it, each point is the 2D point', () => {
   for (const v of NETWORK) {
+    if (v.feeder) continue;   // (a fan of tributaries: its own test, below)
     const c = EDGE_PATH_2D[v.id]!;
     assert.equal(v.pts.length, c.length, v.id);
     v.pts.forEach((p, i) => {

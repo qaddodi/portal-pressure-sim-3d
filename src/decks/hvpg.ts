@@ -32,6 +32,6 @@ export const HVPG_DECK: Deck = (() => {
   }));
   const full = toDeck(HVPG_2D);
   for (const id of plates.keys()) if (!full.slides.some((s) => s.id === id)) throw new Error(`the slice's slide "${id}" is not in the 2D deck`);
-  // (the quick check stays the slice's two questions until the card can page a longer one on an iPhone on its side: hand-off)
-  return { ...full, checks: HVPG_COPIED.checks.map(([q, a]) => [q, a] as [string, string]), slides: full.slides.map((s) => plates.get(s.id) ?? s) };
+  // (the quick check is the 2D deck's four questions: the check card pages them on an iPhone on its side, cards/CheckCard.tsx)
+  return { ...full, slides: full.slides.map((s) => plates.get(s.id) ?? s) };
 })();

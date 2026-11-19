@@ -2,6 +2,8 @@
 // (the 2D presenter's `sequence`). The handout prints these in the words; the summary table's rows read them. A slide with no `model` is the patient the slide before had.
 import { engine } from '../../engine/index.ts';
 import type { Deck, Slide } from '../../decks/schema.ts';
+import { copiedOf } from '../../decks/hp/deck.ts';
+import { ensureStates, useStates } from '../../decks/hp/calc.ts';
 
 export type Fp = Record<string, number | null>;
 const stepOf = (s: Slide) => (s.model ? { preset: s.model.preset, ...(s.model.params ? { params: s.model.params } : {}), ...(s.model.days != null ? { presetDays: s.model.days } : {}) } : {});
@@ -12,6 +14,14 @@ const known = new Map<string, Fp[]>();
 export const fpsNow = (deck: Deck): Fp[] | null => known.get(deck.id) ?? null;
 /** The fingerprint at each of the deck's slides (the opening and the quick check have none: index 0 is the first slide). Kept per deck, so a second ask is free. */
 export function slideFps(deck: Deck): Promise<Fp[]> {
+  // a talk ported from 2D (every deck but the slice's own): its states are the 2D presenter's chain, worked out by the second engine (decks/hp/calc.ts), the same ones its words print
+  if (copiedOf(deck.id)) {
+    return ensureStates(copiedOf(deck.id)!).then(() => {
+      const fps = (useStates.getState().results[deck.id] ?? []).map((r) => (r?.fp ?? {}) as Fp);
+      known.set(deck.id, fps);
+      return fps;
+    });
+  }
   const key = deck.id + JSON.stringify(deck.slides.map((s) => s.model ?? null));
   let p = cache.get(key);
   if (!p) { p = engine().sequence(deck.slides.map(stepOf)).then((r) => { const fps = r.map((x) => x?.fp ?? {}); known.set(deck.id, fps); return fps; }); cache.set(key, p); p.catch(() => cache.delete(key)); }
