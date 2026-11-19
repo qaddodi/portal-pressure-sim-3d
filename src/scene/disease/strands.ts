@@ -13,6 +13,8 @@ import { SIN_PERFUSION, sinStrandRadius } from './copied/sin-perfusion.js';
 import { CelObject, type CelShared } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
+import type { LookId } from '../../looks/looks.ts';
+import { CASING, inkWidthDev } from '../vessels/cel-ink.ts';
 import { hostCourse } from './course.ts';
 import { mix, rgbOf, type RGB } from '../organs/organ-look.ts';
 import { recolour } from './paint.ts';
@@ -73,6 +75,8 @@ export class StrandLayer {
   private shared: CelShared;
   private trunk: ReturnType<typeof trunkFrame> | null = null;
   private trunkZ = 0.46;
+  private look: LookId = 'light';
+  private dpr = 1;
   constructor(shared: CelShared) {
     this.shared = shared;
     for (const host of HOSTS) {
@@ -90,9 +94,21 @@ export class StrandLayer {
     }
   }
 
-  applyLook(p: Palette): void {
-    this.palette = p;
-    for (const s of this.strands) { if (!s.obj) continue; s.obj.applyPalette(p); if (SIN_EDGES.has(s.host)) recolour(s.obj, faint(rgbOf(p.tones.portal), rgbOf(p.body)), p); s.key = ''; }   // (a changed look paints the wale again)
+  applyLook(p: Palette, look: LookId = this.look): void {
+    this.palette = p; this.look = look;
+    for (const s of this.strands) { if (!s.obj) continue; s.obj.applyPalette(p); if (SIN_EDGES.has(s.host)) recolour(s.obj, faint(rgbOf(p.tones.portal), rgbOf(p.body)), p); this.line(s); s.key = ''; }   // (a changed look paints the wale again)
+  }
+  /** The renderer's pixel ratio: the strands' line is held in device pixels (the same rule as the vessels', cel-ink.ts). */
+  setDpr(dpr: number): void {
+    if (Math.abs(dpr - this.dpr) < 1e-3) return;
+    this.dpr = dpr;
+    for (const s of this.strands) if (s.obj) this.line(s);
+  }
+  /** A strand wears the 2D figure's line (WP2/WP9): the look's casing ink at its casing alpha (a bed's faint strands half of it), 1.5 device px on a tube this fine, blended after the bodies, and no specular glint: never the black spindle of a solid ink. */
+  private line(s: Strand): void {
+    if (!s.obj) return;
+    const c = CASING[this.look], sin = SIN_EDGES.has(s.host);
+    s.obj.setSoftInk(c.rgb, c.a * (sin ? 0.5 : 1), inkWidthDev(0), this.dpr);
   }
   setPhone(phone: boolean): void { for (const s of this.strands) s.obj?.setPhone(phone); }
 
@@ -144,6 +160,7 @@ export class StrandLayer {
       s.obj = new CelObject(g, { tone: 'portal', bands: 2, spec: 1, px: sin ? 0.6 : 0.9 }, this.shared);
       this.group.add(s.obj.group);
       if (this.palette) { s.obj.applyPalette(this.palette); if (sin) recolour(s.obj, faint(rgbOf(this.palette.tones.portal), rgbOf(this.palette.body)), this.palette); }
+      this.line(s);
       if (s.host === 'C1a') s.obj.setInkAmount(1);
     } else for (const m of s.obj.group.children) { const mesh = m as import('three').Mesh; mesh.geometry.dispose(); mesh.geometry = g; }
     s.obj.group.visible = true;

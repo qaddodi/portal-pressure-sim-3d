@@ -56,7 +56,7 @@ export class CelObject {
   readonly toonMesh: Mesh;
   readonly ink: ShaderMaterial;
   readonly tone: ToneKey;
-  readonly basePx: number;
+  basePx: number;
   readonly isVessel: boolean;
   /** The engine edge this object draws (its topology ID and end nodes); unset for organs and small parts. */
   edge?: { id: string; from: string; to: string; length: number };
@@ -96,7 +96,7 @@ export class CelObject {
       uniforms: {
         color: { value: new Color() }, hiColor: { value: new Color() }, inflate: this.toon.uniforms.inflate, fade: this.toon.uniforms.fade,
         px: { value: opts.px }, res: shared.res, len: this.toon.uniforms.len, reveal: this.toon.uniforms.reveal,
-        hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 },
+        hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 }, inkA: { value: 1 },
       },
     });
     const inkMesh = new Mesh(geometry, this.ink);
@@ -113,7 +113,7 @@ export class CelObject {
     this.toon.uniforms.inkShade!.value = p.shade;
     (this.toon.uniforms.color.value as Color).copy(base);
     (this.toon.uniforms.shade.value as Color).copy(base).multiplyScalar(p.shade).lerp(ink, 0.08);
-    (this.ink.uniforms.color.value as Color).copy(ink);
+    if (!this.soft) (this.ink.uniforms.color.value as Color).copy(ink);
     rawColor(highlightColour(p, this.tone), this.ink.uniforms.hiColor.value as Color);
     const marks = flowMarkColours(p, this.tone);
     rawColor(marks.forward, this.toon.uniforms.markColor.value as Color);
@@ -122,9 +122,24 @@ export class CelObject {
 
   /** Ink width for a device: phones trim the organs and the stomach, gut and heart by 0.2 px; vessels and small parts keep theirs. */
   setPhone(phone: boolean): void {
-    const trim = phone && this.basePx >= 1.4 ? PHONE_INK_TRIM : 0;
+    const trim = phone && !this.soft && this.basePx >= 1.4 ? PHONE_INK_TRIM : 0;
     this.ink.uniforms.px.value = this.basePx - trim;
   }
+
+  /** The 2D figure's line for a thin tube (a strand of a plexus, a varix): the look's casing ink at its casing alpha, blended after the opaque bodies and tested against them (the same rule as the vessels' own, vessels/cel-ink.ts),
+   *  held to `devPx` device pixels on a screen of `dpr`, and no specular glint. Organs and parts keep their solid ink. */
+  setSoftInk(rgb: readonly [number, number, number], alpha: number, devPx: number, dpr: number): void {
+    (this.ink.uniforms.color.value as Color).setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, LinearSRGBColorSpace);
+    this.ink.uniforms.inkA!.value = alpha;
+    this.ink.transparent = alpha < 1;
+    this.ink.depthWrite = alpha >= 1;
+    this.basePx = devPx / Math.max(dpr, 1);
+    this.ink.uniforms.px.value = this.basePx;
+    this.toon.uniforms.spec.value = 0;
+    this.soft = true;
+  }
+  /** True once `setSoftInk` has set it: a look change then leaves the ink colour to the caller. */
+  soft = false;
 
   /** Flow marks: 0 hides them, 1 shows them fully. `bands` picks soft bands (option C) over chevrons. */
   setFlow(amount: number, bands: boolean): void {
