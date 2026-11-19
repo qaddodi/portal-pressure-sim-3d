@@ -7,6 +7,11 @@ import type { Room } from './camera/room.ts';
 import type { Shot, ShotName } from './camera/shots.ts';
 import type { CatheterState } from './catheter.ts';
 import { create } from 'zustand';
+import { engine } from '../engine/boot.ts';
+import type { LensId } from './lenses/model.ts';
+import { useLens } from './lenses/store.ts';
+import { useBlood } from './blood/options.ts';
+import type { BloodChoice } from './blood/options.ts';
 
 export const cel = new CelScene();
 
@@ -29,6 +34,20 @@ export const sceneApi = {
   pick(id: string | null): void { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },
   /** Option D: marks run for a few seconds after a change (a preset, a slider, a treatment). */
   flowPulse(): void { cel.flow.trigger(performance.now()); clock.invalidate('flow-pulse'); },
+  /** Colour the veins by a lens (the Layers menu's ten, a slide's `system` or `since`, or 'neutral' for the plain anatomy). They crossfade in 420 ms. */
+  setLens(lens: LensId, instant = false): void { useLens.setState({ lens }); cel.setLens(lens, performance.now(), instant); clock.invalidate('lens'); },
+  /** The Blood menu: chevrons, key chevrons only, potential collaterals (the other two are the cards' and tags' business). Remembered across visits. */
+  setBlood(patch: Partial<BloodChoice>, presenting = false): void {
+    useBlood.getState().set(patch);
+    const b = useBlood.getState();
+    cel.setBlood({ chevrons: b.chevrons, keyChevrons: b.keyChevrons, collaterals: b.collaterals, presenting });
+    clock.invalidate('blood');
+  },
+  /** Once the engine is up: the healthy reference for the lenses (a second or two of the worker's time, once per visit). */
+  async loadHealthy(): Promise<void> {
+    const h = await engine().request({ type: 'healthyProfile' }) as unknown as { P: number[]; Q: number[]; D: number[] };
+    cel.setHealthy(h); clock.invalidate('lens');
+  },
   /** Scene point of a named place for tags, valid before and after the camera moves. */
   anchor: (name: Parameters<CelScene['anchor']>[0], out?: Vector3): Vector3 => cel.anchor(name, out),
   /** Where a scene point lands on the canvas now (CSS px), for tags written in the clock's tags phase. */

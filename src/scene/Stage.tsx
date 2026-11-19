@@ -9,10 +9,12 @@ import { Raycaster } from 'three';
 import { ClockBridge } from '../clock/r3f.tsx';
 import { clock } from '../clock/frame.ts';
 import { VesselData, latest } from '../engine/index.ts';
+import { useEngine } from '../engine/store.ts';
 import { resolveLook } from '../looks/looks.ts';
 import { useDeck } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
 import { cel, sceneApi } from './api.ts';
+import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
 
 const vesselData = new VesselData();
@@ -37,6 +39,16 @@ function SceneBridge() {
     cel.resize(size.width, size.height);
     cel.setPhone(isPhone());
   }, [size.width, size.height]);
+
+  // the colour lens's healthy reference loads once the engine is up; the Blood menu's choices apply from the first frame
+  useEffect(() => {
+    sceneApi.setBlood({});
+    sceneApi.setLens(useLens.getState().lens, true);
+    let loaded = false;
+    const load = () => { if (!loaded && useEngine.getState().status === 'ready') { loaded = true; void sceneApi.loadHealthy(); } };
+    load();
+    return useEngine.subscribe(load);
+  }, []);
 
   // look and flow-mark style follow the settings (and the device's light/dark when the look is "System")
   useEffect(() => {

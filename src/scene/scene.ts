@@ -1,16 +1,23 @@
 import { Color, type DataTexture, Mesh, MeshBasicMaterial, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { BODY_PLATE_Z, ORGANS, VARICES, blob, bodyPlateGeometry } from './anatomy/placeholder.ts';
-import { VESSELS, type VesselDef, buildVessel } from './anatomy/vessels.ts';
+import { buildVessel } from './anatomy/vessels.ts';
+import { NETWORK, type NetVessel, presenceOf } from './vessels/network.ts';
+import { PresenceTracks } from './vessels/presence-track.ts';
+import { VesselObject } from './vessels/vessel-object.ts';
+import { LensField } from './lenses/field.ts';
+import type { LensId } from './lenses/model.ts';
+import { BloodMarks, type BloodOptions } from './blood/marks.ts';
 import { CameraRig } from './camera/rig.ts';
 import type { Room } from './camera/room.ts';
 import { SHOTS, type Shot, type ShotName } from './camera/shots.ts';
 import { Catheter, type CatheterState } from './catheter.ts';
-import { DEFAULT_FLOW_MODE, type FlowMarkMode, FlowMarks, markSpeed } from './flow.ts';
+import { DEFAULT_FLOW_MODE, type FlowMarkMode, markSpeed } from './flow.ts';
 import { Highlight } from './highlight.ts';
 import { CelObject, type CelShared, createShared } from './materials/cel.ts';
 import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, indexOf } from '../engine/vessel-data.ts';
+import { latest } from '../engine/store.ts';
 
 // The cel-shaded scene for the HVPG slice, as plain three.js so the clock (src/clock/) owns the one frame loop and the R3F Stage is
 // only the canvas around it. Order inside a frame, set by the clock: engine frame, tweens, camera, render, tag positions.
@@ -42,7 +49,11 @@ export class CelScene {
   readonly vessels: CelObject[] = [];
   readonly catheter: Catheter;
   readonly highlight: Highlight;
-  readonly flow: FlowMarks;
+  readonly flow: BloodMarks;
+  /** The colour lens (src/scene/lenses/): what colour every vein wears, crossfaded on the clock. */
+  readonly lens = new LensField();
+  private presence!: PresenceTracks;
+  private collateralsOn = false;
   private readonly plate: Mesh;
   private readonly byEdge = new Map<string, CelObject>();
   private look: LookId;
@@ -67,7 +78,7 @@ export class CelScene {
       if (def.rotation) o.group.rotation.set(...def.rotation);
       this.add(o);
     }
-    for (const def of VESSELS) this.addVessel(def);
+    for (const def of NETWORK) this.addVessel(def);
     for (const v of VARICES) {
       const o = new CelObject(blob(v.r, v.r, v.r, 0, 0, 14), { tone: 'portal', bands: 2, spec: 1, px: 1 }, this.shared);
       o.group.position.set(0.48 + Math.cos(v.angle) * 0.12, v.y, -0.12 + Math.sin(v.angle) * 0.12);
@@ -77,21 +88,23 @@ export class CelScene {
     this.scene.add(this.catheter.group);
     this.objects.push(...this.catheter.objects);
 
-    this.highlight = new Highlight(this.vessels, undefined, new Map(VESSELS.map((v) => [v.id, v.host])));
-    this.flow = new FlowMarks(this.vessels);
+    this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
+    this.flow = new BloodMarks(this.vessels);
+    this.presence = new PresenceTracks(this.vessels as VesselObject[]);
     this.flow.setMode(opts.flowMode ?? DEFAULT_FLOW_MODE);
+    this.lens.setContext({ healthy: null, ref: null });
     this.applyLook(this.look);
   }
 
   private add(o: CelObject): void { this.objects.push(o); this.scene.add(o.group); }
 
-  private addVessel(def: VesselDef): void {
-    const built = buildVessel(def);
+  private addVessel(def: NetVessel): void {
+    const built = buildVessel({ ...def, tone: def.tone === 'artery' ? 'portal' : def.tone });
     const q = STUB_Q[def.id] ?? 1;
-    const o = new CelObject(built.geometry, {
-      tone: def.tone, bands: 2, spec: 1, px: 1.2,
+    const o = new VesselObject(built.geometry, {
+      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.id), bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
       vessel: { index: indexOf(def.id), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: BASE_D.get(def.id) ?? 1 },
-    }, this.shared);
+    }, this.shared, this.lens.shared);
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     this.add(o);
     this.vessels.push(o);
@@ -108,6 +121,7 @@ export class CelScene {
     const p = PALETTES[look];
     (this.plate.material as MeshBasicMaterial).color.set(p.body);
     for (const o of this.objects) { o.applyPalette(p); o.setPhone(this.phone); }
+    this.lens.setLook(look);
     this.moving = true;
   }
 
@@ -133,7 +147,39 @@ export class CelScene {
   }
 
   /** Call after the texture's data changed, so the next frame draws. */
-  dataChanged(): void { this.moving = true; }
+  dataChanged(): void {
+    const f = latest.frame;
+    this.lens.onFrame(f);
+    if (f) this.syncPresence(f, !this.sawFrame);
+    this.sawFrame = !!f;
+    this.moving = true;
+  }
+  private sawFrame = false;
+
+  /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
+  private syncPresence(f: NonNullable<typeof latest.frame>, instant: boolean): void {
+    for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn }), instant || f.jump);
+    this.flow.setDrawn((id) => this.presence.stateOf(id) === 'shown', (id) => this.presence.stateOf(id) === 'shown' && NETWORK.some((v) => v.id === id && v.kind === 'collateral'));
+  }
+
+  // ---- lens and blood ------------------------------------------------------------------------
+
+  /** Colour the veins by a lens (the Layers menu's ten, a deck's 'system' and 'since', or 'neutral' for the plain anatomy). */
+  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.moving = true; }
+  /** The healthy patient at rest (the engine's `healthyProfile`): the reference the change, congestion, velocity and direction lenses compare to. */
+  setHealthy(h: { P: ArrayLike<number>; Q: ArrayLike<number>; D: ArrayLike<number> }): void {
+    this.lens.setContext({ healthy: { Q: h.Q, D: h.D, P: h.P }, ref: Float32Array.from(h.P) });
+    this.moving = true;
+  }
+  /** The Blood menu: chevrons on or off, key routes only, and potential collaterals (dotted routes). */
+  setBlood(o: Partial<BloodOptions> & { collaterals?: boolean }): void {
+    if (o.collaterals !== undefined && o.collaterals !== this.collateralsOn) {
+      this.collateralsOn = o.collaterals;
+      if (latest.frame) this.syncPresence(latest.frame, false);
+    }
+    this.flow.setOptions({ chevrons: o.chevrons, keyChevrons: o.keyChevrons, presenting: o.presenting } as Partial<BloodOptions>);
+    this.moving = true;
+  }
 
   // ---- slide state ---------------------------------------------------------------------------
 
@@ -144,15 +190,15 @@ export class CelScene {
   /** The vessels a slide talks about (they carry flow marks in option A), by edge ID. The picked vessel is always included. */
   setNamedVessels(ids: readonly string[]): void {
     // a vein the engine cuts in pieces is one vein: naming any piece (or the host) names them all
-    const hosts = new Set(ids.map((id) => VESSELS.find((v) => v.id === id)?.host ?? id));
-    this.named = new Set(VESSELS.filter((v) => hosts.has(v.host)).map((v) => v.id));
+    const hosts = new Set(ids.map((id) => NETWORK.find((v) => v.id === id)?.host ?? id));
+    this.named = new Set(NETWORK.filter((v) => hosts.has(v.host)).map((v) => v.id));
     this.syncNamed();
   }
   private named = new Set<string>();
   private syncNamed(): void {
     const ids = new Set(this.named);
     const picked = this.highlight.picked;
-    if (picked) { const host = VESSELS.find((v) => v.id === picked)?.host; for (const v of VESSELS) if (v.host === host) ids.add(v.id); }
+    if (picked) { const host = NETWORK.find((v) => v.id === picked)?.host; for (const v of NETWORK) if (v.host === host) ids.add(v.id); }
     this.flow.setNamed(ids);
     this.moving = true;
   }
@@ -202,7 +248,9 @@ export class CelScene {
     const camMoving = this.rig.update(now);
     const hiMoving = this.highlight.step(dt);
     const flowActive = this.flow.step(now, dt);
-    const needs = this.moving || camMoving || hiMoving || flowActive;
+    const lensMoving = this.lens.step(now);
+    const presMoving = this.presence.step(dt);
+    const needs = this.moving || camMoving || hiMoving || flowActive || lensMoving || presMoving;
     this.moving = false;
     return needs;
   }
@@ -210,6 +258,7 @@ export class CelScene {
   render(gl: WebGLRenderer): void { gl.render(this.scene, this.rig.camera); }
 
   dispose(): void {
+    this.lens.dispose();
     for (const o of this.objects) o.dispose();
     this.plate.geometry.dispose();
     (this.plate.material as MeshBasicMaterial).dispose();
