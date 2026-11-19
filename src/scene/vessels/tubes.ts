@@ -9,12 +9,21 @@ export interface Course {
   /** the radius at the start and at the end as a share of `radius`: the tube eases to it over its first and last 30 % as the 2D tubes do (stage-tubes.js tubeRadius), so
    *  two vessels that run on into one another meet at one width */
   taper?: readonly [number, number];
+  /** the fillet collars at the two ends where this tube ends on a trunk (network.ts Flare): extra radius at the wall that melts into the tube over `span` */
+  flare?: readonly [{ add: number; wall: number; span: number } | null, { add: number; wall: number; span: number } | null];
 }
 const smooth = (u: number) => u * u * (3 - 2 * u);
 const factorAt = (t: readonly [number, number] | undefined, u: number): number => (!t ? 1 : u < 0.3 ? t[0] + (1 - t[0]) * smooth(u / 0.3) : u > 0.7 ? 1 + (t[1] - 1) * smooth((u - 0.7) / 0.3) : 1);
 
 /** Tube segments for a course of `len` scene units, with `room` to grow into when it coils. */
 export const tubularFor = (len: number, room = 1.6): number => Math.max(16, Math.round(len * 30 * room));
+
+/** The collar's extra radius at distance `d` from an end: all of `add` up to the host's wall, then melting away over `span` (a quadratic, tangent to the tube where it ends). */
+export const flareAdd = (f: { add: number; wall: number; span: number } | null | undefined, d: number): number => {
+  if (!f) return 0;
+  const u = Math.min(1, Math.max(0, (d - f.wall) / f.span));
+  return f.add * (1 - u) * (1 - u);
+};
 
 const RADIAL = 14;
 
@@ -32,9 +41,11 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     const seg = tubular[i]!;
     const tube = new TubeGeometry(curve, seg, c.radius, RADIAL, false);
     const rks: number[] = [];
+    const clen = curve.getLength();
     const P = new Vector3(), pos = tube.attributes.position as Float32BufferAttribute;
     for (let k = 0; k <= seg; k++) {
-      const f = factorAt(c.taper, k / seg);
+      const u = k / seg;
+      const f = factorAt(c.taper, u) + (flareAdd(c.flare?.[0], u * clen) + flareAdd(c.flare?.[1], (1 - u) * clen)) / c.radius;
       curve.getPointAt(k / seg, P);
       for (let j = 0; j <= RADIAL; j++) {
         const at = k * (RADIAL + 1) + j;
@@ -48,7 +59,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     tube.setAttribute('tang', new Float32BufferAttribute(tang, 3));
     const group: BufferGeometry[] = [tube];
     for (const end of [0, 1]) {
-      const capR = c.radius * factorAt(c.taper, end);
+      const capR = c.radius * factorAt(c.taper, end) + flareAdd(c.flare?.[end], 0);
       const s = new SphereGeometry(capR, 14, 10);
       const pos = curve.getPointAt(end), t = curve.getTangentAt(end);
       s.translate(pos.x, pos.y, pos.z);
@@ -58,7 +69,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
       s.setAttribute('tang', new Float32BufferAttribute(tg, 3));
       group.push(s);
     }
-    for (const e of [1, 2]) group[e]!.setAttribute('rk', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill((c.radius * factorAt(c.taper, e - 1)) / radius0), 1));
+    for (const e of [1, 2]) group[e]!.setAttribute('rk', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill((c.radius * factorAt(c.taper, e - 1) + flareAdd(c.flare?.[e - 1], 0)) / radius0), 1));
     const tubeCount = tube.attributes.position!.count, capCount = group[1]!.attributes.position!.count;
     runs.push({ curve, tubular: seg, radial: RADIAL, tubeStart: at, tubeCount, capStart: at + tubeCount, capCount });
     at += tubeCount + 2 * capCount;
