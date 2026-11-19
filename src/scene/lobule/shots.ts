@@ -10,6 +10,10 @@
 import type { Shot } from '../camera/shots.ts';
 import type { V3 } from './batch.ts';
 import { LOBULE_SCALE, SIN_SCALE, lobuleWorld, sinusoidWorld } from './frames.ts';
+import { FILL } from '../camera/room.ts';
+import { acrossUm } from '../sinusoid/portrait.ts';
+/** Micrometres across the stretch the sinusoid's own shot frames: `SPAN_UM` of sinusoid/view.ts, kept here so the shots do not import the view. */
+const SPAN_UM = 97.4;
 
 /** The lobule's radius in scene units (the body plate is about 4.6 wide) and the slab's thickness. */
 export const LOBULE_R = 3;
@@ -53,10 +57,26 @@ export function lobuleShot(cam: LobuleCam): Shot {
   };
 }
 
-/** The sinusoid view's shot: the whole length of one cut sinusoid, portal end left (world units: inside the lobule). */
-export function sinusoidShot(): Shot {
+/** The sinusoid view's shot: the whole length of one cut sinusoid, portal end left (world units: inside the lobule). On a portrait screen (2D: W < H * 0.95) the sinusoid runs top to bottom (the view's
+ *  plane is turned, sinusoid/portrait.ts), so the half extents swap. `shortPx`, the free room's short side in CSS px, gives 2D's own framing (sinusoid-view.js ensureGeo: lerp(40, 54, smooth(380, 720, short))
+ *  µm across the short side, plates cut by the edges on a phone, both whole on a large screen); without it the whole stretch is kept in view. */
+export function sinusoidShot(portrait = false, shortPx?: number): Shot {
   const [ox, oy, oz] = SINUSOID_ORIGIN;
-  return { yaw: 0, pitch: 0, r: 3 * SIN_SCALE, target: sinusoidWorld([ox, oy, oz]), half: [(SINUSOID_L / 2 + 0.4) * SIN_SCALE, 1.9 * SIN_SCALE] };
+  const along = (SINUSOID_L / 2 + 0.4) * SIN_SCALE, across = 1.9 * SIN_SCALE;
+  // (the room fits the longer of the two needs: both halves at the short side's own half make the short side show exactly `acrossUm`, the long side as much as the screen's shape gives)
+  const short = shortPx != null && shortPx > 0 ? (acrossUm(shortPx) / 2) * FILL * (SINUSOID_L / SPAN_UM) * SIN_SCALE : null;   // (the room keeps FILL of itself for the subject: 2D shows `across` over the whole short side)
+  const half: [number, number] = short != null ? [short, short] : portrait ? [across, along] : [along, across];
+  return { yaw: 0, pitch: 0, r: 3 * SIN_SCALE, target: sinusoidWorld([ox, oy, oz]), half };
+}
+
+/** The corners (scene units) of the box the hand's pan and zoom keep on screen while the sinusoid is the view: the stretch and a plate either side, turned as the plane is turned (portrait: top to bottom). */
+export function sinusoidBox(portrait = false): V3[] {
+  const out: V3[] = [], c = portrait ? 0 : 1, s = portrait ? -1 : 0;   // (cos, sin of the plane's turn: PORTRAIT_ANGLE is -PI/2)
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+    const x = sx * (SINUSOID_L / 2 + 0.3), y = sy * 1.4;
+    out.push(sinusoidWorld([x * c - y * s, x * s + y * c, sz * 1.0]));
+  }
+  return out;
 }
 
 /** Lobule coordinates (the 2D plane: x right, y DOWN, in lobule radii) to the lobule's own local units, on the slab's middle plane plus z. */

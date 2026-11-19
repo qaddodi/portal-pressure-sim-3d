@@ -1,9 +1,10 @@
 // The Trials pane's decisions (the 2D app's trials-pane.js, its pure part): each landmark trial against the patient on screen (trial-fit, copied by B10), sorted into the list's sections, with the chips of
 // the rules that keep trials out, a row's two lines, and the pips. The 2D words are kept as they are; nothing here touches the page. A trial's numbers are its own, never the model's.
-import { TRIALS, type Trial } from '../charts/trial/trials.generated.ts';
+import { TRIALS, BAVENO_VIII, type Trial } from '../charts/trial/trials.generated.ts';
 import { fitTrial, failedRows, openDefining, groupOf, countWords, whyNot, lcFirst, stillNeeded, FITS_HEAD, FITS_WORDS, NOT_IN_MODEL } from '../charts/trial/trial-fit.generated.js';
-import { hvBlocked } from '../../engine/hales/portal/pressure-cuts.js';
+import { hvBlocked, hvpgSev, ppgSev, PTIPS_HVPG } from '../../engine/hales/portal/pressure-cuts.js';
 import { fmt } from '../charts/fmt.ts';
+export { lcFirst };
 
 export interface FitRow { rule: string; state: 'yes' | 'no' | 'na'; value: string; defining: boolean; context?: boolean; need?: string; test?: string }
 export interface TrialFit { verdict: 'fits' | 'no' | 'unknown'; rows: FitRow[]; met: number; of: number }
@@ -104,4 +105,88 @@ export function historyOf(presetFacts: { decompensated?: boolean } | null | unde
   if (presetFacts?.decompensated === true) return { decompensated: true };
   if (seenDecomp) return { decompensated: true, source: 'session' };
   return presetFacts && typeof presetFacts.decompensated === 'boolean' ? { decompensated: presetFacts.decompensated } : null;
+}
+
+// ── The open trial's Model line and Baveno VIII lines (2D trials-pane.js: modelRx, paintModel, today531) ──
+
+/** What the model can do of a trial's treatment, from its treated arm: a change to the params, and its name in the Model line; or, for a treatment the model holds but does not run as the trial did
+ *  (albumin), { name, kind } with no patch; or null. */
+export interface Rx { name: string; kind?: 'albumin'; patch: { drugs?: Record<string, boolean>; tips?: { on: boolean; d: number } } | null }
+export function modelRx(t: Trial | null | undefined): Rx | null {
+  const arm = (t?.arms || []).find((a) => a.side === 'treat') || t?.arms?.[0];
+  const label = arm?.label || '', s = `${label} ${t?.name || ''}`;
+  if (/carvedilol/i.test(label)) return { name: 'carvedilol', patch: { drugs: { carvedilol: true } } };
+  if (/propranolol/i.test(label)) return { name: 'propranolol', patch: { drugs: { propranolol: true } } };
+  if (/beta-blocker|\bNSBB\b/i.test(label)) return { name: 'carvedilol', patch: { drugs: { carvedilol: true } } };
+  if (/\bTIPS\b/.test(label) && !/before TIPS/i.test(s)) return { name: 'TIPS', patch: { tips: { on: true, d: 8 } } };
+  if (/terlipressin/i.test(label)) return { name: 'terlipressin', patch: { drugs: { terlipressin: true } } };
+  if (/albumin/i.test(label)) return { name: 'albumin', kind: 'albumin', patch: null };
+  return null;
+}
+type RxParams = { tips?: { on?: boolean }; drugs?: Record<string, boolean> } | null | undefined;
+/** Whether the patient is already on the treatment. */
+export const rxOn = (rx: Rx, p: unknown): boolean => {
+  const q = p as RxParams;
+  return rx.patch?.tips ? !!q?.tips?.on : Object.keys(rx.patch?.drugs ?? {}).every((k) => q?.drugs?.[k]);
+};
+/** Whether a trial has a band ligation arm: its Model line says that ligation treats the varix, not the pressure (TC-T5). */
+export const hasEvlArm = (t: Trial | null | undefined): boolean => (t?.arms || []).some((a) => /band ligation|\bEVL\b/i.test(a.label));
+
+/** Baveno VIII 5.31 checked against the patient's HVPG (TC-A2): the HVPG ≥20 rule is the one the model can check. */
+export function today531(hvpg: number | null | undefined, bleeding: boolean): string {
+  if (!Number.isFinite(hvpg)) return 'This patient: HVPG not measured.';
+  const v = `HVPG ${fmt(hvpg as number, 1)} mmHg`;
+  if (!bleeding) return `The HVPG rule applies at a bleed. This patient: ${v}.`;
+  return (hvpg as number) >= PTIPS_HVPG ? `This patient is bleeding with ${v}: meets the HVPG rule.` : `This patient is bleeding with ${v}: under the HVPG rule.`;
+}
+/** "5.31. Preemptive covered TIPS …" as 2D prints it after the bold "Baveno VIII 5.31." (the number once). */
+export const bavenoText = (k: string): string => BAVENO_VIII[k] ?? '';
+/** The Baveno VIII lines of an open trial: its number, the words, and (5.31) the line that checks this patient against it. */
+export function bavenoLines(t: Trial, facts: { hvpg: number | null }, bleeding: boolean): { k: string; text: string; today: string | null }[] {
+  return (t.bav ?? []).map((k) => ({ k, text: bavenoText(k), today: k === '5.31' ? today531(facts.hvpg, bleeding) : null }));
+}
+
+/** The numbers the Model line starts from and ends on (the engine's whatIf: the patient settled as it is, and with the treatment). */
+export interface Settled { hvpg: number; ppg: number; map: number; hr: number }
+export interface WhatIf { base: Settled; rx: Settled }
+export interface ModelNums { lead: 'HVPG ' | 'PPG '; from: number; to: number; sevFrom: string; sevTo: string; more: string }
+export interface ModelLine {
+  /** "Model · carvedilol on this patient" */
+  head: string;
+  /** the line when it has no numbers to colour */
+  text: string;
+  nums: ModelNums | null;
+  sub: string;
+  /** 'wait': the answer is being worked out (the pane asks the engine) */
+  state: 'none' | 'albumin' | 'hidden' | 'on' | 'wait' | 'now' | 'ok';
+}
+/** The Model line (TC-T1 to T5): the model's own numbers for this patient settled with the trial's treatment, the one place a model number sits beside a trial. `result`: undefined while it is being worked out, null
+ *  when the engine gave none. `live`: the card's own readings, which the line starts from (TC-fit-4), so its first number is the head line's and never a settled copy's. */
+export function modelLineOf(t: Trial, c: { facts: { hvpg: number | null }; albumin?: number | null; params?: unknown; hidden?: ReadonlySet<string> | null; result: WhatIf | null | undefined; live?: Partial<Settled> }): ModelLine {
+  const rx = modelRx(t), head = `Model${rx ? ` · ${rx.name} on this patient` : ''}`;
+  const evl = hasEvlArm(t) ? 'Band ligation treats the varix, not the pressure: the model\'s HVPG does not change with it.' : '';
+  const hvNow = Number.isFinite(c.facts.hvpg) ? `${fmt(c.facts.hvpg as number, 1)} mmHg` : 'not measured';
+  const line = (state: ModelLine['state'], text: string, sub = ''): ModelLine => ({ head, text, nums: null, sub, state });
+  if (!rx) return line('none', 'The model does not run this treatment.', evl);
+  if (rx.kind === 'albumin') {
+    // (TC-T5: the model holds the serum albumin and gives albumin as an infusion from Treat, but does not run a trial's weeks-long course.)
+    return line('albumin', Number.isFinite(c.albumin) ? `Serum albumin ${fmt(c.albumin as number, 1)} g/dL` : 'Serum albumin not in the model', 'An infusion from Treat raises it in the model. The model does not run the trial\'s long course.');
+  }
+  // (A reading this case keeps hidden stays hidden here too: the HVPG until it is measured, the portal pressures in the Imaging view.)
+  if (c.hidden?.has('trueHVPG') || (rx.patch?.tips && c.hidden?.has('pv'))) return line('hidden', 'Measure the HVPG to see the model\'s numbers.', evl);
+  if (rxOn(rx, c.params)) return line('on', `Already on. HVPG ${hvNow}.`, evl);
+  if (c.result === undefined) return line('wait', 'Settling the model…');
+  if (!c.result?.base || !c.result?.rx) return line('now', `HVPG now ${hvNow}.`, evl);
+  const r = c.result;
+  // (A TIPS lowers the portal pressure gradient, which the HVPG does not see: its line leads with the PPG.)
+  const tips = !!rx.patch?.tips, sev = tips ? ppgSev : hvpgSev, k0 = tips ? 'ppg' : 'hvpg';
+  const live = c.live ?? {}, B: Settled = { ...r.base };
+  for (const k of ['hvpg', 'ppg', 'map', 'hr'] as const) { const v = k === 'hvpg' ? c.facts.hvpg : live[k]; if (v != null && Number.isFinite(v)) B[k] = v; }
+  const at = (k: keyof Settled) => B[k] + (r.rx[k] - r.base[k]);
+  const from = B[k0], to = at(k0);
+  const more = tips ? ` · HVPG ${fmt(B.hvpg, 1)} → ${fmt(at('hvpg'), 1)}` : rx.patch?.drugs?.terlipressin ? ` · MAP ${fmt(B.map, 0)} → ${fmt(at('map'), 0)} mmHg` : ` · heart rate ${fmt(B.hr, 0)} → ${fmt(at('hr'), 0)}/min`;
+  // (TC-T3: the fall in percent, the model's own, beside the trial's response rule where the audit gives one.)
+  const pct = Number.isFinite(from) && from > 0 ? Math.round(((to - from) / from) * 100) : null;
+  const sub = [pct != null && pct !== 0 ? `${pct < 0 ? '−' : '+'}${Math.abs(pct)}% in the model.` : '', typeof t.response === 'string' ? t.response : '', evl].filter(Boolean).join(' ');
+  return { head, text: '', nums: { lead: tips ? 'PPG ' : 'HVPG ', from, to, sevFrom: sev(from), sevTo: sev(to), more }, sub, state: 'ok' };
 }

@@ -3,12 +3,21 @@ import { parseLine } from '../text/line.ts';
 import { valueText } from '../text/tokens.ts';
 import { Roll } from './Roll.tsx';
 
-/** A slide's line, typeset: live readings roll, cut-offs and bold words are bold, figure terms are tagged for the scene. */
-export function Line({ text, read, terms }: { text: string; read: (k: string, at?: string) => number | null | undefined; terms?: Record<string, string> }): ReactNode {
+/** A slide's line, typeset: live readings roll, cut-offs and bold words are bold, figure terms are tagged for the scene.
+ *  `pill`: the value a line without a braced one sets in a quiet pill (card-fields.ts autoPill). */
+export function Line({ text, read, terms, pill }: { text: string; read: (k: string, at?: string) => number | null | undefined; terms?: Record<string, string>; pill?: string | null }): ReactNode {
   const pieces = parseLine(text);
+  let done = false;
   return pieces.map((p, i) => {
     switch (p.t) {
-      case 'text': return <TermText key={i} text={p.text} terms={terms} />;
+      case 'text': {
+        // (the line's one pill: the first value with a unit, in the first piece of plain words that holds it)
+        const at = pill && !done ? p.text.indexOf(pill) : -1;
+        if (at < 0) return <TermText key={i} text={p.text} terms={terms} />;
+        done = true;
+        return <span key={i}><TermText text={p.text.slice(0, at)} terms={terms} /><b className="pz-nw">{pill!.replace(/\s(?=mmHg|g\/dL|mL|kPa|cm\/s|mm\b|%)/, '\u00a0')}</b><TermText text={p.text.slice(at + pill!.length)} terms={terms} /></span>;
+      }
+      case 'step': return <span key={i} className="pz-nw"><span className="pz-step" role="img" aria-label={`Step ${p.n}`}>{p.n}</span></span>;
       case 'bold': return <b key={i}>{p.text}</b>;
       case 'term': return <span key={i} className="pz-term dk-term" data-term={p.term}>{p.label}</span>;
       case 'cutoff': return <b key={i} className="pz-nw">{p.text}</b>;

@@ -40,7 +40,7 @@ function rig(over: Partial<GestureHost> = {}) {
     setOrbit: (r) => { const n = Math.max(-ORBIT_LIMIT, Math.min(ORBIT_LIMIT, r)); const ch = n !== orbit; orbit = n; return ch; },
     tap: (x, y) => { taps.push([x, y]); },
     picked: () => picked,
-    setPicked: (p) => { picked = p; },
+    setPicked: (p) => { picked = p as string | null; },
     context: () => {},
     ...over,
   };

@@ -6,7 +6,7 @@ import { STORAGE_PREFIX } from '../../state/settings.ts';
 import type { ViewId } from './views.ts';
 import type { LensId } from '../../scene/lenses/model.ts';
 
-export type Sheet = 'menu' | 'settings' | 'search' | 'help' | 'history' | 'compare' | 'why' | 'guide' | 'blood' | 'layers' | 'lens' | 'speed' | 'jump' | null;
+export type Sheet = 'menu' | 'settings' | 'search' | 'help' | 'history' | 'compare' | 'why' | 'guide' | 'blood' | 'layers' | 'lens' | 'speed' | 'jump' | 'readings' | null;
 export type MenuTab = 'present' | 'patients';
 /** The ten lenses of the 2D menu, in its order (the scene's own list also holds the two a slide uses). */
 export const LENS_IDS: readonly LensId[] = UI.lenses.map((l) => l.id as LensId);
@@ -21,7 +21,7 @@ export interface Figure {
   /** Layers (the lobule view) */
   zones: boolean; lymph: boolean; bile: boolean;
 }
-export const FIGURE_DEFAULTS: Figure = { chevrons: true, keyChevrons: false, chips: true, collaterals: true, labels: true, labelLevel: 'key', zones: false, lymph: true, bile: false };
+export const FIGURE_DEFAULTS: Figure = { chevrons: true, keyChevrons: false, chips: true, collaterals: true, labels: true, labelLevel: 'key', zones: false, lymph: true, bile: true };
 
 export interface ToastAction { label: string; run(): void }
 export interface Toast { id: number; text: string; tone: 'info' | 'bad'; action?: ToastAction }

@@ -12,6 +12,7 @@ uniform vec4 box;
 varying vec3 vN;
 varying vec3 vV;
 varying vec2 vBox;
+varying vec4 vClip;
 void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
   vN = normalize(normalMatrix * normal);
@@ -22,6 +23,7 @@ void main() {
   vInk = ink;
 #endif
   gl_Position = projectionMatrix * mv;
+  vClip = gl_Position;
 }`;
 
 export const ORGAN_FS = /* glsl */ `
@@ -35,6 +37,9 @@ uniform vec4 volShade;
 uniform vec3 page;
 uniform float layer;
 uniform float inkAmount;
+// the dive's cutaway window (atlas-look-plan 3.1): x, y the dive point on the screen (ndc), z the radius that is cleared (ndc half-heights; below 0 nothing is), w the aspect; the same for every organ
+uniform vec4 cut;
+varying vec4 vClip;
 #ifdef VERTEX_INK
 varying vec3 vInk;
 #endif
@@ -42,6 +47,10 @@ varying vec3 vN;
 varying vec3 vV;
 varying vec2 vBox;
 void main() {
+  // the window: the wash clears round the dive point, soft at its edge, so the lobule shows inside
+  vec2 q = vClip.xy / vClip.w - cut.xy;
+  float win = smoothstep(cut.z, cut.z + 0.3, length(vec2(q.x * cut.w, q.y)));
+  if (win < 0.004) discard;
   vec3 n = normalize(vN);
   // the gradient from the box's (.15,0) to (.85,1)
   vec2 g = vec2(0.7, 1.0);
@@ -70,7 +79,7 @@ void main() {
   float lit = smoothstep(0.62, 0.8, turn) * clamp(dot(side, vec2(-0.6, 0.8)), 0.0, 1.0);
   fill = mix(fill, ogLight.rgb, ogLight.a * 0.58 * lit);
   // the organ lies on whatever is behind it at the layer's opacity, as 2D's organ groups do (blended in 2D's order: layer.ts); the dive fades the layer, no dots
-  gl_FragColor = vec4(fill, layer * fade);
+  gl_FragColor = vec4(fill, layer * fade * win);
 }`;
 
 /** The organ outline: the hull's width in the figure's units (2D's .org-line is 1.1 SVG units, the kidney 1.4), so it scales with the figure as 2D's does,

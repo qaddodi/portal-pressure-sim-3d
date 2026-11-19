@@ -31,6 +31,9 @@ export const HVPG_DECK: Deck = (() => {
     return [s.id, { ...s, ...plate } as Slide];
   }));
   const full = toDeck(HVPG_2D);
+  // (the slice's slides keep their plates; the fields the cards carry beyond the words come from the 2D deck's own slide: the level tab, the guidelines side by side, the causes, the beats)
+  const CARD_FIELDS = ['site', 'rail', 'sides', 'pill', 'causes', 'causesHead', 'beats'] as const;
+  for (const [id, p] of plates) { const f = full.slides.find((x) => x.id === id); if (f) for (const k of CARD_FIELDS) if (k in f) (p as unknown as Record<string, unknown>)[k] = f[k]; }
   for (const id of plates.keys()) if (!full.slides.some((s) => s.id === id)) throw new Error(`the slice's slide "${id}" is not in the 2D deck`);
   // (the quick check is the 2D deck's four questions: the check card pages them on an iPhone on its side, cards/CheckCard.tsx)
   return { ...full, slides: full.slides.map((s) => plates.get(s.id) ?? s) };

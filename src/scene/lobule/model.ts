@@ -142,7 +142,7 @@ export interface SinusoidTargets {
 export function sinusoidTargets(m: LobuleModel): SinusoidTargets {
   const por = clamp(1 - (m.sigma - 0.15) / 0.45, 0, 1);
   const cap = clamp(Math.max(m.fibSin, 1 - por), 0, 1);
-  const lymph = (m.lymph || 0.6) / (m.lymph0 || 0.6);
+  const lymph = (m.lymph ?? 0.6) / (m.lymph0 || 0.6);   // (2D: ?? , so a lymph of exactly 0 stays 0, never the healthy 0.6)
   return {
     por,
     col: m.fibSin,
