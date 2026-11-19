@@ -11,7 +11,7 @@
 // stage-label-size.js, stage-label-items.js, stage-label-solve.js, stage-label-text.js, styles/app.css and styles/tokens.css.
 // --check writes nothing and exits 1 when the copied file differs from what the 2D source would give.
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
@@ -163,7 +163,7 @@ export async function extract() {
     TAP_DIM: num(must(appCss, /#labels \.lb\.spot-dim, \.lb-leaders > \.spot-dim \{ opacity: ([\d.]+); \}/, 'the tapped-label dim')[1]),
   };
   // The look's own ink, halo and ring colours (tokens.css): each look is the Light block plus what its own blocks change.
-  const LABEL_WANT = ['text', 'text-2', 'text-3', 'stage-bg', 'label-halo', 'label-panel', 'leader', 'flow-reversed', 'accent-ink'];
+  const LABEL_WANT = ['text', 'text-2', 'text-3', 'stage-bg', 'label-halo', 'label-panel', 'leader', 'flow-reversed', 'accent-ink', 'surface', 'hairline', 'tr-hv', 'tr-wedge', 'ok', 'caution', 'danger'];
   const declsOf = (text) => { const o = {}; for (const m of text.matchAll(/--([a-z0-9-]+):\s*([^;]+);/g)) if (LABEL_WANT.includes(m[1])) o[m[1]] = m[2].trim(); return o; };
   const layer = (sel) => declsOf(blockAt(sel));
   const dark = { ...Object.assign({}, ...rootBlocks.map(declsOf)), ...layer(':root[data-theme="dark"]') };
@@ -176,6 +176,58 @@ export async function extract() {
   };
   for (const [k, v] of Object.entries(LABEL_LOOKS)) for (const w of LABEL_WANT.filter((x) => x !== 'accent-ink')) if (!v[w]) throw new Error(`tokens.css gives the ${k} look no --${w}`);
   STYLE.LOOKS = LABEL_LOOKS;
+
+  // ── the catheter's readings: the card, the stack, the bracket and the leaders, and how they come and go (app.css .cath-label, .cath-sum; stage-cath.js) ──
+  const stageCath = readFileSync(src('src/ui/stage-cath.js'), 'utf8');
+  const clBox = must(appCss, /\.cath-label \{ position: absolute; left: 0; top: 0; isolation: isolate; display: inline-flex; flex-direction: column; align-items: center; gap: ([\d.]+)px; padding: ([\d.]+)px ([\d.]+)px ([\d.]+)px; border: ([\d.]+)px solid transparent; border-radius: ([\d.]+)px;/, 'the catheter reading card');
+  const clSmall = must(appCss, /\.cath-label small \{ color: var\(--c\); font-weight: (\d+); font-size: ([\d.]+)px; letter-spacing: ([\d.]+)em; \}/, 'the reading\'s name');
+  const clBig = must(appCss, /\.cath-label b \{ font-size: ([\d.]+)px; line-height: ([\d.]+); font-weight: (\d+);/, 'the reading\'s number');
+  const clUnit = must(appCss, /\.cath-label b \+ span \{ color: var\(--text-3\); font-size: ([\d.]+)px; font-weight: (\d+); margin-top: (-?[\d.]+)px; \}/, 'the reading\'s unit');
+  const clPres = must(appCss, /\.app\.presenting \.cath-label \{ padding: calc\(([\d.]+)px \* min\(var\(--label-k, 1\), ([\d.]+)\)\) calc\(([\d.]+)px \* min\(var\(--label-k, 1\), [\d.]+\)\) calc\(([\d.]+)px \* min\(var\(--label-k, 1\), [\d.]+\)\); border-radius: calc\(([\d.]+)px \* min\(var\(--label-k, 1\), [\d.]+\)\); \}/, 'the presenting reading card');
+  must(appCss, /\.app\.presenting \.cath-label small, \.app\.presenting \.cath-label b \+ span \{ font-size: calc\(var\(--t-lab\) \* min\(var\(--label-scale, 1\), ([\d.]+)\)\); \}/, 'the presenting name and unit size');
+  must(appCss, /\.app\.presenting \.cath-label b \{ font-size: calc\(var\(--t-big\) \* min\(var\(--label-scale, 1\), ([\d.]+)\)\); \}/, 'the presenting number size');
+  const clResult = must(appCss, /\.cath-label\.result small \{ color: var\(--text-3\); letter-spacing: ([\d.]+)em; \}/, 'the result\'s name');
+  const clTone = must(appCss, /\.cath-label\.caution \{ --c: color-mix\(in srgb, var\(--caution\) (\d+)%, var\(--text\)\); \}/, 'the caution tone');
+  const sumCol = must(appCss, /\.cath-sum-col \{ display: flex; flex-direction: column; gap: ([\d.]+)px; \}/, 'the stack\'s gap');
+  const sumBox = must(appCss, /\.cath-sum-box \{ position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: ([\d.]+)px;/, 'the stack beside its calculation');
+  const tightCol = must(appCss, /\.cath-sum-box\.tight \.cath-sum-col \{ gap: ([\d.]+)px; \}/, 'the tight stack');
+  const tightRow = must(appCss, /\.cath-sum-box\.tight \.cath-label\.in-sum \{ flex-direction: row; align-items: baseline; gap: ([\d.]+)px; padding: ([\d.]+)px ([\d.]+)px ([\d.]+)px; border-radius: ([\d.]+)px; \}/, 'the tight reading');
+  const tightBig = must(appCss, /\.cath-sum-box\.tight \.cath-label\.in-sum b \{ font-size: ([\d.]+)px; \}/, 'the tight number');
+  const leadCss2 = must(appCss, /\.cath-leads \.lead \{ fill: none; stroke-width: ([\d.]+);/, 'the summary leader');
+  const dotCss = must(appCss, /\.cath-leads \.lead-dot \{ stroke: var\(--surface\); stroke-width: ([\d.]+);/, 'the summary leader dot');
+  const braceCss = must(appCss, /\.cath-brace path \{ fill: none; stroke: var\(--text-3\); stroke-width: ([\d.]+);/, 'the bracket');
+  const delays = must(appCss, /\.cath-sum \.cath-brace, \.cath-sum \.cath-leads \{ transition: opacity var\(--d-surface\) var\(--ease\) ([\d.]+)s; \}\n\.cath-sum \.cath-label\.in-sum\.calc \{ transition: translate var\(--d-surface\) var\(--ease\) ([\d.]+)s;/, 'the summary\'s delays');
+  const pre = must(appCss, /\.cath-label\.cath-pre:not\(\.in-sum\), \.cath-sum\.cath-pre \.cath-sum-box \{ --pre: ([\d.]+)px; \}/, 'the reading\'s rise');
+  const goneMs = must(stageCath, /stageScope\.timer\(cathGone, (\d+), el\)/, 'how long a leaving reading stays');
+  const braceM = must(stageCath, /s\('svg', \{ class: 'cath-brace', width: (\d+) \}/, 'the bracket width');
+  const bracePath = must(stageCath, /`M(\d+) \$\{ys0\} H(\d+) V\$\{ys1\} H(\d+) M(\d+) \$\{\(ys0 \+ ys1\) \/ 2\} H(\d+)`/, 'the bracket path');
+  const dotR = must(stageCath, /s\('circle', \{ r: ([\d.]+) \}\)/, 'the leader dot');
+  const place = must(stageCath, /const top = Math\.max\((\d+), sp\.t \+ (\d+)\), off = (\d+);/, 'the stack\'s room');
+  const tightAt = must(stageCath, /const tight = !l\.mid && lim - top < (\d+);/, 'when the stack is tight');
+  const swapDy = must(stageCath, /const swap = dy > (\d+) \? true : dy < -(\d+) \? false : box\._swap === true;/, 'when the stack swaps');
+  const sideAt = must(stageCath, /const beside = !l\.mid && x >= Math\.max\(A\.tip\[0\], A\.ahead\[0\]\) \+ (\d+);/, 'when the stack stands beside');
+  const bandM = must(stageCath, /q\.top = Math\.max\(0, sp\.t\) \+ (\d+); q\.lim = lim - (\d+);/, 'the readings\' band');
+  const tokensCss = readFileSync(src('styles/tokens.css'), 'utf8');
+  const durM = must(tokensCss, /--d-flip: (\d+)ms; --d-small: (\d+)ms; --d-surface: (\d+)ms;/, 'the motion steps');
+  const easeM = must(tokensCss, /--ease-move: cubic-bezier\(([\d., ]+)\);/, 'the move curve');
+  const num4 = (t) => t.split(',').map((x) => Number(x.trim()));
+  const easeA = must(tokensCss, /--ease-arrive: cubic-bezier\(([\d., ]+)\);/, 'the arrive curve');
+  STYLE.CATH = {
+    CARD: { gap: num(clBox[1]), padTop: num(clBox[2]), padX: num(clBox[3]), padBottom: num(clBox[4]), border: num(clBox[5]), radius: num(clBox[6]) },
+    PRESENTING: { padTop: num(clPres[1]), cap: num(clPres[2]), padX: num(clPres[3]), padBottom: num(clPres[4]), radius: num(clPres[5]) },
+    NAME: { weight: num(clSmall[1]), size: num(clSmall[2]), track: num(clSmall[3]), resultTrack: num(clResult[1]) },
+    NUMBER: { size: num(clBig[1]), line: num(clBig[2]), weight: num(clBig[3]) },
+    UNIT: { size: num(clUnit[1]), weight: num(clUnit[2]), lift: num(clUnit[3]) },
+    CAUTION_MIX: num(clTone[1]),
+    STACK: { gap: num(sumCol[1]), beside: num(sumBox[1]), tightGap: num(tightCol[1]), tightRow: { gap: num(tightRow[1]), padTop: num(tightRow[2]), padX: num(tightRow[3]), padBottom: num(tightRow[4]), radius: num(tightRow[5]), numberSize: num(tightBig[1]) }, tightBelow: num(tightAt[1]), swapDy: num(swapDy[1]), besideAt: num(sideAt[1]), top: num(place[1]), topPad: num(place[2]), off: num(place[3]) },
+    BAND: { top: num(bandM[1]), bottom: num(bandM[2]) },
+    BRACE: { width: num(braceM[1]), stroke: num(braceCss[1]), x0: num(bracePath[1]), x1: num(bracePath[2]), x2: num(bracePath[3]), x3: num(bracePath[4]), x4: num(bracePath[5]) },
+    LEAD: { stroke: num(leadCss2[1]), dotR: num(dotR[1]), dotStroke: num(dotCss[1]) },
+    MS: { small: num(durM[2]), surface: num(durM[3]), goneMs: num(goneMs[1]), braceDelay: num(delays[1]) * 1000, calcDelay: num(delays[2]) * 1000 },
+    RISE: num(pre[1]),
+    EASE_MOVE: num4(easeM[1]),
+    EASE_ARRIVE: num4(easeA[1]),
+  };
 
   return {
     CALLOUTS,
@@ -205,12 +257,37 @@ export const LABEL_NAMES = ${body} as const;
 const sha = (() => { try { return execFileSync('git', ['-C', from, 'rev-parse', '--short=10', 'HEAD'], { encoding: 'utf8' }).trim(); } catch { return 'unknown'; } })();
 const data = await extract();
 const text = render(data, sha);
+
+// The catheter readings' own placing code is copied whole (pure numbers, no page): where a reading stands round its point (cath-pill.js), where the stack
+// of two readings stands (cath-place.js) and the pointer's two numbers (callout-ptr.js). Never edited here: run this again.
+const VERBATIM = ['cath-pill', 'cath-place', 'callout-ptr'];
+// ... and the outline of a callout's one shape (callout.js `outline`, cut out of that file), with the pointer's base rule it is drawn by checked to be still the 2D one.
+const must = (text, re, what) => { const m = re.exec(text); if (!m) throw new Error(`the 2D source no longer says ${what}`); return m; };
+const calloutJs = readFileSync(src('src/ui/callout.js'), 'utf8');
+must(calloutJs, /const want = w \/ 2 \+ \(lean \? ax : Math\.max\(-0\.4 \* w, Math\.min\(0\.4 \* w, ax\)\)\);\s*const px = Math\.max\(KEEP, Math\.min\(w - KEEP, want\)\), tx = lean \? want : px/, 'the pointer base rule');
+const outlineSrc = must(calloutJs, /\nconst outline = [\s\S]*?\n\};\n/, 'the callout outline')[0].trim().replace(/^const outline/, 'export const outline');
+const OUTLINE_FILE = `// @generated by scripts/copy-label-names.mjs from src/ui/callout.js of qaddodi/portal-pressure-simulator at ${sha}. Do not edit: run the script again.
+import { PTR } from './callout-ptr.copied.js';
+${outlineSrc}
+`;
+const verbatimOut = (n) => resolve(here, `../src/scene/labels/cath2d/${n}.copied.js`);
+const verbatim = (n) => `// @generated by scripts/copy-label-names.mjs from src/ui/${n}.js of qaddodi/portal-pressure-simulator at ${sha}. Do not edit: run the script again.\n` + readFileSync(src(`src/ui/${n}.js`), 'utf8');
+const stripGen = (t) => t.replace(/^\/\/ @generated.*\n/, '');
 if (check) {
   const have = existsSync(OUT) ? readFileSync(OUT, 'utf8') : '';
   const strip = (s) => s.replace(/^\/\/ @generated.*\n/, '');
   if (strip(have) !== strip(text)) { console.error('src/scene/labels/names.copied.ts differs from the 2D source: run scripts/copy-label-names.mjs'); process.exit(1); }
+  for (const n of VERBATIM) {
+    const h = existsSync(verbatimOut(n)) ? readFileSync(verbatimOut(n), 'utf8') : '';
+    if (stripGen(h) !== stripGen(verbatim(n))) { console.error(`src/scene/labels/cath2d/${n}.copied.js differs from the 2D source: run scripts/copy-label-names.mjs`); process.exit(1); }
+  }
+  { const h = existsSync(verbatimOut('callout-outline')) ? readFileSync(verbatimOut('callout-outline'), 'utf8') : '';
+    if (stripGen(h) !== stripGen(OUTLINE_FILE)) { console.error('src/scene/labels/cath2d/callout-outline.copied.js differs from the 2D source: run scripts/copy-label-names.mjs'); process.exit(1); } }
   console.log('label names: same as the 2D app');
 } else {
   writeFileSync(OUT, text);
-  console.log(`wrote ${OUT} (${Object.keys(data.SHORT).length} names, ${Object.keys(data.LENS_KEY).length} key lenses, 2D at ${sha})`);
+  mkdirSync(dirname(verbatimOut('cath-pill')), { recursive: true });
+  for (const n of VERBATIM) writeFileSync(verbatimOut(n), verbatim(n));
+  writeFileSync(verbatimOut('callout-outline'), OUTLINE_FILE);
+  console.log(`wrote ${OUT} (${Object.keys(data.SHORT).length} names, ${Object.keys(data.LENS_KEY).length} key lenses, 2D at ${sha}) and ${VERBATIM.length} placing files`);
 }
