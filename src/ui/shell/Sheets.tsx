@@ -10,6 +10,7 @@ import { usesBottomBar } from './room.ts';
 import { useUi } from '../ui-store.ts';
 import { RESET } from './words.ts';
 import { resetEverything } from './reset.ts';
+import { DeckDialogs } from '../deck/DeckDialogs.tsx';
 
 function ResetDialog() {
   const open = useShell((s) => s.dialog === 'reset');
@@ -42,6 +43,7 @@ export function Sheets() {
       <HelpMenu />
       <Guide />
       <ResetDialog />
+      <DeckDialogs />
     </>
   );
 }
