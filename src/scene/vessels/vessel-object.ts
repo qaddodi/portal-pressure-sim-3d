@@ -38,7 +38,7 @@ export interface VesselOptions extends Omit<CelOptions, 'tone'> {
 /** The tube twice in one geometry: copy 0 is the body (`hull` 0), copy 1 the ink's hull (`hull` 1). One mesh then draws both, so a vessel is one draw call. */
 export function withHull(g: BufferGeometry): BufferGeometry {
   const out = new BufferGeometry();
-  for (const name of ['position', 'normal', 'uv', 'tang']) {
+  for (const name of ['position', 'normal', 'uv', 'tang', 'rk']) {
     const a = g.getAttribute(name);
     if (!a) continue;
     const arr = a.array as Float32Array, copy = new Float32Array(arr.length * 2);
@@ -46,6 +46,7 @@ export function withHull(g: BufferGeometry): BufferGeometry {
     out.setAttribute(name, new BufferAttribute(copy, a.itemSize));
   }
   const n = g.getAttribute('position').count;
+  if (!g.getAttribute('rk')) out.setAttribute('rk', new BufferAttribute(new Float32Array(n * 2).fill(1), 1));
   const hull = new Float32Array(n * 2).fill(0, 0, n).fill(1, n);
   out.setAttribute('hull', new BufferAttribute(hull, 1));
   const idx = g.getIndex();
@@ -108,6 +109,21 @@ export class VesselObject extends CelObject {
     rawColor(p.ink, u.inkColor!.value as Color);
     u.shadeK!.value = p.shade;
     rawColor(LENS_TOKENS[look].flowReversed, u.markRev!.value as Color);
+  }
+
+  /** Swaps in a new shape of the same vertex count (a collateral coiling, a fan changing width): the positions are written in place, so nothing is rebuilt. */
+  reshape(g: BufferGeometry, len: number): void {
+    const geo = this.toonMesh.geometry;
+    for (const name of ['position', 'normal', 'uv', 'tang', 'rk']) {
+      const src = g.getAttribute(name), dst = geo.getAttribute(name);
+      if (!src || !dst) continue;
+      const a = src.array as Float32Array, b = dst.array as Float32Array;
+      if (a.length * 2 !== b.length) throw new Error(`reshape: ${name} has ${a.length} values, the vessel was built with ${b.length / 2}`);
+      b.set(a, 0); b.set(a, a.length);
+      dst.needsUpdate = true;
+    }
+    geo.computeBoundingSphere();
+    this.toon.uniforms.len!.value = len;
   }
 
   /** A closed potential collateral: a dotted thread with no ink. */

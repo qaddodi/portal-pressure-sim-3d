@@ -15,6 +15,7 @@
 export const VESSEL_VS = /* glsl */ `
 attribute vec3 tang;
 attribute float hull;
+attribute float rk;   // this vertex's tube radius as a share of the vessel's own (a strand is thinner than its trunk)
 uniform float inflate;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
@@ -51,7 +52,7 @@ void main() {
     if (widthKind > 0.5) { w1 = max(1.8, w1 * 0.5); w0 = max(1.8, w0 * 0.5); }
     swell = clamp(w1 / w0, 0.2, 8.0);
   }
-  vec3 p = position + normal * (inflate + radius * (swell - 1.0));
+  vec3 p = position + normal * (inflate + radius * rk * (swell - 1.0));
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vN = normalize(normalMatrix * normal);
   vT = normalize(normalMatrix * tang);
@@ -59,7 +60,7 @@ void main() {
   vUv = uv;
   vHull = hull;
   vHi = 0.0;
-  vR = radius * swell * 300.0;   // the tube's half width in the 2D figure's units
+  vR = radius * rk * swell * 300.0;   // the tube's half width in the 2D figure's units
   vec4 c = projectionMatrix * mv;
   if (hull > 0.5) {
     float a = uv.x * len;
