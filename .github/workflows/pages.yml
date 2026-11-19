@@ -66,5 +66,9 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
+      # GitHub lists a freshly uploaded artifact a few seconds late: deploy-pages one second after the upload sometimes finds "No artifacts named github-pages"
+      # (runs 4 and 42). A short wait, in the same job, is the whole fix.
+      - name: Let the artifact register
+        run: sleep 20
       - id: deployment
         uses: actions/deploy-pages@v4
