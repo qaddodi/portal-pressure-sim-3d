@@ -14,6 +14,7 @@ import { hasWebGL2 } from './boot/webgl.ts';
 import { NoWebGL } from './ui/shell/NoWebGL.tsx';
 import { registerPwa } from './pwa/register.ts';
 import { mountCharts } from './ui/charts/gallery/mount.tsx';
+import { mountTrials } from './ui/trials/mount.tsx';
 import { mountA11y } from './ui/a11y/mount.ts';
 import { installCaught } from './ui/debug/caught.ts';
 import { mountDebug } from './ui/debug/mount.ts';
@@ -48,5 +49,6 @@ async function start() {
   mountPerf();
   void mountDebug();   // ?watch / ?debug on the preview copy only (batch B14)
   mountCharts();   // ?charts: the charts gallery (batch B10)
+  mountTrials();   // ?trials: the Trials pane on its own (batch B12; the Tests card mounts the same pane)
 }
 void start();

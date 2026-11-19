@@ -13,6 +13,7 @@ import { CaseCard } from './CaseCard.tsx';
 import { TeachingCard } from './TeachingCard.tsx';
 import { LadderCard } from './LadderCard.tsx';
 import { CheckCard } from './CheckCard.tsx';
+import { TableCard } from './TableCard.tsx';
 import { Strip } from '../wallet/Strip.tsx';
 import { useGesture } from '../wallet/useSwipe.ts';
 import { isSwapSwipe } from '../wallet/wallet-machine.ts';
@@ -63,22 +64,23 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const sig = `${wordsKey}|${pages}|${at}|${stepAt}|${vp.w}x${vp.h}`;
   sigRef.current = sig;
 
-  const needs: Need[] = view ? [{ id: view.words, slot: 'words', h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h('ladder') }] : [])] : [];
+  const dataKey = view?.data === 'table' && view.slide ? `table:${view.slide.id}` : 'ladder';
+  const needs: Need[] = view ? [{ id: view.words, slot: 'words', h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey) }] : [])] : [];
   const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step), [vp, wallet.active, step, needs.map((n) => `${n.id}:${n.slot}:${n.h}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const wordsShown = plan.cards.find((c) => c.slot === 'words');
   const dataShown = plan.cards.find((c) => c.slot === 'data');
   const wordsWanted: Wanted | null = view && wordsShown ? { key: wordsKey, id: view.words } : null;
-  const dataWanted: Wanted | null = view?.data && dataShown ? { key: 'ladder', id: 'ladder' } : null;
+  const dataWanted: Wanted | null = view?.data && dataShown ? { key: dataKey, id: view.data! } : null;
   const stripWanted: Wanted | null = plan.strip ? { key: `strip:${plan.strip.slot}`, id: plan.strip.id } : null;
   const wordsStack = useStack(wordsWanted), dataStack = useStack(dataWanted), stripStack = useStack(stripWanted);
 
   // a words card taller than its room asks for one more page (only on a measurement of the page now showing); the count goes to the presenter
   const wordsHit = view ? hit(wordsKey) : undefined;
-  const dataHit = view?.data ? hit('ladder') : undefined;
+  const dataHit = view?.data ? hit(dataKey) : undefined;
   const tooTall = !!view && plan.overflow.includes(view.words) && wordsHit?.sig === sig;
   // a pair that does not fit its column at this step widens to the next step first; only past the widest does the words card split
-  const tooTallPair = sideways && (tooTall || (pair && plan.overflow.includes('ladder') && dataHit?.sig === sig));
+  const tooTallPair = sideways && (tooTall || (pair && plan.overflow.includes(view?.data ?? 'ladder') && dataHit?.sig === sig));
   useLayoutEffect(() => {
     if (!view) return;
     const cap = maxPages(view.words, view.slide?.vignette && view.words === 'case' ? view.slide.vignette : view.slide?.line);
@@ -118,11 +120,12 @@ export function CardLayer({ deck }: { deck: Deck }) {
       case 'title': return <TitleCard deck={deck} page={sn.at} pages={sn.pages} />;
       case 'case': return <CaseCard slide={sn.slide!} page={sn.at} pages={sn.pages} />;
       case 'teach': return <TeachingCard slide={sn.slide!} deck={deck} read={read} page={sn.at} pages={sn.pages} trim={sn.trim} />;
+      case 'table': return sn.slide?.table ? <TableCard deck={deck} slide={sn.slide} /> : null;
       case 'ladder': return sn.slide?.ladder ? <LadderCard ladder={sn.slide.ladder} readings={readings} /> : null;
       case 'check': return <CheckCard deck={deck} />;
     }
   };
-  const labelOf = (id: CardId) => ({ title: 'Talk', case: 'Case', teach: 'Slide', ladder: 'Pressures', check: 'Quick check' })[id];
+  const labelOf = (id: CardId) => ({ title: 'Talk', case: 'Case', teach: 'Slide', ladder: 'Pressures', table: 'Summary', check: 'Quick check' })[id];
   const frames = (stack: ReturnType<typeof useStack>, slot: 'words' | 'data') => stack.entries.map((e) => {
     const placed = e.phase === 'in' ? (slot === 'words' ? wordsShown : dataShown)?.rect : undefined;
     const rect = placed ?? last.current[e.key] ?? ZERO;

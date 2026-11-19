@@ -65,7 +65,7 @@ export function viewAt(stops: Stop[], p: Pos, lastShot: ShotName = lastSlideShot
   const caseBeat = s.slide.vignette && p.beat === 0;
   return {
     words: caseBeat ? 'case' : 'teach',
-    data: !caseBeat && s.slide.ladder ? 'ladder' : null,
+    data: caseBeat ? null : s.slide.ladder ? 'ladder' : s.slide.table ? 'table' : null,
     slide: s.slide, shot: s.slide.shot, cath: s.slide.cath ?? null, number, of,
   };
 }

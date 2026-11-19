@@ -18,7 +18,7 @@ import {
   layoutOf, isSideways, margin, cardWidth, pairGap, FIG_MIN, figFloorOf, phonePlan, GRIP, SHUF, WALLET_STEPS, shufCol, shufMaxH, shufTop, type Layout,
 } from './rules2d.ts';
 
-export type CardId = 'title' | 'case' | 'teach' | 'ladder' | 'check';
+export type CardId = 'title' | 'case' | 'teach' | 'ladder' | 'table' | 'check';
 /** `words` is the left or top card (title, case, teaching line, quick check); `data` is the card of numbers. */
 export type Slot = 'words' | 'data';
 
