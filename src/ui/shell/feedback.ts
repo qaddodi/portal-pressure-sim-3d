@@ -8,4 +8,4 @@ export function feedbackHref(email: string, c: FeedbackCtx): string {
   const body = [FEEDBACK.ask, '', '', '', FEEDBACK.keep, `Build: ${c.build}`, `Device: ${c.device}`, `Screen: ${c.screen}`, `View: ${c.view}`].join('\n');
   return `mailto:${email}?subject=${encodeURIComponent(FEEDBACK.subject)}&body=${encodeURIComponent(body)}`;
 }
-export const feedbackEmail = (): string => String(import.meta.env.VITE_FEEDBACK_EMAIL ?? '');
+export const feedbackEmail = (): string => String(import.meta.env?.VITE_FEEDBACK_EMAIL ?? '');

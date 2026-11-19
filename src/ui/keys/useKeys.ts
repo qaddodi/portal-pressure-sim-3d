@@ -3,6 +3,8 @@
 import { useEffect } from 'react';
 import { UI } from '../strings.generated.ts';
 import { useShell, LENS_IDS } from '../shell/store.ts';
+import { useLens } from '../../scene/lenses/store.ts';
+import { sceneApi } from '../../scene/api.ts';
 import { useSettings } from '../../state/settings.ts';
 import { decideKey, stepSpeed, type KeyAction, type Target } from './keymap.ts';
 import { runFeature } from '../shell/features.ts';
@@ -48,9 +50,9 @@ export function carryOut(a: KeyAction): void {
     case 'zoom': if (a.dir === 'fit') refitFigure(); else runFeature(a.dir === 'in' ? 'zoom-in' : 'zoom-out', 'Zoom'); break;
     case 'view-toggle': flipView(); break;
     case 'lens': {
-      const i = LENS_IDS.indexOf(sh.lens), next = LENS_IDS[(i + a.dir + LENS_IDS.length) % LENS_IDS.length];
+      const i = Math.max(0, LENS_IDS.indexOf(useLens.getState().lens)), next = LENS_IDS[(i + a.dir + LENS_IDS.length) % LENS_IDS.length];
       const l = UI.lenses.find((x) => x.id === next)!;
-      useShell.setState({ lens: next });
+      sceneApi.setLens(next);
       sh.say(lensToast(l.name, l.note));
       break;
     }

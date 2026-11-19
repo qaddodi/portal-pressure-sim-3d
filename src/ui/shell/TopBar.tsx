@@ -1,6 +1,9 @@
 import { UI } from '../strings.generated.ts';
 import { useUi } from '../ui-store.ts';
-import { useShell, LENS_IDS, type LensId } from './store.ts';
+import { useShell, LENS_IDS } from './store.ts';
+import { useLens } from '../../scene/lenses/store.ts';
+import { sceneApi } from '../../scene/api.ts';
+import type { LensId } from '../../scene/lenses/model.ts';
 import { Anchored } from './Pop.tsx';
 import { Icon } from './icons.tsx';
 import { LENS_ART } from './lens-art.ts';
@@ -38,13 +41,13 @@ function tapPill(id: ViewId, cur: ViewId) {
 
 /** The colour legend and lens name; the lens menu opens from it. */
 export function LensButton() {
-  const lens = useShell((s) => s.lens);
-  const name = UI.lenses.find((l) => l.id === lens)!.name;
+  const lens = useLens((s) => s.lens);
+  const name = UI.lenses.find((l) => l.id === lens)?.name ?? '';
   return (
     <Anchored sheet="lens" label={labelOf('btnLayers')} width={440} button={({ id, open, toggle }) => (
       <button type="button" className="sh-pill sh-lens" data-opens="lens" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} title={tb('btnLayers').title ?? undefined} onClick={toggle}>
         <span className="sh-lens-name">{name}</span>
-        <span className="sh-legend" role="img" aria-label={labelOf('legend')} style={{ background: LENS_ART[lens] }} />
+        <span className="sh-legend" role="img" aria-label={labelOf('legend')} style={{ background: LENS_ART[lens] ?? LENS_ART.pressure }} />
         <Icon n="chev-down" className="sh-chev" />
       </button>)}>
       <LensMenu />
@@ -52,7 +55,7 @@ export function LensButton() {
   );
 }
 function LensMenu() {
-  const lens = useShell((s) => s.lens);
+  const lens = useLens((s) => s.lens);
   return (
     <div className="sh-grid" role="radiogroup" aria-label="Color the vessels by">
       {LENS_IDS.map((id) => {
@@ -66,7 +69,7 @@ function LensMenu() {
     </div>
   );
 }
-export function setLens(id: LensId) { useShell.setState({ lens: id }); }
+export function setLens(id: LensId) { sceneApi.setLens(id); }
 
 function Pill({ id, icon, feature, text, compact }: { id: string; icon: string; feature: FeatureId; text?: string; compact: boolean }) {
   const t = tb(id);

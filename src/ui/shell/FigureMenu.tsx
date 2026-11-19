@@ -1,5 +1,8 @@
 import { UI } from '../strings.generated.ts';
 import { useShell, type Figure } from './store.ts';
+import { useBlood } from '../../scene/blood/options.ts';
+import { useLabels } from '../../scene/labels/store.ts';
+import { sceneApi } from '../../scene/api.ts';
 import { Anchored } from './Pop.tsx';
 import { Icon } from './icons.tsx';
 import { tb } from './TopBar.tsx';
@@ -10,11 +13,17 @@ import { runFeature } from './features.ts';
 const ICON: Record<string, string> = { Chevrons: 'chevrons', 'Key chevrons only': 'chevrons', 'Pressure values': 'tag', 'Potential collaterals': 'route', 'Organ names': 'liver', Zones: 'zones', Lymph: 'lymph', Bile: 'bile' };
 const KEY: Record<string, keyof Figure> = { Chevrons: 'chevrons', 'Key chevrons only': 'keyChevrons', 'Pressure values': 'chips', 'Potential collaterals': 'collaterals', 'Organ names': 'labels', Zones: 'zones', Lymph: 'lymph', Bile: 'bile' };
 
+const BLOOD_KEYS = new Set(['chevrons', 'keyChevrons', 'chips', 'collaterals', 'labels']);
+/** A Blood switch lives in the scene's own store (src/scene/blood); the lobule's layers live in the shell. */
 function Switch({ label, hint }: { label: string; hint?: string }) {
   const k = KEY[label];
+  const blood = BLOOD_KEYS.has(k);
   const on = useShell((s) => s.figure[k] as boolean);
+  const bloodOn = useBlood((s) => (blood ? (s[k as 'chevrons'] as boolean) : false));
+  const checked = blood ? bloodOn : on;
+  const flip = () => { if (blood) { sceneApi.setBlood({ [k]: !bloodOn }, useShell.getState().mode === 'deck'); if (k === 'labels') useLabels.getState().set({ organNames: !bloodOn }); } else useShell.getState().setFigure({ [k]: !on }); };
   return (
-    <button type="button" role="switch" className="sh-row" aria-checked={on} onClick={() => useShell.getState().setFigure({ [k]: !on })}>
+    <button type="button" role="switch" className="sh-row" aria-checked={checked} onClick={flip}>
       <Icon n={ICON[label] ?? 'info'} /><span className="sh-t">{label}</span><span className="sh-sw" aria-hidden="true" />{hint && <span className="sh-d">{hint}</span>}
     </button>
   );
@@ -50,7 +59,7 @@ export function FigureMenu({ kind }: { kind: 'blood' | 'layers' }) {
   const blood = kind === 'blood';
   const id = blood ? 'btnBlood' : 'btnLobuleLayers';
   const t = tb(id);
-  const on = useShell((s) => (blood ? s.figure.chevrons || s.figure.keyChevrons : true));
+  const on = useBlood((s) => (blood ? s.chevrons || s.keyChevrons : true));
   return (
     <Anchored sheet={kind} label={t.title ?? t.label ?? id} width={320} button={({ id: pid, open, toggle }) => (
       <button type="button" className="sh-pill" data-opens={kind} data-off={!on} aria-haspopup="menu" aria-expanded={open} aria-controls={pid} title={t.title ?? undefined} onClick={toggle}>

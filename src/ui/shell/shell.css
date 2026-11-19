@@ -201,3 +201,7 @@
 .sh-diag-box { margin: 0; padding: 4px 8px; border-radius: 8px; background: rgb(0 0 0 / 0.72); color: #fff; font: 11px / 1.35 ui-monospace, Menlo, monospace; white-space: pre-wrap; max-width: min(520px, 92vw);
   opacity: 0; visibility: hidden; transition: opacity 200ms var(--sh-ease), visibility 0s linear 200ms; }
 .sh-diag-box[data-on="true"] { opacity: 1; visibility: visible; transition-delay: 0s; }
+
+/* the colour key (B3's Legend) stands under the figure, centred; it fades with the talk */
+.sh-key { position: absolute; left: 50%; transform: translateX(-50%); --lg-title: 12px; --lg-num: 12px; --lg-width: 200px; pointer-events: none; transition: opacity 240ms var(--sh-ease); }
+.sh-key[data-hidden="true"] { opacity: 0; }

@@ -31,6 +31,6 @@ export const SECTIONS: readonly Section[] = [
 /** Rows that do their 2D work today (the rest are on the sheet with the 2D words and stored, but nothing behind them yet). */
 export const WIRED: ReadonlySet<string> = new Set([
   'Appearance/Light', 'Appearance/Soft', 'Appearance/Dark', 'Appearance/Navy', 'Appearance/Black', 'Appearance/System',
-  'Display/Keyboard shortcuts', 'Diagnostics/Show frame rate', 'Diagnostics/Show frame breakdown', 'Top/Reset everything…', 'Top/Enter full screen', 'Top/Help',
+  'Display/Keyboard shortcuts', 'Display/Blur effect', 'Diagnostics/Show frame rate', 'Diagnostics/Show frame breakdown', 'Top/Reset everything…', 'Top/Enter full screen', 'Top/Help',
 ]);
 export const isWired = (r: Row) => WIRED.has(`${r.section ?? 'Top'}/${r.label}`);
