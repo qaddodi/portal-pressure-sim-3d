@@ -89,3 +89,29 @@
 .ac-dye .ac-bl { display: inline-block; min-width: 4.9em; }
 .ac-panel { min-width: 0; }
 @media (prefers-reduced-motion: reduce) { .ac-card, .ac-body, .ac-switch, .ac-switch i { transition: none; animation: none; } }
+
+/* the Details face (2D: the inspector's selection panel): a head with Back, the direction word, the readings in a grid, the actions, the vessel's line, About */
+.ac-name-btn { display: inline-flex; align-items: center; gap: 2px; padding: 0; border: 0; background: transparent; text-align: left; font: inherit; }
+.ac-name-btn .ac-chev { width: 16px; height: 16px; color: var(--text-3); flex: none; }
+.ac-name-btn:hover .ac-chev { color: var(--text); }
+.ac-dhead { display: flex; align-items: flex-start; gap: 6px; min-width: 0; padding-right: 30px; }
+.ac-back { display: inline-grid; place-items: center; flex: none; width: 32px; height: 32px; margin: -4px 0 0 -8px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--text-2); }
+.ac-back:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+.ac-back .sh-ic { width: 18px; height: 18px; }
+.ac-dtitle { display: flex; flex-direction: column; min-width: 0; }
+.ac-dtitle h2 { margin: 0; }
+.ac-kicker { font-size: 12px; color: var(--text-3); font-weight: 500; }
+.ac-state-row { display: flex; }
+.ac-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; font-variant-numeric: tabular-nums; }
+.ac-stat { display: flex; flex-direction: column; min-width: 0; }
+.ac-stat.wide { grid-column: 1 / -1; }
+.ac-stat .k { font-size: 12px; color: var(--text-3); font-weight: 500; }
+.ac-stat .v { font-size: 15px; font-weight: 500; white-space: nowrap; }
+.ac-dnote { margin: 4px 0 0; font-size: 12px; color: var(--text-3); }
+.ac-dabout h3 { margin: 4px 0 4px; font-size: 12px; font-weight: 600; color: var(--text-3); }
+.ac-dabout p { margin: 0; font-size: 12px; line-height: 1.45; color: var(--text-2); }
+.ac-state-row .st-word.ok { color: var(--text-2); }
+.ac-state-row :is(.st-word.rev, .st-word.bad) { color: var(--danger-ink); }
+.ac-state-row .st-word.warn { color: var(--caution-ink); }
+/* (a short screen, an iPhone on its side: the face keeps its About reachable rather than cut) */
+.ac-details { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
