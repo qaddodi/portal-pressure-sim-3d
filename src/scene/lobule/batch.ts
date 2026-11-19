@@ -26,6 +26,11 @@ export class Batch {
   private tan: number[] = [];
   private idx: number[] = [];
   private count = 0;
+  /** Where each tube's rings start in the vertex list: for a part that colours itself along its length (the `ink` attribute, see `withInk`). */
+  readonly tubes: { start: number; rings: number; ring: number }[] = [];
+  private inkOn = false;
+  /** The built geometry gets an `ink` attribute (RGB per vertex, set by the caller from `tubes`). */
+  withInk(): this { this.inkOn = true; return this; }
 
   get vertices(): number { return this.count; }
 
@@ -40,6 +45,7 @@ export class Batch {
     let N = up.clone().sub(T[0]!.clone().multiplyScalar(up.dot(T[0]!))).normalize();
     let arc = 0;
     const base = this.count;
+    this.tubes.push({ start: base, rings: n, ring: radial + 1 });
     for (let i = 0; i < n; i++) {
       if (i > 0) {
         arc += P[i]!.distanceTo(P[i - 1]!);
@@ -109,6 +115,7 @@ export class Batch {
     g.setAttribute('normal', new Float32BufferAttribute(this.nor, 3));
     g.setAttribute('uv', new Float32BufferAttribute(this.uv, 2));
     g.setAttribute('tang', new Float32BufferAttribute(this.tan, 3));
+    if (this.inkOn) g.setAttribute('ink', new Float32BufferAttribute(new Float32Array(this.count * 3).fill(0.6), 3));
     g.setIndex(this.idx);
     g.computeBoundingSphere();
     return g;

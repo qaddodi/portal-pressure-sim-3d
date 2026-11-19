@@ -51,7 +51,7 @@ export interface LensData {
 export const newLensData = (): LensData => ({ lens: 'neutral', mode: 0, grad: new Float32Array(NE * 2 * 4), lanes: new Float32Array(NE * 2 * 4) });
 
 const samplers = new Map<string, Sampler>();
-const samplerFor = (look: LookId, name: keyof Pick<LensTokens, 'pressure' | 'flow' | 'velocity' | 'heat' | 'drop' | 'oxygen'>): Sampler => {
+export const samplerFor = (look: LookId, name: keyof Pick<LensTokens, 'pressure' | 'flow' | 'velocity' | 'heat' | 'drop' | 'oxygen'>): Sampler => {
   const key = `${look}|${name}`;
   let s = samplers.get(key);
   if (!s) { s = sampler(LENS_TOKENS[look][name]); samplers.set(key, s); }

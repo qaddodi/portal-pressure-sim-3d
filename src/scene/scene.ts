@@ -88,6 +88,7 @@ export class CelScene {
   private fadeNow = 1;
   private presence!: PresenceTracks;
   private collateralsOn = false;
+  private blood = { chevrons: true, keyChevrons: false };
   private readonly plate: Mesh;
   private readonly byEdge = new Map<string, CelObject>();
   private look: LookId;
@@ -210,10 +211,11 @@ export class CelScene {
   // ---- lens and blood ------------------------------------------------------------------------
 
   /** Colour the veins by a lens (the Layers menu's ten, a deck's 'system' and 'since', or 'neutral' for the plain anatomy). */
-  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.moving = true; }
+  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.lobule.setLens(lens); this.moving = true; }
   /** The healthy patient at rest (the engine's `healthyProfile`): the reference the change, congestion, velocity and direction lenses compare to. */
   setHealthy(h: { P: ArrayLike<number>; Q: ArrayLike<number>; D: ArrayLike<number> }): void {
     this.lens.setContext({ healthy: { Q: h.Q, D: h.D, P: h.P }, ref: Float32Array.from(h.P) });
+    this.lobule.setReference(Float32Array.from(h.P));
     this.moving = true;
   }
   /** The Blood menu: chevrons on or off, key routes only, and potential collaterals (dotted routes). */
@@ -223,6 +225,8 @@ export class CelScene {
       if (latest.frame) this.syncPresence(latest.frame, false);
     }
     this.flow.setOptions({ chevrons: o.chevrons, keyChevrons: o.keyChevrons, presenting: o.presenting } as Partial<BloodOptions>);
+    this.blood = { chevrons: o.chevrons ?? this.blood.chevrons, keyChevrons: (o.keyChevrons ?? this.blood.keyChevrons) || !!o.presenting };
+    this.lobule.setBlood(this.blood);
     this.moving = true;
   }
 

@@ -24,6 +24,10 @@ bool fadedOut() { return fade < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoo
 
 export const TOON_VS = /* glsl */ `
 attribute vec3 tang;
+#ifdef VERTEX_INK
+attribute vec3 ink;
+varying vec3 vInk;
+#endif
 uniform float inflate;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
@@ -48,6 +52,9 @@ void main() {
   vT = normalize(normalMatrix * tang);
   vV = normalize(-mv.xyz);
   vUv = uv;
+#ifdef VERTEX_INK
+  vInk = ink;
+#endif
   gl_Position = projectionMatrix * mv;
 }`;
 
@@ -70,6 +77,12 @@ uniform float flowAmount;
 uniform float flowBands;
 uniform vec3 markColor;
 uniform vec3 markReversed;
+// a part that carries its own colour at each vertex (the lobule's vessels wear the colour lens along their length): the vertex colour in place of the tone, its shade a fixed share of it
+uniform float inkShade;
+uniform float inkAmount;
+#ifdef VERTEX_INK
+varying vec3 vInk;
+#endif
 varying vec3 vN;
 varying vec3 vV;
 varying vec3 vT;
@@ -107,7 +120,13 @@ void main() {
   float f = fract(q);
   float w = fwidth(q) * 0.75;
   float b = (floor(q) + smoothstep(0.5 - w, 0.5 + w, f)) / bands;
-  vec3 c = mix(shade, color, clamp(b, 0.0, 1.0));
+  vec3 base = color;
+  vec3 sh = shade;
+#ifdef VERTEX_INK
+  base = mix(color, vInk, inkAmount);
+  sh = mix(shade, vInk * inkShade, inkAmount);
+#endif
+  vec3 c = mix(sh, base, clamp(b, 0.0, 1.0));
   float ndv = max(dot(n, vV), 0.0);
   float rim = smoothstep(0.66, 0.70, 1.0 - ndv) * step(0.5, d);
   float sp = spec * smoothstep(0.962, 0.972, max(dot(reflect(-l, n), vV), 0.0));

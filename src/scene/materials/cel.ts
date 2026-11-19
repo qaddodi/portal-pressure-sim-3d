@@ -78,12 +78,14 @@ export class CelObject {
     this.toon = new ShaderMaterial({
       vertexShader: TOON_VS,
       fragmentShader: TOON_FS,
+      // a geometry with an `ink` attribute carries its own colour at each vertex (setInk): the shader reads it in place of the tone
+      defines: geometry.getAttribute('ink') ? { VERTEX_INK: '' } : undefined,
       uniforms: {
         color: { value: new Color() }, shade: { value: new Color() }, light: shared.light,
         bands: { value: opts.bands }, spec: { value: opts.spec }, inflate: { value: 0 },
         len: { value: v?.len ?? 1 }, time: shared.time, radius: { value: v?.radius ?? 0 }, baseD: { value: v?.baseD ?? 1 },
         vdata: shared.vdata, vdataSize: shared.vdataSize, vindex: { value: v?.index ?? 0 }, useData: { value: 0 },
-        stubSpeed: { value: v?.stubSpeed ?? 0 }, reveal: { value: 1 }, fade: { value: 1 }, flowAmount: { value: 0 }, flowBands: { value: 0 },
+        stubSpeed: { value: v?.stubSpeed ?? 0 }, reveal: { value: 1 }, fade: { value: 1 }, inkShade: { value: 0.62 }, inkAmount: { value: 0 }, flowAmount: { value: 0 }, flowBands: { value: 0 },
         markColor: { value: new Color() }, markReversed: { value: new Color() },
       },
     });
@@ -108,6 +110,7 @@ export class CelObject {
   applyPalette(p: Palette): void {
     const base = rawColor(p.tones[this.tone]);
     const ink = rawColor(p.ink);
+    this.toon.uniforms.inkShade!.value = p.shade;
     (this.toon.uniforms.color.value as Color).copy(base);
     (this.toon.uniforms.shade.value as Color).copy(base).multiplyScalar(p.shade).lerp(ink, 0.08);
     (this.ink.uniforms.color.value as Color).copy(ink);
@@ -128,6 +131,9 @@ export class CelObject {
     this.toon.uniforms.flowAmount.value = amount;
     this.toon.uniforms.flowBands.value = bands ? 1 : 0;
   }
+
+  /** How much of the vertex colour (the geometry's `ink` attribute) shows in place of the tone: 1 all, 0 none. Only objects built with the attribute. */
+  setInkAmount(a: number): void { this.toon.uniforms.inkAmount!.value = a; }
 
   setUseData(on: boolean): void { this.toon.uniforms.useData.value = on ? 1 : 0; }
 

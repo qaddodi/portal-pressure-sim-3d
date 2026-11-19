@@ -17,7 +17,7 @@ import type { CelObject } from '../src/scene/materials/cel.ts';
 const net = buildLobule();
 const kind = (k: string) => net.courses.filter((c) => c.kind === k);
 const model = (o: Partial<LobuleModel> = {}): LobuleModel => ({
-  zone: { pre: 1, sin: 1, post: 1 }, P1: 11, P2: 8, P3: 5, P4: 4, flow: 1, portal: 1, art: 1, rev: { pre: false, sin: false, post: false },
+  zone: { pre: 1, sin: 1, post: 1 }, Qs: { pre: 18, sin: 9, post: 18 }, Q0: { pre: 18, sin: 9, post: 18 }, oxy: [0.85, 0.85, 0.75], P1: 11, P2: 8, P3: 5, P4: 4, flow: 1, portal: 1, art: 1, rev: { pre: false, sin: false, post: false },
   lymph: 0.9, lymph0: 0.9, lyProt: 0.87, sigma: 0.15, iap: 5, alb: 4, s: 0, cong: 0, fibSin: 0, fibPre: 0, fibPost: 0, congU: 0, shuntU: 0, septU: 0, act: 0, ...o,
 });
 
@@ -218,7 +218,7 @@ test('turning the Lymph layer off fades the ducts away (they shrink to nothing, 
   assert.equal(lymph.visible, false);
 });
 
-test('blood\'s chevrons follow flow-mark option A: only the parts the slide names; the deck terms light the sinusoids with the central vein or the triad', () => {
+test('blood\'s chevrons follow the Blood menu as in the 2D lobule: on for every vessel by default, off when switched off, the named parts alone for "key chevrons only"', () => {
   assert.deepEqual([...litParts(['lobule:sinusoid'])], ['sinusoids']);
   assert.ok(litParts(['lobule:central']).has('central-vein') && litParts(['lobule:central']).has('sinusoids'));
   assert.ok(litParts(['lobule:triad']).has('portal-tracts') && litParts(['lobule:triad']).has('sinusoids'));
@@ -226,23 +226,28 @@ test('blood\'s chevrons follow flow-mark option A: only the parts the slide name
   v.setVisible(true); v.snapModel(model());
   const blood = marked(v).filter((o) => !v.set.get('lymph').group.children.includes(o.group));
   let t = settle(v);
-  for (const o of blood) assert.equal(flowOf(o), 0, 'nothing named, nothing marked');
-  v.setLit(litParts(['lobule:sinusoid'])); t = settle(v, t);
+  assert.ok(blood.length >= 5);
+  for (const o of blood) assert.equal(flowOf(o), 1, 'the blood moves, nothing named');
+  v.setBlood({ chevrons: false, keyChevrons: false }); t = settle(v, t);
+  for (const o of blood) assert.equal(flowOf(o), 0, 'Blood > Chevrons off');
+  v.setBlood({ chevrons: true, keyChevrons: true }); v.setLit(litParts(['lobule:sinusoid'])); t = settle(v, t);
   const sinus = blood.filter((o) => v.set.get('sinusoids').group.children.includes(o.group));
   assert.equal(sinus.length, 3);
   for (const o of sinus) assert.equal(flowOf(o), 1);
-  for (const o of blood.filter((o) => !sinus.includes(o))) assert.equal(flowOf(o), 0);
-  v.setFlowMode('C'); settle(v, t);
-  for (const o of blood) assert.equal(flowOf(o), 1, 'option C marks everything');
+  for (const o of blood.filter((o) => !sinus.includes(o))) assert.equal(flowOf(o), 0, 'key chevrons only: the named parts');
 });
 
-test('reversed flow runs the marks the other way', () => {
+test('the marks run at the 2D painter\'s speeds (sinusoids 1 : 1.45 : 2.05 of sqrt(flow), faster in the inlets and the arteriole\'s twig), and reversed portal flow runs the inlets\' marks backward', () => {
   const v = new LobuleView(createShared());
-  v.setVisible(true); v.setLit(['sinusoids']); v.snapModel(model()); settle(v);
-  const s0 = marked(v).find((o) => v.set.get('sinusoids').group.children.includes(o.group))!;
-  const fwd = speedOf(s0);
-  v.snapModel(model({ flow: 0.8, rev: { pre: false, sin: true, post: false } })); settle(v, 2000);
-  assert.ok(fwd > 0 && speedOf(s0) < 0);
+  v.setVisible(true); v.snapModel(model()); settle(v);
+  const m = marked(v), speed = (part: string, i = 0) => speedOf(m.filter((o) => v.set.get(part as 'sinusoids').group.children.includes(o.group))[i]!);
+  const [a, b, c] = [speed('sinusoids', 0), speed('sinusoids', 1), speed('sinusoids', 2)];
+  assert.ok(a > 0 && Math.abs(b / a - 1.45) < 1e-6 && Math.abs(c / a - 2.05) < 1e-6);
+  assert.ok(speed('inlets') > a, 'the inlets run faster than the first sinusoids');
+  v.snapModel(model({ portal: 0.8, rev: { pre: true, sin: false, post: false } })); settle(v, 2000);
+  assert.ok(speed('inlets') < 0, 'reversed portal flow: marks the other way');
+  v.snapModel(model({ flow: 0.8, rev: { pre: false, sin: true, post: false } })); settle(v, 4000);
+  assert.equal(speed('sinusoids', 0), 0, 'reversed sinusoids carry no streaks, as in 2D');
 });
 
 test('the sinusoid view carries NO lymph chevrons: only the blood\'s lumen is a marked vessel, and the lymph duct and the space of Disse have no marks', () => {
