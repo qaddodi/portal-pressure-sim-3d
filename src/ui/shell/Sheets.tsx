@@ -15,6 +15,7 @@ import { RESET } from './words.ts';
 import { resetEverything } from './reset.ts';
 import { DeckDialogs } from '../deck/DeckDialogs.tsx';
 import { TreatCard } from '../treat/TreatCard.tsx';
+import { PageDialog } from './Pages.tsx';
 import { ActionCard } from '../action/ActionCard.tsx';
 
 function ResetDialog() {
@@ -53,6 +54,7 @@ export function Sheets() {
       <HelpMenu />
       <Guide />
       <ResetDialog />
+      <PageDialog />
       <DeckDialogs />
     </>
   );

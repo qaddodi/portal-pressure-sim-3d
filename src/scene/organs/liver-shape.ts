@@ -10,8 +10,8 @@ export const NODULE_HEIGHT = 0.011;
 const CELL = 13 * NODULE_SIZE * CIRR.nod / 4;   // 2D units: a nodule's width, from liver-geo.js's spacing and the nodule scale
 
 const hash2 = (i: number, j: number, k: number): number => { let h = (i * 374761393 + j * 668265263 + k * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
-/** The nodule bump (0..1) at a point of the 2D plane: 1 at the middle of a cell, 0 in the septum between cells (a jittered-grid Voronoi). */
-export function noduleBump(x: number, y: number): number {
+/** How far a point of the 2D plane is from the wall between two cells of the nodules' jittered-grid Voronoi, in cells x 2: 0 on a wall, larger inside a cell. */
+export function cellEdge(x: number, y: number): number {
   const gx = x / CELL, gy = y / CELL, ix = Math.floor(gx), iy = Math.floor(gy);
   let d1 = 9, d2 = 9;
   for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
@@ -19,9 +19,17 @@ export function noduleBump(x: number, y: number): number {
     const d = Math.hypot(gx - cx, gy - cy);
     if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
   }
-  const edge = d2 - d1;   // 0 on the wall between two cells, larger inside one
-  const u = Math.min(1, edge / 0.55);
+  return d2 - d1;   // 0 on the wall between two cells, larger inside one
+}
+/** The nodule bump (0..1) at a point of the 2D plane: 1 at the middle of a cell, 0 in the septum between cells. */
+export function noduleBump(x: number, y: number): number {
+  const u = Math.min(1, cellEdge(x, y) / 0.55);
   return u * u * (3 - 2 * u);
+}
+/** The pale fibrous septum (0..1): 1 on the wall between two nodules, a thin line (about 4 px across) that is 0 a little way inside a nodule. */
+export function septumAt(x: number, y: number): number {
+  const u = Math.min(1, Math.max(0, (cellEdge(x, y) - 0.04) / 0.16));
+  return 1 - u * u * (3 - 2 * u);
 }
 
 export class LiverShape {

@@ -17,7 +17,8 @@ import { Toast } from './Toast.tsx';
 import { Diagnostics } from './Diagnostics.tsx';
 import { useKeys } from '../keys/useKeys.ts';
 import { syncTransport } from './transport.ts';
-import { freeRoom, layoutVars, layoutClass } from './room.ts';
+import { freeRoom, layoutVars, layoutClass, dockHeight, dockInset } from './room.ts';
+import { M } from './metrics.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { applyDeepLink } from './open-link.ts';
 import { showView } from './view-actions.ts';
@@ -73,6 +74,12 @@ function usePublishedLayout(app: React.RefObject<HTMLDivElement | null>, thumb: 
     const el = app.current;
     if (!el || vp.w <= 0) return;
     for (const [k, v] of Object.entries(layoutVars(vp, layoutClass(thumb)))) el.style.setProperty(k, v);
+    // 2D main.js publishes on the root what the menu sheets and the palette read: on the thumb dock a sheet rests 8 px above the dock's top edge (--thumb-occ, --sheet-foot-screen) and stops under the top bar (--thumb-top)
+    const root = document.documentElement, d = layoutClass(thumb), px = (n: number) => `${Math.round(n)}px`;
+    root.classList.toggle('thumb-ui', thumb);
+    const occ = thumb ? dockInset(d) + dockHeight(d) + 8 : 0;
+    root.style.setProperty('--thumb-occ', px(occ)); root.style.setProperty('--sheet-foot-screen', px(occ));
+    root.style.setProperty('--thumb-top', thumb ? px(vp.safe.top + M.topSafe) : '0px');
   }, [app, vp, thumb]);
 }
 

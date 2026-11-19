@@ -19,8 +19,8 @@ export const BUILT_PANES: readonly PaneId[] = [
   'readouts', 'scope', 'abdomen', 'trials',
   // (one line per instrument, each its own thread's: a thread adds its own)
   'profile',
-  // hvpg
-  // doppler
-  // endoscopy
+  'hvpg',
+  'doppler',
+  'endoscopy',
   'fibroscan',
 ];

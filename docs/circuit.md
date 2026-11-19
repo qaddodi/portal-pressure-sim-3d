@@ -27,6 +27,20 @@ Source of truth is the 2D app (`qaddodi/portal-pressure-simulator`, `claude/sett
 `showView('circuit')` (shell) -> `sceneApi.showView` -> `cel.setView('circuit')` + `circuitShot`. The shell's `rotate` feature is `turnCircuit` (`ui/shell/view-actions.ts`).
 `sceneApi.circuitStation(id)` gives a station's place (turned with the map) for the labels batch.
 
+## The rest of the Circuit (finish thread)
+- **Branch trees, CAUD lane, custom shunts** (`tubes.ts`, `CircuitTubes`): real vessel tubes laid along their map course, with the body course set equal to the map course, so the
+  quarter turn carries them and they show only with the map's ramp (never in the body). 24 tree branches (`CIRCUIT_TREES`, a share `k` of the parent's caliber, least 1.2 units wide) follow
+  their parent's presence; the CAUD lane shows while `sceneApi.setCaudatePin(true)`; an open custom shunt (patient `customShunts`, frame D > 0) is routed once by the copied 2D router
+  (`router.copied.js`, A* on a grid, 45 degree runs), kept while open, and drawn as a tube. The body does not draw custom shunts (that is B5's).
+- **Resistors** (`res-model.ts` numbers, `resistors.ts` drawing): the 2D model (ratio to the healthy liver, lobes in parallel, width 2.5 to 13 px by log2, ok/caution/danger heat, six-tooth zigzag,
+  black outline, veil). Screen-space ribbons on the map layer, fading with it. `sceneApi.setResistors(['rLiver','rColl','rGut'])` chooses which show.
+- **Captions** (`captions.ts` builds, `CircuitCaptions.tsx` places and writes): zone titles, station names with readings (priority, compact on a phone, the liver's inner stations only when zoomed
+  in), lane captions (two lines beside a zigzag) and "R liver x2.3" readings, through the one label solver. The body's labels stand aside in the Circuit (`LabelDeps.hidden`).
+- **The peel's tangent** is exact now: `shader.ts` adds the peel's slope term (`peelSlope`, vertex attribute `cl` = the two course lengths), mirrored on the CPU in `tests/circuit-finish.test.ts`.
+- **Procedure devices** (catheters, stents, bands, tamponade) fade out with the change (`ProcedureLayer.setFade`).
+
 ## Not done yet (gaps)
-Liver branch trees (`CIRCUIT_TREES`), resistors and their readings, zone and lane captions, station labels with readings (B6 draws them from `circuitStation`), custom-shunt
-routing, the CAUD lane, the liver-module collapse, and the 2D tangent term of the peel gradient (the shader's tangent is the plain blend: up to about 25% off mid-change, exact at both ends).
+- Nothing here has run on a real GPU (the new tangent GLSL, the ribbons and the caption layer are only checked in node): Mac play-test first.
+- Deck wiring: Circuit slides still go through `scene-link` as view 'body', so no slide yet calls `setResistors` or `setCaudatePin`.
+- The liver-module collapse is only the captions' (inner stations wait for a zoom); the branch tubes do not yet collapse to the 2D "module" drawing when zoomed out.
+- The caption layout uses the shared solver with simplified region rules; compare with the 2D map on `?parity`.

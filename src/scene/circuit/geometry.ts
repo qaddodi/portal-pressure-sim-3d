@@ -15,7 +15,7 @@ export function slicesFor(id: string): number {
   return c ? Math.min(360, Math.max(16, Math.ceil(c.lenC * 24))) : 0;
 }
 
-export const CIRCUIT_ATTRIBUTES = ['cC', 'tC', 'fr', 'pk'] as const;
+export const CIRCUIT_ATTRIBUTES = ['cC', 'tC', 'fr', 'pk', 'cl'] as const;
 
 /** Adds the morph's attributes to a built tube. The tube must have been built with at least `slicesFor(id)` slices. */
 export function attachCircuit(built: VesselGeometry, course: CircuitCourse, radius: number): BufferGeometry {
@@ -30,7 +30,7 @@ export function attachCircuit(built: VesselGeometry, course: CircuitCourse, radi
 export function attachRuns(g: BufferGeometry, runs: readonly TubeRun[], course: CircuitCourse, radius: number): BufferGeometry {
   const pos = g.getAttribute('position'), tan = g.getAttribute('tang'), rkA = g.getAttribute('rk');
   const n = pos.count;
-  const cC = new Float32Array(n * 3), tC = new Float32Array(n * 3), fr = new Float32Array(n * 3), pk = new Float32Array(n * 2);
+  const cC = new Float32Array(n * 3), tC = new Float32Array(n * 3), fr = new Float32Array(n * 3), pk = new Float32Array(n * 2), cl = new Float32Array(n * 2);
   const write = (v: number, s: number, ca: Vector3, ta: readonly [number, number, number], cc: Vector3, tc: Vector3, rank: number) => {
     const r = radius * (rkA ? rkA.getX(v) : 1);
     const o: [number, number, number] = [(pos.getX(v) - ca.x) / r, (pos.getY(v) - ca.y) / r, (pos.getZ(v) - ca.z) / r];
@@ -39,6 +39,7 @@ export function attachRuns(g: BufferGeometry, runs: readonly TubeRun[], course: 
     cC[3 * v] = cc.x; cC[3 * v + 1] = cc.y; cC[3 * v + 2] = cc.z;
     tC[3 * v] = tc.x; tC[3 * v + 1] = tc.y; tC[3 * v + 2] = tc.z;
     pk[2 * v] = rank; pk[2 * v + 1] = s;
+    cl[2 * v] = course.lenA; cl[2 * v + 1] = course.lenC;
   };
   const tmpA = course.curveA.getPointAt(0), tmpC = course.curveC.getPointAt(0), tmpT = course.curveC.getTangentAt(0);
   for (const run of runs) {
@@ -66,5 +67,6 @@ export function attachRuns(g: BufferGeometry, runs: readonly TubeRun[], course: 
   g.setAttribute('tC', new BufferAttribute(tC, 3));
   g.setAttribute('fr', new BufferAttribute(fr, 3));
   g.setAttribute('pk', new BufferAttribute(pk, 2));
+  g.setAttribute('cl', new BufferAttribute(cl, 2));
   return g;
 }

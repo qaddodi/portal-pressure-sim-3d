@@ -7,6 +7,7 @@ import { EDGES, JUNCTION_PIECES, PORTAL_TERRITORY, dMinOf } from '../../engine/h
 import { ANAT_HIDDEN, BACK_EDGES, EDGE_PATH_2D, HIDDEN_EDGES, IVC_EDGES, NEEDS_C3 } from './paths.copied.ts';
 import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
 import { isCoiling } from './coil.ts';
+import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { TIER_Z, type Tier, len3, x3, y3 } from '../frame2d.ts';
 
@@ -85,7 +86,7 @@ const toneOf = (e: Edge): NetTone => (isArteryEdge(e) ? 'artery' : portal.has(e.
 /** The 2D course of an edge carried into the scene: x and y by the linear map, z by its tier. */
 export function courseOf(id: string): Vec3[] {
   const e = edgeById.get(id)!, z = TIER_Z[tierOf(e)];
-  return EDGE_PATH_2D[id]!.map(([x, y]): Vec3 => [x3(x), y3(y), z]);
+  return pathOf(id).map(([x, y]): Vec3 => [x3(x), y3(y), z]);
 }
 
 /** The shunts a procedure makes (B5): drawn while the engine gives them a diameter (stage-frame.js edgeVisible: `D > 0`). */
@@ -106,6 +107,14 @@ export function isDrawnEdge(e: Edge): boolean {
 const FEEDER_K: Record<string, number> = { AZY_SVC: 1, C3: 0.5, CAUD: 0.55 };
 const NETWORK_HOST_W = (e: Edge): number => widthPx(e, e.d ?? e.dMax ?? (dMinOf(e) || 3));
 
+// ---- joins: the 2D figure's run-ons (joins.ts): the pairs that continue one another, and their courses redrawn smooth through the join ----
+const JOIN_LIST: JoinEdge[] = edges.filter(isDrawnEdge).map((e) => ({ id: e.id, from: e.from, to: e.to, art: isArteryEdge(e), kind: e.kind, path: EDGE_PATH_2D[e.id]! }));
+/** The pairs of vessels that run on into one another, by the 2D rule. */
+export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST);
+const SMOOTH = smoothRunOns(new Map(JOIN_LIST.map((j) => [j.id, j.path])), RUN_ONS);
+/** A vessel's 2D course as drawn: smooth through the joins where it runs on into another. */
+const pathOf = (id: string): readonly (readonly [number, number])[] => SMOOTH.get(id) ?? EDGE_PATH_2D[id]!;
+
 function build(): NetVessel[] {
   const out: NetVessel[] = [];
   for (const e of edges) {
@@ -115,7 +124,7 @@ function build(): NetVessel[] {
     out.push({
       id: e.id, host: hostOfPiece.get(e.id) ?? e.id, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(widthPx(e, baseD)),
       label: e.label ?? e.id, pts: courseOf(e.id), kind: e.kind, tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: e.id,
-      plan: { kind: 'coil', base: EDGE_PATH_2D[e.id]!, coils: isCoiling(e.id, e.kind, !!e.spontaneous), strands: !!STRANDS_2D[e.id] },
+      plan: { kind: 'coil', base: pathOf(e.id), coils: isCoiling(e.id, e.kind, !!e.spontaneous), strands: !!STRANDS_2D[e.id] },
     });
   }
   // The tributaries (stage-geo.js feedGeo): each host's, grouped by the rule that shows them, one vessel a group.
@@ -144,18 +153,20 @@ export const NODE_Z: ReadonlyMap<string, number> = (() => {
   for (const v of NETWORK) if (!v.feeder) for (const n of [v.from, v.to]) { const a = acc.get(n) ?? []; a.push(TIER_Z[v.tier]); acc.set(n, a); }
   return new Map([...acc].map(([n, a]) => [n, a.reduce((x, y) => x + y, 0) / a.length]));
 })();
-// A node where exactly two vessels meet is a run-on: the two tubes ease to one width over the last third of each (the 2D tubes' own end easing, tubeRadius).
+// Two vessels that run on into one another (a node of exactly two, or the pair the 2D rule picks at a fork) ease to one width over the last third of each (the 2D tubes' own end easing,
+// tubeRadius; a branch keeps its own caliber, which the 2D figure fillets).
 {
-  const at = new Map<string, { v: NetVessel; end: 0 | 1 }[]>();
-  for (const v of NETWORK) if (!v.feeder) { for (const [n, end] of [[v.from, 0], [v.to, 1]] as const) { const a = at.get(n) ?? []; a.push({ v, end }); at.set(n, a); } }
   const t = new Map<NetVessel, [number, number]>();
-  for (const list of at.values()) {
-    if (list.length !== 2) continue;
-    const [a, b] = list as [typeof list[0], typeof list[0]];
-    if (a.v === b.v || a.v.kind === 'collateral' || b.v.kind === 'collateral' || a.v.widthKind !== b.v.widthKind) continue;
+  const pair = (a: { v: NetVessel; end: 0 | 1 }, b: { v: NetVessel; end: 0 | 1 }) => {
+    if (a.v === b.v || a.v.kind === 'collateral' || b.v.kind === 'collateral' || a.v.widthKind !== b.v.widthKind) return;
     const m = (a.v.radius + b.v.radius) / 2;
     for (const x of [a, b]) { const cur = t.get(x.v) ?? [1, 1]; cur[x.end] = m / x.v.radius; t.set(x.v, cur); }
-  }
+  };
+  const at = new Map<string, { v: NetVessel; end: 0 | 1 }[]>();
+  for (const v of NETWORK) if (!v.feeder) { for (const [n, end] of [[v.from, 0], [v.to, 1]] as const) { const a = at.get(n) ?? []; a.push({ v, end }); at.set(n, a); } }
+  for (const list of at.values()) if (list.length === 2) pair(list[0]!, list[1]!);
+  const byId = new Map(NETWORK.filter((v) => !v.feeder).map((v) => [v.id, v]));
+  for (const r of RUN_ONS) { const a = byId.get(r.a), b = byId.get(r.b); if (a && b) pair({ v: a, end: r.ia }, { v: b, end: r.ib }); }
   for (const [v, k] of t) v.taper = k;
 }
 /** The vessels with a map course (everything but the fans of tributaries, which the Circuit does not draw). */
