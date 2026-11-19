@@ -51,6 +51,8 @@ export function extract(deck) {
   });
   return {
     id: deck.id, title: deck.title, level: deck.level, minutes: deck.minutes, summary: deck.summary, objectives: deck.objectives,
+    // the outline's own sections ([name, [kickers or slide ids]]), as the 2D deck writes them: the opening slide lists them (withOverview)
+    ...(deck.sections ? { sections: deck.sections } : {}),
     checks: SLICE.checks.map((i) => deck.checks[i]),
     slides,
   };

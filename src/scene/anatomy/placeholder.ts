@@ -2,6 +2,8 @@ import { BufferGeometry, Shape, ShapeGeometry, SphereGeometry, Vector3 } from 't
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { ToneKey } from '../palette.ts';
 import { type Vec3, buildTube } from './vessels.ts';
+import { x3, y3 } from '../frame2d.ts';
+import { ORGAN_MESHES } from '../organs/meshes.ts';
 
 // Procedural placeholder organs, until the artist's glTF arrives (look-and-feel.md: "the slice judges the look system, the anatomy only as
 // placeholder"). Frontal view; the patient's right is on the viewer's left. Same coordinates as vessels.ts.
@@ -38,16 +40,12 @@ const tube = (pts: Vec3[], r: number) => () => buildTube(pts.map((q) => new Vect
 const sbPoints: Vec3[] = [];
 for (let i = 0; i <= 36; i++) sbPoints.push([0.72 * Math.sin(i * 0.62), -0.55 - i * 0.042, 0.22 + 0.1 * Math.cos(i * 0.9)]);
 
-export const ORGANS: readonly OrganDef[] = [
-  { id: 'heart', tone: 'heart', px: 1.5, geometry: () => blob(0.55, 0.46, 0.42, 0.05, 3.3), position: [-0.35, 2.55, -0.55] },
-  { id: 'liver-right', tone: 'liver', px: 1.8, geometry: () => blob(1.35, 0.95, 0.85, 0.06, 1.3), position: [-0.8, 1.05, -0.15], rotation: [0, 0, -0.16] },
-  { id: 'liver-left', tone: 'liver', px: 1.8, geometry: () => blob(0.95, 0.5, 0.55, 0.05, 2.2), position: [0.5, 1.28, 0], rotation: [0, 0, -0.28] },
-  { id: 'spleen', tone: 'spleen', px: 1.8, geometry: () => blob(0.38, 0.62, 0.3, 0.05, 2.1), position: [1.9, 1.0, -0.45], rotation: [0, 0, 0.5] },
-  { id: 'stomach', tone: 'stomach', px: 1.5, geometry: tube([[0.55, 1.75, 0.05], [1.05, 1.45, 0.25], [1.28, 0.95, 0.3], [1.0, 0.5, 0.35], [0.45, 0.55, 0.4]], 0.3) },
-  { id: 'oesophagus', tone: 'stomach', px: 1.5, geometry: tube([[0.55, 1.75, 0.05], [0.42, 2.25, -0.2], [0.3, 2.9, -0.4]], 0.11) },
-  { id: 'colon', tone: 'gut', px: 1.5, geometry: tube([[-1.35, -2.2, 0.05], [-1.45, -0.9, 0.12], [-1.25, -0.15, 0.25], [0, -0.05, 0.35], [1.25, -0.15, 0.25], [1.5, -0.9, 0.12], [1.35, -2.2, 0.05]], 0.24) },
-  { id: 'small-bowel', tone: 'gut', px: 1.4, geometry: tube(sbPoints, 0.16) },
-];
+// The organs are the 2D figure's own outlines given smooth depth (src/scene/organs, art/organs-simple/build.py), already in the shared frame.
+// 'kidney-l' takes the spleen's tone until the looks table has a kidney tone.
+export const ORGANS: readonly OrganDef[] = ([
+  ['heart', 'heart', 1.5], ['heart-ra', 'heart', 1.5], ['liver', 'liver', 1.8], ['spleen', 'spleen', 1.8], ['stomach', 'stomach', 1.5],
+  ['kidney-l', 'spleen', 1.5], ['duodenum', 'stomach', 1.4], ['colon', 'gut', 1.5], ['bowel', 'gut', 1.4],
+] as const).map(([id, tone, px]) => ({ id, tone, px, geometry: ORGAN_MESHES[id] }));
 
 /** Small oesophageal varices (small parts: 2 bands, thin ink). Shown from the pick on, they ride the lower oesophagus. */
 export const VARICES: readonly { angle: number; y: number; r: number }[] = [
@@ -66,5 +64,7 @@ export function bodyPlateGeometry(): ShapeGeometry {
   return new ShapeGeometry(torso, 32);
 }
 export const BODY_PLATE_Z = -1.35;
-/** The plate's extent (scene units): what the gestures keep the middle of the free room inside of, so the figure is never lost. */
-export const PLATE_BOUNDS = { x0: -2.6, x1: 2.6, y0: -2.7, y1: 3.3 } as const;
+/** The figure's extent (scene units; the 2D figure's content, x 380 to 1100, y 0 to 1000 by frame2d.ts): what the gestures keep the middle of the free room inside of, so the figure is never lost. */
+/** The depth the figure's rectangle is measured at (the vessels' tiers run from -0.32 to 0.54; organs straddle 0). */
+export const FIGURE_Z = 0.2;
+export const PLATE_BOUNDS = { x0: x3(380), x1: x3(1100), y0: y3(1000), y1: y3(0) } as const;

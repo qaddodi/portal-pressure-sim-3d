@@ -3,16 +3,18 @@ import { CelObject, type CelShared } from './materials/cel.ts';
 import type { Palette } from './palette.ts';
 import { type Vec3, buildTube } from './anatomy/vessels.ts';
 import { blob } from './anatomy/placeholder.ts';
+import { catheterRoute } from './catheter-route.ts';
+import { NETWORK_BY_ID } from './vessels/network.ts';
 
 // The HVPG catheter (slice slides: route, free, wedge, hvpg). It enters from the right internal jugular vein, runs down the SVC through
-// the right atrium and the IVC, turns into the right hepatic vein and stops there, the balloon on its tip. Centreline in scene units, same frontal coordinates as the vessels.
+// the right atrium and the IVC, turns into the right hepatic vein and stops there, the balloon on its tip. Centreline in scene units, the same map as the vessels (catheter-route.ts).
 
-export const CATHETER_ROUTE: readonly Vec3[] = [
-  [-0.42, 3.4, -0.5], [-0.42, 2.2, -0.55], [-0.48, 1.62, -0.6], [-0.9, 1.42, -0.42], [-1.2, 1.3, -0.33],
-];
-export const CATHETER_RADIUS = 0.018;
-/** Balloon size when fully inflated (ellipsoid radii along and across the catheter). */
-export const BALLOON_RADII: Vec3 = [0.075, 0.055, 0.055];
+export const CATHETER_ROUTE: readonly Vec3[] = catheterRoute();
+/** The vein the tip reads in (its lumen's radius, scene units): the catheter is about 0.3 of it, as in the 2D app (stage-cath.js: Rf * 0.26 to 0.34), and the balloon fills it. */
+const VEIN_R = NETWORK_BY_ID.get('RHV_IVC')!.radius;
+export const CATHETER_RADIUS = VEIN_R * 0.3;
+/** Balloon size when fully inflated (ellipsoid radii along and across the catheter): across, most of the lumen. */
+export const BALLOON_RADII: Vec3 = [VEIN_R * 1.3, VEIN_R * 0.9, VEIN_R * 0.9];
 
 export interface CatheterState {
   /** How far the catheter has advanced along its route, 0 (not shown) to 1 (the tip in the right hepatic vein). */
@@ -66,7 +68,7 @@ export class Catheter {
     if (this.balloonObj.group.visible) {
       this.curve.getPointAt(1, this.scratch);
       const tangent = this.curve.getTangentAt(1);
-      this.balloonObj.group.position.copy(this.scratch).addScaledVector(tangent, -0.045);
+      this.balloonObj.group.position.copy(this.scratch).addScaledVector(tangent, -BALLOON_RADII[0] * 0.6);
       this.quat.setFromUnitVectors(new Vector3(1, 0, 0), tangent);
       this.balloonObj.group.quaternion.copy(this.quat);
       this.balloonObj.group.scale.setScalar(b);
