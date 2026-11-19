@@ -13,15 +13,19 @@ function useLook() {
   return resolveLook(useSettings((s) => s.look), dark);
 }
 
-export function Legend({ compact = false, reference = 'healthy' }: { compact?: boolean; reference?: string }) {
+/** `variant="bar"` is the figure header's legend (the 2D app's `.legend`, in the top bar beside the Blood button, never over the figure): the full title and
+ *  the compact caption both render, and the stylesheet shows the one that fits the screen (shell.css, as the 2D app's media rules do). */
+export function Legend({ compact = false, reference = 'healthy', variant = 'under' }: { compact?: boolean; reference?: string; variant?: 'under' | 'bar' }) {
   const lens = useLens((s) => s.lens);
   const look = useLook();
   const g = legendFor(lens, look, reference);
   if (lens === 'neutral' && !g.dots) return null;
   const [title, unit] = compact ? g.caption ?? g.title ?? ['', ''] : g.title ?? ['', ''];
+  const [cap, capUnit] = g.caption ?? g.title ?? ['', ''];
   return (
-    <figure className="lg" key={`${lens}:${look}`} role="img" aria-label={g.aria} data-lens={lens}>
+    <figure className="lg" key={`${lens}:${look}`} role="img" aria-label={g.aria} data-lens={lens} data-variant={variant}>
       {title ? <figcaption className="lg-title"><b>{title}</b>{unit ? <span> {unit}</span> : null}</figcaption> : null}
+      {variant === 'bar' && cap ? <figcaption className="lg-cap" aria-hidden="true"><b>{cap}</b>{capUnit ? <span> {capUnit}</span> : null}</figcaption> : null}
       {g.bar ? (
         <div className="lg-bar-wrap">
           <div className="lg-bar" style={{ background: `linear-gradient(to right, ${g.bar.stops.map(([c, p]) => `${c} ${p}%`).join(', ')})` }}>

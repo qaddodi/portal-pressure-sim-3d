@@ -22,13 +22,11 @@ import { applyDeepLink } from './open-link.ts';
 import { showView } from './view-actions.ts';
 import { useBlood } from '../../scene/blood/options.ts';
 import { useLabels } from '../../scene/labels/store.ts';
-import { Legend } from '../../scene/lenses/Legend.tsx';
 import { footHeight } from './room.ts';
 import { CompareBanner } from '../compare/CompareUi.tsx';
 import { startCompare } from '../compare/bind.ts';
 import { startTimeline } from '../timeline/index.ts';
 import { startHistory } from '../history/bind.ts';
-import { useCompare } from '../compare/store.ts';
 import { startActions } from '../action/boot.ts';
 
 /** The screen's size and its safe areas, measured when either changes (never per frame). Free play needs it too: the talk's own UI measures only while it is mounted. */
@@ -73,7 +71,6 @@ export function Shell() {
   useFreeCamera();
   useEffect(() => syncTransport(), []);
   useEffect(() => { const offs = [startTimeline(), startCompare(), startHistory()]; return () => offs.forEach((o) => o()); }, []);
-  const cmp = useCompare((c) => c.snap), cmpView = useCompare((c) => c.view);
   useEffect(() => startActions(), []);
   useEffect(() => { const f = useShell.getState().figure; sceneApi.setLobuleLayers({ lymph: f.lymph, zones: f.zones }); }, []);
   // what the Blood menu remembers goes to the scene and the labels once at boot (the menu then tells them itself)
@@ -94,7 +91,6 @@ export function Shell() {
             <ThumbBar />
           </div>
         )}
-        <div className="sh-key" data-hidden={mode === 'deck'} style={{ bottom: `calc(var(--safe-b, 0px) + ${footHeight(device)}px)` }}><Legend reference={cmp && cmpView === 'D' ? cmp.when : undefined} /></div>
         <CompareBanner />
         <Sheets />
         <Toast />

@@ -11,6 +11,7 @@ import { labelsAt } from '../src/scene/labels/deck-link.ts';
 import { rectToBox, hits, grow, type Box } from '../src/scene/labels/geometry.ts';
 import { STATIONS } from '../src/scene/labels/stations.ts';
 import { FADE } from '../src/scene/labels/alpha.ts';
+import { dockKey } from '../src/scene/labels/key-dock.ts';
 import { Vector3 } from 'three';
 import { CATHETER_ROUTE } from '../src/scene/catheter.ts';
 
@@ -40,7 +41,7 @@ function harness(screen: keyof typeof SCREENS, stop: number, beat = 0) {
   const deps: LabelDeps = {
     now: () => t, project: (p, o) => rig.project(p, o), cameraMoving: () => moving,
     free: () => rectToBox(plan.free), view: () => ({ x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom }),
-    vp: () => ({ w: vp.w, h: vp.h }), reversed: () => false,
+    vp: () => vp, reversed: () => false, words: () => plan.cards.find((c) => c.slot === 'words')?.rect ?? null,
     blockers: () => blockers, measure, pressure: (n) => (n.length * 1.7) % 20, reading: (k) => ({ whvp: 16.2, fhvp: 5.1, hvpg: 11.1 } as Record<string, number>)[k] ?? null,
     cathere: (tip: Vector3, ahead: Vector3) => { if (!adv) return 0; curve.end(tip, ahead); return balloon ? 2 : 1; },
   };
@@ -127,18 +128,19 @@ test('a slide that names parts of the figure dims the others to 65 %; with nothi
   assert.ok(title.ctl.out.every((d) => d.alpha === 1), 'nothing named, nothing dim');
 });
 
-test('the figure key stands in the lower right of the free room, clear of every card and label, and fades with the labels', () => {
-  const h = harness('mac', 3);
-  h.ctl.setState({ ...NO_STATE, named: h.lab.named, cath: h.lab.cath, key: 'velocity' });
-  h.ctl.setKeySize(180, 30);
-  h.settle();
-  const key = h.ctl.out.find((d) => d.kind === 'key')!;
-  assert.ok(key, 'the key is drawn');
-  const free = h.plan.free;
-  assert.ok(key.x + key.w <= free.x + free.w && key.y + key.h <= free.y + free.h);
-  const kb: Box = { x0: key.x, y0: key.y, x1: key.x + key.w, y1: key.y + key.h };
-  for (const c of h.blockers) assert.ok(!hits(kb, c));
-  for (const d of h.ctl.out) if (d.kind !== 'key') assert.ok(!hits(kb, { x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h }), `${d.id} overlaps the key`);
-  h.setMoving(true); h.settle(300);
-  assert.equal(h.ctl.out.length, 0, 'the key fades with the labels while the picture moves');
+test('the figure key stands where the 2D app docks it, clear of every label, and fades with the labels', () => {
+  for (const screen of Object.keys(SCREENS) as (keyof typeof SCREENS)[]) {
+    const h = harness(screen, 3);
+    h.ctl.setState({ ...NO_STATE, named: h.lab.named, cath: h.lab.cath, key: 'velocity' });
+    h.ctl.setKeyNatural(180, 30); h.ctl.setKeySize(180, 30);
+    h.settle();
+    const key = h.ctl.out.find((d) => d.kind === 'key')!;
+    assert.ok(key, `${screen}: the key is drawn`);
+    const want = dockKey({ vp: SCREENS[screen], words: h.plan.cards.find((c) => c.slot === 'words')?.rect ?? null, natural: { w: 180, h: 30 }, wrapped: { w: 180, h: 30 } });
+    assert.deepEqual([key.x, key.y, key.w, key.h].map(Math.round), [want.box.x0, want.box.y0, want.box.x1 - want.box.x0, want.box.y1 - want.box.y0].map(Math.round), `${screen}: at its 2D dock`);
+    const kb: Box = { x0: key.x, y0: key.y, x1: key.x + key.w, y1: key.y + key.h };
+    for (const d of h.ctl.out) if (d.kind !== 'key') assert.ok(!hits(kb, { x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h }), `${screen}: ${d.id} overlaps the key`);
+    h.setMoving(true); h.settle(300);
+    assert.equal(h.ctl.out.length, 0, 'the key fades with the labels while the picture moves');
+  }
 });
