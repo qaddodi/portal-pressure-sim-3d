@@ -45,7 +45,7 @@ export interface Look {
 }
 
 /** The sizes the 2D card hands a chart (card-scale.js): the host's base size comes from them (HOSTS in chart-looks/index.js). */
-export interface LookCtxIn { host: string; sm?: number; cap?: number; lab?: number; fs12?: number; chCap?: number; in?: string; boxW?: number; px?: number; svk?: number; dark?: boolean }
+export interface LookCtxIn { host: string; sm?: number; cap?: number; lab?: number; fs12?: number; chCap?: number; in?: string; boxW?: number; px?: number; svk?: number; dark?: boolean; layout?: string; lad?: number }
 
 const colour = (v: unknown): Rgba | undefined => {
   if (typeof v !== 'string' || v === 'none' || v === 'transparent') return undefined;
@@ -58,7 +58,7 @@ const num = (v: unknown) => (typeof v === 'number' ? v : undefined);
 export function look(c: ChartCtx, h: LookCtxIn, key: string, state: Record<string, unknown> = {}, params: Record<string, string> = {}): Look {
   const entry = (TABLE as Record<string, unknown>)[key];
   if (!entry) throw new Error(`no 2D chart look "${key}"`);
-  const base = (makeCtx as unknown as (l: object) => object)({ host: h.host, in: h.in ?? '', boxW: h.boxW ?? c.w, px: h.px, svk: h.svk ?? 1, scale: { sm: h.sm ?? c.type.sm, cap: h.cap, lab: h.lab, fs12: h.fs12, chCap: h.chCap } });
+  const base = (makeCtx as unknown as (l: object) => object)({ host: h.host, in: h.in ?? '', boxW: h.boxW ?? c.w, px: h.px, svk: h.svk ?? 1, layout: h.layout, lad: h.lad, scale: { sm: h.sm ?? c.type.sm, cap: h.cap, lab: h.lab, fs12: h.fs12, chCap: h.chCap } });
   const ctx = (withCtx as unknown as (c: object, o: object) => object)(base, { theme: c.look, dark: c.pal.dark, palette: '' });
   const P = (resolveProps as unknown as (e: unknown, c: object, s: object, p: object) => unknown)(entry, ctx, state, params) as Record<string, unknown>;
   const o: Look = {};
