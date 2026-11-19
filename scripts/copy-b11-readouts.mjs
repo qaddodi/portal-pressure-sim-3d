@@ -1,11 +1,6 @@
 #!/usr/bin/env node
 // Copies what the Readouts pane and its "Work backward from readings" door need from the 2D app, so no number, word or step is retyped (parity plan section 2).
 //   src/ui/tests/readouts/copied/display-state.copied.js   display-state.js whole (createShownState: the page's shown readings, the critically damped follow the tiles and bars glide on)
-//   src/ui/tests/readouts/copied/from-readings.copied.js   from-readings.js whole (the four steps, the review, the cases, the scenarios; its DOM helpers are the 3D shim ../fr-dom.ts)
-//   src/ui/tests/readouts/copied/fold-slide.copied.js      fold-slide.js whole (the transform fold of a scenario row)
-//   src/ui/tests/readouts/copied/inverse-remote.copied.js  inverse-remote.js whole (the ranking on the page, the refinement in its worker)
-//   src/ui/tests/readouts/copied/inverse-worker.copied.js  inverse-worker.js whole (the Gauss-Newton refinement, off the main thread)
-//   src/ui/tests/readouts/copied/yours-store.copied.js     yours-store.js whole (the patients saved as "Yours" on this device)
 // Usage: node scripts/copy-b11-readouts.mjs --from <2D checkout> [--check]    (--check writes nothing and fails when a file would change)
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -14,7 +9,7 @@ const args = process.argv.slice(2);
 const flag = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : null; };
 const from = flag('--from') ?? process.env.PPS_2D_REPO;
 const check = args.includes('--check');
-if (!from || !existsSync(`${from}/src/ui/from-readings.js`)) { console.error('usage: copy-b11-readouts.mjs --from <2D checkout>'); process.exit(2); }
+if (!from || !existsSync(`${from}/src/ui/display-state.js`)) { console.error('usage: copy-b11-readouts.mjs --from <2D checkout>'); process.exit(2); }
 let commit = 'unknown';
 try { commit = execFileSync('git', ['-C', from, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(); } catch { /* not a checkout */ }
 
@@ -42,11 +37,6 @@ function rewrite(name, src, map) {
 }
 const WHOLE = [
   ['display-state', {}],
-  ['from-readings', { './util.js': '../fr-dom.ts', './fold-slide.js': './fold-slide.copied.js', './ease.js': '../../copied/ease.copied.js', './inverse-remote.js': './inverse-remote.copied.js' }],
-  ['fold-slide', { './ease.js': '../../copied/ease.copied.js', './motion.js': '../../copied/motion.copied.js' }],
-  ['inverse-remote', {}],
-  ['inverse-worker', {}],
-  ['yours-store', { './prefs.js': '../fr-dom.ts', './caught.js': '../fr-dom.ts' }],
 ];
 for (const [n, map] of WHOLE) put(`${n}.copied.js`, HEAD(`${n}.js`) + rewrite(n, read(`src/ui/${n}.js`), map));
 

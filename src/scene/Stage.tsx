@@ -3,6 +3,7 @@
 //   engine phase  the engine's newest frame goes into the vessel data texture (the scene samples it)
 //   camera phase  the scene steps its tweens (shot, highlight, flow marks) and says whether it needs another frame
 //   render phase  one gl.render of the cel scene (a useFrame with a render priority, so R3F does not draw its own empty scene)
+import { tapFigure } from '../ui/action/tap.ts';
 import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Raycaster } from 'three';
@@ -17,10 +18,14 @@ import { figureDpr, msaaFor } from './quality.ts';
 import { aaMode } from './post-aa.ts';
 import { installShaderGuard } from '../debug/shader-guard.ts';
 import { setRenderer } from '../debug/gl-ref.ts';
+import { lobulePicked } from './lobule/pick-store.ts';
+import { lobuleSel } from './lobule/pick.ts';
 import { cel, frames, gesturesRef, sceneApi } from './api.ts';
 import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
 import { type GestureTarget, createGestures } from './gesture/controller.ts';
+import { type Sel, selectStructure, useSelection } from '../ui/action/selection.ts';
+import { tapSelect } from '../ui/action/tap-select.ts';
 
 const vesselData = new VesselData();
 cel.bindData(vesselData.texture);
@@ -107,14 +112,16 @@ function SceneBridge() {
       fitRect: () => cel.rig.fitRect(),
       orbit: () => cel.rig.orbitAngle,
       setOrbit: (rad) => { const changed = cel.rig.setOrbit(rad); if (changed) clock.invalidate('orbit'); return changed; },
-      tap: (x, y) => {
+      // a tap picks what 2D's does (src/ui/action/tap-select.ts): a vessel, an organ (liver with its lobe, heart, spleen) or the belly's fluid; a tap on nothing puts the selection away
+      tap: (x, y, touch) => {
         if (useDeck.getState().mode !== 'free') return;
-        const hit = cel.pickAt(x, y, raycaster.current);
-        sceneApi.pick(hit && hit === cel.highlight.picked ? null : hit);
+        if (cel.view === 'lobule') { const h = cel.pickLobule(x, y, raycaster.current); lobulePicked(h ? lobuleSel(h) : null); return; }   // (the lobule's parts, by 2D's own rule: lobule/pick.ts)
+        tapSelect(cel.pickTargetAt(x, y, raycaster.current, !!touch), { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: cel.view === 'body' });
       },
-      picked: () => cel.highlight.picked,
-      setPicked: (id) => sceneApi.pick(id),
-      context: (x, y) => { const hit = cel.pickAt(x, y, raycaster.current); if (hit) sceneApi.pick(hit); },
+      picked: () => useSelection.getState().sel,
+      setPicked: (sel) => selectStructure(sel as Sel | null),
+      // right click and long press open the card of what is under the pointer and never close it (2D's contextmenu)
+      context: (x, y, touch) => { const hit = cel.pickTargetAt(x, y, raycaster.current, !!touch); if (hit) tapSelect(hit, { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: true }, false); },
     }, {
       now: () => performance.now(),
       ask: frames.ask, cancel: frames.cancel,

@@ -5,6 +5,7 @@ import type { Vec3 } from '../anatomy/vessels.ts';
 import { type View, lerpView } from '../gesture/ease.ts';
 import type { Rect } from '../gesture/view.ts';
 import { type Room, effectiveDistance, viewOffset } from './room.ts';
+import { PLUNGE_RATIO, dollyDistance, fovAt, fovBump } from './dive.ts';
 import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
 
 /** Radians of turn per pixel of drag. */
@@ -89,6 +90,10 @@ export class CameraRig {
   private orbitFrom = 0;
   /** Where the turn is heading with the move in flight: 0 (a new shot starts square on), or where it stands when only the room changed (a card opened). */
   private orbitTo = 0;
+  /** The lens's share now (0 the long lens, 1 the widest, dive.ts), the share a move began with (a move reversed mid-plunge carries it, so the lens never jumps) and whether this move is a plunge into the figure. */
+  private bump = 0;
+  private bumpFrom = 0;
+  private plunge = false;
   private width = 1;
   private height = 1;
   private dirty = true;
@@ -122,9 +127,13 @@ export class CameraRig {
   }
 
   get isMoving(): boolean { return this.active; }
+  /** The lens's field of view now (degrees): the long lens at rest, wider in the middle of a plunge. */
+  get fov(): number { return fovAt(this.bump); }
   /** Whether the camera has its first real shot and room; nothing is drawn before. */
   get placed(): boolean { return this.placedFirst; }
   get pose(): Readonly<Pose> { return this.cur; }
+  /** The room the camera is going to (or is in): what a layout decision reads, so it changes once as a card opens and not all along the glide. */
+  get targetRoom(): Readonly<Room> { return this.to.room.w > 1 ? this.to.room : { x: 0, y: 0, w: this.width, h: this.height }; }
 
   /** Fly to a shot (and a room) in one straight move. Called again mid-flight, the new move starts from where the camera is now. */
   goTo(shot: ShotName | Shot, room: Room, now: number, ms = SHOT_MS, keepHand = false): void {
@@ -144,6 +153,9 @@ export class CameraRig {
     // a new shot takes the hand's zoom and pan back to the shot's own framing, in the same move
     this.handFrom = { ...this.hand };
     this.handTween = keepHand ? this.handTween : this.hand.k !== 1 || this.hand.x !== 0 || this.hand.y !== 0;
+    // the lens: a plunge into the figure (the body to the lobule or the sinusoid, or back) widens it and narrows it again (dive.ts); Reduce Motion keeps the long lens throughout
+    this.bumpFrom = this.bump;
+    this.plunge = !(this.reduceMotion || reduced()) && Math.max(this.from.shot.r, this.to.shot.r) / Math.max(1e-9, Math.min(this.from.shot.r, this.to.shot.r)) > PLUNGE_RATIO;
     this.t0 = now;
     this.dur = reducedMs(ms, this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
     this.orbitTo = keepHand ? (this.active ? this.orbitTo : this.orbit) : 0;
@@ -153,8 +165,10 @@ export class CameraRig {
   }
 
   /** The cards changed room (a card opened, the phone turned): move the room alone, same curve; the hand's zoom and the viewer's turn stay (cards opening keep both). `homeTurn`: a guided step brings the turn home with the move. */
-  setRoom(room: Room, now: number, ms = SHOT_MS, homeTurn = false): void {
-    this.goTo(this.to.shot, room, now, ms, true);
+  setRoom(room: Room, now: number, ms?: number, homeTurn = false): void {
+    // a card opening in the middle of a dive keeps the dive's own time: it lands when it was going to, in the new room (not a fresh 950 ms from a standstill)
+    const left = this.active ? Math.max(1, this.t0 + this.dur - now) : undefined;
+    this.goTo(this.to.shot, room, now, ms ?? (left != null ? Math.max(left, 200) : undefined), true);
     // a guided step (a slide, a catheter step) that asks for the shot the camera is already on still brings the turn home: the viewer's angle is theirs only between guided poses
     if (homeTurn) this.orbitTo = 0;
   }
@@ -210,6 +224,7 @@ export class CameraRig {
     if (this.active) {
       const k = this.dur <= 0 ? 1 : Math.min(1, (now - this.t0) / this.dur);
       this.cur = blendPose(this.from, this.to, easeInOutCubic(k));
+      this.bump = fovBump(k, this.bumpFrom, this.plunge);
       // the orbit eases back to centre with the shot (a new shot always starts square on), but a change of room alone (a card opening) leaves the turn the viewer chose
       this.orbit = lerp(this.orbitFrom, this.orbitTo, easeInOutCubic(k));
       if (this.handTween) { lerpView(this.handFrom, { k: 1, x: 0, y: 0 }, easeInOutCubic(k), this.hand); if (k >= 1) this.handTween = false; }
@@ -223,7 +238,10 @@ export class CameraRig {
   private apply(): void {
     const { shot, room } = this.cur;
     const w = this.width, h = this.height;
-    const r = effectiveDistance(shot, room.w > 1 ? room : { x: 0, y: 0, w, h }, h);
+    const fov = fovAt(this.bump);
+    // (the dolly zoom: as the lens widens the camera comes in by the same ratio, so what the dive aims at keeps its size and the world opens round it)
+    const r = dollyDistance(effectiveDistance(shot, room.w > 1 ? room : { x: 0, y: 0, w, h }, h), fov);
+    this.camera.fov = fov;
     const yaw = shot.yaw + this.orbit;
     const cp = Math.cos(shot.pitch);
     const [tx, ty, tz] = shot.target;

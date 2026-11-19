@@ -9,6 +9,8 @@ import { GO_TO } from './goto.ts';
 const DAYS = new Set(['+1 week', '+1 month', '+6 months', '+1 year', 'Until something happens', 'Restart this patient', 'Undo (back one change)', 'Compare from here']);
 const APP = new Set(['Home', 'Reset everything', 'Guide & shortcuts', 'Light / dark theme', 'Copy share link']);
 
+const VIEW = new Set(['Anatomy view', 'Circuit view', 'Lobule view', 'Tests']);
+
 /** The palette's Tests commands (2D palette.js): the Doppler's portal vein probe, and the endoscopy pane. */
 export const TESTS_PANE: Record<string, PaneId> = { 'Doppler of the portal vein': 'doppler', Endoscopy: 'endoscopy' };
 /** The palette's Go to commands (2D palette.js): a vessel by its name, or one of six structures. "Ascites" opens the Tests card's Ascites pane (the selection does that). */
@@ -22,11 +24,10 @@ export function goToSel(title: string): { type: 'organ' | 'edge'; id: string } |
 }
 export function isWiredCommand(group: string, title: string): boolean {
   if (group === 'Tests') return !!TESTS_PANE[title] && BUILT_PANES.includes(TESTS_PANE[title]!);
-  if (group === 'Go to') return !!goToSel(title);
   if (group === 'Time') return DAYS.has(title);
-  if (group === 'View') return title === 'Anatomy view' || title === 'Circuit view' || UI.lenses.some((l) => title === `Colored by ${l.name.toLowerCase()}`);
+  if (group === 'View') return VIEW.has(title) || UI.lenses.some((l) => title === `Colored by ${l.name.toLowerCase()}`);
   if (group === 'App') return APP.has(title) || UI.looks.some((l) => title === `Appearance: ${l.name}`);
-  if (group === 'Patient') return true;
+  if (group === 'Patient' || group === 'Present') return true;
   if (group === 'Go to') return GO_TO.has(title);   // (B6: select the vessel or organ, as 2D's palette does)
   if (group === 'Treat' || group === 'Change') return isOrderCommand(group, title);   // (B9: the orders)
   return false;

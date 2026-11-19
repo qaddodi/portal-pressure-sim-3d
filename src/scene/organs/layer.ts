@@ -2,7 +2,8 @@
 // as the 2D figure does it (stage-diaphragm.js updateOrgans): the liver's shape (cirrhosis) and dusk (congestion), a scale of the spleen with the model's size, a ghost of
 // a removed spleen, the grey of a lens other than Pressure, blood in the stomach. Meshes come from meshes.ts (the organs thread) in the shared frame; this file never
 // builds one. Everything moves on the clock: `update(now)` returns true while something eases, and nothing is touched when nothing moves.
-import { type BufferGeometry, Color, Group, Vector3, Vector4 } from 'three';
+import { type BufferGeometry, Color, Group, type Raycaster, Vector3, Vector4 } from 'three';
+import { PICK_OF } from './pick.ts';
 import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from './organ-shader.ts';
 import type { OrganTones2D } from '../../looks/organ-tones.copied.ts';
 import { ORGAN_MESHES } from './meshes.ts';
@@ -44,13 +45,16 @@ export const ORGAN_ORDER = ['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach'
 /** Puts 2D's organ painter (organ-shader.ts) in place of the toon fill: the uniforms the paint fills each look, and the organ's own box for the gradient.
  *  The fill is blended at the layer's opacity, so organs show through each other; it writes depth, and each organ's outline is drawn right after it, so the
  *  hull is hidden behind its own fill and shows only round the silhouette. */
+/** The dive's cutaway window, one for every organ (scene.ts writes it each frame from the camera's distance to the place dived to; camera/dive.ts cutUniform). Nothing cleared at rest. */
+export const ORGAN_CUT: { value: Vector4 } = { value: new Vector4(0, 0, -1, 1) };
+
 function useOrganShader(o: CelObject, g: BufferGeometry, id: string): void {
   if (!g.boundingBox) g.computeBoundingBox();
   const b = g.boundingBox!;
   const m = o.toon;
   m.vertexShader = ORGAN_VS; m.fragmentShader = ORGAN_FS;
   Object.assign(m.uniforms, {
-    o1: { value: new Color() }, o2: { value: new Color() }, page: { value: new Color() }, layer: { value: 0.55 },
+    cut: ORGAN_CUT, o1: { value: new Color() }, o2: { value: new Color() }, page: { value: new Color() }, layer: { value: 0.55 },
     ogLight: { value: new Vector4() }, ogDark: { value: new Vector4() }, volShade: { value: new Vector4() },
     box: { value: new Vector4(b.min.x, b.max.y, b.max.x - b.min.x, b.max.y - b.min.y) },
   });
@@ -124,6 +128,9 @@ export class OrganLayer {
     }
     this.dirtyColours = true; this.instant = true;
   }
+
+  /** How big the spleen is drawn now (1: normal): a caliper along its axis grows with it. */
+  get spleenScaleNow(): number { return this.spleenScale.value; }
 
   applyLook(p: Palette): void { this.palette = p; this.dirtyColours = true; }
   /** The organ outline is in the figure's units (ORGAN_INK_VS), so it needs no phone trim: keep 2D's 1.1 (kidney 1.4) on every device. */
@@ -211,6 +218,21 @@ export class OrganLayer {
 
   /** The gut floats up on ascites: the bowel moves up by `units` of the 2D figure (drawAscites: -bulge / 34 * 26). */
   setBowelLift(units: number): void { const b = this.byId.get('bowel'); if (b) b.group.position.y = units / 300; }
+
+  /** The organ a pointer ray hits first among the ones that take a tap (liver, heart with its atrium, spleen: pick.ts), as the 2D organ id the tap opens, and where (scene x). Null for none. */
+  pick(rc: Raycaster): { id: 'liver' | 'heart' | 'spleen'; x: number } | null {
+    const meshes = [];
+    for (const [id, o] of this.byId) {
+      if (!PICK_OF[id] || !o.group.visible) continue;
+      o.group.updateWorldMatrix(true, false);
+      o.toonMesh.geometry.computeBoundingSphere();   // (the liver's shape changes with cirrhosis: the sphere the ray tests first is made anew, never kept from the healthy one)
+      meshes.push(o.toonMesh);
+    }
+    const hit = rc.intersectObjects(meshes, false)[0];
+    if (!hit) return null;
+    for (const [id, o] of this.byId) if (o.toonMesh === hit.object) return { id: PICK_OF[id]!, x: hit.point.x };
+    return null;
+  }
 
   /** The 2D organs this layer draws, for the parity table. */
   get ids(): string[] { return [...this.byId.keys()]; }

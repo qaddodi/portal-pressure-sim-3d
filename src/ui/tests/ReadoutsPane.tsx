@@ -1,7 +1,7 @@
 // Tests > Readouts (2D readouts-pane.js): every readout the old bottom bar carried, live, in the 2D app's own tile (tile-el.js: `.metric` with its name, number, unit, trend, scale bar with
 // cut-off ticks and status line), so the lifted stylesheet (app-01-chrome.css .metric, tests-card.css "Readouts") styles it: plain figures in four groups, hairlines between, the bars
 // and boxes of the older look gone. A tap says what drives it (Why?); an HVPG not yet measured opens the procedure that measures it; Ascites opens its own pane. While a moment is pinned each
-// tile says its change from then in place of its word. Under the groups, "Have a patient's numbers? Work backward from readings" opens the From readings flow (readouts/from-readings-host.ts).
+// tile says its change from then in place of its word. Under the groups, "Have a patient's numbers? Work backward from readings" opens the From readings flow (readings/FromReadings.tsx).
 //
 // What a tile shows between the model's frames is readouts/live.ts (2D's update(): the 1.2 s running mean, the shown state's glide, the roll of a number that is not carried by the glide, the
 // band that changes once its number has landed, the trend arrow, the flash on a worse band). Here each tile only draws its `Out`: the number's text (or the roll of its changed digits, a transform
@@ -11,7 +11,7 @@ import { tileStatics, vitalStatics, SYSTEMIC_CAP, type Static } from './readouts
 import { useTests } from './store.ts';
 import { openWhy } from '../why/store.ts';
 import { bindReadouts, liveReadouts } from './readouts/runtime.ts';
-import { openFromReadings, warmFromReadings } from './readouts/from-readings-host.ts';
+import { openFromReadings, warmFromReadings } from '../readings/FromReadings.tsx';
 import type { Out } from './readouts/live.ts';
 import { D_FLIP, D_SMALL, EASE_ARRIVE, EASE_IN } from './copied/motion.copied.js';
 
@@ -101,7 +101,7 @@ function Tile({ s }: { s: Static }) {
 export function ReadoutsPane(_: { narrow?: boolean }) {
   // (the tiles are fed while the pane is on screen: every model frame, and again when the pinned moment, the hidden set or the patient changes)
   useLayoutEffect(() => bindReadouts(), []);
-  useEffect(() => { warmFromReadings(); }, []);
+  useEffect(() => { void warmFromReadings().catch(() => undefined); }, []);
   return (
     <div className="rp-body" data-pane="readouts" style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
       {STATICS.map((g) => (
@@ -117,7 +117,7 @@ export function ReadoutsPane(_: { narrow?: boolean }) {
       {/* (A second door to From readings, where readings live: the patient menu's top row is the first. Review U13.) */}
       <section className="rp-group rp-fr" aria-label="From readings">
         <h3 className="rp-cap">Have a patient’s numbers?</h3>
-        <button type="button" className="btn sm rp-fr-btn" onClick={(e) => openFromReadings(e.currentTarget)}><i className="ic ic-rewind rp-fr-ic" aria-hidden="true" /><span>Work backward from readings</span></button>
+        <button type="button" className="btn sm rp-fr-btn" onClick={() => openFromReadings()}><i className="ic ic-rewind rp-fr-ic" aria-hidden="true" /><span>Work backward from readings</span></button>
       </section>
     </div>
   );

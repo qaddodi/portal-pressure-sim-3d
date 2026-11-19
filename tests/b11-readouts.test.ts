@@ -8,10 +8,6 @@ import { TILES } from '../src/ui/tests/copied/dock-tiles.copied.js';
 import { createShownState } from '../src/ui/tests/readouts/copied/display-state.copied.js';
 import { ReadoutsLive, type LiveDeps, type FeedCtx } from '../src/ui/tests/readouts/live.ts';
 import { odoPlan } from '../src/ui/tests/readouts/odo.ts';
-import { rank, pointsOf, MIN_READINGS } from '../src/engine/hales/portal/inverse.js';
-import { LIBRARY } from '../src/engine/hales/portal/inverse-library.js';
-import { TRY_CASES } from '../src/engine/hales/portal/inverse-try-cases.js';
-import { createInverseRemote } from '../src/ui/tests/readouts/copied/inverse-remote.copied.js';
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
@@ -180,38 +176,15 @@ test('the odometer plans a column for each digit that changes, climbing when the
   assert.equal(odoPlan('5.0', '5.0', true), null);
 });
 
-// ── Work backward from readings ──
-test('From readings: every textbook case ranks on the library, and the remote answers from the grid where no worker can be made', () => {
-  const points = pointsOf(LIBRARY);
-  assert.ok(points.length > 400);
-  for (const c of TRY_CASES as unknown as Array<{ id: string; readings: Record<string, number> }>) {
-    const res = rank(c.readings, points);
-    assert.ok(res.ready && res.n >= MIN_READINGS, c.id);
-    assert.ok(res.families.length > 0, c.id);
-  }
-  const remote = createInverseRemote(undefined as never);
-  assert.equal(remote.status(), 'library');
-  const c = (TRY_CASES as unknown as Array<{ readings: Record<string, number> }>)[0]!;
-  assert.ok(remote.set(c.readings).ready);
-  assert.ok(remote.peek(c.readings).families.length > 0);
-});
-
-test('From readings is the 2D flow copied whole, with the helpers it takes from util.js supplied by the 3D shim, and its door is on the Readouts pane', () => {
-  const copied = readFileSync(new URL('../src/ui/tests/readouts/copied/from-readings.copied.js', import.meta.url), 'utf8');
-  const dom = readFileSync(new URL('../src/ui/tests/readouts/fr-dom.ts', import.meta.url), 'utf8');
-  const want = /import \{ ([^}]+) \} from '\.\.\/fr-dom\.ts'/.exec(copied)![1]!.split(',').map((x) => x.trim());
-  assert.deepEqual(want.sort(), ['announce', 'closePopover', 'h', 'popover', 'svgIcon', 'swapFade', 'swapText']);
-  for (const n of want) assert.ok(new RegExp(`export (function|const) ${n}\\b`).test(dom), n);
-  for (const w of ['Work backward from', 'No patient to enter?', 'Model scenarios, not diagnoses.', 'Open as patient']) assert.ok(copied.includes(w) || w.startsWith('Work backward'), w);
+// ── Work backward from readings: the flow itself is src/ui/readings (tests/from-readings.test.ts); this pane only holds its door ──
+test('the Readouts pane holds the From-readings door and opens the shared flow', () => {
   const pane = readFileSync(new URL('../src/ui/tests/ReadoutsPane.tsx', import.meta.url), 'utf8');
-  for (const w of ['Have a patient’s numbers?', 'Work backward from readings', 'rp-fr', 'rp-fr-btn', 'rp-fr-ic']) assert.ok(pane.includes(w), w);
-  const host = readFileSync(new URL('../src/ui/tests/readouts/from-readings-host.ts', import.meta.url), 'utf8');
-  assert.ok(host.includes("type: 'yours'") && host.includes('inverse-worker.copied.js') && host.includes('loadPatient'));
+  for (const w of ['Have a patient’s numbers?', 'Work backward from readings', 'rp-fr', 'rp-fr-btn', 'rp-fr-ic', "../readings/FromReadings.tsx"]) assert.ok(pane.includes(w), w);
 });
 
 test('the copy script is current against the 2D checkout, where there is one', () => {
   const twoD = process.env.PPS_2D_REPO ?? '/home/claude/portal-pressure-simulator';
-  if (!existsSync(`${twoD}/src/ui/from-readings.js`)) return;
+  if (!existsSync(`${twoD}/src/ui/display-state.js`)) return;
   const r = spawnSync('node', ['scripts/copy-b11-readouts.mjs', '--from', twoD, '--check'], { cwd: new URL('..', import.meta.url).pathname, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });

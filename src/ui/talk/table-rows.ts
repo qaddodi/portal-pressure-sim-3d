@@ -5,11 +5,28 @@ import { engine } from '../../engine/index.ts';
 import type { Deck, Slide, TableRowSpec } from '../../decks/schema.ts';
 import type { ResolvedRow, Fp } from './table-model.ts';
 import { slideFps, fpsNow } from './slide-states.ts';
+import { useStates } from '../../decks/hp/calc.ts';
+import { waveVessel, WAVE_SECS, type Trace } from './table-wave.ts';
 
 const keyOf = (d: Deck, s: Slide) => `${d.id}:${s.id}`;
 export const useTables = create<{ rows: Record<string, ResolvedRow[]> }>(() => ({ rows: {} }));
 /** Rises when a deck's numbers arrive, so a card that waited for them reads again. */
 const asked = new Set<string>();
+
+// The Doppler column's traces (table-wave.ts): each is worked out once per state and vessel on the engine (a step of its own from the row's state: the host's `wave` extra, run off the live clock's frames), one at a time.
+const traces = new WeakMap<object, Map<string, Promise<Trace | null>>>();
+let queue: Promise<unknown> = Promise.resolve();
+function traceOf(snap: object, vessel: string): Promise<Trace | null> {
+  let m = traces.get(snap);
+  if (!m) traces.set(snap, (m = new Map()));
+  if (!m.has(vessel)) {
+    const p = queue.then(() => engine().sequence([{ wave: { vessel, secs: WAVE_SECS } }], snap)).then((out) => ((out[0]?.extra as { wave?: Record<string, Trace> } | undefined)?.wave?.[vessel] ?? null), () => null);
+    queue = p.catch(() => undefined);
+    m.set(vessel, p);
+    void p.then((w) => { if (!w) m.delete(vessel); });   // (a run that gave nothing is asked again the next time the table is drawn)
+  }
+  return m.get(vessel)!;
+}
 
 const rowOf = (d: Deck, spec: TableRowSpec | string, f: Fp | null): ResolvedRow => {
   const sp: TableRowSpec = typeof spec === 'string' ? { id: spec } : spec;
@@ -27,7 +44,7 @@ export function resolveTable(d: Deck, s: Slide): void {
   if (!s.table || asked.has(k)) return;
   asked.add(k);
   const specs = s.table.of;
-  const put = (fps: (Fp | null)[]) => useTables.setState((st) => ({ rows: { ...st.rows, [k]: specs.map((sp, j) => rowOf(d, sp, fps[j] ?? null)) } }));
+  const put = (fps: (Fp | null)[]) => useTables.setState((st) => ({ rows: { ...st.rows, [k]: specs.map((sp, j) => ({ ...rowOf(d, sp, fps[j] ?? null), ...(st.rows[k]?.[j]?.trace !== undefined ? { trace: st.rows[k]![j]!.trace } : {}) })) } }));
   put([]);
   void (async () => {
     try {
@@ -41,6 +58,17 @@ export function resolveTable(d: Deck, s: Slide): void {
         return m >= 0 ? (mine[m]?.fp as Fp | undefined) ?? null : null;
       });
       put(fps);
+      if (s.table?.cols?.includes('wave')) {
+        const res = useStates.getState().results[d.id] ?? [];
+        specs.forEach((sp, j) => {
+          const id = typeof sp === 'string' ? sp : sp.id, at = id ? d.slides.findIndex((x) => x.id === id) : -1, m = own.findIndex((o) => o.j === j);
+          const snap = (id ? res[at]?.snap : (mine[m] as { snap?: unknown } | undefined)?.snap) as object | undefined;
+          if (!snap) return;
+          void traceOf(snap, waveVessel(typeof sp === 'string' ? null : sp, s.table)).then((w) => {
+            useTables.setState((st) => ({ rows: { ...st.rows, [k]: (st.rows[k] ?? []).map((r, q) => (q === j ? { ...r, trace: w } : r)) } }));
+          });
+        });
+      }
     } catch { asked.delete(k); }
   })();
 }

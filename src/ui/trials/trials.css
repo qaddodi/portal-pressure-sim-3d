@@ -33,3 +33,20 @@
 .tr-rules li[data-state="yes"] .tr-mark { color: var(--ok); }
 .tr-rules li[data-state="no"] .tr-mark { color: var(--danger); }
 .tr-val { color: var(--text-2); }
+/* The open trial's lesson, its other results, the Model line and the Baveno VIII lines (2D tests-card.css .tr-lesson .tr-also .tr-lab .tr-model .tr-bav) */
+.tr-lesson { margin: 0; font: 600 14px / 1.4 var(--ui); color: var(--text); text-wrap: pretty; }
+.tr-also { margin: 0; font: 500 12.5px / 1.4 var(--ui); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.tr-lab { margin: 2px 0 0; font: 600 12px / 1.3 var(--ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.tr-model { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+.tr-model .k { font: 600 12px / 1.3 var(--ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.tr-model .v { font: 600 15px / 1.35 var(--ui); font-variant-numeric: tabular-nums; color: var(--text); animation: tr-in 240ms var(--ease-arrive, ease) both; }
+.tr-model .v b { font-weight: 600; }
+.tr-model .v s { text-decoration: none; color: var(--text-3); }
+.tr-model .s { font: 400 12px / 1.4 var(--ui); color: var(--text-2); }
+.tr-model b[data-sev="caution"] { color: var(--caution); }
+.tr-model b[data-sev="danger"] { color: var(--danger); }
+.tr-bav { display: flex; flex-direction: column; gap: 4px; font: 400 12.5px / 1.45 var(--ui); color: var(--text-2); }
+.tr-bav b { font-weight: 600; color: var(--text); }
+.tr-today { color: var(--text); }
+@keyframes tr-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .tr-model .v { animation: none; } }

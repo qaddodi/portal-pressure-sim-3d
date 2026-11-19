@@ -86,7 +86,7 @@ const HEP_ART = new Set(['A_HEP', 'A_HR', 'A_HL']);
 const PETAL_COLL = new Set(['C8']);   // (collaterals that carry portal blood TOWARD the liver: the cavernoma bypasses the clot into the portal hilum)
 const PRESENT_ONLY_ESO = new Set(['C1a', 'C1b']), PRESENT_ONLY_GAS = new Set(['C2', 'C5']);
 
-const doppler: Verb = { type: 'button', id: 'doppler', label: 'Doppler', icon: 'doppler', run: (a) => { a.feature('doppler', 'Doppler'); a.select(null); } };
+const dopplerOn = (_id: string): Verb => ({ type: 'button', id: 'doppler', label: 'Doppler', icon: 'doppler', run: (a) => { a.feature('doppler', 'Doppler'); a.select(null); } });
 const dye: Verb = { type: 'dye', id: 'dye', label: 'Inject dye', short: 'Dye', icon: 'drop', run: (a) => a.feature('dye', 'Inject dye') };
 
 function varixVerbs(site: 'eso' | 'gas'): Verb[] {
@@ -113,7 +113,7 @@ const FIB = { pre: fibrosisVerb('pre'), sin: fibrosisVerb('sin'), post: fibrosis
 
 // ── a vessel ──
 function edgeCard(e: Edge): Card {
-  const id = e.id, k = EI[id]!, verbs: Verb[] = [];
+  const id = e.id, k = EI[id]!, verbs: Verb[] = [], doppler = dopplerOn(id);
   const isColl = e.kind === 'collateral', isShunt = e.kind === 'shunt', isArt = e.kind === 'artery' || e.kind === 'arteriole';
   const narrow: Verb = { type: 'slider', id: 'narrow', key: 'stenosis', label: 'Stenosis', icon: 'pinch', min: 0, max: 0.95, step: 0.01, format: pct, def: 0,
     get: (p) => p.stenosis[id] || 0, set: (p, v) => { if (v <= 0.004) delete p.stenosis[id]; else p.stenosis[id] = +v.toFixed(2); }, hist: `${e.label}: stenosis`,

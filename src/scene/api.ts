@@ -13,6 +13,7 @@ import { create } from 'zustand';
 import { engine } from '../engine/boot.ts';
 import type { LensId } from './lenses/model.ts';
 import type { FigureView } from './scene.ts';
+import { isPortrait } from './sinusoid/index.ts';
 import { lobuleShot, sinusoidShot, type LobuleCam, type LobuleLayers } from './lobule/index.ts';
 import { circuitShot, circuitBoxShot } from './circuit/shots.ts';
 import type { ResKey } from './circuit/res-model.ts';
@@ -22,13 +23,14 @@ import { useLens } from './lenses/store.ts';
 import { useBlood } from './blood/options.ts';
 import type { BloodChoice } from './blood/options.ts';
 import type { Gestures } from './gesture/controller.ts';
+import { DIVE_BODY_MS, diveMs } from './camera/dive.ts';
 import { createFrameQueue } from './gesture/frame-queue.ts';
 
 export const cel = new CelScene();
 /** The Tests card drives the Doppler, FibroScan and endoscope devices on the figure (src/scene/devices/probes/). */
 export const stopProbeBinding = bindTests();
 /** A dive between the body, the lobule and the sinusoid: a little longer than a move between two body shots (950 ms), because it covers a few hundred times the distance. */
-export const DIVE_MS = 1250;
+export const DIVE_MS = DIVE_BODY_MS;
 
 /** The gestures' asks for "the next frame", run by the clock's tween phase (Stage.tsx). */
 export const frames = createFrameQueue(() => clock.invalidate('gesture'));
@@ -59,8 +61,8 @@ export const sceneApi = {
     if (v === 'circuit') cel.setCircuitUpright(useCircuitTurn.getState().upright);
     cel.setView(v);
     // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together; body, lobule and sinusoid are one dive through the liver (camera/rig.ts blends it geometrically) that takes the dive's time
-    const ms = (v === 'body' || v === 'circuit' ? cel.circuit.changeMs() : 0) || (from === v ? undefined : DIVE_MS);
-    this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot() : lobuleShot(cam), room, ms);
+    const ms = (v === 'body' || v === 'circuit' ? cel.circuit.changeMs() : 0) || diveMs(from, v);
+    this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot(isPortrait(room.w, room.h), Math.min(room.w, room.h)) : lobuleShot(cam), room, ms);
     clock.invalidate('circuit');
   },
   /** Show the Circuit framed on a part of the map (a slide's region: a box in map units, `kMax` its closest zoom), or the whole map; the resistors and the caudate lane that the slide asks for come with it. */
@@ -79,7 +81,7 @@ export const sceneApi = {
     if (from !== v) cel.setView(v);
     if (from === 'circuit' && v !== 'circuit') { cel.setResistors([]); cel.setCaudatePin(false); }
     // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together
-    this.goTo(shot, room, from !== v && (v === 'body' || from === 'circuit') ? cel.circuit.changeMs() || undefined : undefined);
+    this.goTo(v === 'sinusoid' && typeof shot !== 'string' ? sinusoidShot(isPortrait(room.w, room.h), Math.min(room.w, room.h)) : shot, room, from !== v && (v === 'body' || from === 'circuit') ? cel.circuit.changeMs() || undefined : undefined);
   },
   /** The Circuit's quarter turn: stand the map upright (flow bottom to top) or lay it wide; the camera follows on the same 480 ms. Remembered across visits. */
   setCircuitUpright(on: boolean, room: Room): void {
@@ -96,9 +98,19 @@ export const sceneApi = {
   setCaudatePin(on: boolean): void { cel.setCaudatePin(on); clock.invalidate('caudate'); },
   /** The lobule's Layers menu (the 2D app starts with lymph on). */
   setLobuleLayers(l: Partial<LobuleLayers>): void { cel.setLobuleLayers(l); clock.invalidate('lobule-layers'); },
+  /** Which view the figure is in now (body, lobule, sinusoid, circuit). */
+  get figureView(): FigureView { return cel.view; },
+  /** The wedge's wash on the lobule and the sinusoid (a slide that says `wash`); `landedAtMs` is when the view lands, the wash begins a beat after it. */
+  setWash(on: boolean, landedAtMs?: number): void { cel.setWash(on, landedAtMs); clock.invalidate('wash'); },
+  /** The veins a slide shows stented (edge ids): a stent comes in over each, and goes out of the ones left off the list. Returns the ids the scene could stent. */
+  setStented(ids: readonly string[], instant = false): string[] { const r = cel.procs.setStented(ids, instant); clock.invalidate('stented'); return r; },
+  /** The ring the HVPG catheter reads in while a deck slide holds it (free, wedge, bad); null for none. */
+  setCatheterRing(ring: 'free' | 'wedge' | 'bad' | null): void { cel.procs.keptRing = ring; clock.invalidate('catheter'); },
   /** The cards changed room (a card opened, the phone turned): move the room alone; the viewer's turn stays. `homeTurn`: a slide or catheter step asked for the shot the camera is already on, and still brings the turn home. */
   setRoom(room: Room, ms?: number, homeTurn = false): void {
     if (homeTurn) gesturesRef.current?.turnOff();
+    // the phone turned while the sinusoid is up: its shot is a different one on the other screen shape (top to bottom, 2D's framing), so the move is to that
+    if (cel.view === 'sinusoid' && isPortrait(room.w, room.h) !== isPortrait(cel.rig.targetRoom.w, cel.rig.targetRoom.h)) { this.goTo(sinusoidShot(isPortrait(room.w, room.h), Math.min(room.w, room.h)), room, ms); return; }
     cel.rig.setRoom(room, performance.now(), ms, homeTurn);
     clock.invalidate('room');
   },
@@ -116,6 +128,8 @@ export const sceneApi = {
     seek(kind: string, t: number): void { cel.procs.seek(kind, t); clock.invalidate('procedure'); },
     /** The HVPG catheter in one of the deck's states (route, free, wedge, result, blocked), `advance` how far in (0..1). */
     hvpg(mode: keyof typeof CATH_END, advance = 1): void { cel.procs.showHvpg(mode, advance); clock.invalidate('procedure'); },
+    /** Where the tip is now (scene units), for the camera that follows it; null with no catheter out. */
+    tip(out: Vector3): Vector3 | null { return cel.procs.tipPosition(out); },
     /** Stop the move; with `keep` the last frame stays up. */
     stop(keep = false): void { cel.procs.stop(keep); clock.invalidate('procedure'); },
     get playing(): { kind: string; t: number } | null { return cel.procs.playing; },
@@ -133,6 +147,8 @@ export const sceneApi = {
   setNamedVessels(ids: readonly string[]): void { cel.setNamedVessels(ids); clock.invalidate('named-vessels'); },
   /** Light exactly these vessels (edge IDs), as the shunt's valid targets glow; [] puts them out. Replaces the pick. */
   markVessels(ids: readonly string[]): void { cel.markVessels(ids); clock.invalidate('mark'); },
+  /** Outline organs by the organ layer's ids (a slide's glow, spot or term naming an organ); `normalSpleen` also draws the normal-sized spleen's line. [] clears. */
+  pinOrgans(ids: readonly string[], normalSpleen = false): void { cel.pinOrgans(ids, normalSpleen); clock.invalidate('pin'); },
   /** Pick a vessel by edge ID, or clear with null. */
   pick(id: string | null): void { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },
   /** Option D: marks run for a few seconds after a change (a preset, a slider, a treatment). */

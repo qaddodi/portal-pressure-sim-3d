@@ -3,7 +3,8 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import type { Deck, Slide } from '../../decks/schema.ts';
 import { useLapse, lapseText } from '../../decks/hp/lapse.ts';
-import { pickCompare, dragWhatIf, whatIfStart, pickScale } from '../talk/controls-run.ts';
+import { pickCompare, dragWhatIf, whatIfStart, pickScale, dragToolOption, toolOptionStart, strainHold } from '../talk/controls-run.ts';
+import { useVariant } from '../talk/variant-words.ts';
 
 const SCALE_LABEL = { anatomy: 'Anatomy', lobule: 'Lobule', sinusoid: 'Sinusoid' } as const;
 
@@ -16,6 +17,7 @@ export function SlideControls({ slide, deck }: { slide: Slide; deck: Deck }) {
       {c.scales && <ScalePill slide={slide} deck={deck} i={i} />}
       {c.compare && <Compare slide={slide} deck={deck} i={i} />}
       {c.whatIf && <WhatIf slide={slide} deck={deck} i={i} />}
+      {c.strain && <Strain label={c.strain.label} slideKey={slide.id} />}
     </>
   );
 }
@@ -24,7 +26,8 @@ function Compare({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
   const { opts, name } = slide.controls!.compare!;
   const own = Math.max(0, opts.findIndex((o) => o.own));
   const [on, setOn] = useState(own);
-  useEffect(() => setOn(own), [slide.id, own]);
+  // a slide shown again starts with its own words and its own button
+  useEffect(() => { setOn(own); useVariant.getState().set(`${deck.id}/${slide.id}`, null); }, [slide.id, own, deck.id]);
   return (
     <div className="pz-ab" role="group" aria-label={name}>
       {opts.map((o, k) => (
@@ -37,10 +40,10 @@ function Compare({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
 
 function WhatIf({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
   const w = slide.controls!.whatIf!;
-  const [v0, setV0] = useState(() => whatIfStart(deck, i, w.paths, w.min));
+  const [v0, setV0] = useState(() => (w.tool ? toolOptionStart(deck, i, w.tool, w.min) : whatIfStart(deck, i, w.paths, w.min)));
   const [v, setV] = useState(v0);
   // the slide's own value comes in when its state is worked out (the first slide opens before the engine has answered)
-  useEffect(() => { const x = whatIfStart(deck, i, w.paths, w.min); setV0(x); setV(x); }, [slide.id, deck, i, w]);
+  useEffect(() => { const x = w.tool ? toolOptionStart(deck, i, w.tool, w.min) : whatIfStart(deck, i, w.paths, w.min); setV0(x); setV(x); }, [slide.id, deck, i, w]);
   const frac = (x: number) => Math.min(1, Math.max(0, (x - w.min) / (w.max - w.min)));
   const bare = !!w.unit && w.label.toLowerCase().startsWith(w.unit.toLowerCase());
   const shown = w.unit ? `${v.toFixed(w.step >= 1 ? 0 : 1)}${bare ? '' : ` ${w.unit}`}` : '';
@@ -53,11 +56,31 @@ function WhatIf({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
         <div className="range-wrap" style={wrap}>
           <span className="sl-start" aria-hidden="true" />
           <input type="range" min={w.min} max={w.max} step={w.step} value={v} aria-label={`What if: ${w.label}`}
-            onChange={(e) => { const x = +e.target.value; setV(x); dragWhatIf(w.paths, x); }} onPointerUp={(e) => e.currentTarget.blur()} />
+            onChange={(e) => { const x = +e.target.value; setV(x); if (w.tool) dragToolOption(deck, i, w.tool, x); else dragWhatIf(w.paths, x); }} onPointerUp={(e) => e.currentTarget.blur()} />
         </div>
         {w.ends ? <span className="pzi-e">{w.ends[1]}</span> : null}
       </div>
       {w.unit ? <output className="pzi-v">{shown}</output> : null}
+    </div>
+  );
+}
+
+/** A button that works only while it is held (2D strainEl): pressed, the engine's Valsalva starts; let go (a lost pointer, a blur, a hidden page, the slide leaving too), the model recovers. */
+function Strain({ label, slideKey }: { label: string; slideKey: string }) {
+  const [down, setDown] = useState(false);
+  const release = () => { setDown(false); strainHold(false); };
+  const press = () => { setDown(true); strainHold(true); };
+  useEffect(() => {
+    const hidden = () => { if (document.hidden) release(); };
+    document.addEventListener('visibilitychange', hidden);
+    return () => { document.removeEventListener('visibilitychange', hidden); strainHold(false); };
+  }, [slideKey]);
+  return (
+    <div className="pz-ab pz-strain" role="group" aria-label="Strain on the live model">
+      <button type="button" className="pz-abb pz-strain-b" aria-pressed={down} aria-label={`${label}: press and hold, let go to recover`} title="Press and hold"
+        onPointerDown={(e) => { if (e.button) return; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* (no capture: the leave and cancel events below let go) */ } press(); }}
+        onPointerUp={release} onPointerCancel={release} onLostPointerCapture={release} onBlur={release} onContextMenu={(e) => e.preventDefault()}
+        onKeyDown={(e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); press(); } }} onKeyUp={(e) => { if (e.key === ' ' || e.key === 'Enter') release(); }}>{label}</button>
     </div>
   );
 }
