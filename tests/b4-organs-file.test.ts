@@ -9,7 +9,7 @@ import { presetState } from './b4-presets.ts';
 
 test('the organ layer builds the 2D figure\'s organs once the organs file is in, already in the patient\'s state', async () => {
   const s = new CelScene();
-  assert.deepEqual(s.disease.organs.ids, [], 'nothing before the file is in');
+  assert.equal(s.disease.organs.ids.length, 0, 'nothing before the file is in');
   const p = await presetState('cirr-decomp');
   s.disease.organs.setBody(bodyTargets(p.frame, p.params, p.healthyP), true);
   const b = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
