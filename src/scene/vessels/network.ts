@@ -9,8 +9,9 @@ import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
 import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
-import { TIER_Z, type Tier, len3, x3, y3 } from '../frame2d.ts';
+import { TIER_Z, type Tier, UNITS_PER_SCENE, len3, x3, y3 } from '../frame2d.ts';
 
+export interface Flare { add: number; wall: number; span: number }
 export type NetTone = 'portal' | 'sys' | 'artery';
 export type { Tier };
 export interface NetVessel {
@@ -37,6 +38,9 @@ export interface NetVessel {
   plan?: { kind: 'coil'; base: readonly (readonly [number, number])[]; coils: boolean; strands: boolean } | { kind: 'feeder'; list: readonly Feeder2D[]; cfgK: number; hostW: number; when: string | null };
   /** the radius at each end as a share of `radius`, where this vessel runs on into exactly one other (no branch): both ease to their mean, so no step shows at the join */
   taper?: readonly [number, number];
+  /** where this vessel ends on a trunk without running on into it (a branch of a fork): a collar that blooms where the branch meets the host's wall, the 2D figure's fillet (the smooth union of the
+   *  two tubes, blend k of fork-joins / vein-joins kOf): `add` more radius at the wall, `wall` the distance from the end to the host's wall, `span` the length the collar takes to melt into the tube */
+  flare?: readonly [Flare | null, Flare | null];
   /** a tributary group: drawn only while its rule holds (`when`: null always; 'caput' with the paraumbilical collateral; 'caudate' with the caudate vein's rise) */
   feeder?: { host: string; when: string | null };
 }
@@ -171,6 +175,29 @@ export const NODE_Z: ReadonlyMap<string, number> = (() => {
 }
 /** The vessels with a map course (everything but the fans of tributaries, which the Circuit does not draw). */
 export const MAPPED: readonly NetVessel[] = NETWORK.filter((v) => !v.feeder);
+// ---- forks: a branch that ends on a trunk (a node of three or more, the pair that runs on left out) blends into it with a fillet ----
+{
+  const at = new Map<string, { v: NetVessel; end: 0 | 1 }[]>();
+  for (const v of NETWORK) if (!v.feeder && !(v.kind === 'shunt' && v.tone !== 'artery')) for (const [n, end] of [[v.from, 0], [v.to, 1]] as const) {
+    const key = `${n}|${v.tone === 'artery' ? 1 : 0}`;
+    const a = at.get(key) ?? []; a.push({ v, end }); at.set(key, a);
+  }
+  const runOn = new Set<string>();
+  for (const r of RUN_ONS) { runOn.add(`${r.a}|${r.ia}`); runOn.add(`${r.b}|${r.ib}`); }
+  for (const list of at.values()) {
+    if (list.length < 3) continue;
+    const mains = list.filter((e) => e.v.kind !== 'collateral');
+    const hostR = Math.max(...(mains.length ? mains : list).map((e) => e.v.radius));
+    for (const { v, end } of list) {
+      if (runOn.has(`${v.id}|${end}`) || v.radius >= 0.9 * hostR) continue;
+      // 2D's blend width in its own units (vein-joins.js kOf: 1.2 times the smallest radius at the join plus 1.2, 1.5 to 11), here in scene units
+      const k = len3(Math.min(11, Math.max(1.5, 1.2 * (v.radius * UNITS_PER_SCENE) + 1.2)));
+      const cur = v.flare ? [...v.flare] as [Flare | null, Flare | null] : [null, null] as [Flare | null, Flare | null];
+      cur[end] = { add: 0.5 * k, wall: 0.8 * hostR, span: 1.5 * k };
+      v.flare = cur;
+    }
+  }
+}
 export const NETWORK_BY_ID: ReadonlyMap<string, NetVessel> = new Map(NETWORK.map((v) => [v.id, v]));
 /** Edge IDs the anatomy draws as vessels: what a parity row counts. */
 export const DRAWN_EDGE_IDS: readonly string[] = edges.filter(isDrawnEdge).map((e) => e.id);

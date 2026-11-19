@@ -1,4 +1,4 @@
-import { BufferAttribute, BufferGeometry, Color, DataTexture, DoubleSide, FloatType, Mesh, NearestFilter, RGBAFormat, ShaderMaterial, Vector3, type Texture } from 'three';
+import { BufferAttribute, BufferGeometry, Color, DataTexture, DoubleSide, FloatType, Mesh, NearestFilter, RGBAFormat, ShaderMaterial, Vector3, Vector4, type Texture } from 'three';
 import { CelObject, type CelOptions, type CelShared, rawColor } from '../materials/cel.ts';
 import { PALETTES, type Palette } from '../palette.ts';
 import { VESSEL_FS, VESSEL_VS } from './shaders.ts';
@@ -90,6 +90,7 @@ export class VesselObject extends CelObject {
         px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 },
+        fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeKeep: { value: 0 },
         lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, projY: blood.projY, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 1 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
@@ -130,6 +131,21 @@ export class VesselObject extends CelObject {
     }
     geo.computeBoundingSphere();
     this.toon.uniforms.len!.value = len;
+  }
+
+  private tip: { a0: number; a1: number } | null = null;
+  /** The fade at a free end (fades.ts). A faded vessel is blended, so it is transparent. */
+  setTipFade(f: { mode: number; from: number; to: number; a0: number; a1: number; keep: boolean }): void {
+    const u = this.toon.uniforms;
+    u.fadeMode!.value = f.mode; u.fadeKeep!.value = f.keep ? 1 : 0;
+    (u.fadeA!.value as Vector4).set(f.from, f.to, f.a0, f.a1);
+    this.tip = { a0: f.a0, a1: f.a1 };
+    this.toon.transparent = true;
+  }
+  /** A fading tip with a collateral attached is solid to its end: its start alpha goes to 1. */
+  setTipJoined(joined: boolean): void {
+    if (!this.tip) return;
+    (this.toon.uniforms.fadeA!.value as Vector4).z = joined ? 1 : this.tip.a0;
   }
 
   private veil: { mesh: Mesh; mat: ShaderMaterial; wholeLayer: number } | null = null;

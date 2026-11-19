@@ -1,0 +1,47 @@
+// The free ends of the vessels fade as the 2D figure draws them (tables copied from the 2D app): the veins that end in the organ they drain, the hepatic artery's ends, the veins that leave the plate.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { fadeOf } from '../src/scene/vessels/fades.ts';
+import { CelScene } from '../src/scene/scene.ts';
+import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
+import { NETWORK } from '../src/scene/vessels/network.ts';
+
+test('a vein that ends in its organ fades in from nothing over the 2D share of its length', () => {
+  const spl = fadeOf('V_SPL', false)!;
+  assert.deepEqual([spl.mode, spl.from, spl.to, spl.a0, spl.a1, spl.keep], [1, 0, 0.66, 0, 1, false]);
+  for (const id of ['V_INT', 'V_COL', 'V_KID_L', 'LGV_CONF']) assert.ok(fadeOf(id, false), id);
+  assert.deepEqual([...fadeOf('LGV_CONF', false)!.connect], ['C1a'], 'the coronary vein is solid while the varices are open');
+});
+
+test('the hepatic artery fades in at its start and its branches out at their ends, in both views', () => {
+  const a = fadeOf('A_HEP', true)!, r = fadeOf('A_HR', true)!;
+  assert.deepEqual([a.from, a.to, a.a0, a.a1, a.keep], [0, 0.28, 0, 1, true]);
+  assert.deepEqual([r.from, r.to, r.a0, r.a1, r.keep], [0.7, 1, 1, 0, true]);
+});
+
+test('the veins that run on out of the plate fade out down it', () => {
+  const d = fadeOf('ILI_IVC', false)!;
+  assert.equal(d.mode, 2);
+  assert.ok(d.a0 === 1 && d.a1 === 0 && d.from !== d.to);
+});
+
+test('the vessels that have a free end in the 2D figure all have a fade in the scene, and are blended', () => {
+  const s = new CelScene();
+  const faded = NETWORK.filter((v) => !v.feeder && fadeOf(v.id, v.tone === 'artery'));
+  assert.ok(faded.length >= 9);
+  for (const v of faded) {
+    const o = s.vesselObject(v.id)!;
+    assert.equal(o.toon.uniforms.fadeMode!.value > 0, true, v.id);
+    assert.equal(o.toon.transparent, true, v.id);
+  }
+  // a vessel with no fade stays opaque
+  assert.equal(s.vesselObject('PV_TRUNK')!.toon.transparent, false);
+  assert.equal(s.vesselObject('V_SPL')!.toon.uniforms.fadeMode!.value, 1);
+  s.dispose();
+});
+
+test('the shader carries the fade into both the body and the ink, and lets go of it in the Circuit', () => {
+  assert.match(VESSEL_VS, /vFade = fa;/);
+  assert.match(VESSEL_VS, /circT \* \(1\.0 - fadeKeep\)/);
+  assert.equal((VESSEL_FS.match(/VEIL_A \* vFade/g) ?? []).length, 2);
+});
