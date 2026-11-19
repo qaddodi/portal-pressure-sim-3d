@@ -15,6 +15,7 @@ import { registerPwa } from './pwa/register.ts';
 import { mountCharts } from './ui/charts/gallery/mount.tsx';
 import { mountA11y } from './ui/a11y/mount.ts';
 import { installCaught } from './ui/debug/caught.ts';
+import { mountDebug } from './ui/debug/mount.ts';
 
 const dark = window.matchMedia('(prefers-color-scheme: dark)');
 const paint = () => applyLook(resolveLook(useSettings.getState().look, dark.matches));
@@ -44,6 +45,7 @@ async function start() {
   createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
   mountA11y();   // the live region, the figure's description, slide announcements, Reduce Motion fades (batch B14)
   mountPerf();
+  void mountDebug();   // ?watch / ?debug on the preview copy only (batch B14)
   mountCharts();   // ?charts: the charts gallery (batch B10)
 }
 void start();
