@@ -22,7 +22,7 @@ export function ringTube(centres: readonly Vector3[], radii: readonly number[], 
   const stride = radial + 1;
   for (let i = 0; i < n - 1; i++) for (let j = 0; j < radial; j++) {
     const a = i * stride + j, b = a + stride;
-    idx.push(a, b, a + 1, b, b + 1, a + 1);
+    idx.push(a, a + 1, b, b, a + 1, b + 1);   // (counter-clockwise seen from outside: the toon draws the near wall, the ink hull the far one. It was wound the other way, so the ink covered the fill: a black tube)
   }
   if (caps && n > 1) for (const end of [0, n - 1]) {
     const c = centres[end]!, base = pos.length / 3, dir = end === 0 ? -1 : 1;

@@ -107,7 +107,8 @@ ${CIRCUIT_VS_CALL}
     // (the line was a fixed 1.2 to 1.8 CSS px, 3.6 to 5.4 device px on a phone, a black rope on every thin strand)
     float wpc = c.w * 2.0 / (res.y * projectionMatrix[1][1]) * 300.0;   // the figure's units under one CSS px here
     float rDev = vR / max(wpc, 1e-6) * dpr;
-    float inkPx = clamp(0.14 * rDev, 1.5, 3.0) / dpr;
+    // (thinned with a lumen under 1.5 device px of radius, so the smallest branches keep their colour: cel-ink.ts inkTaper)
+    float inkPx = clamp(0.14 * rDev, 1.5, 3.0) * smoothstep(0.3, 1.5, rDev) / dpr;
     c.xy += nd * (inkPx + hiPx * vHi) * 2.0 / res * c.w;
   }
   vW = c.w;
@@ -166,7 +167,9 @@ uniform float projY;
 uniform vec2 res;
 uniform float dpr;
 uniform float casingA;      // the look's casing alpha (2D --casing-a)
-uniform float casingLensA;  // and under a colour lens
+uniform float casingCircA;  // and in the Circuit (2D .stage-wrap.cmap), by circT
+uniform vec3 inkColorCirc;
+uniform float circT;
 uniform vec4 rimInk;        // a dark lumen's light rim on the dark looks: rgb, alpha (0 on the light looks)
 varying float vW;
 varying float vR;
@@ -217,7 +220,7 @@ vec2 chevOne(float s, float Lw, float se, float Bm, float Dm, float vd, float rv
   float lv = max(-1.0, log2(Pt * max(abs(Bm), 0.05) / 28.0));
   float n0 = floor(lv), P = 28.0 * exp2(n0);
   float j = floor((se - Dm) / P + 0.5);
-  float x = (se - (Dm + j * P)) / Bm, sc = s - x;
+  float x = (se - (Dm + j * P)) / (abs(Bm) < 0.05 ? (Bm < 0.0 ? -0.05 : 0.05) : Bm), sc = s - x;
   float hw = min(0.8 * R, clamp(0.5 * R, 4.0 * wpc, 8.0 * wpc)), L = 1.6 * hw;
   if (abs(x) > (0.6 + 0.4 * rv) * L + 0.15 * hw + 4.0 * px) return vec2(0.0);
   float lo = 0.6 * L, ramp = max(2.0 * L, 0.12 * Pt);
@@ -264,13 +267,12 @@ void main() {
   if (vHull > 0.5) {
     // the ink: the hull's back faces only, in the ink colour, warming to the highlight colour where the vessel is picked
     if (gl_FrontFacing || hullOn < 0.5) discard;
-    // the outline in the look's casing colour at its alpha (2D: --casing-a, less under a colour lens; a vessel behind an organ keeps half of it; a picked vessel's ring is solid)
-    float lensOn = lensUse > 0.5 && max(lensModeA, lensModeB) > 0.5 ? 1.0 : 0.0;
-    float ca = mix(casingA, casingLensA, lensOn);
+    // the outline in the look's casing colour at its alpha (2D: --casing-a, and the Circuit's own on the dark look (.stage-wrap.cmap), by the Circuit's share; a vessel behind an organ keeps half of it; a picked vessel's ring is solid)
+    float ca = mix(casingA, casingCircA, circT);
 #ifdef VEIL
     ca *= 0.5;
 #endif
-    gl_FragColor = vec4(mix(inkColor, hiColor, clamp(vHi, 0.0, 1.0)), mix(ca, 1.0, clamp(vHi, 0.0, 1.0)) * VEIL_A * vFade);
+    gl_FragColor = vec4(mix(mix(inkColor, inkColorCirc, circT), hiColor, clamp(vHi, 0.0, 1.0)), mix(ca, 1.0, clamp(vHi, 0.0, 1.0)) * VEIL_A * vFade);
     return;
   }
   if (!gl_FrontFacing) discard;
@@ -281,7 +283,10 @@ void main() {
   }
   vec3 n = normalize(vN);
   vec3 l = normalize((viewMatrix * vec4(light, 0.0)).xyz);
-  vec3 side = normalize(cross(normalize(vT), normalize(vV)));
+  // (a tube seen end on has no sideways direction: a fixed one keeps the fragment finite, never a NaN, which a device draws black)
+  vec3 sideX = cross(normalize(vT), normalize(vV));
+  float sideL = length(sideX);
+  vec3 side = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
   float across = dot(n, side);
 
   vec4 la = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, across);

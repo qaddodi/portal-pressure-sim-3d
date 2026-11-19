@@ -9,7 +9,7 @@
 // Rule for this table: a feature is listed once, with ONE owner. A slide that needs a feature nobody owns fails the test, so none is forgotten.
 import { CHARTS } from '../../ui/charts/registry.ts';
 import { STATIONS, TERM_STATIONS } from '../../scene/labels/stations.ts';
-import { LENS_IDS } from '../../scene/lenses/model.ts';
+import { LENS_IDS, SINCE_BASELINE_FED } from '../../scene/lenses/model.ts';
 import type { CopiedSlide } from './types.ts';
 
 export interface Feature {
@@ -43,7 +43,7 @@ const TABLE: Feature[] = [
   done('cath:route', 'S2', 'The HVPG catheter: route', 'src/scene/catheter.ts'), done('cath:free', 'S2', 'The HVPG catheter: free', 'src/scene/catheter.ts'),
   done('cath:wedge', 'S2', 'The HVPG catheter: wedged', 'src/scene/catheter.ts'), done('cath:result', 'S2', 'The HVPG catheter: result', 'src/scene/catheter.ts'),
   done('cath:blocked', 'B5', 'The HVPG catheter against a blocked hepatic vein (Budd–Chiari)', 'src/ui/deck/procs-link.ts'),
-  done('tiles', 'B13b', 'The data card of tiles: each reading from the engine, the key ones marked, the change from another state', 'src/decks/hp/TilesCard.tsx'),
+  done('tiles', 'B13b', "The data card of tiles: each reading from the engine on the 2D tile (rating word and colour, scale bar, the change from another state), an instrument card's readings in its header", 'src/ui/cards/TilesCard.tsx'),
   // charts and instruments in the data card
   chart('criteria', 'Guideline rule list with live rows, or the Baveno VIII zones graph'),
   chart('flowtime', 'Lines over days'), chart('trial', 'A trial card'), chart('flows', 'Where the portal blood goes'), chart('lumen', 'A vessel cross-section'),
@@ -76,7 +76,7 @@ const TABLE: Feature[] = [
   done('response', 'B12', 'The beta-blocker response buttons', 'src/decks/controls.ts'),
   done('time-lapse', 'B12', 'The slide\'s days play on the live figure as a time-lapse', 'src/decks/hp/lapse.ts'),
   done('beats', 'B12', 'A slide with several camera beats: one view of the figure per Next, the words and the data staying', 'src/ui/deck/presenter-machine.ts'),
-  hook('since', 'B3', 'The Since lens: change since another slide\'s state'),
+  { id: 'since', batch: 'B3', what: 'The Since lens: change since another slide\'s state', landed: SINCE_BASELINE_FED, evidence: SINCE_BASELINE_FED ? 'src/scene/lenses/field.ts' : undefined },
 ];
 
 export const FEATURES: ReadonlyMap<string, Feature> = new Map(TABLE.map((f) => [f.id, f]));

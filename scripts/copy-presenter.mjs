@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(here, '../src/ui/deck/from2d');
-export const FILES = ['import-safety.js', 'deck-source.js', 'share-link.js', 'presenter-view.js', 'table-marks.js', 'wake-lock.js'];
+export const FILES = ['import-safety.js', 'deck-source.js', 'share-link.js', 'presenter-view.js', 'table-marks.js', 'wake-lock.js', 'card-tiles.js'];
 /** `caught` (the 2D app's counter of caught errors) is a small local file here: every error is still named by its tag, under ?perf. */
 const REWRITE = [["import { caught } from './caught.js';", "import { caught } from './caught.js';"]];
 /** table-marks.js reads the engine's cut-off tables: here they are the vendored copy (src/engine/hales/portal/, the same files). */

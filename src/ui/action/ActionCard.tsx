@@ -15,14 +15,16 @@ import { appAct } from './act.ts';
 import { injectDye, releaseDye } from './dye.ts';
 import { panelFor } from './panels.ts';
 import { currentParams, updateParams, useParamsTick } from './params.ts';
-import { useEngine, latest, patient } from '../../engine/store.ts';
+import { envNow } from './env.ts';
+import { detailsFor } from './details.ts';
+import { DetailsFace } from './DetailsFace.tsx';
+import { useEngine } from '../../engine/store.ts';
 import { useLens } from '../../scene/lenses/store.ts';
 import { useSettings } from '../../state/settings.ts';
 import { rampStops, LG_MAX } from '../../scene/lenses/legend.ts';
 import { resolveLook } from '../../looks/looks.ts';
 import { hvpgSev, ppgSev } from '../../engine/hales/portal/pressure-cuts.js';
 import { fmt } from '../charts/fmt.ts';
-import type { Env } from './read.ts';
 
 // ── the number keys: the card's first nine controls, in the order the card lists them (a slider takes the focus so the arrow keys move it) ──
 let keyed: (() => void)[] = [];
@@ -32,11 +34,6 @@ export function triggerCardVerb(n: number): boolean { const a = shownNow ? keyed
 /** Whether a card is up (the number keys mean something then). */
 export const cardIsOpen = (): boolean => shownNow;
 
-function envNow(): Env | null {
-  const f = latest.frame, p = currentParams();
-  if (!f || !p) return null;
-  return { f, p, ref: patient.reference, lens: useLens.getState().lens };
-}
 function useSnap(card: Card): Snap | null {
   const [s, setS] = useState<Snap | null>(() => { const e = envNow(); return e ? snapOf(card, e) : null; });
   useEffect(() => {
@@ -139,7 +136,7 @@ const dyeHandlers = {
 const kindOf = (v: Verb): 'read' | 'about' | 'ctl' | 'act' | 'panel' => v.type === 'read' || v.type === 'stat' ? 'read' : v.type === 'about' ? 'about' : v.type === 'panel' ? 'panel'
   : v.type === 'button' || v.type === 'dye' || v.type === 'link' ? 'act' : 'ctl';
 
-function Face({ card, onKeys }: { card: Card; onKeys: (list: (() => void)[]) => void }) {
+function Face({ card, onKeys, onDetails }: { card: Card; onKeys: (list: (() => void)[]) => void; onDetails: (() => void) | null }) {
   const snap = useSnap(card);
   const inputs = useRef<Map<number, HTMLInputElement>>(new Map());
   const setRef = (i: number, el: HTMLInputElement | null) => { if (el) inputs.current.set(i, el); else inputs.current.delete(i); };
@@ -162,7 +159,8 @@ function Face({ card, onKeys }: { card: Card; onKeys: (list: (() => void)[]) => 
   verbs.forEach((v, i) => { if (snap.verbs[i]!.show) rows[kindOf(v)].push(<VerbView key={i} card={card} v={v} vs={snap.verbs[i]!} index={i} setRef={setRef} />); });
   return (
     <div className="ac-body" data-key={card.key}>
-      <div className="ac-nr"><span className="ac-name">{card.title}</span><span className={`ac-state st-word ${st ? STATE_CLS[st[0]] ?? '' : ''}`}>{st ? st[1] : ''}</span></div>
+      <div className="ac-nr">
+        {onDetails ? <button type="button" className="ac-name ac-name-btn" aria-label={`${card.title}: details`} onClick={onDetails}><span>{card.title}</span><Icon n="chev-right" className="ac-chev" /></button> : <span className="ac-name">{card.title}</span>}<span className={`ac-state st-word ${st ? STATE_CLS[st[0]] ?? '' : ''}`}>{st ? st[1] : ''}</span></div>
       {card.span && snap.span ? <SpanBar card={card} snap={snap} />
         : snap.value && !card.noValue ? (
           <div className="ac-value"><span className="ac-num"><b>{snap.value.v}</b><span className="unit">{snap.value.u}</span></span>{snap.value.d && <span className={`ac-delta ${snap.value.up ? 'up' : 'down'}`}>{snap.value.d}</span>}</div>
@@ -185,10 +183,14 @@ export function ActionCard() {
   const [fonts, setFonts] = useState(() => typeof document === 'undefined' || !document.fonts || document.fonts.status === 'loaded');
   const ref = useRef<HTMLElement>(null);
   const drag = useRef<{ y: number } | null>(null);
+  const [face, setFace] = useState<'card' | 'details'>('card');   // (a card's name turns it to its Details face; another structure comes up on its card)
+  const hasDetails = !!card && !card.noDetails && !!detailsFor(sel);
+  useEffect(() => { setFace('card'); }, [card?.key]);
   useEffect(() => { if (card) setHeld(card); }, [card]);
   useEffect(() => { if (!fonts) void document.fonts.ready.then(() => setFonts(true)); }, [fonts]);
   const shown = card ?? held, open = !!card && fonts;
   useEffect(() => { shownNow = open; if (!open) keyed = []; return () => { shownNow = false; keyed = []; }; }, [open]);
+  useEffect(() => { if (face === 'details') keyed = []; }, [face]);   // (the number keys run a card's controls; the Details face has none)
   const onKeys = useMemo(() => (list: (() => void)[]) => { keyed = list; }, []);
   const close = () => import('./selection.ts').then((m) => m.selectStructure(null));
   // pull the sheet down to put it away (a phone's sheet: transform only, written to the element)
@@ -199,7 +201,8 @@ export function ActionCard() {
   return (
     <section ref={ref} className="ac-card" data-open={open} data-bottom={bottom || undefined} data-device={device} style={style} role="dialog" aria-label="Actions" inert={!open}>
       <div className="ac-grab" aria-hidden="true" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}><i /></div>
-      {shown && <Face key={shown.key} card={shown} onKeys={onKeys} />}
+      {shown && (face === 'details' && card && sel ? <DetailsFace key={`d-${shown.key}`} sel={sel} onBack={() => setFace('card')} />
+        : <Face key={shown.key} card={shown} onKeys={onKeys} onDetails={card && hasDetails ? () => setFace('details') : null} />)}
       <button type="button" className="ac-x" aria-label="Close" title="Close (Esc)" onClick={() => void close()}><Icon n="close" /></button>
     </section>
   );

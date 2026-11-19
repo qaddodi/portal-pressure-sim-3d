@@ -8,7 +8,7 @@ import { registerBuiltinHooks } from '../src/decks/rw/hooks-builtin.ts';
 import { dependencies, playable } from '../src/decks/rw/plan.ts';
 import { claims } from '../src/parity/b13c.ts';
 import { RW_IDS, DECKS, built } from './decks-rw-helpers.ts';
-import { LENS_IDS } from '../src/scene/lenses/model.ts';
+import { LENS_IDS, SINCE_BASELINE_FED } from '../src/scene/lenses/model.ts';
 import { CHARTS } from '../src/ui/charts/registry.ts';
 
 registerBuiltinHooks();
@@ -29,7 +29,7 @@ for (const id of RW_IDS) {
 }
 
 test('what exists today is read from its own tables: the twelve lenses, the done charts, the catheter\'s five states, the stent, the procedures and the lobule views', () => {
-  for (const l of LENS_IDS) assert.ok(hasHook(`lens:${l}`), l);
+  for (const l of LENS_IDS) assert.equal(hasHook(`lens:${l}`), l !== 'since' || SINCE_BASELINE_FED, l);   // (Since waits for a slide to hand it its baseline: scene/lenses/model.ts)
   for (const c of CHARTS) assert.equal(hasHook(`tool:${c.kind}`), c.status === 'done', c.kind);
   for (const c of ['route', 'free', 'wedge', 'result', 'blocked']) assert.ok(hasHook(`device:hvpg-catheter:${c}`));   // (blocked: Budd–Chiari, ui/deck/procs-link.ts)
   for (const id of ['device:stent', 'device:hvpg-catheter:keep', 'procedure:tips', 'procedure:eus', 'procedure:rex']) assert.ok(hasHook(id), id);
@@ -39,7 +39,10 @@ test('what exists today is read from its own tables: the twelve lenses, the done
 
 test('no deck can be offered by the menu until the presenter, the engine runner and every feature of every slide have landed', () => {
   const decks = RW_IDS.map(built);
-  assert.deepEqual(playable(decks), {}, 'nothing plays today: presenter:deck and engine:steps are not registered');
+  // (a deck plays when every hook of every slide has landed: those that are left waiting have a missing hook, the others play whole)
+  const open = (d: ReturnType<typeof built>) => d.slides.some((s) => s.hooks.some((h) => !hasHook(h.id)));
+  assert.deepEqual(Object.keys(playable(decks)).sort(), decks.filter((d) => !open(d)).map((d) => d.id).sort(), 'only a deck with nothing left to land plays');
+  assert.equal(Object.keys(playable(decks, () => false)).length, 0, 'with nothing registered nothing plays');
   // land everything: every deck becomes playable with the slide count the presenter shows (outline and quick check come with a deck)
   const all = new Set(decks.flatMap((d) => d.slides.flatMap((s) => s.hooks.map((h) => h.id))));
   const has = (id: string) => all.has(id) || hasHook(id);
@@ -50,13 +53,15 @@ test('no deck can be offered by the menu until the presenter, the engine runner 
 
 test('landing a feature moves exactly the slides that wait on it (a hook registered at run time, and taken away again)', () => {
   const d = built('two-lesions');
-  const before = dependencies(d).filter((x) => x.missing.some((h) => h.id === 'card:tiles')).length;
+  const wanted = dependencies(d).flatMap((x) => x.missing.map((h) => h.id))[0]!;   // (a feature still to land: the first one this deck waits on)
+  const waits = () => dependencies(d).filter((x) => x.missing.some((h) => h.id === wanted)).length;
+  const before = waits();
   assert.ok(before > 0);
-  const off = registerHook('card:tiles');
-  const during = dependencies(d).filter((x) => x.missing.some((h) => h.id === 'card:tiles')).length;
+  const off = registerHook(wanted);
+  const during = waits();
   off();
   assert.equal(during, 0);
-  assert.equal(dependencies(d).filter((x) => x.missing.some((h) => h.id === 'card:tiles')).length, before);
+  assert.equal(waits(), before);
 });
 
 test('a field nobody classified fails loudly, so a new 2D field is never skipped quietly', () => {

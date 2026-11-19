@@ -39,8 +39,9 @@ export function linkScene(): () => void {
     if (room.w <= 0 || room.h <= 0) return;   // the cards have not been measured yet: no room to frame in
     if (v.shot !== shot) {
       shot = v.shot;
-      // a ported slide says its own view (the circuit view is not drawn yet: the body stands in) and its lens; the slice's slides are the body
-      sceneApi.showShot(v.scene ? (v.scene.view === 'circuit' ? 'body' : v.scene.view) : 'body', v.shot, room);
+      // a ported slide says its own view and its lens; the slice's slides are the body. A Circuit slide frames its region of the map and draws the resistors it names.
+      if (v.scene?.view === 'circuit') sceneApi.showCircuit(room, { box: v.scene.circuit?.box ?? null, kMax: v.scene.circuit?.kMax ?? null, resistors: (v.scene.circuit?.resistors ?? []) as never, caudate: !!v.scene.circuit?.caudate });
+      else sceneApi.showShot(v.scene ? v.scene.view : 'body', v.shot, room);
     } else sceneApi.setRoom(room, undefined, stepped);   // a step on to a slide with the same shot still brings the viewer's turn home
     if (v.scene && v.scene.lens !== lens) { lens = v.scene.lens; sceneApi.setLens(lens); }
   };

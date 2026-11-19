@@ -1,26 +1,26 @@
 // Tests > IR (2D hvpg-proc.js, ir-ppg.js, ir-tips.js): the interventional-radiology instrument. Measure: the HVPG catheter's measurement on the one pressure monitor (the 2D monitor.js, copied, drawn
 // into a chart frame), the free, wedged and HVPG readings, the four steps, a caption; the Watch row of treatments played on the anatomy (TIPS, BRTO…) and the PPG by IR, whose monitor takes
-// the HVPG tracing's place while it plays and for six seconds after. TIPS: the stent's own test ("Test TIPS in IR" on a stent card opens it): the stent, its numbers, and the editor panel
-// when the Treat batch has registered one. The measurements run on `run.ts`; the moment's words are `side.ts`.
+// the HVPG tracing's place while it plays and for six seconds after. TIPS: the stent's own test ("Test TIPS in IR" on a stent card opens it): TipsView.tsx (the stent to scale with its chart, the numbers, the editor, Tube vs patient, Compare). The measurements run on `run.ts`; the moment's words are `side.ts`.
 import { useEffect } from 'react';
 import './ir.css';
 import { latest, patient, useEngine } from '../../../engine/index.ts';
 import { registerFeature } from '../../shell/features.ts';
 import { useShell } from '../../shell/store.ts';
 import { Icon } from '../../shell/icons.tsx';
-import { panelFor } from '../../action/panels.ts';
 import { useSelection } from '../../action/selection.ts';
 import { useParamsTick } from '../../action/params.ts';
 import { useTests } from '../store.ts';
 import type { PaneProps } from '../TestsLayer.tsx';
 import { Monitor } from './Monitor.tsx';
+import { HandOver } from './HandOver.tsx';
 import { hvpgSource, ppgSource } from './sources.ts';
 import { R, useRun, phase, values, busy, startHvpg, playProc, startPpg, closePpg, resetAll, watchButtons, procSay, ppgCaption, ppgShown, hvpgRunning } from './run.ts';
-import { sideOf, NOTE } from './side.ts';
+import { sideOf } from './side.ts';
 import { measureLabel, hvBlocked, STEPS } from './hvpg.ts';
-import { useIr, stentsNow, type StentId } from './store.ts';
-import { KEYS, stentLine, NO_STENT_WHY } from './copied/tips-parts.copied.js';
-import { fmt } from '../../charts/fmt.ts';
+import { useIr, stentsNow } from './store.ts';
+import { NO_STENT_WHY } from './copied/tips-parts.copied.js';
+import { TipsView } from './TipsView.tsx';
+import { hvpgNote, useMeasured } from '../hidden.ts';
 
 const touch = (e: React.PointerEvent, go: () => void, disabled: boolean) => { if (e.pointerType !== 'mouse' && !disabled) go(); };
 const KV: [keyof ReturnType<typeof values>, string][] = [['fhvp', 'FHVP'], ['whvp', 'WHVP'], ['hvpg', 'HVPG']];
@@ -30,6 +30,7 @@ function Measure({ h }: { h: number }) {
   // the readings follow the model while idle: a re-render only when a printed tenth changes
   useEngine((s) => { void s.frames; const m = latest.frame?.metrics; return `${Math.round(((m?.fhvp as number) ?? 0) * 10)}|${Math.round(((m?.whvp as number) ?? 0) * 10)}|${m?.pv ? 1 : 0}`; });
   useParamsTick((s) => s.tick);
+  const mode = useShell((s) => s.mode), measured = useMeasured((s) => s.hvpgMeasured);
   const ph = phase(), running = hvpgRunning(), isBusy = busy();
   const side = sideOf({ ph, t: R.t, started: R.t0 != null, blocked: R.blocked, blockedNow: hvBlocked(patient.params), v: values(), hasFrame: !!latest.frame });
   const ppg = ppgShown(), watch = watchButtons();
@@ -46,9 +47,7 @@ function Measure({ h }: { h: number }) {
           ))}
         </dl>
       </div>
-      {ppg
-        ? <div className="ir-fade" key="ppg"><Monitor src={ppgSource} h={h} deps={[R.ppg.take]} onClick={closePpg} /></div>
-        : <div className="ir-fade" key="hvpg"><Monitor src={hvpgSource} h={h} deps={[ph, R.result, R.blocked, side.open]} /></div>}
+      <HandOver over={ppg} top={<Monitor src={ppgSource} h={h} deps={[R.ppg.take]} onClick={closePpg} />} base={<Monitor src={hvpgSource} h={h} deps={[ph, R.result, R.blocked, side.open]} />} />
       <div className="chart-side ir-side">
         {!ppg && (
           <ol className="hvpg-steps">
@@ -69,37 +68,9 @@ function Measure({ h }: { h: number }) {
             <Icon n="play" /><span>PPG by IR</span>
           </button>
         </div>
-        <p className="ctl-sub hvpg-note">{NOTE}</p>
+        <p className="ctl-sub hvpg-note">{hvpgNote(mode === 'deck', measured)}</p>
       </div>
     </>
-  );
-}
-
-function Tips() {
-  useEngine((s) => { void s.frames; const m = latest.frame?.metrics as { ppg?: number } | undefined; return `${Math.round((m?.ppg ?? 0) * 10)}`; });
-  useParamsTick((s) => s.tick);
-  const stent = useIr((s) => s.stent), pick = useIr((s) => s.pick), ids = stentsNow();
-  const m = latest.frame?.metrics as Record<string, unknown> | undefined;
-  const st = (stent === 'DIPS' ? m?.dips : m?.tips) as Record<string, unknown> | undefined;
-  const still = !!st?.still;
-  const Editor = panelFor('stent');
-  return (
-    <div className="ir-tips">
-      <div className="ir-top">
-        <div className="ir-chips" role="group" aria-label="Stent" data-n={ids.length}>
-          {(ids.length ? ids : ['TIPS' as StentId]).map((id) => <button key={id} type="button" className="ir-chip" aria-pressed={id === stent} onClick={() => pick(id)}>{id}</button>)}
-        </div>
-        <span className="ir-status" data-sev={still ? 'caution' : 'none'}><span className="ir-status-t">{still ? 'No flow' : 'Patent'}</span></span>
-      </div>
-      <p className="ctl-sub ir-stent-line">{stentLine(st as never)}</p>
-      <div className="ir-keys">
-        {(KEYS as { id: string; k: string; u: string; d: number; title: string; v(m: unknown, st: unknown): number | null }[]).map((t) => {
-          const raw = m && (st || t.id === 'ppg') ? t.v(m, st) : null, v = raw == null || !Number.isFinite(raw) ? null : raw;
-          return <span key={t.id} className="ir-kv" data-k={t.id} title={t.title} aria-label={`${t.k}: ${v == null ? 'not measured' : `${fmt(v, t.d)} ${t.u}`}`}><em>{t.k}</em><b>{v == null ? '—' : fmt(v, t.d)}</b><u>{t.u}</u></span>;
-        })}
-      </div>
-      {Editor && st && <div className="ir-editor"><Editor id={stent} /></div>}
-    </div>
   );
 }
 
@@ -131,7 +102,7 @@ export function IrPane(p: PaneProps) {
         <button type="button" className={`ps-btn${has ? '' : ' off'}`} data-view="tips" aria-pressed={view === 'tips'} aria-disabled={!has}
           onClick={() => { if (!has) { useShell.getState().say(NO_STENT_WHY); return; } setView('tips'); }}><span>{ids.includes('TIPS') || !ids.length ? 'TIPS' : ids[0]}</span></button>
       </div>
-      {view === 'tips' ? <Tips /> : <Measure h={h} />}
+      {view === 'tips' ? <TipsView h={h} /> : <Measure h={h} />}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { healthyFp, beforeOf } from '../charts/profile/data.ts';
 import { CriteriaCard } from '../charts/criteria/CriteriaCard.tsx';
 import { PathCard } from '../charts/path/PathCard.tsx';
 import { ProfileCard } from '../charts/profile/ProfileCard.tsx';
+import { MenuCard } from '../charts/menu/MenuCard.tsx';
 import { CurveCard } from '../charts/curve/CurveCard.tsx';
 import { FluidCard } from '../charts/fluid/FluidCard.tsx';
 import { StentCard } from '../charts/stent/StentCard.tsx';
@@ -102,6 +103,7 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'path': return <PathCard of={tool.of as string | undefined} patient={(tool.patient as Rec | undefined) ?? null} fp={fp as never} />;
     case 'profile': return <ProfileCard fp={fp as never} healthy={healthy as never} before={before as never} fromLabel={typeof tool.fromLabel === 'string' ? tool.fromLabel : 'Before'} spans={tool.spans as string[] | undefined} hold={!!cs.hold} />;
     case 'curve': case 'course': return <CurveCard tool={tool as never} slide={fp ? { fp: fp as never, params, base: results?.[i]?.base, snap: results?.[i]?.snap } : null} fpOf={fpOf as never} id={`${deck.id}/${slide.id}`} />;
+    case 'menu': return <MenuCard rows={Array.isArray(tool.rows) ? (tool.rows as string[]) : null} slide={fp ? { fp: fp as never, params, base: results?.[i]?.base, snap: results?.[i]?.snap } : null} id={`${deck.id}/${slide.id}`} />;
     case 'fluid': return <FluidCard fp={fp as never} frame={frame as never} params={(params ?? patient.params) as never} window={!!tool.window} forces={!!tool.forces} caveat={!!tool.caveat} compare={(cs.compare as never) ?? null} />;
     case 'stent': return <StentCard vessel={tool.vessel as never} show={tool.show as never} lens={tool.lens as never} color={tool.color as never} colorSwitch={tool.colorSwitch !== false} pick={tool.pick as never} panels={tool.panels as never} to={tool.to as never} max={tool.max as number | undefined} gate={tool.gate as never} fp={fp as never} frame={frame as never} params={params ?? patient.params} />;
     case 'lumen': return <LumenCard params={(params ?? patient.params ?? null) as never} vessel={(tool.vessel as string | undefined) ?? 'PV_TRUNK'} site={(tool.site as string | undefined) ?? null} name={(tool.name as string | undefined) ?? null} />;
@@ -152,7 +154,7 @@ function Instrument({ kind, tool }: { kind: string; tool: Rec }) {
   return (
     <div className="dock-pane-host" data-instrument={kind}>
       <Suspense fallback={null}>
-        {kind === 'doppler' ? <DopplerPane {...p} options={tool} /> : kind === 'fibroscan' ? <FibroPane {...p} /> : kind === 'hvpg' ? <IrPane {...p} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : <ReadoutsPane narrow={p.narrow} />}
+        {kind === 'doppler' ? <DopplerPane {...p} options={tool} /> : kind === 'fibroscan' ? <FibroPane {...p} /> : kind === 'hvpg' ? <IrPane {...p} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} options={tool} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : <ReadoutsPane narrow={p.narrow} />}
       </Suspense>
     </div>
   );
@@ -163,7 +165,7 @@ function FlowTime({ deck, slide, i, tool, trail }: { deck: Deck; slide: Slide; i
   const mine = useLapse((s) => s.key === `${deck.id}/${slide.id}`), d = useLapse((s) => s.d), n = useLapse((s) => s.n);
   const k = slide.lapse?.plays && mine && n ? Math.min(1, d / n) : 1;
   void i;
-  return <FlowTimeCard trail={trail} k={k} lines={(tool.lines as string[] | undefined) ?? undefined} clock={tool.clock === 'days' ? 'days' : 'meal'} given={(tool.given as Record<string, number> | undefined) ?? null} view={(tool.view as never) ?? null} />;
+  return <FlowTimeCard trail={trail} k={k} lines={(tool.lines as string[] | undefined) ?? undefined} clock={tool.clock === 'days' ? 'days' : 'meal'} given={(tool.given as Record<string, number> | undefined) ?? null} view={(tool.view as never) ?? null} rx={Array.isArray(tool.bands) ? (tool.bands as string[]) : undefined} />;
 }
 
 /** A procedure's graph: the two readings before the change and where the slide's settled state ends them. */

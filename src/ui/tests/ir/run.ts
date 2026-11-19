@@ -10,6 +10,7 @@ import type { ShotName } from '../../../scene/camera/shots.ts';
 import { PROCS, PROC_KINDS, MEASURES, READS, specOf, markAt, procBlocked as procBlockedJs, procOffered as procOfferedJs } from '../../../scene/procedures/copied/proc-anim.js';
 import { ppgWord } from '../../../engine/hales/portal/pressure-cuts.js';
 import { T, newWave, syncWave } from '../copied/hvpg-clock.copied.js';
+import { createTakeover } from '../copied/monitor-takeover.copied.js';
 import { scriptOf, phaseOf } from './copied/reading-scripts.copied.js';
 import { TB, hvBlocked } from './hvpg.ts';
 import { updateParams } from '../../action/params.ts';
@@ -19,6 +20,7 @@ import { useUi } from '../../ui-store.ts';
 import { freeRoom } from '../../shell/room.ts';
 import { cutRoom } from '../room.ts';
 import type { MonitorState } from './monitor.ts';
+import { useMeasured } from '../hidden.ts';
 
 export interface Readings { fhvp: number; whvp: number; hvpg: number }
 type Obj = Record<string, number>;
@@ -33,7 +35,7 @@ export const R = {
   // a treatment played from the Watch row
   procKind: '', procStep: -1, procT: 0, procApplied: false, procCam: '', playT: 0,
   // the PPG by IR (ir-ppg.js): the kinds' clocks, the step, the phase of the takeover
-  ppg: { run: false, kind: '' as '' | 'irivc' | 'irpv', step: -1, done: false, take: 'idle' as 'idle' | 'run' | 'hold', tk: {} as Record<string, number>, mark: -3, holdId: 0 as unknown as ReturnType<typeof setTimeout> | 0 },
+  ppg: { run: false, kind: '' as '' | 'irivc' | 'irpv', step: -1, done: false, take: 'idle' as 'idle' | 'run' | 'hold', tk: {} as Record<string, number>, mark: -3 },
   wave: newWave(),
 };
 export const tEnd = (): number => (R.blocked ? TB.end : T.end);
@@ -88,6 +90,7 @@ function finish(): void {
   const f = latest.frame;
   if (!f?.metrics) return;
   R.result = { ...(R.snap || { fhvp: f.metrics.fhvp as number, whvp: f.metrics.whvp as number, hvpg: f.metrics.hvpg as number }), t: f.t, day: f.day };
+  useMeasured.getState().mark(R.result);   // (2D hvpg-proc.js: store.lastHVPG and hvpgMeasured, so the readouts, the charts and the trials hear it)
   bump();
 }
 function stepHvpg(): void {
@@ -130,21 +133,20 @@ export function playProc(kind: string): void {
 }
 
 // ── the PPG by IR (ir-ppg.js) ──
-const HOLD_MS = 6000;
 const SLIDE = { procedure: { kind: 'irivc', then: 'irpv' } };
 export const ppgScript = (): { clock: { now(tk: Obj): number }; vals(fp: unknown, o: Obj): Obj } & Record<string, unknown> => scriptOf(SLIDE.procedure) as never;
 const fpLive = { ivc: NaN, pv: NaN, ppg: NaN };
 export const ppgShown = (): boolean => R.ppg.take !== 'idle';
-function ppgTake(next: 'idle' | 'run' | 'hold'): void { if (R.ppg.take !== next) { R.ppg.take = next; bump(); } }
+/** The takeover's clock (monitor-takeover.js: idle > run > hold > idle, HOLD_MS 6000): its phase is `R.ppg.take`. */
+const tk = createTakeover({ onChange: (ph: string) => { R.ppg.take = ph as 'idle' | 'run' | 'hold'; bump(); } }) as { start(): void; finish(done: boolean): void; close(): void; reset(): void };
 export function hidePpg(): void {
   const p = R.ppg;
-  if (p.holdId) { clearTimeout(p.holdId as ReturnType<typeof setTimeout>); p.holdId = 0; }
   if (p.run) sceneApi.procedure.stop();
   p.run = false; p.kind = ''; p.step = -1; p.done = false; p.tk = {};
-  ppgTake('idle');
+  tk.reset();
 }
 /** A tap on the held result takes it away. */
-export function closePpg(): void { const p = R.ppg; if (p.take === 'hold') { if (p.holdId) clearTimeout(p.holdId as ReturnType<typeof setTimeout>); p.holdId = 0; ppgTake('idle'); } }
+export function closePpg(): void { tk.close(); }
 function beginPpg(kind: 'irivc' | 'irpv'): void {
   const p = R.ppg, rd = (READS as Record<string, Record<string, number>>)[kind];
   if (rd) for (const k in rd) rd[k] = NaN;
@@ -164,8 +166,7 @@ function beginPpg(kind: 'irivc' | 'irpv'): void {
     onEnd: () => {
       if (kind === 'irivc') { beginPpg('irpv'); return; }   // the second approach goes on by itself, from its start
       p.run = false; p.kind = ''; p.step = -1; p.done = true; camTo('home'); R.procCam = '';
-      ppgTake('hold');
-      p.holdId = setTimeout(() => { p.holdId = 0; ppgTake('idle'); }, HOLD_MS);
+      tk.finish(true);
       bump();
     },
   });
@@ -177,9 +178,8 @@ export function startPpg(): void {
   const why = procBlocked('irivc', params(), metrics()) || procBlocked('irpv', params(), metrics());
   if (why) { say(why); return; }
   onBody();
-  if (p.holdId) { clearTimeout(p.holdId as ReturnType<typeof setTimeout>); p.holdId = 0; }
   p.tk = {}; p.done = false; p.run = true; R.procCam = '';
-  ppgTake('run');
+  tk.start();
   beginPpg('irivc');
   wake(); bump();
 }

@@ -1,6 +1,7 @@
 // A copied 2D deck as the deck the 3D app plays (the schema of src/decks/schema.ts): words as copied, the slide's own camera, view and lens from the plan,
 // the data card (tiles) from the slide's fields, and `numbers: 'states'`, so every number a slide prints comes from that slide's own state in the engine.
 // Nothing here is typed per slide; a slide that asks for something the 3D figure cannot do yet keeps its words and its shot and is listed by hooks.ts.
+import { ownKeys } from '../../ui/deck/from2d/card-tiles.js';
 import { TERM_STATIONS } from '../../scene/labels/stations.ts';
 import { CATHS, type CathState, type Deck, type EqPart, type Slide, type SlideScene, type SlideTiles, type TableSpec } from '../schema.ts';
 import { planSlide } from './plan.ts';
@@ -68,7 +69,7 @@ export function slideOf(deckId: string, s: CopiedSlide, i: number, prevCath: Cat
   const plan = planSlide(deckId, s, i);
   const cath = (CATHS as readonly string[]).includes(s.cath ?? '') ? (s.cath as CathState) : s.cathKeep ? prevCath : undefined;
   const tiles: SlideTiles | undefined = s.data === 'tiles' && s.tiles?.length
-    ? { deck: deckId, slide: s.id, keys: s.tiles, key: s.key ?? [], delta: s.delta ?? null,
+    ? { deck: deckId, slide: s.id, keys: s.tiles, key: s.key ?? [], delta: s.delta ?? null, own: { wide: ownKeys(s, false), phone: ownKeys(s, true) },
       ...(typeof s.hvpgResp === 'string' && s.hvpgResp ? { resp: s.hvpgResp } : s.hvpgResp === true ? { resp: true as const } : {}) } : undefined;
   const eq = s.eq ? eqParts(s.eq[0]!) : undefined;
   const terms = knownTerms(s.terms);

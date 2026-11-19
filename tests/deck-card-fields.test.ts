@@ -241,11 +241,11 @@ test('beats: a slide with several camera beats is one stop of several views, the
 
 test('the response tile: the HVPG fall from the slide the field names, with the HVPG it counts from', () => {
   const spec = { deck: 'd', slide: 'b', keys: ['map'], key: ['hvpgFall'], delta: null, resp: 'a' as const };
-  const rows = tileRows(spec, { hvpg: 8.4, map: 90 }, null, { hvpg: 12.6 });
+  const rows = tileRows(spec, { hvpg: 8.4, map: 90 }, null, undefined, { hvpg: 12.6 });
   const fall = rows.find((r) => r.key === 'hvpgFall')!;
   assert.equal(fall.text, '33%'); assert.equal(fall.sub, 'from 12.6 mmHg'); assert.equal(fall.key_, true);
-  assert.equal(tileRows(spec, { hvpg: 8.4 }, null, null).find((r) => r.key === 'hvpgFall')!.text, '—', 'no baseline, no number');
-  assert.ok(tileRows({ ...spec, keys: ['map', 'hvpgFall'] }, { hvpg: 8.4 }, null, { hvpg: 12.6 }).filter((r) => r.key === 'hvpgFall').length === 1, 'listed once');
+  assert.equal(tileRows(spec, { hvpg: 8.4 }, null, undefined, null).find((r) => r.key === 'hvpgFall')!.text, '—', 'no baseline, no number');
+  assert.ok(tileRows({ ...spec, keys: ['map', 'hvpgFall'] }, { hvpg: 8.4 }, null, undefined, { hvpg: 12.6 }).filter((r) => r.key === 'hvpgFall').length === 1, 'listed once');
   const carv = loaded.find((l) => l.id === 'carvedilol')!.deck.slides.find((s) => s.id === 'start')!;
   assert.equal(carv.tiles?.resp, 'rise');
 });

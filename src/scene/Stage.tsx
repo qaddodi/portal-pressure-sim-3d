@@ -3,6 +3,7 @@
 //   engine phase  the engine's newest frame goes into the vessel data texture (the scene samples it)
 //   camera phase  the scene steps its tweens (shot, highlight, flow marks) and says whether it needs another frame
 //   render phase  one gl.render of the cel scene (a useFrame with a render priority, so R3F does not draw its own empty scene)
+import { tapFigure } from '../ui/action/tap.ts';
 import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Raycaster } from 'three';
@@ -14,12 +15,15 @@ import { resolveLook } from '../looks/looks.ts';
 import { useDeck } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
 import { figureDpr, msaaFor } from './quality.ts';
+import { aaMode } from './post-aa.ts';
 import { installShaderGuard } from '../debug/shader-guard.ts';
 import { setRenderer } from '../debug/gl-ref.ts';
 import { cel, frames, gesturesRef, sceneApi } from './api.ts';
 import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
 import { type GestureTarget, createGestures } from './gesture/controller.ts';
+import { type Sel, selectStructure, useSelection } from '../ui/action/selection.ts';
+import { tapSelect } from '../ui/action/tap-select.ts';
 
 const vesselData = new VesselData();
 cel.bindData(vesselData.texture);
@@ -47,7 +51,7 @@ function SceneBridge() {
   // fail loud, not invisible (WP10): a program the device's driver refuses is drawn plain, and the ?perf bar says so; ?gl borrows this renderer to compile every program once
   useEffect(() => {
     setRenderer(gl);
-    const off = installShaderGuard(gl, cel.scene, () => clock.invalidate('shader-failed'));
+    const off = installShaderGuard(gl, cel.scene, () => clock.invalidate('shader-failed'), () => [cel.post.material]);
     return () => { off(); setRenderer(null); };
   }, [gl]);
 
@@ -106,14 +110,16 @@ function SceneBridge() {
       fitRect: () => cel.rig.fitRect(),
       orbit: () => cel.rig.orbitAngle,
       setOrbit: (rad) => { const changed = cel.rig.setOrbit(rad); if (changed) clock.invalidate('orbit'); return changed; },
-      tap: (x, y) => {
+      // a tap picks what 2D's does (src/ui/action/tap-select.ts): a vessel, an organ (liver with its lobe, heart, spleen) or the belly's fluid; a tap on nothing puts the selection away
+      tap: (x, y, touch) => {
         if (useDeck.getState().mode !== 'free') return;
-        const hit = cel.pickAt(x, y, raycaster.current);
-        sceneApi.pick(hit && hit === cel.highlight.picked ? null : hit);
+        if (cel.view === 'lobule') tapFigure(x, y, raycaster.current);   // (the lobule's part under the finger: src/ui/action/tap.ts)
+        else tapSelect(cel.pickTargetAt(x, y, raycaster.current, !!touch), { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: cel.view === 'body' });
       },
-      picked: () => cel.highlight.picked,
-      setPicked: (id) => sceneApi.pick(id),
-      context: (x, y) => { const hit = cel.pickAt(x, y, raycaster.current); if (hit) sceneApi.pick(hit); },
+      picked: () => useSelection.getState().sel,
+      setPicked: (sel) => selectStructure(sel as Sel | null),
+      // right click and long press open the card of what is under the pointer and never close it (2D's contextmenu)
+      context: (x, y, touch) => { const hit = cel.pickTargetAt(x, y, raycaster.current, !!touch); if (hit) tapSelect(hit, { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: true }, false); },
     }, {
       now: () => performance.now(),
       ask: frames.ask, cancel: frames.cancel,
@@ -133,10 +139,11 @@ export function Stage() {
   // the pixel ratio the figure rests at, and so whether the context is multisampled (off from 2x: msaaFor); the canvas is made again only when that answer changes
   const detail = useSettings((s) => s.figureDetail);
   const rest = figureDpr(detail, true, false, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1);
-  const msaa = msaaFor(rest);
+  // (the anti-aliasing pass, the default, does the canvas's job: the context is multisampled only when the address asks for `?aa=msaa`, and then only below 2x)
+  const msaa = aaMode() === 'msaa' && msaaFor(rest);
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-stage)' as unknown as number, touchAction: 'none' }}>
-      <Canvas key={msaa ? 'msaa' : 'no-msaa'} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, powerPreference: 'high-performance' }}>
+      <Canvas key={msaa ? 'msaa' : 'no-msaa'} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, stencil: true, powerPreference: 'high-performance' }}>
         <ClockBridge />
         <SceneBridge />
       </Canvas>

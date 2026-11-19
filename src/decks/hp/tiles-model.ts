@@ -5,7 +5,10 @@ import { fmt } from '../../ui/charts/fmt.ts';
 import { valueText, type Fp } from './numbers.ts';
 import { DERIVED_TILE, withResponse, withRespKey, respNote } from './derived-tiles.ts';
 
-export interface TileSpec { deck: string; slide: string; keys: string[]; key: string[]; /** a slide id, the slide before (true), or none */ delta: string | boolean | null; /** the response tile's baseline (2D `hvpgResp`): a slide id, or true for the slide before */ resp?: string | true }
+export interface TileSpec { deck: string; slide: string; keys: string[]; key: string[]; /** a slide id, the slide before (true), or none */ delta: string | boolean | null; /** the readings left once the slide's chart shows its own (2D card-tiles.js ownKeys), for a laptop or tablet and for a phone */ own?: { wide: string[]; phone: string[] }; /** the response tile's baseline (2D `hvpgResp`): a slide id, or true for the slide before */ resp?: string | true }
+
+/** The keys the card prints on this screen: the slide's tiles less those its chart or instrument already shows (2D ownKeys). */
+export const keysFor = (spec: TileSpec, onPhone: boolean): string[] => (spec.own ? (onPhone ? spec.own.phone : spec.own.wide) : spec.keys);
 
 /** The slide a tile's change counts from: the one named, or the one before when the slide says `delta: true`. */
 export function deltaFrom(spec: TileSpec, ids: readonly string[]): string | null {
@@ -26,10 +29,10 @@ export function deltaOf(key: string, now: Fp | null, before: Fp | null): { text:
   return { text: `${diff > 0 ? '+' : ''}${fmt(diff, d)}`, good };
 }
 
-/** `base`: the state the response tile counts from (the slide named by `resp`). */
-export function tileRows(spec: TileSpec, fp: Fp | null, before: Fp | null, base: Fp | null = null): TileRow[] {
+/** `shown`: the keys this screen prints (keysFor). `base`: the state the response tile counts from (the slide named by `resp`). */
+export function tileRows(spec: TileSpec, fp: Fp | null, before: Fp | null, shown?: readonly string[], base: Fp | null = null): TileRow[] {
   const now = spec.resp ? withResponse(fp, base) : fp;
-  return withRespKey(spec.keys, spec.resp).filter((k) => TILE[k] ?? DERIVED_TILE[k]).map((k) => {
+  return withRespKey(spec.keys, spec.resp).filter((k) => (TILE[k] ?? DERIVED_TILE[k]) && (!shown || !TILE[k] || shown.includes(k))).map((k) => {
     const derived = !TILE[k];
     const T = TILE[k] ?? DERIVED_TILE[k]!;
     return {
