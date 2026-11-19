@@ -11,6 +11,15 @@ import type { Fit } from './trial/model.ts';
 import { stiffFrame } from './stiff/frame.ts';
 import { saagFrame } from './saag/frame.ts';
 import { readingOf, type Pt } from './saag/model.ts';
+import { forestFrame, armsFrame } from './forest/frame.ts';
+import { lumenFrame } from './lumen/frame.ts';
+import { flowTimeFrame } from './flowtime/frame.ts';
+import { flowTimeSeries, MEAL_LINES } from './flowtime/model.ts';
+
+/** A smooth made-up time-lapse for a gallery specimen: [day, a, b] rows rising (or falling) along an ease. Specimens show a look, not a patient. */
+const specimenTrail = (days: number, a: [number, number], b: [number, number]) => Array.from({ length: 61 }, (_, i) => { const t = i / 60, e = t * t * (3 - 2 * t); return [days * t, a[0] + (a[1] - a[0]) * e, b[0] + (b[1] - b[0]) * e]; });
+const MEAL = flowTimeSeries(specimenTrail(30, [8, 12.4], [1.1, 1.6]), 'meal')!;
+const DAYS = flowTimeSeries(specimenTrail(180, [14, 9], [22, 11]), 'days', ['hvpg', 'lsm'])!;
 
 const SAAG_PTS: Pt[] = [
   { name: 'Cirrhosis', saag: 2.1, tp: 1.4, own: true, modeled: true }, { name: 'Right heart failure', saag: 2.0, tp: 3.9, own: false, modeled: true },
@@ -42,7 +51,10 @@ export const CHARTS: ChartKind[] = [
   { kind: 'criteria', what: 'Guideline rule list with live rows, or the Baveno VIII zones graph', slides: 50, status: 'done',
     specimens: [{ id: 'zones', label: 'Stiffness and platelets zones (Baveno VIII)', build: (c) => zonesFrame(ZONES['first-visit']!, c, 'Stiffness and platelets zones') }] },
   todo('ladder', 'Pressure ladder: bars along one axis and the HVPG subtraction (already a card, src/ui/cards)'),
-  todo('flowtime', 'Lines over days: HVPG, varix, ascites, liver flow', 43),
+  { kind: 'flowtime', what: 'Lines over days: HVPG, varix, ascites, liver flow', slides: 43, status: 'done',
+    specimens: [{ id: 'meal', label: 'Portal pressure and flow around a meal (specimen numbers)', build: (c) => flowTimeFrame({ ser: MEAL, clock: 'meal', keys: MEAL_LINES }, MEAL.ax.end, c).frame },
+      { id: 'meal-mid', label: 'The same, with the lines half drawn', build: (c) => flowTimeFrame({ ser: MEAL, clock: 'meal', keys: MEAL_LINES }, 12, c).frame },
+      { id: 'days', label: 'HVPG and stiffness over six months, with two treatments (specimen numbers)', build: (c) => flowTimeFrame({ ser: DAYS, clock: 'days', keys: ['hvpg', 'lsm'], rx: ['carvedilol', 'diuretics'] }, DAYS.ax.end, c).frame }] },
   todo('profile', 'Pressure profile along the circuit', 33),
   todo('path', 'Guideline path map', 33),
   todo('curve', 'One quantity against another, or a parameter sweep, with its course', 25),
@@ -51,9 +63,15 @@ export const CHARTS: ChartKind[] = [
       trialSpecimen(Object.keys(TRIALS)[1]!, { verdict: 'fits', met: 3, of: 3, rows: [] }, 'On a slide: the patient fits')] },
   { kind: 'flows', what: 'Portal blood bar: where the blood goes', slides: 12, status: 'done',
     specimens: [{ id: 'portal', label: 'Where the portal blood goes (cirrhosis)', build: (c) => flowsFrame({ of: 'portal', parts: SPLIT, healthy: [part('liver', 100)], tiers: null }, c).frame }] },
-  todo('lumen', 'A vessel cross-section: open, clot, stent', 7),
+  { kind: 'lumen', what: 'A vessel cross-section: open, clot, stent', slides: 7, status: 'done',
+    specimens: [{ id: 'open', label: 'Open portal vein', build: (c) => lumenFrame({ vessel: 'PV_TRUNK', stenosis: 0, thrombus: 0, stent: false }, c) },
+      { id: 'clot', label: 'Partly occluded by a clot', build: (c) => lumenFrame({ vessel: 'PV_TRUNK', stenosis: 0.1, thrombus: 0.55, stent: false }, c) },
+      { id: 'stent', label: 'A stent, narrowed at its distal end', build: (c) => lumenFrame({ vessel: 'TIPS', stenosis: 0.4, thrombus: 0, stent: true, site: 'distal' }, c) }] },
   todo('evgraph', 'Event graph: PPG and a second line after an event', 8),
-  todo('forest', 'Forest plot of trials'),
+  { kind: 'forest', what: 'Forest plot of trials', status: 'done',
+    specimens: [{ id: 'all', label: 'Every trial on one scale', build: (c) => forestFrame(Object.values(TRIALS), c).frame },
+      { id: 'picked', label: 'Four trials fit the patient; one is picked', build: (c) => { const ids = Object.keys(TRIALS); return forestFrame(Object.values(TRIALS), c, { highlight: ids.slice(0, 4), selected: ids[1] }).frame; } },
+      { id: 'arms', label: 'One trial\'s arms as bars', build: (c) => armsFrame(Object.values(TRIALS)[0]!, c) }] },
   todo('plane', 'Two-quantity plane with zones (CSPH plane, stiffness × platelets)'),
   todo('fluid', 'Starling forces and the fluid window', 2),
   { kind: 'saag', what: 'SAAG and protein plane', status: 'done',
