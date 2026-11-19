@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { pinned2D } from './two-d-pin.ts';
 import { PATHS, litOf, outcomeOf, readingFor, chipsOf, patientOf, slots, treeBoxes, ortho, mayBreak, layoutParagraph, flow, pathLayout, pathWords, WORST } from '../src/ui/charts/path/model.ts';
 import { pathFrame, roundedPts } from '../src/ui/charts/path/frame.ts';
 import { pathFingerprint, phoneLayout } from '../src/ui/charts/path/data.ts';
@@ -10,7 +11,7 @@ import type { TextShape } from '../src/ui/charts/scene.ts';
 import { ctxOf, eachLook, judge } from './charts-helpers.ts';
 
 const ids = Object.keys(PATHS);
-const TWO = '/home/claude/portal-pressure-simulator';
+const TWO = pinned2D('src/ui/path-data.js');
 
 // Numbers from the 2D app's own path-data.js run on the same patients (computed once).
 test('the algorithms are the 2D app\'s: lit set, outcome, reading and chips of known patients equal 2D', () => {
@@ -57,8 +58,8 @@ test('Baveno VIII only: no algorithm or reading names Baveno VII, and the source
   }
 });
 
-test('the copied files equal the 2D app\'s (when its checkout is there)', { skip: !existsSync(TWO) }, () => {
-  execFileSync('node', ['scripts/copy-chart-path.mjs', '--from', TWO, '--check'], { stdio: 'pipe' });
+test('the copied files equal the 2D app\'s (when its checkout is there)', { skip: TWO.skip }, () => {
+  execFileSync('node', ['scripts/copy-chart-path.mjs', '--from', TWO.repo, '--check'], { stdio: 'pipe' });
 });
 
 test('the tree: leaves take slots, the boxes tile the width, a connector goes down, along and down', () => {

@@ -2,9 +2,9 @@
 // These tests hold what node can hold (no GPU here): the copy is current, the shader text is whole and takes every uniform the view writes, the state reaches the uniforms, the
 // tissue comes in over the lobule by the camera's distance and is whole to every edge once landed, and the lobule is hidden when it has landed (the cut was drawn over a zoomed lobule).
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
+import { pinned2D } from './two-d-pin.ts';
 import { Vector2, Vector3, Vector4 } from 'three';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView, diveShare, PLANE_HALF, U } from '../src/scene/sinusoid/view.ts';
@@ -16,14 +16,14 @@ import { SINUSOID_L, sinusoidShot } from '../src/scene/lobule/shots.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import type { SinusoidTargets } from '../src/scene/lobule/model.ts';
 
-const TWO_D = process.env.PPS_2D_REPO ?? '/home/claude/portal-pressure-simulator';
+const TWO_D = pinned2D('src/ui/sinusoid-gl.js');
 const targets = (o: Partial<SinusoidTargets> = {}): SinusoidTargets => ({ por: 1, col: 0, bm: 0, mv: 1, act: 0, lum: 1, pinch: 0, v: 1, filt: 1, prot: 1, ...o });
 const val = (v: SinusoidView, name: string) => (v.tissue.material as unknown as { uniforms: Record<string, { value: unknown }> }).uniforms[name]!.value;
 const num = (v: SinusoidView, name: string) => val(v, name) as number;
 const run = (v: SinusoidView, from = 0, ms = 1500) => { for (let t = from; t <= from + ms; t += 16) v.update(t); return from + ms; };
 
-test('the copy is current: scripts/copy-sinusoid.mjs --check against the 2D checkout (skipped without one)', { skip: !existsSync(`${TWO_D}/src/ui/sinusoid-gl.js`) && 'no 2D checkout (set PPS_2D_REPO)' }, () => {
-  assert.doesNotThrow(() => execFileSync('node', ['scripts/copy-sinusoid.mjs', '--from', TWO_D, '--check'], { stdio: 'pipe' }));
+test('the copy is current: scripts/copy-sinusoid.mjs --check against the 2D checkout at the pin (skipped without one)', { skip: TWO_D.skip }, () => {
+  assert.doesNotThrow(() => execFileSync('node', ['scripts/copy-sinusoid.mjs', '--from', TWO_D.repo, '--check'], { stdio: 'pipe' }));
 });
 
 test('the shader text is 2D\'s, whole: tissue, cells, the sprites, with no screen-pixel leftovers and the 3D\'s own vertex stage', () => {
