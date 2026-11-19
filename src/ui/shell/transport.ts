@@ -3,6 +3,7 @@
 import { engine, latest, useEngine } from '../../engine/index.ts';
 import { clock } from '../../clock/frame.ts';
 import { useShell } from './store.ts';
+import { loadPatient } from '../menu/patients.ts';
 
 /** 2D: timeline.js fmtClock. A day count once days have passed; minutes and seconds (or hours) before. */
 export function fmtClock(t: number, day: number): string {
@@ -19,7 +20,7 @@ export function setSpeed(v: number, lapse: boolean) {
 }
 export const jump = (days: number | 'event') => engine().send(days === 'event' ? { type: 'advance', untilEvent: true } : { type: 'advance', days });
 export const settle = () => engine().send({ type: 'settle' });
-export const restart = () => { const id = useEngine.getState().presetId; if (id) void engine().request({ type: 'preset', id }); };
+export const restart = () => { const id = useEngine.getState().presetId; if (id) void loadPatient(id); };
 export const step = () => { engine().send({ type: 'run', running: true }); setTimeout(() => engine().send({ type: 'run', running: false }), 60); };
 
 /** Start mirroring the engine into the store (call once, after the engine has booted). The clock's engine phase reads the newest frame; the store changes only
