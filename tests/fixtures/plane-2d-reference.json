@@ -1,0 +1,450 @@
+{
+ "note": "computed once by running the 2D app visual-plane.js pure functions in node, in the order its draw() asks for them",
+ "ref": {
+  "hp": {
+   "max": [
+    16,
+    20
+   ],
+   "names": [
+    [
+     "Healthy",
+     65.6,
+     243.5,
+     "middle",
+     false
+    ],
+    [
+     "Cirrhosis",
+     254.4,
+     51.2,
+     "middle",
+     false
+    ],
+    [
+     "Presinusoidal obstruction",
+     101.5,
+     147.3,
+     "start",
+     false
+    ]
+   ],
+   "words": [],
+   "lines": [
+    [
+     "CSPH ≥10",
+     210.8,
+     19
+    ],
+    [
+     "PPG ≥12",
+     318,
+     100.6
+    ]
+   ],
+   "nums": [
+    [
+     "HVPG, mmHg",
+     321,
+     262.8,
+     "end"
+    ],
+    [
+     "PPG, mmHg",
+     9,
+     19.4,
+     "start"
+    ],
+    [
+     "5",
+     105.4,
+     262.8,
+     "middle"
+    ],
+    [
+     "10",
+     204.8,
+     262.8,
+     "middle"
+    ],
+    [
+     "6",
+     9,
+     194.7,
+     "start"
+    ],
+    [
+     "12",
+     9,
+     115.7,
+     "start"
+    ]
+   ],
+   "cuts": [
+    [
+     204.8,
+     6,
+     204.8,
+     269
+    ],
+    [
+     6,
+     111.2,
+     324,
+     111.2
+    ]
+   ]
+  },
+  "flow": {
+   "max": [
+    2,
+    20
+   ],
+   "names": [
+    [
+     "Healthy",
+     203.8,
+     259.7,
+     "start",
+     false
+    ],
+    [
+     "Cirrhosis",
+     172.1,
+     115.9,
+     "start",
+     true
+    ]
+   ],
+   "words": [],
+   "lines": [
+    [
+     "PPG ≥12",
+     245.9,
+     131.8
+    ]
+   ],
+   "nums": [
+    [
+     "0.5",
+     105.1,
+     321.9,
+     "middle"
+    ],
+    [
+     "1",
+     174,
+     321.9,
+     "middle"
+    ],
+    [
+     "1.5",
+     243,
+     321.9,
+     "middle"
+    ],
+    [
+     "2",
+     311.9,
+     321.9,
+     "middle"
+    ],
+    [
+     "5",
+     27.1,
+     240.9,
+     "end"
+    ],
+    [
+     "10",
+     27.1,
+     173.7,
+     "end"
+    ],
+    [
+     "15",
+     27.1,
+     106.6,
+     "end"
+    ],
+    [
+     "20",
+     27.1,
+     39.4,
+     "end"
+    ],
+    [
+     "0",
+     27.1,
+     321.9,
+     "end"
+    ],
+    [
+     "Portal flow, L/min",
+     174,
+     338.8,
+     "middle"
+    ],
+    [
+     "PPG (PV − IVC), mmHg",
+     9,
+     19.4,
+     "start"
+    ]
+   ],
+   "cuts": [
+    [
+     36.1,
+     142.3,
+     311.9,
+     142.3
+    ]
+   ]
+  },
+  "csph": {
+   "max": [
+    35,
+    250
+   ],
+   "names": [
+    [
+     "Healthy",
+     43.1,
+     81.2,
+     "middle",
+     false
+    ],
+    [
+     "Cirrhosis",
+     159.6,
+     199,
+     "end",
+     false
+    ]
+   ],
+   "words": [
+    [
+     "CSPH",
+     297.5,
+     44.3,
+     "middle"
+    ],
+    [
+     "No CSPH",
+     42,
+     33.1,
+     "start"
+    ],
+    [
+     "Indeterminate",
+     85.5,
+     250.5,
+     "middle"
+    ]
+   ],
+   "lines": [],
+   "nums": [
+    [
+     "LSM, kPa",
+     321,
+     274.8,
+     "end"
+    ],
+    [
+     "PLT",
+     9,
+     19.4,
+     "start"
+    ],
+    [
+     "15",
+     112,
+     274.8,
+     "middle"
+    ],
+    [
+     "25",
+     218,
+     274.8,
+     "middle"
+    ],
+    [
+     "150K",
+     9,
+     148.1,
+     "start"
+    ],
+    [
+     "20",
+     165,
+     274.8,
+     "middle"
+    ]
+   ],
+   "cuts": [
+    [
+     112,
+     6,
+     112,
+     143.5
+    ],
+    [
+     218,
+     6,
+     218,
+     281
+    ],
+    [
+     6,
+     143.5,
+     111.7,
+     143.5
+    ]
+   ]
+  },
+  "cardCsph": {
+   "dot": [
+    190.4,
+    98.4,
+    4,
+    2.5
+   ],
+   "words": [
+    [
+     "CSPH",
+     298.1,
+     27.1,
+     [
+      "CSPH"
+     ],
+     13,
+     false
+    ],
+    [
+     "No CSPH",
+     38.2,
+     37.1,
+     [
+      "No CSPH"
+     ],
+     13,
+     false
+    ],
+    [
+     "Indeterminate",
+     86.4,
+     123.1,
+     [
+      "Indeterminate"
+     ],
+     13,
+     false
+    ]
+   ],
+   "nums": [
+    [
+     "15",
+     112,
+     139.8,
+     "middle"
+    ],
+    [
+     "25",
+     218,
+     139.8,
+     "middle"
+    ],
+    [
+     "150K",
+     9,
+     69.8,
+     "start"
+    ],
+    [
+     "LSM, kPa",
+     321,
+     139.8,
+     "end"
+    ],
+    [
+     "PLT",
+     9,
+     19.4,
+     "start"
+    ],
+    [
+     "20",
+     165,
+     139.8,
+     "middle"
+    ]
+   ],
+   "reading": "Stiffness 22.4 kPa · Platelets 118 ×10³/µL · Indeterminate"
+  },
+  "cardHp": {
+   "dot": [
+    196.8,
+    101.6,
+    5.2,
+    3.1
+   ],
+   "words": [],
+   "nums": [
+    [
+     "5",
+     85.5,
+     205.8,
+     "middle"
+    ],
+    [
+     "10",
+     165,
+     205.8,
+     "middle"
+    ],
+    [
+     "6",
+     9,
+     161.6,
+     "start"
+    ],
+    [
+     "12",
+     9,
+     117.5,
+     "start"
+    ],
+    [
+     "HVPG, mmHg",
+     321,
+     205.8,
+     "end"
+    ],
+    [
+     "PPG, mmHg",
+     9,
+     19.4,
+     "start"
+    ]
+   ],
+   "reading": "HVPG 12.0 mmHg · PPG 15.0 mmHg · Both raised"
+  }
+ },
+ "misc": {
+  "fit": {
+   "min": 0,
+   "max": 14
+  },
+  "fit2": {
+   "min": 0,
+   "max": 28
+  },
+  "shown": {
+   "lsm": 25,
+   "plt": 150
+  },
+  "z": "CSPH",
+  "z2": "No CSPH",
+  "z3": "HVPG raised, PPG normal"
+ }
+}
