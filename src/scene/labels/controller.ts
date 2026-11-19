@@ -244,6 +244,7 @@ export class LabelController {
       const p = this.anchorOf(m, 0.5, this.at);
       if (!p) continue;
       const a = d.project(p, { x: 0, y: 0 });
+      if (!Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;   // (a dot behind the camera or at its plane has no place on the screen: it is not placed, never placed at a number that is not one)
       anchors.set(m.id, a);
       const was = this.anchors.get(m.id);
       if (!was || Math.abs(was.x - a.x) > 0.35 || Math.abs(was.y - a.y) > 0.35) moved = true;
@@ -256,7 +257,10 @@ export class LabelController {
     const movedPt = (a: [number, number] | null, b: [number, number] | null) => (a === null) !== (b === null) || (!!a && !!b && (Math.abs(a[0] - b[0]) > 0.35 || Math.abs(a[1] - b[1]) > 0.35));
     if (movedPt(nowTip, this.cTipPx) || movedPt(nowAhead, this.cAheadPx) || got !== this.cGot) moved = true;
     this.cTipPx = nowTip; this.cAheadPx = nowAhead; this.cGot = got;
-    if (moved) this.lastMove = now;
+    // A picture that moved places its labels again once it is still: the solve judges screen positions (cards, other labels, the vessels' lines), and none of them is in the signature below. Without
+    // this a solve made while the camera stood somewhere else (the dive's far end, where every dot is off the screen and nothing can be placed) was kept for ever after the camera came back, and every
+    // name stayed gone until a card happened to change (Mac play-test, 19 Nov: sinusoid back to Anatomy, 10+ seconds with no names).
+    if (moved) { this.lastMove = now; this.dirty = true; }
     const hold = now - this.lastMove < FADE.settleMs;
 
     // 2. solve once the picture is still and something changed (the labelled set, a card, the view, the words)
