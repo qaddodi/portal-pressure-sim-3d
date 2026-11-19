@@ -73,7 +73,9 @@ export class ClotLayer {
       this.group.add(c.obj.group);
       if (this.palette) { c.obj.applyPalette(this.palette); recolour(c.obj, clotColour(this.look, this.palette), this.palette); }
     } else {
-      for (const m of c.obj.group.children) (m as import('three').Mesh).geometry = g;
+      const old = new Set<import('three').BufferGeometry>();
+      for (const m of c.obj.group.children) { const mesh = m as import('three').Mesh; old.add(mesh.geometry); mesh.geometry = g; }
+      for (const o of old) o.dispose();
     }
     c.obj.group.visible = true;
   }
