@@ -66,7 +66,7 @@ export function viewAt(stops: Stop[], p: Pos, lastShot: ShotName = lastSlideShot
   return {
     words: caseBeat ? 'case' : 'teach',
     data: !caseBeat && s.slide.ladder ? 'ladder' : null,
-    slide: s.slide, shot: s.slide.shot, cath: s.slide.cath, number, of,
+    slide: s.slide, shot: s.slide.shot, cath: s.slide.cath ?? null, number, of,
   };
 }
 
@@ -110,10 +110,15 @@ export function apply(stops: Stop[], p: Pos, m: Move): Pos {
 export function catheterAt(stops: Stop[], p: Pos): { advance: number; balloon: number } {
   const s = stops[p.stop];
   if (s.kind === 'title') return { advance: 0, balloon: 0 };
-  if (s.kind === 'check') return { advance: 1, balloon: 1 };
+  if (s.kind === 'check') return catheterOf(lastCath(stops));
   if (s.slide.vignette && p.beat === 0) return { advance: 0, balloon: 0 };
-  switch (s.slide.cath) {
-    case 'route': case 'free': return { advance: 1, balloon: 0 };
-    case 'wedge': case 'result': return { advance: 1, balloon: 1 };
-  }
+  return catheterOf(s.slide.cath);
 }
+const catheterOf = (c: CathState | undefined | null): { advance: number; balloon: number } =>
+  c === 'route' || c === 'free' ? { advance: 1, balloon: 0 } : c === 'wedge' || c === 'result' ? { advance: 1, balloon: 1 } : { advance: 0, balloon: 0 };
+
+/** The catheter state the last slide with one asked for: the quick check leaves the figure as that slide left it (none when no slide has a catheter). */
+export const lastCath = (stops: Stop[]): CathState | undefined => {
+  for (let i = stops.length - 1; i >= 0; i--) { const s = stops[i]; if (s.kind === 'slide' && s.slide.cath) return s.slide.cath; }
+  return undefined;
+};
