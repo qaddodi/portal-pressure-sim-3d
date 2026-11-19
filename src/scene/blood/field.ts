@@ -2,10 +2,13 @@
 // size follows (a head is 4 to 8 CSS px wide wherever the camera is). The scene steps it from its update(); nothing here loops.
 import type { Texture } from 'three';
 import { Streams } from './streams.ts';
+import { StreamChain } from './chain.ts';
 
-export interface BloodShared { streamTex: { value: Texture }; projY: { value: number } }
+export interface BloodShared { streamTex: { value: Texture }; chainTex: { value: Texture }; projY: { value: number } }
 
 export class BloodField {
   readonly streams = new Streams();
-  readonly shared: BloodShared = { streamTex: { value: this.streams.texture }, projY: { value: 1 } };
+  /** The parcels carried through junctions (chain.ts): each vessel's heads run on from its parent's. */
+  readonly chain = new StreamChain();
+  readonly shared: BloodShared = { streamTex: { value: this.streams.texture }, chainTex: { value: this.chain.texture }, projY: { value: 1 } };
 }

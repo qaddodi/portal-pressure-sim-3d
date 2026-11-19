@@ -103,14 +103,9 @@
 @keyframes dk-roll-in { from { opacity: 0; transform: translateY(70%); } to { opacity: 1; transform: none; } }
 @keyframes dk-roll-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-70%); } }
 
-/* ── the name tab (2D `.pz-tabname`): the talk's short name in a darker patch of the card's own glass, flush with the card's top and right edges ── */
-.deck-ui { --tab-f: var(--fs-kicker); --tab-h: calc(var(--tab-f) * 1.85); --tab-bg: color-mix(in srgb, var(--text) 8%, transparent); }
-html:is([data-look="dark"], [data-look="navy"], [data-look="black"]) .deck-ui { --tab-bg: color-mix(in srgb, #000 26%, transparent); }
-.dk-tab { position: absolute; top: 0; right: 0; z-index: 1; height: var(--tab-h); display: flex; align-items: center; padding: 0 calc(var(--tab-h) * 0.55 - 0.05em) 0 calc(var(--tab-h) * 0.55);
-  border-radius: 0 var(--r) 0 calc(var(--tab-h) * 0.5); background: var(--tab-bg); font: 600 var(--tab-f) / 1 var(--ui, system-ui); letter-spacing: 0.09em; text-transform: uppercase;
-  white-space: nowrap; color: var(--text-2); pointer-events: none; user-select: none; }
+/* ── the name tab is 2D's `.pz-tabname` (src/ui/css2d/app-04-presenter.css), unchanged; only the half tab of air under it is here ── */
 /* half a tab's height of air between the tab strip and the title (2D `.pz-tabgap`) */
-.dk-tabgap { display: block; height: calc(var(--tab-h) * 0.5); }
+.dk-tabgap { display: block; height: calc(var(--pz-tabh) * 0.5); }
 
 /* ── the opening card: the 2D "Outline and objectives" (a numbered run of sections, the objectives ticked on a tinted card) ── */
 .dk-dtitle { font-size: var(--fs-deck); line-height: var(--lh-deck); margin: 0; }

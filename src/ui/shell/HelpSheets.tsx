@@ -15,10 +15,10 @@ const HELP_FEATURE: Record<string, FeatureId> = { 'About the model': 'guide-abou
 
 export const openGuide = (section: 'keys' | 'present' | null = null) => useShell.setState({ sheet: 'guide', helpSection: section });
 
-/** 2D main.js helpRows(): Guide, Keyboard shortcuts, About the model, References, Privacy, then the author's credit, as a menu on 2D's markup. */
-export function HelpMenu() {
+/** 2D main.js helpRows(): Guide, Keyboard shortcuts, About the model, References, Privacy, then the author's credit. The rows of the Help menu and of the Help page inside Settings. */
+export function HelpRows() {
   return (
-    <MenuPop kind="help" label="Help" title="Help" from="settings" align="end">
+    <>
       <MenuGroup title="Help">
         {UI.helpPages.map((p) => (
           <MenuItem key={p.label} icon={HELP_ICON[p.label] ?? 'info'} label={p.label} kb={p.kb ? keyLabel(p.kb) : null} onClick={() => {
@@ -32,6 +32,15 @@ export function HelpMenu() {
           <span>Created by <b>{AUTHOR}</b></span><span className="mc-link">More teaching tools <I n="chev-right" /></span>
         </a>
       </MenuGroup>
+    </>
+  );
+}
+
+/** The Help menu: opened from the main menu's footer. */
+export function HelpMenu() {
+  return (
+    <MenuPop kind="help" label="Help" title="Help" from="settings" align="end">
+      <HelpRows />
     </MenuPop>
   );
 }

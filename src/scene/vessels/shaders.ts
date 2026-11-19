@@ -142,6 +142,7 @@ uniform float smokeOn;
 uniform vec3 hiColor;
 uniform float hullOn;
 uniform sampler2D streamTex;
+uniform sampler2D chainTex;
 uniform float projY;
 uniform vec2 res;
 varying float vW;
@@ -185,6 +186,23 @@ float chevKeep(float j, float n0, float lv) {
   for (int i = 0; i < 10; i++) { if (q < 0.5 || mod(q, 2.0) > 0.5) break; q *= 0.5; m += 1.0; }
   if (q < 0.5) m = 10.0;
   return clamp(exp2(1.0 - (lv - n0 - m)) - 1.0, 0.0, 1.0);
+}
+// One vessel's heads placed by a stream's pattern (veins-gl.js chevOne): se = A + B s is the vessel's arc along that stream (B = 1, se = s for its own), Dm the stream's distance. The
+// spacing is the zoom's, by the arc a head takes here (B), so a parcel that slows on entering a vessel bunches up as the blood does. ends: the weights of a link at the vessel's from and
+// to end (above 0: a chained end, through which the heads run on instead of fading). Returns the head's coverage and its rim, already faded by its place and its lattice.
+vec2 chevOne(float s, float Lw, float se, float Bm, float Dm, float vd, float rv, vec2 ends, float R, float across, float wpc, float Pt, float px) {
+  float lv = max(-1.0, log2(Pt * max(abs(Bm), 0.05) / 28.0));
+  float n0 = floor(lv), P = 28.0 * exp2(n0);
+  float j = floor((se - Dm) / P + 0.5);
+  float x = (se - (Dm + j * P)) / Bm, sc = s - x;
+  float hw = min(0.8 * R, clamp(0.5 * R, 4.0 * wpc, 8.0 * wpc)), L = 1.6 * hw;
+  if (abs(x) > (0.6 + 0.4 * rv) * L + 0.15 * hw + 4.0 * px) return vec2(0.0);
+  float lo = 0.6 * L, ramp = max(2.0 * L, 0.12 * Pt);
+  float a0 = sc < lo ? 0.0 : smoothstep(lo, lo + ramp, sc), a1 = Lw - sc < lo ? 0.0 : smoothstep(lo, lo + ramp, Lw - sc);
+  float fade = min(mix(a0, 1.0, clamp(ends.x, 0.0, 1.0)), mix(a1, 1.0, clamp(ends.y, 0.0, 1.0))) * chevKeep(j, n0, lv);
+  if (fade <= 0.0) return vec2(0.0);
+  float dir = vd != 0.0 ? sign(vd) : (rv > 0.5 ? -1.0 : 1.0);
+  return chevHead(dir * x, abs(across) * R, hw, px, rv) * fade;
 }
 float chevOrange(vec3 c) {
   return smoothstep(0.35, 0.55, c.r - c.b) * smoothstep(0.65, 0.8, c.r) * smoothstep(0.25, 0.35, c.g) * (1.0 - smoothstep(0.62, 0.78, c.g));
@@ -280,17 +298,18 @@ void main() {
     float R = max(vR, 0.3), Lw = len * 300.0, s = vUv.x * Lw;
     float px = max(pxArc, 0.15 * wpc);
     float Pt = 130.0 * wpc;
-    float lv = max(-1.0, log2(Pt / 28.0));
-    float n0 = floor(lv), P = 28.0 * exp2(n0);
-    float j = floor((s - Dm) / P + 0.5), sc = Dm + j * P;
-    float hw = min(0.8 * R, clamp(0.5 * R, 4.0 * wpc, 8.0 * wpc)), L = 1.6 * hw;
-    float lo = 0.6 * L, ramp = max(2.0 * L, 0.12 * Pt), e = min(sc, Lw - sc);
-    float fade = e < lo ? 0.0 : smoothstep(lo, lo + ramp, e);
-    fade *= chevKeep(j, n0, lv) * flowAmount * smoothstep(1.5 * wpc, 2.5 * wpc, R) * smoothstep(0.85 * hw, 1.15 * hw, R);
+    vec4 c4 = texelFetch(chainTex, ivec2(int(lensIndex), 0), 0), c5 = texelFetch(chainTex, ivec2(int(lensIndex), 1), 0);
+    vec2 ch = vec2(0.0);
+    if (c4.w < 1.0) ch = chevOne(s, Lw, s, 1.0, Dm, vd, rv, c5.xy, R, across, wpc, Pt, px);
+    if (c4.w > 0.0) {
+      float rootD = texelFetch(streamTex, ivec2(int(c4.x + 0.5) - 1, 0), 0).x;
+      vec2 cc = chevOne(s, Lw, c4.y + c4.z * s, c4.z, rootD, vd, rv, c5.xy, R, across, wpc, Pt, px);
+      ch = c4.w >= 1.0 ? cc : mix(ch, cc, c4.w);
+    }
+    float hwv = min(0.8 * R, clamp(0.5 * R, 4.0 * wpc, 8.0 * wpc));
+    float fade = flowAmount * smoothstep(1.5 * wpc, 2.5 * wpc, R) * smoothstep(0.85 * hwv, 1.15 * hwv, R);
     fade *= mix(0.3, 1.0, smoothstep(0.5, 3.0, abs(vd)));
-    if (fade > 0.0) {
-      float dir = vd != 0.0 ? sign(vd) : (rv > 0.5 ? -1.0 : 1.0);
-      vec2 ch = chevHead(dir * (s - sc), abs(across) * R, hw, px, rv);
+    if (fade > 0.0 && ch.x + ch.y > 0.0) {
       float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);
       float dk = 1.0 - smoothstep(0.175, 0.205, dot(pow(max(base, vec3(0.0)), vec3(2.2)), vec3(0.2126, 0.7152, 0.0722)));
       float rk = rv * (1.0 - origin), warm = rk * chevOrange(base);
