@@ -32,8 +32,13 @@ export interface HealthyRef { P: Float64Array | number[]; Q: Float64Array | numb
 export const patient: { reference: HealthyRef | null; params: unknown; paramsVersion: number } = { reference: null, params: null, paramsVersion: 0 };
 export function setParams(params: unknown) { if (params == null) return; patient.params = params; patient.paramsVersion++; }
 
+/** Listeners handed every adopted frame (not just the newest): a trace that records the model's samples must see each frame once. Returns the remover. */
+const taps = new Set<(f: EngineFrame) => void>();
+export function onFrame(fn: (f: EngineFrame) => void): () => void { taps.add(fn); return () => { taps.delete(fn); }; }
+
 export function adoptFrame(f: EngineFrame) {
   latest.frame = f; latest.version++;
+  for (const fn of taps) fn(f);
   if (f.params !== undefined) setParams(f.params);
   const m: Metrics = f.metrics;
   const s = useEngine.getState();

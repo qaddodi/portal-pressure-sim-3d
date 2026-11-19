@@ -23,7 +23,7 @@ export const FILES = [
   'band-settle', 'band-ease', 'band-ring', 'balloon-eso', 'rx-bands',
   'scope-lens-rule', 'endo-size', 'endo-columns', 'endo-motion',
   'trace-lanes', 'trace-tape', 'trace-labels', 'trace-room', 'trace-callouts-math',
-  'pressure-along', 'hvpg-balloon', 'ekg', 'drop-front',
+  'pressure-along', 'hvpg-balloon', 'ekg', 'drop-front', 'limit-label',
   'instrument-aria', 'vital-read', 'table-marks', 'lymph-day', 'dock-vars',
 ].filter((n) => n !== 'trace-callouts-math');
 const SLICES = {
