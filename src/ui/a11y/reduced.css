@@ -4,7 +4,7 @@
   .deck-ui { --rise: 0px; --drop: 0px; --move: 240ms; }
   /* a card's glide to a new height is a reveal, kept (a fade of the plate under it); the place a card glides to is a move, which becomes a fade by the card's own in and out */
   .dk-pos[data-live="true"] { transition-property: opacity; transition-duration: 240ms; }
-  .dk-row .dk-bar i, .dk-dots button i, .dk-dots button u { transition-property: opacity, background-color; transition-duration: 240ms; }
+  .dk-row .dk-bar i { transition-property: opacity, background-color; transition-duration: 240ms; }
   /* a rolling number swaps by opacity only */
   .dk-roll-in, .dk-roll-out { animation-name: dk-fade-in-only; animation-duration: 240ms; }
   .dk-roll-out { animation-name: dk-fade-out-only; }

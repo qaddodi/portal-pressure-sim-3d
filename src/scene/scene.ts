@@ -1,11 +1,13 @@
-import { Box3, Color, type DataTexture, Group, Mesh, MeshBasicMaterial, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
-import { BODY_PLATE_Z, FIGURE_Z, PLATE_BOUNDS, bodyPlateGeometry } from './anatomy/placeholder.ts';
+import { Box3, Color, type DataTexture, Group, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { MAPPED, NETWORK, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
-import { VesselObject } from './vessels/vessel-object.ts';
+import { FAINT_ONLY_LAYER, VesselObject } from './vessels/vessel-object.ts';
+import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
+import { fadeOf } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
@@ -89,7 +91,7 @@ export interface SceneOptions {
 
 export class CelScene {
   readonly scene = new Scene();
-  /** Everything of the body (plate, organs, vessels, catheter): hidden as one while the lobule or the sinusoid is the view. */
+  /** Everything of the body (organs, vessels, catheter): hidden as one while the lobule or the sinusoid is the view. */
   private readonly body = new Group();
   readonly rig: CameraRig;
   readonly shared: CelShared = createShared();
@@ -134,8 +136,9 @@ export class CelScene {
   private healthyQ: ArrayLike<number> | undefined;
   private collateralsOn = false;
   private bloodOpts = { chevrons: true, keyChevrons: false };
-  private readonly plate: Mesh;
   private readonly byEdge = new Map<string, CelObject>();
+  /** the vessels that fade at a free end (fades.ts), and the collaterals whose opening makes the tip solid */
+  private readonly tipFades: { o: VesselObject; connect: readonly string[] }[] = [];
   private look: LookId;
   private phone: boolean;
   private lastNow = -1;
@@ -148,10 +151,7 @@ export class CelScene {
     this.phone = !!opts.phone;
     this.rig = new CameraRig('title', undefined, opts.reduceMotion);
 
-    this.plate = new Mesh(bodyPlateGeometry(), new MeshBasicMaterial({ color: PALETTES[this.look].body }));
-    this.plate.position.z = BODY_PLATE_Z;
     this.scene.add(this.body);
-    this.body.add(this.plate);
 
     for (const def of NETWORK) this.addVessel(def);
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
@@ -208,6 +208,9 @@ export class CelScene {
     else this.leaving.push(o);   // a fan of tributaries has no map course: it leaves with the organs as the figure turns into the map
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
+    const fade = def.feeder ? null : fadeOf(def.id, def.tone === 'artery');
+    if (fade) { o.setTipFade(fade); this.tipFades.push({ o, connect: fade.connect }); }
+    if (BACK_EDGES.has(def.id)) o.setBehindOrgans(VESSEL_LAYER, IVC_EDGES.has(def.id));
     this.add(o);
     this.vessels.push(o);
     this.byEdge.set(def.id, o);
@@ -224,7 +227,6 @@ export class CelScene {
   applyLook(look: LookId): void {
     this.look = look;
     const p = PALETTES[look];
-    (this.plate.material as MeshBasicMaterial).color.set(p.body);
     this.mapLayer.applyLook(look, p.ink, MAP_LOOKS[look]?.ground ?? p.bg);
     for (const o of this.objects) { o.applyPalette(p); o.setPhone(this.phone); }
     this.procs.applyPalette(p); this.probes.applyPalette(p);
@@ -298,6 +300,7 @@ export class CelScene {
   private syncPresence(f: NonNullable<typeof latest.frame>, instant: boolean): void {
     for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn }, this.healthyQ), instant || f.jump);
     this.shapes.onFrame(f as never, performance.now(), this.healthyQ, instant || !!f.jump);
+    for (const t of this.tipFades) if (t.connect.length) t.o.setTipJoined(t.connect.some((c) => this.presence.stateOf(c) === 'shown'));
     const rexOn = this.presence.stateOf('REX') === 'shown';
     if (rexOn !== this.procs.isRexUnder) this.procs.setRexUnder(rexOn, (id) => this.vesselObject(id));
     this.flow.setDrawn((id) => this.presence.stateOf(id) === 'shown', (id) => this.presence.stateOf(id) === 'shown' && NETWORK.some((v) => v.id === id && v.kind === 'collateral'));
@@ -486,8 +489,6 @@ export class CelScene {
     this.fadeNow = f;
     for (const o of this.objects) o.setFade(f);
     this.disease.setFade(f);
-    const m = this.plate.material as MeshBasicMaterial;
-    m.transparent = f < 0.999; m.opacity = f; m.needsUpdate = true;
     this.body.visible = f > 0 || this.figureView === 'body';
     this.moving = true;
   }
@@ -514,7 +515,7 @@ export class CelScene {
   pickAt(x: number, y: number, raycaster: Raycaster): string | null {
     if (this.figureView === 'circuit') return this.pickCircuit(x, y);
     if (this.figureView !== 'body') return null;
-    raycaster.layers.enable(VESSEL_LAYER);
+    raycaster.layers.enable(VESSEL_LAYER); raycaster.layers.enable(FAINT_ONLY_LAYER);
     raycaster.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
     const hits = raycaster.intersectObjects(this.vessels.map((v) => v.toonMesh), false);
     for (const h of hits) {
@@ -574,8 +575,6 @@ export class CelScene {
       this.lastFade = fade;
       for (const o of [...this.leaving, ...this.disease.organs.objects]) { o.setFade(fade); o.group.visible = fade > 0.001; }
       this.disease.setFade(fade);
-      const m = this.plate.material as MeshBasicMaterial;
-      m.transparent = fade < 1; m.opacity = fade; this.plate.visible = fade > 0.001;
     }
     this.mapLayer.set(mapRamp(t), this.circuit.rr);
     this.procs.setFade(fade);
@@ -619,8 +618,6 @@ export class CelScene {
     for (const o of this.objects) o.dispose();
     this.procs.dispose(); this.probes.dispose();
     this.tubes.dispose(); this.resistors.dispose();
-    this.plate.geometry.dispose();
-    (this.plate.material as MeshBasicMaterial).dispose();
   }
 }
 

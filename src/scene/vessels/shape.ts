@@ -27,7 +27,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     const { main, strands } = coilCourses(v.id, plan.base as [number, number][], plan.coils, s.wig, s.spr);
     const zf = NODE_Z.get(v.from), zt = NODE_Z.get(v.to);
     const m = to3(main, z, zf, zt);
-    return [{ pts: m, radius: v.radius, taper: v.taper }, ...strands.map((c) => (s.strandsOn ? { pts: to3(c.pts, z, zf, zt), radius: Math.max(minR, v.radius * c.k) } : { pts: m, radius: v.radius, taper: v.taper }))];
+    return [{ pts: m, radius: v.radius, taper: v.taper, flare: v.flare }, ...strands.map((c) => (s.strandsOn ? { pts: to3(c.pts, z, zf, zt), radius: Math.max(minR, v.radius * c.k) } : { pts: m, radius: v.radius, taper: v.taper, flare: v.flare }))];
   }
   // a fan: each tributary's width is the host's times the group's share and its own (at least 1.2 units), thinner while the group is only part on
   return plan.list.map((f) => ({ pts: to3(f.pts, z), radius: len3(Math.max(0.35, Math.max(1.2, plan.hostW * plan.cfgK * f.k * (plan.when ? 0.5 + 0.5 * s.live : 1)) / 2)) }));

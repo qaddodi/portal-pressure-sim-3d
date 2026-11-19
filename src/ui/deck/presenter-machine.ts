@@ -8,6 +8,7 @@ import type { Deck, Slide, ShotName, CathState, SlideScene } from '../../decks/s
 import type { Shot } from '../../scene/camera/shots.ts';
 import type { CardId } from '../layout/plan.ts';
 import { TITLE_SHOT } from '../../decks/hvpg.ts';
+import { hasToolChart, hasVisualChart } from '../../decks/charts.ts';
 
 export type Stop =
   | { kind: 'title' }
@@ -69,7 +70,7 @@ export function viewAt(stops: Stop[], p: Pos, lastShot: ShotName | Shot = lastSl
   const caseBeat = s.slide.vignette && p.beat === 0;
   return {
     words: caseBeat ? 'case' : 'teach',
-    data: caseBeat ? null : s.slide.ladder || s.slide.tiles ? 'ladder' : s.slide.table ? 'table' : null,
+    data: caseBeat ? null : s.slide.ladder || s.slide.tiles || hasToolChart(s.slide) ? 'ladder' : s.slide.table || hasVisualChart(s.slide) ? 'table' : null,
     slide: s.slide, shot: s.slide.scene ? s.slide.scene.shot : s.slide.shot ?? TITLE_SHOT, scene: s.slide.scene ?? null, cath: s.slide.cath ?? null, number, of,
   };
 }
