@@ -15,6 +15,8 @@ import { LadderCard } from './LadderCard.tsx';
 import { TilesCard } from '../../decks/hp/TilesCard.tsx';
 import { CheckCard } from './CheckCard.tsx';
 import { TableCard } from './TableCard.tsx';
+import { ToolCard } from '../talk/ToolCard.tsx';
+import { hasToolChart } from '../../decks/charts.ts';
 import { Strip } from '../wallet/Strip.tsx';
 import { useGesture } from '../wallet/useSwipe.ts';
 import { isSwapSwipe } from '../wallet/wallet-machine.ts';
@@ -66,7 +68,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const sig = `${wordsKey}|${pages}|${at}|${stepAt}|${vp.w}x${vp.h}`;
   sigRef.current = sig;
 
-  const dataKey = view?.data === 'table' && view.slide ? `table:${view.slide.id}` : 'ladder';
+  const dataKey = view?.data === 'table' && view.slide ? `table:${view.slide.id}` : view?.data === 'ladder' && view.slide && hasToolChart(view.slide) ? `tool:${view.slide.id}` : 'ladder';
   const needs: Need[] = view ? [{ id: view.words, slot: 'words', h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey) }] : [])] : [];
   const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step), [vp, wallet.active, step, needs.map((n) => `${n.id}:${n.slot}:${n.h}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -122,8 +124,13 @@ export function CardLayer({ deck }: { deck: Deck }) {
       case 'title': return <TitleCard deck={deck} page={sn.at} pages={sn.pages} />;
       case 'case': return <CaseCard slide={sn.slide!} page={sn.at} pages={sn.pages} />;
       case 'teach': return <TeachingCard slide={sn.slide!} deck={deck} read={read} page={sn.at} pages={sn.pages} trim={sn.trim} />;
-      case 'table': return sn.slide?.table ? <TableCard deck={deck} slide={sn.slide} /> : null;
-      case 'ladder': return sn.slide?.ladder ? <LadderCard ladder={sn.slide.ladder} readings={readings} /> : sn.slide?.tiles ? <TilesCard spec={sn.slide.tiles} ids={deck.slides.map((x) => x.id)} /> : null;
+      case 'table': return sn.slide?.table ? <TableCard deck={deck} slide={sn.slide} /> : sn.slide ? <ToolCard deck={deck} slide={sn.slide} /> : null;
+      case 'ladder': return (
+        <>
+          {sn.slide && hasToolChart(sn.slide) ? <ToolCard deck={deck} slide={sn.slide} /> : null}
+          {sn.slide?.ladder ? <LadderCard ladder={sn.slide.ladder} readings={readings} /> : sn.slide?.tiles ? <TilesCard spec={sn.slide.tiles} ids={deck.slides.map((x) => x.id)} /> : null}
+        </>
+      );
       case 'check': return <CheckCard deck={deck} page={sn.at} pages={sn.pages} />;
     }
   };

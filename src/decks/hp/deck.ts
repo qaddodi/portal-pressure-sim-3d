@@ -55,6 +55,7 @@ export function slideOf(deckId: string, s: CopiedSlide, i: number, prevCath: Cat
   const scene = { ...plan.scene, terms: plan.scene.terms.filter((t) => t in TERM_STATIONS) };
   const table = tableOf(s);
   const controls = controlsOf(s);
+  const tool = s.tool && typeof (s.tool as { kind?: unknown }).kind === 'string' ? { kind: (s.tool as { kind: string }).kind } : undefined;
   const lp = s.lapse as { from?: string; to?: string } | null | undefined;
   const lapse = lp && typeof s.days === 'number' && s.days > 0 ? { days: s.days, ...(lp.from ? { from: lp.from } : {}), ...(lp.to ? { to: lp.to } : {}), plays: playsLapse(s, i) } : undefined;
   return {
@@ -66,6 +67,7 @@ export function slideOf(deckId: string, s: CopiedSlide, i: number, prevCath: Cat
     ...(s.visual ? { visual: s.visual } : {}),
     ...(table ? { table } : {}),
     ...(controls ? { controls } : {}),
+    ...(tool ? { tool } : {}),
     ...(lapse ? { lapse } : {}),
     ...(terms ? { terms } : {}),
     ...(eq ? { eq } : {}),

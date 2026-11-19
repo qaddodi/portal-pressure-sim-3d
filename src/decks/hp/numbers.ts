@@ -35,7 +35,7 @@ export function chainOf(slides: readonly CopiedSlide[]): Step[] {
 }
 
 /** What the engine says of a slide: the reading of every tile (the fingerprint), the whole model to show the figure, and the parameters. */
-export interface StepResult { fp: Fp; snap: unknown; params: unknown }
+export interface StepResult { fp: Fp; snap: unknown; params: unknown; base?: unknown; trail?: unknown; start?: unknown; before?: unknown; extra?: unknown }
 
 /** Collects the worker's answers to one 'sequence' request: a 'seqStep' per step as it is ready, then 'sequence'. Feed it every message of the engine. */
 export function sequencer(reqId = 1) {
@@ -45,10 +45,10 @@ export function sequencer(reqId = 1) {
   const done = new Promise<void>((res, rej) => { finish = res; fail = rej; });
   return {
     results, done,
-    message(m: { type: string; reqId?: number; i?: number; fp?: Fp; snap?: unknown; params?: unknown; message?: string }) {
+    message(m: { type: string; reqId?: number; i?: number; fp?: Fp; snap?: unknown; params?: unknown; base?: unknown; trail?: unknown; start?: unknown; before?: unknown; extra?: unknown; message?: string }) {
       if (m.reqId !== reqId && m.type !== 'crash') return;
       if (m.type === 'seqStep') {
-        const r: StepResult = { fp: m.fp ?? {}, snap: m.snap, params: m.params };
+        const r: StepResult = { fp: m.fp ?? {}, snap: m.snap, params: m.params, base: m.base, trail: m.trail, start: m.start, before: m.before, extra: m.extra };
         results[m.i!] = r;
         for (const w of waiting.get(m.i!) ?? []) w(r);
         waiting.delete(m.i!);

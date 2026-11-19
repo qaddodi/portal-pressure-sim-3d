@@ -75,6 +75,8 @@ export interface Slide {
   visual?: string;
   /** A time-lapse: its days, the words of the counter (2D `lapse.from` / `lapse.to`), and whether the days play on the live figure (else the counter reads as done). */
   lapse?: { days: number; from?: string; to?: string; plays: boolean };
+  /** The slide's instrument or chart in the data card (2D `tool`): its kind; the card reads the whole of it from the copied slide (ui/talk/ToolCard.tsx). */
+  tool?: { kind: string };
   /** The live controls on the teaching card: compare buttons, a what-if slider, the beta-blocker response, the scale pill (decks/controls.ts). */
   controls?: SlideControls;
   terms?: Record<string, string>;
