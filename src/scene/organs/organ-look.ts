@@ -23,6 +23,8 @@ export const PSE_DEAD_A = 0.8, PSE_EDGE_A = 0.7;
 export { LENS_GREY };
 export const SPLENIC_GHOST = 0.14;
 
+import { QUIET_WASH } from '../camera/quiet.ts';
+
 export interface OrganState {
   /** 1: the organ's own colours, 0: grey (a lens other than Pressure) */
   sat: number;
@@ -36,8 +38,10 @@ export interface OrganState {
   dead: number;
   /** stomach only: blood in it, 0..1 */
   blood: number;
+  /** quiet depth on a turn (camera/quiet.ts): 0 face on, 1 fully turned; the wash (not the ink) eases toward the plate by QUIET_WASH */
+  quiet: number;
 }
-export const PLAIN: OrganState = { sat: 1, dim: 1, ghost: 1, congestion: 0, tint: 0, cirrhosisNod: 0, septum: 0, dead: 0, blood: 0 };
+export const PLAIN: OrganState = { sat: 1, dim: 1, ghost: 1, congestion: 0, tint: 0, cirrhosisNod: 0, septum: 0, dead: 0, blood: 0, quiet: 0 };
 
 export interface OrganInks { plate: RGB; dark: boolean; bleed: RGB; /** the stage's colour (2D --stage-bg) */ bg: RGB }
 
@@ -55,7 +59,7 @@ export function organColour(base: RGB, s: OrganState, k: OrganInks): [number, nu
   if (s.dead > 0) c = mix(c, k.bg, PSE_DEAD_A * s.dead);
   if (s.blood > 0) c = mix(c, k.bleed, POOL_TINT * s.blood);
   if (s.sat < 1) { const l = LUMA[0]! * c[0] + LUMA[1]! * c[1] + LUMA[2]! * c[2]; c = [l + (c[0] - l) * s.sat, l + (c[1] - l) * s.sat, l + (c[2] - l) * s.sat]; }
-  const a = s.dim * s.ghost;
+  const a = s.dim * s.ghost * (1 - QUIET_WASH * s.quiet);
   if (a < 1) c = mix(k.plate, c, a);
   return c;
 }

@@ -53,6 +53,13 @@ R3F: `<Canvas frameloop="never">` with `<ClockBridge/>` (`src/clock/r3f.tsx`) in
 ## Boot order
 
 saved look → (fonts + engine's first patient) → React → first card. No card is shown before its fonts are ready (`src/boot/fonts.ts`, 4 s cap).
+An engine that does not start (its worker fails to load, crashes, sends an unreadable message, or does not answer within 30 s) rejects every waiting request, sets
+`useEngine` status `crashed` with the reason, and `main.tsx` shows `ui/shell/BootCrash.tsx` (the reason and Reload) instead of the app (`tests/engine-crash.test.ts`).
+After the first render: `registerPwa()` (offline worker, once the page is idle; an update is offered as a toast with Reload) and `warmLater()` (a talk's charts).
+
+The boot entry holds no debug page, gallery, parity page or chart family (`tests/boot-entry.test.ts`): a talk's charts are one chunk (`ui/talk/ToolCardBody.tsx`,
+loaded by `ui/talk/tool-card-load.ts`; a talk waits for it), the decks' hook tables read `ui/charts/kinds.ts`, never `registry.ts`, and three.js and React are chunks
+of their own (`vite.config.ts`). The offline worker (`scripts/pwa.mjs`) installs the boot files first, in the order the page needs them, and fills the rest when asked.
 
 ## ?perf
 

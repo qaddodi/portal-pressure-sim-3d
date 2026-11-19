@@ -9,18 +9,29 @@ export const SLICE_PRESET = 'csph';   // the slice's patient: cirrhosis with cli
 let client: EngineClient | null = null;
 export const engine = (): EngineClient => { if (!client) throw new Error('engine not started'); return client; };
 
-/** Start the engine. `worker` is injectable for tests; the app passes nothing and gets the real worker. */
-export async function bootEngine(worker: WorkerLike = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }) as unknown as WorkerLike, preset = SLICE_PRESET): Promise<EngineClient> {
+/** How long the first patient may take before the boot gives up on a worker that never answers (a blocked or stalled worker file). Long, so a slow first load still gets its worker. */
+export const BOOT_WAIT_MS = 30000;
+const crashed = (message: string) => useEngine.setState({ status: 'crashed', crash: message });
+
+/** Start the engine. `worker` is injectable for tests; the app passes nothing and gets the real worker. A worker that cannot be made, fails, or never answers within `waitMs`
+ *  rejects and leaves the status 'crashed' with the reason: the boot never waits for ever (main.tsx then shows the reason with Reload). */
+export async function bootEngine(worker?: WorkerLike, preset = SLICE_PRESET, waitMs = BOOT_WAIT_MS): Promise<EngineClient> {
+  if (!worker) {
+    try { worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }) as unknown as WorkerLike; }
+    catch (e) { const message = `The simulation worker could not start: ${String((e as { message?: string } | null)?.message ?? e)}`; crashed(message); throw new Error(message); }
+  }
   let loaded = false;   // (frames of the default patient, posted before the first patient is loaded, are never adopted)
   client = new EngineClient(worker, {
     onFrame: (f) => { if (!loaded) return; adoptFrame(f); clock.invalidate('engine-frame'); },
-    onCrash: (message) => useEngine.setState({ status: 'crashed', crash: message }),
+    onCrash: crashed,
   });
+  const mine = client;
+  const late = setTimeout(() => mine.crash('The simulation did not answer. Check the connection, then reload.'), waitMs);
   client.send({ type: 'init' });
   const [loadedPreset, healthy] = await Promise.all([
     client.request<Extract<FromWorker, { type: 'presetLoaded' }>>({ type: 'preset', id: preset }),
     client.request<{ type: 'healthy'; reqId: number; P: number[]; Q: number[]; metrics: { ascites?: { hepLymph?: number }; hepLymph?: number } }>({ type: 'healthyProfile' }),
-  ]);
+  ]).finally(() => clearTimeout(late));
   setParams(loadedPreset.params);
   patient.reference = { P: healthy.P, Q: healthy.Q, hepLymph: healthy.metrics.ascites?.hepLymph ?? healthy.metrics.hepLymph };
   loaded = true;

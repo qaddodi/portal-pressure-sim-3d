@@ -7,7 +7,7 @@
 // `landed` say so (a test holds each landing to a file that exists), and the score on the ?parity page moves by itself.
 //
 // Rule for this table: a feature is listed once, with ONE owner. A slide that needs a feature nobody owns fails the test, so none is forgotten.
-import { CHARTS } from '../../ui/charts/registry.ts';
+import { chartDone } from '../../ui/charts/kinds.ts';
 import { toolEvidence } from '../../ui/talk/tool-landed.ts';
 import { STATIONS, TERM_STATIONS } from '../../scene/labels/stations.ts';
 import { LENS_IDS, SINCE_BASELINE_FED } from '../../scene/lenses/model.ts';
@@ -25,7 +25,6 @@ export interface Feature {
   evidence?: string;
 }
 
-const chartDone = (kind: string) => CHARTS.some((c) => c.kind === kind && c.status === 'done');
 const hook = (id: string, batch: string, what: string): Feature => ({ id, batch, what, landed: false });
 const done = (id: string, batch: string, what: string, evidence: string): Feature => ({ id, batch, what, landed: true, evidence });
 
