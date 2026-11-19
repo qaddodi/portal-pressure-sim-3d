@@ -17,6 +17,7 @@ import { keyLabel } from './platform.ts';
 import { LensKey } from './LensKey.tsx';
 import { useBarFit } from './use-bar-fit.ts';
 import { shortName, COMPACT } from './scenario-names.ts';
+import { yoursName } from '../readings/yours.ts';
 
 interface Tb { id: string; label: string | null; title: string | null; text: string | null }
 export const tb = (id: string): Tb => UI.topbar.find((t) => t.id === id) as unknown as Tb;
@@ -90,7 +91,7 @@ export function TopBar() {
   const view = useShell((s) => s.view);
   const patientId = useShell((s) => s.patientId);
   const lobule = view === 'lobule' || view === 'sinusoid';
-  const patient = UI.presets.find((p) => p.id === patientId)?.label ?? '';
+  const patient = UI.presets.find((p) => p.id === patientId)?.label ?? yoursName(patientId);
   const menu = tb('btnMenu');
   const barRef = useBarFit([patient, patientId, view, mode]);
   const short = shortName(patient || 'Custom');

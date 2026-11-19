@@ -17,6 +17,7 @@ import { metricsOf } from '../frame.ts';
 import { headOf, heroOf, createEase } from './live.ts';
 import { TRACES, RANGES, LAG_S, TRACE_OF, traceFrame, traceLabel, activeTraces, traceColour, type Range, type TraceId, type TraceView } from './model.ts';
 import { useTrace } from './store.ts';
+import { hiddenNow, useHidden, useMeasured } from '../hidden.ts';
 
 /** The heart rate the strip is timed to (2D rateNow). */
 const rateOf = (hr: number) => Math.min(220, Math.max(30, hr > 20 ? hr : 70));
@@ -37,7 +38,8 @@ export function OverTimePane({ plot }: { plot: number }) {
   now.current = { range, stripDays };
   const h = Math.max(150, Math.round(plot));
   // the header, as strings: a re-render only when a word changes
-  const hero = useEngine((s) => { void s.frames; const m = metricsOf(latest.frame); return JSON.stringify(heroOf(m?.hvpg, now.current.range)); });
+  const hid = useHidden(), measuredHv = useMeasured((s) => s.lastHVPG?.hvpg ?? null);
+  const hero = useEngine((s) => { void s.frames; const m = metricsOf(latest.frame); return JSON.stringify(heroOf(m?.hvpg, now.current.range, hid, measuredHv)); });
   const hv = JSON.parse(hero) as ReturnType<typeof heroOf>;
 
   /** The right edge of the trace: the freewheel's while the model's clock stands still, else a little behind the newest sample (2D headX). */
@@ -64,7 +66,7 @@ export function OverTimePane({ plot }: { plot: number }) {
     for (const t of TRACES) if (t.day && Number.isFinite(m?.[t.day])) ends[t.id] = m[t.day];
     return {
       range: r, chosen: st.chosen, smooth: st.smooth, ekg: st.ekg, lane: st.lane,
-      head: headX(), ends, hvpg: m?.hvpg, hr: m?.hr,
+      head: headX(), ends, hvpg: m?.hvpg, hr: m?.hr, hidden: hiddenNow() ?? undefined,
       cross: cross.current, marks: timeline.entries(), dayNow: latest.frame?.day ?? 0, stripHead: now.current.stripDays ? headX() : undefined,
     };
   };
@@ -100,7 +102,7 @@ export function OverTimePane({ plot }: { plot: number }) {
     return () => { off(); offTl(); tick(); hold.current?.release(); hold.current = null; };
   }, [h]);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { sync(); }, [range, stripDays]);  // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { ease.current.retarget(); dirty.current = true; clock.invalidate('trace'); }, [range, chosen, smooth, ekg, lane, h]);
+  useEffect(() => { ease.current.retarget(); dirty.current = true; clock.invalidate('trace'); }, [range, chosen, smooth, ekg, lane, h, hid]);
 
   // The crosshair: a mouse over the chart, or a finger dragged on it, reads every trace at that moment. (The box's left edge is read as the pointer comes onto it or presses, and again
   // after a scroll or a resize, never in a move.)
@@ -132,7 +134,7 @@ export function OverTimePane({ plot }: { plot: number }) {
         onPointerDown={(e) => { over.current = true; readLeft(); setCross(e); }}
         onPointerLeave={clearCross} onPointerCancel={clearCross}
         onPointerUp={(e) => { if (e.pointerType !== 'mouse') clearCross(); }}>
-        <Chart tag="trace" painter={painter} deps={[range, chosen, smooth, ekg, lane, h]} label={label}
+        <Chart tag="trace" painter={painter} deps={[range, chosen, smooth, ekg, lane, h, hid]} label={label}
           build={(c) => { ctx.current = c; return traceFrame(record, view(), { w: c.w, h, pal: c.pal, fs: c.type.sm }, (k, lo, hi) => ease.current.fn(k, lo, hi, performance.now())).frame; }} />
       </div>
       <div className="pt-chips" role="group" aria-label="Traces">

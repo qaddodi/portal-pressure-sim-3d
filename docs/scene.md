@@ -53,3 +53,11 @@ wrote linear values straight out and looked darker.)
 Zoom 0.6 to 6 (stretches a little past, springs back after 220 ms); the figure can never be lost (its edge may not pass the room's middle). Touches within
 12 px of the sides or 34 px of the foot are the system's. Cards and the wallet are page elements above the canvas, so a gesture that starts on one never
 reaches the figure. A new shot or Fit stops what the hand started (`handsOff`) and the hand's view glides home with the camera.
+
+## The dive (WP8, 19 Nov 2026)
+
+`src/scene/camera/dive.ts` holds the numbers; `tests/scene-dive-wp8.test.ts` holds them in place. Anatomy to Lobule 1.6 s, Lobule to Sinusoid 1.1 s, Anatomy to Sinusoid the two together, each backward the same (`diveMs`).
+The lens (`rig.fov`: 14 to 35 and back, with the dolly zoom, 0.3 s to 1.3 s of a plunge) is the camera's own and carries its value into a move that is reversed half-way, so it never jumps; Reduce Motion keeps the long lens.
+Everything else the dive does is a function of the camera's DISTANCE from the liver's place, so the way out is the way in run backward however the move is reversed or resized: the cutaway window in the organs' wash
+(`ORGAN_CUT`, the organ shader's `cut`: opens from 5.5 to 1.9 units out, soft edge, shut in every body shot), the body's dissolve (`bodyFade`), the sinusoid's tissue (`diveShare`) and the neighbours' focus
+(`fieldSoft`, against the distance the lobule is framed at in this room). A card opened mid-dive keeps the dive's remaining time (`rig.setRoom`). `scene.stepPortrait` tells the sinusoid view when the room is portrait.

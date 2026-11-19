@@ -1,6 +1,7 @@
 // The Settings menu, on 2D's menu markup (main.js openSettings: .menu.app-menu with titled .menu-group sections, .menu-item and .lens-opt rows, the look tiles, the Figure detail steps).
 // The 2D app's rows, in its order and words (rows.ts, from the inventory). The same sheet opens from the top bar's gear (a panel under it), from the
 // phone's bottom bar (a sheet from the foot) and from the presenter pill's gear (a panel above it). While a talk is on, the Model rows and Reset are left out, as in 2D.
+// Model: Advanced physiology is a page of this menu (Advanced.tsx, the 2D panel's own rows); From readings opens the 2D flow in its own menu (readings/FromReadings.tsx).
 import { useEffect, useState } from 'react';
 import { UI } from '../strings.generated.ts';
 import { useSettings, FIGURE_DETAIL } from '../../state/settings.ts';
@@ -12,12 +13,13 @@ import { HelpRows } from '../shell/HelpSheets.tsx';
 import { HistoryList } from '../history/HistoryList.tsx';
 import { HIST } from '../history/words.ts';
 import { I } from '../shell/icons.tsx';
-import { runFeature } from '../shell/features.ts';
 import { usesBottomBar } from '../shell/room.ts';
 import { FULLSCREEN } from '../shell/words.ts';
 import { feedbackEmail } from '../shell/feedback.ts';
 import { sendFeedback } from '../shell/send-feedback.ts';
 import { SECTIONS, type Row } from './rows.ts';
+import { Advanced } from './Advanced.tsx';
+import { FromReadings, FR_WORDS, openFromReadings, warmFromReadings } from '../readings/FromReadings.tsx';
 
 const ICON: Record<string, string> = { 'Send feedback': 'mail', History: 'clock', Help: 'help', 'Enter full screen': 'fullscreen', 'Blur effect': 'layers', 'Sharp while moving': 'layers', 'Keyboard shortcuts': 'grid', 'Advanced physiology': 'sliders', 'Show frame rate': 'gauge', 'Show frame breakdown': 'gauge', 'Reset everything…': 'reset' };
 const SWITCH: Record<string, 'blur' | 'sharpMoving' | 'keys' | 'showFps' | 'showBreakdown'> = { 'Blur effect': 'blur', 'Sharp while moving': 'sharpMoving', 'Keyboard shortcuts': 'keys', 'Show frame rate': 'showFps', 'Show frame breakdown': 'showBreakdown' };
@@ -60,7 +62,7 @@ function WrongHere() {
   return <MenuItem icon="help" label="What's wrong here?" onClick={() => { useShell.getState().close(); open(); }} />;
 }
 
-type PageId = 'history' | 'help';
+type PageId = 'history' | 'help' | 'advanced';
 function Item({ row, push }: { row: Row; push(p: PageId): void }) {
   const close = () => useShell.getState().close();
   const fs = useFullscreen();
@@ -78,7 +80,7 @@ function Item({ row, push }: { row: Row; push(p: PageId): void }) {
     if (l === 'Help') push('help');
     else if (l === 'Reset everything…') useShell.setState({ sheet: null, dialog: 'reset' });
     else if (l === 'History') push('history');
-    else if (l === 'Advanced physiology') { close(); runFeature('advanced', l); }
+    else if (l === 'Advanced physiology') push('advanced');
   };
   return <MenuItem icon={ICON[l] ?? 'info'} label={l} onClick={go} />;
 }
@@ -108,9 +110,9 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
   // History and Help are pages inside this menu (2D menu recs P4): they slide in over the rows with a back row, and the menu stays open
   const [pageId, setPageId] = useState<PageId | null>(null);
   const open = useShell((s) => s.sheet === 'settings');
-  useEffect(() => { if (!open) setPageId(null); }, [open]);
-  const page: MenuPage | null = pageId === 'history' ? { back: label, title: HIST.title, body: <HistoryList /> } : pageId === 'help' ? { back: label, title: 'Help', body: <HelpRows /> } : null;
-  return (
+  useEffect(() => { if (!open) setPageId(null); else void warmFromReadings().catch(() => undefined); }, [open]);   // (From readings is loaded by the time its row is tapped)
+  const page: MenuPage | null = pageId === 'history' ? { back: label, title: HIST.title, body: <HistoryList /> } : pageId === 'help' ? { back: label, title: 'Help', body: <HelpRows /> } : pageId === 'advanced' ? { back: label, title: 'Advanced physiology', body: <Advanced /> } : null;
+  return (<>
     <MenuPop kind="settings" label={label} title={label} align="end" side={place === 'bar' ? 'above' : 'below'} page={page} onBack={() => setPageId(null)}>
       {SECTIONS.map((sec, i) => {
         const rows = sec.rows.filter((r) => !(r.phone && !phone) && !(r.talk === false && talk));
@@ -123,9 +125,11 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
               if (row.kind === 'switch') return <Switch key={row.label} row={row} />;
               return <Item key={row.label} row={row} push={setPageId} />;
             })}
+            {sec.title === 'Model' ? <MenuItem icon="rewind" label={FR_WORDS.title} kb={FR_WORDS.sub} title={FR_WORDS.hint} onClick={openFromReadings} /> : null}
           </MenuGroup>
         );
       })}
     </MenuPop>
-  );
+    <FromReadings />
+  </>);
 }

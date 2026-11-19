@@ -6,6 +6,10 @@ import { SCALE, RATE } from './copied/table-marks.copied.js';
 import { fmt, clamp } from './copied/num.copied.js';
 import { hvBlocked, SEV_OF_RATE, NOT_MEASURABLE, NOT_SHOWN } from '../../engine/hales/portal/pressure-cuts.js';
 import type { M } from './frame.ts';
+import { useMeasured } from './hidden.ts';
+
+// the HVPG tile's measured value (2D dock.js TILES: `measured: () => store.get().lastHVPG`)
+(hooks as { lastHVPG: () => unknown }).lastHVPG = () => useMeasured.getState().lastHVPG;
 
 export { hooks };
 export type Band = 'ok' | 'caution' | 'danger' | 'critical' | 'none';
@@ -41,6 +45,31 @@ export const GROUP_LIST = GROUPS as unknown as ReadonlyArray<readonly [string, s
 /** The names of the systemic readouts (readouts-pane.js SYSTEMIC): full, short. */
 export const SYSTEMIC: ReadonlyArray<readonly [string, string, string]> = [['map', 'Blood pressure', 'BP'], ['hr', 'Heart rate', 'Heart rate'], ['co', 'Cardiac output', 'Cardiac output'], ['ra', 'Right atrial pressure', 'RA pressure'], ['hb', 'Hemoglobin', 'Hb']];
 export const SYSTEMIC_CAP = 'Systemic';
+
+/** What a tile is before it has a number: its names, unit, bar marks and what a tap does (the Readouts pane draws these once; the numbers come from readouts/live.ts). */
+export interface Static {
+  id: string; name: string; short: string; u: string; ux: string; ticks: number[]; zero: number; why?: string; pane?: string; title: string;
+  /** a systemic reading (its two names, and the blood pressure's three pieces) */
+  vital: boolean; bp: boolean;
+}
+const posOf = (S: readonly [number, number, ...unknown[]]) => (v: number) => pos(S[0], S[1], v);
+/** The tiles of each group, in the 2D dock's order (dock.js TILES, GROUPS). */
+export function tileStatics(): { group: string; label: string; tiles: Static[] }[] {
+  return GROUP_LIST.map(([g, label]) => ({
+    group: g, label,
+    tiles: (TILES as Array<Record<string, any>>).filter((t) => t.group === g).map((t) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      const p = posOf(t.scale);
+      return { id: t.id as string, name: t.k as string, short: (t.ks ?? t.k) as string, u: t.u as string, ux: (t.ux as string) ?? '', ticks: (t.ticks as number[]).map(p), zero: p(0), why: t.why as string | undefined, pane: t.pane as string | undefined, title: (t.title ?? t.k) as string, vital: false, bp: false };
+    }),
+  }));
+}
+/** The systemic readings (readouts-pane.js SYSTEMIC), each with its data card tile's own scale and cut-offs. */
+export function vitalStatics(): Static[] {
+  return SYSTEMIC.map(([id, name, short]) => {
+    const def = VITALS.find((x: { id: string }) => x.id === id)!, S = (SCALE as unknown as Record<string, [number, number, number[]]>)[id]!, p = posOf(S);
+    return { id, name, short, u: def.u as string, ux: '', ticks: S[2].map(p), zero: 0, why: def.why as string | undefined, title: def.title as string, vital: true, bp: !!def.s };
+  });
+}
 
 /** A tile's number for a frame: null when the HVPG cannot be measured (Budd–Chiari takes no catheter) or the tile hides its reading and none was measured. */
 export function readoutValue(t: { id: string; v(m: M): number; hideKey?: string; measured?: () => { hvpg: number } | null }, m: M, params: unknown, hidden: ReadonlySet<string> | null = null): number | null {

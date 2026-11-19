@@ -312,7 +312,6 @@ import { cardsOf, toneOfCls } from '../src/scene/labels/proc-cards.ts';
 import { useLabels, type ProcCards } from '../src/scene/labels/store.ts';
 import { LabelController, NO_STATE } from '../src/scene/labels/controller.ts';
 import { specOf, READS } from '../src/scene/procedures/copied/proc-anim.js';
-import { markPoint } from '../src/scene/labels/focus-marks.ts';
 
 const blankCards = (): ProcCards => ({ kinds: [], sig: '', kickers: { f: '', w: '', h: '' }, tones: { f: 'free', w: 'wedge' }, text: { f: '', w: '', h: '', hv: null }, points: () => false });
 
@@ -361,8 +360,15 @@ test('quiet: the figure\'s names stand aside while a measurement plays, and a pr
   assert.equal(useLabels.getState().quiet, false);
 });
 
-test('a step\'s callout stands on the vessel it works on: a point on that vessel, none for a vessel the figure does not draw', () => {
-  const p = markPoint({ edges: ['PV_TRUNK'], label: '1 Needle in', num: '1', word: 'Needle in', f: 0.5 }, new Vector3());
-  assert.ok(p && Number.isFinite(p.x) && Number.isFinite(p.y));
-  assert.equal(markPoint({ edges: ['NOT_A_VESSEL'], label: 'x' }, new Vector3()), null);
+test('a step\'s callouts become the figure\'s own mark cards, under ids of their own, and go away again', async () => {
+  const { markCards, setProcMarks } = await import('../src/scene/labels/proc-marks.ts');
+  const { useFigure } = await import('../src/scene/labels/store.ts');
+  const c = markCards([{ edges: ['PV_TRUNK'], label: '1 Needle in', kind: 'treat', num: '1', word: 'Needle in' }, { edges: [], label: 'nowhere' }]);
+  assert.equal(c.length, 1); assert.equal(c[0]!.kind, 'mark'); assert.equal(c[0]!.tone, 'treat'); assert.deepEqual(c[0]!.anchor, { edge: 'PV_TRUNK' });
+  useFigure.getState().set({ cards: [{ id: 'slide:1', kind: 'mark', text: 'Clot', tone: 'block', anchor: { edge: 'PV_TRUNK' } }] });
+  setProcMarks([{ edges: ['PV_TRUNK'], label: '2 Stent', kind: 'treat' }]);
+  assert.deepEqual(useFigure.getState().cards.map((x) => x.id), ['slide:1', 'proc:0']);
+  setProcMarks([]);
+  assert.deepEqual(useFigure.getState().cards.map((x) => x.id), ['slide:1'], 'the slide\'s own card stays');
+  useFigure.getState().set({ cards: [] });
 });

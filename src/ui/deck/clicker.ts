@@ -2,6 +2,8 @@
 // slide list; B, . or W blacks the screen; F is full screen; P the presenter view; L the laser; Esc puts the black screen away, then the list, then ends the talk.
 // A control the keyboard reached with Tab keeps its own Enter and Space (a clicker's Space after a mouse click is still the talk's).
 
+import { letterOf } from '../keys/keymap.ts';
+
 export const DIGIT_MS = 2500;
 export const DIGITS_MAX = 3;
 
@@ -12,7 +14,8 @@ export type ClickAct =
   | { type: 'swap' }
   | { type: 'black' } | { type: 'full' } | { type: 'jump' } | { type: 'laser' } | { type: 'presenter' }
   | { type: 'escape' }
-  | { type: 'swallow' };
+  /** the key is the talk's and does nothing (a held key, the app's own N and S, F5); `clear`: a slide number that names no slide is dropped, as 2D drops it */
+  | { type: 'swallow'; clear?: true };
 
 export interface ClickCtx {
   /** what is typed of a slide number */
@@ -31,12 +34,12 @@ export interface ClickCtx {
   stops: number;
 }
 
-export interface ClickEv { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; repeat?: boolean; shiftKey?: boolean; isComposing?: boolean }
+export interface ClickEv { key: string; /** the key's place on the board: on an Arabic or Russian layout the key in L's place is still the laser (keys/keymap.ts letterOf) */ code?: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; repeat?: boolean; shiftKey?: boolean; isComposing?: boolean }
 
 /** What a key does in a talk, or null when it is not the talk's. */
 export function clickerKey(e: ClickEv, c: ClickCtx): ClickAct | null {
   if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return null;
-  const k = e.key, lk = k.length === 1 ? k.toLowerCase() : k;
+  const k = e.key, lk = k.length === 1 ? letterOf({ key: k, code: e.code ?? '' }) : k;
   if (c.jumpOpen) {
     if (k === 'Escape' || lk === 'g') return { type: 'jump' };
     return null;   // (Up and Down move the list's focus, Enter and Space press a title, Tab moves as usual: the list's own keys)
@@ -44,7 +47,7 @@ export function clickerKey(e: ClickEv, c: ClickCtx): ClickAct | null {
   if (c.inField) return null;
   if (c.controlOwnsEnter && (k === 'Enter' || k === ' ') && !(k === 'Enter' && c.digits)) return null;
   if (/^[0-9]$/.test(k)) return { type: 'digit', digit: k };
-  if (k === 'Enter' && c.digits) { const n = Number(c.digits); return n >= 1 ? { type: 'go', stop: n - 1 } : { type: 'swallow' }; }
+  if (k === 'Enter' && c.digits) { const n = Number(c.digits); return n >= 1 ? { type: 'go', stop: n - 1 } : { type: 'swallow', clear: true }; }
   if (k === 'ArrowRight' || k === 'PageDown' || k === ' ' || k === 'Enter') return e.repeat ? { type: 'swallow' } : { type: 'move', to: 'next' };
   if (k === 'ArrowLeft' || k === 'PageUp' || k === 'Backspace') return e.repeat ? { type: 'swallow' } : { type: 'move', to: 'back' };
   if (k === 'Home') return { type: 'move', to: 'first' };

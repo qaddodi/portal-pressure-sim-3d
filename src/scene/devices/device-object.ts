@@ -5,11 +5,13 @@ import { Color, type BufferGeometry } from 'three';
 import { CelObject, type CelShared, rawColor } from '../materials/cel.ts';
 import { INK_FS, TOON_FS } from '../materials/shaders.ts';
 import { PALETTES, type LookId, type Palette } from '../palette.ts';
+import { LOOKS } from '../../looks/looks.ts';
 import { DEVICE_TOKENS, type DeviceTokens } from '../procedures/copied/device-tokens.copied.ts';
 
 export type DeviceTone = 'poly' | 'steel' | 'platinum' | 'latex' | 'nylon' | 'graft' | 'gold' | 'stentWire' | 'stentGlint' | 'glue' | 'ptfe' | 'thread' | 'marker'
-  | 'trWedge' | 'trPv' | 'trIvc' | 'trScler' | 'monFree' | 'monWedge' | 'monAlarm';
-const TOKEN_OF: Record<DeviceTone, keyof DeviceTokens> = {
+  | 'trWedge' | 'trPv' | 'trIvc' | 'trScler' | 'monFree' | 'monWedge' | 'monAlarm'
+  /** the look's accent (the 2D app's --accent: the tamponade's traction arrow) */ | 'accent';
+const TOKEN_OF: Record<Exclude<DeviceTone, 'accent'>, keyof DeviceTokens> = {
   poly: 'poly', steel: 'steel', platinum: 'platinum', latex: 'latex', nylon: 'nylon', graft: 'graft', gold: 'stentGold', stentWire: 'stentWire', stentGlint: 'stentGlint',
   glue: 'glue', ptfe: 'ptfe', thread: 'sutureThread', marker: 'stentMarker', trWedge: 'trWedge', trPv: 'trPv', trIvc: 'trIvc', trScler: 'trScler', monFree: 'monFree', monWedge: 'monWedge', monAlarm: 'monAlarm',
 };
@@ -44,7 +46,7 @@ export class DeviceObject extends CelObject {
   override applyPalette(p: Palette): void {
     this.palette = p;
     const look = lookOf(p), t = DEVICE_TOKENS[look];
-    const base = rawColor(t[TOKEN_OF[this.deviceTone]]);
+    const base = rawColor(this.deviceTone === 'accent' ? LOOKS[look].accent : t[TOKEN_OF[this.deviceTone]]);
     const ink = rawColor(this.edgeInk === 'polyEdge' ? t.polyEdge : this.edgeInk === 'latexEdge' ? t.latexEdge : p.ink);
     (this.toon.uniforms.color!.value as Color).copy(base);
     (this.toon.uniforms.shade!.value as Color).copy(base).multiplyScalar(p.shade).lerp(ink, 0.08);

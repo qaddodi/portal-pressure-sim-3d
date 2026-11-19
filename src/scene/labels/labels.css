@@ -36,6 +36,11 @@
 .lb-anchor { width: var(--lb-ring); height: var(--lb-ring); margin: calc(var(--lb-ring) / -2) 0 0 calc(var(--lb-ring) / -2); border-radius: 50%; box-sizing: border-box;
   border: var(--lb-ring-w) solid var(--lb-name); background: var(--lb-ring-fill); }
 
+/* a station the slide's words light takes the term's colour (2D .lb.term: the station colour, a step toward the text so it reads on every look) */
+.lb[data-tone] .lb-name, .lb[data-tone] .lb-val { color: color-mix(in srgb, var(--lb-tone) 80%, var(--lb-val)); }
+.lb-anchor[data-tone] { border-color: var(--lb-tone); }
+.lb-lead[data-tone] { background: var(--lb-tone); }
+
 /* ── the catheter's reading cards (the 2D app's .cath-label, .cath-sum, callout.js: cath-dom.ts builds them, cath.ts holds every number). A card is its glass (one
    shape, the card and its pointer: clipped from one path, its 1 px hairline that path stroked inside it), then the name, the number and the unit. Sizes, paddings, type
    and tones are the layer's custom properties (--cl-*, written from cath.ts cathVars and cathLook); this file holds no figure of its own. Opacity is written on a
@@ -53,6 +58,8 @@
 .cl[data-tone="ok"] { --c: var(--cl-ok); --c-ink: var(--cl-ok-ink); }
 .cl[data-tone="caution"] { --c: var(--cl-caution); --c-ink: var(--cl-caution-ink); }
 .cl[data-tone="danger"] { --c: var(--cl-danger); --c-ink: var(--cl-danger-ink); }
+.cl[data-tone="custom"] { --c: var(--cl-tone); --c-ink: color-mix(in srgb, var(--cl-tone) 78%, var(--cl-text)); }
+.cl[data-tone="note"] { --c: var(--cl-text); --c-ink: var(--cl-text); }
 .cl > * { opacity: 0; }
 .cl .cl-k { font-size: var(--cl-name); font-weight: var(--cl-name-w); letter-spacing: var(--cl-track); color: var(--c-ink); }
 .cl .cl-n { font-size: var(--cl-num); line-height: var(--cl-num-line); font-weight: var(--cl-num-w); font-variant-numeric: tabular-nums; color: var(--c-ink); }
@@ -104,6 +111,18 @@
 .lb-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
 
+/* ── what a slide stands on the figure besides the names (figure-cards.ts): a mark's words, a site's reading, a numbered step, a caliper. The card is the catheter's
+   (.cl); a step is its round form; the portal blood's split is the 2D app's own markup, styled by its lifted rules (.cath-label.site.split). ── */
+.cl[data-fig="mark"] .cl-k { letter-spacing: 0; }
+.cl[data-fig="step"] { justify-content: center; padding: 0; border-radius: 50%; }
+.cl[data-fig="step"] .cl-k { color: var(--bg, #fff); font-weight: 700; letter-spacing: 0; }
+.cl[data-fig="step"] .cl-glass path { fill: var(--text); stroke: none; }
+.cl[data-fig="caliper"] .cl-k { letter-spacing: 0; }
+.cl-cal { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; }
+.cl-cal[data-on] { visibility: visible; }
+.cl-cal-line { position: absolute; left: 0; top: 0; width: 1px; height: 2px; margin-top: -1px; transform-origin: 0 50%; background: var(--text); will-change: transform; }
+.cl-cal-tick { position: absolute; left: 0; top: 0; width: 2px; height: 12px; margin: -6px 0 0 -1px; background: var(--text); will-change: transform; }
+
 /* ── the Tests devices' readings (probe-labels.ts decides, probe-labels-dom.ts writes transform and opacity only) ──
    The FibroScan probe's screen: the stiffness and "kPa" on its display, turned with its body (2D .scan-probe .sp-read, .sp-unit: 12 px, the number at 700, the unit at 600, the orange of the
    waves darkened). The Doppler gate's callout: the vessel's name, its velocity and the unit, set as a station's label is (the same halo, ink and type), fading with the probe. */
@@ -117,9 +136,3 @@
 .pl-dop .pl-dop-val { margin-left: var(--lb-g-val); font-size: var(--lb-f-val); font-weight: var(--lb-w-val); color: var(--lb-val); }
 .pl-dop .pl-dop-unit { margin-left: 2.5px; font-size: calc(var(--lb-f-val) * 0.72); font-weight: 500; color: var(--lb-name); }
 .pl-dop[data-none] .pl-dop-unit { display: none; }
-
-/* A step's callout on the figure (the 2D `.lb.focus` pill, kind treat): the step's number in bold and its word on the accent, a ring on the part it works on and a hairline between. */
-.pl-mark { display: flex; align-items: baseline; gap: 4px; padding: 3px 9px; border-radius: 999px; background: var(--accent); color: var(--on-accent, #fff); font: 600 12px Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-variant-numeric: tabular-nums; box-shadow: 0 1px 2px rgb(0 0 0 / .25); }
-.pl-mark .pl-mark-num { font-weight: 800; }
-.pl-mark-dot { width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; box-sizing: border-box; border: 2px solid var(--accent); background: var(--stage-bg, transparent); }
-.pl-mark-lead { width: 1px; height: 1.5px; background: var(--accent); transform-origin: 0 50%; }

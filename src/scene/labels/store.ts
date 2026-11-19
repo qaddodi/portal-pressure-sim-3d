@@ -3,11 +3,9 @@
 import { create } from 'zustand';
 import type { Vector3 } from 'three';
 import type { CathState } from '../../decks/schema.ts';
+import type { FigCard, FigCaliper } from './figure-cards.ts';
 import type { CathText, CalloutKind } from './cath-show.ts';
 import type { Tone } from './cath.ts';
-
-/** One callout a procedure's step puts on the figure (2D proc-anim.js stepMark: its word and number on the vessel it works on; the HVPG-style cards are `ProcCards`). */
-export interface FocusMark { edges: readonly string[]; label: string; num?: string; word?: string; kind?: string; f?: number }
 
 /** A procedure's own reading cards on the figure (2D proc-anim.js `labels`: the EUS-PPG's PV at the portal target, HV at the hepatic one, then the summary): the layer places them as the catheter's. `text` is written in place as a reading settles. */
 export interface ProcCards {
@@ -22,22 +20,34 @@ export interface ProcCards {
 }
 
 export interface LabelsState {
-  /** Stations the slide's words point at. */
+  /** Stations the slide's words light (a colour each: `tones`); every other label steps back while any is lit. */
   named: ReadonlySet<string>;
+  /** Stations the slide asks to have shown (its `labels`), whether or not its words light them: they join the figure's own names and dim nothing. */
+  shown: ReadonlySet<string>;
+  /** The colour token (2D: 'pv', '--tour-sys', 'accent') each lit station's words take. */
+  tones: Readonly<Record<string, string>>;
   cath: CathState | null;
   /** The lens whose key the slide shows (null: none). */
   key: string | null;
-  /** A procedure that wants the figure's names out of its way while it works (2D proc-anim.js `quiet`: the EUS-PPG's and the IR pressure's needles). */
+  /** A procedure that wants the figure's names out of its way while it works (2D proc-anim.js `quiet`: the EUS-PPG's and the IR pressures' needles). */
   quiet: boolean;
   proc: ProcCards | null;
-  /** the step callouts standing on the figure now (2D `store.focus.marks`) */
-  marks: readonly FocusMark[];
   /** Blood menu option: organ names on the figure (off until the Blood menu lands in batch B1/B3). */
   organNames: boolean;
   set(p: Partial<Omit<LabelsState, 'set'>>): void;
 }
 
 export const useLabels = create<LabelsState>((set) => ({
-  named: new Set(), cath: null, key: null, organNames: false, quiet: false, proc: null, marks: [],
+  named: new Set(), shown: new Set(), tones: {}, cath: null, key: null, organNames: false, quiet: false, proc: null,
   set: (p) => set(p),
 }));
+
+/** The cards and calipers a slide stands on the figure (marks, sites, steps, calipers). The figure link (ui/deck/figure-link.ts) writes it; the layer draws it (figure-cards.ts). */
+export interface FigureState {
+  cards: readonly FigCard[];
+  calipers: readonly FigCaliper[];
+  /** when the slide landed (performance.now), for the numbered steps */
+  t0: number;
+  set(p: Partial<Omit<FigureState, 'set'>>): void;
+}
+export const useFigure = create<FigureState>((set) => ({ cards: [], calipers: [], t0: 0, set: (p) => set(p) }));

@@ -15,13 +15,14 @@ import { scriptOf, phaseOf } from './copied/reading-scripts.copied.js';
 import { TB, hvBlocked } from './hvpg.ts';
 import { updateParams } from '../../action/params.ts';
 import { runCards, type CardRun } from '../../../scene/labels/proc-cards.ts';
-import { useLabels, type FocusMark } from '../../../scene/labels/store.ts';
+import { setProcMarks, type ProcMark } from '../../../scene/labels/proc-marks.ts';
 import { useShell } from '../../shell/store.ts';
 import { goToView } from '../../shell/view-actions.ts';
 import { useUi } from '../../ui-store.ts';
 import { freeRoom } from '../../shell/room.ts';
 import { cutRoom } from '../room.ts';
 import type { MonitorState } from './monitor.ts';
+import { useMeasured } from '../hidden.ts';
 
 export interface Readings { fhvp: number; whvp: number; hvpg: number }
 type Obj = Record<string, number>;
@@ -93,6 +94,7 @@ function finish(): void {
   const f = latest.frame;
   if (!f?.metrics) return;
   R.result = { ...(R.snap || { fhvp: f.metrics.fhvp as number, whvp: f.metrics.whvp as number, hvpg: f.metrics.hvpg as number }), t: f.t, day: f.day };
+  useMeasured.getState().mark(R.result);   // (2D hvpg-proc.js: store.lastHVPG and hvpgMeasured, so the readouts, the charts and the trials hear it)
   bump();
 }
 function stepHvpg(): void {
@@ -126,14 +128,14 @@ export function playProc(kind: string): void {
     onFrame: (rec) => {
       const t = sceneApi.procedure.playing?.t ?? 0;
       const mk = rec.step < 0 ? -2 : t >= markAt(kind, rec.step) ? rec.step : -1;
-      if (mk !== shown && mk > -2) { shown = mk; useLabels.getState().set({ marks: mk >= 0 ? ([...(stepMarks(kind, mk) as FocusMark[])]) : [] }); }
+      if (mk !== shown && mk > -2) { shown = mk; setProcMarks(mk >= 0 ? (stepMarks(kind, mk) as ProcMark[]) : []); }
       if (rec.step !== R.procStep && rec.step >= 0) { R.procStep = rec.step; bump(); }
       const shot = String(rec.shot || '');
       if (shot && shot !== R.procCam) { R.procCam = shot; camTo(shot); }
       // the model takes the change as the sequence passes its apply time
       if (!R.procApplied && t >= T0.T.apply) { R.procApplied = true; updateParams((p) => T0.apply(p) as never, { label: T0.label }); }
     },
-    onEnd: () => { useLabels.getState().set({ marks: [] }); R.procKind = ''; R.procStep = -1; camTo('home'); bump(); },
+    onEnd: () => { setProcMarks([]); R.procKind = ''; R.procStep = -1; camTo('home'); bump(); },
   });
   wake(); bump();
 }
@@ -226,7 +228,7 @@ function tick(): void {
 }
 
 /** A new patient or a jump in time starts with no measurement. */
-export function resetAll(): void { hidePpg(); if (R.procKind) { sceneApi.procedure.stop(); R.procKind = ''; R.procStep = -1; useLabels.getState().set({ marks: [] }); } resetHvpg(); sleep(); }
+export function resetAll(): void { hidePpg(); if (R.procKind) { sceneApi.procedure.stop(); R.procKind = ''; R.procStep = -1; setProcMarks([]); } resetHvpg(); sleep(); }
 
 // the names the Watch row lists, in 2D's order, with what each says and whether it is offered (hidden) or can be played (dimmed) for this patient
 export interface WatchBtn { kind: string; name: string; hidden: boolean; off: boolean; on: boolean }

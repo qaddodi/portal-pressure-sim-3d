@@ -1,0 +1,17 @@
+/* The laser's spotlight (src/ui/deck/laser.ts; 2D ink-gl.js): clear inside the window, the stage's own colour at 62% outside it, a faint ring in the pen's colour at the window's edge.
+   Five plates: the window's square (its soft edge painted once: 2D's smoothstep from 0.8 R to 1.55 R) and four plain 1 px plates stretched round it. Moved by transform, shown by opacity. */
+.laser { position: fixed; inset: 0; z-index: 7;   /* above the figure and its tags (5), under the cards (10) */
+  overflow: hidden; pointer-events: none; opacity: 0; transition: opacity var(--d-flip, 120ms) linear; contain: strict;
+  --lv: var(--stage-bg, var(--bg, #F1EBE0)); --veil: color-mix(in srgb, var(--lv) 62%, transparent); }
+.laser > i { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.laser-plate { width: 1px; height: 1px; background: var(--veil); }
+.laser-hole {
+  --a: calc(var(--r) * .8); --b: calc(var(--r) * .75);   /* the soft edge starts at a and is b wide */
+  background:
+    radial-gradient(circle closest-side at center, transparent calc(var(--a) - 1.75px), color-mix(in srgb, var(--danger, #C23F2A) 30%, transparent) calc(var(--a) - .75px), color-mix(in srgb, var(--danger, #C23F2A) 30%, transparent) calc(var(--a) + .75px), transparent calc(var(--a) + 1.75px)),
+    radial-gradient(circle closest-side at center, transparent 0, transparent var(--a),
+      color-mix(in srgb, var(--lv) 2.7%, transparent) calc(var(--a) + var(--b) * .125), color-mix(in srgb, var(--lv) 9.7%, transparent) calc(var(--a) + var(--b) * .25),
+      color-mix(in srgb, var(--lv) 19.6%, transparent) calc(var(--a) + var(--b) * .375), color-mix(in srgb, var(--lv) 31%, transparent) calc(var(--a) + var(--b) * .5),
+      color-mix(in srgb, var(--lv) 42.4%, transparent) calc(var(--a) + var(--b) * .625), color-mix(in srgb, var(--lv) 52.3%, transparent) calc(var(--a) + var(--b) * .75),
+      color-mix(in srgb, var(--lv) 59.3%, transparent) calc(var(--a) + var(--b) * .875), var(--veil) calc(var(--a) + var(--b)), var(--veil) 100%);
+}

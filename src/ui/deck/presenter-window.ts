@@ -2,6 +2,7 @@
 // slide's title, the notes and the question for the room, a talk clock and a slide clock, Next and Back. It follows the talk over a BroadcastChannel (from2d/presenter-view.js) and sends
 // its keys and buttons back; closing either window leaves the other working.
 import { VIEW_QUERY, PROTOCOL, STALE_MS, channelOf, validSession, fromTalk } from './from2d/presenter-view.js';
+import { keepAwake } from './from2d/wake-lock.js';
 import { applyLook, resolveLook } from '../../looks/looks.ts';
 import { useSettings } from '../../state/settings.ts';
 
@@ -11,16 +12,16 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 .pv-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 24px; color: var(--text-2); font-size: 13px; }
 .pv-top b { color: var(--text); font-weight: 600; }
 .pv-clock { margin-left: auto; display: flex; gap: 20px; font-variant-numeric: tabular-nums; }
-.pv-clock span { display: flex; flex-direction: column; align-items: flex-end; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+.pv-clock span { display: flex; flex-direction: column; align-items: flex-end; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
 .pv-clock output { font-size: 26px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text); }
-.pv-main { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.pv-main { overflow: auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .pv-kick { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
 .pv-title { margin: 0; font: 600 34px/1.12 'Source Serif 4', Georgia, serif; }
 .pv-line { margin: 0; font-size: 20px; line-height: 1.4; }
 .pv-next { margin: 0; padding: 10px 14px; border: 1px solid var(--text-3); border-radius: 8px; color: var(--text-2); }
 .pv-next b { color: var(--text); font-weight: 600; }
 .pv-notes { margin: 0; font-size: 17px; line-height: 1.5; white-space: pre-wrap; }
-.pv-cap { margin: 6px 0 0; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
+.pv-cap { margin: 6px 0 0; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
 .pv-ask { margin: 0; padding: 10px 14px; border: 1px solid var(--text-3); border-radius: 8px; }
 .pv-ask p { margin: 0; } .pv-ask .a { margin-top: 4px; color: var(--text-2); }
 .pv-bar { display: flex; gap: 10px; align-items: center; }
@@ -44,6 +45,7 @@ interface State { deck: { title: string; n: number }; i: number; beat: number; b
 
 export function run(): void {
   document.getElementById('boot')?.remove();
+  document.documentElement.removeAttribute('data-boot');
   document.title = 'Presenter view';
   applyLook(resolveLook(useSettings.getState().look, window.matchMedia('(prefers-color-scheme: dark)').matches));
   const sid = new URLSearchParams(location.search).get(VIEW_QUERY) ?? '';
@@ -58,13 +60,8 @@ export function run(): void {
   const link = el('small', 'pv-link'); link.setAttribute('role', 'status');
   const bar = el('div', 'pv-bar'); bar.append(back, nextB, count, link);
   root.append(top, main, bar);
-  let st: State | null = null, seen = 0, live = false, lock: { release(): Promise<void> } | null = null;
+  let st: State | null = null, seen = 0, live = false;
   const send = (c: string, i?: number) => { if (!live) return; try { ch?.postMessage({ v: PROTOCOL, sid, t: 'cmd', c, ...(c === 'go' ? { i } : {}) }); } catch { /* channel closed */ } };
-  const keepAwake = (on: boolean) => {
-    if (!on) { void lock?.release().catch(() => {}); lock = null; return; }
-    if (lock) return;
-    void (navigator as unknown as { wakeLock?: { request(t: string): Promise<{ release(): Promise<void> }> } }).wakeLock?.request('screen').then((l) => { lock = l; }).catch(() => {});
-  };
   const status = () => {
     const was = live;
     live = !!ch && Date.now() - seen < STALE_MS;

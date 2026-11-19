@@ -291,11 +291,11 @@ test('a state target eases and lands exactly (the lobule\'s own use of easeTowar
   assert.equal(cur.a, 1);
 });
 
-test('the Bile layer is off at first; turning it on grows the canaliculi and canals out of nothing, and their arrowheads run out toward the tract (against the blood)', () => {
+test('with the Bile layer off (2D starts with it on) the vessels are gone; turning it on grows the canaliculi and canals out of nothing, and their arrowheads run out toward the tract (against the blood)', () => {
   const v = new LobuleView(createShared());
-  v.setVisible(true); v.snapModel(model()); let t = settle(v);
+  v.setVisible(true); v.snapModel(model()); v.setLayers({ bile: false }); let t = settle(v);
   const bile = v.set.get('bile').group;
-  assert.equal(bile.visible, false, 'off by default');
+  assert.equal(bile.visible, false, 'off');
   const objs = v.objects.filter((o) => bile.children.includes(o.group));
   assert.equal(objs.length, 2, 'channels and canals');
   v.setLayers({ bile: true });

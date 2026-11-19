@@ -9,25 +9,33 @@ import { TIER_Z, x3, y3 } from '../../frame2d.ts';
 import { DeviceObject } from '../device-object.ts';
 import { allocTube, makeRings, type Ring, writeRings } from '../tube-rings.ts';
 import { BALLOON, BALLOON_MS, balloonShape, esoAt } from '../../procedures/copied/balloon-eso.js';
-import { GAS, gasShape, pathAt, tubePath, tubeTip } from '../../procedures/copied/balloon-gas.js';
+import { GAS, gasShape, pathAt, pullArrow, sheathArcs, tubePath, tubeTip } from '../../procedures/copied/balloon-gas.js';
 import { easeMove } from '../../procedures/copied/ease.js';
 
 const U = 300;
 const Z = TIER_Z.mid;
-const TUBE_N = 120, ESO_N = 64, GAS_N = 48, RADIAL = 16;
+const PULL_N = 5;
+const TUBE_N = 120, ESO_N = 64, GAS_N = 48, RADIAL = 16, MARK_N = 3, HEAD_N = 6;
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
-const smooth = (x: number): number => { const t = clamp01(x); return t * t * (3 - 2 * t); };
 
 export interface TamponadeState { adv: number; gas: number; eso: number }
 
 export class Tamponade {
   readonly group = new Group();
   readonly tube: DeviceObject; readonly gas: DeviceObject; readonly eso: DeviceObject;
+  /** The two platinum marker bands on the tube at the esophageal balloon's ends (stage-balloon.js `balloon-marker`). */
+  readonly marks: readonly [DeviceObject, DeviceObject];
+  /** The traction arrow up the esophagus's side, easing in as the tube is drawn up: its shaft and its head (`balloon-pull-line`, `balloon-pull-head`, the look's accent). */
+  readonly pullLine: DeviceObject; readonly pullHead: DeviceObject;
+  /** how far the traction arrow is shown now (0 to 1), for tests and tags */
+  pull = 0;
   readonly objects: DeviceObject[];
   /** how far the tube is in, how full each balloon is (0 to 1, eased) */
   readonly state: TamponadeState = { adv: 0, gas: 0, eso: 0 };
   private wantGas = false; private wantEso = false;
   private readonly tubeRings = makeRings(TUBE_N); private readonly gasRings = makeRings(GAS_N); private readonly esoRings = makeRings(ESO_N);
+  private readonly markRings = [makeRings(MARK_N), makeRings(MARK_N)] as const;
+  private pullBuilt = false;
   private dirty = true;
   private readonly v = new Vector3();
 
@@ -35,7 +43,10 @@ export class Tamponade {
     this.tube = new DeviceObject(allocTube(TUBE_N, 8), 'poly', shared, { px: 0.8, order: 0 }, 'polyEdge');
     this.gas = new DeviceObject(allocTube(GAS_N, RADIAL), 'latex', shared, { px: 1, order: 1 }, 'latexEdge');
     this.eso = new DeviceObject(allocTube(ESO_N, RADIAL), 'latex', shared, { px: 1, order: 2 }, 'latexEdge');
-    this.objects = [this.tube, this.gas, this.eso];
+    this.marks = [0, 1].map(() => new DeviceObject(allocTube(MARK_N, 12), 'platinum', shared, { px: 0.8, order: 3 }, 'ink')) as unknown as [DeviceObject, DeviceObject];
+    this.pullLine = new DeviceObject(allocTube(PULL_N, 8), 'accent', shared, { px: 0.8, order: 4 }, 'ink');
+    this.pullHead = new DeviceObject(allocTube(HEAD_N, 12), 'accent', shared, { px: 0.8, order: 4 }, 'ink');
+    this.objects = [this.tube, this.gas, this.eso, ...this.marks, this.pullLine, this.pullHead];
     for (const o of this.objects) { this.group.add(o.group); o.group.visible = false; }
     this.group.visible = false;
   }
@@ -55,11 +66,11 @@ export class Tamponade {
   update(dtMs: number): boolean {
     const s = this.state, a = dtMs / BALLOON_MS.adv, i = dtMs / BALLOON_MS.inflate, e = dtMs / BALLOON_MS.eso;
     const before = s.adv + s.gas + s.eso;
-    // the esophageal balloon first when it is to go down, and only on a full gastric one when it is to come up
-    if (this.wantEso && s.gas >= 1) s.eso = Math.min(1, s.eso + e); else if (!this.wantEso || !this.wantGas) s.eso = Math.max(0, s.eso - e);
-    if (this.wantGas) { if (s.adv < 1) s.adv = Math.min(1, s.adv + a); else s.gas = Math.min(1, s.gas + i); }
-    else if (s.eso <= 0) { if (s.gas > 0) s.gas = Math.max(0, s.gas - i); else s.adv = Math.max(0, s.adv - a); }
-    if (this.wantEso && s.gas < 1 && s.eso > 0) s.eso = Math.max(0, s.eso - e);
+    // stage-balloon.js balloonStep: the esophageal balloon fills only on a full gastric one; let down it is quicker than it fills (x2.5) and goes in the reverse order
+    const out = 2.5;
+    if (this.wantEso) { if (s.gas >= 1) s.eso = Math.min(1, s.eso + e); } else s.eso = Math.max(0, s.eso - e * out);
+    if (this.wantGas) { if (s.adv >= 1) s.gas = Math.min(1, s.gas + i); } else if (s.eso <= 0) s.gas = Math.max(0, s.gas - i * out);
+    if (this.wantGas) s.adv = Math.min(1, s.adv + a); else if (s.gas <= 0) s.adv = Math.max(0, s.adv - a * out);
     const moved = s.adv + s.gas + s.eso !== before || this.dirty;
     if (moved) { this.draw(); this.dirty = false; }
     return moved;
@@ -74,9 +85,9 @@ export class Tamponade {
     const show = adv > 0.001;
     this.group.visible = show;
     this.tube.group.visible = show;
-    if (!show) { this.gas.group.visible = false; this.eso.group.visible = false; return; }
+    if (!show) { for (const o of [this.gas, this.eso, ...this.marks, this.pullLine, this.pullHead]) o.group.visible = false; this.pull = 0; return; }
     const k = easeMove(gas), ke = easeMove(eso);
-    const q = smooth((gas - 0.5) * 2);   // the traction runs in the second half of the gastric balloon's filling
+    const q = easeMove(clamp01((gas - 0.45) / 0.55));   // the traction runs in the second half of the gastric balloon's filling (stage-balloon.js `pull`)
     const path = tubePath();
     const tip = tubeTip(easeMove(adv), q, path);
     const tubeR = BALLOON.shaftR / U;
@@ -111,7 +122,49 @@ export class Tamponade {
       writeRings(this.eso.toonMesh.geometry, this.esoRings, RADIAL);
       this.eso.setAlpha(0.92);
     }
+    // the two marker bands, on the tube at the esophageal balloon's ends (3 units in from each end of its length): a short ring a unit long, a hair wider than the tube
+    const arcs = sheathArcs(tip, path), per = (arcs.eso[1] - arcs.eso[0]) / (BALLOON.bottom - BALLOON.top);
+    const markR = (BALLOON.shaftR + 0.3) / U;
+    [3, BALLOON.bottom - BALLOON.top - 3].forEach((o, k) => {
+      const sb = arcs.eso[0] + o * per, mark = this.marks[k]!, rings = this.markRings[k]!;
+      mark.group.visible = sb >= 0 && sb <= path.total;
+      if (!mark.group.visible) return;
+      for (let i = 0; i < MARK_N; i++) {
+        const { p, t } = pathAt(Math.max(0, sb + (i - 1) * 0.5), path), r = rings[i]!;
+        this.pt(p[0], p[1], r.c); r.t.set(t[0], -t[1], 0); r.r = markR;
+      }
+      writeRings(mark.toonMesh.geometry, rings, 12);
+    });
+    // the traction: an arrow up the esophagus's side as the tube is drawn up, easing in with it
+    this.pull = q;
+    const showPull = q > 0.01;
+    this.pullLine.group.visible = this.pullHead.group.visible = showPull;
+    if (showPull) {
+      if (!this.pullBuilt) this.buildPull();
+      this.pullLine.setAlpha(q); this.pullHead.setAlpha(q);
+    }
     void esoAt; void GAS;
+  }
+
+  /** The arrow is fixed to the esophagus (balloon-gas.js `pullArrow`), so it is built once: a round shaft of the 2D stroke's width (1.5) and a cone for the head's triangle. */
+  private buildPull(): void {
+    this.pullBuilt = true;
+    const { line, head } = pullArrow() as { line: [number, number][]; head: [number, number][] };
+    const along = (pts: [number, number][], rings: Ring[], radius: (i: number) => number): void => {
+      pts.forEach((q, i) => {
+        const a = pts[Math.max(0, i - 1)]!, b = pts[Math.min(pts.length - 1, i + 1)]!, r = rings[i]!;
+        this.pt(q[0], q[1], r.c); r.t.set(b[0] - a[0], -(b[1] - a[1]), 0); r.r = radius(i);
+      });
+    };
+    const lr = makeRings(PULL_N), pts = line.length === PULL_N ? line : Array.from({ length: PULL_N }, (_, i) => line[Math.min(line.length - 1, Math.round((i / (PULL_N - 1)) * (line.length - 1)))]!);
+    along(pts, lr, () => 0.75 / U);
+    writeRings(this.pullLine.toonMesh.geometry, lr, 8);
+    // the head: its base (midway of the triangle's two base corners) to its tip, a cone as wide as the triangle (spread each side)
+    const tip = head[0]!, base: [number, number] = [(head[1]![0] + head[2]![0]) / 2, (head[1]![1] + head[2]![1]) / 2], half = Math.abs(head[2]![0] - head[1]![0]) / 2;
+    const hp = Array.from({ length: HEAD_N }, (_, i): [number, number] => { const f = i / (HEAD_N - 1); return [base[0] + (tip[0] - base[0]) * f, base[1] + (tip[1] - base[1]) * f]; });
+    const hr = makeRings(HEAD_N);
+    along(hp, hr, (i) => (half * (1 - i / (HEAD_N - 1)) + 0.3) / U);
+    writeRings(this.pullHead.toonMesh.geometry, hr, 12);
   }
 
   dispose(): void { for (const o of this.objects) o.dispose(); }

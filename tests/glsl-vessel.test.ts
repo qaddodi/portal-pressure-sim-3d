@@ -27,3 +27,18 @@ test('the vessel vertex shader compiles', { skip: !have }, () => { const r = com
 test('the vessel fragment shader compiles, as the body and as the veil (VEIL defined)', { skip: !have }, () => {
   for (const d of [[], ['VEIL 1']]) { const r = compile('frag', VESSEL_FS, d); assert.ok(r.ok, `${d.join(',')}: ${r.log}`); }
 });
+
+import { INK_FS, INK_VS, TOON_FS, TOON_VS } from '../src/scene/materials/shaders.ts';
+test('the cel toon and ink programs compile in every variant a strand or a part uses (plain, vertex ink, the vessels\' tube tones)', { skip: !have }, () => {
+  for (const d of [[], ['VERTEX_INK'], ['TUBE_TONES'], ['VERTEX_INK', 'TUBE_TONES']]) {
+    const v = compile('vert', TOON_VS, d); assert.ok(v.ok, `toon vertex ${d}: ${v.log}`);
+    const f = compile('frag', TOON_FS, d); assert.ok(f.ok, `toon fragment ${d}: ${f.log}`);
+  }
+  assert.ok(compile('vert', INK_VS).ok); assert.ok(compile('frag', INK_FS).ok);
+});
+
+test('a strand is drawn in the vessels\' tones: the tube-tones variant has the same numbers as the vessel shader and no rim lift', () => {
+  assert.match(TOON_FS, /#ifdef TUBE_TONES/);
+  for (const n of ['0.17 * shadowT', '0.15 * hwT * litT', '-0.70710678, 0.70710678', '-0.16 - etT', '0.24 - etT']) assert.ok(TOON_FS.includes(n) && VESSEL_FS.includes(n), n);
+  assert.match(TOON_FS, /#ifndef TUBE_TONES\s+c \+= rim/);
+});

@@ -13,7 +13,7 @@ const NS = 'http://www.w3.org/2000/svg';
 const px = (n: number) => Math.round(n * 100) / 100;
 const opacity = (n: number) => String(Math.round(Math.max(0, Math.min(1, n)) * 1000) / 1000);
 
-interface Card {
+export interface Card {
   root: HTMLElement; glass: HTMLElement; svg: SVGSVGElement; path: SVGPathElement; k: HTMLElement; n: HTMLElement; u: HTMLElement;
   shape: string; tone: string; text: string; op: string; tx: string; size: string;
 }
@@ -26,7 +26,7 @@ function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, parent: Element): S
 }
 
 /** A reading card: glass first (behind the words), then name, number and unit. */
-function makeCard(parent: Element, cls: string): Card {
+export function makeCard(parent: Element, cls: string): Card {
   const root = el('div', cls, parent);
   const glass = el('i', 'cl-glass cl-hair', root); glass.setAttribute('aria-hidden', 'true'); 
   const svg = svgEl('svg', glass); svg.setAttribute('preserveAspectRatio', 'none');
@@ -36,14 +36,14 @@ function makeCard(parent: Element, cls: string): Card {
 }
 
 /** The words of a card (written when they change). */
-function words(c: Card, r: Reading): void {
+export function words(c: Card, r: Reading): void {
   const t = `${r.kicker}|${r.value}|${r.unit}`;
   if (c.text !== t) { c.text = t; c.k.textContent = r.kicker; c.n.textContent = r.value; c.u.textContent = r.unit; }
   if (c.tone !== r.tone) { c.tone = r.tone; c.root.dataset.tone = r.tone; }
 }
 
 /** The glass: its place in the card's padding box, its clip and its hairline path. */
-function shape(c: Card, g: Glass, key: string): void {
+export function shape(c: Card, g: Glass, key: string): void {
   if (c.shape === key) return;
   c.shape = key;
   const s = c.glass.style;
@@ -54,21 +54,21 @@ function shape(c: Card, g: Glass, key: string): void {
 }
 
 /** Opacity on the card's children (never the card). */
-function fade(c: Card, a: number): void {
+export function fade(c: Card, a: number): void {
   const o = opacity(a);
   if (o === c.op) return;
   c.op = o;
   c.glass.style.opacity = o; c.k.style.opacity = o; c.n.style.opacity = o; c.u.style.opacity = o;
 }
-function place(c: Card, x: number, y: number): void {
+export function place(c: Card, x: number, y: number): void {
   const t = `translate3d(${px(x)}px,${px(y)}px,0)`;
   if (t !== c.tx) { c.tx = t; c.root.style.transform = t; }
 }
-function size(c: Card, w: number, h: number): void {
+export function size(c: Card, w: number, h: number): void {
   const t = `${px(w)}x${px(h)}`;
   if (t !== c.size) { c.size = t; c.root.style.width = `${px(w)}px`; c.root.style.height = `${px(h)}px`; }
 }
-function show(c: Card, on: boolean): void {
+export function show(c: Card, on: boolean): void {
   if (on) c.root.setAttribute('data-on', ''); else { c.root.removeAttribute('data-on'); }
 }
 

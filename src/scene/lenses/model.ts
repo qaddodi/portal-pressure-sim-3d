@@ -12,6 +12,10 @@ import type { LookId } from '../palette.ts';
 export const LENS_IDS = ['pressure', 'delta', 'heat', 'drop', 'flow', 'velocity', 'direction', 'oxygen', 'origin', 'firstpass', 'system', 'since'] as const;
 export type LensId = (typeof LENS_IDS)[number] | 'neutral';
 export const DEFAULT_LENS: LensId = 'pressure';
+/** True once a slide hands the Since lens its baseline (the state of the slide before, a named slide's, a lapse's start: sceneApi.setSinceRef, called by the deck link as 2D's ext-highlights.js calls stage.changeRef).
+ *  Until then the lens counts from the state the figure showed as it came in, which is 2D's fallback but not what a "change since" slide says. The deck thread flips this in the push that feeds it;
+ *  the Since row, the `since` slide hook and `lens:since` read it. */
+export const SINCE_BASELINE_FED = true;
 
 interface Edge { id: string; from: string; to: string; kind: string; shunt?: string; zone?: string }
 const edges = EDGES as Edge[];

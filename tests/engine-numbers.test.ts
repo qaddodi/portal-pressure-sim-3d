@@ -7,9 +7,22 @@ import { EDGES } from '../src/engine/hales/portal/topology.js';
 
 const fixture = JSON.parse(readFileSync('tests/fixtures/csph-fingerprint.json', 'utf8'));
 
+// Numbers are compared with tolerances, not bit for bit: Math functions and float summation order differ across Node/V8 builds. Shown values (one decimal or whole)
+// may land on the other side of a rounding step (0.1); everything else must agree to 1e-6 relative.
+const SHOWN = (x: number) => Math.abs(x * 10 - Math.round(x * 10)) < 1e-9;
+function assertClose(got: unknown, want: unknown, path: string): void {
+  if (typeof want === 'number' && typeof got === 'number') {
+    const tol = SHOWN(want) ? 0.1 + 1e-9 : Math.max(1e-9, 1e-6 * Math.abs(want));
+    assert.ok(Math.abs(got - want) <= tol, `${path}: ${got} differs from ${want} by more than ${tol}`);
+  } else if (want && typeof want === 'object' && got && typeof got === 'object') {
+    assert.deepEqual(Object.keys(got).sort(), Object.keys(want).sort(), `${path}: keys differ`);
+    for (const k of Object.keys(want)) assertClose((got as Record<string, unknown>)[k], (want as Record<string, unknown>)[k], `${path}.${k}`);
+  } else assert.deepEqual(got, want, path);
+}
+
 test('the slice patient (csph) reads the same numbers through the host as the recorded fingerprint (equal to the 2D app\'s)', async () => {
   const fp = await csphFingerprint();
-  assert.deepEqual(JSON.parse(JSON.stringify(fp)), fixture);
+  assertClose(JSON.parse(JSON.stringify(fp)), fixture, 'fingerprint');
   assert.ok(fp.hvpg >= 10);          // clinically significant: 10 or more
   assert.ok(fp.whvp > fp.fhvp);
 });
