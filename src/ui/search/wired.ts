@@ -12,7 +12,7 @@ export const TESTS_PANE: Record<string, PaneId> = { 'Doppler of the portal vein'
 export function isWiredCommand(group: string, title: string): boolean {
   if (group === 'Tests') return !!TESTS_PANE[title] && BUILT_PANES.includes(TESTS_PANE[title]!);
   if (group === 'Time') return DAYS.has(title);
-  if (group === 'View') return title === 'Anatomy view' || UI.lenses.some((l) => title === `Colored by ${l.name.toLowerCase()}`);
+  if (group === 'View') return title === 'Anatomy view' || title === 'Circuit view' || UI.lenses.some((l) => title === `Colored by ${l.name.toLowerCase()}`);
   if (group === 'App') return APP.has(title) || UI.looks.some((l) => title === `Appearance: ${l.name}`);
   if (group === 'Patient') return true;
   if (group === 'Treat' || group === 'Change') return isOrderCommand(group, title);   // (B9: the orders)

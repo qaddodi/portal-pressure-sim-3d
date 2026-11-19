@@ -10,7 +10,7 @@ export function SettingsMenu() {
   const open = useShell((s) => s.sheet === 'settings');
   return (
     <div className="dk-settings">
-      <button type="button" data-opens="settings" aria-haspopup="dialog" aria-expanded={open} aria-label={gear.label ?? undefined} title={gear.title ?? undefined} onClick={() => useShell.getState().toggle('settings')}><Icon n="gear" /></button>
+      <button type="button" className="ib" data-opens="settings" aria-haspopup="dialog" aria-expanded={open} aria-label={gear.label ?? undefined} title={gear.title ?? undefined} onClick={() => useShell.getState().toggle('settings')}><Icon n="gear" /></button>
       <SettingsSheet place="bar" />
     </div>
   );

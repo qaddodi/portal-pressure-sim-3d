@@ -25,9 +25,11 @@ export function Diagnostics() {
     return () => clearInterval(id);
   }, [fps, breakdown]);
   return (
-    <div className="sh-diag" aria-hidden={!fps && !breakdown}>
-      <div className="sh-diag-box" data-on={fps}>{rate} fps</div>
-      <pre className="sh-diag-box" data-on={breakdown}>{text}</pre>
-    </div>
+    <>
+      {fps && <div className="fps-counter" aria-hidden="true"><span className="fps-num">{rate}</span><span className="fps-unit">fps</span></div>}
+      <div className="sh-diag" aria-hidden={!breakdown}>
+        <pre className="sh-diag-box" data-on={breakdown}>{text}</pre>
+      </div>
+    </>
   );
 }

@@ -57,8 +57,19 @@ export function lookVars(id: LookId): Record<string, string> {
   };
 }
 
+/** The tokens the 2D stylesheet (src/ui/css2d/tokens.css) defines for each look, keyed on `data-theme` and `data-palette`. They are not written inline, or the inline value would beat the stylesheet and the lifted 2D chrome would keep a 3D colour. */
+const TOKENS_FROM_2D = new Set(['--bg', '--surface', '--glass', '--text', '--text-2', '--text-3', '--accent', '--accent-soft', '--ok', '--caution', '--danger']);
+/** 2D's attributes for a look (looks.js): Light, Soft and Dark are themes; Navy and Black are palettes of the dark theme. */
+export function themeAttrs(id: LookId): { theme: 'light' | 'soft' | 'dark'; palette: 'navy' | 'black' | null } {
+  if (id === 'navy' || id === 'black') return { theme: 'dark', palette: id };
+  return { theme: id, palette: null };
+}
+
 export function applyLook(id: LookId, root: HTMLElement = document.documentElement): void {
-  for (const [k, v] of Object.entries(lookVars(id))) root.style.setProperty(k, v);
+  for (const [k, v] of Object.entries(lookVars(id))) { if (TOKENS_FROM_2D.has(k)) root.style.removeProperty(k); else root.style.setProperty(k, v); }
+  const a = themeAttrs(id);
+  root.dataset.theme = a.theme;
+  if (a.palette) root.dataset.palette = a.palette; else delete root.dataset.palette;
   root.dataset.look = id;
   root.style.colorScheme = LOOKS[id].scheme;
   const meta = document.querySelector('meta[name="theme-color"]');

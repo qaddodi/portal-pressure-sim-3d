@@ -3,7 +3,8 @@
 // it has; it never scrolls inside (the owner's rule), so a pane that would not fit is laid out in the room the card has. Pure numbers: the scene frames the figure in what is left.
 import type { DeviceClass, Rect, Viewport } from '../layout/device.ts';
 import { isPhone } from '../layout/device.ts';
-import { TOP_BAR_H, footHeight, usesBottomBar } from '../shell/room.ts';
+import { footHeight, usesBottomBar } from '../shell/room.ts';
+import { M } from '../shell/metrics.ts';
 import { clamp } from './copied/num.copied.js';
 import { sheetDockVars } from './copied/dock-vars.copied.js';
 
@@ -21,7 +22,7 @@ export interface TestsPlace {
 }
 
 export function testsPlace(vp: Viewport, device: DeviceClass, contentH = 0): TestsPlace {
-  const top = vp.safe.top + TOP_BAR_H + 8;
+  const top = vp.safe.top + M.topSafe + 8;
   const bottom = vp.safe.bottom + footHeight(device);
   const room = Math.max(0, vp.h - top - bottom);
   if (!usesBottomBar(device) || device === 'phone-landscape') {

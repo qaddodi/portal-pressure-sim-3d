@@ -58,7 +58,6 @@ function SceneBridge() {
       const look = resolveLook(useSettings.getState().look, dark.matches);
       cel.applyLook(look);
       gl.setClearColor(cel.background);
-      cel.setFlowMode(useSettings.getState().flowMarks);
       clock.invalidate('look');
     };
     paint();

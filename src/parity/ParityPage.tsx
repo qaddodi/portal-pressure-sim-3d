@@ -3,6 +3,7 @@
 // while a batch's claim says its control, word or card is on the screen, and "wired" when it also does what the 2D one does.
 import { useMemo, useState } from 'react';
 import inventory from '../../parity/inventory.json';
+import { MATCHES } from './matches.ts';
 import { score, pct, BATCH_NAMES, type Claimed, type Row, type Tally } from './score.ts';
 import type { Claim } from './claim.ts';
 import './parity.css';
@@ -20,17 +21,17 @@ function claimed(): Claimed[] {
 
 function Bar({ t }: { t: Tally }) {
   return (
-    <div className="pp-bar" role="img" aria-label={`${t.x} of ${t.y} present, ${t.w} wired`}>
+    <div className="pp-bar" role="img" aria-label={`${t.x} of ${t.y} present, ${t.w} wired, ${t.m} match 2D`}>
       <i className="pp-bar-x" style={{ transform: `scaleX(${t.y ? t.x / t.y : 0})` }} />
       <i className="pp-bar-w" style={{ transform: `scaleX(${t.y ? t.w / t.y : 0})` }} />
     </div>
   );
 }
-const Nums = ({ t }: { t: Tally }) => <span className="pp-nums"><b>{t.x}</b> of {t.y}<small> · {t.w} wired · {pct(t)}%</small></span>;
+const Nums = ({ t }: { t: Tally }) => <span className="pp-nums"><b>{t.x}</b> of {t.y}<small> · {t.w} wired · {t.m} match 2D · {pct(t)}%</small></span>;
 
 export function ParityPage() {
   const rows = inventory.rows as Row[];
-  const s = useMemo(() => score(rows, claimed()), [rows]);
+  const s = useMemo(() => score(rows, claimed(), MATCHES), [rows]);
   const [showAll, setShowAll] = useState(false);
   const [batch, setBatch] = useState<string | null>(null);
   const from = inventory.generatedFrom as { commit: string; branch?: string };
@@ -38,10 +39,10 @@ export function ParityPage() {
     <div className="pp-scroll"><main className="pp selectable">
       <header>
         <h1>3D app against the 2D app</h1>
-        <p className="pp-big"><b>{s.total.x}</b> of {s.total.y} rows present<small> · {s.total.w} wired · {pct(s.total)}% present, {pct(s.total, 'w')}% wired</small></p>
+        <p className="pp-big"><b>{s.total.x}</b> of {s.total.y} rows present<small> · {s.total.w} wired · <b>{s.total.m} match 2D</b> · {pct(s.total)}% present, {pct(s.total, 'w')}% wired, {pct(s.total, 'm')}% match 2D</small></p>
         <Bar t={s.total} />
         <p className="pp-note">
-          A row is a control, word, shortcut, preset, deck, slide or card in the 2D app (read from its source, 2D commit {from.commit.slice(0, 8)}). <b>Present</b> means the 3D app shows it with the 2D words; <b>wired</b> means it also does what the 2D one does. Rows no batch has built are listed under each group.
+          A row is a control, word, shortcut, preset, deck, slide or card in the 2D app (read from its source, 2D commit {from.commit.slice(0, 8)}). <b>Present</b> means the 3D app shows it with the 2D words; <b>wired</b> means it also does what the 2D one does. Neither says it looks the same: <b>match 2D</b> counts only the rows Mohammad has checked on his own device against the 2D app. Rows no batch has built are listed under each group.
         </p>
         <label className="pp-check"><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Also list the rows that are present</label>
       </header>
