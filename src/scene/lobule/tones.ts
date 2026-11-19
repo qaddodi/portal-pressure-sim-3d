@@ -5,7 +5,7 @@ import { LOOKS, type LookId } from '../../looks/looks.ts';
 import { PALETTES, type Palette, type ToneKey, hexToRgb255 } from '../palette.ts';
 
 export const EXTRA_TONES = [
-  'cord1', 'cord2', 'cord3', 'floor', 'sin0', 'sin1', 'sin2', 'artery', 'bile', 'lymph', 'amber', 'collagen', 'stellate', 'kupffer', 'fen', 'disse', 'endo', 'nucleus', 'bileLight',
+  'cord1', 'cord2', 'cord3', 'floor', 'field', 'sin0', 'sin1', 'sin2', 'artery', 'bile', 'lymph', 'amber', 'collagen', 'stellate', 'kupffer', 'fen', 'disse', 'endo', 'nucleus', 'bileLight',
 ] as const;
 export type ExtraTone = (typeof EXTRA_TONES)[number];
 
@@ -41,6 +41,8 @@ export function extendPalette(p: Palette, id: LookId): Palette {
   tones.cord3 = cordHex(id, 3, dark);
   // the tissue between the plates: a little deeper than the cells, so each tile reads as a tile
   tones.floor = mix(tones.cord2, l.ink, dark ? 0.1 : 0.14);
+  // the neighbouring lobules: the same tissue with a third of its contrast cut, toward the page (NEIGHBOUR_FLAT)
+  tones.field = mix(tones.floor, l.bg, 0.3);
   // blood in the sinusoid is portal blood becoming hepatic-vein blood: portal tone toward systemic by generation (the lens colours override it on the tubes)
   tones.sin0 = mix(p.tones.portal, p.tones.sys, 0.2);
   tones.sin1 = mix(p.tones.portal, p.tones.sys, 0.5);
