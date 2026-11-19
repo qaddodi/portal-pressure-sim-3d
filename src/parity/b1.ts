@@ -14,8 +14,8 @@ const yes = new Set<string>();   // helper sets read as "these are wired"
 // ── top bar, view pills, zoom group ──
 const TOP_WIRED = new Set(['btnMenu', 'btnBlood', 'btnLayers', 'legend', 'btnSettings', 'btnPalette']);
 for (const t of UI.topbar) claim(`topbar:${t.id}`, TOP_WIRED.has(t.id));
-for (const v of UI.views) claim(`view:${v.id}`, v.id === 'anatomic');
-for (const z of UI.zoomGroup) claim(`zoom:${z.id}`, z.id === 'zoomFit');
+for (const v of UI.views) claim(`view:${v.id}`, v.id !== 'circuit');
+for (const z of UI.zoomGroup) claim(`zoom:${z.id}`, z.id !== 'rotateCircuit');
 
 // ── play bar ──
 const PB_WIRED = new Set(['Pause', 'Restart this patient', 'Playback speed', 'Jump ahead']);
@@ -36,9 +36,9 @@ for (const l of UI.looks) claim(`look:${l.id}`, true);
 for (const p of UI.helpPages) claim(`help:${p.label}`, p.label === 'Guide' || p.label === 'Keyboard shortcuts');
 
 // ── shortcuts: the key map (keys/keymap.ts, carried out in keys/useKeys.ts). Wired = the key does what the 2D one does here. ──
-const KEYS_WIRED = new Set(['Run the model/Space', 'Run the model/[ ]', 'Run the model/.', 'Run the model/Z', 'Change the view/A', 'Change the view/L', 'Change the view/Ctrl/⌘ K or /', 'Change the view/?', 'Reach and act/Esc',
+const KEYS_WIRED = new Set(['Run the model/Space', 'Run the model/[ ]', 'Run the model/.', 'Run the model/Z', 'Change the view/A', 'Change the view/L', 'Change the view/+ / − / 0', 'Change the view/Ctrl/⌘ K or /', 'Change the view/?', 'Reach and act/Esc',
   'While presenting/Home · End', 'While presenting/?', 'While presenting/→ · Space · Enter']);
-const KEYS_PRESENT = new Set(['Run the model/Ctrl/⌘ Z', 'Run the model/P', 'Run the model/J', 'Change the view/I', 'Change the view/T', 'Change the view/+ / − / 0', 'While presenting/← · Backspace', 'While presenting/↑ · ↓', 'While presenting/Esc']);
+const KEYS_PRESENT = new Set(['Run the model/Ctrl/⌘ Z', 'Run the model/P', 'Run the model/J', 'Change the view/I', 'Change the view/T', 'While presenting/← · Backspace', 'While presenting/↑ · ↓', 'While presenting/Esc']);
 for (const s of UI.shortcuts) { const k = `${s.group}/${s.keys}`; if (KEYS_WIRED.has(k)) claim(`shortcut:${k}`, !k.startsWith('While presenting/→'));  else if (KEYS_PRESENT.has(k)) claim(`shortcut:${k}`, false); }
 
 // ── search: the commands the 2D palette lists in its App, Time and View groups; each is wired where commands.ts has work behind it ──
@@ -51,7 +51,7 @@ for (const d of UI.platform.deepLinks) claim(`platform:deep link ?${d}=`, true);
 // ── figure menus: Blood, Layers, Lens, the phone's Layers page ──
 const BLOOD_WIRED = new Set(['Chevrons', 'Key chevrons only', 'Potential collaterals', 'Organ names']);
 for (const r of UI.menus.blood) claim(`menu:Blood/${r.label}`, BLOOD_WIRED.has(r.label));
-for (const r of UI.menus.lobule) claim(`menu:Layers/${r.label}`, false);
+for (const r of UI.menus.lobule) claim(`menu:Layers/${r.label}`, r.label !== 'Bile');
 for (const r of UI.menus.layersPhone) claim(`menu:Layers (phone)/${r.label}`, r.label === 'Fit to screen');
 for (const l of UI.lenses) claim(`menu:Lens/${l.name}`, true);
 
@@ -61,7 +61,6 @@ for (const t of UI.menus.mainMenu.tabs) claim(`mainmenu:tab/${t.label}`, true);
 
 // ── behaviours (the 2D shell's rules, ui/shell/views.ts and the components) ──
 const BEH_PRESENT_ONLY = new Set([
-  'view pills: Sinusoid shows only while the lobule is open, and keeps the full view pill',
   'view pills: Anatomy and Circuit turn the figure between the two views',
 ]);
 for (const b of UI.menus.behaviours) claim(`behaviour:${b}`, !BEH_PRESENT_ONLY.has(b));

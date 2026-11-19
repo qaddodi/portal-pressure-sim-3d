@@ -70,7 +70,7 @@ export const TOAST_MS = 3200;
 export const useShell = create<ShellState>((set, get) => ({
   mode: 'free',
   view: 'anatomic',
-  ready: { circuit: false, anatomic: true, lobule: false, sinusoid: false },
+  ready: { circuit: false, anatomic: true, lobule: true, sinusoid: true },
   sheet: null, dialog: null, menuTab: 'present', menuQuery: '', helpSection: null, toast: null,
   figure: loadFigure(),
   transport: { running: false, speed: 1, lapse: 0, time: '0:00', day: 0 },

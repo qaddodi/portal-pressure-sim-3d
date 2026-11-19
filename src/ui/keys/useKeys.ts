@@ -8,7 +8,7 @@ import { sceneApi } from '../../scene/api.ts';
 import { useSettings } from '../../state/settings.ts';
 import { decideKey, stepSpeed, type KeyAction, type Target } from './keymap.ts';
 import { runFeature } from '../shell/features.ts';
-import { refitFigure, flipView } from '../shell/view-actions.ts';
+import { refitFigure, flipView, zoomFigure } from '../shell/view-actions.ts';
 import { settle, setSpeed, step, togglePlay } from '../shell/transport.ts';
 import { leaveTalk } from '../shell/talk.ts';
 import { openGuide } from '../shell/HelpSheets.tsx';
@@ -47,7 +47,7 @@ export function carryOut(a: KeyAction): void {
       sh.say(speedToast(to.lapse, long, to.value));
       break;
     }
-    case 'zoom': if (a.dir === 'fit') refitFigure(); else runFeature(a.dir === 'in' ? 'zoom-in' : 'zoom-out', 'Zoom'); break;
+    case 'zoom': if (a.dir === 'fit') refitFigure(); else zoomFigure(a.dir); break;
     case 'view-toggle': flipView(); break;
     case 'lens': {
       const i = Math.max(0, LENS_IDS.indexOf(useLens.getState().lens)), next = LENS_IDS[(i + a.dir + LENS_IDS.length) % LENS_IDS.length];
