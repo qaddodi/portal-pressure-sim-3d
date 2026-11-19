@@ -5,6 +5,7 @@ import { type Program, collectMaterials, lateMaterialProgram, rawProgram, templa
 import { INK_FS, INK_VS, TOON_FS, TOON_VS } from '../scene/materials/shaders.ts';
 import { VESSEL_FS, VESSEL_VS } from '../scene/vessels/shaders.ts';
 import { DOT_FS, DOT_VS, PLATE_FS, PLATE_VS } from '../scene/circuit/map-layer.ts';
+import { SINUSOID_FS, SINUSOID_PFS, SINUSOID_PVS, SINUSOID_VS } from '../scene/sinusoid/gl.copied.ts';
 import { ORGAN_FS, ORGAN_VS } from '../scene/organs/organ-shader.ts';
 import { RES_FS, RES_VS } from '../scene/circuit/resistors.ts';
 import { DYE_FS, DYE_VS } from '../scene/disease/dye.ts';
@@ -15,6 +16,8 @@ import { SYNTH_FS, SYNTH_VS } from '../ui/tests/copied/doppler-synth.copied.js';
 export const GL_FILES: Record<string, string> = {
   'scene/materials/shaders.ts': 'cel toon and ink (every organ, lobule and sinusoid part, the devices): found on the scene graph',
   'scene/vessels/shaders.ts': 'the vessel, with its veil (VEIL define): found on the scene graph',
+  'scene/sinusoid/gl.copied.ts': 'the sinusoid (2D\'s shader, copied): RawShaderMaterials found on the scene graph',
+  'scene/sinusoid/view.ts': 'where the sinusoid\'s RawShaderMaterials are made (version moved to glslVersion): found on the scene graph',
   'scene/organs/organ-shader.ts': 'the organ wash (WP1): registered by name until the scene wears it, then also found on the scene graph',
   'scene/circuit/shader.ts': 'the Circuit morph, spliced into the vessel shader: part of the vessel program',
   'scene/circuit/map-layer.ts': 'the Circuit plate and dots: found on the scene graph',
@@ -28,7 +31,9 @@ export const GL_FILES: Record<string, string> = {
 
 /** Source text → name, so a program found on the scene graph is called what it is. */
 export function namedSources(): Map<string, string> {
+  const bare = (s: string) => s.replace(/^#version 300 es\n/, '');   // (the sinusoid view makes its materials without the version line)
   return new Map<string, string>([
+    [bare(SINUSOID_VS), 'sinusoid'], [bare(SINUSOID_FS), 'sinusoid'], [bare(SINUSOID_PVS), 'sinusoid particles'], [bare(SINUSOID_PFS), 'sinusoid particles'],
     [VESSEL_VS, 'vessel'], [VESSEL_FS, 'vessel'], [TOON_VS, 'toon'], [TOON_FS, 'toon'], [INK_VS, 'ink'], [INK_FS, 'ink'],
     [ORGAN_VS, 'organ wash'], [ORGAN_FS, 'organ wash'], [DYE_VS, 'dye overlay'], [DYE_FS, 'dye overlay'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'],
   ]);
