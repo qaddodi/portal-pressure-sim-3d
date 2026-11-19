@@ -33,7 +33,42 @@ function functionOf(text, name) {
   return (/^(\/\/|\/\*\*| \*)/.test(doc) ? doc : '') + text.slice(at, i + 1) + '\n';
 }
 
+/** One top-level statement (a function or a const), cut out whole with the comment lines just above it. Brackets are counted outside `//` comments. */
+function statementOf(text, name) {
+  const lines = text.split('\n'), re = new RegExp(`^(export )?(async )?(function |const )${name}\\b`);
+  const a = lines.findIndex((l) => re.test(l));
+  if (a < 0) throw new Error(`${name} not found`);
+  let depth = 0, b = a, seen = false;
+  for (; b < lines.length; b++) {
+    const code = lines[b].replace(/\/\/.*$/, '');
+    for (const ch of code) { if ('([{'.includes(ch)) { depth++; seen = true; } else if (')]}'.includes(ch)) depth--; }
+    if (seen && depth <= 0 && (/[;}]\s*$/.test(code) || /^\}/.test(code))) break;
+    if (!seen && /;\s*$/.test(code)) break;
+  }
+  let s = a;
+  while (s > 0 && /^\s*(\/\/|\/\*\*| \*)/.test(lines[s - 1])) s--;
+  return lines.slice(s, b + 1).join('\n') + '\n';
+}
+// The profile chart's pure part (tool-profile.js): the stations, a fingerprint's profile, the red blocks, the names' fit, the brace and a case's pills. The 2D file loads the
+// page (svg-gl, frame, anatomy), so these are cut out by name and given the few things they stand on here (the main path's nodes and names, the rating of a pill).
+const PROFILE_PARTS = ['LIVER_NAMES', 'BRACE_NAME', 'FULL_NAMES', 'SHORT_NAMES', 'TIGHT_NAMES', 'AT_FP', 'SPANS', 'NO_SPANS', 'STENTED', 'spansStented', 'hasStent', 'zoneSpans', 'BLOCK_FALL', 'blocksOf', 'blockSpan',
+  'profileOf', 'NAME_GAP', 'nameFit', 'braceD', 'NUM_PAD', 'whole', 'pillReadings', 'ZONES'];
+const profilePure = () => {
+  const t = src('tool-profile.js');
+  return head('tool-profile.js', ' (pure parts)') + `import { NODES } from '../../../engine/hales/portal/topology.js';
+import { hvpgRate, ppgRate } from '../../../engine/hales/portal/pressure-cuts.js';
+// (anatomy.js PROFILE_PATHS[0], the main path; the rating of a reading is table-marks.js RATE, whose first member is the cut-offs' rating)
+const PATH = { id: 'main', nodes: ['INT', 'CONF', 'RPV', 'SIN_R', 'CV_R', 'RHV', 'IVCS', 'RA'],
+  names: { INT: 'Intestine', CONF: 'Portal vein', RPV: 'Portal venule', SIN_R: 'Sinusoid', CV_R: 'Central vein', RHV: 'Hepatic vein', IVCS: 'IVC', RA: 'RA' }, liver: ['RPV', 'CV_R'] };
+export const STATIONS = PATH.nodes;
+export const PATH_NAMES = PATH.names;
+const NI = Object.fromEntries(NODES.map((n, i) => [n.id, i]));
+const RATE = { hvpg: (v) => [hvpgRate(v)], ppg: (v) => [ppgRate(v)], eus: (v) => [hvpgRate(v)] };
+` + PROFILE_PARTS.map((n) => statementOf(t, n).replace(/^const /, 'export const ').replace(/^function /, 'export function ')).join('\n');
+};
+
 const files = [
+  ['ladder/profile-pure.generated.js', profilePure()],
   ['small/allpatients-model.generated.js', head('allpatients-model.js') + src('allpatients-model.js')
     .replace("from './num.js'", "from '../looks2d/num.js'")
     .replace("from './table-marks.js'", "from '../tiles.generated.ts'")],
