@@ -39,8 +39,9 @@ const SICK = { congU: 0.8, septU: 1, fibSin: 0.8, act: 0.9, fibPre: 0.7, fibPost
 const sins = net.courses.filter((c) => c.kind === 's0').map((c) => ({ c, r: 0.0095 }));
 
 test('the copies of the 2D painter are current (a 2D checkout at PPS_2D_REPO, or the sibling folder)', (t) => {
-  const from = process.env.PPS_2D_REPO ?? (existsSync('../portal-pressure-simulator/src/ui/lobule-paint.js') ? '../portal-pressure-simulator' : '');
-  if (!from) { t.skip('no 2D checkout here'); return; }
+  const from = process.env.PPS_2D_REPO ?? '../portal-pressure-simulator';
+  // (the copies are from the 2D preview line, b3058ef3 on: an older 2D checkout has the field still inside lobule-zoom.js, so there is nothing to compare)
+  if (!existsSync(`${from}/src/ui/lobule-zoom-field.js`)) { t.skip('no 2D checkout here at b3058ef3 or later'); return; }
   assert.doesNotThrow(() => execFileSync('node', ['scripts/copy-lobule.mjs', '--from', from, '--check'], { stdio: 'pipe' }));
 });
 
