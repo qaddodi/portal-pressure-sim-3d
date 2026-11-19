@@ -2007,6 +2007,44 @@ export const UI = {
    ]
   }
  ],
+ "testsPanes": [
+  {
+   "id": "profile",
+   "name": "Pressure"
+  },
+  {
+   "id": "scope",
+   "name": "Pressure over time"
+  },
+  {
+   "id": "hvpg",
+   "name": "IR (HVPG)"
+  },
+  {
+   "id": "doppler",
+   "name": "Doppler"
+  },
+  {
+   "id": "endoscopy",
+   "name": "Endoscopy"
+  },
+  {
+   "id": "abdomen",
+   "name": "Ascites"
+  },
+  {
+   "id": "fibroscan",
+   "name": "FibroScan"
+  },
+  {
+   "id": "readouts",
+   "name": "Readouts"
+  },
+  {
+   "id": "trials",
+   "name": "Trials"
+  }
+ ],
  "decks": [
   {
    "id": "albumin",

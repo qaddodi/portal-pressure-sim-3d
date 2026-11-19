@@ -1,0 +1,29 @@
+/* Tests > Pressure > Over time (2D app-06-plate.css .pt-*). The header is one row on every screen; Smooth and the range sit with the trace pills under the chart (they wrap, never scroll). */
+.pt { display: flex; flex-direction: column; gap: 8px; }
+.pt-head { display: flex; align-items: center; gap: 8px; }
+.pt-hero { display: flex; align-items: baseline; gap: 6px 8px; flex-wrap: wrap; min-width: 0; }
+.pt-st { display: flex; flex-direction: column; align-self: center; gap: 2px; }
+.pt-ctl { display: flex; align-items: center; gap: 6px; flex: none; margin-left: auto; }
+.pt-k { font: 600 12px / 1 var(--ui); color: var(--text-3); letter-spacing: 0.02em; }
+.pt-v { display: inline-flex; align-items: baseline; gap: 4px; }
+.pt-num { font: 600 28px / 1 var(--ui); letter-spacing: -0.02em; color: var(--text); font-variant-numeric: tabular-nums; }
+.pt-v small { font: 500 12px / 1 var(--ui); color: var(--text-3); }
+.pt-sev { display: inline-flex; align-items: center; gap: 6px; font: 600 12px / 1.2 var(--ui); color: var(--text-2); }
+.pt-sev[data-sev="caution"] { color: var(--caution); }
+.pt-sev[data-sev="danger"] { color: var(--danger); }
+.pt-delta { font: 400 12px / 1.2 var(--ui); color: var(--text-3); font-variant-numeric: tabular-nums; min-width: min-content; min-height: 1.2em; }
+.pt-delta[data-dir="up"] { color: var(--danger); }
+.pt-delta[data-dir="down"] { color: var(--ok); }
+.pt-box { position: relative; width: 100%; }
+.pt-chips { display: flex; gap: 6px; flex-wrap: wrap; flex: none; align-items: center; }
+.pt-chip { --chip: var(--text-3); display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 11px 0 9px; border-radius: 999px; border: 1px solid var(--edge); background: transparent; color: var(--text-3); font: 500 12px / 1 var(--ui); white-space: nowrap; }
+.pt-chip i { width: 12px; height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--chip) 35%, transparent); }
+.pt-chip[aria-pressed="true"] { color: var(--text); background: color-mix(in srgb, var(--text) 8%, var(--surface)); border-color: transparent; }
+.pt-chip[aria-pressed="true"] i { background: var(--chip); }
+.pt-chip:disabled { opacity: 0.4; cursor: default; }
+.pt-chip[data-lane] { --chip: var(--text); }
+@media (hover: hover) { .pt-chip:not(:disabled):hover { border-color: var(--text-3); } }
+@media (pointer: coarse) { .pt-chip { position: relative; } .pt-chip::before { content: ''; position: absolute; inset: -4px -2px; } }
+.pt-range { flex: none; height: 28px; padding-block: 2px; margin-bottom: 0; }
+.pt-range button { min-height: 0; padding: 0 10px; font-size: 12px; }
+.pt-smooth { flex: none; }

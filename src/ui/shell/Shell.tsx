@@ -22,7 +22,9 @@ import { applyDeepLink } from './open-link.ts';
 import { showView } from './view-actions.ts';
 import { useBlood } from '../../scene/blood/options.ts';
 import { useLabels } from '../../scene/labels/store.ts';
-import { footHeight } from './room.ts';
+import { useTestsRoom } from '../tests/room.ts';
+import { roomWith } from '../tests/place.ts';
+import { TestsLayer } from '../tests/TestsLayer.tsx';
 import { CompareBanner } from '../compare/CompareUi.tsx';
 import { startCompare } from '../compare/bind.ts';
 import { startTimeline } from '../timeline/index.ts';
@@ -50,13 +52,14 @@ function useFreeCamera() {
   const mode = useShell((s) => s.mode);
   const refit = useShell((s) => s.refit);
   const vp = useUi((s) => s.vp), device = useUi((s) => s.device);
+  const testsPlace = useTestsRoom((s) => s.place);   // (the Tests card takes room from the figure)
   const entered = useRef(false);
   useEffect(() => {
     if (mode !== 'free' || vp.w <= 0) { entered.current = false; return; }
-    const room = freeRoom(vp, device);
+    const room = roomWith(freeRoom(vp, device), testsPlace);
     if (room.w <= 0 || room.h <= 0) return;
     if (!entered.current) { entered.current = true; showView(useShell.getState().view); } else sceneApi.setRoom(room);
-  }, [mode, vp, device]);
+  }, [mode, vp, device, testsPlace]);
   const seen = useRef(refit);
   useEffect(() => { if (refit !== seen.current) { seen.current = refit; sceneApi.refit(); } }, [refit]);
 }
@@ -92,6 +95,7 @@ export function Shell() {
           </div>
         )}
         <CompareBanner />
+        {mode === 'free' && <TestsLayer />}
         <Sheets />
         <Toast />
         <Diagnostics />
