@@ -1,0 +1,16 @@
+/* Tests > Endoscopy layout (the 2D rules are scoped to the dock pane and do not reach here). The picture is a frame on the charts' shared drawer. */
+.en { container-type: inline-size; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.en .pressure-switch { align-self: flex-start; }
+.en-view { position: relative; display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; min-width: 0; }
+@container (min-width: 440px) { .en-view[data-view="scope"] { grid-template-columns: auto minmax(0, 1fr); } }
+.en-stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.en-pic { position: relative; width: var(--en-sq); max-width: 100%; aspect-ratio: 1; }
+.en-pic > * { width: 100%; height: 100%; }
+.en-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.en-band { align-self: flex-start; }
+.en-side .eus-ppg { position: static; }
+/* the EUS result is held over the scope as an overlay panel while it runs (and a few seconds after) */
+.en-view[data-view="scope"] { position: relative; }
+.eus-ppg .eus-panel { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 12px; border-radius: 12px; background: var(--card, rgba(255, 255, 255, 0.92)); box-shadow: 0 2px 12px rgb(0 0 0 / 0.18); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 180ms ease, visibility 0s linear 180ms; }
+.eus-ppg[data-state="run"] .eus-panel, .eus-ppg[data-state="hold"] .eus-panel { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 180ms ease; }
+.en-wall { padding: 8px 2px; }

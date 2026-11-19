@@ -4,27 +4,35 @@ import { useEffect, useRef } from 'react';
 import { UI } from '../strings.generated.ts';
 import { useShell } from './store.ts';
 import { Frame } from './Frame.tsx';
-import { Icon } from './icons.tsx';
+import { Icon, I } from './icons.tsx';
+import { MenuPop, MenuGroup, MenuItem } from './Menu.tsx';
 import { runFeature, type FeatureId } from './features.ts';
 import { keyLabel } from './platform.ts';
 
+const AUTHOR = 'Mohammad Almeqdadi, MD', AUTHOR_URL = 'https://qaddodi.github.io/#tools';   // 2D src/version.js
 const HELP_ICON: Record<string, string> = { Guide: 'book', 'Keyboard shortcuts': 'grid', 'About the model': 'info', References: 'case', Privacy: 'lock' };
 const HELP_FEATURE: Record<string, FeatureId> = { 'About the model': 'guide-about', References: 'guide-references', Privacy: 'guide-privacy' };
 
 export const openGuide = (section: 'keys' | 'present' | null = null) => useShell.setState({ sheet: 'guide', helpSection: section });
 
+/** 2D main.js helpRows(): Guide, Keyboard shortcuts, About the model, References, Privacy, then the author's credit, as a menu on 2D's markup. */
 export function HelpMenu() {
   return (
-    <Frame kind="help" label="Help" place="top">
-      {UI.helpPages.map((p) => (
-        <button key={p.label} type="button" className="sh-row" onClick={() => {
-          if (p.label === 'Guide') openGuide(); else if (p.label === 'Keyboard shortcuts') openGuide('keys');
-          else { useShell.getState().close(); runFeature(HELP_FEATURE[p.label], p.label); }
-        }}>
-          <Icon n={HELP_ICON[p.label] ?? 'info'} /><span className="sh-t">{p.label}</span>{p.kb ? <kbd>{keyLabel(p.kb)}</kbd> : null}
-        </button>
-      ))}
-    </Frame>
+    <MenuPop kind="help" label="Help" title="Help" from="settings" align="end">
+      <MenuGroup title="Help">
+        {UI.helpPages.map((p) => (
+          <MenuItem key={p.label} icon={HELP_ICON[p.label] ?? 'info'} label={p.label} kb={p.kb ? keyLabel(p.kb) : null} onClick={() => {
+            if (p.label === 'Guide') openGuide(); else if (p.label === 'Keyboard shortcuts') openGuide('keys');
+            else { useShell.getState().close(); runFeature(HELP_FEATURE[p.label], p.label); }
+          }} />
+        ))}
+      </MenuGroup>
+      <MenuGroup>
+        <a className="menu-credit" href={AUTHOR_URL} target="_blank" rel="noopener" onClick={() => useShell.getState().close()}>
+          <span>Created by <b>{AUTHOR}</b></span><span className="mc-link">More teaching tools <I n="chev-right" /></span>
+        </a>
+      </MenuGroup>
+    </MenuPop>
   );
 }
 

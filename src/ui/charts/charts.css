@@ -1,7 +1,7 @@
 /* Chart cards: the words and rules around a chart's picture. Colours are the look's tokens (--surface --text --text-2 --text-3 --accent --ok --caution --danger --edge);
    type sizes come from the card's custom properties (--fs-data, --fs-body) and are floors, never shrunk to fit. The pictures are drawn on the GPU (Chart.tsx). */
 
-.pz-crit, .pz-flows, .pz-trial, .pz-lumen, .pz-forest, .pz-saag, .pz-stiff, .pz-shift { --cs: var(--fs-data, 13px); font-size: max(12px, var(--cs)); width: 100%; min-width: 0; box-sizing: border-box; color: var(--text); }
+.pz-crit, .pz-flows, .pz-trial, .pz-lumen, .pz-forest, .pz-saag, .pz-stiff, .pz-shift, .pz-plane { --cs: var(--fs-data, 13px); font-size: max(12px, var(--cs)); width: 100%; min-width: 0; box-sizing: border-box; color: var(--text); }
 .pz-crit [hidden] { display: none; }
 
 /* ── criteria ── */

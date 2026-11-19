@@ -9,7 +9,9 @@ import { FADE, labelOpacity } from './alpha.ts';
 import { LabelFader, type Want } from './fade.ts';
 import { type Box, leaderGeom } from './geometry.ts';
 import { type Form, type Item, type Placement, boxOf, solve } from './solver.ts';
-import { STATIONS, type Station } from './stations.ts';
+import { STATIONS, ORGAN_FRONT, type Station } from './stations.ts';
+import { silhouettes, onOtherOrgan, spotOffsets, type Silhouettes, type To2Screen } from './organ-screen.ts';
+import { x3, y3 } from '../frame2d.ts';
 import { fmtPressure } from '../../ui/text/line.ts';
 import { LS, boxSize, organRun, stationRuns } from './type.ts';
 import { dockKey, type Dock } from './key-dock.ts';
@@ -303,6 +305,9 @@ export class LabelController {
     const items: Item[] = [];
     const lines: [number, number, number, number][] = [];
     const named = this.state.named;
+    // the organs' silhouettes on the screen now (only when an organ is named: the figure's names, Figure > Labels)
+    let sil: Silhouettes | null = null;
+    const to: To2Screen = (x, y) => { const p = d.project(this.tmp2.set(x3(x), y3(y), ORGAN_FRONT), { x: 0, y: 0 }); return [p.x, p.y]; };
     for (const m of metas) {
       const a = this.anchors.get(m.id);
       if (!a) continue;
@@ -315,9 +320,13 @@ export class LabelController {
       }
       const picked = this.state.picked && m.station.vessel === this.state.picked;
       const isNamed = named.has(m.station.id);
+      const organ = m.station.kind === 'organ' && !!m.station.at2d;
+      if (organ && !sil) sil = silhouettes(to);
+      const s0 = sil;
       items.push({
         id: m.id, ax: a.x, ay: a.y, au: 0.5, path: path.length ? path : undefined, forms: m.forms,
         pri: picked ? 300 : isNamed ? 100 + m.station.pri : m.station.pri, must: !!picked || isNamed, dirs: m.station.dirs, region: m.station.kind === 'organ', vw,
+        ...(organ && s0 ? { spots: spotOffsets(m.station.name, m.station.at2d!, to), onOther: (b: Box) => onOtherOrgan(m.station.name, s0, b) } : {}),
       });
     }
     const res = solve({ items, view, blockers, lines });

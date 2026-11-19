@@ -1,0 +1,13 @@
+/* The IR pane. The 2D stylesheet (src/ui/css2d: .hvpg-bar, .hvpg-kv, .hvpg-steps, .hvpg-procs, .ir-chip, .ir-keys…) is lifted unchanged and does the looks; this file only lays the pane out in the Tests card,
+   which is not 2D's dock (no .dock-pane, no .instrument-view): one column, the monitor taking the plot's height. Opacity only for what changes. */
+.ir-pane { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ir-pane .t-seg { align-self: flex-start; margin-bottom: 0; }
+.ir-pane .chart-box { flex: none; position: relative; min-width: 0; }
+.ir-pane .chart-side { display: flex; flex-direction: column; gap: 10px; width: auto; overflow: visible; }
+.ir-fade { animation: ir-fade 280ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes ir-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ir-fade { animation: none; } }
+.ir-switch .ps-btn.off { opacity: .42; }
+.ir-tips { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ir-stent-line { margin: 0; }
+.ir-editor { min-width: 0; }

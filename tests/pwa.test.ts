@@ -16,6 +16,13 @@ test('listFiles gives every built file, slash-separated, without the worker or t
   assert.deepEqual(listFiles(d), ['assets/a-123.js', 'brand/icon-192.png', 'index.html', 'manifest.webmanifest']);
 });
 
+test('the tester guides are served but not held offline', () => {
+  const d = mkdtempSync(join(tmpdir(), 'pwa-'));
+  mkdirSync(join(d, 'guides'));
+  for (const f of ['index.html', 'guides/beta-start-guide.pdf', 'guides/beta-start-guide-iphone.pdf']) writeFileSync(join(d, f), 'x');
+  assert.deepEqual(listFiles(d), ['index.html']);
+});
+
 test('the worker\'s cache is one per scope and build, with the prefix the build pill drops', () => {
   const sw = buildSw({ build: 'abc1234', files: ['index.html', 'assets/a-1.js'] });
   assert.ok(sw.includes('const BUILD = "abc1234"'));
