@@ -7,7 +7,7 @@ import { loadBuiltin } from '../src/decks/registry.ts';
 import { CHART_TOOLS, INSTRUMENT_TOOLS, CHART_VISUALS, hasChart, hasToolChart } from '../src/decks/charts.ts';
 import { stopsOf, viewAt } from '../src/ui/deck/presenter-machine.ts';
 
-const src = readFileSync(new URL('../src/ui/talk/ToolCard.tsx', import.meta.url), 'utf8');
+const src = readFileSync(new URL('../src/ui/talk/ToolCardBody.tsx', import.meta.url), 'utf8');
 
 test('every chart kind in charts.ts has a case in ToolCard', () => {
   for (const k of [...CHART_TOOLS, ...INSTRUMENT_TOOLS]) assert.ok(src.includes(`case '${k}'`), `tool ${k}`);

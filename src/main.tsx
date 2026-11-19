@@ -8,12 +8,14 @@ import './ui/glass.css';   // the one glass for every panel, menu, pill and card
 import { applyLook, resolveLook } from './looks/looks.ts';
 import { useSettings, applyGlass } from './state/settings.ts';
 import { fontsReady } from './boot/fonts.ts';
-import { bootEngine } from './engine/index.ts';
+import { bootEngine, useEngine } from './engine/index.ts';
 import { App } from './App.tsx';
 import { mountPerf } from './ui/perf/mount.ts';
 import { hasWebGL2 } from './boot/webgl.ts';
 import { NoWebGL } from './ui/shell/NoWebGL.tsx';
+import { BootCrash } from './ui/shell/BootCrash.tsx';
 import { registerPwa } from './pwa/register.ts';
+import { warmLater } from './boot/warm.ts';
 import { mountCharts } from './ui/charts/gallery/mount.tsx';
 import { mountTrials } from './ui/trials/mount.tsx';
 import { mountA11y } from './ui/a11y/mount.ts';
@@ -59,6 +61,9 @@ async function start() {
   if (!hasWebGL2()) { createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }
   const [fonts] = await Promise.all([fontsReady(), bootEngine().catch((err) => { console.error(err); })]);
   if (!fonts) console.warn('[boot] fonts were late; continuing with fallback faces');
+  // The engine did not start (its worker failed, crashed or never answered: bootEngine leaves the reason in the store): say so, with Reload, never a page that waits for ever.
+  const eng = useEngine.getState();
+  if (eng.status === 'crashed' || !eng.presetId) { createRoot(document.getElementById('root')!).render(<StrictMode><BootCrash reason={eng.crash} /></StrictMode>); return; }
   installCaught();
   if (isPreview() && flagOn('capture')) { const m = await import('./debug/look-app.ts'); m.applyBefore(location.search); }   // ?capture: one look-board state (WP11)
   createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
@@ -69,5 +74,7 @@ async function start() {
   void mountDebug();   // ?watch / ?debug on the preview copy only (batch B14)
   mountCharts();   // ?charts: the charts gallery (batch B10)
   mountTrials();   // ?trials: the Trials pane on its own (batch B12; the Tests card mounts the same pane)
+  registerPwa();   // offline: after the first picture, once the page is idle (src/pwa/register.ts)
+  warmLater();     // a talk's charts are read in once the page is idle (src/boot/warm.ts)
 }
 void start();

@@ -119,3 +119,7 @@ The lobule is a histology plate, as 2D draws it (`/mnt/project-files/rebuild-3d/
   drains and flattens it toward the page, fades it from 1.1 R (never more than half at a screen corner) and softens it with distance. Lenses other than
   Pressure grey it as 2D's surround.
 - **Camera**: the lobule shots are face on (yaw 0, pitch 0).
+
+### The sinusoid's names on screen (19 Nov 2026)
+
+`sinusoid/SinusoidCaptions.tsx` mounts 2D's names (`names.ts`, laid out by `captions.ts` from where the plane stands on the canvas, the free room and the model's numbers) in the figure's label type: ends, sinusoid, Kupffer, stellate, fenestrae, Disse, lymph, hepatocyte (and the canaliculus when a slide lights `sinusoid:canaliculus`), with leaders, always level, in the wide and the tall (portrait) layout. They are mounted only while the sinusoid is the view, come in once the figure is still and go when it moves; only transform and opacity are written per frame. The end names carry the end arrows (`setEndShown`). A tap on a name, in a talk only (as in 2D), adds its note line and lights `sinusoid:<target>` (`explain-store.ts`, wired in `Stage.tsx` ahead of the free-mode return). The layout is 2D's own within the free room, so the label solver is not used for these names.

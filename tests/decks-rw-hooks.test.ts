@@ -33,7 +33,7 @@ test('what exists today is read from its own tables: the twelve lenses, the done
   for (const c of CHARTS) assert.equal(hasHook(`tool:${c.kind}`), c.status === 'done', c.kind);
   for (const c of ['route', 'free', 'wedge', 'result', 'blocked']) assert.ok(hasHook(`device:hvpg-catheter:${c}`));   // (blocked: Budd–Chiari, ui/deck/procs-link.ts)
   for (const id of ['device:stent', 'device:hvpg-catheter:keep', 'procedure:tips', 'procedure:eus', 'procedure:rex']) assert.ok(hasHook(id), id);
-  assert.ok(!hasHook('procedure:eusglue'), 'the glue scope is not built');
+  assert.ok(hasHook('procedure:eusglue'), 'the glue scope is built (scene/devices/glue-cast.ts, the scope\'s glue mode)');
   for (const v of ['view:lobule', 'view:sinusoid']) assert.ok(hasHook(v));
 });
 
