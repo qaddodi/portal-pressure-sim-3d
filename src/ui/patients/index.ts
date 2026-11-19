@@ -1,6 +1,8 @@
 // Patients: loading one, restarting it, and the name the shell shows. The same message the 2D app sends (main.js loadPreset): one `preset` request; the model's first frames of
 // the new patient replace the old at once (a `jump` frame, nothing blends across it); the timeline starts over with the patient's name; Compare ends on a restart (restartPatient).
 import { engine, useEngine } from '../../engine/index.ts';
+import { setParams } from '../../engine/store.ts';
+import { presetStarted } from '../action/params.ts';
 import { useShell } from '../shell/store.ts';
 import { UI } from '../strings.generated.ts';
 import { PATIENT_FAILED } from '../shell/words.ts';
@@ -13,14 +15,16 @@ let loadGen = 0;
 export async function loadPatient(id: string): Promise<boolean> {
   if (!UI.presets.some((p) => p.id === id)) return false;
   const gen = ++loadGen;
+  let params: unknown;
   try {
-    await engine().request({ type: 'preset', id });
+    params = (await engine().request<{ type: 'presetLoaded'; id: string; params: unknown }>({ type: 'preset', id })).params;
   } catch (e) {
     if (gen === loadGen) useShell.getState().say(PATIENT_FAILED, 'bad');
     console.error(e);
     return false;
   }
   if (gen !== loadGen) return false;
+  setParams(params); presetStarted(id, params as Parameters<typeof presetStarted>[1]);   // (the patient's own settings: the engine store keeps them, and Treat's change history starts from them)
   useEngine.setState({ presetId: id });
   useShell.setState({ patientId: id });
   timeline.reset(patientLabel(id));

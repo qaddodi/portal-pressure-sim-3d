@@ -1,0 +1,107 @@
+/* The Treat card (2D: app-07-floating.css .treat-card, app-03-layouts.css .order-*, app-08-cards.css .chg and .tcp-). The look's tokens only (--surface --text --text-2 --text-3
+   --accent --accent-soft --edge --shadow-rgb --sa); always in the page and faded in and out; per-frame moves are transform and opacity. Text never shrinks to fit. */
+
+.tr-card { position: absolute; z-index: 3; pointer-events: auto; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;
+  font-family: var(--ui); color: var(--text); background: var(--surface); border: 1px solid var(--edge); border-radius: 18px;
+  right: calc(var(--safe-r, 0px) + var(--sh-pad-x, 16px)); top: calc(var(--sh-pad-top, 8px) + 52px); width: min(400px, calc(100vw - 2 * var(--sh-pad-x, 16px)));
+  max-height: calc(100% - var(--sh-pad-top, 8px) - 52px - 84px);
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 12px 32px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6));
+  opacity: 0; visibility: hidden; transform: translateY(10px); transition: opacity 240ms var(--sh-ease, ease), transform 240ms var(--sh-ease, ease), visibility 0s linear 240ms; }
+.tr-card[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+.tr-card button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.tr-card :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* a phone or an upright iPad: a sheet from the foot, over the bottom bar's tabs */
+.tr-card[data-bottom] { left: 0; right: 0; width: auto; top: auto; bottom: calc(var(--safe-b, 0px) + 56px); border-radius: 18px 18px 0 0; max-height: 78%; transform: translateY(24px); }
+.tr-card[data-bottom][data-open="true"] { transform: none; }
+.tr-card[data-bottom][data-device="phone-landscape"] { max-height: 86%; left: 50%; right: auto; width: min(480px, 100% - 24px); margin-left: calc(min(480px, 100vw - 24px) / -2); }
+.tr-grab { display: none; justify-content: center; padding: 8px 0 0; touch-action: none; }
+.tr-grab i { width: 36px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 22%, transparent); }
+.tr-card[data-bottom] .tr-grab { display: flex; }
+
+.tr-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 8px 6px 16px; touch-action: none; }
+.tr-head h2 { margin: 0; font: 600 16px / 1.25 var(--ui); }
+.tr-meta { flex: 1; font: 600 12px / 1 var(--ui); color: var(--text-3); opacity: 0; transition: opacity 200ms var(--sh-ease, ease); } .tr-meta[data-on] { opacity: 1; }
+.tr-ib { display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--text-2); }
+.tr-ib:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+.tr-ib .sh-ic { width: 20px; height: 20px; }
+
+/* the tabs: one segmented row */
+.tr-stage { position: relative; display: grid; min-height: 0; flex: 1; overflow: hidden auto; overscroll-behavior: contain; }
+.tr-main, .tr-page { grid-area: 1 / 1; min-width: 0; }
+.tr-main { display: flex; flex-direction: column; min-height: 0; transition: opacity 240ms var(--sh-ease, ease), transform 240ms var(--sh-ease, ease); }
+.tr-tabs { flex: none; display: flex; gap: 2px; margin: 2px 12px 10px; padding: 3px; border-radius: 10px; background: color-mix(in srgb, var(--text) 6%, var(--surface)); }
+.tr-tab { flex: 1 1 0; display: flex; align-items: center; justify-content: center; min-width: 0; height: 36px; padding: 0 8px; border: 0; border-radius: 7px; background: none; color: var(--text-2); font: 600 12px / 1 var(--ui); white-space: nowrap; }
+.tr-tab:hover { color: var(--text); }
+.tr-tab[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / 0.14), 0 0 0 0.5px var(--edge); }
+.tr-tab-l { position: relative; }
+.tr-tab-n { position: absolute; left: calc(100% + 5px); top: 50%; transform: translateY(-50%); font: 600 12px / 1 var(--ui); color: var(--accent); opacity: 0; transition: opacity 200ms var(--sh-ease, ease); } .tr-tab-n[data-on] { opacity: 1; }
+
+.tr-body { flex: 1; min-height: 0; padding: 0 16px 16px; }
+/* the three panes share one grid cell: one fades out as the next rises in; a pane that has faded out takes no height (so a short tab is never padded by a tall one) */
+.tr-pane { display: grid; padding-top: 4px; container: trpane / inline-size; }
+.tr-pane-in { grid-area: 1 / 1; align-self: start; opacity: 1; transform: none; transition: opacity 200ms var(--sh-ease, ease), transform 200ms var(--sh-ease, ease), visibility 0s linear 0s; }
+.tr-pane-in[data-off] { visibility: hidden; opacity: 0; transform: translateY(6px); max-height: 0; overflow: hidden; transition: opacity 200ms var(--sh-ease, ease), transform 200ms var(--sh-ease, ease), visibility 0s linear 200ms; }
+
+/* drugs and the two standing orders: two columns of ticked lines */
+.tr-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
+.tr-chip { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; min-height: 40px; padding: 0 2px; border: 0; border-bottom: 1px solid var(--edge); border-radius: 0; background: none; text-align: left; font: 500 14px / 1.2 var(--ui); color: var(--text-2); }
+.tr-chip-t { min-width: 0; }
+.tr-chip:hover { color: var(--text); }
+.tr-chip[aria-pressed="true"] { font-weight: 600; color: var(--text); }
+.tr-chip-dot { flex: none; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 5px; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 30%, transparent); }
+.tr-chip-dot .sh-ic { width: 12px; height: 12px; color: var(--accent); stroke-width: 2.6; opacity: 0; transition: opacity 200ms var(--sh-ease, ease); }
+.tr-chip[aria-pressed="true"] .tr-chip-dot { box-shadow: inset 0 0 0 1.5px var(--accent); } .tr-chip[aria-pressed="true"] .tr-chip-dot .sh-ic { opacity: 1; }
+
+/* fluids and procedures: tiles */
+.tr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tr-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@container trpane (min-width: 560px) { .tr-grid:not(.tr-three) { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.tr-order { position: relative; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 8px; border-radius: 14px; border: 1px solid var(--edge); background: var(--surface); text-align: left; color: var(--text);
+  transition: background-color 200ms var(--sh-ease, ease), border-color 200ms var(--sh-ease, ease), color 200ms var(--sh-ease, ease), scale 160ms var(--sh-ease, ease); }
+.tr-order:hover { background: color-mix(in srgb, var(--text) 5%, var(--surface)); border-color: color-mix(in srgb, var(--accent) 40%, var(--edge)); }
+.tr-order:active { scale: 0.98; }
+.tr-order[data-on], .tr-order[data-given] { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--text); }
+.tr-ic { flex: none; width: 20px; height: 20px; transition: opacity 200ms var(--sh-ease, ease); } .tr-order[data-on] .tr-ic { opacity: 0; }
+.tr-tick { position: absolute; left: 8px; top: 50%; translate: 0 -50%; width: 20px; height: 20px; display: grid; place-items: center; pointer-events: none; opacity: 0; transition: opacity 200ms var(--sh-ease, ease); }
+.tr-order[data-on] .tr-tick { opacity: 1; } .tr-tick .sh-ic { width: 20px; height: 20px; color: var(--accent); stroke-width: 2.4; }
+.tr-order-t { display: flex; flex-direction: column; gap: 1px; font: 600 14px / 1.3 var(--ui); }
+.tr-order-t small { font: 500 12px / 1.3 var(--ui); color: var(--text-3); text-wrap: balance; }
+.tr-three .tr-order { align-items: flex-start; padding: 8px 8px 10px 10px; }
+.tr-card[data-device="phone-portrait"] .tr-three, .tr-card[data-device="phone-landscape"] .tr-three { grid-template-columns: minmax(0, 1fr); }
+.tr-card[data-device="phone-portrait"] .tr-three .tr-order, .tr-card[data-device="phone-landscape"] .tr-three .tr-order { align-items: center; padding: 6px 10px; }
+.tr-card[data-device="phone-portrait"] .tr-three .tr-order-t, .tr-card[data-device="phone-landscape"] .tr-three .tr-order-t { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
+
+/* Changes: a section under the orders on a laptop and an iPad on its side */
+.tr-sec { margin-top: 12px; border-top: 1px solid var(--edge); }
+.tr-sec > summary { list-style: none; cursor: pointer; padding: 16px 0 12px; display: flex; align-items: center; gap: 8px; font: 600 14px / 1.2 var(--ui); user-select: none; -webkit-user-select: none; }
+.tr-sec > summary::-webkit-details-marker { display: none; }
+.tr-count { margin-left: auto; padding: 0 8px; border-radius: 999px; background: color-mix(in srgb, var(--text) 8%, var(--surface)); color: var(--text-2); font: 600 12px / 18px var(--ui); opacity: 0; transition: opacity 200ms var(--sh-ease, ease); } .tr-count[data-on] { opacity: 1; }
+.tr-chev { width: 20px; height: 20px; color: var(--text-3); transition: transform 200ms var(--sh-ease, ease); } .tr-sec[open] .tr-chev { transform: rotate(180deg); }
+.tr-sec-body { padding-bottom: 4px; }
+.tr-list { display: flex; flex-direction: column; }
+.tr-chg { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 2px 0; font: 400 14px / 1.3 var(--ui); }
+.tr-chg + .tr-chg { border-top: 1px solid var(--edge); } .tr-sub + .tr-chg { border-top: 0; }
+.tr-chg-n { flex: 1; min-width: 0; color: var(--text); } .tr-chg[data-about] { color: var(--text-2); }
+.tr-chg-v { flex: none; font-weight: 600; font-variant-numeric: tabular-nums lining-nums; color: var(--text); }
+.tr-chg-x { flex: none; width: 32px; height: 32px; margin-right: -6px; color: var(--text-3); }
+.tr-chg-go { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; min-height: 36px; cursor: pointer; color: inherit; border-radius: 6px; }
+.tr-chg-go:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tr-chg-go .tr-chg-ch { flex: none; width: 18px; height: 18px; color: var(--text-3); } .tr-chg-go:hover, .tr-chg-go:hover .tr-chg-ch { color: var(--text); }
+.tr-sub { padding: 8px 0 2px; font: 600 12px / 1.2 var(--ui); color: var(--text-3); } .tr-sub:first-child { padding-top: 0; }
+.tr-empty { margin: 0; font: 400 14px / 1.45 var(--ui); color: var(--text-3); } .tr-empty b { font-weight: 600; }
+.tr-link { align-self: flex-start; margin: 6px 0 0; padding: 4px 0; border: 0; background: none; font: 600 12px / 1.2 var(--ui); color: var(--accent); text-align: left; }
+
+/* a phone: Changes is one row, and its list a page of its own that slides in from the right over the tabs and the orders (transform and opacity) */
+.tr-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin-top: 12px; padding: 0 4px 0 2px; border: 0; border-top: 1px solid var(--edge); background: none; text-align: left; font: 600 14px / 1.2 var(--ui); }
+.tr-row-t { flex: 1; } .tr-row .sh-ic { color: var(--text-3); }
+.tr-row-n { min-width: 20px; padding: 1px 7px; border-radius: 10px; background: var(--accent-soft); color: var(--text); font: 600 12px / 1.4 var(--ui); text-align: center; opacity: 0; } .tr-row-n[data-on] { opacity: 1; }
+.tr-page { display: flex; flex-direction: column; background: var(--surface); transform: translateX(100%); opacity: 0; visibility: hidden; transition: transform 280ms var(--sh-ease, ease), opacity 280ms var(--sh-ease, ease), visibility 0s linear 280ms; }
+.tr-stage[data-page] .tr-page { transform: none; opacity: 1; visibility: visible; transition-delay: 0s; }
+.tr-stage[data-page] .tr-main { transform: translateX(-24%); opacity: 0; }
+.tr-page-head { flex: none; display: flex; align-items: center; justify-content: center; position: relative; min-height: 48px; padding: 0 8px; }
+.tr-back { position: absolute; left: 4px; top: 50%; translate: 0 -50%; display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 10px 0 4px; border: 0; background: none; font: 600 15px / 1 var(--ui); color: var(--accent); }
+.tr-back .sh-ic { width: 20px; height: 20px; }
+.tr-page-title { font: 600 16px / 1.2 var(--ui); }
+.tr-page-body { flex: 1; min-height: 0; padding: 4px 16px 16px; }
+
+@media (prefers-reduced-motion: reduce) { .tr-card, .tr-card * { transition-duration: 1ms !important; } }
