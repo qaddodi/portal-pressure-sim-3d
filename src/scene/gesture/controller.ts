@@ -72,6 +72,8 @@ export interface Gestures {
   readonly active: boolean;
   /** A button took over (Fit, a zoom button, a new shot): stop what the hand started, and ignore the trackpad's momentum still arriving. */
   handsOff(): void;
+  /** A guided step (a slide, a catheter step) is about to bring the turn home with the camera: stop the turn's own momentum and return so they do not fight it. */
+  turnOff(): void;
   /** Glide the hand's view home to the shot's own framing. */
   refit(): void;
   /** A zoom button: zoom about the middle of the room by `factor` (the 2D app's 1.4), gliding. */
@@ -381,6 +383,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   return {
     get active() { return gestureOn() || wheelGlide.active || !!animId || !!orbitId || !!homeId; },
     handsOff,
+    turnOff() { stopOrbitMomentum(); stopOrbitHome(); },
     refit() { handsOff(); fit = null; animateTo({ ...IDENTITY }, undefined, null); orbitToShot(); },
     animateTo(to, ms) { handsOff(); animateTo(to, ms, null); },
     zoomStep(factor) { handsOff(); const c = host.centre(); animZoomAt(c.x, c.y, factor); },

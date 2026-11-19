@@ -7,7 +7,7 @@ import { SIN_SCALE, lobuleWorld, sinusoidWorld } from '../src/scene/lobule/frame
 import { WASH_DELAY_MS, WASH_MS, washAmount, washFront, washProgress, washSpan } from '../src/scene/lobule/wash.ts';
 import { LOBULE_PARTS, SINUSOID_PARTS } from '../src/scene/lobule/parts.ts';
 import { LOBULE_PALETTES, EXTRA_TONES } from '../src/scene/lobule/tones.ts';
-import { LobuleView, litParts } from '../src/scene/lobule/view.ts';
+import { LobuleView, litParts, PLATE_PAINTED } from '../src/scene/lobule/view.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { Batch } from '../src/scene/lobule/batch.ts';
 import { PALETTES, LOOK_IDS } from '../src/scene/palette.ts';
@@ -152,7 +152,8 @@ test('every part of both views exists as a named, placeholder part, ready for th
   assert.deepEqual([...l.set.parts.keys()], [...LOBULE_PARTS]);
   assert.deepEqual([...s.set.parts.keys()], [...SINUSOID_PARTS]);   // (the sinusoid is one drawn shader on a plane, in its first part: tests/scene-sinusoid-lift.test.ts)
   assert.deepEqual(l.set.remaining(), [...LOBULE_PARTS]);
-  for (const name of LOBULE_PARTS) assert.ok(l.set.get(name).group.children.length > 0, `lobule part ${name} has placeholder art`);
+  for (const name of LOBULE_PARTS) if (!PLATE_PAINTED.includes(name)) assert.ok(l.set.get(name).group.children.length > 0, `lobule part ${name} has placeholder art`);
+  for (const name of PLATE_PAINTED) assert.equal(l.set.get(name).group.children.length, 0, `${name} is painted on the plate, as 2D paints it, with no geometry of its own`);
 });
 
 test('swapping a part replaces its placeholder and nothing else; the state, the wash and the shots go on addressing the part', async () => {
@@ -255,21 +256,21 @@ test('the marks run at the 2D painter\'s speeds (sinusoids 1 : 1.45 : 2.05 of sq
 
 const targets = (o: Partial<SinusoidTargets> = {}): SinusoidTargets => ({ por: 1, col: 0, bm: 0, mv: 1, act: 0, lum: 1, pinch: 0, v: 1, filt: 1, prot: 1, ...o });
 
-test('the lobule\'s disease states come out of nothing and ease in: collagen collars, septa, stellate swell, congested zone 3 dilates and drops out', () => {
+test('the lobule\'s disease states: the plate is painted again for a new state (collagen, nutmeg, stellate cells, zone 3 dropping out), congested zone 3 sinusoids dilate', () => {
   const v = new LobuleView(createShared());
   v.setVisible(true); v.snapModel(model()); settle(v);
-  const septa = v.set.get('septa').group.children[0]!, cuffs = v.set.get('cuffs').group.children;
-  assert.equal(septa.visible, false); for (const c of cuffs) assert.equal(c.visible, false, 'no collagen in a healthy lobule');
+  const healthy = v.plate.key;
+  assert.match(healthy, /^light\|0,0,0,0,0,0$/, 'a healthy lobule\'s plate has no collagen, congestion or activation');
   const s2 = () => v.objects.find((o) => o.tone === ('sin2' as never))!.toon.uniforms.inflate!.value as number;
-  const z3 = () => v.objects.find((o) => o.tone === ('cord3' as never))!.toon.uniforms.inflate!.value as number;
-  assert.ok(Math.abs(s2()) < 1e-9); assert.ok(Math.abs(z3()) < 1e-9);
+  assert.ok(Math.abs(s2()) < 1e-9);
+  const before = v.plate.paints;
   v.setModel(model({ s: 0.85, septU: 1, fibPre: 0.7, fibPost: 0.6, congU: 0.8, act: 0.9, fibSin: 0.8, zone: { pre: 3, sin: 20, post: 3 } }));
-  v.update(2000); v.update(2016);
-  assert.ok(septa.visible, 'the septa begin to come at the first frames');
-  settle(v, 2032, 3000);
-  assert.ok(cuffs.every((c) => c.visible));
+  settle(v, 2000, 3000);
+  assert.equal(v.plate.paints, before + 1, 'painted once for the new state, not on every eased frame');
+  assert.equal(v.plate.key, 'light|26,32,26,29,22,19');
   assert.ok(s2() > 0, 'congested zone-3 sinusoids dilate');
-  assert.ok(z3() < 0, 'zone 3 cells drop out with congestion');
+  settle(v, 6000, 1000);
+  assert.equal(v.plate.paints, before + 1, 'a state that holds paints nothing more');
 });
 
 test('a batch builds tubes with every attribute the cel shaders read, and caps close an end-on vessel', () => {
@@ -306,15 +307,16 @@ test('the Bile layer is off at first; turning it on grows the canaliculi and can
   assert.equal(bile.visible, false);
 });
 
-test('the Zones layer tints each zone\'s cells toward the 2D zone colours and eases back off', () => {
+test('the Zones layer is 2D\'s radial gradient over the plate, easing in and back off with no new painting', () => {
   const v = new LobuleView(createShared());
   v.setVisible(true); v.snapModel(model()); let t = settle(v);
-  const col = (i: number) => (v.parts.cords[i]!.toon.uniforms.color.value as { r: number; g: number; b: number }).b;
-  const before = [0, 1, 2].map(col);
-  v.setLayers({ zones: true }); t = settle(v, t);
-  const after = [0, 1, 2].map(col);
-  assert.ok(after[2]! > before[2]!, 'zone 3 turns violet (more blue)');
-  assert.ok(after[0]! < before[0]!, 'zone 1 turns red (less blue)');
+  const paints = v.plate.paints;
+  assert.equal(v.zones.amount, 0); assert.equal(v.zones.mesh.visible, false);
+  v.setLayers({ zones: true }); v.update(t += 16);
+  assert.ok(v.zones.amount > 0 && v.zones.amount < 0.17, 'easing in');
+  t = settle(v, t);
+  assert.ok(Math.abs(v.zones.amount - 0.17) < 1e-9, '2D\'s opacity on Light');
   v.setLayers({ zones: false }); t = settle(v, t);
-  assert.ok(Math.abs(col(2) - before[2]!) < 1e-6);
+  assert.equal(v.zones.amount, 0); assert.equal(v.zones.mesh.visible, false);
+  assert.equal(v.plate.paints, paints, 'the tissue was not painted again');
 });

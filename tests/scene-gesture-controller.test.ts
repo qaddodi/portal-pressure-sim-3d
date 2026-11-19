@@ -284,3 +284,18 @@ test('orbitHome is a critically damped spring: x0 at the start, never past zero,
   assert.equal(orbitHome(-0.3, 0), -0.3);
   assert.ok(orbitHome(-0.3, 400) > -0.3 && orbitHome(-0.3, 400) < 0);
 });
+
+test('turnOff (a guided step is bringing the turn home) stops the turn\'s momentum and a Fit glide, so nothing fights the camera', () => {
+  const r = rig();
+  r.ptr('pointerdown', 1, 400, 300); r.ptr('pointermove', 1, 440, 300); r.advance(16); r.ptr('pointermove', 1, 500, 300); r.advance(16); r.ptr('pointermove', 1, 560, 300); r.advance(8); r.ptr('pointerup', 1, 560, 300);
+  r.run(32);
+  const o = r.orbit;
+  r.g.turnOff();
+  r.run(2000);
+  assert.equal(r.orbit, o, 'the thrown turn stopped where it was');
+  r.g.refit(); r.run(100);
+  const mid = r.orbit;
+  r.g.turnOff(); r.run(2000);
+  assert.equal(r.orbit, mid, 'a Fit glide stopped too');
+  assert.equal(r.g.active, false);
+});

@@ -1,6 +1,8 @@
-// The lobule in 3D: one hexagonal slab of liver, built once at start-up from the same network the 2D app draws (geometry.ts), so opening the view is a
-// camera move and nothing is built (the views open instantly). Placeholder art for now; every part is named (parts.ts) and the artist's model replaces
-// it part by part.
+// The lobule in 3D: one flat histology plate, as 2D draws it (WP5, atlas-look-plan.md §5), built once at start-up from the same network the 2D app
+// draws (geometry.ts), so opening the view is a camera move and nothing is built (the views open instantly). The tissue (plates, membranes, nuclei,
+// zones, nutmeg, collagen, stellate cells) is 2D's own painter on one flat plate (plate.ts); the vessels lie on it in one plane, the end-on ones
+// (central vein, the tracts' venule, arteriole, ductule and lymphatic) as flat discs; the neighbouring lobules are 2D's field, out of focus (field.ts).
+// Every part is named (parts.ts) and the artist's model can replace it part by part.
 //
 //   const lobule = new LobuleView(cel.shared, { look, phone });  cel.scene.add(lobule.group);
 //   lobule.setVisible(true);                                       // the view is on (nothing is drawn or stepped while it is off)
@@ -12,9 +14,9 @@
 //
 // Lymph chevrons run on the ducts (the terminal lymphatics, the tracts' lymphatics and the space of Disse beside each sinusoid) while the Lymph layer is
 // on, out along Disse toward the tract (owner, 5d3b7e86: hepatic lymph rises in cirrhosis, and the chevrons quicken with it). The sinusoid view shows none.
-import { type BufferGeometry, Color, ExtrudeGeometry, Group, Matrix4, Quaternion, Shape, SphereGeometry, Vector3 } from 'three';
+import { type BufferGeometry, Color, Group } from 'three';
 import { CelObject, type CelShared, rawColor } from '../materials/cel.ts';
-import type { Palette, ToneKey } from '../palette.ts';
+import type { Palette } from '../palette.ts';
 import type { LookId } from '../../looks/looks.ts';
 import { type FlowMarkMode, DEFAULT_FLOW_MODE, FLOW_FADE_MS, PULSE_MS, markSpeed } from '../flow.ts';
 import type { LensId } from '../lenses/model.ts';
@@ -23,12 +25,17 @@ import { type Course, type LobuleNet, type P2, buildLobule, zoneOf } from './geo
 import { type LobuleModel, easeToward, lymphRate, lymphSeal, smooth } from './model.ts';
 import { LOBULE_PARTS, type LobulePartName, PartSet } from './parts.ts';
 import { LOBULE_PALETTES, tone } from './tones.ts';
-import { LOBULE_R, LOBULE_T, lobuleToScene, slabZ } from './shots.ts';
+import { LOBULE_R, lobuleToScene, slabZ } from './shots.ts';
+/** Tags hang just over the plate (it is flat: a point any higher would slide against the tissue as the view turns). */
+const ANCHOR_Z = 0.05;
 import { lobuleWorld } from './frames.ts';
 import { type InkContext, type Seg, sinW } from './ink.ts';
 import { InkSet } from './ink-set.ts';
 import { WASH_DELAY_MS, washAmount, washFront, washProgress } from './wash.ts';
-import { ellipse, rrect } from '../sinusoid/flat.ts';
+import { LobulePlate, type MakeCanvas, defaultCanvas } from './plate.ts';
+import { ZonesOverlay } from './zones.ts';
+import { NeighbourField, fieldQuantizer } from './field.ts';
+import { lookColours } from './lz-colours.ts';
 
 const R = LOBULE_R;
 const MARK_PITCHES = 5;   // a chevron period is this many tube radii
@@ -38,6 +45,11 @@ const RAD = {
   s0: 0.0095 * R, s1: 0.0109 * R, s2: 0.0124 * R, an: 0.0068 * R, in: 0.0135 * R, tw: 0.0072 * R,
   pv: 0.042 * R, ha: 0.015 * R, bd: 0.013 * R, lv: 0.013 * R, cv: 0.07 * R, lt: 0.0085 * R, ly: 0.0132 * R, bc: 0.0046 * R, bh: 0.0075 * R,
 } as const;
+
+/** A disc's half thickness (an end-on vessel is a flat disc on the plate) and how far under its sinusoid the space of Disse's band lies. */
+const DISC_T = 0.008, DISSE_DZ = 0.03;
+/** Outline widths (CSS px). 2D's rule is clamp(0.14 × radius, 1.5, 3) device px: on these thin tubes about half a CSS px on a phone. */
+const INK = { sin: 0.55, thin: 0.45, inlet: 0.65, disc: 0.75 } as const;
 
 /** What the slides name, as the 2D deck's terms: which parts carry chevrons in flow-mark option A. */
 export const TERM_PARTS: Readonly<Record<string, readonly LobulePartName[]>> = {
@@ -58,7 +70,11 @@ export function litParts(terms: Iterable<string>): Set<LobulePartName> {
 }
 
 export interface LobuleLayers { lymph: boolean; zones: boolean; bile: boolean }
-export interface LobuleViewOptions { look?: LookId; phone?: boolean; flowMode?: FlowMarkMode; reduceMotion?: boolean }
+export interface LobuleViewOptions { look?: LookId; phone?: boolean; flowMode?: FlowMarkMode; reduceMotion?: boolean; canvas?: MakeCanvas }
+/** Parts that are painted on the plate (the 2D painter draws them with the tissue), so they have no geometry of their own. */
+export const PLATE_PAINTED: readonly LobulePartName[] = ['stellate', 'septa', 'cuffs'];
+/** How long the surround takes to grey (or come back) when the lens changes (2D: the lens crossfade). */
+const GREY_MS = 350;
 
 /** The eased scalars the drawing reads (all move toward the model's targets). */
 interface Cur {
@@ -96,9 +112,15 @@ export class LobuleView {
   private stasis = 0;
   private bileObjs: CelObject[] = [];
   private zoneFade = 0;
-  private zoneBase: Color[] = [];
-  /** Objects whose ink is the tile's own tone deepened, not the look's hard outline: the cells, the Disse (the 2D draws their borders as soft lines). */
-  private softInk = new Map<CelObject, number>();
+  /** The surround's grey (a lens other than Pressure greys the neighbouring lobules as it greys the anatomy's liver), eased. */
+  private greyK = 0;
+  /** The tissue plate, the Zones overlay and the out-of-focus neighbours. */
+  readonly plate: LobulePlate;
+  readonly zones = new ZonesOverlay();
+  readonly field: NeighbourField;
+  private readonly fsQ = fieldQuantizer();
+  /** Objects drawn flat (one tone, no light): the space of Disse's band. */
+  private flat = new Set<CelObject>();
   private pulseUntil = -Infinity;
   private pulseStart = -Infinity;
   private visible = false;
@@ -112,9 +134,9 @@ export class LobuleView {
   private dirty = true;
   // objects whose inflate or reveal the state sets
   private o!: {
-    cords: CelObject[]; nuclei: CelObject[]; s0: CelObject; s1: CelObject; s2: CelObject; an: CelObject; inlets: CelObject;
+    s0: CelObject; s1: CelObject; s2: CelObject; an: CelObject; inlets: CelObject;
     pv: CelObject; ha: CelObject; bd: CelObject; tw: CelObject; cv: CelObject; lv: CelObject; lt: CelObject; ly: CelObject;
-    stellate: CelObject; septa: CelObject; cuffPre: CelObject; cuffPost: CelObject; washSin: CelObject; washCv: CelObject;
+    washSin: CelObject; washCv: CelObject;
   };
 
   /** The named objects (for tests and the state mapping). */
@@ -128,12 +150,20 @@ export class LobuleView {
     this.phone = !!opts.phone;
     this.mode = opts.flowMode ?? DEFAULT_FLOW_MODE;
     this.reduce = !!opts.reduceMotion;
+    const mk = opts.canvas ?? defaultCanvas;
+    this.plate = new LobulePlate(net, this.sinCourses(net), RAD.cv / R, mk);
+    this.field = new NeighbourField((w, h) => { const c = mk(1); if (c) { c.width = w; c.height = h; } return c; });
     this.build();
     this.applyLook(this.look);
     this.group.visible = false;
   }
 
   // ---- building ------------------------------------------------------------------------------------------------------------------
+
+  /** The sinusoids the plate's capillarized collagen follows (2D: sinTubesOf), with their radii in lobule radii. */
+  private sinCourses(net: LobuleNet): { c: Course; r: number }[] {
+    return net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an').map((c) => ({ c, r: RAD[c.kind as 's0' | 's1' | 's2' | 'an'] / R }));
+  }
 
   private make(part: LobulePartName, b: Batch, toneKey: Parameters<typeof tone>[0], opts: { bands: 2 | 3; px: number; chevrons?: { pitch: number; speed: () => number; dir?: 1 | -1; lymph?: boolean; bile?: boolean }; ink?: { seg: Seg; courses?: Course[] } }): CelObject {
     const c = opts.chevrons;
@@ -156,16 +186,18 @@ export class LobuleView {
   }
 
   private build(): void {
-    const net = this.net, T = LOBULE_T;
+    const net = this.net;
     const by = (...k: Course['kind'][]) => net.courses.filter((c) => k.includes(c.kind));
     const tubeSet = (cs: Course[], radius: number, dz = 0, radial = 7) => {
       const b = new Batch(), pitch = radius * MARK_PITCHES;
       for (const c of cs) b.tube(c.pts.map((p) => p3(p, dz)), { radius, radial, uvx: (_i, arc) => arc / pitch });
       return b;
     };
+    // a vessel seen end-on (the central vein, the tract's venule, arteriole, ductule and lymphatic): a flat disc on the plate, as 2D's celDisc, not a
+    // column standing out of it (the hexagonal prism of IMG_5637). Its face looks at the camera, so it is one flat tone inside its outline.
     const axial = (cs: Course[], radius: number) => {
       const b = new Batch();
-      for (const c of cs) { const p = c.pts[0]!; b.tube([p3(p, -T / 2), p3(p, T / 2)], { radius, radial: 12, capped: true, uvx: () => 0 }); }
+      for (const c of cs) { const p = c.pts[Math.floor(c.pts.length / 2)]!; b.tube([p3(p, -DISC_T), p3(p, DISC_T)], { radius, radial: 48, capped: true, uvx: () => 0 }); }
       return b;
     };
     // the blood's marks run at the 2D painter's speeds (lobule-zoom.js: sinusoids vS x 1, 1.45, 2.05 with vS = 15 sqrt(flow); inlets 24 sqrt|portal|, the arteriole's twig 30 sqrt(art)),
@@ -176,57 +208,35 @@ export class LobuleView {
     const twSpeed = () => U * 30 * Math.sqrt(Math.max(0, this.cur.art));
     const lymphSpeed = () => markSpeed(8 * Math.min(6, Math.max(0.2, this.cur.lymphRate)));
 
-    // cords: three zones of hepatocyte plates, each cell a flat rounded tile with a nucleus on it, as the 2D app draws them (a pale salmon plate, a soft darker border, a plum nucleus)
-    const tile = new ExtrudeGeometry(rrect(1, 1, 0.3), { depth: 1, bevelEnabled: false, curveSegments: 3 });
-    const nuc = new ExtrudeGeometry(ellipse(0.5, 0.5, 10), { depth: 1, bevelEnabled: false, curveSegments: 3 });
-    const cb = [new Batch(), new Batch(), new Batch()], nb = [new Batch(), new Batch(), new Batch()];
-    const m = new Matrix4(), q = new Quaternion(), pos = new Vector3(), sc = new Vector3(), axis = new Vector3(0, 0, 1);
-    const TH = 0.07;
-    for (const c of net.cells) {
-      const z = zoneOf(c.q), at = p3([c.x, c.y], -TH);
-      q.setFromAxisAngle(axis, -c.a);
-      pos.set(at[0], at[1], at[2]);
-      sc.set(c.l * R * 0.97, c.w * R * 0.97, TH * (0.9 + 0.2 * c.tone));
-      m.compose(pos, q, sc);
-      cb[z - 1]!.shape(tile, m);
-      // the nucleus: a small round disc a little off the middle (the 2D `nu`), standing a hair above the tile
-      const nr = Math.min(c.l, c.w) * R * 0.3, cs = Math.cos(-c.a), sn = Math.sin(-c.a), off = c.nu * c.l * R;
-      pos.set(at[0] + cs * off, at[1] + sn * off, at[2] + TH * 0.9);
-      sc.set(nr * 1.15, nr, 0.02);
-      m.compose(pos, q, sc);
-      nb[z - 1]!.shape(nuc, m);
-    }
-    const cords = cb.map((b, i) => this.make('cords', b, (`cord${i + 1}` as 'cord1'), { bands: 2, px: 0.55 }));
-    const nuclei = nb.map((b, i) => this.make('cords', b, 'nucleus', { bands: 2, px: 0.35 }));
-    cords.forEach((o) => this.softInk.set(o, 0.38)); nuclei.forEach((o) => this.softInk.set(o, 0.3));
-    tile.dispose(); nuc.dispose();
-    // the floor of the slab: a hexagon of tissue under the cells (the 2D app's pink between them), its edge the limiting plate
-    const fb = new Batch(), hexShape = new Shape();
-    net.corners.forEach(([x, y], i) => (i ? hexShape.lineTo(x * R, y * R) : hexShape.moveTo(x * R, y * R)));
-    hexShape.closePath();
-    m.compose(pos.set(lobuleToScene(0, 0, 0)[0], lobuleToScene(0, 0, 0)[1], -0.33), q.identity(), sc.set(1, 1, 1));
-    fb.shape(new ExtrudeGeometry(hexShape, { depth: 0.05, bevelEnabled: false }), m);
-    this.make('cords', fb, 'floor', { bands: 2, px: 1.1 });
+    // the tissue: 2D's painter on one flat plate (cells, membranes, nuclei, nutmeg, collagen, stellate cells), the Zones layer over it, and the
+    // neighbouring lobules out of focus under it
+    this.set.get('cords').group.add(this.plate.group, this.zones.mesh);
+    this.set.get('field').group.add(this.field.mesh);
 
-    // sinusoids: three generations and the links; blood runs from the portal end to the central end (negative when the lobule's flow reverses)
-    const s0 = this.make('sinusoids', tubeSet(by('s0'), RAD.s0), 'sin0', { bands: 2, px: 0.9, ink: { seg: 'sin', courses: by('s0') }, chevrons: { pitch: RAD.s0 * MARK_PITCHES, speed: sinSpeed(1) } });
-    const s1 = this.make('sinusoids', tubeSet(by('s1'), RAD.s1), 'sin1', { bands: 2, px: 0.9, ink: { seg: 'sin', courses: by('s1') }, chevrons: { pitch: RAD.s1 * MARK_PITCHES, speed: sinSpeed(1.45) } });
-    const s2 = this.make('sinusoids', tubeSet(by('s2'), RAD.s2), 'sin2', { bands: 2, px: 0.9, ink: { seg: 'sin', courses: by('s2') }, chevrons: { pitch: RAD.s2 * MARK_PITCHES, speed: sinSpeed(2.05) } });
-    const an = this.make('sinusoids', tubeSet(by('an'), RAD.an), 'sin1', { bands: 2, px: 0.8, ink: { seg: 'sin', courses: by('an') } });
-    const inlets = this.make('inlets', tubeSet(by('in'), RAD.in, 0, 8), 'portal', { bands: 2, px: 1.1, ink: { seg: 'in', courses: by('in') }, chevrons: { pitch: RAD.in * MARK_PITCHES, speed: inSpeed } });
+    // sinusoids: three generations and the links; blood runs from the portal end to the central end (negative when the lobule's flow reverses).
+    // Outlines as 2D's (clamp(0.14 R, 1.5, 3) device px: about half a CSS px on these thin tubes), in the casing colour (applyLook)
+    const s0 = this.make('sinusoids', tubeSet(by('s0'), RAD.s0), 'sin0', { bands: 2, px: INK.sin, ink: { seg: 'sin', courses: by('s0') }, chevrons: { pitch: RAD.s0 * MARK_PITCHES, speed: sinSpeed(1) } });
+    const s1 = this.make('sinusoids', tubeSet(by('s1'), RAD.s1), 'sin1', { bands: 2, px: INK.sin, ink: { seg: 'sin', courses: by('s1') }, chevrons: { pitch: RAD.s1 * MARK_PITCHES, speed: sinSpeed(1.45) } });
+    const s2 = this.make('sinusoids', tubeSet(by('s2'), RAD.s2), 'sin2', { bands: 2, px: INK.sin, ink: { seg: 'sin', courses: by('s2') }, chevrons: { pitch: RAD.s2 * MARK_PITCHES, speed: sinSpeed(2.05) } });
+    const an = this.make('sinusoids', tubeSet(by('an'), RAD.an), 'sin1', { bands: 2, px: INK.thin, ink: { seg: 'sin', courses: by('an') } });
+    const inlets = this.make('inlets', tubeSet(by('in'), RAD.in, 0, 8), 'portal', { bands: 2, px: INK.inlet, ink: { seg: 'in', courses: by('in') }, chevrons: { pitch: RAD.in * MARK_PITCHES, speed: inSpeed } });
 
     // the portal tracts: venule, arteriole (with the twig that feeds the first stretch of a sinusoid), ductule; the lymphatic is the lymph part's
-    const pv = this.make('portal-tracts', axial(by('pv'), RAD.pv), 'portal', { bands: 2, px: 1.1, ink: { seg: 'pv' } });
-    const ha = this.make('portal-tracts', axial(by('ha'), RAD.ha), 'artery', { bands: 2, px: 1.0 });
-    const bd = this.make('portal-tracts', axial(by('bd'), RAD.bd), 'bile', { bands: 2, px: 1.0 });
-    const tw = this.make('portal-tracts', tubeSet(by('tw'), RAD.tw, 0, 6), 'artery', { bands: 2, px: 0.9, chevrons: { pitch: RAD.tw * MARK_PITCHES, speed: twSpeed } });
-    const cv = this.make('central-vein', axial(by('cv'), RAD.cv), 'sys', { bands: 2, px: 1.2, ink: { seg: 'cv' } });
+    const pv = this.make('portal-tracts', axial(by('pv'), RAD.pv), 'portal', { bands: 2, px: INK.disc, ink: { seg: 'pv' } });
+    const ha = this.make('portal-tracts', axial(by('ha'), RAD.ha), 'artery', { bands: 2, px: INK.disc });
+    const bd = this.make('portal-tracts', axial(by('bd'), RAD.bd), 'bile', { bands: 2, px: INK.disc });
+    const tw = this.make('portal-tracts', tubeSet(by('tw'), RAD.tw, 0, 6), 'artery', { bands: 2, px: INK.thin, chevrons: { pitch: RAD.tw * MARK_PITCHES, speed: twSpeed } });
+    const cv = this.make('central-vein', axial(by('cv'), RAD.cv), 'sys', { bands: 2, px: INK.disc, ink: { seg: 'cv' } });
 
-    // lymph: the tracts' lymphatics (end-on), the terminal lymphatics along the edges (toward the tract) and the space of Disse beside each sinusoid (out toward the plate, so against the blood)
-    const lv = this.make('lymph', axial(by('lv'), RAD.lv), 'lymph', { bands: 2, px: 0.9 });
-    const lt = this.make('lymph', tubeSet(by('lt'), RAD.lt, 0, 6), 'lymph', { bands: 2, px: 0.9, chevrons: { pitch: RAD.lt * MARK_PITCHES, speed: lymphSpeed, lymph: true } });
-    // the space of Disse is a sleeve centred on its sinusoid and drawn just behind it (2D: Wet Disse); its course runs inward, the lymph outward, so the marks run backwards
-    const ly = this.make('lymph', tubeSet(by('ly'), RAD.ly, -RAD.ly * 0.35, 6), 'lymph', { bands: 2, px: 0.8, chevrons: { pitch: RAD.ly * MARK_PITCHES, speed: lymphSpeed, dir: -1, lymph: true } });
+    // lymph: the tracts' lymphatics (end-on discs), the terminal lymphatics along the edges (toward the tract) and the space of Disse beside each sinusoid
+    const lv = this.make('lymph', axial(by('lv'), RAD.lv), 'lymph', { bands: 2, px: INK.disc });
+    const lt = this.make('lymph', tubeSet(by('lt'), RAD.lt, 0, 6), 'lymph', { bands: 2, px: INK.thin, chevrons: { pitch: RAD.lt * MARK_PITCHES, speed: lymphSpeed, lymph: true } });
+    // the space of Disse: a flat pale band under its sinusoid, so only its rim shows either side (2D's Wet Disse sleeve, drawn under the sinusoid), with no
+    // outline and no light of its own: no second tube wound round the first (the "rope" of IMG_5637). Its course runs inward, the lymph outward, so the marks run backwards
+    const lyB = new Batch();
+    for (const c of by('ly')) lyB.tube(c.pts.map((p) => p3(p, -DISSE_DZ)), { radius: RAD.ly, radial: 8, squash: 0.08, uvx: (_i, arc) => arc / (RAD.ly * MARK_PITCHES) });
+    const ly = this.make('lymph', lyB, 'lymph', { bands: 2, px: 0, chevrons: { pitch: RAD.ly * MARK_PITCHES, speed: lymphSpeed, dir: -1, lymph: true } });
+    this.flat.add(ly);
 
     // bile (the Bile layer): the canaliculi run between neighbouring plates, from the centre out toward the edge (the blood runs the other way), the canals of Hering gather them
     // along the edge into each tract's ductule. Arrowheads run out toward the tract, against the blood.
@@ -254,63 +264,9 @@ export class LobuleView {
     channel(s0c, 2, 22, true);
     channel(by('s1'), 2, 20, false);
     channel(by('s2'), 3, 22, false);
-    const bc = this.make('bile', chB, 'bile', { bands: 2, px: 0.6, chevrons: { pitch: RAD.bc * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
-    const bh = this.make('bile', hrB, 'bile', { bands: 2, px: 0.8, chevrons: { pitch: RAD.bh * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
+    const bc = this.make('bile', chB, 'bile', { bands: 2, px: INK.thin, chevrons: { pitch: RAD.bc * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
+    const bh = this.make('bile', hrB, 'bile', { bands: 2, px: INK.thin, chevrons: { pitch: RAD.bh * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
     this.bileObjs = [bc, bh];
-
-    // the neighbouring lobules (the 2D dive's field, contrast cut by NEIGHBOUR_FLAT and softening with distance): three rings of flat hexagon tiles, each with its central vein and a dot at each corner
-    // where a tract stands. They share the floor's depth, so the view reads as one slice of liver with this lobule in focus. Each ring dissolves a little more than the last.
-    const fieldObjs: CelObject[] = [];
-    {
-      const SQ3 = Math.sqrt(3), e1: P2 = [SQ3 * Math.cos(Math.PI / 6), SQ3 * Math.sin(Math.PI / 6)], e2: P2 = [0, SQ3];
-      const rings: { tiles: Batch; cv: Batch; tr: Batch }[] = [1, 2, 3].map(() => ({ tiles: new Batch(), cv: new Batch(), tr: new Batch() }));
-      const tileShape = new Shape();
-      net.corners.forEach(([x, y], i) => (i ? tileShape.lineTo(x * R * 0.985, y * R * 0.985) : tileShape.moveTo(x * R * 0.985, y * R * 0.985)));
-      tileShape.closePath();
-      const tileGeo = new ExtrudeGeometry(tileShape, { depth: 0.05, bevelEnabled: false });
-      const disc = new ExtrudeGeometry(ellipse(0.5, 0.5, 14), { depth: 1, bevelEnabled: false, curveSegments: 3 });
-      for (let qq = -3; qq <= 3; qq++) for (let rr = -3; rr <= 3; rr++) {
-        const dist = Math.max(Math.abs(qq), Math.abs(rr), Math.abs(qq + rr));
-        if (dist < 1 || dist > 3) continue;
-        const cx = (qq * e1[0] + rr * e2[0]), cy = (qq * e1[1] + rr * e2[1]), B = rings[dist - 1]!;
-        const base = lobuleToScene(cx, cy, -0.33);
-        m.compose(pos.set(base[0], base[1], base[2]), q.identity(), sc.set(1, 1, 1));
-        B.tiles.shape(tileGeo, m);
-        const cvp = lobuleToScene(cx, cy, -0.27);
-        m.compose(pos.set(cvp[0], cvp[1], cvp[2]), q.identity(), sc.set(0.12 * R, 0.12 * R, 0.02));
-        B.cv.shape(disc, m);
-        for (const [x, y] of net.corners) {
-          const tp = lobuleToScene(cx + x, cy + y, -0.27);
-          m.compose(pos.set(tp[0], tp[1], tp[2]), q.identity(), sc.set(0.07 * R, 0.07 * R, 0.02));
-          B.tr.shape(disc, m);
-        }
-      }
-      const fades = [0.92, 0.66, 0.4];
-      rings.forEach((B, i) => {
-        const t = this.make('field', B.tiles, 'field', { bands: 2, px: 0.5 }), c = this.make('field', B.cv, 'sys', { bands: 2, px: 0.4 }), tr = this.make('field', B.tr, 'portal', { bands: 2, px: 0.4 });
-        for (const o of [t, c, tr]) { o.setFade(fades[i]!); fieldObjs.push(o); }
-        this.softInk.set(t, 0.55);
-      });
-      tileGeo.dispose(); disc.dispose();
-    }
-
-    // stellate cells in the space of Disse
-    const sb = new Batch(), sph = new SphereGeometry(1, 8, 6);
-    for (const s of net.stellate) {
-      const at = p3([s.x, s.y], -0.05);
-      q.setFromAxisAngle(axis, -s.a);
-      pos.set(at[0], at[1], at[2]);
-      sc.set(0.05 * 1.5, 0.05, 0.05);
-      m.compose(pos, q, sc);
-      sb.shape(sph, m);
-    }
-    const stellate = this.make('stellate', sb, 'stellate', { bands: 2, px: 0.9 });
-
-    // collagen: septa across the lobule, collars round the tracts and the central vein (all start collapsed: inflate moves them out)
-    const septa = this.make('septa', (() => { const b = new Batch(); for (const s of net.septa) b.tube(s.map((p) => p3(p)), { radius: RAD.tw, radial: 8 }); return b; })(), 'collagen', { bands: 2, px: 0.9 });
-    const ring = (cx: number, cy: number, rr: number): V3[] => Array.from({ length: 25 }, (_, i) => { const a = (i / 24) * Math.PI * 2; return p3([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); });
-    const cuffPre = this.make('cuffs', (() => { const b = new Batch(); for (const t of net.triads) b.tube(ring(t.x, t.y, 0.12), { radius: 0.012 * R, radial: 8 }); return b; })(), 'collagen', { bands: 2, px: 0.9 });
-    const cuffPost = this.make('cuffs', (() => { const b = new Batch(); b.tube(ring(0, 0, 0.115), { radius: 0.012 * R, radial: 8 }); return b; })(), 'collagen', { bands: 2, px: 0.9 });
 
     // the wedge's wash: amber over the sinusoids (cut by the front's radius in uv.x) and the central vein
     const wb = new Batch();
@@ -319,7 +275,7 @@ export class LobuleView {
     const washCv = this.make('wash', axial(by('cv'), RAD.cv), 'amber', { bands: 2, px: 0 });
     washSin.setReveal(0); washCv.group.visible = washSin.group.visible = false;
 
-    this.o = { cords, nuclei, s0, s1, s2, an, inlets, pv, ha, bd, tw, cv, lv, lt, ly, stellate, septa, cuffPre, cuffPost, washSin, washCv };
+    this.o = { s0, s1, s2, an, inlets, pv, ha, bd, tw, cv, lv, lt, ly, washSin, washCv };
     // the placeholder drivers: each part knows its objects (and palette, ink and disposal go through them)
     for (const name of LOBULE_PARTS) {
       const objs = this.set.get(name).group.children.length ? this.objects.filter((o) => this.set.get(name).group.children.includes(o.group)) : [];
@@ -335,27 +291,18 @@ export class LobuleView {
 
   applyLook(look: LookId): void {
     this.look = look; this.pushInk();
-    const p = LOBULE_PALETTES[look];
+    const p = LOBULE_PALETTES[look], L = lookColours(look);
     for (const o of this.objects) { o.applyPalette(p); o.setPhone(this.phone); }
-    // the cells' borders are the tile's own tone deepened (a soft line), not the look's dark outline
-    const inkC = rawColor(p.ink), tmp = new Color();
-    for (const [o, k] of this.softInk) (o.ink.uniforms.color.value as Color).copy(rawColor(p.tones[o.tone])).lerp(inkC, k);
-    void tmp;
-    this.palNow = p;
-    this.tintZones();
+    // every outline is 2D's casing (--vessel-casing: a warm sepia at .64 on Light, near black at .3 on Dark) laid over the tissue it crosses, not the look's hard ink
+    const casing = new Color(...L.rgb01('--vessel-casing')), ca = L.alpha('--vessel-casing');
+    const cell = L.dark ? (() => { const g = L.rgb01('--og-liver-2'), c = L.rgb01('--og-liver-1'); return new Color(g[0] + (c[0] - g[0]) * 0.28, g[1] + (c[1] - g[1]) * 0.28, g[2] + (c[2] - g[2]) * 0.28); })() : new Color(...L.rgb01('--og-liver-1'));
+    const ink = cell.clone().lerp(casing, ca);
+    for (const o of this.objects) (o.ink.uniforms.color.value as Color).copy(ink);
+    // the space of Disse is one flat tone (no light, no outline); the lymph's marks are soft bands with an amber core, as 2D's
+    for (const o of this.flat) (o.toon.uniforms.shade.value as Color).copy(o.toon.uniforms.color.value as Color);
+    for (const mk of this.marked) if (mk.layer === 'lymph') { rawColor(p.tones['amber' as never] as string, mk.obj.toon.uniforms.markColor.value as Color); rawColor(p.tones['amber' as never] as string, mk.obj.toon.uniforms.markReversed.value as Color); }
+    this.zones.applyLook(look);
     this.dirty = true;
-  }
-  private palNow: Palette | null = null;
-  /** The Zones layer: each zone's cells take a share of the 2D zone colours (zone 1 red, zone 2 amber, zone 3 violet; --lz-zone-1..3), easing with the layer. */
-  private tintZones(): void {
-    const p = this.palNow;
-    if (!p) return;
-    const k = 0.34 * this.zoneFade, zc = ['#E86854', '#D6A05C', '#7C62CE'];
-    this.o.cords.forEach((o, i) => {
-      const base = rawColor(p.tones[`cord${i + 1}` as unknown as ToneKey]), tint = rawColor(zc[i]!), ink = rawColor(p.ink);
-      (o.toon.uniforms.color.value as Color).copy(base).lerp(tint, k);
-      (o.toon.uniforms.shade.value as Color).copy(base).lerp(tint, k).multiplyScalar(p.shade).lerp(ink, 0.08);
-    });
   }
   setPhone(phone: boolean): void { this.phone = phone; for (const o of this.objects) o.setPhone(phone); this.dirty = true; }
 
@@ -363,7 +310,12 @@ export class LobuleView {
 
   setVisible(v: boolean): void {
     this.visible = v; this.group.visible = v; this.dirty = true; if (!v) this.washOn = false;
-    if (v) this.inks.freshen();   // (opens already in the lens's colours: nothing eases in while the view was away)
+    if (v) {
+      this.inks.freshen();   // (opens already in the lens's colours: nothing eases in while the view was away)
+      // (and on its tissue as it is now: the plate and the field are painted before the first frame, never crossfaded in from an old state)
+      this.wantTissue(); this.plate.snap();
+      this.greyK = this.greyGoal(); this.field.setGrey(this.greyK);
+    }
   }
   get isVisible(): boolean { return this.visible; }
 
@@ -390,6 +342,14 @@ export class LobuleView {
   setFlowMode(mode: FlowMarkMode): void { this.mode = mode; this.dirty = true; }
   /** The colour lens the vessels wear (the Layers menu's, as the 2D lobule colours its lumen by it); the colours ease over about a third of a second. */
   setLens(lens: LensId): void { if (lens === this.lens) return; this.lens = lens; this.pushInk(); this.dirty = true; }
+  /** Every lens but Pressure (and the neutral one) greys the anatomy's organs; the neighbouring lobules take the same grey (2D: surroundGrade). */
+  private greyGoal(): number { return this.lens !== 'pressure' && this.lens !== ('neutral' as LensId) ? 1 : 0; }
+  /** The tissue the plate and the field should show: the model's targets (they are painted once per state and crossfaded, not every eased frame). */
+  private wantTissue(): void {
+    const g = this.goal;
+    this.plate.want({ congU: g.congU, septU: g.septU, fibSin: g.fibSin, act: g.act, fibPre: g.fibPre, fibPost: g.fibPost }, this.look);
+    this.field.want(this.look, this.fsQ(g));
+  }
   get currentLens(): LensId { return this.lens; }
   /** The node pressures the Change, Congestion and `since` lenses count from (the healthy patient's, a pinned moment's, a slide's). */
   setReference(ref: ArrayLike<number> | null): void { this.ref = ref; this.pushInk(); this.dirty = true; }
@@ -423,7 +383,13 @@ export class LobuleView {
     const lyGoal = this.layers.lymph ? 1 : 0, k = this.reduce ? 1 : Math.min(1, dt / FLOW_FADE_MS);
     const biGoal = this.layers.bile ? 1 : 0, zoGoal = this.layers.zones ? 1 : 0;
     if (this.bileFade !== biGoal) { this.bileFade = Math.abs(biGoal - this.bileFade) <= k ? biGoal : this.bileFade + Math.sign(biGoal - this.bileFade) * k; moving = true; }
-    if (this.zoneFade !== zoGoal) { this.zoneFade = Math.abs(zoGoal - this.zoneFade) <= k ? zoGoal : this.zoneFade + Math.sign(zoGoal - this.zoneFade) * k; moving = true; this.tintZones(); }
+    if (this.zoneFade !== zoGoal) { this.zoneFade = Math.abs(zoGoal - this.zoneFade) <= k ? zoGoal : this.zoneFade + Math.sign(zoGoal - this.zoneFade) * k; moving = true; }
+    this.zones.set(this.zoneFade);
+    // the tissue: a new state is painted once and crossfaded in (plate.ts); the field's tile follows the state in 2D's eighths
+    this.wantTissue();
+    if (this.plate.step(dt, this.reduce)) moving = true;
+    const gGoal = this.greyGoal();
+    if (this.greyK !== gGoal) { const gk = this.reduce ? 1 : dt / GREY_MS; this.greyK = Math.abs(gGoal - this.greyK) <= gk ? gGoal : this.greyK + Math.sign(gGoal - this.greyK) * gk; this.field.setGrey(this.greyK); moving = true; }
     const stGoal = 1 - smooth(0.12, 0.45, Math.max(0, this.goal.flow)), stK = this.reduce ? 1 : 1 - Math.exp(-dt / 500);
     if (this.stasis !== stGoal) { this.stasis = Math.abs(stGoal - this.stasis) < 1e-3 ? stGoal : this.stasis + (stGoal - this.stasis) * stK; moving = true; }
     if (this.lyFade !== lyGoal) { this.lyFade = Math.abs(lyGoal - this.lyFade) <= k ? lyGoal : this.lyFade + Math.sign(lyGoal - this.lyFade) * k; moving = true; }
@@ -451,15 +417,7 @@ export class LobuleView {
     // sinusoids: capillarized ones narrow, congested zone 3 ones dilate (the 2D lumen width)
     const lumK = c.lum - 1;
     infl(o.s0, RAD.s0 * lumK * 0.6); infl(o.s1, RAD.s1 * lumK * 0.9); infl(o.s2, RAD.s2 * (lumK + 0.8 * c.congU)); infl(o.an, RAD.an * lumK * 0.6);
-    // zone 3 cells drop out with congestion (they shrink away from the dilated sinusoids)
-    infl(o.cords[2]!, -0.06 * c.congU - 0.02 * c.fibSin); infl(o.cords[1]!, -0.01 * c.fibSin); infl(o.cords[0]!, 0);
-    // stellate cells activate: they swell
-    infl(o.stellate, 0.045 * c.act);
-    // collagen comes out of nothing: collapsed at 0, full at 1
-    const grow = (obj: CelObject, base: number, amount: number, max: number) => { const on = amount > 0.004; obj.group.visible = on; infl(obj, -base + (base + max) * amount); };
-    grow(o.septa, RAD.tw, c.septU, RAD.tw * 1.4);
-    grow(o.cuffPre, 0.012 * R, c.fibPre, 0.1);
-    grow(o.cuffPost, 0.012 * R, c.fibPost, 0.1);
+    // (zone 3's cells dropping out with congestion, the stellate cells activating and the collagen of fibrosis and cirrhosis are painted on the plate, as 2D paints them)
     // lymph: the whole part shrinks away with its layer; no group is hidden until it has gone
     const f = this.lyFade;
     this.set.get('lymph').group.visible = f > 0.002;
@@ -468,12 +426,11 @@ export class LobuleView {
     const bf = this.bileFade;
     this.set.get('bile').group.visible = bf > 0.002;
     infl(this.bileObjs[0]!, -RAD.bc * (1 - bf)); infl(this.bileObjs[1]!, -RAD.bh * (1 - bf));
-    infl(o.bd, RAD.bd * 0.55 * bf);
     // marks: speed from the flow, direction from the course (the Disse's marks run against its course), amount faded
     for (const mk of this.marked) {
       const smoke = mk.smokes && this.stasis >= 0.5;
       mk.obj.toon.uniforms.stubSpeed.value = smoke ? 0.14 : mk.speed() * mk.dir;
-      mk.obj.setFlow(mk.amount, smoke);
+      mk.obj.setFlow(mk.amount, smoke || mk.layer === 'lymph');   // (the lymph's marks are 2D's soft dashes, not arrowheads)
     }
     // the wedge's amber
     const k = this.washK, front = washFront(k, this.net.rcv0);
@@ -492,9 +449,9 @@ export class LobuleView {
    *  The lobule stands inside the liver, so these are points of the liver, a hundred times closer together than the lobule's own units. */
   anchor(name: string, out: V3 = [0, 0, 0]): V3 {
     const w = (x: number, y: number, z: number) => lobuleWorld(lobuleToScene(x, y, z, out), out);
-    if (name === 'centre') return w(0, 0, slabZ(0, 0) + LOBULE_T / 2);
-    if (name.startsWith('triad:')) { const t = this.net.triads[Number(name.slice(6))]; if (t) return w(t.x, t.y, slabZ(t.x, t.y) + LOBULE_T / 2); }
-    if (name.startsWith('zone:')) { const rr = { 1: 0.82, 2: 0.5, 3: 0.2 }[Number(name.slice(5)) as 1 | 2 | 3] ?? 0.5; return w(Math.cos(Math.PI / 6) * rr, Math.sin(Math.PI / 6) * rr, slabZ(0.7, 0.4) + LOBULE_T / 2); }
+    if (name === 'centre') return w(0, 0, slabZ(0, 0) + ANCHOR_Z);
+    if (name.startsWith('triad:')) { const t = this.net.triads[Number(name.slice(6))]; if (t) return w(t.x, t.y, slabZ(t.x, t.y) + ANCHOR_Z); }
+    if (name.startsWith('zone:')) { const rr = { 1: 0.82, 2: 0.5, 3: 0.2 }[Number(name.slice(5)) as 1 | 2 | 3] ?? 0.5; return w(Math.cos(Math.PI / 6) * rr, Math.sin(Math.PI / 6) * rr, slabZ(0.7, 0.4) + ANCHOR_Z); }
     return w(0, 0, 0);
   }
 
@@ -503,6 +460,8 @@ export class LobuleView {
     for (const h of hits) {
       const o = this.objects.find((x) => x.toonMesh === h.object);
       if (o) for (const name of LOBULE_PARTS) if (this.set.get(name).group.children.includes(o.group)) return name;
+      if (this.plate.meshes.includes(h.object as never) || h.object === this.zones.mesh) return 'cords';
+      if (h.object === this.field.mesh) return 'field';
     }
     return null;
   }
@@ -514,7 +473,7 @@ export class LobuleView {
     try { gl.compile?.(this.group, camera); } finally { this.group.visible = was; }
   }
 
-  dispose(): void { for (const o of this.objects) o.dispose(); }
+  dispose(): void { for (const o of this.objects) o.dispose(); this.plate.dispose(); this.zones.dispose(); this.field.dispose(); }
 }
 
 /** One zone name for a place, for labels ('Zone 1 · periportal'). */

@@ -28,7 +28,7 @@ export interface Course {
 }
 
 export interface Triad { i: number; x: number; y: number; a: number; ha: P2; bd: P2; lv: P2; pv: number; haT: number; bdT: number; lvT: number }
-export interface Cell { x: number; y: number; a: number; l: number; w: number; tone: number; nu: number; q: number; drop: number }
+export interface Cell { x: number; y: number; a: number; l: number; w: number; tone: number; nu: number; q: number; drop: number; jx: number; jy: number; ja: number }
 export interface Stellate { x: number; y: number; a: number; nx: number; ny: number }
 
 export interface LobuleNet {
@@ -228,8 +228,8 @@ export function buildLobule(seed = 7): LobuleNet {
         const q = hexFrac(x, y);
         if (q > 0.975) continue;
         const l = cl * (0.84 + r() * 0.08), wd = w * (n > 1 ? 0.86 : 0.94), tone = r(), nu = (r() - 0.5) * 0.3, drop = r();
-        r(); r(); r();   // (jx, jy, ja of the 2D app: keeps the seeded sequence)
-        cells.push({ x, y, a, l, w: wd, tone, nu, q, drop });
+        const jx = r() - 0.5, jy = r() - 0.5, ja = r() - 0.5;   // (the 2D app's jitter: how far a cell strays in cirrhosis, when the plates lose their order)
+        cells.push({ x, y, a, l, w: wd, tone, nu, q, drop, jx, jy, ja });
       }
     }
   }

@@ -27,7 +27,7 @@ export function linkScene(): () => void {
     pending = moving;
   }, 0);
 
-  const sync = () => {
+  const sync = (stepped = false) => {
     const { stops, pos, boxes } = useUi.getState();
     if (!stops.length) return;
     const v = viewAt(stops, pos);
@@ -41,11 +41,11 @@ export function linkScene(): () => void {
       shot = v.shot;
       // a ported slide says its own view (the circuit view is not drawn yet: the body stands in) and its lens; the slice's slides are the body
       sceneApi.showShot(v.scene ? (v.scene.view === 'circuit' ? 'body' : v.scene.view) : 'body', v.shot, room);
-    } else sceneApi.setRoom(room);
+    } else sceneApi.setRoom(room, undefined, stepped);   // a step on to a slide with the same shot still brings the viewer's turn home
     if (v.scene && v.scene.lens !== lens) { lens = v.scene.lens; sceneApi.setLens(lens); }
   };
 
   sync();
-  const off = useUi.subscribe((s, prev) => { if (s.pos !== prev.pos || s.boxes.free !== prev.boxes.free || s.stops !== prev.stops) sync(); });
+  const off = useUi.subscribe((s, prev) => { if (s.pos !== prev.pos || s.boxes.free !== prev.boxes.free || s.stops !== prev.stops) sync(s.pos !== prev.pos || s.stops !== prev.stops); });
   return () => { off(); offClock(); advance.dispose(); balloon.dispose(); };
 }
