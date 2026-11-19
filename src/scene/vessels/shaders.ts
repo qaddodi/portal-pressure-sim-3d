@@ -12,6 +12,8 @@
 //    ride the same swell, so the ink hugs the lumen as it widens. The highlight (hiOn, hiDir, hiOffset, hiAhead, hiBehind, hiPx) and the lift
 //    (`inflate`) are the scene's own uniforms with the same meaning as in INK_VS.
 
+import { CIRCUIT_VS_CALL, CIRCUIT_VS_HEAD } from '../circuit/shader.ts';
+
 export const VESSEL_VS = /* glsl */ `
 attribute vec3 tang;
 attribute float hull;
@@ -38,9 +40,11 @@ varying vec3 vT;
 varying vec2 vUv;
 varying float vHull;
 varying float vHi;
+${CIRCUIT_VS_HEAD}
 varying float vW;
 varying float vR;
 void main() {
+${CIRCUIT_VS_CALL}
   // the width follows the engine's diameter by the 2D figure's own rule (stage-tubes.js widthAt): a vein 1.3 * max(2.6, 2 d^0.72), an artery half of that (at
   // least 1.8), the liver's beds fixed; the ratio to the width the course was built at is the swell. The figure's own smallest radius is 0.35 units.
   float swell = 1.0;
@@ -51,10 +55,10 @@ void main() {
     if (widthKind > 0.5) { w1 = max(1.8, w1 * 0.5); w0 = max(1.8, w0 * 0.5); }
     swell = clamp(w1 / w0, 0.2, 8.0);
   }
-  vec3 p = position + normal * (inflate + radius * (swell - 1.0));
+  vec3 p = aPos + aNor * (inflate + radius * (swell - 1.0));
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
-  vN = normalize(normalMatrix * normal);
-  vT = normalize(normalMatrix * tang);
+  vN = normalize(normalMatrix * aNor);
+  vT = normalize(normalMatrix * aTan);
   vV = normalize(-mv.xyz);
   vUv = uv;
   vHull = hull;
@@ -66,7 +70,7 @@ void main() {
     float dist = hiDir > 0.5 ? hiOffset + a : (hiDir < -0.5 ? hiOffset + (len - a) : 0.0);
     float limit = hiDir < -0.5 ? hiBehind : hiAhead;
     vHi = hiOn * (1.0 - smoothstep(0.0, max(limit, 0.0001), dist));
-    vec2 nd = (projectionMatrix * vec4(normalMatrix * normal, 0.0)).xy;
+    vec2 nd = (projectionMatrix * vec4(normalMatrix * aNor, 0.0)).xy;
     float l = length(nd);
     nd = l > 1e-5 ? nd / l : vec2(0.0);
     c.xy += nd * (px + hiPx * vHi) * 2.0 / res * c.w;
