@@ -77,6 +77,7 @@ export function decideKey(e: KeyEv, c: KeyCtx): KeyAction | null {
   const k = letterOf(e);
   if (k === 'a' && !e.shiftKey) return c.inSinusoid ? null : { type: 'view-toggle' };
   if (k === 'l') return { type: 'lens', dir: e.shiftKey ? -1 : 1 };
+  if (e.key === 'C' && e.shiftKey) return { type: 'lens', dir: 1 };   // (2D keyboard.js: Shift C is the lens key too)
   if (k === 'z') return { type: 'settle' };
   if (e.key === '?') return { type: 'help' };
   if (k === 'i') return { type: 'tests' };

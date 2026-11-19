@@ -1,45 +1,4 @@
-/* Tests > Doppler (2D .dop-*): the vessel and display controls, the black monitor, the reading and its tiles. Colours are the look's tokens; the monitor is black in every look, as 2D's is. */
-.dop { display: flex; flex-direction: column; gap: 10px; }
-.dop-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.dop-vessel { height: 32px; padding: 0 28px 0 10px; border-radius: 10px; border: 1px solid var(--edge); background: var(--surface); color: var(--text); font: 600 var(--t-sm, 13px) / 1 var(--ui); min-width: 0; max-width: 100%; }
-.dop-btns { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; }
-.dop-modes.t-seg { margin-bottom: 0; }
-.dop-modes button { padding: 5px 10px; }
-.dop-tint { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--edge); background: transparent; color: var(--text-2); font: 600 var(--t-sm, 13px) / 1 var(--ui); white-space: nowrap; }
-.dop-tint i { font-style: normal; }
-.dop-tint[aria-pressed="true"] { color: var(--text); background: var(--accent-soft); border-color: transparent; }
-@media (hover: hover) { .dop-tint:hover { border-color: var(--text-3); } }
-.dop-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.dop-box { position: relative; width: 100%; border-radius: 12px; background: #000; overflow: hidden; }
-.dop-report { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.dop-dir { font: 650 var(--t-sm, 13px) / 1.2 var(--ui); color: var(--text); }
-.dop-dir[data-sev="ok"] { color: var(--ok); }
-.dop-dir[data-sev="caution"] { color: var(--caution); }
-.dop-dir[data-sev="danger"], .dop-dir[data-sev="critical"] { color: var(--danger); }
-.dop-velrow { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.dop-vel { display: inline-flex; align-items: baseline; gap: 4px; }
-.dop-vel[hidden] { display: none; }
-.dop-vel b { font: 600 28px / 1 var(--ui); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.dop-vel small { font: 500 12px / 1 var(--ui); color: var(--text-3); }
-.dop-pattern { font: 500 var(--t-sm, 13px) / 1.2 var(--ui); color: var(--text-2); }
-.dop-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 6px; margin: 0; }
-.dop-stats > div { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--edge); background: var(--surface); min-width: 0; container-type: inline-size; }
-.dop-stats > div[hidden] { display: none; }
-.dop-stats dt { margin: 0; font: 600 12px / 1 var(--ui); color: var(--text-3); }
-.dop-stats dd { margin: 0; font: 600 18px / 1.1 var(--ui); font-variant-numeric: tabular-nums; }
-.dop-stats dd small { font: 500 12px / 1 var(--ui); color: var(--text-3); margin-left: 3px; }
-.dop-stats > div[data-out] dd { color: var(--caution); }
-.dop-stats > div[data-on] { border-color: var(--accent); }
-.dop-seg { all: unset; cursor: pointer; font: inherit; color: inherit; }
-.dop-seg::after { content: ''; position: absolute; inset: 0; border-radius: 12px; }
-.dop-seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.dop-speed { grid-column: span 2; }
-.dop-range { display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
-.dop-track { position: relative; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--text) 10%, transparent); container-type: inline-size; }
-.dop-band { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: left; background: color-mix(in srgb, var(--ok) 45%, transparent); }
-.dop-mark { position: absolute; left: -1px; top: -1px; width: 3px; height: 8px; border-radius: 2px; background: var(--text); }
-.dop-range[data-out] .dop-mark { background: var(--caution); }
-.dop-ticks { position: relative; height: 12px; font: 500 11px / 12px var(--ui); color: var(--text-3); container-type: inline-size; }
-.dop-ticks span { position: absolute; left: 0; top: 0; }
-.dop-note { margin: 2px 0 0; min-height: 1.4em; font: 400 var(--t-sm, 13px) / 1.4 var(--ui); color: var(--text-2); }
-@media (min-width: 560px) { .dop-main { flex-direction: row; } .dop-box { flex: 1 1 60%; } .dop-report { flex: 1 1 40%; } }
+/* Tests > Doppler. The pane is 2D's own markup (.dop-head, .dop-main, .dop-box, .dop-report, .dop-stats, the usual-range gauge...), styled by the 2D stylesheets loaded whole (src/ui/css2d) and by the
+   dock card's Doppler rules re-scoped to the Tests card (copied/doppler-2d.copied.css, scripts/copy-b11-doppler.mjs). What is ours is only the monitor's box: the chart drawer's canvas fills it and its
+   height is the card's plot height (set inline), so 2D's dock sizing (aspect ratio, container size) is not used. */
+.dop-box { position: relative; width: 100%; overflow: hidden; flex: none; min-height: 0; }

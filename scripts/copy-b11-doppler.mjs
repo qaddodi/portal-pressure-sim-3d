@@ -4,10 +4,12 @@
 //   src/ui/tests/doppler/copied/doppler-tables.copied.js   the probes (vessel, name, kind, usual range), the stent notes, the resistive-index words, the settings words, the tiles' hover words, `num`
 //   src/ui/tests/doppler/copied/doppler-reading.copied.js  `createReading(env)`: the reading (3 s mean, peak, trough, the median beat), the stent's gates, the vessel's usual range and `interpret` (the words after the number)
 //   src/ui/tests/doppler/copied/gate-factors.copied.js     gate-factors.js whole
+//   src/ui/tests/doppler/copied/doppler-gl.copied.js        the trace's display pass shader (the noise floor and the wall filter), spliced with the line shader by spectrum-gl.ts
 //   src/ui/tests/doppler/copied/doppler-colours.copied.js  the colour maps' tokens (--dop-*) and the display modes (dopplerColor.js), the probe's beam angle (dop-probe.js)
 // Usage: node scripts/copy-b11-doppler.mjs --from <2D checkout> [--check]    (--check writes nothing and fails when a file would change)
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { loadOrder } from './copy-2d-css.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : null; };
@@ -115,5 +117,43 @@ put('doppler-colours.copied.js', HEAD('dopplerColor.js, styles/tokens.css --dop-
   /\/\*\* Colour for one instant[\s\S]*?\n\}\n/.exec(colour)[0].replace(/map\(\)/g, 'MAP'),
   /\/\*\* Softened, brightness-modulated[\s\S]*?\n\}\n/.exec(colour)[0].replace(/map\(\)\.WHITE/g, 'MAP.WHITE'),
 ].join('\n') + '\n');
+// ── the trace's display pass (doppler-gl.js FS): the noise floor and the wall filter's dark band, laid over the spectrum's lines ──
+const glSrc = read('src/ui/doppler-gl.js');
+const displayFs = /^const FS = `([\s\S]*?)`;/m.exec(glSrc)?.[1];
+if (!displayFs || !/floorAt/.test(displayFs)) throw new Error('doppler-gl.js has no display shader FS');
+put('doppler-gl.copied.js', HEAD('doppler-gl.js, the display pass FS') + [
+  `// The trace's picture: the spectrum ring, the noise floor over it and the wall filter's dark band (2D draws it in the chart drawer's context, one fragment a pixel).`,
+  `// The 3D app draws the lines in the same pass (spectrum-gl.ts splices doppler-synth's shader into this one: no ring), so a line's pixels are the 2D ones.`,
+  `export const DISPLAY_FS = \`${displayFs}\`;`,
+].join('\n') + '\n');
+// ── the Tests card's Doppler rules: 2D's `.instrument-workspace` rules for the report, the tiles, the usual-range gauge and the switches, re-scoped to the 3D Tests card ──
+// (2D scopes the dock card's look to `.instrument-workspace` (and `.float-ui`); the 3D card is `.t-card`, so each such selector is rewritten with the same number of classes, which keeps the
+// rules' order of strength: `.instrument-workspace.float-ui` becomes `.t-card.t-card`. Layout of the dock (the side card, the phone's sheet, the presenter's cards, the box's size) is left out:
+// the Tests card lays the monitor out itself, doppler.css. The rules that are not scoped to the dock apply as they stand, from the 2D stylesheets loaded whole.)
+const KEEP_TOK = /\.dop-(modes|mode-opt|btns|inv|tint|stats|speed|range|track|band|mark|ticks|vel|dir|pattern|seg|g-)|\.dop-report \.dop-stats|\.instrument-view\.dop \.dop-stats/;
+const DROP_TOK = /\.side\b|#app|\.pz|thumb|\.sheet|\.has-tool|data-kind|presenting|dock-pane|panel-open|instrument-focus|\.dop-box|\.dop-main|\.dop-head|\.dop-vessel|\.dop-sweep|\.dop-note|\.nat\b/;
+function splitTop(sel, ch) { const out = []; let d = 0, a = 0; for (let i = 0; i < sel.length; i++) { const c = sel[i]; if (c === '(' || c === '[') d++; else if (c === ')' || c === ']') d--; else if (c === ch && d === 0) { out.push(sel.slice(a, i)); a = i + 1; } } out.push(sel.slice(a)); return out.map((x) => x.trim()).filter(Boolean); }
+function topRules(text) {
+  const rules = []; let i = 0;
+  while (i < text.length) {
+    if (text.startsWith('/*', i)) { const e = text.indexOf('*/', i); i = e < 0 ? text.length : e + 2; continue; }
+    if (/\s/.test(text[i])) { i++; continue; }
+    const b = text.indexOf('{', i); if (b < 0) break;
+    let d = 1, j = b + 1; while (j < text.length && d) { if (text[j] === '{') d++; else if (text[j] === '}') d--; j++; }
+    rules.push([text.slice(i, b).trim(), text.slice(b + 1, j - 1).trim()]);
+    i = j;
+  }
+  return rules;
+}
+const rescope = (sel) => sel.replace(/\.instrument-workspace\.float-ui/g, '.t-card.t-card').replace(/\.instrument-workspace/g, '.t-card');
+const cssOut = [];
+for (const f of loadOrder(read('index.html'))) {
+  for (const [sel, body] of topRules(read(`styles/${f}`))) {
+    if (sel.startsWith('@')) continue;
+    const parts = splitTop(sel, ',').filter((p) => /\.instrument-workspace/.test(p) && KEEP_TOK.test(p) && !DROP_TOK.test(p));
+    if (parts.length) cssOut.push(`${parts.map(rescope).join(', ')} { ${body} }   /* ${f} */`);
+  }
+}
+put('doppler-2d.copied.css', `/* GENERATED by scripts/copy-b11-doppler.mjs from the 2D app at ${commit.slice(0, 8)} (styles/*.css: the dock card's Doppler rules, .instrument-workspace re-scoped to .t-card). Do not edit; run the script again. */\n${cssOut.join('\n')}\n`);
 if (changed.length) { console.log(`${check ? 'would change' : 'wrote'}: ${changed.join(', ')}`); if (check) process.exit(1); }
 else console.log('src/ui/tests/doppler/copied is current');
