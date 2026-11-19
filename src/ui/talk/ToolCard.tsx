@@ -2,7 +2,7 @@
 // evgraph, stiffness) or its `visual` (plane, ladders, allpatients) mounted as the chart Card that draws it, from the slide's own state in the talk (the 2D `ctx`: its fingerprint,
 // parameters, the healthy patient, the slides before it). The card is the one the chart batch built (src/ui/charts/*/…Card.tsx): this file only gives it its inputs.
 // An instrument that reads the live model (the Tests devices: Doppler, HVPG monitor, FibroScan, abdomen, readouts) is mounted in the Tests pane's own components.
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Deck, Slide } from '../../decks/schema.ts';
 import { CHART_VISUALS } from '../../decks/charts.ts';
 import { copiedOf } from '../../decks/hp/deck.ts';
@@ -30,6 +30,7 @@ import { ShiftCard } from '../charts/shift/ShiftCard.tsx';
 import { shiftData, stateOfStep, shiftTrail } from '../charts/shift/data.ts';
 import { LaddersCard } from '../charts/ladder/LaddersCard.tsx';
 import { AllPatientsCard } from '../charts/small/AllPatientsCard.tsx';
+import { WallsCard } from '../charts/walls/WallsCard.tsx';
 import { ghostOf } from './ghost.ts';
 import { useProbes } from '../../scene/devices/probes/state.ts';
 import { StiffCard } from '../charts/stiff/StiffCard.tsx';
@@ -45,17 +46,19 @@ import { useLapse } from '../../decks/hp/lapse.ts';
 import { useScope } from '../tests/endo/scope-state.ts';
 import { lazy, Suspense } from 'react';
 import { useUi } from '../ui-store.ts';
-import { ReadoutsPane } from '../tests/ReadoutsPane.tsx';
 import { AbdomenPane } from '../tests/abdomen/AbdomenPane.tsx';
 import { startFeed } from '../tests/feed.ts';
 import { useTests } from '../tests/store.ts';
-import { setDopplerProbe, useDopplerProbe } from '../tests/doppler/probe-state.ts';
+import { setDopplerProbe, useDopplerProbe, type Gate } from '../tests/doppler/probe-state.ts';
+import { planOf, type InstrumentKind } from './instruments.ts';
+import { useToolPatch, withPatch } from './tool-options.ts';
+import { HvpgTool } from './HvpgTool.tsx';
+import { ReadingTool } from './ReadingTool.tsx';
 import '../tests/tests.css';
 import '../tests/abdomen/abdomen.css';
 const DopplerPane = lazy(() => import('../tests/doppler/DopplerPane.tsx').then((m) => ({ default: m.DopplerPane })));
 const FibroPane = lazy(() => import('../tests/fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
 const EndoPane = lazy(() => import('../tests/endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));
-const IrPane = lazy(() => import('../tests/ir/IrPane.tsx').then((m) => ({ default: m.IrPane })));
 
 type Rec = Record<string, unknown>;
 type Fp = Record<string, number | null | undefined>;
@@ -92,6 +95,7 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
   const { copied, cs, fp, params, healthy, results, fpOf } = env;
   const tool = (cs.tool ?? {}) as Rec;
   const kind = slide.visual && (CHART_VISUALS as readonly string[]).includes(slide.visual) ? `visual:${slide.visual}` : String(tool.kind ?? '');
+  const forward = useRef(useUi.getState().dir > 0).current;   // (stepped onto from the slide before: a tracing that takes its readings one Next at a time starts at the first)
   useEngine((s) => s.frames);   // (the live model's charts follow its frames)
   const frame = latest.frame;
   const stateOf = useMemo(() => { let last = 0; return copied.slides.map((s, j) => (j === 0 || changes(s as CopiedSlide) ? (last = j) : last)); }, [copied]);
@@ -120,39 +124,46 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'visual:plane': return <PlaneVisual deck={deck} cs={cs} fpOf={fpOf} />;
     case 'visual:ladders': return <LaddersCard slide={cs as never} deck={copied as never} />;
     case 'visual:allpatients': return <AllPatientsCard slide={cs as never} deck={copied as never} />;
-    case 'doppler': case 'fibroscan': case 'abdomen': case 'reading': case 'hvpg': case 'scope': case 'wall': {
+    case 'visual:walls': return <WallsCard />;
+    case 'doppler': case 'fibroscan': case 'abdomen': case 'hvpg': case 'scope': case 'wall': {
       const ghost = ghostOf(cs as never, i, copied.slides as never, fpOf as never, stateOf);
-      return <>{ghost ? <p className="pz-ghost"><span>{ghost.label}</span><b>{ghost.value}</b></p> : null}<Instrument kind={kind} tool={tool} /></>;
+      return <>{ghost ? <p className="pz-ghost"><span>{ghost.label}</span><b>{ghost.value}</b></p> : null}
+        {kind === 'hvpg' ? <HvpgTool fp={fp as Rec | null} cath={cs.cath} catheter={!!tool.catheter} forward={forward} /> : <Instrument kind={kind as InstrumentKind} tool={tool} slideKey={`${deck.id}/${slide.id}`} />}</>;
     }
+    case 'reading': return <ReadingTool procedure={cs.procedure} of={tool.of} fp={fp as Rec | null} />;
     default: return null;
   }
 }
 
-/** A Tests-card instrument as a slide's data card: the pane of the Tests card, sized to the card's width. It reads the live model; the slide's vessel or organ is set when it comes up. */
-function Instrument({ kind, tool }: { kind: string; tool: Rec }) {
+/** A Tests-card instrument as a slide's data card: the pane of the Tests card, sized to the card's width. It reads the live model; the slide's vessel, gate, organ and view are set when it comes up
+ *  (ui/talk/instruments.ts says what each kind reads of the slide's tool), and a compare button or slider that moves one option of it is laid over the slide's own (tool-options.ts). */
+function Instrument({ kind, tool, slideKey }: { kind: InstrumentKind; tool: Rec; slideKey: string }) {
   const w = useUi((s) => s.vp.w);
+  const patched = useToolPatch((s) => s.patch), patchKey = useToolPatch((s) => s.key);
+  const opts = useMemo(() => withPatch(tool, slideKey, { key: patchKey, patch: patched }), [tool, slideKey, patchKey, patched]);
+  const plan = useMemo(() => planOf(kind, tool), [kind, tool]);
   useEffect(() => { startFeed(); }, []);
+  // the slide's own options are set whenever it is shown, and a button's patch is gone with it (2D: "set to the slide's options again whenever the slide is shown")
   useEffect(() => {
-    if (kind === 'doppler' && typeof tool.vessel === 'string') { setDopplerProbe(tool.vessel); useDopplerProbe.getState().setGate((tool.gate as never) ?? null); }
-    if (kind === 'wall') useScope.getState().setView('wall');
-    if (kind === 'scope') useScope.getState().setView('scope');
-    if (kind === 'fibroscan') useTests.getState().setFibro(tool.organ === 'spleen' ? 'spleen' : 'liver');
-  }, [kind, tool]);
-  // the instrument's own device on the figure while its card is up: the ultrasound probe on the slide's vessel (none on the EUS slide, probe: 'scope': the scope is the probe), the FibroScan probe on the organ
-  const organ = tool.organ === 'spleen' ? 'spleen' : 'liver', scopeProbe = tool.probe === 'scope';
+    if (plan.doppler) { setDopplerProbe(plan.doppler.vessel); useDopplerProbe.getState().setGate((plan.doppler.gate as Gate | null) ?? null); }
+    if (plan.view) useScope.getState().setView(plan.view);
+    if (plan.organ) useTests.getState().setFibro(plan.organ);
+    return () => useToolPatch.getState().set('', null);
+  }, [plan, slideKey]);
+  // the instrument's own device on the figure while its card is up: the ultrasound probe on the slide's vessel (none on the EUS slide, probe: 'scope': the scope is the probe), the FibroScan probe on
+  // the organ, the scope down the esophagus. bind-tests.ts keeps them on whatever the Tests card does; they leave with the slide.
+  const figure = !!plan.doppler?.figure, fibro = !!plan.organ, scope = !!plan.scope, points = !!plan.doppler?.points;
   useEffect(() => {
     const pr = useProbes.getState();
-    if (kind === 'doppler') pr.setDoppler({ on: !scopeProbe });
-    else if (kind === 'fibroscan') pr.setFibro({ on: true, organ });
-    else if (kind === 'scope') pr.setEndoscope({ on: true });
-    return () => { const q = useProbes.getState(); if (kind === 'doppler') q.setDoppler({ on: false }); else if (kind === 'fibroscan') q.setFibro({ on: false }); else if (kind === 'scope') q.setEndoscope({ on: false }); };
-  }, [kind, organ, scopeProbe]);
+    pr.setSlide({ doppler: figure, fibro, endoscope: scope }); pr.setDopplerPoints(points);
+    return () => { const q = useProbes.getState(); q.setSlide({ doppler: false, fibro: false, endoscope: false }); q.setDopplerPoints(false); };
+  }, [figure, fibro, scope, points]);
   const plot = Math.round(Math.min(220, Math.max(150, w * 0.32)));
   const p = { narrow: w < 470, plot, square: plot, roomy: false };
   return (
     <div className="dock-pane-host" data-instrument={kind}>
       <Suspense fallback={null}>
-        {kind === 'doppler' ? <DopplerPane {...p} options={tool} /> : kind === 'fibroscan' ? <FibroPane {...p} /> : kind === 'hvpg' ? <IrPane {...p} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} options={tool} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : <ReadoutsPane narrow={p.narrow} />}
+        {kind === 'doppler' ? <DopplerPane {...p} options={opts} /> : kind === 'fibroscan' ? <FibroPane {...p} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} options={opts} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : null}
       </Suspense>
     </div>
   );

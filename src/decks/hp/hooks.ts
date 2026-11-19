@@ -8,6 +8,7 @@
 //
 // Rule for this table: a feature is listed once, with ONE owner. A slide that needs a feature nobody owns fails the test, so none is forgotten.
 import { CHARTS } from '../../ui/charts/registry.ts';
+import { toolEvidence } from '../../ui/talk/tool-landed.ts';
 import { STATIONS, TERM_STATIONS } from '../../scene/labels/stations.ts';
 import { LENS_IDS, SINCE_BASELINE_FED } from '../../scene/lenses/model.ts';
 import type { CopiedSlide } from './types.ts';
@@ -31,6 +32,9 @@ const done = (id: string, batch: string, what: string, evidence: string): Featur
 /** A chart look of batch B10: landed when the chart registry says it is done. */
 const chart = (kind: string, what: string): Feature => ({ id: `tool:${kind}`, batch: 'B10', what, landed: chartDone(kind), evidence: chartDone(kind) ? 'src/ui/charts/registry.ts' : undefined });
 
+/** An instrument of batch B11 in the data card: landed when its entry of ui/talk/instruments.ts says it plays from a slide (the pane that carries it is the evidence). */
+const instrument = (kind: string, what: string): Feature => ({ id: `tool:${kind}`, batch: 'B11', what, landed: toolEvidence(kind) != null, evidence: toolEvidence(kind) ?? undefined });
+
 const TABLE: Feature[] = [
   // the words and the figure of the slice (already here)
   done('words', 'S3', 'The teaching card: kicker, title, line, equation, ask, terms', 'src/ui/cards/TeachingCard.tsx'),
@@ -42,32 +46,33 @@ const TABLE: Feature[] = [
   done('stations', 'B6', 'Station labels on the figure', 'src/scene/labels/stations.ts'),
   done('cath:route', 'S2', 'The HVPG catheter: route', 'src/scene/catheter.ts'), done('cath:free', 'S2', 'The HVPG catheter: free', 'src/scene/catheter.ts'),
   done('cath:wedge', 'S2', 'The HVPG catheter: wedged', 'src/scene/catheter.ts'), done('cath:result', 'S2', 'The HVPG catheter: result', 'src/scene/catheter.ts'),
-  hook('cath:blocked', 'B5', 'The HVPG catheter against a blocked hepatic vein (Budd–Chiari)'),
+  done('cath:blocked', 'B5', 'The HVPG catheter against a blocked hepatic vein (Budd–Chiari)', 'src/ui/deck/procs-link.ts'),
   done('tiles', 'B13b', "The data card of tiles: each reading from the engine on the 2D tile (rating word and colour, scale bar, the change from another state), an instrument card's readings in its header", 'src/ui/cards/TilesCard.tsx'),
   // charts and instruments in the data card
   chart('criteria', 'Guideline rule list with live rows, or the Baveno VIII zones graph'),
   chart('flowtime', 'Lines over days'), chart('trial', 'A trial card'), chart('flows', 'Where the portal blood goes'), chart('lumen', 'A vessel cross-section'),
   chart('forest', 'Forest plot of trials'), chart('profile', 'Pressure profile, gut to heart'), chart('path', 'Guideline path map'), chart('curve', 'One quantity against another'),
   chart('plane', 'Two-quantity plane with zones'), chart('shift', 'Change from healthy'), chart('trace', 'The course on one chart'), chart('evgraph', 'Event graph'),
-  hook('tool:doppler', 'B11', 'The Doppler spectrum with its probe on the figure'),
-  hook('tool:fibroscan', 'B11', 'FibroScan reading with the probe on the figure'),
-  hook('tool:hvpg', 'B11', 'The HVPG monitor tracing'),
+  instrument('doppler', 'The Doppler spectrum with its probe on the figure'),
+  instrument('fibroscan', 'FibroScan reading with the probe on the figure'),
+  instrument('hvpg', 'The HVPG monitor tracing'),
   done('tool:vitals', 'B11', 'The bedside monitor: EKG strip over heart rate, pressure, output, hemoglobin', 'src/ui/charts/vitals/VitalsCard.tsx'),
-  hook('tool:abdomen', 'B11', 'The abdomen picture: ascites and the pressure inside'),
-  hook('tool:wall', 'B11', 'The varix wall in cross-section'),
-  hook('tool:reading', 'B11', 'A readout list with a Why? for each'),
+  instrument('abdomen', 'The abdomen picture: ascites and the pressure inside'),
+  instrument('wall', 'The varix wall in cross-section'),
+  instrument('reading', 'The measurement card: the pressure monitor following the slide\'s procedure'),
+  instrument('scope', 'The endoscopic view at the slide\'s varix state'),
   { id: 'tool:course', batch: 'B10', what: 'A course over days', landed: chartDone('curve'), evidence: chartDone('curve') ? 'src/ui/charts/curve/CurveCard.tsx' : undefined },
   done('visual:table', 'B12', 'The summary table over the dimmed figure', 'src/ui/cards/TableCard.tsx'),
   { id: 'visual:plane', batch: 'B10', what: 'A plane over the dimmed figure', landed: chartDone('plane'), evidence: chartDone('plane') ? 'src/ui/charts/plane/PlaneCard.tsx' : undefined },
   // the figure
-  hook('procedure:eus', 'B11', 'EUS-PPG: the echoendoscope and needle on the figure'),
-  hook('procedure:rex', 'B5', 'The Meso-Rex graft growing along its path'),
-  hook('mark', 'B6', 'A ring and a callout on a vessel of the figure'),
-  hook('callout', 'B6', 'A callout with a leader to a place in the lobule'),
-  hook('glow', 'B3', 'Parts of the figure glow while the slide is up'),
-  hook('ripple', 'B3', 'Pulse ripples along the vessels'),
-  hook('calipers', 'B11', 'Calipers on a varix or the spleen'),
-  hook('layers:zones', 'B8', 'The lobule\'s zone bands'),
+  done('procedure:eus', 'B11', 'EUS-PPG: the echoendoscope and needle on the figure', 'src/ui/deck/procs-link.ts'),
+  done('procedure:rex', 'B5', 'The Meso-Rex graft growing along its path', 'src/ui/deck/procs-link.ts'),
+  done('mark', 'B6', 'A ring and a callout on a vessel of the figure', 'src/ui/deck/figure-link.ts'),
+  done('callout', 'B6', 'A callout with a leader to a place in the lobule', 'src/ui/deck/figure-link.ts'),
+  done('glow', 'B3', 'Parts of the figure glow while the slide is up', 'src/ui/deck/figure-link.ts'),
+  done('ripple', 'B3', 'Pulse ripples along the vessels (2D draws no halo either: the slide\'s glow is what shows)', 'src/ui/deck/figure-link.ts'),
+  done('calipers', 'B11', 'Calipers on a varix or the spleen', 'src/ui/deck/figure-link.ts'),
+  done('layers:zones', 'B8', 'The lobule\'s zone bands', 'src/ui/deck/procs-link.ts'),
   done('scales', 'B12', 'The Anatomy / Lobule / Sinusoid scale switch on the slide', 'src/ui/cards/SlideControls.tsx'),
   hook('view:circuit', 'B7', 'The Circuit view'),
   // what the person can do on the slide
@@ -75,7 +80,7 @@ const TABLE: Feature[] = [
   done('whatIf', 'B12', 'A slider that drags one parameter of the live model', 'src/ui/cards/SlideControls.tsx'),
   done('response', 'B12', 'The beta-blocker response buttons', 'src/decks/controls.ts'),
   done('time-lapse', 'B12', 'The slide\'s days play on the live figure as a time-lapse', 'src/decks/hp/lapse.ts'),
-  hook('beats', 'B12', 'A slide with several camera beats'),
+  done('beats', 'B12', 'A slide with several camera beats: one view of the figure per Next, the words and the data staying', 'src/ui/deck/presenter-machine.ts'),
   { id: 'since', batch: 'B3', what: 'The Since lens: change since another slide\'s state', landed: SINCE_BASELINE_FED, evidence: SINCE_BASELINE_FED ? 'src/scene/lenses/field.ts' : undefined },
 ];
 

@@ -28,6 +28,13 @@ export function viewsOf(d: Deck): { kicker: string; title: string; line: string;
   ];
 }
 
+/** The slide list's groups (2D toggleJump): the stops in order, a new group wherever the kicker changes, each item the stop's index. */
+export function jumpGroups(views: readonly { kicker: string }[]): { k: string; items: number[] }[] {
+  const groups: { k: string; items: number[] }[] = [];
+  views.forEach((v, i) => { const k = v.kicker || ''; if (groups.at(-1)?.k !== k) groups.push({ k, items: [] }); groups.at(-1)!.items.push(i); });
+  return groups;
+}
+
 const say = (fp: Fp | null) => (t: string) => { try { return lineText(String(t ?? ''), fp).replace(/\*\*/g, '').replace(/\s+/g, ' ').trim(); } catch { return String(t ?? ''); } };
 
 function publish(): void {

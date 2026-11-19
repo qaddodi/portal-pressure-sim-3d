@@ -98,6 +98,14 @@ export const sceneApi = {
   setCaudatePin(on: boolean): void { cel.setCaudatePin(on); clock.invalidate('caudate'); },
   /** The lobule's Layers menu (the 2D app starts with lymph on). */
   setLobuleLayers(l: Partial<LobuleLayers>): void { cel.setLobuleLayers(l); clock.invalidate('lobule-layers'); },
+  /** Which view the figure is in now (body, lobule, sinusoid, circuit). */
+  get figureView(): FigureView { return cel.view; },
+  /** The wedge's wash on the lobule and the sinusoid (a slide that says `wash`); `landedAtMs` is when the view lands, the wash begins a beat after it. */
+  setWash(on: boolean, landedAtMs?: number): void { cel.setWash(on, landedAtMs); clock.invalidate('wash'); },
+  /** The veins a slide shows stented (edge ids): a stent comes in over each, and goes out of the ones left off the list. Returns the ids the scene could stent. */
+  setStented(ids: readonly string[], instant = false): string[] { const r = cel.procs.setStented(ids, instant); clock.invalidate('stented'); return r; },
+  /** The ring the HVPG catheter reads in while a deck slide holds it (free, wedge, bad); null for none. */
+  setCatheterRing(ring: 'free' | 'wedge' | 'bad' | null): void { cel.procs.keptRing = ring; clock.invalidate('catheter'); },
   /** The cards changed room (a card opened, the phone turned): move the room alone; the viewer's turn stays. `homeTurn`: a slide or catheter step asked for the shot the camera is already on, and still brings the turn home. */
   setRoom(room: Room, ms?: number, homeTurn = false): void {
     if (homeTurn) gesturesRef.current?.turnOff();
@@ -120,6 +128,8 @@ export const sceneApi = {
     seek(kind: string, t: number): void { cel.procs.seek(kind, t); clock.invalidate('procedure'); },
     /** The HVPG catheter in one of the deck's states (route, free, wedge, result, blocked), `advance` how far in (0..1). */
     hvpg(mode: keyof typeof CATH_END, advance = 1): void { cel.procs.showHvpg(mode, advance); clock.invalidate('procedure'); },
+    /** Where the tip is now (scene units), for the camera that follows it; null with no catheter out. */
+    tip(out: Vector3): Vector3 | null { return cel.procs.tipPosition(out); },
     /** Stop the move; with `keep` the last frame stays up. */
     stop(keep = false): void { cel.procs.stop(keep); clock.invalidate('procedure'); },
     get playing(): { kind: string; t: number } | null { return cel.procs.playing; },
@@ -137,6 +147,8 @@ export const sceneApi = {
   setNamedVessels(ids: readonly string[]): void { cel.setNamedVessels(ids); clock.invalidate('named-vessels'); },
   /** Light exactly these vessels (edge IDs), as the shunt's valid targets glow; [] puts them out. Replaces the pick. */
   markVessels(ids: readonly string[]): void { cel.markVessels(ids); clock.invalidate('mark'); },
+  /** Outline organs by the organ layer's ids (a slide's glow, spot or term naming an organ); `normalSpleen` also draws the normal-sized spleen's line. [] clears. */
+  pinOrgans(ids: readonly string[], normalSpleen = false): void { cel.pinOrgans(ids, normalSpleen); clock.invalidate('pin'); },
   /** Pick a vessel by edge ID, or clear with null. */
   pick(id: string | null): void { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },
   /** Option D: marks run for a few seconds after a change (a preset, a slider, a treatment). */

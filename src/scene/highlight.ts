@@ -1,3 +1,4 @@
+import { BackSide, Mesh, ShaderMaterial } from 'three';
 import type { CelObject } from './materials/cel.ts';
 
 // Vessel highlight (look-and-feel.md section 9): the picked vessel gets a bolder outline in its own deep colour (white on the dark
@@ -150,6 +151,61 @@ export class Highlight {
       }
       t.obj.ink.uniforms.hiOn.value = t.on;
       t.obj.toon.uniforms.inflate.value = t.lift;
+    }
+    return moving;
+  }
+}
+
+/** Fade in and out of a pinned organ's outline, ms (2D OL_FADE: a flip's step). */
+export const PIN_FADE_MS = 300;
+/** The thin line of the normal-sized spleen inside an enlarged one (2D OL_LOOK.normal: 1.4 px, half an alpha). */
+export const NORMAL_LINE = { px: 1.4, alpha: 0.5 };
+
+/** A slide's outlined organs (2D `pinOrgans`: the organ's own deep tone, a wider line, fading in and out), by the organs' own ids. The line is the organ's ink hull at the
+ *  highlight width (`hiOn` on the organ's own object: the same uniforms a picked vessel uses, in the organ's own highlight colour). Organs the layer has not built yet are
+ *  taken the frame they appear. Run after `Highlight.step`: it never touches a vessel, so the two never fight over `hiOn`. */
+export class OrganPins {
+  private want = new Set<string>();
+  private on = new Map<string, number>();
+  private normal = false;
+  private normalMesh: Mesh | null = null;
+  private normalAmt = 0;
+
+  /** Outline exactly these organs (ids of the organ layer: liver, spleen, heart, bowel, colon, duodenum, kidney-l, stomach, heart-ra); [] clears them all. */
+  set(ids: readonly string[]): void { this.want = new Set(ids); }
+  get pinned(): readonly string[] { return [...this.want]; }
+  /** The normal-sized spleen's outline inside an enlarged one (2D `normalOutline`). */
+  setNormalOutline(on: boolean): void { this.normal = on; }
+
+  step(dtMs: number, byId: ReadonlyMap<string, CelObject>): boolean {
+    const k = Math.min(1, dtMs / PIN_FADE_MS);
+    let moving = false;
+    for (const [id, o] of byId) {
+      const goal = this.want.has(id) ? 1 : 0, was = this.on.get(id) ?? 0;
+      if (was === goal) continue;
+      const v = approach(was, goal, k);
+      this.on.set(id, v);
+      o.ink.uniforms.hiOn.value = v; o.ink.uniforms.hiDir.value = 0; o.ink.uniforms.hiOffset.value = 0;
+      moving = true;
+    }
+    // an organ asked for that the layer has not built: keep asking for frames until it is in
+    for (const id of this.want) if (!byId.has(id)) moving = true;
+    const sp = byId.get('spleen');
+    if (sp && (this.normal || this.normalAmt > 0)) {
+      if (!this.normalMesh && sp.group.parent) {
+        const u = sp.ink.uniforms;
+        const mat = new ShaderMaterial({ vertexShader: sp.ink.vertexShader, fragmentShader: sp.ink.fragmentShader, side: BackSide, transparent: true, depthTest: false, depthWrite: false,
+          uniforms: { ...u, px: { value: NORMAL_LINE.px }, inflate: { value: 0 }, hiOn: { value: 0 }, inkA: { value: 0 } } });
+        this.normalMesh = new Mesh(sp.toonMesh.geometry, mat);
+        this.normalMesh.renderOrder = 20;
+        sp.group.parent.add(this.normalMesh);
+      }
+      const goal = this.normal ? NORMAL_LINE.alpha : 0;
+      if (this.normalAmt !== goal) { this.normalAmt = approach(this.normalAmt, goal, k * NORMAL_LINE.alpha); moving = true; }
+      if (this.normalMesh) {
+        (this.normalMesh.material as ShaderMaterial).uniforms.inkA!.value = this.normalAmt;
+        this.normalMesh.visible = this.normalAmt > 0;
+      }
     }
     return moving;
   }

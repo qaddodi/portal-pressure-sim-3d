@@ -28,11 +28,12 @@ for (const id of RW_IDS) {
   }
 }
 
-test('what exists today is read from its own tables: the twelve lenses, the done charts, the catheter\'s four states and the lobule views', () => {
+test('what exists today is read from its own tables: the twelve lenses, the done charts, the catheter\'s five states, the stent, the procedures and the lobule views', () => {
   for (const l of LENS_IDS) assert.equal(hasHook(`lens:${l}`), l !== 'since' || SINCE_BASELINE_FED, l);   // (Since waits for a slide to hand it its baseline: scene/lenses/model.ts)
   for (const c of CHARTS) assert.equal(hasHook(`tool:${c.kind}`), c.status === 'done', c.kind);
-  for (const c of ['route', 'free', 'wedge', 'result']) assert.ok(hasHook(`device:hvpg-catheter:${c}`));
-  assert.ok(!hasHook('device:hvpg-catheter:blocked'), 'the blocked catheter (Budd–Chiari) is B5\'s');
+  for (const c of ['route', 'free', 'wedge', 'result', 'blocked']) assert.ok(hasHook(`device:hvpg-catheter:${c}`));   // (blocked: Budd–Chiari, ui/deck/procs-link.ts)
+  for (const id of ['device:stent', 'device:hvpg-catheter:keep', 'procedure:tips', 'procedure:eus', 'procedure:rex']) assert.ok(hasHook(id), id);
+  assert.ok(!hasHook('procedure:eusglue'), 'the glue scope is not built');
   for (const v of ['view:lobule', 'view:sinusoid']) assert.ok(hasHook(v));
 });
 
@@ -51,8 +52,10 @@ test('no deck can be offered by the menu until the presenter, the engine runner 
 });
 
 test('landing a feature moves exactly the slides that wait on it (a hook registered at run time, and taken away again)', () => {
-  const d = built('two-lesions');
-  const wanted = dependencies(d).flatMap((x) => x.missing.map((h) => h.id))[0]!;   // (a feature still to land: the first one this deck waits on)
+  // (a feature still to land: the first one the first deck that still waits on any waits on; every feature may have landed one day, then there is nothing to move)
+  const d = RW_IDS.map((id) => built(id)).find((x) => dependencies(x).some((y) => y.missing.length));
+  if (!d) return;
+  const wanted = dependencies(d).flatMap((x) => x.missing.map((h) => h.id))[0]!;
   const waits = () => dependencies(d).filter((x) => x.missing.some((h) => h.id === wanted)).length;
   const before = waits();
   assert.ok(before > 0);

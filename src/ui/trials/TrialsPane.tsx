@@ -2,22 +2,54 @@
 // patient (a pip per key rule), Also possible, Not this patient (chips for the rules that keep trials out; a chip shows its trials), Needs history the model lacks; a tap opens a trial in place with its drawing,
 // the entry rules as a checklist and its source. Forest: every trial's primary ratio on one scale, the closest in full ink. The decisions are trials-model.ts (the 2D app's, kept); the drawings are the B10 cards.
 // The Tests card (B11) mounts this pane; it renders on its own too (?trials, src/ui/trials/mount.tsx).
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useEngine, latest, patient } from '../../engine/index.ts';
 import { PRESETS } from '../../engine/hales/portal/scenario.js';
 import { TrialCard } from '../charts/trial/TrialCard.tsx';
 import { ForestCard } from '../charts/forest/ForestCard.tsx';
+import { ratiosOf, ratioText } from '../charts/forest/model.ts';
+import { fmt } from '../charts/fmt.ts';
 import { TRIALS } from '../charts/trial/trials.generated.ts';
 import {
   TRIAL_IDS, SECTIONS, MARK, MARK_WORD, patientFacts, sortTrials, closestOf, chipsOf, rowReason, ratesOf, comparisonOf, sourceLine, pipsOf, ruleRows, historyOf,
-  type Placed, type Sections,
+  modelRx, modelLineOf, bavenoLines, lcFirst, type Placed, type Sections, type WhatIf,
 } from './trials-model.ts';
+import { whatIf, settledFor } from './what-if.ts';
 import { Icon } from '../shell/icons.tsx';
 import './trials.css';
 
 type FoldKey = 'also' | 'no' | 'unknown';
 
-function Row({ p, open, onOpen }: { p: Placed; open: boolean; onOpen(): void }) {
+type Facts = ReturnType<typeof patientFacts>;
+interface Ctx { facts: Facts; bleeding: boolean; params: unknown; presetId: string; live: { ppg?: number; map?: number; hr?: number } }
+
+/** The Model line: the model's numbers for this patient settled with the trial's treatment (2D paintModel). It asks the second engine once per patient and treatment and reads the answer when it is in. */
+function ModelLine({ t, c }: { t: Parameters<typeof modelLineOf>[0]; c: Ctx }) {
+  const rx = modelRx(t);
+  const key = useMemo(() => `${c.presetId}|${rx?.name}|${JSON.stringify(c.params)}`, [c.presetId, c.params, rx?.name]);
+  const [got, setGot] = useState<{ key: string; r: WhatIf | null } | null>(null);
+  const result: WhatIf | null | undefined = got?.key === key ? got.r : settledFor.get(key) ?? undefined;
+  const alb = (c.params as { albumin?: number } | null)?.albumin;
+  const line = modelLineOf(t, { facts: c.facts, albumin: alb, params: c.params, hidden: null, result, live: c.live });
+  useEffect(() => {
+    if (line.state !== 'wait' || !rx?.patch) return;
+    let live = true;
+    void whatIf(key, rx.patch).then((r) => { if (live) setGot({ key, r }); });
+    return () => { live = false; };
+  }, [line.state, key, rx]);
+  const n = line.nums;
+  return (
+    <div className="tr-model" data-state={line.state}>
+      <span className="k">{line.head}</span>
+      <span className="v" key={line.state}>
+        {n ? <>{n.lead}<b data-sev={n.sevFrom}>{fmt(n.from, 1)}</b><s> → </s><b data-sev={n.sevTo}>{fmt(n.to, 1)}</b> mmHg{n.more}</> : line.text}
+      </span>
+      {line.sub ? <span className="s">{line.sub}</span> : null}
+    </div>
+  );
+}
+
+function Row({ p, open, onOpen, c }: { p: Placed; open: boolean; onOpen(): void; c: Ctx }) {
   const { t, fit } = p;
   const [a, b] = ratesOf(t);
   const pips = pipsOf(fit);
@@ -31,12 +63,21 @@ function Row({ p, open, onOpen }: { p: Placed; open: boolean; onOpen(): void }) 
       {open && (
         <div className="tr-open">
           <p className="tr-cmp">{comparisonOf(t)}</p>
+          {typeof t.lesson === 'string' && t.lesson ? <p className="tr-lesson">{t.lesson}</p> : null}
           <TrialCard id={t.id} fit={fit as never} head={false} />
+          {ratiosOf(t).length > 1 ? <p className="tr-also">Also: {ratiosOf(t).slice(1).map((r) => `${ratioText(r)}${r.of ? ` for ${lcFirst(r.of)}` : ''}`).join(' · ')}</p> : null}
+          <p className="tr-lab">This patient against its entry rules</p>
           <ul className="tr-rules" aria-label="Entry rules against this patient">
             {ruleRows(fit).map((r, i) => (
               <li key={i} data-state={r.state}><span className="tr-mark" aria-hidden="true">{MARK[r.state]}</span><span className="sr-only">{MARK_WORD[r.state]}: </span>{r.rule}<span className="tr-val"> · {r.value}</span></li>
             ))}
           </ul>
+          <ModelLine t={t} c={c} />
+          {t.bav?.length ? (
+            <div className="tr-bav">
+              {bavenoLines(t, c.facts, c.bleeding).map((b) => <div key={b.k}><b>Baveno VIII {b.k}. </b>{b.text}{b.today ? <span className="tr-today"> {b.today}</span> : null}</div>)}
+            </div>
+          ) : null}
           <p className="tr-src">{sourceLine(t)}</p>
         </div>
       )}
@@ -60,6 +101,7 @@ export function TrialsPane() {
     return closestOf(sortTrials(TRIAL_IDS, m, params, facts, historyOf(preset?.facts)));
   }, [m, params, facts, presetId]);
   const chips = useMemo(() => chipsOf(sections.no), [sections.no]);
+  const ctx: Ctx = { facts, bleeding: !!m?.bleeding, params, presetId: presetId ?? '', live: { ppg: m?.ppg as number | undefined, map: m?.map as number | undefined, hr: m?.hr as number | undefined } };
   const toggle = (k: FoldKey) => setFolds((f) => ({ ...f, [k]: !f[k] }));
   const nearIds = sections.closest.map((p) => p.t.id);
   return (
@@ -81,7 +123,7 @@ export function TrialsPane() {
               return (
                 <section key={k} className="tr-sec" data-sec={k}>
                   <h3 className="tr-grp">{label}</h3>
-                  {items.length ? items.map((p) => <Row key={p.t.id} p={p} open={openId === p.t.id} onOpen={() => setOpenId(openId === p.t.id ? null : p.t.id)} />) : <p className="tr-none">No trial&rsquo;s key rules are met by this patient yet.</p>}
+                  {items.length ? items.map((p) => <Row key={p.t.id} p={p} open={openId === p.t.id} onOpen={() => setOpenId(openId === p.t.id ? null : p.t.id)} c={ctx} />) : <p className="tr-none">No trial&rsquo;s key rules are met by this patient yet.</p>}
                 </section>
               );
             }
@@ -98,7 +140,7 @@ export function TrialsPane() {
                         {chips.map((c) => <button key={c.key} type="button" aria-pressed={chip === c.key} onClick={() => setChip(chip === c.key ? null : c.key)}>{c.label} <b>{c.ids.length}</b></button>)}
                       </div>
                     )}
-                    {shown.map((p) => <Row key={p.t.id} p={p} open={openId === p.t.id} onOpen={() => setOpenId(openId === p.t.id ? null : p.t.id)} />)}
+                    {shown.map((p) => <Row key={p.t.id} p={p} open={openId === p.t.id} onOpen={() => setOpenId(openId === p.t.id ? null : p.t.id)} c={ctx} />)}
                   </>
                 )}
               </section>

@@ -19,7 +19,7 @@ import { effectiveDistance, type Room } from './camera/room.ts';
 import { SHOTS, type Shot, type ShotName } from './camera/shots.ts';
 import { Catheter, type CatheterState } from './catheter.ts';
 import { DEFAULT_FLOW_MODE, FLOW_FADE_MS, type FlowMarkMode, markSpeed } from './flow.ts';
-import { Highlight } from './highlight.ts';
+import { Highlight, OrganPins } from './highlight.ts';
 import { CelObject, type CelShared, createShared } from './materials/cel.ts';
 import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
@@ -109,6 +109,8 @@ export class CelScene {
   /** The Tests card's devices on the figure (B11): the Doppler probe, the FibroScan probe, the endoscope with its ligator cap and EUS needle. */
   readonly probes: ProbeLayer;
   readonly highlight: Highlight;
+  /** The organs a slide outlines (and the normal spleen's line). */
+  readonly pins = new OrganPins();
   readonly flow: BloodMarks;
   /** The colour lens (src/scene/lenses/): what colour every vein wears, crossfaded on the clock. */
   readonly lens = new LensField();
@@ -397,6 +399,9 @@ export class CelScene {
   /** Light a set of vessels at once (the shunt's valid targets); an empty list puts them out. */
   markVessels(ids: readonly string[]): void { this.highlight.setOnly(ids); this.moving = true; }
 
+  /** Outline these organs (organ ids: liver, spleen, heart, bowel, colon, duodenum, kidney-l...); [] clears. */
+  pinOrgans(ids: readonly string[], normalSpleen = false): void { this.pins.set(ids); this.pins.setNormalOutline(normalSpleen); this.moving = true; }
+
   /** Free play: pick a vessel by edge ID (or clear it with null). */
   pick(id: string | null): void { this.highlight.set(id); this.syncNamed(); }
 
@@ -581,6 +586,11 @@ export class CelScene {
   }
   private feedSinusInk(): void { const c = this.lobule.inkContext(); if (c) this.sinus.setInk(c); }
   setLobuleLayers(l: Partial<LobuleLayers>): void { this.lobule.setLayers(l); this.moving = true; }
+  /** The wedge's wash (a slide that says `wash`): amber from the central vein along the sinusoids, counted from `landedAtMs` in both small views. Off clears it. */
+  setWash(on: boolean, landedAtMs = performance.now()): void {
+    if (on) { this.lobule.startWash(landedAtMs); this.sinus.startWash(landedAtMs); } else { this.lobule.stopWash(); this.sinus.stopWash(); }
+    this.moving = true;
+  }
 
   /** The vessel whose body a pointer ray hits first, for tap-to-pick. */
   pickAt(x: number, y: number, raycaster: Raycaster): string | null {
@@ -676,6 +686,7 @@ export class CelScene {
     this.fadeBody();
     if (this.hideLeftBehind && !camMoving && !this.circuit.moving) this.settleViews();
     const hiMoving = this.highlight.step(dt);
+    const pinMoving = this.pins.step(dt, this.disease.organs.byId);
     this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
     const streamsMoving = this.blood.streams.step(now);
     const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id));
@@ -691,7 +702,7 @@ export class CelScene {
     const diseaseMoving = this.disease.update(now);
     if (diseaseMoving) this.tagOverOrgans();
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02);
-    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || flowActive || lensMoving || presMoving || shapeMoving || viewMoving;
+    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || lensMoving || presMoving || shapeMoving || viewMoving;
     this.moving = false;
     return needs;
   }
