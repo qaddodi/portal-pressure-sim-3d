@@ -16,10 +16,12 @@ interface Props {
   label?: string;
   pointer?: { onPointerDown: PointerEventHandler; onPointerUp: PointerEventHandler; onPointerCancel: PointerEventHandler };
   overflow?: boolean;
+  /** the 2D data card's own state classes (tiles-only, col, has-tool, tool-only: presenter.js dataIn), written on the data card only */
+  extra?: string;
 }
 
 /** One card: placed by transform, sized exactly to its content with a glide, invisible until its words are laid out, then it rises in. */
-export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow }: Props) {
+export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow, extra }: Props) {
   const vp = useUi((s) => s.vp);
   const r = Math.round(radius(vp.w, vp.h, layoutOf(vp.w, vp.h)));
   const cardRef = useRef<HTMLDivElement>(null);
@@ -86,7 +88,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   const phase = out ? 'out' : ready ? 'in' : 'wait';
   // the 2D app's own classes (src/ui/css2d): the words' card is its glass `pz-shade` with `pz-text` inside; the data card is `pz-data`
   const lay = layoutOf(vp.w, vp.h), stackCls = lay === 'stack' ? ' stack' : lay === 'tab' ? ' stack tab' : '';
-  const surface = entry.id === 'ladder' ? 'pz-data' : `pz-shade pz-card${stackCls}`;
+  const surface = entry.id === 'ladder' ? `pz-data${extra ? ` ${extra}` : ''}` : `pz-shade pz-card${stackCls}`;
   return (
     <div className="dk-pos" data-live={live && !out} style={{ width: rect.w, transform: `translate3d(${rect.x}px, ${rect.y}px, 0)` }}>
       <div ref={plateRef} className="dk-plate" data-phase={phase} style={{ height: ready ? (animH ?? rect.h) : undefined }} aria-hidden="true" />

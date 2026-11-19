@@ -43,7 +43,7 @@ const TABLE: Feature[] = [
   done('cath:route', 'S2', 'The HVPG catheter: route', 'src/scene/catheter.ts'), done('cath:free', 'S2', 'The HVPG catheter: free', 'src/scene/catheter.ts'),
   done('cath:wedge', 'S2', 'The HVPG catheter: wedged', 'src/scene/catheter.ts'), done('cath:result', 'S2', 'The HVPG catheter: result', 'src/scene/catheter.ts'),
   hook('cath:blocked', 'B5', 'The HVPG catheter against a blocked hepatic vein (Budd–Chiari)'),
-  done('tiles', 'B13b', 'The data card of tiles: each reading from the engine, the key ones marked, the change from another state', 'src/decks/hp/TilesCard.tsx'),
+  done('tiles', 'B13b', "The data card of tiles: each reading from the engine on the 2D tile (rating word and colour, scale bar, the change from another state), an instrument card's readings in its header", 'src/ui/cards/TilesCard.tsx'),
   // charts and instruments in the data card
   chart('criteria', 'Guideline rule list with live rows, or the Baveno VIII zones graph'),
   chart('flowtime', 'Lines over days'), chart('trial', 'A trial card'), chart('flows', 'Where the portal blood goes'), chart('lumen', 'A vessel cross-section'),
