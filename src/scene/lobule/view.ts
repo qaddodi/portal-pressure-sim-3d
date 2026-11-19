@@ -580,6 +580,9 @@ export class LobuleView {
     return w(0, 0, 0);
   }
 
+  /** A point of the plate (its own units, the plane the labels stand on) in the scene. */
+  anchorAt(x: number, y: number, out: V3 = [0, 0, 0]): V3 { return lobuleWorld(lobuleToScene(x, y, slabZ(x, y) + ANCHOR_Z, out), out); }
+
   /** The part whose toon mesh a ray hits first (for tap-to-explain), or null. */
   partAt(hits: readonly { object: unknown }[]): LobulePartName | null {
     for (const h of hits) {
