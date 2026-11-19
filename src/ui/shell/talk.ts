@@ -7,8 +7,10 @@ import { cel } from '../../scene/api.ts';
 import { deckOf, isAlias, DECK_ALIAS } from '../deck/deck-of.ts';
 import { isBuiltin, loadBuiltin } from '../../decks/registry.ts';
 import { captureSaved, restoreSaved, type Saved } from '../talk/deck-model.ts';
+import { loadToolCard, toolCardReady } from '../talk/tool-card-load.ts';
 
 let saved: Saved | null = null;
+let chartsAsked = false;
 
 /** Opens a talk at a slide (the 2D slide number minus one: 0 is the outline). Returns false, and opens nothing, when there is no such talk. */
 export function startTalk(deckId: string, at = 0): boolean {
@@ -20,6 +22,9 @@ export function startTalk(deckId: string, at = 0): boolean {
     void loadBuiltin(id).then((d) => { if (d) startTalk(deckId, at); });
     return true;
   }
+  // a talk's charts are their own chunk (ui/talk/ToolCard.tsx): the talk opens once they are in, so no slide's card shows before its chart can draw
+  // (asked once: where they cannot be fetched the talk still opens, and a card asks again when it mounts)
+  if (!toolCardReady() && !chartsAsked) { chartsAsked = true; void loadToolCard().then(() => startTalk(deckId, at)); return true; }
   if (useShell.getState().mode !== 'deck') saved = captureSaved();   // (starting another talk while one runs keeps the patient from before the first)
   cel.setView('body');
   useUi.getState().openDeck(deck, at);
