@@ -12,6 +12,7 @@ import { useSelection } from './selection.ts';
 import { cardFor, type Card, type Verb } from './cards.ts';
 import { sameSnap, snapOf, type Snap, type VerbSnap } from './snap.ts';
 import { appAct } from './act.ts';
+import { injectDye, releaseDye } from './dye.ts';
 import { panelFor } from './panels.ts';
 import { currentParams, updateParams, useParamsTick } from './params.ts';
 import { useEngine, latest, patient } from '../../engine/store.ts';
@@ -118,12 +119,22 @@ function VerbView({ card, v, vs, index, setRef }: { card: Card; v: Verb; vs: Ver
     case 'button': case 'dye': case 'link':
       return (
         <button type="button" className={`ac-btn${v.type === 'button' && v.danger ? ' danger' : ''}${v.type === 'button' && v.quiet ? ' quiet' : ''}${v.type === 'dye' ? ' ac-dye' : ''}`} aria-label={v.label ?? undefined} title={vs.note || v.label || undefined}
-          onClick={() => v.run(appAct)}>
+          {...(v.type === 'dye' ? dyeHandlers : { onClick: () => v.run(appAct) })}>
           {v.icon && <OrderIcon n={v.icon} className="ac-ic" />}<span className="ac-bl">{v.short || v.label}</span>
         </button>
       );
   }
 }
+
+/** The dye button (2D card.js): a press of the pointer holds the dye going until it lifts; a key press (no pointer, detail 0) gives one bolus. */
+let dyeHeld = false;
+const dyeUp = () => { if (dyeHeld) { dyeHeld = false; releaseDye(); } };
+const dyeHandlers = {
+  onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => { if (e.button > 0) return; dyeHeld = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no capture */ } injectDye({ hold: true }); },
+  onPointerUp: dyeUp, onPointerCancel: dyeUp, onLostPointerCapture: dyeUp,
+  onClick: (e: React.MouseEvent) => { if (e.detail === 0) injectDye({}); },
+  onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+};
 
 const kindOf = (v: Verb): 'read' | 'about' | 'ctl' | 'act' | 'panel' => v.type === 'read' || v.type === 'stat' ? 'read' : v.type === 'about' ? 'about' : v.type === 'panel' ? 'panel'
   : v.type === 'button' || v.type === 'dye' || v.type === 'link' ? 'act' : 'ctl';
