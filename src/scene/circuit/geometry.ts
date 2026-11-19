@@ -33,7 +33,8 @@ export function attachRuns(g: BufferGeometry, runs: readonly TubeRun[], course: 
   const cC = new Float32Array(n * 3), tC = new Float32Array(n * 3), fr = new Float32Array(n * 3), pk = new Float32Array(n * 2), cl = new Float32Array(n * 2);
   const write = (v: number, s: number, ca: Vector3, ta: readonly [number, number, number], cc: Vector3, tc: Vector3, rank: number) => {
     const r = radius * (rkA ? rkA.getX(v) : 1);
-    const o: [number, number, number] = [(pos.getX(v) - ca.x) / r, (pos.getY(v) - ca.y) / r, (pos.getZ(v) - ca.z) / r];
+    // (a tube of no radius, rk 0, is never drawn: its offset is none, not a division by nothing)
+    const o: [number, number, number] = r > 0 ? [(pos.getX(v) - ca.x) / r, (pos.getY(v) - ca.y) / r, (pos.getZ(v) - ca.z) / r] : [0, 0, 0];
     const f = encode(o, ta);
     fr[3 * v] = f[0]; fr[3 * v + 1] = f[1]; fr[3 * v + 2] = f[2];
     cC[3 * v] = cc.x; cC[3 * v + 1] = cc.y; cC[3 * v + 2] = cc.z;

@@ -34,6 +34,9 @@ const RADIAL = 14;
 /** Where one course sits in the merged geometry: its tube's vertices, then its two caps' (the Circuit's morph reads this layout). */
 export interface TubeRun { curve: CatmullRomCurve3; tubular: number; radial: number; tubeStart: number; tubeCount: number; capStart: number; capCount: number }
 
+/** The width a course of no radius is built at: finite, and never drawn (rk 0). */
+const HAIR = 1e-6;
+
 export function buildTubes(courses: readonly Course[], tubular: readonly number[], radius0: number): { geometry: BufferGeometry; length: number; runs: TubeRun[] } {
   const parts: BufferGeometry[] = [];
   const runs: TubeRun[] = [];
@@ -42,18 +45,21 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     const curve = new CatmullRomCurve3(c.pts.map((p) => new Vector3(p[0], p[1], p[2])));
     if (i === 0) length = curve.getLength();
     const seg = tubular[i]!;
-    const tube = new TubeGeometry(curve, seg, c.radius, RADIAL, false);
+    // (A course of no radius, a strand a band has closed or a channel not yet grown, is built at a hair's width and marked rk 0, which the vertex shader keeps off the screen. Built at 0 its collar
+    // share `flare / radius` and the Circuit's `offset / radius` are NaN, and a NaN position on a real GPU draws as a black blob or a long black spindle across its neighbours: Mohammad's iPhone, 19 Nov 2026.)
+    const open = c.radius > 0, R0 = open ? c.radius : HAIR;
+    const tube = new TubeGeometry(curve, seg, R0, RADIAL, false);
     const rks: number[] = [];
     const clen = curve.getLength();
     const P = new Vector3(), pos = tube.attributes.position as Float32BufferAttribute;
     for (let k = 0; k <= seg; k++) {
       const u = k / seg;
-      const f = (factorAt(c.taper, u) + (flareAdd(c.flare?.[0], u * clen) + flareAdd(c.flare?.[1], (1 - u) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) : 1);
+      const f = open ? (factorAt(c.taper, u) + (flareAdd(c.flare?.[0], u * clen) + flareAdd(c.flare?.[1], (1 - u) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) : 1) : 1;
       curve.getPointAt(k / seg, P);
       for (let j = 0; j <= RADIAL; j++) {
         const at = k * (RADIAL + 1) + j;
         if (f !== 1) pos.setXYZ(at, P.x + (pos.getX(at) - P.x) * f, P.y + (pos.getY(at) - P.y) * f, P.z + (pos.getZ(at) - P.z) * f);
-        rks.push((c.radius * f) / radius0);
+        rks.push(open ? (c.radius * f) / radius0 : 0);
       }
     }
     tube.setAttribute('rk', new Float32BufferAttribute(rks, 1));
@@ -62,7 +68,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     tube.setAttribute('tang', new Float32BufferAttribute(tang, 3));
     const group: BufferGeometry[] = [tube];
     for (const end of [0, 1]) {
-      const capR = c.radius * factorAt(c.taper, end) + flareAdd(c.flare?.[end], 0);
+      const capR = open ? c.radius * factorAt(c.taper, end) + flareAdd(c.flare?.[end], 0) : HAIR;
       const s = new SphereGeometry(capR, 14, 10);
       const pos = curve.getPointAt(end), t = curve.getTangentAt(end);
       s.translate(pos.x, pos.y, pos.z);
@@ -72,7 +78,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
       s.setAttribute('tang', new Float32BufferAttribute(tg, 3));
       group.push(s);
     }
-    for (const e of [1, 2]) group[e]!.setAttribute('rk', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill((c.radius * factorAt(c.taper, e - 1) + flareAdd(c.flare?.[e - 1], 0)) / radius0), 1));
+    for (const e of [1, 2]) group[e]!.setAttribute('rk', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(open ? (c.radius * factorAt(c.taper, e - 1) + flareAdd(c.flare?.[e - 1], 0)) / radius0 : 0), 1));
     const tubeCount = tube.attributes.position!.count, capCount = group[1]!.attributes.position!.count;
     runs.push({ curve, tubular: seg, radial: RADIAL, tubeStart: at, tubeCount, capStart: at + tubeCount, capCount });
     at += tubeCount + 2 * capCount;
