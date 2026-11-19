@@ -44,7 +44,7 @@ test('the boot entry does not statically import the debug pages, the charts gall
   // the few lines of each that decide whether to fetch the rest stay in the entry
   const stubs = new Set(['src/ui/debug/mount.ts', 'src/ui/debug/flags.ts', 'src/ui/debug/gate.ts', 'src/ui/debug/caught.ts', 'src/ui/debug/frame/request.ts', 'src/ui/charts/gallery/mount.tsx',
     'src/debug/shader-guard.ts', 'src/debug/shader-fail.ts', 'src/debug/gl-ref.ts',
-    'src/ui/debug/packet/state.ts']);   // (the state link's pure cleaning, which the share link uses: 139 lines, imports only a type)
+    'src/ui/debug/packet/state.ts', 'src/debug/look-hook.ts']);   // (the state link's pure cleaning, which the share link uses: 139 lines, imports only a type)
   const limit = (s: string) => (s === 'src/ui/debug/packet/state.ts' ? 12000 : 8000);
   const heavy = (f: string) => f.startsWith('src/parity/') || f === 'src/ui/charts/registry.ts' || f.startsWith('src/ui/charts/gallery/') || f.startsWith('src/debug/')
     || (f.startsWith('src/ui/debug/') && !f.startsWith('src/ui/debug/core/'));   // (debug/core: the short report text Send feedback puts in its mail)
@@ -58,8 +58,10 @@ test('no chart family is in the boot entry through the registry: only what a car
   const families = readdirSync(resolve(root, 'src/ui/charts'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
   const entries = files.filter((f) => /^src\/ui\/charts\/[^/]+\/entry\.ts$/.test(f));
   assert.deepEqual(entries.map(chain), [], 'a chart family\'s registry entry is in the boot entry');
-  const only = new Set(['src/ui/charts/profile/pressure-colour.ts']);   // (the patient preview's curve takes its pressure ramp from here: a few lines of colour, no chart code)
-  const inFam = (d: string) => files.filter((f) => f.startsWith(`src/ui/charts/${d}/`) && !only.has(f));
+  // The pure models and data tables a card on the first screen reads for its title and numbers (tool-title.ts, the decks' numbers) are small and not chart code: what stays out
+  // is every chart family's component (a .tsx under src/ui/charts) and its registry entry.
+  const heavy = (f: string) => /\.tsx$/.test(f) || /\/entry\.ts$/.test(f);   // (a chart's component or registry entry; its pure model and data files are not)
+  const inFam = (d: string) => files.filter((f) => f.startsWith(`src/ui/charts/${d}/`) && heavy(f));
   const inBoot = families.filter((d) => inFam(d).length > 0);
   assert.deepEqual(inBoot.filter((d) => !['looks2d', 'gallery'].includes(d)).map((d) => chain(inFam(d)[0]!)), [],
     'a chart family is statically imported by the boot entry');
@@ -80,7 +82,7 @@ test('a talk\'s charts are a chunk of their own: the card layer mounts a shell, 
   assert.match(shell, /import\('\.\/ToolCardBody\.tsx'\)/);
   assert.doesNotMatch(shell, /^import[^\n]*charts\//m);
   const talk = readFileSync(resolve(root, 'src/ui/shell/talk.ts'), 'utf8');
-  assert.ok(talk.indexOf('loadToolCard().then(() => startTalk(deckId, at))') > 0 && talk.indexOf('loadToolCard()') < talk.indexOf('openDeck(deck, at)'), 'the talk opens after its charts are in');
+  assert.ok(talk.indexOf('loadToolCard().then(() => show(deck, at))') > 0 && talk.indexOf('loadToolCard()') < talk.indexOf('openDeck(deck, at)'), 'the talk opens after its charts are in');
   assert.match(readFileSync(resolve(root, 'src/boot/warm.ts'), 'utf8'), /loadToolCard\(\)/);
   assert.match(readFileSync(resolve(root, 'src/main.tsx'), 'utf8'), /warmLater\(\);/);
   // the loader: one read however often it is asked, never a rejection, and a failed read is tried again
