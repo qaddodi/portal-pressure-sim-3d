@@ -17,7 +17,7 @@ import { x3, y3 } from '../frame2d.ts';
 /** The tone each 2D organ takes (looks.ts has a token for the five; the kidney and the atrium take the spleen's and the heart's) and the ink's width on a Mac or iPad. */
 export const ORGAN_STYLE: Record<string, { tone: ToneKey; px: number }> = {
   heart: { tone: 'heart', px: 1.5 }, 'heart-ra': { tone: 'heart', px: 1.5 }, liver: { tone: 'liver', px: 1.8 }, spleen: { tone: 'spleen', px: 1.8 },
-  stomach: { tone: 'stomach', px: 1.5 }, 'kidney-l': { tone: 'spleen', px: 1.5 }, bowel: { tone: 'gut', px: 1.4 }, colon: { tone: 'gut', px: 1.4 },
+  stomach: { tone: 'stomach', px: 1.5 }, duodenum: { tone: 'stomach', px: 1.4 }, 'kidney-l': { tone: 'spleen', px: 1.5 }, bowel: { tone: 'gut', px: 1.4 }, colon: { tone: 'gut', px: 1.5 },
 };
 
 const pivot = (c: readonly [number, number]) => new Vector3(x3(c[0]), y3(c[1]), 0);

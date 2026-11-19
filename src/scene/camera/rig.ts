@@ -1,5 +1,5 @@
 import { PerspectiveCamera, Vector3 } from 'three';
-import { BODY_PLATE_Z, PLATE_BOUNDS } from '../anatomy/placeholder.ts';
+import { FIGURE_Z, PLATE_BOUNDS } from '../anatomy/placeholder.ts';
 import { type View, lerpView } from '../gesture/ease.ts';
 import type { Rect } from '../gesture/view.ts';
 import { type Room, effectiveDistance, viewOffset } from './room.ts';
@@ -134,7 +134,7 @@ export class CameraRig {
   }
   get stageSize(): { w: number; h: number } { return { w: this.width, h: this.height }; }
 
-  /** The body plate's rectangle on screen in the shot's own framing (hand at the fit): the bounds the hand may pan the figure within. */
+  /** The figure's rectangle on screen in the shot's own framing (hand at the fit): the bounds the hand may pan the figure within. */
   fitRect(): Rect {
     const keep = { ...this.hand };
     this.hand.k = 1; this.hand.x = 0; this.hand.y = 0;
@@ -142,7 +142,7 @@ export class CameraRig {
     const b = PLATE_BOUNDS;
     const rect: Rect = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
     for (const [x, y] of [[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]] as const) {
-      const p = this.project(new Vector3(x, y, BODY_PLATE_Z));
+      const p = this.project(new Vector3(x, y, FIGURE_Z));
       rect.x0 = Math.min(rect.x0, p.x); rect.x1 = Math.max(rect.x1, p.x); rect.y0 = Math.min(rect.y0, p.y); rect.y1 = Math.max(rect.y1, p.y);
     }
     this.hand.k = keep.k; this.hand.x = keep.x; this.hand.y = keep.y;
