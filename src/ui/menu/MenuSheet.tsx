@@ -4,8 +4,8 @@ import { UI } from '../strings.generated.ts';
 import { useShell, type MenuTab } from '../shell/store.ts';
 import { Frame } from '../shell/Frame.tsx';
 import { Icon } from '../shell/icons.tsx';
-import { startTalk } from '../shell/talk.ts';
-import { presentTopics, patientGroups } from './library.ts';
+import { patientGroups } from './library.ts';
+import { PresentColumn } from './PresentColumn.tsx';
 import { loadPatient } from './patients.ts';
 
 const TABS = UI.menus.mainMenu.tabs as readonly { id: MenuTab; label: string }[];
@@ -21,18 +21,7 @@ export function MenuSheet() {
         ))}
       </div>
       {tab === 'present' ? (
-        <div role="tabpanel">
-          {presentTopics().map((t) => (
-            <div key={t.topic}>
-              <div className="sh-title">{t.label}</div>
-              {t.decks.map((d) => (
-                <button key={d.id} type="button" className="sh-row" onClick={() => startTalk(d.id)}>
-                  <Icon n="projector" /><span className="sh-t">{d.title}</span><span className="sh-d">{[d.minutes ? `${d.minutes} min` : null, d.summary].filter(Boolean).join(' · ')}</span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
+        <PresentColumn />
       ) : (
         <div role="tabpanel">
           {patientGroups().map((g) => (

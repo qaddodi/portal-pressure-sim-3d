@@ -4,8 +4,7 @@
 
 .sh-root { position: fixed; inset: 0; z-index: var(--z-chrome, 20); pointer-events: none; font-family: var(--ui); color: var(--text);
   --sh-h: 44px; --sh-gap: 8px; --sh-ease: cubic-bezier(0.2, 0.7, 0.2, 1); --sh-t: 200ms;
-  --sh-pad-top: calc(var(--safe-t, 0px) + 8px); --sh-pad-x: 12px; }
-.sh-root[data-device="desktop"] { --sh-pad-x: 16px; }
+  --sh-pad-top: calc(var(--safe-t, 0px) + var(--m-top-pad)); --sh-pad-x: var(--m-side-pad); }
 .sh-root [hidden] { display: none !important; }
 .sh-root button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .sh-root :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -24,45 +23,9 @@
 .sh-pill .sh-chev { width: 14px; height: 14px; color: var(--text-3); }
 .sh-pill[data-off="true"] { color: var(--text-3); }
 
-/* ── the top bar ── */
-.sh-top { position: absolute; left: calc(var(--safe-l, 0px) + var(--sh-pad-x)); right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: var(--sh-pad-top); display: flex; align-items: center; gap: var(--sh-gap); transition: opacity 240ms var(--sh-ease); }
-.sh-top[data-hidden="true"] { opacity: 0; pointer-events: none; }
-.sh-top[data-hidden="true"] * { pointer-events: none !important; }
-.sh-grow { flex: 1 1 auto; min-width: 0; }
-.sh-menu-btn { max-width: 260px; }
-.sh-menu-btn .sh-name { overflow: hidden; text-overflow: ellipsis; }
-.sh-menu-btn small { color: var(--text-3); font-weight: 500; font-size: 12px; }
-.sh-group { display: flex; align-items: center; gap: var(--sh-gap); }
-
-/* the view pills: one segmented pill; the Sinusoid segment folds in and out (width and opacity), never pops */
-.sh-seg { pointer-events: auto; display: inline-flex; align-items: center; height: var(--sh-h); padding: 3px; border-radius: 999px; border: 1px solid var(--edge); background: var(--surface); position: relative;
-  box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 8px 22px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.4)); }
-.sh-seg button { position: relative; z-index: 1; height: 100%; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; font: 600 14px / 1 var(--ui); color: var(--text-2);
-  max-width: 120px; overflow: hidden; transition: color var(--sh-t) var(--sh-ease), max-width 260ms var(--sh-ease), padding 260ms var(--sh-ease), opacity 200ms var(--sh-ease); }
-.sh-seg button[aria-pressed="true"] { color: var(--text); background: var(--accent-soft); }
-.sh-seg button[data-hidden="true"] { max-width: 0; padding: 0; opacity: 0; pointer-events: none; }
-.sh-seg button[data-pending="true"] { color: var(--text-3); }
-
-/* the lens button: its name and a legend */
-.sh-lens { gap: 10px; }
-/* (the legend stands in the pill as the 2D app's `.legend` does: the title in two right-aligned lines, then a 168 x 30 scale with a notch and a number
-   under each mark; the compact caption stands in below 1600 px, no title on a phone. Numbers and sizes are the 2D app's styles/app.css, 205-235.) */
-.sh-lens-name { display: none; }
-.sh-lens .lg { display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 0 4px; }
-.sh-lens .lg-title, .sh-lens .lg-cap { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; font-size: 12px; color: var(--text-3); font-weight: 500; text-align: right; white-space: nowrap; margin-right: 4px; }
-.sh-lens .lg-title b, .sh-lens .lg-cap b { color: var(--text-2); font-weight: 600; }
-.sh-lens .lg-cap { display: none; }
-@media (max-width: 1599px) { .sh-lens .lg[data-variant="bar"] .lg-title { display: none; } .sh-lens .lg[data-variant="bar"] .lg-cap { display: flex; } }
-@media (max-width: 760px) { .sh-lens .lg-title, .sh-lens .lg-cap { display: none !important; } }
-.sh-lens .lg-bar-wrap { position: relative; width: 168px; height: 30px; padding: 0; margin: 0 10px; }
-.sh-lens .lg-bar { position: absolute; left: 0; right: 0; top: 4px; height: 8px; border-radius: 2px; }
-.sh-lens .lg-tick { top: 12px; bottom: auto; height: 3px; margin-left: -.5px; background: var(--text-2); opacity: .7; }
-.sh-lens .lg-nums span, .sh-lens .lg-nums span:first-child, .sh-lens .lg-nums span:last-child { top: 15px; transform: translateX(-50%); font-size: 12px; font-weight: 600; color: var(--text-2); }
-.sh-lens .lg-dots { gap: 4px 10px; flex-wrap: nowrap; }
-
 /* ── popovers (anchored to their button, always in the page) ── */
 .sh-anchor { position: relative; display: inline-flex; }
-.sh-pop { position: absolute; z-index: 2; min-width: 260px; max-width: min(360px, calc(100vw - 24px)); padding: 8px; border-radius: 16px; border: 1px solid var(--edge); background: var(--surface); pointer-events: auto;
+.sh-pop { position: fixed; z-index: 30; min-width: 260px; max-width: min(360px, calc(100vw - 24px)); padding: 8px; border-radius: 16px; border: 1px solid var(--edge); background: var(--surface); pointer-events: auto;
   box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 16px 40px -12px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2));
   opacity: 0; visibility: hidden; transform: translateY(var(--sh-from, -6px)); transition: opacity var(--sh-t) var(--sh-ease), transform var(--sh-t) var(--sh-ease), visibility 0s linear var(--sh-t); }
 .sh-pop[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
@@ -89,31 +52,16 @@
 .sh-grid .sh-row .sh-d { grid-column: 2; }
 .sh-grid .sh-row[aria-checked="true"] { background: var(--accent-soft); }
 
-/* ── the zoom group ── */
-.sh-zoom { position: absolute; right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); bottom: calc(var(--safe-b, 0px) + var(--sh-dock-gap, 12px) + 60px + 10px); display: flex; flex-direction: column; gap: 6px; transition: opacity 240ms var(--sh-ease); }
-.sh-zoom[data-hidden="true"] { opacity: 0; pointer-events: none; } .sh-zoom[data-hidden="true"] * { pointer-events: none !important; }
-.sh-zoom .sh-pill { padding: 0; width: var(--sh-h); justify-content: center; }
-.sh-zoom [data-folded="true"] { height: 0; opacity: 0; border-width: 0; pointer-events: none; margin-top: -6px; overflow: hidden; }
-
-/* ── the bottom bar (phones and an upright iPad) ── */
-.sh-foot { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 calc(var(--safe-r, 0px) + 12px) 0 calc(var(--safe-l, 0px) + 12px); display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
-.sh-foot .sh-view-row { display: flex; justify-content: center; }
-.sh-foot .sh-play-row { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
-.sh-thumb { pointer-events: auto; display: grid; grid-template-columns: repeat(5, 1fr); height: 56px; margin: 0 -12px; padding: 0 calc(var(--safe-r, 0px) + 12px) var(--safe-b, 0px) calc(var(--safe-l, 0px) + 12px); box-sizing: content-box; background: var(--surface); border-top: 1px solid var(--edge); }
-.sh-thumb button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 56px; border: 0; background: transparent; font: 600 11px / 1 var(--ui); color: var(--text-2); }
-.sh-thumb button[aria-expanded="true"], .sh-thumb button[aria-pressed="true"] { color: var(--accent); }
-.sh-root[data-bottom="true"] > .sh-zoom { display: none; }
-
 /* ── sheets: the main menu, Settings, Search, Help (a panel on a laptop, a sheet from the foot on a phone) ── */
 .sh-sheet { position: absolute; z-index: 3; display: flex; flex-direction: column; overflow: hidden; pointer-events: auto; border: 1px solid var(--edge); background: var(--surface); border-radius: 18px;
   box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 24px 56px -16px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2.2));
   opacity: 0; visibility: hidden; transform: translateY(12px); transition: opacity 240ms var(--sh-ease), transform 240ms var(--sh-ease), visibility 0s linear 240ms; }
 .sh-sheet[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
-.sh-sheet[data-kind="menu"] { left: calc(var(--safe-l, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + 52px); width: 380px; max-height: calc(100% - var(--sh-pad-top) - 92px); }
-.sh-sheet[data-kind="settings"], .sh-sheet[data-kind="help"] { right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + 52px); width: 360px; max-height: calc(100% - var(--sh-pad-top) - 92px); }
-.sh-sheet[data-kind="search"], .sh-sheet[data-kind="guide"] { left: 50%; top: calc(var(--sh-pad-top) + 52px); width: min(620px, calc(100vw - 24px)); margin-left: calc(min(620px, 100vw - 24px) / -2); max-height: calc(100% - var(--sh-pad-top) - 92px); }
+.sh-sheet[data-kind="menu"] { left: calc(var(--safe-l, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + var(--m-pill-h) + 6px); width: 380px; max-height: calc(100% - var(--sh-pad-top) - 92px); }
+.sh-sheet[data-kind="settings"], .sh-sheet[data-kind="help"] { right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + var(--m-pill-h) + 6px); width: 360px; max-height: calc(100% - var(--sh-pad-top) - 92px); }
+.sh-sheet[data-kind="search"], .sh-sheet[data-kind="guide"] { left: 50%; top: calc(var(--sh-pad-top) + var(--m-pill-h) + 6px); width: min(620px, calc(100vw - 24px)); margin-left: calc(min(620px, 100vw - 24px) / -2); max-height: calc(100% - var(--sh-pad-top) - 92px); }
 .sh-sheet[data-kind="guide"] { width: min(720px, calc(100vw - 24px)); margin-left: calc(min(720px, 100vw - 24px) / -2); }
-.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet { left: 0 !important; right: 0 !important; margin-left: 0 !important; width: auto !important; top: auto !important; bottom: calc(var(--safe-b, 0px) + 56px); border-radius: 18px 18px 0 0; max-height: 78%; transform: translateY(24px); }
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet { left: 0 !important; right: 0 !important; margin-left: 0 !important; width: auto !important; top: auto !important; bottom: calc(var(--safe-b, 0px) + var(--m-phone-inset) + var(--m-phone-timeline-h) + var(--m-phone-tabs-pad-top) + var(--m-phone-tab-h) + var(--m-phone-tabs-pad-bottom) + 6px); border-radius: 18px 18px 0 0; max-height: 78%; transform: translateY(24px); }
 .sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-open="true"] { transform: none; }
 .sh-root[data-bottom="true"][data-mode="free"][data-device="phone-landscape"] .sh-sheet { max-height: 86%; }
 .sh-sheet-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 4px 18px; }
@@ -163,12 +111,56 @@
 .sh-btns { display: flex; justify-content: flex-end; gap: 10px; } .sh-btn { min-height: 44px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--edge); background: transparent; font: 600 14px / 1 var(--ui); }
 .sh-btn[data-danger="true"] { background: var(--danger); border-color: var(--danger); color: #fff; }
 
+/* the library's dialogs (a name, a link, the import box) */
+.sh-dialog--deck { margin-top: 0; translate: 0 -50%; max-height: calc(100svh - 32px); overflow: hidden; }
+.sh-field { display: grid; gap: 6px; margin: 0 0 18px; font: 600 13px / 1.2 var(--ui); color: var(--text-2); }
+.sh-field input, .sh-field-in, .sh-imp { width: 100%; box-sizing: border-box; min-height: 44px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--edge); background: var(--bg); color: var(--text); font: 400 16px / 1.35 var(--ui); }
+.sh-field-in { margin: 0 0 18px; }
+.sh-imp { display: block; margin: 12px 0 14px; resize: none; font: 400 13px / 1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.sh-err { margin: 0 0 12px; color: var(--danger); font: 600 14px / 1.35 var(--ui); }
+.sh-btn[data-primary="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.sh-btn svg { width: 18px; height: 18px; vertical-align: -4px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* the Present menu: a talk's row, its ⓘ preview and its acts; your scripts */
+.sh-lrow { display: grid; grid-template-columns: 1fr 44px; align-items: center; }
+.sh-lrow > .sh-row { min-width: 0; }
+.sh-info { width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--text-3); display: grid; place-items: center; }
+.sh-info svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sh-info[aria-expanded="true"] { color: var(--accent); }
+.sh-pv { grid-column: 1 / -1; margin: 0 10px 8px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--text) 5%, transparent); display: grid; gap: 8px; }
+.sh-pv-meta { font: 600 12px / 1.2 var(--ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.sh-pv h3 { margin: 0; font: 600 17px / 1.25 var(--display); }
+.sh-pv p { margin: 0; font: 400 14px / 1.4 var(--ui); color: var(--text-2); }
+.sh-pv ul { margin: 0; padding-left: 1.2em; font: 400 14px / 1.4 var(--ui); color: var(--text-2); }
+.sh-gl { display: flex; align-items: center; justify-content: space-between; }
+.sh-gacts { display: flex; gap: 4px; }
+.sh-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--accent); font: 600 14px / 1 var(--ui); }
+.sh-link svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.sh-note { margin: 4px 10px 12px; color: var(--text-3); font: 400 14px / 1.4 var(--ui); }
+
+/* ── the slide list (G) and the black screen (B . W) ── */
+.dk-jump { position: absolute; left: 50%; bottom: calc(max(88px, env(safe-area-inset-bottom, 0px) + 60px)); transform: translate(-50%, 0); width: min(560px, calc(100% - 24px)); max-height: min(70svh, calc(100% - 120px)); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--edge); border-radius: 18px; box-shadow: 0 12px 40px rgb(0 0 0 / 0.22); overflow: hidden; pointer-events: auto; opacity: 0; visibility: hidden; transition: opacity 200ms var(--ease-arrive), transform 200ms var(--ease-arrive), visibility 0s linear 200ms; }
+.dk-jump[data-open="true"] { opacity: 1; visibility: visible; transition-delay: 0s; }
+.dk-jump:not([data-open="true"]) { transform: translate(-50%, 8px); }
+.dk-jump-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px 8px 18px; font: 600 15px var(--ui); color: var(--text); }
+.dk-jump-h button { width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--text-2); display: grid; place-items: center; }
+.dk-jump-h svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.dk-jump-list { overflow-y: auto; padding: 0 8px 10px; }
+.dk-jump-list h3 { margin: 10px 10px 4px; font: 600 12px var(--ui); letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-3); }
+.dk-jump-list ol { list-style: none; margin: 0; padding: 0; }
+.dk-jump-list button { width: 100%; min-height: 44px; display: grid; grid-template-columns: 32px 1fr; align-items: center; column-gap: 8px; padding: 6px 10px; border: 0; border-radius: 12px; background: transparent; text-align: left; font: 500 15px var(--ui); color: var(--text); }
+.dk-jump-list button:hover, .dk-jump-list button:focus-visible { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.dk-jump-list button[aria-current="true"] { background: var(--accent-soft); font-weight: 600; }
+.dk-jump-list .n { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.dk-black { position: fixed; inset: 0; z-index: 90; background: #000; opacity: 0; pointer-events: none; transition: opacity 220ms var(--ease-arrive); }
+.dk-black[data-on="true"] { opacity: 1; pointer-events: auto; cursor: none; }
+
 /* no WebGL 2 */
 .sh-nogl { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: var(--bg); color: var(--text); font-family: var(--ui); z-index: var(--z-chrome, 20); }
 .sh-nogl div { max-width: 420px; } .sh-nogl h1 { font: 600 26px / 1.2 var(--display); margin: 0 0 10px; } .sh-nogl p { margin: 0 0 18px; color: var(--text-2); font-size: 16px; line-height: 1.45; }
 .sh-nogl a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 22px; border-radius: 999px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; }
 
-@media (prefers-reduced-motion: reduce) { .sh-root, .sh-root * { transition-duration: 1ms !important; } }
+/* Reduce Motion: src/ui/a11y/reduced.css */
 
 /* the sheets' extras */
 .sh-hit-row b { font-weight: 600; color: var(--accent); }
@@ -191,9 +183,17 @@
 :where(.dk-settings) button { font: inherit; color: inherit; cursor: pointer; }
 
 /* diagnostics: bottom-left, never over the controls it measures */
-.sh-diag { position: absolute; left: calc(var(--safe-l, 0px) + 8px); bottom: calc(var(--safe-b, 0px) + 8px); display: flex; flex-direction: column; gap: 4px; pointer-events: none; z-index: 6; }
+.sh-diag { position: absolute; left: calc(var(--safe-l, 0px) + var(--m-fps-inset)); bottom: calc(var(--safe-b, 0px) + var(--m-fps-inset) + 56px); display: flex; flex-direction: column; gap: 4px; pointer-events: none; z-index: 6; }
 .sh-diag-box { margin: 0; padding: 4px 8px; border-radius: 8px; background: rgb(0 0 0 / 0.72); color: #fff; font: 11px / 1.35 ui-monospace, Menlo, monospace; white-space: pre-wrap; max-width: min(520px, 92vw);
   opacity: 0; visibility: hidden; transition: opacity 200ms var(--sh-ease), visibility 0s linear 200ms; }
 .sh-diag-box[data-on="true"] { opacity: 1; visibility: visible; transition-delay: 0s; }
 
-/* the colour key (B3's Legend) stands under the figure, centred; it fades with the talk */
+
+/* ════════ the 2D app's chrome, from its stylesheets (every number is in metrics.ts with the rule it comes from) ════════ */
+.sh-root { --sh-shadow-pill: 1px 1px 2px rgb(var(--shadow-rgb, 0 0 0) / 0.08), inset 0 0 0 1px var(--edge); }
+.sh-root :where(button) { border: 0; background: transparent; padding: 0; }
+.sh-root :where(.sh-ic) { flex: none; }
+.sh-chev { width: 16px; height: 16px; color: var(--text-3); transition: rotate 200ms var(--sh-ease); }
+[aria-expanded="true"] > .sh-chev, [aria-expanded="true"] .sh-chev { rotate: 180deg; }
+/* The always-on chrome (top bar, view pill, dock, zoom group, credit, frame rate) is the 2D app's own markup and stylesheets (src/ui/css2d, copied unchanged); chrome-3d.css only lays them over the canvas. */
+.sh-pop { position: fixed; }

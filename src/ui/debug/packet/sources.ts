@@ -1,0 +1,61 @@
+// What the page can say for a bug packet (the 2D app's packet/sources.js): the screen report with its findings, the recorder's last seconds with the motion rules run over
+// them, the state link, the device and the build. Everything is optional: a build without the recorder still makes a packet, and the packet says what it lacks.
+// Runs on a tap, never in a frame.
+import { buildPacket } from '../core/packet.copied.js';
+import { appSnapshot } from '../screen/app.ts';
+import { collectDom } from '../screen/raw.ts';
+import { buildScreen, screenText } from '../screen/build.ts';
+import { recorder } from '../watch/mount.ts';
+import { captureState, stateLink, baseOf } from './state.ts';
+import { caughtCount } from '../caught.ts';
+import { useShell } from '../../shell/store.ts';
+import { useSettings } from '../../../state/settings.ts';
+import { readerList } from '../core/registry.copied.js';
+import { buildLabel } from '../../shell/build-pill.ts';
+
+/** The screen report as it is now, with the self-check findings (the state rules; the motion rules when the recorder holds a history). */
+export function screenNow(detail: 'summary' | 'full' = 'summary'): Record<string, any> {
+  const rec = recorder();
+  const history = rec ? Object.assign(rec.samples(), { events: rec.events() }) : undefined;
+  return buildScreen({ app: appSnapshot(), dom: collectDom(), detail, history });
+}
+export { screenText, readerList };
+
+export function buildInfo(): { release: string; badge: string; commit: string } {
+  const build = String(import.meta.env.VITE_BUILD ?? 'dev');
+  const label = buildLabel(import.meta.env.VITE_BUILD as string | undefined);
+  const badge = document.getElementById('preview-badge')?.textContent?.replace(/\s+/g, ' ').trim() || (label ? `PREVIEW · ${label}` : 'Live site');
+  return { release: build, badge, commit: /^[0-9a-f]{7,40}$/.test(build) ? build : (label.match(/[0-9a-f]{7,40}/)?.[0] ?? '') };
+}
+
+export function deviceInfo(): Record<string, unknown> {
+  const app = appSnapshot();
+  return { ua: navigator.userAgent, screen: `${innerWidth}x${innerHeight}`, dpr: devicePixelRatio || 1, renderer: app.memory.renderer ?? '', quality: String(useSettings.getState().figureDetail), look: app.look };
+}
+
+/**
+ * The packet for the screen as it is now. note: what the person wrote. Never throws: a part that cannot be made is named in the packet's `missing` or in a finding.
+ */
+export async function packetNow({ note = '' }: { note?: string } = {}): Promise<Record<string, any>> {
+  const app = appSnapshot(), sh = useShell.getState();
+  const state = captureState(app, { figure: { ...sh.figure } as Record<string, unknown>, labels: sh.figure.labelLevel, running: sh.transport.running, speed: sh.transport.speed });
+  const link = stateLink(state, baseOf(location));
+  let screen: Record<string, any> | null = null, text = '', findings: unknown[] | null = null, history: unknown = null, watchFindings: unknown[] = [];
+  const rec = recorder();
+  if (rec) {
+    try { history = rec.exportHistory(10); } catch { /* the recorder is off */ }
+    try { watchFindings = rec.findings().map((f) => ({ rule: f.rule, what: f.what, where: f.where, why: f.why, owner: f.owner, at: f.at, scope: 'motion' })); } catch { /* ditto */ }
+  }
+  try {
+    const full = screenNow('summary');
+    text = screenText(full);
+    const { findings: f, ...rest } = full;
+    findings = (f as unknown[]) ?? [];
+    screen = rest;
+  } catch (e) {
+    text = `(the screen report failed: ${(e as Error)?.message ?? e})`;
+    findings = [{ rule: 'screen-failed', what: 'The screen report could not be made', where: String((e as Error)?.message ?? e) }];
+  }
+  const mem = app.memory;
+  return buildPacket({ state, link, screen, screenText: text, history, findings, watchFindings, device: deviceInfo(), build: buildInfo(), health: { errors: caughtCount(), ...(mem.gpuMB != null ? { gpuMB: Math.round(mem.gpuMB) } : {}) } }, { note });
+}

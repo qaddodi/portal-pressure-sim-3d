@@ -2,11 +2,12 @@
 // tests/parity-score.test.ts prints it and the `?parity` page (src/parity/ParityPage.tsx) shows it, so both always say the same numbers.
 export interface Row { id: string; area: string; batch: string; label: string }
 export interface Claimed { id: string; wired: boolean; file: string }
-export interface Tally { y: number; x: number; w: number }
+/** y = rows in the 2D app, x = present (on screen), w = wired (does what the 2D one does), m = matches 2D (the owner checked it on his device: src/parity/matches.ts). */
+export interface Tally { y: number; x: number; w: number; m: number }
 export interface Score {
   total: Tally;
   byBatch: { batch: string; tally: Tally }[];
-  byArea: { group: string; tally: Tally; areas: string[]; batches: string[]; rows: (Row & { state: 'missing' | 'present' | 'wired' })[] }[];
+  byArea: { group: string; tally: Tally; areas: string[]; batches: string[]; rows: (Row & { state: 'missing' | 'present' | 'wired' | 'matches' })[] }[];
   unknown: Claimed[];
   duplicates: { id: string; files: string[] }[];
 }
@@ -40,10 +41,11 @@ export const AREA_GROUPS: { group: string; areas: string[] }[] = [
   { group: 'Slide camera shots', areas: ['camera'] },
 ];
 
-const empty = (): Tally => ({ y: 0, x: 0, w: 0 });
-function add(t: Tally, state: 'missing' | 'present' | 'wired') { t.y++; if (state !== 'missing') t.x++; if (state === 'wired') t.w++; }
+const empty = (): Tally => ({ y: 0, x: 0, w: 0, m: 0 });
+function add(t: Tally, state: 'missing' | 'present' | 'wired' | 'matches') { t.y++; if (state !== 'missing') t.x++; if (state === 'wired' || state === 'matches') t.w++; if (state === 'matches') t.m++; }
 
-export function score(rows: readonly Row[], claimed: readonly Claimed[]): Score {
+export function score(rows: readonly Row[], claimed: readonly Claimed[], matches: readonly string[] = []): Score {
+  const ok = new Set(matches);
   const ids = new Set(rows.map((r) => r.id));
   const first = new Map<string, Claimed>();
   const files = new Map<string, Set<string>>();
@@ -54,7 +56,8 @@ export function score(rows: readonly Row[], claimed: readonly Claimed[]): Score 
     (files.get(c.id) ?? files.set(c.id, new Set()).get(c.id)!).add(c.file);
   }
   const duplicates = [...files].filter(([, f]) => f.size > 1).map(([id, f]) => ({ id, files: [...f] }));
-  const state = (r: Row) => { const c = first.get(r.id); return c ? (c.wired ? 'wired' as const : 'present' as const) : 'missing' as const; };
+  // (a row can match only if a batch also claims it wired: a matching row that is not built is a stale entry)
+  const state = (r: Row) => { const c = first.get(r.id); return c ? (c.wired ? (ok.has(r.id) ? 'matches' as const : 'wired' as const) : 'present' as const) : 'missing' as const; };
 
   const total = empty();
   const per = new Map<string, Tally>();
@@ -80,4 +83,4 @@ export function score(rows: readonly Row[], claimed: readonly Claimed[]): Score 
   };
 }
 
-export const pct = (t: Tally, of: 'x' | 'w' = 'x') => (t.y ? Math.round((100 * t[of]) / t.y) : 0);
+export const pct = (t: Tally, of: 'x' | 'w' | 'm' = 'x') => (t.y ? Math.round((100 * t[of]) / t.y) : 0);

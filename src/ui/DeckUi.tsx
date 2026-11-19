@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
+import './css2d/index.css';   // the 2D app's own stylesheets, lifted unchanged (scripts/copy-2d-css.mjs); the shell imports the same file, loaded once
 import './deck-ui.css';
-import { HVPG_DECK } from '../decks/hvpg.ts';
 import { useEngine } from '../engine/index.ts';
 import { useDeck } from '../state/deck.ts';
 import { useUi } from './ui-store.ts';
@@ -11,6 +11,9 @@ import { CardLayer } from './cards/CardLayer.tsx';
 import { PresenterBar } from './deck/PresenterBar.tsx';
 import { useDeckInput } from './deck/useDeckInput.ts';
 import { linkScene } from './deck/scene-link.ts';
+import { linkModel } from './talk/deck-model.ts';
+import { JumpList, BlackScreen } from './deck/JumpList.tsx';
+import { noteResume } from './deck/resume.ts';
 
 /** The talk's UI: cards, the wallet, the presenter bar. One overlay above the stage; it measures itself, so it needs only a positioned, full-size parent. */
 export function DeckUi() {
@@ -19,19 +22,26 @@ export function DeckUi() {
   const device = useUi((s) => s.device);
   const vp = useUi((s) => s.vp);
   const setViewport = useUi((s) => s.setViewport);
+  const deck = useUi((s) => s.deck);
+  const nonce = useUi((s) => s.nonce);
   const hasStops = useUi((s) => s.stops.length > 0);
   useDeckInput();
 
   // the talk: its stops, mirrored into the deck store the scene reads (slide 0 is the title)
   useEffect(() => {
-    const stops = stopsOf(HVPG_DECK);
-    useUi.getState().setStops(stops);
-    useDeck.getState().open(HVPG_DECK.id, stops.length - 1, 0);
-    return useUi.subscribe((s, prev) => { if (s.pos.stop !== prev.pos.stop) useDeck.getState().goto(s.pos.stop); });
-  }, []);
+    if (!deck) return;
+    const stops = stopsOf(deck);
+    const at = Math.min(useUi.getState().startAt, stops.length - 1);
+    useUi.getState().setStops(stops, at);
+    useDeck.getState().open(deck.id, stops.length - 1, at);
+    const note = () => { const s = useUi.getState(); noteResume(deck.id, s.pos.stop, s.stops.length); };
+    return useUi.subscribe((s, prev) => { if (s.pos.stop !== prev.pos.stop) { useDeck.getState().goto(s.pos.stop); note(); } });
+  }, [deck, nonce]);
 
   // the scene follows the talk: the shot, the room the cards leave, the catheter
   useEffect(() => linkScene(), []);
+  // the slide's patient, when it names one
+  useEffect(() => linkModel(), []);
 
   // the engine's headline numbers, mirrored for the cards
   useEffect(() => {
@@ -64,13 +74,19 @@ export function DeckUi() {
   const vars = {
     '--fs-deck': `${t.deckTitle}px`, '--lh-deck': t.deckTitleLead, '--fs-title': `${t.slideTitle}px`, '--fs-title-trim': `${t.slideTitleTrim}px`, '--lh-title': t.slideTitleLead,
     '--fs-body': `${t.body}px`, '--lh-body': t.bodyLead, '--fs-data': `${t.data}px`, '--fs-kicker': `${t.kicker}px`, '--fs-big': `${t.bigNumber}px`,
-    '--pad-x': `${pad.x}px`, '--pad-y': `${pad.y}px`, '--r': `${Math.round(radius(vp.w, vp.h, layout))}px`,
+    '--pz-tk-trim': t.slideTitle ? t.slideTitleTrim / t.slideTitle : 1, '--pad-x': `${pad.x}px`, '--pad-y': `${pad.y}px`, '--r': `${Math.round(radius(vp.w, vp.h, layout))}px`,
   } as CSSProperties;
+  // the 2D app's own root classes: `pz` is its card layer, `stack` a phone or an upright iPad, `tab` the iPad, `short` a wide screen under 860 px, `pz-card` every screen with floating cards,
+  // `pz-wide` the same with the data card stacked under the words. The lifted 2D stylesheet (src/ui/css2d) keys its type, colour and glass on these.
+  const stacked = layout === 'stack' || layout === 'tab';
+  const cls = ['deck-ui', 'pz', stacked && 'stack', layout === 'tab' && 'tab', layout === 'short' && 'short', !stacked && 'pz-card pz-wide'].filter(Boolean).join(' ');
   return (
-    <div ref={root} className="deck-ui" data-device={device} data-layout={layout} data-sideways={sideways || undefined} style={{ position: 'fixed', zIndex: 'var(--z-cards)' as unknown as number, ...vars }}>
+    <div ref={root} className={cls} data-device={device} data-layout={layout} data-sideways={sideways || undefined} style={{ position: 'fixed', zIndex: 'var(--z-cards)' as unknown as number, ...vars }}>
       <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'env(safe-area-inset-top, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }} />
-      {hasStops && <PresenterBar title={HVPG_DECK.title} />}
-      {hasStops && <CardLayer deck={HVPG_DECK} />}
+      {deck && hasStops && <PresenterBar title={deck.title} />}
+      {deck && hasStops && <CardLayer deck={deck} />}
+      {deck && hasStops && <JumpList />}
+      {deck && <BlackScreen />}
     </div>
   );
 }
