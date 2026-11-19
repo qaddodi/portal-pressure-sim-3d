@@ -8,6 +8,7 @@
 //
 // Rule for this table: a feature is listed once, with ONE owner. A slide that needs a feature nobody owns fails the test, so none is forgotten.
 import { CHARTS } from '../../ui/charts/registry.ts';
+import { toolEvidence } from '../../ui/talk/tool-landed.ts';
 import { STATIONS, TERM_STATIONS } from '../../scene/labels/stations.ts';
 import { LENS_IDS, SINCE_BASELINE_FED } from '../../scene/lenses/model.ts';
 import type { CopiedSlide } from './types.ts';
@@ -31,6 +32,9 @@ const done = (id: string, batch: string, what: string, evidence: string): Featur
 /** A chart look of batch B10: landed when the chart registry says it is done. */
 const chart = (kind: string, what: string): Feature => ({ id: `tool:${kind}`, batch: 'B10', what, landed: chartDone(kind), evidence: chartDone(kind) ? 'src/ui/charts/registry.ts' : undefined });
 
+/** An instrument of batch B11 in the data card: landed when its entry of ui/talk/instruments.ts says it plays from a slide (the pane that carries it is the evidence). */
+const instrument = (kind: string, what: string): Feature => ({ id: `tool:${kind}`, batch: 'B11', what, landed: toolEvidence(kind) != null, evidence: toolEvidence(kind) ?? undefined });
+
 const TABLE: Feature[] = [
   // the words and the figure of the slice (already here)
   done('words', 'S3', 'The teaching card: kicker, title, line, equation, ask, terms', 'src/ui/cards/TeachingCard.tsx'),
@@ -49,13 +53,14 @@ const TABLE: Feature[] = [
   chart('flowtime', 'Lines over days'), chart('trial', 'A trial card'), chart('flows', 'Where the portal blood goes'), chart('lumen', 'A vessel cross-section'),
   chart('forest', 'Forest plot of trials'), chart('profile', 'Pressure profile, gut to heart'), chart('path', 'Guideline path map'), chart('curve', 'One quantity against another'),
   chart('plane', 'Two-quantity plane with zones'), chart('shift', 'Change from healthy'), chart('trace', 'The course on one chart'), chart('evgraph', 'Event graph'),
-  hook('tool:doppler', 'B11', 'The Doppler spectrum with its probe on the figure'),
-  hook('tool:fibroscan', 'B11', 'FibroScan reading with the probe on the figure'),
-  hook('tool:hvpg', 'B11', 'The HVPG monitor tracing'),
+  instrument('doppler', 'The Doppler spectrum with its probe on the figure'),
+  instrument('fibroscan', 'FibroScan reading with the probe on the figure'),
+  instrument('hvpg', 'The HVPG monitor tracing'),
   done('tool:vitals', 'B11', 'The bedside monitor: EKG strip over heart rate, pressure, output, hemoglobin', 'src/ui/charts/vitals/VitalsCard.tsx'),
-  hook('tool:abdomen', 'B11', 'The abdomen picture: ascites and the pressure inside'),
-  hook('tool:wall', 'B11', 'The varix wall in cross-section'),
-  hook('tool:reading', 'B11', 'A readout list with a Why? for each'),
+  instrument('abdomen', 'The abdomen picture: ascites and the pressure inside'),
+  instrument('wall', 'The varix wall in cross-section'),
+  instrument('reading', 'The measurement card: the pressure monitor following the slide\'s procedure'),
+  instrument('scope', 'The endoscopic view at the slide\'s varix state'),
   { id: 'tool:course', batch: 'B10', what: 'A course over days', landed: chartDone('curve'), evidence: chartDone('curve') ? 'src/ui/charts/curve/CurveCard.tsx' : undefined },
   done('visual:table', 'B12', 'The summary table over the dimmed figure', 'src/ui/cards/TableCard.tsx'),
   { id: 'visual:plane', batch: 'B10', what: 'A plane over the dimmed figure', landed: chartDone('plane'), evidence: chartDone('plane') ? 'src/ui/charts/plane/PlaneCard.tsx' : undefined },

@@ -3,6 +3,7 @@
 // wired until the need's `landed()` is true. The parity claims (src/parity/b13a.ts) and tests/decks-ag-needs.test.ts read this, so a batch that lands a feature
 // flips its hook here and every slide that waited for it counts as wired in the same push.
 import { CHARTS } from '../../ui/charts/registry.ts';
+import { toolLanded } from '../../ui/talk/tool-landed.ts';
 import { TILE } from '../../ui/charts/tiles.generated.ts';
 import { LENS_IDS, SINCE_BASELINE_FED } from '../../scene/lenses/model.ts';
 import { CATHS } from '../schema.ts';
@@ -80,6 +81,7 @@ const LANDED_FIELDS: ReadonlySet<string> = new Set([
   'fig:wave',      // summary table wave column (ui/cards/WaveCell.tsx)
   'fig:stented',   // ui/deck/procs-link.ts
   'fig:layers',    // ui/deck/procs-link.ts
+  'fig:strain',    // the hold-to-strain button (ui/cards/SlideControls.tsx Strain, ui/talk/controls-run.ts strainHold)
 ]);
 
 /** The slide-field needs the cards print now, each with the file that prints it (tests/deck-card-fields.test.ts holds the file and the printing). A need is added here only once the card shows
@@ -100,7 +102,7 @@ export const CARD_LANDED: Readonly<Record<string, string>> = {
 };
 
 /** The compare buttons' kinds that the card carries: a button that switches the model, the patient, a time point or the lens, and the words and days it brings. */
-const COMPARE_LANDED = ['own', 'params', 'preset', 'slide', 'lens', 'title', 'line', 'days', 'kicker', 'site'];
+const COMPARE_LANDED = ['own', 'params', 'preset', 'slide', 'lens', 'gate', 'tool', 'title', 'line', 'days', 'kicker', 'site'];
 
 /** The hook a need id stands for. Families (`tool:<kind>`, `tile:<key>`, …) are resolved here from the registries the other batches keep. */
 export function hookOf(id: string): Hook | null {
@@ -114,7 +116,7 @@ export function hookOf(id: string): Hook | null {
     case 'reading': return { owner: 'B12', what: `the "${rest}" reading, worked out by the data card from the slide's own state (not an engine tile)`, landed: id in CARD_LANDED ? ready : claimed };
     case 'tile': return { owner: 'B10', what: `the ${rest} reading`, landed: () => rest in TILE };
     case 'data': return { owner: id === 'data:tiles' ? 'B12' : 'B10', what: id === 'data:tiles' ? 'the data card of tiles' : `the ${rest} of the data card`, landed: id === 'data:tiles' || id === 'data:graph' || id in CARD_LANDED ? ready : claimed }   // (data:graph: the event graph of a procedure slide reads the slide's `graph` (charts/evgraph/model.ts); on a flow-time or `graph: false` slide the field stays inert, as in 2D);
-    case 'tool': return { owner: 'B10', what: `the ${rest} instrument or chart`, landed: () => CHARTS.find((c) => c.kind === (rest === 'course' ? 'curve' : rest))?.status === 'done' }   // (the 2D `course` tool is the curve chart's second mode, CurveCard);
+    case 'tool': return { owner: 'B10', what: `the ${rest} instrument or chart`, landed: () => toolLanded(rest) };
     case 'lens': return { owner: 'B3', what: `the ${rest} colour lens`, landed: () => (LENS_IDS as readonly string[]).includes(rest) && (rest !== 'since' || SINCE_BASELINE_FED) };
     case 'cath': return { owner: 'B5', what: `the catheter's ${rest} state`, landed: () => (CATHS as readonly string[]).includes(rest) };
     case 'procedure': return { owner: 'B5', what: `the ${rest} procedure`, landed: () => PROCEDURE_PLAYS.has(rest) }   // (played on the figure by ui/deck/procs-link.ts);
