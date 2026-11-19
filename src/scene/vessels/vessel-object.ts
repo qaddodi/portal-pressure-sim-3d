@@ -94,7 +94,7 @@ export class VesselObject extends CelObject {
         px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 },
-        veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeKeep: { value: 0 },
+        veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 },
         lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, chainTex: blood.chainTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, casingLensA: { value: 0.64 }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 1 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
@@ -148,10 +148,11 @@ export class VesselObject extends CelObject {
 
   private tip: { a0: number; a1: number } | null = null;
   /** The fade at a free end (fades.ts). A faded vessel is blended, so it is transparent. */
-  setTipFade(f: { mode: number; from: number; to: number; a0: number; a1: number; keep: boolean }): void {
+  setTipFade(f: { mode: number; from: number; to: number; a0: number; a1: number; keep: boolean; line?: readonly [number, number, number, number] }): void {
     const u = this.toon.uniforms;
     u.fadeMode!.value = f.mode; u.fadeKeep!.value = f.keep ? 1 : 0;
     (u.fadeA!.value as Vector4).set(f.from, f.to, f.a0, f.a1);
+    if (f.line) (u.fadeLine!.value as Vector4).set(f.line[0], f.line[1], f.line[2], f.line[3]);
     this.tip = { a0: f.a0, a1: f.a1 };
     this.toon.transparent = true;
   }

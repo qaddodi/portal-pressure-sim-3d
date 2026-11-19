@@ -233,6 +233,12 @@ put('src/scene/blood/blood.copied.js', `${HEAD('blood.js')}${blood}`);
 // ---------- the fades at a vessel's free end (anatomy.js TIP_FADE, ART_FADE, TIP_CONNECT; stage-geo.js FADE_DOWN_Y) ----------
 const fadeDown = /const FADE_DOWN_Y = (\{[^}]*\});/.exec(stageGeo);
 if (!fadeDown) throw new Error('FADE_DOWN_Y not found in stage-geo.js');
+const fadeIn = /const FADE_IN = (\{[^}]*\});/.exec(stageGeo);
+if (!fadeIn) throw new Error('FADE_IN not found in stage-geo.js');
+const sinC9 = /SIN_FADE\.C9 = (\[[^\]]*\]);/.exec(stageGeo);
+if (!sinC9) throw new Error('SIN_FADE.C9 not found in stage-geo.js');
+const sinRow = /SIN_FADE\[id\] = \[a\[0\], a\[1\], b\[0\], b\[1\], ([^\]]*)\];/.exec(stageGeo);
+if (!sinRow) throw new Error('the SIN_FADE row not found in stage-geo.js');
 put('src/scene/vessels/fades.copied.ts', `${HEAD('anatomy.js TIP_FADE, ART_FADE, TIP_CONNECT; stage-geo.js FADE_DOWN_Y')}/** A vein that ends in the organ it drains fades in from nothing over this share of its length, from its first point (pieces already scaled). */
 export const TIP_FADE_2D: Record<string, number> = ${JSON.stringify(A.TIP_FADE)};
 /** The hepatic artery's fades: \`in\` over the share of its length from its start, \`out\` over the share at its end. */
@@ -241,6 +247,13 @@ export const ART_FADE_2D: Record<string, { in?: number; out?: number }> = ${JSON
 export const TIP_CONNECT_2D: Record<string, readonly string[]> = ${JSON.stringify(A.TIP_CONNECT)};
 /** Veins that run on out of the plate fade out between these two heights (2D y, world units). */
 export const FADE_DOWN_Y_2D: Record<string, readonly [number, number]> = ${JSON.stringify(new Function(`return ${fadeDown[1]}`)())};
+/** Veins that fade into the vessel they sink into (stage-geo.js FADE_IN): a linear mask [x1, y1, x2, y2, offset, alpha at the end (default 0.3)], 2D units, solid at the offset. */
+export const FADE_IN_2D: Record<string, readonly number[]> = ${JSON.stringify(new Function(`return ${fadeIn[1]}`)())};
+/** The liver beds (stage-geo.js SIN_FADE): faded along their course, from the portal end's node to the venous end's: [offset of the faintest point, alpha at the start, there, mode 3]. */
+export const SIN_EDGES_2D: readonly string[] = ${JSON.stringify([...A.SIN_EDGES])};
+export const SIN_FADE_ROW_2D: readonly number[] = [${sinRow[1]}];
+/** The ascending lumbar collateral's ghost behind the liver (SIN_FADE.C9): [x1, y1, x2, y2, offset, alpha at the start, faintest, mode 3]. */
+export const SIN_FADE_C9_2D: readonly number[] = ${sinC9[1]};
 `);
 
 // ---------- the cavernoma's channels (cavernoma-strand.js, with CAV_CHANNELS and CAV_GROW of anatomy.js) ----------
