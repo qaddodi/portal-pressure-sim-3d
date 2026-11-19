@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { LOOK_IDS, resolveLook, type LookId } from '../../looks/looks.ts';
 import { useSettings } from '../../state/settings.ts';
 import { useUi } from '../ui-store.ts';
+import type { DeviceClass } from '../layout/device.ts';
 import { chartType, type ChartType } from './type.ts';
 import { paletteOf, type Palette } from './palette.ts';
 import { ChartPainter } from './painter.ts';
@@ -9,6 +10,9 @@ import type { Frame } from './scene.ts';
 
 /** What a chart's model gets: the box's width, the colours of the look, the type of the device. */
 export interface ChartCtx { w: number; pal: Palette; type: ChartType; look: LookId }
+
+/** A look and a device class forced on the charts below (the ?charts gallery shows every look at every width at once). Absent: the app's own. */
+export const ChartEnv = createContext<{ look?: LookId; device?: DeviceClass } | null>(null);
 
 /** The look in force now ('system' follows the device). */
 export function useLookId(): LookId {
@@ -41,8 +45,10 @@ export function Chart({ build, deps, label, tag = 'chart', className }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const painter = useRef<ChartPainter | null>(null);
   const [w, setW] = useState(0);
-  const look = useLookId();
-  const device = useUi((s) => s.device);
+  const env = useContext(ChartEnv);
+  const appLook = useLookId();
+  const appDevice = useUi((s) => s.device);
+  const look = env?.look ?? appLook, device = env?.device ?? appDevice;
   const type = useMemo(() => chartType(device), [device]);
   const first = useRef(true);
 

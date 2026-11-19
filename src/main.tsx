@@ -9,6 +9,7 @@ import { fontsReady } from './boot/fonts.ts';
 import { bootEngine } from './engine/index.ts';
 import { App } from './App.tsx';
 import { mountPerf } from './ui/perf/mount.ts';
+import { mountCharts } from './ui/charts/gallery/mount.tsx';
 
 const dark = window.matchMedia('(prefers-color-scheme: dark)');
 const paint = () => applyLook(resolveLook(useSettings.getState().look, dark.matches));
@@ -21,5 +22,6 @@ async function start() {
   if (!fonts) console.warn('[boot] fonts were late; continuing with fallback faces');
   createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
   mountPerf();
+  mountCharts();   // ?charts: the charts gallery (batch B10)
 }
 void start();
