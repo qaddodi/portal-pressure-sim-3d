@@ -113,5 +113,9 @@
 .ac-state-row .st-word.ok { color: var(--text-2); }
 .ac-state-row :is(.st-word.rev, .st-word.bad) { color: var(--danger-ink); }
 .ac-state-row .st-word.warn { color: var(--caution-ink); }
-/* (a short screen, an iPhone on its side: the face keeps its About reachable rather than cut) */
-.ac-details { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+/* (a short screen, an iPhone on its side: 2D's own rule, app-03-layouts.css .ad-scroll: the head stays, and what is under it scrolls up and down, never sideways, only when it is taller than the card's room
+   (2D grows the card with its words as far as the room allows and scrolls past that, so no row is ever cut off), the scrollbar hidden, a touch panning vertically only) */
+.ac-details { min-height: 0; flex: 0 1 auto; overflow: hidden; }
+.ad-scroll { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; touch-action: pan-y; }
+.ad-scroll::-webkit-scrollbar { display: none; }
+.ad-scroll > :first-child { margin-top: 0; }

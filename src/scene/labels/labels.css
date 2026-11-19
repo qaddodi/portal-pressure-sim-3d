@@ -36,6 +36,11 @@
 .lb-anchor { width: var(--lb-ring); height: var(--lb-ring); margin: calc(var(--lb-ring) / -2) 0 0 calc(var(--lb-ring) / -2); border-radius: 50%; box-sizing: border-box;
   border: var(--lb-ring-w) solid var(--lb-name); background: var(--lb-ring-fill); }
 
+/* a station the slide's words light takes the term's colour (2D .lb.term: the station colour, a step toward the text so it reads on every look) */
+.lb[data-tone] .lb-name, .lb[data-tone] .lb-val { color: color-mix(in srgb, var(--lb-tone) 80%, var(--lb-val)); }
+.lb-anchor[data-tone] { border-color: var(--lb-tone); }
+.lb-lead[data-tone] { background: var(--lb-tone); }
+
 /* ── the catheter's reading cards (the 2D app's .cath-label, .cath-sum, callout.js: cath-dom.ts builds them, cath.ts holds every number). A card is its glass (one
    shape, the card and its pointer: clipped from one path, its 1 px hairline that path stroked inside it), then the name, the number and the unit. Sizes, paddings, type
    and tones are the layer's custom properties (--cl-*, written from cath.ts cathVars and cathLook); this file holds no figure of its own. Opacity is written on a
@@ -51,6 +56,8 @@
 .cl[data-tone="ok"] { --c: var(--cl-ok); --c-ink: var(--cl-ok-ink); }
 .cl[data-tone="caution"] { --c: var(--cl-caution); --c-ink: var(--cl-caution-ink); }
 .cl[data-tone="danger"] { --c: var(--cl-danger); --c-ink: var(--cl-danger-ink); }
+.cl[data-tone="custom"] { --c: var(--cl-tone); --c-ink: color-mix(in srgb, var(--cl-tone) 78%, var(--cl-text)); }
+.cl[data-tone="note"] { --c: var(--cl-text); --c-ink: var(--cl-text); }
 .cl > * { opacity: 0; }
 .cl .cl-k { font-size: var(--cl-name); font-weight: var(--cl-name-w); letter-spacing: var(--cl-track); color: var(--c-ink); }
 .cl .cl-n { font-size: var(--cl-num); line-height: var(--cl-num-line); font-weight: var(--cl-num-w); font-variant-numeric: tabular-nums; color: var(--c-ink); }
@@ -99,3 +106,20 @@
 .lb-walk button { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; background: none; }
 .lb-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
+
+/* ── what a slide stands on the figure besides the names (figure-cards.ts): a mark's words, a site's reading, a numbered step, a caliper. The card is the catheter's
+   (.cl); a step is its round form; the portal blood's split is the 2D app's own markup, styled by its lifted rules (.cath-label.site.split). ── */
+.cl[data-fig="mark"] .cl-k { letter-spacing: 0; }
+.cl[data-fig="step"] { justify-content: center; padding: 0; border-radius: 50%; }
+.cl[data-fig="step"] .cl-k { color: var(--bg, #fff); font-weight: 700; letter-spacing: 0; }
+.cl[data-fig="step"] .cl-glass path { fill: var(--text); stroke: none; }
+.cl[data-fig="caliper"] .cl-k { letter-spacing: 0; }
+.cl-cal { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; }
+.cl-cal[data-on] { visibility: visible; }
+.cl-cal-line { position: absolute; left: 0; top: 0; width: 1px; height: 2px; margin-top: -1px; transform-origin: 0 50%; background: var(--text); will-change: transform; }
+.cl[data-fig="span"] .cl-k { letter-spacing: 0; }
+/* the Circuit's bracket under a span of stations (2D .fx-span-line: the quiet ink, 1.6 px, round ends): its line and a tick at each end, each a thin bar moved by transform */
+.cl-span { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; }
+.cl-span[data-on] { visibility: visible; }
+.cl-span-seg { position: absolute; left: 0; top: 0; width: 1px; height: 1.6px; margin-top: -0.8px; transform-origin: 0 50%; background: var(--text-2); will-change: transform; }
+.cl-cal-tick { position: absolute; left: 0; top: 0; width: 2px; height: 12px; margin: -6px 0 0 -1px; background: var(--text); will-change: transform; }

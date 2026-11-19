@@ -11,6 +11,7 @@ import { RES_FS, RES_VS } from '../scene/circuit/resistors.ts';
 import { DYE_FS, DYE_VS } from '../scene/disease/dye.ts';
 import { CHART_FS, CHART_VS } from '../ui/charts/gl.ts';
 import { SYNTH_FS, SYNTH_VS } from '../ui/tests/copied/doppler-synth.copied.js';
+import { LOBULE_INK_FS, LOBULE_INK_VS, LOBULE_TOON_FS, LOBULE_TOON_VS } from '../scene/lobule/shading.ts';
 import { SPECTRUM_FS, SPECTRUM_VS } from '../ui/tests/doppler/spectrum-gl.ts';
 import { LOBULE_PLATE_FS, LOBULE_PLATE_VS } from '../scene/lobule/plate.ts';
 import { LOBULE_ZONES_FS, LOBULE_ZONES_VS } from '../scene/lobule/zones.ts';
@@ -29,6 +30,7 @@ export const GL_FILES: Record<string, string> = {
   'scene/circuit/resistors.ts': 'the Circuit resistor ribbons (made when the Circuit opens): registered by name',
   'scene/disease/dye.ts': 'the dye overlay (made when a bolus is given): registered by name',
   'scene/devices/device-object.ts': 'a device wears the toon shader with an alpha: found on the scene graph',
+  'scene/lobule/shading.ts': 'the lobule\'s vessels: the toon and ink shaders rewritten for 2D\'s three tones, line and discs: found on the scene graph',
   'scene/lobule/plate.ts': 'the lobule\'s tissue plate (2D\'s painter on a canvas texture): found on the scene graph',
   'scene/lobule/zones.ts': 'the lobule\'s Zones layer: found on the scene graph',
   'scene/lobule/field.ts': 'the neighbouring lobules out of focus: found on the scene graph',
@@ -45,7 +47,7 @@ export function namedSources(): Map<string, string> {
   const bare = (s: string) => s.replace(/^#version 300 es\n/, '');   // (the sinusoid view makes its materials without the version line)
   return new Map<string, string>([
     [bare(SINUSOID_VS), 'sinusoid'], [bare(SINUSOID_FS), 'sinusoid'], [bare(SINUSOID_PVS), 'sinusoid particles'], [bare(SINUSOID_PFS), 'sinusoid particles'],
-    [VESSEL_VS, 'vessel'], [VESSEL_FS, 'vessel'], [TOON_VS, 'toon'], [TOON_FS, 'toon'], [INK_VS, 'ink'], [INK_FS, 'ink'],
+    [VESSEL_VS, 'vessel'], [VESSEL_FS, 'vessel'], [TOON_VS, 'toon'], [TOON_FS, 'toon'], [INK_VS, 'ink'], [INK_FS, 'ink'], [LOBULE_TOON_VS, 'lobule toon'], [LOBULE_TOON_FS, 'lobule toon'], [LOBULE_INK_VS, 'lobule ink'], [LOBULE_INK_FS, 'lobule ink'],
     [ORGAN_VS, 'organ wash'], [ORGAN_FS, 'organ wash'], [DYE_VS, 'dye overlay'], [DYE_FS, 'dye overlay'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [LOBULE_PLATE_VS, 'lobule plate'], [LOBULE_PLATE_FS, 'lobule plate'], [LOBULE_ZONES_VS, 'lobule zones'], [LOBULE_ZONES_FS, 'lobule zones'], [LOBULE_FIELD_VS, 'lobule field'], [LOBULE_FIELD_FS, 'lobule field'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'],
   ]);
 }

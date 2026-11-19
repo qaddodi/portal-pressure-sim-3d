@@ -43,12 +43,12 @@ test('the claims name only inventory rows, each once, and wired means the figure
   assert.equal(byId.get('card:structure/portal-vein-details#2'), true);
   assert.equal(byId.get('card:structure/organ-liver'), true);
   assert.equal(byId.get('card:structure/lobule-triad'), true);
-  // not reachable by a tap: the valved lower-limb veins and a custom shunt are not drawn on the body, the varices and the fundus have no mesh to tap, the arteriole sits in the tract
-  for (const k of ['valve', 'shunt-crossing', 'organ-varices', 'organ-gastric', 'lobule-artery']) assert.equal(byId.get(`card:structure/${k}`), false, k);
+  // not reachable: the valved lower-limb veins and a custom shunt are not drawn on the body (the varices' and the fundus' cards open from their station's label, the arteriole from a tap on it: tests/action-labels.test.ts)
+  for (const k of ['valve', 'shunt-crossing']) assert.equal(byId.get(`card:structure/${k}`), false, k);
   for (const k of ['← → ↑ ↓', 'Shift ← →']) assert.equal(byId.get(`shortcut:Reach and act/${k}`), true, k);   // (Click, 1 – 9 and Tab · Enter are claimed by b1.ts)
-  // the lobule parts have no Details face in 2D: those rows are not claimed
-  assert.equal(byId.has('card:structure/lobule-triad-details'), false);
-  assert.equal(reachable({ type: 'organ', id: 'varices' }), false);
+  // the lobule parts have no Details face in 2D: the gallery's "-details" specimen is the card itself, claimed with the card
+  assert.equal(byId.get('card:structure/lobule-triad-details'), true);
+  assert.equal(reachable({ type: 'organ', id: 'varices' }), true, 'by its station\'s label');
 });
 
 test('a tap on an organ or a lobule part opens the card 2D opens', () => {

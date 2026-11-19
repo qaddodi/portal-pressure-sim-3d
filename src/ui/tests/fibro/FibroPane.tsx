@@ -14,6 +14,7 @@ import { StiffCard } from '../../charts/stiff/StiffCard.tsx';
 import type { PaneProps } from '../TestsLayer.tsx';
 import { useTests } from '../store.ts';
 import { metricsOf } from '../frame.ts';
+import { useSlidePin, pinnedStiff } from '../slide/pin.ts';
 import { RATE } from '../copied/table-marks.copied.js';
 import { fix1 } from '../copied/num.copied.js';
 import { fibroscanLabel } from '../copied/instrument-aria.copied.js';
@@ -37,9 +38,11 @@ function simTime(now: number, running: boolean): number {
 }
 
 interface Reading { lsm: number | null; ssm: number | null; plt: number | null; ctx: 'congested' | 'vascular' | null; word: { liver: string; spleen: string } }
-function readingNow(): Reading {
+function readingNow(slide = false): Reading {
   const m = metricsOf(latest.frame);
-  const lsm = Number.isFinite(m?.lsm) ? (m.lsm as number) : null, ssm = Number.isFinite(m?.ssm) ? (m.ssm as number) : null;
+  // (a slide's card shows the slide's own settled stiffness, the tiles' and the words' number; the live value swings with each beat)
+  const pl = slide ? pinnedStiff('liver') : null, ps = slide ? pinnedStiff('spleen') : null;
+  const lsm = pl ?? (Number.isFinite(m?.lsm) ? (m.lsm as number) : null), ssm = ps ?? (Number.isFinite(m?.ssm) ? (m.ssm as number) : null);
   const plt = Number.isFinite(m?.spleen?.platelets) ? (m.spleen.platelets as number) : null;
   return {
     lsm, ssm, plt, ctx: m ? (lsmContext(m) as Reading['ctx']) : null,
@@ -47,10 +50,11 @@ function readingNow(): Reading {
   };
 }
 
-export function FibroPane({ plot }: PaneProps) {
+export function FibroPane({ plot, slide = false, bar = true, platelets = false }: PaneProps & { /** a slide's data card: the slide's own numbers (slide/pin.ts), no Liver/Spleen switch (2D createFibroScan switcher: false) */ slide?: boolean; /** a slide's tool.bar === false leaves the stiffness bar out; platelets: the slide's tiles name `plt` (the bar then says the platelets too) */ bar?: boolean; platelets?: boolean }) {
+  useSlidePin((s) => s.n);
   const organ = useTests((s) => s.fibro), setFibro = useTests((s) => s.setFibro);
   // the reading, as text: the pane re-renders only when a number or a word changes
-  const json = useEngine((s) => { void s.frames; return JSON.stringify(readingNow()); });
+  const json = useEngine((s) => { void s.frames; return JSON.stringify(readingNow(slide)); });
   const r = useMemo(() => JSON.parse(json) as Reading, [json]);
   const model = organ === 'liver' ? r.lsm : r.ssm;
   const h = Math.max(200, Math.round(plot));
@@ -123,14 +127,16 @@ export function FibroPane({ plot }: PaneProps) {
   const label = fibroscanLabel(organ, none ? null : model, none ? '' : r.word[organ]);
   return (
     <div className="fs-pane">
-      <div className="pressure-switch fs-organ" role="group" aria-label="Organ">
-        {(ORGAN_WORDS as [OrganId, string][]).map(([id, name]) => <button key={id} type="button" className="ps-btn" data-organ={id} aria-pressed={id === organ} onClick={() => { if (id !== organ) setFibro(id); }}>{name}</button>)}
-      </div>
+      {slide ? null : (
+        <div className="pressure-switch fs-organ" role="group" aria-label="Organ">
+          {(ORGAN_WORDS as [OrganId, string][]).map(([id, name]) => <button key={id} type="button" className="ps-btn" data-organ={id} aria-pressed={id === organ} onClick={() => { if (id !== organ) setFibro(id); }}>{name}</button>)}
+        </div>
+      )}
       <div className="fs-box" style={{ height: h }} data-organ={organ}>
         <Chart tag={TAG} deps={[organ, h]} label={label} painter={painter}
           build={(c) => { ctxRef.current = c; painter.current?.setUnder(under); return paint(c, performance.now(), !!latest.frame?.running).frame; }} />
       </div>
-      <div className="fs-bar"><StiffCard lsm={none ? null : Math.round(parseFloat(shownTxt) * 10) / 10} plt={organ === 'liver' ? r.plt : null} organ={organ} ctx={r.ctx} note /></div>
+      {bar ? <div className="fs-bar"><StiffCard lsm={none ? null : Math.round(parseFloat(shownTxt) * 10) / 10} plt={organ === 'liver' && (!slide || platelets) ? r.plt : null} organ={organ} ctx={r.ctx} note={!slide} /></div> : null}
     </div>
   );
 }

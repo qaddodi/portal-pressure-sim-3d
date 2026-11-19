@@ -23,7 +23,7 @@ import { installCaught } from './ui/debug/caught.ts';
 import { mountDebug } from './ui/debug/mount.ts';
 import { isPreview } from './ui/debug/gate.ts';
 import { isFrameRequest } from './ui/debug/frame/request.ts';
-import { flagOn } from './ui/debug/flags.ts';
+import { flagOn, flagValue, debugPage } from './ui/debug/flags.ts';
 
 const dark = window.matchMedia('(prefers-color-scheme: dark)');
 const paint = () => applyLook(resolveLook(useSettings.getState().look, dark.matches));
@@ -52,6 +52,12 @@ async function start() {
     bootFrame();
     return;
   }
+  // ?look (the preview copy and a local run only): the Mac look board, an outer page that photographs the figure in a frame (WP11). It starts no app itself.
+  if (isPreview() && flagValue('look') === '' && !flagOn('capture') && !debugPage()) {
+    const { bootLookBoard } = await import('./debug/look-board.ts');
+    bootLookBoard();
+    return;
+  }
   if (!hasWebGL2()) { createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }
   const [fonts] = await Promise.all([fontsReady(), bootEngine().catch((err) => { console.error(err); })]);
   if (!fonts) console.warn('[boot] fonts were late; continuing with fallback faces');
@@ -59,7 +65,9 @@ async function start() {
   const eng = useEngine.getState();
   if (eng.status === 'crashed' || !eng.presetId) { createRoot(document.getElementById('root')!).render(<StrictMode><BootCrash reason={eng.crash} /></StrictMode>); return; }
   installCaught();
+  if (isPreview() && flagOn('capture')) { const m = await import('./debug/look-app.ts'); m.applyBefore(location.search); }   // ?capture: one look-board state (WP11)
   createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
+  if (isPreview() && flagOn('capture')) void import('./debug/look-app.ts').then((m) => m.mountLookCapture(location.search));
   mountA11y();   // the live region, the figure's description, slide announcements, Reduce Motion fades (batch B14)
   mountPerf();
   if (flagOn('gl')) void import('./debug/gl-check.tsx').then((m) => m.mountGl());   // ?gl: every shader program, compiled on this device (WP10)

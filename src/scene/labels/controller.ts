@@ -47,11 +47,18 @@ export interface LabelDeps {
   cathere(tip: Vector3, ahead: Vector3): 0 | 1 | 2;
   /** The body's labels stand aside while the figure is the Circuit (or on its way there): the map has its own captions (circuit/CircuitCaptions.tsx). */
   hidden?(): boolean;
+  /** Whether the varices (VAR) or the fundal varices (GV) exist now, as 2D's hasVarices answers it: no varices, no callout (a healthy patient's node is only the balance between
+   *  the coronary vein and the azygos, and a "varices" label on it would mislead), and the fundus label comes in with its varices. Absent: the old behaviour (VAR always, GV never). */
+  present?(id: 'VAR' | 'GV'): boolean;
 }
 
 export interface LabelState {
-  /** Stations the slide's words point at (bright, never dropped); when empty nothing is dimmed. */
+  /** Stations the slide's words light (bright, never dropped); when empty nothing is dimmed. */
   named: ReadonlySet<string>;
+  /** Stations the slide asks to have shown besides the figure's own names (never dropped, dim nothing). */
+  shown: ReadonlySet<string>;
+  /** The colour token each lit station's words take. */
+  tones: Readonly<Record<string, string>>;
   /** The picked vessel's edge ID (free play), or null. */
   picked: string | null;
   cath: CathState | null;
@@ -60,7 +67,7 @@ export interface LabelState {
   key: string | null;
 }
 
-export const NO_STATE: LabelState = { named: new Set(), picked: null, cath: null, organNames: false, key: null };
+export const NO_STATE: LabelState = { named: new Set(), shown: new Set(), tones: {}, picked: null, cath: null, organNames: false, key: null };
 
 /** Space between the key and the edge of the free room. */
 export const KEY_MARGIN = 12;
@@ -80,6 +87,8 @@ export interface Draw {
   form: number;
   /** The station's reading, formatted. */
   value: string;
+  /** The colour token the slide's words give this station (null: its own ink). */
+  tone: string | null;
   /** Where the station's ring stands on its vessel (station only; every station has one, as in the 2D app). */
   dot: { x: number; y: number } | null;
   /** The station's blood runs backwards now (the reversal mark shows after its reading). */
@@ -174,7 +183,10 @@ export class LabelController {
     const picked = st.picked ? STATIONS.find((s) => s.vessel === st.picked)?.id ?? null : null;
     for (const s of STATIONS) {
       if (s.kind === 'organ') { if (st.organNames) list.push(this.metaOf(s)); continue; }
-      if (s.core || st.named.has(s.id) || s.id === picked) list.push(this.metaOf(s));
+      const gated = (s.id === 'VAR' || s.id === 'GV') && this.deps.present ? this.deps.present(s.id) : null;
+      if (gated !== null) { if (gated && (s.id === 'GV' || s.core || st.named.has(s.id) || s.id === picked)) list.push(this.metaOf(s)); continue; }
+      if (s.id === 'GV') continue;   // (the fundal varices' label comes in only with its varices)
+      if (s.core || st.named.has(s.id) || st.shown.has(s.id) || s.id === picked) list.push(this.metaOf(s));
     }
     return list;
   }
@@ -248,7 +260,7 @@ export class LabelController {
     const keyBox = this.dock?.box ?? null;
     if (keyBox) blockers.push(keyBox);
     const cathSig = this.state.cath ? `${this.cGot}|${this.cTipPx ? Math.round(this.cTipPx[0]) + ',' + Math.round(this.cTipPx[1]) : '-'}|${this.cAheadPx ? Math.round(this.cAheadPx[0]) + ',' + Math.round(this.cAheadPx[1]) : '-'}` : '';
-    const sig = cathSig + '|' + (keyBox ? boxKey(keyBox) : '-') + '|' + setSig + '|' + boxKey(view) + '|' + blockers.map(boxKey).join(';') + '|' + [...this.state.named].sort().join(',') + this.state.cath;
+    const sig = cathSig + '|' + (keyBox ? boxKey(keyBox) : '-') + '|' + setSig + '|' + boxKey(view) + '|' + blockers.map(boxKey).join(';') + '|' + [...this.state.named].sort().join(',') + [...this.state.shown].sort().join(',') + this.state.cath;
     if (!hold && (this.dirty || sig !== this.sig)) {
       this.sig = sig; this.dirty = false;
       this.metas = next;
@@ -267,7 +279,7 @@ export class LabelController {
     for (const [id, s] of this.fader.frame) {
       if (s.alpha <= 0) continue;
       if (id === 'key') {
-        this.out.push({ id, kind: 'key', alpha: s.alpha, x: s.p.dx, y: s.p.dy, w: s.p.w, h: s.p.h, form: 0, value: '', dot: null, rev: false, pad: { x: 0, y: 0 }, leader: null, dock: this.dock });
+        this.out.push({ id, kind: 'key', alpha: s.alpha, x: s.p.dx, y: s.p.dy, w: s.p.w, h: s.p.h, form: 0, value: '', tone: null, dot: null, rev: false, pad: { x: 0, y: 0 }, leader: null, dock: this.dock });
         continue;
       }
       const m = this.metas.get(id) ?? next.get(id);
@@ -282,7 +294,7 @@ export class LabelController {
       const pad = organ ? { x: LS.ORGAN.padX, y: LS.ORGAN.padY } : { x: LS.PAD.x, y: LS.PAD.y };
       this.out.push({
         id, kind: m.kind, alpha: labelOpacity(s.alpha, dim), x: box.x0, y: box.y0, w: s.p.w, h: s.p.h, form: s.p.form,
-        value: this.valueOf(m), dot: ringed ? { x: ax, y: ay } : null, rev: !!m.rev, pad,
+        value: this.valueOf(m), tone: this.state.tones[m.station.id] ?? null, dot: ringed ? { x: ax, y: ay } : null, rev: !!m.rev, pad,
         leader: s.p.leader && ringed ? leaderGeom(ax, ay, { x0: box.x0 + pad.x, y0: box.y0 + pad.y, x1: box.x1 - pad.x, y1: box.y1 - pad.y }) : null,
       });
     }
@@ -325,7 +337,7 @@ export class LabelController {
       const s0 = sil;
       items.push({
         id: m.id, ax: a.x, ay: a.y, au: 0.5, path: path.length ? path : undefined, forms: m.forms,
-        pri: picked ? 300 : isNamed ? 100 + m.station.pri : m.station.pri, must: !!picked || isNamed, dirs: m.station.dirs, region: m.station.kind === 'organ', vw,
+        pri: picked ? 300 : isNamed ? 100 + m.station.pri : m.station.pri, must: !!picked || isNamed || this.state.shown.has(m.station.id), dirs: m.station.dirs, region: m.station.kind === 'organ', vw,
         ...(organ && s0 ? { spots: spotOffsets(m.station.name, m.station.at2d!, to), onOther: (b: Box) => onOtherOrgan(m.station.name, s0, b) } : {}),
       });
     }

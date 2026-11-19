@@ -3,9 +3,11 @@
 // each opens is the one the name says (a "collateral-umbilical" is C3, the paraumbilical vein). `reach` says how a person gets to it in the scene: a tap on the figure and the keyboard walk.
 import { NETWORK_BY_ID } from '../../scene/vessels/network.ts';
 import type { Sel } from './selection.ts';
-import { LOBULE_TAP, ORGAN_TAP } from './tap-map.ts';
+import { LOBULE_NEAR, LOBULE_TAP, ORGAN_TAP } from './tap-map.ts';
 import { cardFor } from './cards.ts';
 import { detailsFor } from './details.ts';
+import { labelHit } from './label-tap.ts';
+import { STATIONS } from '../../scene/labels/stations.ts';
 
 const edge = (id: string): Sel => ({ type: 'edge', id });
 const organ = (id: string): Sel => ({ type: 'organ', id });
@@ -26,14 +28,20 @@ export const STRUCTURES: readonly { id: string; sel: Sel }[] = [
   { id: 'lobule-artery', sel: lobule('ha') }, { id: 'lobule-bile-duct', sel: lobule('bd') },
 ];
 
-/** Whether a tap on the figure (and the keyboard walk) reaches this structure now: a vessel the scene draws, an organ it picks, a lobule part the lobule view picks. */
+/** Whether a station's label (the figure's names for its stations: a tap on one opens what it stands for, label-tap.ts) is the way to this structure: the varices and the fundus have no mesh to tap. */
+export const labelReaches = (sel: Sel): boolean => STATIONS.some((s) => {
+  const h = s.kind !== 'organ' && s.node ? labelHit(s.node) : null;
+  return !!h && h.type === sel.type && 'id' in sel && h.id === sel.id;
+});
+
+/** Whether a tap on the figure (and the keyboard walk) reaches this structure now: a vessel the scene draws, an organ it picks or whose station's label opens it, a lobule part the lobule view picks. */
 export function reachable(sel: Sel): boolean {
   if (sel.type === 'edge') return NETWORK_BY_ID.has(sel.id);
-  if (sel.type === 'organ') return Object.values(ORGAN_TAP).includes(sel.id);
-  if (sel.type === 'lobule') return sel.zone ? 'cords' in LOBULE_TAP : Object.values(LOBULE_TAP).includes(sel.part ?? '');
+  if (sel.type === 'organ') return Object.values(ORGAN_TAP).includes(sel.id) || labelReaches(sel);
+  if (sel.type === 'lobule') return sel.zone ? 'cords' in LOBULE_TAP : [...Object.values(LOBULE_TAP), ...Object.values(LOBULE_NEAR)].includes(sel.part ?? '');
   return false;
 }
 
-export interface StructureRow { id: string; card: boolean; details: boolean; reach: boolean }
+export interface StructureRow { id: string; card: boolean; details: boolean; /** a card whose name is plain text, as 2D's lobule parts: its "-details" specimen in the gallery is the card itself */ plain: boolean; reach: boolean }
 /** What the app has for each kind: a card, a Details face, and a way to it from the figure. */
-export const structureRows = (): StructureRow[] => STRUCTURES.map((s) => ({ id: s.id, card: !!cardFor(s.sel), details: !!cardFor(s.sel) && !cardFor(s.sel)!.noDetails && !!detailsFor(s.sel), reach: reachable(s.sel) }));
+export const structureRows = (): StructureRow[] => STRUCTURES.map((s) => ({ id: s.id, card: !!cardFor(s.sel), details: !!cardFor(s.sel) && !cardFor(s.sel)!.noDetails && !!detailsFor(s.sel), plain: !!cardFor(s.sel)?.noDetails, reach: reachable(s.sel) }));

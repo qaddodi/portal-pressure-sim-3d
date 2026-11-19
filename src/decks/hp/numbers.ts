@@ -6,6 +6,9 @@
 // a slide's `{tokens}` (a reading, a reading at another slide, a cut-off, a typed number), and prints a reading as its tile does. It imports no engine:
 // tests feed it the host in node, the app feeds it the second engine worker (calc.ts).
 import { parseToken, type Fp } from '../../ui/text/tokens.ts';
+import { trailKeys } from '../../ui/charts/flowtime/model.ts';
+import { procKindOf } from '../../ui/charts/evgraph/model.ts';
+import { specOf } from '../../scene/procedures/copied/proc-anim.js';
 import type { CopiedSlide, Json } from './types.ts';
 
 /** The fields of a slide that change the patient (tests/deck-states.js). */
@@ -13,12 +16,16 @@ export const MODEL = ['preset', 'presetDays', 'params', 'action', 'days'] as con
 export const changes = (s: CopiedSlide): boolean => MODEL.some((k) => !!s[k]);
 
 /** One step of the engine's 'sequence'. */
-export interface Step { preset?: string; presetDays?: number; params?: unknown; action?: unknown; days?: number; relax?: number; ramp?: unknown; fine?: boolean }
+export interface Step { preset?: string; presetDays?: number; params?: unknown; action?: unknown; days?: number; relax?: number; ramp?: unknown; fine?: boolean; trail?: true | readonly string[]; before?: unknown }
 const nz = <T,>(v: T | null | undefined): T | undefined => (v == null ? undefined : v);
 
 export function stepOf(s: CopiedSlide): Step {
   if (!changes(s)) return {};
-  const st: Step = { preset: nz(s.preset) as string | undefined, presetDays: nz(s.presetDays), params: nz(s.params), action: nz(s.action), days: nz(s.days), relax: nz(s.relax), ramp: nz(s.ramp), fine: !!s.lapse };
+  // (presenter.js modelStep: a flow-time chart keeps its lines day by day (trail), a procedure slide keeps the state before the procedure (before))
+  const tool = s.tool as { kind?: string; lines?: readonly string[] } | undefined;
+  const before = s.procedure ? (specOf(procKindOf(s.procedure as never) ?? '') as { before?: unknown } | null)?.before : undefined;
+  const st: Step = { preset: nz(s.preset) as string | undefined, presetDays: nz(s.presetDays), params: nz(s.params), action: nz(s.action), days: nz(s.days), relax: nz(s.relax), ramp: nz(s.ramp), fine: !!s.lapse,
+    ...(tool?.kind === 'flowtime' ? { trail: trailKeys(tool) } : {}), ...(before ? { before } : {}) };
   return JSON.parse(JSON.stringify(st)) as Step;
 }
 

@@ -21,7 +21,7 @@ export interface Figure {
   /** Layers (the lobule view) */
   zones: boolean; lymph: boolean; bile: boolean;
 }
-export const FIGURE_DEFAULTS: Figure = { chevrons: true, keyChevrons: false, chips: true, collaterals: true, labels: true, labelLevel: 'key', zones: false, lymph: true, bile: false };
+export const FIGURE_DEFAULTS: Figure = { chevrons: true, keyChevrons: false, chips: true, collaterals: true, labels: true, labelLevel: 'key', zones: false, lymph: true, bile: true };
 
 export interface ToastAction { label: string; run(): void }
 export interface Toast { id: number; text: string; tone: 'info' | 'bad'; action?: ToastAction }

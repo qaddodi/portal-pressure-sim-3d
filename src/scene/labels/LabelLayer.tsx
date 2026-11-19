@@ -17,11 +17,15 @@ import { LabelController, type Draw, type LabelDeps } from './controller.ts';
 import { baselineAt, lookVars, typeVars } from './type.ts';
 import { keyVars } from './key-dock.ts';
 import { STATIONS } from './stations.ts';
+import { bindLabelHits, labelNodeAt } from './hit.ts';
+import { useSelection } from '../../ui/action/selection.ts';
 import { buildCath } from './cath-dom.ts';
 import { cathVars, cathLook } from './cath.ts';
 import { KEY_LENSES, keyModel, schemeOf } from './key.ts';
 import { linkLabelsToDeck } from './deck-link.ts';
-import { useLabels } from './store.ts';
+import { useLabels, useFigure } from './store.ts';
+import { FigureCards } from './figure-cards.ts';
+import { toneCss } from '../../ui/deck/figure-plan.ts';
 import { VesselWalk } from './VesselWalk.tsx';
 import { Vector3 } from 'three';
 import { MOTION } from '../../clock/tween.ts';
@@ -60,6 +64,7 @@ interface Rec {
   rolling?: HTMLElement | null;
   leadTx: string; anchorTx: string;
   rev?: boolean;
+  tone?: string;
 }
 
 export function LabelLayer() {
@@ -91,7 +96,7 @@ export function LabelLayer() {
       cameraMoving: () => sceneApi.cameraMoving,
       free: () => rectToBox(ui.getState().boxes.free),
       view: () => { const { vp } = ui.getState(); return { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom }; },
-      blockers: () => { const b = ui.getState().boxes; return [b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox); },
+      blockers: () => { const b = ui.getState().boxes; return [...[b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox), ...figCards.boxes]; },
       measure: makeMeasure(),
       vp: () => ui.getState().vp,
       words: () => ui.getState().boxes.words,
@@ -99,6 +104,12 @@ export function LabelLayer() {
       pressure: (node) => { const f = latest.frame, i = NODE_AT.get(node); return f && i !== undefined ? (f.Pf[i] ?? null) : null; },
       reading: (k) => ui.getState().readings[k] ?? null,
       hidden: () => cel.circuit.t > 0 || cel.circuit.toCircuit,
+      // the varices and the fundal varices: 2D's hasVarices (a label only where the patient has them; the one whose card is open stays)
+      present: (id) => {
+        const sel = useSelection.getState().sel, m = (latest.frame as unknown as { metrics?: { varix?: { present?: boolean }; gastricVarix?: { present?: boolean; d?: number } } } | null)?.metrics;
+        if (sel?.type === 'organ' && sel.id === (id === 'VAR' ? 'varices' : 'gastric')) return true;
+        return id === 'VAR' ? !!m?.varix?.present : (m?.gastricVarix?.d ?? 0) > 0 && !!m?.gastricVarix?.present;
+      },
       cathere: (tip: Vector3, ahead: Vector3) => {
         const c = cel.catheter;
         if (c.current.advance < 0.999) return 0;
@@ -107,7 +118,19 @@ export function LabelLayer() {
         return c.current.balloon >= 0.999 ? 2 : 1;
       },
     };
+    // what the slide stands on the figure besides the names (marks, sites, steps, calipers); the station names keep clear of its cards
+    const figCards: FigureCards = new FigureCards(root, {
+      project: deps.project, cameraMoving: deps.cameraMoving,
+      view: () => deps.view(), blockers: () => { const b = ui.getState().boxes; return [b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox); },
+      vp: () => ui.getState().vp, measure: deps.measure, now: deps.now, spleenScale: () => cel.disease.organs.spleenScaleNow,
+      circuit: () => (cel.view === 'circuit' && cel.circuit.t >= 1 ? { k: cel.mapScale(), project: (x, y, out) => cel.mapPoint(x, y, out) } : null),
+      lobule: (name, out) => { if (cel.view !== 'lobule') return null; const a = cel.lobule.anchor(name, [0, 0, 0]); return out.set(a[0], a[1], a[2]); },
+    });
+    const pushFigure = () => { const f = useFigure.getState(); figCards.set(f.cards, f.calipers, f.t0, f.spans); clock.invalidate('figure-cards'); };
+    pushFigure();
+    const offFigure = useFigure.subscribe(pushFigure);
     const ctl = new LabelController(deps);
+    const offHits = bindLabelHits((x, y) => labelNodeAt(ctl.out, x, y));
     const recs = new Map<string, Rec>();
     const mk = (tag: string, cls: string, parent: HTMLElement = root) => { const e = document.createElement(tag); e.className = cls; parent.appendChild(e); return e; };
 
@@ -150,7 +173,7 @@ export function LabelLayer() {
     // ── state in ──
     const pushState = () => {
       const l = useLabels.getState();
-      ctl.setState({ named: l.named, picked: usePick.getState().picked, cath: l.cath, organNames: l.organNames, key: l.key });
+      ctl.setState({ named: l.named, shown: l.shown, tones: l.tones, picked: usePick.getState().picked, cath: l.cath, organNames: l.organNames, key: l.key });
       clock.invalidate('labels-state');
     };
     pushState();
@@ -172,7 +195,8 @@ export function LabelLayer() {
     const hide = (r: Rec) => { if (r.shown) { r.shown = false; r.root.style.opacity = '0'; r.root.removeAttribute('data-on'); r.op = '0'; r.lead?.removeAttribute('data-on'); r.anchor?.removeAttribute('data-on'); if (r.lead) r.lead.style.opacity = '0'; if (r.anchor) r.anchor.style.opacity = '0'; } };
     const seen = new Set<string>();
     const offTags = clock.on('tags', () => {
-      const wantFrames = ctl.tick();
+      const cardFrames = figCards.tick();
+      const wantFrames = ctl.tick() || cardFrames;
       seen.clear();
       for (const d of ctl.out) { const r = recs.get(d.id); if (r) { seen.add(d.id); paint(r, d, ctl); } }
       for (const [id, r] of recs) if (!seen.has(id)) hide(r);
@@ -181,7 +205,7 @@ export function LabelLayer() {
       else if (!wantFrames && hold) { hold.release(); hold = null; }
     }, 0);
 
-    return () => { cath.destroy(); offTags(); offLabels(); offPick(); offUi(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
+    return () => { figCards.destroy(); offFigure(); cath.destroy(); offHits(); offTags(); offLabels(); offPick(); offUi(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
   }, []);
 
   return (
@@ -226,6 +250,10 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
     }
   }
   if (d.kind === 'station') {
+    // the colour the slide's words give this station (2D .lb.term): written when the slide changes it, never in a moving frame
+    const tone = d.tone ? toneCss(d.tone) : '';
+    if ((r.tone ?? '') !== tone) { r.tone = tone; if (tone) { el.style.setProperty('--lb-tone', tone); el.setAttribute('data-tone', ''); } else { el.style.removeProperty('--lb-tone'); el.removeAttribute('data-tone'); }
+      for (const x of [r.anchor, r.lead]) if (x) { if (tone) { x.style.setProperty('--lb-tone', tone); x.setAttribute('data-tone', ''); } else { x.style.removeProperty('--lb-tone'); x.removeAttribute('data-tone'); } } }
     if (d.value !== r.value && r.cur) {
       const was = r.value;
       r.value = d.value;
