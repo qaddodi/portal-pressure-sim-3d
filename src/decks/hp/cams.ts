@@ -5,6 +5,7 @@
 import type { Shot } from '../../scene/camera/shots.ts';
 import { lobuleShot, sinusoidShot, LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
 import { REGIONS, CIRC_REGIONS } from './regions.copied.ts';
+import { boxOf as boxOfOn, camProblems as onProblems } from '../rw/cams.ts';   // (the by-name camera { on: [names], near }: one implementation, shared by every deck)
 import type { CopiedSlide } from './types.ts';
 
 export type Box = readonly [number, number, number, number];
@@ -69,6 +70,12 @@ export function camPlan(cam: CopiedSlide['cam'], view?: string | null): CamPlan 
     return { kind: 'body', name: cam, box: b, shot: boxToShot(b) };
   }
   if (isBox(cam)) return { kind: 'body', name: 'box', box: cam, shot: boxToShot(cam) };
+  if (cam && typeof cam === 'object' && !Array.isArray(cam) && Array.isArray((cam as { on?: unknown }).on)) {
+    const bad = onProblems(cam as never);
+    if (bad.length) throw new CamError(`camera ${JSON.stringify(cam)}: ${bad.join('; ')}`);
+    const b = boxOfOn(cam as never) as Box | null;
+    return b ? { kind: 'body', name: 'on', box: b, shot: boxToShot(b) } : camPlan('fit');
+  }
   if (isNames(cam)) {
     const boxes = cam.map((n) => { const b = REGIONS[n]; if (!b) throw new CamError(`no region "${n}"`); return b; });
     const b = unionBox(boxes);

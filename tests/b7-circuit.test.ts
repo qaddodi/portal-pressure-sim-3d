@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { Raycaster, Vector3 } from 'three';
-import { NETWORK } from '../src/scene/vessels/network.ts';
+import { MAPPED } from '../src/scene/vessels/network.ts';
 import { buildVessel } from '../src/scene/anatomy/vessels.ts';
 import { COURSES, N_TRACK } from '../src/scene/circuit/course.ts';
 import { CIRCUIT_ATTRIBUTES, attachCircuit, slicesFor } from '../src/scene/circuit/geometry.ts';
@@ -76,7 +76,7 @@ test('a vertex offset encodes in the frame of its direction and decodes to itsel
 
 // ── the courses ──
 test('every drawn vessel has a body course and a map course on the same samples', () => {
-  for (const v of NETWORK) {
+  for (const v of MAPPED) {
     const c = COURSES.get(v.id);
     assert.ok(c, `course of ${v.id}`);
     assert.equal(c!.A.length, N_TRACK); assert.equal(c!.C.length, N_TRACK); assert.equal(c!.rank.length, N_TRACK);
@@ -87,12 +87,12 @@ test('every drawn vessel has a body course and a map course on the same samples'
 });
 
 test('the vessels that reverse and the ends that are pinned are the ones the 2D app names', () => {
-  const rev = NETWORK.filter((v) => revOf(COURSES.get(v.id)!, 0)).map((v) => v.id);
-  const pinned = NETWORK.filter((v) => COURSES.get(v.id)!.pins).map((v) => v.id);
+  const rev = MAPPED.filter((v) => revOf(COURSES.get(v.id)!, 0)).map((v) => v.id);
+  const pinned = MAPPED.filter((v) => COURSES.get(v.id)!.pins).map((v) => v.id);
   console.log(`circuit: reverse (wide) ${rev.join(' ')} | pinned ${pinned.join(' ')}`);
   // the 2D app's own examples (stage-geo.js): the portal chain from the spleen to the liver, the left renal vein, the hepatic artery
   for (const id of ['V_SPL', 'PV_TRUNK', 'LRV_IVC', 'A_HEP']) assert.ok(rev.includes(id), `${id} runs the other way in the circuit`);
-  assert.ok(rev.length < NETWORK.length / 2, 'most vessels do not');
+  assert.ok(rev.length < MAPPED.length / 2, 'most vessels do not');
   assert.ok(pinned.length > 0, 'a side join (the left gastric vein on the portal trunk) is found');
   // a pin names a host that is a real vessel
   for (const id of pinned) for (const p of COURSES.get(id)!.pins!) assert.ok(COURSES.has(p.host), `${id} pinned to ${p.host}`);
@@ -100,7 +100,7 @@ test('the vessels that reverse and the ends that are pinned are the ones the 2D 
 
 test('the morph lands exactly on the body at the start and on the map at the end, for every vessel and both turns', () => {
   const m = new Float32Array(3 * N_TRACK), base = new Float32Array(3 * N_TRACK);
-  for (const rr of [0, 1]) for (const v of NETWORK) {
+  for (const rr of [0, 1]) for (const v of MAPPED) {
     const g = COURSES.get(v.id)!;
     for (const t of [1e-7, 1 - 1e-7]) {
       morphInto(g, t, rr, m, base);
@@ -119,7 +119,7 @@ test('the morph lands exactly on the body at the start and on the map at the end
 });
 
 test('a reversing vessel never folds: its chord frame keeps the order of its points along the chord, mid-change', () => {
-  const rev = NETWORK.filter((v) => needsTrack(COURSES.get(v.id)!, 0) && revOf(COURSES.get(v.id)!, 0));
+  const rev = MAPPED.filter((v) => needsTrack(COURSES.get(v.id)!, 0) && revOf(COURSES.get(v.id)!, 0));
   assert.ok(rev.length > 0);
   const m = new Float32Array(3 * N_TRACK), base = new Float32Array(3 * N_TRACK), tan = new Float32Array(3 * N_TRACK);
   for (const v of rev) {
@@ -140,7 +140,7 @@ test('a reversing vessel never folds: its chord frame keeps the order of its poi
 // ── the tube's attributes ──
 test('a built tube carries the morph attributes and decodes back to its own vertices', () => {
   for (const id of ['PV_TRUNK', 'V_SPL', 'RHV_IVC']) {
-    const def = NETWORK.find((v) => v.id === id)!, course = COURSES.get(id)!;
+    const def = MAPPED.find((v) => v.id === id)!, course = COURSES.get(id)!;
     const built = buildVessel({ ...def, tone: def.tone === 'artery' ? 'portal' : def.tone }, slicesFor(id));
     const g = attachCircuit(built, course, def.radius);
     for (const a of CIRCUIT_ATTRIBUTES) assert.ok(g.getAttribute(a), `${id} has ${a}`);
@@ -189,7 +189,7 @@ test('the change runs 1300 ms from the body to the map and the turn 480 ms; a tu
 
 test('the view writes a track only for the vessels that need one, only mid-change, and each vessel\'s length follows the change', () => {
   const c = new CircuitView();
-  const handles = NETWORK.map((v) => ({ id: v.id, len: { value: 1 }, circRow: { value: -1 } }));
+  const handles = MAPPED.map((v) => ({ id: v.id, len: { value: 1 }, circRow: { value: -1 } }));
   handles.forEach((h) => c.attach(h));
   c.go(true, 0); c.update(0);
   assert.ok(handles.every((h) => h.circRow.value === -1), 'none at rest');
@@ -245,7 +245,7 @@ test('the scene turns the body into the map: the organs leave, the vessels stay,
   s.update(VIEW_CHANGE_MS + 10);
   assert.equal(s.circuit.t, 1);
   assert.equal(organ.group.visible, false, 'the organs have left');
-  assert.equal(s.vessels.every((v) => v.group.visible), true, 'the vessels are all still drawn');
+  assert.equal(s.vessels.every((v) => v.group.visible || v.edge!.id.includes('~F')), true, 'the vessels are all still drawn (a fan of tributaries has no map course and leaves with the organs)');
   assert.ok(s.circuitStation(DOT_IDS[0]!), 'a station has a place on the map');
   assert.equal(s.circuitStation('nowhere'), null);
   // and back

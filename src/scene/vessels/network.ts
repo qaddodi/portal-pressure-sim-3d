@@ -5,6 +5,8 @@
 import { Vector3 } from 'three';
 import { EDGES, JUNCTION_PIECES, PORTAL_TERRITORY, dMinOf } from '../../engine/hales/portal/topology.js';
 import { ANAT_HIDDEN, BACK_EDGES, EDGE_PATH_2D, HIDDEN_EDGES, IVC_EDGES, NEEDS_C3 } from './paths.copied.ts';
+import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
+import { isCoiling } from './coil.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { TIER_Z, type Tier, len3, x3, y3 } from '../frame2d.ts';
 
@@ -28,6 +30,14 @@ export interface NetVessel {
   baseD: number;
   /** 0: vesselPx of the diameter; 1: an artery (half of it, at least 1.8); 2: fixed (the liver's beds) */
   widthKind: 0 | 1 | 2;
+  /** the edge whose data texel (pressure, flow, diameter) this vessel wears: its own, or its host's for a feeder */
+  lensId: string;
+  /** how its shape is made: a vessel's own course, coiled and with strands (a collateral or a liver bed), or a fan of tributaries on a host */
+  plan?: { kind: 'coil'; base: readonly (readonly [number, number])[]; coils: boolean; strands: boolean } | { kind: 'feeder'; list: readonly Feeder2D[]; cfgK: number; hostW: number; when: string | null };
+  /** the radius at each end as a share of `radius`, where this vessel runs on into exactly one other (no branch): both ease to their mean, so no step shows at the join */
+  taper?: readonly [number, number];
+  /** a tributary group: drawn only while its rule holds (`when`: null always; 'caput' with the paraumbilical collateral; 'caudate' with the caudate vein's rise) */
+  feeder?: { host: string; when: string | null };
 }
 
 interface Edge { id: string; from: string; to: string; kind: string; d?: number; dMax?: number; share?: number; label?: string; zone?: string; shunt?: string; spontaneous?: boolean }
@@ -92,6 +102,10 @@ export function isDrawnEdge(e: Edge): boolean {
   return true;
 }
 
+/** anatomy.js FEEDERS[host].k: the share of the host's width its tributaries take. */
+const FEEDER_K: Record<string, number> = { AZY_SVC: 1, C3: 0.5, CAUD: 0.55 };
+const NETWORK_HOST_W = (e: Edge): number => widthPx(e, e.d ?? e.dMax ?? (dMinOf(e) || 3));
+
 function build(): NetVessel[] {
   const out: NetVessel[] = [];
   for (const e of edges) {
@@ -100,14 +114,52 @@ function build(): NetVessel[] {
     const baseD = SHUNT_BASE_D[e.id] ?? e.d ?? e.dMax ?? (dMinOf(e) || 3);
     out.push({
       id: e.id, host: hostOfPiece.get(e.id) ?? e.id, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(widthPx(e, baseD)),
-      label: e.label ?? e.id, pts: courseOf(e.id), kind: e.kind, tier: tierOf(e), baseD, widthKind: widthKindOf(e),
+      label: e.label ?? e.id, pts: courseOf(e.id), kind: e.kind, tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: e.id,
+      plan: { kind: 'coil', base: EDGE_PATH_2D[e.id]!, coils: isCoiling(e.id, e.kind, !!e.spontaneous), strands: !!STRANDS_2D[e.id] },
     });
+  }
+  // The tributaries (stage-geo.js feedGeo): each host's, grouped by the rule that shows them, one vessel a group.
+  for (const [host, list] of Object.entries(FEEDERS_2D)) {
+    const e = edgeById.get(host)!, hv = NETWORK_HOST_W(e);
+    for (const when of [...new Set(list.map((f) => f.when))]) {
+      const group = list.filter((f) => f.when === when);
+      const cfgK = FEEDER_K[host] ?? 1, baseD = e.d ?? e.dMax ?? (dMinOf(e) || 3);
+      out.push({
+        id: `${host}~F${when ? `:${when}` : ''}`, host, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(Math.max(1.2, hv * cfgK)), label: e.label ?? host,
+        pts: group[0]!.pts.map(([x, y]): Vec3 => [x3(x), y3(y), TIER_Z[tierOf(e)]]), kind: 'feeder', tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: host,
+        plan: { kind: 'feeder', list: group, cfgK, hostW: hv, when }, feeder: { host, when },
+      });
+    }
   }
   return out;
 }
 
 /** Every drawn vessel, in topology order. */
 export const NETWORK: readonly NetVessel[] = build();
+
+// ---- joins: depth and width continue through a node ----
+/** The depth at each node: the mean of the tiers of the vessels that meet there, so two vessels that join are at one depth where they meet (their own tier holds between). */
+export const NODE_Z: ReadonlyMap<string, number> = (() => {
+  const acc = new Map<string, number[]>();
+  for (const v of NETWORK) if (!v.feeder) for (const n of [v.from, v.to]) { const a = acc.get(n) ?? []; a.push(TIER_Z[v.tier]); acc.set(n, a); }
+  return new Map([...acc].map(([n, a]) => [n, a.reduce((x, y) => x + y, 0) / a.length]));
+})();
+// A node where exactly two vessels meet is a run-on: the two tubes ease to one width over the last third of each (the 2D tubes' own end easing, tubeRadius).
+{
+  const at = new Map<string, { v: NetVessel; end: 0 | 1 }[]>();
+  for (const v of NETWORK) if (!v.feeder) { for (const [n, end] of [[v.from, 0], [v.to, 1]] as const) { const a = at.get(n) ?? []; a.push({ v, end }); at.set(n, a); } }
+  const t = new Map<NetVessel, [number, number]>();
+  for (const list of at.values()) {
+    if (list.length !== 2) continue;
+    const [a, b] = list as [typeof list[0], typeof list[0]];
+    if (a.v === b.v || a.v.kind === 'collateral' || b.v.kind === 'collateral' || a.v.widthKind !== b.v.widthKind) continue;
+    const m = (a.v.radius + b.v.radius) / 2;
+    for (const x of [a, b]) { const cur = t.get(x.v) ?? [1, 1]; cur[x.end] = m / x.v.radius; t.set(x.v, cur); }
+  }
+  for (const [v, k] of t) v.taper = k;
+}
+/** The vessels with a map course (everything but the fans of tributaries, which the Circuit does not draw). */
+export const MAPPED: readonly NetVessel[] = NETWORK.filter((v) => !v.feeder);
 export const NETWORK_BY_ID: ReadonlyMap<string, NetVessel> = new Map(NETWORK.map((v) => [v.id, v]));
 /** Edge IDs the anatomy draws as vessels: what a parity row counts. */
 export const DRAWN_EDGE_IDS: readonly string[] = edges.filter(isDrawnEdge).map((e) => e.id);
@@ -134,7 +186,8 @@ export function collateralOpen(id: string, f: PresenceFrame): boolean {
 
 /** The 2D rules of stage-frame.js edgeVisible: a collateral is solid once open, a dotted thread while closed when potential collaterals are on, and nothing
  *  otherwise; the epigastric veins appear with the paraumbilical collateral; an arterioportal shunt only while it carries flow. */
-export function presenceOf(v: Pick<NetVessel, 'id' | 'kind'>, f: PresenceFrame, o: PresenceOptions): Presence {
+export function presenceOf(v: Pick<NetVessel, 'id' | 'kind' | 'feeder'>, f: PresenceFrame, o: PresenceOptions, healthyQ?: ArrayLike<number>): Presence {
+  if (v.feeder) return feederLive(v.feeder, f, healthyQ) > 0 ? 'shown' : 'hidden';
   const k = indexOf.get(v.id);
   if (k == null) return 'hidden';
   if (NEEDS_C3.has(v.id)) return recruitFrac('C3', f) > C3_FRAC ? 'shown' : 'hidden';
@@ -142,4 +195,15 @@ export function presenceOf(v: Pick<NetVessel, 'id' | 'kind'>, f: PresenceFrame, 
   if (SHUNT_IDS.has(v.id)) return f.D[k]! > 0 ? 'shown' : 'hidden';   // a procedure's shunt is there while it has a diameter
   if (v.kind === 'shunt') return (f.Qf ?? f.Q)[k]! > AP_Q ? 'shown' : 'hidden';
   return 'shown';
+}
+
+/** How far a tributary group is on, 0 to 1 (stage-tubes.js feeders): the epigastric network fills in as the paraumbilical route opens; the caudate vein's own collaterals
+ *  as its flow rises to twice and then four times the healthy one; the rest always. */
+export function feederLive(fd: { host: string; when: string | null }, f: PresenceFrame, healthyQ?: ArrayLike<number>): number {
+  if (fd.when === 'caput') return Math.min(1, Math.max(0, (recruitFrac('C3', f) - 0.15) / 0.3));
+  if (fd.when === 'caudate') {
+    const k = indexOf.get(fd.host)!, ref = healthyQ?.[k], q = Math.abs((f.Qf ?? f.Q)[k]!);
+    return ref ? Math.min(1, Math.max(0, (q / Math.abs(ref) - 2) / 2)) : 0;
+  }
+  return 1;
 }

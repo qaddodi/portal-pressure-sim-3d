@@ -22,7 +22,7 @@ test('the tabs are the 2D dock\'s: nine instruments, Over time under Pressure, t
 });
 
 test('every instrument claimed as wired is one TestsLayer renders; the claims name only inventory rows (parity-score checks that)', () => {
-  for (const id of BUILT_PANES) assert.ok(new RegExp(`\\b${id}:\\s*\\(?p`).test(layer) || layer.includes(`registerPane('${id}'`), `TestsLayer renders no pane for ${id}`);
+  for (const id of BUILT_PANES) assert.ok(new RegExp(`\\b${id}:\\s*\\(`).test(layer) || layer.includes(`registerPane('${id}'`), `TestsLayer renders no pane for ${id}`);
   assert.ok(panesDir.includes('BUILT_PANES'));
   const wired = new Set(claims.filter((c) => c.wired).map((c) => c.id));
   for (const id of BUILT_PANES) assert.ok(wired.has(`tests:${id}`), `tests:${id} is built but not claimed wired`);

@@ -2,10 +2,10 @@
 import type { Env } from './orders.ts';
 import { useShell } from '../shell/store.ts';
 import { selectStructure } from '../action/selection.ts';
-import { engine } from '../../engine/boot.ts';
+import { sendAction } from '../action/send.ts';
 
 export const appEnv: Env = {
   say: (text) => useShell.getState().say(text),
   select: (sel) => selectStructure(sel),
-  action: (action) => { engine().send({ type: 'action', action }); },
+  action: (action) => sendAction(action),
 };
