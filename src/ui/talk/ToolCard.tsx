@@ -150,7 +150,7 @@ function Instrument({ kind, tool }: { kind: string; tool: Rec }) {
   return (
     <div className="dock-pane-host" data-instrument={kind}>
       <Suspense fallback={null}>
-        {kind === 'doppler' ? <DopplerPane {...p} options={tool} /> : kind === 'fibroscan' ? <FibroPane {...p} /> : kind === 'hvpg' ? <IrPane {...p} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : <ReadoutsPane narrow={p.narrow} />}
+        {kind === 'doppler' ? <DopplerPane {...p} options={tool} /> : kind === 'fibroscan' ? <FibroPane {...p} /> : kind === 'hvpg' ? <IrPane {...p} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} options={tool} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : <ReadoutsPane narrow={p.narrow} />}
       </Suspense>
     </div>
   );
