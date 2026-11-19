@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { solve, slideInView, boxOf, LEAD_ON, type Item, type Form } from '../src/scene/labels/solver.ts';
+import { solve, slideInView, boxOf, LEAD_ON, CALL_MIN_GAP, type Item, type Form } from '../src/scene/labels/solver.ts';
 import { hits, grow, type Box } from '../src/scene/labels/geometry.ts';
 
 const form = (w: number, h = 26): Form => ({ text: 'x', w, h });
@@ -93,5 +93,7 @@ test('a callout stands clear of the cards and its pointer reaches its point', ()
   assert.ok(p.tail, 'a callout has a pointer');
   const b = boxOf(p, it.ax, it.ay);
   assert.ok(!hits(b, grow(card, 0)));
-  if (p.tail!.below) assert.ok(b.y0 >= it.ay + 17, 'the card is below its point with room for the pointer'); else assert.ok(b.y1 <= it.ay - 17);
+  if (p.tail!.below) assert.ok(b.y0 >= it.ay + CALL_MIN_GAP, 'the card is below its point with room for the pointer'); else assert.ok(b.y1 <= it.ay - CALL_MIN_GAP);
+  // in the open it keeps the full gap; only a band too narrow for it squeezes the gap
+  assert.ok(p.tail!.below ? b.y0 >= it.ay + 18 : b.y1 <= it.ay - 18, 'with room it stands the usual 18 px or more from its point');
 });
