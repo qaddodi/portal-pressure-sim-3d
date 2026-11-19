@@ -1,30 +1,16 @@
 // The measurement card of a procedure slide (2D tool-reading.js, `tool: { kind: 'reading' }`): the one pressure monitor on the slide's measuring procedure (HVPG catheter, EUS-PPG, PPG by IR, PPG through a TIPS),
 // following the procedure's own clock as the figure plays it: before the tip is in the monitor waits, each reading is a live trace the clock records, and the numbers are the ones the figure's callouts print.
-// The clock is the scene's procedure player (`sceneApi.procedure.playing`: kind and ms), the same one the IR pane's Watch row and the presenter's Play button start. Pure parts: readingPlan and the copied script.
+// Pure parts: reading-plan.ts. The clock is the scene's procedure player (`sceneApi.procedure.playing`: kind and ms), the same one the IR pane's Watch row and the presenter's Play button start. 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { clock } from '../../clock/frame.ts';
 import { latest } from '../../engine/index.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { Monitor, type MonSource } from '../tests/ir/Monitor.tsx';
 import { monitorFrame, type MonitorState } from '../tests/ir/monitor.ts';
-import { scriptOf, phaseOf, takenOf, readingWords, readingTitle } from '../tests/ir/copied/reading-scripts.copied.js';
+import { readingPlan, readingAt, type Script } from './reading-plan.ts';
 import { newWave, syncWave } from '../tests/copied/hvpg-clock.copied.js';
 
 type Rec = Record<string, unknown>;
-interface Script { id: string; kinds: string[]; clock: { now(tk: Record<string, number>): number }; vals(fp: unknown, o: Record<string, number>): Record<string, number>; marks: number[]; keys: string[] }
-
-/** The script a slide's procedure is drawn with (null: no card follows it), and the card's title. Pure. */
-export function readingPlan(procedure: unknown, of?: unknown): { script: Script | null; title: string } {
-  const script = (scriptOf((procedure ?? of) as never) ?? null) as Script | null;
-  return { script, title: readingTitle((procedure ?? of) as never) as string };
-}
-
-/** What the monitor shows for the procedure clocks `tk` (kind: ms) at the script's own time. Pure. */
-export function readingAt(S: Script, tk: Record<string, number>, v: Record<string, number>): { ph: string; t: number; taken: boolean[]; words: string } {
-  const ph = phaseOf(S, tk) as string, t = S.clock.now(tk), taken = takenOf(S, tk) as boolean[];
-  return { ph, t: Number.isFinite(t) ? t : 0, taken, words: readingWords(S, v, taken) as string };
-}
-
 export function ReadingTool({ procedure, fp, of }: { procedure: unknown; fp: Rec | null; of?: unknown }) {
   const { script } = useMemo(() => readingPlan(procedure, of), [procedure, of]);
   const [n, setN] = useState(0);
