@@ -578,7 +578,7 @@ export class CelScene {
   /** A portrait room (narrower than tall, 2D's `W < H * 0.95`) runs the sinusoid top to bottom: the sinusoid view takes it (SinusoidView.setPortrait, the sinusoid worker's), and the shot asks for it (sinusoidShot(portrait)). */
   private portrait = false;
   private stepPortrait(): void {
-    const r = this.rig.targetRoom, p = isPortrait(r.w, r.h);
+    const r = this.rig.targetRoom, st = this.rig.stageSize, p = isPortrait(st.w, st.h);   // (2D's rule on the stage: ensureGeo(W, H))
     if (p !== this.portrait) {
       this.portrait = p;
       this.sinus.setPortrait(p);
