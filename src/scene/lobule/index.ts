@@ -10,4 +10,7 @@ export { LOBULE_CAMS, LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L, SINUSOID_OR
 export type { LobuleCam } from './shots.ts';
 export { LOBULE_PARTS, SINUSOID_PARTS, PartSet } from './parts.ts';
 export type { LobulePartName, SinusoidPartName } from './parts.ts';
+export { lobuleHit, lobuleSel } from './pick.ts';
+export type { LobuleHit } from './pick.ts';
+export { useLobulePick } from './pick-store.ts';
 export { LOBULE_PALETTES, extendPalette, EXTRA_TONES } from './tones.ts';

@@ -26,7 +26,7 @@ import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, hasVessel, indexOf } from '../engine/vessel-data.ts';
 import { latest, patient } from '../engine/store.ts';
 import { x3, y3 } from './frame2d.ts';
-import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
+import { LobuleView, lobuleModel, sinusoidTargets, type LobuleHit, type LobuleLayers } from './lobule/index.ts';
 import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
 import { LOBULE_R, LOBULE_T, SINUSOID_L, lobuleShot } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
@@ -586,6 +586,13 @@ export class CelScene {
     return null;
   }
 
+  /** What a tap on the lobule is (a part, and the zone for the hepatocytes), by 2D's own rule (lobule/pick.ts), or null; only while the lobule is the view. */
+  pickLobule(x: number, y: number, raycaster: Raycaster): LobuleHit | null {
+    if (this.figureView !== 'lobule') return null;
+    raycaster.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
+    return this.lobule.hitRay(raycaster.ray, this.rig.camera, { w: this.width, h: this.height });
+  }
+
   /** Scene point of a named place, for tags and pins: a point on the 2D figure's own vessel, carried by the one map (frame2d.ts), so a tag sits on the vein. */
   anchor(name: 'tip' | 'ra' | 'ivc' | 'rhv' | 'pv' | 'spleen', out = new Vector3()): Vector3 {
     if (name === 'tip') return this.catheter.curve.getPointAt(1, out);
@@ -670,6 +677,7 @@ export class CelScene {
     // Two passes, as the 2D figure paints: the organs first, then the vessels (and what is in them) over the cleared depth, so no organ's relief ever hides a vessel and a joined
     // vessel never looks cut. (The vessels keep their own depth among themselves: their tiers.)
     this.sinus.setDpr(gl.getPixelRatio?.() ?? 1);
+    this.lobule.setDpr(gl.getPixelRatio?.() ?? 1);
     const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;
     cam.layers.set(0);
     gl.render(this.scene, cam);

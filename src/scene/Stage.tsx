@@ -16,6 +16,8 @@ import { useSettings } from '../state/settings.ts';
 import { figureDpr, msaaFor } from './quality.ts';
 import { installShaderGuard } from '../debug/shader-guard.ts';
 import { setRenderer } from '../debug/gl-ref.ts';
+import { lobulePicked } from './lobule/pick-store.ts';
+import { lobuleSel } from './lobule/pick.ts';
 import { cel, frames, gesturesRef, sceneApi } from './api.ts';
 import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
@@ -108,6 +110,7 @@ function SceneBridge() {
       setOrbit: (rad) => { const changed = cel.rig.setOrbit(rad); if (changed) clock.invalidate('orbit'); return changed; },
       tap: (x, y) => {
         if (useDeck.getState().mode !== 'free') return;
+        if (cel.view === 'lobule') { const h = cel.pickLobule(x, y, raycaster.current); lobulePicked(h ? lobuleSel(h) : null); return; }   // (the lobule's parts, by 2D's own rule: lobule/pick.ts)
         const hit = cel.pickAt(x, y, raycaster.current);
         sceneApi.pick(hit && hit === cel.highlight.picked ? null : hit);
       },
