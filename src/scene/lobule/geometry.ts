@@ -49,8 +49,9 @@ export interface LobuleNet {
 export const N = 40;
 /** The triad's layout (lobule-tract-labels.js): the small vessels sit TRIAD_D of R out, the arteriole and ductule TRIAD_A radians either side of the outward ray. */
 export const TRIAD_D = 0.09, TRIAD_A = 0.98;
-/** Sinusoid lumen (healthy) in lobule radii. The 2D app's is 0.0085 (a pixel clamp keeps it at least 1.7 px); the 3D one is drawn about twice as wide so it reads at the fit. */
-export const RS0 = 0.016;
+/** Sinusoid lumen (healthy) in lobule radii: the 2D app's own, rs0 = clamp(0.0085 R, 1.7, 3) px (lobule-zoom.js), at the 0.0085 an iPad or a Mac shows (a phone's 1.7 px floor is a little more).
+ *  It was 0.016 (drawn twice as wide "to read at the fit"), which put the cords of cells 1.9 times too far apart and the tubes 1.5 times too wide (visual review, 19 Nov). */
+export const RS0 = 0.0085;
 export const SIN_NARROW = 0.75;
 const TAU = Math.PI * 2;
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;

@@ -13,7 +13,9 @@ import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
 import { BloodField } from './blood/field.ts';
 import { CameraRig } from './camera/rig.ts';
-import type { Room } from './camera/room.ts';
+import { cutUniform, fieldSoft } from './camera/dive.ts';
+import { ORGAN_CUT } from './organs/layer.ts';
+import { effectiveDistance, type Room } from './camera/room.ts';
 import { SHOTS, type Shot, type ShotName } from './camera/shots.ts';
 import { Catheter, type CatheterState } from './catheter.ts';
 import { DEFAULT_FLOW_MODE, FLOW_FADE_MS, type FlowMarkMode, markSpeed } from './flow.ts';
@@ -26,11 +28,12 @@ import { latest, patient } from '../engine/store.ts';
 import { x2d, x3, y2d, y3 } from './frame2d.ts';
 import { type FigureHit, organHit } from './organs/pick.ts';
 import { FLUID_Z } from './disease/ascites.ts';
-import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers, type LobulePartName } from './lobule/index.ts';
+import { LobuleView, lobuleModel, sinusoidTargets, type LobuleHit, type LobuleLayers, type LobulePartName } from './lobule/index.ts';
 import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
-import { LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L } from './lobule/shots.ts';
+import { LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L, lobuleShot } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
-import { SinusoidView, diveShare } from './sinusoid/index.ts';
+import { SinusoidView, diveShare, isPortrait, restScale } from './sinusoid/index.ts';
+import { sinusoidBox } from './lobule/shots.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
 import { ProbeLayer } from './devices/probes/layer.ts';
@@ -411,7 +414,7 @@ export class CelScene {
   /** Show the body, the lobule or the sinusoid: the others are hidden and cost nothing (nothing is built or compiled here; the views were made at start). The camera is the caller's. */
   setView(v: FigureView, now = performance.now()): void {
     this.figureView = v;
-    this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? sinusoidCorners() : null);
+    this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? (sinusoidBox(this.portrait) as Vec3[]) : null);
     // the view being left stays drawn until the camera has landed on the new one (nothing pops while it flies); then it is hidden
     this.body.visible ||= v === 'body' || v === 'circuit';
     // the body turns into the map (or back) on the camera's own clock, from wherever it stands
@@ -531,6 +534,41 @@ export class CelScene {
     const flying = this.hideLeftBehind && this.sinus.isVisible;
     this.sinus.setDive(flying ? diveShare(this.rig.pose.shot.r, 2.5 * LOBULE_SCALE, 3 * SIN_SCALE) : null);
   }
+  /** The dive's cutaway window in the organs' wash and the field's focus: both are functions of the camera's distance to the place dived to, so the way in and the way out are one picture run both ways,
+   *  however the move is reversed, held or resized by a card (camera/dive.ts). Nothing changes at rest: every body shot is outside the window. */
+  private stepCutaway(): void {
+    const cam = this.rig.camera, d = cam.position.distanceTo(this.livePoint);
+    const p = this.divePt.copy(this.livePoint).project(cam);
+    cutUniform(d, p.x, p.y, cam.aspect, this.cutArr);
+    const was = ORGAN_CUT.value.z;
+    ORGAN_CUT.value.set(this.cutArr[0], this.cutArr[1], this.cutArr[2], this.cutArr[3]);
+    this.lobule.field.setSoft(fieldSoft(d, this.lobuleRest()));
+    if (was !== this.cutArr[2] && (was > -1 || this.cutArr[2] > -1)) this.moving = true;
+  }
+  /** A portrait room (narrower than tall, 2D's `W < H * 0.95`) runs the sinusoid top to bottom: the sinusoid view takes it (SinusoidView.setPortrait, the sinusoid worker's), and the shot asks for it (sinusoidShot(portrait)). */
+  private portrait = false;
+  private stepPortrait(): void {
+    const r = this.rig.targetRoom, p = isPortrait(r.w, r.h);
+    if (p !== this.portrait) {
+      this.portrait = p;
+      this.sinus.setPortrait(p);
+      if (this.figureView === 'sinusoid') this.rig.setSubject(sinusoidBox(p) as Vec3[]);
+      this.moving = true;
+    }
+    // what the view needs of the screen to lay its end arrows and run its traffic as 2D does: px per µm along the flow (the hand's zoom included), the room's length and the canvas's along it
+    const short = Math.min(r.w, r.h), s = this.rig.stageSize;
+    this.sinus.setScreen(restScale(short) * this.rig.handZoom, p ? r.h : r.w, p ? s.h : s.w);
+  }
+  get isPortrait(): boolean { return this.portrait; }
+  /** The distance the camera sits at with the whole lobule framed in the room it has (kept per room size). */
+  private restKey = ''; private restD = 0.1;
+  private lobuleRest(): number {
+    const r = this.rig.targetRoom, key = `${r.w}x${r.h}x${this.height}`;
+    if (key !== this.restKey) { this.restKey = key; this.restD = effectiveDistance(lobuleShot('lobule'), r, this.height); }
+    return this.restD;
+  }
+  private readonly divePt = new Vector3();
+  private readonly cutArr: [number, number, number, number] = [0, 0, -1, 1];
   /** How much of the body is drawn now (1 whole, 0 gone): for tests and tags. */
   get bodyShown(): number { return this.fadeNow; }
 
@@ -566,6 +604,13 @@ export class CelScene {
       if (o && o.group.visible) return o.edge!.id;   // (a vessel not drawn, a collateral not yet open, takes no tap)
     }
     return null;
+  }
+
+  /** What a tap on the lobule is (a part, and the zone for the hepatocytes), by 2D's own rule (lobule/pick.ts), or null; only while the lobule is the view. */
+  pickLobule(x: number, y: number, raycaster: Raycaster): LobuleHit | null {
+    if (this.figureView !== 'lobule') return null;
+    raycaster.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
+    return this.lobule.hitRay(raycaster.ray, this.rig.camera, { w: this.width, h: this.height });
   }
 
   /** The lobule part a tap lands on, in the lobule view, with the tap's place on the lobule plate in its own units (the centre is 0, 0; a triad is at a corner, about 1 away). */
@@ -650,6 +695,8 @@ export class CelScene {
     const presMoving = this.presence.step(dt);
     const shapeMoving = this.shapes.step(dt);
     this.stepSinusDive();
+    this.stepCutaway();
+    this.stepPortrait();
     const viewMoving = this.lobule.update(now) || this.sinus.update(now);
     const procMoving = this.procs.update(now);
     const diseaseMoving = this.disease.update(now);
@@ -697,6 +744,7 @@ export class CelScene {
     // Two passes, as the 2D figure paints: the organs first, then the vessels (and what is in them) over the cleared depth, so no organ's relief ever hides a vessel and a joined
     // vessel never looks cut. (The vessels keep their own depth among themselves: their tiers.)
     this.sinus.setDpr(gl.getPixelRatio?.() ?? 1);
+    this.lobule.setDpr(gl.getPixelRatio?.() ?? 1);
     const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;
     // the figure is drawn into a texture of the canvas's size and filtered onto the canvas once (post-aa.ts), unless the pass is off or the device refused it
     const into = this.post.target(gl);

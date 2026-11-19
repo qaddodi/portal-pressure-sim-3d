@@ -78,6 +78,7 @@ uniform sampler2D tile;
 uniform vec3 bg;
 uniform vec2 grey;
 uniform float ready;
+uniform float soft;   // the dive's focus (camera/dive.ts fieldSoft): 1 as the camera comes in, the neighbours out of focus; 0 once it has landed
 varying vec2 vLob;
 varying vec4 vClip;
 varying vec4 vCen;
@@ -94,7 +95,7 @@ void main() {
   float rd = max(1e-4, length(e - c)), d = length(p - c);
   // depth of field (lobule-look.js fieldDof at rest): sharp to 2.4 rd, 1.6 mip levels softer by 10 rd (or 0.6 of the diagonal)
   float diag = 2.0 * length(sc), r0d = rd * 2.4, r1d = max(r0d + 1e-3, min(rd * 10.0, diag * 0.6));
-  float bias = 1.6 * smoothstep(r0d, r1d, d);
+  float bias = 1.6 * smoothstep(r0d, r1d, d) + 4.0 * soft;
   vec2 uv = vec2(vLob.x / 6.0, vLob.y / 3.4641016151377544);
   vec3 col = texture2D(tile, uv, bias).rgb;
   // the quiet copy (tile-gl.js): toward its luma by 0.45, the page's colour over it at 0.42, then NEIGHBOUR_FLAT more
@@ -127,7 +128,7 @@ export class NeighbourField {
     this.mk = mk;
     this.mat = new ShaderMaterial({
       vertexShader: LOBULE_FIELD_VS, fragmentShader: LOBULE_FIELD_FS,
-      uniforms: { tile: { value: blankTexture() }, bg: { value: new Color() }, grey: { value: new Vector2(1, 1) }, ready: { value: 0 } },
+      uniforms: { tile: { value: blankTexture() }, bg: { value: new Color() }, grey: { value: new Vector2(1, 1) }, ready: { value: 0 }, soft: { value: 0 } },
       transparent: true, depthWrite: false,
     });
     const side = 2 * FIELD_HALF * LOBULE_R;
@@ -158,6 +159,9 @@ export class NeighbourField {
   }
 
   /** The surround's grey in a lens other than Pressure, k 0 (as drawn) … 1 (the lens's grey liver): 2D's surroundGrade. */
+  /** The dive's focus, 0 sharp to 1 out of focus (the neighbours resolve as the camera lands). */
+  setSoft(k: number): void { this.mat.uniforms.soft!.value = k; }
+  get softNow(): number { return this.mat.uniforms.soft!.value as number; }
   setGrey(k: number): void {
     const g = surroundGrade(k) as [number, number];
     (this.mat.uniforms.grey!.value as Vector2).set(g[0], g[1]);
