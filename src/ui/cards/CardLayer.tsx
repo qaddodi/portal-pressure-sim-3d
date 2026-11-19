@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { Deck, ReadingKey, Slide } from '../../decks/schema.ts';
+import { caseOf, type Deck, type ReadingKey, type Slide } from '../../decks/schema.ts';
 import { useUi } from '../ui-store.ts';
 import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
 import { planLayout, widthOf, stepsFor, type CardId, type Need, type Plan } from '../layout/plan.ts';
@@ -62,7 +62,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const wide = Math.round(widthOf(vp, pair, step));
   const hit = (key: string) => heights[`${key}@${wide}`];
   const h = (key: string) => hit(key)?.h ?? 0;
-  const capOf = (v: NonNullable<typeof view>) => maxPages(v.words, v.slide?.vignette && v.words === 'case' ? v.slide.vignette : v.slide?.line, v.words === 'check' ? deck.checks.length : 0);
+  const capOf = (v: NonNullable<typeof view>) => maxPages(v.words, v.slide && v.words === 'case' ? caseOf(v.slide)?.text : v.slide?.line, v.words === 'check' ? deck.checks.length : 0);
   const pages = view ? Math.min(pagesMap[pagesKey] ?? 1, capOf(view)) : 1;
   const at = clampPage(page, pages);
   const sig = `${wordsKey}|${pages}|${at}|${stepAt}|${vp.w}x${vp.h}`;

@@ -4,7 +4,7 @@
 // (on its own, the learner reads it), then the slide's words and data. Next and Back walk the beats, so Back from the first beat of a
 // slide lands on the last beat of the slide before.
 
-import type { Deck, Slide, ShotName, CathState, SlideScene } from '../../decks/schema.ts';
+import { caseOf, type Deck, type Slide, type ShotName, type CathState, type SlideScene } from '../../decks/schema.ts';
 import type { Shot } from '../../scene/camera/shots.ts';
 import type { CardId } from '../layout/plan.ts';
 import { TITLE_SHOT } from '../../decks/hvpg.ts';
@@ -20,7 +20,7 @@ export interface Pos { stop: number; beat: number }
 export function stopsOf(deck: Deck): Stop[] {
   return [
     { kind: 'title' },
-    ...deck.slides.map((slide): Stop => ({ kind: 'slide', slide, beats: slide.vignette ? 2 : 1 })),
+    ...deck.slides.map((slide): Stop => ({ kind: 'slide', slide, beats: caseOf(slide) ? 2 : 1 })),
     { kind: 'check' },
   ];
 }
@@ -67,7 +67,7 @@ export function viewAt(stops: Stop[], p: Pos, lastShot: ShotName | Shot = lastSl
   const lastScene = s.kind === 'check' ? lastSlideScene(stops) : null;
   if (s.kind === 'title') return { words: 'title', data: null, slide: null, shot: TITLE_SHOT, scene: null, cath: null, number, of };
   if (s.kind === 'check') return { words: 'check', data: null, slide: null, shot: lastScene ? lastScene.shot : lastShot, scene: lastScene, cath: null, number, of };
-  const caseBeat = s.slide.vignette && p.beat === 0;
+  const caseBeat = !!caseOf(s.slide) && p.beat === 0;
   return {
     words: caseBeat ? 'case' : 'teach',
     data: caseBeat ? null : s.slide.ladder || s.slide.tiles || hasToolChart(s.slide) ? 'ladder' : s.slide.table || hasVisualChart(s.slide) ? 'table' : null,
@@ -122,7 +122,7 @@ export function catheterAt(stops: Stop[], p: Pos): { advance: number; balloon: n
   const s = stops[p.stop];
   if (s.kind === 'title') return { advance: 0, balloon: 0 };
   if (s.kind === 'check') return catheterOf(lastCath(stops));
-  if (s.slide.vignette && p.beat === 0) return { advance: 0, balloon: 0 };
+  if (caseOf(s.slide) && p.beat === 0) return { advance: 0, balloon: 0 };
   return catheterOf(s.slide.cath);
 }
 const catheterOf = (c: CathState | undefined | null): { advance: number; balloon: number } =>

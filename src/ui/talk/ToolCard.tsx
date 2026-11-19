@@ -31,6 +31,14 @@ import { LaddersCard } from '../charts/ladder/LaddersCard.tsx';
 import { AllPatientsCard } from '../charts/small/AllPatientsCard.tsx';
 import { StiffCard } from '../charts/stiff/StiffCard.tsx';
 import { engine } from '../../engine/index.ts';
+import { FlowTimeCard } from '../charts/flowtime/FlowTimeCard.tsx';
+import { SaagCard } from '../charts/saag/SaagCard.tsx';
+import { EvGraphCard } from '../charts/evgraph/EvGraphCard.tsx';
+import { eventGraphOf } from '../charts/evgraph/model.ts';
+import { evBounds } from '../charts/evgraph/data.ts';
+import { fitTrial, metricsOfFp, trialOf } from '../charts/trial/model.ts';
+import { useLapse } from '../../decks/hp/lapse.ts';
+import { useScope } from '../tests/endo/scope-state.ts';
 import { lazy, Suspense } from 'react';
 import { useUi } from '../ui-store.ts';
 import { ReadoutsPane } from '../tests/ReadoutsPane.tsx';
@@ -42,10 +50,20 @@ import '../tests/tests.css';
 import '../tests/abdomen/abdomen.css';
 const DopplerPane = lazy(() => import('../tests/doppler/DopplerPane.tsx').then((m) => ({ default: m.DopplerPane })));
 const FibroPane = lazy(() => import('../tests/fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
+const EndoPane = lazy(() => import('../tests/endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));
 const IrPane = lazy(() => import('../tests/ir/IrPane.tsx').then((m) => ({ default: m.IrPane })));
 
 type Rec = Record<string, unknown>;
 type Fp = Record<string, number | null | undefined>;
+
+/** A trial's fit for the patient a slide stands on (its own state, or the state of the slide the tool names with `at`, and the case facts it gives). */
+function fitFor(tool: Rec, fp: Fp | null, params: unknown, fpOf: (id: string) => Fp | null, results: ReturnType<typeof useStates.getState>['results'][string] | undefined, slides: CopiedSlide[]) {
+  const t = trialOf(tool.id);
+  const at = typeof tool.at === 'string' ? slides.findIndex((x) => x.id === tool.at) : -1;
+  const st = at >= 0 ? results?.[at] : null, f = (st?.fp as Fp | undefined) ?? (at >= 0 ? fpOf(String(tool.at)) : null) ?? fp;
+  if (!t || !f) return null;
+  try { return (fitTrial(t as never, metricsOfFp(f as never), (st?.params ?? params) ?? null, (tool.facts as never) ?? null) as never) ?? null; } catch { return null; }
+}
 
 /** One slide's inputs: its own state, the healthy patient, and the deck's other states by slide id. */
 function useEnv(deck: Deck, i: number) {
@@ -85,7 +103,10 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'lumen': return <LumenCard params={(params ?? patient.params ?? null) as never} vessel={(tool.vessel as string | undefined) ?? 'PV_TRUNK'} site={(tool.site as string | undefined) ?? null} name={(tool.name as string | undefined) ?? null} />;
     case 'flows': return frame ? <FlowsCard of={tool.of === 'inflow' ? 'inflow' : 'portal'} input={{ Q: frame.Q, shunt: ((patient.params as { shunt?: number } | null)?.shunt ?? 0) as number, customShunts: ((patient.params as { customShunts?: Rec } | null)?.customShunts ?? null) as never }} /> : null;
     case 'plane': return <PlaneCard plane={tool.plane as never} ring={fp as never} stops={trailStops(tool.trail as never, fpOf as never) ?? undefined} />;
-    case 'trial': return typeof tool.id === 'string' ? <TrialCard id={tool.id} fit={null} head /> : null;
+    case 'trial': return typeof tool.id === 'string' ? <TrialCard id={tool.id} fit={fitFor(tool, fp, params, fpOf, results, copied.slides as CopiedSlide[])} head /> : null;
+    case 'flowtime': return <FlowTime deck={deck} slide={slide} i={i} tool={tool} trail={(results?.[i]?.trail as never) ?? null} />;
+    case 'saag': return <SaagCard rows={((tool.of as unknown[] | undefined) ?? []).map((o) => { const x = (typeof o === 'string' ? { id: o } : o) as { id?: string; name?: string; title?: string }; return { id: x.id, name: x.name ?? x.title ?? deck.slides.find((s) => s.id === x.id)?.title ?? x.id ?? '', f: x.id ? (fpOf(x.id) as never) : null }; })} extra={(tool.extra as never) ?? []} own={(tool.own as string | undefined) ?? null} />;
+    case 'evgraph': return <EvGraph cs={cs} fp={fp} before={results?.[i]?.before as { fp: Fp } | undefined} opened={i > 0 ? ((results?.[i - 1]?.fp as Fp | undefined) ?? null) : null} />;
     case 'forest': return <ForestCard ids={(tool.ids as string[] | undefined) ?? []} />;
     case 'stiffness': return <StiffCard lsm={(fp?.lsm as number | null | undefined) ?? null} plt={(fp?.plt as number | null | undefined) ?? null} note />;
     case 'trace': return <TraceCard chain={chainFor(copied.slides as never, stateOf, (results ?? []).map((r) => r && { fp: r.fp as never, params: r.params }), i, tool as never)} {...traceProps(tool as never)} />;
@@ -93,7 +114,7 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'visual:plane': return <PlaneVisual deck={deck} cs={cs} fpOf={fpOf} />;
     case 'visual:ladders': return <LaddersCard slide={cs as never} deck={copied as never} />;
     case 'visual:allpatients': return <AllPatientsCard slide={cs as never} deck={copied as never} />;
-    case 'doppler': case 'fibroscan': case 'abdomen': case 'reading': case 'hvpg': return <Instrument kind={kind} tool={tool} />;
+    case 'doppler': case 'fibroscan': case 'abdomen': case 'reading': case 'hvpg': case 'scope': case 'wall': return <Instrument kind={kind} tool={tool} />;
     default: return null;
   }
 }
@@ -104,6 +125,8 @@ function Instrument({ kind, tool }: { kind: string; tool: Rec }) {
   useEffect(() => { startFeed(); }, []);
   useEffect(() => {
     if (kind === 'doppler' && typeof tool.vessel === 'string') { setDopplerProbe(tool.vessel); useDopplerProbe.getState().setGate((tool.gate as never) ?? null); }
+    if (kind === 'wall') useScope.getState().setView('wall');
+    if (kind === 'scope') useScope.getState().setView('scope');
     if (kind === 'fibroscan') useTests.getState().setFibro(tool.organ === 'spleen' ? 'spleen' : 'liver');
   }, [kind, tool]);
   const plot = Math.round(Math.min(220, Math.max(150, w * 0.32)));
@@ -111,10 +134,25 @@ function Instrument({ kind, tool }: { kind: string; tool: Rec }) {
   return (
     <div className="dock-pane-host" data-instrument={kind}>
       <Suspense fallback={null}>
-        {kind === 'doppler' ? <DopplerPane {...p} /> : kind === 'fibroscan' ? <FibroPane {...p} /> : kind === 'hvpg' ? <IrPane {...p} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : <ReadoutsPane narrow={p.narrow} />}
+        {kind === 'doppler' ? <DopplerPane {...p} mode={tool.mode === 'color' ? 'velocity' : undefined} /> : kind === 'fibroscan' ? <FibroPane {...p} /> : kind === 'hvpg' ? <IrPane {...p} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : <ReadoutsPane narrow={p.narrow} />}
       </Suspense>
     </div>
   );
+}
+
+/** Two readings over a time-lapse: the slide's days, drawn as they play (the heads follow the lapse's progress), whole once it is done or when it does not play. */
+function FlowTime({ deck, slide, i, tool, trail }: { deck: Deck; slide: Slide; i: number; tool: Rec; trail: never }) {
+  const mine = useLapse((s) => s.key === `${deck.id}/${slide.id}`), d = useLapse((s) => s.d), n = useLapse((s) => s.n);
+  const k = slide.lapse?.plays && mine && n ? Math.min(1, d / n) : 1;
+  void i;
+  return <FlowTimeCard trail={trail} k={k} lines={(tool.lines as string[] | undefined) ?? undefined} clock={tool.clock === 'days' ? 'days' : 'meal'} given={(tool.given as Record<string, number> | undefined) ?? null} view={(tool.view as never) ?? null} />;
+}
+
+/** A procedure's graph: the two readings before the change and where the slide's settled state ends them. */
+function EvGraph({ cs, fp, before, opened }: { cs: CopiedSlide; fp: Fp | null; before?: { fp: Fp }; opened: Fp | null }) {
+  const spec = useMemo(() => eventGraphOf(cs as never), [cs]);
+  const b = spec && fp ? evBounds(spec, opened as never, { fp: fp as never, before: before as never }) : null;
+  return spec && b ? <EvGraphCard spec={spec} before={b.before} end={b.end} /> : null;
 }
 
 /** The change-from-healthy chart: one chart over the deck's states, a state's slot once its slide is reached. */
