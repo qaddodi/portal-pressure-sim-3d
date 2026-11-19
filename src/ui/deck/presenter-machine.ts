@@ -4,7 +4,8 @@
 // (on its own, the learner reads it), then the slide's words and data. Next and Back walk the beats, so Back from the first beat of a
 // slide lands on the last beat of the slide before.
 
-import type { Deck, Slide, ShotName, CathState } from '../../decks/schema.ts';
+import type { Deck, Slide, ShotName, CathState, SlideScene } from '../../decks/schema.ts';
+import type { Shot } from '../../scene/camera/shots.ts';
 import type { CardId } from '../layout/plan.ts';
 import { TITLE_SHOT } from '../../decks/hvpg.ts';
 
@@ -51,29 +52,38 @@ export interface View {
   words: CardId;
   data: CardId | null;
   slide: Slide | null;
-  shot: ShotName;
+  /** A named shot of the slice, or the slide's own `scene` shot (a ported deck's camera). */
+  shot: ShotName | Shot;
+  scene: SlideScene | null;
   cath: CathState | null;
   /** 1-based stop number and the count, for the progress bar. */
   number: number; of: number;
 }
 
-export function viewAt(stops: Stop[], p: Pos, lastShot: ShotName = lastSlideShot(stops)): View {
+export function viewAt(stops: Stop[], p: Pos, lastShot: ShotName | Shot = lastSlideShot(stops)): View {
   const s = stops[p.stop];
   const of = stops.length, number = p.stop + 1;
-  if (s.kind === 'title') return { words: 'title', data: null, slide: null, shot: TITLE_SHOT, cath: null, number, of };
-  if (s.kind === 'check') return { words: 'check', data: null, slide: null, shot: lastShot, cath: null, number, of };
+  const lastScene = s.kind === 'check' ? lastSlideScene(stops) : null;
+  if (s.kind === 'title') return { words: 'title', data: null, slide: null, shot: TITLE_SHOT, scene: null, cath: null, number, of };
+  if (s.kind === 'check') return { words: 'check', data: null, slide: null, shot: lastScene ? lastScene.shot : lastShot, scene: lastScene, cath: null, number, of };
   const caseBeat = s.slide.vignette && p.beat === 0;
   return {
     words: caseBeat ? 'case' : 'teach',
-    data: caseBeat ? null : s.slide.ladder ? 'ladder' : s.slide.table ? 'table' : null,
-    slide: s.slide, shot: s.slide.shot, cath: s.slide.cath ?? null, number, of,
+    data: caseBeat ? null : s.slide.ladder || s.slide.tiles ? 'ladder' : s.slide.table ? 'table' : null,
+    slide: s.slide, shot: s.slide.scene ? s.slide.scene.shot : s.slide.shot ?? TITLE_SHOT, scene: s.slide.scene ?? null, cath: s.slide.cath ?? null, number, of,
   };
 }
 
 /** The shot the quick check keeps: the last slide's. */
 export const lastSlideShot = (stops: Stop[]): ShotName => {
-  for (let i = stops.length - 1; i >= 0; i--) { const s = stops[i]; if (s.kind === 'slide') return s.slide.shot; }
+  for (let i = stops.length - 1; i >= 0; i--) { const s = stops[i]; if (s.kind === 'slide') return s.slide.shot ?? TITLE_SHOT; }
   return TITLE_SHOT;
+};
+
+/** The scene the quick check keeps when the last slide carries one (a ported deck). */
+export const lastSlideScene = (stops: Stop[]): SlideScene | null => {
+  for (let i = stops.length - 1; i >= 0; i--) { const s = stops[i]; if (s.kind === 'slide') return s.slide.scene ?? null; }
+  return null;
 };
 
 // ── Input ──

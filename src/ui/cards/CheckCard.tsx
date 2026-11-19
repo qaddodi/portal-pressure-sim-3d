@@ -3,6 +3,7 @@ import type { Deck } from '../../decks/schema.ts';
 import { CHECK_HINT, CHECK_LINE, CHECK_TITLE } from '../../decks/check.ts';
 import { useUi } from '../ui-store.ts';
 import { NameTab } from './NameTab.tsx';
+import { Line } from './Line.tsx';
 
 /** The closing quick check, as the 2D app's: numbered questions; a tap opens the answer under its question (the rows below ease down by transform, the answer fades in),
  *  a second tap shuts it. On a phone on its side one answer is open at a time, so the card never outgrows its short screen. */
@@ -10,6 +11,8 @@ export function CheckCard({ deck }: { deck: Deck }) {
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
   const list = useRef<HTMLOListElement>(null);
   const tops = useRef<number[] | null>(null);
+  const readings = useUi((s) => s.readings);
+  const read = (k: string, at?: string) => readings[at ? `${k}@${at}` : k];
   const one = useUi((s) => s.vp.h <= 500 && s.vp.w > s.vp.h);
 
   const toggle = (k: number) => {
@@ -37,7 +40,7 @@ export function CheckCard({ deck }: { deck: Deck }) {
         {deck.checks.map(([q, a], k) => (
           <li key={k} className={open.has(k) ? 'open' : undefined}>
             <button type="button" className="pzc-q" aria-expanded={open.has(k)} aria-controls={`pzc-a${k}`} onClick={() => toggle(k)}>
-              <span>{q}</span><span className="pzc-hint" aria-hidden="true">{CHECK_HINT}</span>
+              <span><Line text={q} read={read} /></span><span className="pzc-hint" aria-hidden="true">{CHECK_HINT}</span>
             </button>
             {open.has(k) && <div className="pzc-a" id={`pzc-a${k}`}><p>{a}</p></div>}
           </li>

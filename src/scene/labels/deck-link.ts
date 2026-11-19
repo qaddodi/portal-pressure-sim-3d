@@ -17,7 +17,8 @@ export function labelsAt(stops: Stop[], pos: { stop: number; beat: number }): { 
   return { named: namedBy(v.slide), cath: v.cath };
 }
 
-export const namedBy = (slide: Slide): Set<string> => stationsOfTerms(Object.values(slide.terms ?? {}));
+/** The stations a slide names: those its words point at, and the ones a ported slide asks to label outright. */
+export const namedBy = (slide: Slide): Set<string> => new Set([...stationsOfTerms(Object.values(slide.terms ?? {})), ...(slide.scene?.labels ?? [])]);
 
 export function linkLabelsToDeck(): () => void {
   const sync = () => {

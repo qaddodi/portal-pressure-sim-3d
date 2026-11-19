@@ -12,6 +12,7 @@ import { PresenterBar } from './deck/PresenterBar.tsx';
 import { useDeckInput } from './deck/useDeckInput.ts';
 import { linkScene } from './deck/scene-link.ts';
 import { linkModel } from './talk/deck-model.ts';
+import { linkStates } from '../decks/hp/link.ts';
 import { JumpList, BlackScreen } from './deck/JumpList.tsx';
 import { noteResume } from './deck/resume.ts';
 
@@ -43,12 +44,17 @@ export function DeckUi() {
   // the slide's patient, when it names one
   useEffect(() => linkModel(), []);
 
-  // the engine's headline numbers, mirrored for the cards
+  // a talk whose slides each have their own state: the cards print that state, and the figure eases to it
+  const ownStates = deck?.numbers === 'states';
+  useEffect(() => (deck && ownStates ? linkStates(deck) : undefined), [deck, ownStates, nonce]);
+
+  // the engine's headline numbers, mirrored for the cards (a talk with states of its own prints those instead)
   useEffect(() => {
+    if (ownStates) return;
     const push = (s: ReturnType<typeof useEngine.getState>) => useUi.getState().setReadings({ whvp: s.whvp, fhvp: s.fhvp, hvpg: s.hvpg, ivc: s.ivc, ra: s.ra, pv: s.pv });
     push(useEngine.getState());
     return useEngine.subscribe(push);
-  }, []);
+  }, [ownStates]);
 
   // the screen: its size and its safe areas, measured when either changes (never per frame)
   useLayoutEffect(() => {

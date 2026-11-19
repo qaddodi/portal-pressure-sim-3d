@@ -4,7 +4,8 @@ import { useDeck } from '../../state/deck.ts';
 import { useShell } from './store.ts';
 import { useUi } from '../ui-store.ts';
 import { cel } from '../../scene/api.ts';
-import { deckOf } from '../deck/deck-of.ts';
+import { deckOf, isAlias, DECK_ALIAS } from '../deck/deck-of.ts';
+import { isBuiltin, loadBuiltin } from '../../decks/registry.ts';
 import { captureSaved, restoreSaved, type Saved } from '../talk/deck-model.ts';
 
 let saved: Saved | null = null;
@@ -12,7 +13,13 @@ let saved: Saved | null = null;
 /** Opens a talk at a slide (the 2D slide number minus one: 0 is the outline). Returns false, and opens nothing, when there is no such talk. */
 export function startTalk(deckId: string, at = 0): boolean {
   const deck = deckOf(deckId);
-  if (!deck) return false;
+  if (!deck) {
+    // a built-in talk whose data is read when it opens (its own small chunk): open it as soon as it is in
+    const id = isAlias(deckId) ? DECK_ALIAS[deckId]! : deckId;
+    if (!isBuiltin(id)) return false;
+    void loadBuiltin(id).then((d) => { if (d) startTalk(deckId, at); });
+    return true;
+  }
   if (useShell.getState().mode !== 'deck') saved = captureSaved();   // (starting another talk while one runs keeps the patient from before the first)
   cel.setView('body');
   useUi.getState().openDeck(deck, at);

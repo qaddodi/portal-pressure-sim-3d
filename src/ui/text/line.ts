@@ -1,11 +1,14 @@
 // A slide's line as pieces the card can set: plain words, a live reading, a cut-off, a term that points at the figure, bold words.
 // The same markup the 2D deck uses ({hvpg}, {hvpg:0}, {>=10 mmHg}, [label](term), **bold**).
 
-import { READING_KEYS, type ReadingKey } from '../../decks/schema.ts';
+import { parseToken, valueText } from './tokens.ts';
 
 export type Piece =
   | { t: 'text'; text: string }
-  | { t: 'value'; key: ReadingKey; decimals: number | null }
+  /** A reading of any tile (the 2D app's), now or `at` another slide of the deck; `decimals` 0 prints it whole. */
+  | { t: 'value'; key: string; decimals: number | null; at?: string }
+  /** A number typed in braces (a rule from the literature, not the patient): outlined like a cut-off. */
+  | { t: 'literal'; text: string }
   | { t: 'cutoff'; text: string }
   | { t: 'term'; label: string; term: string }
   | { t: 'bold'; text: string };
@@ -31,10 +34,12 @@ export function parseLine(line: string): Piece[] {
     else if (m[4] !== undefined) out.push({ t: 'bold', text: m[4] });
     else {
       const body = m[3].trim();
-      const cut = cutoffText(body);
-      const k = /^([a-z]+)(?::(\d))?$/.exec(body);
-      if (cut) out.push({ t: 'cutoff', text: cut });
-      else if (k && (READING_KEYS as readonly string[]).includes(k[1])) out.push({ t: 'value', key: k[1] as ReadingKey, decimals: k[2] === undefined ? null : Number(k[2]) });
+      const tk = parseToken(body);
+      if (tk.kind === 'cut') out.push({ t: 'cutoff', text: tk.text.replace(/ /g, '\u00a0') });
+      else if (tk.kind === 'value') out.push({ t: 'value', key: tk.key, decimals: tk.whole ? 0 : null, ...(tk.at ? { at: tk.at } : {}) });
+      else if (tk.kind === 'step') out.push({ t: 'literal', text: String(tk.n) });
+      // a typed number or quantity ({6 to 8 g}, {2 to 3 mg/24 h}): a rule, outlined. A bare word is a mistyped reading and stays an error.
+      else if (/[\d%]/.test(tk.text)) out.push({ t: 'literal', text: tk.text });
       else throw new Error(`the line has {${body}}, which is no reading or cut-off`);
     }
   }
@@ -59,7 +64,7 @@ export function tenthGap(hi: number, lo: number, raw: number | null = null): num
 }
 
 /** The text of a line with its values filled in, as plain words (for the accessible name and tests). */
-export function plainLine(pieces: Piece[], read: (k: ReadingKey) => number | null | undefined): string {
+export function plainLine(pieces: Piece[], read: (k: string, at?: string) => number | null | undefined): string {
   return pieces.map((p) => {
     switch (p.t) {
       case 'text': return p.text;

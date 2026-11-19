@@ -12,6 +12,7 @@ import { TitleCard } from './TitleCard.tsx';
 import { CaseCard } from './CaseCard.tsx';
 import { TeachingCard } from './TeachingCard.tsx';
 import { LadderCard } from './LadderCard.tsx';
+import { TilesCard } from '../../decks/hp/TilesCard.tsx';
 import { CheckCard } from './CheckCard.tsx';
 import { TableCard } from './TableCard.tsx';
 import { Strip } from '../wallet/Strip.tsx';
@@ -108,7 +109,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   });
 
   if (!view) return null;
-  const read = (k: ReadingKey) => readings[k];
+  const read = (k: string, at?: string) => readings[at ? `${k}@${at}` : k];
   const gap = gapOf(readings);
   // each card draws what it was given when it came in, so a card that is leaving keeps its own words while it goes
   const snaps = snapRef.current;
@@ -121,7 +122,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
       case 'case': return <CaseCard slide={sn.slide!} page={sn.at} pages={sn.pages} />;
       case 'teach': return <TeachingCard slide={sn.slide!} deck={deck} read={read} page={sn.at} pages={sn.pages} trim={sn.trim} />;
       case 'table': return sn.slide?.table ? <TableCard deck={deck} slide={sn.slide} /> : null;
-      case 'ladder': return sn.slide?.ladder ? <LadderCard ladder={sn.slide.ladder} readings={readings} /> : null;
+      case 'ladder': return sn.slide?.ladder ? <LadderCard ladder={sn.slide.ladder} readings={readings} /> : sn.slide?.tiles ? <TilesCard spec={sn.slide.tiles} ids={deck.slides.map((x) => x.id)} /> : null;
       case 'check': return <CheckCard deck={deck} />;
     }
   };

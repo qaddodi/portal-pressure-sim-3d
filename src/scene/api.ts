@@ -51,6 +51,11 @@ export const sceneApi = {
     this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot() : lobuleShot(cam), room, ms);
     clock.invalidate('circuit');
   },
+  /** Show a view and fly to a shot of the caller's own (a ported deck slide's camera), fitted into the room the cards leave free. */
+  showShot(v: FigureView, shot: ShotName | Shot, room: Room): void {
+    if (cel.view !== v) cel.setView(v);
+    this.goTo(shot, room);
+  },
   /** The Circuit's quarter turn: stand the map upright (flow bottom to top) or lay it wide; the camera follows on the same 480 ms. Remembered across visits. */
   setCircuitUpright(on: boolean, room: Room): void {
     useCircuitTurn.getState().set(on);

@@ -1,8 +1,8 @@
 // The menu's Present column, as the 2D menu lists it: the talks by topic (a row, an ⓘ that opens the talk's preview under it, with Resume / From the start / Presenter view / Copy link / Print notes),
 // then "Your scripts" (New, Import; each script's Present, Add current state, Share link, Export, Print notes, Delete).
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../shell/icons.tsx';
-import { builtinDeck } from '../../decks/registry.ts';
+import { builtinDeck, loadBuiltin } from '../../decks/registry.ts';
 import { useUi } from '../ui-store.ts';
 import { presentTopics, LEVELS, slideCount, type DeckMeta } from './library.ts';
 import { resumeFor } from '../deck/resume.ts';
@@ -17,6 +17,8 @@ const Act = ({ icon, label, primary, title, onClick }: { icon?: string; label: s
 );
 
 function DeckPreview({ d }: { d: DeckMeta }) {
+  const [, loaded] = useState(0);
+  useEffect(() => { if (!builtinDeck(d.id)) void loadBuiltin(d.id).then(() => loaded((n) => n + 1)); }, [d.id]);   // (a talk read when it is opened: its objectives come in a moment)
   const deck = builtinDeck(d.id);
   const n = slideCount(d.id), r = resumeFor(d.id, n);
   return (

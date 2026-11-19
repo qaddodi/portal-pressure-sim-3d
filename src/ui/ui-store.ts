@@ -3,14 +3,15 @@
 // nothing here imports the engine, and nothing in the engine imports this.
 
 import { create } from 'zustand';
-import type { ReadingKey, Deck } from '../decks/schema.ts';
+import type { Deck } from '../decks/schema.ts';
 import type { Rect, Viewport } from './layout/device.ts';
 import { deviceClass, type DeviceClass } from './layout/device.ts';
 import type { Plan } from './layout/plan.ts';
 import { walletStart, swap as walletSwap, resetForSlide, type WalletState } from './wallet/wallet-machine.ts';
 import { first, apply, goto, samePos, type Pos, type Move, type Stop } from './deck/presenter-machine.ts';
 
-export type Readings = Partial<Record<ReadingKey, number | null>>;
+/** The numbers the cards print, by tile key (the engine's fingerprint names: hvpg, whvp, co, lsm …; `key@slide` is a reading at another slide of the deck). */
+export type Readings = Partial<Record<string, number | null>>;
 
 export interface Boxes {
   words: Rect | null;
@@ -115,7 +116,7 @@ export const useUi = create<UiState>((set, get) => ({
 
   setReadings: (r) => {
     const cur = get().readings;
-    const keys = Object.keys(r) as ReadingKey[];
+    const keys = Object.keys(r);
     if (keys.every((k) => cur[k] === r[k])) return;
     set({ readings: { ...cur, ...r } });
   },

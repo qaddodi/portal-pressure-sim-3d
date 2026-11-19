@@ -5,6 +5,6 @@ import type { Claim } from './claim.ts';
 
 const DECKS = [HVPG_DECK];
 export const claims: readonly Claim[] = DECKS.flatMap((d) => [
-  { id: `deck:${d.id}`, wired: true },
-  ...d.slides.map((s) => ({ id: `slide:${d.id}/${s.id}`, wired: true })),
+  // (the deck row is B13b's: the deck has all 2D slides now, and is wired when each is; the slice claims the slides it drew itself, the ones with a named shot)
+  ...d.slides.filter((s) => !s.scene).map((s) => ({ id: `slide:${d.id}/${s.id}`, wired: true })),
 ]);

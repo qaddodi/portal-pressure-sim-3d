@@ -56,6 +56,7 @@
    The words' type (.pz-kick, .pz-h, .pz-line, .pz-eq, .pz-val, .pz-term) and the data card's (.pz-dh, .pz-tile) are the lifted 2D rules. What is left here is the card-owned bits. */
 .dk-num { font-variant-numeric: tabular-nums lining-nums; font-weight: 600; white-space: nowrap; }
 .dk-body + .dk-body { margin-top: 10px; }
+.dp-eqnote { margin: 2px 0 8px; font-size: var(--fs-data); opacity: 0.72; }
 
 /* ── title card ── */
 .dk-obj { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text); }

@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
-import type { ReadingKey } from '../../decks/schema.ts';
-import { parseLine, fmtPressure } from '../text/line.ts';
+import { parseLine } from '../text/line.ts';
+import { valueText } from '../text/tokens.ts';
 import { Roll } from './Roll.tsx';
 
 /** A slide's line, typeset: live readings roll, cut-offs and bold words are bold, figure terms are tagged for the scene. */
-export function Line({ text, read, terms }: { text: string; read: (k: ReadingKey) => number | null | undefined; terms?: Record<string, string> }): ReactNode {
+export function Line({ text, read, terms }: { text: string; read: (k: string, at?: string) => number | null | undefined; terms?: Record<string, string> }): ReactNode {
   const pieces = parseLine(text);
   return pieces.map((p, i) => {
     switch (p.t) {
@@ -12,9 +12,12 @@ export function Line({ text, read, terms }: { text: string; read: (k: ReadingKey
       case 'bold': return <b key={i}>{p.text}</b>;
       case 'term': return <span key={i} className="pz-term dk-term" data-term={p.term}>{p.label}</span>;
       case 'cutoff': return <b key={i} className="pz-nw">{p.text}</b>;
+      case 'literal': return <b key={i} className="pz-nw">{p.text}</b>;
       case 'value': {
-        const v = read(p.key);
-        return <span key={i} className="pz-val dk-num"><Roll text={fmtPressure(v, p.decimals)} />{v == null ? '' : ' mmHg'}</span>;
+        // a reading as its tile prints it, with its unit (the blood pressure beside its two numbers, the platelets in thousands)
+        const v = read(p.key, p.at);
+        const text = v == null ? '…' : valueText(p.key, { [p.key]: v, sbp: read('sbp', p.at), dbp: read('dbp', p.at) }, p.decimals === 0);
+        return <span key={i} className="pz-val dk-num"><Roll text={text} /></span>;
       }
     }
   });

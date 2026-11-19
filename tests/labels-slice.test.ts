@@ -63,6 +63,8 @@ for (const [name, vp] of Object.entries(SCREENS) as [keyof typeof SCREENS, (type
   stops.forEach((s, i) => {
     const what = s.kind === 'slide' ? s.slide.id : s.kind;
     test(`${name} / ${what}: labels clear of cards, in the view, none overlapping, none dropped, named parts shown`, () => {
+      // a slide in the lobule or sinusoid view has no body labels to judge (those views carry their own, B8)
+      if (s.kind === 'slide' && s.slide.scene && s.slide.scene.view !== 'body') return;
       const h = harness(name, i, s.kind === 'slide' && s.slide.vignette ? 1 : 0);
       h.settle();
       const view: Box = { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom };
