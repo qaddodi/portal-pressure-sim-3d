@@ -45,7 +45,7 @@ test('search: the empty field leaves out commands with nothing behind them', () 
 test('every App, Time and View command the palette lists is either wired or says so', () => {
   for (const c of UI.search.commands) if (['App', 'Time', 'View'].includes(c.group)) assert.equal(typeof isWiredCommand(c.group, c.title), 'boolean');
   assert.equal(isWiredCommand('View', 'Colored by velocity'), true);
-  assert.equal(isWiredCommand('View', 'Lobule view'), false);
+  assert.equal(isWiredCommand('View', 'Lobule view'), true);   // (the lobule is drawn and commands.ts goes to it: the claim follows the work)
 });
 
 test('deep links: script wins over preset, which wins over home; slides count from 1', () => {

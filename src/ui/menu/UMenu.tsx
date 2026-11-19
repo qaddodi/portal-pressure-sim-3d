@@ -30,6 +30,7 @@ import { useScripts, newScript, addStep, removeScript, exportScript, shareScript
 import { UI } from '../strings.generated.ts';
 import { presentTopics, patientGroups, LEVELS, slideCount, type DeckMeta } from './library.ts';
 import { loadPatient } from './patients.ts';
+import { openFromReadings } from '../readings/FromReadings.tsx';
 import { GROUP_WHERE, fold, filterRows, emptyNote, stepRow, wordsOf, chipsOf, type Snap } from './umenu-logic.ts';
 
 const PRESET_SUMMARY: Record<string, string> = Object.fromEntries((PRESETS as { id: string; summary?: string }[]).map((p) => [p.id, p.summary ?? '']));
@@ -204,6 +205,8 @@ export function UMenu() {
   const patientRows = useMemo<Row[]>(() => groups.flatMap((g) => g.patients.map((p) => ({ key: 'p:' + p.id, find: fold([p.label, g.group, GROUP_WHERE[g.group], p.id].join(' ')), more: fold(PRESET_SUMMARY[p.id]) }))), [groups]);
   const shownP = useMemo(() => new Set([...filterRows(presentRows, query)].map((r) => r.key)), [presentRows, query]);
   const shownT = useMemo(() => new Set([...filterRows(patientRows, query)].map((r) => r.key)), [patientRows, query]);
+  // (2D menu.js: Work backward's door heads the Patients list)
+  const frShown = useMemo(() => [...filterRows([{ key: 'fr', find: fold('From readings work backward enter measured pressures stiffness reverse search scenarios'), more: fold('Enter what you measured and see which lesions could give it') }], query)].length > 0, [query]);
   const words = wordsOf(query).length > 0;
   const here = tab === 'present' ? shownP.size : shownT.size, there = tab === 'present' ? shownT.size : shownP.size;
   const empty = emptyNote(tab, here, there, query);
@@ -310,6 +313,10 @@ export function UMenu() {
           </div>
         </section>
         <section className="um-col" data-col="patients" id="umcol-patients" role="tabpanel" aria-labelledby="umtab-patients">
+          <div className="um-g um-fr" hidden={!frShown}><ul><li>
+            <button type="button" className="um-row um-fromread" data-k="from-readings" onClick={() => { close(); openFromReadings(); }}>
+              <I n="rewind" className="um-play" /><span className="um-t">From readings</span><span className="um-m">Work backward</span></button>
+          </li></ul></div>
           {groups.map((g) => (
             <div key={g.group} className="um-g" hidden={hiddenGroup(g.patients.map((p) => 'p:' + p.id), shownT)}>
               <div className="um-gl" id={`umg-${g.group}`}><b>{g.group}</b><span>{GROUP_WHERE[g.group] || ''}</span></div>

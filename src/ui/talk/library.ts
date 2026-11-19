@@ -14,6 +14,8 @@ import { startTalk } from '../shell/talk.ts';
 import { openHandout } from '../deck/handout.ts';
 import { openPresenterView } from '../deck/presenter-link.ts';
 import { download } from '../deck/download.ts';
+import { shareLinkNow } from '../shell/share-wire.ts';
+import { SHARE_WORDS } from '../shell/share.ts';
 
 /** Rises on every change to the scripts, so the menu reads them again. */
 export const useScripts = create<{ version: number }>(() => ({ version: 0 }));
@@ -68,8 +70,10 @@ const here = () => `${location.origin}${location.pathname}`;
 export const scriptLink = (s: Script): string => `${here()}#script=${enc(s)}`;
 export const deckLink = (id: string): string => `${here()}?script=${id}`;
 export const shareScript = (s: Script): void => copy(scriptLink(s), W.linkCopiedScript);
-export const viewLink = (patient: string): string => `${here()}?preset=${patient}`;
-export const shareView = (patient: string): void => copy(viewLink(patient), W.linkCopiedView);
+/** The link to what is on the screen: the patient with every setting, the view, the selection and the camera (shell/share.ts, the 2D share link); in a talk, the talk at its slide.
+ *  (`patient` is the caller's patient; the link is read from the app itself, so the menu and the search copy the same one.) */
+export const viewLink = (_patient?: string): string => shareLinkNow();
+export const shareView = (_patient?: string): void => copy(viewLink(), SHARE_WORDS.copied);
 export const shareDeck = (id: string): void => copy(deckLink(id), W.linkCopiedDeck);
 
 /** A script (title, steps) as JSON is kept as it is; anything else must be a deck. */
