@@ -37,6 +37,9 @@ export class BloodMarks {
     for (const o of vessels) if (o.edge) this.tracks.set(o.edge.id, { obj: o, id: o.edge.id, amount: 0, key: keyChevron(o.edge.id), drawn: true });
   }
 
+  /** Whether vessel `id` is drawn now: it takes part in the parcels carried through junctions (chain.ts) whether or not the Blood menu shows its heads, as in the 2D app. */
+  carriesHeads(id: string): boolean { return this.tracks.get(id)?.drawn ?? false; }
+
   setOptions(o: Partial<BloodOptions>): void { this.options = { ...this.options, ...o }; }
   /** The scene says which vessels are drawn now (a closed collateral is not), and which collaterals are open, for the key rule. */
   setDrawn(drawn: (id: string) => boolean, open: (id: string) => boolean): void {

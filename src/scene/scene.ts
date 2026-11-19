@@ -553,7 +553,9 @@ export class CelScene {
     if (this.hideLeftBehind && !camMoving && !this.circuit.moving) this.settleViews();
     const hiMoving = this.highlight.step(dt);
     this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
-    const flowActive = this.flow.step(dt) || this.blood.streams.step(now);
+    const streamsMoving = this.blood.streams.step(now);
+    const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id));
+    const flowActive = this.flow.step(dt) || streamsMoving || chainMoving;
     const lensMoving = this.lens.step(now);
     const presMoving = this.presence.step(dt);
     const shapeMoving = this.shapes.step(dt);
@@ -615,6 +617,7 @@ export class CelScene {
     this.lens.dispose();
     this.disease.dispose();
     this.blood.streams.texture.dispose();
+    this.blood.chain.texture.dispose();
     for (const o of this.objects) o.dispose();
     this.procs.dispose(); this.probes.dispose();
     this.tubes.dispose(); this.resistors.dispose();

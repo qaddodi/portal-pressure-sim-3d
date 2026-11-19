@@ -39,6 +39,13 @@ export class Streams {
   setHealthy(h: { Q: ArrayLike<number> } | null): void { this.healthy = h; this.fresh = true; }
   onFrame(f: (Frame & { t?: number; jump?: boolean }) | null): void { this.frame = f; this.fresh = true; }
 
+  /** Edge k's stream, for the chain (its time-averaged speed vSlow and its shown direction sgn). */
+  stream(k: number): Stream { return this.streams[k]!; }
+  /** Edge k's flow's size (the chain's weight for which inflow is the parent). */
+  flowOf(k: number): number { return Math.abs(this.frame ? (this.frame.Qf ?? this.frame.Q)[k] ?? 0 : 0); }
+  /** Whether any stream moved at the last step (the chain's easing runs slower while the blood is still). */
+  moving = false;
+
   /** The shown direction and speed of edge k: 1 forward, -1 against the edge's own direction. */
   speedOf(k: number): number { return this.streams[k]!.vd; }
 
@@ -69,6 +76,7 @@ export class Streams {
       if (sm.vd !== 0 || Math.abs(sm.rev - rt) > 0.002) moving = true;
     }
     this.texture.needsUpdate = true;
+    this.moving = moving;
     return moving;
   }
 }

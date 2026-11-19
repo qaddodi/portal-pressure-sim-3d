@@ -91,7 +91,7 @@ export class VesselObject extends CelObject {
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 },
         fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeKeep: { value: 0 },
-        lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, projY: blood.projY, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 1 },
+        lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, chainTex: blood.chainTex, projY: blood.projY, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 1 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
       },
