@@ -2,6 +2,7 @@
 //   scene/Stage.tsx (scene thread) · ui/tags (deck thread) · ui/cards + wallet (cards thread) · ui/shell + settings (cards thread)
 // The shell mounts the pieces in this order and adds nothing of its own, so each thread edits only its folder.
 import { Stage } from './scene/Stage.tsx';
+import { LabelLayer } from './scene/labels/LabelLayer.tsx';
 import { Shell } from './ui/shell/Shell.tsx';
 import { useEngine } from './engine/index.ts';
 import { BuildPill } from './ui/shell/BuildPill.tsx';
@@ -11,6 +12,7 @@ export function App() {
   return (
     <>
       <Stage />
+      <LabelLayer />
       <Shell />
       <BuildPill />
       {status === 'crashed' && <CrashNotice />}
