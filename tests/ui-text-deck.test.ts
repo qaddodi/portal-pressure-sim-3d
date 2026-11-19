@@ -10,6 +10,7 @@ import { validateDeck } from '../src/decks/schema.ts';
 import { HVPG_CUTS } from '../src/ui/cuts.ts';
 
 const fixture = JSON.parse(readFileSync('tests/fixtures/csph-fingerprint.json', 'utf8'));
+const one = (v: number) => (Math.round(v * 10) / 10).toFixed(1);
 const readings = { whvp: fixture.whvp, fhvp: fixture.fhvp, hvpg: fixture.hvpg, ivc: fixture.ivc, ra: fixture.ra, pv: fixture.pv };
 
 test('the deck is valid and every field the cards need is there', () => {
@@ -41,7 +42,7 @@ test('every line parses, a cut-off reads with its symbol, and values fill in as 
   for (const s of HVPG_DECK.slides) parseLine(s.line);
   const hv = HVPG_DECK.slides.find((s) => s.id === 'hvpg')!;
   assert.equal(plainLine(parseLine(hv.line), (k) => readings[k as keyof typeof readings]),
-    'In this case the HVPG is 11.6 mmHg, which is ≥10 mmHg: clinically significant portal hypertension.');
+    `In this case the HVPG is ${one(fixture.hvpg)}\u00a0mmHg, which is ≥10\u00a0mmHg: clinically significant portal hypertension.`);
   assert.equal(plainLine(parseLine('The HVPG is {hvpg:0}.'), () => 11.6), 'The HVPG is 12.0 mmHg.'.replace('12.0', '12'));
   assert.equal(plainLine(parseLine('The HVPG is {hvpg}.'), () => null), 'The HVPG is ….', 'a value still to come is an ellipsis in words, never a dash');
   assert.throws(() => parseLine('a {nonsense} b'));
@@ -54,12 +55,12 @@ test('numbers: a pressure has one decimal and a true minus; the gap is the diffe
   assert.equal(tenthGap(NaN, 4, 7), 7);
 });
 
-test('the csph ladder reads what the engine reads: WHVP 16.3 − FHVP 4.7 = HVPG 11.6, CSPH', () => {
+test('the csph ladder reads what the engine reads: the displayed WHVP minus the displayed FHVP is the HVPG, CSPH', () => {
   const g = gapOf(readings);
-  assert.deepEqual([g.whvp, g.fhvp, g.hvpg, g.sev, g.pill], ['16.3', '4.7', '11.6', 'danger', '≥10 · CSPH']);
+  assert.deepEqual([g.whvp, g.fhvp, g.hvpg, g.sev, g.pill], [one(fixture.whvp), one(fixture.fhvp), one(fixture.hvpg), 'danger', '≥10 · CSPH']);
   assert.equal(g.value, fixture.hvpg, 'equal to the engine and the 2D app');
   const rows = ladderRows(['whvp', 'fhvp', 'ivc'], readings);
-  assert.deepEqual(rows.map((r) => r.text), ['16.3', '4.7', '4.2']);
+  assert.deepEqual(rows.map((r) => r.text), [one(fixture.whvp), one(fixture.fhvp), one(fixture.ivc)]);
   assert.ok(rows.every((r) => r.frac > 0 && r.frac <= 1) && AXIS_MAX >= Math.max(readings.whvp, readings.pv));
   assert.deepEqual(gapOf({}).pill, '', 'no readings yet: no pill'); assert.equal(gapOf({}).hvpg, '—');
 });

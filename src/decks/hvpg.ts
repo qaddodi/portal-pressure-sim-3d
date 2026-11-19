@@ -9,14 +9,14 @@ interface Plate { shot: ShotName; ladder?: { rows: ReadingKey[]; result?: 'hvpg'
 /** What the 3D adds to each copied slide. The ladder grows with the teaching: the free slide shows what is free, the wedge adds the wedged
  *  pressure, the result slide adds the subtraction. The route slide has no data card (nothing is measured yet). */
 const THREE_D: Record<string, Plate> = {
-  route: { shot: 'neck-to-liver' },
-  free: { shot: 'liver-hv', ladder: { rows: ['ivc', 'fhvp'] } },
-  wedge: { shot: 'liver-hv', ladder: { rows: ['ivc', 'fhvp', 'whvp'] } },
-  hvpg: { shot: 'liver-hv', ladder: { rows: ['whvp', 'fhvp', 'ivc'], result: 'hvpg' } },
+  route: { shot: 'route' },
+  free: { shot: 'free', ladder: { rows: ['ivc', 'fhvp'] } },
+  wedge: { shot: 'wedge', ladder: { rows: ['ivc', 'fhvp', 'whvp'] } },
+  hvpg: { shot: 'hvpg', ladder: { rows: ['whvp', 'fhvp', 'ivc'], result: 'hvpg' } },
 };
 
 /** The shot of the title stop (the whole plate, settling slowly) and of the quick check (the figure stays where the result left it). */
-export const TITLE_SHOT: ShotName = 'plate';
+export const TITLE_SHOT: ShotName = 'title';
 
 const mutable = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 

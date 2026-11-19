@@ -9,6 +9,7 @@ import { TYPE } from './layout/device.ts';
 import { CardLayer } from './cards/CardLayer.tsx';
 import { PresenterBar } from './deck/PresenterBar.tsx';
 import { useDeckInput } from './deck/useDeckInput.ts';
+import { linkScene } from './deck/scene-link.ts';
 
 /** The talk's UI: cards, the wallet, the presenter bar. One overlay above the stage; it measures itself, so it needs only a positioned, full-size parent. */
 export function DeckUi() {
@@ -26,6 +27,9 @@ export function DeckUi() {
     useDeck.getState().open(HVPG_DECK.id, stops.length - 1, 0);
     return useUi.subscribe((s, prev) => { if (s.pos.stop !== prev.pos.stop) useDeck.getState().goto(s.pos.stop); });
   }, []);
+
+  // the scene follows the talk: the shot, the room the cards leave, the catheter
+  useEffect(() => linkScene(), []);
 
   // the engine's headline numbers, mirrored for the cards
   useEffect(() => {

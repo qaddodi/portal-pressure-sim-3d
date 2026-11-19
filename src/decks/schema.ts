@@ -1,8 +1,8 @@
 // The deck shape the 3D app plays, and the check that every field is what the cards need.
 // Words and numbers come from the 2D app's deck (scripts/copy-decks.mjs); the 3D fields (shot) are added in hvpg.ts.
 
-/** Named camera shots (the scene's camera/shots.ts owns what each one frames; the deck only names them). */
-export const SHOTS = ['plate', 'neck-to-liver', 'liver-hv'] as const;
+/** Named camera shots (the scene's camera/shots.ts owns what each one frames; the deck only names them). A slide's shot is its own id. */
+export const SHOTS = ['title', 'route', 'free', 'wedge', 'hvpg'] as const;
 export type ShotName = (typeof SHOTS)[number];
 
 /** The catheter state a slide asks for (the scene's catheter.ts plays it). */

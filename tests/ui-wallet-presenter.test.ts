@@ -46,7 +46,7 @@ test('what is on screen: the case alone first, then words with the ladder where 
   assert.deepEqual([v(0).words, v(0).data], ['title', null]);
   assert.deepEqual([v(1, 0).words, v(1, 0).data], ['case', null]);
   assert.deepEqual([v(1, 1).words, v(1, 1).data], ['teach', null], 'the route slide has no data card');
-  assert.deepEqual([v(2).words, v(2).data, v(2).cath, v(2).shot], ['teach', 'ladder', 'free', 'liver-hv']);
+  assert.deepEqual([v(2).words, v(2).data, v(2).cath, v(2).shot], ['teach', 'ladder', 'free', 'free']);
   assert.deepEqual([v(4).words, v(4).data, v(4).cath], ['teach', 'ladder', 'result']);
   assert.deepEqual([v(5).words, v(5).data, v(5).shot], ['check', null, lastSlideShot(stops)], 'the figure stays where the result left it');
   assert.equal(v(3).number, 4); assert.equal(v(3).of, 6);

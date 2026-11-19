@@ -7,6 +7,6 @@ import type { UiState } from '../ui-store.ts';
 export function selectView(s: Pick<UiState, 'stops' | 'pos'>): View | null {
   return s.stops.length ? viewAt(s.stops, s.pos, lastSlideShot(s.stops)) : null;
 }
-export const selectShot = (s: Pick<UiState, 'stops' | 'pos'>) => selectView(s)?.shot ?? 'plate';
+export const selectShot = (s: Pick<UiState, 'stops' | 'pos'>) => selectView(s)?.shot ?? 'title';
 export const selectCath = (s: Pick<UiState, 'stops' | 'pos'>) => selectView(s)?.cath ?? null;
 export const selectFree = (s: Pick<UiState, 'boxes'>) => s.boxes.free;

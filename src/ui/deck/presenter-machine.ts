@@ -103,3 +103,17 @@ export function swipeMove(dx: number, dy: number, ms: number): Move | null {
 export function apply(stops: Stop[], p: Pos, m: Move): Pos {
   return m === 'next' ? next(stops, p) : m === 'back' ? back(stops, p) : m === 'first' ? first() : last(stops);
 }
+
+/** How far the catheter is advanced along its route and how far its balloon is up at a position, each 0 to 1 (the scene draws; the presenter tweens).
+ *  The case beat has no catheter yet; the route slide's words bring it in; the wedge slide inflates the balloon; the result keeps both, and the quick
+ *  check leaves the figure as the result left it. */
+export function catheterAt(stops: Stop[], p: Pos): { advance: number; balloon: number } {
+  const s = stops[p.stop];
+  if (s.kind === 'title') return { advance: 0, balloon: 0 };
+  if (s.kind === 'check') return { advance: 1, balloon: 1 };
+  if (s.slide.vignette && p.beat === 0) return { advance: 0, balloon: 0 };
+  switch (s.slide.cath) {
+    case 'route': case 'free': return { advance: 1, balloon: 0 };
+    case 'wedge': case 'result': return { advance: 1, balloon: 1 };
+  }
+}
