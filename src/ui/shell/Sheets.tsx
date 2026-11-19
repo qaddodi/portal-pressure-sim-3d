@@ -1,0 +1,47 @@
+// Everything that opens over the figure from the bars: the main menu, Settings, Search, Help, the Guide and the Reset dialog. All stay in the page and fade.
+import { useRef } from 'react';
+import { useShell } from './store.ts';
+import { SettingsSheet } from '../settings/SettingsSheet.tsx';
+import { MenuSheet } from '../menu/MenuSheet.tsx';
+import { SearchSheet } from '../search/SearchSheet.tsx';
+import { HelpMenu, Guide } from './HelpSheets.tsx';
+import { LayersSheet } from './FigureMenu.tsx';
+import { usesBottomBar } from './room.ts';
+import { useUi } from '../ui-store.ts';
+import { RESET } from './words.ts';
+import { resetEverything } from './reset.ts';
+
+function ResetDialog() {
+  const open = useShell((s) => s.dialog === 'reset');
+  const ref = useRef<HTMLDivElement>(null);
+  const close = () => useShell.setState({ dialog: null });
+  return (
+    <>
+      <div className="sh-scrim" data-open={open} onPointerDown={close} />
+      <div ref={ref} className="sh-dialog" data-open={open} role="alertdialog" aria-modal="true" aria-label={RESET.title} inert={!open}>
+        <h2>{RESET.title}</h2>
+        <p>{RESET.body}</p>
+        <div className="sh-btns">
+          <button type="button" className="sh-btn" onClick={close}>{RESET.cancel}</button>
+          <button type="button" className="sh-btn" data-danger="true" onClick={resetEverything}>{RESET.go}</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+export function Sheets() {
+  const talk = useShell((s) => s.mode === 'deck');
+  const bottom = usesBottomBar(useUi((s) => s.device));
+  return (
+    <>
+      <MenuSheet />
+      {bottom && !talk && <LayersSheet />}
+      {!talk && <SettingsSheet place="top" />}
+      <SearchSheet />
+      <HelpMenu />
+      <Guide />
+      <ResetDialog />
+    </>
+  );
+}

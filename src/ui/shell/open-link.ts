@@ -1,0 +1,29 @@
+// Deep links on load, as the 2D app opens them (main.js openDeepLink): ?script=<id>&slide=<n> opens that talk at that slide, ?preset=<id> that patient in free play,
+// ?home=explore|present the menu at Patients or Present. A mistyped patient never opens another: it says so and opens Patients with the link's first word in the search.
+import { useShell } from './store.ts';
+import { useUi } from '../ui-store.ts';
+import { parseDeepLink, queryFromId } from './deep-link.ts';
+import { isPlayable } from '../menu/library.ts';
+import { loadPatient } from '../menu/patients.ts';
+import { startTalk } from './talk.ts';
+import { noPatientCalled, notYet } from './words.ts';
+import { UI } from '../strings.generated.ts';
+
+export async function applyDeepLink(search: string): Promise<void> {
+  const l = parseDeepLink(search), sh = useShell.getState();
+  if (l.script) {
+    if (!isPlayable(l.script.id)) { useShell.setState({ mode: 'free', sheet: 'menu', menuTab: 'present' }); sh.say(notYet('That presentation')); return; }
+    startTalk(l.script.id);
+    const slide = l.script.slide;
+    if (slide > 0) { const off = useUi.subscribe((s) => { if (s.stops.length) { off(); useUi.getState().go(slide); } }); if (useUi.getState().stops.length) { off(); useUi.getState().go(slide); } }
+    return;
+  }
+  if (l.preset) {
+    useShell.setState({ mode: 'free' });
+    if (UI.presets.some((p) => p.id === l.preset)) { await loadPatient(l.preset); return; }
+    useShell.setState({ sheet: 'menu', menuTab: 'patients', menuQuery: queryFromId(l.preset) });
+    sh.say(noPatientCalled(l.preset));
+    return;
+  }
+  if (l.home) useShell.setState({ mode: 'free', sheet: 'menu', menuTab: l.home });
+}

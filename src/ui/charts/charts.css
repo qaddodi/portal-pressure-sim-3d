@@ -1,0 +1,57 @@
+/* Chart cards: the words and rules around a chart's picture. Colours are the look's tokens (--surface --text --text-2 --text-3 --accent --ok --caution --danger --edge);
+   type sizes come from the card's custom properties (--fs-data, --fs-body) and are floors, never shrunk to fit. The pictures are drawn on the GPU (Chart.tsx). */
+
+.pz-crit, .pz-flows, .pz-trial, .pz-lumen, .pz-forest, .pz-saag, .pz-stiff, .pz-shift { --cs: var(--fs-data, 13px); font-size: max(12px, var(--cs)); width: 100%; min-width: 0; box-sizing: border-box; color: var(--text); }
+.pz-crit [hidden] { display: none; }
+
+/* ── criteria ── */
+.pzc-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-start; gap: .35em .8em; margin: 0 0 .55em; }
+.pzc-lead { flex: 0 1 auto; min-width: 0; margin: 0; text-align: left; font: 400 1em/1.35 var(--ui, system-ui); color: var(--text-2); }
+.pzc-rule { flex: none; margin: 0; font: 600 max(12px, .86em)/1 var(--ui, system-ui); color: var(--text-2); border: 1px solid color-mix(in srgb, var(--text) 22%, transparent); border-radius: 999px; padding: .28em .7em; white-space: nowrap; }
+.pzc-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; }
+.pzc-row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: baseline; padding: .55em 0; border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent); font: 400 1.07em/1.35 var(--display, "Source Serif 4", Georgia, serif); color: var(--text-2); }
+.pzc-row:first-child { border-top: 0; }
+.pzc-top + .pzc-list > .pzc-row:first-child:not(.pzc-hrow) { padding-top: .2em; }
+.pzc-row:is([data-lit], [data-met="yes"]) { color: var(--text); font-weight: 600; }
+.pzc-hrow { padding: 0 0 .3em; font: 500 max(12px, .86em)/1.2 var(--ui, system-ui); color: var(--text-3); }
+.pzc-c { grid-column: 1; display: none; }
+.pz-crit.has-cut .pzc-c { display: block; padding-right: .8em; white-space: nowrap; font: 400 1.25em/1 var(--display, "Source Serif 4", Georgia, serif); font-variant-numeric: lining-nums; }
+.pzc-t { grid-column: 2; min-width: 0; }
+.pzc-t > b { font-weight: 600; color: var(--text); }
+.pzc-s, .pzc-u { font-family: var(--ui, system-ui); font-weight: 400; }
+.pzc-s { font-size: .8em; margin-right: .06em; }
+.pzc-u { font-size: max(12px, .46em); margin-left: .3em; color: var(--text-3); }
+.pzc-and { margin-left: .5em; font: 500 max(12px, .5em)/1 var(--ui, system-ui); font-variant-numeric: tabular-nums lining-nums; color: var(--text-2); }
+.pzc-end { grid-column: 3; display: flex; flex-direction: column; align-items: flex-start; gap: .1em; white-space: nowrap; padding-left: 22px; font: 500 calc(1em / 1.07)/1.25 var(--ui, system-ui); font-variant-numeric: tabular-nums; color: var(--text-3); }
+.pzc-hrow .pzc-end { font: inherit; color: inherit; }
+.pzc-note .pzc-v { white-space: normal; text-wrap: balance; }
+.pz-crit:not(.has-case) .pzc-end { display: none; }
+.pzc-row:is([data-lit], [data-met]) .pzc-v, .pzc-live .pzc-v { font-size: 1.3em; font-weight: 600; line-height: 1.15; color: var(--text); }
+.pzc-row[data-met="no"] .pzc-v { color: var(--text-2); }
+.pzc-live:not([data-met="yes"]) .pzc-v { color: var(--text-3); }
+.pzc-m { display: grid; font: 600 max(12px, .86em)/1.3 var(--ui, system-ui); white-space: nowrap; }
+.pzc-m > i { grid-area: 1 / 1; font-style: normal; opacity: 0; transition: opacity 280ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+.pzc-m > .y { color: color-mix(in srgb, var(--ok) 80%, var(--text)); }
+.pzc-m > .n { color: var(--text-3); font-weight: 500; }
+.pzc-note .pzc-m > i, .pzc-row[data-met="yes"] .pzc-m > .y, .pzc-row[data-met="no"] .pzc-m > .n { opacity: 1; }
+.pzc-verdict { margin: 0; padding-top: .6em; border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent); font: 400 1em/1.35 var(--ui, system-ui); color: var(--text-2); }
+.pzc-verdict > b { font-weight: 600; color: var(--text); }
+/* plain rules: a ring for a thing to check (a numeral when the order matters), filled for the row that applies to the case */
+.pz-crit:not(.has-cut) .pzc-row:not(.pzc-hrow) { font-size: 1.12em; }
+.pz-crit:not(.has-cut) .pzc-row:not(.pzc-hrow) .pzc-c { display: block; align-self: start; padding-right: .75em; }
+.pz-crit:not(.has-cut) .pzc-row:not(.pzc-hrow) .pzc-c::before { content: ""; display: block; box-sizing: border-box; width: .58em; height: .58em; margin-top: .385em; border-radius: 50%; background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 45%, transparent); }
+.pz-crit:not(.has-cut) .pzc-row:is([data-lit], [data-met="yes"]) .pzc-c::before { background: var(--text); box-shadow: inset 0 0 0 1.5px var(--text); }
+.pz-crit.ordered .pzc-list { counter-reset: pzcn; }
+.pz-crit.ordered:not(.has-cut) .pzc-row:not(.pzc-hrow) .pzc-c { align-self: baseline; }
+.pz-crit.ordered:not(.has-cut) .pzc-row:not(.pzc-hrow) .pzc-c::before { counter-increment: pzcn; content: counter(pzcn); width: auto; height: auto; margin: 0; border-radius: 0; background: none; box-shadow: none; font: 400 1.15em/1 var(--display, "Source Serif 4", Georgia, serif); font-variant-numeric: lining-nums; color: var(--text-3); }
+.pz-crit.ordered:not(.has-cut) .pzc-row:is([data-lit], [data-met="yes"]) .pzc-c::before { background: none; box-shadow: none; color: var(--text); font-weight: 500; }
+.pz-crit.has-lit:not(.has-cut) .pzc-row:not([data-lit]) .pzc-t > b { font-weight: 500; color: inherit; }
+/* the zones graph */
+.pz-crit.has-zones .pzc-top { flex-wrap: nowrap; align-items: center; justify-content: center; gap: .8em; margin-bottom: .75em; }
+.pz-crit.has-zones .pzc-lead { flex: none; white-space: nowrap; text-align: center; }
+.pzc-zones { display: block; }
+.pzc-key { display: flex; flex-direction: column; align-items: center; gap: .3em; margin-top: .7em; text-align: center; font: 500 max(12px, .86em)/1.3 var(--ui, system-ui); color: var(--text-2); }
+.pzc-kl { margin: 0; display: inline-flex; align-items: center; gap: .5em; }
+.pzc-kl b { font-weight: 600; color: var(--text); }
+.pzc-sw { display: block; flex: none; width: 22px; height: 14px; border-radius: 4px; background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--text) 42%, var(--surface-3, var(--edge))) 0 2px, var(--surface-3, var(--edge)) 0 4.95px); }
+@media (prefers-reduced-motion: reduce) { .pzc-m > i { transition: none; } }

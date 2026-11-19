@@ -1,0 +1,332 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createShared } from '../src/scene/materials/cel.ts';
+import { AXIAL_KINDS, N, buildLobule, hexFrac, inletBow, zoneOf } from '../src/scene/lobule/geometry.ts';
+import { LOBULE_CAMS, LOBULE_ORIGIN, LOBULE_R, SINUSOID_ORIGIN, lobuleShot, sinusoidShot } from '../src/scene/lobule/shots.ts';
+import { WASH_DELAY_MS, WASH_MS, washAmount, washFront, washProgress, washSpan } from '../src/scene/lobule/wash.ts';
+import { LOBULE_PARTS, SINUSOID_PARTS } from '../src/scene/lobule/parts.ts';
+import { LOBULE_PALETTES, EXTRA_TONES } from '../src/scene/lobule/tones.ts';
+import { LobuleView, litParts } from '../src/scene/lobule/view.ts';
+import { SinusoidView } from '../src/scene/sinusoid/view.ts';
+import { Batch } from '../src/scene/lobule/batch.ts';
+import { PALETTES, LOOK_IDS } from '../src/scene/palette.ts';
+import { easeToward, type LobuleModel, type SinusoidTargets } from '../src/scene/lobule/model.ts';
+import type { CelObject } from '../src/scene/materials/cel.ts';
+
+const net = buildLobule();
+const kind = (k: string) => net.courses.filter((c) => c.kind === k);
+const model = (o: Partial<LobuleModel> = {}): LobuleModel => ({
+  zone: { pre: 1, sin: 1, post: 1 }, P1: 11, P2: 8, P3: 5, P4: 4, flow: 1, portal: 1, art: 1, rev: { pre: false, sin: false, post: false },
+  lymph: 0.9, lymph0: 0.9, lyProt: 0.87, sigma: 0.15, iap: 5, alb: 4, s: 0, cong: 0, fibSin: 0, fibPre: 0, fibPost: 0, congU: 0, shuntU: 0, septU: 0, act: 0, ...o,
+});
+
+// ---- the network is the 2D app's lobule --------------------------------------------------------------------------------------------
+
+test('the lobule is the 2D app\'s: six corners, six triads, 48 + 24 + 12 sinusoids in three generations, one central vein, a lymphatic at every tract', () => {
+  assert.equal(net.triads.length, 6);
+  assert.equal(kind('pv').length, 6); assert.equal(kind('ha').length, 6); assert.equal(kind('bd').length, 6); assert.equal(kind('lv').length, 6);
+  assert.equal(kind('in').length, 12);
+  assert.equal(kind('s0').length, 48); assert.equal(kind('s1').length, 24); assert.equal(kind('s2').length, 12);
+  assert.equal(kind('cv').length, 1);
+  assert.equal(kind('tw').length, 6, 'an arteriole twig into each tract\'s first sinusoid');
+  assert.equal(kind('lt').length, 12, 'terminal lymphatics along both of each tract\'s edges');
+  assert.equal(kind('ly').length, 48 + 24 + 12, 'a space of Disse beside every sinusoid');
+  assert.ok(kind('an').length > 10, 'cross-links between neighbouring sinusoids');
+  assert.equal(net.septa.length, 3);
+  assert.deepEqual(net.corners.map((c) => Math.round(Math.hypot(c[0], c[1]) * 1e6) / 1e6), [1, 1, 1, 1, 1, 1]);
+});
+
+test('it is built from the same seed, in the same order, every time (the 3D lobule is one lobule)', () => {
+  const again = buildLobule();
+  assert.equal(JSON.stringify(again.courses.map((c) => c.pts[10])), JSON.stringify(net.courses.map((c) => c.pts[10])));
+  assert.equal(again.cells.length, net.cells.length);
+});
+
+test('blood runs inlet to central vein: every sinusoid course starts at the portal side and ends near the centre, and the courses have N evenly spaced points', () => {
+  for (const c of net.courses) assert.equal(c.pts.length, N, `${c.kind} ${c.id}`);
+  for (const c of kind('s0')) { assert.ok(c.rho[0]! > 0.7, `s0 starts at rho ${c.rho[0]}`); assert.ok(c.rho[N - 1]! < 0.75); }
+  for (const c of kind('s2')) { assert.ok(c.rho[0]! < 0.5); assert.ok(c.rho[N - 1]! < net.rcv0 * 1.4, 'the third generation enters the central vein'); }
+  for (const c of net.courses) {
+    if (AXIAL_KINDS.has(c.kind)) continue;
+    const steps = c.pts.slice(1).map((p, i) => Math.hypot(p[0] - c.pts[i]![0], p[1] - c.pts[i]![1]));
+    const mean = steps.reduce((a, b) => a + b, 0) / steps.length;
+    assert.ok(steps.every((s) => Math.abs(s - mean) < mean * 0.35 + 1e-9), `${c.kind} ${c.id} evenly spaced`);
+  }
+});
+
+test('hepatocyte cords: cells fill the hexagon between the sinusoids, none outside it, and all three zones are present, zone 3 nearest the central vein', () => {
+  assert.ok(net.cells.length > 150, `${net.cells.length} cells`);
+  assert.ok(net.cells.every((c) => hexFrac(c.x, c.y) <= 0.975));
+  const z = [1, 2, 3].map((k) => net.cells.filter((c) => zoneOf(c.q) === k).length);
+  assert.ok(z.every((n) => n > 10), `zones ${z}`);
+  const rho = (k: number) => { const cs = net.cells.filter((c) => zoneOf(c.q) === k); return cs.reduce((a, c) => a + Math.hypot(c.x, c.y), 0) / cs.length; };
+  assert.ok(rho(3) < rho(2) && rho(2) < rho(1));
+  assert.ok(net.stellate.length >= 20, 'stellate cells in the space of Disse');
+});
+
+test('inlet venules leave their triad with the 2D slope and arrive flat, so two meet halfway without a kink', () => {
+  assert.equal(inletBow(0), 0);
+  assert.ok(Math.abs(inletBow(1) - Math.sin(0.8 * Math.PI)) < 1e-12);
+  assert.ok(Math.abs(inletBow(1) - inletBow(0.999)) < 2e-3, 'flat at the end');
+});
+
+// ---- the shots ---------------------------------------------------------------------------------------------------------------------
+
+test('every camera name the 2D decks use has a shot, aimed at the lobule (or the sinusoid) and zoomed as in 2D', () => {
+  assert.deepEqual([...LOBULE_CAMS].sort(), ['lobule', 'lobule:central', 'lobule:fit', 'lobule:sinusoid', 'lobule:triad', 'sinusoid']);
+  const fit = lobuleShot('lobule');
+  assert.deepEqual(lobuleShot('lobule:fit'), fit);
+  assert.deepEqual(fit.target, LOBULE_ORIGIN);
+  const triad = lobuleShot('lobule:triad'), sin = lobuleShot('lobule:sinusoid'), cv = lobuleShot('lobule:central');
+  // the triad station is 12% of the way from the left portal tract toward the centre; the sinusoid station half way; both at twice the fit
+  assert.ok(Math.abs(triad.target[0] - (LOBULE_ORIGIN[0] - 0.88 * LOBULE_R)) < 1e-9);
+  assert.ok(Math.abs(sin.target[0] - (LOBULE_ORIGIN[0] - 0.5 * LOBULE_R)) < 1e-9);
+  assert.deepEqual(cv.target, LOBULE_ORIGIN);
+  for (const s of [triad, sin, cv]) { assert.ok(Math.abs(s.half[0] * 2 - fit.half[0]) < 1e-9); }
+  const s = sinusoidShot();
+  assert.deepEqual(s.target, SINUSOID_ORIGIN);
+  assert.ok(s.half[0] > 3, 'the whole length of the sinusoid');
+});
+
+test('the views stand away from the body (which spans about ±3.5), so the camera flies to them and nothing is built on the way', () => {
+  assert.ok(LOBULE_ORIGIN[0] - LOBULE_R * 1.2 > 4);
+  assert.ok(SINUSOID_ORIGIN[0] - 6 > LOBULE_ORIGIN[0] + LOBULE_R * 1.2);
+});
+
+// ---- the wedge's amber -------------------------------------------------------------------------------------------------------------
+
+test('the wash waits for the eye, then runs its length, eased; reduced motion shows it finished', () => {
+  assert.equal(washProgress(0), 0); assert.equal(washProgress(WASH_DELAY_MS), 0);
+  assert.equal(washProgress(WASH_DELAY_MS + WASH_MS), 1); assert.equal(washProgress(1e6), 1);
+  assert.ok(Math.abs(washProgress(WASH_DELAY_MS + WASH_MS / 2) - 0.5) < 1e-9);
+  assert.equal(washProgress(0, true), 1);
+  assert.equal(washAmount(0), 0); assert.ok(washAmount(0.05) > 0.84);
+});
+
+test('the front runs from the central vein out past the portal edge, and a course is covered from its end nearer the centre', () => {
+  assert.ok(washFront(0) < 0.07 && washFront(0) > 0);
+  assert.ok(Math.abs(washFront(1) - 1.1) < 1e-9);
+  // a sinusoid runs portal (rho 1) to central (0): the front covers its LAST part first
+  const s = kind('s0')[0]!;
+  assert.equal(washSpan(s.pts, s.rho, 0.05), null, 'not reached yet');
+  const mid = washSpan(s.pts, s.rho, 0.8)!;   // (a first-generation sinusoid ends at rho 0.6, where it merges: the front reaches that end first)
+  assert.equal(mid[1], 1); assert.ok(mid[0] > 0 && mid[0] < 1);
+  assert.equal(washSpan(s.pts, s.rho, 0.5), null, 'a front inside where it merges has not reached it');
+  assert.deepEqual(washSpan(s.pts, s.rho, 1.2), [0, 1], 'covered whole when the front is past it');
+  // and a course that runs the other way (the space of Disse, from the plate inward is the same direction; a reversed copy is covered from the start)
+  const rev = washSpan([...s.pts].reverse(), [...s.rho].reverse(), 0.8)!;
+  assert.equal(rev[0], 0); assert.ok(rev[1] > 0 && rev[1] < 1);
+});
+
+test('the amber is a recolour of the blood\'s own vessels only: sinusoids, links and the central vein, never the tracts or the lymph', () => {
+  const v = new LobuleView(createShared());
+  const wash = v.set.get('wash').group.children;
+  assert.equal(wash.length, 2, 'one overlay over the sinusoids, one over the central vein');
+  for (const k of ['cords', 'lymph', 'portal-tracts', 'inlets'] as const) assert.ok(!v.set.get(k).group.children.some((g) => wash.includes(g)));
+});
+
+test('the wash overlay is hidden until the wash runs, grows its front with the time, and goes away with the view', () => {
+  const v = new LobuleView(createShared());
+  v.setVisible(true);
+  const [sin, cv] = v.set.get('wash').group.children;
+  v.update(0);
+  assert.equal(sin!.visible || cv!.visible, false);
+  v.startWash(0);
+  v.update(100);
+  assert.equal(sin!.visible, false, 'the eye finds the vessel first');
+  v.update(WASH_DELAY_MS + 1000);
+  assert.ok(sin!.visible && cv!.visible);
+  const reveal = (o: CelObject) => o.ink.uniforms.reveal!.value as number;
+  const wash = v.objects.filter((o) => v.set.get('wash').group.children.includes(o.group));
+  const r1 = reveal(wash[0]!);
+  v.update(WASH_DELAY_MS + 2500);
+  assert.ok(reveal(wash[0]!) > r1, 'the front moves outward');
+  assert.ok(v.update(WASH_DELAY_MS + 2600), 'frames keep coming while it runs');
+  v.update(WASH_DELAY_MS + WASH_MS + 100);
+  assert.ok(v.washProgress === 1);
+  v.setVisible(false);
+  assert.equal(v.update(1e6), false, 'a hidden view asks for nothing');
+});
+
+// ---- parts, tones, the artist's swap-in --------------------------------------------------------------------------------------------
+
+test('every part of both views exists as a named, placeholder part, ready for the artist to swap in', () => {
+  const l = new LobuleView(createShared()), s = new SinusoidView(createShared());
+  assert.deepEqual([...l.set.parts.keys()], [...LOBULE_PARTS]);
+  assert.deepEqual([...s.set.parts.keys()], [...SINUSOID_PARTS]);
+  assert.deepEqual(l.set.remaining(), [...LOBULE_PARTS]);
+  for (const name of LOBULE_PARTS) assert.ok(l.set.get(name).group.children.length > 0, `lobule part ${name} has placeholder art`);
+  for (const name of SINUSOID_PARTS) assert.ok(s.set.get(name).group.children.length > 0, `sinusoid part ${name} has placeholder art`);
+});
+
+test('swapping a part replaces its placeholder and nothing else; the state, the wash and the shots go on addressing the part', async () => {
+  const { Group } = await import('three');
+  const l = new LobuleView(createShared());
+  const before = l.objects.length;
+  const art = new Group(); art.name = 'lobule/cords';
+  l.swap('cords', art);
+  assert.equal(l.set.get('cords').placeholder, false);
+  assert.equal(l.set.get('cords').group.children.length, 0, 'the placeholder is gone');
+  assert.ok(l.group.children.includes(art));
+  assert.ok(l.set.get('sinusoids').placeholder);
+  assert.ok(l.set.remaining().length === LOBULE_PARTS.length - 1);
+  assert.ok(l.objects.length === before, 'other parts keep their objects');
+  l.setVisible(true); l.setModel(model({ congU: 0.5 })); assert.doesNotThrow(() => l.update(0));
+});
+
+test('the tones are made from the looks table: every extra tone in every look, ink visible against the cords', () => {
+  for (const id of LOOK_IDS) {
+    const p = LOBULE_PALETTES[id];
+    for (const t of EXTRA_TONES) assert.match(p.tones[t as never] as string, /^#[0-9A-F]{6}$/i, `${id} ${t}`);
+    assert.equal(p.tones.liver, PALETTES[id].tones.liver, 'the scene\'s own tones are untouched');
+    assert.notEqual(p.tones['cord3' as never], p.tones['cord1' as never], 'zone 3 is deeper than zone 1');
+  }
+});
+
+// ---- the lymph chevrons (and none in the sinusoid view) ----------------------------------------------------------------------------
+
+const marked = (v: LobuleView) => v.objects.filter((o) => o.isVessel);
+const flowOf = (o: CelObject) => o.toon.uniforms.flowAmount!.value as number;
+const speedOf = (o: CelObject) => o.toon.uniforms.stubSpeed!.value as number;
+const settle = (v: LobuleView | SinusoidView, from = 0, ms = 1500) => { for (let t = from; t <= from + ms; t += 16) v.update(t); return from + ms; };
+
+test('lymph chevrons run on the ducts while the Lymph layer is on, out along the space of Disse (against the blood) and in along the terminal lymphatics', () => {
+  const v = new LobuleView(createShared());
+  v.setVisible(true); v.snapModel(model()); settle(v);
+  const ly = v.objects.filter((o) => v.set.get('lymph').group.children.includes(o.group) && o.isVessel);
+  assert.equal(ly.length, 2, 'the terminal lymphatics and the space of Disse');
+  for (const o of ly) assert.ok(flowOf(o) > 0.99, 'chevrons on');
+  const speeds = ly.map(speedOf).sort((a, b) => a - b);
+  assert.ok(speeds[0]! < 0 && speeds[1]! > 0, 'the Disse\'s marks run against its course (out), the terminal lymphatics\' with theirs (in toward the tract)');
+});
+
+test('hepatic lymph rises in cirrhosis, and the chevrons quicken with it', () => {
+  const calm = new LobuleView(createShared()), wet = new LobuleView(createShared());
+  for (const [v, m] of [[calm, model()], [wet, model({ lymph: 5.5, lyProt: 0.43 })]] as const) { v.setVisible(true); v.snapModel(m); settle(v); }
+  const disse = (v: LobuleView) => v.objects.filter((o) => v.set.get('lymph').group.children.includes(o.group) && o.isVessel).map(speedOf).find((s) => s < 0)!;
+  assert.ok(Math.abs(disse(wet)) > Math.abs(disse(calm)) * 1.4);
+});
+
+test('turning the Lymph layer off fades the ducts away (they shrink to nothing, never pop) and stops their frames', () => {
+  const v = new LobuleView(createShared());
+  v.setVisible(true); v.snapModel(model()); let t = settle(v);
+  const lymph = v.set.get('lymph').group;
+  assert.ok(lymph.visible);
+  v.setLayers({ lymph: false });
+  v.update(t += 16); assert.ok(lymph.visible, 'still going at the first frame');
+  const lt = v.objects.find((o) => lymph.children.includes(o.group) && o.isVessel)!;
+  const mid = lt.toon.uniforms.inflate!.value as number;
+  assert.ok(mid < 0 && mid > -0.04, 'shrinking');
+  t = settle(v, t);
+  assert.equal(lymph.visible, false);
+});
+
+test('blood\'s chevrons follow flow-mark option A: only the parts the slide names; the deck terms light the sinusoids with the central vein or the triad', () => {
+  assert.deepEqual([...litParts(['lobule:sinusoid'])], ['sinusoids']);
+  assert.ok(litParts(['lobule:central']).has('central-vein') && litParts(['lobule:central']).has('sinusoids'));
+  assert.ok(litParts(['lobule:triad']).has('portal-tracts') && litParts(['lobule:triad']).has('sinusoids'));
+  const v = new LobuleView(createShared());
+  v.setVisible(true); v.snapModel(model());
+  const blood = marked(v).filter((o) => !v.set.get('lymph').group.children.includes(o.group));
+  let t = settle(v);
+  for (const o of blood) assert.equal(flowOf(o), 0, 'nothing named, nothing marked');
+  v.setLit(litParts(['lobule:sinusoid'])); t = settle(v, t);
+  const sinus = blood.filter((o) => v.set.get('sinusoids').group.children.includes(o.group));
+  assert.equal(sinus.length, 3);
+  for (const o of sinus) assert.equal(flowOf(o), 1);
+  for (const o of blood.filter((o) => !sinus.includes(o))) assert.equal(flowOf(o), 0);
+  v.setFlowMode('C'); settle(v, t);
+  for (const o of blood) assert.equal(flowOf(o), 1, 'option C marks everything');
+});
+
+test('reversed flow runs the marks the other way', () => {
+  const v = new LobuleView(createShared());
+  v.setVisible(true); v.setLit(['sinusoids']); v.snapModel(model()); settle(v);
+  const s0 = marked(v).find((o) => v.set.get('sinusoids').group.children.includes(o.group))!;
+  const fwd = speedOf(s0);
+  v.snapModel(model({ flow: 0.8, rev: { pre: false, sin: true, post: false } })); settle(v, 2000);
+  assert.ok(fwd > 0 && speedOf(s0) < 0);
+});
+
+test('the sinusoid view carries NO lymph chevrons: only the blood\'s lumen is a marked vessel, and the lymph duct and the space of Disse have no marks', () => {
+  const s = new SinusoidView(createShared());
+  const vessels = s.objects.filter((o) => o.isVessel);
+  assert.equal(vessels.length, 1);
+  assert.ok(s.set.get('lumen').group.children.includes(vessels[0]!.group));
+  for (const name of ['lymph-duct', 'disse'] as const) for (const o of s.objects.filter((o) => s.set.get(name).group.children.includes(o.group))) assert.equal(o.isVessel, false, `${name} has no marks`);
+  s.setVisible(true); settle(s);
+  assert.equal(flowOf(vessels[0]!), 1, 'the blood moves on the lumen');
+  // and the lobule has no marks on anything but the vessels it names
+  const l = new LobuleView(createShared());
+  assert.ok(marked(l).length >= 5);
+});
+
+// ---- states ------------------------------------------------------------------------------------------------------------------------
+
+const targets = (o: Partial<SinusoidTargets> = {}): SinusoidTargets => ({ por: 1, col: 0, bm: 0, mv: 1, act: 0, lum: 1, pinch: 0, v: 1, filt: 1, prot: 1, ...o });
+
+test('the lobule\'s disease states come out of nothing and ease in: collagen collars, septa, stellate swell, congested zone 3 dilates and drops out', () => {
+  const v = new LobuleView(createShared());
+  v.setVisible(true); v.snapModel(model()); settle(v);
+  const septa = v.set.get('septa').group.children[0]!, cuffs = v.set.get('cuffs').group.children;
+  assert.equal(septa.visible, false); for (const c of cuffs) assert.equal(c.visible, false, 'no collagen in a healthy lobule');
+  const s2 = () => v.objects.find((o) => o.tone === ('sin2' as never))!.toon.uniforms.inflate!.value as number;
+  const z3 = () => v.objects.find((o) => o.tone === ('cord3' as never))!.toon.uniforms.inflate!.value as number;
+  assert.ok(Math.abs(s2()) < 1e-9); assert.ok(Math.abs(z3()) < 1e-9);
+  v.setModel(model({ s: 0.85, septU: 1, fibPre: 0.7, fibPost: 0.6, congU: 0.8, act: 0.9, fibSin: 0.8, zone: { pre: 3, sin: 20, post: 3 } }));
+  v.update(2000); v.update(2016);
+  assert.ok(septa.visible, 'the septa begin to come at the first frames');
+  settle(v, 2032, 3000);
+  assert.ok(cuffs.every((c) => c.visible));
+  assert.ok(s2() > 0, 'congested zone-3 sinusoids dilate');
+  assert.ok(z3() < 0, 'zone 3 cells drop out with congestion');
+});
+
+test('the sinusoid\'s states: sealed pores shrink the sieve plates away, collagen and the membrane come out of nothing, the stellate cell swells and squeezes the lumen, filtration swells Disse', () => {
+  const s = new SinusoidView(createShared());
+  s.setVisible(true); s.snapTargets(targets()); settle(s);
+  const by = (part: 'wall' | 'disse' | 'stellate' | 'lumen', i = 0) => s.objects.filter((o) => s.set.get(part).group.children.includes(o.group))[i]!;
+  const infl = (o: CelObject) => o.toon.uniforms.inflate!.value as number;
+  const fen = by('wall', 0), bm = by('wall', 1), collagen = by('disse', 1), disse = by('disse', 0), cell = by('stellate', 0), lumen = by('lumen');
+  assert.ok(Math.abs(infl(fen)) < 1e-9); assert.ok(Math.abs(infl(lumen)) < 1e-9); assert.equal(bm.group.visible, false); assert.equal(collagen.group.visible, false);
+  s.setTargets(targets({ por: 0.1, col: 0.9, bm: 0.9, act: 0.9, pinch: 0.2, lum: 0.78, filt: 4 }));
+  settle(s, 2000, 4000);
+  assert.ok(infl(fen) < -0.02, 'pores closed');
+  assert.ok(bm.group.visible && collagen.group.visible);
+  assert.ok(infl(cell) > 0.04, 'activated');
+  assert.ok(infl(lumen) < -0.1, 'squeezed and narrowed');
+  assert.ok(infl(disse) > 0.05 - 0.06 * 0.9 - 1e-9, 'Disse swells with the filtration (less what the collagen takes)');
+});
+
+test('the sinusoid\'s wedge amber starts at the central end and runs back toward the portal end; a dive after the lobule\'s wash carries on', () => {
+  const s = new SinusoidView(createShared());
+  s.setVisible(true); s.startWash(0); s.update(0);
+  const w = s.objects.find((o) => s.set.get('wash').group.children.includes(o.group))!;
+  assert.equal(w.group.visible, false);
+  s.update(WASH_DELAY_MS + 1700);
+  assert.ok(w.group.visible);
+  const k1 = w.ink.uniforms.reveal!.value as number;
+  s.update(WASH_DELAY_MS + 3000);
+  assert.ok((w.ink.uniforms.reveal!.value as number) > k1);
+  // the overlay's course runs from the central end (the last point of the lumen's)
+  const pos = w.toonMesh.geometry.getAttribute('position');
+  assert.ok(pos.getX(0) > pos.getX(pos.count - 1) - 0.01 + 1, 'its first ring is at the central (right) end');
+});
+
+test('a batch builds tubes with every attribute the cel shaders read, and caps close an end-on vessel', () => {
+  const b = new Batch();
+  const len = b.tube([[0, 0, 0], [1, 0, 0], [2, 0, 0]], { radius: 0.1, radial: 6, capped: true, uvx: (_i, arc) => arc });
+  assert.ok(Math.abs(len - 2) < 1e-9);
+  const g = b.build();
+  for (const a of ['position', 'normal', 'uv', 'tang']) assert.ok(g.getAttribute(a), a);
+  assert.equal(g.getAttribute('position').count, 3 * 7 + 2 * (1 + 7));
+  assert.ok(g.getIndex()!.count % 3 === 0);
+  const nrm = g.getAttribute('normal');
+  for (let i = 0; i < nrm.count; i++) assert.ok(Math.abs(Math.hypot(nrm.getX(i), nrm.getY(i), nrm.getZ(i)) - 1) < 1e-6);
+});
+
+test('a state target eases and lands exactly (the lobule\'s own use of easeToward)', () => {
+  const cur = { a: 0 };
+  while (easeToward(cur, { a: 1 }, 16));
+  assert.equal(cur.a, 1);
+});
