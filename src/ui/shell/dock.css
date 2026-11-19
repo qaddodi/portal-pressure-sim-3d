@@ -1,0 +1,91 @@
+/* The dock: the play bar and the key readouts in one floating glass card at the foot, as the 2D app has them (styles/app-07-floating.css .vdock, app-08-cards.css, app-09-tests.css
+   "The bottom bar, one quiet design on every size"). The rules are lifted from 2D with their effective values (the later file wins); only the tokens are the 3D look's.
+   Moves are opacity and transform only. */
+.vdock {
+  --border: var(--edge); --border-strong: color-mix(in srgb, var(--edge) 70%, var(--text)); --hairline: var(--edge); --stage-bg: var(--bg);
+  --surface-2: color-mix(in srgb, var(--surface) 94%, var(--text)); --surface-3: color-mix(in srgb, var(--surface) 88%, var(--text));
+  --r-control: 6px; --r-card: 10px; --r-sheet: 16px; --fs-12: 12px; --fs-14: 14px; --fs-16: 16px; --fs-20: 20px; --ic-s: 16px; --ic-m: 20px; --gap: var(--sh-dock-gap, 12px);
+  --lapse: var(--caution); --lapse-ink: color-mix(in srgb, var(--caution) 62%, var(--text));
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--safe-b, 0px) + var(--gap)); width: min(calc(100% - 2 * var(--gap)), 1280px);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "tl ro"; align-items: center; pointer-events: auto;
+  background: var(--glass, var(--surface)); border-radius: var(--r-sheet); box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), inset 0 0 0 1px var(--hairline), 0 10px 28px -14px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6));
+  font-family: var(--ui); color: var(--text); transition: opacity 240ms var(--sh-ease); }
+.vdock[data-hidden="true"] { opacity: 0; pointer-events: none; } .vdock[data-hidden="true"] * { pointer-events: none !important; }
+.vdock button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.vdock .stage-bar.bottom { grid-area: tl; height: 60px; padding: 0 8px 0 12px; display: flex; min-width: 0; }
+.vdock .timeline { flex: 1; height: 100%; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.vdock .tl-left { display: flex; align-items: center; gap: 4px; flex: none; }
+
+/* the speed and play pair: one ring, the speed (44 px) and play (46 px) inside it */
+.vdock .tl-split { display: flex; align-items: stretch; height: 40px; padding: 3px; gap: 2px; box-sizing: border-box; border: 1px solid var(--border); border-radius: var(--r-card); background: transparent; }
+.vdock .tl-split .sh-anchor { height: auto; }
+.vdock .tl-speed { position: relative; display: inline-flex; align-items: center; justify-content: center; height: 100%; width: 44px; min-width: 44px; margin: 0; padding: 0 1px 0 0; border: 0; border-radius: calc(var(--r-card) - 3px - 1px);
+  background: transparent; color: var(--text-2); font: 600 12px / 1 var(--ui); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vdock .tl-speed::after { content: ""; position: absolute; right: 1px; top: 9px; bottom: 9px; width: 1px; background: color-mix(in srgb, var(--text) 28%, transparent); }
+@media (hover: hover) { .vdock .tl-speed:hover { background: var(--accent-soft); color: var(--text); } }
+.vdock .tl-speed.lapse { color: var(--lapse-ink); font-weight: 700; }
+.vdock .ib.play { width: 46px; height: 100%; min-height: 0; align-self: stretch; display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: calc(var(--r-card) - 3px - 1px); background: var(--text); color: var(--stage-bg); }
+html[data-look="dark"] .vdock .ib.play, html[data-look="navy"] .vdock .ib.play, html[data-look="black"] .vdock .ib.play { background: color-mix(in srgb, var(--text) 84%, var(--stage-bg)); }
+@media (hover: hover) { .vdock .ib.play:hover { opacity: .88; } }
+.vdock .ib.play .sh-ic { width: var(--ic-s); height: var(--ic-s); display: block; }
+.vdock .ib.play.lapse { background: color-mix(in srgb, var(--lapse) 22%, var(--surface)); color: var(--lapse-ink); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--lapse) 70%, transparent); }
+@media (pointer: coarse) { .vdock .ib.play { position: relative; } .vdock .ib.play::after { content: ''; position: absolute; inset: -3px -1px; } }
+.vdock .tl-restart { display: none; }   /* (2D keeps it in the page and hides it at every size: Restart is in the search and the patient's menu) */
+
+/* the clock */
+.vdock .tl-time { flex: none; min-width: 3.4em; font: 600 14px / 1 var(--ui); color: var(--text-2); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.vdock .tl-time .tl-t-short { display: none; }
+.vdock .tl-jumps { display: flex; align-items: center; gap: 0; flex: none; margin-left: auto; }
+
+/* jump ahead, History and Compare: the same quiet 36 px icon button */
+.vdock :is(.tl-ff, .tl-hist, .tl-pin) { position: relative; flex: none; width: 36px; height: 36px; min-width: 0; padding: 0; gap: 0; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--r-control); background: transparent; color: var(--text-2); }
+.vdock :is(.tl-ff, .tl-hist, .tl-pin) .sh-ic { width: var(--ic-m); height: var(--ic-m); }
+.vdock :is(.tl-hist, .tl-pin) .tl-hl, .vdock .tl-pin span { display: none; }
+@media (hover: hover) { .vdock :is(.tl-ff, .tl-hist, .tl-pin):hover { background: var(--surface-3); color: var(--text); } }
+.vdock .tl-pin[aria-pressed="true"] { background: var(--text); color: var(--stage-bg); }
+@media (pointer: coarse) { .vdock :is(.tl-ff, .tl-pin)::after { content: ''; position: absolute; inset: -2px; } }
+.vdock .tl-hc:empty { display: none; }
+.vdock .tl-hc:not(:empty) { position: absolute; top: 0; right: -2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--text); color: var(--stage-bg); font: 600 12px / 16px var(--ui); text-align: center; font-variant-numeric: tabular-nums; }
+
+/* the readouts strip: the two key tiles (2D dock.js PRIMARY = hvpg, ppg) */
+.vdock .readouts { grid-area: ro; display: flex; align-items: stretch; min-width: 0; padding: 7px 6px 6px; border-left: 1px solid var(--hairline); width: clamp(360px, 33vw, 470px); box-sizing: border-box; }
+@media (min-width: 1100px) { .vdock .readouts { width: clamp(440px, 38vw, 580px); } }
+.vdock .metric { flex: 1 1 0; min-width: 0; padding: 2px 6px; border: 0; border-radius: var(--r-control); background: transparent; text-align: left; color: var(--text); display: flex; flex-direction: column; cursor: default; }
+.vdock .metric .k { font-size: var(--fs-12); font-weight: 500; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+.vdock .metric .v { font-size: var(--fs-20); font-weight: 600; letter-spacing: -.015em; white-space: nowrap; display: flex; align-items: baseline; line-height: 1.25; min-width: 0; overflow: hidden; font-variant-numeric: tabular-nums; }
+.vdock .metric .v .unit { flex: none; font-size: var(--fs-12); font-weight: 500; color: var(--text-3); margin-left: 3px; letter-spacing: 0; }
+.vdock .metric .s { display: flex; align-items: center; gap: 4px; font-size: var(--fs-12); color: var(--text-3); white-space: nowrap; overflow: hidden; line-height: 1.35; }
+.vdock .metric .status { overflow: hidden; text-overflow: ellipsis; }
+.vdock .metric[data-sev="danger"] .status { color: var(--danger); font-weight: 600; } .vdock .metric[data-sev="critical"] .status { color: var(--danger); font-weight: 600; } .vdock .metric[data-sev="caution"] .status { color: var(--caution); }
+.vdock .metric.primary .v .val { min-width: 2.2ch; }
+
+/* an iPad on its side (768 to 1099): a narrower strip, no sub-lines */
+@media (min-width: 768px) and (max-width: 1099px) and (orientation: landscape) { .vdock .readouts { width: 330px; } .vdock .readouts .metric .s { display: none; } .vdock .readouts .metric .v { font-size: var(--fs-16); } }
+
+/* a phone or an upright iPad (2D: max-width 767, or 1100 and portrait): the readouts stand above the play bar; the clock is the short one; no speed, Restart or Compare button (Compare is in the jump menu) */
+@media (max-width: 767px), (max-width: 1100px) and (orientation: portrait) {
+  .vdock { --gap: 8px; --sh-dock-gap: 8px; }
+  .vdock { grid-template-columns: minmax(0, 1fr); grid-template-areas: "ro" "tl"; }
+  .vdock .readouts { width: auto; border-left: 0; border-bottom: 1px solid var(--hairline); }
+  .vdock .stage-bar.bottom { height: 52px; padding: 0 6px; }
+  .vdock .tl-speed, .vdock .tl-pin { display: none; }
+  .vdock .tl-time { min-width: 0; display: inline; font-size: var(--fs-14); color: var(--text); }
+  .vdock .tl-time .tl-t-long { display: none; } .vdock .tl-time .tl-t-short { display: inline; }
+  .vdock .timeline { gap: 6px; }
+  .vdock .metric { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 0 6px; }
+  .vdock .metric .v { flex: none; font-size: var(--fs-16); } .vdock .metric .v .unit { margin-left: 2px; }
+  .vdock .metric .s { margin-left: auto; flex: 0 1 auto; }
+  .vdock .readouts .metric .status.unmeas { font-size: 0; }
+}
+.sh-foot .vdock { position: relative; left: auto; transform: none; bottom: auto; width: auto; margin: 0 -6px; }
+
+/* a phone on its side: a compact play bar beside the two readouts (2D app-07-floating.css, max-height 500 landscape) */
+@media (max-width: 1023px) and (max-height: 500px) and (orientation: landscape) {
+  .vdock { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "tl ro"; }
+  .vdock .readouts { width: 300px; border-bottom: 0; border-left: 1px solid var(--hairline); }
+  .vdock .readouts .metric { flex-direction: column; text-align: center; } .vdock .readouts .metric .v { justify-content: center; } .vdock .readouts .metric .s { margin-left: 0; display: none; }
+  .vdock .stage-bar.bottom { overflow: hidden; } .vdock .tl-speed { display: none; }
+  .vdock .timeline { justify-content: space-between; } .vdock .tl-jumps { margin-left: 0; }
+  .vdock .tl-pin { display: inline-flex; }
+}
+@media (prefers-reduced-motion: reduce) { .vdock { transition-duration: 1ms !important; } }

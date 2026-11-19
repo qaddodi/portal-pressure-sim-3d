@@ -13,7 +13,6 @@ import { testsPlace } from './place.ts';
 import { useTestsRoom } from './room.ts';
 import { TIcon, TAB_ICON } from './icons.tsx';
 import { ReadoutsPane } from './ReadoutsPane.tsx';
-import { Why } from './Why.tsx';
 import { PressureTab } from './trace/PressureTab.tsx';
 import { startFeed } from './feed.ts';
 import { notYet } from '../shell/words.ts';
@@ -72,7 +71,6 @@ export function TestsLayer() {
         <div className="t-body" id={`pane-${tab}`} role="tabpanel" aria-label={PANES[pane].name}>
           {open && (body ? <div key={pane}>{body({ narrow, plot: place.vars.plot, square: place.vars.square, roomy: place.kind === 'side' && place.rect.h >= 600 })}</div> : <p key={pane} className="t-note t-pane">{notYet(PANES[pane].name)}</p>)}
         </div>
-        <Why />
       </section>
     </div>
   );

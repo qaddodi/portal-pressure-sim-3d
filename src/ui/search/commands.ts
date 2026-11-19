@@ -17,6 +17,8 @@ import { lensToast } from '../shell/words.ts';
 import { notYet } from '../shell/words.ts';
 import { useTests } from '../tests/store.ts';
 import { BUILT_PANES } from '../tests/panes.ts';
+import { commandWork, commandOffered } from '../treat/palette-orders.ts';
+import { appEnv } from '../treat/env.ts';
 
 export interface Extra extends Command { wired: boolean }
 
@@ -35,6 +37,7 @@ function work(group: string, title: string): ((n: number | null) => void) | null
     if (title === 'Until something happens') return () => jump('event');
     if (title === 'Restart this patient') return () => restart();
   }
+  if (group === 'Treat' || group === 'Change') return commandWork(appEnv, group, title);
   if (group === 'View') {
     const lens = UI.lenses.find((l) => title === `Colored by ${l.name.toLowerCase()}`);
     if (lens) return () => { sceneApi.setLens(lens.id as LensId); sh().say(lensToast(lens.name, lens.note)); };
@@ -61,6 +64,7 @@ export function buildCommands(start: (deckId: string) => void): Extra[] {
     out.push({ group, title, kw: norm(`${title} ${kw}`), num, hint, wired: isWiredCommand(group, title), run: run ?? (() => { if (feat) runFeature(feat, title); else useShell.getState().say(notYet(title)); }) });
   };
   for (const c of UI.search.commands) {
+    if ((c.group === 'Treat' || c.group === 'Change') && !commandOffered(c.group, c.title)) continue;   // (a take-down is offered only for what is in place)
     if (c.group === 'App' && c.title.startsWith('Appearance: ')) { const l = UI.looks.find((x) => c.title === `Appearance: ${x.name}`); add(c.group, c.title, work(c.group, c.title), `theme look color colour palette ${l && l.id !== 'light' && l.id !== 'soft' ? 'dark' : l?.id ?? ''} ${l?.id === 'navy' || l?.id === 'black' ? l.id : ''}`, null, ''); continue; }
     if (c.group === 'View' && c.title.startsWith('Colored by ')) { const l = UI.lenses.find((x) => c.title === `Colored by ${x.name.toLowerCase()}`); add(c.group, c.title, work(c.group, c.title), `color colour lens ${l?.note ?? ''}`, null, ''); continue; }
     add(c.group, c.title, work(c.group, c.title), c.kw, c.num, c.hint, FEATURE_OF[c.title]);

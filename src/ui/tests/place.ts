@@ -34,7 +34,7 @@ export function testsPlace(vp: Viewport, device: DeviceClass, contentH = 0): Tes
   }
   // a sheet over the foot of the figure: the full width less the margins, rising from just above the bottom bars
   const margin = 8, w = vp.w - vp.safe.left - vp.safe.right - 2 * margin;
-  const maxH = Math.round(room * 0.7);
+  const maxH = Math.round(Math.min(room * 0.7, Math.max(200, room - 170)));   // (the figure keeps 160 px or more above it, whatever the foot takes)
   const h = contentH > 0 ? Math.min(contentH, maxH) : maxH;
   return { kind: 'sheet', rect: { x: vp.safe.left + margin, y: vp.h - bottom - h, w, h }, maxH, vars: sheetDockVars(h, isPhone(device)) };
 }

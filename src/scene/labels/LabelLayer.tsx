@@ -4,7 +4,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import './labels.css';
 import { clock } from '../../clock/frame.ts';
-import { latest } from '../../engine/index.ts';
+import { latest, patient, indexOf } from '../../engine/index.ts';
+import { flowReversed } from '../lenses/vel-normal.copied.js';
 import { NODES } from '../../engine/hales/portal/topology.js';
 import { useSettings } from '../../state/settings.ts';
 import { resolveLook } from '../../looks/looks.ts';
@@ -13,7 +14,9 @@ import { BAR } from '../../ui/layout/plan.ts';
 import { useUi } from '../../ui/ui-store.ts';
 import { cel, sceneApi, usePick } from '../api.ts';
 import { rectToBox, type Box } from './geometry.ts';
-import { CALL, LabelController, PILL, type Draw, type LabelDeps } from './controller.ts';
+import { LabelController, type Draw, type LabelDeps } from './controller.ts';
+import { baselineAt, lookVars, typeVars } from './type.ts';
+import { keyVars } from './key-dock.ts';
 import { STATIONS } from './stations.ts';
 import { LABEL_NAMES } from './names.copied.ts';
 import { KEY_LENSES, keyModel, schemeOf } from './key.ts';
@@ -59,6 +62,7 @@ interface Rec {
   leadTx: string; anchorTx: string;
   rows?: { n: HTMLElement; text: string }[];
   calcRow?: HTMLElement | null;
+  rev?: boolean;
 }
 
 export function LabelLayer() {
@@ -67,8 +71,13 @@ export function LabelLayer() {
   const look = useSettings((s) => s.look);
   const key = useLabels((s) => s.key);
   const dark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
-  const scheme = schemeOf(resolveLook(look, dark));
+  const lookId = resolveLook(look, dark);
+  const scheme = schemeOf(lookId);
+  const lookRef = useRef(lookId); lookRef.current = lookId;
+  const applyTypeRef = useRef<() => void>(() => {});
+  useEffect(() => { applyTypeRef.current(); }, [lookId]);
   const model = useMemo(() => keyModel(key, scheme), [key, scheme]);
+  const vpNow = useUi((s) => s.vp);
 
   // a lens key can be asked for by the address while the lenses are not built yet: ?key=velocity
   useEffect(() => {
@@ -87,6 +96,9 @@ export function LabelLayer() {
       view: () => { const { vp } = ui.getState(); return { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom }; },
       blockers: () => { const b = ui.getState().boxes; return [b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox); },
       measure: makeMeasure(),
+      vp: () => ui.getState().vp,
+      words: () => ui.getState().boxes.words,
+      reversed: (edge) => { const f = latest.frame, ref = patient.reference; if (!f) return false; const k = indexOf(edge); return flowReversed(f.Qf[k] ?? 0, ref ? (ref.Q[k] ?? 0) : 0); },
       pressure: (node) => { const f = latest.frame, i = NODE_AT.get(node); return f && i !== undefined ? (f.Pf[i] ?? null) : null; },
       reading: (k) => ui.getState().readings[k] ?? null,
       cathere: (tip: Vector3, ahead: Vector3) => {
@@ -104,17 +116,16 @@ export function LabelLayer() {
     // ── build the skeleton once ──
     for (const s of STATIONS) {
       const el = mk('div', 'lb');
-      if (s.tone) el.dataset.tone = s.tone;
       if (s.kind === 'organ') el.dataset.region = '';
-      mk('i', 'lb-dot', el);
       const name = mk('span', 'lb-name', el);
       const val = mk('span', 'lb-val', el);
       const roll = mk('span', 'lb-roll', val);
       const cur = mk('span', 'lb-cur', roll);
-      const rec: Rec = { root: el, shown: false, tx: '', op: '', form: -1, size: '', value: '', name, cur, rolling: null, leadTx: '', anchorTx: '' };
+      const rev = mk('span', 'lb-rev', el); rev.textContent = '⟲';
+      const rec: Rec = { root: el, shown: false, tx: '', op: '', form: -1, size: '', value: '', name, cur, rolling: null, leadTx: '', anchorTx: '', rev: false };
       if (s.kind !== 'organ') {
-        const lead = mk('i', 'lb-lead'); lead.dataset.tone = s.tone ?? '';
-        const anchor = mk('i', 'lb-anchor'); if (s.tone) anchor.dataset.tone = s.tone;
+        const lead = mk('i', 'lb-lead');
+        const anchor = mk('i', 'lb-anchor');
         rec.lead = lead; rec.anchor = anchor;
       }
       recs.set(s.id, rec);
@@ -145,8 +156,15 @@ export function LabelLayer() {
     recs.set('key', keyRec);
 
     // ── the key reports its size (laid out once, invisible) ──
-    const ro = new ResizeObserver(() => { const r = keyHost.current!.firstElementChild as HTMLElement | null; if (r) { ctl.setKeySize(r.offsetWidth, r.offsetHeight); clock.invalidate('labels-key'); } });
-    const watchKey = () => { ro.disconnect(); const k = keyHost.current?.firstElementChild; if (k) ro.observe(k); };
+    // (two elements: the key as drawn, which the dock may wrap, and a hidden twin that never wraps and reports the key's size on one line)
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) {
+        const t = e.target as HTMLElement;
+        if (t.classList.contains('lb-key-twin')) ctl.setKeyNatural(t.offsetWidth, t.offsetHeight); else ctl.setKeySize(t.offsetWidth, t.offsetHeight);
+      }
+      clock.invalidate('labels-key');
+    });
+    const watchKey = () => { ro.disconnect(); keyHost.current?.querySelectorAll('.lb-key').forEach((k) => ro.observe(k)); };
     watchKey();
     const keyMo = new MutationObserver(watchKey);
     keyMo.observe(keyHost.current!, { childList: true });
@@ -160,7 +178,12 @@ export function LabelLayer() {
     pushState();
     const offLabels = useLabels.subscribe(pushState);
     const offPick = usePick.subscribe(pushState);
-    const offUi = ui.subscribe((s, p) => { if (s.boxes !== p.boxes || s.vp !== p.vp) { ctl.markDirty(); clock.invalidate('labels-boxes'); } });
+    // the 2D type at this screen (sizes follow the short side) and the look's own ink, halo and ring: written on the layer, never in a frame
+    const putVars = (v: Record<string, string>) => { for (const [k, val] of Object.entries(v)) root.style.setProperty(k, val); };
+    const applyType = () => { const { vp } = ui.getState(); putVars(typeVars(vp)); putVars(lookVars(lookRef.current, vp)); ctl.invalidateForms(); clock.invalidate('labels-type'); };
+    applyType();
+    const offUi = ui.subscribe((s, p) => { if (s.vp !== p.vp) applyType(); if (s.boxes !== p.boxes || s.vp !== p.vp) { ctl.markDirty(); clock.invalidate('labels-boxes'); } });
+    applyTypeRef.current = applyType;
     const offLink = linkLabelsToDeck();
     const refonts = () => { ctl.invalidateForms(); clock.invalidate('labels-fonts'); };
     void document.fonts?.ready.then(refonts);
@@ -185,17 +208,9 @@ export function LabelLayer() {
   return (
     <>
       <div ref={layer} className="lb-layer" aria-hidden="true">
-        <div ref={keyHost} className="lb-key-wrap">
-          {model && (
-            <div className="lb-key" role="img" aria-label={model.aria} data-lens={model.lens}>
-              <b>{model.name}</b>
-              {model.scale && (model.scale.ends
-                ? <span className="lb-ends"><span>{model.scale.lo}</span><i className="lb-bar" style={{ background: model.scale.gradient }} /><span>{model.scale.hi}</span></span>
-                : <i className="lb-bar" style={{ background: model.scale.gradient }} />)}
-              {model.swatches && <span className="lb-items">{model.swatches.map((s) => <span key={s.label} className="lb-k"><i className="lb-sw" style={{ background: s.colour }} />{s.label}</span>)}</span>}
-            </div>
-          )}
-        </div>
+        <div ref={keyHost} className="lb-key-wrap">{model && <KeyBody model={model} vp={vpNow} />}</div>
+        {/* its twin: never wrapped, never seen; reports the key's size on one line, which is what the dock decides by */}
+        <div className="lb-key-probe">{model && <KeyBody model={model} vp={vpNow} twin />}</div>
       </div>
       <VesselWalk />
     </>
@@ -211,16 +226,24 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
   if (tx !== r.tx) { el.style.transform = tx; r.tx = tx; }
   const op = String(Math.round(d.alpha * 1000) / 1000);
   if (op !== r.op) { el.style.opacity = op; r.op = op; }
-  if (d.kind === 'key') return;
+  if (d.kind === 'key') {
+    const dock = d.dock, room = dock?.wrap != null ? `${px(dock.wrap)}px` : 'none', minh = `${dock?.minH ?? 0}px`;
+    if (el.style.getPropertyValue('--lb-key-room') !== room) el.style.setProperty('--lb-key-room', room);
+    if (el.style.getPropertyValue('--lb-key-minh') !== minh) el.style.setProperty('--lb-key-minh', minh);
+    return;
+  }
   // a new spot or form is taken while the label is invisible: its size and words are written then, never in a visible frame
-  if (d.form !== r.form || r.size !== `${d.w}x${d.h}`) {
-    r.form = d.form; r.size = `${d.w}x${d.h}`;
+  if (d.form !== r.form || r.size !== `${d.w}x${d.h}` || r.rev !== d.rev) {
+    r.form = d.form; r.size = `${d.w}x${d.h}`; r.rev = d.rev;
     el.style.width = `${px(d.w)}px`; el.style.height = `${px(d.h)}px`;
     if (r.name) {
       const st = STATIONS.find((s) => s.id === d.id);
       const word = st ? (d.form === 0 ? st.name : d.form === 1 ? (st.abbr ?? st.name) : '') : '';
-      r.name.textContent = word;
+      r.name.textContent = st?.kind === 'organ' ? word.toUpperCase() : word;
       r.name.style.display = word ? '' : 'none';
+      el.dataset.form = String(d.form);
+      if (d.rev) el.setAttribute('data-rev', ''); else el.removeAttribute('data-rev');
+      el.style.setProperty('--b', `${px(baselineAt(d.h, d.pad.y))}px`);
     }
   }
   if (d.kind === 'station') {
@@ -231,14 +254,17 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
       else roll(r, d.value, was);
     }
     if (r.lead && r.anchor) {
+      // the ring stands on the vessel for every station; the leader joins it to the words only when they stand away
+      if (d.dot) {
+        const a = `translate(${px(d.dot.x)}px,${px(d.dot.y)}px)`;
+        if (a !== r.anchorTx) { r.anchor.style.transform = a; r.anchorTx = a; }
+        r.anchor.setAttribute('data-on', ''); r.anchor.style.opacity = op;
+      } else { r.anchor.removeAttribute('data-on'); r.anchor.style.opacity = '0'; }
       if (d.leader) {
         const t = `translate(${px(d.leader.x)}px,${px(d.leader.y)}px) rotate(${d.leader.angle.toFixed(4)}rad) scaleX(${px(d.leader.len)})`;
         if (t !== r.leadTx) { r.lead.style.transform = t; r.leadTx = t; }
-        const a = `translate(${px(d.leader.x)}px,${px(d.leader.y)}px)`;
-        if (a !== r.anchorTx) { r.anchor.style.transform = a; r.anchorTx = a; }
-        r.lead.setAttribute('data-on', ''); r.anchor.setAttribute('data-on', '');
-        r.lead.style.opacity = op; r.anchor.style.opacity = op;
-      } else { r.lead.removeAttribute('data-on'); r.anchor.removeAttribute('data-on'); r.lead.style.opacity = '0'; r.anchor.style.opacity = '0'; }
+        r.lead.setAttribute('data-on', ''); r.lead.style.opacity = op;
+      } else { r.lead.removeAttribute('data-on'); r.lead.style.opacity = '0'; }
     }
   } else {
     // a callout's numbers (written when they change) and its pointer (written when its geometry changes: only at a new spot)
@@ -276,7 +302,6 @@ function paintTail(el: HTMLElement, d: Draw): void {
   place(edge, [grow(pts[0], 1.2), grow(pts[1], 1.2), grow(pts[2], 1.2)]);
   place(face, pts);
   // the card's own border runs under the pointer's base: the face covers it
-  void CALL; void PILL;
 }
 
 /** A number that changes rolls: the old one goes up and out, the new one comes up from below (400 ms, transform and opacity). */
@@ -292,4 +317,19 @@ function roll(r: Rec, next: string, was: string): void {
   const out = old.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-0.55em)' }], { duration: MOTION.rollMs, easing: ease, fill: 'both' });
   out.onfinish = () => old.remove();
   cur.animate([{ opacity: 0, transform: 'translateY(0.55em)' }, { opacity: 1, transform: 'none' }], { duration: MOTION.rollMs, easing: ease });
+}
+
+/** The key's pill: the lens named, then its scale or its named swatches (the 2D app's presenter.js keyNodes). */
+function KeyBody({ model, vp, twin = false }: { model: NonNullable<ReturnType<typeof keyModel>>; vp: ReturnType<typeof useUi.getState>['vp']; twin?: boolean }) {
+  const grad = !!model.scale;
+  return (
+    <div className={twin ? 'lb-key lb-key-twin' : 'lb-key'} role={twin ? undefined : 'img'} aria-label={twin ? undefined : model.aria} aria-hidden={twin ? true : undefined}
+      data-lens={model.lens} data-grad={grad ? '' : undefined} style={keyVars(vp, grad) as React.CSSProperties}>
+      <b>{model.name}</b>
+      {model.scale && (model.scale.ends
+        ? <span className="lb-ends"><span>{model.scale.lo}</span><i className="lb-bar" style={{ background: model.scale.gradient }} /><span>{model.scale.hi}</span></span>
+        : <i className="lb-bar" style={{ background: model.scale.gradient }} />)}
+      {model.swatches && <span className="lb-items">{model.swatches.map((s) => <span key={s.label} className="lb-k"><i className="lb-sw" style={{ background: s.colour }} />{s.label}</span>)}</span>}
+    </div>
+  );
 }

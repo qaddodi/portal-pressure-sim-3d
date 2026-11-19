@@ -61,20 +61,3 @@
 .rp-tile[data-sev="none"] .rp-v { color: var(--text-3); }
 .rp-tr { margin-left: 6px; font-size: 11px; color: var(--text-3); }
 
-/* ── Why? ── */
-.t-why { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 3; border-radius: 16px; border: 1px solid var(--edge); background: var(--surface); padding: 14px 16px 16px; max-height: 78%; overflow: hidden;
-  box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 16px 40px -12px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2));
-  opacity: 0; visibility: hidden; transform: translateY(10px); transition: opacity 240ms cubic-bezier(0.2, 0.7, 0.2, 1), transform 240ms cubic-bezier(0.2, 0.7, 0.2, 1), visibility 0s linear 240ms; }
-.t-why[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
-.t-why h3 { margin: 0 28px 4px 0; font: 650 var(--t-name, 16px) / 1.2 var(--display, var(--ui)); }
-.t-why p { margin: 6px 0; font: 500 var(--t-sm, 13px) / 1.45 var(--ui); color: var(--text-2); }
-.t-why .t-f { font-family: var(--ui); color: var(--text-3); }
-.t-why-x { position: absolute; right: 8px; top: 8px; width: 32px; height: 32px; border: 0; border-radius: 999px; background: transparent; color: var(--text-2); display: grid; place-items: center; }
-.t-why-rows { display: grid; gap: 6px; margin-top: 10px; }
-.t-why-row { display: grid; grid-template-columns: minmax(0, 1fr) 64px; gap: 4px 10px; align-items: center; font: 600 var(--t-sm, 13px) / 1.2 var(--ui); }
-.t-why-bar { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--text) 8%, transparent); position: relative; overflow: hidden; }
-.t-why-bar i { position: absolute; top: 0; bottom: 0; left: 0; width: 100%; transform-origin: 0 50%; border-radius: 3px; background: var(--accent); }
-.t-why-bar i[data-neg="true"] { background: var(--text-3); }
-.t-why-d { text-align: right; color: var(--text-2); }
-
-@media (prefers-reduced-motion: reduce) { .t-card, .t-plate, .t-pane, .t-why, .rp-fill { transition-duration: 1ms; animation-duration: 1ms; } }

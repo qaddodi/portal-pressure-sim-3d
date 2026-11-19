@@ -1,0 +1,15 @@
+/* Reduce Motion (docs/accessibility.md; policy in a11y/motion.ts): nothing travels, but nothing pops either (owner, 15 Nov 2026). Whatever appears, goes or changes
+   look cross-fades in 240 ms (D_SMALL), never in one frame: a card comes in and goes by opacity alone, a number swaps by opacity, the sheets and menus fade. */
+@media (prefers-reduced-motion: reduce) {
+  .deck-ui { --rise: 0px; --drop: 0px; --move: 240ms; }
+  /* a card's glide to a new height is a reveal, kept (a fade of the plate under it); the place a card glides to is a move, which becomes a fade by the card's own in and out */
+  .dk-pos[data-live="true"] { transition-property: opacity; transition-duration: 240ms; }
+  .dk-row .dk-bar i, .dk-dots button i, .dk-dots button u { transition-property: opacity, background-color; transition-duration: 240ms; }
+  /* a rolling number swaps by opacity only */
+  .dk-roll-in, .dk-roll-out { animation-name: dk-fade-in-only; animation-duration: 240ms; }
+  .dk-roll-out { animation-name: dk-fade-out-only; }
+  @keyframes dk-fade-in-only { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes dk-fade-out-only { from { opacity: 1; } to { opacity: 0; } }
+  /* the shell: sheets, menus and toasts fade, they do not slide */
+  .sh-root, .sh-root * { transition-property: opacity, visibility, background-color, border-color, color, box-shadow !important; transition-duration: 240ms !important; }
+}

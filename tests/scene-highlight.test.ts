@@ -58,7 +58,7 @@ test('nothing else is dimmed: only outline and lift uniforms ever change', () =>
   assert.equal(pv.ink.uniforms.hiOn.value, 1);
   const first = s.vessels.find((o) => o.edge!.id === 'PV_TRUNK_1')!;
   assert.equal(first.ink.uniforms.hiOn.value, 1, 'picking either piece picks the whole vein');
-  const other = s.vessels.find((o) => o.edge!.id === 'MHV_IVC')!;
+  const other = s.vessels.find((o) => o.edge!.id === 'V_KID_L')!;   // (a vein on no flow path from the portal trunk; the hepatic veins lie within its range at the 2D figure's own scale)
   assert.equal(other.ink.uniforms.hiOn.value, 0);
   s.pick(null);
   while (s.highlight.step(16)) { /* fade out */ }

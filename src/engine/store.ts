@@ -36,8 +36,18 @@ export function setParams(params: unknown) { if (params == null) return; patient
 const taps = new Set<(f: EngineFrame) => void>();
 export function onFrame(fn: (f: EngineFrame) => void): () => void { taps.add(fn); return () => { taps.delete(fn); }; }
 
+/** The newest frame the engine made, whatever the page shows (the shown one is `latest`: Compare's Then view holds a pinned frame there, see `holdFrame`). */
+export const live: { frame: EngineFrame | null } = { frame: null };
+let held: EngineFrame | null = null;
+/** Show a pinned frame in place of the live one (Compare > Then), or null to go back to the live model. The headline numbers and the timeline stay live. */
+export function holdFrame(f: EngineFrame | null) {
+  held = f;
+  latest.frame = f ?? live.frame; latest.version++;
+}
+
 export function adoptFrame(f: EngineFrame) {
-  latest.frame = f; latest.version++;
+  live.frame = f;
+  if (!held) { latest.frame = f; latest.version++; }
   for (const fn of taps) fn(f);
   if (f.params !== undefined) setParams(f.params);
   const m: Metrics = f.metrics;

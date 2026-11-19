@@ -5,11 +5,12 @@ import { useFrame, paramsNow } from './frame.ts';
 import { tileRows, vitalRows, GROUP_LIST, SYSTEMIC_CAP, type Row } from './readouts-model.ts';
 import { useTests } from './store.ts';
 import { useShell } from '../shell/store.ts';
+import { openWhy } from '../why/store.ts';
 
 const TREND_S = 5, TREND_FRAC = 0.03;   // (readouts-pane.js: a sustained change over five seconds, larger than 3 % of the scale)
 
 function Tile({ r, trend, name }: { r: Row; trend: string; name: string }) {
-  const openWhy = useTests((s) => s.openWhy), show = useTests((s) => s.show);
+  const show = useTests((s) => s.show);
   const go = () => {
     if (r.pane) { show(r.pane as never); return; }
     if (r.id === 'hvpg' && r.band === 'none') { show('hvpg'); return; }   // (an HVPG not yet measured opens the procedure that measures it)

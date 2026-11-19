@@ -1,13 +1,13 @@
 // The flow-time chart as a frame at minute m (the head of each line): its lines drawn from the start up to m, each with its head and its value (looks: chart-looks/time.js, plot.js).
 import type { ChartCtx } from '../Chart.tsx';
-import { mix, withAlpha, type Rgba } from '../colour.ts';
+import { type Rgba } from '../colour.ts';
+import { look, type Look } from '../looks.ts';
 import type { Frame, Shape } from '../scene.ts';
 import { RX as RX0 } from '../plot/rx-bands.generated.js';
 import { yOf, decOf } from '../plot/scales.ts';
 import { MINUTES, clockTicks, cw, flowGeo, flowTimeHeight, headLeft, linesOf, legendOf, showsOf, startPlan, withUnit, xAt, rxGap, type FlowSeries, type Geo, type LineRow } from './model.ts';
 
 export const RX = RX0 as unknown as Record<string, [name: string, on: (params: unknown) => boolean, tone: string]>;
-const CLEAR: Rgba = [0, 0, 0, 0];
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 const tokOf = (v: string) => v.replace(/^--/, '');
 
@@ -19,12 +19,17 @@ export const inkOf = (c: ChartCtx, name: string): Rgba => (c.pal.has(`${name}-in
 
 export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
   const { pal } = c, f = c.type.sm, w = Math.max(160, c.w), { ser, clock, keys } = spec, rx = spec.rx ?? [];
+  const H = { host: 'flowtime' };
+  const lk = (key: string, state: Record<string, unknown> = {}, tone?: string, name = 'c'): Look => look(c, H, key, state, tone ? { [name]: tone } : {});
   const ax = ser.ax, h = Math.round(spec.height ?? flowTimeHeight(w, f, keys, rx.length ? 1.4 + 0.32 * rx.length : 0).preferred);
   const G = flowGeo(ser, clock, keys, rx.length, w, h, f), LINES: LineRow[] = linesOf(keys);
   const { L, R, T, B, meal } = G, X = (mm: number) => xAt(G, ax, mm);
-  const surf2 = pal.tok('surface-2'), halo4 = { color: surf2, w: 4 };
+  const surf2 = lk('plot.bg').fill!;
   const shapes: Shape[] = [];
-  const text = (x: number, y: number, s: string, color: Rgba, o: Partial<Extract<Shape, { k: 'text' }>> = {}): void => { shapes.push({ k: 'text', x, y, s, size: f, weight: 500, color, ...o }); };
+  // a word as its look says (size, weight, colour, halo, letter spacing), at (x, y); o moves what a frame moves (anchor, alpha)
+  const say = (x: number, y: number, s: string, l: Look, o: Partial<Extract<Shape, { k: 'text' }>> = {}): void => {
+    shapes.push({ k: 'text', x, y, s, size: l.size ?? f, weight: l.weight, color: l.fill!, ...(l.halo ? { halo: l.halo } : {}), ...(l.upper ? { upper: true } : {}), ...(l.ls ? { ls: l.ls } : {}), ...o });
+  };
   // the panel, from just under the legend to the foot
   const top = G.keyH + 0.1 * f, pr = Math.max(0, Math.min(10, w / 4, (h - top) / 4));
   shapes.push({ k: 'rect', x: 0, y: top, w, h: h - top, r: pr, fill: surf2 });
@@ -32,47 +37,49 @@ export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
   if (rx.length) {
     let nx = L;
     rx.forEach((k, j) => {
-      const [name, , tone] = RX[k]!, col = pal.tok(tokOf(tone));
-      const ink = mix('oklab', col, c.look === 'soft' ? 46 : pal.dark ? 72 : 54, pal.tok('text'));
-      if (j) { text(nx, B + 2.55 * f, '  ·  ', pal.tok('text-3'), { weight: 600 }); nx += cw('  ·  ', f, true); }
-      text(nx, B + 2.55 * f, name, ink, { weight: 600 }); nx += cw(name, f, true);
+      const [name, , tone] = RX[k]!, nameL = lk('ft.band.name', {}, tokOf(tone), 'rx');
+      if (j) { say(nx, B + 2.55 * f, '  ·  ', lk('time.tk'), { weight: nameL.weight }); nx += cw('  ·  ', f, true); }
+      say(nx, B + 2.55 * f, name, nameL); nx += cw(name, f, true);
     });
     rx.forEach((k, j) => {
-      const col = pal.tok(tokOf(RX[k]![2]));
-      shapes.push({ k: 'rect', x: L, y: B + 2.8 * f + j * 0.32 * f, w: Math.max(2, R - L), h: 0.2 * f, r: 0.1 * f, fill: pal.dark ? withAlpha(col, col[3] * 0.8) : mix('oklab', col, 70, pal.tok('text')) });
+      const bar = lk('ft.band.bar', {}, tokOf(RX[k]![2]), 'rx');
+      shapes.push({ k: 'rect', x: L, y: B + 2.8 * f + j * 0.32 * f, w: Math.max(2, R - L), h: 0.2 * f, r: 0.1 * f, fill: bar.opacity !== undefined ? [bar.fill![0], bar.fill![1], bar.fill![2], bar.fill![3] * bar.opacity] : bar.fill });
     });
   }
   const lowY = yOf(G.PB, ser.pScale), upY = yOf(G.FB, ser.fScale);
-  const lc = (k: number) => inkOf(c, LINES[k]![3]);
+  const gl = (k: number) => lk('time.grid.text', {}, LINES[k]![3]);   // a gridline's number, in the colour of its line
   // gridlines (the left axis draws them), numbers on each side in the line's colour
-  const gridLine = mix('srgb', pal.tok('border-strong'), 70, CLEAR);
+  const gridLine = lk('plot.grid.line', { cut: false }).stroke!, gridW = lk('plot.grid.line', { cut: false }).width!;
   const showL = showsOf(ser.pScale, lowY, f), showR = showsOf(ser.fScale, upY, f);
-  ser.fScale.ticks.forEach((v, j) => { if (showR(j)) text(R + 6, upY(v) + 0.35 * f, v.toFixed(decOf(ser.fScale)), lc(1), { anchor: 'start' }); });
+  ser.fScale.ticks.forEach((v, j) => { if (showR(j)) say(R + 6, upY(v) + 0.35 * f, v.toFixed(decOf(ser.fScale)), gl(1), { anchor: 'start' }); });
   ser.pScale.ticks.forEach((v, j) => {
-    shapes.push({ k: 'line', x1: L, x2: R, y1: lowY(v), y2: lowY(v), pen: { color: gridLine, w: 1 } });
-    if (showL(j)) text(L - 6 - rxGap(rx.length, f), lowY(v) + 0.35 * f, v.toFixed(decOf(ser.pScale)), lc(0), { anchor: 'end' });
+    shapes.push({ k: 'line', x1: L, x2: R, y1: lowY(v), y2: lowY(v), pen: { color: gridLine, w: gridW } });
+    if (showL(j)) say(L - 6 - rxGap(rx.length, f), lowY(v) + 0.35 * f, v.toFixed(decOf(ser.pScale)), gl(0), { anchor: 'end' });
   });
   // the legend: each line's swatch, name and unit (the lower line's on the left, the upper's on the right or under it)
   legendOf(keys, f).forEach((k, j) => {
-    const right = j > 0 && G.oneRow, y = (j && !G.oneRow ? G.rowH : 0) + 0.75 * f, x0 = right ? w : 0, col = pal.tok(k.c), ink = inkOf(c, k.c);
-    shapes.push({ k: 'line', x1: x0 + (right ? -16 : 0), x2: x0 + (right ? 0 : 16), y1: y, y2: y, pen: { color: col, w: 4, cap: 'round' } });
-    if (right) { text(x0 - 22, y + 0.36 * f, k.name, ink, { weight: 700, anchor: 'end' }); text(x0 - 22 - cw(k.name, f, true) - cw(' ', f), y + 0.36 * f, k.unit, pal.tok('text-3'), { anchor: 'end' }); }
-    else { text(x0 + 22, y + 0.36 * f, k.name, ink, { weight: 700 }); text(x0 + 22 + cw(k.name, f, true), y + 0.36 * f, ` ${k.unit}`, pal.tok('text-3')); }
+    const right = j > 0 && G.oneRow, y = (j && !G.oneRow ? G.rowH : 0) + 0.75 * f, x0 = right ? w : 0, kl = lk('time.key.line', {}, k.c), kt = lk('time.key.text', {}, k.c), ku = lk('time.key.unit');
+    shapes.push({ k: 'line', x1: x0 + (right ? -16 : 0), x2: x0 + (right ? 0 : 16), y1: y, y2: y, pen: { color: kl.stroke!, w: kl.width!, cap: kl.cap } });
+    if (right) { say(x0 - 22, y + 0.36 * f, k.name, kt, { anchor: 'end' }); say(x0 - 22 - cw(k.name, f, true) - cw(' ', f), y + 0.36 * f, k.unit, { ...ku, size: f }, { anchor: 'end' }); }
+    else { say(x0 + 22, y + 0.36 * f, k.name, kt); say(x0 + 22 + cw(k.name, f, true), y + 0.36 * f, ` ${k.unit}`, { ...ku, size: f }); }
   });
   // the clock
-  shapes.push({ k: 'line', x1: L, x2: R, y1: B, y2: B, pen: { color: pal.tok('text-3'), w: 1.5 } });
-  for (const mm of clockTicks(G, ax)) text(X(mm), B + 1.25 * f, mm > 0 ? `+${mm}` : mm < 0 ? `−${-mm}` : '0', pal.tok('text-3'), { anchor: 'middle' });
-  text(X(ax.end) + G.half, B + 1.25 * f, meal ? 'min' : 'days', pal.tok('text-3'), { weight: 600, upper: true, ls: 0.04 });
+  const axis = lk('time.axis.line');
+  shapes.push({ k: 'line', x1: L, x2: R, y1: B, y2: B, pen: { color: axis.stroke!, w: axis.width! } });
+  for (const mm of clockTicks(G, ax)) say(X(mm), B + 1.25 * f, mm > 0 ? `+${mm}` : mm < 0 ? `−${-mm}` : '0', lk('time.tk'), { anchor: 'middle' });
+  say(X(ax.end) + G.half, B + 1.25 * f, meal ? 'min' : 'days', lk('plot.ax'), { anchor: 'start' });
   if (meal) {
-    text((X(MINUTES.from) + X(0)) / 2, T - 0.6 * f, 'Fasting', pal.tok('text-2'), { weight: 600, anchor: 'middle' });
-    shapes.push({ k: 'line', x1: X(0), x2: X(0), y1: T - 1.5 * f, y2: B, pen: { color: pal.tok('text-2'), w: 2, dash: [5, 5] } });
-    text(X(0) + 6, T - 0.6 * f, 'Meal', pal.tok('text'), { weight: 700 });
+    const mealLine = lk('ft.meal');
+    say((X(MINUTES.from) + X(0)) / 2, T - 0.6 * f, 'Fasting', lk('ft.t', { meal: false }), { anchor: 'middle' });
+    shapes.push({ k: 'line', x1: X(0), x2: X(0), y1: T - 1.5 * f, y2: B, pen: { color: mealLine.stroke!, w: mealLine.width!, dash: mealLine.dash } });
+    say(X(0) + 6, T - 0.6 * f, 'Meal', lk('ft.t', { meal: true }));
   }
   // the first values: a ring at each line's start and its value clear of the lines, the rings and the numbers
   const plan = startPlan(G, ser, LINES, rx.length);
   plan.starts.forEach(({ x, y, txt }, i) => {
-    shapes.push({ k: 'circle', cx: plan.own[i]![0], cy: plan.own[i]![1], r: Math.max(3, f * 0.3), fill: surf2, pen: { color: pal.tok(LINES[i]![3]), w: 2.5 } });
-    text(x, y, txt, lc(i), { weight: 600, halo: halo4 });
+    const ring = lk('ft.start', {}, LINES[i]![3]);
+    shapes.push({ k: 'circle', cx: plan.own[i]![0], cy: plan.own[i]![1], r: Math.max(3, f * 0.3), fill: ring.fill, pen: { color: ring.stroke!, w: ring.width! } });
+    say(x, y, txt, lk('ft.v0', {}, LINES[i]![3]));
   });
   // the lines up to minute m, each with its head and its value
   const mins = ser.min, nm = mins.length;
@@ -84,16 +91,18 @@ export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
     const val = lerpAt(arr, ax.from, m), hx = X(m), hy = Y(val);
     pts.push(hx, hy);
     if (pts.length < 4) pts.push(hx, hy);
-    shapes.push({ k: 'path', pts, pen: { color: pal.tok(col), w: 3, cap: 'round', join: 'round' } });
+    const ln = lk('plot.line', {}, col);
+    shapes.push({ k: 'path', pts, pen: { color: ln.stroke!, w: ln.width!, cap: ln.cap, join: ln.join } });
     heads.push({ hx, hy, v: val, i });
   });
   const boxes = plan.right;
   heads.forEach(({ hx, hy, v, i }) => {
     const [, , , col, , unit, d] = LINES[i]!, txt = withUnit(v, d, unit), tw = cw(txt, f * 1.1, true), left = headLeft(hx, hy, tw, f, w, boxes);
-    shapes.push({ k: 'circle', cx: hx, cy: hy, r: Math.max(4, f * 0.42), fill: pal.tok(col), pen: { color: surf2, w: 2 } });
+    const dot = lk('ft.dot', {}, col);
+    shapes.push({ k: 'circle', cx: hx, cy: hy, r: Math.max(4, f * 0.42), fill: dot.fill, pen: { color: dot.stroke!, w: dot.width! } });
     // near the start the first value is already there: the head's own value waits
-    const off = m - ax.from < 0.36 * (ax.end - ax.from);
-    shapes.push({ k: 'text', x: hx + (left ? -0.6 : 0.6) * f, y: hy - 0.7 * f, s: txt, size: f * 1.1, weight: 700, color: lc(i), anchor: left ? 'end' : 'start', halo: halo4, alpha: off ? 0 : 1 });
+    const off = m - ax.from < 0.36 * (ax.end - ax.from), vl = lk('ft.v', { off: false }, col);
+    shapes.push({ k: 'text', x: hx + (left ? -0.6 : 0.6) * f, y: hy - 0.7 * f, s: txt, size: vl.size!, weight: vl.weight, color: vl.fill!, anchor: left ? 'end' : 'start', halo: vl.halo, alpha: off ? 0 : 1 });
   });
   // two heads close together: the lower band's value goes under its head, clear of the other
   const a = heads[0]!.hy - 0.7 * f, b = heads[1]!.hy - 0.7 * f;

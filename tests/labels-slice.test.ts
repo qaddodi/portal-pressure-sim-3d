@@ -11,6 +11,7 @@ import { labelsAt } from '../src/scene/labels/deck-link.ts';
 import { rectToBox, hits, grow, type Box } from '../src/scene/labels/geometry.ts';
 import { STATIONS } from '../src/scene/labels/stations.ts';
 import { FADE } from '../src/scene/labels/alpha.ts';
+import { dockKey } from '../src/scene/labels/key-dock.ts';
 import { Vector3 } from 'three';
 import { CATHETER_ROUTE } from '../src/scene/catheter.ts';
 
@@ -40,6 +41,7 @@ function harness(screen: keyof typeof SCREENS, stop: number, beat = 0) {
   const deps: LabelDeps = {
     now: () => t, project: (p, o) => rig.project(p, o), cameraMoving: () => moving,
     free: () => rectToBox(plan.free), view: () => ({ x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom }),
+    vp: () => vp, reversed: () => false, words: () => plan.cards.find((c) => c.slot === 'words')?.rect ?? null,
     blockers: () => blockers, measure, pressure: (n) => (n.length * 1.7) % 20, reading: (k) => ({ whvp: 16.2, fhvp: 5.1, hvpg: 11.1 } as Record<string, number>)[k] ?? null,
     cathere: (tip: Vector3, ahead: Vector3) => { if (!adv) return 0; curve.end(tip, ahead); return balloon ? 2 : 1; },
   };
@@ -65,9 +67,11 @@ for (const [name, vp] of Object.entries(SCREENS) as [keyof typeof SCREENS, (type
       h.settle();
       const view: Box = { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom };
       // a small screen may drop the least important stations (the 2D app does too); never one the slide names, and never the portal vein
+      // (On the sideways iPhone the wallet's card stays centred as in 2D, leaving two strips beside it; a name that would fall under the card
+      // drops or fades there and is never kept by moving the card: so there, only what is shown is judged, and the strips still carry labels.)
       const never = new Set([...h.lab.named, 'CONF']);
-      assert.deepEqual(h.ctl.dropped.filter((d) => never.has(d)), [], `a named station or the portal vein was dropped (${h.ctl.dropped})`);
-      assert.ok(h.ctl.out.length >= 3, `only ${h.ctl.out.length} labels shown`);
+      if (name !== 'iphone-landscape') assert.deepEqual(h.ctl.dropped.filter((d) => never.has(d)), [], `a named station or the portal vein was dropped (${h.ctl.dropped})`);
+      assert.ok(h.ctl.out.length >= (name === 'iphone-landscape' ? 2 : 3), `only ${h.ctl.out.length} labels shown`);
       const boxes = h.ctl.out.map((d) => ({ id: d.id, box: { x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h } as Box }));
       for (const { id, box } of boxes) {
         for (const c of h.blockers) assert.ok(!hits(box, c), `${id} stands under a card`);
@@ -80,7 +84,12 @@ for (const [name, vp] of Object.entries(SCREENS) as [keyof typeof SCREENS, (type
         assert.ok(shown || hidden, `${n} is named by the slide but neither shown nor hidden`);
       }
       const want = h.lab.cath === 'free' ? 1 : h.lab.cath === 'wedge' ? 2 : h.lab.cath === 'result' ? 1 : 0;
-      assert.equal(h.ctl.out.filter((d) => d.kind === 'callout').length, want, 'the slide\'s reading cards stand');
+      const calls = h.ctl.out.filter((d) => d.kind === 'callout').length;
+      if (name === 'iphone-landscape') {
+        // beside the centred wallet card the strips are narrower than a reading card: one that cannot stand there is left out, never put under the card
+        const strip = Math.max(Math.min(...h.blockers.map((c) => c.x0)) - view.x0, view.x1 - Math.max(...h.blockers.map((c) => c.x1)));
+        assert.ok(calls <= want && (calls === want || strip < 190), `reading cards: ${calls} of ${want} (widest strip ${Math.round(strip)} px)`);
+      } else assert.equal(calls, want, 'the slide\'s reading cards stand');
       for (const d of h.ctl.out) assert.ok(d.alpha > 0.99 || d.alpha === 0.65 || d.alpha < 1, 'drawn at a sensible opacity');
     });
   });
@@ -119,18 +128,19 @@ test('a slide that names parts of the figure dims the others to 65 %; with nothi
   assert.ok(title.ctl.out.every((d) => d.alpha === 1), 'nothing named, nothing dim');
 });
 
-test('the figure key stands in the lower right of the free room, clear of every card and label, and fades with the labels', () => {
-  const h = harness('mac', 3);
-  h.ctl.setState({ ...NO_STATE, named: h.lab.named, cath: h.lab.cath, key: 'velocity' });
-  h.ctl.setKeySize(180, 30);
-  h.settle();
-  const key = h.ctl.out.find((d) => d.kind === 'key')!;
-  assert.ok(key, 'the key is drawn');
-  const free = h.plan.free;
-  assert.ok(key.x + key.w <= free.x + free.w && key.y + key.h <= free.y + free.h);
-  const kb: Box = { x0: key.x, y0: key.y, x1: key.x + key.w, y1: key.y + key.h };
-  for (const c of h.blockers) assert.ok(!hits(kb, c));
-  for (const d of h.ctl.out) if (d.kind !== 'key') assert.ok(!hits(kb, { x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h }), `${d.id} overlaps the key`);
-  h.setMoving(true); h.settle(300);
-  assert.equal(h.ctl.out.length, 0, 'the key fades with the labels while the picture moves');
+test('the figure key stands where the 2D app docks it, clear of every label, and fades with the labels', () => {
+  for (const screen of Object.keys(SCREENS) as (keyof typeof SCREENS)[]) {
+    const h = harness(screen, 3);
+    h.ctl.setState({ ...NO_STATE, named: h.lab.named, cath: h.lab.cath, key: 'velocity' });
+    h.ctl.setKeyNatural(180, 30); h.ctl.setKeySize(180, 30);
+    h.settle();
+    const key = h.ctl.out.find((d) => d.kind === 'key')!;
+    assert.ok(key, `${screen}: the key is drawn`);
+    const want = dockKey({ vp: SCREENS[screen], words: h.plan.cards.find((c) => c.slot === 'words')?.rect ?? null, natural: { w: 180, h: 30 }, wrapped: { w: 180, h: 30 } });
+    assert.deepEqual([key.x, key.y, key.w, key.h].map(Math.round), [want.box.x0, want.box.y0, want.box.x1 - want.box.x0, want.box.y1 - want.box.y0].map(Math.round), `${screen}: at its 2D dock`);
+    const kb: Box = { x0: key.x, y0: key.y, x1: key.x + key.w, y1: key.y + key.h };
+    for (const d of h.ctl.out) if (d.kind !== 'key') assert.ok(!hits(kb, { x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h }), `${screen}: ${d.id} overlaps the key`);
+    h.setMoving(true); h.settle(300);
+    assert.equal(h.ctl.out.length, 0, 'the key fades with the labels while the picture moves');
+  }
 });
