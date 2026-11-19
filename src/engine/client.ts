@@ -7,6 +7,7 @@ export interface WorkerLike {
   terminate?(): void;
   onmessage: ((e: { data: FromWorker }) => void) | null;
   onerror?: ((e: unknown) => void) | null;
+  onmessageerror?: ((e: unknown) => void) | null;
 }
 
 export interface ClientHandlers {
@@ -24,19 +25,25 @@ export class EngineClient {
   private steps = new Map<number, (m: SeqStep) => void>();
   private worker: WorkerLike;
   private h: ClientHandlers;
+  /** Why the worker is gone, once it is: every later request is refused with it at once (nothing waits on a worker that will not answer). */
+  private dead: Error | null = null;
   constructor(worker: WorkerLike, h: ClientHandlers) {
     this.worker = worker; this.h = h;
     worker.onmessage = (e) => this.receive(e.data);
-    worker.onerror = (e) => this.h.onCrash(`The simulation worker failed: ${String((e as { message?: string })?.message ?? e)}`);
+    // A worker that could not load or threw (error), or sent what the page cannot read (messageerror), is a crash like the worker's own 'crash' message:
+    // the status says so and every request still waiting is rejected, so the boot (and any card awaiting an answer) never hangs on it.
+    worker.onerror = (e) => { (e as { preventDefault?: () => void } | null)?.preventDefault?.(); this.crash(`The simulation worker failed: ${String((e as { message?: string } | null)?.message || 'it could not be loaded or it stopped')}`); };
+    worker.onmessageerror = () => this.crash('The simulation worker sent a message the page could not read.');
   }
 
   /** Fire and forget. */
-  send(msg: ToWorker) { this.worker.postMessage(msg); }
+  send(msg: ToWorker) { if (!this.dead) this.worker.postMessage(msg); }
 
   /** Send a message the worker answers (it carries a reqId back); resolves with the answer, rejects with the worker's error. */
   request<T extends FromWorker = FromWorker>(msg: ToWorker): Promise<T> {
     const reqId = this.nextId++;
     return new Promise<T>((resolve, reject) => {
+      if (this.dead) { reject(this.dead); return; }
       this.waiting.set(reqId, { resolve: resolve as (m: FromWorker) => void, reject });
       this.worker.postMessage({ ...msg, reqId });
     });
@@ -46,6 +53,7 @@ export class EngineClient {
   sequence(steps: unknown[], base?: unknown): Promise<SeqStep[]> {
     const reqId = this.nextId++, got: SeqStep[] = [];
     return new Promise<SeqStep[]>((resolve, reject) => {
+      if (this.dead) { reject(this.dead); return; }
       this.steps.set(reqId, (m) => { got[m.i] = m; });
       this.waiting.set(reqId, { resolve: () => { this.steps.delete(reqId); resolve(got); }, reject: (e) => { this.steps.delete(reqId); reject(e); } });
       this.worker.postMessage({ type: 'sequence', steps, base, reqId });
@@ -55,7 +63,7 @@ export class EngineClient {
   private receive(m: FromWorker) {
     if (m.type === 'frame') { this.h.onFrame(m); return; }
     if (m.type === 'seqStep') { this.steps.get(m.reqId)?.(m as unknown as SeqStep); return; }
-    if (m.type === 'crash') { this.h.onCrash(m.message); this.failAll(new Error(m.message)); return; }
+    if (m.type === 'crash') { this.crash(m.message); return; }
     const reqId = (m as { reqId?: number }).reqId;
     if (reqId == null) return;
     const w = this.waiting.get(reqId);
@@ -64,7 +72,15 @@ export class EngineClient {
     if (m.type === 'error') w.reject(new Error(m.message)); else w.resolve(m as Reply);
   }
 
-  private failAll(err: Error) { for (const w of this.waiting.values()) w.reject(err); this.waiting.clear(); }
+  /** The worker is gone (its own crash message, an error event, a boot that never answered): tell the app once, then fail everything that waits. */
+  crash(message: string) {
+    if (this.dead) return;
+    this.dead = new Error(message);
+    this.h.onCrash(message);
+    this.failAll(this.dead);
+  }
 
-  dispose() { this.failAll(new Error('engine client disposed')); this.worker.terminate?.(); this.worker.onmessage = null; }
+  private failAll(err: Error) { const all = [...this.waiting.values()]; this.waiting.clear(); for (const w of all) w.reject(err); }
+
+  dispose() { this.dead ??= new Error('engine client disposed'); this.failAll(this.dead); this.worker.onerror = null; this.worker.onmessageerror = null; this.worker.terminate?.(); this.worker.onmessage = null; }
 }
