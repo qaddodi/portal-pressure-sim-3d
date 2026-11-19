@@ -148,11 +148,11 @@ names the vessel, its pressure and flow, and the gradient with words ("PPG 14 ·
 1. **Bands:** 3 on organs, 2 on vessels, as in the mocks. Decided.
 2. **Ink weight:** as in section 3. Decided for now; can change later.
 3. **Soft look:** the two deeper vessel tones (`#A8306A` portal, `#3A74B8` systemic) are accepted.
-4. **Flow marks:** suggestions sent to him (below); his pick is still open. Until he picks, build them as option A, behind one setting so the choice is a switch.
+4. **Flow marks:** option A (Mohammad, 19 Nov, 2:28 PM ET). Final. The setting stays so the others can be tried later.
 
 | Option | What it looks like |
 |---|---|
-| A (recommended) | Chevrons in the 2D app's colours (black on light vessels, cream on dark, orange when reversed), on the vessels the slide talks about and the picked vessel; the rest still |
+| **A (chosen)** | Chevrons in the 2D app's colours (black on light vessels, cream on dark, orange when reversed), on the vessels the slide talks about and the picked vessel; the rest still |
 | B | The same chevrons on every vessel, fainter on the vessels the slide does not mention |
 | C | Soft light bands (as in the mocks) on every vessel, speed from flow |
 | D | Marks run only for a few seconds after a change (a new preset, a slider, a treatment), then fade, so the still figure is calm |
