@@ -10,7 +10,7 @@ import { makeDrawTile } from './from2d/field-tile.generated.js';
 import { useTokens } from './from2d/lobule-paint.generated.js';
 import { EDGE_FADE, FADE_MID, FADE_SPAN, NEIGHBOUR_FLAT, blurWrapped, neighbourBlur, surroundGrade } from './from2d/lobule-look.generated.js';
 import { LOBULE_R } from './shots.ts';
-import { PLATE_Z } from './plate.ts';
+import { PLATE_Z, blankTexture } from './plate.ts';
 import { lookColours, type RGB } from './lz-colours.ts';
 import type { LookId } from '../../looks/looks.ts';
 
@@ -57,7 +57,7 @@ export function paintFieldTile(look: LookId, fs: FieldState, mk: (w: number, h: 
   return { cv: c, tw: t.tw ?? 0, th: t.th ?? 0 };
 }
 
-const VS = /* glsl */ `
+export const LOBULE_FIELD_VS = /* glsl */ `
 varying vec2 vLob;
 varying vec4 vClip;
 varying vec4 vCen;
@@ -73,7 +73,7 @@ void main() {
   vClip = pvm * vec4(position, 1.0);
   gl_Position = vClip;
 }`;
-const FS = /* glsl */ `
+export const LOBULE_FIELD_FS = /* glsl */ `
 uniform sampler2D tile;
 uniform vec3 bg;
 uniform vec2 grey;
@@ -126,8 +126,8 @@ export class NeighbourField {
   constructor(mk: (w: number, h: number) => HTMLCanvasElement | null) {
     this.mk = mk;
     this.mat = new ShaderMaterial({
-      vertexShader: VS, fragmentShader: FS,
-      uniforms: { tile: { value: null }, bg: { value: new Color() }, grey: { value: new Vector2(1, 1) }, ready: { value: 0 } },
+      vertexShader: LOBULE_FIELD_VS, fragmentShader: LOBULE_FIELD_FS,
+      uniforms: { tile: { value: blankTexture() }, bg: { value: new Color() }, grey: { value: new Vector2(1, 1) }, ready: { value: 0 } },
       transparent: true, depthWrite: false,
     });
     const side = 2 * FIELD_HALF * LOBULE_R;

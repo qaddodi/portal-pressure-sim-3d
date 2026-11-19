@@ -11,10 +11,10 @@ export const ZONE_STOPS: readonly (readonly [number, 1 | 2 | 3])[] = [[0, 3], [0
 /** 2D's opacity of the gradient (dark 0.2, light 0.17). */
 export const zoneAlpha = (dark: boolean): number => (dark ? 0.2 : 0.17);
 
-const VS = /* glsl */ `
+export const LOBULE_ZONES_VS = /* glsl */ `
 varying vec2 vP;
 void main() { vP = position.xy / ${LOBULE_R.toFixed(4)}; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
-const FS = /* glsl */ `
+export const LOBULE_ZONES_FS = /* glsl */ `
 uniform vec3 z1; uniform vec3 z2; uniform vec3 z3;
 uniform float amount;
 varying vec2 vP;
@@ -35,7 +35,7 @@ export class ZonesOverlay {
   private dark = false;
   constructor() {
     this.mat = new ShaderMaterial({
-      vertexShader: VS, fragmentShader: FS,
+      vertexShader: LOBULE_ZONES_VS, fragmentShader: LOBULE_ZONES_FS,
       uniforms: { z1: { value: new Color() }, z2: { value: new Color() }, z3: { value: new Color() }, amount: { value: 0 } },
       transparent: true, depthWrite: false, side: DoubleSide,
       blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,

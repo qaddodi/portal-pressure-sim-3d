@@ -7,7 +7,7 @@
 //   const plate = new LobulePlate(net);          group.add(plate.group)
 //   plate.want(state, look)                       the state the tissue should show (cheap: compares a key)
 //   plate.step(dtMs) → true while it fades        paints at most one state at a time, in the frame after it was asked for
-import { CanvasTexture, CustomBlending, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial } from 'three';
+import { CanvasTexture, CustomBlending, DataTexture, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial } from 'three';
 import { paintWorldInto, useTokens } from './from2d/lobule-paint.generated.js';
 import type { LobuleNet, Course, P2 } from './geometry.ts';
 import { LOBULE_R } from './shots.ts';
@@ -72,16 +72,19 @@ export function paintPlate(ctx: CanvasRenderingContext2D, n: number, G: ReturnTy
   paintWorldInto(ctx, n, sc, -B, -B, plateInput(G, sins, cvR, s, look));
 }
 
-const VS = /* glsl */ `
+export const LOBULE_PLATE_VS = /* glsl */ `
 varying vec2 vUv;
 void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 // (The canvas is sent premultiplied, so its transparent edge filters to nothing rather than to a dark fringe; the colours are the canvas's sRGB as they are,
 // as the cel shaders write theirs.)
-const FS = /* glsl */ `
+export const LOBULE_PLATE_FS = /* glsl */ `
 uniform sampler2D map;
 uniform float opacity;
 varying vec2 vUv;
 void main() { vec4 c = texture2D(map, vUv); gl_FragColor = c * opacity; }`;
+
+/** A clear 1 × 1 texture, so a sampler always has a value (no canvas: node, or a browser that gave none). */
+export const blankTexture = (): DataTexture => { const t = new DataTexture(new Uint8Array(4), 1, 1); t.needsUpdate = true; return t; };
 
 /** A canvas-backed plate (null canvas in node: nothing is painted, the bookkeeping still runs). */
 export type MakeCanvas = (n: number) => HTMLCanvasElement | null;
@@ -118,7 +121,7 @@ export class LobulePlate {
         tex.flipY = true; tex.premultiplyAlpha = true; tex.generateMipmaps = true; tex.minFilter = LinearMipmapLinearFilter; tex.magFilter = LinearFilter; tex.anisotropy = 4;
       }
       const mat = new ShaderMaterial({
-        vertexShader: VS, fragmentShader: FS, uniforms: { map: { value: tex }, opacity: { value: 0 } },
+        vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: tex ?? blankTexture() }, opacity: { value: 0 } },
         transparent: true, depthWrite: false, side: DoubleSide,
         blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
       });

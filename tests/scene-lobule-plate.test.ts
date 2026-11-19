@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { pinned2D } from './two-d-pin.ts';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { buildLobule } from '../src/scene/lobule/geometry.ts';
 import { LobuleView } from '../src/scene/lobule/view.ts';
@@ -38,11 +38,9 @@ const H = { congU: 0, septU: 0, fibSin: 0, act: 0, fibPre: 0, fibPost: 0 };
 const SICK = { congU: 0.8, septU: 1, fibSin: 0.8, act: 0.9, fibPre: 0.7, fibPost: 0.6 };
 const sins = net.courses.filter((c) => c.kind === 's0').map((c) => ({ c, r: 0.0095 }));
 
-test('the copies of the 2D painter are current (a 2D checkout at PPS_2D_REPO, or the sibling folder)', (t) => {
-  const from = process.env.PPS_2D_REPO ?? '../portal-pressure-simulator';
-  // (the copies are from the 2D preview line, b3058ef3 on: an older 2D checkout has the field still inside lobule-zoom.js, so there is nothing to compare)
-  if (!existsSync(`${from}/src/ui/lobule-zoom-field.js`)) { t.skip('no 2D checkout here at b3058ef3 or later'); return; }
-  assert.doesNotThrow(() => execFileSync('node', ['scripts/copy-lobule.mjs', '--from', from, '--check'], { stdio: 'pipe' }));
+const PIN2D = pinned2D('src/ui/lobule-zoom-field.js');
+test('the copies of the 2D painter are current (scripts/copy-lobule.mjs --check against the 2D checkout at the pin)', { skip: PIN2D.skip }, () => {
+  assert.doesNotThrow(() => execFileSync('node', ['scripts/copy-lobule.mjs', '--from', PIN2D.repo, '--check'], { stdio: 'pipe' }));
 });
 
 test('the plate is 2D\'s painter: every hepatocyte a rounded cell with a membrane and a nucleus, the limiting plate a hairline, in every look', () => {
