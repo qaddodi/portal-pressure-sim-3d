@@ -2,10 +2,11 @@
 // actions of what is selected on the figure, from the card catalogue (cards.ts). On a laptop or an iPad on its side it stands at the left under the top bar (276 px); on a phone or an upright
 // iPad it is a sheet above the view switch. Always in the page, faded in and out; the numbers on it re-render only when what they print changes (snap.ts). Number keys 1 to 9 run its
 // first nine controls. Text never shrinks to fit and nothing scrolls inside it.
-import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
+import { flushSync } from 'react-dom';
 import './action.css';
 import { OrderIcon } from './icons.tsx';
-import { Icon } from '../shell/icons.tsx';
+import { Icon, I } from '../shell/icons.tsx';
 import { useUi } from '../ui-store.ts';
 import { usesBottomBar, footHeight } from '../shell/room.ts';
 import { useSelection } from './selection.ts';
@@ -23,6 +24,17 @@ import { resolveLook } from '../../looks/looks.ts';
 import { hvpgSev, ppgSev } from '../../engine/hales/portal/pressure-cuts.js';
 import { fmt } from '../charts/fmt.ts';
 import type { Env } from './read.ts';
+import { Details, planOf } from './Details.tsx';
+import { openWhy } from '../why/store.ts';
+import { glideCard } from '../treat/glide.ts';
+import { reduced, D_FLIP } from '../a11y/motion.ts';
+
+// The card's face and its details trade places in the same box (2D card.js, 17 Nov 2026): the face leaves 20 px toward the left as the details come in from 20 px at the right, and Back is the same two
+// moves reversed. Opacity and translate only; the card's height never changes for it. With Reduce Motion they only fade. The crossfade is one clock, linear (the two opacities always make 1).
+const SWAP_OUT_OPT: KeyframeAnimationOptions = { duration: D_FLIP, easing: 'linear', fill: 'forwards' }, SWAP_IN_OPT: KeyframeAnimationOptions = { duration: D_FLIP, easing: 'linear', fill: 'backwards' };
+const FADE_OUT = [{ opacity: 1 }, { opacity: 0 }], FADE_IN = [{ opacity: 0 }, { opacity: 1 }];
+const SIDE_FACE_OUT = [{ opacity: 1, translate: '0 0' }, { opacity: 0, translate: '-20px 0' }], SIDE_FACE_IN = [{ opacity: 0, translate: '-20px 0' }, { opacity: 1, translate: '0 0' }];
+const SIDE_DET_IN = [{ opacity: 0, translate: '20px 0' }, { opacity: 1, translate: '0 0' }], SIDE_DET_OUT = [{ opacity: 1, translate: '0 0' }, { opacity: 0, translate: '20px 0' }];
 
 // ── the number keys: the card's first nine controls, in the order the card lists them (a slider takes the focus so the arrow keys move it) ──
 let keyed: (() => void)[] = [];
@@ -139,7 +151,7 @@ const dyeHandlers = {
 const kindOf = (v: Verb): 'read' | 'about' | 'ctl' | 'act' | 'panel' => v.type === 'read' || v.type === 'stat' ? 'read' : v.type === 'about' ? 'about' : v.type === 'panel' ? 'panel'
   : v.type === 'button' || v.type === 'dye' || v.type === 'link' ? 'act' : 'ctl';
 
-function Face({ card, onKeys }: { card: Card; onKeys: (list: (() => void)[]) => void }) {
+function Face({ card, onKeys, under, bodyRef, onDetails }: { card: Card; onKeys: (list: (() => void)[]) => void; under: boolean; bodyRef: React.RefObject<HTMLDivElement | null>; onDetails: () => void }) {
   const snap = useSnap(card);
   const inputs = useRef<Map<number, HTMLInputElement>>(new Map());
   const setRef = (i: number, el: HTMLInputElement | null) => { if (el) inputs.current.set(i, el); else inputs.current.delete(i); };
@@ -161,8 +173,11 @@ function Face({ card, onKeys }: { card: Card; onKeys: (list: (() => void)[]) => 
   const rows = { read: [] as ReactNode[], about: [] as ReactNode[], ctl: [] as ReactNode[], act: [] as ReactNode[], panel: [] as ReactNode[] };
   verbs.forEach((v, i) => { if (snap.verbs[i]!.show) rows[kindOf(v)].push(<VerbView key={i} card={card} v={v} vs={snap.verbs[i]!} index={i} setRef={setRef} />); });
   return (
-    <div className="ac-body" data-key={card.key}>
-      <div className="ac-nr"><span className="ac-name">{card.title}</span><span className={`ac-state st-word ${st ? STATE_CLS[st[0]] ?? '' : ''}`}>{st ? st[1] : ''}</span></div>
+    <div ref={bodyRef} className={`ac-body${under ? ' ac-under' : ''}`} data-key={card.key} inert={under}>
+      <div className="ac-nr">
+        {planOf(card)
+          ? <button type="button" className="ac-name" aria-label={`${card.title}: details`} onClick={onDetails}><span>{card.title}</span><I n="chev-right" className="ac-chev" /></button>
+          : <span className="ac-name plain">{card.title}</span>}<span className={`ac-state st-word ${st ? STATE_CLS[st[0]] ?? '' : ''}`}>{st ? st[1] : ''}</span></div>
       {card.span && snap.span ? <SpanBar card={card} snap={snap} />
         : snap.value && !card.noValue ? (
           <div className="ac-value"><span className="ac-num"><b>{snap.value.v}</b><span className="unit">{snap.value.u}</span></span>{snap.value.d && <span className={`ac-delta ${snap.value.up ? 'up' : 'down'}`}>{snap.value.d}</span>}</div>
@@ -183,7 +198,7 @@ export function ActionCard() {
   const card = useMemo(() => cardFor(sel), [sel]);
   const [held, setHeld] = useState<Card | null>(null);   // the card on show, kept while it fades out
   const [fonts, setFonts] = useState(() => typeof document === 'undefined' || !document.fonts || document.fonts.status === 'loaded');
-  const ref = useRef<HTMLElement>(null);
+  const ref = useRef<HTMLElement>(null), faceRef = useRef<HTMLDivElement>(null), detRef = useRef<HTMLElement>(null);
   const drag = useRef<{ y: number } | null>(null);
   useEffect(() => { if (card) setHeld(card); }, [card]);
   useEffect(() => { if (!fonts) void document.fonts.ready.then(() => setFonts(true)); }, [fonts]);
@@ -191,16 +206,82 @@ export function ActionCard() {
   useEffect(() => { shownNow = open; if (!open) keyed = []; return () => { shownNow = false; keyed = []; }; }, [open]);
   const onKeys = useMemo(() => (list: (() => void)[]) => { keyed = list; }, []);
   const close = () => import('./selection.ts').then((m) => m.selectStructure(null));
+
+  // ── the details, inside the card (2D card.js openDetails / closeDetails) ──
+  // `det`: the details view, from the tap until it has slid out; `under`: the face has slid out and is hidden under them. The face stays built under the details, so Back is only a slide.
+  const [det, setDet] = useState<'open' | 'leaving' | null>(null), [under, setUnder] = useState(false);
+  const detOpen = det === 'open';
+  const anims = useRef<Animation[]>([]);
+  const settle = () => { for (const a of anims.current) a.cancel(); anims.current = []; };
+  const openDetails = () => { if (!shown || !planOf(shown) || detOpen) return; settle(); setUnder(false); setDet('open'); };
+  const closeDetails = () => {
+    if (!detOpen) return;
+    const face = faceRef.current, d = detRef.current, still = reduced();
+    settle();
+    flushSync(() => { setUnder(false); setDet('leaving'); });
+    if (face) { face.animate(still ? FADE_IN : SIDE_FACE_IN, SWAP_IN_OPT); face.querySelector<HTMLElement>('.ac-name')?.focus({ preventScroll: true }); }
+    if (d) {
+      const a = d.animate(still ? FADE_OUT : SIDE_DET_OUT, SWAP_OUT_OPT);
+      anims.current = [a];
+      const done = () => { if (anims.current[0] === a) { anims.current = []; setDet(null); } a.cancel(); };
+      void a.finished.then(done, () => undefined);
+    } else setDet(null);
+  };
+  // the details come in as the face goes out (2D: both in one task); the face is hidden for good when it has gone (its words keep updating under the details)
+  useLayoutEffect(() => {
+    if (det !== 'open') return;
+    const face = faceRef.current, d = detRef.current, still = reduced();
+    if (!d) return;
+    d.animate(still ? FADE_IN : SIDE_DET_IN, SWAP_IN_OPT);
+    d.querySelector<HTMLElement>('.ad-back')?.focus({ preventScroll: true });
+    if (face) {
+      const a = face.animate(still ? FADE_OUT : SIDE_FACE_OUT, SWAP_OUT_OPT);
+      anims.current = [a];
+      void a.finished.then(() => { if (anims.current[0] !== a) return; flushSync(() => setUnder(true)); anims.current = []; a.cancel(); }, () => undefined);
+    }
+  }, [det]);
+  // another pick, or the card put away: the details go with it
+  const key = shown?.key;
+  useEffect(() => { settle(); setDet(null); setUnder(false); }, [key, open]);
+  // Esc takes the details back before it takes the card away (2D keyboard.js: card.detailsOpen())
+  useEffect(() => {
+    if (!detOpen) return;
+    const esc = (e: KeyboardEvent) => { if (e.key !== 'Escape') return; e.stopImmediatePropagation(); e.preventDefault(); closeDetails(); };
+    window.addEventListener('keydown', esc, true);
+    return () => window.removeEventListener('keydown', esc, true);
+  });
+
+  // ── the card's height glides when its words ask (2D card.js: the observer sees the new height and glides there; a card that is entering or leaving never glides) ──
+  const enteredAt = useRef(0);
+  useEffect(() => { enteredAt.current = open ? performance.now() : 0; }, [open]);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    let glides: Animation[] = [], was = el.offsetHeight;
+    const ro = new ResizeObserver(() => {
+      const h = el.offsetHeight, h0 = was;
+      was = h;
+      if (!open || reduced() || !(h0 > 0) || performance.now() - enteredAt.current < 320) return;
+      glides = glideCard(el, h0, h, { foot: bottom, prior: glides });
+    });
+    ro.observe(el);
+    return () => { ro.disconnect(); for (const a of glides) a.cancel(); };
+  }, [open, bottom]);
+
   // pull the sheet down to put it away (a phone's sheet: transform only, written to the element)
   const onDown = (e: React.PointerEvent) => { if (!bottom) return; drag.current = { y: e.clientY }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); };
   const onMove = (e: React.PointerEvent) => { const d = drag.current; if (!d || !ref.current) return; ref.current.style.transition = 'none'; ref.current.style.transform = `translateY(${Math.max(0, e.clientY - d.y)}px)`; };
   const onUp = (e: React.PointerEvent) => { const d = drag.current; drag.current = null; const el = ref.current; if (!d || !el) return; const dy = e.clientY - d.y; el.style.transition = ''; el.style.transform = ''; if (dy > 70) void close(); };
-  const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${footHeight(device) - 8 - (device === 'phone-landscape' ? 0 : 0)}px)` } : undefined;
+  const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${footHeight(device) - 8}px)` } : undefined;
   return (
     <section ref={ref} className="ac-card" data-open={open} data-bottom={bottom || undefined} data-device={device} style={style} role="dialog" aria-label="Actions" inert={!open}>
-      <div className="ac-grab" aria-hidden="true" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}><i /></div>
-      {shown && <Face key={shown.key} card={shown} onKeys={onKeys} />}
-      <button type="button" className="ac-x" aria-label="Close" title="Close (Esc)" onClick={() => void close()}><Icon n="close" /></button>
+      <div className="sheet-plate" aria-hidden="true" />
+      <div className="ac-words">
+        <div className="ac-grab" aria-hidden="true" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}><i /></div>
+        {shown && <Face key={shown.key} card={shown} onKeys={onKeys} under={under} bodyRef={faceRef} onDetails={openDetails} />}
+        {shown && det && <Details key={`d:${shown.key}`} ref={detRef} card={shown} onBack={closeDetails} onWhy={(m) => void openWhy(m)} />}
+        <button type="button" className="ac-x" aria-label="Close" title="Close (Esc)" onClick={() => void close()}><Icon n="close" /></button>
+      </div>
     </section>
   );
 }

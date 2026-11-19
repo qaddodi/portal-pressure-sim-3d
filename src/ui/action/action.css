@@ -1,11 +1,24 @@
 /* The tap-anything card (2D: app-03-layouts.css .action-card .ac-*). The look's tokens only; always in the page and faded in and out; per-frame moves are transform and opacity.
    Text never shrinks to fit, nothing scrolls inside it, and a number's room is kept so the card does not move as it changes. */
-.ac-card { position: absolute; z-index: 3; pointer-events: auto; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;
-  font: 400 13px / 1.35 var(--ui); color: var(--text); background: var(--surface); border: 1px solid var(--edge); border-radius: 18px;
+.ac-card { position: absolute; z-index: 3; pointer-events: auto; display: flex; flex-direction: column; box-sizing: border-box; isolation: isolate;
+  font: 400 13px / 1.35 var(--ui); color: var(--text); background: transparent; border: 1px solid transparent; border-radius: 18px;
   left: calc(var(--safe-l, 0px) + var(--sh-pad-x, 16px)); top: calc(var(--sh-pad-top, 8px) + 52px + 8px); width: 276px; max-height: min(500px, calc(100% - var(--sh-pad-top, 8px) - 52px - 84px));
-  box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 12px 32px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6));
-  opacity: 0; visibility: hidden; transform: translateX(-12px); transition: opacity 200ms var(--sh-ease, ease), transform 200ms var(--sh-ease, ease), visibility 0s linear 200ms; }
-.ac-card[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+  visibility: hidden; pointer-events: none; transform: translateX(-12px); transition: transform 200ms var(--sh-ease, ease), visibility 0s linear 200ms; }
+.ac-card[data-open="true"] { visibility: visible; pointer-events: auto; transform: none; transition-delay: 0s; }
+/* The card's paper is its sheet plate (2D .action-card.has-plate > .sheet-plate, app-03-layouts.css): the glass (glass.css), the hairline and the shadow, scaled by the card's height glide
+   (card-glide.copied.ts) about the edge that stays. The paper and the words fade, never the card (an ancestor under opacity 1 would end the glass's blur). */
+.ac-card > .sheet-plate { position: absolute; inset: -1px; z-index: -1; border-radius: inherit; pointer-events: none; background: var(--surface); border: 1px solid var(--edge);
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 12px 32px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6)); }
+.ac-card > .sheet-plate, .ac-card > .ac-words { opacity: 0; transition: opacity 200ms var(--sh-ease, ease); }
+.ac-card[data-open="true"] > .sheet-plate, .ac-card[data-open="true"] > .ac-words { opacity: 1; }
+/* the words: the face (in the card's flow, which gives the card its height) and, over it, the details (2D .ac-details, absolute over the same box: app-03-layouts.css) */
+.ac-words { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0; }
+.ac-card .ac-body { position: relative; inset: auto; flex: 0 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.ac-card .ac-body::-webkit-scrollbar { display: none; }
+.ac-card .ac-name { font: 600 17px / 1.25 var(--ui); letter-spacing: -0.005em; text-align: left; }
+.ac-card .ad-head { padding-right: 24px; }
+.ac-card[data-bottom] .ac-details { padding: 14px 16px 12px; gap: 6px; }
+.ac-card[data-bottom] .ad-back { font-size: 16px; }
 .ac-card button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .ac-card :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* a phone or an upright iPad: a sheet above the view switch, the screen's width less 12 px each side (an upright iPad: the middle 70 %) */
@@ -23,7 +36,7 @@
 /* the face: the name, the bar or the reading, the readings, the controls, the actions (what the card reads at the top, what it does at the foot) */
 .ac-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 16px 18px 14px; animation: ac-in 200ms var(--sh-ease, ease) backwards; }
 @keyframes ac-in { from { opacity: 0; transform: translateX(-8px); } }
-.ac-card[data-bottom] .ac-body { padding: 10px 16px 12px; gap: 6px; animation-name: ac-in-up; }
+.ac-card[data-bottom] .ac-body { padding: 14px 16px 12px; gap: 6px; animation-name: ac-in-up; }
 @keyframes ac-in-up { from { opacity: 0; transform: translateY(8px); } }
 .ac-nr { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; padding-right: 30px; }
 .ac-name { display: block; flex: 0 1 auto; min-width: 0; font: 600 17px / 1.25 var(--ui); letter-spacing: -0.005em; text-wrap: balance; }
@@ -88,4 +101,4 @@
 .ac-dye { touch-action: none; }
 .ac-dye .ac-bl { display: inline-block; min-width: 4.9em; }
 .ac-panel { min-width: 0; }
-@media (prefers-reduced-motion: reduce) { .ac-card, .ac-body, .ac-switch, .ac-switch i { transition: none; animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ac-card, .ac-card > .sheet-plate, .ac-card > .ac-words, .ac-body, .ac-switch, .ac-switch i { transition: none; animation: none; } }
