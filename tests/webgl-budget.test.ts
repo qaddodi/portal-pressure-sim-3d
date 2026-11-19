@@ -14,11 +14,12 @@ const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => {
 const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 const files = walk('src').filter((f) => !f.startsWith(join('src', 'engine', 'hales')) && !f.startsWith(join('src', 'engine', 'host')));
 const CHARTS_GL = join('src', 'ui', 'charts', 'gl.ts');
+const PROBE = join('src', 'boot', 'webgl.ts');   // the no-WebGL2 check: one throwaway context, lost at once
 
 test('only the charts\' drawer asks a canvas for a WebGL context, or makes an OffscreenCanvas', () => {
   const bad: string[] = [];
   for (const f of files) {
-    if (f === CHARTS_GL) continue;
+    if (f === CHARTS_GL || f === PROBE) continue;
     const t = strip(readFileSync(f, 'utf8'));
     if (/getContext\(\s*['"`](webgl2?|experimental-webgl)['"`]/.test(t) || /new\s+(THREE\.)?WebGL(2)?Renderer\b/.test(t) || /new\s+OffscreenCanvas\b/.test(t)) bad.push(f);
   }
@@ -40,7 +41,7 @@ test('the scene has exactly one R3F <Canvas>, and the charts\' drawer makes one 
 test('a chart, a card or a deck never makes a chart canvas by hand: it goes through ChartPainter', () => {
   const bad: string[] = [];
   for (const f of files) {
-    if (f === join('src', 'ui', 'charts', 'painter.ts') || f === join('src', 'scene', 'labels', 'LabelLayer.tsx')) continue;
+    if (f === join('src', 'ui', 'charts', 'painter.ts') || f === join('src', 'scene', 'labels', 'LabelLayer.tsx') || f === PROBE) continue;
     const t = strip(readFileSync(f, 'utf8'));
     if (/createElement\(\s*['"`]canvas['"`]\s*\)/.test(t)) bad.push(f);
   }
