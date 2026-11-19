@@ -1,16 +1,18 @@
 // The Tests card (2D dock.js "Instruments card"): a card on the right of a wide screen, a sheet over the foot of a phone or an upright iPad, with a row of tabs (Pressure, IR,
 // Doppler, Endoscopy, Ascites, FibroScan, Readouts, Trials; Over time lives under Pressure). Always in the page and fading; the instrument on show is remembered on the device.
 // The Tests button, the I key and the search commands open it through the shell's `tests` feature.
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 import './tests.css';
 import './trace/trace.css';
 import './abdomen/abdomen.css';
+import './dock/dock-side.generated.css';
 import { useUi } from '../ui-store.ts';
 import { layoutOf, cardScale } from '../layout/rules2d.ts';
 import { registerFeature } from '../shell/features.ts';
 import { useTests } from './store.ts';
-import { TABS, tabOf, shortName, tinyName, PANES, type PaneId } from './panes.ts';
-import { testsPlace } from './place.ts';
+import { TABS, PANE_ORDER, tabOf, shortName, tinyName, PANES, type PaneId } from './panes.ts';
+import { testsPlace, sideVars, HEAD_H } from './place.ts';
 import { useTestsRoom } from './room.ts';
 import { I } from '../shell/icons.tsx';
 import { TAB_ICONS } from './copied/dock-words.copied.js';
@@ -23,14 +25,30 @@ import { startFeed } from './feed.ts';
 import { notYet } from '../shell/words.ts';
 import { useShell } from '../shell/store.ts';
 import { probeSelected } from './from-orders.ts';
+import { useThumb } from '../shell/thumb.ts';
+import { need, needAll, LOADERS } from './dock/lazy.ts';
+import { usePaneSwap } from './dock/swap.ts';
+import { attachSwipe, type SwipeApi } from './dock/swipe.ts';
+import { attachDivider, removeGuide } from './dock/resize.ts';
+import { attachPull, easeBack } from './dock/pull.ts';
+import { publishSideWidth } from './dock/app-classes.ts';
+import { useTestsStatus } from './dock/status.ts';
+// @ts-ignore plain JS copied from the 2D app
+import { runSegGlide } from './copied/seg-glide.copied.js';
+// @ts-ignore plain JS copied from the 2D app
+import { handOver } from './copied/hand-over.copied.js';
+// @ts-ignore plain JS copied from the 2D app
+import { D_FLIP, D_SMALL, EASE_IN } from './copied/ease.copied.js';
+import { reduced } from '../a11y/motion.ts';
+import { M } from '../shell/metrics.ts';
 
 // each instrument is its own file in its own folder (a thread works in one folder; the stubs say "not in the 3D app yet" until the instrument lands)
-const ProfilePane = lazy(() => import('./profile/ProfilePane.tsx').then((m) => ({ default: m.ProfilePane })));
-const IrPane = lazy(() => import('./ir/IrPane.tsx').then((m) => ({ default: m.IrPane })));
-const DopplerPane = lazy(() => import('./doppler/DopplerPane.tsx').then((m) => ({ default: m.DopplerPane })));
-const EndoPane = lazy(() => import('./endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));
-const FibroPane = lazy(() => import('./fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
-const TrialsPane = lazy(() => import('../trials/TrialsPane.tsx').then((m) => ({ default: m.TrialsPane })));
+// (the loaders are dock/lazy.ts's: one import each, so a tab touched, a card opened or an idle moment asks for the code before the pane is wanted)
+const IrPane = lazy(() => LOADERS.hvpg().then((m) => ({ default: m.IrPane })));
+const DopplerPane = lazy(() => LOADERS.doppler().then((m) => ({ default: m.DopplerPane })));
+const EndoPane = lazy(() => LOADERS.endoscopy().then((m) => ({ default: m.EndoPane })));
+const FibroPane = lazy(() => LOADERS.fibroscan().then((m) => ({ default: m.FibroPane })));
+const TrialsPane = lazy(() => LOADERS.trials().then((m) => ({ default: m.TrialsPane })));
 
 /** The panes built so far; a tab whose pane is not here yet says so in a line (never a dead tab). */
 export interface PaneProps { narrow: boolean; /** a plot's height and a square's (dock-vars.js) */ plot: number; square: number; /** a card with room for two instruments at once (a side card 600 px tall or more) */ roomy: boolean }
@@ -47,16 +65,67 @@ const BUILT: Partial<Record<PaneId, (p: PaneProps) => ReactNode>> = {
 };
 export function registerPane(id: PaneId, render: (p: PaneProps) => ReactNode): void { BUILT[id] = render; }
 
+
+/** One pane of the card. A pane that is going out stays where it stood (the same element, so what it holds is not built again) and fades over the new one, already drawn beneath it
+ *  (2D dock.js paneOut: D_FLIP, EASE_IN, forwards), then goes. */
+function Pane({ id, cls, leaver, done, children }: { id: PaneId; cls: string; leaver?: number; done(k: number): void; children: ReactNode }) {
+  const ref = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (leaver == null || !el) return;
+    if (typeof el.animate !== 'function') { done(leaver); return; }
+    const a = el.animate([{ opacity: 1 }, { opacity: 0 }], { id: 'pane-out', duration: D_FLIP, easing: EASE_IN, fill: 'forwards' });
+    const fin = () => done(leaver);
+    a.finished.then(fin, fin);
+    return () => a.cancel();
+  }, [leaver, done]);
+  return <section ref={ref} className={`dock-pane ${cls}`} data-pane={id} id={leaver == null ? `pane-${id}` : undefined} role={leaver == null ? 'tabpanel' : undefined} aria-label={PANES[id].name} aria-hidden={leaver == null ? undefined : true}>{children}</section>;
+}
+
 export function TestsLayer() {
-  const open = useTests((s) => s.open), pane = useTests((s) => s.pane), show = useTests((s) => s.show), close = useTests((s) => s.close);
+  const open = useTests((s) => s.open), pane = useTests((s) => s.pane), second = useTests((s) => s.second), picking = useTests((s) => s.picking), tstate = useTests((s) => s.state);
+  const widthPx = useTests((s) => s.widthPx), heightRatio = useTests((s) => s.heightRatio), sheetSize = useTests((s) => s.sheetSize);
+  const show = useTests((s) => s.show), close = useTests((s) => s.close);
   const vp = useUi((s) => s.vp), device = useUi((s) => s.device);
-  const place = useMemo(() => testsPlace(vp, device), [vp, device]);
+  const thumb = useThumb();
+  const focus = tstate === 'focus';
+  const place = useMemo(() => testsPlace(vp, device, { widthPx, heightRatio, sheetSize, focus }), [vp, device, widthPx, heightRatio, sheetSize, focus]);
   const narrow = place.rect.w < 470;
   const layout = layoutOf(vp.w, vp.h);
   const roles = cardScale({ vw: vp.w, vh: vp.h, layout, part: 'data' });
+  const side = place.kind === 'side';
+
+  // the body's own size, kept by an observer (the plots follow it, 2D dock.js sizeObserver; it is never read in a frame)
+  const bodyRef = useRef<HTMLDivElement>(null), tabsRef = useRef<HTMLDivElement>(null), cardRef = useRef<HTMLElement>(null), posRef = useRef<HTMLDivElement>(null), dividerRef = useRef<HTMLDivElement>(null);
+  const [bodyH, setBodyH] = useState<number | null>(null);
+  const bodyW = useRef(0);
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el || typeof ResizeObserver !== 'function') return;
+    const ro = new ResizeObserver((es) => { const r = es[es.length - 1]?.contentRect; if (!r) return; bodyW.current = r.width; const h = Math.round(r.height); if (h) setBodyH((o) => (o === h ? o : h)); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const bodyNow = bodyH ?? Math.max(0, place.rect.h - HEAD_H);
+
+  // two instruments at once where there is room for both (2D canSplit: the side card is one short height, so two never share it there; a card 1000 px wide or more, or in focus, may)
+  const canSplit = focus || (side ? place.maxH >= 620 && bodyNow >= 600 : place.rect.w >= 1000);
+  const split = !!second && canSplit;
+  // Pressure and Over time read as one story where the card is roomy: they open together, stacked, with no switch (2D roomy)
+  const roomy = side && !focus && canSplit && bodyNow >= 600 && !split;
+  const vars = side ? sideVars(place.rect.w, bodyNow, split ? 2 : 1) : place.vars;
 
   // the model's samples are kept from the first frame, open or not (2D: the Over time and Doppler traces record every frame from the start)
   useEffect(() => { startFeed(); }, []);
+  // every segmented control and tab row has one gliding piece (2D seg-glide.js)
+  useEffect(() => runSegGlide(), []);
+  // the instruments that load after the first paint come in when the card opens, and when the app is idle (2D load(), main.js lazy())
+  useEffect(() => { if (open) needAll(); }, [open]);
+  useEffect(() => {
+    const idle = (globalThis as { requestIdleCallback?: (f: () => void) => number }).requestIdleCallback;
+    const t = idle ? idle(needAll) : window.setTimeout(needAll, 4000);
+    return () => { if (!idle) clearTimeout(t); };
+  }, []);
   // the Tests button, the I key and the palette
   useEffect(() => registerFeature('tests', () => useTests.getState().toggle()), []);
   // the card buttons that open an instrument: Doppler, Endoscope, FibroScan (a liver or spleen card), and "Test TIPS in IR" (the stent's card)
@@ -70,9 +139,20 @@ export function TestsLayer() {
     useTestsRoom.setState({ place: open ? place : null });
     return () => useTestsRoom.setState({ place: null });
   }, [open, place]);
+  // a sideways phone's play bar ends at the card (2D putWidth: --side-ws-w on .app)
+  useEffect(() => {
+    const app = document.getElementById('app');
+    publishSideWidth(app, open && side ? place.rect.w : null);
+    return () => publishSideWidth(app, null);
+  }, [open, side, place.rect.w]);
+  // a turn of the device hands the card from its side layout to its sheet or back: every scroller goes back to its top (2D hand-over.js, F35)
+  const placed = useRef<{ mode?: string }>({});
+  useEffect(() => {
+    const body = bodyRef.current;
+    handOver(placed.current, side ? 'side' : 'sheet', [body, ...(body ? Array.from(body.querySelectorAll('.dock-pane, .instrument-view')) : [])]);
+  }, [side]);
 
   // the tab row never scrolls: a wide card shows the full names, a narrower one the short names, the tightest only the open tab's name (2D dock.js fitTabs; the width comes from the observer, never a read)
-  const tabsRef = useRef<HTMLDivElement>(null), cardRef = useRef<HTMLElement>(null);
   const [fit, setFit] = useState<TabFit>({ compact: false, narrow: false, tight: false, bare: false });
   const tab = tabOf(pane);
   const wRef = useRef(0), tabRef = useRef(tab);
@@ -86,6 +166,18 @@ export function TestsLayer() {
     return () => ro.disconnect();
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (wRef.current) refit(wRef.current); }, [tab]);  // eslint-disable-line react-hooks/exhaustive-deps
+  // in a tight row the open tab shows its name and the others give way at once; each slides from where it stood by translate (2D layout(): WAAPI, composite add)
+  const tabX = useRef<Record<string, number> | null>(null);
+  useLayoutEffect(() => {
+    const row = tabsRef.current;
+    if (!row) return;
+    const now: Record<string, number> = {}, bs = new Map<string, HTMLElement>();
+    for (const b of row.querySelectorAll<HTMLElement>('.instr-tab')) { const id = b.dataset.instrument!; bs.set(id, b); now[id] = b.offsetLeft; }
+    const was = tabX.current;
+    tabX.current = now;
+    if (!was || !fit.tight || reduced()) return;
+    for (const [id, b] of bs) { const dx = (was[id] ?? now[id]!) - now[id]!; if (Math.abs(dx) > 0.5 && typeof b.animate === 'function') b.animate([{ translate: `${dx}px 0` }, { translate: '0 0' }], { duration: D_SMALL, easing: 'cubic-bezier(.5, 0, .5, 1)', composite: 'add' }); }
+  }, [tab, second, fit.tight, fit.bare]);
 
   // Tests left by the close button, Esc or the Tests button with focus inside: focus goes back to the Tests button (2D dock.js close)
   const wasOpen = useRef(open);
@@ -95,6 +187,7 @@ export function TestsLayer() {
   }, [open]);
 
   // arrow keys, Home and End move between the tabs (2D dock.js tabs keydown); only the open tab is in the tab order (roving tabindex)
+  const onTab = (id: PaneId) => { if (useTests.getState().picking && id !== tabRef.current) useTests.getState().pickSecond(id); else show(id); };
   const onTabKey = (e: KeyboardEvent<HTMLDivElement>) => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
     e.preventDefault();
@@ -102,36 +195,124 @@ export function TestsLayer() {
     const j = e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length;
     const id = TABS[j]!;
     tabsRef.current?.querySelector<HTMLElement>(`.instr-tab[data-instrument="${id}"]`)?.focus();
-    show(id);
+    onTab(id);
+  };
+  // Esc inside the card: ends a pick, takes a focused instrument back to open, else closes it (2D workspace keydown)
+  const onCardKey = (e: KeyboardEvent<HTMLElement>) => { if (e.key !== 'Escape') return; useTests.getState().back(); e.stopPropagation(); };
+
+  // ── a tab changes: the pane is built first, hidden, and swaps in while the old one fades out (dock/swap.ts); a swipe pages with the finger (dock/swipe.ts) ──
+  const vpRef = useRef(vp);
+  vpRef.current = vp;
+  const live = useRef({ open, picking, swiping: false, thumb, focus, second: split ? second : null, pane, side, stops: place.stops, h: place.rect.h, sheetSize, fixed: side && device !== 'phone-landscape', split, widthPx, heightRatio, w: place.rect.w, kind: place.kind });
+  live.current = { ...live.current, open, picking, thumb, focus, second: split ? second : null, pane, side, stops: place.stops, h: place.rect.h, sheetSize, fixed: side && device !== 'phone-landscape', split, widthPx, heightRatio, w: place.rect.w, kind: place.kind };
+  const canStage = useCallback(() => { const g = live.current; return g.open && !g.picking && !g.swiping; }, []);
+  const swap = usePaneSwap(open, pane, split ? second : null, canStage);
+  const swapRef = useRef(swap);
+  swapRef.current = swap;
+  const [peer, setPeer] = useState<PaneId | null>(null);
+  useEffect(() => { if (peer && peer === swap.shown) setPeer(null); }, [peer, swap.shown]);
+  useEffect(() => { if (!open) { setPeer(null); live.current.swiping = false; } }, [open]);
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const api: SwipeApi = {
+      enabled: () => { const g = live.current; return g.thumb && g.open && !g.focus && !g.second && g.kind === 'sheet'; },
+      tabs: TABS,
+      index: () => TABS.indexOf(tabOf(live.current.pane)),
+      ready: (id) => !need(id),
+      peer: (id) => flushSync(() => setPeer(id)),
+      active: () => body.querySelector<HTMLElement>('.dock-pane.active:not(.staging)'),
+      paneOf: (id) => body.querySelector<HTMLElement>(`.dock-pane[data-pane="${id}"]`),
+      begin: () => { live.current.swiping = true; swapRef.current.cancelStage(); },
+      finish: () => { live.current.swiping = false; },
+      land: (id) => flushSync(() => { swapRef.current.swipedTo(id); useTests.getState().show(id); }),
+    };
+    return attachSwipe(body, () => bodyW.current, api);
+  }, []);
+  // the sheet's pull (Half, Full, closed) and its grab handle
+  useEffect(() => {
+    const card = cardRef.current, pos = posRef.current;
+    if (!card || !pos) return;
+    return attachPull(card, pos, {
+      enabled: () => { const g = live.current; return g.thumb && g.open && !g.focus && g.kind === 'sheet' && !!g.stops; },
+      heights: () => { const g = live.current, st = g.stops ?? [g.h, g.h]; return { h0: g.h, half: st[0], full: st[1], size: g.sheetSize }; },
+      setSize: (n) => flushSync(() => useTests.getState().setSheetSize(n)),
+      close: () => useTests.getState().close(),
+    });
+  }, []);
+  const onGrab = () => {
+    const g = live.current, pos = posRef.current;
+    if (!g.thumb || !g.open || g.kind !== 'sheet' || !g.stops || !pos) return;
+    const n: 0 | 1 = g.sheetSize === 0 ? 1 : 0, h0 = g.h;
+    flushSync(() => useTests.getState().setSheetSize(n));
+    if (!reduced()) easeBack(pos, g.stops[n] - h0);
+  };
+  // the divider: the card's width on a sideways phone, its height on a sheet that is not over the thumb dock
+  useEffect(() => {
+    const d = dividerRef.current;
+    if (!d) return;
+    const off = attachDivider(d, {
+      side: () => live.current.side, fixed: () => live.current.fixed,
+      card: () => { const r = cardRef.current?.getBoundingClientRect(); return r ? { x: r.left, y: r.top, w: r.width, h: r.height } : { x: 0, y: 0, w: 0, h: 0 }; },
+      stage: () => { const app = document.getElementById('app'), v = app ? parseFloat(getComputedStyle(app).getPropertyValue('--vdock-h')) || 0 : 0; return { W: innerWidth, H: innerHeight, sheetMax: innerHeight - (vpRef.current.safe.top + M.topSafe) - v - 40 }; },
+      widthPx: () => live.current.widthPx, heightRatio: () => live.current.heightRatio,
+      set: (o) => useTests.getState().setSize(o),
+    });
+    return () => { off(); removeGuide(); };
+  }, []);
+
+  // ── what is in the body: the pane on show, a second instrument, a pane being built, the swipe's neighbour, and panes fading out, each in the 2D dock's fixed order ──
+  const status = useTestsStatus();
+  const slots: { id: PaneId; cls: string; leaver?: number }[] = [];
+  const add = (id: PaneId, cls: string, leaver?: number) => { if (!slots.some((s) => s.id === id)) slots.push({ id, cls, leaver }); };
+  add(swap.shown, `active${swap.landed === swap.shown ? ' landed' : ''}`);
+  if (open) {
+    if (split && second) add(second, 'active');
+    if (swap.staged) add(swap.staged, 'active staging');
+    if (peer) add(peer, 'swipe-peer');
+    for (const l of swap.leaving) add(l.id, 'pane-out', l.key);
+  }
+  slots.sort((a, b) => PANE_ORDER.indexOf(a.id) - PANE_ORDER.indexOf(b.id));
+  const render = (id: PaneId) => {
+    const body = BUILT[id];
+    return body ? <div style={{ display: 'contents' }}>{body({ narrow, plot: vars.plot, square: vars.square, roomy })}</div> : <p className="t-note t-pane">{notYet(PANES[id].name)}</p>;
   };
 
-  const body = BUILT[pane];
   const style = {
     width: place.rect.w, height: place.rect.h, transform: `translate(${Math.round(place.rect.x)}px, ${Math.round(place.rect.y)}px)`,
-    ['--t-sm' as string]: `${Math.max(12, Math.round(roles.lab))}px`, ['--t-plot' as string]: `${place.vars.plot}px`, ['--t-square' as string]: `${place.vars.square}px`,
+    ['--t-sm' as string]: `${Math.max(12, Math.round(roles.lab))}px`, ['--t-plot' as string]: `${vars.plot}px`, ['--t-square' as string]: `${vars.square}px`,
   } as CSSProperties;
   // the sizes 2D's dock hands its panes (dock.js sizeObserver: --plot-h, --square-size on the workspace)
-  const card = { ['--plot-h' as string]: `${place.vars.plot}px`, ['--square-size' as string]: `${place.vars.square}px`, ['--instrument-w' as string]: `${place.rect.w}px` } as CSSProperties;
+  const card = { ['--plot-h' as string]: `${vars.plot}px`, ['--square-size' as string]: `${vars.square}px`, ['--instrument-w' as string]: `${place.rect.w}px` } as CSSProperties;
   const tabsCls = `instr-tabs ws-tabs${fit.compact ? ' compact' : ''}${fit.narrow ? ' narrow' : ''}${fit.tight ? ' tight' : ''}${fit.bare ? ' bare' : ''}`;
+  const slotOf = (id: PaneId) => (split && second && tabOf(second) === id ? 2 : 1);
+  const dividerNow = side ? Math.round((place.rect.w / Math.max(1, vp.w)) * 100) : Math.round(((heightRatio ?? place.rect.h / Math.max(1, vp.h))) * 100);
   return (
-    <div className="t-pos" data-open={open} data-live={open} data-narrow={narrow} data-kind={place.kind} data-device={device} style={style}>
-      <section ref={cardRef} className={`t-card dock instrument-workspace float-ui stage-blocker${place.kind === 'side' ? ' side' : ''}`} id="dock" role="dialog" aria-label="Tests" data-state="open" data-safe={place.kind === 'side' ? 'right' : 'bottom'} inert={!open} style={card}>
+    <div ref={posRef} className="t-pos" data-open={open} data-live={open} data-narrow={narrow} data-kind={place.kind} data-device={device} style={style}>
+      <section ref={cardRef} className={`t-card dock instrument-workspace float-ui stage-blocker${side ? ' side' : ''}${picking ? ' picking' : ''}`} id="dock" role="dialog" aria-label="Tests" data-state={tstate} data-safe={side ? 'right' : 'bottom'} inert={!open} style={card} onKeyDown={onCardKey}>
+        <button type="button" className="sheet-grab" aria-label="Resize the Tests card" onClick={onGrab} />
+        <div ref={dividerRef} className="workspace-divider" role="separator" tabIndex={0} aria-label="Instruments size" aria-orientation={side ? 'vertical' : 'horizontal'} aria-valuenow={dividerNow} hidden={tstate !== 'open' || (side && device !== 'phone-landscape')}><span /></div>
         <div className="dock-head card-head tabbed">
+          <h2 className={`dock-title card-title${status.vessel ? ' dop-on' : ''}`}><span>Tests</span><span className="dt-l">{status.vessel}</span></h2>
+          <span className="workspace-live" aria-live="off" data-state={status.state}>{status.text}</span>
           <div ref={tabsRef} className={tabsCls} role="tablist" aria-label="Tests" onKeyDown={onTabKey}>
-            {TABS.map((id) => (
-              <button key={id} type="button" className="instr-tab" role="tab" data-instrument={id} aria-selected={tab === id} aria-controls={`pane-${id}`} tabIndex={tab === id ? 0 : -1} title={PANES[id].name} onClick={() => show(id)}>
-                <I n={(TAB_ICONS as Record<string, string>)[id]!} />
-                <span className="it-t"><b><span className="it-full">{shortName(id)}</span><span className="it-short">{tinyName(id)}</span></b></span>
-              </button>
-            ))}
+            {TABS.map((id) => {
+              const on = tab === id || (split && !!second && tabOf(second) === id);
+              return (
+                <button key={id} type="button" className="instr-tab" role="tab" data-instrument={id} data-slot={on && split && second ? String(slotOf(id)) : ''} aria-selected={on} aria-controls={`pane-${id}`} tabIndex={tab === id ? 0 : -1} title={PANES[id].name}
+                  onClick={() => onTab(id)} onPointerEnter={() => { need(id); }} onPointerDown={() => { need(id); }} onFocus={() => { need(id); }}>
+                  <I n={(TAB_ICONS as Record<string, string>)[id]!} />
+                  <span className="it-t"><b><span className="it-full">{shortName(id)}</span><span className="it-short">{tinyName(id)}</span></b></span>
+                </button>
+              );
+            })}
           </div>
           <button type="button" className="ib card-close workspace-close" aria-label="Close Tests" title="Close (Esc)" onClick={close}><I n="close" /></button>
         </div>
+        <div className="instr-hint" hidden={!picking}>Pick a second instrument to show with <b>{PANES[pane].name}</b>.</div>
         <CompareLine active={open} />
-        <div className="dock-body">
-          <div className="dock-pane active" data-pane={pane} id={`pane-${tab}`} role="tabpanel" aria-label={PANES[pane].name}>
-            {open && (body ? <div key={pane} style={{ display: 'contents' }}>{body({ narrow, plot: place.vars.plot, square: place.vars.square, roomy: place.kind === 'side' && place.rect.h >= 600 })}</div> : <p key={pane} className="t-note t-pane">{notYet(PANES[pane].name)}</p>)}
-          </div>
+        <div ref={bodyRef} className={`dock-body${split ? ' split stack' : ''}`}>
+          {slots.map((s) => <Pane key={s.id} id={s.id} cls={s.cls} leaver={s.leaver} done={swap.left}>{open ? render(s.id) : null}</Pane>)}
         </div>
       </section>
     </div>
