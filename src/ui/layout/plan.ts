@@ -48,6 +48,8 @@ export const STRIP_H = 48;
 const GAP = 16;       // room kept between a card and the figure's free rectangle
 /** The Back / Next pill (the 2D app's .pz-bar): 44 px tall; back, the count (not sideways), next and the settings. */
 export const BAR_H = 44;
+/** The band the shell's top bar takes above the figure (labels and the free-room solver keep clear of it). */
+export const BAR = 56;
 export const PILL_W = 210;
 export const PILL_W_SIDE = 136;
 /** A stacked words card keeps this much of its own foot clear for the pill that stands inside it (2D: the card's bottom is 65 px under its text). */
