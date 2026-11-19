@@ -28,6 +28,8 @@ export interface VesselOptions extends Omit<CelOptions, 'tone'> {
   tone: 'portal' | 'sys' | 'artery';
   /** the vessel's texel in the lens textures (its topology edge index) */
   lensIndex: number;
+  /** how the width follows the engine's diameter (network.ts widthKind) */
+  widthKind: 0 | 1 | 2;
   /** arteries keep their own colour under every lens (the 2D figure's rule) */
   artery?: boolean;
 }
@@ -80,7 +82,7 @@ export class VesselObject extends CelObject {
         inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, hullOn: { value: 1 },
         px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
-        lensUse: { value: this.artery ? 0 : 1 }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 1 },
+        lensUse: { value: this.artery ? 0 : 1 }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 1 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
       },

@@ -20,6 +20,7 @@ uniform float vindex;
 uniform float useData;
 uniform float radius;
 uniform float baseD;
+uniform float widthKind;
 uniform float len;
 uniform float px;
 uniform vec2 res;
@@ -36,10 +37,15 @@ varying vec2 vUv;
 varying float vHull;
 varying float vHi;
 void main() {
+  // the width follows the engine's diameter by the 2D figure's own rule (stage-tubes.js widthAt): a vein 1.3 * max(2.6, 2 d^0.72), an artery half of that (at
+  // least 1.8), the liver's beds fixed; the ratio to the width the course was built at is the swell. The figure's own smallest radius is 0.35 units.
   float swell = 1.0;
-  if (useData > 0.5) {
+  if (useData > 0.5 && widthKind < 1.5) {
     ivec2 tc = ivec2(int(mod(vindex, vdataSize.x)), int(floor(vindex / vdataSize.x)));
-    swell = clamp(texelFetch(vdata, tc, 0).b / max(baseD, 0.01), 0.65, 1.35);
+    float d = texelFetch(vdata, tc, 0).b;
+    float w1 = 1.3 * max(2.6, 2.0 * pow(max(d, 0.1), 0.72)), w0 = 1.3 * max(2.6, 2.0 * pow(max(baseD, 0.1), 0.72));
+    if (widthKind > 0.5) { w1 = max(1.8, w1 * 0.5); w0 = max(1.8, w0 * 0.5); }
+    swell = clamp(w1 / w0, 0.2, 8.0);
   }
   vec3 p = position + normal * (inflate + radius * (swell - 1.0));
   vec4 mv = modelViewMatrix * vec4(p, 1.0);

@@ -1,7 +1,7 @@
 import { Color, type DataTexture, Group, Mesh, MeshBasicMaterial, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { BODY_PLATE_Z, ORGANS, VARICES, blob, bodyPlateGeometry } from './anatomy/placeholder.ts';
 import { buildVessel } from './anatomy/vessels.ts';
-import { NETWORK, type NetVessel, presenceOf } from './vessels/network.ts';
+import { NETWORK, type NetVessel, courseOf, presenceOf } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { VesselObject } from './vessels/vessel-object.ts';
 import { LensField } from './lenses/field.ts';
@@ -118,8 +118,8 @@ export class CelScene {
     const built = buildVessel({ ...def, tone: def.tone === 'artery' ? 'portal' : def.tone });
     const q = STUB_Q[def.id] ?? 1;
     const o = new VesselObject(built.geometry, {
-      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.id), bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
-      vessel: { index: indexOf(def.id), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: BASE_D.get(def.id) ?? 1 },
+      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.id), widthKind: def.widthKind, bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
+      vessel: { index: indexOf(def.id), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: def.baseD },
     }, this.shared, this.lens.shared);
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     this.add(o);
@@ -270,16 +270,12 @@ export class CelScene {
     return null;
   }
 
-  /** Scene point of a named place, for tags and pins. Valid names: tip, ra, ivc, rhv, pv. */
+  /** Scene point of a named place, for tags and pins: a point on the 2D figure's own vessel, carried by the one map (frame2d.ts), so a tag sits on the vein. */
   anchor(name: 'tip' | 'ra' | 'ivc' | 'rhv' | 'pv' | 'spleen', out = new Vector3()): Vector3 {
-    switch (name) {
-      case 'tip': return this.catheter.curve.getPointAt(1, out);
-      case 'ra': return out.set(-0.35, 2.4, -0.5);
-      case 'ivc': return out.set(-0.4, 0.2, -0.6);
-      case 'rhv': return out.set(-0.95, 1.4, -0.45);
-      case 'pv': return out.set(-0.2, 0.62, 0.7);
-      case 'spleen': return out.set(1.9, 1.0, -0.45);
-    }
+    if (name === 'tip') return this.catheter.curve.getPointAt(1, out);
+    const [id, at] = ANCHORS[name];
+    const c = courseOf(id), p = c[Math.round(at * (c.length - 1))]!;
+    return out.set(p[0], p[1], p[2]);
   }
 
   // ---- the frame -----------------------------------------------------------------------------
@@ -318,5 +314,10 @@ export class CelScene {
     (this.plate.material as MeshBasicMaterial).dispose();
   }
 }
+
+/** Where each named place is: the vessel's id and how far along its 2D course (0 to 1). */
+const ANCHORS = {
+  ra: ['SVC_RA', 1], ivc: ['IVC_IS', 0.5], rhv: ['RHV_IVC', 0.5], pv: ['PV_TRUNK', 0.5], spleen: ['V_SPL', 0],
+} as const satisfies Record<string, readonly [string, number]>;
 
 export { SHOTS };
