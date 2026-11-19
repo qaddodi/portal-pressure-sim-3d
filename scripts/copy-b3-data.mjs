@@ -250,6 +250,13 @@ const cavSrc = read('src/ui/cavernoma-strand.js')
 if (cavSrc.includes("from './")) throw new Error('cavernoma-strand.js has an import the copy does not carry');
 put('src/scene/vessels/cavernoma.copied.js', `${HEAD('cavernoma-strand.js, anatomy.js CAV_CHANNELS and CAV_GROW')}${cavSrc}`);
 
+// ---------- the varices' bead and the bands' ease (varix-bead.js, band-ease.js) ----------
+const { D_SMALL } = await import(pathToFileURL(`${from}/src/ui/ease.js`).href);
+put('src/scene/vessels/varix-bead.copied.js', `${HEAD('varix-bead.js')}${read('src/ui/varix-bead.js')}`);
+const bandEase = read('src/ui/band-ease.js').replace("import { D_SMALL } from './ease.js';", `const D_SMALL = ${D_SMALL};   // (ease.js)`);
+if (bandEase.includes("from './")) throw new Error('band-ease.js has an import the copy does not carry');
+put('src/scene/vessels/band-ease.copied.js', `${HEAD('band-ease.js')}${bandEase}`);
+
 // ---------- fork-joins.js (which ends run on into each other at a node, and the flare and the side-end narrowing of a vein drawn onto another) ----------
 put('src/scene/vessels/fork-joins.copied.js', `${HEAD('fork-joins.js')}${read('src/ui/fork-joins.js')}`);
 

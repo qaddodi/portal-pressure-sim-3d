@@ -95,7 +95,7 @@ export class CoilState {
   }
 }
 
-export interface CoilCourse { pts: P2[]; k: number }
+export interface CoilCourse { pts: P2[]; k: number; ph: number; /** 0 to 1: how much of it is drawn (a channel growing in, a strand a band has closed) */ live?: number }
 /** The 2D course of a collateral (or a liver bed) and its strands at coil `wig` and spread `spr`, as stage-frame.js builds them in the anatomic view. */
 export function coilCourses(id: string, base: readonly P2[], coils: boolean, wig: number, spr: number): { main: P2[]; strands: CoilCourse[] } {
   const u0 = STRAND_FROM_2D[id] ?? 0;
@@ -108,7 +108,7 @@ export function coilCourses(id: string, base: readonly P2[], coils: boolean, wig
     const fan = off * sp0, amp = 0.8 * wig + 3;
     let sp = ua != null ? braid(base, fan, 0, [ua, ub!], ph) : soft ? wiggle(braid(main, fan, u0, null, 0, true), amp, ph, STRAND_HOLD_2D) : wiggle(braid(base, fan, u0), amp, ph);
     if (u0) sp = blendFrom(main, sp, u0);
-    return { pts: sp, k };
+    return { pts: sp, k, ph };
   });
   return { main, strands };
 }
