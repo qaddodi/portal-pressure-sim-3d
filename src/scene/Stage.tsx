@@ -18,6 +18,7 @@ import { figureDpr, msaaFor } from './quality.ts';
 import { aaMode } from './post-aa.ts';
 import { installShaderGuard } from '../debug/shader-guard.ts';
 import { setRenderer } from '../debug/gl-ref.ts';
+import { sinusoidTap } from './sinusoid/explain-store.ts';
 import { lookCapture } from '../debug/look-hook.ts';
 import { lobulePicked } from './lobule/pick-store.ts';
 import { lobuleSel } from './lobule/pick.ts';
@@ -124,6 +125,7 @@ function SceneBridge() {
       setOrbit: (rad) => { const changed = cel.rig.setOrbit(rad); if (changed) clock.invalidate('orbit'); return changed; },
       // a tap picks what 2D's does (src/ui/action/tap-select.ts): a vessel, an organ (liver with its lobe, heart, spleen) or the belly's fluid; a tap on nothing puts the selection away
       tap: (x, y, touch) => {
+        if (cel.view === 'sinusoid' && sinusoidTap(x, y, useDeck.getState().mode === 'deck')) return;   // (2D's explain rule: a tap on a sinusoid name, in a talk: sinusoid/explain-store.ts)
         if (useDeck.getState().mode !== 'free') return;
         if (cel.view === 'lobule') { const h = cel.pickLobule(x, y, raycaster.current); lobulePicked(h ? lobuleSel(h) : null); return; }   // (the lobule's parts, by 2D's own rule: lobule/pick.ts)
         // a station's label above the figure takes the tap first and opens the structure it stands for (2D's label is a button over the stage: src/ui/action/label-tap.ts)
