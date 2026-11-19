@@ -92,7 +92,10 @@ test('nothing scrolls inside a card; nothing animates layout; blur only as the c
   const at = css.indexOf('@supports');
   assert.ok(at > 0, 'the glass block');
   const glass = css.slice(at);
-  assert.ok(/@supports[\s\S]*prefers-reduced-transparency: no-preference[\s\S]*html:not\(\[data-noglass\]\)/.test(glass), 'the glass is gated');
+  assert.ok(/@supports[\s\S]*html:not\(\[data-noglass\]\)/.test(glass), 'the glass is gated by @supports and Blur effect');
+  // the trap that left the glass off on Safari: a media feature the browser does not know makes the whole query false, so the glass is the default and reduced transparency the override
+  assert.ok(!/prefers-reduced-transparency\s*:\s*no-preference|not\s*\(\s*prefers-reduced-transparency/.test(css), 'the glass must not be gated on a media feature Safari lacks');
+  assert.ok(/prefers-reduced-transparency:\s*reduce[\s\S]*backdrop-filter:\s*none/.test(glass), 'reduced transparency overrides the glass with the solid surface');
   assert.ok(!/backdrop-filter/.test(css.slice(0, at)), 'backdrop-filter outside the glass block');
   for (const m of css.matchAll(/transition\s*:\s*([^;]+)/g)) assert.ok(!/\b(width|height|top|left|margin|padding)\b/.test(m[1]), `transition on layout: ${m[1]}`);
   for (const m of css.matchAll(/@keyframes[^{]+\{([\s\S]*?)\}\s*(?=@|\.|$)/g)) assert.ok(!/\b(width|height|top|left|margin|padding)\s*:/.test(m[1]), 'keyframes on layout');
@@ -105,4 +108,13 @@ test('no card or strip code reads the engine store, runs its own frame loop, or 
     assert.ok(!/fontSize/.test(t), `${f} sets a font size inline`);
     assert.ok(!/from '\.\.\/\.\.\/engine/.test(t), `${f} imports the engine (the readings come through the UI store)`);
   }
+});
+
+test('every glass selector in the stylesheets is in the one glass block, and none sets its own opaque background after it', () => {
+  const glass = css.slice(css.indexOf('@supports'));
+  const sel = /html:not\(\[data-noglass\]\) :is\(([^)]*)\)/.exec(glass)![1].split(',').map((x) => x.trim().replace(/^\./, ''));
+  for (const need of ['dk-card', 'dk-strip', 'dk-bar', 'dk-panel']) assert.ok(sel.includes(need), `${need} is glass`);
+  // a card/strip/bar rule written after the block with a more specific background would kill the glass
+  const after = glass.slice(glass.lastIndexOf('}'));
+  assert.ok(!/\.dk-(card|strip|bar|panel)[^{]*\{[^}]*background\s*:/.test(after), 'no later background on glass');
 });
