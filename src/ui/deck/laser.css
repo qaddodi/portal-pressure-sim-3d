@@ -1,0 +1,10 @@
+/* The laser's spotlight (src/ui/deck/laser.ts; 2D ink-gl.js): a fixed gradient square, clear inside the window, the stage's own colour at 62% outside it. Moved by transform, shown by opacity. */
+.laser-veil, .laser-ring { position: fixed; left: 0; top: 0; pointer-events: none; opacity: 0; transition: opacity var(--d-flip, 120ms) ease; will-change: transform, opacity; }
+.laser-veil {
+  z-index: 7;   /* above the figure and its tags (5), under the cards (10) */
+  --veil: color-mix(in srgb, var(--bg, #F1EBE0) 62%, transparent);
+  background: radial-gradient(circle at center, transparent 0, transparent calc(var(--r) * .8), color-mix(in srgb, var(--bg, #F1EBE0) 9%, transparent) calc(var(--r) * .95), color-mix(in srgb, var(--bg, #F1EBE0) 31%, transparent) calc(var(--r) * 1.15),
+    color-mix(in srgb, var(--bg, #F1EBE0) 53%, transparent) calc(var(--r) * 1.4), var(--veil) calc(var(--r) * 1.55), var(--veil) 100%);
+}
+.laser-ring { z-index: 7; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--danger, #E8404A) 30%, transparent); box-sizing: border-box; }
+@media (prefers-reduced-motion: reduce) { .laser-veil, .laser-ring { transition-duration: 240ms; } }

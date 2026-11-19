@@ -8,7 +8,7 @@ import { sceneApi } from '../../scene/api.ts';
 import { useSettings } from '../../state/settings.ts';
 import { decideKey, stepSpeed, type KeyAction, type Target } from './keymap.ts';
 import { runFeature } from '../shell/features.ts';
-import { refitFigure, flipView, zoomFigure } from '../shell/view-actions.ts';
+import { refitFigure, flipView, zoomFigure, goToView } from '../shell/view-actions.ts';
 import { settle, setSpeed, step, togglePlay } from '../shell/transport.ts';
 import { leaveTalk } from '../shell/talk.ts';
 import { useTreat } from '../treat/store.ts';
@@ -40,6 +40,7 @@ export function carryOut(a: KeyAction): void {
       else if (useTests.getState().open) useTests.getState().close();   // (the Tests card; its Why? is the shared sheet above, closed first)
       else if (useTreat.getState().open) useTreat.getState().setOpen(false);
       else if (useSelection.getState().sel) selectStructure(null);
+      else if (sh.view === 'sinusoid') goToView('lobule');   // (2D: Esc in the sinusoid backs out to the lobule)
       else if (sh.mode === 'deck') leaveTalk();
       break;
     case 'undo': runFeature('undo', UI.playbar.menu[2]); break;
@@ -64,7 +65,7 @@ export function carryOut(a: KeyAction): void {
       break;
     }
     case 'settle': settle(); sh.say(SETTLED); break;
-    case 'help': openGuide(); break;
+    case 'help': openGuide(sh.mode === 'deck' ? 'present' : null); break;   // (2D: ? in a talk opens the guide at While presenting)
     case 'tests': runFeature('tests', 'Tests'); break;
     case 'treat': runFeature('treat', 'Treat'); break;
     case 'compare': runFeature('compare', 'Compare'); break;
@@ -81,7 +82,7 @@ export function useKeys() {
       const a = decideKey(e, { target: targetOf(e.target), searchOpen: sh.sheet === 'search', sheetOpen: sh.sheet !== null || sh.dialog !== null, talk: sh.mode === 'deck', keysOn: useSettings.getState().keys, inSinusoid: sh.view === 'sinusoid', cardOpen: cardIsOpen() });
       if (!a) return;
       if (a.type === 'ignore') { if (a.prevent) e.preventDefault(); return; }
-      if (a.type === 'play-pause' ? a.prevent : a.type === 'search-toggle' || a.type === 'search-open' || a.type === 'help') e.preventDefault();
+      if (a.type === 'play-pause' ? a.prevent : a.type === 'search-toggle' || a.type === 'search-open' || a.type === 'help' || a.type === 'zoom' || a.type === 'step') e.preventDefault();
       carryOut(a);
     };
     window.addEventListener('keydown', down);
