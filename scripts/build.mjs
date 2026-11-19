@@ -7,8 +7,10 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const sh = (...a) => { try { return execFileSync('git', a, { cwd: root, encoding: 'utf8' }).trim(); } catch { return ''; } };
-const commit = process.env.GITHUB_SHA?.slice(0, 8) || sh('rev-parse', '--short=8', 'HEAD') || 'local';
-const branch = process.env.GITHUB_REF_NAME || sh('rev-parse', '--abbrev-ref', 'HEAD') || 'unknown';
+// (VITE_BUILD, when the caller sets it, is the build id as "branch@commit": the Pages workflow builds two checkouts and names each.)
+const preset = process.env.VITE_BUILD?.split('@');
+const commit = preset?.[1] || sh('rev-parse', '--short=8', 'HEAD') || process.env.GITHUB_SHA?.slice(0, 8) || 'local';
+const branch = preset?.[0] || sh('rev-parse', '--abbrev-ref', 'HEAD') || process.env.GITHUB_REF_NAME || 'unknown';
 
 const r = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), 'build'], { cwd: root, stdio: 'inherit', env: { ...process.env, VITE_BUILD: `${branch}@${commit}` } });
 if (r.status !== 0) process.exit(r.status ?? 1);
