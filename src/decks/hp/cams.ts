@@ -1,7 +1,7 @@
 // A 2D slide's camera name, as a 3D shot. The 2D app frames a REGION of its anatomy plate (decks.js REGIONS: a box in plate units), a raw box, or the
 // whole plate ('fit'); the Lobule and Sinusoid views have their own names. The 3D figure is the same plate given depth in one shared frame
 // (X = (x2d − 700) / 300, Y = −(y2d − 556) / 300; docs/b3-vessels-blood-lenses.md), so the shot is the box's middle and half extents in that frame,
-// seen from the front a hair above, and the scene's room solver pulls back until it fits the room the cards leave. Nothing here is a drawing.
+// seen face-on, and the scene's room solver pulls back until it fits the room the cards leave. Nothing here is a drawing.
 import type { Shot } from '../../scene/camera/shots.ts';
 import { lobuleShot, sinusoidShot, LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
 import { REGIONS, CIRC_REGIONS } from './regions.copied.ts';
@@ -20,8 +20,8 @@ const SCALE = 300, X0 = 700, Y0 = 556;
 export const sceneX = (x: number) => (x - X0) / SCALE;
 export const sceneY = (y: number) => -(y - Y0) / SCALE;
 
-/** Frontal, a hair above, the way the slice's own shots look (camera/shots.ts); the viewer can orbit ±25° from here. */
-export const YAW = 0.1, PITCH = 0.08;
+/** Face-on, the way the rest shots look (camera/shots.ts: yaw 0, pitch 0, the atlas and what the 2D app shows); the viewer can orbit from here. The catheter shots keep their small turns. */
+export const YAW = 0, PITCH = 0;
 /** The body's middle plane in depth: the figure's own, so a shot's perspective centre sits in the middle of what it shows. */
 export const DEPTH = -0.2;
 /** The nearest a derived shot sits, scene units: a small region is shown big, never closer than this. */

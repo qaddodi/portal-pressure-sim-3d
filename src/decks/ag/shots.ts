@@ -22,9 +22,9 @@ export type ShotSpec =
 
 /** The whole figure: the plate the 2D app fits ("fit"). */
 export const FIT_BOX: Box = [300, -40, 1120, 1020];
-/** Slides look at the figure nearly square on, with a little turn so the depth reads; the HVPG slice's own shots turn further for the catheter. */
-export const BODY_YAW = 0.12;
-export const BODY_PITCH = 0.07;
+/** Slides look at the figure face-on (yaw 0, pitch 0, as the rest shots do); the HVPG slice's own catheter shots keep their small turns. */
+export const BODY_YAW = 0;
+export const BODY_PITCH = 0;
 /** The nearest the camera sits on a box; the room solver pulls back when the free room is too small for it. */
 export const BODY_MIN_R = 2.4;
 
