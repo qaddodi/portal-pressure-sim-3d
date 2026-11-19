@@ -29,5 +29,7 @@ test('the wash goes toward the plate by a quarter at most; the face-on colour is
 
 test('the scene feeds the organ layer from the orbit', () => {
   const sc = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
-  assert.match(sc, /organs\.setQuiet\(quietOf\(this\.rig\.orbitAngle\)\)/);
+  assert.match(sc, /const quiet = quietOf\(this\.rig\.orbitAngle\)/);
+  assert.match(sc, /organs\.setQuiet\(quiet\)/);
+  assert.match(sc, /for \(const o of this\.back\) o\.setQuiet\(quiet\)/);   // (the back tier of the vessels takes the same value)
 });
