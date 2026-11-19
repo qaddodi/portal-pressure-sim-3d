@@ -24,9 +24,9 @@ import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, hasVessel, indexOf } from '../engine/vessel-data.ts';
 import { latest, patient } from '../engine/store.ts';
 import { x3, y3 } from './frame2d.ts';
-import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
+import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers, type LobulePartName } from './lobule/index.ts';
 import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
-import { LOBULE_R, LOBULE_T, SINUSOID_L } from './lobule/shots.ts';
+import { LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
 import { SinusoidView, diveShare } from './sinusoid/index.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
@@ -548,6 +548,26 @@ export class CelScene {
     return null;
   }
 
+  /** The organ a tap lands on, in the body view (2D organAt: the heart, the liver and the spleen open their cards): the organ's id, or null. A hidden organ (the body turned into the map) is not there. */
+  pickOrganAt(x: number, y: number, raycaster: Raycaster): string | null {
+    if (this.figureView !== 'body' || !this.body.visible) return null;
+    raycaster.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
+    const tappable = TAPPABLE_MESHES.map((id) => this.disease.organs.byId.get(id)).filter((o): o is NonNullable<typeof o> => !!o && o.group.visible);
+    const hits = raycaster.intersectObjects(tappable.map((o) => o.toonMesh), false);
+    for (const h of hits) { const o = tappable.find((t) => t.toonMesh === h.object); if (o) return TAPPABLE_MESHES.find((id) => this.disease.organs.byId.get(id) === o) ?? null; }
+    return null;
+  }
+
+  /** The lobule part a tap lands on, in the lobule view, with the tap's place on the lobule plate in its own units (the centre is 0, 0; a triad is at a corner, about 1 away). */
+  pickLobuleAt(x: number, y: number, raycaster: Raycaster): { part: LobulePartName; x: number; y: number } | null {
+    if (this.figureView !== 'lobule') return null;
+    raycaster.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
+    const hits = raycaster.intersectObjects(this.lobule.pickables, false);
+    const part = this.lobule.partAt(hits);
+    const p = hits[0]?.point;
+    return part && p ? { part, x: (p.x - LOBULE_ORIGIN[0]) / LOBULE_R, y: -(p.y - LOBULE_ORIGIN[1]) / LOBULE_R } : null;
+  }
+
   /** Scene point of a named place, for tags and pins: a point on the 2D figure's own vessel, carried by the one map (frame2d.ts), so a tag sits on the vein. */
   anchor(name: 'tip' | 'ra' | 'ivc' | 'rhv' | 'pv' | 'spleen', out = new Vector3()): Vector3 {
     if (name === 'tip') return this.catheter.curve.getPointAt(1, out);
@@ -653,6 +673,8 @@ export class CelScene {
 }
 
 /** The camera layer of everything drawn over the organs: the vessels, the catheter, the varices. */
+/** The organs a tap opens a card for in the body view (2D ORGAN_KEYS: the heart, the liver, the spleen; the heart is two meshes). */
+export const TAPPABLE_MESHES = ['liver', 'heart', 'heart-ra', 'spleen'] as const;
 const VESSEL_LAYER = 1;
 
 /** Where each named place is: the vessel's id and how far along its 2D course (0 to 1). */

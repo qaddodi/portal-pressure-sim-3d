@@ -14,7 +14,7 @@
 //
 // Lymph chevrons run on the ducts (the terminal lymphatics, the tracts' lymphatics and the space of Disse beside each sinusoid) while the Lymph layer is
 // on, out along Disse toward the tract (owner, 5d3b7e86: hepatic lymph rises in cirrhosis, and the chevrons quicken with it). The sinusoid view shows none.
-import { type BufferGeometry, Color, Group } from 'three';
+import { type BufferGeometry, Color, Group, type Object3D } from 'three';
 import { CelObject, type CelShared, rawColor } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
 import type { LookId } from '../../looks/looks.ts';
@@ -454,6 +454,9 @@ export class LobuleView {
     if (name.startsWith('zone:')) { const rr = { 1: 0.82, 2: 0.5, 3: 0.2 }[Number(name.slice(5)) as 1 | 2 | 3] ?? 0.5; return w(Math.cos(Math.PI / 6) * rr, Math.sin(Math.PI / 6) * rr, slabZ(0.7, 0.4) + ANCHOR_Z); }
     return w(0, 0, 0);
   }
+
+  /** Every mesh a tap can land on: the parts' tubes and the tissue plate (the zones' overlay only while it shows; the neighbouring lobules never: a tap there is a tap on nothing). */
+  get pickables(): Object3D[] { return [...this.objects.map((o) => o.toonMesh), ...this.plate.meshes, ...(this.zones.mesh.visible ? [this.zones.mesh] : [])]; }
 
   /** The part whose toon mesh a ray hits first (for tap-to-explain), or null. */
   partAt(hits: readonly { object: unknown }[]): LobulePartName | null {
