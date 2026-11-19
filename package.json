@@ -16,7 +16,9 @@
     "gen:engine-fixture": "node scripts/gen-engine-fixture.mjs",
     "sync:inventory": "node scripts/sync-inventory.mjs",
     "debug": "node scripts/debug.mjs",
-    "gen:strings": "node scripts/gen-ui-strings.mjs"
+    "gen:strings": "node scripts/gen-ui-strings.mjs",
+    "look:serve": "node scripts/look-serve.mjs",
+    "look:diff": "node scripts/look-diff.mjs"
   },
   "license": "UNLICENSED",
   "engines": {
