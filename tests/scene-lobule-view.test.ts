@@ -247,7 +247,9 @@ test('the marks run at the 2D painter\'s speeds (sinusoids 1 : 1.45 : 2.05 of sq
   v.snapModel(model({ portal: 0.8, rev: { pre: true, sin: false, post: false } })); settle(v, 2000);
   assert.ok(speed('inlets') < 0, 'reversed portal flow: marks the other way');
   v.snapModel(model({ flow: 0.8, rev: { pre: false, sin: true, post: false } })); settle(v, 4000);
-  assert.equal(speed('sinusoids', 0), 0, 'reversed sinusoids carry no streaks, as in 2D');
+  const still = m.filter((o) => v.set.get('sinusoids').group.children.includes(o.group))[0]!;
+  assert.equal(still.toon.uniforms.flowBands!.value, 1, 'a still sinusoid carries smoke (soft bands), not chevrons, as in 2D');
+  assert.ok(Math.abs(speedOf(still)) < 0.3, 'the smoke drifts slowly');
 });
 
 test('the sinusoid view carries NO lymph chevrons: only the blood\'s lumen is a marked vessel, and the lymph duct and the space of Disse have no marks', () => {

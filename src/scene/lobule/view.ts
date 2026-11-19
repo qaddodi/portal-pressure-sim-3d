@@ -20,7 +20,7 @@ import { type FlowMarkMode, DEFAULT_FLOW_MODE, FLOW_FADE_MS, PULSE_MS, markSpeed
 import type { LensId } from '../lenses/model.ts';
 import { Batch, type V3 } from './batch.ts';
 import { type Course, type LobuleNet, type P2, buildLobule, zoneOf } from './geometry.ts';
-import { type LobuleModel, easeToward, lymphRate, lymphSeal } from './model.ts';
+import { type LobuleModel, easeToward, lymphRate, lymphSeal, smooth } from './model.ts';
 import { LOBULE_PARTS, type LobulePartName, PartSet } from './parts.ts';
 import { LOBULE_PALETTES, tone } from './tones.ts';
 import { LOBULE_R, LOBULE_T, lobuleToScene, slabZ } from './shots.ts';
@@ -68,7 +68,7 @@ interface Cur {
 const REST: Cur = { fibSin: 0, fibPre: 0, fibPost: 0, congU: 0, septU: 0, act: 0, lum: 1, flow: 1, portal: 1, art: 1, lymphRate: 1, seal: 0 };
 
 /** A chevron-carrying object: its pitch and how much of its marks show now. */
-interface Marked { obj: CelObject; part: LobulePartName; amount: number; dir: 1 | -1; speed: () => number; layer: 'blood' | 'lymph' | 'bile' }
+interface Marked { obj: CelObject; part: LobulePartName; amount: number; dir: 1 | -1; speed: () => number; layer: 'blood' | 'lymph' | 'bile'; smokes: boolean }
 
 const p3 = (p: P2, dz = 0): V3 => lobuleToScene(p[0], p[1], slabZ(p[0], p[1]) + dz);
 
@@ -92,6 +92,8 @@ export class LobuleView {
   private layers: LobuleLayers = { lymph: true, zones: false, bile: false };
   private lyFade = 1;
   private bileFade = 0;
+  /** How stagnant the sinusoids' blood is, 0 moving .. 1 still (the 2D `stasis`: 1 - smooth(0.12, 0.45, flow)): the chevrons give way to a slow smoke. */
+  private stasis = 0;
   private bileObjs: CelObject[] = [];
   private zoneFade = 0;
   private zoneBase: Color[] = [];
@@ -149,7 +151,7 @@ export class LobuleView {
       const courses = opts.ink.courses ?? [], seg = opts.ink.seg;
       this.inks.add(o.toonMesh.geometry, seg, courses.length ? b.tubes : [], courses.map((c): [number, number] => [seg === 'sin' ? sinW(c.rho[0]!) : 0, seg === 'sin' ? sinW(c.rho[c.rho.length - 1]!) : 1]));
     }
-    if (c) this.marked.push({ obj: o, part, amount: 0, dir: c.dir ?? 1, speed: c.speed, layer: c.bile ? 'bile' : c.lymph ? 'lymph' : 'blood' });
+    if (c) this.marked.push({ obj: o, part, amount: 0, dir: c.dir ?? 1, speed: c.speed, layer: c.bile ? 'bile' : c.lymph ? 'lymph' : 'blood', smokes: part === 'sinusoids' && !c.bile && !c.lymph });
     return o;
   }
 
@@ -255,6 +257,42 @@ export class LobuleView {
     const bc = this.make('bile', chB, 'bile', { bands: 2, px: 0.6, chevrons: { pitch: RAD.bc * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
     const bh = this.make('bile', hrB, 'bile', { bands: 2, px: 0.8, chevrons: { pitch: RAD.bh * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
     this.bileObjs = [bc, bh];
+
+    // the neighbouring lobules (the 2D dive's field, contrast cut by NEIGHBOUR_FLAT and softening with distance): three rings of flat hexagon tiles, each with its central vein and a dot at each corner
+    // where a tract stands. They share the floor's depth, so the view reads as one slice of liver with this lobule in focus. Each ring dissolves a little more than the last.
+    const fieldObjs: CelObject[] = [];
+    {
+      const SQ3 = Math.sqrt(3), e1: P2 = [SQ3 * Math.cos(Math.PI / 6), SQ3 * Math.sin(Math.PI / 6)], e2: P2 = [0, SQ3];
+      const rings: { tiles: Batch; cv: Batch; tr: Batch }[] = [1, 2, 3].map(() => ({ tiles: new Batch(), cv: new Batch(), tr: new Batch() }));
+      const tileShape = new Shape();
+      net.corners.forEach(([x, y], i) => (i ? tileShape.lineTo(x * R * 0.985, y * R * 0.985) : tileShape.moveTo(x * R * 0.985, y * R * 0.985)));
+      tileShape.closePath();
+      const tileGeo = new ExtrudeGeometry(tileShape, { depth: 0.05, bevelEnabled: false });
+      const disc = new ExtrudeGeometry(ellipse(0.5, 0.5, 14), { depth: 1, bevelEnabled: false, curveSegments: 3 });
+      for (let qq = -3; qq <= 3; qq++) for (let rr = -3; rr <= 3; rr++) {
+        const dist = Math.max(Math.abs(qq), Math.abs(rr), Math.abs(qq + rr));
+        if (dist < 1 || dist > 3) continue;
+        const cx = (qq * e1[0] + rr * e2[0]), cy = (qq * e1[1] + rr * e2[1]), B = rings[dist - 1]!;
+        const base = lobuleToScene(cx, cy, -0.33);
+        m.compose(pos.set(base[0], base[1], base[2]), q.identity(), sc.set(1, 1, 1));
+        B.tiles.shape(tileGeo, m);
+        const cvp = lobuleToScene(cx, cy, -0.27);
+        m.compose(pos.set(cvp[0], cvp[1], cvp[2]), q.identity(), sc.set(0.12 * R, 0.12 * R, 0.02));
+        B.cv.shape(disc, m);
+        for (const [x, y] of net.corners) {
+          const tp = lobuleToScene(cx + x, cy + y, -0.27);
+          m.compose(pos.set(tp[0], tp[1], tp[2]), q.identity(), sc.set(0.07 * R, 0.07 * R, 0.02));
+          B.tr.shape(disc, m);
+        }
+      }
+      const fades = [0.92, 0.66, 0.4];
+      rings.forEach((B, i) => {
+        const t = this.make('field', B.tiles, 'field', { bands: 2, px: 0.5 }), c = this.make('field', B.cv, 'sys', { bands: 2, px: 0.4 }), tr = this.make('field', B.tr, 'portal', { bands: 2, px: 0.4 });
+        for (const o of [t, c, tr]) { o.setFade(fades[i]!); fieldObjs.push(o); }
+        this.softInk.set(t, 0.55);
+      });
+      tileGeo.dispose(); disc.dispose();
+    }
 
     // stellate cells in the space of Disse
     const sb = new Batch(), sph = new SphereGeometry(1, 8, 6);
@@ -386,13 +424,17 @@ export class LobuleView {
     const biGoal = this.layers.bile ? 1 : 0, zoGoal = this.layers.zones ? 1 : 0;
     if (this.bileFade !== biGoal) { this.bileFade = Math.abs(biGoal - this.bileFade) <= k ? biGoal : this.bileFade + Math.sign(biGoal - this.bileFade) * k; moving = true; }
     if (this.zoneFade !== zoGoal) { this.zoneFade = Math.abs(zoGoal - this.zoneFade) <= k ? zoGoal : this.zoneFade + Math.sign(zoGoal - this.zoneFade) * k; moving = true; this.tintZones(); }
+    const stGoal = 1 - smooth(0.12, 0.45, Math.max(0, this.goal.flow)), stK = this.reduce ? 1 : 1 - Math.exp(-dt / 500);
+    if (this.stasis !== stGoal) { this.stasis = Math.abs(stGoal - this.stasis) < 1e-3 ? stGoal : this.stasis + (stGoal - this.stasis) * stK; moving = true; }
     if (this.lyFade !== lyGoal) { this.lyFade = Math.abs(lyGoal - this.lyFade) <= k ? lyGoal : this.lyFade + Math.sign(lyGoal - this.lyFade) * k; moving = true; }
     // the wash
     if (this.washOn) { const kk = washProgress(now - this.washAt, this.reduce); if (kk !== this.washK) { this.washK = kk; moving = true; } if (kk < 1) moving = true; }
     // chevrons: each marked object fades to its goal
     for (const mk of this.marked) {
       // blood: the Blood menu's chevrons, as the 2D lobule shows them (all of them, or the parts the slide names when "key chevrons only"); the lymph's follow its layer
-      const goal = mk.layer === 'lymph' ? this.lyFade : mk.layer === 'bile' ? this.bileFade : this.blood.chevrons && (!this.blood.key || this.lit.has(mk.part)) ? 1 : 0;
+      let goal = mk.layer === 'lymph' ? this.lyFade : mk.layer === 'bile' ? this.bileFade : this.blood.chevrons && (!this.blood.key || this.lit.has(mk.part)) ? 1 : 0;
+      // a stagnant sinusoid: the chevrons fade out over the first half of the stasis, the smoke (soft bands, drifting slowly) in over the second, and back
+      if (mk.smokes) goal *= this.stasis < 0.5 ? 1 - 2 * this.stasis : 2 * this.stasis - 1;
       if (mk.amount !== goal) { mk.amount = Math.abs(goal - mk.amount) <= k ? goal : mk.amount + Math.sign(goal - mk.amount) * k; moving = true; }
       if (mk.amount > 0.001) moving = true;   // marks run: keep asking for frames
     }
@@ -429,9 +471,9 @@ export class LobuleView {
     infl(o.bd, RAD.bd * 0.55 * bf);
     // marks: speed from the flow, direction from the course (the Disse's marks run against its course), amount faded
     for (const mk of this.marked) {
-      const sp = mk.speed() * mk.dir;
-      mk.obj.toon.uniforms.stubSpeed.value = sp;
-      mk.obj.setFlow(mk.amount, false);
+      const smoke = mk.smokes && this.stasis >= 0.5;
+      mk.obj.toon.uniforms.stubSpeed.value = smoke ? 0.14 : mk.speed() * mk.dir;
+      mk.obj.setFlow(mk.amount, smoke);
     }
     // the wedge's amber
     const k = this.washK, front = washFront(k, this.net.rcv0);
