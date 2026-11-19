@@ -1,13 +1,14 @@
 // The Tests card (2D dock.js "Instruments card"): a card on the right of a wide screen, a sheet over the foot of a phone or an upright iPad, with a row of tabs (Pressure, IR,
 // Doppler, Endoscopy, Ascites, FibroScan, Readouts, Trials; Over time lives under Pressure). Always in the page and fading; the instrument on show is remembered on the device.
 // The Tests button, the I key and the search commands open it through the shell's `tests` feature.
-import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import './tests.css';
 import './trace/trace.css';
 import { useUi } from '../ui-store.ts';
 import { layoutOf, cardScale } from '../layout/rules2d.ts';
 import { registerFeature } from '../shell/features.ts';
 import { useTests } from './store.ts';
+import { PaneHost } from './Cv.tsx';
 import { TABS, tabOf, shortName, tinyName, PANES, type PaneId } from './panes.ts';
 import { testsPlace } from './place.ts';
 import { useTestsRoom } from './room.ts';
@@ -129,7 +130,7 @@ export function TestsLayer() {
         <CompareLine active={open} />
         <div className="dock-body">
           <div className="dock-pane active" data-pane={pane} id={`pane-${tab}`} role="tabpanel" aria-label={PANES[pane].name}>
-            {open && (body ? <Fragment key={pane}>{body({ narrow, plot: place.vars.plot, square: place.vars.square, roomy: place.kind === 'side' && place.rect.h >= 600 })}</Fragment> : <p key={pane} className="t-note t-pane">{notYet(PANES[pane].name)}</p>)}
+            {open && (body ? <PaneHost.Provider key={pane} value="dock">{body({ narrow, plot: place.vars.plot, square: place.vars.square, roomy: place.kind === 'side' && place.rect.h >= 600 })}</PaneHost.Provider> : <p key={pane} className="t-note t-pane">{notYet(PANES[pane].name)}</p>)}
           </div>
         </div>
       </section>

@@ -5,6 +5,7 @@
 //                                          step changed for a plane in the 3D scene; the uniform list read back out of the shader text
 //   src/scene/sinusoid/traffic.copied.js   createGeom(env) (the lumen's and Disse's width as the shader draws them) and createTraffic(env) (sinusoid-view.js "What moves": the albumin that
 //                                          rides in the stream, crosses the open fenestrae and is turned back at a sealed wall, and the sprite list), wrapped over the closure state
+//   src/scene/sinusoid/fen-place.copied.js  2D's placeFenDisse (the Fenestrae pill's and the Space of Disse's places on a wide screen), over layout.ts
 //   src/scene/sinusoid/palette.copied.js   createPalette(env) (sinusoid-view.js palette(): every colour the shader takes, from the look's tokens and the model)
 // Usage: node scripts/copy-sinusoid.mjs --from <2D checkout> [--check]    (--check writes nothing and fails when a file would change)
 // The 3D keeps 2D's placement hash (src/scene/sinusoid/layout.ts, tests/scene-sinusoid-layout.test.ts holds values taken from the 2D file), so pores, cells and nuclei the traffic
@@ -127,6 +128,9 @@ ${lines(pf0, pf1).join('\n')}
   return { palette, PAL, bump() { cssEpoch++; } };
 }
 `);
+
+// where the Fenestrae pill and the Space of Disse's name sit on a wide screen (fen-place.js): the same pure functions, over this folder's layout.ts
+put('fen-place.copied.js', `${HEAD('fen-place.js: placeFenDisse', true)}${swap(read('src/ui/fen-place.js'), "import { underNucleus, poreOpenness } from './sinusoid-gl.js';", "import { underNucleus, poreOpenness } from './layout.ts';", 'fen-place import')}`);
 
 if (changed.length) {
   if (check) { console.error(`copy-sinusoid: out of date: ${changed.join(', ')}. Run: node scripts/copy-sinusoid.mjs --from <2D checkout>`); process.exit(1); }

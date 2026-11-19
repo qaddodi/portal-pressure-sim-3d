@@ -28,10 +28,11 @@ export function Cv({ at, children }: { at: RefObject<HTMLDivElement | null>; chi
   return <div className="cv" ref={at}>{children}</div>;
 }
 
-/** Where a pane is shown. In the Tests card ('dock') its view is 2D's `.instrument-view` inside `.dock-pane`, and the 2D stylesheet sizes every box. On a slide's card ('slide') 2D lays the same
- *  instrument as `.pz-inst` (presenter-tools.js: no head row, no switch of the dock's), sized by the slide's rules; until the slide's card carries 2D's own wrapper, a box there keeps the height it is handed. */
-export const PaneHost = createContext<'dock' | 'slide'>('dock');
+/** Where a pane (or one of its boxes) is shown. In the Tests card ('dock', set by TestsLayer) its view is 2D's `.instrument-view` inside `.dock-pane`, and the 2D stylesheet sizes every box. Anywhere
+ *  else ('slide', the default: a slide's data card, a tool's own card) 2D lays the same instrument as `.pz-inst` (presenter-tools.js: no head row, no switch of the dock's), sized by the slide's rules;
+ *  until a slide's card carries 2D's own wrapper, a box there keeps the height it is handed. */
+export const PaneHost = createContext<'dock' | 'slide'>('slide');
 export function usePaneHost(): { slide: boolean; view: string; box(h: number): CSSProperties | undefined } {
-  const slide = useContext(PaneHost) === 'slide';
+  const slide = useContext(PaneHost) !== 'dock';
   return { slide, view: slide ? 'pz-inst' : 'instrument-view', box: (h) => (slide ? { height: h } : undefined) };
 }

@@ -19,15 +19,18 @@ import { DOPPLER_MODES } from './copied/doppler-colours.copied.js';
 import { setDopplerProbe, useDopplerProbe, type Gate } from './probe-state.ts';
 import { spectrumUnder } from './spectrum-gl.ts';
 import { Cv, useCv, usePaneHost } from '../Cv.tsx';
+import { useSlidePin } from '../slide/pin.ts';
 
 const same = (a: Report | null, b: Report) => !!a && JSON.stringify(a) === JSON.stringify(b);
 /** The chart canvas's pixel ratio (charts/gl.ts): a spectral line is one of its pixels wide. */
 const dprNow = () => Math.min(MAX_DPR, Math.max(1, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1));
 
-export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool: mode, calipers, pair, scale, baseline, waves); the next slide returns to the defaults unless it names them */ options?: Record<string, unknown> }) {
+export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool: mode, calipers, pair, scale, baseline, waves); the next slide returns to the defaults unless it names them */ options?: Record<string, unknown>; /** a slide's data card: the slide's own steady reading (slide/pin.ts), the stent's three places named but not picked (2D createDoppler pickGate: false) */ slide?: boolean }) {
   const model = useRef<DopplerModel | null>(null);
-  if (!model.current) { model.current = new DopplerModel(); model.current.gpu = typeof WebGL2RenderingContext !== 'undefined'; if (p.options) model.current.configure(p.options); }
+  if (!model.current) { model.current = new DopplerModel(); model.current.gpu = typeof WebGL2RenderingContext !== 'undefined'; model.current.slide = !!p.slide; if (p.options) model.current.configure(p.options); }
   const m = model.current;
+  m.slide = !!p.slide;
+  const pinN = useSlidePin((s) => s.n);
   const painter = useRef<ChartPainter | null>(null);
   const [mode, setMode] = useState<DopMode>(m.mode);
   const [invert, setInvert] = useState(m.invert);
@@ -78,6 +81,8 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
     return () => { off(); tick(); hold?.release(); };
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { dirty.current = true; clock.invalidate('doppler'); }, [mode, invert, sweepIndex, h, probe, gate]);
+  // the slide's state changed (a what-if, a time-lapse day): the reading follows it at once, not at the next frame
+  useEffect(() => { refresh(); dirty.current = true; clock.invalidate('doppler'); }, [pinN]);  // eslint-disable-line react-hooks/exhaustive-deps
   // a slide's options change in place (the next slide, a compare button): the display goes back to Spectrum unless the slide names one
   const optKey = JSON.stringify(p.options ?? null);
   const firstOpt = useRef(true);
@@ -153,7 +158,7 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
             {(rep?.tiles ?? []).map((t) => (
               <div key={t.k} className={[t.k === 'Speed' ? 'dop-speed' : '', t.here ? 'on' : ''].filter(Boolean).join(' ') || undefined} hidden={!t.show} data-out={t.k === 'Speed' || t.seg ? String(!!t.out) : undefined} title={t.title}>
                 <dt aria-label={t.k === 'CI' ? 'Congestion index' : undefined}>
-                  {t.seg
+                  {t.seg && !p.slide
                     ? <button type="button" className="dop-seg" aria-pressed={!!t.here} title={`Sample the stent at its ${t.label.toLowerCase()} end`} aria-label={`${t.label}, ${t.v} centimeters per second${t.here ? ', sampling here' : ''}. Activate to sample here.`} onClick={() => setGate(t.seg as Gate)}>{t.label}</button>
                     : t.label}
                 </dt>

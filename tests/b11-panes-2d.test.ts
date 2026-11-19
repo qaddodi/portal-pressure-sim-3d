@@ -15,7 +15,7 @@ const css2d = () => readdirSync(new URL('../src/ui/css2d/', import.meta.url)).fi
 
 test('the card puts a pane\'s parts straight into .dock-pane: no wrapper between the pane and its view, so 2D\'s child rules (.dock-pane > .instrument-view) reach it', () => {
   const layer = read('src/ui/tests/TestsLayer.tsx');
-  assert.match(layer, /<Fragment key=\{pane\}>\{body\(/);
+  assert.match(layer, /<PaneHost\.Provider key=\{pane\} value="dock">\{body\(/, 'a context provider renders no element');
   assert.doesNotMatch(layer, /display: 'contents'/);
   // the 2D sheets do lean on that child relation
   assert.ok((css2d().match(/\.dock-pane(\[[^\]]*\])*(\.active)? > \.instrument-view/g) ?? []).length > 40);
@@ -37,6 +37,7 @@ test('every pane\'s view is 2D\'s .instrument-view with its data-pane, and its s
   for (const [file, res] of views) { const src = read(file); for (const re of res) assert.match(src, re, `${file}: ${re}`); }
   // the view's class on a slide's card is 2D's .pz-inst (presenter-tools.js), in the Tests card .instrument-view
   assert.match(read('src/ui/tests/Cv.tsx'), /view: slide \? 'pz-inst' : 'instrument-view'/);
+  assert.match(read('src/ui/tests/Cv.tsx'), /createContext<'dock' \| 'slide'>\('slide'\)/, 'only the Tests card is the dock: a card anywhere else keeps the height it is handed');
 });
 
 test('no pane carries a class or a stylesheet of ours for its layout: the invented rules are gone', () => {

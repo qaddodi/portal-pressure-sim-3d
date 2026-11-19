@@ -11,6 +11,7 @@ import { ENDO_WORDS } from '../copied/endo-words.copied.js';
 import { createWallGeometry } from '../copied/wall-geometry.copied.js';
 import { metricsOf } from '../frame.ts';
 import { Cv, useCv, usePaneHost } from '../Cv.tsx';
+import { useSlidePin, pinnedWall } from '../slide/pin.ts';
 import { wallFontSize, wallFrame, wallReadings, wallShare, WALL_NOTE, type WallVarix } from './wall.ts';
 
 const W = ENDO_WORDS.wall;
@@ -21,8 +22,9 @@ const none: Frame = { w: 0, h: 0, shapes: [], label: W.aria };
 const Name = ({ long, short }: { long: string; short: string }) => <dt><span className="wall-long">{long}</span><span className="wall-short">{short}</span></dt>;
 const Num = ({ v, unit }: { v: string; unit: string }) => <dd className="endo-num"><span>{v}</span><small>{unit ? ` ${unit}` : ''}</small></dd>;
 
-export function WallView({ square }: { square: number }) {
-  const json = useEngine((s) => { void s.frames; const v = metricsOf(latest.frame)?.varix; return v ? JSON.stringify(wallReadings(v as WallVarix)) : ''; });
+export function WallView({ square, slide = false }: { square: number; slide?: boolean }) {
+  useSlidePin((s) => s.n);   // (a slide's own state: the stress it shows is the settled one, eased as the slide's state changes)
+  const json = useEngine((s) => { void s.frames; const v = metricsOf(latest.frame)?.varix; return v ? JSON.stringify(wallReadings(v as WallVarix, slide ? pinnedWall() : NaN)) : ''; });
   const r = useMemo(() => (json ? JSON.parse(json) as ReturnType<typeof wallReadings> : null), [json]);
   const painter = useRef<ChartPainter | null>(null), ctx = useRef<ChartCtx | null>(null);
   const geom = useRef(createWallGeometry()), key = useRef('');
