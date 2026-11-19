@@ -2,6 +2,7 @@
 // scene's pick write it; nothing here knows a deck.
 import { create } from 'zustand';
 import type { CathState } from '../../decks/schema.ts';
+import type { FigCard, FigCaliper } from './figure-cards.ts';
 
 export interface LabelsState {
   /** Stations the slide's words light (a colour each: `tones`); every other label steps back while any is lit. */
@@ -22,3 +23,13 @@ export const useLabels = create<LabelsState>((set) => ({
   named: new Set(), shown: new Set(), tones: {}, cath: null, key: null, organNames: false,
   set: (p) => set(p),
 }));
+
+/** The cards and calipers a slide stands on the figure (marks, sites, steps, calipers). The figure link (ui/deck/figure-link.ts) writes it; the layer draws it (figure-cards.ts). */
+export interface FigureState {
+  cards: readonly FigCard[];
+  calipers: readonly FigCaliper[];
+  /** when the slide landed (performance.now), for the numbered steps */
+  t0: number;
+  set(p: Partial<Omit<FigureState, 'set'>>): void;
+}
+export const useFigure = create<FigureState>((set) => ({ cards: [], calipers: [], t0: 0, set: (p) => set(p) }));

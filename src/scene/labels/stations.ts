@@ -45,7 +45,7 @@ const extra = new Set<string>(N.ANAT_EXTRA);
 const chips = new Set<string>(N.CHIP_NODES);
 
 const curves = new Map<string, CatmullRomCurve3>();
-const curveOf = (edge: string): CatmullRomCurve3 | null => {
+export const curveOf = (edge: string): CatmullRomCurve3 | null => {
   let c = curves.get(edge);
   if (!c) {
     // (the course the scene draws: the 2D figure's own, vessels/network.ts. Until 19 Nov 2026 this read the first slice's hand-placed courses (anatomy/vessels.ts), which stand 100 to 500 2D units

@@ -108,6 +108,9 @@ export class OrganLayer {
     this.dirtyColours = true; this.instant = true;
   }
 
+  /** How big the spleen is drawn now (1: normal): a caliper along its axis grows with it. */
+  get spleenScaleNow(): number { return this.spleenScale.value; }
+
   applyLook(p: Palette): void { this.palette = p; this.dirtyColours = true; }
   setPhone(phone: boolean): void { this.phone = phone; for (const o of this.objects) o.setPhone(phone); }
   /** A lens other than Pressure greys the organs (organ-dim.js: saturation 0.12, opacity 0.72) and eases in 420 ms (D_SURFACE). */

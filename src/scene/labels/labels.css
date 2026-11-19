@@ -55,6 +55,8 @@
 .cl[data-tone="ok"] { --c: var(--cl-ok); --c-ink: var(--cl-ok-ink); }
 .cl[data-tone="caution"] { --c: var(--cl-caution); --c-ink: var(--cl-caution-ink); }
 .cl[data-tone="danger"] { --c: var(--cl-danger); --c-ink: var(--cl-danger-ink); }
+.cl[data-tone="custom"] { --c: var(--cl-tone); --c-ink: color-mix(in srgb, var(--cl-tone) 78%, var(--cl-text)); }
+.cl[data-tone="note"] { --c: var(--cl-text); --c-ink: var(--cl-text); }
 .cl > * { opacity: 0; }
 .cl .cl-k { font-size: var(--cl-name); font-weight: var(--cl-name-w); letter-spacing: var(--cl-track); color: var(--c-ink); }
 .cl .cl-n { font-size: var(--cl-num); line-height: var(--cl-num-line); font-weight: var(--cl-num-w); font-variant-numeric: tabular-nums; color: var(--c-ink); }
@@ -103,3 +105,15 @@
 .lb-walk button { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; background: none; }
 .lb-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
+
+/* ── what a slide stands on the figure besides the names (figure-cards.ts): a mark's words, a site's reading, a numbered step, a caliper. The card is the catheter's
+   (.cl); a step is its round form; the portal blood's split is the 2D app's own markup, styled by its lifted rules (.cath-label.site.split). ── */
+.cl[data-fig="mark"] .cl-k { letter-spacing: 0; }
+.cl[data-fig="step"] { justify-content: center; padding: 0; border-radius: 50%; }
+.cl[data-fig="step"] .cl-k { color: var(--bg, #fff); font-weight: 700; letter-spacing: 0; }
+.cl[data-fig="step"] .cl-glass path { fill: var(--text); stroke: none; }
+.cl[data-fig="caliper"] .cl-k { letter-spacing: 0; }
+.cl-cal { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; }
+.cl-cal[data-on] { visibility: visible; }
+.cl-cal-line { position: absolute; left: 0; top: 0; width: 1px; height: 2px; margin-top: -1px; transform-origin: 0 50%; background: var(--text); will-change: transform; }
+.cl-cal-tick { position: absolute; left: 0; top: 0; width: 2px; height: 12px; margin: -6px 0 0 -1px; background: var(--text); will-change: transform; }

@@ -21,7 +21,8 @@ import { buildCath } from './cath-dom.ts';
 import { cathVars, cathLook } from './cath.ts';
 import { KEY_LENSES, keyModel, schemeOf } from './key.ts';
 import { linkLabelsToDeck } from './deck-link.ts';
-import { useLabels } from './store.ts';
+import { useLabels, useFigure } from './store.ts';
+import { FigureCards } from './figure-cards.ts';
 import { toneCss } from '../../ui/deck/figure-plan.ts';
 import { VesselWalk } from './VesselWalk.tsx';
 import { Vector3 } from 'three';
@@ -93,7 +94,7 @@ export function LabelLayer() {
       cameraMoving: () => sceneApi.cameraMoving,
       free: () => rectToBox(ui.getState().boxes.free),
       view: () => { const { vp } = ui.getState(); return { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom }; },
-      blockers: () => { const b = ui.getState().boxes; return [b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox); },
+      blockers: () => { const b = ui.getState().boxes; return [...[b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox), ...figCards.boxes]; },
       measure: makeMeasure(),
       vp: () => ui.getState().vp,
       words: () => ui.getState().boxes.words,
@@ -109,6 +110,16 @@ export function LabelLayer() {
         return c.current.balloon >= 0.999 ? 2 : 1;
       },
     };
+    // what the slide stands on the figure besides the names (marks, sites, steps, calipers); the station names keep clear of its cards
+    const figCards: FigureCards = new FigureCards(root, {
+      project: deps.project, cameraMoving: deps.cameraMoving,
+      view: () => deps.view(), blockers: () => { const b = ui.getState().boxes; return [b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox); },
+      vp: () => ui.getState().vp, measure: deps.measure, now: deps.now, spleenScale: () => cel.disease.organs.spleenScaleNow,
+      lobule: (name, out) => { if (cel.view !== 'lobule') return null; const a = cel.lobule.anchor(name, [0, 0, 0]); return out.set(a[0], a[1], a[2]); },
+    });
+    const pushFigure = () => { const f = useFigure.getState(); figCards.set(f.cards, f.calipers, f.t0); clock.invalidate('figure-cards'); };
+    pushFigure();
+    const offFigure = useFigure.subscribe(pushFigure);
     const ctl = new LabelController(deps);
     const recs = new Map<string, Rec>();
     const mk = (tag: string, cls: string, parent: HTMLElement = root) => { const e = document.createElement(tag); e.className = cls; parent.appendChild(e); return e; };
@@ -174,7 +185,8 @@ export function LabelLayer() {
     const hide = (r: Rec) => { if (r.shown) { r.shown = false; r.root.style.opacity = '0'; r.root.removeAttribute('data-on'); r.op = '0'; r.lead?.removeAttribute('data-on'); r.anchor?.removeAttribute('data-on'); if (r.lead) r.lead.style.opacity = '0'; if (r.anchor) r.anchor.style.opacity = '0'; } };
     const seen = new Set<string>();
     const offTags = clock.on('tags', () => {
-      const wantFrames = ctl.tick();
+      const cardFrames = figCards.tick();
+      const wantFrames = ctl.tick() || cardFrames;
       seen.clear();
       for (const d of ctl.out) { const r = recs.get(d.id); if (r) { seen.add(d.id); paint(r, d, ctl); } }
       for (const [id, r] of recs) if (!seen.has(id)) hide(r);
@@ -183,7 +195,7 @@ export function LabelLayer() {
       else if (!wantFrames && hold) { hold.release(); hold = null; }
     }, 0);
 
-    return () => { cath.destroy(); offTags(); offLabels(); offPick(); offUi(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
+    return () => { figCards.destroy(); offFigure(); cath.destroy(); offTags(); offLabels(); offPick(); offUi(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
   }, []);
 
   return (
