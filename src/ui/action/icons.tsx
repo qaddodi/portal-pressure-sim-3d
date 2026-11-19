@@ -18,6 +18,10 @@ const P: Record<string, string> = {
   info: 'M12 11v6M12 7.5v.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z', 'chev-right': 'M9 6l6 6-6 6', 'chev-left': 'M15 6l-6 6 6 6',
   fibroscan: 'M5 5h14v6H5zM9 11v5a3 3 0 0 0 6 0v-5', lobule: 'M12 3l7 4v7l-7 4-7-4V7zM12 9a3 3 0 1 0 0 .01',
   heart: 'M12 20s-7-4.5-7-10a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 5.500-7 10-7 10z', spleen: 'M6 18c-1-8 2-13 8-13 3 0 5 2 4 5-1 5-5 9-12 8z',
+  zones: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2z',
+  probe: 'M4 20l7-7M11 13l-2-2 6-6a2 2 0 0 1 3 0l1 1a2 2 0 0 1 0 3l-6 6z',
+  fibrosis: 'M4 7c3 3 5-3 8 0s5-3 8 0M4 12c3 3 5-3 8 0s5-3 8 0M4 17c3 3 5-3 8 0s5-3 8 0',
+  clock: 'M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 8v4l3 2',
   liver: 'M4 11c0-3 3-5 7-5 5 0 9 2 9 6 0 4-4 6-8 6-4 0-8-3-8-7z', gauge: 'M4 16a8 8 0 1 1 16 0M12 16l4-5',
 };
 export const hasIcon = (n: string): boolean => n in P;
