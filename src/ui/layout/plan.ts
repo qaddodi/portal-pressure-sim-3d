@@ -5,9 +5,9 @@
 // The places are the 2D app's (owner, 19 Nov 2026: iPhone, iPhone on its side, iPad and Mac "should all be the same if not better"); the numbers are in
 // rules2d.ts and tests/ui-parity-2d.test.ts holds them to the 2D app's:
 //   Mac, iPad on its side (wide, short): the words' card at the top left, the data card UNDER it at the same width, a gap of 0.6 margin; a pair a little too
-//     tall rises into the top margin (never closer than 4 px). Where it still does not fit, and the screen is wide enough, the data card stands beside (the
-//     2D app shrinks the data card's blocks; here nothing shrinks), else the words page.
-//   iPhone upright, iPad upright (stack, tab): the data card on top, the figure between, the words' card at the foot, planned from measured heights
+//     tall rises into the top margin (never closer than 4 px). Where it still does not fit the pair stays stacked (the 2D app shrinks the data card's blocks;
+//     here nothing shrinks, so the words page). The Back / Next pill stands at the lower right of the screen.
+//   iPhone upright, iPad upright (stack, tab): the data card on top, the figure between, the words' card at the foot (the pill stands inside it), planned from measured heights
 //     (phonePlan): the figure's share gives way first, then the data card comes in closed (a strip at the top; a tap opens it and shuts the words).
 //   iPhone on its side: the wallet. One column centred on the screen (400 px, wider only for a slide that needs the height), the card in front at its own
 //     height, the other card a 48 px strip at the foot; a swipe or a tap swaps them.
@@ -46,28 +46,39 @@ export interface Plan {
 
 export const STRIP_H = 48;
 const GAP = 16;       // room kept between a card and the figure's free rectangle
-/** The presenter bar's height (44 px buttons) and the room it takes at the foot of a screen. */
+/** The Back / Next pill (the 2D app's .pz-bar): 44 px tall; back, the count (not sideways), next and the settings. */
 export const BAR_H = 44;
-const FOOT_PAD = 8;
-export const footReserve = (vp: Viewport) => Math.max(vp.safe.bottom, FOOT_PAD) + BAR_H + FOOT_PAD;
-/** The bar's width on a wide screen (dots, count, Back, Next, settings), right-aligned at the foot. */
-export const BAR_W = 400;
-/** Sideways, the bar is a column of buttons at the right edge. */
-export const BAR_SIDE = 56;
+export const PILL_W = 210;
+export const PILL_W_SIDE = 136;
+/** A stacked words card keeps this much of its own foot clear for the pill that stands inside it (2D: the card's bottom is 65 px under its text). */
+export const FOOT_ZONE = 62;
+/** The least room for the talk's title to the left of the pill (a wide screen). */
+const TITLE_MIN_W = 220;
+/** The room under a stacked screen's words card: its margin and the safe area. */
+export const footReserve = (vp: Viewport) => Math.max(vp.safe.bottom, 0) + 8;
 
-export interface BarPlace { edge: 'foot' | 'right'; rect: Rect }
-export function barOf(vp: Viewport): BarPlace {
+export interface BarPlace { edge: 'foot' | 'card'; rect: Rect; /** where the deck's title stands (a wide screen, when it has room), left of the pill */ title: Rect | null }
+/** Where the pill stands: lower right of a wide screen (2D `pzb-pill`), centred in the foot of the words' card on a phone, at its lower right on an upright iPad. */
+export function barOf(vp: Viewport, colRight = 0): BarPlace {
   const { safe } = vp;
-  if (isSideways(vp.w, vp.h)) { const x = vp.w - Math.max(safe.right, 8) - BAR_H; return { edge: 'right', rect: { x, y: safe.top + 8, w: BAR_H, h: BAR_H * 3 + 12 } }; }
   const layout = layoutOf(vp.w, vp.h);
-  if (layout === 'stack' || layout === 'tab') { const x = Math.max(safe.left, 8); return { edge: 'foot', rect: { x, y: vp.h - Math.max(safe.bottom, FOOT_PAD) - BAR_H, w: vp.w - x - Math.max(safe.right, 8), h: BAR_H } }; }
-  const right = vp.w - Math.max(safe.right, 24), w = Math.min(BAR_W, right - 24);
-  return { edge: 'foot', rect: { x: right - w, y: vp.h - Math.max(safe.bottom, FOOT_PAD) - BAR_H, w, h: BAR_H } };
+  if (layout === 'stack' || layout === 'tab') {
+    const cardBottom = vp.h - footReserve(vp) + 0;
+    const y = cardBottom - 12 - BAR_H;
+    const w = Math.round(vp.w * (layout === 'tab' ? 0.7 : 1) - (layout === 'tab' ? 0 : 16));
+    const left = layout === 'tab' ? Math.round((vp.w - w) / 2) : Math.max(8, safe.left);
+    return { edge: 'card', rect: { x: layout === 'tab' ? left + w - 13 - PILL_W : Math.round((vp.w - PILL_W) / 2), y, w: PILL_W, h: BAR_H }, title: null };
+  }
+  const sideways = isSideways(vp.w, vp.h);
+  const cm = margin(vp.w, vp.h, layout), w = sideways ? PILL_W_SIDE : PILL_W;
+  const x = vp.w - Math.max(safe.right, cm) - w, y = vp.h - Math.max(cm, safe.bottom + 8) - BAR_H;
+  const tx = colRight + 24, tw = x - 16 - tx;
+  return { edge: 'foot', rect: { x, y, w, h: BAR_H }, title: !sideways && tw >= TITLE_MIN_W ? { x: tx, y, w: tw, h: BAR_H } : null };
 }
 
-/** The wallet's steps that fit across this screen (a column is never under the bar's buttons). */
+/** The wallet's steps that fit across this screen (a column never reaches under the pill). */
 export function walletSteps(vp: Viewport) {
-  const room = vp.w - Math.max(vp.safe.right, 8) - BAR_SIDE - Math.max(vp.safe.left, 10) - 10;
+  const room = barOf(vp).rect.x - 8 - Math.max(vp.safe.left, 10);
   return WALLET_STEPS.filter((s, i) => i === 0 || shufCol(s.col, vp.w) <= room);
 }
 
@@ -98,7 +109,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
   const words = needs.find((n) => n.slot === 'words') ?? null;
   const data = needs.find((n) => n.slot === 'data') ?? null;
   const placed: Placed[] = [];
-  const bar = barOf(vp);
+  let bar = barOf(vp);
   let strip: Strip | null = null, shut = false;
   const maxH: Record<Slot, number> = { words: 0, data: 0 };
   let bounds: Rect;
@@ -108,7 +119,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     const steps = walletSteps(vp);
     const st = steps[Math.min(step, steps.length - 1)];
     const w = widthOf(vp, !!(words && data), step);
-    const lo = Math.max(safe.left, 10), hi = vp.w - Math.max(safe.right, 8) - BAR_SIDE - w;
+    const lo = Math.max(safe.left, 10), hi = bar.rect.x - 8 - w;
     const x = Math.round(Math.max(lo, Math.min((vp.w - w) / 2, hi)));
     if (words && data) {
       const shown = active === 'data' ? data : words, other = shown === data ? words : data;
@@ -121,7 +132,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
       maxH.words = maxH.data = vp.h - 20;
       placed.push({ id: only.id, slot: only.slot, rect: { x, y: 10, w, h: only.h } });
     }
-    bounds = { x: safe.left, y: safe.top, w: vp.w - safe.left - safe.right - BAR_SIDE, h: vp.h - safe.top - safe.bottom };
+    bounds = { x: safe.left, y: safe.top, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - safe.bottom };
     extra.push(bar.rect);
   } else if (layout === 'stack' || layout === 'tab') {
     const w = widthOf(vp), x = layout === 'tab' ? Math.round((vp.w - w) / 2) : Math.max(8, safe.left);
@@ -142,7 +153,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
       const shown = active === 'data' ? data! : words!, other = shown === data ? words! : data!;
       maxH.words = Math.round(plan.cap);
       maxH.data = Math.round(room - dtop - STRIP_H - 8);
-      if (shown === data) { placed.push({ id: data.id, slot: 'data', rect: { x, y: dtop, w, h: dh } }); strip = { id: other.id, slot: 'words', rect: { x, y: bottom - STRIP_H, w, h: STRIP_H } }; }
+      if (shown === data) { placed.push({ id: data.id, slot: 'data', rect: { x, y: dtop, w, h: dh } }); strip = { id: other.id, slot: 'words', rect: { x, y: bottom - STRIP_H - 56, w, h: STRIP_H } }; }
       else { placed.push({ id: words!.id, slot: 'words', rect: { x, y: Math.round(bottom - wh), w, h: wh } }); strip = { id: other.id, slot: 'data', rect: { x, y: dtop, w, h: STRIP_H } }; }
     }
     bounds = { x: safe.left, y: safe.top, w: vp.w - safe.left - safe.right, h: bottom - safe.top };
@@ -152,27 +163,22 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     const w = widthOf(vp);
     const x = Math.max(cm, safe.left);
     const top0 = Math.max(cm, safe.top + 8);
-    const limit = vp.h - Math.max(cm, footReserve(vp) - FOOT_PAD);
+    const limit = vp.h - Math.max(cm, safe.bottom);
     const gap = pairGap(vp.w, vp.h, layout);
     const wh = words?.h ?? 0, dh = data?.h ?? 0;
-    const overBar = x + w > bar.rect.x - 12;   // the column reaches the bar: the pair ends above it
+    bar = barOf(vp, x + w);
+    const overBar = x + w > bar.rect.x - 12;   // the column reaches the pill: the pair ends above it
     const foot = overBar ? bar.rect.y - 8 : limit;
     const total = wh + (data ? gap + dh : 0);
+    // a pair a few px too tall rises into the top margin, never nearer than 4 px; past that it stays stacked (2D shrinks the data card's blocks, here the words page)
     const rise = Math.max(0, Math.min(top0 + total - foot, top0 - 4));
-    const beside = !!data && !!words && top0 + total - rise > foot + 0.5 && x + 2 * w + gap <= vp.w - Math.max(safe.right, cm);
-    if (beside) {
-      maxH.words = maxH.data = Math.round(foot - top0);
-      placed.push({ id: words!.id, slot: 'words', rect: { x, y: top0, w, h: wh } });
-      placed.push({ id: data!.id, slot: 'data', rect: { x: x + w + gap, y: top0, w, h: dh } });
-    } else {
-      const y0 = top0 - rise;
-      maxH.words = Math.round(foot - y0 - (data ? gap + dh : 0));
-      maxH.data = Math.round(foot - y0 - (words ? gap + wh : 0));
-      if (words) placed.push({ id: words.id, slot: 'words', rect: { x, y: Math.round(y0), w, h: wh } });
-      if (data) placed.push({ id: data.id, slot: 'data', rect: { x, y: Math.round(y0 + wh + (words ? gap : 0)), w, h: dh } });
-    }
-    bounds = { x: safe.left, y: safe.top + 8, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - footReserve(vp) - 8 };
-    if (overBar) extra.push(bar.rect);
+    const y0 = top0 - rise;
+    maxH.words = Math.round(foot - y0 - (data ? gap + dh : 0));
+    maxH.data = Math.round(foot - y0 - (words ? gap + wh : 0));
+    if (words) placed.push({ id: words.id, slot: 'words', rect: { x, y: Math.round(y0), w, h: wh } });
+    if (data) placed.push({ id: data.id, slot: 'data', rect: { x, y: Math.round(y0 + wh + (words ? gap : 0)), w, h: dh } });
+    bounds = { x: safe.left, y: safe.top + 8, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - 8 };
+    extra.push(bar.rect);
   }
 
   const blockers = placed.map((p) => p.rect).concat(strip ? [strip.rect] : [], extra);

@@ -43,3 +43,15 @@ test('settings: the flow-mark style defaults to A and survives bad storage', () 
   assert.equal(parseSettings('{"look":"navy","flowMarks":"C"}').flowMarks, 'C');
   assert.equal(parseSettings('{"look":"nope","flowMarks":"Z"}').look, 'system');
 });
+
+test('Blur effect is on by default on every device, kept, and off is the solid look (html[data-noglass])', async () => {
+  const { applyGlass } = await import('../src/state/settings.ts');
+  assert.equal(DEFAULTS.blur, true);
+  assert.equal(parseSettings(null).blur, true);
+  assert.equal(parseSettings('{"blur":false}').blur, false);
+  assert.equal(parseSettings('{"blur":"no"}').blur, true, 'a stored value that is not a switch is the default');
+  const attrs = new Set<string>();
+  const root = { setAttribute: (n: string) => attrs.add(n), removeAttribute: (n: string) => attrs.delete(n) } as unknown as HTMLElement;
+  applyGlass(false, root); assert.ok(attrs.has('data-noglass'));
+  applyGlass(true, root); assert.ok(!attrs.has('data-noglass'));
+});

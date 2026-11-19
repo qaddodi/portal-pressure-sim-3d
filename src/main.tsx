@@ -4,7 +4,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './ui/shell/global.css';
 import { applyLook, resolveLook } from './looks/looks.ts';
-import { useSettings } from './state/settings.ts';
+import { useSettings, applyGlass } from './state/settings.ts';
 import { fontsReady } from './boot/fonts.ts';
 import { bootEngine } from './engine/index.ts';
 import { App } from './App.tsx';
@@ -14,6 +14,8 @@ const dark = window.matchMedia('(prefers-color-scheme: dark)');
 const paint = () => applyLook(resolveLook(useSettings.getState().look, dark.matches));
 paint();
 useSettings.subscribe(paint);
+applyGlass(useSettings.getState().blur);
+useSettings.subscribe((s, prev) => { if (s.blur !== prev.blur) applyGlass(s.blur); });
 dark.addEventListener('change', paint);
 
 async function start() {

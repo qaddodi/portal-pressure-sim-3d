@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deviceClass, typeFor, checkTypeScale, type DeviceClass, type Rect } from '../src/ui/layout/device.ts';
-import { planLayout, largestFreeRect, widthOf, stepsFor, barOf, footReserve, STRIP_H, type Need } from '../src/ui/layout/plan.ts';
+import { planLayout, largestFreeRect, widthOf, stepsFor, barOf, footReserve, STRIP_H, PILL_W, type Need } from '../src/ui/layout/plan.ts';
 import { pairGap, margin, shufCol, SHUF, layoutOf } from '../src/ui/layout/rules2d.ts';
 
 const SCREENS: Record<string, { vp: { w: number; h: number; safe: { top: number; right: number; bottom: number; left: number } }; device: DeviceClass }> = {
@@ -29,7 +29,7 @@ for (const [name, s] of Object.entries(SCREENS)) {
         assert.ok(inside(b, s.vp.w, s.vp.h), `${name} ${JSON.stringify(b)} is off screen`);
         assert.ok(b.y + b.h <= s.vp.h + 0.5, `${name} card runs off the foot`);
         assert.ok(!hit(b, plan.free), `${name} a card covers the figure's room`);
-        assert.ok(!hit(b, plan.bar.rect), `${name} a card covers the presenter bar`);
+        if (plan.bar.edge === 'foot') assert.ok(!hit(b, plan.bar.rect), `${name} a card covers the pill`);
       }
       for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) assert.ok(!hit(boxes[i], boxes[j]), `${name} cards overlap`);
       assert.ok(plan.free.w > 0 && plan.free.h > 0);
@@ -50,18 +50,30 @@ test('Mac and iPad on its side: the data card stands under the words at the same
   }
 });
 
-test('Mac: a pair a few px too tall rises into its top margin (never nearer than 4 px); one that is much too tall stands beside, then pages', () => {
+test('Mac: a pair a few px too tall rises into its top margin (never nearer than 4 px); one that is much too tall stays stacked and its words page', () => {
   const { vp } = SCREENS.mac;
-  const base = planLayout(vp, needs(260, 200)).cards[0].rect.y;
   const a = planLayout(vp, needs(260, 200 + 560 - 260 - 200 + 20 + 40));   // a little too tall
-  assert.ok(a.cards[0].rect.y >= 4 - 0.5);
+  assert.ok(a.cards[0].rect.y >= 4 - 0.5 && a.cards[0].rect.y < margin(vp.w, vp.h, layoutOf(vp.w, vp.h)));
   const tall = planLayout(vp, needs(420, 400));
   const [w, d] = [tall.cards.find((c) => c.slot === 'words')!.rect, tall.cards.find((c) => c.slot === 'data')!.rect];
-  assert.ok(d.x >= w.x + w.w, 'the data card stands beside the words rather than shrinking');
-  assert.ok(base >= 4);
+  assert.equal(d.x, w.x, 'the data card never moves to the top right: it stays under the words');
+  assert.ok(tall.overflow.length, 'the room it lacks is reported, so the words page rather than shrink');
 });
 
-test('iPhone upright: data card on top, words at the foot above the bar, the figure between', () => {
+test('the Back / Next pill: lower right of a wide screen with the talk\'s title to its left; inside the foot of the words card on an iPhone and an upright iPad; lower right sideways', () => {
+  const mac = barOf(SCREENS.mac.vp, 500);
+  assert.equal(mac.edge, 'foot'); assert.equal(mac.rect.h, 44); assert.ok(mac.title && mac.title.x + mac.title.w < mac.rect.x);
+  assert.equal(mac.rect.x + mac.rect.w, SCREENS.mac.vp.w - margin(1280, 800, 'short'));
+  const ph = barOf(SCREENS['iphone-portrait'].vp);
+  assert.equal(ph.edge, 'card'); assert.equal(ph.title, null);
+  assert.equal(Math.round(ph.rect.x + PILL_W / 2), Math.round(393 / 2), 'centred in the card');
+  const ip = barOf(SCREENS['ipad-portrait'].vp);
+  assert.equal(ip.edge, 'card'); assert.ok(ip.rect.x + ip.rect.w <= 820 * 0.85 + 0.5, 'the right of the 70 % card');
+  const sw = barOf(SCREENS['iphone-landscape'].vp);
+  assert.equal(sw.edge, 'foot'); assert.equal(sw.title, null);
+});
+
+test('iPhone upright: data card on top, words at the foot (the pill stands in it), the figure between', () => {
   const { vp } = SCREENS['iphone-portrait'];
   const p = planLayout(vp, needs(230, 150));
   const [w, d] = [p.cards.find((c) => c.slot === 'words')!.rect, p.cards.find((c) => c.slot === 'data')!.rect];
@@ -70,7 +82,8 @@ test('iPhone upright: data card on top, words at the foot above the bar, the fig
   assert.ok(p.free.y >= d.y + d.h && p.free.y + p.free.h <= w.y, 'the figure is between the cards');
   assert.ok(p.free.h >= 0.3 * vp.h - 1, 'and keeps its share');
   assert.equal(p.strip, null); assert.equal(p.shut, false);
-  assert.equal(p.bar.edge, 'foot');
+  assert.equal(p.bar.edge, 'card');
+  assert.ok(p.bar.rect.y > w.y && p.bar.rect.y + p.bar.rect.h <= w.y + w.h, 'the pill is inside the words card');
 });
 
 test('iPhone upright: where the figure and the words need the room, the data card comes in closed as a strip at the top, and a swap opens it', () => {
@@ -89,7 +102,7 @@ test('iPad upright: the phone stack at 70 % of the width, centred', () => {
   for (const c of p.cards) { assert.equal(c.rect.w, Math.round(vp.w * 0.7)); assert.equal(c.rect.x, Math.round((vp.w - c.rect.w) / 2)); }
 });
 
-test('iPhone on its side: the wallet. One 400 px column centred on the screen, the card in front, the other a 48 px strip at the foot; the bar a column at the right edge', () => {
+test('iPhone on its side: the wallet. One 400 px column centred on the screen, the card in front, the other a 48 px strip at the foot; the pill at the lower right', () => {
   const { vp } = SCREENS['iphone-landscape'];
   const p = planLayout(vp, needs(230, 180));
   assert.equal(p.sideways, true);
@@ -98,7 +111,8 @@ test('iPhone on its side: the wallet. One 400 px column centred on the screen, t
   assert.ok(Math.abs(c.x + c.w / 2 - vp.w / 2) < 1, 'centred');
   assert.equal(p.strip!.rect.h, SHUF.strip); assert.equal(p.strip!.rect.y + p.strip!.rect.h, vp.h);
   assert.ok(p.strip!.rect.y > c.y + c.h, 'the strip is under the card');
-  assert.equal(p.bar.edge, 'right');
+  assert.equal(p.bar.edge, 'foot');
+  assert.ok(!hit(p.strip!.rect, p.bar.rect) && !hit(c, p.bar.rect), 'clear of the pill');
   assert.equal(p.cards.length, 1);
   const a = planLayout(vp, needs(), 'words'), b = planLayout(vp, needs(), 'data');
   assert.equal(a.cards[0].id, 'teach'); assert.equal(a.strip?.id, 'ladder'); assert.equal(b.cards[0].id, 'ladder'); assert.equal(b.strip?.id, 'teach');
@@ -109,7 +123,7 @@ test('iPhone on its side: a card too tall for its column asks for a wider one be
   assert.ok(stepsFor(vp, true) >= 7, 'the usual three in each tighter room, then the wider ones');
   assert.ok(widthOf(vp, true, 99) > widthOf(vp, true, 0), 'the last step is the widest');
   
-  assert.ok(widthOf(vp, true, 99) <= vp.w - 59 - 56 - 59, 'never under the bar');
+  assert.ok(widthOf(vp, true, 99) <= barOf(vp).rect.x - 8 - 59, 'never under the pill');
   assert.deepEqual(planLayout(vp, needs(400, 100)).overflow, ['teach']);
 });
 
@@ -132,7 +146,7 @@ test('widths do not depend on heights (a card is measured at the width it will h
   }
 });
 
-test('the bar stands at the foot (a column at the right edge sideways) and never over the cards\' room', () => {
+test('the pill is on screen on every layout', () => {
   for (const s of Object.values(SCREENS)) { const b = barOf(s.vp); assert.ok(inside(b.rect, s.vp.w, s.vp.h), s.device); assert.ok(b.rect.h >= 44); }
 });
 

@@ -1,6 +1,6 @@
 // What kind of screen this is, and the type it sets. Text never shrinks to fit: these sizes are the floor and the whole scale.
 
-import { layoutOf, isSideways, cardScale } from './rules2d.ts';
+import { layoutOf, isSideways, cardScale, WIDE } from './rules2d.ts';
 
 export type DeviceClass = 'desktop' | 'tablet-portrait' | 'phone-portrait' | 'phone-landscape';
 
@@ -20,7 +20,7 @@ export const isPhone = (c: DeviceClass) => c === 'phone-portrait' || c === 'phon
 
 /** The type of every card, in px: the 2D app's roles (rules2d.ts cardScale) for this screen. One table: the CSS reads it as custom properties, the tests judge it. */
 export interface TypeScale {
-  deckTitle: number; slideTitle: number; body: number; data: number; kicker: number; bigNumber: number;
+  deckTitle: number; slideTitle: number; /** the title one step down (2D WIDE.tight), never under its floor over the body: only where the words cannot get the height any other way */ slideTitleTrim: number; body: number; data: number; kicker: number; bigNumber: number;
   /** line-height multipliers */
   deckTitleLead: number; slideTitleLead: number; bodyLead: number;
 }
@@ -35,7 +35,7 @@ export function typeFor(w: number, h: number): TypeScale {
   const body = stacked ? text.lab : text.body;
   const slideTitle = stacked ? text.val : text.title;
   return {
-    deckTitle: stacked ? text.big : text.title, slideTitle, body, kicker: stacked ? text.lab : text.cap, data: Math.max(12, data.lab), bigNumber: data.big,
+    deckTitle: stacked ? text.big : text.title, slideTitle, slideTitleTrim: Math.min(slideTitle, Math.max(slideTitle * WIDE.tight, (stacked ? 1.33 : 1.4) * body)), body, kicker: stacked ? text.lab : text.cap, data: Math.max(12, data.lab), bigNumber: data.big,
     deckTitleLead: 1.06, slideTitleLead: 1.06, bodyLead: 1.4,
   };
 }

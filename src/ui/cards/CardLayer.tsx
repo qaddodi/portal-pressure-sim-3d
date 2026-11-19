@@ -21,7 +21,7 @@ import { gapOf } from './ladder-model.ts';
 import { maxPages, clampPage } from './pages.ts';
 
 const ZERO: Rect = { x: 0, y: 0, w: 0, h: 0 };
-interface Snap { slide: Slide | null; pages: number; at: number }
+interface Snap { slide: Slide | null; pages: number; at: number; trim: boolean }
 
 /** Every card on screen: what the presenter says is up, where the planner puts it, kept through a leave and an enter. */
 export function CardLayer({ deck }: { deck: Deck }) {
@@ -52,13 +52,15 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const sideways = isSideways(vp.w, vp.h), pair = !!view?.data;
   const [stepMap, setStepMap] = useState<Record<string, number>>({});
   const nSteps = stepsFor(vp, pair);
-  const step = sideways ? Math.min(stepMap[pagesKey] ?? 0, nSteps - 1) : 0;
+  // past the widest column the title takes one step down (never under 1.4× the words), then the words page: the body never shrinks
+  const stepAt = sideways ? Math.min(stepMap[pagesKey] ?? 0, nSteps) : 0;
+  const step = Math.min(stepAt, nSteps - 1), trim = stepAt >= nSteps;
   const wide = Math.round(widthOf(vp, pair, step));
   const hit = (key: string) => heights[`${key}@${wide}`];
   const h = (key: string) => hit(key)?.h ?? 0;
   const pages = view ? Math.min(pagesMap[pagesKey] ?? 1, maxPages(view.words, view.slide?.vignette && view.words === 'case' ? view.slide.vignette : view.slide?.line)) : 1;
   const at = clampPage(page, pages);
-  const sig = `${wordsKey}|${pages}|${at}|${step}|${vp.w}x${vp.h}`;
+  const sig = `${wordsKey}|${pages}|${at}|${stepAt}|${vp.w}x${vp.h}`;
   sigRef.current = sig;
 
   const needs: Need[] = view ? [{ id: view.words, slot: 'words', h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h('ladder') }] : [])] : [];
@@ -80,9 +82,9 @@ export function CardLayer({ deck }: { deck: Deck }) {
   useLayoutEffect(() => {
     if (!view) return;
     const cap = maxPages(view.words, view.slide?.vignette && view.words === 'case' ? view.slide.vignette : view.slide?.line);
-    if (tooTallPair && step < nSteps - 1) { setStepMap((m) => ({ ...m, [pagesKey]: step + 1 })); return; }
+    if (tooTallPair && stepAt < nSteps) { setStepMap((m) => ({ ...m, [pagesKey]: stepAt + 1 })); return; }
     if (tooTall && pages < cap) setPagesMap((m) => ({ ...m, [pagesKey]: pages + 1 }));
-  }, [tooTall, tooTallPair, step, nSteps, pages, pagesKey, view]);
+  }, [tooTall, tooTallPair, stepAt, nSteps, pages, pagesKey, view]);
   useLayoutEffect(() => { setPageCount(pages); }, [pages, setPageCount, wordsKey]);
 
   // a leaving card stays where it was while it goes
@@ -108,14 +110,14 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const gap = gapOf(readings);
   // each card draws what it was given when it came in, so a card that is leaving keeps its own words while it goes
   const snaps = snapRef.current;
-  const now: Snap = { slide: view.slide, pages, at };
+  const now: Snap = { slide: view.slide, pages, at, trim };
   const content = (e: Entry) => {
     if (e.phase === 'in') snaps[e.key] = now;
     const sn = snaps[e.key] ?? now;
     switch (e.id) {
       case 'title': return <TitleCard deck={deck} onStart={() => useUi.getState().go(1)} onNext={() => move('next')} page={sn.at} pages={sn.pages} />;
       case 'case': return <CaseCard slide={sn.slide!} page={sn.at} pages={sn.pages} />;
-      case 'teach': return <TeachingCard slide={sn.slide!} read={read} page={sn.at} pages={sn.pages} />;
+      case 'teach': return <TeachingCard slide={sn.slide!} read={read} page={sn.at} pages={sn.pages} trim={sn.trim} />;
       case 'ladder': return sn.slide?.ladder ? <LadderCard ladder={sn.slide.ladder} readings={readings} /> : null;
       case 'check': return <CheckCard deck={deck} />;
     }

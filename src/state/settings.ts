@@ -15,7 +15,7 @@ export const FIGURE_DETAIL_DEFAULT = 1;
 export interface Settings {
   look: LookChoice;
   flowMarks: FlowMarks;
-  /** Blur effect: frosted glass on cards and labels (the 3D cards are Soft lift today; the switch is kept and stored). */
+  /** Blur effect: the frosted glass under cards, the pill, the strip and menus. On by default on every device, as in the 2D app; off is the solid look (html[data-noglass]). */
   blur: boolean;
   /** index into FIGURE_DETAIL */
   figureDetail: number;
@@ -26,7 +26,7 @@ export interface Settings {
   showBreakdown: boolean;
 }
 interface Store extends Settings {
-  setLook(l: LookChoice): void; setFlowMarks(f: FlowMarks): void;
+  setLook(l: LookChoice): void; setFlowMarks(f: FlowMarks): void; setBlur(on: boolean): void;
   set<K extends keyof Settings>(key: K, value: Settings[K]): void;
   reset(): void;
 }
@@ -34,24 +34,22 @@ interface Store extends Settings {
 const KEY = 'pps3d.settings.v1';
 /** Everything this app stores on the device starts with this, so Reset everything can clear it and nothing else. */
 export const STORAGE_PREFIX = 'pps3d.';
-const isPhoneScreen = (): boolean => { try { return Math.min(innerWidth, innerHeight) < 600; } catch { return false; } };
 export const DEFAULTS: Settings = { look: 'system', flowMarks: 'A', blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, keys: true, showFps: false, showBreakdown: false };
 
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
-export function parseSettings(raw: string | null, phone = false): Settings {
+export function parseSettings(raw: string | null): Settings {
   try {
     const o = raw ? JSON.parse(raw) : {};
     return {
       look: o.look === 'system' || LOOK_IDS.includes(o.look) ? o.look : DEFAULTS.look,
       flowMarks: FLOW_MARKS.includes(o.flowMarks) ? o.flowMarks : DEFAULTS.flowMarks,
-      // (Parity plan section 6: glass is off by default on an iPhone, where it costs the most; a chosen value always wins.)
-      blur: bool(o.blur, !phone),
+      blur: bool(o.blur, DEFAULTS.blur),
       figureDetail: Number.isInteger(o.figureDetail) && o.figureDetail >= 0 && o.figureDetail < FIGURE_DETAIL.length ? o.figureDetail : DEFAULTS.figureDetail,
       sharpMoving: bool(o.sharpMoving, DEFAULTS.sharpMoving), keys: bool(o.keys, true), showFps: bool(o.showFps, false), showBreakdown: bool(o.showBreakdown, false),
     };
-  } catch { return { ...DEFAULTS, blur: !phone }; }
+  } catch { return { ...DEFAULTS }; }
 }
-const read = (): Settings => { try { return parseSettings(localStorage.getItem(KEY), isPhoneScreen()); } catch { return parseSettings(null, isPhoneScreen()); } };
+const read = (): Settings => { try { return parseSettings(localStorage.getItem(KEY)); } catch { return parseSettings(null); } };
 const pick = (s: Settings): Settings => ({ look: s.look, flowMarks: s.flowMarks, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown });
 const save = (s: Settings) => { try { localStorage.setItem(KEY, JSON.stringify(pick(s))); } catch { /* private window: the choice lasts for this visit */ } };
 
@@ -59,6 +57,12 @@ export const useSettings = create<Store>((set, get) => ({
   ...read(),
   setLook: (look) => { set({ look }); save({ ...get(), look }); },
   setFlowMarks: (flowMarks) => { set({ flowMarks }); save({ ...get(), flowMarks }); },
+  setBlur: (blur) => { set({ blur }); save({ ...get(), blur }); },
   set: (key, value) => { set({ [key]: value } as Pick<Settings, typeof key>); save({ ...get(), [key]: value }); },
-  reset: () => { const d = parseSettings(null, isPhoneScreen()); set(d); save(d); },
+  reset: () => { const d = parseSettings(null); set(d); save(d); },
 }));
+
+/** Blur off is the page's solid look: html[data-noglass] (the stylesheet draws no glass under it). Written before anything paints, then on every change. */
+export function applyGlass(on: boolean, root: HTMLElement = document.documentElement): void {
+  if (on) root.removeAttribute('data-noglass'); else root.setAttribute('data-noglass', '');
+}

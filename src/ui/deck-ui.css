@@ -16,13 +16,15 @@
 .deck-ui[data-device="phone-portrait"], .deck-ui[data-device="phone-landscape"] { --rise: 16px; }
 /* a stacked screen's data card: the 2D app's 10 px by 12 px */
 .deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-card[data-card="ladder"] .dk-in { padding: 10px 12px; }
+/* a stacked words card keeps its foot clear for the pill that stands in it */
+.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-card:not([data-card="ladder"]) .dk-in { padding-bottom: calc(var(--pad-y) + 50px); }
 .deck-ui [hidden] { display: none !important; }
 
 /* ── a card's place (transform only) and its surface ── */
 .dk-pos { position: absolute; left: 0; top: 0; will-change: transform; }
 .dk-pos[data-live="true"] { transition: transform var(--move) var(--ease); }
 
-/* "Soft lift" (19 Nov pick): surface, 1 px hairline, two-layer shadow in the look's shadow colour; no backdrop blur. */
+/* "Soft lift" (19 Nov pick): surface, 1 px hairline, two-layer shadow in the look's shadow colour. The glass (frosted blur) is the block at the end of this file. */
 .dk-card {
   position: relative; box-sizing: border-box; overflow: hidden; pointer-events: auto;
   background: var(--surface); border: 1px solid var(--edge); border-radius: var(--r);
@@ -46,6 +48,7 @@
 .dk-kicker { font: 600 var(--fs-kicker) / 1 var(--ui, system-ui); letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-3); margin: 0; }
 .dk-title { font-family: var(--display, "Source Serif 4", Georgia, serif); font-weight: 600; letter-spacing: -0.005em; text-wrap: balance; margin: 0; color: var(--text);
   font-size: var(--fs-title); line-height: var(--lh-title); }
+.dk-title--trim { font-size: var(--fs-title-trim); }
 .dk-title--deck { font-size: var(--fs-deck); line-height: var(--lh-deck); }
 .dk-body { margin: 0; color: var(--text); text-wrap: pretty; font-size: var(--fs-body); line-height: var(--lh-body); }
 .dk-body--muted { color: var(--text-2); }
@@ -115,24 +118,18 @@
 .dk-strip-text { display: flex; align-items: baseline; min-width: 0; flex: 1 1 auto; }
 
 /* ── the presenter bar ── */
-.dk-bar { position: absolute; display: flex; align-items: center; gap: 10px; pointer-events: none; font-size: var(--fs-data); color: var(--text-2); }
-.dk-bar > * { pointer-events: auto; }
-.dk-bar[data-edge="right"] { flex-direction: column; align-items: center; justify-content: flex-start; }
-.dk-bar[data-edge="right"] :is(.dk-dots, .dk-count) { display: none; }
-.dk-bar[data-edge="right"] .dk-nav { flex-direction: column; }
-.dk-bar .dk-bar-title { font: 600 14px / 1.2 var(--display, "Source Serif 4", Georgia, serif); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.dk-dots { display: flex; gap: 5px; align-items: center; margin-left: auto; }
-.dk-dots button { appearance: none; border: 0; background: transparent; position: relative; width: 18px; height: 44px; margin: -19px 0; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.dk-dots button i, .dk-dots button u { position: absolute; left: 50%; top: 50%; border-radius: 3px; text-decoration: none; transition: opacity var(--move) var(--ease); }
-.dk-dots button i { width: 6px; height: 6px; margin: -3px 0 0 -3px; background: color-mix(in srgb, var(--text) 22%, transparent); }
-.dk-dots button u { width: 18px; height: 6px; margin: -3px 0 0 -9px; background: var(--accent); opacity: 0; }
-.dk-dots button[aria-current="step"] u { opacity: 1; }
-.dk-dots button[aria-current="step"] i { opacity: 0; }
-.dk-count { font-weight: 600; color: var(--text); min-width: 3.2em; text-align: right; }
-.dk-nav { display: flex; gap: 6px; }
-.dk-nav button { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--edge); background: var(--surface); color: var(--text); cursor: pointer; padding: 0; -webkit-tap-highlight-color: transparent; }
-.dk-nav button[disabled] { opacity: 0.4; cursor: default; }
-.dk-nav svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+/* the 2D app's pill (.pz-bar.pzb-pill): 44 px tall, back, where you are, next, settings; a wide screen's lower right, a phone's inside the words card's foot */
+.dk-bar { position: absolute; display: flex; align-items: center; gap: 0; pointer-events: auto; box-sizing: border-box;
+  background: var(--surface); border: 1px solid var(--edge); border-radius: 999px; font-size: var(--fs-data); color: var(--text-2);
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 8px 20px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.2)); }
+.dk-bar-title { position: absolute; display: flex; align-items: center; justify-content: flex-end; pointer-events: none; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font: 600 var(--fs-data) / 1.2 var(--display, "Source Serif 4", Georgia, serif); color: var(--text-2); }
+.dk-pb, .dk-settings > button { width: 44px; height: 42px; flex: none; border-radius: 50%; display: grid; place-items: center; border: 0; background: transparent; color: var(--text); cursor: pointer; padding: 0; -webkit-tap-highlight-color: transparent; }
+.dk-pb--next:not([disabled]) { color: var(--accent); }
+.dk-pb[disabled] { opacity: 0.4; cursor: default; }
+.dk-pb svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.dk-pb:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.dk-count { flex: 1; min-width: 4.4em; font-weight: 600; color: var(--text-2); text-align: center; white-space: nowrap; }
 
 @media (prefers-reduced-motion: reduce) {
   .dk-pos[data-live="true"] { transition: none; }
@@ -153,16 +150,15 @@
 
 /* ── settings ── */
 .dk-settings { position: relative; }
-.dk-settings > button { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--edge); background: var(--surface); color: var(--text); cursor: pointer; padding: 0; -webkit-tap-highlight-color: transparent; }
 .dk-settings svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .dk-settings > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .dk-panel { position: absolute; right: 0; top: 52px; width: 300px; max-width: calc(100vw - 24px); box-sizing: border-box; padding: 18px 18px 16px; background: var(--surface); border: 1px solid var(--edge); border-radius: 16px;
   box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 12px 32px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6));
   opacity: 0; visibility: hidden; transform: translateY(-8px); transition: opacity 180ms linear, transform 280ms var(--ease), visibility 0s linear 280ms; }
 .dk-panel[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
-.dk-bar[data-edge="foot"] .dk-panel { top: auto; bottom: 52px; transform: translateY(8px); }
-.dk-bar[data-edge="right"] .dk-panel { top: 0; right: 52px; transform: translateX(8px); }
-.dk-bar[data-edge] .dk-panel[data-open="true"] { transform: none; }
+/* the pill is at the foot: its settings open upward */
+.dk-bar .dk-panel { top: auto; bottom: 52px; transform: translateY(8px); }
+.dk-bar .dk-panel[data-open="true"] { transform: none; }
 .dk-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .dk-chip { font: 600 13px / 1 var(--ui, system-ui); min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--edge); background: transparent; color: var(--text); cursor: pointer; }
 .dk-chip[aria-pressed="true"] { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
@@ -170,3 +166,18 @@
 
 .dk-pageno { letter-spacing: 0.09em; }
 .dk-page { animation: dk-fade var(--move) var(--ease) both; }
+
+/* ── the glass (owner, 19 Nov 2026: "the UI should match 2D"; Settings > Blur effect, on by default on every device) ──
+   The 2D card glass (glass-gl.js CARD): the figure behind a card blurred at 22 px with a little saturation, under the surface at 66 %. The browser does the
+   blur, on the compositor, behind each card where it stands, so the glass is always the card's own place, its glide and its entry, every frame. Off (html[data-noglass]),
+   a browser without backdrop blur, or reduced transparency: the solid surface, as before. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  @media (prefers-reduced-transparency: no-preference) {
+    html:not([data-noglass]) :is(.dk-card, .dk-strip, .dk-bar, .dk-panel) {
+      background: color-mix(in srgb, var(--surface) 66%, transparent);
+      -webkit-backdrop-filter: blur(22px) saturate(1.15); backdrop-filter: blur(22px) saturate(1.15);
+    }
+    /* the settings panel is over the cards and the pill: a touch more surface so its chips read */
+    html:not([data-noglass]) .dk-panel { background: color-mix(in srgb, var(--surface) 82%, transparent); }
+  }
+}
