@@ -6,7 +6,7 @@ import { UMenu } from '../menu/UMenu.tsx';
 import { SearchSheet } from '../search/SearchSheet.tsx';
 import { HelpMenu, Guide } from './HelpSheets.tsx';
 import { LayersSheet } from './FigureMenu.tsx';
-import { usesBottomBar } from './room.ts';
+import { figureRowsOwner } from './room.ts';
 import { useUi } from '../ui-store.ts';
 import { HistorySheet } from '../history/HistorySheet.tsx';
 import { DifferencesSheet } from '../compare/CompareUi.tsx';
@@ -39,13 +39,13 @@ function ResetDialog() {
 
 export function Sheets() {
   const talk = useShell((s) => s.mode === 'deck');
-  const bottom = usesBottomBar(useUi((s) => s.device));
+  const device = useUi((s) => s.device);
   return (
     <>
       <UMenu />
       {!talk && <ActionCard />}
       {!talk && <TreatCard />}
-      {bottom && !talk && <LayersSheet />}
+      {figureRowsOwner(device) === 'sheet' && !talk && <LayersSheet />}
       {!talk && <SettingsSheet place="top" />}
       <HistorySheet />
       <DifferencesSheet />
