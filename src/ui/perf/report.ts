@@ -6,9 +6,10 @@ export interface PerfStats { framesDrawn: number; windowFrames: number; p50: num
 
 const f1 = (n: number) => n.toFixed(1);
 
-export function perfReport(s: PerfStats, ctx: { ua: string; dpr: number; size: string; look: string; hash: string }): string {
+export function perfReport(s: PerfStats, ctx: { ua: string; dpr: number; size: string; look: string; hash: string; shaders?: string }): string {
   const lines = [
     `Portal Pressure 3D ?perf · ${ctx.hash}`,
+    ...(ctx.shaders ? [`!! ${ctx.shaders} (the device's driver refused a program; those parts are drawn plain; open ?gl for the log)`] : []),
     `${ctx.size} @${ctx.dpr}x · look ${ctx.look}`,
     ctx.ua,
     `frames drawn ${s.framesDrawn} · last ${s.windowFrames}: median ${f1(s.p50)} ms, p95 ${f1(s.p95)} ms, worst ${f1(s.max)} ms · ${s.awake ? 'drawing' : 'idle (nothing drawn)'}`,

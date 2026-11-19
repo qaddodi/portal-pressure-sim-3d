@@ -14,6 +14,9 @@ const FS = `#version 300 es
 precision mediump float; in vec4 v_col; out vec4 o;
 void main() { o = v_col; }`;
 
+/** The chart program, for tests/glsl-compile.test.ts and ?gl (src/debug/gl-programs.ts). */
+export { VS as CHART_VS, FS as CHART_FS };
+
 /** Pixel ratio cap: charts are small and crisp at 2; a higher ratio only costs memory (docs/look-and-feel.md performance bar). */
 export const MAX_DPR = 2;
 const ATTRS = { antialias: true, alpha: true, premultipliedAlpha: true, stencil: true, depth: false, preserveDrawingBuffer: false, powerPreference: 'low-power' } as const;

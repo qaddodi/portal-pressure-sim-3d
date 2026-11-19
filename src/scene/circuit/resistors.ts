@@ -38,6 +38,9 @@ uniform float alpha;
 void main() { gl_FragColor = vec4(col, alpha); }`;
 
 /** Where a resistor's polylines stand on the map (map units): the liver's two between their stations (with leads to each dot), or one zigzag along a lane. */
+/** The two programs, for tests/glsl-compile.test.ts and ?gl (src/debug/gl-programs.ts). */
+export { VS as RES_VS, FS as RES_FS };
+
 export interface ResShape { key: ResKey; polys: number[][]; veil: number[][] }
 
 function pointAndTangent(pts: readonly (readonly [number, number])[], u: number): [number, number, number, number] {
