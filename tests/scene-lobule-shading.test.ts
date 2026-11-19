@@ -58,7 +58,7 @@ test('the portal venule opens to its inlets; the arteriole to its twig; the duct
   assert.equal(p.discInfo.get('pv')!.discs[0]!.site!.list.length, 2, 'two inlets leave each venule');
   const bd = p.discInfo.get('bd')!;
   assert.ok(bd.discs.every((d) => d.site) && bd.discs.length === 6, 'canals of Hering end at each ductule');
-  v.setVisible(true); v.update(16);
+  v.setLayers({ bile: false }); v.setVisible(true); v.update(16);
   assert.ok(open(bd, 0).every((b) => b === 0), 'closed with the Bile layer off: 2D\'s mouthsNoBile');
   v.setLayers({ bile: true }); v.update(32);
   assert.ok(open(bd, 0).some((b) => b === 1), 'open where a canal arrives with it on');

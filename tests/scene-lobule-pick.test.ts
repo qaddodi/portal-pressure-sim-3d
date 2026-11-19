@@ -60,7 +60,7 @@ test('every part a tap can pick has the card 2D shows for it', () => {
 
 test('the view: the Bile layer\'s vessels are tapped only while it is on, and a ray through the plate finds the part under it', () => {
   const v = new LobuleView(createShared());
-  v.setVisible(true); v.update(16);
+  v.setLayers({ bile: false }); v.setVisible(true); v.update(16);
   const bile = (v as unknown as { bilePick: { pts: [number, number][] }[] }).bilePick;
   assert.ok(bile.length > 0, 'the canaliculi and canals are known to the picker');
   const q = bile.find((b) => b.pts.length > 4)!.pts[3]!;

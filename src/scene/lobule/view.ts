@@ -127,7 +127,7 @@ export class LobuleView {
   private goal: Cur = { ...REST };
   private lit = new Set<LobulePartName>();
   private mode: FlowMarkMode;
-  private layers: LobuleLayers = { lymph: true, zones: false, bile: false };
+  private layers: LobuleLayers = { lymph: true, zones: false, bile: true };
   private lyFade = 1;
   private bileFade = 0;
   /** How stagnant the sinusoids' blood is, 0 moving .. 1 still (the 2D `stasis`: 1 - smooth(0.12, 0.45, flow)): the chevrons give way to a slow smoke. */

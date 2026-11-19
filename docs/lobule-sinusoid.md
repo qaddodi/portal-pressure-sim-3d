@@ -1,5 +1,23 @@
 # Lobule and sinusoid views (batch B8)
 
+> **Lobule parity audit, 19 Nov 2026 (LOBULE worker, against the 2D pin b3058ef3; 2D's own code is copied by `node scripts/copy-lobule.mjs --from <2D checkout> [--check]`).**
+>
+> | 2D | 3D now | state |
+> |---|---|---|
+> | Sinusoid, inlet, twig, cross-link widths (`radiusAt`: sinusoid `rs0 0.0085 x 0.75` R, widening 1 to 1.3 toward the vein, `an` 0.68) | `lobule/widths.ts`, pinned to 2D's text by `tests/scene-lobule-widths.test.ts` (they were 1.5 to 1.9 times wider) | done |
+> | Tube shading: three tones lit from the top left of the screen, line `clamp(0.14 R, 1.5, 3)` px, no world light, no specular | `lobule/shading.ts` rewrites the cel shaders for the lobule (`TONES3`) | done |
+> | End-on discs (`celDisc`): central vein, portal venule, arteriole, ductule, lymphatic: pale inner band, wall opened where a vessel joins (`lobule-mouths.js`), inner line where nothing joins | `lobule/mouths.ts` + `from2d/lobule-mouths.generated.js` + `disc-glsl.generated.js`; radii follow state (`discK`: congestion, arteriole, lymph caliber) | done |
+> | Bile ductule "swell" with the Bile layer | **2D has none.** The Bile layer *opens the ductule's mouths* where the canals of Hering join it (`mouthsNoBile` otherwise). 3D now does exactly that; no swell was added | done (nothing to copy) |
+> | The arteriole's twig, the bile and the space of Disse are one flat fill | `flat` on tw, ly, bc, bh | done |
+> | The tract's vessels have their own outline colour (EDGE) | `applyLook` | done |
+> | Taps: every part 2D's `hitInto` picks opens the same card (triad, arteriole, ductule, lymphatic with Lymph on, central vein, sinusoid, inlet, cross-link, bile channel and canal with Bile on, septum, a zone's hepatocytes) | the tap was **not wired at all** before: `lobule/pick.ts` (port), `pick-store.ts`, `Stage.tsx`, `ui/action/boot.ts`; test `scene-lobule-pick.test.ts` | done |
+> | Zone names (Zone 1 periportal, Zone 2 midzonal, Zone 3 centrilobular, on the radius to the bottom edge, with the Zones layer) and the stations' names with pressures (Portal venule, Sinusoids, Central vein), the arteriole and ductule named, Hepatic lymph with the Lymph layer | `lobule/captions.ts` (pure) + `lobule/LobuleCaptions.tsx` (the DOM layer, the one label solver); test `scene-lobule-captions.test.ts` | done, simpler than 2D (below) |
+> | Layers menu defaults `{zones: false, lymph: true, bile: true}` (2D store.js) | **Bile started off in 3D**; now on (`ui/shell/store.ts`, `LobuleView`); `scene-lobule-layers.test.ts` | fixed |
+> | Zones layer, nutmeg, collagen, stellate cells, septa, wash, lens colours, lens grey surround | already 2D's own painter and stops (`plate.ts`, `zones.ts`, `wash.ts`, `ink.ts`) | unchanged |
+> | Anastomosis marks, albumin traffic marks | **2D draws no separate marks**: the anastomoses are the `an` cross-link tubes (drawn, 0.68 width, tappable); the lobule has no albumin beads (the one mention in `lobule-zoom-field.js` is a comment); albumin traffic is the sinusoid view's (SINUS) | nothing to add |
+>
+> Not done, and why: the stations' *glide* (labels easing between places), the count-up of the numbers, the change badges and delta colours, the oxygen lens' `% O2` readings, the slide's call pointer and lit/dimmed names, the tract fan's "no leader over another vessel's dot" cost, and the lesion ring the zone names avoid (`lobule-zoom-labels.js`, 969 lines, `lobule-zoom-records.js`). 3D places the same words with the figure's one solver and writes them in the one label type. Hence a name can stand a little differently from 2D's. Each is a follow-up on `LobuleCaptions.tsx`.
+
 > **Sinusoid view, 19 Nov 2026 (atlas look plan WP7): lifted from 2D.** The placeholder 3D cut (layers of cel-shaded slabs) is gone. `src/scene/sinusoid/view.ts` runs 2D's own
 > tissue shader and albumin sprites (`sinusoid-gl.js`) on a plane in the sinusoid's frame, so the tissue fills the screen to every edge; 2D's traffic and palette code come with it.
 > All of it is copied by `node scripts/copy-sinusoid.mjs --from <2D checkout> [--check]` into `gl.copied.ts`, `traffic.copied.js`, `palette.copied.js`; never edit those.
