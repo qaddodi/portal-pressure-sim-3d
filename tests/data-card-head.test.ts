@@ -50,5 +50,5 @@ test('the heading words are the 2D files\' own (when the 2D checkout at the pin 
   const mine = readFileSync('src/ui/talk/tool-title.ts', 'utf8');
   // every quoted word the ext titles use here is in the 2D files
   for (const m of mine.matchAll(/(?:title|short): \([^)]*\) => (?:[^'`\n]*)['`]([^'`$]+)['`]/g)) assert.ok(ext.includes(m[1]!), `not in the 2D files: ${m[1]}`);
-  for (const k of EXT_TITLE_KINDS) assert.ok(new RegExp(`\\b${k}: \\{ make`).test(ext), `2D has no registered tool "${k}"`);
+  for (const k of EXT_TITLE_KINDS) assert.ok(new RegExp(`\\b${k}: \\{\\s*make`).test(ext), `2D has no registered tool "${k}"`);
 });

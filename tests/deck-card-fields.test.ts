@@ -146,7 +146,7 @@ test('a step marker of the line ({#n}) is a step, not a typed number', () => {
 });
 
 test('a time-lapse\'s graph is its instrument card: a slide with a `graph` list has the flow-time or procedure chart (the copy gives it, 2D slide-instrument.js) and the data card mounts it', () => {
-  const src = readFileSync(new URL('../src/ui/talk/ToolCard.tsx', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../src/ui/talk/ToolCardBody.tsx', import.meta.url), 'utf8');
   for (const k of ['flowtime', 'evgraph']) assert.match(src, new RegExp(`case '${k}'`));
   const graphs = everySlide().filter(({ c }) => Array.isArray(c.graph));
   assert.ok(graphs.length >= 4, `slides that name their graph (${graphs.length})`);
@@ -169,7 +169,7 @@ test('the plane visual hands each slide\'s own plane (a name, or a base with its
     if (typeof c.plane === 'object') for (const k of Object.keys(c.plane)) if (k !== 'base') assert.ok(k in def!, `${id}/${s.id}: the plane's own ${k} reaches the definition`);
   }
   assert.ok(n >= 9, `planes (${n})`);
-  const src = readFileSync(new URL('../src/ui/talk/ToolCard.tsx', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../src/ui/talk/ToolCardBody.tsx', import.meta.url), 'utf8');
   assert.match(src, /plane=\{cs\.plane as never\}/);
 });
 

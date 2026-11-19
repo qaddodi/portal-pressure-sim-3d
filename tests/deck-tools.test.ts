@@ -1,4 +1,4 @@
-// The slide to instrument and chart hookup (ui/talk/ToolCard.tsx): every tool kind and every option of a tool that any copied 2D slide uses is handled, derived from the decks, pure (no browser).
+// The slide to instrument and chart hookup (ui/talk/ToolCard.tsx, its body ToolCardBody.tsx): every tool kind and every option of a tool that any copied 2D slide uses is handled, derived from the decks, pure (no browser).
 // A new kind or option in a 2D deck fails here until ToolCard (through ui/talk/instruments.ts and the chart registry) carries it, and a readiness flag is held to the evidence that backs it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,7 +31,7 @@ for (const id of RW_IDS) DECKS.push({ id, slides: (await RW_LOADERS[id]!()).slid
 const SLIDES = DECKS.flatMap((d) => d.slides.map((s) => ({ at: `${d.id}/${s.id}`, s })));
 const TOOLS = SLIDES.filter((x) => rec(x.s.tool)).map((x) => ({ at: x.at, s: x.s, tool: x.s.tool as Rec, kind: String((x.s.tool as Rec).kind) }));
 
-const SOURCE = readFileSync(new URL('../src/ui/talk/ToolCard.tsx', import.meta.url), 'utf8');
+const SOURCE = readFileSync(new URL('../src/ui/talk/ToolCardBody.tsx', import.meta.url), 'utf8');
 
 test('the decks carry the whole set of slides, and a good share of them put a tool in the data card', () => {
   assert.ok(SLIDES.length >= 508, `slides (${SLIDES.length})`);
