@@ -24,6 +24,8 @@ import { dragToOrbit } from './camera/rig.ts';
 import { type GestureTarget, createGestures } from './gesture/controller.ts';
 import { type Sel, selectStructure, useSelection } from '../ui/action/selection.ts';
 import { tapSelect } from '../ui/action/tap-select.ts';
+import { labelHit } from '../ui/action/label-tap.ts';
+import { labelAt } from './labels/hit.ts';
 
 const vesselData = new VesselData();
 cel.bindData(vesselData.texture);
@@ -114,7 +116,11 @@ function SceneBridge() {
       tap: (x, y, touch) => {
         if (useDeck.getState().mode !== 'free') return;
         if (cel.view === 'lobule') tapFigure(x, y, raycaster.current);   // (the lobule's part under the finger: src/ui/action/tap.ts)
-        else tapSelect(cel.pickTargetAt(x, y, raycaster.current, !!touch), { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: cel.view === 'body' });
+        else {
+          // a station's label above the figure takes the tap first and opens the structure it stands for (2D's label is a button over the stage: src/ui/action/label-tap.ts)
+          const node = cel.view === 'body' ? labelAt(x, y) : null;
+          tapSelect((node ? labelHit(node) : null) ?? cel.pickTargetAt(x, y, raycaster.current, !!touch), { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: cel.view === 'body' });
+        }
       },
       picked: () => useSelection.getState().sel,
       setPicked: (sel) => selectStructure(sel as Sel | null),

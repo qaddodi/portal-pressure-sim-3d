@@ -47,6 +47,9 @@ export interface LabelDeps {
   cathere(tip: Vector3, ahead: Vector3): 0 | 1 | 2;
   /** The body's labels stand aside while the figure is the Circuit (or on its way there): the map has its own captions (circuit/CircuitCaptions.tsx). */
   hidden?(): boolean;
+  /** Whether the varices (VAR) or the fundal varices (GV) exist now, as 2D's hasVarices answers it: no varices, no callout (a healthy patient's node is only the balance between
+   *  the coronary vein and the azygos, and a "varices" label on it would mislead), and the fundus label comes in with its varices. Absent: the old behaviour (VAR always, GV never). */
+  present?(id: 'VAR' | 'GV'): boolean;
 }
 
 export interface LabelState {
@@ -174,6 +177,9 @@ export class LabelController {
     const picked = st.picked ? STATIONS.find((s) => s.vessel === st.picked)?.id ?? null : null;
     for (const s of STATIONS) {
       if (s.kind === 'organ') { if (st.organNames) list.push(this.metaOf(s)); continue; }
+      const gated = (s.id === 'VAR' || s.id === 'GV') && this.deps.present ? this.deps.present(s.id) : null;
+      if (gated !== null) { if (gated && (s.id === 'GV' || s.core || st.named.has(s.id) || s.id === picked)) list.push(this.metaOf(s)); continue; }
+      if (s.id === 'GV') continue;   // (the fundal varices' label comes in only with its varices)
       if (s.core || st.named.has(s.id) || s.id === picked) list.push(this.metaOf(s));
     }
     return list;

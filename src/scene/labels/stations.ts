@@ -58,7 +58,7 @@ const curveOf = (edge: string): CatmullRomCurve3 | null => {
   return c;
 };
 
-/** Fixed scene points for stations that are not one vessel: the right atrium, the right liver's sinusoids, the varices. Where each stands is the 2D
+/** Fixed scene points for stations that are not one vessel: the right atrium, the right liver's sinusoids, the varices and the fundal varices. Where each stands is the 2D
  *  figure's own place for it (NODE_POS_2D), carried onto the scene by the one map (frame2d.ts), at the depth the vessels that meet there are drawn at (nodeZ): a
  *  dot put on the front tier hung 0.4 to 0.8 of a unit in front of the atrium's back-tier cava, which a turned camera shows as a dot off its vessel. An organ's name stands where the 2D app puts it (ORGAN_LABELS, copied), on the organ's front face. */
 const at2d = (x: number, y: number, z: number): [number, number, number] => [x3(x), y3(y), z];
@@ -69,7 +69,7 @@ export function nodeZ(id: string): number {
   return z;
 }
 const nodeAt = (id: string): [number, number, number] => at2d(NODE_POS_2D[id]![0], NODE_POS_2D[id]![1], nodeZ(id));
-const POINTS: Record<string, [number, number, number]> = { RA: nodeAt('RA'), SIN_R: nodeAt('SIN_R'), VAR: nodeAt('VAR') };
+const POINTS: Record<string, [number, number, number]> = { RA: nodeAt('RA'), SIN_R: nodeAt('SIN_R'), VAR: nodeAt('VAR'), GV: nodeAt('GV') };
 /** The plane of an organ's front face (frame2d.ts: organs lie behind z = 0.26). */
 export const ORGAN_FRONT = 0.26;
 /** Every organ the 2D app names (ORGAN_LABELS): its id here, and the word the 2D plate writes. */
@@ -82,7 +82,7 @@ const ORGAN_POINTS: Record<string, [number, number, number]> = Object.fromEntrie
 
 const DIRS: Record<string, readonly Dir[]> = {
   CONF: ['W', 'SW', 'E'], SV: ['S', 'SE', 'E'], SMV: ['E', 'SE', 'W'], SIN_R: ['W', 'SW', 'NW'], RHV: ['W', 'NW', 'N'], IVCS: ['E', 'NE', 'SE'],
-  IVCI: ['E', 'SE', 'NE'], RA: ['E', 'NE', 'SE'], VAR: ['E', 'NE', 'SE'], MHV: ['S', 'SW', 'W'], LHV: ['S', 'SE', 'E'], RPV: ['N', 'NW', 'W'], LPV: ['N', 'NE', 'E'],
+  IVCI: ['E', 'SE', 'NE'], RA: ['E', 'NE', 'SE'], VAR: ['E', 'NE', 'SE'], GV: ['E', 'NE', 'SE'], MHV: ['S', 'SW', 'W'], LHV: ['S', 'SE', 'E'], RPV: ['N', 'NW', 'W'], LPV: ['N', 'NE', 'E'],
   LGV: ['E', 'NE', 'SE'],
 };
 
@@ -117,7 +117,7 @@ function organStation(id: string): Station {
 /** Every station the 3D scene can label now, in the 2D app's order of importance. */
 export const STATIONS: readonly Station[] = [
   ...Object.keys(lv).filter((id) => !(id in POINTS) && !!names[id]).map(vesselStation).filter((s): s is Station => !!s),
-  ...['RA', 'SIN_R', 'VAR'].map(pointStation).filter((s): s is Station => !!s),
+  ...['RA', 'SIN_R', 'VAR', 'GV'].map(pointStation).filter((s): s is Station => !!s),
   ...Object.keys(ORGAN_POINTS).map(organStation),
 ].sort((a, b) => b.pri - a.pri || (a.id < b.id ? -1 : 1));
 

@@ -44,6 +44,7 @@ function Panel({ d, onBack }: { d: Details; onBack(): void }) {
         <button type="button" className="ac-back" aria-label={WORDS.back} title={WORDS.back} onClick={onBack}><Icon n="arrow-left" /></button>
         <div className="ac-dtitle"><span className="ac-kicker">{d.kicker}</span><h2 className="ac-name" title={d.title}>{d.title}</h2></div>
       </div>
+      <div className="ad-scroll">
       {dir && <div className="ac-state-row"><span className={`ac-state st-word ${STATE_CLS[dir[0]] ?? ''}`}>{dir[1]}</span></div>}
       <div className="ac-stats">
         {d.stats.map((s, i) => <div key={s.k} className={`ac-stat${s.wide ? ' wide' : ''}`}><span className="k">{s.k}</span><span className="v">{texts[i]}</span></div>)}
@@ -59,6 +60,7 @@ function Panel({ d, onBack }: { d: Details; onBack(): void }) {
           <div className="ac-as">{d.connections.map((c) => <button key={c.id} type="button" className="ac-btn" onClick={() => selectStructure({ type: 'edge', id: c.id })}><span className="ac-bl">{c.label}</span></button>)}</div>
         </section>
       )}
+      </div>
     </div>
   );
 }
