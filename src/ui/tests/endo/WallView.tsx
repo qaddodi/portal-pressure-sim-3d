@@ -12,7 +12,8 @@ import type { Frame } from '../../charts/scene.ts';
 import { ENDO_WORDS } from '../copied/endo-words.copied.js';
 import { createWallGeometry } from '../copied/wall-geometry.copied.js';
 import { metricsOf } from '../frame.ts';
-import { wallFontSize, pinWall, wallFrame, wallReadings, wallShare, WALL_NOTE, type WallPin, type WallVarix } from './wall.ts';
+import { useSlidePin, pinnedWall } from '../slide/pin.ts';
+import { wallFontSize, wallFrame, wallReadings, wallShare, WALL_NOTE, type WallVarix } from './wall.ts';
 
 const W = ENDO_WORDS.wall;
 const VAR = (NODES as { id: string }[]).findIndex((n) => n.id === 'VAR');
@@ -22,12 +23,9 @@ const none: Frame = { w: 0, h: 0, shapes: [], label: W.aria };
 const Name = ({ long, short }: { long: string; short: string }) => <dt><span className="wall-long">{long}</span><span className="wall-short">{short}</span></dt>;
 const Num = ({ v, unit }: { v: string; unit: string }) => <dd className="endo-num"><span>{v}</span><small>{unit ? ` ${unit}` : ''}</small></dd>;
 
-/** pin: the slide's own wall stress (its fingerprint's `wall`), shown in the big number and its word as 2D's pin(fp) does; absent in the Tests card. */
-export function WallView({ square, pin }: { square: number; pin?: unknown }) {
-  const last = useRef<WallPin>({ v: NaN, t: 0 });
-  const [pinned, setPinned] = useState(NaN);
-  useEffect(() => { last.current = pinWall(last.current, pin, performance.now()); setPinned(last.current.v); }, [pin]);
-  const json = useEngine((s) => { void s.frames; const v = metricsOf(latest.frame)?.varix; return v ? JSON.stringify(wallReadings(v as WallVarix, pinned)) : ''; });
+export function WallView({ square, slide = false }: { square: number; slide?: boolean }) {
+  useSlidePin((s) => s.n);   // (a slide's own state: the stress it shows is the settled one, eased as the slide's state changes)
+  const json = useEngine((s) => { void s.frames; const v = metricsOf(latest.frame)?.varix; return v ? JSON.stringify(wallReadings(v as WallVarix, slide ? pinnedWall() : NaN)) : ''; });
   const r = useMemo(() => (json ? JSON.parse(json) as ReturnType<typeof wallReadings> : null), [json]);
   const painter = useRef<ChartPainter | null>(null), ctx = useRef<ChartCtx | null>(null);
   const geom = useRef(createWallGeometry()), key = useRef('');

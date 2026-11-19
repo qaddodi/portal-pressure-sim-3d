@@ -1,98 +1,124 @@
 // Tests > Readouts (2D readouts-pane.js): every readout the old bottom bar carried, live, in the 2D app's own tile (tile-el.js: `.metric` with its name, number, unit, trend, scale bar with
 // cut-off ticks and status line), so the lifted stylesheet (app-01-chrome.css .metric, tests-card.css "Readouts") styles it: plain figures in four groups, hairlines between, the bars
-// and boxes of the older look gone. A tap says what drives it (Why?); an HVPG not yet measured opens the procedure that measures it. While a moment is pinned each tile says its change
-// from then in place of its word. The tile rows come from readouts-model.ts (the 2D dock's tile table). A number changes when the model sends a frame; the bar's fill is a transform.
-import { useRef, type CSSProperties } from 'react';
-import { useFrame, paramsNow } from './frame.ts';
-import { tileRows, vitalRows, GROUP_LIST, SYSTEMIC_CAP, type Row } from './readouts-model.ts';
+// and boxes of the older look gone. A tap says what drives it (Why?); an HVPG not yet measured opens the procedure that measures it; Ascites opens its own pane. While a moment is pinned each
+// tile says its change from then in place of its word. Under the groups, "Have a patient's numbers? Work backward from readings" opens the From readings flow (readings/FromReadings.tsx).
+//
+// What a tile shows between the model's frames is readouts/live.ts (2D's update(): the 1.2 s running mean, the shown state's glide, the roll of a number that is not carried by the glide, the
+// band that changes once its number has landed, the trend arrow, the flash on a worse band). Here each tile only draws its `Out`: the number's text (or the roll of its changed digits, a transform
+// the compositor eases), the word and band under a fade, the bar's length (written straight to the bar: translate and scale). Nothing is written in a frame by React.
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
+import { tileStatics, vitalStatics, SYSTEMIC_CAP, type Static } from './readouts-model.ts';
 import { useTests } from './store.ts';
-import { useShell } from '../shell/store.ts';
-import { useCompare } from '../compare/store.ts';
 import { openWhy } from '../why/store.ts';
-import { hiddenNow } from './hidden.ts';
+import { bindReadouts, liveReadouts } from './readouts/runtime.ts';
+import { openFromReadings, warmFromReadings } from '../readings/FromReadings.tsx';
+import type { Out } from './readouts/live.ts';
+import { D_FLIP, D_SMALL, EASE_ARRIVE, EASE_IN } from './copied/motion.copied.js';
 
-const TREND_S = 5, TREND_FRAC = 0.03;   // (readouts-pane.js: a sustained change over five seconds, larger than 3 % of the scale)
-const RANK: Record<string, number> = { none: -1, ok: 0, caution: 1, danger: 2, critical: 3 };
-const q = (v: number) => Math.round(v * 1000) / 1000;
+const STATICS = tileStatics(), VITALS = vitalStatics();
 
-/** One tile, in the 2D markup. `flash` is the class a reading that has just crossed into a worse band wears (the two names alternate so the animation starts again: app-07-floating.css .flash, .flash2). */
-function Tile({ r, trend, vital, flash }: { r: Row; trend: string; vital: boolean; flash: string }) {
-  const show = useTests((s) => s.show);
-  const go = () => {
-    if (r.pane) { show(r.pane as never); return; }
-    if (r.id === 'hvpg' && r.band === 'none') { show('hvpg'); return; }   // (an HVPG not yet measured opens the procedure that measures it)
-    if (r.why) openWhy(r.why);
-  };
-  const interactive = !!(r.why || r.pane);
-  const none = r.band === 'none';
-  const fill = none ? 0 : r.fill, zero = r.zero;
-  const lo = Math.min(fill, zero), len = Math.abs(fill - zero);
-  const aria = r.aria + (trend ? `, ${trend === 'up' ? 'rising' : 'falling'}` : '');
-  const title = `${r.title}${interactive ? (r.pane ? '\nClick to open the Ascites view.' : '\nClick for what is driving it.') : ''}`;
+/** The number: its text, or, while a roll runs, each changed digit in its own column (the lifted `.odo` rule), then the plain number again. A number that appears where "?" was fades in. */
+function Num({ out, cls, nref }: { out: Out; cls?: string; nref?: RefObject<HTMLSpanElement | null> }) {
+  const own = useRef<HTMLSpanElement>(null), ref = nref ?? own;
+  const [done, setDone] = useState(0);
+  const roll = out.roll && out.roll.n !== done ? out.roll : null;
+  useEffect(() => {
+    const r = out.roll; if (!r) return;
+    const t = setTimeout(() => setDone(r.n), r.ms + 40);
+    return () => clearTimeout(t);
+  }, [out.roll]);
+  const first = useRef(true);
+  useLayoutEffect(() => {
+    if (first.current) { first.current = false; return; }
+    const el = ref.current;
+    if (el?.animate) el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: D_SMALL, easing: EASE_ARRIVE });
+  }, [out.fade]);
   return (
-    <button type="button" className={`metric${vital ? ' rp-vital' : ''}${flash ? ` ${flash}` : ''}${r.value === '?' || r.value === '—' ? ' hidden-val' : ''}`} data-id={r.id} data-sev={r.band} aria-label={aria} title={title}
+    <span ref={ref as RefObject<HTMLSpanElement>} className={`val${cls ? ` ${cls}` : ''}${out.stale ? ' recompute' : ''}`}>
+      {roll ? roll.plan.map((p, i) => ('t' in p
+        ? <span key={`${roll.n}.${i}`}>{p.t}</span>
+        : <span key={`${roll.n}.${i}`} className={p.up ? 'odo' : 'odo down'} data-s={p.s.join('\n')} style={{ '--odo-n': p.n, '--odo-ms': `${roll.ms}ms` } as React.CSSProperties}>{p.end}</span>))
+        : out.text}
+    </span>
+  );
+}
+
+/** A value that changes under a fade (swapFade): the old fades out (exit curve), the new is put in, and it fades in; `instant` puts it in at once. */
+function useSwapped<T>(target: T, ref: RefObject<HTMLElement | null>, instant: boolean): T {
+  const [shown, setShown] = useState(target);
+  const latest = useRef(target); latest.current = target;
+  const pend = useRef(false);
+  useLayoutEffect(() => {
+    if (Object.is(shown, target) || pend.current) return;
+    const el = ref.current;
+    if (instant || !el || !el.animate || !el.isConnected) { setShown(target); return; }
+    pend.current = true;
+    const a = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: D_FLIP, easing: EASE_IN, fill: 'forwards' });
+    const done = () => { pend.current = false; setShown(latest.current); a.cancel(); el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: D_SMALL, easing: EASE_ARRIVE }); };
+    void a.finished.then(done, done);
+  }, [target, shown, instant, ref]);
+  return shown;
+}
+
+/** One tile, in the 2D markup. */
+function Tile({ s }: { s: Static }) {
+  const live = liveReadouts();
+  const out = useSyncExternalStore((cb) => live.subscribe(s.id, cb), () => live.get(s.id));
+  const show = useTests((x) => x.show);
+  const valRef = useRef<HTMLSpanElement>(null), statusRef = useRef<HTMLSpanElement>(null), trRef = useRef<HTMLSpanElement>(null);
+  const sev = useSwapped(out.sev, valRef, !out.bandFade);
+  const ws = useSwapped(`${out.unmeas ? '1' : ''}${out.word}`, statusRef, false);
+  const arrow = useSwapped(out.trend, trRef, false);
+  const fillRef = useCallback((el: HTMLElement | null) => live.bindFill(s.id, el), [live, s.id]);
+  const interactive = !!(s.why || s.pane);
+  const go = () => {
+    if (s.pane) { show(s.pane as never); return; }
+    if (s.id === 'hvpg' && out.hiddenVal) { show('hvpg'); return; }   // (an HVPG not yet measured opens the procedure that measures it)
+    if (s.why) void openWhy(s.why);
+  };
+  const title = `${s.title}${s.pane ? '\nClick to open the Ascites view.' : s.why ? '\nClick for what is driving it.' : ''}`;
+  return (
+    <button type="button" className={`metric${s.vital ? ' rp-vital' : ''}${out.flash ? ` ${out.flash}` : ''}${out.hiddenVal ? ' hidden-val' : ''}`} data-id={s.id} data-sev={sev} aria-label={out.aria || undefined} title={title}
       style={interactive ? undefined : { cursor: 'default' }} onClick={interactive ? go : undefined}>
-      <span className="k">{vital ? <><span className="k-l">{r.name}</span><span className="k-s">{r.short}</span></> : r.name}</span>
+      <span className="k">{s.vital ? <><span className="k-l">{s.name}</span><span className="k-s">{s.short}</span></> : s.name}</span>
       <span className="v">
-        {r.bp ? <><span className="val v-bp">{r.bp.pre}</span><span className="v-map"><span className="val v-bp">(</span><span className="val">{r.bp.mean}</span><span className="val v-bp">)</span></span></> : <span className="val">{r.value}</span>}
-        <span className={r.u === '%' ? 'unit pct' : 'unit'}>{r.u ?? r.unit}{r.ux ? <span className="u-x">{r.ux}</span> : null}</span>
-        {!vital && <span className="tr" aria-hidden="true">{trend === 'up' ? '▲' : trend === 'down' ? '▼' : ''}</span>}
+        {s.bp ? <><span className="val v-bp">{out.pre}</span><span className="v-map"><span className="val v-bp">{out.pre ? '(' : ''}</span><Num out={out} nref={valRef} /><span className="val v-bp">{out.pre ? ')' : ''}</span></span></>
+          : <Num out={out} nref={valRef} />}
+        <span className={s.u === '%' ? 'unit pct' : 'unit'}>{s.u}{s.ux ? <span className="u-x">{s.ux}</span> : null}</span>
+        {!s.vital && <span className="tr" aria-hidden="true" ref={trRef}>{arrow === 'up' ? '▲' : arrow === 'down' ? '▼' : ''}</span>}
       </span>
       <span className="rb" aria-hidden="true">
-        <i className="rb-fill" style={{ '--fl': q(lo), '--fw': q(len) } as CSSProperties} />
-        {r.ticks.map((t, i) => <i key={i} className="rb-tick" style={{ left: `${t * 100}%` }} />)}
+        <i className="rb-fill" ref={fillRef} />
+        {s.ticks.map((t, i) => <i key={i} className="rb-tick" style={{ left: `${t * 100}%` }} />)}
       </span>
       <span className="s">
-        {r.cmp ? <span className={`cmp ${r.cmp.dir}`}>{r.cmp.text}</span> : <span className={`status${none && r.word === 'Not measured' ? ' unmeas' : ''}`}>{r.word}</span>}
+        {out.cmp ? <span className={`cmp ${out.cmp.dir}`}>{out.cmp.text}</span> : <span ref={statusRef} className={`status${ws.startsWith('1') ? ' unmeas' : ''}`}>{ws.replace(/^1/, '')}</span>}
       </span>
     </button>
   );
 }
 
 export function ReadoutsPane(_: { narrow?: boolean }) {
-  const f = useFrame();
-  const snap = useCompare((s) => s.snap);
-  const hist = useRef(new Map<string, Array<[number, number]>>());
-  const vitals = useRef<Record<string, object>>({});
-  const was = useRef(new Map<string, { band: string; flash: string }>());
-  if (!f) return null;
-  const m = f.metrics, params = paramsNow();
-  const now = performance.now();
-  const then = snap?.metrics ?? null;
-  const groups = tileRows(m, params, hiddenNow(), then);
-  const trendOf = (id: string, v: number | null, span: number): string => {
-    if (v == null || !Number.isFinite(v)) { hist.current.delete(id); return ''; }
-    const hs = hist.current.get(id) ?? [];
-    if (!hs.length || now - hs[hs.length - 1]![0] > 500) { hs.push([now, v]); while (hs.length && now - hs[0]![0] > TREND_S * 1000 + 600) hs.shift(); }
-    hist.current.set(id, hs);
-    if (now - hs[0]![0] < TREND_S * 1000 * 0.8) return '';
-    const d = v - hs[0]![1];
-    return d > TREND_FRAC * span ? 'up' : d < -TREND_FRAC * span ? 'down' : '';
-  };
-  // a reading that crosses into a worse band flashes once (2D: RANKS, .flash / .flash2)
-  const flashOf = (id: string, band: string): string => {
-    const o = was.current.get(id);
-    if (!o) { was.current.set(id, { band, flash: '' }); return ''; }
-    if (o.band === band) return o.flash;
-    const worse = RANK[band]! > RANK[o.band]! && o.band !== 'none';
-    const flash = worse ? (o.flash === 'flash' ? 'flash2' : 'flash') : '';
-    was.current.set(id, { band, flash });
-    return flash;
-  };
-  const sys = vitalRows(m, useShellRunning(), now, vitals.current);
+  // (the tiles are fed while the pane is on screen: every model frame, and again when the pinned moment, the hidden set or the patient changes)
+  useLayoutEffect(() => bindReadouts(), []);
+  useEffect(() => { void warmFromReadings().catch(() => undefined); }, []);
   return (
     <div className="rp-body" data-pane="readouts" style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
-      {GROUP_LIST.map(([g, label], gi) => (
-        <section key={g} className="rp-group" data-group={g} aria-label={label}>
-          <h3 className="rp-cap">{label}</h3>
-          <div className="rp-tiles">{groups[gi]!.rows.map((r) => <Tile key={r.id} r={r} vital={false} flash={flashOf(r.id, r.band)} trend={trendOf(r.id, Number.isFinite(parseFloat(r.value)) ? r.fill : null, 1)} />)}</div>
+      {STATICS.map((g) => (
+        <section key={g.group} className="rp-group" data-group={g.group} aria-label={g.label}>
+          <h3 className="rp-cap">{g.label}</h3>
+          <div className="rp-tiles">{g.tiles.map((t) => <Tile key={t.id} s={t} />)}</div>
         </section>
       ))}
       <section className="rp-group" data-group="systemic" aria-label={SYSTEMIC_CAP}>
         <h3 className="rp-cap">{SYSTEMIC_CAP}</h3>
-        <div className="rp-tiles">{sys.map((r) => <Tile key={r.id} r={r} vital flash={flashOf(r.id, r.band)} trend="" />)}</div>
+        <div className="rp-tiles">{VITALS.map((t) => <Tile key={t.id} s={t} />)}</div>
+      </section>
+      {/* (A second door to From readings, where readings live: the patient menu's top row is the first. Review U13.) */}
+      <section className="rp-group rp-fr" aria-label="From readings">
+        <h3 className="rp-cap">Have a patient’s numbers?</h3>
+        <button type="button" className="btn sm rp-fr-btn" onClick={() => openFromReadings()}><i className="ic ic-rewind rp-fr-ic" aria-hidden="true" /><span>Work backward from readings</span></button>
       </section>
     </div>
   );
 }
-const useShellRunning = () => useShell((s) => s.transport.running);

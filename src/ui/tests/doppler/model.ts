@@ -24,6 +24,8 @@ import { measure } from '../../charts/measure.ts';
 import { feed, type SampleFeed } from '../feed.ts';
 import { paramsNow } from '../frame.ts';
 import { useDopplerProbe } from './probe-state.ts';
+import { pinnedAt } from '../slide/pin.ts';
+import { dopplerVel } from '../../../scene/lenses/vel-normal.copied.js';
 import type { SpectrumDraw } from './spectrum-gl.ts';
 
 export type DopMode = 'spectrum' | 'velocity' | 'variance';
@@ -84,6 +86,28 @@ export class DopplerModel {
   spec: SpectrumDraw | null = null;
   private colA = new Float32Array(0);
   private colB = new Float32Array(0);
+
+  /** a slide's data card (2D `--dop-ov`): the reading is the slide's own steady one, not the beat-to-beat live mean (set by the pane) */
+  slide = false;
+  private steadySt = { probe: null as string | null, v: 0, t: 0, n: 0 };
+  /** The running mean behind a slide's reading: eases toward the 3 s mean over about six seconds (about a second and a half after a clear change), and starts again on a new vessel or after a gap (2D steadyMean). */
+  private steadyMean(x: number, now = performance.now()): number {
+    const st = this.steadySt, dt = (now - st.t) / 1000;
+    if (st.probe !== this.probe || dt > 1.5 || !Number.isFinite(st.v)) { st.probe = this.probe; st.v = x; st.n = 1; }
+    else if (dt > 0) {
+      const far = Math.abs(x - st.v) > 0.25 * Math.max(Math.abs(x), 4);
+      st.n++;
+      st.v += (x - st.v) * (far ? 1 - Math.exp(-dt / 1.5) : Math.max(1 / st.n, 1 - Math.exp(-dt / 6)));
+    }
+    st.t = now;
+    return st.v;
+  }
+  /** The slide's own velocity in the probed vessel as the scanner reads it (2D pinnedVel: the settled state's flows and widths), NaN when the slide pins none. */
+  private pinnedVel(): number {
+    const at = pinnedAt(), k = this.probe ? EI[this.probe] : null;
+    if (!at || k == null || !at.Q || !at.D) return NaN;
+    return Math.abs(dopplerVel({ Q: at.Q, D: at.D }, k) as number);
+  }
 
   get sweep(): number { return SWEEP_SECONDS[this.sweepIndex]!; }
   /** True while a mark or a letter is easing (the pane asks for frames until it is still, even with the model paused). */
@@ -236,11 +260,16 @@ export class DopplerModel {
     }
     const p = rd.meta();
     const gf = rd.gateFactor() as number;
-    const open = Math.abs(r.mean);
-    const mean = r.mean * gf;
+    // (On a slide the reading is steady, and while it agrees with the slide's own velocity in this vessel it is that one: one number on every screen.)
+    let rm = this.slide ? this.steadyMean(r.mean * gf) / gf : r.mean;
+    const fixed = this.slide ? this.pinnedVel() : NaN;
+    if (Number.isFinite(fixed) && Math.abs(Math.abs(rm) - fixed) < Math.max(4, fixed * 0.12)) rm = (rm < 0 ? -1 : 1) * fixed;
+    const open = Math.abs(rm);
+    const mean = rm * gf;
     rd.SEEN.gated = mean; rd.SEEN.open = open;
     const it = rd.interpret(r, gf, rd.SEEN);
-    const drawn = mean;
+    // (In a slide's strip the reading is signed as the trace is drawn, the scanner's way: a hepatic vein's forward flow runs away from the probe, so it reads "−18 · Toward the heart".)
+    const drawn = this.slide ? mean * (rd.pol() as number) : mean;
     const dp = Math.abs(drawn) < 10 ? 1 : 0;
     const tiles: Tile[] = this.tilesFor(r);
     const T = (k: string) => tiles.find((t) => t.k === k)!;

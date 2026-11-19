@@ -3,7 +3,8 @@
 // figure's tap tables (tap-map.ts) and the vessels the scene draws (NETWORK_BY_ID); a kind the catalogue has no card for is not claimed.
 //   present  the card (or its Details face) exists with the 2D words
 //   wired    a person gets to it from the figure (a tap, or Tab and Enter) and its Details face is one tap on its name away
-// A lobule part's card has no Details face in 2D (its name is not a button), so the lobule "-details" rows are not claimed: 2D's gallery shows the patient chart there, which is the charts' (B10).
+// A lobule part's card has no Details face in 2D (its name is not a button): the gallery's "-details" specimen of one shows the card itself, which is what the 3D card is, so those rows follow the card.
+// The varices' and the fundus' cards have no mesh to tap: the station's label opens them (stations.ts: VAR and GV, label-tap.ts), as 2D's label does.
 import { decideKey } from '../ui/keys/keymap.ts';
 import { step } from '../scene/labels/walk.ts';
 import { WALK_ORGANS } from '../ui/action/walk-organs.ts';
@@ -16,7 +17,9 @@ const out: Claim[] = [];
 for (const r of structureRows()) {
   for (const sfx of ['', '#2']) {
     if (r.card) out.push({ id: rowId('card', `structure/${r.id}${sfx}`), wired: r.reach });
-    if (r.details) out.push({ id: rowId('card', `structure/${r.id}-details${sfx}`), wired: r.reach });
+    // (A lobule part's card has no Details face in 2D: its name is plain text, and the gallery's "-details" specimen taps it, which does nothing, so it shows the card itself. The 3D card is
+    //  that card, its name plain too (ActionCard: no button where the card says noDetails), so the row is the card's and is claimed as far as the card is reached.)
+    if (r.details || r.plain) out.push({ id: rowId('card', `structure/${r.id}-details${sfx}`), wired: r.reach });
   }
 }
 
