@@ -57,6 +57,8 @@ export const sceneApi = {
   flowPulse(): void { cel.flow.trigger(performance.now()); clock.invalidate('flow-pulse'); },
   /** Colour the veins by a lens (the Layers menu's ten, a slide's `system` or `since`, or 'neutral' for the plain anatomy). They crossfade in 420 ms. */
   setLens(lens: LensId, instant = false): void { useLens.setState({ lens }); cel.setLens(lens, performance.now(), instant); clock.invalidate('lens'); },
+  /** Compare's Change view: Change and Congestion count from a pinned moment's pressures; null goes back to the healthy reference. */
+  setLensRef(P: ArrayLike<number> | null): void { cel.setLensRef(P); clock.invalidate('lens'); },
   /** The Blood menu: chevrons, key chevrons only, potential collaterals (the other two are the cards' and tags' business). Remembered across visits. */
   setBlood(patch: Partial<BloodChoice>, presenting = false): void {
     useBlood.getState().set(patch);

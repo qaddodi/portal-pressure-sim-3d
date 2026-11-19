@@ -190,6 +190,8 @@ export class CelScene {
     this.lens.setContext({ healthy: { Q: h.Q, D: h.D, P: h.P }, ref: Float32Array.from(h.P) });
     this.moving = true;
   }
+  /** Count Change and Congestion from a pinned moment's node pressures (Compare > Change), or from the healthy patient again (null). */
+  setLensRef(P: ArrayLike<number> | null): void { this.lens.setRef(P); this.moving = true; }
   /** The Blood menu: chevrons on or off, key routes only, and potential collaterals (dotted routes). */
   setBlood(o: Partial<BloodOptions> & { collaterals?: boolean }): void {
     if (o.collaterals !== undefined && o.collaterals !== this.collateralsOn) {

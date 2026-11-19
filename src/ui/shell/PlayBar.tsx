@@ -5,8 +5,12 @@ import { useShell } from './store.ts';
 import { Anchored } from './Pop.tsx';
 import { Icon } from './icons.tsx';
 import { runFeature } from './features.ts';
-import { jump, restart, setSpeed, settle, togglePlay } from './transport.ts';
+import { jump, setSpeed, settle, togglePlay } from './transport.ts';
 import { PLAY_TITLES, SETTLED } from './words.ts';
+import { useCompare } from '../compare/store.ts';
+import { useTimeline } from '../timeline/store.ts';
+import { restartPatient } from '../patients/index.ts';
+import { CMP } from '../compare/words.ts';
 // @ts-ignore the pinned engine copy is plain JS
 import * as cuts from '../../engine/hales/portal/pressure-cuts.js';
 
@@ -28,14 +32,15 @@ function SpeedMenu() {
 
 function JumpMenu({ compare }: { compare: boolean }) {
   const done = () => useShell.getState().close();
+  const canUndo = useTimeline((t) => t.canUndo), comparing = useCompare((c) => !!c.snap);
   return (
     <>
-      <button type="button" className="sh-row" style={{ gridTemplateColumns: '1fr' }} onClick={() => { done(); runFeature('undo', pb.menu[2]); }}><span className="sh-t">{pb.menu[2]}</span></button>
+      {canUndo && <button type="button" className="sh-row" style={{ gridTemplateColumns: '1fr' }} onClick={() => { done(); runFeature('undo', pb.menu[2]); }}><span className="sh-t">{pb.menu[2]}</span></button>}
       <div className="sh-title">{pb.menu[3]}</div>
       {pb.jumps.map((j) => <button key={j.short} type="button" className="sh-row" style={{ gridTemplateColumns: '1fr' }} onClick={() => { done(); jump(j.days); }}><span className="sh-t">{`Jump ${j.long} ahead`}</span></button>)}
       <button type="button" className="sh-row" style={{ gridTemplateColumns: '1fr' }} onClick={() => { done(); jump('event'); }}><span className="sh-t">{pb.menu[4]}</span></button>
       <button type="button" className="sh-row" style={{ gridTemplateColumns: '1fr' }} onClick={() => { done(); settle(); useShell.getState().say(SETTLED); }}><span className="sh-t">{pb.menu[5]}</span></button>
-      {compare && <button type="button" className="sh-row" style={{ gridTemplateColumns: '1fr' }} onClick={() => { done(); runFeature('compare', pb.menu[6]); }}><span className="sh-t">{pb.menu[6]}</span></button>}
+      {compare && <button type="button" className="sh-row" style={{ gridTemplateColumns: '1fr' }} onClick={() => { done(); runFeature('compare', pb.menu[6]); }}><span className="sh-t">{comparing ? CMP.stop : pb.menu[6]}</span></button>}
     </>
   );
 }
@@ -54,6 +59,7 @@ export function PlayBar({ phone }: { phone: boolean }) {
   const mode = useShell((s) => s.mode);
   const hvpg = useEngine((s) => s.hvpg), pv = useEngine((s) => s.pv), ivc = useEngine((s) => s.ivc);
   const ppg = pv != null && ivc != null ? pv - ivc : null;
+  const comparing = useCompare((c) => !!c.snap), histCount = useTimeline((t) => t.count);
   const hold = useRef<{ t: ReturnType<typeof setTimeout> | undefined; held: boolean }>({ t: undefined, held: false });
   const lap = pb.lapses.find((l) => l.days === lapse);
   const speedText = lapse ? (lap ? lap.short : `${lapse} d/s`) : `${speed}×`;
@@ -71,15 +77,15 @@ export function PlayBar({ phone }: { phone: boolean }) {
           onClick={() => { if (hold.current.held) { hold.current.held = false; return; } togglePlay(); }}>
           <Icon n={running ? 'pause' : lapse ? 'playlapse' : 'play'} />
         </button>
-        <button type="button" aria-label={pb.controls[1]} title={PLAY_TITLES.restart} onClick={restart}><Icon n="reset" /></button>
+        <button type="button" aria-label={pb.controls[1]} title={PLAY_TITLES.restart} onClick={() => { void restartPatient(); }}><Icon n="reset" /></button>
       </div>
       <span className="sh-time" aria-live="off">{time}</span>
       <Anchored sheet="jump" place="above" align={phone ? 'end' : 'start'} width={300} label={pb.controls[4]} button={({ id, open, toggle }) => (
         <button type="button" className="sh-pill" data-icon-only data-opens="jump" aria-haspopup="menu" aria-expanded={open} aria-controls={id} aria-label={pb.controls[4]} title={PLAY_TITLES.ffwd} onClick={toggle}><Icon n="ffwd" /></button>)}>
         <JumpMenu compare={phone} />
       </Anchored>
-      {!phone && <button type="button" className="sh-pill" aria-haspopup="dialog" aria-label={pb.controls[3]} title={PLAY_TITLES.history} onClick={() => runFeature('history', pb.controls[3])}><Icon n="clock" /><span>{pb.controls[3]}</span></button>}
-      {!phone && <button type="button" className="sh-pill" aria-pressed="false" aria-label={pb.controls[5]} title={PLAY_TITLES.compare} onClick={() => runFeature('compare', pb.controls[5])}><Icon n="compare" /><span>Compare</span></button>}
+      {!phone && <button type="button" className="sh-pill" aria-haspopup="dialog" aria-label={pb.controls[3]} title={PLAY_TITLES.history} onClick={() => runFeature('history', pb.controls[3])}><Icon n="clock" /><span>{pb.controls[3]}</span>{histCount > 0 && <small className="sh-count">{histCount}</small>}</button>}
+      {!phone && <button type="button" className="sh-pill" aria-pressed={comparing} aria-label={comparing ? CMP.stop : pb.controls[5]} title={comparing ? PLAY_TITLES.stopCompare : PLAY_TITLES.compare} onClick={() => runFeature('compare', pb.controls[5])}><Icon n="compare" /><span>{comparing ? 'Stop' : 'Compare'}</span></button>}
       {!phone && <Readout label="HVPG" value={hvpg} sev={hvpgSev} word={hvpg == null ? '' : (cuts.hvpgWord(hvpg) as string)} />}
       {!phone && <Readout label="PPG" value={ppg} sev={ppgSev} word={ppg == null ? '' : (cuts.ppgWord(ppg) as string)} />}
     </div>
