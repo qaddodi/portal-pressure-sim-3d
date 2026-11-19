@@ -48,7 +48,7 @@ const WHEN: Record<string, (c: CopiedSlide) => boolean> = {
   compare: (c) => Array.isArray(c.compare) && !c.compare.some((o) => 'gate' in o || 'tool' in o),   // (the instruments' own buttons belong to the Tests cards)
   whatIf: (c) => !(c.whatIf as { tool?: unknown } | undefined)?.tool,
   scales: () => false,                                                                              // (carried only as a switch of two or more views: decks-controls.test.ts)
-  response: (c) => c.response === true, hvpgRespX: () => false,
+  response: (c) => c.response === true,
   cols: (c) => c.visual === 'table', of: (c) => c.visual === 'table', vs: (c) => c.visual === 'table', asc: (c) => c.visual === 'table', rowHead: (c) => c.visual === 'table',
   foot: (c) => c.visual === 'table', note: (c) => c.visual === 'table', calm: (c) => c.visual === 'table', focusRow: (c) => c.visual === 'table',
   terms: () => false,                                                                               // (only the words the figure's labels can place: hp/deck.ts knownTerms)
