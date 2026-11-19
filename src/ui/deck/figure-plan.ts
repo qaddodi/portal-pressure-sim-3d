@@ -9,6 +9,7 @@ import { HIDDEN_EDGES } from '../../scene/vessels/paths.copied.ts';
 import { EDGES } from '../../engine/hales/portal/topology.js';
 import { ORGAN_STYLE } from '../../scene/organs/layer.ts';
 import { RES_KEYS, type ResKey } from '../../scene/circuit/res-model.ts';
+import { spanOf } from '../../scene/labels/span-math.ts';
 import {
   TARGETS_FIG, EDGE_TONE_2D, SITE_NODE_2D, VAL_TONE_2D, SETS_FIG, ORGANS_FIG, ORGAN_ANCHOR_2D, ORGAN_MARKS_2D, VARIX_EDGE_2D, SITE_DEF_2D, type Target2D,
 } from '../../scene/labels/figure2d.copied.ts';
@@ -32,6 +33,8 @@ export const toneCss = (tone: string | null | undefined): string => (!tone ? 'va
 export interface GlowItem { id: string; tone: string | null; /** ms after the slide lands (glowSeq) */ at: number; soft: boolean }
 export interface MarkItem { edges: string[]; organ: string | null; label: string; kind: 'block' | 'treat' | 'note'; free: boolean; seg?: string; clot?: boolean }
 export interface CaliperItem { id: string; organ: 'spleen' | null; edge: string | null; key: string | null }
+/** A bracket on the Circuit between two stations, with its words (a brace in them names a reading of the slide's state). */
+export interface SpanItem { from: string; to: string; label: string }
 export interface StepItem { n: number; at: number; ids: string[] | null; organ: string | null; group: boolean }
 export interface OrganPin { id: string; tone: string | null }
 
@@ -56,6 +59,8 @@ export interface FigurePlan {
   /** The readings on the figure (pv, ivc, ra, web, split) that no station label already carries, and the Circuit's (rLiver...). */
   sites: string[];
   calipers: CaliperItem[];
+  /** The Circuit's brackets (`span`). */
+  spans: SpanItem[];
   spot: { edges: string[]; organs: OrganPin[] } | null;
   normalOutline: string[];
   lapseGlow: OrganPin[];
@@ -69,7 +74,7 @@ export interface FigurePlan {
   unresolved: string[];
 }
 
-export const EMPTY_PLAN: FigurePlan = { labels: [], tones: {}, glow: [], organs: [], res: [], lit: [], marks: [], caudate: false, callout: null, sites: [], calipers: [], spot: null, normalOutline: [], lapseGlow: [], ripple: null, steps: null, glowSeq: 0, since: null, unresolved: [] };
+export const EMPTY_PLAN: FigurePlan = { labels: [], tones: {}, glow: [], organs: [], res: [], lit: [], marks: [], caudate: false, callout: null, sites: [], calipers: [], spans: [], spot: null, normalOutline: [], lapseGlow: [], ripple: null, steps: null, glowSeq: 0, since: null, unresolved: [] };
 
 // ── the words of a slide that point at the figure (presenter-words.js termList / slideTargets) ──
 const AUTO_TERMS = ['cavernoma'];
@@ -196,6 +201,14 @@ export function figurePlan(s: CopiedSlide): FigurePlan {
     : { id, organ: null, edge: id, key: null });
   for (const c of calipers) if (c.edge && !vesselKnown(c.edge)) bad('caliper', c.id);
 
+  // the Circuit's brackets (callout-math.js spanOf): both stations must be on the map, and not at one x
+  const spans: SpanItem[] = [];
+  for (const sp of list(s.span as { from?: string; to?: string; label?: unknown }[] | undefined)) {
+    if (!sp || typeof sp.from !== 'string' || typeof sp.to !== 'string') { bad('span', '?'); continue; }
+    if (!spanOf(sp.from, sp.to)) { bad('span', `${sp.from}-${sp.to}`); continue; }
+    spans.push({ from: sp.from, to: sp.to, label: String(sp.label ?? '') });
+  }
+
   // numbered steps (callout-math.js stepPlan): one for each entry of the glow, in order
   const steps: StepItem[] | null = s.steps && seq > 0
     ? list(s.glow as Json).flatMap((g) => (Array.isArray(g) ? [expandIds(g.map((x) => (typeof x === 'string' ? x : (x as { id?: string })?.id)))] : expandIds([typeof g === 'string' ? g : (g as { id?: string })?.id]))).map((g, i) => {
@@ -213,7 +226,7 @@ export function figurePlan(s: CopiedSlide): FigurePlan {
 
   return {
     labels: [...new Set(labelSet)], tones, glow: [...glow.values()], organs: pins, res: [...res.keys()], lit: [...lit], marks, caudate: pins.some((o) => o.id === 'caudate' || o.id === 'caudate-lobe'),
-    callout, sites, calipers, spot: sp ? { edges: sp.edges, organs: sp.organs } : null, normalOutline, lapseGlow,
+    callout, sites, calipers, spans, spot: sp ? { edges: sp.edges, organs: sp.organs } : null, normalOutline, lapseGlow,
     ripple: s.ripple === true ? true : typeof s.ripple === 'string' ? s.ripple : null, steps, glowSeq: seq, since, unresolved,
   };
 }
