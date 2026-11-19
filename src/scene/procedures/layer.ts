@@ -7,6 +7,7 @@ import type { CelShared } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
 import { ProcCatheter, type CatheterState, type RingName } from '../devices/catheters/proc-catheter.ts';
 import { route3d, stopsOf } from './route3d.ts';
+import { StentDevice } from '../devices/stent/stent-device.ts';
 import { procFrame as procFrameJs, specOf } from './copied/proc-anim.js';
 import { CATH_END } from './copied/cath-arrival.js';
 
@@ -51,13 +52,34 @@ export class ProcedureLayer {
   readonly frame: Rec = { u: 0, balloon: 0, column: 0, opacity: 0, step: -1, shot: '', needle: 0, wire: 0, flash: 0, coil: 0, read: 0 };
 
   private readonly shared: CelShared;
+  /** The TIPS's and the DIPS's stents, each on its own shunt vessel. */
+  readonly stents = new Map<'TIPS' | 'DIPS', StentDevice>();
+  private lastTick = -1;
   constructor(shared: CelShared) { this.shared = shared; this.group.name = 'procedures'; }
 
   /** Every object the layer draws, for the scene's look and phone switches and for disposal. */
   get objects() { return [...this.caths.values()].flatMap((c) => c.objects); }
 
-  applyPalette(p: Palette): void { this.palette = p; for (const c of this.caths.values()) c.applyPalette(p); this.dirty = true; }
-  setPhone(phone: boolean): void { this.phone = phone; for (const c of this.caths.values()) c.setPhone(phone); this.dirty = true; }
+  /** Put a stent on its shunt's vessel (the vessel carries the lumen's narrowing). */
+  addStent(id: 'TIPS' | 'DIPS', vessel: VesselObject): StentDevice {
+    const s = new StentDevice(id, this.shared);
+    s.bindVessel(vessel);
+    if (this.palette) s.applyPalette(this.palette);
+    s.setPhone(this.phone);
+    this.group.add(s.group);
+    this.stents.set(id, s);
+    return s;
+  }
+  /** The engine's newest frame and params: each stent follows its shunt's diameter and shape. */
+  syncStents(frame: { D: ArrayLike<number> } | null, params: unknown, instant = false): boolean {
+    let moved = false;
+    for (const s of this.stents.values()) moved = s.sync(frame, params as never, instant) || moved;
+    if (moved) this.dirty = true;
+    return moved;
+  }
+
+  applyPalette(p: Palette): void { this.palette = p; for (const c of this.caths.values()) c.applyPalette(p); for (const s of this.stents.values()) s.applyPalette(p); this.dirty = true; }
+  setPhone(phone: boolean): void { this.phone = phone; for (const c of this.caths.values()) c.setPhone(phone); for (const s of this.stents.values()) s.setPhone(phone); this.dirty = true; }
 
   /** The route a procedure's catheter travels (its spec's `route`, else the kind itself), or null for one with no catheter (a graft, a scope). */
   routeKindOf(kind: string): string | null {
@@ -161,6 +183,9 @@ export class ProcedureLayer {
 
   /** Steps the move on the clock. True while it plays, or draws once more. */
   update(now: number): boolean {
+    const dt = this.lastTick < 0 ? 16 : Math.min(100, now - this.lastTick); this.lastTick = now;
+    let stentMoving = false;
+    for (const s of this.stents.values()) stentMoving = s.update(dt) || stentMoving;
     const r = this.run;
     if (r) {
       const t = Math.min(r.to, r.from + (now - r.t0) * r.speed);
@@ -171,8 +196,8 @@ export class ProcedureLayer {
       return true;
     }
     const d = this.dirty; this.dirty = false;
-    return d;
+    return d || stentMoving;
   }
 
-  dispose(): void { for (const o of this.objects) o.dispose(); }
+  dispose(): void { for (const o of this.objects) o.dispose(); for (const s of this.stents.values()) s.dispose(); }
 }

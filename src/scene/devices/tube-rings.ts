@@ -59,3 +59,27 @@ export function showRings(g: BufferGeometry, i0: number, i1: number, radial: num
   const a = Math.max(0, Math.floor(i0)), b = Math.max(a, Math.floor(i1));
   g.setDrawRange(a * radial * 6, Math.max(0, (b - a) * radial * 6));
 }
+
+/** One geometry from several tubes (the stent's wires: dozens of rings, one draw). Each path is a list of rings; every path gets `radial` vertices round. Attributes as `allocTube`'s. */
+export function mergeTubes(paths: readonly (readonly Ring[])[], radial: number): BufferGeometry {
+  const live = paths.filter((p) => p.length >= 2);
+  const parts = live.map((p) => { const g = allocTube(p.length, radial); writeRings(g, p, radial); return g; });
+  if (!parts.length) { const g = allocTube(2, radial); writeRings(g, makeRings(2), radial); g.setDrawRange(0, 0); return g; }
+  let vTotal = 0, iTotal = 0;
+  for (const g of parts) { vTotal += g.getAttribute('position').count; iTotal += g.index!.count; }
+  const out = new BufferGeometry();
+  const attr = (name: string, size: number) => { const a = new Float32Array(vTotal * size); out.setAttribute(name, new BufferAttribute(a, size)); return a; };
+  const P = attr('position', 3), N = attr('normal', 3), T = attr('tang', 3), U = attr('uv', 2), I = new Uint32Array(iTotal);
+  let vo = 0, io = 0;
+  for (const g of parts) {
+    P.set(g.getAttribute('position').array as Float32Array, vo * 3); N.set(g.getAttribute('normal').array as Float32Array, vo * 3);
+    T.set(g.getAttribute('tang').array as Float32Array, vo * 3); U.set(g.getAttribute('uv').array as Float32Array, vo * 2);
+    const ix = g.index!.array as ArrayLike<number>;
+    for (let k = 0; k < ix.length; k++) I[io + k] = ix[k]! + vo;
+    vo += g.getAttribute('position').count; io += ix.length;
+    g.dispose();
+  }
+  out.setIndex(new BufferAttribute(I, 1));
+  out.computeBoundingSphere();
+  return out;
+}

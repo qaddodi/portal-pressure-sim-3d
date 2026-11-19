@@ -107,6 +107,7 @@ export class CelScene {
     this.objects.push(...this.catheter.objects);
     this.procs = new ProcedureLayer(this.shared);
     this.body.add(this.procs.group);
+    for (const id of ['TIPS', 'DIPS'] as const) this.procs.addStent(id, this.byEdge.get(id) as VesselObject);
 
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
     this.flow = new BloodMarks(this.vessels);
@@ -182,6 +183,7 @@ export class CelScene {
     this.lens.onFrame(f);
     this.blood.streams.onFrame(f);
     if (f) this.syncPresence(f, !this.sawFrame);
+    this.procs.syncStents(f, patient.params, f ? (f.jump || !this.sawFrame) : false);
     this.sawFrame = !!f;
     if (this.figureView !== 'body') this.feedViews(false);
     this.moving = true;

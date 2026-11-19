@@ -15,6 +15,8 @@
 export const VESSEL_VS = /* glsl */ `
 attribute vec3 tang;
 attribute float hull;
+// a stent narrows its shunt's lumen (waist, end stenosis): the share of the tube taken off at this vertex, 0 on every vessel that has none (a missing attribute reads 0)
+attribute float narrow;
 uniform float inflate;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
@@ -51,7 +53,7 @@ void main() {
     if (widthKind > 0.5) { w1 = max(1.8, w1 * 0.5); w0 = max(1.8, w0 * 0.5); }
     swell = clamp(w1 / w0, 0.2, 8.0);
   }
-  vec3 p = position + normal * (inflate + radius * (swell - 1.0));
+  vec3 p = position + normal * (inflate + radius * (swell * (1.0 - narrow) - 1.0));
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vN = normalize(normalMatrix * normal);
   vT = normalize(normalMatrix * tang);
