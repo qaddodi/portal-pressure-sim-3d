@@ -5,6 +5,7 @@ import { type Program, collectMaterials, lateMaterialProgram, rawProgram, templa
 import { INK_FS, INK_VS, TOON_FS, TOON_VS } from '../scene/materials/shaders.ts';
 import { VESSEL_FS, VESSEL_VS } from '../scene/vessels/shaders.ts';
 import { DOT_FS, DOT_VS, PLATE_FS, PLATE_VS } from '../scene/circuit/map-layer.ts';
+import { ORGAN_FS, ORGAN_VS } from '../scene/organs/organ-shader.ts';
 import { RES_FS, RES_VS } from '../scene/circuit/resistors.ts';
 import { DYE_FS, DYE_VS } from '../scene/disease/dye.ts';
 import { CHART_FS, CHART_VS } from '../ui/charts/gl.ts';
@@ -14,6 +15,7 @@ import { SYNTH_FS, SYNTH_VS } from '../ui/tests/copied/doppler-synth.copied.js';
 export const GL_FILES: Record<string, string> = {
   'scene/materials/shaders.ts': 'cel toon and ink (every organ, lobule and sinusoid part, the devices): found on the scene graph',
   'scene/vessels/shaders.ts': 'the vessel, with its veil (VEIL define): found on the scene graph',
+  'scene/organs/organ-shader.ts': 'the organ wash (WP1): registered by name until the scene wears it, then also found on the scene graph',
   'scene/circuit/shader.ts': 'the Circuit morph, spliced into the vessel shader: part of the vessel program',
   'scene/circuit/map-layer.ts': 'the Circuit plate and dots: found on the scene graph',
   'scene/circuit/resistors.ts': 'the Circuit resistor ribbons (made when the Circuit opens): registered by name',
@@ -28,7 +30,7 @@ export const GL_FILES: Record<string, string> = {
 export function namedSources(): Map<string, string> {
   return new Map<string, string>([
     [VESSEL_VS, 'vessel'], [VESSEL_FS, 'vessel'], [TOON_VS, 'toon'], [TOON_FS, 'toon'], [INK_VS, 'ink'], [INK_FS, 'ink'],
-    [DYE_VS, 'dye overlay'], [DYE_FS, 'dye overlay'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'],
+    [ORGAN_VS, 'organ wash'], [ORGAN_FS, 'organ wash'], [DYE_VS, 'dye overlay'], [DYE_FS, 'dye overlay'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'],
   ]);
 }
 
@@ -38,6 +40,7 @@ export function rawPrograms(fibroText: string): Program[] {
   const out = [
     lateMaterialProgram('circuit resistors', RES_VS, RES_FS),
     lateMaterialProgram('dye overlay', DYE_VS, DYE_FS),
+    lateMaterialProgram('organ wash', ORGAN_VS, ORGAN_FS),
     rawProgram('charts', CHART_VS, CHART_FS),
     rawProgram('doppler spectrum', SYNTH_VS, SYNTH_FS),
   ];
