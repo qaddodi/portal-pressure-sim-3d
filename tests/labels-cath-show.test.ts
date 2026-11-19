@@ -141,3 +141,18 @@ test('every look carries the ink of the free and wedged readings and the three b
   assert.match(cathLook('light')['--cl-hv-ink'], /62%/); assert.match(cathLook('soft')['--cl-hv-ink'], /55%/); assert.equal(cathLook('navy')['--cl-hv-ink'], 'var(--cl-hv)');
   assert.ok(cathVars(vp)['--cl-pad']);
 });
+
+test('the stack\'s order and leaders are the 2D planner\'s: the lower point\'s reading is the lower row, and no leader crosses another or the other row', async () => {
+  const { planLeaders, sumLayout, cathType } = await import('../src/scene/labels/cath.ts');
+  const t = cathType(vp), rd = (k: string, v: string, tone: 'free' | 'wedge') => ({ kicker: k, value: v, unit: 'mmHg', tone }) as const;
+  const geom = sumLayout(t, [rd('WHVP', '16.5', 'wedge'), rd('FHVP', '5.0', 'free')], { kicker: 'HVPG', value: '11.5', unit: 'mmHg', tone: 'danger' }, measure, false, false);
+  const tip: [number, number] = [500, 400], ahead: [number, number] = [540, 330];
+  const p = planLeaders([700, 300], geom, [ahead, tip], false);
+  assert.equal(p.swap, false, 'WHVP\'s point is the higher one: its row is the upper');
+  assert.equal(p.clean, true);
+  const q = planLeaders([700, 300], geom, [tip, ahead], false);
+  assert.equal(q.swap, true, 'the other way round, the other order');
+  assert.match(p.d[0], /^M/); assert.deepEqual(p.dots[0], [ahead[0] - 700, ahead[1] - 300]);
+  // both orders put a leader on each reading, and the planner reports a cross it could not avoid
+  assert.ok(p.d.every((d) => d.split('L').length >= 2));
+});

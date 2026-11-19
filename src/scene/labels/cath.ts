@@ -13,6 +13,7 @@ import { outline } from './cath2d/callout-outline.copied.js';
 import { PTR, KEEP } from './cath2d/callout-ptr.copied.js';
 import { PILL_GAP, placePillsInto, pillsClear } from './cath2d/cath-pill.copied.js';
 import { placeBeside } from './cath2d/cath-place.copied.js';
+import { planStack } from './cath2d/cath-leads.copied.js';
 
 const C = LS.CATH;
 export { PTR, KEEP, PILL_GAP };
@@ -224,6 +225,21 @@ export function leadersOf(boxAt: Pt, geom: SumGeom, points: readonly [Pt, Pt], t
     else { const ex = rx0 - 12, ey = below ? colBot + 14 : colTop - 14; d[j] = `M${ox(rx0)} ${oy(my)} H${ox(ex)} V${oy(ey)} L${ox(px)} ${oy(py)}`; }
   }
   return { d, dots: [[points[0][0] - x, points[0][1] - y], [points[1][0] - x, points[1][1] - y]] };
+}
+
+/** The stack's order of rows and its leaders as the 2D app plans them (cath-leads.js, copied): the order that follows the points (the reading whose point stands lower is
+ *  the lower row; a near tie keeps `kept`), the other order only when the first crosses its leaders or runs one through the other row and the other does not.
+ *  The rows' sizes come from `geom`, whatever order it was laid out in; the leaders leave straight out of their rows (beside the points), from the edge that faces
+ *  them, or round the column's far end. Paths in the box's own frame, with the dots on the points; `swap` is the order to lay the rows out in, `clean` whether nothing crosses. */
+export function planLeaders(boxAt: Pt, geom: SumGeom, points: readonly [Pt, Pt], kept: boolean): { swap: boolean; clean: boolean; d: [string, string]; dots: [Pt, Pt] } {
+  const [x, y] = boxAt, R = geom.rows.map((r) => [r.x, r.y, r.w, r.h]);
+  const S = planStack(points.map((p) => [p[0], p[1]]), R, x, y, geom.w, geom.h, kept, false);
+  const f = (n: number) => n.toFixed(1), d = ['', ''] as [string, string];
+  for (let j = 0; j < 2; j++) {
+    const L = S.lead[j] as Float64Array;
+    for (let k = 0; k < S.n[j]; k++) d[j] += `${k ? ' L' : 'M'}${f(L[k * 2] - x)} ${f(L[k * 2 + 1] - y)}`;
+  }
+  return { swap: S.swap as boolean, clean: S.clean as boolean, d, dots: [[points[0][0] - x, points[0][1] - y], [points[1][0] - x, points[1][1] - y]] };
 }
 
 // ── how they come ──

@@ -7,7 +7,8 @@ Everything the figure writes on itself lives in `src/scene/labels/`. This note i
 - `cath-show.ts` (`CathShow`) is the state machine: which cards stand for a catheter state (`calloutsFor`: free = FHVP; wedge = FHVP + WHVP; result = the stack), where (in the figure's free band, clear of cards and the key), and how they come and go with the 2D timings: a card in 420 ms with a 6 px rise, out in 240 ms; the result's readings travel 420 ms from where their cards stood, the bracket and leaders follow at 650 ms and the HVPG at 750 ms with a rise.
 - `cath-dom.ts` builds the DOM once and writes only `transform` and `opacity` per frame. Opacity goes on a card's children, never on the card, so the blur sees the figure. The glass is `.cl-glass`, clipped from one path (the card and its pointer are one shape) with its 1 px hairline stroked inside; its tint and blur are `src/ui/glass.css`.
 - The stack box is never shorter than 150 px (`STACK_MIN_H`): in 2D the bracket's `<svg>` has the default 150 px height, which sets the box's height. Copied, not corrected.
-- Under the catheter the figure's names are hidden, as in 2D (`cath-on`): `HIDE_UNDER_CATHETER` in `controller.ts`.
+- The stack's row order and leaders are 2D's planner (`cath-leads.js`, copied by `scripts/copy-cath-leads.mjs` into `cath2d/`): the lower point's reading is the lower row, the other order only when the first crosses its leaders; `cath.ts planLeaders`.
+- Under the catheter the figure's names are hidden, as in 2D (`cath-on`): `HIDE_UNDER_CATHETER` in `controller.ts` (kept on purpose: Mohammad, 19 Nov, "hide, 2D style, we can change stuff later").
 - Tests: `tests/labels-cath.test.ts` (numbers), `tests/labels-cath-show.test.ts` (states, timings), `tests/labels-slice.test.ts` (every slide on every screen).
 
 ## Organ names
@@ -15,5 +16,4 @@ Everything the figure writes on itself lives in `src/scene/labels/`. This note i
 
 ## Not done
 - The monitor's WHVP - FHVP trace callout (B11 owns it; `trace-callouts.js`).
-- 2D's leader planner ("nothing crosses", `cath-leads.js`): the stack's leaders use the simpler routing in `cath.ts leadersOf`.
 - On the sideways phone the figure is framed in a strip of about 150 px beside the centred wallet card, so the least important station names drop there, as 2D's do.

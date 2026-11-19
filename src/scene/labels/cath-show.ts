@@ -9,7 +9,7 @@ import { LABEL_NAMES } from './names.copied.ts';
 import { LS, type Vp } from './type.ts';
 import { hvpgSev } from '../../ui/cuts.ts';
 import {
-  cathType, pillSize, pillGlass, placePills, swapOf, tightFor, sumLayout, placeStack, leadersOf, sumFlow, easeArrive, SUM_MS,
+  cathType, pillSize, pillGlass, placePills, swapOf, tightFor, sumLayout, placeStack, planLeaders, sumFlow, easeArrive, SUM_MS,
   type Band, type Glass, type Measure, type Pt, type Reading, type Side, type SumGeom, type CathType, type Tone,
 } from './cath.ts';
 
@@ -114,10 +114,13 @@ export class CathShow {
     if (kinds.includes('s') && inp.tip && inp.ahead && inp.got >= 2) {
       const tight = tightFor(inp.band);
       const swap = swapOf(inp.tip[1], inp.ahead[1], this.swapWas);
-      this.swapWas = swap;
-      const geom = sumLayout(t, [rw, rf], rh, inp.measure, tight, swap);
+      let geom = sumLayout(t, [rw, rf], rh, inp.measure, tight, swap);
       const at = placeStack(inp.tip, inp.ahead, geom.w, geom.h, inp.band, inp.blockers);
-      const leaders = leadersOf([at.x, at.y], geom, [inp.ahead, inp.tip], inp.tip, inp.ahead);
+      // the order of the rows and the leaders are planned together once the place is known (cath-leads.js: nothing crosses)
+      const plan = planLeaders([at.x, at.y], geom, [inp.ahead, inp.tip], swap);
+      if (plan.swap !== swap) geom = sumLayout(t, [rw, rf], rh, inp.measure, tight, plan.swap);
+      this.swapWas = plan.swap;
+      const leaders = { d: plan.d, dots: plan.dots };
       const box = { x0: at.x, y0: at.y, x1: at.x + geom.w, y1: at.y + geom.h };
       sum = { x: at.x, y: at.y, radius: tight ? C.STACK.tightRow.radius : t.radius, geom, rows: [rw, rf], calc: rh, leaders, box, key: `${k4(box)}|${geom.swap ? 1 : 0}${geom.tight ? 1 : 0}|${leaders.d.join('')}` };
     }
@@ -204,7 +207,7 @@ export class CathShow {
     const rowAt = (j: 0 | 1) => {
       const from = s.from[j], flow = sumFlow(s.u, !!from);
       const R = t.geom.rows[j], rx = t.x + R.x, ry = t.y + R.y;
-      return { alpha: from ? 1 : 1 - flow.rise / C.RISE, dx: from ? (from.x - rx) * flow.flip : 0, dy: from ? (from.y - ry) * flow.flip : 0, rise: from ? 0 : flow.rise };
+      return { alpha: from ? 1 : 1 - flow.rise / C.RISE, dx: from ? (from.x - rx) * flow.flip || 0 : 0, dy: from ? (from.y - ry) * flow.flip || 0 : 0, rise: from ? 0 : flow.rise };
     };
     const a = rowAt(0), b = rowAt(1), flow = sumFlow(s.u, !!(s.from[0] || s.from[1]));
     f.sum = {
