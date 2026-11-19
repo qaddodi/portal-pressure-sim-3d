@@ -47,7 +47,7 @@ const citeOf = (v: unknown): string | undefined => (Array.isArray(v) ? v.filter(
 
 export function slideOf(deckId: string, s: CopiedSlide, i: number, prevCath: CathState | undefined): Slide {
   const plan = planSlide(deckId, s, i);
-  const cath = (CATHS as readonly string[]).includes(s.cath ?? '') ? (s.cath as CathState) : s.cathKeep ? prevCath : undefined;   // ('blocked' is a hook of batch B5)
+  const cath = (CATHS as readonly string[]).includes(s.cath ?? '') ? (s.cath as CathState) : s.cathKeep ? prevCath : undefined;
   const tiles: SlideTiles | undefined = s.data === 'tiles' && s.tiles?.length
     ? { deck: deckId, slide: s.id, keys: s.tiles, key: s.key ?? [], delta: s.delta ?? null } : undefined;
   const eq = s.eq ? eqParts(s.eq[0]!) : undefined;

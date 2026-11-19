@@ -8,6 +8,7 @@ import { caseOf, type Deck, type Slide, type ShotName, type CathState, type Slid
 import type { Shot } from '../../scene/camera/shots.ts';
 import type { CardId } from '../layout/plan.ts';
 import { TITLE_SHOT } from '../../decks/hvpg.ts';
+import { OSTIUM_U } from '../../scene/procedures/ostium.ts';
 import { hasToolChart, hasVisualChart } from '../../decks/charts.ts';
 
 export type Stop =
@@ -131,7 +132,7 @@ export function catheterAt(stops: Stop[], p: Pos): { advance: number; balloon: n
   return catheterOf(s.slide.cath);
 }
 const catheterOf = (c: CathState | undefined | null): { advance: number; balloon: number } =>
-  c === 'route' || c === 'free' ? { advance: 1, balloon: 0 } : c === 'wedge' || c === 'result' ? { advance: 1, balloon: 1 } : { advance: 0, balloon: 0 };
+  c === 'route' || c === 'free' ? { advance: 1, balloon: 0 } : c === 'wedge' || c === 'result' ? { advance: 1, balloon: 1 } : c === 'blocked' ? { advance: OSTIUM_U, balloon: 0 } : { advance: 0, balloon: 0 };
 
 /** The catheter state the last slide with one asked for: the quick check leaves the figure as that slide left it (none when no slide has a catheter). */
 export const lastCath = (stops: Stop[]): CathState | undefined => {

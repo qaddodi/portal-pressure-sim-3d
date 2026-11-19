@@ -28,11 +28,12 @@ for (const id of RW_IDS) {
   }
 }
 
-test('what exists today is read from its own tables: the twelve lenses, the done charts, the catheter\'s four states and the lobule views', () => {
+test('what exists today is read from its own tables: the twelve lenses, the done charts, the catheter\'s five states, the stent, the procedures and the lobule views', () => {
   for (const l of LENS_IDS) assert.ok(hasHook(`lens:${l}`), l);
   for (const c of CHARTS) assert.equal(hasHook(`tool:${c.kind}`), c.status === 'done', c.kind);
-  for (const c of ['route', 'free', 'wedge', 'result']) assert.ok(hasHook(`device:hvpg-catheter:${c}`));
-  assert.ok(!hasHook('device:hvpg-catheter:blocked'), 'the blocked catheter (Budd–Chiari) is B5\'s');
+  for (const c of ['route', 'free', 'wedge', 'result', 'blocked']) assert.ok(hasHook(`device:hvpg-catheter:${c}`));   // (blocked: Budd–Chiari, ui/deck/procs-link.ts)
+  for (const id of ['device:stent', 'device:hvpg-catheter:keep', 'procedure:tips', 'procedure:eus', 'procedure:rex']) assert.ok(hasHook(id), id);
+  assert.ok(!hasHook('procedure:eusglue'), 'the glue scope is not built');
   for (const v of ['view:lobule', 'view:sinusoid']) assert.ok(hasHook(v));
 });
 

@@ -42,7 +42,7 @@ const TABLE: Feature[] = [
   done('stations', 'B6', 'Station labels on the figure', 'src/scene/labels/stations.ts'),
   done('cath:route', 'S2', 'The HVPG catheter: route', 'src/scene/catheter.ts'), done('cath:free', 'S2', 'The HVPG catheter: free', 'src/scene/catheter.ts'),
   done('cath:wedge', 'S2', 'The HVPG catheter: wedged', 'src/scene/catheter.ts'), done('cath:result', 'S2', 'The HVPG catheter: result', 'src/scene/catheter.ts'),
-  hook('cath:blocked', 'B5', 'The HVPG catheter against a blocked hepatic vein (Budd–Chiari)'),
+  done('cath:blocked', 'B5', 'The HVPG catheter against a blocked hepatic vein (Budd–Chiari)', 'src/ui/deck/procs-link.ts'),
   done('tiles', 'B13b', 'The data card of tiles: each reading from the engine, the key ones marked, the change from another state', 'src/decks/hp/TilesCard.tsx'),
   // charts and instruments in the data card
   chart('criteria', 'Guideline rule list with live rows, or the Baveno VIII zones graph'),
@@ -60,14 +60,14 @@ const TABLE: Feature[] = [
   done('visual:table', 'B12', 'The summary table over the dimmed figure', 'src/ui/cards/TableCard.tsx'),
   { id: 'visual:plane', batch: 'B10', what: 'A plane over the dimmed figure', landed: chartDone('plane'), evidence: chartDone('plane') ? 'src/ui/charts/plane/PlaneCard.tsx' : undefined },
   // the figure
-  hook('procedure:eus', 'B11', 'EUS-PPG: the echoendoscope and needle on the figure'),
-  hook('procedure:rex', 'B5', 'The Meso-Rex graft growing along its path'),
+  done('procedure:eus', 'B11', 'EUS-PPG: the echoendoscope and needle on the figure', 'src/ui/deck/procs-link.ts'),
+  done('procedure:rex', 'B5', 'The Meso-Rex graft growing along its path', 'src/ui/deck/procs-link.ts'),
   hook('mark', 'B6', 'A ring and a callout on a vessel of the figure'),
   hook('callout', 'B6', 'A callout with a leader to a place in the lobule'),
   hook('glow', 'B3', 'Parts of the figure glow while the slide is up'),
   hook('ripple', 'B3', 'Pulse ripples along the vessels'),
   hook('calipers', 'B11', 'Calipers on a varix or the spleen'),
-  hook('layers:zones', 'B8', 'The lobule\'s zone bands'),
+  done('layers:zones', 'B8', 'The lobule\'s zone bands', 'src/ui/deck/procs-link.ts'),
   done('scales', 'B12', 'The Anatomy / Lobule / Sinusoid scale switch on the slide', 'src/ui/cards/SlideControls.tsx'),
   hook('view:circuit', 'B7', 'The Circuit view'),
   // what the person can do on the slide

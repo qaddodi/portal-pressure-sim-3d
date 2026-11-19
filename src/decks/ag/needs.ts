@@ -6,6 +6,7 @@ import { CHARTS } from '../../ui/charts/registry.ts';
 import { TILE } from '../../ui/charts/tiles.generated.ts';
 import { LENS_IDS } from '../../scene/lenses/model.ts';
 import { CATHS } from '../schema.ts';
+import { PROCEDURE_PLAYS } from '../../scene/procedures/plays.ts';
 import { UI } from '../../ui/strings.generated.ts';
 import type { CopiedSlide } from './types.ts';
 import { slideShots, type ShotSpec } from './shots.ts';
@@ -73,6 +74,14 @@ const FIELD_HOOKS: Record<string, { id: string; owner: Owner; what: string }> = 
   strain: { id: 'fig:strain', owner: 'B11', what: 'the strain demonstration' },
 };
 
+/** Field needs that play from a slide, one per line (a feature stream adds its own line with the evidence beside it). */
+const LANDED_FIELDS: ReadonlySet<string> = new Set([
+  'card:vignette', 'card:terms', 'card:equation', 'card:what-if', 'card:case-question', 'card:response', 'card:question',
+  'fig:wave',      // summary table wave column (ui/cards/WaveCell.tsx)
+  'fig:stented',   // ui/deck/procs-link.ts
+  'fig:layers',    // ui/deck/procs-link.ts
+]);
+
 /** The hook a need id stands for. Families (`tool:<kind>`, `tile:<key>`, …) are resolved here from the registries the other batches keep. */
 export function hookOf(id: string): Hook | null {
   const [family, rest = ''] = [id.slice(0, id.indexOf(':') < 0 ? id.length : id.indexOf(':')), id.slice(id.indexOf(':') + 1)];
@@ -88,7 +97,7 @@ export function hookOf(id: string): Hook | null {
     case 'tool': return { owner: 'B10', what: `the ${rest} instrument or chart`, landed: () => CHARTS.find((c) => c.kind === rest)?.status === 'done' };
     case 'lens': return { owner: 'B3', what: `the ${rest} colour lens`, landed: () => (LENS_IDS as readonly string[]).includes(rest) };
     case 'cath': return { owner: 'B5', what: `the catheter's ${rest} state`, landed: () => (CATHS as readonly string[]).includes(rest) };
-    case 'procedure': return { owner: 'B5', what: `the ${rest} procedure`, landed: claimed };
+    case 'procedure': return { owner: 'B5', what: `the ${rest} procedure`, landed: () => PROCEDURE_PLAYS.has(rest) };   // (played on the figure by ui/deck/procs-link.ts)
     case 'view': return { owner: 'B7', what: 'the Circuit view', landed: claimed };
     case 'scale':
       if (rest === 'switch') return { owner: 'B12', what: 'the Anatomy, Lobule and Sinusoid pill the slide offers', landed: ready }   // (ui/cards/SlideControls.tsx);
@@ -102,7 +111,7 @@ export function hookOf(id: string): Hook | null {
     case 'present': return { owner: 'B12', what: 'the presenter plays any deck by its id, with the scene plate of each slide', landed: ready }   // (decks/all.ts);
     case 'fig': case 'card': case 'field': {
       const f = Object.values(FIELD_HOOKS).find((h) => h.id === id);
-      if (f) return { owner: f.owner, what: f.what, landed: ['card:vignette', 'card:terms', 'card:equation', 'card:what-if', 'card:case-question', 'card:response', 'card:question', 'fig:wave'].includes(id) ? ready : claimed };
+      if (f) return { owner: f.owner, what: f.what, landed: LANDED_FIELDS.has(id) ? ready : claimed };
       return family === 'field' ? { owner: 'B12', what: `the slide field "${rest}"`, landed: claimed } : null;
     }
     default: return null;
