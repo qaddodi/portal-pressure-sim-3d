@@ -6,7 +6,9 @@
 //
 // Reads <2D>/src/ui/anatomy.js (SHORT full names, ABBR short forms, LABEL_VESSEL station to vessel, ORGAN_LABELS, CHIP_NODES, the
 // atlas names), the label priorities in <2D>/src/ui/stage-label-items.js (ANAT_PRI, ANAT_EXTRA) and the figure key's words in
-// <2D>/src/ui/presenter.js (LENS_KEY, PRESSURE_KEY), and writes src/scene/labels/names.copied.ts.
+// <2D>/src/ui/presenter.js (LENS_KEY, PRESSURE_KEY), and writes src/scene/labels/names.copied.ts. The same file carries LABEL_STYLE: how a label
+// is drawn (type roles and sizes, run weights and gaps, halo, leader and ring, the ink and halo of each look), read from type-scale.js,
+// stage-label-size.js, stage-label-items.js, stage-label-solve.js, stage-label-text.js, styles/app.css and styles/tokens.css.
 // --check writes nothing and exits 1 when the copied file differs from what the 2D source would give.
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -90,11 +92,68 @@ export async function extract() {
   const KEY_COLOURS = { light, soft: { ...light, ...decls(blockAt(':root[data-theme="soft"]')) }, dark: { ...light, ...decls(blockAt(':root[data-theme="dark"]')) } };
   for (const k of Object.keys(KEY_COLOURS)) for (const w of WANT) if (!KEY_COLOURS[k][w]) throw new Error(`tokens.css gives ${k} no --${w}`);
 
+  // ── how a label is drawn (Mohammad, 19 Nov: "the labeling system font outline etc should also reflect the 2D app") ──
+  const must = (text, re, what) => { const m = re.exec(text); if (!m) throw new Error(`the 2D source no longer says ${what}`); return m; };
+  const num = (v) => Number(v);
+  const scale = readFileSync(src('src/ui/type-scale.js'), 'utf8');
+  const sizeJs = readFileSync(src('src/ui/stage-label-size.js'), 'utf8');
+  const textJs = readFileSync(src('src/ui/stage-label-text.js'), 'utf8');
+  const solveJs = readFileSync(src('src/ui/stage-label-solve.js'), 'utf8');
+  const appCss = readFileSync(src('styles/app.css'), 'utf8');
+  const roleM = must(scale, /roleOf = \(size\) => \(size >= ([\d.]+) \? 'val' : size >= ([\d.]+) \? 'lab' : 'cap'\)/, 'roleOf(size)');
+  const runOf = (re, what, fields) => { const m = must(items, re, what); return Object.fromEntries(fields.map((f, i) => [f, num(m[i + 1])])); };
+  const nameM = must(items, /\{ t: name, size: ([\d.]+), weight: one \? (\d+) : (\d+), cls: 'lb-name' \}/, 'the name run');
+  const gapM = must(items, /\{ \.\.\.r, gap: (\d+) \}\)\);?/, 'the gap between a name and its value');
+  const haloM = must(appCss, /paint-order: stroke; stroke: var\(--label-halo\); stroke-width: max\((\d+)px, calc\((\d+)px \* var\(--lbk, 1\)\)\)/, 'the label halo');
+  const ringM = must(solveJs, /class: 'leader-dot', 'data-k': it\.key, cx, cy, r: '([\d.]+)'/, 'the leader ring');
+  const ringCss = must(appCss, /\.leader-dot \{ fill: var\(--stage-bg\); stroke: var\(--text-2\); stroke-width: ([\d.]+); \}/, 'the leader ring stroke');
+  const leadCss = must(appCss, /\.leader \{ fill: none; stroke: var\(--leader\); stroke-width: (\d+); \}/, 'the leader line');
+  const organM = must(solveJs, /size: ([\d.]+), weight: (\d+), cls: 'lb-organ', track: ([\d.]+) \}\]\), align: 'middle', padX: (\d+), padY: (\d+)/, 'the organ caption');
+  const padM = must(items, /padX: mode === 'inline' && !one \? \d+ : (\d+), padY: mode === 'inline' && !one \? \d+ : (\d+)/, 'the label padding');
+  const phoneOrgan = must(appCss, /@media \(max-width: (\d+)px\) \{ \.lb-organ \{ fill: color-mix\(in srgb, var\(--text-3\) (\d+)%, var\(--stage-bg\)\); \} \}/, 'the phone organ ink');
+  const STYLE = {
+    ROLES: evalLiteral(literalOf(scale, 'ROLES')),
+    FLUID_FROM: num(must(scale, /\(Math\.min\(w, h\) - (\d+)\) \/ (\d+)/, 'the fluid size')[1]), FLUID_SPAN: num(must(scale, /\(Math\.min\(w, h\) - (\d+)\) \/ (\d+)/, 'the fluid size')[2]),
+    ROLE_VAL_FROM: num(roleM[1]), ROLE_LAB_FROM: num(roleM[2]),
+    LABEL_K: num(must(textJs, /const deskK = \(\) => ([\d.]+)/, 'the label size factor')[1]),
+    LINE_H: num(must(sizeJs, /return m \* ([\d.]+)/, 'the line height')[1]),
+    BASELINE: num(must(items, /base = yy \+ lh \* ([\d.]+)/, 'the baseline')[1]),
+    PAD: { x: num(padM[1]), y: num(padM[2]) },
+    NAME: { size: num(nameM[1]), weight: num(nameM[2]) },
+    VALUE: runOf(/const runs = \[\{ t: v, size: ([\d.]+), weight: (\d+), cls: 'lb-val' \}\];/, 'the value run', ['size', 'weight']),
+    NAME_TO_VALUE: num(gapM[1]),
+    UNIT: runOf(/runs\.push\(\{ t: u, size: ([\d.]+), weight: (\d+), cls: 'lb-unit', gap: ([\d.]+) \}\)/, 'the unit run', ['size', 'weight', 'gap']),
+    DELTA: runOf(/size: ([\d.]+), weight: (\d+), cls: 'lb-delta ' \+ \(P > ref \? 'up' : 'down'\), gap: (\d+)/, 'the change run', ['size', 'weight', 'gap']),
+    REVERSED: runOf(/t: '⟲', size: ([\d.]+), weight: (\d+), cls: 'lb-rev', gap: (\d+) \}\)/, 'the reversal mark', ['size', 'weight', 'gap']),
+    ORGAN: { size: num(organM[1]), weight: num(organM[2]), track: num(organM[3]), padX: num(organM[4]), padY: num(organM[5]) },
+    ORGAN_PHONE: { maxWidth: num(phoneOrgan[1]), mixPercent: num(phoneOrgan[2]) },
+    HALO: { min: num(haloM[1]), perK: num(haloM[2]) },
+    RING: { r: num(ringM[1]), stroke: num(ringCss[1]) },
+    LEADER_WIDTH: num(leadCss[1]),
+    TAP_DIM: num(must(appCss, /#labels \.lb\.spot-dim, \.lb-leaders > \.spot-dim \{ opacity: ([\d.]+); \}/, 'the tapped-label dim')[1]),
+  };
+  // The look's own ink, halo and ring colours (tokens.css): each look is the Light block plus what its own blocks change.
+  const LABEL_WANT = ['text', 'text-2', 'text-3', 'stage-bg', 'label-halo', 'label-panel', 'leader', 'flow-reversed', 'accent-ink'];
+  const declsOf = (text) => { const o = {}; for (const m of text.matchAll(/--([a-z0-9-]+):\s*([^;]+);/g)) if (LABEL_WANT.includes(m[1])) o[m[1]] = m[2].trim(); return o; };
+  const layer = (sel) => declsOf(blockAt(sel));
+  const dark = { ...Object.assign({}, ...rootBlocks.map(declsOf)), ...layer(':root[data-theme="dark"]') };
+  const LABEL_LOOKS = {
+    light: Object.assign({}, ...rootBlocks.map(declsOf)),
+    soft: { ...Object.assign({}, ...rootBlocks.map(declsOf)), ...layer(':root[data-theme="soft"]') },
+    dark,
+    navy: { ...dark, ...layer(':root[data-theme="dark"][data-palette="navy"]') },
+    black: { ...dark, ...layer(':root[data-theme="dark"][data-palette="black"]') },
+  };
+  for (const [k, v] of Object.entries(LABEL_LOOKS)) for (const w of LABEL_WANT.filter((x) => x !== 'accent-ink')) if (!v[w]) throw new Error(`tokens.css gives the ${k} look no --${w}`);
+  STYLE.LOOKS = LABEL_LOOKS;
+
   return {
     CALLOUTS,
     KEY_COLOURS,
+    LABEL_STYLE: STYLE,
     SHORT: anat.SHORT, ABBR: anat.ABBR, LABEL_VESSEL: anat.LABEL_VESSEL, CHIP_NODES: anat.CHIP_NODES,
     ORGAN_NAMES: anat.ORGAN_LABELS.map((o) => o[0]),
+    ORGAN_AT: Object.fromEntries(anat.ORGAN_LABELS.map(([n, x, y]) => [n, [x, y]])),
     ANAT_PRI: evalLiteral(literalOf(items, 'ANAT_PRI')),
     ANAT_EXTRA: evalLiteral(literalOf(items, 'ANAT_EXTRA')),
     CIRCUIT_PRI: Object.fromEntries(Object.entries(anat.CIRCUIT_LABELS).map(([k, v]) => [k, v.pri])),
