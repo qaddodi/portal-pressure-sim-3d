@@ -27,6 +27,8 @@ export interface SlideScene {
   labels: string[];
   /** figure parts the words point at (2D term targets) */
   terms: string[];
+  /** a Circuit slide: the part of the map it frames, the resistors it draws, the caudate lane (hp/plan.ts CircuitDirective); null off the Circuit */
+  circuit?: { box: readonly [number, number, number, number]; kMax: number | null; resistors: string[]; caudate: boolean } | null;
 }
 
 /** The data card of tiles: which readings, the key ones, and the state the change counts from. The numbers come from the slide's own state in the engine, never from the deck. */
