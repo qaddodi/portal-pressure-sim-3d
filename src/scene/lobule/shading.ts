@@ -77,6 +77,7 @@ const FS_TONES = /* glsl */ `
     c = celDisc(c, discInk, Dd, Rpx, discLine(discJoin, wl), 1.0, open);
   }
 #else
+#ifndef FLATFILL
   {
     vec3 sideT = normalize(cross(normalize(vT), normalize(vV)));
     float acrossT = dot(n, sideT);
@@ -90,6 +91,7 @@ const FS_TONES = /* glsl */ `
     c = c * (1.0 - hwT * ${num(CEL.SHADE)} * shadowT);
     c = mix(c, vec3(1.0), ${num(CEL.LIT)} * hwT * litT);
   }
+#endif
 #endif
 #endif
 `;
@@ -132,7 +134,7 @@ export const LOBULE_INK_FS: string = (() => {
 })();
 
 /** What a lobule object's shading is given: the tube's (or the disc's) radius in its own units, and for a disc how much of its healthy radius it has and whether vessels join it. */
-export interface LobuleShadeOpts { radius: number; disc?: boolean; join?: boolean; inkRadius?: number }
+export interface LobuleShadeOpts { radius: number; disc?: boolean; join?: boolean; inkRadius?: number; /** 2D gives the arteriole's twig, the bile and the space of Disse no light or shadow: one flat fill. */ flat?: boolean }
 
 /** Puts the lobule's shading on a cel object built from `geometry` (the cel shaders, rewritten above, a few uniforms). Call once, right after the CelObject is made. */
 export function lobuleShade(o: CelObject, geometry: BufferGeometry, dpr: IUniform<number>, opts: LobuleShadeOpts): void {
@@ -140,6 +142,7 @@ export function lobuleShade(o: CelObject, geometry: BufferGeometry, dpr: IUnifor
   const tone = o.toon, ink = o.ink;
   const defines: Record<string, string> = { TONES3: '' };
   if (disc) defines.DISC = '';
+  if (opts.flat) defines.FLATFILL = '';
   const withVi = geometry.getAttribute('ink') ? { VERTEX_INK: '' } : {};
   tone.vertexShader = LOBULE_TOON_VS; tone.fragmentShader = LOBULE_TOON_FS;
   tone.defines = { ...withVi, ...defines };

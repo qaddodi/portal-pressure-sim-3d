@@ -184,7 +184,7 @@ export class LobuleView {
     return net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an').map((c) => ({ c, r: RAD[c.kind as 's0' | 's1' | 's2' | 'an'] / R }));
   }
 
-  private make(part: LobulePartName, b: Batch, toneKey: Parameters<typeof tone>[0], opts: { bands: 2 | 3; px: number; radius?: number; disc?: { join: boolean; inkRadius?: number }; chevrons?: { pitch: number; speed: () => number; dir?: 1 | -1; lymph?: boolean; bile?: boolean }; ink?: { seg: Seg; courses?: Course[] } }): CelObject {
+  private make(part: LobulePartName, b: Batch, toneKey: Parameters<typeof tone>[0], opts: { bands: 2 | 3; px: number; radius?: number; flat?: boolean; disc?: { join: boolean; inkRadius?: number }; chevrons?: { pitch: number; speed: () => number; dir?: 1 | -1; lymph?: boolean; bile?: boolean }; ink?: { seg: Seg; courses?: Course[] } }): CelObject {
     const c = opts.chevrons;
     if (opts.ink) b.withInk();
     const geo = b.build();
@@ -194,7 +194,7 @@ export class LobuleView {
       vessel: c ? { index: 0, len: 0.45, stubSpeed: 0, radius: 0, baseD: 1 } : undefined,
     }, this.shared);
     // 2D's shading: three screen-space tones, the line by caliber, a disc's pale band and its wall opened at the mouths (shading.ts)
-    lobuleShade(o, geo, this.dprU, { radius: opts.radius ?? RAD.s0, disc: !!opts.disc, join: opts.disc?.join, inkRadius: opts.disc?.inkRadius });
+    lobuleShade(o, geo, this.dprU, { radius: opts.radius ?? RAD.s0, disc: !!opts.disc, join: opts.disc?.join, inkRadius: opts.disc?.inkRadius, flat: opts.flat });
     this.objects.push(o);
     const p = this.set.get(part);
     p.group.add(o.group);
@@ -272,7 +272,7 @@ export class LobuleView {
     const pv = this.disc('pv', 'portal-tracts', by('pv'), axial, 'portal', joiners(by('in')), { seg: 'pv' });
     const ha = this.disc('ha', 'portal-tracts', by('ha'), axial, 'artery', joiners(by('tw')));
     const bd = this.disc('bd', 'portal-tracts', by('bd'), axial, 'bile', []);
-    const tw = this.make('portal-tracts', tubeSet(by('tw'), twR, 0, 6, RAD.tw), 'artery', { bands: 2, px: INK.thin, chevrons: { pitch: RAD.tw * MARK_PITCHES, speed: twSpeed } });
+    const tw = this.make('portal-tracts', tubeSet(by('tw'), twR, 0, 6, RAD.tw), 'artery', { bands: 2, flat: true, px: INK.thin, chevrons: { pitch: RAD.tw * MARK_PITCHES, speed: twSpeed } });
     const cv = this.disc('cv', 'central-vein', by('cv'), axial, 'sys', joiners(by('s0', 's1', 's2', 'an')), { seg: 'cv' });
 
     // lymph: the tracts' lymphatics (end-on discs), the terminal lymphatics along the edges (toward the tract) and the space of Disse beside each sinusoid
@@ -282,7 +282,7 @@ export class LobuleView {
     // outline and no light of its own: no second tube wound round the first (the "rope" of IMG_5637). Its course runs inward, the lymph outward, so the marks run backwards
     const lyB = new Batch();
     for (const c of by('ly')) lyB.tube(c.pts.map((p) => p3(p, -DISSE_DZ)), { radius: RAD.ly, radial: 8, squash: 0.08, uvx: (_i, arc) => arc / (RAD.ly * MARK_PITCHES) });
-    const ly = this.make('lymph', lyB, 'lymph', { bands: 2, px: 0, chevrons: { pitch: RAD.ly * MARK_PITCHES, speed: lymphSpeed, dir: -1, lymph: true } });
+    const ly = this.make('lymph', lyB, 'lymph', { bands: 2, flat: true, px: 0, chevrons: { pitch: RAD.ly * MARK_PITCHES, speed: lymphSpeed, dir: -1, lymph: true } });
     this.flat.add(ly);
 
     // bile (the Bile layer): the canaliculi run between neighbouring plates, from the centre out toward the edge (the blood runs the other way), the canals of Hering gather them
@@ -312,8 +312,8 @@ export class LobuleView {
     channel(s0c, 2, 22, true);
     channel(by('s1'), 2, 20, false);
     channel(by('s2'), 3, 22, false);
-    const bc = this.make('bile', chB, 'bile', { bands: 2, px: INK.thin, chevrons: { pitch: RAD.bc * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
-    const bh = this.make('bile', hrB, 'bile', { bands: 2, px: INK.thin, chevrons: { pitch: RAD.bh * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
+    const bc = this.make('bile', chB, 'bile', { bands: 2, flat: true, px: INK.thin, chevrons: { pitch: RAD.bc * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
+    const bh = this.make('bile', hrB, 'bile', { bands: 2, flat: true, px: INK.thin, chevrons: { pitch: RAD.bh * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
     this.bileObjs = [bc, bh];
     // the ductule's wall opens where a canal of Hering joins it (2D: mouths while the Bile layer is on, mouthsNoBile while it is off)
     this.discInfo.get('bd')!.setPool(canalPool);
