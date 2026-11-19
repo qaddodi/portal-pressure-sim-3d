@@ -6,6 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import type { Claim } from '../src/parity/claim.ts';
+import { score } from '../src/parity/score.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 interface Row { id: string; area: string; batch: string; label: string }
@@ -40,18 +41,12 @@ test('every claimed row is in the inventory, and no row is claimed twice', async
   }
 });
 
-test('the score, per batch (printed)', async () => {
-  const have = new Map<string, boolean>();
-  for (const { claims: list } of await claims()) for (const c of list) have.set(c.id, c.wired);
-  const per = new Map<string, { y: number; x: number; w: number }>();
-  for (const r of inventory.rows) {
-    const p = per.get(r.batch) ?? { y: 0, x: 0, w: 0 };
-    p.y++;
-    if (have.has(r.id)) { p.x++; if (have.get(r.id)) p.w++; }
-    per.set(r.batch, p);
-  }
-  const total = [...per.values()].reduce((a, p) => ({ y: a.y + p.y, x: a.x + p.x, w: a.w + p.w }), { y: 0, x: 0, w: 0 });
-  const batches = [...per.entries()].sort((a, b) => Number(a[0].slice(1)) - Number(b[0].slice(1))).map(([b, p]) => `${b} ${p.x}/${p.y}`).join(' · ');
-  console.log(`parity: ${total.x} of ${total.y} rows present, ${total.w} wired (2D ${inventory.generatedFrom.commit.slice(0, 8)}) | ${batches}`);
-  assert.ok(total.x <= total.y);
+test('the score, per batch (printed; the same numbers the ?parity page shows)', async () => {
+  const claimed = (await claims()).flatMap(({ file, claims: list }) => list.map((c) => ({ ...c, file })));
+  const sc = score(inventory.rows, claimed);
+  const batches = sc.byBatch.map(({ batch, tally }) => `${batch} ${tally.x}/${tally.y}`).join(' · ');
+  console.log(`parity: ${sc.total.x} of ${sc.total.y} rows present, ${sc.total.w} wired (2D ${inventory.generatedFrom.commit.slice(0, 8)}) | ${batches}`);
+  assert.ok(sc.total.x <= sc.total.y);
+  assert.equal(sc.byArea.reduce((n, g) => n + g.tally.y, 0), sc.total.y, 'every inventory row lands in one area group');
+  assert.ok(!sc.byArea.some((g) => g.group === 'Other'), 'an inventory area has no group on the ?parity page: add it to AREA_GROUPS in src/parity/score.ts');
 });

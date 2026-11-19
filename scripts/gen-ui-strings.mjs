@@ -15,7 +15,7 @@ export function render(inventory) {
   const { shell, presets, looks, lenses } = inventory;
   const data = {
     topbar: shell.topbar, views: shell.views, zoomGroup: shell.zoomGroup, playbar: shell.playbar,
-    settings: shell.settings, helpPages: shell.helpPages, shortcuts: shell.shortcuts, menus: shell.menus,
+    guide: shell.guide, settings: shell.settings, helpPages: shell.helpPages, shortcuts: shell.shortcuts, menus: shell.menus,
     search: { placeholder: shell.palette.placeholder, emptyOrder: shell.palette.emptyOrder, groups: shell.palette.groups, commands: shell.palette.commands },
     platform: { pwa: shell.platform.pwa, deepLinks: shell.platform.deepLinks },
     presets, looks, lenses, treatTabs: inventory.treat.tabs, topics: inventory.topics,

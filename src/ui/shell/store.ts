@@ -31,6 +31,8 @@ interface ShellState {
   /** the views the scene can draw (Anatomy now; the Circuit and the lobule batches turn theirs on with `markViewReady`) */
   ready: Record<ViewId, boolean>;
   sheet: Sheet;
+  /** a small dialog over everything (Reset everything?) */
+  dialog: 'reset' | null;
   menuTab: MenuTab;
   menuQuery: string;
   helpSection: 'keys' | 'present' | null;
@@ -68,7 +70,7 @@ export const useShell = create<ShellState>((set, get) => ({
   mode: 'deck',
   view: 'anatomic',
   ready: { circuit: false, anatomic: true, lobule: false, sinusoid: false },
-  sheet: null, menuTab: 'present', menuQuery: '', helpSection: null, toast: null,
+  sheet: null, dialog: null, menuTab: 'present', menuQuery: '', helpSection: null, toast: null,
   lens: 'pressure',
   figure: loadFigure(),
   transport: { running: false, speed: 1, lapse: 0, time: '0:00', day: 0 },

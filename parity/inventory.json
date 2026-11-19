@@ -1,7 +1,7 @@
 {
  "generatedFrom": {
   "repo": "qaddodi/portal-pressure-simulator",
-  "commit": "d5c36551befd06f19b9115d99068882e3e8ff76b"
+  "commit": "6d0b793e4d4a15e3d7ebcccf78cd5468249736da"
  },
  "counts": {
   "rows": 1352,
@@ -15878,6 +15878,32 @@
   }
  ],
  "shell": {
+  "guide": {
+   "lede": "A living model of the portal circulation. Every pressure, flow, collateral and varix comes out of one lumped-parameter hemodynamic model. Nothing is scripted: change a resistance and watch the consequences propagate.",
+   "entries": [
+    {
+     "title": "Act on the anatomy",
+     "text": "Click any vessel or organ. A card opens beside it with what you can do there: narrow or thrombose a vein, make the liver cirrhotic, band varices, start a shunt."
+    },
+    {
+     "title": "One timeline",
+     "text": "Play runs the heartbeat-scale model; +1 wk, +1 mo and +6 mo jump the disease ahead. Every change is a marker you can go back to, or compare from."
+    },
+    {
+     "title": "Ask “Why?”",
+     "text": "Click any readout for a causal breakdown of what is driving it, change by change."
+    }
+   ],
+   "presentIntro": "A presentation clicker sends the same keys. On a touch screen, swipe sideways on the slide to go on or back.",
+   "reading": [
+    "Veins are colored by mean pressure on a perceptually uniform scale (0–30 mmHg), and the legend names the unit once. A label gives a station’s value. Select the station, color by Change or compare with an earlier moment to see ▲ / ▼, the change from healthy, shown from 5 mmHg. Arteries are thinner, in a fixed red.",
+    "Chevrons (Blood menu) point the way blood moves in each vessel, orange where the flow is reversed. Smoke marks stagnant blood in a large vein. Coloring the vessels by blood origin shows where blood comes from. Tap a vessel and use Inject dye on its card (or press J; hold for longer) to watch dye travel and split. Dotted vessel outlines are closed potential collaterals.",
+    "Line width follows vessel diameter (compressed, so the venae cavae do not dwarf the portal tree). Watch collaterals and varices swell.",
+    "The circuit view is a transit map: pressure falls from left to right; collaterals and shunts run in their own lanes as bypasses."
+   ],
+   "thresholds": "Baveno VIII consensus on portal hypertension (2026); AASLD guidance on risk stratification and management of portal hypertension and varices in cirrhosis (2024). Thresholds apply to gradients (HVPG, direct portal–systemic gradient), never to the pressure at a single vessel. Physiology after Guyton; Lautt (hepatic arterial buffer response); Bosch & Groszmann (HVPG).",
+   "disclaimer": "Educational simulation. The model is simplified and its values are illustrative; do not use it for diagnosis or treatment decisions."
+  },
   "menus": {
    "blood": [
     {
