@@ -10,7 +10,7 @@ const fixture = JSON.parse(readFileSync('tests/fixtures/csph-fingerprint.json', 
 test('the slice patient (csph) reads the same numbers through the host as the recorded fingerprint (equal to the 2D app\'s)', async () => {
   const fp = await csphFingerprint();
   assert.deepEqual(JSON.parse(JSON.stringify(fp)), fixture);
-  assert.equal(fp.hvpg, 11.6);       // clinically significant: 10 or more
+  assert.ok(fp.hvpg >= 10);          // clinically significant: 10 or more
   assert.ok(fp.whvp > fp.fhvp);
 });
 

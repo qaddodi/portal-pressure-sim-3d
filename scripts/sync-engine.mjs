@@ -33,14 +33,16 @@ for (const path of git(engineDir, 'ls-tree', '-r', '--name-only', engineRef, 'sr
 // The host: its imports named the 2D app's flat engine folder; point them at the core/portal layout, and its one UI import (the
 // camera's easing curve, also used for a change of patient) at a copy of that curve.
 let host = git(hostDir, 'show', `${hostRef}:src/worker-core.js`);
-host = host.replace(/from '\.\/engine\/([\w-]+)\.js'/g, (_, n) => `from '../hales/${CORE.includes(n) ? 'core' : 'portal'}/${n}.js'`)
+host = host
+  .replace(/from '\.\/engine\/(core|portal)\/([\w-]+)\.js'/g, (_, d, n) => `from '../hales/${d}/${n}.js'`)   // (the 2D app's own copy since the engine move)
+  .replace(/from '\.\/engine\/([\w-]+)\.js'/g, (_, n) => `from '../hales/${CORE.includes(n) ? 'core' : 'portal'}/${n}.js'`)   // (the older flat layout)
   .replace("from './ui/ease.js'", "from './ease.js'");
 const unresolved = [...host.matchAll(/from '(\.[^']+)'/g)].map((m) => m[1]).filter((p) => !p.startsWith('../hales/') && p !== './ease.js');
 if (unresolved.length) throw new Error(`host imports not mapped: ${unresolved.join(', ')}`);
 const missing = [...host.matchAll(/from '\.\.\/hales\/([^']+)'/g)].map((m) => m[1]).filter((p) => !files[`hales/${p}`]);
 if (missing.length) throw new Error(`host needs engine files that hales-engine does not have at ${engineRef.slice(0, 8)}: ${missing.join(', ')}`);
 files['host/worker-core.js'] = `// @ts-nocheck\n${host}`;
-files['host/ease.js'] = `// The quintic smoothstep the 2D app calls easeMove (src/ui/ease.js there), for a change of patient.\nexport const easeMove = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * t * (t * (6 * t - 15) + 10));\n`;
+if (host.includes("'./ease.js'")) files['host/ease.js'] = `// The quintic smoothstep the 2D app calls easeMove (src/ui/ease.js there), for a change of patient.\nexport const easeMove = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * t * (t * (6 * t - 15) + 10));\n`;
 
 const out = join(root, 'src/engine');
 for (const d of ['hales', 'host']) rmSync(join(out, d), { recursive: true, force: true });
