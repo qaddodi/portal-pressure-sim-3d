@@ -1,0 +1,174 @@
+// The pressure profile as a frame (looks: chart-looks/profile.js, hosts 'prof'; plot.js for the gridlines and the unit; card.js for the block's hatching).
+// The pieces and their order are the 2D tool's model (tool-profile.js buildModel / paintNow): the zones' tints and names, the gridlines, the unit, the fill
+// and the line (the 2D gradient is drawn as one short stroke or band a span, each in the gradient's colour at its middle), the red blocks (hatching clipped
+// to the block), the healthy and the earlier line, the axis, the readings on their dots, the lines' names on their chips, the stations' names, the
+// sinusoidal brace, the brackets and the pills.
+import type { ChartCtx } from '../Chart.tsx';
+import { measure } from '../measure.ts';
+import { look, type Look, type LookCtxIn } from '../looks.ts';
+import type { Rgba } from '../colour.ts';
+import type { Frame, Shape, TextShape } from '../scene.ts';
+import { ZONE_LOOK, zoneLines } from './layout.generated.js';
+import {
+  BRACE_NAME, FULL_NAMES, NS, RATE_OF, STATIONS, blockRect, blockSpan, bracePts, bracketGeom, cutRuns, gridOf, holesOf, pillSize, profileWords, smooth, whole,
+  yOf, zoneSize, zoneSpans, hatchLines, PATH, type Prof, type ProfilePlan,
+} from './model.ts';
+import { pressureColour } from './pressure-colour.ts';
+import { restView, type View } from './glide.ts';
+
+/** The ladder's cell variant (2D: in 'cell', the instrument drawn once at its own size): the looks that differ there (thicker pens, em of --ch-cap) and the scale the cell sets. */
+export interface CellOpts { chCap?: number; lad?: number }
+
+const fade = (c: Rgba | undefined, a: number): Rgba | undefined => (c && a < 1 ? [c[0], c[1], c[2], c[3] * a] : c);
+const plotR = (w: number, h: number) => Math.max(0, Math.min(10, w / 4, h / 4));
+/** A reading's words: a whole number, a true minus (2D num-words.js numWords(v, 0)). */
+export const words0 = (v: number) => { const r = Math.round(v); return r < 0 ? `−${-r}` : String(r); };
+
+/** The looks of this chart for a context: asked once each (a glide asks for a frame every tick). */
+export function profileLooks(c: ChartCtx, f: number, cell?: CellOpts | null) {
+  const host: LookCtxIn = { host: 'prof', px: f, sm: f, ...(cell ? { in: 'cell', layout: 'wide', chCap: cell.chCap ?? f, lad: cell.lad ?? 1 } : {}) };
+  const memo = new Map<string, Look>();
+  return (key: string, state?: Record<string, unknown>): Look => {
+    const id = state ? `${key}|${Object.entries(state).join()}` : key;
+    let k = memo.get(id);
+    if (!k) { k = look(c, host, key, state); memo.set(id, k); }
+    return k;
+  };
+}
+
+const text = (x: number, y: number, s: string, k: Look, o: Partial<TextShape> = {}): TextShape =>
+  ({ k: 'text', x, y, s, size: k.size!, weight: k.weight, color: k.fill!, anchor: 'middle', ...(k.halo ? { halo: k.halo } : {}), ...o });
+
+/** The frame of `plan` as `view` shows it (a moment of a glide, or the chart at rest: restView). */
+export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { cell?: CellOpts | null } = {}): Frame {
+  const { G, f, tw, w, spans } = plan, sh = view.shown, top = sh.top, lk = profileLooks(c, f, o.cell);
+  const shapes: Shape[] = [];
+  const xs: number[] = [], py: number[] = [];
+  for (let i = 0; i < NS; i++) { xs.push(G.x(i)); py.push(yOf(G, top, sh.v[i]!)); }
+  const cols = sh.v.map((v) => pressureColour(c.look, v));
+  /** the gradient's colour at x: the stops stand on the stations, mixed in sRGB between them */
+  const colAt = (x: number): Rgba => {
+    const t = Math.min(NS - 1, Math.max(0, ((x - xs[0]!) / (xs[NS - 1]! - xs[0]!)) * (NS - 1))), i = Math.min(NS - 2, Math.floor(t)), u = t - i, a = cols[i]!, b = cols[i + 1]!;
+    return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u, 1];
+  };
+
+  // The route's three zones on soft tints (rounded with the plot's band), each named over the plot.
+  const y0 = G.T - G.hdr, ph = G.B - y0, zf = zoneSize(f), zs = zoneSpans() as [number, number][];
+  shapes.push({ k: 'clip', x: 0, y: y0, w, h: ph, r: plotR(w, ph) });
+  zs.forEach(([a, b], k) => {
+    const tx0 = k ? G.x(a) - G.slot / 2 : 0, tx1 = k < zs.length - 1 ? G.x(b) + G.slot / 2 : w;
+    shapes.push({ k: 'rect', x: tx0, y: y0, w: tx1 - tx0, h: G.B - y0, fill: lk(ZONE_LOOK[k]).fill });
+  });
+  shapes.push({ k: 'unclip' });
+  if (G.zone.lines) {
+    const tk = lk('prof.zone.text');
+    zs.forEach(([a, b], k) => {
+      const m = (G.x(a) + G.x(b)) / 2, ls: string[] = zoneLines(k, G.zone.lines);
+      ls.forEach((t, j) => shapes.push(text(m, G.T - G.zb - (ls.length - 1 - j) * 1.05 * zf, t, tk, { size: zf < f - 0.01 ? zf : f, ls: G.zone.tight ? 0 : 0.06 })));
+    });
+  }
+
+  // The gridlines (no 0 on the axis, its line stays) and the unit in the bottom row.
+  const gl = lk('plot.grid.line'), gt = lk('plot.grid.text');
+  gridOf(G, f, top).forEach((g, k) => {
+    shapes.push({ k: 'line', x1: G.L, x2: G.R, y1: g.y, y2: g.y, pen: { color: gl.stroke!, w: gl.width ?? 1 } });
+    if (k) shapes.push(text(G.L - 6, g.y + 0.35 * f, words0(g.v), gt, { anchor: 'end' }));
+  });
+  shapes.push(text(0, G.braceY + 1.55 * f, 'mmHg', lk('plot.unit'), { anchor: 'start' }));
+
+  // The line's fill, closed down to the zero line, and the line: one piece a span of the gradient.
+  const line = smooth(xs, py), np = line.length / 2, fillK = lk('prof.fill').opacity ?? 0.16;
+  for (let q = 0; q < np - 1; q++) {
+    const x0 = line[2 * q]!, x1 = line[2 * q + 2]!, col = colAt((x0 + x1) / 2);
+    shapes.push({ k: 'band', top: [x0, line[2 * q + 1]!, x1, line[2 * q + 3]!], bottom: [x0, G.Z, x1, G.Z], fill: [col[0], col[1], col[2], fillK] });
+  }
+
+  // The red blocks, over the fill and under the line: a tint, bold diagonal stripes clipped to the block, and the block's own outline.
+  const bg = lk('card.hatch.bg'), st = lk('card.hatch.stripe'), bk = lk('prof.blk');
+  for (let i = 0; i < NS; i++) {
+    const op = view.blk[i]!;
+    if (op < 0.005) continue;
+    const r = blockRect(G, f, py, i, blockSpan(xs[i]!, G.slot, tw));
+    shapes.push({ k: 'rect', x: r.x, y: r.y, w: r.w, h: r.h, r: r.r, fill: fade(bg.fill, op) });
+    shapes.push({ k: 'clip', x: r.x, y: r.y, w: r.w, h: r.h, r: r.r });
+    const sc = fade(st.fill, op * (st.fillOpacity ?? 1))!;
+    for (const [ax, ay, bx, by] of hatchLines(r.x, r.y, r.w, r.h)) shapes.push({ k: 'line', x1: ax!, y1: ay!, x2: bx!, y2: by!, pen: { color: sc, w: 4 } });
+    shapes.push({ k: 'unclip' });
+    shapes.push({ k: 'rect', x: r.x, y: r.y, w: r.w, h: r.h, r: r.r, pen: { color: fade(bk.stroke, op * (bk.strokeOpacity ?? 1))!, w: bk.width ?? 1.2 } });
+  }
+
+  // The lines stop NUM_PAD px short of each reading: cut where they enter and leave its box.
+  const holes = holesOf(G, f, tw, py, sh.v);
+  const dashed = (p: Prof | null, key: string) => {
+    if (!p) return;
+    const k = lk(key), hy = p.v.map((v) => yOf(G, top, v));
+    for (const run of cutRuns(smooth(xs, hy), holes)) shapes.push({ k: 'path', pts: run, pen: { color: k.stroke!, w: k.width ?? 1, dash: k.dash, cap: k.cap ?? 'round' } });
+  };
+  dashed(plan.hl, 'prof.hl');
+  dashed(plan.bf, 'prof.bf');
+  const ax = lk('prof.axis');
+  shapes.push({ k: 'line', x1: G.L, x2: G.R, y1: G.B, y2: G.B, pen: { color: ax.stroke!, w: ax.width ?? 1 } });
+  const ln = lk('prof.line');
+  for (const run of cutRuns(line, holes)) for (let q = 0; q + 3 < run.length; q += 2) {
+    shapes.push({ k: 'path', pts: [run[q]!, run[q + 1]!, run[q + 2]!, run[q + 3]!], pen: { color: colAt((run[q]! + run[q + 2]!) / 2), w: ln.width ?? 3, cap: ln.cap ?? 'round', join: ln.join ?? 'round' } });
+  }
+
+  // The readings on their dots, a whole number, with a halo of the card's colour.
+  const vk = lk('prof.v');
+  for (let i = 0; i < NS; i++) shapes.push(text(xs[i]!, py[i]! + (plan.sides[i]?.by ?? 0.36 * f), words0(sh.v[i]!), vk));
+
+  // The healthy and earlier lines' names, each on a chip of the card's colour.
+  const chip = lk('prof.name.chip'), nk = lk('prof.name');
+  for (const n of view.names) {
+    const cw = n.w + 8;
+    shapes.push({ k: 'rect', x: n.x - cw / 2, y: n.y - 0.9 * f - 1, w: cw, h: 1.1 * f + 3, r: 3, fill: chip.fill });
+    shapes.push(text(n.x, n.y, n.t, nk));
+  }
+  // The stations' names under the axis, and the brace named sinusoidal under the liver's three.
+  STATIONS.forEach((_, i) => shapes.push(text(G.nameX(i), G.nameY(i), G.fit.names[i]!, nk)));
+  const i0 = STATIONS.indexOf(PATH.liver[0]), i1 = STATIONS.indexOf(PATH.liver[1]);
+  if (i0 >= 0) {
+    const bp = lk('prof.brace.path');
+    shapes.push({ k: 'path', pts: bracePts(G.x(i0) - 0.42 * G.slot, G.x(i1) + 0.42 * G.slot, G.braceY, 0.55 * f), pen: { color: bp.stroke!, w: bp.width ?? 1.5, cap: bp.cap ?? 'round', join: bp.join ?? 'round' } });
+    shapes.push(text((G.x(i0) + G.x(i1)) / 2, G.braceY + 1.55 * f, BRACE_NAME, lk('prof.brace.text')));
+  }
+
+  // The brackets (HVPG, EUS-PPG, PPG) in their cut-off colours, each label inside its own bracket; held back, they are out.
+  const shownOf = sh as unknown as Record<string, number>;
+  if (view.brk >= 0.005) spans.forEach(([key, name], r) => {
+    const v = shownOf[key]!, rate = RATE_OF[key]!(v), g = bracketGeom(G, f, tw, r, v), bp = lk('prof.br.path', { rate }), bt = lk('prof.br.text', { rate }), bkk = lk('prof.br.k');
+    const pen = { color: fade(bp.stroke, view.brk)!, w: bp.width ?? 1.5 };
+    for (const t of g.ticks) shapes.push({ k: 'path', pts: t, pen });
+    for (const t of g.bar) shapes.push({ k: 'path', pts: t, pen });
+    const halo = bt.halo ? { color: fade(bt.halo.color, view.brk)!, w: bt.halo.w } : undefined, val = words0(v);
+    const part = (x: number, y: number, s: string, k: Look, anchor: 'start' | 'middle'): TextShape =>
+      ({ k: 'text', x, y, s, size: g.fs < f - 0.01 ? g.fs : f, weight: k.weight, color: fade(k.fill, view.brk)!, anchor, ...(halo ? { halo } : {}) });
+    if (g.stack) {
+      shapes.push(part(g.mid, g.yy - 0.19 * f, name, bkk, 'middle'));
+      shapes.push(part(g.mid, g.yy - 0.19 * f + 1.1 * f, val, bt, 'middle'));
+    } else {
+      const nw = measure(`${name} `, g.fs, bkk.weight ?? 600), vw = measure(val, g.fs, bt.weight ?? 700), x = g.mid - (nw + vw) / 2, y = g.yy + 0.36 * g.fs;
+      shapes.push(part(x, y, `${name} `, bkk, 'start'));
+      shapes.push(part(x + nw, y, val, bt, 'start'));
+    }
+  });
+
+  // The readings as pills in the plot's top right, tinted as the brackets rate them, over everything else.
+  if (view.pills && view.pillA >= 0.005) {
+    const ps = pillSize(G, tw), a = view.pillA;
+    spans.forEach(([key, name], k) => {
+      const at = view.pills![k];
+      if (!at) return;
+      const v = shownOf[key]!, rate = RATE_OF[key]!(v), rk = lk('prof.pill.rect', { rate }), tk = lk('prof.pill.text', { rate }), kk = lk('prof.pill.k');
+      shapes.push({ k: 'rect', x: at.x, y: at.y, w: ps.w[k]!, h: ps.h, r: ps.h / 2, fill: fade(rk.fill, a), pen: rk.stroke ? { color: fade(rk.stroke, a)!, w: rk.width ?? 1 } : undefined });
+      const val = words0(v), nw = measure(`${name} `, f, kk.weight ?? 600), vw = measure(val, f, tk.weight ?? 700), x = at.x + ps.w[k]! / 2 - (nw + vw) / 2, y = at.y + ps.h / 2 + 0.36 * f;
+      shapes.push({ k: 'text', x, y, s: `${name} `, size: tk.size!, weight: kk.weight, color: fade(tk.fill, a)!, anchor: 'start' });
+      shapes.push({ k: 'text', x: x + nw, y, s: val, size: tk.size!, weight: tk.weight, color: fade(tk.fill, a)!, anchor: 'start' });
+    });
+  }
+  void whole;
+  return { w, h: plan.h, shapes, label: profileWords(plan.goal, spans) };
+}
+
+/** The chart at rest on its plan (every fade done). */
+export const profileFrameAtRest = (plan: ProfilePlan, c: ChartCtx, o: { cell?: CellOpts | null; held?: boolean } = {}): Frame => profileFrame(plan, restView(plan, o.held), c, o);

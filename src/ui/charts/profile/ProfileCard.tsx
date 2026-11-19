@@ -1,0 +1,92 @@
+import { useEffect, useMemo, useRef } from 'react';
+import { clock } from '../../../clock/frame.ts';
+import { Chart, type ChartCtx } from '../Chart.tsx';
+import type { ChartPainter } from '../painter.ts';
+import type { Frame } from '../scene.ts';
+import { profileFrame, type CellOpts } from './frame.ts';
+import { ProfileMotion } from './glide.ts';
+import { planProfile, profileWords, spansFor, type Fp, type ProfilePlan } from './model.ts';
+import { profileInputs } from './data.ts';
+import '../charts.css';
+
+export interface ProfileCardProps {
+  /** the state the slide shows (its fingerprint: the readings and `at.P`). The numbers glide to each new state. */
+  fp: Fp | null | undefined;
+  /** the healthy patient's fingerprint: the dashed line under the profile and the reference for the red blocks */
+  healthy?: Fp | null;
+  /** the state before this one (the slide's `from`, resolved with data.ts beforeOf): a faint dotted line */
+  before?: Fp | null;
+  /** its name on the line: 'Before', or a few words ('No Rx', 'Day 0'; the slide's fromLabel) */
+  fromLabel?: string;
+  /** the brackets the slide asks for (its tool.spans: any of 'hvpg', 'eus', 'ppg'; [] for none); absent: HVPG and PPG */
+  spans?: readonly string[];
+  /** a question slide's hold: no red blocks and no brackets, the line and its numbers as they are */
+  hold?: boolean;
+  /** the chart's height, px; absent: the stacked card's (74 % of the width up to 270, less 1.6 em), never under what the layout needs */
+  height?: number;
+  /** the ladder's cell variant (the instrument in a wide screen's grid cell) */
+  cell?: CellOpts;
+}
+
+const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const empty: Frame = { w: 0, h: 0, shapes: [], label: '' };
+
+/** The pressure from gut to heart through the circuit's eight stations, the healthy line dashed beneath it, the liver's stations on a tint, the HVPG and PPG (and the EUS-PPG) as brackets. */
+export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Before', spans: want, hold = false, height, cell }: ProfileCardProps) {
+  const inp = useMemo(() => profileInputs(fp, healthy, before), [fp, healthy, before]);
+  const spans = useMemo(() => spansFor(want, fp), [want?.join(), fp]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const motion = useRef<ProfileMotion | null>(null);
+  if (!motion.current) motion.current = new ProfileMotion();
+  const painter = useRef<ChartPainter | null>(null), ctx = useRef<ChartCtx | null>(null), plan = useRef<ProfilePlan | null>(null), planKey = useRef('');
+  const loop = useRef<{ off(): void; hold: { release(): void } } | null>(null);
+  const cellKey = cell ? `${cell.chCap ?? ''}|${cell.lad ?? ''}` : '';
+
+  const draw = (now: number) => {
+    const v = motion.current!.view(now);
+    if (v && plan.current && ctx.current) painter.current?.show(profileFrame(plan.current, v, ctx.current, { cell }), false);
+  };
+  const stop = () => { loop.current?.off(); loop.current?.hold.release(); loop.current = null; };
+  const kick = () => {
+    if (loop.current) return;
+    const m = motion.current!, h = clock.hold('chart:profile');
+    const off = clock.on('tween', (fi) => {
+      const busy = m.tick(fi.time);
+      draw(fi.time);
+      if (!busy) stop();
+    });
+    loop.current = { off, hold: h };
+  };
+
+  const build = (c: ChartCtx): Frame => {
+    ctx.current = c;
+    if (!inp) { plan.current = null; planKey.current = ''; return empty; }
+    const m = motion.current!, now = performance.now();
+    m.reduce = reduced();
+    const f = Math.max(12, cell ? (cell.chCap ?? c.type.sm) * (cell.lad ?? 1) : c.type.sm);
+    const key = [c.w, f, height ?? '', cellKey, spans.map(([k]) => k).join(), fromLabel, inp.goal.v.join(), inp.goal.hvpg, inp.goal.ppg, inp.goal.eus, inp.goal.top, inp.hl?.v.join() ?? '', inp.bf?.v.join() ?? ''].join('|');
+    if (key !== planKey.current) {
+      planKey.current = key;
+      plan.current = planProfile(c.w, height ?? 0, f, inp.goal, inp.hl, inp.bf, spans, fromLabel);
+      m.aim(inp.goal, plan.current, now, { held: hold });
+      // a new look or width is drawn at once; a new state of the same box eases (the shown numbers follow the goal)
+      m.tick(now);
+      kick();
+    }
+    const v = m.view(now)!;
+    return profileFrame(plan.current!, v, c, { cell });
+  };
+
+  useEffect(() => {
+    const m = motion.current!, now = performance.now();
+    m.setHold(hold, now);
+    if (plan.current) { draw(now); kick(); }
+  }, [hold]);  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => stop, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!inp) return null;
+  return (
+    <div className="pz-prof">
+      <Chart tag="chart:profile" glide={false} painter={painter} deps={[inp, spans, fromLabel, hold, height, cellKey]} label={profileWords(inp.goal, spans)} build={build} />
+    </div>
+  );
+}
