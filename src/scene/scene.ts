@@ -30,7 +30,8 @@ import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './l
 import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
 import { LOBULE_R, LOBULE_T, SINUSOID_L, lobuleShot } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
-import { SinusoidView, diveShare } from './sinusoid/index.ts';
+import { SinusoidView, diveShare, isPortrait, restScale } from './sinusoid/index.ts';
+import { sinusoidBox } from './lobule/shots.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
 import { ProbeLayer } from './devices/probes/layer.ts';
@@ -398,7 +399,7 @@ export class CelScene {
   /** Show the body, the lobule or the sinusoid: the others are hidden and cost nothing (nothing is built or compiled here; the views were made at start). The camera is the caller's. */
   setView(v: FigureView, now = performance.now()): void {
     this.figureView = v;
-    this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? sinusoidCorners() : null);
+    this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? (sinusoidBox(this.portrait) as Vec3[]) : null);
     // the view being left stays drawn until the camera has landed on the new one (nothing pops while it flies); then it is hidden
     this.body.visible ||= v === 'body' || v === 'circuit';
     // the body turns into the map (or back) on the camera's own clock, from wherever it stands
@@ -532,11 +533,16 @@ export class CelScene {
   /** A portrait room (narrower than tall, 2D's `W < H * 0.95`) runs the sinusoid top to bottom: the sinusoid view takes it (SinusoidView.setPortrait, the sinusoid worker's), and the shot asks for it (sinusoidShot(portrait)). */
   private portrait = false;
   private stepPortrait(): void {
-    const r = this.rig.targetRoom, p = r.w < r.h * 0.95;
-    if (p === this.portrait) return;
-    this.portrait = p;
-    (this.sinus as { setPortrait?: (portrait: boolean) => void }).setPortrait?.(p);   // TODO(merge): the sinusoid worker's API; a no-op until it lands
-    this.moving = true;
+    const r = this.rig.targetRoom, p = isPortrait(r.w, r.h);
+    if (p !== this.portrait) {
+      this.portrait = p;
+      this.sinus.setPortrait(p);
+      if (this.figureView === 'sinusoid') this.rig.setSubject(sinusoidBox(p) as Vec3[]);
+      this.moving = true;
+    }
+    // what the view needs of the screen to lay its end arrows and run its traffic as 2D does: px per µm along the flow (the hand's zoom included), the room's length and the canvas's along it
+    const short = Math.min(r.w, r.h), s = this.rig.stageSize;
+    this.sinus.setScreen(restScale(short) * this.rig.handZoom, p ? r.h : r.w, p ? s.h : s.w);
   }
   get isPortrait(): boolean { return this.portrait; }
   /** The distance the camera sits at with the whole lobule framed in the room it has (kept per room size). */

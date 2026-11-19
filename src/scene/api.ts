@@ -13,6 +13,7 @@ import { create } from 'zustand';
 import { engine } from '../engine/boot.ts';
 import type { LensId } from './lenses/model.ts';
 import type { FigureView } from './scene.ts';
+import { isPortrait } from './sinusoid/index.ts';
 import { lobuleShot, sinusoidShot, type LobuleCam, type LobuleLayers } from './lobule/index.ts';
 import { circuitShot } from './circuit/shots.ts';
 import type { ResKey } from './circuit/res-model.ts';
@@ -61,13 +62,14 @@ export const sceneApi = {
     cel.setView(v);
     // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together; body, lobule and sinusoid are one dive through the liver (camera/rig.ts blends it geometrically) that takes the dive's time
     const ms = (v === 'body' || v === 'circuit' ? cel.circuit.changeMs() : 0) || diveMs(from, v);
-    this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot() : lobuleShot(cam), room, ms);
+    this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot(isPortrait(room.w, room.h), Math.min(room.w, room.h)) : lobuleShot(cam), room, ms);
     clock.invalidate('circuit');
   },
   /** Show a view and fly to a shot of the caller's own (a ported deck slide's camera), fitted into the room the cards leave free. */
   showShot(v: FigureView, shot: ShotName | Shot, room: Room): void {
     if (cel.view !== v) cel.setView(v);
-    this.goTo(shot, room);
+    // the sinusoid's deck camera is the wide one; a portrait room turns it top to bottom and frames it as 2D does
+    this.goTo(v === 'sinusoid' && typeof shot !== 'string' ? sinusoidShot(isPortrait(room.w, room.h), Math.min(room.w, room.h)) : shot, room);
   },
   /** The Circuit's quarter turn: stand the map upright (flow bottom to top) or lay it wide; the camera follows on the same 480 ms. Remembered across visits. */
   setCircuitUpright(on: boolean, room: Room): void {
@@ -87,6 +89,8 @@ export const sceneApi = {
   /** The cards changed room (a card opened, the phone turned): move the room alone; the viewer's turn stays. `homeTurn`: a slide or catheter step asked for the shot the camera is already on, and still brings the turn home. */
   setRoom(room: Room, ms?: number, homeTurn = false): void {
     if (homeTurn) gesturesRef.current?.turnOff();
+    // the phone turned while the sinusoid is up: its shot is a different one on the other screen shape (top to bottom, 2D's framing), so the move is to that
+    if (cel.view === 'sinusoid' && isPortrait(room.w, room.h) !== isPortrait(cel.rig.targetRoom.w, cel.rig.targetRoom.h)) { this.goTo(sinusoidShot(isPortrait(room.w, room.h), Math.min(room.w, room.h)), room, ms); return; }
     cel.rig.setRoom(room, performance.now(), ms, homeTurn);
     clock.invalidate('room');
   },
