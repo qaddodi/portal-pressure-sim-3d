@@ -37,15 +37,34 @@ test('on the dark looks the organ outline (the third tone) is lighter than the f
   }
 });
 
-test('the organ painter pre-mixes against the page and keeps the dive\'s dissolve and the vertex paint', () => {
-  assert.match(ORGAN_FS, /mix\(page, fill, layer\)/);
-  assert.match(ORGAN_FS, /fadedOut\(\)/);
+test('the organ painter blends at the layer\'s opacity, fades without dots and keeps the vertex paint', () => {
+  assert.doesNotMatch(ORGAN_FS, /if \(fadedOut\(\)\)/, 'the dive fades the layer, no dots');
   assert.match(ORGAN_FS, /vInk - color/);
   assert.match(ORGAN_VS, /attribute vec3 ink/);
-  assert.match(ORGAN_FS, /gl_FragColor = vec4\(mix\(page, fill, layer\), 1\.0\)/, 'opaque: no blending');
+  assert.match(ORGAN_FS, /gl_FragColor = vec4\(fill, layer \* fade\)/, 'blended at the layer, so organs show through each other');
 });
 
 const twoD = pinned2D('styles/tokens.css');
 test('the copied tones equal the 2D app\'s at the pin (copy-organ-tones --check)', { skip: twoD.skip }, () => {
   execFileSync('node', ['scripts/copy-organ-tones.mjs', '--from', twoD.repo, '--check'], { stdio: 'pipe' });
+});
+
+// The visual review (19 Nov): 2D's inner shade strokes (.09/.15/.24 of og-dark) stack, so the darkest rim is og-dark at 1-(.91·.85·.76) ≈ .41 of its alpha:
+// .11 on Light (2D .12), .14 on Dark (2D .16); the earlier sum divided by .26 gave .48 and .65.
+test('the inner shade stacks as 2D\'s strokes, at og-dark\'s own alpha, on the lower right only', () => {
+  assert.match(ORGAN_FS, /1\.0 - \(1\.0 - 0\.09 \* .*\) \* \(1\.0 - 0\.15 \* .*\) \* \(1\.0 - 0\.24 \* /);
+  assert.match(ORGAN_FS, /ogDark\.a \* k \* lowerRight/);
+  assert.doesNotMatch(ORGAN_FS, /\/ 0\.26/);
+  const k = 1 - 0.91 * 0.85 * 0.76;
+  assert.ok(Math.abs(PALETTES.light.organs.dark[3] * k - 0.12) < 0.02);
+  assert.ok(Math.abs(PALETTES.dark.organs.dark[3] * k - 0.16) < 0.03);
+});
+
+test('the organ outline is in the figure\'s units (2D 1.1, kidney 1.4), floored at one device pixel, and the organs draw in 2D\'s order with the gut last', async () => {
+  const { ORGAN_INK_VS } = await import('../src/scene/organs/organ-shader.ts');
+  const { ORGAN_ORDER } = await import('../src/scene/organs/layer.ts');
+  assert.match(ORGAN_INK_VS, /max\(1\.0 \/ max\(dpr, 1\.0\), px \/ max\(wpc, 1e-6\)\)/);
+  assert.equal(ORGAN_STYLE.liver!.px, 1.1); assert.equal(ORGAN_STYLE['kidney-l']!.px, 1.4);
+  assert.deepEqual(ORGAN_ORDER.slice(-2), ['bowel', 'colon']);
+  for (const id of Object.keys(ORGAN_STYLE)) assert.ok(ORGAN_ORDER.includes(id), id);
 });
