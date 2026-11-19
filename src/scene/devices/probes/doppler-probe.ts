@@ -1,16 +1,23 @@
-// The Doppler probe on the figure (2D dop-probe.js, "B1 + white"): a small probe off the vessel, its line of sight running straight to the vessel, the sample volume's two bars across the line inside the
-// lumen, and the flow axis through the gate. The gate stands at the vessel's middle (a stent: the third the Doppler samples; the hepatic artery: four fifths along), the line meets the flow at the
-// monitor's 50 degrees, from the side the flow comes toward, or away from for the hepatic veins and the IVC. All the numbers (PROBE, gateDims, gateFrac, awayFromProbe, the stent's thirds) are the 2D app's,
-// copied; the 2D search that moves the probe out of the cards' way is screen space and stays there: here the probe stands on the side of the vessel that looks out from the figure's middle, and the camera
-// brings it with the vessel as it turns.
+// The Doppler probe on the figure (2D dop-probe.js, "B1 + white"; stage-doppler.js places it): a small probe off the vessel, its line of sight running straight to the vessel, the sample volume's two bars
+// across the line inside the lumen, and the flow axis through the gate. The gate stands at the vessel's middle (a stent: the third the Doppler samples; the hepatic artery: four fifths along), the line
+// meets the flow at the monitor's 50 degrees, from the side the flow comes toward, or away from for the hepatic veins and the IVC. All the numbers (PROBE, gateDims, gateFrac, awayFromProbe, the stent's
+// thirds, and the search that finds the probe a place clear of the cards: fitPoseInto, createProbeMind, probeSwing, probeTurn, probeFade) are the 2D app's, copied.
+//
+// Where it stands is worked out on the screen, as 2D does (the probe is a screen-sized thing: 65 px long at any zoom), and written back on the plate through the figure's own map at the gate (screen.ts):
+//  - with a screen (the scene's), the search picks the side, end and distance clear of the Tests card, the slide's cards and the bars, and of the labels where a side allows; the probe swings round the
+//    gate to a new place in real time, swings out (turning 60 degrees away from the vessel and fading) when it goes or its vessel changes, and comes back already turned to its place;
+//  - without one (node tests, a bare layer) it keeps the 2D numbers at the figure's own scale, on the side that looks out from the figure's middle, and eases in and out.
 import { Mesh, Vector3, BufferGeometry, BufferAttribute, MeshBasicMaterial, DoubleSide, Color, Group } from 'three';
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
-import { NETWORK_BY_ID } from '../../vessels/network.ts';
+import { NETWORK, NETWORK_BY_ID } from '../../vessels/network.ts';
 import { len3, UNITS_PER_SCENE } from '../../frame2d.ts';
 import { STENT_SITES } from '../../../engine/hales/portal/topology.js';
-import { PROBE, gateDims, gateFrac, awayFromProbe } from './copied/dop-probe.copied.js';
+import { PROBE, SLACK, gateFrac, awayFromProbe, createProbeMind, fitPoseInto, makeProbePose, makeProbeGeom, probeGeomInto, probeSwing, probeTurn, probeFade } from './copied/dop-probe.copied.js';
+import { easeMove } from '../../../ui/tests/copied/ease.copied.js';
+import { smooth01 } from '../../../ui/tests/copied/num.copied.js';
 import { ProbePart, TubeBuf, linePart } from './parts.ts';
+import { basisAt, newBasis, toPlate, toScreen, type Basis, type Box, type Pt, type ScreenEnv } from './screen.ts';
 import type { DopplerSeg } from './state.ts';
 
 const RAD = Math.PI / 180;
@@ -47,7 +54,7 @@ export interface DopplerPose {
 
 const rot = (v: Vector3, deg: number, out: Vector3): Vector3 => { const c = Math.cos(deg * RAD), s = Math.sin(deg * RAD); return out.set(v.x * c - v.y * s, v.x * s + v.y * c, 0); };
 
-/** The probe's place at a vessel's gate (pure: the scene's pose for an edge, a stent's third). Null for a vessel the figure does not draw. */
+/** The probe's place at a vessel's gate when nothing is known of the screen (pure: the scene's pose for an edge, a stent's third, at the figure's own scale). Null for a vessel the figure does not draw. */
 export function dopplerPose(id: string, seg: DopplerSeg, out: DopplerPose = { gate: new Vector3(), face: new Vector3(), s: new Vector3(), across: new Vector3(), flow: new Vector3(), rPx: 0, k: 1 }): DopplerPose | null {
   const g = gateOf(id, gateFraction(id, seg));
   if (!g) return null;
@@ -63,36 +70,79 @@ export function dopplerPose(id: string, seg: DopplerSeg, out: DopplerPose = { ga
   return out;
 }
 
+/** The probe's frame: scene = gate + ex * u + ey * v for a screen offset (u along the line of sight, v across it) in px; `U` scene units to a px (radii and thicknesses). */
+interface Frame { gate: Vector3; ex: Vector3; ey: Vector3; U: number }
+/** What is drawn: the gate's distance to the face (px), the lumen's radius (px), the probe's size, the flow axis's turn from the line of sight (degrees), how far the marks have closed (0 to 1). */
+interface Draw { D: number; r: number; k: number; phi: number; out: number }
+
+const hMix = (h: number, v: number): number => Math.imul(h ^ (v | 0), 16777619) >>> 0;
+const hStr = (v: string): number => { let h = 2166136261; for (let i = 0; i < v.length; i++) h = Math.imul(h ^ v.charCodeAt(i), 16777619); return h >>> 0; };
+/** b - a in -180 to 180. */
+const angTo = (a: number, b: number): number => ((((b - a) % 360) + 540) % 360) - 180;
+type Fit = ReturnType<typeof makeProbePose> & { side: number; rev: boolean; reach: number; ang: number; D: number; k: number; phi: number; headOff?: boolean; none?: boolean; box: Box };
+
 export class DopplerProbe {
   readonly group = new Group();
   readonly parts: ProbePart[] = [];
   /** 0 to 1: how much of the probe shows (it eases in and out; a change of vessel eases out, moves, and eases in) */
   shown = 0;
   private placedKey = '';
-  private readonly head: TubeBuf; private readonly face: TubeBuf;
+  private readonly head: TubeBuf; private readonly face: TubeBuf; private readonly light: TubeBuf;
   private readonly bufs: TubeBuf[] = [];
-  private readonly sight: TubeBuf; private readonly axis: TubeBuf; private readonly barA: TubeBuf; private readonly barB: TubeBuf; private readonly light: TubeBuf;
+  private readonly sight: TubeBuf; private readonly axis: TubeBuf; private readonly barA: TubeBuf; private readonly barB: TubeBuf;
+  private readonly headParts: ProbePart[] = []; private readonly markParts: ProbePart[] = [];
   private readonly wedgeGeo = new BufferGeometry();
   private readonly wedge: Mesh;
   private readonly wedgeMat = new MeshBasicMaterial({ transparent: true, opacity: 0.2, depthTest: false, depthWrite: false, side: DoubleSide });
   private pose: DopplerPose | null = null;
   private readonly tmp = new Vector3();
   private readonly tmp2 = new Vector3();
+  private readonly w0 = new Vector3(); private readonly w1 = new Vector3(); private readonly w2 = new Vector3(); private readonly axisT = new Vector3();
+  private readonly fr: Frame = { gate: new Vector3(), ex: new Vector3(), ey: new Vector3(), U: len3(1) };
+  private readonly geom = makeProbeGeom();
+  private shut = false;
+  /** the parts the sample volume's closing takes away: the axis and the two bars */
+  private closing: ProbePart[] = [];
+
+  // ── the screen's search (stage-doppler.js dprobePaint): the 2D record `dpr`, kept ──
+  private on = false;                  // drawn at its place (2D dpr.on)
+  private has = false;
+  private oP = 1;                      // how far it has swung out: 0 at its place, 1 out
+  private headP = 1; private headOff = false;
+  private swap = false;                // drawing back to move to another vessel or third
+  private cur = { ang: 0, d: 0, k: 1 };
+  private tgt = { ang: 0, d: 0, k: 1, ax: 0, r: 0, sw: 0 };
+  private readonly mind = createProbeMind();
+  private readonly fit = makeProbePose() as Fit;
+  private readonly opt = { g: [0, 0], t: [0, 0], r: 0, away: false, w: 0, h: 0, cards: [] as readonly Box[], keep: 0, keepReach: 0, keepRev: false, keepK: 1, sc: 1, avoid: [] as readonly Box[], busy: [] as number[][], ban: [] as string[], lock: false, slack: 0 };
+  private side = 0; private reach = 0; private rev = false; private k = 1; private keyOn = false;
+  private syncKey = 0; private searchAt = -1e9; private searchGap = 150; private lastSig = 0;
+  private readonly basis: Basis = newBasis();
+  private readonly gate3 = new Vector3(); private readonly tan3 = new Vector3();
+  private sm = { x: 0, y: 0 };
+  private readonly busyPool: number[][] = [];
+  /** where the probe's gate stands on the screen now (px), for the label that names its reading; null while it is not drawn */
+  readonly gateAtScreen: Pt = { x: 0, y: 0 };
+  /** the probe's body on the screen now (a box), for what keeps clear of it */
+  readonly bodyBox: Box = { x0: 0, y0: 0, x1: 0, y1: 0 };
+  /** the gate on the plate, the probe's turn on the screen (degrees), its distance from the gate (px) and the vessel it stands on: what the reading's label is placed by */
+  readonly stand = { edge: '', seg: null as DopplerSeg, ang: 0, D: 0, k: 1, headOff: false };
 
   constructor(shared: CelShared) {
-    const add = (buf: TubeBuf, part: ProbePart) => { this.bufs.push(buf); this.parts.push(part); this.group.add(part.group); };
-    const mk = (tone: Parameters<typeof linePart>[1], colour: Parameters<typeof linePart>[2], rings: number, px: number, order: number): TubeBuf => {
+    const add = (buf: TubeBuf, part: ProbePart, head: boolean) => { this.bufs.push(buf); this.parts.push(part); (head ? this.headParts : this.markParts).push(part); this.group.add(part.group); };
+    const mk = (tone: Parameters<typeof linePart>[1], colour: Parameters<typeof linePart>[2], rings: number, px: number, order: number, head = false): TubeBuf => {
       const { part, buf } = linePart(shared, tone, colour, rings, px, order);
-      add(buf, part);
+      add(buf, part, head);
       return buf;
     };
-    this.head = mk('poly', null, PROFILE.length, 0.9, 2);
-    this.face = mk('steel', (t) => t.polyEdge, FACE.length, 0.9, 3);
-    this.light = mk('graft', null, 2, 0.5, 4);
+    this.head = mk('poly', null, PROFILE.length, 0.9, 2, true);
+    this.face = mk('steel', (t) => t.polyEdge, FACE.length, 0.9, 3, true);
+    this.light = mk('graft', null, 2, 0.5, 4, true);
     this.sight = mk('graft', null, 2, 0.9, 5);
     this.axis = mk('graft', null, 2, 0.9, 5);
     this.barA = mk('graft', null, 2, 0.9, 6);
     this.barB = mk('graft', null, 2, 0.9, 6);
+    this.closing = [this.parts[4]!, this.parts[5]!, this.parts[6]!];
     this.wedgeGeo.setAttribute('position', new BufferAttribute(new Float32Array(9), 3));
     this.wedge = new Mesh(this.wedgeGeo, this.wedgeMat);
     this.wedge.renderOrder = 1000; this.wedge.frustumCulled = false; this.wedge.visible = false;
@@ -100,41 +150,54 @@ export class DopplerProbe {
     this.group.visible = false;
   }
 
-  /** Writes the probe's geometry for a pose. */
-  private lay(p: DopplerPose): void {
-    const S = PROBE.SCALE, px = (v: number) => len3(v * S);
-    const { at, half } = gateDims(p.rPx) as { at: number; half: number };
-    const axisL = len3(Math.min(36, Math.max(16, 1.7 * p.rPx)));
-    const { gate, s, across, flow, face } = p;
+  /** Writes the probe's geometry for a frame and what is drawn (the 2D probe's marks in its own frame: x from the gate toward the probe, y across). */
+  private lay(f: Frame, d: Draw): void {
+    const S = PROBE.SCALE * d.k, U = f.U, px = (v: number) => v * S * U;
+    const g = probeGeomInto(this.geom, d.D, d.r, d.phi, d.k, d.out) as ReturnType<typeof makeProbeGeom>;
+    const { gate, ex, ey } = f;
     const t = this.tmp, u = this.tmp2;
+    const at = (x: number, y: number, o: Vector3): Vector3 => o.copy(gate).addScaledVector(ex, x).addScaledVector(ey, y);
+    const axisT = this.axisT.copy(ex).normalize();
     // the body and the face band, along the line of sight from the face outward
     const lay = (buf: TubeBuf, prof: readonly (readonly [number, number])[]) => {
-      for (let i = 0; i < prof.length; i++) { const r = buf.rings[i]!; r.c.copy(face).addScaledVector(s, px(prof[i]![0])); r.t.copy(s); r.r = px(prof[i]![1]); }
+      for (let i = 0; i < prof.length; i++) { const r = buf.rings[i]!; at(g.dh + prof[i]![0] * S, 0, r.c); r.t.copy(axisT); r.r = prof[i]![1] * S * U; }
       buf.commit();
     };
     lay(this.head, PROFILE); lay(this.face, FACE);
     // the light on the handle: a bead facing the viewer
-    this.light.line(t.copy(face).addScaledVector(s, px(33)).setZ(face.z + 0.004), u.copy(face).addScaledVector(s, px(33)).setZ(face.z + 0.007), px(3), px(2.2));
-    // the line of sight ends at the near gate bar; the flow axis runs a little past both
-    const nearBar = len3(at);
-    this.sight.line(t.copy(face).addScaledVector(s, -len3(PROBE.EDGE)), u.copy(gate).addScaledVector(s, nearBar), len3(1.3));
-    this.axis.line(t.copy(gate).addScaledVector(flow, -axisL), u.copy(gate).addScaledVector(flow, axisL), len3(1.3));
-    // the sample volume: two short bars across the line, `at` px either side of the gate, half-width `half`
-    const hw = len3(half);
-    this.barA.line(t.copy(gate).addScaledVector(s, nearBar).addScaledVector(across, -hw), u.copy(gate).addScaledVector(s, nearBar).addScaledVector(across, hw), len3(1.7));
-    this.barB.line(t.copy(gate).addScaledVector(s, -nearBar).addScaledVector(across, -hw), u.copy(gate).addScaledVector(s, -nearBar).addScaledVector(across, hw), len3(1.7));
-    // the faded ultrasound beam: a narrow wedge from the face to past the vessel's far wall
-    const far = -(Math.max(0, p.rPx) + 10), D = face.distanceTo(gate), wk = Math.tan(PROBE.BEAM_DEG * RAD) * (D * UNITS_PER_SCENE - far);
+    this.light.line(at(g.dh + 33 * S, 0, t).setZ(gate.z + 0.004), at(g.dh + 33 * S, 0, u).setZ(gate.z + 0.007), px(3), px(2.2));
+    // the line of sight runs from the face to the near gate bar; the flow axis a little past both bars
+    this.sight.line(at(g.dh - PROBE.EDGE, 0, t), at(g.bx1, 0, u), U * 1.3);
+    // the sample volume: two short bars across the line, `at` px either side of the gate, half-width `half`; the axis through the gate at the flow's angle
+    const shut = !g.open;
+    this.barA.line(at(g.at, -g.half, t), at(g.at, g.half, u), U * 1.7);
+    this.barB.line(at(-g.at, -g.half, t), at(-g.at, g.half, u), U * 1.7);
+    this.axis.line(at(-g.axx, -g.axy, t), at(g.axx, g.axy, u), U * 1.3);
+    this.shut = shut;
+    // the faded ultrasound beam: a narrow wedge from the probe's face, to past the vessel's far wall
     const pos = this.wedgeGeo.getAttribute('position') as BufferAttribute;
-    const f0 = t.copy(gate).addScaledVector(s, len3(far));
-    pos.setXYZ(0, face.x, face.y, face.z);
-    pos.setXYZ(1, f0.x + across.x * len3(wk), f0.y + across.y * len3(wk), f0.z);
-    pos.setXYZ(2, f0.x - across.x * len3(wk), f0.y - across.y * len3(wk), f0.z);
+    const a = at(g.dh, 0, this.w0), b = at(g.far, g.wk, this.w1), c = at(g.far, -g.wk, this.w2);
+    pos.setXYZ(0, a.x, a.y, a.z); pos.setXYZ(1, b.x, b.y, b.z); pos.setXYZ(2, c.x, c.y, c.z);
     pos.needsUpdate = true; this.wedgeGeo.computeBoundingSphere();
   }
 
-  /** Steps the probe toward what is asked (on a vessel, or away); true while it moves. */
-  update(dtMs: number, on: boolean, edge: string, seg: DopplerSeg): boolean {
+  /** The screen's map into the plate, at the gate: the probe's frame for a direction on the screen (degrees, y down) and the scene units a px takes there. */
+  private frameFor(B: Basis, gate: Vector3, angDeg: number): Frame {
+    const c = Math.cos(angDeg * RAD), s = Math.sin(angDeg * RAD), f = this.fr;
+    f.gate.copy(gate);
+    toPlate(B, c, s, f.ex); toPlate(B, -s, c, f.ey);
+    f.ex.z = 0; f.ey.z = 0;
+    f.U = 1 / B.sc;
+    return f;
+  }
+
+  /** Steps the probe toward what is asked (on a vessel, or away); true while it moves. `env`: the screen (the scene's); without it the probe keeps the 2D numbers at the figure's scale. `nowMs`: the clock. */
+  update(dtMs: number, on: boolean, edge: string, seg: DopplerSeg, env: ScreenEnv | null = null, nowMs = 0): boolean {
+    return env ? this.stepScreen(dtMs, nowMs, on, edge, seg, env) : this.stepFigure(dtMs, on, edge, seg);
+  }
+
+  // ── without a screen ──
+  private stepFigure(dtMs: number, on: boolean, edge: string, seg: DopplerSeg): boolean {
     const key = `${edge}|${seg ?? ''}`;
     let want = on ? 1 : 0;
     // a new vessel or third: it eases out where it stands, moves, and eases in at the new place
@@ -142,20 +205,160 @@ export class DopplerProbe {
     if (this.shown <= 0.001 && want === 1 && key !== this.placedKey) {
       this.pose = dopplerPose(edge, seg, this.pose ?? undefined) ?? null;
       this.placedKey = key;
-      if (this.pose) this.lay(this.pose);
+      if (this.pose) {
+        const p = this.pose, f = this.fr;
+        f.gate.copy(p.gate); f.ex.copy(p.s).multiplyScalar(len3(1)); f.ey.copy(p.across).multiplyScalar(len3(1)); f.U = len3(1);
+        const phi = Math.atan2(p.across.dot(p.flow), p.s.dot(p.flow)) / RAD;
+        this.lay(f, { D: p.rPx + PROBE.GAP, r: p.rPx, k: 1, phi, out: 0 });
+      }
     }
     if (on && !this.pose) want = 0;
     const k = 1 - Math.exp(-Math.max(0, dtMs) / 90), prev = this.shown;
     this.shown += (want - this.shown) * k;
     if (Math.abs(want - this.shown) < 0.004) this.shown = want;
     const moving = this.shown !== prev || (on && key !== this.placedKey);
-    if (this.shown !== prev) {
-      const a = this.shown, vis = a > 0.002;
-      this.group.visible = vis;
-      for (const o of this.parts) { o.group.visible = vis; if (vis) o.setAlpha(a); }
-      this.wedge.visible = vis; this.wedgeMat.opacity = 0.2 * a;
-    }
+    if (this.shown !== prev) this.paint(this.shown, 1);
     return moving;
+  }
+
+  /** Marks and head at their strengths (the whole probe's, the head's own) and the group visible while any shows. */
+  private paint(a: number, headA: number): void {
+    const vis = a > 0.002;
+    this.group.visible = vis;
+    for (const o of this.markParts) { if (vis) o.setAlpha(a); o.group.visible = vis && !(this.shut && this.closing.includes(o)); }
+    for (const o of this.headParts) { const h = a * headA; if (h > 0.002) o.setAlpha(h); o.group.visible = h > 0.002; }
+    this.wedge.visible = vis; this.wedgeMat.opacity = 0.2 * a;
+  }
+
+  // ── with a screen: the 2D probe's own rules ──
+  private busyAround(env: ScreenEnv, B: Basis, id: string, R: number, out: number[][]): number[][] {
+    let n = 0;
+    const g = this.gate3, rs = R / B.sc + 0.1, p = this.tmp, pt = this.sm;
+    for (const v of NETWORK) {
+      if (v.id === id || v.pts.length < 2) continue;
+      // a quick look in the plate: the course's box against the room the search looks into
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const q of v.pts) { if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0]; if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1]; }
+      if (x1 < g.x - rs || x0 > g.x + rs || y1 < g.y - rs || y0 > g.y + rs) continue;
+      const q = v.radius * B.sc;
+      let lx = NaN, ly = NaN;
+      for (let i = 0; i < v.pts.length; i++) {
+        const a = v.pts[i]!;
+        env.project(p.set(a[0], a[1], g.z), pt);
+        if (Math.abs(pt.x - B.ox) >= R + q || Math.abs(pt.y - B.oy) >= R + q) { lx = NaN; continue; }
+        if (!Number.isNaN(lx)) {
+          // a point every 6 px along the stretch from the last
+          const dx = pt.x - lx, dy = pt.y - ly, m = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 6));
+          for (let j = 1; j <= m; j++) { const e = (this.busyPool[n] ||= [0, 0, 0, 1]); e[0] = lx + (dx * j) / m; e[1] = ly + (dy * j) / m; e[2] = q; e[3] = 1; out[n++] = e; }
+        } else { const e = (this.busyPool[n] ||= [0, 0, 0, 1]); e[0] = pt.x; e[1] = pt.y; e[2] = q; e[3] = 1; out[n++] = e; }
+        lx = pt.x; ly = pt.y;
+      }
+    }
+    out.length = n;
+    return out;
+  }
+
+  /** The probe's search and its place, as dprobePaint does it. True while it is placed afresh. */
+  private place(now: number, edge: string, seg: DopplerSeg, env: ScreenEnv, B: Basis, reduce: boolean, swing: boolean): 'go' | 'hide' | 'hold' | 'wait' {
+    const g = gateOf(edge, gateFraction(edge, seg))!;
+    // the gate and the flow on the screen
+    const gx = B.ox, gy = B.oy, ts = toScreen(B, g.t.x, g.t.y, { x: 0, y: 0 });
+    const tl = Math.hypot(ts.x, ts.y) || 1, rPx = g.r * B.sc, cards = env.cards(), size = env.size();
+    const sameKey = this.keyOn && this.placedKey === `${edge}|${seg ?? ''}`;
+    let key = hMix(hStr(edge), hStr(seg ?? ''));
+    key = hMix(key, Math.round(B.a * 100)); key = hMix(key, Math.round(B.b * 100)); key = hMix(key, Math.round(B.c * 100)); key = hMix(key, Math.round(B.d * 100));
+    key = hMix(key, Math.round(size.w / 8)); key = hMix(key, Math.round(size.h / 8)); key = hMix(key, Math.round(gx / 12)); key = hMix(key, Math.round(gy / 12));
+    for (const c of cards) { key = hMix(key, Math.round(c.x0 / 16)); key = hMix(key, Math.round(c.y0 / 16)); key = hMix(key, Math.round(c.x1 / 16)); key = hMix(key, Math.round(c.y1 / 16)); }
+    // asked every frame, the search runs at most every 150 ms while its inputs hold, and a changing layout (a drag, a card's glide) every 50 ms
+    const gap = key === this.syncKey ? this.searchGap : 50;
+    if (this.on && now - this.searchAt < gap) return 'go';
+    if (key !== this.syncKey) this.searchGap = 150;
+    this.syncKey = key; this.searchAt = now;
+    this.mind.sync(key);
+    const O = this.opt;
+    O.g[0] = gx; O.g[1] = gy; O.t[0] = ts.x / tl; O.t[1] = ts.y / tl; O.r = rPx; O.away = awayFromProbe(edge) as boolean; O.w = size.w; O.h = size.h; O.cards = cards;
+    O.keep = sameKey ? this.side : 0; O.keepReach = this.reach; O.keepRev = this.rev; O.keepK = this.k; O.sc = B.sc / (UNITS_PER_SCENE / 1);
+    O.avoid = env.avoid?.() ?? []; O.busy = this.busyAround(env, B, edge, PROBE.GAP + PROBE.LEN + 140, O.busy); O.ban = this.mind.banned() as string[]; O.lock = this.mind.locked() as boolean; O.slack = this.headOff ? 0 : SLACK;
+    const pose = fitPoseInto(this.fit, O) as Fit;
+    const n = this.tgt;
+    const next = { ang: pose.ang, d: pose.D - Math.max(0, rPx), k: pose.k, ax: pose.ang + pose.phi, r: rPx, sw: probeSwing(pose.side, O.away === pose.rev) as number };
+    let sig = hMix(key, pose.side); sig = hMix(sig, pose.reach); sig = hMix(sig, +pose.rev); sig = hMix(sig, Math.round(pose.k * 1000)); sig = hMix(sig, Math.round(pose.ang / 5)); sig = hMix(sig, Math.round(gx / 4)); sig = hMix(sig, Math.round(gy / 4));
+    this.searchGap = sig === this.lastSig ? Math.min(600, this.searchGap * 2) : 150; this.lastSig = sig;
+    const act = this.mind.act({ pose, tgt: next, on: this.on, cur: this.has ? this.cur : null, sig, now, instant: reduce, swing }) as 'go' | 'hide' | 'hold' | 'restart' | 'wait' | 'jump';
+    if (act === 'hold') return 'hold';
+    if (act === 'hide') return 'hide';
+    if (act === 'restart') { this.searchAt = -1e9; return 'wait'; }
+    if (act === 'wait') return 'wait';
+    if (act === 'jump') { this.leave(); this.swap = true; return 'wait'; }
+    if (!this.on || !this.has || reduce) {
+      if (!this.on || !this.has) this.oP = 1;   // shown afresh: it comes in from out, fading, and with motion swinging
+      this.has = true;
+      this.cur.ang = next.ang; this.cur.d = next.d; this.cur.k = next.k;
+      this.headP = pose.headOff ? 0 : 1;
+    } else this.cur.ang = next.ang + angTo(next.ang, this.cur.ang);   // the short way round
+    Object.assign(n, next);
+    this.k = pose.k; this.headOff = !!pose.headOff;
+    this.on = true; this.keyOn = true; this.placedKey = `${edge}|${seg ?? ''}`;
+    this.side = pose.side; this.reach = pose.reach; this.rev = pose.rev;
+    return 'go';
+  }
+
+  private leave(): void { if (this.on) { this.on = false; this.keyOn = false; this.mind.hide(); } }
+
+  private stepScreen(dtMs: number, now: number, want: boolean, edge: string, seg: DopplerSeg, env: ScreenEnv): boolean {
+    const reduce = env.reduceMotion?.() ?? false, dt = Math.min(0.1, Math.max(0, dtMs) / 1000);
+    const g = want ? gateOf(edge, gateFraction(edge, seg), { p: this.gate3, t: this.tan3, r: 0 }) : null;
+    const key = `${edge}|${seg ?? ''}`;
+    let moving = false;
+    if (!g) this.leave();
+    else if ((env.moving?.() ?? false) && !this.on) { this.mind.hide(); moving = true; }   // a camera glide hides it until it lands; shown, it stays and rides the vessel
+    else if (this.on && key !== this.placedKey) { this.leave(); this.swap = true; }       // another vessel or third: it swings out where it stood
+    else if (!this.on && this.has && this.oP < 1) moving = true;                          // still drawing back to go: it never jumps from half way out
+    else {
+      this.swap = false;
+      const B = basisAt(env, this.gate3, this.basis);
+      const act = this.place(now, edge, seg, env, B, reduce, !!env.moving?.() && this.on);
+      if (act === 'hide') this.leave(); else if (act !== 'go') moving = true;
+    }
+    // the easing: place, size and distance in about 0.3 s, the head on its own clock, the swing out and in on PROBE.OUT_MS
+    const f = 1 - Math.exp(-dt / 0.1), c = this.cur, t = this.tgt;
+    if (this.on) {
+      c.ang += (t.ang - c.ang) * f; c.d += (t.d - c.d) * f; c.k += (t.k - c.k) * f;
+      if (Math.abs(t.ang - c.ang) < 0.3) c.ang = t.ang;
+      if (Math.abs(t.d - c.d) < 0.3) c.d = t.d;
+      if (Math.abs(t.k - c.k) < 0.004) c.k = t.k;
+      const hStep = (dt * 1000) / 420;
+      this.headP = this.headOff ? Math.max(0, this.headP - hStep) : Math.min(1, this.headP + hStep);
+    }
+    const stepP = (dt * 1000) / PROBE.OUT_MS, was = this.oP;
+    this.oP = this.on ? Math.max(0, this.oP - stepP) : Math.min(1, this.oP + stepP);
+    const placed = this.has && this.oP < 1;
+    if (!placed) {
+      if (this.shown !== 0) { this.shown = 0; this.paint(0, 1); }
+      if (!this.on && this.oP >= 1) { this.has = false; if (!this.swap) this.placedKey = ''; }
+      return moving || this.on || this.swap;
+    }
+    // draw: the whole probe swings round the gate (the target never moves); its marks close up as it goes; the flow axis stays along the flow
+    const B = basisAt(env, this.gate3, this.basis);
+    const o = easeMove(this.oP) as number, angDraw = probeTurn(c.ang, reduce ? 0 : t.sw, o) as number;
+    const fr = this.frameFor(B, this.gate3, angDraw);
+    const rNow = g ? g.r * B.sc : t.r;
+    this.lay(fr, { D: Math.max(0, rNow) + c.d, r: rNow, k: c.k, phi: angTo(angDraw, t.ax), out: o });
+    const op = probeFade(this.oP) as number, headA = smooth01(this.headP) as number;
+    this.shown = op; this.paint(op, headA);
+    // where it stands, for the labels and the tests
+    this.gateAtScreen.x = B.ox; this.gateAtScreen.y = B.oy;
+    const rad = angDraw * RAD, cc = Math.cos(rad), ss = Math.sin(rad), D = Math.max(0, rNow) + c.d, S = PROBE.SCALE * c.k;
+    const fx = B.ox + D * cc, fy = B.oy + D * ss, L = PROBE.LEN * c.k, H = PROBE.HALF * c.k;
+    const xs = [fx + -3 * cc + H * ss, fx + -3 * cc - H * ss, fx + L * cc + H * ss, fx + L * cc - H * ss], ys = [fy + -3 * ss - H * cc, fy + -3 * ss + H * cc, fy + L * ss - H * cc, fy + L * ss + H * cc];
+    this.bodyBox.x0 = Math.min(...xs); this.bodyBox.x1 = Math.max(...xs); this.bodyBox.y0 = Math.min(...ys); this.bodyBox.y1 = Math.max(...ys);
+    this.stand.edge = edge; this.stand.seg = seg; this.stand.ang = angDraw; this.stand.D = D; this.stand.k = c.k; this.stand.headOff = this.headOff;
+    void S;
+    if (!this.pose) this.pose = { gate: new Vector3(), face: new Vector3(), s: new Vector3(), across: new Vector3(), flow: new Vector3(), rPx: 0, k: 1 };
+    const P = this.pose;
+    P.gate.copy(fr.gate); P.s.copy(fr.ex).normalize(); P.across.copy(fr.ey).normalize(); P.flow.copy(g?.t ?? this.tan3); P.face.copy(fr.gate).addScaledVector(fr.ex, D); P.rPx = rNow; P.k = c.k;
+    const settled = this.on ? c.ang === t.ang && c.d === t.d && c.k === t.k && this.oP === 0 && this.headP === (this.headOff ? 0 : 1) : this.oP >= 1;
+    return moving || !settled || this.oP !== was || !!env.moving?.();
   }
 
   applyPalette(p: Palette): void {
@@ -165,5 +368,7 @@ export class DopplerProbe {
   setPhone(phone: boolean): void { for (const o of this.parts) o.setPhone(phone); }
   /** The pose the probe is laid at now (for tests and tags). */
   get placed(): DopplerPose | null { return this.shown > 0 ? this.pose : null; }
+  /** True while the probe is drawn or swinging out (the layer keeps asking for frames). */
+  get active(): boolean { return this.shown > 0 || this.on; }
   dispose(): void { for (const o of this.parts) o.dispose(); for (const b of this.bufs) b.geometry.dispose(); this.wedgeGeo.dispose(); this.wedgeMat.dispose(); }
 }

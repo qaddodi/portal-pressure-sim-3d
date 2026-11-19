@@ -53,6 +53,8 @@
   --c-ink: var(--cl-text); --c: var(--cl-text); }
 .cl[data-tone="free"] { --c: var(--cl-hv); --c-ink: var(--cl-hv-ink); }
 .cl[data-tone="wedge"] { --c: var(--cl-wedge); --c-ink: var(--cl-wedge-ink); }
+.cl[data-tone="pv"] { --c: var(--cl-pv); --c-ink: var(--cl-pv-ink); }
+.cl[data-tone="ivc"] { --c: var(--cl-ivc); --c-ink: var(--cl-ivc-ink); }
 .cl[data-tone="ok"] { --c: var(--cl-ok); --c-ink: var(--cl-ok-ink); }
 .cl[data-tone="caution"] { --c: var(--cl-caution); --c-ink: var(--cl-caution-ink); }
 .cl[data-tone="danger"] { --c: var(--cl-danger); --c-ink: var(--cl-danger-ink); }
@@ -82,6 +84,8 @@
 .cl-leads .lead-dot { stroke: var(--cl-surface); stroke-width: var(--cl-dot-w); fill: var(--cl-text3); }
 .cl-leads [data-tone="free"].lead { stroke: var(--cl-hv); } .cl-leads [data-tone="free"].lead-dot { fill: var(--cl-hv); }
 .cl-leads [data-tone="wedge"].lead { stroke: var(--cl-wedge); } .cl-leads [data-tone="wedge"].lead-dot { fill: var(--cl-wedge); }
+.cl-leads [data-tone="pv"].lead { stroke: var(--cl-pv); } .cl-leads [data-tone="pv"].lead-dot { fill: var(--cl-pv); }
+.cl-leads [data-tone="ivc"].lead { stroke: var(--cl-ivc); } .cl-leads [data-tone="ivc"].lead-dot { fill: var(--cl-ivc); }
 
 /* ── the figure key: the 2D app's pill (`.pz-fk`): the nav pill's glass and corners, the lens named, then its scale or its swatches. Sizes are the 2D
    pill's, written as properties (key-dock.ts keyVars); where it stands is key-dock.ts's. A gradient key stacks its name over its bar. ── */
@@ -123,3 +127,17 @@
 .cl-span[data-on] { visibility: visible; }
 .cl-span-seg { position: absolute; left: 0; top: 0; width: 1px; height: 1.6px; margin-top: -0.8px; transform-origin: 0 50%; background: var(--text-2); will-change: transform; }
 .cl-cal-tick { position: absolute; left: 0; top: 0; width: 2px; height: 12px; margin: -6px 0 0 -1px; background: var(--text); will-change: transform; }
+
+/* ── the Tests devices' readings (probe-labels.ts decides, probe-labels-dom.ts writes transform and opacity only) ──
+   The FibroScan probe's screen: the stiffness and "kPa" on its display, turned with its body (2D .scan-probe .sp-read, .sp-unit: 12 px, the number at 700, the unit at 600, the orange of the
+   waves darkened). The Doppler gate's callout: the vessel's name, its velocity and the unit, set as a station's label is (the same halo, ink and type), fading with the probe. */
+.pl { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform, opacity; white-space: nowrap; transform-origin: 0 0; line-height: 1; }
+.pl[data-on] { visibility: visible; }
+.pl-scan { font: 700 12px Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--fibroscan) 12%, black); }
+.pl-scan .pl-scan-unit { margin-left: 2px; font-size: 12px; font-weight: 600; color: color-mix(in srgb, var(--fibroscan) 30%, black); }
+.pl-dop { display: flex; align-items: baseline; font-family: var(--font-ui, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif); font-variant-numeric: tabular-nums; padding: 2px var(--lb-pad-x, 3px); }
+.pl-dop > span { -webkit-text-stroke: var(--lb-halo-w) var(--lb-halo); paint-order: stroke fill; stroke-linejoin: round; }
+.pl-dop .pl-dop-name { font-size: var(--lb-f-name); font-weight: var(--lb-w-name); color: var(--lb-name); }
+.pl-dop .pl-dop-val { margin-left: var(--lb-g-val); font-size: var(--lb-f-val); font-weight: var(--lb-w-val); color: var(--lb-val); }
+.pl-dop .pl-dop-unit { margin-left: 2.5px; font-size: calc(var(--lb-f-val) * 0.72); font-weight: 500; color: var(--lb-name); }
+.pl-dop[data-none] .pl-dop-unit { display: none; }

@@ -5,14 +5,14 @@
 //   'eus'    the linear echoendoscope to a station in the stomach: its bending section turns the tip until the needle's line from the working channel meets the target (eusPose, the 2D app's own), the
 //            ultrasound sector fans out, and the 25-gauge needle crosses the wall into the left portal vein (station 'pv') or the left hepatic vein (station 'hv').
 // The route, the stations, the targets, the bend's limits and the needle's exit are the 2D app's, copied by script; the scope travels at a steady pace and eases between places, never cutting.
-import { BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, MeshBasicMaterial, Vector3 } from 'three';
+import { BufferAttribute, BufferGeometry, Color, DoubleSide, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, RingGeometry, Vector3 } from 'three';
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
 import { TIER_Z, len3, x3, y3 } from '../../frame2d.ts';
 import { EDGE_PATH_2D } from '../../vessels/paths.copied.ts';
 import { BAND } from '../../procedures/copied/band-ring.js';
-import { EUS_ROUTE, EUS_SCOPE_R, EUS_STATIONS, EUS_TARGETS, EUS_BEND_MIN, EUS_RIGID, eusPose, newTip, pointOn } from './copied/eus-scope.copied.js';
-import { ProbePart, TubeBuf, linePart } from './parts.ts';
+import { EUS_ROUTE, EUS_SCOPE_R, EUS_STATIONS, EUS_TARGETS, EUS_BEND_MIN, EUS_RIGID, EUS_PORT_R, eusPose, newTip, pointOn } from './copied/eus-scope.copied.js';
+import { ProbePart, TubeBuf, linePart, type PartColour } from './parts.ts';
 import { showRings } from '../tube-rings.ts';
 import type { ScopeMode } from './state.ts';
 
@@ -76,17 +76,33 @@ const at3 = (p: readonly number[], out: Vector3): Vector3 => out.set(x3(p[0]!), 
 const dir3 = (t: readonly number[], out: Vector3): Vector3 => out.set(t[0]!, -t[1]!, 0);
 
 const ease01 = (x: number): number => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
+const withTang = (g: BufferGeometry): BufferGeometry => { if (!g.getAttribute('tang')) g.setAttribute('tang', new Float32BufferAttribute(new Float32Array(g.getAttribute('position').count * 3), 3)); return g; };
+/** The figure's hepatic-vein blue (--tr-hv) and the portal vein's (the device tokens' trPv), for the hit's rings and the manometer's ripples. */
+const HV_RING = (_t: unknown, look: string): string => (look === 'dark' || look === 'navy' || look === 'black' ? '#5CA4F2' : '#2A78D6');
+/** The needle's half width (figure units) and the bevel it comes to a point over (2D eus-scope.js nw0, bev). */
+const NEEDLE_HALF = 0.62, NEEDLE_BEV = 2.6, NEEDLE_RINGS = 12;
+/** The 2D procedure frame's fields the echoendoscope follows while the EUS-PPG plays (proc-anim.js eusFrame): the scope's way in (u of the way to the station), the station the aim has gone to (tgt, 0 portal vein to 1 hepatic vein), the port open and the elevator up (aim), the sector, the needle, the hit's rings and the reading. */
+export interface EusDrive { u: number; tgt: number; aim: number; fan: number; needle: number; flash: number; read: number }
 
 export class EndoScope {
   readonly group = new Group();
   readonly parts: ProbePart[] = [];
   private readonly bufs: TubeBuf[] = [];
   /** how far down its way the tip is, figure units; the bend's turn (0 straight to 1 aimed), the sector's, the needle's, the cap's: each eased */
-  d = 0; aim = 0; fan = 0; needle = 0; cap = 0;
+  d = 0; aim = 0; fan = 0; needle = 0; cap = 0; opacity = 1;
   private readonly way = scopeWay();
   private readonly shaft: TubeBuf; private readonly bend: TubeBuf; private readonly tip: TubeBuf; private readonly lens: TubeBuf;
-  private readonly capBuf: TubeBuf; private readonly bandBuf: TubeBuf; private readonly needleBuf: TubeBuf;
-  private readonly parts_: { shaft: ProbePart; bend: ProbePart; tip: ProbePart; lens: ProbePart; cap: ProbePart; band: ProbePart; needle: ProbePart };
+  private readonly capBuf: TubeBuf; private readonly bandBuf: TubeBuf; private readonly needleBuf: TubeBuf; private readonly faceBuf: TubeBuf; private readonly portBuf: TubeBuf;
+  private readonly parts_: { shaft: ProbePart; bend: ProbePart; tip: ProbePart; lens: ProbePart; cap: ProbePart; band: ProbePart; needle: ProbePart; face: ProbePart; port: ProbePart };
+  /** the hit's two rings and the manometer's two ripples at the target (2D eusDraw: flash, ring) */
+  private readonly flashRings: ProbePart[] = []; private readonly rippleRings: ProbePart[] = [];
+  /** where the needle is aimed, for both stations; and how far the aim has gone from the portal vein's to the hepatic vein's (0 to 1) */
+  private readonly targets: [P2, P2] = [[0, 0], [0, 0]];
+  tgt = 0;
+  /** the hit's rings (0 none to 1) and the reading (0 none, 1 portal, 2 hepatic) the last drive gave */
+  flash = 0; read = 0;
+  private drove = false;
+  private readonly tgtPt: P2 = [0, 0];
   private readonly fanGeo = new BufferGeometry();
   private readonly fanMat = new MeshBasicMaterial({ transparent: true, vertexColors: true, depthTest: false, depthWrite: false, side: DoubleSide });
   private readonly fanMesh: Mesh;
@@ -94,7 +110,6 @@ export class EndoScope {
   private readonly v = new Vector3(); private readonly w = new Vector3(); private readonly dv = new Vector3();
   private mode: ScopeMode = 'scope';
   private station: 'pv' | 'hv' = 'pv';
-  private target: P2 = [0, 0];
   private dirty = true;
   /** the last pose laid, for tests and tags */
   readonly pose = { tip: new Vector3(), dir: new Vector3(), needleEnd: new Vector3(), shaftRings: 0 };
@@ -108,9 +123,14 @@ export class EndoScope {
     };
     const N = this.way.pts.length;
     const sh = mk('poly', (t) => t.polyEdge, N, 1, 1), bd = mk('poly', (t) => t.polyEdge, 17, 1, 1), tp = mk('steel', null, 4, 1, 2), ln = mk('poly', (t) => t.polyEdge, 2, 0.7, 3);
-    const cp = mk('graft', null, 2, 0.8, 3), bn = mk('platinum', null, 18, 0.9, 4), nd = mk('steel', null, 2, 0.8, 4);
+    const cp = mk('graft', null, 2, 0.8, 3), bn = mk('platinum', null, 18, 0.9, 4), nd = mk('steel', null, NEEDLE_RINGS, 0.8, 5);
+    // the transducer's curved array (its pale face on the side that meets the wall) and the working channel's port, where the needle leaves (2D --dev-scope-face, --dev-port)
+    const fc = mk('graft', '#C7C9CC', 2, 0.6, 3), pt = mk('graft', '#0D0D0F', 2, 0.4, 4);
+    this.faceBuf = fc.buf; this.portBuf = pt.buf;
+    const ringPart = (colour: PartColour, order: number): ProbePart => { const part = new ProbePart(withTang(new RingGeometry(0.8, 1, 48)), 'steel', shared, colour, { px: 0, order }); this.parts.push(part); this.group.add(part.group); return part; };
+    for (let i = 0; i < 2; i++) { this.flashRings.push(ringPart((t) => t.trPv, 6)); this.rippleRings.push(ringPart((t) => t.trPv, 6)); }
     this.shaft = sh.buf; this.bend = bd.buf; this.tip = tp.buf; this.lens = ln.buf; this.capBuf = cp.buf; this.bandBuf = bn.buf; this.needleBuf = nd.buf;
-    this.parts_ = { shaft: sh.part, bend: bd.part, tip: tp.part, lens: ln.part, cap: cp.part, band: bn.part, needle: nd.part };
+    this.parts_ = { shaft: sh.part, bend: bd.part, tip: tp.part, lens: ln.part, cap: cp.part, band: bn.part, needle: nd.part, face: fc.part, port: pt.part };
     for (const b of [this.shaft, this.bend, this.tip, this.lens]) b.rings.forEach((r) => { r.r = R; });
     this.fanGeo.setAttribute('position', new BufferAttribute(new Float32Array(20 * 3), 3));
     this.fanGeo.setAttribute('color', new BufferAttribute(new Float32Array(20 * 4), 4));
@@ -121,14 +141,25 @@ export class EndoScope {
     this.fanMesh.renderOrder = 1000; this.fanMesh.frustumCulled = false; this.fanMesh.visible = false;
     this.group.add(this.fanMesh);
     this.group.visible = false;
-    this.setTarget('pv');
+    this.setTargets();
   }
 
-  /** Where the needle is aimed: the station's target on the figure (the left portal vein's near end, or the left hepatic vein). */
-  private setTarget(station: 'pv' | 'hv'): void {
-    const [id, f] = (EUS_TARGETS as unknown as Record<string, [string, number]>)[station]!;
-    const path = (EDGE_PATH_2D as Record<string, P2[]>)[id]!;
-    this.target = pointOn(path, f) as P2;
+  /** Where the needle is aimed at each station: the target on the figure (the left portal vein's near end, the left hepatic vein). */
+  private setTargets(): void {
+    (['pv', 'hv'] as const).forEach((station, i) => {
+      const [id, f] = (EUS_TARGETS as unknown as Record<string, [string, number]>)[station]!;
+      const path = (EDGE_PATH_2D as Record<string, P2[]>)[id]!;
+      const q = pointOn(path, f) as P2;
+      this.targets[i] = [q[0], q[1]];
+    });
+  }
+  /** One of the two targets in the scope's plane (0 the portal vein's, 1 the hepatic vein's): where the EUS-PPG's cards point. */
+  targetAt(i: 0 | 1, out: Vector3): Vector3 { return at3(this.targets[i]!, out); }
+  /** The aim's target now: between the two (the 2D TGT). */
+  private target(out: P2 = [0, 0]): P2 {
+    const a = this.targets[0], b = this.targets[1], k = this.tgt;
+    out[0] = a[0] + (b[0] - a[0]) * k; out[1] = a[1] + (b[1] - a[1]) * k;
+    return out;
   }
 
   /** Lays the scope for the tip at `this.d`: the shaft along the way to where its bend starts, the bending section, the rigid tip with its lens, the ligator's cap or the needle and its sector. */
@@ -138,8 +169,8 @@ export class EndoScope {
     const dA = Math.max(0, D - (EUS_RIGID as number));
     let end: P2, a1: P2, shaftEnd = dA, phi = 0, bendLen = 0, tipFrom: P2;
     if (eus) {
-      const st = (EUS_STATIONS as Record<string, { exit: number; hand: number }>)[this.station]!;
-      eusPose(way, D, way.at, this.target, ease01(this.aim), st.exit, st.hand, g);
+      const ST = EUS_STATIONS as Record<string, { exit: number; hand: number }>, S = this.tgt < 0.5 ? ST.pv! : ST.hv!, exitA = ST.pv!.exit + (ST.hv!.exit - ST.pv!.exit) * this.tgt;
+      eusPose(way, D, way.at, this.target(this.tgtPt), this.drove ? this.aim : ease01(this.aim), exitA, S.hand, g);
       end = g.end; a1 = g.a1; phi = g.phi; bendLen = g.bend; tipFrom = g.p2;
       // a scope still straight (the bend not begun) is the way itself to the rigid tip
       if (Math.abs(phi) > 1e-4 && bendLen > 0.01) shaftEnd = g.d0; else tipFrom = way.at(way, dA).p;
@@ -189,14 +220,31 @@ export class EndoScope {
     }
     // the needle out of the working channel, and the ultrasound sector it works in
     if (eus) {
-      const ex = at3(g.exit, this.v), nd = this.dv.set(g.nd[0], -g.nd[1], 0), len = len3(g.len);
-      const tipPt = this.w.copy(ex).addScaledVector(nd, len * this.needle);
-      this.needleBuf.line(ex.clone(), tipPt, len3(1.1));
+      const R2 = EUS_SCOPE_R as number, RIG = EUS_RIGID as number;
+      // the transducer: its curved array, a pale face on the side that meets the wall, just behind the tip's end (2D: centred 0.3 rigid lengths back and 0.52 radii across, 0.56 rigid lengths long)
+      const fx = g.end[0] - g.a1[0] * RIG * 0.3 + g.side[0] * R2 * 0.52, fy = g.end[1] - g.a1[1] * RIG * 0.3 + g.side[1] * R2 * 0.52;
+      const fr = len3(R2 * 0.42), fh = Math.max(0, len3(RIG * 0.56) - fr);
+      this.faceBuf.line(at3([fx - g.a1[0] * fh / len3(1), fy - g.a1[1] * fh / len3(1)], this.v), at3([fx + g.a1[0] * fh / len3(1), fy + g.a1[1] * fh / len3(1)], this.w), fr);
+      // the working channel's port, where the needle leaves the scope
+      const pr = len3(R2 * (EUS_PORT_R as number)), ps = at3(g.exit, this.v), pe = this.w.copy(ps).addScaledVector(dv.set(g.a1[0], -g.a1[1], 0), len3(0.15));
+      this.portBuf.line(ps.clone(), pe, pr);
+      // the needle: steel from the port to its bevelled point, the last 2.6 units narrowing to a fifth of its width (2D nw)
+      const ex = at3(g.exit, this.v), nd = this.dv.set(g.nd[0], -g.nd[1], 0), nl = g.len * this.needle, nU = len3(nl), bev = Math.min(len3(NEEDLE_BEV), nU);
+      const stem = nU - bev, last = this.needleBuf.n - 1, body = this.needleBuf.n - 5;
+      for (let i = 0; i <= last; i++) {
+        const l = i <= body ? (stem * i) / Math.max(1, body) : stem + (bev * (i - body)) / (last - body), r = this.needleBuf.rings[i]!;
+        r.c.copy(ex).addScaledVector(nd, l); r.t.copy(nd);
+        const k = bev > 0 ? ease01((l - stem) / bev) : 0;
+        r.r = len3(NEEDLE_HALF) * (1 - 0.8 * k);
+      }
+      this.needleBuf.commit();
+      const tipPt = this.w.copy(ex).addScaledVector(nd, nU);
       this.pose.needleEnd.copy(tipPt);
-      // the sector: the fan from the array on the transducer's side, centred on the needle's line, 30 degrees either side (FAN_HALF), reaching a little past the target
-      const apex = new Vector3(x3(g.end[0] - g.a1[0] * (EUS_RIGID as number) * 0.55 + g.side[0] * (EUS_SCOPE_R as number)), y3(g.end[1] - g.a1[1] * (EUS_RIGID as number) * 0.55 + g.side[1] * (EUS_SCOPE_R as number)), SCOPE_Z);
+      // the sector: from the array toward the target, a little past it, 30 degrees either side (2D: apex 0.45 rigid lengths back and 0.85 radii across, reach 1.12 times the distance to the target)
+      const ax = g.end[0] - g.a1[0] * RIG * 0.45 + g.side[0] * R2 * 0.85, ay = g.end[1] - g.a1[1] * RIG * 0.45 + g.side[1] * R2 * 0.85;
+      const T = this.tgtPt, apex = at3([ax, ay], new Vector3());
+      const fdx = T[0] - ax, fdy = T[1] - ay, reach = len3(Math.hypot(fdx, fdy) * 1.12), ang0 = Math.atan2(-fdy, fdx), half = 30 * RAD;
       const pos = this.fanGeo.getAttribute('position') as BufferAttribute, col = this.fanGeo.getAttribute('color') as BufferAttribute;
-      const reach = len3(g.len + 14), ang0 = Math.atan2(nd.y, nd.x), half = (30 * RAD);
       pos.setXYZ(0, apex.x, apex.y, apex.z);
       for (let i = 0; i < 19; i++) { const a = ang0 - half + (2 * half * i) / 18; pos.setXYZ(i + 1, apex.x + Math.cos(a) * reach, apex.y + Math.sin(a) * reach, apex.z); }
       pos.needsUpdate = true; this.fanGeo.computeBoundingSphere();
@@ -205,26 +253,59 @@ export class EndoScope {
     }
   }
 
-  /** Steps the scope toward what is asked; true while it moves. `u` and `needleSet` override the scope's own pace (a pane that plays the steps). */
-  update(dtMs: number, on: boolean, mode: ScopeMode, station: 'pv' | 'hv', u?: number, needleSet?: number): boolean {
+  /** The hit's rings and the manometer's ripples at the target (2D eusDraw: two discs running out and fading, in the vein's colour), at `now` ms. */
+  private layRings(now: number, vis: boolean): void {
+    const eus = this.mode === 'eus' && vis, T = at3(this.target(this.tgtPt), this.v);
+    const hv = this.tgt >= 0.5, pvC: PartColour = (t) => t.trPv, hvC: PartColour = HV_RING as PartColour;
+    const rings = (parts: ProbePart[], on: boolean, ph: number, r0: number, r1: number, a0: number, colour: PartColour): void => {
+      parts.forEach((o, i) => {
+        if (!on) { o.group.visible = false; return; }
+        const k = i ? (ph + 0.5) % 1 : ph, s = len3(r0 + r1 * k);
+        o.recolour(colour);
+        o.group.position.copy(T); o.group.scale.setScalar(s); o.setAlpha((1 - k) * (1 - k) * a0 * this.opacity);
+      });
+    };
+    // the hit: two rings in the station's colour, from the needle's point out to 7.4 units (flash 0 none to 1)
+    rings(this.flashRings, eus && this.flash > 0, this.flash, 1.4, 6, 0.85, hv ? hvC : pvC);
+    // the reading: two ripples in the vein it reads, one cycle every 1.3 s
+    rings(this.rippleRings, eus && this.read > 0, (now / 1300) % 1, 2, 5, 0.9, this.read === 2 ? hvC : pvC);
+  }
+
+  /**
+   * Steps the scope toward what is asked; true while it moves. `u` and `needleSet` override the scope's own pace (a pane that plays the steps). `drive`: the EUS-PPG's procedure frame while it plays (2D
+   * proc-anim.js eusFrame): the scope then goes where the frame puts it, the way in, the aim and the station, the sector, the needle, the hit's rings and the ripples, and has no pace of its own.
+   * `now`: the clock's ms, for the ripples' cycle.
+   */
+  update(dtMs: number, on: boolean, mode: ScopeMode, station: 'pv' | 'hv', u?: number, needleSet?: number, drive: EusDrive | null = null, now = 0): boolean {
     const dt = Math.max(0, dtMs) / 1000;
     let moving = false;
-    if (mode !== this.mode || station !== this.station) {
-      // another job or station: the needle goes in, the cap off, and the tip travels to the new place
-      if (this.needle > 0.002 || this.cap > 0.002 && mode !== 'band') { this.needle = Math.max(0, this.needle - dt / 0.5); this.cap = mode === 'band' ? this.cap : Math.max(0, this.cap - dt / 0.3); this.lay(); return true; }
-      this.mode = mode; this.station = station; this.setTarget(station); this.aim = 0; this.fan = 0; this.dirty = true;
+    const driven = !!drive && on && mode === 'eus';
+    if (!driven && this.drove) { this.drove = false; this.flash = 0; this.read = 0; this.dirty = true; this.aim = 0; this.fan = 0; this.needle = 0; }
+    if (driven) {
+      const D = drive!, goal = D.u * (this.way.total + (this.way.hvD - this.way.total) * D.tgt);
+      moving = Math.abs(goal - this.d) > 1e-6 || D.aim !== this.aim || D.fan !== this.fan || D.needle !== this.needle || D.tgt !== this.tgt || D.flash !== this.flash || D.read !== this.read || this.mode !== 'eus';
+      this.mode = 'eus'; this.station = D.tgt >= 0.5 ? 'hv' : 'pv'; this.drove = true;
+      this.d = goal; this.aim = D.aim; this.fan = D.fan; this.needle = D.needle; this.tgt = D.tgt; this.flash = D.flash; this.read = D.read; this.cap = 0;
+      if (this.read > 0 || this.flash > 0) moving = true;
+    } else {
+      if (mode !== this.mode || station !== this.station) {
+        // another job or station: the needle goes in, the cap off, and the tip travels to the new place
+        if (this.needle > 0.002 || this.cap > 0.002 && mode !== 'band') { this.needle = Math.max(0, this.needle - dt / 0.5); this.cap = mode === 'band' ? this.cap : Math.max(0, this.cap - dt / 0.3); this.lay(); return true; }
+        this.mode = mode; this.station = station; this.tgt = station === 'hv' ? 1 : 0; this.aim = 0; this.fan = 0; this.dirty = true;
+      }
+      const goal = on ? (u == null ? workD(this.mode, this.station, this.way) : Math.min(1, Math.max(0, u)) * workD(this.mode, this.station, this.way)) : 0;
+      const was = this.d;
+      if (Math.abs(goal - this.d) > 1e-3) { this.d += Math.sign(goal - this.d) * Math.min(Math.abs(goal - this.d), SCOPE_SPEED * dt); }
+      const there = Math.abs(goal - this.d) < 1e-3 && on;
+      const eus = this.mode === 'eus', aimGoal = eus && there ? 1 : 0, fanGoal = eus && this.aim > 0.98 ? 1 : 0;
+      const needleGoal = needleSet != null ? needleSet : eus && this.fan > 0.98 ? 1 : 0;
+      const capGoal = this.mode === 'band' && on ? 1 : 0;
+      const step = (x: number, g: number, secs: number): number => (Math.abs(g - x) < 1e-3 ? g : x + Math.sign(g - x) * Math.min(Math.abs(g - x), dt / secs));
+      const a0 = this.aim, f0 = this.fan, n0 = this.needle, c0 = this.cap;
+      this.aim = step(this.aim, aimGoal, 1.3); this.fan = step(this.fan, fanGoal, 0.5); this.needle = step(this.needle, needleGoal, 0.9); this.cap = step(this.cap, capGoal, 0.3);
+      moving = this.d !== was || this.aim !== a0 || this.fan !== f0 || this.needle !== n0 || this.cap !== c0;
     }
-    const goal = on ? (u == null ? workD(this.mode, this.station, this.way) : Math.min(1, Math.max(0, u)) * workD(this.mode, this.station, this.way)) : 0;
-    const was = this.d;
-    if (Math.abs(goal - this.d) > 1e-3) { this.d += Math.sign(goal - this.d) * Math.min(Math.abs(goal - this.d), SCOPE_SPEED * dt); }
-    const there = Math.abs(goal - this.d) < 1e-3 && on;
-    const eus = this.mode === 'eus', aimGoal = eus && there ? 1 : 0, fanGoal = eus && this.aim > 0.98 ? 1 : 0;
-    const needleGoal = needleSet != null ? needleSet : eus && this.fan > 0.98 ? 1 : 0;
-    const capGoal = this.mode === 'band' && on ? 1 : 0;
-    const step = (x: number, g: number, secs: number): number => (Math.abs(g - x) < 1e-3 ? g : x + Math.sign(g - x) * Math.min(Math.abs(g - x), dt / secs));
-    const a0 = this.aim, f0 = this.fan, n0 = this.needle, c0 = this.cap;
-    this.aim = step(this.aim, aimGoal, 1.3); this.fan = step(this.fan, fanGoal, 0.5); this.needle = step(this.needle, needleGoal, 0.9); this.cap = step(this.cap, capGoal, 0.3);
-    moving = this.d !== was || this.aim !== a0 || this.fan !== f0 || this.needle !== n0 || this.cap !== c0;
+    const eus = this.mode === 'eus';
     const vis = this.d > 0.5;
     this.group.visible = vis;
     if (vis && (moving || this.dirty)) {
@@ -232,11 +313,14 @@ export class EndoScope {
       this.lay();
       const p = this.parts_;
       for (const o of this.parts) o.group.visible = true;
-      p.bend.group.visible = this.mode === 'eus' && this.bendShown();
+      p.bend.group.visible = eus && this.bendShown();
       p.cap.group.visible = this.cap > 0.002; if (this.cap > 0.002) { p.cap.setAlpha(this.cap * 0.55); p.band.setAlpha(this.cap); } else p.band.group.visible = false;
-      p.needle.group.visible = eus && this.needle > 0.002;
+      p.needle.group.visible = eus && this.needle * this.g.len > 0.4;
+      p.face.group.visible = eus; p.port.group.visible = eus && this.aim > 0.002; if (eus && this.aim > 0.002) p.port.setAlpha(0.9 * this.aim);
       this.fanMesh.visible = eus && this.fan > 0.002; this.fanMat.opacity = this.fan;
     }
+    this.layRings(now, vis);
+    if (vis && eus && (this.read > 0 || this.flash > 0)) moving = true;   // (the ripples run on their own clock while a reading is taken)
     return moving;
   }
   private bendShown(): boolean { return Math.abs(this.g.phi) > 1e-4 && this.g.bend > 0.01; }

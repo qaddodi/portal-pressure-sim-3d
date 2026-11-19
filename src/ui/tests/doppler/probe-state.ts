@@ -12,11 +12,17 @@ interface DopplerProbe {
   /** where along a TIPS or DIPS the trace and reading come from, or null for the 2D default ('mid') */
   gate: Gate | null;
   setGate(g: Gate | null): void;
+  /** the pane's own reading (its velocity in cm/s as the strip prints it): what the figure's callout at the probe's gate says; null while the pane is shut */
+  reading: DopplerReading | null;
+  setReading(r: DopplerReading | null): void;
 }
 
+export interface DopplerReading { vel: string; none: boolean; acquiring: boolean }
+
 export const useDopplerProbe = create<DopplerProbe>((set) => ({
-  probe: 'PV_TRUNK', gate: null,
+  probe: 'PV_TRUNK', gate: null, reading: null,
   setGate: (gate) => set({ gate }),
+  setReading: (reading) => set((s) => (s.reading && reading && s.reading.vel === reading.vel && s.reading.none === reading.none && s.reading.acquiring === reading.acquiring ? s : { reading })),
 }));
 
 let bound = false;
