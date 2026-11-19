@@ -7,7 +7,7 @@ import { Roll } from '../../ui/cards/Roll.tsx';
 export function TilesCard({ spec, ids }: { spec: TileSpec; ids: readonly string[] }) {
   const results = useStates((s) => s.results[spec.deck]);
   const at = (id: string | null) => { const i = id ? ids.indexOf(id) : -1; return i >= 0 ? results?.[i]?.fp ?? null : null; };
-  const rows = tileRows(spec, at(spec.slide), at(deltaFrom(spec, ids)));
+  const rows = tileRows(spec, at(spec.slide), at(deltaFrom(spec, ids)), spec.resp ? at(deltaFrom({ ...spec, delta: spec.resp }, ids)) : null);
   return (
     <div className="hp-tiles">
       {rows.map((r) => (

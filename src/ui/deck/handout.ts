@@ -17,6 +17,7 @@ export function lineText(line: string, fp: Fp | null = null): string {
     switch (p.t) {
       case 'value': { const v = fp?.[p.key]; return v == null || !Number.isFinite(v) ? '—' : `${fmtPressure(v, p.decimals)} mmHg`; }
       case 'term': return p.label;
+      case 'step': return String(p.n);
       default: return p.text;
     }
   }).join('');

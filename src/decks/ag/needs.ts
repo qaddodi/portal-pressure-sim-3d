@@ -82,6 +82,26 @@ const LANDED_FIELDS: ReadonlySet<string> = new Set([
   'fig:layers',    // ui/deck/procs-link.ts
 ]);
 
+/** The slide-field needs the cards print now, each with the file that prints it (tests/deck-card-fields.test.ts holds the file and the printing). A need is added here only once the card shows
+ *  the field the way the 2D card does; the fields' own table is decks/hp/fields.ts. */
+export const CARD_LANDED: Readonly<Record<string, string>> = {
+  'card:site': 'src/ui/cards/TeachingCard.tsx',          // the level tab and the kicker colour (cards/card-fields.ts siteTag)
+  'card:cite': 'src/ui/cards/TeachingCard.tsx',          // the source line under the words
+  'card:note': 'src/ui/cards/TableCard.tsx',             // a summary table's note column, named by its head
+  'card:pill': 'src/ui/cards/Line.tsx',                  // the line's one pill, and `pill: false` for none (card-fields.ts autoPill)
+  'card:steps': 'src/ui/cards/Line.tsx',                 // the {#n} step markers in the words (the figure's numbered glow is fig:glow-steps)
+  'card:cohort': 'src/ui/charts/small/AllPatientsCard.tsx',      // the all-patients chart reads the slide's cohort
+  'card:chart-foot': 'src/ui/charts/small/AllPatientsCard.tsx',  // and its footnote
+  'data:graph': 'src/ui/talk/ToolCard.tsx',              // a time-lapse's graph is its instrument card: the copy gives the slide the flow-time or procedure chart (2D slide-instrument.js), the data card mounts it
+  'visual:plane-options': 'src/ui/talk/ToolCard.tsx',    // the plane visual hands the slide's own plane to the chart
+  'visual:walls': 'src/ui/charts/walls/WallsCard.tsx',   // the two walls
+  'reading:res': 'src/ui/talk/table-model.ts',           // the table's intrahepatic resistance column (the engine's rih)
+  'reading:hvpgFall': 'src/decks/hp/derived-tiles.ts',   // the response tile: the fall from the slide `hvpgResp` names
+};
+
+/** The compare buttons' kinds that the card carries: a button that switches the model, the patient, a time point or the lens, and the words and days it brings. */
+const COMPARE_LANDED = ['own', 'params', 'preset', 'slide', 'lens', 'title', 'line', 'days', 'kicker', 'site'];
+
 /** The hook a need id stands for. Families (`tool:<kind>`, `tile:<key>`, …) are resolved here from the registries the other batches keep. */
 export function hookOf(id: string): Hook | null {
   const [family, rest = ''] = [id.slice(0, id.indexOf(':') < 0 ? id.length : id.indexOf(':')), id.slice(id.indexOf(':') + 1)];
@@ -91,9 +111,9 @@ export function hookOf(id: string): Hook | null {
       if (rest === 'preset') return { owner: 'ENGINE', what: 'the patient loads', landed: () => true };
       if (rest.startsWith('action:')) return { owner: 'ENGINE', what: `the ${rest.slice(7)} action`, landed: () => (ACTION_KINDS as readonly string[]).includes(rest.slice(7)) };
       return { owner: 'ENGINE', what: `the model step "${rest}"`, landed: ready };
-    case 'reading': return { owner: 'B12', what: `the "${rest}" reading, worked out by the data card from the slide's own state (not an engine tile)`, landed: claimed };
+    case 'reading': return { owner: 'B12', what: `the "${rest}" reading, worked out by the data card from the slide's own state (not an engine tile)`, landed: id in CARD_LANDED ? ready : claimed };
     case 'tile': return { owner: 'B10', what: `the ${rest} reading`, landed: () => rest in TILE };
-    case 'data': return { owner: id === 'data:tiles' ? 'B12' : 'B10', what: id === 'data:tiles' ? 'the data card of tiles' : `the ${rest} of the data card`, landed: id === 'data:tiles' ? ready : claimed };
+    case 'data': return { owner: id === 'data:tiles' ? 'B12' : 'B10', what: id === 'data:tiles' ? 'the data card of tiles' : `the ${rest} of the data card`, landed: id === 'data:tiles' || id in CARD_LANDED ? ready : claimed };
     case 'tool': return { owner: 'B10', what: `the ${rest} instrument or chart`, landed: () => CHARTS.find((c) => c.kind === rest)?.status === 'done' };
     case 'lens': return { owner: 'B3', what: `the ${rest} colour lens`, landed: () => (LENS_IDS as readonly string[]).includes(rest) };
     case 'cath': return { owner: 'B5', what: `the catheter's ${rest} state`, landed: () => (CATHS as readonly string[]).includes(rest) };
@@ -104,14 +124,14 @@ export function hookOf(id: string): Hook | null {
       return { owner: 'B8', what: `the ${rest} view`, landed: ready };
     case 'visual': {
       // plane, all-patients and ladders are charts of B10 (the presenter's visual card mounts them); the summary table is ui/cards/TableCard.tsx; the rest (outline, check…) are B12's
-      const chart = ({ plane: 'plane', allpatients: 'small', ladders: 'ladder' } as Record<string, string>)[rest];
+      const chart = ({ plane: 'plane', allpatients: 'small', ladders: 'ladder', 'plane-options': 'plane', walls: 'walls' } as Record<string, string>)[rest];
       return { owner: chart ? 'B10' : 'B12', what: `the ${rest} visual over the figure`, landed: chart ? () => CHARTS.find((c) => c.kind === chart)?.status === 'done' : rest === 'table' ? ready : claimed };
     }
-    case 'compare': return { owner: 'B12', what: `the compare buttons (${rest})`, landed: ['own', 'params', 'preset', 'slide', 'lens'].includes(rest) ? ready : claimed }   // (gate and tool buttons move an instrument: the Tests cards);
+    case 'compare': return { owner: 'B12', what: `the compare buttons (${rest})`, landed: rest.split('+').every((k) => COMPARE_LANDED.includes(k)) ? ready : claimed }   // (gate and tool buttons move an instrument: the Tests cards);
     case 'present': return { owner: 'B12', what: 'the presenter plays any deck by its id, with the scene plate of each slide', landed: ready }   // (decks/all.ts);
     case 'fig': case 'card': case 'field': {
       const f = Object.values(FIELD_HOOKS).find((h) => h.id === id);
-      if (f) return { owner: f.owner, what: f.what, landed: LANDED_FIELDS.has(id) ? ready : claimed };
+      if (f) return { owner: f.owner, what: f.what, landed: LANDED_FIELDS.has(id) || id in CARD_LANDED ? ready : claimed };
       return family === 'field' ? { owner: 'B12', what: `the slide field "${rest}"`, landed: claimed } : null;
     }
     default: return null;

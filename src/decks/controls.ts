@@ -4,7 +4,23 @@
 import type { CopiedSlide } from './hp/types.ts';
 
 /** One button of a compare group: what it switches, by the first field it has. `own` marks the slide's own state (pressed when the slide opens). */
-export interface CompareOpt { label: string; short?: string; own?: boolean; params?: Record<string, unknown>; preset?: string; slide?: string; lens?: string }
+export interface CompareOpt {
+  label: string; short?: string; own?: boolean; params?: Record<string, unknown>; preset?: string; slide?: string; lens?: string;
+  /** the days the patient this button names lives at its params (2D `days`) */
+  days?: number;
+  /** the words this button brings with its patient (2D variantWords): its own title, line, kicker and level */
+  title?: string; line?: string; kicker?: string; site?: string;
+  /** what pressing it does (2D abChoice): switch the lens, ease the model to a state (a patient, another slide, the slide's own), or patch the live parameters */
+  how: 'lens' | 'state' | 'params';
+}
+/** What a compare button does (2D presenter-words.js abChoice): a lens button switches the colours; a patient (`preset`), a time point (`slide`) or the slide's own button in a row
+ *  that has one (or that names no parameters of its own) eases the model to a state; any other button patches the live parameters. */
+export function howOf(list: readonly { lens?: unknown; preset?: unknown; slide?: unknown; own?: unknown; params?: unknown }[], k: number): CompareOpt['how'] {
+  const o = list[k]!;
+  if (o.lens) return 'lens';
+  if (o.preset || o.slide || (o.own && (!o.params || list.some((p) => p.preset || p.slide)))) return 'state';
+  return 'params';
+}
 export interface WhatIf { label: string; paths: string[]; min: number; max: number; step: number; ends?: [string, string]; unit?: string }
 export type Scale = 'anatomy' | 'lobule' | 'sinusoid';
 export interface SlideControls {
@@ -25,15 +41,20 @@ const rec = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'o
 function compareOf(s: CopiedSlide): SlideControls['compare'] {
   if (s.response === true) {
     const own = NSBB_LEVELS.findIndex((l) => l.gain === ownGain(s));
-    return { name: 'Change how well the beta-blocker works on the live model', opts: NSBB_LEVELS.map((l, k) => ({ label: l.label, short: l.short, params: { nsbbGain: l.gain }, ...(k === own ? { own: true } : {}) })) };
+    return { name: 'Change how well the beta-blocker works on the live model', opts: NSBB_LEVELS.map((l, k) => ({ label: l.label, short: l.short, params: { nsbbGain: l.gain }, ...(k === own ? { own: true } : {}), how: 'params' as const })) };
   }
   const list = s.compare as unknown;
   if (!Array.isArray(list) || !list.length) return undefined;
   if (list.some((o) => rec(o) && ('gate' in o || 'tool' in o))) return undefined;
-  const opts: CompareOpt[] = list.filter(rec).map((o) => ({
+  const recs = list.filter(rec);
+  const opts: CompareOpt[] = recs.map((o, k) => ({
     label: String(o.label ?? ''), ...(typeof o.short === 'string' ? { short: o.short } : {}), ...(o.own ? { own: true } : {}),
     ...(rec(o.params) ? { params: o.params } : {}), ...(typeof o.preset === 'string' ? { preset: o.preset } : {}),
     ...(typeof o.slide === 'string' ? { slide: o.slide } : {}), ...(typeof o.lens === 'string' ? { lens: o.lens } : {}),
+    ...(typeof o.days === 'number' ? { days: o.days } : {}),
+    ...(typeof o.title === 'string' ? { title: o.title } : {}), ...(typeof o.line === 'string' ? { line: o.line } : {}),
+    ...(typeof o.kicker === 'string' ? { kicker: o.kicker } : {}), ...(typeof o.site === 'string' ? { site: o.site } : {}),
+    how: howOf(recs, k),
   }));
   const lens = opts.some((o) => o.lens), params = opts.some((o) => o.params && 'fenestrae' in o.params);
   return { opts, name: lens ? 'Color the vessels by' : params ? 'Open or close the fenestrae on the live model' : 'Switch treatment on the live model' };
@@ -79,6 +100,20 @@ export function controlsOf(s: CopiedSlide): SlideControls | undefined {
   if (scales) c.scales = scales;
   return Object.keys(c).length ? c : undefined;
 }
+
+/** The words a compare button puts on the card (2D presenter-question.js variantWords): its own title, line, kicker and level; from the slide a time-point button names; or the slide's own
+ *  (the slide's own button, and a button that says nothing, keeps what the slide says). `at` is the slide a `slide:` button names. */
+export interface VariantWords { title: string; line: string; kicker: string; site?: string }
+export function variantWords(slide: { title: string; line: string; kicker: string; site?: string }, o: CompareOpt, at?: { title: string; line: string; kicker: string; site?: string } | null): VariantWords {
+  const src: Partial<VariantWords> = o.own ? slide : at ?? o;
+  const pick = <K extends keyof VariantWords>(k: K): VariantWords[K] => (src[k] ?? slide[k]) as VariantWords[K];
+  const out: VariantWords = { title: pick('title'), line: pick('line'), kicker: pick('kicker') };
+  const site = pick('site');
+  if (site) out.site = site;
+  return out;
+}
+/** A row of compare buttons where some button speaks (2D `wordy`): only then does a parameter button bring words. */
+export const speaks = (opts: readonly CompareOpt[]): boolean => opts.some((o) => o.title || o.line);
 
 /** The nested change one value makes at each dotted path ("tips.d" → { tips: { d } }), merged: what the engine's `setParams` takes. */
 export function patchOf(paths: readonly string[], x: number): Record<string, unknown> {

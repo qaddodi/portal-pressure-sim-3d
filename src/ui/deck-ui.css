@@ -186,3 +186,11 @@
 .dk-page { animation: dk-fade var(--move) var(--ease) both; }
 
 /* (The glass is one style in glass.css, for every panel, menu, pill and card.) */
+
+/* The level rail's block (2D presenter-cards.js railBlock: a rounded box in the danger colour, hatched at 45 degrees, round the blocked level's whole bar). 2D draws it as a GPU
+   model; here it is one static background, so nothing is painted per frame. The rest of the rail is 2D's own stylesheet (css2d/app-04-presenter.css). */
+.pz-rail-blk { box-sizing: border-box; border: 1.2px solid color-mix(in srgb, var(--danger) 70%, transparent); border-radius: 6px;
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--danger) 55%, transparent) 0 3.5px, color-mix(in srgb, var(--danger) 10%, transparent) 3.5px 7px); }
+
+/* A table row's note names its column (2D: the note column's head, "Choice"), as a small label before the words. */
+.dk-tnote .dk-tnh { margin-right: .5em; font-weight: 600; color: var(--text-3); }

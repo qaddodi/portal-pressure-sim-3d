@@ -2,7 +2,7 @@
 // the data card (tiles) from the slide's fields, and `numbers: 'states'`, so every number a slide prints comes from that slide's own state in the engine.
 // Nothing here is typed per slide; a slide that asks for something the 3D figure cannot do yet keeps its words and its shot and is listed by hooks.ts.
 import { TERM_STATIONS } from '../../scene/labels/stations.ts';
-import { CATHS, type CathState, type Deck, type EqPart, type Slide, type SlideTiles, type TableSpec } from '../schema.ts';
+import { CATHS, type CathState, type Deck, type EqPart, type Slide, type SlideScene, type SlideTiles, type TableSpec } from '../schema.ts';
 import { planSlide } from './plan.ts';
 import { controlsOf } from '../controls.ts';
 import { playsLapse } from './lapse.ts';
@@ -45,11 +45,31 @@ const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v 
 /** A 2D `cite` is a string or a list of them (one line each); the card prints them joined. */
 const citeOf = (v: unknown): string | undefined => (Array.isArray(v) ? v.filter((x) => typeof x === 'string').join(' · ') || undefined : str(v));
 
+/** A 2D `sides` list: the two guidelines' names and words, as the card sets them. */
+const sidesOf = (v: unknown): { who: string; text: string }[] | undefined => {
+  if (!Array.isArray(v)) return undefined;
+  const two = v.filter((x): x is { who: string; text: string } => !!x && typeof x.who === 'string' && !!x.who.trim() && typeof x.text === 'string' && !!x.text.trim()).map((x) => ({ who: x.who, text: x.text }));
+  return two.length ? two : undefined;
+};
+const strList = (v: unknown): string[] | undefined => (Array.isArray(v) && v.length && v.every((x) => typeof x === 'string') ? (v as string[]) : undefined);
+
+/** The figure's views after the slide's own, one per Next (2D slide-beats.js beatView: each beat builds on the one before, and changes only the figure). */
+function beatScenes(deckId: string, s: CopiedSlide, i: number): SlideScene[] | undefined {
+  if (!Array.isArray(s.beats) || !s.beats.length || s.visual) return undefined;
+  let v: CopiedSlide = s;
+  return (s.beats as Record<string, unknown>[]).map((b) => {
+    v = { ...v, ...b } as CopiedSlide;
+    const sc = planSlide(deckId, v, i).scene;
+    return { ...sc, terms: sc.terms.filter((t) => t in TERM_STATIONS) };
+  });
+}
+
 export function slideOf(deckId: string, s: CopiedSlide, i: number, prevCath: CathState | undefined): Slide {
   const plan = planSlide(deckId, s, i);
   const cath = (CATHS as readonly string[]).includes(s.cath ?? '') ? (s.cath as CathState) : s.cathKeep ? prevCath : undefined;
   const tiles: SlideTiles | undefined = s.data === 'tiles' && s.tiles?.length
-    ? { deck: deckId, slide: s.id, keys: s.tiles, key: s.key ?? [], delta: s.delta ?? null } : undefined;
+    ? { deck: deckId, slide: s.id, keys: s.tiles, key: s.key ?? [], delta: s.delta ?? null,
+      ...(typeof s.hvpgResp === 'string' && s.hvpgResp ? { resp: s.hvpgResp } : s.hvpgResp === true ? { resp: true as const } : {}) } : undefined;
   const eq = s.eq ? eqParts(s.eq[0]!) : undefined;
   const terms = knownTerms(s.terms);
   const scene = { ...plan.scene, terms: plan.scene.terms.filter((t) => t in TERM_STATIONS) };
@@ -58,6 +78,7 @@ export function slideOf(deckId: string, s: CopiedSlide, i: number, prevCath: Cat
   const tool = s.tool && typeof (s.tool as { kind?: unknown }).kind === 'string' ? { kind: (s.tool as { kind: string }).kind } : undefined;
   const lp = s.lapse as { from?: string; to?: string } | null | undefined;
   const lapse = lp && typeof s.days === 'number' && s.days > 0 ? { days: s.days, ...(lp.from ? { from: lp.from } : {}), ...(lp.to ? { to: lp.to } : {}), plays: playsLapse(s, i) } : undefined;
+  const sides = sidesOf(s.sides), causes = strList(s.causes), beats = beatScenes(deckId, s, i);
   return {
     id: s.id, kicker: s.kicker ?? '', title: s.title ?? '', line: s.line ?? '', notes: s.notes ?? '',
     ...(s.vignette ? { vignette: s.vignette } : {}),
@@ -73,6 +94,13 @@ export function slideOf(deckId: string, s: CopiedSlide, i: number, prevCath: Cat
     ...(terms ? { terms } : {}),
     ...(eq ? { eq } : {}),
     ...(s.eq?.[1] ? { eqLegend: s.eq[1] } : {}),
+    ...(str(s.site) ? { site: str(s.site) } : {}),
+    ...(s.rail ? { rail: s.rail === 'all' ? 'all' as const : true as const } : {}),
+    ...(sides ? { sides } : {}),
+    ...(s.pill === false ? { pill: false as const } : {}),
+    ...(causes ? { causes } : {}),
+    ...(str(s.causesHead) ? { causesHead: str(s.causesHead) } : {}),
+    ...(beats ? { beats } : {}),
     ...(Array.isArray(s.ask) && s.ask[0] ? { ask: s.ask } : {}),
     ...(cath ? { cath } : {}),
     ...(tiles ? { tiles } : {}),

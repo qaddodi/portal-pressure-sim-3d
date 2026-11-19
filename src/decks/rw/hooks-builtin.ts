@@ -21,5 +21,6 @@ export function registerBuiltinHooks(): void {
   // B5: a slide's procedure plays on the figure with its steps and Play button, a vein's stent, the catheter kept across the lobule dive (ui/deck/procs-link.ts, ui/cards/ProcRow.tsx)
   for (const k of PROCEDURE_PLAYS) registerHook(`procedure:${k}`);
   for (const id of ['device:stent', 'device:hvpg-catheter:keep']) registerHook(id);
+  for (const id of ['card:rail', 'card:sides', 'visual:walls']) registerHook(id);   // B12: the level rail and the two guidelines side by side (ui/cards/TeachingCard.tsx), the two walls (ui/charts/walls)
   for (const id of ['view:lobule', 'view:sinusoid', 'view:wash', 'view:layers']) registerHook(id);   // B8: the lobule and sinusoid scenes, the wedge's wash, the zone bands
 }
