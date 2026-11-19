@@ -128,6 +128,8 @@ export const sceneApi = {
   setLens(lens: LensId, instant = false): void { useLens.setState({ lens }); cel.setLens(lens, performance.now(), instant); clock.invalidate('lens'); },
   /** Compare's Change view: Change and Congestion count from a pinned moment's pressures; null goes back to the healthy reference. */
   setLensRef(P: ArrayLike<number> | null): void { cel.setLensRef(P); clock.invalidate('lens'); },
+  /** A "change since" slide's baseline: the node pressures (the state of the slide before, a named slide's, a lapse's start) the Since lens counts from; null goes back to the state the figure showed as the lens came in. */
+  setSinceRef(P: ArrayLike<number> | null): void { cel.setSinceRef(P); clock.invalidate('lens'); },
   /** The Blood menu: chevrons, key chevrons only, potential collaterals (the other two are the cards' and tags' business). Remembered across visits. */
   setBlood(patch: Partial<BloodChoice>, presenting = false): void {
     useBlood.getState().set(patch);
