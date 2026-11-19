@@ -1,0 +1,32 @@
+.pp-scroll { position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--bg); }
+.pp { max-width: 880px; margin: 0 auto; padding: 24px 16px 64px; color: var(--text); font: 15px/1.45 var(--ui); }
+.pp h1 { font: 600 22px var(--display); margin: 0 0 8px; }
+.pp h2 { font: 600 15px var(--ui); color: var(--text-2); margin: 28px 0 8px; text-transform: none; }
+.pp-big { font-size: 20px; margin: 0 0 8px; }
+.pp-big small, .pp-nums small { font-size: 12px; color: var(--text-2); font-weight: 400; }
+.pp-note { color: var(--text-2); font-size: 13px; margin: 10px 0; max-width: 64ch; }
+.pp-bar { position: relative; height: 8px; border-radius: 4px; background: var(--edge); overflow: hidden; min-width: 80px; }
+.pp-bar i { position: absolute; inset: 0; transform-origin: 0 50%; }
+.pp-bar-x { background: var(--accent-soft); }
+.pp-bar-w { background: var(--ok); }
+.pp-table { width: 100%; border-collapse: collapse; }
+.pp-table tr { cursor: pointer; border-bottom: 1px solid var(--edge); }
+.pp-table tr.on { background: var(--accent-soft); }
+.pp-table th { text-align: left; font-weight: 600; padding: 8px 6px; white-space: nowrap; }
+.pp-table th span { font-weight: 400; color: var(--text-2); }
+.pp-table td { padding: 8px 6px; }
+.pp-table td:nth-child(2) { width: 38%; }
+.pp-nums { white-space: nowrap; font-size: 14px; }
+.pp-group { border-bottom: 1px solid var(--edge); padding: 4px 0; }
+.pp-group summary { display: grid; grid-template-columns: minmax(0, 1fr) 120px auto; gap: 12px; align-items: center; cursor: pointer; padding: 8px 0; list-style: none; }
+.pp-group summary::-webkit-details-marker { display: none; }
+.pp-name { font-weight: 600; }
+.pp-group ul { margin: 4px 0 12px; padding: 0; list-style: none; font-size: 13px; }
+.pp-group li { padding: 3px 0; }
+.pp-group li code { color: var(--text-3); font-size: 11px; margin-left: 6px; }
+.pp-group li em { color: var(--text-2); font-style: normal; font-size: 12px; }
+.pp-tag { display: inline-block; min-width: 3ch; font-size: 11px; color: var(--text-2); border: 1px solid var(--edge); border-radius: 6px; padding: 0 5px; margin-right: 6px; }
+.pp-none { color: var(--text-2); font-size: 13px; margin: 4px 0 10px; }
+.pp-check { font-size: 13px; color: var(--text-2); }
+.pp button { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+@media (max-width: 560px) { .pp-group summary { grid-template-columns: 1fr; gap: 4px; } .pp-table td:nth-child(2) { display: none; } }

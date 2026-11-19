@@ -20,6 +20,12 @@ useSettings.subscribe((s, prev) => { if (s.blur !== prev.blur) applyGlass(s.blur
 dark.addEventListener('change', paint);
 
 async function start() {
+  // ?parity: the build's progress page needs neither fonts nor the engine; it is its own small chunk.
+  if (new URLSearchParams(location.search).has('parity')) {
+    const { ParityPage } = await import('./parity/ParityPage.tsx');
+    createRoot(document.getElementById('root')!).render(<StrictMode><ParityPage /></StrictMode>);
+    return;
+  }
   const [fonts] = await Promise.all([fontsReady(), bootEngine().catch((err) => { console.error(err); })]);
   if (!fonts) console.warn('[boot] fonts were late; continuing with fallback faces');
   createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);

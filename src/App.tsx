@@ -5,6 +5,7 @@ import { Stage } from './scene/Stage.tsx';
 import { LabelLayer } from './scene/labels/LabelLayer.tsx';
 import { Shell } from './ui/shell/Shell.tsx';
 import { useEngine } from './engine/index.ts';
+import { BuildPill } from './ui/shell/BuildPill.tsx';
 
 export function App() {
   const status = useEngine((s) => s.status);
@@ -13,6 +14,7 @@ export function App() {
       <Stage />
       <LabelLayer />
       <Shell />
+      <BuildPill />
       {status === 'crashed' && <CrashNotice />}
     </>
   );
