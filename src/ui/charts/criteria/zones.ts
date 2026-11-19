@@ -58,6 +58,28 @@ export function hatchSegments(x: number, y: number, w: number, h: number, gap = 
   return out;
 }
 
+/** The 2D hatch's pattern is a 7 px tile turned 45° holding one 2 px stripe: so the stripes are the bands c ≤ x + y ≤ c + 2·√2 with c a multiple of 7·√2. Each stripe is
+ *  returned as the filled polygon (a sliver) it covers inside the rectangle, [x0, y0, x1, y1, …], never as a stroked line (no cap, no clipped end). */
+export function hatchSlivers(x: number, y: number, w: number, h: number, period = 7, thick = 2): number[][] {
+  const step = period * Math.SQRT2, band = thick * Math.SQRT2, out: number[][] = [];
+  // clip the polygon to the half plane (x + y) * sign >= edge * sign
+  const cut = (poly: number[][], edge: number, sign: 1 | -1): number[][] => {
+    const res: number[][] = [], d = (p: number[]) => (p[0]! + p[1]! - edge) * sign;
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i]!, b = poly[(i + 1) % poly.length]!, da = d(a), db = d(b);
+      if (da >= 0) res.push(a);
+      if ((da >= 0) !== (db >= 0)) { const t = da / (da - db); res.push([a[0]! + (b[0]! - a[0]!) * t, a[1]! + (b[1]! - a[1]!) * t]); }
+    }
+    return res;
+  };
+  const box = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+  for (let c = Math.floor((x + y - band) / step) * step; c <= x + w + y + h; c += step) {
+    const poly = cut(cut(box, c, 1), c + band, -1);
+    if (poly.length >= 3) out.push(poly.flat());
+  }
+  return out;
+}
+
 /** The zones graph of a card of width ctx.w as a frame (the card never changes size with the case: the height follows the width only). */
 export function zonesFrame(fig: ZonesFig, c: ChartCtx, label: string): Frame {
   const W = c.w, ph = plotHeight(W);
@@ -68,7 +90,7 @@ export function zonesFrame(fig: ZonesFig, c: ChartCtx, label: string): Frame {
   for (const z of fig.zones) shapes.push({ k: 'rect', x: X(z.x[0]), y: Y(z.y[1]), w: X(z.x[1]) - X(z.x[0]), h: Y(z.y[0]) - Y(z.y[1]), fill: lk('crit.zone', { rate: z.rate }).fill });
   if (fig.hatch) {
     const h = fig.hatch, hatch = lk('crit.hatch').fill!;
-    for (const [x1, y1, x2, y2] of hatchSegments(X(h.x[0]), Y(h.y[1]), X(h.x[1]) - X(h.x[0]), Y(h.y[0]) - Y(h.y[1]))) shapes.push({ k: 'line', x1: x1!, y1: y1!, x2: x2!, y2: y2!, pen: { color: hatch, w: 2 } });
+    for (const pts of hatchSlivers(X(h.x[0]), Y(h.y[1]), X(h.x[1]) - X(h.x[0]), Y(h.y[0]) - Y(h.y[1]))) shapes.push({ k: 'path', pts, closed: true, fill: hatch });
   }
   shapes.push({ k: 'unclip' });
   const word = (x: number, y: number, s: string, quiet: boolean, anchor: 'start' | 'middle' | 'end', size: number): Shape => {
