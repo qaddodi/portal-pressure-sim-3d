@@ -104,7 +104,7 @@ function ScopeView({ square, opt }: { square: number; opt: EndoOpt }) {
 }
 void scopeTear;
 
-export function EndoPane({ square, options }: PaneProps & { /** a slide's own options (2D tool: air, red, readings) */ options?: Record<string, unknown> | null }) {
+export function EndoPane({ square, options, wall }: PaneProps & { /** a slide's own options (2D tool: air, red, readings) */ options?: Record<string, unknown> | null; /** a slide's own wall stress (its fingerprint's `wall`), pinned in Wall mechanics */ wall?: unknown }) {
   const view = useScope((s) => s.view);
   const air = scopeOptions(options).air, red = scopeOptions(options).red, readings = scopeOptions(options).readings;
   const opt = useMemo(() => ({ air, red, readings }), [air, red, readings]);
@@ -117,7 +117,7 @@ export function EndoPane({ square, options }: PaneProps & { /** a slide's own op
           <button key={id} type="button" className="ps-btn" data-view={id} aria-pressed={view === id} onClick={() => useScope.getState().setView(id as 'scope' | 'wall')}>{label}</button>
         ))}
       </div>
-      {view === 'scope' ? <ScopeView square={sq} opt={opt} /> : <WallView square={sq} />}
+      {view === 'scope' ? <ScopeView square={sq} opt={opt} /> : <WallView square={sq} pin={wall} />}
     </div>
   );
 }

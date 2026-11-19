@@ -1,7 +1,7 @@
 // Wall mechanics, the Endoscopy tab's second view (2D instruments.js createVarixWall): a cross-section of the esophagus with the varix in its wall, and Laplace's law as readings in the
 // same tiles and meter as the scope view. The picture is a frame on the charts' shared GPU drawer (wall.ts, laid out by the 2D wall-geometry.js by the names' ink); the tiles are the 2D markup,
 // styled by its rules (wall.copied.css). It follows the model: each frame of the engine draws the picture again where a number moved, and a tile's words change only when they print differently.
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import './endo.css';
 import './wall.copied.css';
 import { latest, onFrame, useEngine } from '../../../engine/index.ts';
@@ -12,7 +12,7 @@ import type { Frame } from '../../charts/scene.ts';
 import { ENDO_WORDS } from '../copied/endo-words.copied.js';
 import { createWallGeometry } from '../copied/wall-geometry.copied.js';
 import { metricsOf } from '../frame.ts';
-import { wallFontSize, wallFrame, wallReadings, wallShare, WALL_NOTE, type WallVarix } from './wall.ts';
+import { wallFontSize, pinWall, wallFrame, wallReadings, wallShare, WALL_NOTE, type WallPin, type WallVarix } from './wall.ts';
 
 const W = ENDO_WORDS.wall;
 const VAR = (NODES as { id: string }[]).findIndex((n) => n.id === 'VAR');
@@ -22,8 +22,12 @@ const none: Frame = { w: 0, h: 0, shapes: [], label: W.aria };
 const Name = ({ long, short }: { long: string; short: string }) => <dt><span className="wall-long">{long}</span><span className="wall-short">{short}</span></dt>;
 const Num = ({ v, unit }: { v: string; unit: string }) => <dd className="endo-num"><span>{v}</span><small>{unit ? ` ${unit}` : ''}</small></dd>;
 
-export function WallView({ square }: { square: number }) {
-  const json = useEngine((s) => { void s.frames; const v = metricsOf(latest.frame)?.varix; return v ? JSON.stringify(wallReadings(v as WallVarix)) : ''; });
+/** pin: the slide's own wall stress (its fingerprint's `wall`), shown in the big number and its word as 2D's pin(fp) does; absent in the Tests card. */
+export function WallView({ square, pin }: { square: number; pin?: unknown }) {
+  const last = useRef<WallPin>({ v: NaN, t: 0 });
+  const [pinned, setPinned] = useState(NaN);
+  useEffect(() => { last.current = pinWall(last.current, pin, performance.now()); setPinned(last.current.v); }, [pin]);
+  const json = useEngine((s) => { void s.frames; const v = metricsOf(latest.frame)?.varix; return v ? JSON.stringify(wallReadings(v as WallVarix, pinned)) : ''; });
   const r = useMemo(() => (json ? JSON.parse(json) as ReturnType<typeof wallReadings> : null), [json]);
   const painter = useRef<ChartPainter | null>(null), ctx = useRef<ChartCtx | null>(null);
   const geom = useRef(createWallGeometry()), key = useRef('');
@@ -58,7 +62,7 @@ export function WallView({ square }: { square: number }) {
             <dd className="endo-stress-v">{r?.stress ?? ''}</dd>
             <b className="wall-big" data-sev={r?.state}><span>{r?.pct ?? ''}</span><small>%<span className="wall-of">{W.of}</span></small></b>
             <span className="wall-sev" data-sev={r?.state}>{r?.word ?? ''}</span>
-            <span className="endo-bar" aria-hidden="true" data-sev={r?.state}><i style={{ translate: r?.fill }} /></span>
+            <span className="endo-bar" aria-hidden="true" data-sev={r?.barState}><i style={{ translate: r?.fill }} /></span>
           </div>
           <div className="endo-tile"><Name long={W.dp[0]!} short={W.dp[1]!} /><Num v={r?.ptm ?? ''} unit={W.units[0]!} /></div>
           <div className="endo-tile"><dt>{W.radius}</dt><Num v={r?.r ?? ''} unit={W.units[1]!} /></div>
