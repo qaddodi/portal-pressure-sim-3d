@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { Vector3 } from 'three';
 import { COURSES } from '../src/scene/circuit/course.ts';
-import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, CIRCUIT_TREES, CIRCUIT_ZONES, CUSTOM_EDGES, LANE_CAPTIONS, NODE_CIRCUIT, RES_LABEL, RES_LIVER, RES_SIZES, ROUTER_STATIONS, ZONE_SHORT } from '../src/scene/circuit/data.copied.ts';
+import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, CIRCUIT_TREES, CIRCUIT_ZONES, CUSTOM_EDGES, CUSTOM_SHUNT_PATH, LANE_CAPTIONS, NODE_CIRCUIT, RES_LABEL, RES_LIVER, RES_SIZES, ROUTER_STATIONS, ZONE_SHORT } from '../src/scene/circuit/data.copied.ts';
 import { mapToScene } from '../src/scene/circuit/map.ts';
 import { PEEL_SPAN, peelAt, peelRank, peelSlope } from '../src/scene/circuit/peel.ts';
 import { TURN_DIR, buildCaptions, type CapCtx } from '../src/scene/circuit/captions.ts';
@@ -21,6 +21,7 @@ import { createCircuitShared } from '../src/scene/circuit/uniforms.ts';
 import { ProcedureLayer } from '../src/scene/procedures/layer.ts';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { createRouter } from '../src/scene/circuit/router.copied.js';
+import { x3, y3 } from '../src/scene/frame2d.ts';
 
 // ── the flow peel's tangent ──
 test('the peel slope is the derivative of the peel with the rank', () => {
@@ -194,7 +195,7 @@ test('a branch starts and ends where the 2D tree does, in the map\'s place', () 
 });
 test('the tubes ease in with the map and their own presence, and the caudate lane only for a slide about the caudate', () => {
   const t = tubes();
-  const ctx = (o: Partial<Parameters<CircuitTubes['update']>[1]> = {}) => ({ ramp: 1, body: 1, drawn: () => true, caudPin: false, open: {}, ...o });
+  const ctx = (o: Partial<Parameters<CircuitTubes['update']>[1]> = {}) => ({ ramp: 1, t: 1, body: 1, drawn: () => true, caudPin: false, open: {}, ...o });
   for (let i = 0; i < 20; i++) t.update(50, ctx());
   const tree = t.ids.findIndex((e) => e.kind === 'tree'), caud = t.ids.findIndex((e) => e.kind === 'caud');
   assert.equal(t.objects[tree]!.group.visible, true); assert.equal(t.objects[tree]!.fade, 1);
@@ -222,6 +223,39 @@ test('a custom shunt that opens is routed once, as a transit-map line between it
   t.routeOpen({});
   assert.equal(t.routeOf(id), null, 'a closed one is forgotten');
   assert.ok(t.ids.some((e) => e.kind === 'custom'));
+  t.dispose();
+});
+test('a custom shunt lies on the body too: drawn with the body before the map is in, carried between its two courses, and let go once closed', () => {
+  const t = tubes();
+  const ctx = (o: Partial<Parameters<CircuitTubes['update']>[1]> = {}) => ({ ramp: 0, t: 0, body: 1, drawn: () => true, caudPin: false, open: {}, ...o });
+  const [id] = CUSTOM_EDGES[0]!;
+  const open = { [id]: 8 };
+  t.routeOpen(open);
+  for (let i = 0; i < 20; i++) t.update(50, ctx({ open }));
+  const k = t.ids.findIndex((e) => e.kind === 'custom'), o = t.objects[k]!;
+  assert.equal(o.group.visible, true, 'on the body as soon as it is open (the Anatomy draws it on its own course, 2D custom-shunt-paths.js)');
+  assert.equal(o.fade, 1);
+  const len0 = (o.toon.uniforms.len as { value: number }).value;
+  for (let i = 0; i < 20; i++) t.update(50, ctx({ open, ramp: 1, t: 1 }));
+  assert.equal(o.group.visible, true, 'and on the map');
+  const len1 = (o.toon.uniforms.len as { value: number }).value;
+  assert.notEqual(len0, len1, 'the flow marks keep their pitch: the length is the body course\'s, then the map course\'s');
+  // the body course is the anatomy path's: the tube begins at the plate's own start of it
+  const a = CUSTOM_SHUNT_PATH[id]!.match(/-?[\d.]+/g)!.map(Number);
+  const pos = (o.group.children[0] as unknown as { geometry: { getAttribute(n: string): { count: number; getX(i: number): number; getY(i: number): number } } }).geometry.getAttribute('position');
+  let best = Infinity;
+  for (let i = 0; i < pos.count; i++) best = Math.min(best, Math.hypot(pos.getX(i) - x3(a[0]!), pos.getY(i) - y3(a[1]!)));
+  assert.ok(best < 0.02, `the tube starts where the anatomy's path does (${best})`);
+  // closed: it eases out and is let go; opened again, one tube stands, not two
+  t.routeOpen({});
+  for (let i = 0; i < 30; i++) t.update(50, ctx());
+  assert.equal(t.ids.filter((e) => e.kind === 'custom').length, 0, 'a closed shunt\'s tube is let go');
+  t.routeOpen(open);
+  assert.equal(t.ids.filter((e) => e.kind === 'custom').length, 1);
+  t.routeOpen({}); t.routeOpen(open);
+  assert.equal(t.ids.filter((e) => e.kind === 'custom' && e.id === id).length, 2, 'the old one is still easing out');
+  for (let i = 0; i < 30; i++) t.update(50, ctx({ open }));
+  assert.equal(t.ids.filter((e) => e.kind === 'custom' && e.id === id).length, 1, 'then only the new one stands');
   t.dispose();
 });
 test('the router keeps to horizontal, vertical and 45 degree runs', () => {
@@ -255,4 +289,34 @@ test('the scene feeds the map\'s own parts and the body\'s labels stand aside in
   assert.match(readFileSync('src/scene/labels/controller.ts', 'utf8'), /d\.hidden\?\.\(\) \? \[\] : this\.active\(\)/);
   assert.match(readFileSync('src/App.tsx', 'utf8'), /<CircuitCaptions \/>/);
   assert.match(readFileSync('src/scene/api.ts', 'utf8'), /setResistors\(keys: readonly ResKey\[\]\)/);
+});
+
+// ── a Circuit slide plays on the map ──
+test('a Circuit slide frames its region of the map, draws the resistors its sites name, and an upright map is framed turned', async () => {
+  const { planSlide } = await import('../src/decks/hp/plan.ts');
+  const { circuitBoxShot, circuitShot } = await import('../src/scene/circuit/shots.ts');
+  const { loadAgDeck } = await import('../src/decks/ag/index.ts');
+  const deck = await loadAgDeck('circuit' as never) as unknown as { slides: never[] };
+  const plans = deck.slides.map((s, i) => planSlide('circuit', s, i));
+  assert.ok(plans.length > 5);
+  for (const p of plans.filter((q) => q.id !== 'summary')) {   // (the summary table is the body's, as in 2D: it names no view)
+    assert.equal(p.scene.view, 'circuit', p.id); assert.ok(p.scene.circuit, `${p.id} carries the map's region`);
+  }
+  const ohm = plans.find((p) => p.id === 'ohm')!;
+  assert.deepEqual(ohm.scene.circuit!.resistors, ['rLiver', 'rColl']);
+  const where = plans.find((p) => p.id === 'where')!;
+  assert.deepEqual(where.scene.circuit!.resistors, ['rLiver', 'rColl', 'rGut']);
+  // a region is a part of the map: its shot is smaller than the whole map's, centred on the region
+  const box = [630, 200, 950, 450] as const;
+  const part = circuitBoxShot(box, false), whole = circuitShot(false);
+  assert.ok(part.half[0] < whole.half[0] && part.half[1] < whole.half[1]);
+  const c = mapToScene(790, 325);
+  assert.ok(Math.abs(part.target[0] - c[0]) < 1e-9 && Math.abs(part.target[1] - c[1]) < 1e-9);
+  // kMax keeps it from closing in further than the whole map's fit over kMax
+  const tight = circuitBoxShot([780, 300, 800, 310], false, 2);
+  assert.ok(Math.abs(tight.half[0] - whole.half[0] / 2) < 1e-9);
+  // upright: the box turns with the map, its extents swap
+  const up = circuitBoxShot(box, true);
+  assert.ok(Math.abs(up.half[0] - part.half[1]) < 1e-9 && Math.abs(up.half[1] - part.half[0]) < 1e-9);
+  assert.ok(Math.abs(circuitShot(true).half[0] - whole.half[1]) < 1e-9);
 });
