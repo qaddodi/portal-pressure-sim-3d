@@ -2,7 +2,8 @@
 // and doAction). A new order has to be put in the table here, so one that should open an instrument cannot land without it.
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { pinned2D } from './two-d-pin.ts';
 import { PRESETS, defaultParams } from '../src/engine/hales/portal/scenario.js';
 import { setParams } from '../src/engine/store.ts';
 import { presetStarted } from '../src/ui/action/params.ts';
@@ -175,8 +176,8 @@ test('a band: none without varices, four at most, and each says its count; a flu
   assert.equal(actionLabel({ kind: 'paracentesis', mL: 5000, albumin: true }), 'Paracentesis 5.0 L + albumin');
 });
 
-const MAIN_2D = `${process.env.PPS_2D_REPO ?? '/home/claude/portal-pressure-simulator'}/src/ui/main.js`;
-test('the answers are the 2D app\'s own words, and its rule for the abdomen is the one kept here (checked when the 2D checkout is at hand)', { skip: !existsSync(MAIN_2D) && 'no 2D checkout here' }, () => {
+const two = pinned2D('src/ui/main.js'), MAIN_2D = `${two.repo}/src/ui/main.js`;
+test('the answers are the 2D app\'s own words, and its rule for the abdomen is the one kept here (checked when the 2D checkout is at hand)', { skip: two.skip }, () => {
   const src = readFileSync(MAIN_2D, 'utf8');
   for (const s of ['No varices to band.', ' bands are already on the varices.', 'Band (EVL) placed: ', '1 L crystalloid running (≈25% stays intravascular).', '1 unit of packed red cells running.',
     'Albumin given: plasma oncotic pressure rises.', 'Valsalva: intrathoracic and intra-abdominal pressures rise for 10 s.', 'Paracentesis: up to ', ' with albumin', ' without albumin'])
