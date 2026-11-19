@@ -49,7 +49,7 @@ export class DiseaseLayer {
   setLensGrey(on: boolean): void { this.organs.setLensGrey(on); this.moving = true; }
 
   constructor(shared: CelShared, vessels: readonly CelObject[]) {
-    this.organs = new OrganLayer(shared);
+    this.organs = new OrganLayer(shared);   // (built when the organs file is in: OrganLayer.build)
     this.clots = new ClotLayer(shared);
     this.strands = new StrandLayer(shared);
     this.bleed = new BleedLayer(shared);

@@ -42,12 +42,24 @@ export class OrganLayer {
   private dirtyColours = true;
   private instant = true;
 
-  constructor(shared: CelShared, meshes: Record<string, () => BufferGeometry> = ORGAN_MESHES) {
+  private readonly shared: CelShared;
+  private built = false;
+  /** With `meshes` the organs are built at once (the tests); without, `build()` makes them from the organs file once `organsReady` has resolved (scene.ts). */
+  constructor(shared: CelShared, meshes?: Record<string, () => BufferGeometry>) {
+    this.shared = shared;
+    if (meshes) this.build(meshes);
+  }
+
+  /** Makes the organs from `meshes` (default: the organs file, which must be loaded), in the patient's state: the look, the phone's lines and the body come straight on, nothing eases in. */
+  build(meshes: Record<string, () => BufferGeometry> = ORGAN_MESHES): void {
+    if (this.built) return;
+    this.built = true;
     for (const [id, make] of Object.entries(meshes)) {
       const st = ORGAN_STYLE[id];
       if (!st) continue;
       const g = make();
-      const o = new CelObject(g, { tone: st.tone, bands: 3, spec: 0, px: st.px }, shared);
+      const o = new CelObject(g, { tone: st.tone, bands: 3, spec: 0, px: st.px }, this.shared);
+      if (this.phone) o.setPhone(true);
       this.objects.push(o); this.byId.set(id, o); this.group.add(o.group);
       if (id === 'liver') {
         this.liverGeometry = g;
@@ -55,6 +67,7 @@ export class OrganLayer {
         this.liverShape = new LiverShape(g.getAttribute('position') as never, g.getAttribute('normal').array);
       }
     }
+    this.dirtyColours = true; this.instant = true;
   }
 
   applyLook(p: Palette): void { this.palette = p; this.dirtyColours = true; }

@@ -93,7 +93,7 @@ test('the organs: the liver follows cirrhosis and congestion, the spleen its siz
 test('a new geometry on a clot disposes the one it replaces', () => {
   const s = new CelScene(); const c = s.disease.clots;
   c.set({ PV_TRUNK: 0.4 }, 0.016, true);
-  const mesh = (c.group.children[0] as { children: { geometry: BufferGeometry }[] }).children[0]!;
+  const mesh = (c.group.children[0] as unknown as { children: { geometry: BufferGeometry }[] }).children[0]!;
   let disposed = 0; mesh.geometry.addEventListener('dispose', () => disposed++);
   c.set({ PV_TRUNK: 0.9 }, 0.016, true);
   assert.equal(disposed, 1);

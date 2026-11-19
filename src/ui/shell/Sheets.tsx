@@ -13,6 +13,7 @@ import { DifferencesSheet } from '../compare/CompareUi.tsx';
 import { WhySheet } from '../why/WhySheet.tsx';
 import { RESET } from './words.ts';
 import { resetEverything } from './reset.ts';
+import { DeckDialogs } from '../deck/DeckDialogs.tsx';
 import { TreatCard } from '../treat/TreatCard.tsx';
 
 function ResetDialog() {
@@ -50,6 +51,7 @@ export function Sheets() {
       <HelpMenu />
       <Guide />
       <ResetDialog />
+      <DeckDialogs />
     </>
   );
 }
