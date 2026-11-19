@@ -95,7 +95,7 @@ export class VesselObject extends CelObject {
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 },
         veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 },
-        lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, chainTex: blood.chainTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 1 },
+        lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, chainTex: blood.chainTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, quietK: { value: 0 }, wallLine: { value: this.artery ? 1 : 0 }, pageCol: { value: new Color() }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 1 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
       },
@@ -127,6 +127,7 @@ export class VesselObject extends CelObject {
     if (this.artery) rawColor(LENS_TOKENS[look].artery, u.color!.value as Color);
     { const [r, g, b] = CASING[look].rgb; (u.inkColor!.value as Color).setRGB(r / 255, g / 255, b / 255, LinearSRGBColorSpace); }   // (the look's casing ink, tokens.css --casing-rgb)
     u.shadeK!.value = p.shade;
+    rawColor(p.body, u.pageCol!.value as Color);   // (the plate: where the back tier eases to on a turn)
     // the 2D look's line: its casing ink (set above, p.ink) at its casing alpha, and a dark lumen's light rim on the dark looks
     u.casingA!.value = CASING[look].a; u.casingCircA!.value = CASING[look].circ.a;
     { const [r, g, b] = CASING[look].circ.rgb; (u.inkColorCirc!.value as Color).setRGB(r / 255, g / 255, b / 255, LinearSRGBColorSpace); }
@@ -149,6 +150,9 @@ export class VesselObject extends CelObject {
     geo.computeBoundingSphere();
     this.toon.uniforms.len!.value = len;
   }
+
+  /** Quiet depth on a turn (camera/quiet.ts quietOf, 0..1): the back tier eases toward the page; for the vessels behind the organs only (the scene sets it). */
+  setQuiet(q: number): void { this.toon.uniforms.quietK!.value = q; }
 
   private tip: { a0: number; a1: number } | null = null;
   /** The fade at a free end (fades.ts). A faded vessel is blended, so it is transparent. */
