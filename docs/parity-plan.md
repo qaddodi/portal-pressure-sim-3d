@@ -37,7 +37,7 @@ Three checks, all fast, none headless, none on Actions.
 
 1. **The inventory test.** A script in the 2D repo writes `parity/inventory.json`: every deck and slide id, every tool kind, data kind,
    lens and camera name used, every preset, every Settings row, every shortcut, every control label (`aria-label`), every card specimen in the
-   2D gallery catalog, every Treat and Tests item. The 3D repo has a test that reads it and lists what the 3D app does not have yet, with a
+   2D gallery catalog, every Treat and Tests item, and every device and callout on the figure (section 3.1). The 3D repo has a test that reads it and lists what the 3D app does not have yet, with a
    score ("x of y"). Each batch owns its rows and is done when its rows are all there. The score goes in every push report.
 2. **Words.** Every user-facing string in the 3D app comes from the 2D source (deck files copied by script; UI strings in one table generated
    from the 2D app's). A test fails on any string that differs. Clinical wording rules (Baveno VIII, AASLD) and the 2D clinical-wording lint
@@ -62,17 +62,45 @@ integration branch (owned by the shell thread). Every batch follows the look spe
 | **B2 Patients and model controls** | `src/ui/patients/`, `src/ui/timeline/`, `src/ui/history/`, `src/ui/compare/`, `src/ui/why/` | S1, B1 | 20 presets in groups, two clocks and jumps, History and go back, Compare, Why? |
 | **B3 Vessels, blood and lenses** | `src/scene/vessels/`, `src/scene/blood/`, `src/scene/lenses/` | S2 | every drawn vessel by ID (arteries included), moving blood, chevrons (flow marks A), 12 colour lenses, the Blood menu's figure options, the colour legend |
 | **B4 Organs, disease and collaterals** | `src/scene/organs/`, `src/scene/disease/` (clots, cavernoma, varices, ascites, spleen, cirrhotic liver, bleeding, dye) | S2, B3 | every disease state of the 20 presets as the 2D figure shows it |
-| **B5 Procedures** | `src/scene/procedures/` (TIPS and DIPS with the stent geometry rules, surgical shunts, meso-Rex, BRTO, balloons, bands, catheter states), the stent tile editor in `src/ui/treat/stent/` | B3, B4 | every procedure and its figure |
-| **B6 Labels, callouts and figure key** | `src/scene/labels/` (one solver: labels never under cards, fade between spots), callouts, figure key, a11y vessel walk (Tab, arrows along the flow) | S2, S3 | every label, callout and the key; keyboard walk |
+| **B5 Procedures, catheters and balloons** | `src/scene/procedures/` (TIPS and DIPS with the stent geometry rules, surgical shunts, meso-Rex), `src/scene/devices/catheters/` and `src/scene/devices/balloons/` (every catheter, wire, needle and balloon in section 3.1), the stent tile editor in `src/ui/treat/stent/` | B3, B4 | every procedure, catheter and balloon on the figure (section 3.1) |
+| **B6 Labels, callouts and figure key** | `src/scene/labels/` (one solver: labels never under cards, fade between spots), `src/scene/callouts/` (every callout kind in section 3.1), figure key, a11y vessel walk (Tab, arrows along the flow) | S2, S3 | every label, callout and the key; keyboard walk |
 | **B7 Circuit view and morph** | `src/scene/circuit/` | B3 | Circuit, upright turn, Anatomy to Circuit morph (in 3D the tubes fly from the body onto the flat map) |
 | **B8 Lobule and sinusoid** | `src/scene/lobule/`, `src/scene/sinusoid/` | S2 | honeycomb, sinusoids, stellate cells, collagen, congestion, lymph chevrons on ducts, the wedge amber spread, the lobule camera shots |
 | **B9 Action cards and Treat** | `src/ui/action/`, `src/ui/treat/` (not `stent/`) | B1, B3 | tap-anything cards with keys 1 to 9; drugs, fluids, blood, procedures, the Changes row and its phone page |
 | **B10 Charts** | `src/ui/charts/` (every chart look, drawn on the GPU in its own small canvas or as part of the scene) | S1, S3 | ladder, profile, path, flowtime, curve, criteria, trial, forest, flows, lumen, plane, fluid, SAAG, shift, stiffness, stent, timeline, small multiples |
-| **B11 Instruments** | `src/ui/tests/`, `src/scene/scope/` | B3, B10 | Tests: pressure, HVPG and monitor traces, Doppler, endoscopy scope (a camera inside the oesophagus) and wall mechanics, EUS-PPG, ascites and paracentesis, FibroScan, Readouts with Why? |
+| **B11 Instruments and probes** | `src/ui/tests/`, `src/scene/devices/probes/`, `src/scene/devices/scopes/`, `src/scene/scope/` (the views from inside) | B3, B10 | Tests: pressure, HVPG and monitor traces, Doppler, endoscopy scope (a camera inside the oesophagus) and wall mechanics, EUS-PPG, ascites and paracentesis, FibroScan, Readouts with Why? |
 | **B12 Presenter features** | `src/ui/deck/` beyond the slice (outline, quick check, name tab, handout, Print notes, scripts builder, share and import, trials pane, summary tables, clicker) | S3, B10 | every presenter feature |
 | **B13a to c Deck port** | `src/decks/` and each deck's 3D shots (`src/scene/camera/shots/`), split three ways: A to G, H to P, R to W | B3 to B12 for the features each deck uses | all 42 decks and 512 slides: words, numbers and shots |
 | **B14 Accessibility and debug** | `src/ui/a11y/`, `src/ui/debug/` (`?perf` exists from S1; add the card gallery, Sweep, screen report, bug packet) | B1, S3 | live description, reduced motion, colour plus second cue, debug tools |
 | **B15 Guides** | `guides/` | B1, B12 | both tester PDFs for the 3D site |
+
+### 3.1 Devices and callouts on the figure
+
+Everything the 2D app draws on the figure for a test or procedure, each with its batch, its inventory row and whether the artist models it.
+Each one must appear, move and read exactly as in 2D (same placement rules, same states, same pressure pills), and each is scored in the
+inventory as `device:<id>` or `callout:<id>`.
+
+| Item | In the 2D app | Batch | Inventory row | 3D model |
+|---|---|---|---|---|
+| Doppler ultrasound probe on the skin, with its beam and sample gate | `dop-probe.js`, `stage-doppler.js` | B11 | `device:us-probe` | Artist: curvilinear probe head |
+| FibroScan probe on the right flank, with its measured region | `fibroscan.js`, `fibroscan-gl.js` | B11 | `device:fibroscan-probe` | Artist: FibroScan probe |
+| Endoscope on the figure (through the mouth to the oesophagus, stomach and fundus), and the view from its tip | `stage-scope.js`, `scope*.js`, `endo-*.js` | B11 | `device:endoscope`, `view:scope` | Shaft is a curve we build; artist: scope tip with lens and light |
+| Endoscopic band ligation: cap, bands on varices, banded varix settling | `band-ring.js`, `band-ease.js`, `band-settle.js`, `rx-bands.js` | B11 (scope) and B5 (bands on the figure) | `device:band-ligator`, `device:band` | Artist: ligator cap and band ring |
+| EUS scope with the needle into the portal vein and hepatic vein (EUS-PPG) | `eus-scope.js`, `eus-ppg.js` | B11 | `device:eus-scope`, `device:eus-needle` | Artist: echoendoscope tip; needle is a curve |
+| HVPG balloon catheter through the jugular, right atrium and IVC into a hepatic vein: route, free, wedge, result, blocked (Budd–Chiari) | `stage-cath.js`, `cath-*.js`, `hvpg-balloon.js` | B5 | `device:hvpg-catheter` (5 states) | Shaft is a curve; artist: catheter tip and balloon (deflated and inflated shapes) |
+| IR TIPS kit: sheath, needle pass from hepatic vein to portal vein, wire, balloon dilation, stent | `ir-tips.js`, `tips-figure.js`, `stent-*.js` | B5 | `device:tips-sheath`, `device:tips-needle`, `device:wire`, `device:tips-balloon`, `device:stent` | Shafts and wire are curves; stent mesh is built by us from the stent geometry rules; artist: needle tip and balloon |
+| Balloon tamponade: oesophageal and gastric balloons | `balloon-eso.js`, `balloon-gas.js`, `stage-balloon.js` | B5 | `device:balloon-eso`, `device:balloon-gas` | Artist: tube and both balloons, inflate as a shape key |
+| BRTO balloon in the gastrorenal shunt | treat item `brto` | B5 | `device:brto-balloon` | Artist: balloon catheter tip |
+| Dye injection and its spread | `dye-*.js` | B4 | `device:dye` | No model (a flow effect) |
+| Pressure pills on catheters and needles | `cath-pill.js`, `cath-leads.js` | B6 | `callout:cath-pill` | No model (tags) |
+| Slide callouts (a label with a leader to a place on the figure) | `callout*.js`, `ext-callouts.js` | B6 | `callout:slide` | No model |
+| Monitor trace callouts (WHVP − FHVP on the figure and the monitor) | `trace-callouts.js` | B6 with B11 | `callout:trace` | No model |
+| Shunt callout (small, no backing) | `ext-callouts.js` | B6 | `callout:shunt` | No model |
+| Waist bracket and mm per section on the stent | `stent-waist.js`, `ext-stent.js` | B6 with B5 | `callout:stent` | No model |
+
+Rules for all of them in 3D: shafts, wires and needles are curves built at runtime so they follow the vessels exactly; device heads are small
+low-poly models in the same cel shading and ink; devices are drawn in front of the anatomy they sit in (the same "vessels in front of bowel" rule
+as 2D); every callout is a DOM tag placed by the one clock, fading between spots, never under a card.
 
 ## 4. Order
 
