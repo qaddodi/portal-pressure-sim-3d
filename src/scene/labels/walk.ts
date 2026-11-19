@@ -1,12 +1,12 @@
 // The keyboard walk over the figure (2D stage.js: Tab steps through every structure, the arrows follow the flow). Pure: which vessel is
 // next, and what a screen reader hears. The component (VesselWalk.tsx) only turns these into buttons and focus.
-import { VESSELS } from '../anatomy/vessels.ts';
+import { MAPPED } from '../vessels/network.ts';
 import { stationOfVessel, stationById } from './stations.ts';
 
 export interface WalkVessel { id: string; from: string; to: string; name: string }
 
 /** Every drawn vessel in the engine's own order (the order Tab walks). */
-export const WALK: readonly WalkVessel[] = VESSELS.map((v) => ({ id: v.id, from: v.from, to: v.to, name: nameOf(v.id, v.label) }));
+export const WALK: readonly WalkVessel[] = MAPPED.map((v) => ({ id: v.id, from: v.from, to: v.to, name: nameOf(v.id, v.label) }));
 
 function nameOf(edge: string, fallback: string): string {
   const st = stationOfVessel(edge);

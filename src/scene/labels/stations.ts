@@ -3,7 +3,7 @@
 // Words and priorities are copied; only the 3D anchors are written here. The vessels are the scene's (anatomy/vessels.ts), named by
 // topology edge, so a station whose vessel is not drawn yet simply has no label (a test lists them).
 import { CatmullRomCurve3, Vector3 } from 'three';
-import { VESSELS, vesselPoints } from '../anatomy/vessels.ts';
+import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { NODE_POS_2D } from '../vessels/paths.copied.ts';
 import { TIER_Z, x3, y3 } from '../frame2d.ts';
 import { LABEL_NAMES as N } from './names.copied.ts';
@@ -47,9 +47,11 @@ const curves = new Map<string, CatmullRomCurve3>();
 const curveOf = (edge: string): CatmullRomCurve3 | null => {
   let c = curves.get(edge);
   if (!c) {
-    const def = VESSELS.find((v) => v.id === edge);
-    if (!def) return null;
-    curves.set(edge, c = new CatmullRomCurve3(vesselPoints(def)));
+    // (the course the scene draws: the 2D figure's own, vessels/network.ts. Until 19 Nov 2026 this read the first slice's hand-placed courses (anatomy/vessels.ts), which stand 100 to 500 2D units
+    // from the drawn vessels: "Lower IVC" hung on the portal vein.)
+    const def = NETWORK_BY_ID.get(edge);
+    if (!def || def.feeder) return null;
+    curves.set(edge, c = new CatmullRomCurve3(def.pts.map((p) => new Vector3(p[0], p[1], p[2]))));
   }
   return c;
 };
@@ -83,7 +85,7 @@ function vesselStation(id: string): Station | null {
   return {
     id, kind: 'vessel', name: names[id] ?? id, abbr: abbrs[id] ?? null, vessel: edge, pri: pri[id] ?? 5, core: chips.has(id) && !extra.has(id),
     node: id, dirs: DIRS[id] ?? [], at: (u, out) => c.getPointAt(Math.min(1, Math.max(0, u)), out), slides: true,
-    tone: VESSELS.find((v) => v.id === edge)!.tone,
+    tone: NETWORK_BY_ID.get(edge)!.tone === 'portal' ? 'portal' : 'sys',
   };
 }
 
@@ -106,7 +108,7 @@ function organStation(id: string): Station {
 
 /** Every station the 3D scene can label now, in the 2D app's order of importance. */
 export const STATIONS: readonly Station[] = [
-  ...Object.keys(lv).map(vesselStation).filter((s): s is Station => !!s),
+  ...Object.keys(lv).filter((id) => !(id in POINTS) && !!names[id]).map(vesselStation).filter((s): s is Station => !!s),
   ...['RA', 'SIN_R', 'VAR'].map(pointStation).filter((s): s is Station => !!s),
   ...Object.keys(ORGAN_POINTS).map(organStation),
 ].sort((a, b) => b.pri - a.pri || (a.id < b.id ? -1 : 1));

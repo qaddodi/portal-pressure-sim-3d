@@ -370,8 +370,8 @@ function vesselHalfWidthPx(s: Station, d: LabelDeps, a: Vector3, b: Vector3): nu
   const perUnit = Math.hypot(q.x - p.x, q.y - p.y) / 0.1;
   return Math.max(2, (VESSEL_RADIUS.get(s.vessel) ?? 0.06) * perUnit);
 }
-import { VESSELS } from '../anatomy/vessels.ts';
-const VESSEL_RADIUS = new Map(VESSELS.map((v) => [v.id, v.radius]));
+import { MAPPED } from '../vessels/network.ts';
+const VESSEL_RADIUS = new Map(MAPPED.map((v) => [v.id, v.radius]));
 
 export { calloutsFor };
 export type { CalloutKind };

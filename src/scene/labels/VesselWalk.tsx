@@ -4,7 +4,7 @@
 import { useEffect, useRef } from 'react';
 import { latest, indexOf } from '../../engine/index.ts';
 import { NODES } from '../../engine/hales/portal/topology.js';
-import { VESSELS } from '../anatomy/vessels.ts';
+import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { sceneApi, usePick } from '../api.ts';
 import { WALK, describe, step } from './walk.ts';
 
@@ -18,7 +18,7 @@ export function VesselWalk() {
     const button = (id: string) => el.querySelector<HTMLButtonElement>(`button[data-id="${id}"]`);
     const flowOf = (id: string): number => latest.frame?.Qf[indexOf(id)] ?? 0;
     const tell = (id: string) => {
-      const v = WALK.find((x) => x.id === id)!, def = VESSELS.find((x) => x.id === id)!;
+      const v = WALK.find((x) => x.id === id)!, def = NETWORK_BY_ID.get(id)!;
       const f = latest.frame, n = NODE_AT.get(def.from);
       button(id)?.setAttribute('aria-label', describe(v, f && n !== undefined ? (f.Pf[n] ?? null) : null, f ? flowOf(id) : null));
     };

@@ -6,7 +6,7 @@ import { LABEL_NAMES } from '../src/scene/labels/names.copied.ts';
 import { STATIONS, TERM_STATIONS, stationsOfTerms, stationOfVessel } from '../src/scene/labels/stations.ts';
 import { KEY_LENSES, keyModel, rampStops } from '../src/scene/labels/key.ts';
 import { WALK, step, describe, neighbourInOrder } from '../src/scene/labels/walk.ts';
-import { VESSELS } from '../src/scene/anatomy/vessels.ts';
+import { MAPPED } from '../src/scene/vessels/network.ts';
 import { HVPG_DECK } from '../src/decks/hvpg.ts';
 import { hasVessel } from '../src/engine/index.ts';
 import { LOOK_IDS } from '../src/looks/looks.ts';
@@ -31,7 +31,7 @@ test('every name a station shows is the 2D name for that station; abbreviations 
 test('every vessel station hangs from a vessel the scene draws, named by its engine edge', () => {
   for (const s of STATIONS.filter((x) => x.kind === 'vessel')) {
     assert.ok(hasVessel(s.vessel!), `${s.id}: ${s.vessel} is no engine edge`);
-    assert.ok(VESSELS.some((v) => v.id === s.vessel), `${s.id}: ${s.vessel} is not drawn`);
+    assert.ok(MAPPED.some((v) => v.id === s.vessel), `${s.id}: ${s.vessel} is not drawn`);
     assert.equal(stationOfVessel(s.vessel!), s.id);
   }
 });
@@ -84,7 +84,7 @@ test('a ramp\'s stops run 0 to 1 whatever its own scale (pressure runs 0 to 30 m
 
 // ── the keyboard walk ──
 test('Tab reaches every drawn vessel once, in the engine\'s order, and each has words a screen reader can say', () => {
-  assert.equal(WALK.length, VESSELS.length);
+  assert.equal(WALK.length, MAPPED.length);
   assert.equal(new Set(WALK.map((w) => w.id)).size, WALK.length);
   for (const w of WALK) assert.ok(w.name && w.name.length > 2, `${w.id} has a name`);
   assert.equal(neighbourInOrder(WALK[0].id, -1), null);
@@ -136,5 +136,19 @@ test('a station that is not one vessel, and an organ\'s name, stand where the 2D
     const [x, y] = at[s.name];
     s.at(0.5, v);
     assert.ok(Math.abs(v.x - x3(x)) < 1e-9 && Math.abs(v.y - y3(y)) < 1e-9, `${s.name} is named where 2D names it`);
+  }
+});
+
+// (19 Nov 2026, Mohammad's iPhone: "Lower IVC 5.7" hung on the portal vein. The vessel stations read the first slice's hand-placed courses, 100 to 500 2D units from the vessels the scene draws.)
+test('a vessel station\'s dot stands on the vessel the scene draws, not on a course of its own', async () => {
+  const { Vector3 } = await import('three');
+  const { NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
+  const a = new Vector3();
+  for (const s of STATIONS.filter((x) => x.kind === 'vessel')) {
+    const pts = NETWORK_BY_ID.get(s.vessel!)!.pts;
+    s.at(0.5, a);
+    let best = Infinity;
+    for (const p of pts) best = Math.min(best, Math.hypot(p[0] - a.x, p[1] - a.y));
+    assert.ok(best * 300 < 12, `${s.id}: its dot stands ${(best * 300).toFixed(0)} 2D units from ${s.vessel}`);
   }
 });
