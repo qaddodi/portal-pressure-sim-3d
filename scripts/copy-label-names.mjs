@@ -6,12 +6,12 @@
 //
 // Reads <2D>/src/ui/anatomy.js (SHORT full names, ABBR short forms, LABEL_VESSEL station to vessel, ORGAN_LABELS, CHIP_NODES, the
 // atlas names), the label priorities in <2D>/src/ui/stage-label-items.js (ANAT_PRI, ANAT_EXTRA) and the figure key's words in
-// <2D>/src/ui/presenter.js (LENS_KEY, PRESSURE_KEY), and writes src/scene/labels/names.copied.ts. The same file carries LABEL_STYLE: how a label
+// <2D>/src/ui/presenter-words.js (LENS_KEY, PRESSURE_KEY; presenter.js before the 2D app moved them), and writes src/scene/labels/names.copied.ts. The same file carries LABEL_STYLE: how a label
 // is drawn (type roles and sizes, run weights and gaps, halo, leader and ring, the ink and halo of each look), read from type-scale.js,
-// stage-label-size.js, stage-label-items.js, stage-label-solve.js, stage-label-text.js, styles/app.css and styles/tokens.css.
+// stage-label-size.js, stage-label-items.js, stage-label-solve.js, stage-label-text.js, styles/app.css (or its pieces styles/app-NN-*.css) and styles/tokens.css.
 // --check writes nothing and exits 1 when the copied file differs from what the 2D source would give.
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
@@ -52,13 +52,18 @@ const evalLiteral = (lit, scope = {}) => vm.runInNewContext(`(${lit})`, scope);
 export async function extract() {
   const anat = await import(pathToFileURL(src('src/ui/anatomy.js')).href);
   const items = readFileSync(src('src/ui/stage-label-items.js'), 'utf8');
-  const pres = readFileSync(src('src/ui/presenter.js'), 'utf8');
+  // (LENS_KEY and PRESSURE_KEY live in presenter-words.js at the pin b3058ef3; they were in presenter.js before: read whichever file holds each, and fail naming both when none does)
+  const presFiles = ['src/ui/presenter-words.js', 'src/ui/presenter.js'].filter((f) => existsSync(src(f))).map((f) => ({ f, text: readFileSync(src(f), 'utf8') }));
+  const presLiteral = (name) => {
+    for (const { text } of presFiles) if (new RegExp(`const\\s+${name}\\s*=`).test(text)) return literalOf(text, name);
+    throw new Error(`the 2D source has no "${name}" any more (looked in presenter-words.js and presenter.js)`);
+  };
 
   // The figure key: each lens names itself and either a colour scale (ramp, with its two end words) or named swatches ([css var, name, short?]).
   // A scale is a function in the 2D source; in 3D it is a ramp id the lens code supplies (the stub returns the lens's own name).
   const ramp = (id) => () => `ramp:${id}`;
-  const lensRaw = evalLiteral(literalOf(pres, 'LENS_KEY'), { flowCss: ramp('flow'), heatCss: ramp('heat'), dropCss: ramp('drop'), oxygenCss: ramp('oxygen') });
-  const pressureRaw = evalLiteral(literalOf(pres, 'PRESSURE_KEY'), { gradientCss: ramp('pressure') });
+  const lensRaw = evalLiteral(presLiteral('LENS_KEY'), { flowCss: ramp('flow'), heatCss: ramp('heat'), dropCss: ramp('drop'), oxygenCss: ramp('oxygen') });
+  const pressureRaw = evalLiteral(presLiteral('PRESSURE_KEY'), { gradientCss: ramp('pressure') });
   const lens = {};
   const take = (k, v) => {
     const [name, bar, lo, hi] = v;
@@ -99,7 +104,10 @@ export async function extract() {
   const sizeJs = readFileSync(src('src/ui/stage-label-size.js'), 'utf8');
   const textJs = readFileSync(src('src/ui/stage-label-text.js'), 'utf8');
   const solveJs = readFileSync(src('src/ui/stage-label-solve.js'), 'utf8');
-  const appCss = readFileSync(src('styles/app.css'), 'utf8');
+  // (styles/app.css was split into styles/app-01-chrome.css ... app-11-deck-visuals.css, in that order; the rules are the same, so the pieces are read as the one file they were)
+  const appCss = existsSync(src('styles/app.css')) ? readFileSync(src('styles/app.css'), 'utf8')
+    : readdirSync(src('styles')).filter((f) => /^app-\d+-.*\.css$/.test(f)).sort().map((f) => readFileSync(src(`styles/${f}`), 'utf8')).join('\n');
+  if (!appCss) throw new Error('the 2D source has neither styles/app.css nor styles/app-NN-*.css');
   const roleM = must(scale, /roleOf = \(size\) => \(size >= ([\d.]+) \? 'val' : size >= ([\d.]+) \? 'lab' : 'cap'\)/, 'roleOf(size)');
   const runOf = (re, what, fields) => { const m = must(items, re, what); return Object.fromEntries(fields.map((f, i) => [f, num(m[i + 1])])); };
   const nameM = must(items, /\{ t: name, size: ([\d.]+), weight: one \? (\d+) : (\d+), cls: 'lb-name' \}/, 'the name run');
@@ -160,7 +168,11 @@ export async function extract() {
     HALO: { min: num(haloM[1]), perK: num(haloM[2]) },
     RING: { r: num(ringM[1]), stroke: num(ringCss[1]) },
     LEADER_WIDTH: num(leadCss[1]),
-    TAP_DIM: num(must(appCss, /#labels \.lb\.spot-dim, \.lb-leaders > \.spot-dim \{ opacity: ([\d.]+); \}/, 'the tapped-label dim')[1]),
+    // (the rule says `opacity: var(--label-dim)` at the pin, the number is tokens.css's; it said the number itself before)
+    TAP_DIM: (() => {
+      const m = must(appCss, /#labels \.lb\.spot-dim, \.lb-leaders > \.spot-dim \{ opacity: (?:([\d.]+)|var\(--label-dim\)); \}/, 'the tapped-label dim');
+      return num(m[1] ?? must(tokens, /--label-dim:\s*(\.?[\d.]+)\s*;/, 'the label dim token (--label-dim)')[1]);
+    })(),
   };
   // The look's own ink, halo and ring colours (tokens.css): each look is the Light block plus what its own blocks change.
   const LABEL_WANT = ['text', 'text-2', 'text-3', 'stage-bg', 'label-halo', 'label-panel', 'leader', 'flow-reversed', 'accent-ink', 'surface', 'hairline', 'tr-hv', 'tr-wedge', 'ok', 'caution', 'danger'];
@@ -180,14 +192,17 @@ export async function extract() {
   // ── the catheter's readings: the card, the stack, the bracket and the leaders, and how they come and go (app.css .cath-label, .cath-sum; stage-cath.js) ──
   const stageCath = readFileSync(src('src/ui/stage-cath.js'), 'utf8');
   const clBox = must(appCss, /\.cath-label \{ position: absolute; left: 0; top: 0; isolation: isolate; display: inline-flex; flex-direction: column; align-items: center; gap: ([\d.]+)px; padding: ([\d.]+)px ([\d.]+)px ([\d.]+)px; border: ([\d.]+)px solid transparent; border-radius: ([\d.]+)px;/, 'the catheter reading card');
-  const clSmall = must(appCss, /\.cath-label small \{ color: var\(--c\); font-weight: (\d+); font-size: ([\d.]+)px; letter-spacing: ([\d.]+)em; \}/, 'the reading\'s name');
+  const clSmall = must(appCss, /\.cath-label small \{ color: [^;]+; font-weight: (\d+); font-size: ([\d.]+)px; letter-spacing: ([\d.]+)em; \}/, 'the reading\'s name');
   const clBig = must(appCss, /\.cath-label b \{ font-size: ([\d.]+)px; line-height: ([\d.]+); font-weight: (\d+);/, 'the reading\'s number');
   const clUnit = must(appCss, /\.cath-label b \+ span \{ color: var\(--text-3\); font-size: ([\d.]+)px; font-weight: (\d+); margin-top: (-?[\d.]+)px; \}/, 'the reading\'s unit');
   const clPres = must(appCss, /\.app\.presenting \.cath-label \{ padding: calc\(([\d.]+)px \* min\(var\(--label-k, 1\), ([\d.]+)\)\) calc\(([\d.]+)px \* min\(var\(--label-k, 1\), [\d.]+\)\) calc\(([\d.]+)px \* min\(var\(--label-k, 1\), [\d.]+\)\); border-radius: calc\(([\d.]+)px \* min\(var\(--label-k, 1\), [\d.]+\)\); \}/, 'the presenting reading card');
   must(appCss, /\.app\.presenting \.cath-label small, \.app\.presenting \.cath-label b \+ span \{ font-size: calc\(var\(--t-lab\) \* min\(var\(--label-scale, 1\), ([\d.]+)\)\); \}/, 'the presenting name and unit size');
   must(appCss, /\.app\.presenting \.cath-label b \{ font-size: calc\(var\(--t-big\) \* min\(var\(--label-scale, 1\), ([\d.]+)\)\); \}/, 'the presenting number size');
   const clResult = must(appCss, /\.cath-label\.result small \{ color: var\(--text-3\); letter-spacing: ([\d.]+)em; \}/, 'the result\'s name');
-  const clTone = must(appCss, /\.cath-label\.caution \{ --c: color-mix\(in srgb, var\(--caution\) (\d+)%, var\(--text\)\); \}/, 'the caution tone');
+  // (the caution reading's colour is the token --caution-ink (tokens.css: caution mixed with the text colour) at the pin, via `.cath-label.caution { --c-ink: var(--caution-ink) }`;
+  // it was a colour-mix written on the rule itself before: either way, the share of caution in the mix)
+  const clTone = appCss.match(/\.cath-label\.caution \{ --c: color-mix\(in srgb, var\(--caution\) (\d+)%, var\(--text\)\); \}/)
+    ?? (must(appCss, /\.cath-label\.caution \{ --c: var\(--caution\); --c-ink: var\(--caution-ink\); \}/, 'the caution tone'), must(tokens, /--caution-ink: color-mix\(in srgb, var\(--caution\) (\d+)%, var\(--text\)\);/, 'the caution ink token (--caution-ink)'));
   const sumCol = must(appCss, /\.cath-sum-col \{ display: flex; flex-direction: column; gap: ([\d.]+)px; \}/, 'the stack\'s gap');
   const sumBox = must(appCss, /\.cath-sum-box \{ position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: ([\d.]+)px;/, 'the stack beside its calculation');
   const tightCol = must(appCss, /\.cath-sum-box\.tight \.cath-sum-col \{ gap: ([\d.]+)px; \}/, 'the tight stack');
@@ -204,8 +219,10 @@ export async function extract() {
   const dotR = must(stageCath, /s\('circle', \{ r: ([\d.]+) \}\)/, 'the leader dot');
   const place = must(stageCath, /const top = Math\.max\((\d+), sp\.t \+ (\d+)\), off = (\d+);/, 'the stack\'s room');
   const tightAt = must(stageCath, /const tight = !l\.mid && lim - top < (\d+);/, 'when the stack is tight');
-  const swapDy = must(stageCath, /const swap = dy > (\d+) \? true : dy < -(\d+) \? false : box\._swap === true;/, 'when the stack swaps');
-  const sideAt = must(stageCath, /const beside = !l\.mid && x >= Math\.max\(A\.tip\[0\], A\.ahead\[0\]\) \+ (\d+);/, 'when the stack stands beside');
+  // (the stack's order and side are planned in cath-leads.js (planStack) at the pin; they were inline in stage-cath.js before: the same two thresholds, read from whichever holds them)
+  const leadsJs = existsSync(src('src/ui/cath-leads.js')) ? readFileSync(src('src/ui/cath-leads.js'), 'utf8') : '';
+  const swapDy = (/const swap = dy > (\d+) \? true : dy < -(\d+) \? false : box\._swap === true;/.exec(stageCath) ?? must(leadsJs, /const prefer = dy > (\d+) \? true : dy < -(\d+) \? false : kept === true;/, 'when the stack swaps'));
+  const sideAt = (/const beside = !l\.mid && x >= Math\.max\(A\.tip\[0\], A\.ahead\[0\]\) \+ (\d+);/.exec(stageCath) ?? must(leadsJs, /const beside = !mid && x >= Math\.max\(P\[0\]\[0\], P\[1\]\[0\]\) \+ (\d+);/, 'when the stack stands beside'));
   const bandM = must(stageCath, /q\.top = Math\.max\(0, sp\.t\) \+ (\d+); q\.lim = lim - (\d+);/, 'the readings\' band');
   const tokensCss = readFileSync(src('styles/tokens.css'), 'utf8');
   const durM = must(tokensCss, /--d-flip: (\d+)ms; --d-small: (\d+)ms; --d-surface: (\d+)ms;/, 'the motion steps');
@@ -246,7 +263,7 @@ export async function extract() {
 export function render(data, sha) {
   const body = JSON.stringify(data, null, 2);
   const hash = createHash('sha256').update(body).digest('hex').slice(0, 12);
-  return `// @generated by scripts/copy-label-names.mjs from src/ui/anatomy.js, stage-label-items.js and presenter.js of qaddodi/portal-pressure-simulator at ${sha}. Do not edit: run the script again.
+  return `// @generated by scripts/copy-label-names.mjs from src/ui/anatomy.js, stage-label-items.js and presenter-words.js of qaddodi/portal-pressure-simulator at ${sha}. Do not edit: run the script again.
 // The names, short forms, priorities and key words are the 2D app's, character for character.
 // content hash ${hash}
 
