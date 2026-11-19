@@ -12,7 +12,8 @@ import { LabelController, NO_STATE, type LabelDeps } from '../src/scene/labels/c
 import { STATIONS } from '../src/scene/labels/stations.ts';
 import { LOOKS, LOOK_IDS } from '../src/looks/looks.ts';
 
-const PHONE = { w: 390, h: 844 }, LAPTOP = { w: 1440, h: 900 };
+const NO_SAFE = { top: 0, right: 0, bottom: 0, left: 0 };
+const PHONE = { w: 390, h: 844, safe: NO_SAFE }, LAPTOP = { w: 1440, h: 900, safe: NO_SAFE };
 const measure = (t: string, size: number, _w: number, track = 0) => t.length * size * 0.5 + track * t.length;
 
 test('type sizes are the 2D roles: names 12 to 14 px, readings 16 to 22, units and organ captions 12, by the screen\'s short side', () => {
@@ -94,7 +95,7 @@ test('the stylesheet draws a station without a backing and holds no size, weight
 function controller(over: Partial<LabelDeps> = {}) {
   const deps: LabelDeps = {
     now: () => 0, project: () => ({ x: 0, y: 0 }), cameraMoving: () => false, free: () => ({ x0: 0, y0: 0, x1: 1, y1: 1 }), view: () => ({ x0: 0, y0: 0, x1: 1, y1: 1 }),
-    blockers: () => [], measure, vp: () => LAPTOP, reversed: () => false, pressure: () => 10, reading: () => null, cathere: (_t: Vector3, _a: Vector3) => 0, ...over,
+    blockers: () => [], measure, vp: () => LAPTOP, words: () => null, reversed: () => false, pressure: () => 10, reading: () => null, cathere: (_t: Vector3, _a: Vector3) => 0, ...over,
   };
   return new LabelController(deps);
 }

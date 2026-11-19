@@ -46,6 +46,9 @@ export class LensField {
   get data(): LensData { return this.to; }
 
   setContext(ctx: LensContext): void { this.ctx = ctx; this.dirty = true; }
+  /** The pressures Change and Congestion count from: the healthy patient's, or a pinned moment's (Compare); null = healthy. */
+  setRef(ref: ArrayLike<number> | null): void { this.ctx = { ...this.ctx, ref: ref ?? this.healthyRef }; this.dirty = true; }
+  private get healthyRef(): ArrayLike<number> | null { return this.ctx.healthy?.P ? Float32Array.from(this.ctx.healthy.P) : null; }
   setLook(look: LookId): void { this.look = look; this.dirty = true; }
 
   /** Switch lens. The old one fades out as the new one fades in (420 ms); a switch before it has landed finishes it first. */

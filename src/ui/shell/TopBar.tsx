@@ -1,3 +1,5 @@
+import { Legend } from '../../scene/lenses/Legend.tsx';
+import { useCompare } from '../compare/store.ts';
 import { UI } from '../strings.generated.ts';
 import { useUi } from '../ui-store.ts';
 import { useShell, LENS_IDS } from './store.ts';
@@ -42,12 +44,13 @@ function tapPill(id: ViewId, cur: ViewId) {
 /** The colour legend and lens name; the lens menu opens from it. */
 export function LensButton() {
   const lens = useLens((s) => s.lens);
+  const cmp = useCompare((c) => c.snap), cmpView = useCompare((c) => c.view);
   const name = UI.lenses.find((l) => l.id === lens)?.name ?? '';
   return (
     <Anchored sheet="lens" label={labelOf('btnLayers')} width={440} button={({ id, open, toggle }) => (
       <button type="button" className="sh-pill sh-lens" data-opens="lens" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} title={tb('btnLayers').title ?? undefined} onClick={toggle}>
         <span className="sh-lens-name">{name}</span>
-        <span className="sh-legend" role="img" aria-label={labelOf('legend')} style={{ background: LENS_ART[lens] ?? LENS_ART.pressure }} />
+        <Legend variant="bar" reference={cmp && cmpView === 'D' ? cmp.when : undefined} />
         <Icon n="chev-down" className="sh-chev" />
       </button>)}>
       <LensMenu />

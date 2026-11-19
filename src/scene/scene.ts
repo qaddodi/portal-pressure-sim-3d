@@ -23,6 +23,8 @@ import { TEXTURE_WIDTH, indexOf } from '../engine/vessel-data.ts';
 import { latest, patient } from '../engine/store.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
 import { SinusoidView } from './sinusoid/index.ts';
+import { organsReady } from './organs/meshes.ts';
+import { clock } from '../clock/frame.ts';
 
 /** What the figure shows: the body, the liver lobule (hexagon) or one sinusoid. The two small views stand away from the body in the same scene. */
 export type FigureView = 'body' | 'lobule' | 'sinusoid';
@@ -91,16 +93,20 @@ export class CelScene {
     this.scene.add(this.body);
     this.body.add(this.plate);
 
-    for (const def of ORGANS) {
-      const o = new CelObject(def.geometry(), { tone: def.tone, bands: 3, spec: 0, px: def.px }, this.shared);
-      if (def.position) o.group.position.set(...def.position);
-      if (def.rotation) o.group.rotation.set(...def.rotation);
-      this.add(o);
-    }
+    // The organs' vertex data is a static file (src/scene/organs/meshes.ts): they join the scene when it is in, and ask for a frame.
+    organsReady.then(() => {
+      for (const def of ORGANS) {
+        const o = new CelObject(def.geometry(), { tone: def.tone, bands: 3, spec: 0, px: def.px }, this.shared);
+        if (def.position) o.group.position.set(...def.position);
+        if (def.rotation) o.group.rotation.set(...def.rotation);
+        this.add(o);
+      }
+      clock.invalidate('organs');
+    }, (e) => console.error(e));
     for (const def of NETWORK) this.addVessel(def);
     for (const v of VARICES) {
-      const o = new CelObject(blob(v.r, v.r, v.r, 0, 0, 14), { tone: 'portal', bands: 2, spec: 1, px: 1 }, this.shared);
-      o.group.position.set(0.48 + Math.cos(v.angle) * 0.12, v.y, -0.12 + Math.sin(v.angle) * 0.12);
+      const o = new CelObject(blob(v.r * 0.5, v.r * 0.5, v.r * 0.5, 0, 0, 14), { tone: 'portal', bands: 2, spec: 1, px: 1 }, this.shared);
+      o.group.position.set(0.34 + Math.cos(v.angle) * 0.035, v.y - 0.85, 0.06 + Math.sin(v.angle) * 0.035);   // on the lower oesophagus (2D x 800, y 170 to 220)
       o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
       this.add(o);
     }
@@ -205,6 +211,8 @@ export class CelScene {
     if (latest.frame) this.syncPresence(latest.frame, false);
     this.moving = true;
   }
+  /** Count Change and Congestion from a pinned moment's node pressures (Compare > Change), or from the healthy patient again (null). */
+  setLensRef(P: ArrayLike<number> | null): void { this.lens.setRef(P); this.moving = true; }
   /** The Blood menu: chevrons on or off, key routes only, and potential collaterals (dotted routes). */
   setBlood(o: Partial<BloodOptions> & { collaterals?: boolean }): void {
     if (o.collaterals !== undefined && o.collaterals !== this.collateralsOn) {

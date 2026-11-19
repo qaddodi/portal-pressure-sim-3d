@@ -1,3 +1,4 @@
+import { reduced, reducedMs } from '../../ui/a11y/motion.ts';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from '../anatomy/placeholder.ts';
 import { type View, lerpView } from '../gesture/ease.ts';
@@ -104,7 +105,7 @@ export class CameraRig {
     this.handFrom = { ...this.hand };
     this.handTween = keepHand ? this.handTween : this.hand.k !== 1 || this.hand.x !== 0 || this.hand.y !== 0;
     this.t0 = now;
-    this.dur = this.reduceMotion ? 0 : ms;
+    this.dur = reducedMs(ms, this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
     this.orbitFrom = this.orbit;
     this.active = true;
     this.dirty = true;
