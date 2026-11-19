@@ -50,7 +50,7 @@ test('the copied files carry their own hash: a hand edit of the words fails here
 });
 
 const two = process.env.PPS_2D_DIR ?? resolve(root, '../portal-pressure-simulator');
-test('the copies equal what a 2D checkout gives (run when one is at hand)', { skip: !existsSync(join(two, 'src/ui/decks.js')) }, () => {
+test('the copies equal what a 2D checkout gives (run when PPS_2D_DIR names one)', { skip: !process.env.PPS_2D_DIR || !existsSync(join(two, 'src/ui/decks.js')) }, () => {
   const out = execFileSync('node', [join(root, 'scripts/port-decks-hp.mjs'), '--from', two, '--check'], { encoding: 'utf8' });
   assert.match(out, /match the 2D app/);
 });
