@@ -5,7 +5,63 @@
 //   2. Moving blood: chevrons or soft bands at the Doppler's own speed (sqrt of mean velocity, standing under 0.25 cm/s), orange where
 //      the flow runs backward, black or cream by the colour under them; stagnant blood in a big vein drifts as smoke.
 //   3. Closed potential collaterals: a dotted thread (`dotted` 1) instead of a tube.
-// The vertex shader and the ink are the scene's (TOON_VS, INK_VS, INK_FS): this file adds nothing to them.
+// 4. One draw per vessel (the draw-call budget): the geometry holds the tube twice (attribute `hull` 0 and 1). The body copy draws its front faces
+//    as the toon pass; the hull copy, pushed out in screen pixels along its normal as INK_VS does, draws its back faces as the ink. Both copies
+//    ride the same swell, so the ink hugs the lumen as it widens. The highlight (hiOn, hiDir, hiOffset, hiAhead, hiBehind, hiPx) and the lift
+//    (`inflate`) are the scene's own uniforms with the same meaning as in INK_VS.
+
+export const VESSEL_VS = /* glsl */ `
+attribute vec3 tang;
+attribute float hull;
+uniform float inflate;
+uniform sampler2D vdata;
+uniform vec2 vdataSize;
+uniform float vindex;
+uniform float useData;
+uniform float radius;
+uniform float baseD;
+uniform float len;
+uniform float px;
+uniform vec2 res;
+uniform float hiOn;
+uniform float hiDir;
+uniform float hiOffset;
+uniform float hiAhead;
+uniform float hiBehind;
+uniform float hiPx;
+varying vec3 vN;
+varying vec3 vV;
+varying vec3 vT;
+varying vec2 vUv;
+varying float vHull;
+varying float vHi;
+void main() {
+  float swell = 1.0;
+  if (useData > 0.5) {
+    ivec2 tc = ivec2(int(mod(vindex, vdataSize.x)), int(floor(vindex / vdataSize.x)));
+    swell = clamp(texelFetch(vdata, tc, 0).b / max(baseD, 0.01), 0.65, 1.35);
+  }
+  vec3 p = position + normal * (inflate + radius * (swell - 1.0));
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  vN = normalize(normalMatrix * normal);
+  vT = normalize(normalMatrix * tang);
+  vV = normalize(-mv.xyz);
+  vUv = uv;
+  vHull = hull;
+  vHi = 0.0;
+  vec4 c = projectionMatrix * mv;
+  if (hull > 0.5) {
+    float a = uv.x * len;
+    float dist = hiDir > 0.5 ? hiOffset + a : (hiDir < -0.5 ? hiOffset + (len - a) : 0.0);
+    float limit = hiDir < -0.5 ? hiBehind : hiAhead;
+    vHi = hiOn * (1.0 - smoothstep(0.0, max(limit, 0.0001), dist));
+    vec2 nd = (projectionMatrix * vec4(normalMatrix * normal, 0.0)).xy;
+    float l = length(nd);
+    nd = l > 1e-5 ? nd / l : vec2(0.0);
+    c.xy += nd * (px + hiPx * vHi) * 2.0 / res * c.w;
+  }
+  gl_Position = c;
+}`;
 
 export const VESSEL_FS = /* glsl */ `
 uniform vec3 color;
@@ -41,6 +97,10 @@ uniform vec3 laneColA[5];
 uniform vec3 laneColB[5];
 uniform float lensIndex;
 uniform float smokeOn;
+uniform vec3 hiColor;
+uniform float hullOn;
+varying float vHull;
+varying float vHi;
 varying vec3 vN;
 varying vec3 vV;
 varying vec3 vT;
@@ -100,6 +160,13 @@ vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float acro
 
 void main() {
   if (reveal < 0.9999 && vUv.x > reveal) discard;
+  if (vHull > 0.5) {
+    // the ink: the hull's back faces only, in the ink colour, warming to the highlight colour where the vessel is picked
+    if (gl_FrontFacing || hullOn < 0.5) discard;
+    gl_FragColor = vec4(mix(inkColor, hiColor, clamp(vHi, 0.0, 1.0)), 1.0);
+    return;
+  }
+  if (!gl_FrontFacing) discard;
   if (dotted > 0.5) {
     // a closed potential collateral: a dotted thread along the tube's axis, nothing round it
     float dash = fract(vUv.x * len / 0.09);

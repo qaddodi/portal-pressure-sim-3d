@@ -63,10 +63,8 @@ test('a vessel is one geometry with uv.x along the flow from 0 to 1 and a tangen
   assert.equal(g.attributes.tang!.count, g.attributes.position!.count);
 });
 
-// B3 (all 55 drawn vessels, each its own ink + toon draw) took the scene from 14 vessels to 55: about 107 to 125 draws are visible, 141 meshes in all.
-// The spec's budget (under 100) is kept as a TODO that still runs and prints; the way down is one draw per vessel (ink hull and toon in one mesh,
-// docs/slice-plan.md section 8) or batching, a change to the scene's material (the scene thread), not to the vessels. The guard below stops it growing.
-test('the scene stays inside the draw-call budget (spec: under 100)', { todo: 'B3 drew every vessel: 141 meshes (107-125 visible); needs one draw per vessel' }, () => {
+// 55 vessels at one draw each (the ink hull and the toon body are two copies in one geometry, vessel-object.ts withHull) plus the organs.
+test('the scene stays inside the draw-call budget (spec: under 100)', () => {
   const s = new CelScene();
   let meshes = 0;
   s.scene.traverse((o) => { if ((o as { isMesh?: boolean }).isMesh) meshes++; });
@@ -74,11 +72,18 @@ test('the scene stays inside the draw-call budget (spec: under 100)', { todo: 'B
   s.dispose();
 });
 
-test('the draw count does not grow past what B3 measured (141 meshes)', () => {
+test('a vessel is one draw: body and ink share one mesh and one material', () => {
   const s = new CelScene();
-  let meshes = 0;
-  s.scene.traverse((o) => { if ((o as { isMesh?: boolean }).isMesh) meshes++; });
-  assert.ok(meshes <= 141, `${meshes} draw calls`);
+  for (const o of s.vessels) {
+    let n = 0;
+    o.group.traverse((c) => { if ((c as { isMesh?: boolean }).isMesh) n++; });
+    assert.equal(n, 1, o.edge!.id);
+    const h = o.toonMesh.geometry.getAttribute('hull');
+    assert.ok(h && h.count === o.toonMesh.geometry.getAttribute('position').count, 'hull attribute');
+    // the highlight's handle on the ink writes the merged material's own uniforms
+    assert.equal(o.ink.uniforms.hiOn, o.toon.uniforms.hiOn);
+    assert.equal(o.ink.uniforms.inflate, o.toon.uniforms.inflate);
+  }
   s.dispose();
 });
 

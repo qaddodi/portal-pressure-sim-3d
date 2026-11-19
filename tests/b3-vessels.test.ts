@@ -91,3 +91,31 @@ test('a closed collateral changing to dotted retracts the solid one first, then 
   while (t.step(16));
   assert.equal(a.dotted, true); assert.equal(a.reveal, 1);
 });
+
+import { BufferAttribute, BufferGeometry } from 'three';
+import { withHull } from '../src/scene/vessels/vessel-object.ts';
+import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
+
+test('the hull copy is the body again, flagged, with its own indices: one geometry, one draw', () => {
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), 3));
+  g.setAttribute('normal', new BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]), 3));
+  g.setAttribute('uv', new BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 1]), 2));
+  g.setAttribute('tang', new BufferAttribute(new Float32Array(9).fill(1), 3));
+  g.setIndex([0, 1, 2]);
+  const m = withHull(g);
+  assert.equal(m.getAttribute('position').count, 6);
+  assert.deepEqual([...m.getAttribute('hull').array], [0, 0, 0, 1, 1, 1]);
+  assert.deepEqual([...m.getIndex()!.array], [0, 1, 2, 3, 4, 5]);
+  assert.deepEqual([...m.getAttribute('uv').array.slice(6)], [0, 0, 1, 0, 0, 1]);
+});
+
+const parserName = '@shaderfrog/glsl-parser';
+let parse: ((s: string) => unknown) | null = null;
+try { const mod = await import(parserName); parse = (s) => mod.parser.parse(s.replace(/^#include.*$/gm, ''), { quiet: true }); } catch { /* not installed */ }
+test('the vessel vertex shader parses, and body and ink are told apart by `hull` and the face', { skip: !parse }, () => {
+  parse!(VESSEL_VS.replace(/^\n/, ''));
+  assert.match(VESSEL_VS, /attribute float hull/);
+  assert.match(VESSEL_FS, /gl_FrontFacing \|\| hullOn < 0\.5/);
+  assert.match(VESSEL_FS, /if \(!gl_FrontFacing\) discard/);
+});

@@ -19,5 +19,5 @@ What the 2D figure draws, in 3D: every vessel by engine edge ID, the moving bloo
 - Copied 2D data is generated: `node scripts/copy-b3-data.mjs --from <2D repo> [--check]`. `PPS_2D_REPO=<path> npm test` proves the copies are current.
 - Nothing is drawn per frame by the CPU: lens colours are two 208 x 2 float textures per lens set, recomputed at most every 90 ms from the engine's frames; the crossfade, chevrons, smoke and ghost threads are shader work. A vessel that comes or goes draws on and retracts along its flow (`presence-track.ts`).
 
-## Known gap
-Draw calls: 141 meshes (107 to 125 visible) against the spec's 100. One draw per vessel (ink hull and toon in one mesh) is the way down; it is a change to the scene's material. `tests/scene-vessels.test.ts` keeps the spec check as a TODO and a guard that it does not grow.
+## Draw calls
+One draw per vessel: the geometry holds the tube twice (`withHull`, attribute `hull` 0 for the body, 1 for the ink's hull) and the vessel shader draws the body's front faces and the hull's back faces (pushed out in screen pixels) in the same mesh. 55 vessels plus the organs are 86 meshes (about 52 to 70 of them visible for a patient), under the spec's 100. `CelObject.ink` stays as the highlight's handle on the merged material's uniforms.
