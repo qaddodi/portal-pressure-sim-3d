@@ -52,8 +52,10 @@ test('no deck can be offered by the menu until the presenter, the engine runner 
 });
 
 test('landing a feature moves exactly the slides that wait on it (a hook registered at run time, and taken away again)', () => {
-  const d = built('two-lesions');
-  const wanted = dependencies(d).flatMap((x) => x.missing.map((h) => h.id))[0]!;   // (a feature still to land: the first one this deck waits on)
+  // (a feature still to land: the first one the first deck that still waits on any waits on; every feature may have landed one day, then there is nothing to move)
+  const d = RW_IDS.map((id) => built(id)).find((x) => dependencies(x).some((y) => y.missing.length));
+  if (!d) return;
+  const wanted = dependencies(d).flatMap((x) => x.missing.map((h) => h.id))[0]!;
   const waits = () => dependencies(d).filter((x) => x.missing.some((h) => h.id === wanted)).length;
   const before = waits();
   assert.ok(before > 0);
