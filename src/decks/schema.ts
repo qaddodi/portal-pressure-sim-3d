@@ -73,6 +73,10 @@ export interface Slide {
   cite?: string;
   /** The 2D `visual` of a slide that has no teaching line (table, plane, ladders, walls…): the data card carries the slide. */
   visual?: string;
+  /** A time-lapse: its days, the words of the counter (2D `lapse.from` / `lapse.to`), and whether the days play on the live figure (else the counter reads as done). */
+  lapse?: { days: number; from?: string; to?: string; plays: boolean };
+  /** The live controls on the teaching card: compare buttons, a what-if slider, the beta-blocker response, the scale pill (decks/controls.ts). */
+  controls?: SlideControls;
   terms?: Record<string, string>;
   eq?: EqPart[];
   /** The ladder (data) card: which readings, which one is the result. Absent: no data card on this slide. */
@@ -114,6 +118,7 @@ export interface Deck {
 }
 
 import { parseToken } from '../ui/text/tokens.ts';
+import type { SlideControls } from './controls.ts';
 
 const TOKEN = /\{([^}]*)\}/g;
 const CUT_RE = /^(>=|<=|>|<)\s*\d+(\.\d+)?(\s+[A-Za-zµ%/]+)?$/;

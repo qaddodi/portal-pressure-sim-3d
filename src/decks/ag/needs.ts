@@ -78,27 +78,27 @@ export function hookOf(id: string): Hook | null {
   const [family, rest = ''] = [id.slice(0, id.indexOf(':') < 0 ? id.length : id.indexOf(':')), id.slice(id.indexOf(':') + 1)];
   switch (family) {
     case 'model':
-      if (rest === 'lapse') return { owner: 'B12', what: 'the days played as a time-lapse on the live figure', landed: claimed };
+      if (rest === 'lapse') return { owner: 'B12', what: 'the days played as a time-lapse on the live figure', landed: ready }   // (hp/lapse.ts, 19 Nov);
       if (rest === 'preset') return { owner: 'ENGINE', what: 'the patient loads', landed: () => true };
       if (rest.startsWith('action:')) return { owner: 'ENGINE', what: `the ${rest.slice(7)} action`, landed: () => (ACTION_KINDS as readonly string[]).includes(rest.slice(7)) };
       return { owner: 'ENGINE', what: `the model step "${rest}"`, landed: ready };
     case 'reading': return { owner: 'B12', what: `the "${rest}" reading, worked out by the data card from the slide's own state (not an engine tile)`, landed: claimed };
     case 'tile': return { owner: 'B10', what: `the ${rest} reading`, landed: () => rest in TILE };
-    case 'data': return { owner: id === 'data:tiles' ? 'B12' : 'B10', what: id === 'data:tiles' ? 'the data card of tiles' : `the ${rest} of the data card`, landed: claimed };
+    case 'data': return { owner: id === 'data:tiles' ? 'B12' : 'B10', what: id === 'data:tiles' ? 'the data card of tiles' : `the ${rest} of the data card`, landed: id === 'data:tiles' ? ready : claimed };
     case 'tool': return { owner: 'B10', what: `the ${rest} instrument or chart`, landed: () => CHARTS.find((c) => c.kind === rest)?.status === 'done' };
     case 'lens': return { owner: 'B3', what: `the ${rest} colour lens`, landed: () => (LENS_IDS as readonly string[]).includes(rest) };
     case 'cath': return { owner: 'B5', what: `the catheter's ${rest} state`, landed: () => (CATHS as readonly string[]).includes(rest) };
     case 'procedure': return { owner: 'B5', what: `the ${rest} procedure`, landed: claimed };
     case 'view': return { owner: 'B7', what: 'the Circuit view', landed: claimed };
     case 'scale':
-      if (rest === 'switch') return { owner: 'B12', what: 'the Anatomy, Lobule and Sinusoid pill the slide offers', landed: claimed };
+      if (rest === 'switch') return { owner: 'B12', what: 'the Anatomy, Lobule and Sinusoid pill the slide offers', landed: ready }   // (ui/cards/SlideControls.tsx);
       return { owner: 'B8', what: `the ${rest} view`, landed: ready };
-    case 'visual': return { owner: 'B12', what: `the ${rest} visual over the figure`, landed: claimed };
-    case 'compare': return { owner: 'B12', what: `the compare buttons (${rest})`, landed: claimed };
-    case 'present': return { owner: 'B12', what: 'the presenter plays any deck by its id, with the scene plate of each slide', landed: claimed };
+    case 'visual': return { owner: 'B12', what: `the ${rest} visual over the figure`, landed: rest === 'table' ? ready : claimed }   // (the summary table: ui/cards/TableCard.tsx);
+    case 'compare': return { owner: 'B12', what: `the compare buttons (${rest})`, landed: ['own', 'params', 'preset', 'slide', 'lens'].includes(rest) ? ready : claimed }   // (gate and tool buttons move an instrument: the Tests cards);
+    case 'present': return { owner: 'B12', what: 'the presenter plays any deck by its id, with the scene plate of each slide', landed: ready }   // (decks/all.ts);
     case 'fig': case 'card': case 'field': {
       const f = Object.values(FIELD_HOOKS).find((h) => h.id === id);
-      if (f) return { owner: f.owner, what: f.what, landed: id === 'card:vignette' || id === 'card:terms' || id === 'card:equation' ? ready : claimed };
+      if (f) return { owner: f.owner, what: f.what, landed: ['card:vignette', 'card:terms', 'card:equation', 'card:what-if', 'card:case-question', 'card:response'].includes(id) ? ready : claimed };
       return family === 'field' ? { owner: 'B12', what: `the slide field "${rest}"`, landed: claimed } : null;
     }
     default: return null;
