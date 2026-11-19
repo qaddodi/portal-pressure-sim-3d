@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EDGES, NODES } from '../src/engine/hales/portal/topology.js';
 import { EDGE_IDS, hasVessel, indexOf } from '../src/engine/vessel-data.ts';
-import { DRAWN_EDGE_IDS, NETWORK, NETWORK_BY_ID, NEEDS_C3_IDS, collateralOpen, presenceOf, recruitFrac, radiusOf, vesselPx, widthPx } from '../src/scene/vessels/network.ts';
+import { DRAWN_EDGE_IDS, NETWORK, NETWORK_BY_ID, RUN_ONS, NEEDS_C3_IDS, collateralOpen, presenceOf, recruitFrac, radiusOf, vesselPx, widthPx } from '../src/scene/vessels/network.ts';
 import { EDGE_PATH_2D, NODE_POS_2D } from '../src/scene/vessels/paths.copied.ts';
 import { TIER_Z, UNITS_PER_SCENE, x2d, x3, y2d, y3 } from '../src/scene/frame2d.ts';
 import { pathToFileURL } from 'node:url';
@@ -116,7 +116,10 @@ test('every vessel is its 2D course through the one linear map: back through it,
     if (v.feeder) continue;   // (a fan of tributaries: its own test, below)
     const c = EDGE_PATH_2D[v.id]!;
     assert.equal(v.pts.length, c.length, v.id);
+    // (the 2D figure redraws the last 11 samples either side of a run-on as one smooth cubic through the join: joins.ts)
+    const near = (i: number) => RUN_ONS.some((r) => (r.a === v.id && (r.ia ? i >= c.length - 12 : i <= 11)) || (r.b === v.id && (r.ib ? i >= c.length - 12 : i <= 11)));
     v.pts.forEach((p, i) => {
+      if (near(i)) return;
       assert.ok(Math.abs(x2d(p[0]) - c[i]![0]) < 1e-6 && Math.abs(y2d(p[1]) - c[i]![1]) < 1e-6, `${v.id} point ${i}`);
     });
   }

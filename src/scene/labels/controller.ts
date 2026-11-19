@@ -43,6 +43,8 @@ export interface LabelDeps {
   /** The catheter's tip and the point just ahead of it (the sinusoid side), scene points. Returns how far it has got: 0 not at its place yet,
    *  1 the tip is there (the free reading can stand), 2 the balloon is wedged (the wedged reading and the summary can stand). */
   cathere(tip: Vector3, ahead: Vector3): 0 | 1 | 2;
+  /** The body's labels stand aside while the figure is the Circuit (or on its way there): the map has its own captions (circuit/CircuitCaptions.tsx). */
+  hidden?(): boolean;
 }
 
 export interface LabelState {
@@ -208,7 +210,7 @@ export class LabelController {
     const d = this.deps, now = d.now();
     const dt = this.last < 0 ? 16 : Math.min(100, now - this.last);
     this.last = now;
-    const metas = this.active();
+    const metas = d.hidden?.() ? [] : this.active();
     const next = new Map<string, Meta>();
     for (const m of metas) next.set(m.id, m);
     // the set of labelled things changed: solve again
