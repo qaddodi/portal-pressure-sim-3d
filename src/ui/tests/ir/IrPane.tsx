@@ -15,11 +15,12 @@ import { Monitor } from './Monitor.tsx';
 import { HandOver } from './HandOver.tsx';
 import { hvpgSource, ppgSource } from './sources.ts';
 import { R, useRun, phase, values, busy, startHvpg, playProc, startPpg, closePpg, resetAll, watchButtons, procSay, ppgCaption, ppgShown, hvpgRunning } from './run.ts';
-import { sideOf, NOTE } from './side.ts';
+import { sideOf } from './side.ts';
 import { measureLabel, hvBlocked, STEPS } from './hvpg.ts';
 import { useIr, stentsNow } from './store.ts';
 import { NO_STENT_WHY } from './copied/tips-parts.copied.js';
 import { TipsView } from './TipsView.tsx';
+import { hvpgNote, useMeasured } from '../hidden.ts';
 
 const touch = (e: React.PointerEvent, go: () => void, disabled: boolean) => { if (e.pointerType !== 'mouse' && !disabled) go(); };
 const KV: [keyof ReturnType<typeof values>, string][] = [['fhvp', 'FHVP'], ['whvp', 'WHVP'], ['hvpg', 'HVPG']];
@@ -29,6 +30,7 @@ function Measure({ h }: { h: number }) {
   // the readings follow the model while idle: a re-render only when a printed tenth changes
   useEngine((s) => { void s.frames; const m = latest.frame?.metrics; return `${Math.round(((m?.fhvp as number) ?? 0) * 10)}|${Math.round(((m?.whvp as number) ?? 0) * 10)}|${m?.pv ? 1 : 0}`; });
   useParamsTick((s) => s.tick);
+  const mode = useShell((s) => s.mode), measured = useMeasured((s) => s.hvpgMeasured);
   const ph = phase(), running = hvpgRunning(), isBusy = busy();
   const side = sideOf({ ph, t: R.t, started: R.t0 != null, blocked: R.blocked, blockedNow: hvBlocked(patient.params), v: values(), hasFrame: !!latest.frame });
   const ppg = ppgShown(), watch = watchButtons();
@@ -66,7 +68,7 @@ function Measure({ h }: { h: number }) {
             <Icon n="play" /><span>PPG by IR</span>
           </button>
         </div>
-        <p className="ctl-sub hvpg-note">{NOTE}</p>
+        <p className="ctl-sub hvpg-note">{hvpgNote(mode === 'deck', measured)}</p>
       </div>
     </>
   );

@@ -14,7 +14,9 @@ export function headOf(last: number, wallMs: number, nowMs: number, running: boo
 }
 
 /** The header's readings as words: the HVPG, its band and its change over the range on screen (2D updateHero). */
-export function heroOf(hvpg: number, range: Range = 'beats') {
+export function heroOf(hvpg: number, range: Range = 'beats', hidden: ReadonlySet<string> | null = null, measured: number | null = null) {
+  // an HVPG the case leaves unmeasured: the number of the measurement if there is one, else the dash (2D updateHero)
+  if (hidden?.has('trueHVPG')) return { num: measured != null ? fmt(measured, 1) : NOT_SHOWN, word: measured != null ? 'Measured' : 'Not measured', sev: measured != null ? sevTok(measured) : 'none', delta: '', dir: '' };
   const v = Math.max(0, hvpg);
   const num = Number.isFinite(hvpg) ? fmt(v, 1) : NOT_SHOWN;
   const word = Number.isFinite(hvpg) ? hvpgWordOf(v) : '';
