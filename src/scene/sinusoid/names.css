@@ -1,0 +1,9 @@
+/* The sinusoid's names (SinusoidCaptions.tsx) in the figure's one label type (labels/labels.css): a name is one to three lines of words, its readings and, while a tap explains it, one more line. Always level. */
+.sv-layer { z-index: var(--z-tags, 5); }
+.lb.sv-name { flex-direction: column; align-items: center; justify-content: center; padding: 0 var(--lb-pad-x); }
+.lb.sv-name::before { display: none; }
+.lb.sv-name > .sv-row { display: block; white-space: pre; text-align: center; }
+.lb.sv-name .lb-name { display: block; }
+.lb.sv-name .lb-val { display: block; margin-left: 0; }
+.lb.sv-name .sv-note { font-size: var(--lb-f-name); font-weight: 500; color: var(--lb-name); white-space: normal; max-width: 26ch; }
+.lb.sv-end .lb-name, .lb.sv-sin .lb-name { font-weight: var(--lb-w-name); }

@@ -12,6 +12,8 @@ import { VeinStent, canStent } from '../devices/stent/vein-stent.ts';
 import { OSTIUM_U } from './ostium.ts';
 import { Tamponade } from '../devices/balloons/tamponade.ts';
 import { Bands } from '../devices/bands.ts';
+import { GlueCast } from '../devices/glue-cast.ts';
+import type { ScopeDrive } from '../devices/probes/scope.ts';
 import { procFrame as procFrameJs, specOf } from './copied/proc-anim.js';
 import { CATH_END } from './copied/cath-arrival.js';
 
@@ -68,7 +70,11 @@ export class ProcedureLayer {
   readonly tamponade: Tamponade;
   /** The ligation bands on the esophageal varices, as many as the engine counts. */
   readonly bands: Bands;
-  constructor(shared: CelShared) { this.shared = shared; this.group.name = 'procedures'; this.tamponade = new Tamponade(shared); this.group.add(this.tamponade.group); this.bands = new Bands(shared); this.group.add(this.bands.group); }
+  /** The coil and the cyanoacrylate cast the EUS-guided glue leaves in the fundal varix (the scope itself is the probes' layer's: it takes `glueDrive`). */
+  readonly glue: GlueCast;
+  /** What the glue slide's procedure asks of the scope this frame (null with no glue procedure on the figure). */
+  glueDrive: ScopeDrive | null = null;
+  constructor(shared: CelShared) { this.shared = shared; this.group.name = 'procedures'; this.tamponade = new Tamponade(shared); this.group.add(this.tamponade.group); this.bands = new Bands(shared); this.group.add(this.bands.group); this.glue = new GlueCast(shared); this.group.add(this.glue.group); }
 
   /** Every object the layer draws, for the scene's look and phone switches and for disposal. */
   get objects() { return [...this.caths.values()].flatMap((c) => c.objects); }
@@ -88,7 +94,7 @@ export class ProcedureLayer {
   setFade(f: number): void {
     if (f === this.fadeNow) return;
     this.fadeNow = f;
-    const all = [...this.objects, ...[...this.stents.values()].flatMap((s) => s.objects), ...[...this.veinStents.values()].flatMap((s) => s.objects), ...this.tamponade.objects, ...this.bands.objects];
+    const all = [...this.objects, ...[...this.stents.values()].flatMap((s) => s.objects), ...[...this.veinStents.values()].flatMap((s) => s.objects), ...this.tamponade.objects, ...this.bands.objects, ...this.glue.objects];
     for (const o of all) o.setFade(f);
     this.group.visible = f > 0.001;
     this.dirty = true;
@@ -107,6 +113,7 @@ export class ProcedureLayer {
     this.lastFrame = frame;
     for (const s of this.stents.values()) moved = s.sync(frame, params as never, instant) || moved;
     for (const s of this.veinStents.values()) moved = s.sync(frame) || moved;
+    this.glue.sync(frame);
     if (moved) this.dirty = true;
     return moved;
   }
@@ -134,8 +141,8 @@ export class ProcedureLayer {
   /** The veins whose stent is in or coming in. */
   get stentedIds(): string[] { return [...this.veinStents].filter(([, v]) => v.goal > 0).map(([id]) => id); }
 
-  applyPalette(p: Palette): void { this.palette = p; for (const c of this.caths.values()) c.applyPalette(p); for (const s of this.stents.values()) s.applyPalette(p); for (const s of this.veinStents.values()) s.applyPalette(p); this.tamponade.applyPalette(p); this.bands.applyPalette(p); this.dirty = true; }
-  setPhone(phone: boolean): void { this.phone = phone; for (const c of this.caths.values()) c.setPhone(phone); for (const s of this.stents.values()) s.setPhone(phone); for (const s of this.veinStents.values()) s.setPhone(phone); this.tamponade.setPhone(phone); this.bands.setPhone(phone); this.dirty = true; }
+  applyPalette(p: Palette): void { this.palette = p; for (const c of this.caths.values()) c.applyPalette(p); for (const s of this.stents.values()) s.applyPalette(p); for (const s of this.veinStents.values()) s.applyPalette(p); this.tamponade.applyPalette(p); this.bands.applyPalette(p); this.glue.applyPalette(p); this.dirty = true; }
+  setPhone(phone: boolean): void { this.phone = phone; for (const c of this.caths.values()) c.setPhone(phone); for (const s of this.stents.values()) s.setPhone(phone); for (const s of this.veinStents.values()) s.setPhone(phone); this.tamponade.setPhone(phone); this.bands.setPhone(phone); this.glue.setPhone(phone); this.dirty = true; }
 
   /** The route a procedure's catheter travels (its spec's `route`, else the kind itself), or null for one with no catheter (a graft, a scope). */
   routeKindOf(kind: string): string | null {
@@ -173,6 +180,11 @@ export class ProcedureLayer {
     if (this.shown && this.shown !== c) this.shown.set({ ...this.shown.current, u: 0, opacity: 0 });
     this.shown = c; this.lastKind = kind;
     Object.assign(this.frame, rec);
+    if (kind === 'eusglue') {
+      // the glue's scope is the probes' (it follows glueDrive); what it leaves in the varix is drawn here
+      this.glue.set({ coil: rec.coil ?? 0, column: rec.column, flash: rec.flash, opacity: rec.opacity });
+      this.glueDrive = { u: rec.u, aim: Number(rec.aim ?? 0), fan: Number(rec.fan ?? 0), needle: rec.needle };
+    }
     if (c) {
       const st: CatheterState = { u: rec.u, balloon: rec.balloon, column: rec.column, opacity: rec.opacity, needle: rec.needle, wire: rec.wire, flash: rec.flash, coil: rec.coil ?? 0,
         ring: ringOf(kind, rec.read ?? 0), columnTone: kind === 'brto' || kind === 'brtoC6' || kind === 'bato' ? 'trScler' : 'trWedge', clock };
@@ -221,6 +233,7 @@ export class ProcedureLayer {
 
   clear(): void {
     for (const c of this.caths.values()) c.set({ ...c.current, u: 0, opacity: 0, balloon: 0, column: 0, needle: 0, wire: 0, flash: 0, coil: 0, ring: null });
+    this.glue.clear(); this.glueDrive = null;
     this.shown = null; this.dirty = true;
   }
 
@@ -262,5 +275,5 @@ export class ProcedureLayer {
     return d || stentMoving;
   }
 
-  dispose(): void { for (const o of this.objects) o.dispose(); for (const s of this.stents.values()) s.dispose(); for (const s of this.veinStents.values()) s.dispose(); this.tamponade.dispose(); this.bands.dispose(); }
+  dispose(): void { for (const o of this.objects) o.dispose(); for (const s of this.stents.values()) s.dispose(); for (const s of this.veinStents.values()) s.dispose(); this.tamponade.dispose(); this.bands.dispose(); this.glue.dispose(); }
 }

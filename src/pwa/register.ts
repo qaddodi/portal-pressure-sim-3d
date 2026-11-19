@@ -36,8 +36,19 @@ export function offerReload(say = useShell.getState().say, retry = (fn: () => vo
   offer();
 }
 
+/** Whether this page may install the offline copy: a built page, a browser with service workers, a real address, not another page's frame and not an ?embed address. */
+export function mayRegister(env: { prod: boolean; hasWorker: boolean; protocol: string; search: string; framed: boolean }): boolean {
+  return env.prod && env.hasWorker && env.protocol !== 'file:' && !env.framed && !new URLSearchParams(env.search).has('embed');
+}
+
+/** Is the worker that took over a different build from the one this page runs? (null: it did not answer, taken as new). */
+export const isUpdate = (mine: readonly string[], held: readonly string[] | null): boolean => !holdsAll(mine, held);
+
 export function registerPwa(): void {
-  if (!import.meta.env.PROD || !('serviceWorker' in navigator) || location.protocol === 'file:') return;
+  if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
+  let framed = true;
+  try { framed = window.self !== window.top; } catch { /* (another site's frame) */ }
+  if (!mayRegister({ prod: import.meta.env.PROD, hasWorker: 'serviceWorker' in navigator, protocol: location.protocol, search: location.search, framed })) return;
   const sw = navigator.serviceWorker;
   if (sw.controller) {
     let offered = false;
@@ -50,9 +61,11 @@ export function registerPwa(): void {
       offerReload();
     });
   }
-  const go = () => {
-    const idle = (window as { requestIdleCallback?: (fn: () => void) => void }).requestIdleCallback ?? ((fn: () => void) => { setTimeout(fn, 1500); });
-    idle(() => { sw.register('./sw.js').catch((e) => console.warn('[pwa] no offline copy:', e)); });
-  };
+  const idle = (fn: () => void) => { const ric = (window as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => void }).requestIdleCallback; if (ric) ric(fn, { timeout: 5000 }); else setTimeout(fn, 1500); };
+  // (once the worker is active the page asks it to hold the parts opened later: 'pps:fill', scripts/pwa.mjs)
+  const go = () => idle(() => {
+    sw.register('./sw.js').then(() => sw.ready).then((r) => idle(() => r.active?.postMessage('pps:fill')))
+      .catch((e) => console.warn('[pwa] no offline copy:', e));
+  });
   if (document.readyState === 'complete') go(); else addEventListener('load', go, { once: true });
 }

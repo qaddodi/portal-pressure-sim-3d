@@ -35,12 +35,15 @@ const DIVE_MS = 1250;
 export const PROBE_MS = 3600;
 
 const V = new Vector3();
+/** The kinds whose last step stands on the figure until the slide is left (2D holdEnd with a parked device): the glue slide's scope stays over the varix with its coil and cast in it, and fades as the slide moves on; its play ends at its last stop, not on the fade-out leg. */
+export const HOLD_KINDS: ReadonlySet<string> = new Set(['eusglue']);
 
 export function linkProcs(): () => void {
   let key = '';                      // `${deck}/${slide}` of the slide whose features are on the figure
   let gen = 0;                       // a play's generation: a newer play or a slide change ends the older one's callbacks
   let timers: ReturnType<typeof setTimeout>[] = [];
   let playing = false;               // a procedure of this link is on the figure
+  let held = false;                  // a procedure that holds its last frame (HOLD_KINDS) is standing on the figure
   let washLand = 0, washKey = '', ringKey = '', layersOn = false, layerTimer: ReturnType<typeof setTimeout> | undefined, lastView = 'body';
   let probeOff: (() => void) | null = null, probeHold: { release(): void } | null = null;
   let plan: ProcPlan | null = null;
@@ -51,7 +54,7 @@ export function linkProcs(): () => void {
   function stopPlay(): void {
     gen++;
     timers.forEach(clearTimeout); timers = [];
-    if (playing) { sceneApi.procedure.stop(); playing = false; }
+    if (playing || held) { sceneApi.procedure.stop(); playing = false; held = false; }
     useProbes.getState().setEndoscope({ on: false });
   }
 
@@ -70,7 +73,7 @@ export function linkProcs(): () => void {
 
   /** One kind, move by move: each step plays to its stop and holds there; the model takes the change as T.apply passes. `base` is the card's index of the kind's first step. */
   function playKind(kind: string, base: number, g: number, done: () => void): void {
-    const sp = specFor(kind)!, legs = legsOf(kind), last = { name: '', at: 0 };
+    const sp = specFor(kind)!, hold = HOLD_KINDS.has(kind), legs = hold ? legsOf(kind).slice(0, -1) : legsOf(kind), last = { name: '', at: 0 };
     let applied = false, li = 0;
     const eus = kind === 'eus';
     const leg = (): void => {
@@ -78,7 +81,7 @@ export function linkProcs(): () => void {
       const [from, to] = legs[li]!, final = li === legs.length - 1;
       playing = true;
       sceneApi.procedure.play(kind, {
-        from, to, keep: !final,
+        from, to, keep: !final || hold,
         onFrame: (rec) => {
           if (g !== gen) return;
           if (rec.step >= 0 && base + rec.step !== useProc.getState().at) setProc({ at: base + rec.step });
@@ -90,7 +93,7 @@ export function linkProcs(): () => void {
         onEnd: () => {
           if (g !== gen) return;
           if (!final) { later(() => { li++; leg(); }, STEP_HOLD_MS); return; }
-          playing = false;
+          playing = false; held = hold;
           if (!applied) { applied = true; updateParams((p) => sp.apply(p) as never, { history: false, label: sp.name }); }
           done();
         },

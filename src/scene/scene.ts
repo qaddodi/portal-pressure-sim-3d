@@ -730,7 +730,7 @@ export class CelScene {
     const procMoving = this.procs.update(now);
     const diseaseMoving = this.disease.update(now);
     if (diseaseMoving) this.tagOverOrgans();
-    const probesMoving = this.probes.update(now, this.circuit.t > 0.02);
+    const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
     const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || lensMoving || presMoving || shapeMoving || viewMoving;
     this.moving = false;
     return needs;

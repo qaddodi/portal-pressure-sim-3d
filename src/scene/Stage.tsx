@@ -18,6 +18,7 @@ import { figureDpr, msaaFor } from './quality.ts';
 import { aaMode } from './post-aa.ts';
 import { installShaderGuard } from '../debug/shader-guard.ts';
 import { setRenderer } from '../debug/gl-ref.ts';
+import { sinusoidTap } from './sinusoid/explain-store.ts';
 import { lookCapture } from '../debug/look-hook.ts';
 import { lobulePicked } from './lobule/pick-store.ts';
 import { lobuleSel } from './lobule/pick.ts';
@@ -46,7 +47,13 @@ function SceneBridge() {
   const raycaster = useRef(new Raycaster());
 
   // the one draw of the frame: the cel scene on the R3F renderer (a positive priority stops R3F drawing its own)
-  useFrame(() => { cel.render(gl); lookCapture.run(gl.domElement); }, 1);   // (the look board reads the canvas in this task, when it asked)
+  useFrame(() => {
+    cel.render(gl);
+    lookCapture.run(gl.domElement);   // (the look board reads the canvas in this task, when it asked)
+    // the canvas comes in once, with its first drawn frame (until then the page's own ground shows, never the context's black); a reduced-motion viewer gets it at once
+    const el = gl.domElement;
+    if (el.style.opacity !== '1') { el.style.transition = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'none' : 'opacity 200ms ease-out'; el.style.opacity = '1'; }
+  }, 1);
 
   useEffect(() => {
     cel.resize(size.width, size.height);
@@ -55,6 +62,7 @@ function SceneBridge() {
 
   // fail loud, not invisible (WP10): a program the device's driver refuses is drawn plain, and the ?perf bar says so; ?gl borrows this renderer to compile every program once
   useEffect(() => {
+    if (gl.domElement.style.opacity !== '1') gl.domElement.style.opacity = '0';   // (comes in with the first drawn frame, below)
     setRenderer(gl);
     const off = installShaderGuard(gl, cel.scene, () => clock.invalidate('shader-failed'), () => [cel.post.material]);
     return () => { off(); setRenderer(null); };
@@ -117,6 +125,7 @@ function SceneBridge() {
       setOrbit: (rad) => { const changed = cel.rig.setOrbit(rad); if (changed) clock.invalidate('orbit'); return changed; },
       // a tap picks what 2D's does (src/ui/action/tap-select.ts): a vessel, an organ (liver with its lobe, heart, spleen) or the belly's fluid; a tap on nothing puts the selection away
       tap: (x, y, touch) => {
+        if (cel.view === 'sinusoid' && sinusoidTap(x, y, useDeck.getState().mode === 'deck')) return;   // (2D's explain rule: a tap on a sinusoid name, in a talk: sinusoid/explain-store.ts)
         if (useDeck.getState().mode !== 'free') return;
         if (cel.view === 'lobule') { const h = cel.pickLobule(x, y, raycaster.current); lobulePicked(h ? lobuleSel(h) : null); return; }   // (the lobule's parts, by 2D's own rule: lobule/pick.ts)
         // a station's label above the figure takes the tap first and opens the structure it stands for (2D's label is a button over the stage: src/ui/action/label-tap.ts)

@@ -11,7 +11,7 @@ import type { Palette } from '../../palette.ts';
 import { TIER_Z, len3, x3, y3 } from '../../frame2d.ts';
 import { EDGE_PATH_2D } from '../../vessels/paths.copied.ts';
 import { BAND } from '../../procedures/copied/band-ring.js';
-import { EUS_ROUTE, EUS_SCOPE_R, EUS_STATIONS, EUS_TARGETS, EUS_BEND_MIN, EUS_RIGID, EUS_PORT_R, eusPose, newTip, pointOn } from './copied/eus-scope.copied.js';
+import { EUS_GLUE_ROUTE, EUS_GLUE_STATION, EUS_GLUE_TARGET, EUS_ROUTE, EUS_SCOPE_R, EUS_STATIONS, EUS_TARGETS, EUS_BEND_MIN, EUS_RIGID, EUS_PORT_R, eusPose, newTip, pointOn } from './copied/eus-scope.copied.js';
 import { ProbePart, TubeBuf, linePart, type PartColour } from './parts.ts';
 import { showRings } from '../tube-rings.ts';
 import type { ScopeMode } from './state.ts';
@@ -31,11 +31,13 @@ export interface ScopeWay {
   /** a point and the unit direction at length d */
   at(r: ScopeWay, d: number): { p: P2; t: P2 };
 }
-let kept: ScopeWay | null = null;
-export function scopeWay(): ScopeWay {
-  if (kept) return kept;
+let kept: ScopeWay | null = null, keptGlue: ScopeWay | null = null;
+export function scopeWay(): ScopeWay { return (kept ||= makeWay(EUS_ROUTE)); }
+/** The way of the glue slide's scope (2D EUS_GLUE_ROUTE): the esophagus, one wide turn through the cardia and on under the fundus to the station over the varix. */
+export function glueScopeWay(): ScopeWay { return (keptGlue ||= makeWay(EUS_GLUE_ROUTE)); }
+function makeWay(route: { build(B: object): void }): ScopeWay {
   const lists: { name: string; pts: P2[] }[] = [];
-  (EUS_ROUTE as { build(B: object): void }).build({ pts: (list: P2[], _id: string, _f: number, name = 'lead') => { lists.push({ name, pts: list.map((q) => [q[0], q[1]] as P2) }); } });
+  route.build({ pts: (list: P2[], _id: string, _f: number, name = 'lead') => { lists.push({ name, pts: list.map((q) => [q[0], q[1]] as P2) }); } });
   const raw: P2[] = [], endOf: Record<string, number> = {};
   for (const l of lists) { for (const q of l.pts) raw.push(q); endOf[l.name] = raw.length - 1; }
   const c0 = [0];
@@ -60,13 +62,13 @@ export function scopeWay(): ScopeWay {
   };
   // the ligator's work: the scope's end just above the lowest band, whose place is the 2D band's own height
   way.bandD = cum[pts.findIndex((p) => p[1] >= (BAND as { y0: number }).y0 - 6)] ?? way.cardiaD;
-  kept = way;
   return way;
 }
 
 /** How far down the way the scope's tip goes for a mode and a station (figure units). */
 export function workD(mode: ScopeMode, station: 'pv' | 'hv', way: ScopeWay = scopeWay()): number {
   if (mode === 'band') return way.bandD;
+  if (mode === 'glue') return way.total;
   if (mode === 'eus') return station === 'hv' ? way.hvD : way.total;
   return way.cardiaD;
 }
@@ -84,13 +86,21 @@ const NEEDLE_HALF = 0.62, NEEDLE_BEV = 2.6, NEEDLE_RINGS = 12;
 /** The 2D procedure frame's fields the echoendoscope follows while the EUS-PPG plays (proc-anim.js eusFrame): the scope's way in (u of the way to the station), the station the aim has gone to (tgt, 0 portal vein to 1 hepatic vein), the port open and the elevator up (aim), the sector, the needle, the hit's rings and the reading. */
 export interface EusDrive { u: number; tgt: number; aim: number; fan: number; needle: number; flash: number; read: number }
 
+/** What the glue slide's procedure sets on the scope each frame (the 2D `procFrame('eusglue')` record): how far in (u, of its way), the port and elevator (aim), the sector (fan) and the needle (0..1). */
+export interface ScopeDrive { u: number; aim: number; fan: number; needle: number }
+
 export class EndoScope {
   readonly group = new Group();
   readonly parts: ProbePart[] = [];
   private readonly bufs: TubeBuf[] = [];
   /** how far down its way the tip is, figure units; the bend's turn (0 straight to 1 aimed), the sector's, the needle's, the cap's: each eased */
   d = 0; aim = 0; fan = 0; needle = 0; cap = 0; opacity = 1;
-  private readonly way = scopeWay();
+  private way = scopeWay();
+  private readonly eusWay = this.way; private readonly glueWay = glueScopeWay();
+  /** how far the parked glue scope has faded out (0 whole, 1 gone) once the slide's procedure is taken off */
+  private gone = 0;
+  /** the glue slide's target: the varix, at its needle's point */
+  private glueT: P2 = [0, 0];
   private readonly shaft: TubeBuf; private readonly bend: TubeBuf; private readonly tip: TubeBuf; private readonly lens: TubeBuf;
   private readonly capBuf: TubeBuf; private readonly bandBuf: TubeBuf; private readonly needleBuf: TubeBuf; private readonly faceBuf: TubeBuf; private readonly portBuf: TubeBuf;
   private readonly parts_: { shaft: ProbePart; bend: ProbePart; tip: ProbePart; lens: ProbePart; cap: ProbePart; band: ProbePart; needle: ProbePart; face: ProbePart; port: ProbePart };
@@ -121,7 +131,7 @@ export class EndoScope {
       this.parts.push(part); this.bufs.push(buf); this.group.add(part.group);
       return { part, buf };
     };
-    const N = this.way.pts.length;
+    const N = Math.max(this.way.pts.length, this.glueWay.pts.length);
     const sh = mk('poly', (t) => t.polyEdge, N, 1, 1), bd = mk('poly', (t) => t.polyEdge, 17, 1, 1), tp = mk('steel', null, 4, 1, 2), ln = mk('poly', (t) => t.polyEdge, 2, 0.7, 3);
     const cp = mk('graft', null, 2, 0.8, 3), bn = mk('platinum', null, 18, 0.9, 4), nd = mk('steel', null, NEEDLE_RINGS, 0.8, 5);
     // the transducer's curved array (its pale face on the side that meets the wall) and the working channel's port, where the needle leaves (2D --dev-scope-face, --dev-port)
@@ -157,19 +167,27 @@ export class EndoScope {
   targetAt(i: 0 | 1, out: Vector3): Vector3 { return at3(this.targets[i]!, out); }
   /** The aim's target now: between the two (the 2D TGT). */
   private target(out: P2 = [0, 0]): P2 {
+    if (this.mode === 'glue') { out[0] = this.glueT[0]; out[1] = this.glueT[1]; return out; }
     const a = this.targets[0], b = this.targets[1], k = this.tgt;
     out[0] = a[0] + (b[0] - a[0]) * k; out[1] = a[1] + (b[1] - a[1]) * k;
     return out;
+  }
+  /** The glue slide's target: the varix, at its needle's point (EUS_GLUE_TARGET). */
+  private setGlueTarget(): void {
+    const [id, f] = EUS_GLUE_TARGET as unknown as [string, number];
+    const q = pointOn((EDGE_PATH_2D as Record<string, P2[]>)[id]!, f) as P2;
+    this.glueT = [q[0], q[1]];
   }
 
   /** Lays the scope for the tip at `this.d`: the shaft along the way to where its bend starts, the bending section, the rigid tip with its lens, the ligator's cap or the needle and its sector. */
   private lay(): void {
     const way = this.way, R = len3(EUS_SCOPE_R as number), g = this.g, v = this.v, w = this.w, dv = this.dv;
-    const D = this.d, eus = this.mode === 'eus';
+    const D = this.d, eus = this.mode === 'eus' || this.mode === 'glue';
     const dA = Math.max(0, D - (EUS_RIGID as number));
     let end: P2, a1: P2, shaftEnd = dA, phi = 0, bendLen = 0, tipFrom: P2;
     if (eus) {
-      const ST = EUS_STATIONS as Record<string, { exit: number; hand: number }>, S = this.tgt < 0.5 ? ST.pv! : ST.hv!, exitA = ST.pv!.exit + (ST.hv!.exit - ST.pv!.exit) * this.tgt;
+      const ST = EUS_STATIONS as Record<string, { exit: number; hand: number }>;
+      const glue = this.mode === 'glue', G = EUS_GLUE_STATION as { exit: number; hand: number }, S = glue ? G : this.tgt < 0.5 ? ST.pv! : ST.hv!, exitA = glue ? G.exit : ST.pv!.exit + (ST.hv!.exit - ST.pv!.exit) * this.tgt;
       eusPose(way, D, way.at, this.target(this.tgtPt), this.drove ? this.aim : ease01(this.aim), exitA, S.hand, g);
       end = g.end; a1 = g.a1; phi = g.phi; bendLen = g.bend; tipFrom = g.p2;
       // a scope still straight (the bend not begun) is the way itself to the rigid tip
@@ -272,17 +290,20 @@ export class EndoScope {
   }
 
   /**
-   * Steps the scope toward what is asked; true while it moves. `u` and `needleSet` override the scope's own pace (a pane that plays the steps). `drive`: the EUS-PPG's procedure frame while it plays (2D
-   * proc-anim.js eusFrame): the scope then goes where the frame puts it, the way in, the aim and the station, the sector, the needle, the hit's rings and the ripples, and has no pace of its own.
-   * `now`: the clock's ms, for the ripples' cycle.
+   * Steps the scope toward what is asked; true while it moves. `u` and `needleSet` override the scope's own pace (a pane that plays the steps). `drive`: for mode 'eus' the EUS-PPG's procedure frame (an
+   * EusDrive, 2D proc-anim.js eusFrame): the scope then goes where the frame puts it, the way in, the aim and the station, the sector, the needle, the hit's rings and the ripples, and has no pace of its own;
+   * for mode 'glue' the glue slide's frame (a ScopeDrive): how far in, the port, the sector and the needle. `now`: the clock's ms, for the ripples' cycle.
    */
-  update(dtMs: number, on: boolean, mode: ScopeMode, station: 'pv' | 'hv', u?: number, needleSet?: number, drive: EusDrive | null = null, now = 0): boolean {
+  update(dtMs: number, on: boolean, mode: ScopeMode, station: 'pv' | 'hv', u?: number, needleSet?: number, drive: EusDrive | ScopeDrive | null = null, now = 0): boolean {
     const dt = Math.max(0, dtMs) / 1000;
     let moving = false;
-    const driven = !!drive && on && mode === 'eus';
+    const driven = !!drive && on && mode === 'eus', glued = !!drive && mode === 'glue';
     if (!driven && this.drove) { this.drove = false; this.flash = 0; this.read = 0; this.dirty = true; this.aim = 0; this.fan = 0; this.needle = 0; }
     if (driven) {
-      const D = drive!, goal = D.u * (this.way.total + (this.way.hvD - this.way.total) * D.tgt);
+      const D = drive as EusDrive;
+      if (this.way !== this.eusWay) { this.way = this.eusWay; this.d = 0; }
+      if (this.gone > 0) this.restore();
+      const goal = D.u * (this.way.total + (this.way.hvD - this.way.total) * D.tgt);
       moving = Math.abs(goal - this.d) > 1e-6 || D.aim !== this.aim || D.fan !== this.fan || D.needle !== this.needle || D.tgt !== this.tgt || D.flash !== this.flash || D.read !== this.read || this.mode !== 'eus';
       this.mode = 'eus'; this.station = D.tgt >= 0.5 ? 'hv' : 'pv'; this.drove = true;
       this.d = goal; this.aim = D.aim; this.fan = D.fan; this.needle = D.needle; this.tgt = D.tgt; this.flash = D.flash; this.read = D.read; this.cap = 0;
@@ -291,21 +312,26 @@ export class EndoScope {
       if (mode !== this.mode || station !== this.station) {
         // another job or station: the needle goes in, the cap off, and the tip travels to the new place
         if (this.needle > 0.002 || this.cap > 0.002 && mode !== 'band') { this.needle = Math.max(0, this.needle - dt / 0.5); this.cap = mode === 'band' ? this.cap : Math.max(0, this.cap - dt / 0.3); this.lay(); return true; }
-        this.mode = mode; this.station = station; this.tgt = station === 'hv' ? 1 : 0; this.aim = 0; this.fan = 0; this.dirty = true;
+        this.mode = mode; this.station = station; this.tgt = station === 'hv' ? 1 : 0; if (mode === 'glue') this.setGlueTarget(); this.aim = 0; this.fan = 0; this.dirty = true;
+        const w = mode === 'glue' ? this.glueWay : this.eusWay;
+        if (w !== this.way) { this.way = w; this.d = 0; }
       }
+      if (glued && this.gone > 0) this.restore();
       const goal = on ? (u == null ? workD(this.mode, this.station, this.way) : Math.min(1, Math.max(0, u)) * workD(this.mode, this.station, this.way)) : 0;
       const was = this.d;
       if (Math.abs(goal - this.d) > 1e-3) { this.d += Math.sign(goal - this.d) * Math.min(Math.abs(goal - this.d), SCOPE_SPEED * dt); }
       const there = Math.abs(goal - this.d) < 1e-3 && on;
-      const eus = this.mode === 'eus', aimGoal = eus && there ? 1 : 0, fanGoal = eus && this.aim > 0.98 ? 1 : 0;
+      const eus = this.mode === 'eus' || this.mode === 'glue', aimGoal = eus && there ? 1 : 0, fanGoal = eus && this.aim > 0.98 ? 1 : 0;
       const needleGoal = needleSet != null ? needleSet : eus && this.fan > 0.98 ? 1 : 0;
       const capGoal = this.mode === 'band' && on ? 1 : 0;
       const step = (x: number, g: number, secs: number): number => (Math.abs(g - x) < 1e-3 ? g : x + Math.sign(g - x) * Math.min(Math.abs(g - x), dt / secs));
       const a0 = this.aim, f0 = this.fan, n0 = this.needle, c0 = this.cap;
       this.aim = step(this.aim, aimGoal, 1.3); this.fan = step(this.fan, fanGoal, 0.5); this.needle = step(this.needle, needleGoal, 0.9); this.cap = step(this.cap, capGoal, 0.3);
+      // (a pane that plays the glue slide's steps (the procedure layer's frame) sets all of it: how far in, the elevator and port, the sector and the needle)
+      if (glued) { const G = drive as ScopeDrive; this.d = goal; this.aim = G.aim; this.fan = G.fan; this.needle = G.needle; }
       moving = this.d !== was || this.aim !== a0 || this.fan !== f0 || this.needle !== n0 || this.cap !== c0;
     }
-    const eus = this.mode === 'eus';
+    const eus = this.mode === 'eus' || this.mode === 'glue';
     const vis = this.d > 0.5;
     this.group.visible = vis;
     if (vis && (moving || this.dirty)) {
@@ -320,9 +346,22 @@ export class EndoScope {
       this.fanMesh.visible = eus && this.fan > 0.002; this.fanMat.opacity = this.fan;
     }
     this.layRings(now, vis);
-    if (vis && eus && (this.read > 0 || this.flash > 0)) moving = true;   // (the ripples run on their own clock while a reading is taken)
+    if (vis && this.mode === 'eus' && (this.read > 0 || this.flash > 0)) moving = true;   // (the ripples run on their own clock while a reading is taken)
     return moving;
   }
+  /** The glue slide's scope once its procedure is taken off: parked where it stood, it fades out in place (2D parkMs, 600 ms), never travelling back up the esophagus. True while it fades. */
+  leave(dtMs: number): boolean {
+    if (this.d < 0.5 && this.gone === 0) return false;
+    this.gone = Math.min(1, this.gone + Math.max(0, dtMs) / 600);
+    const k = 1 - ease01(this.gone);
+    for (const o of this.parts) o.setFade(k);
+    this.fanMat.opacity = this.fan * k;
+    if (this.gone < 1) return true;
+    this.restore(); this.d = 0; this.aim = 0; this.fan = 0; this.needle = 0; this.mode = 'scope'; this.way = this.eusWay;
+    this.group.visible = false; this.dirty = true;
+    return false;
+  }
+  private restore(): void { this.gone = 0; for (const o of this.parts) o.setFade(1); this.fanMat.opacity = this.fan; }
   private bendShown(): boolean { return Math.abs(this.g.phi) > 1e-4 && this.g.bend > 0.01; }
 
   applyPalette(p: Palette): void {
