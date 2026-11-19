@@ -19,6 +19,8 @@ import { mountTrials } from './ui/trials/mount.tsx';
 import { mountA11y } from './ui/a11y/mount.ts';
 import { installCaught } from './ui/debug/caught.ts';
 import { mountDebug } from './ui/debug/mount.ts';
+import { isPreview } from './ui/debug/gate.ts';
+import { isFrameRequest } from './ui/debug/frame/request.ts';
 
 const dark = window.matchMedia('(prefers-color-scheme: dark)');
 const paint = () => applyLook(resolveLook(useSettings.getState().look, dark.matches));
@@ -39,6 +41,12 @@ async function start() {
   if (new URLSearchParams(location.search).has('presenter-view')) {
     const { run } = await import('./ui/deck/presenter-window.ts');
     run();
+    return;
+  }
+  // ?debug=frame (the preview copy and a local run only): the device frame, an outer page that holds the app in one iframe at a phone's or iPad's size. It starts no app.
+  if (isPreview() && isFrameRequest(location.search)) {
+    const { bootFrame } = await import('./ui/debug/frame/frame.ts');
+    bootFrame();
     return;
   }
   if (!hasWebGL2()) { createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }

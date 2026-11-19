@@ -71,3 +71,10 @@ export function debugPage(at?: At): 'gallery' | 'check' | 'full' | 'frame' | nul
   if (d !== null || g !== null) return 'gallery';
   return null;
 }
+
+/** The rest of an address's query once these flags are taken out, in its order (the device frame keeps everything but `debug`, `gallery` and `device`, so the page inside it opens as the address asked). */
+export function queryWithout(search: string, drop: readonly string[]): string {
+  const q = new URLSearchParams(search || '');
+  for (const k of drop) q.delete(k);
+  return q.toString();
+}

@@ -41,6 +41,14 @@ export const sceneApi = {
     cel.goTo(shot, room, performance.now(), ms);
     clock.invalidate('shot');
   },
+  /** Put the hand's view back (a state link: the figure turned `orbit` radians, zoom `k`, panned `x` `y` px): what a person's fingers left, set at once, held until the next shot. */
+  setCameraView(v: { orbit?: number; k?: number; x?: number; y?: number }): void {
+    const h = cel.rig.handView;
+    cel.rig.holdHand();
+    cel.rig.setHand({ k: v.k ?? h.k, x: v.x ?? h.x, y: v.y ?? h.y });
+    if (v.orbit != null) cel.rig.setOrbit(v.orbit);
+    clock.invalidate('hand');
+  },
   /** Show the body, the lobule or the sinusoid and fly to it, straight from wherever the camera is (the view left behind stays up until the camera lands). `cam` is a lobule camera ('lobule', 'lobule:triad'…). */
   showView(v: FigureView, room: Room, cam: LobuleCam = 'lobule'): void {
     const from = cel.view;
@@ -126,4 +134,6 @@ export const sceneApi = {
   project: (p: Vector3, out?: { x: number; y: number }): { x: number; y: number } => cel.rig.project(p, out),
   /** True while the camera is in flight; tags fade out meanwhile and back in 180 ms after it lands. */
   get cameraMoving(): boolean { return cel.rig.isMoving; },
+  /** True once the camera has its first real shot (nothing is drawn before). */
+  get placed(): boolean { return cel.rig.placed; },
 };
