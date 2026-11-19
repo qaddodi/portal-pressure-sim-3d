@@ -185,7 +185,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
 
   const blockers = placed.map((p) => p.rect).concat(strip ? [strip.rect] : [], extra);
   const overflow = placed.filter((p) => p.rect.h > maxH[p.slot] + 0.5).map((p) => p.id);
-  return { device, layout, sideways, cards: placed, strip, shut, free: largestFreeRect(bounds, blockers, GAP), overflow, maxH, bar };
+  return { device, layout, sideways, cards: placed, strip, shut, free: largestFreeRect(bounds, blockers, layout === 'stack' || layout === 'tab' ? 4 : GAP), overflow, maxH, bar };
 }
 
 /** The width over height of the figure's box (the whole body plate is taller than wide): a free rectangle is judged by the tallest figure it holds. */

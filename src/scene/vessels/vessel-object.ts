@@ -2,6 +2,7 @@ import { BufferAttribute, BufferGeometry, Color, DataTexture, DoubleSide, FloatT
 import { CelObject, type CelOptions, type CelShared, rawColor } from '../materials/cel.ts';
 import { PALETTES, type Palette } from '../palette.ts';
 import { VESSEL_FS, VESSEL_VS } from './shaders.ts';
+import type { BloodShared } from '../blood/field.ts';
 import { LENS_SHARED, LENS_TOKENS } from '../lenses/tokens.copied.ts';
 import type { LookId } from '../palette.ts';
 import { CIRCUIT_ATTRIBUTES } from '../circuit/geometry.ts';
@@ -30,6 +31,8 @@ export interface VesselOptions extends Omit<CelOptions, 'tone'> {
   tone: 'portal' | 'sys' | 'artery';
   /** the vessel's texel in the lens textures (its topology edge index) */
   lensIndex: number;
+  /** how the width follows the engine's diameter (network.ts widthKind) */
+  widthKind: 0 | 1 | 2;
   /** arteries keep their own colour under every lens (the 2D figure's rule) */
   artery?: boolean;
 }
@@ -68,7 +71,7 @@ const lookOf = (p: Palette): LookId => ((Object.keys(PALETTES) as LookId[]).find
 export class VesselObject extends CelObject {
   readonly artery: boolean;
 
-  constructor(geometry: BufferGeometry, opts: VesselOptions, shared: CelShared, lens: LensShared, circuit: CircuitShared) {
+  constructor(geometry: BufferGeometry, opts: VesselOptions, shared: CelShared, lens: LensShared, blood: BloodShared, circuit: CircuitShared) {
     super(withHull(geometry), { ...opts, tone: opts.tone === 'artery' ? 'portal' : opts.tone }, shared);
     this.artery = !!opts.artery;
     const old = this.toon;
@@ -83,7 +86,7 @@ export class VesselObject extends CelObject {
         px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 },
-        lensUse: { value: this.artery ? 0 : 1 }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 1 },
+        lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, projY: blood.projY, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 1 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
       },

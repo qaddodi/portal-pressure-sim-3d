@@ -117,5 +117,24 @@ test('what a screen reader hears: the name, the pressure, and only an unusual fl
 test('the figure\'s labels and key are hidden from a screen reader (the walk speaks for them) and the key is an image with words', () => {
   const src = readFileSync('src/scene/labels/LabelLayer.tsx', 'utf8');
   assert.match(src, /className="lb-layer" aria-hidden="true"/);
-  assert.match(src, /role="img" aria-label=\{model\.aria\}/);
+  assert.match(src, /role=\{twin \? undefined : 'img'\} aria-label=\{twin \? undefined : model\.aria\}/, 'the key is an image with words; its hidden twin is not announced');
+  assert.match(src, /aria-hidden=\{twin \? true : undefined\}/);
+});
+
+test('a station that is not one vessel, and an organ\'s name, stand where the 2D figure puts them (through the one map, frame2d.ts)', async () => {
+  const { NODE_POS_2D } = await import('../src/scene/vessels/paths.copied.ts');
+  const { x3, y3 } = await import('../src/scene/frame2d.ts');
+  const { Vector3 } = await import('three');
+  const v = new Vector3();
+  for (const id of ['RA', 'SIN_R', 'VAR']) {
+    const [x, y] = NODE_POS_2D[id];
+    STATIONS.find((s) => s.id === id)!.at(0.5, v);
+    assert.ok(Math.abs(v.x - x3(x)) < 1e-9 && Math.abs(v.y - y3(y)) < 1e-9, `${id} stands at its 2D place`);
+  }
+  const at = LABEL_NAMES.ORGAN_AT as Record<string, readonly [number, number]>;
+  for (const s of STATIONS.filter((x) => x.kind === 'organ')) {
+    const [x, y] = at[s.name];
+    s.at(0.5, v);
+    assert.ok(Math.abs(v.x - x3(x)) < 1e-9 && Math.abs(v.y - y3(y)) < 1e-9, `${s.name} is named where 2D names it`);
+  }
 });

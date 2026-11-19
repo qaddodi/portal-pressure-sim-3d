@@ -1,5 +1,6 @@
+import { reduced, reducedMs } from '../../ui/a11y/motion.ts';
 import { PerspectiveCamera, Vector3 } from 'three';
-import { BODY_PLATE_Z, PLATE_BOUNDS } from '../anatomy/placeholder.ts';
+import { FIGURE_Z, PLATE_BOUNDS } from '../anatomy/placeholder.ts';
 import { type View, lerpView } from '../gesture/ease.ts';
 import type { Rect } from '../gesture/view.ts';
 import { type Room, effectiveDistance, viewOffset } from './room.ts';
@@ -64,7 +65,7 @@ export class CameraRig {
   private handTween = false;
   private placedFirst = false;
   /** The plate the hand may pan the figure within (the body's plate, or the Circuit's map), as a rectangle in the plane at depth z. */
-  private bounds: { x0: number; x1: number; y0: number; y1: number; z: number } = { ...PLATE_BOUNDS, z: BODY_PLATE_Z };
+  private bounds: { x0: number; x1: number; y0: number; y1: number; z: number } = { ...PLATE_BOUNDS, z: FIGURE_Z };
   readonly reduceMotion: boolean;
 
   constructor(shot: ShotName | Shot = 'title', room?: Room, reduceMotion = false) {
@@ -106,7 +107,7 @@ export class CameraRig {
     this.handFrom = { ...this.hand };
     this.handTween = keepHand ? this.handTween : this.hand.k !== 1 || this.hand.x !== 0 || this.hand.y !== 0;
     this.t0 = now;
-    this.dur = this.reduceMotion ? 0 : ms;
+    this.dur = reducedMs(ms, this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
     this.orbitFrom = this.orbit;
     this.active = true;
     this.dirty = true;

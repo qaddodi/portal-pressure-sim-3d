@@ -14,6 +14,7 @@ const P: Record<string, string> = {
   fullscreen: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5', sliders: 'M5 6h8M17 6h2M5 12h2M11 12h8M5 18h10M19 18h0M15 4v4M9 10v4M17 16v4', projector: 'M4 8h16v8H4zM9 16v3M15 16v3M12 12h.01',
   chevrons: 'M7 7l5 5-5 5M13 7l5 5-5 5', tag: 'M4 12l8-8h8v8l-8 8zM15.5 8.5h.01', route: 'M5 18a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM19 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM7 16c6 0 4-8 10-8', liver: 'M4 11c0-3 3-5 7-5 5 0 9 2 9 6 0 4-4 6-8 6-4 0-8-3-8-7z',
   zones: 'M4 12a8 8 0 1 0 16 0 8 8 0 0 0-16 0zM8 12a4 4 0 1 0 8 0 4 4 0 0 0-8 0z', lymph: 'M12 4v5M12 15v5M5 12h5M14 12h5', bile: 'M12 3.5s5 5.5 5 9a5 5 0 0 1-10 0c0-3.5 5-9 5-9z',
+  rewind: 'M11 6l-7 6 7 6zM20 6l-7 6 7 6z', camera: 'M4 8h4l2-3h4l2 3h4v11H4zM12 16a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', bulb: 'M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z',
   share: 'M12 4v11M8 8l4-4 4 4M5 14v6h14v-6', download: 'M12 4v11M8 11l4 4 4-4M5 20h14', print: 'M7 9V4h10v5M7 17H4v-7h16v7h-3M7 14h10v6H7z', scenario: 'M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM5 20c0-4 3-6 7-6s7 2 7 6',
 };
 export function Icon({ n, className }: { n: string; className?: string }) {

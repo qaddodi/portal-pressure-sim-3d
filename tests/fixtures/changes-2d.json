@@ -1,0 +1,2086 @@
+{
+ "generatedFrom": "2D preview branch, chart.js + inspector.js + surgical-shunts.js",
+ "cases": [
+  {
+   "name": "preset:healthy",
+   "preset": "healthy",
+   "edit": null,
+   "changes": [
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "preset:postprandial",
+   "preset": "postprandial",
+   "edit": null,
+   "changes": [
+    {
+     "key": "meal",
+     "label": "After a meal"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "preset:pvt-acute",
+   "preset": "pvt-acute",
+   "edit": null,
+   "changes": [
+    {
+     "key": "thr:PV_TRUNK",
+     "label": "Portal vein thrombus 100%"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "preset:pvt-chronic",
+   "preset": "pvt-chronic",
+   "edit": null,
+   "changes": [
+    {
+     "key": "thr:PV_TRUNK",
+     "label": "Portal vein thrombus 100%"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "preset:svt",
+   "preset": "svt",
+   "edit": null,
+   "changes": [
+    {
+     "key": "thr:SV_CONF",
+     "label": "Splenic vein (proximal) thrombus 100%"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "preset:schisto",
+   "preset": "schisto",
+   "edit": null,
+   "changes": [
+    {
+     "key": "fib:pre",
+     "label": "Presinusoidal fibrosis ×70"
+    },
+    {
+     "key": "fib:sin",
+     "label": "Sinusoidal fibrosis ×2.5"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "preset:psvd",
+   "preset": "psvd",
+   "edit": null,
+   "changes": [
+    {
+     "key": "fib:pre",
+     "label": "Presinusoidal fibrosis ×50"
+    },
+    {
+     "key": "fib:sin",
+     "label": "Sinusoidal fibrosis ×2.2"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "preset:cirr-comp",
+   "preset": "cirr-comp",
+   "edit": null,
+   "changes": [
+    {
+     "key": "cirrhosis",
+     "label": "Cirrhosis 40%"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "preset:csph",
+   "preset": "csph",
+   "edit": null,
+   "changes": [
+    {
+     "key": "cirrhosis",
+     "label": "Cirrhosis 60%"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "preset:masld-csph",
+   "preset": "masld-csph",
+   "edit": null,
+   "changes": [
+    {
+     "key": "cirrhosis",
+     "label": "Cirrhosis 60%"
+    },
+    {
+     "key": "fib:pre",
+     "label": "Presinusoidal fibrosis ×4.0"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "preset:cirr-decomp",
+   "preset": "cirr-decomp",
+   "edit": null,
+   "changes": [
+    {
+     "key": "cirrhosis",
+     "label": "Cirrhosis 85%"
+    },
+    {
+     "key": "albumin",
+     "label": "Albumin 2.8 g/dL"
+    },
+    {
+     "key": "diuretics",
+     "label": "Diuretics"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 1
+  },
+  {
+   "name": "preset:cirr-decomp-tips",
+   "preset": "cirr-decomp-tips",
+   "edit": null,
+   "changes": [
+    {
+     "key": "cirrhosis",
+     "label": "Cirrhosis 100%"
+    },
+    {
+     "key": "tips",
+     "label": "TIPS 8 mm"
+    },
+    {
+     "key": "albumin",
+     "label": "Albumin 2.8 g/dL"
+    },
+    {
+     "key": "diuretics",
+     "label": "Diuretics"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 2
+  },
+  {
+   "name": "preset:cirr-hepatofugal",
+   "preset": "cirr-hepatofugal",
+   "edit": null,
+   "changes": [
+    {
+     "key": "cirrhosis",
+     "label": "Cirrhosis 84%"
+    },
+    {
+     "key": "apShunt",
+     "label": "Arterioportal shunting 100%"
+    },
+    {
+     "key": "albumin",
+     "label": "Albumin 2.6 g/dL"
+    },
+    {
+     "key": "diuretics",
+     "label": "Diuretics"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    },
+    {
+     "key": "C6",
+     "label": "Splenorenal shunt"
+    }
+   ],
+   "count": 1
+  },
+  {
+   "name": "preset:gastric-varix",
+   "preset": "gastric-varix",
+   "edit": null,
+   "changes": [
+    {
+     "key": "cirrhosis",
+     "label": "Cirrhosis 90%"
+    },
+    {
+     "key": "albumin",
+     "label": "Albumin 3.0 g/dL"
+    },
+    {
+     "key": "diuretics",
+     "label": "Diuretics"
+    }
+   ],
+   "count": 1
+  },
+  {
+   "name": "preset:pregnancy",
+   "preset": "pregnancy",
+   "edit": null,
+   "changes": [
+    {
+     "key": "cirrhosis",
+     "label": "Cirrhosis 65%"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "preset:sos",
+   "preset": "sos",
+   "edit": null,
+   "changes": [
+    {
+     "key": "fib:post",
+     "label": "Postsinusoidal fibrosis ×34"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "preset:budd-chiari",
+   "preset": "budd-chiari",
+   "edit": null,
+   "changes": [
+    {
+     "key": "thr:RHV_IVC",
+     "label": "Right hepatic vein thrombus 100%"
+    },
+    {
+     "key": "thr:MHV_IVC",
+     "label": "Middle hepatic vein thrombus 100%"
+    },
+    {
+     "key": "thr:LHV_IVC",
+     "label": "Left hepatic vein thrombus 100%"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "preset:ivc-web",
+   "preset": "ivc-web",
+   "edit": null,
+   "changes": [
+    {
+     "key": "sten:IVCS_RA",
+     "label": "IVC narrowed 60%"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "preset:rhf",
+   "preset": "rhf",
+   "edit": null,
+   "changes": [
+    {
+     "key": "contractility",
+     "label": "RV contractility 25%"
+    },
+    {
+     "key": "tr",
+     "label": "Tricuspid regurgitation 90%"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "preset:constrictive",
+   "preset": "constrictive",
+   "edit": null,
+   "changes": [
+    {
+     "key": "pericardial",
+     "label": "Pericardial constraint 90%"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "edit:fibrosis_both",
+   "preset": "healthy",
+   "edit": {
+    "fibrosis": {
+     "R": {
+      "pre": 4.5,
+      "sin": 1,
+      "post": 1
+     },
+     "L": {
+      "pre": 4.5,
+      "sin": 1,
+      "post": 1
+     }
+    }
+   },
+   "changes": [
+    {
+     "key": "fib:pre",
+     "label": "Presinusoidal fibrosis ×4.5"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "edit:fibrosis_right_only",
+   "preset": "healthy",
+   "edit": {
+    "fibrosis": {
+     "R": {
+      "pre": 1,
+      "sin": 3,
+      "post": 1
+     },
+     "L": {
+      "pre": 1,
+      "sin": 1,
+      "post": 1
+     }
+    }
+   },
+   "changes": [
+    {
+     "key": "fib:R:sin",
+     "label": "Sinusoidal fibrosis, right lobe ×3.0"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "edit:fibrosis_post_20",
+   "preset": "healthy",
+   "edit": {
+    "fibrosis": {
+     "R": {
+      "pre": 1,
+      "sin": 1,
+      "post": 20
+     },
+     "L": {
+      "pre": 1,
+      "sin": 1,
+      "post": 20
+     }
+    }
+   },
+   "changes": [
+    {
+     "key": "fib:post",
+     "label": "Postsinusoidal fibrosis ×20"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "edit:sten_thr",
+   "preset": "healthy",
+   "edit": {
+    "stenosis": {
+     "PV_TRUNK": 0.4,
+     "SV_CONF": 0.123
+    },
+    "thrombus": {
+     "RHV_IVC": 1
+    }
+   },
+   "changes": [
+    {
+     "key": "sten:PV_TRUNK",
+     "label": "Portal vein narrowed 40%"
+    },
+    {
+     "key": "sten:SV_CONF",
+     "label": "Splenic vein (proximal) narrowed 12%"
+    },
+    {
+     "key": "thr:RHV_IVC",
+     "label": "Right hepatic vein thrombus 100%"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "edit:drugs",
+   "preset": "healthy",
+   "edit": {
+    "drugs": {
+     "propranolol": true,
+     "octreotide": true
+    }
+   },
+   "changes": [
+    {
+     "key": "drug:propranolol",
+     "label": "Propranolol"
+    },
+    {
+     "key": "drug:octreotide",
+     "label": "Octreotide"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 2
+  },
+  {
+   "name": "edit:spleen1",
+   "preset": "healthy",
+   "edit": {
+    "splenicRx": 1
+   },
+   "changes": [
+    {
+     "key": "splenicRx",
+     "label": "Partial splenic embolization"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 1
+  },
+  {
+   "name": "edit:spleen2",
+   "preset": "healthy",
+   "edit": {
+    "splenicRx": 2
+   },
+   "changes": [
+    {
+     "key": "splenicRx",
+     "label": "Splenectomy"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 1
+  },
+  {
+   "name": "edit:tips",
+   "preset": "healthy",
+   "edit": {
+    "tips": {
+     "on": true,
+     "d": 9.5
+    }
+   },
+   "changes": [
+    {
+     "key": "tips",
+     "label": "TIPS 9.5 mm"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 1
+  },
+  {
+   "name": "edit:dips",
+   "preset": "healthy",
+   "edit": {
+    "dips": {
+     "on": true,
+     "d": 8
+    }
+   },
+   "changes": [
+    {
+     "key": "dips",
+     "label": "DIPS 8 mm"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 1
+  },
+  {
+   "name": "edit:pc_es",
+   "preset": "healthy",
+   "edit": {
+    "portocaval": true
+   },
+   "changes": [
+    {
+     "key": "portocaval",
+     "label": "Portocaval shunt"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 1
+  },
+  {
+   "name": "edit:pc_ss",
+   "preset": "healthy",
+   "edit": {
+    "portocaval": true,
+    "portocavalSide": true
+   },
+   "changes": [
+    {
+     "key": "portocaval",
+     "label": "Portocaval shunt (side-to-side)"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 1
+  },
+  {
+   "name": "edit:dsrs",
+   "preset": "healthy",
+   "edit": {
+    "dsrs": true
+   },
+   "changes": [
+    {
+     "key": "dsrs",
+     "label": "Distal splenorenal shunt"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 1
+  },
+  {
+   "name": "edit:mesocaval",
+   "preset": "healthy",
+   "edit": {
+    "mesocaval": true
+   },
+   "changes": [
+    {
+     "key": "mesocaval",
+     "label": "Mesocaval shunt"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 1
+  },
+  {
+   "name": "edit:rex",
+   "preset": "healthy",
+   "edit": {
+    "rex": true
+   },
+   "changes": [
+    {
+     "key": "rex",
+     "label": "Meso-Rex bypass"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 1
+  },
+  {
+   "name": "edit:custom",
+   "preset": "healthy",
+   "edit": {
+    "customShunts": {
+     "X_SMV_RHV": 10.5
+    }
+   },
+   "changes": [
+    {
+     "key": "cs:X_SMV_RHV",
+     "label": "Superior mesenteric vein → Right hepatic vein shunt 10.5 mm"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "edit:balloons",
+   "preset": "healthy",
+   "edit": {
+    "balloonGas": true,
+    "balloonEso": true
+   },
+   "changes": [
+    {
+     "key": "balloonGas",
+     "label": "Gastric balloon"
+    },
+    {
+     "key": "balloonEso",
+     "label": "Esophageal balloon"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 2
+  },
+  {
+   "name": "edit:occ",
+   "preset": "healthy",
+   "edit": {
+    "occluded": {
+     "C5": true,
+     "C2": true
+    }
+   },
+   "changes": [
+    {
+     "key": "occ:C5",
+     "label": "BRTO (gastrorenal shunt occluded)"
+    },
+    {
+     "key": "occ:C2",
+     "label": "Short / posterior gastric veins occluded"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 1
+  },
+  {
+   "name": "edit:tone",
+   "preset": "healthy",
+   "edit": {
+    "splanchnicTone": 0.6,
+    "systemicTone": 1.25,
+    "habrStrength": 0.5
+   },
+   "changes": [
+    {
+     "key": "splTone",
+     "label": "Splanchnic tone ×0.60"
+    },
+    {
+     "key": "sysTone",
+     "label": "Systemic tone ×1.25"
+    },
+    {
+     "key": "habr",
+     "label": "Arterial buffer ×0.50"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "edit:meal",
+   "preset": "healthy",
+   "edit": {
+    "meal": 1
+   },
+   "changes": [
+    {
+     "key": "meal",
+     "label": "After a meal"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "edit:heart",
+   "preset": "healthy",
+   "edit": {
+    "contractility": 0.55,
+    "tr": 0.35,
+    "pericardial": 0.2
+   },
+   "changes": [
+    {
+     "key": "contractility",
+     "label": "RV contractility 55%"
+    },
+    {
+     "key": "tr",
+     "label": "Tricuspid regurgitation 35%"
+    },
+    {
+     "key": "pericardial",
+     "label": "Pericardial constraint 20%"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "edit:ap",
+   "preset": "healthy",
+   "edit": {
+    "apShunt": 0.25
+   },
+   "changes": [
+    {
+     "key": "apShunt",
+     "label": "Arterioportal shunting 25%"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "edit:preg",
+   "preset": "healthy",
+   "edit": {
+    "gestation": 24
+   },
+   "changes": [
+    {
+     "key": "gestation",
+     "label": "Pregnancy 24 weeks"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "edit:alb",
+   "preset": "healthy",
+   "edit": {
+    "albumin": 3.1
+   },
+   "changes": [
+    {
+     "key": "albumin",
+     "label": "Albumin 3.1 g/dL"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "edit:diuretics_anticoag",
+   "preset": "healthy",
+   "edit": {
+    "diuretics": true,
+    "anticoag": true
+   },
+   "changes": [
+    {
+     "key": "diuretics",
+     "label": "Diuretics"
+    },
+    {
+     "key": "anticoag",
+     "label": "Anticoagulation"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 2
+  },
+  {
+   "name": "edit:noC5",
+   "preset": "healthy",
+   "edit": {
+    "spontaneous": {
+     "C5": false
+    }
+   },
+   "changes": [
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "edit:c6",
+   "preset": "healthy",
+   "edit": {
+    "spontaneous": {
+     "C6": true
+    }
+   },
+   "changes": [
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    },
+    {
+     "key": "C6",
+     "label": "Splenorenal shunt"
+    }
+   ],
+   "count": 0
+  },
+  {
+   "name": "edit:everything",
+   "preset": "healthy",
+   "edit": {
+    "cirrhosis": 0.7,
+    "drugs": {
+     "carvedilol": true
+    },
+    "anticoag": true,
+    "diuretics": true,
+    "tips": {
+     "on": true,
+     "d": 8
+    },
+    "balloonGas": true,
+    "occluded": {
+     "C5": true
+    }
+   },
+   "changes": [
+    {
+     "key": "cirrhosis",
+     "label": "Cirrhosis 70%"
+    },
+    {
+     "key": "drug:carvedilol",
+     "label": "Carvedilol"
+    },
+    {
+     "key": "tips",
+     "label": "TIPS 8 mm"
+    },
+    {
+     "key": "balloonGas",
+     "label": "Gastric balloon"
+    },
+    {
+     "key": "occ:C5",
+     "label": "BRTO (gastrorenal shunt occluded)"
+    },
+    {
+     "key": "diuretics",
+     "label": "Diuretics"
+    },
+    {
+     "key": "anticoag",
+     "label": "Anticoagulation"
+    },
+    {
+     "key": "C5",
+     "label": "No gastrorenal shunt (no fundal varices)"
+    }
+   ],
+   "count": 6
+  }
+ ],
+ "shunts": [
+  {
+   "preset": "healthy",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "postprandial",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "pvt-acute",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": ""
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "pvt-chronic",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": ""
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "svt",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "schisto",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "psvd",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "cirr-comp",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "csph",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "masld-csph",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "cirr-decomp",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "cirr-decomp-tips",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "cirr-hepatofugal",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "gastric-varix",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "pregnancy",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "sos",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "budd-chiari",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "ivc-web",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "rhf",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  },
+  {
+   "preset": "constrictive",
+   "blocked": {
+    "warren": "",
+    "pc-es": "",
+    "pc-ss": "",
+    "mesocaval": "",
+    "rex": "The portal trunk is patent: a Meso-Rex bypass is for a thrombosed trunk."
+   },
+   "on": {
+    "warren": false,
+    "pc-es": false,
+    "pc-ss": false,
+    "mesocaval": false,
+    "rex": false
+   },
+   "applied": {
+    "warren": {
+     "rex": false,
+     "dsrs": true,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-es": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": false,
+     "mesocaval": false
+    },
+    "pc-ss": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": true,
+     "portocavalSide": true,
+     "mesocaval": false
+    },
+    "mesocaval": {
+     "rex": false,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": true
+    },
+    "rex": {
+     "rex": true,
+     "dsrs": false,
+     "portocaval": false,
+     "portocavalSide": false,
+     "mesocaval": false
+    }
+   }
+  }
+ ]
+}

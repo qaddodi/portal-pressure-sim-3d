@@ -131,11 +131,7 @@
 .dk-pb:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .dk-count { flex: 1; min-width: 4.4em; font-weight: 600; color: var(--text-2); text-align: center; white-space: nowrap; }
 
-@media (prefers-reduced-motion: reduce) {
-  .dk-pos[data-live="true"] { transition: none; }
-  .dk-card[data-phase="in"], .dk-card[data-phase="out"], .dk-strip[data-phase="in"], .dk-strip[data-phase="out"], .dk-row, .dk-a { animation-duration: 1ms; }
-  .dk-row .dk-bar i, .dk-dots button i, .dk-dots button u { transition: none; }
-}
+/* Reduce Motion: src/ui/a11y/reduced.css (nothing travels, nothing pops: everything cross-fades) */
 
 /* ── a number rolling (400 ms, transform and opacity) ── */
 .dk-roll { position: relative; display: inline-block; overflow: hidden; vertical-align: bottom; line-height: inherit; }
@@ -146,7 +142,6 @@
 .dk-roll-out { animation: dk-roll-out 400ms var(--ease) both; }
 @keyframes dk-roll-in { from { opacity: 0; transform: translateY(70%); } to { opacity: 1; transform: none; } }
 @keyframes dk-roll-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-70%); } }
-@media (prefers-reduced-motion: reduce) { .dk-roll-in, .dk-roll-out { animation-duration: 1ms; } }
 
 /* ── settings ── */
 .dk-settings { position: relative; }
@@ -174,14 +169,14 @@
 /* NOTE: never gate the glass on `@media (prefers-reduced-transparency: no-preference)` or `not (...)`: a browser that does not know the feature (Safari, on every device the
    owner tests on) treats the whole query as false, and the glass never applies. The glass is the default; reduced transparency is the override below it. */
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  html:not([data-noglass]) :is(.dk-card, .dk-strip, .dk-bar, .dk-panel, .sh-pill, .sh-seg, .sh-split, .sh-read, .sh-thumb, .sh-sheet, .sh-pop, .sh-dialog) {
+  html:not([data-noglass]) :is(.dk-card, .dk-strip, .dk-bar, .dk-panel, .sh-pill, .sh-seg, .vdock, .sh-thumb, .sh-sheet, .sh-pop, .sh-dialog) {
     background: color-mix(in srgb, var(--surface) 66%, transparent);
     -webkit-backdrop-filter: blur(22px) saturate(1.15); backdrop-filter: blur(22px) saturate(1.15);
   }
   /* the settings panel is over the cards and the pill: a touch more surface so its chips read */
   html:not([data-noglass]) :is(.dk-panel, .sh-sheet, .sh-pop, .sh-dialog) { background: color-mix(in srgb, var(--surface) 82%, transparent); }
   @media (prefers-reduced-transparency: reduce) {
-    html:not([data-noglass]) :is(.dk-card, .dk-strip, .dk-bar, .dk-panel, .sh-pill, .sh-seg, .sh-split, .sh-read, .sh-thumb, .sh-sheet, .sh-pop, .sh-dialog) {
+    html:not([data-noglass]) :is(.dk-card, .dk-strip, .dk-bar, .dk-panel, .sh-pill, .sh-seg, .vdock, .sh-thumb, .sh-sheet, .sh-pop, .sh-dialog) {
       background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none;
     }
   }
