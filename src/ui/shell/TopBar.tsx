@@ -9,6 +9,7 @@ import { runFeature, type FeatureId } from './features.ts';
 import { notYet } from './words.ts';
 import { goToView, refitFigure } from './view-actions.ts';
 import { FigureMenu } from './FigureMenu.tsx';
+import { keyLabel } from './platform.ts';
 
 interface Tb { id: string; label: string | null; title: string | null; text: string | null }
 export const tb = (id: string): Tb => UI.topbar.find((t) => t.id === id) as unknown as Tb;
@@ -19,7 +20,7 @@ export function ViewPills() {
   const view = useShell((s) => s.view);
   const ready = useShell((s) => s.ready);
   return (
-    <div className="sh-seg" role="group" aria-label={tb('viewSeg') ? 'View' : 'View'} data-view-pills>
+    <div className="sh-seg" role="group" aria-label="View" data-view-pills>
       {VIEWS.map((v) => {
         const hidden = pillHidden(v.id, view);
         return (
@@ -77,7 +78,7 @@ function Pill({ id, icon, feature, text, compact }: { id: string; icon: string; 
 }
 
 /** The top bar of a laptop or an iPad held sideways; a phone or an upright iPad keeps the menu and the lens here and the rest at the foot. */
-export function TopBar({ bottom }: { bottom: boolean }) {
+export function TopBar({ bottom, pills = !bottom }: { bottom: boolean; pills?: boolean }) {
   const mode = useShell((s) => s.mode);
   const sheet = useShell((s) => s.sheet);
   const view = useShell((s) => s.view);
@@ -91,7 +92,7 @@ export function TopBar({ bottom }: { bottom: boolean }) {
       <button type="button" className="sh-pill sh-menu-btn" data-opens="menu" aria-haspopup="dialog" aria-expanded={sheet === 'menu'} aria-label={menu.label ?? undefined} title={menu.title ?? undefined} onClick={() => useShell.getState().toggle('menu')}>
         <Icon n="menu" /><span className="sh-name">{patient}</span>
       </button>
-      {!bottom && <ViewPills />}
+      {pills && <ViewPills />}
       {!bottom && <div className="sh-anchor" style={{ opacity: view === 'lobule' || view === 'sinusoid' ? 1 : 0, pointerEvents: view === 'lobule' || view === 'sinusoid' ? 'auto' : 'none', transition: 'opacity 200ms' }}><FigureMenu kind="layers" /></div>}
       {!bottom && <FigureMenu kind="blood" />}
       <LensButton />
@@ -102,7 +103,7 @@ export function TopBar({ bottom }: { bottom: boolean }) {
         <Pill id="btnHistory" icon="clock" feature="history" compact={compact} />
         <button type="button" className="sh-pill" data-icon-only data-opens="settings" aria-haspopup="dialog" aria-expanded={sheet === 'settings'} aria-label={tb('btnSettings').label ?? undefined} title={tb('btnSettings').title ?? undefined} onClick={() => useShell.getState().toggle('settings')}><Icon n="gear" /></button>
         <button type="button" className="sh-pill" data-icon-only={compact || undefined} data-opens="search" aria-haspopup="dialog" aria-expanded={sheet === 'search'} aria-label={tb('btnPalette').label ?? undefined} title={tb('btnPalette').title ?? undefined} onClick={() => useShell.getState().toggle('search')}>
-          <Icon n="search" />{!compact && <span>Search</span>}{!compact && <kbd>Ctrl K</kbd>}
+          <Icon n="search" />{!compact && <span>Search</span>}{!compact && <kbd>{keyLabel('Ctrl/⌘ K')}</kbd>}
         </button>
       </>}
     </header>

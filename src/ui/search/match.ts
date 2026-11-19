@@ -9,6 +9,8 @@ export interface Command {
   num: string | null;
   hint: string;
   run(n: number | null): void;
+  /** the work behind it exists in the 3D app (an empty field offers only these; typing finds the rest, and running one says it is not here yet) */
+  wired?: boolean;
 }
 
 export const norm = (s: string): string => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9+ ]/g, ' ');
@@ -24,7 +26,7 @@ export function search(cmds: readonly Command[], q: string, emptyOrder: readonly
   const words = norm(q.replace(/-?\d+(\.\d+)?/g, ' ')).split(/\s+/).filter(Boolean);
   if (!words.length && num == null) {
     const left: Record<string, number> = { ...EMPTY_QUOTA }, out: Hit[] = [];
-    for (const c of cmds) if ((left[c.group] ?? 0) > 0) { left[c.group]--; out.push({ c, num: null }); }
+    for (const c of cmds) if (c.wired !== false && (left[c.group] ?? 0) > 0) { left[c.group]--; out.push({ c, num: null }); }
     return out.sort((a, b) => emptyOrder.indexOf(a.c.group) - emptyOrder.indexOf(b.c.group));
   }
   const scored: Hit[] = [];

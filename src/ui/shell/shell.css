@@ -80,10 +80,12 @@
 /* ── the play bar ── */
 .sh-play { position: absolute; left: calc(var(--safe-l, 0px) + var(--sh-pad-x)); bottom: calc(var(--safe-b, 0px) + 14px); display: flex; align-items: center; gap: var(--sh-gap); transition: opacity 240ms var(--sh-ease); }
 .sh-play[data-hidden="true"] { opacity: 0; pointer-events: none; } .sh-play[data-hidden="true"] * { pointer-events: none !important; }
-.sh-split { pointer-events: auto; display: inline-flex; align-items: center; height: var(--sh-h); border-radius: 999px; border: 1px solid var(--edge); background: var(--surface); overflow: hidden;
+.sh-split { pointer-events: auto; display: inline-flex; align-items: center; height: var(--sh-h); border-radius: 999px; border: 1px solid var(--edge); background: var(--surface);
   box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 8px 22px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.4)); }
 .sh-split button { height: 100%; border: 0; background: transparent; min-width: var(--sh-h); padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; font: 600 14px / 1 var(--ui); }
-.sh-split button + button { border-left: 1px solid var(--edge); }
+.sh-split > * + * { border-left: 1px solid var(--edge); }
+.sh-split > :first-child, .sh-split > :first-child > button { border-radius: 999px 0 0 999px; } .sh-split > :last-child, .sh-split > :last-child > button { border-radius: 0 999px 999px 0; }
+.sh-split .sh-anchor { height: 100%; } .sh-split .sh-anchor > button { height: 100%; }
 .sh-split button:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
 .sh-time { pointer-events: auto; min-width: 5.2em; text-align: center; font: 600 15px / 1 var(--ui); font-variant-numeric: tabular-nums lining-nums; color: var(--text); }
 .sh-read { pointer-events: auto; display: inline-flex; align-items: baseline; gap: 6px; height: var(--sh-h); padding: 0 14px; border-radius: 999px; border: 1px solid var(--edge); background: var(--surface); align-self: center; align-items: center; }
@@ -105,7 +107,8 @@
 .sh-thumb { pointer-events: auto; display: grid; grid-template-columns: repeat(5, 1fr); height: 56px; margin: 0 -12px; padding: 0 calc(var(--safe-r, 0px) + 12px) var(--safe-b, 0px) calc(var(--safe-l, 0px) + 12px); box-sizing: content-box; background: var(--surface); border-top: 1px solid var(--edge); }
 .sh-thumb button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 56px; border: 0; background: transparent; font: 600 11px / 1 var(--ui); color: var(--text-2); }
 .sh-thumb button[aria-expanded="true"], .sh-thumb button[aria-pressed="true"] { color: var(--accent); }
-.sh-root[data-bottom="true"] .sh-play, .sh-root[data-bottom="true"] .sh-zoom { display: none; }
+.sh-root[data-bottom="true"] > .sh-play, .sh-root[data-bottom="true"] > .sh-zoom { display: none; }
+.sh-foot .sh-play { position: static; }
 
 /* ── sheets: the main menu, Settings, Search, Help (a panel on a laptop, a sheet from the foot on a phone) ── */
 .sh-sheet { position: absolute; z-index: 3; display: flex; flex-direction: column; overflow: hidden; pointer-events: auto; border: 1px solid var(--edge); background: var(--surface); border-radius: 18px;
@@ -113,12 +116,12 @@
   opacity: 0; visibility: hidden; transform: translateY(12px); transition: opacity 240ms var(--sh-ease), transform 240ms var(--sh-ease), visibility 0s linear 240ms; }
 .sh-sheet[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
 .sh-sheet[data-kind="menu"] { left: calc(var(--safe-l, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + 52px); width: 380px; max-height: calc(100% - var(--sh-pad-top) - 92px); }
-.sh-sheet[data-kind="settings"] { right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + 52px); width: 360px; max-height: calc(100% - var(--sh-pad-top) - 92px); }
-.sh-sheet[data-kind="search"], .sh-sheet[data-kind="help"] { left: 50%; top: calc(var(--sh-pad-top) + 52px); width: min(620px, calc(100vw - 24px)); margin-left: calc(min(620px, 100vw - 24px) / -2); max-height: calc(100% - var(--sh-pad-top) - 92px); }
-.sh-sheet[data-kind="help"] { width: min(720px, calc(100vw - 24px)); margin-left: calc(min(720px, 100vw - 24px) / -2); }
-.sh-root[data-bottom="true"] .sh-sheet { left: 0 !important; right: 0 !important; margin-left: 0 !important; width: auto !important; top: auto !important; bottom: calc(var(--safe-b, 0px) + 56px); border-radius: 18px 18px 0 0; max-height: 78%; transform: translateY(24px); }
-.sh-root[data-bottom="true"] .sh-sheet[data-open="true"] { transform: none; }
-.sh-root[data-bottom="true"][data-device="phone-landscape"] .sh-sheet { max-height: 86%; }
+.sh-sheet[data-kind="settings"], .sh-sheet[data-kind="help"] { right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + 52px); width: 360px; max-height: calc(100% - var(--sh-pad-top) - 92px); }
+.sh-sheet[data-kind="search"], .sh-sheet[data-kind="guide"] { left: 50%; top: calc(var(--sh-pad-top) + 52px); width: min(620px, calc(100vw - 24px)); margin-left: calc(min(620px, 100vw - 24px) / -2); max-height: calc(100% - var(--sh-pad-top) - 92px); }
+.sh-sheet[data-kind="guide"] { width: min(720px, calc(100vw - 24px)); margin-left: calc(min(720px, 100vw - 24px) / -2); }
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet { left: 0 !important; right: 0 !important; margin-left: 0 !important; width: auto !important; top: auto !important; bottom: calc(var(--safe-b, 0px) + 56px); border-radius: 18px 18px 0 0; max-height: 78%; transform: translateY(24px); }
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-open="true"] { transform: none; }
+.sh-root[data-bottom="true"][data-mode="free"][data-device="phone-landscape"] .sh-sheet { max-height: 86%; }
 .sh-sheet-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 4px 18px; }
 .sh-sheet-head h2 { flex: 1; margin: 0; font: 600 17px / 1.2 var(--display); }
 .sh-sheet-body { padding: 4px 8px 12px; overflow: hidden auto; overscroll-behavior: contain; }
@@ -172,3 +175,29 @@
 .sh-nogl a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 22px; border-radius: 999px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; }
 
 @media (prefers-reduced-motion: reduce) { .sh-root, .sh-root * { transition-duration: 1ms !important; } }
+
+/* the sheets' extras */
+.sh-hit-row b { font-weight: 600; color: var(--accent); }
+.sh-look { width: 24px; height: 24px; border-radius: 8px; border: 1px solid var(--edge); background: var(--surface); }
+.sh-look[data-look="light"] { background: #fbfbfd; } .sh-look[data-look="soft"] { background: #ece4d8; } .sh-look[data-look="dark"] { background: #1c1c1f; }
+.sh-look[data-look="navy"] { background: #14233f; } .sh-look[data-look="black"] { background: #000; }
+.sh-look[data-look="system"] { background: linear-gradient(135deg, #fbfbfd 50%, #1c1c1f 50%); }
+.sh-row[role="radio"] { grid-template-columns: 24px 1fr auto; }
+.sh-scrim { position: absolute; inset: 0; z-index: 4; background: rgb(0 0 0 / 0.36); opacity: 0; visibility: hidden; transition: opacity 220ms var(--sh-ease), visibility 0s linear 220ms; pointer-events: none; }
+.sh-scrim[data-open="true"] { opacity: 1; visibility: visible; transition-delay: 0s; pointer-events: auto; }
+.sh-guide { padding: 0 12px 8px; } .sh-guide p { margin: 8px 0; font: 400 15px / 1.5 var(--ui); color: var(--text-2); } .sh-guide ul { margin: 6px 0; padding-left: 20px; color: var(--text-2); font: 400 15px / 1.5 var(--ui); }
+.sh-guide li { margin: 6px 0; } .sh-guide .sh-disclaimer { color: var(--text-3); font-size: 13px; }
+.sh-entries { display: grid; gap: 8px; margin: 10px 0 4px; } .sh-entries div { padding: 10px 12px; border: 1px solid var(--edge); border-radius: 14px; }
+.sh-entries b { display: block; font: 600 15px / 1.3 var(--ui); color: var(--text); } .sh-entries span { font: 400 14px / 1.45 var(--ui); color: var(--text-2); }
+.sh-keygroup { margin: 12px 0 0; font: 600 13px / 1 var(--ui); color: var(--text-2); padding: 0 10px; }
+
+/* the sheet of the presenter pill's gear stands above the pill (a panel above its button), outside .sh-root */
+.dk-settings { --sh-ease: cubic-bezier(0.2, 0.7, 0.2, 1); --sh-t: 200ms; font-family: var(--ui); color: var(--text); }
+.dk-settings .sh-sheet[data-place="bar"] { position: absolute; right: 0; bottom: 52px; top: auto; left: auto; width: 360px; max-width: calc(100vw - 24px); max-height: min(560px, calc(100vh - 120px)); margin: 0; z-index: 5; }
+:where(.dk-settings) button { font: inherit; color: inherit; cursor: pointer; }
+
+/* diagnostics: bottom-left, never over the controls it measures */
+.sh-diag { position: absolute; left: calc(var(--safe-l, 0px) + 8px); bottom: calc(var(--safe-b, 0px) + 8px); display: flex; flex-direction: column; gap: 4px; pointer-events: none; z-index: 6; }
+.sh-diag-box { margin: 0; padding: 4px 8px; border-radius: 8px; background: rgb(0 0 0 / 0.72); color: #fff; font: 11px / 1.35 ui-monospace, Menlo, monospace; white-space: pre-wrap; max-width: min(520px, 92vw);
+  opacity: 0; visibility: hidden; transition: opacity 200ms var(--sh-ease), visibility 0s linear 200ms; }
+.sh-diag-box[data-on="true"] { opacity: 1; visibility: visible; transition-delay: 0s; }

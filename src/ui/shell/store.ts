@@ -5,7 +5,7 @@ import { UI } from '../strings.generated.ts';
 import { STORAGE_PREFIX } from '../../state/settings.ts';
 import type { ViewId } from './views.ts';
 
-export type Sheet = 'menu' | 'settings' | 'search' | 'help' | 'history' | 'blood' | 'layers' | 'lens' | 'speed' | 'jump' | null;
+export type Sheet = 'menu' | 'settings' | 'search' | 'help' | 'history' | 'guide' | 'blood' | 'layers' | 'lens' | 'speed' | 'jump' | null;
 export type MenuTab = 'present' | 'patients';
 export type LensId = (typeof UI.lenses)[number]['id'];
 export const LENS_IDS: readonly LensId[] = UI.lenses.map((l) => l.id);
