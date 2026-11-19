@@ -152,8 +152,12 @@ export class CameraRig {
     this.dirty = true;
   }
 
-  /** The cards changed room (a card opened, the phone turned): move the room alone, same curve; the hand's zoom stays (cards opening keep the zoom). */
-  setRoom(room: Room, now: number, ms = SHOT_MS): void { this.goTo(this.to.shot, room, now, ms, true); }
+  /** The cards changed room (a card opened, the phone turned): move the room alone, same curve; the hand's zoom and the viewer's turn stay (cards opening keep both). `homeTurn`: a guided step brings the turn home with the move. */
+  setRoom(room: Room, now: number, ms = SHOT_MS, homeTurn = false): void {
+    this.goTo(this.to.shot, room, now, ms, true);
+    // a guided step (a slide, a catheter step) that asks for the shot the camera is already on still brings the turn home: the viewer's angle is theirs only between guided poses
+    if (homeTurn) this.orbitTo = 0;
+  }
 
   /** Limited orbit by drag, ±25°, clamped. Returns true when it changed (a frame is needed). */
   setOrbit(rad: number): boolean {

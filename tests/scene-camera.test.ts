@@ -125,6 +125,23 @@ test('a card opening (the room alone changes) leaves the turn the viewer chose; 
   assert.ok(Math.abs(rig.orbitAngle) < 1e-9, 'a new shot eases the turn home with the move');
 });
 
+test('a guided step that asks for the shot the camera is already on still brings the turn home (a slide or a catheter step), while a plain card change does not', () => {
+  const room = { x: 0, y: 0, w: 500, h: 600 };
+  const rig = new CameraRig('free');
+  rig.resize(800, 600);
+  rig.goTo('free', fullRoom(800, 600), 0, 0); rig.update(0);
+  rig.setOrbit(0.3);
+  rig.setRoom(room, 100);                                  // a card opened: the turn stays
+  rig.update(100); rig.update(2000);
+  assert.equal(rig.orbitAngle, 0.3);
+  rig.setRoom(room, 3000, undefined, true);                // the next slide, same shot: the turn goes home with the move
+  rig.update(3000 + SHOT_MS / 2);
+  assert.ok(rig.orbitAngle > 0 && rig.orbitAngle < 0.3, 'on its way');
+  rig.update(3000 + SHOT_MS);
+  assert.equal(rig.orbitAngle, 0);
+  assert.equal(rig.update(5000), false, 'and quiet');
+});
+
 test('dragging turns the figure with the finger: a drag to the right moves the figure\'s front to the right on screen', () => {
   const room = fullRoom(800, 600);
   const shot = SHOTS.free;
