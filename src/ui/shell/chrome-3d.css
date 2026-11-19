@@ -8,17 +8,21 @@
 .sh-root > .app :is(.topbar, .vdock, .zoom-pill)[data-hidden="true"], .sh-root[data-mode="deck"] > .app :is(.topbar, .vdock, .zoom-pill, .stage-credit) { opacity: 0; pointer-events: none !important; }
 .sh-root[data-mode="deck"] > .app * { pointer-events: none !important; }
 .sh-root > .app .stage-credit.placed { opacity: 1; }
-/* the Present column's action row (B12); the rest of the shell is the 2D stylesheet */
-.sh-acts { display: flex; flex-wrap: wrap; gap: 8px; }
-.sh-acts .sh-btn { min-height: 44px; padding: 0 16px; }
-.sh-acts .sh-btn[data-primary="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 /* the 2D dialog (About the model, References, Privacy) sits in the shell, whose root takes no taps */
 .sh-root > .modal-back.show { pointer-events: auto; }
 /* the 2D menus, the palette and the sheet scrim sit in the shell, whose root takes no taps */
-.sh-root > .menu:not(.leaving), .sh-root > .um-scrim:not(.out), .sh-root > .pal-back:not([hidden]):not(.leaving) { pointer-events: auto; }
+.sh-root > .menu:not(.leaving), .sh-root > .umenu:not(.out), .sh-root > .um-pv, .sh-root > .um-scrim:not(.out), .sh-root > .pal-back:not([hidden]):not(.leaving) { pointer-events: auto; }
 /* a menu that is a bottom sheet (the stacked layout) comes up and goes down on the compositor (2D writes it in the page's frames, sheet-ride.js; 3D has no sheet layer, so CSS does it) */
 @keyframes mn-sheet-in { from { translate: 0 100%; opacity: 0; } to { translate: 0 0; opacity: 1; } }
 @keyframes mn-sheet-out { from { translate: 0 0; opacity: 1; } to { translate: 0 100%; opacity: 0; } }
 .sh-root > .menu.as-sheet { animation: mn-sheet-in var(--d-surface, .42s) var(--ease, cubic-bezier(.2, .7, .2, 1)) both; }
 .sh-root > .menu.as-sheet.leaving { animation: mn-sheet-out var(--d-flip, .18s) var(--ease-in, ease-in) forwards; }
-@media (prefers-reduced-motion: reduce) { .sh-root > .menu.as-sheet, .sh-root > .menu.as-sheet.leaving { animation-duration: 1ms; } }
+.sh-root > .umenu.sheet { animation: mn-sheet-in var(--d-surface, .42s) var(--ease, cubic-bezier(.2, .7, .2, 1)) both; }
+.sh-root > .umenu.sheet.out { animation: mn-sheet-out var(--d-flip, .18s) var(--ease-in, ease-in) forwards; }
+/* the preview under a menu row folds open and shut by its own keyframes (2D transitions it from a class set a frame later; React mounts it open) */
+@keyframes um-inline-in { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
+@keyframes um-inline-out { from { grid-template-rows: 1fr; opacity: 1; } to { grid-template-rows: 0fr; opacity: 0; } }
+.sh-root > .um-pv { animation: crossfade var(--d-flip, .18s) var(--ease, ease) both; }
+.um-inline.on { animation: um-inline-in var(--d-small, .28s) var(--ease, cubic-bezier(.2, .7, .2, 1)) both; }
+.um-inline.on.out { animation: um-inline-out var(--d-small, .28s) var(--ease, cubic-bezier(.2, .7, .2, 1)) forwards; }
+@media (prefers-reduced-motion: reduce) { .sh-root > .menu.as-sheet, .sh-root > .menu.as-sheet.leaving, .sh-root > .umenu.sheet, .sh-root > .umenu.sheet.out { animation-duration: 1ms; } }
