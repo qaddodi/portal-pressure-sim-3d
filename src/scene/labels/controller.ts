@@ -12,6 +12,7 @@ import { type Form, type Item, type Placement, boxOf, solve } from './solver.ts'
 import { STATIONS, type Station } from './stations.ts';
 import { LABEL_NAMES } from './names.copied.ts';
 import { fmtPressure } from '../../ui/text/line.ts';
+import { LS, boxSize, organRun, stationRuns } from './type.ts';
 import type { CathState, ReadingKey } from '../../decks/schema.ts';
 
 export interface LabelDeps {
@@ -27,6 +28,10 @@ export interface LabelDeps {
   blockers(): Box[];
   /** Text width in px (the pill's font); called at build time only, never per frame. */
   measure(text: string, size: number, weight: number, track?: number): number;
+  /** The screen's size (CSS px): label type sizes follow its short side, as the 2D app's do. */
+  vp(): { w: number; h: number };
+  /** Whether the blood in a vessel (a topology edge) runs backwards now: its station then carries the reversal mark. */
+  reversed(edge: string): boolean;
   /** A station's pressure (mmHg) from the engine's newest frame, null when unknown. */
   pressure(node: string): number | null;
   /** The slide's headline readings (whvp, fhvp, hvpg…), the same numbers the cards print. */
@@ -52,8 +57,6 @@ export const NO_STATE: LabelState = { named: new Set(), picked: null, cath: null
 /** Space between the key and the edge of the free room. */
 export const KEY_MARGIN = 12;
 
-// pill metrics (px)
-export const PILL = { h: 28, padX: 10, dot: 8, gap: 6, font: 13, name: 600, value: 700 } as const;
 export const CALL = { padX: 12, padY: 9, kicker: 11, value: 17, unit: 12, row: 22 } as const;
 
 export type Kind = 'station' | 'callout' | 'key';
@@ -68,7 +71,13 @@ export interface Draw {
   form: number;
   /** The station's reading, formatted. */
   value: string;
-  /** Leader from the dot to the box and the dot itself (station only). */
+  /** Where the station's ring stands on its vessel (station only; every station has one, as in the 2D app). */
+  dot: { x: number; y: number } | null;
+  /** The station's blood runs backwards now (the reversal mark shows after its reading). */
+  rev: boolean;
+  /** Padding round the words inside the box (the 2D app's), px. */
+  pad: { x: number; y: number };
+  /** Leader from the dot to the box (station only; when the label stands away from its vessel). */
   leader: { x: number; y: number; len: number; angle: number } | null;
   /** The pointer of a callout: where it leaves the card, in the card's own coordinates, and its tip (the dot) relative to the card's top-left. */
   tail: { below: boolean; fromX: number; tipX: number; tipY: number } | null;
@@ -81,6 +90,8 @@ interface Meta {
   callout: CalloutKind | null;
   forms: Form[];
   vwUnits: number;
+  /** The station's blood runs backwards: its words carry the reversal mark. */
+  rev?: boolean;
 }
 type CalloutKind = 'f' | 'w' | 's';
 
@@ -147,24 +158,26 @@ export class LabelController {
   }
 
   private metaOf(s: Station): Meta {
-    return { id: s.id, kind: 'station', station: s, callout: null, forms: this.stationForms(s), vwUnits: 0 };
+    const rev = !!s.vessel && s.kind !== 'organ' && this.deps.reversed(s.vessel);
+    return { id: s.id, kind: 'station', station: s, callout: null, forms: this.stationForms(s, rev), vwUnits: 0, rev };
   }
 
-  stationForms(s: Station): Form[] {
-    const c = this.formCache.get(s.id);
+  /** The forms a station can take, widest first (the 2D app's own: the full name and reading, the short name and reading, the reading alone).
+   *  Each is its words' width and height in the 2D type (type.ts) plus the 2D padding; none has a pill. */
+  stationForms(s: Station, reversed = false): Form[] {
+    const key = s.id + (reversed ? '|r' : '');
+    const c = this.formCache.get(key);
     if (c) return c;
-    const d = this.deps, P = PILL;
-    const val = d.measure('00.0', P.font, P.value);
-    const name = (t: string) => d.measure(t, P.font, P.name);
-    const forms: Form[] = [];
-    if (s.kind === 'organ') forms.push({ text: s.name, w: P.padX * 2 + name(s.name), h: P.h });
+    const d = this.deps, vp = d.vp(), forms: Form[] = [];
+    const form = (text: string, runs: ReturnType<typeof stationRuns>, organ = false): Form => { const b = boxSize(runs, vp, d.measure, organ); return { text, w: Math.ceil(b.w * 100) / 100, h: Math.ceil(b.h * 100) / 100 }; };
+    if (s.kind === 'organ') forms.push(form(s.name.toUpperCase(), [organRun(s.name)], true));
     else {
-      const lead = P.padX + P.dot + P.gap, tail = P.gap + val + P.padX;
-      forms.push({ text: s.name, w: lead + name(s.name) + tail, h: P.h });
-      if (s.abbr && s.abbr !== s.name) forms.push({ text: s.abbr, w: lead + name(s.abbr) + tail, h: P.h });
-      forms.push({ text: '', w: lead + val + P.padX, h: P.h });
+      const has = !!s.node;
+      forms.push(form(s.name, stationRuns(s.name, has, reversed)));
+      if (s.abbr && s.abbr !== s.name) forms.push(form(s.abbr, stationRuns(s.abbr, has, reversed)));
+      if (has) forms.push(form('', stationRuns('', true, reversed)));
     }
-    this.formCache.set(s.id, forms);
+    this.formCache.set(key, forms);
     return forms;
   }
 
@@ -209,7 +222,7 @@ export class LabelController {
     for (const m of metas) next.set(m.id, m);
     // the set of labelled things changed: solve again
     let setSig = '';
-    for (const m of metas) setSig += m.id + ',';
+    for (const m of metas) setSig += m.id + (m.rev ? '~' : '') + ',';
 
     // 1. where the dots are; any that moved hides everything until the picture is still
     let moved = this.firstTick || d.cameraMoving();
@@ -247,7 +260,7 @@ export class LabelController {
     for (const [id, s] of this.fader.frame) {
       if (s.alpha <= 0) continue;
       if (id === 'key') {
-        this.out.push({ id, kind: 'key', alpha: s.alpha, x: s.p.dx, y: s.p.dy, w: s.p.w, h: s.p.h, form: 0, value: '', leader: null, tail: null });
+        this.out.push({ id, kind: 'key', alpha: s.alpha, x: s.p.dx, y: s.p.dy, w: s.p.w, h: s.p.h, form: 0, value: '', dot: null, rev: false, pad: { x: 0, y: 0 }, leader: null, tail: null });
         continue;
       }
       const m = this.metas.get(id) ?? next.get(id);
@@ -258,9 +271,12 @@ export class LabelController {
       const ax = a.x, ay = a.y;
       const box = boxOf(s.p, ax, ay);
       const dim = m.kind === 'station' && this.state.named.size > 0 && !this.isNamed(m) ? s.dim : 0;
+      const organ = m.station?.kind === 'organ', ringed = m.kind === 'station' && !organ;
+      const pad = m.kind !== 'station' ? { x: 0, y: 0 } : organ ? { x: LS.ORGAN.padX, y: LS.ORGAN.padY } : { x: LS.PAD.x, y: LS.PAD.y };
       this.out.push({
         id, kind: m.kind, alpha: labelOpacity(s.alpha, dim), x: box.x0, y: box.y0, w: s.p.w, h: s.p.h, form: s.p.form,
-        value: this.valueOf(m), leader: s.p.leader && m.kind === 'station' ? leaderGeom(ax, ay, box) : null,
+        value: this.valueOf(m), dot: ringed ? { x: ax, y: ay } : null, rev: !!m.rev, pad,
+        leader: s.p.leader && ringed ? leaderGeom(ax, ay, { x0: box.x0 + pad.x, y0: box.y0 + pad.y, x1: box.x1 - pad.x, y1: box.y1 - pad.y }) : null,
         tail: s.p.tail ? { below: s.p.tail.below, fromX: Math.max(CALL_KEEP - s.p.w / 2, Math.min(s.p.w / 2 - CALL_KEEP, s.p.tail.ax)) + s.p.w / 2, tipX: ax - box.x0, tipY: ay - box.y0 } : null,
       });
     }
