@@ -35,7 +35,7 @@ fresh in 3D when 2D already had it, or a 3D default nobody turned off.
 9. A look board on the Mac: 2D and 3D side by side at the same framing, captured in his own browser, compared by a node script. (WP11)
 10. The finish: line quality, easing, loading, empty states, reduced motion, dark-look edges. (WP12)
 
-**Three decisions for Mohammad** (my recommendation first):
+**Three decisions, all adopted by Mohammad (19 Nov 2026, 5:19 PM ET: "Adopt all three"):**
 - **A. Organs translucent like 2D** (organ layer at 55 % on Light and Dark, 72 % on Soft) rather than opaque 3D bodies. Recommended: it is the 2D rule word for word, and it is what makes the vessels the hero.
 - **B. Rest the anatomy face on** (yaw 0, pitch 0, long lens) and let the drag orbit and spring back, rather than resting turned. Recommended: the plate then matches 2D 1:1 and the labels line up; the 3D shows the moment you touch it.
 - **C. Lobule and sinusoid as 2.5D** (2D's painters on planes, 3D only in the dive and the vessels) rather than modelled 3D tissue. Recommended: 2D's lobule is a histology plate, and every 3D artifact in the screenshots comes from extruding it.
