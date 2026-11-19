@@ -47,6 +47,8 @@ import { useScope } from '../tests/endo/scope-state.ts';
 import { lazy, Suspense } from 'react';
 import { useUi } from '../ui-store.ts';
 import { AbdomenPane } from '../tests/abdomen/AbdomenPane.tsx';
+import { BeatCard } from '../tests/slide/BeatCard.tsx';
+import { setSlidePin } from '../tests/slide/pin.ts';
 import { startFeed } from '../tests/feed.ts';
 import { useTests } from '../tests/store.ts';
 import { setDopplerProbe, useDopplerProbe, type Gate } from '../tests/doppler/probe-state.ts';
@@ -119,7 +121,10 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'vitals': return <VitalsCard tool={tool} fp={fp as never} />;
     case 'forest': return <ForestCard ids={(tool.ids as string[] | undefined) ?? []} />;
     case 'stiffness': return <StiffCard lsm={(fp?.lsm as number | null | undefined) ?? null} plt={(fp?.plt as number | null | undefined) ?? null} note />;
-    case 'trace': return <TraceCard chain={chainFor(copied.slides as never, stateOf, (results ?? []).map((r) => r && { fp: r.fp as never, params: r.params }), i, tool as never)} {...traceProps(tool as never)} />;
+    case 'trace':
+      // beat by beat: the live record on EKG paper, the numbers the slide's own, the state before its event as two dotted lines (2D pressure-time.js on a slide)
+      if (tool.range === 'beats') return <BeatCard fp={fp as never} before={(refOf(cs as never, i, copied.slides as never, fpOf, stateOf) as never) ?? null} deltaLabel={typeof tool.deltaLabel === 'string' ? tool.deltaLabel : undefined} ekg={tool.ekg !== false} />;
+      return <TraceCard chain={chainFor(copied.slides as never, stateOf, (results ?? []).map((r) => r && { fp: r.fp as never, params: r.params }), i, tool as never)} {...traceProps(tool as never)} />;
     case 'shift': return <Shift deck={deck} i={i} lit={(cs.key as string[] | undefined) ?? undefined} live={fp as never} />;
     case 'visual:plane': return <PlaneVisual deck={deck} cs={cs} fpOf={fpOf} />;
     case 'visual:ladders': return <LaddersCard slide={cs as never} deck={copied as never} />;
@@ -128,7 +133,7 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'doppler': case 'fibroscan': case 'abdomen': case 'hvpg': case 'scope': case 'wall': {
       const ghost = ghostOf(cs as never, i, copied.slides as never, fpOf as never, stateOf);
       return <>{ghost ? <p className="pz-ghost"><span>{ghost.label}</span><b>{ghost.value}</b></p> : null}
-        {kind === 'hvpg' ? <HvpgTool fp={fp as Rec | null} cath={cs.cath} catheter={!!tool.catheter} forward={forward} /> : <Instrument kind={kind as InstrumentKind} tool={tool} slideKey={`${deck.id}/${slide.id}`} />}</>;
+        {kind === 'hvpg' ? <HvpgTool fp={fp as Rec | null} cath={cs.cath} catheter={!!tool.catheter} forward={forward} /> : <Instrument kind={kind as InstrumentKind} tool={tool} slideKey={`${deck.id}/${slide.id}`} fp={fp} cs={cs} />}</>;
     }
     case 'reading': return <ReadingTool procedure={cs.procedure} of={tool.of} fp={fp as Rec | null} />;
     default: return null;
@@ -137,7 +142,15 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
 
 /** A Tests-card instrument as a slide's data card: the pane of the Tests card, sized to the card's width. It reads the live model; the slide's vessel, gate, organ and view are set when it comes up
  *  (ui/talk/instruments.ts says what each kind reads of the slide's tool), and a compare button or slider that moves one option of it is laid over the slide's own (tool-options.ts). */
-function Instrument({ kind, tool, slideKey }: { kind: InstrumentKind; tool: Rec; slideKey: string }) {
+/** The state the slide's change started from: its delta (true: the slide before's state; a slide's id: that one's), 2D presenter-question.js refOf. */
+function refOf(cs: CopiedSlide, i: number, slides: CopiedSlide[], fpOf: (id: string) => Fp | null, stateOf: readonly number[]): Fp | null {
+  const tool = (cs.tool ?? {}) as Rec;
+  const d = tool.delta != null ? tool.delta : (cs as Rec).delta ?? (i > 0 && !(cs as Rec).preset && changes(cs) ? true : null);
+  if (d === true) return i > 0 ? fpOf(slides[stateOf[i - 1]!]!.id) : null;
+  return typeof d === 'string' ? fpOf(d) : null;
+}
+
+function Instrument({ kind, tool, slideKey, fp, cs }: { kind: InstrumentKind; tool: Rec; slideKey: string; fp: Fp | null; cs: CopiedSlide }) {
   const w = useUi((s) => s.vp.w);
   const patched = useToolPatch((s) => s.patch), patchKey = useToolPatch((s) => s.key);
   const opts = useMemo(() => withPatch(tool, slideKey, { key: patchKey, patch: patched }), [tool, slideKey, patchKey, patched]);
@@ -158,12 +171,15 @@ function Instrument({ kind, tool, slideKey }: { kind: InstrumentKind; tool: Rec;
     pr.setSlide({ doppler: figure, fibro, endoscope: scope }); pr.setDopplerPoints(points);
     return () => { const q = useProbes.getState(); q.setSlide({ doppler: false, fibro: false, endoscope: false }); q.setDopplerPoints(false); };
   }, [figure, fibro, scope, points]);
+  // the slide's own numbers for the pane (2D presenter-tools pin): the settled state its tiles and words show, not the beat-to-beat live value
+  useEffect(() => { setSlidePin(fp); }, [fp]);
+  useEffect(() => () => setSlidePin(null), []);
   const plot = Math.round(Math.min(220, Math.max(150, w * 0.32)));
   const p = { narrow: w < 470, plot, square: plot, roomy: false };
   return (
     <div className="dock-pane-host" data-instrument={kind}>
       <Suspense fallback={null}>
-        {kind === 'doppler' ? <DopplerPane {...p} options={opts} /> : kind === 'fibroscan' ? <FibroPane {...p} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} options={opts} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : null}
+        {kind === 'doppler' ? <DopplerPane {...p} options={opts} slide /> : kind === 'fibroscan' ? <FibroPane {...p} slide bar={tool.bar !== false} platelets={((cs.tiles as string[] | undefined) ?? []).includes('plt')} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} options={opts} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : null}
       </Suspense>
     </div>
   );
