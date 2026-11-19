@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { EDGES, JUNCTION_PIECES } from '../src/engine/hales/portal/topology.js';
 import { HOSTS, VESSELS, buildVessel, vesselPoints } from '../src/scene/anatomy/vessels.ts';
 import { EDGE_IDS, hasVessel, indexOf } from '../src/engine/vessel-data.ts';
+import { lobuleShot, sinusoidShot } from '../src/scene/lobule/index.ts';
 import { CelScene } from '../src/scene/scene.ts';
 
 const edges = EDGES as { id: string; from: string; to: string; d?: number }[];
@@ -96,17 +97,24 @@ test('every vessel object knows its edge and its data texel', () => {
 
 test('the figure\'s views: the new one shows at once, the one left behind is hidden when the camera has landed (nothing pops)', () => {
   const s = new CelScene();
+  const room = { x: 0, y: 0, w: 1000, h: 700 };
+  s.resize(1000, 700);
+  s.goTo('play', room, 0);   // (the first shot with a room puts the camera there at once)
   const drawn = () => { let n = 0; s.scene.traverseVisible((o) => { if ((o as { isMesh?: boolean }).isMesh) n++; }); return n; };
+  s.update(10);
   const body = drawn();
   s.setView('lobule');
   assert.ok(s.lobule.isVisible && drawn() > body, 'the lobule is up and the body still drawn while the camera flies');
-  s.update(100);
+  s.goTo(lobuleShot('lobule'), room, 100, 0);
+  s.update(110);
   assert.ok(s.lobule.isVisible && !s.sinus.isVisible);
+  assert.equal(s.bodyShown, 0, 'inside the liver the body has dissolved');
   assert.ok(drawn() < body, 'landed: only the lobule is drawn');
-  s.setView('sinusoid'); s.update(200);
+  s.setView('sinusoid'); s.goTo(sinusoidShot(), room, 200, 0); s.update(210);
   assert.ok(s.sinus.isVisible && !s.lobule.isVisible);
   s.setView('body'); assert.ok(drawn() > 0);
-  s.update(300);
+  s.goTo('play', room, 300, 0); s.update(310);
+  assert.equal(s.bodyShown, 1);
   assert.equal(drawn(), body, 'back on the body, as it was');
   s.dispose();
 });

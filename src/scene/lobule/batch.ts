@@ -64,7 +64,7 @@ export class Batch {
     const ring = radial + 1;
     for (let i = 0; i < n - 1; i++) for (let j = 0; j < radial; j++) {
       const a = base + i * ring + j, b = a + ring, c = b + 1, d = a + 1;
-      this.idx.push(a, b, d, b, c, d);
+      this.idx.push(a, d, b, b, d, c);   // (counter-clockwise seen from outside: the toon pass draws front faces only, so a tube wound the other way is drawn as ink alone)
     }
     if (o.capped) {
       for (const end of [0, n - 1]) {
@@ -81,7 +81,7 @@ export class Batch {
           this.pos.push(P[end]!.x + (Nn.x * c + B.x * s) * r, P[end]!.y + (Nn.y * c + B.y * s) * r, P[end]!.z + (Nn.z * c + B.z * s) * r);
           this.nor.push(axis.x, axis.y, axis.z); this.uv.push(ux, j / radial); this.tan.push(T[end]!.x, T[end]!.y, T[end]!.z); this.count++;
         }
-        for (let j = 0; j < radial; j++) { if (end === 0) this.idx.push(centre, first + j, first + j + 1); else this.idx.push(centre, first + j + 1, first + j); }
+        for (let j = 0; j < radial; j++) { if (end === 0) this.idx.push(centre, first + j + 1, first + j); else this.idx.push(centre, first + j, first + j + 1); }
       }
     }
     return arc;

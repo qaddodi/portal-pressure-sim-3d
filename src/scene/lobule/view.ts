@@ -23,6 +23,7 @@ import { type LobuleModel, easeToward, lymphRate, lymphSeal } from './model.ts';
 import { LOBULE_PARTS, type LobulePartName, PartSet } from './parts.ts';
 import { LOBULE_PALETTES, tone } from './tones.ts';
 import { LOBULE_R, LOBULE_T, lobuleToScene, slabZ } from './shots.ts';
+import { lobuleWorld } from './frames.ts';
 import { WASH_DELAY_MS, washAmount, washFront, washProgress } from './wash.ts';
 
 const R = LOBULE_R;
@@ -325,12 +326,14 @@ export class LobuleView {
 
   // ---- tags, picking, warming -----------------------------------------------------------------------------------------------------
 
-  /** Scene points of the places tags name: the centre, each triad ('triad:0' to 'triad:5'), the zones ('zone:1' periportal, 'zone:2' midzonal, 'zone:3' pericentral). */
+  /** Scene (world) points of the places tags name: the centre, each triad ('triad:0' to 'triad:5'), the zones ('zone:1' periportal, 'zone:2' midzonal, 'zone:3' pericentral).
+   *  The lobule stands inside the liver, so these are points of the liver, a hundred times closer together than the lobule's own units. */
   anchor(name: string, out: V3 = [0, 0, 0]): V3 {
-    if (name === 'centre') return lobuleToScene(0, 0, slabZ(0, 0) + LOBULE_T / 2, out);
-    if (name.startsWith('triad:')) { const t = this.net.triads[Number(name.slice(6))]; if (t) return lobuleToScene(t.x, t.y, slabZ(t.x, t.y) + LOBULE_T / 2, out); }
-    if (name.startsWith('zone:')) { const rr = { 1: 0.82, 2: 0.5, 3: 0.2 }[Number(name.slice(5)) as 1 | 2 | 3] ?? 0.5; return lobuleToScene(Math.cos(Math.PI / 6) * rr, Math.sin(Math.PI / 6) * rr, slabZ(0.7, 0.4) + LOBULE_T / 2, out); }
-    return lobuleToScene(0, 0, 0, out);
+    const w = (x: number, y: number, z: number) => lobuleWorld(lobuleToScene(x, y, z, out), out);
+    if (name === 'centre') return w(0, 0, slabZ(0, 0) + LOBULE_T / 2);
+    if (name.startsWith('triad:')) { const t = this.net.triads[Number(name.slice(6))]; if (t) return w(t.x, t.y, slabZ(t.x, t.y) + LOBULE_T / 2); }
+    if (name.startsWith('zone:')) { const rr = { 1: 0.82, 2: 0.5, 3: 0.2 }[Number(name.slice(5)) as 1 | 2 | 3] ?? 0.5; return w(Math.cos(Math.PI / 6) * rr, Math.sin(Math.PI / 6) * rr, slabZ(0.7, 0.4) + LOBULE_T / 2); }
+    return w(0, 0, 0);
   }
 
   /** The part whose toon mesh a ray hits first (for tap-to-explain), or null. */

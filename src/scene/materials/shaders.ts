@@ -14,6 +14,14 @@ export const VESSEL_TEXEL = {
   a: 'downstreamPressure',
 } as const;
 
+/** The dive's dissolve: a part fades by dropping a growing share of its pixels in a fixed screen pattern (interleaved gradient noise), so an object can be there, half there
+ *  and gone with no alpha and no sorting, and never pops. `fade` 1 draws everything (one compare), 0 nothing. The toon, ink and vessel passes use the same pattern, so an
+ *  object's ink goes with its fill. */
+export const FADE_GLSL = /* glsl */ `
+uniform float fade;
+bool fadedOut() { return fade < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= fade; }
+`;
+
 export const TOON_VS = /* glsl */ `
 attribute vec3 tang;
 uniform float inflate;
@@ -44,6 +52,7 @@ void main() {
 }`;
 
 export const TOON_FS = /* glsl */ `
+${FADE_GLSL}
 uniform vec3 color;
 uniform vec3 shade;
 uniform vec3 light;
@@ -90,6 +99,7 @@ float flowMask(float speed, float across) {
 
 void main() {
   if (reveal < 0.9999 && vUv.x > reveal) discard;
+  if (fadedOut()) discard;
   vec3 n = normalize(vN);
   vec3 l = normalize((viewMatrix * vec4(light, 0.0)).xyz);
   float d = dot(n, l) * 0.5 + 0.5;
@@ -150,9 +160,10 @@ void main() {
 }`;
 
 export const INK_FS = /* glsl */ `
+${FADE_GLSL}
 uniform vec3 color;
 uniform vec3 hiColor;
 uniform float reveal;
 varying float vHi;
 varying float vU;
-void main() { if (reveal < 0.9999 && vU > reveal) discard; gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), 1.0); }`;
+void main() { if (reveal < 0.9999 && vU > reveal) discard; if (fadedOut()) discard; gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), 1.0); }`;

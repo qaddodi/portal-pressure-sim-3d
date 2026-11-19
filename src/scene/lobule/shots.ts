@@ -1,16 +1,22 @@
 // The lobule's and the sinusoid's camera shots, as the 2D app's slide cameras name them (decks: cam 'lobule' | 'lobule:fit' | 'lobule:triad' |
 // 'lobule:sinusoid' | 'lobule:central' | 'sinusoid'). A shot is the same `Shot` the rest of the scene uses, so `sceneApi.goTo(shot, room)` flies to
-// it straight from wherever the camera is (no fit waypoint, 950 ms), fitted into the room the cards leave free. These views sit away from the body
-// in the one scene (LOBULE_ORIGIN, SINUSOID_ORIGIN), so opening one is a camera move and nothing is built: the views open instantly (owner, 17 Nov).
+// it straight from wherever the camera is (no fit waypoint, 950 ms), fitted into the room the cards leave free.
+//
+// The views are INSIDE the liver (owner, 19 Nov: "the lobule and sinusoid views have to be INSIDE, like a dive in"). The lobule is built in its own
+// local units (R = 3, a slab 0.9 thick) and stands at a point inside the right lobe, at LOBULE_SCALE of the scene (frames.ts); the sinusoid is built
+// in its own units and stands inside the lobule, at a sinusoid, one more step down. Opening a view is therefore one straight camera dive from the body:
+// anatomy, liver, lobule, sinusoid, and back out the same way. Nothing is built or moved to open one (the views open instantly, owner 17 Nov).
+// The shots here are in WORLD units (local × the frame's scale, plus its place), so `goTo` needs nothing else.
 import type { Shot } from '../camera/shots.ts';
 import type { V3 } from './batch.ts';
+import { LOBULE_SCALE, SIN_SCALE, lobuleWorld, sinusoidWorld } from './frames.ts';
 
 /** The lobule's radius in scene units (the body plate is about 4.6 wide) and the slab's thickness. */
 export const LOBULE_R = 3;
 export const LOBULE_T = 0.9;
-/** Where the views stand in the scene. Away from the body (which spans about ±3.5), so they never overlap it and the camera flies between them. */
-export const LOBULE_ORIGIN: V3 = [24, 0, 0];
-export const SINUSOID_ORIGIN: V3 = [48, 0, 0];
+/** The views' own origins: each is built around its own (0, 0, 0); frames.ts puts the lobule inside the liver and the sinusoid inside the lobule. */
+export const LOBULE_ORIGIN: V3 = [0, 0, 0];
+export const SINUSOID_ORIGIN: V3 = [0, 0, 0];
 /** The sinusoid's drawn length (portal end at -L/2, central vein end at +L/2). */
 export const SINUSOID_L = 6;
 
@@ -30,7 +36,7 @@ const YAW = -0.1, PITCH = 0.14;
 /** Half extents of the whole lobule's hexagon in the view plane (a hexagon of radius R: R wide, 0.866 R high, with the neighbours' hint). */
 const FIT_HALF: [number, number] = [LOBULE_R * 1.12, LOBULE_R * 1.0];
 
-/** The shot for a lobule camera name. */
+/** The shot for a lobule camera name (world units: inside the liver). */
 export function lobuleShot(cam: LobuleCam): Shot {
   const [ox, oy, oz] = LOBULE_ORIGIN;
   if (cam === 'sinusoid') return sinusoidShot();
@@ -41,19 +47,19 @@ export function lobuleShot(cam: LobuleCam): Shot {
   const along = part === 'fit' || part === 'central' ? 0 : -1 + st.wf;
   return {
     yaw: YAW, pitch: PITCH,
-    r: part === 'fit' ? 6 : 2.5,
-    target: [ox + along * LOBULE_R, oy, oz],
-    half: [FIT_HALF[0] / st.zoom, FIT_HALF[1] / st.zoom],
+    r: (part === 'fit' ? 6 : 2.5) * LOBULE_SCALE,
+    target: lobuleWorld([ox + along * LOBULE_R, oy, oz]),
+    half: [(FIT_HALF[0] / st.zoom) * LOBULE_SCALE, (FIT_HALF[1] / st.zoom) * LOBULE_SCALE],
   };
 }
 
-/** The sinusoid view's shot: the whole length of one cut sinusoid, portal end left. */
+/** The sinusoid view's shot: the whole length of one cut sinusoid, portal end left (world units: inside the lobule). */
 export function sinusoidShot(): Shot {
   const [ox, oy, oz] = SINUSOID_ORIGIN;
-  return { yaw: -0.06, pitch: 0.1, r: 3, target: [ox, oy, oz], half: [SINUSOID_L / 2 + 0.4, 1.9] };
+  return { yaw: -0.06, pitch: 0.1, r: 3 * SIN_SCALE, target: sinusoidWorld([ox, oy, oz]), half: [(SINUSOID_L / 2 + 0.4) * SIN_SCALE, 1.9 * SIN_SCALE] };
 }
 
-/** Lobule coordinates (the 2D plane: x right, y DOWN, in lobule radii) to the scene, on the slab's middle plane plus z. */
+/** Lobule coordinates (the 2D plane: x right, y DOWN, in lobule radii) to the lobule's own local units, on the slab's middle plane plus z. */
 export function lobuleToScene(x: number, y: number, z = 0, out: V3 = [0, 0, 0]): V3 {
   out[0] = LOBULE_ORIGIN[0] + x * LOBULE_R; out[1] = LOBULE_ORIGIN[1] - y * LOBULE_R; out[2] = LOBULE_ORIGIN[2] + z;
   return out;

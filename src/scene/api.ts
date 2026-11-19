@@ -18,6 +18,8 @@ import type { Gestures } from './gesture/controller.ts';
 import { createFrameQueue } from './gesture/frame-queue.ts';
 
 export const cel = new CelScene();
+/** A dive between the body, the lobule and the sinusoid: a little longer than a move between two body shots (950 ms), because it covers a few hundred times the distance. */
+export const DIVE_MS = 1250;
 
 /** The gestures' asks for "the next frame", run by the clock's tween phase (Stage.tsx). */
 export const frames = createFrameQueue(() => clock.invalidate('gesture'));
@@ -36,8 +38,10 @@ export const sceneApi = {
   },
   /** Show the body, the lobule or the sinusoid and fly to it, straight from wherever the camera is (the view left behind stays up until the camera lands). `cam` is a lobule camera ('lobule', 'lobule:triad'…). */
   showView(v: FigureView, room: Room, cam: LobuleCam = 'lobule'): void {
+    const from = cel.view;
     cel.setView(v);
-    this.goTo(v === 'body' ? 'play' : v === 'sinusoid' ? sinusoidShot() : lobuleShot(cam), room);
+    // body, lobule and sinusoid are one dive through the liver (camera/rig.ts blends it geometrically); a move between two of them takes the dive's time
+    this.goTo(v === 'body' ? 'play' : v === 'sinusoid' ? sinusoidShot() : lobuleShot(cam), room, from === v ? undefined : DIVE_MS);
   },
   /** The lobule's Layers menu (the 2D app starts with lymph on). */
   setLobuleLayers(l: Partial<LobuleLayers>): void { cel.setLobuleLayers(l); clock.invalidate('lobule-layers'); },

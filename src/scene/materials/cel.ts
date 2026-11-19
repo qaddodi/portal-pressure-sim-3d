@@ -63,6 +63,10 @@ export class CelObject {
   /** Reveal fraction along uv.x: parts beyond it are cut (the catheter feeding in). 1 shows all. */
   setReveal(r: number): void { this.toon.uniforms.reveal.value = r; this.ink.uniforms.reveal.value = r; }
 
+  /** How much of the object is drawn, 1 all (the default) to 0 none: it dissolves in a fixed pixel pattern, so it never pops (the dive into the liver dissolves the body). */
+  setFade(f: number): void { this.toon.uniforms.fade!.value = f; }
+  get fade(): number { return this.toon.uniforms.fade!.value as number; }
+
   readonly opts: CelOptions;
 
   constructor(geometry: BufferGeometry, opts: CelOptions, shared: CelShared) {
@@ -79,7 +83,7 @@ export class CelObject {
         bands: { value: opts.bands }, spec: { value: opts.spec }, inflate: { value: 0 },
         len: { value: v?.len ?? 1 }, time: shared.time, radius: { value: v?.radius ?? 0 }, baseD: { value: v?.baseD ?? 1 },
         vdata: shared.vdata, vdataSize: shared.vdataSize, vindex: { value: v?.index ?? 0 }, useData: { value: 0 },
-        stubSpeed: { value: v?.stubSpeed ?? 0 }, reveal: { value: 1 }, flowAmount: { value: 0 }, flowBands: { value: 0 },
+        stubSpeed: { value: v?.stubSpeed ?? 0 }, reveal: { value: 1 }, fade: { value: 1 }, flowAmount: { value: 0 }, flowBands: { value: 0 },
         markColor: { value: new Color() }, markReversed: { value: new Color() },
       },
     });
@@ -88,7 +92,7 @@ export class CelObject {
       fragmentShader: INK_FS,
       side: BackSide,
       uniforms: {
-        color: { value: new Color() }, hiColor: { value: new Color() }, inflate: this.toon.uniforms.inflate,
+        color: { value: new Color() }, hiColor: { value: new Color() }, inflate: this.toon.uniforms.inflate, fade: this.toon.uniforms.fade,
         px: { value: opts.px }, res: shared.res, len: this.toon.uniforms.len, reveal: this.toon.uniforms.reveal,
         hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 },
       },

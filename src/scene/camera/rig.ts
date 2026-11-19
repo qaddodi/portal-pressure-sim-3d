@@ -1,5 +1,6 @@
 import { PerspectiveCamera, Vector3 } from 'three';
 import { BODY_PLATE_Z, PLATE_BOUNDS } from '../anatomy/placeholder.ts';
+import type { Vec3 } from '../anatomy/vessels.ts';
 import { type View, lerpView } from '../gesture/ease.ts';
 import type { Rect } from '../gesture/view.ts';
 import { type Room, effectiveDistance, viewOffset } from './room.ts';
@@ -29,14 +30,38 @@ interface Pose { shot: Shot; room: Room }
 const copyShot = (s: Shot): Shot => ({ yaw: s.yaw, pitch: s.pitch, r: s.r, target: [...s.target], half: [...s.half] });
 const copyRoom = (r: Room): Room => ({ ...r });
 
+/** Beyond this ratio between two shots' distances the move is a dive (body to lobule is 200 to 1, lobule to sinusoid 20 to 1): see `blendPose`. */
+export const DIVE_RATIO = 6;
+const isDive = (a: Pose, b: Pose) => Math.max(a.shot.r, b.shot.r) / Math.max(1e-9, Math.min(a.shot.r, b.shot.r)) > DIVE_RATIO;
+
 /** The pose halfway (k) between two: every field interpolated directly, so the camera goes straight from any view to any view with no
- *  fit-everything waypoint in between (Mohammad, 18 Nov). */
+ *  fit-everything waypoint in between (Mohammad, 18 Nov).
+ *  A dive (the two distances differ by more than DIVE_RATIO: into the liver, the lobule, the sinusoid, and back out) zooms the way the eye does: the distance and the
+ *  framing change by the same ratio every moment (geometric, so the picture grows evenly instead of nothing happening and then a plunge at the end), and the aim
+ *  settles on the target as the distance closes (the target's share is the distance covered), so the place dived to stays in the middle of the picture all the way. */
 export function blendPose(a: Pose, b: Pose, k: number): Pose {
+  if (isDive(a, b)) return blendDive(a, b, k);
   return {
     shot: {
       yaw: lerpAngle(a.shot.yaw, b.shot.yaw, k), pitch: lerp(a.shot.pitch, b.shot.pitch, k), r: lerp(a.shot.r, b.shot.r, k),
       target: [lerp(a.shot.target[0], b.shot.target[0], k), lerp(a.shot.target[1], b.shot.target[1], k), lerp(a.shot.target[2], b.shot.target[2], k)],
       half: [lerp(a.shot.half[0], b.shot.half[0], k), lerp(a.shot.half[1], b.shot.half[1], k)],
+    },
+    room: { x: lerp(a.room.x, b.room.x, k), y: lerp(a.room.y, b.room.y, k), w: lerp(a.room.w, b.room.w, k), h: lerp(a.room.h, b.room.h, k) },
+  };
+}
+
+const geo = (a: number, b: number, k: number) => (a > 0 && b > 0 ? a * Math.pow(b / a, k) : lerp(a, b, k));
+function blendDive(a: Pose, b: Pose, k: number): Pose {
+  const r = geo(a.shot.r, b.shot.r, k);
+  // the share of the way the aim has gone: 0 at the start, 1 at the end, and most of it early when diving in (the distance is still large), so the target is centred before the close part
+  const span = a.shot.r - b.shot.r;
+  const q = Math.abs(span) < 1e-12 ? k : Math.min(1, Math.max(0, (a.shot.r - r) / span));
+  return {
+    shot: {
+      yaw: lerpAngle(a.shot.yaw, b.shot.yaw, k), pitch: lerp(a.shot.pitch, b.shot.pitch, k), r,
+      target: [lerp(a.shot.target[0], b.shot.target[0], q), lerp(a.shot.target[1], b.shot.target[1], q), lerp(a.shot.target[2], b.shot.target[2], q)],
+      half: [geo(a.shot.half[0], b.shot.half[0], k), geo(a.shot.half[1], b.shot.half[1], k)],
     },
     room: { x: lerp(a.room.x, b.room.x, k), y: lerp(a.room.y, b.room.y, k), w: lerp(a.room.w, b.room.w, k), h: lerp(a.room.h, b.room.h, k) },
   };
@@ -58,6 +83,8 @@ export class CameraRig {
   private height = 1;
   private dirty = true;
   private readonly pos = new Vector3();
+  /** What the hand's pan and zoom keep on screen: the body plate, or (inside the liver) the lobule's or the sinusoid's own box. Its corners, in scene units. */
+  private subject: readonly Vec3[] | null = null;
   /** The hand's view on top of the shot: zoom k (the camera's own zoom, about the projection centre) and a pan in canvas px. Identity = the shot's framing. */
   private hand: View = { k: 1, x: 0, y: 0 };
   private handFrom: View = { k: 1, x: 0, y: 0 };
@@ -134,15 +161,20 @@ export class CameraRig {
   }
   get stageSize(): { w: number; h: number } { return { w: this.width, h: this.height }; }
 
-  /** The body plate's rectangle on screen in the shot's own framing (hand at the fit): the bounds the hand may pan the figure within. */
+  /** What the hand keeps on screen: the corners (scene units) of the view's subject, or null for the body plate. The lobule and the sinusoid stand inside the liver, a
+   *  hundred times smaller than the plate, so limits measured on the plate would drag them off (Mohammad, 19 Nov: the lobule "flings out of place" when panned or zoomed). */
+  setSubject(corners: readonly Vec3[] | null): void { this.subject = corners; }
+
+  /** The subject's rectangle on screen in the shot's own framing (hand at the fit): the bounds the hand may pan the figure within. */
   fitRect(): Rect {
     const keep = { ...this.hand };
     this.hand.k = 1; this.hand.x = 0; this.hand.y = 0;
     this.apply();
     const b = PLATE_BOUNDS;
+    const corners: readonly Vec3[] = this.subject ?? ([[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]] as const).map(([x, y]) => [x, y, BODY_PLATE_Z] as Vec3);
     const rect: Rect = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-    for (const [x, y] of [[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]] as const) {
-      const p = this.project(new Vector3(x, y, BODY_PLATE_Z));
+    for (const [x, y, z] of corners) {
+      const p = this.project(new Vector3(x, y, z));
       rect.x0 = Math.min(rect.x0, p.x); rect.x1 = Math.max(rect.x1, p.x); rect.y0 = Math.min(rect.y0, p.y); rect.y1 = Math.max(rect.y1, p.y);
     }
     this.hand.k = keep.k; this.hand.x = keep.x; this.hand.y = keep.y;
@@ -177,6 +209,8 @@ export class CameraRig {
     this.camera.position.copy(this.pos);
     this.camera.lookAt(tx, ty, tz);
     const off = viewOffset(room.w > 1 ? room : { x: 0, y: 0, w, h }, w, h);
+    // near and far follow the distance, so a dive from the body to a sinusoid (a few hundred to one) keeps its depth precision and nothing is cut early
+    this.camera.near = Math.max(1e-6, r * 0.02); this.camera.far = r * 120;
     this.camera.zoom = this.hand.k;
     this.camera.setViewOffset(w, h, off.x - this.hand.x, off.y - this.hand.y, w, h);
     this.camera.updateProjectionMatrix();

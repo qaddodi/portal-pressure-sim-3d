@@ -10,6 +10,8 @@
 //    ride the same swell, so the ink hugs the lumen as it widens. The highlight (hiOn, hiDir, hiOffset, hiAhead, hiBehind, hiPx) and the lift
 //    (`inflate`) are the scene's own uniforms with the same meaning as in INK_VS.
 
+import { FADE_GLSL } from '../materials/shaders.ts';
+
 export const VESSEL_VS = /* glsl */ `
 attribute vec3 tang;
 attribute float hull;
@@ -64,6 +66,7 @@ void main() {
 }`;
 
 export const VESSEL_FS = /* glsl */ `
+${FADE_GLSL}
 uniform vec3 color;
 uniform vec3 inkColor;
 uniform float shadeK;
@@ -160,6 +163,7 @@ vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float acro
 
 void main() {
   if (reveal < 0.9999 && vUv.x > reveal) discard;
+  if (fadedOut()) discard;
   if (vHull > 0.5) {
     // the ink: the hull's back faces only, in the ink colour, warming to the highlight colour where the vessel is picked
     if (gl_FrontFacing || hullOn < 0.5) discard;

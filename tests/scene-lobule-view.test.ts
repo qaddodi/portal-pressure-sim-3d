@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { AXIAL_KINDS, N, buildLobule, hexFrac, inletBow, zoneOf } from '../src/scene/lobule/geometry.ts';
 import { LOBULE_CAMS, LOBULE_ORIGIN, LOBULE_R, SINUSOID_ORIGIN, lobuleShot, sinusoidShot } from '../src/scene/lobule/shots.ts';
+import { SIN_SCALE, lobuleWorld, sinusoidWorld } from '../src/scene/lobule/frames.ts';
 import { WASH_DELAY_MS, WASH_MS, washAmount, washFront, washProgress, washSpan } from '../src/scene/lobule/wash.ts';
 import { LOBULE_PARTS, SINUSOID_PARTS } from '../src/scene/lobule/parts.ts';
 import { LOBULE_PALETTES, EXTRA_TONES } from '../src/scene/lobule/tones.ts';
@@ -76,21 +77,17 @@ test('every camera name the 2D decks use has a shot, aimed at the lobule (or the
   assert.deepEqual([...LOBULE_CAMS].sort(), ['lobule', 'lobule:central', 'lobule:fit', 'lobule:sinusoid', 'lobule:triad', 'sinusoid']);
   const fit = lobuleShot('lobule');
   assert.deepEqual(lobuleShot('lobule:fit'), fit);
-  assert.deepEqual(fit.target, LOBULE_ORIGIN);
+  assert.deepEqual(fit.target, lobuleWorld([0, 0, 0]));
   const triad = lobuleShot('lobule:triad'), sin = lobuleShot('lobule:sinusoid'), cv = lobuleShot('lobule:central');
-  // the triad station is 12% of the way from the left portal tract toward the centre; the sinusoid station half way; both at twice the fit
-  assert.ok(Math.abs(triad.target[0] - (LOBULE_ORIGIN[0] - 0.88 * LOBULE_R)) < 1e-9);
-  assert.ok(Math.abs(sin.target[0] - (LOBULE_ORIGIN[0] - 0.5 * LOBULE_R)) < 1e-9);
-  assert.deepEqual(cv.target, LOBULE_ORIGIN);
-  for (const s of [triad, sin, cv]) { assert.ok(Math.abs(s.half[0] * 2 - fit.half[0]) < 1e-9); }
+  // the triad station is 12% of the way from the left portal tract toward the centre; the sinusoid station half way; both at twice the fit (shots are in world units: inside the liver)
+  assert.ok(Math.abs(triad.target[0] - lobuleWorld([-0.88 * LOBULE_R, 0, 0])[0]) < 1e-12);
+  assert.ok(Math.abs(sin.target[0] - lobuleWorld([-0.5 * LOBULE_R, 0, 0])[0]) < 1e-12);
+  assert.deepEqual(cv.target, lobuleWorld([0, 0, 0]));
+  for (const s of [triad, sin, cv]) { assert.ok(Math.abs(s.half[0] * 2 - fit.half[0]) < 1e-12); }
   const s = sinusoidShot();
-  assert.deepEqual(s.target, SINUSOID_ORIGIN);
-  assert.ok(s.half[0] > 3, 'the whole length of the sinusoid');
-});
-
-test('the views stand away from the body (which spans about ±3.5), so the camera flies to them and nothing is built on the way', () => {
-  assert.ok(LOBULE_ORIGIN[0] - LOBULE_R * 1.2 > 4);
-  assert.ok(SINUSOID_ORIGIN[0] - 6 > LOBULE_ORIGIN[0] + LOBULE_R * 1.2);
+  assert.deepEqual(s.target, sinusoidWorld([0, 0, 0]));
+  assert.ok(s.half[0] > 3 * SIN_SCALE, 'the whole length of the sinusoid');
+  assert.deepEqual(SINUSOID_ORIGIN, [0, 0, 0]); assert.deepEqual(LOBULE_ORIGIN, [0, 0, 0]);
 });
 
 // ---- the wedge's amber -------------------------------------------------------------------------------------------------------------
