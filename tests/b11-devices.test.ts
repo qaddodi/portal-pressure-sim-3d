@@ -169,7 +169,7 @@ test('the Tests card drives the devices: Doppler, FibroScan (with the exam\'s or
 import { basisAt, toPlate, toScreen, newBasis, type Box, type ScreenEnv } from '../src/scene/devices/probes/screen.ts';
 import { scanTilt, scanBody, headCovered, scanTurnOf } from '../src/scene/devices/probes/fibro-place.ts';
 import { probeCards, CARD_PAD } from '../src/scene/devices/probes/cards.ts';
-import { scanText, scanTransform, scanFlips, dopCalloutAt } from '../src/scene/labels/probe-labels.ts';
+import { scanText, scanTransform, scanFlips } from '../src/scene/labels/probe-labels.ts';
 import { beginLabelBoxes, addLabelBox, probeAvoid } from '../src/scene/labels/probe-boxes.ts';
 import { useUi } from '../src/ui/ui-store.ts';
 import { BAR } from '../src/ui/layout/plan.ts';
@@ -253,21 +253,10 @@ test('the Doppler probe on a screen keeps its body out from under the cards it c
   d.dispose();
 });
 
-test('the readings the devices wear: the probe\'s screen number, turned with its body and flipped where it points left; the Doppler callout stands on the side away from the body and off the cards', () => {
+test('the readings the devices wear: the probe\'s screen number, turned with its body and flipped where it points left (2D draws nothing on the Doppler probe)', () => {
   assert.equal(scanText(5), '5.0'); assert.equal(scanText(null), '—'); assert.equal(scanText(12.34), '12.3');
   assert.equal(scanFlips(45), false); assert.equal(scanFlips(135), true);
   assert.ok(scanTransform(100, 50, 135).includes('rotate(180deg)') && !scanTransform(100, 50, 45).includes('rotate(180deg)'));
-  const view: Box = { x0: 0, y0: 0, x1: 1000, y1: 700 }, body: Box = { x0: 520, y0: 330, x1: 600, y1: 370 };
-  const g = { x: 500, y: 350 };
-  // the probe's body lies to the right (ang 0): the callout goes left of the gate
-  const p = dopCalloutAt(g, 0, 60, 18, view, [], body, [], -1);
-  assert.ok(p.x + 60 < g.x && p.clear && p.slot === 0, `${JSON.stringify(p)}`);
-  // a card there pushes it round, and it keeps the place it found while that stays clear
-  const card: Box = { x0: 400, y0: 300, x1: 495, y1: 400 };
-  const q = dopCalloutAt(g, 0, 60, 18, view, [card], body, [], -1);
-  assert.ok(q.slot !== 0 && q.clear && !hits({ x0: q.x, y0: q.y, x1: q.x + 60, y1: q.y + 18 }, card));
-  const k = dopCalloutAt(g, 0, 60, 18, view, [card], body, [], q.slot);
-  assert.equal(k.slot, q.slot);
   // nothing on screen takes a label's box away
   beginLabelBoxes(); addLabelBox(1, 2, 3, 4);
   assert.deepEqual(probeAvoid(), [{ x0: 1, y0: 2, x1: 4, y1: 6 }]);

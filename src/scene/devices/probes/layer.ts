@@ -10,8 +10,6 @@ import { glueTarget3 } from '../glue-cast.ts';
 import { useProbes, type FibroOrgan } from './state.ts';
 import type { ScreenEnv } from './screen.ts';
 import { probeLabel } from '../../labels/probe-labels.ts';
-import { useDopplerProbe } from '../../../ui/tests/doppler/probe-state.ts';
-import { PROBES_BY_ID } from '../../../ui/tests/doppler/copied/doppler-tables.copied.js';
 
 /** What the layer asks of the scene: an organ's box in the figure (null while it is not built), and the stiffness the FibroScan reads (kPa). */
 export interface ProbeEnv { organBox(organ: FibroOrgan): Box3 | null; kpa(organ: FibroOrgan): number | null; /** the screen the devices keep clear of the cards on (the scene's; tests leave it out) */ screen?: ScreenEnv; /** the EUS-PPG's procedure frame while it plays (null otherwise): the echoendoscope follows it */ eus?(): EusDrive | null }
@@ -55,17 +53,10 @@ export class ProbeLayer {
     return a || f || e;
   }
 
-  /** What the label layer draws of the devices: the FibroScan probe's screen number and the Doppler gate's callout (labels/probe-labels.ts). */
+  /** What the label layer draws of the devices: the FibroScan probe's screen number (labels/probe-labels.ts). */
   private writeLabels(edge: string, seg: string | null): void {
     const sc = probeLabel.scan, fp = this.fibro, at = fp.screenAt;
     sc.on = at.placed; sc.alpha = fp.shown * at.headOp; sc.x = at.x; sc.y = at.y; sc.turn = at.turn; sc.k = fp.reading;
-    const dp = probeLabel.dop, dd = this.doppler, rd = useDopplerProbe.getState().reading, st = dd.stand;
-    dp.on = dd.shown > 0.002 && dd.placed != null; dp.alpha = dd.shown; dp.gx = dd.gateAtScreen.x; dp.gy = dd.gateAtScreen.y; dp.ang = st.ang;
-    Object.assign(dp.body, dd.bodyBox);
-    const short = (PROBES_BY_ID as Map<string, { short: string }>).get(st.edge || edge)?.short ?? (st.edge || edge);
-    const sg = st.edge ? st.seg : seg;
-    dp.name = sg ? `${short} ${sg}` : short;
-    dp.vel = rd?.vel ?? ''; dp.none = !!rd?.none; dp.waiting = !rd || rd.acquiring;
   }
 
   /** Every device object, for the scene's look and phone switches. */

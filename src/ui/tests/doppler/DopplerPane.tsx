@@ -50,7 +50,6 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
     const r = m.report();
     aria.current = r.aria || 'Spectral Doppler';
     if (!same(lastRep.current, r)) { lastRep.current = r; setRep(r); }
-    useDopplerProbe.getState().setReading({ vel: r.vel, none: r.none, acquiring: r.acquiring });   // (the figure's callout at the probe's gate says the same)
   };
   const draw = () => {
     const c = ctxRef.current, pt = painter.current;
@@ -79,7 +78,7 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
     });
     const tick = clock.on('tween', () => { if (dirty.current || hold) { dirty.current = false; draw(); } });
     if (m.live) hold = clock.hold('doppler');
-    return () => { off(); tick(); hold?.release(); useDopplerProbe.getState().setReading(null); };
+    return () => { off(); tick(); hold?.release(); };
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { dirty.current = true; clock.invalidate('doppler'); }, [mode, invert, sweepIndex, h, probe, gate]);
   // the slide's state changed (a what-if, a time-lapse day): the reading follows it at once, not at the next frame
