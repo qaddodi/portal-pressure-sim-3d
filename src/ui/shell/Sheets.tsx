@@ -15,6 +15,7 @@ import { RESET } from './words.ts';
 import { resetEverything } from './reset.ts';
 import { DeckDialogs } from '../deck/DeckDialogs.tsx';
 import { TreatCard } from '../treat/TreatCard.tsx';
+import { InApp } from './InApp.tsx';
 import { PageDialog } from './Pages.tsx';
 import { ActionCard } from '../action/ActionCard.tsx';
 
@@ -43,8 +44,8 @@ export function Sheets() {
   return (
     <>
       <UMenu />
-      {!talk && <ActionCard />}
-      {!talk && <TreatCard />}
+      {!talk && <InApp><ActionCard /></InApp>}
+      {!talk && <InApp><TreatCard /></InApp>}
       {figureRowsOwner(device) === 'sheet' && !talk && <LayersSheet />}
       {!talk && <SettingsSheet place="top" />}
       <HistorySheet />
