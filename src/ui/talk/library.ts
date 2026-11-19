@@ -9,11 +9,13 @@ import { NO_ROOM, dec, enc, exportName, newId, readMine, writeMine, type Script,
 import { askText, confirmDialog, showLink } from '../deck/dialogs.ts';
 import { parseDeckSource, checkDeck } from '../deck/from2d/deck-source.js';
 import { W } from '../deck/words.ts';
-import { deckOf } from '../deck/deck-of.ts';
+import { knownTalk, loadDeck } from '../deck/deck-of.ts';
 import { startTalk } from '../shell/talk.ts';
 import { openHandout } from '../deck/handout.ts';
 import { openPresenterView } from '../deck/presenter-link.ts';
 import { download } from '../deck/download.ts';
+import { shareLinkNow } from '../shell/share-wire.ts';
+import { SHARE_WORDS } from '../shell/share.ts';
 
 /** Rises on every change to the scripts, so the menu reads them again. */
 export const useScripts = create<{ version: number }>(() => ({ version: 0 }));
@@ -68,8 +70,10 @@ const here = () => `${location.origin}${location.pathname}`;
 export const scriptLink = (s: Script): string => `${here()}#script=${enc(s)}`;
 export const deckLink = (id: string): string => `${here()}?script=${id}`;
 export const shareScript = (s: Script): void => copy(scriptLink(s), W.linkCopiedScript);
-export const viewLink = (patient: string): string => `${here()}?preset=${patient}`;
-export const shareView = (patient: string): void => copy(viewLink(patient), W.linkCopiedView);
+/** The link to what is on the screen: the patient with every setting, the view, the selection and the camera (shell/share.ts, the 2D share link); in a talk, the talk at its slide.
+ *  (`patient` is the caller's patient; the link is read from the app itself, so the menu and the search copy the same one.) */
+export const viewLink = (_patient?: string): string => shareLinkNow();
+export const shareView = (_patient?: string): void => copy(viewLink(), SHARE_WORDS.copied);
 export const shareDeck = (id: string): void => copy(deckLink(id), W.linkCopiedDeck);
 
 /** A script (title, steps) as JSON is kept as it is; anything else must be a deck. */
@@ -106,9 +110,10 @@ export function readScriptLink(): string | boolean {
 
 /** Opens a talk by id at a slide; says so when there is none. */
 export function present(id: string, at = 0): boolean {
-  if (!deckOf(id)) { say(W.notFound, 'bad'); return false; }
+  if (!knownTalk(id)) { say(W.notFound, 'bad'); return false; }
   useShell.getState().close();
   return startTalk(id, at);
 }
-export const notes = (id: string): void => { const d = deckOf(id); if (d) void openHandout(d); };
+/** Print notes: the tab opens inside the tap (so it is not blocked) and the talk is read into it, when it is one read on opening. */
+export const notes = (id: string): void => { if (!knownTalk(id)) { say(W.notFound, 'bad'); return; } void openHandout(loadDeck(id)).catch(() => say(W.notFound, 'bad')); };
 export const presenterView = (id: string, at = 0): void => { const ok = openPresenterView(); if (!ok) say(W.noNotesWindow, 'bad'); present(id, at); };

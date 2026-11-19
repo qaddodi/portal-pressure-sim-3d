@@ -11,10 +11,13 @@ import { CardLayer } from './cards/CardLayer.tsx';
 import { PresenterBar } from './deck/PresenterBar.tsx';
 import { useDeckInput } from './deck/useDeckInput.ts';
 import { linkScene } from './deck/scene-link.ts';
+import { linkProcs } from './deck/procs-link.ts';
+import { linkFigure } from './deck/figure-link.ts';
 import { linkModel } from './talk/deck-model.ts';
 import { linkStates } from '../decks/hp/link.ts';
 import { JumpList, BlackScreen } from './deck/JumpList.tsx';
 import { noteResume } from './deck/resume.ts';
+import { landOn } from './deck/deck-of.ts';
 
 /** The talk's UI: cards, the wallet, the presenter bar. One overlay above the stage; it measures itself, so it needs only a positioned, full-size parent. */
 export function DeckUi() {
@@ -32,7 +35,7 @@ export function DeckUi() {
   useEffect(() => {
     if (!deck) return;
     const stops = stopsOf(deck);
-    const at = Math.min(useUi.getState().startAt, stops.length - 1);
+    const at = landOn(deck.id, useUi.getState().startAt, stops.length);   // (a link's slide past the end opens the last one)
     useUi.getState().setStops(stops, at);
     useDeck.getState().open(deck.id, stops.length - 1, at);
     const note = () => { const s = useUi.getState(); noteResume(deck.id, s.pos.stop, s.stops.length); };
@@ -41,6 +44,10 @@ export function DeckUi() {
 
   // the scene follows the talk: the shot, the room the cards leave, the catheter
   useEffect(() => linkScene(), []);
+  // the slide's procedures, stented veins, lobule layers and wash
+  useEffect(() => linkProcs(), []);
+  // what the slide's own fields draw on the figure: names in colour, glow, outlined organs, marks, sites, steps, calipers, the since lens's reference
+  useEffect(() => linkFigure(), []);
   // the slide's patient, when it names one
   useEffect(() => linkModel(), []);
 

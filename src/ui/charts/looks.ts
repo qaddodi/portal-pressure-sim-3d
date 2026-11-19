@@ -26,6 +26,9 @@ setTokenSource((ctx: { theme: string }) => {
 /** Forget what was resolved (a look's colours changed). */
 export const forgetLooks = () => { maps.clear(); clearLookMemo(); };
 
+/** Every look key a chart has asked for since the page loaded (the parity tests read which of the 2D tables a drawn chart really uses). */
+export const LOOKS_ASKED = new Set<string>();
+
 /** What the 2D table says for one piece, in the numbers a frame draws with. A property the entry leaves alone is absent. */
 export interface Look {
   fill?: Rgba; stroke?: Rgba;
@@ -56,6 +59,7 @@ const num = (v: unknown) => (typeof v === 'number' ? v : undefined);
 
 /** The look of the piece `key` in chart context `c` (host and the card's type sizes in `h`), for the states and params its entry declares (data-rate → { rate }, data-p-tone → params { tone }). */
 export function look(c: ChartCtx, h: LookCtxIn, key: string, state: Record<string, unknown> = {}, params: Record<string, string> = {}): Look {
+  LOOKS_ASKED.add(key);
   const entry = (TABLE as Record<string, unknown>)[key];
   if (!entry) throw new Error(`no 2D chart look "${key}"`);
   const base = (makeCtx as unknown as (l: object) => object)({ host: h.host, in: h.in ?? '', boxW: h.boxW ?? c.w, px: h.px, svk: h.svk ?? 1, layout: h.layout, lad: h.lad, scale: { sm: h.sm ?? c.type.sm, cap: h.cap, lab: h.lab, fs12: h.fs12, chCap: h.chCap } });

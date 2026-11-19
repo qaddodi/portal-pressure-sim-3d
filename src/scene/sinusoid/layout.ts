@@ -46,3 +46,33 @@ export function cellOf(j: number, sd: number): HepCell {
 }
 /** The centre (µm along) of endothelial nucleus n of a lining (seed nsd). */
 export const nucAt = (n: number, nsd: number): number => 38 * n + 8 + 22 * h1(n, nsd);
+
+/** How far (µm) from a nucleus's centre its cell's swell hides the lining's fenestrae (2D: NUC_COVER). */
+export const NUC_COVER = 4.4;
+/** Whether the swell of an endothelial nucleus (seed nsd) covers the lining at x (2D: underNucleus). */
+export function underNucleus(x: number, nsd: number): boolean {
+  const n = Math.floor(x / 38);
+  for (let k = -1; k <= 1; k++) if (Math.abs(x - nucAt(n + k, nsd)) < NUC_COVER) return true;
+  return false;
+}
+/** The fenestra a callout points at (2D: calloutPore): of a lining's pores near x, one the nuclei's swells leave showing, open the longest and near x, on screen between lo and hi when one is. x itself when none is clear. */
+export function calloutPore(pores: readonly Pore[], x: number, lo: number, hi: number, nsd: number): number {
+  for (let pass = 0; pass < 2; pass++) {
+    const a = pass ? -Infinity : lo, b = pass ? Infinity : hi;
+    let best: Pore | null = null, bs = Infinity;
+    for (const p of pores) {
+      const dx = Math.abs(p.x - x);
+      if (dx > 20 || p.x < a || p.x > b || underNucleus(p.x, nsd)) continue;
+      const s = p.th + 0.02 * dx;
+      if (s < bs) { bs = s; best = p; }
+    }
+    if (best) return best.x;
+  }
+  return x;
+}
+/** The cell of a plate (seed) that holds x, written into `out` (2D: cellAtInto). */
+export function cellAt(x: number, sd: number): HepCell {
+  let j = Math.floor(x / CELL);
+  if (x < cellEdge(j, sd)) j--; else if (x >= cellEdge(j + 1, sd)) j++;
+  return cellOf(j, sd);
+}

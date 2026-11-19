@@ -45,7 +45,7 @@ const KEYS_PRESENT = new Set<string>([]);
 for (const s of UI.shortcuts) { const k = `${s.group}/${s.keys}`; if (KEYS_WIRED.has(k)) claim(`shortcut:${k}`, !k.startsWith('While presenting/→'));  else if (KEYS_PRESENT.has(k)) claim(`shortcut:${k}`, false); }
 
 // ── search: the commands the 2D palette lists in its App, Time and View groups; each is wired where commands.ts has work behind it ──
-const SEARCH_GROUPS = new Set(['App', 'Time', 'View']);
+const SEARCH_GROUPS = new Set(['App', 'Time', 'View', 'Go to']);   // (Go to: a structure by name becomes the selection, 2D palette.js ctx.select)
 for (const c of UI.search.commands) if (SEARCH_GROUPS.has(c.group)) claim(`search:${c.group}/${c.title}`, isWiredCommand(c.group, c.title));
 
 // ── platform: deep links ──

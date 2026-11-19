@@ -28,6 +28,8 @@ export type ToWorker =
   | { type: 'history'; secs: number; reqId?: number }
   | { type: 'sequence'; steps: unknown[]; base?: unknown; reqId?: number }
   | { type: 'presets'; reqId?: number }
+  /** the patients made from readings on this device ("Yours"): the engine knows exactly this list; answered as `presets` */
+  | { type: 'yours'; list: unknown[]; reqId?: number }
   | { type: 'perfStats'; reqId?: number };
 
 /** The numbers a card or a tag reads. Everything the engine's `computeMetrics` returns is here; these are the ones the slice names. */

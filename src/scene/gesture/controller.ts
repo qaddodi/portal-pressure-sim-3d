@@ -18,7 +18,7 @@ import { createWheelGlide, isPadWheel } from './wheel-glide.ts';
 //   one finger after a pinch       carries on as a pan (never a tap, never thrown)
 //   trackpad two-finger scroll     pan        trackpad pinch (and Ctrl or ⌘ + wheel)   zoom about the pointer
 //   mouse wheel                    zoom about the pointer, glided      double click   zoom in ×2 (Shift: out) about the point
-//   tap                            pick a vessel
+//   tap                            pick a vessel, an organ or the belly's fluid
 // Touches that start at the screen's edge are the system's (back swipe, home bar). Cards and the wallet are page elements above the canvas, so a gesture that
 // starts on one never reaches this controller: the figure and the cards never fight over a finger.
 
@@ -46,13 +46,13 @@ export interface GestureHost {
   orbit(): number;
   /** Returns whether the orbit changed. */
   setOrbit(rad: number): boolean;
-  /** A tap on the figure at canvas point (x, y). */
-  tap(x: number, y: number): void;
-  /** The vessel picked now, and a way to put it back (a double click's first click picked one). */
-  picked(): string | null;
-  setPicked(id: string | null): void;
+  /** A tap on the figure at canvas point (x, y); `touch` when a finger made it (a finger's reach is wider). */
+  tap(x: number, y: number, touch?: boolean): void;
+  /** What is selected now (a vessel or an organ: the host's own token), and a way to put it back (a double click's first click selected one). */
+  picked(): unknown;
+  setPicked(sel: unknown): void;
   /** Right click or long press: the same as a tap here. */
-  context(x: number, y: number): void;
+  context(x: number, y: number, touch?: boolean): void;
 }
 
 export const TAP_SLOP_TOUCH = 8, TAP_SLOP_MOUSE = 4;
@@ -97,7 +97,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   const hand = createGlideTracker();
   let handAge = 80;
   const handSample = (age: number) => { hand.sample(host.hand(), env.now()); handAge = age; };
-  let lastTap: { t: number; x: number; y: number; sel: string | null } | null = null;
+  let lastTap: { t: number; x: number; y: number; sel: unknown } | null = null;
   let animId = 0, cancelFlick: (() => void) | null = null, flicking = false, orbitId = 0;
   const touchesDown = new Set<number>();
   const offs: (() => void)[] = [];
@@ -372,9 +372,9 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
       return;
     }
     lastTap = { t: now, x: ev.clientX, y: ev.clientY, sel: host.picked() };
-    host.tap(ev.clientX, ev.clientY);
+    host.tap(ev.clientX, ev.clientY, ev.pointerType === 'touch');
   }
-  const onContext = (ev: PtrEv) => { ev.preventDefault?.(); host.context(ev.clientX, ev.clientY); };
+  const onContext = (ev: PtrEv) => { ev.preventDefault?.(); host.context(ev.clientX, ev.clientY, ev.pointerType === 'touch'); };
   on(el, 'pointerdown', onDown);
   on(el, 'pointermove', onMove);
   for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) on(el, t, onUp);

@@ -39,3 +39,6 @@ export function scenePicked(id: string | null): void {
   if (id == null) { if (cur?.type === 'edge') useSelection.setState({ sel: null }); return; }
   if (!(cur?.type === 'edge' && cur.id === id)) useSelection.setState({ sel: { type: 'edge', id } });
 }
+
+/** Whether a mode holds the scene's taps (the shunt waiting for its target). */
+export const scenePicksHeld = (): boolean => pickHold != null;

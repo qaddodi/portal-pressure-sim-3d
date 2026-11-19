@@ -7,6 +7,7 @@ import { useUi } from '../ui-store.ts';
 import { tableModel, type Cell } from '../talk/table-model.ts';
 import { resolveTable, useTables, fpOfSlide, pendingRows } from '../talk/table-rows.ts';
 import { CUT } from '../deck/from2d/table-marks.js';
+import { WaveCell } from './WaveCell.tsx';
 
 const ARROW = ['↓↓', '↓', '•', '↑', '↑↑'];
 const glyph = (c: Cell) => (c.kind === 'blank' ? '○' : c.kind === 'dir' ? ARROW[c.arrow + 2] : '');
@@ -20,7 +21,7 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
   const [cut, setCut] = useState('');
   useEffect(() => { resolveTable(deck, slide); }, [deck, slide]);
   const model = useMemo(() => tableModel(spec, rows, (id) => fpOfSlide(deck, id)), [rows, spec, deck]);
-  const showCut = (k: string, label: string) => () => setCut(`${label}: ${(CUT as Record<string, string>)[k] ?? ''}`);
+  const showCut = (k: string, label: string, cutText?: string) => () => setCut(`${label}: ${cutText || (CUT as Record<string, string>)[k] || ''}`);
   return (
     <div className="dk-tbl" aria-label={spec.rowHead || 'Summary table'}>
       <div className="dk-tbl-head"><p className="dk-kicker">{spec.rowHead || 'Summary'}</p></div>
@@ -38,15 +39,18 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
               const col = model.cols[j];
               return (
                 <div key={c.k + j} className="dk-tcell" data-kind={c.kind} data-rate={c.rate ?? undefined} data-eff={c.eff ?? undefined} data-miss={c.miss || undefined} data-zero={c.kind === 'dir' && c.arrow === 0 ? '' : undefined}>
-                  <button type="button" className="dk-tl" onClick={(e) => { e.stopPropagation(); showCut(col.k, col.label)(); }} aria-label={`${col.label}: ${col.cut}`}>{col.label}</button>
-                  <span className="dk-tv" aria-hidden="true">{c.kind === 'dir' || c.kind === 'blank' ? <em className="dk-ta">{glyph(c)}</em> : null}{c.kind === 'blank' || c.kind === 'pend' ? '' : c.text}</span>
+                  <button type="button" className="dk-tl" onClick={(e) => { e.stopPropagation(); showCut(col.k, col.label, col.cut)(); }} aria-label={`${col.label}: ${col.cut}`}>{col.label}</button>
+                  {c.kind === 'wave' ? (
+                    <span className="dk-tw" aria-hidden="true" title={c.wave!.title || undefined}>{c.wave!.trace ? <WaveCell trace={c.wave!.trace} vessel={c.wave!.vessel} max={c.wave!.max} words={c.sr} /> : c.wave!.pending ? <span className="dk-tpend" /> : <span className="dk-tnone">—</span>}</span>
+                  ) : null}
+                  <span className="dk-tv" aria-hidden="true">{c.kind === 'wave' ? '' : c.kind === 'dir' || c.kind === 'blank' ? <em className="dk-ta">{glyph(c)}</em> : null}{c.kind === 'blank' || c.kind === 'pend' ? '' : c.text}</span>
                   {c.miss ? <span className="dk-tm" aria-hidden="true">{c.miss}</span> : null}
                   <span className="sr-only">{c.sr}</span>
                 </div>
               );
             })}
           </div>
-          {r.notes.filter(Boolean).map((t, j) => <p key={j} className="dk-tnote">{t}</p>)}
+          {r.notes.map((t, j) => (t ? <p key={j} className="dk-tnote">{model.noteHeads[j] ? <b className="dk-tnh">{model.noteHeads[j]}</b> : null}{t}</p> : null))}
         </section>
       ))}
       <p className="dk-tfoot">{model.legend}</p>
