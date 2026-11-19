@@ -14,7 +14,7 @@
 //
 // Lymph chevrons run on the ducts (the terminal lymphatics, the tracts' lymphatics and the space of Disse beside each sinusoid) while the Lymph layer is
 // on, out along Disse toward the tract (owner, 5d3b7e86: hepatic lymph rises in cirrhosis, and the chevrons quicken with it). The sinusoid view shows none.
-import { type BufferGeometry, Color, Group } from 'three';
+import { type BufferGeometry, type Camera, Color, Group, Matrix4, Plane, type Ray, Vector3 } from 'three';
 import { CelObject, type CelShared, rawColor } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
 import type { LookId } from '../../looks/looks.ts';
@@ -22,6 +22,7 @@ import { type FlowMarkMode, DEFAULT_FLOW_MODE, FLOW_FADE_MS, PULSE_MS, markSpeed
 import type { LensId } from '../lenses/model.ts';
 import { Batch, type V3 } from './batch.ts';
 import { shadeUniforms } from './shading.ts';
+import { type LobuleHit, type PickTube, lobuleHit } from './pick.ts';
 import { type Course, type LobuleNet, type P2, buildLobule, zoneOf } from './geometry.ts';
 import { type LobuleModel, easeToward, lymphRate, lymphSeal, smooth } from './model.ts';
 import { LOBULE_PARTS, type LobulePartName, PartSet } from './parts.ts';
@@ -85,6 +86,8 @@ interface DiscInfo {
 }
 /** Ids of the Bile layer's canals of Hering as vessels that may join a ductule (courses have ids from 0; these are far above them). */
 const CANAL_ID = 1_000_000;
+/** Ids of the Bile layer's vessels for picking. */
+const BILE_ID = 2_000_000;
 /** 2D's lymphatic caliber against the healthy flow (lobule-zoom-field.js lyWr): 1 at a normal rate. */
 const lyWr = (lr: number, k: number) => 1 + k * smooth(1, 4, lr) - 0.12 * (1 - smooth(0.3, 1, lr));
 
@@ -130,6 +133,8 @@ export class LobuleView {
   /** How stagnant the sinusoids' blood is, 0 moving .. 1 still (the 2D `stasis`: 1 - smooth(0.12, 0.45, flow)): the chevrons give way to a slow smoke. */
   private stasis = 0;
   private bileObjs: CelObject[] = [];
+  /** The Bile layer's vessels (the canaliculi between plates, the canals of Hering) as things a tap can land on. */
+  private readonly bilePick: PickTube[] = [];
   private zoneFade = 0;
   /** The surround's grey (a lens other than Pressure greys the neighbouring lobules as it greys the anatomy's liver), eased. */
   private greyK = 0;
@@ -299,6 +304,7 @@ export class LobuleView {
         for (let i = i0; i <= i1; i++) pts.push(mid(a, b, i));
         if (Math.hypot(pts[0]![0] - pts[pts.length - 1]![0], pts[0]![1] - pts[pts.length - 1]![1]) < 0.05) return;
         chB.tube(pts.map((p) => p3(p, 0.012)), { radius: RAD.bc, radial: 6, uvx: (_i, arc) => arc / (RAD.bc * MARK_PITCHES) });
+        this.bilePick.push({ id: BILE_ID + this.bilePick.length, kind: 'bs', pts, tri: a.tri });
         if (canals) {
           const tr = net.triads[a.tri]!, p0 = pts[0]!, bd = tr.bd;
           const pc: P2[] = [];
@@ -306,6 +312,7 @@ export class LobuleView {
           for (let j = 0; j <= 8; j++) { const u = j / 8; pc.push([bd[0] + (p0[0] - bd[0]) * u + (tr.x - 0) * -0.012 * Math.sin(Math.PI * u), bd[1] + (p0[1] - bd[1]) * u + (tr.y - 0) * -0.012 * Math.sin(Math.PI * u)]); }
           hrB.tube(pc.map((p) => p3(p, 0.014)), { radius: RAD.bh, radial: 6, uvx: (_i, arc) => arc / (RAD.bh * MARK_PITCHES) });
           canalPool.push({ id: CANAL_ID + canalPool.length, pts: pc });
+          this.bilePick.push({ id: BILE_ID + this.bilePick.length, kind: 'bh', pts: pc, tri: a.tri });
         }
       });
     };
@@ -497,6 +504,41 @@ export class LobuleView {
     }
   }
 
+  /** A vessel's radius at its sample i as drawn now, in lobule radii: 2D's radiusAt (widths.ts) with the state's widening and narrowing. */
+  radiusNow(t: PickTube, i: number): number {
+    const c = this.cur, k = t.kind, n = t.pts.length;
+    if (k === 's0' || k === 's1' || k === 's2' || k === 'an') return sinRadius(k, (t as Course).rho[i]!) * c.lum * (1 + 1.5 * c.congU * CONG_Z3[k]);
+    if (k === 'in') return inletRadius(i, n, Math.hypot(t.pts[i]![0] - t.pts[0]![0], t.pts[i]![1] - t.pts[0]![1])) / (1 + 0.45 * c.fibPre);
+    if (k === 'tw') return twigR(i / (n - 1), RS_N);
+    if (k === 'lt' || k === 'lv') return LT_R * lyWr(c.lymphRate, 0.4);
+    if (k === 'ly') return RAD.ly / R;
+    if (k === 'bs') return RAD.bc / R;
+    return RAD.bh / R;
+  }
+
+  /** The central vein's radius as drawn now (lobule radii). */
+  get cvRadiusNow(): number { return DISC_R.cv * (((DISC_R.cv + 0.05 * this.cur.congU) * (1 - 0.3 * this.cur.fibPost)) / DISC_R.cv); }
+
+  /** What a tap at lobule-plane point (x, y) (lobule radii, y down) is, with `pxPerR` screen pixels to a radius (2D's own rule, pick.ts). */
+  hit(x: number, y: number, pxPerR: number): LobuleHit | null {
+    return lobuleHit(this.net, [...this.net.courses, ...this.bilePick], {
+      septU: this.cur.septU, lymphOn: this.layers.lymph, bileOn: this.layers.bile, radius: (t, i) => this.radiusNow(t, i), cvRadius: this.cvRadiusNow, pxPerR,
+    }, x, y);
+  }
+
+  /** The hit under a world ray (the plate lies in the group's z = 0): the ray's point on the plate in lobule radii, and the screen pixels to a radius there, from the camera and the canvas size. */
+  hitRay(ray: Ray, camera: Camera, canvas: { w: number; h: number }): LobuleHit | null {
+    this.group.updateWorldMatrix(true, false);
+    const inv = new Matrix4().copy(this.group.matrixWorld).invert();
+    const local = ray.clone().applyMatrix4(inv), at = local.intersectPlane(new Plane(new Vector3(0, 0, 1), 0), new Vector3());
+    if (!at) return null;
+    const x = at.x / R, y = -at.y / R;
+    // screen pixels to a lobule radius: two points a radius apart on the plate, projected
+    const a = new Vector3(at.x, at.y, 0).applyMatrix4(this.group.matrixWorld).project(camera), b = new Vector3(at.x + R, at.y, 0).applyMatrix4(this.group.matrixWorld).project(camera);
+    const pxPerR = Math.max(1e-3, Math.hypot((b.x - a.x) * canvas.w * 0.5, (b.y - a.y) * canvas.h * 0.5));
+    return this.hit(x, y, pxPerR);
+  }
+
   /** The end-on vessels' radii by the state (2D radiusAt: the central vein widens with congestion and narrows with post-sinusoidal fibrosis, the venule narrows with pre-sinusoidal, the arteriole follows the arterial inflow,
    *  the lymphatic the drainage and its layer) and the masks of their mouths, worked out from the radii as drawn and written again whenever those move (lobule-mouths.js mouthWords). */
   private updateDiscs(): void {
@@ -505,7 +547,6 @@ export class LobuleView {
       cv: ((DISC_R.cv + 0.05 * c.congU) * (1 - 0.3 * c.fibPost)) / DISC_R.cv, pv: 1 / (1 + 0.35 * c.fibPre), ha: Math.min(2.2, Math.max(0.6, c.art)) ** 0.3,
       bd: 1, lv: lyWr(c.lymphRate, 0.4) * lyF,
     };
-    const f = (kind: 's0' | 's1' | 's2' | 'an') => c.lum * (1 + 1.5 * c.congU * CONG_Z3[kind]);
     const key = [k.cv, k.pv, k.ha, k.lv, c.lum, c.congU, c.fibPre, c.art, this.layers.bile ? 1 : 0].map((x) => x.toFixed(3)).join();
     if (key === this.discKey) return;
     this.discKey = key;
@@ -514,13 +555,8 @@ export class LobuleView {
       const radiiOf = (j: Joiner): ArrayLike<number> => {
         let a = info.radiiOf.get(j.id);
         if (!a) { a = new Float64Array(j.pts.length); info.radiiOf.set(j.id, a); }
-        const course = j.id < CANAL_ID ? this.net.courses[j.id]! : null, n = j.pts.length;
-        for (let i = 0; i < n; i++) {
-          a[i] = !course ? RAD.bh / R
-            : kind === 'cv' ? sinRadius(course.kind as 's0' | 's1' | 's2' | 'an', course.rho[i]!) * f(course.kind as 's0' | 's1' | 's2' | 'an')
-            : kind === 'pv' ? inletRadius(i, n, Math.hypot(course.pts[i]![0] - course.pts[0]![0], course.pts[i]![1] - course.pts[0]![1])) / (1 + 0.45 * c.fibPre)
-            : kind === 'ha' ? twigR(i / (n - 1), RS_N) : LT_R * lyWr(c.lymphRate, 0.4);
-        }
+        const t: PickTube = j.id < CANAL_ID ? this.net.courses[j.id]! : { id: j.id, kind: 'bh', pts: j.pts };
+        for (let i = 0; i < j.pts.length; i++) a[i] = this.radiusNow(t, i);
         return a;
       };
       const sh = shadeUniforms(info.obj), rim = (DISC_R[kind] * k[kind]);

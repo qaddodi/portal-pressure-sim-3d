@@ -24,7 +24,7 @@ import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, hasVessel, indexOf } from '../engine/vessel-data.ts';
 import { latest, patient } from '../engine/store.ts';
 import { x3, y3 } from './frame2d.ts';
-import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
+import { LobuleView, lobuleModel, sinusoidTargets, type LobuleHit, type LobuleLayers } from './lobule/index.ts';
 import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
 import { LOBULE_R, LOBULE_T, SINUSOID_L } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
@@ -546,6 +546,13 @@ export class CelScene {
       if (o) return o.edge!.id;
     }
     return null;
+  }
+
+  /** What a tap on the lobule is (a part, and the zone for the hepatocytes), by 2D's own rule (lobule/pick.ts), or null; only while the lobule is the view. */
+  pickLobule(x: number, y: number, raycaster: Raycaster): LobuleHit | null {
+    if (this.figureView !== 'lobule') return null;
+    raycaster.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
+    return this.lobule.hitRay(raycaster.ray, this.rig.camera, { w: this.width, h: this.height });
   }
 
   /** Scene point of a named place, for tags and pins: a point on the 2D figure's own vessel, carried by the one map (frame2d.ts), so a tag sits on the vein. */

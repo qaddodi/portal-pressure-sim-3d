@@ -119,7 +119,14 @@ export const DISC_LINE = { min: ${lim[1]}, max: ${lim[2]}, r: ${lim[3]} };
 `;
 })();
 
-const files = [['lobule-mouths.generated.js', mouths], ['disc-glsl.generated.js', disc], ['lobule-paint.generated.js', paint], ['lobule-look.generated.js', look], ['field-tile.generated.js', tile], ['lz-tokens.generated.js', lz]];
+// Which part a tap on the lobule picks (lobule-pick.js, as it is; and the depth each vessel is drawn at, Z_OF in lobule-zoom-field.js, which breaks a tie where several lie under the finger).
+const pick = (() => {
+  const z = /const Z_OF = (\{[^}]*\});/.exec(read('src/ui/lobule-zoom-field.js'));
+  if (!z) throw new Error('Z_OF not found in lobule-zoom-field.js');
+  return head('src/ui/lobule-pick.js') + read('src/ui/lobule-pick.js') + `\n/** The depth each kind of vessel is drawn at (lobule-zoom-field.js Z_OF). */\nexport const Z_OF = ${z[1]};\n`;
+})();
+
+const files = [['lobule-pick.generated.js', pick], ['lobule-mouths.generated.js', mouths], ['disc-glsl.generated.js', disc], ['lobule-paint.generated.js', paint], ['lobule-look.generated.js', look], ['field-tile.generated.js', tile], ['lz-tokens.generated.js', lz]];
 const check = process.argv.includes('--check');
 const strip = (s) => s.replace(/ at [0-9a-f]{7,40}\. Do not edit/, ' at X. Do not edit');
 let bad = 0;
