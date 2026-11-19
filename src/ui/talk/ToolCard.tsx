@@ -31,6 +31,18 @@ import { LaddersCard } from '../charts/ladder/LaddersCard.tsx';
 import { AllPatientsCard } from '../charts/small/AllPatientsCard.tsx';
 import { StiffCard } from '../charts/stiff/StiffCard.tsx';
 import { engine } from '../../engine/index.ts';
+import { lazy, Suspense } from 'react';
+import { useUi } from '../ui-store.ts';
+import { ReadoutsPane } from '../tests/ReadoutsPane.tsx';
+import { AbdomenPane } from '../tests/abdomen/AbdomenPane.tsx';
+import { startFeed } from '../tests/feed.ts';
+import { useTests } from '../tests/store.ts';
+import { setDopplerProbe, useDopplerProbe } from '../tests/doppler/probe-state.ts';
+import '../tests/tests.css';
+import '../tests/abdomen/abdomen.css';
+const DopplerPane = lazy(() => import('../tests/doppler/DopplerPane.tsx').then((m) => ({ default: m.DopplerPane })));
+const FibroPane = lazy(() => import('../tests/fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
+const IrPane = lazy(() => import('../tests/ir/IrPane.tsx').then((m) => ({ default: m.IrPane })));
 
 type Rec = Record<string, unknown>;
 type Fp = Record<string, number | null | undefined>;
@@ -81,8 +93,28 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'visual:plane': return <PlaneVisual deck={deck} cs={cs} fpOf={fpOf} />;
     case 'visual:ladders': return <LaddersCard slide={cs as never} deck={copied as never} />;
     case 'visual:allpatients': return <AllPatientsCard slide={cs as never} deck={copied as never} />;
+    case 'doppler': case 'fibroscan': case 'abdomen': case 'reading': case 'hvpg': return <Instrument kind={kind} tool={tool} />;
     default: return null;
   }
+}
+
+/** A Tests-card instrument as a slide's data card: the pane of the Tests card, sized to the card's width. It reads the live model; the slide's vessel or organ is set when it comes up. */
+function Instrument({ kind, tool }: { kind: string; tool: Rec }) {
+  const w = useUi((s) => s.vp.w);
+  useEffect(() => { startFeed(); }, []);
+  useEffect(() => {
+    if (kind === 'doppler' && typeof tool.vessel === 'string') { setDopplerProbe(tool.vessel); useDopplerProbe.getState().setGate((tool.gate as never) ?? null); }
+    if (kind === 'fibroscan') useTests.getState().setFibro(tool.organ === 'spleen' ? 'spleen' : 'liver');
+  }, [kind, tool]);
+  const plot = Math.round(Math.min(220, Math.max(150, w * 0.32)));
+  const p = { narrow: w < 470, plot, square: plot, roomy: false };
+  return (
+    <div className="dock-pane-host" data-instrument={kind}>
+      <Suspense fallback={null}>
+        {kind === 'doppler' ? <DopplerPane {...p} /> : kind === 'fibroscan' ? <FibroPane {...p} /> : kind === 'hvpg' ? <IrPane {...p} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : <ReadoutsPane narrow={p.narrow} />}
+      </Suspense>
+    </div>
+  );
 }
 
 /** The change-from-healthy chart: one chart over the deck's states, a state's slot once its slide is reached. */
