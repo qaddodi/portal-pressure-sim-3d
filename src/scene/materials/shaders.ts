@@ -57,6 +57,7 @@ uniform float vindex;
 uniform float useData;
 uniform float stubSpeed;
 uniform float reveal;
+uniform float fade;
 uniform float flowAmount;
 uniform float flowBands;
 uniform vec3 markColor;
@@ -117,7 +118,7 @@ void main() {
     c = mix(c, mc, m * (flowBands > 0.5 ? 0.30 : 0.85));
   }
   c += rim * 0.10 + sp * 0.32;
-  gl_FragColor = vec4(c, 1.0);
+  gl_FragColor = vec4(c, fade);
 }`;
 
 export const INK_VS = /* glsl */ `
@@ -153,6 +154,7 @@ export const INK_FS = /* glsl */ `
 uniform vec3 color;
 uniform vec3 hiColor;
 uniform float reveal;
+uniform float fade;
 varying float vHi;
 varying float vU;
-void main() { if (reveal < 0.9999 && vU > reveal) discard; gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), 1.0); }`;
+void main() { if (reveal < 0.9999 && vU > reveal) discard; gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), fade); }`;

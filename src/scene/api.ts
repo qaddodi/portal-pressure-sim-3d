@@ -11,6 +11,9 @@ import { engine } from '../engine/boot.ts';
 import type { LensId } from './lenses/model.ts';
 import type { FigureView } from './scene.ts';
 import { lobuleShot, sinusoidShot, type LobuleCam, type LobuleLayers } from './lobule/index.ts';
+import { circuitShot } from './circuit/shots.ts';
+import { TURN_MS } from './circuit/data.copied.ts';
+import { useCircuitTurn } from './circuit/pref.ts';
 import { useLens } from './lenses/store.ts';
 import { useBlood } from './blood/options.ts';
 import type { BloodChoice } from './blood/options.ts';
@@ -36,9 +39,22 @@ export const sceneApi = {
   },
   /** Show the body, the lobule or the sinusoid and fly to it, straight from wherever the camera is (the view left behind stays up until the camera lands). `cam` is a lobule camera ('lobule', 'lobule:triad'…). */
   showView(v: FigureView, room: Room, cam: LobuleCam = 'lobule'): void {
+    if (v === 'circuit') cel.setCircuitUpright(useCircuitTurn.getState().upright);
     cel.setView(v);
-    this.goTo(v === 'body' ? 'play' : v === 'sinusoid' ? sinusoidShot() : lobuleShot(cam), room);
+    // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together
+    const ms = v === 'body' || v === 'circuit' ? cel.circuit.changeMs() : undefined;
+    this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot() : lobuleShot(cam), room, ms || undefined);
+    clock.invalidate('circuit');
   },
+  /** The Circuit's quarter turn: stand the map upright (flow bottom to top) or lay it wide; the camera follows on the same 480 ms. Remembered across visits. */
+  setCircuitUpright(on: boolean, room: Room): void {
+    useCircuitTurn.getState().set(on);
+    cel.setCircuitUpright(on);
+    if (cel.view === 'circuit') this.goTo(circuitShot(on), room, TURN_MS);
+    clock.invalidate('circuit');
+  },
+  /** Where a station stands in the Circuit now (scene point, turned with the map), for labels; null off the map. */
+  circuitStation: (id: string, out?: Vector3): Vector3 | null => cel.circuitStation(id, out),
   /** The lobule's Layers menu (the 2D app starts with lymph on). */
   setLobuleLayers(l: Partial<LobuleLayers>): void { cel.setLobuleLayers(l); clock.invalidate('lobule-layers'); },
   /** The cards changed room (a card opened, the phone turned): move the room alone. */

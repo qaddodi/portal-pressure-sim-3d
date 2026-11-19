@@ -7,7 +7,7 @@ const APP = new Set(['Home', 'Reset everything', 'Guide & shortcuts', 'Light / d
 
 export function isWiredCommand(group: string, title: string): boolean {
   if (group === 'Time') return DAYS.has(title);
-  if (group === 'View') return title === 'Anatomy view' || UI.lenses.some((l) => title === `Colored by ${l.name.toLowerCase()}`);
+  if (group === 'View') return title === 'Anatomy view' || title === 'Circuit view' || UI.lenses.some((l) => title === `Colored by ${l.name.toLowerCase()}`);
   if (group === 'App') return APP.has(title) || UI.looks.some((l) => title === `Appearance: ${l.name}`);
   if (group === 'Patient') return true;
   return false;

@@ -1,5 +1,5 @@
 import { Color, type DataTexture, Group, Mesh, MeshBasicMaterial, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
-import { BODY_PLATE_Z, ORGANS, VARICES, blob, bodyPlateGeometry } from './anatomy/placeholder.ts';
+import { BODY_PLATE_Z, ORGANS, PLATE_BOUNDS, VARICES, blob, bodyPlateGeometry } from './anatomy/placeholder.ts';
 import { buildVessel } from './anatomy/vessels.ts';
 import { NETWORK, type NetVessel, presenceOf } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
@@ -20,9 +20,16 @@ import { TEXTURE_WIDTH, indexOf } from '../engine/vessel-data.ts';
 import { latest, patient } from '../engine/store.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
 import { SinusoidView } from './sinusoid/index.ts';
+import { COURSES } from './circuit/course.ts';
+import { attachCircuit, slicesFor } from './circuit/geometry.ts';
+import { mapToScene, turnScenePt } from './circuit/map.ts';
+import { MapLayer, mapRamp } from './circuit/map-layer.ts';
+import { circuitBounds } from './circuit/shots.ts';
+import { CircuitView } from './circuit/view.ts';
+import { CIRCUIT_NODES, MAP_LOOKS } from './circuit/data.copied.ts';
 
-/** What the figure shows: the body, the liver lobule (hexagon) or one sinusoid. The two small views stand away from the body in the same scene. */
-export type FigureView = 'body' | 'lobule' | 'sinusoid';
+/** What the figure shows: the body, the Circuit (the body's vessels flown onto a flat map), the liver lobule (hexagon) or one sinusoid. The two small views stand away from the body in the same scene. */
+export type FigureView = 'body' | 'circuit' | 'lobule' | 'sinusoid';
 
 // The cel-shaded scene for the HVPG slice, as plain three.js so the clock (src/clock/) owns the one frame loop and the R3F Stage is
 // only the canvas around it. Order inside a frame, set by the clock: engine frame, tweens, camera, render, tag positions.
@@ -62,6 +69,12 @@ export class CelScene {
   /** The lobule and sinusoid views (B8), built once, hidden until the view is chosen (setView). */
   readonly lobule: LobuleView;
   readonly sinus: SinusoidView;
+  /** The Circuit: the change between the body and the map, and the map's quarter turn (src/scene/circuit/). */
+  readonly circuit = new CircuitView();
+  private readonly mapLayer = new MapLayer();
+  /** The organs, varices and catheter: what leaves as the figure turns into the map (the vessels stay and fly). */
+  private readonly leaving: CelObject[] = [];
+  private lastFade = 1;
   private figureView: FigureView = 'body';
   private presence!: PresenceTracks;
   private collateralsOn = false;
@@ -88,17 +101,17 @@ export class CelScene {
       const o = new CelObject(def.geometry(), { tone: def.tone, bands: 3, spec: 0, px: def.px }, this.shared);
       if (def.position) o.group.position.set(...def.position);
       if (def.rotation) o.group.rotation.set(...def.rotation);
-      this.add(o);
+      this.add(o); this.leaving.push(o);
     }
     for (const def of NETWORK) this.addVessel(def);
     for (const v of VARICES) {
       const o = new CelObject(blob(v.r, v.r, v.r, 0, 0, 14), { tone: 'portal', bands: 2, spec: 1, px: 1 }, this.shared);
       o.group.position.set(0.48 + Math.cos(v.angle) * 0.12, v.y, -0.12 + Math.sin(v.angle) * 0.12);
-      this.add(o);
+      this.add(o); this.leaving.push(o);
     }
     this.catheter = new Catheter(this.shared);
     this.body.add(this.catheter.group);
-    this.objects.push(...this.catheter.objects);
+    this.objects.push(...this.catheter.objects); this.leaving.push(...this.catheter.objects);
 
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
     this.flow = new BloodMarks(this.vessels);
@@ -107,7 +120,7 @@ export class CelScene {
     this.lens.setContext({ healthy: null, ref: null });
     const vo = { look: this.look, phone: this.phone, flowMode: opts.flowMode ?? DEFAULT_FLOW_MODE, reduceMotion: opts.reduceMotion };
     this.lobule = new LobuleView(this.shared, vo); this.sinus = new SinusoidView(this.shared, vo);
-    this.scene.add(this.lobule.group, this.sinus.group);
+    this.scene.add(this.lobule.group, this.sinus.group, this.mapLayer.group);
     this.lobule.setVisible(false); this.sinus.setVisible(false);
     this.applyLook(this.look);
   }
@@ -115,12 +128,14 @@ export class CelScene {
   private add(o: CelObject): void { this.objects.push(o); this.body.add(o.group); }
 
   private addVessel(def: NetVessel): void {
-    const built = buildVessel({ ...def, tone: def.tone === 'artery' ? 'portal' : def.tone });
+    const built = buildVessel({ ...def, tone: def.tone === 'artery' ? 'portal' : def.tone }, slicesFor(def.id));
+    attachCircuit(built, COURSES.get(def.id)!, def.radius);
     const q = STUB_Q[def.id] ?? 1;
     const o = new VesselObject(built.geometry, {
       tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.id), bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
       vessel: { index: indexOf(def.id), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: BASE_D.get(def.id) ?? 1 },
-    }, this.shared, this.lens.shared);
+    }, this.shared, this.lens.shared, this.circuit.shared);
+    this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     this.add(o);
     this.vessels.push(o);
@@ -136,6 +151,7 @@ export class CelScene {
     this.look = look;
     const p = PALETTES[look];
     (this.plate.material as MeshBasicMaterial).color.set(p.body);
+    this.mapLayer.applyLook(look, p.ink, MAP_LOOKS[look]?.ground ?? p.bg);
     for (const o of this.objects) { o.applyPalette(p); o.setPhone(this.phone); }
     this.lens.setLook(look);
     this.lobule.applyLook(look); this.sinus.applyLook(look);
@@ -144,6 +160,15 @@ export class CelScene {
 
   /** The canvas ground, for the renderer's clear colour. */
   get background(): Color { return new Color(PALETTES[this.look].bg); }
+  /** The clear colour now: the look's ground, on its way to the map's own ground (the dark looks) as the map comes in. */
+  private readonly clear = new Color();
+  private readonly mapGround = new Color();
+  clearColor(): Color {
+    const ground = MAP_LOOKS[this.look]?.ground;
+    this.clear.set(PALETTES[this.look].bg);
+    if (ground) this.clear.lerp(this.mapGround.set(ground), mapRamp(this.circuit.t));
+    return this.clear;
+  }
 
   setPhone(phone: boolean): void {
     this.phone = phone;
@@ -231,10 +256,14 @@ export class CelScene {
 
   get view(): FigureView { return this.figureView; }
   /** Show the body, the lobule or the sinusoid: the others are hidden and cost nothing (nothing is built or compiled here; the views were made at start). The camera is the caller's. */
-  setView(v: FigureView): void {
+  setView(v: FigureView, now = performance.now()): void {
     this.figureView = v;
     // the view being left stays drawn until the camera has landed on the new one (nothing pops while it flies); then it is hidden
-    this.body.visible ||= v === 'body';
+    this.body.visible ||= v === 'body' || v === 'circuit';
+    // the body turns into the map (or back) on the camera's own clock, from wherever it stands
+    if (v === 'circuit') { if (this.circuit.t === 0) this.circuit.snapTurn(this.circuit.upright); }
+    this.circuit.go(v === 'circuit', now);
+    this.rig.setBounds(v === 'circuit' ? circuitBounds(this.circuit.upright) : { ...PLATE_BOUNDS, z: BODY_PLATE_Z });
     if (v === 'lobule') this.lobule.setVisible(true);
     if (v === 'sinusoid') this.sinus.setVisible(true);
     this.hideLeftBehind = true;
@@ -242,9 +271,52 @@ export class CelScene {
     this.moving = true;
   }
   private hideLeftBehind = false;
+
+  // ---- the Circuit ---------------------------------------------------------------------------
+
+  /** Stand the map upright (flow bottom to top) or lay it wide. With the map not showing the turn is laid at once. */
+  setCircuitUpright(on: boolean, now = performance.now()): void {
+    if (this.circuit.t === 0 && !this.circuit.toCircuit) this.circuit.snapTurn(on); else this.circuit.setUpright(on, now);
+    if (this.figureView === 'circuit') this.rig.setBounds(circuitBounds(on));
+    this.moving = true;
+  }
+  /** A station's place in the scene on the map as it stands (turned with the map); for the labels. Null for a name the map does not have. */
+  circuitStation(id: string, out = new Vector3()): Vector3 | null {
+    const s = CIRCUIT_NODES[id];
+    if (!s) return null;
+    const p = mapToScene(s.at[0], s.at[1]), q = turnScenePt(p[0], p[1], this.circuit.rr);
+    return out.set(q[0], q[1], p[2]);
+  }
+  private readonly stationsOf = (() => {
+    const m = new Map<string, string[]>();
+    for (const v of NETWORK) for (const n of [v.from, v.to]) { const a = m.get(n) ?? []; a.push(v.id); m.set(n, a); }
+    return m;
+  })();
+  /** The vessel the pointer is on, in the Circuit: the nearest drawn course within a thumb's reach (screen px). */
+  private pickCircuit(x: number, y: number): string | null {
+    if (this.circuit.t < 1) return null;
+    const rr = this.circuit.rr, reach = this.phone ? 16 : 10;
+    let best: string | null = null, bestD = reach * reach;
+    const v3 = new Vector3(), a = { x: 0, y: 0 };
+    for (const v of NETWORK) {
+      if (this.presence.stateOf(v.id) !== 'shown') continue;
+      const pts = COURSES.get(v.id)!.mapPts;
+      let px = NaN, py = NaN;
+      for (let i = 0; i < pts.length; i += 2) {
+        const m = mapToScene(pts[i]![0], pts[i]![1]), q = turnScenePt(m[0], m[1], rr);
+        this.rig.project(v3.set(q[0], q[1], m[2]), a);
+        if (!Number.isNaN(px)) {
+          const dx = a.x - px, dy = a.y - py, L = dx * dx + dy * dy || 1, u = Math.max(0, Math.min(1, ((x - px) * dx + (y - py) * dy) / L)), ex = px + dx * u - x, ey = py + dy * u - y, d = ex * ex + ey * ey;
+          if (d < bestD) { bestD = d; best = v.id; }
+        }
+        px = a.x; py = a.y;
+      }
+    }
+    return best;
+  }
   private settleViews(): void {
     const v = this.figureView;
-    this.body.visible = v === 'body';
+    this.body.visible = v === 'body' || v === 'circuit';
     this.lobule.setVisible(v === 'lobule'); this.sinus.setVisible(v === 'sinusoid');
     this.hideLeftBehind = false;
   }
@@ -260,6 +332,7 @@ export class CelScene {
 
   /** The vessel whose body a pointer ray hits first, for tap-to-pick. */
   pickAt(x: number, y: number, raycaster: Raycaster): string | null {
+    if (this.figureView === 'circuit') return this.pickCircuit(x, y);
     if (this.figureView !== 'body') return null;
     raycaster.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
     const hits = raycaster.intersectObjects(this.vessels.map((v) => v.toonMesh), false);
@@ -297,22 +370,39 @@ export class CelScene {
     this.lastNow = now;
     this.shared.time.value = (now / 1000) % 1000;
     const camMoving = this.rig.update(now);
-    if (this.hideLeftBehind && !camMoving) this.settleViews();
+    const circMoving = this.stepCircuit(now, dt);
+    if (this.hideLeftBehind && !camMoving && !this.circuit.moving) this.settleViews();
     const hiMoving = this.highlight.step(dt);
     const flowActive = this.flow.step(now, dt);
     const lensMoving = this.lens.step(now);
     const presMoving = this.presence.step(dt);
     const viewMoving = this.lobule.update(now) || this.sinus.update(now);
-    const needs = this.moving || camMoving || hiMoving || flowActive || lensMoving || presMoving || viewMoving;
+    const needs = this.moving || camMoving || circMoving || hiMoving || flowActive || lensMoving || presMoving || viewMoving;
     this.moving = false;
     return needs;
   }
 
+  /** The change and the turn, the organs leaving, the map coming in and its stations' dots. */
+  private stepCircuit(now: number, dt: number): boolean {
+    const moving = this.circuit.update(now), t = this.circuit.t;
+    const fade = 1 - t;
+    if (fade !== this.lastFade) {
+      this.lastFade = fade;
+      for (const o of this.leaving) o.setFade(fade);
+      const m = this.plate.material as MeshBasicMaterial;
+      m.transparent = fade < 1; m.opacity = fade; this.plate.visible = fade > 0.001;
+    }
+    this.mapLayer.set(mapRamp(t), this.circuit.rr);
+    let dots = false;
+    if (t > 0) dots = this.mapLayer.stepDots((id) => (this.stationsOf.get(id) ?? []).some((e) => this.presence.stateOf(e) === 'shown'), Math.min(1, dt / 280));
+    return moving || dots;
+  }
+
   /** Until the camera has its first real shot and room only the background is drawn, so the figure's first picture is already in its place. */
-  render(gl: WebGLRenderer): void { if (this.rig.placed) gl.render(this.scene, this.rig.camera); else gl.clear(); }
+  render(gl: WebGLRenderer): void { if (this.rig.placed) { gl.setClearColor(this.clearColor()); gl.render(this.scene, this.rig.camera); } else gl.clear(); }
 
   dispose(): void {
-    this.lens.dispose();
+    this.lens.dispose(); this.mapLayer.dispose();
     for (const o of this.objects) o.dispose();
     this.plate.geometry.dispose();
     (this.plate.material as MeshBasicMaterial).dispose();

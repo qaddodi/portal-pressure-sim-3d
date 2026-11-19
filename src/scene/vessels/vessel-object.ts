@@ -4,6 +4,8 @@ import { PALETTES, type Palette } from '../palette.ts';
 import { VESSEL_FS, VESSEL_VS } from './shaders.ts';
 import { LENS_SHARED, LENS_TOKENS } from '../lenses/tokens.copied.ts';
 import type { LookId } from '../palette.ts';
+import { CIRCUIT_ATTRIBUTES } from '../circuit/geometry.ts';
+import type { CircuitShared } from '../circuit/uniforms.ts';
 
 /** Uniforms every vessel shares: the two lens textures held for the crossfade, their stream colours, and the cross-fade itself. */
 export interface LensShared {
@@ -35,7 +37,7 @@ export interface VesselOptions extends Omit<CelOptions, 'tone'> {
 /** The tube twice in one geometry: copy 0 is the body (`hull` 0), copy 1 the ink's hull (`hull` 1). One mesh then draws both, so a vessel is one draw call. */
 export function withHull(g: BufferGeometry): BufferGeometry {
   const out = new BufferGeometry();
-  for (const name of ['position', 'normal', 'uv', 'tang']) {
+  for (const name of ['position', 'normal', 'uv', 'tang', ...CIRCUIT_ATTRIBUTES]) {
     const a = g.getAttribute(name);
     if (!a) continue;
     const arr = a.array as Float32Array, copy = new Float32Array(arr.length * 2);
@@ -66,7 +68,7 @@ const lookOf = (p: Palette): LookId => ((Object.keys(PALETTES) as LookId[]).find
 export class VesselObject extends CelObject {
   readonly artery: boolean;
 
-  constructor(geometry: BufferGeometry, opts: VesselOptions, shared: CelShared, lens: LensShared) {
+  constructor(geometry: BufferGeometry, opts: VesselOptions, shared: CelShared, lens: LensShared, circuit: CircuitShared) {
     super(withHull(geometry), { ...opts, tone: opts.tone === 'artery' ? 'portal' : opts.tone }, shared);
     this.artery = !!opts.artery;
     const old = this.toon;
@@ -80,6 +82,7 @@ export class VesselObject extends CelObject {
         inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, hullOn: { value: 1 },
         px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
+        circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 },
         lensUse: { value: this.artery ? 0 : 1 }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 1 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
