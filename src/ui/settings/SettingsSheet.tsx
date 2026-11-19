@@ -1,4 +1,5 @@
-// The Settings sheet: the 2D app's rows, in its order and words (rows.ts, from the inventory). The same sheet opens from the top bar's gear (a panel under it), from the
+// The Settings menu, on 2D's menu markup (main.js openSettings: .menu.app-menu with titled .menu-group sections, .menu-item and .lens-opt rows, the look tiles, the Figure detail steps).
+// The 2D app's rows, in its order and words (rows.ts, from the inventory). The same sheet opens from the top bar's gear (a panel under it), from the
 // phone's bottom bar (a sheet from the foot) and from the presenter pill's gear (a panel above it). While a talk is on, the Model rows and Reset are left out, as in 2D.
 import { useEffect, useState } from 'react';
 import { UI } from '../strings.generated.ts';
@@ -6,8 +7,8 @@ import { useSettings, FIGURE_DETAIL } from '../../state/settings.ts';
 import type { LookChoice } from '../../looks/looks.ts';
 import { useShell } from '../shell/store.ts';
 import { useUi } from '../ui-store.ts';
-import { Frame } from '../shell/Frame.tsx';
-import { Icon } from '../shell/icons.tsx';
+import { MenuPop, MenuGroup, MenuItem, MenuToggle } from '../shell/Menu.tsx';
+import { I } from '../shell/icons.tsx';
 import { runFeature } from '../shell/features.ts';
 import { usesBottomBar } from '../shell/room.ts';
 import { FULLSCREEN } from '../shell/words.ts';
@@ -20,13 +21,10 @@ const SWITCH: Record<string, 'blur' | 'sharpMoving' | 'keys' | 'showFps' | 'show
 function Switch({ row }: { row: Row }) {
   const key = SWITCH[row.label];
   const on = useSettings((s) => s[key]);
-  return (
-    <button type="button" role="switch" className="sh-row" aria-checked={on} onClick={() => useSettings.getState().set(key, !on)}>
-      <Icon n={ICON[row.label] ?? 'info'} /><span className="sh-t">{row.label}</span><span className="sh-sw" aria-hidden="true" />{row.hint && <span className="sh-d">{row.hint}</span>}
-    </button>
-  );
+  return <MenuToggle checked={on} icon={ICON[row.label] ?? 'info'} label={row.label} sub={row.hint} onChange={(v) => useSettings.getState().set(key, v)} />;
 }
 
+/** 2D figureMpControl: − · the step in words · +, as `.seg.full.menu-seg.text-size.fig-mp` (ts-a, ts-reset). */
 function FigureDetail() {
   const at = useSettings((s) => s.figureDetail);
   const set = (i: number) => useSettings.getState().set('figureDetail', Math.max(0, Math.min(FIGURE_DETAIL.length - 1, i)));
@@ -34,11 +32,11 @@ function FigureDetail() {
   const more = UI.settings.find((r) => r.label === 'Figure detail: More detail')!.label.replace('Figure detail: ', '');
   return (
     <>
-      <div className="sh-title">Figure detail</div>
-      <div className="sh-fig" role="group" aria-label="Figure detail">
-        <button type="button" aria-label={less} title={`${less} (softer, runs cooler)`} disabled={at === 0} onClick={() => set(at - 1)}>−</button>
-        <button type="button" className="sh-fig-now" aria-pressed={at === 1} aria-label={`Figure detail: back to ${FIGURE_DETAIL[1].name}`} title={`Back to ${FIGURE_DETAIL[1].name}`} onClick={() => set(1)}>{FIGURE_DETAIL[at].name}</button>
-        <button type="button" aria-label={more} title={`${more} (sharper, runs warmer)`} disabled={at === FIGURE_DETAIL.length - 1} onClick={() => set(at + 1)}>+</button>
+      <div className="menu-title">Figure detail</div>
+      <div className="seg full menu-seg text-size fig-mp" role="group" aria-label="Figure detail">
+        <button type="button" className="ts-a ts-sm" aria-label={less} title={`${less} (softer, runs cooler)`} disabled={at === 0} onClick={() => set(at - 1)}>−</button>
+        <button type="button" className="ts-reset" aria-label={`Figure detail: back to ${FIGURE_DETAIL[1].name}`} aria-pressed={at === 1} title={`Back to ${FIGURE_DETAIL[1].name}`} onClick={() => set(1)}>{FIGURE_DETAIL[at].name}</button>
+        <button type="button" className="ts-a ts-lg" aria-label={more} title={`${more} (sharper, runs warmer)`} disabled={at === FIGURE_DETAIL.length - 1} onClick={() => set(at + 1)}>+</button>
       </div>
     </>
   );
@@ -55,7 +53,7 @@ function useFullscreen() {
 function WrongHere() {
   const open = (window as unknown as { pps?: { packet?: { open?: () => void } } }).pps?.packet?.open;
   if (!open) return null;
-  return <button type="button" className="sh-row" onClick={() => { useShell.getState().close(); open(); }}><Icon n="help" /><span className="sh-t">What&apos;s wrong here?</span></button>;
+  return <MenuItem icon="help" label="What's wrong here?" onClick={() => { useShell.getState().close(); open(); }} />;
 }
 
 function Item({ row }: { row: Row }) {
@@ -65,11 +63,11 @@ function Item({ row }: { row: Row }) {
   if (l === 'Send feedback') {
     const email = feedbackEmail();
     if (!email) return <WrongHere />;
-    return <><button type="button" className="sh-row" onClick={() => { close(); location.href = feedbackHref(email, { build: `PREVIEW · ${String(import.meta.env.VITE_BUILD ?? 'local').split('@').pop()}`, device: navigator.userAgent, screen: `${innerWidth} × ${innerHeight} at ${devicePixelRatio}×`, view: location.href }); }}><Icon n="mail" /><span className="sh-t">{l}</span></button><WrongHere /></>;
+    return <><MenuItem icon="mail" label={l} onClick={() => { close(); location.href = feedbackHref(email, { build: `PREVIEW · ${String(import.meta.env.VITE_BUILD ?? 'local').split('@').pop()}`, device: navigator.userAgent, screen: `${innerWidth} × ${innerHeight} at ${devicePixelRatio}×`, view: location.href }); }} /><WrongHere /></>;
   }
   if (l === 'Enter full screen') {
-    if (!fs.can) return /iPhone|iPod/.test(navigator.userAgent) && !matchMedia('(display-mode: standalone)').matches ? <p className="sh-note">{FULLSCREEN.iphone}</p> : null;
-    return <button type="button" className="sh-row" title={FULLSCREEN.hint} onClick={fs.toggle}><Icon n="fullscreen" /><span className="sh-t">{fs.on ? FULLSCREEN.exit : FULLSCREEN.enter}</span></button>;
+    if (!fs.can) return /iPhone|iPod/.test(navigator.userAgent) && !matchMedia('(display-mode: standalone)').matches ? <small className="mm-role-note fs-hint">{FULLSCREEN.iphone}</small> : null;
+    return <MenuItem icon="fullscreen" label={fs.on ? FULLSCREEN.exit : FULLSCREEN.enter} title={FULLSCREEN.hint} onClick={fs.toggle} />;
   }
   const go = () => {
     if (l === 'Help') useShell.setState({ sheet: 'help' });
@@ -77,37 +75,47 @@ function Item({ row }: { row: Row }) {
     else if (l === 'History') { close(); runFeature('history', l); }
     else if (l === 'Advanced physiology') { close(); runFeature('advanced', l); }
   };
-  return <button type="button" className="sh-row" onClick={go}><Icon n={ICON[l] ?? 'info'} /><span className="sh-t">{l}</span>{l === 'Help' && <Icon n="chev-right" className="sh-chev" />}</button>;
+  return <MenuItem icon={ICON[l] ?? 'info'} label={l} onClick={go} />;
 }
 
-function Look({ row }: { row: Row }) {
-  const id = row.label.toLowerCase() as LookChoice;
+/** 2D look-chooser.js: the looks as a grid of tiles, each drawing its look (a ground, a card on it, two lines of ink and a bar of the accent); System shows Light and Dark side by side. */
+const half = (id: string) => <i className="look-half" data-look={id}><i className="look-card"><b /><b className="short" /><u /></i></i>;
+function Looks({ names }: { names: Row[] }) {
   const cur = useSettings((s) => s.look);
-  return <button type="button" role="radio" className="sh-row" aria-checked={cur === id} onClick={() => useSettings.getState().setLook(id)}><span className="sh-look" data-look={id} aria-hidden="true" /><span className="sh-t">{row.label}</span>{cur === id && <Icon n="check" />}</button>;
+  return (
+    <div className="look-grid" role="group" aria-label="Appearance">
+      {names.map((row) => {
+        const id = row.label.toLowerCase() as LookChoice;
+        return (
+          <button key={id} type="button" className="look-tile" data-look={id} aria-pressed={cur === id} onClick={() => useSettings.getState().setLook(id)}>
+            <span className="look-chip" aria-hidden="true">{id === 'system' ? <>{half('light')}{half('dark')}</> : half(id)}</span><span className="look-name">{row.label}</span><i className="look-spin" aria-hidden="true" />
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
   const talk = useShell((s) => s.mode === 'deck');
   const phone = usesBottomBar(useUi((s) => s.device));
+  const label = UI.topbar.find((t) => t.id === 'btnSettings')!.label!;
   return (
-    <Frame kind="settings" label={UI.topbar.find((t) => t.id === 'btnSettings')!.label!} place={place}>
+    <MenuPop kind="settings" label={label} title={label} align="end" side={place === 'bar' ? 'above' : 'below'}>
       {SECTIONS.map((sec, i) => {
         const rows = sec.rows.filter((r) => !(r.phone && !phone) && !(r.talk === false && talk));
         if (!rows.length) return null;
         return (
-          <div key={i}>
-            {i > 0 && !sec.title && <div className="sh-sep" />}
-            {sec.title && <div className="sh-title">{sec.title}</div>}
-            {rows.map(({ row }) => {
+          <MenuGroup key={i} title={sec.title}>
+            {sec.title === 'Appearance' ? <Looks names={rows.map((r) => r.row)} /> : rows.map(({ row }) => {
               if (row.label.startsWith('Figure detail: ')) return null;
               if (row.label === 'Figure detail') return <FigureDetail key={row.label} />;
               if (row.kind === 'switch') return <Switch key={row.label} row={row} />;
-              if (row.kind === 'look') return <Look key={row.label} row={row} />;
               return <Item key={row.label} row={row} />;
             })}
-          </div>
+          </MenuGroup>
         );
       })}
-    </Frame>
+    </MenuPop>
   );
 }
