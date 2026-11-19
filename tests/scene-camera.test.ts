@@ -93,14 +93,14 @@ test('the projection shift moves the picture centre to the room centre', () => {
   assert.deepEqual(off, { x: -200, y: 0 });
 });
 
-test('orbit is limited to 25 degrees either way and the field of view is the mocks\'', () => {
+test('orbit is limited to 25 degrees either way and the lens is long\'', () => {
   const rig = new CameraRig('free');
   rig.setOrbit(10);
   assert.equal(rig.orbitAngle, ORBIT_LIMIT);
   rig.setOrbit(-10);
   assert.equal(rig.orbitAngle, -ORBIT_LIMIT);
   assert.ok(Math.abs(ORBIT_LIMIT - 0.4363) < 1e-3);
-  assert.equal(FOV, 30);
+  assert.equal(FOV, 14);   // the long lens (owner's decision B, 19 Nov)
 });
 
 test('a new shot always starts square on: the orbit eases back to centre with the move', () => {

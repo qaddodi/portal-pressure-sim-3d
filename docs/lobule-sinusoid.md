@@ -1,5 +1,12 @@
 # Lobule and sinusoid views (batch B8)
 
+> **Sinusoid view, 19 Nov 2026 (atlas look plan WP7): lifted from 2D.** The placeholder 3D cut (layers of cel-shaded slabs) is gone. `src/scene/sinusoid/view.ts` runs 2D's own
+> tissue shader and albumin sprites (`sinusoid-gl.js`) on a plane in the sinusoid's frame, so the tissue fills the screen to every edge; 2D's traffic and palette code come with it.
+> All of it is copied by `node scripts/copy-sinusoid.mjs --from <2D checkout> [--check]` into `gl.copied.ts`, `traffic.copied.js`, `palette.copied.js`; never edit those.
+> The dive hook is `view.setDive(g)` (the scene sets it from the camera's distance while flying, `null` at rest); at rest the lobule is hidden and the tissue is opaque everywhere.
+> There is no artist swap-in for the sinusoid any more (its parts exist for the API; everything is drawn in `lumen`). The part table below is the lobule's now.
+
+
 19 Nov 2026. `src/scene/lobule/` and `src/scene/sinusoid/` (this batch owns only these). Placeholder art, built once at start-up, with named parts so
 the artist's model swaps in part by part (stage 4). Rows closed: honeycomb, sinusoids, stellate cells, collagen, congestion, lymph chevrons on the
 ducts, the wedge's amber spread, the lobule camera shots.

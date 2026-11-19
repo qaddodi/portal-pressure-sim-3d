@@ -1,0 +1,70 @@
+// The 2D figure's vessel line and shading (tube-cel-glsl.js, tokens.css): the numbers in cel-ink.ts, held against the shader text and the scene's uniforms.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { Color } from 'three';
+import { CASING, CEL, RIM_A, celTones, inkWidthDev } from '../src/scene/vessels/cel-ink.ts';
+import { LOOK_IDS, PALETTES } from '../src/scene/palette.ts';
+import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
+import { CelScene } from '../src/scene/scene.ts';
+
+test('the outline is 0.14 of the radius held between 1.5 and 3 device px: a hairline keeps a line, the trunk does not grow a rope', () => {
+  assert.equal(inkWidthDev(2), 1.5);
+  assert.equal(inkWidthDev(10), 1.5);
+  assert.ok(Math.abs(inkWidthDev(15) - 2.1) < 1e-9);
+  assert.equal(inkWidthDev(60), 3);
+  assert.match(VESSEL_VS, /clamp\(0\.14 \* rDev, 1\.5, 3\.0\) \/ dpr/);
+});
+
+test('three tones lit from the top left of the screen: shadow on the far side, lift on the near, nothing on a hairline, and the same wherever the tube lies in the view', () => {
+  const side: [number, number] = [1, 0];                     // a vertical tube: its cross axis points right
+  const lit = celTones(-1, side, 20), dark = celTones(1, side, 20), mid = celTones(0, side, 20);
+  assert.ok(Math.abs(mid.mul - 1) < 1e-9 && mid.lift === 0, 'the middle is the plain fill');
+  assert.ok(Math.abs(dark.mul - (1 - CEL.SHADE)) < 1e-9, 'the right side, away from the light, is the shadow tone');
+  assert.ok(Math.abs(lit.lift - CEL.LIT) < 1e-9 && lit.mul === 1, 'the left side, toward the light, is lifted');
+  const hair = celTones(1, side, 1);
+  assert.equal(hair.mul, 1); assert.equal(hair.lift, 0);
+  // the tone steps depend on the screen only: a tube the other way round (cross axis flipped, across flipped) is the same picture
+  const a = celTones(0.7, side, 20), b = celTones(-0.7, [-1, 0], 20);
+  assert.equal(a.mul, b.mul); assert.equal(a.lift, b.lift);
+});
+
+test('the shader holds the same numbers, and has no specular and no world-lit band on a vessel', () => {
+  assert.match(VESSEL_FS, /vec2\(-0\.70710678, 0\.70710678\)/);
+  assert.match(VESSEL_FS, /smoothstep\(-0\.16 - etT, -0\.16 \+ etT, sT\)/);
+  assert.match(VESSEL_FS, /smoothstep\(0\.24 - etT, 0\.24 \+ etT, sT\)/);
+  assert.match(VESSEL_FS, /hwT \* 0\.17 \* shadowT/);
+  assert.match(VESSEL_FS, /0\.15 \* hwT \* litT/);
+  assert.ok(!/sp \* 0\.32/.test(VESSEL_FS) && !/rim \* 0\.10/.test(VESSEL_FS), 'no specular dot and no rim lift');
+  assert.ok(!/dot\(n, l\) \* 0\.5/.test(VESSEL_FS), 'no world-lit bands');
+});
+
+test('every look wears 2D\'s casing: its ink and alpha (less under a lens on the dark looks), a veiled vessel half, and the dark looks\' light rim', () => {
+  assert.deepEqual(Object.keys(CASING).sort(), [...LOOK_IDS].sort());
+  assert.equal(CASING.light.a, 0.64); assert.equal(CASING.soft.a, 0.66); assert.equal(CASING.dark.a, 0.3); assert.equal(CASING.dark.lensA, 0.38);
+  assert.equal(RIM_A.light, 0); assert.equal(RIM_A.dark, 0.3);
+  const s = new CelScene();
+  const o = s.vesselObject('PV_TRUNK')!;
+  for (const id of LOOK_IDS) {
+    o.applyPalette(PALETTES[id]);
+    const u = o.toon.uniforms;
+    assert.equal(u.casingA!.value, CASING[id].a, id);
+    assert.equal(u.casingLensA!.value, CASING[id].lensA, id);
+    const c = u.inkColor!.value as Color;
+    assert.ok(Math.abs(c.r - CASING[id].rgb[0] / 255) < 1e-6 && Math.abs(c.b - CASING[id].rgb[2] / 255) < 1e-6, `${id} ink`);
+  }
+  assert.match(VESSEL_FS, /ca \*= 0\.5;/);
+  s.dispose();
+});
+
+test('the ink is its own blended draw after the opaque bodies: a material for the body, one for the hull, over the two index ranges', () => {
+  const s = new CelScene();
+  const o = s.vesselObject('PV_TRUNK')!;
+  const mats = o.toonMesh.material as unknown as { transparent: boolean; depthWrite: boolean; uniforms: unknown }[];
+  assert.equal(mats.length, 2);
+  assert.equal(mats[1]!.transparent, true); assert.equal(mats[1]!.depthWrite, false);
+  assert.equal(mats[0]!.transparent, false);
+  assert.equal(mats[0]!.uniforms, mats[1]!.uniforms, 'one set of uniforms');
+  const g = o.toonMesh.geometry, n = g.getIndex()!.count;
+  assert.deepEqual(g.groups.map((x) => [x.start, x.count, x.materialIndex]), [[0, n / 2, 0], [n / 2, n / 2, 1]]);
+  s.dispose();
+});

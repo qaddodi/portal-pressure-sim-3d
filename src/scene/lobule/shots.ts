@@ -56,7 +56,7 @@ export function lobuleShot(cam: LobuleCam): Shot {
 /** The sinusoid view's shot: the whole length of one cut sinusoid, portal end left (world units: inside the lobule). */
 export function sinusoidShot(): Shot {
   const [ox, oy, oz] = SINUSOID_ORIGIN;
-  return { yaw: -0.06, pitch: 0.1, r: 3 * SIN_SCALE, target: sinusoidWorld([ox, oy, oz]), half: [(SINUSOID_L / 2 + 0.4) * SIN_SCALE, 1.9 * SIN_SCALE] };
+  return { yaw: 0, pitch: 0, r: 3 * SIN_SCALE, target: sinusoidWorld([ox, oy, oz]), half: [(SINUSOID_L / 2 + 0.4) * SIN_SCALE, 1.9 * SIN_SCALE] };
 }
 
 /** Lobule coordinates (the 2D plane: x right, y DOWN, in lobule radii) to the lobule's own local units, on the slab's middle plane plus z. */

@@ -183,6 +183,7 @@ ${FADE_GLSL}
 uniform vec3 color;
 uniform vec3 hiColor;
 uniform float reveal;
+uniform float inkA;   // the line's own alpha: 1 for an organ's or a part's solid ink, the look's casing alpha for a strand (setSoftInk)
 varying float vHi;
 varying float vU;
-void main() { if (reveal < 0.9999 && vU > reveal) discard; if (fadedOut()) discard; gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), 1.0); }`;
+void main() { if (reveal < 0.9999 && vU > reveal) discard; if (fadedOut()) discard; gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), mix(inkA, 1.0, clamp(vHi, 0.0, 1.0))); }`;

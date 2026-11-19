@@ -5,7 +5,7 @@ import type { Vec3 } from '../anatomy/vessels.ts';
 import { type View, lerpView } from '../gesture/ease.ts';
 import type { Rect } from '../gesture/view.ts';
 import { type Room, effectiveDistance, viewOffset } from './room.ts';
-import { FOV, ORBIT_LIMIT, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
+import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
 
 /** Radians of turn per pixel of drag. */
 export const ORBIT_PER_PX = 0.006;
@@ -15,7 +15,14 @@ export const ORBIT_PER_PX = 0.006;
  *  (touch, mouse, pen and trackpad all arrive as pointer events); Stage.tsx calls nothing else. */
 export const dragToOrbit = (start: number, dx: number): number => start - dx * ORBIT_PER_PX;
 
-export const easeInOutCubic = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+/** The turn `t` ms after the hand lifted from `x0` (radians) at rest: a critically damped spring home to the shot, `(x0 (1 + ωs)) e^(-ωs)` with s in seconds. It never overshoots,
+ *  is `x0` at 0 and settles (under a thousandth of a radian) in about 1.3 s at ORBIT_HOME_OMEGA. The gesture controller steps it; this is the one place its shape lives. */
+export const orbitHome = (x0: number, t: number, omega = ORBIT_HOME_OMEGA): number => {
+  const s = Math.max(0, t) / 1000;
+  return x0 * (1 + omega * s) * Math.exp(-omega * s);
+};
+
+export const easeInOutCubic =(t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 
 /** Shortest way round between two angles, so a turn never spins the long way. */

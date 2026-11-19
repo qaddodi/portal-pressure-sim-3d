@@ -1,0 +1,46 @@
+// The 2D line masks (stage-geo.js FADE_IN, SIN_FADE): the liver beds fade along their course, the hepatic and renal veins into the cava, C9 behind the liver.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fadeOf } from '../src/scene/vessels/fades.ts';
+import { NODE_POS_2D } from '../src/scene/vessels/paths.copied.ts';
+import { x3, y3 } from '../src/scene/frame2d.ts';
+import { CelScene } from '../src/scene/scene.ts';
+
+test('a liver bed fades along the line from its portal node to its venous node: 0.8, faintest 0.36 half way, solid at the end', () => {
+  for (const [id, a, b] of [['SIN_RR', 'SIN_R', 'CV_R'], ['SIN_LL', 'SIN_L', 'CV_L']] as const) {
+    const f = fadeOf(id, false)!;
+    assert.equal(f.mode, 4, id);
+    assert.deepEqual(f.line, [x3(NODE_POS_2D[a]![0]), y3(NODE_POS_2D[a]![1]), x3(NODE_POS_2D[b]![0]), y3(NODE_POS_2D[b]![1])]);
+    assert.equal(f.from, 0.5); assert.equal(f.a0, 0.8); assert.equal(f.a1, 0.36);
+    assert.equal(f.keep, false);
+  }
+});
+
+test('the hepatic veins fade into the cava (solid at the offset, to FADE_IN\'s alpha at the end); C9 dips behind the liver and is solid again above the dome', () => {
+  const rhv = fadeOf('RHV_IVC', false)!;
+  assert.equal(rhv.mode, 3); assert.equal(rhv.a0, 1); assert.equal(rhv.a1, 0.5); assert.equal(rhv.from, 0);
+  assert.equal(fadeOf('C5', false)!.from, 0.6);
+  assert.equal(fadeOf('C5', false)!.a1, 0.3, 'the default end alpha of FADE_IN is 0.3');
+  const c9 = fadeOf('C9', false)!;
+  assert.equal(c9.mode, 4); assert.equal(c9.from, 0.65); assert.equal(c9.a1, 0.55);
+  assert.ok(c9.line![1] < c9.line![3], 'the line runs up the figure (2D y 520 to 172)');
+});
+
+test('the vessel shader carries both line modes with the 2D alpha (tube-geo.js tubeAlpha)', () => {
+  const src = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
+  assert.match(src, /fadeMode > 3\.5/);
+  assert.match(src, /smoothstep\(0\.0, max\(fadeA\.x, 1e-4\), fv\)/);
+  assert.match(src, /smoothstep\(fadeA\.x, 1\.0, fv\)/);
+});
+
+test('every faded vessel is blended and a line fade is on its own vessel in the scene', () => {
+  const s = new CelScene();
+  for (const id of ['SIN_RR', 'SIN_LL', 'C9', 'RHV_IVC', 'MHV_IVC', 'LHV_IVC', 'LRV_IVC', 'C5']) {
+    const o = s.vessels.find((v) => v.edge!.id === id);
+    assert.ok(o, id);
+    assert.ok(o.toon.uniforms.fadeMode!.value >= 3, `${id} fade mode`);
+    assert.equal(o.toon.transparent, true, id);
+  }
+  s.dispose();
+});

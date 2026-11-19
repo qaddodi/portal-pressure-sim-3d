@@ -48,7 +48,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     const banded = BANDED.has(v.id), rad = banded ? v.radius * (1 - 0.14 * Math.min(4, s.bands)) : v.radius;
     // the varices bead by their size: every strand, and the gastrorenal shunt itself (varix-bead.js)
     const lambda = beadLambda(v.id) as number, beads = s.bead > 0 && beadsOn(v.id);
-    const own = { pts: m, radius: rad, taper: v.taper, flare: v.flare, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
+    const own = { pts: m, radius: rad, taper: v.taper, flare: v.flare, capless: v.joined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
     return [own, ...strands.map((c, i) => {
       if (!s.strandsOn) return own;
       const live = (banded ? Math.min(1, Math.max(0, i + 1 - s.bands)) : 1) * (c.live ?? 1);
