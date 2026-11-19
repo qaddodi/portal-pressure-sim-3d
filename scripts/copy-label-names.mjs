@@ -153,6 +153,7 @@ export async function extract() {
     LABEL_STYLE: STYLE,
     SHORT: anat.SHORT, ABBR: anat.ABBR, LABEL_VESSEL: anat.LABEL_VESSEL, CHIP_NODES: anat.CHIP_NODES,
     ORGAN_NAMES: anat.ORGAN_LABELS.map((o) => o[0]),
+    ORGAN_AT: Object.fromEntries(anat.ORGAN_LABELS.map(([n, x, y]) => [n, [x, y]])),
     ANAT_PRI: evalLiteral(literalOf(items, 'ANAT_PRI')),
     ANAT_EXTRA: evalLiteral(literalOf(items, 'ANAT_EXTRA')),
     CIRCUIT_PRI: Object.fromEntries(Object.entries(anat.CIRCUIT_LABELS).map(([k, v]) => [k, v.pri])),
