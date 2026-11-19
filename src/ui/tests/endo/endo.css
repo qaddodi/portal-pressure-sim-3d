@@ -13,4 +13,10 @@
 .en-view[data-view="scope"] { position: relative; }
 .eus-ppg .eus-panel { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 12px; border-radius: 12px; background: var(--card, rgba(255, 255, 255, 0.92)); box-shadow: 0 2px 12px rgb(0 0 0 / 0.18); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 180ms ease, visibility 0s linear 180ms; }
 .eus-ppg[data-state="run"] .eus-panel, .eus-ppg[data-state="hold"] .eus-panel { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 180ms ease; }
-.en-wall { padding: 8px 2px; }
+/* Wall mechanics lays out as the scope does: the picture beside its tiles on a wide card, the tiles under it (four to a row) on a narrow one. The tiles' own rules are 2D's (wall.copied.css). */
+@container (min-width: 440px) { .en-view[data-view="wall"] { grid-template-columns: auto minmax(0, 1fr); } }
+@container (max-width: 439px) { .en-wall .endo-read { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.en-wall .endo-pos { white-space: normal; text-align: center; }
+/* the view that comes in fades up where the other was (2D dock.js setEndoSub: opacity only, --d-small; a fade is not motion, so Reduce Motion keeps it) */
+@keyframes en-view-in { from { opacity: 0; } }
+.en-view { animation: en-view-in var(--d-small, 240ms) var(--ease-arrive, cubic-bezier(.2, .8, .2, 1)); }
