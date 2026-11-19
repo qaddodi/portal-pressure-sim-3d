@@ -7,7 +7,8 @@ export function CaseCard({ slide, page, pages }: { slide: Slide; page: number; p
   return (
     <>
       <div className="pz-kick" data-site="none">Case{pages > 1 ? <span className="dk-pageno"> · {page + 1} of {pages}</span> : null}</div>
-      <p className="pz-line">{text}</p>
+      <p className="pz-line pz-case-p">{text}</p>
+      {slide.caseQ && page >= pages - 1 ? <p className="pz-line pz-case-p pz-case-q">{slide.caseQ}</p> : null}
     </>
   );
 }
