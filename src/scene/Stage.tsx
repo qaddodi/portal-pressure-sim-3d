@@ -138,7 +138,7 @@ export function Stage() {
   const msaa = aaMode() === 'msaa' && msaaFor(rest);
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-stage)' as unknown as number, touchAction: 'none' }}>
-      <Canvas key={msaa ? 'msaa' : 'no-msaa'} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, powerPreference: 'high-performance' }}>
+      <Canvas key={msaa ? 'msaa' : 'no-msaa'} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, stencil: true, powerPreference: 'high-performance' }}>
         <ClockBridge />
         <SceneBridge />
       </Canvas>

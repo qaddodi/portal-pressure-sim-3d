@@ -1,4 +1,4 @@
-import { BufferAttribute, BufferGeometry, Color, DataTexture, DoubleSide, FloatType, LinearSRGBColorSpace, Mesh, NearestFilter, RGBAFormat, ShaderMaterial, Vector3, Vector4, type Texture } from 'three';
+import { BufferAttribute, BufferGeometry, Color, DataTexture, DoubleSide, FloatType, KeepStencilOp, LinearSRGBColorSpace, Mesh, NearestFilter, NotEqualStencilFunc, ReplaceStencilOp, RGBAFormat, ShaderMaterial, Vector3, Vector4, type Texture } from 'three';
 import { CelObject, type CelOptions, type CelShared, rawColor } from '../materials/cel.ts';
 import { PALETTES, type Palette } from '../palette.ts';
 import { VESSEL_FS, VESSEL_VS } from './shaders.ts';
@@ -95,7 +95,7 @@ export class VesselObject extends CelObject {
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 },
         veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 },
-        lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, chainTex: blood.chainTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, casingLensA: { value: 0.64 }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 1 },
+        lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, chainTex: blood.chainTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 1 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
       },
@@ -105,7 +105,10 @@ export class VesselObject extends CelObject {
     // so a joined vessel's outline never lands on its neighbour's body and an outline never hides a vessel in front. The body stays opaque. Both share one set of uniforms.
     const geo = this.toonMesh.geometry, half = geo.getIndex()!.count / 2;
     geo.clearGroups(); geo.addGroup(0, half, 0); geo.addGroup(half, half, 1);
-    this.hullMat = new ShaderMaterial({ vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, side: DoubleSide, uniforms: toon.uniforms, transparent: true, depthWrite: false });
+    this.hullMat = new ShaderMaterial({ vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, side: DoubleSide, uniforms: toon.uniforms, transparent: true, depthWrite: false,
+      // one outline round the union (2D's tube-joint.js), not one per tube: each pixel takes the ink once, so where two outlines overlap (a fork's crotch, a run-on, a free end's cap and its tube,
+      // the inside of a tight bend) the alpha is not applied twice (.64 would be .87). The first hull fragment to pass the depth test marks the pixel; the stencil is cleared with the depth between the passes.
+      stencilWrite: true, stencilRef: 1, stencilFunc: NotEqualStencilFunc, stencilFail: KeepStencilOp, stencilZFail: KeepStencilOp, stencilZPass: ReplaceStencilOp });
     this.toonMesh.material = [toon, this.hullMat];
     (this as unknown as { toon: ShaderMaterial }).toon = toon;
     // the ink is part of this draw now: its mesh goes, and `ink.uniforms` becomes the handle on the merged material's own uniforms
@@ -125,7 +128,8 @@ export class VesselObject extends CelObject {
     { const [r, g, b] = CASING[look].rgb; (u.inkColor!.value as Color).setRGB(r / 255, g / 255, b / 255, LinearSRGBColorSpace); }   // (the look's casing ink, tokens.css --casing-rgb)
     u.shadeK!.value = p.shade;
     // the 2D look's line: its casing ink (set above, p.ink) at its casing alpha, and a dark lumen's light rim on the dark looks
-    u.casingA!.value = CASING[look].a; u.casingLensA!.value = CASING[look].lensA;
+    u.casingA!.value = CASING[look].a; u.casingCircA!.value = CASING[look].circ.a;
+    { const [r, g, b] = CASING[look].circ.rgb; (u.inkColorCirc!.value as Color).setRGB(r / 255, g / 255, b / 255, LinearSRGBColorSpace); }
     const rim = rawColor(LOOKS[look].text);
     (u.rimInk!.value as Vector4).set(rim.r, rim.g, rim.b, RIM_A[look]);
     rawColor(LENS_TOKENS[look].flowReversed, u.markRev!.value as Color);
