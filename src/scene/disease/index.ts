@@ -69,7 +69,7 @@ export class DiseaseLayer {
   }
 
   applyLook(look: LookId, p: Palette): void {
-    this.organs.applyLook(p); this.clots.applyLook(look, p); this.strands.applyLook(p); this.bleed.applyLook(look, p); this.clamps.applyLook(look, p); this.landmarks.applyLook(look); this.moving = true;
+    this.organs.applyLook(p); this.clots.applyLook(look, p); this.strands.applyLook(p, look); this.bleed.applyLook(look, p); this.clamps.applyLook(look, p); this.landmarks.applyLook(look); this.moving = true;
   }
   setPhone(phone: boolean): void { this.organs.setPhone(phone); this.clots.setPhone(phone); this.strands.setPhone(phone); this.clamps.setPhone(phone); this.moving = true; }
 

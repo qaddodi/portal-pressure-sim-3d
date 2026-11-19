@@ -13,7 +13,9 @@ import { useEngine } from '../engine/store.ts';
 import { resolveLook } from '../looks/looks.ts';
 import { useDeck } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
-import { figureDpr } from './quality.ts';
+import { figureDpr, msaaFor } from './quality.ts';
+import { installShaderGuard } from '../debug/shader-guard.ts';
+import { setRenderer } from '../debug/gl-ref.ts';
 import { cel, frames, gesturesRef, sceneApi } from './api.ts';
 import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
@@ -41,6 +43,13 @@ function SceneBridge() {
     cel.resize(size.width, size.height);
     cel.setPhone(isPhone());
   }, [size.width, size.height]);
+
+  // fail loud, not invisible (WP10): a program the device's driver refuses is drawn plain, and the ?perf bar says so; ?gl borrows this renderer to compile every program once
+  useEffect(() => {
+    setRenderer(gl);
+    const off = installShaderGuard(gl, cel.scene, () => clock.invalidate('shader-failed'));
+    return () => { off(); setRenderer(null); };
+  }, [gl]);
 
   // the colour lens's healthy reference loads once the engine is up; the Blood menu's choices apply from the first frame
   useEffect(() => {
@@ -121,9 +130,13 @@ function SceneBridge() {
 
 export function Stage() {
   useEffect(() => { clock.invalidate('stage-mounted'); }, []);
+  // the pixel ratio the figure rests at, and so whether the context is multisampled (off from 2x: msaaFor); the canvas is made again only when that answer changes
+  const detail = useSettings((s) => s.figureDetail);
+  const rest = figureDpr(detail, true, false, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1);
+  const msaa = msaaFor(rest);
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-stage)' as unknown as number, touchAction: 'none' }}>
-      <Canvas flat frameloop="never" dpr={figureDpr(useSettings.getState().figureDetail, true, false, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)} gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}>
+      <Canvas key={msaa ? 'msaa' : 'no-msaa'} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, powerPreference: 'high-performance' }}>
         <ClockBridge />
         <SceneBridge />
       </Canvas>
