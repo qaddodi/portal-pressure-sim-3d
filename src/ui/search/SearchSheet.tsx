@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { UI } from '../strings.generated.ts';
 import { useShell } from '../shell/store.ts';
 import { useUi } from '../ui-store.ts';
-import { Frame } from '../shell/Frame.tsx';
 import { Icon } from '../shell/icons.tsx';
 import { usesBottomBar } from '../shell/room.ts';
 import { startTalk } from '../shell/talk.ts';
@@ -22,6 +21,7 @@ export function SearchSheet() {
   const hits = useMemo(() => search(cmds, q, UI.search.emptyOrder), [cmds, q]);
   useEffect(() => { if (open) { setQ(''); setAt(0); input.current?.focus(); } }, [open]);
   useEffect(() => { setAt(0); }, [q]);
+  useEffect(() => { document.getElementById(`pal-opt-${at}`)?.scrollIntoView({ block: 'nearest' }); }, [at]);
   const run = (i: number) => {
     const h = hits[i];
     if (!h) return;
@@ -34,25 +34,40 @@ export function SearchSheet() {
     else if (e.key === 'Enter') { e.preventDefault(); run(at); }
     else if (e.key === 'Escape') { e.preventDefault(); useShell.getState().close(); }
   };
+  // closing: the palette sinks back (.leaving, 2D --d-flip) and is then hidden, as palette.js close() does
+  const [shown, setShown] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    if (open) { setShown(true); setLeaving(false); return; }
+    if (!shown) return;
+    setLeaving(true);
+    const t = window.setTimeout(() => { setShown(false); setLeaving(false); }, 180);
+    return () => window.clearTimeout(t);
+  }, [open, shown]);
+  const close = () => useShell.getState().close();
+  // 2D palette.js markup: .pal-back > .pal (.pal-top: icon, field, close; .pal-list of .pal-item; .pal-foot), on the 2D stylesheet
   return (
-    <Frame kind="search" label="Command palette" head={null}>
-      <div className="sh-find">
-        <Icon n="search" />
-        <input ref={input} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey} placeholder={UI.search.placeholder[phone ? 0 : 1]} aria-label={UI.topbar.find((t) => t.id === 'btnPalette')!.label!}
-          role="combobox" aria-expanded={open} aria-controls="sh-hits" aria-activedescendant={hits[at] ? `sh-hit-${at}` : undefined} autoComplete="off" autoCorrect="off" spellCheck={false} enterKeyHint="go" />
+    <div className={`pal-back${leaving ? ' leaving' : ''}`} hidden={!shown} onPointerDown={(e) => { if (e.target === e.currentTarget) close(); }}>
+      <div className="pal" role="dialog" aria-modal="true" aria-label="Command palette" inert={!open}>
+        <div className="pal-top">
+          <Icon n="search" className="pal-ic" />
+          <input ref={input} className="pal-input" type="text" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey} placeholder={UI.search.placeholder[phone ? 0 : 1]} aria-label={UI.topbar.find((t) => t.id === 'btnPalette')!.label!}
+            role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls="pal-list" aria-activedescendant={hits[at] ? `pal-opt-${at}` : undefined} autoComplete="off" autoCorrect="off" spellCheck={false} enterKeyHint="go" />
+          <button type="button" className="ib pal-x" aria-label="Close search" onClick={close}><Icon n="close" /></button>
+        </div>
+        <div className="pal-list" id="pal-list" role="listbox" aria-label="Results">
+          {hits.length === 0 ? (
+            <div className="pal-empty"><b>{noMatch(q)}</b>{q ? NO_MATCH_HELP : null}</div>
+          ) : hits.map((h, i) => (
+            <button key={`${h.c.group}/${h.c.title}`} id={`pal-opt-${i}`} type="button" tabIndex={-1} role="option" className={`pal-item${i === at ? ' on' : ''}`} aria-selected={i === at} onPointerMove={() => setAt(i)} onClick={() => run(i)}>
+              <span className="pal-g">{h.c.group}</span>
+              <span className="pal-t">{h.c.title}{h.num != null && h.c.num ? <b> → {h.num} {h.c.num}</b> : null}</span>
+              {h.c.hint && h.num == null && <span className="pal-h">{h.c.hint}</span>}
+            </button>
+          ))}
+        </div>
+        <div className="pal-foot" aria-hidden="true"><span><kbd>↑</kbd><kbd>↓</kbd>to move</span><span><kbd>Enter</kbd>to run</span><span><kbd>Esc</kbd>to close</span></div>
       </div>
-      <div className="sh-list" id="sh-hits" role="listbox">
-        {hits.length === 0 ? (
-          <div className="sh-empty"><b>{noMatch(q)}</b>{q ? NO_MATCH_HELP : null}</div>
-        ) : hits.map((h, i) => (
-          <button key={`${h.c.group}/${h.c.title}`} id={`sh-hit-${i}`} type="button" role="option" className="sh-hit-row" aria-selected={i === at} onPointerMove={() => setAt(i)} onClick={() => run(i)}>
-            <span className="sh-g">{h.c.group}</span>
-            <span>{h.c.title}{h.num != null && h.c.num ? <b> → {h.num} {h.c.num}</b> : null}</span>
-            {h.c.hint && h.num == null && <span className="sh-h">{h.c.hint}</span>}
-          </button>
-        ))}
-      </div>
-      <div className="sh-foothints" aria-hidden="true"><span><kbd>↑</kbd><kbd>↓</kbd>to move</span><span><kbd>Enter</kbd>to run</span><span><kbd>Esc</kbd>to close</span></div>
-    </Frame>
+    </div>
   );
 }

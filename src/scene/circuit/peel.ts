@@ -5,6 +5,8 @@ import { PEEL_DL, VB_CIRC } from './data.copied.ts';
 
 export { PEEL_DL };
 const X0 = VB_CIRC[0] + 30, X1 = VB_CIRC[0] + VB_CIRC[2] - 30;   // (the splanchnic beds' left edge, 60, to the heart's right, 1360)
+/** The width of the flow the rank runs over, map units (1300). */
+export const PEEL_SPAN = X1 - X0;
 
 /** A point's place in the flow, 0 (gut, spleen) to 1 (heart), from its x in the wide circuit (map units). */
 export function peelRank(cx: number): number {
@@ -19,6 +21,15 @@ export function peelAt(t: number, r: number): number {
   if (x <= 0) return 0;
   if (x >= 1) return 1;
   return x * x * (3 - 2 * x);
+}
+
+/** How fast a point's share of the change moves with its rank at t: d peelAt / d r (0 where the share rests at 0 or 1). The tangent of a vessel mid-change needs it: the centreline's
+ *  derivative along the vessel is (1 - w) A' + w C' + w' (C - A), and w' is this times the rank's own slope along the vessel (the 2D app's gradient term). */
+export function peelSlope(t: number, r: number): number {
+  if (t <= 0 || t >= 1) return 0;
+  const x = (t - PEEL_DL * r) / (1 - PEEL_DL);
+  if (x <= 0 || x >= 1) return 0;
+  return 6 * x * (1 - x) * (-PEEL_DL / (1 - PEEL_DL));
 }
 
 // ── A vessel that reverses between the views (13 Nov 2026) ──

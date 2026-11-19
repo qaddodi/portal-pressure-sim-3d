@@ -19,13 +19,14 @@ export interface Row { journey: string; label: string; ms: number; mem: number |
 /** MB a walk may climb between its first and last step before it is called a leak (a camera move or a slide builds and frees; a climb that keeps on is the bug). */
 export const LEAK_MB = 60;
 
-export async function runCheck(journeys: readonly Journey[], deps: CheckDeps, o: { full?: boolean; steps?: boolean; shouldStop?: () => boolean; onStep?: (done: number, of: number, r: Row) => void } = {}) {
+export async function runCheck(journeys: readonly Journey[], deps: CheckDeps, o: { full?: boolean; steps?: boolean; /** resume: the steps before this one were done by a page the browser ended */ from?: number; shouldStop?: () => boolean; onStep?: (done: number, of: number, r: Row) => void } = {}) {
   const now = deps.now ?? (() => Date.now()), t0 = now();
   const use = journeys.filter((j) => o.full || !j.full);
   const all = use.flatMap((j) => j.steps());
   const rows: Row[] = [], groups = new Map<string, { kind: string; text: string; owner?: string; n: number; first: string }>();
   let peak = 0, errors0 = deps.errors(), first: number | null = null, last: number | null = null;
-  for (const s of all) {
+  for (const [at, s] of all.entries()) {
+    if (at < (o.from ?? 0)) continue;
     if (o.shouldStop?.()) break;
     const t = now(), row: Row = { journey: s.journey, label: s.label, ms: 0, mem: null, flags: [] };
     try {
@@ -41,7 +42,7 @@ export async function runCheck(journeys: readonly Journey[], deps: CheckDeps, o:
     if (row.mem != null) { peak = Math.max(peak, row.mem); first ??= row.mem; last = row.mem; }
     row.ms = now() - t;
     rows.push(row);
-    o.onStep?.(rows.length, all.length, row);
+    o.onStep?.(at + 1, all.length, row);
   }
   if (o.full && first != null && last != null && last - first > LEAK_MB) {
     rows.push({ journey: 'memory', label: 'after the walk', ms: 0, mem: last, flags: [{ kind: 'memory-climb', sev: 'fail', text: `the memory estimate climbed ${Math.round(last - first)} MB over the walk (limit ${LEAK_MB} MB): a view or card is not freeing what it built` }] });
