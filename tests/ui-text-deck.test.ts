@@ -85,9 +85,15 @@ test('no font size under 12 px in the cards\' CSS, and none that shrinks text to
   for (const m of css.matchAll(/text-size-adjust\s*:\s*([^;]+)/g)) assert.equal(m[1].trim(), '100%');
 });
 
-test('nothing scrolls inside a card; nothing animates layout; no backdrop blur', () => {
+test('nothing scrolls inside a card; nothing animates layout; blur only as the card glass, only while Blur effect is on', () => {
   assert.ok(!/overflow(?:-[xy])?\s*:\s*(auto|scroll|overlay)/.test(css), 'a scroll area');
-  assert.ok(!/backdrop-filter|filter\s*:\s*blur/.test(css), 'blur');
+  // the one place blur may be: the glass block, gated by @supports, reduced transparency and html:not([data-noglass]); never a blur on text (filter: blur)
+  assert.ok(!/(^|[^-])filter\s*:\s*blur/.test(css), 'filter: blur on content');
+  const at = css.indexOf('@supports');
+  assert.ok(at > 0, 'the glass block');
+  const glass = css.slice(at);
+  assert.ok(/@supports[\s\S]*prefers-reduced-transparency: no-preference[\s\S]*html:not\(\[data-noglass\]\)/.test(glass), 'the glass is gated');
+  assert.ok(!/backdrop-filter/.test(css.slice(0, at)), 'backdrop-filter outside the glass block');
   for (const m of css.matchAll(/transition\s*:\s*([^;]+)/g)) assert.ok(!/\b(width|height|top|left|margin|padding)\b/.test(m[1]), `transition on layout: ${m[1]}`);
   for (const m of css.matchAll(/@keyframes[^{]+\{([\s\S]*?)\}\s*(?=@|\.|$)/g)) assert.ok(!/\b(width|height|top|left|margin|padding)\s*:/.test(m[1]), 'keyframes on layout');
 });

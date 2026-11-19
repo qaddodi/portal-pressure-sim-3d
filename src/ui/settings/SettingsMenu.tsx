@@ -14,7 +14,7 @@ export function SettingsMenu() {
   const [open, setOpen] = useState(false);
   const id = useId();
   const ref = useRef<HTMLDivElement>(null);
-  const { look, setLook, flowMarks, setFlowMarks } = useSettings();
+  const { look, setLook, flowMarks, setFlowMarks, blur, setBlur } = useSettings();
   useEffect(() => {
     if (!open) return;
     const away = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
@@ -33,6 +33,11 @@ export function SettingsMenu() {
         <p className="dk-kicker">Appearance</p>
         <div className="dk-chips" role="group" aria-label="Look">
           {choices.map((c) => <button key={c} type="button" className="dk-chip" aria-pressed={look === c} onClick={() => setLook(c)}>{LOOK_LABELS[c]}</button>)}
+        </div>
+        <p className="dk-kicker" style={{ marginTop: 16 }}>Blur effect</p>
+        <div className="dk-chips" role="group" aria-label="Blur effect">
+          <button type="button" className="dk-chip" aria-pressed={blur} onClick={() => setBlur(true)}>On</button>
+          <button type="button" className="dk-chip" aria-pressed={!blur} onClick={() => setBlur(false)}>Off</button>
         </div>
         <p className="dk-kicker" style={{ marginTop: 16 }}>Flow marks</p>
         <div className="dk-chips" role="group" aria-label="Flow marks">

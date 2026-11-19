@@ -62,7 +62,7 @@ export function DeckUi() {
   // the 2D app's card padding (--pz-cp; a stacked card's words 13 px in from its 8 px margin) and corner radius (--pz-r)
   const pad = cardPad(vp.w, vp.h);
   const vars = {
-    '--fs-deck': `${t.deckTitle}px`, '--lh-deck': t.deckTitleLead, '--fs-title': `${t.slideTitle}px`, '--lh-title': t.slideTitleLead,
+    '--fs-deck': `${t.deckTitle}px`, '--lh-deck': t.deckTitleLead, '--fs-title': `${t.slideTitle}px`, '--fs-title-trim': `${t.slideTitleTrim}px`, '--lh-title': t.slideTitleLead,
     '--fs-body': `${t.body}px`, '--lh-body': t.bodyLead, '--fs-data': `${t.data}px`, '--fs-kicker': `${t.kicker}px`, '--fs-big': `${t.bigNumber}px`,
     '--pad-x': `${pad.x}px`, '--pad-y': `${pad.y}px`, '--r': `${Math.round(radius(vp.w, vp.h, layout))}px`,
   } as CSSProperties;

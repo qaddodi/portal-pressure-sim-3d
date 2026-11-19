@@ -4,7 +4,7 @@ import { HVPG_DECK } from '../src/decks/hvpg.ts';
 import { parseLine, plainLine } from '../src/ui/text/line.ts';
 import { typeFor } from '../src/ui/layout/device.ts';
 import { planLayout, widthOf, stepsFor, type CardId } from '../src/ui/layout/plan.ts';
-import { cardPad, isSideways } from '../src/ui/layout/rules2d.ts';
+import { cardPad, isSideways, layoutOf } from '../src/ui/layout/rules2d.ts';
 import { sentences, pageOf } from '../src/ui/cards/pages.ts';
 
 // No browser: a conservative estimate of each card's height from character counts (Inter ~0.54 em a character, Source Serif ~0.50 em, plus 8% for
@@ -19,7 +19,7 @@ const SCREENS: Record<string, { w: number; h: number; safe: [number, number, num
 
 type Vp = Parameters<typeof widthOf>[0];
 /** The estimate of one card at a width: `page` of `pages` for a card that splits by sentence. */
-function estimate(id: CardId, slideIdx: number, vp: Vp, pair: boolean, step: number, pages = 1) {
+function estimate(id: CardId, slideIdx: number, vp: Vp, pair: boolean, step: number, pages = 1, trim = false) {
   const t = typeFor(vp.w, vp.h);
   const pad = cardPad(vp.w, vp.h);
   const inner = widthOf(vp, pair, step) - 2 * pad.x - 2;
@@ -31,7 +31,7 @@ function estimate(id: CardId, slideIdx: number, vp: Vp, pair: boolean, step: num
   if (id === 'teach') {
     const plain = (m: string) => plainLine(parseLine(m), () => 11.6);
     const chars = longest(s.line, plain);
-    h += t.kicker + 10 + lines(s.title, t.slideTitle, inner, 0.5) * t.slideTitle * t.slideTitleLead + 2 + (s.eq ? 10 + t.body * 1.2 + 12 : 10) + lines('x'.repeat(chars), t.body, inner, 0.54) * t.body * t.bodyLead;
+    h += t.kicker + 10 + lines(s.title, trim ? t.slideTitleTrim : t.slideTitle, inner, 0.5) * (trim ? t.slideTitleTrim : t.slideTitle) * t.slideTitleLead + 2 + (s.eq ? 10 + t.body * 1.2 + 12 : 10) + lines('x'.repeat(chars), t.body, inner, 0.54) * t.body * t.bodyLead;
   } else if (id === 'case') h += t.kicker + 10 + lines('x'.repeat(longest(s.vignette!, (m) => m)), t.body, inner, 0.54) * t.body * t.bodyLead;
   else if (id === 'ladder') h += 14 + 10 + (s.ladder!.rows.length * (t.data * 1.3 + 7)) + (s.ladder!.result ? 12 + 10 + 30 : 0);
   else if (id === 'check') {
@@ -42,6 +42,9 @@ function estimate(id: CardId, slideIdx: number, vp: Vp, pair: boolean, step: num
     const objectives = t.kicker + 10 + HVPG_DECK.objectives.reduce((n, o) => n + para(o, t.body, t.bodyLead) + 8, 0);
     h += pages === 1 ? head + 24 + objectives + 24 + 44 : Math.max(head + 24 + 44, objectives + 14 + 24 + 44);
   }
+  // a stacked words card keeps 50 px of its foot clear for the pill that stands in it (deck-ui.css)
+  const l = layoutOf(vp.w, vp.h);
+  if ((l === 'stack' || l === 'tab') && id !== 'ladder') h += 50;
   return Math.ceil(h);
 }
 
@@ -52,14 +55,15 @@ for (const [name, sc] of Object.entries(SCREENS)) {
     const over: string[] = [];
     // a card fits when some wallet step (sideways pair) and some page count (it splits by sentence) holds it, as CardLayer widens and splits
     const fits = (id: CardId, idx: number, withData: boolean) => {
-      const steps = stepsFor(vp, withData);
+      const steps = stepsFor(vp, withData) + (sideways ? 1 : 0);   // the last is the title one step down
       const maxPages = id === 'title' ? 2 : id === 'teach' ? sentences(HVPG_DECK.slides[idx].line).length : id === 'case' ? sentences(HVPG_DECK.slides[idx].vignette!).length : 1;
       let last = '';
       for (let step = 0; step < steps; step++) {
         for (let pages = 1; pages <= maxPages; pages++) {
-          const h = estimate(id, idx, vp, withData, step, pages);
-          const other = withData ? estimate('ladder', idx, vp, true, step) : 0;
-          const plan = planLayout(vp, [{ id, slot: 'words', h }, ...(withData ? [{ id: 'ladder' as CardId, slot: 'data' as const, h: other }] : [])], 'words', step);
+          const nS = stepsFor(vp, withData), trim = step >= nS, w = Math.min(step, nS - 1);
+          const h = estimate(id, idx, vp, withData, w, pages, trim);
+          const other = withData ? estimate('ladder', idx, vp, true, w) : 0;
+          const plan = planLayout(vp, [{ id, slot: 'words', h }, ...(withData ? [{ id: 'ladder' as CardId, slot: 'data' as const, h: other }] : [])], 'words', w);
           if (!plan.overflow.length) return;
           last = `${h}px > ${plan.maxH.words}px (step ${step}, ${pages} page${pages > 1 ? 's' : ''}${plan.shut ? ', data card closed' : ''})`;
         }

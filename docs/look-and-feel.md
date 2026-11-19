@@ -98,8 +98,10 @@ and no card is taller than the screen.
 ## 6. Cards
 
 - "Soft lift" (your 19 Nov pick): card surface, 1 px hairline in the text colour at about 12%, radius 16, a two-layer shadow in the look's
-  shadow colour. No backdrop blur. Glass may come back on Mac and iPad later; the slice uses soft lift everywhere.
-- Padding 24 to 26 px on Mac, 18 to 20 px on iPhone. Card widths: teaching 430 px (Mac), data 330 px, iPhone landscape column 330 px.
+  shadow colour. **Glass (owner, 19 Nov 2026: "the UI should match 2D"):** cards, the pill, the wallet strip and the settings panel are frosted like the 2D
+  app's: the figure behind blurred at 22 px with a little saturation, under the surface at 66 %. Settings > Blur effect, On by default on every device;
+  Off is the solid surface (`html[data-noglass]`). The browser's backdrop blur does it, on the compositor behind each card, so the glass is the card's own place every frame.
+- Padding, widths and type are the 2D app's per screen: see `docs/card-parity-2d.md` (the earlier 24 to 26 px, 430 px and 330 px are gone).
 - A card appears only when its content is laid out and its fonts are loaded; text never appears before its card.
 - Tags (labels on the figure) are small pills in the look's glass colour, with a coloured dot and words.
 

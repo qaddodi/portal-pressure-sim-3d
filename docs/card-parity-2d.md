@@ -17,7 +17,10 @@ Type is the 2D roles (`cardScale`): a floating card's words in `body` (17–28 p
 line in `lab` and heading in `val` (×1.45 on iPhone, ×1.39 on iPad), 22 px words on an iPhone on its side. Nothing shrinks to fit: more height comes from a wider
 wallet column, then a page.
 
-Where the 3D app differs on purpose (all "better", none smaller type):
-- the presenter bar stands at the foot (a column of buttons at the right edge on an iPhone on its side, where the wallet takes the foot); the 2D pill sits inside the words' card;
-- a pair that cannot stack on a floating screen stands side by side or pages instead of shrinking the data card's blocks;
-- the words alone on an iPhone on its side also widen (the 2D app shrinks them).
+Back / Next: the 2D pill (back, where you are, next, and the settings), lower right of a wide screen with the talk's title to its left where there is room;
+inside the foot of the words card on an iPhone (centred) and an upright iPad (at its right); lower right on an iPhone on its side (without the count).
+
+Where the 3D app still differs, because the owner's rule is that text never shrinks:
+- a pair that cannot fit stays stacked and the words page (2D shrinks the data card's blocks);
+- on an iPhone on its side the words widen the wallet column, then the title takes one step down (never under 1.4x the words), then the words page (2D shrinks the words);
+- the glass is the browser's backdrop blur (same 22 px, 66 % tint), not the 2D app's GPU field.
