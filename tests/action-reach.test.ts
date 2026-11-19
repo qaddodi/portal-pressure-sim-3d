@@ -45,7 +45,7 @@ test('the claims name only inventory rows, each once, and wired means the figure
   assert.equal(byId.get('card:structure/lobule-triad'), true);
   // not reachable by a tap: the valved lower-limb veins and a custom shunt are not drawn on the body, the varices and the fundus have no mesh to tap, the arteriole sits in the tract
   for (const k of ['valve', 'shunt-crossing', 'organ-varices', 'organ-gastric', 'lobule-artery']) assert.equal(byId.get(`card:structure/${k}`), false, k);
-  for (const k of ['Click', '1 – 9', 'Tab · Enter', '← → ↑ ↓', 'Shift ← →']) assert.equal(byId.get(`shortcut:Reach and act/${k}`), true, k);
+  for (const k of ['← → ↑ ↓', 'Shift ← →']) assert.equal(byId.get(`shortcut:Reach and act/${k}`), true, k);   // (Click, 1 – 9 and Tab · Enter are claimed by b1.ts)
   // the lobule parts have no Details face in 2D: those rows are not claimed
   assert.equal(byId.has('card:structure/lobule-triad-details'), false);
   assert.equal(reachable({ type: 'organ', id: 'varices' }), false);
