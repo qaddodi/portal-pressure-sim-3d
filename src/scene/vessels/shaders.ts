@@ -38,6 +38,7 @@ uniform float hiOffset;
 uniform float hiAhead;
 uniform float hiBehind;
 uniform float hiPx;
+uniform float dpr;   // device pixels to a CSS pixel (the renderer's pixel ratio)
 // the fade at a free end (2D's TIP_FADE, ART_FADE, FADE_DOWN_Y): mode 1 runs along the vessel (uv.x), mode 2 down the figure (y); (from, to, alpha at from, alpha at to); fadeKeep 1: the Circuit does not let go of it
 uniform float fadeMode;
 uniform vec4 fadeA;
@@ -90,7 +91,12 @@ ${CIRCUIT_VS_CALL}
     vec2 nd = (projectionMatrix * vec4(normalMatrix * aNor, 0.0)).xy;
     float l = length(nd);
     nd = l > 1e-5 ? nd / l : vec2(0.0);
-    c.xy += nd * (px + hiPx * vHi) * 2.0 / res * c.w;
+    // the 2D figure's line (tube-cel-glsl.js CEL): 0.14 of the tube's radius, held between 1.5 and 3 device px, the same on a hairline and on the portal trunk, on a 1x Mac and a 3x iPhone
+    // (the line was a fixed 1.2 to 1.8 CSS px, 3.6 to 5.4 device px on a phone, a black rope on every thin strand)
+    float wpc = c.w * 2.0 / (res.y * projectionMatrix[1][1]) * 300.0;   // the figure's units under one CSS px here
+    float rDev = vR / max(wpc, 1e-6) * dpr;
+    float inkPx = clamp(0.14 * rDev, 1.5, 3.0) / dpr;
+    c.xy += nd * (inkPx + hiPx * vHi) * 2.0 / res * c.w;
   }
   vW = c.w;
   gl_Position = c;
@@ -146,6 +152,10 @@ uniform sampler2D streamTex;
 uniform sampler2D chainTex;
 uniform float projY;
 uniform vec2 res;
+uniform float dpr;
+uniform float casingA;      // the look's casing alpha (2D --casing-a)
+uniform float casingLensA;  // and under a colour lens
+uniform vec4 rimInk;        // a dark lumen's light rim on the dark looks: rgb, alpha (0 on the light looks)
 varying float vW;
 varying float vR;
 varying float vHull;
@@ -242,7 +252,13 @@ void main() {
   if (vHull > 0.5) {
     // the ink: the hull's back faces only, in the ink colour, warming to the highlight colour where the vessel is picked
     if (gl_FrontFacing || hullOn < 0.5) discard;
-    gl_FragColor = vec4(mix(inkColor, hiColor, clamp(vHi, 0.0, 1.0)), VEIL_A * vFade);
+    // the outline in the look's casing colour at its alpha (2D: --casing-a, less under a colour lens; a vessel behind an organ keeps half of it; a picked vessel's ring is solid)
+    float lensOn = lensUse > 0.5 && max(lensModeA, lensModeB) > 0.5 ? 1.0 : 0.0;
+    float ca = mix(casingA, casingLensA, lensOn);
+#ifdef VEIL
+    ca *= 0.5;
+#endif
+    gl_FragColor = vec4(mix(inkColor, hiColor, clamp(vHi, 0.0, 1.0)), mix(ca, 1.0, clamp(vHi, 0.0, 1.0)) * VEIL_A * vFade);
     return;
   }
   if (!gl_FrontFacing) discard;
@@ -260,16 +276,22 @@ void main() {
   vec4 lb = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, across);
   vec3 base = mix(mix(color, la.rgb, la.a), mix(color, lb.rgb, lb.a), lensMix);
 
-  vec3 shade = mix(base * shadeK, inkColor, 0.08);
-  float d = dot(n, l) * 0.5 + 0.5;
-  float q = d * bands;
-  float f = fract(q);
-  float w = fwidth(q) * 0.75;
-  float b = (floor(q) + smoothstep(0.5 - w, 0.5 + w, f)) / bands;
-  vec3 c = mix(shade, base, clamp(b, 0.0, 1.0));
-  float ndv = max(dot(n, vV), 0.0);
-  float rim = smoothstep(0.66, 0.70, 1.0 - ndv) * step(0.5, d);
-  float sp = spec * smoothstep(0.962, 0.972, max(dot(reflect(-l, n), vV), 0.0));
+  // the fill: exactly three tones lit from the top left of the screen (tube-cel-glsl.js celTones), so two pieces of one vein shade alike at their join and a turned vein keeps its tones;
+  // no specular, no rim, no world-lit band. rDev: the tube's radius in device px; the tones fade out on a hairline.
+  float wpc0 = vW * 2.0 / (res.y * projY) * 300.0;
+  float rDev = vR / max(wpc0, 1e-6) * dpr;
+  vec2 sideS = side.xy;
+  float sl = length(sideS);
+  sideS = sl > 1e-4 ? sideS / sl : vec2(1.0, 0.0);
+  float sT = across * dot(sideS, vec2(-0.70710678, 0.70710678));
+  float etT = 0.5 / max(rDev, 1e-3), hwT = smoothstep(1.5, 3.5, rDev);
+  float shadowT = 1.0 - smoothstep(-0.16 - etT, -0.16 + etT, sT);
+  float litT = smoothstep(0.24 - etT, 0.24 + etT, sT);
+  vec3 c = base * (1.0 - hwT * 0.17 * shadowT);
+  c = mix(c, vec3(1.0), 0.15 * hwT * litT);
+  // a dark lumen on the dark looks (where the outline is no darker than the ground) gets a light edge a device pixel wide just inside its wall (2D rimInk)
+  float lumY = dot(base, vec3(0.299, 0.587, 0.114));
+  c = mix(c, rimInk.rgb, rimInk.a * (1.0 - smoothstep(0.2, 0.4, lumY)) * smoothstep(-2.0, -1.0, (abs(across) - 1.0) * rDev) * smoothstep(1.5, 3.5, rDev));
 
   float vel = 0.0;
   float dmm = 8.0;
@@ -288,7 +310,6 @@ void main() {
     c = mix(c, mix(base, vec3(lum(base) > 0.5 ? 0.15 : 0.92), 0.5), nz * amt * 0.55);
   }
 
-  c += rim * 0.10 + sp * 0.32;
 
   // the flow heads, over the lit lumen as the 2D composite lays them
   float pxArc = fwidth(vUv.x * len * 300.0);   // (a derivative: taken outside any branch)
