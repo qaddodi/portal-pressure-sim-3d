@@ -78,12 +78,17 @@ export function courseOf(id: string): Vec3[] {
   return EDGE_PATH_2D[id]!.map(([x, y]): Vec3 => [x3(x), y3(y), z]);
 }
 
+/** The shunts a procedure makes (B5): drawn while the engine gives them a diameter (stage-frame.js edgeVisible: `D > 0`). */
+export const SHUNT_IDS: ReadonlySet<string> = new Set(['TIPS', 'DIPS', 'S_PC', 'S_DSR', 'S_MC', 'REX']);
+/** Their diameter when a procedure puts them in, mm: the width they are drawn at when the engine's live diameter is read against it. */
+const SHUNT_BASE_D: Record<string, number> = { TIPS: 8, DIPS: 8 };
+
 /** The edges the figure draws as vessels (kinds the engine models but the anatomy never draws are left out: the catheter wedge beds, the one-way
  *  diode, the gut-side arterioles; surgical shunts and the stents belong to the procedures (B5)). */
 export function isDrawnEdge(e: Edge): boolean {
   if (HIDDEN_EDGES.has(e.id) || ANAT_HIDDEN.has(e.id) || e.id === 'CAUD' || e.id === 'V_UP') return false;
   if (e.kind === 'wedge' || e.kind === 'diode') return false;
-  if (e.kind === 'shunt') return e.id === 'AP_R' || e.id === 'AP_L';
+  if (e.kind === 'shunt') return e.id === 'AP_R' || e.id === 'AP_L' || SHUNT_IDS.has(e.id);
   return true;
 }
 
@@ -92,7 +97,7 @@ function build(): NetVessel[] {
   for (const e of edges) {
     if (!isDrawnEdge(e)) continue;
     if (!EDGE_PATH_2D[e.id]) throw new Error(`no 2D course for ${e.id}`);
-    const baseD = e.d ?? e.dMax ?? (dMinOf(e) || 3);
+    const baseD = SHUNT_BASE_D[e.id] ?? e.d ?? e.dMax ?? (dMinOf(e) || 3);
     out.push({
       id: e.id, host: hostOfPiece.get(e.id) ?? e.id, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(widthPx(e, baseD)),
       label: e.label ?? e.id, pts: courseOf(e.id), kind: e.kind, tier: tierOf(e), baseD, widthKind: widthKindOf(e),
@@ -134,6 +139,7 @@ export function presenceOf(v: Pick<NetVessel, 'id' | 'kind'>, f: PresenceFrame, 
   if (k == null) return 'hidden';
   if (NEEDS_C3.has(v.id)) return recruitFrac('C3', f) > C3_FRAC ? 'shown' : 'hidden';
   if (v.kind === 'collateral') return collateralOpen(v.id, f) ? 'shown' : o.collaterals ? 'ghost' : 'hidden';
+  if (SHUNT_IDS.has(v.id)) return f.D[k]! > 0 ? 'shown' : 'hidden';   // a procedure's shunt is there while it has a diameter
   if (v.kind === 'shunt') return (f.Qf ?? f.Q)[k]! > AP_Q ? 'shown' : 'hidden';
   return 'shown';
 }

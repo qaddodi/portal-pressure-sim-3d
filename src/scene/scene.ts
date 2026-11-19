@@ -21,6 +21,7 @@ import { TEXTURE_WIDTH, indexOf } from '../engine/vessel-data.ts';
 import { latest, patient } from '../engine/store.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
 import { SinusoidView } from './sinusoid/index.ts';
+import { ProcedureLayer } from './procedures/layer.ts';
 
 /** What the figure shows: the body, the liver lobule (hexagon) or one sinusoid. The two small views stand away from the body in the same scene. */
 export type FigureView = 'body' | 'lobule' | 'sinusoid';
@@ -56,6 +57,8 @@ export class CelScene {
   readonly objects: CelObject[] = [];
   readonly vessels: CelObject[] = [];
   readonly catheter: Catheter;
+  /** Every device a procedure puts on the figure (B5): the catheters on their routes, the stent, the tamponade tube, bands. */
+  readonly procs: ProcedureLayer;
   readonly highlight: Highlight;
   readonly flow: BloodMarks;
   /** The colour lens (src/scene/lenses/): what colour every vein wears, crossfaded on the clock. */
@@ -102,6 +105,8 @@ export class CelScene {
     this.catheter = new Catheter(this.shared);
     this.body.add(this.catheter.group);
     this.objects.push(...this.catheter.objects);
+    this.procs = new ProcedureLayer(this.shared);
+    this.body.add(this.procs.group);
 
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
     this.flow = new BloodMarks(this.vessels);
@@ -129,6 +134,9 @@ export class CelScene {
     this.byEdge.set(def.id, o);
   }
 
+  /** The vessel object of an edge, or undefined. */
+  vesselObject(id: string): VesselObject | undefined { return this.byEdge.get(id) as VesselObject | undefined; }
+
   // ---- looks ---------------------------------------------------------------------------------
 
   get currentLook(): LookId { return this.look; }
@@ -139,6 +147,7 @@ export class CelScene {
     const p = PALETTES[look];
     (this.plate.material as MeshBasicMaterial).color.set(p.body);
     for (const o of this.objects) { o.applyPalette(p); o.setPhone(this.phone); }
+    this.procs.applyPalette(p);
     this.lens.setLook(look);
     this.lobule.applyLook(look); this.sinus.applyLook(look);
     this.moving = true;
@@ -150,6 +159,7 @@ export class CelScene {
   setPhone(phone: boolean): void {
     this.phone = phone;
     for (const o of this.objects) o.setPhone(phone);
+    this.procs.setPhone(phone);
     this.lobule.setPhone(phone); this.sinus.setPhone(phone);
     this.moving = true;
   }
@@ -181,6 +191,8 @@ export class CelScene {
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
   private syncPresence(f: NonNullable<typeof latest.frame>, instant: boolean): void {
     for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn }), instant || f.jump);
+    const rexOn = this.presence.stateOf('REX') === 'shown';
+    if (rexOn !== this.procs.isRexUnder) this.procs.setRexUnder(rexOn, (id) => this.vesselObject(id));
     this.flow.setDrawn((id) => this.presence.stateOf(id) === 'shown', (id) => this.presence.stateOf(id) === 'shown' && NETWORK.some((v) => v.id === id && v.kind === 'collateral'));
   }
 
@@ -214,7 +226,14 @@ export class CelScene {
 
   goTo(shot: ShotName | Shot, room: Room, now: number, ms?: number): void { this.rig.goTo(shot, room, now, ms); this.moving = true; }
 
-  setCatheter(s: CatheterState): void { this.catheter.set(s); this.moving = true; }
+  /** The deck's catheter (route, free, wedge, hvpg): drawn by the procedure layer on the HVPG route of the 2D figure, so it is the same device the Tests card plays. The slice catheter keeps the state
+   *  (the labels read its tip) and draws nothing. */
+  setCatheter(s: CatheterState & { ring?: 'free' | 'wedge' | 'bad' | null }): void {
+    this.catheter.set(s);
+    this.catheter.group.visible = false;
+    this.procs.showHvpgState(this.catheter.current.advance, this.catheter.current.balloon, s.ring ?? null, performance.now());
+    this.moving = true;
+  }
 
   /** The vessels a slide talks about (they carry flow marks in option A), by edge ID. The picked vessel is always included. */
   setNamedVessels(ids: readonly string[]): void {
@@ -310,7 +329,8 @@ export class CelScene {
     const lensMoving = this.lens.step(now);
     const presMoving = this.presence.step(dt);
     const viewMoving = this.lobule.update(now) || this.sinus.update(now);
-    const needs = this.moving || camMoving || hiMoving || flowActive || lensMoving || presMoving || viewMoving;
+    const procMoving = this.procs.update(now);
+    const needs = this.moving || procMoving || camMoving || hiMoving || flowActive || lensMoving || presMoving || viewMoving;
     this.moving = false;
     return needs;
   }
@@ -322,6 +342,7 @@ export class CelScene {
     this.lens.dispose();
     this.blood.streams.texture.dispose();
     for (const o of this.objects) o.dispose();
+    this.procs.dispose();
     this.plate.geometry.dispose();
     (this.plate.material as MeshBasicMaterial).dispose();
   }

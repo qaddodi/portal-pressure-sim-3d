@@ -19,6 +19,8 @@ const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 const withTang = (g: BufferGeometry): BufferGeometry => { if (!g.getAttribute('tang')) g.setAttribute('tang', new Float32BufferAttribute(new Float32Array(g.getAttribute('position').count * 3), 3)); return g; };
 
 /** What a procedure shows at one moment: the fields of the 2D `procFrame` record the catheter draws, and the colour name of the tip's reading ring. */
+/** The reading ripples' colour, by name: the HVPG's free and wedged pressures, a bad (aborted) read, the portal vein's and the IVC's. */
+export type RingName = 'free' | 'wedge' | 'bad' | 'pv' | 'ivc';
 export interface CatheterState {
   /** how far in the tip is, 0 to 1 of its way from the route's start to where it stops */
   u: number;
@@ -26,7 +28,7 @@ export interface CatheterState {
   /** the TIPS needle's and wire's tips, as u (0: not out), the portal hit's rings (0 none to 1), the coil pushed out (0 to 1) */
   needle: number; wire: number; flash: number; coil: number;
   /** the tip's reading: the ripples running out of it, by name ('free', 'wedge', 'bad'), or null */
-  ring: 'free' | 'wedge' | 'bad' | null;
+  ring: RingName | null;
   /** the tone of the column: the wedged blood's amber, or the sclerosant's */
   columnTone?: DeviceTone;
   /** the model's own milliseconds, for the ripples */
@@ -34,7 +36,7 @@ export interface CatheterState {
 }
 export const CATHETER_IDLE: CatheterState = { u: 0, balloon: 0, column: 0, opacity: 0, needle: 0, wire: 0, flash: 0, coil: 0, ring: null, clock: 0 };
 
-const RING_TONE = { free: 'monFree', wedge: 'monWedge', bad: 'monAlarm' } as const;
+const RING_TONE = { free: 'monFree', wedge: 'monWedge', bad: 'monAlarm', pv: 'trPv', ivc: 'trIvc' } as const;
 const SHAFT_RADIAL = 10, BALLOON_N = 40, BALLOON_RADIAL = 16;
 
 export class ProcCatheter {
@@ -194,7 +196,7 @@ export class ProcCatheter {
     });
   }
   /** The tip's reading, two ripples running out of it in the reading's colour. */
-  private ripple(ring: 'free' | 'wedge' | 'bad', tipD: number, clock: number, op: number): void {
+  private ripple(ring: RingName, tipD: number, clock: number, op: number): void {
     const ph = (clock / 1300) % 1;
     this.r3.point(tipD, this.v);
     this.rings.forEach((o, i) => {

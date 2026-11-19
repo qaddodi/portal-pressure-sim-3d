@@ -79,3 +79,9 @@ export function route3d(kind: string): Route3D | null {
 }
 import { catheterRadius } from './route.ts';
 const catheterRc = catheterRadius;
+
+/** A route's named stretches as u (0..1 of the way in, the share `ProcCatheter` takes): the 2D stage.cathStops. `tract` is the TIPS's way through the liver, `rpv` the right portal vein. */
+export function stopsOf(r3: Route3D): Record<string, [number, number]> {
+  const r = r3.route, span = r.free - r.start || 1;
+  return Object.fromEntries(Object.entries(r.spans).map(([k, [a, b]]) => [k, [(a - r.start) / span, (b - r.start) / span] as [number, number]]));
+}
