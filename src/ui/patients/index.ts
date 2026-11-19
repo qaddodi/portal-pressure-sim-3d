@@ -8,15 +8,18 @@ import { UI } from '../strings.generated.ts';
 import { PATIENT_FAILED } from '../shell/words.ts';
 import { timeline, patientLabel } from '../timeline/index.ts';
 import { useCompare } from '../compare/store.ts';
+import { isYours, syncYours } from '../readings/yours.ts';
 
 let loadGen = 0;
 
 /** Load a patient. Patients tapped in quick succession: the engine loads them in order, so only the last one's answer is applied (2D loadPreset's presetGen). */
 export async function loadPatient(id: string): Promise<boolean> {
-  if (!UI.presets.some((p) => p.id === id)) return false;
+  const yours = isYours(id);   // (a patient made from readings on this device: the engine is told the saved list first)
+  if (!yours && !UI.presets.some((p) => p.id === id)) return false;
   const gen = ++loadGen;
   let params: unknown;
   try {
+    if (yours) await syncYours();
     params = (await engine().request<{ type: 'presetLoaded'; id: string; params: unknown }>({ type: 'preset', id })).params;
   } catch (e) {
     if (gen === loadGen) useShell.getState().say(PATIENT_FAILED, 'bad');
