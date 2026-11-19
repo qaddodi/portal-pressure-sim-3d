@@ -25,7 +25,7 @@ test('every name a station shows is the 2D name for that station; abbreviations 
     assert.equal(s.abbr, ab, `${s.id} abbreviation`);
     assert.ok(!/\.$/.test(s.name) && !/\.$/.test(s.abbr ?? ''), `${s.id}: no name ends in a full stop (17 Oct design review)`);
   }
-  assert.deepEqual(STATIONS.filter((s) => s.kind === 'organ').map((s) => s.name).sort(), ['Liver', 'Spleen', 'Stomach']);
+  assert.deepEqual(STATIONS.filter((s) => s.kind === 'organ').map((s) => s.name).sort(), ['Colon', 'Esophagus', 'Kidney', 'Liver', 'Right atrium', 'Small bowel', 'Spleen', 'Stomach'], 'every organ the 2D plate names (ORGAN_LABELS)');
 });
 
 test('every vessel station hangs from a vessel the scene draws, named by its engine edge', () => {

@@ -30,6 +30,10 @@ export interface Item {
   dirs?: readonly Dir[];
   /** A region's name (an organ) is drawn on what it names and never has a leader. */
   region?: boolean;
+  /** An organ's name: the other places it may stand (centres of its box, px from the dot, nearest first: the 2D app's nameSpots on the screen), tried when
+   *  its own place is under a vessel; and whether a box lies on another organ, which it keeps off where it can ("organs first where it can be, never left off for it"). */
+  spots?: readonly (readonly [number, number])[];
+  onOther?: (box: Box) => boolean;
   /** Half the vessel's width on the canvas, so a label starts clear of it. */
   vw?: number;
   /** A reading card with a pointer whose tip is the dot (the catheter's FHVP / WHVP / HVPG): it stands below or above its point, leans, and keeps
@@ -79,6 +83,8 @@ const SHORT_LEAD = 45, LONG_LEAD = 140;
 const WIDE_GAPS = [40, 58, 76, 96, 120];
 const FORM_COST = 50;
 const LINE_COST = 8;
+/** An organ's name under a vessel steps to the next spot of its organ that no vessel touches (the 2D app: the first spot no vessel touches), so a crossing costs more than any step. */
+const REGION_LINE_COST = 60;
 
 type Seg = [number, number, number, number];
 
@@ -150,7 +156,10 @@ function calloutCands(f: Form, below: boolean): Cand[] {
 function candidates(it: Anchored, f: Form, wide: boolean): Cand[] {
   if (it.callout) return calloutCands(f, it.callout.below);
   const out: Cand[] = [];
-  if (it.region) { const [dx, dy] = offsetOf('C', f.w, f.h, 0); return [{ dx, dy, cost: 0 }]; }
+  if (it.region) {
+    const [dx, dy] = offsetOf('C', f.w, f.h, 0);
+    return [{ dx, dy, cost: 0 }, ...(it.spots ?? []).map(([cx, cy], i) => ({ dx: cx - f.w / 2, dy: cy - f.h / 2, cost: 1 + i * 0.4 }))];
+  }
   const gap0 = Math.max(12, (it.vw ?? 3) + 8);
   const order: Dir[] = [...(it.dirs ?? []), ...COMPASS.filter((d) => !(it.dirs ?? []).includes(d))];
   order.forEach((d, i) => { const [dx, dy] = offsetOf(d, f.w, f.h, gap0); out.push({ dx, dy, cost: i * 2 }); });
@@ -185,7 +194,7 @@ export function solve(input: SolveInput): Solved {
   const placed: Placement[] = [];
   const dropped: string[] = [];
 
-  const tryItem = (it: Anchored, relax: 0 | 1 | 2) => {
+  const tryItem = (it: Anchored, relax: 0 | 1 | 2, offOrgans = false) => {
     const blockers = relax >= 2 ? blockersRaw : blockersAir;
     let best: { cost: number; form: number; c: Cand; box: Box; leader: boolean; seg: Seg | null } | null = null;
     for (let fi = 0; fi < it.forms.length; fi++) {
@@ -194,6 +203,7 @@ export function solve(input: SolveInput): Solved {
         for (const c of candidates(it, f, !!it.must || relax > 0)) {
           const box: Box = { x0: it.ax + c.dx, y0: it.ay + c.dy, x1: it.ax + c.dx + f.w, y1: it.ay + c.dy + f.h };
           if (!within(box, inner)) continue;
+          if (offOrgans && it.onOther?.(box)) continue;
           let bad = false;
           for (const b of blockers) if (hits(box, b)) { bad = true; break; }
           if (bad) continue;
@@ -226,7 +236,7 @@ export function solve(input: SolveInput): Solved {
           }
           let lineHits = 0;
           for (const l of lines) if (crosses(l[0], l[1], l[2], l[3], box)) lineHits++;
-          const cost = fi * FORM_COST + c.cost + pen + lineHits * LINE_COST;
+          const cost = fi * FORM_COST + c.cost + pen + lineHits * (it.region ? REGION_LINE_COST : LINE_COST);
           if (!best || cost < best.cost) best = { cost, form: fi, c, box, leader, seg };
         }
       }
@@ -239,6 +249,7 @@ export function solve(input: SolveInput): Solved {
   };
 
   for (const it of [...items].sort(rank)) {
+    if (it.region && it.onOther) { if (tryItem(it, 0, true) || tryItem(it, 0, false)) continue; dropped.push(it.id); continue; }
     if (tryItem(it, 0)) continue;
     if (it.must && (tryItem(it, 1) || tryItem(it, 2))) continue;
     dropped.push(it.id);
