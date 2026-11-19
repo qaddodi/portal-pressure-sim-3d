@@ -52,7 +52,7 @@ const TABLE: Feature[] = [
   hook('tool:doppler', 'B11', 'The Doppler spectrum with its probe on the figure'),
   hook('tool:fibroscan', 'B11', 'FibroScan reading with the probe on the figure'),
   hook('tool:hvpg', 'B11', 'The HVPG monitor tracing'),
-  hook('tool:vitals', 'B11', 'The bedside monitor: EKG strip over heart rate, pressure, output, hemoglobin'),
+  done('tool:vitals', 'B11', 'The bedside monitor: EKG strip over heart rate, pressure, output, hemoglobin', 'src/ui/charts/vitals/VitalsCard.tsx'),
   hook('tool:abdomen', 'B11', 'The abdomen picture: ascites and the pressure inside'),
   hook('tool:wall', 'B11', 'The varix wall in cross-section'),
   hook('tool:reading', 'B11', 'A readout list with a Why? for each'),

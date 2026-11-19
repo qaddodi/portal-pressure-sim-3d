@@ -17,9 +17,9 @@ import { setDopplerProbe, useDopplerProbe, type Gate } from './probe-state.ts';
 
 const same = (a: Report | null, b: Report) => !!a && JSON.stringify(a) === JSON.stringify(b);
 
-export function DopplerPane(p: PaneProps & { /** the display a slide opens it on (2D tool.mode) */ mode?: DopMode }) {
+export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool: mode, calipers, pair, scale, baseline, waves); the next slide returns to the defaults unless it names them */ options?: Record<string, unknown> }) {
   const model = useRef<DopplerModel | null>(null);
-  if (!model.current) { model.current = new DopplerModel(); if (p.mode) model.current.mode = p.mode; }
+  if (!model.current) { model.current = new DopplerModel(); if (p.options) model.current.configure(p.options); }
   const m = model.current;
   const painter = useRef<ChartPainter | null>(null);
   const [mode, setMode] = useState<DopMode>(m.mode);
@@ -43,7 +43,8 @@ export function DopplerPane(p: PaneProps & { /** the display a slide opens it on
   const draw = () => {
     const c = ctxRef.current, pt = painter.current;
     if (!c || !pt) return;
-    pt.show(m.frameFor(c.w, h, performance.now(), aria.current), false);
+    pt.show(m.frameFor(c.w, h, performance.now(), aria.current, c.pal.tok('doppler')), false);
+    if (m.busy) clock.invalidate('doppler');   // (a mark or a letter is easing: frames until it is still, with the model paused too)
   };
   useEffect(() => {
     // the record opens full: the model reads the page's kept record, and the model's own past when that is short
@@ -61,6 +62,13 @@ export function DopplerPane(p: PaneProps & { /** the display a slide opens it on
     return () => { off(); tick(); hold?.release(); };
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { dirty.current = true; clock.invalidate('doppler'); }, [mode, invert, sweepIndex, h, probe, gate]);
+  // a slide's options change in place (the next slide, a compare button): the display goes back to Spectrum unless the slide names one
+  const optKey = JSON.stringify(p.options ?? null);
+  const firstOpt = useRef(true);
+  useEffect(() => {
+    if (firstOpt.current) { firstOpt.current = false; return; }
+    m.configure(p.options); setMode(m.mode); refresh(); dirty.current = true; clock.invalidate('doppler');
+  }, [optKey]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const modes = DOPPLER_MODES as { id: DopMode; label: string; short: string }[];
   const kind = rep?.kind ?? 'portal';
@@ -80,12 +88,12 @@ export function DopplerPane(p: PaneProps & { /** the display a slide opens it on
       </div>
       <div className="dop-main">
         <div className="dop-box" style={{ height: h }}>
-          <Chart tag="doppler" painter={painter} deps={[mode, invert, sweepIndex, h, probe, gate]} label={rep?.aria || 'Spectral Doppler'}
+          <Chart tag="doppler" painter={painter} deps={[mode, invert, sweepIndex, h, probe, gate, optKey]} label={rep?.aria || 'Spectral Doppler'}
             build={(c) => {
               ctxRef.current = c;
               m.pickWindow(c.w - (PAD_L as number) - (PAD_R as number));
               if (m.sweepIndex !== sweepIndex) queueMicrotask(() => setSweepIndex(m.sweepIndex));
-              return m.frameFor(c.w, h, performance.now(), aria.current);
+              return m.frameFor(c.w, h, performance.now(), aria.current, c.pal.tok('doppler'));
             }} />
         </div>
         <div className="dop-report">

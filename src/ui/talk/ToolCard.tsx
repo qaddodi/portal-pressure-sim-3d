@@ -29,7 +29,10 @@ import { ShiftCard } from '../charts/shift/ShiftCard.tsx';
 import { shiftData, stateOfStep, shiftTrail } from '../charts/shift/data.ts';
 import { LaddersCard } from '../charts/ladder/LaddersCard.tsx';
 import { AllPatientsCard } from '../charts/small/AllPatientsCard.tsx';
+import { ghostOf } from './ghost.ts';
+import { useProbes } from '../../scene/devices/probes/state.ts';
 import { StiffCard } from '../charts/stiff/StiffCard.tsx';
+import { VitalsCard } from '../charts/vitals/VitalsCard.tsx';
 import { engine } from '../../engine/index.ts';
 import { FlowTimeCard } from '../charts/flowtime/FlowTimeCard.tsx';
 import { SaagCard } from '../charts/saag/SaagCard.tsx';
@@ -107,6 +110,7 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'flowtime': return <FlowTime deck={deck} slide={slide} i={i} tool={tool} trail={(results?.[i]?.trail as never) ?? null} />;
     case 'saag': return <SaagCard rows={((tool.of as unknown[] | undefined) ?? []).map((o) => { const x = (typeof o === 'string' ? { id: o } : o) as { id?: string; name?: string; title?: string }; return { id: x.id, name: x.name ?? x.title ?? deck.slides.find((s) => s.id === x.id)?.title ?? x.id ?? '', f: x.id ? (fpOf(x.id) as never) : null }; })} extra={(tool.extra as never) ?? []} own={(tool.own as string | undefined) ?? null} />;
     case 'evgraph': return <EvGraph cs={cs} fp={fp} before={results?.[i]?.before as { fp: Fp } | undefined} opened={i > 0 ? ((results?.[i - 1]?.fp as Fp | undefined) ?? null) : null} />;
+    case 'vitals': return <VitalsCard tool={tool} fp={fp as never} />;
     case 'forest': return <ForestCard ids={(tool.ids as string[] | undefined) ?? []} />;
     case 'stiffness': return <StiffCard lsm={(fp?.lsm as number | null | undefined) ?? null} plt={(fp?.plt as number | null | undefined) ?? null} note />;
     case 'trace': return <TraceCard chain={chainFor(copied.slides as never, stateOf, (results ?? []).map((r) => r && { fp: r.fp as never, params: r.params }), i, tool as never)} {...traceProps(tool as never)} />;
@@ -114,7 +118,10 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'visual:plane': return <PlaneVisual deck={deck} cs={cs} fpOf={fpOf} />;
     case 'visual:ladders': return <LaddersCard slide={cs as never} deck={copied as never} />;
     case 'visual:allpatients': return <AllPatientsCard slide={cs as never} deck={copied as never} />;
-    case 'doppler': case 'fibroscan': case 'abdomen': case 'reading': case 'hvpg': case 'scope': case 'wall': return <Instrument kind={kind} tool={tool} />;
+    case 'doppler': case 'fibroscan': case 'abdomen': case 'reading': case 'hvpg': case 'scope': case 'wall': {
+      const ghost = ghostOf(cs as never, i, copied.slides as never, fpOf as never, stateOf);
+      return <>{ghost ? <p className="pz-ghost"><span>{ghost.label}</span><b>{ghost.value}</b></p> : null}<Instrument kind={kind} tool={tool} /></>;
+    }
     default: return null;
   }
 }
@@ -129,12 +136,21 @@ function Instrument({ kind, tool }: { kind: string; tool: Rec }) {
     if (kind === 'scope') useScope.getState().setView('scope');
     if (kind === 'fibroscan') useTests.getState().setFibro(tool.organ === 'spleen' ? 'spleen' : 'liver');
   }, [kind, tool]);
+  // the instrument's own device on the figure while its card is up: the ultrasound probe on the slide's vessel (none on the EUS slide, probe: 'scope': the scope is the probe), the FibroScan probe on the organ
+  const organ = tool.organ === 'spleen' ? 'spleen' : 'liver', scopeProbe = tool.probe === 'scope';
+  useEffect(() => {
+    const pr = useProbes.getState();
+    if (kind === 'doppler') pr.setDoppler({ on: !scopeProbe });
+    else if (kind === 'fibroscan') pr.setFibro({ on: true, organ });
+    else if (kind === 'scope') pr.setEndoscope({ on: true });
+    return () => { const q = useProbes.getState(); if (kind === 'doppler') q.setDoppler({ on: false }); else if (kind === 'fibroscan') q.setFibro({ on: false }); else if (kind === 'scope') q.setEndoscope({ on: false }); };
+  }, [kind, organ, scopeProbe]);
   const plot = Math.round(Math.min(220, Math.max(150, w * 0.32)));
   const p = { narrow: w < 470, plot, square: plot, roomy: false };
   return (
     <div className="dock-pane-host" data-instrument={kind}>
       <Suspense fallback={null}>
-        {kind === 'doppler' ? <DopplerPane {...p} mode={tool.mode === 'color' ? 'velocity' : undefined} /> : kind === 'fibroscan' ? <FibroPane {...p} /> : kind === 'hvpg' ? <IrPane {...p} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : <ReadoutsPane narrow={p.narrow} />}
+        {kind === 'doppler' ? <DopplerPane {...p} options={tool} /> : kind === 'fibroscan' ? <FibroPane {...p} /> : kind === 'hvpg' ? <IrPane {...p} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : <ReadoutsPane narrow={p.narrow} />}
       </Suspense>
     </div>
   );
