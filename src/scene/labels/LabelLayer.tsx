@@ -17,6 +17,8 @@ import { LabelController, type Draw, type LabelDeps } from './controller.ts';
 import { baselineAt, lookVars, typeVars } from './type.ts';
 import { keyVars } from './key-dock.ts';
 import { STATIONS } from './stations.ts';
+import { bindLabelHits, labelNodeAt } from './hit.ts';
+import { useSelection } from '../../ui/action/selection.ts';
 import { buildCath } from './cath-dom.ts';
 import { cathVars, cathLook } from './cath.ts';
 import { KEY_LENSES, keyModel, schemeOf } from './key.ts';
@@ -102,6 +104,12 @@ export function LabelLayer() {
       pressure: (node) => { const f = latest.frame, i = NODE_AT.get(node); return f && i !== undefined ? (f.Pf[i] ?? null) : null; },
       reading: (k) => ui.getState().readings[k] ?? null,
       hidden: () => cel.circuit.t > 0 || cel.circuit.toCircuit,
+      // the varices and the fundal varices: 2D's hasVarices (a label only where the patient has them; the one whose card is open stays)
+      present: (id) => {
+        const sel = useSelection.getState().sel, m = (latest.frame as unknown as { metrics?: { varix?: { present?: boolean }; gastricVarix?: { present?: boolean; d?: number } } } | null)?.metrics;
+        if (sel?.type === 'organ' && sel.id === (id === 'VAR' ? 'varices' : 'gastric')) return true;
+        return id === 'VAR' ? !!m?.varix?.present : (m?.gastricVarix?.d ?? 0) > 0 && !!m?.gastricVarix?.present;
+      },
       cathere: (tip: Vector3, ahead: Vector3) => {
         const c = cel.catheter;
         if (c.current.advance < 0.999) return 0;
@@ -121,6 +129,7 @@ export function LabelLayer() {
     pushFigure();
     const offFigure = useFigure.subscribe(pushFigure);
     const ctl = new LabelController(deps);
+    const offHits = bindLabelHits((x, y) => labelNodeAt(ctl.out, x, y));
     const recs = new Map<string, Rec>();
     const mk = (tag: string, cls: string, parent: HTMLElement = root) => { const e = document.createElement(tag); e.className = cls; parent.appendChild(e); return e; };
 
@@ -195,7 +204,7 @@ export function LabelLayer() {
       else if (!wantFrames && hold) { hold.release(); hold = null; }
     }, 0);
 
-    return () => { figCards.destroy(); offFigure(); cath.destroy(); offTags(); offLabels(); offPick(); offUi(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
+    return () => { figCards.destroy(); offFigure(); cath.destroy(); offHits(); offTags(); offLabels(); offPick(); offUi(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
   }, []);
 
   return (
