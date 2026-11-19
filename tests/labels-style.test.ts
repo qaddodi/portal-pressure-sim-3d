@@ -78,7 +78,7 @@ test('each look\'s label ink, halo, leader and ring are the 2D look\'s, and the 
 
 test('the stylesheet draws a station without a backing and holds no size, weight, opacity or colour of its own for it', () => {
   const css = readFileSync('src/scene/labels/labels.css', 'utf8');
-  const a = css.indexOf("/* ── a station's label"), b = css.indexOf('/* ── a reading card');
+  const a = css.indexOf("/* ── a station's label"), b = css.indexOf("/* ── the catheter's reading cards");
   const sec = css.slice(a, b);
   assert.ok(a > 0 && b > a);
   assert.ok(!/background:\s*var\(--(glass|surface)/.test(sec.replace(/\.lb-anchor[^}]*\}/, '')), 'no pill backing on a station');
