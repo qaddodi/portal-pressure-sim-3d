@@ -18,7 +18,7 @@ export const tinyName = (id: PaneId): string => (TINY as Record<string, string>)
 export const BUILT_PANES: readonly PaneId[] = [
   'readouts', 'scope', 'abdomen', 'trials',
   // (one line per instrument, each its own thread's: a thread adds its own)
-  // profile
+  'profile',
   // hvpg
   // doppler
   // endoscopy

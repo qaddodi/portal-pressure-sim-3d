@@ -1,0 +1,118 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { NODES } from '../src/engine/hales/portal/topology.js';
+import { paletteOf } from '../src/ui/charts/palette.ts';
+import { blend, compatible } from '../src/ui/charts/morph.ts';
+import { profileFrame, newLock, itemsOf, smoothPoly, pressureColour, PATHS } from '../src/ui/tests/profile/model.ts';
+import { readings } from '../src/ui/tests/profile/readings.ts';
+import { hvpgSev } from '../src/engine/hales/portal/pressure-cuts.js';
+import type { TextShape } from '../src/ui/charts/scene.ts';
+
+const IDX = Object.fromEntries((NODES as { id: string }[]).map((n, i) => [n.id, i]));
+const pressures = (over: Record<string, number> = {}) => {
+  const P = new Float32Array(NODES.length);
+  const base: Record<string, number> = { INT: 19, CONF: 18, RPV: 17.5, SIN_R: 15, CV_R: 8.5, RHV: 7, IVCS: 5, RA: 3, ...over };
+  for (const [k, v] of Object.entries(base)) P[IDX[k]!] = v;
+  return P;
+};
+const healthy = pressures({ INT: 8, CONF: 7, RPV: 6.5, SIN_R: 5, CV_R: 4, RHV: 3.5, IVCS: 3, RA: 2 });
+const metrics = { whvp: 15, fhvp: 7, hvpg: 8, pv: 18, ivc: 5, ppg: 13 };
+const pal = paletteOf('light');
+const input = (over = {}) => ({ P: pressures(), metrics, healthy, ...over });
+const words = (f: { shapes: readonly { k: string }[] }) => (f.shapes.filter((s) => s.k === 'text') as TextShape[]);
+
+test('the path is the 2D app\'s: eight stations gut to heart, the liver span, the HVPG and PPG brackets', () => {
+  const p = PATHS[0]!;
+  assert.deepEqual(p.nodes, ['INT', 'CONF', 'RPV', 'SIN_R', 'CV_R', 'RHV', 'IVCS', 'RA']);
+  assert.deepEqual(p.liver, ['RPV', 'CV_R']);
+  assert.deepEqual(p.dims!.map((d) => [d.k, d.hi, d.lo]), [['HVPG', 'SIN_R', 'RHV'], ['PPG', 'CONF', 'IVCS']]);
+  for (const n of p.nodes) assert.ok(IDX[n] != null, `${n} is a node`);
+});
+
+test('a roomy plot names the stations, writes each value, the LIVER band and both brackets with the tiles\' numbers', () => {
+  const o = profileFrame(input(), { w: 700, h: 300, pal }, newLock());
+  assert.equal(o.form, 'plot');
+  const w = words(o.frame).map((t) => t.s);
+  for (const n of ['Intestine', 'Portal vein', 'Portal venule', 'Sinusoid', 'Central vein', 'Hepatic vein', 'IVC', 'RA']) assert.ok(w.includes(n), `${n} named`);
+  assert.ok(w.includes('LIVER'));
+  assert.ok(w.includes('HVPG ') && w.includes('PPG '), 'the two bracket pills');
+  assert.ok(w.includes('8.0') && w.includes('13.0'), `the HVPG (WHVP − FHVP = 8.0) and the PPG (18.0 − 5.0 = 13.0) read as the tiles read them: ${w.join('|')}`);
+  assert.ok(w.includes('mmHg'));
+  for (const v of ['19.0', '15.0', '3.0']) assert.ok(w.includes(v), `${v} printed`);
+});
+
+test('narrow names turn 30° and end under their points (2D stagger); the axis follows the highest of now, healthy and the compared moment', () => {
+  const o = profileFrame(input(), { w: 460, h: 300, pal }, newLock());
+  const turned = words(o.frame).filter((t) => t.rot === -30);
+  assert.equal(turned.length, 8, 'every station name is turned');
+  assert.ok(turned.every((t) => t.anchor === 'end' && t.baseline === 'middle'));
+  assert.equal(o.maxP, 25, 'axisTop(19) = ceil(21 / 5) × 5');
+  const hi = profileFrame(input({ snap: pressures({ CONF: 31 }) }), { w: 460, h: 300, pal }, newLock());
+  assert.equal(hi.maxP, 35);
+  assert.equal(hi.compared, true);
+});
+
+test('hiding the HVPG leaves its bracket and pill out; the PPG keeps its row', () => {
+  const o = profileFrame(input({ hidden: new Set(['trueHVPG']) }), { w: 700, h: 300, pal }, newLock());
+  const w = words(o.frame).map((t) => t.s);
+  assert.ok(!w.includes('HVPG ') && w.includes('PPG '));
+});
+
+test('a plot too short for its pills becomes the band under the names, and a shorter one the strip of five stations (2D: never a label over the line)', () => {
+  const lock = newLock();
+  const band = profileFrame(input(), { w: 520, h: 190, pal }, lock);
+  assert.ok(band.form === 'band' || band.form === 'strip', band.form);
+  const strip = profileFrame(input(), { w: 360, h: 112, pal }, newLock());
+  assert.equal(strip.form, 'strip');
+  const w = words(strip.frame).map((t) => t.s);
+  assert.deepEqual(w.slice(0, 5), ['Portal v.', 'Sinusoid', 'RHV', 'IVC', 'RA']);
+  assert.ok(w.includes('mmHg') && w.includes('HVPG ') && w.includes('PPG '));
+  const lock2 = newLock();
+  profileFrame(input(), { w: 360, h: 112, pal }, lock2);
+  assert.equal(profileFrame(input(), { w: 360, h: 112, pal }, lock2).form, 'strip', 'the strip stays while the size does');
+});
+
+test('the same inputs give the same frame; a small change keeps the frame\'s shape so the painter can glide it', () => {
+  const a = profileFrame(input(), { w: 700, h: 300, pal }, newLock()).frame;
+  const b = profileFrame(input(), { w: 700, h: 300, pal }, newLock()).frame;
+  assert.deepEqual(a, b);
+  const c = profileFrame(input({ P: pressures({ CONF: 18.4, SIN_R: 15.2 }) }), { w: 700, h: 300, pal }, newLock()).frame;
+  assert.ok(compatible(a, c), 'one shape, so it blends');
+  assert.equal(blend(a, c, 0.5).shapes.length, a.shapes.length);
+});
+
+test('the curve never dips where the points only rise (monotone), with the same count of samples whatever the numbers', () => {
+  const pts = [[0, 10], [10, 12], [20, 40], [30, 41], [40, 80]];
+  const poly = smoothPoly(pts, 12);
+  assert.equal(poly.length, 4 * 12 + 1);
+  for (let i = 1; i < poly.length; i++) assert.ok(poly[i]![1]! >= poly[i - 1]![1]! - 1e-9);
+});
+
+test('the pressure ramp is the look\'s own and clamps at 35; the stations read as the path names them', () => {
+  assert.notDeepEqual(pressureColour(3, 'light'), pressureColour(30, 'light'));
+  assert.deepEqual(pressureColour(40, 'light'), pressureColour(35, 'light'));
+  assert.deepEqual(itemsOf({ P: pressures() }).map((i) => i.name), ['Intestine', 'Portal vein', 'Portal venule', 'Sinusoid', 'Central vein', 'Hepatic vein', 'IVC', 'RA']);
+});
+
+test('the three readings under the chart: a word only when the number is not normal', () => {
+  const r = readings(metrics, null);
+  assert.deepEqual(r.map((x) => x.name), ['HVPG', 'PPG', 'Portal vein']);
+  assert.equal(r[0]!.text, '8.0');
+  assert.equal(r[0]!.sev, hvpgSev(8));
+  assert.ok(r[0]!.word, 'an HVPG of 8 is not normal and says so');
+  assert.deepEqual(readings({ hvpg: 3, ppg: 4, pv: 8 }, null).map((x) => x.word), ['', '', ''], 'normal readings carry no word');
+  assert.equal(readings(metrics, new Set(['trueHVPG']))[0]!.text, '—', 'an HVPG not measured is not shown');
+});
+
+test('a turned word glides its turn like its place (morph.ts blends rot)', () => {
+  const f = (rot: number | undefined) => ({ w: 10, h: 10, label: '', shapes: [{ k: 'text' as const, x: 0, y: 0, s: 'a', size: 12, color: [0, 0, 0, 1] as const, rot }] });
+  assert.equal((blend(f(0), f(-30), 0.5).shapes[0] as TextShape).rot, -15);
+  assert.equal((blend(f(undefined), f(undefined), 0.5).shapes[0] as TextShape).rot, undefined);
+});
+
+// the copied files equal the 2D app's (needs a 2D checkout: PPS_2D_REPO)
+test('the copied files are what the 2D app has', { skip: !process.env.PPS_2D_REPO || !existsSync(`${process.env.PPS_2D_REPO}/src/ui/charts.js`) }, () => {
+  execFileSync('node', ['scripts/copy-b11-profile.mjs', '--from', process.env.PPS_2D_REPO!, '--check'], { stdio: 'pipe' });
+});
