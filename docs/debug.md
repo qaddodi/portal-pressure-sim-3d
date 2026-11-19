@@ -171,6 +171,9 @@ Address flags, where each works (live site, or the preview and a local run only)
 | `?gallery` | preview and local run | Pages | The old spelling of ?debug (?gallery&sweep=... runs the Sweep; the sweeps still open it so). (old spelling of ?debug) |
 | `?check` | preview and local run | Pages | The old spelling of ?debug=check, the Phone check (?check=full for the long walk). (old spelling of ?debug=check) |
 | `?sweep` | preview and local run | Pages | The debug page: run the Sweep over these specimens (a list, or affected). |
+| `?look` | preview and local run | Pages | The Mac look board (bare ?look; ?look&twod adds the 2D app beside each row): walks about 40 fixed states (patient, view, look, device) in one frame, reads the figure canvas in the frame that draws it, shows it beside the saved baseline and the difference (src/debug/look-board.ts, look/README.md). |
+| `?twod` | preview and local run | Pages | The look board: a button per row opens the 2D app's preview of the same patient in the row. |
+| `?capture` | preview and local run | Open | One look-board state (the look board's own frame opens it): ?capture&look=dark&preset=cirr-decomp&view=circuit&chevrons=0&orbit=25 applies it in memory (nothing saved) and window.__look hands out the canvas (src/debug/look-app.ts). |
 | `?only` | everywhere | Pages | The Phone check or the Sweep: just these journeys or specimens (comma list). |
 | `?steps` | everywhere | Pages | The Phone check: steps=0 leaves out the per-step rows. |
 | `?fresh` | everywhere | Pages | The Phone check: fresh=1 forgets a walk the browser was part way through. |
