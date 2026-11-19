@@ -21,7 +21,6 @@ import { applyDeepLink } from './open-link.ts';
 import { showView } from './view-actions.ts';
 import { useBlood } from '../../scene/blood/options.ts';
 import { useLabels } from '../../scene/labels/store.ts';
-import { Legend } from '../../scene/lenses/Legend.tsx';
 import { footHeight } from './room.ts';
 
 /** The screen's size and its safe areas, measured when either changes (never per frame). Free play needs it too: the talk's own UI measures only while it is mounted. */
@@ -84,7 +83,6 @@ export function Shell() {
             <ThumbBar />
           </div>
         )}
-        <div className="sh-key" data-hidden={mode === 'deck'} style={{ bottom: `calc(var(--safe-b, 0px) + ${bottom ? footHeight(device) : 18}px)` }}><Legend /></div>
         <Sheets />
         <Toast />
         <Diagnostics />

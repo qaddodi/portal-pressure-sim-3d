@@ -45,8 +45,20 @@
 
 /* the lens button: its name and a legend */
 .sh-lens { gap: 10px; }
-.sh-legend { width: 56px; height: 8px; border-radius: 4px; flex: none; }
-.sh-lens-name { min-width: 3.4em; text-align: left; }
+/* (the legend stands in the pill as the 2D app's `.legend` does: the title in two right-aligned lines, then a 168 x 30 scale with a notch and a number
+   under each mark; the compact caption stands in below 1600 px, no title on a phone. Numbers and sizes are the 2D app's styles/app.css, 205-235.) */
+.sh-lens-name { display: none; }
+.sh-lens .lg { display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 0 4px; }
+.sh-lens .lg-title, .sh-lens .lg-cap { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; font-size: 12px; color: var(--text-3); font-weight: 500; text-align: right; white-space: nowrap; margin-right: 4px; }
+.sh-lens .lg-title b, .sh-lens .lg-cap b { color: var(--text-2); font-weight: 600; }
+.sh-lens .lg-cap { display: none; }
+@media (max-width: 1599px) { .sh-lens .lg[data-variant="bar"] .lg-title { display: none; } .sh-lens .lg[data-variant="bar"] .lg-cap { display: flex; } }
+@media (max-width: 760px) { .sh-lens .lg-title, .sh-lens .lg-cap { display: none !important; } }
+.sh-lens .lg-bar-wrap { position: relative; width: 168px; height: 30px; padding: 0; margin: 0 10px; }
+.sh-lens .lg-bar { position: absolute; left: 0; right: 0; top: 4px; height: 8px; border-radius: 2px; }
+.sh-lens .lg-tick { top: 12px; bottom: auto; height: 3px; margin-left: -.5px; background: var(--text-2); opacity: .7; }
+.sh-lens .lg-nums span, .sh-lens .lg-nums span:first-child, .sh-lens .lg-nums span:last-child { top: 15px; transform: translateX(-50%); font-size: 12px; font-weight: 600; color: var(--text-2); }
+.sh-lens .lg-dots { gap: 4px 10px; flex-wrap: nowrap; }
 
 /* ── popovers (anchored to their button, always in the page) ── */
 .sh-anchor { position: relative; display: inline-flex; }
@@ -203,5 +215,3 @@
 .sh-diag-box[data-on="true"] { opacity: 1; visibility: visible; transition-delay: 0s; }
 
 /* the colour key (B3's Legend) stands under the figure, centred; it fades with the talk */
-.sh-key { position: absolute; left: 50%; transform: translateX(-50%); --lg-title: 12px; --lg-num: 12px; --lg-width: 200px; pointer-events: none; transition: opacity 240ms var(--sh-ease); }
-.sh-key[data-hidden="true"] { opacity: 0; }

@@ -1,3 +1,4 @@
+import { Legend } from '../../scene/lenses/Legend.tsx';
 import { UI } from '../strings.generated.ts';
 import { useUi } from '../ui-store.ts';
 import { useShell, LENS_IDS } from './store.ts';
@@ -47,7 +48,7 @@ export function LensButton() {
     <Anchored sheet="lens" label={labelOf('btnLayers')} width={440} button={({ id, open, toggle }) => (
       <button type="button" className="sh-pill sh-lens" data-opens="lens" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} title={tb('btnLayers').title ?? undefined} onClick={toggle}>
         <span className="sh-lens-name">{name}</span>
-        <span className="sh-legend" role="img" aria-label={labelOf('legend')} style={{ background: LENS_ART[lens] ?? LENS_ART.pressure }} />
+        <Legend variant="bar" />
         <Icon n="chev-down" className="sh-chev" />
       </button>)}>
       <LensMenu />

@@ -111,7 +111,37 @@ export async function extract() {
   const organM = must(solveJs, /size: ([\d.]+), weight: (\d+), cls: 'lb-organ', track: ([\d.]+) \}\]\), align: 'middle', padX: (\d+), padY: (\d+)/, 'the organ caption');
   const padM = must(items, /padX: mode === 'inline' && !one \? \d+ : (\d+), padY: mode === 'inline' && !one \? \d+ : (\d+)/, 'the label padding');
   const phoneOrgan = must(appCss, /@media \(max-width: (\d+)px\) \{ \.lb-organ \{ fill: color-mix\(in srgb, var\(--text-3\) (\d+)%, var\(--stage-bg\)\); \} \}/, 'the phone organ ink');
+  const lgScale = must(appCss, /\.lg-scale \{ position: relative; width: (\d+)px; height: (\d+)px; \}/, 'the legend scale');
+  const lgBar = must(appCss, /\.lg-bar \{ position: absolute; left: 0; right: 0; top: (\d+)px; height: (\d+)px; border-radius: (\d+)px;/, 'the legend bar');
+  const lgTick = must(appCss, /\.lg-tick \{ position: absolute; top: (\d+)px; width: 1px; height: (\d+)px;/, 'the legend ticks');
+  const lgNum = must(appCss, /\.lg-num \{ position: absolute; top: (\d+)px; transform: translateX\(-50%\); font-size: var\(--fs-12\); font-weight: (\d+);/, 'the legend numbers');
+  const lgCap = must(appCss, /@media \(max-width: (\d+)px\) \{ \.legend \.lg-cap \{ display: flex; \} \}/, 'the legend caption breakpoint');
+  // The deck's figure key (the `.pz-fk` pill): its type, shell, scale and swatch sizes, and where it docks on each screen (app.css 2005-2033, 6612-6637).
+  const fkBase = must(appCss, /\.pz-fk \{[^}]*?padding: ([\d.]+)em (\d+)px ([\d.]+)em; border-radius: var\(--r-sheet\);[^}]*?gap: ([\d.]+)em;|\.pz-fk \{[^}]*?gap: ([\d.]+)em; box-sizing: border-box; padding: ([\d.]+)em (\d+)px ([\d.]+)em; border-radius: var\(--r-sheet\); white-space: nowrap; font: (\d+) max\((\d+)px, calc\(var\(--s-cap\) \* ([\d.]+)\)\)\/([\d.]+)/, 'the key pill');
+  const fk = fkBase[5] !== undefined ? { gap: num(fkBase[5]), padTop: num(fkBase[6]), padX: num(fkBase[7]), padBottom: num(fkBase[8]), weight: num(fkBase[9]), floor: num(fkBase[10]), scale: num(fkBase[11]), line: num(fkBase[12]) } : null;
+  if (!fk) throw new Error('the 2D key pill changed shape');
+  const fkGrad = must(appCss, /\.pz-fk\.grad, \.pz-fk\.grad\.col \{ flex-direction: column; align-items: center; gap: ([\d.]+)em; padding: ([\d.]+)em (\d+)px ([\d.]+)em; font-size: max\((\d+)px, calc\(var\(--s-cap\) \* ([\d.]+)\)\); \}/, 'the gradient key');
+  const fkGradBar = must(appCss, /\.pz-fk\.grad \.pz-lens-bar \{ width: ([\d.]+)em; height: ([\d.]+)em; \}/, 'the gradient key bar');
+  const fkBar = must(appCss, /\.pz-lens-bar \{ width: ([\d.]+)em; height: ([\d.]+)em;/, 'the key bar');
+  const fkSw = must(appCss, /\.pz-lens-sw \{ width: ([\d.]+)em; height: ([\d.]+)em; border-radius: ([\d.]+)em;/, 'the key swatch');
+  const fkWide = must(appCss, /\.pz:not\(\.stack\) \.pz-fk \{[^}]*?\+ (\d+)px \+ (\d+)px\)/, 'the wide key dock');
+  const fkSide = must(appCss, /\.pz\.low\.fk-side \.pz-fk:not\(\.grad\) \{ bottom: calc\([^;]*?\+ (\d+)px \+ (\d+)px\)/, 'the sideways key dock');
+  const fkStack = must(appCss, /\.pz\.stack \.pz-fk \{ left: (\d+)px;/, 'the phone key left');
+  const fkRow = must(appCss, /\.pz\.stack:not\(\.fk-up\) \.pz-fk \{ bottom: calc\((\d+)px \+ var\(--pz-sb\)\); min-height: (\d+)px;/, 'the phone key row');
+  const fkTab = must(appCss, /\.pz\.stack\.tab \.pz-fk \{ left: calc\((\d+)% \+ (\d+)px\); \}/, 'the tablet key left');
+  const fkTabRow = must(appCss, /\.pz\.stack\.tab:not\(\.fk-up\) \.pz-fk \{ bottom: calc\((\d+)px \+ var\(--pz-sb\)\); \}/, 'the tablet key row');
+  const fkTabUp = must(appCss, /\.pz\.stack\.tab\.fk-up \.pz-fk \{ bottom: calc\((\d+)px \+ var\(--pz-sb\)\); \}/, 'the tablet key above the pill');
+  const fkUp = must(appCss, /\.pz\.stack\.fk-up \.pz-fk \{ bottom: calc\((\d+)px \+ var\(--pz-sb\)\); \}/, 'the phone key above the pill');
+  const capM = must(appCss, /--s-cap: max\((\d+)px, calc\(clamp\((\d+)px, calc\(([\d.]+) \* var\(--pzh\)\), (\d+)px\)/, 'the wide caption size');
+  const KEY = {
+    TYPE: fk, GRAD: { gap: num(fkGrad[1]), padTop: num(fkGrad[2]), padX: num(fkGrad[3]), padBottom: num(fkGrad[4]), floor: num(fkGrad[5]), scale: num(fkGrad[6]), barW: num(fkGradBar[1]), barH: num(fkGradBar[2]) },
+    BAR: { w: num(fkBar[1]), h: num(fkBar[2]) }, SWATCH: { w: num(fkSw[1]), h: num(fkSw[2]), radius: num(fkSw[3]) },
+    CAP: { floor: num(capM[2]), perPzh: num(capM[3]), max: num(capM[4]) },
+    DOCK: { aboveWide: num(fkWide[2]), aboveSide: num(fkSide[2]), pillH: num(fkWide[1]), phoneSide: num(fkStack[1]), phoneRow: num(fkRow[1]), phoneMinH: num(fkRow[2]), phoneUp: num(fkUp[1]), tabLeftShare: num(fkTab[1]) / 100, tabLeftPx: num(fkTab[2]), tabRow: num(fkTabRow[1]), tabUp: num(fkTabUp[1]) },
+  };
   const STYLE = {
+    KEY,
+    LEGEND: { width: num(lgScale[1]), height: num(lgScale[2]), barTop: num(lgBar[1]), barHeight: num(lgBar[2]), barRadius: num(lgBar[3]), tickTop: num(lgTick[1]), tickHeight: num(lgTick[2]), numTop: num(lgNum[1]), numWeight: num(lgNum[2]), captionBelow: num(lgCap[1]) },
     ROLES: evalLiteral(literalOf(scale, 'ROLES')),
     FLUID_FROM: num(must(scale, /\(Math\.min\(w, h\) - (\d+)\) \/ (\d+)/, 'the fluid size')[1]), FLUID_SPAN: num(must(scale, /\(Math\.min\(w, h\) - (\d+)\) \/ (\d+)/, 'the fluid size')[2]),
     ROLE_VAL_FROM: num(roleM[1]), ROLE_LAB_FROM: num(roleM[2]),
