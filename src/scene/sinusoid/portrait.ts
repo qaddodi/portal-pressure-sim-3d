@@ -26,9 +26,19 @@ export const restScale = (shortPx: number): number => Math.max(3, (shortPx * FIL
 export const END_INSET = { wide: 8 + (22 + 26) / 2, tall: (22 + 26) / 2 } as const;
 /** Where the end arrows stand and how big they are (µm along the sinusoid from the view's centre: the portal venule's, the central vein's, the arrow's size), for a free room that is
  *  `alongPx` long in the flow's direction at `k` px per µm, and a lumen `lumenHalf` µm wide (half). 2D: layoutEnds, END[]. */
-export function endsFor(k: number, alongPx: number, portrait: boolean, lumenHalf: number): [number, number, number] {
+export function endsFor(k: number, alongPx: number, portrait: boolean, lumenHalf: number, centreUm = 0): [number, number, number] {
   const inset = portrait ? END_INSET.tall : END_INSET.wide, e = (alongPx / 2 - inset) / k;
-  return [-e, e, Math.min(22 / k, lumenHalf * 0.95)];
+  return [centreUm - e, centreUm + e, Math.min(22 / k, lumenHalf * 0.95)];
+}
+
+/** What the camera really shows of the sinusoid, measured on the screen (2D keeps its own scale and centre, VW.k and VW.C; 3D's come from the projection): `origin` is where the sinusoid's middle lands (CSS px),
+ *  `ahead` where the point `um` µm down the flow lands, `room` the middle of the free room. Returns the pixels per µm along the flow and how far (µm, along the flow) the room's middle is from the sinusoid's: the arrows
+ *  stand against the room's ends and the traffic runs over what is on screen whatever the camera, the hand's zoom and pan or the room do (a model of the framing drifted from the picture: arrows off the edge, a third of the dots). */
+export function measureScreen(origin: { x: number; y: number }, ahead: { x: number; y: number }, room: { x: number; y: number }, um = 10): { k: number; centreUm: number } {
+  const dx = ahead.x - origin.x, dy = ahead.y - origin.y, len = Math.hypot(dx, dy);
+  if (!(len > 1e-6)) return { k: 0, centreUm: 0 };
+  const k = len / um;
+  return { k, centreUm: ((room.x - origin.x) * dx + (room.y - origin.y) * dy) / (len * k) };
 }
 
 /** A point of the sinusoid's own frame in micrometres (x along the flow, y across, DOWN as the shader has it) to the plane group's parent frame, in plane units (`u` per µm), turned by `angle`. */
