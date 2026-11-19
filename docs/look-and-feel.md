@@ -31,6 +31,8 @@ teaching text as web text over the 3D, on one shared clock.
 | Flow marks | n/a | Light bands that scroll along the vessel at the engine's speed; reversed flow scrolls the other way and turns orange | n/a |
 | Light | One fixed light from upper left front; no cast shadows; no ambient occlusion | | |
 
+**Organ depth and organ fill (Settings > Figure depth, 3D only, a deliberate step beyond 2D).** *Organ depth* adds a baked tuck term (`organs/organ-depth.ts`: one byte per vertex, worked out at load from creases and from where one organ meets another) and a soft light from the screen's upper left to the organ painter, in three soft steps in the look's own `og-dark` and `og-light`; off, the painter is exactly 2D's. *Organ fill* chooses the see-through wash (default, the layer's opacity) or solid (the same colour pre-mixed against the page and laid opaque). They are independent switches; both are uniforms (`depthAmt`, `solid`) eased on the clock (`organs/organ-settings.ts`).
+
 The body plate behind the organs is a flat shape in `--organ-body`, no shading, no ink, so the figure reads as a plate in a book.
 
 ## 3. Ink
