@@ -1,1 +1,1 @@
-{ "maxMissing": 98, "note": "Ratchet: parity-complete.test.ts fails when the unclaimed count rises above this. Lower it when you claim rows; at 0 the test is strict." }
+{ "maxMissing": 47, "note": "Ratchet: parity-complete.test.ts fails when the unclaimed count rises above this. Lower it when you claim rows; at 0 the test is strict." }
