@@ -18,7 +18,7 @@ import { metricsOf } from '../frame.ts';
 import type { PaneProps } from '../TestsLayer.tsx';
 import { FieldMotion, OverlayMotion, type ScopeIn } from './motion.ts';
 import { scopeFrame, type OverlayState } from './frame.ts';
-import { EusPpg } from './EusPpg.tsx';
+import { EusButton, EusPanel, useEusReset } from './EusPpg.tsx';
 import { WallView } from './WallView.tsx';
 import { useScope } from './scope-state.ts';
 import { readingsOf, scopeOptions, type EndoOpt } from './readings.ts';
@@ -36,6 +36,8 @@ function ScopeView({ square, opt }: { square: number; opt: EndoOpt }) {
   const look = useLookId();
   const dirty = useRef(true), hold = useRef<{ release(): void } | null>(null), key = useRef('');
   const preset = useEngine((s) => s.presetId);
+  const eus = useScope((s) => s.eus);
+  useEusReset(preset);
 
   const build = (c: ChartCtx) => {
     const f = latest.frame as Any, o = over.current, fm = field.current.state, m = metricsOf(f);
@@ -73,12 +75,13 @@ function ScopeView({ square, opt }: { square: number; opt: EndoOpt }) {
   const pal = paletteOf(look);
   void pal;
   return (
-    <div className="en-view" data-view="scope">
+    <div className="en-view" data-view="scope" data-eus={eus}>
       <div className="endo-stage en-stage">
         <div className="en-pic" style={{ ['--en-sq' as string]: `${square}px` }}>
           <Chart tag="endo-scope" painter={painter} deps={[square, look]} label={r?.label ?? W.viewAria} build={(c) => { ctx.current = c; return build(c); }} />
         </div>
         <span className="endo-pos">{W.position}</span>
+        <EusPanel width={square} />
       </div>
       <div className="en-side chart-side">
         {r && (
@@ -94,7 +97,7 @@ function ScopeView({ square, opt }: { square: number; opt: EndoOpt }) {
         <button type="button" className="btn primary en-band" disabled={!present} title={present ? '' : W.noBand} onClick={() => { useScope.getState().band(); appEnv.action({ kind: 'band' }); }}>
           <OrderIcon n="band" className="ac-ic" />{procLabel('band')}
         </button>
-        <EusPpg />
+        <EusButton />
       </div>
     </div>
   );
