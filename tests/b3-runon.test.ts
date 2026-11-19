@@ -75,3 +75,41 @@ test('a node of two vessels meeting head on is a run-on pair, one meeting at a r
   ]);
   assert.equal(bend.length, 0);
 });
+
+// ── forks: a branch blends into its trunk (the 2D figure's fillet) ──
+import { NETWORK_BY_ID, RUN_ONS as RO } from '../src/scene/vessels/network.ts';
+import { buildTubes, flareAdd } from '../src/scene/vessels/tubes.ts';
+import { coursesOf } from '../src/scene/vessels/shape.ts';
+import { REST, tubularOf } from '../src/scene/vessels/shape.ts';
+
+test('a branch that ends on a trunk has a collar at that end; the vessels that run on into each other have none', () => {
+  const lgv = NETWORK_BY_ID.get('LGV_CONF')!;
+  assert.ok(lgv.flare?.[1], 'the left gastric vein blooms where it meets the portal trunk');
+  assert.ok(lgv.flare![1]!.add > 0 && lgv.flare![1]!.span > 0);
+  for (const r of RO) {
+    for (const [id, end] of [[r.a, r.ia], [r.b, r.ib]] as const) assert.equal(NETWORK_BY_ID.get(id)?.flare?.[end] ?? null, null, `${id} end ${end} runs on, so no collar`);
+  }
+});
+
+test('the collar is all of `add` up to the host wall, then melts to nothing over `span`', () => {
+  const f = { add: 0.02, wall: 0.1, span: 0.05 };
+  assert.equal(flareAdd(f, 0), 0.02);
+  assert.equal(flareAdd(f, 0.1), 0.02);
+  assert.ok(flareAdd(f, 0.125) < 0.02 && flareAdd(f, 0.125) > 0);
+  assert.ok(flareAdd(f, 0.15) < 1e-9);
+  assert.equal(flareAdd(f, 5), 0);
+  assert.equal(flareAdd(null, 0), 0);
+});
+
+test('the built tube is wider at the collared end than anywhere along its plain length, and plain at its other end', () => {
+  const v = NETWORK_BY_ID.get('LGV_CONF')!;
+  const { geometry } = buildTubes(coursesOf(v, REST), tubularOf(v), v.radius);
+  const rk = geometry.getAttribute('rk');
+  const tube = coursesOf(v, REST)[0]!;
+  const seg = tubularOf(v)[0]!, per = 15;
+  const at = (k: number) => rk.getX(k * per);
+  const mid = at(Math.floor(seg / 2)), endK = at(seg);
+  assert.ok(endK > mid * 1.05, `end ${endK} vs middle ${mid}`);
+  assert.ok(Math.abs(at(0) - (v.taper?.[0] ?? 1) * 1) < 0.5);
+  assert.ok(tube.flare);
+});
