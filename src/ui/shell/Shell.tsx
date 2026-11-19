@@ -18,6 +18,7 @@ import { syncTransport } from './transport.ts';
 import { usesBottomBar, freeRoom } from './room.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { applyDeepLink } from './open-link.ts';
+import { showView } from './view-actions.ts';
 import { useBlood } from '../../scene/blood/options.ts';
 import { useLabels } from '../../scene/labels/store.ts';
 import { Legend } from '../../scene/lenses/Legend.tsx';
@@ -49,7 +50,7 @@ function useFreeCamera() {
     if (mode !== 'free' || vp.w <= 0) { entered.current = false; return; }
     const room = freeRoom(vp, device);
     if (room.w <= 0 || room.h <= 0) return;
-    if (!entered.current) { entered.current = true; sceneApi.goTo('play', room); } else sceneApi.setRoom(room);
+    if (!entered.current) { entered.current = true; showView(useShell.getState().view); } else sceneApi.setRoom(room);
   }, [mode, vp, device]);
   const seen = useRef(refit);
   useEffect(() => { if (refit !== seen.current) { seen.current = refit; sceneApi.refit(); } }, [refit]);
@@ -64,6 +65,7 @@ export function Shell() {
   useKeys();
   useFreeCamera();
   useEffect(() => syncTransport(), []);
+  useEffect(() => { const f = useShell.getState().figure; sceneApi.setLobuleLayers({ lymph: f.lymph, zones: f.zones }); }, []);
   // what the Blood menu remembers goes to the scene and the labels once at boot (the menu then tells them itself)
   useEffect(() => { const b = useBlood.getState(); sceneApi.setBlood({}); useLabels.getState().set({ organNames: b.labels }); }, []);
   useEffect(() => { void applyDeepLink(location.search); }, []);

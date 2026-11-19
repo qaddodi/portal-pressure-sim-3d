@@ -21,7 +21,7 @@ function Switch({ label, hint }: { label: string; hint?: string }) {
   const on = useShell((s) => s.figure[k] as boolean);
   const bloodOn = useBlood((s) => (blood ? (s[k as 'chevrons'] as boolean) : false));
   const checked = blood ? bloodOn : on;
-  const flip = () => { if (blood) { sceneApi.setBlood({ [k]: !bloodOn }, useShell.getState().mode === 'deck'); if (k === 'labels') useLabels.getState().set({ organNames: !bloodOn }); } else useShell.getState().setFigure({ [k]: !on }); };
+  const flip = () => { if (blood) { sceneApi.setBlood({ [k]: !bloodOn }, useShell.getState().mode === 'deck'); if (k === 'labels') useLabels.getState().set({ organNames: !bloodOn }); } else { useShell.getState().setFigure({ [k]: !on }); if (k === 'zones' || k === 'lymph') sceneApi.setLobuleLayers({ [k]: !on }); } };
   return (
     <button type="button" role="switch" className="sh-row" aria-checked={checked} onClick={flip}>
       <Icon n={ICON[label] ?? 'info'} /><span className="sh-t">{label}</span><span className="sh-sw" aria-hidden="true" />{hint && <span className="sh-d">{hint}</span>}

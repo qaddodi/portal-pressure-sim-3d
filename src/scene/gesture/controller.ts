@@ -72,6 +72,8 @@ export interface Gestures {
   handsOff(): void;
   /** Glide the hand's view home to the shot's own framing. */
   refit(): void;
+  /** A zoom button: zoom about the middle of the room by `factor` (the 2D app's 1.4), gliding. */
+  zoomStep(factor: number): void;
   /** Glide the hand's view to `to`. */
   animateTo(to: View, ms?: number): void;
   dispose(): void;
@@ -358,6 +360,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     handsOff,
     refit() { handsOff(); fit = null; animateTo({ ...IDENTITY }, undefined, null); },
     animateTo(to, ms) { handsOff(); animateTo(to, ms, null); },
+    zoomStep(factor) { handsOff(); const c = host.centre(); animZoomAt(c.x, c.y, factor); },
     dispose() {
       handsOff();
       for (const off of offs) off();

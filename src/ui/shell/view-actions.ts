@@ -1,19 +1,38 @@
-// What a tap on a view pill, the A key and Fit do, apart from the screen. Views the scene cannot draw yet say so (a line), and the pill stays where it was.
+// What a tap on a view pill, the A key, Fit and the zoom buttons do, apart from the screen. Views the scene cannot draw yet say so (a line), and the pill stays where it was.
 import { UI } from '../strings.generated.ts';
 import { useShell } from './store.ts';
+import { useUi } from '../ui-store.ts';
 import type { ViewId } from './views.ts';
 import { toggleKey } from './views.ts';
 import { notYet } from './words.ts';
+import { freeRoom } from './room.ts';
+import { sceneApi } from '../../scene/api.ts';
 
 const label = (v: ViewId) => UI.views.find((x) => x.id === v)!.label;
+
+/** Put the figure's view on the scene and fly the camera to it (the Circuit is the Anatomy body until its batch lands). */
+export function showView(v: ViewId): void {
+  const { vp, device } = useUi.getState();
+  const room = freeRoom(vp, device);
+  sceneApi.showView(v === 'lobule' ? 'lobule' : v === 'sinusoid' ? 'sinusoid' : 'body', room);
+}
 
 export function goToView(v: ViewId): boolean {
   const s = useShell.getState();
   if (!s.ready[v]) { s.say(notYet(`The ${label(v)} view`)); return false; }
   useShell.setState({ view: v });
+  showView(v);
   return true;
 }
-/** A second tap on the active view, Fit, and the 0 key: ask the camera to fit the figure into its room again. */
-export const refitFigure = () => useShell.setState({ refit: useShell.getState().refit + 1 });
+/** A second tap on the active view, Fit, and the 0 key: ask the camera to fit the figure into its room again. In the sinusoid, Fit and zoom out back out to the lobule (2D). */
+export function refitFigure(): void {
+  if (useShell.getState().view === 'sinusoid') { goToView('lobule'); return; }
+  useShell.setState({ refit: useShell.getState().refit + 1 });
+}
+export const ZOOM_IN = 1.4;
+export function zoomFigure(dir: 'in' | 'out'): void {
+  if (dir === 'out' && useShell.getState().view === 'sinusoid') { goToView('lobule'); return; }
+  sceneApi.zoomStep(dir === 'in' ? ZOOM_IN : 1 / ZOOM_IN);
+}
 /** The A key. */
 export function flipView(): boolean { const to = toggleKey(useShell.getState().view); return to ? goToView(to) : false; }
