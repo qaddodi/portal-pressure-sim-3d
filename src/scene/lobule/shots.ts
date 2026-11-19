@@ -31,8 +31,8 @@ const STATION = {
   central: { wf: 1, zoom: 2 },
 } as const;
 
-/** Frontal, a hair above, so the slab reads as a slab. The viewer can orbit ±25° from here (the camera rig's limit). */
-const YAW = -0.1, PITCH = 0.14;
+/** Face on, as 2D shows the lobule: a flat plate seen square (decision B of the atlas plan). The viewer can still orbit from here (the camera rig's limit). */
+const YAW = 0, PITCH = 0;
 /** Half extents of the whole lobule's hexagon in the view plane (a hexagon of radius R: R wide, 0.866 R high, with the neighbours' hint). */
 const FIT_HALF: [number, number] = [LOBULE_R * 1.12, LOBULE_R * 1.0];
 
@@ -65,7 +65,8 @@ export function lobuleToScene(x: number, y: number, z = 0, out: V3 = [0, 0, 0]):
   return out;
 }
 
-/** The slab's z at a place: a gentle smooth swell so the courses lie at different depths and the picture reads as a thick slice. A function of position, so tubes that meet at a point are at the same depth. */
-export function slabZ(x: number, y: number): number {
-  return LOBULE_T * 0.16 * Math.sin(2.3 * x + 1.1) * Math.cos(2.1 * y + 0.4);
+/** The plate's z at a place: 0 everywhere. The lobule is a flat histology plate, as 2D draws it (WP5, atlas-look-plan.md §5.1): every course lies in one
+ *  plane, over the painted tissue, so nothing shows a side wall from any angle the camera takes. (It was a swell of ±0.14, which put courses under the tissue.) */
+export function slabZ(_x: number, _y: number): number {
+  return 0;
 }

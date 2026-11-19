@@ -64,3 +64,18 @@ these with the shaders' `inflate` uniform (a grow-from-nothing along the normal)
 Pressure/oxygen/origin colour lenses (B3 owns the lenses; the lobule's tubes take their tone from `LOBULE_PALETTES` for now), zone name labels and the tract labels (B6), tap-to-explain cards (B9; `view.partAt(hits)` is the hook), the bile layer, the dive field of neighbouring lobules and its
 depth of field, chevrons at a constant screen pitch (the 2D app's lymph marks keep about 110 px on screen at any zoom; here the pitch is five tube radii), and the pixel-ratio-aware
 sinusoid radius. None is drawn from a headless browser: the views have not been seen on a device yet.
+
+## The lobule as a flat plate (WP5, 19 Nov 2026)
+
+The lobule is a histology plate, as 2D draws it (`/mnt/project-files/rebuild-3d/atlas-look-plan.md` §5): nothing is extruded.
+- **Tissue** (`lobule/plate.ts`): 2D's own painter, `lobule-paint.js paintLobule`, copied by `node scripts/copy-lobule.mjs --from <2D checkout>` into
+  `src/scene/lobule/from2d/` (`--check` proves the copy current; the unit test runs it when a 2D checkout is beside this one or at `PPS_2D_REPO`). It paints the
+  cells, membranes, nuclei, nutmeg, Disse collagen, stellate cells, septa and collars into a 2048 px canvas once per state (1/32 steps of the model's
+  targets) and crossfades the new picture in over 320 ms. Colours come from 2D's per-look token table (`lz-colours.ts`), never a style read.
+- **Zones** (`lobule/zones.ts`): 2D's radial gradient and opacity in a shader over the plate, easing with the layer, no new painting.
+- **Vessels** lie in one plane on the plate (`slabZ` is 0); end-on vessels (central vein, the tracts' venule, arteriole, ductule, lymphatic) are flat
+  discs; the space of Disse is a flat band under its sinusoid with no outline; every outline is 2D's casing laid over the cells; the lymph's marks are soft dashes.
+- **Neighbours** (`lobule/field.ts`): 2D's field tile (`drawTile`, copied), blurred as 2D's quiet copy, repeated on one plane under the plate; the shader
+  drains and flattens it toward the page, fades it from 1.1 R (never more than half at a screen corner) and softens it with distance. Lenses other than
+  Pressure grey it as 2D's surround.
+- **Camera**: the lobule shots are face on (yaw 0, pitch 0).
