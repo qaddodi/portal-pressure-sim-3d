@@ -3,6 +3,7 @@
 // The sheets, the toast and the diagnostics are the same in both.
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import './shell.css';
+import './dock.css';
 import { DeckUi } from '../DeckUi.tsx';
 import { useUi } from '../ui-store.ts';
 import { useShell } from './store.ts';
@@ -91,7 +92,7 @@ export function Shell() {
             <ThumbBar />
           </div>
         )}
-        <div className="sh-key" data-hidden={mode === 'deck'} style={{ bottom: `calc(var(--safe-b, 0px) + ${bottom ? footHeight(device) : 18}px)` }}><Legend reference={cmp && cmpView === 'D' ? cmp.when : undefined} /></div>
+        <div className="sh-key" data-hidden={mode === 'deck'} style={{ bottom: `calc(var(--safe-b, 0px) + ${footHeight(device)}px)` }}><Legend reference={cmp && cmpView === 'D' ? cmp.when : undefined} /></div>
         <CompareBanner />
         <Sheets />
         <Toast />

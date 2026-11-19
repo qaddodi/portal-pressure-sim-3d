@@ -45,10 +45,13 @@ function JumpMenu({ compare }: { compare: boolean }) {
   );
 }
 
-function Readout({ label, value, sev, word }: { label: string; value: number | null; sev: string; word: string }) {
+/** One key readout of the dock's strip (2D dock.js tileEl: .metric.primary with .k, .v, .unit and .s). */
+function Metric({ label, value, sev, word }: { label: string; value: number | null; sev: string; word: string }) {
   return (
-    <div className="sh-read" data-sev={value == null ? undefined : sev} role="group" aria-label={label}>
-      <b>{label}</b><span>{value == null ? '—' : value.toFixed(1)}</span><small>{value == null ? '' : `mmHg · ${word}`}</small>
+    <div className="metric inert primary" data-sev={value == null ? 'none' : sev} role="group" aria-label={label}>
+      <span className="k">{label}</span>
+      <span className="v"><span className="val">{value == null ? '—' : value.toFixed(1)}</span>{value != null && <span className="unit">mmHg</span>}</span>
+      <span className="s"><span className="status">{value == null ? '' : word}</span></span>
     </div>
   );
 }
@@ -64,30 +67,42 @@ export function PlayBar({ phone }: { phone: boolean }) {
   const lap = pb.lapses.find((l) => l.days === lapse);
   const speedText = lapse ? (lap ? lap.short : `${lapse} d/s`) : `${speed}×`;
   const hvpgSev = hvpg == null ? 'ok' : (cuts.hvpgSev(hvpg) as string), ppgSev = ppg == null ? 'ok' : (cuts.ppgSev(ppg) as string);
+  const doHist = () => runFeature('history', pb.controls[3]);
   return (
-    <div className="sh-play" data-hidden={mode === 'deck'} role="group" aria-label="Playback">
-      <div className="sh-split">
-        <Anchored sheet="speed" place="above" align="start" width={280} label={PLAY_TITLES.speed} button={({ id, open, toggle }) => (
-          <button type="button" data-opens="speed" aria-haspopup="menu" aria-expanded={open} aria-controls={id} title={PLAY_TITLES.speed} aria-label={`${pb.controls[2]}, ${speedText}`} onClick={toggle}>{speedText}</button>)}>
-          <SpeedMenu />
-        </Anchored>
-        <button type="button" aria-label={running ? 'Pause' : 'Play'} title={PLAY_TITLES.playPause}
-          onPointerDown={() => { hold.current.held = false; clearTimeout(hold.current.t); hold.current.t = setTimeout(() => { hold.current.held = true; useShell.getState().open('speed'); }, HOLD_MS); }}
-          onPointerUp={() => clearTimeout(hold.current.t)} onPointerLeave={() => clearTimeout(hold.current.t)} onPointerCancel={() => clearTimeout(hold.current.t)} onContextMenu={(e) => e.preventDefault()}
-          onClick={() => { if (hold.current.held) { hold.current.held = false; return; } togglePlay(); }}>
-          <Icon n={running ? 'pause' : lapse ? 'playlapse' : 'play'} />
-        </button>
-        <button type="button" aria-label={pb.controls[1]} title={PLAY_TITLES.restart} onClick={() => { void restartPatient(); }}><Icon n="reset" /></button>
+    <div className="sh-play vdock" data-hidden={mode === 'deck'} data-phone={phone || undefined} role="group" aria-label="Playback">
+      <div className="stage-bar bottom">
+        <div className="timeline" role="group" aria-label="Timeline">
+          <div className="tl-left">
+            <div className="tl-split">
+              <Anchored sheet="speed" place="above" align="start" width={280} label={PLAY_TITLES.speed} button={({ id, open, toggle }) => (
+                <button type="button" className={`tl-speed${lapse ? ' lapse' : ''}`} data-opens="speed" aria-haspopup="menu" aria-expanded={open} aria-controls={id} title={PLAY_TITLES.speed} aria-label={`${pb.controls[2]}, ${speedText}`} onClick={toggle}>{speedText}</button>)}>
+                <SpeedMenu />
+              </Anchored>
+              <button type="button" className={`ib play${lapse ? ' lapse' : ''}`} aria-label={running ? 'Pause' : 'Play'} title={PLAY_TITLES.playPause}
+                onPointerDown={() => { hold.current.held = false; clearTimeout(hold.current.t); hold.current.t = setTimeout(() => { hold.current.held = true; useShell.getState().open('speed'); }, HOLD_MS); }}
+                onPointerUp={() => clearTimeout(hold.current.t)} onPointerLeave={() => clearTimeout(hold.current.t)} onPointerCancel={() => clearTimeout(hold.current.t)} onContextMenu={(e) => e.preventDefault()}
+                onClick={() => { if (hold.current.held) { hold.current.held = false; return; } togglePlay(); }}>
+                <Icon n={running ? 'pause' : lapse ? 'playlapse' : 'play'} />
+              </button>
+            </div>
+            {/* 2D keeps Restart in the DOM and hides it at every size (app-08-cards.css .timeline .tl-restart): it is in the search and Reset. */}
+            <button type="button" className="ib tl-restart" aria-label={pb.controls[1]} title={PLAY_TITLES.restart} onClick={() => { void restartPatient(); }}><Icon n="reset" /></button>
+          </div>
+          <span className="tl-time" aria-live="off"><span className="tl-t-long">{time}</span><span className="tl-t-short" aria-hidden="true">{time}</span></span>
+          <div className="tl-jumps">
+            <Anchored sheet="jump" place="above" align="end" width={300} label={pb.controls[4]} button={({ id, open, toggle }) => (
+              <button type="button" className="ib tl-ff" data-opens="jump" aria-haspopup="menu" aria-expanded={open} aria-controls={id} aria-label={pb.controls[4]} title={PLAY_TITLES.ffwd} onClick={toggle}><Icon n="ffwd" /></button>)}>
+              <JumpMenu compare={phone} />
+            </Anchored>
+          </div>
+          <button type="button" className="tl-hist" aria-haspopup="dialog" aria-label={pb.controls[3]} title={PLAY_TITLES.history} onClick={doHist}><Icon n="clock" /><span className="tl-hl">{pb.controls[3]}</span><span className="tl-hc">{histCount > 0 ? histCount : ''}</span></button>
+          <button type="button" className="tl-pin" aria-pressed={comparing} aria-label={comparing ? CMP.stop : pb.controls[5]} title={comparing ? PLAY_TITLES.stopCompare : PLAY_TITLES.compare} onClick={() => runFeature('compare', pb.controls[5])}><Icon n="compare" /><span>{comparing ? 'Stop' : 'Compare'}</span></button>
+        </div>
       </div>
-      <span className="sh-time" aria-live="off">{time}</span>
-      <Anchored sheet="jump" place="above" align={phone ? 'end' : 'start'} width={300} label={pb.controls[4]} button={({ id, open, toggle }) => (
-        <button type="button" className="sh-pill" data-icon-only data-opens="jump" aria-haspopup="menu" aria-expanded={open} aria-controls={id} aria-label={pb.controls[4]} title={PLAY_TITLES.ffwd} onClick={toggle}><Icon n="ffwd" /></button>)}>
-        <JumpMenu compare={phone} />
-      </Anchored>
-      {!phone && <button type="button" className="sh-pill" aria-haspopup="dialog" aria-label={pb.controls[3]} title={PLAY_TITLES.history} onClick={() => runFeature('history', pb.controls[3])}><Icon n="clock" /><span>{pb.controls[3]}</span>{histCount > 0 && <small className="sh-count">{histCount}</small>}</button>}
-      {!phone && <button type="button" className="sh-pill" aria-pressed={comparing} aria-label={comparing ? CMP.stop : pb.controls[5]} title={comparing ? PLAY_TITLES.stopCompare : PLAY_TITLES.compare} onClick={() => runFeature('compare', pb.controls[5])}><Icon n="compare" /><span>{comparing ? 'Stop' : 'Compare'}</span></button>}
-      {!phone && <Readout label="HVPG" value={hvpg} sev={hvpgSev} word={hvpg == null ? '' : (cuts.hvpgWord(hvpg) as string)} />}
-      {!phone && <Readout label="PPG" value={ppg} sev={ppgSev} word={ppg == null ? '' : (cuts.ppgWord(ppg) as string)} />}
+      <section className="readouts" aria-label="Clinical readouts">
+        <Metric label="HVPG" value={hvpg} sev={hvpgSev} word={hvpg == null ? '' : (cuts.hvpgWord(hvpg) as string)} />
+        <Metric label="PPG" value={ppg} sev={ppgSev} word={ppg == null ? '' : (cuts.ppgWord(ppg) as string)} />
+      </section>
     </div>
   );
 }
