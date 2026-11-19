@@ -32,7 +32,7 @@ export interface SlideScene {
 }
 
 /** The data card of tiles: which readings, the key ones, and the state the change counts from. The numbers come from the slide's own state in the engine, never from the deck. */
-export interface SlideTiles { deck: string; slide: string; keys: string[]; key: string[]; delta: string | boolean | null }
+export interface SlideTiles { deck: string; slide: string; keys: string[]; key: string[]; delta: string | boolean | null; /** the readings the card prints once its chart's own are left out (2D card-tiles.js ownKeys: a flow-time chart's two lines on a laptop or tablet unless keepTiles, the number a FibroScan or monitor shows large), on a wide screen and on a phone */ own?: { wide: string[]; phone: string[] } }
 
 /** A slide's patient: the preset to load and the parameter changes over it (the engine's own shape), as the 2D deck's `preset` and `params`. */
 export interface SlideModel { preset: string; params?: unknown; days?: number }

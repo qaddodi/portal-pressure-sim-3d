@@ -26,9 +26,9 @@ import { latest, patient } from '../engine/store.ts';
 import { x2d, x3, y2d, y3 } from './frame2d.ts';
 import { type FigureHit, organHit } from './organs/pick.ts';
 import { FLUID_Z } from './disease/ascites.ts';
-import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
+import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers, type LobulePartName } from './lobule/index.ts';
 import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
-import { LOBULE_R, LOBULE_T, SINUSOID_L } from './lobule/shots.ts';
+import { LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
 import { SinusoidView, diveShare } from './sinusoid/index.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
@@ -558,6 +558,16 @@ export class CelScene {
     return null;
   }
 
+  /** The lobule part a tap lands on, in the lobule view, with the tap's place on the lobule plate in its own units (the centre is 0, 0; a triad is at a corner, about 1 away). */
+  pickLobuleAt(x: number, y: number, raycaster: Raycaster): { part: LobulePartName; x: number; y: number } | null {
+    if (this.figureView !== 'lobule') return null;
+    raycaster.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
+    const hits = raycaster.intersectObjects(this.lobule.pickables, false);
+    const part = this.lobule.partAt(hits);
+    const p = hits[0]?.point;
+    return part && p ? { part, x: (p.x - LOBULE_ORIGIN[0]) / LOBULE_R, y: -(p.y - LOBULE_ORIGIN[1]) / LOBULE_R } : null;
+  }
+
   /** What a tap at canvas point (x, y) opens, in the 2D app's order (stage.js pick): the vessel under it, else the nearest vessel within reach of the finger (12 px, 18 for a touch),
    *  else the organ under it (the liver with its lobe, the heart, the spleen), else the belly's fluid, else nothing. Only the body takes organ and fluid taps (the Circuit has no organs). */
   pickTargetAt(x: number, y: number, raycaster: Raycaster, touch = false): FigureHit | null {
@@ -703,6 +713,7 @@ export class CelScene {
 }
 
 /** The camera layer of everything drawn over the organs: the vessels, the catheter, the varices. */
+/** The organs a tap opens a card for in the body view (2D ORGAN_KEYS: the heart, the liver, the spleen; the heart is two meshes). */
 const VESSEL_LAYER = 1;
 
 /** Where each named place is: the vessel's id and how far along its 2D course (0 to 1). */

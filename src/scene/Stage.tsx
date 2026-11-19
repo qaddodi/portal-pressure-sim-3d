@@ -3,6 +3,7 @@
 //   engine phase  the engine's newest frame goes into the vessel data texture (the scene samples it)
 //   camera phase  the scene steps its tweens (shot, highlight, flow marks) and says whether it needs another frame
 //   render phase  one gl.render of the cel scene (a useFrame with a render priority, so R3F does not draw its own empty scene)
+import { tapFigure } from '../ui/action/tap.ts';
 import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Raycaster } from 'three';
@@ -112,7 +113,8 @@ function SceneBridge() {
       // a tap picks what 2D's does (src/ui/action/tap-select.ts): a vessel, an organ (liver with its lobe, heart, spleen) or the belly's fluid; a tap on nothing puts the selection away
       tap: (x, y, touch) => {
         if (useDeck.getState().mode !== 'free') return;
-        tapSelect(cel.pickTargetAt(x, y, raycaster.current, !!touch), { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: cel.view === 'body' });
+        if (cel.view === 'lobule') tapFigure(x, y, raycaster.current);   // (the lobule's part under the finger: src/ui/action/tap.ts)
+        else tapSelect(cel.pickTargetAt(x, y, raycaster.current, !!touch), { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: cel.view === 'body' });
       },
       picked: () => useSelection.getState().sel,
       setPicked: (sel) => selectStructure(sel as Sel | null),
