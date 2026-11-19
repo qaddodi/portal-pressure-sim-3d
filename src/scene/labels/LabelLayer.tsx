@@ -16,6 +16,7 @@ import { cel, sceneApi, usePick } from '../api.ts';
 import { rectToBox, type Box } from './geometry.ts';
 import { LabelController, type Draw, type LabelDeps } from './controller.ts';
 import { baselineAt, lookVars, typeVars } from './type.ts';
+import { keyVars } from './key-dock.ts';
 import { STATIONS } from './stations.ts';
 import { LABEL_NAMES } from './names.copied.ts';
 import { KEY_LENSES, keyModel, schemeOf } from './key.ts';
@@ -76,6 +77,7 @@ export function LabelLayer() {
   const applyTypeRef = useRef<() => void>(() => {});
   useEffect(() => { applyTypeRef.current(); }, [lookId]);
   const model = useMemo(() => keyModel(key, scheme), [key, scheme]);
+  const vpNow = useUi((s) => s.vp);
 
   // a lens key can be asked for by the address while the lenses are not built yet: ?key=velocity
   useEffect(() => {
@@ -94,7 +96,8 @@ export function LabelLayer() {
       view: () => { const { vp } = ui.getState(); return { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom }; },
       blockers: () => { const b = ui.getState().boxes; return [b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox); },
       measure: makeMeasure(),
-      vp: () => { const { vp } = ui.getState(); return { w: vp.w, h: vp.h }; },
+      vp: () => ui.getState().vp,
+      words: () => ui.getState().boxes.words,
       reversed: (edge) => { const f = latest.frame, ref = patient.reference; if (!f) return false; const k = indexOf(edge); return flowReversed(f.Qf[k] ?? 0, ref ? (ref.Q[k] ?? 0) : 0); },
       pressure: (node) => { const f = latest.frame, i = NODE_AT.get(node); return f && i !== undefined ? (f.Pf[i] ?? null) : null; },
       reading: (k) => ui.getState().readings[k] ?? null,
@@ -153,8 +156,15 @@ export function LabelLayer() {
     recs.set('key', keyRec);
 
     // ── the key reports its size (laid out once, invisible) ──
-    const ro = new ResizeObserver(() => { const r = keyHost.current!.firstElementChild as HTMLElement | null; if (r) { ctl.setKeySize(r.offsetWidth, r.offsetHeight); clock.invalidate('labels-key'); } });
-    const watchKey = () => { ro.disconnect(); const k = keyHost.current?.firstElementChild; if (k) ro.observe(k); };
+    // (two elements: the key as drawn, which the dock may wrap, and a hidden twin that never wraps and reports the key's size on one line)
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) {
+        const t = e.target as HTMLElement;
+        if (t.classList.contains('lb-key-twin')) ctl.setKeyNatural(t.offsetWidth, t.offsetHeight); else ctl.setKeySize(t.offsetWidth, t.offsetHeight);
+      }
+      clock.invalidate('labels-key');
+    });
+    const watchKey = () => { ro.disconnect(); keyHost.current?.querySelectorAll('.lb-key').forEach((k) => ro.observe(k)); };
     watchKey();
     const keyMo = new MutationObserver(watchKey);
     keyMo.observe(keyHost.current!, { childList: true });
@@ -198,17 +208,9 @@ export function LabelLayer() {
   return (
     <>
       <div ref={layer} className="lb-layer" aria-hidden="true">
-        <div ref={keyHost} className="lb-key-wrap">
-          {model && (
-            <div className="lb-key" role="img" aria-label={model.aria} data-lens={model.lens}>
-              <b>{model.name}</b>
-              {model.scale && (model.scale.ends
-                ? <span className="lb-ends"><span>{model.scale.lo}</span><i className="lb-bar" style={{ background: model.scale.gradient }} /><span>{model.scale.hi}</span></span>
-                : <i className="lb-bar" style={{ background: model.scale.gradient }} />)}
-              {model.swatches && <span className="lb-items">{model.swatches.map((s) => <span key={s.label} className="lb-k"><i className="lb-sw" style={{ background: s.colour }} />{s.label}</span>)}</span>}
-            </div>
-          )}
-        </div>
+        <div ref={keyHost} className="lb-key-wrap">{model && <KeyBody model={model} vp={vpNow} />}</div>
+        {/* its twin: never wrapped, never seen; reports the key's size on one line, which is what the dock decides by */}
+        <div className="lb-key-probe">{model && <KeyBody model={model} vp={vpNow} twin />}</div>
       </div>
       <VesselWalk />
     </>
@@ -224,7 +226,12 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
   if (tx !== r.tx) { el.style.transform = tx; r.tx = tx; }
   const op = String(Math.round(d.alpha * 1000) / 1000);
   if (op !== r.op) { el.style.opacity = op; r.op = op; }
-  if (d.kind === 'key') return;
+  if (d.kind === 'key') {
+    const dock = d.dock, room = dock?.wrap != null ? `${px(dock.wrap)}px` : 'none', minh = `${dock?.minH ?? 0}px`;
+    if (el.style.getPropertyValue('--lb-key-room') !== room) el.style.setProperty('--lb-key-room', room);
+    if (el.style.getPropertyValue('--lb-key-minh') !== minh) el.style.setProperty('--lb-key-minh', minh);
+    return;
+  }
   // a new spot or form is taken while the label is invisible: its size and words are written then, never in a visible frame
   if (d.form !== r.form || r.size !== `${d.w}x${d.h}` || r.rev !== d.rev) {
     r.form = d.form; r.size = `${d.w}x${d.h}`; r.rev = d.rev;
@@ -310,4 +317,19 @@ function roll(r: Rec, next: string, was: string): void {
   const out = old.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-0.55em)' }], { duration: MOTION.rollMs, easing: ease, fill: 'both' });
   out.onfinish = () => old.remove();
   cur.animate([{ opacity: 0, transform: 'translateY(0.55em)' }, { opacity: 1, transform: 'none' }], { duration: MOTION.rollMs, easing: ease });
+}
+
+/** The key's pill: the lens named, then its scale or its named swatches (the 2D app's presenter.js keyNodes). */
+function KeyBody({ model, vp, twin = false }: { model: NonNullable<ReturnType<typeof keyModel>>; vp: ReturnType<typeof useUi.getState>['vp']; twin?: boolean }) {
+  const grad = !!model.scale;
+  return (
+    <div className={twin ? 'lb-key lb-key-twin' : 'lb-key'} role={twin ? undefined : 'img'} aria-label={twin ? undefined : model.aria} aria-hidden={twin ? true : undefined}
+      data-lens={model.lens} data-grad={grad ? '' : undefined} style={keyVars(vp, grad) as React.CSSProperties}>
+      <b>{model.name}</b>
+      {model.scale && (model.scale.ends
+        ? <span className="lb-ends"><span>{model.scale.lo}</span><i className="lb-bar" style={{ background: model.scale.gradient }} /><span>{model.scale.hi}</span></span>
+        : <i className="lb-bar" style={{ background: model.scale.gradient }} />)}
+      {model.swatches && <span className="lb-items">{model.swatches.map((s) => <span key={s.label} className="lb-k"><i className="lb-sw" style={{ background: s.colour }} />{s.label}</span>)}</span>}
+    </div>
+  );
 }

@@ -13,6 +13,7 @@ import { DifferencesSheet } from '../compare/CompareUi.tsx';
 import { WhySheet } from '../why/WhySheet.tsx';
 import { RESET } from './words.ts';
 import { resetEverything } from './reset.ts';
+import { TreatCard } from '../treat/TreatCard.tsx';
 
 function ResetDialog() {
   const open = useShell((s) => s.dialog === 'reset');
@@ -39,6 +40,7 @@ export function Sheets() {
   return (
     <>
       <MenuSheet />
+      {!talk && <TreatCard />}
       {bottom && !talk && <LayersSheet />}
       {!talk && <SettingsSheet place="top" />}
       <HistorySheet />

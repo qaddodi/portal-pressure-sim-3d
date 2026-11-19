@@ -14,6 +14,8 @@ import { hasWebGL2 } from './boot/webgl.ts';
 import { NoWebGL } from './ui/shell/NoWebGL.tsx';
 import { registerPwa } from './pwa/register.ts';
 import { mountCharts } from './ui/charts/gallery/mount.tsx';
+import { mountA11y } from './ui/a11y/mount.ts';
+import { installCaught } from './ui/debug/caught.ts';
 
 const dark = window.matchMedia('(prefers-color-scheme: dark)');
 const paint = () => applyLook(resolveLook(useSettings.getState().look, dark.matches));
@@ -33,7 +35,9 @@ async function start() {
   if (!hasWebGL2()) { createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }
   const [fonts] = await Promise.all([fontsReady(), bootEngine().catch((err) => { console.error(err); })]);
   if (!fonts) console.warn('[boot] fonts were late; continuing with fallback faces');
+  installCaught();
   createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
+  mountA11y();   // the live region, the figure's description, slide announcements, Reduce Motion fades (batch B14)
   mountPerf();
   mountCharts();   // ?charts: the charts gallery (batch B10)
 }

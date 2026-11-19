@@ -90,11 +90,7 @@
 .dk-bar-title { position: absolute; display: flex; align-items: center; justify-content: flex-end; pointer-events: none; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font: 600 var(--fs-data) / 1.2 var(--display, "Source Serif 4", Georgia, serif); color: var(--text-2); }
 
-@media (prefers-reduced-motion: reduce) {
-  .dk-pos[data-live="true"] { transition: none; }
-  .dk-card[data-phase="in"], .dk-card[data-phase="out"], .dk-strip[data-phase="in"], .dk-strip[data-phase="out"], .dk-a { animation-duration: 1ms; }
-  .dk-dots button i, .dk-dots button u { transition: none; }
-}
+/* Reduce Motion: src/ui/a11y/reduced.css (nothing travels, nothing pops: everything cross-fades) */
 
 /* ── a number rolling (400 ms, transform and opacity) ── */
 .dk-roll { position: relative; display: inline-block; overflow: hidden; vertical-align: bottom; line-height: inherit; }
@@ -105,7 +101,6 @@
 .dk-roll-out { animation: dk-roll-out 400ms var(--ease) both; }
 @keyframes dk-roll-in { from { opacity: 0; transform: translateY(70%); } to { opacity: 1; transform: none; } }
 @keyframes dk-roll-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-70%); } }
-@media (prefers-reduced-motion: reduce) { .dk-roll-in, .dk-roll-out { animation-duration: 1ms; } }
 
 /* ── settings ── */
 .dk-settings { position: relative; }

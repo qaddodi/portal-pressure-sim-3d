@@ -27,6 +27,7 @@ import { CompareBanner } from '../compare/CompareUi.tsx';
 import { startCompare } from '../compare/bind.ts';
 import { startTimeline } from '../timeline/index.ts';
 import { startHistory } from '../history/bind.ts';
+import { startActions } from '../action/boot.ts';
 
 /** The screen's size and its safe areas, measured when either changes (never per frame). Free play needs it too: the talk's own UI measures only while it is mounted. */
 function useViewport(probe: React.RefObject<HTMLDivElement | null>) {
@@ -82,6 +83,7 @@ export function Shell() {
   useFreeCamera();
   useEffect(() => syncTransport(), []);
   useEffect(() => { const offs = [startTimeline(), startCompare(), startHistory()]; return () => offs.forEach((o) => o()); }, []);
+  useEffect(() => startActions(), []);
   useEffect(() => { const f = useShell.getState().figure; sceneApi.setLobuleLayers({ lymph: f.lymph, zones: f.zones }); }, []);
   // what the Blood menu remembers goes to the scene and the labels once at boot (the menu then tells them itself)
   useEffect(() => { const b = useBlood.getState(); sceneApi.setBlood({}); useLabels.getState().set({ organNames: b.labels }); }, []);
