@@ -128,7 +128,7 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'doppler': case 'fibroscan': case 'abdomen': case 'hvpg': case 'scope': case 'wall': {
       const ghost = ghostOf(cs as never, i, copied.slides as never, fpOf as never, stateOf);
       return <>{ghost ? <p className="pz-ghost"><span>{ghost.label}</span><b>{ghost.value}</b></p> : null}
-        {kind === 'hvpg' ? <HvpgTool fp={fp as Rec | null} cath={cs.cath} catheter={!!tool.catheter} forward={forward} /> : <Instrument kind={kind as InstrumentKind} tool={tool} slideKey={`${deck.id}/${slide.id}`} />}</>;
+        {kind === 'hvpg' ? <HvpgTool fp={fp as Rec | null} cath={cs.cath} catheter={!!tool.catheter} forward={forward} /> : <Instrument kind={kind as InstrumentKind} tool={tool} slideKey={`${deck.id}/${slide.id}`} wall={fp?.wall} />}</>;
     }
     case 'reading': return <ReadingTool procedure={cs.procedure} of={tool.of} fp={fp as Rec | null} />;
     default: return null;
@@ -137,7 +137,7 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
 
 /** A Tests-card instrument as a slide's data card: the pane of the Tests card, sized to the card's width. It reads the live model; the slide's vessel, gate, organ and view are set when it comes up
  *  (ui/talk/instruments.ts says what each kind reads of the slide's tool), and a compare button or slider that moves one option of it is laid over the slide's own (tool-options.ts). */
-function Instrument({ kind, tool, slideKey }: { kind: InstrumentKind; tool: Rec; slideKey: string }) {
+function Instrument({ kind, tool, slideKey, wall }: { kind: InstrumentKind; tool: Rec; slideKey: string; wall?: unknown }) {
   const w = useUi((s) => s.vp.w);
   const patched = useToolPatch((s) => s.patch), patchKey = useToolPatch((s) => s.key);
   const opts = useMemo(() => withPatch(tool, slideKey, { key: patchKey, patch: patched }), [tool, slideKey, patchKey, patched]);
@@ -163,7 +163,7 @@ function Instrument({ kind, tool, slideKey }: { kind: InstrumentKind; tool: Rec;
   return (
     <div className="dock-pane-host" data-instrument={kind}>
       <Suspense fallback={null}>
-        {kind === 'doppler' ? <DopplerPane {...p} options={opts} /> : kind === 'fibroscan' ? <FibroPane {...p} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} options={opts} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : null}
+        {kind === 'doppler' ? <DopplerPane {...p} options={opts} /> : kind === 'fibroscan' ? <FibroPane {...p} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} options={opts} wall={kind === 'wall' ? wall : undefined} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : null}
       </Suspense>
     </div>
   );
