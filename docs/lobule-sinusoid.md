@@ -7,6 +7,21 @@
 > There is no artist swap-in for the sinusoid any more (its parts exist for the API; everything is drawn in `lumen`). The part table below is the lobule's now.
 
 
+> **Sinusoid parity pass, 19 Nov 2026 (portrait, names, audit).**
+> *Portrait.* A stage narrower than 0.95 of its height (2D's `W < H * 0.95`, `sinusoid/portrait.ts isPortrait`) runs the sinusoid top to bottom, portal end up. `SinusoidView.setPortrait(portrait)` turns the plane's own group
+> (`PORTRAIT_ANGLE`, -PI/2 on this y-up plane = 2D's `ang` PI/2), so the tissue, pores, albumin, the cells over them, `anchor()` and `micrometres()` all turn together; the Kupffer cell stands at xk 12 (22 wide). While the camera flies
+> between the lobule and the sinusoid the turn is the dive's share (`setDive(g)`: lobule to tall view in one move and out by the same frames), at rest it glides (critically damped, 2D's SPRING 10) or is at once with Reduce Motion.
+> `sinusoidShot(portrait, shortPx)` swaps the half extents and, given the room's short side, frames 2D's `lerp(40, 54, smooth(380, 720, short))` µm across it; `sinusoidBox(portrait)` is the box the hand keeps on screen.
+> `setScreen(k, along, stage)` (px per µm, the free room's length and the canvas's along the flow) puts the end arrows 32 px (24 tall) inside the room's ends and runs the traffic over the stretch on screen (2D layoutEnds, VW.vis);
+> `setEndShown(in, out)` fades an arrow with its name. **The scene must call** `setPortrait` (from the room: `isPortrait(room.w, room.h)`), `setScreen` while the sinusoid is up, and use `sinusoidBox(portrait)` for the subject.
+> *Names.* `sinusoid/names.ts` is 2D's layout of the captions as pure functions (`layoutEnds`, `layoutTags` with `fen-place.copied.js` copied by script, `layoutTall`, `leader`): `SinusoidView.names({ W, H, C, k, free, insTop, text, lit, measure })`
+> returns each name's centre and box (px, always level), the µm it names and its leader; `explainHit(names, x, y)` is 2D's tap (8 px of slop, the note `SV_NOTE`, the slide term `sinusoid:<target>`). Not ported: `declutter` (large text),
+> the legend ("Protein"), the fade of names while a slide dims them. These belong to the label layer, which nothing yet mounts for the micro views.
+> *Audit against 2D.* Fixed: the wedge's wash never reached the shader (`uWedge` unset; now only while a slide asks and once the view has landed, afresh each time); the end arrows were fixed at +-46 um whatever the screen; a hepatic lymph of exactly 0
+> read as healthy (`||` for `??`); the anchors of Disse and the hepatocyte stood in 2D's other plate. Checked equal: `sinusoidTargets`, the ease (320 ms), the palette (the copied function), the traffic (copied), the reveal and detail uniforms in the dive.
+> Left: 2D pauses the traffic with its clock (`isPaused`); the 3D clock has no pause yet.
+
+
 19 Nov 2026. `src/scene/lobule/` and `src/scene/sinusoid/` (this batch owns only these). Placeholder art, built once at start-up, with named parts so
 the artist's model swaps in part by part (stage 4). Rows closed: honeycomb, sinusoids, stellate cells, collagen, congestion, lymph chevrons on the
 ducts, the wedge's amber spread, the lobule camera shots.

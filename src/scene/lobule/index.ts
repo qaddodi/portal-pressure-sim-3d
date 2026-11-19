@@ -6,7 +6,7 @@ export type { Course, LobuleNet, TubeKind } from './geometry.ts';
 export { lobuleModel, sinusoidTargets, lymphRate, lymphSeal, lymphProtein, disseProfile, easeToward, LOBE } from './model.ts';
 export type { HealthyRef, LobuleFrame, LobuleModel, SinusoidTargets } from './model.ts';
 export { washProgress, washFront, washSpan, washAmount, WASH_DELAY_MS, WASH_MS } from './wash.ts';
-export { LOBULE_CAMS, LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L, SINUSOID_ORIGIN, lobuleShot, sinusoidShot, lobuleToScene, slabZ } from './shots.ts';
+export { LOBULE_CAMS, LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L, SINUSOID_ORIGIN, lobuleShot, sinusoidShot, sinusoidBox, lobuleToScene, slabZ } from './shots.ts';
 export type { LobuleCam } from './shots.ts';
 export { LOBULE_PARTS, SINUSOID_PARTS, PartSet } from './parts.ts';
 export type { LobulePartName, SinusoidPartName } from './parts.ts';
