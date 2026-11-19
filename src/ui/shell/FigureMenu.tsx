@@ -10,6 +10,8 @@ import { I } from './icons.tsx';
 import { Frame } from './Frame.tsx';
 import { refitFigure } from './view-actions.ts';
 import { runFeature } from './features.ts';
+import { figureRowsOwner } from './room.ts';
+import { useUi } from '../ui-store.ts';
 
 const ICON: Record<string, string> = { Chevrons: 'chevrons', 'Key chevrons only': 'chevrons', 'Pressure values': 'tag', 'Potential collaterals': 'route', 'Organ names': 'liver', Zones: 'zones', Lymph: 'lymph', Bile: 'bile' };
 const KEY: Record<string, keyof Figure> = { Chevrons: 'chevrons', 'Key chevrons only': 'keyChevrons', 'Pressure values': 'chips', 'Potential collaterals': 'collaterals', 'Organ names': 'labels', Zones: 'zones', Lymph: 'lymph', Bile: 'bile' };
@@ -61,6 +63,10 @@ export function FigureMenu({ kind, hidden = false }: { kind: 'blood' | 'layers';
   const id = blood ? 'btnBlood' : 'btnLobuleLayers';
   const t = tb(id);
   const on = useBlood((s) => (blood ? s.chevrons || s.keyChevrons : true));
+  // With the bottom bar (a phone, an upright iPad) the Layers tab opens the foot sheet (LayersSheet), which holds these same rows. This top-bar copy is hidden there (2D: `.app.thumb #btnBlood,
+  // #btnLobuleLayers { display: none }`), and must not also open its own popover on `sheet === 'layers'`: both showed at once, two panels over each other (iPhone, 19 Nov 2026).
+  const bottom = figureRowsOwner(useUi((s) => s.device)) === 'sheet';
+  if (bottom) return <button type="button" className={`chip-btn${on ? '' : ' off'}`} id={id} hidden data-opens={kind} aria-haspopup="menu" aria-expanded="false" tabIndex={-1} title={t.title ?? undefined}><I n={blood ? 'drop' : 'layers'} /><span>{t.label ?? t.text}</span><I n="chev-down" className="chev" /></button>;
   return (
     <Anchored sheet={kind} label={t.title ?? t.label ?? id} width={320} button={({ id: pid, open, toggle, ref }) => (
       <button type="button" ref={ref} className={`chip-btn${on ? '' : ' off'}`} id={id} hidden={hidden || undefined} data-opens={kind} aria-haspopup="menu" aria-expanded={open} aria-controls={pid} title={t.title ?? undefined} onClick={toggle}>

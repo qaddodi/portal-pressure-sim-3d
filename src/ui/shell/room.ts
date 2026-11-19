@@ -8,6 +8,8 @@ import { M, botOcc, viewPillHeight } from './metrics.ts';
 export const layoutClass = (thumb: boolean): DeviceClass => (thumb ? 'phone-portrait' : 'desktop');
 /** Phones and upright tablets carry the actions in a bottom bar; a laptop or an iPad held sideways keeps them at the top. */
 export const usesBottomBar = (d: DeviceClass): boolean => d === 'phone-portrait' || d === 'phone-landscape' || d === 'tablet-portrait';
+/** Who shows the Blood / Layers rows: the top bar's popover (a laptop, an iPad on its side) or the Layers sheet from the foot (the bottom bar). Never both: they answer the same `sheet === 'layers'`. */
+export const figureRowsOwner = (d: DeviceClass): 'topbar' | 'sheet' => (usesBottomBar(d) ? 'sheet' : 'topbar');
 
 /** The dock's own height: the timeline row (and on a phone the tab row under it). */
 export function dockHeight(d: DeviceClass): number {
