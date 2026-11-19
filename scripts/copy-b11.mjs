@@ -25,6 +25,7 @@ export const FILES = [
   'trace-lanes', 'trace-tape', 'trace-labels', 'trace-room', 'trace-callouts-math',
   'pressure-along', 'hvpg-balloon', 'ekg', 'drop-front', 'limit-label',
   'instrument-aria', 'vital-read', 'table-marks', 'lymph-day', 'dock-vars', 'balance-hold',
+  'wrap-label', 'sorted', 'freewheel',
 ].filter((n) => n !== 'trace-callouts-math');
 const SLICES = {
   // endo-motion.js reads the bleed's strength from blood.js (1,000 lines of the 2D figure's blood): only its two lines are taken.
