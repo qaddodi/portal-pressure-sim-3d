@@ -34,6 +34,9 @@ export interface Item {
    *  its own place is under a vessel; and whether a box lies on another organ, which it keeps off where it can ("organs first where it can be, never left off for it"). */
   spots?: readonly (readonly [number, number])[];
   onOther?: (box: Box) => boolean;
+  /** A tract name stands on the side its vessel faces: from the hub (cx, cy; the venule) along the unit spoke (ux, uy). A box whose middle turns more than 60 degrees from it is on the wrong side
+   *  of the tract and costs as much as two crossed leaders (2D lobule-tract-labels.js fanCost: FACE_COS .5, CLASH), placed still, never left out for it. */
+  face?: { cx: number; cy: number; ux: number; uy: number };
   /** Half the vessel's width on the canvas, so a label starts clear of it. */
   vw?: number;
   /** A reading card with a pointer whose tip is the dot (the catheter's FHVP / WHVP / HVPG): it stands below or above its point, leans, and keeps
@@ -49,6 +52,8 @@ export interface SolveInput {
   blockers: readonly Box[];
   /** The vessels' centrelines on the canvas, [x0, y0, x1, y1]: a label avoids standing on them (a cost, not a ban). */
   lines?: readonly (readonly [number, number, number, number])[];
+  /** Discs of vessels seen end-on (a portal venule's, a central vein's): a label never stands on one nor does a leader run across one, except the item that names it (`id`); 2D's lobule keeps the same (lobule-tract-labels.js fanCost). */
+  keep?: readonly { id: string; x: number; y: number; r: number }[];
 }
 
 export interface Placement {
@@ -87,6 +92,15 @@ const LINE_COST = 8;
 const REGION_LINE_COST = 60;
 
 type Seg = [number, number, number, number];
+/** Air kept between a label and the disc of a vessel seen end-on (px). */
+const KEEP_AIR = 3;
+export const FACE_COS = 0.5, FACE_CLASH = 1e5;
+/** The distance from (x, y) to a segment. */
+function segDist(s: Seg, x: number, y: number): number {
+  const vx = s[2] - s[0], vy = s[3] - s[1], l2 = vx * vx + vy * vy;
+  const t = l2 > 1e-9 ? Math.max(0, Math.min(1, ((x - s[0]) * vx + (y - s[1]) * vy) / l2)) : 0;
+  return Math.hypot(s[0] + vx * t - x, s[1] + vy * t - y);
+}
 
 function clearPoint(x: number, y: number, view: Box, blockers: readonly Box[]): boolean {
   if (x < view.x0 + SLIDE_INSET || x > view.x1 - SLIDE_INSET || y < view.y0 + SLIDE_INSET || y > view.y1 - SLIDE_INSET) return false;
@@ -169,7 +183,7 @@ function candidates(it: Anchored, f: Form, wide: boolean): Cand[] {
 }
 
 export function solve(input: SolveInput): Solved {
-  const { view, lines = [] } = input;
+  const { view, lines = [], keep = [] } = input;
   const blockersAir = input.blockers.map((b) => grow(b, AIR_BLOCKER));
   // (the last resort for a label that must stand: it may touch a card's edge, never lie under it)
   const blockersRaw = input.blockers;
@@ -209,6 +223,8 @@ export function solve(input: SolveInput): Solved {
           if (bad) continue;
           for (const p of placedBoxes) if (hits(box, grow(p.box, AIR_LABEL))) { bad = true; break; }
           if (bad) continue;
+          if (!it.region) for (const k of keep) if (k.id !== it.id && boxGap(box, k.x, k.y) < k.r + KEEP_AIR) { bad = true; break; }
+          if (bad) continue;
           if (relax < 2) for (const o of items) if (o !== it && boxGap(box, o.ax, o.ay) < 9) { bad = true; break; }
           if (bad) continue;
           // the dot's own place: a label never covers its own dot (a region's name, drawn on what it names, has none)
@@ -228,6 +244,8 @@ export function solve(input: SolveInput): Solved {
             if (bad) continue;
             for (const p of placedBoxes) if (crosses(seg[0], seg[1], seg[2], seg[3], grow(p.box, 1))) { bad = true; break; }
             if (bad) continue;
+            for (const k of keep) if (k.id !== it.id && segDist(seg, k.x, k.y) < k.r) { bad = true; break; }
+            if (bad) continue;
             if (relax < 1) for (const l of leaders) if (segsCross(seg, l.seg)) { bad = true; break; }
             if (bad) continue;
             // a later label's leader must not run through an earlier label: checked above; an earlier leader through this box:
@@ -236,6 +254,10 @@ export function solve(input: SolveInput): Solved {
           }
           let lineHits = 0;
           for (const l of lines) if (crosses(l[0], l[1], l[2], l[3], box)) lineHits++;
+          if (it.face) {
+            const vx = (box.x0 + box.x1) / 2 - it.face.cx, vy = (box.y0 + box.y1) / 2 - it.face.cy, l = Math.hypot(vx, vy) || 1;
+            if ((vx * it.face.ux + vy * it.face.uy) / l < FACE_COS) pen += FACE_CLASH;
+          }
           const cost = fi * FORM_COST + c.cost + pen + lineHits * (it.region ? REGION_LINE_COST : LINE_COST);
           if (!best || cost < best.cost) best = { cost, form: fi, c, box, leader, seg };
         }
