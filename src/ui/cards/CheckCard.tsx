@@ -34,15 +34,15 @@ export function CheckCard({ deck }: { deck: Deck }) {
   return (
     <>
       <NameTab deck={deck} />
-      <h2 className="dk-title" style={{ margin: '10px 0 2px' }}>{CHECK_TITLE}</h2>
-      <p className="dk-body" style={{ marginTop: 10 }}>{CHECK_LINE}</p>
-      <ol className="dk-check" ref={list} style={{ marginTop: 12 }}>
+      <h2 className="pz-h">{CHECK_TITLE}</h2>
+      <p className="pz-line">{CHECK_LINE}</p>
+      <ol className="pz-check" ref={list}>
         {deck.checks.map(([q, a], k) => (
-          <li key={k} data-open={open.has(k) || undefined}>
-            <button type="button" className="dk-chk-q" aria-expanded={open.has(k)} aria-controls={`dk-chk-a${k}`} onClick={() => toggle(k)}>
-              <span className="dk-chk-t"><Line text={q} read={read} /></span><span className="dk-chk-hint" aria-hidden="true">{CHECK_HINT}</span>
+          <li key={k} className={open.has(k) ? 'open' : undefined}>
+            <button type="button" className="pzc-q" aria-expanded={open.has(k)} aria-controls={`pzc-a${k}`} onClick={() => toggle(k)}>
+              <span><Line text={q} read={read} /></span><span className="pzc-hint" aria-hidden="true">{CHECK_HINT}</span>
             </button>
-            {open.has(k) && <div className="dk-chk-a" id={`dk-chk-a${k}`}><p>{a}</p></div>}
+            {open.has(k) && <div className="pzc-a" id={`pzc-a${k}`}><p>{a}</p></div>}
           </li>
         ))}
       </ol>

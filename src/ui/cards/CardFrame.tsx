@@ -84,13 +84,16 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   }, [out, entry.key, onGone]);
 
   const phase = out ? 'out' : ready ? 'in' : 'wait';
+  // the 2D app's own classes (src/ui/css2d): the words' card is its glass `pz-shade` with `pz-text` inside; the data card is `pz-data`
+  const lay = layoutOf(vp.w, vp.h), stackCls = lay === 'stack' ? ' stack' : lay === 'tab' ? ' stack tab' : '';
+  const surface = entry.id === 'ladder' ? 'pz-data' : `pz-shade pz-card${stackCls}`;
   return (
     <div className="dk-pos" data-live={live && !out} style={{ width: rect.w, transform: `translate3d(${rect.x}px, ${rect.y}px, 0)` }}>
       <div ref={plateRef} className="dk-plate" data-phase={phase} style={{ height: ready ? (animH ?? rect.h) : undefined }} aria-hidden="true" />
-      <div ref={cardRef} className="dk-card" data-card={entry.id} data-phase={phase} data-overflow={overflow || undefined}
+      <div ref={cardRef} className={`dk-card ${surface}`} data-card={entry.id} data-phase={phase} data-overflow={overflow || undefined}
         role="group" aria-label={label} style={{ height: ready ? (animH ?? rect.h) : undefined }} {...pointer}
         onAnimationEnd={(e) => { if (e.target !== e.currentTarget) return; if (out) onGone(entry.key); else if (e.animationName === 'dk-in') setLive(true); }}>
-        <div ref={innerRef} className="dk-in">{children}</div>
+        <div ref={innerRef} className={entry.id === 'ladder' ? 'dk-in' : 'dk-in pz-text'}>{children}</div>
       </div>
     </div>
   );

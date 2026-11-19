@@ -2,7 +2,7 @@
 // phone's bottom bar (a sheet from the foot) and from the presenter pill's gear (a panel above it). While a talk is on, the Model rows and Reset are left out, as in 2D.
 import { useEffect, useState } from 'react';
 import { UI } from '../strings.generated.ts';
-import { useSettings, FIGURE_DETAIL, FLOW_MARKS } from '../../state/settings.ts';
+import { useSettings, FIGURE_DETAIL } from '../../state/settings.ts';
 import type { LookChoice } from '../../looks/looks.ts';
 import { useShell } from '../shell/store.ts';
 import { useUi } from '../ui-store.ts';
@@ -10,7 +10,7 @@ import { Frame } from '../shell/Frame.tsx';
 import { Icon } from '../shell/icons.tsx';
 import { runFeature } from '../shell/features.ts';
 import { usesBottomBar } from '../shell/room.ts';
-import { FULLSCREEN, FLOW_LABEL, FLOW_MARKS_TITLE } from '../shell/words.ts';
+import { FULLSCREEN } from '../shell/words.ts';
 import { feedbackEmail, feedbackHref } from '../shell/feedback.ts';
 import { SECTIONS, type Row } from './rows.ts';
 
@@ -51,14 +51,21 @@ function useFullscreen() {
   return { on, can, toggle: () => { void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => undefined); } };
 }
 
+/** "What's wrong here?" (2D main.js: after Send feedback, on the preview copy only, where the bug packet has loaded): the same sheet as holding the orange PREVIEW pill. */
+function WrongHere() {
+  const open = (window as unknown as { pps?: { packet?: { open?: () => void } } }).pps?.packet?.open;
+  if (!open) return null;
+  return <button type="button" className="sh-row" onClick={() => { useShell.getState().close(); open(); }}><Icon n="help" /><span className="sh-t">What&apos;s wrong here?</span></button>;
+}
+
 function Item({ row }: { row: Row }) {
   const close = () => useShell.getState().close();
   const fs = useFullscreen();
   const l = row.label;
   if (l === 'Send feedback') {
     const email = feedbackEmail();
-    if (!email) return null;
-    return <button type="button" className="sh-row" onClick={() => { close(); location.href = feedbackHref(email, { build: `PREVIEW · ${String(import.meta.env.VITE_BUILD ?? 'local').split('@').pop()}`, device: navigator.userAgent, screen: `${innerWidth} × ${innerHeight} at ${devicePixelRatio}×`, view: location.href }); }}><Icon n="mail" /><span className="sh-t">{l}</span></button>;
+    if (!email) return <WrongHere />;
+    return <><button type="button" className="sh-row" onClick={() => { close(); location.href = feedbackHref(email, { build: `PREVIEW · ${String(import.meta.env.VITE_BUILD ?? 'local').split('@').pop()}`, device: navigator.userAgent, screen: `${innerWidth} × ${innerHeight} at ${devicePixelRatio}×`, view: location.href }); }}><Icon n="mail" /><span className="sh-t">{l}</span></button><WrongHere /></>;
   }
   if (l === 'Enter full screen') {
     if (!fs.can) return /iPhone|iPod/.test(navigator.userAgent) && !matchMedia('(display-mode: standalone)').matches ? <p className="sh-note">{FULLSCREEN.iphone}</p> : null;
@@ -77,19 +84,6 @@ function Look({ row }: { row: Row }) {
   const id = row.label.toLowerCase() as LookChoice;
   const cur = useSettings((s) => s.look);
   return <button type="button" role="radio" className="sh-row" aria-checked={cur === id} onClick={() => useSettings.getState().setLook(id)}><span className="sh-look" data-look={id} aria-hidden="true" /><span className="sh-t">{row.label}</span>{cur === id && <Icon n="check" />}</button>;
-}
-
-function FlowMarks() {
-  const cur = useSettings((s) => s.flowMarks);
-  return (
-    <>
-      <div className="sh-title">{FLOW_MARKS_TITLE}</div>
-      <div className="sh-seg-row" role="radiogroup" aria-label={FLOW_MARKS_TITLE}>
-        {FLOW_MARKS.map((f) => <button key={f} type="button" role="radio" aria-checked={cur === f} aria-pressed={cur === f} title={FLOW_LABEL[f][1]} onClick={() => useSettings.getState().setFlowMarks(f)}>{FLOW_LABEL[f][0]}</button>)}
-      </div>
-      <p className="sh-note">{FLOW_LABEL[cur][1]}</p>
-    </>
-  );
 }
 
 export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
@@ -111,7 +105,6 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
               if (row.kind === 'look') return <Look key={row.label} row={row} />;
               return <Item key={row.label} row={row} />;
             })}
-            {sec.title === 'Appearance' && <FlowMarks />}
           </div>
         );
       })}

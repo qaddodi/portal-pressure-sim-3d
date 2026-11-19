@@ -6,15 +6,18 @@ import type { ViewId } from './views.ts';
 import { toggleKey } from './views.ts';
 import { notYet } from './words.ts';
 import { freeRoom } from './room.ts';
+import { cutRoom } from '../tests/room.ts';
 import { sceneApi } from '../../scene/api.ts';
+import { useCircuitTurn } from '../../scene/circuit/pref.ts';
+import { registerFeature } from './features.ts';
 
 const label = (v: ViewId) => UI.views.find((x) => x.id === v)!.label;
 
-/** Put the figure's view on the scene and fly the camera to it (the Circuit is the Anatomy body until its batch lands). */
+/** Put the figure's view on the scene and fly the camera to it (the Circuit: the body's vessels fly onto the map, the camera on the same clock). */
 export function showView(v: ViewId): void {
   const { vp, device } = useUi.getState();
-  const room = freeRoom(vp, device);
-  sceneApi.showView(v === 'lobule' ? 'lobule' : v === 'sinusoid' ? 'sinusoid' : 'body', room);
+  const room = cutRoom(freeRoom(vp, device));
+  sceneApi.showView(v === 'lobule' ? 'lobule' : v === 'sinusoid' ? 'sinusoid' : v === 'circuit' ? 'circuit' : 'body', room);
 }
 
 export function goToView(v: ViewId): boolean {
@@ -24,6 +27,13 @@ export function goToView(v: ViewId): boolean {
   showView(v);
   return true;
 }
+/** Turn upright (the zoom group's and the Layers sheet's button, the circuit only): stand the map up (flow bottom to top) or lay it wide again, the camera on the same 480 ms. */
+export function turnCircuit(): void {
+  if (useShell.getState().view !== 'circuit') return;
+  const { vp, device } = useUi.getState();
+  sceneApi.setCircuitUpright(!useCircuitTurn.getState().upright, freeRoom(vp, device));
+}
+registerFeature('rotate', turnCircuit);
 /** A second tap on the active view, Fit, and the 0 key: ask the camera to fit the figure into its room again. In the sinusoid, Fit and zoom out back out to the lobule (2D). */
 export function refitFigure(): void {
   if (useShell.getState().view === 'sinusoid') { goToView('lobule'); return; }

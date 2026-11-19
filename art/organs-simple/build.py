@@ -1,7 +1,7 @@
 """Simple 3D organs from the 2D app's organ outlines (src/ui/anatomy.js ORGANS).
 Each outline is inflated into a smooth pillow: same silhouette from the front, rounded edges, no extra anatomy.
 Coordinates: X=(x-700)/300, Y=-(y-556)/300; organs straddle z=0, front faces z<=0.26 (vessels' depth contract).
-Usage: python3 build.py organs.json out.glb [render_dir] [organs-data.json]"""
+Usage: python3 build.py organs.json out.glb [render_dir] [organs.bin]"""
 import sys, json, re, math
 import numpy as np
 from scipy.spatial import Delaunay
@@ -184,14 +184,22 @@ def main():
     bpy.ops.export_scene.gltf(filepath=out, export_format='GLB', export_yup=False, export_apply=True, export_materials='EXPORT')
     if rdir: render(rdir)
 
+Q = 8000  # positions stored as int16 at 1/8000 scene unit (1.25e-4), range +-4.09
+
 def dump_ts(path):
-    # positions (absolute, shared frame) + indices per organ, keyed by the 2D organ ids
-    out = {}
-    for ob in bpy.data.objects:
-        if ob.type != 'MESH': continue
-        me = ob.data; me.calc_loop_triangles()
-        out[ob.name.replace('_', '-')] = {'p': [round(c, 4) for v in me.vertices for c in v.co], 'i': [i for t in me.loop_triangles for i in t.vertices]}
-    json.dump(out, open(path, 'w'), separators=(',', ':'))
+    # public/anatomy/organs.bin: per organ, int16 xyz positions (x Q) then uint16 triangle indices; organs-manifest.json says where.
+    import struct
+    blob, man, off = bytearray(), {}, 0
+    for ob in sorted((o for o in bpy.data.objects if o.type == 'MESH'), key=lambda o: o.name):
+        me = ob.data; me.calc_loop_triangles(); nv = len(me.vertices); assert nv < 65536
+        pos = np.array([c for v in me.vertices for c in v.co]); assert np.abs(pos).max() * Q < 32767
+        idx = np.array([i for t in me.loop_triangles for i in t.vertices], dtype='<u2')
+        pb = np.round(pos * Q).astype('<i2').tobytes(); ib = idx.tobytes()
+        man[ob.name.replace('_', '-')] = [len(blob), nv, len(blob) + len(pb), len(idx)]
+        blob += pb + ib
+        if len(blob) % 4: blob += bytes(4 - len(blob) % 4)
+    open(path, 'wb').write(blob)
+    json.dump({'q': Q, 'organs': man}, open(path.replace('.bin', '-manifest.json'), 'w'), separators=(',', ':'))
 
 def render(rdir):
     sc = bpy.context.scene; sc.render.engine = 'CYCLES'; sc.cycles.samples = 24; sc.cycles.device = 'CPU'

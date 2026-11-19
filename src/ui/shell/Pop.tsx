@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useUi } from '../ui-store.ts';
 import { useShell, type Sheet } from './store.ts';
 
 /** Closes the open sheet when a press lands outside it and outside the control that opened it. A press on the opener is the opener's own business (it toggles). */
@@ -17,19 +18,31 @@ export function useOutside(sheet: Exclude<Sheet, null>, ref: React.RefObject<HTM
   return open;
 }
 
-/** A button and the popover it opens, side by side. The popover is always in the page and fades (opacity and transform only), placed by CSS, never measured. */
+/** A button and the popover it opens. The button stays a child of its bar, exactly as the 2D markup has it (its stylesheet addresses `.sb-right > .chip-btn`, `.tl-split > .tl-speed`); the popover is
+ *  a fixed sibling after it, always in the page, faded by opacity and transform, and put by the button's box once as it opens (never per frame). */
 export function Anchored({ sheet, place = 'below', align = 'start', width, button, children, label }: {
   sheet: Exclude<Sheet, null>; place?: 'below' | 'above'; align?: 'start' | 'end' | 'center'; width?: number;
-  button: (p: { id: string; open: boolean; toggle: () => void }) => ReactNode; children: ReactNode; label: string;
+  button: (p: { id: string; open: boolean; toggle: () => void; ref: (el: HTMLElement | null) => void }) => ReactNode; children: ReactNode; label: string;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLElement | null>(null);
+  const pop = useRef<HTMLDivElement>(null);
   const id = useId();
-  const open = useOutside(sheet, ref);
+  const open = useOutside(sheet, pop);
+  const vp = useUi((s) => s.vp);
+  const [at, setAt] = useState<{ left: number; top: number }>({ left: 0, top: -9999 });
+  useLayoutEffect(() => {
+    const b = btn.current, p = pop.current;
+    if (!open || !b || !p) return;
+    const r = b.getBoundingClientRect(), w = p.offsetWidth, h = p.offsetHeight, vw = innerWidth, vh = innerHeight, m = 8;
+    const left = align === 'end' ? r.right - w : align === 'center' ? r.left + r.width / 2 - w / 2 : r.left;
+    const top = place === 'above' ? r.top - m - h : r.bottom + m;
+    setAt({ left: Math.max(m, Math.min(left, vw - m - w)), top: Math.max(m, Math.min(top, vh - m - h)) });
+  }, [open, align, place, vp.w, vp.h, width]);
   const toggle = () => useShell.getState().toggle(sheet);
   return (
-    <div className="sh-anchor" ref={ref}>
-      {button({ id, open, toggle })}
-      <div id={id} className="sh-pop" data-open={open} data-place={place} data-align={align} role="dialog" aria-label={label} inert={!open} style={width ? ({ '--sh-w': `${width}px`, width } as React.CSSProperties) : undefined}>{children}</div>
-    </div>
+    <>
+      {button({ id, open, toggle, ref: (el) => { btn.current = el; } })}
+      <div ref={pop} id={id} className="sh-pop" data-open={open} data-place={place} role="dialog" aria-label={label} inert={!open} style={{ left: at.left, top: at.top, ...(width ? { width } : {}) }}>{children}</div>
+    </>
   );
 }

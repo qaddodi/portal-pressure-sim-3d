@@ -6,6 +6,7 @@ import { sceneApi } from '../../scene/api.ts';
 import { Anchored } from './Pop.tsx';
 import { Icon } from './icons.tsx';
 import { tb } from './TopBar.tsx';
+import { I } from './icons.tsx';
 import { Frame } from './Frame.tsx';
 import { refitFigure } from './view-actions.ts';
 import { runFeature } from './features.ts';
@@ -55,15 +56,15 @@ export function FigureRows({ kind }: { kind: 'blood' | 'layers' }) {
 }
 
 /** The Blood menu and, in the lobule, the Layers menu: a popover under its button on a laptop. */
-export function FigureMenu({ kind }: { kind: 'blood' | 'layers' }) {
+export function FigureMenu({ kind, hidden = false }: { kind: 'blood' | 'layers'; hidden?: boolean }) {
   const blood = kind === 'blood';
   const id = blood ? 'btnBlood' : 'btnLobuleLayers';
   const t = tb(id);
   const on = useBlood((s) => (blood ? s.chevrons || s.keyChevrons : true));
   return (
-    <Anchored sheet={kind} label={t.title ?? t.label ?? id} width={320} button={({ id: pid, open, toggle }) => (
-      <button type="button" className="sh-pill" data-opens={kind} data-off={!on} aria-haspopup="menu" aria-expanded={open} aria-controls={pid} title={t.title ?? undefined} onClick={toggle}>
-        <Icon n={blood ? 'drop' : 'layers'} /><span>{t.label ?? t.text}</span><Icon n="chev-down" className="sh-chev" />
+    <Anchored sheet={kind} label={t.title ?? t.label ?? id} width={320} button={({ id: pid, open, toggle, ref }) => (
+      <button type="button" ref={ref} className={`chip-btn${on ? '' : ' off'}`} id={id} hidden={hidden || undefined} data-opens={kind} aria-haspopup="menu" aria-expanded={open} aria-controls={pid} title={t.title ?? undefined} onClick={toggle}>
+        <I n={blood ? 'drop' : 'layers'} /><span>{t.label ?? t.text}</span><I n="chev-down" className="chev" />
       </button>)}>
       <FigureRows kind={kind} />
     </Anchored>

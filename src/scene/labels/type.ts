@@ -14,6 +14,9 @@ export const fluid = (vp: Vp): number => Math.min(1, Math.max(0, (Math.min(vp.w,
 /** A run's size on screen, px. */
 export const fontPx = (size: number, vp: Vp): number => { const [a, b] = LS.ROLES[roleOf(size)]; return a + (b - a) * fluid(vp); };
 
+/** A role's size at this screen, px (the 2D rolePx). */
+export const rolePx = (role: keyof typeof LS.ROLES, vp: Vp): number => { const [a, b] = LS.ROLES[role]; return a + (b - a) * fluid(vp); };
+
 export type RunKind = 'name' | 'val' | 'unit' | 'delta' | 'rev' | 'organ';
 export interface Run { kind: RunKind; text: string; size: number; weight: number; /** space before it, in label-size units (the 2D gap) */ gap: number; /** letter spacing in em */ track: number }
 
