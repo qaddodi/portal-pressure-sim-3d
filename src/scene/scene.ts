@@ -21,6 +21,8 @@ import { TEXTURE_WIDTH, indexOf } from '../engine/vessel-data.ts';
 import { latest, patient } from '../engine/store.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleLayers } from './lobule/index.ts';
 import { SinusoidView } from './sinusoid/index.ts';
+import { organsReady } from './organs/meshes.ts';
+import { clock } from '../clock/frame.ts';
 
 /** What the figure shows: the body, the liver lobule (hexagon) or one sinusoid. The two small views stand away from the body in the same scene. */
 export type FigureView = 'body' | 'lobule' | 'sinusoid';
@@ -87,12 +89,16 @@ export class CelScene {
     this.scene.add(this.body);
     this.body.add(this.plate);
 
-    for (const def of ORGANS) {
-      const o = new CelObject(def.geometry(), { tone: def.tone, bands: 3, spec: 0, px: def.px }, this.shared);
-      if (def.position) o.group.position.set(...def.position);
-      if (def.rotation) o.group.rotation.set(...def.rotation);
-      this.add(o);
-    }
+    // The organs' vertex data is a static file (src/scene/organs/meshes.ts): they join the scene when it is in, and ask for a frame.
+    organsReady.then(() => {
+      for (const def of ORGANS) {
+        const o = new CelObject(def.geometry(), { tone: def.tone, bands: 3, spec: 0, px: def.px }, this.shared);
+        if (def.position) o.group.position.set(...def.position);
+        if (def.rotation) o.group.rotation.set(...def.rotation);
+        this.add(o);
+      }
+      clock.invalidate('organs');
+    }, (e) => console.error(e));
     for (const def of NETWORK) this.addVessel(def);
     for (const v of VARICES) {
       const o = new CelObject(blob(v.r * 0.5, v.r * 0.5, v.r * 0.5, 0, 0, 14), { tone: 'portal', bands: 2, spec: 1, px: 1 }, this.shared);
