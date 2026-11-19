@@ -2,9 +2,10 @@
 // The 2D app's rows, in its order and words (rows.ts, from the inventory). The same sheet opens from the top bar's gear (a panel under it), from the
 // phone's bottom bar (a sheet from the foot) and from the presenter pill's gear (a panel above it). While a talk is on, the Model rows and Reset are left out, as in 2D.
 // Model: Advanced physiology is a page of this menu (Advanced.tsx, the 2D panel's own rows); From readings opens the 2D flow in its own menu (readings/FromReadings.tsx).
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { UI } from '../strings.generated.ts';
-import { useSettings, FIGURE_DETAIL } from '../../state/settings.ts';
+import { useSettings, FIGURE_DETAIL, ORGAN_FILLS, type OrganFill } from '../../state/settings.ts';
+import { DEPTH_ROWS } from './depth-rows.ts';
 import type { LookChoice } from '../../looks/looks.ts';
 import { useShell } from '../shell/store.ts';
 import { useUi } from '../ui-store.ts';
@@ -103,6 +104,33 @@ function Looks({ names }: { names: Row[] }) {
   );
 }
 
+/** Figure depth (3D only): the five switches that go beyond 2D, each on its own so the figure can be compared with 2D (depth-rows.ts). */
+function DepthGroup() {
+  return (
+    <MenuGroup title="Figure depth (3D only)">
+      {DEPTH_ROWS.map((r) => <DepthSwitch key={r.key} row={r} />)}
+      <OrganFillChoice />
+    </MenuGroup>
+  );
+}
+const FILL_WORDS: Record<OrganFill, string> = { seethrough: 'See-through', solid: 'Solid shaded' };
+/** Organ fill: how the organs are painted, as two steps of the same segmented control the Figure detail uses (see-through wash by default; solid is opaque with 2D-style 3-tone shade). */
+function OrganFillChoice() {
+  const at = useSettings((s) => s.organFill);
+  return (
+    <>
+      <div className="menu-title">Organ fill</div>
+      <div className="seg full menu-seg" role="group" aria-label="Organ fill">
+        {ORGAN_FILLS.map((f) => <button key={f} type="button" aria-pressed={at === f} onClick={() => useSettings.getState().set('organFill', f)}>{FILL_WORDS[f]}</button>)}
+      </div>
+    </>
+  );
+}
+function DepthSwitch({ row }: { row: (typeof DEPTH_ROWS)[number] }) {
+  const on = useSettings((s) => s[row.key]);
+  return <MenuToggle checked={on} icon={row.icon} label={row.label} sub={row.hint} onChange={(v) => useSettings.getState().set(row.key, v)} />;
+}
+
 export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
   const talk = useShell((s) => s.mode === 'deck');
   const phone = usesBottomBar(useUi((s) => s.device));
@@ -117,8 +145,8 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
       {SECTIONS.map((sec, i) => {
         const rows = sec.rows.filter((r) => !(r.phone && !phone) && !(r.talk === false && talk));
         if (!rows.length) return null;
-        return (
-          <MenuGroup key={i} title={sec.title}>
+        return (<Fragment key={i}>
+          <MenuGroup title={sec.title}>
             {sec.title === 'Appearance' ? <Looks names={rows.map((r) => r.row)} /> : rows.map(({ row }) => {
               if (row.label.startsWith('Figure detail: ')) return null;
               if (row.label === 'Figure detail') return <FigureDetail key={row.label} />;
@@ -127,7 +155,8 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
             })}
             {sec.title === 'Model' ? <MenuItem icon="rewind" label={FR_WORDS.title} kb={FR_WORDS.sub} title={FR_WORDS.hint} onClick={openFromReadings} /> : null}
           </MenuGroup>
-        );
+          {sec.title === 'Display' ? <DepthGroup /> : null}
+        </Fragment>);
       })}
     </MenuPop>
     <FromReadings />
