@@ -7,9 +7,15 @@ import { useEngine } from '../../engine/index.ts';
 import { patient } from '../../engine/store.ts';
 import { usePick, sceneApi } from '../../scene/api.ts';
 import { bindScene, scenePicked, useSelection } from './selection.ts';
-import { presetBase, presetStarted } from './params.ts';
+import { onParamsChange, presetBase, presetStarted } from './params.ts';
+import { activeInterventions } from './changes.ts';
+import { setInterventionLabels, timeline } from '../timeline/index.ts';
 import { useUi } from '../ui-store.ts';
 import { isPhone } from '../layout/device.ts';
+import { injectDye } from './dye.ts';
+import { startShunting } from './shunt.ts';
+import './stent/StentPanel.tsx';   // (registers the stent editor as the card's 'stent' panel)
+import { goToView } from '../shell/view-actions.ts';
 
 export function startActions(): () => void {
   const off: (() => void)[] = [];
@@ -19,6 +25,15 @@ export function startActions(): () => void {
     if (!t.open) { useShell.getState().close(); if (isPhone(useUi.getState().device)) useSelection.setState({ sel: null }); }
     t.toggle();
   }));
+  // the card buttons the other batches own: Inject dye (the J key too), and the lobule and sinusoid views a liver card opens
+  off.push(registerFeature('dye', () => injectDye({})));
+  off.push(registerFeature('view:lobule', () => { goToView('lobule'); }));
+  off.push(registerFeature('view:sinusoid', () => { goToView('sinusoid'); }));
+  off.push(registerFeature('view:circuit', () => { goToView('circuit'); }));
+  // History: a change is named as the 2D app names it (activeInterventions), and every learner change is one entry (a slider drag is one: the timeline debounces it)
+  setInterventionLabels((p) => new Map(activeInterventions(p as never).map((a) => [a.key, a.label])));
+  off.push(onParamsChange(({ label, history }) => { if (history) timeline.noteChange(label); }));
+  off.push(startShunting());   // Add shunt: the targets glow, a tap on one makes the shunt (shunt.ts)
   bindScene((id) => { if (usePick.getState().picked !== id) sceneApi.pick(id); });
   off.push(usePick.subscribe((s) => scenePicked(s.picked)));
   // a structure selected on a phone puts Treat away (2D onSelect)

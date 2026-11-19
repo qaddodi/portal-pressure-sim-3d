@@ -66,6 +66,17 @@ export interface Slide {
   line: string;
   /** A case opens the slide on its own card first (a beat before the slide). */
   vignette?: string;
+  /** The one short question a case may end on, on its own line under the case (2D `caseQ`). */
+  caseQ?: string;
+  /** A caution under the line (2D `caveat`) and the source of the claim (2D `cite`). */
+  caveat?: string;
+  cite?: string;
+  /** The 2D `visual` of a slide that has no teaching line (table, plane, ladders, walls…): the data card carries the slide. */
+  visual?: string;
+  /** A time-lapse: its days, the words of the counter (2D `lapse.from` / `lapse.to`), and whether the days play on the live figure (else the counter reads as done). */
+  lapse?: { days: number; from?: string; to?: string; plays: boolean };
+  /** The live controls on the teaching card: compare buttons, a what-if slider, the beta-blocker response, the scale pill (decks/controls.ts). */
+  controls?: SlideControls;
   terms?: Record<string, string>;
   eq?: EqPart[];
   /** The ladder (data) card: which readings, which one is the result. Absent: no data card on this slide. */
@@ -107,6 +118,7 @@ export interface Deck {
 }
 
 import { parseToken } from '../ui/text/tokens.ts';
+import type { SlideControls } from './controls.ts';
 
 const TOKEN = /\{([^}]*)\}/g;
 const CUT_RE = /^(>=|<=|>|<)\s*\d+(\.\d+)?(\s+[A-Za-zµ%/]+)?$/;
@@ -127,7 +139,7 @@ export function validateDeck(deck: Deck): string[] {
     const at = `slide "${s.id}"`;
     if (ids.has(s.id)) bad.push(`${at} is a second slide with the same id`);
     ids.add(s.id);
-    for (const f of ['kicker', 'title', 'line', 'notes'] as const) text(s[f], `${at} ${f}`);
+    for (const f of (s.visual ? ['kicker', 'title', 'notes'] : ['kicker', 'title', 'line', 'notes']) as ('kicker' | 'title' | 'line' | 'notes')[]) text(s[f], `${at} ${f}`);
     if (!s.scene && !(SHOTS as readonly string[]).includes(s.shot as string)) bad.push(`${at} names the unknown shot "${s.shot}"`);
     if (s.cath !== undefined && !(CATHS as readonly string[]).includes(s.cath)) bad.push(`${at} names the unknown catheter state "${s.cath}"`);
     for (const m of (s.line ?? '').matchAll(TOKEN)) {

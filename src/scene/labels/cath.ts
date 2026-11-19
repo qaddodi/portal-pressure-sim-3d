@@ -57,6 +57,17 @@ export function cathVars(vp: Vp): Record<string, string> {
   };
 }
 
+/** How far each reading's colour steps toward the text colour in its ink, per look (tokens.css: :root, [data-theme="soft"], and the dark looks, which keep the trace colour). */
+const INK = {
+  light: { tr: 62, ok: 88, caution: 70, danger: 88 },
+  soft: { tr: 55, ok: 80, caution: 70, danger: 80 },
+  dark: { tr: 100, ok: 88, caution: 70, danger: 88 },
+} as const;
+const inkVars = (look: string): Record<string, string> => {
+  const k = INK[look === 'light' || look === 'soft' ? look : 'dark'], mix = (c: string, n: number) => (n >= 100 ? `var(${c})` : `color-mix(in srgb, var(${c}) ${n}%, var(--cl-text))`);
+  return { '--cl-hv-ink': mix('--cl-hv', k.tr), '--cl-wedge-ink': mix('--cl-wedge', k.tr), '--cl-ok-ink': mix('--cl-ok', k.ok), '--cl-caution-ink': mix('--cl-caution', k.caution), '--cl-danger-ink': mix('--cl-danger', k.danger) };
+};
+
 /** The ink and glass of a look for these cards (the look's own tokens, copied): the free and wedged tones, the bands, the glass tint and its hairline. */
 export function cathLook(look: string): Record<string, string> {
   const t = (LS.LOOKS as Record<string, Record<string, string>>)[look];
@@ -64,6 +75,8 @@ export function cathLook(look: string): Record<string, string> {
   return {
     '--cl-hv': t['tr-hv'], '--cl-wedge': t['tr-wedge'], '--cl-ok': t['ok'], '--cl-caution': t['caution'], '--cl-danger': t['danger'],
     '--cl-text': t['text'], '--cl-text3': t['text-3'], '--cl-edge': t['hairline'], '--cl-surface': t['surface'],
+    // the words' ink: the colour a step toward the text colour so it clears 4.5:1 (tokens.css --tr-hv-ink, --ok-ink… per look)
+    ...inkVars(look),
   };
 }
 
@@ -157,11 +170,16 @@ export interface SumGeom {
   tight: boolean; swap: boolean;
 }
 
+/** The stack box's least height, px. The 2D app draws the bracket as an `<svg>` with no height until it has measured the box, and an svg with no height is
+ *  150 px tall (the replaced-element default), so its box (`.cath-sum-box`, items centred) is never shorter than that: on a phone the two one-line
+ *  readings (about 75 px) stand centred in a 150 px box, which is what the placing and the leaders' room are worked from. Copied, not corrected. */
+export const STACK_MIN_H = 150;
+
 /** The stack: two readings in a column (stretched to the widest), the bracket, then the HVPG, centred on the column's height. */
 export function sumLayout(t: CathType, rows: readonly [Reading, Reading], calc: Reading, measure: Measure, tight: boolean, swap: boolean): SumGeom {
   const S = C.STACK, gap = tight ? S.tightGap : S.gap;
   const sz = [pillSize(t, rows[0], measure, tight), pillSize(t, rows[1], measure, tight)], cs = pillSize(t, calc, measure, tight);
-  const colW = Math.max(sz[0].w, sz[1].w), colH = sz[0].h + sz[1].h + gap, h = Math.max(colH, cs.h);
+  const colW = Math.max(sz[0].w, sz[1].w), colH = sz[0].h + sz[1].h + gap, h = Math.max(colH, cs.h, STACK_MIN_H);
   const R: [Rect, Rect] = [{ x: 0, y: 0, w: colW, h: sz[0].h }, { x: 0, y: 0, w: colW, h: sz[1].h }];
   let y = (h - colH) / 2;
   for (const j of swap ? [1, 0] : [0, 1]) { R[j].y = y; y += sz[j].h + gap; }

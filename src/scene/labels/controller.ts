@@ -10,12 +10,12 @@ import { LabelFader, type Want } from './fade.ts';
 import { type Box, leaderGeom } from './geometry.ts';
 import { type Form, type Item, type Placement, boxOf, solve } from './solver.ts';
 import { STATIONS, type Station } from './stations.ts';
-import { LABEL_NAMES } from './names.copied.ts';
 import { fmtPressure } from '../../ui/text/line.ts';
 import { LS, boxSize, organRun, stationRuns } from './type.ts';
 import { dockKey, type Dock } from './key-dock.ts';
 import type { Rect, Viewport } from '../../ui/layout/device.ts';
 import type { CathState, ReadingKey } from '../../decks/schema.ts';
+import { CathShow, calloutsFor, type CathFrame, type CathText, type CalloutKind } from './cath-show.ts';
 
 export interface LabelDeps {
   now(): number;
@@ -61,9 +61,10 @@ export const NO_STATE: LabelState = { named: new Set(), picked: null, cath: null
 /** Space between the key and the edge of the free room. */
 export const KEY_MARGIN = 12;
 
-export const CALL = { padX: 12, padY: 9, kicker: 11, value: 17, unit: 12, row: 22 } as const;
+export type Kind = 'station' | 'key';
 
-export type Kind = 'station' | 'callout' | 'key';
+/** The 2D app hides the figure's labels while the HVPG catheter stands (stage.js: `cath-on #labels { opacity: 0 }`); the one switch for it here. */
+export const HIDE_UNDER_CATHETER = true;
 
 export interface Draw {
   id: string;
@@ -85,21 +86,17 @@ export interface Draw {
   pad: { x: number; y: number };
   /** Leader from the dot to the box (station only; when the label stands away from its vessel). */
   leader: { x: number; y: number; len: number; angle: number } | null;
-  /** The pointer of a callout: where it leaves the card, in the card's own coordinates, and its tip (the dot) relative to the card's top-left. */
-  tail: { below: boolean; fromX: number; tipX: number; tipY: number } | null;
 }
 
 interface Meta {
   id: string;
-  kind: Kind;
-  station: Station | null;
-  callout: CalloutKind | null;
+  kind: 'station';
+  station: Station;
   forms: Form[];
   vwUnits: number;
   /** The station's blood runs backwards: its words carry the reversal mark. */
   rev?: boolean;
 }
-type CalloutKind = 'f' | 'w' | 's';
 
 const FORM_NAMES = ['full', 'abbr', 'value'] as const;
 export const formNames = FORM_NAMES;
@@ -120,6 +117,10 @@ export class LabelController {
   private readonly tmp = new Vector3();
   private readonly tmp2 = new Vector3();
   private readonly cTip = new Vector3();
+  private readonly show = new CathShow();
+  private cTipPx: [number, number] | null = null;
+  private cAheadPx: [number, number] | null = null;
+  private cGot: 0 | 1 | 2 = 0;
   private readonly cAhead = new Vector3();
   private readonly at = new Vector3();
   private readonly pt = { x: 0, y: 0 };
@@ -163,18 +164,20 @@ export class LabelController {
   active(): Meta[] {
     const st = this.state;
     const list: Meta[] = [];
+    // Under the HVPG catheter the figure's names are hidden: "the HVPG catheter's readings stand alone, so it hides them" (stage.js setCatheter, `cath-on`; a
+    // treatment keeps them). They fade out as the catheter comes in and back as it goes.
+    if (HIDE_UNDER_CATHETER && st.cath) return list;
     const picked = st.picked ? STATIONS.find((s) => s.vessel === st.picked)?.id ?? null : null;
     for (const s of STATIONS) {
       if (s.kind === 'organ') { if (st.organNames) list.push(this.metaOf(s)); continue; }
       if (s.core || st.named.has(s.id) || s.id === picked) list.push(this.metaOf(s));
     }
-    for (const c of calloutsFor(st.cath)) list.push(this.calloutMeta(c));
     return list;
   }
 
   private metaOf(s: Station): Meta {
     const rev = !!s.vessel && s.kind !== 'organ' && this.deps.reversed(s.vessel);
-    return { id: s.id, kind: 'station', station: s, callout: null, forms: this.stationForms(s, rev), vwUnits: 0, rev };
+    return { id: s.id, kind: 'station', station: s, forms: this.stationForms(s, rev), vwUnits: 0, rev };
   }
 
   /** The forms a station can take, widest first (the 2D app's own: the full name and reading, the short name and reading, the reading alone).
@@ -196,35 +199,8 @@ export class LabelController {
     return forms;
   }
 
-  private calloutMeta(k: CalloutKind): Meta {
-    const key = 'callout:' + k;
-    let forms = this.formCache.get(key);
-    if (!forms) {
-      const d = this.deps, C = CALL, N = LABEL_NAMES.CALLOUTS;
-      const word = (t: string) => d.measure(t.toUpperCase(), C.kicker, 600, 0.09 * C.kicker);
-      const num = d.measure('000.0', C.value, 700) + 4 + d.measure('mmHg', C.unit, 500);
-      let w: number, h: number;
-      if (k === 's') {
-        w = Math.max(word(N.wedge.kicker) + 14 + num, word(N.result.kicker) + 14 + num, 150) + C.padX * 2;
-        h = C.padY * 2 + C.row * 3 + 6;
-      } else {
-        const kick = k === 'f' ? N.free.kicker : N.wedge.kicker;
-        w = Math.max(word(kick), num) + C.padX * 2;
-        h = C.padY * 2 + C.kicker + 4 + C.value + 4;
-      }
-      forms = [{ text: k, w: Math.ceil(w), h: Math.ceil(h) }];
-      this.formCache.set(key, forms);
-    }
-    return { id: key, kind: 'callout', station: null, callout: k, forms, vwUnits: 0 };
-  }
-
   private anchorOf(m: Meta, u: number, out: Vector3): Vector3 | null {
-    if (m.station) return m.station.at(u, out);
-    const got = this.deps.cathere(this.cTip, this.cAhead);
-    if (got < (m.callout === 'f' ? 1 : 2)) return null;
-    if (m.callout === 'f') return out.copy(this.cTip);
-    if (m.callout === 'w') return out.copy(this.cAhead);
-    return out.copy(this.cTip).add(this.cAhead).multiplyScalar(0.5);
+    return m.station.at(u, out);
   }
 
   /** Advance one frame (the clock's `tags` phase). Returns true while labels still need frames (fading, or waiting to come back). */
@@ -252,6 +228,13 @@ export class LabelController {
       if (!was || Math.abs(was.x - a.x) > 0.35 || Math.abs(was.y - a.y) > 0.35) moved = true;
     }
     this.anchors = anchors;
+    // the catheter's two points move with the picture too: where the tip and the point ahead stand now
+    const got = d.cathere(this.cTip, this.cAhead);
+    const tipPx = got ? d.project(this.cTip, { x: 0, y: 0 }) : null, aheadPx = got ? d.project(this.cAhead, { x: 0, y: 0 }) : null;
+    const nowTip: [number, number] | null = tipPx ? [tipPx.x, tipPx.y] : null, nowAhead: [number, number] | null = aheadPx ? [aheadPx.x, aheadPx.y] : null;
+    const movedPt = (a: [number, number] | null, b: [number, number] | null) => (a === null) !== (b === null) || (!!a && !!b && (Math.abs(a[0] - b[0]) > 0.35 || Math.abs(a[1] - b[1]) > 0.35));
+    if (movedPt(nowTip, this.cTipPx) || movedPt(nowAhead, this.cAheadPx) || got !== this.cGot) moved = true;
+    this.cTipPx = nowTip; this.cAheadPx = nowAhead; this.cGot = got;
     if (moved) this.lastMove = now;
     const hold = now - this.lastMove < FADE.settleMs;
 
@@ -260,23 +243,27 @@ export class LabelController {
     this.dock = this.keyDock();
     const keyBox = this.dock?.box ?? null;
     if (keyBox) blockers.push(keyBox);
-    const sig = (keyBox ? boxKey(keyBox) : '-') + '|' + setSig + '|' + boxKey(view) + '|' + blockers.map(boxKey).join(';') + '|' + [...this.state.named].sort().join(',') + this.state.cath;
+    const cathSig = this.state.cath ? `${this.cGot}|${this.cTipPx ? Math.round(this.cTipPx[0]) + ',' + Math.round(this.cTipPx[1]) : '-'}|${this.cAheadPx ? Math.round(this.cAheadPx[0]) + ',' + Math.round(this.cAheadPx[1]) : '-'}` : '';
+    const sig = cathSig + '|' + (keyBox ? boxKey(keyBox) : '-') + '|' + setSig + '|' + boxKey(view) + '|' + blockers.map(boxKey).join(';') + '|' + [...this.state.named].sort().join(',') + this.state.cath;
     if (!hold && (this.dirty || sig !== this.sig)) {
       this.sig = sig; this.dirty = false;
       this.metas = next;
-      this.solveNow(metas, view, blockers);
+      // the catheter's cards stand first (cath.ts: the 2D app's own placing, clear of the cards and the key); the stations keep clear of them
+      this.show.solve({ vp: d.vp(), cath: this.state.cath, measure: d.measure, band: this.cathBand(view), blockers, tip: this.cTipPx, ahead: this.cAheadPx, got: this.cGot, text: this.cathText() });
+      this.solveNow(metas, view, [...blockers, ...this.show.boxes]);
       if (keyBox) this.wants.set('key', { p: { id: 'key', form: 0, dx: keyBox.x0, dy: keyBox.y0, w: keyBox.x1 - keyBox.x0, h: keyBox.y1 - keyBox.y0, leader: false, au: 0.5 }, dim: false });
     }
 
-    // 3. fades
-    const busy = this.fader.step(dt, this.wants, hold);
+    // 3. fades (the catheter's cards have their own: the 2D app's timings)
+    this.show.setText(this.cathText());
+    const busy = this.fader.step(dt, this.wants, hold) || this.show.step(dt, hold);
 
     // 4. what to draw: each shown label at its spot, following its dot
     this.out.length = 0;
     for (const [id, s] of this.fader.frame) {
       if (s.alpha <= 0) continue;
       if (id === 'key') {
-        this.out.push({ id, kind: 'key', alpha: s.alpha, x: s.p.dx, y: s.p.dy, w: s.p.w, h: s.p.h, form: 0, value: '', dot: null, rev: false, pad: { x: 0, y: 0 }, leader: null, tail: null, dock: this.dock });
+        this.out.push({ id, kind: 'key', alpha: s.alpha, x: s.p.dx, y: s.p.dy, w: s.p.w, h: s.p.h, form: 0, value: '', dot: null, rev: false, pad: { x: 0, y: 0 }, leader: null, dock: this.dock });
         continue;
       }
       const m = this.metas.get(id) ?? next.get(id);
@@ -286,14 +273,13 @@ export class LabelController {
       const a = d.project(p, this.pt);
       const ax = a.x, ay = a.y;
       const box = boxOf(s.p, ax, ay);
-      const dim = m.kind === 'station' && this.state.named.size > 0 && !this.isNamed(m) ? s.dim : 0;
-      const organ = m.station?.kind === 'organ', ringed = m.kind === 'station' && !organ;
-      const pad = m.kind !== 'station' ? { x: 0, y: 0 } : organ ? { x: LS.ORGAN.padX, y: LS.ORGAN.padY } : { x: LS.PAD.x, y: LS.PAD.y };
+      const dim = this.state.named.size > 0 && !this.isNamed(m) ? s.dim : 0;
+      const organ = m.station.kind === 'organ', ringed = !organ;
+      const pad = organ ? { x: LS.ORGAN.padX, y: LS.ORGAN.padY } : { x: LS.PAD.x, y: LS.PAD.y };
       this.out.push({
         id, kind: m.kind, alpha: labelOpacity(s.alpha, dim), x: box.x0, y: box.y0, w: s.p.w, h: s.p.h, form: s.p.form,
         value: this.valueOf(m), dot: ringed ? { x: ax, y: ay } : null, rev: !!m.rev, pad,
         leader: s.p.leader && ringed ? leaderGeom(ax, ay, { x0: box.x0 + pad.x, y0: box.y0 + pad.y, x1: box.x1 - pad.x, y1: box.y1 - pad.y }) : null,
-        tail: s.p.tail ? { below: s.p.tail.below, fromX: Math.max(CALL_KEEP - s.p.w / 2, Math.min(s.p.w / 2 - CALL_KEEP, s.p.tail.ax)) + s.p.w / 2, tipX: ax - box.x0, tipY: ay - box.y0 } : null,
       });
     }
     return busy || hold || this.dirty;
@@ -301,15 +287,13 @@ export class LabelController {
 
   private isNamed(m: Meta): boolean {
     const st = this.state;
-    if (!m.station) return false;
     if (st.named.has(m.station.id)) return true;
     return !!st.picked && m.station.vessel === st.picked;
   }
 
   private valueOf(m: Meta): string {
     const d = this.deps;
-    if (m.station) return m.station.node ? fmtPressure(d.pressure(m.station.node), null, false) : '';
-    return '';
+    return m.station.node ? fmtPressure(d.pressure(m.station.node), null, false) : '';
   }
 
   private solveNow(metas: Meta[], view: Box, blockers: Box[]): void {
@@ -322,44 +306,49 @@ export class LabelController {
       if (!a) continue;
       const path: [number, number][] = [];
       let vw = 3;
-      if (m.station?.slides) {
+      if (m.station.slides) {
         for (let i = 0; i < PATH_SAMPLES; i++) { const q = m.station.at(i / (PATH_SAMPLES - 1), this.tmp); const r = d.project(q, { x: 0, y: 0 }); path.push([r.x, r.y]); }
         for (let i = 1; i < path.length; i++) lines.push([path[i - 1][0], path[i - 1][1], path[i][0], path[i][1]]);
         vw = vesselHalfWidthPx(m.station, d, this.tmp, this.tmp2);
       }
-      const picked = m.station && this.state.picked && m.station.vessel === this.state.picked;
-      const isNamed = !!m.station && named.has(m.station.id);
-      if (m.kind === 'callout') {
-        items.push({ id: m.id, ax: a.x, ay: a.y, au: 0.5, forms: m.forms, pri: 500, must: true, callout: { below: m.callout !== 'w' } });
-      } else if (m.station) {
-        items.push({
-          id: m.id, ax: a.x, ay: a.y, au: 0.5, path: path.length ? path : undefined, forms: m.forms,
-          pri: picked ? 300 : isNamed ? 100 + m.station.pri : m.station.pri, must: !!picked || isNamed, dirs: m.station.dirs, region: m.station.kind === 'organ', vw,
-        });
-      }
+      const picked = this.state.picked && m.station.vessel === this.state.picked;
+      const isNamed = named.has(m.station.id);
+      items.push({
+        id: m.id, ax: a.x, ay: a.y, au: 0.5, path: path.length ? path : undefined, forms: m.forms,
+        pri: picked ? 300 : isNamed ? 100 + m.station.pri : m.station.pri, must: !!picked || isNamed, dirs: m.station.dirs, region: m.station.kind === 'organ', vw,
+      });
     }
     const res = solve({ items, view, blockers, lines });
     this.dropped = res.dropped; this.hiddenIds = res.hidden;
     const wants = new Map<string, Want>();
     for (const p of res.placed) {
       const m = this.metas.get(p.id);
-      const dim = !!m && m.kind === 'station' && named.size > 0 && !this.isNamed(m);
+      const dim = !!m && named.size > 0 && !this.isNamed(m);
       wants.set(p.id, { p, dim });
     }
     this.wants = wants;
   }
 
-  /** The numbers a callout shows now, formatted: the free and wedged readings, and the HVPG they give. */
-  calloutText(k: CalloutKind): { rows: { kicker: string; value: string }[]; calc?: { kicker: string; value: string } } {
-    const r = this.deps.reading.bind(this.deps), N = LABEL_NAMES.CALLOUTS;
-    const f = (v: number | null) => fmtPressure(v, null, false);
-    if (k === 'f') return { rows: [{ kicker: N.free.kicker, value: f(r('fhvp')) }] };
-    if (k === 'w') return { rows: [{ kicker: N.wedge.kicker, value: f(r('whvp')) }] };
-    return { rows: [{ kicker: N.wedge.kicker, value: f(r('whvp')) }, { kicker: N.free.kicker, value: f(r('fhvp')) }], calc: { kicker: N.result.kicker, value: f(r('hvpg')) } };
+  /** The room the catheter's cards use: the figure's free room (between the cards the screen carries), inside the view (the 2D app's `lim` and `top`: the
+   *  free band's edges, which also say whether the stack is tight). */
+  private cathBand(view: Box): Box {
+    const f = this.deps.free();
+    const b = { x0: Math.max(f.x0, view.x0), y0: Math.max(f.y0, view.y0), x1: Math.min(f.x1, view.x1), y1: Math.min(f.y1, view.y1) };
+    return b.x1 - b.x0 > 40 && b.y1 - b.y0 > 40 ? b : view;
   }
+  /** The readings as the cards print them now: the free and wedged pressures, and the HVPG they give. */
+  cathText(): CathText {
+    const r = this.deps.reading.bind(this.deps), f = (v: number | null) => fmtPressure(v, null, false);
+    return { f: f(r('fhvp')), w: f(r('whvp')), h: f(r('hvpg')), hv: r('hvpg') };
+  }
+  /** The catheter's cards this frame (cath-show.ts): written by the layer as transform and opacity. */
+  get cath(): CathFrame { return this.show.frame; }
+  /** The boxes the catheter's cards take (a test judges them against the cards and the view). */
+  cathBoxes(): Box[] { return this.show.boxes; }
+  /** The cards themselves (no pointer's run). */
+  cathCards(): Box[] { return this.show.cards; }
 }
 
-const CALL_KEEP = 28;
 const boxKey = (b: Box) => `${Math.round(b.x0)},${Math.round(b.y0)},${Math.round(b.x1)},${Math.round(b.y1)}`;
 
 /** The vessel's half width on the canvas at its middle: its drawn radius times the pixels one scene unit covers there. */
@@ -373,14 +362,5 @@ function vesselHalfWidthPx(s: Station, d: LabelDeps, a: Vector3, b: Vector3): nu
 import { VESSELS } from '../anatomy/vessels.ts';
 const VESSEL_RADIUS = new Map(VESSELS.map((v) => [v.id, v.radius]));
 
-/** The callouts a catheter state shows (hvpg-proc.js): the free reading at the tip; the wedged reading ahead of it with the free one kept where it was
- *  taken; the summary (wedged over free, the HVPG they give) once the result is in. The route shows none: nothing is measured yet. */
-export function calloutsFor(cath: CathState | null): CalloutKind[] {
-  switch (cath) {
-    case 'free': return ['f'];
-    case 'wedge': return ['f', 'w'];
-    case 'result': return ['s'];
-    default: return [];
-  }
-}
+export { calloutsFor };
 export type { CalloutKind };

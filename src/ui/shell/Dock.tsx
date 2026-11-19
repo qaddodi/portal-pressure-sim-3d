@@ -6,6 +6,7 @@ import { ThumbBar } from './ThumbBar.tsx';
 export function Dock({ thumb }: { thumb: boolean }) {
   return (
     <div className="vdock float-ui stage-blocker" id="vdock" data-safe="bottom">
+      <span className="vd-face" aria-hidden="true" />
       <div className="nb-views" id="nbViews" data-safe="bottom" data-safe-pad="12"><span className="vp-face" aria-hidden="true" /><ViewPills /></div>
       <div className="stage-bar bottom" id="stageBottom"><Timeline phone={thumb} /></div>
       <Readouts />
