@@ -52,7 +52,7 @@ test('the arrival state belongs to the Since lens only: leaving it forgets it', 
   f.dispose();
 });
 
-test('the parity claims: all twelve lens rows are claimed from the table; Since is wired once a slide feeds its baseline (the deck's figure link)', () => {
+test('the parity claims: all twelve lens rows are claimed from the table; Since is wired once a slide feeds its baseline (the deck figure link)', () => {
   assert.equal(claims.length, LENS_IDS.length);
   const by = new Map(claims.map((x) => [x.id, x.wired]));
   for (const id of LENS_IDS) assert.ok(by.has(`lens:${id}`), id);
