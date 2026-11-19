@@ -240,7 +240,7 @@ export class CelScene {
     else this.leaving.push(o);   // a fan of tributaries has no map course: it leaves with the organs as the figure turns into the map
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
-    const fade = def.feeder ? null : fadeOf(def.id, def.tone === 'artery');
+    const fade = fadeOf(def.id, def.tone === 'artery', def.feeder?.host);
     if (fade) { o.setTipFade(fade); this.tipFades.push({ o, connect: fade.connect }); if (fade.ivcJoin) this.ivcJoins.push(o); }
     if (BACK_EDGES.has(def.id)) { o.setBehindOrgans(VESSEL_LAYER, IVC_EDGES.has(def.id)); this.back.push(o); if (IVC_EDGES.has(def.id)) this.cava.push(o); }
     this.add(o);

@@ -3,7 +3,7 @@
 // sinusoids; the veins that run on out of the plate fade out down it. A fading tip is solid to its end while a collateral attaches there (TIP_CONNECT).
 import { EDGES } from '../../engine/hales/portal/topology.js';
 import { x3, y3 } from '../frame2d.ts';
-import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, SIN_EDGES_2D, SIN_FADE_C9_2D, SIN_FADE_ROW_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
+import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, FEEDER_FADE_Y_2D, SIN_EDGES_2D, SIN_FADE_C9_2D, SIN_FADE_ROW_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
 import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D } from './paths.copied.ts';
 
 /** stage-geo.js IVC_NODES, IVC_JOIN_LEN, HEPATIC_VEINS: a vein that ends on the faint cava fades into it over its last 60 units (12 for the portocaval and mesocaval shunts), so the join is seamless. */
@@ -56,8 +56,9 @@ function fadeIn(id: string): TipFade | null {
   return { mode: 3, from: r[4]!, to: 1, a0: 1, a1: r[5] ?? 0.3, line: sceneLine(r[0]!, r[1]!, r[2]!, r[3]!), keep: false, connect: [] };
 }
 
-/** The fade of a vessel, or null for one that has none. */
-export function fadeOf(id: string, isArtery: boolean): TipFade | null {
+/** The fade of a vessel, or null for one that has none. A tributary fan (`feederHost`, the vein it feeds) fades as its host's FEEDER_FADE_Y says (the azygos's runs out down the figure, never ends in a cap). */
+export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
+  if (feederHost) { const yy = FEEDER_FADE_Y_2D[feederHost]; return yy ? { mode: 2, from: y3(yy[0]), to: y3(yy[1]), a0: 1, a1: 0, keep: false, connect: [] } : null; }
   const art = ART_FADE_2D[id];
   if (art?.in) return { mode: 1, from: 0, to: art.in, a0: 0, a1: 1, keep: true, connect: [] };
   if (art?.out) return { mode: 1, from: 1 - art.out, to: 1, a0: 1, a1: 0, keep: true, connect: [] };
