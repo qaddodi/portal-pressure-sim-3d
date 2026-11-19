@@ -121,6 +121,18 @@ export class Highlight {
     }
   }
 
+  /** Light exactly these vessels (and every piece of a vein the engine cuts), each outlined whole and nothing run on downstream: the shunt's targets. Clears the pick. */
+  setOnly(ids: readonly string[]): void {
+    this.picked = null;
+    const hosts = new Set(ids.map((id) => this.hostOf.get(id) ?? id));
+    for (const [eid, t] of this.tracks) {
+      const on = hosts.has(this.hostOf.get(eid) ?? eid);
+      t.target = on ? 1 : 0;
+      t.liftTarget = 0;
+      if (on) { const u = t.obj.ink.uniforms; u.hiDir.value = 0; u.hiOffset.value = 0; }
+    }
+  }
+
   /** All the pieces of the vein a picked piece belongs to. */
   private group(id: string): string[] {
     const host = this.hostOf.get(id) ?? id;

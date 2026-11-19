@@ -320,6 +320,9 @@ export class CelScene {
     this.moving = true;
   }
 
+  /** Light a set of vessels at once (the shunt's valid targets); an empty list puts them out. */
+  markVessels(ids: readonly string[]): void { this.highlight.setOnly(ids); this.moving = true; }
+
   /** Free play: pick a vessel by edge ID (or clear it with null). */
   pick(id: string | null): void { this.highlight.set(id); this.syncNamed(); }
 
