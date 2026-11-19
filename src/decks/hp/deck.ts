@@ -4,6 +4,8 @@
 import { TERM_STATIONS } from '../../scene/labels/stations.ts';
 import { CATHS, type CathState, type Deck, type EqPart, type Slide, type SlideTiles, type TableSpec } from '../schema.ts';
 import { planSlide } from './plan.ts';
+import { controlsOf } from '../controls.ts';
+import { playsLapse } from './lapse.ts';
 import type { CopiedDeck, CopiedSlide } from './types.ts';
 
 const TAG = /<(mi|mo|msub)\b([^>]*)>(.*?)<\/\1>/g;
@@ -52,6 +54,9 @@ export function slideOf(deckId: string, s: CopiedSlide, i: number, prevCath: Cat
   const terms = knownTerms(s.terms);
   const scene = { ...plan.scene, terms: plan.scene.terms.filter((t) => t in TERM_STATIONS) };
   const table = tableOf(s);
+  const controls = controlsOf(s);
+  const lp = s.lapse as { from?: string; to?: string } | null | undefined;
+  const lapse = lp && typeof s.days === 'number' && s.days > 0 ? { days: s.days, ...(lp.from ? { from: lp.from } : {}), ...(lp.to ? { to: lp.to } : {}), plays: playsLapse(s, i) } : undefined;
   return {
     id: s.id, kicker: s.kicker ?? '', title: s.title ?? '', line: s.line ?? '', notes: s.notes ?? '',
     ...(s.vignette ? { vignette: s.vignette } : {}),
@@ -60,6 +65,8 @@ export function slideOf(deckId: string, s: CopiedSlide, i: number, prevCath: Cat
     ...(citeOf(s.cite) ? { cite: citeOf(s.cite) } : {}),
     ...(s.visual ? { visual: s.visual } : {}),
     ...(table ? { table } : {}),
+    ...(controls ? { controls } : {}),
+    ...(lapse ? { lapse } : {}),
     ...(terms ? { terms } : {}),
     ...(eq ? { eq } : {}),
     ...(s.eq?.[1] ? { eqLegend: s.eq[1] } : {}),

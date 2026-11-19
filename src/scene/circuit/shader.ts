@@ -11,6 +11,7 @@ attribute vec3 cC;
 attribute vec3 tC;
 attribute vec3 fr;
 attribute vec2 pk;
+attribute float rk;   // the tube's own radius as a share of the vessel's (also declared by the vessel's vertex shader, which puts this block after it)
 uniform float circT;
 uniform vec2 circRot;
 uniform vec3 circM;
@@ -39,7 +40,7 @@ void circuitMorph(inout vec3 P, inout vec3 Nn, inout vec3 Tn) {
   if (circT <= 0.0) return;
   // the body course's centre at this vertex, from the vertex's own offset (so w = 0 gives back the body's vertex exactly)
   vec3 N0 = circFrameN(tang);
-  vec3 cA = position - radius * (fr.x * N0 + fr.y * cross(tang, N0) + fr.z * tang);
+  vec3 cA = position - radius * rk * (fr.x * N0 + fr.y * cross(tang, N0) + fr.z * tang);
   float w = circPeel(circT, pk.x);
   vec3 cen = mix(cA, circTurnPt(cC), w);
   vec3 Tm = mix(tang, circTurnDir(tC), w);
@@ -57,7 +58,7 @@ void circuitMorph(inout vec3 P, inout vec3 Nn, inout vec3 Tn) {
   vec3 N = circFrameN(T);
   vec3 B = cross(T, N);
   vec3 off = fr.x * N + fr.y * B + fr.z * T;
-  P = cen + radius * off;
+  P = cen + radius * rk * off;
   Nn = normalize(off);
   Tn = T;
 }

@@ -3,9 +3,10 @@ import type { Slide } from '../../decks/schema.ts';
 import { Line } from './Line.tsx';
 import { sentences, pageOf } from './pages.ts';
 import { NameTab } from './NameTab.tsx';
+import { SlideControls, LapseRow } from './SlideControls.tsx';
 import type { Deck } from '../../decks/schema.ts';
 
-export function TeachingCard({ slide, deck, read, page, pages, trim = false }: { slide: Slide; deck?: Pick<Deck, 'id' | 'title' | 'head'>; read: (k: string, at?: string) => number | null | undefined; page: number; pages: number; trim?: boolean }) {
+export function TeachingCard({ slide, deck, read, page, pages, trim = false }: { slide: Slide; deck?: Deck; read: (k: string, at?: string) => number | null | undefined; page: number; pages: number; trim?: boolean }) {
   const text = pageOf(sentences(slide.line), pages, page).join(' ');
   const eq = slide.eq && page === 0;
   // the title's one step down when a sideways phone has no wider column left: 2D's own knob for it (--pz-tk), set from the trimmed size
@@ -26,6 +27,8 @@ export function TeachingCard({ slide, deck, read, page, pages, trim = false }: {
       {text ? <p className="pz-line"><Line text={text} read={read} terms={slide.terms} /></p> : null}
       {slide.caveat && page >= pages - 1 ? <p className="pz-caveat">{slide.caveat}</p> : null}
       {slide.cite && page >= pages - 1 ? <p className="pz-cite">{slide.cite}</p> : null}
+      {deck && slide.lapse && page >= pages - 1 ? <LapseRow slide={slide} deck={deck} /> : null}
+      {deck && slide.controls && page >= pages - 1 ? <SlideControls slide={slide} deck={deck} /> : null}
     </>
   );
 }

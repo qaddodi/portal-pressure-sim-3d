@@ -87,16 +87,14 @@ test('no font size under 12 px in the cards\' CSS, and none that shrinks text to
 
 test('nothing scrolls inside a card; nothing animates layout; blur only as the card glass, only while Blur effect is on', () => {
   assert.ok(!/overflow(?:-[xy])?\s*:\s*(auto|scroll|overlay)/.test(css), 'a scroll area');
-  // the one place blur may be: the glass block, gated by @supports, reduced transparency and html:not([data-noglass]); never a blur on text (filter: blur)
+  // the one place blur may be: src/ui/glass.css (the one glass, tests/glass.test.ts); never a blur on text (filter: blur), and none in this sheet
   assert.ok(!/(^|[^-])filter\s*:\s*blur/.test(css), 'filter: blur on content');
-  const at = css.indexOf('@supports');
-  assert.ok(at > 0, 'the glass block');
-  const glass = css.slice(at);
+  assert.ok(!/backdrop-filter\s*:(?!\s*none)/.test(css), 'a backdrop blur outside glass.css');
+  const glass = readFileSync('src/ui/glass.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   assert.ok(/@supports[\s\S]*html:not\(\[data-noglass\]\)/.test(glass), 'the glass is gated by @supports and Blur effect');
   // the trap that left the glass off on Safari: a media feature the browser does not know makes the whole query false, so the glass is the default and reduced transparency the override
-  assert.ok(!/prefers-reduced-transparency\s*:\s*no-preference|not\s*\(\s*prefers-reduced-transparency/.test(css), 'the glass must not be gated on a media feature Safari lacks');
+  assert.ok(!/prefers-reduced-transparency\s*:\s*no-preference|not\s*\(\s*prefers-reduced-transparency/.test(glass), 'the glass must not be gated on a media feature Safari lacks');
   assert.ok(/prefers-reduced-transparency:\s*reduce[\s\S]*backdrop-filter:\s*none/.test(glass), 'reduced transparency overrides the glass with the solid surface');
-  assert.ok(!/backdrop-filter/.test(css.slice(0, at)), 'backdrop-filter outside the glass block');
   for (const m of css.matchAll(/transition\s*:\s*([^;]+)/g)) assert.ok(!/\b(width|height|top|left|margin|padding)\b/.test(m[1]), `transition on layout: ${m[1]}`);
   for (const m of css.matchAll(/@keyframes[^{]+\{([\s\S]*?)\}\s*(?=@|\.|$)/g)) assert.ok(!/\b(width|height|top|left|margin|padding)\s*:/.test(m[1]), 'keyframes on layout');
 });
@@ -110,11 +108,11 @@ test('no card or strip code reads the engine store, runs its own frame loop, or 
   }
 });
 
-test('every glass selector in the stylesheets is in the one glass block, and none sets its own opaque background after it', () => {
-  const glass = css.slice(css.indexOf('@supports'));
-  const sel = /html:not\(\[data-noglass\]\) :is\(([^)]*)\)/.exec(glass)![1].split(',').map((x) => x.trim().replace(/^\./, ''));
-  for (const need of ['dk-card', 'dk-strip', 'dk-bar', 'dk-panel']) assert.ok(sel.includes(need), `${need} is glass`);
-  // a card/strip/bar rule written after the block with a more specific background would kill the glass
-  const after = glass.slice(glass.lastIndexOf('}'));
-  assert.ok(!/\.dk-(card|strip|bar|panel)[^{]*\{[^}]*background\s*:/.test(after), 'no later background on glass');
+test('the cards and the strip are in the one glass block, the presenter pill wears it as a face, and no sheet sets its own background after it', () => {
+  const glass = readFileSync('src/ui/glass.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const sel = /html:not\(\[data-noglass\]\) :is\(([\s\S]*?)\n  \) \{/.exec(glass)![1];
+  for (const need of ['.dk-card', '.dk-strip']) assert.ok(sel.includes(need), `${need} is glass`);
+  assert.ok(!/\.dk-bar/.test(sel) && /\.dk-bar::before/.test(glass), 'the presenter pill holds the Settings sheet, so its frost is a face');
+  // a card/strip rule written in deck-ui.css would not beat the glass (it is !important), but it would show without the glass: none sets a background of its own
+  assert.ok(!/\.dk-(card|strip|bar)\s*\{[^}]*background\s*:/.test(css), 'no later background on glass');
 });

@@ -171,13 +171,13 @@ test('the scene draws only the background until the camera is placed, then the f
   const { CelScene } = await import('../src/scene/scene.ts');
   const s = new CelScene();
   const calls: string[] = [];
-  const gl = { setClearColor: () => {}, render: () => { calls.push('render'); }, clear: () => { calls.push('clear'); } } as never;
+  const gl = { autoClear: true, setClearColor: () => {}, render: () => { calls.push('render'); }, clear: () => { calls.push('clear'); }, clearDepth: () => { calls.push('depth'); } } as never;
   s.resize(800, 600);
   s.render(gl);
   s.goTo('play', { x: 300, y: 80, w: 480, h: 420 }, 0);
   s.update(0);
   s.render(gl);
-  assert.deepEqual(calls, ['clear', 'render']);
+  assert.deepEqual(calls, ['clear', 'render', 'depth', 'render'], 'the organs, then the depth cleared, then the vessels over them');
 });
 
 test('every shot looks at the 2D figure\'s own places (frame2d.ts), not at the old plate\'s', async () => {

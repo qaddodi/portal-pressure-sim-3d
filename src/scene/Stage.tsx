@@ -13,6 +13,7 @@ import { useEngine } from '../engine/store.ts';
 import { resolveLook } from '../looks/looks.ts';
 import { useDeck } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
+import { figureDpr } from './quality.ts';
 import { cel, frames, gesturesRef, sceneApi } from './api.ts';
 import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
@@ -66,6 +67,25 @@ function SceneBridge() {
     return () => { un(); dark.removeEventListener('change', paint); };
   }, [gl]);
 
+  // Settings > Figure detail caps the pixel ratio; with Sharp while moving off, the figure drops to 1x while a gesture or a camera move runs and comes back sharp when it settles (2D's rule)
+  const setDpr = useThree((s) => s.setDpr);
+  useEffect(() => {
+    let was = -1, settle = 0;
+    const apply = () => {
+      const st = useSettings.getState();
+      const moving = !!(cel.rig.isMoving || gesturesRef.current?.active);
+      const d = figureDpr(st.figureDetail, st.sharpMoving, moving, window.devicePixelRatio || 1);
+      if (d !== was) { was = d; setDpr(d); clock.invalidate('figure-detail'); }
+      // (no frame runs once everything has stopped, so a motion that ended between frames is looked at again shortly)
+      window.clearTimeout(settle);
+      if (moving && !st.sharpMoving) settle = window.setTimeout(apply, 200);
+    };
+    apply();
+    const off = clock.on('camera', apply, 1);
+    const un = useSettings.subscribe(apply);
+    return () => { off(); un(); window.clearTimeout(settle); };
+  }, [setDpr]);
+
   // the figure's gestures (src/scene/gesture/): turn, pinch, pan, wheel and trackpad, the 2D app's pan and zoom ported
   useEffect(() => {
     const el = gl.domElement;
@@ -103,7 +123,7 @@ export function Stage() {
   useEffect(() => { clock.invalidate('stage-mounted'); }, []);
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-stage)' as unknown as number, touchAction: 'none' }}>
-      <Canvas flat frameloop="never" dpr={[1, 2]} gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}>
+      <Canvas flat frameloop="never" dpr={figureDpr(useSettings.getState().figureDetail, true, false, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)} gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}>
         <ClockBridge />
         <SceneBridge />
       </Canvas>

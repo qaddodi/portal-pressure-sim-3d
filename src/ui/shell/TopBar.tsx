@@ -15,6 +15,8 @@ import { goToView, refitFigure } from './view-actions.ts';
 import { FigureMenu } from './FigureMenu.tsx';
 import { keyLabel } from './platform.ts';
 import { LensKey } from './LensKey.tsx';
+import { useBarFit } from './use-bar-fit.ts';
+import { shortName, COMPACT } from './scenario-names.ts';
 
 interface Tb { id: string; label: string | null; title: string | null; text: string | null }
 export const tb = (id: string): Tb => UI.topbar.find((t) => t.id === id) as unknown as Tb;
@@ -90,13 +92,15 @@ export function TopBar() {
   const lobule = view === 'lobule' || view === 'sinusoid';
   const patient = UI.presets.find((p) => p.id === patientId)?.label ?? '';
   const menu = tb('btnMenu');
+  const barRef = useBarFit([patient, patientId, view, mode]);
+  const short = shortName(patient || 'Custom');
   return (
-    <header className="topbar float-ui stage-blocker" id="topbar" data-hidden={mode === 'deck' || undefined} aria-label="Top bar">
+    <header ref={barRef} className="topbar float-ui stage-blocker" id="topbar" data-hidden={mode === 'deck' || undefined} aria-label="Top bar">
       <div className="float-pill tb-id">
         <span className="tb-face" aria-hidden="true" />
         <button type="button" className="menu-btn" id="btnMenu" data-opens="menu" aria-haspopup="dialog" aria-expanded={sheet === 'menu'} aria-label={menu.label ?? undefined} title={menu.title ?? undefined} onClick={() => useShell.getState().toggle('menu')}>
           <i className="brand-mark" aria-hidden="true" />
-          <span className="scenario-v" id="scenarioName">{patient}</span>
+          <span className="scenario-v" id="scenarioName"><span className="sn-l">{patient}</span><span className="sn-s">{short}</span><span className="sn-c">{COMPACT[short] ?? short}</span></span>
           <I n="chev-down" className="chev" />
         </button>
       </div>

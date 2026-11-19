@@ -7,7 +7,7 @@ import { MAP_CENTRE, turnAngle } from './map.ts';
 import { needsTrack, morphInto, tangentsInto } from './morph.ts';
 import { createCircuitShared, type CircuitShared } from './uniforms.ts';
 import { TURN_MS, VIEW_CHANGE_MS } from './data.copied.ts';
-import { NETWORK } from '../vessels/network.ts';
+import { MAPPED } from '../vessels/network.ts';
 
 const easeInOutCubic = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
@@ -59,8 +59,8 @@ export class CircuitView {
   reduceMotion = false;
 
   constructor() {
-    NETWORK.forEach((v, k) => this.rows.set(v.id, 2 * k));
-    this.shared = createCircuitShared(2 * NETWORK.length);
+    MAPPED.forEach((v, k) => this.rows.set(v.id, 2 * k));
+    this.shared = createCircuitShared(2 * MAPPED.length);
     this.tex = this.shared.circTrack.value.image.data as unknown as Float32Array;
   }
 
