@@ -25,6 +25,8 @@ import { lobuleSel } from './lobule/pick.ts';
 import { cel, frames, gesturesRef, sceneApi } from './api.ts';
 import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
+import { installTilt } from './camera/tilt-input.ts';
+import { reduced } from '../ui/a11y/motion.ts';
 import { type GestureTarget, createGestures } from './gesture/controller.ts';
 import { type Sel, selectStructure, useSelection } from '../ui/action/selection.ts';
 import { tapSelect } from '../ui/action/tap-select.ts';
@@ -146,6 +148,18 @@ function SceneBridge() {
     gesturesRef.current = g;
     return () => { g.dispose(); gesturesRef.current = null; };
   }, [gl]);
+
+  // Gentle tilt (camera/tilt.ts): the pointer or the device's orientation turns the figure a few degrees, as an offset added when the camera is written (the hand's state and Fit never see it).
+  // Locked (it eases to square) while a gesture runs or the view is not the body; a camera move locks it in the rig itself.
+  useEffect(() => {
+    const rig = cel.rig;
+    rig.tiltGate = { on: () => useSettings.getState().tilt, locked: () => !!gesturesRef.current?.active || cel.view !== 'body' || cel.circuit.t > 0 };
+    const off = installTilt({
+      rig, wake: (tag) => clock.invalidate(tag), on: () => useSettings.getState().tilt, reduced,
+      onSwitch: (fn) => { let was = useSettings.getState().tilt; return useSettings.subscribe((s) => { if (s.tilt !== was) { was = s.tilt; fn(was); } }); },
+    });
+    return () => { off(); rig.tiltGate = null; };
+  }, []);
 
   return null;
 }

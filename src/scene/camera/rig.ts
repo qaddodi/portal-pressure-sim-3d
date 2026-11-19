@@ -6,6 +6,7 @@ import { type View, lerpView } from '../gesture/ease.ts';
 import type { Rect } from '../gesture/view.ts';
 import { type Room, effectiveDistance, viewOffset } from './room.ts';
 import { PLUNGE_RATIO, dollyDistance, fovAt, fovBump } from './dive.ts';
+import { Tilt } from './tilt.ts';
 import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
 
 /** Radians of turn per pixel of drag. */
@@ -108,6 +109,12 @@ export class CameraRig {
   /** The plate the hand may pan the figure within (the body's plate, or the Circuit's map), as a rectangle in the plane at depth z. */
   private bounds: { x0: number; x1: number; y0: number; y1: number; z: number } = { ...PLATE_BOUNDS, z: FIGURE_Z };
   readonly reduceMotion: boolean;
+  /** Gentle tilt (tilt.ts): a few degrees added to the shot's yaw and pitch when the camera is written, never kept in the hand's or the orbit's state. Square (zero) until Stage gives it a gate. */
+  readonly tilt = new Tilt();
+  /** What Stage says about the tilt: whether Settings > Figure depth has it on, and whether something other than a camera move holds it (a gesture, a view other than the body). */
+  tiltGate: { on(): boolean; locked(): boolean } | null = null;
+  /** True while the camera is written without the tilt (fitRect measures the shot's own framing). */
+  private noTilt = false;
   /** The hand's zoom over the shot's own framing (1 as framed). */
   get handZoom(): number { return this.hand.k; }
 
@@ -205,7 +212,9 @@ export class CameraRig {
   fitRect(): Rect {
     const keep = { ...this.hand };
     this.hand.k = 1; this.hand.x = 0; this.hand.y = 0;
+    this.noTilt = true;   // what the fit measures never includes the tilt
     this.apply();
+    this.noTilt = false;
     const b = this.bounds;
     const corners: readonly Vec3[] = this.subject ?? ([[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]] as const).map(([x, y]) => [x, y, b.z] as Vec3);
     const rect: Rect = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
@@ -231,7 +240,16 @@ export class CameraRig {
       if (k >= 1) this.active = false; else moving = true;
       this.dirty = true;
     }
+    if (this.stepTilt(now)) moving = true;
     if (this.dirty) { this.apply(); this.dirty = false; }
+    return moving;
+  }
+
+  /** One step of the gentle tilt: locked (easing to square) while a camera move runs or the gate says so; Reduce Motion or the switch off keeps it at zero with no easing. Returns true while it still eases. */
+  private stepTilt(now: number): boolean {
+    const t = this.tilt, g = this.tiltGate, yaw = t.yaw, pitch = t.pitch;
+    const moving = g ? t.step(now, g.on(), this.reduceMotion || reduced(), this.active || g.locked()) : t.step(now, false, true, true);
+    if (t.yaw !== yaw || t.pitch !== pitch) this.dirty = true;
     return moving;
   }
 
@@ -242,10 +260,11 @@ export class CameraRig {
     // (the dolly zoom: as the lens widens the camera comes in by the same ratio, so what the dive aims at keeps its size and the world opens round it)
     const r = dollyDistance(effectiveDistance(shot, room.w > 1 ? room : { x: 0, y: 0, w, h }, h), fov);
     this.camera.fov = fov;
-    const yaw = shot.yaw + this.orbit;
-    const cp = Math.cos(shot.pitch);
+    // the tilt is added here, at render time, on top of the shot and the viewer's turn; `project` and every pick use this same camera, so tags and taps agree with what is drawn
+    const yaw = shot.yaw + this.orbit + (this.noTilt ? 0 : this.tilt.yaw), pitch = shot.pitch + (this.noTilt ? 0 : this.tilt.pitch);
+    const cp = Math.cos(pitch);
     const [tx, ty, tz] = shot.target;
-    this.pos.set(tx + Math.sin(yaw) * cp * r, ty + Math.sin(shot.pitch) * r, tz + Math.cos(yaw) * cp * r);
+    this.pos.set(tx + Math.sin(yaw) * cp * r, ty + Math.sin(pitch) * r, tz + Math.cos(yaw) * cp * r);
     this.camera.position.copy(this.pos);
     this.camera.lookAt(tx, ty, tz);
     const off = viewOffset(room.w > 1 ? room : { x: 0, y: 0, w, h }, w, h);
