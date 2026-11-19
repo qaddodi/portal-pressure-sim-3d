@@ -1,0 +1,188 @@
+/* Cards, the wallet and the presenter bar. Colours come from the look's tokens (--surface --text --text-2 --text-3 --accent --accent-soft --ok --caution
+   --danger --sys --edge --shadow-rgb --sa, as in docs/mocks/slice-mocks.html); font families from --ui and --display. Every type size is a custom property
+   that DeckUi sets from src/ui/layout/device.ts, so this file holds no font size: text never shrinks to fit, and a test keeps it that way.
+   Moves are transform and opacity only. */
+
+.deck-ui {
+  position: absolute; inset: 0; z-index: 3; overflow: hidden; pointer-events: none;
+  font-family: var(--ui, "Inter", system-ui, -apple-system, "Segoe UI", sans-serif);
+  color: var(--text); font-variant-numeric: tabular-nums lining-nums; -webkit-font-smoothing: antialiased;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --move: 280ms;
+  --pad-x: 26px; --pad-y: 24px; --r: 16px;
+  --rise: 20px; --drop: 28px;
+  -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+}
+.deck-ui[data-device="phone-portrait"], .deck-ui[data-device="phone-landscape"] { --rise: 16px; }
+/* a stacked screen's data card: the 2D app's 10 px by 12 px */
+.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-card[data-card="ladder"] .dk-in { padding: 10px 12px; }
+/* a stacked words card keeps its foot clear for the pill that stands in it */
+.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-card:not([data-card="ladder"]) .dk-in { padding-bottom: calc(var(--pad-y) + 50px); }
+.deck-ui [hidden] { display: none !important; }
+
+/* ── a card's place (transform only) and its surface ── */
+.dk-pos { position: absolute; left: 0; top: 0; will-change: transform; }
+.dk-pos[data-live="true"] { transition: transform var(--move) var(--ease); }
+
+/* "Soft lift" (19 Nov pick): surface, 1 px hairline, two-layer shadow in the look's shadow colour. The glass (frosted blur) is the block at the end of this file. */
+.dk-card {
+  position: relative; box-sizing: border-box; overflow: hidden; pointer-events: auto;
+  background: var(--surface); border: 1px solid var(--edge); border-radius: var(--r);
+  touch-action: pan-x pan-y;
+}
+/* the shadow lives on a plate behind the card so a height glide can scale it (clip-path would cut a shadow off) */
+.dk-plate { position: absolute; left: 0; top: 0; width: 100%; border-radius: var(--r); transform-origin: 50% 0; pointer-events: none;
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 12px 32px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6)); }
+.dk-plate[data-phase="wait"] { opacity: 0; visibility: hidden; }
+.dk-plate[data-phase="in"] { animation: dk-in var(--move) var(--ease) both; }
+.dk-plate[data-phase="out"] { animation: dk-out 220ms cubic-bezier(0.4, 0, 1, 1) both; }
+/* a card is invisible until its words are laid out and its fonts are in (nothing shows before it is whole), then it rises in */
+.dk-card[data-phase="wait"] { opacity: 0; visibility: hidden; }
+.dk-card[data-phase="in"] { animation: dk-in var(--move) var(--ease) both; }
+.dk-card[data-phase="out"] { animation: dk-out 220ms cubic-bezier(0.4, 0, 1, 1) both; pointer-events: none; }
+@keyframes dk-in { from { opacity: 0; transform: translateY(var(--rise)); } to { opacity: 1; transform: none; } }
+@keyframes dk-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(var(--drop)); } }
+.dk-in { padding: var(--pad-y) var(--pad-x); }
+
+/* ── type ── */
+.dk-kicker { font: 600 var(--fs-kicker) / 1 var(--ui, system-ui); letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-3); margin: 0; }
+.dk-title { font-family: var(--display, "Source Serif 4", Georgia, serif); font-weight: 600; letter-spacing: -0.005em; text-wrap: balance; margin: 0; color: var(--text);
+  font-size: var(--fs-title); line-height: var(--lh-title); }
+.dk-title--trim { font-size: var(--fs-title-trim); }
+.dk-title--deck { font-size: var(--fs-deck); line-height: var(--lh-deck); }
+.dk-body { margin: 0; color: var(--text); text-wrap: pretty; font-size: var(--fs-body); line-height: var(--lh-body); }
+.dk-body--muted { color: var(--text-2); }
+.dk-body + .dk-body { margin-top: 10px; }
+.dk-num { font-variant-numeric: tabular-nums lining-nums; font-weight: 600; white-space: nowrap; }
+.dk-term { font-weight: 600; }
+.dk-data { font-size: var(--fs-data); line-height: 1.3; }
+.dk-gap-after { margin-top: 12px; }
+
+.dk-eq { display: flex; flex-wrap: wrap; gap: 0 8px; align-items: baseline; margin: 10px 0 12px;
+  font-family: var(--display, "Source Serif 4", Georgia, serif); font-weight: 500; font-size: var(--fs-body); line-height: 1.2; }
+.dk-eq .dk-eq-wedge { color: color-mix(in srgb, var(--caution) 80%, var(--text)); font-weight: 600; font-style: normal; }
+.dk-eq .dk-eq-free { color: color-mix(in srgb, var(--sys) 80%, var(--text)); font-weight: 600; font-style: normal; }
+.dk-eq .dk-eq-mi { font-style: normal; }
+
+/* ── title card ── */
+.dk-obj { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text); }
+.dk-obj li { position: relative; padding-left: 20px; text-wrap: pretty; }
+.dk-obj li::before { content: ""; position: absolute; left: 4px; top: 0.62em; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.dk-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.dk-btn { font: 600 14px / 1 var(--ui, system-ui); min-height: 44px; border-radius: 999px; padding: 0 20px; border: 1px solid var(--edge); background: transparent; color: var(--text); cursor: pointer;
+  -webkit-tap-highlight-color: transparent; }
+.dk-btn--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.dk-btn:focus-visible, .dk-strip:focus-visible, .dk-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dk-btn[disabled] { opacity: 0.45; cursor: default; }
+
+/* ── pills ── */
+.dk-pill { display: inline-flex; align-items: center; gap: 6px; font: 600 var(--fs-data) / 1 var(--ui, system-ui); padding: 5px 9px; border-radius: 999px; white-space: nowrap; }
+.dk-pill i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; }
+.dk-pill[data-sev="danger"] { background: color-mix(in srgb, var(--danger) 14%, transparent); color: color-mix(in srgb, var(--danger) 85%, var(--text)); }
+.dk-pill[data-sev="caution"] { background: color-mix(in srgb, var(--caution) 16%, transparent); color: color-mix(in srgb, var(--caution) 75%, var(--text)); }
+.dk-pill[data-sev="ok"] { background: color-mix(in srgb, var(--ok) 14%, transparent); color: color-mix(in srgb, var(--ok) 80%, var(--text)); }
+
+/* ── the pressure ladder ── */
+.dk-ladder-head { display: flex; justify-content: space-between; align-items: baseline; }
+.dk-ladder-head span { color: var(--text-2); font-size: var(--fs-data); }
+.dk-ladder { display: grid; gap: 7px; margin-top: 10px; }
+.dk-row { display: grid; grid-template-columns: 7em 1fr 3.8em; align-items: center; gap: 10px; font-size: var(--fs-data); animation: dk-fade var(--move) var(--ease) both; }
+.dk-row .dk-bar { height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--text) 9%, transparent); position: relative; overflow: hidden; }
+.dk-row .dk-bar i { position: absolute; inset: 0; border-radius: 4px; background: var(--c, var(--text-3)); transform-origin: 0 50%; transform: scaleX(var(--w, 0)); transition: transform 400ms var(--ease); }
+.dk-row b { text-align: right; font-weight: 600; }
+.dk-row[data-tone="wedge"] { --c: var(--caution); }
+.dk-row[data-tone="free"] { --c: var(--sys); }
+.dk-row[data-tone="portal"] { --c: color-mix(in srgb, var(--danger) 70%, var(--text-3)); }
+@keyframes dk-fade { from { opacity: 0; } to { opacity: 1; } }
+.dk-gap { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--edge); font-size: var(--fs-data); }
+
+/* ── quick check ── */
+.dk-q { margin-top: 12px; }
+.dk-q-count { margin: 0 0 6px; }
+.dk-q-text { font-weight: 600; }
+.dk-a { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--edge); animation: dk-fade var(--move) var(--ease) both; }
+.dk-q-nav { display: flex; gap: 10px; margin-top: 14px; }
+
+/* ── the wallet's strip (iPhone) ── */
+.dk-strip {
+  position: relative; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; height: 48px; padding: 0 16px;
+  border-radius: 14px; background: var(--surface); border: 1px solid var(--edge); color: var(--text); font: 500 var(--fs-data) / 1 var(--ui, system-ui); text-align: left; cursor: pointer; pointer-events: auto;
+  box-shadow: 0 8px 20px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.4)); touch-action: none; -webkit-tap-highlight-color: transparent;
+}
+.dk-strip[data-phase="wait"] { opacity: 0; visibility: hidden; }
+.dk-strip[data-phase="in"] { animation: dk-in var(--move) var(--ease) both; }
+.dk-strip[data-phase="out"] { animation: dk-out 220ms cubic-bezier(0.4, 0, 1, 1) both; pointer-events: none; }
+.dk-strip .dk-lead { font-weight: 600; margin-right: 8px; }
+.dk-strip .dk-rest { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
+.dk-strip .dk-grip { flex: none; width: 28px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 25%, transparent); }
+.dk-strip-text { display: flex; align-items: baseline; min-width: 0; flex: 1 1 auto; }
+
+/* ── the presenter bar ── */
+/* the 2D app's pill (.pz-bar.pzb-pill): 44 px tall, back, where you are, next, settings; a wide screen's lower right, a phone's inside the words card's foot */
+.dk-bar { position: absolute; display: flex; align-items: center; gap: 0; pointer-events: auto; box-sizing: border-box;
+  background: var(--surface); border: 1px solid var(--edge); border-radius: 999px; font-size: var(--fs-data); color: var(--text-2);
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 8px 20px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.2)); }
+.dk-bar-title { position: absolute; display: flex; align-items: center; justify-content: flex-end; pointer-events: none; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font: 600 var(--fs-data) / 1.2 var(--display, "Source Serif 4", Georgia, serif); color: var(--text-2); }
+.dk-pb, .dk-settings > button { width: 44px; height: 42px; flex: none; border-radius: 50%; display: grid; place-items: center; border: 0; background: transparent; color: var(--text); cursor: pointer; padding: 0; -webkit-tap-highlight-color: transparent; }
+.dk-pb--next:not([disabled]) { color: var(--accent); }
+.dk-pb[disabled] { opacity: 0.4; cursor: default; }
+.dk-pb svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.dk-pb:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.dk-count { flex: 1; min-width: 4.4em; font-weight: 600; color: var(--text-2); text-align: center; white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dk-pos[data-live="true"] { transition: none; }
+  .dk-card[data-phase="in"], .dk-card[data-phase="out"], .dk-strip[data-phase="in"], .dk-strip[data-phase="out"], .dk-row, .dk-a { animation-duration: 1ms; }
+  .dk-row .dk-bar i, .dk-dots button i, .dk-dots button u { transition: none; }
+}
+
+/* ── a number rolling (400 ms, transform and opacity) ── */
+.dk-roll { position: relative; display: inline-block; overflow: hidden; vertical-align: bottom; line-height: inherit; }
+.dk-roll-sizer { visibility: hidden; display: block; height: 0; overflow: hidden; }
+.dk-roll-in, .dk-roll-now { display: inline-block; }
+.dk-roll-out { position: absolute; left: 0; right: 0; top: 0; text-align: inherit; }
+.dk-roll-in { animation: dk-roll-in 400ms var(--ease) both; }
+.dk-roll-out { animation: dk-roll-out 400ms var(--ease) both; }
+@keyframes dk-roll-in { from { opacity: 0; transform: translateY(70%); } to { opacity: 1; transform: none; } }
+@keyframes dk-roll-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-70%); } }
+@media (prefers-reduced-motion: reduce) { .dk-roll-in, .dk-roll-out { animation-duration: 1ms; } }
+
+/* ── settings ── */
+.dk-settings { position: relative; }
+.dk-settings svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.dk-settings > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dk-panel { position: absolute; right: 0; top: 52px; width: 300px; max-width: calc(100vw - 24px); box-sizing: border-box; padding: 18px 18px 16px; background: var(--surface); border: 1px solid var(--edge); border-radius: 16px;
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 12px 32px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6));
+  opacity: 0; visibility: hidden; transform: translateY(-8px); transition: opacity 180ms linear, transform 280ms var(--ease), visibility 0s linear 280ms; }
+.dk-panel[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+/* the pill is at the foot: its settings open upward */
+.dk-bar .dk-panel { top: auto; bottom: 52px; transform: translateY(8px); }
+.dk-bar .dk-panel[data-open="true"] { transform: none; }
+.dk-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.dk-chip { font: 600 13px / 1 var(--ui, system-ui); min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--edge); background: transparent; color: var(--text); cursor: pointer; }
+.dk-chip[aria-pressed="true"] { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
+.dk-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.dk-pageno { letter-spacing: 0.09em; }
+.dk-page { animation: dk-fade var(--move) var(--ease) both; }
+
+/* ── the glass (owner, 19 Nov 2026: "the UI should match 2D"; Settings > Blur effect, on by default on every device) ──
+   The 2D card glass (glass-gl.js CARD): the figure behind a card blurred at 22 px with a little saturation, under the surface at 66 %. The browser does the
+   blur, on the compositor, behind each card where it stands, so the glass is always the card's own place, its glide and its entry, every frame. Off (html[data-noglass]),
+   a browser without backdrop blur, or reduced transparency: the solid surface, as before. */
+/* NOTE: never gate the glass on `@media (prefers-reduced-transparency: no-preference)` or `not (...)`: a browser that does not know the feature (Safari, on every device the
+   owner tests on) treats the whole query as false, and the glass never applies. The glass is the default; reduced transparency is the override below it. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html:not([data-noglass]) :is(.dk-card, .dk-strip, .dk-bar, .dk-panel, .sh-pill, .sh-seg, .vdock, .sh-thumb, .sh-sheet, .sh-pop, .sh-dialog) {
+    background: color-mix(in srgb, var(--surface) 66%, transparent);
+    -webkit-backdrop-filter: blur(22px) saturate(1.15); backdrop-filter: blur(22px) saturate(1.15);
+  }
+  /* the settings panel is over the cards and the pill: a touch more surface so its chips read */
+  html:not([data-noglass]) :is(.dk-panel, .sh-sheet, .sh-pop, .sh-dialog) { background: color-mix(in srgb, var(--surface) 82%, transparent); }
+  @media (prefers-reduced-transparency: reduce) {
+    html:not([data-noglass]) :is(.dk-card, .dk-strip, .dk-bar, .dk-panel, .sh-pill, .sh-seg, .vdock, .sh-thumb, .sh-sheet, .sh-pop, .sh-dialog) {
+      background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none;
+    }
+  }
+}

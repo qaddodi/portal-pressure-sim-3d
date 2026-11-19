@@ -1,0 +1,190 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { EDGES, NODES } from '../src/engine/hales/portal/topology.js';
+import { EDGE_IDS, hasVessel, indexOf } from '../src/engine/vessel-data.ts';
+import { DRAWN_EDGE_IDS, NETWORK, NETWORK_BY_ID, NEEDS_C3_IDS, collateralOpen, presenceOf, recruitFrac, radiusOf, vesselPx, widthPx } from '../src/scene/vessels/network.ts';
+import { EDGE_PATH_2D, NODE_POS_2D } from '../src/scene/vessels/paths.copied.ts';
+import { TIER_Z, UNITS_PER_SCENE, x2d, x3, y2d, y3 } from '../src/scene/frame2d.ts';
+import { pathToFileURL } from 'node:url';
+import { PresenceTracks, PRESENCE_MS } from '../src/scene/vessels/presence-track.ts';
+import { frameFor } from './b3-frames.ts';
+import { HIDDEN_EDGES } from '../src/scene/vessels/paths.copied.ts';
+
+const nodeIds = new Set((NODES as { id: string }[]).map((n) => n.id));
+const edge = new Map((EDGES as { id: string; kind: string; from: string; to: string }[]).map((e) => [e.id, e]));
+
+test('every vessel the 2D figure draws is a vessel here, named by its engine edge id', () => {
+  const have = new Set(NETWORK.map((v) => v.id));
+  for (const id of DRAWN_EDGE_IDS) assert.ok(have.has(id), `${id} is missing from the network`);
+  assert.equal(have.size, NETWORK.length, 'ids are unique');
+  for (const v of NETWORK) assert.ok(hasVessel(v.id) && EDGE_IDS[indexOf(v.id)] === v.id, `${v.id} has a texel`);
+});
+
+test('hidden edges (the wedge, the diode, the caudate, the surgical shunts) are not in the network', () => {
+  for (const id of HIDDEN_EDGES) assert.ok(!NETWORK_BY_ID.has(id), id);
+  for (const id of ['WEDGE', 'CAUD']) assert.ok(!NETWORK_BY_ID.has(id));
+});
+
+test('every vessel has geometry that starts and ends in the finite plate', () => {
+  for (const v of NETWORK) {
+    assert.ok(v.pts.length >= 2, `${v.id} has points`);
+    for (const p of v.pts) for (const c of p) assert.ok(Number.isFinite(c), `${v.id} finite`);
+    assert.ok(nodeIds.has(v.from) && nodeIds.has(v.to), `${v.id} runs between two engine nodes`);
+  }
+});
+
+test('collaterals open by growth or flow; the epigastric veins follow the paraumbilical (C3)', async () => {
+  const healthy = await frameFor('healthy');
+  const cirr = await frameFor('cirr-decomp');
+  const closed = (id: string, f: typeof healthy.frame) => presenceOf({ id, kind: 'collateral' }, f, { collaterals: false });
+  assert.equal(closed('C1a', healthy.frame), 'hidden');
+  assert.equal(presenceOf({ id: 'C1a', kind: 'collateral' }, healthy.frame, { collaterals: true }), 'ghost');
+  let opened = 0;
+  for (const v of NETWORK) if (v.kind === 'collateral' && collateralOpen(v.id, cirr.frame)) opened++;
+  assert.ok(opened > 0, 'a decompensated cirrhosis has open collaterals');
+  for (const id of NEEDS_C3_IDS) {
+    const want = recruitFrac('C3', cirr.frame) > 0.15 ? 'shown' : 'hidden';
+    assert.equal(presenceOf({ id, kind: edge.get(id)!.kind }, cirr.frame, { collaterals: false }), want, id);
+    assert.equal(presenceOf({ id, kind: edge.get(id)!.kind }, healthy.frame, { collaterals: true }), 'hidden', `${id} healthy`);
+  }
+  // an ordinary vein is always drawn
+  assert.equal(presenceOf({ id: 'PV_TRUNK', kind: 'vein' }, healthy.frame, { collaterals: false }), 'shown');
+});
+
+interface Fake { edge: { id: string }; group: { visible: boolean }; reveal: number; dotted: boolean; setReveal(a: number): void; setDotted(on: boolean): void }
+const fake = (id: string): Fake => ({ edge: { id }, group: { visible: true }, reveal: 1, dotted: false, setReveal(a) { this.reveal = a; }, setDotted(on) { this.dotted = on; } });
+
+test('a vessel that comes and goes draws on and retracts along its flow, and never pops', () => {
+  const a = fake('C1a');
+  const t = new PresenceTracks([a as never]);
+  t.set('C1a', 'hidden', true);
+  assert.equal(a.group.visible, false);
+  t.set('C1a', 'shown');
+  let last = 0, steps = 0;
+  while (t.step(16)) { assert.ok(a.reveal >= last - 1e-9, 'draws on monotonically'); assert.ok(a.reveal - last <= 16 / PRESENCE_MS + 1e-9, 'a step is small'); last = a.reveal; steps++; assert.ok(steps < 200); }
+  assert.equal(a.reveal, 1); assert.equal(a.group.visible, true);
+  t.set('C1a', 'hidden');
+  t.step(16);
+  assert.ok(a.reveal < 1 && a.reveal > 0, 'retracts, does not vanish');
+  while (t.step(16));
+  assert.equal(a.group.visible, false);
+});
+
+test('a closed collateral changing to dotted retracts the solid one first, then draws the dotted', () => {
+  const a = fake('C2');
+  const t = new PresenceTracks([a as never]);
+  t.set('C2', 'shown', true);
+  t.set('C2', 'ghost');
+  t.step(16);
+  assert.equal(a.dotted, false, 'still solid while it retracts');
+  while (t.step(16));
+  assert.equal(a.dotted, true); assert.equal(a.reveal, 1);
+});
+
+import { BufferAttribute, BufferGeometry } from 'three';
+import { withHull } from '../src/scene/vessels/vessel-object.ts';
+import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
+
+test('the hull copy is the body again, flagged, with its own indices: one geometry, one draw', () => {
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), 3));
+  g.setAttribute('normal', new BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]), 3));
+  g.setAttribute('uv', new BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 1]), 2));
+  g.setAttribute('tang', new BufferAttribute(new Float32Array(9).fill(1), 3));
+  g.setIndex([0, 1, 2]);
+  const m = withHull(g);
+  assert.equal(m.getAttribute('position').count, 6);
+  assert.deepEqual([...m.getAttribute('hull').array], [0, 0, 0, 1, 1, 1]);
+  assert.deepEqual([...m.getIndex()!.array], [0, 1, 2, 3, 4, 5]);
+  assert.deepEqual([...m.getAttribute('uv').array.slice(6)], [0, 0, 1, 0, 0, 1]);
+});
+
+const parserName = '@shaderfrog/glsl-parser';
+let parse: ((s: string) => unknown) | null = null;
+try { const mod = await import(parserName); parse = (s) => mod.parser.parse(s.replace(/^#include.*$/gm, ''), { quiet: true }); } catch { /* not installed */ }
+test('the vessel vertex shader parses, and body and ink are told apart by `hull` and the face', { skip: !parse }, () => {
+  parse!(VESSEL_VS.replace(/^\n/, ''));
+  assert.match(VESSEL_VS, /attribute float hull/);
+  assert.match(VESSEL_FS, /gl_FrontFacing \|\| hullOn < 0\.5/);
+  assert.match(VESSEL_FS, /if \(!gl_FrontFacing\) discard/);
+});
+
+
+// ---- the vessels are the 2D figure's, point for point ----
+test('every vessel is its 2D course through the one linear map: back through it, each point is the 2D point', () => {
+  for (const v of NETWORK) {
+    const c = EDGE_PATH_2D[v.id]!;
+    assert.equal(v.pts.length, c.length, v.id);
+    v.pts.forEach((p, i) => {
+      assert.ok(Math.abs(x2d(p[0]) - c[i]![0]) < 1e-6 && Math.abs(y2d(p[1]) - c[i]![1]) < 1e-6, `${v.id} point ${i}`);
+    });
+  }
+});
+
+test('the map is the artist\'s: confluence at the origin, 300 2D units to a scene unit, y up', () => {
+  assert.equal(UNITS_PER_SCENE, 300);
+  assert.equal(x3(700) + 0, 0); assert.equal(y3(556) + 0, 0);
+  assert.equal(x3(1000), 1); assert.equal(y3(256), 1);
+  const conf = NODE_POS_2D.CONF;
+  if (conf) assert.deepEqual([x3(conf[0]) + 0, y3(conf[1]) + 0], [0, 0]);
+});
+
+test('a vessel starts and ends where the 2D figure puts its end nodes (a course that runs from node to node)', () => {
+  let checked = 0;
+  for (const v of NETWORK) {
+    const a = NODE_POS_2D[v.from], b = NODE_POS_2D[v.to];
+    const p0 = v.pts[0]!, p1 = v.pts[v.pts.length - 1]!;
+    if (a && Math.hypot(x2d(p0[0]) - a[0], y2d(p0[1]) - a[1]) < 6) checked++;
+    if (b && Math.hypot(x2d(p1[0]) - b[0], y2d(p1[1]) - b[1]) < 6) checked++;
+  }
+  assert.ok(checked > NETWORK.length, `${checked} ends sit on their nodes`);
+});
+
+test('over and under follow the 2D tiers: the portal tree over the network, the network over the collaterals, arteries beside, the cava behind', () => {
+  const z = (id: string) => NETWORK_BY_ID.get(id)!.pts[0]![2];
+  assert.ok(z('PV_TRUNK') > z('RHV_IVC'), 'portal trunk over the hepatic vein');
+  assert.ok(z('RHV_IVC') > z('C1a') || z('RHV_IVC') < z('C1a'), 'distinct tiers');
+  assert.equal(z('PV_TRUNK'), TIER_Z.front);
+  assert.equal(z('A_HEP'), TIER_Z.art);
+  assert.ok(z('IVCS_RA') < 0 && z('IVCS_RA') < z('PV_TRUNK'), 'the cava runs behind the liver');
+  assert.ok(TIER_Z.back < 0 && TIER_Z.art < TIER_Z.mid && TIER_Z.mid < TIER_Z.net && TIER_Z.net < TIER_Z.front && TIER_Z.front < TIER_Z.over);
+  for (const v of NETWORK) assert.ok(v.pts.every((p) => p[2] === TIER_Z[v.tier]), `${v.id} is one plane`);
+});
+
+test('widths are the 2D figure\'s: the portal trunk, an artery at half, the liver\'s beds fixed', () => {
+  const pv = NETWORK_BY_ID.get('PV_TRUNK')!, ha = NETWORK_BY_ID.get('A_HEP')!, sin = NETWORK_BY_ID.get('SIN_RR')!;
+  const d = (id: string) => (EDGES as { id: string; d?: number; dMax?: number }[]).find((e) => e.id === id)!;
+  assert.equal(pv.radius, radiusOf(vesselPx(d('PV_TRUNK').d ?? 12)));
+  assert.ok(ha.radius < pv.radius / 2 + 1e-9);
+  assert.equal(sin.radius, radiusOf(3.6));
+  assert.equal(pv.widthKind, 0); assert.equal(ha.widthKind, 1); assert.equal(sin.widthKind, 2);
+  assert.ok(widthPx({ id: 'X', from: '', to: '', kind: 'vein' }, 12) === vesselPx(12));
+});
+
+// with the 2D checkout beside: the 2D app's own geometry code is the reference (PPS_2D_REPO=<path> npm test)
+const repo2d = process.env.PPS_2D_REPO;
+test('against the 2D app\'s own SVG courses: every sample lies on its path (within the meander\'s 4.5 units; collaterals and shunts exactly)', { skip: !repo2d }, async () => {
+  const A = await import(pathToFileURL(`${repo2d}/src/ui/anatomy.js`).href);
+  const toks = (d: string) => d.match(/[MLC]|-?\d*\.?\d+/g)!;
+  const dense = (d: string): [number, number][] => {
+    const t = toks(d), out: [number, number][] = [];
+    let i = 0, cmd = '', cx = 0, cy = 0;
+    while (i < t.length) {
+      if (/[MLC]/.test(t[i]!)) cmd = t[i++]!;
+      if (cmd === 'M' || cmd === 'L') { cx = +t[i++]!; cy = +t[i++]!; out.push([cx, cy]); }
+      else { const [x1, y1, x2, y2, x3_, y3_] = t.slice(i, i + 6).map(Number) as number[]; i += 6; for (let k = 1; k <= 100; k++) { const u = k / 100, w = 1 - u; out.push([w * w * w * cx + 3 * w * w * u * x1! + 3 * w * u * u * x2! + u * u * u * x3_!, w * w * w * cy + 3 * w * w * u * y1! + 3 * w * u * u * y2! + u * u * u * y3_!]); } cx = x3_!; cy = y3_!; }
+    }
+    return out;
+  };
+  const near = (P: [number, number][], q: readonly [number, number]) => { let b = Infinity; for (let i = 1; i < P.length; i++) { const [ax, ay] = P[i - 1]!, [bx, by] = P[i]!, dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy || 1, u = Math.min(1, Math.max(0, ((q[0] - ax) * dx + (q[1] - ay) * dy) / L)); b = Math.min(b, Math.hypot(ax + dx * u - q[0], ay + dy * u - q[1])); } return b; };
+  for (const v of NETWORK) {
+    const P = dense(A.EDGE_PATH[v.id]);
+    const exact = v.kind === 'shunt' || (v.kind === 'collateral' && !(EDGES as { id: string; spontaneous?: boolean }[]).find((e) => e.id === v.id)!.spontaneous);
+    const tol = exact ? 0.6 : 4.6;
+    for (const p of v.pts) assert.ok(near(P, [x2d(p[0]), y2d(p[1])]) < tol, `${v.id}`);
+    // the ends are the path's own ends
+    assert.ok(Math.hypot(x2d(v.pts[0]![0]) - P[0]![0], y2d(v.pts[0]![1]) - P[0]![1]) < 0.6, `${v.id} start`);
+    const last = P[P.length - 1]!, e = v.pts[v.pts.length - 1]!;
+    assert.ok(Math.hypot(x2d(e[0]) - last[0], y2d(e[1]) - last[1]) < 0.6, `${v.id} end`);
+  }
+});
