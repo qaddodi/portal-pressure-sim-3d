@@ -94,6 +94,8 @@ export class CameraRig {
   /** The plate the hand may pan the figure within (the body's plate, or the Circuit's map), as a rectangle in the plane at depth z. */
   private bounds: { x0: number; x1: number; y0: number; y1: number; z: number } = { ...PLATE_BOUNDS, z: FIGURE_Z };
   readonly reduceMotion: boolean;
+  /** The hand's zoom over the shot's own framing (1 as framed). */
+  get handZoom(): number { return this.hand.k; }
 
   constructor(shot: ShotName | Shot = 'title', room?: Room, reduceMotion = false) {
     const s = typeof shot === 'string' ? SHOTS[shot] : shot;

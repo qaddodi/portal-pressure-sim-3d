@@ -8,6 +8,7 @@ export async function mountDebug(): Promise<void> {
   if (flagOn('watch') || debugPage()) (await import('./watch/mount.ts')).mountWatch();
   const page = debugPage();
   if (page) (await import('./page/page.ts')).mountPage(page);
+  (await import('./kill/mount.ts')).mountKillLedger();   // what the page held when a tab was ended (the Phone and Full checks print it)
   // the bug packet (chord, long press on the PREVIEW pill, pps.packet) is on every preview page, as in the 2D app
   (await import('./packet/trigger.ts')).installPacketTrigger();
 }

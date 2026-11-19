@@ -14,6 +14,7 @@ import type { LensId } from './lenses/model.ts';
 import type { FigureView } from './scene.ts';
 import { lobuleShot, sinusoidShot, type LobuleCam, type LobuleLayers } from './lobule/index.ts';
 import { circuitShot } from './circuit/shots.ts';
+import type { ResKey } from './circuit/res-model.ts';
 import { TURN_MS } from './circuit/data.copied.ts';
 import { useCircuitTurn } from './circuit/pref.ts';
 import { useLens } from './lenses/store.ts';
@@ -41,6 +42,14 @@ export const sceneApi = {
     cel.goTo(shot, room, performance.now(), ms);
     clock.invalidate('shot');
   },
+  /** Put the hand's view back (a state link: the figure turned `orbit` radians, zoom `k`, panned `x` `y` px): what a person's fingers left, set at once, held until the next shot. */
+  setCameraView(v: { orbit?: number; k?: number; x?: number; y?: number }): void {
+    const h = cel.rig.handView;
+    cel.rig.holdHand();
+    cel.rig.setHand({ k: v.k ?? h.k, x: v.x ?? h.x, y: v.y ?? h.y });
+    if (v.orbit != null) cel.rig.setOrbit(v.orbit);
+    clock.invalidate('hand');
+  },
   /** Show the body, the lobule or the sinusoid and fly to it, straight from wherever the camera is (the view left behind stays up until the camera lands). `cam` is a lobule camera ('lobule', 'lobule:triad'…). */
   showView(v: FigureView, room: Room, cam: LobuleCam = 'lobule'): void {
     const from = cel.view;
@@ -65,6 +74,10 @@ export const sceneApi = {
   },
   /** Where a station stands in the Circuit now (scene point, turned with the map), for labels; null off the map. */
   circuitStation: (id: string, out?: Vector3): Vector3 | null => cel.circuitStation(id, out),
+  /** The resistors a slide asks for ('rLiver', 'rColl', 'rGut'): zigzags and "R liver x2.3" readings on the Circuit's map. An empty list clears them. */
+  setResistors(keys: readonly ResKey[]): void { cel.setResistors(keys); clock.invalidate('resistors'); },
+  /** A slide is about the caudate lobe: the Circuit draws the caudate's own lane. */
+  setCaudatePin(on: boolean): void { cel.setCaudatePin(on); clock.invalidate('caudate'); },
   /** The lobule's Layers menu (the 2D app starts with lymph on). */
   setLobuleLayers(l: Partial<LobuleLayers>): void { cel.setLobuleLayers(l); clock.invalidate('lobule-layers'); },
   /** The cards changed room (a card opened, the phone turned): move the room alone. */
@@ -98,6 +111,8 @@ export const sceneApi = {
   },
   /** Edge IDs the slide talks about; in flow-mark option A these (and the picked vessel) carry chevrons. */
   setNamedVessels(ids: readonly string[]): void { cel.setNamedVessels(ids); clock.invalidate('named-vessels'); },
+  /** Light exactly these vessels (edge IDs), as the shunt's valid targets glow; [] puts them out. Replaces the pick. */
+  markVessels(ids: readonly string[]): void { cel.markVessels(ids); clock.invalidate('mark'); },
   /** Pick a vessel by edge ID, or clear with null. */
   pick(id: string | null): void { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },
   /** Option D: marks run for a few seconds after a change (a preset, a slider, a treatment). */
@@ -124,4 +139,6 @@ export const sceneApi = {
   project: (p: Vector3, out?: { x: number; y: number }): { x: number; y: number } => cel.rig.project(p, out),
   /** True while the camera is in flight; tags fade out meanwhile and back in 180 ms after it lands. */
   get cameraMoving(): boolean { return cel.rig.isMoving; },
+  /** True once the camera has its first real shot (nothing is drawn before). */
+  get placed(): boolean { return cel.rig.placed; },
 };

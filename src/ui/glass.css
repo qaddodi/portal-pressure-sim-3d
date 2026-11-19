@@ -15,8 +15,8 @@
     .topbar .tb-face:not([data-ghost]), .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg, .zoom-pill, .vdock > .vd-face, .nb-views > .vp-face, .sv-legend,
     /* menus, sheets, dialogs and popovers (the shell's, and 2D's own names for the same) */
     .sh-sheet, .sh-pop, .sh-dialog, .dk-jump, .menu, .umenu, .why-pop, .um-pv.on, .modal, .pal, .tooltip, .toast,
-    /* cards: Treat, the action cards, the Tests card, the Compare banner, the callouts, the teaching, data, case and check cards, the figure key */
-    .tr-card, .ac-card, .t-card, .cmp-banner, .lb-call, .dk-card, .dk-strip, .pz-shade, .pz-data:not(.pz-sheet), .pz-case, .pz-scales, .pz-fk, .cl-glass
+    /* cards: Treat, the action cards, the Tests card, the Compare banner, the teaching, data, case and check cards, the figure key, the catheter's reading cards (.cl-glass: one shape, the card and its pointer, clipped from one path) */
+    .tr-card, .ac-card, .t-card, .cmp-banner, .dk-card, .dk-strip, .pz-shade, .pz-data:not(.pz-sheet), .pz-case, .pz-scales, .pz-fk, .cl-glass
   ) {
     background: var(--glass-tint) !important;
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) !important;
@@ -38,13 +38,11 @@
   /* the dock holds the view pill, which stands above it: its frost is the .vd-face child, and the dock's own fill goes */
   html:not([data-noglass]) .vdock { isolation: isolate; background: transparent !important; }
   .vdock > .vd-face { position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; }
-  /* a callout's pointer is the card's own fill, so the two read as one shape (its frost is the card's; the pointer is a leaf with none) */
-  html:not([data-noglass]) .lb-call .lb-tail { background: var(--glass-tint); }
   @media (prefers-reduced-transparency: reduce) {
     html:not([data-noglass]) :is(
       .topbar .tb-face:not([data-ghost]), .topbar .float-pill:not(.has-face):not(.tb-id), .topbar #viewSeg, .zoom-pill, .vdock > .vd-face, .nb-views > .vp-face, .sv-legend,
       .sh-sheet, .sh-pop, .sh-dialog, .dk-jump, .menu, .umenu, .why-pop, .um-pv.on, .modal, .pal, .tooltip, .toast,
-      .tr-card, .ac-card, .t-card, .cmp-banner, .lb-call, .dk-card, .dk-strip, .pz-shade, .pz-data:not(.pz-sheet), .pz-case, .pz-scales, .pz-fk, .cl-glass
+      .tr-card, .ac-card, .t-card, .cmp-banner, .dk-card, .dk-strip, .pz-shade, .pz-data:not(.pz-sheet), .pz-case, .pz-scales, .pz-fk, .cl-glass
     ), html:not([data-noglass]) .dk-bar::before {
       background: var(--surface) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
     }

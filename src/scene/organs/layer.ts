@@ -9,15 +9,18 @@ import { type Palette, type ToneKey } from '../palette.ts';
 import { LIVER_PIVOT, SPLEEN_CENTER, LENS_GREY } from '../disease/copied/anatomy-b4.ts';
 import { liverShrink, liverSurface } from '../disease/copied/liver-morph.js';
 import { Eased, LiverFollow } from '../disease/follow.ts';
-import { type BodyTargets, SPLENIC_GHOST } from '../disease/targets.ts';
-import { PLAIN, type OrganState, organColour, organInk, rgbOf, type RGB } from './organ-look.ts';
+import { type BodyTargets, SPLENIC_GHOST, poolFill } from '../disease/targets.ts';
+import { PLAIN, type OrganState, organColour, organInk, mix, rgbOf, type RGB } from './organ-look.ts';
+import { PAINTED, VertexPaint } from './vertex-paint.ts';
+import { lumenSurface } from '../disease/copied/stomach-lumen.js';
+import { POOL_SHARE } from '../disease/copied/bleed-shapes.js';
 import { LiverShape } from './liver-shape.ts';
 import { x3, y3 } from '../frame2d.ts';
 
-/** The tone each 2D organ takes (looks.ts has a token for the five; the kidney and the atrium take the spleen's and the heart's) and the ink's width on a Mac or iPad. */
+/** The tone each 2D organ takes (looks.ts has a token for each; the atrium takes the heart's) and the ink's width on a Mac or iPad. */
 export const ORGAN_STYLE: Record<string, { tone: ToneKey; px: number }> = {
   heart: { tone: 'heart', px: 1.5 }, 'heart-ra': { tone: 'heart', px: 1.5 }, liver: { tone: 'liver', px: 1.8 }, spleen: { tone: 'spleen', px: 1.8 },
-  stomach: { tone: 'stomach', px: 1.5 }, duodenum: { tone: 'stomach', px: 1.4 }, 'kidney-l': { tone: 'spleen', px: 1.5 }, bowel: { tone: 'gut', px: 1.4 }, colon: { tone: 'gut', px: 1.5 },
+  stomach: { tone: 'stomach', px: 1.5 }, duodenum: { tone: 'stomach', px: 1.4 }, 'kidney-l': { tone: 'kidney', px: 1.5 }, bowel: { tone: 'gut', px: 1.4 }, colon: { tone: 'gut', px: 1.5 },
 };
 
 const pivot = (c: readonly [number, number]) => new Vector3(x3(c[0]), y3(c[1]), 0);
@@ -36,6 +39,11 @@ export class OrganLayer {
   private readonly dimmed = new Eased(1, 0.42);
   private readonly sat = new Eased(1, 0.42);
   private readonly blood = new Eased(0, 0.6);
+  /** how full the pool of blood stands in the stomach (poolFill of the blood lost; it keeps its level while it fades) */
+  private readonly pool = new Eased(0.12, 0.6);
+  /** how far the embolized spleen's dead lower part has come in */
+  private readonly infarct = new Eased(0, 0.24);
+  private readonly paints = new Map<string, VertexPaint>();
   private liverShape: LiverShape | null = null;
   private liverGeometry: BufferGeometry | null = null;
   private lastClock = -1;
@@ -58,6 +66,7 @@ export class OrganLayer {
       const st = ORGAN_STYLE[id];
       if (!st) continue;
       const g = make();
+      if (PAINTED.has(id)) { if (!g.getAttribute('normal')) g.computeVertexNormals(); this.paints.set(id, new VertexPaint(g, id as 'liver' | 'spleen' | 'stomach')); }
       const o = new CelObject(g, { tone: st.tone, bands: 3, spec: 0, px: st.px }, this.shared);
       if (this.phone) o.setPhone(true);
       this.objects.push(o); this.byId.set(id, o); this.group.add(o.group);
@@ -101,10 +110,12 @@ export class OrganLayer {
       const s = this.spleenScale.value, pv = pivot(SPLEEN_CENTER);
       sp.group.scale.setScalar(s); sp.group.position.set(pv.x * (1 - s), pv.y * (1 - s), 0);
       moving = this.ghost.to(t.splenicRx === 2 ? SPLENIC_GHOST : 1, dt, inst) || moving;
+      moving = this.infarct.to(t.splenicRx === 1 ? 1 : 0, dt, inst) || moving;
     }
     moving = this.dimmed.to(this.grey ? LENS_GREY.dim : 1, dt, inst) || moving;
     moving = this.sat.to(this.grey ? LENS_GREY.sat : 1, dt, inst) || moving;
-    moving = this.blood.to(t.bleed.active ? Math.min(1, Math.max(0.12, Math.sqrt(t.bleed.total / 1500))) : 0, dt, inst) || moving;
+    moving = this.blood.to(t.bleed.active ? 1 : 0, dt, inst) || moving;
+    if (t.bleed.active) moving = this.pool.to(poolFill(t.bleed.total), dt, inst) || moving;
     if (moving || this.dirtyColours) { this.paint(); this.dirtyColours = false; }
     return moving;
   }
@@ -113,15 +124,26 @@ export class OrganLayer {
     const p = this.palette;
     if (!p) return false;
     const plate = rgbOf(p.body), ink = rgbOf(p.ink), dark = p.highlight === 'white';
-    const k = { plate, dark, bleed: rgbOf(dark ? '#8E1A20' : '#8E1A20') };
+    const k = { plate, dark, bleed: rgbOf('#8E1A20'), bg: rgbOf(p.bg) };
     for (const [id, o] of this.byId) {
       const s: OrganState = { ...PLAIN, sat: this.sat.value, dim: this.dimmed.value };
       if (id === 'liver') { const ls = this.liverFollow.shown; s.congestion = ls.congestion; s.tint = ls.tint; s.cirrhosisNod = liverSurface(ls.cirrhosis).nod; }
       if (id === 'spleen') s.ghost = this.ghost.value;
-      if (id === 'stomach') s.blood = this.blood.value;
       const base = rgbOf(p.tones[o.tone]);
       const c = organColour(base, s, k), ik = organInk(ink, s, k);
       this.setColours(o, c, ik, p.shade);
+      const vp = this.paints.get(id);
+      if (!vp) continue;
+      // what varies over the surface: the vertices carry it (an organ that has none of it shows its one colour)
+      let on = false;
+      if (id === 'liver' && s.cirrhosisNod > 0.004) { vp.fillLiver(c, organColour(base, { ...s, septum: 1 }, k)); on = true; }
+      else if (id === 'spleen' && this.infarct.value > 0.004) {
+        const dead = organColour(base, { ...s, dead: 1 }, k);
+        vp.fillSpleen(c, dead, mix(ik, c, 0.1), this.infarct.value); on = true;
+      } else if (id === 'stomach' && this.blood.value > 0.004) {
+        vp.fillStomach(c, organColour(base, { ...s, blood: this.blood.value }, k), lumenSurface(POOL_SHARE * this.pool.value)); on = true;
+      }
+      o.setInkAmount(on ? 1 : 0);
     }
     return false;
   }
