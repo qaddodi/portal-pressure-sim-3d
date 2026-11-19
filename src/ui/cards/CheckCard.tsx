@@ -4,10 +4,11 @@ import { CHECK_HINT, CHECK_LINE, CHECK_TITLE } from '../../decks/check.ts';
 import { useUi } from '../ui-store.ts';
 import { NameTab } from './NameTab.tsx';
 import { Line } from './Line.tsx';
+import { pageOf } from './pages.ts';
 
 /** The closing quick check, as the 2D app's: numbered questions; a tap opens the answer under its question (the rows below ease down by transform, the answer fades in),
  *  a second tap shuts it. On a phone on its side one answer is open at a time, so the card never outgrows its short screen. */
-export function CheckCard({ deck }: { deck: Deck }) {
+export function CheckCard({ deck, page = 0, pages = 1 }: { deck: Deck; page?: number; pages?: number }) {
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
   const list = useRef<HTMLOListElement>(null);
   const tops = useRef<number[] | null>(null);
@@ -15,6 +16,10 @@ export function CheckCard({ deck }: { deck: Deck }) {
   const read = (k: string, at?: string) => readings[at ? `${k}@${at}` : k];
   const one = useUi((s) => s.vp.h <= 500 && s.vp.w > s.vp.h);
 
+  // the questions of the page on show (whole questions, shared out evenly; one page when the card fits)
+  const idx = deck.checks.map((_, i) => i);
+  const shownIdx = pageOf(idx.map(String), pages, page).map(Number);
+  const first = shownIdx[0] ?? 0, shown = shownIdx.map((i) => deck.checks[i]!);
   const toggle = (k: number) => {
     const li = list.current?.children;
     tops.current = li ? Array.from(li, (e) => e.getBoundingClientRect().top) : null;
@@ -35,16 +40,16 @@ export function CheckCard({ deck }: { deck: Deck }) {
     <>
       <NameTab deck={deck} />
       <h2 className="pz-h">{CHECK_TITLE}</h2>
-      <p className="pz-line">{CHECK_LINE}</p>
-      <ol className="pz-check" ref={list}>
-        {deck.checks.map(([q, a], k) => (
+      <p className="pz-line">{CHECK_LINE}{pages > 1 ? <span className="dk-pageno"> · {page + 1} of {pages}</span> : null}</p>
+      <ol className="pz-check" ref={list} start={first + 1}>
+        {shown.map(([q, a], j) => { const k = first + j; return (
           <li key={k} className={open.has(k) ? 'open' : undefined}>
             <button type="button" className="pzc-q" aria-expanded={open.has(k)} aria-controls={`pzc-a${k}`} onClick={() => toggle(k)}>
               <span><Line text={q} read={read} /></span><span className="pzc-hint" aria-hidden="true">{CHECK_HINT}</span>
             </button>
-            {open.has(k) && <div className="pzc-a" id={`pzc-a${k}`}><p>{a}</p></div>}
+            {open.has(k) && <div className="pzc-a" id={`pzc-a${k}`}><p><Line text={a} read={read} /></p></div>}
           </li>
-        ))}
+        ); })}
       </ol>
     </>
   );

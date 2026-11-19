@@ -87,6 +87,15 @@ export const sceneApi = {
     stop(keep = false): void { cel.procs.stop(keep); clock.invalidate('procedure'); },
     get playing(): { kind: string; t: number } | null { return cel.procs.playing; },
   },
+  /** Dye (the 2D app's injectDye): into vessel `id` (default the gut's veins, as in mesenteric portography); `hold` keeps it going until release(). */
+  dye: {
+    inject(id: string | null, o: { hold?: boolean } = {}): void {
+      const edge = id && cel.disease.dye.inject(id, 0.15, { hold: !!o.hold }) ? id : (cel.disease.dye.inject('V_INT', 0, { hold: !!o.hold }), 'V_INT');
+      void edge; clock.invalidate('dye');
+    },
+    release(): void { cel.disease.dye.release(); clock.invalidate('dye'); },
+    get active(): boolean { return cel.disease.dye.active; },
+  },
   /** Edge IDs the slide talks about; in flow-mark option A these (and the picked vessel) carry chevrons. */
   setNamedVessels(ids: readonly string[]): void { cel.setNamedVessels(ids); clock.invalidate('named-vessels'); },
   /** Pick a vessel by edge ID, or clear with null. */

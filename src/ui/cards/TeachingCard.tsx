@@ -23,7 +23,9 @@ export function TeachingCard({ slide, deck, read, page, pages, trim = false }: {
         </div>
       )}
       {eq && slide.eqLegend && <p className="dp-eqnote">{slide.eqLegend}</p>}
-      <p className="pz-line"><Line text={text} read={read} terms={slide.terms} /></p>
+      {text ? <p className="pz-line"><Line text={text} read={read} terms={slide.terms} /></p> : null}
+      {slide.caveat && page >= pages - 1 ? <p className="pz-caveat">{slide.caveat}</p> : null}
+      {slide.cite && page >= pages - 1 ? <p className="pz-cite">{slide.cite}</p> : null}
     </>
   );
 }
