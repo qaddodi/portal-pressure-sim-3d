@@ -12,6 +12,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { resolve, dirname } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -74,10 +75,14 @@ async function main() {
   if (at < 0 || !args[at + 1]) { console.error('usage: node scripts/copy-decks.mjs --from <2D checkout> [--check]'); process.exit(2); }
   const file = resolve(args[at + 1], 'src/ui/decks/hvpg.js');
   const { HVPG } = await import(pathToFileURL(file).href);
-  const text = render(extract(HVPG), 'src/ui/decks/hvpg.js of qaddodi/portal-pressure-simulator');
+  let commit = 'unknown';
+  try { commit = execFileSync('git', ['-C', resolve(args[at + 1]), 'rev-parse', '--short=10', 'HEAD'], { encoding: 'utf8' }).trim(); } catch { /* not a git checkout */ }
+  const text = render(extract(HVPG), `src/ui/decks/hvpg.js of qaddodi/portal-pressure-simulator at ${commit}`);
   if (args.includes('--check')) {
+    // compare the words, not the commit line (a 2D checkout on another commit with the same words is fine)
+    const body = (t) => t.split('\n').filter((l) => !l.startsWith('// @generated')).join('\n');
     const now = readFileSync(OUT, 'utf8');
-    if (now !== text) { console.error('src/decks/hvpg.copied.ts differs from the 2D deck: run scripts/copy-decks.mjs again'); process.exit(1); }
+    if (body(now) !== body(text)) { console.error('src/decks/hvpg.copied.ts differs from the 2D deck: run scripts/copy-decks.mjs again'); process.exit(1); }
     console.log('hvpg.copied.ts matches the 2D deck');
     return;
   }

@@ -18,13 +18,15 @@ test('the deck is valid and every field the cards need is there', () => {
   assert.equal(HVPG_DECK.slides.length, 4);
 });
 
-test('the deck words are the 2D deck\'s, character for character (re-copy with scripts/copy-decks.mjs)', async () => {
+test('the deck words are the 2D deck\'s, character for character (set PPS_2D_REPO to a 2D checkout to compare; the copy names the commit it came from)', async () => {
   const two = process.env.PPS_2D_REPO;
-  const find = two && existsSync(join(two, 'src/ui/decks/hvpg.js')) ? two : existsSync('/workspace/portal-pressure-simulator/src/ui/decks/hvpg.js') ? '/workspace/portal-pressure-simulator' : null;
-  if (!find) return;   // no 2D checkout at hand: the generated file stands on its own
+  const header = readFileSync('src/decks/hvpg.copied.ts', 'utf8').split('\n')[0];
+  assert.match(header, / at [0-9a-f]{10}\./, 'the generated file names the 2D commit it was copied at');
+  if (!two || !existsSync(join(two, 'src/ui/decks/hvpg.js'))) return;   // deterministic: compared only when asked
   const { extract, render } = await import('../scripts/copy-decks.mjs');
-  const { HVPG } = await import(join(find, 'src/ui/decks/hvpg.js'));
-  assert.equal(readFileSync('src/decks/hvpg.copied.ts', 'utf8'), render(extract(HVPG), 'src/ui/decks/hvpg.js of qaddodi/portal-pressure-simulator'));
+  const { HVPG } = await import(join(two, 'src/ui/decks/hvpg.js'));
+  const body = (t: string) => t.split('\n').filter((l) => !l.startsWith('// @generated')).join('\n');
+  assert.equal(body(readFileSync('src/decks/hvpg.copied.ts', 'utf8')), body(render(extract(HVPG), 'x')));
 });
 
 test('clinical wording: Baveno VIII only, never VII; cut-offs as the engine states them', () => {
