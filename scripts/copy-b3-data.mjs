@@ -243,6 +243,13 @@ export const TIP_CONNECT_2D: Record<string, readonly string[]> = ${JSON.stringif
 export const FADE_DOWN_Y_2D: Record<string, readonly [number, number]> = ${JSON.stringify(new Function(`return ${fadeDown[1]}`)())};
 `);
 
+// ---------- the cavernoma's channels (cavernoma-strand.js, with CAV_CHANNELS and CAV_GROW of anatomy.js) ----------
+const cavSrc = read('src/ui/cavernoma-strand.js')
+  .replace("import { smooth01 } from './num.js';", "const smooth01 = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));   // (num.js)")
+  .replace("import { CAV_GROW } from './anatomy.js';", `const CAV_GROW = ${A.CAV_GROW};   // (anatomy.js)\n/** The channels besides the main one, in the frame of the clotted trunk (anatomy.js CAV_CHANNELS). */\nexport const CAV_CHANNELS = ${JSON.stringify(A.CAV_CHANNELS)};`);
+if (cavSrc.includes("from './")) throw new Error('cavernoma-strand.js has an import the copy does not carry');
+put('src/scene/vessels/cavernoma.copied.js', `${HEAD('cavernoma-strand.js, anatomy.js CAV_CHANNELS and CAV_GROW')}${cavSrc}`);
+
 // ---------- fork-joins.js (which ends run on into each other at a node, and the flare and the side-end narrowing of a vein drawn onto another) ----------
 put('src/scene/vessels/fork-joins.copied.js', `${HEAD('fork-joins.js')}${read('src/ui/fork-joins.js')}`);
 

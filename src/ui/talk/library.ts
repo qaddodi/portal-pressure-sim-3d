@@ -68,6 +68,8 @@ const here = () => `${location.origin}${location.pathname}`;
 export const scriptLink = (s: Script): string => `${here()}#script=${enc(s)}`;
 export const deckLink = (id: string): string => `${here()}?script=${id}`;
 export const shareScript = (s: Script): void => copy(scriptLink(s), W.linkCopiedScript);
+export const viewLink = (patient: string): string => `${here()}?preset=${patient}`;
+export const shareView = (patient: string): void => copy(viewLink(patient), W.linkCopiedView);
 export const shareDeck = (id: string): void => copy(deckLink(id), W.linkCopiedDeck);
 
 /** A script (title, steps) as JSON is kept as it is; anything else must be a deck. */

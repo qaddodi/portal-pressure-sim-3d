@@ -56,3 +56,24 @@ test('the side words: idle says the 2D line; a finished measurement prints the t
   const done = sideOf({ ph: 'result', t: T.end, started: true, blocked: false, blockedNow: false, v, hasFrame: true });
   assert.ok(done.texts.hvpg.includes('12'), done.texts.hvpg);
 });
+
+// The monitor's WHVP−FHVP callout, 2D's result bar: an arrowed bar from the FHVP line to the WHVP line, with the "HVPG x.x" pill on it, tinted by the band.
+test('the trace\'s subtraction: the bar grows from the FHVP line to the WHVP line at T.result, the HVPG pill follows, tinted by the band, the two readings dropped as dots', () => {
+  const play = (v: { fhvp: number; whvp: number; hvpg: number }, to: number) => {
+    const key = {}; let f = monitorFrame(key, HVPG_SCRIPT, { ph: 'run', t: T.free, v, running: true, wave: newWave(), probing: false }, 460, 240, 'x');
+    for (let t = T.free; t <= to; t += 50) f = monitorFrame(key, HVPG_SCRIPT, { ph: 'run', t, v, running: true, wave: newWave(), probing: false }, 460, 240, 'x');
+    return f;
+  };
+  const bar = (f: { shapes: readonly { k: string }[] }) => f.shapes.filter((s) => s.k === 'rect' && Math.abs((s as unknown as { w: number }).w - 1.6) < 1e-6) as unknown as { x: number; y: number; h: number; fill: number[] }[];
+  const before = play(V, T.result - 450);
+  assert.equal(bar(before).length, 0, 'no bar before it is due');
+  assert.ok(!words(before).includes('HVPG 14.4'));
+  const after = play(V, T.sum + 1200), b = bar(after);
+  assert.equal(b.length, 1, 'one bar');
+  assert.ok(b[0].h > 20, `the bar spans the two levels (${b[0].h}px)`);
+  assert.ok(words(after).includes('HVPG 14.4'), 'the pill reads the gradient');
+  assert.ok(after.shapes.filter((s) => s.k === 'path').length >= 3, 'an arrowhead at each end');
+  assert.ok(after.shapes.filter((s) => s.k === 'circle').length >= 2, 'a dot where each reading is taken');
+  const low = play({ fhvp: 4, whvp: 8, hvpg: 4 }, T.sum + 1200), hi = bar(after)[0].fill, lo = bar(low)[0].fill;
+  assert.notDeepEqual(hi, lo, 'the bar takes the band: red over 10, not the normal colour under 5');
+});

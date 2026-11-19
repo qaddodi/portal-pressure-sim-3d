@@ -2,7 +2,7 @@
 import { useRef } from 'react';
 import { useShell } from './store.ts';
 import { SettingsSheet } from '../settings/SettingsSheet.tsx';
-import { MenuSheet } from '../menu/MenuSheet.tsx';
+import { UMenu } from '../menu/UMenu.tsx';
 import { SearchSheet } from '../search/SearchSheet.tsx';
 import { HelpMenu, Guide } from './HelpSheets.tsx';
 import { LayersSheet } from './FigureMenu.tsx';
@@ -42,7 +42,7 @@ export function Sheets() {
   const bottom = usesBottomBar(useUi((s) => s.device));
   return (
     <>
-      <MenuSheet />
+      <UMenu />
       {!talk && <ActionCard />}
       {!talk && <TreatCard />}
       {bottom && !talk && <LayersSheet />}

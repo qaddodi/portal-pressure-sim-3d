@@ -7,6 +7,7 @@ export const W = {
   deleteTitle: 'Delete this script?', deleteYes: 'Delete',
   deleteBody: (t?: string) => (t ? `“${t}” and its slides will be removed from this device. A link or an exported file you made of it still opens.` : 'It will be removed from this device.'),
   linkCopiedScript: 'Link copied: opening it adds the script to the recipient’s library.',
+  linkCopiedView: 'Link copied: it opens this patient.',
   linkCopiedDeck: 'Link copied: it opens this presentation at its first slide.',
   copyDialogTitle: 'Copy this link', copyDialogBody: 'Your browser did not allow copying. Select the link and copy it.', done: 'Done', cancel: 'Cancel',
   importTitle: 'Import a presentation',
