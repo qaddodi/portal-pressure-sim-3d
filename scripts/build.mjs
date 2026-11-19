@@ -15,4 +15,6 @@ const branch = preset?.[0] || sh('rev-parse', '--abbrev-ref', 'HEAD') || process
 const r = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), 'build'], { cwd: root, stdio: 'inherit', env: { ...process.env, VITE_BUILD: `${branch}@${commit}` } });
 if (r.status !== 0) process.exit(r.status ?? 1);
 writeFileSync(`${root}dist/build-info.txt`, `branch ${branch}\ncommit ${commit}\nbuilt ${new Date().toISOString()}\n`);
+const pw = spawnSync(process.execPath, [fileURLToPath(new URL('./pwa.mjs', import.meta.url)), `${root}dist`, `${commit}`], { cwd: root, stdio: 'inherit' });
+if (pw.status !== 0) process.exit(pw.status ?? 1);
 console.log(`built ${branch}@${commit} → dist/`);
