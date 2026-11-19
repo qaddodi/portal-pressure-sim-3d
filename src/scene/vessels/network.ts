@@ -128,7 +128,7 @@ function build(): NetVessel[] {
     out.push({
       id: e.id, host: hostOfPiece.get(e.id) ?? e.id, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(widthPx(e, baseD)),
       label: e.label ?? e.id, pts: courseOf(e.id), kind: e.kind, tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: e.id,
-      plan: { kind: 'coil', base: pathOf(e.id), coils: isCoiling(e.id, e.kind, !!e.spontaneous), strands: !!STRANDS_2D[e.id] },
+      plan: { kind: 'coil', base: pathOf(e.id), coils: isCoiling(e.id, e.kind, !!e.spontaneous), strands: !!STRANDS_2D[e.id] || e.id === 'C8' },
     });
   }
   // The tributaries (stage-geo.js feedGeo): each host's, grouped by the rule that shows them, one vessel a group.

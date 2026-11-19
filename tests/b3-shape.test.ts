@@ -109,9 +109,9 @@ test('a vessel that runs on into exactly one other meets it at the mean width: n
 });
 
 test('a shape that changes keeps its vertex count, so its positions are rewritten in place', () => {
-  for (const id of ['C1a', 'C2', 'C4', 'C7', 'C3~F:caput', 'CAUD~F:caudate']) {
+  for (const id of ['C1a', 'C2', 'C4', 'C7', 'C8', 'C3~F:caput', 'CAUD~F:caudate']) {
     const v = NETWORK_BY_ID.get(id)!, tub = tubularOf(v);
-    const a = buildTubes(coursesOf(v, REST), tub, v.radius).geometry, b = buildTubes(coursesOf(v, { wig: 5, spr: 0.55, strandsOn: false, live: 0.5 }), tub, v.radius).geometry;
+    const a = buildTubes(coursesOf(v, REST), tub, v.radius).geometry, b = buildTubes(coursesOf(v, { wig: 5, spr: 0.55, rec: 0.5, strandsOn: false, live: 0.5 }), tub, v.radius).geometry;
     assert.equal(a.getAttribute('position').count, b.getAttribute('position').count, id);
     assert.equal(a.getAttribute('rk').count, a.getAttribute('position').count, `${id} rk`);
   }
@@ -124,4 +124,30 @@ test('the scene coils an open collateral in place and straightens it when it clo
   assert.ok(o.toonMesh.geometry.getAttribute('rk'));
   s.dispose();
   assert.ok(before.length > 0);
+});
+
+// ── the cavernoma (C8): channels in the frame of the clotted trunk, each joined at both ends, grown with the recruitment ──
+import { cavChannels, CAV, cavGrowth } from '../src/scene/vessels/cav.ts';
+test('the cavernoma has six channels; each starts and ends on the trunk\'s course, wound about it', () => {
+  const c8 = NETWORK_BY_ID.get('C8')!;
+  const co = coursesOf(c8, REST);
+  assert.equal(co.length, 1 + CAV.length, 'the main channel and six more');
+  const trunk = ['PV_TRUNK_1', 'PV_TRUNK'].map((id) => (NETWORK_BY_ID.get(id)!.plan as unknown as { base: [number, number][] }).base);
+  const main = (c8.plan as unknown as { base: [number, number][] }).base;
+  const ch = cavChannels(trunk, main);
+  assert.equal(ch.length, 6);
+  const all = trunk.flat();
+  const nearTrunk = (p: readonly number[]) => Math.min(...all.map((q) => Math.hypot(q[0] - p[0], q[1] - p[1])));
+  for (const c of ch) {
+    assert.equal(c.length, main.length);
+    // both ends lie on the trunk's own course (within a stride of the samples), the middle stands off it
+    assert.ok(nearTrunk(c[0]!) < 12 && nearTrunk(c[c.length - 1]!) < 12, 'joined at both ends');
+    assert.ok(Math.max(...c.map(nearTrunk)) > 5, 'stands off the trunk');
+  }
+});
+test('a channel grows with the recruitment: none before it begins, whole after', () => {
+  assert.equal(cavGrowth(0, 0), 0);
+  assert.equal(cavGrowth(5, 0.2), 0);
+  assert.equal(cavGrowth(0, 1), 1);
+  assert.ok(cavGrowth(1, 0.2) > 0 && cavGrowth(1, 0.2) < 1);
 });

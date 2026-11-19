@@ -14,7 +14,7 @@ export interface ShapeFrame extends PresenceFrame { metrics?: { varix?: { d?: nu
 
 interface Item { v: NetVessel; obj: VesselObject; coil: CoilState; state: ShapeState; tubular: number[]; shown: number; spread: number; live: number; strandsOn: boolean; built: string }
 
-const keyOf = (s: ShapeState) => `${s.wig.toFixed(2)}|${s.spr.toFixed(3)}|${s.strandsOn ? 1 : 0}|${s.live.toFixed(2)}`;
+const keyOf = (s: ShapeState) => `${s.wig.toFixed(2)}|${s.spr.toFixed(3)}|${s.rec.toFixed(2)}|${s.strandsOn ? 1 : 0}|${s.live.toFixed(2)}`;
 
 export class ShapeTracks {
   private items: Item[] = [];
@@ -64,6 +64,7 @@ export class ShapeTracks {
       const strandsChanged = it.state.strandsOn !== it.strandsOn;
       moving = it.coil.step(it.shown, it.spread, dtMs, instant) || strandsChanged;
       it.state.wig = it.coil.wig; it.state.spr = it.coil.spr; it.state.strandsOn = it.strandsOn;
+      if (it.v.id === 'C8') { const r = Math.round(it.shown * 20) / 20; moving = moving || r !== it.state.rec; it.state.rec = r; }
     } else {
       const q = Math.round(it.live * 20) / 20;
       moving = q !== it.state.live;
