@@ -16,7 +16,7 @@ import { CameraRig } from './camera/rig.ts';
 import type { Room } from './camera/room.ts';
 import { SHOTS, type Shot, type ShotName } from './camera/shots.ts';
 import { Catheter, type CatheterState } from './catheter.ts';
-import { DEFAULT_FLOW_MODE, type FlowMarkMode, markSpeed } from './flow.ts';
+import { DEFAULT_FLOW_MODE, FLOW_FADE_MS, type FlowMarkMode, markSpeed } from './flow.ts';
 import { Highlight } from './highlight.ts';
 import { CelObject, type CelShared, createShared } from './materials/cel.ts';
 import { type LookId, PALETTES, type Palette } from './palette.ts';
@@ -138,6 +138,11 @@ export class CelScene {
   private bloodOpts = { chevrons: true, keyChevrons: false };
   private readonly byEdge = new Map<string, CelObject>();
   /** the vessels that fade at a free end (fades.ts), and the collaterals whose opening makes the tip solid */
+  /** The cava's pieces, and the veins that fade into it: shown whole (2D's F_WHOLE) while the cava is picked or named, eased over FLOW_FADE_MS so nothing pops. */
+  private readonly cava: VesselObject[] = [];
+  private readonly ivcJoins: VesselObject[] = [];
+  private cavaGoal = 0;
+  private cavaWhole = 0;
   private readonly tipFades: { o: VesselObject; connect: readonly string[] }[] = [];
   private look: LookId;
   private phone: boolean;
@@ -209,8 +214,8 @@ export class CelScene {
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     const fade = def.feeder ? null : fadeOf(def.id, def.tone === 'artery');
-    if (fade) { o.setTipFade(fade); this.tipFades.push({ o, connect: fade.connect }); }
-    if (BACK_EDGES.has(def.id)) o.setBehindOrgans(VESSEL_LAYER, IVC_EDGES.has(def.id));
+    if (fade) { o.setTipFade(fade); this.tipFades.push({ o, connect: fade.connect }); if (fade.ivcJoin) this.ivcJoins.push(o); }
+    if (BACK_EDGES.has(def.id)) { o.setBehindOrgans(VESSEL_LAYER, IVC_EDGES.has(def.id)); if (IVC_EDGES.has(def.id)) this.cava.push(o); }
     this.add(o);
     this.vessels.push(o);
     this.byEdge.set(def.id, o);
@@ -362,7 +367,18 @@ export class CelScene {
     const ids = new Set(this.named);
     const picked = this.highlight.picked;
     if (picked) { const host = NETWORK.find((v) => v.id === picked)?.host; for (const v of NETWORK) if (v.host === host) ids.add(v.id); }
+    this.cavaGoal = [...ids].some((id) => IVC_EDGES.has(id)) ? 1 : 0;
     this.moving = true;
+  }
+
+  /** Eases the cava toward whole or veiled; true while it moves. */
+  private stepCava(dtMs: number): boolean {
+    if (this.cavaWhole === this.cavaGoal) return false;
+    const k = Math.min(1, dtMs / FLOW_FADE_MS), d = this.cavaGoal - this.cavaWhole;
+    this.cavaWhole = Math.abs(d) <= k ? this.cavaGoal : this.cavaWhole + Math.sign(d) * k;
+    for (const o of this.cava) o.setWholeShare(this.cavaWhole);
+    for (const o of this.ivcJoins) o.setIvcWhole(this.cavaWhole);
+    return true;
   }
 
   /** Light a set of vessels at once (the shunt's valid targets); an empty list puts them out. */
@@ -555,7 +571,7 @@ export class CelScene {
     this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
     const streamsMoving = this.blood.streams.step(now);
     const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id));
-    const flowActive = this.flow.step(dt) || streamsMoving || chainMoving;
+    const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || this.stepCava(dt);
     const lensMoving = this.lens.step(now);
     const presMoving = this.presence.step(dt);
     const shapeMoving = this.shapes.step(dt);

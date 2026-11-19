@@ -102,7 +102,8 @@ export const VESSEL_FS = /* glsl */ `
 ${FADE_GLSL}
 // a vessel behind the organs is drawn a second time over them with VEIL defined: the organ's veil (stage's VEIL_K 0.6: a vessel behind an organ shows at 0.4)
 #ifdef VEIL
-const float VEIL_A = 0.4;
+uniform float veilA;   // 0.4 while the vessel is veiled; eases to 1 as the cava is shown whole
+#define VEIL_A veilA
 #else
 const float VEIL_A = 1.0;
 #endif
