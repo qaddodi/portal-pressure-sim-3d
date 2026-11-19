@@ -126,6 +126,9 @@ export class OrganLayer {
     this.dirtyColours = true; this.instant = true;
   }
 
+  /** How big the spleen is drawn now (1: normal): a caliper along its axis grows with it. */
+  get spleenScaleNow(): number { return this.spleenScale.value; }
+
   applyLook(p: Palette): void { this.palette = p; this.dirtyColours = true; }
   /** The organ outline is in the figure's units (ORGAN_INK_VS), so it needs no phone trim: keep 2D's 1.1 (kidney 1.4) on every device. */
   setPhone(phone: boolean): void { this.phone = phone; for (const [id, o] of this.byId) { o.setPhone(phone); o.ink.uniforms.px!.value = ORGAN_STYLE[id]!.px; } }

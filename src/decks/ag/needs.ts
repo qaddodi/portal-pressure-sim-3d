@@ -25,6 +25,8 @@ export interface Hook {
 
 const ready = (): boolean => true;
 const claimed = (): boolean => false;
+/** What the figure link draws (src/ui/deck/figure-link.ts: plan, calls, cards, organ outlines; tests/deck-figure-link.test.ts judges every slide's calls). */
+const FIGURE_LANDED = new Set(['fig:labels', 'fig:mark', 'fig:glow', 'fig:glow-steps', 'fig:sites']);
 
 /** The kinds of action the engine host applies (worker-core.js applyAction). */
 export const ACTION_KINDS = ['infuse', 'hemorrhage', 'retain', 'band', 'paracentesis', 'valsalva', 'strain', 'rupture', 'stopBleed'] as const;
@@ -133,7 +135,7 @@ export function hookOf(id: string): Hook | null {
     case 'present': return { owner: 'B12', what: 'the presenter plays any deck by its id, with the scene plate of each slide', landed: ready }   // (decks/all.ts);
     case 'fig': case 'card': case 'field': {
       const f = Object.values(FIELD_HOOKS).find((h) => h.id === id);
-      if (f) return { owner: f.owner, what: f.what, landed: LANDED_FIELDS.has(id) || id in CARD_LANDED ? ready : claimed };
+      if (f) return { owner: f.owner, what: f.what, landed: LANDED_FIELDS.has(id) || id in CARD_LANDED || FIGURE_LANDED.has(id) ? ready : claimed };
       return family === 'field' ? { owner: 'B12', what: `the slide field "${rest}"`, landed: claimed } : null;
     }
     default: return null;
