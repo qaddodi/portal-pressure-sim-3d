@@ -165,7 +165,7 @@ export class StrandLayer {
     const g = ringTube(pts, radii, 9, true);
     if (s.host === 'C1a') this.paintWale(g, wale);
     if (!s.obj) {
-      s.obj = new CelObject(g, { tone: 'portal', bands: 2, spec: 1, px: sin ? 0.6 : 0.9 }, this.shared);
+      s.obj = new CelObject(g, { tone: 'portal', bands: 2, spec: 1, px: sin ? 0.6 : 0.9, tubeTones: true }, this.shared);
       this.group.add(s.obj.group);
       if (this.palette) { s.obj.applyPalette(this.palette); if (sin) recolour(s.obj, faint(rgbOf(this.palette.tones.portal), rgbOf(this.palette.body)), this.palette); }
       this.line(s);
