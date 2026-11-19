@@ -6,8 +6,8 @@ export function CaseCard({ slide, page, pages }: { slide: Slide; page: number; p
   const text = pageOf(sentences(slide.vignette ?? ''), pages, page).join(' ');
   return (
     <>
-      <p className="dk-kicker">Case{pages > 1 ? <span className="dk-pageno"> · {page + 1} of {pages}</span> : null}</p>
-      <p className="dk-body" style={{ marginTop: 10 }}>{text}</p>
+      <div className="pz-kick" data-site="none">Case{pages > 1 ? <span className="dk-pageno"> · {page + 1} of {pages}</span> : null}</div>
+      <p className="pz-line">{text}</p>
     </>
   );
 }
