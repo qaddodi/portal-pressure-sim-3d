@@ -6,6 +6,10 @@ import { SCALE, RATE } from './copied/table-marks.copied.js';
 import { fmt, clamp } from './copied/num.copied.js';
 import { hvBlocked, SEV_OF_RATE, NOT_MEASURABLE, NOT_SHOWN } from '../../engine/hales/portal/pressure-cuts.js';
 import type { M } from './frame.ts';
+import { useMeasured } from './hidden.ts';
+
+// the HVPG tile's measured value (2D dock.js TILES: `measured: () => store.get().lastHVPG`)
+(hooks as { lastHVPG: () => unknown }).lastHVPG = () => useMeasured.getState().lastHVPG;
 
 export { hooks };
 export type Band = 'ok' | 'caution' | 'danger' | 'critical' | 'none';
@@ -19,6 +23,12 @@ export interface Row {
   /** a blood pressure is written 120/80 (93): the part before the mean */
   pre?: string;
   word: string; band: Band;
+  /** the unit and its small extra ("%" and " of rupture threshold"), as the 2D tile writes them in two pieces (tile-el.js) */
+  u?: string; ux?: string;
+  /** the blood pressure's three pieces: "120/80", then the mean ("93") in brackets (readouts-pane.js .v-bp, .v-map) */
+  bp?: { pre: string; mean: string };
+  /** the change from the pinned moment, in place of the word (readouts-pane.js update: "+1.2 vs then", "same as then") */
+  cmp?: { text: string; dir: 'up' | 'down' | 'same' };
   /** 0..1 along the scale bar, the bar's cut-off ticks (0..1), and where zero sits (a bar of a signed reading fills from it) */
   fill: number; ticks: number[]; zero: number;
   /** the engine's Why? id, and the pane a tap opens instead (Ascites opens its own pane) */
@@ -44,27 +54,37 @@ export function readoutValue(t: { id: string; v(m: M): number; hideKey?: string;
   return meas ? meas.hvpg : null;
 }
 
-export function tileRows(m: M, params: unknown, hidden: ReadonlySet<string> | null = null): { group: string; rows: Row[] }[] {
+/** A tile's change from the pinned moment (2D readouts-pane.js: the difference of the tile's own number, to its last printed digit). */
+export function changeFrom(t: { v(m: M): number; d: number }, now: number, then: M | null): Row['cmp'] {
+  if (!then) return undefined;
+  const d = now - t.v(then);
+  const same = Math.abs(d) < Math.pow(10, -t.d) * 0.5;
+  return { text: same ? 'same as then' : `${d > 0 ? '+' : '−'}${fmt(Math.abs(d), t.d)} vs then`, dir: same ? 'same' : d > 0 ? 'up' : 'down' };
+}
+
+export function tileRows(m: M, params: unknown, hidden: ReadonlySet<string> | null = null, then: M | null = null): { group: string; rows: Row[] }[] {
   return GROUP_LIST.map(([g]) => ({
     group: g,
     rows: TILES.filter((t: { group: string }) => t.group === g).map((t: Record<string, any>) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       const v = readoutValue(t as never, m, params, hidden);
       const lo = t.scale[0] as number, hi = t.scale[1] as number;
-      const base = { id: t.id as string, name: t.k as string, short: (t.ks ?? t.k) as string, unit: (t.u as string) + ((t.ux as string) ?? ''), why: t.why as string | undefined, pane: t.pane as string | undefined, title: (t.titleOf ? t.titleOf(m) : t.title) as string, ticks: (t.ticks as number[]).map((x) => pos(lo, hi, x)), zero: pos(lo, hi, 0) };
+      const measured = v != null && !!hidden?.has(t.hideKey ?? '');
+      const base = { u: t.u as string, ux: (t.ux as string) ?? '', id: t.id as string, name: t.k as string, short: (t.ks ?? t.k) as string, unit: (t.u as string) + ((t.ux as string) ?? ''), why: t.why as string | undefined, pane: t.pane as string | undefined, title: (t.titleOf ? t.titleOf(m) : t.title) as string, ticks: (t.ticks as number[]).map((x) => pos(lo, hi, x)), zero: pos(lo, hi, 0) };
       if (v == null) {
         const nm = t.id === 'hvpg' && hvBlocked(params);
         const word = nm ? NOT_MEASURABLE : 'Not measured';
         return { ...base, value: nm ? NOT_SHOWN : '?', word, band: 'none' as Band, fill: 0, aria: `${t.title ?? t.k}: ${word.toLowerCase()}` };
       }
       const vs = shown(v, t.d as number);
-      const word = t.s(vs, m) as string, band = t.st(vs, m) as Band;
-      return { ...base, value: fmt(v, t.d as number), word, band, fill: pos(lo, hi, v), aria: `${t.title ?? t.k}: ${fmt(v, t.d as number)} ${base.unit}, ${word}` };
+      const word = measured ? 'Measured' : (t.s(vs, m) as string), band = t.st(vs, m) as Band;
+      const cmp = measured ? undefined : changeFrom(t as never, v, then);
+      return { ...base, cmp, value: fmt(v, t.d as number), word, band, fill: pos(lo, hi, v), aria: `${t.title ?? t.k}: ${fmt(v, t.d as number)} ${base.unit}, ${word}` };
     }),
   }));
 }
 
 /** The systemic rows: each with its tile's own scale, cut-offs, word and colour (table-marks SCALE and RATE). `state` keeps the vitals' 1.5 s hold between calls (vitalReading). */
-export function vitalRows(m: M, running: boolean, now: number, state: Record<string, object>): Row[] {
+export function vitalRows(m: M, running: boolean, now: number, state: Record<string, object>, then: M | null = null): Row[] {
   return SYSTEMIC.map(([id, name, short]) => {
     const def = VITALS.find((x: { id: string }) => x.id === id)!;
     const x = (state[id] ??= { v: def }) as { v: typeof def; r?: { v: number; bad: boolean; s: number; d: number } };
@@ -74,7 +94,8 @@ export function vitalRows(m: M, running: boolean, now: number, state: Record<str
     const [cls, word] = none ? [null, 'Not measured'] : (RATE as unknown as Record<string, (v: number, o: object) => readonly [string, string]>)[id]!(shown(r.v, def.d), def.s ? { sbp: r.s } : {});
     const band = (SEV_OF_RATE as Record<string, Band>)[cls ?? ''] ?? 'none';
     const text = def.s ? bpText(r.s, r.d, r.v) : fmt(r.v, def.d);
-    return { id, name, short, value: none ? '?' : def.s ? text : fmt(r.v, def.d), unit: def.u, word, band, fill: none ? 0 : pos(S[0], S[1], r.v), ticks: S[2].map((c) => pos(S[0], S[1], c)), zero: 0, why: def.why, title: def.title,
+    const bp = def.s && !none && Number.isFinite((r as { s: number }).s) && Number.isFinite((r as { d: number }).d) ? { pre: `${Math.round((r as { s: number }).s)}/${Math.round((r as { d: number }).d)}`, mean: fmt(r.v, def.d) } : undefined;
+    return { id, name, short, u: def.u, bp, value: none ? '?' : def.s ? text : fmt(r.v, def.d), unit: def.u, word, band, fill: none ? 0 : pos(S[0], S[1], r.v), ticks: S[2].map((c) => pos(S[0], S[1], c)), zero: 0, why: def.why, title: def.title,
       aria: `${def.title}: ${none ? 'not measured' : `${text} ${def.u}, ${word}`}` };
   });
 }

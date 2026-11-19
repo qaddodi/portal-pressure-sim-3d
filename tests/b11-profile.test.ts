@@ -145,3 +145,26 @@ test('the Pressure chart leaves the HVPG bracket out and its figure reads "—" 
   assert.ok(!cut.includes('HVPG ') && !cut.includes('8.0'), `the HVPG bracket and pill are gone: ${cut.join('|')}`);
   assert.ok(cut.includes('PPG ') && cut.includes('13.0'));
 });
+
+import { useMeasured, hvpgNote } from '../src/ui/tests/hidden.ts';
+import { heroOf } from '../src/ui/tests/trace/live.ts';
+import { readoutValue } from '../src/ui/tests/readouts-model.ts';
+import { TILES } from '../src/ui/tests/copied/dock-tiles.copied.js';
+
+test('the measured flag (2D lastHVPG, hvpgMeasured): the IR measurement sets it, a new patient clears it; the Readouts tile, the Over time header and the IR note read it', () => {
+  const hv = (TILES as Array<{ id: string }>).find((t) => t.id === 'hvpg') as never;
+  const hid = new Set(['trueHVPG']);
+  useMeasured.getState().clear();
+  assert.equal(readoutValue(hv, { hvpg: 9 }, open, hid), null, 'hidden and not measured: no number');
+  assert.equal(heroOf(9, 'beats', hid, null).word, 'Not measured');
+  assert.equal(heroOf(9, 'beats', hid, null).num, '—');
+  useMeasured.getState().mark({ fhvp: 5, whvp: 14.2, hvpg: 9.2 });
+  assert.equal(useMeasured.getState().hvpgMeasured, true);
+  assert.equal(readoutValue(hv, { hvpg: 9 }, open, hid), 9.2, 'hidden, measured: the measured number');
+  assert.deepEqual([heroOf(9, 'beats', hid, 9.2).num, heroOf(9, 'beats', hid, 9.2).word], ['9.2', 'Measured']);
+  assert.equal(heroOf(9, 'beats', null, null).num, '9.0', 'not hidden: the live number as before');
+  useMeasured.getState().clear();
+  assert.equal(useMeasured.getState().lastHVPG, null);
+  assert.equal(hvpgNote(true, false), 'The same numbers as the HVPG tile.');
+  assert.equal(hvpgNote(false, false), 'The HVPG readouts are always shown.', '(2D showHvpg is on)');
+});

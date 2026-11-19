@@ -4,6 +4,10 @@
 //   src/ui/tests/ir/copied/trace-callouts.copied.js  trace-callouts.js: a marker's drop and the line's inked boxes (the monitor's two imports)
 //   src/ui/tests/ir/copied/hvpg-script.copied.js     hvpg-proc.js, its pure parts: the HVPG catheter's words, steps, abort timings, result colours and HVPG_SCRIPT (the monitor's script)
 //   src/ui/tests/ir/copied/reading-scripts.copied.js tool-reading.js, its pure parts: the scripts of the PPG by IR and the PPG through a TIPS (and the EUS-PPG), the clocks and the phase
+//   src/ui/tests/ir/copied/tips-parts.copied.js      ir-tips.js, its pure parts: the stents it lists, its numbers, the line under the chip, the menu's views
+//   src/ui/tests/ir/copied/figure-parts.copied.js    tips-figure.js, its layout and axes: the rows of the stent and its chart, the x of a place, the axes' round tops, the words a figure prints
+//   src/ui/tests/ir/copied/compare-parts.copied.js   ir-compare.js, its rows and the change a row prints (Then | Now | Change)
+//   src/ui/tests/ir/copied/curves-parts.copied.js    ir-curves.js, its sweeps, words and the curve tool each sweep asks the deck's chart for (Tube vs patient)
 // Usage: node scripts/copy-b11-ir.mjs --from <2D checkout> [--check]    (--check writes nothing and fails when a file would change)
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -93,6 +97,42 @@ export { hvBlocked, NOT_SHOWN, NOT_MEASURABLE };
 import { stentBand, gateKindsOf, reductionJet, lumenShown } from '../../../../engine/hales/portal/stent-geom.js';
 `;
   put('tips-parts.copied.js', HEAD('ir-tips.js, its pure parts') + head + src.slice(a, b + 1));
+}
+
+// ── tips-figure.js: the layout and the axes (everything from the veins' length down to the words a figure prints; the SVG pieces and their paint stay 2D's, the 3D frame in tips-figure.ts draws the same numbers) ──
+{
+  const src = read('src/ui/tips-figure.js');
+  const a = src.indexOf('/** How much of each vein is shown either side of the stent');
+  const b = src.indexOf("// The follower's channels");
+  if (a < 0 || b < 0) throw new Error('tips-figure.js has changed shape');
+  const head = `import { clamp } from '../ir-shims.js';
+import { STENT_SITES } from '../../../../engine/hales/portal/topology.js';
+import { TRACE_N } from '../../../../engine/hales/portal/stent-trace.js';
+import { TR, ten } from '../../../charts/stent/model.ts';
+`;
+  let body = src.slice(a, b).replace(/^const HEAD = /m, 'export const HEAD = ').replace(/^const memo = /m, 'export const memo = ')
+    .replace(/^const (waistWord|mmWord|dpWord|ppgWord|usualWord) = /gm, 'export const $1 = ');
+  put('figure-parts.copied.js', HEAD('tips-figure.js, its layout and axes') + head + body);
+}
+
+// ── ir-compare.js: the rows and the change a row prints ──
+{
+  const src = read('src/ui/ir-compare.js');
+  const a = src.indexOf('export const NOTHING_PINNED');
+  const b = src.indexOf('/** Returns { el, update(frame, which) }');
+  if (a < 0 || b < 0) throw new Error('ir-compare.js has changed shape');
+  const body = src.slice(a, b).replace(/^const DASH = /m, 'export const DASH = ').replace(/^const ROWS = /m, 'export const ROWS = ').replace(/^const num = /m, 'export const num = ');
+  put('compare-parts.copied.js', HEAD('ir-compare.js, its rows and changeOf') + "import { fmt } from '../ir-shims.js';\n" + body);
+}
+
+// ── ir-curves.js: the sweeps and the curve tool each asks for ──
+{
+  const src = read('src/ui/ir-curves.js');
+  const a = src.indexOf("export const SWEEPS");
+  const b = src.indexOf('/**\n * Returns { el, update(frame, which), stop(), setActive(on) }');
+  if (a < 0 || b < 0) throw new Error('ir-curves.js has changed shape');
+  const body = src.slice(a, b).replace(/^const LABEL = /m, 'export const LABEL = ').replace(/^const SETTLE_MS = /m, 'export const SETTLE_MS = ');
+  put('curves-parts.copied.js', HEAD('ir-curves.js, its sweeps and curveToolOf') + "import { GEOM_RANGE, BENCH_DP, WAIST_STEP } from '../../../../engine/hales/portal/stent-geom.js';\n" + body);
 }
 
 if (check) { if (changed.length) { console.error(`out of date: ${changed.join(', ')}`); process.exit(1); } console.log('src/ui/tests/ir/copied is current'); }

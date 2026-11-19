@@ -4,7 +4,7 @@
 // flips its hook here and every slide that waited for it counts as wired in the same push.
 import { CHARTS } from '../../ui/charts/registry.ts';
 import { TILE } from '../../ui/charts/tiles.generated.ts';
-import { LENS_IDS } from '../../scene/lenses/model.ts';
+import { LENS_IDS, SINCE_BASELINE_FED } from '../../scene/lenses/model.ts';
 import { CATHS } from '../schema.ts';
 import { UI } from '../../ui/strings.generated.ts';
 import type { CopiedSlide } from './types.ts';
@@ -86,7 +86,7 @@ export function hookOf(id: string): Hook | null {
     case 'tile': return { owner: 'B10', what: `the ${rest} reading`, landed: () => rest in TILE };
     case 'data': return { owner: id === 'data:tiles' ? 'B12' : 'B10', what: id === 'data:tiles' ? 'the data card of tiles' : `the ${rest} of the data card`, landed: id === 'data:tiles' ? ready : claimed };
     case 'tool': return { owner: 'B10', what: `the ${rest} instrument or chart`, landed: () => CHARTS.find((c) => c.kind === rest)?.status === 'done' };
-    case 'lens': return { owner: 'B3', what: `the ${rest} colour lens`, landed: () => (LENS_IDS as readonly string[]).includes(rest) };
+    case 'lens': return { owner: 'B3', what: `the ${rest} colour lens`, landed: () => (LENS_IDS as readonly string[]).includes(rest) && (rest !== 'since' || SINCE_BASELINE_FED) };
     case 'cath': return { owner: 'B5', what: `the catheter's ${rest} state`, landed: () => (CATHS as readonly string[]).includes(rest) };
     case 'procedure': return { owner: 'B5', what: `the ${rest} procedure`, landed: claimed };
     case 'view': return { owner: 'B7', what: 'the Circuit view', landed: ready };   // (scene/circuit, ui/deck/scene-link.ts showCircuit, 19 Nov)

@@ -14,6 +14,7 @@ import { resolveLook } from '../looks/looks.ts';
 import { useDeck } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
 import { figureDpr, msaaFor } from './quality.ts';
+import { aaMode } from './post-aa.ts';
 import { installShaderGuard } from '../debug/shader-guard.ts';
 import { setRenderer } from '../debug/gl-ref.ts';
 import { cel, frames, gesturesRef, sceneApi } from './api.ts';
@@ -49,7 +50,7 @@ function SceneBridge() {
   // fail loud, not invisible (WP10): a program the device's driver refuses is drawn plain, and the ?perf bar says so; ?gl borrows this renderer to compile every program once
   useEffect(() => {
     setRenderer(gl);
-    const off = installShaderGuard(gl, cel.scene, () => clock.invalidate('shader-failed'));
+    const off = installShaderGuard(gl, cel.scene, () => clock.invalidate('shader-failed'), () => [cel.post.material]);
     return () => { off(); setRenderer(null); };
   }, [gl]);
 
@@ -136,10 +137,11 @@ export function Stage() {
   // the pixel ratio the figure rests at, and so whether the context is multisampled (off from 2x: msaaFor); the canvas is made again only when that answer changes
   const detail = useSettings((s) => s.figureDetail);
   const rest = figureDpr(detail, true, false, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1);
-  const msaa = msaaFor(rest);
+  // (the anti-aliasing pass, the default, does the canvas's job: the context is multisampled only when the address asks for `?aa=msaa`, and then only below 2x)
+  const msaa = aaMode() === 'msaa' && msaaFor(rest);
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-stage)' as unknown as number, touchAction: 'none' }}>
-      <Canvas key={msaa ? 'msaa' : 'no-msaa'} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, powerPreference: 'high-performance' }}>
+      <Canvas key={msaa ? 'msaa' : 'no-msaa'} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, stencil: true, powerPreference: 'high-performance' }}>
         <ClockBridge />
         <SceneBridge />
       </Canvas>

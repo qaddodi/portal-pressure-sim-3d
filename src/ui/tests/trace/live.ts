@@ -1,7 +1,7 @@
 // The pure parts of the Over time pane that read the record and the clock: where the trace's right edge stands, the header's words and the lanes' gliding y ranges (2D pressure-time.js).
 import { fmt } from '../../charts/fmt.ts';
 import { feed } from '../feed.ts';
-import { LAG_S, hvpgWordOf, sevTok } from './model.ts';
+import { LAG_S, hvpgWordOf, sevTok, type Range } from './model.ts';
 
 const NOT_SHOWN = '—';
 
@@ -14,13 +14,18 @@ export function headOf(last: number, wallMs: number, nowMs: number, running: boo
 }
 
 /** The header's readings as words: the HVPG, its band and its change over the range on screen (2D updateHero). */
-export function heroOf(hvpg: number) {
+export function heroOf(hvpg: number, range: Range = 'beats', hidden: ReadonlySet<string> | null = null, measured: number | null = null) {
+  // an HVPG the case leaves unmeasured: the number of the measurement if there is one, else the dash (2D updateHero)
+  if (hidden?.has('trueHVPG')) return { num: measured != null ? fmt(measured, 1) : NOT_SHOWN, word: measured != null ? 'Measured' : 'Not measured', sev: measured != null ? sevTok(measured) : 'none', delta: '', dir: '' };
   const v = Math.max(0, hvpg);
   const num = Number.isFinite(hvpg) ? fmt(v, 1) : NOT_SHOWN;
   const word = Number.isFinite(hvpg) ? hvpgWordOf(v) : '';
-  const { binT, bin } = feed;
+  const { binT, bin, days } = feed;
   let d: number | null = null, over = '';
-  if (binT.length > 60) {
+  if (range === 'days' && days.length > 1) {
+    const last = days[days.length - 1]!.day, first = days.find((x) => x.day >= last - 730) || days[0]!;
+    d = v - first.v.hvpg!; over = `since day ${first.day}`;
+  } else if (range !== 'days' && binT.length > 60) {
     const lastT = feed.last;
     let fi = 0; while (fi < binT.length && !(binT[fi]! >= lastT - 120)) fi++;
     const t0 = binT[fi]!, h = bin.hvpg;

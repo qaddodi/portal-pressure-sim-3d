@@ -44,6 +44,7 @@ import { circuitBounds } from './circuit/shots.ts';
 import { CircuitView } from './circuit/view.ts';
 import { CIRCUIT_NODES, MAP_LOOKS, VB_CIRC } from './circuit/data.copied.ts';
 import { CircuitTubes } from './circuit/tubes.ts';
+import { PostAA } from './post-aa.ts';
 import { ResistorLayer } from './circuit/resistors.ts';
 import { RES_KINDS, type ResKey, resRatio } from './circuit/res-model.ts';
 import { MAP_K } from './circuit/map.ts';
@@ -130,6 +131,8 @@ export class CelScene {
   private readonly leaving: CelObject[] = [];
   private lastFade = 1;
   private figureView: FigureView = 'body';
+  /** The anti-aliasing pass over the whole figure (post-aa.ts). */
+  readonly post = new PostAA();
   private readonly dive = new Group();
   private readonly sinFrame = new Group();
   private fadeNow = 1;
@@ -316,18 +319,23 @@ export class CelScene {
   // ---- lens and blood ------------------------------------------------------------------------
 
   /** Colour the veins by a lens (the Layers menu's ten, a deck's 'system' and 'since', or 'neutral' for the plain anatomy). */
-  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.lobule.setLens(lens); this.feedSinusInk(); this.disease.setLensGrey(lens !== 'pressure' && lens !== 'neutral'); this.moving = true; }
+  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.lobule.setLens(lens); this.feedLobuleRef(); this.feedSinusInk(); this.disease.setLensGrey(lens !== 'pressure' && lens !== 'neutral'); this.moving = true; }
   /** The healthy patient at rest (the engine's `healthyProfile`): the reference the change, congestion, velocity and direction lenses compare to. */
   setHealthy(h: { P: ArrayLike<number>; Q: ArrayLike<number>; D: ArrayLike<number> }): void {
     this.lens.setContext({ healthy: { Q: h.Q, D: h.D, P: h.P }, ref: Float32Array.from(h.P) });
     this.blood.streams.setHealthy(h);
-    this.lobule.setReference(Float32Array.from(h.P)); this.feedSinusInk();
+    this.healthyP = Float32Array.from(h.P); this.lobule.setReference(this.healthyP); this.feedSinusInk();
     this.healthyQ = h.Q;
     if (latest.frame) this.syncPresence(latest.frame, false);
     this.moving = true;
   }
   /** Count Change and Congestion from a pinned moment's node pressures (Compare > Change), or from the healthy patient again (null). */
   setLensRef(P: ArrayLike<number> | null): void { this.lens.setRef(P); this.moving = true; }
+  /** A "change since" slide's reference (2D: stage.changeRef): the node pressures the Since lens counts from, a slide's own state; null takes the arrival state again. The lobule counts from the same one. */
+  setSinceRef(P: ArrayLike<number> | null): void { this.lens.setSinceRef(P); this.feedLobuleRef(); this.moving = true; }
+  private healthyP: Float32Array | null = null;
+  /** The lobule's colours count from the Since reference while that lens is on, from the healthy patient otherwise (2D: lobule-model.js sinceOf). */
+  private feedLobuleRef(): void { this.lobule.setReference(this.lens.lens === 'since' ? this.lens.sinceReference : this.healthyP); }
   /** The Blood menu: chevrons on or off, key routes only, and potential collaterals (dotted routes). */
   setBlood(o: Partial<BloodOptions> & { collaterals?: boolean }): void {
     if (o.collaterals !== undefined && o.collaterals !== this.collateralsOn) {
@@ -669,12 +677,16 @@ export class CelScene {
     // vessel never looks cut. (The vessels keep their own depth among themselves: their tiers.)
     this.sinus.setDpr(gl.getPixelRatio?.() ?? 1);
     const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;
+    // the figure is drawn into a texture of the canvas's size and filtered onto the canvas once (post-aa.ts), unless the pass is off or the device refused it
+    const into = this.post.target(gl);
+    if (into) gl.setRenderTarget(into);
     cam.layers.set(0);
     gl.render(this.scene, cam);
     gl.autoClear = false;
-    gl.clearDepth();
+    gl.clearDepth(); gl.clearStencil();   // (the outlines' stencil goes with the depth: each pass inks a pixel once, vessel-object.ts hullMat)
     cam.layers.set(VESSEL_LAYER);
     gl.render(this.scene, cam);
+    if (into) { gl.setRenderTarget(null); this.post.resolve(gl); }
     gl.autoClear = ac;
     cam.layers.mask = mask;
   }
@@ -686,7 +698,7 @@ export class CelScene {
     this.blood.chain.texture.dispose();
     for (const o of this.objects) o.dispose();
     this.procs.dispose(); this.probes.dispose();
-    this.tubes.dispose(); this.resistors.dispose();
+    this.tubes.dispose(); this.resistors.dispose(); this.post.dispose();
   }
 }
 

@@ -8,7 +8,7 @@ import { organsReady, setOrganData } from '../src/scene/organs/meshes.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { LIVER_SPLIT_X, PICK_OF, lobeAt, organHit } from '../src/scene/organs/pick.ts';
 import { x2d, x3, y3 } from '../src/scene/frame2d.ts';
-import { registerFeature } from '../src/ui/shell/features.ts';
+import { useTests } from '../src/ui/tests/store.ts';
 import { selectStructure, useSelection, holdScenePicks } from '../src/ui/action/selection.ts';
 import { tapSelect } from '../src/ui/action/tap-select.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
@@ -137,13 +137,12 @@ test('a tap on an organ selects it (the liver with its lobe), a second tap puts 
 
 test('the belly opens the Ascites instrument and leaves no card; a held tap (the shunt\'s target) is not an organ\'s', () => {
   useSelection.setState({ sel: null });
-  let opened = 0;
-  const off = registerFeature('abdomen', () => { opened++; });
+  useTests.setState({ open: false });
   tapSelect({ type: 'organ', id: 'abdomen' }, io().io);
-  assert.equal(opened, 1); assert.equal(useSelection.getState().sel, null);
+  assert.equal(useTests.getState().open, true); assert.equal(useTests.getState().pane, 'abdomen'); assert.equal(useSelection.getState().sel, null);
+  useTests.setState({ open: false });
   selectStructure({ type: 'organ', id: 'abdomen' });   // (Treat's paracentesis, the palette: the same door)
-  assert.equal(opened, 2); assert.equal(useSelection.getState().sel, null);
-  off();
+  assert.equal(useTests.getState().open, true); assert.equal(useSelection.getState().sel, null);
   const held: (string | null)[] = [];
   const release = holdScenePicks((id) => held.push(id));
   const o = io();

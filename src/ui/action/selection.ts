@@ -1,7 +1,7 @@
 // What is selected on the figure: a vessel, an organ, a lobule part. The tap-anything card shows for it. A vessel the scene picks (a tap on the figure) selects itself; a
 // card, a Changes row, the search or Treat selects by this module, and a vessel is lit in the scene while it is the selection. One selection at a time, as in the 2D app.
 import { create } from 'zustand';
-import { hasFeature, runFeature } from '../shell/features.ts';
+import { useTests } from '../tests/store.ts';
 
 export type Sel =
   | { type: 'edge'; id: string }
@@ -17,11 +17,13 @@ export function bindScene(light: (id: string | null) => void): void { lightVesse
 
 const same = (a: Sel | null, b: Sel | null) => a === b || (!!a && !!b && JSON.stringify(a) === JSON.stringify(b));
 
+/** Ascites has one home, the Tests card's Ascites pane (2D main.js select): selecting the abdomen (Treat's Paracentesis, the search's "Ascites", the fluid's station) opens
+ *  it instead of a card that would sit over the vessels, and nothing stays selected. */
+const isAbdomen = (sel: Sel | null): boolean => !!sel && ((sel.type === 'organ' && sel.id === 'abdomen') || (sel.type === 'node' && sel.id === 'EPI'));
+
 /** Select a structure (or clear with null). A vessel is lit in the scene; the card follows. */
 export function selectStructure(sel: Sel | null): void {
-  // The belly has one home, the Ascites instrument: selecting the abdomen (the fluid on the figure, a station, the command palette, Treat's paracentesis) opens it in place of a card
-  // that would sit over the vessels (2D main.js select).
-  if (sel?.type === 'organ' && sel.id === 'abdomen' && hasFeature('abdomen')) { selectStructure(null); runFeature('abdomen', 'Ascites'); return; }
+  if (isAbdomen(sel)) { selectStructure(null); useTests.getState().show('abdomen'); return; }
   if (!same(useSelection.getState().sel, sel)) useSelection.setState({ sel });
   lightVessel?.(sel && sel.type === 'edge' ? sel.id : null);
 }
