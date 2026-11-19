@@ -85,6 +85,8 @@ export class OrganLayer {
   private readonly spleenScale = new Eased(1, 0.25);
   private readonly ghost = new Eased(1, 0.24);
   private readonly dimmed = new Eased(1, 0.42);
+  /** quiet depth on a turn (camera/quiet.ts), in steps, set by the scene from the orbit */
+  private quiet = 0;
   private readonly sat = new Eased(1, 0.42);
   private readonly blood = new Eased(0, 0.6);
   /** how full the pool of blood stands in the stomach (poolFill of the blood lost; it keeps its level while it fades) */
@@ -137,6 +139,8 @@ export class OrganLayer {
   setPhone(phone: boolean): void { this.phone = phone; for (const [id, o] of this.byId) { o.setPhone(phone); o.ink.uniforms.px!.value = ORGAN_STYLE[id]!.px; } }
   /** A lens other than Pressure greys the organs (organ-dim.js: saturation 0.12, opacity 0.72) and eases in 420 ms (D_SURFACE). */
   setLensGrey(on: boolean): void { this.grey = on; }
+  /** The turn's quiet depth (0..1 in steps): the organs' wash eases toward the page; repaints only when the step changes. */
+  setQuiet(q: number): void { if (q !== this.quiet) { this.quiet = q; this.dirtyColours = true; } }
   /** The patient's disease for the next frames. `instant` takes it at once (a new patient, the first frame: nothing eases across a jump). */
   setBody(t: BodyTargets, instant = false): void { this.body = t; if (instant) this.instant = true; }
 
@@ -181,7 +185,7 @@ export class OrganLayer {
     const page = rgbOf(p.bg), dark = p.highlight === 'white';
     const k = { plate: page, dark, bleed: rgbOf('#8E1A20'), bg: page };
     for (const [id, o] of this.byId) {
-      const s: OrganState = { ...PLAIN, sat: this.sat.value, dim: this.dimmed.value };
+      const s: OrganState = { ...PLAIN, sat: this.sat.value, dim: this.dimmed.value, quiet: this.quiet };
       if (id === 'liver') { const ls = this.liverFollow.shown; s.congestion = ls.congestion; s.tint = ls.tint; s.cirrhosisNod = liverSurface(ls.cirrhosis).nod; }
       if (id === 'spleen') s.ghost = this.ghost.value;
       const st = ORGAN_STYLE[id]!, og = p.organs.tones[st.og];

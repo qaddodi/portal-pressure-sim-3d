@@ -5,6 +5,7 @@ import { Stage } from './scene/Stage.tsx';
 import { LabelLayer } from './scene/labels/LabelLayer.tsx';
 import { CircuitCaptions } from './scene/circuit/CircuitCaptions.tsx';
 import { LobuleCaptions } from './scene/lobule/LobuleCaptions.tsx';
+import { SinusoidCaptions } from './scene/sinusoid/SinusoidCaptions.tsx';
 import { Shell } from './ui/shell/Shell.tsx';
 import { useEngine } from './engine/index.ts';
 import { BuildPill } from './ui/shell/BuildPill.tsx';
@@ -17,6 +18,7 @@ export function App() {
       <LabelLayer />
       <CircuitCaptions />
       <LobuleCaptions />
+      <SinusoidCaptions />
       <Shell />
       {import.meta.env.VITE_CHANNEL === 'preview' && <BuildPill />}
       {status === 'crashed' && <CrashNotice />}

@@ -52,7 +52,7 @@ test('every procedure of every slide resolves to a spec with steps, legs to its 
     // shown: a catheter on a route the scene lays, the scope (EUS-PPG), or a graft whose model change draws it
     if (PROCEDURE_PLAYS.has(base)) {
       const s = sp as unknown as { graft?: boolean; route?: string };
-      if (plan.kind === 'eus') assert.ok(sp!.steps.every((st) => st[0] === 'pv' || st[0] === 'hv' || st[0]), `${where}: scope steps`);
+      if (plan.kind === 'eus' || plan.kind === 'eusglue') assert.ok(sp!.steps.every((st) => st[0] === 'pv' || st[0] === 'hv' || st[0]), `${where}: scope steps`);
       else if (s.graft) assert.equal((sp!.apply({}) as { rex?: boolean }).rex, true, `${where}: the graft's model change`);
       else assert.ok(route3d(s.route || plan.kind), `${where}: no route for "${plan.kind}"`);
     }
@@ -72,7 +72,8 @@ test('a procedure takes the model\'s change and gives it back (a patient who has
   }
 });
 
-test('the kinds named open say why, and the readiness tables follow the list', () => {
+test('the kinds named open say why, and the readiness tables follow the list (the glue scope has landed: nothing is open)', () => {
+  assert.ok(PROCEDURE_PLAYS.has('eusglue') && !('eusglue' in PROCEDURE_OPEN));
   for (const [k, why] of Object.entries(PROCEDURE_OPEN)) { assert.ok(why.length > 20); assert.equal(hookOf(`procedure:${k}`)!.landed(), false, k); }
   for (const k of PROCEDURE_PLAYS) assert.equal(hookOf(`procedure:${k}`)!.landed(), true, k);
 });

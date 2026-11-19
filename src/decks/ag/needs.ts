@@ -2,7 +2,7 @@
 // owns each need and whether it has landed. A need whose batch has not landed is a CLAIMED HOOK: the slide is present (its words, steps and shot are here) but not
 // wired until the need's `landed()` is true. The parity claims (src/parity/b13a.ts) and tests/decks-ag-needs.test.ts read this, so a batch that lands a feature
 // flips its hook here and every slide that waited for it counts as wired in the same push.
-import { CHARTS } from '../../ui/charts/registry.ts';
+import { chartDone } from '../../ui/charts/kinds.ts';
 import { toolLanded } from '../../ui/talk/tool-landed.ts';
 import { TILE } from '../../ui/charts/tiles.generated.ts';
 import { LENS_IDS, SINCE_BASELINE_FED } from '../../scene/lenses/model.ts';
@@ -65,7 +65,7 @@ const FIELD_HOOKS: Record<string, { id: string; owner: Owner; what: string }> = 
   chartFoot: { id: 'card:chart-foot', owner: 'B10', what: 'the chart footnote' },
   graph: { id: 'data:graph', owner: 'B10', what: 'the time-lapse graph on the teaching card' },
   plane: { id: 'visual:plane-options', owner: 'B10', what: 'the plane\'s options' },
-  span: { id: 'data:spans', owner: 'B10', what: 'the profile\'s brackets' },
+  span: { id: 'data:spans', owner: 'B10', what: 'the Circuit\'s bracket between two stations, with its reading' },
   glow: { id: 'fig:glow', owner: 'B6', what: 'the outlines the slide lights' },
   glowSeq: { id: 'fig:glow-steps', owner: 'B6', what: 'the numbered glow steps' },
   lapseGlow: { id: 'fig:glow-steps', owner: 'B6', what: 'the numbered glow steps' },
@@ -102,6 +102,7 @@ export const CARD_LANDED: Readonly<Record<string, string>> = {
   'card:chart-foot': 'src/ui/charts/small/AllPatientsCard.tsx',  // and its footnote
   'data:graph': 'src/ui/talk/ToolCard.tsx',              // a time-lapse's graph is its instrument card: the copy gives the slide the flow-time or procedure chart (2D slide-instrument.js), the data card mounts it
   'visual:plane-options': 'src/ui/talk/ToolCard.tsx',    // the plane visual hands the slide's own plane to the chart
+  'data:spans': 'src/scene/labels/figure-cards.ts',      // the Circuit's bracket under a span of stations and its reading (ui/deck/figure-plan.ts spans, figure-calls.ts, labels/span-math.ts)
   'visual:walls': 'src/ui/charts/walls/WallsCard.tsx',   // the two walls
   'reading:res': 'src/ui/talk/table-model.ts',           // the table's intrahepatic resistance column (the engine's rih)
   'reading:wave': 'src/ui/cards/WaveCell.tsx',             // the summary table's Doppler wave column (talk/table-wave.ts)
@@ -134,7 +135,7 @@ export function hookOf(id: string): Hook | null {
     case 'visual': {
       // plane, all-patients and ladders are charts of B10 (the presenter's visual card mounts them); the summary table is ui/cards/TableCard.tsx; the rest (outline, check…) are B12's
       const chart = ({ plane: 'plane', 'plane-options': 'plane', allpatients: 'small', ladders: 'ladder', walls: 'walls' } as Record<string, string>)[rest];
-      return { owner: chart ? 'B10' : 'B12', what: `the ${rest} visual over the figure`, landed: chart ? () => CHARTS.find((c) => c.kind === chart)?.status === 'done' : rest === 'table' ? ready : claimed };
+      return { owner: chart ? 'B10' : 'B12', what: `the ${rest} visual over the figure`, landed: chart ? () => chartDone(chart) : rest === 'table' ? ready : claimed };
     }
     case 'compare': return { owner: 'B12', what: `the compare buttons (${rest})`, landed: rest.split('+').every((k) => COMPARE_LANDED.includes(k)) ? ready : claimed }   // (gate and tool buttons move an instrument: the Tests cards);
     case 'present': return { owner: 'B12', what: 'the presenter plays any deck by its id, with the scene plate of each slide', landed: ready }   // (decks/all.ts);

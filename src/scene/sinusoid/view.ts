@@ -346,6 +346,8 @@ export class SinusoidView {
     return out;
   }
 
+  /** How open the lining's fenestrae are now (0 to 1, eased): the Fenestrae name reads it as "16% open". */
+  get porosity(): number { return this.cur.por; }
   /** The widths and places the names stand on (2D's halfW, wallIn, hepIn, disseW and the fixed cells), as the shader draws them now. */
   get nameGeom(): NameGeom { return { xs: this.geo.xs, xk: this.geo.xk, pores: this.geo.pores, ...this.g }; }
   /** 2D's names laid out for this screen (names.ts): the label layer gives the plane's place on screen, the free room and a measure; the stellate cell's state is the view's own. Level names, leaders, µm named. */
