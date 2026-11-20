@@ -78,7 +78,9 @@ function ringCentre(g: BufferGeometry, ring: number): { c: Vec3; r: number } {
  *  (the difference of the neighbouring ring centres), the first as far back toward the node as the arm's end ring is, the last `AXIS_REACH_R` radii from that end: a straight capsule through the seam never kinks against the tube's smooth curve at it, which a polyline of the
  *  tube's own, coarse, ring centres does (HA's left branch turns 45 degrees between two rings, a half pixel of ink off at the seam). Their radii are the end ring's and the tube's radius where the far point's ring is. */
 export const AXIS_REACH_R = 6;
-export function axisOf(tube: ArmTube, restR: number, cut: SkinCut): ArmAxis {
+/** An arm whose end ring lies more than this many of its radii from J gets J put in front of its capsule (spec 10.5). */
+export const BRIDGE_MIN_R = 0.1;
+export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3): ArmAxis {
   const out = cut.end ? -1 : 1, last = tube.tubular;
   const end = cut.end ? last : 0, a = ringCentre(tube.geometry, end), s = ringCentre(tube.geometry, cut.ring);
   const lo = Math.min(last, Math.max(0, cut.ring - out)), hi = Math.min(last, Math.max(0, cut.ring + out));   // (the ring nearer the node, the ring farther from it)
@@ -89,7 +91,10 @@ export function axisOf(tube: ArmTube, restR: number, cut: SkinCut): ArmAxis {
   let far = cut.ring, at = s.c;
   for (let k = cut.ring; k >= 0 && k <= last; k += out) { far = k; at = ringCentre(tube.geometry, k).c; if (Math.hypot(at[0] - a.c[0], at[1] - a.c[1], at[2] - a.c[2]) >= AXIS_REACH_R * restR) break; }
   const f = ringCentre(tube.geometry, far);
-  return { pts: [[s.c[0] - tx * d0, s.c[1] - ty * d0, s.c[2] - tz * d0], s.c, [s.c[0] + tx * d2, s.c[1] + ty * d2, s.c[2] + tz * d2]], radii: [a.r, s.r, f.r] };
+  const p1: Vec3 = [s.c[0] - tx * d0, s.c[1] - ty * d0, s.c[2] - tz * d0];
+  // THE BRIDGE (spec 10.5): every capsule starts AT J. Where the art leaves a gap (the arm's end more than a tenth of a radius from J) J is put in front, with the end ring's radius, so the union bridges the gap with the arm's own width and the hull (the rings alone) is unchanged
+  const bridged = J && Math.hypot(J[0] - a.c[0], J[1] - a.c[1], J[2] - a.c[2]) > BRIDGE_MIN_R * restR;   // (judged on the tube's own end ring: a tube that reaches J but bends on the way is not a gap)
+  return { pts: [bridged ? J! : p1, p1, s.c, [s.c[0] + tx * d2, s.c[1] + ty * d2, s.c[2] + tz * d2]], radii: [a.r, a.r, s.r, f.r] };
 }
 
 /** An arm's arc numbers for the skin's flow marks (the tube's `vUv.x * len * vU` at the seam, 300 figure units to the scene unit on the body): the arc at the seam, which way it grows toward the node, the vessel's length and its rest radius, all in figure units. */
@@ -98,7 +103,7 @@ export function armArcOf(end: 0 | 1, u: number, len: number, radius: number): { 
 }
 
 /** An axis as the mesh builder's capsule (sdf.ts): the same three points and radii. */
-const capsuleOf = (a: ArmAxis): Capsule => ({ n: 3, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii) });
+const capsuleOf = (a: ArmAxis): Capsule => ({ n: a.pts.length, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii) });
 
 export class SkinSet {
   private built: Built[] = [];
@@ -157,7 +162,7 @@ export class SkinSet {
         if (objs.some((o) => !o)) continue;   // (a vessel not in this scene: no skin; the tubes are untouched)
         const { pos, nor, rest } = ringsFor(plan.cuts);
         // the arms' axes: the tubes' own ring centres and radii, the SAME three-point polylines the skin's fragment stage draws its ink from, so the mesh's fillet and its outline are one shape
-        const axes = j.arms.map((a, i) => axisOf(tubes.get(a.vesselId)!, a.restR, plan.cuts[i]!));
+        const axes = j.arms.map((a, i) => axisOf(tubes.get(a.vesselId)!, a.restR, plan.cuts[i]!, j.J));
         const mesh = buildSkin(j, plan.cuts, pos, nor, axes.map(capsuleOf));
         // on a seam ring the skin's rest radius is the tube's own, exactly (the mesh builder measures the ring's mean radius, a few parts in 10^4 off the tube's `radius * rk`): the live move of a seam vertex is then the tube's to the last bit (spec 4.6)
         mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));

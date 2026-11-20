@@ -4,7 +4,7 @@
 import { BufferAttribute, BufferGeometry, Color, DoubleSide, Mesh, ShaderMaterial, Vector3, Vector4, type IUniform, type Object3D } from 'three';
 import { VESSEL_LAYER } from '../../layers.ts';
 import type { VesselObject } from '../vessel-object.ts';
-import { SKIN_ARMS, SKIN_FS, SKIN_VS } from './shaders.ts';
+import { SKIN_ARMS, SKIN_AXIS_PTS, SKIN_FS, SKIN_VS } from './shaders.ts';
 import type { SkinDraw } from './skin-set.ts';
 import { skinKOf } from './sdf.ts';
 import type { SkinMesh, Vec3 } from './types.ts';
@@ -16,8 +16,9 @@ export const SHARED_WITH_TUBES = [
   'lensGradA', 'lensLaneA', 'lensModeA', 'lensGradB', 'lensLaneB', 'lensModeB', 'laneColA', 'laneColB', 'lensMix', 'lensTail', 'lensSmooth',
 ] as const;
 
-/** The three points of an arm's axis the fragment stage draws its ink from (junction side first), with the rest radius at each. */
-export interface ArmAxis { pts: readonly [Vec3, Vec3, Vec3]; radii: readonly [number, number, number] }
+/** The four points of an arm's axis the fragment stage draws its ink from, with the rest radius at each: the node J (the bridge over the art's gap, spec 10.5; the next point again when the arm's end is at J), the start of the straight line
+ *  through the seam, the seam, the far point. */
+export interface ArmAxis { pts: readonly [Vec3, Vec3, Vec3, Vec3]; radii: readonly [number, number, number, number] }
 
 /** An arm's own `color` uniform (rgb) and whether a lens colours it (a: its `lensUse`). */
 export interface ArmColour { r: number; g: number; b: number; a: number }
@@ -34,6 +35,7 @@ export class SkinObject implements SkinDraw {
     g.setAttribute('normal', new BufferAttribute(skin.normal, 3));
     g.setAttribute('cen', new BufferAttribute(skin.cen, 3));
     g.setAttribute('weight', new BufferAttribute(skin.weight, 4));
+    g.setAttribute('weight2', new BufferAttribute(skin.weight2, 2));
     g.setAttribute('restR', new BufferAttribute(skin.restR, 1));
     g.setIndex(new BufferAttribute(skin.index, 1));
     g.computeBoundingSphere();
@@ -45,8 +47,8 @@ export class SkinObject implements SkinDraw {
     });
     this.armColor = Array.from({ length: SKIN_ARMS }, () => new Vector4(0, 0, 0, 1));
     this.armArc = Array.from({ length: SKIN_ARMS }, () => new Vector4(0, 1, 1, 1));
-    const armAxis = Array.from({ length: SKIN_ARMS * 3 }, () => new Vector3()), armAxisR: number[] = new Array(SKIN_ARMS * 3).fill(0);
-    axes.forEach((ax, i) => ax.pts.forEach((p, k) => { armAxis[i * 3 + k]!.set(p[0], p[1], p[2]); armAxisR[i * 3 + k] = ax.radii[k]!; }));
+    const armAxis = Array.from({ length: SKIN_ARMS * SKIN_AXIS_PTS }, () => new Vector3()), armAxisR: number[] = new Array(SKIN_ARMS * SKIN_AXIS_PTS).fill(0);
+    axes.forEach((ax, i) => ax.pts.forEach((p, k) => { armAxis[i * SKIN_AXIS_PTS + k]!.set(p[0], p[1], p[2]); armAxisR[i * SKIN_AXIS_PTS + k] = ax.radii[k]!; }));
     this.material = new ShaderMaterial({
       name: 'skin',
       vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true,
@@ -55,7 +57,7 @@ export class SkinObject implements SkinDraw {
         // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
         color: du.color!,
         lensUse: { value: 1 },
-        armData: { value: this.armData }, armLensU: { value: [0, 0, 0, 0] }, armFade: { value: [1, 1, 1, 1] }, armPres: { value: [1, 1, 1, 1] }, armHi: { value: [0, 0, 0, 0] }, armNarrow: { value: [0, 0, 0, 0] }, armArc: { value: this.armArc }, armFlow: { value: [0, 0, 0, 0] }, armColor: { value: this.armColor },
+        armData: { value: this.armData }, armLensU: { value: new Array(SKIN_ARMS).fill(0) }, armFade: { value: new Array(SKIN_ARMS).fill(1) }, armPres: { value: new Array(SKIN_ARMS).fill(1) }, armHi: { value: new Array(SKIN_ARMS).fill(0) }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: new Array(SKIN_ARMS).fill(0) }, armColor: { value: this.armColor },
         armAxis: { value: armAxis }, armAxisR: { value: armAxisR }, skinK: { value: skinKOf(skin.junction.arms) },
       },
     });

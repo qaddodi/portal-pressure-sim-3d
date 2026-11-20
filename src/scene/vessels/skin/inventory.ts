@@ -10,10 +10,10 @@ import type { SkinArm, SkinJunction, Vec3 } from './types.ts';
 /** The kinds of vessel that are permanent (spec 4.1): a skin is built only where these meet. Collaterals and shunts grow from nothing and keep the fork method (`nbr`, `bury`); feeders are strands of a host. */
 export const PERMANENT_KINDS: ReadonlySet<string> = new Set(['vein', 'artery', 'arteriole', 'liver']);
 /** How far (in radii of the widest arm) an arm's end may lie from J (spec 4.2, amended): fitEnds puts the branches onto the trunk (within ATTACH_REACH of 1.6), and the one gap the 2D art leaves, CV_R's liver beds at 1.72, is spanned by the skin's hull. */
-export const SKIN_REACH = 2.0;
+export const SKIN_REACH = 6;
 /** A node needs this many permanent ends for a skin, and at most this many (the shader's `armData[4]`). */
 export const MIN_ARMS = 3;
-export const MAX_ARMS = 4;
+export const MAX_ARMS = 6;
 
 /** Whether a vessel is a permanent tube: one of the kinds above and not a feeder strand (`~F:`). */
 export const isPermanent = (v: NetVessel): boolean => !v.feeder && !v.id.includes('~F') && PERMANENT_KINDS.has(v.kind);

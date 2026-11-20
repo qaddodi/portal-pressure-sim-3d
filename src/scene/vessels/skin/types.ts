@@ -7,7 +7,8 @@ export type Vec3 = readonly [number, number, number];
 export interface SkinArm {
   vesselId: string;          // NETWORK id, e.g. 'SMV_CONF'
   end: 0 | 1;                // which end of the vessel is at the node (0: its start, 1: its end)
-  courseIndex: 0;            // arms are always the vessel's main course (index 0 of coursesOf)
+  courseIndex: number;       // which course of the vessel (index into coursesOf): 0 for every arm today; a feeder strand or a coil's strand is another (spec 10.1)
+  runStart?: number;         // the tube geometry's first vertex of that course (TubeRun.tubeStart), 0 for the main course
   dataIndex: number;         // indexOf(def.lensId): the vdata texel (live diameter)
   lensIndex: number;         // same as dataIndex today; kept separate on purpose
   baseD: number;             // def.baseD
@@ -36,7 +37,8 @@ export interface SkinMesh {
   position: Float32Array;             // xyz, rest shape, scene units, NOT inflated by ink
   normal: Float32Array;               // xyz unit
   cen: Float32Array;                  // xyz: nearest point on the nearest arm's axis (for depth, like the tube's ring centre)
-  weight: Float32Array;               // 4 per vertex, sum 1, arm order; unused arms 0
+  weight: Float32Array;               // 4 per vertex (arms 0 to 3), sum of all six 1, arm order; unused arms 0
+  weight2: Float32Array;              // 2 per vertex (arms 4 and 5)
   restR: Float32Array;                // 1 per vertex: the blended rest radius sum(w_i * R_i(at the nearest axis point))
   index: Uint32Array;                 // triangles
   seamVerts: Uint32Array[];           // per arm: the skin vertex ids of its seam ring, in the tube's ring order j = 0..RADIAL

@@ -4,7 +4,7 @@
 import { Vector3 } from 'three';
 import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
 import { SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
-import { ARM_REACH, closestOnArm, gradient, localRadius, sdUnionGrad, skinKOf, weights, type Capsule } from './sdf.ts';
+import { ARM_REACH, MAX_SKIN_ARMS, closestOnArm, gradient, localRadius, sdUnionGrad, skinKOf, weights, type Capsule } from './sdf.ts';
 
 /** The target edge length is `EDGE_SCALE` times the circumference spacing `2 pi R / ring size` of the arm nearest the edge, so the skin's triangles are the size of the tube's own around
  *  a ring, and the thin branch's side gets finer ones than the trunk's.
@@ -19,6 +19,8 @@ export const SPLIT_AT = 4 / 3;
 export const COLLAPSE_AT = 0.6;
 /** Remeshing rounds, and the most vertices before the build gives up with a `SkinBuildError`. */
 export const REMESH_ROUNDS = 16;
+/** Collapse passes per round (a pass collapses an independent set of edges only). */
+export const COLLAPSE_PASSES = 6;
 /** The remesh stops once a round changes no more than this share of the triangles (after the shrink). */
 export const SETTLED = 0.02;
 /** The first `SHRINK_ROUNDS` rounds pull each vertex `SHRINK_PULL` of the way to the surface per round (the sheet shrinks over them); the polish rounds pull all the way. */
@@ -116,7 +118,7 @@ function axisFromRing(ring: Float32Array, J: Vec3): Capsule {
  */
 export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[]): SkinMesh {
   const A = j.arms.length, n = seamRings[0]!.length / 3, S = A * n;   // S: the ring vertices, ids 0..S-1 (arm * n + j), fixed for ever
-  if (A < 2 || A > 4 || seamRings.length !== A || seamNormals.length !== A || cuts.length !== A) throw new SkinBuildError(j.node, 'needs 2 to 4 arms with a ring, a normal set and a cut each');
+  if (A < 2 || A > MAX_SKIN_ARMS || seamRings.length !== A || seamNormals.length !== A || cuts.length !== A) throw new SkinBuildError(j.node, 'needs 2 to 6 arms with a ring, a normal set and a cut each');
   const hull = ringHull(seamRings);
   if (!hull.ok) throw new SkinBuildError(j.node, `the hull misses the seam rings: ${hull.why}`);
   const caps = axes ?? seamRings.map((r) => axisFromRing(r, j.J));
@@ -320,7 +322,9 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   for (let r = 0; r < REMESH_ROUNDS; r++) {
     let changes = 0;
     for (let s = 0; s < 4; s++) { const c = split(); changes += c; if (!c) break; }
-    changes += collapse();
+    let c1 = 0;
+    for (let s = 0; s < COLLAPSE_PASSES; s++) { const c = collapse(); c1 += c; if (c < 3) break; }   // (a pass locks every neighbour of what it collapsed, so a crowded patch needs several)
+    changes += c1;
     changes += flip();
     smooth(r < SHRINK_ROUNDS ? SHRINK_PULL : 1);
     if (r >= SHRINK_ROUNDS && changes <= Math.max(2, SETTLED * tris.length / 3)) break;   // settled: only a stray edge still changes
@@ -355,8 +359,8 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   for (let v = 0; v < V; v++) if (row[v]! < 0) throw new SkinBuildError(j.node, `vertex ${v} is not connected to a seam (${V} vertices, ${index.length / 3} triangles)`);
 
   // normals, weights, rest radius, nearest axis point
-  const position = new Float32Array(3 * V), normal = new Float32Array(3 * V), cen = new Float32Array(3 * V), weight = new Float32Array(4 * V), restR = new Float32Array(V);
-  const w = new Float64Array(4), cp = new Float64Array(7);
+  const position = new Float32Array(3 * V), normal = new Float32Array(3 * V), cen = new Float32Array(3 * V), weight = new Float32Array(4 * V), weight2 = new Float32Array(2 * V), restR = new Float32Array(V);
+  const w = new Float64Array(MAX_SKIN_ARMS), cp = new Float64Array(7);
   for (let v = 0; v < V; v++) {
     const x = cpos[3 * v]!, y = cpos[3 * v + 1]!, z = cpos[3 * v + 2]!;
     // seam rings are the tube's own float32 vertices, copied exactly
@@ -377,11 +381,11 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
     normal[3 * v] = nx; normal[3 * v + 1] = ny; normal[3 * v + 2] = nz;
     weights(caps, k, x, y, z, w);
     // a seam vertex belongs wholly to its own arm: the blend is off there (spec 4.4.1)
-    if (v < S) for (let i = 0; i < 4; i++) w[i] = i === Math.floor(v / n) ? 1 : 0;
+    if (v < S) for (let i = 0; i < MAX_SKIN_ARMS; i++) w[i] = i === Math.floor(v / n) ? 1 : 0;
     let top = 0;
     for (let i = 0; i < A; i++) if (w[i]! > w[top]!) top = i;
     let rr = 0;
-    for (let i = 0; i < A; i++) { weight[4 * v + i] = w[i]!; if (w[i]! > 0) { closestOnArm(caps[i]!, x, y, z, cp); rr += w[i]! * cp[3]!; } }
+    for (let i = 0; i < A; i++) { if (i < 4) weight[4 * v + i] = w[i]!; else weight2[2 * v + i - 4] = w[i]!; if (w[i]! > 0) { closestOnArm(caps[i]!, x, y, z, cp); rr += w[i]! * cp[3]!; } }
     restR[v] = rr;
     closestOnArm(caps[top]!, x, y, z, cp);
     cen[3 * v] = cp[0]!; cen[3 * v + 1] = cp[1]!; cen[3 * v + 2] = cp[2]!;
@@ -393,11 +397,11 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
     const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
     let d = 0;
     for (const v of [a, b, c]) d += fx * normal[3 * v]! + fy * normal[3 * v + 1]! + fz * normal[3 * v + 2]!;
-    if (d <= 0) throw new SkinBuildError(j.node, `the surface folds at triangle ${i / 3}`);
+    if (d <= 0) { throw new SkinBuildError(j.node, `the surface folds at triangle ${i / 3}`); }
   }
   const seamVerts: Uint32Array[] = [];
   for (let a = 0; a < A; a++) { const ids = new Uint32Array(n); for (let q = 0; q < n; q++) ids[q] = a * n + q; seamVerts.push(ids); }
-  return { junction: j, cuts, position, normal, cen, weight, restR, index, seamVerts };
+  return { junction: j, cuts, position, normal, cen, weight, weight2, restR, index, seamVerts };
 }
 
 /** A cheap stand-in for a triangle's smallest angle: its sine, `2 area / (longest edge x middle edge)` (no trig, no allocation; it rises and falls with the angle up to 60 degrees). */
