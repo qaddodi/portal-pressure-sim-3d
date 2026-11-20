@@ -211,7 +211,8 @@ void main() {
   float w = max(fwidth(s) * 0.75, 1e-3);
   float shadeT = 1.0 - smoothstep(${F(CEL_STYLE.VESSEL_STEP_AT)} - w, ${F(CEL_STYLE.VESSEL_STEP_AT)} + w, s);
   vec3 c = tint * vC;
-  c *= 1.0 - ${F(CEL_STYLE.MICRO.SHADE)} * shadeT;
+  // (a flat shape on the plate (uRimUp) is one tone: its shade fell as a thin crescent just inside its ring on the side away from the light, and read as the ring twice as thick there, eyes 20 Nov)
+  c *= 1.0 - ${F(CEL_STYLE.MICRO.SHADE)} * shadeT * (1.0 - uRimUp);
 #ifdef GAPS
   c = mix(c, c * 0.35, gapCut());
 #endif
@@ -348,7 +349,7 @@ export interface MicroOptions {
   /** The shape's line drawn inside its fill, this many CSS px (the small solid shapes: red cells, nuclei, albumin, the cells of the lining); 0 or none: no such line. */
   rim?: number;
   /** The rim measured against the plane's up (world z) instead of the eye: for a flat shape lying on the plate (a nucleus, the lining, a stellate cell), whose n.v fall-off is steep on one side
-   *  and shallow on the other wherever the eye is not straight over it, so its ring was twice as thick on the side away from the eye (eyes 20 Nov). Its equator is its outline from above. */
+   *  and shallow on the other wherever the eye is not straight over it, so its ring was twice as thick on the side away from the eye (eyes 20 Nov). Its equator is its outline from above, and it is one tone (no shade crescent inside the ring). */
   rimUp?: boolean;
 }
 
