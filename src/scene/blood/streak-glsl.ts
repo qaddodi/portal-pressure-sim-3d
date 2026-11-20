@@ -179,6 +179,8 @@ ${STREAK_MARK_GLSL}
 vec2 gStreakK = vec2(1.0, 0.5);
 // gStreakPx: CSS px to one unit of across (the lumen's radius) where the caller knows it, else 0 (the pixel's own derivative then says): the filament is CORE_PX thick on screen
 float gStreakPx = 0.0;
+// gStreakFw: fwidth(across), taken by the caller at the top of its main() before any discard or branch (a derivative there is garbage on Apple GPUs); 0: taken here
+float gStreakFw = 0.0;
 // gStreakLanes: the lane count (1, 3, 5, 7) when the caller cuts the lanes by the width on screen, else 0 (from the half width, 3 to 7)
 float gStreakLanes = 0.0;
 // gStreakSpan: the length of the vessel in the field's units where the caller knows it: a lane's period never runs past it, so a short vessel always has a filament on it
@@ -207,10 +209,11 @@ float streakField(float across, float along, float flow, float halfWidth, float 
   if (dir < 0.0) t = 1.0 - t;
   float jit = 1.0 - ${F(STREAK.THICK_JITTER)} * 0.5 + ${F(STREAK.THICK_JITTER)} * streakHash(seed + 4.1);
   // on screen: the lane's width in px, the filament CORE_PX thick (never over CORE_MAX_PX) and the pixel's own footprint across it
-  float pxA = gStreakPx > 0.0 ? gStreakPx : 1.0 / max(fwidth(across), 1e-4);
+  float fwA = gStreakFw > 0.0 ? gStreakFw : fwidth(across);
+  float pxA = gStreakPx > 0.0 ? gStreakPx : 1.0 / max(fwA, 1e-4);
   float lanePx = pxA * 2.0 * ${F(STREAK.FIELD_EDGE)} / lanes;
   float W = min(mix(${F(STREAK.CORE_THIN_MAX_PX)}, ${F(STREAK.CORE_MAX_PX)}, gStreakWide), mix(${F(STREAK.CORE_PX)}, ${F(STREAK.CORE_WIDE_PX)}, gStreakWide) * jit);
-  float pw = clamp(fwidth(across) * pxA, 1.0, 2.0);
+  float pw = clamp(fwA * pxA, 1.0, 2.0);
   // a slow sideways drift (a share of the lane, kept inside it)
   float room = max(0.5 - (0.5 * W + 0.5 * pw) / max(lanePx, 1e-3), 0.0);
   float dr = min(${F(STREAK.DRIFT)}, room) * sin(6.2831853 * (x / ${F(STREAK.DRIFT_LEN)}) + 6.2831853 * streakHash(seed + 3.3));

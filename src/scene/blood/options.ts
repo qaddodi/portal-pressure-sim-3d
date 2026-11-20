@@ -8,6 +8,8 @@ export interface BloodChoice {
   chevrons: boolean;
   /** Key chevrons only: just the main routes, not every vessel (always while presenting) */
   keyChevrons: boolean;
+  /** Key streaks only: the blood streaks (the dust) on the main routes only, the vessels Key chevrons only keeps; the others ease out (Mohammad, 20 Nov: "add option for only key streaks to show up just like chevrons") */
+  keyStreaks: boolean;
   /** Pressure values: the number beside each vessel's name */
   chips: boolean;
   /** Potential collaterals: dotted routes that open with pressure */
@@ -15,7 +17,7 @@ export interface BloodChoice {
   /** Organ names: the caption on each organ */
   labels: boolean;
 }
-export const BLOOD_DEFAULT: Readonly<BloodChoice> = { chevrons: true, keyChevrons: false, chips: true, collaterals: false, labels: true };
+export const BLOOD_DEFAULT: Readonly<BloodChoice> = { chevrons: true, keyChevrons: false, keyStreaks: false, chips: true, collaterals: false, labels: true };
 
 /** [key, title, line under it], in the menu's order and sections. */
 export const BLOOD_MENU: readonly { section: string; rows: readonly (readonly [keyof BloodChoice, string, string])[] }[] = [
@@ -37,7 +39,7 @@ export const useBlood = create<BloodState>((set, get) => ({
   ...load(),
   set(patch) {
     set(patch);
-    const { chevrons, keyChevrons, chips, collaterals, labels } = get();
-    try { localStorage.setItem(KEY, JSON.stringify({ chevrons, keyChevrons, chips, collaterals, labels })); } catch { /* storage unavailable */ }
+    const { chevrons, keyChevrons, keyStreaks, chips, collaterals, labels } = get();
+    try { localStorage.setItem(KEY, JSON.stringify({ chevrons, keyChevrons, keyStreaks, chips, collaterals, labels })); } catch { /* storage unavailable */ }
   },
 }));

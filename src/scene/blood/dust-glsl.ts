@@ -15,7 +15,7 @@
 //   cost           K classes x (2N + 1) cells for each lane segment the pixel can see (one away from a dividing line, two on it); a fading layout (routes.ts FADE_S) draws both for that while. Runtime numbers, no recompile.
 import { STREAK } from './streak-glsl.ts';
 import { DUST_KMAX, DUST_NMAX, DUST_UNIFORMS, DUST_VEC4, LAB_R } from './dust-spec.ts';
-import { SEG_MAX } from './routes.ts';
+import { KEEP_ROW, SEG_MAX } from './routes.ts';
 
 const F = (x: number): string => { const r = Number(x.toPrecision(6)); return Number.isInteger(r) ? r.toFixed(1) : String(r); };
 
@@ -213,9 +213,13 @@ vec2 dLaneWin(DFrame F) {
 float dFlow(float root) { ${flowBody} }
 
 // THE TUBE: every lane segment the pixel can see, of the current layout and (while it fades out) the last one
+// how much of the vessel's dust shows ("Key streaks only" eases a vessel's out: routes.ts KEEP_ROW)
+float dKeep(float edge) { return texelFetch(routeTex, ivec2(int(edge), ${KEEP_ROW}), 0).x; }
 bool dEdgeOk(float edge) { return edge >= 0.0 && edge < float(textureSize(routeTex, 0).x); }   // (a fetch outside the table is undefined: garbage, or NaN, on some GPUs)
 vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
   if (!dEdgeOk(F.edge)) return vec4(0.0);
+  float keepT = dKeep(F.edge);
+  if (keepT <= 0.001) return vec4(0.0);
   vec3 t0, t1, t2, t3; dTones(lit, t0, t1, t2, t3);
   vec4 hd = texelFetch(routeTex, ivec2(int(F.edge), 0), 0);
   vec2 win = dLaneWin(F);
@@ -246,7 +250,7 @@ vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
     }
   }
   // nothing past the lumen's edge: the dust stops short of the ink, with a soft fall (never a hard cut)
-  return clamp(acc, 0.0, 1.0) * (1.0 - smoothstep(0.90, 0.96, abs(F.across)));   // (premultiplied: never past 0 .. 1, or the lumen under it would be inverted)
+  return clamp(acc, 0.0, 1.0) * keepT * (1.0 - smoothstep(0.90, 0.96, abs(F.across)));   // (premultiplied: never past 0 .. 1, or the lumen under it would be inverted)
 }
 // the segment of edge edge (current layout) that carries the root's lane yl, if any: its index (-1 none) and the particle's lane there and membership
 vec3 dFind(float edge, float root, float yl) {
@@ -272,6 +276,8 @@ DMark dMix(DMark a, DMark b, float t) {
 vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
   if (!dEdgeOk(F0.edge)) return vec4(0.0);
   if (!dEdgeOk(F1.edge)) w1 = 0.0;
+  float keepS = mix(dKeep(F0.edge), w1 > 0.0 ? dKeep(F1.edge) : dKeep(F0.edge), w1);
+  if (keepS <= 0.001) return vec4(0.0);
   vec3 t0, t1, t2, t3; dTones(lit, t0, t1, t2, t3);
   int K = min(int(D_nCls + 0.5), ${DUST_KMAX}), N = min(int(D_win + 0.5), ${DUST_NMAX});   // (the loops' bounds are runtime numbers, GLSL ES 3.0: no compiler unrolls them into hundreds of copies)
   vec4 acc = vec4(0.0);
@@ -311,7 +317,7 @@ vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
       }
     }
   }
-  return clamp(acc, 0.0, 1.0) * (1.0 - smoothstep(0.90, 0.96, abs(mix(F0.across, F1.across, w1))));
+  return clamp(acc, 0.0, 1.0) * keepS * (1.0 - smoothstep(0.90, 0.96, abs(mix(F0.across, F1.across, w1))));
 }
 `;
 /** The Anatomy's: the root's stream distance is texel w of the streams' texture (blood/streams.ts). */
