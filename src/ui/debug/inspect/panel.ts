@@ -12,6 +12,7 @@ import { setPart, SHADE_NAMES, type PartView, type ShadeMode } from '../../../sc
 import { clearJoinsOverride, joinsMode, setJoinsOverride, skinDebugOn, skinLeaveOut, type JoinsMode } from '../../../scene/vessels/skin/joins-mode.ts';
 import { reapplySkinDefines } from '../../../scene/vessels/skin/skin-object.ts';
 import { INSPECT_PITCH } from '../../../scene/camera/rig.ts';
+import { flagValue } from '../flags.ts';
 import { PRESETS, VIEWS, defaultState, stateText, wrapDeg, type InspectState, type Leave } from './state.ts';
 
 const RAD = Math.PI / 180;
@@ -155,5 +156,5 @@ export function mountInspect(): void {
   }, 250);
 
   apply(); syncAll();
-  if (new URLSearchParams(location.search).get('joins') === 'debug') box.style.display = 'block';   // (?joins=debug opens the panel)
+  if (flagValue('joins') === 'debug') box.style.display = 'block';   // (?joins=debug opens the panel)
 }
