@@ -38,7 +38,7 @@ varying vec3 vN;
 varying vec3 vVD;
 varying vec3 vC;
 varying float vHy;
-#if defined(STREAKS) || defined(FLOW) || defined(RIM_UV)
+#if defined(STREAKS) || defined(FLOW) || defined(RIM_UV) || defined(HOLES)
 attribute float aux;
 #endif
 #if defined(FLOW) || defined(RIM_UV)
@@ -55,8 +55,11 @@ varying float vAux;
 varying float vArc;
 varying float vAcross;
 #endif
-#ifdef GAPS
+#if defined(GAPS) || defined(HOLES)
 varying vec2 vG;
+#endif
+#ifdef HOLES
+varying vec2 vH;
 #endif
 void main() {
   vec3 p = position;
@@ -85,8 +88,11 @@ void main() {
 #ifdef FLOW
   vArc = aux; vAcross = aux2;
 #endif
-#ifdef GAPS
+#if defined(GAPS) || defined(HOLES)
   vG = position.xy;
+#endif
+#ifdef HOLES
+  vH = vec2(position.x, aux);
 #endif
   float infl = inflate;
 #ifdef SWELL
@@ -206,19 +212,38 @@ float flowStreaks() {
   return streakField(vAcross, vArc * s, uFlowT * s, 1.0, 1.0, 1.0) * uFlowStreak;
 }
 #endif
-#ifdef GAPS
+#if defined(GAPS) || defined(HOLES)
 // real gaps through a sheet (the sinusoid's fenestrae, Mohammad 20 Nov 2026: "complete, not just circle holes: actually a gap in the membrane"): one texel per 1 µm slot along x, per side (row 0 the
 // side at local y > 0, row 1 the other), holding the gap's half width (red, 0..1 of 0.5 µm). A fragment within it is not drawn at all, across the whole bead and its wall, so the space of Disse shows through;
 // the cut's own edge is a slim dark line (screen px wide, antialiased), as the sheet's other edges are inked.
 uniform sampler2D uGaps;
 varying vec2 vG;      // the fragment's own place on the sheet (local x and y, µm)
 uniform vec4 uGapX;   // x: the first slot's x (µm), y: the slots (the texture's width), z: 0.5 µm per unit of red
+#endif
+#ifdef HOLES
+varying vec2 vH;
+#endif
+#ifdef GAPS
 float gapCut() {
   float u = vG.x - uGapX.x, j = floor(u);
   if (j < 0.0 || j >= uGapX.y) return 0.0;
   float hw = texture2D(uGaps, vec2((j + 0.5) / uGapX.y, vG.y > 0.0 ? 0.25 : 0.75)).r * uGapX.z;
   if (hw <= 0.0) return 0.0;
   float d = abs(u - j - 0.5) - hw, wpx = max(fwidth(u), 1e-5);
+  if (d < 0.0) discard;
+  return 1.0 - smoothstep(0.6 * wpx, 1.8 * wpx, d);
+}
+#endif
+#ifdef HOLES
+// the second bore of each slot, lower on the curve of the wall (Mohammad 20 Nov 2026, A1): a round hole through the wall's inner face. vH is (x along, s down the wall from the cut, µm); the slot's texel
+// gives the bore's radius (the same table as the cut's slots, so the two always agree); uHoleP is its place: s (x) and the offset from the slot's centre (y). Not drawn inside; its edge a slim dark line.
+uniform vec2 uHoleP;
+float holeCut() {
+  float u = vH.x - uGapX.x, j = floor(u);
+  if (j < 0.0 || j >= uGapX.y) return 0.0;
+  float hw = texture2D(uGaps, vec2((j + 0.5) / uGapX.y, vG.y > 0.0 ? 0.25 : 0.75)).r * uGapX.z;
+  if (hw <= 0.0) return 0.0;
+  float d = length(vec2(u - j - 0.5 - uHoleP.y, vH.y - uHoleP.x)) - hw, wpx = max(fwidth(u), 1e-5);
   if (d < 0.0) discard;
   return 1.0 - smoothstep(0.6 * wpx, 1.8 * wpx, d);
 }
@@ -238,6 +263,9 @@ void main() {
   c *= 1.0 - ${F(CEL_STYLE.MICRO.SHADE)} * shadeT * (1.0 - uRimUp);
 #ifdef GAPS
   c = mix(c, c * 0.35, gapCut());
+#endif
+#ifdef HOLES
+  c = mix(c, c * 0.35, holeCut());
 #endif
   float wz = washA();
 #ifdef STREAKS
@@ -382,6 +410,8 @@ export interface MicroOptions {
   flow?: boolean;
   /** Real gaps through the sheet along x (the geometry's local x and y): `gaps.tex` holds one texel per slot per side, `gaps.x` its layout (see MICRO_FS GAPS). */
   gaps?: { tex: Texture; x: Vector4 };
+  /** The second bore of each slot as round holes in a shell (the geometry carries `aux`, the place down the wall, µm; needs `gaps`): its s down the wall and its x from the slot's centre. */
+  holes?: { s: number; dx: number };
   /** Draw both sides (a thin sheet seen from either side). */
   doubleSide?: boolean;
   /** Drawn see-through (opacity below 1): sorted after the solid parts, no depth written. */
@@ -415,7 +445,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
   const haze = o.haze ?? hazeUniforms();
   const toon = new ShaderMaterial({
     vertexShader: MICRO_VS, fragmentShader: MICRO_FS, vertexColors: !!o.vertexColors,
-    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps ? { GAPS: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.swell ? { SWELL: '' } : {}) },
+    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps && !o.holes ? { GAPS: '' } : {}), ...(o.gaps && o.holes ? { HOLES: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.swell ? { SWELL: '' } : {}) },
     uniforms: {
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, uSwell: { value: new Vector2(0, 0) }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
@@ -425,7 +455,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
       uFlowR: { value: 0.02 }, uDpr: { value: 2 }, uFlowDark: { value: 0 }, uFlowInk: { value: rawRGB(new Color(), hexRGB(LENS_SHARED.chevron)) },
       // (every toon carries the gaps' uniforms too, a blank texture and no slots where it has none, so a program read without GAPS still finds each one)
-      uGaps: { value: o.gaps?.tex ?? NO_GAPS }, uGapX: { value: o.gaps?.x ?? new Vector4(0, 0, 0, 0) },
+      uGaps: { value: o.gaps?.tex ?? NO_GAPS }, uGapX: { value: o.gaps?.x ?? new Vector4(0, 0, 0, 0) }, uHoleP: { value: new Vector2(o.holes?.s ?? 0, o.holes?.dx ?? 0) },
     },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
