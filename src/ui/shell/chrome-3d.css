@@ -11,6 +11,9 @@
 .sh-root > .app :is(.topbar, .vdock, .zoom-pill)[data-hidden="true"], .sh-root[data-mode="deck"] > .app :is(.topbar, .vdock, .zoom-pill, .stage-credit) { opacity: 0; pointer-events: none !important; }
 .sh-root[data-mode="deck"] > .app * { pointer-events: none !important; }
 .sh-root > .app .stage-credit.placed { opacity: 1; }
+/* The credit fades, never pops (2D's page shows and hides it at once; here the Sinusoid's vessel takes its corner away on a phone and it comes back when the view is left). The class is `.covered` (no bare spot) or `.moving` (a new spot: out, move, in). */
+.sh-root > .app .stage-credit { transition: opacity .24s ease; }
+.sh-root > .app .stage-credit:is(.covered, .moving) { opacity: 0; }
 /* the 2D dialog (About the model, References, Privacy) sits in the shell, whose root takes no taps */
 .sh-root > .modal-back.show { pointer-events: auto; }
 /* the 2D menus, the palette and the sheet scrim sit in the shell, whose root takes no taps */
