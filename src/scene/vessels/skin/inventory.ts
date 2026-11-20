@@ -28,7 +28,7 @@ export const MAX_ARMS = 6;
 export const isPermanent = (v: NetVessel): boolean => !v.feeder && !v.id.includes('~F') && PERMANENT_KINDS.has(v.kind);
 
 /** The end of a permanent vessel that sits at `node`, as listed by the network: 0 its start, 1 its end (a vessel with both ends on one node counts twice). */
-function permanentEndsByNode(network: readonly NetVessel[]): Map<string, { v: NetVessel; end: 0 | 1 }[]> {
+export function permanentEndsByNode(network: readonly NetVessel[]): Map<string, { v: NetVessel; end: 0 | 1 }[]> {
   const at = new Map<string, { v: NetVessel; end: 0 | 1 }[]>();
   for (const v of network) {
     if (!isPermanent(v)) continue;

@@ -261,3 +261,8 @@ body[data-card-zoom] .lb-layer { opacity: 0; transition: opacity 240ms var(--eas
 body[data-card-zoom] .pz-zbtn :is(svg, .ic):first-child { display: none; }
 body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 .deck-ui .pz-zbtn { pointer-events: auto; }
+
+/* A row of choices is one row (2D presenter-ladders.js abShort, src/ui/cards/ab-short.ts): where the full names would wrap, each button that has a compact label shows it instead (the full name stays its accessible name and tooltip). */
+.pz-abb .ab-s { display: none; }
+.pz-ab[data-compact] .pz-abb .ab-f { display: none; }
+.pz-ab[data-compact] .pz-abb .ab-s { display: inline; }

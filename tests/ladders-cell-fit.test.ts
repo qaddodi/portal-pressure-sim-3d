@@ -1,0 +1,33 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { chartScale } from '../src/ui/charts/profile/model.ts';
+
+// Mohammad, 20 Nov (The biggest pressure drop shows where the resistance is, 11/14): each of the six mini-charts overflowed its cell into the next (axes, labels and the HVPG / PPG pills over the neighbours, the right column cut at
+// the card's edge) with a big blank under each. Root cause: 2D draws each cell's chart once at the instrument's own width (--lad-w, one card width) and scales it down as one piece to the cell (presenter-question.js fitChart:
+// --lad-k, --lad-s on .pz-cc); the port had the stylesheet and chartScale but never the step that sets them, so k stayed 1.
+test('a chart scaled to its cell is never wider than the cell, and its words never come under 12 px on the screen', () => {
+  for (let W = 120; W <= 800; W += 7) for (const w0 of [380, 520, 584, 640]) for (const f0 of [12, 13.5, 15]) {
+    const { k, s } = chartScale(W, w0, f0);
+    assert.ok(k <= 1 + 1e-9, `k ${k} never enlarges`);
+    assert.ok(W >= w0 || w0 * k <= W + 1e-6, `cell ${W}, chart ${w0}: scaled width ${w0 * k}`);
+    assert.ok(s >= 1 - 1e-9, 's never shrinks the type');
+    assert.ok(f0 * s * k >= 12.02 - 1e-6, `type on screen ${f0 * s * k} at cell ${W}`);
+  }
+  assert.deepEqual(chartScale(600, 584, 13), { k: 1, s: 1 }, 'a cell as wide as the chart leaves it whole');
+  const six = chartScale(475, 584, 12.5);
+  assert.ok(six.k < 1 && Math.abs(584 * six.k - 475) < 1e-6, 'the six ladders: scaled to the cell\'s width');
+});
+
+test('every cell sets --lad-k and --lad-s on its holder from its own measure, and the chart measures its unscaled box (so it is not shrunk twice)', () => {
+  const card = readFileSync('src/ui/charts/ladder/LaddersCard.tsx', 'utf8');
+  assert.match(card, /export function fitLadderChart/);
+  assert.match(card, /setProperty\('--lad-k', ks\)/);
+  assert.match(card, /setProperty\('--lad-s', ss\)/);
+  assert.match(card, /new ResizeObserver\(fit\)/, 'again when the cell\'s width changes (a resize, the zoom, a new card width)');
+  assert.match(card, /<LadderChart r=\{r\}/, 'every cell of the grid goes through it');
+  assert.match(card, /cell=\{\{ lad \}\}/, 'a larger type is drawn again at that type');
+  const fit = readFileSync('src/ui/charts/fit.ts', 'utf8');
+  assert.match(fit, /classList\?\.contains\('pz-cc'\)/);
+  assert.match(fit, /--lad-k/);
+});

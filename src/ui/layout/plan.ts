@@ -150,6 +150,12 @@ export function widthOf(vp: Viewport, pair = false, step = 0): number {
   return Math.round(cardWidth(vp.w, vp.h, layout));
 }
 
+/** The top of a group of cards `total` px tall (the words, the gap and the data card, or one card) on a screen `H` tall: the group is centred top to bottom as ONE, so the room above it equals the room below
+ *  (2D presenter-ladders.js, "the stacked pair shorter than the screen is centred top to bottom as one (equal room above and below, never closer than one margin to the top or the controls)":
+ *  `max(0, min((H - stackH) / 2 - top0, foot - top0 - stackH))`). `top0` is the least room above, `foot` the lowest the group may reach (the screen's margin, or the pill's top when the column runs over it). A group too
+ *  tall for that stays at `top0` (the caller lets it rise into the margin). Root of "the stack sits high with a big gap below" (Mohammad, 20 Nov): the planner used to start every wide pair at the top margin. */
+export const pairTop = (H: number, total: number, top0: number, foot: number): number => top0 + Math.max(0, Math.min((H - total) / 2 - top0, foot - top0 - total));
+
 /** Where the cards go. `active` is the wallet's showing card (iPhone: the other becomes the strip). `step` is the wallet's step on its side. */
 export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', step = 0, dock = false): Plan {
   const device = deviceClass(vp.w, vp.h);
@@ -189,7 +195,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     } else if (words || data) {
       const only = (words ?? data)!;
       maxH.words = maxH.data = vp.h - 20;
-      placed.push({ id: only.id, slot: only.slot, rect: { x, y: 10, w, h: only.h } });
+      placed.push({ id: only.id, slot: only.slot, rect: { x, y: Math.round(pairTop(vp.h, only.h, 10, vp.h - 10)), w, h: only.h } });
     }
     bounds = { x: safe.left, y: safe.top, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - safe.bottom };
     extra.push(bar.rect);
@@ -231,10 +237,10 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     bar = barOf(vp, x + w);
     const overBar = x + w > bar.rect.x - 12;   // the column reaches the pill: the pair ends above it
     const foot = overBar ? bar.rect.y - 8 : limit;
-    const total = wh + (data ? gap + dh : 0);
+    const total = wh + dh + (words && data ? gap : 0);
     // a pair a few px too tall rises into the top margin, never nearer than 4 px; past that it stays stacked (2D shrinks the data card's blocks, here the words page)
     const rise = Math.max(0, Math.min(top0 + total - foot, top0 - 4));
-    const y0 = top0 - rise;
+    const y0 = rise > 0 ? top0 - rise : pairTop(vp.h, total, top0, foot);
     maxH.words = Math.round(foot - y0 - (data ? gap + dh : 0));
     maxH.data = Math.round(foot - y0 - (words ? gap + wh : 0));
     if (words) placed.push({ id: words.id, slot: 'words', rect: { x, y: Math.round(y0), w, h: wh } });
