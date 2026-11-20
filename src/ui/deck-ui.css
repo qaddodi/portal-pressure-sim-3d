@@ -7,7 +7,7 @@
   position: absolute; inset: 0; z-index: 3; overflow: hidden; pointer-events: none;
   font-family: var(--ui, "Inter", system-ui, -apple-system, "Segoe UI", sans-serif);
   color: var(--text); font-variant-numeric: tabular-nums lining-nums; -webkit-font-smoothing: antialiased;
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --move: 280ms;
   --pad-x: 26px; --pad-y: 24px; --r: 16px;
   --rise: 20px; --drop: 28px;
@@ -235,3 +235,11 @@ body[data-card-zoom] .lb-layer { opacity: 0; transition: opacity 240ms var(--eas
 .deck-ui.pz .dk-pos[data-anchor="foot"] > .dk-card[data-card] { top: auto; bottom: 0; }
 .deck-ui.pz .dk-pos[data-anchor="mid"] > .dk-card[data-card] { bottom: auto; }   /* (its top is half its height above the middle: written with its height) */
 .dk-pos[data-anchor="foot"] > .dk-plate { position: absolute; left: 0; right: 0; top: auto; bottom: 0; width: auto; }
+
+/* ── the corner button that enlarges an instrument's card (2D app-09-tests.css .pz-zoomable > .pz-dh > .pz-zbtn): the rules are 2D's, with the header one box deeper (the words sit in .dk-in here);
+   the icon swap follows the zoom (2D: .pz-zoomed on the app; here body[data-card-zoom], card-zoom.ts) ── */
+.pz.pz-wide .pz-data.pz-zoomable > .dk-in > .pz-dh { position: relative; padding-inline: calc(28px / var(--pz-z, 1)); }   /* (a long title wraps before the expand button's corner, 8 px short of it, and stays centered) */
+.pz.pz-wide .pz-data.pz-zoomable > .dk-in > .pz-dh > .pz-zbtn { display: grid; place-items: center; position: absolute; right: calc(-4px / var(--pz-z, 1)); top: 50%; translate: 0 -50%; width: calc(24px / var(--pz-z, 1)); height: calc(24px / var(--pz-z, 1)); margin: 0; padding: 0; border: 0; border-radius: calc(8px / var(--pz-z, 1)); background: none; color: var(--text-3); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: scale var(--d-flip) var(--ease); }
+body[data-card-zoom] .pz-zbtn :is(svg, .ic):first-child { display: none; }
+body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
+.deck-ui .pz-zbtn { pointer-events: auto; }

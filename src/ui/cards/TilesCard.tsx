@@ -2,7 +2,7 @@
 // (.pzt-vu > .pzt-v + small), the rating's word (.pzt-r), the line that says where it started (.pzt-d) and the scale bar (.pzt-bar: bands, cut-off ticks and numbers, a ring where it
 // started and a dot where it is). Which tiles, their words and their numbers are tiles-2d.ts, from the slide's own state in the engine; this file only draws them.
 // An instrument card's readings stand in its header row instead (.pz-dh > .pz-hr > .pz-hi) and its tiles card is not drawn (2D: .pz-data.tool-only .pz-tiles is hidden).
-import { useLayoutEffect, useMemo, useRef, type RefObject } from 'react';
+import { useLayoutEffect, useMemo, useRef, type MouseEvent, type RefObject } from 'react';
 import { copiedOf } from '../../decks/hp/deck.ts';
 import { useStates } from '../../decks/hp/calc.ts';
 import type { CopiedSlide } from '../../decks/hp/types.ts';
@@ -11,6 +11,8 @@ import { cardTitle, titleUnits } from '../talk/tool-title.ts';
 import { useUi } from '../ui-store.ts';
 import { tilesAt, type SlideTiles, type TileView } from './tiles-2d.ts';
 import { Roll } from './Roll.tsx';
+import { I } from '../shell/icons.tsx';
+import { useCardZoomOn } from './card-zoom.ts';
 
 /** A slide's tiles from its state: the slide's own (the last one before it that changed the patient, as 2D has it), the state its change counts from, and the page's phone-ness. */
 export function useSlideTiles(deckId: string, slideId: string): SlideTiles | null {
@@ -26,8 +28,9 @@ export function useSlideTiles(deckId: string, slideId: string): SlideTiles | nul
 
 /** The card's header (.pz-dh): its title, and an instrument card's readings beside it. The title is 2D's cardTitle (presenter-question.js): the slide's own `dataTitle`, else its instrument's
  *  (ui/talk/tool-title.ts), else "The patient" for a tiles card with no instrument; a phone, or a phone held sideways, takes the short form of a long one. A unit in it keeps its own case (.pz-unit). */
-export function TilesHead({ deckId, slideId }: { deckId: string; slideId: string }) {
+export function TilesHead({ deckId, slideId, onZoom }: { deckId: string; slideId: string; /** the corner button that zooms the card (2D .pz-zbtn: an instrument's card, wide screens, shown only while the card is `pz-zoomable`) */ onZoom?: (e: MouseEvent<HTMLButtonElement>) => void }) {
   const t = useSlideTiles(deckId, slideId);
+  const zoomed = useCardZoomOn();
   const vp = useUi((s) => s.vp);
   const copied = copiedOf(deckId)?.slides.find((s) => s.id === slideId);
   if (!copied) return null;
@@ -43,6 +46,7 @@ export function TilesHead({ deckId, slideId }: { deckId: string; slideId: string
           </span>
         ))}
       </span>
+      {onZoom && <button type="button" className="pz-zbtn" aria-label="Enlarge this card" aria-expanded={zoomed} title="Enlarge" onClick={onZoom}><I n="fullscreen" /><I n="shrink" /></button>}
     </div>
   );
 }

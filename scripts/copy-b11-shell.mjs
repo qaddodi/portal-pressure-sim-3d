@@ -7,6 +7,9 @@
 //   src/ui/tests/copied/seg-glide.copied.js         seg-glide.js whole: the one gliding piece of every segmented control and tab row; its three page helpers are this repo's (src/ui/tests/dock/)
 //   src/ui/tests/dock/dock-side.generated.css       the rules of app-09-tests.css that read `:has(#dock.side)` on .app (the sideways phone's play bar ending at the card), as `.app.dock-side`:
 //                                                   the 3D card is not inside .app, so the app wears the class instead (src/ui/tests/dock/app-classes.ts)
+//   src/ui/shell/topbar-motion.copied.js            topbar-motion.js whole (a button that comes or goes in the top bar fades and grows in or out as a ghost, and what is next to it glides: FLIP on transform and opacity);
+//                                                   its four imports are this repo's (the arrive curves, the motion query, and ./topbar-motion-deps.ts for removeSoon and the two glass-morph helpers, which are
+//                                                   `false` here: the 3D bar's glass is the page's own backdrop blur, so the plate copies of plateGlide are the way), and the init returns its own stop
 // Usage: node scripts/copy-b11-shell.mjs --from <2D checkout> [--check]    (--check writes nothing and fails when a file would change)
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -73,6 +76,16 @@ const OUT = {
       const src = read('src/ui/seg-glide.js').replace(/from '(\.\/[\w-]+\.js)'/g, (m, s) => { if (!map[s]) throw new Error(`seg-glide.js imports ${s}, which is not mapped`); return `from '${map[s]}'`; });
       // (2D starts the glide on load for the whole page; here the Tests layer starts it when the free-play UI mounts, and stops it with it.)
       return head('seg-glide.js') + src.replace(/\nlet live = null;[\s\S]*$/, '\nlet live = null;\n/** Starts the one gliding piece for every control on the page (the shell calls it once); returns the stop. */\nexport function runSegGlide(root = document.body) {\n  live?.stop();\n  live = startSegGlide(root);\n  return () => { live?.stop(); live = null; };\n}\n/** Places a control\'s piece now, in the caller\'s task, right after it changed its buttons. Without it the next rest pass does it. */\nexport function glideNow(ctl) { if (ctl) live?.now(ctl); }\n');
+    },
+    'src/ui/shell/topbar-motion.copied.js': () => {
+      const map = { './ease.js': '../tests/copied/ease.copied.js', './class-soon.js': './topbar-motion-deps.ts', './motion.js': '../tests/copied/motion.copied.js', './glass-morph.js': './topbar-motion-deps.ts' };
+      let src = read('src/ui/topbar-motion.js').replace(/from '(\.\/[\w-]+\.js)'/g, (m, f) => { if (!map[f]) throw new Error(`topbar-motion.js imports ${f}, which is not mapped`); return `from '${map[f]}'`; });
+      // (the page starts it once; here the bar's component starts it and stops it with the bar, so it hands back its stop)
+      const tail = "(document.fonts?.ready || Promise.resolve()).then(start, start);\n}";
+      if (!src.includes(tail)) throw new Error('topbar-motion.js: the end of initTopbarMotion moved; update scripts/copy-b11-shell.mjs');
+      src = src.replace(tail, "let dead = false;\n  (document.fonts?.ready || Promise.resolve()).then(() => { if (!dead) start(); }, () => { if (!dead) start(); });\n  return () => { dead = true; mo.disconnect(); ro.disconnect(); };\n}");
+      src = src.replace("if (!bar || !app || !bar.animate) return;", "if (!bar || !app || !bar.animate) return () => {};");
+      return head('topbar-motion.js') + src;
     },
     'src/ui/tests/dock/dock-side.generated.css': () => {
       const css = read('styles/app-09-tests.css');

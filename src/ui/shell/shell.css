@@ -3,7 +3,7 @@
    sheet or a pill that comes or goes is always in the page and fades, so nothing pops. No backdrop blur ("Soft lift", look-and-feel section 6). */
 
 .sh-root { position: fixed; inset: 0; z-index: var(--z-chrome, 20); pointer-events: none; font-family: var(--ui); color: var(--text);
-  --sh-h: 44px; --sh-gap: 8px; --sh-ease: cubic-bezier(0.2, 0.7, 0.2, 1); --sh-t: 200ms;
+  --sh-h: 44px; --sh-gap: 8px; --sh-ease: cubic-bezier(0.2, 0.8, 0.2, 1); --sh-t: 200ms;
   --sh-pad-top: calc(var(--safe-t, 0px) + var(--m-top-pad)); --sh-pad-x: var(--m-side-pad);
   /* a top sheet ends over the dock and the view pill (2D's --bot-occ, published on the page), never under them: Compare and the Guide ran down to y 760 on a laptop, under the dock and the zoom pill */
   --sh-max-h: calc(100% - var(--sh-pad-top) - var(--bot-occ, 84px) - 20px); }
@@ -183,7 +183,7 @@
 .sh-keygroup { margin: 12px 0 0; font: 600 13px / 1 var(--ui); color: var(--text-2); padding: 0 10px; }
 
 /* the sheet of the presenter pill's gear stands above the pill (a panel above its button), outside .sh-root */
-.dk-settings { --sh-ease: cubic-bezier(0.2, 0.7, 0.2, 1); --sh-t: 200ms; font-family: var(--ui); color: var(--text); }
+.dk-settings { --sh-ease: cubic-bezier(0.2, 0.8, 0.2, 1); --sh-t: 200ms; font-family: var(--ui); color: var(--text); }
 .dk-settings .sh-sheet[data-place="bar"] { position: absolute; right: 0; bottom: 52px; top: auto; left: auto; width: 360px; max-width: calc(100vw - 24px); max-height: min(560px, calc(100vh - 120px)); margin: 0; z-index: 5; }
 :where(.dk-settings) button { font: inherit; color: inherit; cursor: pointer; }
 

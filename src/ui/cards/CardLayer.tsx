@@ -24,7 +24,7 @@ import { ToolCard } from '../talk/ToolCard.tsx';
 import { hasToolChart } from '../../decks/charts.ts';
 import { Strip } from '../wallet/Strip.tsx';
 import { useCardDrag, justDragged } from './useCardDrag.ts';
-import { cardZoom, emptyTap } from './card-zoom.ts';
+import { cardZoom, emptyTap, zoomPlan } from './card-zoom.ts';
 import { reduced } from '../a11y/motion.ts';
 import { isSwapSwipe } from '../wallet/wallet-machine.ts';
 import { swipeMove, apply, samePos, type Move } from '../deck/presenter-machine.ts';
@@ -145,11 +145,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const zoomsHere = plan.layout === 'wide' && !alone && !!(dataShown || wordsShown);
   const veilRef = useRef<HTMLDivElement>(null), zveilRef = useRef<HTMLDivElement>(null);
   const reduceMotion = reduced;
-  const zoomTap = (e: React.MouseEvent<HTMLDivElement>) => {
-    const card = e.currentTarget;
-    if (justDragged() || !zoomsHere) return;
-    if (cardZoom.up) { void cardZoom.close({ reduce: reduceMotion() }); return; }
-    if (cardZoom.on || !emptyTap(e.target, card)) return;
+  // the zoom of one card (the tapped card, or the one whose corner button was pressed), the other card riding with it
+  const zoomOpen = (card: HTMLElement) => {
     const live = [...document.querySelectorAll<HTMLElement>('.dk-card[data-card]:not([data-phase="out"])')];
     if (live.some((c) => c.getAttribute('data-phase') === 'wait')) return;
     const els = (c: HTMLElement) => [c, ...(c.previousElementSibling?.classList.contains('dk-plate') ? [c.previousElementSibling as HTMLElement] : [])];
@@ -158,6 +155,24 @@ export function CardLayer({ deck }: { deck: Deck }) {
       area: { left: 0, top: 0, width: vp.w, height: vp.h },
     });
   };
+  const zoomTap = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = e.currentTarget;
+    if (justDragged() || !zoomsHere) return;
+    if (cardZoom.up) { void cardZoom.close({ reduce: reduceMotion() }); return; }
+    if (cardZoom.on || !emptyTap(e.target, card)) return;
+    zoomOpen(card);
+  };
+  // 2D's corner button on an instrument's card (.pz-zbtn, presenter-start.js: `onclick: () => zoomToggle()`): the same zoom as a tap on the card's empty part, and the same way back
+  const zoomButton = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();   // (the card's own tap would read it as a second one)
+    if (justDragged() || !zoomsHere) return;
+    if (cardZoom.up) { void cardZoom.close({ reduce: reduceMotion() }); return; }
+    const card = e.currentTarget.closest<HTMLElement>('.dk-card');
+    if (!cardZoom.on && card) zoomOpen(card);
+  };
+  // the corner button is offered where the card has room to grow (2D presenter-ladders.js `zoomOn`: wide, and `zoom.plan()` is not null), which is when it would grow by at least ZOOM_MIN
+  const dataBox = dataShown?.rect;
+  const zoomableData = zoomsHere && !!dataBox && !!zoomPlan({ left: dataBox.x, top: dataBox.y, width: dataBox.w, height: dataBox.h }, { left: 0, top: 0, width: vp.w, height: vp.h });
   // a slide change, a new size or a leaving layout glides the zoom back (nothing in the app snaps: Mohammad, 20 Nov), as the slide's own cards go out and come in on the rail
   useEffect(() => { void cardZoom.close({ reduce: reduceMotion() }); }, [wordsKey, dataKey, vp.w, vp.h, zoomsHere]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => cardZoom.reset(), []);
@@ -217,7 +232,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
       case 'table': return sn.dslide?.table ? <TableCard deck={deck} slide={sn.dslide} /> : sn.dslide ? <ToolCard deck={deck} slide={sn.dslide} /> : null;
       case 'ladder': return (
         <>
-          {sn.dslide?.tiles || (sn.dslide && hasToolChart(sn.dslide)) ? <TilesHead deckId={deck.id} slideId={sn.dslide.id} /> : null}
+          {sn.dslide?.tiles || (sn.dslide && hasToolChart(sn.dslide)) ? <TilesHead deckId={deck.id} slideId={sn.dslide.id} onZoom={sn.dslide.tool ? zoomButton : undefined} /> : null}
           {sn.dslide && hasToolChart(sn.dslide) ? <ToolCard deck={deck} slide={sn.dslide} /> : null}
           {sn.dslide?.ladder && !sn.dslide.tool ? <LadderCard ladder={sn.dslide.ladder} readings={readings} /> : sn.dslide?.tiles ? <TilesCard deckId={deck.id} slideId={sn.dslide.id} /> : null}
         </>
@@ -238,7 +253,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
       <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onGone={stack.gone} label={labelOf(e.id)}
-        pointer={swipe} go={go} data={slot === 'data'} fresh={fresh} swap={slot === 'data' && swapping} tuck={slot === 'data' && plan.docked} zoomable={zoomsHere && e.phase === 'in'} onTap={slot === 'data' && plan.docked && e.phase === 'in' ? () => { if (!justDocked()) openDock(setDocked); } : e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsHere && e.phase === 'in' ? zoomTap : undefined} visual={view.slide?.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? dataClass(e) : [(e.id === 'check' || e.id === 'visual') && nameTabOf(deck) ? 'tabbed' : '', e.id === 'visual' && view.slide?.visual === 'ladders' ? 'fill' : ''].filter(Boolean).join(' ') || undefined}>
+        pointer={swipe} go={go} data={slot === 'data'} fresh={fresh} swap={slot === 'data' && swapping} tuck={slot === 'data' && plan.docked} zoomable={zoomsHere && e.phase === 'in'} onTap={slot === 'data' && plan.docked && e.phase === 'in' ? () => { if (!justDocked()) openDock(setDocked); } : e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsHere && e.phase === 'in' ? zoomTap : undefined} visual={view.slide?.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? [dataClass(e), zoomableData && e.phase === 'in' ? 'pz-zoomable' : ''].filter(Boolean).join(' ') || undefined : [(e.id === 'check' || e.id === 'visual') && nameTabOf(deck) ? 'tabbed' : '', e.id === 'visual' && view.slide?.visual === 'ladders' ? 'fill' : ''].filter(Boolean).join(' ') || undefined}>
         {content(e)}
       </CardFrame>
     );

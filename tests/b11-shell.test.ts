@@ -186,12 +186,8 @@ test('a vertical pull settles the sheet at Half or Full, or closes it; a pull th
   await pull(15, 200); await sleep(450);
   assert.deepEqual(calls, [], 'a sideways move is left to the swipe');
   await pull(200); await sleep(450);
-  assert.deepEqual(calls, ['size 2'], 'a far pull down from Half settles at Peek: the head row, the figure free');
-  await pull(-50); await sleep(450);
-  assert.deepEqual(calls, ['size 2', 'size 0'], 'a pull up from Peek brings it back to Half');
-  await pull(200); await sleep(450); calls.length = 0;
-  await pull(120); await sleep(450);
-  assert.deepEqual(calls, ['close'], 'a pull down from Peek closes the card');
+  assert.deepEqual(calls, ['close'], 'a far pull down from Half closes the card in that one pull (2D; owner, 20 Nov: no stop at Peek)');
+  assert.equal((pos as unknown as { dataset: Record<string, string> }).dataset.swiped, '', 'and it is marked as pulled shut: it is already out of sight, so it plays no leave of its own');
   size = 0; calls.length = 0;
   await pull(30, 0, true); await sleep(450);
   assert.deepEqual(calls, [], 'a short pull, even a quick one, is not a flick past 40 px: it eases back');
