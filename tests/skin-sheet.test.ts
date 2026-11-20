@@ -63,7 +63,8 @@ test('every liver-branch junction builds a skin from the surface sheet: closed, 
       assert.equal(open, ringEdges, `${n}: the only open edges are the ${ringEdges} of the seam rings`);
       assert.equal((b.set as unknown as { paces: Map<string, number> }).paces.get(n), PACES.length - 1, `${n}: meshed on the last rung`);
     }
-    for (const n of ['SIN_R', 'SIN_L']) assert.ok(b.set.fellBack.includes(n), `${n} keeps today\'s join (named, pinned in skin-builds)`);
+    assert.deepEqual(b.set.fellBack, [], 'no node keeps the old join');
+    for (const n of ['SIN_R', 'SIN_L']) assert.ok(b.meshes.has(n), `${n}: the liver bed is welded to the portal venule, the sinusoid and the hepatic arteriole`);
   } finally { b.done(); }
 });
 
@@ -77,4 +78,20 @@ test('the skins that stand together on one vessel are planned together: LPV_A an
       for (const c of m.cuts) assert.ok(c.u >= 0 && c.u <= 1, `${n}: ${c.vesselId} cut at ${c.u}`);
     }
   } finally { b.done(); }
+});
+
+test('the right hepatic artery runs on to its liver bed: the arteriole ends at the bed\'s node, arrives off the venule\'s heading, and the bed is a junction of venule, sinusoid and arteriole', () => {
+  const was = smoothJoinsOn(); setSmoothJoins(true);
+  try {
+    for (const [bed, art, ven, sin] of [['SIN_R', 'A_HR', 'PRE_R', 'SIN_RR'], ['SIN_L', 'A_HL', 'PRE_L', 'SIN_LL']] as const) {
+      const j = findSkinJunctions().find((x) => x.node === bed)!;
+      assert.deepEqual(j.arms.map((a) => a.vesselId).sort(), [art, ven, sin].sort(), `${bed}'s arms`);
+      const a = NETWORK_BY_ID.get(art)!.pts, v = NETWORK_BY_ID.get(ven)!.pts, aEnd = a[a.length - 1]!, vEnd = v[v.length - 1]!;
+      assert.ok(Math.hypot(aEnd[0] - vEnd[0], aEnd[1] - vEnd[1]) < 0.005, `${art} ends at the bed's node (${bed})`);
+      // it arrives at an angle to the venule, not along it (arms nearly parallel have no seam rings that clear one another), and on the side of it that crosses no vein
+      const dir = (p: readonly (readonly number[])[], i: number): [number, number] => { const l = Math.hypot(p[i]![0] - p[i - 3]![0], p[i]![1] - p[i - 3]![1]) || 1; return [(p[i]![0] - p[i - 3]![0]) / l, (p[i]![1] - p[i - 3]![1]) / l]; };
+      const da = dir(a, a.length - 1), dv = dir(v, v.length - 1), ang = (Math.acos(Math.max(-1, Math.min(1, da[0] * dv[0] + da[1] * dv[1]))) * 180) / Math.PI;
+      assert.ok(ang > 25 && ang < 75, `${art} arrives ${ang.toFixed(0)} degrees off ${ven}`);
+    }
+  } finally { setSmoothJoins(was); }
 });

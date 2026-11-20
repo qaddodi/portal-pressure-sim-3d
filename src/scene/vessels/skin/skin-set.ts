@@ -130,6 +130,8 @@ function ringPlaneNormal(g: BufferGeometry, ring: number): Vec3 | null {
 export const AXIS_REACH_R = 6;
 /** An arm whose end ring lies more than this many of its radii from J gets J put in front of its capsule (spec 10.5). */
 export const BRIDGE_MIN_R = 0.1;
+/** How far (radians) a seam ring may lean off the heading the neighbouring rings give before the ring's own plane normal is the heading. */
+const TILT_MAX = 0.04;
 export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, startRing?: number, planeHeading = false): ArmAxis {
   const out = cut.end ? -1 : 1, last = tube.tubular;
   const end = startRing ?? (cut.end ? last : 0), a = ringCentre(tube.geometry, end), s = ringCentre(tube.geometry, cut.ring);
@@ -138,7 +140,9 @@ export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, sta
   // with `planeHeading` the heading is the seam ring's own plane normal (the way the tube's flow marks and ink are laid across it), turned to run away from the node; the neighbouring ring centres give the sense and, for a degenerate ring, the heading itself
   let tx = ch[0] - cl[0], ty = ch[1] - cl[1], tz = ch[2] - cl[2];
   const tl = Math.hypot(tx, ty, tz) || 1; tx /= tl; ty /= tl; tz /= tl;
-  const rn = planeHeading ? ringPlaneNormal(tube.geometry, cut.ring) : null;
+  // (an arm whose rings lean off the neighbouring rings' chord by more than TILT_MAX takes the plane normal too: the skin's arc at the seam is then the tube's to the pixel, tests/skin-marks.test.ts)
+  let rn = ringPlaneNormal(tube.geometry, cut.ring);
+  if (rn && !planeHeading && Math.abs(rn[0] * tx + rn[1] * ty + rn[2] * tz) > Math.cos(TILT_MAX)) rn = null;
   if (rn) { const sgn = rn[0] * tx + rn[1] * ty + rn[2] * tz < 0 ? -1 : 1; tx = rn[0] * sgn; ty = rn[1] * sgn; tz = rn[2] * sgn; }
   const d0 = Math.hypot(s.c[0] - a.c[0], s.c[1] - a.c[1], s.c[2] - a.c[2]), d2 = Math.max(AXIS_REACH_R * restR - d0, restR);
   let far = cut.ring, at = s.c;

@@ -6,9 +6,11 @@ import { readFileSync } from 'node:fs';
 import { ShaderMaterial } from 'three';
 import { organsReady, setOrganData } from '../src/scene/organs/meshes.ts';
 import { CelScene } from '../src/scene/scene.ts';
+import { liveSource } from '../src/debug/gl-programs.ts';
 
 const BUILT_IN = new Set(['modelMatrix', 'modelViewMatrix', 'projectionMatrix', 'viewMatrix', 'normalMatrix', 'cameraPosition', 'isOrthographic', 'modelViewProjectionMatrix']);
-const declared = (src: string): string[] => [...src.matchAll(/^\s*uniform\s+(?:(?:highp|mediump|lowp)\s+)?\w+\s+(\w+)(?:\[[^\]]*\])?\s*;/gm)].map((m) => m[1]!);
+// (a block behind a define the material does not carry, the inspector's VDBG hooks on a page without ?inspect, is not part of its program: liveSource reads the material's own defines first)
+const declared = (src: string, defines: Record<string, unknown> = {}): string[] => [...liveSource(Object.keys(defines).map((k) => `#define ${k}`).join('\n') + '\n' + src).matchAll(/^\s*uniform\s+(?:(?:highp|mediump|lowp)\s+)?\w+\s+(\w+)(?:\[[^\]]*\])?\s*;/gm)].map((m) => m[1]!);
 
 test('every ShaderMaterial in the scene (organs, seats, vessels, devices) gives every uniform its vertex and fragment shaders declare', async () => {
   const b = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
@@ -23,7 +25,7 @@ test('every ShaderMaterial in the scene (organs, seats, vessels, devices) gives 
     const m = (o as { material?: unknown }).material;
     if (!(m instanceof ShaderMaterial)) return;
     n++;
-    for (const u of new Set([...declared(m.vertexShader), ...declared(m.fragmentShader)])) {
+    for (const u of new Set([...declared(m.vertexShader, m.defines), ...declared(m.fragmentShader, m.defines)])) {
       if (!BUILT_IN.has(u) && !(u in m.uniforms)) missing.push(`${o.name || o.type} (${(o.parent as { name?: string } | null)?.name ?? ''}): ${u}`);
     }
   });

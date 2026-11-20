@@ -208,3 +208,20 @@ now hidden under it rather than drawn through it. Rerouting those lanes is not d
 Tests: `tests/lobule-lymph.test.ts` (both sides on all 84 sinusoids, hug, no strays, the fork rules, no stubs, the taper, the Y built from geometry, the cover, and the drawn triangles: no lymph vertex farther than a tube
 width from its sinusoid wall, planform area per sinusoid at most two tubes of fixed width along it (no wedges), thin and whole, zero at the vein), `tests/lobule-ductules.test.ts`, `tests/lobule-bile-under.test.ts`.
 A plan view of the real mesh (parts rasterised top-down in render order, no browser) is how the look is checked in node: `node --experimental-strip-types scripts/lobule-plan.ts 0 0 1.05 1800 plan.png`, args: centre x, y, half-width in lobule radii, pixels, file.
+
+## One centreline (20 Nov 2026, after the on-device shot of d2b959e2)
+
+The network is bent ONCE, in `buildLobule` (`weld-bend.ts` `bendNet`, called after the twigs): the weld planner's splay (`weld-splay.ts`) opens every shallow V of two merging sinusoids, and T branches follow
+their bent hosts, and the result is written back into `net.courses` (same point count, `rho` and `len` redone). Everything derived afterwards (lymph, bile, plates, stellate cells, pick, captions) reads the bent
+courses, and the planner is called with `splay: false`, so what is drawn, what the lymph hugs and what the bile runs beside are one centreline. Root cause of the wandering lymph: the planner used to bend the
+sinusoids after the layers were laid along the unbent courses (a shift of about 2 sinusoid radii, up to 5, against a lymph offset of 1.23). The junction finder and `refineEnds` moved to `weld-nodes.ts` (pure,
+shared); the base sizes (`RS0`, `DUCT_R`, ...) to `sizes.ts` so geometry.ts can import widths without a cycle. `public/lobule/welds.bin` is baked at build time and is not committed.
+Inner lymph lines of a fork now cross and end at the crossing (`firstCrossing` in lymph.ts), so no end is left free at a crotch. A bile lane starts clear of every vessel but its own chain and parts from an earlier lane
+before it begins (bile.ts). Test: `tests/lobule-drawn-source.test.ts`.
+
+### The lymph follows a swelling sinusoid (congested presets)
+
+A sinusoid widens in congestion in the vertex shader (cel3d SWELL: each vertex out by its radius x (whole + share x its place's share)). The lymph tube is baked at the resting width and used to stay put, so a
+swollen sinusoid grew over it. The lymph part now has `hug` (cel3d HUG): per vertex the plan direction out from its sinusoid's axis, the wall radius there and the place's `congShare`, and a uniform `uHug` fed the same
+`sinSwell` the sinusoids get (`setHug` in lobule3d's step). The vertex moves out by the wall's own growth, so the gap between tube and wall stays what it is at rest. The stretch that does not stand against its
+sinusoid (the reach to the terminal lymphatic) carries a zero wall and does not move.

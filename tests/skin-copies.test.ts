@@ -141,18 +141,19 @@ test('the cava\'s cut rules: where a skin has taken the end of a hepatic vein th
     const bury = () => (u.bury!.value as { y: number }).y;
     const real = inner.skins;
     assert.ok(real!.endsOf('RHV_IVC')[1], 'the real IVCS skin (side-wall, spec 10.1) has the end of the hepatic vein');
-    inner.skins = { endsOf: () => [false, false] } as never;
+    try {
+      inner.skins = { endsOf: () => [false, false] } as never;
+      inner.applyMates();
+      assert.equal(u.cavaCut!.value, 1, 'cut by the cava while no skin has the end'); const buried = bury();
+      assert.ok(buried >= 0.9 * NETWORK_BY_ID.get('IVC_IS')!.radius - 1e-9 && buried > 0, 'held back by CAVA_BURY (0.9) cava radii');
+      inner.skins = { endsOf: (id: string) => (id === 'RHV_IVC' ? [false, true] : [false, false]) } as never;
+      inner.applyMates();
+      assert.equal(u.cavaCut!.value, 2, 'a skin is the opening: no hard cut inside the cava, the tube fades to the cava\'s opacity along the seam (the junction fade rule, scene.ts setCavaCut \'fade\')'); assert.equal(bury(), 0, 'and no held-back ink');
+      inner.skins = { endsOf: () => [false, false] } as never;
+      inner.applyMates();
+      assert.equal(u.cavaCut!.value, 1); assert.equal(bury(), buried, 'back exactly when the skin goes');
+    } finally { inner.skins = real; }   // (the scene disposes the skins it holds: a stub has none)
     inner.applyMates();
-    assert.equal(u.cavaCut!.value, 1, 'cut by the cava while no skin has the end'); const buried = bury();
-    assert.ok(buried >= 0.9 * NETWORK_BY_ID.get('IVC_IS')!.radius - 1e-9 && buried > 0, 'held back by CAVA_BURY (0.9) cava radii');
-    inner.skins = { endsOf: (id: string) => (id === 'RHV_IVC' ? [false, true] : [false, false]) } as never;
-    inner.applyMates();
-    assert.equal(u.cavaCut!.value, 0, 'a skin is the opening: no cut inside the cava'); assert.equal(bury(), 0, 'and no held-back ink');
-    inner.skins = { endsOf: () => [false, false] } as never;
-    inner.applyMates();
-    assert.equal(u.cavaCut!.value, 1); assert.equal(bury(), buried, 'back exactly when the skin goes');
-    inner.skins = real;
-    inner.applyMates();
-    assert.equal(u.cavaCut!.value, 0, 'and off again with the real IVCS skin'); assert.equal(bury(), 0);
+    assert.equal(u.cavaCut!.value, 2, 'and the fade again with the real IVCS skin'); assert.equal(bury(), 0);
   });
 });

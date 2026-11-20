@@ -24,7 +24,7 @@ async function baked(req: WeldRequest): Promise<WeldPlan | null> {
 
 /** The plan for a network, or null when there is no baked plan and no worker to make it in (the Lobule then keeps its round-ended tubes). */
 export async function requestWelds(req: WeldRequest, inline = false): Promise<WeldPlan | null> {
-  if (inline) return planWelds(req.courses, { avoid: req.avoid });
+  if (inline) return planWelds(req.courses, { avoid: req.avoid, splay: false });
   const b = await baked(req);
   if (b) return b;
   if (typeof Worker === 'undefined') return null;

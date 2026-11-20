@@ -121,7 +121,7 @@ const ringVerts = (t: ArmTube, k: number): number[][] => {
 const accept = () => true;
 
 /** Where the cut rules succeed on the real tubes today. Under the relaxed clearance (k + 0.5 R, 20 Nov) every phase node cuts, the portal bifurcation PVH included; only SIN_L (phase 3: its 85 % bound is reached before a clear ring) has no seam, a named SkinBuildError, so the scene keeps today's method there. Pinned so a change either way is seen. */
-const CUTTABLE = PHASE_2.filter((n) => n !== 'SIN_R' && n !== 'SIN_L'), UNCUTTABLE = ['SIN_L'];   // (SIN_R, phase 3, is cut at the far end of its arteriole, 20 radii from J: not pinned until it is asked for)
+const CUTTABLE = PHASE_2, UNCUTTABLE: string[] = [];   // (the liver beds SIN_R and SIN_L are cuttable since the hepatic arteries run on to them, starts.ts alongVein: before, the arteriole ended 20 radii from J)
 
 test('a cut is one of the tube\'s own rings, at the right end, with u = ring / tubular, at least 1.5 radii from J, and clear of the blend', () => {
   on(() => {

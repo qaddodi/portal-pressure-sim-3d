@@ -97,7 +97,7 @@ test('the real network builds the growing arms it can, names the ones it cannot,
   const b = built();
   try {
     assert.deepEqual(b.warnings, [], 'no skin falls back');
-    assert.deepEqual([...b.set.fellBack].sort(), ['SIN_L', 'SIN_R'], 'the nodes that keep the old join are the ones they were before the growing arms (IVCS is welded since the side-wall rule, tests/skin-side-wall.test.ts)');
+    assert.deepEqual([...b.set.fellBack].sort(), [], 'no node keeps the old join: the liver beds are welded since the hepatic arteries run on to them (starts.ts alongVein)');
     assert.deepEqual([...b.set.dropped].sort(), DROPPED);
     const grown = new Map(b.draws.map((d) => [nodeOf(d), meshOf(b, d).grow.map((m) => armKey(meshOf(b, d).junction.arms[m.arm]!))]));
     const want: Record<string, string[]> = {};

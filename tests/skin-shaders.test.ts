@@ -131,7 +131,12 @@ test('?joins=nodust and ?joins=noheads split the marks for the A/B that finds a 
 test('the skin\'s dust is each arm\'s own dustTube crossfaded by the weights; the two-frame blend is only behind ?joins=dustblend', async () => {
   const { skinLeaveOut } = await import('../src/scene/vessels/skin/joins-mode.ts');
   assert.equal(skinLeaveOut('?joins=dustblend'), 'dustblend');
-  assert.match(SKIN_FS, /#else\s+vec4 dust = dustTube\(FD0, litD, inkColor, revD0\);\s+if \(w1 > 0\.004\) dust = mix\(dust, dustTube\(FD1, litD, inkColor, revD1\), w1\);\s+#endif/);
+  assert.match(SKIN_FS, /#else\s+\/\/[^\n]*\n\s*float a0 = \(1\.0 - w1\) \* inD0, a1 = w1 \* inD1, aN = a0 \+ a1;/);
+  assert.match(SKIN_FS, /dustTube\(FD0, litD, inkColor, revD0\) \* \(onD0 \* a0\)/);
+  assert.match(SKIN_FS, /dustTube\(FD1, litD, inkColor, revD1\) \* \(onD1 \* a1\)/);
+  assert.match(SKIN_FS, /dust \/= aN;/);
+  // a frame counts only inside its own arm's cylinder (the heads' lateral gate): its across and arc mean nothing beside it
+  assert.match(SKIN_FS, /float inI = 1\.0 - smoothstep\([^;]*SKIN_U \/ max\(rOwn \* swAt\(i\), 1e-4\)\);/);
   assert.match(SKIN_FS, /#ifdef SKIN_DUSTBLEND\s+vec4 dust = w1 > 0\.004 \? dustSkin\(/);
 });
 
