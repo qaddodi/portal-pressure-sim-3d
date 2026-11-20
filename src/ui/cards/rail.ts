@@ -21,6 +21,9 @@ export const RAIL_MS = 560, OUT_MS = 340, IN_MS = 520, RAIL_GAP = 24, THROW_IN =
 /** How far a card travels, as a share of the words' distance, on the rail (and under a finger). */
 export const PARALLAX = { words: 1, data: 0.82 } as const;
 export const easeRail = cubicBezier(0.32, 0.72, 0, 1);
+/** The curve as CSS, and when the old cards are wholly gone (their fade ends at 80 % of their move): a card the talk keeps glides to its new place then, with the new cards. */
+export const RAIL_CSS = 'cubic-bezier(0.32, 0.72, 0, 1)';
+export const OUT_DONE = Math.round(0.8 * OUT_MS);
 
 export type Kind = 'out' | 'in' | 'back';
 export interface Pt { x: number; o: number }

@@ -7,6 +7,7 @@ import { CEL_STYLE } from '../src/scene/cel-style.ts';
 import { CEL_TUBE_GLSL, glslNum as F } from '../src/scene/cel-glsl.ts';
 import { LOOK_IDS, PALETTES } from '../src/scene/palette.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
+import { CHEVRON_GLSL } from '../src/scene/blood/chevron-glsl.ts';
 import { CelScene } from '../src/scene/scene.ts';
 
 const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -44,7 +45,8 @@ test('the shader holds the same numbers, and has no specular, no rim, no wall li
   assert.ok(!/sp \* 0\.32/.test(VESSEL_FS) && !/rim \* 0\.10/.test(VESSEL_FS), 'no old specular dot and no rim lift');
   assert.match(VESSEL_FS, /if \(smokeOn > 0\.5 &&/, 'the smoke is gated');
   assert.match(VESSEL_FS, /dk = 1\.0 - step\(0\.19/, 'a head is one flat tone, not a grey halfway');
-  assert.match(VESSEL_FS, /vec3 rimc = vec3\(0\.2314, 0\.1725, 0\.1333\);/, 'the head\'s outline is always dark');
+  assert.match(VESSEL_FS, /vec3 rimc = CHEV_RIM;/, 'the head\'s outline is always dark');
+  assert.match(CHEVRON_GLSL, /const vec3 CHEV_RIM = vec3\(0\.2314, 0\.1725, 0\.1333\);/);
   assert.ok(!/dot\(n, l\) \* 0\.5/.test(VESSEL_FS), 'no world-lit bands');
   assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade\);/, 'opaque at rest: vFade is 1 outside a fade zone');
 });
@@ -181,8 +183,8 @@ test('the outline is a soft dark of the vessel\'s own colour, never white or bla
   assert.match(VESSEL_FS, /mix\(mix\(inkH, inkColorCirc, circT\), hiColor/, 'the ink colour is the vessel\'s own tone, not the raw casing');
   assert.equal(CEL_STYLE.TUBE.RIM_SHARE, 0, 'no white rim');
   assert.match(VESSEL_FS, /uniform vec3 mate0;[\s\S]*uniform vec3 mate1;/, 'the ink knows the joined ends');
-  assert.match(VESSEL_FS, /float endK = vHi > 0\.001 \? 1\.0 : smoothstep\(0\.5 \* [0-9.]+, [0-9.]+, endR \/ max\(vR, 1e-6\)\);/, 'a joined end is not outlined');
-  assert.match(VESSEL_VS, /float endK = vHi > 0\.001 \? 1\.0 : smoothstep\(0\.5 \* [0-9.]+, [0-9.]+, endU \/ max\(vR, 1e-6\)\);/, 'nor widened (the same factor builds the tube)');
+  assert.match(VESSEL_FS, /float endK = vHi > 0\.001 \? 1\.0 : buryK\(vUv\.x \* len \* vU, \(1\.0 - vUv\.x\) \* len \* vU\);/, 'only a declared branch\'s buried end is not outlined');
+  assert.match(VESSEL_VS, /float endK = vHi > 0\.001 \? 1\.0 : buryK\(uv\.x \* len \* vU, \(1\.0 - uv\.x\) \* len \* vU\);/, 'nor widened (the same factor builds the tube)');
   // a head can never be smaller than a readable chevron: the smallest tube that carries one has a head half width of at least 3.5 CSS px, and a head is longer than it is wide
   const minR = 5.8, hw = Math.min(0.6 * minR, Math.min(8, Math.max(4, 0.5 * minR)));
   assert.ok(hw >= 3.4 && 1.6 * hw > hw, `smallest head half width ${hw}`);

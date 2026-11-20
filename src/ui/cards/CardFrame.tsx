@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Poin
 import type { Rect } from '../layout/device.ts';
 import type { Entry } from './stack.ts';
 import { reduced } from '../a11y/motion.ts';
-import { rail, STAGGER, PARALLAX, RAIL_MS, type Dir } from './rail.ts';
+import { rail, STAGGER, PARALLAX, RAIL_MS, IN_MS, OUT_DONE, RAIL_CSS, type Dir } from './rail.ts';
 import { useUi } from '../ui-store.ts';
 import { layoutOf, radius } from '../layout/rules2d.ts';
 import { centredKind, centredBox, panelVisual } from '../layout/plan.ts';
@@ -32,6 +32,8 @@ interface Props {
   fresh?: boolean;
   /** a tap on the card's empty part zooms it to the middle (a wide screen; 2D card-zoom.js) */
   zoomable?: boolean;
+  /** the words are changing while this card stays (the data card kept across a slide): it moves to its new place with the new cards, on their curve, never before and never out and back in */
+  swap?: boolean;
 }
 
 /** 2D's markLong (presenter.js): a title that sets in more than 2.4 lines is a long one and takes the smaller step (`.pz-h.long`, --s-big), so a long title never fills the card.
@@ -46,7 +48,7 @@ export function markLong(root: HTMLElement | null, on: boolean): void {
 }
 
 /** One card: placed by transform, sized exactly to its content with a glide, invisible until its words are laid out, then it rises in. */
-export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow, extra, onTap, visual, go = true, data = false, fresh = false, zoomable = false }: Props) {
+export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow, extra, onTap, visual, go = true, data = false, fresh = false, zoomable = false, swap = false }: Props) {
   const vp = useUi((s) => s.vp);
   const r = Math.round(radius(vp.w, vp.h, layoutOf(vp.w, vp.h)));
   const cardRef = useRef<HTMLDivElement>(null);
@@ -97,7 +99,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     if (out) { anims.current.forEach((a) => a.cancel()); anims.current = []; return; }   // (a card on its way out is never clipped by a height glide)
     if (prev == null || prev === rect.h || !live) return;
     if (typeof card.animate !== 'function' || reduced()) return;
-    const opts: KeyframeAnimationOptions = { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'forwards' };
+    const opts: KeyframeAnimationOptions = swap ? { duration: IN_MS, delay: OUT_DONE, easing: RAIL_CSS, fill: 'both' } : { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'forwards' };
     anims.current.forEach((a) => a.cancel());
     if (rect.h > prev) {
       anims.current = [
@@ -148,7 +150,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   const alone = centredKind(entry.id);
   const surface = alone === 'panel' ? `pz-panel${extra ? ` ${extra}` : ''}` : alone === 'case' ? 'pz-case on' : entry.id === 'ladder' ? `pz-data${extra ? ` ${extra}` : ''}` : `pz-shade pz-card${stackCls}`;
   return (
-    <div className="dk-pos" data-live={live && !out} data-centred={alone || undefined} style={{ width: rect.w, transform: `translate3d(${rect.x}px, ${rect.y}px, 0)` }}>
+    <div className="dk-pos" data-live={live && !out} data-centred={alone || undefined} style={{ width: rect.w, transform: `translate3d(${rect.x}px, ${rect.y}px, 0)`, ...(swap && !reduced() ? { transition: `transform ${IN_MS}ms ${RAIL_CSS} ${OUT_DONE}ms` } : null) }}>
       <div ref={plateRef} className="dk-plate" data-phase={phase} style={{ height: ready ? (animH ?? rect.h) : undefined }} aria-hidden="true" />
       <div ref={cardRef} className={`dk-card ${surface}`} data-card={entry.id} data-phase={phase} data-overflow={overflow || undefined}
         role="group" aria-label={label} onClick={onTap} data-zoomable={zoomable || undefined} data-visual={entry.id === 'title' ? 'outline' : entry.id === 'check' ? 'check' : entry.id === 'visual' ? visual || 'table' : undefined} style={{ height: ready ? (animH ?? rect.h) : undefined }} {...pointer}>
