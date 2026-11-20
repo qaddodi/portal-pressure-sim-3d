@@ -12,6 +12,7 @@ import { INK_FS, INK_VS, TOON_FS, TOON_VS } from '../materials/shaders.ts';
 import type { CelObject } from '../materials/cel.ts';
 import { DISC_GLSL, DISC_LINE } from './from2d/disc-glsl.generated.js';
 import { CEL } from '../vessels/cel-ink.ts';
+import { CEL_TUBE_GLSL } from '../cel-glsl.ts';
 
 /** `text` with `from` replaced by `to`; `from` must be there, once (a change in the shared shader that moves an anchor fails here, in node, not on a phone). */
 function patch(text: string, from: string, to: string): string {
@@ -55,6 +56,7 @@ export const LOBULE_TOON_VS: string = (() => {
 })();
 
 const FS_DECL = /* glsl */ `
+${CEL_TUBE_GLSL}
 varying float vRdev;
 #ifdef DISC
 uniform float discJoin;   // 1 where vessels join the disc (its wall opens at their mouths), 0 where nothing does (it keeps its own inner line)
@@ -84,12 +86,7 @@ const FS_TONES = /* glsl */ `
     vec2 sideS = sideT.xy;
     float sl = length(sideS);
     sideS = sl > 1e-4 ? sideS / sl : vec2(1.0, 0.0);
-    float sT = acrossT * dot(sideS, vec2(${num(CEL.DIR[0])}, ${num(CEL.DIR[1])}));
-    float etT = 0.5 / max(vRdev, 1e-3), hwT = smoothstep(1.5, 3.5, vRdev);
-    float shadowT = 1.0 - smoothstep(${num(CEL.SHADE_AT)} - etT, ${num(CEL.SHADE_AT)} + etT, sT);
-    float litT = smoothstep(${num(CEL.LIT_AT)} - etT, ${num(CEL.LIT_AT)} + etT, sT);
-    c = c * (1.0 - hwT * ${num(CEL.SHADE)} * shadowT);
-    c = mix(c, vec3(1.0), ${num(CEL.LIT)} * hwT * litT);
+    c = celTubeTone(c, acrossT, celTubeK(sideS), vRdev);   // (the figure's one tube GLSL: three flat tones, a hard edge)
   }
 #endif
 #endif
