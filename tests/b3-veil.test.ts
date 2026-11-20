@@ -3,7 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CelScene } from '../src/scene/scene.ts';
-import { BACK_EDGES, IVC_EDGES } from '../src/scene/vessels/paths.copied.ts';
+import { BACK_EDGES } from '../src/scene/vessels/paths.copied.ts';
+import { CAVA_LIKE } from '../src/scene/vessels/fades.ts';
 import { FAINT_ONLY_LAYER } from '../src/scene/vessels/vessel-object.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 
@@ -25,11 +26,11 @@ test('every vessel the 2D figure puts behind the organs has its faint copy over 
   }
 });
 
-test('the cava is drawn only faint; the other back vessels are also drawn with the organs, which can hide them', () => {
+test('the cava (and the ascending lumbar collateral beside it) is drawn only faint; the other back vessels are also drawn with the organs, which can hide them', () => {
   for (const id of BACK_EDGES) {
     const o = s.vesselObject(id);
     if (!o) continue;
-    if (IVC_EDGES.has(id)) assert.ok(o.toonMesh.layers.isEnabled(FAINT_ONLY_LAYER) && !o.toonMesh.layers.isEnabled(0) && !o.toonMesh.layers.isEnabled(1), `${id} has no solid draw`);
+    if (CAVA_LIKE.has(id)) assert.ok(o.toonMesh.layers.isEnabled(FAINT_ONLY_LAYER) && !o.toonMesh.layers.isEnabled(0) && !o.toonMesh.layers.isEnabled(1), `${id} has no solid draw`);
     else assert.ok(o.toonMesh.layers.isEnabled(0), `${id} is drawn with the organs`);
   }
 });

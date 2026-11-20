@@ -20,7 +20,12 @@ const TRIM: Readonly<Record<string, readonly [number, number]>> = { A_HEP: [20, 
 const trimmed = (id: string, path: readonly P2[]): readonly P2[] => { const t = TRIM[id]; return t && path.length >= t[1] ? path.slice(t[0], t[1]) : path; };
 
 /** The extra end of a vessel that runs on further than the 2D figure draws it: the rectal varices run on down the rectum (Mohammad, 20 Nov: "rectal varices should reach more"), the 2D course carried straight on along its last heading to `to`. */
-const END_ON: Readonly<Record<string, P2>> = { C4: [742, 1010] };
+const END_ON: Readonly<Record<string, P2>> = {
+  C4: [742, 1010],
+  // (the ascending lumbar collateral joins the azygos trunk from the side at y 108 in 2D, a trunk that runs up to the arch; that trunk (the azygos' tributary strand) is not drawn in 3D, so the collateral ended in the void
+  //  78 units below the arch: it runs on up the trunk's own line to the azygos node, where the arch (carried on to its left, so solid there) and the esophageal collateral meet it. Mohammad, 20 Nov: "it should join somewhere systemically")
+  C9: [574, 30],
+};
 export const endOn = (id: string): P2 | null => END_ON[id] ?? null;
 
 /** `path` with its start carried into the organ (or its ends cut), or `path` itself for a vessel that has neither. */
