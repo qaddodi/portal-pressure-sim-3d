@@ -248,7 +248,7 @@ export function solve(input: SolveInput): Solved {
 
   const tryItem = (it: Anchored, relax: 0 | 1 | 2, offOrgans = false, strictLines = false, nearOnly = false) => {
     const blockers = relax >= 2 ? blockersRaw : blockersAir;
-    let best: { cost: number; form: number; c: Cand; box: Box; leader: boolean; seg: Seg | null } | null = null;
+    let best: { cost: number; form: number; c: Cand; box: Box; leader: boolean; seg: Seg | null; hits: number } | null = null;
     const tally = input.why ? (input.why.get(it.id) ?? (input.why.set(it.id, {}), input.why.get(it.id)!)) : null;
     const no = (c: Cand, reason: string): void => { if (tally && c.cost < 20) tally[reason] = (tally[reason] ?? 0) + 1; };
     for (let fi = 0; fi < (nearOnly ? 1 : it.forms.length); fi++) {
@@ -313,11 +313,12 @@ export function solve(input: SolveInput): Solved {
             if ((vx * it.face.ux + vy * it.face.uy) / l < FACE_COS) pen += FACE_CLASH;
           }
           const cost = fi * FORM_COST + c.cost + pen + lineHits * (it.region ? REGION_LINE_COST : LINE_COST);
-          if (!best || cost < best.cost) best = { cost, form: fi, c, box, leader, seg };
+          if (!best || cost < best.cost) best = { cost, form: fi, c, box, leader, seg, hits: lineHits };
         }
       }
     }
     if (!best) return false;
+    if (tally) { tally['@relax'] = relax; tally['@form'] = best.form; tally['@lineHits'] = best.hits; tally['@spotCost'] = Math.round(best.c.cost); }
     placedBoxes.push({ id: it.id, box: best.box });
     if (best.seg) leaders.push({ id: it.id, seg: best.seg });
     placed.push({ id: it.id, form: best.form, dx: best.c.dx, dy: best.c.dy, w: it.forms[best.form].w, h: it.forms[best.form].h, leader: best.leader, au: it.au, ...(best.c.tail ? { tail: best.c.tail } : {}) });
