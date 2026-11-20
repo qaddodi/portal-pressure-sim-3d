@@ -41,3 +41,38 @@ export function layoutVars(vp: Viewport, d: DeviceClass): Record<string, string>
     '--bot-occ': px(vdock + gap), '--dock-occ': px(vdock + gap),
   };
 }
+
+/** What 2D's freeRect (sinusoid-view.js) and liveFreeInto (lobule-zoom.js) read: the custom properties main.js and the presenter publish. A talk's cards (--pz-*) and the compare header (--cmp-h) are 0 in free play. */
+export interface FigureRoomInputs {
+  topSafe: number; cmpH: number; pzT: number; pzB: number; pzL: number; pzR: number;
+  /** The foot: the dock and the view pill over it, 2D's --bot-occ (in 3D with the bottom safe area, which 2D's own bar height carries). */
+  botOcc: number;
+  /** A slide is on (2D: .app.presenting): the foot takes no room, the cards' own --pz-* do. */
+  presenting: boolean;
+}
+/** The inputs free play gives 2D's rules, from the same sums layoutVars publishes. */
+export function figureRoomInputs(vp: Viewport, d: DeviceClass): FigureRoomInputs {
+  return { topSafe: vp.safe.top + M.topSafe, cmpH: 0, pzT: 0, pzB: 0, pzL: 0, pzR: 0, botOcc: vp.safe.bottom + footHeight(d), presenting: false };
+}
+
+/** The room the Sinusoid is centred and sized in: 2D's `freeRect(W, H)` (sinusoid-view.js), the same sums from the same inputs, rounded the same. The side panels are hidden in the view, so
+ *  only the bars count: the top bar (+ the compare header + a card's top, and 40 px of air when no card is up), the foot (--bot-occ + 8, never under 34) and a 12 px margin each side. */
+export function sinusoidRoom(vp: Viewport, i: FigureRoomInputs): Rect {
+  const t = i.topSafe + i.cmpH + i.pzT + 8 + (i.pzT ? 0 : 40);
+  const pill = i.presenting ? 0 : (i.botOcc || M.dockBottom + 8 + 42) + 8;
+  const b = vp.h - i.pzB - Math.max(34, pill), l = 12 + i.pzL, r = vp.w - 12 - i.pzR;
+  return rectOf(l, t, Math.max(l + 80, r), Math.max(t + 80, b));
+}
+/** The room the Lobule is sized in: 2D's `liveFreeInto` (lobule-zoom.js), the bars' room (the open cards only pan it, which the camera's own room-follow does): 12 px sides, 8 px under the top bar, 8 px over the foot. */
+export function lobuleRoom(vp: Viewport, i: FigureRoomInputs): Rect {
+  const t = i.topSafe + i.cmpH + i.pzT + 8, l = 12 + i.pzL;
+  const b = vp.h - (i.botOcc || 100) - (i.pzB + 8), r = Math.max(l + 80, vp.w - (i.pzR + 12));
+  return rectOf(l, t, r, b);
+}
+const rectOf = (l: number, t: number, r: number, b: number): Rect => ({ x: Math.round(l), y: Math.round(t), w: Math.round(r) - Math.round(l), h: Math.round(b) - Math.round(t) });
+/** The room the camera frames a view in, in free play: the Sinusoid and the Lobule follow 2D's own rule for it, the others the screen less the bars. */
+export function viewRoom(view: string, vp: Viewport, d: DeviceClass): Rect {
+  if (view === 'sinusoid') return sinusoidRoom(vp, figureRoomInputs(vp, d));
+  if (view === 'lobule') return lobuleRoom(vp, figureRoomInputs(vp, d));
+  return freeRoom(vp, d);
+}
