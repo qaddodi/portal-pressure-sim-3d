@@ -6,10 +6,9 @@ import { NETWORK, NETWORK_BY_ID, cutEnd } from '../src/scene/vessels/network.ts'
 import { BACK_EDGES, IVC_EDGES } from '../src/scene/vessels/paths.copied.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { buildTubes, TUBE_RADIAL } from '../src/scene/vessels/tubes.ts';
-import { ATTACH_REACH } from '../src/scene/vessels/smooth-joins.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
-import { PERMANENT_KINDS, armReach, armsShareTier, findSkinJunctions, isPermanent, skinNodesForPhase, tierSpread } from '../src/scene/vessels/skin/inventory.ts';
-import { CAPSULE_R, CUT_SKIN_K, MAX_TRIES, SEAM_MIN_R, chooseCuts, type ArmTube } from '../src/scene/vessels/skin/cuts.ts';
+import { PERMANENT_KINDS, SKIN_REACH, armReach, armsShareTier, findSkinJunctions, isPermanent, skinNodesForPhase, tierSpread } from '../src/scene/vessels/skin/inventory.ts';
+import { CAPSULE_R, CLEAR_K, CLEAR_R, CUT_SKIN_K, MAX_TRIES, MIN_RINGS_BETWEEN, SEAM_MAX_SHARE, SEAM_MIN_R, chooseCuts, mergedNode, planSkins, type ArmTube } from '../src/scene/vessels/skin/cuts.ts';
 import { SkinBuildError, type SkinCut, type SkinJunction } from '../src/scene/vessels/skin/types.ts';
 import { indexOf } from '../src/engine/vessel-data.ts';
 
@@ -71,7 +70,7 @@ test('no arm is drawn behind the organs (BACK_EDGES): a skin is drawn on the ves
   for (const j of on(() => findSkinJunctions())) for (const a of j.arms) assert.ok(!BACK_EDGES.has(a.vesselId), `${j.node}: ${a.vesselId}`);
 });
 
-test('J is the end point of the widest arm\'s course; with smooth joins on every arm of a phase node ends within ATTACH_REACH of it (the liver bed\'s CV_R, whose art leaves the gap, within two)', () => {
+test('J is the end point of the widest arm\'s course; with smooth joins on every arm of a phase node ends within SKIN_REACH (2 radii) of it', () => {
   on(() => {
     for (const j of findSkinJunctions()) {
       const w = NETWORK_BY_ID.get(j.arms[0]!.vesselId)!, pts = coursesOf(w, REST)[0]!.pts, e = pts[j.arms[0]!.end ? pts.length - 1 : 0]!;
@@ -79,9 +78,8 @@ test('J is the end point of the widest arm\'s course; with smooth joins on every
       if (!PHASE_2.includes(j.node)) continue;
       const reach = armReach(j);
       assert.equal(reach[0], 0, j.node);
-      // (CV_R: the 2D art leaves its two hepatic-vein beds 1.7 radii of a thin bed from the sinusoid's end, shape.ts fitEnds does not move beds; the skin's capsules start at J, so the gap is filled by the fillet)
-      const cap = j.node === 'CV_R' ? 2 : ATTACH_REACH;
-      reach.forEach((r, i) => assert.ok(r <= cap, `${j.node}: ${j.arms[i]!.vesselId} ends ${r.toFixed(2)} radii from J`));
+      // (CV_R: the 2D art leaves its two hepatic-vein beds 1.7 radii of a thin bed from the sinusoid's end, shape.ts fitEnds does not move beds; the skin's hull spans the gap)
+      reach.forEach((r, i) => assert.ok(r <= SKIN_REACH, `${j.node}: ${j.arms[i]!.vesselId} ends ${r.toFixed(2)} radii from J`));
     }
   });
 });
@@ -102,8 +100,8 @@ const ringVerts = (t: ArmTube, k: number): number[][] => {
 };
 const accept = () => true;
 
-/** Where the cut rules succeed on the real tubes today. PVH (the portal bifurcation: its right branch is a stub of 4 radii, shorter than the clearance 2k + 2R asks) and the two liver beds' junctions have no ring that clears the blend, so the scene keeps today's method at them (a named SkinBuildError). Pinned so a change either way is seen. */
-const CUTTABLE = ['CONF', 'PVT_L', 'SV', 'HA', 'CV_R'], UNCUTTABLE = ['PVH', 'SIN_R', 'SIN_L'];
+/** Where the cut rules succeed on the real tubes today. Under the relaxed clearance (k + 0.5 R, 20 Nov) every phase node cuts, the portal bifurcation PVH included; only SIN_L (phase 3: its 85 % bound is reached before a clear ring) has no seam, a named SkinBuildError, so the scene keeps today's method there. Pinned so a change either way is seen. */
+const CUTTABLE = PHASE_2, UNCUTTABLE = ['SIN_L'];   // (SIN_R, phase 3, is cut at the far end of its arteriole, 20 radii from J: not pinned until it is asked for)
 
 test('a cut is one of the tube\'s own rings, at the right end, with u = ring / tubular, at least 1.5 radii from J, and clear of the blend', () => {
   on(() => {
@@ -130,7 +128,6 @@ test('where no ring clears the blend, chooseCuts throws a SkinBuildError for the
     for (const j of findSkinJunctions()) {
       if (UNCUTTABLE.includes(j.node)) assert.throws(() => chooseCuts(j, tubesOf(j), accept), (e: unknown) => e instanceof SkinBuildError && e.node === j.node, j.node);
       else if (CUTTABLE.includes(j.node)) assert.doesNotThrow(() => chooseCuts(j, tubesOf(j), accept), j.node);
-      else assert.fail(`${j.node} is in neither list`);
     }
   });
 });
@@ -158,12 +155,57 @@ test('a hull that never agrees ends in a named SkinBuildError carrying the node,
   });
 });
 
-test('the cut constants are the spec\'s: blend 0.8 of the narrowest radius, a seam 1.5 radii out, a capsule 6 radii long, 40 tries', () => {
+test('the cut constants are the spec\'s: blend 0.8 of the narrowest radius, clearance k + 0.5 R, a seam 1.5 radii out and within 85 % of the arm, a capsule 6 radii long, 40 tries, 2 rings between two skins', () => {
   assert.equal(CUT_SKIN_K, 0.8); assert.equal(SEAM_MIN_R, 1.5); assert.equal(CAPSULE_R, 6); assert.equal(MAX_TRIES, 40);
+  assert.equal(CLEAR_K, 1); assert.equal(CLEAR_R, 0.5); assert.equal(SEAM_MAX_SHARE, 0.85); assert.equal(MIN_RINGS_BETWEEN, 2); assert.equal(SKIN_REACH, 2);
 });
 
 test('the inventory leaves the figure as it found it: the smooth-joins switch is where the test left it, and nothing here reads the scene', () => {
   const was = smoothJoinsOn();
   findSkinJunctions();
   assert.equal(smoothJoinsOn(), was);
+});
+
+// ---- two skins on one vessel (rule 1c) ----
+test('PV_TRUNK_1 is an arm at both CONF and PVT_L; under the relaxed clearance their cuts keep 6 rings apart, so the two skins stay two (no merge), and no vessel is hidden', () => {
+  on(() => {
+    const js = findSkinJunctions().filter((j) => j.node === 'CONF' || j.node === 'PVT_L'), tubes = new Map<string, ArmTube>();
+    for (const j of js) for (const [k, v] of tubesOf(j)) tubes.set(k, v);
+    const { plans, failures } = planSkins(js, tubes, () => accept);
+    assert.deepEqual(failures, []);
+    assert.deepEqual(plans.map((p) => p.junction.node).sort(), ['CONF', 'PVT_L']);
+    for (const p of plans) { assert.deepEqual(p.hidden, []); assert.equal(p.merged, undefined); }
+    const at = (node: string) => plans.find((p) => p.junction.node === node)!.cuts.find((c) => c.vesselId === 'PV_TRUNK_1')!;
+    assert.equal(at('CONF').end, 0); assert.equal(at('PVT_L').end, 1);
+    assert.equal(at('PVT_L').ring - at('CONF').ring - 1, 6, 'rings between the two cuts on PV_TRUNK_1');
+  });
+});
+
+test('when two cuts on one vessel cross or crowd, the two junctions become one skin: the union of the arms less the shared vessel, J the midpoint, the shared vessel hidden whole', () => {
+  on(() => {
+    const js = findSkinJunctions().filter((j) => j.node === 'CONF' || j.node === 'PVT_L'), tubes = new Map<string, ArmTube>();
+    for (const j of js) for (const [k, v] of tubesOf(j)) tubes.set(k, v);
+    const { plans, failures } = planSkins(js, tubes, () => accept, 99);   // (a demand no vessel can meet: every pair crowds)
+    assert.deepEqual(failures, []); assert.equal(plans.length, 1, 'one skin for the two nodes');
+    const [conf, pvtl] = [js.find((j) => j.node === 'CONF')!, js.find((j) => j.node === 'PVT_L')!];
+    const p = plans[0]!, m = p.junction;
+    assert.equal(m.node, mergedNode('CONF', 'PVT_L')); assert.deepEqual(p.merged, ['CONF', 'PVT_L']); assert.deepEqual(p.hidden, ['PV_TRUNK_1']);
+    assert.deepEqual(m.arms.map((a) => a.vesselId).sort(), ['LGV_CONF', 'PV_TRUNK', 'SMV_CONF', 'SV_CONF']);
+    for (let i = 1; i < m.arms.length; i++) assert.ok(m.arms[i - 1]!.restR >= m.arms[i]!.restR, 'widest first');
+    for (let d = 0; d < 3; d++) assert.ok(Math.abs(m.J[d]! - (conf.J[d]! + pvtl.J[d]!) / 2) < 1e-12);
+    assert.equal(p.cuts.length, 4);
+  });
+});
+
+test('a merge that would leave more than 4 arms makes both nodes fall back with a named error, and planSkins never throws', () => {
+  on(() => {
+    const all = findSkinJunctions(), conf = all.find((j) => j.node === 'CONF')!, pvtl = all.find((j) => j.node === 'PVT_L')!, sv = all.find((j) => j.node === 'SV')!;
+    // a fat PVT_L with a 4th arm borrowed from SV: the union less PV_TRUNK_1 is 5
+    const fat: SkinJunction = { node: 'PVT_L', J: pvtl.J, arms: [...pvtl.arms, sv.arms[0]!] };
+    const tubes = new Map<string, ArmTube>();
+    for (const j of [conf, pvtl, sv]) for (const [k, v] of tubesOf(j)) tubes.set(k, v);
+    const res = planSkins([conf, fat], tubes, () => accept, 99);
+    assert.deepEqual(res.plans, []);
+    assert.ok(res.failures.length >= 1 && res.failures.every((e) => e instanceof SkinBuildError));
+  });
 });

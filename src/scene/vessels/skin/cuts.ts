@@ -15,9 +15,12 @@ export const CUT_SKIN_K = 0.8;
 export const SEAM_MIN_R = 1.5;
 /** The length of an arm's capsule: out from J this many of its radii (spec 4.3). */
 export const CAPSULE_R = 6;
-/** Rule 1's clearance: a seam vertex must be farther than `CLEAR_K` blend widths plus `CLEAR_R` radii of its own arm from every other arm's capsule (spec 4.4: 2k + 2R). */
-export const CLEAR_K = 2;
-export const CLEAR_R = 2;
+/** Rule 1's clearance (spec 4.4, amended 20 Nov): a seam vertex must be at least `CLEAR_K` blend widths plus `CLEAR_R` radii of its own arm from every other arm's capsule (k + 0.5 R). The polynomial smooth-min is exactly the plain min once two
+ *  distances differ by k, and a ring vertex lies on its own arm (sd 0), so k is the exact no-blend bound; the half radius covers the ink's inflation. (The first draft's 2k + 2R left the portal bifurcation uncuttable.) */
+export const CLEAR_K = 1;
+export const CLEAR_R = 0.5;
+/** Rule 1b: a seam may not lie farther than this share of its arm's own length from J (else the skin would eat the tube: SkinBuildError). */
+export const SEAM_MAX_SHARE = 0.85;
 /** The tries the hull rule gets before the junction is given up (rule 3). */
 export const MAX_TRIES = 40;
 const RADIAL = TUBE_RADIAL;
@@ -66,7 +69,8 @@ function sdCapsule(p: ArrayLike<number>, o: number, c: Capsule): number {
 
 /**
  * The seam ring of every arm (spec 4.4), in the junction's arm order. Each arm's rings are walked outward from J (k = tubular down for end 1, 0 up for end 0) to the first ring where
- *   1. every vertex is farther than 2k + 2 R (`clear`, the spec's CLEAR_K and CLEAR_R) from every other arm's capsule (the blend has no effect there, so the skin's ring and the tube's ring are one surface);
+ *   1. every vertex is at least k + 0.5 R (`clear`, the spec's CLEAR_K and CLEAR_R) from every other arm's capsule (the blend has no effect there, so the skin's ring and the tube's ring are one surface);
+ *   1b. the ring's arc length from J is at most 85 % of the arm's own length;
  *   2. the ring's centre is at least 1.5 R from J.
  * Then `hullOk` judges the set (rule 3). If it refuses, the arm whose seam is nearest to J in its own radii moves out to its next such ring, and the set is judged again, up to 40 tries.
  * Throws a `SkinBuildError` for the node when an arm runs out of rings or the tries; the scene keeps today's method for that node.
@@ -81,20 +85,23 @@ export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>,
     return out;
   });
   const caps = j.arms.map((a, i) => capsuleOf(j, rings[i]!, a.restR));
+  // the arc length from J to each ring's centre (the arm's own length is the last): rule 1b
+  const arc = rings.map((rs) => { let d = 0, prev: Vec3 = j.J; return rs.map((g) => { d += dist3(prev, g.centre); prev = g.centre; return d; }); });
   /** whether ring `s` (counted from J) of arm `i` meets rules 1 and 2 */
   const eligible = (i: number, s: number): boolean => {
     const a = j.arms[i]!, g = rings[i]![s]!;
+    if (arc[i]![s]! > SEAM_MAX_SHARE * arc[i]![arc[i]!.length - 1]!) return false;
     if (dist3(g.centre, j.J) < SEAM_MIN_R * a.restR) return false;
     const need = clear.k * k + clear.r * a.restR;
     for (let o = 0; o < n; o++) {
       if (o === i) continue;
-      for (let v = 0; v < RADIAL; v++) if (sdCapsule(g.verts, v * 3, caps[o]!) <= need) return false;
+      for (let v = 0; v < RADIAL; v++) if (sdCapsule(g.verts, v * 3, caps[o]!) < need) return false;
     }
     return true;
   };
   const next = (i: number, from: number): number => {
     for (let s = from; s < rings[i]!.length; s++) if (eligible(i, s)) return s;
-    throw new SkinBuildError(j.node, `${j.arms[i]!.vesselId} has no ring that clears the blend`);
+    throw new SkinBuildError(j.node, `${j.arms[i]!.vesselId} has no ring that clears the blend within 85 % of its length`);
   };
   const at = j.arms.map((_, i) => next(i, 0));
   const cutsOf = (): SkinCut[] => j.arms.map((a, i) => { const ring = rings[i]![at[i]!]!.k, tubular = tubes.get(a.vesselId)!.tubular; return { vesselId: a.vesselId, end: a.end, ring, u: ring / tubular }; });
@@ -107,4 +114,60 @@ export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>,
     at[m] = next(m, at[m]! + 1);
   }
   throw new SkinBuildError(j.node, `the hull rule still fails after ${MAX_TRIES} tries`);
+}
+
+// ---- two skins on one vessel (spec 4.4 rule 1c) ----
+/** The least tube rings that must stay between the two cuts of a vessel that is an arm at both of its nodes (PV_TRUNK_1: CONF at its start, PVT_L at its end). */
+export const MIN_RINGS_BETWEEN = 2;
+/** The ids of a merged skin's two nodes joined, e.g. `CONF+PVT_L`. */
+export const mergedNode = (a: string, b: string): string => `${a}+${b}`;
+
+/** One junction ready to build: its (possibly merged) junction, one cut per arm, and the vessels its skin replaces whole (their tube is not drawn at all: `skinCut` (2, -1)). */
+export interface SkinPlan { junction: SkinJunction; cuts: SkinCut[]; hidden: string[]; /** the two nodes this skin is made of, when merged */ merged?: readonly [string, string] }
+export interface SkinPlans { plans: SkinPlan[]; failures: SkinBuildError[] }
+
+/**
+ * The cuts of every junction given, with rule 1c applied: a vessel that is an arm at two of the junctions (it starts at one node and ends at the other) must keep at least `MIN_RINGS_BETWEEN` rings between its two cuts.
+ * If the cuts cross or crowd, the two junctions merge into one skin (node `A+B`): the union of their arms less the shared vessel (at most 4 arms, else both fall back), J the midpoint of the two Js, and the shared vessel
+ * hidden whole. A junction that cannot be cut, or whose merge fails, is a failure (a named SkinBuildError) and is left out of the plans; the scene keeps today's method there. Never throws.
+ * `hullFor(junction)` gives WP2's hull check for that junction's rings.
+ */
+export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube>, hullFor: (j: SkinJunction) => HullOk, minBetween: number = MIN_RINGS_BETWEEN): SkinPlans {
+  const failures: SkinBuildError[] = [];
+  const attempt = (j: SkinJunction): SkinPlan | null => {
+    try { return { junction: j, cuts: chooseCuts(j, tubes, hullFor(j)), hidden: [] }; }
+    catch (e) { if (e instanceof SkinBuildError) { failures.push(e); return null; } throw e; }
+  };
+  const plans = js.map(attempt);
+  const out: SkinPlan[] = [];
+  const done = new Set<number>();
+  for (let a = 0; a < js.length; a++) {
+    if (done.has(a)) continue;
+    const pa = plans[a];
+    if (!pa) continue;
+    let merged = false;
+    for (let b = a + 1; b < js.length && !merged; b++) {
+      const pb = plans[b];
+      if (!pb || done.has(b)) continue;
+      for (const ca of pa.cuts) {
+        const cb = pb.cuts.find((c) => c.vesselId === ca.vesselId && c.end !== ca.end);
+        if (!cb) continue;
+        const lo = ca.end === 0 ? ca : cb, hi = ca.end === 0 ? cb : ca;   // (the cut at the vessel's start, the cut at its end)
+        if (hi.ring - lo.ring - 1 >= minBetween) continue;
+        // two skins would crowd or cross on this vessel: one skin for both nodes
+        merged = true; done.add(a); done.add(b);
+        const A = js[a]!, B = js[b]!;
+        const arms = [...A.arms, ...B.arms].filter((m) => m.vesselId !== ca.vesselId).sort((x, y) => y.restR - x.restR);
+        const node = mergedNode(A.node, B.node);
+        if (arms.length > 4 || arms.length < 3) { failures.push(new SkinBuildError(node, `${arms.length} arms after the merge (3 or 4 allowed)`)); break; }
+        const J: Vec3 = [(A.J[0] + B.J[0]) / 2, (A.J[1] + B.J[1]) / 2, (A.J[2] + B.J[2]) / 2];
+        const mj: SkinJunction = { node, J, arms };
+        try { out.push({ junction: mj, cuts: chooseCuts(mj, tubes, hullFor(mj)), hidden: [ca.vesselId], merged: [A.node, B.node] }); }
+        catch (e) { if (e instanceof SkinBuildError) failures.push(e); else throw e; }
+        break;
+      }
+    }
+    if (!merged) { out.push(pa); done.add(a); }
+  }
+  return { plans: out, failures };
 }
