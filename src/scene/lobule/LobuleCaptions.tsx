@@ -38,7 +38,7 @@ export function LobuleCaptions() {
     const els = new Map<string, El>();
     const v3 = new Vector3(), pt = { x: 0, y: 0 }, w3: [number, number, number] = [0, 0, 0];
     let placed = new Map<string, Placement>(), metas = new Map<string, CapMeta>();
-    const gate = new Ride(), roomFade = new RoomFade(), pa = { x: 0, y: 0 }, pb = { x: 0, y: 0 }, rp = { x: 0, y: 0 };
+    const gate = new Ride(), roomFade = new RoomFade(), pa = { x: 0, y: 0 }, pb = { x: 0, y: 0 }, pc = { x: 0, y: 0 }, pd = { x: 0, y: 0 }, rp = { x: 0, y: 0 };
     let alpha = 0, last = -1, wasShown = false, hold: { release(): void } | null = null;
 
     const putVars = () => {
@@ -145,8 +145,9 @@ export function LobuleCaptions() {
       const now = performance.now(), dt = last < 0 ? 16 : Math.min(100, now - last);
       last = now;
       const on = cel.view === 'lobule' && cel.lobule.group.visible;
-      if (on) { const a = proj(0, 0), b = proj(1, 0); pa.x = a[0]; pa.y = a[1]; pb.x = b[0]; pb.y = b[1]; } else { pa.x = pa.y = pb.x = pb.y = 0; }
-      const g = gate.step({ now, dt, on, moving: cel.rig.isMoving, a: pa, b: pb, layout: layoutSig, fits: (ride) => boxesFit(boxesOf(), ride, view(), blockers()) });
+      // (four corners of a square on the plate: the dots ride the plate's own perspective, exact under a tilt, ride.ts)
+      if (on) { const a = proj(0, 0), b = proj(1, 0), c = proj(1, 1), d = proj(0, 1); pa.x = a[0]; pa.y = a[1]; pb.x = b[0]; pb.y = b[1]; pc.x = c[0]; pc.y = c[1]; pd.x = d[0]; pd.y = d[1]; } else { pa.x = pa.y = pb.x = pb.y = pc.x = pc.y = pd.x = pd.y = 0; }
+      const g = gate.step({ now, dt, on, moving: cel.rig.isMoving, a: pa, b: pb, c: pc, d: pd, layout: layoutSig, fits: (ride) => boxesFit(boxesOf(), ride, view(), blockers()) });
       if (g.solve) { solveNow(); if (typeof location !== 'undefined' && /[?&]capwhy\b/.test(location.search)) console.info('[lobule-captions] re-placed:', gate.why, gate.whySig); } else if (alpha > 0) refreshReadings();
       alpha = g.alpha;
       if (alpha > 0 || wasShown) {
