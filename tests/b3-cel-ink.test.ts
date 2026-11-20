@@ -115,7 +115,9 @@ test('a sub-pixel lumen keeps its colour: the line thins under LINE_MIN CSS px o
 test('the vessel shader holds the same taper and leaves the picked ring alone', async () => {
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
-  assert.ok(src.includes('smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rCssV / narrowK)') && src.includes('clamp(${F(CEL_STYLE.LINE_R)} * rCssV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)})'), 'the source writes the line from the style');
+  assert.ok(src.includes("inkPxGlsl('rCssV', 'rCssV / narrowK')"), 'the source writes the line from the style (the one shared expression, judged on the unpinched radius)');
+  const { inkPxGlsl } = await import('../src/scene/vessels/glsl-shared.ts');
+  assert.match(inkPxGlsl('r', 't'), /smoothstep\([\d.]+, [\d.]+, t\)/, 'the taper is in the shared expression');
   assert.match(VESSEL_VS, INK_RE);
   assert.match(src, /\(inkPx \* endK \+ hiPx \* vHi\)/);
 });

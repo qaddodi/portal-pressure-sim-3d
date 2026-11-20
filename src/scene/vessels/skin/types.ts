@@ -54,8 +54,15 @@ export const SKIN_CIRC_SPAN = 0.35;
 /** The tube's cut is judged this far (in u) inside the seam, so the interpolated uv.x of the seam ring itself (which rounds to the ring's u within a few ulp) is never discarded: no hairline gap at the seam. */
 export const SKIN_CUT_EPS = 2e-5;
 
-/** A junction the skin cannot be built for (the hull misses a seam ring, the mesh will not settle): the scene falls back to today's method for that node and warns once. */
+/** Raised when a junction's skin cannot be built (no seam ring satisfies the rules within the tries, spec 4.4; WP2's mesh builder throws it too). The scene falls back to today's method for that node and warns once; it never crashes the scene. */
 export class SkinBuildError extends Error {
   readonly node: string;
-  constructor(node: string, why: string) { super(`skin ${node}: ${why}`); this.name = 'SkinBuildError'; this.node = node; }
+  constructor(node: string, why: string) {
+    super(`skin: junction ${node}: ${why}`);
+    this.name = 'SkinBuildError';
+    this.node = node;
+  }
 }
+
+/** The tube's `skinCut` when a merged skin replaces the vessel whole (rule 1c: PV_TRUNK_1 between CONF and PVT_L): every u is below 2, so none of it is drawn. */
+export const SKIN_HIDDEN: readonly [number, number] = [2, -1];

@@ -10,7 +10,7 @@ import type { VesselObject } from '../src/scene/vessels/vessel-object.ts';
 
 test('the default cut is none: no u is below -1 or above 2, so every branch the cut guards is a no-op', () => {
   assert.deepEqual([...SKIN_CUT_NONE], [-1, 2]);
-  const scene = new CelScene();
+  const scene = new CelScene({ joins: 'old' });   // (with skins on, a skinned vessel's ends are cut by design: tests/skin-scene.test.ts)
   let n = 0;
   for (const def of NETWORK) {
     const o = scene.vesselObject(def.id);
