@@ -37,3 +37,11 @@ test('the scope\'s way runs on the oesophagus and stomach\'s middle, smoothly, i
     assert.ok(worst < 0.02, `no jump along the way (largest step ${worst.toFixed(4)})`);
   }
 });
+
+test('the probes and the scope are drawn in their own pale colours inside a dark outline (the vessels\' tube tones turned a pale colour to near black on the dark ground)', () => {
+  const parts = readFileSync(new URL('../src/scene/devices/probes/parts.ts', import.meta.url), 'utf8');
+  assert.match(parts, /\{ tubeTones: false, \.\.\.o \}/);
+  const scope = readFileSync(new URL('../src/scene/devices/probes/scope.ts', import.meta.url), 'utf8');
+  assert.match(scope, /sh = mk\('poly', \(t\) => t\.steel/);
+  assert.ok(!/sh = mk\('poly', \(t\) => t\.polyEdge/.test(scope), 'the shaft is not the near-black outline colour');
+});
