@@ -8,11 +8,11 @@ import { PALETTES, type LookId, type Palette } from '../palette.ts';
 import { LOOKS } from '../../looks/looks.ts';
 import { DEVICE_TOKENS, type DeviceTokens } from '../procedures/copied/device-tokens.copied.ts';
 
-export type DeviceTone = 'poly' | 'steel' | 'platinum' | 'latex' | 'nylon' | 'graft' | 'gold' | 'stentWire' | 'stentGlint' | 'glue' | 'ptfe' | 'thread' | 'marker'
+export type DeviceTone = 'collar' | 'poly' | 'steel' | 'platinum' | 'latex' | 'nylon' | 'graft' | 'gold' | 'stentWire' | 'stentGlint' | 'glue' | 'ptfe' | 'thread' | 'marker'
   | 'trWedge' | 'trPv' | 'trIvc' | 'trScler' | 'monFree' | 'monWedge' | 'monAlarm'
   /** the look's accent (the 2D app's --accent: the tamponade's traction arrow) */ | 'accent';
 const TOKEN_OF: Record<Exclude<DeviceTone, 'accent'>, keyof DeviceTokens> = {
-  poly: 'poly', steel: 'steel', platinum: 'platinum', latex: 'latex', nylon: 'nylon', graft: 'graft', gold: 'stentGold', stentWire: 'stentWire', stentGlint: 'stentGlint',
+  collar: 'polyEdge', poly: 'poly', steel: 'steel', platinum: 'platinum', latex: 'latex', nylon: 'nylon', graft: 'graft', gold: 'stentGold', stentWire: 'stentWire', stentGlint: 'stentGlint',
   glue: 'glue', ptfe: 'ptfe', thread: 'sutureThread', marker: 'stentMarker', trWedge: 'trWedge', trPv: 'trPv', trIvc: 'trIvc', trScler: 'trScler', monFree: 'monFree', monWedge: 'monWedge', monAlarm: 'monAlarm',
 };
 const lookOf = (p: Palette): LookId => ((Object.keys(PALETTES) as LookId[]).find((id) => PALETTES[id] === p) ?? 'light');
@@ -50,16 +50,27 @@ export class DeviceObject extends CelObject {
     super(geometry, { tone: 'cath', bands: o.bands ?? 2, spec: o.spec ?? 1, px: o.px ?? 0.9, tubeTones: o.tubeTones ?? geometry.userData.ringTube === true }, shared);
     this.deviceTone = deviceTone;
     this.edgeInk = edge;
+    // A device's free front is where its tip is, so it is cut there and nowhere else. The vessels' reveal is a soft front a tenth of the route long, dissolved in a stipple, that runs on PAST the point it is told
+    // (u up to 1.1 x reveal): on a catheter that was a stippled grey band drawn beyond the tip (20 Nov 2026, "why is it extending towards the end of the vein when the tip is in mid vein").
+    // The tip's cap (a sphere as wide as the shaft) covers the cut.
+    this.toon.fragmentShader = withAlpha(TOON_FS, 'if (frontOut(vUv.x, reveal)) discard;', 'if (reveal < 0.9999 && vUv.x > reveal) discard;');
+    this.ink.fragmentShader = withAlpha(INK_FS, 'if (frontOut(vU, reveal)) discard;', 'if (reveal < 0.9999 && vU > reveal) discard;');
     this.toon.uniforms.alpha = { value: 1 };
     this.ink.uniforms.alpha = { value: 1 };
-    this.toon.fragmentShader = 'uniform float alpha;\n' + withAlpha(TOON_FS, 'gl_FragColor = vec4(c, 1.0);', 'gl_FragColor = vec4(c, alpha);');
+    this.toon.fragmentShader = 'uniform float alpha;\n' + withAlpha(this.toon.fragmentShader, 'gl_FragColor = vec4(c, 1.0);', 'gl_FragColor = vec4(c, alpha);');
     // (the ink's alpha is the soft ink's own `inkA` (1 for a hard ink) and the pick's solid ring: a device's fade multiplies the first)
-    this.ink.fragmentShader = 'uniform float alpha;\n' + withAlpha(INK_FS, 'mix(inkA, 1.0, clamp(vHi, 0.0, 1.0))', 'mix(inkA, 1.0, clamp(vHi, 0.0, 1.0)) * alpha');
+    this.ink.fragmentShader = 'uniform float alpha;\n' + withAlpha(this.ink.fragmentShader, 'mix(inkA, 1.0, clamp(vHi, 0.0, 1.0))', 'mix(inkA, 1.0, clamp(vHi, 0.0, 1.0)) * alpha');
     // a thin device (a catheter, a wire) is always a few pixels of fill: both passes grow by FAT_PX device px each way, the fill first and the outline outside it (a hairline catheter was only its outline)
     // a free end (the top of a scope, the start of a catheter's lead-in above the figure) fades out along the first `tailFade` share of its length (uv.x), a gradient, never a cut
     this.toon.uniforms.tailFade = this.ink.uniforms.tailFade = { value: 0 };
     this.toon.fragmentShader = TAIL_GLSL + withAlpha(this.toon.fragmentShader, 'gl_FragColor = vec4(c, alpha);', 'gl_FragColor = vec4(c, alpha * tailK(vUv.x));');
     this.ink.fragmentShader = TAIL_GLSL + withAlpha(this.ink.fragmentShader, ' * alpha', ' * alpha * tailK(vU)');
+    // A clear device (a balloon) is glass: its fill is faint in the middle and firmer toward the rim (rimFill), and its ink is the rim only (rimOnly, the width of the rim as n.v): drawn whole, the ink's far wall
+    // showed through the faint fill as a solid dark barrel (20 Nov 2026, "the balloon is black").
+    this.toon.uniforms.rimFill = { value: 0 }; this.ink.uniforms.rimOnly = { value: 0 };
+    this.toon.fragmentShader = 'uniform float rimFill;\n' + withAlpha(this.toon.fragmentShader, 'gl_FragColor = vec4(c, alpha * tailK(vUv.x));', 'float fr = 1.0 - abs(dot(normalize(vN), normalize(vV)));\n  float alpha = clamp(alpha * (1.0 + rimFill * fr * fr * 6.0), 0.0, 1.0);\n  gl_FragColor = vec4(c, alpha * tailK(vUv.x));');
+    this.ink.vertexShader = 'varying float vRim;\n' + withAlpha(this.ink.vertexShader, '  vU = uv.x;', '  vU = uv.x;\n  { vec4 q = modelViewMatrix * vec4(p, 1.0); vRim = abs(dot(normalize(normalMatrix * normal), normalize(-q.xyz))); }');
+    this.ink.fragmentShader = 'varying float vRim;\nuniform float rimOnly;\n' + withAlpha(this.ink.fragmentShader, ' * alpha * tailK(vU)', ' * alpha * tailK(vU) * (rimOnly > 0.0 ? 1.0 - smoothstep(0.0, rimOnly, vRim) : 1.0)');
     this.toon.uniforms.res = shared.res; this.toon.uniforms.fatPx = { value: FAT_PX }; this.ink.uniforms.fatPx = { value: FAT_PX };
     this.toon.vertexShader = 'uniform vec2 res;\nuniform float fatPx;\n' + withAlpha(this.toon.vertexShader, 'gl_Position = projectionMatrix * mv;', FAT_TOON);
     this.ink.vertexShader = 'uniform float fatPx;\n' + withAlpha(this.ink.vertexShader, '(px + hiPx * vHi)', '(px + fatPx + hiPx * vHi)');
@@ -87,6 +98,9 @@ export class DeviceObject extends CelObject {
     (this.toon.uniforms.shade!.value as Color).copy(base).multiplyScalar(p.shade).lerp(ink, 0.08);
     (this.ink.uniforms.color!.value as Color).copy(ink);
   }
+
+  /** Glass: `fill` makes the body firmer toward its rim, `rim` (n.v width, 0 off) keeps only the outline that is at the silhouette. */
+  setGlass(fill: number, rim: number): void { this.toon.uniforms.rimFill!.value = fill; this.ink.uniforms.rimOnly!.value = rim; }
 
   /** The fill and the outline fade apart (a translucent balloon: a faint body inside a firmer rim). */
   setAlphas(fill: number, ink: number): void {

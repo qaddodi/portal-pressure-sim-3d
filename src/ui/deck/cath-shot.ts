@@ -26,9 +26,12 @@ export function tipCloseShot(mode: 'tip' | 'ostium' = 'tip'): Shot | null {
   if (!r3) { kept.set(key, null); return null; }
   const r = r3.route, R = r3.lumen(r.free) * UNITS_PER_SCENE;   // the vein's radius in the route's own units
   const d = r3.tipD(mode === 'ostium' ? OSTIUM_U : 1);
-  const a = r3.point(Math.max(0, d - R * BEHIND_RADII)), b = r3.point(Math.min(r.total, d + R * AHEAD_RADII));
-  const pad = (R / UNITS_PER_SCENE) * 3.2;
-  const half: [number, number] = [Math.max(0.1, Math.abs(a.x - b.x) / 2 + pad), Math.max(0.085, Math.abs(a.y - b.y) / 2 + pad)];
+  // The viewer sees the way in (a stretch of the cava, the vein's mouth) and where the tip sits in the vein, not a macro of the balloon (Mohammad, 20 Nov: "far too tight, the vein fills the screen"):
+  // the frame starts a few radii before the vein's mouth and holds the balloon and the vein ahead of the tip.
+  const mouth = r3.tipD(OSTIUM_U);
+  const a = r3.point(Math.max(0, Math.min(d - R * BEHIND_RADII, mouth - R * 6))), b = r3.point(Math.min(r.total, d + R * AHEAD_RADII));
+  const pad = (R / UNITS_PER_SCENE) * 4;
+  const half: [number, number] = [Math.max(0.3, Math.abs(a.x - b.x) / 2 + pad), Math.max(0.25, Math.abs(a.y - b.y) / 2 + pad)];
   const shot: Shot = { yaw: YAW, pitch: PITCH, r: lensDistance(0.3), target: [(a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2], half };
   kept.set(key, shot);
   return shot;

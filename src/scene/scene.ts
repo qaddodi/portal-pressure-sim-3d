@@ -16,6 +16,7 @@ import { flowRate, flowTarget } from './flow-rate.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
+import { centrelineOf, type Centreline } from './vessels/centreline.ts';
 import { fadeOf, HEPATIC_VEINS, cavaEndSpan, CAVA_RECEDE } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
@@ -187,6 +188,7 @@ export class CelScene {
   private shapes!: ShapeTracks;
   private healthyQ: ArrayLike<number> | undefined;
   private collateralsOn = false;
+  private procQuietWas = false;
   private bloodOpts = { chevrons: true, keyChevrons: false };
   private readonly byEdge = new Map<string, CelObject>();
   /** the vessels that fade at a free end (fades.ts), and the collaterals whose opening makes the tip solid */
@@ -339,6 +341,8 @@ export class CelScene {
 
   /** The vessel object of an edge, or undefined. */
   vesselObject(id: string): VesselObject | undefined { return this.byEdge.get(id) as VesselObject | undefined; }
+  /** The drawn centreline and radius of vessel `id` at its present shape: what anything that lies in a vessel (the HVPG column, a catheter, a probe) binds to (vessels/centreline.ts). */
+  vesselCentreline(id: string): Centreline | null { return centrelineOf(id, this.shapes.stateOf(id) ?? REST); }
 
   // ---- looks ---------------------------------------------------------------------------------
 
@@ -922,11 +926,14 @@ export class CelScene {
     const pinMoving = this.pins.step(dt, this.disease.organs.byId);
     this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
     this.flowRate.step(dt / 1000, flowTarget(live.frame?.running));   // (Pause and Play ease the visible flow, 0.5 s each way; the model's own numbers pause at once)
+    // ONE GATE for the flow marks during procedures: while any procedure is on the figure (a catheter's run or its held step, the scope) the chevrons and the streaks ease out, and back when it ends
+    const procQuiet = this.procs.busy || !!this.probes.scope.driven;
+    if (procQuiet !== this.procQuietWas) { this.procQuietWas = procQuiet; this.flow.setOptions({ quiet: procQuiet }); }
     const streamsMoving = this.blood.streams.step(now, this.flowRate.value);
     const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id));
     const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || this.stepCava(dt);
     const lensMoving = this.lens.step(now);
-    const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving });
+    const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving, quiet: procQuiet });
     const presMoving = this.presence.step(dt);
     this.syncStumps();
     this.updateCaps();

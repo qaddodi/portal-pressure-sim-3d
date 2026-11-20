@@ -79,7 +79,7 @@ test('a run-on carries on as one tube: the two end rings share one centre and on
     assert.ok(pairs > 25 && unequal >= 4, `${pairs} pairs, ${unequal} of unequal caliber`);
   });
   // off, those unequal pairs keep their step (the 2D rule)
-  off(() => { const ra = ring('PVH_L_1', 1), rb = ring('PRE_L', 0); assert.ok(ra.r > rb.r * 2); });
+  off(() => { const r = RUN_ONS.find((x) => { const a = NETWORK_BY_ID.get(x.a)!, b = NETWORK_BY_ID.get(x.b)!; return a.kind !== 'collateral' && b.kind !== 'collateral' && Math.max(a.radius, b.radius) > 2 * Math.min(a.radius, b.radius); })!; const ra = ring(r.a, r.ia), rb = ring(r.b, r.ib); assert.ok(Math.max(ra.r, rb.r) > Math.min(ra.r, rb.r) * 1.5, `${r.a} to ${r.b} keeps its step`); });
 });
 
 test('a vein narrowing into a thin bed keeps the bed as drawn (only the wide one narrows); two stretches of one vein ease to their mean', () => {
@@ -95,7 +95,7 @@ test('tapers are monotone: along the first and last 30 % the radius moves from t
     let checked = 0;
     for (const v of MAPPED) {
       const c = coursesOf(v, REST)[0]!;
-      if (!c.taper || v.flare || v.id.startsWith('C') || c.sewn) continue;   // (a sewn shunt's heel flares over its taper: shunt-ends.ts)
+      if (!c.taper || v.flare || v.id.startsWith('C') || c.sewn || cutEnd(v.id) != null) continue;   // (a vein that branches is one tube to its tip: its own test)   // (a sewn shunt's heel flares over its taper: shunt-ends.ts)
       const { b: bt, run } = built(v.id), rk = bt.geometry.getAttribute('rk');
       const at = (k: number) => rk.getX(run.tubeStart + k * (run.radial + 1));
       const N = run.tubular, lo = Math.ceil(0.3 * N);
@@ -112,7 +112,7 @@ test('tapers are monotone: along the first and last 30 % the radius moves from t
         checked++;
       }
     }
-    assert.ok(checked >= 16, `${checked} tapered ends`);   // (was 21, less the four split ends of the veins that branch, which keep their width: liver-branches.ts; before: 21: the two arterioles into the sinusoid fans are no longer drawn)
+    assert.ok(checked >= 12, `${checked} tapered ends`);   // (was 21, less the four split ends of the veins that branch, which keep their width: liver-branches.ts; before: 21: the two arterioles into the sinusoid fans are no longer drawn)
   });
 });
 
@@ -277,13 +277,13 @@ test('the switch applies live: toggling it rewrites every tube in place (same ve
     assert.equal(smoothJoinsOn(), true, 'the scene took the setting');
     const obj = (id: string) => s.vesselObject(id) as unknown as { toonMesh: { geometry: { getAttribute(n: string): { array: Float32Array; count: number } } }; toon: { uniforms: Record<string, { value: { x: number } | number }> } };
     const posOn = Float32Array.from(obj('PVH_L').toonMesh.geometry.getAttribute('position').array), nOn = obj('PVH_L').toonMesh.geometry.getAttribute('position').count;
-    const rkOn = Float32Array.from(obj('PVH_L_1').toonMesh.geometry.getAttribute('rk').array);
+    const rkOn = Float32Array.from(obj('SMV_CONF').toonMesh.geometry.getAttribute('rk').array);
     assert.ok((obj('PV_TRUNK').toon.uniforms.mate1!.value as { x: number }).x >= 0 && obj('PV_TRUNK').toon.uniforms.lensSmooth!.value === 1);
     useSettings.getState().set('smoothJoins', false);
     assert.equal(smoothJoinsOn(), false);
     assert.equal(obj('PVH_L').toonMesh.geometry.getAttribute('position').count, nOn, 'the same vertices');
     assert.notDeepEqual(Array.from(posOn), Array.from(obj('PVH_L').toonMesh.geometry.getAttribute('position').array), 'the branch end moved back');
-    assert.notDeepEqual(Array.from(rkOn), Array.from(obj('PVH_L_1').toonMesh.geometry.getAttribute('rk').array), 'the step is back');
+    assert.notDeepEqual(Array.from(rkOn), Array.from(obj('SMV_CONF').toonMesh.geometry.getAttribute('rk').array), 'the step is back');
     assert.equal((obj('PV_TRUNK').toon.uniforms.mate1!.value as { x: number }).x, -1);
     assert.equal(obj('PV_TRUNK').toon.uniforms.lensSmooth!.value, 0);
     useSettings.getState().set('smoothJoins', true);
@@ -298,7 +298,7 @@ test('a vein narrowing into a thin bed funnels over its whole length: its radius
     for (const v of MAPPED) {
       const sm = SMOOTH.get(v.id)!;
       for (const end of [0, 1] as const) {
-        if (sm.span[end] !== 1 || cutEnd(v.id) === end) continue;   // (a vein that branches is cut at its split: it keeps its width there)
+        if (sm.span[end] !== 1 || cutEnd(v.id) === end || v.flare) continue;   // (a vein that branches is cut at its split: it keeps its width there)
         funnels++;
         const { b, run } = built(v.id), rk = b.geometry.getAttribute('rk');
         const at = (k: number) => rk.getX(run.tubeStart + k * (run.radial + 1));

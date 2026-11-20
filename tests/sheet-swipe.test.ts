@@ -34,7 +34,8 @@ test('no sheet has its own head-only drag written to the style any more (the one
 
 test('the swipe moves the sheet by `translate` and makes the stylesheet give its own entrance and exit way', () => {
   const src = read('src/ui/shell/sheet-swipe.ts');
-  assert.match(src, /el\.style\.translate/);
+  assert.match(src, /el\.style\[prop\]/);
+  assert.match(src, /`0px \$\{v\}px`/);
   assert.ok(!/requestAnimationFrame/.test(src), 'the one clock');
   const css = read('src/ui/shell/sheet-swipe.css');
   assert.match(css, /\[data-pulling\], \[data-swiped\] \{ transition: none !important; animation: none !important; \}/);
@@ -62,4 +63,15 @@ test('every phone sheet draws the 36 x 4 grab bar (the action card has its own, 
   assert.match(read('src/ui/action/action.css'), /\.ac-grab i \{ width: 36px; height: 4px;/);
   assert.match(read('src/ui/shell/sheet-swipe.css'), /\.sh-grabbar \{[^}]*width: 36px; height: 4px;[^}]*pointer-events: none;/);
   assert.match(read('src/ui/shell/Menu.tsx'), /useSheetSwipe\(ref, /);
+});
+
+test('every phone menu is pulled down to close: Search, and the popovers (speed, fast-forward, lens, Blood) with the pull written as `transform` since their `translate` is their place', async () => {
+  const { readFileSync } = await import('node:fs');
+  const pop = readFileSync('src/ui/shell/Pop.tsx', 'utf8'), search = readFileSync('src/ui/search/SearchSheet.tsx', 'utf8'), swipe = readFileSync('src/ui/shell/sheet-swipe.ts', 'utf8');
+  assert.match(pop, /useSheetSwipe\(pop, \(\) => useShell\.getState\(\)\.close\(\), onPhone, !!popEl, 'transform'\)/);
+  assert.match(search, /useSheetSwipe\(panel, \(\) => useShell\.getState\(\)\.close\(\), onPhone\)/);
+  assert.match(swipe, /prop\?: 'translate' \| 'transform'/);
+  // the sheets that already had it
+  for (const f of ['src/ui/shell/Frame.tsx', 'src/ui/shell/Menu.tsx', 'src/ui/menu/UMenu.tsx', 'src/ui/treat/TreatCard.tsx', 'src/ui/action/ActionCard.tsx']) assert.match(readFileSync(f, 'utf8'), /useSheetSwipe\(/, f);
+  assert.match(readFileSync('src/ui/tests/dock/pull.ts', 'utf8'), /export function attachPull/, 'the Tests sheet has its own three-stop pull, which closes from Peek');
 });
