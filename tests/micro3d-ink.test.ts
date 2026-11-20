@@ -33,3 +33,22 @@ test('the ink never z-fights its shape, is thick enough to read and near black (
   const src = fs.readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
   for (const part of ['rbc', 'nuclei', 'hsc', 'albumin', 'bile']) assert.match(src, new RegExp(`this\\.${part}\\.setInk\\(inkOf\\(`), `${part} uses the one near-black ink rule`);
 });
+
+test('no micro line is thinner than MIN_LINE, and the lobule tiles\' walls stand clear of the ground (eyes 20 Nov: dotted hepatocytes, stippled nucleus rings)', async () => {
+  const { MIN_LINE, microMaterials: mm, hazeUniforms: hu } = await import('../src/scene/micro3d/cel3d.ts');
+  const { LZ } = await import('../src/scene/micro3d/lobule3d.ts');
+  assert.ok(MIN_LINE >= 1);
+  const thin = mm({ value: new Vector2(1, 1) }, { value: 1 } as never, { haze: hu(), px: 0.3 } as never);
+  assert.equal(thin.ink!.uniforms.px!.value, MIN_LINE, 'a part asking for a hairline gets the least line that draws whole');
+  assert.ok(LZ.cellBot > LZ.ground, 'the tile\'s wall ends over the ground, so its line never dips under it');
+});
+
+test('a vessel\'s round ends carry no flow marks (the black squares at the RHF lobule\'s kinks)', async () => {
+  const { flowAux } = await import('../src/scene/micro3d/lobule3d.ts');
+  const { MeshBuilder, tube } = await import('../src/scene/micro3d/cel3d.ts');
+  const b = new MeshBuilder(), pts: [number, number, number][] = [[0, 0, 0], [1, 0, 0], [2, 0.3, 0]];
+  tube(b, pts, () => 0.1, [1, 1, 1], 8, true);
+  const ring = 3 * 8, cap = (b.count - ring) / 2;
+  flowAux(b, 0, pts, ring, cap, 0, null, 8);
+  for (let v = ring; v < ring + 2 * cap; v++) assert.equal(b.aux2[v], 3, 'hushed');
+});
