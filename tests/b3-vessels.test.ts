@@ -1,3 +1,4 @@
+import { LEAVE_VEIN_IDS } from '../src/scene/vessels/starts.ts';
 import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { ORGAN_Z } from '../src/scene/organs/z.ts';
 import { readFileSync } from 'node:fs';
@@ -122,6 +123,7 @@ test('every vessel is its 2D course through the one linear map: back through it,
   for (const v of NETWORK) {
     if (v.feeder) continue;   // (a fan of tributaries: its own test, below)
     if (ALONG_VEIN_IDS.has(v.id)) continue;   // (the hepatic arteries run beside their portal branches: starts.ts alongVein)
+    if (LEAVE_VEIN_IDS.has(v.id)) continue;   // (the umbilical vein leaves the left portal vein's wall: its own test, tests/b3-umbilical-join.test.ts)
     const c = trimHost(v.id, withStartInOrgan(v.id, EDGE_PATH_2D[v.id]!));   // (the splenic vein is carried on into the spleen: starts.ts; a vein that branches is drawn to its split: liver-branches.ts)
     assert.equal(v.pts.length, c.length, v.id);
     // (the 2D figure redraws the last 11 samples either side of a run-on as one smooth cubic through the join: joins.ts)

@@ -9,7 +9,7 @@ import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
 import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts';
 import { ORGAN_Z } from '../organs/z.ts';
-import { ALONG_VEIN_IDS, alongVein } from './starts.ts';
+import { ALONG_VEIN_IDS, LEAVE_VEIN_IDS, alongVein, leaveVein } from './starts.ts';
 import { LIVER_BRANCHES, LIVER_BRANCH_HOSTS, SPLIT_AT, trimHost } from './liver-branches.ts';
 import { withStartInOrgan } from './starts.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
@@ -143,7 +143,7 @@ export const cutEnd = (id: string): number | null => (SPLIT_AT[id] == null || !i
 export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST).filter((r) => cutEnd(r.a) !== r.ia && cutEnd(r.b) !== r.ib);
 const SMOOTH = smoothRunOns(new Map(JOIN_LIST.map((j) => [j.id, j.path])), RUN_ONS);
 /** A vessel's 2D course as drawn: smooth through the joins where it runs on into another. */
-const pathOf = (id: string): readonly (readonly [number, number])[] => trimHost(id, alongVein(id, EDGE_PATH_2D) ?? withStartInOrgan(id, (id === 'A_HEP' ? undefined : SMOOTH.get(id)) ?? EDGE_PATH_2D[id]!));   // (the hepatic artery's end is the node its branches start at, as it is)
+const pathOf = (id: string): readonly (readonly [number, number])[] => trimHost(id, alongVein(id, EDGE_PATH_2D) ?? leaveVein(id, EDGE_PATH_2D, (h) => SMOOTH.get(h) ?? EDGE_PATH_2D[h]!) ?? withStartInOrgan(id, (id === 'A_HEP' ? undefined : SMOOTH.get(id)) ?? EDGE_PATH_2D[id]!));   // (the hepatic artery's end is the node its branches start at, as it is)
 
 function build(): NetVessel[] {
   const out: NetVessel[] = [];
@@ -252,6 +252,7 @@ export const MAPPED: readonly NetVessel[] = NETWORK.filter((v) => !v.feeder);
     const hostR = Math.max(...(mains.length ? mains : list).map(widthHere));
     for (const { v, end } of list) {
       if (runOn.has(`${v.id}|${end}`) || v.radius >= 0.9 * hostR) continue;
+      if (end === 0 && LEAVE_VEIN_IDS.has(v.id)) continue;   // (it leaves the vein's wall along its own axis, not at the node where the vein is thin: no collar there, which stood wider than the vein as a knob)
       // 2D's blend width in its own units (vein-joins.js kOf: 1.2 times the smallest radius at the join plus 1.2, 1.5 to 11), here in scene units
       const k = len3(Math.min(11, Math.max(1.5, 1.2 * (v.radius * UNITS_PER_SCENE) + 1.2)));
       const cur = v.flare ? [...v.flare] as [Flare | null, Flare | null] : [null, null] as [Flare | null, Flare | null];
