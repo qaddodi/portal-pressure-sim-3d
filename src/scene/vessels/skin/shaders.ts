@@ -47,6 +47,7 @@ import { CIRC_INK_K, CIRC_INNER } from '../cel-ink.ts';
 import { MAP_K } from '../../circuit/map.ts';
 import { SKIN_CIRC_IN } from './types.ts';
 import { skinNormalGlsl, SKIN_SHADE_K, SKIN_RING_W_FROM } from './exact-normal.ts';
+import { SKIN_WALL_GLSL } from './dust-wall.ts';
 import { CAVA_RAMP_R } from '../fade-alpha.ts';
 
 /** How many arms a skin blends (a junction of three or four tubes): the weights are one vec4. */
@@ -119,7 +120,7 @@ varying vec2 vWeight2;
 varying float vRest;
 varying vec4 vSwell;
 varying vec2 vSwell2;    // the arms' live widths against their built ones, read once here so the fragment stage does not fetch them again
-varying vec3 vPos;       // the rest position: each arm's arc at this pixel (the flow marks) is read from it
+varying vec3 vPos;       // the rest position now (after the growth morph): each arm's arc at this pixel (the flow marks), its lateral gate and the union's gradient are read from it
 ${SWELL_OF_GLSL}
 uniform float circBoost;
 uniform float circPerPx;
@@ -198,7 +199,7 @@ void main() {
   vRest = rst;
   vSwell = vec4(swT[0], swT[1], swT[2], swT[3]);
   vSwell2 = vec2(swT[4], swT[5]);
-  vPos = position;
+  vPos = pos;   // (the rest position NOW, the morph's: an absent growing arm's mesh is moved off the other arms, and every arc, lateral gate and union gradient the fragment stage reads from this must be taken where the pixel is drawn, not at the full-grown shape's vertex it was moved from)
   gl_Position = c;
 }`;
 
@@ -271,6 +272,7 @@ ${DUST_GLSL}
 ${CHEV_ONE_GLSL}
 ${CHEV_CREAM_GLSL}
 ${FLOW_MARKS_GLSL}
+${SKIN_WALL_GLSL}
 // the polynomial smooth-min of the 2D figure's own join (fork-joins.copied.js; spec 4.3): a blend k wide, and never lower than the smaller of the two
 float skinSmin(float a, float b, float k) {
   float h = clamp(0.5 + 0.5 * (b - a) / max(k, 1e-4), 0.0, 1.0);
@@ -540,6 +542,8 @@ void main() {
 #endif
   headAcc = clamp(headAcc, 0.0, 1.0);   // (the arms' weights can sum past 1 while an arm grows: premultiplied marks never past 0 .. 1, or the lumen under them is inverted)
   dustAcc *= dHold(alpha);   // (the dust follows this pixel's final alpha: blood/dust-glsl.ts dHold)
+  // THE WALL RULE BY THE PIXEL'S OWN DISTANCE TO THE OUTLINE (skin/dust-wall.ts): the arms' gates in dustTube read the normal's across, true only inside an arm's cylinder, so in a fillet they stood open on the line itself (dashes at the seams and the crotch)
+  dustAcc *= dWall(skinWall(rCssAx * dpr, sdPx, inkDev));
   c = c * (1.0 - dustAcc.a) + dustAcc.rgb;
   c = mix(c, cBody, headAcc.a);   // (the streaks lie UNDER the heads: a head's pixel is never tinted by one)
   c = c * (1.0 - headAcc.a) + headAcc.rgb;

@@ -19,6 +19,12 @@ import { KEEP_ROW, SEG_MAX } from './routes.ts';
 
 const F = (x: number): string => { const r = Number(x.toPrecision(6)); return Number.isInteger(r) ? r.toFixed(1) : String(r); };
 
+/** THE WALL RULE of the dust, written once for the tube and the skin: the dust is whole up to DUST_WALL_FROM of the way to the wall and gone by DUST_WALL_TO, so a particle never touches the ink. The "way to the wall" is the tube's own across
+ *  (the mesh's lateral position over its half width, ink included) on a tube, and the skin's wall coordinate (skin/dust-wall.ts, the same number from the pixel's distance to the outline) on a skin. */
+export const DUST_WALL_FROM = 0.90, DUST_WALL_TO = 0.96;
+/** The twin of dWall. */
+export const dustWall = (e: number): number => { const t = Math.min(1, Math.max(0, (Math.abs(e) - DUST_WALL_FROM) / (DUST_WALL_TO - DUST_WALL_FROM))); return 1 - t * t * (3 - 2 * t); };
+
 /** A base with less saturation than DUST_GREY_FROM keeps its grey in the dust's tones (no hue shift, no added saturation); the shift is whole from DUST_GREY_TO (HSL saturation). */
 export const DUST_GREY_FROM = 0.02, DUST_GREY_TO = 0.12;
 
@@ -225,6 +231,8 @@ float dFlow(float root) { ${flowBody} }
 float dHold(float a) { return smoothstep(0.05, 0.6, a); }
 // a NaN or an infinity from any term of the lattice (a degenerate route, a zero-width lane) becomes no dust, never a pixel of some other colour (a comparison with NaN is false)
 vec4 dSafe(vec4 v) { return dot(v, v) < 64.0 ? v : vec4(0.0); }
+// the wall rule (DUST_WALL_FROM, DUST_WALL_TO): 1 inside, 0 at the ink
+float dWall(float e) { return 1.0 - smoothstep(${F(DUST_WALL_FROM)}, ${F(DUST_WALL_TO)}, abs(e)); }
 float dKeep(float edge) { return texelFetch(routeTex, ivec2(int(edge), ${KEEP_ROW}), 0).x; }
 bool dEdgeOk(float edge) { return edge >= 0.0 && edge < float(textureSize(routeTex, 0).x); }   // (a fetch outside the table is undefined: garbage, or NaN, on some GPUs)
 vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
@@ -261,7 +269,7 @@ vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
     }
   }
   // nothing past the lumen's edge: the dust stops short of the ink, with a soft fall (never a hard cut)
-  return clamp(dSafe(acc), 0.0, 1.0) * keepT * (1.0 - smoothstep(0.90, 0.96, abs(F.across)));   // (premultiplied: never past 0 .. 1, or the lumen under it would be inverted)
+  return clamp(dSafe(acc), 0.0, 1.0) * keepT * dWall(F.across);   // (premultiplied: never past 0 .. 1, or the lumen under it would be inverted)
 }
 // the segment of edge edge (current layout) that carries the root's lane yl, if any: its index (-1 none) and the particle's lane there and membership
 vec3 dFind(float edge, float root, float yl) {
@@ -328,7 +336,7 @@ vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
       }
     }
   }
-  return clamp(dSafe(acc), 0.0, 1.0) * keepS * (1.0 - smoothstep(0.90, 0.96, abs(mix(F0.across, F1.across, w1))));
+  return clamp(dSafe(acc), 0.0, 1.0) * keepS * dWall(mix(F0.across, F1.across, w1));
 }
 `;
 /** The Anatomy's: the root's stream distance is texel w of the streams' texture (blood/streams.ts). */

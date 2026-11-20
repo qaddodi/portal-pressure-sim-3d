@@ -135,7 +135,8 @@ test('GLSL: parses; the lab\'s shapes are in it; the dust is computed from a cel
   assert.match(DUST_GLSL, /for \(int n = -N; n <= N; n\+\+\)/);
   assert.match(DUST_GLSL, new RegExp(`int K = min\\(int\\(D_nCls \\+ 0\\.5\\), ${DUST_KMAX}\\), N = min\\(int\\(D_win \\+ 0\\.5\\), ${DUST_NMAX}\\);`), 'the loops stay inside their bounds');
   assert.match(DUST_GLSL, /\(D_densK - dHash\(sd\)\) \* 12\.0/, 'density thins by a threshold: single particles fade, nothing pops');
-  assert.match(DUST_GLSL, /return clamp\(dSafe\(acc\), 0\.0, 1\.0\) \* keepT \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(F\.across\)\)\);/, 'contained: nothing on the ink');
+  assert.match(DUST_GLSL, /return clamp\(dSafe\(acc\), 0\.0, 1\.0\) \* keepT \* dWall\(F\.across\);/, 'contained: nothing on the ink (the wall rule, dWall, written once: the skin gates by it too)');
+  assert.match(DUST_GLSL, /float dWall\(float e\) \{ return 1\.0 - smoothstep\(0\.9, 0\.96, abs\(e\)\); \}/);
   // in the vessel: the tube paints it, gated by the amount, the flow and the marks' own junction rule; chevrons after
   for (const m of [/vec4 dust = dustTube\(F, lit, inkColor, rev\);/, /return streakAmt \* smoothstep/, /smoothstep\(0\.0, [\d.]+, abs\(smS\.y\)\)/, /\* markK\(skinCut\.x >= 0\.0 \? 1e6 : sD, skinCut\.y <= 1\.0 \? 1e6 : \(1\.0 - vUv\.x\) \* len \* vU\)/]) assert.match(VESSEL_FS, m);
   assert.ok(VESSEL_FS.indexOf('streakCover = fd.a;') < VESSEL_FS.indexOf('c = c * (1.0 - hd.a) + hd.rgb;'), 'chevrons draw ABOVE the particles');
