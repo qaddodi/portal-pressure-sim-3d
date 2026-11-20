@@ -30,10 +30,9 @@
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../../cel-glsl.ts';
 import { FADE_GLSL } from '../../materials/shaders.ts';
 import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
-import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl } from '../glsl-shared.ts';
-import { CHEV, CHEVRON_GLSL, CHEV_INK_ROW } from '../../blood/chevron-glsl.ts';
+import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl } from '../glsl-shared.ts';
+import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
 import { DUST_GLSL } from '../../blood/dust-glsl.ts';
-import { STREAK } from '../../blood/streak-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
 
 /** How many arms a skin blends (a junction of three or four tubes): the weights are one vec4. */
@@ -157,11 +156,8 @@ ${LENS_OF_AT_GLSL}
 ${CHEVRON_GLSL}
 ${DUST_GLSL}
 ${CHEV_ONE_GLSL}
-// the flow heads' tone under one lens set on one ARM (shared.ts chevCreamOf, with the arm's own lens index and colour): the vessel's latched, eased ink where the lens runs a colour along it, else the short eased step on the colour it is drawn in
-float armCream(vec4 la, sampler2D grad, float mode, float idx, vec3 col) {
-  if (la.a > 0.5 && mode < 1.5) return smoothstep(0.0, 1.0, texelFetch(grad, ivec2(int(idx), ${CHEV_INK_ROW}), 0).r);
-  return chevCreamSoft(celTubeBase(mix(col, la.rgb, la.a)));
-}
+${CHEV_CREAM_GLSL}
+${FLOW_MARKS_GLSL}
 // the polynomial smooth-min of the 2D figure's own join (fork-joins.copied.js; spec 4.3): a blend k wide, and never lower than the smaller of the two
 float skinSmin(float a, float b, float k) {
   float h = clamp(0.5 + 0.5 * (b - a) / max(k, 1e-4), 0.0, 1.0);
@@ -256,48 +252,9 @@ void main() {
     float wI = vWeight[i];
     if (wI < 0.004 || vR <= 0.0) continue;
     float lensI = armData[i].w, Lw = armArc[i].z, rOwn = max(armArc[i].w, 1e-3);
-    vec4 smS = texelFetch(streamTex, ivec2(int(lensI), 0), 0);   // the blood's own distance and speed on this vessel
-    vec4 chD = texelFetch(chainTex, ivec2(int(lensI), 0), 0), chE = texelFetch(chainTex, ivec2(int(lensI), 1), 0);
-    if (streakAmt > 0.001 && abs(acrossI) < 0.97) {
-      float dOn = streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCssM) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
-      if (dOn > 0.002) {
-        float nar = 1.0;
-        if (useData > 0.5) { ivec2 tcn = ivec2(int(mod(armData[i].x, vdataSize.x)), int(floor(armData[i].x / vdataSize.x))); nar = texelFetch(vdata, tcn, 0).b / max(armData[i].y, 0.1); }
-        float wl = chD.w;
-        vec4 dust = vec4(0.0);
-        if (wl < 1.0) dust = dustField(acrossI, sI, 0.0, 1.0, smS.w, rOwn, rOwn, vR, rCssM, Lw, nar, smS.y, smS.z, fract(lensI * 0.6180339) * 50.0, lensI + 1.0, litD, inkColor);
-        if (wl > 0.0) {
-          int rootIx = int(chD.x + 0.5) - 1;
-          vec4 dc = dustField(acrossI, sI, chD.y, chD.z, texelFetch(streamTex, ivec2(rootIx, 0), 0).w, rOwn, max(chE.w * SKIN_U, 1e-3), vR, rCssM, Lw, nar, smS.y, smS.z, fract(float(rootIx) * 0.6180339) * 50.0, chD.x, litD, inkColor);
-          dust = wl >= 1.0 ? dc : mix(dust, dc, wl);
-        }
-        dustAcc += wI * vec4(dust.rgb * dOn, dOn * dust.a);
-      }
-    }
-    if (armFlow[i] > 0.001) {
-      float Dm = smS.x, vd = smS.y, rv = smS.z;
-      float R = max(vR, 0.3);
-      float px = clamp(pxI, 0.15 * wpcM, 1.5 * wpcM);
-      float Pt = ${F(CHEV.PITCH_PX)} * wpcM;
-      vec2 ch = vec2(0.0);
-      if (chD.w < 1.0) ch = chevOne(sI, Lw, sI, 1.0, Dm, vd, rv, chE.xy, R, acrossI, wpcM, Pt, px);
-      if (chD.w > 0.0) {
-        float rootD = texelFetch(streamTex, ivec2(int(chD.x + 0.5) - 1, 0), 0).x;
-        vec2 cc = chevOne(sI, Lw, chD.y + chD.z * sI, chD.z, rootD, vd, rv, chE.xy, R, acrossI, wpcM, Pt, px);
-        ch = chD.w >= 1.0 ? cc : mix(ch, cc, chD.w);
-      }
-      float fade = armFlow[i] * smoothstep(${F(CHEV.MIN_R_PX)} * wpcM, ${F(CHEV.MIN_R_PX + 0.6)} * wpcM, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(acrossI)));
-      fade *= mix(0.3, 1.0, smoothstep(0.5, 3.0, abs(vd)));
-      if (fade > 0.0 && ch.x + ch.y > 0.0) {
-        float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);
-        float rk = rv * (1.0 - origin), warm = rk * chevOrange(base);
-        float cream = mix(armCream(laArm[i], lensGradA, lensModeA, lensI, armColor[i].rgb), armCream(lbArm[i], lensGradB, lensModeB, lensI, armColor[i].rgb), lensMix);
-        vec3 core = mix(mix(chevInk(cream, markDark, markLight), markRev, rk), markLight, warm);
-        float ar = clamp(ch.y * 0.75 * fade, 0.0, 1.0), ac = clamp(ch.x * fade, 0.0, 1.0);
-        float ha = ac + ar * (1.0 - ac);
-        headAcc += wI * vec4(core * ac + CHEV_RIM * ar * (1.0 - ac), ha);
-      }
-    }
+    vec4 fd = flowDust(acrossI, sI, Lw, rOwn, vR, rCssM, lensI, armData[i].x, armData[i].y, litD, SKIN_U);
+    dustAcc += wI * fd;
+    headAcc += wI * flowHeads(acrossI, acrossW, sI, Lw, vR, wpcM, pxI, lensI, armFlow[i], 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
   }
   c = c * (1.0 - dustAcc.a) + dustAcc.rgb;
   c = mix(c, cBody, headAcc.a);   // (the streaks lie UNDER the heads: a head's pixel is never tinted by one)
