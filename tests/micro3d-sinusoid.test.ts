@@ -315,3 +315,13 @@ test('the Kupffer cell\'s arms and the microvilli move slowly on the scene\'s li
   const src = (await import('node:fs')).readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
   assert.match(src, /this\.kup\.setInk\(deep\(P\.cKup/, 'the Kupffer cell is outlined in its own colour, darker');
 });
+
+test('the Kupffer cell is smaller and see-through, its line never showing through its body (Mohammad 20 Nov: "a bit transparent translucent and smaller")', async () => {
+  const { KUP_SCALE, KUP_ALPHA } = await import('../src/scene/micro3d/sinusoid3d.ts');
+  assert.ok(KUP_SCALE < 0.85 && KUP_SCALE > 0.5 && KUP_ALPHA < 0.85 && KUP_ALPHA > 0.5);
+  const { s3 } = scene(); s3.update(true);
+  const ms = meshes(s3.group), body = ms.find((o) => o.name === 'sinusoid3d/kupffer')!, ink = ms.find((o) => o.name === 'sinusoid3d/kupffer/ink')!;
+  const m = body.material as unknown as { transparent: boolean; depthWrite: boolean; premultipliedAlpha: boolean };
+  assert.ok(m.transparent && m.depthWrite && m.premultipliedAlpha, 'blends, but still hides what lies behind it');
+  assert.ok(body.renderOrder < ink.renderOrder, 'the body draws before its line');
+});
