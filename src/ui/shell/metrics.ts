@@ -7,8 +7,9 @@ export const M = {
   pillH: 46, ctlH: 40,
   /** tokens.css:55 `--r-sheet: 16px`, `--r-card: 10px`, `--r-control: 6px`. */
   rSheet: 16, rCard: 10, rControl: 6,
-  /** app-01-chrome.css:73 `.topbar { padding: safe-top + 10px … 12px; gap: 8px }`; `--top-safe: 64px` (:60) is what the figure keeps clear. */
-  topPad: 10, sidePad: 12, gap: 8, topSafe: 64,
+  /** app-01-chrome.css:73 `.topbar { padding: safe-top + 10px … 12px; gap: 8px }`, 8 px on a phone or an upright tablet (app-03-layouts.css:57), 6 px on a phone held sideways (:107). What the figure and the cards keep clear is the
+   *  bar's own height, which 2D main.js measures into `--top-safe` (the `64px` in app-01-chrome.css:61 is only its fallback, never what is on screen): room.ts `topBarH`. */
+  topPad: 10, topPadPhone: 8, topPadSideways: 6, sidePad: 12, gap: 8,
   /** app-07-floating.css:195 `.tb-id { padding: 3px }`, `.menu-btn { padding: 0 8px 0 4px; gap: 8px }`, `.brand-mark { 30px }`, radius max(6, 16 − 4) = 12 (app-08-cards.css:248). */
   idPad: 3, menuPadL: 4, menuPadR: 8, menuGap: 8, mark: 30, innerRadius: 12,
   /** app-07-floating.css `.topbar .sb-right { padding: 0 3px; gap: 0; height: --pill-h }`, chips `--ctl-h` high, `.chip-btn { padding: 0 12px; gap: 8px }`, `.lens-btn { padding: 0 10px }`. */

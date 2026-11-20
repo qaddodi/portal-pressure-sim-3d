@@ -1,5 +1,6 @@
-// Junction skins (docs: /mnt/project-files/rebuild-3d/junction-skin-spec.md, section 3). These interfaces are fixed: the inventory (WP1), the SDF and mesh
-// builder (WP2), the shaders (WP3) and the scene wiring (WP5) all code against them, so change nothing here without telling the lead thread.
+// Junction skins (docs/junction-skin-spec.md section 3): the types every part of the skin shares. One junction is a node where 3 or 4 permanent tubes (its ARMS) meet; each arm tube is cut back to a seam ring and one
+// closed mesh, the SKIN, fills the gap. These are the fixed interfaces the inventory (inventory.ts), the builder (mesh.ts), the shaders (shaders.ts) and the scene's wiring (skin-set.ts) all code against.
+
 export type Vec3 = readonly [number, number, number];
 
 /** One tube that meets at a junction node. */
@@ -17,7 +18,7 @@ export interface SkinArm {
 /** One junction: a node where 3 or 4 permanent tubes meet. */
 export interface SkinJunction {
   node: string;              // topology node id, e.g. 'CONF'
-  J: Vec3;                   // the junction centre (section 4.2)
+  J: Vec3;                   // the junction centre (spec section 4.2)
   arms: SkinArm[];           // 3 or 4, sorted widest first
 }
 
@@ -40,6 +41,18 @@ export interface SkinMesh {
   index: Uint32Array;                 // triangles
   seamVerts: Uint32Array[];           // per arm: the skin vertex ids of its seam ring, in the tube's ring order j = 0..RADIAL
 }
+
+/** A tube's flow marks (chevrons, streaks, dust) fade out over this many radii before the tube's seam, where the skin (which draws none) takes over (spec 4.8). */
+export const MARK_FADE_R = 1.5;
+
+/** The tube's `skinCut` uniform when nothing is cut: no u is below -1 or above 2, so every branch it guards is a no-op and the picture is today's (spec section 3, WP4). */
+export const SKIN_CUT_NONE: readonly [number, number] = [-1, 2];
+
+/** How far the Circuit's change must have gone (0..1 of circT) before a cut tube is whole again and the skin gone (spec 4.9). */
+export const SKIN_CIRC_SPAN = 0.35;
+
+/** The tube's cut is judged this far (in u) inside the seam, so the interpolated uv.x of the seam ring itself (which rounds to the ring's u within a few ulp) is never discarded: no hairline gap at the seam. */
+export const SKIN_CUT_EPS = 2e-5;
 
 /** A junction the skin cannot be built for (the hull misses a seam ring, the mesh will not settle): the scene falls back to today's method for that node and warns once. */
 export class SkinBuildError extends Error {

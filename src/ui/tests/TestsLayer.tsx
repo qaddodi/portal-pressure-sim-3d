@@ -41,6 +41,7 @@ import { handOver } from './copied/hand-over.copied.js';
 import { D_FLIP, D_SMALL, EASE_IN } from './copied/ease.copied.js';
 import { reduced } from '../a11y/motion.ts';
 import { M } from '../shell/metrics.ts';
+import { topBarH } from '../shell/room.ts';
 
 // each instrument is its own file in its own folder (a thread works in one folder; the stubs say "not in the 3D app yet" until the instrument lands)
 // (the loaders are dock/lazy.ts's: one import each, so a tab touched, a card opened or an idle moment asks for the code before the pane is wanted)
@@ -207,6 +208,8 @@ export function TestsLayer() {
   // ── a tab changes: the pane is built first, hidden, and swaps in while the old one fades out (dock/swap.ts); a swipe pages with the finger (dock/swipe.ts) ──
   const vpRef = useRef(vp);
   vpRef.current = vp;
+  const deviceRef = useRef(device);
+  deviceRef.current = device;
   const live = useRef({ open, picking, swiping: false, thumb, focus, second: split ? second : null, pane, side, stops: place.stops, h: place.rect.h, sheetSize, fixed: side && device !== 'phone-landscape', split, widthPx, heightRatio, w: place.rect.w, kind: place.kind });
   live.current = { ...live.current, open, picking, thumb, focus, second: split ? second : null, pane, side, stops: place.stops, h: place.rect.h, sheetSize, fixed: side && device !== 'phone-landscape', split, widthPx, heightRatio, w: place.rect.w, kind: place.kind };
   const canStage = useCallback(() => { const g = live.current; return g.open && !g.picking && !g.swiping; }, []);
@@ -258,7 +261,7 @@ export function TestsLayer() {
     const off = attachDivider(d, {
       side: () => live.current.side, fixed: () => live.current.fixed,
       card: () => { const r = cardRef.current?.getBoundingClientRect(); return r ? { x: r.left, y: r.top, w: r.width, h: r.height } : { x: 0, y: 0, w: 0, h: 0 }; },
-      stage: () => { const app = document.getElementById('app'), v = app ? parseFloat(getComputedStyle(app).getPropertyValue('--vdock-h')) || 0 : 0; return { W: innerWidth, H: innerHeight, sheetMax: innerHeight - (vpRef.current.safe.top + M.topSafe) - v - 40 }; },
+      stage: () => { const app = document.getElementById('app'), v = app ? parseFloat(getComputedStyle(app).getPropertyValue('--vdock-h')) || 0 : 0; return { W: innerWidth, H: innerHeight, sheetMax: innerHeight - (vpRef.current.safe.top + topBarH(vpRef.current, deviceRef.current)) - v - 40 }; },
       widthPx: () => live.current.widthPx, heightRatio: () => live.current.heightRatio,
       set: (o) => useTests.getState().setSize(o),
     });

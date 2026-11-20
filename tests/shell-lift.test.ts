@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { DEFAULTS } from '../src/state/settings.ts';
-import { layoutVars, layoutClass, footHeight, freeRoom } from '../src/ui/shell/room.ts';
+import { layoutVars, layoutClass, footHeight, freeRoom, topBarH } from '../src/ui/shell/room.ts';
 import { M } from '../src/ui/shell/metrics.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -79,10 +79,46 @@ test('the numbers main.js publishes on .app (--top-safe, --vdock-h, --bot-occ…
   // dock 60 + 8 + view pill (6 + 30 + 6) = 110; with the 12 px under the dock: 122
   assert.equal(v['--vdock-h'], '110px');
   assert.equal(v['--bot-occ'], '122px');
-  assert.equal(v['--top-safe'], '64px');
-  assert.equal(layoutVars({ ...vp, safe: { ...vp.safe, top: 47 } }, 'desktop')['--top-safe'], '111px');
+  assert.equal(v['--top-safe'], '56px', 'the laptop\'s top bar: 10 px of padding and a 46 px pill, as 2D measures it (never the 64 px CSS fallback)');
+  assert.equal(layoutVars({ ...vp, safe: { ...vp.safe, top: 47 } }, 'desktop')['--top-safe'], '103px');
+  assert.equal(layoutVars({ w: 390, h: 844, safe: { top: 47, right: 0, bottom: 34, left: 0 } }, 'phone-portrait')['--top-safe'], '97px', 'a phone: 8 + 42');
+  assert.equal(layoutVars({ w: 844, h: 390, safe: { top: 0, right: 47, bottom: 21, left: 47 } }, 'phone-landscape')['--top-safe'], '48px', 'a phone held sideways: 6 + 42');
   const room = freeRoom(vp, layoutClass(false));
-  assert.equal(room.y, 64);
+  assert.equal(room.y, 56);
   assert.equal(room.y + room.h, 800 - (footHeight('desktop') + M.zoomAboveDock));
   assert.ok(footHeight(layoutClass(true)) > footHeight(layoutClass(false)), 'the thumb layout keeps its tab row too');
+});
+
+test('the Tests card stands 4 px under the top bar as 2D\'s does (top-safe + 4, measured: 60 px on an iPad at 1024 wide), not 8 under a fixed 64 (20 Nov play-test: 12 px lower than 2D)', async () => {
+  const { testsPlace } = await import('../src/ui/tests/place.ts');
+  const { deviceClass } = await import('../src/ui/layout/device.ts');
+  const vp = { w: 1024, h: 768, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
+  assert.equal(testsPlace(vp, deviceClass(vp.w, vp.h)).rect.y, 60);
+  const ph = { w: 390, h: 844, safe: { top: 47, right: 0, bottom: 34, left: 0 } };
+  assert.equal(topBarH(ph, 'phone-portrait'), 50);
+  assert.equal(topBarH(vp, 'desktop'), 56);
+  assert.equal(topBarH({ w: 844, h: 390, safe: ph.safe }, 'phone-landscape'), 48);
+});
+
+test('a phone\'s Tests sheet rests 8 px above the dock like 2D (--thumb-occ), with no room kept for the view pill that goes with the card, and the dock\'s open tab is pressed', async () => {
+  const { testsPlace } = await import('../src/ui/tests/place.ts');
+  const { dockHeight, dockInset } = await import('../src/ui/shell/room.ts');
+  const { readFileSync } = await import('node:fs');
+  const vp = { w: 390, h: 844, safe: { top: 47, right: 0, bottom: 34, left: 0 } };
+  const pl = testsPlace(vp, 'phone-portrait');
+  assert.equal(pl.kind, 'sheet');
+  assert.equal(vp.h - (pl.rect.y + pl.rect.h), vp.safe.bottom + dockInset('phone-portrait') + dockHeight('phone-portrait') + 8, 'its foot is the dock\'s top less 8 px');
+  const bar = readFileSync(new URL('../src/ui/shell/ThumbBar.tsx', import.meta.url), 'utf8');
+  assert.match(bar, /aria-pressed=\{t\.id === 'tests' \? testsOpen : t\.id === 'treat' \? treatOpen : undefined\}/);
+});
+
+test('an upright iPad\'s Tests sheet is the 70 % column in the middle, as 2D\'s (left: 15%; right: 15%), so the tab row shows the short names instead of a cut "Endosc…"', async () => {
+  const { testsPlace } = await import('../src/ui/tests/place.ts');
+  const { fitTabs } = await import('../src/ui/tests/tab-fit.ts');
+  const vp = { w: 820, h: 1180, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
+  const pl = testsPlace(vp, 'tablet-portrait');
+  assert.equal(pl.rect.x, 123); assert.equal(pl.rect.w, 574, 'the dock\'s own width: 123 to 697 in 2D at 820 wide');
+  assert.equal(fitTabs(pl.rect.w, 8, 'Pressure').compact, true, 'a 574 px card is under 780: short names');
+  const ph = testsPlace({ w: 390, h: 844, safe: { top: 47, right: 0, bottom: 34, left: 0 } }, 'phone-portrait');
+  assert.equal(ph.rect.x, 8); assert.equal(ph.rect.w, 374, 'a phone keeps its 8 px margins');
 });
