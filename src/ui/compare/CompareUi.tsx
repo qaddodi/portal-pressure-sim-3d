@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Frame } from '../shell/Frame.tsx';
 import { Icon } from '../shell/icons.tsx';
 import { useShell } from '../shell/store.ts';
-import { useEngine, latest } from '../../engine/index.ts';
+import { useEngine, latest, patient } from '../../engine/index.ts';
 import { useCompare, type CompareView } from './store.ts';
 import { CMP, comparing, comparingAria, thenTitle, changeTitle, showing, thenKicker } from './words.ts';
 import { describe, diffRows, GROUPS } from './model.ts';
@@ -61,7 +61,7 @@ function Differences() {
         <button type="button" className="sh-btn cmp-stop" onClick={() => useCompare.getState().stop()}><Icon n="close" />{CMP.stop}</button></div>
       <div className="cmp-states">
         <Card cls="a" letter="T" kicker={A.names ? nA : thenKicker(A.when)} name={A.label} detail={describe(A.changes)} />
-        <Card cls="b" letter="N" kicker={A.names ? nB : CMP.nowLive} name={patientLabel()} detail={describe(activeLabels(f?.params ?? null))} />
+        <Card cls="b" letter="N" kicker={A.names ? nB : CMP.nowLive} name={patientLabel()} detail={describe(activeLabels(f?.params ?? patient.params))} />
       </div>
       <table className="cmp-table">
         <thead><tr><th>{CMP.metric}</th><th>{nA}</th><th>{nB}</th><th>{CMP.change}</th></tr></thead>
