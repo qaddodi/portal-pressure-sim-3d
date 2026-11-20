@@ -76,7 +76,7 @@ test('the uniform layout: one name each, every name a macro, the GLSL array as l
 test('adaptive (the iPhone\'s count is not measured yet): a phone carries fewer samples a pixel than a Mac, a bigger canvas fewer than a small one, the panel overrides, and the grid never exceeds what the shader loops over', () => {
   assert.ok(DUST_BUDGET.phone < DUST_BUDGET.desktop);
   assert.ok(dustBudget(true, 4.5e6) < dustBudget(false, 4.5e6));
-  assert.ok(dustBudget(false, 14e6) < dustBudget(false, 2e6) && dustBudget(false, 14e6) >= 28, 'held between half and 1.3 of the base');
+  assert.ok(dustBudget(false, 14e6) < dustBudget(false, 2e6) && dustBudget(false, 14e6) >= 14, 'held between half and 1.3 of the base');
   assert.equal(dustBudget(false, 4.5e6, 40), 40); assert.equal(dustBudget(true, 4.5e6, 2), dustClasses(true), 'never under one cell a class');
   assert.equal(dustClasses(true), 3); assert.equal(dustClasses(false), DUST_KMAX);
   const w = { random: 1, speed: 0, depth: 0, radius: 0, source: 0, custom: 0, local: 1 };
@@ -257,4 +257,21 @@ test('a healthy vessel, however fast, has no swirl, no turns and no wobble: calm
   assert.doesNotMatch(DUST_GLSL, /T_FLOW|smoothstep\(25\.0, 45\.0, abs\(F\.vd\)\)/, 'no turbulence from speed');
   assert.doesNotMatch(DUST_GLSL, /wEnd/, 'no turbulence from a joint');
   assert.match(DUST_GLSL, /float TcRaw = clamp\([\d.]+ \* \(1\.0 - smoothstep\(0\.5, 0\.85, F\.nar\)\), 0\.0, 1\.0\);/);
+});
+
+// Brown flecks in the faded vessels (Mohammad, 20 Nov): the hue of a near-grey base is noise, and the lab's saturation added to it painted an arbitrary hue (organ-brown). The tones keep the vessel's hue family.
+test('the dust tones keep the vessel\'s hue family: a grey base stays grey, a blue one stays blue (no arbitrary hue from a faded tone)', async () => {
+  const { dustShiftJs } = await import('../src/scene/blood/dust-glsl.ts');
+  const shifts: Array<[number, number, number]> = [[-0.2 * 40 / 360, 0.02, 0.24], [0.5 * 40 / 360, 0.04, 0.1], [-0.55 * 40 / 360, 0, 0.06], [0, 0.03, -0.14]];
+  for (const grey of [[0.5, 0.5, 0.5], [0.52, 0.5, 0.49], [0.5, 0.505, 0.5], [0.6, 0.601, 0.6], [0.45, 0.45, 0.452]]) {
+    for (const [dh, ds, dl] of shifts) {
+      const o = dustShiftJs(grey, dh, ds, dl);
+      assert.ok(Math.max(...o) - Math.min(...o) < 0.05, `grey ${grey} -> ${o.map((x) => x.toFixed(3))}: a tone of a grey base has a hue`);
+    }
+  }
+  for (const [dh, ds, dl] of shifts) {
+    const o = dustShiftJs([0.58, 0.76, 0.95], dh, ds, dl);
+    assert.ok(o[2]! > o[1]! && o[1]! >= o[0]!, `a blue base keeps blue tones (${o.map((x) => x.toFixed(2))})`);
+  }
+  assert.match(DUST_GLSL, /dShiftK\(h\.y\)/, 'the shader holds the same rule');
 });

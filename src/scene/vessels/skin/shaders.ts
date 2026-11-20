@@ -46,6 +46,7 @@ import { glslNum as F } from '../../cel-glsl.ts';
 import { CIRC_INK_K, CIRC_INNER } from '../cel-ink.ts';
 import { MAP_K } from '../../circuit/map.ts';
 import { SKIN_CIRC_IN } from './types.ts';
+import { skinNormalGlsl, SKIN_SHADE_K, SKIN_RING_W_FROM } from './exact-normal.ts';
 
 /** How many arms a skin blends (a junction of three or four tubes): the weights are one vec4. */
 export const SKIN_ARMS = 6;
@@ -327,6 +328,7 @@ float skinSdPx(float kPx) {
   }
   return d;
 }
+${skinNormalGlsl(SKIN_ARMS, SKIN_AXIS_PTS, (sw) => `smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, ${sw})`)}
 // WHO OWNS A HEAD (Mohammad, 20 Nov: a chevron cut in two at the fork). A head is drawn in its arm's frame and was weighted by the arm's mesh weight AT THE PIXEL, so where the ownership of the skin changes across a head, the head was cut along the line.
 // A head now belongs to the arm that owns its CENTRE, whole: the centre is the point of the arm's axis at the head's arc (the axis line through the seam, the arc growing along it as the marks' own arc does), its owner the mesh's own rule
 // (a softmax of the arms' distances, sharpened to the fourth power, sdf.ts weights) taken in device px at that point
@@ -352,6 +354,15 @@ void main() {
   // specks of any colour, one channel lost reading green on a blue lumen. Mohammad 20 Nov, gone with ?joins=nomarks. The length is checked first, everywhere in this shader)
   float nLen = length(vN);
   vec3 n = nLen > 1e-5 ? vN / nLen : vec3(0.0, 0.0, 1.0);
+  // THE NORMAL IS THE SMOOTH UNION'S OWN GRADIENT AT THIS PIXEL (exact-normal.ts), not the vertices' normals lerped over a triangle: across a fillet those are wrong by up to 56 degrees and every contour of them (the cel shade's
+  // hard threshold, the lens lanes, the streaks' across) is a polygon, and in a crease the mesh's eased vertex normals depend on how the triangles lie (Mohammad, 20 Nov: the torn edge at the hepatic veins' mouths). The vertices' normal stays only as the fallback where the union has no gradient
+  // (a seam ring keeps the tube's own normal: where an arm's weight is 1 the pixel takes the lerped vertex normal, SKIN_RING_W_FROM)
+  {
+    float wTop = 0.0;
+    for (int i = 0; i < ${SKIN_ARMS}; i++) wTop = max(wTop, wAt(i));
+    vec3 gx = skinNormalExact(vPos, skinK * ${F(SKIN_SHADE_K)}, vec3(0.0));
+    if (dot(gx, gx) > 0.25) n = normalize(mix(n, normalize(mat3(modelViewMatrix) * gx), (1.0 - smoothstep(${F(SKIN_RING_W_FROM)}, 1.0, wTop))));
+  }
   float sT = dot(n, celLightView());   // n.L against the WORLD light, as the tube (a camera that moves changes no shade)
   float swT = fwidth(sT);              // (a derivative: taken outside any branch)
   // (the lens lanes need the arms' across and its derivative too, so this block is the skin's always, whatever marks are left out)

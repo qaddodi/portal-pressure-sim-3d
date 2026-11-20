@@ -19,6 +19,9 @@ import { KEEP_ROW, SEG_MAX } from './routes.ts';
 
 const F = (x: number): string => { const r = Number(x.toPrecision(6)); return Number.isInteger(r) ? r.toFixed(1) : String(r); };
 
+/** A base with less saturation than DUST_GREY_FROM keeps its grey in the dust's tones (no hue shift, no added saturation); the shift is whole from DUST_GREY_TO (HSL saturation). */
+export const DUST_GREY_FROM = 0.02, DUST_GREY_TO = 0.12;
+
 /** `D_<name>`: the uniform's place in the vec4 array. */
 export const DUST_MACROS: string = DUST_UNIFORMS.map((n, i) => `#define D_${n} dustP[${i >> 2}].${'xyzw'[i & 3]}`).join('\n');
 
@@ -52,7 +55,10 @@ vec3 dHsl2Rgb(vec3 h) {
   return vec3(dHue(p, q, h.x + 1.0 / 3.0), dHue(p, q, h.x), dHue(p, q, h.x - 1.0 / 3.0));
 }
 // the lab's shift(): hue by dh (a turn is 1), saturation by ds, lightness by dl
-vec3 dShift(vec3 c, float dh, float ds, float dl) { vec3 h = dRgb2Hsl(c); return dHsl2Rgb(vec3(fract(h.x + dh + 1.0), clamp(h.y + ds, 0.0, 1.0), clamp(h.z + dl, 0.04, 0.96))); }
+// THE HUE STAYS IN THE VESSEL'S FAMILY (Mohammad, 20 Nov: brown flecks in the faded vessels): the hue of a near-grey colour is noise (HSL's hue is 0/0 at grey) and adding the lab's saturation to it paints an arbitrary hue, brown on a faded blue.
+// The hue shift and the saturation added are both scaled by how much colour the base has (dShiftK), so a grey base stays grey and only the lightness varies.
+float dShiftK(float s) { return smoothstep(${F(DUST_GREY_FROM)}, ${F(DUST_GREY_TO)}, s); }
+vec3 dShift(vec3 c, float dh, float ds, float dl) { vec3 h = dRgb2Hsl(c); float k = dShiftK(h.y); return dHsl2Rgb(vec3(fract(h.x + dh * k + 1.0), clamp(h.y + ds * k, 0.0, 1.0), clamp(h.z + dl, 0.04, 0.96))); }
 // THE FRAME a pixel of a vessel is seen in (the tube's own, or one arm's on a skin)
 struct DFrame {
   float across;   // the pixel across the lumen on screen (-1 .. 1)
@@ -373,4 +379,21 @@ export function dustEndRamp(a: number, L: number, W: number): number { const d =
 export function dustArc(jj: number, h1: number, fk: number, Pf: number, flowD: number, sp: number, A0: number, Bm: number): number {
   const Bs = Math.abs(Bm) < 0.05 ? (Bm < 0 ? -0.05 : 0.05) : Bm;
   return (((jj + 0.1 + 0.8 * h1 - 0.37 * fk) * Pf + flowD * sp) - A0) / Bs;
+}
+
+/** The twin of dShift (the dust's tones from the vessel's lit tone): hue by dh, saturation by ds, lightness by dl, the first two held back on a near-grey base (dShiftK). */
+export function dustShiftJs(c: readonly number[], dh: number, ds: number, dl: number): number[] {
+  const r = c[0]!, g = c[1]!, b = c[2]!, mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = 0.5 * (mx + mn), d = mx - mn;
+  let h = 0, s = 0;
+  if (d > 1e-5) {
+    s = l > 0.5 ? d / Math.max(2 - mx - mn, 1e-5) : d / Math.max(mx + mn, 1e-5);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    h /= 6;
+  }
+  const t = Math.min(1, Math.max(0, (s - DUST_GREY_FROM) / (DUST_GREY_TO - DUST_GREY_FROM))), k = t * t * (3 - 2 * t);
+  const H = (((h + dh * k) % 1) + 1) % 1, S = Math.min(1, Math.max(0, s + ds * k)), L = Math.min(0.96, Math.max(0.04, l + dl));
+  if (S <= 1e-5) return [L, L, L];
+  const q = L < 0.5 ? L * (1 + S) : L + S - L * S, p = 2 * L - q;
+  const hue = (tt: number): number => { tt = ((tt % 1) + 1) % 1; return tt < 1 / 6 ? p + (q - p) * 6 * tt : tt < 0.5 ? q : tt < 2 / 3 ? p + (q - p) * (2 / 3 - tt) * 6 : p; };
+  return [hue(H + 1 / 3), hue(H), hue(H - 1 / 3)];
 }
