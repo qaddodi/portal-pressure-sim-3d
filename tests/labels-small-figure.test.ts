@@ -142,3 +142,16 @@ test('no leader runs through another label, organ names included (the right atri
     }
   }
 });
+
+test('a name stands close to its own vessel: no leader of the figure\'s own names is longer than 90 px, on a phone, an iPad or a Mac, in a wider type than the test\'s (a long diagonal leader across the liver looked messy; a name with no near place is left out)', () => {
+  const wide: LabelDeps['measure'] = (t, size, _w, track = 0) => t.length * size * 0.66 + track * t.length;
+  for (const [name, vp, thumb] of [['phone', phone, true], ['ipad', { w: 820, h: 1180, safe: { top: 24, right: 0, bottom: 20, left: 0 } }, true], ['mac', { w: 1440, h: 900, safe: { top: 0, right: 0, bottom: 0, left: 0 } }, false]] as const) {
+    const room = roomWith(freeRoom(vp, layoutClass(thumb)), null);
+    const rig = new CameraRig('play', room); rig.resize(vp.w, vp.h); rig.goTo('play', room, 0, 0); rig.update(0);
+    let t = 1000;
+    const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: vp.w, y1: vp.h }), view: () => ({ x0: 0, y0: 56, x1: vp.w, y1: vp.h }), vp: () => vp, reversed: () => false, words: () => null, blockers: () => [], measure: wide, pressure: () => 5, reading: () => null, cathere: () => 0, drawn: atRest } as unknown as LabelDeps;
+    const ctl = new LabelController(deps); ctl.setState({ ...NO_STATE, organNames: true });
+    for (let i = 0; i < 120; i++) { t += 16; ctl.tick(); }
+    for (const d of ctl.out) if (d.leader) assert.ok(d.leader.len <= 90, `${name}: the leader of ${d.id} is ${d.leader.len.toFixed(0)} px`);
+  }
+});
