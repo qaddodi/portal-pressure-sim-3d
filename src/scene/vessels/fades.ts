@@ -8,6 +8,9 @@ import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D } from './paths.copied.ts';
 import { startInOrganShare } from './starts.ts';
 import { END_JOIN, LIVER_BRANCH_HOSTS, splitShare } from './liver-branches.ts';
 
+/** The cava is a background vessel too (Mohammad, 20 Nov: "IVC should be faded not prominent"): drawn at this share of its opacity, body, outline and chevrons together, lens colour kept. It rises to whole (1) when the cava is
+ *  selected or named (the HVPG catheter, a slide about it: scene.ts stepCava eases it), and its end at the right atrium climbs back to full over its last stretch, where the superior cava arrives whole. */
+export const CAVA_RECEDE = 0.45;
 /** stage-geo.js IVC_NODES, IVC_JOIN_LEN, HEPATIC_VEINS: a vein that ends on the faint cava fades into it over its last 60 units (12 for the portocaval and mesocaval shunts), so the join is seamless. */
 const IVC_NODES: ReadonlySet<string> = new Set(['IVCS', 'IVCI', 'RA', 'IVC_D', 'ILI_R']);
 export const HEPATIC_VEINS: ReadonlySet<string> = new Set(['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC', 'LRV_IVC', 'RRV_IVC']);
@@ -23,8 +26,8 @@ export function opensIntoCava(id: string): boolean {
 export const cavaPieceOf = (id: string): string => (edgeById.get(id)?.to === 'IVCI' ? 'IVC_IS_1' : 'IVC_IS');
 /** The superior cava's two stretches are the cava itself, not a vein that joins it: they run on into the right atrium solid, as the inferior cava does (Mohammad, 20 Nov: "a hard colour step in the IVC at the right atrium": the SVC faded to 0.3 at the atrium where the IVC meets it whole). */
 const SVC_STRETCH: ReadonlySet<string> = new Set(['SVC_RA', 'SVC_RA_1']);
-/** Its alpha at the cava's wall (stage-geo.js IVC_JOIN: 0.3). */
-export const IVC_JOIN_ALPHA = 0.3;
+/** Its alpha at the cava's wall: the cava's own (2D's IVC_JOIN was 0.3 against its veil of 0.4; the cava here is drawn at CAVA_RECEDE, and a vessel that merges into a faded one comes to the same fade at the junction: Mohammad, 20 Nov). */
+export const IVC_JOIN_ALPHA = CAVA_RECEDE;
 /** A branching portal vein and its side branch stay whole until the side branch has cleared the vein (a share of the run past the split): fading both over the overlap stacked their alphas into a dark ghost stub at every fork (Mohammad, 20 Nov). */
 export const FORK_CLEAR = 0.5;
 const edgeById = new Map((EDGES as { id: string; from: string; to: string; kind: string }[]).map((e) => [e.id, e]));
@@ -89,9 +92,6 @@ const ART_OUT_SHARE: Readonly<Record<string, number>> = { A_HR: 0.6, A_HL: 0.5 }
 /** The veins that lie deep behind the main plane, not directly in view: they are drawn receded, at this share of their opacity everywhere, blended with whatever fade they already have (Mohammad, 20 Nov: "IVC and renal veins ... faded cuz they're
  *  not directly in view"). The cava itself is already drawn as the organs' veil (vessel-object.ts setBehindOrgans). */
 export const RECEDE: Readonly<Record<string, number>> = { V_KID_L: 0.55, V_KID_L_1: 0.55, V_KID_R: 0.55, LRV_IVC: 0.55, RRV_IVC: 0.55 };
-/** The cava is a background vessel too (Mohammad, 20 Nov: "IVC should be faded not prominent"): drawn at this share of its opacity, body, outline and chevrons together, lens colour kept. It rises to whole (1) when the cava is
- *  selected or named (the HVPG catheter, a slide about it: scene.ts stepCava eases it), and its end at the right atrium climbs back to full over its last stretch, where the superior cava arrives whole. */
-export const CAVA_RECEDE = 0.45;
 /** The vessels drawn as the cava is: behind the liver, receded to CAVA_RECEDE, whole when named. The ascending lumbar collateral is the cava's own collateral, lying behind the liver beside it (Mohammad, 20 Nov: "the ascending lumbar vein
  *  should be faded just like the IVC, and behind the liver"); its 2D dip behind the liver (SIN_FADE.C9) keeps its shape, scaled, and it comes out solid above the dome where it joins the azygos. */
 export const CAVA_LIKE: ReadonlySet<string> = new Set([...IVC_EDGES, 'C9']);

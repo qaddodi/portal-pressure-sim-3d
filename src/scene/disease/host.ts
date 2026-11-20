@@ -11,7 +11,8 @@ import { centrelineOf } from '../vessels/centreline.ts';
 import { vesselAlphaAt } from '../vessels/fade-alpha.ts';
 import { widthSwell } from '../vessels/live-width.ts';
 import { neighbourAttr } from '../vessels/neighbour.ts';
-import { opensIntoCava } from '../vessels/fades.ts';
+import { CAVA_RECEDE, opensIntoCava } from '../vessels/fades.ts';
+import { cavaRamp } from '../vessels/fade-alpha.ts';
 
 /** Samples along each piece (the clot reads its place between them). */
 export const HOST_SAMPLES = 48;
@@ -42,12 +43,22 @@ export function drawnHost(id: string): Host | null {
   for (const q of ids) {
     const v = NETWORK_BY_ID.get(q)!, c = centrelineOf(q);
     if (!c) continue;
-    const k = pieces.length;
+    const k = pieces.length, from = pts.length;
     pieces.push({ id: q, lens: indexOf(v.lensId), baseD: v.baseD, widthKind: v.widthKind });
     for (let i = 0; i < HOST_SAMPLES; i++) {
       const u = i / (HOST_SAMPLES - 1), p = c.pointAt(u), at = new Vector3(p[0], p[1], p[2]);
       if (pts.length && pts[pts.length - 1]!.distanceTo(at) < 1e-6) continue;   // (the pieces share their joint)
       pts.push(at); R.push(c.radiusAt(u)); A.push(vesselAlphaAt(q, u, p[0], p[1])); piece.push(k);
+    }
+    if (opensIntoCava(q)) {
+      // (a vein that merges into the faded cava comes to the cava's opacity at its wall, by its distance from the wall, as the shader does it: shaders.ts fadeHere)
+      const flat = new Float32Array((pts.length - from) * 3);
+      for (let i = from; i < pts.length; i++) { flat[(i - from) * 3] = pts[i]!.x; flat[(i - from) * 3 + 1] = pts[i]!.y; flat[(i - from) * 3 + 2] = pts[i]!.z; }
+      const nb = neighbourAttr(q, flat);
+      if (nb) for (let i = from; i < pts.length; i++) {
+        const Rc = nb[(i - from) * 2 + 1]!, cd = Rc - Math.abs(nb[(i - from) * 2]!);
+        if (Rc > 0) A[i] = A[i]! + (CAVA_RECEDE - A[i]!) * cavaRamp(cd / Rc);
+      }
     }
   }
   let out: Host | null = null;

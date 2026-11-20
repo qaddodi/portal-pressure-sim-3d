@@ -10,7 +10,7 @@ import { BackSide, BufferAttribute, BufferGeometry, DynamicDrawUsage, Group, Mes
 import { SITES } from './copied/anatomy-b4.ts';
 import { bleedShapesInto, makeBleedRows } from './copied/bleed-shapes.js';
 import { CelObject, type CelShared } from '../materials/cel.ts';
-import { FADE_GLSL } from '../materials/shaders.ts';
+import { FADE_GLSL, INK_RIM_GLSL } from '../materials/shaders.ts';
 import type { Palette } from '../palette.ts';
 import type { LookId } from '../../looks/looks.ts';
 import { Eased } from './follow.ts';
@@ -22,6 +22,7 @@ export interface BleedState { active: boolean; site: 'VAR' | 'GV'; rate: number;
 
 /** The jet's ink: the toon's own hull, but its width and its dither follow a per-vertex strength (`ik`: full at the tear, a quarter at the tip), so the line fades with the stream. */
 export const JET_INK_VS = /* glsl */ `
+${INK_RIM_GLSL}
 attribute float ik;
 uniform float px;
 uniform vec2 res;
@@ -33,7 +34,7 @@ void main() {
   float l = length(nd);
   nd = l > 1e-5 ? nd / l : vec2(0.0);
   vIk = ik * inkK;
-  c.xy += nd * px * vIk * 2.0 / res * c.w;
+  c.xy += nd * px * vIk * inkRim(normal) * 2.0 / res * c.w;
   gl_Position = c;
 }`;
 export const JET_INK_FS = /* glsl */ `

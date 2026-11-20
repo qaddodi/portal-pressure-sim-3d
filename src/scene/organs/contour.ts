@@ -3,7 +3,7 @@
 //    on the rim and on the ink that follows it. The silhouette (the edges where the mesh turns from facing the eye to facing away) is a ring of vertices; each is moved toward its neighbours along the ring a few times
 //    (a low-pass, never more than MAX_MOVE), and the vertices inside follow by a falling share, so the rim is a smooth curve and no triangle is pinched.
 // 2. `tailFade`: the duodenum's free end (the end that does not meet the stomach) fades out along its last stretch, as a per-vertex alpha, so it does not end as if cut off.
-import { BufferGeometry } from 'three';
+import { BufferGeometry, Float32BufferAttribute, Uint32BufferAttribute } from 'three';
 
 const XY = 1e5;
 const keyOf = (x: number, y: number, z: number) => `${Math.round(x * XY)},${Math.round(y * XY)},${Math.round(z * XY)}`;
@@ -107,6 +107,78 @@ export function smoothSilhouette(g: BufferGeometry, passes = RING_PASSES, maxMov
   g.computeVertexNormals();
   g.computeBoundingBox(); g.boundingSphere = null;
   return worst;
+}
+
+/** The farthest a new rim point sits from the chord's middle, scene units (the curve through four rim points bows by a fraction of a chord: 2.5 units is 0.0083). */
+const REFINE_MAX = 0.0025;
+
+/** Splits every rim edge once, at a point on the smooth curve through the rim (the 4-point interpolatory rule: (-a + 9u + 9v - b) / 16 in x and y, z the mean), so the outline is a
+ *  polyline of 1.25-unit chords instead of 2.5-unit ones: a rim that bends at each of its points shows as a faceted curve on a big screen, and the ink line that follows it with it. The two
+ *  triangles on each rim edge (the front's and the back's) are split with it, so the surface stays whole. Run after `smoothSilhouette`, which has tuned the ring; recomputes the normals.
+ *  Returns how many points were added. */
+export function refineRim(g: BufferGeometry): number {
+  if (!g.index) return 0;
+  const w = weld(g), ring = silhouetteRing(g, w), pos = g.getAttribute('position');
+  if (ring.size < 8) return 0;
+  const at = (v: number): [number, number, number] => { const i = w.verts[v]![0]!; return [pos.getX(i), pos.getY(i), pos.getZ(i)]; };
+  const key = (u: number, v: number) => (u < v ? `${u}|${v}` : `${v}|${u}`);
+  // one new point a rim edge (by welded ends), once
+  const mid = new Map<string, number>(), px: number[] = Array.from(pos.array), nx: number[] = Array.from(g.getAttribute('normal')?.array ?? []);
+  let count = pos.count;
+  for (const [u, [a, b]] of ring) for (const v of [a, b]) {
+    const k = key(u, v);
+    if (mid.has(k) || !ring.has(v)) continue;
+    const pu = at(u), pv = at(v), ru = ring.get(u)!, rv = ring.get(v)!;
+    const before = ru[0] === v ? ru[1] : ru[0], after = rv[0] === u ? rv[1] : rv[0];
+    const pa = at(before), pb = at(after);
+    let x = (-pa[0] + 9 * pu[0] + 9 * pv[0] - pb[0]) / 16, y = (-pa[1] + 9 * pu[1] + 9 * pv[1] - pb[1]) / 16;
+    const mx = (pu[0] + pv[0]) / 2, my = (pu[1] + pv[1]) / 2, d = Math.hypot(x - mx, y - my);
+    if (d > REFINE_MAX) { x = mx + ((x - mx) * REFINE_MAX) / d; y = my + ((y - my) * REFINE_MAX) / d; }
+    px.push(x, y, (pu[2] + pv[2]) / 2);
+    if (nx.length) nx.push(0, 0, 1);
+    mid.set(k, count++);
+  }
+  if (count === pos.count) return 0;
+  const idx = g.index.array, out: number[] = [];
+  const m = (a: number, b: number): number => mid.get(key(w.id[a]!, w.id[b]!)) ?? -1;
+  for (let t = 0; t + 2 < idx.length; t += 3) {
+    let i0 = idx[t]!, i1 = idx[t + 1]!, i2 = idx[t + 2]!;
+    let m01 = m(i0, i1), m12 = m(i1, i2), m20 = m(i2, i0);
+    const n = (m01 >= 0 ? 1 : 0) + (m12 >= 0 ? 1 : 0) + (m20 >= 0 ? 1 : 0);
+    if (n === 0) { out.push(i0, i1, i2); continue; }
+    if (n === 3) { out.push(i0, m01, m20, m01, i1, m12, m20, m12, i2, m01, m12, m20); continue; }
+    // turn the triangle until its marked edge is 0-1 (one marked) or its marked edges are 0-1 and 1-2 (two)
+    for (let r = 0; r < 3; r++) {
+      const one = n === 1 && m01 >= 0, two = n === 2 && m01 >= 0 && m12 >= 0;
+      if (one || two) break;
+      [i0, i1, i2] = [i1, i2, i0]; [m01, m12, m20] = [m12, m20, m01];
+    }
+    if (n === 1) out.push(i0, m01, i2, m01, i1, i2);
+    else out.push(m01, i1, m12, i0, m01, m12, i0, m12, i2);
+  }
+  g.setAttribute('position', new Float32BufferAttribute(px, 3));
+  if (nx.length) g.setAttribute('normal', new Float32BufferAttribute(nx, 3));
+  g.setIndex(new Uint32BufferAttribute(out, 1));
+  g.computeVertexNormals();
+  g.computeBoundingBox(); g.boundingSphere = null;
+  return count - pos.count;
+}
+
+/** Each vertex's number of steps in from the rim ring, 0 on the ring and `cap` (3) at that or farther: the outline hull's outer edge is the pushed ring, and its coverage ramps from it (INK_FS, vRd), so the edge is
+ *  anti-aliased by arithmetic where the canvas has no multisampling (a 2x screen: quality.ts). A mesh with no ring reads `cap` everywhere (no feather). */
+export function ringDistance(g: BufferGeometry, cap = 3): Float32Array {
+  const w = weld(g), ring = silhouetteRing(g, w), n = g.getAttribute('position').count, out = new Float32Array(n).fill(cap);
+  if (ring.size < 8) return out;
+  const d = new Int16Array(w.n).fill(-1);
+  let front: number[] = [];
+  for (const v of ring.keys()) { d[v] = 0; front.push(v); }
+  for (let k = 1; k < cap && front.length; k++) {
+    const next: number[] = [];
+    for (const v of front) for (const u of w.nbr[v]!) if (d[u] === -1) { d[u] = k; next.push(u); }
+    front = next;
+  }
+  for (let v = 0; v < w.n; v++) if (d[v]! >= 0) for (const i of w.verts[v]!) out[i] = d[v]!;
+  return out;
 }
 
 /** The duodenum's per-vertex alpha: 0 at the free end (the end farthest from the stomach), rising by a smoothstep to 1 at `share` of the way along the tube. The ends are found by two sweeps over the surface. */
