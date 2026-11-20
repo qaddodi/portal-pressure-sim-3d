@@ -62,7 +62,14 @@ export function planePoint(fx: number, fy: number, u: number, angle: number): { 
 
 /** The turn the plane is at, from the dive and the target: while the camera flies between the lobule and this view the turn follows the dive's share (0 leaving the lobule, 1 landed), so
  *  the lobule turns into the portrait view in one move and out again by the same frames reversed (2D: ang = dive.ang + rot * (g - 1)); at rest it is the target. */
-export const turnAt = (target: number, dive: number | null): number => (dive == null ? target : target * clamp(dive, 0, 1) + 0);   // (+ 0: never -0)
+/** The dive's share from which the plane turns to its own place on the screen (TURN_FROM to 1). Before it, it lies along the lobule's capillary it grows out of (the 'lobule:sinusoid'
+ *  station runs along the lobule's x), so its channel is the tube you dived into, at its angle: a turn spread over the whole dive laid it across the tube, Mohammad 20 Nov 2026. */
+export const TURN_FROM = 0.88;
+export const turnAt = (target: number, dive: number | null): number => {
+  if (dive == null) return target;
+  const t = clamp((dive - TURN_FROM) / (1 - TURN_FROM), 0, 1);
+  return target * t * t * (3 - 2 * t) + 0;   // (+ 0: never -0)
+};
 /** One step of the turn toward its target when nothing is flying (a phone turned in the view): 2D's critically damped glide (SPRING 10 /s, 95 % in 0.47 s); exactly there once under half a milliradian. */
 export function glideTurn(cur: number, vel: number, target: number, dtSec: number): { a: number; v: number } {
   const SPRING = 10, s = Math.min(Math.max(dtSec, 0), 0.1), e = Math.exp(-SPRING * s), dx = cur - target, t = vel + SPRING * dx;

@@ -47,6 +47,8 @@ const LIFT = 26;
 export const RIM_FULL_PX = 2.5;
 /** The same for the albumin beads (about 0.4 µm round): whole from 8 CSS px per µm (eyes 20 Nov: they were the dark dots across the lumen in the dive, at 4 px per µm all line). */
 export const ALB_RIM_FULL_PX = 8;
+/** How far across (µm) the channel's reveal reaches first: the lumen and its lining, the lobule's tube's own width with its line. */
+export const REVEAL_CHANNEL = UM.lum + UM.endo + 0.6;
 export const REVEAL_FROM = 0.3, REVEAL_TO = 0.86;   // (from 0.3: over 0.6-0.86 it grew in less than one 100 ms frame, the dive's share runs fast at its end, eyes 20 Nov)
 /** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), the lymph streaks' pace against the lymph's own run, and the haze: how far out it takes to be whole (µm) and how deep it goes. */
 const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_K = 0.45;
@@ -166,8 +168,8 @@ export class Sinusoid3D {
     // the scene is built in micrometres, the plane's y up: one group scales it to the host's units (it turns with the host's group in a portrait room)
     this.group.scale.setScalar(U);
     // (while the camera dives in it stands a little proud of the lobule's plate it sits in, so it is drawn over the lobule, never through it; at rest it lies in the host's own plane, where the names are pinned)
-    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, reveal: this.reveal, rimK: this.rimK, ...o }), `sinusoid3d/${name}`);
-    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, reveal: this.reveal, rimK: this.rimK, ...o }), cap, `sinusoid3d/${name}`);
+    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, reveal: this.reveal, revealAx: this.revealAx, rimK: this.rimK, ...o }), `sinusoid3d/${name}`);
+    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, reveal: this.reveal, revealAx: this.revealAx, rimK: this.rimK, ...o }), cap, `sinusoid3d/${name}`);
     const S = CEL_STYLE.MICRO;
     this.ground = mk('ground', { ink: null });
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
@@ -241,6 +243,7 @@ export class Sinusoid3D {
   private readonly eyeL = new Vector3();
   /** How far across the flow (µm) the scene is drawn while the camera lands (cel3d unrevealed; 0: whole). */
   private readonly reveal = { value: 0 };
+  private readonly revealAx = { value: 1 };
   /** The lines' share by the scene's size on screen (cel3d uRimK): whole from RIM_FULL_PX CSS px per µm, none at a third of it. */
   private readonly rimK = { value: 1 };
   /** The same for the albumin beads, whole from ALB_RIM_FULL_PX. */
@@ -260,7 +263,11 @@ export class Sinusoid3D {
     // (no crossfade of the whole frame: it showed both scenes at once, a pale ghosted double image, eyes 20 Nov. The scene grows out from its lumen instead, over the lobule's tube, which is
     //  the same width on screen there (scene-dive-handoff.test.ts): the lumen first, then the lining, Disse and the plates outward, whole by REVEAL_TO, when the lobule stands aside under it)
     this.fade.value = d == null || d >= REVEAL_FROM ? 1 : 0;
-    this.reveal.value = d == null ? 0 : Math.max(1e-3, Math.hypot(REACH + 30, ACROSS + 30) * smooth(REVEAL_FROM, REVEAL_TO, d));
+    // (in place along the vessel you dived into, Mohammad 20 Nov 2026: the channel, its lining and its blood first, over the lobule's tube of the same width and line, its whole length,
+    //  then the plates outward across it while the lobule round it goes out of focus (focusBand); a disc showed a round window onto another scene)
+    const across = d == null ? 0 : lerp(REVEAL_CHANNEL, ACROSS + 30, smooth(REVEAL_FROM + 0.15, REVEAL_TO, d)) * smooth(REVEAL_FROM, REVEAL_FROM + 0.08, d);
+    this.reveal.value = d == null ? 0 : Math.max(1e-3, across);
+    this.revealAx.value = d == null ? 1 : Math.max(1, (REACH + 30) / Math.max(across, 1e-3));
     { const k = f.pxPerUm; this.rimK.value = k > 0 ? smooth(RIM_FULL_PX / 3, RIM_FULL_PX, k) : d != null ? 0 : 1; this.rimKAlb.value = k > 0 ? smooth(ALB_RIM_FULL_PX / 3, ALB_RIM_FULL_PX, k) : d != null ? 0 : 1; }   // (a smooth ramp in the scene's size, never a switch; unmeasured in a dive (its first frame), none, so a line never shows whole for a frame and then thins)   // (a red cell 7 µm across keeps its whole line from about 17 px wide; smaller, the line goes before the cell is a dot)
     this.group.position.z = d == null ? 0 : LIFT * U * (1 - smooth(0.9, 1, d));   // (down only once the lobule has stood aside, scene.ts LOBULE_UNDER_FROM + 0.04)
     const dark = LOOKS[f.look].scheme === 'dark';
@@ -333,11 +340,14 @@ export class Sinusoid3D {
   focusBand(a: Vector3, b: Vector3, e0: Vector3, e1: Vector3, ends?: { mid: Vector3; f0: Vector3; f1: Vector3 }): number {
     if (!this.on || !this.group.visible) return 0;
     this.group.updateWorldMatrix(true, false);
-    const y0 = this.flat.g.hepIn(0) + UM.hep * 0.5, w = (v: Vector3, x: number, y: number) => this.group.localToWorld(v.set(x, y, 0));
+    const d = this.flat.dive, rest = this.flat.g.hepIn(0) + UM.hep * 0.5, w = (v: Vector3, x: number, y: number) => this.group.localToWorld(v.set(x, y, 0));
+    // (in a dive the focus is pulled onto the channel: sharp only as far across as the scene is shown (the reveal), the lobule round it going soft as the camera nears, so the reveal's
+    //  edge lies in the blur and is never a seam (Mohammad 20 Nov 2026: "focus pull"); it opens out to the rest's band as the scene is whole)
+    const y0 = d == null ? rest : Math.min(rest, Math.max(REVEAL_CHANNEL - 1, this.reveal.value - 1));
     w(a, -20, 0); w(b, 20, 0); w(e0, 0, y0); w(e1, 0, y0 + BLUR_RUN);
     // the two ends melt away well before the scene stops (Mohammad 20 Nov: "don't let me see the end of the sinusoid like that ... blur the ends")
     if (ends) { w(ends.mid, 0, 0); w(ends.f0, REACH - END_BLUR[0], 0); w(ends.f1, REACH - END_BLUR[1], 0); }
-    return this.fade.value;
+    return d == null ? this.fade.value : smooth(REVEAL_FROM, REVEAL_FROM + 0.25, d);
   }
 
   // ---- colours -------------------------------------------------------------------------------------------------------------------
