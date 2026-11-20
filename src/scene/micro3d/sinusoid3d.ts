@@ -223,7 +223,8 @@ export class Sinusoid3D {
     if (!shown) return changed;
     // the dive: the scene comes in over the lobule as the camera lands (the host's own share), whole at rest
     const d = f.dive;
-    this.fade.value = d == null ? 1 : smooth(0.42, 0.86, d);
+    // (a short crossfade, over the last part of the dive where the lobule's tube and this lumen are one width on screen: a long one showed both scenes at once, a ghosted double image, eyes 20 Nov)
+    this.fade.value = d == null ? 1 : smooth(0.6, 0.86, d);
     this.group.position.z = d == null ? 0 : LIFT * U * (1 - smooth(0.86, 1, d));
     const dark = LOOKS[f.look].scheme === 'dark';
     const P = f.pal.palette(dark) as unknown as Pal;
