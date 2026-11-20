@@ -3,7 +3,7 @@
 //      or lanes side by side for the Blood origin and First pass lenses. Two lenses are held and crossfaded by `lensMix`, so a lens switch is
 //      one uniform tween on the clock, no CPU work per frame.
 //   2. Moving blood: the 2D app's flow heads (chevron-glsl.js chevHead, blood-heads.js): a slim head with a notched back, 4 to 8 CSS px of half width,
-//      one every 130 CSS px along the vessel (the spacing level 28 * 2^n units, coarser heads a subset of finer ones), riding the stream the CPU keeps
+//      one every 67 CSS px (45 to 89 with the lattice's levels) along the vessel (the spacing level 28 * 2^n units, coarser heads a subset of finer ones), riding the stream the CPU keeps
 //      (streams.ts: distance, display speed, eased reversed flag); near-black on a light lumen and cream on a dark one, orange where reversed with a
 //      second small head behind; stagnant blood in a big vein drifts as smoke.
 //   3. Closed potential collaterals: a dotted thread (`dotted` 1) instead of a tube.
@@ -268,7 +268,7 @@ vec2 chevOne(float s, float Lw, float se, float Bm, float Dm, float vd, float rv
   float n0 = floor(lv), P = 28.0 * exp2(n0);
   float j = floor((se - Dm) / P + 0.5);
   float x = (se - (Dm + j * P)) / (abs(Bm) < 0.05 ? (Bm < 0.0 ? -0.05 : 0.05) : Bm), sc = s - x;
-  float hw = min(${F(CHEV.TUBE_SHARE)} * R, clamp(0.5 * R, ${F(CHEV.MIN_HW_PX)} * wpc, ${F(CHEV.MAX_HW_PX)} * wpc)), L = 1.6 * hw;   // (a head is never under 5 CSS px tall where the tube is wide enough (R from 3.1 px); on a thinner tube it takes 0.8 of the radius)
+  float hw = min(${F(CHEV.TUBE_SHARE)} * R, clamp(0.5 * R, ${F(CHEV.MIN_HW_PX)} * wpc, ${F(CHEV.MAX_HW_PX)} * wpc)), L = 1.6 * hw;   // (a head is 6 CSS px tall from a tube 6 px across, as tall as the tube on a narrower one)
   if (abs(x) > (0.6 + 0.4 * rv) * L + 0.15 * hw + 4.0 * px) return vec2(0.0);
   float lo = 0.6 * L, ramp = max(2.0 * L, 0.12 * Pt);
   float a0 = sc < lo ? 0.0 : smoothstep(lo, lo + ramp, sc), a1 = Lw - sc < lo ? 0.0 : smoothstep(lo, lo + ramp, Lw - sc);
@@ -417,14 +417,14 @@ void main() {
       vec2 cc = chevOne(s, Lw, c4.y + c4.z * s, c4.z, rootD, vd, rv, c5.xy, R, across, wpc, Pt, px);
       ch = c4.w >= 1.0 ? cc : mix(ch, cc, c4.w);
     }
-    // heads are on every tube down to about 4 CSS px across (R 2 px, as 2D draws them: the spacing never depends on the width), and are cut at the wall (never on the ink)
+    // heads are on every tube down to about 4 CSS px across (R 1.5 px: the spacing never depends on the width), and are cut at the wall (never on the ink)
     float fade = flowAmount * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R) * (1.0 - smoothstep(0.93, 0.93 + acrossW, abs(across)));
     fade *= mix(0.3, 1.0, smoothstep(0.5, 3.0, abs(vd)));
     if (fade > 0.0 && ch.x + ch.y > 0.0) {
       float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);
       // one flat tone for the head, never a grey halfway: dark ink on a light lumen, cream on a dark one, decided by a hard step on the lumen's luminance (2D blended over 0.175 to 0.205, which on a mid lavender is a grey head)
       float rk = rv * (1.0 - origin), warm = rk * chevOrange(base);
-      vec3 core = mix(mix(chevInk(base, markDark, markLight), markRev, rk), markLight, warm);   // (the one chevron's tone: blood/chevron-glsl.ts)
+      vec3 core = mix(mix(chevInk(celTubeBase(base), markDark, markLight), markRev, rk), markLight, warm);   // (the one chevron's tone: blood/chevron-glsl.ts)
       vec3 rimc = CHEV_RIM;   // the head's outline is always the dark ink: a flat head with a dark line, never a pale ring
       float ar = clamp(ch.y * 0.75 * fade, 0.0, 1.0), ac = clamp(ch.x * fade, 0.0, 1.0);
       float ha = ac + ar * (1.0 - ac);
