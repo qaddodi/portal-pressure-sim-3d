@@ -133,7 +133,8 @@ test('a new frame recomputes the arriving lens at most every 90 ms and the loop 
   assert.equal(f.pending, true);
   f.step(200);
   assert.notDeepEqual(f.data.grad, a);
-  assert.equal(f.step(300), false, 'nothing moves: no more frames asked for');
+  f.step(300);   // (the flow heads' ink may be easing to the new patient's colours: it takes CHEV_INK.EASE_MS)
+  assert.equal(f.step(700), false, 'nothing moves: no more frames asked for');
   f.dispose();
 });
 
@@ -176,9 +177,9 @@ test('heads fade at the highlight\'s speed, never switch', () => {
   assert.ok(fake.amount < 1 && fake.amount > 0);
 });
 
-test('newLensData has the 208 x 4 x RGBA gradient layout (ends, then a third and two thirds along) and the 208 x 2 lanes the shader reads', () => {
+test('newLensData has the 208 x 5 x RGBA gradient layout (ends, a third and two thirds along, then the flow-head ink) and the 208 x 2 lanes the shader reads', () => {
   const d = newLensData();
-  assert.equal(d.grad.length, 208 * 4 * 4); assert.equal(d.lanes.length, 208 * 2 * 4);
+  assert.equal(d.grad.length, 208 * 4 * 5); assert.equal(d.lanes.length, 208 * 2 * 4);
   assert.equal(LENS_EDGE_COUNT, 208);
 });
 
@@ -208,9 +209,9 @@ test('the head\'s shape and the spacing lattice are the 2D shader\'s text (needs
   assert.match(heads, /clamp\(0\.5 \* R, 4\.0 \* cssPx \* pxW, 8\.0 \* cssPx \* pxW\)/); assert.match(heads, /STILL_A = 0\.3, THIN_LO = 1\.5, THIN_HI = 2\.5/); assert.match(mine, /clamp\(0\.5 \* R, 4\.4 \* wpc, 9\.0 \* wpc\)/);
 });
 
-test('the inks: dark head on a light lumen, cream on a dark one (a hard step at 2D\'s luminance, never a grey halfway), orange reversed, a sepia outline always', () => {
-  assert.match(VESSEL_FS, /1\.0 - step\(0\.26, dot\(pow/);
-  assert.match(VESSEL_FS, /mix\(markDark \* 0\.5, markLight, dk\)/);
+test('the inks: dark head on a light lumen, cream on a dark one (a latched, eased step at 2D\'s luminance, never a grey halfway), orange reversed, a sepia outline always', () => {
+  assert.match(VESSEL_FS, /chevCreamSoft\(celTubeBase\(/);   // (a short eased step on 2D's luminance where the vessel has no latched ink: tests/chevron-ink.test.ts)
+  assert.match(VESSEL_FS, /mix\(markDark \* 0\.5, markLight, cream\)/);
   assert.match(VESSEL_FS, /vec3\(0\.2314, 0\.1725, 0\.1333\)/);   // 59, 44, 34: the Light look's outline sepia
 });
 

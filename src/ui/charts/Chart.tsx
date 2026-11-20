@@ -3,7 +3,8 @@ import { LOOK_IDS, resolveLook, type LookId } from '../../looks/looks.ts';
 import { useSettings } from '../../state/settings.ts';
 import { useUi } from '../ui-store.ts';
 import type { DeviceClass } from '../layout/device.ts';
-import { chartType, type ChartType } from './type.ts';
+import { chartType, panelType, type ChartType } from './type.ts';
+import { fitOf } from './fit.ts';
 import { paletteOf, type Palette } from './palette.ts';
 import { ChartPainter } from './painter.ts';
 import type { Frame } from './scene.ts';
@@ -53,7 +54,9 @@ export function Chart({ build, deps, label, tag = 'chart', className, painter: p
   const appLook = useLookId();
   const appDevice = useUi((s) => s.device);
   const look = env?.look ?? appLook, device = env?.device ?? appDevice;
-  const type = useMemo(() => chartType(device), [device]);
+  const vp = useUi((s) => s.vp);
+  const [panel, setPanel] = useState(false);   // the chart stands in a full-screen panel (2D `.pz-panel`): its words are the panel's caption size
+  const type = useMemo(() => (panel && !env?.device ? panelType(vp.w, vp.h, chartType(device)) : chartType(device)), [device, panel, vp.w, vp.h, env?.device]);
   const first = useRef(true);
 
   useLayoutEffect(() => {
@@ -63,7 +66,10 @@ export function Chart({ build, deps, label, tag = 'chart', className, painter: p
     painter.current = p;
     if (painterOut) painterOut.current = p;
     el.append(p.box);
-    const measure = () => setW(Math.round(el.getBoundingClientRect().width));
+    setPanel(!!el.closest('.pz-panel'));
+    // The box's width in its own pixels. A card's fit (2D `--pz-fit`, `.pz-panel > *` and its kin: `zoom`) lays the contents out wider and zooms them down, and a rect is in screen pixels: drawn at
+    // the rect's width the chart came out the zoom's share of the card (left-aligned, half empty) and then was zoomed down again, its words with it. Divide the zoom out.
+    const measure = () => setW(Math.round(el.getBoundingClientRect().width / fitOf(el)));
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
@@ -76,7 +82,7 @@ export function Chart({ build, deps, label, tag = 'chart', className, painter: p
     if (!p || w <= 0) return;
     const frame = build({ w, pal: paletteOf(look), type, look });
     // a new width or look is set at once; the same chart with new numbers glides
-    const key = `${w}|${look}|${device}`;
+    const key = `${w}|${look}|${device}|${type.sm}`;
     p.show(frame, glide && !first.current && key === lastKey.current);
     first.current = false;
     lastKey.current = key;

@@ -10,6 +10,9 @@ import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { centrelineOf } from '../vessels/centreline.ts';
 import { vesselAlphaAt } from '../vessels/fade-alpha.ts';
 import { widthSwell } from '../vessels/live-width.ts';
+import { neighbourAttr } from '../vessels/neighbour.ts';
+import { CAVA_RECEDE, opensIntoCava } from '../vessels/fades.ts';
+import { cavaRamp } from '../vessels/fade-alpha.ts';
 
 /** Samples along each piece (the clot reads its place between them). */
 export const HOST_SAMPLES = 48;
@@ -40,12 +43,22 @@ export function drawnHost(id: string): Host | null {
   for (const q of ids) {
     const v = NETWORK_BY_ID.get(q)!, c = centrelineOf(q);
     if (!c) continue;
-    const k = pieces.length;
+    const k = pieces.length, from = pts.length;
     pieces.push({ id: q, lens: indexOf(v.lensId), baseD: v.baseD, widthKind: v.widthKind });
     for (let i = 0; i < HOST_SAMPLES; i++) {
       const u = i / (HOST_SAMPLES - 1), p = c.pointAt(u), at = new Vector3(p[0], p[1], p[2]);
       if (pts.length && pts[pts.length - 1]!.distanceTo(at) < 1e-6) continue;   // (the pieces share their joint)
       pts.push(at); R.push(c.radiusAt(u)); A.push(vesselAlphaAt(q, u, p[0], p[1])); piece.push(k);
+    }
+    if (opensIntoCava(q)) {
+      // (a vein that merges into the faded cava comes to the cava's opacity at its wall, by its distance from the wall, as the shader does it: shaders.ts fadeHere)
+      const flat = new Float32Array((pts.length - from) * 3);
+      for (let i = from; i < pts.length; i++) { flat[(i - from) * 3] = pts[i]!.x; flat[(i - from) * 3 + 1] = pts[i]!.y; flat[(i - from) * 3 + 2] = pts[i]!.z; }
+      const nb = neighbourAttr(q, flat);
+      if (nb) for (let i = from; i < pts.length; i++) {
+        const Rc = nb[(i - from) * 2 + 1]!, cd = Rc - Math.abs(nb[(i - from) * 2]!);
+        if (Rc > 0) A[i] = A[i]! + (CAVA_RECEDE - A[i]!) * cavaRamp(cd / Rc);
+      }
     }
   }
   let out: Host | null = null;
@@ -79,5 +92,30 @@ export function hostAt(h: Host, swells: readonly number[], shares: readonly numb
     const s0 = swells[h.piece[k - 1]!] ?? 1, s1 = swells[h.piece[k]!] ?? 1;
     out.push({ p, t: t.normalize(), r: (h.R[k - 1]! + (h.R[k]! - h.R[k - 1]!) * w) * (s0 + (s1 - s0) * w), a: h.A[k - 1]! + (h.A[k]! - h.A[k - 1]!) * w });
   }
+  return out;
+}
+
+const wallCache = new Map<string, number | null>();
+/** Where a vein that opens into the cava meets the cava's wall, as a share (0 to 1) of the drawn vein's arc length: the last place at which the vein's centre is still outside the cava's lumen (the tube is cut away inside it, shaders.ts cavaCut).
+ *  Null for a vein that does not open into the cava. A clot in such a vein runs to here, so it reaches the junction as the vein does (Mohammad, 20 Nov: "the clots stop well short of the junction"). */
+export function cavaWallShare(h: Host): number | null {
+  if (wallCache.has(h.id)) return wallCache.get(h.id)!;
+  const last = h.pieces[h.pieces.length - 1];
+  let out: number | null = null;
+  if (last && opensIntoCava(last.id)) {
+    const flat = new Float32Array(h.pts.length * 3);
+    h.pts.forEach((p, i) => { flat[i * 3] = p.x; flat[i * 3 + 1] = p.y; flat[i * 3 + 2] = p.z; });
+    const nb = neighbourAttr(last.id, flat);
+    if (nb) {
+      let k = h.pts.length - 1;
+      while (k > 0 && Math.abs(nb[k * 2]!) < nb[k * 2 + 1]!) k--;
+      if (k < h.pts.length - 1) {
+        const d0 = Math.abs(nb[k * 2]!) - nb[k * 2 + 1]!, d1 = Math.abs(nb[(k + 1) * 2]!) - nb[(k + 1) * 2 + 1]!;
+        const w = d1 === d0 ? 0 : Math.min(1, Math.max(0, -d0 / (d1 - d0)));
+        out = (h.s[k]! + (h.s[k + 1]! - h.s[k]!) * w) / h.length;
+      } else out = 1;
+    }
+  }
+  wallCache.set(h.id, out);
   return out;
 }

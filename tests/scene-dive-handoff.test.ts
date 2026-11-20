@@ -14,13 +14,16 @@ test('the 3D sinusoid\'s lumen is as wide as the 3D lobule\'s tube it grows out 
   assert.ok(Math.abs(lumen / tube - 1) < 0.05, `lumen ${lumen.toFixed(4)} against tube ${tube.toFixed(4)} (lobule units)`);
 });
 
-test('the lobule stands aside only once the sinusoid is whole over it, and the sinusoid grows out from its lumen, never a whole-frame crossfade (eyes 20 Nov: two scenes at once)', async () => {
-  const { REVEAL_FROM, REVEAL_TO } = await import('../src/scene/micro3d/sinusoid3d.ts');
-  assert.ok(REVEAL_FROM >= SIN_SHOW_FROM && LOBULE_UNDER_FROM >= REVEAL_TO, `sinusoid whole by ${REVEAL_TO}, lobule goes from ${LOBULE_UNDER_FROM}`);
+test('the dive is a focus pull: the picture goes soft, the sinusoid dissolves in inside the blur, then sharpens; the lobule stands aside only once it is whole (Mohammad 20 Nov: "like an old TV")', async () => {
+  const { FOCUS } = await import('../src/scene/micro3d/sinusoid3d.ts');
+  const { TURN_FROM, TURN_TO } = await import('../src/scene/sinusoid/portrait.ts');
+  assert.ok(SIN_SHOW_FROM <= FOCUS[0] && FOCUS[0] < FOCUS[1] && FOCUS[1] < FOCUS[2] && FOCUS[2] <= LOBULE_UNDER_FROM, 'blur, dissolve inside it, then the lobule goes');
+  assert.ok(TURN_FROM >= FOCUS[1] && TURN_TO <= FOCUS[2], 'a phone\'s turn happens inside the blur');
   const fs = await import('node:fs');
   const src = fs.readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
-  assert.match(src, /this\.fade\.value = d == null \|\| d >= REVEAL_FROM \? 1 : 0;/, 'no dissolve of the whole frame');
-  assert.match(src, /this\.reveal\.value = d == null \? 0 : Math\.max\(1e-3, Math\.hypot\(REACH \+ 30, ACROSS \+ 30\) \* smooth\(REVEAL_FROM, REVEAL_TO, d\)\)/, 'grows out from the lumen');
-  const { MICRO_FS, MICRO_INK_FS } = await import('../src/scene/micro3d/cel3d.ts');
-  assert.match(MICRO_FS, /if \(unrevealed\(vP\.xy\)\) discard;/); assert.match(MICRO_INK_FS, /if \(unrevealed\(vXY\)\) discard;/);
+  assert.match(src, /this\.fade\.value = d == null \? 1 : smooth\(FOCUS\[1\], FOCUS\[2\], d\);/, 'dissolves in inside the blur');
+  assert.match(src, /const open = d == null \? 1 : smooth\(FOCUS\[2\], 1, d\);/, 'then sharpens to its own band');
+  assert.match(src, /return d == null \? this\.fade\.value : smooth\(FOCUS\[0\], FOCUS\[1\], d\);/, 'the blur comes in first');
+  const { MICRO_FS } = await import('../src/scene/micro3d/cel3d.ts');
+  assert.doesNotMatch(MICRO_FS, /unrevealed/, 'no window, band or disc');
 });

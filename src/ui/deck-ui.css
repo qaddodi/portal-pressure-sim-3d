@@ -35,6 +35,10 @@
 .deck-ui.pz .dk-card[data-card].pz-shade, .deck-ui.pz .dk-card[data-card].pz-data {
   position: relative; inset: auto; left: auto; right: auto; top: auto; bottom: auto; width: auto; max-height: none; margin: 0; padding: 0; pointer-events: auto; translate: none;
 }
+/* The planner's width is the card's width, always. The lifted 2D rules size a data card by its instrument (app-11 `.pz-data.has-tool:has(.pz-tool:is([data-kind="curve"], [data-kind="course"]))`, app-05 `:has(... flowtime)`,
+   `.has-tool`, `.tiles-only` and their `max-width`): each of those carries a `:has()`, so each outranks the reset above, and the HVPG-and-PPG chart's card stood 480 px wide under a words card 680 px wide
+   (Mohammad, 20 Nov: "the instrument card is width smaller wtf"; the pair shares one width, plan.ts). `!important` here, so no lifted rule, present or future, can take the width back. */
+.deck-ui.pz .dk-card[data-card]:is(.pz-shade, .pz-data) { width: auto !important; min-width: 0 !important; max-width: none !important; }
 .deck-ui.pz .dk-card[data-card] > .dk-in.pz-text { position: static; inset: auto; left: auto; right: auto; top: auto; bottom: auto; width: auto; max-height: none; height: auto; margin: 0; }
 .deck-ui.pz .dk-card[data-card].pz-data > .dk-in { display: flex; flex-direction: column; gap: var(--pz-gap); }
 /* 2D's profile and flows boxes are containers (app-11-deck-visuals.css `.pz-data > .pz-tool`: the chart's height is a share of the box's width, `62cqi`); here the card's words sit in `.dk-in`, one level down */
@@ -111,10 +115,24 @@
 .deck-ui .pz-jump { z-index: 5; }   /* the slide list over the pill */
 .deck-ui[data-layout="stack"] .dk-bar.phone { display: inline-flex; border-radius: 16px; }
 /* the phone's pill is small: 32 px, its icons 16 px; every button keeps its 44 px tap box by reaching over its neighbours' edges (a 6 px negative margin each side), so a smaller look is not a smaller target */
-.deck-ui[data-layout="stack"] .dk-bar.phone .ib { width: 44px; height: 44px; margin: -6px -6px; }
+.deck-ui[data-layout="stack"] .dk-bar.phone { --tap-ox: 6px; }   /* (how far each button's box reaches over its slot, each side: the one number the margins and the tap cells below share) */
+.deck-ui[data-layout="tab"] .dk-bar.phone { --tap-ox: 3px; }   /* (an upright iPad: 2D's own `.pz.stack .pz-bar .ib { margin: -4px -3px }`, tests/tap-cells.test.ts holds the 3) */
+.deck-ui[data-layout="stack"] .dk-bar.phone .ib { width: 44px; height: 44px; margin: -6px calc(-1 * var(--tap-ox)); }
 .deck-ui[data-layout="stack"] .dk-bar.phone .ib :is(svg, .ic) { width: 16px; height: 16px; }
 .deck-ui[data-layout="stack"] .dk-bar.phone > button.pzb-n { min-width: 3.8em; min-height: 44px; margin-block: -6px; padding: 0 2px; font-size: 13px; }
 .deck-ui[data-layout="stack"] .dk-bar.phone .pzb-pips { bottom: 10px; }
+/* ── the pill's tap cells (root fix, 20 Nov, review item P2): a button's 44 px box reaches over its neighbours, so the boxes overlapped (12 px between two buttons here, 6 px on an
+   upright iPad) and whichever came later in the page took the shared strip: Back lost 6 px to the count, Next and the gear were 32 px wide. The boxes stay as they are (they paint
+   the press tint and place the icon, so the look is the same); the touch moves off them onto a pseudo-element that is each button's own cell: its slot (the 32 px it takes in the pill)
+   and 44 px tall, never over a neighbour. The two ends reach out past the pill's edge for the rest of their 44 px (Back to the left, Exit to the right); the count, being wide, is
+   its slot. ::after is free here (the press tint is ::before). The gear's sheet is a sibling of its button, so it is not touched. */
+.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-bar.phone > :is(.ib, button.pzb-n),
+.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-bar.phone .dk-settings > .ib { pointer-events: none; }
+.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-bar.phone > :is(.ib, button.pzb-n)::after,
+.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-bar.phone .dk-settings > .ib::after { content: ""; position: absolute; top: 0; bottom: 0; left: var(--tap-ox); right: var(--tap-ox); pointer-events: auto; }
+.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-bar.phone > button.pzb-n::after { left: 0; right: 0; }
+.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-bar.phone > .ib:first-child::after { left: calc(-1 * var(--tap-ox)); }
+.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-bar.phone > .ib:last-child::after { right: calc(-1 * var(--tap-ox)); }
 .dk-bar-title { position: absolute; display: flex; align-items: center; justify-content: flex-end; pointer-events: none; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font: 600 var(--fs-data) / 1.2 var(--display, "Source Serif 4", Georgia, serif); color: var(--text-2); }
 

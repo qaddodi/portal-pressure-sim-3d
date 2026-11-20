@@ -1,0 +1,81 @@
+// Review item P1/P2 (Mohammad, 20 Nov): every phone control has its own tap cell of at least 44 px, and no two cells overlap. The look is 2D's (the 30 px view capsule, the 32 px talk pill); only the touch moves.
+// Root cause: a button's tap box was made 44 px by reaching over its neighbours (a negative margin), so the boxes overlapped and the later one in the page took the shared strip; the view pill's cells left a 2 px dead gap.
+// The CSS is the truth: these tests read its numbers and lay the cells out as a phone would (no browser).
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const deck = readFileSync('src/ui/deck-ui.css', 'utf8');
+const chrome = readFileSync('src/ui/shell/tap-cells.css', 'utf8');
+const dock2d = readFileSync('src/ui/css2d/app-10-thumb-dock.css', 'utf8');
+const pres2d = readFileSync('src/ui/css2d/app-05-presenter-cards.css', 'utf8');
+const px = (s: string) => Number(/^(-?[\d.]+)px$/.exec(s.trim())?.[1]);
+
+test('the view pill: 2D\'s segment reaches 7 px past its 30 px capsule above and below (44 px), ours also take half the 2 px gap each side, so cells meet and never overlap', () => {
+  assert.match(dock2d, /\.nb-views #viewSeg button \{[^}]*height: 30px/);
+  assert.match(dock2d, /\.nb-views #viewSeg \{[^}]*gap: 2px/);
+  const two = /\.nb-views #viewSeg button::after \{ content: ""; position: absolute; inset: (-?\d+)px 0; \}/.exec(dock2d);
+  assert.ok(two, '2D\'s tap reach is there');
+  const ours = /\.nb-views #viewSeg button::after \{ inset: (-?\d+)px (-?\d+)px; \}/.exec(chrome);
+  assert.ok(ours, 'our override is in tap-cells.css (imported by the shell after the 2D sheets)');
+  const [v, h] = [Number(ours![1]), Number(ours![2])];
+  assert.equal(30 - 2 * v, 44, 'a segment\'s cell is 44 px tall');
+  assert.equal(v, Number(two![1]), 'the reach above and below is the 2D\'s');
+  assert.equal(-h, 1, 'half the 2 px gap each side: the neighbour cell starts where this one ends');
+  assert.equal(2 + 2 * h, 0, 'two neighbours\' cells meet exactly, they do not cross');
+});
+
+// The talk pill: lay out Back, the count, Next, the gear, Exit the way flex does (margin boxes side by side) and take each button's cell from its ::after.
+const val = (src: string, re: RegExp) => { const m = re.exec(src); assert.ok(m, String(re)); return m!; };
+function cells(layout: 'stack' | 'tab', countW: number) {
+  const ox = px(val(deck, new RegExp(`\\[data-layout="${layout}"\\] \\.dk-bar\\.phone \\{ --tap-ox: ([\\d.]+px); \\}`))[1]!);
+  const boxW = layout === 'stack' ? px(val(deck, /\.dk-bar\.phone \.ib \{ width: (\d+px); height: 44px; margin: -6px calc\(-1 \* var\(--tap-ox\)\); \}/)[1]!) : px(val(pres2d, /\.pz\.stack \.pz-bar \.ib \{ width: (\d+px); min-width: 0; height: 44px; margin: -4px -(\d+)px; \}/)[1]!);
+  if (layout === 'tab') assert.equal(px(val(pres2d, /\.pz\.stack \.pz-bar \.ib \{[^}]*margin: -4px -(\d+px); \}/)[1]!), ox, 'the tab layout\'s overhang is the 2D margin');
+  if (layout === 'stack') assert.equal(px(val(deck, /\.dk-bar\.phone \.ib \{ width: 44px; height: 44px; margin: (-\d+px)/)[1]!), -ox, 'the vertical reach is the same number');
+  const slot = boxW - 2 * ox;
+  // slots, left to right: Back, count, Next, gear, Exit
+  const widths = [slot, countW, slot, slot, slot];
+  const starts: number[] = []; let x = 0; for (const w of widths) { starts.push(x); x += w; }
+  const out = widths.map((w, i) => {
+    let l = starts[i]!, r = starts[i]! + w;
+    if (i !== 1) { if (i === 0) l -= ox * 2; if (i === 4) r += ox * 2; }   // the two ends reach out for the rest of their 44 px
+    return { l, r };
+  });
+  return { out, ox, slot, pillW: x };
+}
+
+test('the phone talk pill (stack): five cells, none over another, Back and Exit 44 wide, every cell 44 tall, the pill is the size it was', () => {
+  const { out, ox, slot, pillW } = cells('stack', 49.4);
+  assert.equal(ox, 6); assert.equal(slot, 32);
+  for (let i = 1; i < out.length; i++) assert.ok(out[i]!.l >= out[i - 1]!.r - 1e-9, `cell ${i} starts at or after cell ${i - 1} ends`);
+  assert.equal(out[0]!.r - out[0]!.l, 44); assert.equal(out[4]!.r - out[4]!.l, 44);
+  assert.ok(out[1]!.r - out[1]!.l >= 44, 'the count is wide');
+  assert.equal(pillW, 4 * 32 + 49.4, 'the visible pill is unchanged: the slots are the old margin boxes');
+});
+test('an upright iPad\'s pill (tab) follows the same rule with 2D\'s own 3 px', () => {
+  const { out, slot } = cells('tab', 60);
+  assert.equal(slot, 38);
+  for (let i = 1; i < out.length; i++) assert.ok(out[i]!.l >= out[i - 1]!.r - 1e-9);
+  assert.equal(out[0]!.r - out[0]!.l, 44); assert.equal(out[4]!.r - out[4]!.l, 44);
+});
+
+test('the cells are real in the CSS: the button boxes take no touch, each ::after is its cell, the ends reach out, the count fills its box', () => {
+  const T = '\\.deck-ui:is\\(\\[data-layout="stack"\\], \\[data-layout="tab"\\]\\) \\.dk-bar\\.phone';
+  assert.match(deck, new RegExp(`${T} > :is\\(\\.ib, button\\.pzb-n\\),\\s*${T} \\.dk-settings > \\.ib \\{ pointer-events: none; \\}`));
+  assert.match(deck, new RegExp(`> :is\\(\\.ib, button\\.pzb-n\\)::after,\\s*${T} \\.dk-settings > \\.ib::after \\{[^}]*top: 0; bottom: 0; left: var\\(--tap-ox\\); right: var\\(--tap-ox\\); pointer-events: auto;`));
+  assert.match(deck, new RegExp(`${T} > button\\.pzb-n::after \\{ left: 0; right: 0; \\}`));
+  assert.match(deck, new RegExp(`${T} > \\.ib:first-child::after \\{ left: calc\\(-1 \\* var\\(--tap-ox\\)\\); \\}`));
+  assert.match(deck, new RegExp(`${T} > \\.ib:last-child::after \\{ right: calc\\(-1 \\* var\\(--tap-ox\\)\\); \\}`));
+  assert.match(deck, /\.dk-bar\.phone > button\.pzb-n \{[^}]*min-height: 44px; margin-block: -6px/, 'the count is 44 tall');
+});
+test('the press tint is ::before, so the cells\' ::after is free and nothing else paints on it', () => {
+  assert.match(readFileSync('src/ui/css2d/app-01-chrome.css', 'utf8'), /\.ib, [^)]*button\.pzb-n\)::before/);
+  for (const f of ['app-01-chrome', 'app-02-controls', 'app-05-presenter-cards', 'app-06-plate', 'app-08-cards']) {
+    for (const m of readFileSync(`src/ui/css2d/${f}.css`, 'utf8').matchAll(/([^{}]*)(?:\.ib|pzb-n)([^{},]*)::after/g)) if (/pz-bar|pzb|dk-bar/.test(m[0])) assert.fail(`2D paints ${m[0].slice(0, 80)} on a tap-cell button`);
+  }
+});
+test('the shell loads the view pill\'s cells after the 2D sheets', () => {
+  const shell = readFileSync('src/ui/shell/Shell.tsx', 'utf8');
+  assert.ok(shell.indexOf("import './chrome-3d.css'") >= 0 && shell.indexOf("import './tap-cells.css'") > shell.indexOf("import './chrome-3d.css'"));
+  const main = readFileSync('src/main.tsx', 'utf8'); assert.ok(main.indexOf('./ui/css2d/index.css') < main.indexOf('./App.tsx'));
+});

@@ -1,7 +1,10 @@
 import { useMemo, useRef } from 'react';
 import { Chart } from '../Chart.tsx';
 import { planeFrame } from './frame.ts';
-import { planeOf, planeWords, toolPlane, type Fp, type PlanePoint, type PlaneSpec, type Stop, type WalkState } from './model.ts';
+import { planeOf, planeWords, summaryHeight, toolPlane, type Fp, type PlanePoint, type PlaneSpec, type Stop, type WalkState } from './model.ts';
+import { useUi } from '../../ui-store.ts';
+import { layoutOf } from '../../layout/rules2d.ts';
+import { pzhOf } from '../../layout/plan.ts';
 import '../charts.css';
 
 export interface PlaneCardProps {
@@ -31,12 +34,15 @@ export function PlaneCard({ plane, points, ring, stops, room, height }: PlaneCar
   const seen = useRef<{ cur: Fp | null; was: Fp | null; k: string }>({ cur: null, was: null, k: '' });
   const rk = JSON.stringify(ring ?? null);
   if (seen.current.k !== rk) seen.current = { was: seen.current.cur, cur: ring ?? null, k: rk };
+  const vp = useUi((s) => s.vp);
   if (!pl) return null;
-  const key = JSON.stringify([plane ?? null, points ?? null, ring ?? null, stops ?? null, room ?? null, height ?? null]);
+  // a summary on a wide screen is 2D's plot height (the window's, not the width's); the data card and a phone keep theirs
+  const own = height ?? (card ? undefined : summaryHeight(pl, layoutOf(vp.w, vp.h), pzhOf(vp)));
+  const key = JSON.stringify([plane ?? null, points ?? null, ring ?? null, stops ?? null, room ?? null, own ?? null]);
   return (
     <div className="pz-plane">
       <Chart tag="chart:plane" deps={[key]} label={planeWords(pl, (points ?? []).map((p) => ({ f: p.f, name: p.name })), ring)}
-        build={(c) => planeFrame({ plane: pl, points, ring, card, stops, room, height, ringWas: seen.current.was, walk: card ? walk.current : undefined }, c).frame} />
+        build={(c) => planeFrame({ plane: pl, points, ring, card, stops, room, height: own, ringWas: seen.current.was, walk: card ? walk.current : undefined }, c).frame} />
     </div>
   );
 }

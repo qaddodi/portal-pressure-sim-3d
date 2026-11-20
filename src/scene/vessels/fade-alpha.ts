@@ -7,6 +7,11 @@ import { CAVA_RECEDE, cavaEndSpan, fadeOf, type TipFade } from './fades.ts';
 const sstep = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a || 1e-9))); return t * t * (3 - 2 * t); };
 const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
 
+/** How far a vein that merges into the faded cava has come to the cava's opacity, by how deep it lies against the cava's wall (`cdR`: the distance past the wall in cava radii, negative before it): 0 from 2.5 radii before the wall, 1 at it. The
+ *  vessel shader's rule (shaders.ts wA), so what lies in the vein (a clot) reads the same. */
+export const CAVA_RAMP_R = 2.5;
+export const cavaRamp = (cdR: number): number => sstep(-CAVA_RAMP_R, 0, cdR);
+
 /** A fade's alpha at `u` (0 to 1 along the vessel) for a point at scene (x, y). */
 export function tipAlpha(f: TipFade, u: number, x: number, y: number): number {
   if (f.mode > 2) {

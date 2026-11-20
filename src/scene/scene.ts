@@ -14,6 +14,8 @@ import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
 /** A hepatic vein that opens into the cava dissolves over the last 0.8 of a cava radius before its wall (shaders.ts cavA) and is not there inside it: its flow marks are held back from where the dissolve starts, 1.8 cava radii from the vein's end
  *  (times the marks' ramp, 2.0 to 3.6, shaders.ts markK), so no chevron is ever caught half faded in it (eyes, v11). */
 const CAVA_BURY = 0.9;
+/** The ascending lumbar collateral, drawn like the cava (fades.ts CAVA_LIKE) but named on its own. */
+const LUMBAR_ID = 'C9';
 import { flowRate, flowTarget } from './flow-rate.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
@@ -21,6 +23,7 @@ import { BACK_EDGES } from './vessels/paths.copied.ts';
 import { centrelineOf, type Centreline } from './vessels/centreline.ts';
 import { cavaMateOf, forkMateOf, neighbourAttr } from './vessels/neighbour.ts';
 import { fadeOf, opensIntoCava, cavaEndSpan, CAVA_LIKE, CAVA_RECEDE } from './vessels/fades.ts';
+import { IVC_EDGES } from './vessels/paths.copied.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
@@ -104,9 +107,9 @@ const STUB_Q: Record<string, number> = {
 // (DIVE_IN follows the lobule's scale: the body is gone only when the camera is a few lobule-fits away, where the lobule's field starts to fill the screen. A fixed 0.7 left
 //  the screen showing the bare page between the body going and the 1/1500 lobule growing: the near-white flash in the Anatomy -> Lobule dive.)
 /** The dive share (sinusoid/view.ts diveShare) below which nothing of the sinusoid is drawn on the way in from the lobule. */
-export const SIN_SHOW_FROM = 0.3;
+export const SIN_SHOW_FROM = 0.2;   // (the focus pull's start, sinusoid3d FOCUS[0]: the scene is up, its parts not yet drawn, its blur band working)
 /** The dive share from which the 3D lobule stands aside under the sinusoid: once the sinusoid (sinusoid3d.ts, whole from 0.86) covers it. */
-export const LOBULE_UNDER_FROM = 0.86;
+export const LOBULE_UNDER_FROM = 0.7;
 export const DIVE_OUT = 1.9, DIVE_IN = 40 * LOBULE_SCALE;
 /** How much of the body is drawn with the camera `d` scene units from the lobule's place: 1 whole, 0 gone (smoothstep between DIVE_IN and DIVE_OUT). */
 // (in log distance: the zoom is geometric, so the dissolve runs evenly through the whole dive instead of all at once at its end)
@@ -225,10 +228,15 @@ export class CelScene {
   private readonly ivcJoins: VesselObject[] = [];
   /** The hepatic veins, whose last stretch eases to the faint cava's alpha (fades.ts cavaEndSpan). */
   private readonly hvJoins: VesselObject[] = [];
+  /** Every vein that opens into the cava (the hepatic and the renal veins): the opacity it comes to at the cava's wall follows the cava's (named: whole). */
+  private readonly cavaCuts: VesselObject[] = [];
   /** The vessels of the back tier: they ease toward the page on a turn (quiet depth). */
   private readonly back: VesselObject[] = [];
+  /** Settings > Hide vessels behind organs: the share (0 show-through, 1 normal occlusion) the vessels of the back tier are at, and where it is going; eased on the clock. */
+  private occNow = 0; private occGoal = 0;
   private cavaGoal = 0;
   private cavaWhole = 0;
+  private lumbarGoal = 0; private lumbarWhole = 0;
   private readonly tipFades: { o: VesselObject; connect: readonly string[] }[] = [];
   private look: LookId;
   private phone: boolean;
@@ -247,7 +255,12 @@ export class CelScene {
     setSmoothJoins(useSettings.getState().smoothJoins);   // (Settings > Figure depth > Smooth vessel joins: read before any tube is built)
     for (const def of NETWORK) this.addVessel(def);
     this.applyMates();
-    this.unJoins = useSettings.subscribe((st, prev) => { if (st.smoothJoins !== prev.smoothJoins) this.useSmoothJoins(st.smoothJoins); });
+    this.occGoal = this.occNow = useSettings.getState().hideBehind ? 1 : 0;
+    for (const o of this.back) o.setOcclusion(this.occNow);
+    this.unJoins = useSettings.subscribe((st, prev) => {
+      if (st.smoothJoins !== prev.smoothJoins) this.useSmoothJoins(st.smoothJoins);
+      if (st.hideBehind !== prev.hideBehind) { this.occGoal = st.hideBehind ? 1 : 0; this.moving = true; }
+    });
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
     this.disease = new DiseaseLayer(this.shared, this.vessels);
     this.body.add(this.disease.group);
@@ -361,7 +374,7 @@ export class CelScene {
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
     else this.fans.set(o, def.id);   // a fan of tributaries has no map course: it never morphs, and the Circuit's shader fades it as 2D does (clamp(1 - 2 * T0))
     if (forkMateOf(def.id) || cavaMateOf(def.id)) o.setNbrOn(true);
-    { const cm = cavaMateOf(def.id); if (cm) o.setCavaCut(true, indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1); }
+    { const cm = cavaMateOf(def.id); if (cm) { o.setCavaCut(true, indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1, fadeOf(cm, false)?.a0 ?? 1); this.cavaCuts.push(o); } }
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
@@ -572,18 +585,31 @@ export class CelScene {
     const ids = new Set(this.named);
     const picked = this.highlight.picked;
     if (picked) { const host = NETWORK.find((v) => v.id === picked)?.host; for (const v of NETWORK) if (v.host === host) ids.add(v.id); }
-    this.cavaGoal = [...ids].some((id) => CAVA_LIKE.has(id)) ? 1 : 0;
+    // (the cava is whole only when the cava itself is named or picked: naming the lumbar collateral, which is drawn like the cava, raises its own tone and never the cava's: the whole cava is opaque and hid the arteries that cross it, Mohammad 20 Nov)
+    this.cavaGoal = [...ids].some((id) => IVC_EDGES.has(id)) ? 1 : 0;
+    this.lumbarGoal = ids.has(LUMBAR_ID) ? 1 : 0;
     this.moving = true;
+  }
+
+  /** Eases the back tier between show-through and normal occlusion (Settings > Hide vessels behind organs); true while it moves. */
+  private stepOcclusion(dtMs: number): boolean {
+    if (this.occNow === this.occGoal) return false;
+    const k = Math.min(1, dtMs / FLOW_FADE_MS), d = this.occGoal - this.occNow;
+    this.occNow = Math.abs(d) <= k ? this.occGoal : this.occNow + Math.sign(d) * k;
+    for (const o of this.back) o.setOcclusion(this.occNow);
+    return true;
   }
 
   /** Eases the cava toward whole or veiled; true while it moves. */
   private stepCava(dtMs: number): boolean {
-    if (this.cavaWhole === this.cavaGoal) return false;
-    const k = Math.min(1, dtMs / FLOW_FADE_MS), d = this.cavaGoal - this.cavaWhole;
+    if (this.cavaWhole === this.cavaGoal && this.lumbarWhole === this.lumbarGoal) return false;
+    const k = Math.min(1, dtMs / FLOW_FADE_MS), d = this.cavaGoal - this.cavaWhole, dl = this.lumbarGoal - this.lumbarWhole;
     this.cavaWhole = Math.abs(d) <= k ? this.cavaGoal : this.cavaWhole + Math.sign(d) * k;
-    for (const o of this.cava) o.setWholeShare(this.cavaWhole);
+    this.lumbarWhole = Math.abs(dl) <= k ? this.lumbarGoal : this.lumbarWhole + Math.sign(dl) * k;
+    for (const o of this.cava) o.setWholeShare(o.edge?.id === LUMBAR_ID ? this.lumbarWhole : this.cavaWhole);
     for (const o of this.ivcJoins) o.setIvcWhole(this.cavaWhole);
     for (const o of this.hvJoins) o.setCavaEndWhole(this.cavaWhole);
+    for (const o of this.cavaCuts) o.setCavaJoinWhole(this.cavaWhole);
     return true;
   }
 
@@ -988,7 +1014,8 @@ export class CelScene {
     if (procQuiet !== this.procQuietWas) { this.procQuietWas = procQuiet; this.flow.setOptions({ quiet: procQuiet }); }
     const streamsMoving = this.blood.streams.step(now, this.flowRate.value);
     const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id));
-    const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || this.stepCava(dt);
+    const occMoving = this.stepOcclusion(dt);
+    const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || this.stepCava(dt) || occMoving;
     const lensMoving = this.lens.step(now);
     const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving, quiet: procQuiet });
     const presMoving = this.presence.step(dt) || this.feeders.step(dt, () => this.pushFades());
@@ -1064,10 +1091,9 @@ export class CelScene {
     if (!this.rig.placed) { gl.clear(); return; }
     gl.setClearColor(this.clearColor(this.post.on));
     const dpr = gl.getPixelRatio?.() ?? 1;
-    this.blood.shared.dpr.value = dpr;   // (the vessels' line is held in device px)
+    this.blood.shared.dpr.value = dpr;   // (the vessels' line is set in CSS px and converted with it)
     this.lobule3d.setDpr(dpr);
     MICRO_DPR.value = dpr;   // (the micro parts' lines drawn in the fill are CSS px wide on every screen)
-    this.disease.strands.setDpr(dpr);
     // Two passes, as the 2D figure paints: the organs first, then the vessels (and what is in them) over the cleared depth, so no organ's relief ever hides a vessel and a joined
     // vessel never looks cut. (The vessels keep their own depth among themselves: their tiers.)
     const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;
@@ -1077,7 +1103,7 @@ export class CelScene {
     const into = this.post.target(gl);
     const dof = dofShare > 0 && !!into?.depthTexture;
     // the sinusoid's focus band (every device): its own lumen and plates sharp, the neighbours and whatever drifts off them blurring by distance (post-dof.ts bandFrame)
-    const bandK = into && this.figureView === 'sinusoid' ? this.sinus3d.focusBand(_bA, _bB, _bE0, _bE1, _bEnds) : 0;
+    const bandK = into && (this.figureView === 'sinusoid' || this.sinus.diveShareNow != null) ? this.sinus3d.focusBand(_bA, _bB, _bE0, _bE1, _bEnds) : 0;
     const band = bandK > 0 && this.post.dof.bandFrame(cam, _bA, _bB, _bE0, _bE1, into!.width, into!.height, bandK, _bEnds) > 0;
     if (!band) this.post.dof.bandShare = 0;
     if (into) gl.setRenderTarget(into);

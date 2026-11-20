@@ -177,7 +177,14 @@ void main() {
 /** "No outer end here": the highlight's distance to an end the vein does not have (it runs on into another piece of the same vein). */
 export const HI_NONE = 1e3;
 
+/** How much of its push an outline hull vertex takes (0..1): the share of its normal that lies sideways on screen. A vertex whose normal faces the eye has a near-zero screen direction (a few
+ *  thousandths, noise), and normalising that sent it the full width in a random direction: under a wide line (a tapped organ's glow, 26 figure units) those vertices drew pale hair across the
+ *  face of the organ, Mohammad 20 Nov: "streaks on the liver when I highlight the outline". Only what faces sideways is pushed (the same rule as micro3d/cel3d.ts); the rest stays hidden under the fill. */
+export const INK_RIM_GLSL = /* glsl */ `
+float inkRim(vec3 n) { vec3 v = normalMatrix * n; float l = length(v); return l > 1e-6 ? smoothstep(0.2, 0.6, length(v.xy) / l) : 0.0; }`;
+
 export const INK_VS = /* glsl */ `
+${INK_RIM_GLSL}
 uniform float inflate;
 uniform float px;
 uniform vec2 res;
@@ -205,7 +212,7 @@ void main() {
   vec2 nd = (projectionMatrix * vec4(normalMatrix * normal, 0.0)).xy;
   float l = length(nd);
   nd = l > 1e-5 ? nd / l : vec2(0.0);
-  c.xy += nd * (px + hiPx * vHi) * 2.0 / res * c.w;
+  c.xy += nd * (px + hiPx * vHi) * inkRim(normal) * 2.0 / res * c.w;
   gl_Position = c;
 }`;
 
