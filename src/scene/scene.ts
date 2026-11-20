@@ -188,6 +188,19 @@ export class CelScene {
   private shapes!: ShapeTracks;
   private healthyQ: ArrayLike<number> | undefined;
   private collateralsOn = false;
+  private procQuietWas = false;
+  private wedgeSet = new Set<string>();
+  /** The HVPG's amber column: a tint on the vessels upstream of the balloon (their own shader), thinning toward the branch tips. Eases with the column (one eased number from the procedure's clock). */
+  private syncWedge(): void {
+    const w = this.procs.wedgeTint(), now = new Set<string>();
+    if (w) for (const o of this.vessels) {
+      const id = o.edge?.id, p = id ? w.pieces.get(id) : undefined;
+      if (!id || !p) continue;
+      (o as VesselObject).setWedge(w.amount, p.cut, p.fade, w.color); now.add(id);
+    }
+    for (const id of this.wedgeSet) if (!now.has(id)) (this.vessels.find((o) => o.edge?.id === id) as VesselObject | undefined)?.setWedge(0, 2, 0);
+    this.wedgeSet = now;
+  }
   private bloodOpts = { chevrons: true, keyChevrons: false };
   private readonly byEdge = new Map<string, CelObject>();
   /** the vessels that fade at a free end (fades.ts), and the collaterals whose opening makes the tip solid */
@@ -925,11 +938,14 @@ export class CelScene {
     const pinMoving = this.pins.step(dt, this.disease.organs.byId);
     this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
     this.flowRate.step(dt / 1000, flowTarget(live.frame?.running));   // (Pause and Play ease the visible flow, 0.5 s each way; the model's own numbers pause at once)
+    // ONE GATE for the flow marks during procedures: while any procedure is on the figure (a catheter's run or its held step, the scope) the chevrons and the streaks ease out, and back when it ends
+    const procQuiet = this.procs.busy || !!this.probes.scope.driven;
+    if (procQuiet !== this.procQuietWas) { this.procQuietWas = procQuiet; this.flow.setOptions({ quiet: procQuiet }); }
     const streamsMoving = this.blood.streams.step(now, this.flowRate.value);
     const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id));
     const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || this.stepCava(dt);
     const lensMoving = this.lens.step(now);
-    const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving });
+    const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving, quiet: procQuiet });
     const presMoving = this.presence.step(dt);
     this.syncStumps();
     this.updateCaps();
@@ -944,6 +960,7 @@ export class CelScene {
     const lob3 = this.lobule3d.update(this.micro3d, under, now, this.flowRate.value), sin3 = this.sinus3d.update(this.micro3d, this.flowRate.value);
     const viewMoving = lob3 || sin3 || lobMoving || sinMoving;
     const procMoving = this.procs.update(now);
+    this.syncWedge();
     const diseaseMoving = this.disease.update(now);
     if (diseaseMoving) this.tagOverOrgans();
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);

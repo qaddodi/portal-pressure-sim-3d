@@ -2,12 +2,12 @@
 // `procFrame(kind, t)` of the 2D app says at time t (proc-anim.js): how far in the tip is (u), the balloon (0 to 1), the needle and wire tips, the portal hit's rings, the coil and the column
 // (wedged blood or sclerosant) — each laid on the route as stage-cath.js cathGL lays them, in the same proportions (the shaft's radius rc, the taper, the marker bands, the balloon fitted to the
 // vein by hvpg-balloon.js, the needle's bevel, the wire's hairline). Parts are device objects: drawn over the anatomy, never under a vessel they sit in.
-import { Group, LatheGeometry, Vector2, CylinderGeometry, RingGeometry, type BufferGeometry, Vector3, Float32BufferAttribute } from 'three';
-import type { CelShared } from '../../materials/cel.ts';
+import { Color, Group, LatheGeometry, Vector2, CylinderGeometry, RingGeometry, type BufferGeometry, Vector3, Float32BufferAttribute } from 'three';
+import { rawColor, type CelShared } from '../../materials/cel.ts';
 import { PALETTES, type LookId, type Palette } from '../../palette.ts';
 import { DEVICE_TOKENS } from '../../procedures/copied/device-tokens.copied.ts';
 import { TIER_Z, UNITS_PER_SCENE, x3, y3 } from '../../frame2d.ts';
-import { NETWORK_BY_ID } from '../../vessels/network.ts';
+import { NETWORK, NETWORK_BY_ID } from '../../vessels/network.ts';
 import { DeviceObject, TAIL_UNITS, type DeviceTone } from '../device-object.ts';
 import { allocTube, makeRings, showRings, writeRings } from '../tube-rings.ts';
 import { type Route3D } from '../../procedures/route3d.ts';
@@ -119,6 +119,7 @@ export class ProcCatheter {
     for (const o of this.objects) o.applyPalette(p);
     const look = (Object.keys(PALETTES) as LookId[]).find((id) => PALETTES[id] === p) ?? 'light';
     this.latexA = Number(DEVICE_TOKENS[look].latexA) || 0.4;
+    this.wedgeColor.copy(rawColor(DEVICE_TOKENS[look].trWedge));
   }
   setPhone(phone: boolean): void { for (const o of this.objects) o.setPhone(phone); }
 
@@ -132,6 +133,25 @@ export class ProcCatheter {
     return r.kind === 'hvpg' ? r3.point(Math.min(r.total, r3.tipD(u) + r3.lumen(r.free) * U * 6.4), out) : r3.point(r3.tipD(Math.min(1, u + share)), out);
   }
   get current(): Readonly<CatheterState> { return this.last; }
+
+  /** The wedge's amber column on the HVPG route, as a tint on the vessels themselves: everything upstream of the balloon in the vein the tip is in, and the branches that leave it, fading out toward their tips.
+   *  `pieces`: for each vessel id, how far up its own course the tint reaches (a share of the course from its outer end; 2 is all of it) and over how much of it it thins toward the tip. Null when there is none. */
+  wedgeTint(): { amount: number; color: Color; pieces: Map<string, { cut: number; fade: number }> } | null {
+    const { r3 } = this, r = r3.route, s = this.last, col = clamp01(s.column);
+    if (r.kind !== 'hvpg' || col <= 0.001 || !this.group.visible) return null;
+    const tipD = r3.tipD(s.u), pieces = new Map<string, { cut: number; fade: number }>();
+    const hv = r.parts.find((q) => q.name === 'hv');
+    for (const sub of hv?.subs?.length ? hv.subs : hv ? [hv] : []) {
+      if (!sub.id || tipD >= sub.d1 - 1e-6) continue;   // (downstream of the balloon: not tinted)
+      const frac = tipD <= sub.d0 ? 0 : (tipD - sub.d0) / Math.max(1e-6, sub.d1 - sub.d0);
+      pieces.set(sub.id, { cut: tipD <= sub.d0 ? 2 : sub.fa + (sub.fb - sub.fa) * frac, fade: 0 });
+      for (const v of NETWORK) if (v.id.startsWith(`${sub.id}~F`)) pieces.set(v.id, { cut: 2, fade: 0.6 });
+    }
+    const br = r.parts.find((q) => q.name === 'branch');
+    if (br?.id && NETWORK_BY_ID.has(br.id)) pieces.set(br.id, { cut: 2, fade: 0.6 });
+    return { amount: col * clamp01(s.opacity), color: this.wedgeColor, pieces };
+  }
+  private readonly wedgeColor = new Color();
 
   set(s: CatheterState): void {
     this.last = s;
@@ -162,8 +182,9 @@ export class ProcCatheter {
 
     // the column of wedged blood or sclerosant from the tip on (a hepatic vein beyond the wedged balloon, or the shunt the sclerosant fills)
     const col = clamp01(s.column);
-    this.column.group.visible = col > 0.001;
-    if (col > 0.001) {
+    // (the HVPG's column is a tint on the vessels themselves, upstream of the balloon: wedgeTint, laid by the scene; the other procedures' columns are still this tube)
+    this.column.group.visible = col > 0.001 && r.kind !== 'hvpg';
+    if (col > 0.001 && r.kind !== 'hvpg') {
       this.column.setTone(s.columnTone ?? 'trWedge'); this.column.setAlpha(0.55 * op);
       const part = r.parts.find((q) => q.id && tipD <= q.d1 + 1e-6 && tipD >= q.d0 - 1e-6), end = part ? part.d1 : r.total, reach = tipD + (end - tipD) * col, i0 = Math.max(0, Math.floor((tipD / r.total) * (this.n - 1))), i1 = Math.min(this.n - 1, Math.ceil((reach / r.total) * (this.n - 1)));
       showRings(this.columnGeo, i0, i1, 12);

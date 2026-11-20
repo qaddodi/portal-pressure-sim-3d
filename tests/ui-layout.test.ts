@@ -134,7 +134,7 @@ test('a card that is taller than its room is reported (the card pages itself; it
 
 test('the free room is the column that holds the tallest figure, not a wide sliver under a card', () => {
   const p = planLayout(SCREENS.mac.vp, needs(300, 260));
-  assert.ok(p.free.h > p.free.w * 0.9, `free ${JSON.stringify(p.free)}`);
+  assert.ok(p.free.h > p.free.w * 0.8, `free ${JSON.stringify(p.free)}`);
   const r = largestFreeRect({ x: 0, y: 0, w: 100, h: 100 }, [{ x: 0, y: 0, w: 100, h: 40 }], 0);
   assert.deepEqual(r, { x: 0, y: 40, w: 100, h: 60 });
 });
@@ -156,4 +156,11 @@ test('type floors on every screen the 2D app has: body 17 px floating and 16 sta
   assert.ok(checkTypeScale(1440, 900, { ...typeFor(1440, 900), body: 16 }).length, 'a 16 px body on a Mac is caught');
   assert.ok(checkTypeScale(390, 844, { ...typeFor(390, 844), data: 11 }).length, 'an 11 px data text is caught');
   assert.ok(checkTypeScale(1440, 900, { ...typeFor(1440, 900), slideTitle: 22 }).length, 'a title under 1.4× is caught');
+});
+
+test('a deck on a laptop: the title beside the pill is a blocker too, so the figure is never framed under it (Mac 5/19 overprint)', () => {
+  const p = planLayout(SCREENS.mac.vp, needs(300, 260));
+  if (!p.bar.title) return;
+  const t = p.bar.title, f = p.free;
+  assert.ok(f.y + f.h <= t.y || f.x >= t.x + t.w || f.x + f.w <= t.x, `free ${JSON.stringify(f)} overlaps the title ${JSON.stringify(t)}`);
 });

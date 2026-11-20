@@ -241,6 +241,8 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     if (data) placed.push({ id: data.id, slot: 'data', rect: { x, y: Math.round(y0 + wh + (words ? gap : 0)), w, h: dh } });
     bounds = { x: safe.left, y: safe.top + 8, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - 8 };
     extra.push(bar.rect);
+    // (the deck's title beside the pill is drawn over the figure too: it is a blocker like the pill. Without it the free room ran under the title and the figure printed under it, Mac 5/19)
+    if (bar.title) extra.push(bar.title);
   }
 
   const blockers = placed.map((p) => p.rect).concat(strip ? [strip.rect] : [], extra);
