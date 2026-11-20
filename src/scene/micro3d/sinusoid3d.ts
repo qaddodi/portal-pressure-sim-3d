@@ -172,10 +172,10 @@ export class Sinusoid3D {
     this.cells = mk('hepatocytes', { px: S.LINE });
     // (the small solid shapes, the nuclei, the canaliculi, the lining's cells, the Kupffer and stellate cells, albumin and the red cells, draw their line inside their own fill (cel3d.ts uRim):
     //  whole and smooth on every screen, never fighting the surface behind; their hull lines broke into dashes and specks, eyes 20 Nov)
-    this.nuclei = mk('nuclei', { ink: null, rim: S.LINE });
+    this.nuclei = mk('nuclei', { ink: null, rim: S.LINE, rimUp: true });
     this.nucleoli = mk('nucleoli', { ink: null });
-    this.bile = mk('canaliculi', { ink: null, rim: S.LINE_SMALL });
-    this.endoN = mk('endothelial-cells', { ink: null, rim: S.LINE_SMALL });
+    this.bile = mk('canaliculi', { ink: null, rim: S.LINE_SMALL, rimUp: true });
+    this.endoN = mk('endothelial-cells', { ink: null, rim: S.LINE_SMALL, rimUp: true });
     this.endoNi = mk('endothelial-nuclei', { ink: null });
     this.kup = mk('kupffer', { ink: null, rim: S.LINE });
     this.kupN = mk('kupffer-nucleus', { ink: null });
@@ -183,7 +183,7 @@ export class Sinusoid3D {
     for (const [p, o] of [[this.kup, 10], [this.kupN, 11]] as const) {
       const m = p.mats.toon; m.transparent = true; m.depthWrite = true; m.premultipliedAlpha = true; m.uniforms.opacity!.value = KUP_ALPHA; p.toonMesh.renderOrder = o;
     }
-    this.hsc = mk('stellate', { ink: null, rim: S.LINE_SMALL });
+    this.hsc = mk('stellate', { ink: null, rim: S.LINE_SMALL, rimUp: true });
     this.hscN = mk('stellate-nucleus', { ink: null });
     this.bm = mk('basement', { ink: null, transparent: true });
     this.arrows = mk('ends', { px: S.LINE_SMALL });

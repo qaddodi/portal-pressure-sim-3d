@@ -95,6 +95,7 @@ uniform float uHole;
 // rate the facing changes (a dome's facing falls as the square root of the distance to its rim, so half the facing over its screen rate is that distance). It lies inside the shape: it
 // can never fight a surface behind it or its own fill, so it is whole and smooth on every screen (the hull's line broke into dashes and specks, eyes 20 Nov).
 uniform float uRim;
+uniform float uRimUp;
 uniform float uMicroDpr;
 uniform vec3 uRimCol;
 varying vec3 vVD;
@@ -240,7 +241,7 @@ void main() {
   c = mix(c, uWashCol, 0.85 * wz);
 #endif
   if (uRim > 0.0) {
-    float nv = abs(dot(normalize(vN), normalize(vVD)));
+    float nv = abs(dot(normalize(vN), uRimUp > 0.5 ? vec3(0.0, 0.0, 1.0) : normalize(vVD)));
     // (the distance to where n.v is 0, in device px: n.v over its gradient's length, exact where the normals are interpolated linearly across a band of the mesh, which is what every edge band
     //  is at the zooms these parts are seen at; a half of it, for a smooth surface's square-root fall-off, drew the line twice its width on the nuclei, eyes 20 Nov. The gradient's length, not
     //  fwidth: fwidth reads a diagonal edge up to 1.4 times steep, so a ring was thicker on its diagonals)
@@ -346,6 +347,9 @@ export interface MicroOptions {
   transparent?: boolean;
   /** The shape's line drawn inside its fill, this many CSS px (the small solid shapes: red cells, nuclei, albumin, the cells of the lining); 0 or none: no such line. */
   rim?: number;
+  /** The rim measured against the plane's up (world z) instead of the eye: for a flat shape lying on the plate (a nucleus, the lining, a stellate cell), whose n.v fall-off is steep on one side
+   *  and shallow on the other wherever the eye is not straight over it, so its ring was twice as thick on the side away from the eye (eyes 20 Nov). Its equator is its outline from above. */
+  rimUp?: boolean;
 }
 
 /** The gap table of a part without gaps: one closed texel. */
@@ -368,7 +372,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
     uniforms: {
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
-      uHole: { value: 0 }, uRim: { value: o.rim ?? 0 }, uMicroDpr: MICRO_DPR, uRimCol: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, uWash: { value: new Vector4(0, 0, 0, 0) }, uWashCol: { value: new Color(1, 0.7, 0.2) }, uWashR: { value: 0 },
+      uHole: { value: 0 }, uRim: { value: o.rim ?? 0 }, uRimUp: { value: o.rimUp ? 1 : 0 }, uMicroDpr: MICRO_DPR, uRimCol: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, uWash: { value: new Vector4(0, 0, 0, 0) }, uWashCol: { value: new Color(1, 0.7, 0.2) }, uWashR: { value: 0 },
       uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakDir: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
