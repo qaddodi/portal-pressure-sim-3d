@@ -23,6 +23,7 @@ import { COURSES } from './course.ts';
 import { type CapMeta, buildCaptions } from './captions.ts';
 import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, LIVER_EDGES } from './data.copied.ts';
 import { courseOf } from './paths.ts';
+import { halfWidthPx } from './cap-width.ts';
 import { resText } from './res-model.ts';
 import { selectStructure } from '../../ui/action/selection.ts';
 
@@ -130,6 +131,7 @@ export function CircuitCaptions() {
         resLane: (k) => laneOf(k === 'rGut' ? 'A_SMA' : 'C1b'),
         must: level === 'none' ? new Set([...must]) : must,
         clear,
+        halfW: (id) => halfWidthPx(id, cel.mapScale()),
       });
       const out = solve({ items: level === 'none' ? built.items.filter((it) => !it.id.startsWith('lane:') && (it.id.startsWith('res:') || it.id.startsWith('z:') || must.has(it.id))) : built.items, view: view(), blockers: blockers(), lines });
       placed = new Map(out.placed.map((p) => [p.id, p]));

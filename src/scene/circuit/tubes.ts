@@ -12,7 +12,8 @@ import { markSpeed } from '../flow.ts';
 import { len3 } from '../frame2d.ts';
 import type { CelShared } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
-import { NETWORK_BY_ID, radiusOf, widthPx } from '../vessels/network.ts';
+import { NETWORK_BY_ID, radiusOf, vesselPx, widthPx } from '../vessels/network.ts';
+import { CIRC_ARTERY, CIRC_BED, CIRC_BRANCH_MIN, CIRC_VEIN_MAX, CIRC_VEIN_MIN } from './width.ts';
 import { VesselObject, type LensShared } from '../vessels/vessel-object.ts';
 import { attachCircuit } from './geometry.ts';
 import { CIRCUIT_D, CIRCUIT_TREES, CUSTOM_EDGES, CUSTOM_SHUNT_PATH, NODE_CIRCUIT, ROUTER_STATIONS, VB_CIRC } from './data.copied.ts';
@@ -63,6 +64,12 @@ export interface TubesContext {
   open: Readonly<Record<string, number>>;
 }
 
+/** The shader's uniform for a liver branch (2D `cb.w = max(1.2, w * k)`, w the host's own Circuit width): [map units before the boost, 1 if the boost applies, the least width]; the host's diameter is the one its tube was built at. */
+export function treeCircW(hostKind: 0 | 1 | 2, hostBaseD: number, fine: number, k: number): readonly [number, number, number] {
+  const host = hostKind === 1 ? CIRC_ARTERY * fine : hostKind === 2 ? CIRC_BED : Math.min(CIRC_VEIN_MAX, Math.max(CIRC_VEIN_MIN, vesselPx(hostBaseD) * 0.95));
+  return [host * k, hostKind === 1 ? 0 : 1, CIRC_BRANCH_MIN];
+}
+
 export class CircuitTubes {
   readonly group = new Group();
   private readonly entries: Entry[] = [];
@@ -79,7 +86,7 @@ export class CircuitTubes {
     for (const [id, list] of Object.entries(CIRCUIT_TREES)) {
       const parent = NETWORK_BY_ID.get(id);
       if (!parent) continue;
-      list.forEach((b, i) => this.add(`${id}#${i}`, 'tree', id, courseOf(b.d), Math.max(len3(MIN_BRANCH_W / 2), parent.radius * b.k), parent.tone === 'artery' ? 'portal' : parent.tone, parent.baseD, 2));
+      list.forEach((b, i) => this.add(`${id}#${i}`, 'tree', id, courseOf(b.d), Math.max(len3(MIN_BRANCH_W / 2), parent.radius * b.k), parent.tone === 'artery' ? 'portal' : parent.tone, parent.baseD, 2, undefined, treeCircW(parent.widthKind, parent.baseD, parent.circFine ?? 1, b.k)));
     }
     // the caudate's own vein, drawn only while a slide is about the caudate lobe
     const caud = edgeById.get('CAUD');
@@ -88,7 +95,7 @@ export class CircuitTubes {
   }
 
   /** `body`: the body course of a vessel that lies on the body too (a custom shunt: custom-shunt-paths.js); the tube is built along it and the map course carries it, as every vessel of the figure is. */
-  private add(id: string, kind: TubeKind, edge: string, dense: [number, number][], radius: number, tone: 'portal' | 'sys', baseD: number, widthKind: 0 | 1 | 2, body?: string): Entry {
+  private add(id: string, kind: TubeKind, edge: string, dense: [number, number][], radius: number, tone: 'portal' | 'sys', baseD: number, widthKind: 0 | 1 | 2, body?: string, circW?: readonly [number, number, number]): Entry {
     const mapPts = scenePoints(dense);
     let built, courseLens: readonly [number, number] | undefined;
     if (body) {
@@ -105,7 +112,7 @@ export class CircuitTubes {
     }
     const { shared, lens, blood, circuit } = this.deps;
     const o = new VesselObject(built.geometry, {
-      tone, artery: false, lensIndex: indexOf(edge), widthKind, bands: 2, spec: 1, px: kind === 'tree' ? 0.9 : 1.2,
+      tone, artery: false, lensIndex: indexOf(edge), widthKind, circW, bands: 2, spec: 1, px: kind === 'tree' ? 0.9 : 1.2,
       vessel: { index: indexOf(edge), len: built.length, stubSpeed: markSpeed(1), radius, baseD },
     }, shared, lens, blood, circuit);
     o.edge = { id: edge, from: edgeById.get(edge)?.from ?? '', to: edgeById.get(edge)?.to ?? '', length: built.length };

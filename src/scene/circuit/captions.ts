@@ -60,6 +60,8 @@ export interface CapCtx {
   must: ReadonlySet<string>;
   /** a box on the canvas that stands in the free room, off the cards, and on no vessel's line but `own`'s: where a lane's caption may go beside its lane (absent: any box) */
   clear?(box: Box, own: string): boolean;
+  /** half the drawn width (px) of the vessel a station stands on: a name keeps that much further off (2D: `it.vw / 2`). Absent: 5. */
+  halfW?(id: string): number;
 }
 
 /** The zone titles that open a card (2D stage-label-solve.js: `{ 'Liver · sinusoids': 'liver', Heart: 'heart' }`). */
@@ -178,7 +180,7 @@ export function buildCaptions(ctx: CapCtx): Built {
     if (abbr && abbr !== name) { forms.push(mk(abbr, true)); formMeta.push({ name: abbr, value: true }); }
     forms.push(mk('', true)); formMeta.push({ name: '', value: true });
     const dirs = CIRCUIT_LABELS[id]!.dirs.map((d) => (ctx.upright ? TURN_DIR[d] : d) as Dir);
-    items.push({ id, ax, ay, au: 0.5, forms: forms.map((x) => x.f), pri: ctx.must.has(id) ? 100 : pri[id] ?? CIRCUIT_LABELS[id]!.pri, must: ctx.must.has(id), dirs, vw: 5 });
+    items.push({ id, ax, ay, au: 0.5, forms: forms.map((x) => x.f), pri: ctx.must.has(id) ? 100 : pri[id] ?? CIRCUIT_LABELS[id]!.pri, must: ctx.must.has(id), dirs, vw: ctx.halfW?.(id) ?? 5 });
     meta.set(id, { id, kind: 'station', forms: formMeta, node: readsNode(id) });
   }
 

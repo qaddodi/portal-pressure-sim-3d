@@ -8,7 +8,7 @@ import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
 import { SMOOTH } from './vessels/smooth-joins.ts';
 import { useSettings } from '../state/settings.ts';
-import { FAINT_ONLY_LAYER, VesselObject } from './vessels/vessel-object.ts';
+import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
 import { fadeOf } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
@@ -63,7 +63,7 @@ import { PostAA } from './post-aa.ts';
 import { AtlasArt } from './atlas-art/index.ts';
 import { ResistorLayer } from './circuit/resistors.ts';
 import { RES_KINDS, type ResKey, resRatio } from './circuit/res-model.ts';
-import { MAP_K } from './circuit/map.ts';
+import { MAP_CENTRE, MAP_K, circBoostOf, mapPxPerUnit } from './circuit/map.ts';
 
 const CIRC_MID: readonly [number, number] = [VB_CIRC[0] + VB_CIRC[2] / 2, VB_CIRC[1] + VB_CIRC[3] / 2];
 /** What the figure shows: the body, the Circuit (the body's vessels flown onto a flat map), the liver lobule (hexagon) or one sinusoid. The two small views stand INSIDE the liver (the lobule in the liver, the sinusoid in the lobule). */
@@ -283,7 +283,7 @@ export class CelScene {
     if (circ) attachRuns(built.geometry, built.runs, circ, def.radius);
     const q = STUB_Q[def.lensId] ?? 1;
     const o = new VesselObject(built.geometry, {
-      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.lensId), widthKind: def.widthKind, bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
+      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.lensId), widthKind: def.widthKind, circW: circuitWidth(def.widthKind, def.circFine ?? 1), bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
       vessel: { index: indexOf(def.lensId), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: def.baseD },
     }, this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
@@ -609,6 +609,7 @@ export class CelScene {
     this.moving = true;
   }
   private readonly livePoint = new Vector3(...LIVER_POINT);
+  private readonly mapPt = new Vector3(MAP_CENTRE.x, MAP_CENTRE.y, MAP_CENTRE.z);
   /** The sinusoid's tissue is one opaque plane to every edge of the screen once the camera has landed on it (the lobule is then hidden: nothing of the lobule is ever seen through or around it). While the
    *  camera flies between the lobule and the sinusoid (the view being left stays drawn until it lands) the tissue comes in over the lobule by how far the dive has gone (the pose's own distance: the
    *  shots' `r`, blended geometrically, whatever the room and the screen), as 2D's zoom does it. */
@@ -763,12 +764,19 @@ export class CelScene {
     this.moving = true;
   }
 
+  /** 2D's circBoost for the camera now: how wide the map's lines are drawn, 1 to 1.75, from the map's CSS pixels per map unit. */
+  private circuitBoost(): number {
+    const cam = this.rig.camera, h = this.rig.stageSize.h, d = cam.position.distanceTo(this.mapPt);
+    return circBoostOf(mapPxPerUnit(h, cam.projectionMatrix.elements[5]!, d));
+  }
+
   /** Steps everything on the clock. Returns true while the scene moves, so the clock asks for another frame; false means draw nothing. */
   update(now: number): boolean {
     const dt = this.lastNow < 0 ? 16 : Math.min(100, now - this.lastNow);
     this.lastNow = now;
     this.shared.time.value = (now / 1000) % 1000;
     const camMoving = this.rig.update(now);
+    this.circuit.shared.circBoost.value = this.circuitBoost();   // (the map's lines widen as it is zoomed out, as 2D's circBoost)
     const quiet = quietOf(this.rig.orbitAngle);
     for (const o of this.back) o.setQuiet(quiet);
     { const lift = this.disease.organs.veilLift; for (const o of this.back) o.setVeilLift(lift); }   // (cel shaded organs are opaque: the vessels behind them take the wash's see-through back, vessel-object.ts)

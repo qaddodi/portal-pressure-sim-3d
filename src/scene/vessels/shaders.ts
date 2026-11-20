@@ -59,6 +59,9 @@ varying float vHi;
 ${CIRCUIT_VS_HEAD}
 varying float vW;
 varying float vR;
+varying float vU;   // the figure's units in one scene unit here: 300 on the body, 1 / MAP_K on the map (the Circuit share of this vertex)
+uniform float circBoost;   // 2D's circBoost: the map's lines are drawn up to 1.75 times wide when it is zoomed out (stage-tubes.js)
+uniform vec3 circW;   // the vessel's width in the Circuit, map units: (fixed width or -1 for the engine's diameter, 1 if circBoost applies, the least width)
 // a vessel's live width against the one its tube was built at (the engine's diameter by the 2D figure's rule), as the body of main() reads it for this vessel
 float swellOf(float idx, float bD, float kind) {
   if (useData < 0.5 || kind > 1.5) return 1.0;
@@ -67,6 +70,18 @@ float swellOf(float idx, float bD, float kind) {
   float m1 = 1.3 * max(2.6, 2.0 * pow(max(dm, 0.1), 0.72)), m0 = 1.3 * max(2.6, 2.0 * pow(max(bD, 0.1), 0.72));
   if (kind > 0.5) { m1 = max(1.8, m1 * 0.5); m0 = max(1.8, m0 * 0.5); }
   return clamp(m1 / m0, 0.2, 8.0);
+}
+// the swell the tube has at the map's end (2D stage-tubes.js widthAt, t = 1): a vein clamp(vesselPx(D) * 0.95, 6, 15) map units, an artery 3, a liver bed 8, the boost on veins and beds;
+// as a share of the radius the tube was built at, so the shared morph can ease the width with the line (the map's units are MAP_K scene units, the body's 1 / 300)
+float circSwell() {
+  float wc;
+  if (circW.x >= 0.0) wc = max(circW.z, circW.x * mix(1.0, circBoost, circW.y));
+  else {
+    float d = baseD;
+    if (useData > 0.5) { ivec2 tc = ivec2(int(mod(vindex, vdataSize.x)), int(floor(vindex / vdataSize.x))); d = texelFetch(vdata, tc, 0).b; }
+    wc = clamp(1.3 * max(2.6, 2.0 * pow(max(d, 0.1), 0.72)) * 0.95, 6.0, 15.0) * circBoost;
+  }
+  return 0.5 * wc * CIRC_MAPK / max(radius, 1e-6);
 }
 void main() {
 ${CIRCUIT_VS_CALL}
@@ -84,6 +99,8 @@ ${CIRCUIT_VS_CALL}
   // last 30 %), so the ring they share has one radius and no step or seam shows when the engine widens one of them and not the other (smooth-joins.ts joinSwell)
   if (mate0.x >= 0.0) { float k0 = 1.0 - smoothstep(0.0, 0.3, uv.x); if (k0 > 0.0) swell += k0 * (0.5 * (swell + swellOf(mate0.x, mate0.y, mate0.z)) - swell); }
   if (mate1.x >= 0.0) { float k1 = smoothstep(0.7, 1.0, uv.x); if (k1 > 0.0) swell += k1 * (0.5 * (swell + swellOf(mate1.x, mate1.y, mate1.z)) - swell); }
+  if (circShare > 0.0) swell = mix(swell, circSwell(), circShare);
+  vU = mix(300.0, 1.0 / CIRC_MAPK, circShare);
   vec3 p = aPos + aNor * (inflate + radius * rk * (swell * (1.0 - narrow) - 1.0));
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vN = normalize(normalMatrix * aNor);
@@ -111,7 +128,7 @@ ${CIRCUIT_VS_CALL}
   }
   vFade = fa;
   vHi = 0.0;
-  vR = radius * rk * swell * 300.0;   // the tube's half width in the 2D figure's units
+  vR = radius * rk * swell * vU;   // the tube's half width in the 2D figure's units
   vec4 c = projectionMatrix * mv;
   if (hull > 0.5) {
     float a = uv.x * len;
@@ -123,7 +140,7 @@ ${CIRCUIT_VS_CALL}
     nd = l > 1e-5 ? nd / l : vec2(0.0);
     // the 2D figure's line (tube-cel-glsl.js CEL): 0.14 of the tube's radius, held between 1.5 and 3 device px, the same on a hairline and on the portal trunk, on a 1x Mac and a 3x iPhone
     // (the line was a fixed 1.2 to 1.8 CSS px, 3.6 to 5.4 device px on a phone, a black rope on every thin strand)
-    float wpc = c.w * 2.0 / (res.y * projectionMatrix[1][1]) * 300.0;   // the figure's units under one CSS px here
+    float wpc = c.w * 2.0 / (res.y * projectionMatrix[1][1]) * vU;   // the figure's units under one CSS px here
     float rDev = vR / max(wpc, 1e-6) * dpr;
     // (thinned with a lumen under 1.5 device px of radius, so the smallest branches keep their colour: cel-ink.ts inkTaper)
     float inkPx = clamp(0.14 * rDev, 1.5, 3.0) * smoothstep(0.3, 1.5, rDev) / dpr;
@@ -195,6 +212,7 @@ uniform vec3 pageCol;       // the plate colour it eases toward
 uniform vec4 rimInk;        // a dark lumen's light rim on the dark looks: rgb, alpha (0 on the light looks)
 varying float vW;
 varying float vR;
+varying float vU;
 varying float vHull;
 varying float vFade;
 varying float vHi;
@@ -325,7 +343,7 @@ void main() {
 
   // the fill: exactly three tones lit from the top left of the screen (tube-cel-glsl.js celTones), so two pieces of one vein shade alike at their join and a turned vein keeps its tones;
   // no specular, no rim, no world-lit band. rDev: the tube's radius in device px; the tones fade out on a hairline.
-  float wpc0 = vW * 2.0 / (res.y * projY) * 300.0;
+  float wpc0 = vW * 2.0 / (res.y * projY) * vU;
   float rDev = vR / max(wpc0, 1e-6) * dpr;
   vec2 sideS = side.xy;
   float sl = length(sideS);
@@ -363,12 +381,12 @@ void main() {
 
 
   // the flow heads, over the lit lumen as the 2D composite lays them
-  float pxArc = fwidth(vUv.x * len * 300.0);   // (a derivative: taken outside any branch)
+  float pxArc = fwidth(vUv.x * len * vU);   // (a derivative: taken outside any branch)
   if (flowAmount > 0.001 && vR > 0.0) {
     vec4 stm = texelFetch(streamTex, ivec2(int(lensIndex), 0), 0);
     float Dm = stm.x, vd = stm.y, rv = stm.z;
-    float wpc = vW * 2.0 / (res.y * projY) * 300.0;      // the figure's units under one CSS px here
-    float R = max(vR, 0.3), Lw = len * 300.0, s = vUv.x * Lw;
+    float wpc = vW * 2.0 / (res.y * projY) * vU;      // the figure's units under one CSS px here
+    float R = max(vR, 0.3), Lw = len * vU, s = vUv.x * Lw;
     float px = max(pxArc, 0.15 * wpc);
     float Pt = 130.0 * wpc;
     vec4 c4 = texelFetch(chainTex, ivec2(int(lensIndex), 0), 0), c5 = texelFetch(chainTex, ivec2(int(lensIndex), 1), 0);

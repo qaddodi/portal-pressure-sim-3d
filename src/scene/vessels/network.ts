@@ -28,6 +28,8 @@ export interface NetVessel {
   /** centreline in flow order */
   pts: Vec3[];
   kind: string;
+  /** the Circuit's finer artery (2D AP_FINE): 0.6 on an arterioportal shunt, else 1 */
+  circFine?: number;
   tier: Tier;
   /** the diameter (mm) `radius` belongs to; the width then follows the engine's diameter by the 2D rule (`widthKind`) */
   baseD: number;
@@ -136,7 +138,7 @@ function build(): NetVessel[] {
     const baseD = SHUNT_BASE_D[e.id] ?? e.d ?? e.dMax ?? (dMinOf(e) || 3);
     out.push({
       id: e.id, host: hostOfPiece.get(e.id) ?? e.id, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(widthPx(e, baseD)),
-      label: e.label ?? e.id, pts: courseOf(e.id), kind: e.kind, tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: e.id,
+      label: e.label ?? e.id, pts: courseOf(e.id), kind: e.kind, circFine: e.shunt === 'ap' ? AP_FINE : 1, tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: e.id,
       plan: { kind: 'coil', base: pathOf(e.id), coils: isCoiling(e.id, e.kind, !!e.spontaneous), strands: !!STRANDS_2D[e.id] || e.id === 'C8' },
     });
   }
