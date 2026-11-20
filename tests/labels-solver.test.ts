@@ -104,6 +104,6 @@ test('a name\'s leader prefers the side where it crosses no vessel (the leader o
   const free = solve({ items: [it], view: VIEW, blockers: [] });
   assert.equal(free.placed[0].leader, true, 'a name with a minimum lead takes a leader');
   assert.ok(free.placed[0].dx > 0, 'without a vessel it keeps its first side, east');
-  const withLine = solve({ items: [it], view: VIEW, blockers: [], lines: [[520, 100, 520, 500]] });
+  const withLine = solve({ items: [it], view: VIEW, blockers: [], lines: [[520, 100, 520, 500]], leaderLineCost: 9 });
   assert.ok(withLine.placed[0].dx < 0, 'with a vessel across the east leader, it stands west');
 });
