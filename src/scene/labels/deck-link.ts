@@ -59,8 +59,8 @@ export function linkLabelsToDeck(): () => void {
     const cur = useLabels.getState();
     const keyed = deck ? true : owns;   // (no talk: the key is left as it is unless a talk had set it)
     const sameKey = !keyed || cur.key === next.key;
-    const same = cur.cath === next.cath && sameSet(cur.named, next.named) && sameSet(cur.shown, next.shown) && sameTones(cur.tones, next.tones) && sameKey && cur.panel === !!next.panel;
-    if (!same) { const { key, ...rest } = next; cur.set({ ...(keyed ? { ...rest, key } : rest), panel: !!next.panel }); }
+    const same = cur.presenting === !!deck && cur.cath === next.cath && sameSet(cur.named, next.named) && sameSet(cur.shown, next.shown) && sameTones(cur.tones, next.tones) && sameKey && cur.panel === !!next.panel;
+    if (!same) { const { key, ...rest } = next; cur.set({ ...(keyed ? { ...rest, key } : rest), panel: !!next.panel, presenting: !!deck }); }
     owns = !!deck;
   };
   sync();

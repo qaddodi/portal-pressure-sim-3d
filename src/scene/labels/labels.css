@@ -24,9 +24,18 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer { opacity: 0; }
 .lb[data-form="2"] .lb-val { margin-left: 0; }
 .lb .lb-rev { display: none; margin-left: var(--lb-g-rev); font-size: var(--lb-f-rev); font-weight: var(--lb-w-rev); color: var(--lb-rev); }
 .lb[data-rev] .lb-rev { display: inline-block; }
+/* what follows the number (2D lb-unit, lb-delta, lb-alert): the unit in the quiet ink, a change in the reading's own ink (neutral: red is kept for crossed thresholds), an alert in the danger ink */
+.lb .lb-unit, .lb .lb-delta, .lb .lb-alert { display: none; }
+.lb .lb-unit:not(:empty) { display: inline-block; margin-left: var(--lb-g-unit); font-size: var(--lb-f-unit); font-weight: var(--lb-w-unit); color: var(--lb-name); }
+.lb .lb-delta:not(:empty) { display: inline-block; margin-left: var(--lb-g-delta); font-size: var(--lb-f-delta); font-weight: var(--lb-w-delta); color: var(--lb-val); }
+.lb .lb-alert:not(:empty) { display: inline-block; margin-left: var(--lb-g-delta); font-size: var(--lb-f-delta); font-weight: var(--lb-w-delta); color: var(--lb-alert); }
+/* words in place of the number ("microcirculation", "collaterals closed"): the unit's type, the name's gap */
+.lb[data-note] .lb-val { display: none; }
+.lb[data-note] .lb-unit:not(:empty) { margin-left: var(--lb-g-val); }
+.lb[data-form="2"] .lb-unit, .lb[data-form="2"] .lb-delta, .lb[data-form="2"] .lb-alert { margin-left: 0; }
 .lb[data-region] { justify-content: center; }
 .lb[data-region] .lb-name { font-size: var(--lb-f-organ); font-weight: var(--lb-w-organ); letter-spacing: var(--lb-track-organ); color: var(--lb-organ); }
-.lb[data-region] .lb-val, .lb[data-region] .lb-rev { display: none; }
+.lb[data-region] .lb-val, .lb[data-region] .lb-rev, .lb[data-region] .lb-unit, .lb[data-region] .lb-delta, .lb[data-region] .lb-alert { display: none; }
 
 /* the number rolls when it changes (400 ms, transform and opacity; the box keeps the width of the longest text) */
 .lb-roll { position: relative; display: inline-block; }
@@ -39,7 +48,7 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer { opacity: 0; }
   border: var(--lb-ring-w) solid var(--lb-name); background: var(--lb-ring-fill); }
 
 /* a station the slide's words light takes the term's colour (2D .lb.term: the station colour, a step toward the text so it reads on every look) */
-.lb[data-tone] .lb-name, .lb[data-tone] .lb-val { color: color-mix(in srgb, var(--lb-tone) 80%, var(--lb-val)); }
+.lb[data-tone] .lb-name, .lb[data-tone] .lb-val, .lb[data-tone] .lb-unit, .lb[data-tone] .lb-delta { color: color-mix(in srgb, var(--lb-tone) 80%, var(--lb-val)); }
 .lb-anchor[data-tone] { border-color: var(--lb-tone); }
 .lb-lead[data-tone] { background: var(--lb-tone); }
 

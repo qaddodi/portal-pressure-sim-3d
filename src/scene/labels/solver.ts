@@ -14,7 +14,7 @@
 
 import { COMPASS, RING_SPOTS, type Box, type Dir, boxGap, crosses, grow, hits, nearestOn, offsetOf, segsCross, within } from './geometry.ts';
 
-export interface Form { text: string; w: number; h: number }
+export interface Form { text: string; w: number; h: number; /** a form that has let its unit, change badge and alert go for room (2D shortenItem): the number stays */ bare?: boolean }
 
 export interface Item {
   id: string;
@@ -52,6 +52,9 @@ export interface Item {
   /** A reading card with a pointer whose tip is the dot (the catheter's FHVP / WHVP / HVPG): it stands below or above its point, leans, and keeps
    *  clear of the vessels round it (the 2D app's callout-room.js, ported). `below` is the side it prefers. */
   callout?: { below: boolean };
+  /** An optional name (the 2D app's `minor`: a station shown only where it fits): whole (its first form), beside its vessel with no leader and on no vessel line, or not at all. It takes no room from a name that
+   *  was asked for (ranked last) and is never counted as dropped (`skipped` lists it). */
+  optional?: boolean;
 }
 
 export interface SolveInput {
@@ -87,6 +90,8 @@ export interface Solved {
   dropped: string[];
   /** Items whose vessel is wholly out of view or under a card: nothing to label. */
   hidden: string[];
+  /** Optional items that found no clear spot beside their vessel (not an error). */
+  skipped: string[];
 }
 
 // Tuning (px). One place, so a change is one change.
@@ -156,7 +161,8 @@ export function slideInView(path: readonly (readonly [number, number])[], view: 
 // Dots kept apart: where two stations' dots stand closer than DOT_ROOM, the lower ranked slides along its own vessel to the nearest clear point.
 const SLIDES = [0.42, 0.58, 0.34, 0.66, 0.26, 0.74, 0.18, 0.82];
 function spreadDots(items: Anchored[], view: Box, blockers: readonly Box[]): void {
-  const near = (it: Anchored, x: number, y: number) => items.some((o) => o !== it && Math.hypot(o.ax - x, o.ay - y) < DOT_ROOM);
+  // (a dot gives way only to a more important one: the portal confluence never slides off its vessel's middle because the hepatic artery, which runs beside it and is named last, could not find a clear place)
+  const near = (it: Anchored, x: number, y: number) => items.some((o) => o !== it && rank(o, it) < 0 && Math.hypot(o.ax - x, o.ay - y) < DOT_ROOM);
   for (const it of [...items].sort(rank).reverse()) {
     if (!near(it, it.ax, it.ay) || !it.path) continue;
     for (const u of SLIDES) {
@@ -232,14 +238,16 @@ export function solve(input: SolveInput): Solved {
   let leaders: { id: string; seg: Seg }[] = [];
   let placed: Placement[] = [];
   let dropped: string[] = [];
+  let skipped: string[] = [];
 
-  const tryItem = (it: Anchored, relax: 0 | 1 | 2, offOrgans = false, strictLines = false) => {
+  const tryItem = (it: Anchored, relax: 0 | 1 | 2, offOrgans = false, strictLines = false, nearOnly = false) => {
     const blockers = relax >= 2 ? blockersRaw : blockersAir;
     let best: { cost: number; form: number; c: Cand; box: Box; leader: boolean; seg: Seg | null } | null = null;
-    for (let fi = 0; fi < it.forms.length; fi++) {
+    for (let fi = 0; fi < (nearOnly ? 1 : it.forms.length); fi++) {
       const f = it.forms[fi];
       {
         for (const c of candidates(it, f, !!it.must || relax > 0)) {
+          if (nearOnly && c.cost >= 20) continue;   // (an optional name: the ring beside its vessel only)
           const box: Box = { x0: it.ax + c.dx, y0: it.ay + c.dy, x1: it.ax + c.dx + f.w, y1: it.ay + c.dy + f.h };
           if (!within(box, inner)) continue;
           if (offOrgans && it.onOther?.(box)) continue;
@@ -259,6 +267,7 @@ export function solve(input: SolveInput): Solved {
           if (it.minLead && !it.region && relax < 2 && gap < it.minLead) continue;
           if (strictLines) { const air = grow(box, LINE_AIR); let under = false; for (const l of lines) if (crosses(l[0], l[1], l[2], l[3], air)) { under = true; break; } if (under) continue; }
           const leader = !it.region && !it.callout && gap > LEAD_ON;
+          if (nearOnly && leader) continue;
           let seg: Seg | null = null;
           let pen = 0;
           if (leader) {
@@ -304,8 +313,9 @@ export function solve(input: SolveInput): Solved {
   };
 
   const pass = (order: readonly Anchored[]) => {
-    placedBoxes = []; leaders = []; placed = []; dropped = [];
+    placedBoxes = []; leaders = []; placed = []; dropped = []; skipped = [];
     for (const it of order) {
+      if (it.optional) { if (!tryItem(it, 0, false, true, true)) skipped.push(it.id); continue; }
       if (it.region && it.onOther) { if (tryItem(it, 0, true) || tryItem(it, 0, false)) continue; dropped.push(it.id); continue; }
       if (it.clearLines && tryItem(it, 0, false, true)) continue;
       if (tryItem(it, 0)) continue;
@@ -318,16 +328,16 @@ export function solve(input: SolveInput): Solved {
   // A name the greedy order left out for want of room that a higher ranked name took (the sinusoids' name standing across the arteriole's place) is tried first, as 2D tries its orders (lobule-zoom-records.js
   // nextPerm), and the order kept when it leaves out less (by rank). Deterministic, at most DROP_ROUNDS more passes.
   const lost = (d: readonly string[]) => d.reduce((n, id) => { const it = items.find((o) => o.id === id)!; return n + (it.must ? 1e4 : 0) + it.pri; }, 0);
-  let bestSol = { placed, dropped, boxes: placedBoxes };
+  let bestSol = { placed, dropped, boxes: placedBoxes, skipped };
   let order = byRank;
   for (let round = 0; round < DROP_ROUNDS && bestSol.dropped.length; round++) {
     const first = new Set(bestSol.dropped);
     order = [...items.filter((o) => first.has(o.id)).sort(rank), ...order.filter((o) => !first.has(o.id))];
     pass(order);
-    if (lost(dropped) < lost(bestSol.dropped)) bestSol = { placed, dropped, boxes: placedBoxes }; else break;
+    if (lost(dropped) < lost(bestSol.dropped)) bestSol = { placed, dropped, boxes: placedBoxes, skipped }; else break;
   }
   const at = new Map(byRank.map((o, i) => [o.id, i]));
-  return { placed: [...bestSol.placed].sort((a, b) => at.get(a.id)! - at.get(b.id)!), dropped: bestSol.dropped, hidden };
+  return { placed: [...bestSol.placed].sort((a, b) => at.get(a.id)! - at.get(b.id)!), dropped: bestSol.dropped, hidden, skipped: bestSol.skipped };
 }
 
 /** The box a placement occupies, given the dot's position now. */
