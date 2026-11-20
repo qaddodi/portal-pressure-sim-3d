@@ -90,19 +90,35 @@ void main() {
 }
 `;
 
-/** The ascites (Mohammad, 20 Nov: "a flat tan trapezoid with hard edges ... pasted on"): a soft cel fluid. The artist's proxy is a slab, flat at the back (z = the box's min) and bulging to the front,
- *  so its depth `t` is 0 on its rim and 1 across its middle: the wash thins to nothing over the rim in two feathered steps (no hard side or floor), is a touch deeper in the lowest band, and has a
- *  waterline: the top edge, kept crisp, with a pale meniscus band under it and a thin ink line. The fluid is drawn BEHIND the organs (organs.ts renderOrder), so it pools round them. */
+/** The ascites pool (Mohammad, 20 Nov: "a flat tan trapezoid ... pasted on", then "almost invisible, no clear waterline ... match how 2D shows ascites"): the 2D figure's pool, columns cut to the
+ *  abdominal cavity and standing to the 2D surface (pool.ts), in a cel look: a saturated amber wash over the organs, a deeper band at the floor, a pale meniscus band under the waterline and a thin
+ *  ink line on it, and a soft fade at the cavity's floor and walls so it never looks cut out. Each vertex carries `edge` = (distance under the surface, distance above the floor, the column's height). */
+export const ATLAS_POOL_VS = `#version 300 es
+precision highp float;
+
+in vec3 position;
+in vec3 edge;
+uniform mat4 projectionMatrix;
+uniform mat4 modelViewMatrix;
+out vec3 vEdge;
+out vec4 vClip;
+
+void main() {
+    vEdge = edge;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vClip = gl_Position;
+}
+`;
+
 export const ATLAS_ASCITES_FS = `#version 300 es
 precision highp float;
 
-in vec3 vPosition;
+in vec3 vEdge;
 in vec4 vClip;
 uniform vec3 uColor;
 uniform float uAlpha;     // the pool's fade in and the body's dissolve
-uniform float uWash;      // the wash's strength at its middle
-uniform vec4 uBox;        // the proxy's own box: min y, max y (the waterline), min z, max z
-uniform float uBand;      // the meniscus band's thickness in the proxy's own units (the squeeze undone, so it is the same on screen at any volume)
+uniform float uWash;      // the wash's strength
+uniform float uBand;      // the meniscus band's thickness (scene units)
 uniform vec3 inkColor;
 uniform float inkA;
 uniform vec4 cut;
@@ -120,24 +136,21 @@ void main() {
     vec2 q = vClip.xy / vClip.w - cut.xy;
     float win = smoothstep(cut.z, cut.z + 0.3, length(vec2(q.x * cut.w, q.y)));
     if (win < 0.004) discard;
-    if (!gl_FrontFacing) discard;   // the flat back plate would double the wash
-    float h = max(uBox.y - uBox.x, 1e-4);
-    float depth01 = (vPosition.y - uBox.x) / h;                       // 0 at the floor, 1 at the waterline
-    float dTop = max(uBox.y - vPosition.y, 0.0);                      // the distance under the waterline
-    float t = clamp((vPosition.z - uBox.z) / max(uBox.w - uBox.z, 1e-4), 0.0, 1.0);
-    // the rim: two feathered steps, so the fluid melts into the page at its sides and floor; held whole under the waterline, which stays crisp
-    float rim = 0.45 * smoothstep(0.0, 0.30, t) + 0.55 * smoothstep(0.18, 0.75, t);
-    rim = max(rim, 1.0 - smoothstep(uBand, 2.0 * uBand, dTop));
-    // the tones: the deeper fluid at the floor, the pale meniscus under the waterline (flat steps with a soft edge, the cel's look)
-    float deep = 1.0 - smoothstep(0.26, 0.40, depth01);
+    float dTop = max(vEdge.x, 0.0), dBot = max(vEdge.y, 0.0), colH = vEdge.z;
+    // soft at the cavity's walls (the columns shrink to nothing there) and floor
+    float soft = smoothstep(0.0, 0.05, colH) * mix(0.35, 1.0, smoothstep(0.0, 0.07, dBot));
+    // the tones: the deeper amber at the floor, the pale meniscus under the waterline; the wash is made richer than the artist's tan
+    vec3 c = uColor;
+    c = mix(vec3(dot(c, vec3(.2126, .7152, .0722))), c, 1.45);
+    float deep = 1.0 - smoothstep(0.08, 0.13, dBot);
     float skin = 1.0 - smoothstep(0.7 * uBand, uBand, dTop);
-    vec3 c = uColor * (1.0 - 1.4 * CEL_SHADE * deep);
-    c = mix(c, vec3(.98, .90, .70), 2.2 * CEL_LIT * skin);
-    float a = uWash * rim * (1.0 + 0.30 * deep) * (1.0 + 0.45 * skin);
+    c *= 1.0 - 1.2 * CEL_SHADE * deep;
+    c = mix(c, vec3(.98, .88, .52), 2.4 * CEL_LIT * skin);
+    float a = uWash * soft * (1.0 + 0.30 * deep) * (1.0 + 0.50 * skin);
     vec3 srgb = linearToSrgb(clamp(c, 0.0, 1.0));
-    // the waterline's ink: a thin line of about a pixel and a half along the top edge
-    float dpx = dTop / max(fwidth(vPosition.y), 1e-6);
-    float line = (1.0 - smoothstep(0.7, 1.8, dpx)) * inkA;
+    // the waterline's ink: a line of about a pixel and a half along the surface
+    float dpx = dTop / max(fwidth(dTop), 1e-6);
+    float line = (1.0 - smoothstep(0.7, 1.8, dpx)) * inkA * smoothstep(0.0, 0.02, colH);
     srgb = mix(srgb, inkColor, line);
     outColor = vec4(srgb, clamp(max(a, line), 0.0, 1.0) * uAlpha * win);
 }

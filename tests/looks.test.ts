@@ -36,15 +36,15 @@ test('CSS variables exist for every look and agree with the table', () => {
   for (const id of LOOK_IDS) { const v = lookVars(id); assert.equal(v['--bg'], LOOKS[id].bg); assert.equal(v['--vein-portal'], LOOKS[id].portal); }
 });
 
-test('settings: the app opens on Light as the 2D page does, a chosen look is kept, and bad storage falls back', () => {
-  assert.equal(DEFAULTS.look, 'light');
+test('settings: the app follows the device (System) as the 2D page does with no saved look, a chosen look is kept, and bad storage falls back', () => {
+  assert.equal(DEFAULTS.look, 'system');
   assert.deepEqual(parseSettings(null), DEFAULTS);
   assert.deepEqual(parseSettings('{not json'), DEFAULTS);
   assert.equal(parseSettings('{"look":"navy","lookChosen":true}').look, 'navy');
   assert.equal(parseSettings('{"look":"system","lookChosen":true}').look, 'system');
-  // a "system" written by the old default (no choice made) is not a choice: the first screen is Light
-  assert.equal(parseSettings('{"look":"system"}').look, 'light');
-  assert.equal(parseSettings('{"look":"nope","lookChosen":true}').look, 'light');
+  // a look nobody chose, or one that is not a look, is the default: System
+  assert.equal(parseSettings('{"look":"navy"}').look, 'system');
+  assert.equal(parseSettings('{"look":"nope","lookChosen":true}').look, 'system');
   assert.ok(!('flowMarks' in parseSettings(null)), 'the Flow marks setting is gone');
 });
 

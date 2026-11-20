@@ -23,8 +23,8 @@ test('0. the 2D stylesheets are imported once, right after global.css, and the s
   assert.ok(src('src/ui/shell/chrome-3d.css').split('\n').length < 60, 'the overlay stays small: the 2D stylesheet does the work');
 });
 
-test('1. the first screen is Light, as the 2D page opens', () => {
-  assert.equal(DEFAULTS.look, 'light');
+test('1. the first screen follows the device (System), as the 2D page opens with no saved look', () => {
+  assert.equal(DEFAULTS.look, 'system');
   assert.ok(/:root\[data-theme="light"\]|html\[data-theme="light"\]|data-theme="light"/.test(css2d), 'the 2D tokens are keyed on data-theme');
 });
 
