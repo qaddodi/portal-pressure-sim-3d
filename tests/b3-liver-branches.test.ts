@@ -219,7 +219,7 @@ test('a hepatic vein is not a tube inside the cava it opens into: the last cava 
   for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) { const cs = coursesOf(B.get(id)!, REST), t = cavaTailOf(id, cs, lenOf(cs)); assert.ok(t > 0.03 && t <= 0.5, `${id} tail ${t}`); }
   for (const id of ['PVH_R_2', 'IVC_IS', 'RHV_IVC_1']) { const cs = coursesOf(B.get(id)!, REST); assert.equal(cavaTailOf(id, cs, lenOf(cs)), 0, `${id} has none`); }
   assert.match(VESSEL_VS, /uniform float cavaTail;/);
-  assert.match(VESSEL_VS, /fa \*= mix\(1\.0 - smoothstep\(1\.0 - cavaTail, 1\.0, uv\.x\), 1\.0, circT\)/);
+  assert.match(VESSEL_VS, /fa \*= mix\(pow\(1\.0 - smoothstep\(1\.0 - cavaTail, 1\.0, uv\.x\), 2\.0\), 1\.0, circT\)/);
   assert.match(VESSEL_FS, /if \(vFade < 0\.004\) discard;/);
 });
 

@@ -156,7 +156,7 @@ ${CIRCUIT_VS_CALL}
   // the fade zone (a tip into its organ, a bed through the lobe, a vein into the cava): the tube keeps its full width and fades by opacity, body and outline together (vFade, 1 outside a fade zone: opaque)
   if (stump.x > 0.0 && circShare < 0.001) fa *= step(stump.x, uv.x * len * vU);   // (the divided stretch is not there: body and outline)
   if (cavaEnd.x > 0.0) fa *= mix(mix(1.0, cavaEnd.y, smoothstep(1.0 - cavaEnd.x, 1.0, uv.x)), 1.0, circT);
-  if (cavaTail > 0.0) fa *= mix(1.0 - smoothstep(1.0 - cavaTail, 1.0, uv.x), 1.0, circT);   // (the part inside the cava's lumen is not a tube there: no round end, no wall line, no dark wedge over the cava's marks)
+  if (cavaTail > 0.0) fa *= mix(pow(1.0 - smoothstep(1.0 - cavaTail, 1.0, uv.x), 2.0), 1.0, circT);   // (the part inside the cava's lumen is not a tube there: no round end, no wall line, no dark wedge over the cava's marks)
   vFade = fa;
   // THE OUTLINE is part of the tube (no second mesh, no stencil, no depth tie): the tube is built INK wider than its lumen, and the fragment shader paints the outer ink band, so the line is continuous by construction.
   // Its width is the figure's line (cel-style.ts LINE_R, LINE_MIN, LINE_MAX; 2D's tube-cel-glsl.js CEL is 0.14, 1.5, 3): a share of the tube's radius held between two device px widths, the same on a hairline and on the
@@ -271,8 +271,8 @@ float buryK(float d0, float d1) {   // d0, d1: the figure units from the start a
 }
 // no flow marks (chevrons, streaks) inside the vessel a tube leaves or opens into: where the tube lies in its parent's lumen its marks would be drawn over the parent's own (a torn chevron at every fork). They begin a little beyond where the ink does.
 float markK(float d0, float d1) {
-  float k0 = bury.x > 0.0 ? smoothstep(1.2 * bury.x * vU, 3.0 * bury.x * vU, d0) : 1.0;
-  float k1 = bury.y > 0.0 ? smoothstep(1.2 * bury.y * vU, 3.0 * bury.y * vU, d1) : 1.0;
+  float k0 = bury.x > 0.0 ? smoothstep(2.0 * bury.x * vU, 3.6 * bury.x * vU, d0) : 1.0;
+  float k1 = bury.y > 0.0 ? smoothstep(2.0 * bury.y * vU, 3.6 * bury.y * vU, d1) : 1.0;
   return k0 * k1;
 }
 varying float vFade;

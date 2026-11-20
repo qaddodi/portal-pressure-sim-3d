@@ -18,5 +18,5 @@ export function cavaTailOf(id: string, courses: readonly Course[], len: number):
   const e = c.pts[c.pts.length - 1]!;
   let d = Infinity;
   for (const p of cc.pts) d = Math.min(d, Math.hypot(p[0] - e[0], p[1] - e[1]));
-  return d < cc.radius ? Math.min(0.5, cc.radius / len) : 0;
+  return d < cc.radius ? Math.min(0.5, (1.6 * cc.radius) / len) : 0;
 }
