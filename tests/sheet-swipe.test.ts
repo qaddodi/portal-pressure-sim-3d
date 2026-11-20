@@ -56,3 +56,10 @@ test('the shell\'s own small controls reach 44 px for a thumb (a taller box or a
   assert.match(read('src/ui/action/action.css'), /\.ac-x::after \{ content: ''; position: absolute; inset: -6px; \}/);
   assert.match(read('src/ui/compare/compare.css'), /\.cmp-seg button::after, \.cmp-table-btn::after \{ content: ''; position: absolute; inset: -6px 0; \}/);
 });
+
+test('every phone sheet draws the 36 x 4 grab bar (the action card has its own, the same size), and the menu and the popover-sheets are wired to the swipe', () => {
+  for (const f of ['src/ui/shell/Frame.tsx', 'src/ui/menu/UMenu.tsx', 'src/ui/shell/Menu.tsx', 'src/ui/treat/TreatCard.tsx', 'src/ui/tests/TestsLayer.tsx']) assert.match(read(f), /className="sh-grabbar"/, f);
+  assert.match(read('src/ui/action/action.css'), /\.ac-grab i \{ width: 36px; height: 4px;/);
+  assert.match(read('src/ui/shell/chrome-3d.css'), /\.sh-grabbar \{[^}]*width: 36px; height: 4px;[^}]*pointer-events: none;/);
+  assert.match(read('src/ui/shell/Menu.tsx'), /useSheetSwipe\(ref, /);
+});

@@ -287,6 +287,7 @@ export function UMenu() {
   const menu = (
     <div ref={ref} className={`umenu${sheet ? ' sheet' : ''}${leaving ? ' out' : ''}${words && here > 0 ? ' filtered' : ''}`} role="dialog" aria-modal={sheet || undefined} aria-label="Menu" data-tab={tab} inert={!open} onKeyDown={onKeyDown}>
       <div className="um-grab" aria-hidden="true" />
+      <i className="sh-grabbar" aria-hidden="true" />
       <div className="um-top">
         <label className="um-search"><I n="search" /><input className="um-q" type="search" placeholder="Find a presentation or patient" aria-label="Find a presentation or patient" autoComplete="off" spellCheck={false} value={query} onChange={(e) => setQuery(e.target.value)} /><kbd className="um-kb">/</kbd></label>
         <button type="button" className="ib um-x" aria-label="Close the menu" onClick={close}><I n="close" /></button>

@@ -11,6 +11,7 @@ export function Frame({ kind, label, head, place = 'top', children }: { kind: Ex
   useSheetSwipe(ref, () => useShell.getState().close(), () => frameIsSheet(ref.current));   // (a phone's sheet follows a pull down and closes past a short one, as 2D's)
   return (
     <section ref={ref} className="sh-sheet" data-kind={kind} data-place={place} data-open={open} role="dialog" aria-label={label} inert={!open}>
+      <i className="sh-grabbar" aria-hidden="true" />
       {head !== null && (
         <div className="sh-sheet-head"><h2>{head ?? label}</h2><button type="button" className="sh-x" aria-label="Close" onClick={() => useShell.getState().close()}><Icon n="close" /></button></div>
       )}
