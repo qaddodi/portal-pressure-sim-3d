@@ -22,6 +22,7 @@ import { hasToolChart } from '../../decks/charts.ts';
 import { Strip } from '../wallet/Strip.tsx';
 import { useCardDrag, justDragged } from './useCardDrag.ts';
 import { cardZoom, emptyTap } from './card-zoom.ts';
+import { reduced } from '../a11y/motion.ts';
 import { isSwapSwipe } from '../wallet/wallet-machine.ts';
 import { swipeMove, apply, samePos } from '../deck/presenter-machine.ts';
 import { gapOf } from './ladder-model.ts';
@@ -131,7 +132,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // Esc, a slide change or a new size puts it back. Only a card that stands whole (nothing leaving or waiting to come in).
   const zoomsHere = plan.layout === 'wide' && !alone && !!(dataShown || wordsShown);
   const veilRef = useRef<HTMLDivElement>(null), zveilRef = useRef<HTMLDivElement>(null);
-  const reduceMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const reduceMotion = reduced;
   const zoomTap = (e: React.MouseEvent<HTMLDivElement>) => {
     const card = e.currentTarget;
     if (justDragged() || !zoomsHere) return;

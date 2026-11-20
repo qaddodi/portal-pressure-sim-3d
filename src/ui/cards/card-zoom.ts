@@ -40,9 +40,9 @@ export function emptyTap(target: EventTarget | null, card: Element): boolean {
 
 interface Styled { style: { setProperty(n: string, v: string): void; removeProperty(n: string): unknown }; getBoundingClientRect(): Box }
 interface Rider { els: Styled[]; rest: Box; focus: boolean }
-interface Run { from: Cur; to: Cur; t0: number; ms: number; done: () => void }
+interface Run { from: Cur; to: Cur; elapsed: number; ms: number; done: () => void }
 
-export function createCardZoom(clock: Clock = theClock, now: () => number = () => performance.now()) {
+export function createCardZoom(clock: Clock = theClock) {
   let st: { riders: Rider[]; plan: Cur; cur: Cur; cx: number; cy: number; run: Run | null; closing: Promise<void> | null; veil: { classList: { add(c: string): void; remove(c: string): void } } | null; mark: { dataset: Record<string, string | undefined> } | null } | null = null;
   let hold: Hold | null = null, off: (() => void) | null = null;
   const lerp = (r: Run, e: number): Cur => ({ dx: r.from.dx + (r.to.dx - r.from.dx) * e, dy: r.from.dy + (r.to.dy - r.from.dy) * e, s: r.from.s + (r.to.s - r.from.s) * e });
@@ -57,7 +57,8 @@ export function createCardZoom(clock: Clock = theClock, now: () => number = () =
   function step(f: FrameInfo) {
     const m = st?.run;
     if (!st || !m) return;
-    const p = Math.min(1, Math.max(0, (f.time - m.t0) / m.ms));
+    m.elapsed += Math.min(f.dt > 0 ? f.dt : 16, 50);   // (a stalled frame counts at most 50 ms: the glide goes on from where it was, never jumps)
+    const p = Math.min(1, Math.max(0, m.elapsed / m.ms));
     st.cur = lerp(m, easeArrive(p));
     paint();
     if (p >= 1) { st.run = null; sleep(); m.done(); }
@@ -69,7 +70,7 @@ export function createCardZoom(clock: Clock = theClock, now: () => number = () =
       if (!st) { done(); return; }
       st.run?.done();
       if (!(ms > 0)) { st.cur = { ...to }; st.run = null; paint(); sleep(); done(); return; }
-      st.run = { from: { ...st.cur }, to, ms, t0: now(), done };
+      st.run = { from: { ...st.cur }, to, ms, elapsed: 0, done };
       wake();
     });
   }

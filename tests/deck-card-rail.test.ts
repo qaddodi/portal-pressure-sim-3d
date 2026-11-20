@@ -14,7 +14,7 @@ const el = (): Styled & { v: Record<string, string> } => {
 const world = () => {
   let t = 1000, cb: ((t: number) => void) | null = null;
   const clock = createClock({ raf: (f) => { cb = f; return 1; }, cancel: () => { cb = null; }, now: () => t });
-  const rail = createRail(clock, () => t);
+  const rail = createRail(clock);
   const tick = (ms: number) => { t += ms; const f = cb; cb = null; f?.(t); };
   return { rail, tick, now: () => t };
 };
@@ -129,4 +129,26 @@ test('only the card the plan is for takes its place, and a card going out is nev
   const frame = readFileSync(new URL('../src/ui/cards/CardFrame.tsx', import.meta.url), 'utf8');
   assert.match(layer, /e\.phase === 'in' && e\.key === wantedKey/);
   assert.match(frame, /if \(out\) \{ anims\.current\.forEach\(\(a\) => a\.cancel\(\)\)/);
+});
+
+// The play-test thread (9836a7a, Mac): about a second with no frames after the press; the old card was "gone by the first frame after it". A move was timed from the
+// moment it was asked for, so a stall ate it whole. Now it is timed by the frames it has had (a stalled frame counts 50 ms at most): the card stands where it was
+// through the stall and the slide then plays out.
+test('a stalled frame never eats a move: the old card is still in sight after a one second stall, and the slide then plays', () => {
+  const { rail, tick } = world();
+  const a = [el()];
+  rail.leave(a, { dir: 1, dist: 600 });
+  tick(1000);   // (a one second frame)
+  assert.ok(xOf(a[0]!) > -100, 'still near where it was after the stall');
+  for (let i = 0; i < 40; i++) tick(16);
+  assert.ok(xOf(a[0]!) <= -599, 'then wholly out');
+});
+
+test('under Reduce Motion nothing travels but nothing pops: a fade of at least 240 ms', () => {
+  const { rail, tick } = world();
+  const a = [el()];
+  rail.enter(a, { dir: 1, dist: 800, reduce: true });
+  assert.equal(a[0]!.v.opacity, '0'); assert.equal(xOf(a[0]!), 0);
+  tick(16); tick(16);
+  assert.ok(parseFloat(a[0]!.v.opacity ?? '0') < 0.5, 'not in one frame');
 });
