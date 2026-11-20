@@ -499,3 +499,14 @@ test('the station dots are 2D\'s metro stops: a ring in the text\'s colour (ligh
   assert.match(src, /setScale\(px: number\)/);
   assert.match(readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8'), /this\.mapLayer\.setScale\(this\.mapScale\(\)\)/);
 });
+
+test('a station name with no abbreviation of its own is shortened before its reading stands alone ("Left sinusoids" to "L sinusoids")', async () => {
+  const { compactName } = await import('../src/scene/circuit/captions.ts');
+  assert.equal(compactName('Left sinusoids'), 'L sinusoids'); assert.equal(compactName('Right hepatic vein'), 'R hepatic vein'); assert.equal(compactName('Middle hepatic vein'), 'M hepatic vein');
+  assert.equal(compactName('Azygos'), null); assert.equal(compactName('Portal vein'), null);
+  const b = buildCaptions(fakeCtx({ zoomed: true, liverOpen: true }));
+  const l = b.items.find((i) => i.id === 'SIN_L')!, m = b.meta.get('SIN_L')!;
+  assert.deepEqual(m.forms.map((f) => f.name), ['Left sinusoids', 'L sinusoids', '']);
+  assert.ok(l.forms[1]!.w < l.forms[0]!.w && l.forms[2]!.w < l.forms[1]!.w, 'each form is narrower than the last');
+  assert.deepEqual(b.meta.get('RPV')!.forms.map((f) => f.name), ['Right portal vein', 'RPV', ''], '2D\'s own abbreviation is kept');
+});
