@@ -118,3 +118,10 @@ test('the sinusoid view stands on a real sinusoid of the lobule, in zone 2, runn
   assert.ok(Math.abs(ang) < 0.1, 'it runs along the sinusoid view\'s own axis');
   assert.equal(zoneOf(hexFrac(SIN_LOCAL[0] / LOBULE_R, -SIN_LOCAL[1] / LOBULE_R)), 2);
 });
+
+test('at the body\'s rest the whole dive frame is hidden, and the views settle on the camera\'s own move (not the tilt)', async () => {
+  const src = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  assert.match(src, /this\.dive\.visible = v === 'lobule' \|\| v === 'sinusoid';/);
+  assert.match(src, /this\.dive\.visible = false;/);
+  assert.match(src, /this\.hideLeftBehind && !this\.rig\.isMoving && !this\.circuit\.moving/);
+});

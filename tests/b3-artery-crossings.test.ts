@@ -38,3 +38,12 @@ test('the closed lumbar-azygos collateral is not a dotted pink thread through th
   assert.equal(of('C9'), 'hidden');
   assert.equal(of('C1a'), 'ghost');
 });
+
+test('the paraumbilical vein leaves the left portal branch as a filleted Y: thinner than the trunk, its fillet no wider than the trunk is at the node (no blunt stack of equal tubes)', async () => {
+  const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
+  const c3 = B.get('C3')!, lpv = B.get('PVH_L_1')!, pre = B.get('PRE_L')!;
+  assert.ok(c3.radius < 0.7 * lpv.radius, 'narrower than the left portal vein');
+  const fl = c3.flare?.[0];
+  assert.ok(fl, 'a fillet at its start');
+  assert.ok(fl!.wall <= 0.8 * (lpv.radius + pre.radius) / 2 + 1e-9, 'fitted to the trunk\'s width at the node (the mean of the pair that runs on there), not its full width');
+});
