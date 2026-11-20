@@ -7,6 +7,7 @@ import { INK_FS, TOON_FS } from '../materials/shaders.ts';
 import { PALETTES, type LookId, type Palette } from '../palette.ts';
 import { LOOKS } from '../../looks/looks.ts';
 import { DEVICE_TOKENS, type DeviceTokens } from '../procedures/copied/device-tokens.copied.ts';
+import { resolveEdge, type EdgeRule } from './edges.ts';
 
 export type DeviceTone = 'collar' | 'poly' | 'steel' | 'platinum' | 'latex' | 'nylon' | 'graft' | 'gold' | 'stentWire' | 'stentGlint' | 'glue' | 'ptfe' | 'thread' | 'marker'
   | 'trWedge' | 'trPv' | 'trIvc' | 'trScler' | 'monFree' | 'monWedge' | 'monAlarm'
@@ -38,18 +39,19 @@ export function withAlpha(src: string, from: string, to: string): string {
   return src.replace(from, to);
 }
 
-export interface DeviceOptions { bands?: 2 | 3; spec?: 0 | 1; px?: number; order?: number; tubeTones?: boolean }
+/** `fat`: device px the part grows by on each side (FAT_PX when left out; negative shrinks the fill, so an outline can sit half inside it as 2D's strokes do). */
+export interface DeviceOptions { bands?: 2 | 3; spec?: 0 | 1; px?: number; order?: number; tubeTones?: boolean; fat?: number }
 
 export class DeviceObject extends CelObject {
   deviceTone: DeviceTone;
   private palette: Palette | null = null;
-  /** The ink colour the device wears (its own hairline in the 2D app: --dev-poly-edge on the catheter; the look's ink elsewhere). */
-  private edgeInk: 'ink' | 'polyEdge' | 'latexEdge';
+  /** The edge the device wears: the rule 2D gives that part (--dev-poly-edge on the catheter, the scope's soft hairline, the Doppler head's ink line; 'none' draws no outline; 'ink' the look's own). */
+  private edgeRule: EdgeRule;
 
-  constructor(geometry: BufferGeometry, deviceTone: DeviceTone, shared: CelShared, o: DeviceOptions = {}, edge: 'ink' | 'polyEdge' | 'latexEdge' = 'ink') {
+  constructor(geometry: BufferGeometry, deviceTone: DeviceTone, shared: CelShared, o: DeviceOptions = {}, edge: EdgeRule = 'ink') {
     super(geometry, { tone: 'cath', bands: o.bands ?? 2, spec: o.spec ?? 1, px: o.px ?? 0.9, tubeTones: o.tubeTones ?? geometry.userData.ringTube === true }, shared);
     this.deviceTone = deviceTone;
-    this.edgeInk = edge;
+    this.edgeRule = edge;
     // A device's free front is where its tip is, so it is cut there and nowhere else. The vessels' reveal is a soft front a tenth of the route long, dissolved in a stipple, that runs on PAST the point it is told
     // (u up to 1.1 x reveal): on a catheter that was a stippled grey band drawn beyond the tip (20 Nov 2026, "why is it extending towards the end of the vein when the tip is in mid vein").
     // The tip's cap (a sphere as wide as the shaft) covers the cut.
@@ -59,7 +61,9 @@ export class DeviceObject extends CelObject {
     this.ink.uniforms.alpha = { value: 1 };
     this.toon.fragmentShader = 'uniform float alpha;\n' + withAlpha(this.toon.fragmentShader, 'gl_FragColor = vec4(c, 1.0);', 'gl_FragColor = vec4(c, alpha);');
     // (the ink's alpha is the soft ink's own `inkA` (1 for a hard ink) and the pick's solid ring: a device's fade multiplies the first)
-    this.ink.fragmentShader = 'uniform float alpha;\n' + withAlpha(this.ink.fragmentShader, 'mix(inkA, 1.0, clamp(vHi, 0.0, 1.0))', 'mix(inkA, 1.0, clamp(vHi, 0.0, 1.0)) * alpha');
+    // (edgeA: the outline's own strength, 2D's per-part hairline alpha; the fade multiplies it)
+    this.ink.uniforms.edgeA = { value: 1 };
+    this.ink.fragmentShader = 'uniform float alpha;\nuniform float edgeA;\n' + withAlpha(this.ink.fragmentShader, 'mix(inkA, 1.0, clamp(vHi, 0.0, 1.0))', 'mix(inkA, 1.0, clamp(vHi, 0.0, 1.0)) * alpha * edgeA');
     // a thin device (a catheter, a wire) is always a few pixels of fill: both passes grow by FAT_PX device px each way, the fill first and the outline outside it (a hairline catheter was only its outline)
     // a free end (the top of a scope, the start of a catheter's lead-in above the figure) fades out along the first `tailFade` share of its length (uv.x), a gradient, never a cut
     this.toon.uniforms.tailFade = this.ink.uniforms.tailFade = { value: 0 };
@@ -71,7 +75,8 @@ export class DeviceObject extends CelObject {
     this.toon.fragmentShader = 'uniform float rimFill;\n' + withAlpha(this.toon.fragmentShader, 'gl_FragColor = vec4(c, alpha * tailK(vUv.x));', 'float fr = 1.0 - abs(dot(normalize(vN), normalize(vV)));\n  float alpha = clamp(alpha * (1.0 + rimFill * fr * fr * 6.0), 0.0, 1.0);\n  gl_FragColor = vec4(c, alpha * tailK(vUv.x));');
     this.ink.vertexShader = 'varying float vRim;\n' + withAlpha(this.ink.vertexShader, '  vU = uv.x;', '  vU = uv.x;\n  { vec4 q = modelViewMatrix * vec4(p, 1.0); vRim = abs(dot(normalize(normalMatrix * normal), normalize(-q.xyz))); }');
     this.ink.fragmentShader = 'varying float vRim;\nuniform float rimOnly;\n' + withAlpha(this.ink.fragmentShader, ' * alpha * tailK(vU)', ' * alpha * tailK(vU) * (rimOnly > 0.0 ? 1.0 - smoothstep(0.0, rimOnly, vRim) : 1.0)');
-    this.toon.uniforms.res = shared.res; this.toon.uniforms.fatPx = { value: FAT_PX }; this.ink.uniforms.fatPx = { value: FAT_PX };
+    const fat = o.fat ?? FAT_PX;
+    this.toon.uniforms.res = shared.res; this.toon.uniforms.fatPx = { value: fat }; this.ink.uniforms.fatPx = { value: fat };
     this.toon.vertexShader = 'uniform vec2 res;\nuniform float fatPx;\n' + withAlpha(this.toon.vertexShader, 'gl_Position = projectionMatrix * mv;', FAT_TOON);
     this.ink.vertexShader = 'uniform float fatPx;\n' + withAlpha(this.ink.vertexShader, '(px + hiPx * vHi)', '(px + fatPx + hiPx * vHi)');
     // A device is always in the blended list (alpha 1 until it fades), which three draws after the whole opaque list, by render order: the organs' see-through wash and any vessel that blends (a fading end)
@@ -93,7 +98,10 @@ export class DeviceObject extends CelObject {
     this.palette = p;
     const look = lookOf(p), t = DEVICE_TOKENS[look];
     const base = rawColor(this.deviceTone === 'accent' ? LOOKS[look].accent : t[TOKEN_OF[this.deviceTone]]);
-    const ink = rawColor(this.edgeInk === 'polyEdge' ? t.polyEdge : this.edgeInk === 'latexEdge' ? t.latexEdge : p.ink);
+    const edge = resolveEdge(this.edgeRule, { t, look, ink: p.ink });
+    const ink = rawColor(edge.hex);
+    this.ink.uniforms.edgeA!.value = edge.a;
+    this.ink.visible = edge.a > 0;
     (this.toon.uniforms.color!.value as Color).copy(base);
     (this.toon.uniforms.shade!.value as Color).copy(base).multiplyScalar(p.shade).lerp(ink, 0.08);
     (this.ink.uniforms.color!.value as Color).copy(ink);
