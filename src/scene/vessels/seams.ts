@@ -96,7 +96,7 @@ export function seamCurvesOf(id: string): readonly [SeamCurve | null, SeamCurve 
       // (the drawn radius at distance d from this end: narrowed inside a host and flared at the far end, plus 2D's wall; 2D rAt)
       const rAt = (d: number): number => {
         const sl = atEnd ? L - d : d, s = sl / UNITS_PER_SCENE;
-        const k = !e ? 1 : (e.inside && !e.sink ? (sideEndScale(s, e.hostR) as number) : 1) * (atEnd && e.flare ? (flareScale(s, e.hostR) as number) : 1);
+        const k = !e ? 1 : (e.inside && !e.sink ? (sideEndScale(s, e.hostR) as number) : 1) * (e.flare ? (flareScale(s, e.hostR) as number) : 1);
         return R0 * k + WALL * 0.6;
       };
       const pt = (sl: number, a: number): Pt => { const d = atEnd ? L - sl : sl, q = frameAt(path, d), r = rAt(d); return [q.x - q.ty * r * a, q.y + q.tx * r * a]; };   // (the side the shader's `across` is on: (-ty, tx) in the figure's y-down units)
