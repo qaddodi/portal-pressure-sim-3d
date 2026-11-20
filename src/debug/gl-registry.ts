@@ -5,7 +5,8 @@ import { type Program, collectMaterials, lateMaterialProgram, rawProgram, templa
 import { INK_FS, INK_VS, TOON_FS, TOON_VS } from '../scene/materials/shaders.ts';
 import { VESSEL_FS, VESSEL_VS } from '../scene/vessels/shaders.ts';
 import { DOT_FS, DOT_VS, PLATE_FS, PLATE_VS } from '../scene/circuit/map-layer.ts';
-import { SINUSOID_FS, SINUSOID_PFS, SINUSOID_PVS, SINUSOID_VS } from '../scene/sinusoid/gl.copied.ts';
+import { SINUSOID_PFS, SINUSOID_PVS, SINUSOID_VS } from '../scene/sinusoid/gl.copied.ts';
+import { SINUSOID_CEL_FS } from '../scene/sinusoid/view.ts';
 import { ORGAN_FS, ORGAN_VS } from '../scene/organs/organ-shader.ts';
 import { RES_FS, RES_VS } from '../scene/circuit/resistors.ts';
 import { DYE_FS, DYE_VS } from '../scene/disease/dye.ts';
@@ -48,7 +49,7 @@ export const GL_FILES: Record<string, string> = {
 export function namedSources(): Map<string, string> {
   const bare = (s: string) => s.replace(/^#version 300 es\n/, '');   // (the sinusoid view makes its materials without the version line)
   return new Map<string, string>([
-    [bare(SINUSOID_VS), 'sinusoid'], [bare(SINUSOID_FS), 'sinusoid'], [bare(SINUSOID_PVS), 'sinusoid particles'], [bare(SINUSOID_PFS), 'sinusoid particles'],
+    [bare(SINUSOID_VS), 'sinusoid'], [bare(SINUSOID_CEL_FS), 'sinusoid'], [bare(SINUSOID_PVS), 'sinusoid particles'], [bare(SINUSOID_PFS), 'sinusoid particles'],
     [VESSEL_VS, 'vessel'], [VESSEL_FS, 'vessel'], [TOON_VS, 'toon'], [TOON_FS, 'toon'], [INK_VS, 'ink'], [INK_FS, 'ink'], [LOBULE_TOON_VS, 'lobule toon'], [LOBULE_TOON_FS, 'lobule toon'], [LOBULE_INK_VS, 'lobule ink'], [LOBULE_INK_FS, 'lobule ink'],
     [ORGAN_VS, 'organ wash'], [ORGAN_FS, 'organ wash'], [DYE_VS, 'dye overlay'], [DYE_FS, 'dye overlay'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [LOBULE_PLATE_VS, 'lobule plate'], [LOBULE_PLATE_FS, 'lobule plate'], [LOBULE_ZONES_VS, 'lobule zones'], [LOBULE_ZONES_FS, 'lobule zones'], [LOBULE_FIELD_VS, 'lobule field'], [LOBULE_FIELD_FS, 'lobule field'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'], [DOF_GATHER_FS, 'post dof'], [DOF_MIX_FS, 'post dof mix'],
   ]);
