@@ -20,11 +20,10 @@ test('the ink never z-fights its shape, is thick enough to read and near black (
   const { microMaterials, hazeUniforms } = await import('../src/scene/micro3d/cel3d.ts');
   const { CEL_STYLE } = await import('../src/scene/cel-style.ts');
   const { Vector2 } = await import('three');
-  const m = microMaterials({ value: new Vector2(1, 1) }, { value: 1 } as never, { haze: hazeUniforms(), floating: true } as never);
-  assert.equal(m.toon.polygonOffset, true, 'a floating shape\'s fill is offset toward the eye, so it always wins over its own ink at one depth');
-  assert.ok(m.toon.polygonOffsetFactor < 0 && m.toon.polygonOffsetUnits < 0);
-  const ground = microMaterials({ value: new Vector2(1, 1) }, { value: 1 } as never, { haze: hazeUniforms() } as never);
-  assert.equal(ground.toon.polygonOffset, false, 'a surface other lines lie on is never offset (it sank the nuclei\'s and the central vein\'s lines, eyes 20 Nov)');
+  const m = microMaterials({ value: new Vector2(1, 1) }, { value: 1 } as never, { haze: hazeUniforms() } as never);
+  assert.equal(m.ink!.polygonOffset, true, 'the line wins over any surface at its own depth (one rule for every outline)');
+  assert.ok(m.ink!.polygonOffsetFactor < 0 && m.ink!.polygonOffsetFactor >= -1 && m.ink!.polygonOffsetUnits < 0, 'a hair toward the eye, never across a face toward the viewer');
+  assert.equal(m.toon.polygonOffset, false, 'no shape is offset');
   assert.match(MICRO_INK_FS, /uHole > 0\.0 && length\(vXY\) < uHole\) discard/, 'the ink is cut by the same hole as its shape');
   assert.equal(m.ink!.uniforms.uHole, m.toon.uniforms.uHole, 'one hole for the shape and its line');
   assert.ok(CEL_STYLE.MICRO.LINE >= 1.25 && CEL_STYLE.MICRO.LINE <= 2 && CEL_STYLE.MICRO.LINE_SMALL <= 1, 'a confident line round big bodies, a hairline round fine things (Mohammad 20 Nov: "too much")');
