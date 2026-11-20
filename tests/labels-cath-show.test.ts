@@ -114,17 +114,18 @@ test('the camera moving fades every card out where it stands; a result that has 
   assert.ok(s.alpha > 0 && s.lead === 1 && s.calcAlpha === 1 && s.row[0].dx === 0, 'back whole, nothing replays');
 });
 
-test('a card that must move fades out where it stands and comes in at its new place (it never slides)', () => {
+test('a card that must flip to the other side fades out where it stands and comes in there; one that only moves glides (it never slides across a fade)', () => {
   const show = new CathShow();
   show.solve(base); run(show, 600);
   const was = show.frame.pills[0];
-  show.solve({ ...base, tip: [600, 120], blockers: [] }); // the point moved: the card's place does
+  show.solve({ ...base, tip: [600, 70], blockers: [] }); // the point went under the band's top: its card cannot stand above it any more, so it flips below
   show.step(16, false);
   const during = show.frame.pills[0];
-  assert.ok(!during || (during.x === was.x && during.y === was.y && during.alpha < 1), 'still at the old place, fading');
+  assert.ok(!during || (during.dir === was.dir && during.alpha < 1), 'still the old card (riding its point), fading');
   run(show, 1200);
   const now = show.frame.pills[0];
-  assert.ok(now && now.alpha === 1 && now.y !== was.y);
+  assert.ok(now && now.alpha === 1 && now.dir !== was.dir);
+  // (a move that keeps its side is the steady-card test's: cath-cards-steady.test.ts)
 });
 
 test('the stylesheet and the layer carry the 2D card: one glass shape, hairline, the tones, no opacity on the card', () => {

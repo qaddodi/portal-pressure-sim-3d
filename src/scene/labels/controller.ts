@@ -459,8 +459,13 @@ export class LabelController {
     const pr = this.state.proc, got = pr ? (pr.points(this.cTip, this.cAhead) ? 2 : 0) : d.cathere(this.cTip, this.cAhead);
     const tipPx = got ? d.project(this.cTip, { x: 0, y: 0 }) : null, aheadPx = got ? d.project(this.cAhead, { x: 0, y: 0 }) : null;
     const nowTip: [number, number] | null = tipPx ? [tipPx.x, tipPx.y] : null, nowAhead: [number, number] | null = aheadPx ? [aheadPx.x, aheadPx.y] : null;
-    const movedPt = (a: [number, number] | null, b: [number, number] | null) => (a === null) !== (b === null) || (!!a && !!b && (Math.abs(a[0] - b[0]) > 0.35 || Math.abs(a[1] - b[1]) > 0.35));
-    if (movedPt(nowTip, this.cTipPx) || movedPt(nowAhead, this.cAheadPx) || got !== this.cGot) moved = true;
+    // The same two rules as for every dot above: a point that jumped (a cut: it appeared, vanished or leapt) hides the cards until the picture is still; a point that moved by a little (a tilt, the
+    // camera following the tip, the scope bending) is CARRIED: the cards ride it (`show.ride`, below) and are placed again at rest. This was `moved` for any 0.35 px, so a tilt or a follow made every
+    // card fade out and come back, over and over (Mohammad, 20 Nov: the FHVP, WHVP, HVPG and EUS-PPG callouts "keep flashing in and out of existence").
+    const cutPt = (a: [number, number] | null, b: [number, number] | null) => (a === null) !== (b === null) || (!!a && !!b && Math.hypot(a[0] - b[0], a[1] - b[1]) > FOLLOW_JUMP);
+    const slidPt = (a: [number, number] | null, b: [number, number] | null) => !!a && !!b && (Math.abs(a[0] - b[0]) > 0.35 || Math.abs(a[1] - b[1]) > 0.35);
+    if (cutPt(nowTip, this.cTipPx) || cutPt(nowAhead, this.cAheadPx) || got !== this.cGot) moved = true;
+    else if (slidPt(nowTip, this.cTipPx) || slidPt(nowAhead, this.cAheadPx)) following = true;
     this.cTipPx = nowTip; this.cAheadPx = nowAhead; this.cGot = got;
     // A picture that moved places its labels again once it is still: the solve judges screen positions (cards, other labels, the vessels' lines), and none of them is in the signature below. Without
     // this a solve made while the camera stood somewhere else (the dive's far end, where every dot is off the screen and nothing can be placed) was kept for ever after the camera came back, and every
@@ -493,6 +498,7 @@ export class LabelController {
 
     // 3. fades (the catheter's cards have their own: the 2D app's timings)
     this.show.setText(this.cathText());
+    this.show.ride(this.cTipPx, this.cAheadPx);
     const busy = this.fader.step(dt, this.wants, hold) || this.show.step(dt, hold);
 
     // 4. what to draw: each shown label at its spot, following its dot
