@@ -9,9 +9,11 @@ const Z = new Vector3(0, 0, 1), X = new Vector3(1, 0, 0);
 
 export const makeRings = (n: number): Ring[] => Array.from({ length: n }, () => ({ c: new Vector3(), t: new Vector3(1, 0, 0), r: 0 }));
 
+/** (A geometry built here is marked `userData.ringTube`: a device object wears the vessels' screen-lit three tones on it, DeviceObject.) */
 /** Allocates the geometry for `n` rings with `radial` vertices round each. */
 export function allocTube(n: number, radial: number): BufferGeometry {
   const g = new BufferGeometry(), v = n * (radial + 1);
+  g.userData.ringTube = true;
   g.setAttribute('position', new BufferAttribute(new Float32Array(v * 3), 3));
   g.setAttribute('normal', new BufferAttribute(new Float32Array(v * 3), 3));
   g.setAttribute('tang', new BufferAttribute(new Float32Array(v * 3), 3));
@@ -68,6 +70,7 @@ export function mergeTubes(paths: readonly (readonly Ring[])[], radial: number):
   let vTotal = 0, iTotal = 0;
   for (const g of parts) { vTotal += g.getAttribute('position').count; iTotal += g.index!.count; }
   const out = new BufferGeometry();
+  out.userData.ringTube = true;
   const attr = (name: string, size: number) => { const a = new Float32Array(vTotal * size); out.setAttribute(name, new BufferAttribute(a, size)); return a; };
   const P = attr('position', 3), N = attr('normal', 3), T = attr('tang', 3), U = attr('uv', 2), I = new Uint32Array(iTotal);
   let vo = 0, io = 0;

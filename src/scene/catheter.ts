@@ -38,7 +38,7 @@ export class Catheter {
     const t = buildTube(CATHETER_ROUTE.map((p) => new Vector3(...p)), CATHETER_RADIUS, false);
     this.curve = t.curve;
     this.length = t.length;
-    this.shaft = new CelObject(t.geometry, { tone: 'cath', bands: 2, spec: 1, px: 0.9 }, shared);
+    this.shaft = new CelObject(t.geometry, { tone: 'cath', bands: 2, spec: 1, px: 0.9, tubeTones: true }, shared);
     this.tip = new CelObject(new SphereGeometry(CATHETER_RADIUS, 12, 8), { tone: 'cath', bands: 2, spec: 1, px: 0.9 }, shared);
     this.balloonObj = new CelObject(blob(...BALLOON_RADII, 0, 0, 20), { tone: 'balloon', bands: 2, spec: 1, px: 1.1 }, shared);
     this.group.add(this.shaft.group, this.tip.group, this.balloonObj.group);
