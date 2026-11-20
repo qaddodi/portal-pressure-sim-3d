@@ -14,9 +14,8 @@
 // `skin-build` is the name the scene gives the clock for the frames this asks for (?perf lists it among the askers), and `stats` keeps the cost of the last and the worst rebuild.
 import type { BufferGeometry, Object3D } from 'three';
 import { NETWORK_BY_ID } from '../network.ts';
-import { REST, coursesOf, tubularOf, type ShapeState } from '../shape.ts';
+import { REST, type ShapeState } from '../shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
-import { slicesFor } from '../../circuit/geometry.ts';
 import { attachNear, wallJunctions, wallLandings } from './wall.ts';
 import { MIN_ARMS, dropFarGrowers, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
 import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
@@ -29,6 +28,7 @@ import type { VesselObject } from '../vessel-object.ts';
 import type { ArmAxis, ArmColour } from './skin-object.ts';
 import { SKIN_FIGURE_UNITS } from './shaders.ts';
 import { weldThrough } from './through.ts';
+import { armTube, strandCutU } from './braid-arm.ts';
 
 /** What the skin's drawing object offers the set (skin-object.ts is the real one; a test hands in a plain recorder). */
 export interface SkinDraw {
@@ -232,7 +232,7 @@ export class SkinSet {
     for (const j of js) for (const a of j.arms) {
       if (m.has(a.vesselId)) continue;
       const def = NETWORK_BY_ID.get(a.vesselId)!;
-      const b = buildTubes(coursesOf(def, this.deps.stateOf(a.vesselId) ?? REST), tubularOf(def, slicesFor(a.vesselId)), def.radius);
+      const at = armTube(def, this.deps.stateOf(a.vesselId) ?? REST), b = buildTubes(at.courses, at.tubular, def.radius);   // (a braid's arm tube is its widest strand: braid-arm.ts)
       m.set(a.vesselId, { geometry: b.geometry, tubular: b.runs[0]!.tubular });
     }
     return m;
@@ -364,7 +364,8 @@ export class SkinSet {
     for (const a of b.arms) {
       if (b.holes.some((h) => h.id === a.id)) continue;   // (both sides of this host are arms of the skin: a hole, the host's own ends stay as they are)
       const c = this.cuts.get(a.id) ?? [SKIN_CUT_NONE[0], SKIN_CUT_NONE[1]];
-      if (a.end === 0) c[0] = a.u; else c[1] = a.u;
+      const cu = strandCutU(NETWORK_BY_ID.get(a.id)!, this.deps.stateOf(a.id) ?? REST, a.end, a.u);   // (a braid's strands are cut at the seam's distance on the longest of them)
+      if (a.end === 0) c[0] = cu; else c[1] = cu;
       this.cuts.set(a.id, c);
       const e = this.ends.get(a.id) ?? [false, false]; e[a.end] = true; this.ends.set(a.id, e);
       touched.push(a.id);

@@ -4,6 +4,7 @@ import { NETWORK, NETWORK_BY_ID, cutEnd, type NetVessel } from '../network.ts';
 import { REST, coursesOf, type ShapeState } from '../shape.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../join-mode.ts';
 import { indexOf } from '../../../engine/vessel-data.ts';
+import { braidRootEnds } from './braid-arm.ts';
 import { SKIN_GROWERS, type SkinArm, type SkinJunction, type Vec3 } from './types.ts';
 
 /** The kinds of vessel that are permanent (spec 4.1): a skin is built only where these meet. Collaterals and shunts grow from nothing and keep the fork method (`nbr`, `bury`); feeders are strands of a host. */
@@ -39,12 +40,14 @@ export function permanentEndsByNode(network: readonly NetVessel[]): Map<string, 
   return at;
 }
 
-/** The ends of the growing vessels at each node, the widest first (ties keep the network's order). */
-export function growerEndsByNode(network: readonly NetVessel[]): Map<string, { v: NetVessel; end: 0 | 1 }[]> {
+/** The ends of the growing vessels at each node, the widest first (ties keep the network's order). With `braids` the root ends of the braided collaterals (braid-arm.ts: the ends where their strands leave the node as ONE bundle) are growing arms too, the body's skins' only:
+ *  the Circuit draws a braid as its own course and keeps them out. */
+export function growerEndsByNode(network: readonly NetVessel[], braids = false): Map<string, { v: NetVessel; end: 0 | 1 }[]> {
   const at = new Map<string, { v: NetVessel; end: 0 | 1 }[]>();
   for (const v of network) {
-    if (!isGrower(v)) continue;
-    for (const [node, end] of [[v.from, 0], [v.to, 1]] as const) { const a = at.get(node) ?? []; a.push({ v, end }); at.set(node, a); }
+    const roots = braids && !v.feeder && !v.id.includes('~F') && GROWER_KINDS.has(v.kind) ? braidRootEnds(v) : [];
+    if (!isGrower(v) && !roots.length) continue;
+    for (const [node, end] of [[v.from, 0], [v.to, 1]] as const) { if (!isGrower(v) && !roots.includes(end)) continue; const a = at.get(node) ?? []; a.push({ v, end }); at.set(node, a); }
   }
   for (const [n, a] of at) at.set(n, a.map((e, i) => ({ e, i })).sort((x, y) => y.e.v.radius - x.e.v.radius || x.i - y.i).map((x) => x.e));
   return at;
@@ -132,7 +135,7 @@ function hostSides(arms: SkinArm[], pts: readonly (readonly Vec3[])[], J: Vec3):
  */
 export function findSkinJunctions(network: readonly NetVessel[] = NETWORK, state: ShapeState = REST): SkinJunction[] {
   const out: SkinJunction[] = [];
-  const growers = growerEndsByNode(network), byId = new Map(network.map((v) => [v.id, v]));
+  const growers = growerEndsByNode(network, true), byId = new Map(network.map((v) => [v.id, v]));
   const armOf = ({ v, end }: { v: NetVessel; end: 0 | 1 }, grow: boolean): SkinArm => ({
     vesselId: v.id, end, courseIndex: 0, dataIndex: indexOf(v.lensId), lensIndex: indexOf(v.lensId), baseD: v.baseD, widthKind: v.widthKind, restR: v.radius, ...(grow ? { grow: true } : {}),
   });

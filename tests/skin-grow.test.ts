@@ -26,14 +26,17 @@ const on = <T>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(t
 const GROWERS: Record<string, readonly string[]> = {
   SMV: ['S_MC:0', 'REX:0'], SVD: ['C6:0', 'S_DSR:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'],
   IVCI: ['S_PC:1', 'C9:0'], IVC_D: ['DIPS:1'], LRV_S: ['C6:1', 'S_DSR:1'], LRV: ['C5:1'], EPI: ['C3:1'],
+  // (the braids' roots where the strands leave the node as one bundle, braid-arm.ts, tests/skin-strands.test.ts)
+  SV: ['C2:0'], IMV: ['C4:0'], SMV_R: ['C7:0'],
 };
-/** The collaterals drawn as BRAIDS of strands (plan.strands): no tube of their own, three or six strands that part from the node and each end at the trunk's width, so at the node they are a bundle of identical overlapping tubes, not a branch. They keep today's fork method. */
+/** The collaterals drawn as BRAIDS of strands (plan.strands): no tube of their own, three or six strands that part from the node and each end at the trunk's width, so at the node they are a bundle of identical overlapping tubes, not a branch. The ends where the strands leave the node as ONE bundle are arms of its skin (braid-arm.ts); the others keep today's fork method (tests/skin-strands.test.ts names both). */
 const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 /** The growing arms a skin could not take on the real network (`node:vessel`), each for a reason a person can read: a landing on a host's wall (GROW_REACH), or an arm that runs along another (the surface cannot clear the blend: PVH's DIPS lies 12 degrees from PVH_R, SVD's S_DSR and LRV_S's S_DSR run along C6). */
 // (RHV_T:TIPS: the hepatic vein's run-on RHV_T lies on the piece RHV_IVC that the cava's IVCS skin takes 15 of 20 rings of, so the two skins crowd; they cannot merge (the hull refuses the seven rings), and the cava's weld is the one kept (Mohammad, 20 Nov: "did you weld the hepatic veins into the IVC?"). TIPS keeps the fork method at that end.)
 // (21 Nov: RPV_T keeps its TIPS arm beside the right portal vein's second branch: the planner no longer asks the hull rule of a junction with a liver branch. LRV_S:S_DSR stays dropped: the sheet started on the surface is the liver forks' rung only, a pair of growers that run along one another has no closed shape on the trunk, tests/skin-closed-footprint.test.ts)
+// (IMV:C4: the varices' strands leave the inferior mesenteric vein's end 25 degrees from its run-on V_COL, a grower along a permanent arm: the closed footprint folds, as PVH's DIPS and the S_DSR pair, braid-arm.ts, tests/skin-strands.test.ts)
 // (the `wall:` entries are the landings on a host's wall that keep the fork method, wall.ts, tests/skin-wall.test.ts: each is named, none is silent)
-const DROPPED = ['EPI:C3', 'IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'LRV_S:S_DSR', 'PVH:DIPS', 'RHV_T:TIPS', 'SVD:S_DSR',
+const DROPPED = ['EPI:C3', 'IMV:C4', 'IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'LRV_S:S_DSR', 'PVH:DIPS', 'RHV_T:TIPS', 'SVD:S_DSR',
   'wall:AZY_SVC:C9', 'wall:IVC_IS:DIPS1:DIPS', 'wall:IVC_IS_1:C9', 'wall:IVC_IS_1:S_PC1:S_PC', 'wall:PVH_L_1:REX1:REX'];
 
 const armKey = (a: { vesselId: string; end: number }) => `${a.vesselId}:${a.end}`;
@@ -51,13 +54,13 @@ test('the growing arms are the single-tube collaterals and shunts, pinned by nod
       for (let i = 1; i < g.length; i++) assert.ok(g[i - 1]!.restR >= g[i]!.restR, `${j.node}: growing arms widest first`);
       for (const a of j.arms) {
         const v = NETWORK_BY_ID.get(a.vesselId)!;
-        if (a.grow) assert.ok(isGrower(v) && GROWER_KINDS.has(v.kind) && !isPermanent(v) && !BRAIDS.includes(v.id), `${a.vesselId} is a growing arm`);
+        if (a.grow) assert.ok((isGrower(v) || BRAIDS.includes(v.id)) && GROWER_KINDS.has(v.kind) && !isPermanent(v), `${a.vesselId} is a growing arm (a one-tube grower or a braid's bundle root)`);
         else assert.ok(isPermanent(v) || isLiverBranch(v), `${a.vesselId} is a permanent arm (or a liver branch that leaves its host at the node)`);
       }
       // J is the widest PERMANENT arm's end, whatever the growing arms are
       assert.ok(!j.arms[0]!.grow, j.node);
     }
-    for (const id of BRAIDS) { const v = NETWORK_BY_ID.get(id)!; assert.ok(v.kind === 'collateral' && !isGrower(v), `${id} stays on the fork method`); assert.ok(v.plan?.kind === 'coil' && v.plan.strands, `${id} is a braid`); }
+    for (const id of BRAIDS) { const v = NETWORK_BY_ID.get(id)!; assert.ok(v.kind === 'collateral' && !isGrower(v), `${id} is no one-tube grower (a braid's bundle root is an arm by braid-arm.ts, tests/skin-strands.test.ts)`); assert.ok(v.plan?.kind === 'coil' && v.plan.strands, `${id} is a braid`); }
     // every single-tube collateral and shunt of the network that ends on a node of permanent vessels is accounted for: an arm, or one of the named braids, or a node with no permanent pair at all (LGV, VAR, GV: collateral meets collateral)
     const seen = new Set(js.flatMap((j) => j.arms.filter((a) => a.grow).map((a) => a.vesselId)));
     for (const v of NETWORK) if (!v.feeder && (v.kind === 'collateral' || v.kind === 'shunt') && !BRAIDS.includes(v.id)) assert.ok(seen.has(v.id) || ['C1b', 'C3'].includes(v.id), `${v.id} is a growing arm somewhere`);
