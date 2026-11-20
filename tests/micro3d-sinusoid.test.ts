@@ -21,11 +21,11 @@ function scene() {
   return { flat, s3 };
 }
 
-test('the 3D sinusoid builds every part, finite, and stands in for the flat drawing while on', () => {
+test('the 3D sinusoid builds every part, finite: it is the only picture of the sinusoid', () => {
   const { flat, s3 } = scene();
   assert.equal(s3.update(true), true);
   assert.equal(s3.group.visible, true);
-  assert.equal(flat.tissue.visible, false); assert.equal(flat.cells.visible, false); assert.equal(flat.sprites.visible, false);
+  assert.ok(!meshes(flat.group).some((m) => !m.name.startsWith('sinusoid3d/')), 'the host draws nothing of its own');
   const ms = meshes(s3.group);
   let verts = 0;
   for (const m of ms) { assert.ok(finite(m.geometry), `${m.name} has no NaN`); verts += m.geometry.getAttribute('position')?.count ?? 0; }
@@ -36,11 +36,10 @@ test('the 3D sinusoid builds every part, finite, and stands in for the flat draw
   assert.ok(verts < 320_000, `a phone draws it: ${verts} vertices`);   // (two sinusoids and plates beyond each side now, the outer ones coarser)
 });
 
-test('off: the flat view draws again and the 3D scene is hidden', () => {
-  const { flat, s3 } = scene();
+test('off (tests only): the 3D scene is hidden', () => {
+  const { s3 } = scene();
   s3.update(true); s3.update(false);
   assert.equal(s3.group.visible, false);
-  assert.equal(flat.tissue.visible, true);
 });
 
 test('a hepatocyte keeps to 2D\'s plate: between the Disse face and 20 µm in, with its cleft taken off', () => {
@@ -215,7 +214,7 @@ test('the Kupffer cell sits on bare lining, never on top of an endothelial cell,
   for (const sd of [SEED.nucUp, SEED.nucDn]) for (let n = -8; n <= 8; n++) assert.ok(nucAt(n + 1, sd) - nucAt(n, sd) > 2 * 4.6, 'neighbouring endothelial cells never overlap');
 });
 
-test('two more sinusoids and plates lie beyond the main plates each way, and the blur starts only past the first hepatocyte row and grows gradually', async () => {
+test('two more sinusoids and plates lie beyond the main plates each way, and the blur starts at the middle of the first hepatocyte row and grows gradually', async () => {
   const { BEYOND, PERIOD, ACROSS } = await import('../src/scene/micro3d/sinusoid3d.ts');
   assert.equal(BEYOND, 2);
   assert.ok(ACROSS >= UM.lum + UM.endo + UM.disse + UM.hep + 2 * PERIOD, 'the ground reaches past the last plate');
@@ -230,6 +229,6 @@ test('two more sinusoids and plates lie beyond the main plates each way, and the
   s3.focusBand(a, b, e0, e1);
   const inv = new Matrix4().copy(s3.group.matrixWorld).invert();
   const y0 = Math.abs(e0.clone().applyMatrix4(inv).y), y1 = Math.abs(e1.clone().applyMatrix4(inv).y);
-  assert.ok(Math.abs(y0 - (G.hepIn(0) + UM.hep)) < 1e-6, 'sharp through the whole first hepatocyte row');
+  assert.ok(Math.abs(y0 - (G.hepIn(0) + UM.hep * 0.5)) < 1e-6, 'sharp to the middle of the first hepatocyte row, then it begins');
   assert.ok(y1 - y0 > PERIOD, `then gradual, over more than a whole repeat (${(y1 - y0).toFixed(0)} µm)`);
 });

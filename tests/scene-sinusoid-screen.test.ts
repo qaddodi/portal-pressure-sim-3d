@@ -7,10 +7,8 @@ import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { endsFor, measureScreen } from '../src/scene/sinusoid/portrait.ts';
 import { FACE_UM, legendOn } from '../src/scene/sinusoid/legend.ts';
-import type { Vector4 } from 'three';
 
 const run = (v: SinusoidView, ms: number) => { for (let t = 0; t <= ms; t += 16) v.update(t); };
-const uEnd = (v: SinusoidView) => (v.tissue.material as unknown as { uniforms: Record<string, { value: Vector4 }> }).uniforms.uEnd!.value;
 
 test('measureScreen: pixels per µm and where the room\'s middle is along the flow, whichever way the flow runs on the screen', () => {
   // wide: 10 µm along is 86 px to the right; the room's middle is 40 px right of the sinusoid's
@@ -31,14 +29,14 @@ test('the arrows stand 32 px inside the room\'s ends about the room\'s middle, n
   assert.ok(Math.abs(a2 - (a + 40 / k)) < 1e-9 && Math.abs(b2 - (b + 40 / k)) < 1e-9);
   const v = new SinusoidView(createShared()); v.setVisible(true);
   v.setScreen(k, 800, 800, 40 / k); run(v, 64);
-  const e = uEnd(v);
-  assert.ok(Math.abs(e.x - a2) < 1e-6 && Math.abs(e.y - b2) < 1e-6, `uEnd ${e.x}, ${e.y}`);
+  const e = v.ends;
+  assert.ok(Math.abs(e[0] - a2) < 1e-6 && Math.abs(e[1] - b2) < 1e-6, `ends ${e[0]}, ${e[1]}`);
 });
 
 test('the traffic runs over the stretch really on screen: centred where the screen is, a little past each end, so the same dots show as 2D\'s', () => {
   const dots = (k: number, centre: number) => {
     const v = new SinusoidView(createShared()); v.setVisible(true); v.setScreen(k, 800, 800, centre); run(v, 600);
-    return v.sprites.geometry.drawRange.count;
+    return v.spriteCount;
   };
   const near = dots(14, 0), real = dots(8.6, 0);
   assert.ok(real > near * 1.3, `more dots when more of the stretch is on screen (${real} against ${near})`);

@@ -1,4 +1,4 @@
-// The sinusoid's colours are 2D's tokens, in every look. The tissue shader's uniforms (cBg, the endothelium's four tones, the nucleus, the Kupffer and stellate cells, the bile, the
+// The sinusoid's colours are 2D's tokens, in every look. The host's palette (cBg, the endothelium's four tones, the nucleus, the Kupffer and stellate cells, the bile, the
 // red cell, the end arrows' ink) are read from the 2D app's styles/tokens.css at the pin, with its look cascade (a look's own block over the base: Soft over Light, Navy and Black
 // over Dark), and compared with what SinusoidView writes for that look. A colour that comes out black or from the wrong look (a token the 3D table lacked) fails here, not in a
 // side-by-side picture: a 3D Light look beside 2D's Dark one reads as "pale cells, saturated lumen" without being a fault, so the numbers are what is compared.
@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import { pinned2D } from './two-d-pin.ts';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
-import { LOOK_IDS, type LookId } from '../src/looks/looks.ts';
+import { LOOKS, LOOK_IDS, type LookId } from '../src/looks/looks.ts';
 
 const TWO_D = pinned2D('styles/tokens.css');
 
@@ -52,11 +52,12 @@ test('every look writes 2D\'s own sinusoid tokens, through the look cascade of t
   let checked = 0;
   for (const look of LOOK_IDS) {
     const v = new SinusoidView(createShared(), { look }); v.setVisible(true); for (let t = 0; t <= 400; t += 16) v.update(t);
-    const uni = (v.tissue.material as unknown as { uniforms: Record<string, { value: { toArray(): number[] } }> }).uniforms;
+    const pal = v.colours(LOOKS[look].scheme === 'dark') as Record<string, number[]>;
     for (const [u, tok] of Object.entries(direct)) {
       const want = tokens[look][tok] ?? tokens[look][tok === '--stage-bg' ? '--bg' : tok];
       if (!want || !HEX.test(want)) continue;   // (a token 2D gives as rgba() or a var(): not a plain colour to compare)
-      const got = uni[u]!.value.toArray().slice(0, 3).map((x) => Math.round(x * 255));
+      if (!Array.isArray(pal[u])) continue;
+      const got = pal[u]!.slice(0, 3).map((x) => Math.round(x * 255));
       const w = rgbOf(want);
       const near = got.every((g, k) => Math.abs(g - w[k]!) <= 1);
       // --text is the look's own in 3D (looks.ts) and may differ a little from 2D's CSS: only a black or page-coloured ink is a fault
@@ -66,19 +67,4 @@ test('every look writes 2D\'s own sinusoid tokens, through the look cascade of t
     }
   }
   assert.ok(checked > 40, `compared ${checked} colours`);
-});
-
-test('at rest on the Healthy state every detail pass is fully on: the microvilli, the cells\' membranes and nuclei, the focus (uDet 1, uMv 1, uFocus 1, uAll 1)', async () => {
-  const { sinusoidTargets } = await import('../src/scene/lobule/model.ts');
-  void sinusoidTargets;
-  for (const look of LOOK_IDS) {
-    const v = new SinusoidView(createShared(), { look }); v.setVisible(true); for (let t = 0; t <= 600; t += 16) v.update(t);
-    const u = (v.tissue.material as unknown as { uniforms: Record<string, { value: unknown }> }).uniforms;
-    const det = u.uDet!.value as { x: number; y: number };
-    assert.equal(det.x, 1, `${look}: the detail amount is whole at rest`);
-    assert.ok(det.y >= 1e5, `${look}: the detail reaches the whole stretch`);
-    assert.equal(u.uMv!.value, 1, `${look}: the microvilli stand at their healthy length`);
-    assert.equal(u.uFocus!.value, 1, `${look}: the focus fade is whole`);
-    assert.equal(u.uAll!.value, 1, `${look}: shown everywhere`);
-  }
 });
