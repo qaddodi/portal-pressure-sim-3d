@@ -81,7 +81,7 @@ export interface Solved {
 export const LEAD_ON = 12;
 export const AIR_BLOCKER = 6;
 export const AIR_LABEL = 4;
-export const DOT_ROOM = 14;
+export const DOT_ROOM = 40;
 export const VIEW_INSET = 8;
 const SLIDE_INSET = 18;
 const SHORT_LEAD = 45, LONG_LEAD = 140;

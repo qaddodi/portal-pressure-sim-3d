@@ -6,6 +6,7 @@ import { CameraRig } from '../src/scene/camera/rig.ts';
 import { SHOTS } from '../src/scene/camera/shots.ts';
 import { lobuleShot, sinusoidShot } from '../src/scene/lobule/shots.ts';
 import { LabelController, NO_STATE, type LabelDeps } from '../src/scene/labels/controller.ts';
+import { DOT_ROOM } from '../src/scene/labels/solver.ts';
 
 const vp = { w: 1280, h: 800, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
 const room = { x: 0, y: 0, w: 1280, h: 800 };
@@ -57,4 +58,14 @@ test('the names come back when a card that came in during the dive is still up o
   w.go(sinusoidShot()); w.cards.push({ x0: 900, y0: 80, x1: 1270, y1: 400 }); w.run(3000);   // the card opens with the sinusoid, the labels are asked to place themselves there
   w.go('play'); w.run(3000);                                                                // and it is still up when the camera is back
   assert.ok(shown(w.ctl) >= before - 1, `the names stand again (${shown(w.ctl)} of ${before})`);
+});
+
+test('the Portal vein and Lower IVC dots stand apart in free play, so the Portal vein callout stays beside its trunk on the liver side (Mac play-test, 19 Nov: it stood inside the stomach)', () => {
+  const w = world();
+  w.run(1500);
+  const dots = w.ctl.out.filter((d) => d.dot).map((d) => ({ id: d.id, ...d.dot!, box: d }));
+  const at = (id: string) => dots.find((d) => d.id === id)!;
+  assert.ok(Math.hypot(at('CONF').x - at('IVCI').x, at('CONF').y - at('IVCI').y) >= DOT_ROOM - 1, 'the Portal vein and Lower IVC dots stand apart');
+  const conf = dots.find((d) => d.id === 'CONF')!;
+  assert.ok(conf.box.x + conf.box.w <= conf.x + 4, 'the Portal vein callout stands left of its dot, over the liver, not east of it toward the stomach');
 });
