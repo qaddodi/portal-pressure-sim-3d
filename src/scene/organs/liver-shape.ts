@@ -4,6 +4,11 @@
 import { CIRR, liverField, liverSurface } from '../disease/copied/liver-morph.js';
 import { NODULE_SIZE } from '../disease/copied/liver-geo.js';
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
+import { flagValue } from '../../ui/debug/flags.ts';
+import { LIVER_LOOKS, lookBump, type LiverLook } from './liver-texture.ts';
+
+/** The liver look the address asks for (?liver=a|b|c|d, preview copy), or null: the old per-vertex surface. */
+export const liverLook = (): LiverLook | null => { const v = flagValue('liver'); return (LIVER_LOOKS as readonly string[]).includes(v ?? '') ? (v as LiverLook) : null; };
 
 /** Nodule bump height at full strength, scene units (the 2D nodules stand out about 2 to 3 units: 0.01). */
 export const NODULE_HEIGHT = 0.011;
@@ -23,11 +28,13 @@ export function cellEdge(x: number, y: number): number {
 }
 /** The nodule bump (0..1) at a point of the 2D plane: 1 at the middle of a cell, 0 in the septum between cells. */
 export function noduleBump(x: number, y: number): number {
+  const look = liverLook(); if (look) return lookBump(look, x, y);
   const u = Math.min(1, cellEdge(x, y) / 0.55);
   return u * u * (3 - 2 * u);
 }
 /** The pale fibrous septum (0..1): 1 on the wall between two nodules, a thin line (about 4 px across) that is 0 a little way inside a nodule. */
 export function septumAt(x: number, y: number): number {
+  if (liverLook()) return 0;   // the look's septum is drawn per pixel (liver-texture.ts)
   const u = Math.min(1, Math.max(0, (cellEdge(x, y) - 0.04) / 0.16));
   return 1 - u * u * (3 - 2 * u);
 }

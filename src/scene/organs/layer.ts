@@ -2,7 +2,7 @@
 // as the 2D figure does it (stage-diaphragm.js updateOrgans): the liver's shape (cirrhosis) and dusk (congestion), a scale of the spleen with the model's size, a ghost of
 // a removed spleen, the grey of a lens other than Pressure, blood in the stomach. Meshes come from meshes.ts (the organs thread) in the shared frame; this file never
 // builds one. Everything moves on the clock: `update(now)` returns true while something eases, and nothing is touched when nothing moves.
-import { BackSide, type BufferGeometry, BufferAttribute, Color, Float32BufferAttribute, Group, Mesh, type Raycaster, ShaderMaterial, Vector3, Vector4 } from 'three';
+import { BackSide, type BufferGeometry, BufferAttribute, Color, DataTexture, Float32BufferAttribute, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, type Raycaster, ShaderMaterial, Vector2, Vector3, Vector4 } from 'three';
 import { PICK_OF } from './pick.ts';
 import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from './organ-shader.ts';
 import type { OrganTones2D } from '../../looks/organ-tones.copied.ts';
@@ -18,8 +18,9 @@ import { PLAIN, type OrganState, organColour, organInk, mix, rgbOf, type RGB } f
 import { PAINTED, VertexPaint } from './vertex-paint.ts';
 import { lumenSurface } from '../disease/copied/stomach-lumen.js';
 import { POOL_SHARE } from '../disease/copied/bleed-shapes.js';
-import { LiverShape } from './liver-shape.ts';
-import { x3, y3 } from '../frame2d.ts';
+import { LiverShape, liverLook } from './liver-shape.ts';
+import { bake, lookShade, lookTone, TEX_H, TEX_PH, TEX_PW, TEX_W, TEX_X0, TEX_Y0 } from './liver-texture.ts';
+import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import { bakeOrganDepth } from './organ-depth.ts';
 import { OrganArt } from './organ-art.ts';
 import { smoothRestNormals } from './normal-smooth.ts';
@@ -56,6 +57,10 @@ export const ORGAN_ORDER = ['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach'
 /** The dive's cutaway window, one for every organ (scene.ts writes it each frame from the camera's distance to the place dived to; camera/dive.ts cutUniform). Nothing cleared at rest. */
 export const ORGAN_CUT: { value: Vector4 } = { value: new Vector4(0, 0, -1, 1) };
 
+/** The 1x1 texture an organ with no liver look samples (its nodAmt is 0, so it is never read). */
+const NO_TEX = new DataTexture(new Uint8Array([0, 0, 128, 255]), 1, 1);
+NO_TEX.needsUpdate = true;
+
 function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { value: number }): ShaderMaterial | null {
   if (!g.boundingBox) g.computeBoundingBox();
   const b = g.boundingBox!;
@@ -66,6 +71,7 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
     ogLight: { value: new Vector4() }, ogDark: { value: new Vector4() }, volShade: { value: new Vector4() },
     volLight: { value: new Vector4() }, volGeo: { value: new Vector4() }, volShadeAt: { value: 0.8 }, shadeSteps: { value: new Vector3() }, rimK: { value: 0.58 },
     box: { value: new Vector4(b.min.x, b.max.y, b.max.x - b.min.x, b.max.y - b.min.y) },
+    nodTex: { value: NO_TEX }, nodAmt: { value: 0 }, sepDelta: { value: new Vector3() }, nodK: { value: new Vector2() },
   });
   m.transparent = true; m.depthWrite = true;
   m.needsUpdate = true;
@@ -124,6 +130,7 @@ export class OrganLayer {
   /** 2D's art on the organs (the bowel's loops, the colon's haustra, the stomach's rugae) and the esophagus's fade: organ-art.ts */
   private readonly art = new OrganArt();
   private liverShape: LiverShape | null = null;
+  private nodLook = false;
   private liverGeometry: BufferGeometry | null = null;
   private lastClock = -1;
   private dirtyColours = true;
@@ -156,6 +163,11 @@ export class OrganLayer {
       g.setAttribute('depthAo', new BufferAttribute(baked[id]!, 1, true));
       // the outline is pushed out along the mesh's SMOOTHED normal: the mesh's own normals jag along a coarse rim, and the hull's edge with them (a sawtooth halo)
       g.setAttribute('hullN', new Float32BufferAttribute(smoothRestNormals(g.getAttribute('position').array, g.getAttribute('normal').array, g.index ? g.index.array : []), 3));
+      if (id === 'liver' && liverLook()) {   // the look's texture (liver-texture.ts): each vertex's place in it is its rest place in the 2D figure
+        const pos = g.getAttribute('position'), uv = new Float32Array(pos.count * 2);
+        for (let i = 0; i < pos.count; i++) { uv[i * 2] = (x2d(pos.getX(i)) - TEX_X0) / TEX_W; uv[i * 2 + 1] = (y2d(pos.getY(i)) - TEX_Y0) / TEX_H; }
+        g.setAttribute('restUV', new Float32BufferAttribute(uv, 2));
+      }
       if (PAINTED.has(id)) { if (!g.getAttribute('normal')) g.computeVertexNormals(); this.paints.set(id, new VertexPaint(g, id as 'liver' | 'spleen' | 'stomach')); }
       const o = new CelObject(g, { tone: st.tone, bands: 3, spec: 0, px: st.px }, this.shared);
       const seat = useOrganShader(o, g, id, this.uDepth);
@@ -165,6 +177,14 @@ export class OrganLayer {
       o.ink.uniforms.px!.value = ORGAN_STYLE[id]!.px;
       this.objects.push(o); this.byId.set(id, o); this.group.add(o.group);
       if (id === 'liver') {
+        const look = liverLook();
+        if (look) {
+          const tex = new DataTexture(bake(look), TEX_PW, TEX_PH);
+          tex.magFilter = LinearFilter; tex.minFilter = LinearMipmapLinearFilter; tex.generateMipmaps = true; tex.anisotropy = 4; tex.needsUpdate = true;
+          o.toon.uniforms.nodTex!.value = tex;
+          (o.toon.uniforms.nodK!.value as Vector2).set(lookShade(look), lookTone(look));
+          this.nodLook = true;
+        }
         this.liverGeometry = g;
         this.liverShape = new LiverShape(g.getAttribute('position') as never, g.getAttribute('normal').array);
       }
@@ -245,6 +265,12 @@ export class OrganLayer {
       if (!vp) continue;
       // what varies over the surface: the vertices carry it (an organ that has none of it shows its one colour)
       let on = false;
+      if (id === 'liver' && this.nodLook) {
+        // the look's septum is per pixel: the vertices carry the nodule colour only, the shader adds the wall (sepDelta) and the dome's light and tone (nodAmt)
+        const wall = organColour(base, { ...s, septum: 1 }, k);
+        (o.toon.uniforms.sepDelta!.value as Vector3).set(wall[0] - c[0], wall[1] - c[1], wall[2] - c[2]);
+        o.toon.uniforms.nodAmt!.value = s.cirrhosisNod;
+      }
       if (id === 'liver' && s.cirrhosisNod > 0.004) { vp.fillLiver(c, organColour(base, { ...s, septum: 1 }, k)); on = true; }
       else if (id === 'spleen' && this.infarct.value > 0.004) {
         const dead = organColour(base, { ...s, dead: 1 }, k);
