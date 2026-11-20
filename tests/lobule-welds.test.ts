@@ -106,8 +106,23 @@ test('two arms that meet at a shallow V are bent apart first, and then weld (the
   assert.ok(ang >= 30, `the arms leave ${ang.toFixed(1)} degrees apart`);
 });
 
+test('two junctions too close to be two skins (a T on a tube a few radii before its join to the next) are built as one, and nothing of the tube between them is drawn', () => {
+  const h = line('h', [-1, 0, 0.03], [0.3, 0, 0.03], 0.03), g = line('g', [0.3, 0, 0.03], [1.2, 0.5, 0.03], 0.03), c = line('c', [0.2, 0.7, 0.03], [0.2, 0, 0.03], 0.02);
+  const alone = planWelds([h, g, c], { merge: false }), plan2 = planWelds([h, g, c]);
+  assert.ok(plan2.skipped.length <= alone.skipped.length);
+  const merged = plan2.skins.filter((s) => s.node.includes('&'));
+  assert.ok(alone.skipped.length >= 1, 'alone, the second junction cannot be built beside the first');
+  assert.equal(merged.length, 1, `skipped alone: ${alone.skipped.map((x) => x.node).join(', ')}; merged: ${plan2.skipped.map((x) => x.why).join('; ')}`);
+  for (const m of merged) {
+    // the stretch of the host between the two touch points is inside the skin: no kept piece covers it
+    assert.ok(m.absorbed.length >= 1);
+    const hc = plan2.courses.get('h')!;
+    for (const r of m.absorbed) for (const pc of hc.pieces) assert.ok(pc.i1 <= r.from || pc.i0 >= r.to, `a piece ${pc.i0}-${pc.i1} of the tube runs through the absorbed ${r.from}-${r.to}`);
+  }
+});
+
 /** The junctions of the real Lobule that still keep today's round ends (the planner cannot weld them yet). This list only ever shrinks: a new fallback fails the test until someone looks. */
-const KNOWN_FALLBACKS = new Set(['T(an127.1>s058)', 'T(an134.1>s072)', 'T(s038.0>in20)', 'Y(bile1.0+bile2.0+bile3.0+bile4.0)', 'Y(bile11.0+bile12.0+bile13.0+bile14.0)', 'Y(bile26.0+bile27.0)', 'Y(bile28.0+bile29.0)', 'Y(bile31.0+bile32.0+bile33.0)', 'Y(bile36.0+bile37.0)', 'Y(bile38.0+bile39.0)', 'Y(bile48.0+bile49.0)', 'Y(bile53.0+bile54.0)', 'Y(bile58.0+bile59.0)', 'Y(bile6.0+bile7.0+bile8.0+bile9.0)', 'Y(in18.1+in21.1)', 'Y(in19.1+in28.1)', 'Y(in22.1+in25.1)', 'Y(in24.1+in27.1)', 'Y(s032.1+s033.1+s179.0)', 'Y(s044.1+s045.1+s185.0)', 'Y(s050.1+s051.1+s188.0)', 'Y(s056.1+s057.1+s191.0)', 'Y(s058.1+s059.1+s192.0)', 'Y(s064.1+s065.1+s195.0)', 'Y(s066.1+s067.1+s196.0)', 'Y(s072.1+s073.1+s199.0)', 'Y(s076.1+s077.1+s1101.0)', 'Y(s180.1+s181.1+s2103.0)', 'Y(s182.1+s183.1+s2104.0)']);
+const KNOWN_FALLBACKS = new Set(['Y(s032.1+s033.1+s179.0)', 'Y(s050.1+s051.1+s188.0)', 'Y(s056.1+s057.1+s191.0)', 'T(an127.1>s058)', 'T(an134.1>s072)', 'T(s038.0>in20)', 'Y(bile1.0+bile2.0+bile3.0+bile4.0)', 'Y(bile11.0+bile12.0+bile13.0+bile14.0)', 'Y(bile26.0+bile27.0)', 'Y(bile28.0+bile29.0)', 'Y(bile31.0+bile32.0+bile33.0)', 'Y(bile36.0+bile37.0)', 'Y(bile48.0+bile49.0)', 'Y(bile53.0+bile54.0)', 'Y(bile58.0+bile59.0)', 'Y(bile6.0+bile7.0+bile8.0+bile9.0)', 'Y(s058.1+s059.1+s192.0)', 'Y(s066.1+s067.1+s196.0)', 'Y(s072.1+s073.1+s199.0)', 'Y(s076.1+s077.1+s1101.0)', 'Y(s182.1+s183.1+s2104.0)', 'Y(s044.1+s045.1+s185.0)']);
 test('no junction of the real Lobule falls back that is not on the known list (the list only shrinks)', () => {
   const fresh = plan.skipped.filter((x) => !KNOWN_FALLBACKS.has(x.node));
   assert.deepEqual(fresh, [], `new fallbacks: ${fresh.map((x) => `${x.node} (${x.why})`).join('; ')}`);
