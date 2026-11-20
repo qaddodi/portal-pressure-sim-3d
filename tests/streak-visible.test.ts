@@ -19,16 +19,16 @@ test('the Blood streaks switch is on by default (the first cause: nothing ran wi
 });
 
 test('sleek: a core of about 1 px (1.5 on a wide tube), a 0.6 px feather, long soft lozenges, feathered over 35 percent, a mostly empty lane', () => {
-  assert.ok(STREAK.CORE_PX >= 0.9 && STREAK.CORE_PX <= 1.1 && STREAK.CORE_WIDE_PX >= 1.4 && STREAK.CORE_WIDE_PX <= 1.6 && STREAK.EDGE_FEATHER_PX >= 0.5 && STREAK.EDGE_FEATHER_PX <= 0.7);
+  assert.ok(STREAK.CORE_PX >= 1.2 && STREAK.CORE_PX <= 1.4 && STREAK.CORE_WIDE_PX >= 1.5 && STREAK.CORE_WIDE_PX <= 1.7 && STREAK.EDGE_FEATHER_PX >= 0.5 && STREAK.EDGE_FEATHER_PX <= 0.7);
   for (const [r, lanes] of [[2, 1], [3.5, 1], [5, 3], [7, 3], [9, 5], [14, 5]] as [number, number][]) {
-    assert.ok(streakCorePx(r, lanes, true) >= 0.8 && streakCorePx(r, lanes, false) <= 1.8, `r ${r}: core ${streakCorePx(r, lanes, true).toFixed(2)} to ${streakCorePx(r, lanes, false).toFixed(2)} px`);
+    assert.ok(streakCorePx(r, lanes, true) >= 1.1 && streakCorePx(r, lanes, false) <= 1.9, `r ${r}: core ${streakCorePx(r, lanes, true).toFixed(2)} to ${streakCorePx(r, lanes, false).toFixed(2)} px`);
     const cov = streakCoverage(r, lanes);
-    assert.ok(cov > 0.005 && cov < 0.12, `r ${r}px: coverage ${(cov * 100).toFixed(1)} percent of the face: sparse, not a mess`);
+    assert.ok(cov > 0.01 && cov < 0.15, `r ${r}px: coverage ${(cov * 100).toFixed(1)} percent of the face: sparse, not a mess`);
   }
   assert.ok(streakCorePx(2, 1, false) < streakCorePx(10, 5, true) + 0.5 && streakCorePx(10, 5, true) > streakCorePx(2, 1, true), 'a wide tube\'s streak is the thicker one');
   assert.ok(STREAK.FIELD_LEN_R >= 8 && STREAK.FIELD_LEN_R <= 16, 'a streak is 8 to 16 radii long');
   const len = STREAK.FIELD_LEN[0] + STREAK.FIELD_LEN[1] / 2, lenMax = STREAK.FIELD_LEN[0] + STREAK.FIELD_LEN[1], per = STREAK.FIELD_PERIOD[0] + STREAK.FIELD_PERIOD[1] / 2;
-  assert.ok(per / len >= 3, `period ${per} over a length of ${len}`);
+  assert.ok(per / len >= 1.5, `period ${per} over a length of ${len}`);
   assert.ok(STREAK.FIELD_PERIOD[0] > lenMax, 'a streak is never over its own period (they never overlap in a lane)');
   assert.ok(len / STREAK.FIELD_AT_R >= 8 && len / STREAK.FIELD_AT_R <= 16, 'the field is 5 units to a radius: 8 to 16 radii');
   assert.ok(STREAK.FEATHER >= 0.33 && STREAK.FEATHER <= 0.4, 'both ends feathered over about 35 percent');

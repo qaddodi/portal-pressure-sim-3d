@@ -27,7 +27,7 @@ test('the Anatomy\'s vessels and the 3D lobule and sinusoid include the one chev
 
 test('the blood chevron is black like the Anatomy\'s: the look\'s chevron ink on a light lumen, cream on a dark one, the dark ring; bile and lymph keep their flow colour', () => {
   assert.match(CHEVRON_GLSL, /vec3 chevInk\(vec3 base, vec3 markDark, vec3 markLight\)/);
-  assert.match(CHEVRON_GLSL, /float dk = 1\.0 - step\(0\.19, dot\(pow\(max\(base, vec3\(0\.0\)\), vec3\(2\.2\)\), vec3\(0\.2126, 0\.7152, 0\.0722\)\)\);/);
+  assert.match(CHEVRON_GLSL, /float dk = 1\.0 - step\(0\.26, dot\(pow\(max\(base, vec3\(0\.0\)\), vec3\(2\.2\)\), vec3\(0\.2126, 0\.7152, 0\.0722\)\)\);/);
   assert.match(MICRO_FS, /vec3 core = uFlowDark > 0\.5 \? inkH : uFlowCol;/);
   const m = microMaterials({ value: new Vector2(1, 1) }, { value: 1 }, { flow: true });
   const u = m.toon.uniforms;
@@ -39,6 +39,6 @@ test('the blood chevron is black like the Anatomy\'s: the look\'s chevron ink on
 
 test('chevrons stay in the lumen: the head is confined to the middle 0.6 of the face (its half width is the lattice\'s hw at |across| 0.6)', () => {
   assert.match(CHEVRON_GLSL, /return chevHead\(dir \* x, abs\(across\) \* hw \/ 0\.6, hw, px, 0\.0\);/);
-  // (the lobule's tubes: the Anatomy's own rule, a half width never past 0.6 of the radius)
-  assert.match(MICRO_FS, /float hw = min\(0\.6 \* R, clamp\(0\.5 \* R, 3\.0 \* wpc, 8\.0 \* wpc\)\);/);
+  // (the lobule's tubes: the Anatomy's own rule, CHEV: a half width never past the radius and a pixel)
+  assert.match(MICRO_FS, /float hw = min\(R \+ 1\.0 \* wpc, clamp\(0\.5 \* R, 4\.4 \* wpc, 9\.0 \* wpc\)\);/);
 });
