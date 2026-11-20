@@ -4,7 +4,7 @@ import { NETWORK, cutEnd, type NetVessel } from '../network.ts';
 import { REST, coursesOf, type ShapeState } from '../shape.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../join-mode.ts';
 import { indexOf } from '../../../engine/vessel-data.ts';
-import type { SkinArm, SkinJunction, Vec3 } from './types.ts';
+import { SKIN_GROWERS, type SkinArm, type SkinJunction, type Vec3 } from './types.ts';
 
 /** The kinds of vessel that are permanent (spec 4.1): a skin is built only where these meet. Collaterals and shunts grow from nothing and keep the fork method (`nbr`, `bury`); feeders are strands of a host. */
 export const PERMANENT_KINDS: ReadonlySet<string> = new Set(['vein', 'artery', 'arteriole', 'liver']);
@@ -14,6 +14,12 @@ export const SKIN_REACH = 6;
 export function nodesBeyondReach(js: readonly SkinJunction[], network: readonly NetVessel[] = NETWORK, state: ShapeState = REST): string[] {
   return js.filter((j) => Math.max(...armReach(j, network, state)) > SKIN_REACH).map((j) => j.node);
 }
+/** The kinds of vessel that GROW (spec 10.2): a collateral opens with pressure and a shunt is there while a procedure gives it a diameter. They are arms of a skin too, but arms that come and go: the skin carries a second shape with them closed and eases between the two. */
+export const GROWER_KINDS: ReadonlySet<string> = new Set(['collateral', 'shunt']);
+/** Whether a vessel is a growing one: a collateral or a shunt that is ONE tube (course 0 is what is drawn), never a feeder strand (`~F:`, a fan of tributaries on a side wall: those are the side-wall arms of spec 10.1), and never a braid:
+ *  a collateral that is drawn as strands (C1a the varices, C2, C4, C7, C8 the cavernoma: `plan.strands`) has no tube of its own, its three or six strands part from the node over the first half of the vessel and each ends at the trunk's width, so at the node they are a bundle
+ *  of identical overlapping tubes, not a branch. They keep today's fork method (`nbr`, `bury`) and are named in tests/skin-grow.test.ts, never hidden. */
+export const isGrower = (v: NetVessel): boolean => !v.feeder && !v.id.includes('~F') && GROWER_KINDS.has(v.kind) && !(v.plan?.kind === 'coil' && v.plan.strands);
 /** A node needs this many permanent ends for a skin, and at most this many (the shader's `armData[4]`). */
 export const MIN_ARMS = 3;
 export const MAX_ARMS = 6;
@@ -28,6 +34,17 @@ function permanentEndsByNode(network: readonly NetVessel[]): Map<string, { v: Ne
     if (!isPermanent(v)) continue;
     for (const [node, end] of [[v.from, 0], [v.to, 1]] as const) { const a = at.get(node) ?? []; a.push({ v, end }); at.set(node, a); }
   }
+  return at;
+}
+
+/** The ends of the growing vessels at each node, the widest first (ties keep the network's order). */
+function growerEndsByNode(network: readonly NetVessel[]): Map<string, { v: NetVessel; end: 0 | 1 }[]> {
+  const at = new Map<string, { v: NetVessel; end: 0 | 1 }[]>();
+  for (const v of network) {
+    if (!isGrower(v)) continue;
+    for (const [node, end] of [[v.from, 0], [v.to, 1]] as const) { const a = at.get(node) ?? []; a.push({ v, end }); at.set(node, a); }
+  }
+  for (const [n, a] of at) at.set(n, a.map((e, i) => ({ e, i })).sort((x, y) => y.e.v.radius - x.e.v.radius || x.i - y.i).map((x) => x.e));
   return at;
 }
 
@@ -47,17 +64,41 @@ function endPoint(v: NetVessel, end: 0 | 1, state: ShapeState): Vec3 {
  */
 export function findSkinJunctions(network: readonly NetVessel[] = NETWORK, state: ShapeState = REST): SkinJunction[] {
   const out: SkinJunction[] = [];
+  const growers = growerEndsByNode(network);
+  const armOf = ({ v, end }: { v: NetVessel; end: 0 | 1 }, grow: boolean): SkinArm => ({
+    vesselId: v.id, end, courseIndex: 0, dataIndex: indexOf(v.lensId), lensIndex: indexOf(v.lensId), baseD: v.baseD, widthKind: v.widthKind, restR: v.radius, ...(grow ? { grow: true } : {}),
+  });
   for (const [node, ends] of permanentEndsByNode(network)) {
-    if (ends.length < MIN_ARMS || ends.length > MAX_ARMS) continue;
     if (ends.some((e) => cutEnd(e.v.id) === e.end)) continue;
+    // the growing vessels that land here (spec 10.2): up to SKIN_GROWERS of them, the widest, as long as the skin keeps its six arms; the others keep today's fork method (nbr, bury)
+    const slots = Math.max(0, Math.min(SKIN_GROWERS, MAX_ARMS - ends.length));
+    const grow = (growers.get(node) ?? []).slice(0, slots);
+    // a node of 3 to 6 permanent ends is a junction as it stands; a node of two (a run-on pair) is one only where a growing vessel lands on it: with that vessel closed, the skin is the run-on
+    if (!(ends.length >= MIN_ARMS && ends.length <= MAX_ARMS) && !(ends.length === 2 && grow.length > 0)) continue;
     const sorted = ends.map((e, i) => ({ ...e, i })).sort((a, b) => b.v.radius - a.v.radius || a.i - b.i);
-    const arms: SkinArm[] = sorted.map(({ v, end }) => ({
-      vesselId: v.id, end, courseIndex: 0, dataIndex: indexOf(v.lensId), lensIndex: indexOf(v.lensId), baseD: v.baseD, widthKind: v.widthKind, restR: v.radius,
-    }));
+    // the permanent arms first, widest first (J is the widest's end), then the growing ones, widest first
+    const arms: SkinArm[] = [...sorted.map((e) => armOf(e, false)), ...grow.map((e) => armOf(e, true))];
     const widest = sorted[0]!;
     out.push({ node, J: endPoint(widest.v, widest.end, state), arms });
   }
   return out;
+}
+
+/** How far (in radii of the widest arm) a growing arm's end may lie from J (the bridge of spec 10.5 spans it with the arm's own width): a shunt or a collateral that lands a few radii down a host's side is not at the node but on the wall, the side-wall arms of spec 10.1.
+ *  Measured on the network (20 Nov): the ends at their nodes lie within 2.0 radii (the gastrorenal collateral C5 at the left renal vein, 2.0, is the farthest that builds), the landings on a wall from 2.3 (DIPS on the cava) to 8.9. */
+export const GROW_REACH = 2.2;
+/** The junction without the growing arms that end farther than `GROW_REACH` radii from J (a side-wall landing, spec 10.1: left to the side-wall arms), and which they were. The permanent arms decide whether the NODE is a junction (`nodesBeyondReach`); a far collateral or shunt is
+ *  only left out of it, and keeps today's fork method. */
+export function dropFarGrowers(j: SkinJunction, network: readonly NetVessel[] = NETWORK, state: ShapeState = REST): { junction: SkinJunction; far: string[] } {
+  const reach = armReach(j, network, state), far = j.arms.filter((a, i) => a.grow && reach[i]! > GROW_REACH).map((a) => a.vesselId);
+  return far.length ? { junction: { ...j, arms: j.arms.filter((a) => !far.includes(a.vesselId)) }, far } : { junction: j, far };
+}
+
+/** The same junction without its growing arms (what the scene falls back to when the skin cannot be built with them), or null when fewer than MIN_ARMS permanent arms are left (a run-on pair needs no skin). */
+export function withoutGrowers(j: SkinJunction): SkinJunction | null {
+  const arms = j.arms.filter((a) => !a.grow);
+  if (arms.length === j.arms.length) return j;
+  return arms.length >= MIN_ARMS ? { ...j, arms } : null;
 }
 
 /** The nodes whose skins are built in each phase (spec 4.1, 6, 10): phase 1 the SMV-SV confluence alone, phase 2 every node the table marks 2, those with an end behind the organs (spec 10.4) and the liver beds' nodes (SIN_R, SIN_L, spec 10.5: the node's far arm decides whether it is a junction, `SKIN_REACH`, below). */

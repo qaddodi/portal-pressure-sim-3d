@@ -22,6 +22,7 @@ import type { Streams } from './streams.ts';
 import { STREAK } from './streak-glsl.ts';
 import { DUST_UNIFORMS } from './dust-spec.ts';
 import { UNITS_PER_SCENE } from '../frame2d.ts';
+import { flowLenAt } from '../circuit/mates.ts';
 
 export const SEG_MAX = 6;
 /** A segment narrower than this (of the -1 .. 1 lane span) is dropped and its neighbours take its lanes. */
@@ -229,7 +230,7 @@ export class StreamRoutes {
   turnsOf(k: number): number { return this.turns[k]!; }
 
   /** `drawn(id)`: the vessel is drawn and carries blood. `turnTarget(k)`: the swirl's whole turns this vessel should carry now. Returns true while anything is still easing. */
-  step(nowMs: number, streams: Streams, drawn: (id: string) => boolean, turnTarget: ArrayLike<number>): boolean {
+  step(nowMs: number, streams: Streams, drawn: (id: string) => boolean, turnTarget: ArrayLike<number>, view = 0): boolean {
     const dt = this.lastNow < 0 ? 1 : Math.min(0.1, Math.max(0, (nowMs - this.lastNow) / 1000));
     this.lastNow = nowMs;
     const list: RouteEdge[] = [];
@@ -239,7 +240,7 @@ export class StreamRoutes {
       const sm = streams.stream(k), sg = sm.sgn || 1;
       const m = displaySpeed(sg * Math.max(0, sg * (sm.vSlow ?? 0))) as number;
       if (!m) continue;
-      list.push({ k, from: inf.from, to: inf.to, path: inf.path, len: inf.len, fwd: sg > 0, m, q: streams.flowOf(k) });
+      list.push({ k, from: inf.from, to: inf.to, path: inf.path, len: flowLenAt(inf.id, inf.len, view), fwd: sg > 0, m, q: streams.flowOf(k) });
     }
     const next = buildRoutes(list);
     let easing = false;

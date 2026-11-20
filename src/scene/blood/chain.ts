@@ -10,6 +10,7 @@ import { EDGES } from '../../engine/hales/portal/topology.js';
 import { createStreamChain, displaySpeed } from './blood.copied.js';
 import { NETWORK_BY_ID, isArteryEdge } from '../vessels/network.ts';
 import type { Streams } from './streams.ts';
+import { flowLenAt } from '../circuit/mates.ts';
 
 interface Item { key: number; k: number; up: string; down: string; upPt: readonly [number, number]; downPt: readonly [number, number]; s0: number; sj: number; q: number; m: number }
 interface Chained { par: number[]; root: number[]; A: number[]; B: number[]; w: number[]; ef: number[]; et: number[]; easing: boolean; step(items: Item[], kW: number, kB: number): Chained }
@@ -71,8 +72,8 @@ export class StreamChain {
   weightOf(k: number): number { return this.data[k * 4 + 3]!; }
   parentOf(k: number): number { return this.data[NE * 4 + k * 4 + 2]! - 1; }
 
-  /** Works the links out for this frame. `drawn(id)`: the vessel is drawn and carries blood. Returns true while a link is still easing (the figure is kept awake). */
-  step(nowMs: number, streams: Streams, drawn: (id: string) => boolean): boolean {
+  /** Works the links out for this frame. `view` is the Circuit change's share (0 the body, 1 the map): the arcs are the lengths the vessels are drawn at in it (circuit/mates.ts flowLenAt). `drawn(id)`: the vessel is drawn and carries blood. Returns true while a link is still easing (the figure is kept awake). */
+  step(nowMs: number, streams: Streams, drawn: (id: string) => boolean, view = 0): boolean {
     const dt = this.lastNow < 0 ? 0 : Math.min(0.1, Math.max(0, (nowMs - this.lastNow) / 1000));
     this.lastNow = nowMs;
     const items = this.items;
@@ -86,7 +87,7 @@ export class StreamChain {
       let it = items[n];
       if (!it) { it = items[n] = { key: k, k, up: '', down: '', upPt: inf.path[0]!, downPt: inf.path[0]!, s0: 0, sj: 0, q: 0, m: 0 }; changed = true; }
       const P = inf.path, upPt = fwd ? P[0]! : P[P.length - 1]!, downPt = fwd ? P[P.length - 1]! : P[0]!;
-      const up = fwd ? inf.from : inf.to, down = fwd ? inf.to : inf.from, s0 = fwd ? 0 : inf.len, sj = fwd ? inf.len : 0, q = streams.flowOf(k);
+      const up = fwd ? inf.from : inf.to, down = fwd ? inf.to : inf.from, len = flowLenAt(inf.id, inf.len, view), s0 = fwd ? 0 : len, sj = fwd ? len : 0, q = streams.flowOf(k);
       if (it.key !== k || it.up !== up || it.down !== down || it.upPt !== upPt || it.downPt !== downPt || it.s0 !== s0 || it.sj !== sj || it.q !== q || it.m !== m) changed = true;
       it.key = k; it.k = k; it.up = up; it.down = down; it.upPt = upPt; it.downPt = downPt; it.s0 = s0; it.sj = sj; it.q = q; it.m = m;
       n++;

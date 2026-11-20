@@ -37,12 +37,12 @@ test('a branching vein tapers in the body and not on the map (the right hepatic 
   for (let k = 0; k < n; k++) assert.ok(Math.abs(rkc.getX(k) - 1) < 1e-6, `the map keeps the whole width at vertex ${k}`);
 });
 
-test('the shader draws the map with rkc, and eases a run-on\'s map width to the mean of the two', () => {
+test('the shader draws the map with rkc, and joins a run-on\'s map width to its mate\'s in one smoothstep (circuit-taper.test.ts)', () => {
   assert.equal((VESSEL_VS.match(/attribute float rkc;/g) ?? []).length, 1, 'rkc is declared once');
   assert.match(CIRCUIT_VS_HEAD, /P = cen \+ radius \* mix\(rk, rkc, w\) \* off;/);
   assert.match(VESSEL_VS, /float rkE = mix\(rk, rkc, circShare\);/);
   assert.match(VESSEL_VS, /vR = radius \* rkE \* swell \* narrowK \* vU;/);
   assert.match(VESSEL_VS, /vec3 cenW = aPos - aNor \* \(radius \* rkE\);/);
-  assert.match(VESSEL_VS, /if \(mate0\.x >= 0\.0\) \{ float k0 = 1\.0 - smoothstep\(0\.0, 0\.3, uv\.x\); if \(k0 > 0\.0\) wc \+= k0 \* \(0\.5 \* \(wc \+ circMateWidth\(mate0\)\) - wc\); \}/);
-  assert.match(VESSEL_VS, /if \(mate1\.x >= 0\.0\) \{ float k1 = smoothstep\(0\.7, 1\.0, uv\.x\); if \(k1 > 0\.0\) wc \+= k1 \* \(0\.5 \* \(wc \+ circMateWidth\(mate1\)\) - wc\); \}/);
+  assert.match(VESSEL_VS, /wc \+= \(max\(circMateWidth\(cmate0\), circMateMin\(cmate0\) \* circPerPx\) - wc\) \* \(1\.0 - smoothstep\(-cease\.x, cease\.x, circAt\)\);/);
+  assert.match(VESSEL_VS, /wc \+= \(max\(circMateWidth\(cmate1\), circMateMin\(cmate1\) \* circPerPx\) - wc\) \* \(1\.0 - smoothstep\(-cease\.y, cease\.y, circTo\)\);/);
 });

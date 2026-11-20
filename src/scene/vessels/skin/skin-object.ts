@@ -6,7 +6,7 @@
 // and its veil copy (over the organs, seen through them). A skin that has such an arm is drawn the same way: ONE geometry, three meshes with a material each (`defines: { SKIN_COPY: 0 | 1 | 2 }`: one source, three programs), every copy's alpha the sum over the
 // arms of weight x that arm's share of that copy x its fade (skin/shaders.ts), the shares being the arm tube's own (VesselObject.copyShares, written through `setArmCopy`). A copy whose arms all have no share of it is not visible, so a plain junction (every
 // arm (1, 0, 0)) draws only its front copy, as before, and a skin is never visible where its arms are not: it has no visibility of its own, it inherits the arms' shares, fades, layers and grow state.
-import { BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, ShaderMaterial, Vector3, Vector4, type IUniform, type Object3D } from 'three';
+import { BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, ShaderMaterial, Vector2, Vector3, Vector4, type IUniform, type Object3D } from 'three';
 import { VESSEL_LAYER } from '../../layers.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import { SKIN_ARMS, SKIN_AXIS_PTS, SKIN_FS, SKIN_VS } from './shaders.ts';
@@ -39,8 +39,8 @@ export const COPY_LAYER = [VESSEL_LAYER, 0, VESSEL_LAYER] as const;
 export const COPY_ORDER = [0, 0, 2] as const;
 
 /** The program's defines for copy `c` (the page's `?joins=` diagnostics: debug paints dropped pixels, nomarks and noink leave a part out). */
-function skinDefines(c: number): Record<string, number> {
-  const d: Record<string, number> = { SKIN_COPY: c }, out = skinLeaveOut();
+function skinDefines(c: number, grow: number): Record<string, number> {
+  const d: Record<string, number> = { SKIN_COPY: c, SKIN_GROW: grow }, out = skinLeaveOut();
   if (skinDebugOn()) d.SKIN_DEBUG = 1;
   if (out === 'marks') d.SKIN_NOMARKS = 1;
   if (out === 'ink') d.SKIN_NOINK = 1;
@@ -57,6 +57,10 @@ export class SkinObject implements SkinDraw {
   readonly object: Object3D;
   private readonly armAF: Vector4[]; private readonly armCopy: Vector3[];
   private readonly armData: Vector4[]; private readonly armColor: Vector4[]; private readonly armArc: Vector4[];
+  /** the arms (indices) that grow, in the order of the mesh's morphs, and each arm's growth (1 whole) as the shader reads it */
+  private readonly growArms: number[];
+  private readonly armGrow: number[] = new Array(SKIN_ARMS).fill(1);
+  private readonly growG = new Vector2(1, 1);
 
   constructor(skin: SkinMesh, donor: VesselObject, axes: readonly ArmAxis[], armObjs: readonly VesselObject[]) {
     const g = new BufferGeometry();
@@ -67,6 +71,16 @@ export class SkinObject implements SkinDraw {
     g.setAttribute('weight2', new BufferAttribute(skin.weight2, 2));
     g.setAttribute('restR', new BufferAttribute(skin.restR, 1));
     g.setIndex(new BufferAttribute(skin.index, 1));
+    // the growing arms' second shapes (spec 10.2): per arm, the difference between the whole skin and the one with that arm at radius 0; the vertex stage takes the growth's share of it
+    skin.grow.forEach((m, s) => {
+      const posRest = new Float32Array(4 * (m.dRest.length));
+      for (let v = 0; v < m.dRest.length; v++) { posRest[4 * v] = m.dPos[3 * v]!; posRest[4 * v + 1] = m.dPos[3 * v + 1]!; posRest[4 * v + 2] = m.dPos[3 * v + 2]!; posRest[4 * v + 3] = m.dRest[v]!; }
+      g.setAttribute(`gPosA${s}`, new BufferAttribute(posRest, 4));
+      g.setAttribute(`gNorA${s}`, new BufferAttribute(m.dNor, 3));
+      g.setAttribute(`gWtA${s}`, new BufferAttribute(m.dWeight, 4));
+      g.setAttribute(`gWt2A${s}`, new BufferAttribute(m.dWeight2, 2));
+    });
+    this.growArms = skin.grow.map((m) => m.arm);
     g.computeBoundingSphere();
     const du = donor.toon.uniforms, shared: Record<string, IUniform> = {};
     for (const k of SHARED_WITH_TUBES) if (du[k]) shared[k] = du[k]!;
@@ -89,11 +103,12 @@ export class SkinObject implements SkinDraw {
       armData: { value: this.armData }, armAF: { value: this.armAF }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: new Array(SKIN_ARMS).fill(0) }, armColor: { value: this.armColor },
       armCopy: { value: this.armCopy },
       armAxisP: { value: armAxisP }, skinK: { value: skinKOf(skin.junction.arms) },
+      armGrow: { value: this.armGrow }, growG: { value: this.growG },
     };
     this.copies = Array.from({ length: SKIN_COPIES }, (_, c) => {
       const material = new ShaderMaterial({
         name: 'skin',
-        vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: skinDefines(c),
+        vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: skinDefines(c, this.growArms.length),
         uniforms,
       });
       const mesh = new Mesh(g, material);
@@ -140,14 +155,29 @@ export class SkinObject implements SkinDraw {
   /** Whether copy `c` is drawn now (a test reads it). */
   copyShown(c: number): boolean { return this.copies[c]!.visible; }
 
+  /** How much arm `i` has grown (0 gone, 1 whole): a growing arm's tube drawn on at its seam, written by the handover when it changes. The skin's own shape morphs by it (spec 10.2); an arm that does not grow ignores it. */
+  setGrow(i: number, g: number): void {
+    const s = this.growArms.indexOf(i);
+    if (s < 0) return;
+    this.armGrow[i] = g;
+    if (s === 0) this.growG.x = g; else this.growG.y = g;
+    this.showCopies();
+  }
+  /** The growth arm `i` has now (1 for an arm that does not grow). */
+  growOf(i: number): number { return this.armGrow[i]!; }
+  /** Whether arm `i` is one the skin morphs. */
+  grows(i: number): boolean { return this.growArms.includes(i); }
+
   /** How much of arm `i`'s tube is there at its seam (arm-twins.ts armPresenceAt); with none of them the skin is not drawn at all. */
   setPres(i: number, p: number): void {
     this.armAF[i]!.w = p;
     this.showCopies();
   }
+  /** Whether arm `k` is there at all: its tube's presence at the seam, or for a growing arm (which is not dithered away) its growth. */
+  private isThere(k: number): boolean { return (this.growArms.includes(k) ? this.armGrow[k]! : this.armAF[k]!.w) > 0.002; }
   /** A copy is drawn when the arms' shares of it add up to something (`COPY_SEEN`), counting only an arm that is there (its presence): a skin has no visibility of its own, it inherits its arms'. */
   private showCopies(): void {
-    this.copies.forEach((m, c) => { m.visible = this.armCopy.reduce((t, v, k) => t + (this.armData[k]!.x >= 0 && this.armAF[k]!.w > 0.002 ? (c === 0 ? v.x : c === 1 ? v.y : v.z) : 0), 0) > COPY_SEEN; });
+    this.copies.forEach((m, c) => { m.visible = this.armCopy.reduce((t, v, k) => t + (this.armData[k]!.x >= 0 && this.isThere(k) ? (c === 0 ? v.x : c === 1 ? v.y : v.z) : 0), 0) > COPY_SEEN; });
   }
 
   setTransparent(on: boolean): void { for (const m of this.copies) { const mat = m.material as ShaderMaterial; if (mat.transparent !== on) { mat.transparent = on; mat.needsUpdate = true; } } }

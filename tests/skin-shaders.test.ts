@@ -51,9 +51,11 @@ test('the per-arm uniforms are the spec\'s section 3 names, with its sizes', () 
   assert.equal(v.get('armAF')?.array, SKIN_ARMS, 'and their highlight');
 });
 
-test('the vertex attributes are the spec\'s (cen, weight, restR) on top of three\'s position and normal', () => {
+test('the vertex attributes are the spec\'s (cen, weight, restR) on top of three\'s position and normal, and a growing arm\'s second shape (spec 10.2: 4 per arm, 2 arms: 14 with position and normal, inside the 16 every WebGL2 device has)', () => {
   const a = declarations(SKIN_VS).filter((d) => d.storage === 'attribute').map((d) => `${d.type} ${d.name}`).sort();
-  assert.deepEqual(a, ['float restR', 'vec2 weight2', 'vec3 cen', 'vec4 weight']);
+  const grow = ['A0', 'A1'].flatMap((k) => [`vec4 gPos${k}`, `vec3 gNor${k}`, `vec4 gWt${k}`, `vec2 gWt2${k}`]);
+  assert.deepEqual(a, ['float restR', 'vec2 weight2', 'vec3 cen', 'vec4 weight', ...grow].sort());
+    assert.ok(a.length + 2 <= 16, `${a.length} attributes + position + normal`);
 });
 
 test('the skin draws the tubes\' flow marks, once per arm, with the tubes\' own code (tests/skin-marks.test.ts holds the rest)', () => {
