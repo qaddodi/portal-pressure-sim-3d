@@ -19,3 +19,9 @@ test('the Compare card names the patient\'s settings, not a frame that mostly ca
   assert.doesNotMatch(c, /f\?\.params \?\? null/);
   assert.match(readFileSync('src/ui/treat/palette-orders.ts', 'utf8'), /const p = currentParams\(\); return !!p && c\.when\(p\)/);
 });
+
+test('a Settings, menu, History, Compare or Help sheet coming up puts Treat away (one card in the column)', () => {
+  const b = readFileSync('src/ui/action/boot.ts', 'utf8');
+  assert.match(b, /CARD_SHEETS\.has\(s\.sheet\) && useTreat\.getState\(\)\.open\) useTreat\.getState\(\)\.setOpen\(false\)/);
+  assert.match(b, /new Set\(\['settings', 'menu', 'history', 'compare', 'help', 'guide'\]\)/);
+});
