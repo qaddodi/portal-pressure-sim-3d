@@ -257,7 +257,7 @@ export class Sinusoid3D {
     //  the same width on screen there (scene-dive-handoff.test.ts): the lumen first, then the lining, Disse and the plates outward, whole by REVEAL_TO, when the lobule stands aside under it)
     this.fade.value = d == null || d >= REVEAL_FROM ? 1 : 0;
     this.reveal.value = d == null ? 0 : Math.max(1e-3, Math.hypot(REACH + 30, ACROSS + 30) * smooth(REVEAL_FROM, REVEAL_TO, d));
-    { const k = f.pxPerUm; this.rimK.value = k > 0 ? smooth(RIM_FULL_PX / 3, RIM_FULL_PX, k) : 1; }   // (a red cell 7 µm across keeps its whole line from about 17 px wide; smaller, the line goes before the cell is a dot)
+    { const k = f.pxPerUm; this.rimK.value = k > 0 ? smooth(RIM_FULL_PX / 3, RIM_FULL_PX, k) : d != null ? 0 : 1; }   // (a smooth ramp in the scene's size, never a switch; unmeasured in a dive (its first frame), none, so a line never shows whole for a frame and then thins)   // (a red cell 7 µm across keeps its whole line from about 17 px wide; smaller, the line goes before the cell is a dot)
     this.group.position.z = d == null ? 0 : LIFT * U * (1 - smooth(0.9, 1, d));   // (down only once the lobule has stood aside, scene.ts LOBULE_UNDER_FROM + 0.04)
     const dark = LOOKS[f.look].scheme === 'dark';
     const P = f.pal.palette(dark) as unknown as Pal;
