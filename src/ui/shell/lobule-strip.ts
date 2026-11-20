@@ -9,3 +9,6 @@ export const LOBULE_TILES = [
   { id: 'lz-pv', k: 'Portal in', title: 'Portal inflow', scale: { lo: -60, hi: 150 }, ticks: [0, 50], reversible: true,
     sev: (v: number) => (v < -2 ? 'critical' : v < 50 ? 'danger' : v < 75 ? 'caution' : 'ok'), word: (v: number) => (v < -2 ? 'Reversed' : v < 50 ? 'Severe' : v < 75 ? 'Low' : 'Normal') },
 ] as const;
+
+/** Room for two whole digits and the tile's decimals, in whole pixels, as 2D's tile-el.js keeps it (`width`): a reading keeps its width as it changes, and a tile is never wider than its usual reading. The lobule's tiles have no decimals (62), the pressures one (16.9). */
+export const roomFor = (decimals: number): string => `round(up, calc(${2 + decimals}ch${decimals ? ' + 0.26em' : ''}), 1px)`;
