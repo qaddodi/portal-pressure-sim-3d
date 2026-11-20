@@ -264,7 +264,7 @@ export const NEEDS_C3_IDS = NEEDS_C3;
 // ---- presence ----
 export type Presence = 'shown' | 'ghost' | 'hidden';
 export interface PresenceFrame { Q: ArrayLike<number>; Qf?: ArrayLike<number>; D: ArrayLike<number> }
-export interface PresenceOptions { /** Blood menu: Potential collaterals (dotted routes that open with pressure) */ collaterals: boolean }
+export interface PresenceOptions { /** Blood menu: Potential collaterals (dotted routes that open with pressure) */ collaterals: boolean; /** the Circuit is showing or on its way: the liver's beds are drawn on the map (the body leaves them out) */ circuit?: boolean }
 const OPEN_FRAC = 0.12, OPEN_Q = 0.3, C3_FRAC = 0.15, AP_Q = 0.3;
 const indexOf = new Map(edges.map((e, i) => [e.id, i]));
 
@@ -289,7 +289,8 @@ export function presenceOf(v: Pick<NetVessel, 'id' | 'kind' | 'feeder'>, f: Pres
   // (the lumbar-azygos collateral C9 runs through the right sinusoid fan: while closed it is not drawn as a dotted pink thread there; Mohammad, 20 Nov)
   // the sinusoid beds (the "light bulb" fans, their feeding arterioles and their strands) are not drawn: the portal veins fade out into the liver and the hepatic veins fade in from it,
   // and the liver tissue implies the sinusoids between (Mohammad, 20 Nov). They stay in the network (the flows, the labels and the Lobule read them), only never shown.
-  if (v.kind === 'liver') return 'hidden';
+  // (the Circuit draws them: 2D's map shows the portal venules dividing and the sinusoids gathering, and Mohammad wants them there, 20 Nov)
+  if (v.kind === 'liver') return o.circuit ? 'shown' : 'hidden';
   if (v.kind === 'collateral') return collateralOpen(v.id, f) ? 'shown' : o.collaterals && v.id !== 'C9' ? 'ghost' : 'hidden';
   if (SHUNT_IDS.has(v.id)) return f.D[k]! > 0 ? 'shown' : 'hidden';   // a procedure's shunt is there while it has a diameter
   if (v.kind === 'shunt') return (f.Qf ?? f.Q)[k]! > AP_Q ? 'shown' : 'hidden';
