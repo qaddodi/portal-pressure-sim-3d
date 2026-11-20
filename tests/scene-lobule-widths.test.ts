@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { pinned2D } from './two-d-pin.ts';
 import { buildLobule, RS0, SIN_NARROW } from '../src/scene/lobule/geometry.ts';
-import { AN_K, DISC_R, IN_R, LT_R, RS_N, TW_R, inletRadius, sinRadius, twigR } from '../src/scene/lobule/widths.ts';
+import { AN_K, DISC_R, DUCT_R, IN_R, LT_R, RS_N, TW_R, inletRadius, sinRadius, twigR } from '../src/scene/lobule/widths.ts';
 import { flareAt, sinK } from '../src/scene/lobule/from2d/lobule-mouths.generated.js';
 import { LOBULE_R } from '../src/scene/lobule/shots.ts';
 
@@ -31,6 +31,7 @@ test('the end-on vessels, inlets, twig and lymphatic are 2D\'s radii', () => {
   assert.deepEqual({ ...DISC_R }, { pv: 0.042, cv: 0.07, ha: 0.0115, bd: 0.0145, lv: 0.016 });
   assert.deepEqual([...IN_R], [0.015, 0.009]);
   assert.equal(LT_R, 0.0075);
+  assert.equal(DUCT_R, RS0 * 0.31, 'the lymph tube is a thin ductule (Mohammad 20 Nov 2026: thin, a fixed small width), about 0.0026');
   assert.equal(AN_K, 0.68);
   assert.deepEqual({ ...TW_R }, { base: 0.0026, leave: 0.62, join: 0.55 });
   assert.ok(Math.abs(inletRadius(0, 40, 0) - 0.015 * flareAt(-0.042, 0.015)) < 1e-12);
@@ -49,7 +50,7 @@ test('the numbers equal the pinned 2D file\'s text', { skip }, () => {
   assert.match(f, /case 'ha': return Math\.max\(1\.6, R \* 0\.0115 \*/);
   assert.match(f, /case 'bd': return Math\.max\(1\.6, R \* 0\.0145\)/);
   assert.match(f, /lerp\(R \* 0\.015, R \* 0\.009, i \/ \(N - 1\)\)/);
-  assert.match(f, /case 'ly': \{ const j = disseJ\(m, t\.rho\[i\]\); return rs \* sinK\(t\.rho\[i\]\) \+ g\.rs0 \* \(0\.12 \+ 0\.42 \* Math\.sqrt\(j\)\) \* \(0\.55 \+ 0\.45 \* smooth\(0\.07, 0\.24, t\.rho\[i\]\)\); \}/);
+  assert.match(f, /case 'ly': return Math\.max\(1\.1, g\.rs0 \* 0\.5 \* lyWr\(m\.lr, 0\.45\)\) \* lyTaper/);
   assert.match(f, /case 'lt': return Math\.max\(1\.5, R \* 0\.0075 \*/);
   assert.match(f, /case 'lv': return R \* 0\.016 \*/);
   assert.match(f, /const b = Math\.max\(0\.8, R \* 0\.0026 \*/);

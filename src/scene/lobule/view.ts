@@ -18,7 +18,7 @@ import type { V3 } from './shots.ts';
 import { type LobuleHit, type PickTube, lobuleHit } from './pick.ts';
 import { buildBile } from './bile.ts';
 import { type Course, type LobuleNet, buildLobule } from './geometry.ts';
-import { type LobuleModel, disseProfile, easeToward, lymphProtein, lymphRate, lymphSeal, smooth } from './model.ts';
+import { type LobuleModel, easeToward, lymphProtein, lymphRate, lymphSeal, smooth } from './model.ts';
 import { LOBULE_PALETTES } from './tones.ts';
 import { LOBULE_R, lobuleToScene, slabZ } from './shots.ts';
 import { LobuleMark } from './mark.ts';
@@ -26,7 +26,8 @@ import { lobuleWorld } from './frames.ts';
 import type { InkContext } from './ink.ts';
 import { washProgress } from './wash.ts';
 import { NeighbourField, fieldQuantizer } from './field.ts';
-import { DISC_R, LT_R, RS_N, congShare, inletRadius, sinRadius, sleeveRadius, twigR } from './widths.ts';
+import { DISC_R, DUCT_R, LT_R, RS_N, congShare, inletRadius, lyTaper, sinRadius, twigR } from './widths.ts';
+import { endTaper } from './lymph.ts';
 import { defaultCanvas, type MakeCanvas } from './plate.ts';
 import { LobuleFade, LobuleRoot } from './one-fade.ts';
 
@@ -62,8 +63,6 @@ export class LobuleView {
   private lens: LensId = 'pressure';
   private ref: ArrayLike<number> | null = null;
   private model: LobuleModel | null = null;
-  /** Counts the models taken (a drawing that depends on the model's own numbers, as the space of Disse's rim does, is made again when it changes). */
-  modelStamp = 0;
   readonly cur: Cur = { ...REST };
   private goal: Cur = { ...REST };
   private layers: LobuleLayers = { lymph: true, zones: false, bile: true };
@@ -119,7 +118,7 @@ export class LobuleView {
 
   /** Targets from the engine's frame (lobuleModel). They ease in; nothing jumps. */
   setModel(m: LobuleModel): void {
-    this.model = m; this.modelStamp++;
+    this.model = m;
     const g = this.goal;
     g.fibSin = m.fibSin; g.fibPre = m.fibPre; g.fibPost = m.fibPost; g.congU = m.congU; g.septU = m.septU; g.act = m.act;
     g.lum = m.zone.sin ** -0.12;   // (2D radiusAt: the sinusoid's width is / sin^0.12 and, by zone 3's share of each generation, x (1 + 1.5 congU))
@@ -183,23 +182,10 @@ export class LobuleView {
     if (k === 'in') return inletRadius(i, n, Math.hypot(t.pts[i]![0] - t.pts[0]![0], t.pts[i]![1] - t.pts[0]![1])) / (1 + 0.45 * c.fibPre);
     if (k === 'tw') return twigR(i / (n - 1), RS_N);
     if (k === 'lt' || k === 'lv') return LT_R * lyWr(c.lymphRate, 0.4);
-    if (k === 'ly') return this.sleeveNow((t as Course).rho[i]!);
+    if (k === 'ly') return DUCT_R * lyTaper((t as Course).rho[i]!) * endTaper(t as Course, i) * lyWr(c.lymphRate, 0.45);
     if (k === 'bs') return BC_R;
     return BH_R;
   }
-  /** The fluid filtered into the space of Disse at `rho`, as a multiple of the healthy mean, now (2D disseJ: the profile along the sinusoid from the model's pressures, scaled to the eased lymph rate; flat at 1 before a model). */
-  disseAt(rho: number): number {
-    const m = this.model;
-    if (!m) return 1;
-    const lr = this.cur.lymphRate;
-    if (this.disseOf !== m || this.disseLr !== lr || !this.disseP) { this.disseOf = m; this.disseLr = lr; this.disseP = disseProfile(m, lr); }
-    const p = this.disseP, f = Math.min(1, Math.max(0, (rho - 0.06) / 0.94)) * (p.length - 1), k = Math.min(p.length - 2, Math.floor(f));
-    return p[k]! + (p[k + 1]! - p[k]!) * (f - k);
-  }
-  /** What `disseAt` was last worked out from (the profile is made again only when the model or the eased rate changes). */
-  private disseOf: LobuleModel | null = null; private disseLr = NaN; private disseP: Float32Array | null = null;
-  /** The space of Disse's half width at `rho` as drawn now: its sinusoid's radius (the state's widening of it) and the rim the filtered fluid makes (widths.ts sleeveRadius). */
-  sleeveNow(rho: number): number { return sleeveRadius(rho, this.disseAt(rho), this.sinScaleAt(rho)); }
   /** How much each sinusoid generation is widened (congested zone 3) or narrowed (capillarized) now, as a share of its healthy radius. */
   /** The sinusoids' widening now: radius x (whole + share x congShare(rho)) (widths.ts), the same at every place along every course. */
   /** A sinusoid's share of its healthy radius now at rho. */

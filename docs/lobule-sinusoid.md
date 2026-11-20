@@ -185,23 +185,26 @@ Every object under the Lobule root takes its fade from `LobuleFade` (`src/scene/
 (called once, from `Lobule3D.update`). `detail` (dither, `1 - under` times the field's breadth) is for the lobule's tiles, tubes, marks and plate; `ground` (alpha, `1 - under`) is for the neighbours' plate
 (`userData.fadeKind = 'ground'`). A stock material (the tap halo) is patched to scale its alpha by the same value. `tests/lobule-one-fade.test.ts` walks the whole graph and fails on any mesh or material that does not read it.
 
-## The lymph is the space of Disse, as 2D draws it (20 Nov 2026)
+## The lymph: two thin tubes per sinusoid (20 Nov 2026, final form)
 
-What 2D shows at the pin (b3058ef3, lobule-zoom.js: `const lyOff = 0`, "Wet Disse, 16 Nov 2026: the space of Disse is a sleeve centred on its sinusoid, drawn under it"; lobule-zoom-field.js radiusAt, case 'ly'): one sleeve per sinusoid,
-on the sinusoid's own centre line, drawn UNDER it (Z_OF ly 0.05, the sinusoids 0.1 to 0.12), so only its rim shows, on both sides. The 3D lobule does the same and nothing else:
+Mohammad's spec, in his words relayed: two thin, distinct lymph tubes per sinusoid, one on each side, touching its wall with no dark gap; each a fixed small width (thin like a ductule), never a filled area; at a fork each
+outer tube follows its own branch, the two inner tubes meet at the crotch tip and end as a thin line with no fill in the wedge; they pass under crossing vessels; they taper to zero at about 90 % of the way to the central
+vein; no stubs. This overrides the 2D pin (b3058ef3 draws a sleeve centred on the sinusoid, which in 3D gave grey-green wedge plates in every crotch: tried and rejected).
 
-- **Geometry** (`geometry.ts`): one `ly` course per sinusoid of generations 0 to 2 (none for a cross-link), made of the sinusoid's own samples. A first-generation one has `reach` samples in front of them, a straight run
-  from the nearest point of the terminal lymphatic it drains into (2D: `poly = [E, ...P]`). It branches, merges and ends exactly where its sinusoid does, because it IS its sinusoid's line.
-- **Width** (`widths.ts`): the sinusoid's own radius plus `rs0 (0.12 + 0.42 sqrt j)(0.55 + 0.45 smooth(0.07, 0.24, rho))`, j the Starling profile along the sinusoid (`model.ts` disseProfile, 2D disseJ), scaled by the
-  eased lymph rate, times `disseTaper` (Mohammad's choice, 20 Nov: whole from rho 0.42 out, nothing at 0.13, about 90 % of the way to the central vein; 2D's own rim only thins to a quarter there).
-  A healthy liver: a rim of 0.0057 R at the portal end, none by the vein. `view.sleeveNow` is the one function; the pick uses it too.
-- **Drawn** (`lobule3d.ts`): flat ribbons at the sinusoids' level with a round cap at each end (so a merge is one shape, no notch), no outline of their own, drawn first among the vessels (`SLEEVE_ORDER`) with depth writing off,
-  so every blood vessel, the inlet venule and the terminal lymphatics are drawn over them: that is how the lymph passes UNDER the blood. The bile lies under the lymph (`BILE_ORDER`). Vertex positions follow the state
-  (`stepSleeve`: the sinusoid's widening, the filtered fluid, the layer's fade; written only when one changes), so the layer going off closes the sleeve up under its vessel.
-- **Streaks**: the sleeve carries the dust in the lymph's own tone (its own route column each, running from the central vein out as the lymph does; no chevrons; lanes across the ribbon, so those under the sinusoid are
-  covered by it and the rim shows the outer ones).
-- **The one difference from 2D, chosen by Mohammad**: the rim tapers to nothing by about 90 % of the way to the central vein. The reach to the terminal lymphatic is 2D's own width (a round end wider than the lymphatic's tube, as 2D's join blob).
+`src/scene/lobule/lymph.ts` `lymphRuns` is just that: each sinusoid's axis offset to both sides by its wall plus 0.55 of the tube's radius (`HUG`: the tube stands under the wall by its other 45 %, so no daylight shows). A
+branch's OUTER line (the side away from its sibling) runs on into the trunk's line on that side; the two inner lines stay on their own walls and end as threads (`endTaper`) where the sinusoids meet, so nothing fills the
+crotch. There is no cutting or pairing (that gave U-turn runs, strays and loops). The width is `DUCT_R` (0.31 of a first-generation sinusoid's radius, about 0.0026 lobule radii) times `lyTaper` (whole from rho 0.42 out,
+zero at 0.13). A first-generation channel begins on the terminal lymphatic it drains into. The tubes are `ly` courses (`sib`: their sinusoid, `sign`: their side).
 
-It replaced two earlier drawings: a flat sleeve of one fixed width (0.0132 a side, which filled the cleft between sinusoids that part at a small angle) and tubes laid BESIDE each sinusoid (a gap where two outlines met,
-strands where the next vessel cut one, loops at a branch, a width of their own). Tests: `tests/lobule-disse-sleeve.test.ts` reads the rendered vertices against 2D's numbers and the pinned file's text
-(`PPS_2D_REPO=<worktree at the pin>`), `tests/scene-lobule-disse.test.ts` (the courses), `tests/lobule-ductules.test.ts` (the terminal lymphatics into their pools).
+Where a tube passes another vessel (inlet venule, terminal lymphatic, cross-link) it goes UNDER it: `lymphCover` gives the depth and `lobule3d.ts` lays the tube at `LYMPH_UNDER_Z` there. A sinusoid's own band is narrow (0.4)
+so the tube beside its own sinusoid never dives. `LYMPH_Z` is low enough that a hugging tube never shows above the sinusoid's surface.
+
+## The bile goes under the blood (20 Nov 2026)
+
+The bile part (`canaliculi`) is drawn first of the vessels (`BILE_ORDER`, ink then body) with no depth write, so wherever a lane, canal of Hering or duct passes a sinusoid, cross-link or inlet the vessel is drawn over it.
+2D draws it in its lowest tier. About 8 % of the bile's samples still lie beneath a sinusoid or cross-link (2D's lanes beside each sinusoid, offset by a fixed amount, swing across a neighbour at branches); they are
+now hidden under it rather than drawn through it. Rerouting those lanes is not done.
+
+Tests: `tests/lobule-lymph.test.ts` (both sides on all 84 sinusoids, hug, no strays, the fork rules, no stubs, the taper, the Y built from geometry, the cover, and the drawn triangles: no lymph vertex farther than a tube
+width from its sinusoid wall, planform area per sinusoid at most two tubes of fixed width along it (no wedges), thin and whole, zero at the vein), `tests/lobule-ductules.test.ts`, `tests/lobule-bile-under.test.ts`.
+A plan view of the real mesh (parts rasterised top-down in render order, no browser) is how the look is checked in node: `node --experimental-strip-types scripts/lobule-plan.ts 0 0 1.05 1800 plan.png`, args: centre x, y, half-width in lobule radii, pixels, file.
