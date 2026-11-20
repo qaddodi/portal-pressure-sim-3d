@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useUi } from '../ui-store.ts';
+import { useUi, atEnd } from '../ui-store.ts';
 import { isFirst, isLast } from './presenter-machine.ts';
 import { SettingsMenu } from '../settings/SettingsMenu.tsx';
 import { barOf } from '../layout/plan.ts';
@@ -39,7 +39,7 @@ export function PresenterBar({ title }: { title: string }) {
             <span className="pzb-pips" aria-hidden="true" data-n={beatsAt} data-at={pos.beat}><i /><i /><i /></span>
           </button>
         )}
-        {!sideways && <button type="button" className="ib pzb-next" aria-label="Next slide" title="Next (→)" disabled={end} onClick={() => move('next')}><Chevron dir="r" /></button>}
+        {!sideways && <button type="button" className="ib pzb-next" aria-label="Next slide" title={end ? 'Finish (→)' : 'Next (→)'} onClick={() => (atEnd(useUi.getState()) ? leaveTalk() : move('next'))}><Chevron dir="r" /></button>}
         <SettingsMenu />
         {/* 2D presenter-scales.js: the pill ends with Exit (a phone: "Exit the presentation", a wide screen: "Stop presenting", Esc) */}
         <button type="button" className="ib pzb-exit" aria-label={stacked ? 'Exit the presentation' : 'Stop presenting'} title={stacked ? 'Exit' : 'Stop (Esc)'} onClick={() => leaveTalk()}><Icon n="close" /></button>

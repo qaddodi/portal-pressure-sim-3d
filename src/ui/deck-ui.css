@@ -44,7 +44,8 @@
 .deck-ui.pz .dk-card:is(.pz-panel, .pz-case) > .dk-in { display: flex; flex-direction: column; gap: inherit; align-items: inherit; align-self: stretch; min-width: 0; padding: 0; }
 .dk-pos[data-centred] > .dk-plate { display: none; }
 .deck-ui .pz-veil { z-index: 0; }
-.deck-ui .pz-veil.dip { opacity: 0.85; }   /* behind a case card the figure dips to 22% (2D `.pz-out`): the page's own colour over it at .92 x .85 */
+.deck-ui .pz-veil.dip { opacity: 0.85; }
+.deck-ui .pz-veil.soft { opacity: 0.5; }   /* the quick check (2D has none): the figure the talk ended on stays in view behind it, never a black screen in a dark look */   /* behind a case card the figure dips to 22% (2D `.pz-out`): the page's own colour over it at .92 x .85 */
 
 /* the outer shadow is the plate's (a height glide clips the card); the card keeps the 2D hairline */
 .deck-ui.pz .dk-card[data-card].pz-shade, .deck-ui.pz .dk-card[data-card].pz-data { box-shadow: inset 0 0 0 1px var(--glass-edge); }

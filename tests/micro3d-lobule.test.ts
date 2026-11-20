@@ -137,3 +137,13 @@ test('the marks (the periportal scar) and the vessels draw after the see-through
   if (f) assert.ok(m.renderOrder > f.renderOrder, 'after the field');
   l.group.traverse((o) => { if (o.name.startsWith('lobule3d/sinusoids-0') && (o as import('three').Mesh).isMesh) { assert.ok(o.renderOrder > m.renderOrder); assert.ok(((o as import('three').Mesh).material as import('three').Material).depthWrite); } });
 });
+
+test('every end-on vessel is filled with its colour, never an empty cylinder: a shallow, bright floor', async () => {
+  const { mouth } = await import('../src/scene/micro3d/lobule3d.ts');
+  const { MeshBuilder } = await import('../src/scene/micro3d/cel3d.ts');
+  const b = new MeshBuilder(), K: number[] = [];
+  mouth(b, 0, 0, 0.05, 0.1, 0.05, K, 32, true);
+  assert.ok(Math.min(...K.slice(-33)) >= 0.95, 'the floor is the vessel\'s own colour');
+  const src = (await import('node:fs')).readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
+  for (const k of ['Pv', 'Ha', 'Bd', 'Lv', 'Cv']) assert.match(src, new RegExp(`mouths\\(this\\.mouth${k}, [^\\n]*, true\\);`), k);
+});
