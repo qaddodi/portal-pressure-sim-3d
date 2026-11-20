@@ -135,7 +135,8 @@ varying vec3 vZf;   // the figure's normal (model z) in the view's frame: the du
 varying vec2 vUv;
 
 // junction skins (skin/types.ts): the tube has a seam at either end
-bool skinCutOn() { return skinCut.x >= 0.0 || skinCut.y <= 1.0; }
+// (a dotted thread, a closed potential collateral, is never cut: it runs on into the trunk's wall, and the skin there is a plain trunk, its growth 0: skin-set.ts sync, spec 10.2)
+bool skinCutOn() { return dotted < 0.5 && (skinCut.x >= 0.0 || skinCut.y <= 1.0); }
 bool skinPast() { return (skinCut.x >= 0.0 && vUv.x < skinCut.x - 0.00002) || (skinCut.y <= 1.0 && vUv.x > skinCut.y + 0.00002); }
 
 float lum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
