@@ -243,7 +243,7 @@ export function mountInspect(): void {
   const overlaps = (): void => {
     const o = cel.inspectOverlaps();
     ovList.textContent = '';
-    ovList.append(el('div', { className: 'hint', textContent: `${o.length} pair(s) of drawn vessels run through each other (centrelines closer than 0.8 of their radii together; the ends of each vessel are left out). Worst first.` }));
+    ovList.append(el('div', { className: 'hint', textContent: `${o.length} pair(s) of drawn vessels run through each other beyond a junction (centrelines closer than 0.8 of their radii together). Junctions (a branch leaving its trunk, a bed starting in its vein) and braids of strands are not counted. Worst first.` }));
     for (const x of o) {
       const name = el('label', { textContent: `${x.a} × ${x.b} · ${Math.round(x.depth * 100)}% deep` }); name.style.cssText = 'flex:1;min-width:0';
       const go = el('button', { textContent: 'Solo', title: 'Draw only these two and mark where they overlap' });

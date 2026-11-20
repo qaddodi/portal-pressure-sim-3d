@@ -135,7 +135,7 @@ test('GLSL: parses; the lab\'s shapes are in it; the dust is computed from a cel
   assert.match(DUST_GLSL, /for \(int n = -N; n <= N; n\+\+\)/);
   assert.match(DUST_GLSL, new RegExp(`int K = min\\(int\\(D_nCls \\+ 0\\.5\\), ${DUST_KMAX}\\), N = min\\(int\\(D_win \\+ 0\\.5\\), ${DUST_NMAX}\\);`), 'the loops stay inside their bounds');
   assert.match(DUST_GLSL, /\(D_densK - dHash\(sd\)\) \* 12\.0/, 'density thins by a threshold: single particles fade, nothing pops');
-  assert.match(DUST_GLSL, /return clamp\(acc, 0\.0, 1\.0\) \* keepT \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(F\.across\)\)\);/, 'contained: nothing on the ink');
+  assert.match(DUST_GLSL, /return clamp\(dSafe\(acc\), 0\.0, 1\.0\) \* keepT \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(F\.across\)\)\);/, 'contained: nothing on the ink');
   // in the vessel: the tube paints it, gated by the amount, the flow and the marks' own junction rule; chevrons after
   for (const m of [/vec4 dust = dustTube\(F, lit, inkColor, rev\);/, /return streakAmt \* smoothstep/, /smoothstep\(0\.0, [\d.]+, abs\(smS\.y\)\)/, /\* markK\(skinCut\.x >= 0\.0 \? 1e6 : sD, skinCut\.y <= 1\.0 \? 1e6 : \(1\.0 - vUv\.x\) \* len \* vU\)/]) assert.match(VESSEL_FS, m);
   assert.ok(VESSEL_FS.indexOf('streakCover = fd.a;') < VESSEL_FS.indexOf('c = c * (1.0 - hd.a) + hd.rgb;'), 'chevrons draw ABOVE the particles');
@@ -241,7 +241,7 @@ test('the dust frame is finite and unit for every heading, the degenerate ones i
   assert.doesNotMatch(DUST_GLSL, /vec3 t = normalize\(T\)/, 'no unguarded normalize of the heading');
   assert.match(DUST_GLSL, /if \(tl < 1e-6\) return vec4\(1\.0, 0\.0, 0\.0, 1\.0\)/);
   assert.match(DUST_GLSL, /\/ \(g\.c1 < 0\.0 \? min\(g\.c1, -1e-4\) : max\(g\.c1, 1e-4\)\)/, 'a strip of no width never divides 0 by 0');
-  assert.equal((DUST_GLSL.match(/return clamp\(acc, 0\.0, 1\.0\)/g) ?? []).length, 2, 'tube and skin dust stay inside 0 .. 1 premultiplied');
+  assert.equal((DUST_GLSL.match(/return clamp\(dSafe\(acc\), 0\.0, 1\.0\)/g) ?? []).length, 2, 'tube and skin dust stay inside 0 .. 1 premultiplied');
   assert.match(DUST_GLSL, /if \(!dNear\(Fa, g, ma\.x, P\) && \(fb\.x < 0\.0 \|\| !dNear\(Fb, gb, fb\.y, P\)\)\) continue;/, 'the skin culls a particle out of reach in both frames');
 });
 

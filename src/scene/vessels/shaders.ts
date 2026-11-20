@@ -286,7 +286,7 @@ uniform vec4 stentU;   // a stent in this vessel, drawn on the tube in the Circu
 uniform vec3 mate0;
 uniform vec3 mate1;
 uniform vec2 bury;   // the ink is held back ONLY inside a declared branch's trunk: how far from the branch's start and end (figure units per radius unit, 0: none: a run-on, a crossing, a free end keep their whole outline)
-uniform float cavaCut;   // 1 on a vein that opens into the cava (nbr is the cava's): it takes the cava's colour and alpha as it nears the wall and is not drawn inside the lumen, so it ends exactly at the wall with no step
+uniform float cavaCut;   // 1 on a vein that opens into the cava (2: only its opacity ramp, where a skin has the end) (nbr is the cava's): it takes the cava's colour and alpha as it nears the wall and is not drawn inside the lumen, so it ends exactly at the wall with no step
 uniform float solidK;    // a vessel drawn behind the organs: how much of its solid copy (drawn with the organs, hidden by one in front) shows: 1 for every other vessel (Settings > Hide vessels behind organs)
 uniform float veilK;     // and of its veil copy (drawn over the organs, shown through them)
 uniform float cavaA;     // the cava's opacity where the vein joins it: the vein's own comes to it at the wall (no step in alpha)
@@ -464,11 +464,14 @@ void main() {
     float cd = vNbr.y - abs(vNbr.x);
     float wB = smoothstep(-1.6 * vNbr.y, 0.0, cd) * (1.0 - circT);
     float wA = smoothstep(-2.5 * vNbr.y, 0.0, cd) * (1.0 - circT);
-    vec4 la2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradA, lensLaneA, lensModeA, laneColA, across), lb2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradB, lensLaneB, lensModeB, laneColB, across);
-    base = mix(base, mix(mix(color, la2.rgb, la2.a), mix(color, lb2.rgb, lb2.a), lensMix), wB);
     fadeHere = mix(vFade, cavaA, wA);
-    float cdPx = cd / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
-    cavA = mix(1.0 - smoothstep(-0.5, 0.5, cdPx), 1.0, circT);
+    // (cavaCut 2: a vein whose cava end a SKIN has taken over (skin/shaders.ts THE JUNCTION FADE RULE): the tube stops at its seam outside the wall, so no cut and no colour of the cava's here, but the same opacity ramp, which the skin carries on through the junction)
+    if (cavaCut < 1.5) {
+      vec4 la2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradA, lensLaneA, lensModeA, laneColA, across), lb2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradB, lensLaneB, lensModeB, laneColB, across);
+      base = mix(base, mix(mix(color, la2.rgb, la2.a), mix(color, lb2.rgb, lb2.a), lensMix), wB);
+      float cdPx = cd / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
+      cavA = mix(1.0 - smoothstep(-0.5, 0.5, cdPx), 1.0, circT);
+    }
   }
   if (cavA < 0.004) discard;
 #ifdef VEIL
@@ -505,7 +508,7 @@ void main() {
   // REAL FLOW (blood/routes.ts): the particles of the roots this vessel's lanes carry, in its own section, at their place on their root's stream. No fade at a skin's seam (the skin draws the same particles on); where tubes
   // still overlap at a joint with no skin they fade as the chevrons do (markK), the vessel it opens into drawing the same particles.
   vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(${wpcGlsl('vW', 'projY', 'vU')}, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(skinCut.x >= 0.0 ? 1e6 : sD, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU);
-  fd = clamp(fd, 0.0, 1.0);   // (premultiplied marks are never past 0 .. 1: an alpha over 1 would invert the lumen under them, a blue one to yellow-green and a dark mark to black)
+  fd = clamp(fd, 0.0, 1.0) * dHold(fadeHere * cavA);   // (the dust follows this pixel's final alpha: dust-glsl.ts dHold; premultiplied marks are never past 0 .. 1: an alpha over 1 would invert the lumen under them, a blue one to yellow-green and a dark mark to black)
 #ifdef VDBG
   if (dbgDust < 0.5) fd = vec4(0.0);
 #endif

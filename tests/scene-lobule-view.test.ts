@@ -29,7 +29,7 @@ test('the lobule is the 2D app\'s: six corners, six triads, 48 + 24 + 12 sinusoi
   assert.equal(kind('cv').length, 1);
   assert.equal(kind('tw').length, 6, 'an arteriole twig into each tract\'s first sinusoid');
   assert.equal(kind('lt').length, 12, 'terminal lymphatics along both of each tract\'s edges');
-  assert.equal(kind('ly').length, 48 + 24 + 12, 'a space of Disse along every sinusoid (2D: L0, L1, L2), none along a cross-link');
+  assert.ok(kind('ly').length >= (48 + 24 + 12) * 2, 'a lymph channel on each side of every sinusoid');
   assert.ok(kind('an').length > 10, 'cross-links between neighbouring sinusoids');
   assert.equal(net.septa.length, 3);
   assert.deepEqual(net.corners.map((c) => Math.round(Math.hypot(c[0], c[1]) * 1e6) / 1e6), [1, 1, 1, 1, 1, 1]);
@@ -41,7 +41,7 @@ test('it is built from the same seed, in the same order, every time (the 3D lobu
   assert.equal(again.cells.length, net.cells.length);
 });
 
-test('blood runs inlet to central vein: every sinusoid course starts at the portal side and ends near the centre, and the courses have N evenly spaced points (the spaces of Disse follow their own sinusoid\'s samples, a first-generation one with its reach to the terminal lymphatic in front)', () => {
+test('blood runs inlet to central vein: every sinusoid course starts at the portal side and ends near the centre, and the courses have N evenly spaced points (the lymph channels, cut where they meet a vessel, as many as their length needs)', () => {
   for (const c of net.courses) if (c.kind !== 'ly') assert.equal(c.pts.length, N, `${c.kind} ${c.id}`);
   for (const c of kind('s0')) { assert.ok(c.rho[0]! > 0.7, `s0 starts at rho ${c.rho[0]}`); assert.ok(c.rho[N - 1]! < 0.75); }
   for (const c of kind('s2')) { assert.ok(c.rho[0]! < 0.5); assert.ok(c.rho[N - 1]! < net.rcv0 * 1.4, 'the third generation enters the central vein'); }
