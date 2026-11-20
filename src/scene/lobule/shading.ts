@@ -18,6 +18,7 @@ import { DISC_GLSL, DISC_LINE } from './from2d/disc-glsl.generated.js';
 import { CEL } from '../vessels/cel-ink.ts';
 import { BILE_HEADS, CHEV_FLIP, CHEV_GLSL, CHEV_ORANGE_GLSL, CHEV_PITCH_GLSL, LYMPH_INK, LY_OCT, LY_PITCH } from './from2d/chevron.generated.js';
 import { LOBULE_R } from './shots.ts';
+import { CEL_TUBE_GLSL } from '../cel-glsl.ts';
 
 /** `text` with `from` replaced by `to`; `from` must be there, once (a change in the shared shader that moves an anchor fails here, in node, not on a phone). */
 function patch(text: string, from: string, to: string): string {
@@ -151,6 +152,7 @@ const FS_HEADS = /* glsl */ `
 #endif
 `;
 const FS_DECL = /* glsl */ `
+${CEL_TUBE_GLSL}
 varying float vRdev;
 ${HEADS_DECL}
 #ifdef DISC
@@ -184,12 +186,7 @@ const FS_TONES = /* glsl */ `
     vec2 sideS = sideT.xy;
     float sl = length(sideS);
     sideS = sl > 1e-4 ? sideS / sl : vec2(1.0, 0.0);
-    float sT = acrossT * dot(sideS, vec2(${num(CEL.DIR[0])}, ${num(CEL.DIR[1])}));
-    float etT = 0.5 / max(vRdev, 1e-3), hwT = smoothstep(1.5, 3.5, vRdev);
-    float shadowT = 1.0 - smoothstep(${num(CEL.SHADE_AT)} - etT, ${num(CEL.SHADE_AT)} + etT, sT);
-    float litT = smoothstep(${num(CEL.LIT_AT)} - etT, ${num(CEL.LIT_AT)} + etT, sT);
-    c = c * (1.0 - hwT * ${num(CEL.SHADE)} * shadowT);
-    c = mix(c, vec3(1.0), ${num(CEL.LIT)} * hwT * litT);
+    c = celTubeTone(c, acrossT, celTubeK(sideS), vRdev);   // (the figure's one tube GLSL: three flat tones, a hard edge)
   }
 #endif
 #endif
