@@ -1,5 +1,7 @@
 // The disease looks of 19 Nov: the kidney's own colour, the pale septa between the liver's nodules, the embolized spleen's dead part, the stomach's pool of blood, the narrowings and
 // their arrowheads, the navel's ring and the flank line, the sinusoids' faint strands and the red wale, and a clot that is never wider than its vein.
+// (the septa tests pin the cobbled cel7 surface: the default cirrhotic liver is now cel12, the subtle one, which has no septa: tests/organ-edge-and-cel-soft.test.ts)
+(globalThis as { location?: unknown }).location = { search: '?liver=cel7', pathname: '/', hostname: 'localhost' };
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BoxGeometry, BufferGeometry, type BufferAttribute, Vector3 } from 'three';
