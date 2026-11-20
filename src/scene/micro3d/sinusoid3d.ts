@@ -45,6 +45,8 @@ const LIFT = 26;
 /** The dive share over which the scene grows out from its lumen (see update): from nothing to whole, which the lobule's standing aside follows (scene.ts LOBULE_UNDER_FROM). */
 /** CSS px per µm from which the small shapes' lines are whole (see rimK). */
 export const RIM_FULL_PX = 2.5;
+/** The same for the albumin beads (about 0.4 µm round): whole from 8 CSS px per µm (eyes 20 Nov: they were the dark dots across the lumen in the dive, at 4 px per µm all line). */
+export const ALB_RIM_FULL_PX = 8;
 export const REVEAL_FROM = 0.3, REVEAL_TO = 0.86;   // (from 0.3: over 0.6-0.86 it grew in less than one 100 ms frame, the dive's share runs fast at its end, eyes 20 Nov)
 /** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), the lymph streaks' pace against the lymph's own run, and the haze: how far out it takes to be whole (µm) and how deep it goes. */
 const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_K = 0.45;
@@ -198,7 +200,7 @@ export class Sinusoid3D {
     this.arrows = mk('ends', { px: S.LINE_SMALL });
     this.villi = many('microvilli', unitRod(8), 900, { px: S.LINE_SMALL });
     this.fibres = many('collagen', unitRod(6), 800, { ink: null });
-    this.albumin = many('albumin', unitSphere(12, 8), 2000, { ink: null, rim: S.LINE_SMALL });
+    this.albumin = many('albumin', unitSphere(12, 8), 2000, { ink: null, rim: S.LINE_SMALL, rimK: this.rimKAlb });   // (its own ramp: a bead well under a micrometre is all line long before a red cell is)
     // (40 round, not 22: a tumbling cell's outline crosses its lathe at a slant, and with 22 its faces ended before n.v reached 0 in places, a dashed line, eyes 20 Nov)
     this.rbc = many('red-cells', unitRbc(40), RBC_N + 2 * RBC_FAR, { ink: null, rim: S.LINE });
     // (order: the ground first, then the solid shapes; the see-through membrane and the arrows last)
@@ -241,6 +243,8 @@ export class Sinusoid3D {
   private readonly reveal = { value: 0 };
   /** The lines' share by the scene's size on screen (cel3d uRimK): whole from RIM_FULL_PX CSS px per µm, none at a third of it. */
   private readonly rimK = { value: 1 };
+  /** The same for the albumin beads, whole from ALB_RIM_FULL_PX. */
+  private readonly rimKAlb = { value: 1 };
 
   update(on: boolean, rate = 1): boolean {
     const f = this.flat;
@@ -257,7 +261,7 @@ export class Sinusoid3D {
     //  the same width on screen there (scene-dive-handoff.test.ts): the lumen first, then the lining, Disse and the plates outward, whole by REVEAL_TO, when the lobule stands aside under it)
     this.fade.value = d == null || d >= REVEAL_FROM ? 1 : 0;
     this.reveal.value = d == null ? 0 : Math.max(1e-3, Math.hypot(REACH + 30, ACROSS + 30) * smooth(REVEAL_FROM, REVEAL_TO, d));
-    { const k = f.pxPerUm; this.rimK.value = k > 0 ? smooth(RIM_FULL_PX / 3, RIM_FULL_PX, k) : d != null ? 0 : 1; }   // (a smooth ramp in the scene's size, never a switch; unmeasured in a dive (its first frame), none, so a line never shows whole for a frame and then thins)   // (a red cell 7 µm across keeps its whole line from about 17 px wide; smaller, the line goes before the cell is a dot)
+    { const k = f.pxPerUm; this.rimK.value = k > 0 ? smooth(RIM_FULL_PX / 3, RIM_FULL_PX, k) : d != null ? 0 : 1; this.rimKAlb.value = k > 0 ? smooth(ALB_RIM_FULL_PX / 3, ALB_RIM_FULL_PX, k) : d != null ? 0 : 1; }   // (a smooth ramp in the scene's size, never a switch; unmeasured in a dive (its first frame), none, so a line never shows whole for a frame and then thins)   // (a red cell 7 µm across keeps its whole line from about 17 px wide; smaller, the line goes before the cell is a dot)
     this.group.position.z = d == null ? 0 : LIFT * U * (1 - smooth(0.9, 1, d));   // (down only once the lobule has stood aside, scene.ts LOBULE_UNDER_FROM + 0.04)
     const dark = LOOKS[f.look].scheme === 'dark';
     const P = f.pal.palette(dark) as unknown as Pal;
