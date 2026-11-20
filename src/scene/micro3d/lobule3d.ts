@@ -359,8 +359,18 @@ export class Lobule3D {
     const net = this.flat.net, crn = net.corners.map((p) => new Vector2(p[0] * 1.015 * R, -p[1] * 1.015 * R));
     if (ShapeUtils.isClockWise(crn)) crn.reverse();
     const holes: Vector2[][] = [];
+    // (a hole only where its disc lies wholly inside the hexagon: a hole across the edge (a triad on a vertex) made the triangulation throw spikes out past the vertices, which read as the
+    //  lobule cut off at the sides of a phone; the mouth there sits over the ground's edge as it is)
+    const inside = (x: number, y: number, rr: number) => {
+      for (let i = 0; i < crn.length; i++) {
+        const A = crn[i]!, B = crn[(i + 1) % crn.length]!, ex = B.x - A.x, ey = B.y - A.y, l = Math.hypot(ex, ey);
+        if (((x - A.x) * ey - (y - A.y) * ex) / l > -rr) return false;   // (counter-clockwise: inside is to the left of each edge)
+      }
+      return true;
+    };
     const hole = (c: Course, r: number) => {
       const p = c.pts[Math.floor(c.pts.length / 2)]!, h: Vector2[] = [];
+      if (!inside(p[0] * R, -p[1] * R, r * R)) return;
       for (let s = 0; s < 40; s++) { const a = -(s / 40) * Math.PI * 2; h.push(new Vector2(p[0] * R + Math.cos(a) * r * R * 0.97, -p[1] * R + Math.sin(a) * r * R * 0.97)); }
       holes.push(h);
     };
