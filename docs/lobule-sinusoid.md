@@ -140,3 +140,5 @@ drawn as before.
 ## Sinusoid, cel shaded (20 Nov 2026)
 2D's tissue shader stays a byte-for-byte copy (`gl.copied.ts`, `scripts/copy-sinusoid.mjs --check`). `src/scene/sinusoid/cel.ts` wraps it: 2D's `main` becomes `main2d`, and a new `main` steps the pixel's lightness onto hard bands one shade step wide
 (`-ln(1 - CEL_STYLE.SHADE)`, so the bands are the figure's own shade step), keeps hue and chroma, inks sharp colour changes (the colour shaded three times) and puts the pixel back premultiplied with 2D's alpha. Every number comes from `src/scene/cel-style.ts`.
+The ladder stands on 2D's own colour of the place: on the lumen at `cLumen` (nearest rung, three to six tones), on the wall and the space of Disse at `cLymph` with a dead zone of 1.5 shade steps (0.75 each side), so lymph dashes, collagen bands and the wall's blend stay one clean tone and
+real colour changes (microvilli ticks, the lilac wall, pores) step crisply; elsewhere (plates, the cells over them) the ladder is absolute. The ink fires only at two to three shade steps of change in one pixel and never inside the Disse band.

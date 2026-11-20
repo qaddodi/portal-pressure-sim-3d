@@ -36,6 +36,9 @@ export class ShapeTracks {
     }
   }
 
+  /** The shape a vessel is drawn in now, or undefined for a vessel with none to keep (the scene rebuilds the rest at rest). */
+  stateOf(id: string): ShapeState | undefined { return this.items.find((it) => it.v.id === id)?.state; }
+
   /** The vessels that have a shape to keep (for the first build). */
   get count(): number { return this.items.length; }
 
