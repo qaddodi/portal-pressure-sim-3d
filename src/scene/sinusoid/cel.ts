@@ -16,25 +16,42 @@ import { CEL_STYLE } from '../cel-style.ts';
 /** One band is the figure's own shade step wider than the one below: the shade tone is the base times (1 - SHADE) (cel-style.ts), so a step in the logarithm of the lightness of -ln(1 - SHADE) (about 0.186, 17 %)
  *  is exactly one shade step: a flat 2D fill moves at most half a step and a shaded lumen shows the same stepped tones the vessels do. Nothing here is a number of its own. */
 export const CEL_STEP = -Math.log(1 - CEL_STYLE.SHADE);
-/** An edge is inked where the lightness changes by a whole shade step of itself within one pixel, fully inked at two; the ink is the colour shaded three times over (the vessels' casing is 2D's near-black: three shade steps
+/** An edge is inked where the lightness changes by two shade steps of itself within one pixel (a cell's or the wall's outline, not a membrane's soft line or a gradient), fully inked at three; the ink is the colour shaded three times over (the vessels' casing is 2D's near-black: three shade steps
  *  read as one tone of the same hue, the figure's ink), at the strength of the edge. The band edge is EDGE_PX device px across on each side. */
-export const CEL_EDGE_LO = CEL_STYLE.SHADE, CEL_EDGE_HI = 2 * CEL_STYLE.SHADE, CEL_INK = (1 - CEL_STYLE.SHADE) ** 3;
+export const CEL_EDGE_LO = 2 * CEL_STYLE.SHADE, CEL_EDGE_HI = 3 * CEL_STYLE.SHADE, CEL_INK = (1 - CEL_STYLE.SHADE) ** 3;
+/** The wall and the space of Disse are one flat tone: a colour within this many shade steps of 2D's own Disse colour is that colour (a dead zone of 1.5 steps across, 0.75 each side), so its soft lymph dashes, collagen bands and the wall's blend never slice into stripes; the lumen rounds to the nearest rung (0.5). */
+export const CEL_DEAD_DISSE = 0.75, CEL_DEAD_LUMEN = 0.5;
 
 export const CEL_MAIN_GLSL = /* glsl */ `
 ${CEL_QUANT_GLSL}
 const float CEL_STEP = ${CEL_STEP.toFixed(4)};
+// The rung of lightness l on a ladder anchored at lb: 0 is lb itself, each rung one band, the first edge at DEAD bands from it; edges are EDGE_PX across (w, in bands).
+float celRung(float l, float lb, float dead, float w) {
+  float u = log(l / lb) / CEL_STEP, q = abs(u) - dead + 0.5;
+  return sign(u) * max(floor(q) + smoothstep(0.5 - w, 0.5 + w, fract(q)), 0.0);
+}
 void main() {
   main2d();
   float a = o.a;
   vec3 c = o.rgb / max(a, 1e-4);
   float l = max(celLight(c), 0.004);
   // (every derivative before any branch)
+  float rel = fwidth(l) / l;
+  float w = max(rel / CEL_STEP * ${CEL_STYLE.EDGE_PX.toFixed(2)}, 1e-3);
+  float edge = smoothstep(${CEL_EDGE_LO.toFixed(3)}, ${CEL_EDGE_HI.toFixed(3)}, rel);
+  // where the pixel is: the lumen, the wall and the space of Disse (pass 0), or the plates and the cells over them
+  float ay = abs(vUm.y), hw = halfW(vUm.x), hi = hw + ENDO + disseW(vUm.x);
+  float onLumen = uPass == 0 && ay < hw ? 1.0 : 0.0;
+  float onDisse = uPass == 0 && ay >= hw && ay < hi ? 1.0 : 0.0;
+  // the ladder: on the lumen and on the Disse it stands on 2D's own colour of the place (rung 0 IS that colour, so a region of it is one clean tone); elsewhere it stands on the page's own lightness scale
+  float lb = max(celLight(onLumen > 0.5 ? cLumen : cLymph), 0.004);
+  float lvAnchored = log(lb) + CEL_STEP * celRung(l, lb, onLumen > 0.5 ? ${CEL_DEAD_LUMEN.toFixed(2)} : ${CEL_DEAD_DISSE.toFixed(2)}, w);
   float q = log(l) / CEL_STEP;
-  float w = max(fwidth(q) * ${CEL_STYLE.EDGE_PX.toFixed(2)}, 1e-3);
-  float edge = smoothstep(${CEL_EDGE_LO.toFixed(3)}, ${CEL_EDGE_HI.toFixed(3)}, fwidth(l) / l);
-  float lvl = floor(q) + smoothstep(0.5 - w, 0.5 + w, fract(q));
-  vec3 cq = c * (exp(lvl * CEL_STEP) / l);
-  cq = mix(cq, cq * ${CEL_INK.toFixed(3)}, edge);
+  float lvAbsolute = CEL_STEP * (floor(q) + smoothstep(0.5 - w, 0.5 + w, fract(q)));
+  vec3 cq = c * (exp(mix(lvAbsolute, lvAnchored, max(onLumen, onDisse))) / l);
+  // no ink inside the Disse (its ticks and dashes are drawn, not outlined); the wall's and the cells' outlines keep it
+  float inkOn = 1.0 - onDisse * smoothstep(hw + ENDO + 0.2 - uPx, hw + ENDO + 0.2 + uPx, ay) * (1.0 - smoothstep(hi - 0.2 - uPx, hi - 0.2 + uPx, ay));
+  cq = mix(cq, cq * ${CEL_INK.toFixed(3)}, edge * inkOn);
   o = vec4(mix(o.rgb, cq * a, step(0.003, a)), a);
 }
 `;
@@ -60,4 +77,10 @@ export function celQuantRel(c: readonly [number, number, number], step = CEL_STE
 export function celEdge(dl: number, l: number): number {
   const t = Math.min(1, Math.max(0, (dl / Math.max(l, 1e-4) - CEL_EDGE_LO) / (CEL_EDGE_HI - CEL_EDGE_LO)));
   return t * t * (3 - 2 * t);
+}
+
+/** The twin of the shader's anchored rung: the lightness `l` on a ladder standing on `lb` (rung 0 is lb), first edge `dead` bands out, hard edges (w = 0). Returns the stepped lightness. */
+export function celAnchored(l: number, lb: number, dead: number, step = CEL_STEP): number {
+  const u = Math.log(l / lb) / step, q = Math.abs(u) - dead + 0.5;
+  return lb * Math.exp(Math.sign(u) * Math.max(Math.round(q), 0) * step);
 }
