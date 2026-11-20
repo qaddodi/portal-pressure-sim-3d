@@ -43,6 +43,8 @@ test('a chart, a card or a deck never makes a chart canvas by hand: it goes thro
   for (const f of files) {
     if (f === join('src', 'ui', 'charts', 'painter.ts') || f === join('src', 'scene', 'labels', 'LabelLayer.tsx') || f === PROBE) continue;
     // (the lobule's plate: the 2D painter's 2D canvas, sent as a texture of the scene's own context; it makes no GL context of its own)
+    // (the organs' art, the same: 2D's gut art painted into a 2D canvas once per look and sent as a texture; organ-art.ts)
+    if (f === join('src', 'scene', 'organs', 'organ-art.ts')) { assert.ok(!/getContext\(\s*['"`]webgl/.test(readFileSync(f, 'utf8')), 'the art\'s canvas is 2D only'); continue; }
     if (f === join('src', 'scene', 'lobule', 'plate.ts')) { assert.ok(!/getContext\(\s*['"`]webgl/.test(readFileSync(f, 'utf8')), 'the plate\'s canvas is 2D only'); continue; }
     const t = strip(readFileSync(f, 'utf8'));
     if (/createElement\(\s*['"`]canvas['"`]\s*\)/.test(t)) bad.push(f);

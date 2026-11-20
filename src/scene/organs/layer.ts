@@ -18,6 +18,7 @@ import { lumenSurface } from '../disease/copied/stomach-lumen.js';
 import { POOL_SHARE } from '../disease/copied/bleed-shapes.js';
 import { LiverShape } from './liver-shape.ts';
 import { x3, y3 } from '../frame2d.ts';
+import { OrganArt } from './organ-art.ts';
 
 type Og = keyof OrganTones2D['tones'];
 /** The tone each 2D organ takes, its 2D painter's tones (--og-<og>-1/2/3; anatomy.js `tone`), the outline's width (2D: 1.1 px, the kidney 1.4) and alpha (.62, the kidney .95, the atrium .35),
@@ -88,6 +89,8 @@ export class OrganLayer {
   /** how far the embolized spleen's dead lower part has come in */
   private readonly infarct = new Eased(0, 0.24);
   private readonly paints = new Map<string, VertexPaint>();
+  /** 2D's art on the organs (the bowel's loops, the colon's haustra, the stomach's rugae) and the esophagus's fade: organ-art.ts */
+  private readonly art = new OrganArt();
   private liverShape: LiverShape | null = null;
   private liverGeometry: BufferGeometry | null = null;
   private lastClock = -1;
@@ -113,6 +116,7 @@ export class OrganLayer {
       if (PAINTED.has(id)) { if (!g.getAttribute('normal')) g.computeVertexNormals(); this.paints.set(id, new VertexPaint(g, id as 'liver' | 'spleen' | 'stomach')); }
       const o = new CelObject(g, { tone: st.tone, bands: 3, spec: 0, px: st.px }, this.shared);
       useOrganShader(o, g, id);
+      this.art.attach(id, o.toon, o.ink, g);
       if (this.phone) o.setPhone(true);
       o.ink.uniforms.px!.value = st.px;
       this.objects.push(o); this.byId.set(id, o); this.group.add(o.group);
@@ -125,7 +129,7 @@ export class OrganLayer {
     this.dirtyColours = true; this.instant = true;
   }
 
-  applyLook(p: Palette): void { this.palette = p; this.dirtyColours = true; }
+  applyLook(p: Palette): void { this.palette = p; this.art.applyLook(p); this.dirtyColours = true; }
   /** The organ outline is in the figure's units (ORGAN_INK_VS), so it needs no phone trim: keep 2D's 1.1 (kidney 1.4) on every device. */
   setPhone(phone: boolean): void { this.phone = phone; for (const [id, o] of this.byId) { o.setPhone(phone); o.ink.uniforms.px!.value = ORGAN_STYLE[id]!.px; } }
   /** A lens other than Pressure greys the organs (organ-dim.js: saturation 0.12, opacity 0.72) and eases in 420 ms (D_SURFACE). */
@@ -181,6 +185,7 @@ export class OrganLayer {
       const t1 = rgbOf(og[0]), t2 = rgbOf(og[1]), base = mix(t1, t2, 0.5);
       const c = organColour(base, s, k);
       this.setColours(o, organColour(t1, s, k), organColour(t2, s, k), c, organInk(rgbOf(og[2]), s, k), st.inkA, organLayerAlpha(p, id), page, p.organs);
+      this.art.setState(id, s, k, p);
       const vp = this.paints.get(id);
       if (!vp) continue;
       // what varies over the surface: the vertices carry it (an organ that has none of it shows its one colour)
@@ -215,5 +220,5 @@ export class OrganLayer {
   /** The 2D organs this layer draws, for the parity table. */
   get ids(): string[] { return [...this.byId.keys()]; }
 
-  dispose(): void { for (const o of this.objects) o.dispose(); }
+  dispose(): void { for (const o of this.objects) o.dispose(); this.art.dispose(); }
 }
