@@ -2,7 +2,7 @@
 // as the 2D figure does it (stage-diaphragm.js updateOrgans): the liver's shape (cirrhosis) and dusk (congestion), a scale of the spleen with the model's size, a ghost of
 // a removed spleen, the grey of a lens other than Pressure, blood in the stomach. Meshes come from meshes.ts (the organs thread) in the shared frame; this file never
 // builds one. Everything moves on the clock: `update(now)` returns true while something eases, and nothing is touched when nothing moves.
-import { BackSide, type BufferGeometry, BufferAttribute, Color, DataTexture, Float32BufferAttribute, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, type Raycaster, ShaderMaterial, Vector2, Vector3, Vector4 } from 'three';
+import { BackSide, KeepStencilOp, NotEqualStencilFunc, ReplaceStencilOp, type BufferGeometry, BufferAttribute, Color, DataTexture, Float32BufferAttribute, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, type Raycaster, ShaderMaterial, Vector2, Vector3, Vector4 } from 'three';
 import { PICK_OF } from './pick.ts';
 import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from './organ-shader.ts';
 import type { OrganTones2D } from '../../looks/organ-tones.copied.ts';
@@ -62,6 +62,14 @@ export const ORGAN_ORDER = ['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach'
 /** The dive's cutaway window, one for every organ (scene.ts writes it each frame from the camera's distance to the place dived to; camera/dive.ts cutUniform). Nothing cleared at rest. */
 export const ORGAN_CUT: { value: Vector4 } = { value: new Vector4(0, 0, -1, 1) };
 
+/** The gut is ONE see-through group in 2D (stage.js: the colon, the small bowel and the duodenum in `organ-gut`, its opacity --gut-a set once on the group), so where the colon crosses the loops it COVERS them and the pair
+ *  is as see-through as either alone. Drawn as separate blended organs they stacked their alpha and the overlap shone brighter (Mohammad 20 Nov: "why are the intestines overlapping SHINE brighter?"). Now each gut fill
+ *  marks the pixels it drew (stencil bit 2) and a later gut fill leaves a marked pixel alone; the colon is drawn first so it is the one that covers, and the two outlines are drawn after both fills so a line is never
+ *  painted over by the other organ's fill. The stencil is cleared with the depth each pass (scene.ts), and bit 2 is the gut's own (the vessels' outline stencil is bit 1). */
+export const GUT_GROUP: ReadonlySet<string> = new Set(['bowel', 'colon']);
+/** The gut's draw order in the organ layer: fills first (the colon, which covers, then the bowel), then the outlines (the bowel's, then the colon's over it). */
+export const GUT_RENDER: Readonly<Record<string, { fill: number; ink: number }>> = { colon: { fill: 14, ink: 15.6 }, bowel: { fill: 14.5, ink: 15.4 } };
+
 /** The organs whose shade steps are cut by the smoothed normal (organ-shader.ts shadeN); the gut's folds are its relief, so it keeps its own. */
 const SMOOTH_SHADE = new Set(['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach', 'duodenum', 'liver']);
 
@@ -93,6 +101,13 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
   const i = Math.max(0, ORGAN_ORDER.indexOf(id));
   o.toonMesh.renderOrder = 2 * i;
   for (const c of o.group.children) if (c !== o.toonMesh) c.renderOrder = 2 * i + 1;
+  if (GUT_GROUP.has(id)) {
+    const r = GUT_RENDER[id]!;
+    o.toonMesh.renderOrder = r.fill;
+    for (const c of o.group.children) if (c !== o.toonMesh) c.renderOrder = r.ink;
+    m.stencilWrite = true; m.stencilRef = 2; m.stencilFuncMask = 2; m.stencilWriteMask = 2;
+    m.stencilFunc = NotEqualStencilFunc; m.stencilFail = KeepStencilOp; m.stencilZFail = KeepStencilOp; m.stencilZPass = ReplaceStencilOp;
+  }
   if (!ORGAN_STYLE[id]?.ao) return null;
   // 2D's .org-ao: a flat soft seat round the outline (the stroke's outer half), under the fill and the line, in the organ's group. Drawn after the fill with the hull's
   // depth test, so it shows only where the fill is not, and before the outline, so the line lies over it.
