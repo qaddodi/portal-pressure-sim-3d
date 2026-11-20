@@ -83,7 +83,17 @@ export class LensField {
     if (instant) { this.fade = 1; this.shared.lensMix.value = 1; } else { this.fade = 0; this.t0 = now; this.shared.lensMix.value = 0; }
   }
 
-  onFrame(frame: FrameLike | null): void { this.frame = frame; this.dirty = true; }
+  /** The engine has a newer frame. A `jump` frame (a new patient) is not blended in the model; what is drawn is: the colours showing become the leaving state and cross-fade to the new patient's. */
+  onFrame(frame: FrameLike | null, jump = false, now = -1): void {
+    this.frame = frame; this.dirty = true;
+    if (!jump || !frame || now < 0 || (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    this.from.lens = this.to.lens; this.from.mode = this.to.mode; this.from.grad.set(this.to.grad); this.from.lanes.set(this.to.lanes);
+    this.shared.lensModeA.value = this.shared.lensModeB.value;
+    for (let i = 0; i < 5; i++) this.shared.laneColA.value[i]!.copy(this.shared.laneColB.value[i]!);
+    this.texFrom.grad.needsUpdate = this.texFrom.lanes.needsUpdate = true;
+    this.compute(now);
+    this.fade = 0; this.t0 = now; this.shared.lensMix.value = 0;
+  }
 
   private compute(now: number): void {
     this.lastCompute = now; this.dirty = false;

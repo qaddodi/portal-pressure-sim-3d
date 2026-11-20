@@ -10,6 +10,7 @@ import { cutRoom } from '../tests/room.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { useCircuitTurn } from '../../scene/circuit/pref.ts';
 import { registerFeature } from './features.ts';
+import { dropSelectionForView } from '../action/selection.ts';
 
 const label = (v: ViewId) => UI.views.find((x) => x.id === v)!.label;
 
@@ -24,6 +25,7 @@ export function goToView(v: ViewId): boolean {
   const s = useShell.getState();
   if (!s.ready[v]) { s.say(notYet(`The ${label(v)} view`)); return false; }
   useShell.setState({ view: v });
+  dropSelectionForView(v);
   showView(v);
   return true;
 }

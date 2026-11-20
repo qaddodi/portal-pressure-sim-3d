@@ -14,6 +14,7 @@ import { LOOK_IDS, LOOK_LABELS } from '../../../looks/looks.ts';
 import { useSettings } from '../../../state/settings.ts';
 import { flagValue, flagNumber, debugPage } from '../flags.ts';
 import { attach } from '../pps.ts';
+import { cel } from '../../../scene/api.ts';
 import { screenNow, packetNow, stateNow } from '../packet/sources.ts';
 import { stateLink, baseOf } from '../packet/state.ts';
 import { togglePlay } from '../../shell/transport.ts';
@@ -175,6 +176,7 @@ export function mountPage(kind: 'gallery' | 'check' | 'full' | 'frame'): void {
   paintLooks();
   useSettings.subscribe(() => setTimeout(paintLooks, 50));
 
+  attach('vessels', () => cel.probeVessels());
   attach('debug', { catalog: () => cat, open: (id: string) => { const e = byId(cat, id); return e ? open(e) : Promise.reject(new Error(`no specimen ${id}`)); }, settle, sweep: (s: string, l: string[]) => sweep(s, l), check: (full = false) => walk(full), packet: packetNow, report: () => outText });
 
   // ── what the address asks for ──

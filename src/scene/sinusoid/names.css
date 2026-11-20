@@ -10,3 +10,6 @@
    (not the name's own colour), on the paper's halo out to its radius */
 .sv-layer .lb-anchor { width: var(--sv-dot); height: var(--sv-dot); margin: calc(var(--sv-dot) / -2) 0 0 calc(var(--sv-dot) / -2); border: var(--sv-dot-w) solid var(--text-2); background: var(--lb-ring-fill);
   box-shadow: 0 0 0 var(--sv-dot-halo) var(--lb-ring-fill); }
+
+/* an end's arrow, part of its name (the 3D sinusoid draws none in the scene): bold, in the name's own ink, a little air between it and the words */
+.sv-arrow { display: inline-block; font-weight: 700; margin: 0 0.3em; }

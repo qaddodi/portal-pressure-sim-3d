@@ -389,3 +389,18 @@ test('zoomed in on the map: no vessel is culled by its body sphere, corners are 
   assert.match(caps, /readUiWalls/);
   assert.match(readFileSync(new URL('../src/scene/circuit/ui-walls.ts', import.meta.url), 'utf8'), /\.nb-views/, 'the view pill is a wall');
 });
+
+test('the liver\'s beds and the hepatic arteries are drawn in the Circuit although the body leaves the beds out', async () => {
+  const { presenceOf, NETWORK } = await import('../src/scene/vessels/network.ts');
+  const n = 400, f = { Q: new Float64Array(n).fill(1), D: new Float64Array(n).fill(5) };
+  const bed = NETWORK.filter((v) => v.kind === 'liver');
+  assert.ok(bed.length >= 5, 'the liver beds are in the network');
+  for (const v of bed) {
+    assert.equal(presenceOf(v, f as never, { collaterals: false }), 'hidden', `${v.id}: not in the body`);
+    assert.equal(presenceOf(v, f as never, { collaterals: false, circuit: true }), 'shown', `${v.id}: on the map`);
+  }
+  for (const id of ['A_HEP', 'A_HR', 'A_HL']) assert.equal(presenceOf(NETWORK.find((v) => v.id === id)!, f as never, { collaterals: false, circuit: true }), 'shown', `${id} is drawn in the Circuit`);
+  const sc = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  assert.match(sc, /circuit: this\.figureView === 'circuit'/);
+  assert.match(sc, /wasCircuit !== \(v === 'circuit'\)/, 'the presence is worked out again when the view changes');
+});

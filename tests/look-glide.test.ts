@@ -50,3 +50,13 @@ test('the page and the figure are wired to it, and the stylesheet eases the fade
   assert.match(css, /::view-transition-group\(root\)[^}]*animation-duration: 320ms/);
   assert.match(css, /html\.look-glide/);
 });
+
+test('a new patient eases (organs, disease, collaterals), the colour key cross-fades, controls ease their states', () => {
+  const sc = readFileSync('src/scene/scene.ts', 'utf8');
+  assert.ok(!/instant: first \|\| f\.jump/.test(sc) && !/instant \|\| f\.jump/.test(sc) && !/\}, f\.jump\);/.test(sc), 'a jump frame no longer forces the disease, presence or shapes to snap');
+  const key = readFileSync('src/ui/shell/LensKey.tsx', 'utf8');
+  assert.match(key, /useLeaving/); assert.match(key, /lens-key/);
+  const ease = readFileSync('src/ui/shell/ease.css', 'utf8');
+  assert.match(ease, /:where\(/); assert.match(ease, /background-color var\(--d-small/);
+  assert.match(readFileSync('src/main.tsx', 'utf8'), /shell\/ease\.css/);
+});
