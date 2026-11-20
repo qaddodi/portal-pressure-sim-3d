@@ -13,6 +13,8 @@ import { setSmoothJoins, smoothJoinsOn } from './join-mode.ts';
 import { ATTACH_REACH, BURY, CEIL, END_SHARE, SMOOTH, endDepth, isPlain } from './smooth-joins.ts';
 import { fadeOf } from './fades.ts';
 import { endShare, shuntEnds } from './shunt-ends.ts';
+import { DIVIDED } from './divide.ts';
+const DIVIDED_IDS: ReadonlySet<string> = new Set(DIVIDED.map(([, v]) => v));
 
 const len2d = (pts: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); return l; };
 /** the vessels the bands strangle (topology code C1: the coronary vein to the varices, and the varices to the azygos) */
@@ -178,6 +180,6 @@ export function tubularOf(v: NetVessel, minFirst = 0): number[] {
   return rest.map((c, i) => {
     let len = 0;
     for (let i = 1; i < c.pts.length; i++) len += Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1], c.pts[i]![2] - c.pts[i - 1]![2]);
-    return Math.max(i === 0 ? minFirst : 0, tubularFor(len, plan.kind === 'coil' && !(plan.coils || plan.strands) ? 1 : 2));
+    return Math.max(i === 0 ? minFirst : 0, tubularFor(len, (plan.kind === 'coil' && !(plan.coils || plan.strands) ? 1 : 2) * (DIVIDED_IDS.has(v.id) ? 3 : 1)));   // (a divided vein's round stump is built from rings a third as far apart: vessels/divide.ts)
   });
 }

@@ -22,6 +22,8 @@ export interface StentSpec {
   geom: { len: number; waist: number; trans: number; red: number };
   s: number;
   site: number;
+  /** the vessel's radius along the stent (at arc a) as a share of its middle radius: a stent never lies wider than the lumen it is in (fit.ts); 1 where the vessel is whole */
+  fit?(a: number): number;
   /** a covered stent (the TIPS and DIPS: Viatorr) has a bare stretch at its portal end; false is open cells end to end */
   covered: boolean;
 }
@@ -70,7 +72,9 @@ export function buildStent(spec: StentSpec): StentPaths {
   const { A, R } = spec;
   const u = R / 12;   // the mocks' unit: a twelfth of the lumen's half width
   const share = (a: number): number => lumenShare(spec, Math.min(1, Math.max(0, a / A)));
-  const radius = (a: number): number => R * share(a);
+  // (the stent lies INSIDE its vessel: at 0.9 of the lumen there, less the thickest thing drawn on it (the gold band), so no wire or edge reaches the wall at any tilt, bend or end)
+  const wr = Math.min(Math.max(0.0012, 0.05 * R), WIRE_MAX_R);
+  const radius = (a: number): number => { const lumen = R * share(a) * (spec.fit ? Math.max(0.2, spec.fit(a)) : 1); return Math.max(0.2 * lumen, 0.9 * lumen - 2.4 * wr); };
   const profile = new Float32Array(PROFILE_N);
   for (let i = 0; i < PROFILE_N; i++) profile[i] = share((i / (PROFILE_N - 1)) * A);
 

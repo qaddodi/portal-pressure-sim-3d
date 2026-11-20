@@ -19,9 +19,9 @@ test('the Lobule\'s 3D vessels draw THE head, the blood\'s near black', () => {
   for (const p of ['this.sin.an', 'this.inlets', 'this.twigs']) assert.match(lob, new RegExp(`${p.replace(/\./g, '\\.')}\\.setFlow\\([^\\n]*, true, dpr\\);`), p);
 });
 
-test('the Lobule\'s heads: 60 CSS px apart on a zoom lattice, 4.4 to 9 CSS px of half width (a pixel over a wall at most), and SEEN at the fit: down to 1.5 CSS px of radius', () => {
+test('the Lobule\'s heads: 60 CSS px apart on a zoom lattice, 55 percent of the lumen wide (4 px at least, 60 percent at most), and SEEN at the fit: down to 1.5 CSS px of radius', () => {
   assert.match(MICRO_FS, /60\.0 \* wpc/);
-  assert.match(MICRO_FS, /min\(R \+ 1\.0 \* wpc, clamp\(0\.5 \* R, 4\.4 \* wpc, 9\.0 \* wpc\)\)/);
+  assert.match(MICRO_FS, /float hw = chevHw\(R, wpc\);/);
   assert.match(MICRO_FS, /smoothstep\(1\.5 \* wpc, 2\.1 \* wpc, R\)/);
   assert.match(MICRO_FS, /chevKeep\(j, n0, lv\)/);
 });

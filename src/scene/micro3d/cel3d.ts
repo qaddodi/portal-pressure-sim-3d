@@ -146,13 +146,13 @@ float fh(float x) { return fract(sin(x * 91.7 + 13.3) * 43758.5453); }
 vec2 flowHeads() {
   if (vAcross > 2.0) return vec2(0.0);
   // the Anatomy's rules, in its CSS px (blood/chevron-glsl.ts CHEV, the one table: vessels/shaders.ts chevOne): one head every PITCH_PX CSS px along the tube on the SCREEN, on a lattice that halves and doubles with the zoom (nothing jumps),
-  // a half width of half the radius held between MIN_HW_PX and MAX_HW_PX (a head 7 px long and 8.8 tall from a tube 9 px across) and never past the radius plus OVER_PX, and none on a tube under MIN_R_PX of radius
+  // a head 55 percent of the lumen wide (at least 4 px, never over 60 percent), 1.4 x its width long, sharp: blood/chevron-glsl.ts CHEV, chevHw; and none on a tube under MIN_R_PX of radius
   float R = max(uFlowR, 1e-5);
   float pxA = max(length(vec2(dFdx(vArc), dFdy(vArc))), 1e-7), wpc = pxA * uDpr;
   float lv = max(${F(CHEV_LEVEL_MIN)}, log2(${F(CHEV.PITCH_PX)} * wpc / max(uFlowPitch, 1e-5)));
   float n0 = floor(lv), P = uFlowPitch * exp2(n0);
   float j = floor((vArc - uFlowT) / P + 0.5), x = vArc - uFlowT - j * P;
-  float hw = min(R + ${F(CHEV.OVER_PX)} * wpc, clamp(0.5 * R, ${F(CHEV.MIN_HW_PX)} * wpc, ${F(CHEV.MAX_HW_PX)} * wpc));
+  float hw = chevHw(R, wpc);
   if (abs(x) > 2.0 * hw + 4.0 * pxA) return vec2(0.0);
   float k = chevKeep(j, n0, lv) * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R);
   return chevHead(x, abs(vAcross) * R, hw, pxA, 0.0) * k;
