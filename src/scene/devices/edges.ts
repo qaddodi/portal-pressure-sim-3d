@@ -37,6 +37,14 @@ export const scopeEdge = (k = 1): EdgeFn => ({ colour: ({ t }) => scopeSoftHex(t
 /** The needle's edge: --dev-poly-edge at 0.8 (eus-scope.js line(…, M.ink, 0.8)). */
 export const NEEDLE_EDGE: EdgeFn = { colour: ({ t }) => t.polyEdge, a: 0.8 };
 
+/** The IR catheter's hairline (owner, 20 Nov 2026: "light, subtle ink, never dark-shaded"): the polymer's dark edge moved 62 % toward the shaft's own pale colour and drawn at half strength, so the shaft reads as a pale
+ *  line with a soft grey-blue edge, never a black outline. The balloon's rim and the marker bands take the same softness. */
+export const CATH_EDGE_MIX = 0.62, CATH_EDGE_A = 0.55;
+export const catheterSoftHex = (t: DeviceTokens, mix = CATH_EDGE_MIX): string => mixHex(t.polyEdge, t.poly, mix);
+export const CATH_EDGE: EdgeFn = { colour: ({ t }) => catheterSoftHex(t), a: CATH_EDGE_A };
+export const BALLOON_EDGE: EdgeFn = { colour: ({ t }) => mixHex(t.polyEdge, t.nylon, 0.55), a: 1 };
+export const MARKER_EDGE: EdgeFn = { colour: ({ t }) => catheterSoftHex(t, 0.5), a: 0.6 };
+
 /** The Doppler head's inner line (--dop-head-ink: white on the light looks, black on the dark ones), 1.6 px on the body and 1.4 px on the face (app-06-plate.css .dpr-body, .dpr-face). */
 export const DOP_INK: EdgeFn = { colour: ({ t }) => t.dopHeadInk };
 /** The Doppler head's outer rim (--dop-head-rim: the inverse) is a 4 px stroke under the body: the colour of the part that draws it. */
