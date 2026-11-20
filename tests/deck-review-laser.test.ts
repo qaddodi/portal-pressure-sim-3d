@@ -48,7 +48,7 @@ test('no decided key is dropped where it is carried out: every act but "swallow"
   }
   assert.match(t, /case 'laser': laser\.toggle\(\)/);
   // 2D: Esc puts the black screen away, else ends the talk; the laser has no Esc of its own and is not put away by a new slide
-  assert.match(t, /case 'escape': if \(ui\.black\) ui\.setBlack\(false\); else leaveTalk\(\)/);
+  assert.match(t, /case 'escape': if \(ui\.black\) ui\.setBlack\(false\); else if \(cardZoom\.on\) void cardZoom\.close\(\); else leaveTalk\(\)/);   // (2D: a zoomed card first glides back)
   assert.ok(!/st\.pos !== prev\.pos\) laser\.set\(false\)/.test(t), 'the laser stays on from slide to slide, as in 2D (only the pen\'s strokes are a slide\'s)');
   assert.match(t, /active: \(\) => .*!u\.black/, 'not under the black screen (2D active())');
 });

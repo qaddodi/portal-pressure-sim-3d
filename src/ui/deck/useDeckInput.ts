@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { useUi } from '../ui-store.ts';
+import { useUi, atEnd } from '../ui-store.ts';
+import { cardZoom } from '../cards/card-zoom.ts';
 import { useShell } from '../shell/store.ts';
 import { clickerKey, addDigit, DIGIT_MS, type ClickAct } from './clicker.ts';
 import { leaveTalk } from '../shell/talk.ts';
@@ -57,7 +58,7 @@ function carryOut(a: ClickAct, ui: ReturnType<typeof useUi.getState>, sh: Return
   switch (a.type) {
     case 'digit': { const v = addDigit(d.digits(), a.digit); d.set(v); sh.say(W.slideNumber(v)); break; }
     case 'go': d.clear(); ui.go(Math.min(a.stop, ui.stops.length - 1)); break;
-    case 'move': ui.move(a.to); break;
+    case 'move': if (a.to === 'next' && atEnd(ui)) leaveTalk(); else ui.move(a.to); break;
     case 'swap': ui.swapWallet(); break;
     case 'black': ui.setBlack(); break;
     case 'full': toggleFull(); break;
@@ -65,6 +66,6 @@ function carryOut(a: ClickAct, ui: ReturnType<typeof useUi.getState>, sh: Return
     case 'presenter': if (!openPresenterView()) sh.say(W.noNotesWindow, 'bad'); break;
     case 'laser': laser.toggle(); break;
     case 'swallow': if (a.clear) d.clear(); break;
-    case 'escape': if (ui.black) ui.setBlack(false); else leaveTalk(); break;
+    case 'escape': if (ui.black) ui.setBlack(false); else if (cardZoom.on) void cardZoom.close(); else leaveTalk(); break;
   }
 }

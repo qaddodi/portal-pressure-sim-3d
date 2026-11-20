@@ -152,3 +152,34 @@ test('the belly opens the Ascites instrument and leaves no card; a held tap (the
 });
 
 test('x2d reaches the 2D x the lobe is judged on', () => { assert.ok(Math.abs(x2d(x3(640)) - 640) < 1e-9); });
+
+// ── the heavy outline of a tapped organ ──
+import { ORGAN_INK_VS } from '../src/scene/organs/organ-shader.ts';
+import { OrganPins, PIN_PX, SELECT_PX } from '../src/scene/highlight.ts';
+import { MESHES_OF } from '../src/scene/organs/pick.ts';
+
+test('the organ outline widens by hiPx with hiOn and takes the highlight colour (it did neither before: the shader ignored both)', () => {
+  assert.match(ORGAN_INK_VS, /uniform float hiOn;/);
+  assert.match(ORGAN_INK_VS, /uniform float hiPx;/);
+  assert.match(ORGAN_INK_VS, /vHi = hiOn;/);
+  assert.match(ORGAN_INK_VS, /px \+ hiOn \* hiPx/);
+});
+
+test('a tapped organ\'s outline fades in heavy, a slide\'s pin stays at its own width, and putting the selection away fades it out', async () => {
+  const s = await scene();
+  const byId = s.disease.organs.byId, pins = new OrganPins();
+  const hi = (id: string) => byId.get(id)!.ink.uniforms.hiOn!.value as number, px = (id: string) => byId.get(id)!.ink.uniforms.hiPx!.value as number;
+  assert.ok(SELECT_PX > 2 * PIN_PX, 'heavy: more than twice a slide\'s pin');
+  pins.select(MESHES_OF.heart!);
+  for (let i = 0; i < 30; i++) pins.step(16, byId);
+  assert.equal(hi('heart'), 1); assert.equal(hi('heart-ra'), 1, 'the atrium is part of the heart');
+  assert.equal(px('heart'), SELECT_PX); assert.equal(hi('liver'), 0);
+  pins.set(['liver']);
+  for (let i = 0; i < 30; i++) pins.step(16, byId);
+  assert.equal(hi('liver'), 1); assert.equal(px('liver'), PIN_PX, 'a slide\'s pin keeps its own line');
+  pins.select([]); pins.set([]);
+  for (let i = 0; i < 30; i++) pins.step(16, byId);
+  assert.equal(hi('heart'), 0); assert.equal(hi('liver'), 0);
+  assert.deepEqual(MESHES_OF.spleen, ['spleen']); assert.deepEqual(MESHES_OF.liver, ['liver']);
+  s.dispose?.();
+});

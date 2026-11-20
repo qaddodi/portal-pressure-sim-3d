@@ -488,6 +488,8 @@ export class CelScene {
   markVessels(ids: readonly string[]): void { this.highlight.setOnly(ids); this.moving = true; }
 
   /** Outline these organs (organ ids: liver, spleen, heart, bowel, colon, duodenum, kidney-l...); [] clears. */
+  /** The tapped organ gets a heavy outline (the selection's mark); [] puts it out. */
+  selectOrgans(ids: readonly string[]): void { this.pins.select(ids); this.moving = true; }
   pinOrgans(ids: readonly string[], normalSpleen = false): void { this.pins.set(ids); this.pins.setNormalOutline(normalSpleen); this.moving = true; }
 
   /** Free play: pick a vessel by edge ID (or clear it with null). */
@@ -636,6 +638,10 @@ export class CelScene {
     ORGAN_CUT.value.set(this.cutArr[0], this.cutArr[1], this.cutArr[2], this.cutArr[3]);
     this.lobule.field.setSoft(fieldSoft(d, this.lobuleRest()));
     if (was !== this.cutArr[2] && (was > -1 || this.cutArr[2] > -1)) this.moving = true;
+    // while the window is open the organs' fill stops writing depth: a half-cleared fragment (the window's soft edge, the dive's fade) is nearly invisible, and writing depth with it hid the vessels, the lobule and the organ's own far side
+    // behind it in a pattern that changed every frame of the dive (the surface "flickers", Mohammad 20 Nov). At rest (nothing cleared) the fill writes depth as before.
+    const open = this.cutArr[2] > -1;
+    if (open !== this.organsOpen) { this.organsOpen = open; for (const o of this.disease.organs.objects) o.toon.depthWrite = !open; this.moving = true; }
   }
   /** A portrait room (narrower than tall, 2D's `W < H * 0.95`) runs the sinusoid top to bottom: the sinusoid view takes it (SinusoidView.setPortrait, the sinusoid worker's), and the shot asks for it (sinusoidShot(portrait)). */
   private portrait = false;
@@ -664,6 +670,7 @@ export class CelScene {
     if (key !== this.restKey) { this.restKey = key; this.restD = effectiveDistance(lobuleShot('lobule'), r, this.height, this.width); }
     return this.restD;
   }
+  private organsOpen = false;
   private readonly divePt = new Vector3();
   private readonly cutArr: [number, number, number, number] = [0, 0, -1, 1];
   /** How much of the body is drawn now (1 whole, 0 gone): for tests and tags. */
