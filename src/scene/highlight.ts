@@ -188,7 +188,7 @@ export class Highlight {
 export const PIN_FADE_MS = 300;
 /** The thin line of the normal-sized spleen inside an enlarged one (2D OL_LOOK.normal: 1.4 px, half an alpha). */
 /** What a slide's pin and a tapped organ add to the organ's own 1.1 line: a modest step up (Mohammad, 20 Nov: "insanely thick"). */
-export const PIN_PX = 0.4, SELECT_PX = 0.6;   // (figure units, as the organ's own 1.1 line is: 1.6 and 3.6 drew a white band several times the line when zoomed, 20 Nov)
+export const PIN_PX = 0.6, SELECT_PX = 0.9;   // (figure units, as the organ's own 1.1 line is: 1.6 and 3.6 drew a white band several times the line when zoomed, 20 Nov)
 export const NORMAL_LINE = { px: 1.4, alpha: 0.5 };
 
 /** A slide's outlined organs (2D `pinOrgans`: the organ's own deep tone, a wider line, fading in and out), by the organs' own ids. The line is the organ's ink hull at the
