@@ -45,7 +45,9 @@ const WORDS: Record<CapKey, { name: string; short: string; pri: number; tone: st
 /** The courses a name stands clear of or avoids: the blood's sinusoids and cross-links, the inlets and the arteriole's twigs. */
 export const LINE_KINDS: ReadonlySet<string> = new Set(['s0', 's1', 's2', 'an', 'in', 'tw']);
 /** The words of a station stand at least this far from its vessel's edge, so its leader and ring always show (2D keeps a visible stretch, lobule-zoom-records.js solve: 16 px from the vessel's middle; here from its edge, over the 12 px a leader needs, so the least that always shows). */
-export const MIN_LEAD = 13;
+export // the figure's names stay within about 70 px of their vessel (solver LONG_LEAD); the lobule's names reach as far as 2D's did, so the tract's names can stand on the side their vessels face
+const LOBULE_REACH = 140;
+const MIN_LEAD = 13;
 /** The central vein's name may stand this far from the vein (px) to find a place clear of the sinusoids that run into it (on a phone the hexagon fills the width, so the nearest clear band is past its rim). */
 export const CV_REACH = 300;
 const READ: Record<CapKey, CapMeta['read']> = { triad: 'P1', sin: 'P2', cv: 'P3', ha: null, bd: null, lymph: 'lymph' };
@@ -155,7 +157,7 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
     // a tract name stands out along the ray from the venule through what it names (its spoke); the others on the side their dot faces
     const spoke = spokeOf[k] ?? (k === 'cv' ? [0, 1] : [0, -1]);
     const must = !!ctx.must?.has(k);
-    items.push({ id: k, ax, ay, au: 0.5, forms, pri: must ? 100 : w.pri, must, dirs: sidesToward(spoke[0]!, spoke[1]!), vw: rOf(k), minLead: MIN_LEAD, ...(k === 'cv' ? { clearLines: true, reach: CV_REACH, prefer: [-out[0], -out[1]] as const } : {}), ...(k === 'triad' || k === 'ha' || k === 'bd' || k === 'lymph' ? { face: { cx: venule[0], cy: venule[1], ux: spoke[0]!, uy: spoke[1]! } } : {}) });
+    items.push({ id: k, ax, ay, au: 0.5, forms, pri: must ? 100 : w.pri, must, dirs: sidesToward(spoke[0]!, spoke[1]!), vw: rOf(k), minLead: MIN_LEAD, reach: LOBULE_REACH + rOf(k) + 10, ...(k === 'cv' ? { clearLines: true, reach: CV_REACH, prefer: [-out[0], -out[1]] as const } : {}), ...(k === 'triad' || k === 'ha' || k === 'bd' || k === 'lymph' ? { face: { cx: venule[0], cy: venule[1], ux: spoke[0]!, uy: spoke[1]! } } : {}) });
     meta.set(k, { id: k, kind: 'station', forms: formsM, read: READ[k], label: w.name, target: w.target });
   }
   return { items, meta, tri, keep, lines };
