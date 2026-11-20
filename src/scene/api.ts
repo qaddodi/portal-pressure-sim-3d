@@ -50,6 +50,8 @@ export const sceneApi = {
     cel.goTo(shot, room, performance.now(), ms ?? cel.rig.reachMs(shot));
     clock.invalidate('shot');
   },
+  /** Follow a world point with the camera's aim, smoothly and without restarting any move (the catheter's tip on its way in); null stops. */
+  follow(p: readonly [number, number, number] | null): void { cel.rig.follow(p); clock.invalidate('follow'); },
   /** Put the hand's view back (a state link: the figure turned `orbit` radians, zoom `k`, panned `x` `y` px): what a person's fingers left, set at once, held until the next shot. */
   setCameraView(v: { orbit?: number; k?: number; x?: number; y?: number }): void {
     const h = cel.rig.handView;

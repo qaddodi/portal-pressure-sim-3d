@@ -70,7 +70,7 @@ test('the inner shade stacks as 2D\'s strokes, at og-dark\'s own alpha, on the l
 test('the organ outline is in the figure\'s units (2D 1.1, kidney 1.4), floored at one device pixel, and the organs draw in 2D\'s order with the gut last', async () => {
   const { ORGAN_INK_VS } = await import('../src/scene/organs/organ-shader.ts');
   const { ORGAN_ORDER } = await import('../src/scene/organs/layer.ts');
-  assert.match(ORGAN_INK_VS, /max\(1\.0 \/ max\(dpr, 1\.0\), px \/ max\(wpc, 1e-6\)\)/);
+  assert.match(ORGAN_INK_VS, /max\(1\.0 \/ max\(dpr, 1\.0\), \(?px( \+ hiOn \* hiPx\))? \/ max\(wpc, 1e-6\)\)/);
   assert.equal(ORGAN_STYLE.liver!.px, 1.1); assert.equal(ORGAN_STYLE['kidney-l']!.px, 1.4);
   assert.deepEqual(ORGAN_ORDER.slice(-2), ['bowel', 'colon']);
   for (const id of Object.keys(ORGAN_STYLE)) assert.ok(ORGAN_ORDER.includes(id), id);

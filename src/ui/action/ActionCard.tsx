@@ -3,6 +3,7 @@
 // iPad it is a sheet above the view switch. Always in the page, faded in and out; the numbers on it re-render only when what they print changes (snap.ts). Number keys 1 to 9 run its
 // first nine controls. Text never shrinks to fit and nothing scrolls inside it (but the Details face's own words, as 2D's .ad-scroll: its head stays and what is under it scrolls only where it is taller than the card's room).
 import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
+import { SwitchNum } from '../patients/SwitchNum.tsx';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
 import './action.css';
 import { OrderIcon } from './icons.tsx';
@@ -58,10 +59,10 @@ function SpanBar({ card, snap }: { card: Card; snap: Snap }) {
   const sev = s.ok && sp.cut ? (sp.cut === 'hvpg' ? hvpgSev(s.d) : ppgSev(s.d)) as keyof typeof SEV : null;
   return (
     <div className="ac-sp">
-      <span className="ac-el">{sp.el ? sp.el[0] : null}</span><span className="ac-dv">{sp.dn || 'Δ'} <b className={sev ? SEV[sev] : 'ac-cut'}>{s.ok ? fmt(s.d, 1) : 'not measured'}</b></span><span className="ac-el r">{sp.el ? sp.el[1] : null}</span>
-      <b className="ac-pa">{s.ok ? fmt(s.a, 1) : '—'}</b>
+      <span className="ac-el">{sp.el ? sp.el[0] : null}</span><span className="ac-dv">{sp.dn || 'Δ'} <b className={sev ? SEV[sev] : 'ac-cut'}>{s.ok ? <SwitchNum text={fmt(s.d, 1)} /> : 'not measured'}</b></span><span className="ac-el r">{sp.el ? sp.el[1] : null}</span>
+      <b className="ac-pa">{s.ok ? <SwitchNum text={fmt(s.a, 1)} /> : '—'}</b>
       <div className="ac-track"><i className="ac-ramp" style={{ background: ramp, transform: `translateX(${(-ua * k * 100).toFixed(2)}%) scaleX(${k.toFixed(4)})` }} /></div>
-      <b className="ac-pb"><span>{s.ok ? fmt(s.b, 1) : '—'}</span><u>mmHg</u></b>
+      <b className="ac-pb"><span>{s.ok ? <SwitchNum text={fmt(s.b, 1)} /> : '—'}</span><u>mmHg</u></b>
     </div>
   );
 }
@@ -73,7 +74,7 @@ function Slider({ v, vs, index, setRef }: { v: Extract<Verb, { type: 'slider' }>
   const send = (val: number) => { updateParams((p) => { v.set(p, val); return p; }, { label: v.hist, history: fresh.current }); fresh.current = false; };
   return (
     <div className="ac-c ac-slider">
-      <div className="ctl-top">{v.icon && <OrderIcon n={v.icon} className="ac-ic" />}<span className="ctl-name">{name}</span><span className="ctl-val">{v.format(x)}</span></div>
+      <div className="ctl-top">{v.icon && <OrderIcon n={v.icon} className="ac-ic" />}<span className="ctl-name">{name}</span><span className="ctl-val"><SwitchNum text={v.format(x)} /></span></div>
       <div className="range-wrap" style={{ '--p': Math.min(1, Math.max(0, (x - v.min) / (v.max - v.min))) } as CSSProperties}>
         <input ref={(el) => setRef(index, el)} type="range" min={v.min} max={v.max} step={v.step} value={x} aria-label={v.label ?? ''} aria-description={v.tickNames}
           onPointerDown={() => { fresh.current = true; }} onKeyDown={() => { fresh.current = true; }}
@@ -88,12 +89,12 @@ function Slider({ v, vs, index, setRef }: { v: Extract<Verb, { type: 'slider' }>
 function VerbView({ card, v, vs, index, setRef }: { card: Card; v: Verb; vs: VerbSnap; index: number; setRef: (i: number, el: HTMLInputElement | null) => void }) {
   switch (v.type) {
     case 'read': case 'stat':
-      return <span className="ac-r">{v.label && <em className="ac-em">{v.label}</em>}<b>{vs.text}</b>{v.type === 'read' && v.unit && <u className="ac-u">{v.unit}</u>}</span>;
+      return <span className="ac-r">{v.label && <em className="ac-em">{v.label}</em>}<b><SwitchNum text={vs.text ?? ''} /></b>{v.type === 'read' && v.unit && <u className="ac-u">{v.unit}</u>}</span>;
     case 'about': return <>{vs.lines!.map((t, i) => <p key={i}>{t}</p>)}</>;
     case 'meter':
       return (
         <div className="ac-c" aria-label={v.label ?? undefined}>
-          <div className="ctl-top">{v.icon && <OrderIcon n={v.icon} className="ac-ic" />}<span className="ctl-name">{v.short || v.label}</span><span className="ctl-val">{Math.round(vs.share! * 100)}%</span></div>
+          <div className="ctl-top">{v.icon && <OrderIcon n={v.icon} className="ac-ic" />}<span className="ctl-name">{v.short || v.label}</span><span className="ctl-val"><SwitchNum text={`${Math.round(vs.share! * 100)}%`} /></span></div>
           <div className="ac-meter"><i className="ac-meter-fill" style={{ transform: `scaleX(${vs.share!.toFixed(2)})` }} /></div>
         </div>
       );
@@ -164,7 +165,7 @@ function Face({ card, onKeys, onDetails }: { card: Card; onKeys: (list: (() => v
         {onDetails ? <button type="button" className="ac-name ac-name-btn" aria-label={`${card.title}: details`} onClick={onDetails}><span>{card.title}</span><Icon n="chev-right" className="ac-chev" /></button> : <span className="ac-name">{card.title}</span>}<span className={`ac-state st-word ${st ? STATE_CLS[st[0]] ?? '' : ''}`}>{st ? st[1] : ''}</span></div>
       {card.span && snap.span ? <SpanBar card={card} snap={snap} />
         : snap.value && !card.noValue ? (
-          <div className="ac-value"><span className="ac-num"><b>{snap.value.v}</b><span className="unit">{snap.value.u}</span></span>{snap.value.d && <span className={`ac-delta ${snap.value.up ? 'up' : 'down'}`}>{snap.value.d}</span>}</div>
+          <div className="ac-value"><span className="ac-num"><b><SwitchNum text={snap.value.v} /></b><span className="unit">{snap.value.u}</span></span>{snap.value.d && <span className={`ac-delta ${snap.value.up ? 'up' : 'down'}`}>{snap.value.d}</span>}</div>
         ) : null}
       {rows.read.length > 0 && <div className="ac-rs">{rows.read}</div>}
       {rows.about.length > 0 && <div className="ac-about">{rows.about}</div>}

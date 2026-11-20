@@ -19,7 +19,12 @@ export const CASING_2D: Readonly<Record<LookId, { rgb: readonly [number, number,
 };
 /** The casing the shaders wear: 2D's, with the alpha held at the figure's least (cel-style INK_ALPHA_MIN), so the line reads as ink on every look. */
 const floorA = (a: number) => Math.max(a, CEL_STYLE.INK_ALPHA_MIN);
-export const CASING: typeof CASING_2D = Object.fromEntries(Object.entries(CASING_2D).map(([k, v]) => [k, { rgb: v.rgb, a: floorA(v.a), circ: { rgb: v.circ.rgb, a: floorA(v.circ.a) } }])) as unknown as typeof CASING_2D;
+/** The outline of a vessel on the Circuit's dark looks: a pale cool rim, not 2D's black (black ink on a near-black map is lost: Mohammad, 20 Nov, "the outlines of the blood vessels more visible"). The Anatomy keeps its ink. */
+export const CIRC_RIM_DARK: readonly [number, number, number] = [196, 208, 230];
+/** The Circuit's outline is this many times the figure's line (the map's tubes are thick and its ground flat: a bold, continuous outline). */
+export const CIRC_INK_K = 1.35;
+const DARK_LOOKS: ReadonlySet<string> = new Set(['dark', 'navy', 'black']);
+export const CASING: typeof CASING_2D = Object.fromEntries(Object.entries(CASING_2D).map(([k, v]) => [k, { rgb: v.rgb, a: floorA(v.a), circ: { rgb: DARK_LOOKS.has(k) ? CIRC_RIM_DARK : v.circ.rgb, a: floorA(v.circ.a) } }])) as unknown as typeof CASING_2D;
 /** A dark lumen's light rim on the dark looks (tokens.css --vessel-rim-a: .3 there, 0 on the light looks): its alpha. */
 export const RIM_A: Readonly<Record<LookId, number>> = { light: 0, soft: 0, dark: 0.3, navy: 0.3, black: 0.3 };
 /** The rim's colour: 2D's --light-ink, white (stage-vessels.js: `rim: toRGB('var(--light-ink)')`), on every look. It was the look's text colour, a warm grey-cream, which lay a dirty halo inside the ink. */
