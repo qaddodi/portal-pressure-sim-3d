@@ -204,3 +204,13 @@ test('Disse lies under the whole lining, so a gap shows the space of Disse, neve
   let inner = Infinity; for (let i = 0; i < pos.count; i++) inner = Math.min(inner, Math.abs(pos.getY(i)));
   assert.ok(inner < UM.lum + 0.1, `Disse reaches in under the bead (${inner.toFixed(2)} µm from the axis)`);
 });
+
+test('the Kupffer cell sits on bare lining, never on top of an endothelial cell, on a wide and a tall screen (and no endothelial cells overlap each other)', async () => {
+  const { xkFor } = await import('../src/scene/sinusoid/portrait.ts');
+  const { KUP_CLEAR, SEED, nucAt } = await import('../src/scene/sinusoid/layout.ts');
+  for (const p of [false, true]) {
+    const xk = xkFor(p);
+    for (let n = -6; n <= 6; n++) assert.ok(Math.abs(xk - nucAt(n, SEED.nucDn)) >= KUP_CLEAR - 1e-9, `portrait ${p}: clear of the nucleus at ${nucAt(n, SEED.nucDn).toFixed(1)} (xk ${xk.toFixed(1)})`);
+  }
+  for (const sd of [SEED.nucUp, SEED.nucDn]) for (let n = -8; n <= 8; n++) assert.ok(nucAt(n + 1, sd) - nucAt(n, sd) > 2 * 4.6, 'neighbouring endothelial cells never overlap');
+});
