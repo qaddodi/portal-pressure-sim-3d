@@ -7,7 +7,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CELLS_FS, CELLS_VS } from '../src/scene/blood/cells/shader.ts';
 import { STREAK, laneSpeed, lanesFor, layoutCells } from '../src/scene/blood/cells/core.ts';
-import { STREAK_MARK_GLSL, STREAK_FIELD_GLSL, STREAK_LANE_GLSL } from '../src/scene/blood/streak-glsl.ts';
+import { STREAK_MARK_GLSL, STREAK_FIELD_GLSL, STREAK_LANE_GLSL, bendLength, fieldReach, streakFit, streakInside, streakReach } from '../src/scene/blood/streak-glsl.ts';
+import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
+import { useSettings } from '../src/state/settings.ts';
+import { CelScene } from '../src/scene/scene.ts';
 import { MICRO_FS, MICRO_VS } from '../src/scene/micro3d/cel3d.ts';
 
 const have = spawnSync('glslangValidator', ['--version']).status === 0;
@@ -121,4 +124,70 @@ test('variation: each streak\'s tone lies between the lit tone and one shade lig
   assert.match(STREAK_FIELD_GLSL, /streakPace\(streakHash\(idx \* 5\.9 \+ 0\.7\)\)/, 'and the pace');
   // the whole body stays opaque: only the streak sprites blend, inside the lumen
   assert.match(readFileSync(new URL('../src/scene/blood/cells/cells.ts', import.meta.url), 'utf8'), /transparent: true, depthWrite: false/);
+});
+
+test('CONTAINED 100 percent: sampled at full turbulence, every lane, every size and every bend, a streak\'s whole sideways extent stays within EDGE of the lumen, short of the ink', () => {
+  let worst = 0, n = 0;
+  for (const R of [2.5, 4, 8, 16, 40, 90]) for (const h of [1, 2, 3]) for (let k = -h; k <= h; k++) for (const wob of [-1, -0.4, 0, 0.7, 1]) for (const tilt of [-1, -0.5, 0, 0.5, 1]) for (const rho of [4, 20, 80, 1e6]) {
+    const thick = Math.min(STREAK.THICK_MAX, Math.max(STREAK.THICK_MIN, STREAK.THICK_OF_R * R * (1 + STREAK.THICK_JITTER / 2)));
+    const len = Math.min(STREAK.LEN_MAX, Math.max(STREAK.LEN_FLOOR, STREAK.LEN_OF_R * R * (1 + STREAK.LEN_JITTER / 2) * STREAK.LEN_FLOW[1]));
+    const T = 1;   // full turbulence
+    const latN = Math.min(1, Math.max(-1, k / h + T * STREAK.WANDER * wob));
+    const bend = bendLength(rho, R);
+    const f = streakFit(latN * STREAK.SPAN * R, T * STREAK.TILT * tilt, len, thick, R, bend);
+    const reach = streakReach(f.lat, f.ang, f.len, thick) / R;
+    worst = Math.max(worst, reach); n++;
+    assert.ok(reach <= STREAK.EDGE + 1e-9, `R ${R} lane ${k}/${h} wob ${wob} tilt ${tilt} rho ${rho}: reach ${reach.toFixed(3)} of the radius`);
+    // a streak on a bend stands off the curve by at most SAG of the radius (the sagitta of its chord)
+    assert.ok(f.len * f.len / (8 * rho) <= STREAK.SAG * R * (1 + 1e-6) || f.len <= 1e-9 || f.len === Math.min(len, bend), 'the sagitta');
+  }
+  assert.ok(n > 5000 && worst <= STREAK.EDGE + 1e-9 && worst < 1 - 0.05, `${n} samples, worst reach ${worst.toFixed(3)}`);
+  assert.ok(STREAK.EDGE + STREAK.SAG <= 0.95 || STREAK.EDGE <= 0.8, 'a gap is left to the ink');
+  // the shader runs the same fit
+  assert.match(CELLS_VS, /vec3 fit = streakFit\(latN \* 0\.78 \* Rcss, T \* 0\.45 \* tilt, lenCss, thickCss, Rcss, bendLen\);/);
+  assert.match(CELLS_VS, /float bendLen = 2\.0 \* sqrt\(2\.0 \* rho \* 0\.10 \* Rcss\);/);
+  assert.match(STREAK_LANE_GLSL, /float room = max\(0\.8 \* R - 0\.5 \* thick, 0\.0\);/);
+  assert.match(CELLS_VS, /float ang = fit\.y;/);
+});
+
+test('CONTAINED BY CONSTRUCTION (Mohammad, 20 Nov: "the streaks are flowing outside all the vessels"): the streaks are painted in the tube\'s own fragment shader, clipped to the lumen, in every site; no sprite is drawn, so none can stray past an end, a taper or a fade', () => {
+  // the clip is in the shared field itself, which every site includes
+  assert.match(STREAK_FIELD_GLSL, /float ca = across \/ 0\.9;\n\s*float inLumen = step\(abs\(ca\), 1\.0\);/);
+  assert.match(STREAK_FIELD_GLSL, /return inLumen \* streakMark\(/, 'nothing past the edge');
+  assert.ok(VESSEL_FS.includes(STREAK_FIELD_GLSL), 'the Anatomy: in the tube shader');
+  assert.ok(MICRO_FS.includes(STREAK_FIELD_GLSL), 'the 3D lobule and sinusoid');
+  assert.match(VESSEL_FS, /float fld = streakField\(across, /);
+  assert.match(VESSEL_FS, /if \(streakAmt > 0\.001 && vR > 0\.0\) \{/);
+  // the JS twin: every lane count keeps every mark inside FIELD_EDGE of the half width, short of the ink (which starts at 1)
+  for (const L of [3, 5, 7]) assert.ok(fieldReach(L) <= STREAK.FIELD_EDGE + 1e-9 && fieldReach(L) < 1, `${L} lanes: reach ${fieldReach(L)}`);
+  assert.ok(!streakInside(0.95) && !streakInside(-1) && streakInside(0.9));
+  // every vessel of the network, the decorative branches and the fade-zone ones too, draws it through its own tube material (one program, one draw), and the sprite layer draws nothing
+  useSettings.setState({ particles: true });
+  const sc = new CelScene();
+  for (let i = 0; i < 40; i++) sc.cells.step(16, { view: 'body', circuit: 0, body: 1, flowMoving: true } as never);
+  assert.equal(sc.cells.object?.visible, false, 'no streak sprite is ever drawn');
+  let n = 0;
+  for (const o of sc.vessels) {
+    const m = o.toonMesh.material as import('three').ShaderMaterial;
+    assert.ok(m.uniforms.streakAmt, `${o.edge!.id}: the streak amount reaches the tube`);
+    assert.equal(m.fragmentShader.includes(STREAK_FIELD_GLSL.trim().split('\n')[1]!), true, `${o.edge!.id}: the tube paints them`);
+    n++;
+  }
+  assert.ok(n > 50, `${n} vessels`);
+  assert.ok(sc.vessels.some((o) => (o.toon.uniforms.fadeMode!.value as number) > 0), 'the fade-zone vessels are among them');
+  sc.dispose();
+});
+
+test('more streaks (about 1.6x the first design), still thin, in 3/5/7 lanes; and they lie UNDER the chevrons in every site', () => {
+  assert.ok(34 / STREAK.FIELD_PERIOD[0] >= 1.55 && 26 / STREAK.FIELD_PERIOD[1] >= 1.55, 'the period is 1.6 times shorter');
+  assert.ok(STREAK.FIELD_GAP <= 0.15, 'few empty cycles');
+  assert.ok(STREAK.FIELD_THICK <= 0.3 && STREAK.THICK_MAX <= 4, 'still thin');
+  assert.equal(STREAK.LANES, 7);
+  // the Anatomy: the streaks are mixed into the body tone first, the chevron's pixels are taken back to the body tone before the head is laid on
+  const fs = VESSEL_FS;
+  assert.ok(fs.indexOf('streakCover = sOn * fld;') < fs.indexOf('c = c * (1.0 - ha) + core * ac'), 'chevrons after streaks');
+  assert.match(fs, /if \(streakCover > 0\.0\) c = mix\(c, cBody, ha\);/, 'a chevron pixel is never tinted by a streak');
+  // the 3D lobule and sinusoid: the flow streaks are held back where a head is
+  assert.match(MICRO_FS, /uFlowK \* flowStreaks\(\) \* \(1\.0 - clamp\(hd\.x \+ hd\.y, 0\.0, 1\.0\)\)/);
+  assert.ok(MICRO_FS.indexOf('vec2 hd = flowHeads();') < MICRO_FS.indexOf('uFlowK * flowStreaks()'));
 });

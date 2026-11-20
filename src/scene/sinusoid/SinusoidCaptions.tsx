@@ -26,6 +26,9 @@ import { buildSinusoidNames, namesFree, namesOn, placeOf } from './captions.ts';
 import { type RNode, dotCss, regionClass, regionTree, treeKey } from './region.ts';
 import { U } from './view.ts';
 import { framePoint } from './portrait.ts';
+
+/** 2D's end arrow (sinusoid's shader, the 3D scene's arrowOutline): a short broad shaft and a wide head, pointing along +x, its size 1 (the head 0.92 tall). */
+export const END_ARROW_D = 'M-0.58 -0.17 L0 -0.17 L0 -0.46 L0.52 0 L0 0.46 L0 0.17 L-0.58 0.17 Z';
 import { setSinusoidPlaced, useSinusoidNames } from './explain-store.ts';
 
 const SETTLE_MS = 180, FADE_MS = 180;
@@ -67,9 +70,18 @@ export function SinusoidCaptions() {
     };
     const key = (p: NamePlacement) => p.key;
     /** an end's arrow, pointing toward its vessel off the view on the screen as it stands (the portal venule's back upstream, the central vein's on downstream) */
-    const endArrow = (k: 'in' | 'out'): string => {
-      const a = proj(0, 0), b = proj(1, 0), d = (k === 'in' ? -1 : 1) * cel.sinus.flowDir, dx = (b[0] - a[0]) * d, dy = (b[1] - a[1]) * d;
-      return Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? '\u2192' : '\u2190') : (dy > 0 ? '\u2193' : '\u2191');
+    const endArrow = (k: 'in' | 'out'): 'l' | 'r' | 'u' | 'd' => {
+      const a = proj(0, 0), b = proj(1, 0), d = k === 'in' ? -1 : 1, dx = (b[0] - a[0]) * d, dy = (b[1] - a[1]) * d;
+      return Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'd' : 'u');
+    };
+    /** 2D's end arrow (arrowOutline: shaft and head), pointing along `dir`, placed outside the name on that side (names.css .sv-end-arrow) */
+    const arrowEl = (dir: string): Element => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', `sv-end-arrow sv-end-arrow-${dir}`); svg.setAttribute('viewBox', '-0.66 -0.54 1.26 1.08'); svg.setAttribute('aria-hidden', 'true');
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', END_ARROW_D);
+      svg.appendChild(path);
+      return svg;
     };
     const make = (id: string): El => {
       const r = document.createElement('div');
@@ -94,13 +106,15 @@ export function SinusoidCaptions() {
     /** a caption's words written as 2D's pageRun writes them (only when they changed), and its element returned */
     const fill = (e: El, name: string, value: string, key: NameKey, explain: NameKey | null): El => {
       const tree = regionTree(name, value, explain === key ? SV_NOTE[key] ?? null : null);
-      // the ends' arrows are part of their names, flat in the label and moving with it (Mohammad 20 Nov 2026: "the arrow should not be a 3D thing; just make it part of the label")
+      // the ends' arrows are 2D's (sinusoid-view.js layoutEnds and its shader's end arrow: a short broad shaft and a wide head, 22 px, in the name's ink on its halo), part of the name and
+      // moving with it, outside it toward its vessel: left of the portal venule and right of the central vein on a wide screen, above the one and below the other on a tall one
+      // (Mohammad 20 Nov 2026: "the arrow should not be a 3D thing; just make it part of the label", "should still be like the 2D version")
       const arrow = (key === 'in' || key === 'out') && useSettings.getState().micro3d ? endArrow(key) : '';
-      if (arrow) { const head = tree[0]!; if (typeof head !== 'string') head.kids = key === 'in' ? [{ tag: 'span', cls: 'sv-arrow', kids: [arrow] }, ...head.kids] : [...head.kids, { tag: 'span', cls: 'sv-arrow', kids: [arrow] }]; }
-      const words = treeKey(tree);
+      const words = treeKey(tree) + arrow;
       if (e.words !== words) {
         e.words = words;
         e.root.replaceChildren(...tree.map(node));
+        if (arrow) e.root.appendChild(arrowEl(arrow));
         e.root.setAttribute('aria-label', [name.replace(/\n/g, ' '), ...value.split(' · ').map((l) => l.replace('~', ' '))].join(' '));
       }
       return e;

@@ -23,7 +23,7 @@ test('a vein that ends in its organ fades in from nothing over the 2D share of i
 test('the hepatic artery fades in at its start and its branches out at their ends, in both views', () => {
   const a = fadeOf('A_HEP', true)!, r = fadeOf('A_HR', true)!;
   assert.deepEqual([a.from, a.to, a.a0, a.a1, a.keep], [0, HEP_FADE_IN, 0, 1, true]);
-  assert.deepEqual([r.from, r.to, r.a0, r.a1, r.keep], [0.7, 1, 1, 0, true]);
+  assert.deepEqual([r.from, r.to, r.a0, r.a1, r.keep], [0.4, 1, 1, 0, false], 'the right artery fades out over the last 60%, as the portal branch beside it does');
 });
 
 test('the veins that run on out of the plate fade out down it', () => {
