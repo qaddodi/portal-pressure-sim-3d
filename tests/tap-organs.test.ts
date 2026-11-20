@@ -169,7 +169,7 @@ test('a tapped organ\'s outline fades in heavy, a slide\'s pin stays at its own 
   const s = await scene();
   const byId = s.disease.organs.byId, pins = new OrganPins();
   const hi = (id: string) => byId.get(id)!.ink.uniforms.hiOn!.value as number, px = (id: string) => byId.get(id)!.ink.uniforms.hiPx!.value as number;
-  assert.ok(SELECT_PX > 2 * PIN_PX, 'heavy: more than twice a slide\'s pin');
+  assert.ok(SELECT_PX > PIN_PX && SELECT_PX <= 1.5 * 1.1, 'a modest step up from the organ\'s own 1.1 line (the first try, 3.6, was a band');
   pins.select(MESHES_OF.heart!);
   for (let i = 0; i < 30; i++) pins.step(16, byId);
   assert.equal(hi('heart'), 1); assert.equal(hi('heart-ra'), 1, 'the atrium is part of the heart');
@@ -183,3 +183,25 @@ test('a tapped organ\'s outline fades in heavy, a slide\'s pin stays at its own 
   assert.deepEqual(MESHES_OF.spleen, ['spleen']); assert.deepEqual(MESHES_OF.liver, ['liver']);
   s.dispose?.();
 });
+
+test('an organ\'s highlight colour is its own colour lifted, never white, in every look; the vessel\'s white is not used', async () => {
+  const { organHighlight } = await import('../src/scene/organs/layer.ts');
+  const { PALETTES } = await import('../src/scene/palette.ts');
+  const { rgbOf } = await import('../src/scene/organs/organ-look.ts');
+  const s = await scene();
+  for (const [look, p] of Object.entries(PALETTES)) {
+    const dark = p.highlight === 'white';
+    for (const og of ['heart', 'liver', 'spleen', 'stomach'] as const) {
+      const c = rgbOf(p.organs.tones[og][1]), h = organHighlight(c, dark);
+      for (let i = 0; i < 3; i++) assert.ok(h[i]! >= c[i]! - 1e-9 && h[i]! < 0.96, `${look} ${og} channel ${i} is brighter than the organ and not white`);
+      assert.ok(h[0] + h[1] + h[2] > c[0] + c[1] + c[2], `${look} ${og} is brighter`);
+    }
+  }
+  // what the layer writes into the ink after a paint, in every look: not the white of highlightColour
+  for (const [look, p] of Object.entries(PALETTES)) {
+    s.disease.organs.applyLook(p); s.disease.organs.update(2000 + Object.keys(PALETTES).indexOf(look));
+    for (const id of ['liver', 'heart', 'spleen']) { const c = byId(s, id).ink.uniforms.hiColor!.value as { r: number; g: number; b: number }; assert.ok(!(c.r > 0.97 && c.g > 0.97 && c.b > 0.97), `${look} ${id} is not white`); }
+  }
+  s.dispose?.();
+});
+const byId = (s: CelScene, id: string) => s.disease.organs.byId.get(id)!;

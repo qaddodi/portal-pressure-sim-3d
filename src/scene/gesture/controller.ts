@@ -319,8 +319,8 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     const touch = ev.pointerType === 'touch';
     // a mouse turns the figure; Shift or the middle button pans (a trackpad's own two fingers pan through wheel events)
     const free = !!host.free?.();
-    // Tilt all around: a finger pans (two tilt, see startPinch); a mouse drag turns the figure on both axes
-    drag = ev.shiftKey || ev.button === 1 || (free && touch) ? startPan(ev.clientX, ev.clientY, touch) : { type: 'rotate', x: ev.clientX, y: ev.clientY, orbit0: host.orbit(), pitch0: free ? host.orbitPitch?.() ?? 0 : undefined, moved: false, trail: trail(ev.clientX, ev.clientY), touch };
+    // A finger always pans, in every view and whatever the setting (two fingers pinch, or tilt when Tilt all around is on, see startPinch); a mouse drag turns the figure (both axes with Tilt all around)
+    drag = ev.shiftKey || ev.button === 1 || touch ? startPan(ev.clientX, ev.clientY, touch) : { type: 'rotate', x: ev.clientX, y: ev.clientY, orbit0: host.orbit(), pitch0: free ? host.orbitPitch?.() ?? 0 : undefined, moved: false, trail: trail(ev.clientX, ev.clientY), touch };
   };
   const pushTrail = (tr: number[], x: number, y: number) => {
     const now = env.now();
