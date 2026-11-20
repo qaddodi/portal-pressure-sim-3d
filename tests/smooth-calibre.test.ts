@@ -38,8 +38,8 @@ test('no vessel changes calibre faster than SLOPE_MAX along its length, as drawn
 });
 
 test('a vein into the cava takes the cava\'s opacity at its wall and is cut along it; every hepatic and renal vein is wired the same way', () => {
-  assert.match(VESSEL_FS, /fadeHere = mix\(vFade, cavaA, wB\);/);
-  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, fadeHere \* cavA\);/);
+  assert.doesNotMatch(VESSEL_FS, /fadeHere|cavaA/);
+  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade \* cavA\);/);
   assert.doesNotMatch(VESSEL_FS, /smoothstep\(-0\.8 \* vNbr\.y, 0\.0, cd\)/, 'no dissolve before the wall');
   const s = new CelScene();
   try {
@@ -47,12 +47,11 @@ test('a vein into the cava takes the cava\'s opacity at its wall and is cut alon
     for (const v of NETWORK) {
       if (!opensIntoCava(v.id)) continue;
       n++;
-      const u = s.vesselObject(v.id)!.toon.uniforms as unknown as { cavaCut: { value: number }; cavaA: { value: number } };
+      const u = s.vesselObject(v.id)!.toon.uniforms as unknown as { cavaCut: { value: number } };
       assert.equal(u.cavaCut.value, 1, `${v.id} opens into the cava`);
-      assert.equal(u.cavaA.value, CAVA_RECEDE, `${v.id} comes to the cava's opacity at its wall`);
     }
     assert.ok(n >= 3, `${n} veins open into the cava`);
-    assert.ok(cavaEndSpan('RHV_IVC') > 0);
+    assert.equal(cavaEndSpan('RHV_IVC'), 0, 'no end ramp');
   } finally { s.dispose(); }
 });
 

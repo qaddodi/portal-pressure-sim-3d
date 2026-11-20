@@ -9,7 +9,7 @@ import { CAVA_LIKE, CAVA_RECEDE, fadeOf } from '../src/scene/vessels/fades.ts';
 import { NODE_POS_2D } from '../src/scene/vessels/paths.copied.ts';
 import { FAINT_ONLY_LAYER } from '../src/scene/vessels/vessel-object.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
-import { vesselAlphaAt } from '../src/scene/vessels/fade-alpha.ts';
+import { tipAlpha, vesselAlphaAt } from '../src/scene/vessels/fade-alpha.ts';
 
 test('the ascending lumbar collateral runs to the azygos node, where the azygos arch and the esophageal collateral meet it', () => {
   const c9 = NETWORK_BY_ID.get('C9')!, end = c9.pts[c9.pts.length - 1]!, [ax, ay] = NODE_POS_2D.AZY!;
@@ -25,7 +25,8 @@ test('it is drawn as the cava is: receded, only as the veil copy over the organs
   assert.ok(CAVA_LIKE.has('C9') && CAVA_LIKE.has('IVC_IS'));
   const f = fadeOf('C9', false)!;
   assert.equal(f.a0, CAVA_RECEDE);
-  assert.ok(f.a1 < CAVA_RECEDE, 'behind the liver it dips below the cava\'s own tone');
+  assert.equal(f.mode, 1); assert.equal(f.a1, 1, 'it climbs to whole only where it joins the azygos'); assert.ok(f.from >= 0.85, 'over a short last stretch: the whole run behind the liver and over the dome is the cava\'s tone (Mohammad, 20 Nov: "still bright, full-strength purple": the part above the dome came out solid)');
+  const mid = fadeOf('C9', false)!; for (const u of [0.1, 0.4, 0.7, 0.85]) assert.ok(Math.abs(tipAlpha(mid, u, 0, 0) - CAVA_RECEDE) < 1e-9, `at ${u} along it`);
   const s = new CelScene(), o = s.vesselObject('C9')!;
   assert.ok(o.toonMesh.layers.isEnabled(FAINT_ONLY_LAYER) && !o.toonMesh.layers.isEnabled(0), 'no solid draw with the organs');
   const c9 = NETWORK_BY_ID.get('C9')!, n = c9.pts.length, last = c9.pts[n - 1]!, first = c9.pts[0]!;

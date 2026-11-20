@@ -42,8 +42,8 @@ test('a fade zone is an opacity ramp 1 to 0 at the end, the outline fading with 
   assert.doesNotMatch(VESSEL_VS, /swell \*= [^;]*\bfa\b/, 'the tube is not thinned by a fade');
   assert.doesNotMatch(VESSEL_VS, /FADE_R/);
   assert.ok(!('FADE_R' in CEL_STYLE.TUBE));
-  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, fadeHere \* cavA\);/, 'the body');
-  assert.match(VESSEL_FS, /c = mix\(c, mix\(inkH, inkColorCirc, circT\), inkT\);[\s\S]*gl_FragColor = vec4\(c, fadeHere \* cavA\);/, 'the outline is part of the body\'s colour, so it fades with it: no ink ring floats at a faded end');
+  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade \* cavA\);/, 'the body');
+  assert.match(VESSEL_FS, /c = mix\(c, mix\(inkH, inkColorCirc, circT\), inkT\);[\s\S]*gl_FragColor = vec4\(c, vFade \* cavA\);/, 'the outline is part of the body\'s colour, so it fades with it: no ink ring floats at a faded end');
   assert.doesNotMatch(VESSEL_FS, /veilA|VEIL_A/, 'no veil alpha: the cava is whole');
 });
 

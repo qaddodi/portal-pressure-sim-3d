@@ -10,7 +10,7 @@ import type { CelShared } from '../materials/cel.ts';
 import { DeviceObject, withAlpha } from '../devices/device-object.ts';
 import type { Palette } from '../palette.ts';
 import type { LookId } from '../../looks/looks.ts';
-import { type Host, type HostPoint, drawnHost, hostAt, swellsOf } from './host.ts';
+import { type Host, type HostPoint, cavaWallShare, drawnHost, hostAt, swellsOf } from './host.ts';
 import { lesionStep } from './follow.ts';
 import { clotColour, recolour } from './paint.ts';
 import { ringTube } from './tube.ts';
@@ -36,11 +36,16 @@ interface Clot { id: string; goal: number; cur: number; obj: ClotObject | null; 
 
 export interface ClotShape { centres: Vector3[]; radii: number[]; alpha: number[]; /** the lumen's live radius at each ring */ lumen: number[] }
 
+/** The shares of the drawn vein's arc length the clot's rings lie at: 2D's span (clot-shape.js clotSpan), and for a vein that opens into the cava it runs on to the cava's wall, to the junction (Mohammad, 20 Nov: "the clots stop well short of the junction"). */
+export function clotShares(host: Host, v: number): number[] {
+  const span = clotSpan(v), wall = cavaWallShare(host), u0 = span.u0, u1 = wall != null ? Math.max(span.u1, wall) : span.u1;
+  return Array.from({ length: CLOT_RINGS }, (_, i) => u0 + (u1 - u0) * (i / (CLOT_RINGS - 1)));
+}
+
 /** The clot's centres and radii for an occlusion v in the drawn vein `host`, its pieces at `swells` (live width over built width): the 2D shape, in scene units. Every ring is a circle that lies whole inside the
  *  lumen's circle at its place (offset + radius <= 0.9 of the live lumen radius), against the wall the clot's id picks, in the plane of the cross-section. */
 export function clotShapeOf(host: Host, swells: readonly number[], v: number, id: string): ClotShape {
-  const seed = hashSeed(id), side = clotSide(seed), { u0, u1 } = clotSpan(v);
-  const shares = Array.from({ length: CLOT_RINGS }, (_, i) => u0 + (u1 - u0) * (i / (CLOT_RINGS - 1)));
+  const seed = hashSeed(id), side = clotSide(seed), shares = clotShares(host, v);
   const on: HostPoint[] = hostAt(host, swells, shares);
   const centres: Vector3[] = [], radii: number[] = [], alpha: number[] = [], lumen: number[] = [];
   const n = new Vector3(), up = new Vector3(0, 1, 0);
