@@ -2,6 +2,7 @@
 // (zone 3), not nested hexagons"), drawn by a shader with 2D's stops and opacity so it eases in and out with the layer and needs no new painting.
 import { Color, CustomBlending, DoubleSide, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial } from 'three';
 import { LOBULE_R } from './shots.ts';
+import { CEL_TISSUE_GLSL, ZONE_EDGES } from './cel.ts';
 import { PLATE_Z } from './plate.ts';
 import { lookColours } from './lz-colours.ts';
 import type { LookId } from '../../looks/looks.ts';
@@ -15,6 +16,7 @@ export const LOBULE_ZONES_VS = /* glsl */ `
 varying vec2 vP;
 void main() { vP = position.xy / ${LOBULE_R.toFixed(4)}; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 export const LOBULE_ZONES_FS = /* glsl */ `
+${CEL_TISSUE_GLSL}
 uniform vec3 z1; uniform vec3 z2; uniform vec3 z3;
 uniform float amount;
 varying vec2 vP;
@@ -24,8 +26,13 @@ void main() {
   for (int k = 0; k < 6; k++) { float a = 0.5235988 + float(k) * 1.0471976; m = max(m, (vP.x * cos(a) + vP.y * sin(a)) / 0.8660254); }
   float inside = 1.0 - smoothstep(0.995, 1.005, m);
   float r = length(vP);
-  vec3 c = r < 0.18 ? z3 : r < 0.5 ? mix(z3, z2, (r - 0.18) / 0.32) : r < 0.85 ? mix(z2, z1, (r - 0.5) / 0.35) : z1;
-  float a = amount * inside;
+  // three hard zones (2D's soft ramp cut at the middle of each: cel.ts ZONE_EDGES), the edge one pixel wide, and a clean line of the zone's shade at each
+  float px = max(fwidth(r), 1e-5);
+  float s2 = smoothstep(${ZONE_EDGES[0].toFixed(4)} - px, ${ZONE_EDGES[0].toFixed(4)} + px, r), s1 = smoothstep(${ZONE_EDGES[1].toFixed(4)} - px, ${ZONE_EDGES[1].toFixed(4)} + px, r);
+  vec3 c = mix(mix(z3, z2, s2), z1, s1);
+  float ln = max(1.0 - smoothstep(0.0, CEL_LINE_MIN * px, abs(r - ${ZONE_EDGES[0].toFixed(4)})), 1.0 - smoothstep(0.0, CEL_LINE_MIN * px, abs(r - ${ZONE_EDGES[1].toFixed(4)})));
+  c = mix(c, c * (1.0 - CEL_SHADE), ln);
+  float a = amount * inside * (1.0 + ln);
   gl_FragColor = vec4(c * a, a);
 }`;
 
