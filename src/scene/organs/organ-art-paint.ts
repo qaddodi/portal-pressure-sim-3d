@@ -61,11 +61,12 @@ export function styleOf(cls: string, t: Tones, w?: number): Style {
     // the lines an organ carries on its surface
     case 'od-fine': return { stroke: solid(t.o3, 0.55), w: 0.9 };
     case 'od-fold': return { stroke: solid(t.o3, 0.16), w: 1.4 };
+    case 'cel-line': return { stroke: solid(t.o3, 0.9), w: 1.6, join: 'round', cap: 'round' };   // (cel shaded: the one thin even ink line)
     default: throw new Error(`organ art: no style for class "${cls}"`);
   }
 }
 /** Every class styleOf knows (the tests check the data uses no other). */
-export const ART_CLASSES = ['ob-ao', 'ob-deep', 'ob-space', 'ob-rim', 'ob-edge', 'ob-wall', 'ob-shade', 'ob-hi', 'oc-ao', 'oc-o1', 'oc-wall', 'oc-pouch', 'oc-tail', 'oc-line', 'oc-valve', 'oc-band', 'oc-band-lit', 'oc-shade', 'oc-fold', 'oc-rim-shade s1', 'oc-rim-shade s2', 'oc-rim-shade s3', 'oc-rim-light', 'od-fine', 'od-fold'];
+export const ART_CLASSES = ['ob-ao', 'ob-deep', 'ob-space', 'ob-rim', 'ob-edge', 'ob-wall', 'ob-shade', 'ob-hi', 'oc-ao', 'oc-o1', 'oc-wall', 'oc-pouch', 'oc-tail', 'oc-line', 'oc-valve', 'oc-band', 'oc-band-lit', 'oc-shade', 'oc-fold', 'oc-rim-shade s1', 'oc-rim-shade s2', 'oc-rim-shade s3', 'oc-rim-light', 'od-fine', 'od-fold', 'cel-line'];
 
 const css = (c: Colour): string => `rgba(${Math.round(c.rgb[0] * 255)},${Math.round(c.rgb[1] * 255)},${Math.round(c.rgb[2] * 255)},${c.a})`;
 
@@ -111,4 +112,37 @@ export function paintArt(env: Env, ctx: Ctx2D, art: Art, t: Tones, setBase: (c: 
   };
   setBase(ctx);
   kids(ctx, art.kids);
+}
+
+/** The colon's art for the cel fill: only its haustra and fold lines, as one thin even ink line (no fills, no shade, no rim, no ao), clipped as 2D clips them. A class that draws a closed shape has its outline kept, its fill dropped. */
+export function haustraOf(art: Art): Art {
+  const keep = new Set(['oc-wall', 'oc-pouch', 'oc-line', 'oc-valve', 'oc-band', 'oc-fold']);
+  const walk = (list: ArtNode[]): ArtNode[] => {
+    const out: ArtNode[] = [];
+    for (const k of list) {
+      if ('kids' in k) { const kids = walk(k.kids); if (kids.length) out.push(k.clip ? { clip: k.clip, kids } : { kids }); } else if (keep.has(k.c)) out.push({ c: 'cel-line', s: k.s, z: k.z, t: k.t });
+    }
+    return out;
+  };
+  return { ...art, kids: walk(art.kids) };
+}
+
+/** The small bowel for the cel fill, drawn by rule: LOOPS broad loops in one serpentine across its box, each an even tube of the base tone between two thin ink lines (the fill under it is the banded cel fill: the art takes its shift),
+ *  no stipple, no dashes, no shading. The ends of the serpentine lie outside the organ and are cut by it. */
+export const BOWEL_LOOPS = 8;
+export function paintBowelCel(ctx: Ctx2D, box: readonly [number, number, number, number], t: Tones, setBase: (c: Ctx2D) => void, loops = BOWEL_LOOPS): void {
+  const [bx, by, bw, bh] = box, pitch = bh / loops, r = pitch / 2, x0 = bx + r, x1 = bx + bw - r;
+  const p = new Path2D();
+  for (let k = 0; k < loops; k++) {
+    const y = by + pitch * (k + 0.5), ltr = k % 2 === 0;
+    if (k === 0) p.moveTo(ltr ? x0 : x1, y);
+    p.lineTo(ltr ? x1 : x0, y);
+    if (k < loops - 1) p.arc(ltr ? x1 : x0, y + r, r, -Math.PI / 2, Math.PI / 2, !ltr);
+  }
+  setBase(ctx);
+  ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
+  const css = (c: Rgb, a: number) => `rgba(${Math.round(c[0] * 255)},${Math.round(c[1] * 255)},${Math.round(c[2] * 255)},${a})`;
+  const line = 3.4;
+  ctx.strokeStyle = css(t.o3, 1); ctx.lineWidth = pitch; ctx.stroke(p);
+  ctx.strokeStyle = css(t.o1, 1); ctx.lineWidth = pitch - line; ctx.stroke(p);
 }

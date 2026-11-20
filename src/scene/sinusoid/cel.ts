@@ -9,6 +9,7 @@
 //                 2. lays a clean ink line, one to two device pixels, where the colour changes sharply from one pixel to the next (a cell's edge, the endothelium's, a nucleus', the stellate and
 //                    Kupffer cells' membranes): the colour's own darker shade, at the strength of the change, so the line is the figure's ink and never a new colour.
 //                 3. puts the pixel back premultiplied, with 2D's own alpha (the dive's crossfade, `show`) untouched, so nothing shimmers while the tissue comes in.
+//                 The hepatocyte plates are NOT stepped or inked (celOnPlate): 2D's cells, membranes, nuclei and canaliculi are small tone steps that the ladder would crush to one flat brown.
 // The albumin sprites keep their own ring (their shader is not wrapped).
 import { CEL_QUANT_GLSL } from '../materials/cel-quant.ts';
 import { CEL_STYLE } from '../cel-style.ts';
@@ -43,6 +44,10 @@ void main() {
   float ay = abs(vUm.y), hw = halfW(vUm.x), hi = hw + ENDO + disseW(vUm.x);
   float onLumen = uPass == 0 && ay < hw ? 1.0 : 0.0;
   float onDisse = uPass == 0 && ay >= hw && ay < hi ? 1.0 : 0.0;
+  // the hepatocyte plates (this sinusoid's two, and the repeats beyond the next sinusoid): 2D's own painting is all small tone steps (a cell's fill a shade lighter inside, the membrane 16 % deeper, the nucleus 24 % toward its dark),
+  // each about one band (17 %) or less, so the ladder rounds the whole plate to one flat brown (the phone's flat, outline-less, nucleus-less cells, 20 Nov play-test); the plates are therefore left exactly as 2D paints them (cells, membranes, nuclei, canaliculi), no ladder and no ink
+  float vp = ay - hi, bp = mod(vp - HEP, 2.0 * DISSE + 2.0 * ENDO + 2.0 * LUM0 + HEP);
+  float onPlate = uPass == 0 && ay >= hi && (vp < HEP || bp >= 2.0 * DISSE + 2.0 * ENDO + 2.0 * LUM0) ? 1.0 : 0.0;
   // the ladder: on the lumen and on the Disse it stands on 2D's own colour of the place (rung 0 IS that colour, so a region of it is one clean tone); elsewhere it stands on the page's own lightness scale
   float lb = max(celLight(onLumen > 0.5 ? cLumen : cLymph), 0.004);
   float lvAnchored = log(lb) + CEL_STEP * celRung(l, lb, onLumen > 0.5 ? ${CEL_DEAD_LUMEN.toFixed(2)} : ${CEL_DEAD_DISSE.toFixed(2)}, w);
@@ -50,7 +55,8 @@ void main() {
   float lvAbsolute = CEL_STEP * (floor(q) + smoothstep(0.5 - w, 0.5 + w, fract(q)));
   vec3 cq = c * (exp(mix(lvAbsolute, lvAnchored, max(onLumen, onDisse))) / l);
   // no ink inside the Disse (its ticks and dashes are drawn, not outlined); the wall's and the cells' outlines keep it
-  float inkOn = 1.0 - onDisse * smoothstep(hw + ENDO + 0.2 - uPx, hw + ENDO + 0.2 + uPx, ay) * (1.0 - smoothstep(hi - 0.2 - uPx, hi - 0.2 + uPx, ay));
+  float inkOn = (1.0 - onDisse * smoothstep(hw + ENDO + 0.2 - uPx, hw + ENDO + 0.2 + uPx, ay) * (1.0 - smoothstep(hi - 0.2 - uPx, hi - 0.2 + uPx, ay))) * (1.0 - onPlate);
+  cq = mix(cq, c, onPlate);
   cq = mix(cq, cq * ${CEL_INK.toFixed(3)}, edge * inkOn);
   o = vec4(mix(o.rgb, cq * a, step(0.003, a)), a);
 }
@@ -62,6 +68,15 @@ export function celSinusoidFS(fs: string): string {
   const i = fs.indexOf(key);
   if (i < 0 || fs.indexOf(key, i + 1) >= 0) throw new Error('sinusoid cel: expected exactly one `void main() {` in the 2D shader');
   return fs.slice(0, i) + 'void main2d() {' + fs.slice(i + key.length) + '\n' + CEL_MAIN_GLSL;
+}
+
+/** The twin of the shader's `onPlate`: a hepatocyte plate at |y| = ay (µm) for a sinusoid whose Disse ends at hi, in 2D's tissue geometry (plate HEP, then the next sinusoid, then the next plate). */
+export function celOnPlate(ay: number, hi: number, hep = 20, disse = 3.4, endo = 0.8, lum = 5): boolean {
+  if (ay < hi) return false;
+  const v = ay - hi, period = 2 * disse + 2 * endo + 2 * lum + hep;
+  if (v < hep) return true;
+  const b = ((v - hep) % period + period) % period;
+  return b >= 2 * disse + 2 * endo + 2 * lum;
 }
 
 // ---- the twin: the same step on one pixel in JavaScript (tests/scene-sinusoid-cel.test.ts) ----
