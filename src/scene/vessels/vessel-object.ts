@@ -1,6 +1,6 @@
 import { CIRC_ARTERY, CIRC_BED, MIN_PX } from '../circuit/width.ts';
 import { HI_NONE } from '../materials/shaders.ts';
-import { BufferAttribute, BufferGeometry, Color, DataTexture, DoubleSide, FloatType, LinearSRGBColorSpace, Mesh, NearestFilter, RGBAFormat, ShaderMaterial, Vector2, Vector3, Vector4, type Texture } from 'three';
+import { BufferAttribute, BufferGeometry, Color, CustomBlending, DataTexture, DoubleSide, FloatType, LinearSRGBColorSpace, MaxEquation, Mesh, NearestFilter, OneFactor, RGBAFormat, ShaderMaterial, Vector2, Vector3, Vector4, type Texture } from 'three';
 import { CelObject, type CelOptions, type CelShared, rawColor } from '../materials/cel.ts';
 import { PALETTES, type Palette } from '../palette.ts';
 import { VESSEL_FS, VESSEL_VS } from './shaders.ts';
@@ -13,7 +13,7 @@ import type { SeamCurve } from './seams.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import type { CircuitShared } from '../circuit/uniforms.ts';
 import { SKIN_CUT_NONE } from './skin/types.ts';
-import { VESSEL_LAYER } from '../layers.ts';
+import { GLOW_LAYER } from '../glow.ts';
 
 /** Uniforms every vessel shares: the two lens textures held for the crossfade, their stream colours, and the cross-fade itself. */
 export interface LensShared {
@@ -118,11 +118,13 @@ export class VesselObject extends CelObject {
     const iu = this.ink.uniforms, tu = toon.uniforms;
     iu.color = tu.inkColor!; iu.hiColor = tu.hiColor!; iu.inflate = tu.inflate!; iu.px = tu.px!; iu.res = tu.res!; iu.len = tu.len!; iu.reveal = tu.reveal!;
     for (const k of ['hiOn', 'hiDir', 'hiOffset', 'hiAhead', 'hiBehind', 'hiEnds', 'hiFade', 'hiPx']) iu[k] = tu[k]!;
-    // THE GLOW (glow.ts): the same geometry and the very same uniforms (so every width, fade, join and pick weight is the tube's own), through the program built with GLOW: a halo outside the line, never over the body
-    const glow = new ShaderMaterial({ vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: false, defines: { GLOW: 1 }, uniforms: tu });
+    // THE GLOW'S MASK (glow.ts, glow-fx.ts): the same geometry and the very same uniforms (so every width, fade, join and pick weight is the tube's own), through the program built with GLOW: the vessel as it is drawn, in its
+    // colour, premultiplied by its pick weight, painted by MAX into the mask texture on the glow's own layer. Hidden until a pick.
+    const glow = new ShaderMaterial({ vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: false, defines: { GLOW: 1 }, uniforms: tu,
+      blending: CustomBlending, blendEquation: MaxEquation, blendSrc: OneFactor, blendDst: OneFactor });
     const gm = (this.glowMesh = new Mesh(this.toonMesh.geometry, glow));
     gm.frustumCulled = false; gm.visible = false; gm.name = 'highlight/glow'; gm.renderOrder = 30;
-    gm.layers.set(VESSEL_LAYER);   // (the vessels' own pass: scene.ts draws layer 0, then the vessels over the cleared depth)
+    gm.layers.set(GLOW_LAYER);   // (not the figure's passes: the glow's own mask pass draws it)
     this.group.add(gm);
   }
 

@@ -89,6 +89,8 @@ import { CircuitView } from './circuit/view.ts';
 import { CIRCUIT_NODES, MAP_LOOKS, VB_CIRC } from './circuit/data.copied.ts';
 import { CircuitTubes } from './circuit/tubes.ts';
 import { PostAA } from './post-aa.ts';
+import { GlowFx } from './glow-fx.ts';
+import { GLOW_LAYER } from './glow.ts';
 import { ResistorLayer } from './circuit/resistors.ts';
 import { RES_KINDS, type ResKey, resRatio } from './circuit/res-model.ts';
 import { MAP_CENTRE, MAP_K, circBoostOf, mapPxPerUnit } from './circuit/map.ts';
@@ -209,6 +211,8 @@ export class CelScene {
   private figureView: FigureView = 'body';
   /** The anti-aliasing pass over the whole figure (post-aa.ts). */
   readonly post = new PostAA();
+  /** The picked vessel's glow, made on the screen from its mask (glow-fx.ts). */
+  readonly glowFx = new GlowFx();
   private readonly dive = new Group();
   private readonly sinFrame = new Group();
   private fadeNow = 1;
@@ -432,6 +436,7 @@ export class CelScene {
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
+    o.glowMesh?.layers.set(GLOW_LAYER);   // (the glow's mask has its own pass: glow-fx.ts)
     const fade = fadeOf(def.id, def.tone === 'artery', def.feeder?.host);
     if (fade) { o.setTipFade(fade); this.tipFades.push({ o, connect: fade.connect }); if (fade.ivcJoin) this.ivcJoins.push(o); }
     { const span = cavaEndSpan(def.id); if (span > 0) { o.setCavaEnd(span, CAVA_RECEDE); this.hvJoins.push(o); } }
@@ -1178,6 +1183,7 @@ export class CelScene {
     if (!dof) { gl.clearDepth(); gl.clearStencil(); }   // (the outlines' stencil goes with the depth: each pass inks a pixel once, vessel-object.ts hullMat)
     cam.layers.set(VESSEL_LAYER);
     gl.render(this.scene, cam);
+    if (this.highlight.glowing) this.glowFx.run(gl, into, cam, this.scene, dpr);   // (the picked vessel's glow: its mask, blurred, over the figure outside it)
     if (into) { if (dof || band) this.post.dof.run(gl, into); gl.setRenderTarget(null); this.post.resolve(gl); }
     gl.autoClear = ac;
     cam.layers.mask = mask;
@@ -1195,7 +1201,7 @@ export class CelScene {
     this.blood.routes.texture.dispose();
     for (const o of this.objects) o.dispose();
     this.procs.dispose(); this.probes.dispose();
-    this.tubes.dispose(); this.resistors.dispose(); this.post.dispose();
+    this.tubes.dispose(); this.resistors.dispose(); this.post.dispose(); this.glowFx.dispose();
   }
 }
 

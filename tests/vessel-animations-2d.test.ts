@@ -12,7 +12,7 @@ import { PRESENCE_TIMES, PresenceTracks, presenceMs } from '../src/scene/vessels
 import { FeederLives, LIVE_FLOOR, liveWidth } from '../src/scene/vessels/feeder-live.ts';
 import { glowGate } from '../src/scene/highlight.ts';
 import { GLOW_GATE_T } from '../src/scene/glow.ts';
-import { glowAlphaGlsl } from '../src/scene/vessels/glsl-shared.ts';
+import { glowWeightGlsl } from '../src/scene/vessels/glsl-shared.ts';
 import { easeMove } from '../src/scene/gesture/ease.ts';
 import { withRk } from '../src/scene/vessels/vessel-object.ts';
 import { BufferAttribute, BufferGeometry } from 'three';
@@ -136,5 +136,5 @@ test('the selected vessel\'s glow eases away over the first 15 % of the Circuit\
   assert.match(scene, /setGlowShown\(glowGate\(this\.circuit\.t\)\)/);
   assert.doesNotMatch(scene, /setGlowShown\(this\.circuit\.t < 0\.02/);
   assert.equal(GLOW_GATE_T, 0.15, 'the shader\'s gate is the same 15 %');
-  assert.ok(glowAlphaGlsl('s', 'r', 'h').includes('(1.0 - smoothstep(0.0, 0.15, circT))'), 'the halo eases away in the shader with the Circuit\'s own change');
+  assert.ok(glowWeightGlsl('h').includes('(1.0 - smoothstep(0.0, 0.15, circT))'), 'the halo eases away in the shader with the Circuit\'s own change');
 });

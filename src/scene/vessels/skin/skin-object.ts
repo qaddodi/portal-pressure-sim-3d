@@ -7,8 +7,9 @@
 // arms of weight x that arm's share of that copy x its fade (skin/shaders.ts), the shares being the arm tube's own (VesselObject.copyShares, written through `setArmCopy`). A copy whose arms all have no share of it is not visible, so a plain junction (every
 // arm (1, 0, 0)) draws only its front copy, as before, and a skin is never visible where its arms are not: it has no visibility of its own, it inherits the arms' shares, fades, layers and grow state.
 import { facetSag } from './facet-sag.ts';
-import { BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, ShaderMaterial, Vector2, Vector4, type IUniform, type Object3D } from 'three';
+import { BufferAttribute, BufferGeometry, Color, CustomBlending, DoubleSide, Group, MaxEquation, Mesh, OneFactor, ShaderMaterial, Vector2, Vector4, type IUniform, type Object3D } from 'three';
 import { VESSEL_LAYER } from '../../layers.ts';
+import { GLOW_LAYER } from '../../glow.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import { SKIN_ARMS, SKIN_AXIS_PTS, SKIN_FS, SKIN_VS } from './shaders.ts';
 import type { SkinDraw } from './skin-set.ts';
@@ -123,10 +124,11 @@ export class SkinObject implements SkinDraw {
       mesh.visible = c === 0;   // (until the arms say which copies they have: a plain junction's arms are (1, 0, 0), so only the front copy ever shows)
       return mesh;
     });
-    const glowMat = new ShaderMaterial({ name: 'skin-glow', vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: false, defines: { ...skinDefines(0, this.growArms.length), GLOW: 1 }, uniforms });
+    const glowMat = new ShaderMaterial({ name: 'skin-glow', vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: false, defines: { ...skinDefines(0, this.growArms.length), GLOW: 1 }, uniforms,
+      blending: CustomBlending, blendEquation: MaxEquation, blendSrc: OneFactor, blendDst: OneFactor });   // (the glow's mask, painted by max with the tubes': glow-fx.ts)
     this.glow = new Mesh(g, glowMat);
     this.glow.frustumCulled = false; this.glow.visible = false; this.glow.name = `skin:${skin.junction.node}:glow`; this.glow.renderOrder = 30;
-    this.glow.layers.set(VESSEL_LAYER);
+    this.glow.layers.set(GLOW_LAYER);
     this.mesh = this.copies[0]!;
     this.material = this.mesh.material as ShaderMaterial;
     const group = new Group();
