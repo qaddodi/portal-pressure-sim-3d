@@ -8,7 +8,7 @@ import { bindTests } from './devices/probes/bind-tests.ts';
 import type { Room } from './camera/room.ts';
 import type { Shot, ShotName } from './camera/shots.ts';
 import type { CatheterState } from './catheter.ts';
-import type { PlayOptions } from './procedures/layer.ts';
+import type { PlayOptions, DriveOptions } from './procedures/layer.ts';
 import type { CATH_END } from './procedures/copied/cath-arrival.js';
 import { create } from 'zustand';
 import { engine } from '../engine/boot.ts';
@@ -124,8 +124,8 @@ export const sceneApi = {
   refit(): void { gesturesRef.current?.refit(); clock.invalidate('refit'); },
   /** The zoom buttons (+ and − keys): the 2D app's 1.4 about the middle of the room. */
   zoomStep(factor: number): void { gesturesRef.current?.zoomStep(factor); clock.invalidate('zoom'); },
-  /** Catheter route advance 0..1 and balloon 0..1; the caller tweens them on the clock. */
-  setCatheter(s: CatheterState): void { cel.setCatheter(s); clock.invalidate('catheter'); },
+  /** Catheter route advance 0..1, balloon 0..1 and the still column's fill 0..1 (default: with the balloon); the caller drives them on the clock (ui/deck/cath-clock.ts). */
+  setCatheter(s: CatheterState & { column?: number }): void { cel.setCatheter(s); clock.invalidate('catheter'); },
   /** The procedures' devices (B5): the 2D app's own choreography (proc-anim.js `procFrame`) drawn on its routes. Every kind of `PROCS`, the measurements and the plugs. */
   procedure: {
     /** Play a procedure ('tips', 'brto', 'bato', 'tipscoil', 'hvpgcath', …) from `from` to `to` ms of its own time (default the whole), at the 2D pace times `speed`. */
@@ -139,6 +139,14 @@ export const sceneApi = {
     /** Stop the move; with `keep` the last frame stays up. */
     stop(keep = false): void { cel.procs.stop(keep); clock.invalidate('procedure'); },
     get playing(): { kind: string; t: number } | null { return cel.procs.playing; },
+    /** Start a procedure driven a step at a time (a presentation): it stands at `from` until `aim` sends it to a stop. */
+    drive(kind: string, o?: DriveOptions): void { cel.procs.drive(kind, performance.now(), o); clock.invalidate('procedure'); },
+    /** Run the driven procedure to a stop, ms of its own time (back a little faster than forward; `rush` plays the rest out fast). */
+    aim(goal: number, rush = false): boolean { const ok = cel.procs.aimAt(goal, rush); if (ok) clock.invalidate('procedure'); return ok; },
+    /** Hold the driven procedure still for `ms` (the step's camera is on its way). */
+    pause(ms: number): void { cel.procs.pauseUntil(performance.now() + ms); clock.invalidate('procedure'); },
+    /** The driven procedure's time, its goal and whether it is moving, or null. */
+    get driven(): { kind: string; t: number; goal: number; moving: boolean } | null { return cel.procs.driven; },
   },
   /** Dye (the 2D app's injectDye): into vessel `id` (default the gut's veins, as in mesenteric portography); `hold` keeps it going until release(). */
   dye: {

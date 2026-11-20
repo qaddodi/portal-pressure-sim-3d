@@ -74,3 +74,46 @@ export function tipShot(name: string, at: { x: number; y: number; z: number }): 
   return r ? { yaw: -0.12, pitch: 0.03, r: lensDistance(r), target: [at.x, at.y, at.z], half: SHOT_HALF[name]! } : null;
 }
 
+// ── guided by Next (2D presenter.js procNext / procBack, his ask 29 Oct) ──
+/** The stop step k ends at, ms of the procedure's own time (2D `P.stops[k]`: one stop for each step; the last of a kind that holds its last frame, the glue slide's scope, stops before the fade-out leg). */
+export function stopOf(kind: string, k: number): number | null {
+  const sp = specFor(kind);
+  if (!sp || !sp.stops.length) return null;
+  return sp.stops[Math.max(0, Math.min(sp.stops.length - 1, k | 0))] ?? null;
+}
+
+/** Where a slide's procedure stands for the keys: `wait` not started (or taken back to before its first step), `run` a run is on the figure (stepping), `between` the main run has played through and its reading
+ *  (`then`) is still to come, `done` played through. */
+export type ProcPhase = 'wait' | 'run' | 'between' | 'done';
+export interface ProcCursor {
+  phase: ProcPhase;
+  /** a run is on the figure (a held last frame counts) */
+  run: boolean;
+  /** the step Next or Back has navigated to (the ring), -1 none */
+  at: number;
+  /** steps of the run's kind */
+  n: number;
+  /** the run is still going to its stop */
+  moving: boolean;
+}
+export type ProcAct =
+  | { act: 'pass' }                        // not the procedure's: the slide moves on (Next) or back (Back)
+  | { act: 'start' }                       // the first Next: the catheter goes in, to step 1's stop
+  | { act: 'then' }                        // the reading after the main run
+  | { act: 'aim'; at: number }             // to this step's stop, forward or back
+  | { act: 'rush' }                        // the last step is still playing: it plays out fast, this Next is spent on it
+  | { act: 'rewind' };                     // Back from step 1: the run goes back to before its start, the slide as it was
+
+/** What a Next (dir 1) or Back (dir -1) does: exactly one step, and the slide moves on only once the procedure has played through. Pure. */
+export function procKey(c: ProcCursor, dir: 1 | -1): ProcAct {
+  if (dir > 0) {
+    if (c.phase === 'done') return { act: 'pass' };
+    if (c.phase === 'between') return { act: 'then' };
+    if (!c.run) return { act: 'start' };
+    if (c.at < c.n - 1) return { act: 'aim', at: c.at + 1 };
+    return c.moving ? { act: 'rush' } : { act: 'pass' };
+  }
+  if (!c.run) return { act: 'pass' };
+  return c.at > 0 ? { act: 'aim', at: c.at - 1 } : { act: 'rewind' };
+}
+

@@ -1,47 +1,60 @@
 // The talk drives the scene: the shot of the slide on show (fitted into the room the cards leave free), the room alone when a card moves,
-// and the catheter's advance and balloon, tweened on the clock. The scene never reads the deck; this is the only place that tells it.
+// and the HVPG catheter, run on the 2D app's one clock (cath-clock.ts: hvpg-clock.js's route, balloon and column on one script time, the same time the tracing card reads, so the balloon fills and the
+// trace steps in the same frame). The scene never reads the deck; this is the only place that tells it.
 
 import { sceneApi } from '../../scene/api.ts';
-import { clock } from '../../clock/frame.ts';
-import { Tweened, easeInOutCubic, easeArrive } from '../../clock/tween.ts';
+import { clock, type Hold } from '../../clock/frame.ts';
 import { useUi } from '../ui-store.ts';
-import { viewAt, catheterAt } from './presenter-machine.ts';
+import { viewAt, cathPlace } from './presenter-machine.ts';
+import { makeCathClock, aimCath, stepCath, poseAt, cathScript, rankOf, ARRIVE_MS, type CathPose } from './cath-clock.ts';
+import { tipCloseShot, closeUpOf } from './cath-shot.ts';
 import type { Shot, ShotName } from '../../scene/camera/shots.ts';
 import type { LensId } from '../../scene/lenses/model.ts';
+import type { CathState } from '../../decks/schema.ts';
 
-/** The catheter's route is a slow, readable move (it is the lesson); the balloon is quicker. */
-export const ADVANCE_MS = 2600;
-export const BALLOON_MS = 900;
+/** The time the catheter takes to come in from the neck: the route's leg at the travel speed (hvpg-clock.js legMs, 3.4 s), after its 300 ms of stillness. procs-link.ts waits this long before the blocked vein's pushes. */
+export { ARRIVE_MS };
 
 export function linkScene(): () => void {
-  const advance = new Tweened(0, 'catheter-advance');
-  const balloon = new Tweened(0, 'catheter-balloon');
-  let pending = true;
+  const cc = makeCathClock(), pose: CathPose = { advance: 0, balloon: 0, column: 0 };
+  let place: CathState | null = null, drawn = false, hold: Hold | null = null;
   let shot: ShotName | Shot | null = null;
   let lens: LensId | null = null;
+  cathScript.on = true; cathScript.t = 0;
 
-  const offClock = clock.on('tween', () => {
-    const moving = advance.moving || balloon.moving;
-    if (!moving && !pending) return;
-    sceneApi.setCatheter({ advance: advance.value, balloon: balloon.value });
-    pending = moving;
-  }, 0);
+  // the catheter: one frame, one time. Runs before the card systems (order -10) so the trace card reads this frame's time, not the last one's.
+  const offClock = clock.on('tween', (f) => {
+    const moving = stepCath(cc, f.dt);
+    cathScript.t = cc.clk.t;
+    if (moving || !drawn) {
+      poseAt(cc.clk.t, pose);
+      sceneApi.setCatheter({ advance: pose.advance, balloon: pose.balloon, column: pose.column });
+      drawn = true;
+    }
+    if (!moving && hold) { hold.release(); hold = null; }
+  }, -10);
 
   const sync = (stepped = false) => {
     const { stops, pos, boxes } = useUi.getState();
     if (!stops.length) return;
     const v = viewAt(stops, pos);
-    const cath = catheterAt(stops, pos);
-    if (advance.target !== cath.advance) advance.to(cath.advance, { ms: ADVANCE_MS, ease: easeInOutCubic });
-    if (balloon.target !== cath.balloon) balloon.to(cath.balloon, { ms: BALLOON_MS, ease: easeArrive });
-    pending = true;
+    const at = cathPlace(stops, pos);
+    if (at !== place || !drawn) {
+      aimCath(cc, at, Math.abs(rankOf(at) - rankOf(place)) > 1);
+      place = at; drawn = false;
+      if (cc.clk.t !== cc.clk.goal && !hold) hold = clock.hold('catheter');
+      clock.invalidate('catheter');
+    }
     const room = boxes.free;
     if (room.w <= 0 || room.h <= 0) return;   // the cards have not been measured yet: no room to frame in
-    if (v.shot !== shot) {
-      shot = v.shot;
+    // The catheter's own shots: the tip close up, the balloon just behind it and the vein ahead (2D cathFocus 'tip', both). The route step keeps the slide's own (the whole way in).
+    const view = v.scene ? v.scene.view : 'body', close = view === 'body' && !v.slide?.visual ? closeUpOf(at) : null;
+    const want = (close ? tipCloseShot(close) : null) ?? v.shot;
+    if (want !== shot) {
+      shot = want;
       // a ported slide says its own view and its lens; the slice's slides are the body. A Circuit slide frames its region of the map and draws the resistors it names.
       if (v.scene?.view === 'circuit') sceneApi.showCircuit(room, { box: v.scene.circuit?.box ?? null, kMax: v.scene.circuit?.kMax ?? null, resistors: (v.scene.circuit?.resistors ?? []) as never, caudate: !!v.scene.circuit?.caudate });
-      else sceneApi.showShot(v.scene ? v.scene.view : 'body', v.shot, room);
+      else sceneApi.showShot(v.scene ? v.scene.view : 'body', want, room);
     } else sceneApi.setRoom(room, undefined, stepped);   // a step on to a slide with the same shot still brings the viewer's turn home
     if (v.scene && v.scene.lens !== lens) { lens = v.scene.lens; sceneApi.setLens(lens); }
   };
@@ -49,5 +62,5 @@ export function linkScene(): () => void {
   sync();
   const off = useUi.subscribe((s, prev) => { if (s.pos !== prev.pos || s.boxes.free !== prev.boxes.free || s.stops !== prev.stops) sync(s.pos !== prev.pos || s.stops !== prev.stops); });
   // (leaving the talk takes the catheter out: it never stays on the free figure)
-  return () => { off(); offClock(); advance.dispose(); balloon.dispose(); sceneApi.setCatheter({ advance: 0, balloon: 0 }); };
+  return () => { off(); offClock(); hold?.release(); cathScript.on = false; cathScript.t = 0; sceneApi.setCatheter({ advance: 0, balloon: 0, column: 0 }); };
 }

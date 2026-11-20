@@ -17,6 +17,7 @@ import { GlueCast } from '../devices/glue-cast.ts';
 import type { ScopeDrive } from '../devices/probes/scope.ts';
 import { procFrame as procFrameJs, specOf } from './copied/proc-anim.js';
 import { CATH_END } from './copied/cath-arrival.js';
+import { type StepClock, makeStepClock, aim as aimClock, stepClock, landed } from './step-clock.ts';
 
 const procFrame = procFrameJs as (kind: string, t: number, stops?: Record<string, [number, number]> | null, into?: object | null, from?: number) => Rec;
 /** How far the bypass drops from the 'over' tier so it sits below the 'front' tier the splenic and coronary veins are on (frame2d.ts TIER_Z: over .54, front .46, net .38). */
@@ -24,6 +25,21 @@ export const REX_LOWER = -0.12;
 type Rec = { u: number; balloon: number; column: number; opacity: number; step: number; shot: string; needle: number; wire: number; flash: number; coil?: number; read?: number; [k: string]: unknown };
 /** One move of a procedure on the clock. */
 interface Run { kind: string; t: number; t0: number; from: number; to: number; speed: number; rec: Rec; onEnd?: () => void; onFrame?: (r: Readonly<Rec>) => void; keep: boolean }
+
+/** A procedure driven one step at a time (a presentation: Next plays the next step and holds at its stop, Back runs it backwards). */
+interface StepRun { kind: string; clk: StepClock; rec: Rec; arrived: boolean; rewind: boolean; pauseUntil: number; moved: boolean; keep: boolean; onFrame?: (r: Readonly<Rec>) => void; onArrive?: (t: number) => void; onEnd?: (e: { done: boolean; rewound: boolean }) => void }
+
+export interface DriveOptions {
+  /** where the sequence starts standing, ms of its own time (default 0) */
+  from?: number;
+  onFrame?: (r: Readonly<Rec>) => void;
+  /** the move landed on its goal (a step's stop) */
+  onArrive?: (t: number) => void;
+  /** it ran out the end (done) or back to before its start (rewound) */
+  onEnd?: (e: { done: boolean; rewound: boolean }) => void;
+  /** leave the last frame up when it ends */
+  keep?: boolean;
+}
 
 export interface PlayOptions {
   /** start and stop, ms of the procedure's own time (default: the whole of it) */
@@ -50,6 +66,9 @@ export class ProcedureLayer {
   private readonly caths = new Map<string, ProcCatheter>();
   private shown: ProcCatheter | null = null;
   private run: Run | null = null;
+  private step: StepRun | null = null;
+  /** The HVPG catheter as the deck last put it (showHvpgState): while it stands in a reading's ring, the layer redraws it each frame with the clock moving on so the ring goes on pulsing (2D cathFrame ran for as long as the catheter was on). */
+  private held: { advance: number; balloon: number; column: number; ring: RingName | null } | null = null;
   private palette: Palette | null = null;
   private phone = false;
   private dirty = true;
@@ -179,7 +198,7 @@ export class ProcedureLayer {
   private draw(kind: string, rec: Rec, clock: number): void {
     const c = this.catheterFor(kind);
     if (this.shown && this.shown !== c) this.shown.set({ ...this.shown.current, u: 0, opacity: 0 });
-    this.shown = c; this.lastKind = kind;
+    this.shown = c; this.lastKind = kind; this.held = null;
     Object.assign(this.frame, rec);
     if (kind === 'eusglue') {
       // the glue's scope is the probes' (it follows glueDrive); what it leaves in the varix is drawn here
@@ -198,13 +217,14 @@ export class ProcedureLayer {
   seek(kind: string, t: number, clock = t): void { this.draw(kind, procFrame(kind, t, this.stopsFor(kind), { ...this.frame }), clock); }
 
   /** The HVPG catheter as the deck holds it: how far in (0..1), the balloon (0..1, and the wedged blood with it), and the ring it reads in, at once. */
-  showHvpgState(advance: number, balloon: number, ring: RingName | null = null, clock = 0): void {
-    const rec = { ...this.frame, u: advance, balloon, column: balloon, opacity: advance > 0.001 ? 1 : 0, step: -1, shot: '', needle: 0, wire: 0, flash: 0, coil: 0, read: 0 } as Rec;
+  showHvpgState(advance: number, balloon: number, ring: RingName | null = null, clock = 0, column = balloon): void {
+    const rec = { ...this.frame, u: advance, balloon, column, opacity: advance > 0.001 ? 1 : 0, step: -1, shot: '', needle: 0, wire: 0, flash: 0, coil: 0, read: 0 } as Rec;
     const c = this.catheterFor('hvpgcath');
     if (this.shown && this.shown !== c) this.shown.set({ ...this.shown.current, u: 0, opacity: 0 });
     this.shown = c; this.lastKind = 'hvpgcath';
+    this.held = advance > 0.001 ? { advance, balloon, column, ring } : null;
     Object.assign(this.frame, rec);
-    c?.set({ u: advance, balloon, column: balloon, opacity: rec.opacity, needle: 0, wire: 0, flash: 0, coil: 0, ring: ring ?? this.keptRing, columnTone: 'trWedge', clock });
+    c?.set({ u: advance, balloon, column, opacity: rec.opacity, needle: 0, wire: 0, flash: 0, coil: 0, ring: ring ?? this.keptRing, columnTone: 'trWedge', clock });
     this.dirty = true;
   }
 
@@ -224,18 +244,39 @@ export class ProcedureLayer {
     this.dirty = true;
   }
 
-  get playing(): { kind: string; t: number } | null { return this.run ? { kind: this.run.kind, t: this.run.t } : null; }
+  get playing(): { kind: string; t: number } | null { return this.run ? { kind: this.run.kind, t: this.run.t } : this.step ? { kind: this.step.kind, t: this.step.clk.t } : null; }
+
+  /** Start a procedure that goes where it is told, a stop at a time (aimAt): it stands at `from` until then. Replaces a run on the figure. */
+  drive(kind: string, now: number, o: DriveOptions = {}): void {
+    if (!specOf(kind)) throw new Error(`no procedure ${kind}`);
+    this.run = null;
+    const from = o.from ?? 0;
+    this.step = { kind, clk: makeStepClock(from), rec: { ...this.frame } as Rec, arrived: true, rewind: false, pauseUntil: 0, moved: true, keep: !!o.keep, onFrame: o.onFrame, onArrive: o.onArrive, onEnd: o.onEnd };
+    this.dirty = true;
+  }
+  /** Run the driven procedure to a stop (forward at the sequence's pace, back a little faster; `rush` plays the rest out fast). A goal behind turns it round over FLIP_MS. */
+  aimAt(goal: number, rush = false): boolean {
+    const s = this.step;
+    if (!s) return false;
+    aimClock(s.clk, goal, rush);
+    s.rewind = goal <= 0; s.arrived = landed(s.clk) && !s.rewind; this.dirty = true;
+    return true;
+  }
+  /** Hold the driven procedure still until `until` (ms on the scene's clock): the camera is on its way to the step's shot, and no step starts with the camera moving (2D `still`). */
+  pauseUntil(until: number): void { if (this.step) { this.step.pauseUntil = Math.max(this.step.pauseUntil, until); this.dirty = true; } }
+  /** The driven procedure's time now and the stop it runs to, or null. */
+  get driven(): { kind: string; t: number; goal: number; moving: boolean } | null { const s = this.step; return s ? { kind: s.kind, t: s.clk.t, goal: s.clk.goal, moving: !landed(s.clk) } : null; }
 
   /** End the move: clear the devices (or leave the last frame up with `keep`). */
   stop(keep = false): void {
-    this.run = null;
+    this.run = null; this.step = null;
     if (!keep) this.clear();
   }
 
   clear(): void {
     for (const c of this.caths.values()) c.set({ ...c.current, u: 0, opacity: 0, balloon: 0, column: 0, needle: 0, wire: 0, flash: 0, coil: 0, ring: null });
     this.glue.clear(); this.glueDrive = null;
-    this.shown = null; this.dirty = true;
+    this.shown = null; this.held = null; this.dirty = true;
   }
 
   private rexUnder = false;
@@ -253,7 +294,7 @@ export class ProcedureLayer {
   tipPosition(out: Vector3): Vector3 | null { return this.shown && this.frame.u > 0.001 ? this.shown.tipAt(this.frame.u, out) : null; }
 
   /** The point a little ahead of the tip along the route (where a wedged reading's card points), null with no catheter out. */
-  aheadPosition(out: Vector3, share = 0.04): Vector3 | null { return this.shown && this.frame.u > 0.001 ? this.shown.tipAt(Math.min(1, this.frame.u + share), out) : null; }
+  aheadPosition(out: Vector3, share = 0.04): Vector3 | null { return this.shown && this.frame.u > 0.001 ? this.shown.aheadAt(this.frame.u, out, share) : null; }
 
   /** Steps the move on the clock. True while it plays, or draws once more. */
   update(now: number): boolean {
@@ -263,6 +304,27 @@ export class ProcedureLayer {
     for (const s of this.veinStents.values()) stentMoving = s.update(dt) || stentMoving;
     stentMoving = this.tamponade.update(dt) || stentMoving;
     stentMoving = this.bands.update(dt) || stentMoving;
+    const sr = this.step;
+    if (sr) {
+      if (now < sr.pauseUntil) return true;   // (the camera is landing: nothing moves yet)
+      const t0 = sr.clk.t, v0 = sr.clk.v;
+      const t = stepClock(sr.clk, dt);
+      if (t !== t0 || v0 !== 0 || sr.moved) {
+        sr.moved = false;
+        this.draw(sr.kind, procFrame(sr.kind, t, this.stopsFor(sr.kind), sr.rec), t);
+        sr.onFrame?.(this.frame);
+      }
+      const end = (specOf(sr.kind) as { T: { end: number } }).T.end;
+      if (landed(sr.clk)) {
+        const g = sr.clk.goal;
+        if (g >= end) { this.step = null; if (!sr.keep) this.clear(); sr.onEnd?.({ done: true, rewound: false }); return true; }
+        if (sr.rewind && g <= 0) { this.step = null; if (!sr.keep) this.clear(); sr.onEnd?.({ done: false, rewound: true }); return true; }
+        if (!sr.arrived) { sr.arrived = true; sr.onArrive?.(t); }
+        const d = this.dirty || t !== t0; this.dirty = false;
+        return d || stentMoving;   // (standing at its stop: no more frames until Next, Back or a camera asks)
+      }
+      return true;
+    }
     const r = this.run;
     if (r) {
       const t = Math.min(r.to, r.from + (now - r.t0) * r.speed);
@@ -272,6 +334,8 @@ export class ProcedureLayer {
       if (t >= r.to) { const end = r.onEnd; const keep = r.keep; this.run = null; if (!keep) this.clear(); end?.(); }
       return true;
     }
+    const h = this.held;
+    if (h && (h.ring ?? this.keptRing)) { this.showHvpgState(h.advance, h.balloon, h.ring, now, h.column); this.dirty = false; return true; }   // (a ring pulses on the clock for as long as it is on)
     const d = this.dirty; this.dirty = false;
     return d || stentMoving;
   }
