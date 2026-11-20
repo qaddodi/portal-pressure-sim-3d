@@ -25,7 +25,7 @@ export const STREAK = {
   /** each streak's own speed, seeded: +-this on top of its lane's (symmetric, so the mean stands) */
   SPEED_JITTER: 0.25,
   /** each streak's own tone, seeded: between the vessel's lit tone and the lighter one, from TONE_MIN of the way up, with a warm or cool shift of up to HUE (a share of a channel), never darker than the lit tone, never white */
-  TONE_MIN: 0.45, HUE: 0.03,
+  TONE_MIN: 0.55, HUE: 0.03,
   /** how far across the tube (of its radius) the outer lane sits */
   SPAN: 0.78,
   /** a streak fades out over this many tube radii at each end of its vessel, so it never crosses a junction */
@@ -37,9 +37,11 @@ export const STREAK = {
   /** CONTAINED 100 percent (Mohammad, 20 Nov: "the streaks should be CONTAINED within the vessels 100%"): a streak's whole extent, across, stays within EDGE of the lumen's radius (the lane, the wander, its width and the sideways reach of its tilt all count), so it never touches the ink; SAG: how far a straight streak may stand off a bending course (of the radius) */
   EDGE: 0.8, SAG: 0.1,
   /** the vessel's lit tone lifted this far toward white (one shade lighter, never white) and the streak's alpha (whole inside the lumen band) */
-  LIFT: 0.5, ALPHA: 1,
+  LIFT: 0.7, ALPHA: 1,
   /** a streak's core is never thinner than this many CSS px where its lane is wide enough (the field's own thickness is a share of a lane, so a thin vessel's would be a hairline): a floor on the half width, never past one lane */
   MIN_PX: 2,
+  /** the lanes of a tube are cut by its width ON SCREEN (a lane is about LANE_PX CSS px across; 1, 3, 5 or 7 of them), so a thin vessel takes 1 to 3 and every streak is a visible width at the default fit */
+  LANE_PX: 2.2,
 } as const;
 /** Whether a streak of the field can be at `across` (-1 .. 1 over the lumen) at all: the field draws nothing past FIELD_EDGE, so a streak never reaches the ink (the twin of the clip in streakField). */
 export const streakInside = (across: number): boolean => Math.abs(across) <= STREAK.FIELD_EDGE;
@@ -72,6 +74,8 @@ export const bendLength = (rho: number, R: number): number => 2 * Math.sqrt(2 * 
 /** The whole sideways extent of a streak from the axis (CSS px): its offset, half its width and the reach of its tilt. Always within EDGE of R after streakFit. */
 export const streakReach = (lat: number, ang: number, len: number, thick: number): number => Math.abs(lat) + 0.5 * thick * Math.abs(Math.cos(ang)) + 0.5 * len * Math.abs(Math.sin(ang));
 
+/** The lanes a lumen of radius `rCss` CSS px takes on screen: its width over LANE_PX, rounded down to an odd 1, 3, 5 or 7 (the shader's gStreakLanes). */
+export const lanesForPx = (rCss: number): number => Math.min(7, Math.max(1, 2 * Math.floor((Math.floor((2 * STREAK.FIELD_EDGE * rCss) / STREAK.LANE_PX) - 1) * 0.5) + 1));
 /** The core width in CSS px of the thinnest streak of a field of `lanes` lanes in a lumen of radius `rCss` CSS px (the twin of the field's hw and its MIN_PX floor in streakField): a lane is 2 x FIELD_EDGE x radius / lanes wide, the mark is
  *  2 x hw of a lane (hw from FIELD_THICK, a little varied), held to MIN_PX where its lane is wide enough, never past one lane. */
 export function streakCorePx(rCss: number, lanes: number): number {
@@ -139,10 +143,12 @@ ${STREAK_MARK_GLSL}
 vec2 gStreakK = vec2(1.0, 0.5);
 // gStreakPx: CSS px to one unit of across (the lumen's radius) where the caller knows it, else 0: the mark's core is held to MIN_PX where its lane is wide enough
 float gStreakPx = 0.0;
+// gStreakLanes: the lane count (1, 3, 5, 7) when the caller cuts the lanes by the width on screen, else 0 (from the half width, 3 to 7)
+float gStreakLanes = 0.0;
 // across -1 .. 1 over the stream, along in um (fixed to the tissue), flow the um the stream has run (negative runs back), halfWidth the stream's half width (um: one lane to ${F(STREAK.FIELD_PITCH)} um, 3 to 7 of them),
 // profile 1 the blood's parabolic lanes and 0 one speed (the lymph), dir +1 or -1: the way the stream runs (the mark is the same both ways). 1 inside a mark, 0 out.
 float streakField(float across, float along, float flow, float halfWidth, float profile, float dir) {
-  float lanes = clamp(2.0 * floor(floor(halfWidth * 2.0 / ${F(STREAK.FIELD_PITCH)}) * 0.5) + 1.0, 3.0, ${F(STREAK.LANES)});
+  float lanes = gStreakLanes > 0.5 ? gStreakLanes : clamp(2.0 * floor(floor(halfWidth * 2.0 / ${F(STREAK.FIELD_PITCH)}) * 0.5) + 1.0, 3.0, ${F(STREAK.LANES)});
   // CONTAINED BY CONSTRUCTION: the lanes fill the lumen out to FIELD_EDGE of its half width and nothing at all is drawn past it, so no streak ever reaches the ink, whatever feeds this function
   float ca = across / ${F(STREAK.FIELD_EDGE)};
   float inLumen = step(abs(ca), 1.0);

@@ -165,8 +165,8 @@ test('the views through a dive: one at rest, two while flying, never two at rest
   assert.ok(s.lobule.isVisible && s.bodyShown > 0, 'flying: the lobule and the body are both drawn');
   let sawOpen = false, sawSoft = false;
   for (let t = 148; t < 100 + DIVE_BODY_MS + 64; t += 16) { s.update(t); if (ORGAN_CUT.value.z > 0) sawOpen = true; if (s.lobule.field.softNow > 0.1 && s.lobule.field.softNow < 0.9) sawSoft = true; }
-  assert.ok(sawOpen, 'the window opened on the way in'); assert.ok(sawSoft, 'the field was part way out of focus on the way in');
-  assert.equal(visible(s), 'L--'); assert.ok(ORGAN_CUT.value.z > 2 && Number(s.lobule.field.softNow) === 0, 'landed: window open, field sharp');
+  assert.ok(!sawOpen, 'no cut-out window ever opens (owner, 20 Nov)'); assert.ok(sawSoft, 'the field was part way out of focus on the way in');
+  assert.equal(visible(s), 'L--'); assert.ok(ORGAN_CUT.value.z === -1 && Number(s.lobule.field.softNow) === 0, 'landed: no window, field sharp');
   // in to the sinusoid
   let t = 2000;
   t = flyTo(s, 'sinusoid', sinusoidShot(), t, DIVE_SINUSOID_MS);
