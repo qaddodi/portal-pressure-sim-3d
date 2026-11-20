@@ -13,7 +13,7 @@ import { DEVICE_TOKENS } from '../src/scene/procedures/copied/device-tokens.copi
 import { NEEDLE_EDGE, SCOPE_EDGE_A, mixHex, resolveEdge, scopeEdge, scopeSoftHex } from '../src/scene/devices/edges.ts';
 import { EndoScope } from '../src/scene/devices/probes/scope.ts';
 import { DopplerProbe, WEDGE_STOPS, WEDGE_MID } from '../src/scene/devices/probes/doppler-probe.ts';
-import { FibroProbe, HEAD_MS, SCAN_FADE_MS } from '../src/scene/devices/probes/fibro-probe.ts';
+import { FibroProbe, HEAD_MS, SCAN_FADE_MS, BODY_LIFT, tapAt, TAP_V } from '../src/scene/devices/probes/fibro-probe.ts';
 import { ArriveTrack } from '../src/scene/devices/probes/ease-track.ts';
 import { Bands } from '../src/scene/devices/bands.ts';
 import type { DeviceObject } from '../src/scene/devices/device-object.ts';
@@ -91,7 +91,8 @@ for (const id of LOOK_IDS) {
     const f = new FibroProbe(sh);
     f.applyPalette(PALETTES[id]);
     const [body, pad, screen, cable, wave] = f.parts as unknown as DeviceObject[];
-    assert.equal(fill(body!), raw(LOOKS[id].card)); assert.equal(edge(body!), raw(LOOKS[id].text2)); assert.equal(edgeA(body!), 1);
+    assert.equal(fill(body!), raw(mixHex(LOOKS[id].card, LOOKS[id].text2, BODY_LIFT)), 'the surface, lifted a little toward its line'); assert.equal(edge(body!), raw(LOOKS[id].text2)); assert.equal(edgeA(body!), 1);
+    assert.equal(hex(body!.toon.uniforms.shade!.value as Color), fill(body!), 'flat: no dark band on the body (it read as heavy black)');
     assert.equal(fill(pad!), raw(LOOKS[id].text2)); assert.equal(edgeA(pad!), 0);
     assert.equal(fill(cable!), raw(LOOKS[id].text3)); assert.equal(edgeA(cable!), 0);
     assert.equal(edgeA(screen!), 0); assert.equal(edgeA(wave!), 0);
@@ -135,4 +136,54 @@ test('the FibroScan probe fades over 420 ms and its head over 240 ms, on the arr
   assert.ok(Math.abs(f.shown - easeArrive(0.5)) < 1e-9, `shown ${f.shown}`);
   f.update(16, 420, true, 'liver', box, 5); assert.equal(f.shown, 1);
   f.dispose();
+});
+
+test('with a screen the Doppler\'s marks are thin strokes over the figure (screen px), the head and beam stay 3D', async () => {
+  const { len3 } = await import('../src/scene/frame2d.ts');
+  const { Vector3 } = await import('three');
+  const { LINE_SIGHT, LINE_AXIS } = await import('../src/scene/devices/probes/doppler-probe.ts');
+  const { DOP_LINE_PX, DOP_RIM_STROKE_PX, strokeTransform } = await import('../src/scene/labels/probe-labels.ts');
+  const env = { project: (p: InstanceType<typeof Vector3>, out: { x: number; y: number }) => { out.x = 500 + (p.x / len3(1)) * 1.5; out.y = 350 - (p.y / len3(1)) * 1.5; return out; }, size: () => ({ w: 1000, h: 700 }), cards: () => [] };
+  const d = new DopplerProbe(createShared());
+  for (let t = 0; t < 4000; t += 16) d.update(16, true, 'PV_TRUNK', null, env as never, t);
+  assert.equal(d.overlay, true); assert.ok(d.shown > 0.99);
+  const [, , , sight, axis, barA, barB] = d.parts;
+  for (const o of [sight, axis, barA, barB]) assert.equal(o!.group.visible, false, 'the 3D rods are not drawn');
+  assert.equal(d.parts[0]!.group.visible, true, 'the head is');
+  const L = d.lines;
+  assert.ok([...L].every(Number.isFinite));
+  const len = (i: number) => Math.hypot(L[i * 4 + 2]! - L[i * 4]!, L[i * 4 + 3]! - L[i * 4 + 1]!);
+  assert.ok(len(LINE_SIGHT) > 20 && len(LINE_AXIS) > 10, 'real strokes');
+  // thin: a line under 2.5 px and a rim under 5 px; the rim is wider than its line
+  DOP_LINE_PX.forEach((w, i) => { assert.ok(w <= 2.2 && DOP_RIM_STROKE_PX[i]! > w && DOP_RIM_STROKE_PX[i]! <= 4.5); });
+  assert.match(strokeTransform(10, 20, 40, 60), /^translate3d\(10px,20px,0\) rotate\(0\.9273rad\) scaleX\(50\)$/);
+  d.dispose();
+});
+
+test('the tip vibrates as 2D\'s does: a tap once a second, the pad +2, -1.2, +0.6 px along the axis over 420 ms, nothing else moves', () => {
+  assert.equal(tapAt(0), 0); assert.equal(tapAt(1), 0); assert.ok(Math.abs(tapAt(0.2) - TAP_V[1]) < 1e-9 && Math.abs(tapAt(0.45) - TAP_V[2]) < 1e-9 && Math.abs(tapAt(0.7) - TAP_V[3]) < 1e-9);
+  const sh = createShared(), f = new FibroProbe(sh), box = () => ({ min: { x: -1, y: -0.5, z: -0.2 }, max: { x: 1, y: 0.5, z: 0.2 } }) as never;
+  const seen: number[] = [];
+  for (let t = 0; t <= 2100; t += 16) { f.update(16, t, true, 'liver', box, 8); seen.push(f.tipX); }
+  assert.ok(seen.some((x) => x > 1.5) && seen.some((x) => x < -1), 'it goes out and back');
+  assert.ok(seen.every((x) => Math.abs(x) <= 2.0001), 'by 2 px at most');
+  const quiet = seen.slice(Math.ceil(430 / 16) + 1, Math.floor(990 / 16));
+  assert.ok(quiet.length > 10 && quiet.every((x) => x === 0), 'at rest between taps');
+  const taps = seen.filter((x, i) => x !== 0 && (i === 0 || seen[i - 1] === 0)).length;
+  assert.ok(taps >= 2, `a tap a second (${taps})`);
+  f.dispose();
+});
+
+test('the Doppler probe is not faded out and in, nor hidden, while the view is moved under the hand (orbit, pan, pinch)', async () => {
+  const { len3 } = await import('../src/scene/frame2d.ts');
+  const make = (rot: number, k: number, ox: number) => ({ project: (p: { x: number; y: number }, out: { x: number; y: number }) => { const u = (p.x / len3(1)) * k, v = (p.y / len3(1)) * k; out.x = ox + u * Math.cos(rot) - v * 0.9 * Math.sin(rot); out.y = 350 - (u * Math.sin(rot) * 0.5 + v * 0.9 * Math.cos(rot)); return out; }, size: () => ({ w: 1000, h: 700 }), cards: () => [{ x0: 700, y0: 60, x1: 1000, y1: 700 }] });
+  const d = new DopplerProbe(createShared());
+  let t = 0;
+  for (; t < 3000; t += 16) d.update(16, true, 'PV_TRUNK', null, make(0, 1.5, 420) as never, t);
+  assert.ok(d.shown > 0.99, 'it is up');
+  let min = 1;
+  // the figure turned and dragged by hand for four seconds: the map changes every frame; `env.moving` (a glide) says nothing
+  for (let i = 0; i < 250; i++, t += 16) { d.update(16, true, 'PV_TRUNK', null, make(Math.sin(i / 25) * 0.9, 1.5 + 0.5 * Math.sin(i / 40), 420 + i * 1.6) as never, t); min = Math.min(min, d.shown); }
+  assert.ok(min > 0.99, `it never faded while the view moved (lowest ${min})`);
+  d.dispose();
 });
