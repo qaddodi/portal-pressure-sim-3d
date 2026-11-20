@@ -4,7 +4,7 @@ import { adoptFrame, patient, setParams, useEngine } from './store.ts';
 import { clock } from '../clock/frame.ts';
 import type { FromWorker } from './protocol.ts';
 
-export const SLICE_PRESET = 'csph';   // the slice's patient: cirrhosis with clinically significant portal hypertension
+export const START_PRESET = 'healthy';   // the patient a first run opens on, as the 2D app's store (presetId: 'healthy'); a ?preset= link or a saved share opens another after it
 
 let client: EngineClient | null = null;
 export const engine = (): EngineClient => { if (!client) throw new Error('engine not started'); return client; };
@@ -15,7 +15,7 @@ const crashed = (message: string) => useEngine.setState({ status: 'crashed', cra
 
 /** Start the engine. `worker` is injectable for tests; the app passes nothing and gets the real worker. A worker that cannot be made, fails, or never answers within `waitMs`
  *  rejects and leaves the status 'crashed' with the reason: the boot never waits for ever (main.tsx then shows the reason with Reload). */
-export async function bootEngine(worker?: WorkerLike, preset = SLICE_PRESET, waitMs = BOOT_WAIT_MS): Promise<EngineClient> {
+export async function bootEngine(worker?: WorkerLike, preset = START_PRESET, waitMs = BOOT_WAIT_MS): Promise<EngineClient> {
   if (!worker) {
     try { worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }) as unknown as WorkerLike; }
     catch (e) { const message = `The simulation worker could not start: ${String((e as { message?: string } | null)?.message ?? e)}`; crashed(message); throw new Error(message); }
