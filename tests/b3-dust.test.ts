@@ -131,7 +131,7 @@ test('GLSL: parses; the lab\'s shapes are in it; the dust is computed from a cel
   assert.match(DUST_GLSL, /\(D_densK - dHash\(sd\)\) \* 12\.0/, 'density thins by a threshold: single particles fade, nothing pops');
   assert.match(DUST_GLSL, /return acc \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(across\)\)\);/, 'contained: nothing on the ink');
   // in the vessel: the tube paints it, gated by the amount, the flow and the marks' own junction rule; chevrons after
-  for (const m of [/dust = dustField\(across, sD, 0\.0, 1\.0, smS\.w, /, /markK\(vUv\.x \* len \* vU, \(1\.0 - vUv\.x\) \* len \* vU\) \* skinMarkK\(\) \* streakAmt/, /smoothstep\(0\.0, [\d.]+, abs\(smS\.y\)\)/, /litD, inkColor\)/]) assert.match(VESSEL_FS, m);
+  for (const m of [/dust = dustField\(across, sD, 0\.0, 1\.0, smS\.w, /, /markK\(vUv\.x \* len \* vU, \(1\.0 - vUv\.x\) \* len \* vU\) \* streakAmt/, /smoothstep\(0\.0, [\d.]+, abs\(smS\.y\)\)/, /litD, inkColor\)/]) assert.match(VESSEL_FS, m);
   assert.ok(VESSEL_FS.indexOf('streakCover = dOn * dust.a;') < VESSEL_FS.indexOf('c = c * (1.0 - ha) + core * ac'), 'chevrons draw ABOVE the particles');
   assert.match(VESSEL_FS, /if \(streakCover > 0\.0\) c = mix\(c, cBody, ha\);/);
   assert.doesNotMatch(VESSEL_FS, /END_R|streakField\(/, 'no fade at a vessel\'s ends: the dust runs through the junction (no old streak field in the tube)');

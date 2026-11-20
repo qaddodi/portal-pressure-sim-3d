@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
-import { MARK_FADE_R, SKIN_CIRC_SPAN, SKIN_CUT_EPS, SKIN_CUT_NONE } from '../src/scene/vessels/skin/types.ts';
+import { SKIN_CIRC_SPAN, SKIN_CUT_EPS, SKIN_CUT_NONE } from '../src/scene/vessels/skin/types.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
 import type { VesselObject } from '../src/scene/vessels/vessel-object.ts';
@@ -40,8 +40,6 @@ test('the fragment stage cuts only where a cut is set, and only past it (a plain
   assert.ok(!VESSEL_VS.includes('skinCut'), 'the vertex stage is untouched');
 });
 
-test('chevrons, streaks and dust all fade by the same seam distance, over MARK_FADE_R radii, and it is 1 where nothing is cut', () => {
-  assert.equal(MARK_FADE_R, 1.5);
-  assert.match(VESSEL_FS, /float skinMarkK\(\) \{ return skinCutOn\(\) \? smoothstep\(0\.0, 1\.5 \* max\(vR, 1e-3\), skinSeamDist\(\)\) : 1\.0; \}/);
-  assert.equal(VESSEL_FS.match(/\* skinMarkK\(\)/g)!.length, 2, 'the dust and the chevrons');
+test('the tube\'s flow marks (chevrons, streaks, dust) run right up to the seam: no fade before it (Mohammad, 20 Nov: particles cross a junction, they do not disappear); the skin carries them on (tests/skin-marks.test.ts)', () => {
+  assert.doesNotMatch(VESSEL_FS, /skinMarkK|skinSeamDist/);
 });

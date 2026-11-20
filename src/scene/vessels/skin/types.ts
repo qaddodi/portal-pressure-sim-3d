@@ -42,9 +42,6 @@ export interface SkinMesh {
   seamVerts: Uint32Array[];           // per arm: the skin vertex ids of its seam ring, in the tube's ring order j = 0..RADIAL
 }
 
-/** A tube's flow marks (chevrons, streaks, dust) fade out over this many radii before the tube's seam, where the skin (which draws none) takes over (spec 4.8). */
-export const MARK_FADE_R = 1.5;
-
 /** The tube's `skinCut` uniform when nothing is cut: no u is below -1 or above 2, so every branch it guards is a no-op and the picture is today's (spec section 3, WP4). */
 export const SKIN_CUT_NONE: readonly [number, number] = [-1, 2];
 
