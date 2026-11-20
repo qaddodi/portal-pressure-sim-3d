@@ -10,7 +10,6 @@ import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { TIER_Z, type Tier, UNITS_PER_SCENE, len3, x3, y3 } from '../frame2d.ts';
-import type { AtlasCourse } from '../atlas-art/types.ts';
 
 export interface Flare { add: number; wall: number; span: number }
 export type NetTone = 'portal' | 'sys' | 'artery';
@@ -90,14 +89,8 @@ function tierOf(e: Edge): Tier {
 }
 const toneOf = (e: Edge): NetTone => (isArteryEdge(e) ? 'artery' : portal.has(e.from) || portal.has(e.to) ? 'portal' : 'sys');
 
-/** Atlas art (Settings > Figure depth; src/scene/atlas-art/): the artist's course of each vessel it drew, while Atlas is on. Empty in Classic, so nothing below changes. coursesOf (shape.ts) and
- *  courseOf read it; atlas-art/vessels.ts is the only writer. */
-export const ATLAS_COURSE: Map<string, AtlasCourse> = new Map();
-
-/** The 2D course of an edge carried into the scene: x and y by the linear map, z by its tier (the artist's own, while Atlas art is on and drew it). */
+/** The 2D course of an edge carried into the scene: x and y by the linear map, z by its tier. */
 export function courseOf(id: string): Vec3[] {
-  const a = ATLAS_COURSE.get(id);
-  if (a) return a.pts;
   const e = edgeById.get(id)!, z = TIER_Z[tierOf(e)];
   return pathOf(id).map(([x, y]): Vec3 => [x3(x), y3(y), z]);
 }

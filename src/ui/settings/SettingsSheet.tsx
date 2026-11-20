@@ -4,8 +4,7 @@
 // Model: Advanced physiology is a page of this menu (Advanced.tsx, the 2D panel's own rows); From readings opens the 2D flow in its own menu (readings/FromReadings.tsx).
 import { Fragment, useEffect, useState } from 'react';
 import { UI } from '../strings.generated.ts';
-import { useSettings, FIGURE_DETAIL, ORGAN_FILLS, type OrganFill, ATLAS_ARTS, type AtlasArt } from '../../state/settings.ts';
-import { useAtlasStatus } from '../../scene/atlas-art/status.ts';
+import { useSettings, FIGURE_DETAIL, ORGAN_FILLS, type OrganFill } from '../../state/settings.ts';
 import { DEPTH_ROWS } from './depth-rows.ts';
 import type { LookChoice } from '../../looks/looks.ts';
 import { useShell } from '../shell/store.ts';
@@ -111,7 +110,6 @@ function DepthGroup() {
     <MenuGroup title="Figure depth (3D only)">
       {DEPTH_ROWS.map((r) => <DepthSwitch key={r.key} row={r} />)}
       <OrganFillChoice />
-      <AtlasArtChoice />
     </MenuGroup>
   );
 }
@@ -125,22 +123,6 @@ function OrganFillChoice() {
       <div className="seg full menu-seg" role="group" aria-label="Organ fill">
         {ORGAN_FILLS.map((f) => <button key={f} type="button" aria-pressed={at === f} onClick={() => useSettings.getState().set('organFill', f)}>{FILL_WORDS[f]}</button>)}
       </div>
-    </>
-  );
-}
-const ATLAS_WORDS: Record<AtlasArt, string> = { classic: 'Classic', atlas: 'Atlas' };
-/** Atlas art: the external artist's organs and vessel courses (src/scene/atlas-art/), or Classic, the figure as it was. Atlas loads its files only when chosen; Classic is the way back. */
-function AtlasArtChoice() {
-  const at = useSettings((s) => s.atlasArt);
-  const st = useAtlasStatus((s) => s.status);
-  return (
-    <>
-      <div className="menu-title">Atlas art</div>
-      <div className="seg full menu-seg" role="group" aria-label="Atlas art">
-        {ATLAS_ARTS.map((f) => <button key={f} type="button" aria-pressed={at === f} onClick={() => useSettings.getState().set('atlasArt', f)}>{ATLAS_WORDS[f]}</button>)}
-      </div>
-      {at === 'atlas' && st === 'loading' ? <div className="menu-title" role="status">Loading the atlas art…</div> : null}
-      {at === 'atlas' && st === 'failed' ? <div className="menu-title" role="status">The atlas art did not load. The figure stays Classic.</div> : null}
     </>
   );
 }

@@ -20,20 +20,8 @@ export interface Course {
   clamp?: readonly [{ max: number; d0: number; d1: number } | null, { max: number; d0: number; d1: number } | null];
   /** smooth joins: nothing meets this end, so the tube tapers to a point over its last stretch (`pointLength`) instead of ending in a round cap */
   point?: readonly [boolean, boolean];
-  /** Settings > Figure depth > Atlas art: the artist's own radius along the course, as flat [arcShare, radiusShare, ...] pairs (radiusShare is against `radius`); absent for every classic course */
-  profile?: readonly number[];
 }
 const smooth = (u: number) => u * u * (3 - 2 * u);
-/** The atlas course's radius share at arc-length share `u` (flat [u0, f0, u1, f1, ...], u rising). */
-export function profileAt(p: readonly number[], u: number): number {
-  const n = p.length / 2;
-  if (u <= p[0]!) return p[1]!;
-  for (let i = 1; i < n; i++) {
-    const u1 = p[2 * i]!;
-    if (u <= u1) { const u0 = p[2 * i - 2]!, t = u1 > u0 ? (u - u0) / (u1 - u0) : 1; return p[2 * i - 1]! + (p[2 * i + 1]! - p[2 * i - 1]!) * t; }
-  }
-  return p[2 * n - 1]!;
-}
 const factorAt = (t: readonly [number, number] | undefined, u: number): number => (!t ? 1 : u < 0.3 ? t[0] + (1 - t[0]) * smooth(u / 0.3) : u > 0.7 ? 1 + (t[1] - 1) * smooth((u - 0.7) / 0.3) : 1);
 
 /** The share of its radius a free end tapers down to (a point, not a hole: the tube stays closed). */
@@ -84,7 +72,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     const P = new Vector3(), pos = tube.attributes.position as Float32BufferAttribute;
     for (let k = 0; k <= seg; k++) {
       const u = k / seg;
-      let f = open ? (factorAt(c.taper, u) + (flareAdd(c.flare?.[0], u * clen) + flareAdd(c.flare?.[1], (1 - u) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) : 1) * (c.profile ? profileAt(c.profile, u) : 1) : 1;
+      let f = open ? (factorAt(c.taper, u) + (flareAdd(c.flare?.[0], u * clen) + flareAdd(c.flare?.[1], (1 - u) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) : 1) : 1;
       curve.getPointAt(k / seg, P);
       if (open && (c.clamp || c.point)) {
         // (smooth joins) the buried ends keep their collar inside the trunk, and a free end narrows to a point
@@ -108,7 +96,6 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     // the radius a round cap is built at: the tube's own at that end (the collar's, a buried end's held inside its trunk, a free end's tip); none at an end that carries on
     const capRadius = (end: number): number => {
       let r = open && !c.capless?.[end] ? c.radius * factorAt(c.taper, end) + flareAdd(c.flare?.[end], 0) : HAIR;
-      if (open && r > HAIR && c.profile) r *= profileAt(c.profile, end);
       if (open && r > HAIR && c.clamp?.[end]) r = Math.min(r, c.clamp[end]!.max);
       if (open && r > HAIR && c.point?.[end]) r *= TIP_K;
       return r;
