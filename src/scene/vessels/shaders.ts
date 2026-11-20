@@ -308,6 +308,7 @@ uniform float circT;
 uniform vec2 circCap;       // the Circuit rounds this vessel's start / end (1): the ends nothing joins
 uniform vec4 wedge;       // the wedged vein's static column as a tint on the vessels themselves: x how much, y the share of the course (u) it reaches up to (2 = all of it), z how far the fade to the branch tip runs, w how much of it fades
 uniform vec3 wedgeCol;
+uniform vec3 wedgeB;       // x how softly the tint ends on the balloon's side of the cut (u), y how far toward the outer end it has come (the column filling; -1: all the way), z how softly that front ends
 uniform float quietK;       // quiet depth on a turn (camera/quiet.ts): the back tier eases toward the page by QUIET_BACK of this, 0 face on
 uniform vec3 pageCol;       // the plate colour it eases toward
 uniform vec4 rimInk;        // (kept for the palette's API: no light rim is drawn)
@@ -620,7 +621,8 @@ void main() {
   }
   // the amber column of the wedge: everything upstream of the balloon in that vein and its branches, a tint on the tube itself that thins toward each branch's tip
   if (wedge.x > 0.001 && circT < 0.001) {
-    float wa = wedge.x * (1.0 - smoothstep(wedge.y - 0.08, wedge.y, vUv.x));
+    // whole up to the cut (the balloon's distal edge), softly gone just behind it (under the glass); from the cut forward as far as the front has come
+    float wa = wedge.x * (1.0 - smoothstep(wedge.y, wedge.y + max(wedgeB.x, 0.001), vUv.x)) * smoothstep(wedgeB.y - max(wedgeB.z, 0.001), wedgeB.y, vUv.x);
     wa *= mix(1.0, smoothstep(0.0, max(wedge.z, 0.001), vUv.x), wedge.w);
     c = mix(c, wedgeCol, 0.78 * wa);
   }
