@@ -91,13 +91,15 @@ export function testsPlace(vp: Viewport, device: DeviceClass, o: PlaceOpts = {})
   }
   // a sheet over the foot of the figure: the full width less the margins, rising from just above the bottom bars; Half or Full (dock-sheet.js)
   // (its foot is the dock's top edge less 8 px, 2D's --thumb-occ: the view pill over the dock goes with the card, so the sheet does not stand above the room it leaves, a 50 px gap over the dock, 20 Nov play-test)
-  const margin = 8, w = vp.w - vp.safe.left - vp.safe.right - 2 * margin, foot = vp.safe.bottom + dockInset(device) + dockHeight(device) + 8;
+  // (an upright iPad, 700 to 1100 px wide: 2D app-10-thumb-dock.css:175 sets the dock and the sheet to `left: 15%; right: 15%`, the 70 % column the cards of a talk keep; the tab row fits that width, so it
+  //  shows the short names, where a full-width sheet cut "Endoscopy" to "Endosc…", 20 Nov play-test)
+  const tab = device === 'tablet-portrait', margin = 8, w = tab ? Math.round(vp.w * 0.7) : vp.w - vp.safe.left - vp.safe.right - 2 * margin, x = tab ? Math.round(vp.w * 0.15) : vp.safe.left + margin, foot = vp.safe.bottom + dockInset(device) + dockHeight(device) + 8;
   const R = Math.max(1, vp.h - vp.safe.top - barH - foot - 22);
   const stops = sheetStops(device, vp.h, R, !!o.vesselCard);
   const maxH = stops[1];
   // (a sheet has its stops and nothing else: a remembered side-card ratio or a content height never sets it, so it never opens at some height in between, owner 20 Nov)
   const h = o.sheetSize === 2 ? PEEK_H : stops[o.sheetSize === 1 ? 1 : 0];
-  return { kind: 'sheet', rect: { x: vp.safe.left + margin, y: vp.h - foot - h, w, h }, maxH, vars: sheetDockVars(h, isPhone(device)), focus: false, stops };
+  return { kind: 'sheet', rect: { x, y: vp.h - foot - h, w, h }, maxH, vars: sheetDockVars(h, isPhone(device)), focus: false, stops };
 }
 
 /** The room the figure is FRAMED in while the card is up (owner, 20 Nov: opening a Tests card must not squeeze or zoom out the figure; it may pan to keep its middle in the free part): the same size as the
