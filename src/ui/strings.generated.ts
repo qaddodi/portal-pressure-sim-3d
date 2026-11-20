@@ -506,7 +506,7 @@ export const UI = {
     "menu": "Blood",
     "section": "Show on the figure",
     "label": "Pressure values",
-    "hint": "The number beside each vessel\\u2019s name"
+    "hint": "The number beside each vessel’s name"
    },
    {
     "menu": "Blood",
@@ -589,7 +589,7 @@ export const UI = {
    },
    {
     "label": "Velocity",
-    "hint": "Against each vessel\\u2019s own normal"
+    "hint": "Against each vessel’s own normal"
    },
    {
     "label": "Flow direction",
@@ -601,7 +601,7 @@ export const UI = {
    },
    {
     "label": "Blood origin",
-    "hint": "Where each vessel\\u2019s blood comes from"
+    "hint": "Where each vessel’s blood comes from"
    },
    {
     "label": "First pass",
@@ -1731,7 +1731,7 @@ export const UI = {
   {
    "id": "velocity",
    "name": "Velocity",
-   "note": "Against each vessel\\u2019s own normal"
+   "note": "Against each vessel’s own normal"
   },
   {
    "id": "direction",
@@ -1746,7 +1746,7 @@ export const UI = {
   {
    "id": "origin",
    "name": "Blood origin",
-   "note": "Where each vessel\\u2019s blood comes from"
+   "note": "Where each vessel’s blood comes from"
   },
   {
    "id": "firstpass",
