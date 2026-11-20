@@ -93,3 +93,24 @@ test('every skin: no triangle that counts is turned against its own normals, wit
     }
   }
 });
+
+test('every skin at rest (growing arms closed, or fully grown): each triangle that counts agrees with its vertex normals (cosine at least 0.3), so none is edge-on to the camera at a silhouette with its ink band', () => {
+  build();
+  for (const { mesh } of built) {
+    const rmin = Math.min(...mesh.junction.arms.map((a) => a.restR));
+    for (const g of mesh.grow.length ? [0, 1] : [1]) {
+      const { position, normal } = atGrowth(mesh, g);
+      let worst = 1, at = -1;
+      for (let t = 0; t < mesh.index.length; t += 3) {
+        const a = mesh.index[t]!, b = mesh.index[t + 1]!, c = mesh.index[t + 2]!;
+        const u = [0, 1, 2].map((q) => position[3 * b + q]! - position[3 * a + q]!), v = [0, 1, 2].map((q) => position[3 * c + q]! - position[3 * a + q]!);
+        const f = [u[1]! * v[2]! - u[2]! * v[1]!, u[2]! * v[0]! - u[0]! * v[2]!, u[0]! * v[1]! - u[1]! * v[0]!], fl = Math.hypot(f[0]!, f[1]!, f[2]!);
+        if (fl / 2 <= 0.01 * rmin * rmin) continue;
+        const n = [0, 1, 2].map((q) => normal[3 * a + q]! + normal[3 * b + q]! + normal[3 * c + q]!), nl = Math.hypot(n[0]!, n[1]!, n[2]!) || 1;
+        const cs = (f[0]! * n[0]! + f[1]! * n[1]! + f[2]! * n[2]!) / (fl * nl);
+        if (cs < worst) { worst = cs; at = t / 3; }
+      }
+      assert.ok(worst >= 0.3, `${mesh.junction.node} at growth ${g}: triangle ${at} has cosine ${worst.toFixed(2)} with its normals`);
+    }
+  }
+});
