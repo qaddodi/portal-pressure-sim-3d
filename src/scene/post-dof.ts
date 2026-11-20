@@ -56,6 +56,18 @@ export const DOF_MAX_FRAC = 0.005, DOF_SPAN = 0.35;
 export const DOF_SLAB_LOBULE = 0.75 * LOBULE_T * LOBULE_SCALE, DOF_SLAB_SINUSOID = 1.0 * SIN_SCALE;
 /** The focus band's biggest circle, as a share of the picture's height (2%: about 34 px on an iPhone's 1688 px). */
 export const DOF_BAND_FRAC = 0.02;
+/** The whole-screen blur of the Anatomy <-> Lobule move, at its peak: the same strength the Sinusoid's focus pull holds (sinusoid3d FOCUS_PEAK), so the two dives blur alike. */
+export const DOF_DIVE_PEAK = 0.4;
+/** The blur strength (0 none .. DOF_DIVE_PEAK) with the camera `d` from the place dived to, `rest` the distance the lobule is framed at, `gone` where the body has dissolved away and `whole` where all of it is drawn:
+ *  none at the body's rest and at the lobule's framing, rising smoothly as the body dissolves and peaking where it is gone, then letting go as the neighbours resolve on the way in to the framing. A function of the
+ *  distance alone, so zooming out is the same picture run backward and nothing pops (Mohammad 20 Nov 2026: "I like the blur while zooming into a new view, can you add it as we land or leave the lobule?"). */
+export function diveBlur(d: number, rest: number, gone: number, whole: number): number {
+  const fit = rest * 1.15;
+  if (!(d > 0) || !(rest > 0) || !(gone > fit) || !(whole > gone)) return 0;
+  const up = smooth(0, 1, Math.log(whole / d) / Math.log(whole / gone));
+  const down = 1 - smooth(0, 1, Math.log(gone / d) / Math.log(gone / fit));
+  return DOF_DIVE_PEAK * up * down;
+}
 /** The taps of the gather: each reads a pre-filtered mip level (no noise), so a dozen make a smooth disc. */
 export const DOF_TAPS = 12;
 
@@ -240,6 +252,17 @@ export class PostDof {
   bandShare = 0;
   /** How far the band's blur has eased from one level over the whole screen (0) to the resting band (1): the dive's focus pull (SinusoidScene3D focusOpen). */
   bandOpen = 1;
+  /** One blur of the same strength over the whole screen (the Anatomy <-> Lobule move, diveBlur): the band's machinery with its shape fully eased out (bandO 0), so nothing of it is a window or a side. `h` the picture's height in px, `k` the strength. Returns it. */
+  uniformFrame(h: number, k: number): number {
+    this.bandShare = 0;
+    if (this.failed || !(k > 0) || this.env?.reducedMotion) return 0;
+    const u = this.gather.uniforms;
+    (u.bandK!.value as Vector4).set(0, 1, DOF_BAND_FRAC * h, k);
+    (u.bandAK!.value as Vector2).set(0, 0);
+    u.bandO!.value = 0;
+    this.bandShare = k;
+    return k;
+  }
   /** This frame's focus band: `a`, `b` two points on its centre line and `e0`, `e1` a point where the blur starts and one where it is whole (world points), `w`, `h` the picture's size in px,
    *  `k` the strength; `ends`, when given: the middle of the line and a point on it where the blur along it starts and one where it is whole (the scene's two ends, symmetric about the middle). Returns the strength. */
   bandFrame(cam: PerspectiveCamera, a: Vector3, b: Vector3, e0: Vector3, e1: Vector3, w: number, h: number, k: number, ends?: { mid: Vector3; f0: Vector3; f1: Vector3 }): number {
