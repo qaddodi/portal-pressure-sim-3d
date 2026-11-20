@@ -612,7 +612,8 @@ export class CelScene {
   }
   /** The body dissolves as the camera goes into the liver and comes back as it leaves (a function of the camera's distance to the lobule's place, so the dive in and the way out are the same picture run both ways). */
   private fadeBody(): void {
-    const f = bodyFade(this.rig.camera.position.distanceTo(this.livePoint));
+    // the dive's effects belong to a dive (or to the lobule and the sinusoid): a close-up of the body at rest (a deck's zoom on the liver) is outside every dive and never fades the organs or opens the window
+    const f = this.inDive() ? bodyFade(this.rig.camera.position.distanceTo(this.livePoint)) : 1;
     if (f === this.fadeNow || (Math.abs(f - this.fadeNow) < 1e-3 && f > 0 && f < 1)) return;
     this.fadeNow = f;
     for (const o of this.objects) o.setFade(f);
@@ -621,6 +622,8 @@ export class CelScene {
     this.moving = true;
   }
   private readonly livePoint = new Vector3(...LIVER_POINT);
+  /** Whether the camera is in, or on its way into or out of, the liver (the lobule, the sinusoid, or a view change still flying): the only time the dive's fade, window and field apply. */
+  private inDive(): boolean { return this.figureView === 'lobule' || this.figureView === 'sinusoid' || this.hideLeftBehind; }
   private readonly mapPt = new Vector3(MAP_CENTRE.x, MAP_CENTRE.y, MAP_CENTRE.z);
   /** The sinusoid's tissue is one opaque plane to every edge of the screen once the camera has landed on it (the lobule is then hidden: nothing of the lobule is ever seen through or around it). While the
    *  camera flies between the lobule and the sinusoid (the view being left stays drawn until it lands) the tissue comes in over the lobule by how far the dive has gone (the pose's own distance: the
@@ -633,17 +636,13 @@ export class CelScene {
   /** The dive's cutaway window in the organs' wash and the field's focus: both are functions of the camera's distance to the place dived to, so the way in and the way out are one picture run both ways,
    *  however the move is reversed, held or resized by a card (camera/dive.ts). Nothing changes at rest: every body shot is outside the window. */
   private stepCutaway(): void {
-    const cam = this.rig.camera, d = cam.position.distanceTo(this.livePoint);
+    const cam = this.rig.camera, d = this.inDive() ? cam.position.distanceTo(this.livePoint) : Infinity;
     const p = this.divePt.copy(this.livePoint).project(cam);
     cutUniform(d, p.x, p.y, cam.aspect, this.cutArr);
     const was = ORGAN_CUT.value.z;
     ORGAN_CUT.value.set(this.cutArr[0], this.cutArr[1], this.cutArr[2], this.cutArr[3]);
     this.lobule.field.setSoft(fieldSoft(d, this.lobuleRest()));
     if (was !== this.cutArr[2] && (was > -1 || this.cutArr[2] > -1)) this.moving = true;
-    // while the window is open the organs' fill stops writing depth: a half-cleared fragment (the window's soft edge, the dive's fade) is nearly invisible, and writing depth with it hid the vessels, the lobule and the organ's own far side
-    // behind it in a pattern that changed every frame of the dive (the surface "flickers", Mohammad 20 Nov). At rest (nothing cleared) the fill writes depth as before.
-    const open = this.cutArr[2] > -1;
-    if (open !== this.organsOpen) { this.organsOpen = open; for (const o of this.disease.organs.objects) o.toon.depthWrite = !open; this.moving = true; }
   }
   /** A portrait room (narrower than tall, 2D's `W < H * 0.95`) runs the sinusoid top to bottom: the sinusoid view takes it (SinusoidView.setPortrait, the sinusoid worker's), and the shot asks for it (sinusoidShot(portrait)). */
   private portrait = false;
@@ -672,7 +671,6 @@ export class CelScene {
     if (key !== this.restKey) { this.restKey = key; this.restD = effectiveDistance(lobuleShot('lobule'), r, this.height, this.width); }
     return this.restD;
   }
-  private organsOpen = false;
   private readonly divePt = new Vector3();
   private readonly cutArr: [number, number, number, number] = [0, 0, -1, 1];
   /** How much of the body is drawn now (1 whole, 0 gone): for tests and tags. */
