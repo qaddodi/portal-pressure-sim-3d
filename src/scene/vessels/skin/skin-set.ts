@@ -20,12 +20,14 @@ import { SKIN_CUT_NONE, SKIN_HIDDEN, type SkinCut, type SkinJunction, type SkinM
 import { hiWeightAt, lensUAt, liveFadeAt, type FadeState, type HiState } from './arm-twins.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import type { ArmAxis, ArmColour } from './skin-object.ts';
+import { SKIN_FIGURE_UNITS } from './shaders.ts';
 
 /** What the skin's drawing object offers the set (skin-object.ts is the real one; a test hands in a plain recorder). */
 export interface SkinDraw {
   readonly object: Object3D;
   /** the live handover for arm `i`: its tube's alpha at its seam, its highlight weight there, and its lens ramp's position there */
   setArm(i: number, fade: number, hi: number, lensU: number, colour: ArmColour, narrow: number): void;
+  setArc(i: number, seamArc: number, dir: number, length: number, restR: number, flow: number): void;
   /** a skin blends only when one of its arms does (a fade zone): opaque otherwise, as the tubes are */
   setTransparent(on: boolean): void;
   dispose(): void;
@@ -87,6 +89,11 @@ export function axisOf(tube: ArmTube, restR: number, cut: SkinCut): ArmAxis {
   for (let k = cut.ring; k >= 0 && k <= last; k += out) { far = k; at = ringCentre(tube.geometry, k).c; if (Math.hypot(at[0] - a.c[0], at[1] - a.c[1], at[2] - a.c[2]) >= AXIS_REACH_R * restR) break; }
   const f = ringCentre(tube.geometry, far);
   return { pts: [[s.c[0] - tx * d0, s.c[1] - ty * d0, s.c[2] - tz * d0], s.c, [s.c[0] + tx * d2, s.c[1] + ty * d2, s.c[2] + tz * d2]], radii: [a.r, s.r, f.r] };
+}
+
+/** An arm's arc numbers for the skin's flow marks (the tube's `vUv.x * len * vU` at the seam, 300 figure units to the scene unit on the body): the arc at the seam, which way it grows toward the node, the vessel's length and its rest radius, all in figure units. */
+export function armArcOf(end: 0 | 1, u: number, len: number, radius: number): { seamArc: number; dir: number; length: number; restR: number } {
+  return { seamArc: u * len * SKIN_FIGURE_UNITS, dir: end === 1 ? 1 : -1, length: len * SKIN_FIGURE_UNITS, restR: radius * SKIN_FIGURE_UNITS };
 }
 
 /** An axis as the mesh builder's capsule (sdf.ts): the same three points and radii. */
@@ -203,7 +210,13 @@ export class SkinSet {
         const col = u.color!.value as { r: number; g: number; b: number }, lu = (u.lensUse!.value as number) > 0.5 ? 1 : 0;
         const nar = a.obj.toonMesh.geometry.getAttribute('narrow')?.getX(a.vi) ?? 0;   // (the stenosis waist the tube has at its seam; disease/clamps.ts writes it, only for a vessel that is stenosed)
         if (a.last[0] !== f || a.last[1] !== h || a.last[2] !== l || a.last[3] !== col.r || a.last[4] !== col.g || a.last[5] !== col.b || a.last[6] !== lu || a.last[7] !== nar) {
-          a.last = [f, h, l, col.r, col.g, col.b, lu, nar]; b.draw.setArm(i, f, h, l, { r: col.r, g: col.g, b: col.b, a: lu }, nar); any = true;
+          a.last = [f, h, l, col.r, col.g, col.b, lu, nar, a.last[8] ?? NaN, a.last[9] ?? NaN]; b.draw.setArm(i, f, h, l, { r: col.r, g: col.g, b: col.b, a: lu }, nar); any = true;
+        }
+        // the arm's flow marks ride on its arc (armArcOf: the tube's own u x len x figure units) and its tube's flowAmount
+        const ln = u.len!.value as number, rd = u.radius!.value as number, fl = u.flowAmount!.value as number;
+        if (a.last[8] !== ln || a.last[9] !== fl) {
+          a.last[8] = ln; a.last[9] = fl;
+          const arc = armArcOf(a.end, a.u, ln, rd); b.draw.setArc(i, arc.seamArc, arc.dir, arc.length, arc.restR, fl); any = true;
         }
         if (a.obj.toon.transparent) blend = true;
       });

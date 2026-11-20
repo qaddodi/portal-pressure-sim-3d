@@ -703,7 +703,7 @@ export class CelScene {
     const wasCircuit = this.figureView === 'circuit';
     this.figureView = v;
     if (wasCircuit !== (v === 'circuit') && latest.frame) this.syncPresence(latest.frame, false);   // (the liver's beds are drawn on the map only: they draw on as the body turns into it, and draw back as it returns)
-    this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? (sinusoidBox(this.portrait) as Vec3[]) : null);
+    this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? (sinusoidBox() as Vec3[]) : null);
     // the view being left stays drawn until the camera has landed on the new one (nothing pops while it flies); then it is hidden
     this.body.visible ||= v === 'body' || v === 'circuit';
     // the body turns into the map (or back) on the camera's own clock, from wherever it stands
@@ -881,14 +881,13 @@ export class CelScene {
     if (p !== this.portrait) {
       this.portrait = p;
       this.sinus.setPortrait(p);
-      if (this.figureView === 'sinusoid') this.rig.setSubject(sinusoidBox(p) as Vec3[]);
       this.moving = true;
     }
     // what the view needs of the screen to lay its end arrows and run its traffic as 2D does: px per µm along the flow (the hand's zoom included), the room's length and the canvas's along it
     const short = shortSide(p, r), s = this.rig.stageSize;
     // (measured on the screen, not modelled: where the sinusoid's middle and a point 10 µm down the flow land, against the free room's middle)
     if (!this.sinus.isVisible) return;   // (nothing of the view is read while it is away)
-    const turn = this.sinus.turn, o = this.rig.project(this.sinusPt.set(...sinusoidWorld([0, 0, 0])), this.scrO), a = this.rig.project(this.sinusPt.set(...sinusoidWorld(framePoint(10, 0, SIN_UNIT, turn))), this.scrA);
+    const o = this.rig.project(this.sinusPt.set(...sinusoidWorld([0, 0, 0])), this.scrO), a = this.rig.project(this.sinusPt.set(...sinusoidWorld(framePoint(10, 0, SIN_UNIT, 0))), this.scrA);   // (the plane keeps its own frame; the camera's roll turns it on screen)
     const m = measureScreen(o, a, this.rig.roomCentre());
     this.sinus.setScreen(m.k > 0 ? m.k : restScale(short) * this.rig.handZoom, p ? r.h : r.w, p ? s.h : s.w, m.k > 0 ? m.centreUm : 0);
   }

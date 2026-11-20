@@ -1,14 +1,17 @@
 // The sinusoid on a portrait screen (2D: sinusoid-view.js ensureGeo, layoutEnds, stepView). A screen narrower than 0.95 of its height runs the sinusoid TOP TO BOTTOM (portal end up),
-// 2D turning its drawing by ang = PI / 2 on a y-down screen. Here the plane's own group is turned, so the tissue, the pores, the albumin, the names' anchors and the hits all turn
-// together; the plane's y runs up, so the same turn is -PI / 2. Pure numbers, no GPU: tests/scene-sinusoid-portrait.test.ts.
+// 2D turning its drawing by ang = PI / 2 on a y-down screen. Here the CAMERA rolls (the shot's `roll`, camera/rig.ts), never the plane: the plane keeps its own frame, along the lobule's
+// capillary it was dived into, so the lobule and the sinusoid turn together in one move of the camera and the tissue, the pores, the albumin, the names' anchors and the hits all follow it
+// (Mohammad 20 Nov 2026: a plane turned alone, inside the dive, "flips only the sinusoid, not the lobule"). Pure numbers, no GPU: tests/scene-sinusoid-portrait.test.ts.
 import { FILL } from '../camera/room.ts';
 import { SEED, kupfferClear } from './layout.ts';
 
 
 /** 2D's rule: a stage narrower than 0.95 of its height is a portrait stage (W < H * 0.95). */
 export const isPortrait = (w: number, h: number): boolean => w < h * 0.95;
-/** The turn of the plane's group about z that puts the portal end at the top (2D's ang = PI/2 on a y-down screen). */
+/** The turn on the screen that puts the portal end at the top (2D's ang = PI/2 on a y-down screen; the plane's y runs up, so -PI / 2). */
 export const PORTRAIT_ANGLE = -Math.PI / 2;
+/** The camera's roll (radians about its view axis, a shot's `roll`) that shows the world turned by PORTRAIT_ANGLE: rolling the camera one way turns the picture the other. */
+export const PORTRAIT_ROLL = -PORTRAIT_ANGLE;
 /** Where the Kupffer cell stands (µm along): 22 on a wide screen, nearer the middle (12) on a tall one, clear of the central vein's name (2D: geo.xk). */
 export const XK = { wide: 22, tall: 12 } as const;
 /** The Kupffer cell's place for a screen: the wanted place moved onto the nearest bare stretch of its (lower) lining, never on top of an endothelial cell (layout.ts kupfferClear). */
@@ -58,21 +61,4 @@ export function framePoint(xum: number, yDown: number, u: number, angle: number,
 export function planePoint(fx: number, fy: number, u: number, angle: number): { x: number; y: number } {
   const c = Math.cos(angle), s = Math.sin(angle), px = fx * c + fy * s, py = -fx * s + fy * c;
   return { x: px / u, y: -py / u };
-}
-
-/** The turn the plane is at, from the dive and the target: while the camera flies between the lobule and this view the turn follows the dive's share (0 leaving the lobule, 1 landed), so
- *  the lobule turns into the portrait view in one move and out again by the same frames reversed (2D: ang = dive.ang + rot * (g - 1)); at rest it is the target. */
-/** The dive's shares over which the plane turns to its own place on the screen. Before, it lies along the lobule's capillary it comes in over (the 'lobule:sinusoid'
- *  station runs along the lobule's x), so its channel is the tube you dived into, at its angle: a turn spread over the whole dive laid it across the tube, Mohammad 20 Nov 2026. */
-export const TURN_FROM = 0.45, TURN_TO = 0.68;   // (inside the dive's blur, while the sinusoid dissolves in: sinusoid3d FOCUS)
-export const turnAt = (target: number, dive: number | null): number => {
-  if (dive == null) return target;
-  const t = clamp((dive - TURN_FROM) / (TURN_TO - TURN_FROM), 0, 1);
-  return target * t * t * (3 - 2 * t) + 0;   // (+ 0: never -0)
-};
-/** One step of the turn toward its target when nothing is flying (a phone turned in the view): 2D's critically damped glide (SPRING 10 /s, 95 % in 0.47 s); exactly there once under half a milliradian. */
-export function glideTurn(cur: number, vel: number, target: number, dtSec: number): { a: number; v: number } {
-  const SPRING = 10, s = Math.min(Math.max(dtSec, 0), 0.1), e = Math.exp(-SPRING * s), dx = cur - target, t = vel + SPRING * dx;
-  const a = target + (dx + t * s) * e, v = (vel - SPRING * t * s) * e;
-  return Math.abs(a - target) < 5e-4 && Math.abs(v) < 5e-3 ? { a: target, v: 0 } : { a, v };
 }

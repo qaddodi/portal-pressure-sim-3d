@@ -16,9 +16,7 @@ test('the 3D sinusoid\'s lumen is as wide as the 3D lobule\'s tube it grows out 
 
 test('the dive is a focus pull: the picture goes soft, the sinusoid dissolves in inside the blur, then sharpens; the lobule stands aside only once it is whole (Mohammad 20 Nov: "like an old TV")', async () => {
   const { FOCUS } = await import('../src/scene/micro3d/sinusoid3d.ts');
-  const { TURN_FROM, TURN_TO } = await import('../src/scene/sinusoid/portrait.ts');
   assert.ok(SIN_SHOW_FROM <= FOCUS[0] && FOCUS[0] < FOCUS[1] && FOCUS[1] < FOCUS[2] && FOCUS[2] <= LOBULE_UNDER_FROM, 'blur, dissolve inside it, then the lobule goes');
-  assert.ok(TURN_FROM >= FOCUS[1] && TURN_TO <= FOCUS[2], 'a phone\'s turn happens inside the blur');
   const fs = await import('node:fs');
   const src = fs.readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
   assert.match(src, /this\.fade\.value = d == null \? 1 : smooth\(FOCUS\[1\], FOCUS\[2\], d\);/, 'dissolves in inside the blur');

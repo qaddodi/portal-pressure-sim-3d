@@ -55,7 +55,7 @@ test('what lies in a vein that opens into the cava reads the same fade: the draw
 
 test('the other tube is taken at the radius it is DRAWN at: every vessel measured against a mate (a fork, the cava) carries the mate\'s data index, built diameter and kind, and the vertex stage scales nbr by the mate\'s live swell', async () => {
   const { VESSEL_VS } = await import('../src/scene/vessels/shaders.ts');
-  const { forkMateOf, cavaMateOf } = await import('../src/scene/vessels/neighbour.ts');
+  const { nbrMatesOf } = await import('../src/scene/vessels/neighbour.ts');   // (every junction is a fork since 8952d0f8: the mate is the first of nbrMatesOf, as the scene wires it)
   const { NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
   const { indexOf } = await import('../src/engine/vessel-data.ts');
   assert.match(VESSEL_VS, /vNbr = vec2\(nbr\.x, nbr\.y \* \(nbrMate\.x >= 0\.0 \? swellOf\(nbrMate\.x, nbrMate\.y, nbrMate\.z\) : 1\.0\)\);/);
@@ -64,7 +64,7 @@ test('the other tube is taken at the radius it is DRAWN at: every vessel measure
   try {
     let n = 0;
     for (const v of NETWORK) {
-      const mate = forkMateOf(v.id) ?? cavaMateOf(v.id);
+      const mate = nbrMatesOf(v.id)[0];
       if (!mate) continue;
       n++;
       const u = s.vesselObject(v.id)!.toon.uniforms as unknown as { nbrOn: { value: number }; nbrMate: { value: { x: number; y: number; z: number } } };
@@ -73,7 +73,7 @@ test('the other tube is taken at the radius it is DRAWN at: every vessel measure
       assert.deepEqual([u.nbrMate.value.x, u.nbrMate.value.y, u.nbrMate.value.z], [indexOf(m.lensId), m.baseD, m.widthKind], `${v.id} against ${mate}`);
     }
     assert.ok(n >= 10, `${n} vessels have a mate`);
-    for (const v of NETWORK) if (!(forkMateOf(v.id) ?? cavaMateOf(v.id))) assert.equal((s.vesselObject(v.id)?.toon.uniforms as unknown as { nbrMate: { value: { x: number } } } | undefined)?.nbrMate.value.x ?? -1, -1, v.id);
+    for (const v of NETWORK) if (!nbrMatesOf(v.id)[0]) assert.equal((s.vesselObject(v.id)?.toon.uniforms as unknown as { nbrMate: { value: { x: number } } } | undefined)?.nbrMate.value.x ?? -1, -1, v.id);
   } finally { s.dispose(); }
 });
 

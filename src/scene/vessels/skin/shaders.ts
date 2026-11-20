@@ -5,7 +5,7 @@
 // The rules are the tube's own, spliced from vessels/glsl-shared.ts (swellOf, lensOfAt, the ink's colour and width, the pixel rule) and from the cel chunks, so on a seam ring, where one arm's weight is 1, the skin is the
 // tube: same position (VERTEX), same colour, same line. The skin differs from the tube in exactly four ways:
 //   1. It has no single centreline, so its ink is the OUTLINE OF THE SMOOTH UNION of its arms' live capsules in screen pixels (the 2D figure's own rule, fork-joins.copied.js), not a distance to one axis.
-//   2. It draws no chevrons, streaks or dust (the tubes fade those out before the seam, the stream chain carries the heads on).
+//   2. Its flow marks (chevrons, streaks, dust) are the tubes' own, drawn once per arm on that arm's arc and blended by the arm weights (Mohammad, 20 Nov: they cross a junction, they do not break at the seam): see THE FLOW MARKS below.
 //   3. It has no Circuit morph: on the map the tubes become flat lines and the map draws its own joins, so the skin fades out with `circT` (section 4.9).
 //   4. It does no run-on mate easing: the weights do the blending.
 //
@@ -18,6 +18,9 @@
 //   armColor[4]  vec4 + the arm tube's own `color` uniform (rgb: an artery wears the look's artery red, a vein its portal or systemic tone) and, in a, its `lensUse` (an artery 0, a vein 1)
 //   armAxis[12]  vec3   per arm three points of its axis, the junction side first, rest positions, model space
 //   armAxisR[12] float  the rest radius at those points
+//   armArc[4]    vec4 + (the arm's flow marks) the arc, figure units, at its seam (u x len x SKIN_FIGURE_UNITS), +1 if the arc grows toward the node (the arm is its vessel's end 1) else -1, the vessel's length (figure units), its rest radius (figure units)
+//   armFlow[4]   float + the arm tube's `flowAmount`
+//   streamTex, chainTex, streakAmt, dustP, time, markDark, markLight, markRev: the tubes' (shared by reference)
 //   skinK        float  the smooth-min blend width, scene units
 //   lensUse + : 1 (the per-arm flag above is multiplied in), inkColor, inkColorCirc, tubeDark, fade, hiPx, inflate, res, dpr, projY, circT, vdata, vdataSize, useData, the two lens sets (lensGradA/B, lensLaneA/B,
 //   lensModeA/B, laneColA/B, lensMix, lensTail, lensSmooth) are the tubes' (shared by reference).
@@ -27,7 +30,10 @@
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../../cel-glsl.ts';
 import { FADE_GLSL } from '../../materials/shaders.ts';
 import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
-import { LENS_OF_AT_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl } from '../glsl-shared.ts';
+import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl } from '../glsl-shared.ts';
+import { CHEV, CHEVRON_GLSL, CHEV_INK_ROW } from '../../blood/chevron-glsl.ts';
+import { DUST_GLSL } from '../../blood/dust-glsl.ts';
+import { STREAK } from '../../blood/streak-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
 
 /** How many arms a skin blends (a junction of three or four tubes): the weights are one vec4. */
@@ -60,6 +66,7 @@ varying float vCenW;     // the axis's clip depth: the one the ink band is built
 varying vec4 vWeight;
 varying float vRest;
 varying vec4 vSwell;     // the arms' live widths against their built ones, read once here so the fragment stage does not fetch them again
+varying vec3 vPos;       // the rest position: each arm's arc at this pixel (the flow marks) is read from it
 ${SWELL_OF_GLSL}
 void main() {
   // each arm's live width (the engine's diameter by the 2D figure's rule), then the blend: on a seam ring the weight is 1 on its own arm, so this IS the tube's swell and the ring lands where the tube's ring lands
@@ -87,6 +94,7 @@ void main() {
   vWeight = weight;
   vRest = restR;
   vSwell = sw;
+  vPos = position;
   gl_Position = c;
 }`;
 
@@ -125,6 +133,18 @@ uniform vec4 armColor[${SKIN_ARMS}];
 uniform vec3 armAxis[${SKIN_ARMS * 3}];
 uniform float armAxisR[${SKIN_ARMS * 3}];
 uniform float skinK;
+uniform vec4 armArc[${SKIN_ARMS}];
+uniform float armFlow[${SKIN_ARMS}];
+uniform sampler2D vdata;
+uniform vec2 vdataSize;
+uniform float useData;
+uniform sampler2D streamTex;
+uniform sampler2D chainTex;
+uniform float streakAmt;
+uniform float time;
+uniform vec3 markDark;
+uniform vec3 markLight;
+uniform vec3 markRev;
 varying vec3 vN;
 varying vec3 vV;
 varying float vW;
@@ -132,7 +152,16 @@ varying float vCenW;
 varying vec4 vWeight;
 varying float vRest;
 varying vec4 vSwell;
+varying vec3 vPos;
 ${LENS_OF_AT_GLSL}
+${CHEVRON_GLSL}
+${DUST_GLSL}
+${CHEV_ONE_GLSL}
+// the flow heads' tone under one lens set on one ARM (shared.ts chevCreamOf, with the arm's own lens index and colour): the vessel's latched, eased ink where the lens runs a colour along it, else the short eased step on the colour it is drawn in
+float armCream(vec4 la, sampler2D grad, float mode, float idx, vec3 col) {
+  if (la.a > 0.5 && mode < 1.5) return smoothstep(0.0, 1.0, texelFetch(grad, ivec2(int(idx), ${CHEV_INK_ROW}), 0).r);
+  return chevCreamSoft(celTubeBase(mix(col, la.rgb, la.a)));
+}
 // the polynomial smooth-min of the 2D figure's own join (fork-joins.copied.js; spec 4.3): a blend k wide, and never lower than the smaller of the two
 float skinSmin(float a, float b, float k) {
   float h = clamp(0.5 + 0.5 * (b - a) / max(k, 1e-4), 0.0, 1.0);
@@ -189,16 +218,90 @@ void main() {
   if (sdPx > inkDev + 0.5) discard;   // (past the band: the mesh is a little wider than the union's line where the arms spread)
   // THE BODY COLOUR: each arm's lens colour at its seam's ramp position (the tube's own rule, the two lens sets crossfaded by lensMix), then the arms blended by weight: a gradient through the junction, the tube's colour on a seam
   vec3 base = vec3(0.0);
+  vec4 laArm[${SKIN_ARMS}];
+  vec4 lbArm[${SKIN_ARMS}];
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
+    laArm[i] = vec4(0.0); lbArm[i] = vec4(0.0);
     if (armData[i].x < 0.0) continue;
     vec4 la = lensOfAt(armData[i].w, armLensU[i], lensGradA, lensLaneA, lensModeA, laneColA, 0.0);
     vec4 lb = lensOfAt(armData[i].w, armLensU[i], lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     la.a *= armColor[i].a;
     lb.a *= armColor[i].a;
+    laArm[i] = la; lbArm[i] = lb;
     base += vWeight[i] * mix(mix(armColor[i].rgb, la.rgb, la.a), mix(armColor[i].rgb, lb.rgb, lb.a), lensMix);
   }
   float rDev = vR / max(${wpcGlsl('vW', 'projY', 'SKIN_U')}, 1e-6) * dpr;
   vec3 c = celTubeTone(base, sT, swT, rDev);   // two flat tones, matte and opaque: the tube's own
+  // THE FLOW MARKS (Mohammad, 20 Nov: "the streaks still break between vessels", "the particles should cross at the junction, not disappear"). The tube draws its dust and chevrons from its own arc and the stream chain's A and B
+  // (vessels/shaders.ts); the skin draws the SAME, once per arm, on that arm's arc carried on past its seam along the arm's axis (armArc: the arc at the seam, which way it grows, the length), across taken from the arm's own heading, and blends
+  // the arms by their weights: on a seam ring one weight is 1 and this is the tube's pixel, so a streak or a head runs out of one tube, through the skin and into the next (a chained arm carries its parent's particles at the stream's place).
+  vec3 cBody = c;
+  vec4 dustAcc = vec4(0.0), headAcc = vec4(0.0);
+  float wpcM = ${wpcGlsl('vW', 'projY', 'SKIN_U')};
+  float rCssM = vR / max(wpcM, 1e-6);
+  vec3 litD = celTubeBase(base);
+  vec3 viewDir = normalize(vV);
+  for (int i = 0; i < ${SKIN_ARMS}; i++) {
+    if (armData[i].x < 0.0) continue;
+    // the arm's own frame: its arc here, and the across the tube would have (its heading, in the view's frame, grows with its arc)
+    vec3 toJ = armAxis[i * 3] - armAxis[i * 3 + 1];
+    float tl = length(toJ);
+    vec3 tJ = tl > 1e-6 ? toJ / tl : vec3(1.0, 0.0, 0.0);
+    float sI = armArc[i].x + armArc[i].y * dot(vPos - armAxis[i * 3 + 1], tJ) * SKIN_U;
+    vec3 sideX = cross(normalize(mat3(modelViewMatrix) * (armArc[i].y * tJ)), viewDir);
+    float sideL = length(sideX);
+    float acrossI = dot(n, sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0));
+    float pxI = fwidth(sI);        // (derivatives are taken here, before any branch that depends on the weight)
+    float acrossW = max(fwidth(acrossI), 0.03);
+    float wI = vWeight[i];
+    if (wI < 0.004 || vR <= 0.0) continue;
+    float lensI = armData[i].w, Lw = armArc[i].z, rOwn = max(armArc[i].w, 1e-3);
+    vec4 smS = texelFetch(streamTex, ivec2(int(lensI), 0), 0);   // the blood's own distance and speed on this vessel
+    vec4 chD = texelFetch(chainTex, ivec2(int(lensI), 0), 0), chE = texelFetch(chainTex, ivec2(int(lensI), 1), 0);
+    if (streakAmt > 0.001 && abs(acrossI) < 0.97) {
+      float dOn = streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCssM) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
+      if (dOn > 0.002) {
+        float nar = 1.0;
+        if (useData > 0.5) { ivec2 tcn = ivec2(int(mod(armData[i].x, vdataSize.x)), int(floor(armData[i].x / vdataSize.x))); nar = texelFetch(vdata, tcn, 0).b / max(armData[i].y, 0.1); }
+        float wl = chD.w;
+        vec4 dust = vec4(0.0);
+        if (wl < 1.0) dust = dustField(acrossI, sI, 0.0, 1.0, smS.w, rOwn, rOwn, vR, rCssM, Lw, nar, smS.y, smS.z, fract(lensI * 0.6180339) * 50.0, lensI + 1.0, litD, inkColor);
+        if (wl > 0.0) {
+          int rootIx = int(chD.x + 0.5) - 1;
+          vec4 dc = dustField(acrossI, sI, chD.y, chD.z, texelFetch(streamTex, ivec2(rootIx, 0), 0).w, rOwn, max(chE.w * SKIN_U, 1e-3), vR, rCssM, Lw, nar, smS.y, smS.z, fract(float(rootIx) * 0.6180339) * 50.0, chD.x, litD, inkColor);
+          dust = wl >= 1.0 ? dc : mix(dust, dc, wl);
+        }
+        dustAcc += wI * vec4(dust.rgb * dOn, dOn * dust.a);
+      }
+    }
+    if (armFlow[i] > 0.001) {
+      float Dm = smS.x, vd = smS.y, rv = smS.z;
+      float R = max(vR, 0.3);
+      float px = clamp(pxI, 0.15 * wpcM, 1.5 * wpcM);
+      float Pt = ${F(CHEV.PITCH_PX)} * wpcM;
+      vec2 ch = vec2(0.0);
+      if (chD.w < 1.0) ch = chevOne(sI, Lw, sI, 1.0, Dm, vd, rv, chE.xy, R, acrossI, wpcM, Pt, px);
+      if (chD.w > 0.0) {
+        float rootD = texelFetch(streamTex, ivec2(int(chD.x + 0.5) - 1, 0), 0).x;
+        vec2 cc = chevOne(sI, Lw, chD.y + chD.z * sI, chD.z, rootD, vd, rv, chE.xy, R, acrossI, wpcM, Pt, px);
+        ch = chD.w >= 1.0 ? cc : mix(ch, cc, chD.w);
+      }
+      float fade = armFlow[i] * smoothstep(${F(CHEV.MIN_R_PX)} * wpcM, ${F(CHEV.MIN_R_PX + 0.6)} * wpcM, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(acrossI)));
+      fade *= mix(0.3, 1.0, smoothstep(0.5, 3.0, abs(vd)));
+      if (fade > 0.0 && ch.x + ch.y > 0.0) {
+        float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);
+        float rk = rv * (1.0 - origin), warm = rk * chevOrange(base);
+        float cream = mix(armCream(laArm[i], lensGradA, lensModeA, lensI, armColor[i].rgb), armCream(lbArm[i], lensGradB, lensModeB, lensI, armColor[i].rgb), lensMix);
+        vec3 core = mix(mix(chevInk(cream, markDark, markLight), markRev, rk), markLight, warm);
+        float ar = clamp(ch.y * 0.75 * fade, 0.0, 1.0), ac = clamp(ch.x * fade, 0.0, 1.0);
+        float ha = ac + ar * (1.0 - ac);
+        headAcc += wI * vec4(core * ac + CHEV_RIM * ar * (1.0 - ac), ha);
+      }
+    }
+  }
+  c = c * (1.0 - dustAcc.a) + dustAcc.rgb;
+  c = mix(c, cBody, headAcc.a);   // (the streaks lie UNDER the heads: a head's pixel is never tinted by one)
+  c = c * (1.0 - headAcc.a) + headAcc.rgb;
   float inkT = smoothstep(-0.5, 0.5, sdPx);   // the outline: ink outside the live lumen, antialiased half a pixel each side
   c = mix(c, mix(${inkColourGlsl('base')}, inkColorCirc, circT), inkT);
   gl_FragColor = vec4(c, alpha);

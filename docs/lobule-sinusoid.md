@@ -41,12 +41,13 @@
 
 
 > **Sinusoid parity pass, 19 Nov 2026 (portrait, names, audit).**
-> *Portrait.* A stage narrower than 0.95 of its height (2D's `W < H * 0.95`, `sinusoid/portrait.ts isPortrait`) runs the sinusoid top to bottom, portal end up. `SinusoidView.setPortrait(portrait)` turns the plane's own group
-> (`PORTRAIT_ANGLE`, -PI/2 on this y-up plane = 2D's `ang` PI/2), so the tissue, pores, albumin, the cells over them, `anchor()` and `micrometres()` all turn together; the Kupffer cell stands at xk 12 (22 wide). While the camera flies
-> between the lobule and the sinusoid the turn is the dive's share (`setDive(g)`: lobule to tall view in one move and out by the same frames), at rest it glides (critically damped, 2D's SPRING 10) or is at once with Reduce Motion.
-> `sinusoidShot(portrait, shortPx)` swaps the half extents and, given the room's short side, frames 2D's `lerp(40, 54, smooth(380, 720, short))` µm across it; `sinusoidBox(portrait)` is the box the hand keeps on screen.
-> `setScreen(k, along, stage)` (px per µm, the free room's length and the canvas's along the flow) puts the end arrows 32 px (24 tall) inside the room's ends and runs the traffic over the stretch on screen (2D layoutEnds, VW.vis);
-> `setEndShown(in, out)` fades an arrow with its name. **The scene must call** `setPortrait` (from the room: `isPortrait(room.w, room.h)`), `setScreen` while the sinusoid is up, and use `sinusoidBox(portrait)` for the subject.
+> *Portrait.* A stage narrower than 0.95 of its height (2D's `W < H * 0.95`, `sinusoid/portrait.ts isPortrait`) runs the sinusoid top to bottom, portal end up. **The camera rolls, the plane never turns** (20 Nov 2026, Mohammad: a plane turned
+> alone inside the dive "flips only the sinusoid, not the lobule"): `sinusoidShot(portrait, shortPx)` carries `roll: PORTRAIT_ROLL` (+PI/2, the picture turned by `PORTRAIT_ANGLE` = -PI/2 = 2D's `ang` PI/2), `camera/rig.ts` blends
+> `roll` on the move's own eased share (the same `k` as the zoom, so the lobule and the sinusoid turn together through the whole dive, and the way out is the way in reversed) and `apply()` rolls the camera about its view axis after the
+> aim; the viewer's orbit and tilt are carried round with the roll so they stay about the screen's axes. The plane keeps its own frame (along the lobule's capillary), so `anchor()`, `micrometres()`, the hits and the names all project
+> through the camera. `SinusoidView.setPortrait(portrait)` only lays out: the Kupffer cell stands at xk 12 (22 wide) and the names take their tall places. A phone turned in the view is a `goTo` of the other shot (the roll glides).
+> `sinusoidShot` swaps the half extents (screen axes) and, given the room's short side, frames 2D's `lerp(40, 54, smooth(380, 720, short))` µm across it; `sinusoidBox()` is the plane's own box the hand keeps on screen.
+> `setEndShown(in, out)` fades an arrow with its name. **The scene must call** `setPortrait` (from the room: `isPortrait(room.w, room.h)`), `setScreen` while the sinusoid is up, and use `sinusoidBox()` for the subject.
 > *Names.* `sinusoid/names.ts` is 2D's layout of the captions as pure functions (`layoutEnds`, `layoutTags` with `fen-place.copied.js` copied by script, `layoutTall`, `leader`): `SinusoidView.names({ W, H, C, k, free, insTop, text, lit, measure })`
 > returns each name's centre and box (px, always level), the µm it names and its leader; `explainHit(names, x, y)` is 2D's tap (8 px of slop, the note `SV_NOTE`, the slide term `sinusoid:<target>`). Not ported: `declutter` (large text),
 > the legend ("Protein"), the fade of names while a slide dims them. These belong to the label layer, which nothing yet mounts for the micro views.

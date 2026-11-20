@@ -12,7 +12,7 @@ import type { Shot } from '../camera/shots.ts';
 export type V3 = [number, number, number];
 import { LOBULE_SCALE, SIN_SCALE, lobuleWorld, sinusoidWorld } from './frames.ts';
 import { FILL } from '../camera/room.ts';
-import { shownUm } from '../sinusoid/portrait.ts';
+import { PORTRAIT_ROLL, shownUm } from '../sinusoid/portrait.ts';
 /** Micrometres across the stretch the sinusoid's own shot frames: `SPAN_UM` of sinusoid/view.ts, kept here so the shots do not import the view. */
 const SPAN_UM = 97.4;
 
@@ -63,7 +63,7 @@ export function lobuleShot(cam: LobuleCam): Shot {
 }
 
 /** The sinusoid view's shot: the whole length of one cut sinusoid, portal end left (world units: inside the lobule). On a portrait screen (2D: W < H * 0.95) the sinusoid runs top to bottom (the view's
- *  plane is turned, sinusoid/portrait.ts), so the half extents swap. `shortPx`, the free room's short side in CSS px, gives 2D's own framing (sinusoid-view.js ensureGeo: lerp(40, 54, smooth(380, 720, short))
+ *  camera rolls a quarter turn, `roll`, sinusoid/portrait.ts: the plane keeps its own frame, along the lobule's capillary, so the lobule and the sinusoid turn together), so the half extents (screen axes) swap. `shortPx`, the free room's short side in CSS px, gives 2D's own framing (sinusoid-view.js ensureGeo: lerp(40, 54, smooth(380, 720, short))
  *  µm across the short side, at most 14 px per µm (shownUm), plates cut by the edges on a phone, both whole on a large screen); without it the whole stretch is kept in view. */
 export function sinusoidShot(portrait = false, shortPx?: number): Shot {
   const [ox, oy, oz] = SINUSOID_ORIGIN;
@@ -71,16 +71,14 @@ export function sinusoidShot(portrait = false, shortPx?: number): Shot {
   const short = shortPx != null && shortPx > 0 ? (shownUm(shortPx) / 2) * FILL * (SINUSOID_L / SPAN_UM) * SIN_SCALE : null;   // (the room keeps FILL of itself for the subject: 2D shows `across` over the whole short side)
   // (2D fits only the side it names, `short`: the screen's width on a tall stage, its height on a wide one; the other side shows whatever the screen's shape gives, so a short tall room never backs the camera out)
   const half: [number, number] = short != null ? (portrait ? [short, 0] : [0, short]) : portrait ? [across, along] : [along, across];
-  return { yaw: 0, pitch: 0, r: 3 * SIN_SCALE, target: sinusoidWorld([ox, oy, oz]), half };
+  return { yaw: 0, pitch: 0, r: 3 * SIN_SCALE, target: sinusoidWorld([ox, oy, oz]), half, ...(portrait ? { roll: PORTRAIT_ROLL } : {}) };
 }
 
-/** The corners (scene units) of the box the hand's pan and zoom keep on screen while the sinusoid is the view: the stretch and a plate either side, turned as the plane is turned (portrait: top to bottom). */
-export function sinusoidBox(portrait = false): V3[] {
-  const out: V3[] = [], c = portrait ? 0 : 1, s = portrait ? -1 : 0;   // (cos, sin of the plane's turn: PORTRAIT_ANGLE is -PI/2)
-  for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
-    const x = sx * (SINUSOID_L / 2 + 0.3), y = sy * 1.4;
-    out.push(sinusoidWorld([x * c - y * s, x * s + y * c, sz * 1.0]));
-  }
+/** The corners (scene units) of the box the hand's pan and zoom keep on screen while the sinusoid is the view: the stretch and a plate either side, in the plane's own frame (the camera's roll turns it
+ *  on screen in portrait, and the corners are projected through the camera). */
+export function sinusoidBox(): V3[] {
+  const out: V3[] = [];
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) out.push(sinusoidWorld([sx * (SINUSOID_L / 2 + 0.3), sy * 1.4, sz * 1.0]));
   return out;
 }
 

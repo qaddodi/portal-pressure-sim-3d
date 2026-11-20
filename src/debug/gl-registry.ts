@@ -20,7 +20,7 @@ import { endoShaderSource } from '../ui/tests/endo/endo-under.ts';
 import { LOBULE_PLATE_FS, LOBULE_PLATE_VS } from '../scene/lobule/plate.ts';
 import { LOBULE_FIELD_FS, LOBULE_FIELD_VS } from '../scene/lobule/field.ts';
 import { AA_FS, AA_VS } from '../scene/post-aa.ts';
-import { DOF_GATHER_FS, DOF_MIX_FS, DOF_VS } from '../scene/post-dof.ts';
+import { DOF_COPY_FS, DOF_GATHER_FS, DOF_MIX_FS, DOF_VS } from '../scene/post-dof.ts';
 import { CELLS_FS, CELLS_VS } from '../scene/blood/cells/shader.ts';
 import { ClotObject } from '../scene/disease/clots.ts';
 import { createShared } from '../scene/materials/cel.ts';
@@ -65,7 +65,7 @@ export const GL_FILES: Record<string, string> = {
 export function namedSources(): Map<string, string> {
   return new Map<string, string>([
     [VESSEL_VS, 'vessel'], [VESSEL_FS, 'vessel'], [SKIN_VS, 'skin'], [SKIN_FS, 'skin'], [TOON_VS, 'toon'], [TOON_FS, 'toon'], [INK_VS, 'ink'], [INK_FS, 'ink'],
-    [ORGAN_VS, 'organ wash'], [ORGAN_FS, 'organ wash'], [DYE_VS, 'dye overlay'], [DYE_FS, 'dye overlay'], [JET_INK_VS, 'bleed jet ink'], [JET_INK_FS, 'bleed jet ink'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [LOBULE_PLATE_VS, 'lobule plate'], [LOBULE_PLATE_FS, 'lobule plate'], [LOBULE_FIELD_VS, 'lobule field'], [LOBULE_FIELD_FS, 'lobule field'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'], [DOF_GATHER_FS, 'post dof'], [DOF_MIX_FS, 'post dof mix'], [CELLS_VS, 'blood cells'], [CELLS_FS, 'blood cells'], [MICRO_VS, 'micro3d toon'], [MICRO_FS, 'micro3d toon'], [MICRO_INK_VS, 'micro3d ink'], [MICRO_INK_FS, 'micro3d ink'],
+    [ORGAN_VS, 'organ wash'], [ORGAN_FS, 'organ wash'], [DYE_VS, 'dye overlay'], [DYE_FS, 'dye overlay'], [JET_INK_VS, 'bleed jet ink'], [JET_INK_FS, 'bleed jet ink'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [LOBULE_PLATE_VS, 'lobule plate'], [LOBULE_PLATE_FS, 'lobule plate'], [LOBULE_FIELD_VS, 'lobule field'], [LOBULE_FIELD_FS, 'lobule field'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'], [DOF_GATHER_FS, 'post dof'], [DOF_MIX_FS, 'post dof mix'], [DOF_COPY_FS, 'post dof copy'], [CELLS_VS, 'blood cells'], [CELLS_FS, 'blood cells'], [MICRO_VS, 'micro3d toon'], [MICRO_FS, 'micro3d toon'], [MICRO_INK_VS, 'micro3d ink'], [MICRO_INK_FS, 'micro3d ink'],
   ]);
 }
 
@@ -103,6 +103,7 @@ export function rawPrograms(fibroText: string): Program[] {
     lateMaterialProgram('blood cells', CELLS_VS, CELLS_FS),
     lateMaterialProgram('post aa', AA_VS, AA_FS),
     lateMaterialProgram('post dof', DOF_VS, DOF_GATHER_FS),
+    lateMaterialProgram('post dof copy', DOF_VS, DOF_COPY_FS),
     lateMaterialProgram('post dof mix', DOF_VS, DOF_MIX_FS),
     rawProgram('charts', CHART_VS, CHART_FS),
     rawProgram('doppler spectrum', SYNTH_VS, SYNTH_FS),
