@@ -62,16 +62,16 @@ export class DiseaseLayer {
     this.clots = new ClotLayer(shared);
     this.strands = new StrandLayer(shared);
     this.bleed = new BleedLayer(shared);
-    this.clamps = new ClampLayer(shared);
+    this.clamps = new ClampLayer();
     for (const v of vessels) if (v.edge) this.clamps.bind(v.edge.id, v.toonMesh.geometry);
     this.dye = new DyeLayer(vessels.filter((v) => v.edge).map((v) => ({ id: v.edge!.id, geometry: v.toonMesh.geometry })));
-    this.group.add(this.organs.group, this.landmarks.group, this.ascites.group, this.clots.group, this.clamps.group, this.strands.group, this.bleed.group, this.dye.group);
+    this.group.add(this.organs.group, this.landmarks.group, this.ascites.group, this.clots.group, this.strands.group, this.bleed.group, this.dye.group);
   }
 
   applyLook(look: LookId, p: Palette): void {
-    this.organs.applyLook(p); this.clots.applyLook(look, p); this.strands.applyLook(p, look); this.bleed.applyLook(look, p); this.clamps.applyLook(look, p); this.landmarks.applyLook(look); this.ascites.applyLook(look); this.moving = true;
+    this.organs.applyLook(p); this.clots.applyLook(look, p); this.strands.applyLook(p, look); this.bleed.applyLook(look, p); this.landmarks.applyLook(look); this.ascites.applyLook(look); this.moving = true;
   }
-  setPhone(phone: boolean): void { this.organs.setPhone(phone); this.clots.setPhone(phone); this.strands.setPhone(phone); this.clamps.setPhone(phone); this.moving = true; }
+  setPhone(phone: boolean): void { this.organs.setPhone(phone); this.clots.setPhone(phone); this.strands.setPhone(phone); this.moving = true; }
 
   /** The newest model state. `params` are the patient's parameters (null until the first preset loads); `healthyP` the healthy node pressures. */
   feed(f: FrameData, params: DiseaseParams | null, healthyP: ArrayLike<number> | null, ctx: FeedContext, jump = false): void {

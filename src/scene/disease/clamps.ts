@@ -1,24 +1,18 @@
 // A narrowed vessel, as the 2D figure marks it (stage-clamps.js clampAt, stage.js waist): where a vein has a stenosis (params.stenosis: the IVC web, a dysfunctional shunt),
 // the vessel pinches at its middle with a smooth waist about 2.5 widths long, and a pair of small arrowheads, one each side, point at the narrowest place from just off the
-// narrowed wall (the 2D clamp: tip at half the narrowed width + 3, 8 long, 9 across, in the text's own colour). A stent's own narrowing (its waist, its end stenosis) is the
-// stent's (devices/stent); this layer draws every other vessel's. The narrowing eases in and out with LESION_TAU like a clot, with the vessel it is on (never pops).
-// The words ("60% narrowed") are the label layer's.
-import { BufferAttribute, type BufferGeometry, CatmullRomCurve3, Group, Vector3 } from 'three';
+// narrowed wall (the 2D clamp: tip at half the narrowed width + 3, in the text's own colour). A stent's own narrowing (its waist, its end stenosis) is the stent's (devices/stent);
+// this layer narrows every other vessel's. The narrowing eases in and out with LESION_TAU like a clot, with the vessel it is on (never pops).
+// The arrowheads are NOT in the 3D scene (Mohammad, 20 Nov: "the arrows that show the stenosis should be more elegant, and should be 2D not 3D laid on"): this layer only says where
+// they stand (marks(): the waist's middle, the vessel's width there, how narrowed it is, how much of it shows) and labels/clamp-marks.ts draws them flat, on the screen, like the
+// label callouts. The words ("60% narrowed") are the label layer's.
+import { BufferAttribute, type BufferGeometry, CatmullRomCurve3, Vector3 } from 'three';
 import { EDGES, isStent } from '../../engine/hales/portal/topology.js';
-import { CelObject, type CelShared } from '../materials/cel.ts';
-import type { Palette } from '../palette.ts';
-import { LOOKS, type LookId } from '../../looks/looks.ts';
 import { UNITS_PER_SCENE } from '../frame2d.ts';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { REST, coursesOf } from '../vessels/shape.ts';
 import { lesionStep } from './follow.ts';
-import { recolour } from './paint.ts';
-import { rgbOf } from '../organs/organ-look.ts';
-import { ringTube } from './tube.ts';
 
 const U = UNITS_PER_SCENE;
-/** The arrowhead: its length and half width, and how far its tip stands off the narrowed wall (stage-clamps.js: 8, 4.5 and 3, in 2D units). */
-export const CLAMP = { len: 8 / U, half: 4.5 / U, gap: 3 / U } as const;
 /** The waist's length scale: sig = max(9, w * 1.25) / length, w the vessel's drawn width and length its drawn length, both in 2D units (stage.js waist), but never more than the vessel can hold (WAIST_REACH): a short piece of a vein
  *  (the portal vein is cut in pieces where a collateral joins it) gets a shorter, sharper waist, not one that is still narrowed where its neighbour begins. */
 export const waistSigma = (widthUnits: number, lengthUnits: number): number => Math.min(Math.max(9, widthUnits * 1.25) / Math.max(1, lengthUnits), WAIST_MAX_SIG);
@@ -41,15 +35,17 @@ export function isClampable(id: string): boolean {
   return !!e && NETWORK_BY_ID.has(id) && !isStent(e);
 }
 
-interface Clamp { id: string; goal: number; cur: number; obj: CelObject | null; built: string; geo: BufferGeometry | null; arc: CatmullRomCurve3; len2d: number; width2d: number; radius: number }
+interface Clamp { id: string; goal: number; cur: number; built: string; geo: BufferGeometry | null; len2d: number; width2d: number; radius: number; at: Vector3; nx: number; ny: number }
+
+/** Where a stenosis's arrowheads stand: the waist's middle on the vessel's drawn course (scene units), the unit normal in the figure's plane, the vessel's radius, how narrowed it is (0..1) and how much of the mark shows (0..1). */
+export interface ClampMark { id: string; at: Vector3; nx: number; ny: number; radius: number; cur: number; shown: number }
+
+/** How much of the mark shows at a narrowing: it comes in over the first few percent, so a mark never pops and never lags the waist it points at. */
+export const markShown = (cur: number): number => { const t = Math.min(1, Math.max(0, (cur - 0.003) / 0.08)); return t * t * (3 - 2 * t); };
 
 export class ClampLayer {
-  readonly group = new Group();
   private clamps = new Map<string, Clamp>();
-  private shared: CelShared;
-  private palette: Palette | null = null;
-  private look: LookId = 'light';
-  constructor(shared: CelShared) { this.shared = shared; }
+  private fade = 1;
 
   /** The narrowing of the vessel `id`'s drawn tube (the shader's `narrow` attribute, which any vessel geometry may carry), given its geometry. */
   bind(id: string, geometry: BufferGeometry): void { this.geos.set(id, geometry); }
@@ -59,17 +55,13 @@ export class ClampLayer {
     if (c) return c;
     if (!isClampable(id)) return null;
     const v = NETWORK_BY_ID.get(id)!;
-    // (the vessel's DRAWN course, the very curve its tube is built along, and its length: the arrowheads stand where the waist is, not where the figure's raw samples put the middle)
+    // (the vessel's DRAWN course, the very curve its tube is built along, and its length: the waist and its marks stand where the tube is pinched, not where the figure's raw samples put the middle)
     const course = coursesOf(v, REST)[0]!, curve = new CatmullRomCurve3(course.pts.map((p) => new Vector3(p[0], p[1], p[2])));
-    c = { id, goal: 0, cur: 0, obj: null, built: '', geo: this.geos.get(id) ?? null, arc: curve, len2d: curve.getLength() * U, width2d: 2 * v.radius * U, radius: v.radius };
+    const at = curve.getPointAt(0.5), t = curve.getTangentAt(0.5), l = Math.hypot(t.x, t.y) || 1;
+    c = { id, goal: 0, cur: 0, built: '', geo: this.geos.get(id) ?? null, len2d: curve.getLength() * U, width2d: 2 * v.radius * U, radius: v.radius, at, nx: -t.y / l, ny: t.x / l };
     this.clamps.set(id, c);
     return c;
   }
-
-  applyLook(look: LookId, p: Palette): void { this.look = look; this.palette = p; for (const c of this.clamps.values()) if (c.obj) this.paint(c.obj); }
-  setPhone(phone: boolean): void { for (const c of this.clamps.values()) c.obj?.setPhone(phone); }
-  /** The arrowheads wear the text's colour (2D .clamp: fill var(--text)). */
-  private paint(o: CelObject): void { if (this.palette) { o.applyPalette(this.palette); recolour(o, rgbOf(LOOKS[this.look].text), this.palette); } }
 
   /** `stenosis`: the params' narrowing map; `presence(id)` the vessel's 0/1 (a vessel that is not drawn has no clamp). True while a clamp comes or goes. */
   set(stenosis: Record<string, number>, presence: (id: string) => number, dt: number, instant = false): boolean {
@@ -96,55 +88,20 @@ export class ClampLayer {
       for (let i = 0; i < nar.count; i++) nar.setX(i, c.cur > 0.003 ? waistNarrow(c.cur, uv.getX(i), sig) : 0);
       nar.needsUpdate = true;
     }
-    // the arrowheads
-    if (c.cur <= 0.003) { if (c.obj) c.obj.group.visible = false; return; }
-    const g = this.arrows(c);
-    if (!c.obj) {
-      c.obj = new CelObject(g, { tone: 'cath', bands: 2, spec: 0, px: 0.8 }, this.shared);
-      this.group.add(c.obj.group);
-      if (this.palette) this.paint(c.obj);
-    } else {
-      const old = new Set<BufferGeometry>();
-      for (const m of c.obj.group.children) { const mesh = m as import('three').Mesh; old.add(mesh.geometry); mesh.geometry = g; }
-      for (const o of old) o.dispose();
-    }
-    c.obj.group.visible = true;
   }
 
-  /** The two arrowheads at the vessel's middle: cones in the figure's plane, a little toward the viewer so the vessel's wall never hides them. */
-  private arrows(c: Clamp): BufferGeometry {
-    const at = c.arc.getPointAt(0.5), t = c.arc.getTangentAt(0.5), l = Math.hypot(t.x, t.y) || 1, nx = -t.y / l, ny = t.x / l;
-    const off = c.radius * (1 - c.cur) + CLAMP.gap, z = at.z + c.radius + CLAMP.half * 0.6;
-    const parts: BufferGeometry[] = [];
-    for (const sgn of [1, -1]) {
-      const tip = new Vector3(at.x + nx * sgn * off, at.y + ny * sgn * off, z), base = new Vector3(at.x + nx * sgn * (off + CLAMP.len), at.y + ny * sgn * (off + CLAMP.len), z);
-      parts.push(ringTube([tip, base], [1e-4, CLAMP.half], 12, true));
+  /** The arrowheads to draw now (labels/clamp-marks.ts): every narrowed vessel with any of its mark showing. The body's dissolve takes them with it. */
+  marks(): ClampMark[] {
+    const out: ClampMark[] = [];
+    for (const c of this.clamps.values()) {
+      const shown = markShown(c.cur) * this.fade;
+      if (shown > 0.001) out.push({ id: c.id, at: c.at, nx: c.nx, ny: c.ny, radius: c.radius, cur: c.cur, shown });
     }
-    return merge(parts);
+    return out;
   }
 
   /** The vessels with a clamp shown now, and their narrowing (for the tests and the parity table). */
   shown(): Record<string, number> { const o: Record<string, number> = {}; for (const c of this.clamps.values()) if (c.cur > 0.003) o[c.id] = c.cur; return o; }
-  setFade(f: number): void { for (const c of this.clamps.values()) if (c.obj) { c.obj.setFade(f); } this.group.visible = f > 0.001; }
-  dispose(): void { for (const c of this.clamps.values()) c.obj?.dispose(); }
-}
-
-/** Two tubes in one geometry (the cel layout: position, normal, uv, tang, index). */
-function merge(gs: BufferGeometry[]): BufferGeometry {
-  const out = gs[0]!.clone();
-  if (gs.length === 1) return out;
-  const names = ['position', 'normal', 'uv', 'tang'] as const;
-  const arrays: Record<string, number[]> = { position: [], normal: [], uv: [], tang: [] };
-  const idx: number[] = []; let base = 0;
-  for (const g of gs) {
-    for (const n of names) arrays[n]!.push(...Array.from((g.getAttribute(n) as BufferAttribute).array));
-    for (const i of Array.from(g.getIndex()!.array)) idx.push(i + base);
-    base += g.getAttribute('position').count;
-    g.dispose();
-  }
-  const o = new (out.constructor as new () => BufferGeometry)();
-  for (const n of names) o.setAttribute(n, new BufferAttribute(new Float32Array(arrays[n]!), n === 'uv' ? 2 : 3));
-  o.setIndex(idx);
-  out.dispose();
-  return o;
+  setFade(f: number): void { this.fade = f; }
+  dispose(): void { this.clamps.clear(); }
 }
