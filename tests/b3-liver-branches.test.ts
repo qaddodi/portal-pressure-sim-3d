@@ -242,8 +242,8 @@ test('a hepatic vein opens into the cava with a clean edge: it is cut away exact
     assert.ok(!inside(0) && inside(n - 1), `${id}: starts outside the cava, ends inside it`);
   }
   assert.match(VESSEL_FS, /uniform float cavaCut;/);
-  assert.match(VESSEL_FS, /if \(cavaCut > 0\.5 && nbrK > 0\.995\) discard;/);
-  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade \* \(1\.0 - cavaCut \* nbrK\)\);/);
+  assert.match(VESSEL_FS, /if \(cavA < 0\.004\) discard;/);
+  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade \* cavA\);/);
 });
 
 test('a side branch starts as wide as it is where it leaves its vein (a half-width start made a step on the vein\'s outline where the branch\'s own begins: eyes, v8 of 5b59c0a)', async () => {

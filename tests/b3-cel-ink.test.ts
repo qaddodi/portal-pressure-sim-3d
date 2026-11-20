@@ -48,7 +48,7 @@ test('the shader holds the same numbers, and has no specular, no rim, no wall li
   assert.match(VESSEL_FS, /vec3 rimc = CHEV_RIM;/, 'the head\'s outline is always dark');
   assert.match(CHEVRON_GLSL, /const vec3 CHEV_RIM = vec3\(0\.2314, 0\.1725, 0\.1333\);/);
   assert.ok(!/dot\(n, l\) \* 0\.5/.test(VESSEL_FS), 'no world-lit bands');
-  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade \* \(1\.0 - cavaCut \* nbrK\)\);/, 'opaque at rest: vFade is 1 outside a fade zone, cavaCut 0 on every vessel but a hepatic vein that opens into the cava');
+  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade \* cavA\);/, 'opaque at rest: vFade is 1 outside a fade zone, cavaCut 0 on every vessel but a hepatic vein that opens into the cava');
 });
 
 test('every look wears 2D\'s casing: its ink and alpha (the dark look\'s own in the Circuit, by its share, not by a lens being on), a veiled vessel half, and the dark looks\' light rim', () => {
