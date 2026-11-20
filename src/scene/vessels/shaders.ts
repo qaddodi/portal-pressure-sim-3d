@@ -233,6 +233,7 @@ uniform float lensSmooth;   // smooth joins on (1): the lens colour runs through
 uniform float smokeOn;
 uniform vec3 hiColor;
 uniform float inkOn;
+uniform vec3 stump;   // (the vertex stage's: a divided vein's stump and its tie)
 // smooth joins, as in the vertex shader: the ends that carry on into another vessel (x < 0 where nothing); their last stretch draws no ink, so no flat cut is outlined where a branch meets its trunk
 uniform vec3 mate0;
 uniform vec3 mate1;
@@ -468,6 +469,17 @@ void main() {
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
     vec3 inkH = mix(inkColor, celTubeBase(baseH) * mix(${F(CEL_STYLE.TUBE.INK_TONE)}, ${F(CEL_STYLE.TUBE.INK_TONE_DARK)}, tubeDark), ${F(CEL_STYLE.TUBE.INK_OWN)});
     c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (a selected vessel's line is its own: the glow is a separate halo, glow.ts)
+  }
+  // the tie on a divided vein's stump (suture-marks.js woundTie): three turns of thread, 2.2 units apart, a little slanted across the vein, with the 2D's own thread and edge colours (--suture-thread, --suture-edge)
+  if (stump.z > 0.001 && circT < 0.001) {
+    float aF = vUv.x * len * vU, ph = vUv.y * 6.2831853, tw = 0.0, te = 0.0;
+    for (int j = 0; j < 3; j++) {
+      float dd = abs(aF - (stump.y + (float(j) - 1.0) * 2.2 + 0.5 * sin(ph)));
+      tw = max(tw, 1.0 - smoothstep(0.32, 0.5, dd));
+      te = max(te, 1.0 - smoothstep(0.7, 1.0, dd));
+    }
+    c = mix(c, vec3(0.227, 0.114, 0.039), te * 0.4 * stump.z);
+    c = mix(c, vec3(0.910, 0.455, 0.165), tw * stump.z);
   }
   gl_FragColor = vec4(c, vFade);
 }`;
