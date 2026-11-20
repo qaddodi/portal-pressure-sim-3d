@@ -3,7 +3,7 @@ import { ORBIT_LIMIT } from '../camera/shots.ts';
 import { CAM_MS_MAX, type View, carried, camMs, createGlideTracker, easeMove, lerpView, springSlope } from './ease.ts';
 import { FLICK, runFlick } from './flick.ts';
 import {
-  FIT_K, IDENTITY, K_MAX, K_MIN, type Pt, type Rect, anchorAt, clamp, hardPan, limitK, panFor, restingView, sameView, softK, softPan, unsoftPan, zoomAbout,
+  FIT_K, IDENTITY, K_MAX, K_MIN, type Pt, type Rect, anchorAt, clamp, hardPan, homePan, limitK, panFor, restingView, sameView, softK, softPan, unsoftPan, zoomAbout,
 } from './view.ts';
 import { createWheelGlide, isPadWheel } from './wheel-glide.ts';
 
@@ -48,6 +48,12 @@ export interface GestureHost {
   orbit(): number;
   /** The least zoom the hand may rest at for the view now (absent: K_MIN). The sinusoid keeps its own vessel framed: never under its fit (Mohammad, 20 Nov 2026: "i shouldn't be able to zoom this much in sinusoid; spring me back"). */
   kMin?(): number;
+  /** The most zoom the hand may rest at (absent: K_MAX). In the body and the Circuit it is 6 x the whole figure's fit (2D measures its limits on the whole plate, not on the shot now up: scene/gesture/view.ts zoomLimits). */
+  kMax?(): number;
+  /** The hand view that frames the WHOLE figure (the body, the whole Circuit map) in this room, or null when the shot already is that or the view has no whole to return to. A zoomed-out view rests there. */
+  home?(): Readonly<View> | null;
+  /** Whether Fit toggles between the shot's framing and the whole figure (the Circuit: 2D stage-fit.js, Fit's second press) rather than always going to the shot's framing. */
+  fitToggles?(): boolean;
   /** A pan let go outside the allowed area glides back to the middle of the view (the sinusoid), not just to its edge. */
   recentre?(): boolean;
   /** Returns whether the orbit changed. */
@@ -118,16 +124,19 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
 
   const stage = () => { const v = env.viewport(); return { w: v.w, h: v.h }; };
   const fitRect = (): Rect => (fit ??= host.fitRect());
-  const hardOf = (v: View, out?: View) => hardPan(v, fitRect(), host.centre(), out);
-  const soft = (v: View, out?: View) => softPan(v, fitRect(), host.centre(), stage(), out);
-  const unsoft = (v: View, out?: View) => unsoftPan(v, fitRect(), host.centre(), stage(), out);
+  const homeOf = () => host.home?.() ?? null;
+  const hardOf = (v: View, out?: View) => hardPan(v, fitRect(), host.centre(), out, homeOf());
+  const soft = (v: View, out?: View) => softPan(v, fitRect(), host.centre(), stage(), out, homeOf());
+  const unsoft = (v: View, out?: View) => unsoftPan(v, fitRect(), host.centre(), stage(), out, homeOf());
   const gestureOn = () => !!drag || flicking || env.now() - wheelAt < 250;
 
   // ── the glide of the hand's view to a place (the spring-back, a double click, Fit): the 2D app's animateVT ────────────────────────
+  let animGoal: View | null = null;   // where the glide now running is going (Fit judges from there, so a second press toggles as expected)
   function stopAnim() { if (animId) env.cancel(animId); animId = 0; }
   function animateTo(to: View, ms?: number, v0 = hand.take(env.now(), handAge)): void {
     stopAnim();
     const from = { ...host.hand() };
+    animGoal = { ...to };
     if (sameView(from, to)) { host.setHand({ ...to }); return; }
     const dur = ms ?? camMs(from, to, env.viewport().w, CAM_MS_MAX);
     if (env.reduceMotion() || dur <= 0) { host.setHand({ ...to }); return; }
@@ -142,22 +151,25 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     };
     animId = env.ask(step);
   }
-  const animZoomAt = (x: number, y: number, factor: number) => {
-    const v = host.hand(), c = host.centre();
-    const k = limitK(v.k * factor, kMin()), f = k / v.k;
+  const animZoomAt = (x: number, y: number, factor: number, goal: View | null = animId && animGoal ? { ...animGoal } : null) => {
+    // pressed again while a glide runs: the step stacks on where that glide is going (2D zooms from vtTarget), so two quick presses are two steps, not one restarted from where the first has got to
+    const v = goal ?? host.hand(), c = host.centre();
+    const k = limitK(v.k * factor, kMin(), kMax()), f = k / v.k;
     const to = zoomAbout(v, f, { x, y }, c);
-    animateTo(k <= FIT_K ? { k, x: 0, y: 0 } : hardOf(to), undefined, null);
+    // the last step out lands on the whole figure, centred (2D stage.js zoomOut: "the last step out lands on the whole figure"), never short of it or past it
+    animateTo(k <= FIT_K ? { k, ...homePan(k, homeOf()) } : hardOf(to), undefined, null);
   };
 
   // ── the spring-back: back inside the limits, never lost ────────────────────────────────────────────────────────────────────────
   const kMin = () => host.kMin?.() ?? K_MIN;
+  const kMax = () => host.kMax?.() ?? K_MAX;
   let springAsk = 0;
   const springBack = () => { springAsk ||= env.ask(springRead); };
   function springRead() {
     springAsk = 0;
     if (drag || flicking || wheelGlide.active) { if (wheelGlide.active) settleSoon(60); return; }
     const v0 = hand.take(env.now(), handAge);
-    const to = restingView(host.hand(), fitRect(), host.centre(), kMin(), !!host.recentre?.());
+    const to = restingView(host.hand(), fitRect(), host.centre(), kMin(), !!host.recentre?.(), kMax(), homeOf());
     if (!sameView(to, host.hand())) animateTo(to, undefined, v0);
   }
   const settleSoon = (ms = 220) => { env.clearTimer(settleT); settleT = env.timer(springBack, ms); };
@@ -234,7 +246,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   function zoomBy(factor: number, x: number, y: number, stretch: boolean) {
     const v = host.hand();
     let k = v.k * factor;
-    k = stretch ? softK(k, kMin()) : clamp(k, kMin(), K_MAX);
+    k = stretch ? softK(k, kMin(), kMax()) : clamp(k, kMin(), kMax());
     host.setHand(zoomAbout(v, k / v.k, { x, y }, host.centre()));
   }
   const wheelPx = (ev: WheelEv, d: number) => d * (ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? env.viewport().h : 1);
@@ -265,7 +277,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
       if (env.reduceMotion()) zoomBy(Math.exp(step), at.x, at.y, false);
       else {
         // a notch glides about 100 ms and carries the speed of the one before; the zoom it asks for stays inside the limits counting what the glide still owes
-        const k = host.hand().k, owed = wheelGlide.left(), kTo = clamp(k * Math.exp(owed + step), kMin(), K_MAX);
+        const k = host.hand().k, owed = wheelGlide.left(), kTo = clamp(k * Math.exp(owed + step), kMin(), kMax());
         wheelGlide.push(Math.log(kTo / k) - owed, at.x, at.y, now);
       }
       settleSoon();
@@ -357,7 +369,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
       if (drag.tilt && !drag.mode && (spread > 12 || slide > 12)) { drag.mode = slide > spread * 1.2 ? 'tilt' : 'zoom'; if (drag.mode === 'tilt') { drag.m0 = m; drag.tilt = { o0: host.orbit(), p0: host.orbitPitch?.() ?? 0 }; } }
       if (drag.mode === 'tilt' && drag.tilt) { turnBy(drag.tilt.o0, m.x - drag.m0.x); host.setOrbitPitch?.(dragToPitch(drag.tilt.p0, m.y - drag.m0.y)); return; }
       if (drag.tilt && !drag.mode) return;   // (undecided: nothing moves yet)
-      const k = softK((drag.k0 * d) / drag.d0, kMin()), p = panFor(m, drag.anchor, k, host.centre());
+      const k = softK((drag.k0 * d) / drag.d0, kMin(), kMax()), p = panFor(m, drag.anchor, k, host.centre());
       host.setHand({ k, x: p.x, y: p.y }); handSample(80);
       return;
     }
@@ -425,9 +437,16 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     get active() { return gestureOn() || wheelGlide.active || !!animId || !!orbitId || !!homeId; },
     handsOff,
     turnOff() { stopOrbitMomentum(); homeCancel(); },
-    refit() { handsOff(); fit = null; animateTo({ ...IDENTITY }, undefined, null); orbitToShot(); },
+    refit() {
+      // Fit on the Circuit toggles (2D stage-fit.js: "Fit's second press toggles the circuit between its map and its close-up"): from the shot's own framing (a slide's close-up of the map) to the whole map,
+      // and from the whole map back. Judged from where a glide in progress is going. Everywhere else, and when the shot already is the whole map, Fit goes to the shot's framing.
+      const whole = host.fitToggles?.() ? homeOf() : null, at = animId && animGoal ? animGoal : { ...host.hand() };
+      handsOff(); fit = null;
+      const toWhole = !!whole && sameView(at, IDENTITY);
+      animateTo(toWhole ? { ...whole! } : { ...IDENTITY }, undefined, null); orbitToShot();
+    },
     animateTo(to, ms) { handsOff(); animateTo(to, ms, null); },
-    zoomStep(factor) { if (env.locked?.()) return; handsOff(); const c = host.centre(); animZoomAt(c.x, c.y, factor); },
+    zoomStep(factor) { if (env.locked?.()) return; const goal = animId && animGoal ? { ...animGoal } : null; handsOff(); const c = host.centre(); animZoomAt(c.x, c.y, factor, goal); },
     dispose() {
       handsOff(); stopOrbitHome();
       for (const off of offs) off();

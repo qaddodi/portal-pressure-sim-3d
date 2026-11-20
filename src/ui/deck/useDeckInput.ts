@@ -3,7 +3,7 @@ import { useUi, atEnd } from '../ui-store.ts';
 import { cardZoom } from '../cards/card-zoom.ts';
 import { useShell } from '../shell/store.ts';
 import { clickerKey, addDigit, DIGIT_MS, type ClickAct } from './clicker.ts';
-import { leaveTalk } from '../shell/talk.ts';
+import { stopTalk } from '../shell/talk.ts';
 import { finishTalk } from '../cards/finish.ts';
 import { openPresenterView } from './presenter-link.ts';
 import { W } from './words.ts';
@@ -67,6 +67,6 @@ function carryOut(a: ClickAct, ui: ReturnType<typeof useUi.getState>, sh: Return
     case 'presenter': if (!openPresenterView()) sh.say(W.noNotesWindow, 'bad'); break;
     case 'laser': laser.toggle(); break;
     case 'swallow': if (a.clear) d.clear(); break;
-    case 'escape': if (ui.black) ui.setBlack(false); else if (cardZoom.on) void cardZoom.close(); else leaveTalk(); break;
+    case 'escape': if (ui.black) ui.setBlack(false); else if (cardZoom.on) void cardZoom.close(); else stopTalk(); break;
   }
 }

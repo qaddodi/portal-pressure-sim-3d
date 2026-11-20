@@ -10,7 +10,7 @@ import { decideKey, stepSpeed, type KeyAction, type Target } from './keymap.ts';
 import { runFeature } from '../shell/features.ts';
 import { refitFigure, flipView, zoomFigure, goToView } from '../shell/view-actions.ts';
 import { settle, setSpeed, step, togglePlay } from '../shell/transport.ts';
-import { leaveTalk } from '../shell/talk.ts';
+import { stopTalk } from '../shell/talk.ts';
 import { useTreat } from '../treat/store.ts';
 import { useSelection, selectStructure } from '../action/selection.ts';
 import { triggerCardVerb, cardIsOpen } from '../action/ActionCard.tsx';
@@ -45,7 +45,7 @@ export function carryOut(a: KeyAction): void {
       else if (step === 'treat') useTreat.getState().setOpen(false);
       else if (step === 'selection') selectStructure(null);
       else if (step === 'sinusoid') goToView('lobule');   // (2D: Esc in the sinusoid backs out to the lobule)
-      else if (step === 'talk') leaveTalk();
+      else if (step === 'talk') stopTalk();
       break;
     }
     case 'undo': runFeature('undo', UI.playbar.menu[2]); break;

@@ -21,13 +21,12 @@ import { OSTIUM_U } from '../../scene/procedures/ostium.ts';
 import { UNITS_PER_SCENE } from '../../scene/frame2d.ts';
 import { Vector3 } from 'three';
 import { ARRIVE_MS } from './scene-link.ts';
+import { slideLanded, onLanded } from './landing.ts';
 import { askOf, layersWant, procKey, specFor, stepsOfPlan, stopOf, tipShot, type ProcCursor, type ProcPhase, type ProcPlan } from './procs-plan.ts';
 import { setProcStep } from './proc-step.ts';
 import { clearProc, setProc, useProc } from './procs-state.ts';
 import type { CopiedSlide } from '../../decks/hp/types.ts';
 
-/** How long after a slide lands (its camera, its cards) a procedure starts by itself. */
-export const PLAY_DELAY_MS = 1800;
 /** The camera's glide to a step's shot, and the beat after it lands before the step moves (2D LAND_MS): no step starts with the camera on its way. */
 export const GLIDE_MS = 1100, LAND_MS = 160;
 /** The dive between the body and the lobule takes this long (scene/api.ts DIVE_MS): layers and the wash wait for it where they must. */
@@ -48,6 +47,7 @@ export function linkProcs(): () => void {
   let washLand = 0, washKey = '', ringKey = '', layersOn = false, layerTimer: ReturnType<typeof setTimeout> | undefined, lastView = 'body';
   let probeOff: (() => void) | null = null, probeHold: { release(): void } | null = null;
   let plan: ProcPlan | null = null;
+  let auto: { g: number; key: string } | null = null;   // a slide whose procedure starts by itself once the slide has landed (2D procPlay, after the camera and the cards)
   const later = (fn: () => void, ms: number) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
   const room = () => useUi.getState().boxes.free;
 
@@ -257,6 +257,15 @@ export function linkProcs(): () => void {
     });
   }
 
+  /** The slide's own procedure starts when its slide has landed (the camera still, the cards in), like a time-lapse: a Next before that moves on to the next slide. */
+  function tryAuto(): void {
+    const a = auto;
+    if (!a) return;
+    if (a.g !== gen || a.key !== key) { auto = null; return; }
+    if (!slideLanded()) return;
+    auto = null; start();
+  }
+
   /** Take a slide's features off the figure. `keepLayers`: moving to another slide, which sets its own (the zone bands stay through a way out of the lobule). */
   function release(keepLayers = false): void {
     stopPlay(); stopProbe(); clearProc();
@@ -264,7 +273,7 @@ export function linkProcs(): () => void {
     if (washKey) { sceneApi.setWash(false); washKey = ''; }
     if (ringKey) { sceneApi.setCatheterRing(null); ringKey = ''; }
     if (layersOn && !keepLayers) { clearTimeout(layerTimer); const f = useShell.getState().figure; sceneApi.setLobuleLayers({ lymph: f.lymph, zones: f.zones, bile: f.bile }); layersOn = false; }
-    plan = null; key = '';
+    plan = null; key = ''; auto = null;
   }
 
   const sync = (): void => {
@@ -294,7 +303,7 @@ export function linkProcs(): () => void {
         setProc({ key: k, steps, at: dir < 0 ? steps.length - 1 : -1, ring: dir < 0 ? -1 : 0, phase: dir < 0 ? 'done' : 'wait', why, name: sp?.name ?? plan.kind });
         // (Back onto a played-through slide: it stands done; Next moves on, the button plays it again.) Going forward the first Next starts it; `auto` starts it as the slide lands, after the camera and the cards have settled.
         phase = dir < 0 ? 'done' : 'wait';
-        if (dir > 0 && sp && plan.auto) { const g = gen; later(() => { if (g === gen) start(); }, PLAY_DELAY_MS); }
+        if (dir > 0 && sp && plan.auto) { auto = { g: gen, key: k }; tryAuto(); }
       }
     }
     if (!key || !s) return;
@@ -313,9 +322,10 @@ export function linkProcs(): () => void {
 
   sync();
   const off = useUi.subscribe((s, prev) => { if (s.pos !== prev.pos || s.stops !== prev.stops || s.boxes.free !== prev.boxes.free) sync(); });
+  const offLanded = onLanded(tryAuto);
   const offPlay = onPlay(() => press());
   setProcStep(onKey);
-  return () => { off(); offPlay(); setProcStep(null); release(); };
+  return () => { off(); offPlay(); offLanded(); setProcStep(null); release(); };
 }
 
 // The card's Play button asks the link to play (the link is one per talk; the card does not hold it).

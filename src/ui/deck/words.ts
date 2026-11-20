@@ -24,5 +24,6 @@ export const W = {
   yourDeck: 'Your deck', yourScript: 'Your script', slides: (n: number) => `${n} slides`,
   slideNumber: (n: string) => `Slide ${n}: press Enter`,
   jumpTitle: 'Slides', jumpClose: 'Close the slide list',
+  preparing: 'Preparing the slides',
   noNotesWindow: 'The notes window was blocked. Allow pop-ups for this page and press P again.',
 } as const;

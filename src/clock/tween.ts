@@ -36,7 +36,9 @@ export const MOTION = {
   /** number roll */ rollMs: 400,
 } as const;
 export const easeInOutCubic: Ease = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
-export const easeArrive: Ease = cubicBezier(0.2, 0.7, 0.2, 1);
+/** 2D's --ease-arrive (tokens.css, ease.js EASE_ARRIVE), the one curve for what comes in: the CSS string and the function are the same curve. */
+export const ARRIVE_CSS = 'cubic-bezier(.2, .8, .2, 1)';
+export const easeArrive: Ease = cubicBezier(0.2, 0.8, 0.2, 1);
 export const linear: Ease = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t);
 
 interface Move { from: number; to: number; t0: number; ms: number; ease: Ease; done?: () => void }

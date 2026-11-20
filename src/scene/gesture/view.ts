@@ -19,10 +19,29 @@ export const BAND = 0.4;
 export const clamp = (v: number, a: number, b: number): number => (v < a ? a : v > b ? b : v);
 
 /** The zoom a pinch shows: past the limits it stretches a little (exponent .3) and springs back when the hand lets go. */
-export const softK = (k: number, kMin = K_MIN): number => (k > K_MAX ? K_MAX * Math.pow(k / K_MAX, 0.3) : k < kMin ? kMin * Math.pow(k / kMin, 0.3) : k);
+export const softK = (k: number, kMin = K_MIN, kMax = K_MAX): number => (k > kMax ? kMax * Math.pow(k / kMax, 0.3) : k < kMin ? kMin * Math.pow(k / kMin, 0.3) : k);
 
 /** The zoom inside the limits, where the spring-back puts it. */
-export const limitK = (k: number, kMin = K_MIN): number => clamp(k, kMin, K_MAX);
+export const limitK = (k: number, kMin = K_MIN, kMax = K_MAX): number => clamp(k, kMin, kMax);
+
+/** The zoom limits of a view whose shot may be closer than the whole figure (a pick, a Tests shot, a Circuit slide's box). 2D measures K_MIN and K_MAX against the whole plate
+ *  (stage-camera.js K_MIN / stage-gestures.js), not against the shot now on screen, so a close shot can always zoom back out to the whole figure and never 6x past its own close-up.
+ *  `whole`: the hand view that frames the whole figure in this room (rig.wholeView), or null when the shot already is the whole figure. The least rests at the whole fit (never below it: the
+ *  owner's 20 Nov rule, spring back to fit), the most is 6 x the whole fit. A shot wider than the whole figure keeps its own framing as the least. */
+export function zoomLimits(whole: Readonly<View> | null, kMin = 1, kMax = K_MAX): { kMin: number; kMax: number } {
+  const w = whole && whole.k > 0 ? whole.k : 1;
+  return { kMin: Math.min(kMin, w), kMax: kMax * Math.max(w, 1e-3) };
+}
+
+/** Where a view zoomed out below its shot's own fit rests: the pan eases from nothing at the shot's framing (k 1) to the whole figure's own pan (`home`) at the whole fit, so the figure
+ *  ends up centred as the whole-figure shot frames it, not left off to one side of the close-up's aim. Nothing without a home, or at or above the shot's fit. */
+export function homePan(k: number, home: Readonly<View> | null | undefined, out: Pt = { x: 0, y: 0 }): Pt {
+  out.x = 0; out.y = 0;
+  if (!home || !(home.k < 1) || k >= 1 - 1e-3) return out;
+  const s = clamp((1 - k) / (1 - home.k), 0, 1);
+  out.x = s * home.x; out.y = s * home.y;
+  return out;
+}
 
 /** The view after zooming by `factor` about the canvas point `at`, with `c` the middle of the free room: the figure under `at` stays under it. */
 export function zoomAbout(v: View, factor: number, at: Pt, c: Pt, out: View = { k: 1, x: 0, y: 0 }): View {
@@ -56,8 +75,8 @@ export function rectUnder(r0: Rect, v: View, c: Pt, out: Rect = { x0: 0, y0: 0, 
 const bandOff = (o: number, L: number, inv: boolean): number => (inv ? Math.atanh(clamp(o / L, -0.999, 0.999)) * L : L * Math.tanh(o / L));
 
 /** The nearest resting place of a view: at the fit zoom the shot's own framing, otherwise the figure may be panned until the middle of the room meets its edge, no further. */
-export function hardPan(v: View, r0: Rect, c: Pt, out: View = { k: 1, x: 0, y: 0 }): View {
-  if (v.k <= FIT_K) { out.k = v.k; out.x = 0; out.y = 0; return out; }
+export function hardPan(v: View, r0: Rect, c: Pt, out: View = { k: 1, x: 0, y: 0 }, home: Readonly<View> | null = null): View {
+  if (v.k <= FIT_K) { const p = homePan(v.k, home); out.k = v.k; out.x = p.x; out.y = p.y; return out; }
   const r = rectUnder(r0, v, c);
   out.k = v.k;
   out.x = v.x + (c.x < r.x0 ? c.x - r.x0 : c.x > r.x1 ? c.x - r.x1 : 0);
@@ -66,25 +85,25 @@ export function hardPan(v: View, r0: Rect, c: Pt, out: View = { k: 1, x: 0, y: 0
 }
 
 /** A raw pan put on the rubber band: past the resting place it meets rising resistance (tanh toward 40 % of the stage). */
-export function bandPan(v: View, r0: Rect, c: Pt, stage: { w: number; h: number }, inv: boolean, out: View = { k: 1, x: 0, y: 0 }): View {
-  const h = hardPan(v, r0, c);
+export function bandPan(v: View, r0: Rect, c: Pt, stage: { w: number; h: number }, inv: boolean, out: View = { k: 1, x: 0, y: 0 }, home: Readonly<View> | null = null): View {
+  const h = hardPan(v, r0, c, undefined, home);
   const Lx = BAND * stage.w, Ly = BAND * stage.h, vx = v.x, vy = v.y, k = v.k;
   out.k = k; out.x = h.x + bandOff(vx - h.x, Lx, inv); out.y = h.y + bandOff(vy - h.y, Ly, inv);
   return out;
 }
-export const softPan = (v: View, r0: Rect, c: Pt, stage: { w: number; h: number }, out?: View): View => bandPan(v, r0, c, stage, false, out);
-export const unsoftPan = (v: View, r0: Rect, c: Pt, stage: { w: number; h: number }, out?: View): View => bandPan(v, r0, c, stage, true, out);
+export const softPan = (v: View, r0: Rect, c: Pt, stage: { w: number; h: number }, out?: View, home: Readonly<View> | null = null): View => bandPan(v, r0, c, stage, false, out, home);
+export const unsoftPan = (v: View, r0: Rect, c: Pt, stage: { w: number; h: number }, out?: View, home: Readonly<View> | null = null): View => bandPan(v, r0, c, stage, true, out, home);
 
 export const IDENTITY: Readonly<View> = { k: 1, x: 0, y: 0 };
 export const sameView = (a: View, b: View): boolean => Math.abs(a.k - b.k) < 1e-3 && Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5;
 
 /** Where the spring-back sends a view the hand let go of: inside the zoom limits, back to the fit framing at or below the fit zoom, and never lost (the middle of the room outside the figure is pulled to its edge). */
-export function restingView(v: View, r0: Rect, c: Pt, kMin = K_MIN, recentre = false): View {
-  const k = limitK(v.k, kMin);
-  if (k <= FIT_K) return { k, x: 0, y: 0 };
+export function restingView(v: View, r0: Rect, c: Pt, kMin = K_MIN, recentre = false, kMax = K_MAX, home: Readonly<View> | null = null): View {
+  const k = limitK(v.k, kMin, kMax);
+  if (k <= FIT_K) { const p = homePan(k, home); return { k, x: p.x, y: p.y }; }
   // zooming back inside the limits keeps the figure under the middle of the room, as the 2D spring-back does
   const kept = k === v.k ? v : zoomAbout(v, k / v.k, c, c);
-  const held = hardPan(kept, r0, c);
+  const held = hardPan(kept, r0, c, undefined, home);
   // `recentre` (the sinusoid): a pan let go outside the allowed area goes all the way back to the middle of the view, not just to its edge (owner, 20 Nov)
   return recentre && !sameView(held, kept) ? { k, x: 0, y: 0 } : held;
 }
