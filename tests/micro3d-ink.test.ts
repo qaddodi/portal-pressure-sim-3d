@@ -74,3 +74,13 @@ test('a flat shape on the plate measures its line against the plate\'s up, so it
   const src = (await import('node:fs')).readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
   for (const name of ['nuclei', 'canaliculi', 'endothelial-cells', 'stellate']) assert.match(src, new RegExp(`mk\\('${name}', \\{[^}]*rimUp: true`), name);
 });
+
+test('a flat shape on the plate is a dome open below, so nothing of it shows past the equator its line is drawn on (eyes 20 Nov: the lining cell\'s edge beaded with gaps of pale fill)', async () => {
+  const { ellipsoid, MeshBuilder } = await import('../src/scene/micro3d/cel3d.ts');
+  const b = new MeshBuilder(); ellipsoid(b, 0, 0, 0, 4, 1.5, 1, 0, undefined, 12, 10, true, true);
+  const g = b.build(); const pos = g.getAttribute('position');
+  let minZ = Infinity; for (let i = 0; i < pos.count; i++) minZ = Math.min(minZ, pos.getZ(i));
+  assert.ok(minZ > -1e-9, `lowest point ${minZ}`);
+  const src = (await import('node:fs')).readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
+  assert.match(src, /ellipsoid\(nuc,[^;]*, true, true\);/); assert.match(src, /ellipsoid\(b, x, Y\(s \* \(h - 0\.35\)\)[^;]*, true, true\);/);
+});
