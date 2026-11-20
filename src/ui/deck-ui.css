@@ -206,3 +206,12 @@
 
 /* A table row's note names its column (2D: the note column's head, "Choice"), as a small label before the words. */
 .dk-tnote .dk-tnh { margin-right: .5em; font-weight: 600; color: var(--text-3); }
+
+/* ── card zoom (2D card-zoom.js, app.css .pz-zscrim): the tapped card grows to the middle, the page dims a little, the figure's labels sit out ── */
+.deck-ui .pz-zveil { position: absolute; inset: 0; z-index: 1; background: color-mix(in srgb, var(--stage-bg) 20%, transparent); opacity: 0; pointer-events: none; cursor: zoom-out; transition: opacity var(--d-zoom-out, 440ms) var(--ease); }
+.deck-ui .pz-zveil.on { opacity: 1; pointer-events: auto; transition-duration: var(--d-zoom-in, 520ms); }
+.deck-ui .dk-card[data-zoomable] { cursor: zoom-in; }
+body[data-card-zoom] .deck-ui .dk-card[data-zoomable] { cursor: zoom-out; }
+body[data-card-zoom] .lb-layer { opacity: 0; transition: opacity 240ms var(--ease); }
+.dk-card { z-index: 2; }
+.dk-pos { z-index: 2; }
