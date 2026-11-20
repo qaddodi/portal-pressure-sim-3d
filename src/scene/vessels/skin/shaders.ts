@@ -267,6 +267,7 @@ void main() {
   // THE FLOW MARKS (Mohammad, 20 Nov: "the streaks still break between vessels", "the particles should cross at the junction, not disappear"). The tube draws its dust and chevrons from its own arc and the stream chain's A and B
   // (vessels/shaders.ts); the skin draws the SAME, once per arm, on that arm's arc carried on past its seam along the arm's axis (armArc: the arc at the seam, which way it grows, the length), across taken from the arm's own heading, and blends
   // the arms by their weights: on a seam ring one weight is 1 and this is the tube's pixel, so a streak or a head runs out of one tube, through the skin and into the next (a chained arm carries its parent's particles at the stream's place).
+#ifndef SKIN_NOMARKS
   vec3 cBody = c;
   vec4 dustAcc = vec4(0.0), headAcc = vec4(0.0);
   float wpcM = ${wpcGlsl('vW', 'projY', 'SKIN_U')};
@@ -314,7 +315,10 @@ void main() {
   c = c * (1.0 - dustAcc.a) + dustAcc.rgb;
   c = mix(c, cBody, headAcc.a);   // (the streaks lie UNDER the heads: a head's pixel is never tinted by one)
   c = c * (1.0 - headAcc.a) + headAcc.rgb;
+#endif
   float inkT = smoothstep(-0.5, 0.5, sdPx);   // the outline: ink outside the live lumen, antialiased half a pixel each side
+#ifndef SKIN_NOINK
   c = mix(c, mix(${inkHiColourGlsl('base', 'hi')}, inkColorCirc, circT), inkT);
+#endif
   gl_FragColor = vec4(c, alpha);
 }`;

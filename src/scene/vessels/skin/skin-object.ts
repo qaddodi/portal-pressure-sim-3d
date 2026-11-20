@@ -12,7 +12,7 @@ import type { VesselObject } from '../vessel-object.ts';
 import { SKIN_ARMS, SKIN_AXIS_PTS, SKIN_FS, SKIN_VS } from './shaders.ts';
 import type { SkinDraw } from './skin-set.ts';
 import { skinKOf } from './sdf.ts';
-import { skinDebugOn } from './joins-mode.ts';
+import { skinDebugOn, skinLeaveOut } from './joins-mode.ts';
 import type { SkinMesh, Vec3 } from './types.ts';
 
 /** The uniforms the skin shares with its arm tubes, by reference (taken from the first arm: every vessel's copy has the same value, and each one follows the same writers: the look, the lens, the engine, the Circuit). */
@@ -37,6 +37,15 @@ export const COPY_SEEN = 1e-3;
 export const COPY_LAYER = [VESSEL_LAYER, 0, VESSEL_LAYER] as const;
 /** The veil copy is drawn after the vessels, as the tube's own veil is (vessel-object.ts setBehindOrgans). */
 export const COPY_ORDER = [0, 0, 2] as const;
+
+/** The program's defines for copy `c` (the page's `?joins=` diagnostics: debug paints dropped pixels, nomarks and noink leave a part out). */
+function skinDefines(c: number): Record<string, number> {
+  const d: Record<string, number> = { SKIN_COPY: c }, out = skinLeaveOut();
+  if (skinDebugOn()) d.SKIN_DEBUG = 1;
+  if (out === 'marks') d.SKIN_NOMARKS = 1;
+  if (out === 'ink') d.SKIN_NOINK = 1;
+  return d;
+}
 
 export class SkinObject implements SkinDraw {
   /** the front copy (the only one a plain junction draws), kept under its old names */
@@ -84,7 +93,7 @@ export class SkinObject implements SkinDraw {
     this.copies = Array.from({ length: SKIN_COPIES }, (_, c) => {
       const material = new ShaderMaterial({
         name: 'skin',
-        vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: skinDebugOn() ? { SKIN_COPY: c, SKIN_DEBUG: 1 } : { SKIN_COPY: c },
+        vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: skinDefines(c),
         uniforms,
       });
       const mesh = new Mesh(g, material);
