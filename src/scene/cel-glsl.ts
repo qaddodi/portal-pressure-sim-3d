@@ -31,7 +31,10 @@ vec3 celTubeTone(vec3 base, float across, float k, float rDev) {
   sh = clamp(mix(vec3(celTubeLum(sh)), sh, ${F(CEL_STYLE.TUBE.SHADE_SAT)}), 0.0, 1.0);
   vec3 li = b * (1.0 + ${F(CEL_STYLE.TUBE.LIT_K)});
   li /= max(1.0, max(li.r, max(li.g, li.b)));   // (over 1 the whole colour is scaled, so its hue never slides)
-  return mix(mix(b, sh, hw * shadowT), li, hw * litT);
+  vec3 wall = mix(mix(b, sh, hw * shadowT), li, hw * litT);
+  // the lumen seen through the wall: one flat darker step inside LUMEN_W of the tube's half width (the far wall), a hard edge, none on a hairline
+  float window = 1.0 - smoothstep(${F(CEL_STYLE.TUBE.LUMEN_W)} - 0.5 * ${F(CEL_STYLE.EDGE_PX)} / max(rDev, 1e-3), ${F(CEL_STYLE.TUBE.LUMEN_W)} + 0.5 * ${F(CEL_STYLE.EDGE_PX)} / max(rDev, 1e-3), abs(across));
+  return wall * (1.0 - hw * ${F(CEL_STYLE.TUBE.LUMEN_DARK)} * window);
 }
 // the hard highlight: a flat pale streak (a capsule, round ends) on the lit side, none on a hairline. alongR: the distance along the tube from the streak's centre, in radii
 float celTubeSpec(float across, float k, float rDev, float alongR) {
