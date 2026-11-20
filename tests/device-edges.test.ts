@@ -11,7 +11,7 @@ import { PALETTES } from '../src/scene/palette.ts';
 import { LOOK_IDS, LOOKS } from '../src/looks/looks.ts';
 import { DEVICE_TOKENS } from '../src/scene/procedures/copied/device-tokens.copied.ts';
 import { NEEDLE_EDGE, SCOPE_EDGE_A, mixHex, resolveEdge, scopeEdge, scopeSoftHex } from '../src/scene/devices/edges.ts';
-import { BEND_GROOVES, EndoScope, FAN_COLS, FAN_ROWS, MARK_EVERY, MARK_UNITS, SCOPE_BEND, SCOPE_CREAM, SCOPE_LIGHT, SCOPE_NEEDLE, SCOPE_SILVER, SCOPE_TUBE } from '../src/scene/devices/probes/scope.ts';
+import { EndoScope, FAN_COLS, FAN_ROWS, MARK_EVERY, MARK_UNITS, SCOPE_BEND, SCOPE_CREAM, SCOPE_LIGHT, SCOPE_NEEDLE, SCOPE_SILVER, SCOPE_TUBE } from '../src/scene/devices/probes/scope.ts';
 import { DopplerProbe, WEDGE_STOPS, WEDGE_MID } from '../src/scene/devices/probes/doppler-probe.ts';
 import { FibroProbe, HEAD_MS, SCAN_FADE_MS, BODY_LIFT, bodyFill, tapAt, TAP_V } from '../src/scene/devices/probes/fibro-probe.ts';
 import { ArriveTrack } from '../src/scene/devices/probes/ease-track.ts';
@@ -58,7 +58,8 @@ for (const id of LOOK_IDS) {
   test(`${id}: the endoscope is black polymer with a soft edge, its needle steel in the dark edge, its port and rings with none`, () => {
     const t = DEVICE_TOKENS[id], sc = new EndoScope(sh);
     sc.applyPalette(PALETTES[id]);
-    const [shaft, bend, tip, lens, , band, needle, face, port, array, light0, light1, chan, ...rings] = sc.parts as unknown as DeviceObject[];
+    const [shaft, bend, tip, lens, , band, needle, face, port, array, light0, light1, chan, ...rest] = sc.parts as unknown as DeviceObject[];
+    const rings = rest.slice(0, 4);   // (then the needle's sheath)
     // (the redesign, 20 Nov 2026: the shaft is 2D's black polymer; the bending section a lifted black; the distal housing polished silver; the transducer cap cream with a dark face; the needle bright steel)
     assert.equal(fill(shaft!), raw(SCOPE_TUBE(t)), 'insertion tube: --dev-scope, softened'); assert.equal(edge(shaft!), raw(scopeSoftHex(t))); assert.equal(edgeA(shaft!), SCOPE_EDGE_A);
     assert.equal(fill(bend!), raw(SCOPE_BEND(t))); assert.equal(edge(bend!), raw(scopeSoftHex(t))); assert.equal(edgeA(bend!), SCOPE_EDGE_A);
@@ -69,7 +70,7 @@ for (const id of LOOK_IDS) {
     assert.equal(fill(light0!), raw(SCOPE_LIGHT)); assert.equal(fill(light1!), raw(SCOPE_LIGHT)); assert.equal(fill(chan!), raw(t.port)); assert.equal(fill(lens!), raw(t.port), 'the lens is dark glass');
     assert.equal(fill(port!), raw(t.port)); assert.equal(edgeA(port!), 0); assert.equal(port!.ink.visible, false);
     assert.equal(fill(needle!), raw(SCOPE_NEEDLE)); assert.equal(edge(needle!), raw(t.polyEdge)); assert.equal(edgeA(needle!), 0.8);
-    assert.equal(bend!.toon.uniforms.stripeP!.value, 1 / (BEND_GROOVES + 1), 'the bending section is grooved');
+    assert.equal(bend!.toon.uniforms.stripeP!.value, 0, 'the bending section is a smooth cover, no grooves'); assert.equal(bend!.toon.uniforms.gloss!.value, 1, 'glossy');
     assert.equal(edgeA(band!), 0, 'the ligator\'s band is plain platinum');
     assert.ok(lens && rings.length === 4); for (const r of rings) assert.equal(edgeA(r as unknown as DeviceObject), 0, 'the hit\'s rings are discs with no outline');
     assert.notEqual(fill(shaft!), raw(DEVICE_TOKENS[id].steel), 'no longer the grey steel');

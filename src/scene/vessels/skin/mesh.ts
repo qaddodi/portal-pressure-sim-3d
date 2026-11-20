@@ -3,8 +3,8 @@
 // only three.js it touches is `Vector3` and `ConvexHull`. Never marching cubes: an irregular mesh makes the cel bands wobble.
 import { Vector3 } from 'three';
 import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
-import { SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
-import { ARM_REACH, closestOnArm, gradient, localRadius, sdUnionGrad, skinKOf, weights, type Capsule } from './sdf.ts';
+import { SKIN_GROWERS, SkinBuildError, type GrowMorph, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
+import { ARM_REACH, MAX_SKIN_ARMS, closestOnArm, gradient, localRadius, sdUnionGrad, skinKOf, weights, type Capsule } from './sdf.ts';
 
 /** The target edge length is `EDGE_SCALE` times the circumference spacing `2 pi R / ring size` of the arm nearest the edge, so the skin's triangles are the size of the tube's own around
  *  a ring, and the thin branch's side gets finer ones than the trunk's.
@@ -19,11 +19,17 @@ export const SPLIT_AT = 4 / 3;
 export const COLLAPSE_AT = 0.6;
 /** Remeshing rounds, and the most vertices before the build gives up with a `SkinBuildError`. */
 export const REMESH_ROUNDS = 16;
+/** Collapse passes per round (a pass collapses an independent set of edges only). */
+export const COLLAPSE_PASSES = 6;
 /** The remesh stops once a round changes no more than this share of the triangles (after the shrink). */
 export const SETTLED = 0.02;
 /** The first `SHRINK_ROUNDS` rounds pull each vertex `SHRINK_PULL` of the way to the surface per round (the sheet shrinks over them); the polish rounds pull all the way. */
 export const SHRINK_ROUNDS = 6;
 export const SHRINK_PULL = 0.5;
+/** The gentle schedule for a sheet that starts far from the surface (seams many radii from the junction: the long hull faces fold if pulled in at the usual rate): a third of the pull for 20 rounds, 40 in all. */
+export const GENTLE: BuildPace = { rounds: 40, shrinkRounds: 20, pull: 0.3 };
+/** How fast the remesh pulls the hull sheet onto the surface. */
+export interface BuildPace { rounds: number; shrinkRounds: number; pull: number }
 export const MAX_VERTS = 12000;
 /** Tangential smoothing per round: how far a free vertex moves toward its neighbours' mean, and the final rounds of smoothing and projecting (spec 4.5.6). */
 export const SMOOTH_LAMBDA = 0.6;
@@ -35,8 +41,14 @@ export const GRADIENT_H = 0.05;
 export const FLIP_GAIN = 1.05;
 /** Rows of vertices from a seam over which the normal blends from the tube's to the SDF gradient (spec 4.5.7). */
 export const NORMAL_BLEND_ROWS = 2;
+/** Shading normals across a ridge: a vertex whose normal is more than `CREASE_DEG` from a neighbour's is eased `CREASE_EASE` of the way to its neighbours' mean, `CREASE_ROUNDS` times. A round tube's neighbouring rings differ by about 26 degrees (14 sides), so 35 leaves every plain stretch exact. */
+export const CREASE_DEG = 35;
+export const CREASE_EASE = 0.6;
+export const CREASE_ROUNDS = 6;
 /** The farthest a seam may be pushed out (spec 4.4). */
 export const MAX_TRIES = 40;
+/** A vertex of the second shape that is this close to the closing arm's axis (in that arm's radii) is on its thread, where the surface has no direction: it keeps the normal it had. */
+export const THREAD_R = 0.05;
 
 export { SkinBuildError };
 
@@ -114,9 +126,9 @@ function axisFromRing(ring: Float32Array, J: Vec3): Capsule {
  * tube's own radial normals there. They are copied bit for bit into the skin, so there is no crack. `axes`, when given (`armCapsule` of each arm), shapes the fillet;
  * without them each arm's axis is recovered from its ring. Throws `SkinBuildError` when the hull misses a ring (spec 4.4.3).
  */
-export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[]): SkinMesh {
+export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS, pace?: BuildPace): SkinMesh {
   const A = j.arms.length, n = seamRings[0]!.length / 3, S = A * n;   // S: the ring vertices, ids 0..S-1 (arm * n + j), fixed for ever
-  if (A < 2 || A > 4 || seamRings.length !== A || seamNormals.length !== A || cuts.length !== A) throw new SkinBuildError(j.node, 'needs 2 to 4 arms with a ring, a normal set and a cut each');
+  if (A < 2 || A > MAX_SKIN_ARMS || seamRings.length !== A || seamNormals.length !== A || cuts.length !== A) throw new SkinBuildError(j.node, 'needs 2 to 6 arms with a ring, a normal set and a cut each');
   const hull = ringHull(seamRings);
   if (!hull.ok) throw new SkinBuildError(j.node, `the hull misses the seam rings: ${hull.why}`);
   const caps = axes ?? seamRings.map((r) => axisFromRing(r, j.J));
@@ -149,6 +161,17 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   };
 
   // --- remeshing operations. Each works on `tris` (flat, outward) and leaves the mesh closed, welded and the seam rings untouched.
+  /** Drop the vertices no triangle uses (collapsed away), keeping the order and the ring ids (the first S), and renumber the triangles. */
+  const dropUnused = () => {
+    const V = pos.length / 3, used = new Uint8Array(V);
+    for (let i = 0; i < tris.length; i++) used[tris[i]!] = 1;
+    for (let v = 0; v < S; v++) used[v] = 1;
+    const remap = new Int32Array(V).fill(-1), np: number[] = [];
+    for (let v = 0; v < V; v++) if (used[v]) { remap[v] = np.length / 3; np.push(pos[3 * v]!, pos[3 * v + 1]!, pos[3 * v + 2]!); }
+    if (np.length === pos.length) return;
+    pos.length = 0; for (const x of np) pos.push(x);
+    tris = tris.map((v) => remap[v]!);
+  };
   /** Split every free-to-split edge longer than SPLIT_AT targets at its midpoint (red-green: 1, 2 or 3 split edges in a triangle each have a conforming pattern). Returns how many split. */
   const split = (): number => {
     const want = new Set<number>(), seen = new Set<number>();
@@ -159,7 +182,13 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
       if (!ringEdge.has(kk) && dist(a, b) > SPLIT_AT * target(a, b)) want.add(kk);
     }
     if (!want.size) return 0;
-    if (pos.length / 3 + want.size > MAX_VERTS) throw new SkinBuildError(j.node, 'the mesh grew past its vertex limit');
+    // (the vertices the collapses left unused count for nothing: the first round splits the hull's long triangles into a thousand and the collapses take most away again, so they are dropped
+    // before the limit is judged. A runaway remesh is one that is LIVE past it.)
+    if (pos.length / 3 + want.size > maxVerts) {
+      dropUnused();
+      if (pos.length / 3 + want.size > maxVerts) throw new SkinBuildError(j.node, 'the mesh grew past its vertex limit');
+      return split();
+    }
     const mid = new Map<number, number>();
     const midOf = (a: number, b: number): number => {
       const kk = ekey(a, b);
@@ -317,13 +346,16 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   };
 
   // the remeshing loop (spec 4.5.4 to 4.5.6, with the topology kept welded and closed throughout)
-  for (let r = 0; r < REMESH_ROUNDS; r++) {
+  const rounds = pace?.rounds ?? REMESH_ROUNDS, shrinkRounds = pace?.shrinkRounds ?? SHRINK_ROUNDS, shrinkPull = pace?.pull ?? SHRINK_PULL;
+  for (let r = 0; r < rounds; r++) {
     let changes = 0;
     for (let s = 0; s < 4; s++) { const c = split(); changes += c; if (!c) break; }
-    changes += collapse();
+    let c1 = 0;
+    for (let s = 0; s < COLLAPSE_PASSES; s++) { const c = collapse(); c1 += c; if (c < 3) break; }   // (a pass locks every neighbour of what it collapsed, so a crowded patch needs several)
+    changes += c1;
     changes += flip();
-    smooth(r < SHRINK_ROUNDS ? SHRINK_PULL : 1);
-    if (r >= SHRINK_ROUNDS && changes <= Math.max(2, SETTLED * tris.length / 3)) break;   // settled: only a stray edge still changes
+    smooth(r < shrinkRounds ? shrinkPull : 1);
+    if (r >= shrinkRounds && changes <= Math.max(2, SETTLED * tris.length / 3)) break;   // settled: only a stray edge still changes
   }
   for (let r = 0; r < POLISH_ROUNDS; r++) { flip(); smooth(1); }
   for (let v = S; v < pos.length / 3; v++) project(v, 2);
@@ -355,15 +387,11 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   for (let v = 0; v < V; v++) if (row[v]! < 0) throw new SkinBuildError(j.node, `vertex ${v} is not connected to a seam (${V} vertices, ${index.length / 3} triangles)`);
 
   // normals, weights, rest radius, nearest axis point
-  const position = new Float32Array(3 * V), normal = new Float32Array(3 * V), cen = new Float32Array(3 * V), weight = new Float32Array(4 * V), restR = new Float32Array(V);
-  const w = new Float64Array(4), cp = new Float64Array(7);
-  for (let v = 0; v < V; v++) {
-    const x = cpos[3 * v]!, y = cpos[3 * v + 1]!, z = cpos[3 * v + 2]!;
-    // seam rings are the tube's own float32 vertices, copied exactly
-    if (v < S) { const a = Math.floor(v / n), q = v % n; position[3 * v] = seamRings[a]![3 * q]!; position[3 * v + 1] = seamRings[a]![3 * q + 1]!; position[3 * v + 2] = seamRings[a]![3 * q + 2]!; }
-    else { position[3 * v] = x; position[3 * v + 1] = y; position[3 * v + 2] = z; }
-    // the normal: the SDF's gradient, eased from the nearest seam vertex's tube normal over the first rows (spec 4.5.7)
-    sdUnionGrad(caps, k, x, y, z, g);
+  const position = new Float32Array(3 * V), normal = new Float32Array(3 * V), cen = new Float32Array(3 * V), weight = new Float32Array(4 * V), weight2 = new Float32Array(2 * V), restR = new Float32Array(V);
+  const w = new Float64Array(MAX_SKIN_ARMS), cp = new Float64Array(7), nrm = new Float64Array(3);
+  /** The normal at vertex `v` standing at (x, y, z) on the union of `cs`: the SDF's gradient, eased from the nearest seam vertex's tube normal over the first rows (spec 4.5.7), the tube's own on a seam ring. */
+  const normalAt = (cs: readonly Capsule[], v: number, x: number, y: number, z: number, out: Float64Array): void => {
+    sdUnionGrad(cs, k, x, y, z, g);
     const gl = Math.hypot(g[0]!, g[1]!, g[2]!) || 1;
     let nx = g[0]! / gl, ny = g[1]! / gl, nz = g[2]! / gl;
     const rw = row[v]!;
@@ -374,17 +402,82 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
       nx = tx + (nx - tx) * t; ny = ty + (ny - ty) * t; nz = tz + (nz - tz) * t;
       const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
     }
-    normal[3 * v] = nx; normal[3 * v + 1] = ny; normal[3 * v + 2] = nz;
-    weights(caps, k, x, y, z, w);
-    // a seam vertex belongs wholly to its own arm: the blend is off there (spec 4.4.1)
-    if (v < S) for (let i = 0; i < 4; i++) w[i] = i === Math.floor(v / n) ? 1 : 0;
-    let top = 0;
-    for (let i = 0; i < A; i++) if (w[i]! > w[top]!) top = i;
+    out[0] = nx; out[1] = ny; out[2] = nz;
+  };
+  /** The weights of vertex `v` at (x, y, z) on the union of `cs` (the six numbers into `out`) and its blended rest radius, the tubes' own radii (`caps`, never the zeroed ones of a second shape). A seam vertex belongs wholly to its own arm: the blend is off there (spec 4.4.1). */
+  const weightsAt = (cs: readonly Capsule[], v: number, x: number, y: number, z: number, out: Float64Array): number => {
+    weights(cs, k, x, y, z, out);
+    if (v < S) for (let i = 0; i < MAX_SKIN_ARMS; i++) out[i] = i === Math.floor(v / n) ? 1 : 0;
     let rr = 0;
-    for (let i = 0; i < A; i++) { weight[4 * v + i] = w[i]!; if (w[i]! > 0) { closestOnArm(caps[i]!, x, y, z, cp); rr += w[i]! * cp[3]!; } }
-    restR[v] = rr;
+    for (let i = 0; i < A; i++) if (out[i]! > 0) { closestOnArm(caps[i]!, x, y, z, cp); rr += out[i]! * cp[3]!; }
+    return rr;
+  };
+  for (let v = 0; v < V; v++) {
+    const x = cpos[3 * v]!, y = cpos[3 * v + 1]!, z = cpos[3 * v + 2]!;
+    // seam rings are the tube's own float32 vertices, copied exactly
+    if (v < S) { const a = Math.floor(v / n), q = v % n; position[3 * v] = seamRings[a]![3 * q]!; position[3 * v + 1] = seamRings[a]![3 * q + 1]!; position[3 * v + 2] = seamRings[a]![3 * q + 2]!; }
+    else { position[3 * v] = x; position[3 * v + 1] = y; position[3 * v + 2] = z; }
+    normalAt(caps, v, x, y, z, nrm);
+    normal[3 * v] = nrm[0]!; normal[3 * v + 1] = nrm[1]!; normal[3 * v + 2] = nrm[2]!;
+    restR[v] = weightsAt(caps, v, x, y, z, w);
+    let top = 0;
+    for (let i = 0; i < A; i++) { if (w[i]! > w[top]!) top = i; if (i < 4) weight[4 * v + i] = w[i]!; else weight2[2 * v + i - 4] = w[i]!; }
     closestOnArm(caps[top]!, x, y, z, cp);
     cen[3 * v] = cp[0]!; cen[3 * v + 1] = cp[1]!; cen[3 * v + 2] = cp[2]!;
+  }
+  // the SHADING normal across a ridge: where two arms meet, the SDF's gradient turns fast (a crotch's normals differ by 50 to 140 degrees between neighbouring vertices), and the cel shading's two-tone band then draws a hard dark line along the ridge,
+  // which the 2D joins hid by blending the shade toward the neighbour (nbrK). So a vertex whose normal differs from a neighbour's by more than CREASE_DEG is eased toward its neighbours' mean, a few rounds, over the free rows only: the seam rings and the
+  // rows blended from the tube's own normal stay exact, the positions (and with them the ink outline, which the fragment stage takes from the SDF) are not touched.
+  {
+    const cosMax = Math.cos((CREASE_DEG * Math.PI) / 180), cur = Float32Array.from(normal), nxt = new Float32Array(normal.length);
+    for (let it = 0; it < CREASE_ROUNDS; it++) {
+      nxt.set(cur);
+      for (let v = 0; v < V; v++) {
+        if (row[v]! < NORMAL_BLEND_ROWS) continue;
+        let mx = 0, my = 0, mz = 0, c = 0, sharp = false;
+        for (let q = deg[v]!; q < deg[v + 1]!; q++) {
+          const u = nbr[q]!, d = cur[3 * v]! * cur[3 * u]! + cur[3 * v + 1]! * cur[3 * u + 1]! + cur[3 * v + 2]! * cur[3 * u + 2]!;
+          if (d < cosMax) sharp = true;
+          mx += cur[3 * u]!; my += cur[3 * u + 1]!; mz += cur[3 * u + 2]!; c++;
+        }
+        if (!sharp || !c) continue;
+        let nx = cur[3 * v]! + CREASE_EASE * (mx / c - cur[3 * v]!), ny = cur[3 * v + 1]! + CREASE_EASE * (my / c - cur[3 * v + 1]!), nz = cur[3 * v + 2]! + CREASE_EASE * (mz / c - cur[3 * v + 2]!);
+        const l = Math.hypot(nx, ny, nz) || 1;
+        nxt[3 * v] = nx / l; nxt[3 * v + 1] = ny / l; nxt[3 * v + 2] = nz / l;
+      }
+      cur.set(nxt);
+    }
+    normal.set(cur);
+  }
+  // THE GROWING ARMS' SECOND SHAPE (spec 10.2): the skin as it is when that arm is closed
+  const grow: GrowMorph[] = [];
+  for (let a = 0; a < A && grow.length < SKIN_GROWERS; a++) {
+    if (!j.arms[a]!.grow) continue;
+    const caps0 = caps.map((c, i) => (i === a ? { n: c.n, pts: c.pts, r: new Float64Array(c.n) } : c));   // (the arm's capsule at radius 0: its axis stays, it is a thread)
+    let rcx = 0, rcy = 0, rcz = 0;
+    for (let q = 0; q < n; q++) { rcx += seamRings[a]![3 * q]! / n; rcy += seamRings[a]![3 * q + 1]! / n; rcz += seamRings[a]![3 * q + 2]! / n; }
+    const m: GrowMorph = { arm: a, dPos: new Float32Array(3 * V), dNor: new Float32Array(3 * V), dRest: new Float32Array(V), dWeight: new Float32Array(4 * V), dWeight2: new Float32Array(2 * V) };
+    const w0 = new Float64Array(MAX_SKIN_ARMS), n0 = new Float64Array(3);
+    for (let v = 0; v < V; v++) {
+      // where the vertex stands with the arm closed: the arm's own seam ring at the ring's centre, the other seam rings where they are (they are the tubes'), a free vertex projected onto the union without the arm's width
+      let x = position[3 * v]!, y = position[3 * v + 1]!, z = position[3 * v + 2]!;
+      if (v < S) { if (Math.floor(v / n) === a) { x = rcx; y = rcy; z = rcz; } }
+      else for (let s = 0; s < PROJECT_STEPS; s++) {
+        const d = sdUnionGrad(caps0, k, x, y, z, g), gg = g[0]! * g[0]! + g[1]! * g[1]! + g[2]! * g[2]!;
+        if (gg < 1e-14) break;
+        const f = d / gg; x -= f * g[0]!; y -= f * g[1]!; z -= f * g[2]!;
+      }
+      if (!(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z))) { x = position[3 * v]!; y = position[3 * v + 1]!; z = position[3 * v + 2]!; }
+      const rest0 = weightsAt(caps0, v, x, y, z, w0);
+      // the normal: the SDF's, except on the arm's own thread, where the surface has no direction (the radial normal it had stays, so a ring that shrinks to its centre keeps its normals: the tube's ring at any share has them too)
+      closestOnArm(caps[a]!, x, y, z, cp);
+      if (v < S || (cp[4]! < THREAD_R * cp[3]!)) { n0[0] = normal[3 * v]!; n0[1] = normal[3 * v + 1]!; n0[2] = normal[3 * v + 2]!; } else normalAt(caps0, v, x, y, z, n0);
+      m.dPos[3 * v] = position[3 * v]! - x; m.dPos[3 * v + 1] = position[3 * v + 1]! - y; m.dPos[3 * v + 2] = position[3 * v + 2]! - z;
+      m.dNor[3 * v] = normal[3 * v]! - n0[0]!; m.dNor[3 * v + 1] = normal[3 * v + 1]! - n0[1]!; m.dNor[3 * v + 2] = normal[3 * v + 2]! - n0[2]!;
+      m.dRest[v] = restR[v]! - rest0;
+      for (let i = 0; i < A; i++) { if (i < 4) m.dWeight[4 * v + i] = weight[4 * v + i]! - w0[i]!; else m.dWeight2[2 * v + i - 4] = weight2[2 * v + i - 4]! - w0[i]!; }
+    }
+    grow.push(m);
   }
   // a face turned against its own vertex normals is a fold: the hull was too far from the surface for the remesh to follow, so this junction falls back to today's method
   for (let i = 0; i < index.length; i += 3) {
@@ -393,11 +486,11 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
     const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
     let d = 0;
     for (const v of [a, b, c]) d += fx * normal[3 * v]! + fy * normal[3 * v + 1]! + fz * normal[3 * v + 2]!;
-    if (d <= 0) throw new SkinBuildError(j.node, `the surface folds at triangle ${i / 3}`);
+    if (d <= 0) { throw new SkinBuildError(j.node, `the surface folds at triangle ${i / 3}`); }
   }
   const seamVerts: Uint32Array[] = [];
   for (let a = 0; a < A; a++) { const ids = new Uint32Array(n); for (let q = 0; q < n; q++) ids[q] = a * n + q; seamVerts.push(ids); }
-  return { junction: j, cuts, position, normal, cen, weight, restR, index, seamVerts };
+  return { junction: j, cuts, position, normal, cen, weight, weight2, restR, index, seamVerts, grow };
 }
 
 /** A cheap stand-in for a triangle's smallest angle: its sine, `2 area / (longest edge x middle edge)` (no trig, no allocation; it rises and falls with the angle up to 60 degrees). */

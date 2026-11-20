@@ -33,7 +33,7 @@ test('setSkinCut writes the uniform, reports a change only when there is one, an
 
 test('the fragment stage cuts only where a cut is set, and only past it (a plain discard at rest, the screen pattern in the Circuit)', () => {
   assert.match(VESSEL_FS, /uniform vec2 skinCut;/);
-  assert.match(VESSEL_FS, /bool skinCutOn\(\) \{ return skinCut\.x >= 0\.0 \|\| skinCut\.y <= 1\.0; \}/);
+  assert.match(VESSEL_FS, /bool skinCutOn\(\) \{ return dotted < 0\.5 && \(skinCut\.x >= 0\.0 \|\| skinCut\.y <= 1\.0\); \}/);   // (a dotted thread is never cut: spec 10.2)
   assert.match(VESSEL_FS, /if \(skinCutOn\(\) && skinPast\(\)\) \{[^}]*cutA <= 0\.0[^}]*discard;/s);
   assert.ok(VESSEL_FS.includes(`smoothstep(0.0, ${SKIN_CIRC_SPAN}, circT)`));
   assert.ok(VESSEL_FS.includes(String(SKIN_CUT_EPS)), 'a hair of margin, so the seam ring itself is never discarded');

@@ -74,5 +74,5 @@ test('the spacing is 2D\'s 130 CSS px at every device pixel ratio and zoom: the 
   assert.doesNotMatch(chev, /dpr/);
   const pitchLine = VESSEL_FS.split('\n').find((l) => l.includes('float Pt ='))!;
   assert.doesNotMatch(pitchLine, /dpr/); assert.match(pitchLine, /\* wpc;/);
-  assert.match(VESSEL_FS, /float wpc = vW \* 2\.0 \/ \(res\.y \* projY\) \* vU;/, 'wpc: scene units under one CSS px (res is the canvas in CSS px)');
+  assert.ok(VESSEL_FS.includes('vW * 2.0 / (res.y * projY) * vU'), 'wpc: scene units under one CSS px (res is the canvas in CSS px), handed to flowHeads');
 });

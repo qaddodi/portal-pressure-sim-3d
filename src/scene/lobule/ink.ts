@@ -2,7 +2,8 @@
 // (lenses/model.ts, the 2D app's colormap copied per look). A vessel has a colour at each end and the GPU blends along it; here every vertex of a tube carries
 // its own, which is the same straight line in colour between the two ends (the sinusoid's value runs from the central vein's to the inlet's by `sinW`).
 //   seg: 'pv' the portal venule (end-on), 'in' the inlet venule (w along it 0 at the tract .. 1 at the sinusoids), 'sin' a sinusoid or anastomosis (w = sinW(rho), 1 at
-//   the lobule's edge, 0 at the central vein), 'cv' the central vein.
+//   the lobule's edge, 0 at the central vein), 'cv' the central vein, 'art' the arteriole's twig (one tone, the lens does not colour it: a junction skin that joins a twig to its sinusoid
+//   blends from it).
 import { DELTA_RANGE, DROP_MAX, HEAT_MAX, MPS_TO_LPM, type LensId, firstPassColours, flowPos, originColours, oxygenPos, samplerFor } from '../lenses/model.ts';
 import { LENS_SHARED, LENS_TOKENS } from '../lenses/tokens.copied.ts';
 import { delta3, hexToRgb01, type Rgb } from '../lenses/oklab.ts';
@@ -12,7 +13,7 @@ import type { LookId } from '../palette.ts';
 import type { Lane, LaneSet, LobuleModel } from './model.ts';
 import { LOBULE_PALETTES } from './tones.ts';
 
-export type Seg = 'pv' | 'in' | 'sin' | 'cv';
+export type Seg = 'pv' | 'in' | 'sin' | 'cv' | 'art';
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /** The lobule's own pressure steps are shown to the half mmHg, as the 2D painter does (qP). */
@@ -45,6 +46,7 @@ const tmp: Rgb = [0, 0, 0];
 
 /** The colour (sRGB 0..1, written into `out`) a lobule vessel wears at `w` along it, under the lens. */
 export function inkAt(c: InkContext, seg: Seg, w: number, out: Rgb): Rgb {
+  if (seg === 'art') { const a = hexToRgb01((LOBULE_PALETTES[c.look].tones as Record<string, string>).artery!); out[0] = a[0]; out[1] = a[1]; out[2] = a[2]; return out; }
   const m = c.model, lens = c.lens, tok = LENS_TOKENS[c.look];
   let v: Rgb;
   if (lens === 'pressure' || lens === 'delta' || lens === 'since' || lens === 'heat') {

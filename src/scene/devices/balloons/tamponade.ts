@@ -7,7 +7,7 @@ import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
 import { TIER_Z, x3, y3 } from '../../frame2d.ts';
 import { DeviceObject } from '../device-object.ts';
-import { allocTube, makeRings, type Ring, writeRings } from '../tube-rings.ts';
+import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, type Ring, writeRings } from '../tube-rings.ts';
 import { BALLOON, BALLOON_MS, balloonShape, esoAt } from '../../procedures/copied/balloon-eso.js';
 import { GAS, gasShape, pathAt, pullArrow, sheathArcs, tubePath, tubeTip } from '../../procedures/copied/balloon-gas.js';
 import { easeMove } from '../../procedures/copied/ease.js';
@@ -15,7 +15,7 @@ import { easeMove } from '../../procedures/copied/ease.js';
 const U = 300;
 const Z = TIER_Z.mid;
 const PULL_N = 5;
-const TUBE_N = 120, ESO_N = 64, GAS_N = 48, RADIAL = 16, MARK_N = 3, HEAD_N = 6;
+const TUBE_N = 120, ESO_N = 64, GAS_N = 48, RADIAL = DEVICE_SIDES, MARK_N = 3, HEAD_N = 6;
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 
 export interface TamponadeState { adv: number; gas: number; eso: number }
@@ -40,12 +40,12 @@ export class Tamponade {
   private readonly v = new Vector3();
 
   constructor(shared: CelShared) {
-    this.tube = new DeviceObject(allocTube(TUBE_N, 8), 'poly', shared, { px: 0.8, order: 0 }, 'polyEdge');
+    this.tube = new DeviceObject(allocTube(TUBE_N, DEVICE_SIDES), 'poly', shared, { px: 0.8, order: 0 }, 'polyEdge');
     this.gas = new DeviceObject(allocTube(GAS_N, RADIAL), 'latex', shared, { px: 1, order: 1 }, 'latexEdge');
     this.eso = new DeviceObject(allocTube(ESO_N, RADIAL), 'latex', shared, { px: 1, order: 2 }, 'latexEdge');
-    this.marks = [0, 1].map(() => new DeviceObject(allocTube(MARK_N, 12), 'platinum', shared, { px: 0.8, order: 3 }, 'ink')) as unknown as [DeviceObject, DeviceObject];
-    this.pullLine = new DeviceObject(allocTube(PULL_N, 8), 'accent', shared, { px: 0.8, order: 4 }, 'ink');
-    this.pullHead = new DeviceObject(allocTube(HEAD_N, 12), 'accent', shared, { px: 0.8, order: 4 }, 'ink');
+    this.marks = [0, 1].map(() => new DeviceObject(allocTube(MARK_N, DEVICE_SIDES), 'platinum', shared, { px: 0.8, order: 3 }, 'ink')) as unknown as [DeviceObject, DeviceObject];
+    this.pullLine = new DeviceObject(allocTube(PULL_N, WIRE_SIDES), 'accent', shared, { px: 0.8, order: 4 }, 'ink');
+    this.pullHead = new DeviceObject(allocTube(HEAD_N, DEVICE_SIDES), 'accent', shared, { px: 0.8, order: 4 }, 'ink');
     this.objects = [this.tube, this.gas, this.eso, ...this.marks, this.pullLine, this.pullHead];
     for (const o of this.objects) { this.group.add(o.group); o.group.visible = false; }
     this.group.visible = false;
@@ -96,7 +96,7 @@ export class Tamponade {
       const sA = (tip * i) / (TUBE_N - 1), { p, t } = pathAt(sA, path), r = this.tubeRings[i]!;
       this.pt(p[0], p[1], r.c); r.t.set(t[0], -t[1], 0); r.r = tubeR;
     }
-    writeRings(this.tube.toonMesh.geometry, this.tubeRings, 8);
+    writeRings(this.tube.toonMesh.geometry, this.tubeRings, DEVICE_SIDES);
     // the gastric balloon: the pear along its axis (gasShape's p0, dir, L and half width u along it)
     const showGas = gas > 0.001;
     this.gas.group.visible = showGas;
@@ -133,7 +133,7 @@ export class Tamponade {
         const { p, t } = pathAt(Math.max(0, sb + (i - 1) * 0.5), path), r = rings[i]!;
         this.pt(p[0], p[1], r.c); r.t.set(t[0], -t[1], 0); r.r = markR;
       }
-      writeRings(mark.toonMesh.geometry, rings, 12);
+      writeRings(mark.toonMesh.geometry, rings, DEVICE_SIDES);
     });
     // the traction: an arrow up the esophagus's side as the tube is drawn up, easing in with it
     this.pull = q;
@@ -158,13 +158,13 @@ export class Tamponade {
     };
     const lr = makeRings(PULL_N), pts = line.length === PULL_N ? line : Array.from({ length: PULL_N }, (_, i) => line[Math.min(line.length - 1, Math.round((i / (PULL_N - 1)) * (line.length - 1)))]!);
     along(pts, lr, () => 0.75 / U);
-    writeRings(this.pullLine.toonMesh.geometry, lr, 8);
+    writeRings(this.pullLine.toonMesh.geometry, lr, WIRE_SIDES);
     // the head: its base (midway of the triangle's two base corners) to its tip, a cone as wide as the triangle (spread each side)
     const tip = head[0]!, base: [number, number] = [(head[1]![0] + head[2]![0]) / 2, (head[1]![1] + head[2]![1]) / 2], half = Math.abs(head[2]![0] - head[1]![0]) / 2;
     const hp = Array.from({ length: HEAD_N }, (_, i): [number, number] => { const f = i / (HEAD_N - 1); return [base[0] + (tip[0] - base[0]) * f, base[1] + (tip[1] - base[1]) * f]; });
     const hr = makeRings(HEAD_N);
     along(hp, hr, (i) => (half * (1 - i / (HEAD_N - 1)) + 0.3) / U);
-    writeRings(this.pullHead.toonMesh.geometry, hr, 12);
+    writeRings(this.pullHead.toonMesh.geometry, hr, DEVICE_SIDES);
   }
 
   dispose(): void { for (const o of this.objects) o.dispose(); }

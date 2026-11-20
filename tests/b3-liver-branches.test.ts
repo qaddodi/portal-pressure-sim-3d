@@ -217,8 +217,8 @@ test('the bed that continues a vein which branches wears no fork collar (root ca
 test('flow marks hold back inside the vessel a tube leaves: the shader multiplies the chevrons and the streaks by the buried share', async () => {
   const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
   assert.match(VESSEL_FS, /float markK\(float d0, float d1\)/);
-  assert.match(VESSEL_FS, /float dOn = markK\(/, 'the dust');
-  assert.match(VESSEL_FS, /float fade = markK\(/);
+  assert.match(VESSEL_FS, /flowDust\([^;]*\) \* markK\(/, 'the dust');
+  assert.match(VESSEL_FS, /flowHeads\([^;]*markK\(/, 'the heads (the buried share rides in as endK)');
 });
 
 test('a hepatic vein opens into the cava with a clean edge: it is cut away exactly where it lies inside the cava\'s lumen, and only a piece that ENDS on the cava does it (root cause of the round end inside the IVC, and of the broken outline at the join of the right hepatic vein\'s two pieces in the Circuit: the rule was keyed by the vein\'s name)', async () => {

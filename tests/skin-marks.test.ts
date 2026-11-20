@@ -9,6 +9,8 @@ import { smoothJoinsOn, setSmoothJoins } from '../src/scene/vessels/join-mode.ts
 import { SkinSet, armArcOf } from '../src/scene/vessels/skin/skin-set.ts';
 import { SKIN_FIGURE_UNITS, SKIN_FS } from '../src/scene/vessels/skin/shaders.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
+import { FLOW_MARKS_GLSL, CHEV_ONE_GLSL } from '../src/scene/vessels/glsl-shared.ts';
+import { DUST_GLSL } from '../src/scene/blood/dust-glsl.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 import type { VesselObject } from '../src/scene/vessels/vessel-object.ts';
@@ -25,7 +27,7 @@ function built(): { scene: CelScene; made: Made[]; was: boolean } {
     make: (mesh, axes, arms) => {
       const m: Made = { mesh, axes, arms, arcs: [] };
       made.push(m);
-      return { mesh, object: new Group(), setArm() {}, setArc(i, seamArc, dir, length, restR, flow) { m.arcs[i] = { seamArc, dir, length, restR, flow }; }, setTransparent() {}, dispose() {} };
+      return { mesh, object: new Group(), setArm() {}, setArc(i, seamArc, dir, length, restR, flow) { m.arcs[i] = { seamArc, dir, length, restR, flow }; }, setPres() {}, setArmCopy() {}, setTransparent() {}, dispose() {} };
     },
     add: (o: Object3D) => parent.add(o), remove: (o: Object3D) => parent.remove(o), warn: () => {},
   });
@@ -36,7 +38,7 @@ function built(): { scene: CelScene; made: Made[]; was: boolean } {
 
 /** The skin shader's arc at a rest position (the twin of THE FLOW MARKS' `sI`): the arc at the seam, plus which way it grows, times the distance toward the node along the arm's axis, in figure units. */
 const arcAt = (axis: ArmAxis, seamArc: number, dir: number, p: readonly number[]): number => {
-  const a = axis.pts[0], b = axis.pts[1];
+  const a = axis.pts[1], b = axis.pts[2];
   const tx = a[0] - b[0], ty = a[1] - b[1], tz = a[2] - b[2], tl = Math.hypot(tx, ty, tz) || 1;
   return seamArc + dir * (((p[0]! - b[0]) * tx + (p[1]! - b[1]) * ty + (p[2]! - b[2]) * tz) / tl) * SKIN_FIGURE_UNITS;
 };
@@ -84,16 +86,26 @@ test('the arc grows toward the node on an arm that is its vessel\'s end 1 and sh
   } finally { scene.dispose(); setSmoothJoins(was); }
 });
 
-test('the skin\'s marks are the tube\'s code: the same dust call on the stream and its chain, the same heads, no fade before the seam, and the arms blended by weight', () => {
-  for (const frag of [
-    'dustField(acrossI, sI, 0.0, 1.0, smS.w, rOwn, rOwn,',
-    'dustField(acrossI, sI, chD.y, chD.z, texelFetch(streamTex, ivec2(rootIx, 0), 0).w, rOwn,',
-    'chevOne(sI, Lw, sI, 1.0, Dm, vd, rv, chE.xy, R, acrossI, wpcM, Pt, px)',
-    'chevOne(sI, Lw, chD.y + chD.z * sI, chD.z, rootD, vd, rv, chE.xy, R, acrossI, wpcM, Pt, px)',
-    'dustAcc += wI *', 'headAcc += wI *',
-  ]) assert.ok(SKIN_FS.includes(frag), frag);
-  assert.doesNotMatch(SKIN_FS, /skinMarkK|MARK_FADE/);
-  assert.doesNotMatch(VESSEL_FS, /skinMarkK|skinSeamDist/, 'the tube draws its marks right up to the seam');
-  // the tube's own calls (the tube and the skin must not drift)
-  assert.ok(VESSEL_FS.includes('dustField(across, sD, 0.0, 1.0, smS.w, rOwn, rOwn,') && VESSEL_FS.includes('chevOne(s, Lw, s, 1.0, Dm, vd, rv, c5.xy, R, across, wpc, Pt, px)'));
+test('the tube and the skin call ONE flow-marks code (glsl-shared.ts flowDust / flowHeads): neither program holds a copy of the dust or chevron placing, there is no fade before the seam, and the skin blends its arms by weight', () => {
+  for (const [name, src] of [['VESSEL_FS', VESSEL_FS], ['SKIN_FS', SKIN_FS]] as const) {
+    assert.ok(src.includes(FLOW_MARKS_GLSL), `${name} holds the shared flow marks`);
+    const rest = src.replace(FLOW_MARKS_GLSL, '').replace(CHEV_ONE_GLSL, '').replace(DUST_GLSL, '');   // (their definitions are not calls)
+    assert.doesNotMatch(rest, /dustField\(|chevOne\(/, `${name} calls the marks only through flowDust / flowFrame / flowHeads`);
+    assert.match(rest, /flowDust\(|flowFrame\(/); assert.match(rest, /flowHeads\(/);
+  }
+  // the skin's dust: each particle drawn ONCE at the blend of its places in the two heaviest arms' frames (blood/dust-glsl.ts dustSkin), never two weighted ghosts
+  assert.match(SKIN_FS, /float onI = flowFrame\(acrossI, dustFrame\(/);
+  assert.match(SKIN_FS, /dustSkin\(FD0, FD1, w1, litD, inkColor, /);
+  assert.doesNotMatch(SKIN_FS, /dustAcc \+= wI/);
+  assert.match(SKIN_FS, /headAcc \+= wI \* flowHeads\(/);
+  assert.doesNotMatch(SKIN_FS + VESSEL_FS, /skinMarkK|skinSeamDist|MARK_FADE/);
+  assert.match(FLOW_MARKS_GLSL, /vec4 dust = dustTube\(F, lit, inkColor, rev\);/);
+  assert.match(FLOW_MARKS_GLSL, /chevOne\(s, Lw, c4\.y \+ c4\.z \* s, c4\.z, rootD,/);
+  assert.match(FLOW_MARKS_GLSL, /F = DFrame\(across, fr\.xy, fr\.zw, s, Lw, rOwn, vR, rCss, nar, smS\.y, lensI, vUn\);/, 'the root\'s radius (route table, scene units) is scaled by the program\'s own figure units (the Circuit\'s map is not 300)');
+});
+
+test('no NaN can leave the skin\'s flow marks: a heading is normalised only after its length is checked (a NaN pixel is a speck of any colour, Mohammad 20 Nov: green and dark blue specks on the welds)', () => {
+  assert.ok(!/normalize\(mat3\(modelViewMatrix\) \* \(armArc/.test(SKIN_FS), 'the arm heading is never normalised unchecked');
+  assert.match(SKIN_FS, /float headL = length\(headV\);/);
+  assert.match(SKIN_FS, /headL > 1e-6 \? cross\(headV \/ headL, viewDir\)/);
 });

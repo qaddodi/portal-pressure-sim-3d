@@ -346,3 +346,34 @@ test('the lift over the lobule never changes the sinusoid\'s size on screen: a p
   const lifted = [pt(10, 0), pt(-7, 4)].map(proj);
   for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) assert.ok(Math.abs(lifted[i]![j]! - landed[i]![j]!) < 1e-9, `point ${i} axis ${j}: ${lifted[i]![j]} against ${landed[i]![j]}`);
 });
+
+// Nothing of the sinusoid floats free of its cell (Mohammad, 20 Nov 2026: a small stray piece floating on the liver): every arm of the Kupffer cell and of the stellate cells (a tube out of a body)
+// starts inside its body, so its bounding box meets the body's. A tube whose root was left out of the body would float.
+function components(g: BufferGeometry): { min: Vector3; max: Vector3; verts: number }[] {
+  const idx = g.getIndex(), pos = g.getAttribute('position');
+  const n = pos.count, parent = Array.from({ length: n }, (_, i) => i);
+  const find = (a: number): number => { while (parent[a] !== a) { parent[a] = parent[parent[a]!]!; a = parent[a]!; } return a; };
+  if (idx) for (let i = 0; i < idx.count; i += 3) { const a = find(idx.getX(i)), b = find(idx.getX(i + 1)), c = find(idx.getX(i + 2)); parent[b] = a; parent[find(c)] = a; }
+  const by = new Map<number, { min: Vector3; max: Vector3; verts: number }>();
+  for (let v = 0; v < n; v++) {
+    const r = find(v), p = new Vector3(pos.getX(v), pos.getY(v), pos.getZ(v)), e = by.get(r) ?? { min: p.clone(), max: p.clone(), verts: 0 };
+    e.min.min(p); e.max.max(p); e.verts++; by.set(r, e);
+  }
+  return [...by.values()];
+}
+test('the Kupffer cell\'s arms and the stellate cells\' processes all reach their cell\'s body: no piece of the sinusoid floats free', () => {
+  const { s3 } = scene();
+  s3.update(true);
+  const ms = meshes(s3.group);
+  for (const name of ['sinusoid3d/kupffer', 'sinusoid3d/stellate']) {
+    const m = ms.find((x) => x.name === name)!, comps = components(m.geometry);
+    assert.ok(comps.length >= 2, `${name} has a body and arms`);
+    // bodies are the pieces with the most vertices; an arm (a tube) is a smaller piece that must touch one of them
+    const bodies = comps.filter((c) => c.verts >= 200), arms = comps.filter((c) => c.verts < 200);
+    assert.ok(bodies.length >= 1 && arms.length >= 2, `${name} has a body and arms (bodies ${bodies.length}, arms ${arms.length})`);
+    for (const a of arms) {
+      const touches = bodies.some((b) => a.min.x <= b.max.x && a.max.x >= b.min.x && a.min.y <= b.max.y && a.max.y >= b.min.y && a.min.z <= b.max.z && a.max.z >= b.min.z);
+      assert.ok(touches, `${name}: a piece of ${a.verts} vertices at (${a.min.x.toFixed(1)}, ${a.min.y.toFixed(1)}) floats free of every body`);
+    }
+  }
+});

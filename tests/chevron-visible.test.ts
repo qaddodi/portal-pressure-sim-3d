@@ -43,7 +43,7 @@ test('the heads follow the CHEV table: 55 percent of the lumen wide (4 px at lea
   assert.match(CHEVRON_GLSL, /float c = 1\.0 - smoothstep\(-0\.35 \* px, 0\.35 \* px, d\);/, 'an edge ramp of 0.7 px');
   assert.match(CHEVRON_GLSL, /float rw = 1\.0 \* px;/, 'a ring of 1 px at most, no halo');
   assert.match(VESSEL_FS, /chevInk\(cream, markDark, markLight\)/, 'the tone is the vessel\'s own latched ink');
-  assert.match(VESSEL_FS, /chevCreamSoft\(celTubeBase\(mix\(color, la\.rgb, la\.a\)\)\)/, 'and where there is none it follows the tube as drawn (celTubeBase)');
+  assert.match(VESSEL_FS, /chevCreamSoft\(celTubeBase\(mix\(col, la\.rgb, la\.a\)\)\)/, 'and where there is none it follows the tube as drawn (celTubeBase)');
   assert.match(MICRO_FS, /float hw = chevHw\(R, wpc\) \* chevSize\(kp\);/, 'the lobule\'s and the sinusoid\'s micro tubes take the same head');
   assert.match(MICRO_FS, /smoothstep\(1\.5 \* wpc, 2\.1 \* wpc, R\)/);
   for (const R of [1.6, 2, 2.5, 3, 3.3, 3.64, 4.5, 6, 12, 40]) {
