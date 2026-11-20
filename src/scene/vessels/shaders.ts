@@ -372,15 +372,16 @@ void main() {
   if (streakAmt > 0.001 && vR > 0.0) {
     vec4 smS = texelFetch(streamTex, ivec2(int(lensIndex), 0), 0);   // the blood's own distance and speed on this vessel: reversed runs back, none stands
     float rFix = max(radius * vU, 1e-3);   // (the vessel's own radius, not its live width: the pattern does not slip when a stenosis narrows it)
-    float sc = ${F(STREAK.FIELD_AT_R)} / rFix, nL = rFix >= ${F(STREAK.LANE_7)} ? ${F(STREAK.LANES)} : rFix >= ${F(STREAK.LANE_5)} ? 5.0 : 3.0;
+    float sc = ${F(STREAK.FIELD_AT_R)} / rFix;
     float rCss = vR / max(vW * 2.0 / (res.y * projY) * vU, 1e-6);
-    gStreakPx = rCss;
-    gStreakLanes = clamp(2.0 * floor((floor(2.0 * ${F(STREAK.FIELD_EDGE)} * rCss / ${F(STREAK.LANE_PX)}) - 1.0) * 0.5) + 1.0, 1.0, ${F(STREAK.LANES)});   // (the lanes by the width on screen: 1 to 7 of about LANE_PX px)   // (the lumen's radius in CSS px: the field holds a streak's core to MIN_PX where its lane allows)
-    float fld = streakField(across, vUv.x * len * vU * sc, smS.x * sc, nL * ${F(STREAK.FIELD_PITCH / 2)} + 0.01, 1.0, 1.0);
-    float sOn = streakAmt * smoothstep(1.8, 2.6, rCss) * smoothstep(0.02, 0.2, abs(smS.y));
+    gStreakPx = rCss;   // (the lumen's radius in CSS px: the field draws a core of CORE_PX on screen)
+    gStreakWide = smoothstep(${F(STREAK.WIDE_R_PX[0])}, ${F(STREAK.WIDE_R_PX[1])}, rCss);
+    gStreakLanes = rCss < ${F(STREAK.LANE_R_PX[0])} ? 1.0 : rCss < ${F(STREAK.LANE_R_PX[1])} ? 3.0 : 5.0;   // (the lanes by the width on screen: 1 under 8 px across, 3 to 16 px, 5 above)
+    float fld = streakField(across, vUv.x * len * vU * sc, smS.x * sc, 1.0, 1.0, 1.0);
+    float sOn = streakAmt * smoothstep(${F(STREAK.MIN_R_PX)}, ${F(STREAK.MIN_R_PX + 0.5)}, rCss) * smoothstep(0.02, 0.2, abs(smS.y));
     streakCover = sOn * fld;
     cBody = c;
-    c = mix(c, streakTone(c, mix(c, vec3(1.0), ${F(STREAK.LIFT)}), gStreakK.x, gStreakK.y), streakCover);
+    c = mix(c, streakTone(c, vec3(1.0), gStreakK.x, gStreakK.y), streakCover);
   }
 
   float vel = 0.0;

@@ -19,7 +19,7 @@ import { FADE_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 import { STREAK, STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
 /** The streak field's units to a tube radius, so a streak's mean length (FIELD_LEN) is LEN_OF_R radii, as the Anatomy's are. */
-const STREAK_FIELD_PER_R = (STREAK.FIELD_LEN[0] + STREAK.FIELD_LEN[1] / 2) / STREAK.LEN_OF_R;
+const STREAK_FIELD_PER_R = (STREAK.FIELD_LEN[0] + STREAK.FIELD_LEN[1] / 2) / STREAK.FIELD_LEN_R;
 
 const hexRGB = (h: string): [number, number, number] => { const n = parseInt(h.slice(1), 16); return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; };
 const F = (x: number): string => (Number.isInteger(x) ? x.toFixed(1) : String(x));
@@ -145,18 +145,17 @@ vec2 flowHeads() {
   float k = chevKeep(j, n0, lv) * smoothstep(2.4 * wpc, 3.2 * wpc, R);
   return chevHead(x, abs(vAcross) * R, hw, pxA, 0.0) * k;
 }
-// the streaks: THE ONE STREAK field (blood/streak-glsl.ts, the Anatomy's and the sinusoid's), sized on the SCREEN as the Anatomy's are: 3, 5 or 7 lanes by the tube's radius in CSS px, each streak about
-// 2.6 radii long (STREAK.LEN_OF_R), its core never under MIN_PX. A tube too thin on screen for three lanes (under 3 CSS px of radius: the bile, the lymph at the fit) carries one lane down its middle, so
-// every fluid is seen to move at any zoom. uFlowStreak: how strong (0 none: the Blood streaks setting off, or not this fluid).
+// the streaks: THE ONE STREAK field (blood/streak-glsl.ts, the Anatomy's and the sinusoid's), sized on the SCREEN as the Anatomy's are: 3, 5 or 7 lanes by the tube's radius in CSS px, each streak a long
+// soft lozenge (STREAK.FIELD_LEN_R radii), its core CORE_PX thick, one lane under 8 px across, three to 16 px, five above, none under 3.5 px. uFlowStreak: how strong (0 none: the Blood streaks setting off, or not this fluid).
 float flowStreaks() {
   if (uFlowStreak <= 0.0 || vAcross > 2.0) return 0.0;
   float R = max(uFlowR, 1e-5);
   float wpc = max(length(vec2(dFdx(vArc), dFdy(vArc))), 1e-7) * uDpr, rPx = R / wpc;
-  if (rPx < 0.8) return 0.0;
-  float lanes = rPx >= 10.0 ? 7.0 : rPx >= 6.0 ? 5.0 : 3.0, one = rPx < 3.0 ? 3.0 : 1.0;
-  float s = ${F(STREAK_FIELD_PER_R)} / R;   // field units per local unit: a streak's mean length about LEN_OF_R radii
-  gStreakPx = rPx * one;
-  return streakField(vAcross * one, vArc * s, uFlowT * s, lanes * 0.45 + 0.05, 1.0, 1.0) * uFlowStreak;
+  if (rPx < ${F(STREAK.MIN_R_PX)}) return 0.0;   // (a tube under 3.5 px across carries none)
+  float lanes = rPx < ${F(STREAK.LANE_R_PX[0])} ? 1.0 : rPx < ${F(STREAK.LANE_R_PX[1])} ? 3.0 : 5.0;   // (1 under 8 px across, 3 to 16 px, 5 above)
+  float s = ${F(STREAK_FIELD_PER_R)} / R;   // field units per local unit: a streak's mean length about FIELD_LEN_R radii
+  gStreakPx = rPx; gStreakLanes = lanes; gStreakWide = smoothstep(${F(STREAK.WIDE_R_PX[0])}, ${F(STREAK.WIDE_R_PX[1])}, rPx);
+  return streakField(vAcross, vArc * s, uFlowT * s, 1.0, 1.0, 1.0) * uFlowStreak;
 }
 #endif
 #ifdef GAPS
