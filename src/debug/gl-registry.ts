@@ -17,6 +17,7 @@ import { LOBULE_PLATE_FS, LOBULE_PLATE_VS } from '../scene/lobule/plate.ts';
 import { LOBULE_ZONES_FS, LOBULE_ZONES_VS } from '../scene/lobule/zones.ts';
 import { LOBULE_FIELD_FS, LOBULE_FIELD_VS } from '../scene/lobule/field.ts';
 import { AA_FS, AA_VS } from '../scene/post-aa.ts';
+import { CELLS_FS, CELLS_VS } from '../scene/blood/cells/shader.ts';
 
 /** Where the app's GLSL lives (a path under src/), and how its programs reach the check. A new file with a shader goes here, or the test fails. */
 export const GL_FILES: Record<string, string> = {
@@ -34,6 +35,7 @@ export const GL_FILES: Record<string, string> = {
   'scene/lobule/plate.ts': 'the lobule\'s tissue plate (2D\'s painter on a canvas texture): found on the scene graph',
   'scene/lobule/zones.ts': 'the lobule\'s Zones layer: found on the scene graph',
   'scene/lobule/field.ts': 'the neighbouring lobules out of focus: found on the scene graph',
+  'scene/blood/cells/shader.ts': 'the blood-cell particles (Settings > Figure depth; built when first switched on): registered by name, and found on the scene graph once they are in it',
   'scene/post-aa.ts': 'the anti-aliasing pass over the whole figure (FXAA on a full-screen quad, outside the scene graph): registered by name',
   'ui/charts/gl.ts': 'the charts\' shared drawer: registered by name',
   'ui/tests/copied/doppler-synth.copied.js': 'the Doppler spectrum: registered by name',
@@ -48,7 +50,7 @@ export function namedSources(): Map<string, string> {
   return new Map<string, string>([
     [bare(SINUSOID_VS), 'sinusoid'], [bare(SINUSOID_FS), 'sinusoid'], [bare(SINUSOID_PVS), 'sinusoid particles'], [bare(SINUSOID_PFS), 'sinusoid particles'],
     [VESSEL_VS, 'vessel'], [VESSEL_FS, 'vessel'], [TOON_VS, 'toon'], [TOON_FS, 'toon'], [INK_VS, 'ink'], [INK_FS, 'ink'], [LOBULE_TOON_VS, 'lobule toon'], [LOBULE_TOON_FS, 'lobule toon'], [LOBULE_INK_VS, 'lobule ink'], [LOBULE_INK_FS, 'lobule ink'],
-    [ORGAN_VS, 'organ wash'], [ORGAN_FS, 'organ wash'], [DYE_VS, 'dye overlay'], [DYE_FS, 'dye overlay'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [LOBULE_PLATE_VS, 'lobule plate'], [LOBULE_PLATE_FS, 'lobule plate'], [LOBULE_ZONES_VS, 'lobule zones'], [LOBULE_ZONES_FS, 'lobule zones'], [LOBULE_FIELD_VS, 'lobule field'], [LOBULE_FIELD_FS, 'lobule field'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'],
+    [ORGAN_VS, 'organ wash'], [ORGAN_FS, 'organ wash'], [DYE_VS, 'dye overlay'], [DYE_FS, 'dye overlay'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [LOBULE_PLATE_VS, 'lobule plate'], [LOBULE_PLATE_FS, 'lobule plate'], [LOBULE_ZONES_VS, 'lobule zones'], [LOBULE_ZONES_FS, 'lobule zones'], [LOBULE_FIELD_VS, 'lobule field'], [LOBULE_FIELD_FS, 'lobule field'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'], [CELLS_VS, 'blood cells'], [CELLS_FS, 'blood cells'],
   ]);
 }
 
@@ -59,6 +61,7 @@ export function rawPrograms(fibroText: string): Program[] {
     lateMaterialProgram('circuit resistors', RES_VS, RES_FS),
     lateMaterialProgram('dye overlay', DYE_VS, DYE_FS),
     lateMaterialProgram('organ wash', ORGAN_VS, ORGAN_FS),
+    lateMaterialProgram('blood cells', CELLS_VS, CELLS_FS),
     lateMaterialProgram('post aa', AA_VS, AA_FS),
     rawProgram('charts', CHART_VS, CHART_FS),
     rawProgram('doppler spectrum', SYNTH_VS, SYNTH_FS),
