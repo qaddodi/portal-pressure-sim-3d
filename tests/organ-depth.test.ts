@@ -68,24 +68,27 @@ test('a crease is tucked more than a flat or a bulge; where one organ meets anot
   assert.equal(avg(r.heart!), 0, 'the atrium is part of the heart: no contact between them');
 });
 
-test('with the switch off the shader adds nothing: the depth block is behind depthAmt, and the baked attribute defaults to 0', () => {
+test('with the switch off the organ is its one flat base tone: the light and shade bands are scaled by depthAmt, and the baked attribute defaults to 0', () => {
   assert.match(ORGAN_FS, /uniform float depthAmt;/);
-  assert.match(ORGAN_FS, /if \(depthAmt > 0\.001\) \{/);
-  // everything the depth adds is inside that block and scaled by depthAmt; the wash above it is untouched
-  const block = ORGAN_FS.slice(ORGAN_FS.indexOf('if (depthAmt > 0.001)'), ORGAN_FS.indexOf('// Cel shaded: the wash'));
-  assert.equal((block.match(/depthAmt/g) ?? []).length, 3);
-  assert.match(block, /fill = mix\(fill, ogDark\.rgb,.*\* depthAmt\)/);
-  assert.match(block, /fill = mix\(fill, ogLight\.rgb,.*\* depthAmt\)/);
+  // both bands' weights carry depthAmt, so at 0 every band weight but the base is 0 and the fill is exactly the base tone; between, the bands fade, they never snap
+  assert.match(ORGAN_FS, /float litW = smoothstep\(ORG_LIT_AT - e, ORG_LIT_AT \+ e, s\) \* depthAmt;/);
+  assert.match(ORGAN_FS, /float shadeW = \(1\.0 - smoothstep\(ORG_SHADE_AT - e, ORG_SHADE_AT \+ e, s\)\) \* depthAmt;/);
   assert.match(ORGAN_VS, /attribute float depthAo;/);
   assert.match(ORGAN_VS, /vAo = depthAo;/);
-  // palette tokens only: the colours it mixes are the look's og-dark and og-light, no literal colours
-  assert.doesNotMatch(block, /vec3\(\s*[01]\.\d+\s*,\s*[01]\.\d+\s*,\s*[01]\.\d+\s*\)\s*[,)]\s*[^;]*depthAmt/);
+  // the contact shade (the baked tuck) lowers the one lighting signal, so a tucked place drops a band instead of being painted a darker gradient
+  assert.match(ORGAN_FS, /float s = dot\(normalize\(vNw\), LIGHT\) - ORG_TUCK \* clamp\(vAo, 0\.0, 1\.0\);/);
 });
 
-test('the organ fill is the see-through wash only: the layer\'s opacity, no cel branch, no solid uniform', () => {
-  assert.doesNotMatch(ORGAN_FS, /uniform float solid;|celBands|celBase|uniform float wash;/, 'no cel fill and no wash switch');
-  assert.match(ORGAN_FS, /gl_FragColor = vec4\(fill, layer \* fade \* win\)/);
-  assert.doesNotMatch(ORGAN_FS, /mix\(page, fill, layer\)/);
+test('the organ fill is cel: three flat tones from one quantised signal, derivative edges only, no gradient, no wash, no layer blend', () => {
+  const fs = ORGAN_FS.replace(/\/\/[^\n]*/g, '');
+  assert.match(fs, /float e = max\(0\.5 \* ORG_EDGE_PX \* fwidth\(s\), 1e-4\);/, 'the edge is the derivative, a device pixel wide');
+  assert.match(fs, /vec3 fill = organTone\(o1, o2\);/);
+  assert.match(fs, /gl_FragColor = vec4\(fill, fade \* win\)/, 'opaque but for the dive and the fades');
+  // what the old painter did and the cel does not: the box gradient, the radial volume, the inner shade strokes, the rim light, the soft depth ramps, the layer's blend
+  assert.doesNotMatch(fs, /vBox|volLight|volShade|volGeo|shadeSteps|rimK|uniform float layer|mix\(o1, o2|ogDark\.a \* k|smoothstep\(0\.2 - wa/, 'no gradient, no wash layers');
+  // the three authored tones are the only fill colours; a band's weight is a smoothstep of the signal, and the weights sum to 1
+  assert.match(fs, /gBand = vec3\(shadeW, 1\.0 - shadeW - litW, litW\)/);
+  assert.match(fs, /vec3 organTone\(vec3 lit, vec3 shade\) \{ return shade \* gBand\.x \+ mix\(lit, shade, 0\.5\) \* gBand\.y \+ lit \* gBand\.z; \}/);
 });
 
 async function sceneWithOrgans() {
@@ -123,9 +126,8 @@ test('every organ carries the baked byte, as a normalized attribute, and the sha
   useSettings.getState().set('organDepth', true);
   for (let t = 4016; t < 8000 && organs.update(t); t += 16);
   assert.ok(u('depthAmt').every((v) => v === 1), 'depth on again');
-  // the layer's own opacity never changes with either setting
-  const layers = organs.objects.map((o) => o.toon.uniforms.layer!.value as number);
-  assert.ok(layers.every((v) => v > 0 && v < 1), 'the see-through opacity logic is untouched');
+  // the fill is opaque whatever the setting: there is no layer uniform to ease, and the outline's alpha is its own
+  assert.ok(organs.objects.every((o) => !o.toon.uniforms.layer), 'no see-through layer');
   moving = organs.update(16100);
   assert.equal(moving, false, 'nothing eases once settled: no frames asked for');
   un();

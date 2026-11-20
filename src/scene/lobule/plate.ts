@@ -75,6 +75,7 @@ export const LOBULE_PLATE_FS = /* glsl */ `
 ${CEL_TISSUE_GLSL}
 uniform sampler2D map;
 uniform float opacity;
+uniform float uDpr;   // the renderer's pixel ratio (micro3d/cel3d.ts MICRO_DPR): the clean line is LINE_MIN CSS px on every screen
 uniform vec3 ink;   // 2D's casing over the cell colour: the colour of the clean line on every strong edge (cel.ts)
 varying vec2 vUv;
 void main() {
@@ -86,9 +87,9 @@ void main() {
   float lb = celLight(m.rgb / max(m.a, 1e-3));
   float dv = (celLight(c) - lb) / max(lb, 0.08);
   c = celTissue(c, lb, max(fwidth(dv) * CEL_EDGE_PX * 1.5, 1e-3));
-  // the clean ink: every strong edge of the painting takes 2D's casing line, LINE_MIN device px across
+  // the clean ink: every strong edge of the painting takes 2D's casing line, LINE_MIN CSS px across
   vec2 uvPerPx = vec2(length(vec2(dFdx(vUv.x), dFdy(vUv.x))), length(vec2(dFdx(vUv.y), dFdy(vUv.y))));
-  c = mix(c, ink, smoothstep(CEL_EDGE_LO, CEL_EDGE_HI, celEdge(map, vUv, uvPerPx)));
+  c = mix(c, ink, smoothstep(CEL_EDGE_LO, CEL_EDGE_HI, celEdge(map, vUv, uvPerPx, uDpr)));
   gl_FragColor = vec4(c * p.a, p.a) * opacity;
 }`;
 

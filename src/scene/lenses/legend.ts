@@ -4,8 +4,9 @@
 import { LENS_SHARED, LENS_TOKENS } from './tokens.copied.ts';
 import { LENS_WORDS } from './words.copied.ts';
 import { type LensId, HEAT_MAX, flowPos, oxygenPos } from './model.ts';
-import { type Rgb, hexToRgb01, rgb01ToHex, sampler } from './oklab.ts';
+import { type Rgb, delta3, hexToRgb01, rgb01ToHex, sampler } from './oklab.ts';
 import type { LookId } from '../palette.ts';
+import { figureHex } from '../vessels/cel-ink.ts';
 
 export interface LegendNum { at: number; text: string; optional?: boolean }
 export interface LegendDot { colour: string; name: string; title: string }
@@ -40,16 +41,24 @@ export function refWords(ref: string) {
   };
 }
 
-/** Gradient stops (css colour, percent) of a ramp in a look, 11 evenly (the 2D bar), in OKLab. `max` is the ramp position at the bar's right end. */
+/** Gradient stops (css colour, percent) of a ramp in a look, 11 evenly (the 2D bar), in OKLab. `max` is the ramp position at the bar's right end. Every colour is run through the vessels' own transform (figureHex,
+ *  cel-ink.ts celTubeBase: saturated, deep, capped) AFTER the ramp is read, so a key never shows a colour the vessels do not wear (the pale end of the pressure ramp, the dark looks' brighter caps): ONE place for the bar,
+ *  the lens menu's swatch and the action card's strip. */
 export function rampStops(look: LookId, name: 'pressure' | 'flow' | 'velocity' | 'heat' | 'drop' | 'oxygen', max: number, n = 11): [string, number][] {
   const s = sampler(LENS_TOKENS[look][name]);
-  return Array.from({ length: n }, (_, i) => [rgb01ToHex(s.at((i / (n - 1)) * max, [0, 0, 0])), (i / (n - 1)) * 100]);
+  return Array.from({ length: n }, (_, i) => [figureHex(rgb01ToHex(s.at((i / (n - 1)) * max, [0, 0, 0])), look), (i / (n - 1)) * 100]);
+}
+/** The Change lens's bar: the figure's own three-colour scale (sRGB, as delta3), read at 11 steps and put through the same transform as the vessels (the three stops alone would be blended AFTER the caps). */
+function deltaStops(look: LookId, n = 11): [string, number][] {
+  const lo = hexToRgb01(LENS_SHARED.deltaLow), mid = hexToRgb01(LENS_SHARED.deltaMid), hi = hexToRgb01(LENS_SHARED.deltaHigh), c: Rgb = [0, 0, 0];
+  return Array.from({ length: n }, (_, i) => [figureHex(rgb01ToHex(delta3(lo, mid, hi, (i / (n - 1)) * 2 - 1, 1, c)), look), (i / (n - 1)) * 100]);
 }
 
 export function legendFor(lens: LensId, look: LookId, ref = 'healthy'): LegendSpec {
   const w = refWords(ref);
   const hex = (r: Rgb) => rgb01ToHex(r);
-  const flowDot = (c: string) => hex(hexToRgb01(c));
+  const flowDot = (c: string) => figureHex(hex(hexToRgb01(c)), look);
+  const dot = (c: string) => (c ? figureHex(c, look) : c);   // (a dot is a vessel's colour: the figure's, not the raw token)
   switch (lens) {
     case 'pressure':
       return { lens, name: lensTitle('pressure'), title: ['Mean venous pressure', 'mmHg'], caption: ['Pressure', 'mmHg'],
@@ -81,26 +90,26 @@ export function legendFor(lens: LensId, look: LookId, ref = 'healthy'): LegendSp
     case 'origin': {
       const names: [string, string][] = [['SMV', 'Superior mesenteric vein (and the coronary vein)'], ['IMV', 'Inferior mesenteric vein'], ['SV', 'Splenic venous blood'], ['HA', 'Hepatic arterial blood'], ['Sys', 'Systemic venous blood']];
       const order = [0, 1, 2, 4, 3];
-      return { lens, name: lensTitle('origin'), dots: order.map((i) => ({ colour: LENS_SHARED.origin[i]!, name: names[i]![0], title: names[i]![1] })),
+      return { lens, name: lensTitle('origin'), dots: order.map((i) => ({ colour: dot(LENS_SHARED.origin[i]!), name: names[i]![0], title: names[i]![1] })),
         aria: 'Legend: blood colored by where it comes from, as streams side by side: amber SMV (with the coronary vein), teal IMV, violet SV (splenic vein), slate blue Sys (systemic), crimson HA (hepatic artery)' };
     }
     case 'firstpass':
       return { lens, name: lensTitle('firstpass'), dotsTitle: 'Splanchnic blood by its route: Raw has not passed the sinusoids, Clear has. Not an ammonia level',
         dots: [
-          { colour: LENS_SHARED.firstPassRaw, name: 'Raw', title: 'Splanchnic blood that has not passed the sinusoids: it keeps this color in a collateral, a shunt or a stent' },
-          { colour: LENS_SHARED.firstPassClear, name: 'Clear', title: 'Splanchnic blood after the sinusoids' },
-          { colour: LENS_SHARED.origin[3], name: 'HA', title: 'Hepatic arterial blood' },
-          { colour: LENS_SHARED.origin[4], name: 'Sys', title: 'Systemic venous blood' }],
+          { colour: dot(LENS_SHARED.firstPassRaw), name: 'Raw', title: 'Splanchnic blood that has not passed the sinusoids: it keeps this color in a collateral, a shunt or a stent' },
+          { colour: dot(LENS_SHARED.firstPassClear), name: 'Clear', title: 'Splanchnic blood after the sinusoids' },
+          { colour: dot(LENS_SHARED.origin[3]), name: 'HA', title: 'Hepatic arterial blood' },
+          { colour: dot(LENS_SHARED.origin[4]), name: 'Sys', title: 'Systemic venous blood' }],
         aria: 'Legend: splanchnic blood colored by whether it has passed through the liver. Orange Raw: splanchnic blood that has not passed the sinusoids, including blood that took a collateral, a shunt or a stent. Teal Clear: splanchnic blood after the sinusoids. Crimson HA: hepatic artery blood. Slate blue Sys: systemic venous blood. This shows the route the blood took, not an ammonia level' };
     case 'neutral':
       return { lens, name: 'Anatomy', dots: [{ colour: '', name: 'Portal veins', title: '' }, { colour: '', name: 'Systemic veins', title: '' }], note: 'Pressures unmeasured',
         aria: 'Legend: violet portal veins, blue systemic veins. Pressures are unmeasured in this case: investigate with the tools.' };
     case 'system':
-      return { lens, name: 'System', dots: [{ colour: LENS_TOKENS[look].trPv, name: 'Portal', title: '' }, { colour: LENS_TOKENS[look].trIvc, name: 'Systemic', title: '' }, { colour: LENS_TOKENS[look].trVar, name: 'Collateral or shunt', title: '' }],
+      return { lens, name: 'System', dots: [{ colour: dot(LENS_TOKENS[look].trPv), name: 'Portal', title: '' }, { colour: dot(LENS_TOKENS[look].trIvc), name: 'Systemic', title: '' }, { colour: dot(LENS_TOKENS[look].trVar), name: 'Collateral or shunt', title: '' }],
         aria: 'Legend: the three vein systems: portal, systemic, and the collaterals and shunts between them' };
     default: // 'delta' and 'since': Change
       return { lens, name: lensTitle('delta'), title: [w.deltaTitle, 'mmHg'], caption: ['Change', 'mmHg'],
-        bar: { stops: [[LENS_SHARED.deltaLow, 0], [LENS_SHARED.deltaMid, 50], [LENS_SHARED.deltaHigh, 100]], nums: [{ at: 0, text: '−12' }, { at: 50, text: '0' }, { at: 100, text: '+12' }], ticks: [50] },
+        bar: { stops: deltaStops(look), nums: [{ at: 0, text: '−12' }, { at: 50, text: '0' }, { at: 100, text: '+12' }], ticks: [50] },
         aria: w.deltaAria };
   }
 }

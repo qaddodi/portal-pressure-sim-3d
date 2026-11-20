@@ -20,10 +20,12 @@ export const CEL_STYLE = {
   /** How strong each tone is: the shade takes this share off the base (x 1 - SHADE), the lit lifts this share toward white. */
   SHADE: 0.38,   // (2D: 0.17)
   LIT: 0.3,   // (2D: 0.15)
-  /** The ink line, in device px: LINE_R of the radius held between LINE_MIN and LINE_MAX (2D). */
+  /** The ink line, in CSS px (never device px): LINE_R of the radius (a radius in CSS px too) held between LINE_MIN and LINE_MAX. A device-px clamp drew the same line 1.17 CSS px wide on a 3x iPhone and 3.5 CSS px on a 1x
+   *  screen (external review, 20 Nov), so every shader converts with the renderer's pixel ratio (`dpr`) and the line is the same weight on every screen. 1.6 / 3 CSS px are 3.2 / 6 device px on a 2x Mac, where the 20 Nov figure was
+   *  approved ("veins outlines should be thicker in general everywhere"; it was 3.5 / 6 device px). */
   LINE_R: 0.3,   // (2D: 0.14; 0.2 until Mohammad, 20 Nov: "veins outlines should be thicker in general everywhere")
-  LINE_MIN: 3.5,   // (2D: 1.5; a thin vessel's line thins with its lumen under this radius, cel-ink.ts inkTaper, so it never swallows the vessel)
-  LINE_MAX: 6.0,
+  LINE_MIN: 1.6,   // CSS px (2D: 1.5; a thin vessel's line thins with its lumen under this radius, cel-ink.ts inkTaper, so it never swallows the vessel)
+  LINE_MAX: 3.0,   // CSS px (2D: 3)
   /** The ink's least alpha on every look (2D's casing is .64 on Light and .3 on Dark: a line that fades into the page is not a toon line). */
   INK_ALPHA_MIN: 1.0,
   /** A band's edge is this many device px across in each direction: crisp, antialiased by fwidth, never a gradient. */
@@ -49,6 +51,12 @@ export const CEL_STYLE = {
    *  EDGE_LO / EDGE_HI: the lightness jump over one device pixel from which a line is inked on the lobule's plate (a membrane is under, a cell's outline over); SIN_EDGE_LO / SIN_EDGE_HI the same as a share of the lightness on the sinusoid.
    *  Those two pairs are the painted lines' own contrast, so they do not move with SHADE (a stronger tone must not unink the cell outlines). */
   TISSUE: { SHADE_AT: -0.15, LIT_AT: 0.15, DETAIL: 0.5, EDGE_LO: 0.05, EDGE_HI: 0.12, SIN_EDGE_LO: 0.34, SIN_EDGE_HI: 0.51 },
+  /** The ORGANS: three authored tones (the look's own lit, base and shade tones; palette.ts organs.tones) cut from ONE quantised lighting signal, never a gradient (external review, 20 Nov: "the organ shader starts with continuous colour interpolation, adds radial
+   *  light/shade and then overlays further shading"; Mohammad: "let's do the ones that fit my rules"). The signal is n.L against the world LIGHT (organ normals are in world axes, so the camera changes nothing), lowered by TUCK x the baked contact
+   *  shade (organ-depth.ts) where two organs meet. Its two edges sit at SHADE_AT and LIT_AT (the same -1..1 measure as above, but a pillow's face-on normal is n.L 0.6, so the base band is wide and the lit and shade ones are the shoulders);
+   *  SPREAD widens the lit and shade tones about the base (x the authored distance, so a step reads on every look); each is EDGE_PX device px across, antialiased by the derivative and nowhere else. The fill is OPAQUE (no layer alpha: organs hide each other by depth, the way the figure's solids do) and the outline is its own colour at INK_A
+   *  (the right atrium's is fainter because it is part of the heart, the gut's because 2D draws the gut as a quiet background), never premixed against the page. */
+  ORGAN: { SHADE_AT: 0.3, LIT_AT: 0.85, TUCK: 0.6, SPREAD: 1.5, INK_A: 1.0, INK_A_GUT: 0.7, INK_A_ATRIUM: 0.35 },
   /** The true-3D lobule and sinusoid (micro3d/, Settings > Figure depth > 3D lobule and sinusoid): solid shapes lit by the one world LIGHT, EXACTLY TWO flat tones (the base and a shade, one hard edge at VESSEL_STEP_AT, no lit tone
    *  toward white, no gloss) and a bold ink round every shape. The shade is a little stronger than the vessels' on the cell's small forms (a bevel, a nucleus's dome, the trough of the lumen) so they read as form. */
   MICRO: {

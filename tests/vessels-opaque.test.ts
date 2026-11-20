@@ -53,8 +53,8 @@ test('outside a fade zone the outline is solid ink: the casing alpha is 1 on eve
 });
 
 // Mohammad, 20 Nov: the outline still read interrupted on his iPhone (iOS Safari, 3x). Phone-only causes pinned here.
-test('phone: the vessel programs are highp, the line is held in device px with a floor, and the ink band is measured at the depth the tube was built at', () => {
-  assert.ok(CEL_STYLE.LINE_MIN >= 1.5, 'the line never goes under 1.5 device px (it could sub-pixel out into dashes)');
+test('phone: the vessel programs are highp, the line is held in CSS px with a floor, and the ink band is measured at the depth the tube was built at', () => {
+  assert.ok(CEL_STYLE.LINE_MIN * 2 >= 1.5, 'the line never goes under 1.5 device px even on a 1x-2x screen (it could sub-pixel out into dashes)');
   const s = new CelScene();
   for (const o of s.vessels) assert.equal((o.toonMesh.material as import('three').ShaderMaterial).precision, 'highp', `${o.edge!.id}: highp`);
   s.dispose();

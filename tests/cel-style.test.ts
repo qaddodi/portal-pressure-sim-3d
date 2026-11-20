@@ -11,7 +11,7 @@ test('the figure has one cel style: three tones, and the vessels read every numb
   // the relationships a toon look needs, whatever the numbers: the tones are told apart, the shade side is wide, the line is bold and its floor is under its cap, a band edge is under a pixel
   assert.ok(SHADE_AT < 0 && LIT_AT > SHADE_AT && LIT_AT < 1, 'three bands in order inside -1..1');
   assert.ok(SHADE >= 0.3 && LIT >= 0.2, 'tones clearly different, not soft shading');
-  assert.ok(LINE_MIN >= 2 && LINE_MIN < LINE_MAX && CEL_STYLE.INK_ALPHA_MIN >= 0.85 && CEL_STYLE.EDGE_PX <= 1);
+  assert.ok(LINE_MIN >= 1.5 && LINE_MIN < LINE_MAX && CEL_STYLE.INK_ALPHA_MIN >= 0.85 && CEL_STYLE.EDGE_PX <= 1);
   assert.equal(CEL_STYLE.VESSEL_BANDS, 2, 'a vessel is two flat tones (lit and shade), not glassy');
   assert.ok(CEL_STYLE.VESSEL_STEP_AT > SHADE_AT && CEL_STYLE.VESSEL_STEP_AT < LIT_AT);
 });

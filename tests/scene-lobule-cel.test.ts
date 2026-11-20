@@ -56,7 +56,7 @@ test('the shaders read the figure\'s numbers: tone strengths, where the tones ch
 
 test('the plate is cel shaded with clean ink; the neighbours are cel shaded and quieter (no ink); the Zones are three hard zones with a line', () => {
   assert.match(LOBULE_PLATE_FS, /celTissue\(/);
-  assert.match(LOBULE_PLATE_FS, /celEdge\(map/);
+  assert.match(LOBULE_PLATE_FS, /celEdge\(map, vUv, uvPerPx, uDpr\)/, 'the clean line is LINE_MIN CSS px: the pixel ratio comes in');
   assert.match(LOBULE_PLATE_FS, /uniform vec3 ink/);
   assert.match(LOBULE_FIELD_FS, /celTissue\(/);
   assert.doesNotMatch(LOBULE_FIELD_FS, /celEdge\(tile/, 'the neighbours carry no ink');

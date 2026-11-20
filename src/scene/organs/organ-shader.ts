@@ -1,8 +1,10 @@
-// The organs' own fill: 2D's three-tone organ painter (the #og-<organ> gradient, the og-vol radial, the inner shade strokes s1..s3 and the top-left rim light),
-// laid at the organ layer's opacity over whatever is behind (atlas-look-plan.md 2.5 and 2.6; the visual review's 2.1 to 2.4). layer.ts blends the organs in 2D's order,
-// each once per pixel, so they show through each other as 2D's groups do. Plain strings so the tests can read them without a GPU.
+// The organs' own fill: CEL. Three authored tones (the look's lit, base and shade tones of the organ, palette.ts organs.tones) cut from one quantised lighting signal (n.L in the world,
+// less the baked contact shade), flat everywhere and antialiased by the derivative at the band edges only (cel-style.ts CEL_STYLE.ORGAN). It replaces 2D's painter (the #og gradient, the
+// og-vol radial, the inner shade strokes and the rim light), which was a continuous gradient under layered washes (external review, 20 Nov). The fill is opaque; the outline is its own
+// ink (ORGAN_INK_VS + INK_FS), never premixed against the page. Plain strings so the tests can read them without a GPU.
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
+import { CEL_STYLE } from '../cel-style.ts';
 
 const num = (n: number) => (Number.isInteger(n) ? `${n}.0` : String(n));
 
@@ -44,20 +46,13 @@ void main() {
 
 export const ORGAN_FS = /* glsl */ `
 ${FADE_GLSL}
-uniform vec3 o1;
-uniform vec3 o2;
+uniform vec3 o1;         // the look's LIT tone of this organ (its lighter authored tone)
+uniform vec3 o2;         // its SHADE tone (the darker one); the base tone is halfway between them (and is 'color')
 uniform vec3 o3;
 uniform vec3 color;
 uniform vec4 ogLight;
 uniform vec4 ogDark;
-uniform vec4 volLight;   // see-through fill: #ogVol's light stop (--light-ink and its opacity)
-uniform vec4 volShade;   // its shade stop: --og-vol-shade and its opacity
-uniform vec4 volGeo;     // its centre (cx, cy), radius, and the offset where the light has ended
-uniform float volShadeAt;
-uniform vec3 shadeSteps; // the inner shade's three strokes' opacities (the right atrium's are fainter)
-uniform float rimK;      // the rim light's opacity (0 on the liver and the stomach: too shiny, owner 20 Nov)
 uniform vec3 page;
-uniform float layer;
 uniform float inkAmount;
 // the liver look (liver-texture.ts): R septum, G tone, B light; nodAmt 0 when the organ has none
 uniform sampler2D nodTex;
@@ -65,7 +60,7 @@ uniform float nodAmt;
 uniform vec3 sepDelta;
 uniform vec2 nodK;
 varying vec2 vRest;
-// Settings > Figure depth: organDepth (0 off, 1 on, eased) adds the baked crease and contact shade and a soft light from the upper left
+// Settings > Figure depth > Organ depth: depthAmt (0 off, 1 on, eased) is how much of the light and shade the organ wears: 0 is its one flat base tone, 1 the three tones and the contact shade
 uniform float depthAmt;
 // the dive's cutaway window (atlas-look-plan 3.1): x, y the dive point on the screen (ndc), z the radius that is cleared (ndc half-heights; below 0 nothing is), w the aspect; the same for every organ
 uniform vec4 cut;
@@ -76,21 +71,30 @@ varying vec3 vInk;
 varying vec3 vN;
 varying vec3 vNw;
 varying vec3 vV;
-varying vec2 vBox;
 varying float vAo;
 const vec3 LIGHT = vec3(${ORGAN_LIGHT.map((v) => num(v)).join(', ')});   // (normalized here, not by a constant expression in GLSL: one less thing a phone's compiler can refuse)
+const float ORG_SHADE_AT = ${num(CEL_STYLE.ORGAN.SHADE_AT)};
+const float ORG_LIT_AT = ${num(CEL_STYLE.ORGAN.LIT_AT)};
+const float ORG_TUCK = ${num(CEL_STYLE.ORGAN.TUCK)};
+const float ORG_EDGE_PX = ${num(CEL_STYLE.EDGE_PX)};
+// how much of each tone this pixel wears (x shade, y base, z lit; they sum to 1): flat everywhere except across a band's edge, one device pixel wide. The art patch (organ-art.ts) reads it to put the esophagus's own tones in the same bands.
+vec3 gBand = vec3(0.0, 1.0, 0.0);
+vec3 organTone(vec3 lit, vec3 shade) { return shade * gBand.x + mix(lit, shade, 0.5) * gBand.y + lit * gBand.z; }
 void main() {
-  // the window: the wash clears round the dive point, soft at its edge, so the lobule shows inside
+  // the window: the fill clears round the dive point, soft at its edge, so the lobule shows inside
   vec2 q = vClip.xy / vClip.w - cut.xy;
   float win = smoothstep(cut.z, cut.z + 0.3, length(vec2(q.x * cut.w, q.y)));
   if (win < 0.004) discard;
-  vec3 n = normalize(vN);
-  // the gradient from the box's (.15,0) to (.85,1)
-  vec2 g = vec2(0.7, 1.0);
-  float t = clamp(dot(vBox - vec2(0.15, 0.0), g) / dot(g, g), 0.0, 1.0);
-  vec3 fill = mix(o1, o2, t);
+  // THE LIGHTING SIGNAL, one number: n.L against the world light (the camera never changes it; tilting and orbiting leave every shade alone), lowered where the baked contact shade says this
+  // vertex is tucked in between organs. Everything below is a hard step of it: nothing is mixed continuously over the surface.
+  float s = dot(normalize(vNw), LIGHT) - ORG_TUCK * clamp(vAo, 0.0, 1.0);
+  float e = max(0.5 * ORG_EDGE_PX * fwidth(s), 1e-4);   // derivative antialiasing: the edge is one device pixel wide, at the band edges only
+  float litW = smoothstep(ORG_LIT_AT - e, ORG_LIT_AT + e, s) * depthAmt;
+  float shadeW = (1.0 - smoothstep(ORG_SHADE_AT - e, ORG_SHADE_AT + e, s)) * depthAmt;
+  gBand = vec3(shadeW, 1.0 - shadeW - litW, litW);   // (the two edges are 0.55 apart in s and about a pixel wide: both are never inside one)
+  vec3 fill = organTone(o1, o2);
 #ifdef VERTEX_INK
-  // what varies over the surface (nodules, the dead spleen, the pool) moves the fill by as much as it moves the organ's one colour
+  // what varies over the surface (nodules, the dead spleen, the pool) moves every tone by as much as it moves the organ's one colour
   fill += (vInk - color) * inkAmount;
 #endif
   if (nodAmt > 0.0) {
@@ -100,42 +104,8 @@ void main() {
     float nl = (nt.b - 0.5) * 2.0;
     fill = mix(fill, nl > 0.0 ? ogLight.rgb : ogDark.rgb, abs(nl) * nodK.x * nodAmt * (1.0 - nt.r));
   }
-  // #ogVol (2D stage.js): --light-ink at its first stop's opacity from the centre out to the light's end, then --og-vol-shade from its start to the rim
-  float r = distance(vBox, volGeo.xy) / volGeo.z;
-  fill = mix(fill, volLight.rgb, volLight.a * (1.0 - clamp(r / volGeo.w, 0.0, 1.0)));
-  fill = mix(fill, volShade.rgb, volShade.a * clamp((r - volShadeAt) / (1.0 - volShadeAt), 0.0, 1.0));
-  // the inner shade: three soft steps of the turn away from the eye (2D strokes 30/18/8 px)
-  // (the turn is measured against the figure's own facing axis (+z in the world), not the camera's: tilting or orbiting must never change an organ's shading, Mohammad 20 Nov 2026
-  //  "when i tilt, the organs and everything loses shading or becomes darker"; at the rest view the eye is on that axis, so the look there is exactly 2D's)
-  vec3 nw = normalize(vNw);
-  float ndv = clamp(nw.z, 0.0, 1.0);
-  float turn = 1.0 - ndv;
-  float w = max(fwidth(turn), 1e-4);
-  // the steps stack as 2D's strokes do (each over the last), at og-dark's own alpha, and sit on the lower right edge: 2D moves its shade
-  // strokes by (-3.5, -5) inside the organ's clip, so the upper left edge gets almost none
-  vec2 side = length(nw.xy) > 1e-4 ? normalize(nw.xy) : vec2(0.0);
-  float lowerRight = smoothstep(-0.35, 0.65, dot(side, vec2(0.57, -0.82)));
-  float k = 1.0 - (1.0 - shadeSteps.x * smoothstep(0.45 - w, 0.45 + w, turn)) * (1.0 - shadeSteps.y * smoothstep(0.68 - w, 0.68 + w, turn)) * (1.0 - shadeSteps.z * smoothstep(0.86 - w, 0.86 + w, turn));
-  fill = mix(fill, ogDark.rgb, ogDark.a * k * lowerRight);
-  // the rim light on the edge that faces the top left
-  float lit = smoothstep(0.62, 0.8, turn) * clamp(dot(side, vec2(-0.6, 0.8)), 0.0, 1.0);
-  fill = mix(fill, ogLight.rgb, ogLight.a * rimK * lit);
-  // Organ depth (a step beyond 2D; with depthAmt 0 nothing below runs and the fill is exactly the wash above). Three soft steps, in the look's own tones:
-  // the baked tuck (creases, where one organ meets another) in og-dark, the side turned from a light at the upper left of the screen in og-dark, the side facing it in og-light
-  // (the tuck keeps the light out). One baked byte per vertex and one dot: no texture, no pass.
-  if (depthAmt > 0.001) {
-    float ao = clamp(vAo, 0.0, 1.0);
-    float wa = 0.12;
-    float tuck = (smoothstep(0.2 - wa, 0.2 + wa, ao) + smoothstep(0.5 - wa, 0.5 + wa, ao) + smoothstep(0.8 - wa, 0.8 + wa, ao)) * (1.0 / 3.0);
-    float lam = dot(normalize(vNw), LIGHT);   // n.L in the world: the camera never changes it
-    float wl = 0.08 + fwidth(lam);
-    float away = 1.0 - smoothstep(0.3 - wl, 0.3 + wl, lam);
-    float toward = smoothstep(0.7 - wl, 0.7 + wl, lam) * (1.0 - ao);
-    fill = mix(fill, ogDark.rgb, clamp(ogDark.a * (1.5 * tuck + 0.6 * away), 0.0, 1.0) * depthAmt);
-    fill = mix(fill, ogLight.rgb, clamp(ogLight.a * 0.5 * toward, 0.0, 1.0) * depthAmt);
-  }
-  // the organ lies on whatever is behind it at the layer's opacity, as 2D's organ groups do (blended in 2D's order: layer.ts); the dive fades the layer, no dots.
-  gl_FragColor = vec4(fill, layer * fade * win);
+  // opaque: the organ hides what is behind it by depth (the blend is only the dive's and the fades', never a see-through layer)
+  gl_FragColor = vec4(fill, fade * win);
 }`;
 
 /** The organ outline: the hull's width in the figure's units (2D's .org-line is 1.1 SVG units, the kidney 1.4), so it scales with the figure as 2D's does,

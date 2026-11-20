@@ -25,7 +25,7 @@ const headShown = (R: number): number => smooth(CHEV.MIN_R_PX, CHEV.MIN_R_PX + 0
 const len = (pts: readonly (readonly number[])[]): number => { let s = 0; for (let i = 1; i < pts.length; i++) s += Math.hypot(pts[i]![0]! - pts[i - 1]![0]!, pts[i]![1]! - pts[i - 1]![1]!); return s; };
 const hex = (c: readonly number[]) => '#' + c.map((v) => Math.round(Math.min(255, Math.max(0, v * 255))).toString(16).padStart(2, '0')).join('');
 const h2 = (s: string): [number, number, number] => [1, 3, 5].map((i) => parseInt(s.slice(i, i + 2), 16) / 255) as [number, number, number];
-/** The twin of chevInk (blood/chevron-glsl.ts): near black on a lit tone lighter than 0.26 (linear luminance), cream on a darker one. */
+/** The head's tone on a vessel of ONE colour (the latch's first decision, lenses/chevron-ink.ts, and 2D's step): near black on a lit tone lighter than 0.26 (linear luminance), cream on a darker one. */
 const chevCore = (lit: readonly number[]): [number, number, number] => {
   const L = 0.2126 * lit[0]! ** 2.2 + 0.7152 * lit[1]! ** 2.2 + 0.0722 * lit[2]! ** 2.2;
   const dark = h2(LENS_SHARED.chevron), light = h2(LENS_SHARED.chevronLight);
@@ -42,7 +42,8 @@ test('the heads follow the CHEV table: 55 percent of the lumen wide (4 px at lea
   assert.match(CHEVRON_GLSL, /float L = 2\.8 \* hw, tip = 0\.55 \* L/);
   assert.match(CHEVRON_GLSL, /float c = 1\.0 - smoothstep\(-0\.35 \* px, 0\.35 \* px, d\);/, 'an edge ramp of 0.7 px');
   assert.match(CHEVRON_GLSL, /float rw = 1\.0 \* px;/, 'a ring of 1 px at most, no halo');
-  assert.match(VESSEL_FS, /chevInk\(celTubeBase\(base\), markDark, markLight\)/, 'the tone follows the tube as drawn');
+  assert.match(VESSEL_FS, /chevInk\(cream, markDark, markLight\)/, 'the tone is the vessel\'s own latched ink');
+  assert.match(VESSEL_FS, /chevCreamSoft\(celTubeBase\(mix\(color, la\.rgb, la\.a\)\)\)/, 'and where there is none it follows the tube as drawn (celTubeBase)');
   assert.match(MICRO_FS, /float hw = chevHw\(R, wpc\) \* chevSize\(kp\);/, 'the lobule\'s and the sinusoid\'s micro tubes take the same head');
   assert.match(MICRO_FS, /smoothstep\(1\.5 \* wpc, 2\.1 \* wpc, R\)/);
   for (const R of [1.6, 2, 2.5, 3, 3.3, 3.64, 4.5, 6, 12, 40]) {

@@ -26,8 +26,9 @@ test('the Anatomy\'s vessels and the 3D lobule and sinusoid include the one chev
 });
 
 test('the blood chevron is black like the Anatomy\'s: the look\'s chevron ink on a light lumen, cream on a dark one, the dark ring; bile and lymph keep their flow colour', () => {
-  assert.match(CHEVRON_GLSL, /vec3 chevInk\(vec3 base, vec3 markDark, vec3 markLight\)/);
-  assert.match(CHEVRON_GLSL, /float dk = 1\.0 - step\(0\.26, dot\(pow\(max\(base, vec3\(0\.0\)\), vec3\(2\.2\)\), vec3\(0\.2126, 0\.7152, 0\.0722\)\)\);/);
+  assert.match(CHEVRON_GLSL, /vec3 chevInk\(float cream, vec3 markDark, vec3 markLight\)/);
+  assert.match(CHEVRON_GLSL, /float chevLum\(vec3 c\) \{ return dot\(pow\(max\(c, vec3\(0\.0\)\), vec3\(2\.2\)\), vec3\(0\.2126, 0\.7152, 0\.0722\)\); \}/);
+  assert.match(CHEVRON_GLSL, /return mix\(markDark \* 0\.5, markLight, cream\);/);
   assert.match(MICRO_FS, /vec3 core = uFlowDark > 0\.5 \? inkH : uFlowCol;/);
   const m = microMaterials({ value: new Vector2(1, 1) }, { value: 1 }, { flow: true });
   const u = m.toon.uniforms;
