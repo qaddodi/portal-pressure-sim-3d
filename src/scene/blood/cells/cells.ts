@@ -1,4 +1,4 @@
-// Blood-cell particles (Settings > Figure depth > Blood cells, off by default; the chevrons stay the flow mark). One THREE.Points, one draw call, a vertex a cell. Nothing about a
+// Blood streaks (Settings > Figure depth > Blood streaks, off by default; the chevrons stay the flow mark). They were discs ("bubbles", Mohammad, 20 Nov); now fine lines along the flow (shader.ts). One THREE.Points, one draw call, a vertex a cell. Nothing about a
 // cell is worked out per frame on the CPU: each carries (vessel, phase, thinning order) and the vertex shader (shader.ts) finds its place on the vessel's course, slides it with
 // the blood's own distance (the chevrons' stream, from the engine's flow), and counts itself in or out by the vessel's flow. The CPU keeps three small textures current, and only
 // when something changed: the courses (from the tubes' own vertices, read again when a vessel reshapes), and a row of numbers a vessel (length, width rule, fade, draw-on).
@@ -143,21 +143,19 @@ export class BloodCells {
     g.setAttribute('aB', new Float32BufferAttribute(layout.extra, 4));
     g.boundingSphere = new Sphere(undefined, 1e6);   // (the cells are placed in the shader: the positions in the buffer mean nothing to a bounding volume)
     const tone = (t: string): { value: Color } => (deps.object(deps.vessels.find((v) => v.tone === t && !v.feeder)?.id ?? '')?.toon.uniforms.color as { value: Color } | undefined) ?? { value: new Color(0.5, 0.5, 0.5) };
-    const any = deps.object(items[0]?.obj.edge?.id ?? '');
     const lens = deps.lens, b = deps.blood, sh = deps.shared;
     this.material = new ShaderMaterial({
-      name: 'blood cells', vertexShader: CELLS_VS, fragmentShader: CELLS_FS, transparent: true, depthWrite: false, depthTest: true,
+      name: 'blood streaks', vertexShader: CELLS_VS, fragmentShader: CELLS_FS, transparent: true, depthWrite: false, depthTest: true,
       uniforms: {
         streamTex: b.streamTex as { value: Texture }, projY: b.projY, dpr: b.dpr, res: sh.res, vdata: sh.vdata, vdataSize: sh.vdataSize,
         courseTex: { value: this.courseTex }, edgeTex: { value: this.edgeTex }, amount: { value: 0 },
         colPortal: tone('portal'), colSys: tone('sys'), colArt: tone('artery'),
-        inkCol: (any?.toon.uniforms.inkColor as { value: Color } | undefined) ?? { value: new Color(0, 0, 0) }, inkA: { value: 0.85 },
         lensMix: lens.lensMix, lensTail: lens.lensTail, lensModeA: lens.lensModeA, lensModeB: lens.lensModeB,
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, laneColA: lens.laneColA, laneColB: lens.laneColB,
       },
     });
     const pts = new Points(g, this.material);
-    pts.name = 'blood cells'; pts.frustumCulled = false; pts.renderOrder = 10; pts.visible = false;
+    pts.name = 'blood streaks'; pts.frustumCulled = false; pts.renderOrder = 10; pts.visible = false;
     pts.raycast = () => undefined;   // (never picked)
     pts.layers.set(deps.layer);
     deps.parent.add(pts);

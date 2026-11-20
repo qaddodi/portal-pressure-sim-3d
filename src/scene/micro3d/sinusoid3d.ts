@@ -28,11 +28,11 @@ export const REACH = 130;
 /** How far across (µm each way, from the axis): the main plates and, beyond each, one more sinusoid and plate, as 2D repeats them outward. */
 export const ACROSS = 80;
 /** Depths (µm, toward the viewer): the plates' tops, the lining's crest, Disse's floor, the ground under the clefts, the trough's depth as a share of the lumen's half width. */
-export const Z = { cell: 0.55, cellBot: -3.2, bead: 0.5, disse: -1.0, ground: -3.0, trough: 0.92, nucleus: 0.55 } as const;
+export const Z = { cell: 0.55, cellBot: -12.5, bead: 0.5, disse: -1.0, ground: -12.0, trough: 0.92, nucleus: 0.55 } as const;
 /** The red cells in the stream (2D's palette has their colour; the flat view draws none). */
 /** How far (µm) the scene stands toward the viewer from the lobule's plate. */
 const LIFT = 8;
-const RBC_N = 34, RBC_R = 2.5;
+const RBC_N = 14, RBC_R = 1.9;
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -134,7 +134,7 @@ export class Sinusoid3D {
     this.bm = mk('basement', { ink: null, transparent: true });
     this.arrows = mk('ends', { px: S.LINE_SMALL });
     this.pores = many('fenestrae', unitSphere(10, 6), 1200, { ink: null });
-    this.villi = many('microvilli', unitRod(6), 900, { px: S.LINE_SMALL * 0.6 });
+    this.villi = many('microvilli', unitRod(6), 900, { ink: null });
     this.fibres = many('collagen', unitRod(6), 400, { ink: null });
     this.albumin = many('albumin', unitSphere(10, 6), 1400, { px: S.LINE_SMALL });
     this.rbc = many('red-cells', unitRbc(22), RBC_N, { px: S.LINE_SMALL });
@@ -184,24 +184,24 @@ export class Sinusoid3D {
     const cellInk = deep(P.cUnder, 0.62);
     this.ground.setTint(P.cUnder);
     this.trough.setTint(P.cLumen); this.trough.setInk(deep(P.cEndoE, 0.9));
-    this.troughFar.setTint(mix3(P.cLumen, P.cUnder, 0.35)); this.troughFar.setInk(deep(P.cEndoE, 0.9));
+    this.troughFar.setTint(mix3(P.cLumen, P.cBg, 0.2)); this.troughFar.setInk(deep(P.cEndoE, 0.9));
     this.bead.setTint(P.cEndo); this.beadLine.setTint(P.cEndoE);
     this.disse.setTint(P.cLymph);
     this.cells.setTint(P.cCell); this.cells.setInk(cellInk);
     this.nuclei.setTint(mix3(P.cCell, P.cNuc, 0.55)); this.nuclei.setInk(deep(P.cNuc, 0.7));
-    this.nucleoli.setTint(P.cNuc);
+    this.nucleoli.setTint(mix3(P.cNuc, P.cCell, 0.15));
     this.bile.setTint(P.cBile); this.bile.setInk(deep(P.cBile, 0.5));
     this.endoN.setTint(P.cEndoS); this.endoN.setInk(P.cEndoE);
     this.endoNi.setTint(P.cEndoN);
-    this.kup.setTint(P.cKup); this.kup.setInk(P.cKupE); this.kupN.setTint(P.cKupN);
+    this.kup.setTint(mix3(P.cKup, P.cLumen, 0.25)); this.kup.setInk(mix3(P.cKupE, P.cKup, 0.35)); this.kupN.setTint(mix3(P.cKupN, P.cKup, 0.3));
     const hc = mix3(P.cHscQ, P.cHscA, clamp(act, 0, 1));
     this.hsc.setTint(hc); this.hsc.setInk(deep(hc, 0.5)); this.hscN.setTint(P.cHscN);
     this.bm.setTint(P.cBm);
     this.pores.setTint(deep(P.cEndoE, 0.85));
-    this.villi.setTint(mix3(P.cCell, P.cUnder, 0.3)); this.villi.setInk(cellInk);
+    this.villi.setTint(mix3(P.cLymph, P.cCell, 0.45));
     this.fibres.setTint(P.cCol);
     this.albumin.setTint(P.cAlb); this.albumin.setInk(P.cAlbE);
-    this.rbc.setTint(P.cRbc); this.rbc.setInk(deep(P.cRbc, 0.5));
+    this.rbc.setTint(mix3(P.cRbc, P.cLumen, 0.3)); this.rbc.setInk(mix3(P.cRbc, P.cLumen, 0.15));
   }
 
   // ---- the shapes that follow the state (rebuilt at 1/64 steps of it) ------------------------------------------------------------
@@ -296,13 +296,13 @@ export class Sinusoid3D {
         const j0 = Math.floor(X0 / CELL) - 1, j1 = Math.ceil(X1 / CELL) + 1;
         for (let j = j0; j <= j1; j++) {
           const outline = cellOutline(j, sd, s, face);
-          pillow(cells, outline, Z.cell, Z.cellBot, 1.9, undefined, 4);
+          pillow(cells, outline, Z.cell, Z.cellBot, 1.1, undefined, 4);
           const c = cellOf(j, sd), xn = lerp(c.x0, c.x1, c.nu), v = c.nv * UM.hep;
           const put = (x: number, r: number) => {
             const yd = s * (face(x) + v);
-            ellipsoid(nuc, x, Y(yd), Z.cell - r * 0.62, r, r, r, 0, undefined, 22, 12);
+            ellipsoid(nuc, x, Y(yd), Z.cell, r, r * 1.08, 0.42, 0, undefined, 28, 10);
             const a = 1.7 + 2.2 * ((j * 7 + sd) % 5) / 5;
-            ellipsoid(nol, x + r * 0.32 * Math.cos(a), Y(yd) + r * 0.32 * Math.sin(a), Z.cell - r * 0.62 + r * 0.9, r * 0.24, r * 0.24, r * 0.2, 0, undefined, 10, 6);
+            ellipsoid(nol, x + r * 0.3 * Math.cos(a), Y(yd) + r * 0.3 * Math.sin(a), Z.cell + 0.32, r * 0.13, r * 0.13, 0.12, 0, undefined, 12, 6);
           };
           if (c.bi) { const dx = (c.x1 - c.x0) * 0.17; put(xn - dx, c.nr * 0.8); put(xn + dx, c.nr * 0.8); } else put(xn, c.nr);
           // the canaliculus on this cell's leading border, half way into the plate: a small capsule across the border
@@ -336,7 +336,7 @@ export class Sinusoid3D {
       const b = new MeshBuilder(), bn = new MeshBuilder();
       const x = geo.xk, h = g.halfW(x), yd = h - 2.3, z = -1.6;
       ellipsoid(b, x, Y(yd), z, 3.0, 2.3, 1.9, 0.2, undefined, 22, 12);
-      const arms: [number, number, number][] = [[-1.45, 6.2, 0.15], [-0.95, 5.0, 0.45], [-0.4, 7.0, -0.05], [0.15, 4.6, 0.4], [0.6, 6.4, 0.0], [1.05, 5.2, 0.3], [1.45, 4.4, -0.1]];
+      const arms: [number, number, number][] = [[-1.3, 4.6, 0.1], [-0.55, 5.4, 0.25], [0.25, 3.8, 0.3], [0.85, 5.0, 0.05], [1.4, 3.6, 0.0]];
       for (const [a, L, dz] of arms) {
         const path: [number, number, number][] = [];
         for (let i = 0; i <= 8; i++) {
@@ -344,7 +344,7 @@ export class Sinusoid3D {
           // (2D y down: the arms reach up, toward the axis, and along the flow)
           path.push([x + Math.cos(a + bend - Math.PI / 2) * r * 1.0, Y(yd + Math.sin(a + bend - Math.PI / 2) * r * 0.9), z + dz * t * 2 + 0.3 * t]);
         }
-        tube(b, path, (i) => lerp(0.95, 0.14, i / 8), undefined, 10, true);
+        tube(b, path, (i) => lerp(0.7, 0.12, i / 8), undefined, 10, true);
       }
       ellipsoid(bn, x - 0.6, Y(yd + 0.3), z + 0.75, 1.55, 1.15, 1.25, 0.3, undefined, 16, 8);
       b.build(this.kup.geometry); bn.build(this.kupN.geometry);
@@ -379,11 +379,11 @@ export class Sinusoid3D {
     // the microvilli: short fingers off each plate's face into Disse (they flatten in cirrhosis: 2D's mv)
     {
       let n = 0;
-      const mv = clamp(S.mv, 0, 1), len = 0.4 + 1.2 * mv;
-      if (mv > 0.03) for (const s of [-1, 1] as Side[]) for (let x = -REACH + 0.4; x < REACH; x += 0.9) {
+      const mv = clamp(S.mv, 0, 1), len = 0.3 + 0.8 * mv;
+      if (mv > 0.03) for (const s of [-1, 1] as Side[]) for (let x = -REACH + 0.4; x < REACH; x += 1.7) {
         if (n >= this.villi.capacity) break;
         const yd = s * (g.hepIn(x) - len * 0.5 + 0.1);
-        placeAt(this.m4, x, Y(yd), Z.disse + 0.45, len, 0.17, 0.17, Math.PI / 2 + 0.25 * Math.sin(x * 1.7));
+        placeAt(this.m4, x, Y(yd), Z.disse + 0.35, len, 0.12, 0.12, Math.PI / 2 + 0.25 * Math.sin(x * 1.7));
         this.villi.setAt(n++, this.m4);
       }
       this.villi.commit(n);

@@ -29,3 +29,12 @@ test('Treat is `hidden` while closed, as in 2D (its stylesheet puts the phone vi
   assert.match(read('src/ui/treat/treat.css'), /\.sh-root #treatCard\.treat-card\[hidden\]\s*\{\s*display:\s*block !important/);
   assert.match(read('src/ui/css2d/app-10-thumb-dock.css'), /:has\(#treatCard:not\(\[hidden\]\)\)/);   // (the 2D rule this answers)
 });
+
+test('the Layers tab is never disabled: 2D dims no tab, and Anatomy and Circuit have Layers content (Fit to screen, Turn upright, the Blood rows)', () => {
+  const bar = read('src/ui/shell/ThumbBar.tsx');
+  assert.ok(!/disabled=/.test(bar), 'no tab of the thumb bar is disabled');
+  const sheet = read('src/ui/shell/FigureMenu.tsx');
+  assert.match(sheet, /<FigureRows kind=\{lobule \? 'layers' : 'blood'\} \/>/, 'the sheet holds the Blood rows outside the lobule');
+  assert.match(sheet, /view === 'circuit' &&/, 'and Turn upright in Circuit');
+  assert.match(bar, /view === 'sinusoid' && \(t\.id === 'treat' \|\| t\.id === 'tests' \|\| t\.id === 'layers'\)\) goToView\('lobule'\)/, 'from the sinusoid view the tab first goes out to the lobule (2D outOfSin)');
+});

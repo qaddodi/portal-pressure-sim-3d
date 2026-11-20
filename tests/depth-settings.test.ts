@@ -5,7 +5,7 @@ import { DEPTH_ROWS } from '../src/ui/settings/depth-rows.ts';
 
 test('the Figure depth switches: on by default, except blood-cell particles (chevrons stay the flow mark)', () => {
   assert.deepEqual([...DEPTH_KEYS], ['smoothJoins', 'organDepth', 'tilt', 'dof', 'particles', 'micro3d']);
-  assert.deepEqual(DEPTH_DEFAULTS, { smoothJoins: true, organDepth: true, tilt: true, dof: true, particles: false, micro3d: true });
+  assert.deepEqual(DEPTH_DEFAULTS, { smoothJoins: true, organDepth: true, tilt: true, dof: true, particles: false, micro3d: false });
   for (const k of DEPTH_KEYS) assert.equal(DEFAULTS[k], DEPTH_DEFAULTS[k]);
 });
 
@@ -34,7 +34,7 @@ test('a phone that saved See-through (the old default) before Cel shaded existed
   assert.equal(parseSettings(`{"figureV":${V - 1},"organFill":"seethrough"}`).organFill, 'solid', 'an older version too');
 });
 
-test('3D lobule and sinusoid: on by default, off is the flat views', () => {
-  assert.equal(DEFAULTS.micro3d, true);
-  assert.equal(parseSettings('{"micro3d":false,"figureV":2}').micro3d, false);
+test('3D lobule and sinusoid: off by default until approved, on is kept', () => {
+  assert.equal(DEFAULTS.micro3d, false);
+  assert.equal(parseSettings('{"micro3d":true,"figureV":2}').micro3d, true);
 });
