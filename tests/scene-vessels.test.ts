@@ -76,12 +76,12 @@ test('the scene stays inside the draw-call budget (spec: under 100)', () => {
   s.dispose();
 });
 
-test('a vessel is one draw: body and ink share one mesh and one material (a vessel behind the organs has its faint copy as a second and a depth-only pass before it, b3-veil.test.ts)', () => {
+test('a vessel is one draw: body and ink share one mesh and one material (a vessel behind the organs has its copy over the organs as a second mesh, b3-veil.test.ts)', () => {
   const s = new CelScene();
   for (const o of s.vessels) {
     let n = 0;
     o.group.traverse((c) => { if ((c as { isMesh?: boolean }).isMesh) n++; });
-    assert.equal(n, BACK_EDGES.has(o.edge!.id) ? 3 : 1, o.edge!.id);
+    assert.equal(n, BACK_EDGES.has(o.edge!.id) ? 2 : 1, o.edge!.id);
     const h = o.toonMesh.geometry.getAttribute('hull');
     assert.ok(h && h.count === o.toonMesh.geometry.getAttribute('position').count, 'hull attribute');
     // the highlight's handle on the ink writes the merged material's own uniforms

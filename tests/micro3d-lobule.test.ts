@@ -6,7 +6,7 @@ import { createShared } from '../src/scene/materials/cel.ts';
 import { LobuleView } from '../src/scene/lobule/view.ts';
 import { LOBULE_R } from '../src/scene/lobule/shots.ts';
 import { sinRadius, DISC_R } from '../src/scene/lobule/widths.ts';
-import { Lobule3D, LZ, TUBE_SEG, bileCourses, skipFirstFills } from '../src/scene/micro3d/lobule3d.ts';
+import { Lobule3D, LZ, OVER_Z, TUBE_SEG, bileCourses, skipFirstFills } from '../src/scene/micro3d/lobule3d.ts';
 import { lookColours } from '../src/scene/lobule/lz-colours.ts';
 
 const shared = createShared();
@@ -48,7 +48,7 @@ test('the sinusoids are 2D\'s width: a tube\'s first ring is sinRadius x R (neve
   const c = flat.net.courses.find((k) => k.kind === 's0')!;
   const cx = c.pts[0]![0] * LOBULE_R, cy = -c.pts[0]![1] * LOBULE_R;
   let r = 0;
-  for (let v = 0; v < TUBE_SEG; v++) r = Math.max(r, Math.hypot(pos.getX(v) - cx, pos.getY(v) - cy, pos.getZ(v) - LZ.tube));
+  for (let v = 0; v < TUBE_SEG; v++) r = Math.max(r, Math.hypot(pos.getX(v) - cx, pos.getY(v) - cy, pos.getZ(v) - OVER_Z));
   assert.ok(Math.abs(r - sinRadius('s0', c.rho[0]!) * LOBULE_R) < 1e-5, `radius ${r}`);
 });
 
@@ -81,5 +81,28 @@ test('every look has the colours the tiles read', () => {
     const L = lookColours(look);
     assert.ok(L.text('--og-liver-1') && L.text('--og-liver-2') && L.text('--lz-nodule-ink'), look);
     l3.buildForTest(look);
+  }
+});
+
+test('on the sinusoid (landed), the whole lobule stands aside, 3D and flat; back on the lobule it shows again', () => {
+  const sh = createShared(), lv = new LobuleView(sh), l = new Lobule3D(lv, sh);
+  lv.setVisible(true);
+  l.update(true, 0.5);
+  assert.equal(l.group.visible, true, 'half way down it is still there, dissolving');
+  l.update(true, 1);
+  assert.equal(l.group.visible, false); assert.equal(lv.group.visible, false);
+  l.update(true, 0);
+  assert.equal(l.group.visible, true); assert.equal(lv.group.visible, true);
+  l.update(true, 1); l.update(false, 0);
+  assert.equal(lv.group.visible, true);
+});
+
+test('no vessel over the plates is buried under the tiles (a buried one shows only in the gaps, as floating pieces): every sinusoid, cross-link and twig tops the tiles', () => {
+  for (const name of ['lobule3d/sinusoids-0', 'lobule3d/sinusoids-1', 'lobule3d/sinusoids-2', 'lobule3d/sinusoids-links', 'lobule3d/arteriole-twigs']) {
+    const part = l3.partsForTest.find((p) => p.toonMesh.name === name)!;
+    const pos = part.geometry.getAttribute('position') as BufferAttribute;
+    let top = -Infinity;
+    for (let v = 0; v < Math.min(pos.count, TUBE_SEG); v++) top = Math.max(top, pos.getZ(v));
+    assert.ok(top > LZ.cellTop, `${name}: its top ${top.toFixed(4)} is over the tiles' ${LZ.cellTop}`);
   }
 });

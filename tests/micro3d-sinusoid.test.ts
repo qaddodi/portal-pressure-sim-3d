@@ -74,3 +74,35 @@ test('every streaked stream carries its place across (aux) on every vertex', () 
     assert.ok(aux && aux.count === pos!.count, `${n}: aux on every vertex`);
   }
 });
+
+test('every triangle of every part faces the way its normals do (one wound against them is a hole of ink: the dark red cells and the X across each hepatocyte, 20 Nov)', () => {
+  const { s3 } = scene();
+  s3.update(true);
+  const seen = new Set<BufferGeometry>();
+  for (const m of meshes(s3.group)) {
+    const g = m.geometry;
+    if (seen.has(g)) continue; seen.add(g);
+    const p = g.getAttribute('position')?.array, n = g.getAttribute('normal')?.array, ix = g.getIndex()?.array;
+    if (!p || !n || !ix) continue;
+    let bad = 0;
+    for (let t = 0; t < ix.length; t += 3) {
+      const a = ix[t]! * 3, b = ix[t + 1]! * 3, c = ix[t + 2]! * 3;
+      const e1 = [p[b]! - p[a]!, p[b + 1]! - p[a + 1]!, p[b + 2]! - p[a + 2]!], e2 = [p[c]! - p[a]!, p[c + 1]! - p[a + 1]!, p[c + 2]! - p[a + 2]!];
+      const f = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+      if (f[0]! * (n[a]! + n[b]! + n[c]!) + f[1]! * (n[a + 1]! + n[b + 1]! + n[c + 1]!) + f[2]! * (n[a + 2]! + n[b + 2]! + n[c + 2]!) < 0) bad++;
+    }
+    assert.equal(bad, 0, `${m.name}: ${bad} triangles wound against their normals`);
+  }
+});
+
+test('the next sinusoids are hazed (from past this one\'s plates outward) and the traffic runs a little faster while on, 2D\'s pace again off', () => {
+  const { flat, s3 } = scene();
+  s3.update(true);
+  const m = meshes(s3.group).find((x) => x.name === 'sinusoid3d/lumen-beyond')!;
+  const h = ((m.material as unknown as { uniforms: Record<string, { value: { x: number; y: number; z: number } }> }).uniforms.uHaze!.value);
+  assert.ok(h.x > UM.lum + UM.endo + UM.disse + UM.hep - 1 && h.y > h.x && h.z > 0.3, `haze ${h.x}..${h.y} x${h.z}`);
+  const F = flat as unknown as { trafficSpeed: number };
+  assert.ok(F.trafficSpeed > 1);
+  s3.update(false);
+  assert.equal(F.trafficSpeed, 1);
+});

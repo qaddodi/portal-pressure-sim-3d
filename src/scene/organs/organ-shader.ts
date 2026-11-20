@@ -2,12 +2,12 @@
 // laid at the organ layer's opacity over whatever is behind (atlas-look-plan.md 2.5 and 2.6; the visual review's 2.1 to 2.4). layer.ts blends the organs in 2D's order,
 // each once per pixel, so they show through each other as 2D's groups do. Plain strings so the tests can read them without a GPU.
 import { FADE_GLSL } from '../materials/shaders.ts';
-import { CEL_STYLE } from '../cel-style.ts';
+import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 
 const num = (n: number) => (Number.isInteger(n) ? `${n}.0` : String(n));
 
-/** The soft light of Organ depth, from the upper left of the screen (x right, y up, z toward the eye), as a unit vector. */
-const ORGAN_LIGHT: readonly [number, number, number] = (() => { const [x, y, z] = CEL_STYLE.ORGAN.LIGHT; const l = Math.hypot(x, y, z); return [x / l, y / l, z / l]; })();
+/** The soft light of Organ depth: the one WORLD light (cel-style.ts LIGHT), as a unit vector; n.L is taken with the normal in world axes (vNw), so the camera never changes it. */
+const ORGAN_LIGHT = CEL_LIGHT_UNIT;
 
 export const ORGAN_VS = /* glsl */ `
 #ifdef VERTEX_INK
@@ -19,12 +19,14 @@ attribute float depthAo;
 varying float vAo;
 uniform vec4 box;
 varying vec3 vN;
+varying vec3 vNw;   // the normal in WORLD axes (the model matrix: the light is fixed in the world, not on the screen)
 varying vec3 vV;
 varying vec2 vBox;
 varying vec4 vClip;
 void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
   vN = normalize(normalMatrix * normal);
+  vNw = normalize(mat3(modelMatrix) * normal);
   vV = normalize(-mv.xyz);
   vAo = depthAo;
   // where this point sits in the organ's own 2D box: (0,0) top left, (1,1) bottom right, as the SVG gradient's objectBoundingBox
@@ -62,6 +64,7 @@ varying vec4 vClip;
 varying vec3 vInk;
 #endif
 varying vec3 vN;
+varying vec3 vNw;
 varying vec3 vV;
 varying vec2 vBox;
 varying float vAo;
@@ -104,7 +107,7 @@ void main() {
     float ao = clamp(vAo, 0.0, 1.0);
     float wa = 0.12;
     float tuck = (smoothstep(0.2 - wa, 0.2 + wa, ao) + smoothstep(0.5 - wa, 0.5 + wa, ao) + smoothstep(0.8 - wa, 0.8 + wa, ao)) * (1.0 / 3.0);
-    float lam = dot(n, LIGHT);
+    float lam = dot(normalize(vNw), LIGHT);   // n.L in the world: the camera never changes it
     float wl = 0.08 + fwidth(lam);
     float away = 1.0 - smoothstep(0.3 - wl, 0.3 + wl, lam);
     float toward = smoothstep(0.7 - wl, 0.7 + wl, lam) * (1.0 - ao);

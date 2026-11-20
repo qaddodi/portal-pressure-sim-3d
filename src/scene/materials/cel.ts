@@ -2,6 +2,7 @@ import {
   BackSide, type BufferGeometry, Color, DataTexture, FloatType, Group, KeepStencilOp, LinearSRGBColorSpace, Mesh, NearestFilter, NotEqualStencilFunc, ReplaceStencilOp, RGBAFormat, ShaderMaterial, type Texture, Vector2, Vector3,
 } from 'three';
 import { INK_FS, INK_VS, TOON_FS, TOON_VS } from './shaders.ts';
+import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 import { type Palette, type ToneKey, flowMarkColours, highlightColour } from '../palette.ts';
 
 /** A colour whose numbers are the hex's own sRGB values, not converted to linear: the cel shaders do their banding in sRGB space, as the
@@ -27,8 +28,8 @@ export function createShared(): CelShared {
   return {
     res: { value: new Vector2(1, 1) },
     time: { value: 0 },
-    // one fixed light from the upper left front (look-and-feel.md section 2)
-    light: { value: new Vector3(-0.45, 0.75, 0.55).normalize() },
+    // the one fixed WORLD light, upper left front (cel-style.ts LIGHT; look-and-feel.md section 2)
+    light: { value: new Vector3(...CEL_LIGHT_UNIT) },
     vdata: { value: blank },
     vdataSize: { value: new Vector2(1, 1) },
   };
@@ -88,7 +89,7 @@ export class CelObject {
         len: { value: v?.len ?? 1 }, time: shared.time, radius: { value: v?.radius ?? 0 }, baseD: { value: v?.baseD ?? 1 },
         vdata: shared.vdata, vdataSize: shared.vdataSize, vindex: { value: v?.index ?? 0 }, useData: { value: 0 },
         stubSpeed: { value: v?.stubSpeed ?? 0 }, reveal: { value: 1 }, fade: { value: 1 }, inkShade: { value: 0.62 }, inkAmount: { value: 0 }, flowAmount: { value: 0 }, flowBands: { value: 0 },
-        markColor: { value: new Color() }, markReversed: { value: new Color() },
+        markColor: { value: new Color() }, markReversed: { value: new Color() }, tubeDark: { value: 0 },
       },
     });
     this.ink = new ShaderMaterial({
@@ -113,6 +114,7 @@ export class CelObject {
     const base = rawColor(p.tones[this.tone]);
     const ink = rawColor(p.ink);
     this.toon.uniforms.inkShade!.value = p.shade;
+    this.toon.uniforms.tubeDark!.value = p.highlight === 'white' ? 1 : 0;   // the dark looks: brighter vessel caps (cel-style TUBE.LCAP_DARK)
     (this.toon.uniforms.color.value as Color).copy(base);
     (this.toon.uniforms.shade.value as Color).copy(base).multiplyScalar(p.shade).lerp(ink, 0.08);
     if (!this.soft) (this.ink.uniforms.color.value as Color).copy(ink);
@@ -133,10 +135,10 @@ export class CelObject {
   setSoftInk(rgb: readonly [number, number, number], alpha: number, devPx: number, dpr: number): void {
     (this.ink.uniforms.color.value as Color).setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, LinearSRGBColorSpace);
     this.ink.uniforms.inkA!.value = alpha;
-    this.ink.transparent = alpha < 1;
-    this.ink.depthWrite = alpha >= 1;
+    this.ink.transparent = false;   // (a vessel is opaque: its line is solid ink, never blended)
+    this.ink.depthWrite = false;
     // one outline round the union, as the vessels' (vessels/vessel-object.ts hullMat): a pixel takes the ink once, strands crossing each other and their vein included
-    this.ink.stencilWrite = alpha < 1; this.ink.stencilRef = 1; this.ink.stencilFunc = NotEqualStencilFunc; this.ink.stencilFail = KeepStencilOp; this.ink.stencilZFail = KeepStencilOp; this.ink.stencilZPass = ReplaceStencilOp;
+    this.ink.stencilWrite = true; this.ink.stencilRef = 1; this.ink.stencilFunc = NotEqualStencilFunc; this.ink.stencilFail = KeepStencilOp; this.ink.stencilZFail = KeepStencilOp; this.ink.stencilZPass = ReplaceStencilOp;
     this.basePx = devPx / Math.max(dpr, 1);
     this.ink.uniforms.px.value = this.basePx;
     this.toon.uniforms.spec.value = 0;

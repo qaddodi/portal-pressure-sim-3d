@@ -24,6 +24,7 @@ import { type CapMeta, ZONE_PX, buildCaptions } from './captions.ts';
 import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, CIRCUIT_TREES, LIVER_EDGES } from './data.copied.ts';
 import { courseOf } from './paths.ts';
 import { halfWidthPx } from './cap-width.ts';
+import { readUiWalls } from './ui-walls.ts';
 import { resText } from './res-model.ts';
 import { selectStructure } from '../../ui/action/selection.ts';
 
@@ -87,7 +88,14 @@ export function CircuitCaptions() {
     };
 
     const view = (): Box => { const { vp } = useUi.getState(); return { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom }; };
-    const blockers = (): Box[] => { const b = useUi.getState().boxes; return [b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox); };
+    // the floating bars are read at rest (once the layout has settled after a change), not in a frame
+    let uiWalls: Box[] = [], wallTimer = 0;
+    const readWalls = () => { uiWalls = readUiWalls(); sig = ''; clock.invalidate('circuit-captions'); };
+    const wallsLater = () => { clearTimeout(wallTimer); wallTimer = window.setTimeout(readWalls, 260); };
+    wallsLater();
+    addEventListener('resize', wallsLater);
+    const offWalls = useUi.subscribe((s, p) => { if (s.vp !== p.vp || s.dockShown !== p.dockShown || s.boxes !== p.boxes) wallsLater(); });
+    const blockers = (): Box[] => { const b = useUi.getState().boxes; return [...[b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox), ...uiWalls]; };
 
     const solveNow = () => {
       const { vp, boxes } = useUi.getState();
@@ -258,7 +266,7 @@ export function CircuitCaptions() {
     const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) { sig = ''; clock.invalidate('circuit-captions'); } });
     void document.fonts?.ready.then(() => { measureReset(); });
     const measureReset = () => { sig = ''; clock.invalidate('circuit-captions'); };
-    return () => { off(); offLabels(); offPick(); offShell(); offUi(); offUi2(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); } };
+    return () => { off(); offLabels(); offPick(); offShell(); offUi(); offUi2(); offWalls(); clearTimeout(wallTimer); removeEventListener('resize', wallsLater); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); } };
   }, []);
 
   return <div ref={layer} className="lb-layer cc-layer" aria-hidden="true" />;
