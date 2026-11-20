@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PerspectiveCamera, Plane, Raycaster, Vector2, Vector3, Vector4, WebGLRenderTarget, type Material } from 'three';
-import { DOF_GATHER_FS, DOF_MAX_FRAC, DOF_MIN_WIDTH, DOF_MIX_FS, DOF_SPAN, DOF_TAPS, PostDof, cocPx, dofAllowed, dofShare, planeUniform, type DofEnv } from '../src/scene/post-dof.ts';
+import { DOF_COPY_FS, DOF_GATHER_FS, DOF_MAX_FRAC, DOF_MIN_WIDTH, DOF_MIX_FS, DOF_SPAN, DOF_TAPS, PostDof, cocPx, dofAllowed, dofShare, planeUniform, type DofEnv } from '../src/scene/post-dof.ts';
 import { PostAA } from '../src/scene/post-aa.ts';
 import { installShaderGuard } from '../src/debug/shader-guard.ts';
 import { GL_FILES, namedSources, rawPrograms } from '../src/debug/gl-registry.ts';
@@ -57,15 +57,29 @@ test('the circle of confusion is 0 in focus, inside the slab and whenever the st
 test('the shader\'s circle is the same formula as cocPx, and the pass takes no more than TAPS taps', () => {
   assert.match(DOF_GATHER_FS, /float rel = max\(abs\(z - focus\.x\) - focus\.y, 0\.0\) \/ max\(z, 1e-9\);/);
   assert.match(DOF_GATHER_FS, /smoothstep\(0\.0, focus\.z, rel\) \* gate\.x \* focus\.w/);
-  assert.ok(DOF_TAPS >= 8 && DOF_TAPS <= 12, 'about 8 to 12 taps');
+  assert.ok(DOF_TAPS >= 8 && DOF_TAPS <= 16, 'about 8 to 16 taps');
   assert.match(DOF_GATHER_FS, new RegExp(`#define TAPS ${DOF_TAPS}\\b`));
   assert.equal((DOF_GATHER_FS.match(/for \(int i/g) ?? []).length, 1, 'one loop');
   // reads per half-size pixel: four depth taps and the middle colour, then a depth and a colour tap per disc tap
-  assert.equal((DOF_GATHER_FS.match(/texture2D\(/g) ?? []).length, 3, 'texture2D appears in distAt, the middle and the loop');
-  assert.match(DOF_GATHER_FS, /if \(cMax < 0\.25\) \{ gl_FragColor = vec4\(mid, 0\.0\); return; \}/, 'a pixel in focus stops after its five reads');
+  // reads per half-size pixel: four depth taps, then (a pixel in focus stops after the middle one) a mip-filtered colour tap and a depth tap per disc tap
+  assert.equal((DOF_GATHER_FS.match(/texture2D\(/g) ?? []).length, 1, 'texture2D appears once: the depth');
+  assert.equal((DOF_GATHER_FS.match(/textureLod\(tSrc/g) ?? []).length, 3, 'the colour is read by level: the middle, the disc\'s own centre and the loop');
+  assert.match(DOF_GATHER_FS, /if \(cMax < 0\.25\) \{ gl_FragColor = vec4\(mid, 0\.0\); return; \}/, 'a pixel in focus stops after its four depth reads and the middle');
   assert.match(DOF_GATHER_FS, /clamp\(cocOf\(uv\) - length\(off\) \+ 1\.0, 0\.0, 1\.0\)/, 'a tap counts only when its own circle reaches the pixel: ink in focus never blooms into the blur');
   assert.match(DOF_MIX_FS, /if \(w <= 0\.0\) discard;/, 'a pixel in focus is not written at all');
   assert.ok(DOF_MAX_FRAC > 0 && DOF_MAX_FRAC <= 0.01 && DOF_SPAN > 0);
+});
+
+test('the blur is smooth, with no grain (Mohammad 20 Nov: "speckled, grainy" on his iPhone): no per-pixel random angle, every colour tap reads a pre-filtered mip level', () => {
+  assert.doesNotMatch(DOF_GATHER_FS, /gl_FragCoord/, 'nothing in the gather depends on which pixel it is: a per-pixel rotation of the taps (interleaved gradient noise) is exactly what made the grain');
+  assert.doesNotMatch(DOF_GATHER_FS, /\bign\b|fract\(52\.98/, 'no noise function');
+  assert.match(DOF_GATHER_FS, /float lod = log2\(max\(1\.0, [\d.]+ \* radius \/ sqrt\(float\(TAPS\)\)\)\);/, 'the level follows the spacing of the taps: no tap is a lone texel');
+  assert.doesNotMatch(DOF_GATHER_FS, /texture2D\(tSrc|texture2D\(tColor/, 'the picture is never read at full detail inside the disc');
+  assert.match(DOF_COPY_FS, /texture2D\(tFrom, vUv\)/);
+  const src = readFileSync('src/scene/post-dof.ts', 'utf8');
+  assert.match(src, /minFilter: LinearMipmapLinearFilter, magFilter: LinearFilter, generateMipmaps: true/, 'the half-size copy keeps its mip chain');
+  // the same noise must not creep back into the figure's other soft things: the sinusoid\'s dissolve is the one dither, and it sits inside the blur
+  for (const f of ['src/scene/post-dof.ts', 'src/scene/post-aa.ts', 'src/scene/lobule/field.ts']) assert.doesNotMatch(readFileSync(f, 'utf8').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, ''), /52\.9829189/, `${f} has no noise`);
 });
 
 test('the focus plane: the distance to a plane facing +z, as the shader takes it, equals the true ray and plane distance across the picture', () => {
@@ -147,7 +161,7 @@ test('frame: a strength and a focus on a Mac in the lobule; none in the body at 
   assert.equal(dof.frame('lobule', cam, [0, 0, 0], 0.04, 0.04, 0.7), 0);
 });
 
-test('run: the gather at half size, then the blend over the picture, and back on the figure\'s target', () => {
+test('run: the copy at half size (with its mip chain), the gather, then the blend over the picture, and back on the figure\'s target', () => {
   const dof = new PostDof(() => true, MAC);
   const aa = new PostAA('fxaa', dof);
   const rt = aa.target(gl(2000, 1000))!;
@@ -155,7 +169,7 @@ test('run: the gather at half size, then the blend over the picture, and back on
   assert.ok(dof.frame('lobule', cam, [0, 0, 0], 0.04, 0.04, 0.7) > 0);
   const log: string[] = []; let current: WebGLRenderTarget | null = null;
   dof.run({ setRenderTarget: (t: WebGLRenderTarget | null) => { current = t; }, render: () => log.push(current === rt ? 'full' : current ? `half ${current.width}x${current.height}` : 'canvas') } as never, rt);
-  assert.deepEqual(log, ['half 1000x500', 'full']);
+  assert.deepEqual(log, ['half 1000x500', 'half 1000x500', 'full'], 'the copy and its mips, the gather, then the blend');
   assert.equal((dof.gather.uniforms.focus!.value as Vector4).w, DOF_MAX_FRAC * 1000, 'the biggest circle follows the figure\'s height');
   assert.equal(dof.gather.uniforms.tDepth!.value, rt.depthTexture);
   aa.dispose();
@@ -185,9 +199,9 @@ test('a program the device refuses turns the blur off for good and leaves the fi
 test('the programs are registered: the glslang compile and the ?gl page both see them', () => {
   assert.ok('scene/post-dof.ts' in GL_FILES);
   const names = rawPrograms('').map((p) => p.name);
-  assert.ok(names.includes('post dof') && names.includes('post dof mix'));
+  assert.ok(names.includes('post dof') && names.includes('post dof mix') && names.includes('post dof copy'));
   const named = new Set(namedSources().values());
-  assert.ok(named.has('post dof') && named.has('post dof mix'));
+  assert.ok(named.has('post dof') && named.has('post dof mix') && named.has('post dof copy'));
   for (const p of rawPrograms('').filter((q) => q.name.startsWith('post dof'))) assert.match(p.fragmentGlsl, /^#version 300 es\n/);
 });
 
