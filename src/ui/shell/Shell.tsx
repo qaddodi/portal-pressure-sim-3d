@@ -29,7 +29,7 @@ import { showView } from './view-actions.ts';
 import { useBlood } from '../../scene/blood/options.ts';
 import { useLabels } from '../../scene/labels/store.ts';
 import { useTestsRoom } from '../tests/room.ts';
-import { panRoom, roomWith } from '../tests/place.ts';
+import { panRoom, probeShift } from '../tests/place.ts';
 import { useProbes } from '../../scene/devices/probes/state.ts';
 import { TestsLayer } from '../tests/TestsLayer.tsx';
 import { useTestsAppClasses } from '../tests/dock/app-classes.ts';
@@ -86,11 +86,7 @@ function useFreeCamera() {
     // once the probe has landed (it waits for the camera and fades in), move the figure so the probe stands in the middle of what the card leaves
     const t = setTimeout(() => {
       const { base } = roomNow(), f = testsPlace ? sceneApi.testFocus() : null, b = bias.current;
-      let nx = 0, ny = 0;
-      if (f && testsPlace) {
-        const cut = roomWith(base, testsPlace), side = testsPlace.kind === 'side', lim = 0.4 * (side ? base.w : base.h);
-        if (side) nx = Math.max(-lim, Math.min(lim, b.x + (cut.x + cut.w / 2 - f.x))); else ny = Math.max(-lim, Math.min(lim, b.y + (cut.y + cut.h / 2 - f.y)));
-      }
+      const { x: nx, y: ny } = probeShift(base, testsPlace, f, b);   // (only as far as the probe needs to clear the card: place.ts probeShift)
       if (Math.abs(nx - b.x) < 24 && Math.abs(ny - b.y) < 24 && !(nx === 0 && ny === 0 && (b.x !== 0 || b.y !== 0))) return;
       bias.current = { x: nx, y: ny };
       const r = roomNow().room;

@@ -22,7 +22,9 @@ export class ProbePart extends DeviceObject {
   private pal: Palette | null = null;
   private readonly style: PartStyle;
   constructor(geometry: BufferGeometry, tone: DeviceTone, shared: CelShared, colour: PartColour | null = null, o: DeviceOptions = {}, style: PartStyle = {}) {
-    super(geometry, tone, shared, { ...o, ...(style.fat != null ? { fat: style.fat } : {}), ...(style.spec != null ? { spec: style.spec } : {}) }, style.edge ?? 'ink');
+    // (A `flat` part is ONE colour from every angle, as 2D's fills are. A tube is shaded by celTubeTone, which ignores the `shade` uniform: it cuts a darker second tone on the side away from the light and darkens and
+    //  desaturates the base, so a "flat" FibroScan body was a dark band along its side whatever its colour (owner, 20 Nov 2026, "very dark from side"). A flat part therefore takes the plain path, where shade = colour.)
+    super(geometry, tone, shared, { ...o, ...(style.fat != null ? { fat: style.fat } : {}), ...(style.spec != null ? { spec: style.spec } : {}), ...(style.flat ? { tubeTones: false } : {}) }, style.edge ?? 'ink');
     this.colour = colour;
     this.style = style;
     this.group.visible = false;
