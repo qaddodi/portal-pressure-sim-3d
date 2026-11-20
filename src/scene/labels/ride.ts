@@ -54,6 +54,8 @@ export class Ride {
   private cut = false;
   private readonly out: RideOut = { solve: false, alpha: 0, busy: false };
 
+  /** Why the last re-place was asked for (a diagnostic: 'unsolved', 'cut', 'sig' or 'fits'), and the signature or references it changed from and to. */
+  why = ''; whySig = '';
   private readonly settleMs: number;
   constructor(settleMs: number = FADE.settleMs) { this.settleMs = settleMs; }
 
@@ -96,8 +98,8 @@ export class Ride {
     let need = false, sig = '';
     if (still) {
       sig = i.layout();
-      if (!this.solved || this.cut || sig !== this.sig) need = true;
-      else if (refs !== this.refsAtSolve()) { if (i.fits(this.ride)) this.rebase(); else need = true; }
+      if (!this.solved || this.cut || sig !== this.sig) { need = true; this.why = !this.solved ? 'unsolved' : this.cut ? 'cut' : 'sig'; this.whySig = `${this.sig} => ${sig}`; }
+      else if (refs !== this.refsAtSolve()) { if (i.fits(this.ride)) this.rebase(); else { need = true; this.why = 'fits'; this.whySig = `${this.refsAtSolve()} => ${refs}`; } }
     }
     let solve = false;
     if (need && this.alpha <= 0) { solve = true; this.solved = true; this.cut = false; this.sig = sig; this.rebase(); }

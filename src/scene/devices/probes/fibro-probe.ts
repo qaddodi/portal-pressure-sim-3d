@@ -8,7 +8,7 @@
 // work (scene/labels/probe-labels.ts); the screen here is the probe's own orange display.
 import { BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, MeshBasicMaterial, Vector3, type Box3 } from 'three';
 import type { CelShared } from '../../materials/cel.ts';
-import type { Palette } from '../../palette.ts';
+import type { LookId, Palette } from '../../palette.ts';
 import { len3 } from '../../frame2d.ts';
 import type { OrganEdge } from './fibro-place.ts';
 import { SCAN } from './copied/scan-probe.copied.js';
@@ -34,7 +34,9 @@ export const fadeOf = (u: number): number => Math.sin(Math.PI * Math.min(1, u * 
 /** The whole probe fades in and out over D_SURFACE (420 ms) and its head and cable over D_SMALL (240 ms), each on the arrive curve (2D: scanEase op, headOp, cableOp; app-06-plate.css .scan-probe). */
 export const SCAN_FADE_MS = D_SURFACE, HEAD_MS = D_SMALL;
 /** How far the body's fill is moved toward its line's colour (--text-2), a share. */
-export const BODY_LIFT = 0.12;
+export const BODY_LIFT = 0.12, BODY_LIFT_DARK = 0.34;
+/** The body's fill in a look: the look's surface lifted toward its line; further on the dark looks, where the surface is near black (owner, 20 Nov 2026: "very dark from side; no need to be this dark"). */
+export const bodyFill = (look: LookId): string => mixHex(LOOKS[look].card, LOOKS[look].text2, LOOKS[look].scheme === 'dark' ? BODY_LIFT_DARK : BODY_LIFT);
 /** The tip's tap (app-06-plate.css @keyframes sp-tap, scan-ease.js scanStep): once a second the pad moves along the probe's axis, 0, +2, -1.2, +0.6, 0 px at 0, 20, 45, 70, 100 % of D_SURFACE, each leg on --ease-move. */
 export const TAP_O = [0, 0.2, 0.45, 0.7, 1] as const, TAP_V = [0, 2, -1.2, 0.6, 0] as const, TAP_EVERY_MS = 1000;
 const tapCurve = cssCurve(EASE_MOVE) as (x: number) => number;
@@ -111,7 +113,7 @@ export class FibroProbe {
     // on either, the screen and the waves in the exam's own colour, no outline. Not the look's ink.
     // (Flat, not cel-banded: a banded surface colour is a black band on the dark looks (owner, 20 Nov 2026: "the fibroscan probe shading is too strong black"), and 2D's body is one flat fill. It is lifted a little
     //  toward its line's colour, so it reads as the probe's own body and not as a hole in the figure.)
-    this.body = mk('poly', (_t, look) => mixHex(LOOKS[look].card, LOOKS[look].text2, BODY_LIFT), 6, SCAN_BODY_PX, 2, true, { edge: { colour: ({ look }) => LOOKS[look].text2 }, fat: -SCAN_BODY_PX / 2, flat: true, spec: 0 }).buf;
+    this.body = mk('poly', (_t, look) => bodyFill(look), 6, SCAN_BODY_PX, 2, true, { edge: { colour: ({ look }) => LOOKS[look].text2 }, fat: -SCAN_BODY_PX / 2, flat: true, spec: 0 }).buf;
     this.pad = mk('steel', (_t, look) => LOOKS[look].text2, 3, 0.9, 3, true, { edge: 'none', flat: true, spec: 0 }).buf;
     this.screen = mk('marker', () => fixed(this.organ), 2, 0.7, 4, true, { edge: 'none', flat: true, spec: 0 }).buf;
     this.cable = mk('steel', (_t, look) => LOOKS[look].text3, 2, 0.8, 1, true, { edge: 'none', flat: true, spec: 0 }).buf;

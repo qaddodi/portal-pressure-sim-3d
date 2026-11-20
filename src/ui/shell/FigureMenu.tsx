@@ -12,6 +12,8 @@ import { refitFigure } from './view-actions.ts';
 import { runFeature } from './features.ts';
 import { figureRowsOwner } from './room.ts';
 import { useUi } from '../ui-store.ts';
+import { useSettings } from '../../state/settings.ts';
+import { STREAKS_ROW } from '../settings/depth-rows.ts';
 
 const ICON: Record<string, string> = { Chevrons: 'chevrons', 'Key chevrons only': 'chevrons', 'Pressure values': 'tag', 'Potential collaterals': 'route', 'Organ names': 'liver', Zones: 'zones', Lymph: 'lymph', Bile: 'bile' };
 const KEY: Record<string, keyof Figure> = { Chevrons: 'chevrons', 'Key chevrons only': 'keyChevrons', 'Pressure values': 'chips', 'Potential collaterals': 'collaterals', 'Organ names': 'labels', Zones: 'zones', Lymph: 'lymph', Bile: 'bile' };
@@ -32,6 +34,16 @@ function Switch({ label, hint }: { label: string; hint?: string }) {
   );
 }
 
+/** Blood streaks (the dust): the Settings switch `particles`, shown here under the chevrons in the same row. The figure eases the particles in and out; nothing pops. */
+function StreaksSwitch() {
+  const on = useSettings((s) => s[STREAKS_ROW.key]);
+  return (
+    <button type="button" role="switch" className="sh-row" aria-checked={on} onClick={() => useSettings.getState().set(STREAKS_ROW.key, !on)}>
+      <Icon n={STREAKS_ROW.icon} /><span className="sh-t">{STREAKS_ROW.label}</span><span className="sh-sw" aria-hidden="true" /><span className="sh-d">{STREAKS_ROW.hint}</span>
+    </button>
+  );
+}
+
 /** The rows of the Blood menu (moving blood, what the figure shows, how many labels) or of the lobule's Layers: the 2D app's rows with its words. */
 export function FigureRows({ kind }: { kind: 'blood' | 'layers' }) {
   const level = useShell((s) => s.figure.labelLevel);
@@ -43,6 +55,7 @@ export function FigureRows({ kind }: { kind: 'blood' | 'layers' }) {
         <div key={sec}>
           <div className="sh-title">{sec}</div>
           {rows.filter((r) => ('section' in r ? r.section : '') === sec && sec !== 'Labels').map((r) => <Switch key={r.label} label={r.label} hint={'hint' in r ? r.hint : undefined} />)}
+          {kind === 'blood' && sec === 'Moving blood' && <StreaksSwitch />}
           {sec === 'Labels' && (
             <div className="sh-seg-row" role="group" aria-label="Labels on the figure">
               {rows.filter((r) => 'section' in r && r.section === 'Labels').map((r) => {
@@ -62,7 +75,8 @@ export function FigureMenu({ kind, hidden = false }: { kind: 'blood' | 'layers';
   const blood = kind === 'blood';
   const id = blood ? 'btnBlood' : 'btnLobuleLayers';
   const t = tb(id);
-  const on = useBlood((s) => (blood ? s.chevrons || s.keyChevrons : true));
+  const streaks = useSettings((s) => s.particles);
+  const on = useBlood((s) => (blood ? s.chevrons || s.keyChevrons || streaks : true));
   // With the bottom bar (a phone, an upright iPad) the Layers tab opens the foot sheet (LayersSheet), which holds these same rows. This top-bar copy is hidden there (2D: `.app.thumb #btnBlood,
   // #btnLobuleLayers { display: none }`), and must not also open its own popover on `sheet === 'layers'`: both showed at once, two panels over each other (iPhone, 19 Nov 2026).
   const bottom = figureRowsOwner(useUi((s) => s.device)) === 'sheet';

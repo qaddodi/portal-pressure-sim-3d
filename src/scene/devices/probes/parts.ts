@@ -15,14 +15,16 @@ export type PartColour = string | ((t: DeviceTokens, look: LookId) => string);
 export const lookOf = (p: Palette): LookId => ((Object.keys(PALETTES) as LookId[]).find((id) => PALETTES[id] === p) ?? 'light');
 
 /** How a part's look is fixed whatever the theme: `flat` (its shade is its colour: a mark is one white, never a grey in the dark), `rim` (its outline's own colour, a fixed hex, not the look's ink), `edge` (the edge rule 2D gives the part: devices/edges.ts; the look's ink when left out) and `spec` (0: no highlight) and `fat` (device px the fill grows by: a stroke 2D centres on the path sits half inside it). */
-export interface PartStyle { flat?: boolean; rim?: string; edge?: EdgeRule; fat?: number; spec?: 0 | 1 }
+export interface PartStyle { /** sides round the tube (8 when left out): a long tube seen up close needs more, or it reads faceted */ radial?: number; flat?: boolean; rim?: string; edge?: EdgeRule; fat?: number; spec?: 0 | 1 }
 
 export class ProbePart extends DeviceObject {
   private colour: PartColour | null;
   private pal: Palette | null = null;
   private readonly style: PartStyle;
   constructor(geometry: BufferGeometry, tone: DeviceTone, shared: CelShared, colour: PartColour | null = null, o: DeviceOptions = {}, style: PartStyle = {}) {
-    super(geometry, tone, shared, { ...o, ...(style.fat != null ? { fat: style.fat } : {}), ...(style.spec != null ? { spec: style.spec } : {}) }, style.edge ?? 'ink');
+    // (A `flat` part is ONE colour from every angle, as 2D's fills are. A tube is shaded by celTubeTone, which ignores the `shade` uniform: it cuts a darker second tone on the side away from the light and darkens and
+    //  desaturates the base, so a "flat" FibroScan body was a dark band along its side whatever its colour (owner, 20 Nov 2026, "very dark from side"). A flat part therefore takes the plain path, where shade = colour.)
+    super(geometry, tone, shared, { ...o, ...(style.fat != null ? { fat: style.fat } : {}), ...(style.spec != null ? { spec: style.spec } : {}), ...(style.flat ? { tubeTones: false } : {}) }, style.edge ?? 'ink');
     this.colour = colour;
     this.style = style;
     this.group.visible = false;
@@ -63,7 +65,7 @@ export class TubeBuf {
 
 /** A straight tube part from a to b. Two rings do for a line; more give a taper's shading. */
 export function linePart(shared: CelShared, tone: DeviceTone, colour: PartColour | null, rings = 2, px = 0.8, order = 0, style: PartStyle = {}): { part: ProbePart; buf: TubeBuf } {
-  const buf = new TubeBuf(rings);
+  const buf = new TubeBuf(rings, style.radial ?? RADIAL);
   const part = new ProbePart(buf.geometry, tone, shared, colour, { px, order }, style);
   return { part, buf };
 }
