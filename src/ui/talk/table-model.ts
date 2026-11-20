@@ -123,5 +123,5 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
     : '↑ above normal, ↓ below; ↑↑ ↓↓ past the red cut-off of that column (tap a heading for it); • within normal';
   const legend = [key, rows.some((r) => blank(r).length) ? `○ ${NOT_MEASURABLE.toLowerCase()}` : '', units.length && rows.some((r, n) => isRef(r, n)) ? `Top row: ${units.join(', ')}` : '', spec.foot || '']
     .filter(Boolean).map((x) => x.replace(/\.$/, '')).join('. ') + '.';
-  return { cols: colModels, ascCols, rel, rows: rowModels, legend, rowHead: spec.rowHead || 'Patient', noteHeads: notes };
+  return { cols: colModels, ascCols, rel, rows: rowModels, legend, rowHead: spec.rowHead || 'Level', noteHeads: notes };
 }

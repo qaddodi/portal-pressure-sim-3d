@@ -52,8 +52,8 @@ test('a phone\'s table: the site heads its group, the name has the column to its
 });
 
 // Night sweep on 8d3d25b (20 Nov): on an 8-column table the heads were clipped (WHV, FHV, HVP) and the first head said LEVEL. Heads that do not fit stand upright as in 2D (fitHeads, `tr.th-up`), the name's column
-// takes the room they give back, and the row head is "Patient" unless the slide names its own.
-test('the table fits its heads: upright when they do not fit, the name column follows; the row head defaults to Patient', async () => {
+// takes the room they give back, and the row head is 2D's ("Level" unless the slide names its own).
+test('the table fits its heads: upright when they do not fit, the name column follows; the row head is 2D's', async () => {
   const { readFileSync } = await import('node:fs');
   const tsx = readFileSync(new URL('../src/ui/cards/TableCard.tsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8');
@@ -61,5 +61,5 @@ test('the table fits its heads: upright when they do not fit, the name column fo
   assert.match(tsx, /scrollWidth > t\.clientWidth \+ 1/, 'measured, not guessed');
   assert.match(tsx, /className=\{up \? 'th-up' : undefined\}/);
   assert.match(css, /\.pz-table\.dk-pztable\.dk-up \{ --dk-name: calc\(20\.5rem - var\(--nc\) \* 1\.75rem\)/);
-  assert.match(model, /rowHead: spec\.rowHead \|\| 'Patient'/);
+  assert.match(model, /rowHead: spec\.rowHead \|\| 'Level'/, '2D words 1:1 (presenter.js summaryTable: `s.rowHead || \'Level\'`)');
 });
