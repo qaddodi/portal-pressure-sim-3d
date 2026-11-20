@@ -134,3 +134,16 @@ test('the skin\'s dust is each arm\'s own dustTube crossfaded by the weights; th
   assert.match(SKIN_FS, /#else\s+vec4 dust = dustTube\(FD0, litD, inkColor, revD0\);\s+if \(w1 > 0\.004\) dust = mix\(dust, dustTube\(FD1, litD, inkColor, revD1\), w1\);\s+#endif/);
   assert.match(SKIN_FS, /#ifdef SKIN_DUSTBLEND\s+vec4 dust = w1 > 0\.004 \? dustSkin\(/);
 });
+
+// The dust never writes the vessel's alpha (code check for the opaque blue blocks in the faded zone, Mohammad 20 Nov): a particle is part of the colour, which the vessel's own fade then blends by its alpha, and the ring that would paint ink
+// into a particle is off by default (`ring` 0). The final alpha is the fade's alone, in the skin and in the tube.
+test('the dust is colour only: the final alpha carries no dust term, and the ink ring of a particle is off by default', async () => {
+  const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
+  const { dustDefaults } = await import('../src/scene/blood/dust-spec.ts');
+  assert.match(SKIN_FS, /gl_FragColor = vec4\(c, alpha\);\s*\}$/);
+  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, fadeHere \* cavA\);\s*\}$/);
+  assert.equal(dustDefaults().ring, 0);
+  for (const [name, src] of [['skin', SKIN_FS], ['tube', VESSEL_FS]] as const) {
+    assert.ok(!/alpha\s*(\*|=)[^;]*dust/i.test(src.replace(/\/\/.*$/gm, '')), `${name}: alpha is never scaled by the dust`);
+  }
+});
