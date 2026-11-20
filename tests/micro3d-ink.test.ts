@@ -26,7 +26,7 @@ test('the ink never z-fights its shape, is thick enough to read and near black (
   assert.equal(r.ink, null, 'a small solid shape has no hull');
   assert.equal(r.toon.uniforms.uRim!.value, 1.5, 'its line is drawn in its fill');
   const { MICRO_FS } = await import('../src/scene/micro3d/cel3d.ts');
-  assert.match(MICRO_FS, /0\.5 \* nv \/ max\(fwidth\(nv\)/, 'measured in screen pixels from the outline');
+  assert.match(MICRO_FS, /0\.5 \* nv \/ max\(length\(vec2\(dFdx\(nv\), dFdy\(nv\)\)\)/, 'measured in screen pixels from the outline, the same on a diagonal as on an axis (not fwidth)');
   assert.match(MICRO_INK_FS, /uHole > 0\.0 && length\(vXY\) < uHole\) discard/, 'the ink is cut by the same hole as its shape');
   assert.equal(m.ink!.uniforms.uHole, m.toon.uniforms.uHole, 'one hole for the shape and its line');
   assert.ok(CEL_STYLE.MICRO.LINE >= 1.25 && CEL_STYLE.MICRO.LINE <= 2 && CEL_STYLE.MICRO.LINE_SMALL <= 1, 'a confident line round big bodies, a hairline round fine things (Mohammad 20 Nov: "too much")');
@@ -53,4 +53,16 @@ test('a vessel\'s round ends carry no flow marks (the black squares at the RHF l
   const ring = 3 * 8, cap = (b.count - ring) / 2;
   flowAux(b, 0, pts, ring, cap, 0, null, 8);
   for (let v = ring; v < ring + 2 * cap; v++) assert.equal(b.aux2[v], 3, 'hushed');
+});
+
+test('a flat lens with a line in its fill has its rings even seen from above, so its outline falls off over a whole band, never a one-pixel sliver (eyes 20 Nov: the nucleus ring about 1 device px, uneven)', async () => {
+  const { ellipsoidRingAngle } = await import('../src/scene/micro3d/cel3d.ts');
+  for (const rings of [6, 10, 12]) {
+    const rho = Array.from({ length: rings + 1 }, (_, r) => Math.sin(ellipsoidRingAngle(r, rings)));
+    assert.ok(Math.abs(ellipsoidRingAngle(0, rings)) < 1e-9 && Math.abs(ellipsoidRingAngle(rings, rings) - Math.PI) < 1e-9 && Math.abs(ellipsoidRingAngle(rings / 2, rings) - Math.PI / 2) < 1e-9);
+    for (let r = 1; r <= rings / 2; r++) assert.ok(Math.abs(rho[r]! - rho[r - 1]! - 2 / rings) < 1e-9, `band ${r} of ${rings} as wide as the rest`);
+  }
+  const src = (await import('node:fs')).readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
+  assert.match(src, /ellipsoid\(nuc,[^;]*, true\);/, 'the hepatocyte nuclei');
+  assert.match(src, /ellipsoid\(bile,[^;]*, true\);/, 'the canaliculi');
 });
