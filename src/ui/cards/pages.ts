@@ -14,11 +14,12 @@ export function pageOf(list: string[], n: number, page: number): string[] {
   return list.slice(from, from + per + (page < extra ? 1 : 0));
 }
 
-/** The most pages a card can have: a line splits per sentence, the title card in two (the talk, then its objectives), the quick check per question, the rest do not split. */
+/** The most pages a card can have: a line splits per sentence, a case does not (its words ease down to fit, as in 2D), the title card in two (the talk, then its objectives), the quick check per question, the rest do not split. */
 export function maxPages(id: string, line: string | undefined, items = 0): number {
   if (id === 'title') return 2;
   if (id === 'check') return Math.max(1, items);   // the quick check pages by whole questions (2D HVPG has four; a phone on its side holds two)
-  if (id === 'teach' || id === 'case') return line ? sentences(line).length : 1;
+  if (id === 'case') return 1;   // 2D's case card never splits: its words ease down to fit (CaseCard)
+  if (id === 'teach') return line ? sentences(line).length : 1;
   return 1;
 }
 

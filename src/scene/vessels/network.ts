@@ -70,6 +70,7 @@ export function widthPx(e: Edge, dmm: number): number {
   if (isArteryEdge(e)) return Math.max(1.8, vesselPx(dmm) * 0.5 * (e.shunt === 'ap' ? AP_FINE : 1));
   let w = vesselPx(IVC_EDGES.has(e.id) ? IVC_ONE_D() : dmm) * (IVC_EDGES.has(e.id) || e.id === 'SVC_RA' || e.id === 'V_UP' ? 0.72 : 1);
   if (e.id === 'C8') w *= 0.6;
+  if (e.id === 'C3') w *= 0.6;   // the paraumbilical vein is a branch of the left portal vein, not as wide as it: it leaves it as a filleted Y (the fork rule), not a blunt stack of equal tubes (Mohammad, 20 Nov)
   if (e.id === 'LGV_CONF') w *= 0.85;
   return w;
 }
@@ -225,7 +226,11 @@ export const MAPPED: readonly NetVessel[] = NETWORK.filter((v) => !v.feeder);
     const mains = list.filter((e) => e.v.kind !== 'collateral');
     // (a trunk drawn faint, the cava behind the organs, has no wall to blend into: the collar would show as a bulb on the branch's end)
     if (list.some((e) => IVC_EDGES.has(e.v.id))) continue;
-    const hostR = Math.max(...(mains.length ? mains : list).map((e) => e.v.radius));
+    // (the trunk's width AT the node: two vessels that run on into one another meet at the mean of their widths, so a branch is fitted to that, not to the wider one's full width)
+    const pair = list.filter((e) => runOn.has(`${e.v.id}|${e.end}`) && e.v.kind !== 'collateral');
+    const meet = pair.length === 2 ? (pair[0]!.v.radius + pair[1]!.v.radius) / 2 : null;
+    const widthHere = (e: { v: NetVessel; end: 0 | 1 }) => (meet != null && pair.includes(e) ? meet : e.v.radius);
+    const hostR = Math.max(...(mains.length ? mains : list).map(widthHere));
     for (const { v, end } of list) {
       if (runOn.has(`${v.id}|${end}`) || v.radius >= 0.9 * hostR) continue;
       // 2D's blend width in its own units (vein-joins.js kOf: 1.2 times the smallest radius at the join plus 1.2, 1.5 to 11), here in scene units

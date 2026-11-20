@@ -24,10 +24,17 @@ uniform float inflate;
 varying vec3 vN;
 varying vec3 vC;
 varying float vHy;
-#ifdef STREAKS
+#if defined(STREAKS) || defined(FLOW)
 attribute float aux;
+#endif
+#ifdef STREAKS
 varying vec3 vP;
 varying float vAux;
+#endif
+#ifdef FLOW
+attribute float aux2;
+varying float vArc;
+varying float vAcross;
 #endif
 void main() {
   vec3 p = position;
@@ -50,6 +57,9 @@ void main() {
 #ifdef STREAKS
   vP = p; vAux = aux;
 #endif
+#ifdef FLOW
+  vArc = aux; vAcross = aux2;
+#endif
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p + normal * inflate, 1.0);
 }`;
 
@@ -71,7 +81,7 @@ float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
 uniform float uFlow;      // how far the stream has run (µm)
 uniform float uHalf;      // the stream's half width (µm): the lanes' pitch is across it
 uniform float uStreak;    // how strong the streaks are (0 none)
-uniform float uProfile;   // 1: the parabolic lanes of the blood; 0: one speed (the lymph)
+uniform float uProfile;   // 1: the parabolic lanes of the blood; 0: one speed; under 0: chevrons across the stream (the lymph), pointing the way it runs
 uniform vec3 uStreakCol;  // the streaks' one tone
 varying vec3 vP;
 varying float vAux;
@@ -85,9 +95,45 @@ float streaks() {
   float period = 34.0 + 26.0 * h11(lane * 3.1), len = 14.0 + 16.0 * h11(lane * 7.7 + 1.3);
   float t = mod(vP.x - uFlow * sp + period * h11(lane * 1.7 + 9.1), period);
   float q = clamp(t / len * 2.0 - 1.0, -1.0, 1.0);
-  float hw = 0.3 * sqrt(max(0.0, 1.0 - q * q)) * step(t, len);
+  float hw = 0.36 * sqrt(max(0.0, 1.0 - q * q)) * step(t, len);
   float d = abs(fu - 0.5) - hw, w = max(fwidth(u), 1e-3);
   return (1.0 - smoothstep(-w, w, d)) * step(0.3, h11(lane * 5.3 + 2.0));
+}
+// a chevron every 6 µm across the whole stream, its point leading the way the stream runs (the flow's sign), quiet and hard-edged
+float chevrons() {
+  float a = abs(vAux), dir = uFlow >= 0.0 ? 1.0 : -1.0, pitch = 6.0, w = 1.1;
+  float f = mod((vP.x - uFlow) * dir + a * 1.4, pitch), wx = max(fwidth(vP.x) * 1.2, 1e-3);
+  return smoothstep(0.0, wx, f) * (1.0 - smoothstep(w - wx, w, f)) * (1.0 - smoothstep(0.82, 0.95, a));
+}
+#endif
+#ifdef FLOW
+// the flow along a tube (Mohammad, 20 Nov 2026: "chevrons + streaks ... quiet and inside the vessel"): aux is the place along it in the blood's own direction (local units),
+// aux2 the place across it (-1 .. 1 over the face the viewer sees; 3 where no mark may be, at the central vein's mouth). Chevrons, their point leading, in the middle of the tube
+// only; with uFlowStreak, a few slim streaks in lanes between them. One lighter tone, hard-edged, never a gradient.
+uniform float uFlowT;      // how far the marks have run (local units)
+uniform float uFlowPitch;  // between chevrons (local units)
+uniform float uFlowK;      // how strong (0 none)
+uniform float uFlowStreak; // the streaks' share of uFlowK (0 none)
+uniform float uFlowHead;   // 1: filled arrowheads (the bile); 0: open chevrons
+uniform vec3 uFlowCol;
+varying float vArc;
+varying float vAcross;
+float fh(float x) { return fract(sin(x * 91.7 + 13.3) * 43758.5453); }
+float flowMarks() {
+  float a = abs(vAcross), pitch = uFlowPitch, wa = max(fwidth(vArc), 1e-5);
+  float f = mod(vArc - uFlowT + a * pitch * 0.22, pitch);
+  float wid = pitch * mix(0.11, 0.3 * (1.0 - a / 0.6), uFlowHead);
+  float chev = smoothstep(0.0, wa, f) * (1.0 - smoothstep(wid - wa, wid, f)) * (1.0 - smoothstep(0.5, 0.6, a));
+  float m = chev;
+  if (uFlowStreak > 0.0) {
+    float u = (vAcross * 0.5 + 0.5) * 4.0, lane = floor(u), fu = fract(u), wu = max(fwidth(u), 1e-3);
+    float P = pitch * (2.4 + 1.2 * fh(lane)), len = pitch * (0.9 + 0.6 * fh(lane + 4.0));
+    float t = mod(vArc - uFlowT * (0.8 + 0.3 * (1.0 - abs(lane - 1.5) / 1.5)) + P * fh(lane + 9.0), P);
+    float along = smoothstep(0.0, wa, t) * (1.0 - smoothstep(len - wa, len, t));
+    float across = 1.0 - smoothstep(0.12 - wu, 0.12 + wu, abs(fu - 0.5));
+    m = max(m, along * across * uFlowStreak * step(abs(vAcross), 0.85));
+  }
+  return m * step(vAcross, 2.0);
 }
 #endif
 void main() {
@@ -101,7 +147,10 @@ void main() {
   vec3 c = tint * vC;
   c *= 1.0 - ${F(CEL_STYLE.MICRO.SHADE)} * shadeT;
 #ifdef STREAKS
-  c = mix(c, uStreakCol, uStreak * streaks());
+  c = mix(c, uStreakCol, uStreak * (uProfile < 0.0 ? chevrons() : streaks()));
+#endif
+#ifdef FLOW
+  c = mix(c, uFlowCol, uFlowK * flowMarks());
 #endif
   c = mix(c, uHazeCol, hazeK());
   gl_FragColor = vec4(c * opacity, opacity);
@@ -156,6 +205,8 @@ export interface MicroOptions {
   streaks?: boolean;
   /** The haze's uniforms, shared by every part of a scene (hazeUniforms()); none by default. */
   haze?: HazeUniforms;
+  /** Flow marks along a tube (the geometry has `aux`, the place along it, and `aux2`, across it): set them with MicroPart.setFlow. */
+  flow?: boolean;
   /** Draw both sides (a thin sheet seen from either side). */
   doubleSide?: boolean;
   /** Drawn see-through (opacity below 1): sorted after the solid parts, no depth written. */
@@ -174,12 +225,13 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
   const haze = o.haze ?? hazeUniforms();
   const toon = new ShaderMaterial({
     vertexShader: MICRO_VS, fragmentShader: MICRO_FS, vertexColors: !!o.vertexColors,
-    ...(o.streaks ? { defines: { STREAKS: '' } } : {}),
+    ...(o.streaks ? { defines: { STREAKS: '' } } : o.flow ? { defines: { FLOW: '' } } : {}),
     uniforms: {
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
       uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
+      uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
     },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
@@ -212,6 +264,11 @@ export class MicroPart {
   setStreaks(flow: number, half: number, rgb: RGB, strength: number, profile: number): void {
     const u = this.mats.toon.uniforms;
     u.uFlow.value = flow % 1e6; u.uHalf!.value = half; u.uStreak!.value = strength; u.uProfile!.value = profile; rawRGB(u.uStreakCol!.value as Color, rgb);
+  }
+  /** A flowing part's marks: how far they have run, their pitch (local units), their tone and strength, the streaks' share, and filled heads (the bile) or open chevrons. */
+  setFlow(t: number, pitch: number, rgb: RGB, k: number, streak = 0, head = 0): void {
+    const u = this.mats.toon.uniforms;
+    u.uFlowT!.value = ((t % 1e4) + 1e4) % 1e4; u.uFlowPitch!.value = pitch; u.uFlowK!.value = k; u.uFlowStreak!.value = streak; u.uFlowHead!.value = head; rawRGB(u.uFlowCol!.value as Color, rgb);
   }
   set renderOrder(o: number) { this.toonMesh.renderOrder = o; if (this.inkMesh) this.inkMesh.renderOrder = o; }
   dispose(): void { this.geometry.dispose(); this.mats.toon.dispose(); this.mats.ink?.dispose(); }
@@ -257,6 +314,8 @@ export class MeshBuilder {
   p: number[] = []; n: number[] = []; c: number[] = []; idx: number[] = [];
   /** One number per vertex for a shader's own use (`aux`): push it right after each v(), for every vertex or none. */
   aux: number[] = [];
+  /** A second number per vertex (`aux2`), the same rule. */
+  aux2: number[] = [];
   get count(): number { return this.p.length / 3; }
   v(x: number, y: number, z: number, nx: number, ny: number, nz: number, col?: RGB): number {
     const l = Math.hypot(nx, ny, nz) || 1;
@@ -281,6 +340,7 @@ export class MeshBuilder {
     set('position', this.p, 3); set('normal', this.n, 3);
     if (this.c.length) set('color', this.c, 3);
     if (this.aux.length) set('aux', this.aux, 1);
+    if (this.aux2.length) set('aux2', this.aux2, 1);
     const ix = g.getIndex();
     if (ix && ix.array.length === this.idx.length) { (ix.array as Uint32Array).set(this.idx); ix.needsUpdate = true; } else g.setIndex(new BufferAttribute(new Uint32Array(this.idx), 1));
     g.computeBoundingSphere();

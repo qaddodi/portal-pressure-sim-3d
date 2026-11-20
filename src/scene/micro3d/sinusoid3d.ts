@@ -33,9 +33,9 @@ export const Z = { cell: 0.55, cellBot: -12.5, bead: 0.5, disse: -1.0, ground: -
 /** How far (µm) the scene stands toward the viewer from the lobule's plate. */
 const LIFT = 8;
 /** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), the lymph streaks' pace against the lymph's own run, and the haze: how far out it takes to be whole (µm) and how deep it goes. */
-const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_RUN = 12, HAZE_K = 0.72;
+const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_RUN = 8, HAZE_K = 0.88;
 /** Red cells in this sinusoid's lumen, and in each of the two next ones (beyond the plates). */
-const RBC_N = 34, RBC_FAR = 14, RBC_R = 1.35;
+const RBC_N = 34, RBC_FAR = 14, RBC_R = 1.05;
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -164,14 +164,15 @@ export class Sinusoid3D {
   private pinned = false;
 
   /** One frame, after the flat view's own update (its state, palette and traffic are this frame's). `on` is the Settings switch. True while anything of this scene moves. */
-  update(on: boolean): boolean {
+  update(on: boolean, running = true): boolean {
     const f = this.flat;
     const changed = on !== this.on;
     this.on = on;
     const shown = on && f.isVisible;
     // the flat view's own drawing stands aside while this one is on (it keeps its model, names and clock)
     f.tissue.visible = !on; f.sprites.visible = !on; f.cells.visible = !on;
-    f.trafficSpeed = on ? PACE : 1;
+    // (paused, the blood stands still: the red cells, the albumin and the streaks stop with the simulation, Mohammad 20 Nov 2026)
+    f.trafficSpeed = !running ? 0 : on ? PACE : 1;
     this.group.visible = shown;
     if (!shown) return changed;
     // the dive: the scene comes in over the lobule as the camera lands (the flat view's own share), whole at rest
@@ -489,13 +490,14 @@ export class Sinusoid3D {
   /** The streaks: the blood's in every lumen (lighter, at the lanes' speeds, the middle fastest) and the lymph's in Disse (darker, slow, back toward the portal tract), fixed to the tissue. */
   private stepStreaks(P: Pal): void {
     const f = this.flat, flow = f.traffic.flowX, lym = f.traffic.lymX;
-    const blood = mix3(P.cLumen, [1, 1, 1], 0.6), lymph = deep(P.cLymph, 0.8);
-    this.trough.setStreaks(flow, Math.max(1, f.g.halfW(0)), blood, 0.5, 1);
+    const blood = mix3(P.cLumen, [1, 1, 1], 0.75), lymph = mix3(P.cLymph, [1, 1, 1], 0.55);
+    this.trough.setStreaks(flow, Math.max(1, f.g.halfW(0)), blood, 0.85, 1);
     this.troughFar.setStreaks(flow, UM.lum + UM.endo * 0.5, blood, 0.4, 1);
     // (the lymph's own run is slow beside the blood's: its streaks go LYMPH_PACE times as fast, so they are seen to move, Mohammad 20 Nov "faster in lymph")
-    this.disse.setStreaks(lym * LYMPH_PACE, UM.disse * 0.5 + 0.5, lymph, 0.7, 0);
+    // (chevrons, not streaks: the lymph's way reads at a glance, Mohammad 20 Nov "i can't tell that it's flowing"; a negative profile asks the shader for chevrons)
+    this.disse.setStreaks(lym * LYMPH_PACE, UM.disse * 0.5 + 0.5, lymph, 0.85, -1);
     // the haze: from just past this sinusoid's plates (the next Disse, lining and lumen beyond them) toward the page, whole HAZE_RUN µm further out
-    const y0 = f.g.hepIn(0) + UM.hep + 0.5;
+    const y0 = f.g.hepIn(0) + UM.hep * 0.6;
     this.haze.uHaze.value.set(y0, y0 + HAZE_RUN, HAZE_K, 0);
     rawRGB(this.haze.uHazeCol.value, P.cBg);
   }

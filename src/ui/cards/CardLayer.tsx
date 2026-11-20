@@ -2,7 +2,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { caseOf, type Deck, type ReadingKey, type Slide } from '../../decks/schema.ts';
 import { useUi } from '../ui-store.ts';
 import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
-import { planLayout, widthOf, stepsFor, type CardId, type Need, type Plan } from '../layout/plan.ts';
+import { planLayout, widthOf, stepsFor, centredKind, centredBox, panelVisual, type CardId, type Need, type Plan } from '../layout/plan.ts';
 import { isSideways, layoutOf } from '../layout/rules2d.ts';
 import type { Rect } from '../layout/device.ts';
 import { useStack } from './useStack.ts';
@@ -14,7 +14,9 @@ import { TeachingCard } from './TeachingCard.tsx';
 import { LadderCard } from './LadderCard.tsx';
 import { TilesCard, TilesHead } from './TilesCard.tsx';
 import { CheckCard } from './CheckCard.tsx';
+import { nameTabOf } from './NameTab.tsx';
 import { TableCard } from './TableCard.tsx';
+import { VisualCard } from './VisualCard.tsx';
 import { ToolCard } from '../talk/ToolCard.tsx';
 import { hasToolChart } from '../../decks/charts.ts';
 import { Strip } from '../wallet/Strip.tsx';
@@ -52,7 +54,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const page = useUi((s) => s.page);
   const setPageCount = useUi((s) => s.setPageCount);
 
-  const wordsKey = view ? (view.slide && (view.words === 'teach' || view.words === 'case') ? `${view.words}:${view.slide.id}` : view.words) : '';
+  const wordsKey = view ? (view.slide && (view.words === 'teach' || view.words === 'case' || view.words === 'visual') ? `${view.words}:${view.slide.id}` : view.words) : '';
   const pagesKey = `${wordsKey}@${vp.w}x${vp.h}`;
   // iPhone on its side: the cards take the narrowest column that holds them, widening a step at a time (fewer lines of the same type), never a smaller type
   const sideways = isSideways(vp.w, vp.h), pair = !!view?.data;
@@ -61,7 +63,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // past the widest column the title takes one step down (never under 1.4× the words), then the words page: the body never shrinks
   const stepAt = sideways ? Math.min(stepMap[pagesKey] ?? 0, nSteps) : 0;
   const step = Math.min(stepAt, nSteps - 1), trim = stepAt >= nSteps;
-  const wide = Math.round(widthOf(vp, pair, step));
+  const alone = view && !view.data ? centredKind(view.words) : null;   // the outline, the quick check and a case stand alone in the middle at 2D's own width
+  const wide = alone ? centredBox(vp, alone, panelVisual({ id: view!.words, visual: view!.slide?.visual })).w : Math.round(widthOf(vp, pair, step));
   const hit = (key: string) => heights[`${key}@${wide}`];
   const h = (key: string) => hit(key)?.h ?? 0;
   const capOf = (v: NonNullable<typeof view>) => maxPages(v.words, v.slide && v.words === 'case' ? caseOf(v.slide)?.text : v.slide?.line, v.words === 'check' ? deck.checks.length : 0);
@@ -71,7 +74,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   sigRef.current = sig;
 
   const dataKey = view?.data === 'table' && view.slide ? `table:${view.slide.id}` : view?.data === 'ladder' && view.slide && hasToolChart(view.slide) ? `tool:${view.slide.id}` : 'ladder';
-  const needs: Need[] = view ? [{ id: view.words, slot: 'words', h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey) }] : [])] : [];
+  const needs: Need[] = view ? [{ id: view.words, slot: 'words', visual: view.slide?.visual, h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey) }] : [])] : [];
   const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step, docked), [vp, wallet.active, step, docked, needs.map((n) => `${n.id}:${n.slot}:${n.h}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const wordsShown = plan.cards.find((c) => c.slot === 'words');
@@ -137,10 +140,11 @@ export function CardLayer({ deck }: { deck: Deck }) {
           {sn.slide?.ladder ? <LadderCard ladder={sn.slide.ladder} readings={readings} /> : sn.slide?.tiles ? <TilesCard deckId={deck.id} slideId={sn.slide.id} /> : null}
         </>
       );
+      case 'visual': return sn.slide ? <VisualCard deck={deck} slide={sn.slide} read={read} /> : null;
       case 'check': return <CheckCard deck={deck} page={sn.at} pages={sn.pages} />;
     }
   };
-  const labelOf = (id: CardId) => ({ title: 'Talk', case: 'Case', teach: 'Slide', ladder: 'Pressures', table: 'Summary', check: 'Quick check' })[id];
+  const labelOf = (id: CardId) => ({ title: 'Talk', case: 'Case', teach: 'Slide', ladder: 'Pressures', table: 'Summary', check: 'Quick check', visual: 'Summary' })[id];
   // a data card of tiles wears the 2D card's own state classes (presenter.js dataIn): every such card is tiles-only, a floating screen's is a column under the words, an instrument's has-tool and tool-only
   const dataClass = (e: Entry) => { const sl = snaps[e.key]?.slide; return sl?.tiles || (sl && hasToolChart(sl)) ? ['tiles-only', stacked ? '' : 'col', sl.tool ? 'has-tool tool-only' : ''].filter(Boolean).join(' ') : undefined; };
   const frames = (stack: ReturnType<typeof useStack>, slot: 'words' | 'data') => stack.entries.map((e) => {
@@ -149,14 +153,18 @@ export function CardLayer({ deck }: { deck: Deck }) {
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
       <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onGone={stack.gone} label={labelOf(e.id)}
-        pointer={swipe} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? dataClass(e) : undefined}>
+        pointer={swipe} onTap={e.id === 'case' && e.phase === 'in' ? () => move('next') : undefined} visual={view.slide?.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? dataClass(e) : (e.id === 'check' || e.id === 'visual') && nameTabOf(deck) ? 'tabbed' : undefined}>
         {content(e)}
       </CardFrame>
     );
   });
 
+  // 2D's veil: behind the outline and the quick check the page is washed to its own colour (92%), so the card stands on a clear field
+  const veil = view.words === 'title' || view.words === 'check' || view.words === 'visual';
   return (
     <>
+      {/* (2D's dip behind a case card: the figure at 22%, as this wash over it) */}
+      <div className={`pz-veil${veil ? ' on' : view.words === 'case' ? ' on dip' : ''}`} aria-hidden="true" />
       {frames(wordsStack, 'words')}
       {frames(dataStack, 'data')}
       {stripStack.entries.map((e) => {

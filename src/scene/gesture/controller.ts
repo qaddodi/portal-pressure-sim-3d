@@ -46,6 +46,8 @@ export interface GestureHost {
   /** The figure's rectangle on screen in the shot's own framing (hand at the fit). */
   fitRect(): Rect;
   orbit(): number;
+  /** The least zoom the hand may rest at for the view now (absent: K_MIN). The sinusoid keeps its own vessel framed: never under its fit (Mohammad, 20 Nov 2026: "i shouldn't be able to zoom this much in sinusoid; spring me back"). */
+  kMin?(): number;
   /** Returns whether the orbit changed. */
   setOrbit(rad: number): boolean;
   /** Tilt all around (Settings): whether the free turn is on, and the tilt up or down. Absent: only the ±25° turn. */
@@ -140,19 +142,20 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   }
   const animZoomAt = (x: number, y: number, factor: number) => {
     const v = host.hand(), c = host.centre();
-    const k = limitK(v.k * factor), f = k / v.k;
+    const k = limitK(v.k * factor, kMin()), f = k / v.k;
     const to = zoomAbout(v, f, { x, y }, c);
     animateTo(k <= FIT_K ? { k, x: 0, y: 0 } : hardOf(to), undefined, null);
   };
 
   // ── the spring-back: back inside the limits, never lost ────────────────────────────────────────────────────────────────────────
+  const kMin = () => host.kMin?.() ?? K_MIN;
   let springAsk = 0;
   const springBack = () => { springAsk ||= env.ask(springRead); };
   function springRead() {
     springAsk = 0;
     if (drag || flicking || wheelGlide.active) { if (wheelGlide.active) settleSoon(60); return; }
     const v0 = hand.take(env.now(), handAge);
-    const to = restingView(host.hand(), fitRect(), host.centre());
+    const to = restingView(host.hand(), fitRect(), host.centre(), kMin());
     if (!sameView(to, host.hand())) animateTo(to, undefined, v0);
   }
   const settleSoon = (ms = 220) => { env.clearTimer(settleT); settleT = env.timer(springBack, ms); };
@@ -220,7 +223,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   function zoomBy(factor: number, x: number, y: number, stretch: boolean) {
     const v = host.hand();
     let k = v.k * factor;
-    k = stretch ? softK(k) : clamp(k, K_MIN, K_MAX);
+    k = stretch ? softK(k, kMin()) : clamp(k, kMin(), K_MAX);
     host.setHand(zoomAbout(v, k / v.k, { x, y }, host.centre()));
   }
   const wheelPx = (ev: WheelEv, d: number) => d * (ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? env.viewport().h : 1);
@@ -251,7 +254,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
       if (env.reduceMotion()) zoomBy(Math.exp(step), at.x, at.y, false);
       else {
         // a notch glides about 100 ms and carries the speed of the one before; the zoom it asks for stays inside the limits counting what the glide still owes
-        const k = host.hand().k, owed = wheelGlide.left(), kTo = clamp(k * Math.exp(owed + step), K_MIN, K_MAX);
+        const k = host.hand().k, owed = wheelGlide.left(), kTo = clamp(k * Math.exp(owed + step), kMin(), K_MAX);
         wheelGlide.push(Math.log(kTo / k) - owed, at.x, at.y, now);
       }
       settleSoon();
@@ -336,7 +339,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
       const a = drag.pa, b = drag.pb;
       const d = Math.hypot(a[0] - b[0], a[1] - b[1]), m = { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 };
       if (Math.abs(d - drag.d0) > 10 || Math.hypot(m.x - drag.m0.x, m.y - drag.m0.y) > 10) drag.moved = true;
-      const k = softK((drag.k0 * d) / drag.d0), p = panFor(drag.tilt ? drag.m0 : m, drag.anchor, k, host.centre());
+      const k = softK((drag.k0 * d) / drag.d0, kMin()), p = panFor(drag.tilt ? drag.m0 : m, drag.anchor, k, host.centre());
       if (drag.tilt) { turnBy(drag.tilt.o0, m.x - drag.m0.x); host.setOrbitPitch?.(dragToPitch(drag.tilt.p0, m.y - drag.m0.y)); }
       host.setHand({ k, x: p.x, y: p.y }); handSample(80);
       return;

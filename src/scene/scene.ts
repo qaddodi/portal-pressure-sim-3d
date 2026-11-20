@@ -242,6 +242,7 @@ export class CelScene {
     this.sinFrame.position.set(...SIN_LOCAL); this.sinFrame.scale.setScalar(SIN_REL);
     this.sinFrame.add(this.sinus.group); this.dive.add(this.lobule.group, this.sinFrame); this.scene.add(this.dive, this.mapLayer.group);
     this.lobule.setVisible(false); this.sinus.setVisible(false);
+    this.dive.visible = false;   // (the whole dive frame is off at the body's rest: nothing of the lobule or the sinusoid, or anything added to them later, can show on the liver)
     this.sinus3d = new Sinusoid3D(this.sinus, this.shared); this.sinus.group.add(this.sinus3d.group);
     this.lobule3d = new Lobule3D(this.lobule, this.shared); this.lobule.group.add(this.lobule3d.group);
     this.unMicro = useSettings.subscribe((st, prev) => { if (st.micro3d !== prev.micro3d) { this.micro3d = st.micro3d; this.moving = true; } });
@@ -510,6 +511,7 @@ export class CelScene {
     this.rig.setBounds(v === 'circuit' ? circuitBounds(this.circuit.upright) : { ...PLATE_BOUNDS, z: FIGURE_Z });
     if (v === 'lobule') this.lobule.setVisible(true);
     if (v === 'sinusoid') this.sinus.setVisible(true);
+    this.dive.visible = true;   // (until settleViews: the view being left stays up while the camera flies)
     this.hideLeftBehind = true;
     if (v !== 'body') this.feedViews(true);
     this.moving = true;
@@ -601,6 +603,7 @@ export class CelScene {
     const v = this.figureView;
     this.body.visible = v === 'body' || v === 'circuit' || this.fadeNow > 0;
     this.lobule.setVisible(v === 'lobule'); this.sinus.setVisible(v === 'sinusoid');
+    this.dive.visible = v === 'lobule' || v === 'sinusoid';
     this.hideLeftBehind = false;
   }
   /** The body dissolves as the camera goes into the liver and comes back as it leaves (a function of the camera's distance to the lobule's place, so the dive in and the way out are the same picture run both ways). */
@@ -801,7 +804,8 @@ export class CelScene {
     this.disease.organs.setQuiet(quiet);   // (quiet depth on a turn: the organs' wash eases back as the figure turns)
     const circMoving = this.stepCircuit(now, dt);
     this.fadeBody();
-    if (this.hideLeftBehind && !camMoving && !this.circuit.moving) this.settleViews();
+    // (the camera's own move, not the gentle tilt still easing or a hand on the figure: the view left behind goes the moment the move lands)
+    if (this.hideLeftBehind && !this.rig.isMoving && !this.circuit.moving) this.settleViews();
     const hiMoving = this.highlight.step(dt);
     const pinMoving = this.pins.step(dt, this.disease.organs.byId);
     this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
@@ -820,7 +824,7 @@ export class CelScene {
     const lobMoving = this.lobule.update(now), sinMoving = this.sinus.update(now);
     // (the 3D lobule dissolves as the camera goes down onto the sinusoid, and stands aside once landed: its solid tiles and tubes rise above the sinusoid's plane and would cross it in the foreground)
     const dv = this.sinus.diveShareNow, under = !this.sinus.isVisible ? 0 : dv == null ? 1 : smoothstep01(0.4, 0.78, dv);
-    const lob3 = this.lobule3d.update(this.micro3d, under), sin3 = this.sinus3d.update(this.micro3d);
+    const lob3 = this.lobule3d.update(this.micro3d, under, now, latest.frame?.running ?? true), sin3 = this.sinus3d.update(this.micro3d, latest.frame?.running ?? true);
     const viewMoving = lob3 || sin3 || lobMoving || sinMoving;
     const procMoving = this.procs.update(now);
     const diseaseMoving = this.disease.update(now);

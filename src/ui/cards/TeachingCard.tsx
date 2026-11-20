@@ -9,7 +9,7 @@ import type { Deck } from '../../decks/schema.ts';
 import { useVariant } from '../talk/variant-words.ts';
 import { cardFields } from './card-fields.ts';
 
-export function TeachingCard({ slide, deck, read, page, pages, trim = false }: { slide: Slide; deck?: Deck; read: (k: string, at?: string) => number | null | undefined; page: number; pages: number; trim?: boolean }) {
+export function TeachingCard({ slide, deck, read, page, pages, trim = false, panel = false }: { slide: Slide; deck?: Deck; read: (k: string, at?: string) => number | null | undefined; page: number; pages: number; trim?: boolean; /** 2D's visual panel: the head only (title, equation, line, caveat, cite) in `.pz-ph`; the table or chart follows it */ panel?: boolean }) {
   // a compare button that switches the patient brings its own words (2D variantWords); a new slide shows its own
   const variant = useVariant((v) => (deck && v.key === `${deck.id}/${slide.id}` ? v.words : null));
   const shown = variant ? { ...slide, title: variant.title, line: variant.line, kicker: variant.kicker, ...(variant.site ? { site: variant.site } : {}) } : slide;
@@ -18,6 +18,26 @@ export function TeachingCard({ slide, deck, read, page, pages, trim = false }: {
   const eq = slide.eq && page === 0;
   // the title's one step down when a sideways phone has no wider column left: 2D's own knob for it (--pz-tk), set from the trimmed size
   const kick: CSSProperties | undefined = trim ? { ['--pz-tk' as string]: 'var(--pz-tk-trim)' } : undefined;
+  if (panel) {
+    return (
+      <>
+        {deck && <NameTab deck={deck} air={false} />}
+        <div className="pz-ph">
+          <h1 className="pz-h">{shown.title}</h1>
+          {eq && slide.eq && (
+            <div className="pz-eq" role="math" aria-label={slide.eq.map((p) => (p.sub ? `${p.text} ${p.sub}` : p.text)).join(' ')}>
+              <math><mrow>{slide.eq.map((p, i) => p.tag === 'mo' ? <mo key={i}>{p.text}</mo>
+                : p.sub ? <msub key={i}><mi>{p.text}</mi><mtext>{p.sub}</mtext></msub>
+                : <mi key={i} className={p.tone === 'wedge' ? 'eq-wedge' : p.tone === 'free' ? 'eq-hv' : undefined}>{p.text}</mi>)}</mrow></math>
+            </div>
+          )}
+          {text ? <p className="pz-line"><Line text={text} read={read} terms={slide.terms} pill={f.pill} /></p> : null}
+          {f.caveat ? <p className="pz-caveat">{f.caveat}</p> : null}
+          {f.cite ? <p className="pz-cite">{f.cite}</p> : null}
+        </div>
+      </>
+    );
+  }
   return (
     <>
       {deck && <NameTab deck={deck} />}

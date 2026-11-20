@@ -23,6 +23,7 @@ import type { LensId } from '../lenses/model.ts';
 import { Batch, type V3 } from './batch.ts';
 import { shadeUniforms } from './shading.ts';
 import { type LobuleHit, type PickTube, lobuleHit } from './pick.ts';
+import { buildBile } from './bile.ts';
 import { type Course, type LobuleNet, type P2, buildLobule, zoneOf } from './geometry.ts';
 import { type LobuleModel, easeToward, lymphProtein, lymphRate, lymphSeal, smooth } from './model.ts';
 import { disseColour } from './disse.ts';
@@ -301,36 +302,17 @@ export class LobuleView {
     // along the edge into each tract's ductule. Arrowheads run out toward the tract, against the blood.
     const bileSpeed = () => markSpeed(2.2 * Math.min(1.6, Math.max(0.3, Math.sqrt(Math.max(0.05, this.cur.flow)))));
     const chB = new Batch(), hrB = new Batch(), canalPool: Joiner[] = [];
-    const mid = (a: Course, b: Course, i: number): P2 => [(a.pts[i]![0] + b.pts[i]![0]) / 2, (a.pts[i]![1] + b.pts[i]![1]) / 2];
-    const s0c = by('s0');
-    const channel = (cs: Course[], i0: number, i1: number, canals: boolean) => {
-      cs.forEach((a, k) => {
-        const b = cs[(k + 1) % cs.length]!;
-        if (a.tri === undefined) return;
-        const pts: P2[] = [];
-        for (let i = i0; i <= i1; i++) pts.push(mid(a, b, i));
-        if (Math.hypot(pts[0]![0] - pts[pts.length - 1]![0], pts[0]![1] - pts[pts.length - 1]![1]) < 0.05) return;
-        const offC = markOffset(pts[0]!);
-        chB.tube(pts.map((p) => p3(p, 0.012)), { radius: RAD.bc, radial: 6, uvx: (_i, arc) => arc / (RAD.bc * MARK_PITCHES) + offC });
-        this.bilePick.push({ id: BILE_ID + this.bilePick.length, kind: 'bs', pts, tri: a.tri });
-        if (canals) {
-          const tr = net.triads[a.tri]!, p0 = pts[0]!, bd = tr.bd;
-          const pc: P2[] = [];
-          // (from the ductule out along the edge, bowed in a little, to the first plate: the canal of Hering)
-          for (let j = 0; j <= 8; j++) { const u = j / 8; pc.push([bd[0] + (p0[0] - bd[0]) * u + (tr.x - 0) * -0.012 * Math.sin(Math.PI * u), bd[1] + (p0[1] - bd[1]) * u + (tr.y - 0) * -0.012 * Math.sin(Math.PI * u)]); }
-          const offH = markOffset(pc[0]!);
-          hrB.tube(pc.map((p) => p3(p, 0.014)), { radius: RAD.bh, radial: 6, uvx: (_i, arc) => arc / (RAD.bh * MARK_PITCHES) + offH });
-          canalPool.push({ id: CANAL_ID + canalPool.length, pts: pc });
-          this.bilePick.push({ id: BILE_ID + this.bilePick.length, kind: 'bh', pts: pc, tri: a.tri });
-        }
-      });
-    };
-    channel(s0c, 2, 22, true);
-    channel(by('s1'), 2, 20, false);
-    channel(by('s2'), 3, 22, false);
+    // (2D's own layout, lobule-bile.js, ported in bile.ts: a channel beside each plate's sinusoid from a quarter of the way out, a canal of Hering square into a duct along the
+    // edge outside the lymphatic, each half edge's duct into its corner's ductule; Mohammad, 20 Nov 2026, "the bile ducts are still a mess ... mimick" 2D)
+    for (const c of buildBile(net)) {
+      const off = markOffset(c.pts[0]!), duct = c.kind === 'bh', rad = c.radius;
+      (duct ? hrB : chB).tube(c.pts.map((p) => p3(p, duct ? 0.014 : 0.012)), { radius: (i) => Math.max(1e-4, rad[i]! * R), radial: 6, uvx: (_i, arc) => arc / ((duct ? RAD.bh : RAD.bc) * MARK_PITCHES) + off });
+      this.bilePick.push({ id: BILE_ID + this.bilePick.length, kind: c.kind, pts: c.pts, ...(c.tri != null ? { tri: c.tri } : {}) });
+      if (duct) canalPool.push({ id: CANAL_ID + canalPool.length, pts: c.pts.slice().reverse() });
+    }
     // (no outline on either: 2D's wall is 0.3 px on a canaliculus and 0.6 on a canal of Hering, a faint olive hairline; the cel line's 2 px floor on a tube under a pixel wide made them dark bars, thick olive rungs between the sinusoids)
-    const bc = this.make('bile', chB, 'bile', { bands: 2, flat: true, px: 0, chevrons: { pitch: RAD.bc * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
-    const bh = this.make('bile', hrB, 'bile', { bands: 2, flat: true, px: 0, chevrons: { pitch: RAD.bh * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
+    const bc = this.make('bile', chB, 'bile', { bands: 2, flat: true, px: 0, chevrons: { pitch: RAD.bc * MARK_PITCHES, speed: bileSpeed, dir: 1, bile: true } });
+    const bh = this.make('bile', hrB, 'bile', { bands: 2, flat: true, px: 0, chevrons: { pitch: RAD.bh * MARK_PITCHES, speed: bileSpeed, dir: 1, bile: true } });
     this.bileObjs = [bc, bh];
     // the ductule's wall opens where a canal of Hering joins it (2D: mouths while the Bile layer is on, mouthsNoBile while it is off)
     this.discInfo.get('bd')!.setPool(canalPool);

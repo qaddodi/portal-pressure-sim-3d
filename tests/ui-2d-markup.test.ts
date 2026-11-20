@@ -7,10 +7,10 @@ const src = (p: string) => readFileSync(p, 'utf8');
 const has = (p: string, ...needles: string[]) => { const t = src(p); for (const n of needles) assert.ok(t.includes(n), `${p} should use "${n}"`); };
 
 test('the words card is 2D markup: .pz-shade glass, .pz-text, .pz-kick, .pz-h, .pz-eq, .pz-line', () => {
-  has('src/ui/cards/CardFrame.tsx', 'pz-shade pz-card', 'pz-text', 'pz-data');
+  has('src/ui/cards/CardFrame.tsx', 'pz-shade pz-card', 'pz-text', 'pz-data', 'pz-panel', 'pz-case on');
   has('src/ui/cards/TeachingCard.tsx', 'pz-kick', 'pz-h', 'pz-eq', 'pz-line');
-  has('src/ui/cards/TitleCard.tsx', 'pz-h', 'pz-line', 'pz-outline', 'pzo-obj');   // (the 2D outline slide has no Start button: the pill's Next goes on)
-  has('src/ui/cards/CaseCard.tsx', 'pz-kick', 'pz-line');
+  has('src/ui/cards/TitleCard.tsx', 'pz-ph', 'pz-dtitle', 'pz-h', 'pz-outline', 'pzo-obj');   // (the 2D outline slide has no Start button: the pill's Next goes on)
+  has('src/ui/cards/CaseCard.tsx', 'pz-site pz-case-tag', 'pz-case-p', 'pz-case-q');   // (2D presenter-case.js cardUp)
   has('src/ui/cards/CheckCard.tsx', 'pz-h', 'pz-line', 'pz-check', 'pzc-q', 'pzc-a');
 });
 
