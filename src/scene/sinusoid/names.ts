@@ -62,17 +62,23 @@ const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /** 2D's rule for when a name gets a leader: past LEAD_ON px from what it names, kept until it comes within LEAD_OFF (label-place.js). */
 export const LEAD_ON = 12, LEAD_OFF = 8;
+/** The least a name stands from the screen's side edges (px): the same 12 the figure's names keep (solver VIEW_INSET 8 plus the leader's ring). */
+export const EDGE = 12;
 
 /** Lays the names out for a screen. Wide: across the screen (2D layoutTags); tall: top to bottom, every name level (2D layoutTall). */
 export function layoutNames(inp: NamesInput): NamePlacement[] {
-  const { portrait: V, g, k, C, W, free: fe } = inp;
+  const { portrait: V, g, k, C, W, free: fe0 } = inp;
+  // where a name may stand: the free room less EDGE px at both sides, so no name touches the screen's edge (a name at its widest, "Fenestrae 100% open" or HEPATOCYTE on a phone, was held 4 px from it);
+  // the tissue's own geometry below keeps the room as it is
+  const fe = { ...fe0, l: fe0.l + EDGE, r: fe0.r - EDGE };
+  const feGeom = fe0;
   const out: NamePlacement[] = [];
   const by: Partial<Record<NameKey, NamePlacement>> = {};
   const ang = V ? Math.PI / 2 : 0, ca = Math.cos(ang), sa = Math.sin(ang);
   const toScreen = (x: number, y: number): [number, number] => [C[0] + k * (x * ca - y * sa), C[1] + k * (x * sa + y * ca)];
   // the stretch of sinusoid in the free room, µm along it (2D: VW.fr)
   const along = (X: number, Y: number) => ((X - C[0]) * ca + (Y - C[1]) * sa) / k;
-  const f0 = along(fe.l, fe.t), f1 = along(fe.r, fe.b), fr: [number, number] = [Math.min(f0, f1), Math.max(f0, f1)];
+  const f0 = along(feGeom.l, feGeom.t), f1 = along(feGeom.r, feGeom.b), fr: [number, number] = [Math.min(f0, f1), Math.max(f0, f1)];
   const pickTags = (u: number) => lerp(fr[0] + 8, fr[1] - 8, u);
   const awayX = (x: number, from: number, d: number) => (Math.abs(x - from) < d ? from + (x < from ? -d : d) : x);
   const endBox: ({ u: number; x0: number; x1: number; y0: number; y1: number } | null)[] = [null, null];
@@ -89,7 +95,7 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
     const cx0 = cx;
     // a name stays inside the free room whatever the scale puts under it (a wide stretch at a large scale throws the plates' names past the room's top and foot: the leader still reaches what it names)
     if (!V) cy = clamp(cy, Math.min(fe.t + hh / 2 + 4, (fe.t + fe.b) / 2), Math.max(fe.b - hh / 2 - 4, (fe.t + fe.b) / 2));
-    if (!alongName) cx = clamp(cx, Math.min(Math.max(w / 2 + 4, fe.l + w / 2), W / 2), Math.max(Math.min(W - w / 2 - 4, fe.r - w / 2), W / 2));   // a level name stays on screen and in the free room
+    if (!alongName) cx = clamp(cx, Math.min(Math.max(w / 2 + EDGE, fe.l + w / 2), W / 2), Math.max(Math.min(W - w / 2 - EDGE, fe.r - w / 2), W / 2));   // a level name stays on screen and in the free room
     if (!V) {
       // across the screen every name is level: it steps clear of the ends' names and stays in the free room
       for (const b of endBox) if (b && cy + hh / 2 > b.y0 - 4 && cy - hh / 2 < b.y1 + 4) cx = b.u ? Math.min(cx, b.x0 - 14 - w / 2) : Math.max(cx, b.x1 + 14 + w / 2);
@@ -235,7 +241,7 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
   // (the probe regions below are measured only: they are taken back out of the list)
   const probe = <T,>(fn: () => T): T => { const n = out.length; const r = fn(); out.length = n; return r; };
   const fenW = probe(() => fenR(0, 0).w), disseW0 = probe(() => disseR(0).w);
-  const spot = placeFenDisse({ pores: g.pores[0], nsd: SEED.nucUp, lo: (fe.l - C[0] + 6) / k, hi: (fe.r - C[0] - 6) / k, hs: [g.xs - hsHalf, g.xs + hsHalf], fh: fenW / 2 / k, dh: disseW0 / 2 / k, fp: 16 / k, xs: g.xs, far: 120 / k }) as { xp: number; xc: number; xq: number | null } | null;
+  const spot = placeFenDisse({ pores: g.pores[0], nsd: SEED.nucUp, lo: (feGeom.l - C[0] + 6) / k, hi: (feGeom.r - C[0] - 6) / k, hs: [g.xs - hsHalf, g.xs + hsHalf], fh: fenW / 2 / k, dh: disseW0 / 2 / k, fp: 16 / k, xs: g.xs, far: 120 / k }) as { xp: number; xc: number; xq: number | null } | null;
   let xp: number, rf: NamePlacement, xq = spot ? spot.xq : null;
   if (spot) { xp = spot.xp; rf = fenR(xp, spot.xc - xp); } else {
     xp = fenAt(pickTags(0.6)); rf = fenR(xp, 0);

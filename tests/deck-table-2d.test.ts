@@ -46,7 +46,20 @@ test('a phone\'s table: the site heads its group, the name has the column to its
   const tsx = readFileSync(new URL('../src/ui/cards/TableCard.tsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8');
   assert.match(tsx, /!r\.cont && r\.head \? <tr className="dk-tgroup">/, 'a group heading row over the first row of each site');
-  assert.match(tsx, /minmax\(calc\(14\.5rem - \$\{nc\} \* 1\.1rem\), 2fr\)/, 'the name column follows the value columns');
+  assert.match(css, /--dk-name: calc\(14\.5rem - var\(--nc\) \* 1\.1rem\)/, 'the name column follows the value columns');
   assert.match(css, /tbody tr th\[scope="row"\] \.pz-kick \{ display: none; \}/, 'the site is not in the patient\'s row on a phone');
   assert.match(css, /\.pz-table tr\.dk-tgroup \{ display: none; \}/, 'the wide table keeps the site over the name');
+});
+
+// Night sweep on 8d3d25b (20 Nov): on an 8-column table the heads were clipped (WHV, FHV, HVP) and the first head said LEVEL. Heads that do not fit stand upright as in 2D (fitHeads, `tr.th-up`), the name's column
+// takes the room they give back, and the row head is 2D's ("Level" unless the slide names its own).
+test('the table fits its heads: upright when they do not fit, the name column follows; the row head is 2D\'s', async () => {
+  const { readFileSync } = await import('node:fs');
+  const tsx = readFileSync(new URL('../src/ui/cards/TableCard.tsx', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8');
+  const model = readFileSync(new URL('../src/ui/talk/table-model.ts', import.meta.url), 'utf8');
+  assert.match(tsx, /scrollWidth > t\.clientWidth \+ 1/, 'measured, not guessed');
+  assert.match(tsx, /className=\{up \? 'th-up' : undefined\}/);
+  assert.match(css, /\.pz-table\.dk-pztable\.dk-up \{ --dk-name: calc\(20\.5rem - var\(--nc\) \* 1\.75rem\)/);
+  assert.match(model, /rowHead: spec\.rowHead \|\| 'Level'/, '2D words 1:1 (presenter.js summaryTable)');
 });

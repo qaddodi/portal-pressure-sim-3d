@@ -2,7 +2,7 @@
 // (its site's heading over its name), and in each cell the arrow against normal (or against the row it is compared with) in the colour that goes with it, and no number: the numbers are
 // the reference row's (the anchor for the arrows) and the words a screen reader and a long press hear. On a phone each row is one line of a grid (css2d: `.pz-table tr`). Every cell is computed by
 // table-model.ts from the 2D app's own cut-offs. A row that names a slide opens that slide. Text keeps its size and nothing scrolls inside the card.
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Deck, Slide } from '../../decks/schema.ts';
 import { useUi } from '../ui-store.ts';
 import { tableModel, type Cell } from '../talk/table-model.ts';
@@ -46,14 +46,35 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
   const model = useMemo(() => tableModel(spec, rows, (id) => fpOfSlide(deck, id)), [rows, spec, deck]);
   const showCut = (k: string, label: string, cutText?: string) => () => setCut({ label, text: cutText || (CUT as Record<string, string>)[k] || '' });
   const nc = model.cols.length;
+  // 2D fitHeads (presenter.js): where the column heads are too wide for their columns (a phone, many columns) they stand upright (`tr.th-up`), and the name's column takes the room they give back.
+  // Judged by measuring, with the upright style off, whenever the table's width or its columns change (the heads are set once, so no frame ever shows a clipped head).
+  const root = useRef<HTMLDivElement>(null), headRow = useRef<HTMLTableRowElement>(null);
+  const [up, setUp] = useState(false);
+  const colKey = model.cols.map((c) => c.k).join();
+  useLayoutEffect(() => {
+    const box = root.current, tr = headRow.current;
+    if (!box || !tr) return;
+    const fit = () => {
+      const was = tr.classList.contains('th-up');
+      tr.classList.remove('th-up'); box.classList.remove('dk-up');
+      const over = Array.from(tr.querySelectorAll<HTMLElement>('th.num')).some((t) => t.scrollWidth > t.clientWidth + 1);
+      if (was) { tr.classList.add('th-up'); box.classList.add('dk-up'); }
+      if (over !== was) setUp(over);
+    };
+    fit();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(fit);
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, [colKey]);
   // (a Doppler column is wider than a pressure's: the grid's columns follow what each holds)
   // (the name's column takes what the value columns leave: fewer columns, a wider name; the site stands over its rows as a heading row on a phone, so a name has its column to itself)
-  const grid = `minmax(calc(14.5rem - ${nc} * 1.1rem), 2fr) ${model.cols.map((c) => (c.k === 'wave' ? 'minmax(0, 3.4fr)' : 'minmax(0, 1fr)')).join(' ')}`;
+  const grid = `minmax(var(--dk-name), 2fr) ${model.cols.map((c) => (c.k === 'wave' ? 'minmax(0, 3.4fr)' : 'minmax(0, 1fr)')).join(' ')}`;
   return (
-    <div className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-grid' as string]: grid }}>
+    <div ref={root} className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}${up ? ' dk-up' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-grid' as string]: grid }}>
       <table>
         <thead>
-          <tr>
+          <tr ref={headRow} className={up ? 'th-up' : undefined}>
             <th>{model.rowHead}</th>
             {model.cols.map((c) => (
               <th key={c.k} className="num" title={c.cut || undefined} tabIndex={c.cut ? 0 : undefined}

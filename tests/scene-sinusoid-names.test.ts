@@ -7,6 +7,7 @@ import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { type NameKey, type NamePlacement, END_NAMES, SV_NOTE, SV_TARGET, explainHit, targetOf } from '../src/scene/sinusoid/names.ts';
 import { restScale } from '../src/scene/sinusoid/portrait.ts';
 import { UM } from '../src/scene/sinusoid/layout.ts';
+import { EDGE } from '../src/scene/sinusoid/names.ts';
 import type { SinusoidTargets } from '../src/scene/lobule/model.ts';
 
 const targets = (o: Partial<SinusoidTargets> = {}): SinusoidTargets => ({ por: 1, col: 0, bm: 0, mv: 1, act: 0, lum: 1, pinch: 0, v: 1, filt: 1, prot: 1, ...o });
@@ -72,7 +73,7 @@ test('tall: top to bottom, every name level, the stellate cell\'s side on the ri
     assert.ok(n('disse').cy < n('lymph').cy, 'the left column runs Disse, lymph');
     for (const x of L.names) assert.ok(x.cy - x.hh / 2 >= L.free.t - 1 && x.cy + x.hh / 2 <= L.free.b + 1, `${W}x${H}: ${x.key} inside the free room`);
     assert.equal(n('disse').name, 'Space of\nDisse'); assert.equal(n('hsc').name, 'Stellate\ncell');
-    for (const k of ['fen', 'hsc', 'disse', 'lymph', 'kup'] as const) assert.ok(n(k).leader || Math.abs(n(k).cx - L.C[0]) < n(k).w, `${k} is tied to what it names`);
+    for (const k of ['fen', 'hsc', 'disse', 'lymph', 'kup'] as const) assert.ok(n(k).leader || Math.abs(n(k).cx - L.C[0]) < n(k).w + 2 * EDGE, `${k} is tied to what it names`);
   }
 });
 
@@ -123,4 +124,11 @@ test('wide, panned up: a name whose tissue has left the free room stands aside i
   for (const kk of ['hep', 'bc', 'lymph'] as NameKey[]) assert.ok(!keys.has(kk), `${kk}: its tissue is off the room, so its name is not drawn`);
   assert.ok(keys.has('sin') && keys.has('in') && keys.has('out'), 'what is on screen keeps its name');
   for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) assert.ok(!overlap(names[i]!, names[j]!), `${names[i]!.key} clear of ${names[j]!.key}`);
+});
+
+test('no name touches the screen\'s side edges (EDGE px kept), at phone and tablet widths', () => {
+  for (const [W, H] of [[390, 844], [430, 932], [820, 1180]] as const) {
+    const L = layout(W, H);
+    for (const x of L.names) if (!x.end) assert.ok(x.cx - x.w / 2 >= EDGE - 0.5 && x.cx + x.w / 2 <= W - EDGE + 0.5, `${W}x${H}: ${x.key} ${Math.round(x.cx - x.w / 2)}..${Math.round(x.cx + x.w / 2)}`);
+  }
 });
