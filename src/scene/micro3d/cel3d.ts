@@ -235,6 +235,11 @@ void main() {
 
 /** How far behind its shape the ink hull sits, as a share of its distance from the eye. */
 export const INK_BACK = 0.0015;
+/** No line thinner than this (CSS px): the canvas has no multisampling, and a hull band under about 1.5 device px breaks into dashes as it crosses the pixel grid (the dotted
+ *  hepatocytes, the stippled nucleus rings, eyes 20 Nov). Every micro part's line is held to it, so no part can ask for a line too thin to draw. */
+export const MIN_LINE = 1.0;
+/** The line's polygon offset toward the eye (factor, units): it wins over any surface at its own depth, and stays behind every face toward the viewer (INK_BACK). */
+export const INK_OFFSET = [-0.5, -2] as const;
 export const MICRO_INK_VS = /* glsl */ `
 uniform float px;
 uniform vec2 res;
@@ -320,9 +325,6 @@ export interface MicroOptions {
   doubleSide?: boolean;
   /** Drawn see-through (opacity below 1): sorted after the solid parts, no depth written. */
   transparent?: boolean;
-  /** A shape that floats free (a red cell, albumin, a Kupffer or stellate cell, a nucleus): its fill always wins over its own ink at one depth (slope-scaled polygon offset). Never on a surface
-   *  other shapes' lines lie on (the plates, the ground, the trough, the lobule's tiles and vessels): there the offset sank their lines (eyes 20 Nov: no outline on the nuclei, the central vein). */
-  floating?: boolean;
 }
 
 /** The gap table of a part without gaps: one closed texel. */
@@ -354,14 +356,15 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
       uGaps: { value: o.gaps?.tex ?? NO_GAPS }, uGapX: { value: o.gaps?.x ?? new Vector4(0, 0, 0, 0) },
     },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
-    // (the shape always wins over its own ink where the two meet at one depth, just inside the outline at the rim: a slope-scaled hair toward the eye, so the ink never z-fights the fill
-    // pixel by pixel. That speckle was the stippled, broken outline round the red cells, the nuclei and every small shape, Mohammad 20 Nov 2026: "most certainly NOT continuous")
-    polygonOffset: !!o.floating, polygonOffsetFactor: o.floating ? -1 : 0, polygonOffsetUnits: o.floating ? -2 : 0,
   });
   const ink = o.ink === null ? null : new ShaderMaterial({
     vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors,
-    uniforms: { color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: o.px ?? CEL_STYLE.MICRO.LINE }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
+    uniforms: { color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: Math.max(MIN_LINE, o.px ?? CEL_STYLE.MICRO.LINE) }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
     side: DoubleSide, transparent: !!o.transparent, depthWrite: !o.transparent,
+    // (the line always wins where it meets a surface at one depth: its own shape's rim, the ground a tile stands on, the cell a nucleus sits on. A hair toward the eye, more where the
+    //  surface runs steep to the view (the rim), never enough to cross a face toward the viewer (those are INK_BACK behind). Where the two met at one depth they fought pixel by pixel:
+    //  the stippled red cells and nuclei, the dashed hepatocytes, eyes 20 Nov. One rule for every outline, in place of a per-shape fix.)
+    polygonOffset: true, polygonOffsetFactor: INK_OFFSET[0], polygonOffsetUnits: INK_OFFSET[1],
   });
   return { toon, ink };
 }

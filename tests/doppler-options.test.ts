@@ -98,3 +98,26 @@ test('the earlier reading, faint beside the instrument: the main portal vein\'s 
   assert.equal(ghostOf({ tool: { kind: 'doppler' } }, 2, slides, fpOf, st), null, 'no delta, no ghost');
   assert.equal(ghostOf({ tool: { kind: 'doppler', delta: 'missing' } }, 2, slides, fpOf, st), null);
 });
+
+test('on a slide\'s data card the report sits over the monitor\'s top strip: the trace starts under it and the vessel and settings run along the foot (2D --dop-ov); in the Tests card they stay above', () => {
+  const rec = new SampleFeed(); useDopplerProbe.setState({ probe: 'TIPS', gate: 'mid' });
+  record(rec, 'TIPS', 8, (_t, p) => 90 + 20 * Math.sin(2 * Math.PI * p));
+  const m = new DopplerModel(); m.ingest(frame(), rec);
+  const ys = (shapes: readonly Shape[], key: string) => (shapes.find((s) => (s as { key?: string }).key === key) as TextShape | undefined)?.y;
+  const card = m.frameFor(420, 226, 1000, '').shapes;
+  assert.equal(ys(card, 'name'), 13, 'the Tests card: the vessel above the trace');
+  m.ovTop = 44;
+  const slide = m.frameFor(420, 226, 1000, '').shapes;
+  assert.equal(ys(slide, 'name'), 226 - 11, 'the slide card: the vessel along the foot of the panel, whatever its height');
+  assert.equal(ys(slide, 'unit'), 226 - 11, 'and the unit with it');
+  const base = slide.find((s) => s.k === 'line' && (s as { pen?: { w: number } }).pen?.w === 1 && (s as { x1: number }).x1 < 80) as { y1: number } | undefined;
+  assert.ok(!base || base.y1 > 44, 'nothing of the trace above the strip');
+});
+
+test('the Doppler\'s clock draw reads the box\'s height from a ref (it is registered once: a captured height drew the trace at the first render\'s size)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/ui/tests/doppler/DopplerPane.tsx', import.meta.url), 'utf8');
+  assert.match(src, /frameFor\(c\.w, hRef\.current,/);
+  const draw = src.match(/const draw = \(\) => \{[\s\S]*?\n  \};/)?.[0] ?? '';
+  assert.ok(draw.includes('hRef.current') && !/frameFor\(c\.w, h,/.test(draw), 'draw uses the ref');
+});

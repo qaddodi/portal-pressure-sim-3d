@@ -5,6 +5,7 @@
 // run on into the liver, one forward and one back in depth, fading out (portal veins, the umbilical vein) or in (hepatic veins) the way the host does. They are decoration on the host's own
 // course (a tributary group, like the 2D figure's fans), derived from it: no new edges, flows or numbers.
 import { EDGE_PATH_2D } from './paths.copied.ts';
+import { len3 } from '../frame2d.ts';
 
 type P2 = readonly [number, number];
 export interface BranchItem { /** the width at its start as a share of its vein's own at the join; for a vein that ends at a node (`atEnd`), the shape works it out from the vein's end width */ k: number; /** starts at the end of a vein that stays whole */ atEnd?: true; fan: boolean; when: string | null; src: string | null; out: boolean; pts: readonly P2[]; dz: readonly number[]; /** the width at each end as a share of its own: a branch narrows toward its tip */ taper: readonly [number, number]; /** the share of its length each end's narrowing covers: the whole of it at the tip, none at the join */ taperSpan: readonly [number, number]; /** which end (0 start, 1 end) is the join with the host: it has no cap */ join: 0 | 1 }
@@ -14,13 +15,14 @@ const N = 64, Z_FWD = 0.1;
 /** A branch begins this far behind the vein it leaves, rising to its own depth over its first third, so the vein's wall covers the branch's start and its outline is not drawn across the vein (a crease where it joins). */
 const Z_TUCK = 0.02;
 const tuck = (u: number): number => -Z_TUCK * (1 - smooth(u / 0.35));
-/** The centre-to-centre distance (2D units) at which a side branch has cleared the vein it leaves: the two radii and a little. */
 /** How fast a side branch parts from its vein (the power of its distance along the run): straight, so it leaves at an angle and is clear of the vein within a few radii, not after a long sliver lying on it. */
 const SIDE_P = 1.0;
-const CLEAR: Readonly<Record<string, number>> = { PVH_R_2: 11, PVH_L_1: 9.5, RHV_IVC_1: 9, LHV_IVC: 9 };
-/** The depth of a side branch at lateral distance `w` from its vein's line: behind the vein (its wall covers it, so no outline is drawn across the vein) for as long as the two overlap, and forward to `z` only once it is clear of it.
- *  (It used to rise with the distance along the vein, so by a fifth of the way it was already in front while still lying on the vein: a crease and a darker overlap at every fork; Mohammad, 20 Nov.) */
-export const tuckedDepth = (w: number, clear: number, z: number): number => { const s = smooth((w - 0.35 * clear) / (0.85 * clear)); return -Z_TUCK * (1 - s) + z * s; };
+/** The steepest a side branch may run in depth, as rise per unit of lateral run (about 24 degrees). A tube is shaded by its normals: one that dives at the camera (the old ramp rose 0.1 over 0.03 sideways, 75 degrees) shows its
+ *  whole width in the shade tone, a dark rounded patch laid over the vein it leaves and two strands that do not match (Mohammad, 20 Nov; eyes crops of 4089d1a). Root cause of the dark overlap at every fork. */
+export const SIDE_SLOPE = 0.45;
+/** The depth of a side branch at lateral distance `w` (2D units) from its vein's line: a little behind the vein where it starts (its wall covers the branch, so no outline is drawn across the vein), then rising at a fixed
+ *  gentle slope toward `z`, which it approaches and never passes. It is level with the vein by the time it has cleared it (two radii out), so while the two overlap the branch is always behind. */
+export const tuckedDepth = (w: number, z: number): number => -Z_TUCK + z * (1 - Math.exp(-SIDE_SLOPE * len3(w) / z));
 /** Where along its vein (0 to 1, from the end the branches grow from: the portal branches' liver end, the hepatic veins' start) each branching vein splits. */
 export const SPLIT_AT: Readonly<Record<string, number>> = { PVH_R_2: 0.35, PVH_L_1: 0.55, RHV_IVC_1: 0.72, LHV_IVC: 0.62 };
 /** (None now: the left portal vein was the one end-fork, two children from its very end, which showed as a knob with two tubes laid over each other; the umbilical vein leaves its wall earlier now (starts.ts leaveVein), so it branches like every other vein, one tube and one side branch.) */
@@ -74,7 +76,7 @@ function grow(id: string, host: readonly P2[], prefix: readonly P2[] | null): Tr
     const pts: P2[] = [], dz: number[] = [];
     for (let i = 0; i < N; i++) {
       const a = b[Math.max(0, i - 1)]!, c = b[Math.min(N - 1, i + 1)]!, tx = c[0] - a[0], ty = c[1] - a[1], tl = Math.hypot(tx, ty) || 1, u = s[i]! / L, w = spread * L * Math.pow(u, p);
-      pts.push([b[i]![0] - (ty / tl) * w, b[i]![1] + (tx / tl) * w]); dz.push(z > 0 ? tuckedDepth(Math.abs(w), CLEAR[id] ?? 10, z) : 0);
+      pts.push([b[i]![0] - (ty / tl) * w, b[i]![1] + (tx / tl) * w]); dz.push(z > 0 ? tuckedDepth(Math.abs(w), z) : 0);
     }
     return { pts, dz };
   };

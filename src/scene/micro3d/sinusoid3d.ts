@@ -170,12 +170,12 @@ export class Sinusoid3D {
     this.beadLine = mk('endothelium-edge', { ink: null, gaps });
     this.disse = mk('disse', { ink: null, streaks: true });
     this.cells = mk('hepatocytes', { px: S.LINE });
-    this.nuclei = mk('nuclei', { px: S.LINE_SMALL, floating: true });
+    this.nuclei = mk('nuclei', { px: S.LINE_SMALL });
     this.nucleoli = mk('nucleoli', { ink: null });
     this.bile = mk('canaliculi', { px: S.LINE_SMALL });
-    this.endoN = mk('endothelial-cells', { px: S.LINE_SMALL, floating: true });
+    this.endoN = mk('endothelial-cells', { px: S.LINE_SMALL });
     this.endoNi = mk('endothelial-nuclei', { ink: null });
-    this.kup = mk('kupffer', { px: S.LINE, floating: true });
+    this.kup = mk('kupffer', { px: S.LINE });
     this.kupN = mk('kupffer-nucleus', { ink: null });
     // (see-through: the body and its nucleus blend over the stream but still write depth and draw before the line, so the line behind the body never shows through it; colour premultiplied)
     for (const [p, o] of [[this.kup, 10], [this.kupN, 11]] as const) {
@@ -183,14 +183,14 @@ export class Sinusoid3D {
     }
     // (the line in the same see-through list, so it truly draws after the body: an opaque line would draw first and its hull behind the body would show through it)
     if (this.kup.inkMesh) { this.kup.inkMesh.renderOrder = 12; const im = this.kup.inkMesh.material as ShaderMaterial; im.transparent = true; im.depthWrite = true; }
-    this.hsc = mk('stellate', { px: S.LINE_SMALL, floating: true });
+    this.hsc = mk('stellate', { px: S.LINE_SMALL });
     this.hscN = mk('stellate-nucleus', { ink: null });
     this.bm = mk('basement', { ink: null, transparent: true });
     this.arrows = mk('ends', { px: S.LINE_SMALL });
     this.villi = many('microvilli', unitRod(8), 900, { px: S.LINE_SMALL });
     this.fibres = many('collagen', unitRod(6), 800, { ink: null });
-    this.albumin = many('albumin', unitSphere(12, 8), 2000, { px: S.LINE_SMALL, floating: true });
-    this.rbc = many('red-cells', unitRbc(22), RBC_N + 2 * RBC_FAR, { px: S.LINE, floating: true });
+    this.albumin = many('albumin', unitSphere(12, 8), 2000, { px: S.LINE_SMALL });
+    this.rbc = many('red-cells', unitRbc(22), RBC_N + 2 * RBC_FAR, { px: S.LINE });
     // (order: the ground first, then the solid shapes; the see-through membrane and the arrows last)
     for (const p of [this.ground, this.disse, this.troughFar, this.trough, this.bead, this.beadLine, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoN, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) this.group.add(p.group);
     for (const p of [this.villi, this.fibres, this.albumin, this.rbc]) this.group.add(p.group);
@@ -320,7 +320,8 @@ export class Sinusoid3D {
     this.bile.setTint(P.cBile); this.bile.setInk(inkOf(P.cBile));
     this.endoN.setTint(P.cEndoS); this.endoN.setInk(inkOf(P.cEndoE));
     this.endoNi.setTint(P.cEndoN);
-    this.kup.setTint(mix3(P.cKup, P.cLumen, 0.45)); this.kup.setInk(deep(P.cKup, 0.55));   // (a little faded, outlined in its own colour, darker: Mohammad 20 Nov 2026) this.kupN.setTint(deep(P.cKup, 0.62));   // (the nucleus a deeper shade of the cell itself)
+    this.kup.setTint(mix3(P.cKup, P.cLumen, 0.45)); this.kup.setInk(deep(P.cKup, 0.55));   // (a little faded, outlined in its own colour, darker: Mohammad 20 Nov 2026)
+    this.kupN.setTint(deep(P.cKup, 0.62));   // (the nucleus a deeper shade of the cell itself; it sat in the comment above, so the nucleus drew white, eyes 20 Nov)
     const hc = mix3(P.cHscQ, P.cHscA, clamp(act, 0, 1));
     this.hsc.setTint(hc); this.hsc.setInk(inkOf(hc)); this.hscN.setTint(P.cHscN);
     this.bm.setTint(P.cBm);

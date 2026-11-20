@@ -17,6 +17,8 @@ import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
 import { centrelineOf, type Centreline } from './vessels/centreline.ts';
+import { SIDE_BRANCHES, mouthOf } from './vessels/mouth.ts';
+import { cavaTailOf } from './vessels/cava-tail.ts';
 import { fadeOf, HEPATIC_VEINS, cavaEndSpan, CAVA_RECEDE } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
@@ -312,6 +314,13 @@ export class CelScene {
     }
   }
 
+  /** A vein whose side branch leaves it draws no outline across the branch's mouth (vessels/mouth.ts). */
+  private applyMouth(def: NetVessel, o: VesselObject): void {
+    const kids = SIDE_BRANCHES.get(def.id);
+    const m = kids ? mouthOf(kids[0]!) : null;
+    if (m) o.setMouth(m.u0, m.u1, m.side, m.margin); else o.setMouth(0, 0, 0, 0);
+  }
+
   /** Settings > Figure depth > Smooth vessel joins changed: every tube is rewritten in place (same vertices, new positions and widths: the joins are geometry), then drawn once. */
   private useSmoothJoins(on: boolean): void {
     if (!setSmoothJoins(on)) return;
@@ -321,6 +330,7 @@ export class CelScene {
       const built = buildTubes(coursesOf(def, this.shapes.stateOf(def.id) ?? REST), tubularOf(def, slicesFor(def.id)), def.radius);
       o.reshape(built.geometry, built.length);
       built.geometry.dispose();
+      this.applyMouth(def, o);
     }
     this.applyMates();
     this.moving = true;
@@ -346,7 +356,9 @@ export class CelScene {
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     const fade = fadeOf(def.id, def.tone === 'artery', def.feeder?.host);
     if (fade) { o.setTipFade(fade); this.tipFades.push({ o, connect: fade.connect }); if (fade.ivcJoin) this.ivcJoins.push(o); }
+    this.applyMouth(def, o);
     { const span = cavaEndSpan(def.id); if (span > 0) { o.setCavaEnd(span, CAVA_RECEDE); this.hvJoins.push(o); } }
+    { const tail = cavaTailOf(def.id, courses, built.length); if (tail > 0) o.setCavaTail(tail); }
     if (BACK_EDGES.has(def.id)) { o.setBehindOrgans(VESSEL_LAYER, IVC_EDGES.has(def.id)); this.back.push(o); if (IVC_EDGES.has(def.id)) this.cava.push(o); }
     this.add(o);
     this.vessels.push(o);
