@@ -3,9 +3,10 @@
 // colour at the look's casing alpha; the fill is exactly three tones lit from the top left of the SCREEN (shadow -17 %, base, lit +15 % toward white), so two pieces of one vein shade the
 // same at a join and a vein turned 20 degrees keeps its tones; there is no specular and no world-lit band.
 import type { LookId } from '../../looks/looks.ts';
+import { CEL_STYLE } from '../cel-style.ts';   // (the figure's one cel style: every surface reads its bands and its line from there)
 
 /** tube-cel-glsl.js CEL: the outline's width in device px by caliber (LINE_R of the radius, held between LINE_MIN and LINE_MAX), the tone steps and where they change across the tube. */
-export const CEL = { DIR: [-0.70710678, 0.70710678] as const, SHADE_AT: -0.16, LIT_AT: 0.24, SHADE: 0.17, LIT: 0.15, LINE_MIN: 1.5, LINE_MAX: 3.0, LINE_R: 0.14 };
+export const CEL = { DIR: CEL_STYLE.DIR, SHADE_AT: CEL_STYLE.SHADE_AT, LIT_AT: CEL_STYLE.LIT_AT, SHADE: CEL_STYLE.SHADE, LIT: CEL_STYLE.LIT, LINE_MIN: CEL_STYLE.LINE_MIN, LINE_MAX: CEL_STYLE.LINE_MAX, LINE_R: CEL_STYLE.LINE_R };
 /** The screen direction toward the light in the view's own axes (x right, y UP): the top left. (2D's is y down: (-0.707, -0.707).) */
 export const CEL_DIR_VIEW = CEL.DIR;
 
