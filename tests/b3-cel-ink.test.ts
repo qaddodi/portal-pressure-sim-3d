@@ -39,7 +39,7 @@ test('the shader holds the same numbers, and has no specular, no rim, no wall li
   assert.ok(VESSEL_FS.includes(CEL_TUBE_GLSL), 'the tones are the one shared GLSL, written from CEL_STYLE');
   for (const n of [`${F(CEL_STYLE.VESSEL_STEP_AT)} - et`, `b * (1.0 - ${F(CEL_STYLE.SHADE)})`]) assert.ok(CEL_TUBE_GLSL.includes(n), n);
   assert.doesNotMatch(CEL_TUBE_GLSL, /celTubeSpec|LIT_AT|window/, 'no highlight, no third band, no lumen window');
-  assert.match(VESSEL_FS, /celTubeTone\(base, mix\(sT, 1\.0, mouthK\), fwidth\(sT\) \* \(1\.0 - mouthK\), rDev\)/);
+  assert.match(VESSEL_FS, /celTubeTone\(base, mix\(sT, 1\.0, nbrK\), fwidth\(sT\) \* \(1\.0 - nbrK\), rDev\)/);
   assert.match(VESSEL_FS, /float sT = dot\(n, celLightView\(\)\)/, 'lit by the world light');
   assert.doesNotMatch(VESSEL_FS, /celTubeSpec|rimLight|wallT|fresnel|FAR_WALL|NEAR_WALL/, 'matte: no highlight, no rim light, no wall pass');
   assert.ok(!/sp \* 0\.32/.test(VESSEL_FS) && !/rim \* 0\.10/.test(VESSEL_FS), 'no old specular dot and no rim lift');
@@ -183,7 +183,7 @@ test('the outline is a soft dark of the vessel\'s own colour, never white or bla
   assert.match(VESSEL_FS, /mix\(inkH, inkColorCirc, circT\), inkT/, 'the ink colour is the vessel\'s own tone, not the raw casing');
   assert.equal(CEL_STYLE.TUBE.RIM_SHARE, 0, 'no white rim');
   assert.match(VESSEL_FS, /uniform vec3 mate0;[\s\S]*uniform vec3 mate1;/, 'the ink knows the joined ends');
-  assert.match(VESSEL_FS, /float endK = vHi > 0\.001 \? 1\.0 : buryK\(vUv\.x \* len \* vU, \(1\.0 - vUv\.x\) \* len \* vU\);/, 'only a declared branch\'s buried end is not outlined');
+  assert.match(VESSEL_FS, /float endK = vHi > 0\.001 \|\| nbrOn > 0\.5 \? 1\.0 : buryK\(vUv\.x \* len \* vU, \(1\.0 - vUv\.x\) \* len \* vU\);/, 'only a declared branch\'s buried end is not outlined');
   assert.match(VESSEL_VS, /float endK = vHi > 0\.001 \? 1\.0 : buryK\(uv\.x \* len \* vU, \(1\.0 - uv\.x\) \* len \* vU\);/, 'nor widened (the same factor builds the tube)');
   // a head can never be smaller than a readable chevron: the smallest tube that carries one has a head half width of at least 3.5 CSS px, and a head is longer than it is wide
   const minR = 5.8, hw = Math.min(0.6 * minR, Math.min(8, Math.max(4, 0.5 * minR)));
