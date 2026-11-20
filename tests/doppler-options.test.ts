@@ -118,5 +118,6 @@ test('the Doppler\'s clock draw reads the box\'s height from a ref (it is regist
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/ui/tests/doppler/DopplerPane.tsx', import.meta.url), 'utf8');
   assert.match(src, /frameFor\(c\.w, hRef\.current,/);
-  assert.doesNotMatch(src, /frameFor\(c\.w, h,/.source.length ? /m\.frameFor\(c\.w, h, performance/ : /x/);
+  const draw = src.match(/const draw = \(\) => \{[\s\S]*?\n  \};/)?.[0] ?? '';
+  assert.ok(draw.includes('hRef.current') && !/frameFor\(c\.w, h,/.test(draw), 'draw uses the ref');
 });
