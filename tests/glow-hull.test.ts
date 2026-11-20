@@ -72,3 +72,30 @@ test('the pick\'s weight along a vein: nothing at its two outer ends and full in
   assert.ok(Math.abs(outlineStrength(a, 1, 1) - outlineStrength(b, 0, 1)) < 1e-9, 'continuous through the joint: no square end at a piece\'s boundary');
   assert.ok(outlineStrength(a, 1, 1) > 0.5);
 });
+
+// ── the dark bands (Mohammad, 20 Nov: "weird outline"; dark square-ended bands along a picked vein's walls, in separate segments) ──
+// ROOT CAUSE: a pick lifted the picked tube by `inflate` 0.012 (highlight.ts PICK_LIFT). `inflate` pushes the whole mesh outward but not the lumen, and the fragment stage inks everything between the lumen's edge and the
+// mesh's, so the lift became a thick dark band along both walls of every picked TUBE (a junction skin, which keeps its own inflate, got none), ending square where the tube ends at a skin's seam: segments with gaps and steps.
+test('a pick never grows a vessel\'s tube: `inflate` stays 0 through a pick, its fade and a shunt target\'s hover, so the ink line is the vessel\'s own', () => {
+  const s = new CelScene();
+  const infl = () => s.vessels.map((o) => o.toon.uniforms.inflate!.value as number);
+  assert.ok(infl().every((v) => v === 0));
+  s.pick('PV_TRUNK'); s.highlight.step(16);
+  assert.ok(infl().every((v) => v === 0), 'easing in');
+  while (s.highlight.step(16)) { /* settle */ }
+  assert.ok(infl().every((v) => v === 0), 'picked');
+  s.pick(null); while (s.highlight.step(16)) { /* fade */ }
+  s.highlight.setOnly(['V_KID_L']); while (s.highlight.step(16)) { /* settle */ }
+  s.hoverVessel('V_KID_L'); while (s.highlight.step(16)) { /* settle */ }
+  assert.ok(infl().every((v) => v === 0), 'a hovered shunt target');
+  const k = s.vessels.find((o) => o.edge!.id === 'V_KID_L')!.toon.uniforms.glowK!.value as number;
+  assert.ok(k > 1 && k <= 2, 'the hover is a stronger glow: ' + k);
+  s.hoverVessel(null); while (s.highlight.step(16)) { /* settle */ }
+  assert.equal(s.vessels.find((o) => o.edge!.id === 'V_KID_L')!.toon.uniforms.glowK!.value, 1, 'eases back');
+  s.dispose();
+});
+
+test('nothing in the highlight writes a vessel\'s `inflate` or widens its line (the pick is a glow and nothing else)', () => {
+  const hl = readFileSync('src/scene/highlight.ts', 'utf8');
+  assert.doesNotMatch(hl.split('export class OrganPins')[0]!, /uniforms\.inflate|PICK_LIFT/);
+});
