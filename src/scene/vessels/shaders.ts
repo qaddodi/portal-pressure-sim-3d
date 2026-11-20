@@ -67,7 +67,6 @@ uniform float dpr;   // device pixels to a CSS pixel (the renderer's pixel ratio
 // the fade at a free end (2D's TIP_FADE, ART_FADE, FADE_DOWN_Y, FADE_IN, SIN_FADE): mode 1 runs along the vessel (uv.x), mode 2 down the figure (y), mode 3 along a line (the 2D linear mask, solid from the offset), mode 4 along a line with a dip (faintest at the offset, solid at the end); (from, to, alpha at from, alpha at to); fadeKeep 1: the Circuit does not let go of it
 uniform float fadeMode;
 uniform vec4 fadeA;
-uniform float cavaCut;   // 1 on a vein that opens into the cava: its end is eased to the cava's alpha and colour by its distance from the cava's wall in the fragment stage, not along its length
 uniform vec2 cavaEnd;    // a hepatic vein: the share of its length at the cava end that eases to this alpha (fades.ts cavaEndSpan); 0 = none
 uniform vec4 fadeLine;   // modes 3 and 4: a line across the figure, scene (x1, y1, x2, y2); fadeA is then (offset, -, alpha at the start, alpha at the end)
 uniform float fadeKeep;
@@ -174,7 +173,7 @@ ${CIRCUIT_VS_CALL}
   }
   // the fade zone (a tip into its organ, a bed through the lobe, a vein into the cava): the tube keeps its full width and fades by opacity, body and outline together (vFade, 1 outside a fade zone: opaque)
   if (stump.x > 0.0 && circShare < 0.001) fa *= step(stump.x, uv.x * len * vU);   // (the divided stretch is not there: body and outline)
-  if (cavaEnd.x > 0.0 && cavaCut < 0.5) fa *= mix(mix(1.0, cavaEnd.y, smoothstep(1.0 - cavaEnd.x, 1.0, uv.x)), 1.0, circT);
+  if (cavaEnd.x > 0.0) fa *= mix(mix(1.0, cavaEnd.y, smoothstep(1.0 - cavaEnd.x, 1.0, uv.x)), 1.0, circT);
   vFade = fa;
   vNbr = nbr;
   // THE OUTLINE is part of the tube (no second mesh, no stencil, no depth tie): the tube is built INK wider than its lumen, and the fragment shader paints the outer ink band, so the line is continuous by construction.
@@ -268,7 +267,6 @@ uniform vec3 mate0;
 uniform vec3 mate1;
 uniform vec2 bury;   // the ink is held back ONLY inside a declared branch's trunk: how far from the branch's start and end (figure units per radius unit, 0: none: a run-on, a crossing, a free end keep their whole outline)
 uniform float cavaCut;   // 1 on a vein that opens into the cava (nbr is the cava's): it takes the cava's colour and alpha as it nears the wall and is not drawn inside the lumen, so it ends exactly at the wall with no step
-uniform vec2 cavaEnd;    // (the alpha the cava is drawn at, y)
 uniform vec2 cavaRef;    // the cava piece's lens index and the share along it where the vein joins: the colour the vein takes on
 uniform float nbrOn;   // 1 on the two tubes of a fork: the outline is the union's (neighbour.ts), so the buried end does not hold the ink back
 uniform sampler2D streamTex;
@@ -435,14 +433,15 @@ void main() {
   // lumen opens there, lit). nbrK: how far inside, in device px, from 0 (on the other's wall) to 1 (half a pixel in).
   float nbrK = 0.0;
   if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * (1.0 - circT);
-  // A VEIN INTO THE CAVA takes the cava's colour and alpha as it nears the wall (wB: 0 more than 1.6 cava radii before it, 1 at it), so what meets the wall is what the cava is there, and it is not drawn inside the lumen: a clean mouth, no step in colour, no ground showing through
+  // A VEIN INTO THE CAVA takes the cava's colour as it nears the wall (wB: 0 more than 1.6 cava radii before it, 1 at it) and dissolves over the last 0.8 of a cava radius before it (cavA), so it is gone at the wall: nothing is cut (a hard cut left a seam
+  // and a step in colour, eyes v9, v13), no ground shows through a half-opaque vein, and nothing of it is drawn inside the lumen
   float cavA = 1.0;
   if (cavaCut > 0.5 && vNbr.y > 0.0) {
     float cd = vNbr.y - abs(vNbr.x);
     float wB = smoothstep(-1.6 * vNbr.y, 0.0, cd) * (1.0 - circT);
     vec4 la2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradA, lensLaneA, lensModeA, laneColA, across), lb2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradB, lensLaneB, lensModeB, laneColB, across);
     base = mix(base, mix(mix(color, la2.rgb, la2.a), mix(color, lb2.rgb, lb2.a), lensMix), wB);
-    cavA = mix(1.0, cavaEnd.y, wB) * (1.0 - smoothstep(-0.5, 0.5, cd / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr));
+    cavA = mix(1.0 - smoothstep(-0.8 * vNbr.y, 0.0, cd), 1.0, circT);
   }
   if (cavA < 0.004) discard;
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade

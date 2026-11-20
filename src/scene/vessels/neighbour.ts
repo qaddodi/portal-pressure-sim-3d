@@ -30,6 +30,7 @@ export const cavaMateOf = (id: string): string | null => (opensIntoCava(id) ? ca
 
 /** `nbr` for every vertex of vessel `id`'s tube (`positions`: its xyz, as built): (signed distance of the vertex from its fork mate's axis in the figure's plane, positive left of the mate's heading; the mate's radius there; 0 where the vertex lies past the mate's ends). Null for a vessel with no mate. */
 export function neighbourAttr(id: string, positions: ArrayLike<number>, state: ShapeState = REST): Float32Array | null {
+  const cava = forkMateOf(id) == null && cavaMateOf(id) != null;
   const mate = forkMateOf(id) ?? cavaMateOf(id);
   const md = mate ? NETWORK_BY_ID.get(mate) : undefined;
   if (!md) return null;
@@ -55,7 +56,7 @@ export function neighbourAttr(id: string, positions: ArrayLike<number>, state: S
     const side = dx * (y - ay) - dy * (x - ax) >= 0 ? 1 : -1;
     const past = (i === 0 && braw < 0) || (i === n - 2 && braw > 1);
     out[v * 2] = side * Math.sqrt(best);
-    out[v * 2 + 1] = past ? 0 : R[i]! + (R[i + 1]! - R[i]!) * bt;
+    out[v * 2 + 1] = past && !cava ? 0 : R[i]! + (R[i + 1]! - R[i]!) * bt;   // (the cava goes on past its piece's ends, into the next piece: a vein that opens near one is inside it there too)
   }
   return out;
 }

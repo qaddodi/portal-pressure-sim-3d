@@ -260,15 +260,14 @@ test('a side branch starts as wide as it is where it leaves its vein (a half-wid
   }
 });
 
-test('a vein that opens into the cava takes the cava\'s colour and alpha as it nears the wall, so what meets the wall is the cava (colours blend at every vessel-into-vessel junction, owner 19 Nov)', async () => {
+test('a vein that opens into the cava takes the cava\'s colour as it nears the wall and is gone at it (colours blend at every vessel-into-vessel junction, owner 19 Nov)', async () => {
   const { VESSEL_FS, VESSEL_VS } = await import('../src/scene/vessels/shaders.ts');
   const { CelScene } = await import('../src/scene/scene.ts');
   const { indexOf } = await import('../src/engine/vessel-data.ts');
   const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
   assert.match(VESSEL_FS, /vec4 lensOfAt\(float lensIx, float u,/);
   assert.match(VESSEL_FS, /base = mix\(base, mix\(mix\(color, la2\.rgb, la2\.a\), mix\(color, lb2\.rgb, lb2\.a\), lensMix\), wB\);/);
-  assert.match(VESSEL_FS, /cavA = mix\(1\.0, cavaEnd\.y, wB\)/);
-  assert.match(VESSEL_VS, /if \(cavaEnd\.x > 0\.0 && cavaCut < 0\.5\) fa \*=/, 'the end is eased by the distance from the wall in the fragment stage, not along the length');
+  assert.match(VESSEL_FS, /cavA = mix\(1\.0 - smoothstep\(-0\.8 \* vNbr\.y, 0\.0, cd\), 1\.0, circT\);/);
   const s = new CelScene();
   try {
     const ref = (id: string) => (s.vesselObject(id)!.toon.uniforms as unknown as { cavaRef: { value: { x: number; y: number } } }).cavaRef.value;
