@@ -204,3 +204,28 @@ test('a card whose words grow is revealed in the measuring callback, and a swipe
   const fin = readFileSync(new URL('../src/ui/cards/finish.ts', import.meta.url), 'utf8');
   assert.match(fin, /rail\.leave\(/, 'the cards go out on the rail before the talk is let go');
 });
+
+test('a card the finger took far on keeps going the way it went: it never drifts back toward its end as it fades (the bounce)', () => {
+  const { rail, tick } = world();
+  const w = [el()], b = [el()];
+  rail.drag(w, -120, 0.9, PARALLAX.words);            // the finger took it 120 px left (the soft stop is further than the 56 px a card leaves by)
+  rail.leave(w, { dir: 1 });
+  let last = xOf(w[0]!);
+  assert.equal(last, -120, 'it goes on from the finger');
+  for (let i = 0; i < 40; i++) { tick(16); const x = xOf(w[0]!); assert.ok(x <= last + 1e-6, `never back to the right (${last} then ${x})`); last = x; }
+  assert.ok(last <= -120 - THROW_OUT * PARALLAX.words + 1e-6 || last <= -120 - THROW_OUT + 1, 'it ends a leave\'s distance past where the finger let go');
+  // swiping back (to the right) is the same in the other direction
+  rail.drag(b, 100, 0.9, PARALLAX.words); rail.leave(b, { dir: -1 });
+  let lb = xOf(b[0]!); for (let i = 0; i < 40; i++) { tick(16); const x = xOf(b[0]!); assert.ok(x >= lb - 1e-6, 'never back to the left'); lb = x; }
+  // a card that was not dragged leaves by its usual short slide
+  const c = [el()]; rail.leave(c, { dir: 1 }); for (let i = 0; i < 40; i++) tick(16);
+  assert.ok(xOf(c[0]!) >= -THROW_OUT - 1e-6);
+});
+
+test('a swipe that commits a slide change does not ease the leaving cards back first; one that does not (a page, a beat) does', () => {
+  const drag = readFileSync(new URL('../src/ui/cards/useCardDrag.ts', import.meta.url), 'utf8');
+  assert.match(drag, /const out = m \? opts\.current\.leaves\?\.\(m\) \?\? true : false;/);
+  assert.match(drag, /if \(!m\) setTimeout\(home, 0\);\s*else if \(!out\) setTimeout\(home, 60\);/, 'only the cards that stay come back, and a leave that never came is the 900 ms net');
+  const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
+  assert.match(layer, /leaves: \(m\) =>/);
+});
