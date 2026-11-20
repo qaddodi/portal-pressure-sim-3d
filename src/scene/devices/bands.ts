@@ -34,7 +34,8 @@ export class Bands {
         rings[k]!.r = BAND.stroke / 2 / U;
       }
       writeRings(g, rings, 6);
-      const o = new DeviceObject(g, 'platinum', shared, { px: 0.7, order: 5 }, 'ink');
+      // 2D's band is a plain 2.4 px stroke in --dev-platinum, no outline (app-02-controls.css .band-ring): no edge, and no growth beyond the stroke's own width
+      const o = new DeviceObject(g, 'platinum', shared, { px: 0, order: 5, fat: 0 }, 'none');
       o.group.visible = false;
       this.rings.push(o); this.group.add(inVesselPass(o.group));
     }
