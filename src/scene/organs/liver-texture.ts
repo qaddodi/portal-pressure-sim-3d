@@ -59,6 +59,9 @@ export interface Cel {
   /** soft look (cel8..cel11, 20 Nov: "more cartoony, less dramatic, not flat"): the band edges ease over this much of the dome light (0: the hard bands above, a stair-step once baked) and the dome has a rounded valley
    *  (a cubic ease) instead of the disc's vertical wall, so the surface and the outline are gentle waves, never a serration */
   soft?: number;
+  /** the "soft valleys" look (cel12, Mohammad 20 Nov: "it needs to be subtle"): no nodule grid at all; a smooth warped low-frequency field of broad irregular lobules, darkened only in its valleys by a few percent,
+   *  no lit cap, no wall, no line; the rim waves with the same field. `size` is its wavelength in 2D units. */
+  field?: true;
   /** how much of the mesh's own (bumpy) normal the organ's shade steps follow at full scarring, 0..1 (1: all, the old look; less: the smoothed rest normal, organ-shader.ts shadeK) */
   raw?: number;
 }
@@ -78,11 +81,35 @@ export const CELS: Record<string, Cel> = {
   cel9: { name: 'pillow lumps', colour: '#A55C3C', a: 0.72, bands: 2, ink: 0.3, shade: 0.36, size: 15, rLo: 0.62, rHi: 0.95, jit: 0.2, cap: 0.3, foot: -0.22, bump: 0.35, rim: 1.1, soft: 0.3, raw: 0.5 },
   cel10: { name: 'quiet surface, wavy rim', colour: '#A8634A', a: 0.62, bands: 2, ink: 0.08, shade: 0.22, size: 26, rLo: 0.7, rHi: 0.95, jit: 0.15, cap: 0.3, foot: -0.2, bump: 0.12, rim: 1.4, soft: 0.5, raw: 0.3 },
   cel11: { name: 'knuckles, soft shade', colour: '#9E5538', a: 0.74, bands: 3, ink: 0.2, shade: 0.4, size: 11, rLo: 0.5, rHi: 0.85, jit: 0.25, cap: 0.3, foot: -0.2, bump: 0.38, rim: 1.2, soft: 0.18, raw: 0.6 },
+  // Subtle (Mohammad 20 Nov, after cel8..cel11 "all suck... it needs to be subtle"; Opus's read: a regular grid, the same highlight on every nodule, a line round each cell and a strong tint all read as rough):
+  // a smooth surface with a few broad faint shadowy dips, a few percent of shade, a slight warm-tan shift, and a gently waving rim (0.3 of the rim height).
+  cel12: { name: 'soft valleys, subtle', colour: '#B07A45', a: 0.38, bands: 2, ink: 0, shade: 0.08, size: 60, rLo: 0, rHi: 1, jit: 0, cap: 0, foot: 0, bump: 0.04, rim: 0.3, soft: 1, raw: 0, field: true },
 };
 /** The standing cirrhotic liver is cel7 (Mohammad 20 Nov: "Cel7 for now"); `?liver=cel1..cel6` shows the other cel options and `?liver=c2b` the earlier pale-nodule surface. */
 export const DEFAULT_CEL = 'cel7';
 export const celLook = (): Cel | null => { const v = flagValue('liver'); if (v === 'c2b') return null; return CELS[v ?? ''] ?? CELS[DEFAULT_CEL]!; };
+/** Smooth value noise at (x, y) (one lattice unit = 1): a hash at each lattice point, blended by a quintic ease, 0..1, C2 across the lattice. */
+function vnoise(x: number, y: number, seed: number): number {
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const e = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
+  const a = hash(ix, iy, seed), b = hash(ix + 1, iy, seed), c = hash(ix, iy + 1, seed), d = hash(ix + 1, iy + 1, seed), u = e(fx), v = e(fy);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+/** The soft lobes' height (0..1) at (x, y) in 2D units: two octaves (wavelength `wl` and half of it), the lattice warped by a third noise of a quarter of `wl`, so the lobes are broad and irregular and never a grid. */
+export function softField(x: number, y: number, wl = 60): number {
+  const wx = (vnoise(x / (wl * 0.28), y / (wl * 0.28), 7) - 0.5) * wl * 0.3, wy = (vnoise(x / (wl * 0.28), y / (wl * 0.28), 8) - 0.5) * wl * 0.3;
+  const px = x + wx, py = y + wy;
+  const v = 0.65 * vnoise(px / wl, py / wl, 11) + 0.35 * vnoise(px / (wl * 0.5) + 3.7, py / (wl * 0.5) + 1.3, 12);
+  // value noise sits near the middle: widen it so the lobes use the whole 0..1
+  return Math.min(1, Math.max(0, 0.5 + (v - 0.5) * 2.1));
+}
+function fieldSurface(x: number, y: number, cel: Cel): Surface {
+  const h = softField(x, y, cel.size), valley = 1 - sstep(0.25, 0.6, h);
+  // dark only: the shade is in the valleys, the lobes' tops are the liver's own colour (no lit cap, no wall, no line)
+  return { sep: 0, dome: sstep(0, 1, h), tone: 0.5, light: -0.6 * valley };
+}
 function celSurface(x: number, y: number, cel: Cel): Surface {
+  if (cel.field) return fieldSurface(x, y, cel);
   const c = disc(x, y, cel.size, cel.rLo, cel.rHi, cel.jit, 61), w = Math.max(2, c.r * 0.6);
   const l = lit(c, w, 0.2);
   // flat bands: the lit cap, the body, the shaded foot (a 2-band nodule drops the cap)
