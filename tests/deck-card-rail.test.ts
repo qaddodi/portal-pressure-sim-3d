@@ -20,10 +20,12 @@ const world = () => {
 };
 const xOf = (e: { v: Record<string, string> }) => parseFloat(/-?[\d.]+/.exec(e.v.transform ?? '')?.[0] ?? '0');
 
-test('2D\'s curve and times: out is gone by 85% of its way, in whole by 40%, no overshoot', () => {
+test('2D\'s curve and times: out is gone by 80% of its time, in whole by 60%, fading smoothly (never a pop), no overshoot', () => {
   assert.equal(RAIL_MS, 560); assert.equal(THROW_IN, 56); assert.equal(STAGGER, 40);
   assert.equal(throwAt('out', 0, { x: 0, o: 1 }, { x: -300, o: 0 }).o, 1);
-  assert.ok(throwAt('out', 0.5, { x: 0, o: 1 }, { x: -300, o: 0 }).o < 0.05 || throwAt('out', 0.5, { x: 0, o: 1 }, { x: -300, o: 0 }).o <= 0.2);
+  assert.equal(throwAt('out', 0.8, { x: 0, o: 1 }, { x: -56, o: 0 }).o, 0);
+  assert.equal(throwAt('in', 0.6, { x: 56, o: 0 }, { x: 0, o: 1 }).o, 1);
+  for (const kind of ['in', 'out'] as const) { let last = kind === 'in' ? 0 : 1; for (let k = 0; k <= 1; k += 1 / 60) { const o = throwAt(kind, k, { x: 0, o: kind === 'in' ? 0 : 1 }, { x: 0, o: kind === 'in' ? 1 : 0 }).o; assert.ok(Math.abs(o - last) < 0.12, `${kind}: no frame at 60 fps jumps the opacity (${last} to ${o})`); last = o; } }
   assert.equal(throwAt('in', 1, { x: 56, o: 0 }, { x: 0, o: 1 }).o, 1);
   for (let k = 0; k <= 1; k += 0.05) assert.ok(throwAt('in', k, { x: 56, o: 0 }, { x: 0, o: 1 }).x >= -1e-6, 'it never passes its place');
   assert.equal(THROW_OUT, 56, 'a card leaves by a short slide, not off the screen');
