@@ -205,7 +205,7 @@ export class OrganLayer {
       if (id === 'liver') {
         (o.toon.uniforms.nodK!.value as Vector2).set(shadeNow(), TONE);   // (the texture itself is baked the first time the liver is scarred: paint())
         this.liverGeometry = g;
-        this.liverShape = new LiverShape(g.getAttribute('position') as never, g.getAttribute('normal').array);
+        this.liverShape = new LiverShape(g.getAttribute('position') as never, g.getAttribute('hullN').array);   // the SMOOTHED rest normals: the raw per-vertex ones jag along the rim, and the nodules pushed along them (direction and weight) came out as teeth and notches
       }
     }
     this.dirtyColours = true; this.instant = true;

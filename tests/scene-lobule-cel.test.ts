@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { CEL_STYLE } from '../src/scene/cel-style.ts';
 import { CEL_QUANT_GLSL, CEL_TISSUE_BANDS } from '../src/scene/materials/cel-quant.ts';
 import { CEL_TISSUE_GLSL, EDGE_HI, EDGE_LO, ZONE_EDGES, celTissueJS, tissueInk, tissueTone } from '../src/scene/lobule/cel.ts';
-import { LOBULE_PLATE_FS } from '../src/scene/lobule/plate.ts';
+import { LOBULE_PLATE_FS, PLATE_EDGE_K, PLATE_EDGE_SHADE } from '../src/scene/lobule/plate.ts';
 import { LOBULE_FIELD_FS } from '../src/scene/lobule/field.ts';
 
 const luma = (c: readonly number[]) => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * c[2]!;
@@ -54,10 +54,13 @@ test('the shaders read the figure\'s numbers: tone strengths, where the tones ch
   assert.ok(CEL_STYLE.SHADE < CEL_STYLE.TISSUE.DETAIL, 'the shade tone itself is not detail');
 });
 
-test('the plate is cel shaded with clean ink; the neighbours are cel shaded and quieter (no ink); the Zones are three hard zones with a line', () => {
+test('the plate is cel shaded with a faint line of its own colour; the neighbours are cel shaded and quieter (no ink); the Zones are three hard zones with a line', () => {
   assert.match(LOBULE_PLATE_FS, /celTissue\(/);
   assert.match(LOBULE_PLATE_FS, /celEdge\(map, vUv, uvPerPx, uDpr\)/, 'the clean line is LINE_MIN CSS px: the pixel ratio comes in');
-  assert.match(LOBULE_PLATE_FS, /uniform vec3 ink/);
+  // Mohammad 20 Nov: "in lobule fibrosis shouldn't be outlined with black ink": the plate (collagen, septa, nutmeg, Zones) lines its edges in a deeper shade of its own colour
+  assert.doesNotMatch(LOBULE_PLATE_FS, /uniform vec3 ink|mix\(c, ink/, 'no dark casing on the plate');
+  assert.match(LOBULE_PLATE_FS, /mix\(c, c \* PLATE_EDGE_SHADE, PLATE_EDGE_K \*/, 'its own colour, deeper');
+  assert.ok(PLATE_EDGE_SHADE >= 0.7 && PLATE_EDGE_SHADE < 1 && PLATE_EDGE_K <= 0.7, 'faint');
   assert.match(LOBULE_FIELD_FS, /celTissue\(/);
   assert.doesNotMatch(LOBULE_FIELD_FS, /celEdge\(tile/, 'the neighbours carry no ink');
   assert.ok(ZONE_EDGES[0] > 0.18 && ZONE_EDGES[0] < 0.5 && ZONE_EDGES[1] > 0.5 && ZONE_EDGES[1] < 0.85);
