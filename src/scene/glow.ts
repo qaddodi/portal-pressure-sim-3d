@@ -55,10 +55,10 @@ export class VesselGlow {
   }
   /** `rgb` are the sRGB values 0..1 as the cel shaders hold them (not three's linear): the material's colour is converted so the screen shows them as they are. */
   setColour(r: number, g: number, b: number): void { this.mat.color.setRGB(r, g, b).convertSRGBToLinear(); }
-  /** Eased in: smoothstep of the highlight's own linear fade, hidden at nothing and when `shown` is false (the Circuit lays the vessels out afresh: the course is the body's). */
-  show(amount: number, shown: boolean): void {
-    this.mat.opacity = amount * amount * (3 - 2 * amount);
-    this.mesh.visible = shown && amount > 0.001;
+  /** Eased in: smoothstep of the highlight's own linear fade, times `gate` (0 to 1: how much of the glow the Circuit's change has left it, highlight.ts glowGate); hidden at nothing. */
+  show(amount: number, gate: number): void {
+    this.mat.opacity = amount * amount * (3 - 2 * amount) * gate;
+    this.mesh.visible = gate > 0.001 && amount > 0.001;
   }
   dispose(): void { this.mesh.geometry.dispose(); this.mat.dispose(); this.mesh.removeFromParent(); }
 }

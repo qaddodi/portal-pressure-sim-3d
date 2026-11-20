@@ -11,7 +11,7 @@ import { DRAWN_EDGE_IDS, NETWORK, NETWORK_BY_ID, RUN_ONS, NEEDS_C3_IDS, collater
 import { EDGE_PATH_2D, NODE_POS_2D } from '../src/scene/vessels/paths.copied.ts';
 import { TIER_Z, UNITS_PER_SCENE, x2d, x3, y2d, y3 } from '../src/scene/frame2d.ts';
 import { pathToFileURL } from 'node:url';
-import { PresenceTracks, PRESENCE_MS } from '../src/scene/vessels/presence-track.ts';
+import { PresenceTracks, presenceMs } from '../src/scene/vessels/presence-track.ts';
 import { frameFor } from './b3-frames.ts';
 import { HIDDEN_EDGES } from '../src/scene/vessels/paths.copied.ts';
 
@@ -69,7 +69,7 @@ test('a vessel that comes and goes draws on and retracts along its flow, and nev
   assert.equal(a.group.visible, false);
   t.set('C1a', 'shown');
   let last = 0, steps = 0;
-  while (t.step(16)) { assert.ok(a.reveal >= last - 1e-9, 'draws on monotonically'); assert.ok(a.reveal - last <= 16 / PRESENCE_MS + 1e-9, 'a step is small'); last = a.reveal; steps++; assert.ok(steps < 200); }
+  while (t.step(16)) { assert.ok(a.reveal >= last - 1e-9, 'draws on monotonically'); assert.ok(a.reveal - last <= 1.875 * 16 / presenceMs('C1a').in + 1e-9, 'a step is small (the quintic ease peaks at 1.875 times the straight pace)'); last = a.reveal; steps++; assert.ok(steps < 200); }
   assert.equal(a.reveal, 1); assert.equal(a.group.visible, true);
   t.set('C1a', 'hidden');
   t.step(16);

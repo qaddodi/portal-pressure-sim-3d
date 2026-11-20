@@ -16,6 +16,8 @@ attribute vec2 pk;
 // the lengths of the vessel's two courses (body, map), scene units: the speed of each along the vessel's own 0 to 1
 attribute vec2 cl;
 uniform float circT;
+// 1 on a vertex that stays where it is through the change, fading with 2D's clamp(1 - 2 * T0) (see circuitMorph), read by the fragment stage as a dither (vessels/shaders.ts)
+varying float circStay;
 float circShare = 0.0;   // this vertex's share of the change (the peel on its rank), kept for the width and the units the shader reads after the morph
 uniform vec2 circRot;
 uniform vec3 circM;
@@ -54,8 +56,12 @@ vec3 circFrameN(vec3 T) {
   return normalize(ref - T * dot(ref, T));
 }
 void circuitMorph(inout vec3 P, inout vec3 Nn, inout vec3 Tn) {
-  // (a vessel with no map course (a fan of tributaries, the liver's branching veins) carries no cl (its course lengths): it stays where it is and dissolves with the organs; before, its missing course flew every vertex to the map's origin and it grew back out of a point on the way to the body)
-  if (circT <= 0.0 || cl.y <= 0.0) return;
+  circStay = 1.0;
+  if (circT <= 0.0) return;
+  // A vertex with no map course (cl.y 0: the fans of tributaries, the liver's branching veins, a collateral's strands, which VesselObject gives zero course attributes: circuit/geometry.ts withCircuitAttributes) never
+  // morphs: it stays on its anatomy point and fades by 2D's own clamp(1 - 2 * T0, 0, 1) (stage-vessels.js: gone by the change's half-way point, back over its second half), T0 being circT (eased as 2D's is).
+  // Before, its missing course flew every vertex to the map's origin and it grew back out of a point on the way to the body.
+  if (cl.y <= 0.0) { circStay = clamp(1.0 - 2.0 * circT, 0.0, 1.0); return; }
   // the body course's centre at this vertex, from the vertex's own offset (so w = 0 gives back the body's vertex exactly)
   vec3 N0 = circFrameN(tang);
   vec3 cA = position - radius * rk * (fr.x * N0 + fr.y * cross(tang, N0) + fr.z * tang);
