@@ -67,3 +67,18 @@ test('every look writes 2D\'s own sinusoid tokens, through the look cascade of t
   }
   assert.ok(checked > 40, `compared ${checked} colours`);
 });
+
+test('at rest on the Healthy state every detail pass is fully on: the microvilli, the cells\' membranes and nuclei, the focus (uDet 1, uMv 1, uFocus 1, uAll 1)', async () => {
+  const { sinusoidTargets } = await import('../src/scene/lobule/model.ts');
+  void sinusoidTargets;
+  for (const look of LOOK_IDS) {
+    const v = new SinusoidView(createShared(), { look }); v.setVisible(true); for (let t = 0; t <= 600; t += 16) v.update(t);
+    const u = (v.tissue.material as unknown as { uniforms: Record<string, { value: unknown }> }).uniforms;
+    const det = u.uDet!.value as { x: number; y: number };
+    assert.equal(det.x, 1, `${look}: the detail amount is whole at rest`);
+    assert.ok(det.y >= 1e5, `${look}: the detail reaches the whole stretch`);
+    assert.equal(u.uMv!.value, 1, `${look}: the microvilli stand at their healthy length`);
+    assert.equal(u.uFocus!.value, 1, `${look}: the focus fade is whole`);
+    assert.equal(u.uAll!.value, 1, `${look}: shown everywhere`);
+  }
+});
