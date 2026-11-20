@@ -8,6 +8,8 @@
 // Normal mode never loads this file: the shaders carry their hooks only behind the VDBG define (scene/vessels/debug-view.ts).
 import { cel, gesturesRef } from '../../../scene/api.ts';
 import { clock } from '../../../clock/frame.ts';
+import { useBlood } from '../../../scene/blood/options.ts';
+import { setForce } from '../../../engine/force-all.ts';
 import { setPart, SHADE_NAMES, type PartView, type ShadeMode } from '../../../scene/vessels/debug-view.ts';
 import { clearJoinsOverride, joinsMode, setJoinsOverride, skinDebugOn, skinLeaveOut, type JoinsMode } from '../../../scene/vessels/skin/joins-mode.ts';
 import { reapplySkinDefines } from '../../../scene/vessels/skin/skin-object.ts';
@@ -20,6 +22,8 @@ const RAD = Math.PI / 180;
 export function mountInspect(): void {
   if (document.getElementById('inspect-panel')) return;
   const state: InspectState = defaultState(joinsMode());
+  const ghosts0 = useBlood.getState().collaterals;   // (the Blood menu's own choice: the panel starts from it and Reset all goes back to it)
+  state.ghosts = ghosts0; let ghostsSet = ghosts0;
   state.drop = skinDebugOn(); state.leave = skinLeaveOut();   // (what the address already asked for)
   const wantJoins = state.joins;
 
@@ -81,6 +85,8 @@ export function mountInspect(): void {
     if (ch.includes('drop') || ch.includes('leave')) { const n = reapplySkinDefines(cel.scene); msg.textContent = n ? `Compiling ${n} skin programs…` : ''; }
     setPart('tube', state.tube); setPart('skin', state.skin);
     for (const l of cel.inspectLayers()) { cel.setInspectShown(l.id, !state.hidden.includes(l.id)); cel.setInspectWire(l.id, state.wired.includes(l.id)); }
+    if (!setForce({ collaterals: state.allCollaterals, shunts: state.allShunts, freeze: state.freeze })) { msg.textContent = 'Compare is holding the figure: close it first.'; state.allCollaterals = state.allShunts = state.freeze = false; }
+    if (state.ghosts !== ghostsSet) { ghostsSet = state.ghosts; cel.setBlood({ collaterals: state.ghosts }); }
     cel.post.setMode(state.aa ? 'fxaa' : 'off');
     cel.rig.setInspect(state.free);
     clock.invalidate('inspect');
@@ -100,6 +106,14 @@ export function mountInspect(): void {
     { label: 'Reset', title: 'Back to the shot: turn, tilt, zoom and pan', run: () => { gesturesRef.current?.refit(); cel.rig.inspectTo(0, 0); state.yawDeg = 0; state.pitchDeg = 0; syncAll(); clock.invalidate('inspect'); } },
   ]);
   cam.append(el('div', { className: 'hint', textContent: 'One finger or the mouse turns; two fingers tilt; Shift or a middle drag pans. A talk locks the camera.' }));
+
+  // ---- Show everything ----
+  const all = section('Show everything');
+  check(all, 'All collaterals open', () => state.allCollaterals, (v) => commit({ allCollaterals: v }));
+  check(all, 'All fixed shunts in (TIPS, DIPS, PC, DSRS, MC, Rex)', () => state.allShunts, (v) => commit({ allShunts: v }));
+  check(all, 'Dotted potential collaterals', () => state.ghosts, (v) => commit({ ghosts: v }));
+  check(all, 'Freeze the model', () => state.freeze, (v) => commit({ freeze: v }));
+  all.append(el('div', { className: 'hint', textContent: 'These forge the engine frame the figure draws (a copy; the model is untouched), in the body and the Circuit alike. While one is on, numbers, labels and lens colours are not the patient\'s. The Vessel list below solos one vessel.' }));
 
   // ---- Joins ----
   const jn = section('Joins and diagnostics');
@@ -143,7 +157,7 @@ export function mountInspect(): void {
   hunt.append(el('div', { className: 'hint', textContent: 'Each press changes only what it says; press Reset all to start over. A speck that goes was that part.' }));
   buttons(hunt, PRESETS.map((p) => ({ label: p.label, title: p.hint, run: () => { Object.assign(state, p.make(state)); apply(); syncAll(); msg.textContent = p.hint; } })));
   buttons(hunt, [
-    { label: 'Reset all', run: () => { clearJoinsOverride(); const cur = { yaw: state.yawDeg, pitch: state.pitchDeg, free: state.free }; Object.assign(state, defaultState(wantJoins), { yawDeg: cur.yaw, pitchDeg: cur.pitch, free: cur.free }); apply(); syncAll(); msg.textContent = 'Everything as drawn.'; } },
+    { label: 'Reset all', run: () => { clearJoinsOverride(); const cur = { yaw: state.yawDeg, pitch: state.pitchDeg, free: state.free }; Object.assign(state, defaultState(wantJoins), { ghosts: ghosts0, yawDeg: cur.yaw, pitchDeg: cur.pitch, free: cur.free }); apply(); syncAll(); msg.textContent = 'Everything as drawn.'; } },
     { label: 'Copy', title: 'What is on, as text for a thread', run: () => { const t = stateText(state, document.title); void navigator.clipboard?.writeText(t).then(() => { msg.textContent = 'Copied.'; }, () => { msg.textContent = t; }); } },
   ]);
   box.append(msg);
