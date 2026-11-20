@@ -462,32 +462,46 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
     }
     normal.set(cur);
   }
-  // THE GROWING ARMS' SECOND SHAPE (spec 10.2): the skin as it is when that arm is closed
+  // THE GROWING ARMS' SECOND SHAPE (spec 10.2): the skin as it is when that arm is NOT THERE: the plain trunk, the union of the OTHER arms at the same blend k, so the trunk away from the mouth is the same surface in both shapes (nothing moves
+  // there while the arm grows). Every vertex that belongs to the arm, its seam ring and the rows of skin out to it, lies on that trunk surface (the nearest point on it) with the trunk's normal and weights, so a closed arm leaves nothing standing off
+  // the trunk. The first version kept the arm's capsule at radius 0, a thread along its axis out to the ring's centre: the smooth union still drew it as a thin cone, 1.7 to 2.7 radii long, with the ink on it (the "thorns" on the SMV, 20 Nov). The
+  // arm then grows as a bud: its ring slides out from the trunk to the tube's own ring (exactly the tube's at growth 1), widening as it goes.
   const grow: GrowMorph[] = [];
   for (let a = 0; a < A && grow.length < SKIN_GROWERS; a++) {
     if (!j.arms[a]!.grow) continue;
-    const caps0 = caps.map((c, i) => (i === a ? { n: c.n, pts: c.pts, r: new Float64Array(c.n) } : c));   // (the arm's capsule at radius 0: its axis stays, it is a thread)
-    let rcx = 0, rcy = 0, rcz = 0;
-    for (let q = 0; q < n; q++) { rcx += seamRings[a]![3 * q]! / n; rcy += seamRings[a]![3 * q + 1]! / n; rcz += seamRings[a]![3 * q + 2]! / n; }
+    const capsT = caps.filter((_, i) => i !== a);
     const m: GrowMorph = { arm: a, dPos: new Float32Array(3 * V), dNor: new Float32Array(3 * V), dRest: new Float32Array(V), dWeight: new Float32Array(4 * V), dWeight2: new Float32Array(2 * V) };
-    const w0 = new Float64Array(MAX_SKIN_ARMS), n0 = new Float64Array(3);
+    const wT = new Float64Array(MAX_SKIN_ARMS), w0 = new Float64Array(MAX_SKIN_ARMS), n0 = new Float64Array(3);
     for (let v = 0; v < V; v++) {
-      // where the vertex stands with the arm closed: the arm's own seam ring at the ring's centre, the other seam rings where they are (they are the tubes'), a free vertex projected onto the union without the arm's width
+      const own = v < S ? Math.floor(v / n) : -1;
       let x = position[3 * v]!, y = position[3 * v + 1]!, z = position[3 * v + 2]!;
-      if (v < S) { if (Math.floor(v / n) === a) { x = rcx; y = rcy; z = rcz; } }
-      else for (let s = 0; s < PROJECT_STEPS; s++) {
-        const d = sdUnionGrad(caps0, k, x, y, z, g), gg = g[0]! * g[0]! + g[1]! * g[1]! + g[2]! * g[2]!;
-        if (gg < 1e-14) break;
-        const f = d / gg; x -= f * g[0]!; y -= f * g[1]!; z -= f * g[2]!;
+      if (own >= 0 && own !== a) {
+        // another arm's seam ring: the tube's own vertex, never moved, its normal and weights the same in both shapes
+        n0[0] = normal[3 * v]!; n0[1] = normal[3 * v + 1]!; n0[2] = normal[3 * v + 2]!;
+        for (let i = 0; i < MAX_SKIN_ARMS; i++) w0[i] = i === own ? 1 : 0;
+        m.dRest[v] = 0;
+      } else {
+        for (let s = 0; s < PROJECT_STEPS; s++) {
+          const d = sdUnionGrad(capsT, k, x, y, z, g), gg = g[0]! * g[0]! + g[1]! * g[1]! + g[2]! * g[2]!;
+          if (gg < 1e-14) break;
+          const f = d / gg; x -= f * g[0]!; y -= f * g[1]!; z -= f * g[2]!;
+        }
+        if (!(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z))) { x = position[3 * v]!; y = position[3 * v + 1]!; z = position[3 * v + 2]!; }
+        // the trunk's normal and weights at that point (the six weights are the trunk's arms in their own places, the grower's is 0)
+        sdUnionGrad(capsT, k, x, y, z, g);
+        const gl = Math.hypot(g[0]!, g[1]!, g[2]!) || 1;
+        n0[0] = g[0]! / gl; n0[1] = g[1]! / gl; n0[2] = g[2]! / gl;
+        weights(capsT, k, x, y, z, wT);
+        let rr = 0;
+        for (let i = 0; i < MAX_SKIN_ARMS; i++) {
+          const src = i < a ? i : i - 1;
+          w0[i] = i === a || i >= A ? 0 : wT[src]!;
+          if (w0[i]! > 0) { closestOnArm(caps[i]!, x, y, z, cp); rr += w0[i]! * cp[3]!; }
+        }
+        m.dRest[v] = restR[v]! - rr;
       }
-      if (!(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z))) { x = position[3 * v]!; y = position[3 * v + 1]!; z = position[3 * v + 2]!; }
-      const rest0 = weightsAt(caps0, v, x, y, z, w0);
-      // the normal: the SDF's, except on the arm's own thread, where the surface has no direction (the radial normal it had stays, so a ring that shrinks to its centre keeps its normals: the tube's ring at any share has them too)
-      closestOnArm(caps[a]!, x, y, z, cp);
-      if (v < S || (cp[4]! < THREAD_R * cp[3]!)) { n0[0] = normal[3 * v]!; n0[1] = normal[3 * v + 1]!; n0[2] = normal[3 * v + 2]!; } else normalAt(caps0, v, x, y, z, n0);
       m.dPos[3 * v] = position[3 * v]! - x; m.dPos[3 * v + 1] = position[3 * v + 1]! - y; m.dPos[3 * v + 2] = position[3 * v + 2]! - z;
       m.dNor[3 * v] = normal[3 * v]! - n0[0]!; m.dNor[3 * v + 1] = normal[3 * v + 1]! - n0[1]!; m.dNor[3 * v + 2] = normal[3 * v + 2]! - n0[2]!;
-      m.dRest[v] = restR[v]! - rest0;
       for (let i = 0; i < A; i++) { if (i < 4) m.dWeight[4 * v + i] = weight[4 * v + i]! - w0[i]!; else m.dWeight2[2 * v + i - 4] = weight2[2 * v + i - 4]! - w0[i]!; }
     }
     grow.push(m);

@@ -66,7 +66,7 @@ test('a vessel\'s mark runs along its course, wider than the vessel, and thins t
 });
 
 // ── the selection's glow (owner, 20 Nov: "instead of an outline, make it a glow"; "even the glow should take the shape of the vessel (and fade at the ends)") ──
-test('a picked vessel lights its own hull as a glow, eased in and out, in the body only; a shunt target set glows whole; the outline is not widened or recoloured', () => {
+test('a picked vessel lights its glow mask, eased in and out, in the body only; a shunt target set glows whole; the outline is not widened or recoloured', () => {
   const s = new CelScene();
   const glows = () => s.vessels.filter((o) => o.glowMesh?.visible).map((o) => ({ id: o.edge!.id, mesh: o.glowMesh! }));
   assert.equal(glows().length, 0);
@@ -74,7 +74,7 @@ test('a picked vessel lights its own hull as a glow, eased in and out, in the bo
   s.highlight.step(16);
   const part = glows();
   assert.ok(part.length >= 1 && part.every((g) => ['PV_TRUNK', 'PV_TRUNK_1'].includes(g.id)), 'only the picked vein: ' + part.map((g) => g.id).join());
-  assert.equal(part[0]!.mesh.layers.mask, 2, 'in the vessels\' pass');
+  assert.equal(part[0]!.mesh.layers.mask, 8, 'on the glow\'s own layer (glow.ts GLOW_LAYER): drawn by the mask pass only');
   const pv = s.vessels.find((o) => o.edge!.id === 'PV_TRUNK')!;
   assert.ok((pv.toon.uniforms.hiOn!.value as number) > 0 && (pv.toon.uniforms.hiOn!.value as number) < 1, 'eases in (the pick\'s weight the shader reads)');
   while (s.highlight.step(16)) { /* settle */ }

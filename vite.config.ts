@@ -1,5 +1,16 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { glslFiles } from './scripts/gl-scan.mjs';
+
+/** `virtual:gl-modules`: a lazy import of every source file that holds GLSL, found by the same scan the GLSL compile test uses, for the ?gl page (src/debug/gl-check-run.ts), so a new shader is checked on the device with nothing to register. */
+function glModules(): Plugin {
+  const id = 'virtual:gl-modules';
+  return {
+    name: 'gl-modules',
+    resolveId: (s) => (s === id ? '\0' + id : undefined),
+    load: (i) => (i === '\0' + id ? `export const GL_MODULES = {\n${glslFiles().map((f) => `  ${JSON.stringify(f)}: () => import(${JSON.stringify('/src/' + f)}),`).join('\n')}\n};` : undefined),
+  };
+}
 
 /** Which library chunk a module goes in (undefined: the bundler decides, as for all of the app's own code). */
 export function vendorChunk(id: string): string | undefined {
@@ -13,7 +24,7 @@ export function vendorChunk(id: string): string | undefined {
 // `base: './'` so the built site works at any address: the repo's Pages URL, a preview folder, or a local server.
 export default defineConfig({
   base: './',
-  plugins: [react()],
+  plugins: [react(), glModules()],
   worker: { format: 'es' },
   build: {
     target: 'es2022', sourcemap: false, chunkSizeWarningLimit: 700,

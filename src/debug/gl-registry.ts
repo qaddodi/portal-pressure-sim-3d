@@ -1,7 +1,9 @@
 // The list of every shader source in the app, by file, and the programs they make. tests/glsl-compile.test.ts compiles them all in glslang (node, no browser); the ?gl page
-// (gl-check.tsx) compiles them on the device. A file that holds GLSL and is not in GL_FILES fails the test: add it here, with how its programs are found.
+// (gl-check.tsx) compiles them on the device. GL_FILES is the HAND-MADE list of the files that existed when it was made and is CLOSED: a new file that holds GLSL is found by scanning (scripts/gl-scan.mjs)
+// and its programs are read from the module (gl-auto.ts: `GL_PROGRAMS`, `_VS`/`_FS` pairs, or `GL_ON_SCENE_GRAPH`), so nothing is added here.
 import { MICRO_FS, MICRO_INK_FS, MICRO_INK_VS, MICRO_VS } from '../scene/micro3d/cel3d.ts';
 import type { Object3D } from 'three';
+import { autoPrograms } from './gl-auto.ts';
 import { type Program, assemble, collectMaterials, lateMaterialProgram, rawProgram, templateConstants } from './gl-programs.ts';
 import { INK_FS, INK_VS, TOON_FS, TOON_VS } from '../scene/materials/shaders.ts';
 import { VESSEL_FS, VESSEL_VS } from '../scene/vessels/shaders.ts';
@@ -26,7 +28,7 @@ import { ClotObject } from '../scene/disease/clots.ts';
 import { createShared } from '../scene/materials/cel.ts';
 import { BufferGeometry } from 'three';
 
-/** Where the app's GLSL lives (a path under src/), and how its programs reach the check. A new file with a shader goes here, or the test fails. */
+/** Where the app's GLSL lived when this list was made (a path under src/), and how its programs reach the check. CLOSED: do not add to it, a new shader file is found by gl-auto.ts. */
 export const GL_FILES: Record<string, string> = {
   'scene/materials/shaders.ts': 'cel toon and ink (every organ, lobule and sinusoid part, the devices): found on the scene graph',
   'scene/blood/chevron-glsl.ts': 'the one chevron (the Anatomy\'s flow head), spliced into the vessel and the 3D lobule and sinusoid programs: part of those',
@@ -47,6 +49,7 @@ export const GL_FILES: Record<string, string> = {
   'scene/devices/device-object.ts': 'a device wears the toon shader with an alpha: found on the scene graph',
   'scene/lobule/plate.ts': 'the lobule\'s tissue plate under the 3D cells (2D\'s painter on a canvas texture): found on the scene graph',
   'scene/lobule/field.ts': 'the neighbouring lobules out of focus: found on the scene graph',
+  'scene/lobule/one-fade.ts': 'the one-line GLSL patch that scales a stock material\'s alpha by the lobule\'s fade (the tap halo\'s MeshBasicMaterial): the halo\'s program is found on the scene graph',
   'scene/micro3d/cel3d.ts': 'the true-3D lobule and sinusoid (Settings > Figure depth): the cel toon and its ink hull, plain and instanced: found on the scene graph',
   'scene/organs/organ-art.ts': 'the organ wash wrapped for the organs\' art and the esophagus\'s fade (made when the art file is in): registered by name',
   'scene/blood/cells/shader.ts': 'the blood-cell particles (Settings > Figure depth; built when first switched on): registered by name, and found on the scene graph once they are in it',
@@ -118,8 +121,13 @@ export function rawPrograms(fibroText: string): Program[] {
 }
 
 /** Every program: the scene graph's, then the ones registered by hand. */
-export function allPrograms(root: Object3D, fibroText: string): Program[] {
+export function allPrograms(root: Object3D, fibroText: string, auto: Readonly<Record<string, Record<string, unknown>>> = {}): Program[] {
   const found = collectMaterials(root, namedSources());
   const have = new Set(found.map((p) => p.vertexGlsl + p.fragmentGlsl));
-  return [...found, ...rawPrograms(fibroText).filter((p) => !have.has(p.vertexGlsl + p.fragmentGlsl))];
+  const raw = rawPrograms(fibroText).filter((p) => !have.has(p.vertexGlsl + p.fragmentGlsl));
+  for (const p of raw) have.add(p.vertexGlsl + p.fragmentGlsl);
+  // the files found by scanning (gl-auto.ts): a program the scene graph or the hand list already holds is not compiled twice
+  const fresh = Object.fromEntries(Object.entries(auto).filter(([f]) => !(f in GL_FILES)));   // (the hand list is closed: its files are found as they always were)
+  const more = autoPrograms(fresh).filter((p) => !have.has(p.vertexGlsl + p.fragmentGlsl));
+  return [...found, ...raw, ...more];
 }

@@ -36,8 +36,8 @@
 // (pressure, oxygen...) are exact.
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../../cel-glsl.ts';
 import { FADE_GLSL } from '../../materials/shaders.ts';
-import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
-import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowReachGlsl, glowAlphaGlsl, glowToneGlsl } from '../glsl-shared.ts';
+import { TUBE_DEPTH_SHARE } from '../shaders.ts';
+import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowWeightGlsl, glowToneGlsl } from '../glsl-shared.ts';
 import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
 import { DUST_GLSL } from '../../blood/dust-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
@@ -50,6 +50,8 @@ export const SKIN_AXIS_PTS = 4;
 export const SKIN_FIGURE_UNITS = 300;
 /** The Circuit crossfade (section 4.9): the skin is gone by this share of the morph, and the tubes' cut fades in over the same. */
 export const SKIN_CIRCUIT_FADE = 0.35;
+/** An arm whose live width share (its width times its growth) is under this is held out of the skin's outline, smoothly: a width of nothing is a line, not a vessel (the thorns on the SMV, Mohammad 20 Nov). */
+export const SKIN_ARM_ABSENT = 0.3;
 
 /** The weighted sum of a per-arm float uniform array over all the arms (`wAt` and `wAtF` read the two weight attributes). */
 const BLEND = (name: string, w = 'wAt', comp = ''): string => Array.from({ length: SKIN_ARMS }, (_, i) => `${w}(${i}) * ${name}[${i}]${comp}`).join(' + ');
@@ -83,6 +85,7 @@ attribute vec3 cen;      // the nearest point on the nearest arm's axis: the dep
 attribute vec4 weight;   // how much of this vertex belongs to each arm (arms 0 to 3; the six sum to 1, arm order)
 attribute vec2 weight2;  // arms 4 and 5
 attribute float restR;   // the blended rest radius here (scene units)
+attribute float sagK;    // the share of the radius this vertex stands out for its facets' chord sag (facet-sag.ts; a seam ring's is the tube's TUBE_SAG)
 uniform float inflate;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
@@ -150,14 +153,9 @@ void main() {
   float hi = ${BLEND('armAF', 'wAt', '.z')};
   // the tube's own ink width (no stenosis waist at a seam, narrowK 1) plus the picked vein's extra line, blended
   float inkPx = ${inkPxGlsl('rCssV', 'rCssV')};
-#ifdef GLOW
-  float hiReach = ${glowReachGlsl('rCssV')};   // (the glow's hull: the skin's own live radius, so the halo runs on from the arm tubes' with no seam)
-#else
-  float hiReach = hiPx;
-#endif
-  float inkW = (inkPx + hiReach * hi) * wpcV / SKIN_U;   // scene units
+  float inkW = (inkPx + hiPx * hi) * wpcV / SKIN_U;   // scene units
   // the tube's vertex rule (vessels/shaders.ts) with its radius * rk replaced by this vertex's own rest radius and its swell by the blend; the ring is a polygon, so its corners stand TUBE_SAG farther out
-  vec3 p = pos + nor * (inflate + rst * (swellE - 1.0) + inkW + (lumenW + inkW) * ${F(TUBE_SAG)});
+  vec3 p = pos + nor * (inflate + rst * (swellE - 1.0) + inkW + (lumenW + inkW) * sagK);
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vN = normalize(normalMatrix * nor);
   vV = normalize(-mv.xyz);
@@ -270,7 +268,9 @@ float skinArmPx(vec2 frag, int arm, float swell) {
 // a side vein) are united by a plain minimum and count as one: a blend between the halves of one trunk only adds a bulge
 float skinSdPx(float kPx) {
   float dArm[${SKIN_ARMS}];
-  for (int i = 0; i < ${SKIN_ARMS}; i++) dArm[i] = armData[i].x < 0.0 ? 1.0e9 : skinArmPx(gl_FragCoord.xy, i, swAt(i));
+  // an arm that is not there (a collateral not yet grown, a vessel closed to nothing) is not in the outline: a capsule of no width is a LINE, its smooth union with the trunk a horn along it, and the cone of the arm's collapsed
+  // ring out to the wall stayed inside its band as a thorn (Mohammad, 20 Nov). It is held out of reach (the blend sees nothing of it past k) and comes in as its width does: continuous, never a pop
+  for (int i = 0; i < ${SKIN_ARMS}; i++) dArm[i] = armData[i].x < 0.0 ? 1.0e9 : skinArmPx(gl_FragCoord.xy, i, swAt(i)) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(i)));
   float d = 0.0;
   bool first = true;
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
@@ -339,12 +339,7 @@ void main() {
   float vR = vRest * swellB * SKIN_U;
   float rCssAx = vR / max(wpcAx, 1e-6);
   float hi = ${BLEND('armAF', 'wAt', '.z')};
-#ifdef GLOW
-  float hiReachF = ${glowReachGlsl('rCssAx')};
-#else
-  float hiReachF = hiPx;
-#endif
-  float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx')} + hiReachF * hi) * dpr;
+  float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx')} + hiPx * hi) * dpr;
   float kPx = skinK / max(wpcAx / SKIN_U, 1e-9) * dpr;
   float sdPx = skinSdPx(kPx);
 #ifdef SKIN_DEBUG
@@ -366,12 +361,12 @@ void main() {
     base += wAt(i) * mix(mix(armColor[i].rgb, la.rgb, la.a), mix(armColor[i].rgb, lb.rgb, lb.a), lensMix);
   }
 #ifdef GLOW
-  // THE GLOW (glow.ts): the skin grown by the glow's reach, drawn as a halo outside the line only, the arms' blended pick weight giving its reach and alpha: the tubes' halo carried on through the junction
+  // THE GLOW'S MASK (glow.ts, glow-fx.ts): the skin as it is drawn, weighted by the arms' blended pick weight, painted into the mask texture by max with the tubes' own: the junction is part of the one mask the blur turns into a halo
   {
     float sG = sdPx / dpr - ${inkPxGlsl('rCssAx', 'rCssAx')};   // CSS px past the line's outer edge
-    float aG = ${glowAlphaGlsl('sG', glowReachGlsl('rCssAx') + ' * hi', 'hi')} * alpha;
-    if (aG < 0.002) discard;
-    gl_FragColor = vec4(${glowToneGlsl('base')}, aG);
+    float wG = ${glowWeightGlsl('hi')} * alpha * (1.0 - smoothstep(-0.5, 0.5, sG * dpr));
+    if (wG < 0.002) discard;
+    gl_FragColor = vec4(${glowToneGlsl('base')} * wG, wG);
     return;
   }
 #endif
