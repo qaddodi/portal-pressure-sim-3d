@@ -20,6 +20,7 @@ import { BloodField } from './blood/field.ts';
 import { BloodCells } from './blood/cells/cells.ts';
 import { CameraRig } from './camera/rig.ts';
 import { cutUniform, fieldSoft } from './camera/dive.ts';
+import { fieldWide } from './lobule/field.ts';
 import { ORGAN_CUT } from './organs/layer.ts';
 import { quietOf } from './camera/quiet.ts';
 import { effectiveDistance, type Room } from './camera/room.ts';
@@ -663,6 +664,7 @@ export class CelScene {
     const was = ORGAN_CUT.value.z;
     ORGAN_CUT.value.set(this.cutArr[0], this.cutArr[1], this.cutArr[2], this.cutArr[3]);
     this.lobule.field.setSoft(fieldSoft(d, this.lobuleRest()));
+    this.lobule.field.setWide(fieldWide(d, this.lobuleRest()));   // (from afar the field reaches every edge: the liver's inside is lobules throughout the dive)
     if (was !== this.cutArr[2] && (was > -1 || this.cutArr[2] > -1)) this.moving = true;
   }
   /** A portrait room (narrower than tall, 2D's `W < H * 0.95`) runs the sinusoid top to bottom: the sinusoid view takes it (SinusoidView.setPortrait, the sinusoid worker's), and the shot asks for it (sinusoidShot(portrait)). */
