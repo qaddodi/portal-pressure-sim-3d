@@ -7,7 +7,8 @@ import { CelScene } from '../src/scene/scene.ts';
 import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
 import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
-import { findSkinJunctions, nodesBeyondReach } from '../src/scene/vessels/skin/inventory.ts';
+import { findSkinJunctions, nodesBeyondReach, withoutGrowers } from '../src/scene/vessels/skin/inventory.ts';
+import type { SkinJunction } from '../src/scene/vessels/skin/types.ts';
 
 test('every inventory node builds a skin, with no fallback to the old join', () => {
   setSmoothJoins(true);
@@ -20,9 +21,15 @@ test('every inventory node builds a skin, with no fallback to the old join', () 
   });
   set.build(2);
   assert.deepEqual(warnings, [], 'no skin falls back to the old join');
-  const all = findSkinJunctions().filter((j) => !['SVC_E'].includes(j.node)), far = nodesBeyondReach(all);
+  const all = findSkinJunctions().filter((j) => !['SVC_E'].includes(j.node)), far = nodesBeyondReach(all.map((j) => withoutGrowers(j)).filter((j): j is SkinJunction => !!j));
   const built = draws.map((d) => d.mesh.name.replace('skin:', ''));
-  for (const j of all) if (!far.includes(j.node)) assert.ok(built.some((b) => b.split('+').includes(j.node)), `${j.node} has a skin`);
+  for (const j of all) {
+    if (far.includes(j.node)) continue;
+    const skinned = built.some((b) => b.split('+').includes(j.node));
+    // a node of three or more permanent arms always has its skin; a run-on pair has one only where a collateral or shunt stayed on it (the arms a skin could not take are named in `dropped`, tests/skin-grow.test.ts)
+    if (j.arms.filter((a) => !a.grow).length >= 3) assert.ok(skinned, `${j.node} has a skin`);
+    else assert.ok(skinned || j.arms.filter((a) => a.grow).every((a) => set.dropped.includes(`${j.node}:${a.vesselId}`)), `${j.node}: a skin, or every growing arm named as dropped`);
+  }
   // the nodes the 2D art leaves too far apart for a junction (spec 10.6) keep the old join, named here so a new one fails until someone looks:
   // SIN_R and SIN_L, where the hepatic arteriole ends 20 and 38 radii of the bed's inflow from J (the arteriole feeds the bed from beside it; there is no fork to weld)
   // IVCS too: the hepatic veins end on the cava's SIDE, 1.7 to 7 radii down its axis from the node (MHV 7.1): a side-wall junction (spec 10.1), which the side-wall arms (T3) weld; as a star at the node it is not a shape the art has
