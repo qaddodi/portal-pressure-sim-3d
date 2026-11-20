@@ -5,8 +5,8 @@
 // in the 2D figure (so the pattern follows the tissue as the liver reshapes). Pure arithmetic: a node test can run it.
 // `?liver=a|b|c|d` (preview copy) picks one of four looks to compare; no flag keeps the old surface until one is chosen.
 
-export type LiverLook = 'a' | 'b' | 'c' | 'd';
-export const LIVER_LOOKS: readonly LiverLook[] = ['a', 'b', 'c', 'd'];
+export type LiverLook = 'a' | 'b' | 'c' | 'd' | 'c1' | 'c2' | 'c3' | 'c4';
+export const LIVER_LOOKS: readonly LiverLook[] = ['a', 'b', 'c', 'd', 'c1', 'c2', 'c3', 'c4'];
 
 /** The texture's frame in 2D figure units (the liver's outline sits well inside it). */
 export const TEX_X0 = 270, TEX_Y0 = 130, TEX_W = 660, TEX_H = 430;
@@ -59,7 +59,7 @@ function lit(c: Cell, w: number, crevice: number): number {
 }
 
 type Field = (x: number, y: number) => Surface;
-const FIELDS: Record<LiverLook, { f: Field; /** mesh bump scale (a finer nodule than the mesh can show lifts less) */ bump: number; /** the shade's strength on the wash */ shade: number; /** tone spread */ tone: number }> = {
+const FIELDS: Record<string, { f: Field; /** mesh bump scale (a finer nodule than the mesh can show lifts less) */ bump: number; /** the shade's strength on the wash */ shade: number; /** tone spread */ tone: number }> = {
   // A: pebbled. Medium rounded nodules of mixed size, thin pale septa, soft shading: the 2D liver's nodules, but irregular and round.
   a: { bump: 1, shade: 0.34, tone: 0.5, f: (x, y) => {
     const c = cell(x, y, 21, 0.4, 0.3, 6, 1);
@@ -83,6 +83,20 @@ const FIELDS: Record<LiverLook, { f: Field; /** mesh bump scale (a finer nodule 
     return { sep: 1 - sstep(0.35, 1.3, c.edge), dome: round(c.edge, 7), tone: c.id, light: band + (l - band) * 0.12 };
   } },
 };
+
+/** Variations of C (Mohammad 20 Nov: "micronodular but without so many variation in colour"): the same small dense nodules with the nodule-to-nodule tone almost gone. */
+function micro(size: number, sepMax: number, sepA: number, dome: number, crev: number, seed: number): Field {
+  return (x, y) => {
+    const c = cell(x, y, size, 0.42, 0.18, 3, seed);
+    return { sep: sepA * (1 - sstep(sepMax * 0.3, sepMax, c.edge)), dome: round(c.edge, dome), tone: c.id, light: lit(c, dome, crev) };
+  };
+}
+// c1: C with the tone spread cut to a sixth and the shade a little calmer. c2: even calmer and a touch larger, finer septa. c3: flat: almost no dome shade, only the septum draws the nodules.
+// c4: no tone at all, but the modelled dome kept, so the nodules read by light alone.
+FIELDS.c1 = { bump: 0.28, shade: 0.3, tone: 0.1, f: micro(10.5, 1.1, 1, 3, 0.55, 41) };
+FIELDS.c2 = { bump: 0.28, shade: 0.26, tone: 0.04, f: micro(12, 0.95, 0.85, 3.4, 0.5, 43) };
+FIELDS.c3 = { bump: 0.2, shade: 0.14, tone: 0.05, f: micro(9, 1.0, 0.8, 3, 0.35, 45) };
+FIELDS.c4 = { bump: 0.35, shade: 0.4, tone: 0, f: micro(11.5, 1.1, 0.9, 3.6, 0.7, 47) };
 
 /** The surface of look `k` at (x, y) in 2D units. */
 export const surfaceAt = (k: LiverLook, x: number, y: number): Surface => FIELDS[k].f(x, y);
