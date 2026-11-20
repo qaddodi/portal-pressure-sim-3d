@@ -91,8 +91,8 @@ export function blendPose(a: Pose, b: Pose, k: number, arc = 1): Pose {
       half: [lerp(a.shot.half[0], b.shot.half[0], k), lerp(a.shot.half[1], b.shot.half[1], k)],
       ...narrowOf(a.shot, b.shot, (x, y) => lerp(x, y, k)),
     },
-    // (the room moves with the aim, q, not with k: the room shifts the picture on screen, so on its own clock it pushed the dived-to place off centre and back, a zigzag)
-    room: { x: lerp(a.room.x, b.room.x, q), y: lerp(a.room.y, b.room.y, q), w: lerp(a.room.w, b.room.w, q), h: lerp(a.room.h, b.room.h, q) },
+    // (a move that is not a dive: the room goes with k; blendDive moves it with the aim instead, as its comment says)
+    room: { x: lerp(a.room.x, b.room.x, k), y: lerp(a.room.y, b.room.y, k), w: lerp(a.room.w, b.room.w, k), h: lerp(a.room.h, b.room.h, k) },
   };
 }
 
