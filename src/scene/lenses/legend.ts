@@ -21,6 +21,8 @@ export interface LegendSpec {
   /** category dots with short names (Blood origin, First pass, direction, anatomy) */
   dots?: LegendDot[];
   note?: string;
+  /** words for the dots' row as a hover title, not printed (2D's First pass: `LG_FP_DOTS title`; printing it wrapped the lens bar to a second row) */
+  dotsTitle?: string;
   aria: string;
 }
 
@@ -83,7 +85,7 @@ export function legendFor(lens: LensId, look: LookId, ref = 'healthy'): LegendSp
         aria: 'Legend: blood colored by where it comes from, as streams side by side: amber SMV (with the coronary vein), teal IMV, violet SV (splenic vein), slate blue Sys (systemic), crimson HA (hepatic artery)' };
     }
     case 'firstpass':
-      return { lens, name: lensTitle('firstpass'), note: 'Splanchnic blood by its route: Raw has not passed the sinusoids, Clear has. Not an ammonia level',
+      return { lens, name: lensTitle('firstpass'), dotsTitle: 'Splanchnic blood by its route: Raw has not passed the sinusoids, Clear has. Not an ammonia level',
         dots: [
           { colour: LENS_SHARED.firstPassRaw, name: 'Raw', title: 'Splanchnic blood that has not passed the sinusoids: it keeps this color in a collateral, a shunt or a stent' },
           { colour: LENS_SHARED.firstPassClear, name: 'Clear', title: 'Splanchnic blood after the sinusoids' },

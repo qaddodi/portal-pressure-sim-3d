@@ -34,7 +34,7 @@ export function Legend({ compact = false, reference = 'healthy', variant = 'unde
           <div className="lg-nums">{g.bar.nums.map((n) => <span key={n.text} data-optional={n.optional ? '' : undefined} style={{ left: `${n.at}%` }}>{n.text}</span>)}</div>
         </div>
       ) : null}
-      {g.dots ? <ul className="lg-dots">{g.dots.map((d) => <li key={d.name} title={d.title}><i style={{ background: d.colour }} />{d.name}</li>)}</ul> : null}
+      {g.dots ? <ul className="lg-dots" title={g.dotsTitle}>{g.dots.map((d) => <li key={d.name} title={d.title}><i style={{ background: d.colour }} />{d.name}</li>)}</ul> : null}
       {g.note ? <p className="lg-note">{g.note}</p> : null}
     </figure>
   );

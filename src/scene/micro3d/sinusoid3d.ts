@@ -39,9 +39,11 @@ export const ACROSS = UM.lum + UM.endo + UM.disse + UM.hep + BEYOND * PERIOD + 1
 export const Z = { cell: 0.55, cellBot: -1.3, bead: 0.5, disse: -1.0, ground: -12.0, trough: 0.92, nucleus: 0.55 } as const;
 /** The red cells in the stream (2D's palette has their colour; the host draws none). */
 /** How far (µm) the scene stands toward the viewer from the lobule's plate. */
-const LIFT = 8;
+// (26: the whole scene, its ground 12 µm down included, stands over the lobule's tubes (their tops about 11 µm up in these units) and tiles: at 8 the tube showed through the lumen and the
+//  lobule's branches through the ground while it grew, a hybrid picture, eyes 20 Nov. holdScale keeps it its landed size on screen however high it stands.)
+const LIFT = 26;
 /** The dive share over which the scene grows out from its lumen (see update): from nothing to whole, which the lobule's standing aside follows (scene.ts LOBULE_UNDER_FROM). */
-export const REVEAL_FROM = 0.6, REVEAL_TO = 0.86;
+export const REVEAL_FROM = 0.3, REVEAL_TO = 0.86;   // (from 0.3: over 0.6-0.86 it grew in less than one 100 ms frame, the dive's share runs fast at its end, eyes 20 Nov)
 /** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), the lymph streaks' pace against the lymph's own run, and the haze: how far out it takes to be whole (µm) and how deep it goes. */
 const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_K = 0.45;
 /** The focus band's run (µm) to a whole blur: from the middle of the first hepatocyte row out to the middle of the next sinusoid's lumen, rising fast at first (post-dof.ts bandCoc eases out), so
@@ -250,7 +252,7 @@ export class Sinusoid3D {
     //  the same width on screen there (scene-dive-handoff.test.ts): the lumen first, then the lining, Disse and the plates outward, whole by REVEAL_TO, when the lobule stands aside under it)
     this.fade.value = d == null || d >= REVEAL_FROM ? 1 : 0;
     this.reveal.value = d == null ? 0 : Math.max(1e-3, (ACROSS + 30) * smooth(REVEAL_FROM, REVEAL_TO, d));
-    this.group.position.z = d == null ? 0 : LIFT * U * (1 - smooth(0.86, 1, d));
+    this.group.position.z = d == null ? 0 : LIFT * U * (1 - smooth(0.9, 1, d));   // (down only once the lobule has stood aside, scene.ts LOBULE_UNDER_FROM + 0.04)
     const dark = LOOKS[f.look].scheme === 'dark';
     const P = f.pal.palette(dark) as unknown as Pal;
     const S = f.cur;
