@@ -48,5 +48,6 @@ export function linkScene(): () => void {
 
   sync();
   const off = useUi.subscribe((s, prev) => { if (s.pos !== prev.pos || s.boxes.free !== prev.boxes.free || s.stops !== prev.stops) sync(s.pos !== prev.pos || s.stops !== prev.stops); });
-  return () => { off(); offClock(); advance.dispose(); balloon.dispose(); };
+  // (leaving the talk takes the catheter out: it never stays on the free figure)
+  return () => { off(); offClock(); advance.dispose(); balloon.dispose(); sceneApi.setCatheter({ advance: 0, balloon: 0 }); };
 }

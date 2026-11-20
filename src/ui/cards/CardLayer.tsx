@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { caseOf, type Deck, type ReadingKey, type Slide } from '../../decks/schema.ts';
-import { useUi } from '../ui-store.ts';
+import { useUi, atEnd } from '../ui-store.ts';
+import { finishTalk } from './finish.ts';
 import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
 import { planLayout, widthOf, stepsFor, centredKind, centredBox, panelVisual, type CardId, type Need, type Plan } from '../layout/plan.ts';
 import { isSideways, layoutOf } from '../layout/rules2d.ts';
@@ -24,7 +25,7 @@ import { useCardDrag, justDragged } from './useCardDrag.ts';
 import { cardZoom, emptyTap } from './card-zoom.ts';
 import { reduced } from '../a11y/motion.ts';
 import { isSwapSwipe } from '../wallet/wallet-machine.ts';
-import { swipeMove, apply, samePos } from '../deck/presenter-machine.ts';
+import { swipeMove, apply, samePos, type Move } from '../deck/presenter-machine.ts';
 import { gapOf } from './ladder-model.ts';
 import { maxPages, clampPage } from './pages.ts';
 
@@ -155,6 +156,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const settled = needs.length > 0 && needs.every((n) => n.h > 0 || (plan.docked && n.slot === 'data'));   // (a card put away is not measured: it is not up)
   useLayoutEffect(() => { if (settled) publishPlan(plan); }, [plan, settled, publishPlan]);
 
+  // a swipe on the last slide's card ends the talk (the figure comes back); anywhere else it moves the talk
+  const goTo = (m: Move) => { if (m === 'next' && atEnd(useUi.getState())) finishTalk(); else move(m); };
   // phones: a vertical swipe on a card swaps the wallet; anywhere: a sideways swipe on a card moves the talk
   const swipe = useCardDrag({
     onEnd: (g, e) => {
@@ -162,13 +165,13 @@ export function CardLayer({ deck }: { deck: Deck }) {
       if (!plan.strip && (plan.layout === 'stack' || plan.layout === 'tab') && dataShown && g.dy < 0 && isSwapSwipe(g) && (e.target as HTMLElement).closest?.('[data-card]')?.getAttribute('data-card') === dataShown.id && wordsShown) { setDocked(true); return; }
       if (plan.strip && isSwapSwipe(g)) { swapWallet(); return; }
       const m = swipeMove(g.dx, g.dy, g.ms);
-      if (m) move(m);
+      if (m) goTo(m);
     },
-    onMove: move,
+    onMove: goTo,
     // a drag follows only where it will do something: a slide to go to (or a page to turn), not the first slide's Back
     // the data card the next slide keeps (same key) stays put under a drag: only the cards that change follow the finger
-    keeps: (dx) => { const to = viewAt(stops, apply(stops, pos, dx < 0 ? 'next' : 'back'), lastSlideShot(stops)); return !!view?.data && !!to.data && dataKeyOf(to) === dataKey; },
-    can: (dx) => pages > 1 || !samePos(apply(stops, pos, dx < 0 ? 'next' : 'back'), pos),
+    keeps: (dx) => { if (dx < 0 && atEnd(useUi.getState())) return false; const to = viewAt(stops, apply(stops, pos, dx < 0 ? 'next' : 'back'), lastSlideShot(stops)); return !!view?.data && !!to.data && dataKeyOf(to) === dataKey; },
+    can: (dx) => pages > 1 || (dx < 0 && atEnd(useUi.getState())) || !samePos(apply(stops, pos, dx < 0 ? 'next' : 'back'), pos),
     width: vp.w,
     cards: () => [...document.querySelectorAll<HTMLElement>('.dk-card[data-card]:not([data-phase="out"])')].map((card) => ({ els: [card, ...(card.previousElementSibling?.classList.contains('dk-plate') ? [card.previousElementSibling as HTMLElement] : [])], data: card.getAttribute('data-card') === 'ladder' || card.getAttribute('data-card') === 'table' })),
   });

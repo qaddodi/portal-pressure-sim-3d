@@ -33,3 +33,9 @@ button { font: inherit; color: inherit; }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 320ms; animation-timing-function: var(--ease-move); mix-blend-mode: normal; }
 /* (where there is no View Transition the page's own colours ease) */
 html.look-glide *, html.look-glide *::before, html.look-glide *::after { transition: background-color 320ms var(--ease-move), color 320ms var(--ease-move), border-color 320ms var(--ease-move), fill 320ms var(--ease-move), stroke 320ms var(--ease-move), box-shadow 320ms var(--ease-move) !important; }
+
+/* First load (owner, 20 Nov): the splash lifts only when the figure and its labels are all in, and they settle in from a mild zoom as it fades (boot/ready.ts sets html[data-reveal] for 1 s).
+   The figure and its label layer are both fixed, full-screen and scaled about the same centre, so every label stays on its vessel. The individual `scale` property leaves their transforms alone. */
+@keyframes boot-reveal { from { scale: 1.07; } to { scale: 1; } }
+html[data-reveal] :is(.stage-root, .lb-layer) { transform-origin: 50% 50%; animation: boot-reveal 900ms cubic-bezier(.2, .8, .2, 1) both; }
+@media (prefers-reduced-motion: reduce) { html[data-reveal] :is(.stage-root, .lb-layer) { animation: none; } }

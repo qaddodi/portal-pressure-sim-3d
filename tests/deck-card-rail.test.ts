@@ -193,3 +193,14 @@ test('the data card a slide keeps does not follow the finger, and glides with th
   assert.match(frame, /transition: `transform \$\{IN_MS\}ms \$\{RAIL_CSS\} \$\{OUT_DONE\}ms`/, 'its move to a new place waits for the old cards to be gone, then runs as long as the new cards\' entrance');
   assert.equal(OUT_DONE, 272);
 });
+
+// Mohammad, 20 Nov: "the last question slide the card is not expanding as fast as the text" and "i should be able to swipe on last card to close and go back to the figure".
+test('a card whose words grow is revealed in the measuring callback, and a swipe on the last card ends the talk through the rail', () => {
+  const frame = readFileSync(new URL('../src/ui/cards/CardFrame.tsx', import.meta.url), 'utf8');
+  assert.match(frame, /growNow\(h\);\s*\n\s*onHeight\(/, 'the card grows before the frame is painted, not a React round trip later');
+  const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
+  assert.match(layer, /can: \(dx\) => pages > 1 \|\| \(dx < 0 && atEnd\(useUi\.getState\(\)\)\)/, 'a sideways drag is allowed on the last slide');
+  assert.match(layer, /m === 'next' && atEnd\(useUi\.getState\(\)\)\) finishTalk\(\)/, 'a swipe on the last slide ends the talk');
+  const fin = readFileSync(new URL('../src/ui/cards/finish.ts', import.meta.url), 'utf8');
+  assert.match(fin, /rail\.leave\(/, 'the cards go out on the rail before the talk is let go');
+});
