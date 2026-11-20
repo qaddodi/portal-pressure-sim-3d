@@ -521,7 +521,7 @@ export class CelScene {
     this.rig.setBounds(v === 'circuit' ? circuitBounds(this.circuit.upright) : { ...PLATE_BOUNDS, z: FIGURE_Z });
     if (v === 'lobule') this.lobule.setVisible(true);
     if (v === 'sinusoid') this.sinus.setVisible(true);
-    this.dive.visible = true;   // (until settleViews: the view being left stays up while the camera flies)
+    // (the dive frame is not switched on here: fadeBody shows it only once the camera is through the liver's surface and the body is dissolving, so the lobule is never seen on or through the liver)
     this.hideLeftBehind = true;
     if (v !== 'body') this.feedViews(true);
     this.moving = true;
@@ -620,6 +620,10 @@ export class CelScene {
   private fadeBody(): void {
     // the dive's effects belong to a dive (or to the lobule and the sinusoid): a close-up of the body at rest (a deck's zoom on the liver) is outside every dive and never fades the organs or opens the window
     const f = this.inDive() ? bodyFade(this.rig.camera.position.distanceTo(this.livePoint)) : 1;
+    // the lobule and the sinusoid live inside the liver: drawn only once the body has begun to dissolve (the camera is through the surface) or when one of them is the view at rest.
+    // Before, the dive frame was on for the whole flight, so the see-through liver showed the lobule on its surface and the two fought in the wash (the dive's flicker).
+    const dv = this.figureView === 'lobule' || this.figureView === 'sinusoid' ? (!this.hideLeftBehind || f < 1) : this.hideLeftBehind && f < 1;
+    if (this.dive.visible !== dv) { this.dive.visible = dv; this.moving = true; }
     if (f === this.fadeNow || (Math.abs(f - this.fadeNow) < 1e-3 && f > 0 && f < 1)) return;
     this.fadeNow = f;
     for (const o of this.objects) o.setFade(f);
@@ -848,10 +852,11 @@ export class CelScene {
     this.stepCutaway();
     this.stepPortrait();
     this.sinus3d.pinTraffic(this.micro3d);
+    this.lobule.flowRate = this.flowRate.value;
     const lobMoving = this.lobule.update(now), sinMoving = this.sinus.update(now);
     // (the 3D lobule dissolves as the camera goes down onto the sinusoid, and stands aside once landed: its solid tiles and tubes rise above the sinusoid's plane and would cross it in the foreground)
     const dv = this.sinus.diveShareNow, under = !this.sinus.isVisible ? 0 : dv == null ? 1 : smoothstep01(0.4, 0.78, dv);
-    const lob3 = this.lobule3d.update(this.micro3d, under, now, latest.frame?.running ?? true), sin3 = this.sinus3d.update(this.micro3d, latest.frame?.running ?? true);
+    const lob3 = this.lobule3d.update(this.micro3d, under, now, this.flowRate.value), sin3 = this.sinus3d.update(this.micro3d, this.flowRate.value);
     const viewMoving = lob3 || sin3 || lobMoving || sinMoving;
     const procMoving = this.procs.update(now);
     const diseaseMoving = this.disease.update(now);

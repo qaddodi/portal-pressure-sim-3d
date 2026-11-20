@@ -12,9 +12,9 @@ import type { V3 } from './batch.ts';
 export const LIVER_2D = { x: 515, y: 330 } as const;
 /** Depth of the place (the organs straddle z = 0; the right lobe's centre is a little behind the plate's middle). */
 export const LIVER_Z = -0.15;
-/** The lobule's frame in the scene: where its local (0, 0, 0) is, and how many scene units one local unit is. A real lobule is about 1/150 of a liver; this is 1/150 of the scene. */
+/** The lobule's frame in the scene: where its local (0, 0, 0) is, and how many scene units one local unit is. A real lobule (about 1 mm) is well over a thousand times smaller than a liver (owner, 20 Nov: it was ~10x too big and showed on the liver): 1/1500 of the scene. */
 export const LIVER_POINT: V3 = [x3(LIVER_2D.x), y3(LIVER_2D.y), LIVER_Z];
-export const LOBULE_SCALE = 1 / 150;
+export const LOBULE_SCALE = 1 / 1500;
 
 /** Where the sinusoid stands in the lobule's local units (the 2D 'lobule:sinusoid' station: half-way from the left portal corner to the centre, on the slab), and its scale
  *  against the lobule's: one local sinusoid unit is SIN_REL lobule units, so the sinusoid's lumen (0.34) is as wide as the lobule's own sinusoid tube (0.036). */
