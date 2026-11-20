@@ -20,7 +20,7 @@ test('the lobule stands aside only once the sinusoid is whole over it, and the s
   const fs = await import('node:fs');
   const src = fs.readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
   assert.match(src, /this\.fade\.value = d == null \|\| d >= REVEAL_FROM \? 1 : 0;/, 'no dissolve of the whole frame');
-  assert.match(src, /this\.reveal\.value = d == null \? 0 : Math\.max\(1e-3, \(ACROSS \+ 30\) \* smooth\(REVEAL_FROM, REVEAL_TO, d\)\)/, 'grows out from the lumen');
+  assert.match(src, /this\.reveal\.value = d == null \? 0 : Math\.max\(1e-3, Math\.hypot\(REACH \+ 30, ACROSS \+ 30\) \* smooth\(REVEAL_FROM, REVEAL_TO, d\)\)/, 'grows out from the lumen');
   const { MICRO_FS, MICRO_INK_FS } = await import('../src/scene/micro3d/cel3d.ts');
-  assert.match(MICRO_FS, /if \(unrevealed\(vP\.y\)\) discard;/); assert.match(MICRO_INK_FS, /if \(unrevealed\(vXY\.y\)\) discard;/);
+  assert.match(MICRO_FS, /if \(unrevealed\(vP\.xy\)\) discard;/); assert.match(MICRO_INK_FS, /if \(unrevealed\(vXY\)\) discard;/);
 });

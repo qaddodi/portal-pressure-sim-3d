@@ -251,7 +251,7 @@ export class Sinusoid3D {
     // (no crossfade of the whole frame: it showed both scenes at once, a pale ghosted double image, eyes 20 Nov. The scene grows out from its lumen instead, over the lobule's tube, which is
     //  the same width on screen there (scene-dive-handoff.test.ts): the lumen first, then the lining, Disse and the plates outward, whole by REVEAL_TO, when the lobule stands aside under it)
     this.fade.value = d == null || d >= REVEAL_FROM ? 1 : 0;
-    this.reveal.value = d == null ? 0 : Math.max(1e-3, (ACROSS + 30) * smooth(REVEAL_FROM, REVEAL_TO, d));
+    this.reveal.value = d == null ? 0 : Math.max(1e-3, Math.hypot(REACH + 30, ACROSS + 30) * smooth(REVEAL_FROM, REVEAL_TO, d));
     this.group.position.z = d == null ? 0 : LIFT * U * (1 - smooth(0.9, 1, d));   // (down only once the lobule has stood aside, scene.ts LOBULE_UNDER_FROM + 0.04)
     const dark = LOOKS[f.look].scheme === 'dark';
     const P = f.pal.palette(dark) as unknown as Pal;
@@ -489,7 +489,7 @@ export class Sinusoid3D {
       for (const [s, nsd] of [[-1, SEED.nucUp], [1, SEED.nucDn]] as [Side, number][]) {
         for (let n = Math.floor(X0 / 38) - 1; n <= Math.ceil(X1 / 38) + 1; n++) {
           const x = nucAt(n, nsd), h = g.halfW(x);
-          ellipsoid(b, x, Y(s * (h - 0.35)), -0.35, 4.6, 1.45, 1.05, 0, undefined, 24, 10, true, true);
+          ellipsoid(b, x, Y(s * (h - 0.35)), -0.35, 4.6, 1.45, 1.05, 0, undefined, 72, 10, true, true);   // (72 round: on a long lens 24 left its equator a chord 1.2 µm long between corners, and the line drawn in the fill came and went along it in beads, eyes 20 Nov)
           ellipsoid(bi, x, Y(s * (h - 0.45)), -0.2, 3.1, 0.82, 0.98, 0, undefined, 18, 8);
         }
       }
@@ -505,7 +505,7 @@ export class Sinusoid3D {
       const a = clamp(S.act, 0, 1), x0 = geo.xs;
       const mid = (x: number) => -(g.wallIn(x) + g.disseW(x) * 0.5 + 0.2);
       const body = 5.2 * (1 + 0.35 * a), thick = 1.25 * (1 + 0.45 * a);
-      ellipsoid(b, x0, Y(mid(x0) - 0.4 * a), Z.disse + 0.9, body, thick, 1.1 + 0.3 * a, 0, undefined, 26, 12, true, true);
+      ellipsoid(b, x0, Y(mid(x0) - 0.4 * a), Z.disse + 0.9, body, thick, 1.1 + 0.3 * a, 0, undefined, 48, 12, true, true);
       for (const dir of [-1, 1]) for (const [len, off, r0] of [[22 + 8 * a, 0, 0.62], [12 + 5 * a, -1.0, 0.42]] as [number, number, number][]) {
         const path: [number, number, number][] = [];
         for (let i = 0; i <= 14; i++) {
@@ -518,7 +518,7 @@ export class Sinusoid3D {
       // one in each neighbour's Disse too (the next Disse past each plate), activated as this one is, a little smaller, away from this one along the flow
       for (const [s, xo] of [[-1, 21], [1, -27]] as [Side, number][]) {
         const xf = x0 + xo, sc = 0.8, farMid = (x: number) => s * (g.hepIn(x) + UM.hep + UM.disse * 0.5);
-        ellipsoid(b, xf, Y(farMid(xf)), Z.disse + 0.9, body * sc, thick * sc, (1.1 + 0.3 * a) * sc, 0, undefined, 22, 10, true, true);
+        ellipsoid(b, xf, Y(farMid(xf)), Z.disse + 0.9, body * sc, thick * sc, (1.1 + 0.3 * a) * sc, 0, undefined, 40, 10, true, true);
         for (const dir of [-1, 1]) {
           const path: [number, number, number][] = [], len = (18 + 7 * a) * sc;
           for (let i = 0; i <= 12; i++) { const t = i / 12, x = xf + dir * (body * sc * 0.7 + t * len); path.push([x, Y(farMid(x) + 0.25 * Math.sin(t * 5 + dir)), Z.disse + 0.8 - 0.25 * t]); }
