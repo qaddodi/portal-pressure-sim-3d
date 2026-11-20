@@ -196,7 +196,7 @@ export class OrganPins {
         const u = sp.ink.uniforms;
         const mat = new ShaderMaterial({ vertexShader: sp.ink.vertexShader, fragmentShader: sp.ink.fragmentShader, side: BackSide, transparent: true, depthTest: false, depthWrite: false,
           uniforms: { ...u, px: { value: NORMAL_LINE.px }, inflate: { value: 0 }, hiOn: { value: 0 }, inkA: { value: 0 } } });
-        this.normalMesh = new Mesh(sp.toonMesh.geometry, mat);
+        this.normalMesh = new Mesh(sp.toonMesh.geometry, mat); this.normalMesh.frustumCulled = false;
         this.normalMesh.renderOrder = 20;
         sp.group.parent.add(this.normalMesh);
       }
