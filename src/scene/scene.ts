@@ -58,6 +58,7 @@ import { organsReady } from './organs/meshes.ts';
 import { artReady } from './organs/organ-art.ts';
 import { clock } from '../clock/frame.ts';
 import { COURSES } from './circuit/course.ts';
+import { growOf, stageOf } from './circuit/grow.ts';
 import { attachRuns, slicesFor } from './circuit/geometry.ts';
 import { mapToScene, turnScenePt } from './circuit/map.ts';
 import { MapLayer, mapRamp } from './circuit/map-layer.ts';
@@ -242,6 +243,7 @@ export class CelScene {
     this.flow = new BloodMarks(this.vessels);
     this.cells = new BloodCells({ vessels: NETWORK, object: (id) => this.vesselObject(id), shared: this.shared, lens: this.lens.shared, blood: this.blood.shared, parent: this.body, layer: VESSEL_LAYER, phone: () => this.phone });
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
+    this.presence.own(this.grownIds);
     this.shapes = new ShapeTracks(NETWORK, this.byEdge as unknown as Map<string, VesselObject>);
     this.lens.setContext({ healthy: null, ref: null });
     const vo = { look: this.look, phone: this.phone, flowMode: opts.flowMode ?? DEFAULT_FLOW_MODE, reduceMotion: opts.reduceMotion };
@@ -882,6 +884,15 @@ export class CelScene {
     return needs;
   }
 
+  /** The liver's own branches (portal venules, sinusoids, hepatic venules) draw on along their flow as the body turns into the map, and back, on the change's eased share (circuit/grow.ts). */
+  private growLiver(t: number): void {
+    if (t === this.lastGrow) return;
+    this.lastGrow = t;
+    for (const id of this.grownIds) this.presence.drive(id, growOf(id, t) ?? 0);
+  }
+  private lastGrow = -1;
+  private readonly grownIds: readonly string[] = NETWORK.filter((v) => v.kind === 'liver' && stageOf(v.id)).map((v) => v.id);
+
   /** The change and the turn, the organs leaving, the map coming in and its stations' dots. */
   private stepCircuit(now: number, dt: number): boolean {
     const moving = this.circuit.update(now), t = this.circuit.t;
@@ -894,6 +905,7 @@ export class CelScene {
     this.mapLayer.set(mapRamp(t), this.circuit.rr);
     this.procs.setFade(fade);
     const ramp = mapRamp(t);
+    this.growLiver(t);
     const tubesMoving = this.tubes.update(dt, { ramp, t, body: this.fadeNow, drawn: (id) => this.vesselDrawn(id), caudPin: this.caudPin, open: this.openShunts });
     this.resistors.setAlpha(ramp);
     let resMoving = false;
