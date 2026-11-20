@@ -46,11 +46,7 @@ function bodyPoints(d: string, n: number): Vector3[] {
   return resample(courseOf(d), n).map(([x, y]) => new Vector3(x3(x), y3(y), TIER_Z.over));
 }
 
-export type TubeKind = 'tree' | 'caud' | 'custom' | 'arteriole';
-/** The hepatic artery's two branches to the lobes: the 2D Circuit draws them (the body figure leaves the arterioles out, 20 Nov), so they are map-only strands on the artery's own course. */
-export const ARTERIOLES: readonly string[] = ['A_HR', 'A_HL'];
-/** The vessel they carry on from (and are drawn with). */
-export const ARTERIOLE_HOST = 'A_HEP';
+export type TubeKind = 'tree' | 'caud' | 'custom';
 interface Entry { id: string; kind: TubeKind; obj: VesselObject; parent: string; goal: number; amount: number; /** a custom shunt closed and opened again: the old tube eases out and goes */ dead?: boolean; /** the vessel's two course lengths (scene units), when it has two */ lens?: readonly [number, number] }
 
 export interface TubesContext {
@@ -91,12 +87,6 @@ export class CircuitTubes {
       const parent = NETWORK_BY_ID.get(id);
       if (!parent) continue;
       list.forEach((b, i) => this.add(`${id}#${i}`, 'tree', id, courseOf(b.d), Math.max(len3(MIN_BRANCH_W / 2), parent.radius * b.k), parent.tone === 'artery' ? 'portal' : parent.tone, parent.baseD, 2, undefined, treeCircW(parent.widthKind, parent.baseD, parent.circFine ?? 1, b.k), [0, 1]));
-    }
-    // the hepatic artery's two branches to the lobes (2D draws them in the Circuit; the body leaves them out), each a map-only strand at the artery's own width
-    const ha = NETWORK_BY_ID.get(ARTERIOLE_HOST);
-    if (ha) for (const id of ARTERIOLES) {
-      const dd = CIRCUIT_D[id];
-      if (dd && hasVessel(id)) this.add(id, 'arteriole', id, courseOf(dd), ha.radius * 0.8, 'artery', 3, 1, undefined, [CIRC_ARTERY, 0, 0, MIN_PX.artery], [0, 1], ARTERIOLE_HOST);
     }
     // the caudate's own vein, drawn only while a slide is about the caudate lobe
     const caud = edgeById.get('CAUD');
