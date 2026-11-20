@@ -28,7 +28,6 @@ const L = CEL_LIGHT_UNIT;
 export const MICRO_VS = /* glsl */ `
 uniform float inflate;
 varying vec3 vN;
-varying vec3 vVN;
 varying vec3 vVD;
 varying vec3 vC;
 varying float vHy;
@@ -75,8 +74,7 @@ void main() {
   vG = position.xy;
 #endif
   vec4 mvR = modelViewMatrix * vec4(p + normal * inflate, 1.0);
-  vVN = normalize(normalMatrix * n);
-  vVD = projectionMatrix[2][3] == 0.0 ? vec3(0.0, 0.0, 1.0) : -mvR.xyz;
+  vVD = cameraPosition - (modelMatrix * vec4(p, 1.0)).xyz;   // (toward the eye in WORLD axes, beside the world normal vN: the rim's n.v needs no view-space normal)
   gl_Position = projectionMatrix * mvR;
 }`;
 
@@ -99,7 +97,6 @@ uniform float uHole;
 uniform float uRim;
 uniform float uMicroDpr;
 uniform vec3 uRimCol;
-varying vec3 vVN;
 varying vec3 vVD;
 varying vec3 vP;
 // the wedged column's wash (2D sinusoid-gl.js wedgeA): an amber column in the stream from the central vein's end (uWash.z) toward the portal venule's (uWash.y), as far as uWash.w of the way, soft at
@@ -243,7 +240,7 @@ void main() {
   c = mix(c, uWashCol, 0.85 * wz);
 #endif
   if (uRim > 0.0) {
-    float nv = abs(dot(normalize(vVN), normalize(vVD)));
+    float nv = abs(dot(normalize(vN), normalize(vVD)));
     float dpx = 0.5 * nv / max(length(vec2(dFdx(nv), dFdy(nv))), 1e-5);   // (the gradient's length, not fwidth: fwidth reads a diagonal edge up to 1.4 times steep, so a ring was thicker on its diagonals)
     float rp = uRim * uMicroDpr;
     c = mix(c, uRimCol, 1.0 - smoothstep(rp - 0.6, rp + 0.6, dpx));
