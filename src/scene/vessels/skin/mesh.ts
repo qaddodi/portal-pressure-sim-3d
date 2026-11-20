@@ -6,28 +6,33 @@ import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
 import { SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
 import { ARM_REACH, closestOnArm, gradient, localRadius, sdUnionGrad, skinKOf, weights, type Capsule } from './sdf.ts';
 
-/** The target edge length is `EDGE_SCALE` times the circumference spacing `2 pi R / ring size` of the arm nearest the edge: seam ring edges halve once, the long hull edges split until
- *  they match, and the thin branch's side gets finer triangles than the trunk's. (Spec 4.5.4 subdivides every hull face 3 times; measured on a synthetic Y that left slivers of 0.7 degrees,
- *  because a hull face between two rings is 7 times longer than a ring edge, so this refines the long way only.) */
-export const EDGE_SCALE = 1.4;
-/** Most refinement passes and most vertices before the build gives up with a `SkinBuildError`. */
-export const MAX_REFINE_PASSES = 14;
+/** The target edge length is `EDGE_SCALE` times the circumference spacing `2 pi R / ring size` of the arm nearest the edge, so the skin's triangles are the size of the tube's own around
+ *  a ring, and the thin branch's side gets finer ones than the trunk's.
+ *  Spec 4.5.4 subdivides every hull face 3 times and 4.5.5 projects the result. Measured on a synthetic Y that left slivers of 0.7 degrees (a hull face between two rings is 7 times
+ *  longer than a ring edge, and uniform subdivision keeps its shape), and on a thin T the hull sheet bridges the crotch far outside the surface and the projection piled it onto the crease.
+ *  So the hull is only the first guess at the skin's topology: it is then remeshed (split what is too long, collapse what is too short, flip toward good angles, smooth along the
+ *  surface, project), which keeps the seam rings and the welded, closed topology of the spec but makes the triangles even. */
+export const EDGE_SCALE = 1.1;
+/** An edge splits when longer than `SPLIT_AT` targets and collapses when shorter than `COLLAPSE_AT`. (Isotropic remeshing uses 4/3 and 4/5; halves of a split are 2/3 of a target, so 4/5 collapses
+ *  them again and the mesh churns. A collapse is also refused when it would leave an edge past `SPLIT_AT`.) */
+export const SPLIT_AT = 4 / 3;
+export const COLLAPSE_AT = 0.6;
+/** Remeshing rounds, and the most vertices before the build gives up with a `SkinBuildError`. */
+export const REMESH_ROUNDS = 16;
+/** The remesh stops once a round changes no more than this share of the triangles (after the shrink). */
+export const SETTLED = 0.02;
+/** The first `SHRINK_ROUNDS` rounds pull each vertex `SHRINK_PULL` of the way to the surface per round (the sheet shrinks over them); the polish rounds pull all the way. */
+export const SHRINK_ROUNDS = 6;
+export const SHRINK_PULL = 0.5;
 export const MAX_VERTS = 12000;
-/** The shrink-wrap (spec 4.5.5 and 4.5.6 together): the hull is a taut sheet over the junction and in a crotch it sits far outside the surface, so projecting it in one go piles
- *  its vertices up on the crease. Instead it is walked in `WRAP_ROUNDS` rounds, each moving a vertex `WRAP_STEP` of the way to the surface and `WRAP_SMOOTH` of the way to its
- *  neighbours' mean (tangentially), so the spacing stays even as it shrinks; then `POLISH_ROUNDS` more of the spec's relax-and-project. */
-export const WRAP_LEVELS = 3;
-/** Rounds and surface step at each level, coarsest first: the coarse level shrinks slowly so smoothing keeps up. */
-export const WRAP_ROUNDS = [60, 20, 10];
-export const WRAP_STEPS = [0.05, 0.2, 0.35];
-export const WRAP_SMOOTH = 0.5;
-export const POLISH_ROUNDS = 4;
-/** Newton steps that put a vertex exactly on the surface at the end (spec 4.5.5). */
+/** Tangential smoothing per round: how far a free vertex moves toward its neighbours' mean, and the final rounds of smoothing and projecting (spec 4.5.6). */
+export const SMOOTH_LAMBDA = 0.6;
+export const POLISH_ROUNDS = 2;
+/** Newton steps that put a vertex on the surface (spec 4.5.5), and the central-difference step as a share of k. */
 export const PROJECT_STEPS = 6;
 export const GRADIENT_H = 0.05;
-/** Edge flips, repeated: an edge flips when that raises the smaller of its two triangles' smallest angles by `FLIP_GAIN` (degrees) and keeps the two faces facing the same way. */
-export const FLIP_PASSES = 3;
-export const FLIP_GAIN_DEG = 1;
+/** Edge flips: an edge flips when that raises the sine of the smaller of its two triangles' smallest angles by `FLIP_GAIN` times and keeps the two faces facing the same way. */
+export const FLIP_GAIN = 1.05;
 /** Rows of vertices from a seam over which the normal blends from the tube's to the SDF gradient (spec 4.5.7). */
 export const NORMAL_BLEND_ROWS = 2;
 /** The farthest a seam may be pushed out (spec 4.4). */
@@ -96,8 +101,11 @@ function axisFromRing(ring: Float32Array, J: Vec3): Capsule {
   const out = [c[0]! - J[0], c[1]! - J[1], c[2]! - J[2]];
   const s = out[0]! * nrm[0]! + out[1]! * nrm[1]! + out[2]! * nrm[2]! < 0 ? -1 / nl : 1 / nl;
   const dir = [nrm[0]! * s, nrm[1]! * s, nrm[2]! * s];
+  // the axis begins at the foot of J on the ring's axis line when that is behind the ring (an arm that leaves a trunk's side runs on from the trunk's axis, not from J), else at J
+  const ahead = out[0]! * dir[0]! + out[1]! * dir[1]! + out[2]! * dir[2]!;
+  const p0 = ahead > 0 ? [c[0]! - dir[0]! * ahead, c[1]! - dir[1]! * ahead, c[2]! - dir[2]! * ahead] : [J[0], J[1], J[2]];
   const reach = Math.max(ARM_REACH * R, Math.hypot(out[0]!, out[1]!, out[2]!) * 2);
-  const pts = new Float64Array([J[0], J[1], J[2], c[0]!, c[1]!, c[2]!, c[0]! + dir[0]! * reach, c[1]! + dir[1]! * reach, c[2]! + dir[2]! * reach]);
+  const pts = new Float64Array([p0[0]!, p0[1]!, p0[2]!, c[0]!, c[1]!, c[2]!, c[0]! + dir[0]! * reach, c[1]! + dir[1]! * reach, c[2]! + dir[2]! * reach]);
   return { n: 3, pts, r: new Float64Array([R, R, R]) };
 }
 
@@ -107,172 +115,269 @@ function axisFromRing(ring: Float32Array, J: Vec3): Capsule {
  * without them each arm's axis is recovered from its ring. Throws `SkinBuildError` when the hull misses a ring (spec 4.4.3).
  */
 export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[]): SkinMesh {
-  const A = j.arms.length, n = seamRings[0]!.length / 3;
+  const A = j.arms.length, n = seamRings[0]!.length / 3, S = A * n;   // S: the ring vertices, ids 0..S-1 (arm * n + j), fixed for ever
   if (A < 2 || A > 4 || seamRings.length !== A || seamNormals.length !== A || cuts.length !== A) throw new SkinBuildError(j.node, 'needs 2 to 4 arms with a ring, a normal set and a cut each');
   const hull = ringHull(seamRings);
   if (!hull.ok) throw new SkinBuildError(j.node, `the hull misses the seam rings: ${hull.why}`);
   const caps = axes ?? seamRings.map((r) => axisFromRing(r, j.J));
-  const k = skinKOf(j.arms), h = GRADIENT_H * k;
-
-  // 1. the vertices: the rings first (id = arm * n + j, so seamVerts is just that), then midpoints
-  const pos: number[] = [], fixed: number[] = [];   // fixed[v] = 1 on a seam ring or a seam edge
-  const owner: number[] = [], tubeN: number[] = [];   // a seam vertex's arm (-1 for a free one) and the tube's normal there (a seam edge's midpoint takes the mean of its two ends')
-  for (let a = 0; a < A; a++) for (let q = 0; q < n; q++) {
-    pos.push(seamRings[a]![3 * q]!, seamRings[a]![3 * q + 1]!, seamRings[a]![3 * q + 2]!); fixed.push(1); owner.push(a);
-    tubeN.push(seamNormals[a]![3 * q]!, seamNormals[a]![3 * q + 1]!, seamNormals[a]![3 * q + 2]!);
-  }
-  let tris = hull.faces.slice();
+  const k = skinKOf(j.arms), h = GRADIENT_H * k, tau = (2 * Math.PI) / n;
   const ekey = (a: number, b: number) => (a < b ? a * 1e7 + b : b * 1e7 + a);
-  let ringEdge = new Set<number>();
-  for (let a = 0; a < A; a++) for (let q = 0; q < n; q++) ringEdge.add(ekey(a * n + q, a * n + ((q + 1) % n)));
 
-  // 2. refine the long way and shrink-wrap, coarse to fine: split every edge longer than its target (welded through a shared midpoint cache; ring edges stay ring edges, their
-  //    midpoints on the chord), walk the free vertices onto the smooth union while smoothing them along it, then do it again at twice the resolution. Doing it in levels lets the
-  //    spacing settle on a coarse mesh, where smoothing spreads vertices far in a few rounds (a crotch's sheet is mostly collapsed by the projection, and fine-mesh smoothing is too slow to undo it)
-  const tau = (2 * Math.PI) / n;
-  let V = pos.length / 3;
-  const refine = (scale: number) => {
-    for (let pass = 0; ; pass++) {
-      const mid = new Map<number, number>(), want = new Set<number>(), seen = new Set<number>();
-      for (let i = 0; i < tris.length; i += 3) for (let s = 0; s < 3; s++) {
-        const a = tris[i + s]!, b = tris[i + (s + 1) % 3]!, kk = ekey(a, b);
-        if (seen.has(kk)) continue;
-        seen.add(kk);
-        const dx = pos[3 * a]! - pos[3 * b]!, dy = pos[3 * a + 1]! - pos[3 * b + 1]!, dz = pos[3 * a + 2]! - pos[3 * b + 2]!;
-        const R = localRadius(caps, (pos[3 * a]! + pos[3 * b]!) / 2, (pos[3 * a + 1]! + pos[3 * b + 1]!) / 2, (pos[3 * a + 2]! + pos[3 * b + 2]!) / 2);
-        if (Math.hypot(dx, dy, dz) > scale * tau * R) want.add(kk);
-      }
-      if (!want.size) break;
-      if (pass >= MAX_REFINE_PASSES || pos.length / 3 > MAX_VERTS) throw new SkinBuildError(j.node, 'refinement did not settle');
-      const nextRing = new Set<number>();
-      const midOf = (a: number, b: number): number => {
-        const kk = ekey(a, b);
-        let m = mid.get(kk);
-        if (m === undefined) {
-          m = pos.length / 3;
-          pos.push((pos[3 * a]! + pos[3 * b]!) / 2, (pos[3 * a + 1]! + pos[3 * b + 1]!) / 2, (pos[3 * a + 2]! + pos[3 * b + 2]!) / 2);
-          const onRing = ringEdge.has(kk);
-          fixed.push(onRing ? 1 : 0); owner.push(onRing ? owner[a]! : -1);
-          if (onRing) { const nx = tubeN[3 * a]! + tubeN[3 * b]!, ny = tubeN[3 * a + 1]! + tubeN[3 * b + 1]!, nz = tubeN[3 * a + 2]! + tubeN[3 * b + 2]!, nl = Math.hypot(nx, ny, nz) || 1; tubeN.push(nx / nl, ny / nl, nz / nl); nextRing.add(ekey(a, m)); nextRing.add(ekey(m, b)); }
-          else tubeN.push(0, 0, 0);
-          mid.set(kk, m);
-        }
-        return m;
-      };
-      const dist = (a: number, b: number) => Math.hypot(pos[3 * a]! - pos[3 * b]!, pos[3 * a + 1]! - pos[3 * b + 1]!, pos[3 * a + 2]! - pos[3 * b + 2]!);
-      const next: number[] = [];
-      for (let i = 0; i < tris.length; i += 3) {
-        const v = [tris[i]!, tris[i + 1]!, tris[i + 2]!], m = [0, 1, 2].map((s) => want.has(ekey(v[s]!, v[(s + 1) % 3]!)));
-        const cnt = +m[0]! + +m[1]! + +m[2]!;
-        if (cnt === 0) { next.push(v[0]!, v[1]!, v[2]!); continue; }
-        // rotate so the marked edges come first: edge s runs from v[s] to v[s+1]
-        let r = 0;
-        if (cnt === 1) r = m[0] ? 0 : m[1] ? 1 : 2;
-        else if (cnt === 2) r = !m[2] ? 0 : !m[0] ? 1 : 2;
-        const [p, q, w] = [v[r]!, v[(r + 1) % 3]!, v[(r + 2) % 3]!];
-        if (cnt === 1) { const mm = midOf(p, q); next.push(p, mm, w, mm, q, w); }
-        else if (cnt === 2) {
-          // marked p-q and q-w, common vertex q: the corner triangle, and the quad p, m1, m2, w cut on its shorter diagonal
-          const m1 = midOf(p, q), m2 = midOf(q, w);
-          next.push(m1, q, m2);
-          if (dist(p, m2) < dist(m1, w)) next.push(p, m1, m2, p, m2, w); else next.push(p, m1, w, m1, m2, w);
-        } else { const m0 = midOf(p, q), m1 = midOf(q, w), m2 = midOf(w, p); next.push(p, m0, m2, m0, q, m1, m2, m1, w, m0, m1, m2); }
-      }
-      tris = next; ringEdge = nextRing;
+  // the guess at the topology: the vertices are the rings, the triangles the hull's
+  const pos: number[] = [];
+  for (let a = 0; a < A; a++) for (let q = 0; q < n; q++) pos.push(seamRings[a]![3 * q]!, seamRings[a]![3 * q + 1]!, seamRings[a]![3 * q + 2]!);
+  let tris = hull.faces.slice();
+  const ringEdge = new Set<number>();   // the seam edges: never split, collapsed or flipped
+  for (let a = 0; a < A; a++) for (let q = 0; q < n; q++) ringEdge.add(ekey(a * n + q, a * n + ((q + 1) % n)));
+  const g = new Float64Array(3);
+  const dist = (a: number, b: number) => Math.hypot(pos[3 * a]! - pos[3 * b]!, pos[3 * a + 1]! - pos[3 * b + 1]!, pos[3 * a + 2]! - pos[3 * b + 2]!);
+  const target = (a: number, b: number) => EDGE_SCALE * tau * localRadius(caps, (pos[3 * a]! + pos[3 * b]!) / 2, (pos[3 * a + 1]! + pos[3 * b + 1]!) / 2, (pos[3 * a + 2]! + pos[3 * b + 2]!) / 2);
+  const triNormal = (a: number, b: number, c: number, out: number[]) => {
+    const ux = pos[3 * b]! - pos[3 * a]!, uy = pos[3 * b + 1]! - pos[3 * a + 1]!, uz = pos[3 * b + 2]! - pos[3 * a + 2]!, vx = pos[3 * c]! - pos[3 * a]!, vy = pos[3 * c + 1]! - pos[3 * a + 1]!, vz = pos[3 * c + 2]! - pos[3 * a + 2]!;
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, l = Math.hypot(nx, ny, nz) || 1;
+    out[0] = nx / l; out[1] = ny / l; out[2] = nz / l;
+  };
+  /** Project vertex `v` onto the smooth union with `steps` Newton steps. */
+  const project = (v: number, steps: number) => {
+    let x = pos[3 * v]!, y = pos[3 * v + 1]!, z = pos[3 * v + 2]!;
+    for (let s = 0; s < steps; s++) {
+      const d = sdUnionGrad(caps, k, x, y, z, g), gg = g[0]! * g[0]! + g[1]! * g[1]! + g[2]! * g[2]!;
+      if (gg < 1e-14) break;
+      const f = d / gg; x -= f * g[0]!; y -= f * g[1]!; z -= f * g[2]!;
     }
-    V = pos.length / 3;
+    pos[3 * v] = x; pos[3 * v + 1] = y; pos[3 * v + 2] = z;
   };
 
-  // adjacency (CSR), rebuilt whenever the triangles change
-  let deg = new Int32Array(V + 1), adj = new Int32Array(0);
-  const buildAdj = () => {
-    deg = new Int32Array(V + 1);
-    const seen = new Set<number>(), edges: number[] = [];
+  // --- remeshing operations. Each works on `tris` (flat, outward) and leaves the mesh closed, welded and the seam rings untouched.
+  /** Split every free-to-split edge longer than SPLIT_AT targets at its midpoint (red-green: 1, 2 or 3 split edges in a triangle each have a conforming pattern). Returns how many split. */
+  const split = (): number => {
+    const want = new Set<number>(), seen = new Set<number>();
     for (let i = 0; i < tris.length; i += 3) for (let s = 0; s < 3; s++) {
       const a = tris[i + s]!, b = tris[i + (s + 1) % 3]!, kk = ekey(a, b);
-      if (!seen.has(kk)) { seen.add(kk); edges.push(a, b); deg[a + 1]!++; deg[b + 1]!++; }
+      if (seen.has(kk)) continue;
+      seen.add(kk);
+      if (!ringEdge.has(kk) && dist(a, b) > SPLIT_AT * target(a, b)) want.add(kk);
     }
-    for (let v = 0; v < V; v++) deg[v + 1] = deg[v + 1]! + deg[v]!;
-    adj = new Int32Array(deg[V]!);
-    const fill = deg.slice(0, V);
-    for (let e = 0; e < edges.length; e += 2) { const a = edges[e]!, b = edges[e + 1]!; adj[fill[a]!++] = b; adj[fill[b]!++] = a; }
+    if (!want.size) return 0;
+    if (pos.length / 3 + want.size > MAX_VERTS) throw new SkinBuildError(j.node, 'the mesh grew past its vertex limit');
+    const mid = new Map<number, number>();
+    const midOf = (a: number, b: number): number => {
+      const kk = ekey(a, b);
+      let m = mid.get(kk);
+      if (m === undefined) { m = pos.length / 3; pos.push((pos[3 * a]! + pos[3 * b]!) / 2, (pos[3 * a + 1]! + pos[3 * b + 1]!) / 2, (pos[3 * a + 2]! + pos[3 * b + 2]!) / 2); mid.set(kk, m); }
+      return m;
+    };
+    const next: number[] = [];
+    for (let i = 0; i < tris.length; i += 3) {
+      const v = [tris[i]!, tris[i + 1]!, tris[i + 2]!], m = [0, 1, 2].map((s) => want.has(ekey(v[s]!, v[(s + 1) % 3]!)));
+      const cnt = +m[0]! + +m[1]! + +m[2]!;
+      if (cnt === 0) { next.push(v[0]!, v[1]!, v[2]!); continue; }
+      let r = 0;   // rotate so the marked edges come first (edge s runs from v[s] to v[s+1])
+      if (cnt === 1) r = m[0] ? 0 : m[1] ? 1 : 2;
+      else if (cnt === 2) r = !m[2] ? 0 : !m[0] ? 1 : 2;
+      const [p, q, w] = [v[r]!, v[(r + 1) % 3]!, v[(r + 2) % 3]!];
+      if (cnt === 1) { const mm = midOf(p, q); next.push(p, mm, w, mm, q, w); }
+      else if (cnt === 2) {
+        const m1 = midOf(p, q), m2 = midOf(q, w);   // marked p-q and q-w: the corner triangle, and the quad p, m1, m2, w cut on its shorter diagonal
+        next.push(m1, q, m2);
+        if (dist(p, m2) < dist(m1, w)) next.push(p, m1, m2, p, m2, w); else next.push(p, m1, w, m1, m2, w);
+      } else { const m0 = midOf(p, q), m1 = midOf(q, w), m2 = midOf(w, p); next.push(p, m0, m2, m0, q, m1, m2, m1, w, m0, m1, m2); }
+    }
+    tris = next;
+    return want.size;
   };
 
-  const g = new Float64Array(3);
-  let nextPos = new Float64Array(0);
-  // one round: each free vertex moves `lambda` of the way to its neighbours' mean (tangentially) and `step` of the way to the surface
-  const smoothMove = (lambda: number, step: number) => {
-    if (nextPos.length < 3 * V) nextPos = new Float64Array(3 * V);
-    for (let v = 0; v < V; v++) {
-      if (fixed[v]) continue;
-      const x = pos[3 * v]!, y = pos[3 * v + 1]!, z = pos[3 * v + 2]!, c = deg[v + 1]! - deg[v]!;
-      let mx = 0, my = 0, mz = 0;
-      for (let q = deg[v]!; q < deg[v + 1]!; q++) { const u = adj[q]!; mx += pos[3 * u]!; my += pos[3 * u + 1]!; mz += pos[3 * u + 2]!; }
+  /** Collapse edges shorter than COLLAPSE_AT targets, one vertex into the other (a free one into a seam vertex, or two free ones into their midpoint), where that keeps the mesh a closed
+   *  manifold (the link condition) and flips no face. Vertices touched are locked for the pass so the data it reads stays true. Returns how many collapsed. */
+  const collapse = (): number => {
+    const V = pos.length / 3, vt: number[][] = Array.from({ length: V }, () => []);
+    for (let i = 0; i < tris.length; i += 3) for (let s = 0; s < 3; s++) vt[tris[i + s]!]!.push(i);
+    const cand: [number, number, number][] = [], seen = new Set<number>();
+    for (let i = 0; i < tris.length; i += 3) for (let s = 0; s < 3; s++) {
+      const a = tris[i + s]!, b = tris[i + (s + 1) % 3]!, kk = ekey(a, b);
+      if (seen.has(kk)) continue;
+      seen.add(kk);
+      if (ringEdge.has(kk) || (a < S && b < S)) continue;
+      const l = dist(a, b);
+      if (l < COLLAPSE_AT * target(a, b)) cand.push([l, a, b]);
+    }
+    if (!cand.length) return 0;
+    cand.sort((x, y) => x[0] - y[0]);
+    const locked = new Uint8Array(V), dead = new Uint8Array(tris.length / 3), n0 = [0, 0, 0], n1 = [0, 0, 0];
+    let any = 0;
+    for (const [, a0, b0] of cand) {
+      if (locked[a0] || locked[b0]) continue;
+      // `r` goes, `q` stays
+      let r = a0, q = b0;
+      if (r < S) { r = b0; q = a0; }
+      const rt = vt[r]!, qt = vt[q]!;
+      const both = rt.filter((t) => qt.includes(t));
+      if (both.length !== 2) continue;
+      const nr = new Set<number>(), nq = new Set<number>();
+      for (const t of rt) for (let s = 0; s < 3; s++) if (tris[t + s] !== r) nr.add(tris[t + s]!);
+      for (const t of qt) for (let s = 0; s < 3; s++) if (tris[t + s] !== q) nq.add(tris[t + s]!);
+      let common = 0;
+      for (const x of nr) if (nq.has(x)) common++;
+      if (common !== 2) continue;   // the link condition
+      // where q ends up, and that no surviving face of r flips or collapses to a sliver
+      const old = [pos[3 * q]!, pos[3 * q + 1]!, pos[3 * q + 2]!];
+      if (q >= S) { pos[3 * q] = (pos[3 * q]! + pos[3 * r]!) / 2; pos[3 * q + 1] = (pos[3 * q + 1]! + pos[3 * r + 1]!) / 2; pos[3 * q + 2] = (pos[3 * q + 2]! + pos[3 * r + 2]!) / 2; }
+      let ok = true;
+      for (const x of nr) if (!nq.has(x) && x !== q && dist(q, x) > SPLIT_AT * target(q, x)) { ok = false; break; }   // (q has moved to the merge point already)
+      if (ok) for (const t of rt) {
+        if (both.includes(t)) continue;
+        const [x, y, z] = [tris[t]!, tris[t + 1]!, tris[t + 2]!];
+        triNormal(x, y, z, n0);
+        const sw = (v: number) => (v === r ? q : v);
+        triNormal(sw(x), sw(y), sw(z), n1);
+        if (n0[0]! * n1[0]! + n0[1]! * n1[1]! + n0[2]! * n1[2]! < 0.3) { ok = false; break; }   // (n0 is read with r still at its place; q has not moved for it)
+      }
+      if (!ok) { pos[3 * q] = old[0]!; pos[3 * q + 1] = old[1]!; pos[3 * q + 2] = old[2]!; continue; }
+      for (const t of rt) {
+        if (both.includes(t)) { dead[t / 3] = 1; continue; }
+        for (let s = 0; s < 3; s++) if (tris[t + s] === r) tris[t + s] = q;
+        qt.push(t);
+      }
+      vt[q] = qt.filter((t) => !both.includes(t));
+      for (const x of nr) locked[x] = 1;
+      for (const x of nq) locked[x] = 1;
+      locked[r] = 1; locked[q] = 1; any++;
+    }
+    if (!any) return 0;
+    const next: number[] = [];
+    for (let i = 0; i < tris.length; i += 3) if (!dead[i / 3]) next.push(tris[i]!, tris[i + 1]!, tris[i + 2]!);
+    tris = next;
+    return any;
+  };
+
+  /** Flip edges toward better angles (the Delaunay rule, in 3D), never a seam edge, a flip that folds, or one that doubles an edge. Returns how many flipped. */
+  const flip = (): number => {
+    const V = pos.length / 3, owner = new Map<number, [number, number]>();
+    for (let i = 0; i < tris.length; i += 3) for (let s = 0; s < 3; s++) {
+      const kk = ekey(tris[i + s]!, tris[i + (s + 1) % 3]!), e = owner.get(kk);
+      if (!e) owner.set(kk, [i, -1]); else e[1] = i;
+    }
+    const valence = new Int32Array(V);
+    for (const kk of owner.keys()) { valence[Math.floor(kk / 1e7)]!++; valence[kk % 1e7]!++; }
+    const dead = new Set<number>(), na = [0, 0, 0], nb = [0, 0, 0], ma = [0, 0, 0], mb = [0, 0, 0];
+    let flipped = 0;
+    for (const [kk, [t1, t2]] of owner) {
+      if (t2 < 0 || ringEdge.has(kk) || dead.has(t1) || dead.has(t2)) continue;
+      let a = 0, b = 0, c = 0;
+      for (let s = 0; s < 3; s++) if (ekey(tris[t1 + s]!, tris[t1 + (s + 1) % 3]!) === kk) { a = tris[t1 + s]!; b = tris[t1 + (s + 1) % 3]!; c = tris[t1 + (s + 2) % 3]!; }
+      let d = -1;
+      for (let s = 0; s < 3; s++) { const x = tris[t2 + s]!; if (x !== a && x !== b) d = x; }
+      if (d < 0 || valence[a]! <= 3 || valence[b]! <= 3) continue;
+      const before = Math.min(minAngleSin(pos, a, b, c), minAngleSin(pos, b, a, d)), after = Math.min(minAngleSin(pos, a, d, c), minAngleSin(pos, d, b, c));
+      if (after < before * FLIP_GAIN) continue;
+      triNormal(a, b, c, na); triNormal(b, a, d, nb); triNormal(a, d, c, ma); triNormal(d, b, c, mb);
+      const dot = (p: number[], q: number[]) => p[0]! * q[0]! + p[1]! * q[1]! + p[2]! * q[2]!;
+      if (dot(na, ma) < 0.7 || dot(na, mb) < 0.7 || dot(nb, ma) < 0.7 || dot(nb, mb) < 0.7) continue;
+      if (owner.has(ekey(c, d))) continue;
+      tris[t1] = a; tris[t1 + 1] = d; tris[t1 + 2] = c;
+      tris[t2] = d; tris[t2 + 1] = b; tris[t2 + 2] = c;
+      dead.add(t1); dead.add(t2); valence[a]!--; valence[b]!--; valence[c]!++; valence[d]!++;
+      flipped++;
+    }
+    return flipped;
+  };
+
+  /** One round of smoothing, vertex by vertex: a free vertex moves SMOOTH_LAMBDA of the way to its neighbours' mean along the surface and `pull` of the way to the surface along
+   *  its gradient. A move that would fold one of its faces over (its normal turning against its old one) is halved, twice, then given up. The hull is a sheet far outside the surface in a
+   *  crotch, so the early rounds pull only a part of the way: the sheet shrinks onto the surface over the rounds with the remeshing keeping up, which never lets a face fold. */
+  const smooth = (pull: number) => {
+    const V = pos.length / 3, vt: number[][] = Array.from({ length: V }, () => []);
+    for (let i = 0; i < tris.length; i += 3) for (let s = 0; s < 3; s++) vt[tris[i + s]!]!.push(i);
+    const before = [0, 0, 0], after = [0, 0, 0];
+    for (let v = S; v < V; v++) {
+      const ts = vt[v]!;
+      if (!ts.length) continue;
+      const x = pos[3 * v]!, y = pos[3 * v + 1]!, z = pos[3 * v + 2]!;
+      let mx = 0, my = 0, mz = 0, c = 0;
+      for (const t of ts) for (let s = 0; s < 3; s++) { const u = tris[t + s]!; if (u !== v) { mx += pos[3 * u]!; my += pos[3 * u + 1]!; mz += pos[3 * u + 2]!; c++; } }
       let dx = mx / c - x, dy = my / c - y, dz = mz / c - z;
       const sd = sdUnionGrad(caps, k, x, y, z, g), gg = g[0]! * g[0]! + g[1]! * g[1]! + g[2]! * g[2]!;
-      if (gg < 1e-14) { nextPos[3 * v] = x; nextPos[3 * v + 1] = y; nextPos[3 * v + 2] = z; continue; }
+      if (gg < 1e-14) continue;
       const gl = Math.sqrt(gg), nx = g[0]! / gl, ny = g[1]! / gl, nz = g[2]! / gl, dn = dx * nx + dy * ny + dz * nz;
-      dx -= dn * nx; dy -= dn * ny; dz -= dn * nz;   // tangential only
-      const f = (step * sd) / gg;
-      nextPos[3 * v] = x + lambda * dx - f * g[0]!; nextPos[3 * v + 1] = y + lambda * dy - f * g[1]!; nextPos[3 * v + 2] = z + lambda * dz - f * g[2]!;
-    }
-    for (let v = 0; v < V; v++) if (!fixed[v]) { pos[3 * v] = nextPos[3 * v]!; pos[3 * v + 1] = nextPos[3 * v + 1]!; pos[3 * v + 2] = nextPos[3 * v + 2]!; }
-  };
-  const project = (steps: number) => {
-    for (let v = 0; v < V; v++) {
-      if (fixed[v]) continue;
-      let x = pos[3 * v]!, y = pos[3 * v + 1]!, z = pos[3 * v + 2]!;
-      for (let s = 0; s < steps; s++) {
-        const d = sdUnionGrad(caps, k, x, y, z, g), gg = g[0]! * g[0]! + g[1]! * g[1]! + g[2]! * g[2]!;
-        if (gg < 1e-14) break;
-        const f = d / gg; x -= f * g[0]!; y -= f * g[1]!; z -= f * g[2]!;
+      dx -= dn * nx; dy -= dn * ny; dz -= dn * nz;
+      const f = (pull * sd) / gg, mvx = SMOOTH_LAMBDA * dx - f * g[0]!, mvy = SMOOTH_LAMBDA * dy - f * g[1]!, mvz = SMOOTH_LAMBDA * dz - f * g[2]!;
+      for (let tryI = 0, sc = 1; tryI < 3; tryI++, sc /= 2) {
+        pos[3 * v] = x + sc * mvx; pos[3 * v + 1] = y + sc * mvy; pos[3 * v + 2] = z + sc * mvz;
+        let ok = true;
+        for (const t of ts) {
+          const a = tris[t]!, b = tris[t + 1]!, d = tris[t + 2]!;
+          pos[3 * v] = x; pos[3 * v + 1] = y; pos[3 * v + 2] = z; triNormal(a, b, d, before);
+          pos[3 * v] = x + sc * mvx; pos[3 * v + 1] = y + sc * mvy; pos[3 * v + 2] = z + sc * mvz; triNormal(a, b, d, after);
+          if (before[0]! * after[0]! + before[1]! * after[1]! + before[2]! * after[2]! < 0.2) { ok = false; break; }
+        }
+        if (ok) break;
+        if (tryI === 2) { pos[3 * v] = x; pos[3 * v + 1] = y; pos[3 * v + 2] = z; }
       }
-      pos[3 * v] = x; pos[3 * v + 1] = y; pos[3 * v + 2] = z;
     }
   };
-  for (let lvl = WRAP_LEVELS - 1; lvl >= 0; lvl--) {
-    refine(EDGE_SCALE * 2 ** lvl);
-    buildAdj();
-    for (let r = 0; r < WRAP_ROUNDS[WRAP_LEVELS - 1 - lvl]!; r++) smoothMove(WRAP_SMOOTH, WRAP_STEPS[WRAP_LEVELS - 1 - lvl]!);
-    if (lvl > 0) project(1);
-  }
-  project(PROJECT_STEPS);
-  const polish = () => { for (let r = 0; r < POLISH_ROUNDS; r++) { smoothMove(WRAP_SMOOTH, 0); project(1); } };
-  polish();
-  for (let f = 0; f < FLIP_PASSES; f++) { if (!flipEdges(tris, pos, ringEdge, ekey, deg)) break; buildAdj(); polish(); }
 
-  // 4. rows from the seam (multi-source breadth first), carrying the nearest seam vertex with it
+  // the remeshing loop (spec 4.5.4 to 4.5.6, with the topology kept welded and closed throughout)
+  for (let r = 0; r < REMESH_ROUNDS; r++) {
+    let changes = 0;
+    for (let s = 0; s < 4; s++) { const c = split(); changes += c; if (!c) break; }
+    changes += collapse();
+    changes += flip();
+    smooth(r < SHRINK_ROUNDS ? SHRINK_PULL : 1);
+    if (r >= SHRINK_ROUNDS && changes <= Math.max(2, SETTLED * tris.length / 3)) break;   // settled: only a stray edge still changes
+  }
+  for (let r = 0; r < POLISH_ROUNDS; r++) { flip(); smooth(1); }
+  for (let v = S; v < pos.length / 3; v++) project(v, 2);
+
+  // compact: drop vertices no triangle uses (collapsed away), keeping the order, so the ring ids stay arm * n + j
+  const used = new Uint8Array(pos.length / 3);
+  for (let i = 0; i < tris.length; i++) used[tris[i]!] = 1;
+  for (let v = 0; v < S; v++) used[v] = 1;
+  const remap = new Int32Array(pos.length / 3).fill(-1), keep: number[] = [];
+  for (let v = 0; v < used.length; v++) if (used[v]) { remap[v] = keep.length; keep.push(v); }
+  const V = keep.length, cpos = new Float64Array(3 * V);
+  keep.forEach((o, i) => { cpos[3 * i] = pos[3 * o]!; cpos[3 * i + 1] = pos[3 * o + 1]!; cpos[3 * i + 2] = pos[3 * o + 2]!; });
+  const index = new Uint32Array(tris.length);
+  for (let i = 0; i < tris.length; i++) index[i] = remap[tris[i]!]!;
+
+  // rows from the seam (multi-source breadth first), carrying the nearest seam vertex
+  const deg = new Int32Array(V + 1);
+  for (let i = 0; i < index.length; i += 3) for (let s = 0; s < 3; s++) deg[index[i + s]! + 1]! += 2;   // (two neighbours per corner, repeated across the faces that share an edge)
+  for (let v = 0; v < V; v++) deg[v + 1] = deg[v + 1]! + deg[v]!;
+  const nbr = new Int32Array(deg[V]!), fillAt = deg.slice(0, V);
+  for (let i = 0; i < index.length; i += 3) for (let s = 0; s < 3; s++) { const a = index[i + s]!; nbr[fillAt[a]!++] = index[i + (s + 1) % 3]!; nbr[fillAt[a]!++] = index[i + (s + 2) % 3]!; }
   const row = new Int32Array(V).fill(-1), src = new Int32Array(V).fill(-1), queue: number[] = [];
-  for (let v = 0; v < V; v++) if (fixed[v]) { row[v] = 0; src[v] = v; queue.push(v); }
+  for (let v = 0; v < S; v++) { row[v] = 0; src[v] = v; queue.push(v); }
   for (let head = 0; head < queue.length; head++) {
     const v = queue[head]!;
-    for (let q = deg[v]!; q < deg[v + 1]!; q++) { const u = adj[q]!; if (row[u]! < 0) { row[u] = row[v]! + 1; src[u] = src[v]!; queue.push(u); } }
+    for (let q = deg[v]!; q < deg[v + 1]!; q++) { const u = nbr[q]!; if (row[u]! < 0) { row[u] = row[v]! + 1; src[u] = src[v]!; queue.push(u); } }
   }
 
-  // 5. normals, weights, rest radius, nearest axis point
+  for (let v = 0; v < V; v++) if (row[v]! < 0) throw new SkinBuildError(j.node, `vertex ${v} is not connected to a seam (${V} vertices, ${index.length / 3} triangles)`);
+
+  // normals, weights, rest radius, nearest axis point
   const position = new Float32Array(3 * V), normal = new Float32Array(3 * V), cen = new Float32Array(3 * V), weight = new Float32Array(4 * V), restR = new Float32Array(V);
   const w = new Float64Array(4), cp = new Float64Array(7);
   for (let v = 0; v < V; v++) {
-    const x = pos[3 * v]!, y = pos[3 * v + 1]!, z = pos[3 * v + 2]!;
+    const x = cpos[3 * v]!, y = cpos[3 * v + 1]!, z = cpos[3 * v + 2]!;
     // seam rings are the tube's own float32 vertices, copied exactly
-    if (v < A * n) { const a = Math.floor(v / n), q = v % n; position[3 * v] = seamRings[a]![3 * q]!; position[3 * v + 1] = seamRings[a]![3 * q + 1]!; position[3 * v + 2] = seamRings[a]![3 * q + 2]!; }
+    if (v < S) { const a = Math.floor(v / n), q = v % n; position[3 * v] = seamRings[a]![3 * q]!; position[3 * v + 1] = seamRings[a]![3 * q + 1]!; position[3 * v + 2] = seamRings[a]![3 * q + 2]!; }
     else { position[3 * v] = x; position[3 * v + 1] = y; position[3 * v + 2] = z; }
     // the normal: the SDF's gradient, eased from the nearest seam vertex's tube normal over the first rows (spec 4.5.7)
     sdUnionGrad(caps, k, x, y, z, g);
     const gl = Math.hypot(g[0]!, g[1]!, g[2]!) || 1;
     let nx = g[0]! / gl, ny = g[1]! / gl, nz = g[2]! / gl;
     const rw = row[v]!;
-    if (rw < NORMAL_BLEND_ROWS) {
-      const t = rw / NORMAL_BLEND_ROWS, sv = src[v]!;
-      const tx = tubeN[3 * sv]!, ty = tubeN[3 * sv + 1]!, tz = tubeN[3 * sv + 2]!;
+    if (v < S) { const a = Math.floor(v / n), q = v % n; nx = seamNormals[a]![3 * q]!; ny = seamNormals[a]![3 * q + 1]!; nz = seamNormals[a]![3 * q + 2]!; }   // the tube's own, exactly
+    else if (rw < NORMAL_BLEND_ROWS) {
+      const t = rw / NORMAL_BLEND_ROWS, sv = src[v]!, a = Math.floor(sv / n), q = sv % n;
+      const tx = seamNormals[a]![3 * q]!, ty = seamNormals[a]![3 * q + 1]!, tz = seamNormals[a]![3 * q + 2]!;
       nx = tx + (nx - tx) * t; ny = ty + (ny - ty) * t; nz = tz + (nz - tz) * t;
       const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
     }
     normal[3 * v] = nx; normal[3 * v + 1] = ny; normal[3 * v + 2] = nz;
     weights(caps, k, x, y, z, w);
     // a seam vertex belongs wholly to its own arm: the blend is off there (spec 4.4.1)
-    const own = owner[v]!;
-    if (own >= 0) for (let i = 0; i < 4; i++) w[i] = i === own ? 1 : 0;
+    if (v < S) for (let i = 0; i < 4; i++) w[i] = i === Math.floor(v / n) ? 1 : 0;
     let top = 0;
     for (let i = 0; i < A; i++) if (w[i]! > w[top]!) top = i;
     let rr = 0;
@@ -281,9 +386,28 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
     closestOnArm(caps[top]!, x, y, z, cp);
     cen[3 * v] = cp[0]!; cen[3 * v + 1] = cp[1]!; cen[3 * v + 2] = cp[2]!;
   }
+  // a face turned against its own vertex normals is a fold: the hull was too far from the surface for the remesh to follow, so this junction falls back to today's method
+  for (let i = 0; i < index.length; i += 3) {
+    const a = index[i]!, b = index[i + 1]!, c = index[i + 2]!;
+    const ux = position[3 * b]! - position[3 * a]!, uy = position[3 * b + 1]! - position[3 * a + 1]!, uz = position[3 * b + 2]! - position[3 * a + 2]!, vx = position[3 * c]! - position[3 * a]!, vy = position[3 * c + 1]! - position[3 * a + 1]!, vz = position[3 * c + 2]! - position[3 * a + 2]!;
+    const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
+    let d = 0;
+    for (const v of [a, b, c]) d += fx * normal[3 * v]! + fy * normal[3 * v + 1]! + fz * normal[3 * v + 2]!;
+    if (d <= 0) throw new SkinBuildError(j.node, `the surface folds at triangle ${i / 3}`);
+  }
   const seamVerts: Uint32Array[] = [];
   for (let a = 0; a < A; a++) { const ids = new Uint32Array(n); for (let q = 0; q < n; q++) ids[q] = a * n + q; seamVerts.push(ids); }
-  return { junction: j, cuts, position, normal, cen, weight, restR, index: Uint32Array.from(tris), seamVerts };
+  return { junction: j, cuts, position, normal, cen, weight, restR, index, seamVerts };
+}
+
+/** A cheap stand-in for a triangle's smallest angle: its sine, `2 area / (longest edge x middle edge)` (no trig, no allocation; it rises and falls with the angle up to 60 degrees). */
+export function minAngleSin(pos: ArrayLike<number>, a: number, b: number, c: number): number {
+  const ux = pos[3 * b]! - pos[3 * a]!, uy = pos[3 * b + 1]! - pos[3 * a + 1]!, uz = pos[3 * b + 2]! - pos[3 * a + 2]!, vx = pos[3 * c]! - pos[3 * a]!, vy = pos[3 * c + 1]! - pos[3 * a + 1]!, vz = pos[3 * c + 2]! - pos[3 * a + 2]!;
+  const wx = vx - ux, wy = vy - uy, wz = vz - uz;
+  const cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
+  const l1 = ux * ux + uy * uy + uz * uz, l2 = vx * vx + vy * vy + vz * vz, l3 = wx * wx + wy * wy + wz * wz;
+  const hi = Math.max(l1, l2, l3), lo = Math.min(l1, l2, l3), mid = l1 + l2 + l3 - hi - lo;
+  return Math.sqrt((cx * cx + cy * cy + cz * cz) / (hi * mid || 1));
 }
 
 /** The smallest angle (degrees) of triangle a, b, c. */
@@ -297,43 +421,4 @@ export function minAngleDeg(pos: ArrayLike<number>, a: number, b: number, c: num
     lo = Math.min(lo, (Math.acos(Math.max(-1, Math.min(1, cs))) * 180) / Math.PI);
   }
   return lo;
-}
-
-/** One pass of edge flips (in place on `tris`): true when any edge flipped. Ring edges never flip, and neither does an edge whose flip would fold the surface or double an edge. */
-function flipEdges(tris: number[], pos: number[], ringEdge: Set<number>, ekey: (a: number, b: number) => number, deg: Int32Array): boolean {
-  const owner = new Map<number, [number, number]>();   // edge -> the triangle on each side (index of triangle start in tris)
-  for (let i = 0; i < tris.length; i += 3) for (let s = 0; s < 3; s++) {
-    const kk = ekey(tris[i + s]!, tris[i + (s + 1) % 3]!), e = owner.get(kk);
-    if (!e) owner.set(kk, [i, -1]); else e[1] = i;
-  }
-  const valence = Int32Array.from(deg.subarray(1).map((d, i) => d - deg[i]!));
-  const dead = new Set<number>();
-  let flipped = false;
-  const normal = (a: number, b: number, c: number) => {
-    const ux = pos[3 * b]! - pos[3 * a]!, uy = pos[3 * b + 1]! - pos[3 * a + 1]!, uz = pos[3 * b + 2]! - pos[3 * a + 2]!, vx = pos[3 * c]! - pos[3 * a]!, vy = pos[3 * c + 1]! - pos[3 * a + 1]!, vz = pos[3 * c + 2]! - pos[3 * a + 2]!;
-    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, l = Math.hypot(nx, ny, nz) || 1;
-    return [nx / l, ny / l, nz / l];
-  };
-  for (const [kk, [t1, t2]] of owner) {
-    if (t2 < 0 || ringEdge.has(kk) || dead.has(t1) || dead.has(t2)) continue;
-    // find the edge (a, b) in t1 and the opposite vertices c (in t1) and d (in t2)
-    let a = 0, b = 0, c = 0;
-    for (let s = 0; s < 3; s++) if (ekey(tris[t1 + s]!, tris[t1 + (s + 1) % 3]!) === kk) { a = tris[t1 + s]!; b = tris[t1 + (s + 1) % 3]!; c = tris[t1 + (s + 2) % 3]!; }
-    let d = -1;
-    for (let s = 0; s < 3; s++) { const x = tris[t2 + s]!; if (x !== a && x !== b) d = x; }
-    if (d < 0 || valence[a]! <= 3 || valence[b]! <= 3) continue;
-    const before = Math.min(minAngleDeg(pos, a, b, c), minAngleDeg(pos, b, a, d)), after = Math.min(minAngleDeg(pos, a, d, c), minAngleDeg(pos, d, b, c));
-    if (after < before + FLIP_GAIN_DEG) continue;
-    // keep the surface from folding: the new faces must face as the old ones did
-    const n1 = normal(a, b, c), n2 = normal(b, a, d), m1 = normal(a, d, c), m2 = normal(d, b, c);
-    const dot = (p: number[], q: number[]) => p[0]! * q[0]! + p[1]! * q[1]! + p[2]! * q[2]!;
-    if (dot(n1, m1) < 0.7 || dot(n1, m2) < 0.7 || dot(n2, m1) < 0.7 || dot(n2, m2) < 0.7) continue;
-    // (the new edge must not already exist)
-    if (owner.has(ekey(c, d))) continue;
-    tris[t1] = a; tris[t1 + 1] = d; tris[t1 + 2] = c;
-    tris[t2] = d; tris[t2 + 1] = b; tris[t2 + 2] = c;
-    dead.add(t1); dead.add(t2); valence[a]!--; valence[b]!--; valence[c]!++; valence[d]!++;
-    flipped = true;
-  }
-  return flipped;
 }
