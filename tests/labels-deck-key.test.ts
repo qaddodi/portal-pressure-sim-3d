@@ -43,7 +43,23 @@ test('the layer watches the key AND its hidden twin, and the controller never do
   const { readFileSync } = await import('node:fs');
   const layer = readFileSync(new URL('../src/scene/labels/LabelLayer.tsx', import.meta.url), 'utf8');
   const ctl = readFileSync(new URL('../src/scene/labels/controller.ts', import.meta.url), 'utf8');
-  assert.match(layer, /layer\.current\?\.querySelectorAll\('\.lb-key'\)/, 'the twin sits in the probe, outside the key wrap: the observer looks through the layer');
+  assert.match(layer, /keyLayer\.current\?\.querySelectorAll\('\.lb-key'\)/, 'the twin sits in the probe, outside the key wrap: the observer looks through the layer');
   assert.match(layer, /keyMo\.observe\(h, \{ childList: true \}\)/);
   assert.doesNotMatch(ctl, /keyNatural \?\? this\.keySize/, 'no fall-back to the drawn size');
+});
+
+test('the key stands over the cards (its own layer), under the chrome, and a key too long for the pill\'s row never stands over the card\'s words', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../src/scene/labels/labels.css', import.meta.url), 'utf8');
+  const layer = readFileSync(new URL('../src/scene/labels/LabelLayer.tsx', import.meta.url), 'utf8');
+  assert.match(css, /\.lb-key-layer \{ z-index: calc\(var\(--z-cards, 10\) \+ 1\)/, 'above the cards (z 10), below the chrome (20)');
+  assert.match(layer, /className="lb-layer lb-key-layer"/);
+  // eyes on 943be61: the key was in the layer under the cards (z 5 against 10), so it was "there" in the DOM and never seen
+  const { dockKey } = await import('../src/scene/labels/key-dock.ts');
+  const { planLayout } = await import('../src/ui/layout/plan.ts');
+  const vp = { w: 390, h: 844, safe: { top: 47, right: 0, bottom: 34, left: 0 } };
+  const words = planLayout(vp, [{ id: 'teach' as const, slot: 'words' as const, h: 300 }], 'words').cards.find((c) => c.slot === 'words')!.rect;
+  const d = dockKey({ vp, words, natural: { w: 340, h: 22 } });
+  assert.equal(d.at, 'above-pill');
+  assert.ok(d.box.y1 <= words.y - 6, 'above the card, clear of its name tab');
 });

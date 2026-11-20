@@ -83,6 +83,7 @@ interface Rec {
 export function LabelLayer() {
   const layer = useRef<HTMLDivElement>(null);
   const keyHost = useRef<HTMLDivElement>(null);
+  const keyLayer = useRef<HTMLDivElement>(null);
   const probeHost = useRef<HTMLDivElement>(null);
   const look = useSettings((s) => s.look);
   const key = useLabels((s) => s.key);
@@ -189,7 +190,7 @@ export function LabelLayer() {
     });
     // (both: the drawn key in the wrap AND its twin in the probe: the dock decides by the twin, so a twin nobody watches leaves it deciding by the wrapped key's own size, which flips it
     //  between one line and two for ever: the key flickered and stood at two heights)
-    const watchKey = () => { ro.disconnect(); layer.current?.querySelectorAll('.lb-key').forEach((k) => ro.observe(k)); };
+    const watchKey = () => { ro.disconnect(); keyLayer.current?.querySelectorAll('.lb-key').forEach((k) => ro.observe(k)); };
     watchKey();
     const keyMo = new MutationObserver(watchKey);
     for (const h of [keyHost.current!, probeHost.current!]) keyMo.observe(h, { childList: true });
@@ -241,6 +242,9 @@ export function LabelLayer() {
   return (
     <>
       <div ref={layer} className="lb-layer" aria-hidden="true">
+      </div>
+      {/* the key has a layer of its own, over the cards: it docks in the words card's foot (2D: the legend stands in the teaching card's bottom left), and the labels' layer is under the cards */}
+      <div ref={keyLayer} className="lb-layer lb-key-layer" aria-hidden="true">
         <div ref={keyHost} className="lb-key-wrap">
           {keyOut && <KeyBody key={`out:${keyOut.lens}`} model={keyOut} vp={vpNow} fade="out" />}
           {keyNow && <KeyBody key={keyNow.lens} model={keyNow} vp={vpNow} fade={keyOut ? 'in' : undefined} />}
