@@ -66,3 +66,18 @@ test('the way out of the sinusoid to the lobule with the room widening: the sinu
     }
   }
 });
+test('the lobule at its fit stays whole inside the free room on a phone, a tablet and a Mac (every corner of its box)', async () => {
+  const { CameraRig } = await import('../src/scene/camera/rig.ts');
+  const { lobuleShot } = await import('../src/scene/lobule/shots.ts');
+  const { lobuleCorners } = await import('../src/scene/scene.ts');
+  const { Vector3 } = await import('three');
+  for (const [w, h, room] of [[390, 844, { x: 0, y: 60, w: 390, h: 520 }], [844, 390, { x: 0, y: 0, w: 844, h: 390 }], [1440, 900, { x: 420, y: 0, w: 1020, h: 900 }]] as const) {
+    const rig = new CameraRig('play', room); rig.resize(w, h);
+    rig.setSubject(lobuleCorners());
+    rig.goTo(lobuleShot('lobule'), room, 0); rig.update(0);
+    for (const c of lobuleCorners()) {
+      const p = rig.project(new Vector3(...c));
+      assert.ok(p.x >= room.x && p.x <= room.x + room.w && p.y >= room.y && p.y <= room.y + room.h, `${w}x${h}: corner at ${p.x.toFixed(0)},${p.y.toFixed(0)} outside the room`);
+    }
+  }
+});

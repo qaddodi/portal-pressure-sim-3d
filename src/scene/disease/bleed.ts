@@ -1,63 +1,137 @@
-// Active variceal bleeding, as the 2D figure draws it (stage.js bleedSpray, blood.js bleedShapes: copied): a steady stream runs from the rupture (the esophageal varix, or the
-// fundus for a gastric varix) down into the stomach, where it pools. It fades in on a rupture and out once the bleed stops (no pulse: BLEED_STEADY). The 3D stomach is
-// opaque, so the pool is the stomach taking the blood's colour (organs/layer.ts, by poolFill), and the stream is a red thread in front of it.
-import { Group, Mesh, Vector3 } from 'three';
+// Active variceal bleeding, as the 2D figure draws it (stage.js bleedSpray, blood.js bleedShapes: copied) and then some: a jet leaves the rupture (the esophageal varix, or the
+// fundus for a gastric varix), arcs down into the stomach, necks into beads, sheds spray, and lands in the pool with a splash (jet.ts has the shape; it is steady, never a beat:
+// BLEED_STEADY, Mohammad 6 Nov 2026, with a slow flow running down it). It grows out of the tear when a rupture starts and drains off from its tail when the bleed stops (no
+// pop). The 3D stomach is opaque, so the pool is the stomach taking the blood's colour (organs/layer.ts, by poolFill), and the jet is a cel-shaded stream in front of it, with an
+// ink outline that thins toward its tip.
+//
+// One dynamic geometry (about 700 triangles, written in place each frame: nothing is allocated), asked for frames while it shows (the layer's `moving`, which the clock turns into
+// one more frame), and still under Reduce Motion.
+import { BackSide, BufferAttribute, BufferGeometry, DynamicDrawUsage, Group, Mesh, ShaderMaterial } from 'three';
 import { SITES } from './copied/anatomy-b4.ts';
-import { bleedShapes } from './copied/bleed-shapes.js';
+import { bleedShapesInto, makeBleedRows } from './copied/bleed-shapes.js';
 import { CelObject, type CelShared } from '../materials/cel.ts';
+import { FADE_GLSL } from '../materials/shaders.ts';
 import type { Palette } from '../palette.ts';
 import type { LookId } from '../../looks/looks.ts';
-import { x3, y3 } from '../frame2d.ts';
 import { Eased } from './follow.ts';
 import { bloodColour, recolour } from './paint.ts';
-import { ringTube } from './tube.ts';
+import { type JetBuffers, type JetParams, fillJet, jetIndex, jetUv, makeJetBuffers, smooth, spurtOf, VERTS } from './jet.ts';
 
 export const STREAM_Z = 0.36;
 export interface BleedState { active: boolean; site: 'VAR' | 'GV'; rate: number; total: number }
 
+/** The jet's ink: the toon's own hull, but its width and its dither follow a per-vertex strength (`ik`: full at the tear, a quarter at the tip), so the line fades with the stream. */
+export const JET_INK_VS = /* glsl */ `
+attribute float ik;
+uniform float px;
+uniform vec2 res;
+uniform float inkK;
+varying float vIk;
+void main() {
+  vec4 c = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  vec2 nd = (projectionMatrix * vec4(normalMatrix * normal, 0.0)).xy;
+  float l = length(nd);
+  nd = l > 1e-5 ? nd / l : vec2(0.0);
+  vIk = ik * inkK;
+  c.xy += nd * px * vIk * 2.0 / res * c.w;
+  gl_Position = c;
+}`;
+export const JET_INK_FS = /* glsl */ `
+${FADE_GLSL}
+uniform vec3 color;
+varying float vIk;
+void main() {
+  if (fadedOut()) discard;
+  float k = smoothstep(0.02, 0.5, vIk);
+  if (k < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= k) discard;
+  gl_FragColor = vec4(color, 1.0);
+}`;
+
 export class BleedLayer {
   readonly group = new Group();
   private obj: CelObject | null = null;
-  private fade = new Eased(0, 0.35, 0.003);
+  private inkMat: ShaderMaterial | null = null;
+  private bufs: JetBuffers = makeJetBuffers();
+  private geo: BufferGeometry | null = null;
+  /** how far the jet has grown out of the tear (0 to 1), and how far it has drained off from its tail (0 to 1) */
+  private grow = new Eased(0, 0.45, 0.003);
+  private drain = new Eased(0, 0.7, 0.003);
+  /** where it lands (2D units): eased, so a rising pool never makes it jump */
+  private land = new Eased(0, 0.4, 0.05);
+  private surf = new Eased(0, 0.4, 0.05);
+  private radius = new Eased(0, 0.4, 0.01);
   private last: BleedState | null = null;
-  private key = '';
   private palette: Palette | null = null; private look: LookId = 'light';
   private shared: CelShared;
   private body = 1;
   private wanted = false;
+  private time = 0;
+  private rows = makeBleedRows();
+  private params: JetParams = { x0: 0, y0: 0, xl: 0, yl: 0, r0: 3, brk: 0.7, spurt: 0.5 };
+  /** Reduce Motion: the jet holds still (it still grows out and drains off, easing). */
+  still = false;
   constructor(shared: CelShared) { this.shared = shared; this.group.visible = false; }
   /** The body's dissolve (disease/index.ts setFade): the stream is drawn on the anatomy, so it goes with it. */
   setFade(f: number): void { this.body = f; this.obj?.setFade(f); this.group.visible = this.wanted && f > 0.001; }
   applyLook(look: LookId, p: Palette): void { this.look = look; this.palette = p; if (this.obj) recolour(this.obj, bloodColour(look, p), p); }
-  /** True while the stream fades or runs (a steady stream needs no frames of its own). */
+  /** True while the jet grows, drains or runs (a running jet asks for a frame after each one: it flows). */
   set(b: BleedState, dt: number, instant = false): boolean {
     if (b.active) this.last = { ...b };
-    const moving = this.fade.to(b.active ? 1 : 0, dt, instant);
-    const a = this.fade.value;
-    this.wanted = a > 0.003 && !!this.last;
+    let moving = false;
+    if (instant) { this.grow.value = b.active ? 1 : 0; this.drain.value = 0; }
+    else if (b.active) { moving = this.grow.to(1, dt) || moving; moving = this.drain.to(0, dt) || moving; }   // (it grows out, whatever it was doing)
+    else moving = this.drain.to(1, dt) || moving;   // (the tail leaves; the head stays where it was)
+    this.wanted = this.grow.value > 0.003 && this.drain.value < 0.995 && !!this.last;
     this.group.visible = this.wanted && this.body > 0.001;
-    if (!this.wanted) return moving;
-    const s = this.last!;
-    const rows = bleedShapes({ site: s.site, total: s.total }, s.rate, { varix: SITES.varix, fundus: SITES.fundus });
-    const st = rows[1] as number[];   // [x0, y0, x1, y1, r0, r1, alpha, kind 2]
-    const key = `${s.site}|${st[2]!.toFixed(0)}|${st[3]!.toFixed(0)}|${a.toFixed(2)}`;
-    if (key !== this.key) {
-      this.key = key;
-      const pts: Vector3[] = [];
-      for (let i = 0; i <= 12; i++) {
-        const u = i / 12, x = st[0]! + (st[2]! - st[0]!) * u, y = st[1]! + (st[3]! - st[1]!) * u * (0.55 + 0.45 * u);   // (it leaves the tear and falls: a gentle curve)
-        pts.push(new Vector3(x3(x), y3(y), STREAM_Z));
-      }
-      const r = Math.max(1e-4, (st[4]! / 300) * 1.35 * a);
-      const g = ringTube(pts, pts.map((_, i) => r * (1 - 0.35 * (i / 12))), 8, true);
-      if (!this.obj) {
-        this.obj = new CelObject(g, { tone: 'heart', bands: 2, spec: 1, px: 0.8 }, this.shared);
-        this.group.add(this.obj.group);
-        this.obj.setFade(this.body);
-        if (this.palette) { this.obj.applyPalette(this.palette); recolour(this.obj, bloodColour(this.look, this.palette), this.palette); }
-      } else for (const m of this.obj.group.children) { const mesh = m as Mesh; mesh.geometry.dispose(); mesh.geometry = g; }
+    if (!this.wanted) {
+      if (!b.active) { this.grow.value = 0; this.drain.value = 0; }   // (nothing is shown: ready for the next one)
+      this.time = 0;
+      return moving;
     }
-    return moving;
+    const s = this.last!;
+    bleedShapesInto(this.rows, { site: s.site, total: s.total }, s.rate, { varix: SITES.varix, fundus: SITES.fundus });
+    const st = this.rows[1] as number[];   // [x0, y0, x1, y1, r0, brk, alpha, kind 2]
+    const first = this.radius.value === 0 && this.land.value === 0;
+    moving = this.land.to(st[2]!, dt, instant || first) || moving;
+    moving = this.surf.to(st[3]!, dt, instant || first) || moving;
+    moving = this.radius.to(st[4]!, dt, instant || first) || moving;
+    const p = this.params;
+    p.x0 = st[0]!; p.y0 = st[1]!; p.xl = this.land.value; p.yl = this.surf.value; p.r0 = this.radius.value; p.brk = st[5]!; p.spurt = spurtOf(s.rate);
+    if (!this.still) this.time += Math.min(dt, 0.05);
+    this.ensure();
+    const thick = fillJet(this.bufs, p, { grow: this.grow.value, drain: this.drain.value }, this.time, STREAM_Z);
+    const g = this.geo!;
+    for (const a of ['position', 'normal', 'tang', 'ik'] as const) (g.getAttribute(a) as BufferAttribute).needsUpdate = true;
+    if (this.inkMat) this.inkMat.uniforms.inkK!.value = smooth(0, 0.45, thick);
+    return moving || !this.still;
   }
-  dispose(): void { this.obj?.dispose(); }
+  /** The mesh, made the first time it is wanted. */
+  private ensure(): void {
+    if (this.obj) return;
+    const g = this.geo = new BufferGeometry();
+    const b = this.bufs;
+    g.setAttribute('position', new BufferAttribute(b.pos, 3));
+    g.setAttribute('normal', new BufferAttribute(b.nor, 3));
+    g.setAttribute('tang', new BufferAttribute(b.tang, 3));
+    g.setAttribute('ik', new BufferAttribute(b.ik, 1));
+    g.setAttribute('uv', new BufferAttribute(jetUv(), 2));
+    g.setIndex(new BufferAttribute(jetIndex(), 1));
+    for (const a of ['position', 'normal', 'tang', 'ik']) (g.getAttribute(a) as BufferAttribute).setUsage(DynamicDrawUsage);
+    const obj = this.obj = new CelObject(g, { tone: 'heart', bands: 3, spec: 0, px: 1.1 }, this.shared);
+    // the ink: a hull whose line thins toward the tip, sharing the toon's colour, width and fade
+    const mat = this.inkMat = new ShaderMaterial({
+      vertexShader: JET_INK_VS, fragmentShader: JET_INK_FS, side: BackSide,
+      uniforms: { color: obj.ink.uniforms.color!, px: obj.ink.uniforms.px!, res: this.shared.res, fade: obj.toon.uniforms.fade!, inkK: { value: 1 } },
+    });
+    const inkMesh = obj.group.children[0] as Mesh;
+    obj.ink.dispose(); inkMesh.material = mat;
+    for (const m of obj.group.children) m.frustumCulled = false;   // (the geometry moves every frame: its bounds are never right)
+    this.group.add(obj.group);
+    obj.setFade(this.body);
+    if (this.palette) { obj.applyPalette(this.palette); recolour(obj, bloodColour(this.look, this.palette), this.palette); }
+  }
+  /** What the layer draws, for the tests: the vertex count it writes and whether it holds a mesh. */
+  get vertexCount(): number { return VERTS; }
+  get meshed(): boolean { return !!this.obj; }
+  dispose(): void { this.obj?.dispose(); this.inkMat?.dispose(); this.geo?.dispose(); }
 }

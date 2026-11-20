@@ -20,6 +20,9 @@ import { startShunting } from './shunt.ts';
 import './stent/StentPanel.tsx';   // (registers the stent editor as the card's 'stent' panel)
 import { goToView } from '../shell/view-actions.ts';
 
+/** The shell sheets that take the column Treat stands in. */
+export const CARD_SHEETS: ReadonlySet<string> = new Set(['settings', 'menu', 'history', 'compare', 'help', 'guide']);
+
 export function startActions(): () => void {
   const off: (() => void)[] = [];
   // Treat: its button, the T key, the thumb tab's second tap. Opening it puts the sheets away; a phone has room for one card, so opening Treat puts a structure's card away too.
@@ -60,6 +63,9 @@ export function startActions(): () => void {
   // a phone has room for one sheet (2D openPanel, openTreat): the Tests card coming up puts Treat away (Treat's Paracentesis opens Ascites), and Treat coming up puts Tests away
   off.push(useTests.subscribe((s, prev) => { if (s.open && !prev.open && isPhone(useUi.getState().device) && useTreat.getState().open) useTreat.getState().setOpen(false); }));
   off.push(useTreat.subscribe((s, prev) => { if (s.open && !prev.open && isPhone(useUi.getState().device) && useTests.getState().open) useTests.getState().close(); }));
+  // the right-hand column holds one card: Settings, the main menu, History, Compare and Help coming up put Treat away, as Treat coming up puts them away (above); both open together drew Settings over
+  // Treat's rows (walk of 20 Nov, issue 7). The speed, lens and other popovers are not cards, and leave it be.
+  off.push(useShell.subscribe((s, prev) => { if (s.sheet && s.sheet !== prev.sheet && CARD_SHEETS.has(s.sheet) && useTreat.getState().open) useTreat.getState().setOpen(false); }));
   // the loaded patient's own settings: what it came with is a fact about it, not a change
   const keepBase = () => { const s = useEngine.getState(); if (s.status === 'ready' && s.presetId && patient.params && !presetBase()) presetStarted(s.presetId, patient.params); };
   keepBase();

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deviceClass, typeFor, checkTypeScale, type DeviceClass, type Rect } from '../src/ui/layout/device.ts';
-import { planLayout, largestFreeRect, widthOf, stepsFor, barOf, footReserve, STRIP_H, PILL_W, type Need } from '../src/ui/layout/plan.ts';
+import { planLayout, largestFreeRect, widthOf, stepsFor, barOf, footReserve, STRIP_H, PILL_W, BAR_H_PHONE, PILL_CORNER, type Need } from '../src/ui/layout/plan.ts';
 import { pairGap, margin, shufCol, SHUF, layoutOf } from '../src/ui/layout/rules2d.ts';
 
 const SCREENS: Record<string, { vp: { w: number; h: number; safe: { top: number; right: number; bottom: number; left: number } }; device: DeviceClass }> = {
@@ -66,7 +66,7 @@ test('the Back / Next pill: lower right of a wide screen with the talk\'s title 
   assert.equal(mac.rect.x + mac.rect.w, SCREENS.mac.vp.w - margin(1280, 800, 'short'));
   const ph = barOf(SCREENS['iphone-portrait'].vp);
   assert.equal(ph.edge, 'card'); assert.equal(ph.title, null);
-  assert.equal(ph.rect.x + ph.rect.w, 393 - 8 - 13, 'the card\'s lower right corner, inside it');
+  assert.equal(ph.rect.x + ph.rect.w, 393 - 8 - PILL_CORNER, 'the card\'s lower right corner, inside it'); assert.ok(ph.rect.h < 44 && ph.rect.w < PILL_W, 'a phone\'s pill is smaller');
   const ip = barOf(SCREENS['ipad-portrait'].vp);
   assert.equal(ip.edge, 'card'); assert.ok(ip.rect.x + ip.rect.w <= 820 * 0.85 + 0.5, 'the right of the 70 % card');
   const sw = barOf(SCREENS['iphone-landscape'].vp);
@@ -147,7 +147,7 @@ test('widths do not depend on heights (a card is measured at the width it will h
 });
 
 test('the pill is on screen on every layout', () => {
-  for (const s of Object.values(SCREENS)) { const b = barOf(s.vp); assert.ok(inside(b.rect, s.vp.w, s.vp.h), s.device); assert.ok(b.rect.h >= 44); }
+  for (const s of Object.values(SCREENS)) { const b = barOf(s.vp); assert.ok(inside(b.rect, s.vp.w, s.vp.h), s.device); assert.ok(b.rect.h >= (b.edge === 'card' && s.vp.w < 600 ? BAR_H_PHONE : 44)); }
 });
 
 test('type floors on every screen the 2D app has: body 17 px floating and 16 stacked, titles 1.4× body (1.33× stacked), data text 12 px or more', () => {
