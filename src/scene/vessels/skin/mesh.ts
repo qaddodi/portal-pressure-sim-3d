@@ -38,6 +38,13 @@ export const SMOOTH_LAMBDA = 0.6;
 export const POLISH_ROUNDS = 2;
 /** Newton steps that put a vertex on the surface (spec 4.5.5), and the central-difference step as a share of k. */
 export const PROJECT_STEPS = 6;
+/** A closed growing arm's rows are laid on the trunk's wall from this weight of the arm (over the next FOOT_SPAN), and relaxed over it FOOT_RELAX rounds with the fillet round them held. */
+export const FOOT_FROM = 0.3;
+export const FOOT_SPAN = 0.4;
+export const FOOT_RELAX = 120;
+export const FOOT_PROJECT_EVERY = 4;
+export const FOOT_DRAW_MAX = 0.8;
+const smooth01 = (t: number): number => { const u = t < 0 ? 0 : t > 1 ? 1 : t; return u * u * (3 - 2 * u); };
 export const GRADIENT_H = 0.05;
 /** Edge flips: an edge flips when that raises the sine of the smaller of its two triangles' smallest angles by `FLIP_GAIN` times and keeps the two faces facing the same way. */
 export const FLIP_GAIN = 1.05;
@@ -474,21 +481,56 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
     const capsT = caps.filter((_, i) => i !== a);
     const m: GrowMorph = { arm: a, dPos: new Float32Array(3 * V), dNor: new Float32Array(3 * V), dRest: new Float32Array(V), dWeight: new Float32Array(4 * V), dWeight2: new Float32Array(2 * V) };
     const wT = new Float64Array(MAX_SKIN_ARMS), w0 = new Float64Array(MAX_SKIN_ARMS), n0 = new Float64Array(3);
+    const onTrunk = (p: Float64Array, o: number): void => {
+      let x = p[o]!, y = p[o + 1]!, z = p[o + 2]!;
+      for (let s = 0; s < PROJECT_STEPS; s++) {
+        const d = sdUnionGrad(capsT, k, x, y, z, g), gg = g[0]! * g[0]! + g[1]! * g[1]! + g[2]! * g[2]!;
+        if (gg < 1e-14) break;
+        const f = d / gg; x -= f * g[0]!; y -= f * g[1]!; z -= f * g[2]!;
+      }
+      if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) { p[o] = x; p[o + 1] = y; p[o + 2] = z; }
+    };
+    // THE CLOSED ARM'S PLACE ON THE TRUNK (Mohammad, 20 Nov: holes in the SMV, ragged edges). Putting each vertex of the arm on the nearest point of the trunk lands every row of the sleeve on the SAME circle of the wall: the rows collapse onto
+    // one another (9 to 40 triangles per skin turned against their own normals, which the fragment stage throws away as back faces) and the mouth's footprint is left open. The arm's own rows (its weight above FOOT_FROM) are laid on the
+    // footprint instead: the ring at its centre, each row between drawn in by how far along the arm it is, then relaxed over the wall with the fillet round them held (each free vertex to the mean of its neighbours, back onto the surface:
+    // a patch with a fixed boundary comes out without a fold). The footprint is covered, every triangle faces out, and the arm then grows from it.
+    const p0 = new Float64Array(3 * V), free: number[] = [];
+    const foot = [0, 0, 0];
+    for (let q = 0; q < n; q++) for (let c = 0; c < 3; c++) foot[c]! += position[3 * (a * n + q) + c]! / n;
+    const ringC = foot.slice();
+    { const f3 = Float64Array.from(foot); onTrunk(f3, 0); foot[0] = f3[0]!; foot[1] = f3[1]!; foot[2] = f3[2]!; }
+    const out = [ringC[0]! - foot[0]!, ringC[1]! - foot[1]!, ringC[2]! - foot[2]!], reach2 = out[0]! * out[0]! + out[1]! * out[1]! + out[2]! * out[2]! || 1;
+    for (let v = 0; v < V; v++) {
+      p0[3 * v] = position[3 * v]!; p0[3 * v + 1] = position[3 * v + 1]!; p0[3 * v + 2] = position[3 * v + 2]!;
+      const own = v < S ? Math.floor(v / n) : -1;
+      if (own >= 0 && own !== a) continue;   // (another arm's ring: the tube's own vertex, never moved)
+      onTrunk(p0, 3 * v);
+      const wa = a < 4 ? weight[4 * v + a]! : weight2[2 * v + a - 4]!;
+      if (wa <= FOOT_FROM) continue;
+      const along = ((position[3 * v]! - foot[0]!) * out[0]! + (position[3 * v + 1]! - foot[1]!) * out[1]! + (position[3 * v + 2]! - foot[2]!) * out[2]!) / reach2;
+      const tc = own === a ? 1 : Math.min(FOOT_DRAW_MAX, smooth01((wa - FOOT_FROM) / FOOT_SPAN) * smooth01(along));   // (a row keeps a fifth of its radius at least, so its vertices keep their order round the footprint)
+      for (let c = 0; c < 3; c++) p0[3 * v + c] = foot[c]! + (1 - tc) * (p0[3 * v + c]! - foot[c]!);
+      onTrunk(p0, 3 * v);
+      if (own !== a) free.push(v);
+    }
+    for (let it = 0; it < FOOT_RELAX; it++) {
+      for (const v of free) {
+        let mx = 0, my = 0, mz = 0, c = 0;
+        for (let q = deg[v]!; q < deg[v + 1]!; q++) { const u = nbr[q]!; mx += p0[3 * u]!; my += p0[3 * u + 1]!; mz += p0[3 * u + 2]!; c++; }
+        if (!c) continue;
+        p0[3 * v] = mx / c; p0[3 * v + 1] = my / c; p0[3 * v + 2] = mz / c;
+        if (it % FOOT_PROJECT_EVERY === FOOT_PROJECT_EVERY - 1 || it === FOOT_RELAX - 1) onTrunk(p0, 3 * v);
+      }
+    }
     for (let v = 0; v < V; v++) {
       const own = v < S ? Math.floor(v / n) : -1;
-      let x = position[3 * v]!, y = position[3 * v + 1]!, z = position[3 * v + 2]!;
+      let x = p0[3 * v]!, y = p0[3 * v + 1]!, z = p0[3 * v + 2]!;
       if (own >= 0 && own !== a) {
         // another arm's seam ring: the tube's own vertex, never moved, its normal and weights the same in both shapes
         n0[0] = normal[3 * v]!; n0[1] = normal[3 * v + 1]!; n0[2] = normal[3 * v + 2]!;
         for (let i = 0; i < MAX_SKIN_ARMS; i++) w0[i] = i === own ? 1 : 0;
         m.dRest[v] = 0;
       } else {
-        for (let s = 0; s < PROJECT_STEPS; s++) {
-          const d = sdUnionGrad(capsT, k, x, y, z, g), gg = g[0]! * g[0]! + g[1]! * g[1]! + g[2]! * g[2]!;
-          if (gg < 1e-14) break;
-          const f = d / gg; x -= f * g[0]!; y -= f * g[1]!; z -= f * g[2]!;
-        }
-        if (!(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z))) { x = position[3 * v]!; y = position[3 * v + 1]!; z = position[3 * v + 2]!; }
         // the trunk's normal and weights at that point (the six weights are the trunk's arms in their own places, the grower's is 0)
         sdUnionGrad(capsT, k, x, y, z, g);
         const gl = Math.hypot(g[0]!, g[1]!, g[2]!) || 1;
