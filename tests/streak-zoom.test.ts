@@ -39,8 +39,8 @@ test('at every zoom a streak is 24 px or more long and 96 px or less, a tube und
 });
 
 test('the shaders cut the core, the feather and the lanes in CSS px and scale the pattern by the same clamp as the twin', () => {
-  assert.match(STREAK_FIELD_GLSL, /hw = min\(0\.5, min\(1\.1, mix\(1\.0, 1\.0, gStreakWide\) \* jit\) \* 0\.5 \/ lanePx\)/);
-  assert.match(STREAK_FIELD_GLSL, /aa = max\(0\.6 \* 0\.5 \/ lanePx, 1e-3\)/);
+  assert.match(STREAK_FIELD_GLSL, /float W = min\(1\.1, mix\(1\.0, 1\.0, gStreakWide\) \* jit\);/);
+  assert.match(STREAK_FIELD_GLSL, /float cov = streakBox\(y, W, pw\);/, 'the exact area of the pixel the filament covers');
   assert.match(VESSEL_FS, /float sc = 5\.0 \/ rFix \* rCss \/ clamp\(rCss, 3\.0, 6\.0\);/);
   assert.match(VESSEL_FS, /gStreakPx = rCss;/);
   assert.match(MICRO_FS, /float s = [0-9.]+ \/ R \* rPx \/ clamp\(rPx, 3\.0, 6\.0\);/);

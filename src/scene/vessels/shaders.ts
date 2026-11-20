@@ -291,11 +291,12 @@ vec2 chevOne(float s, float Lw, float se, float Bm, float Dm, float vd, float rv
   float n0 = floor(lv), P = 28.0 * exp2(n0);
   float j = floor((se - Dm) / P + 0.5);
   float x = (se - (Dm + j * P)) / (abs(Bm) < 0.05 ? (Bm < 0.0 ? -0.05 : 0.05) : Bm), sc = s - x;
-  float hw = chevHw(R, wpc), L = ${(2 * CHEV.LEN_OF_W).toFixed(1)} * hw;   // (a head is 6 CSS px tall from a tube 6 px across, as tall as the tube on a narrower one)
+  float kp = chevKeep(j, n0, lv);
+  float hw = chevHw(R, wpc) * chevSize(kp), L = ${(2 * CHEV.LEN_OF_W).toFixed(1)} * hw;   // (a head is 6 CSS px tall from a tube 6 px across, as tall as the tube on a narrower one)
   if (abs(x) > (0.6 + 0.4 * rv) * L + 0.15 * hw + 4.0 * px) return vec2(0.0);
   float lo = 0.6 * L, ramp = max(2.0 * L, 0.12 * Pt);
   float a0 = sc < lo ? 0.0 : smoothstep(lo, lo + ramp, sc), a1 = Lw - sc < lo ? 0.0 : smoothstep(lo, lo + ramp, Lw - sc);
-  float fade = min(mix(a0, 1.0, clamp(ends.x, 0.0, 1.0)), mix(a1, 1.0, clamp(ends.y, 0.0, 1.0))) * chevKeep(j, n0, lv);
+  float fade = min(mix(a0, 1.0, clamp(ends.x, 0.0, 1.0)), mix(a1, 1.0, clamp(ends.y, 0.0, 1.0))) * chevAlpha(kp);
   if (fade <= 0.0) return vec2(0.0);
   float dir = vd != 0.0 ? sign(vd) : (rv > 0.5 ? -1.0 : 1.0);
   return chevHead(dir * x, abs(across) * R, hw, px, rv) * fade;
@@ -397,8 +398,10 @@ void main() {
     gStreakPx = rCss;   // (the lumen's radius in CSS px: the field draws a core of CORE_PX on screen)
     gStreakWide = smoothstep(${F(STREAK.WIDE_R_PX[0])}, ${F(STREAK.WIDE_R_PX[1])}, rCss);
     gStreakLanes = rCss < ${F(STREAK.LANE_R_PX[0])} ? 1.0 : rCss < ${F(STREAK.LANE_R_PX[1])} ? 3.0 : 5.0;   // (the lanes by the width on screen: 1 under 8 px across, 3 to 16 px, 5 above)
-    float fld = streakField(across, vUv.x * len * vU * sc, smS.x * sc, 1.0, 1.0, 1.0);
-    float sOn = streakAmt * smoothstep(${F(STREAK.MIN_R_PX)}, ${F(STREAK.MIN_R_PX + 0.5)}, rCss) * smoothstep(0.02, 0.2, abs(smS.y));
+    gStreakSpan = len * vU * sc;   // (the vessel's own length in field units: a lane's period never runs past it)
+    // the streak distance (texel w: the stream's distance D, held to a speed no pattern wagon-wheels at, streams.ts) with the arc, as the heads ride D; the same gate as the heads' (the radius from MIN_R_PX), and none only where the flow is none
+    float fld = streakField(across, vUv.x * len * vU * sc, smS.w * sc, 1.0, 1.0, 1.0);
+    float sOn = streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCss) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
     streakCover = sOn * fld;
     cBody = c;
     c = mix(c, streakTone(c, vec3(1.0), gStreakK.x, gStreakK.y), streakCover);
