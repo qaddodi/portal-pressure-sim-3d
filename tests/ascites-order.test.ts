@@ -17,3 +17,10 @@ test('the AO seat takes the end fade the outline takes', () => {
   const p = patchedShaders(ORGAN_INK_VS, INK_FS, ORGAN_INK_VS, INK_FS, { art: false, eso: null, fade: true });
   assert.match(p.inkFs, /gl_FragColor\.a \*= vEsoA/);
 });
+test('the pool is a basin: its last row lies on the cavity floor, far below its 28-unit ramp', () => {
+  const a = new AscitesLayer(); a.set(5000);
+  const pos = (a.group.children[0] as any).geometry.getAttribute('position');
+  const ROWS = 6, mid = 52 * ROWS;
+  const top = pos.getY(mid), floor = pos.getY(mid + ROWS - 1);
+  assert.ok(top - floor > 100 / 300, `top ${top} floor ${floor}`);
+});

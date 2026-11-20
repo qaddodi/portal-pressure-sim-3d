@@ -23,7 +23,8 @@ export const FLUID_RGBA = [0xE0 / 255, 0xC6 / 255, 0x77 / 255, 0.4] as const;
 export const SURFACE_SHARE = 0.55, DEEP_AT = 28, MENISCUS = 0.45, MENISCUS_FALL = 10;
 /** The rows of each column, in 2D units under the surface: the meniscus's fall-off is three of them, the depth ramp the last. */
 export const ROW_DEPTHS = [0, 2, 4.5, 8, DEEP_AT] as const;
-const ROWS = ROW_DEPTHS.length;
+/** One more row than the depths: the last lies on the cavity's floor (the wall's lowest y in that column), so the pool is a basin from its surface down to the floor, as 2D's is, not a band 28 units thick. */
+const ROWS = ROW_DEPTHS.length + 1;
 const X0 = 296, X1 = 1128, STEP = 8;
 const COLS = Math.floor((X1 - X0) / STEP) + 1;
 
@@ -125,7 +126,7 @@ export class AscitesLayer {
       if (cr) { top = Math.max(fluidBase(x, h), cr[0]); bot = cr[1]; if (top > bot) top = bot; } else { top = bot = 0; }
       const px = x3(x), z = FLUID_Z;
       for (let r = 0; r < ROWS; r++) {
-        const d = Math.min(ROW_DEPTHS[r]!, bot - top), v = c * ROWS + r;
+        const d = r < ROW_DEPTHS.length ? Math.min(ROW_DEPTHS[r]!, bot - top) : bot - top, v = c * ROWS + r;
         this.pf.set([px, y3(top + d), z], v * 3);
         // (a column outside the cavity has no depth: its rows meet, and nothing is drawn between them)
         this.cf.set(fluidTone(this.ink, this.inkA, d), v * 4);
