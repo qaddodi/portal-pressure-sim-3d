@@ -6,6 +6,8 @@
 .lb-layer { position: fixed; inset: 0; z-index: var(--z-tags, 5); pointer-events: none; overflow: hidden;
   font-family: var(--ui, "Inter", system-ui, sans-serif); font-variant-numeric: tabular-nums lining-nums; color: var(--text); -webkit-font-smoothing: antialiased; }
 
+.lb-key-layer { z-index: calc(var(--z-cards, 10) + 1); transition: opacity 240ms var(--ease, ease); }   /* (over the cards: the key stands in the words card's foot; under the chrome: menus and sheets cover it) */
+body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer { opacity: 0; }
 .lb, .lb-key-wrap, .lb-lead, .lb-anchor { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform, opacity; }
 .lb[data-on], .lb-key-wrap[data-on], .lb-lead[data-on], .lb-anchor[data-on] { visibility: visible; }
 

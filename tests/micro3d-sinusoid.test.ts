@@ -320,8 +320,8 @@ test('the Kupffer cell is smaller and see-through, its line never showing throug
   const { KUP_SCALE, KUP_ALPHA } = await import('../src/scene/micro3d/sinusoid3d.ts');
   assert.ok(KUP_SCALE < 0.85 && KUP_SCALE > 0.5 && KUP_ALPHA < 0.85 && KUP_ALPHA > 0.5);
   const { s3 } = scene(); s3.update(true);
-  const ms = meshes(s3.group), body = ms.find((o) => o.name === 'sinusoid3d/kupffer')!, ink = ms.find((o) => o.name === 'sinusoid3d/kupffer/ink')!;
+  const ms = meshes(s3.group), body = ms.find((o) => o.name === 'sinusoid3d/kupffer')!;
   const m = body.material as unknown as { transparent: boolean; depthWrite: boolean; premultipliedAlpha: boolean };
   assert.ok(m.transparent && m.depthWrite && m.premultipliedAlpha, 'blends, but still hides what lies behind it');
-  assert.ok(body.renderOrder < ink.renderOrder, 'the body draws before its line');
+  assert.ok(!ms.find((o) => o.name === 'sinusoid3d/kupffer/ink'), 'its line is drawn in its fill, so nothing of a hull shows through the see-through body');
 });

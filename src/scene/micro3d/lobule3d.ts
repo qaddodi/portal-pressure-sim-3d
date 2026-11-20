@@ -137,7 +137,7 @@ export class Lobule3D {
     const res = shared.res, S = CEL_STYLE.MICRO;
     const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(res, this.fade, { vertexColors: true, ...o }), `lobule3d/${name}`);
     this.ground = mk('ground', { ink: null, vertexColors: false });
-    this.cells = mk('hepatocytes', { px: S.LINE_SMALL });
+    this.cells = mk('hepatocytes', { ink: null, rim: S.LINE_SMALL });   // (each tile's line inside its own fill: the hull's line ran down the tile's wall and broke into dashes, eyes 20 Nov)
     this.nuclei = mk('nuclei', { ink: null });
     // (the vessels' line is the Anatomy's weight, VESSEL_LINE CSS px, so a lobule vessel reads outlined as a vessel of the body does: Mohammad 20 Nov 2026, "the lobule sinusoid vessels need black
     //  outlines like the vessels in anatomy"; at 1.25 px it broke into dots against the tiles)

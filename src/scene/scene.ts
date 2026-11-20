@@ -27,6 +27,7 @@ import { BloodField } from './blood/field.ts';
 import { BloodCells } from './blood/cells/cells.ts';
 import { CameraRig } from './camera/rig.ts';
 import { cutUniform, fieldSoft } from './camera/dive.ts';
+import { MICRO_DPR } from './micro3d/cel3d.ts';
 import { fieldWide } from './lobule/field.ts';
 import { ORGAN_CUT } from './organs/layer.ts';
 import { quietOf } from './camera/quiet.ts';
@@ -102,7 +103,7 @@ const STUB_Q: Record<string, number> = {
 // (DIVE_IN follows the lobule's scale: the body is gone only when the camera is a few lobule-fits away, where the lobule's field starts to fill the screen. A fixed 0.7 left
 //  the screen showing the bare page between the body going and the 1/1500 lobule growing: the near-white flash in the Anatomy -> Lobule dive.)
 /** The dive share (sinusoid/view.ts diveShare) below which nothing of the sinusoid is drawn on the way in from the lobule. */
-export const SIN_SHOW_FROM = 0.4;
+export const SIN_SHOW_FROM = 0.58;
 /** The dive share from which the 3D lobule stands aside under the sinusoid: once the sinusoid (sinusoid3d.ts, whole from 0.86) covers it. */
 export const LOBULE_UNDER_FROM = 0.86;
 export const DIVE_OUT = 1.9, DIVE_IN = 40 * LOBULE_SCALE;
@@ -755,7 +756,7 @@ export class CelScene {
     const share = flying ? diveShare(this.rig.pose.shot.r, 2.5 * LOBULE_SCALE, 3 * SIN_SCALE) : null;
     this.sinus.setDive(share);
     // (the same rule as the lobule in the liver: nothing of the sinusoid is drawn until the dive is close to landing. Before, its frame was up for the whole flight and a line of it
-    //  showed over the zoomed-out lobule. Every part of it fades in from SIN_SHOW_FROM or later (the tissue 0.5, the 3D parts 0.42), so hiding it below that never pops.)
+    //  showed over the zoomed-out lobule. Every part of it fades in from SIN_SHOW_FROM or later (the 3D parts 0.6), so hiding it below that never pops.)
     const sv = share == null || share >= SIN_SHOW_FROM;
     if (this.sinFrame.visible !== sv) { this.sinFrame.visible = sv; this.moving = true; }
   }
@@ -1033,6 +1034,7 @@ export class CelScene {
     const dpr = gl.getPixelRatio?.() ?? 1;
     this.blood.shared.dpr.value = dpr;   // (the vessels' line is held in device px)
     this.lobule3d.setDpr(dpr);
+    MICRO_DPR.value = dpr;   // (the micro parts' lines drawn in the fill are CSS px wide on every screen)
     this.disease.strands.setDpr(dpr);
     // Two passes, as the 2D figure paints: the organs first, then the vessels (and what is in them) over the cleared depth, so no organ's relief ever hides a vessel and a joined
     // vessel never looks cut. (The vessels keep their own depth among themselves: their tiers.)
