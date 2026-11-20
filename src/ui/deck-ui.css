@@ -22,7 +22,6 @@
 
 /* ── a card's place (transform only) and its surface ── */
 .dk-pos { position: absolute; left: 0; top: 0; will-change: transform; }
-.deck-ui.pz .dk-pos[data-up] > .dk-card[data-card], .dk-pos[data-up] > .dk-plate { position: absolute; left: 0; right: 0; top: auto; bottom: 0; width: auto; }   /* (a card on the foot hangs from it: its place is its foot) */
 .dk-pos[data-live="true"] { transition: transform var(--move) var(--ease), translate var(--move) var(--ease); }
 .dk-pos[data-slot="data"] .dk-in { transition: opacity 240ms var(--ease); }   /* (the dock: the docked card's words fade as it slides away; a finger or a glide writes them per frame) */
 
@@ -227,3 +226,10 @@ body[data-card-zoom] .lb-layer { opacity: 0; transition: opacity 240ms var(--eas
 
 /* The dock (ui/cards/dock.ts): up and down are the finger's on a phone or an upright iPad, wherever it lands on a card, so the browser keeps none of them */
 .deck-ui[data-layout="stack"] .dk-card, .deck-ui[data-layout="tab"] .dk-card { touch-action: none; }
+
+/* A card hangs from the edge that stays where it is when its height changes (CardFrame.tsx: the foot of a phone's words card, the middle of a centred card): the place `.dk-pos` is at is that
+   edge, a zero-height box, and the card grows from it by itself in the frame its words change. (After the 2D reset rules above: the same specificity, so it has to come last.) */
+.deck-ui.pz .dk-pos[data-anchor] > .dk-card[data-card] { position: absolute; left: 0; right: 0; width: auto; margin: 0; }
+.deck-ui.pz .dk-pos[data-anchor="foot"] > .dk-card[data-card] { top: auto; bottom: 0; }
+.deck-ui.pz .dk-pos[data-anchor="mid"] > .dk-card[data-card] { bottom: auto; }   /* (its top is half its height above the middle: written with its height) */
+.dk-pos[data-anchor="foot"] > .dk-plate { position: absolute; left: 0; right: 0; top: auto; bottom: 0; width: auto; }

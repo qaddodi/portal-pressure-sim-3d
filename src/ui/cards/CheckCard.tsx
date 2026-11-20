@@ -38,9 +38,10 @@ export function CheckCard({ deck, page = 0, pages = 1 }: { deck: Deck; page?: nu
     // wait for the card's edge to reach them (clear for the first third of the glide), then come in, so the words are never outside the card
     const a = fresh == null ? null : list.current?.querySelector<HTMLElement>(`#pzc-a${fresh}`);
     if (a && typeof a.animate === 'function') a.animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: 320, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' });
-    // a card on the foot (a phone's) grows and shrinks at its TOP: in this same frame, before it is drawn, the card takes its new height and every row stands g higher (g = what the list gained),
+    // a card on the foot (a phone's) grows and shrinks at its TOP, a centred one (this one) at its top and its foot by half each: in this same frame, before it is drawn, the card takes its new height and every row stands g higher (g = what the list gained, times the share of it the card's top takes),
     // so a row's way from where it was to where it will be is its measured way plus g (a row under the answer: no way at all; a row above it: g up)
-    const g = list.current?.closest('.dk-pos')?.hasAttribute('data-up') ? (list.current?.getBoundingClientRect().height ?? 0) - height.current : 0;
+    const anchor = list.current?.closest('.dk-pos')?.getAttribute('data-anchor');
+    const g = (anchor === 'foot' ? 1 : anchor === 'mid' ? 0.5 : 0) * ((list.current?.getBoundingClientRect().height ?? 0) - height.current);
     Array.from(li).forEach((e, i) => {
       const dy = (from[i] ?? 0) - e.getBoundingClientRect().top + g;
       if (Math.abs(dy) > 1 && typeof e.animate === 'function') e.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' });
