@@ -53,7 +53,7 @@ interface ShellState {
   close(): void;
   toggle(sheet: Exclude<Sheet, null>): void;
   /** One line at the foot; with an `action` it stays ACTION_MS and carries a button (Send feedback's "Copy the full report"). */
-  say(text: string, tone?: 'info' | 'bad', action?: ToastAction): void;
+  say(text: string, tone?: 'info' | 'bad', action?: ToastAction, sticky?: boolean): void;
   setFigure(p: Partial<Figure>): void;
   markViewReady(v: ViewId): void;
 }
@@ -86,10 +86,11 @@ export const useShell = create<ShellState>((set, get) => ({
   open: (sheet) => set({ sheet }),
   close: () => { if (get().sheet) set({ sheet: null }); },
   toggle: (sheet) => set({ sheet: get().sheet === sheet ? null : sheet }),
-  say: (text, tone = 'info', action) => {
+  say: (text, tone = 'info', action, sticky = false) => {
     clearTimeout(toastTimer);
     set({ toast: { id: ++toastId, text, tone, ...(action ? { action } : {}) } });
-    toastTimer = setTimeout(() => { if (get().toast?.id === toastId) set({ toast: null }); }, action ? ACTION_MS : TOAST_MS);
+    // (a sticky note, the first-run hint, stays until its owner closes it, as 2D's toast with `sticky`)
+    if (!sticky) toastTimer = setTimeout(() => { if (get().toast?.id === toastId) set({ toast: null }); }, action ? ACTION_MS : TOAST_MS);
   },
   setFigure: (p) => { const f = { ...get().figure, ...p }; set({ figure: f }); saveFigure(f); },
   markViewReady: (v) => set({ ready: { ...get().ready, [v]: true } }),

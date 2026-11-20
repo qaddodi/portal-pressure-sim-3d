@@ -8,6 +8,9 @@ export const ORGAN_VS = /* glsl */ `
 attribute vec3 ink;
 varying vec3 vInk;
 #endif
+// organ depth (organ-depth.ts): how tucked in this vertex is, 0..1, baked at load (a geometry without it reads 0)
+attribute float depthAo;
+varying float vAo;
 uniform vec4 box;
 varying vec3 vN;
 varying vec3 vV;
@@ -17,6 +20,7 @@ void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
   vN = normalize(normalMatrix * normal);
   vV = normalize(-mv.xyz);
+  vAo = depthAo;
   // where this point sits in the organ's own 2D box: (0,0) top left, (1,1) bottom right, as the SVG gradient's objectBoundingBox
   vBox = vec2((position.x - box.x) / max(box.z, 1e-5), (box.y - position.y) / max(box.w, 1e-5));
 #ifdef VERTEX_INK
@@ -37,6 +41,10 @@ uniform vec4 volShade;
 uniform vec3 page;
 uniform float layer;
 uniform float inkAmount;
+// Settings > Figure depth: organDepth (0 off, 1 on, eased) adds the baked crease and contact shade and a soft light from the upper left; organFill solid (0 the see-through wash, 1 solid, eased)
+// lays the same painted colour opaque, pre-mixed against the page
+uniform float depthAmt;
+uniform float solid;
 // the dive's cutaway window (atlas-look-plan 3.1): x, y the dive point on the screen (ndc), z the radius that is cleared (ndc half-heights; below 0 nothing is), w the aspect; the same for every organ
 uniform vec4 cut;
 varying vec4 vClip;
@@ -46,6 +54,7 @@ varying vec3 vInk;
 varying vec3 vN;
 varying vec3 vV;
 varying vec2 vBox;
+varying float vAo;
 void main() {
   // the window: the wash clears round the dive point, soft at its edge, so the lobule shows inside
   vec2 q = vClip.xy / vClip.w - cut.xy;
@@ -78,8 +87,25 @@ void main() {
   // the rim light on the edge that faces the top left
   float lit = smoothstep(0.62, 0.8, turn) * clamp(dot(side, vec2(-0.6, 0.8)), 0.0, 1.0);
   fill = mix(fill, ogLight.rgb, ogLight.a * 0.58 * lit);
-  // the organ lies on whatever is behind it at the layer's opacity, as 2D's organ groups do (blended in 2D's order: layer.ts); the dive fades the layer, no dots
-  gl_FragColor = vec4(fill, layer * fade * win);
+  // Organ depth (a step beyond 2D; with depthAmt 0 nothing below runs and the fill is exactly the wash above). Three soft steps, in the look's own tones:
+  // the baked tuck (creases, where one organ meets another) in og-dark, the side turned from a light at the upper left of the screen in og-dark, the side facing it in og-light
+  // (the tuck keeps the light out). One baked byte per vertex and one dot: no texture, no pass.
+  if (depthAmt > 0.001) {
+    float ao = clamp(vAo, 0.0, 1.0);
+    float wa = 0.12;
+    float tuck = (smoothstep(0.2 - wa, 0.2 + wa, ao) + smoothstep(0.5 - wa, 0.5 + wa, ao) + smoothstep(0.8 - wa, 0.8 + wa, ao)) * (1.0 / 3.0);
+    float lam = dot(n, normalize(vec3(-0.5, 0.62, 0.6)));
+    float wl = 0.08 + fwidth(lam);
+    float away = 1.0 - smoothstep(0.3 - wl, 0.3 + wl, lam);
+    float toward = smoothstep(0.7 - wl, 0.7 + wl, lam) * (1.0 - ao);
+    fill = mix(fill, ogDark.rgb, clamp(ogDark.a * (1.5 * tuck + 0.6 * away), 0.0, 1.0) * depthAmt);
+    fill = mix(fill, ogLight.rgb, clamp(ogLight.a * 0.5 * toward, 0.0, 1.0) * depthAmt);
+  }
+  // the organ lies on whatever is behind it at the layer's opacity, as 2D's organ groups do (blended in 2D's order: layer.ts); the dive fades the layer, no dots.
+  // Solid: the same colour pre-mixed against the page and laid opaque (alpha 1), so nothing shows through it; the dive's fade and window still thin it, never pop it
+  float a = mix(layer, 1.0, solid);
+  fill = mix(fill, mix(page, fill, layer), solid);
+  gl_FragColor = vec4(fill, a * fade * win);
 }`;
 
 /** The organ outline: the hull's width in the figure's units (2D's .org-line is 1.1 SVG units, the kidney 1.4), so it scales with the figure as 2D's does,

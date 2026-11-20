@@ -34,6 +34,8 @@ import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, 
 import { LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L, lobuleShot } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
 import { SinusoidView, diveShare, isPortrait, restScale } from './sinusoid/index.ts';
+import { framePoint, measureScreen } from './sinusoid/portrait.ts';
+import { U as SIN_UNIT } from './sinusoid/view.ts';
 import { sinusoidBox } from './lobule/shots.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
@@ -577,6 +579,7 @@ export class CelScene {
   }
   /** A portrait room (narrower than tall, 2D's `W < H * 0.95`) runs the sinusoid top to bottom: the sinusoid view takes it (SinusoidView.setPortrait, the sinusoid worker's), and the shot asks for it (sinusoidShot(portrait)). */
   private portrait = false;
+  private readonly sinusPt = new Vector3(); private readonly scrO = { x: 0, y: 0 }; private readonly scrA = { x: 0, y: 0 };
   private stepPortrait(): void {
     const r = this.rig.targetRoom, st = this.rig.stageSize, p = isPortrait(st.w, st.h);   // (2D's rule on the stage: ensureGeo(W, H))
     if (p !== this.portrait) {
@@ -587,7 +590,11 @@ export class CelScene {
     }
     // what the view needs of the screen to lay its end arrows and run its traffic as 2D does: px per µm along the flow (the hand's zoom included), the room's length and the canvas's along it
     const short = Math.min(r.w, r.h), s = this.rig.stageSize;
-    this.sinus.setScreen(restScale(short) * this.rig.handZoom, p ? r.h : r.w, p ? s.h : s.w);
+    // (measured on the screen, not modelled: where the sinusoid's middle and a point 10 µm down the flow land, against the free room's middle)
+    if (!this.sinus.isVisible) return;   // (nothing of the view is read while it is away)
+    const turn = this.sinus.turn, o = this.rig.project(this.sinusPt.set(...sinusoidWorld([0, 0, 0])), this.scrO), a = this.rig.project(this.sinusPt.set(...sinusoidWorld(framePoint(10, 0, SIN_UNIT, turn))), this.scrA);
+    const m = measureScreen(o, a, this.rig.roomCentre());
+    this.sinus.setScreen(m.k > 0 ? m.k : restScale(short) * this.rig.handZoom, p ? r.h : r.w, p ? s.h : s.w, m.k > 0 ? m.centreUm : 0);
   }
   get isPortrait(): boolean { return this.portrait; }
   /** The distance the camera sits at with the whole lobule framed in the room it has (kept per room size). */
