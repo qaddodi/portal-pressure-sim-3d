@@ -18,7 +18,7 @@
 .t-pos[data-open="true"] .t-card { opacity: 1; visibility: visible; transform: none; transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s; }
 .t-pos[data-open="false"] .t-card * { pointer-events: none; }
 .t-card [hidden] { display: none !important; }
-.t-card :where(button:not(.instr-tab, .card-close, .metric, .ps-btn)) { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+:where(.t-card button:not(.instr-tab, .card-close, .metric, .ps-btn)) { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }   /* (no specificity: 2D's own class rules for a button in the card, .tr-chip .tr-fh .tr-row … , win whatever their order; at (0,1,0) this reset beat them, so a chip read 14/400 for 2D's 12/500, 20 Nov) */
 .t-card :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* The card is the 2D app's own (index.html #dock: section.dock.instrument-workspace.float-ui, dock.js), so its lifted sheets style it: the head row with the tabs and the close

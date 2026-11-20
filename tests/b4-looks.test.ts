@@ -14,7 +14,7 @@ import { septumAt } from '../src/scene/organs/liver-shape.ts';
 import { PAINTED, VertexPaint, infarctAt, infarctEdgeY } from '../src/scene/organs/vertex-paint.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { bodyTargets } from '../src/scene/disease/targets.ts';
-import { waistNarrow, waistSigma, isClampable, CLAMP } from '../src/scene/disease/clamps.ts';
+import { waistNarrow, waistSigma, isClampable } from '../src/scene/disease/clamps.ts';
 import { FLANK_Z, Landmarks, flankPoints, ribbon } from '../src/scene/disease/landmarks.ts';
 import { RED_WALE, waleEnvelope } from '../src/scene/disease/strands.ts';
 import { varixWale } from '../src/scene/disease/copied/varix-bead.js';
@@ -89,7 +89,6 @@ test('a stenosis pinches the vessel at its middle in the 2D waist, and a vessel 
   assert.ok(waistNarrow(0.6, 0.5 + 3 * sig, sig) < 0.001, 'smooth back to the full lumen');
   assert.ok(waistNarrow(0.6, 0.5 + sig, sig) > 0.2 && waistNarrow(0.6, 0.5 + sig, sig) < 0.3);
   assert.ok(isClampable('IVCS_RA') && !isClampable('TIPS') && !isClampable('NOT_A_VESSEL'));
-  assert.ok(CLAMP.len > 0);
   const s = new CelScene(); const c = s.disease.clamps;
   assert.equal(c.set({ IVCS_RA: 0.6 }, () => 1, 0.016, true), false);
   assert.equal(c.shown().IVCS_RA, 0.6);
@@ -97,8 +96,8 @@ test('a stenosis pinches the vessel at its middle in the 2D waist, and a vessel 
   let mid = 0, end = 1;
   for (let i = 0; i < nar.count; i++) { if (Math.abs(uv.getX(i) - 0.5) < 0.1) mid = Math.max(mid, nar.getX(i)); if (uv.getX(i) < 0.02) end = Math.min(end, nar.getX(i)); }
   assert.ok(mid > 0.5 && mid > end, `narrow ${mid.toFixed(2)} at the middle, ${end.toFixed(2)} at the end`);
-  assert.equal(c.group.children[0]!.visible, true, 'the arrowheads');
-  c.set({ IVCS_RA: 0.6 }, () => 0, 0.016, true); assert.deepEqual(c.shown(), {}, 'a vessel that is not drawn has no clamp');
+  assert.equal(c.marks().length, 1, 'the arrowheads (drawn flat by the label layer)');
+  c.set({ IVCS_RA: 0.6 }, () => 0, 0.016, true); assert.deepEqual(c.shown(), {}, 'a vessel that is not drawn has no clamp'); assert.equal(c.marks().length, 0);
   c.set({}, () => 1, 0.016, true);
   for (let i = 0; i < nar.count; i++) assert.equal(nar.getX(i), 0);
   s.dispose?.();

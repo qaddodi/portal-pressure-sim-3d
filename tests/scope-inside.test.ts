@@ -7,6 +7,7 @@ import { organsReady, setOrganData, ORGAN_MESHES } from '../src/scene/organs/mes
 import { bakeGeometry, centreAt, bakeCentre } from '../src/scene/organs/centre-z.ts';
 import { scopeWay, glueScopeWay, scopeZ } from '../src/scene/devices/probes/scope.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
+import { ORGAN_Z } from '../src/scene/organs/z.ts';
 
 const file = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
 setOrganData(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer);
@@ -21,7 +22,7 @@ test('the middle of a slab is its centre, and a point past its edge takes the ne
 
 test('the scope\'s way runs on the oesophagus and stomach\'s middle, smoothly, inside their faces', async () => {
   await organsReady;
-  const geo = ORGAN_MESHES.stomach!(), pa = geo.getAttribute('position').array;
+  const geo = ORGAN_MESHES.stomach!().translate(0, 0, ORGAN_Z.stomach ?? 0), pa = geo.getAttribute('position').array;
   let zmin = Infinity, zmax = -Infinity;
   for (let i = 2; i < pa.length; i += 3) { zmin = Math.min(zmin, pa[i]!); zmax = Math.max(zmax, pa[i]!); }
   const grid = bakeGeometry(geo);
@@ -29,7 +30,7 @@ test('the scope\'s way runs on the oesophagus and stomach\'s middle, smoothly, i
     let prev: number | null = null, worst = 0, minZ = Infinity, maxZ = -Infinity;
     for (const p of way.pts) {
       const z = scopeZ(x3(p[0]), y3(p[1]));
-      assert.ok(Math.abs(z - centreAt(grid, x3(p[0]), y3(p[1]))) < 1e-9);
+      assert.ok(Math.abs(z - centreAt(grid, x3(p[0]), y3(p[1]))) < 1e-5, "the placed organ's middle (ORGAN_Z included)");
       if (prev !== null) worst = Math.max(worst, Math.abs(z - prev));
       prev = z; minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
     }
@@ -42,7 +43,7 @@ test('a device draws its ink before its fill (no depth test: the ink hull drawn 
   const dev = readFileSync(new URL('../src/scene/devices/device-object.ts', import.meta.url), 'utf8');
   assert.match(dev, /2 \* \(o\.order \?\? 0\) \+ \(c === this\.toonMesh \? 1 : 0\)/);
   const scope = readFileSync(new URL('../src/scene/devices/probes/scope.ts', import.meta.url), 'utf8');
-  assert.match(scope, /sh = mk\('poly', \(t\) => t\.scope,/);   // (2D's black polymer, --dev-scope; it was the grey steel)
+  assert.match(scope, /sh = mk\('poly', \(t\) => SCOPE_TUBE\(t\),/);   // (2D's black polymer, --dev-scope; it was the grey steel)
   assert.ok(!/sh = mk\('poly', \(t\) => t\.polyEdge/.test(scope));
 });
 
@@ -110,4 +111,11 @@ test('a soft light at the scope\'s tip fades in over about a second and follows 
   assert.ok(glow().glowMesh.visible, 'the light is shown on the figure');
   assert.ok(glow().glowMat.opacity > 0.99, `fully up after ${GLOW_MS} ms (was ${early.toFixed(2)})`);
   assert.ok(GLOW_R > 6, 'wider than the scope');
+});
+
+test('the scope sits at the depth the oesophagus is drawn at (its ORGAN_Z shift included), so a turned view keeps it inside the tube', async () => {
+  await organsReady;
+  const w = scopeWay(), p = w.pts[Math.floor(w.pts.length / 3)]!, X = x3(p[0]), Y = y3(p[1]);
+  const raw = bakeGeometry(ORGAN_MESHES.stomach!());
+  assert.ok(Math.abs(scopeZ(X, Y) - (centreAt(raw, X, Y) + (ORGAN_Z.stomach ?? 0))) < 1e-6);
 });

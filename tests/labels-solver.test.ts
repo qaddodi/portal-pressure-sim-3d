@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { solve, slideInView, boxOf, LEAD_ON, CALL_MIN_GAP, type Item, type Form } from '../src/scene/labels/solver.ts';
 import { hits, grow, type Box } from '../src/scene/labels/geometry.ts';
@@ -106,4 +107,58 @@ test('a name\'s leader prefers the side where it crosses no vessel (the leader o
   assert.ok(free.placed[0].dx > 0, 'without a vessel it keeps its first side, east');
   const withLine = solve({ items: [it], view: VIEW, blockers: [], lines: [[520, 100, 520, 500]], leaderLineCost: 9 });
   assert.ok(withLine.placed[0].dx < 0, 'with a vessel across the east leader, it stands west');
+});
+
+test('a must label that has to stand far off takes a spot no vessel runs under when one lies round the pocket (2D: every ring is clear)', () => {
+  const pocket: Box[] = [{ x0: 0, y0: 56, x1: 470, y1: 700 }, { x0: 530, y0: 56, x1: 1000, y1: 330 }, { x0: 470, y0: 56, x1: 530, y1: 250 }];
+  const lines: [number, number, number, number][] = [[470, 360, 1000, 360], [470, 340, 1000, 340], [470, 380, 1000, 380]];
+  const m = item('x', 500, 300, { forms: [form(150)], must: true });
+  const r = solve({ items: [m], view: VIEW, blockers: pocket, lines });
+  assert.equal(r.placed.length, 1, 'it is placed');
+  const b = boxOf(r.placed[0], m.ax, m.ay);
+  for (const l of lines) assert.ok(!(l[1] > b.y0 && l[1] < b.y1), `it stands on the vessel at y ${l[1]} (box ${b.y0.toFixed(0)}-${b.y1.toFixed(0)})`);
+  // and with every spot under a vessel, it still stands (the last resort), never dropped
+  const all: [number, number, number, number][] = Array.from({ length: 30 }, (_, i) => [470, 335 + i * 13, 1000, 335 + i * 13]);
+  const last = solve({ items: [m], view: VIEW, blockers: pocket, lines: all });
+  assert.equal(last.placed.length, 1, 'a must label is never left off for a vessel');
+});
+
+test('a label whose near spots are taken keeps off the vessels at every far spot, and gives up a width before it stands on one (Lower IVC in Compare on a phone stood on the varices line)', () => {
+  // a corridor 128 px wide (x 436-564) with the dot in it; the near spots above (a slot is left for the leader) and below are taken; a vessel runs down x = 450.
+  // The wide form (120) cannot stand in the corridor without covering the vessel; the narrow one (60) can, east of it.
+  const blockers: Box[] = [{ x0: 0, y0: 56, x1: 430, y1: 700 }, { x0: 570, y0: 56, x1: 1000, y1: 700 }, { x0: 436, y0: 250, x1: 490, y1: 290 }, { x0: 510, y0: 250, x1: 564, y1: 290 }, { x0: 436, y0: 310, x1: 564, y1: 340 }];
+  const lines: [number, number, number, number][] = [[450, 56, 450, 700]];
+  const it = item('x', 500, 300, { forms: [form(120), form(60)], must: true });
+  const r = solve({ items: [it], view: VIEW, blockers, lines });
+  assert.equal(r.placed.length, 1, 'it is placed');
+  const p = r.placed[0], b = boxOf(p, it.ax, it.ay);
+  assert.ok(!(450 > b.x0 && 450 < b.x1), `form ${p.form} stands on the vessel (box ${b.x0.toFixed(0)}-${b.x1.toFixed(0)})`);
+  assert.equal(p.form, 1, 'it gives up the wide form, not the clear ground');
+  // a callout or a region's name is not a label with a leader: lines never keep it out (the far spots of a callout are its normal places)
+  const call = item('c', 500, 300, { forms: [form(120)], callout: { below: false } });
+  assert.equal(solve({ items: [call], view: VIEW, blockers: [], lines: [[0, 50, 1000, 50], [450, 56, 450, 700], [0, 150, 1000, 150], [0, 200, 1000, 200], [0, 250, 1000, 250]] }).placed.length, 1, 'a callout is placed over lines');
+});
+
+test('the diagnostic (?capwhy) names who stood in the way of a label\'s near spots, and costs nothing when it is not asked for', () => {
+  const a = item('a', 300, 300), b = item('b', 330, 300, { pri: 1 });
+  const why = new Map<string, Record<string, number>>();
+  const r = solve({ items: [a, b], view: VIEW, blockers: [], why });
+  assert.ok(Object.keys(why.get('b') ?? {}).some((k) => k.startsWith('label:a') || k.startsWith('dot:a') || k.startsWith('underLeader:a') || k === 'ownDot'), JSON.stringify(why.get('b')));
+  assert.deepEqual(r.placed.map((p) => p.id).sort(), solve({ items: [a, b], view: VIEW, blockers: [] }).placed.map((p) => p.id).sort(), 'the answer is the same with or without it');
+});
+
+test('a station\'s name never takes the last resort of a spot over a vessel; the reader\'s own choices and the hepatic artery keep it (2D, 4 Nov: no labels covering the portal vein)', () => {
+  // a corridor 140 wide that the label (138) fits only by touching the cards' edges (the last resort), with a vessel under every spot
+  const blockers: Box[] = [{ x0: 0, y0: 56, x1: 430, y1: 700 }, { x0: 570, y0: 56, x1: 1000, y1: 700 }];
+  const lines: [number, number, number, number][] = Array.from({ length: 40 }, (_, i) => [430, 70 + i * 14, 570, 70 + i * 14]);
+  const mk = (over: Partial<Item>) => item('x', 500, 300, { forms: [form(138)], must: true, ...over });
+  assert.equal(solve({ items: [mk({ offVessels: true })], view: VIEW, blockers, lines }).placed.length, 0, 'a station with no clear spot is left out');
+  assert.deepEqual(solve({ items: [mk({ offVessels: true })], view: VIEW, blockers, lines }).dropped, ['x']);
+  assert.equal(solve({ items: [mk({})], view: VIEW, blockers, lines }).placed.length, 1, 'a name that is not marked stands, as before (the picked, a slide\'s, the hepatic artery)');
+  assert.equal(solve({ items: [mk({ offVessels: true })], view: VIEW, blockers, lines: [] }).placed.length, 1, 'with no vessel under it, it stands');
+});
+
+test('the controller marks every station name offVessels but the picked vessel, what a slide names or shows, and the hepatic artery', () => {
+  const src = readFileSync(new URL('../src/scene/labels/controller.ts', import.meta.url), 'utf8');
+  assert.match(src, /!picked && !isNamed && !this\.state\.shown\.has\(m\.station\.id\) && m\.station\.id !== 'HA' \? \{ offVessels: true \}/);
 });

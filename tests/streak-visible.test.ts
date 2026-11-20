@@ -42,7 +42,7 @@ test('lanes by the width on screen: 1 under 8 px across, 3 to 12 px, 5 above (20
     assert.match(fs, /< 3\.0 \? 1\.0 : [a-zA-Z]+ < 4\.5 \? 3\.0 : 5\.0/, 'lanes 1, 3, 5');
     assert.match(fs, /gStreakWide = smoothstep\(5\.5, 9\.0, /);
   }
-  assert.match(VESSEL_FS, /smoothstep\(1\.5, 2\.1, rCssD\)/); assert.match(MICRO_FS, /if \(rPx < 1\.5\) return 0\.0;/);
+  assert.match(VESSEL_FS, /smoothstep\(1\.5, 2\.1, rCss\)/); assert.match(MICRO_FS, /if \(rPx < 1\.5\) return 0\.0;/);
   assert.match(STREAK_FIELD_GLSL, /lanes > 1\.5 \?/, 'one lane has no shear to divide by');
 });
 

@@ -22,9 +22,9 @@ const v3 = new Vector3(), pt = { x: 0, y: 0 }, f3: [number, number, number] = [0
 function sinusoidVessel() {
   const s = cel.sinus;
   if (!s.isVisible || cel.rig.isMoving) return null;
-  const g = s.nameGeom, turn = s.turn;
+  const g = s.nameGeom;
   return vesselRect((x, y) => {
-    framePoint(x, y, U, turn, f3);
+    framePoint(x, y, U, 0, f3);   // (the plane keeps its own frame; the camera's roll turns it on screen)
     const w = sinusoidWorld(f3);
     cel.rig.project(v3.set(w[0], w[1], w[2]), pt);
     return [pt.x, pt.y];

@@ -97,7 +97,7 @@ export function mountDust(): void {
   const bar = el('div', { className: 'bar' }, [
     el('button', { textContent: 'Copy settings', onclick: () => { void copy(); } }),
     el('button', { textContent: 'Apply', onclick: apply }),
-    el('button', { textContent: 'Reset', onclick: () => { dustTuner.replace(dustDefaults()); inputs.forEach((f) => f()); preset.value = '0'; refreshText(); msg.textContent = 'Reset to the stenosis pick.'; } }),
+    el('button', { textContent: 'Reset', onclick: () => { dustTuner.replace(dustDefaults()); inputs.forEach((f) => f()); preset.value = '0'; refreshText(); msg.textContent = 'Reset to the default.'; } }),
     el('button', { textContent: 'Keep on this device', onclick: () => { try { localStorage.setItem(KEEP_KEY, dustText(dustTuner.settings())); msg.textContent = 'Kept: this browser opens ?dust with these.'; } catch { msg.textContent = 'This browser would not keep it. Use Copy settings.'; } } }),
     el('button', { textContent: 'Forget', onclick: () => { try { localStorage.removeItem(KEEP_KEY); msg.textContent = 'Forgotten.'; } catch { /* storage unavailable */ } } }),
   ]);

@@ -8,8 +8,8 @@
 
 .lb-key-layer { z-index: calc(var(--z-cards, 10) + 1); transition: opacity 240ms var(--ease, ease); }   /* (over the cards: the key stands in the words card's foot; under the chrome: menus and sheets cover it) */
 body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer { opacity: 0; }
-.lb, .lb-key-wrap, .lb-lead, .lb-anchor { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform, opacity; }
-.lb[data-on], .lb-key-wrap[data-on], .lb-lead[data-on], .lb-anchor[data-on] { visibility: visible; }
+.lb, .lb-key-wrap, .lb-lead, .lb-anchor, .cm { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; will-change: transform, opacity; }
+.lb[data-on], .lb-key-wrap[data-on], .lb-lead[data-on], .lb-anchor[data-on], .cm[data-on] { visibility: visible; }
 
 /* ── a station's label, as the 2D app draws it: no backing, a small name in the quiet ink, the reading large and bold, a halo round every
    letter, a thin leader to a small ring on the vessel. Sizes, weights, gaps, the halo and the look's ink are custom properties the layer
@@ -59,6 +59,13 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer { opacity: 0; }
 .lb-lead { width: 1px; height: var(--lb-lead-w); transform-origin: 0 50%; background: var(--lb-leader); }
 .lb-anchor { width: var(--lb-ring); height: var(--lb-ring); margin: calc(var(--lb-ring) / -2) 0 0 calc(var(--lb-ring) / -2); border-radius: 50%; box-sizing: border-box;
   border: var(--lb-ring-w) solid var(--lb-name); background: var(--lb-ring-fill); }
+
+/* ── a narrowed vessel's arrowheads (clamp-marks.ts), flat on the screen: a fine barbed head on a hairline in the label ink. The element stands at the tip; its +x runs away from the vessel,
+   and the layer writes only its transform and opacity. ── */
+.cm { width: 0; height: 0; transform-origin: 0 0; pointer-events: none; }
+.cm::before { content: ""; position: absolute; left: 0; top: -4px; width: 9px; height: 8px; background: var(--lb-val);
+  clip-path: polygon(0 50%, 100% 0, 68% 50%, 100% 100%); }
+.cm::after { content: ""; position: absolute; left: 6px; top: -0.5px; width: 15px; height: 1px; background: var(--lb-val); opacity: 0.85; }
 
 /* a station the slide's words light takes the term's colour (2D .lb.term: the station colour, a step toward the text so it reads on every look) */
 .lb[data-tone] .lb-name, .lb[data-tone] .lb-val, .lb[data-tone] .lb-unit, .lb[data-tone] .lb-delta { color: color-mix(in srgb, var(--lb-tone) 80%, var(--lb-val)); }
@@ -166,3 +173,8 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer { opacity: 0; }
 .pl-dl-line { background: var(--dop-mark, #fff); }
 .pl-scan { font: 700 12px Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--fibroscan) 12%, black); }
 .pl-scan .pl-scan-unit { margin-left: 2px; font-size: 12px; font-weight: 600; color: color-mix(in srgb, var(--fibroscan) 30%, black); }
+
+/* A step's leader (2D: a dot on the vessel the number names and a thin line to the chip; a group's number a line to each of its vessels). Moved by transform; the layer fades it with the number. */
+.cl-lead { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0; }
+.cl-lead-line { position: absolute; left: 0; top: 0; width: 1px; height: 1.5px; margin-top: -0.75px; transform-origin: 0 50%; background: var(--text); will-change: transform; visibility: hidden; }
+.cl-lead-dot { position: absolute; left: 0; top: 0; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--text); will-change: transform; visibility: hidden; }

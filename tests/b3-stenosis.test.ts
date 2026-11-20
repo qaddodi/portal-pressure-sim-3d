@@ -2,16 +2,18 @@
 // lumen, the same for every vessel that can be narrowed (the shared place: disease/clamps.ts for its profile, vessels/shaders.ts for how it is drawn). These pin the rules, over every stenosable vessel and not one of them:
 //  1. the pinch is exactly nothing at both ends of its vessel (so the calibre either side is the vessel's own and no step stands against the next piece), symmetric, and falls off smoothly;
 //  2. the shader's lumen radius (what the line, the flow marks, the dust and the tones are made from) is the PINCHED radius, and the outline's thinning is judged on the unpinched one (the line runs on through the waist);
-//  3. the arrowheads stand on the drawn waist, at the pinched wall plus their gap.
+//  3. the arrowheads are flat marks on the screen (labels/clamp-marks.ts), standing on the drawn waist at the pinched wall plus their gap.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CatmullRomCurve3, Vector3, type BufferAttribute } from 'three';
-import { CLAMP, WAIST_MAX_SIG, WAIST_REACH, isClampable, waistNarrow, waistSigma } from '../src/scene/disease/clamps.ts';
+import { WAIST_MAX_SIG, WAIST_REACH, isClampable, markShown, waistNarrow, waistSigma } from '../src/scene/disease/clamps.ts';
 import { MAPPED } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { UNITS_PER_SCENE as U } from '../src/scene/frame2d.ts';
 import { VESSEL_VS, VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { CelScene } from '../src/scene/scene.ts';
+import { MARK, markScale, placeMarks } from '../src/scene/labels/clamp-marks.ts';
+import { readFileSync } from 'node:fs';
 
 const STENOSABLE = MAPPED.filter((v) => isClampable(v.id));
 const sigOf = (v: (typeof STENOSABLE)[number]): number => {
@@ -82,23 +84,71 @@ test('the vessel shader draws everything from the PINCHED lumen: the line, the f
   assert.match(VESSEL_FS, /float rDevAx = vR \//);
 });
 
-test('the arrowheads stand on the drawn waist, a gap off the pinched wall, on every stenosable vessel', () => {
+test('the arrowheads are flat marks on the screen, never geometry in the scene, and stand on the drawn waist of every stenosable vessel', () => {
   const s = new CelScene();
+  assert.equal((s.disease.clamps as unknown as { group?: unknown }).group, undefined, 'the clamp layer has no 3D group any more');
   for (const v of STENOSABLE) {
     const obj = s.vesselObject(v.id);
     if (!obj) continue;
     const cur = 0.8;
     s.disease.clamps.set({ [v.id]: cur }, () => 1, 0.016, true);
-    const group = (s.disease.clamps as unknown as { clamps: Map<string, { obj: { group: unknown } }> }).clamps.get(v.id)!.obj.group as unknown as { children: { geometry: { getAttribute(n: string): BufferAttribute } }[] };
-    const pos = group.children[0]!.geometry.getAttribute('position');
+    const m = s.disease.clamps.marks().find((x) => x.id === v.id)!;
+    assert.ok(m, `${v.id}: one mark`);
     const curve = new CatmullRomCurve3(coursesOf(v, REST)[0]!.pts.map((p) => new Vector3(p[0], p[1], p[2]))), at = curve.getPointAt(0.5);
-    let nearest = Infinity;
-    for (let i = 0; i < pos.count; i++) nearest = Math.min(nearest, Math.hypot(pos.getX(i) - at.x, pos.getY(i) - at.y));
-    const want = v.radius * (1 - cur) + CLAMP.gap;
-    assert.ok(Math.abs(nearest - want) < 2e-3, `${v.id}: the arrow tip stands ${nearest.toFixed(4)} from the axis, wanted ${want.toFixed(4)}`);
+    assert.ok(m.at.distanceTo(at) < 1e-9, `${v.id}: the mark stands at the drawn waist's middle`);
+    assert.ok(Math.abs(Math.hypot(m.nx, m.ny) - 1) < 1e-9 && Math.abs(m.radius - v.radius) < 1e-12 && m.cur === cur);
+    assert.equal(m.shown, 1);
     s.disease.clamps.set({}, () => 1, 0.016, true);
+    assert.equal(s.disease.clamps.marks().length, 0, `${v.id}: gone with the narrowing`);
   }
   s.dispose?.();
+});
+
+test('a mark eases in with the narrowing and goes with the body\'s dissolve (never pops)', () => {
+  assert.equal(markShown(0), 0);
+  assert.equal(markShown(0.003), 0);
+  assert.equal(markShown(0.5), 1);
+  let was = 0;
+  for (let c = 0; c <= 0.1; c += 0.002) { const v = markShown(c); assert.ok(v >= was && v - was < 0.12, `eases at ${c}`); was = v; }
+  const s = new CelScene();
+  s.disease.clamps.set({ IVCS_RA: 0.6 }, () => 1, 0.016, true);
+  s.disease.clamps.setFade(0.5);
+  assert.equal(s.disease.clamps.marks()[0]!.shown, 0.5);
+  s.disease.clamps.setFade(0);
+  assert.equal(s.disease.clamps.marks().length, 0);
+  s.dispose?.();
+});
+
+test('the placing: the tip stands a gap off the pinched wall on each side, the head points at the waist, on any view of any vessel', () => {
+  for (const [ax, ay, sx, sy] of [[100, 100, 100, 112], [50, 80, 61, 75], [0, 0, -9, 0.2], [10, 10, 10.0, 10.5]] as const) {
+    for (const cur of [0.2, 0.5, 0.8, 0.95]) {
+      const pl = placeMarks({ x: ax, y: ay }, { x: sx, y: sy }, cur)!, r = Math.hypot(sx - ax, sy - ay), sc = markScale(r);
+      assert.ok(pl);
+      for (const p of pl) {
+        const d = Math.hypot(p.x - ax, p.y - ay);
+        assert.ok(Math.abs(d - (r * (1 - cur) + MARK.gap * sc)) < 1e-9, `tip ${d.toFixed(3)} from the axis`);
+        // the mark's +x (its tail) runs away from the axis, so its head points at the waist
+        assert.ok(((p.x - ax) * Math.cos(p.angle) + (p.y - ay) * Math.sin(p.angle)) > 0, 'the tail leads away from the waist');
+        assert.ok(Math.abs((p.x - ax) * Math.sin(p.angle) - (p.y - ay) * Math.cos(p.angle)) < 1e-9, 'on the line through the waist, across the vessel');
+      }
+      assert.ok(Math.abs(pl[0].x + pl[1].x - 2 * ax) < 1e-9 && Math.abs(pl[0].y + pl[1].y - 2 * ay) < 1e-9, 'one each side');
+    }
+  }
+  assert.equal(placeMarks({ x: 5, y: 5 }, { x: 5, y: 5 }, 0.5), null, 'a vessel seen end-on has no side to mark');
+  assert.ok(markScale(1) === 0.85 && markScale(100) === 1.4);
+});
+
+test('the marks are drawn by the label layer in the tags phase with transform and opacity only, from the shared css', () => {
+  const dom = readFileSync(new URL('../src/scene/labels/clamp-marks.ts', import.meta.url), 'utf8');
+  const layer = readFileSync(new URL('../src/scene/labels/LabelLayer.tsx', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/scene/labels/labels.css', import.meta.url), 'utf8');
+  assert.match(layer, /clampMarks\.paint\(cel\.disease\.clamps\.marks\(\)\)/);
+  assert.doesNotMatch(dom, /style\.(left|top|width|height|display)\b/, 'no layout property is written');
+  assert.doesNotMatch(dom, /requestAnimationFrame/);
+  const block = css.match(/\.cm::before \{[^}]*\}/)![0], stem = css.match(/\.cm::after \{[^}]*\}/)![0];
+  assert.match(block, new RegExp(`width: ${MARK.head}px; height: ${MARK.wing}px`));
+  assert.match(block, new RegExp(`top: -${MARK.wing / 2}px`));
+  assert.match(stem, new RegExp(`width: ${MARK.stem}px; height: ${MARK.line}px`));
 });
 
 // ── the cavernoma's hubs (Mohammad, 20 Nov: "the collaterals fan out from faceted star hubs"): the six channels meet at the two nodes, each ending in a fine tip, never a widened, collared, round-capped end ──

@@ -126,16 +126,22 @@ export function fitEnds(v: NetVessel, pts: Vec3[]): { pts: Vec3[]; buried: reado
       if (!best || hit.d / h.radius < best.d / best.r) best = { at: hit.at, d: hit.d, r: h.radius };
     }
     if (!best || best.d > ATTACH_REACH * best.r) continue;
-    const delta = [best.at[0] - p[0], best.at[1] - p[1], best.at[2] - p[2]];
+    // THE JUNCTION IS A FORK (the one construction every junction has, liver-branches.ts): the branch ends on the host's centreline at its OWN width, a little behind the host so the host's wall covers its start, and leaves at its angle. No collar, no
+    // buried ring: the outline of the two together is the outline of their union (neighbour.ts), exactly, so there is no pad, knot or broken line where they meet (Mohammad, 20 Nov: "the coronary vein and the SMV SV junctions still suck").
+    const tuck = best.r > v.radius ? Math.max(JUNCTION_TUCK_MIN, Math.min(JUNCTION_TUCK, 0.8 * (best.r - v.radius))) : JUNCTION_TUCK_MIN;
+    const delta = [best.at[0] - p[0], best.at[1] - p[1], best.at[2] - p[2] - tuck];
     for (let i = 0; i < n; i++) {
       const u = end ? (n - 1 - i) / Math.max(1, n - 1) : i / Math.max(1, n - 1), w = 1 - smooth(u / END_SHARE);
       if (w <= 0) continue;
       out[i]![0] += delta[0]! * w; out[i]![1] += delta[1]! * w; out[i]![2] += delta[2]! * w;
     }
-    buried[end] = { max: BURY * best.r, d0: 0.5 * best.r, d1: 0.85 * best.r, ceil: CEIL * best.r };
+    buried[end] = null;
   }
   return { pts: out, buried };
 }
+/** How far behind its host's axis a branch ends (scene units): the host's wall covers the branch's start, as a side branch's does (liver-branches.ts Z_TUCK), but never more than the room the host's width leaves, so the branch's end ball stays inside it. */
+export const JUNCTION_TUCK = 0.02;
+export const JUNCTION_TUCK_MIN = 0.002;
 const minR = len3(0.35);
 const CAV_MEET = 1 / 7;
 
@@ -180,7 +186,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     if (sj && NARROWS_INTO_NEIGHBOUR(v) && !sj.taper) { const n0 = narrowTo(v, 0), n1 = narrowTo(v, 1); if (n0 < 1 || n1 < 1) taper = [Math.min(taper?.[0] ?? 1, n0), Math.min(taper?.[1] ?? 1, n1)]; }
     const sewn = shuntEnds(v.id);
     if (sewn) taper = [Math.min(taper?.[0] ?? 1, endShare(sewn[0], rad)), Math.min(taper?.[1] ?? 1, endShare(sewn[1], rad))];
-    const own: Course = { pts: m, radius: rad, taper, taperSpan, flare: v.flare, ...(sewn ? { sewn } : {}), capless, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? (cut != null ? ([sj.free?.[0] && cut !== 0, sj.free?.[1] && cut !== 1] as unknown as typeof sj.free) : sj.free) : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
+    const own: Course = { pts: m, radius: rad, taper, taperSpan, flare: sj && isPlain(v) && v.flare ? ([sj.attach[0] ? null : v.flare[0], sj.attach[1] ? null : v.flare[1]] as const) : v.flare, ...(sewn ? { sewn } : {}), capless, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? (cut != null ? ([sj.free?.[0] && cut !== 0, sj.free?.[1] && cut !== 1] as unknown as typeof sj.free) : sj.free) : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
     // a varix is its few strands, each running whole from the vessel that feeds it to the one that drains it: the trunk's own tube, a solid fill the width of the bundle, is not drawn while
     // they are (Mohammad, 20 Nov: "what's that red mesh"); each strand widens to the trunk's width at its two ends, so it meets the vessels there without a step
     const bundle = s.strandsOn && strands.length > 0 && v.kind === 'collateral';   // (the cavernoma too: its trunk tube showed as a hard violet block where the clot does not cover the portal vein)

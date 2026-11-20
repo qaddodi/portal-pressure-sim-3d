@@ -30,3 +30,12 @@ export function panelType(w: number, h: number, base: ChartType): ChartType {
   const sm = Math.max(base.sm, Math.round(cardScale({ vw: w, vh: h, layout: lay, part: 'panel' }).cap * 10) / 10);
   return { sm, val: Math.round(sm * 1.7), name: Math.round(sm * 1.25) };
 }
+
+/** A chart in the Tests card (2D `.instrument-workspace`, not inside a `.pz`): 2D draws it at the card scale of a wide screen whatever the device, `--pz-sm` = max(12, 0.74 x the caption size)
+ *  (chart-ctx.js chartCtx finds no `.pz`, so layout 'wide', part 'data'; fittedType then grows it to 12 at the least). That is 12 px on every phone and on a Mac up to a screen about 940 px tall, and grows
+ *  with a taller screen. 3D gave it `chartType`'s 13.8 px on a phone, 15 % wider than 2D's, so the Fibro strip's platelets and verdict wrapped to two rows and the pane ran taller than 2D's
+ *  (20 Nov play-test, 390 x 844: 164 px against 126). Never under 12 px. */
+export function toolType(w: number, h: number): ChartType {
+  const sm = Math.max(12, Math.round(cardScale({ vw: w, vh: h, layout: 'wide', part: 'data' }).sm * 10) / 10);
+  return { sm, val: Math.round(sm * 1.7), name: Math.round(sm * 1.25) };
+}

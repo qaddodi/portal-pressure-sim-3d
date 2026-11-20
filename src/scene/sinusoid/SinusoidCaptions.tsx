@@ -63,7 +63,7 @@ export function SinusoidCaptions() {
 
     /** a place of the plane (µm along, µm across, y down as the shader has it) on the canvas, CSS px */
     const proj = (x: number, y: number): [number, number] => {
-      framePoint(x, y, U, cel.sinus.turn, f3);
+      framePoint(x, y, U, 0, f3);   // (the plane keeps its own frame; the camera's roll turns it on screen)
       const w = sinusoidWorld(f3);
       cel.rig.project(v3.set(w[0], w[1], w[2]), pt);
       return [pt.x, pt.y];
@@ -213,12 +213,14 @@ export function SinusoidCaptions() {
       else if (!busy && hold) { hold.release(); hold = null; }
     };
     const off = clock.on('tags', tick, 1);
-    const wake = () => { sig = ''; clock.invalidate('sinusoid-captions'); };
+    // (a store change only asks for a frame: the signature holds everything the names depend on; forcing a new solve on any shell change made them jump, 20 Nov. A font forces one.)
+    const wake = () => { clock.invalidate('sinusoid-captions'); };
+    const refont = () => { sig = ''; clock.invalidate('sinusoid-captions'); };
     const offShell = useShell.subscribe(wake);
     const offFoot = useFootNote.subscribe(wake);
     const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) wake(); });   // (the room itself is read each frame in the signature: it moves with the camera's room, which the cards and the shell set)
     const offEx = useSinusoidNames.subscribe((s, p) => { if (s.explain !== p.explain || s.lit !== p.lit) wake(); });
-    void document.fonts?.ready.then(wake);
+    void document.fonts?.ready.then(refont);
     void DIM_ALPHA; void SINUSOID_L;
     return () => { off(); offShell(); offFoot(); offUi(); offUi2(); offEx(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
   }, []);

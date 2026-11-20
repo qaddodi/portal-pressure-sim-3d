@@ -9,7 +9,7 @@ const curve = readFileSync(new URL('../src/ui/charts/curve/CurveCard.tsx', impor
 
 test('the body follows the engine\'s frames only for the charts of the live model, and hands a chart one state object while the state is the same', () => {
   assert.match(body, /useEngine\(\(s\) => \(FRAMED\.has\(kind\) \? s\.frames : 0\)\)/);
-  assert.match(body, /const FRAMED = new Set\(\['fluid', 'stent', 'flows'\]\)/);
+  assert.match(body, /const FRAMED = new Set\(\['fluid', 'stent'\]\)/);
   assert.match(body, /const slideState = useMemo\(/);
   assert.doesNotMatch(body, /slide=\{fp \? \{ fp: fp as never/, 'no state object is made inside the render');
 });

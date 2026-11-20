@@ -8,14 +8,16 @@ import { ProcRow } from './ProcRow.tsx';
 import type { Deck } from '../../decks/schema.ts';
 import { useVariant } from '../talk/variant-words.ts';
 import { cardFields } from './card-fields.ts';
+import { richOf } from '../text/rich.ts';
 
-export function TeachingCard({ slide, deck, read, page, pages, trim = false, panel = false }: { slide: Slide; deck?: Deck; read: (k: string, at?: string) => number | null | undefined; page: number; pages: number; trim?: boolean; /** 2D's visual panel: the head only (title, equation, line, caveat, cite) in `.pz-ph`; the table or chart follows it */ panel?: boolean }) {
+export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false, panel = false }: { slide: Slide; deck?: Deck; read: (k: string, at?: string) => number | null | undefined; /** the slide's readings (the colour of a value's pill) */ fp?: Readonly<Record<string, number | null | undefined>>; page: number; pages: number; trim?: boolean; /** 2D's visual panel: the head only (title, equation, line, caveat, cite) in `.pz-ph`; the table or chart follows it */ panel?: boolean }) {
   // a compare button that switches the patient brings its own words (2D variantWords); a new slide shows its own
   const variant = useVariant((v) => (deck && v.key === `${deck.id}/${slide.id}` ? v.words : null));
   const shown = variant ? { ...slide, title: variant.title, line: variant.line, kicker: variant.kicker, ...(variant.site ? { site: variant.site } : {}) } : slide;
   const text = pageOf(sentences(shown.line), pages, page).join(' ');
   const f = cardFields(deck, slide, shown, page, pages), tab = f.tab;
   const eq = slide.eq && page === 0;
+  const rich = richOf(slide);
   // the title's one step down when a sideways phone has no wider column left: 2D's own knob for it (--pz-tk), set from the trimmed size
   const kick: CSSProperties | undefined = trim ? { ['--pz-tk' as string]: 'var(--pz-tk-trim)' } : undefined;
   if (panel) {
@@ -31,7 +33,7 @@ export function TeachingCard({ slide, deck, read, page, pages, trim = false, pan
                 : <mi key={i} className={p.tone === 'wedge' ? 'eq-wedge' : p.tone === 'free' ? 'eq-hv' : undefined}>{p.text}</mi>)}</mrow></math>
             </div>
           )}
-          {text ? <p className="pz-line"><Line text={text} read={read} terms={slide.terms} pill={f.pill} /></p> : null}
+          {text ? <p className="pz-line"><Line text={text} read={read} slide={rich} fp={fp} pill={f.pill} /></p> : null}
           {f.caveat ? <p className="pz-caveat">{f.caveat}</p> : null}
           {f.cite ? <p className="pz-cite">{f.cite}</p> : null}
         </div>
@@ -53,10 +55,10 @@ export function TeachingCard({ slide, deck, read, page, pages, trim = false, pan
         </div>
       )}
       {eq && slide.eqLegend && <p className="dp-eqnote">{slide.eqLegend}</p>}
-      {text ? <p className="pz-line"><Line text={text} read={read} terms={slide.terms} pill={f.pill} /></p> : null}
+      {text ? <p className="pz-line"><Line text={text} read={read} slide={rich} fp={fp} pill={f.pill} /></p> : null}
       {f.sides.length ? (
         <div className="pz-sides" role="group" aria-label="What each guideline says">
-          {f.sides.map((x) => <div key={x.who} className="pz-side"><b className="pz-side-who">{x.who.trim()}</b><p className="pz-side-p"><Line text={x.text} read={read} terms={slide.terms} /></p></div>)}
+          {f.sides.map((x) => <div key={x.who} className="pz-side"><b className="pz-side-who">{x.who.trim()}</b><p className="pz-side-p"><Line text={x.text} read={read} slide={rich} fp={fp} /></p></div>)}
         </div>
       ) : null}
       {f.caveat ? <p className="pz-caveat">{f.caveat}</p> : null}

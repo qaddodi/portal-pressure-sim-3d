@@ -11,6 +11,9 @@ import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
+import { SkinSet } from './vessels/skin/skin-set.ts';
+import { SkinObject } from './vessels/skin/skin-object.ts';
+import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
 /** A hepatic vein that opens into the cava dissolves over the last 0.8 of a cava radius before its wall (shaders.ts cavA) and is not there inside it: its flow marks are held back from where the dissolve starts, 1.8 cava radii from the vein's end
  *  (times the marks' ramp, 2.0 to 3.6, shaders.ts markK), so no chevron is ever caught half faded in it (eyes, v11). */
@@ -22,7 +25,7 @@ import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES } from './vessels/paths.copied.ts';
 import { centrelineOf, type Centreline } from './vessels/centreline.ts';
-import { cavaMateOf, forkMateOf, neighbourAttr } from './vessels/neighbour.ts';
+import { nbrMatesOf, cavaMateOf, neighbourAttr } from './vessels/neighbour.ts';
 import { fadeOf, opensIntoCava, cavaEndSpan, CAVA_LIKE, CAVA_RECEDE } from './vessels/fades.ts';
 import { IVC_EDGES } from './vessels/paths.copied.ts';
 import { LensField } from './lenses/field.ts';
@@ -137,12 +140,15 @@ export interface SceneOptions {
   phone?: boolean;
   flowMode?: FlowMarkMode;
   reduceMotion?: boolean;
+  /** Which junction method to draw (vessels/skin/joins-mode.ts): the page's `?joins` and the default when left out. A test hands one in. */
+  joins?: JoinsMode;
 }
 
 /** A fork's two tubes know each other (vessels/neighbour.ts): `nbr` on every vertex. */
 function withNeighbour(id: string, g: BufferGeometry): void {
-  const a = neighbourAttr(id, g.getAttribute('position').array);
-  if (a) g.setAttribute('nbr', new Float32BufferAttribute(a, 2));
+  // (every tube carries it, zeros where it has no mate: a junction is a fork only with Smooth vessel joins on, and a toggle rewrites the tubes in place, which needs the attribute to be there either way)
+  const a = neighbourAttr(id, g.getAttribute('position').array) ?? new Float32Array(g.getAttribute('position').count * 2);
+  g.setAttribute('nbr', new Float32BufferAttribute(a, 2));
 }
 
 export class CelScene {
@@ -249,6 +255,7 @@ export class CelScene {
 
   constructor(opts: SceneOptions = {}) {
     this.look = opts.look ?? 'light';
+    this.joins = opts.joins ?? joinsMode();
     this.phone = !!opts.phone;
     this.rig = new CameraRig('title', undefined, opts.reduceMotion);
 
@@ -256,6 +263,7 @@ export class CelScene {
 
     setSmoothJoins(useSettings.getState().smoothJoins);   // (Settings > Figure depth > Smooth vessel joins: read before any tube is built)
     for (const def of NETWORK) this.addVessel(def);
+    this.refreshSkins();   // (junction skins: before the mates, which skip the ends a skin has taken over)
     this.applyMates();
     this.occGoal = this.occNow = useSettings.getState().hideBehind ? 1 : 0;
     for (const o of this.back) o.setOcclusion(this.occNow);
@@ -333,6 +341,24 @@ export class CelScene {
 
   private unJoins: () => void = () => {};
 
+  /** Junction skins (vessels/skin, docs/junction-skin-spec.md): one welded mesh at each junction the page asks for, only with Smooth vessel joins on and `?joins` not `old`. Built here, once per scene load and per join toggle; null: today's joins everywhere. */
+  private skins: SkinSet | null = null;
+  private readonly joins: JoinsMode;
+  /** The junction skins now drawn (the node names), for tests and the debug page. */
+  get skinNodes(): readonly string[] { return this.skins?.nodes ?? []; }
+  private refreshSkins(): void {
+    const phase = useSettings.getState().smoothJoins ? joinsPhase(this.joins) : 0;
+    if (!phase) { this.skins?.dispose(); this.skins = null; return; }
+    this.skins ??= new SkinSet({
+      vessel: (id) => this.byEdge.get(id) as VesselObject | undefined,
+      stateOf: (id) => this.shapes?.stateOf(id),
+      make: (skin, axes, arms) => new SkinObject(skin, arms[0]!, axes, arms),
+      add: (o) => { this.body.add(o); },
+      remove: (o) => { this.body.remove(o); },
+    });
+    this.skins.build(phase);
+  }
+
   /** The vessels each vessel's ends carry on into, for the shader's live-width easing (smooth joins on); none with it off. */
   private applyMates(): void {
     const on = useSettings.getState().smoothJoins;
@@ -340,11 +366,15 @@ export class CelScene {
       const o = this.byEdge.get(def.id) as VesselObject | undefined, sj = SMOOTH.get(def.id);
       if (!o) continue;
       const mate = (id: string | null | undefined) => { const m = on && id ? NETWORK_MATE.get(id) : undefined; return m ? { index: indexOf(m.lensId), baseD: m.baseD, widthKind: m.widthKind } : null; };
-      o.setMates(mate(sj?.mate[0]), mate(sj?.mate[1]));
+      const sk = this.skins?.endsOf(def.id) ?? [false, false];   // (a skinned end's mate is off: the skin's weights blend the live widths, spec 4.6)
+      o.setMates(sk[0] ? null : mate(sj?.mate[0]), sk[1] ? null : mate(sj?.mate[1]));
+      // (a junction's fork: the outline of the branch and its trunk is the union's, with the switch on)
+      { const nm = nbrMatesOf(def.id)[0], md = nm ? NETWORK_BY_ID.get(nm) : undefined; o.setNbrOn(!!md); if (md) o.setNbrMate(indexOf(md.lensId), md.baseD, md.widthKind); }
       // (a declared branch's end buried in its trunk: the ink stays off inside it, and only there. One rule for every junction, Mohammad 20 Nov: a child's outline is not drawn where it lies inside its parent's lumen.
       //  Besides the declared branches: a hepatic vein's last stretch inside the cava, and a liver branch's first stretch inside the vein it leaves, as far as that vein is wide)
       const bury: [number, number] = [0, 0];
       for (const e of [0, 1] as const) if (on && sj?.attach[e]) bury[e] = BURY * (sj.hostR[e] ?? def.radius);
+      for (const e of [0, 1] as const) if (sk[e]) bury[e] = 0;   // (the part of the tube the bury guarded is cut away)
       if (on && (this.ivcJoins.includes(o) || opensIntoCava(def.id))) bury[1] = Math.max(bury[1], CAVA_BURY * (NETWORK_BY_ID.get('IVC_IS')?.radius ?? def.radius));
       const joinEnd = def.plan?.kind === 'feeder' ? def.plan.list[0]?.join : undefined;
       if (on && joinEnd != null) bury[joinEnd] = Math.max(bury[joinEnd], BURY * def.radius * (def.plan?.kind === 'feeder' ? (def.plan.list[0]?.k ?? 1) : 1));
@@ -364,6 +394,7 @@ export class CelScene {
       o.reshape(built.geometry, built.length);
       built.geometry.dispose();
       }
+    this.refreshSkins();   // (the tubes were rewritten: the skins are built again on them, or taken away with the switch)
     this.applyMates();
     this.moving = true;
     clock.invalidate('smooth-joins');
@@ -384,7 +415,7 @@ export class CelScene {
     }, this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
     else this.fans.set(o, def.id);   // a fan of tributaries has no map course: it never morphs, and the Circuit's shader fades it as 2D does (clamp(1 - 2 * T0))
-    { const nm = forkMateOf(def.id) ?? cavaMateOf(def.id), md = nm ? NETWORK_BY_ID.get(nm) : undefined; if (md) { o.setNbrOn(true); o.setNbrMate(indexOf(md.lensId), md.baseD, md.widthKind); } }
+    { const nm = nbrMatesOf(def.id)[0], md = nm ? NETWORK_BY_ID.get(nm) : undefined; if (md) { o.setNbrOn(true); o.setNbrMate(indexOf(md.lensId), md.baseD, md.widthKind); } }
     { const cm = cavaMateOf(def.id); if (cm) { o.setCavaCut(true, indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1, fadeOf(cm, false)?.a0 ?? 1); this.cavaCuts.push(o); } }
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
@@ -672,7 +703,7 @@ export class CelScene {
     const wasCircuit = this.figureView === 'circuit';
     this.figureView = v;
     if (wasCircuit !== (v === 'circuit') && latest.frame) this.syncPresence(latest.frame, false);   // (the liver's beds are drawn on the map only: they draw on as the body turns into it, and draw back as it returns)
-    this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? (sinusoidBox(this.portrait) as Vec3[]) : null);
+    this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? (sinusoidBox() as Vec3[]) : null);
     // the view being left stays drawn until the camera has landed on the new one (nothing pops while it flies); then it is hidden
     this.body.visible ||= v === 'body' || v === 'circuit';
     // the body turns into the map (or back) on the camera's own clock, from wherever it stands
@@ -850,14 +881,13 @@ export class CelScene {
     if (p !== this.portrait) {
       this.portrait = p;
       this.sinus.setPortrait(p);
-      if (this.figureView === 'sinusoid') this.rig.setSubject(sinusoidBox(p) as Vec3[]);
       this.moving = true;
     }
     // what the view needs of the screen to lay its end arrows and run its traffic as 2D does: px per µm along the flow (the hand's zoom included), the room's length and the canvas's along it
     const short = shortSide(p, r), s = this.rig.stageSize;
     // (measured on the screen, not modelled: where the sinusoid's middle and a point 10 µm down the flow land, against the free room's middle)
     if (!this.sinus.isVisible) return;   // (nothing of the view is read while it is away)
-    const turn = this.sinus.turn, o = this.rig.project(this.sinusPt.set(...sinusoidWorld([0, 0, 0])), this.scrO), a = this.rig.project(this.sinusPt.set(...sinusoidWorld(framePoint(10, 0, SIN_UNIT, turn))), this.scrA);
+    const o = this.rig.project(this.sinusPt.set(...sinusoidWorld([0, 0, 0])), this.scrO), a = this.rig.project(this.sinusPt.set(...sinusoidWorld(framePoint(10, 0, SIN_UNIT, 0))), this.scrA);   // (the plane keeps its own frame; the camera's roll turns it on screen)
     const m = measureScreen(o, a, this.rig.roomCentre());
     this.sinus.setScreen(m.k > 0 ? m.k : restScale(short) * this.rig.handZoom, p ? r.h : r.w, p ? s.h : s.w, m.k > 0 ? m.centreUm : 0);
   }
@@ -1035,6 +1065,7 @@ export class CelScene {
     this.syncStumps();
     this.updateCaps();
     const shapeMoving = this.shapes.step(dt);
+    const skinMoving = this.skins?.sync() ?? false;   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
     this.stepSinusDive();
     this.stepCutaway();
     this.stepPortrait();
@@ -1052,7 +1083,7 @@ export class CelScene {
     const diseaseMoving = this.disease.update(now);
     if (diseaseMoving) this.tagOverOrgans();
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
-    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || dustMoving || lensMoving || presMoving || shapeMoving || viewMoving;
+    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || dustMoving || lensMoving || presMoving || shapeMoving || viewMoving || skinMoving;
     this.moving = false;
     return needs;
   }
@@ -1135,6 +1166,7 @@ export class CelScene {
 
   dispose(): void {
     this.unJoins();
+    this.skins?.dispose();
     this.sinus3d.dispose(); this.lobule3d.dispose();
     this.lens.dispose();
     this.cells.dispose();

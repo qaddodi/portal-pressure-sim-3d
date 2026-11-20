@@ -99,13 +99,13 @@ test('the earlier reading, faint beside the instrument: the main portal vein\'s 
   assert.equal(ghostOf({ tool: { kind: 'doppler', delta: 'missing' } }, 2, slides, fpOf, st), null);
 });
 
-test('on a slide\'s data card the report sits over the monitor\'s top strip: the trace starts under it and the vessel and settings run along the foot (2D --dop-ov); in the Tests card they stay above', () => {
+test('on a slide\'s data card the report sits over the monitor\'s top strip: the trace starts under it and the vessel and settings run along the foot (2D --dop-ov); with no strip (ovTop null: a card laid out with no --dop-ov) they stay above', () => {
   const rec = new SampleFeed(); useDopplerProbe.setState({ probe: 'TIPS', gate: 'mid' });
   record(rec, 'TIPS', 8, (_t, p) => 90 + 20 * Math.sin(2 * Math.PI * p));
   const m = new DopplerModel(); m.ingest(frame(), rec);
   const ys = (shapes: readonly Shape[], key: string) => (shapes.find((s) => (s as { key?: string }).key === key) as TextShape | undefined)?.y;
   const card = m.frameFor(420, 226, 1000, '').shapes;
-  assert.equal(ys(card, 'name'), 13, 'the Tests card: the vessel above the trace');
+  assert.equal(ys(card, 'name'), 13, 'no strip: the vessel above the trace');
   m.ovTop = 44;
   const slide = m.frameFor(420, 226, 1000, '').shapes;
   assert.equal(ys(slide, 'name'), 226 - 11, 'the slide card: the vessel along the foot of the panel, whatever its height');
@@ -120,4 +120,14 @@ test('the Doppler\'s clock draw reads the box\'s height from a ref (it is regist
   assert.match(src, /frameFor\(c\.w, hRef\.current,/);
   const draw = src.match(/const draw = \(\) => \{[\s\S]*?\n  \};/)?.[0] ?? '';
   assert.ok(draw.includes('hRef.current') && !/frameFor\(c\.w, h,/.test(draw), 'draw uses the ref');
+});
+
+test('the report takes the top strip wherever 2D\'s stylesheet sets --dop-ov (the side Tests card, a phone\'s sheet, a slide), not on slides only: root cause of the settings line printing over the velocity readout (20 Nov)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/ui/tests/doppler/DopplerPane.tsx', import.meta.url), 'utf8');
+  assert.match(src, /getPropertyValue\('--dop-ov'\)/, 'the pane reads --dop-ov as doppler.js does');
+  assert.match(src, /m\.ovTop = ovTop;/, 'the model gets the strip from the measurement, not from p.slide');
+  assert.doesNotMatch(src, /m\.ovTop = p\.slide/);
+  const css = readFileSync(new URL('../src/ui/css2d/app-10-thumb-dock.css', import.meta.url), 'utf8');
+  assert.match(css, /\.instrument-workspace\.side \.instrument-view\.dop \.dop-box \{ --dop-ov: 1;/, 'the side card sets it, as in 2D');
 });
