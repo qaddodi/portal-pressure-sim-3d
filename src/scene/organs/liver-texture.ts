@@ -37,7 +37,7 @@ function lit(c: Cell, w: number, crevice: number): number {
 }
 
 /** A round nodule at (x, y): the nearest disc of a lightly jittered grid, every disc its own radius (rLo..rHi of a cell). `edge` is units inside the nodule's rim (negative in the gap between discs, which the septum fills), `r` its radius in units. */
-function disc(x: number, y: number, s: number, rLo: number, rHi: number, jit: number, seed: number): Cell & { r: number } {
+function disc(x: number, y: number, s: number, rLo: number, rHi: number, jit: number, seed: number, free = false): Cell & { r: number } {
   const gx = x / s, gy = y / s, ix = Math.floor(gx), iy = Math.floor(gy);
   let best = -9, second = -9, id = 0, bx = 0, by = 0, br = 1;
   for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
@@ -46,7 +46,8 @@ function disc(x: number, y: number, s: number, rLo: number, rHi: number, jit: nu
     if (e > best) { second = best; best = e; id = hash(ix + i, iy + j, seed + 3); bx = dx; by = dy; br = r; } else if (e > second) second = e;
   }
   // where two discs overlap the wall lies between them (best == second); in a gap no disc holds the point (best < 0)
-  return { edge: Math.min(best, (best - second) * 0.5) * s, id, dx: bx, dy: by, r: br * s };
+  // `free`: no wall at all where two discs overlap (the deeper one holds the point), so a nodule is a round dome and its neighbours are round domes, never the polygon the wall makes
+  return { edge: (free ? best : Math.min(best, (best - second) * 0.5)) * s, id, dx: bx, dy: by, r: br * s };
 }
 /** Cel mock-ups of the cirrhotic liver (Mohammad 20 Nov: "I hate the cirrhotic look, I want a celshaded look, and a change of colour"), `?liver=cel1..cel4` on the preview copy:
  *  clean round nodules with an ink line between them, the dome in two or three flat bands, and a tawny, olive, rust or straw colour. No flag: the c2b surface above. */
@@ -59,6 +60,10 @@ export interface Cel {
   /** soft look (cel8..cel11, 20 Nov: "more cartoony, less dramatic, not flat"): the band edges ease over this much of the dome light (0: the hard bands above, a stair-step once baked) and the dome has a rounded valley
    *  (a cubic ease) instead of the disc's vertical wall, so the surface and the outline are gentle waves, never a serration */
   soft?: number;
+  /** round domes: no wall between overlapping discs (each nodule is a circle, the deeper one holds an overlap) */
+  round?: true;
+  /** the look's nodule field is bent by a smooth warp of this many 2D units (a jittered grid still reads as a grid; a warped one reads as tissue) */
+  warp?: number;
   /** the "soft valleys" look (cel12, Mohammad 20 Nov: "it needs to be subtle"): no nodule grid at all; a smooth warped low-frequency field of broad irregular lobules, darkened only in its valleys by a few percent,
    *  no lit cap, no wall, no line; the rim waves with the same field. `size` is its wavelength in 2D units. */
   field?: true;
@@ -84,9 +89,12 @@ export const CELS: Record<string, Cel> = {
   // Subtle (Mohammad 20 Nov, after cel8..cel11 "all suck... it needs to be subtle"; Opus's read: a regular grid, the same highlight on every nodule, a line round each cell and a strong tint all read as rough):
   // a smooth surface with a few broad faint shadowy dips, a few percent of shade, a slight warm-tan shift, and a gently waving rim (0.8 of the rim height: about 3 figure units).
   cel12: { name: 'soft valleys, subtle', colour: '#B07A45', a: 0.38, bands: 2, ink: 0, shade: 0.22, size: 60, rLo: 0, rHi: 1, jit: 0, cap: 0, foot: 0, bump: 0.15, rim: 0.8, soft: 1, raw: 0, field: true },
+  // Soft nodules (Mohammad 20 Nov: cel12 "is NOT nodular; needs to be nodular", cel7 too pebbly): distinct rounded regenerative nodules about 24 units across, nearly touching, irregular (high jitter and a warp, so no grid),
+  // each with a soft dark underside and a faint lit shoulder, a soft dark crevice between and NO line, a gently bumpy rim from the same rounded domes, the cel12 tint.
+  cel13: { name: 'soft nodules', colour: '#B07A45', a: 0.4, bands: 3, ink: 0, shade: 0.22, size: 22, rLo: 0.5, rHi: 0.72, jit: 0.26, cap: 0.5, foot: -0.22, bump: 0.3, rim: 0.9, soft: 0.5, raw: 0.15, warp: 7, round: true },
 };
-/** The standing cirrhotic liver is cel12, the subtle soft valleys (Mohammad 20 Nov: "it needs to be subtle", "let me see 1"; before it cel7, "Cel7 for now"); `?liver=cel1..cel11` shows the other cel options and `?liver=c2b` the earlier pale-nodule surface. */
-export const DEFAULT_CEL = 'cel12';
+/** The standing cirrhotic liver is cel13, the soft nodules (Mohammad 20 Nov: cel7 "too rough", cel12 "not nodular, needs to be nodular"; he wants it nodular but subtle); `?liver=cel12` the soft valleys, `?liver=cel7` the cobbled one, `cel1..cel11` the other options and `?liver=c2b` the earlier pale-nodule surface. */
+export const DEFAULT_CEL = 'cel13';
 export const celLook = (): Cel | null => { const v = flagValue('liver'); if (v === 'c2b') return null; return CELS[v ?? ''] ?? CELS[DEFAULT_CEL]!; };
 /** Smooth value noise at (x, y) (one lattice unit = 1): a hash at each lattice point, blended by a quintic ease, 0..1, C2 across the lattice. */
 function vnoise(x: number, y: number, seed: number): number {
@@ -110,8 +118,12 @@ function fieldSurface(x: number, y: number, cel: Cel): Surface {
 }
 function celSurface(x: number, y: number, cel: Cel): Surface {
   if (cel.field) return fieldSurface(x, y, cel);
-  const c = disc(x, y, cel.size, cel.rLo, cel.rHi, cel.jit, 61), w = Math.max(2, c.r * 0.6);
-  const l = lit(c, w, 0.2);
+  if (cel.warp) { const wl = cel.size * 2.2, wx = (vnoise(x / wl, y / wl, 21) - 0.5) * 2 * cel.warp, wy = (vnoise(x / wl + 5.3, y / wl + 2.1, 22) - 0.5) * 2 * cel.warp; x += wx; y += wy; }
+  const c = disc(x, y, cel.size, cel.rLo, cel.rHi, cel.jit, 61, !!cel.round), w = Math.max(2, c.r * 0.6);
+  let l = lit(c, w, 0.2);
+  // round domes: the gap between nodules takes one soft crevice shade (a constant, eased in by depth into the dome), never the facing of the nearest disc: that flips across the border between two discs and drew
+  // the polygon of the cell on the surface
+  if (cel.round) { const vis = sstep(0, w * 0.45, c.edge); l = l * vis - 0.35 * (1 - vis); }
   // flat bands: the lit cap, the body, the shaded foot (a 2-band nodule drops the cap)
   const soft = cel.soft ?? 0;
   const light = soft > 0

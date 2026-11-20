@@ -19,7 +19,7 @@ import { type InkContext } from '../lobule/ink.ts';
 import { rng } from '../lobule/geometry.ts';
 import { type Pore, SEED, SLOT, UM, cellEdge, nucAt, poreAt, poreOpenness } from './layout.ts';
 import { type NameGeom, type NamePlacement, type NamesInput, layoutNames } from './names.ts';
-import { PORTRAIT_ANGLE, endsFor, framePoint, glideTurn, planePoint, turnAt, xkFor } from './portrait.ts';
+import { endsFor, framePoint, planePoint, xkFor } from './portrait.ts';
 import { createGeom, createTraffic } from './traffic.copied.js';
 import { createPalette } from './palette.copied.js';
 
@@ -67,10 +67,8 @@ export class SinusoidView {
   private washOn = false;
   private washK = 0;
   private dive: number | null = null;
-  /** A portrait screen runs the sinusoid top to bottom (setPortrait): the plane's own turn (radians, eased), its velocity and where it is heading. */
+  /** A portrait screen runs the sinusoid top to bottom (setPortrait): the camera rolls, the plane never turns. */
   private portrait = false;
-  private ang = 0;
-  private angVel = 0;
   /** The screen the view is on (setScreen): px per µm and the free room's length along the flow (px); null until the scene says (then 2D's defaults hold). */
   private screen: { k: number; along: number; stage: number; centre: number } | null = null;
   /** How much each end's name shows (0 to 1), which its arrow follows (2D: endShown; 1 outside a talk). */
@@ -150,17 +148,14 @@ export class SinusoidView {
   setDive(g: number | null): void { if (g !== this.dive) { this.dive = g; this.dirty = true; } }
   get diveShareNow(): number | null { return this.dive; }
 
-  /** A portrait screen (2D's W < H * 0.95: see portrait.ts isPortrait) runs the sinusoid top to bottom, the portal end up: the plane turns, and everything on it with it (tissue, pores,
-   *  albumin, anchors, hits). The Kupffer cell moves nearer the middle (2D: xk 12 against 22). Hidden, it turns at once; shown, it glides (or follows the dive's share while the camera flies in). */
+  /** A portrait screen (2D's W < H * 0.95: see portrait.ts isPortrait) runs the sinusoid top to bottom, the portal end up. The plane itself never turns: the camera rolls (the shot's `roll`, so the lobule
+   *  and the sinusoid turn together, in the dive and at rest), and everything on the plane (tissue, pores, albumin, anchors, hits) follows it. Here the layout follows: the Kupffer cell moves nearer
+   *  the middle (2D: xk 12 against 22) and the names take their tall places. */
   setPortrait(portrait: boolean): void {
     if (portrait === this.portrait) return;
     this.portrait = portrait; this.geo.xk = xkFor(portrait); this.dirty = true;
-    if (!this.visible || this.reduce) { this.ang = this.target(); this.angVel = 0; this.group.rotation.z = this.ang; }
   }
   get isPortrait(): boolean { return this.portrait; }
-  /** The plane's turn now, radians (0 wide, PORTRAIT_ANGLE tall). */
-  get turn(): number { return this.ang; }
-  private target(): number { return this.portrait ? PORTRAIT_ANGLE : 0; }
   /** What the scene knows of the screen: `k`, CSS px per µm along the plane now, and `along`, the free room's length in px in the flow's direction, and `stage`, the whole canvas's (the traffic runs over what is on screen, cards or no). The end arrows stand 32 px (24 on a tall screen)
    *  inside the room's ends and the traffic runs over the stretch on screen, as 2D lays them out (layoutEnds, VW.vis). Without it the defaults hold (arrows at ±46 µm, traffic over ±70). */
   /** CSS px per µm on the screen now (setScreen), 0 before it is known. */
@@ -201,14 +196,6 @@ export class SinusoidView {
     let moving = this.dirty;
     this.dirty = false;
     if (easeToward(this.cur as unknown as Record<string, number>, this.goal as unknown as Record<string, number>, this.reduce ? 1e6 : dt)) moving = true;
-    // the turn: while the camera flies between the lobule and this view it follows the dive's share (the lobule turns into the tall view in one move, and out again by the same frames
-    // reversed); at rest it glides to the target (a phone turned in the view), at once with Reduce Motion
-    if (this.dive != null) { const a = turnAt(this.target(), this.dive); if (a !== this.ang) { this.ang = a; this.angVel = 0; moving = true; } }
-    else if (this.ang !== this.target()) {
-      if (this.reduce) { this.ang = this.target(); this.angVel = 0; } else { const g = glideTurn(this.ang, this.angVel, this.target(), dt / 1000); this.ang = g.a; this.angVel = g.v; }
-      moving = true;
-    }
-    this.group.rotation.z = this.ang;
     // the wedged column's wash (2D: only while a slide asks for it, and once the view has landed; it begins afresh each time it lands)
     const wantWash = this.washOn && this.dive == null;
     if (!wantWash) this.washLand = -1; else if (this.washLand < 0) this.washLand = Math.max(now, this.washAt);
@@ -229,7 +216,7 @@ export class SinusoidView {
   /** Scene points (this view's own units, y up, turned with the plane: a portrait screen's names stand on the sinusoid as it runs top to bottom) of the places tags name (the 2D app's captions): 'in' (blood arrives, portal end), 'out' (to the central vein), 'lumen', 'fen', 'disse', 'hep', 'hsc', 'kup', 'lymph', 'canaliculus'. */
   anchor(name: string, out: [number, number, number] = [0, 0, 0]): [number, number, number] {
     const g = this.g, geo = this.geo;
-    const at = (xum: number, yDown: number): [number, number, number] => framePoint(xum, yDown, U, this.ang);
+    const at = (xum: number, yDown: number): [number, number, number] => framePoint(xum, yDown, U, 0);
     // a fenestra of the upper lining near x that no nucleus's swell covers (a pore under a cell body is not seen), the one that stays open longest
     const pore = (x: number): number => {
       let best = x, bs = Infinity;
@@ -277,7 +264,7 @@ export class SinusoidView {
   names(inp: Omit<NamesInput, 'g' | 'act' | 'portrait'>): NamePlacement[] { return layoutNames({ ...inp, g: this.nameGeom, act: this.cur.act, portrait: this.portrait }); }
 
   /** A point of this view's frame (what `anchor` returns, plane units) as micrometres along and across (y down, as the shader has it), whatever the plane's turn: for hits. */
-  micrometres(fx: number, fy: number): { x: number; y: number } { return planePoint(fx, fy, U, this.ang); }
+  micrometres(fx: number, fy: number): { x: number; y: number } { return planePoint(fx, fy, U, 0); }
 
   warm(gl: { compile?: (s: Group, c: unknown) => void }, camera: unknown): void {
     const was = this.group.visible;

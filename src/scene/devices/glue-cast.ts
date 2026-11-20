@@ -13,7 +13,7 @@ import { indexOf } from '../../engine/vessel-data.ts';
 import { EUS_GLUE_ROUTE, EUS_GLUE_TARGET, coilReach, layCoil, pointOn } from './probes/copied/eus-scope.copied.js';
 import { DeviceObject } from './device-object.ts';
 import { inVesselPass } from '../layers.ts';
-import { allocTube, makeRings, showRings, writeRings } from './tube-rings.ts';
+import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, showRings, writeRings } from './tube-rings.ts';
 
 type P2 = [number, number];
 const U = UNITS_PER_SCENE;
@@ -21,7 +21,7 @@ const U = UNITS_PER_SCENE;
 export const GLUE_SPREAD = 0.3;
 /** The coil's samples at most (eus-scope.js COIL_N), and the cast's rings. */
 export const COIL_RINGS = 73, CAST_RINGS = 40;
-const COIL_RADIAL = 6, CAST_RADIAL = 14;
+const COIL_RADIAL = WIRE_SIDES, CAST_RADIAL = DEVICE_SIDES;
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 const ease = (t: number): number => { const k = clamp01(t); return k * k * (3 - 2 * k); };
 

@@ -41,7 +41,7 @@ test('the shader draws the map with rkc, and eases a run-on\'s map width to the 
   assert.equal((VESSEL_VS.match(/attribute float rkc;/g) ?? []).length, 1, 'rkc is declared once');
   assert.match(CIRCUIT_VS_HEAD, /P = cen \+ radius \* mix\(rk, rkc, w\) \* off;/);
   assert.match(VESSEL_VS, /float rkE = mix\(rk, rkc, circShare\);/);
-  assert.match(VESSEL_VS, /vR = radius \* rkE \* swell \* vU;/);
+  assert.match(VESSEL_VS, /vR = radius \* rkE \* swell \* narrowK \* vU;/);
   assert.match(VESSEL_VS, /vec3 cenW = aPos - aNor \* \(radius \* rkE\);/);
   assert.match(VESSEL_VS, /if \(mate0\.x >= 0\.0\) \{ float k0 = 1\.0 - smoothstep\(0\.0, 0\.3, uv\.x\); if \(k0 > 0\.0\) wc \+= k0 \* \(0\.5 \* \(wc \+ circMateWidth\(mate0\)\) - wc\); \}/);
   assert.match(VESSEL_VS, /if \(mate1\.x >= 0\.0\) \{ float k1 = smoothstep\(0\.7, 1\.0, uv\.x\); if \(k1 > 0\.0\) wc \+= k1 \* \(0\.5 \* \(wc \+ circMateWidth\(mate1\)\) - wc\); \}/);

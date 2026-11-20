@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { solve, slideInView, boxOf, LEAD_ON, CALL_MIN_GAP, type Item, type Form } from '../src/scene/labels/solver.ts';
 import { hits, grow, type Box } from '../src/scene/labels/geometry.ts';
@@ -138,10 +139,38 @@ test('a label whose near spots are taken keeps off the vessels at every far spot
   assert.equal(solve({ items: [call], view: VIEW, blockers: [], lines: [[0, 50, 1000, 50], [450, 56, 450, 700], [0, 150, 1000, 150], [0, 200, 1000, 200], [0, 250, 1000, 250]] }).placed.length, 1, 'a callout is placed over lines');
 });
 
+test('a lobule name (looseFar) may stand at a far spot with a vessel under it before it is given up: the net fills the view, and 2D\'s lobule orders append the unclear spots (the bile ductule vanished on an iPhone after 5316a81e)', () => {
+  // free ground: a corridor east of the dot with a vessel through it (a line under every spot there); the dot is boxed in on the other sides
+  const blockers: Box[] = [{ x0: 0, y0: 56, x1: 440, y1: 700 }, { x0: 440, y0: 56, x1: 1000, y1: 270 }, { x0: 440, y0: 330, x1: 1000, y1: 700 }];
+  const lines: [number, number, number, number][] = [[440, 300, 1000, 300]];
+  const mk = (extra: object) => item('f', 460, 300, { forms: [form(100)], reach: 400, ...extra });
+  const strict = solve({ items: [mk({})], view: VIEW, blockers, lines }), loose = solve({ items: [mk({ looseFar: true })], view: VIEW, blockers, lines });
+  assert.equal(loose.placed.length, 1, 'with looseFar the name stands, over the net');
+  assert.ok(strict.placed.length <= loose.placed.length);
+  const src = readFileSync(new URL('../src/scene/lobule/captions.ts', import.meta.url), 'utf8');
+  assert.match(src, /minLead: MIN_LEAD, looseFar: true/, 'every lobule station asks for it');
+});
+
 test('the diagnostic (?capwhy) names who stood in the way of a label\'s near spots, and costs nothing when it is not asked for', () => {
   const a = item('a', 300, 300), b = item('b', 330, 300, { pri: 1 });
   const why = new Map<string, Record<string, number>>();
   const r = solve({ items: [a, b], view: VIEW, blockers: [], why });
   assert.ok(Object.keys(why.get('b') ?? {}).some((k) => k.startsWith('label:a') || k.startsWith('dot:a') || k.startsWith('underLeader:a') || k === 'ownDot'), JSON.stringify(why.get('b')));
   assert.deepEqual(r.placed.map((p) => p.id).sort(), solve({ items: [a, b], view: VIEW, blockers: [] }).placed.map((p) => p.id).sort(), 'the answer is the same with or without it');
+});
+
+test('a station\'s name never takes the last resort of a spot over a vessel; the reader\'s own choices and the hepatic artery keep it (2D, 4 Nov: no labels covering the portal vein)', () => {
+  // a corridor 140 wide that the label (138) fits only by touching the cards' edges (the last resort), with a vessel under every spot
+  const blockers: Box[] = [{ x0: 0, y0: 56, x1: 430, y1: 700 }, { x0: 570, y0: 56, x1: 1000, y1: 700 }];
+  const lines: [number, number, number, number][] = Array.from({ length: 40 }, (_, i) => [430, 70 + i * 14, 570, 70 + i * 14]);
+  const mk = (over: Partial<Item>) => item('x', 500, 300, { forms: [form(138)], must: true, ...over });
+  assert.equal(solve({ items: [mk({ offVessels: true })], view: VIEW, blockers, lines }).placed.length, 0, 'a station with no clear spot is left out');
+  assert.deepEqual(solve({ items: [mk({ offVessels: true })], view: VIEW, blockers, lines }).dropped, ['x']);
+  assert.equal(solve({ items: [mk({})], view: VIEW, blockers, lines }).placed.length, 1, 'a name that is not marked stands, as before (the picked, a slide\'s, the hepatic artery)');
+  assert.equal(solve({ items: [mk({ offVessels: true })], view: VIEW, blockers, lines: [] }).placed.length, 1, 'with no vessel under it, it stands');
+});
+
+test('the controller marks every station name offVessels but the picked vessel, what a slide names or shows, and the hepatic artery', () => {
+  const src = readFileSync(new URL('../src/scene/labels/controller.ts', import.meta.url), 'utf8');
+  assert.match(src, /!picked && !isNamed && !this\.state\.shown\.has\(m\.station\.id\) && m\.station\.id !== 'HA' \? \{ offVessels: true \}/);
 });

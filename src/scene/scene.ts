@@ -11,7 +11,7 @@ import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
-import { SkinSet } from './vessels/skin/skin-set.ts';
+import { SkinSet, SKIN_BUILD_TAG } from './vessels/skin/skin-set.ts';
 import { SkinObject } from './vessels/skin/skin-object.ts';
 import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
@@ -325,6 +325,7 @@ export class CelScene {
     this.presence.own(this.feeders.ids());
     for (const id of this.grownIds) { const g = COURSES.get(id); if (g) this.vesselObject(id)?.setStretchAnchors(g.curveA.getPointAt(0), g.curveC.getPointAt(0)); }
     this.shapes = new ShapeTracks(NETWORK, this.byEdge as unknown as Map<string, VesselObject>);
+    this.shapes.onReshaped = (id) => this.skins?.markDirty(id);   // (an arm's course changed: the skin on it is rebuilt in the render phase, skins.step below)
     this.lens.setContext({ healthy: null, ref: null });
     const vo = { look: this.look, phone: this.phone, flowMode: opts.flowMode ?? DEFAULT_FLOW_MODE, reduceMotion: opts.reduceMotion };
     this.lobule = new LobuleView(this.shared, vo); this.sinus = new SinusoidView(this.shared, vo);
@@ -355,6 +356,7 @@ export class CelScene {
       make: (skin, axes, arms) => new SkinObject(skin, arms[0]!, axes, arms),
       add: (o) => { this.body.add(o); },
       remove: (o) => { this.body.remove(o); },
+      endsChanged: () => { this.applyMates(); },   // (a rebuild that failed or came back: the mates and burial of its ends follow)
     });
     this.skins.build(phase);
   }
@@ -496,6 +498,7 @@ export class CelScene {
     this.lens.onFrame(f, !!f?.jump && this.sawFrame, performance.now());   // (a new patient: the colours glide from the old patient's)
     this.blood.streams.onFrame(f);
     if (f) { this.syncPresence(f, !this.sawFrame); this.feedDisease(f, !this.sawFrame); }
+    if (this.procs.setLive((f as { D?: ArrayLike<number> } | null)?.D ?? null)) this.moving = true;   // (the catheters follow the veins' live width)
     this.procs.syncStents(f, patient.params, f ? !this.sawFrame : false);
     this.procs.syncBands((f as { bands?: number } | null)?.bands ?? 0, f ? !this.sawFrame : false);
     this.procs.syncTamponade(patient.params as never, f ? !this.sawFrame : false);
@@ -703,7 +706,7 @@ export class CelScene {
     const wasCircuit = this.figureView === 'circuit';
     this.figureView = v;
     if (wasCircuit !== (v === 'circuit') && latest.frame) this.syncPresence(latest.frame, false);   // (the liver's beds are drawn on the map only: they draw on as the body turns into it, and draw back as it returns)
-    this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? (sinusoidBox(this.portrait) as Vec3[]) : null);
+    this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? (sinusoidBox() as Vec3[]) : null);
     // the view being left stays drawn until the camera has landed on the new one (nothing pops while it flies); then it is hidden
     this.body.visible ||= v === 'body' || v === 'circuit';
     // the body turns into the map (or back) on the camera's own clock, from wherever it stands
@@ -881,14 +884,13 @@ export class CelScene {
     if (p !== this.portrait) {
       this.portrait = p;
       this.sinus.setPortrait(p);
-      if (this.figureView === 'sinusoid') this.rig.setSubject(sinusoidBox(p) as Vec3[]);
       this.moving = true;
     }
     // what the view needs of the screen to lay its end arrows and run its traffic as 2D does: px per µm along the flow (the hand's zoom included), the room's length and the canvas's along it
     const short = shortSide(p, r), s = this.rig.stageSize;
     // (measured on the screen, not modelled: where the sinusoid's middle and a point 10 µm down the flow land, against the free room's middle)
     if (!this.sinus.isVisible) return;   // (nothing of the view is read while it is away)
-    const turn = this.sinus.turn, o = this.rig.project(this.sinusPt.set(...sinusoidWorld([0, 0, 0])), this.scrO), a = this.rig.project(this.sinusPt.set(...sinusoidWorld(framePoint(10, 0, SIN_UNIT, turn))), this.scrA);
+    const o = this.rig.project(this.sinusPt.set(...sinusoidWorld([0, 0, 0])), this.scrO), a = this.rig.project(this.sinusPt.set(...sinusoidWorld(framePoint(10, 0, SIN_UNIT, 0))), this.scrA);   // (the plane keeps its own frame; the camera's roll turns it on screen)
     const m = measureScreen(o, a, this.rig.roomCentre());
     this.sinus.setScreen(m.k > 0 ? m.k : restScale(short) * this.rig.handZoom, p ? r.h : r.w, p ? s.h : s.w, m.k > 0 ? m.centreUm : 0);
   }
@@ -1066,7 +1068,10 @@ export class CelScene {
     this.syncStumps();
     this.updateCaps();
     const shapeMoving = this.shapes.step(dt);
-    const skinMoving = this.skins?.sync() ?? false;   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
+    // (one junction skin rebuilt at most, here in the render phase and before the handover, so the tubes and the skin change together; while one still waits, the clock is asked for the next frame under the tag `skin-build`)
+    const skinPending = this.skins?.step() ?? false;
+    if (skinPending) clock.invalidate(SKIN_BUILD_TAG);
+    const skinMoving = (this.skins?.sync() ?? false) || skinPending;   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
     this.stepSinusDive();
     this.stepCutaway();
     this.stepPortrait();

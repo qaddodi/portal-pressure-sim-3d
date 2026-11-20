@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { pairSteps, stepVars, DK } from '../src/ui/cards/pair-ladder.ts';
+import { pairSteps, stepVars, dataFitOf, DK } from '../src/ui/cards/pair-ladder.ts';
 import { WIDE, titleFloorK, dkFloorOf } from '../src/ui/layout/rules2d.ts';
 
 // A stacked pair too tall for the screen takes 2D's steps (presenter-ladders.js): the title first, then the data card's blocks, the title ladder run again under each (shunts 3, 4 and 6,
@@ -37,11 +37,26 @@ test('the card layer takes the steps before the words page, and writes them on b
   const src = (f: string) => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
   const layer = src('ui/cards/CardLayer.tsx'), frame = src('ui/cards/CardFrame.tsx');
   assert.match(layer, /pairSteps\(ladBase\[pagesKey\]\)/);
-  assert.match(layer, /const tooTall = [^\n]*&& !ladBusy;/, 'the words page only when the ladder is spent');
-  assert.match(layer, /vars=\{ladVars as never\} remeasure=\{sig\}/, 'both cards get the step, and measure again for it');
+  assert.match(layer, /const tooTall = [^\n]*&& !ladBusy/, 'the words page only when the ladder is spent');
+  assert.match(layer, /vars=\{\(slot === 'data' \? dataVars : ladVars\) as never\} remeasure=\{sig\}/, 'both cards get the step, and measure again for it');
   assert.match(layer, /const growing = ladBusy \|\|/, 'the cards wait for the ladder, as for a page');
   assert.match(layer, /ladOn = pair && !sideways && !stacked0/, 'a laptop or tablet on its side only: the phone has its own steps');
   assert.match(frame, /style=\{\{ \.\.\.vars, width: rect\.w/);
   assert.match(frame, /\}, \[entry\.key, Math\.round\(rect\.w\), remeasure\]\);/, 'a step that changes no height is still judged afresh');
-  assert.match(layer, /ladBusy, lad, cands\.length,/, 'the effect runs again when the ladder\'s sizes arrive, or it never takes its first step (the first pass only reads them)');
+  assert.match(layer, /ladBusy, fitBusy, lad, cands\.length,/, 'the effect runs again when the ladder\'s sizes arrive, or it never takes its first step (the first pass only reads them)');
+});
+
+test('the data card\'s own fit is the last step: to its room, never under 12 px', () => {
+  assert.equal(dataFitOf(400, 500, 14), 1, 'it fits: no fit');
+  assert.equal(dataFitOf(0, 500, 14), 1);
+  assert.equal(dataFitOf(462, 383, 16), Math.max(12 / 16, (383 / 462) * 0.985), 'zoomed to its room');
+  assert.equal(dataFitOf(900, 383, 16), 0.75, 'the 12 px floor holds');
+  assert.equal(dataFitOf(900, 383, 12), 0.5, 'lettering already at 12 px: 2D\'s last resort, half (dataFloor)');
+  assert.equal(dataFitOf(462, 437, 12), (437 / 462) * 0.985, 'Shunts 4 at 1024 x 768: the pair\'s 25 px come off the data card');
+  assert.equal(dataFitOf(900, 383, 8), 0.5);
+  assert.equal(dataFitOf(900, 383, Infinity), 1);
+  const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
+  assert.match(layer, /dataFitOf\(dataHit\?\.h \?\? 0, plan\.maxH\.data, minPx\)/);
+  assert.match(layer, /vars=\{\(slot === 'data' \? dataVars : ladVars\) as never\}/, 'the fit is the data card\'s alone: the words never zoom');
+  assert.match(layer, /!ladBusy && !fitBusy;/, 'the words page only when the fit is spent too');
 });

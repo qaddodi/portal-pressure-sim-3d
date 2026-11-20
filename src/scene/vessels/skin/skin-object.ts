@@ -12,6 +12,7 @@ import type { SkinMesh, Vec3 } from './types.ts';
 /** The uniforms the skin shares with its arm tubes, by reference (taken from the first arm: every vessel's copy has the same value, and each one follows the same writers: the look, the lens, the engine, the Circuit). */
 export const SHARED_WITH_TUBES = [
   'inflate', 'vdata', 'vdataSize', 'useData', 'res', 'hiPx', 'tubeDark', 'fade', 'inkColor', 'inkColorCirc', 'circT', 'dpr', 'projY',
+  'streamTex', 'chainTex', 'streakAmt', 'dustP', 'time', 'markDark', 'markLight', 'markRev',
   'lensGradA', 'lensLaneA', 'lensModeA', 'lensGradB', 'lensLaneB', 'lensModeB', 'laneColA', 'laneColB', 'lensMix', 'lensTail', 'lensSmooth',
 ] as const;
 
@@ -25,7 +26,7 @@ export class SkinObject implements SkinDraw {
   readonly mesh: Mesh;
   readonly material: ShaderMaterial;
   readonly object: Object3D;
-  private readonly armData: Vector4[]; private readonly armColor: Vector4[];
+  private readonly armData: Vector4[]; private readonly armColor: Vector4[]; private readonly armArc: Vector4[];
 
   constructor(skin: SkinMesh, donor: VesselObject, axes: readonly ArmAxis[], armObjs: readonly VesselObject[]) {
     const g = new BufferGeometry();
@@ -43,6 +44,7 @@ export class SkinObject implements SkinDraw {
       return a ? new Vector4(a.dataIndex, a.baseD, a.widthKind, a.lensIndex) : new Vector4(-1, 1, 0, 0);
     });
     this.armColor = Array.from({ length: SKIN_ARMS }, () => new Vector4(0, 0, 0, 1));
+    this.armArc = Array.from({ length: SKIN_ARMS }, () => new Vector4(0, 1, 1, 1));
     const armAxis = Array.from({ length: SKIN_ARMS * 3 }, () => new Vector3()), armAxisR: number[] = new Array(SKIN_ARMS * 3).fill(0);
     axes.forEach((ax, i) => ax.pts.forEach((p, k) => { armAxis[i * 3 + k]!.set(p[0], p[1], p[2]); armAxisR[i * 3 + k] = ax.radii[k]!; }));
     this.material = new ShaderMaterial({
@@ -53,7 +55,7 @@ export class SkinObject implements SkinDraw {
         // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
         color: du.color!,
         lensUse: { value: 1 },
-        armData: { value: this.armData }, armLensU: { value: [0, 0, 0, 0] }, armFade: { value: [1, 1, 1, 1] }, armHi: { value: [0, 0, 0, 0] }, armNarrow: { value: [0, 0, 0, 0] }, armColor: { value: this.armColor },
+        armData: { value: this.armData }, armLensU: { value: [0, 0, 0, 0] }, armFade: { value: [1, 1, 1, 1] }, armPres: { value: [1, 1, 1, 1] }, armHi: { value: [0, 0, 0, 0] }, armNarrow: { value: [0, 0, 0, 0] }, armArc: { value: this.armArc }, armFlow: { value: [0, 0, 0, 0] }, armColor: { value: this.armColor },
         armAxis: { value: armAxis }, armAxisR: { value: armAxisR }, skinK: { value: skinKOf(skin.junction.arms) },
       },
     });
@@ -75,6 +77,19 @@ export class SkinObject implements SkinDraw {
     const u = this.material.uniforms;
     (u.armFade!.value as number[])[i] = fade; (u.armHi!.value as number[])[i] = hi; (u.armLensU!.value as number[])[i] = lensU; (u.armNarrow!.value as number[])[i] = narrow;
     if (colour) this.armColor[i]!.set(colour.r, colour.g, colour.b, colour.a);
+  }
+
+  /** The arm's flow marks (the fragment stage's THE FLOW MARKS): the arc at the seam (figure units), which way it grows toward the node (+1 the vessel's end 1, -1 its start), the vessel's length and its rest radius (figure units), and the tube's flowAmount. */
+  setArc(i: number, seamArc: number, dir: number, length: number, restR: number, flow: number): void {
+    this.armArc[i]!.set(seamArc, dir, length, restR);
+    (this.material.uniforms.armFlow!.value as number[])[i] = flow;
+  }
+
+  /** How much of arm `i`'s tube is there at its seam (arm-twins.ts armPresenceAt); with none of them the skin is not drawn at all. */
+  setPres(i: number, p: number): void {
+    const a = this.material.uniforms.armPres!.value as number[];
+    a[i] = p;
+    this.mesh.visible = a.some((x, k) => this.armData[k]!.x >= 0 && x > 0.002);
   }
 
   setTransparent(on: boolean): void { if (this.material.transparent !== on) { this.material.transparent = on; this.material.needsUpdate = true; } }

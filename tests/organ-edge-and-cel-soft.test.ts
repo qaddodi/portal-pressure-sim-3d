@@ -41,8 +41,8 @@ test('C: ringDistance is 0 on the rim, rises inward to the cap, and the liver ha
   }
 });
 
-test('the soft cirrhosis looks (cel8..cel11): defined, cel12 the default, bands eased and dome wall rounded', async () => {
-  assert.equal(DEFAULT_CEL, 'cel12', 'the subtle look is the standing cirrhotic liver');
+test('the soft cirrhosis looks (cel8..cel11): defined, cel13 the default, bands eased and dome wall rounded', async () => {
+  assert.equal(DEFAULT_CEL, 'cel13', 'the soft nodules are the standing cirrhotic liver');
   for (const k of ['cel8', 'cel9', 'cel10', 'cel11']) assert.ok(CELS[k]!.soft! > 0 && CELS[k]!.raw! <= 0.6, `${k} is soft`);
   assert.equal(CELS.cel7!.soft, undefined);
   // sample each look through the real surface function (the page's address picks it: flags.ts)
@@ -85,5 +85,27 @@ test('cel12, the subtle look: no grid, no wall, no line, soft shade in valleys a
   assert.ok(maxStep < 0.04, `the field is slow: ${maxStep.toFixed(3)} in half a unit`);
   assert.ok(lightMax <= 0.35 + 1e-9 && lightMin >= -0.6 - 1e-9 && lightMax > 0.1 && lightMin < -0.3, `soft: dark to 0.6 of the shade, lift to 0.35 (${lightMin}..${lightMax})`);
   assert.ok(valley / n > 0.1 && valley / n < 0.7, `valleys are a share of the surface (${(100 * valley / n).toFixed(0)}%)`);
+  delete (globalThis as { location?: unknown }).location;
+});
+
+test('cel13, the standing look: distinct rounded nodules (not a grid), soft shade, no line, a bumpy but smooth rim', async () => {
+  const c = CELS.cel13!;
+  assert.ok(c.ink === 0 && c.soft! > 0 && c.warp! > 0 && c.jit >= 0.2 && c.round, 'no line, eased bands, warped, jittered, round domes');
+  assert.ok(c.shade >= 0.18 && c.shade <= 0.3 && c.a <= 0.5, 'soft: between cel12 (0.22) and cel7 (0.38)');
+  assert.ok(c.size >= 20 && c.size <= 30 && c.size > CELS.cel7!.size * 3, 'broad nodules, far larger than the cobbles');
+  (globalThis as { location?: unknown }).location = { search: '?liver=cel13', pathname: '/', hostname: 'localhost' };
+  const m = await import(`../src/scene/organs/liver-texture.ts?${'cel13'}`);
+  // nodule clumps along a row: runs of dome above zero, separated by a gap of valley (dome 0)
+  const count = (y: number): { n: number; at: number[] } => {
+    let n = 0, up = false; const at: number[] = [];
+    for (let x = 330; x < 880; x += 0.5) { const d = m.surfaceAt(x, y).dome; if (!up && d > 0.02) { up = true; n++; at.push(x); } else if (up && d <= 0.0) up = false; }
+    return { n, at };
+  };
+  const a = count(300), b = count(323);
+  assert.ok(a.n >= 8 && a.n <= 40, `nodule clumps along a row: ${a.n}`);
+  assert.notDeepEqual(a.at.slice(0, 5).map((v) => Math.round(v % c.size)), b.at.slice(0, 5).map((v) => Math.round(v % c.size)), 'not a grid: two rows do not line up');
+  let sep = 0, lo = 1, hi = -1, step = 0, prev = m.surfaceAt(330, 300).dome;
+  for (let x = 330.25; x < 880; x += 0.25) { const s = m.surfaceAt(x, 300); sep += s.sep; lo = Math.min(lo, s.light); hi = Math.max(hi, s.light); step = Math.max(step, Math.abs(s.dome - prev)); prev = s.dome; }
+  assert.equal(sep, 0, 'no wall, no line'); assert.ok(lo < -0.5 && hi > 0.2, `shade and a faint lit shoulder (${lo}..${hi})`); assert.ok(step < 0.3, `no wall in the dome (${step.toFixed(2)})`);
   delete (globalThis as { location?: unknown }).location;
 });

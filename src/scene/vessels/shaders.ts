@@ -13,15 +13,15 @@
 
 import { CIRCUIT_VS_CALL, CIRCUIT_VS_HEAD } from '../circuit/shader.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
-import { CHEV, CHEVRON_GLSL, CHEV_LEVEL_MIN } from '../blood/chevron-glsl.ts';
+import { CHEV, CHEVRON_GLSL } from '../blood/chevron-glsl.ts';
 import { STREAK } from '../blood/streak-glsl.ts';
 import { DUST_GLSL } from '../blood/dust-glsl.ts';
 import { QUIET_BACK } from '../camera/quiet.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL, glslNum as F } from '../cel-glsl.ts';
 import { TUBE_RADIAL } from './tubes.ts';
-import { MARK_FADE_R, SKIN_CIRC_SPAN, SKIN_CUT_EPS } from './skin/types.ts';
-import { LENS_OF_AT_GLSL, CHEV_CREAM_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl } from './glsl-shared.ts';
+import { SKIN_CIRC_SPAN, SKIN_CUT_EPS } from './skin/types.ts';
+import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl } from './glsl-shared.ts';
 
 /** The tube's ring is a polygon of TUBE_RADIAL sides: its corners stand 1 / cos(pi / n) - 1 of the radius outside its flats. The tube is built that much fatter, so the silhouette never falls inside the outline. */
 export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
@@ -322,15 +322,6 @@ varying vec2 vUv;
 // junction skins (skin/types.ts): the tube has a seam at either end
 bool skinCutOn() { return skinCut.x >= 0.0 || skinCut.y <= 1.0; }
 bool skinPast() { return (skinCut.x >= 0.0 && vUv.x < skinCut.x - ${F(SKIN_CUT_EPS)}) || (skinCut.y <= 1.0 && vUv.x > skinCut.y + ${F(SKIN_CUT_EPS)}); }
-// the figure's units from this pixel to the nearest seam along the tube
-float skinSeamDist() {
-  float Lw = len * vU, d = 1e9;
-  if (skinCut.x >= 0.0) d = (vUv.x - skinCut.x) * Lw;
-  if (skinCut.y <= 1.0) d = min(d, (skinCut.y - vUv.x) * Lw);
-  return d;
-}
-// the flow marks (chevrons, streaks, dust) die away over MARK_FADE_R radii before the seam: the skin draws none, and the stream chain carries the heads on into the next vessel past the junction
-float skinMarkK() { return skinCutOn() ? smoothstep(0.0, ${F(MARK_FADE_R)} * max(vR, 1e-3), skinSeamDist()) : 1.0; }
 
 float lum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 
@@ -343,27 +334,7 @@ float meanVelocity(float q, float dmm) {
 ${CHEVRON_GLSL}
 ${DUST_GLSL}
 // (chevKeep, the lattice's keep, is in the one chevron chunk above: blood/chevron-glsl.ts)
-// One vessel's heads placed by a stream's pattern (veins-gl.js chevOne): se = A + B s is the vessel's arc along that stream (B = 1, se = s for its own), Dm the stream's distance. The
-// spacing is the zoom's, by the arc a head takes here (B), so a parcel that slows on entering a vessel bunches up as the blood does. ends: the weights of a link at the vessel's from and
-// to end (above 0: a chained end, through which the heads run on instead of fading). Returns the head's coverage and its rim, already faded by its place and its lattice.
-vec2 chevOne(float s, float Lw, float se, float Bm, float Dm, float vd, float rv, vec2 ends, float R, float across, float wpc, float Pt, float px) {
-  float lv = max(${F(CHEV_LEVEL_MIN)}, log2(Pt * max(abs(Bm), 0.05) / 28.0));
-  float n0 = floor(lv), P = 28.0 * exp2(n0);
-  float j = floor((se - Dm) / P + 0.5);
-  float x = (se - (Dm + j * P)) / (abs(Bm) < 0.05 ? (Bm < 0.0 ? -0.05 : 0.05) : Bm), sc = s - x;
-  float kp = chevKeep(j, n0, lv);
-  float hw = chevHw(R, wpc) * chevSize(kp), L = ${(2 * CHEV.LEN_OF_W).toFixed(1)} * hw;   // (a head is 6 CSS px tall from a tube 6 px across, as tall as the tube on a narrower one)
-  if (abs(x) > (0.6 + 0.4 * rv) * L + 0.15 * hw + 4.0 * px) return vec2(0.0);
-  float lo = 0.6 * L, ramp = max(2.0 * L, 0.12 * Pt);
-  float a0 = sc < lo ? 0.0 : smoothstep(lo, lo + ramp, sc), a1 = Lw - sc < lo ? 0.0 : smoothstep(lo, lo + ramp, Lw - sc);
-  float fade = min(mix(a0, 1.0, clamp(ends.x, 0.0, 1.0)), mix(a1, 1.0, clamp(ends.y, 0.0, 1.0))) * chevAlpha(kp);
-  if (fade <= 0.0) return vec2(0.0);
-  float dir = vd != 0.0 ? sign(vd) : (rv > 0.5 ? -1.0 : 1.0);
-  return chevHead(dir * x, abs(across) * R, hw, px, rv) * fade;
-}
-float chevOrange(vec3 c) {
-  return smoothstep(0.35, 0.55, c.r - c.b) * smoothstep(0.65, 0.8, c.r) * smoothstep(0.25, 0.35, c.g) * (1.0 - smoothstep(0.62, 0.78, c.g));
-}
+${CHEV_ONE_GLSL}
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p) {
@@ -374,6 +345,7 @@ float vnoise(vec2 p) {
 
 ${LENS_OF_AT_GLSL}
 ${CHEV_CREAM_GLSL}
+${FLOW_MARKS_GLSL}
 // the colour of one lens set at this pixel; .a says whether the lens colours this vessel (0: it keeps its tone)
 vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float across) {
   return lensOfAt(lensIndex, mix(lensSpan.x, lensSpan.y, vUv.x), grad, lanes, mode, pal, across);   // (a branch of a vessel wears the stretch of its host's ramp it leaves from: no step in colour at the branch point)
@@ -471,29 +443,11 @@ void main() {
   c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
   // THE DUST (blood/dust-glsl.ts, the Dust Lab's particles, Mohammad 20 Nov) is part of the tube: painted here, in its own fragment shader, so it is inside the lumen (dustField draws nothing past 0.96 of the half width,
   // never touching the ink) and follows the tube's own alpha and fade zones by construction: there is no second mesh to stray past a tube's end, a taper or a fade. Under the chevrons, which come after.
-  if (streakAmt > 0.001 && vR > 0.0 && abs(across) < 0.97) {
-    vec4 smS = texelFetch(streamTex, ivec2(int(lensIndex), 0), 0);   // the blood's own distance and speed on this vessel: reversed runs back, none stands
-    float rCssD = vR / max(${wpcGlsl('vW', 'projY', 'vU')}, 1e-6);
-    float nar = 1.0;
-    if (useData > 0.5) { ivec2 tcn = ivec2(int(mod(vindex, vdataSize.x)), int(floor(vindex / vdataSize.x))); nar = texelFetch(vdata, tcn, 0).b / max(baseD, 0.1); }
-    vec4 chD = texelFetch(chainTex, ivec2(int(lensIndex), 0), 0);
-    float dOn = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * skinMarkK() * streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCssD) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
-    if (dOn > 0.002) {
-      // (the streak distance, texel w: the stream's distance D held to a speed no pattern wagon-wheels at, streams.ts; the same arc and gate the heads have, and none only where the flow is none)
-      float sD = vUv.x * len * vU, rOwn = max(radius * vU, 1e-3), wl = chD.w;
-      vec3 litD = celTubeBase(base);
-      vec4 dust = vec4(0.0);
-      if (wl < 1.0) dust = dustField(across, sD, 0.0, 1.0, smS.w, rOwn, rOwn, vR, rCssD, len * vU, nar, smS.y, smS.z, fract(lensIndex * 0.6180339) * 50.0, lensIndex + 1.0, litD, inkColor);
-      if (wl > 0.0) {   // the blood runs on from the parent: the root's particles, at the root's distance, A + B s along its stream (the chevrons' own placing)
-        int rootIx = int(chD.x + 0.5) - 1;
-        vec4 dc = dustField(across, sD, chD.y, chD.z, texelFetch(streamTex, ivec2(rootIx, 0), 0).w, rOwn, max(texelFetch(chainTex, ivec2(int(lensIndex), 1), 0).w * vU, 1e-3), vR, rCssD, len * vU, nar, smS.y, smS.z, fract(float(rootIx) * 0.6180339) * 50.0, chD.x, litD, inkColor);
-        dust = wl >= 1.0 ? dc : mix(dust, dc, wl);   // (a link forming or letting go cross-fades the two sets: nothing pops)
-      }
-      streakCover = dOn * dust.a;
-      cBody = c;
-      c = c * (1.0 - streakCover) + dust.rgb * dOn;
-    }
-  }
+  float sD = vUv.x * len * vU;
+  vec4 fd = flowDust(across, sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(${wpcGlsl('vW', 'projY', 'vU')}, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(sD, (1.0 - vUv.x) * len * vU);
+  cBody = c;
+  streakCover = fd.a;
+  c = c * (1.0 - fd.a) + fd.rgb;
 
   float vel = 0.0;
   float dmm = 8.0;
@@ -517,37 +471,10 @@ void main() {
   // the flow heads, on the tube's surface as the 2D composite lays them
   float pxArc = fwidth(vUv.x * len * vU);   // (a derivative: taken outside any branch)
   float acrossW = max(fwidth(across), 0.03);
-  if (flowAmount > 0.001 && vR > 0.0) {
-    vec4 stm = texelFetch(streamTex, ivec2(int(lensIndex), 0), 0);
-    float Dm = stm.x, vd = stm.y, rv = stm.z;
-    float wpc = ${wpcGlsl('vW', 'projY', 'vU')};      // the figure's units under one CSS px here
-    float R = max(vR, 0.3), Lw = len * vU, s = vUv.x * Lw;
-    float px = clamp(pxArc, 0.15 * wpc, 1.5 * wpc);   // (held to a CSS pixel: at a grazing silhouette the arc's derivative runs away and would smear a head)
-    float Pt = ${F(CHEV.PITCH_PX)} * wpc;
-    vec4 c4 = texelFetch(chainTex, ivec2(int(lensIndex), 0), 0), c5 = texelFetch(chainTex, ivec2(int(lensIndex), 1), 0);
-    vec2 ch = vec2(0.0);
-    if (c4.w < 1.0) ch = chevOne(s, Lw, s, 1.0, Dm, vd, rv, c5.xy, R, across, wpc, Pt, px);
-    if (c4.w > 0.0) {
-      float rootD = texelFetch(streamTex, ivec2(int(c4.x + 0.5) - 1, 0), 0).x;
-      vec2 cc = chevOne(s, Lw, c4.y + c4.z * s, c4.z, rootD, vd, rv, c5.xy, R, across, wpc, Pt, px);
-      ch = c4.w >= 1.0 ? cc : mix(ch, cc, c4.w);
-    }
-    // heads are on every tube down to about 4 CSS px across (R 1.5 px: the spacing never depends on the width), and are cut at the wall (never on the ink)
-    float fade = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * skinMarkK() * flowAmount * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));   // (a head stands inside the lumen, 55 percent of it: this is only the wall's own cut)
-    fade *= mix(0.3, 1.0, smoothstep(0.5, 3.0, abs(vd)));
-    if (fade > 0.0 && ch.x + ch.y > 0.0) {
-      float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);
-      // one flat tone for the head, never a grey halfway: dark ink on a light lumen, cream on a dark one. The tone is the VESSEL's own latched, eased value (lenses/chevron-ink.ts: hysteresis, so a pressure at the threshold never flickers it,
-      // and an ease, so it never pops), read from the lens texture's fifth row; where the lens runs no colour along the vessel it is a short eased step on the drawn luminance (blood/chevron-glsl.ts chevCreamSoft)
-      float rk = rv * (1.0 - origin), warm = rk * chevOrange(base);
-      float cream = mix(chevCreamOf(la, lensGradA, lensModeA), chevCreamOf(lb, lensGradB, lensModeB), lensMix);
-      vec3 core = mix(mix(chevInk(cream, markDark, markLight), markRev, rk), markLight, warm);   // (the one chevron's tone: blood/chevron-glsl.ts)
-      vec3 rimc = CHEV_RIM;   // the head's outline is always the dark ink: a flat head with a dark line, never a pale ring
-      float ar = clamp(ch.y * 0.75 * fade, 0.0, 1.0), ac = clamp(ch.x * fade, 0.0, 1.0);
-      float ha = ac + ar * (1.0 - ac);
-      if (streakCover > 0.0) c = mix(c, cBody, ha);   // the streaks lie UNDER the chevrons: a head's pixel is never tinted by one
-      c = c * (1.0 - ha) + core * ac + rimc * ar * (1.0 - ac);
-    }
+  vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, ${wpcGlsl('vW', 'projY', 'vU')}, pxArc, lensIndex, flowAmount, markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU), la, lb, color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
+  if (hd.a > 0.0) {
+    if (streakCover > 0.0) c = mix(c, cBody, hd.a);   // the streaks lie UNDER the chevrons: a head's pixel is never tinted by one
+    c = c * (1.0 - hd.a) + hd.rgb;
   }
   // THE OUTLINE: the band between the lumen's edge and the tube's (it is built INK wider, see the vertex stage). The exact lateral distance from the pixel to the tube's axis, in device pixels, against the lumen's radius:
   // the line is continuous by construction (no second mesh, no stencil, no depth tie), constant in device pixels (the vertex stage widened the tube by the same line) and antialiased half a pixel each side. It follows the fade
