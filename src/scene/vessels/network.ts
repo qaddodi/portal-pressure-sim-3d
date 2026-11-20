@@ -43,7 +43,7 @@ export interface NetVessel {
   /** a branch of a vessel (liver-branches.ts): the stretch of its host's lens ramp it wears, 0 to 1 */
   lensSpan?: readonly [number, number];
   /** how its shape is made: a vessel's own course, coiled and with strands (a collateral or a liver bed), or a fan of tributaries on a host */
-  plan?: { kind: 'coil'; base: readonly (readonly [number, number])[]; coils: boolean; strands: boolean } | { kind: 'feeder'; list: readonly (Feeder2D & { dz?: readonly number[]; taper?: readonly [number, number]; taperSpan?: readonly [number, number]; join?: 0 | 1 })[]; cfgK: number; hostW: number; when: string | null };
+  plan?: { kind: 'coil'; base: readonly (readonly [number, number])[]; coils: boolean; strands: boolean } | { kind: 'feeder'; list: readonly (Feeder2D & { dz?: readonly number[]; taper?: readonly [number, number]; taperSpan?: readonly [number, number]; join?: 0 | 1; atEnd?: true })[]; cfgK: number; hostW: number; when: string | null };
   /** the radius at each end as a share of `radius`, where this vessel runs on into exactly one other (no branch): both ease to their mean, so no step shows at the join */
   taper?: readonly [number, number];
   /** where this vessel ends on a trunk without running on into it (a branch of a fork): a collar that blooms where the branch meets the host's wall, the 2D figure's fillet (the smooth union of the
@@ -137,8 +137,8 @@ const NETWORK_HOST_W = (e: Edge): number => widthPx(e, e.d ?? e.dMax ?? (dMinOf(
 const JOIN_LIST: JoinEdge[] = edges.filter(isDrawnEdge).map((e) => ({ id: e.id, from: e.from, to: e.to, art: isArteryEdge(e), kind: e.kind, path: EDGE_PATH_2D[e.id]! }));
 /** The pairs of vessels that run on into one another, by the 2D rule. */
 // (the hepatic artery and its two branches are one tree: they meet at the hilum's node, each end joined to the others, none a blunt cap)
-export const isCut = (id: string): boolean => SPLIT_AT[id] != null && SPLIT_AT[id]! < 0.9;   // (the left portal vein splits at its very end, where the umbilical vein joins: it is drawn whole)
-// (a vein that branches is drawn only up to its split: the end it was cut at carries on into its children, not into the vessel it ran on into in the full course)
+export const isCut = (id: string): boolean => SPLIT_AT[id] != null;   // (a vein that branches is one tube to the tip of its through branch: liver-branches.ts)
+// (the end of a vein that branches is the tip of its through branch, not the node it used to end at: the vessel it ran on into in the full course is not run on into)
 export const cutEnd = (id: string): number | null => (SPLIT_AT[id] == null || !isCut(id) ? null : (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id) ? 1 : 0);
 export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST).filter((r) => cutEnd(r.a) !== r.ia && cutEnd(r.b) !== r.ib);
 const SMOOTH = smoothRunOns(new Map(JOIN_LIST.map((j) => [j.id, j.path])), RUN_ONS);
@@ -153,7 +153,7 @@ function build(): NetVessel[] {
     const baseD = SHUNT_BASE_D[e.id] ?? e.d ?? e.dMax ?? (dMinOf(e) || 3);
     out.push({
       id: e.id, host: hostOfPiece.get(e.id) ?? e.id, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(widthPx(e, baseD)),
-      label: e.label ?? e.id, pts: courseOf(e.id), kind: e.kind, circFine: e.shunt === 'ap' ? AP_FINE : 1, tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: e.id, lensSpan: SPLIT_AT[e.id] == null ? undefined : (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(e.id) ? [0, SPLIT_AT[e.id]!] : [1 - SPLIT_AT[e.id]!, 1],
+      label: e.label ?? e.id, pts: courseOf(e.id), kind: e.kind, circFine: e.shunt === 'ap' ? AP_FINE : 1, tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: e.id, 
       plan: { kind: 'coil', base: pathOf(e.id), coils: isCoiling(e.id, e.kind, !!e.spontaneous), strands: !!STRANDS_2D[e.id] || e.id === 'C8' },
     });
   }

@@ -58,3 +58,12 @@ test('the shader carries the fade into both the body and the ink, and lets go of
 test('the superior cava runs into the right atrium as solid as the inferior cava meets it: no fade to 0.3 at the atrium (a hard step in colour there)', () => {
   for (const id of ['SVC_RA', 'SVC_RA_1']) { const f = fadeOf(id, false); assert.ok(!f || !f.ivcJoin, `${id} is the cava, not a vein joining it`); }
 });
+
+test('the renal veins are drawn receded: a constant share of their opacity along their whole length, blended with the fade they already have', async () => {
+  const { fadeOf, RECEDE } = await import('../src/scene/vessels/fades.ts');
+  for (const id of Object.keys(RECEDE)) {
+    const f = fadeOf(id, false);
+    assert.ok(f, `${id} has a fade`);
+    assert.ok(f!.a0 <= RECEDE[id]! + 1e-9 && f!.a1 <= RECEDE[id]! + 1e-9 && Math.max(f!.a0, f!.a1) > 0.3, `${id} is at most ${RECEDE[id]} opaque, never a step`);
+  }
+});

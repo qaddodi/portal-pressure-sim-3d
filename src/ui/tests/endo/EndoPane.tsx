@@ -17,6 +17,7 @@ import { metricsOf } from '../frame.ts';
 import type { PaneProps } from '../TestsLayer.tsx';
 import { FieldMotion, OverlayMotion, type ScopeIn } from './motion.ts';
 import { scopeFrame, type OverlayState } from './frame.ts';
+import { endoUnder } from './endo-under.ts';
 import { EusPpg, useEusReset } from './EusPpg.tsx';
 import { Cv, useCv, usePaneHost } from '../Cv.tsx';
 import { WallView } from './WallView.tsx';
@@ -73,6 +74,12 @@ function ScopeView({ square, opt, slide }: { square: number; opt: EndoOpt; slide
   useEffect(() => { field.current.reset(); dirty.current = true; key.current = ''; clock.invalidate('endo-scope'); }, [preset]);
   useEffect(() => { dirty.current = true; clock.invalidate('endo-scope'); }, [look, square, opt.air, opt.red]);   // a slide's air or red: the field eases to it as it does to any change
   useEffect(() => { useScope.getState().setBands(r?.bands ?? 0); }, [r?.bands]);
+  // the field itself is the 2D shader's, shaded under the frame's shapes on the shared drawer's context (endo-under.ts): it reads the state of the frame it is drawn with
+  useEffect(() => {
+    const p = painter.current;
+    p?.setUnder(endoUnder(() => (ctx.current ? { st: field.current.state, size: Math.round(ctx.current.w) } : null)));
+    return () => { painter.current?.setUnder(null); };
+  }, [square, look]);
 
   const present = r?.present ?? false;
   const pal = paletteOf(look);
