@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { endsFor, measureScreen } from '../src/scene/sinusoid/portrait.ts';
-import { FACE_UM, LEGEND_INSET, legendBox, legendOn } from '../src/scene/sinusoid/legend.ts';
+import { FACE_UM, legendOn } from '../src/scene/sinusoid/legend.ts';
 import type { Vector4 } from 'three';
 
 const run = (v: SinusoidView, ms: number) => { for (let t = 0; t <= ms; t += 16) v.update(t); };
@@ -56,18 +56,21 @@ test('the scene measures the camera\'s own picture for the view (not the rest-sc
   assert.match(src, /if \(!this\.sinus\.isVisible\) return;/);
 });
 
-test('the Protein legend: 2D\'s own look, only while the sinusoid is the view, at the free room\'s top left under the top bar, its room to 8 px short of a tall sinusoid\'s plate', () => {
+test('the Protein legend: 2D\'s own look, only while the sinusoid is the view, in the top bar beside the lens key', () => {
   assert.equal(legendOn('sinusoid', true), true);
   for (const [v, d] of [['sinusoid', false], ['lobule', true], ['body', true]] as const) assert.equal(legendOn(v, d), false);
-  const b = legendBox({ l: 12, t: 8, r: 788, b: 500 }, 0, 56, 788);
-  assert.equal(b.x, 12 + LEGEND_INSET.x);
-  assert.equal(b.y, 56 - LEGEND_INSET.bar + LEGEND_INSET.y);
-  assert.equal(b.maxW, 788 - b.x);
-  assert.equal(legendBox({ l: 12, t: 8, r: 388, b: 700 }, 0, 56, 100).maxW, 90, 'never narrower than 90');
   assert.ok(Math.abs(FACE_UM - 9.2) < 1e-9);
   const css = readFileSync(new URL('../src/ui/css2d/app-03-layouts.css', import.meta.url), 'utf8');
   assert.match(css, /\.sv-legend i\.alb \{ width: 8px; height: 8px; background: var\(--albumin\)/);
   const comp = readFileSync(new URL('../src/scene/sinusoid/ProteinLegend.tsx', import.meta.url), 'utf8');
-  assert.match(comp, /className="alb"/); assert.match(comp, /Protein/);
+  assert.match(comp, /className="alb"/); assert.match(comp, /getElementById\('stageTop'\)/); assert.match(comp, /Protein/);
   assert.match(readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8'), /<ProteinLegend \/>/);
+});
+
+test('the Protein legend sits beside the lens key: before the figure\'s pill in the bar on a laptop, under it on a phone, faded in and out', () => {
+  const css = readFileSync(new URL('../src/scene/sinusoid/legend.css', import.meta.url), 'utf8');
+  assert.match(css, /\.topbar \.stage-bar\.top > \.sv-legend \{ position: static; order: 1;[^}]*margin-left: auto/);
+  assert.match(css, /\.stage-bar\.top:has\(> \.sv-legend\) > \.sb-right \{ margin-left: 0; \}/);
+  assert.match(css, /\.app\.thumb \.topbar \.stage-bar\.top > \.sv-legend \{ position: absolute; top: calc\(100% \+ 6px\); right: 0;/);
+  assert.match(css, /\.sv-legend\.out \{ animation: lk-out/);
 });
