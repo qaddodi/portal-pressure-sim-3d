@@ -1,7 +1,7 @@
 // The free ends of the vessels fade as the 2D figure draws them (tables copied from the 2D app): the veins that end in the organ they drain, the hepatic artery's ends, the veins that leave the plate.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fadeOf } from '../src/scene/vessels/fades.ts';
+import { fadeOf, CAVA_RECEDE, cavaEndSpan } from '../src/scene/vessels/fades.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
@@ -29,7 +29,7 @@ test('the hepatic artery fades in at its start and its branches out at their end
 test('the veins that run on out of the plate fade out down it', () => {
   const d = fadeOf('ILI_IVC', false)!;
   assert.equal(d.mode, 2);
-  assert.ok(d.a0 === 1 && d.a1 === 0 && d.from !== d.to);
+  assert.ok(d.a0 === CAVA_RECEDE && d.a1 === 0 && d.from !== d.to, 'the cava is faint (CAVA_RECEDE) and fades out down the plate');
 });
 
 test('the vessels that have a free end in the 2D figure all have a fade in the scene, blended in its zone (and nowhere else)', () => {
@@ -66,4 +66,21 @@ test('the renal veins are drawn receded: a constant share of their opacity along
     assert.ok(f, `${id} has a fade`);
     assert.ok(f!.a0 <= RECEDE[id]! + 1e-9 && f!.a1 <= RECEDE[id]! + 1e-9 && Math.max(f!.a0, f!.a1) > 0.3, `${id} is at most ${RECEDE[id]} opaque, never a step`);
   }
+});
+
+test('the cava is a background vessel: faint everywhere but where the superior cava arrives whole, the hepatic veins ease to its alpha at its wall, and all of it rises to whole when the cava is named', () => {
+  for (const id of ['IVC_IS', 'IVC_IS_1']) { const f = fadeOf(id, false)!; assert.ok(f && f.a0 === CAVA_RECEDE && f.a1 === CAVA_RECEDE, id); }
+  const ra = fadeOf('IVCS_RA', false)!;
+  assert.deepEqual([ra.a0, ra.a1], [CAVA_RECEDE, 1], 'it climbs back to full at the right atrium');
+  for (const id of ['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC']) assert.ok(cavaEndSpan(id) > 0 && cavaEndSpan(id) <= 1, `${id} eases into the cava`);
+  assert.equal(cavaEndSpan('PV_TRUNK'), 0);
+  assert.equal(cavaEndSpan('LRV_IVC'), 0, 'the renal veins are receded to the same tone already');
+  const s = new CelScene();
+  const u = (id: string) => s.vesselObject(id)!.toon.uniforms as unknown as { fadeA: { value: { z: number; w: number } }; cavaEnd: { value: { x: number; y: number } } };
+  assert.ok(Math.abs(u('RHV_IVC').cavaEnd.value.y - CAVA_RECEDE) < 1e-9 && u('RHV_IVC').cavaEnd.value.x > 0);
+  assert.ok(Math.abs(u('IVC_IS').fadeA.value.z - CAVA_RECEDE) < 1e-9, 'the cava rests faint');
+  s.setNamedVessels(['IVC_IS']);
+  for (let t = 0; t <= 3000; t += 16) s.update(t);
+  assert.ok(u('IVC_IS').fadeA.value.z > 0.999 && u('IVC_IS').fadeA.value.w > 0.999 && u('RHV_IVC').cavaEnd.value.y > 0.999, 'named, the cava and the hepatic ends are whole');
+  s.dispose();
 });
