@@ -258,3 +258,20 @@ test('a healthy vessel, however fast, has no swirl, no turns and no wobble: calm
   assert.doesNotMatch(DUST_GLSL, /wEnd/, 'no turbulence from a joint');
   assert.match(DUST_GLSL, /float TcRaw = clamp\([\d.]+ \* \(1\.0 - smoothstep\(0\.5, 0\.85, F\.nar\)\), 0\.0, 1\.0\);/);
 });
+
+// Brown flecks in the faded vessels (Mohammad, 20 Nov): the hue of a near-grey base is noise, and the lab's saturation added to it painted an arbitrary hue (organ-brown). The tones keep the vessel's hue family.
+test('the dust tones keep the vessel\'s hue family: a grey base stays grey, a blue one stays blue (no arbitrary hue from a faded tone)', async () => {
+  const { dustShiftJs } = await import('../src/scene/blood/dust-glsl.ts');
+  const shifts: Array<[number, number, number]> = [[-0.2 * 40 / 360, 0.02, 0.24], [0.5 * 40 / 360, 0.04, 0.1], [-0.55 * 40 / 360, 0, 0.06], [0, 0.03, -0.14]];
+  for (const grey of [[0.5, 0.5, 0.5], [0.52, 0.5, 0.49], [0.5, 0.505, 0.5], [0.6, 0.601, 0.6], [0.45, 0.45, 0.452]]) {
+    for (const [dh, ds, dl] of shifts) {
+      const o = dustShiftJs(grey, dh, ds, dl);
+      assert.ok(Math.max(...o) - Math.min(...o) < 0.05, `grey ${grey} -> ${o.map((x) => x.toFixed(3))}: a tone of a grey base has a hue`);
+    }
+  }
+  for (const [dh, ds, dl] of shifts) {
+    const o = dustShiftJs([0.58, 0.76, 0.95], dh, ds, dl);
+    assert.ok(o[2]! > o[1]! && o[1]! >= o[0]!, `a blue base keeps blue tones (${o.map((x) => x.toFixed(2))})`);
+  }
+  assert.match(DUST_GLSL, /dShiftK\(h\.y\)/, 'the shader holds the same rule');
+});
