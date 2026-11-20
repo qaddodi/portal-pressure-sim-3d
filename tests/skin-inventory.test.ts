@@ -7,11 +7,13 @@ import { BACK_EDGES, IVC_EDGES } from '../src/scene/vessels/paths.copied.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { buildTubes, TUBE_RADIAL } from '../src/scene/vessels/tubes.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
-import { PERMANENT_KINDS, SKIN_REACH, armReach, nodesBeyondReach, armsShareTier, findSkinJunctions, isPermanent, skinNodesForPhase, tierSpread } from '../src/scene/vessels/skin/inventory.ts';
+import { PERMANENT_KINDS, SKIN_REACH, armReach, nodesBeyondReach, armsShareTier, findSkinJunctions as findAllJunctions, isPermanent, skinNodesForPhase, tierSpread, withoutGrowers } from '../src/scene/vessels/skin/inventory.ts';
 import { CAPSULE_R, CLEAR_K, CLEAR_R, CUT_SKIN_K, MAX_TRIES, MIN_RINGS_BETWEEN, SEAM_MAX_SHARE, SEAM_MIN_R, chooseCuts, mergedNode, planSkins, type ArmTube } from '../src/scene/vessels/skin/cuts.ts';
 import { SkinBuildError, type SkinCut, type SkinJunction } from '../src/scene/vessels/skin/types.ts';
 import { indexOf } from '../src/engine/vessel-data.ts';
 
+/** The junctions as the spec's first table has them: the permanent arms alone (the growing arms of spec 10.2 are pinned in tests/skin-grow.test.ts). A node that is only a run-on pair with a collateral on it is not here. */
+const findSkinJunctions = (): SkinJunction[] => findAllJunctions().map((j) => withoutGrowers(j)).filter((j): j is SkinJunction => !!j);
 const on = <T>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(true); try { return f(); } finally { setSmoothJoins(was); } };
 
 /** The table of spec 4.1, as the network's own rule computes it on 20 Nov 2026 (the arms by id and end). The test pins it exactly. */

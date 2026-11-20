@@ -66,6 +66,18 @@ export function normalShift(R: number, swell: number, narrowK: number, inkW: num
   return inflate + R * (swell * narrowK - 1) + inkW + (R * swell * narrowK + inkW) * TUBE_SAG;
 }
 
+/**
+ * A GROWING arm's two widths in the skin's vertex stage (skin/shaders.ts, spec 10.2): `sw` the engine's live width share at its seam, `g` its growth (0 gone, 1 whole).
+ *  - the LUMEN `grownLumen = g x sw`: what the ink's capsule, the ink's width and the flow marks are made from (the arm's true radius, `g x R x sw`);
+ *  - the SHIFT `grownShift = 1 + g (sw - 1)`: what the vertex takes along its normal. The morph has already moved the vertex by the growth (`P1 - (1 - g) delta`: on the seam ring `centre + g R n`), so the engine's width is applied to the grown part only:
+ *    `g R + R (grownShift - 1) = g R sw`, the tube's own ring at the width `g x sw`.
+ * An arm that does not grow has g = 1 and both are `sw`, as before.
+ */
+export const grownLumen = (sw: number, g: number): number => g * sw;
+export const grownShift = (sw: number, g: number): number => 1 + g * (sw - 1);
+/** One morphed value of the skin (position, normal, rest radius, a weight): the whole shape less what the arm has still to grow times its difference to the closed shape (`GrowMorph`). */
+export const grownValue = (whole: number, delta: number, g: number): number => whole - (1 - g) * delta;
+
 /** The alpha of one copy (0 front, 1 solid, 2 veil) of a skin at a point whose arm weights are `w`: the JS twin of the fragment stage's `dot(vWeight, armFade * armCopy[.][SKIN_COPY])` (skin/shaders.ts, spec 10.4). On a seam ring one weight is 1 and this is
  *  that arm tube's own alpha of that copy there (its share of the copy times its fade), which tests/skin-copies.test.ts holds to the tube's own state. */
 export function copyAlpha(w: readonly number[], shares: readonly (readonly number[])[], fades: readonly number[], copy: 0 | 1 | 2): number {
