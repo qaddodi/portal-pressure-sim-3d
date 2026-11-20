@@ -3,7 +3,8 @@
 // finger. The release rules are the cards' (ease.js SHEET_FLICK_MIN/FAR, SHEET_CLOSE_PX/SHARE), and the let-go carries the finger's own speed on (carryCurve).
 // What is written while the finger moves is the panel's `translate`, one number, by the clock (menu/motion.ts follow/glide: a frame is asked for only while something moves). `onClose` runs the
 // moment the let-go is a close: the sheet is already sliding out of sight (data-swiped is set, and the stylesheet gives its own entrance and exit way: chrome-3d.css), so it needs no motion of its own.
-// A mouse is never a swipe (2D: `e.pointerType === 'mouse'`): a desktop window has no sheet to pull.
+// Two inputs reach it, and whichever begins a gesture owns it until it ends: pointer events of a finger or a pen (2D's), and touch events (a device or a test tool that sends only those, and the
+// page's own early claim of a pull: only a touchmove can say preventDefault before the browser takes the touch for scrolling). A mouse is never a swipe (2D): a desktop window has no sheet to pull.
 // @ts-ignore plain JS copied from the 2D app
 import { releaseSpeed, carryCurve, cssCurve, isFlick, D_SMALL, SHEET_FLICK_MIN, SHEET_FLICK_FAR, SHEET_CLOSE_PX, SHEET_CLOSE_SHARE } from '../tests/copied/ease.copied.js';
 import { follow, glide, type Glide } from '../menu/motion.ts';
@@ -19,7 +20,7 @@ const MOVE = 8, STRETCH = 0.25, CLICK_SWALLOW_MS = 350, AWAY_FALLBACK_MS = 700;
 /** Controls that keep their own drags: sliders, fields, editable text. */
 const OWN = 'input[type="range"], textarea, [contenteditable], [role="slider"], .range-wrap';
 
-interface Grab { id: number; sc: HTMLElement | null; x: number; y: number; top: boolean; more: boolean; on: boolean; dy: number; t: number; h: number; here: number; trail: [number, number][]; m: ReturnType<typeof follow> | null }
+interface Grab { via: 'pointer' | 'touch'; id: number; sc: HTMLElement | null; x: number; y: number; top: boolean; more: boolean; on: boolean; dy: number; t: number; h: number; here: number; trail: [number, number][]; m: ReturnType<typeof follow> | null }
 
 const write = (el: HTMLElement) => (v: number) => { el.style.translate = v ? `0px ${v}px` : ''; };
 
@@ -45,32 +46,30 @@ export function attachSheetSwipe(panel: HTMLElement, o: SwipeOpts): () => void {
   const awaitReopen = () => {
     const shut = () => panel.dataset.open === 'false' || panel.classList.contains('out') || panel.classList.contains('leaving') || panel.hasAttribute('inert');
     let seenShut = shut();
-    const clear = () => { mo.disconnect(); clearTimeout(tm); away = null; run?.stop(); run = null; off = 0; panel.style.translate = ''; delete panel.dataset.swiped; delete panel.dataset.pulled; };
-    const mo = new MutationObserver(() => { const now = shut(); if (now) seenShut = true; else if (seenShut) clear(); });
-    mo.observe(panel, { attributes: true, attributeFilter: ['data-open', 'class', 'inert'] });
+    const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => { const now = shut(); if (now) seenShut = true; else if (seenShut) clear(); });
+    const clear = () => { mo?.disconnect(); clearTimeout(tm); away = null; run?.stop(); run = null; off = 0; panel.style.translate = ''; delete panel.dataset.swiped; delete panel.dataset.pulled; };
+    mo?.observe(panel, { attributes: true, attributeFilter: ['data-open', 'class', 'inert'] });
     const tm = setTimeout(() => { if (!shut()) clear(); }, AWAY_FALLBACK_MS);   // (a close that did not happen: the sheet comes back)
     away = clear;
   };
 
-  const onDown = (e: PointerEvent) => {
+  const down = (via: 'pointer' | 'touch', id: number, x: number, y: number, t: Element | null) => {
     s = null;
-    const t = e.target as Element | null;
-    if (!t || (o.enabled && !o.enabled()) || e.pointerType === 'mouse' || !e.isPrimary || t.closest(OWN)) return;
+    if (!t || (o.enabled && !o.enabled()) || t.closest(OWN)) return;
     // (where the sheet stands and how tall it is, read at the touch, never in the moves that follow)
     const sc = scroller(panel, t);
-    s = { id: e.pointerId, sc, x: e.clientX, y: e.clientY, top: !sc || sc.scrollTop <= 0, more: !!sc && sc.scrollTop + sc.clientHeight < sc.scrollHeight - 1, on: false, dy: 0, t: 0, h: panel.offsetHeight, here: run ? off : 0, trail: [], m: null };
+    s = { via, id, sc, x, y, top: !sc || sc.scrollTop <= 0, more: !!sc && sc.scrollTop + sc.clientHeight < sc.scrollHeight - 1, on: false, dy: 0, t: 0, h: panel.offsetHeight, here: run ? off : 0, trail: [], m: null };
   };
-  // Once the sheet follows the finger the page must not scroll under it (a pull down from the top of a list is claimed at its first move).
-  const onTouchMove = (e: TouchEvent) => {
-    if (!s || !e.cancelable) return;
-    if (s.on) { e.preventDefault(); return; }
-    const t = e.touches[0]; if (!t) return;
-    const dx = t.clientX - s.x, dy = t.clientY - s.y;
-    if (Math.abs(dy) >= Math.abs(dx) && ((dy > 0 && s.top) || (dy < 0 && !s.more))) e.preventDefault();
+  /** The page must not scroll under the sheet once it follows the finger, and a pull down from the top of a list is claimed at its first move: true when the move is the sheet's to claim. */
+  const claims = (x: number, y: number): boolean => {
+    if (!s) return false;
+    if (s.on) return true;
+    const dx = x - s.x, dy = y - s.y;
+    return Math.abs(dy) >= Math.abs(dx) && ((dy > 0 && s.top) || (dy < 0 && !s.more));
   };
-  const onMove = (e: PointerEvent) => {
-    if (!s || e.pointerId !== s.id) return;
-    const dx = e.clientX - s.x, dy = e.clientY - s.y;
+  const move = (x: number, y: number, pointerId?: number) => {
+    if (!s || (pointerId !== undefined && pointerId !== s.id)) return;
+    const dx = x - s.x, dy = y - s.y;
     if (!s.on) {
       if (Math.hypot(dx, dy) < MOVE) return;
       // A pull down from the top, or a pull up with nothing more to scroll, is the sheet's; a sideways drag or a list's scroll is not.
@@ -78,21 +77,21 @@ export function attachSheetSwipe(panel: HTMLElement, o: SwipeOpts): () => void {
       if (!mine) { s = null; return; }
       // (caught while it is still easing back: the pull carries on from where the sheet is, with no jump)
       if (run) { s.here = off; run.stop(); run = null; }
-      s.on = true; s.y = e.clientY - s.here; s.t = performance.now();
+      s.on = true; s.y = y - s.here; s.t = performance.now();
       panel.dataset.pulling = '1'; panel.dataset.pulled = '1';   // (the stylesheet's entrance, if it is still playing, gives way to the finger: pulled stays, so it is not played again when the finger lets go)
       s.m = follow(write(panel), 'sheet-swipe');
       s.m.set(s.here);
-      try { panel.setPointerCapture(e.pointerId); } catch { /* the touch is gone */ }
+      if (s.via === 'pointer') { try { panel.setPointerCapture(s.id); } catch { /* the touch is gone */ } }
     }
-    const raw = e.clientY - s.y;
+    const raw = y - s.y;
     s.dy = raw >= 0 ? raw : raw * STRETCH;   // (past its own height a pull up stretches with resistance, as a card does past Full)
-    s.trail.push([performance.now(), e.clientY]); if (s.trail.length > 8) s.trail.shift();
+    s.trail.push([performance.now(), y]); if (s.trail.length > 8) s.trail.shift();
     off = s.dy; s.m!.set(s.dy);
   };
-  const end = (e?: PointerEvent) => {
+  const end = () => {
     const g = s;
-    if (!g?.on || (e && e.pointerId !== g.id)) { if (!e || !g || e.pointerId === g.id) s = null; return; }
     s = null;
+    if (!g?.on) return;
     swallow = performance.now() + CLICK_SWALLOW_MS;
     g.m?.flush(); g.m?.stop();
     const speed: number = releaseSpeed(g.trail, performance.now());   // (px per ms down, as the finger lifted: the settle starts at that speed)
@@ -103,21 +102,43 @@ export function attachSheetSwipe(panel: HTMLElement, o: SwipeOpts): () => void {
     run = glide({ ms: D_SMALL, curve, tag: 'sheet-swipe', apply: (k) => { off = from + (to - from) * k; w(off); }, done: () => { run = null; if (!gone) { off = 0; w(0); delete panel.dataset.pulling; } } });
     if (gone) { delete panel.dataset.pulling; o.onClose(); }
   };
-  const onUp = (e: PointerEvent) => end(e);
-  const onLost = (e: PointerEvent) => { if (e.target === panel) end(e); };
+
+  // pointer events: a finger or a pen (a mouse is no swipe); a gesture the touch events began is theirs
+  const onPDown = (e: PointerEvent) => { if (e.pointerType === 'mouse' || !e.isPrimary) return; down('pointer', e.pointerId, e.clientX, e.clientY, e.target as Element | null); };
+  const onPMove = (e: PointerEvent) => { if (s?.via === 'pointer') move(e.clientX, e.clientY, e.pointerId); };
+  const onPEnd = (e: PointerEvent) => { if (s?.via === 'pointer' && e.pointerId === s.id) end(); };
+  const onLost = (e: PointerEvent) => { if (e.target === panel && s?.via === 'pointer' && e.pointerId === s.id) end(); };
+  // touch events: the same gesture for a source that sends them alone, and the early claim (preventDefault) that keeps the browser from scrolling the page under a pull
+  const onTStart = (e: TouchEvent) => {
+    if (s || e.touches.length !== 1) return;   // (a finger's pointer events came first: that gesture is theirs, the touch events only claim it)
+    const t = e.touches[0]!;
+    down('touch', t.identifier, t.clientX, t.clientY, e.target as Element | null);
+  };
+  const onTMove = (e: TouchEvent) => {
+    const t = e.touches[0];
+    if (!s || !t) return;
+    // (a pointer sequence of the same finger is moving the sheet already: it only needs the claim)
+    if (s.via === 'touch') move(t.clientX, t.clientY);
+    if (e.cancelable && claims(t.clientX, t.clientY)) e.preventDefault();
+  };
+  const onTEnd = () => { if (s?.via === 'touch') end(); };
   // (the click a drag's release makes is not a tap: swallowed if it comes within 350 ms)
   const onClick = (e: MouseEvent) => { if (performance.now() < swallow) { swallow = 0; e.stopPropagation(); e.preventDefault(); } };
 
-  panel.addEventListener('pointerdown', onDown, { passive: true });
-  panel.addEventListener('touchmove', onTouchMove, { passive: false });
-  panel.addEventListener('pointermove', onMove);
-  panel.addEventListener('pointerup', onUp);
-  panel.addEventListener('pointercancel', onUp);
+  panel.addEventListener('pointerdown', onPDown, { passive: true });
+  panel.addEventListener('pointermove', onPMove);
+  panel.addEventListener('pointerup', onPEnd);
+  panel.addEventListener('pointercancel', onPEnd);
   panel.addEventListener('lostpointercapture', onLost);
+  panel.addEventListener('touchstart', onTStart, { passive: true });
+  panel.addEventListener('touchmove', onTMove, { passive: false });
+  panel.addEventListener('touchend', onTEnd, { passive: true });
+  panel.addEventListener('touchcancel', onTEnd, { passive: true });
   panel.addEventListener('click', onClick, true);
   return () => {
-    panel.removeEventListener('pointerdown', onDown); panel.removeEventListener('touchmove', onTouchMove); panel.removeEventListener('pointermove', onMove);
-    panel.removeEventListener('pointerup', onUp); panel.removeEventListener('pointercancel', onUp); panel.removeEventListener('lostpointercapture', onLost); panel.removeEventListener('click', onClick, true);
+    panel.removeEventListener('pointerdown', onPDown); panel.removeEventListener('pointermove', onPMove); panel.removeEventListener('pointerup', onPEnd); panel.removeEventListener('pointercancel', onPEnd);
+    panel.removeEventListener('lostpointercapture', onLost); panel.removeEventListener('touchstart', onTStart); panel.removeEventListener('touchmove', onTMove);
+    panel.removeEventListener('touchend', onTEnd); panel.removeEventListener('touchcancel', onTEnd); panel.removeEventListener('click', onClick, true);
     run?.stop(); s?.m?.stop(); away?.(); panel.style.translate = ''; delete panel.dataset.pulling; delete panel.dataset.swiped; delete panel.dataset.pulled;
   };
 }
