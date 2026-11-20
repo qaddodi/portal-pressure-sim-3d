@@ -51,7 +51,7 @@ export function LensKey() {
         </div>
       )}
       {g.dots && (
-        <div className="lg-cats lg-dots">
+        <div className="lg-cats lg-dots" title={g.dotsTitle}>
           {g.dots.map((d) => <span key={d.name} title={d.title}><i style={{ background: d.colour }} /><b>{d.name}</b></span>)}
         </div>
       )}

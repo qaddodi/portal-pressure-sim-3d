@@ -1,5 +1,5 @@
 /* History rows (2D styles/app-03-layouts.css .tl-pop*), in the 3D shell's tokens. Moves are opacity and transform only. */
-.sh-sheet[data-kind="history"], .sh-sheet[data-kind="compare"] { right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + 52px); width: 360px; max-height: calc(100% - var(--sh-pad-top) - 92px); }
+.sh-sheet[data-kind="history"], .sh-sheet[data-kind="compare"] { right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + 52px); width: 360px; max-height: var(--sh-max-h); }
 .sh-sheet[data-kind="compare"] { width: 400px; }
 .hist-list { display: flex; flex-direction: column; padding: 0 6px; }
 .hist-row { padding: 6px 6px 7px; border-bottom: 1px solid var(--edge); display: flex; flex-direction: column; gap: 2px; transition: opacity 200ms var(--sh-ease); }
