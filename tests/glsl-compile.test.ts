@@ -10,15 +10,22 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { CelScene } from '../src/scene/scene.ts';
 import { type Program, ES3_FLOOR, assemble, budget, declarations, uniformProblems, THREE_FRAGMENT_NAMES, THREE_VERTEX_NAMES } from '../src/debug/gl-programs.ts';
 import { GL_FILES, allPrograms } from '../src/debug/gl-registry.ts';
+import { onSceneGraph, programsOfModule } from '../src/debug/gl-auto.ts';
+import { glslFiles } from '../scripts/gl-scan.mjs';
 import { VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 
 const FIBRO = join('src', 'ui', 'tests', 'fibro', 'copied', 'fibro-gl.copied.js');
-const programs = allPrograms(new CelScene().scene, readFileSync(FIBRO, 'utf8'));
+// every file that holds GLSL and is not on the closed hand list is found by scanning and its programs read from the module (src/debug/gl-auto.ts): a new shader needs nothing registered
+const scanned: string[] = glslFiles();
+const auto: Record<string, Record<string, unknown>> = {};
+for (const f of scanned.filter((x) => !(x in GL_FILES))) auto[f] = (await import(pathToFileURL(resolve('src', f)).href)) as Record<string, unknown>;
+const programs = allPrograms(new CelScene().scene, readFileSync(FIBRO, 'utf8'), auto);
 
 const which = (bin: string) => spawnSync(bin, ['--version'], { encoding: 'utf8' }).status === 0;
 const GLSLANG = process.env.GLSLANG || ['glslangValidator', 'glslang'].find(which);
@@ -103,18 +110,25 @@ test('the assembled text starts with the version and has main() in both stages',
   }
 });
 
-// ---- the completeness guard: GLSL that the registry does not know ----
-const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => {
-  const f = join(dir, n);
-  return statSync(f).isDirectory() ? walk(f) : /\.(ts|tsx|js|mjs)$/.test(n) ? [f] : [];
-});
-test('every file that holds GLSL is in src/debug/gl-registry.ts (a new shader is compiled by this test, or it fails here)', () => {
-  const marker = /gl_Position|gl_FragColor|#version 300 es/;
-  const hits = walk('src')
-    .filter((f) => !f.startsWith(join('src', 'engine', 'hales')) && !f.startsWith(join('src', 'engine', 'host')) && !f.startsWith(join('src', 'debug')))
-    .filter((f) => marker.test(readFileSync(f, 'utf8')))
-    .map((f) => f.slice('src/'.length).split('\\').join('/'));
-  const unknown = hits.filter((f) => !(f in GL_FILES));
-  assert.deepEqual(unknown, [], 'GLSL in a file the registry does not list: add it to GL_FILES in src/debug/gl-registry.ts (and register its program there if the scene graph does not hold it), so glsl-compile.test.ts compiles it');
+// ---- the completeness guard: GLSL that nothing compiles ----
+test('every file that holds GLSL is compiled: on the closed hand list, or giving its programs itself (GL_PROGRAMS, _VS/_FS pairs, or GL_ON_SCENE_GRAPH)', () => {
+  const hand = scanned.filter((f) => f in GL_FILES);
+  const fresh = scanned.filter((f) => !(f in GL_FILES));
+  const silent = fresh.filter((f) => !programsOfModule(f, auto[f]!).length && !onSceneGraph(auto[f]!));
+  assert.deepEqual(silent, [], 'GLSL in a file that gives no program to compile: `export const GL_PROGRAMS = [{ name, vs, fs, defines? }]` (src/scene/glow-fx.ts), or name its stages <STEM>_VS and <STEM>_FS, or `export const GL_ON_SCENE_GRAPH = \'why\'` when the scene graph holds its materials (src/debug/gl-auto.ts)');
+  for (const f of fresh.filter((x) => programsOfModule(x, auto[x]!).length)) {
+    for (const p of programsOfModule(f, auto[f]!)) assert.ok(programs.some((q) => q.vertexGlsl === p.vertexGlsl && q.fragmentGlsl === p.fragmentGlsl), `${f}: ${p.name} is among the programs compiled`);
+  }
+  assert.ok(hand.length > 20, 'the hand list is still found by the scan');
   for (const f of Object.keys(GL_FILES)) assert.ok(statSync(join('src', f)).isFile(), `${f} is listed but does not exist`);
+  assert.ok(fresh.includes('scene/glow-fx.ts'), 'the glow\'s passes are found by the scan, not listed by hand');
+  assert.ok(programs.some((p) => p.name === 'glow blur') && programs.some((p) => p.name === 'glow lay'), 'and compiled');
+});
+
+test('the ?gl page reads the same scan: the build makes `virtual:gl-modules` from scripts/gl-scan.mjs and the check imports it, so a new shader file is checked on the device with nothing registered', () => {
+  const vite = readFileSync('vite.config.ts', 'utf8'), run = readFileSync(join('src', 'debug', 'gl-check-run.ts'), 'utf8');
+  assert.match(vite, /import \{ glslFiles \} from '\.\/scripts\/gl-scan\.mjs'/);
+  assert.match(vite, /virtual:gl-modules/); assert.match(vite, /plugins: \[react\(\), glModules\(\)\]/);
+  assert.match(run, /import\('virtual:gl-modules'\)/);
+  assert.match(readFileSync(join('src', 'debug', 'gl-registry.ts'), 'utf8'), /autoPrograms\(fresh\)/);
 });

@@ -51,7 +51,10 @@ async function compileText(gl: WebGL2RenderingContext, p: Program): Promise<{ ok
 export async function runGlCheck(r: GlHandle, scene: Object3D, camera: object, fibroText: string): Promise<{ limits: Limits; rows: Row[] }> {
   const gl = r.getContext() as WebGL2RenderingContext;
   const limits = limitsOf(gl);
-  const programs: Program[] = allPrograms(scene, fibroText);
+  // every file that holds GLSL (found by the build's scan): its programs are read from the module (gl-auto.ts), so a new shader is checked here with nothing registered
+  let auto: Record<string, Record<string, unknown>> = {};
+  try { const { GL_MODULES } = await import('virtual:gl-modules'); auto = Object.fromEntries(await Promise.all(Object.entries(GL_MODULES).map(async ([f, load]) => [f, await load()] as const))); } catch { /* not in the build (a node test): the hand list and the scene graph */ }
+  const programs: Program[] = allPrograms(scene, fibroText, auto);
   // three.js builds every ShaderMaterial program of the scene in one go (parallel where the driver can), hidden views included
   try { await r.compileAsync(scene as never, camera as never); } catch (e) { console.error('[?gl] compile failed', e); }
   const rows: Row[] = [];

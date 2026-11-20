@@ -10,7 +10,7 @@ import { AddEquation, Color, CustomBlending, HalfFloatType, LinearFilter, Mesh, 
 import { BLUR_TAPS, GLOW_A_MAX, GLOW_GAIN, GLOW_LAYER, GLOW_SIGMA, blurTaps } from './glow.ts';
 import { glslNum as F } from './cel-glsl.ts';
 
-const VS = /* glsl */ `varying vec2 vUv;
+export const GLOW_FX_VS = /* glsl */ `varying vec2 vUv;
 void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 
 export const BLUR_FS = /* glsl */ `varying vec2 vUv;
@@ -42,6 +42,9 @@ void main() {
   gl_FragColor = vec4(g.rgb / max(g.a, 1e-4), a);
 }`;
 
+/** The glow's two passes, compiled by the GLSL compile test and the ?gl page (src/debug/gl-auto.ts reads this). */
+export const GL_PROGRAMS = [{ name: 'glow blur', vs: GLOW_FX_VS, fs: BLUR_FS }, { name: 'glow lay', vs: GLOW_FX_VS, fs: LAY_FS }] as const;
+
 export class GlowFx {
   private mask: WebGLRenderTarget | null = null;
   private a: WebGLRenderTarget | null = null;
@@ -49,9 +52,9 @@ export class GlowFx {
   private readonly cam = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private readonly scene = new Scene();
   private readonly quad: Mesh;
-  private readonly blur = new ShaderMaterial({ vertexShader: VS, fragmentShader: BLUR_FS, depthTest: false, depthWrite: false, blending: NoBlending, uniforms: { tSrc: { value: null }, stepUv: { value: new Vector2() }, sigma: { value: 1 } } });
+  private readonly blur = new ShaderMaterial({ vertexShader: GLOW_FX_VS, fragmentShader: BLUR_FS, depthTest: false, depthWrite: false, blending: NoBlending, uniforms: { tSrc: { value: null }, stepUv: { value: new Vector2() }, sigma: { value: 1 } } });
   private readonly lay = new ShaderMaterial({
-    vertexShader: VS, fragmentShader: LAY_FS, transparent: true, depthTest: false, depthWrite: false,
+    vertexShader: GLOW_FX_VS, fragmentShader: LAY_FS, transparent: true, depthTest: false, depthWrite: false,
     blending: CustomBlending, blendEquation: AddEquation, blendSrc: SrcAlphaFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: ZeroFactor, blendDstAlpha: OneFactor,   // (the figure's own alpha is left as it is)
     uniforms: { tBlur: { value: null }, tMask: { value: null } },
   });
