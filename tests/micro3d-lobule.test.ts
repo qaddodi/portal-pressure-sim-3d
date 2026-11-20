@@ -83,3 +83,16 @@ test('every look has the colours the tiles read', () => {
     l3.buildForTest(look);
   }
 });
+
+test('on the sinusoid (landed), the whole lobule stands aside, 3D and flat; back on the lobule it shows again', () => {
+  const sh = createShared(), lv = new LobuleView(sh), l = new Lobule3D(lv, sh);
+  lv.setVisible(true);
+  l.update(true, 0.5);
+  assert.equal(l.group.visible, true, 'half way down it is still there, dissolving');
+  l.update(true, 1);
+  assert.equal(l.group.visible, false); assert.equal(lv.group.visible, false);
+  l.update(true, 0);
+  assert.equal(l.group.visible, true); assert.equal(lv.group.visible, true);
+  l.update(true, 1); l.update(false, 0);
+  assert.equal(lv.group.visible, true);
+});

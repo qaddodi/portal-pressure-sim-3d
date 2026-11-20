@@ -58,6 +58,7 @@ interface Flat {
   lyFade: number; bileFade: number; zoneFade: number;
   look: LookId;
   isVisible: boolean;
+  group: Group;
   objects: CelObject[];
   plate: { group: Group };
   zones: { mesh: Mesh };
@@ -77,6 +78,7 @@ export class Lobule3D {
   private readonly flat: Flat;
   private readonly fade = { value: 1 };
   private on = false;
+  private hidLobule = false;
   private cellKey = '';
   private inkKey = '';
   private lookKey = '';
@@ -154,11 +156,18 @@ export class Lobule3D {
   get enabled(): boolean { return this.on; }
 
   /** One frame, after the flat lobule's own update. `on` is the Settings switch. True while anything of this scene changed. */
-  update(on: boolean): boolean {
+  update(on: boolean, under = 0): boolean {
     const f = this.flat, changed = on !== this.on;
     this.on = on;
-    const shown = on && f.isVisible;
+    // `under`: how far the camera has gone down onto the sinusoid (0 on the lobule, 1 landed). The lobule dissolves away as the sinusoid comes in (Mohammad: "Should fade when zooming"), and once
+    // landed neither this scene nor the flat lobule is drawn: the lobule's solid tiles and tubes stand above the sinusoid's plane and would cut across it in the foreground
+    this.fade.value = 1 - under; this.marksMat.uniforms.opacity!.value = 1 - under;
+    const shown = on && f.isVisible && under < 1;
     this.group.visible = shown;
+    // (the whole lobule, its neighbouring field too: the sinusoid's own ground lies below the lobule's plane, so the field would show through the clefts between its cells)
+    const hide = on && under >= 1 && f.isVisible;
+    if (hide !== this.hidLobule) { this.hidLobule = hide; f.group.visible = !hide && f.isVisible; }
+    if (hide) return changed;
     if (changed && !on) {
       // give the flat view its drawing back (its own update puts the managed visibilities right on the next frame)
       for (const o of f.objects) o.group.visible = true;

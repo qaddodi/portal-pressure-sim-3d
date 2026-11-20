@@ -818,7 +818,9 @@ export class CelScene {
     this.stepPortrait();
     this.sinus3d.pinTraffic(this.micro3d);
     const lobMoving = this.lobule.update(now), sinMoving = this.sinus.update(now);
-    const lob3 = this.lobule3d.update(this.micro3d), sin3 = this.sinus3d.update(this.micro3d);
+    // (the 3D lobule dissolves as the camera goes down onto the sinusoid, and stands aside once landed: its solid tiles and tubes rise above the sinusoid's plane and would cross it in the foreground)
+    const dv = this.sinus.diveShareNow, under = !this.sinus.isVisible ? 0 : dv == null ? 1 : smoothstep01(0.4, 0.78, dv);
+    const lob3 = this.lobule3d.update(this.micro3d, under), sin3 = this.sinus3d.update(this.micro3d);
     const viewMoving = lob3 || sin3 || lobMoving || sinMoving;
     const procMoving = this.procs.update(now);
     const diseaseMoving = this.disease.update(now);
@@ -911,3 +913,6 @@ const ANCHORS = {
 } as const satisfies Record<string, readonly [string, number]>;
 
 export { SHOTS };
+
+/** 0 below a, 1 above b, smooth between. */
+function smoothstep01(a: number, b: number, x: number): number { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
