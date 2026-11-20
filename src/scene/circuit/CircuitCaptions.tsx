@@ -21,7 +21,7 @@ import { type Placement, solve } from '../labels/solver.ts';
 import { LS, baselineAt, fontPx, lookVars, typeVars } from '../labels/type.ts';
 import { COURSES } from './course.ts';
 import { type CapMeta, buildCaptions } from './captions.ts';
-import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, LIVER_EDGES } from './data.copied.ts';
+import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, CIRCUIT_TREES, LIVER_EDGES } from './data.copied.ts';
 import { courseOf } from './paths.ts';
 import { halfWidthPx } from './cap-width.ts';
 import { resText } from './res-model.ts';
@@ -110,6 +110,19 @@ export function CircuitCaptions() {
           cel.mapPoint(p[i]![0], p[i]![1], tmp);
           if (!Number.isNaN(px)) { lines.push([px, py, tmp.x, tmp.y]); owned.push({ id, s: [px, py, tmp.x, tmp.y] }); }
           px = tmp.x; py = tmp.y;
+        }
+      }
+      // the liver's branches (the sinusoid bundle) are lines a caption keeps off too, drawn with their parent
+      for (const [id, list] of Object.entries(CIRCUIT_TREES)) {
+        if (!cel.vesselDrawn(id)) continue;
+        for (const b of list) {
+          const p = courseOf(b.d);
+          let px = NaN, py = NaN;
+          for (let i = 0; i < p.length; i += Math.max(1, Math.floor(p.length / 12))) {
+            cel.mapPoint(p[i]![0], p[i]![1], tmp);
+            if (!Number.isNaN(px)) { lines.push([px, py, tmp.x, tmp.y]); owned.push({ id: `${id}~tree`, s: [px, py, tmp.x, tmp.y] }); }
+            px = tmp.x; py = tmp.y;
+          }
         }
       }
       const walls = blockers();
