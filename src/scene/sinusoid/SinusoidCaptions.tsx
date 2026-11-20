@@ -89,9 +89,9 @@ export function SinusoidCaptions() {
       r.dataset.target = `sinusoid:${id}`;
       root.appendChild(r);
       const lead = document.createElement('i'); lead.className = 'lb-lead'; root.appendChild(lead);
-      // (2D's leader ends in a dot on the part it names, the stage's paper round it and the text ink's ring: label-captions.js leadMarks)
-      const ring = document.createElement('i'); ring.className = 'lb-anchor'; root.appendChild(ring);
-      const e: El = { root: r, lead, ring, ringTx: '', tx: '', words: '' };
+      // (no ring at the leader's end: 2D's paper-and-ink dot read as a white circle on the cell it names, mistaken for a nucleus, Mohammad 20 Nov 2026 "there is a white circle in it ... not
+      //  sure what that circle is"; the leader simply ends on the part)
+      const e: El = { root: r, lead, ring: null, ringTx: '', tx: '', words: '' };
       els.set(id, e);
       return e;
     };
