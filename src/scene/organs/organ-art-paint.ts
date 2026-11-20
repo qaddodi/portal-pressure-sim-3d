@@ -21,7 +21,7 @@ export interface Env { path(): Path2D; surface(): Surface | null }
 interface Colour { rgb: Rgb; a: number }
 interface Style { fill?: Colour; stroke?: Colour; w?: number; cap?: 'butt' | 'round'; join?: 'round' | 'miter' }
 /** The tones a class reads: the organ's three (--o1, --o2, --o3) and the look's light (--og-light), ao, hi, hi-k and gut-rim-k. */
-export interface Tones { o1: Rgb; o2: Rgb; o3: Rgb; light: readonly [number, number, number, number]; tok: ArtTokens; soft: boolean }
+export interface Tones { o1: Rgb; o2: Rgb; o3: Rgb; light: readonly [number, number, number, number]; tok: ArtTokens; soft: boolean; /** cel shaded: no light strokes (the colon's rim light), only flat tones */ cel?: boolean }
 
 const mixc = (a: Rgb, b: Rgb, k: number): Rgb => [a[0] * k + b[0] * (1 - k), a[1] * k + b[1] * (1 - k), a[2] * k + b[2] * (1 - k)];
 const solid = (rgb: Rgb, a = 1): Colour => ({ rgb, a });
@@ -57,7 +57,7 @@ export function styleOf(cls: string, t: Tones, w?: number): Style {
     case 'oc-rim-shade s1': return { stroke: solid(t.o3, 0.08), w: 24, join: 'round', cap: 'round' };
     case 'oc-rim-shade s2': return { stroke: solid(t.o3, 0.12), w: 14, join: 'round', cap: 'round' };
     case 'oc-rim-shade s3': return { stroke: solid(t.o3, 0.18), w: 6, join: 'round', cap: 'round' };
-    case 'oc-rim-light': return { stroke: light(0.22), w: 4, join: 'round', cap: 'round' };
+    case 'oc-rim-light': return { stroke: light(t.cel ? 0 : 0.22), w: 4, join: 'round', cap: 'round' };
     // the lines an organ carries on its surface
     case 'od-fine': return { stroke: solid(t.o3, 0.55), w: 0.9 };
     case 'od-fold': return { stroke: solid(t.o3, 0.16), w: 1.4 };

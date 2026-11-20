@@ -10,7 +10,6 @@ import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { TIER_Z, type Tier, UNITS_PER_SCENE, len3, x3, y3 } from '../frame2d.ts';
-import type { AtlasCourse } from '../atlas-art/types.ts';
 
 export interface Flare { add: number; wall: number; span: number }
 export type NetTone = 'portal' | 'sys' | 'artery';
@@ -90,14 +89,8 @@ function tierOf(e: Edge): Tier {
 }
 const toneOf = (e: Edge): NetTone => (isArteryEdge(e) ? 'artery' : portal.has(e.from) || portal.has(e.to) ? 'portal' : 'sys');
 
-/** Atlas art (Settings > Figure depth; src/scene/atlas-art/): the artist's course of each vessel it drew, while Atlas is on. Empty in Classic, so nothing below changes. coursesOf (shape.ts) and
- *  courseOf read it; atlas-art/vessels.ts is the only writer. */
-export const ATLAS_COURSE: Map<string, AtlasCourse> = new Map();
-
-/** The 2D course of an edge carried into the scene: x and y by the linear map, z by its tier (the artist's own, while Atlas art is on and drew it). */
+/** The 2D course of an edge carried into the scene: x and y by the linear map, z by its tier. */
 export function courseOf(id: string): Vec3[] {
-  const a = ATLAS_COURSE.get(id);
-  if (a) return a.pts;
   const e = edgeById.get(id)!, z = TIER_Z[tierOf(e)];
   return pathOf(id).map(([x, y]): Vec3 => [x3(x), y3(y), z]);
 }
@@ -160,11 +153,22 @@ function build(): NetVessel[] {
 export const NETWORK: readonly NetVessel[] = build();
 
 // ---- joins: depth and width continue through a node ----
-/** The depth at each node: the mean of the tiers of the vessels that meet there, so two vessels that join are at one depth where they meet (their own tier holds between). */
+/** The depth at each node. Two vessels that join are at one depth where they meet (their own tier holds between). At a node of two the depth is the mean of their tiers (a vein that
+ *  changes tier eases over its length). At a fork, a node of three or more, the widest vessels keep their own tier and the narrower ones ease to it: the mean would pull a trunk toward
+ *  the camera at every branch (the cava, a back-tier vein, bulged forward at each hepatic and renal vein, and the 14 degree view turned each bulge into a sideways jog: Mohammad, 20 Nov). */
+/** Nodes where a trunk deliberately rises to the vessels that meet it (the cava at the hepatic veins). */
+const RISE_NODES: ReadonlySet<string> = new Set(['IVCS']);
 export const NODE_Z: ReadonlyMap<string, number> = (() => {
-  const acc = new Map<string, number[]>();
-  for (const v of NETWORK) if (!v.feeder) for (const n of [v.from, v.to]) { const a = acc.get(n) ?? []; a.push(TIER_Z[v.tier]); acc.set(n, a); }
-  return new Map([...acc].map(([n, a]) => [n, a.reduce((x, y) => x + y, 0) / a.length]));
+  const acc = new Map<string, { z: number; r: number; main: boolean }[]>();
+  for (const v of NETWORK) if (!v.feeder) for (const n of [v.from, v.to]) { const a = acc.get(n) ?? []; a.push({ z: TIER_Z[v.tier], r: v.radius, main: v.kind !== 'shunt' && v.kind !== 'collateral' }); acc.set(n, a); }
+  return new Map([...acc].map(([n, all]) => {
+    // (a shunt or a collateral is drawn only in some states and is a small vessel on the trunk it joins: it eases to the node, it does not set it)
+    const a = all.some((x) => x.main) ? all.filter((x) => x.main) : all;
+    // (the hepatic junction keeps the mean: the cava rises to meet the hepatic veins and runs on to the atrium's wall, one slope, a design of the labels and the smooth joins)
+    const widest = all.length >= 3 && !RISE_NODES.has(n) ? Math.max(...a.map((x) => x.r)) : 0;
+    const used = a.filter((x) => x.r >= 0.9 * widest);
+    return [n, used.reduce((t, x) => t + x.z, 0) / used.length] as const;
+  }));
 })();
 // Two vessels that run on into one another (a node of exactly two, or the pair the 2D rule picks at a fork) ease to one width over the last third of each (the 2D tubes' own end easing,
 // tubeRadius; a branch keeps its own caliber, which the 2D figure fillets).

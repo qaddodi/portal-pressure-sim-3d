@@ -42,25 +42,24 @@ export const CEL_STYLE = {
   ORGAN: {
     /** Where an organ's tones change, in n.L plus the box lean below: a flat face-on organ sits at LIGHT.z / |LIGHT| = 0.6, between the two. */
     SHADE_LAM: 0.5,
-    LIT_LAM: 0.75,
+    LIT_LAM: 0.72,
     LIGHT: [-0.5, 0.62, 0.6] as const,
     /** The baked tuck (organ-depth.ts, 0..1) above which an organ with Organ depth on wears one hard band of the shade tone. */
     TUCK_AO: 0.6,
-    /** A flat organ still shows its bands: the measure leans by this much across the organ's own box toward the light (upper left lit, lower right shade), as 2D's og-vol light does. */
-    BOX_BIAS: 1.0,
-    /** How strong the organ tones are (stronger than the vessels', which stay 2D's): the shade is the base less SHADE of itself, then DEEP of the way to the organ's own darkest tone (og-dark where the third tone is the light edge of a dark look);
-     *  the lit tone is LIT_O1 of the way to the organ's own light tone, then LIT of the way to og-light. */
-    SHADE: 0.38,
-    DEEP: 0.62,
-    LIT_O1: 0.9,
-    LIT: 0.45,
-    /** The cel organ's line: its width grows by LINE_SCALE (figure units, as 2D's .org-line) and its alpha by INK_BOOST of what is left to 1, so an edge and an overlap read as ink. */
+    /** A flat organ still shows its bands: the measure leans by BOX_BIAS x (BOX_R0 - r), r the distance in the organ's own box from the light's spot BOX_LIGHT (as 2D's og-vol light), so the lit cap is round, round the light, and the shade is the far lower right,
+     *  in curved bands that follow the organ (a straight line across it reads as a cast shadow). */
+    BOX_BIAS: 0.5,
+    BOX_R0: 0.48,
+    BOX_LIGHT: [0.34, 0.26] as const,
+    /** Matte and flat (Mohammad, 20 Nov: "like glass ... not too shiny"; "the colors are wrong"): the cel base is the organ's own 2D tone (og-N-2, organs/cel-tones.ts), the shade and the lit are the SAME hue and saturation one flat lightness step away
+     *  (HSL: the shade's lightness x (1 - SHADE_L) and at least SHADE_MIN less, the lit LIT_L of the way to white and at least LIT_MIN more), never mixed toward white, black or the grey og-light / og-dark. The line tone, for the art's fine lines, is darker still (LINE_L). */
+    TONES: { SHADE_L: 0.3, SHADE_MIN: 0.12, LIT_L: 0.27, LIT_MIN: 0.1, LINE_L: 0.6 },
     /** What varies over the organ's surface (the liver's nodules and septa, the dead spleen, the stomach's pool) is laid at this share of its wash strength: the wash dilutes it by the layer's opacity, the cel does not. */
     PAINT: 0.5,
     /** A vessel behind an organ (the cava: vessel-object.ts setBehindOrgans) is seen under the 2D wash at (1 - layer); cel organs are opaque, so its veil takes this share of that back: veil = 0.4 + 0.6 x VEIL_SEE x (1 - layer). */
     VEIL_SEE: 1.0,
-    LINE_SCALE: 2.0,
-    INK_BOOST: 0.9,
+    /** The cel organ's line: 2D's casing ink (the look's `ink`) at an alpha of at least INK_ALPHA_MIN, as wide as LINE_SCALE times 2D's .org-line (figure units; half of it is under the organ's own fill), so an edge and an overlap read as bold ink. */
+    LINE_SCALE: 3.0,
   },
 } as const;
 

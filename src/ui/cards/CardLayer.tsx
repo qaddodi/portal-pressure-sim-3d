@@ -36,6 +36,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const readings = useUi((s) => s.readings);
   const move = useUi((s) => s.move);
   const swapWallet = useUi((s) => s.swapWallet);
+  const docked = useUi((s) => s.docked);
+  const setDocked = useUi((s) => s.setDocked);
   const publishPlan = useUi((s) => s.publishPlan);
 
   const view = useMemo(() => (stops.length ? viewAt(stops, pos, lastSlideShot(stops)) : null), [stops, pos]);
@@ -70,7 +72,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
 
   const dataKey = view?.data === 'table' && view.slide ? `table:${view.slide.id}` : view?.data === 'ladder' && view.slide && hasToolChart(view.slide) ? `tool:${view.slide.id}` : 'ladder';
   const needs: Need[] = view ? [{ id: view.words, slot: 'words', h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey) }] : [])] : [];
-  const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step), [vp, wallet.active, step, needs.map((n) => `${n.id}:${n.slot}:${n.h}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
+  const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step, docked), [vp, wallet.active, step, docked, needs.map((n) => `${n.id}:${n.slot}:${n.h}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const wordsShown = plan.cards.find((c) => c.slot === 'words');
   const dataShown = plan.cards.find((c) => c.slot === 'data');
@@ -101,11 +103,13 @@ export function CardLayer({ deck }: { deck: Deck }) {
   if (plan.strip && stripWanted) last.current[stripWanted.key] = plan.strip.rect;
 
   // the cards' boxes go to the scene once per layout change, when every card up has been measured
-  const settled = needs.length > 0 && needs.every((n) => n.h > 0);
+  const settled = needs.length > 0 && needs.every((n) => n.h > 0 || (plan.docked && n.slot === 'data'));   // (a card put away is not measured: it is not up)
   useLayoutEffect(() => { if (settled) publishPlan(plan); }, [plan, settled, publishPlan]);
 
   // phones: a vertical swipe on a card swaps the wallet; anywhere: a sideways swipe on a card moves the talk
-  const swipe = useGesture((g) => {
+  const swipe = useGesture((g, e) => {
+    // 2D's dock: a push up on the data card puts it away to its edge (both cards up, a phone or an upright iPad); a tap or a pull down on the edge brings it back (Strip)
+    if (!plan.strip && (plan.layout === 'stack' || plan.layout === 'tab') && dataShown && g.dy < 0 && isSwapSwipe(g) && (e.target as HTMLElement).closest?.('[data-card]')?.getAttribute('data-card') === dataShown.id && wordsShown) { setDocked(true); return; }
     if (plan.strip && isSwapSwipe(g)) { swapWallet(); return; }
     const m = swipeMove(g.dx, g.dy, g.ms);
     if (m) move(m);
@@ -158,7 +162,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
       {stripStack.entries.map((e) => {
         const rect = (e.phase === 'in' ? plan.strip?.rect : undefined) ?? last.current[e.key] ?? ZERO;
         const behind = plan.strip ? plan.strip.slot : e.key.endsWith('data') ? 'data' : 'words';
-        return <Strip key={e.key} entry={e} rect={rect} behind={behind} hvpg={gap.value != null ? gap.hvpg : null} slideTitle={view.slide?.title ?? deck.title} onSwap={swapWallet} onGone={stripStack.gone} />;
+        return <Strip key={e.key} entry={e} rect={rect} behind={behind} hvpg={gap.value != null ? gap.hvpg : null} slideTitle={view.slide?.title ?? deck.title} dock={plan.docked} onSwap={() => (plan.docked ? setDocked(false) : swapWallet())} onGone={stripStack.gone} />;
       })}
     </>
   );

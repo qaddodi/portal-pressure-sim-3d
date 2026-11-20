@@ -9,8 +9,8 @@ import { x3, y3 } from '../frame2d.ts';
 export const FLUID_Z = 0.28;
 /** The pool's colour and opacity (stage.js fluidInkRGBA, the default the figure paints the fluid with). */
 export const FLUID_RGBA = [0.9, 0.75, 0.28, 0.4] as const;
-export const X0 = 296, X1 = 1128, STEP = 8;
-export const COLS = Math.floor((X1 - X0) / STEP) + 1;
+const X0 = 296, X1 = 1128, STEP = 8;
+const COLS = Math.floor((X1 - X0) / STEP) + 1;
 const BAND = 7;   // 2D units: the light band on the surface
 
 /** The cavity's outline as a polygon in 2D units: anatomy.js writes it as M, L and C commands. */
@@ -31,7 +31,7 @@ export function outlinePolygon(d: string): [number, number][] {
   return out;
 }
 const POLYS = new Map<number, [number, number][]>();
-export const polyOf = (step: number) => POLYS.get(step) ?? (POLYS.set(step, outlinePolygon(ABDOMEN_OUTLINES[step]!)), POLYS.get(step)!);
+const polyOf = (step: number) => POLYS.get(step) ?? (POLYS.set(step, outlinePolygon(ABDOMEN_OUTLINES[step]!)), POLYS.get(step)!);
 
 /** Where a vertical line at x crosses the polygon: its lowest and highest y (2D, y down), or null outside it. */
 export function crossings(poly: readonly [number, number][], x: number): [number, number] | null {
