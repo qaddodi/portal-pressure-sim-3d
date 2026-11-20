@@ -19,6 +19,7 @@ import { attachCircuit } from './geometry.ts';
 import { CIRCUIT_D, CIRCUIT_TREES, CUSTOM_EDGES, CUSTOM_SHUNT_PATH, NODE_CIRCUIT, ROUTER_STATIONS, VB_CIRC } from './data.copied.ts';
 import { mapCurve } from './course.ts';
 import { mapToScene } from './map.ts';
+import { flatOf, growOf } from './grow.ts';
 import { courseOf, cumulative, resample } from './paths.ts';
 import type { CircuitShared } from './uniforms.ts';
 import { createRouter, route as routeText } from './router.copied.js';
@@ -118,6 +119,7 @@ export class CircuitTubes {
     o.edge = { id: edge, from: edgeById.get(edge)?.from ?? '', to: edgeById.get(edge)?.to ?? '', length: built.length };
     o.group.visible = false;
     o.setFade(0);
+    if (kind === 'tree') { const a = built.curve.getPointAt(0); o.setStretchAnchors(a, a); }
     // drawn over the organs with the rest of the figure's vessels (scene.ts VESSEL_LAYER)
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     if (this.palette) o.applyPalette(this.palette);
@@ -174,15 +176,19 @@ export class CircuitTubes {
       if (gone.kind === 'custom' && gone.amount === 0 && (gone.dead || !this.routed.has(gone.id))) { this.group.remove(gone.obj.group); gone.obj.dispose(); this.entries.splice(i, 1); }
     }
     for (const e of this.entries) {
-      const want = e.dead ? false : e.kind === 'caud' ? c.caudPin : e.kind === 'custom' ? (c.open[e.id] ?? 0) > 0 : c.drawn(e.parent);
+      // (a liver branch is the map's alone and follows the change itself, so it draws back along its flow when the body returns, not a moment after the camera turns)
+      const grown = e.kind === 'tree' ? growOf(e.parent, c.t) : null;
+      const want = e.dead ? false : e.kind === 'caud' ? c.caudPin : e.kind === 'custom' ? (c.open[e.id] ?? 0) > 0 : grown != null ? c.t > 0 : c.drawn(e.parent);
       // a custom shunt lies on the body too: it is on while it is open, in either view (the map-only branches wait for the map)
-      e.goal = want && (e.lens || c.ramp > 0) ? 1 : 0;
+      e.goal = want && (e.lens || c.t > 0) ? 1 : 0;
       if (e.amount !== e.goal) { e.amount = Math.abs(e.goal - e.amount) <= k ? e.goal : e.amount + Math.sign(e.goal - e.amount) * k; moving = true; }
-      const f = (e.lens ? 1 : c.ramp) * e.amount * c.body;
+      // a liver branch grows along its flow on the change's own clock (circuit/grow.ts) instead of fading in: the portal venules, then the sinusoids, never a pop
+      const f = grown != null ? e.amount * c.body : (e.lens ? 1 : c.ramp) * e.amount * c.body;
+      if (grown != null) { e.obj.setReveal(grown); e.obj.setFlat(flatOf(grown)); }
       // the flow marks keep their pitch in scene units: the vessel's length is its body course's, then the map course's (circuit/view.ts)
       if (e.lens) (e.obj.toon.uniforms.len as { value: number }).value = e.lens[0] + (e.lens[1] - e.lens[0]) * c.t;
       e.obj.setFade(f);
-      e.obj.group.visible = f > 0.002;
+      e.obj.group.visible = f > 0.002 && (grown == null || grown > 0.002);
     }
     return moving;
   }

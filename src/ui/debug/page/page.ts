@@ -4,6 +4,7 @@
 //   Tools   the look, Freeze (pause the model), Shoot (the panel away, Esc brings it back), Copy link, Check (the screen's self-checks now), Sweep, Phone check, Full check, benches
 //   ?debug=check runs the Phone check on load, ?debug=full the long walk, ?sweep=<specimens|affected>, ?only=<ids> narrows any of them
 // Every run ends in ONE report in the 2D app's format (core/run.copied.js), shown in the panel with Copy. Nothing here runs per frame: every read and write is a tap or a step.
+import { Vector3 } from 'three';
 import { buildCatalog, byId, resolveSpec, defaultSweep, SECTION_NAMES, type Entry, type Section } from './catalog.ts';
 import { liveCatalog, openEntry, settle, problems, memoryMB, setLook, journeys, caughtCount } from './live.ts';
 import { runSweep } from './sweep.ts';
@@ -177,6 +178,8 @@ export function mountPage(kind: 'gallery' | 'check' | 'full' | 'frame'): void {
   useSettings.subscribe(() => setTimeout(paintLooks, 50));
 
   attach('vessels', () => cel.probeVessels());
+  attach('rigProject', (pts: number[][]) => pts.map((q) => { const o = cel.rig.project(new Vector3(q[0], q[1], q[2] ?? 0)); return [o.x, o.y]; }));   // where scene points are on the canvas now (CSS px): what the picture does, which the target alone does not show (the room moves the picture without moving the target)
+  attach('rig', () => { const p = cel.rig.pose; return { target: [...p.shot.target], half: [...p.shot.half], yaw: p.shot.yaw, pitch: p.shot.pitch, r: p.shot.r }; });   // the camera's pose now, for a per-frame measurement (pps.rig() in a rAF loop)
   attach('debug', { catalog: () => cat, open: (id: string) => { const e = byId(cat, id); return e ? open(e) : Promise.reject(new Error(`no specimen ${id}`)); }, settle, sweep: (s: string, l: string[]) => sweep(s, l), check: (full = false) => walk(full), packet: packetNow, report: () => outText });
 
   // ── what the address asks for ──

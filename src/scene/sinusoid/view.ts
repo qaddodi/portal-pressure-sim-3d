@@ -1,18 +1,10 @@
-// The sinusoid in 3D: the 2D app's sinusoid view, lifted. 2D paints the whole screen with ONE fragment shader (sinusoid-gl.js: the lumen with its streaks, the endothelium and its
-// fenestrae, the space of Disse, collagen, the plates of hepatocytes repeating outward, the stellate and Kupffer cells, the end arrows) and rides a pass of albumin sprites over it
-// (sinusoid-view.js). This file runs those same shaders, copied by scripts/copy-sinusoid.mjs, on a plane in the scene: tissue to every edge of the screen on every device, no strip
-// floating in the page. The plane is the sinusoid's own frame (lobule/frames.ts), so the camera flies into it, pans, zooms and orbits it like anything else, and the shader finds each
-// pixel's micrometres from the plane's position and one pixel's size from the screen derivatives. Nothing of this view is drawn by the CPU: no cell, pore or nucleus is a mesh.
+// The sinusoid's host: the 2D app's sinusoid, as a model with no picture of its own. It keeps the state (eased toward the engine's targets: lobule/model.ts sinusoidTargets), 2D's placement
+// (the fenestrae, the stellate and Kupffer cells), 2D's traffic (albumin and the flow's run: traffic.copied.js), 2D's palette, the portrait turn, the screen it is on, the wash, the dive's share,
+// the names (names.ts) and the anchors and micrometres for taps. Everything seen is drawn by the 3D sinusoid (micro3d/sinusoid3d.ts) from these, inside this view's group, so the camera
+// flies into it, pans, zooms and orbits it like anything else. (The flat 2D-style drawing, 2D's tissue shader on a plane and its sprites, is gone: everything is 3D, Mohammad 20 Nov 2026.)
 //
-// What it is for: the wall and the space of Disse. Plasma filters out of the lumen through the fenestrae, the lymph so made runs back along Disse toward the portal tract, and in
-// cirrhosis the pores close, collagen and a basement membrane build up, the microvilli flatten, the stellate cell activates and squeezes the lumen (the rates are the engine's:
-// lobule/model.ts sinusoidTargets). Every state eases, nothing jumps.
-//
-// The 2D coordinates are kept: x in micrometres along the flow (portal end left), y across, DOWN in the shader (its upper Disse is y < 0); here the plane's y runs up and the shader's
-// is its mirror. The dive (WP8) drives `setDive(g)`: 0 as the camera leaves the lobule, 1 as it lands, the tissue coming in over all of it and its detail last, as 2D's zoom does.
-import {
-  AddEquation, BufferAttribute, BufferGeometry, CustomBlending, DoubleSide, DynamicDrawUsage, GLSL3, Group, Mesh, OneFactor, OneMinusSrcAlphaFactor, Points, RawShaderMaterial, Vector2, Vector3, Vector4,
-} from 'three';
+// The 2D coordinates are kept: x in micrometres along the flow (portal end left), y across, DOWN as 2D has it (its upper Disse is y < 0); the plane's y runs up and is its mirror.
+import type { Group } from 'three';
 import type { CelObject, CelShared } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
 import { paletteOf } from '../../ui/charts/palette.ts';
@@ -28,18 +20,12 @@ import { rng } from '../lobule/geometry.ts';
 import { type Pore, SEED, SLOT, UM, cellEdge, nucAt, poreAt, poreOpenness } from './layout.ts';
 import { type NameGeom, type NamePlacement, type NamesInput, layoutNames } from './names.ts';
 import { PORTRAIT_ANGLE, endsFor, framePoint, glideTurn, planePoint, turnAt, xkFor } from './portrait.ts';
-import { SINUSOID_FS, SINUSOID_PFS, SINUSOID_PVS, SINUSOID_UNIFORMS, SINUSOID_VS } from './gl.copied.ts';
-import { celSinusoidFS } from './cel.ts';
 import { createGeom, createTraffic } from './traffic.copied.js';
 import { createPalette } from './palette.copied.js';
 
 /** Micrometres across the stretch the shot frames (four hepatocytes of the 2D plate), and the plane's local units per micrometre. */
-/** 2D's tissue shader with the cel step over it (cel.ts). */
-export const SINUSOID_CEL_FS = celSinusoidFS(SINUSOID_FS);
 export const SPAN_UM = 97.4;
 export const U = SINUSOID_L / SPAN_UM;
-/** The plane's half size in local units: far past any frame the camera can hold, so its edge is never on screen (the tissue repeats outward in the shader). */
-export const PLANE_HALF = 80;
 /** The stretch (µm) the traffic runs over, a little wider than the shot. */
 const VIS = 70;
 /** Where the end arrows stand (µm) before the screen is known (`setScreen`), as 2D lays them beside the names of the portal venule and the central vein. */
@@ -54,14 +40,6 @@ const REST: Cur = { por: 1, col: 0, bm: 0, mv: 1, act: 0, lum: 1, pinch: 0, v: 1
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const smooth = (a: number, b: number, x: number) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
-const MAX_SPRITES = 1400;
-
-type Uniform = { value: number | Vector2 | Vector3 | Vector4 };
-function uniformsOf(): Record<string, Uniform> {
-  const u: Record<string, Uniform> = {};
-  for (const [name, type] of Object.entries(SINUSOID_UNIFORMS)) u[name] = { value: type === 'vec2' ? new Vector2() : type === 'vec3' ? new Vector3() : type === 'vec4' ? new Vector4() : 0 };
-  return u;
-}
 
 /** The dive's share (0 leaving the lobule, 1 landed) from how far the camera is from the sinusoid: geometric between the lobule's own station and the sinusoid's shot, as the camera blends it. */
 export function diveShare(distance: number, far: number, near: number): number {
@@ -72,14 +50,10 @@ export function diveShare(distance: number, far: number, near: number): number {
 export class SinusoidView {
   readonly set = new PartSet<SinusoidPartName>(SINUSOID_PARTS);
   readonly group: Group = this.set.group;
-  /** (No cel objects: the view is two shaders on a plane and a pass of sprites.) */
+  /** (No cel objects of its own: the 3D sinusoid draws everything.) */
   readonly objects: CelObject[] = [];
-  /** The three draws, in order: the tissue, the albumin over it, the cells that lie over the albumin. */
-  readonly tissue: Mesh;
-  readonly sprites: Points;
-  readonly cells: Mesh;
-  private readonly uni = uniformsOf();
-  private readonly mats: RawShaderMaterial[] = [];
+  /** How many albumin the traffic has out this frame (their x, y, radius, alpha, kind are traffic.pts, five numbers each). */
+  spriteCount = 0;
   private cur: Cur = { ...REST };
   /** The way the blood runs along the sinusoid (+1 toward the central vein, -1 reversed). */
   get flowDir(): number { return Math.sign(this.cur.v || 1); }
@@ -92,7 +66,6 @@ export class SinusoidView {
   private washAt = -1;
   private washOn = false;
   private washK = 0;
-  private dpr = 1;
   private dive: number | null = null;
   /** A portrait screen runs the sinusoid top to bottom (setPortrait): the plane's own turn (radians, eased), its velocity and where it is heading. */
   private portrait = false;
@@ -103,7 +76,6 @@ export class SinusoidView {
   /** How much each end's name shows (0 to 1), which its arrow follows (2D: endShown; 1 outside a talk). */
   private endShown: [number, number] = [1, 1];
   private washLand = -1;
-  private readonly res: Vector2;
   private readonly ink = { ctx: null as InkContext | null };
   // 2D's own placement and traffic, copied (traffic.copied.js, palette.copied.js)
   private readonly model = { hide: false, P2: 5, lyProt: 0.88 };
@@ -114,14 +86,12 @@ export class SinusoidView {
   private readonly g: { halfW(x: number): number; disseW(x: number): number; wallIn(x: number): number; hepIn(x: number): number };
   private readonly traffic: { stepMovers(dt: number): void; sprites(): number; pts: Float32Array; readonly flowX: number; readonly lymX: number; setDt(v: number): void };
   private readonly pal: { palette(dark: boolean): Record<string, unknown>; PAL: Record<string, unknown>; bump(): void };
-  private readonly pos = new Float32Array(MAX_SPRITES * 3);
-  private readonly ak = new Float32Array(MAX_SPRITES * 2);
 
   constructor(shared: CelShared, opts: SinusoidViewOptions = {}) {
     this.look = opts.look ?? 'light';
     this.reduce = !!opts.reduceMotion;
     void (opts.flowMode ?? DEFAULT_FLOW_MODE);
-    this.res = shared.res.value;
+    void shared;
 
     // placement, as ensureGeo makes it: the fenestrae of both linings out to X µm, the stellate cell at the junction nearest -10 µm, the Kupffer cell at 22 µm
     const X = 130, pores = [SEED.poreUp, SEED.poreDn].map((sd) => {
@@ -140,35 +110,6 @@ export class SinusoidView {
       pressureColor: (p: number) => samplerFor(this.look, 'pressure').at(p, [0, 0, 0]),
     });
 
-    // the plane, the sprites, the cells over them: one shader program for the first and third (uPass), one for the sprites
-    const quad = new BufferGeometry();
-    const h = PLANE_HALF;
-    quad.setAttribute('position', new BufferAttribute(new Float32Array([-h, -h, 0, h, -h, 0, h, h, 0, -h, h, 0]), 3));
-    quad.setIndex([0, 1, 2, 0, 2, 3]);
-    const mk = (vs: string, fs: string, uni: Record<string, Uniform>) => {
-      // A RawShaderMaterial gets three's own `#define` lines in front of its source, so a `#version` inside the source is no longer the first thing and the driver refuses it
-      // ('#version directive must occur before anything else'): the version goes in `glslVersion`, which three puts first (found by tests/glsl-compile.test.ts, which builds the text three builds).
-      const noVersion = (src: string) => src.replace(/^#version 300 es\n/, '');
-      const m = new RawShaderMaterial({
-        glslVersion: GLSL3, vertexShader: noVersion(vs), fragmentShader: noVersion(fs), uniforms: uni, side: DoubleSide, depthTest: false, depthWrite: false, transparent: true,
-        blending: CustomBlending, blendEquation: AddEquation, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
-      });
-      this.mats.push(m);
-      return m;
-    };
-    const u0 = { ...this.uni, uPass: { value: 0 } }, u1 = { ...this.uni, uPass: { value: 1 } };
-    this.tissue = new Mesh(quad, mk(SINUSOID_VS, SINUSOID_CEL_FS, u0));
-    this.cells = new Mesh(quad, mk(SINUSOID_VS, SINUSOID_CEL_FS, u1));
-    const sg = new BufferGeometry();
-    const pa = new BufferAttribute(this.pos, 3), ka = new BufferAttribute(this.ak, 2);
-    pa.setUsage(DynamicDrawUsage); ka.setUsage(DynamicDrawUsage);
-    sg.setAttribute('position', pa); sg.setAttribute('aAK', ka); sg.setDrawRange(0, 0);
-    this.sprites = new Points(sg, mk(SINUSOID_PVS, SINUSOID_PFS, this.uni));
-    this.tissue.renderOrder = 10; this.sprites.renderOrder = 11; this.cells.renderOrder = 12;
-    for (const m of [this.tissue, this.sprites, this.cells]) { m.frustumCulled = false;  }
-    const body = this.set.get('lumen').group;   // (the one drawn view lives in the first part; the artist's swap-in is gone with the placeholder)
-    body.add(this.tissue, this.sprites, this.cells);
-    (this.uni.uU as { value: number }).value = U;
     this.applyLook(this.look);
     this.group.visible = false;
   }
@@ -195,9 +136,7 @@ export class SinusoidView {
 
   get currentLook(): LookId { return this.look; }
   applyLook(look: LookId): void { this.look = look; this.pal.bump(); this.dirty = true; }
-  setPhone(_phone: boolean): void { /* (the shader is resolution-independent: a line is at least a pixel wide on any screen) */ }
-  /** The drawing buffer's pixel ratio (the scene's render asks the renderer): the shader's pixel sizes and the sprites' are in device pixels. */
-  setDpr(dpr: number): void { if (dpr !== this.dpr) { this.dpr = dpr; this.dirty = true; } }
+  setPhone(_phone: boolean): void { /* (nothing here depends on the device) */ }
 
   setVisible(v: boolean): void { this.visible = v; this.group.visible = v; this.dirty = true; if (!v) this.washOn = false; }
   get isVisible(): boolean { return this.visible; }
@@ -279,48 +218,8 @@ export class SinusoidView {
     const tsec = sec * this.trafficSpeed;
     this.traffic.setDt(run ? tsec : 0);
     if (run) { this.traffic.stepMovers(tsec); moving = true; }
-    this.write();
+    this.spriteCount = this.traffic.sprites();
     return moving;
-  }
-
-  private write(): void {
-    const S = this.cur, T = this.traffic, uni = this.uni;
-    const num = (k: string, v: number) => { (uni[k] as { value: number }).value = v; };
-    const vec = <V>(k: string) => uni[k]!.value as V;
-    const dark = LOOKS[this.look].scheme === 'dark';
-    const pal = this.pal.palette(dark) as Record<string, unknown>;
-    for (const k of Object.keys(pal)) {
-      const slot = uni[k], v = pal[k];
-      if (!slot || v == null) continue;
-      if (typeof v === 'number') num(k, v);
-      else if (Array.isArray(v) && v.length === 3 && slot.value instanceof Vector3) slot.value.set(v[0], v[1], v[2]);
-    }
-    const g = this.g, geo = this.geo;
-    num('uLum', UM.lum * S.lum); num('uPinch', S.pinch); num('uXs', geo.xs); num('uXk', geo.xk); num('uKy', g.halfW(geo.xk));
-    num('uHscA', g.wallIn(geo.xs) + g.disseW(geo.xs) * 0.5 + 0.8);
-    num('uCol', S.col); num('uBm', S.bm); num('uMv', S.mv); num('uAct', S.act); num('uPor', S.por);
-    num('uFlow', T.flowX); num('uLym', T.lymX); num('uLyF', clamp(0.32 * S.filt ** 1.5, 0.06, 1.75)); num('uDir', Math.sign(S.v || 1));
-    const E = this.ends;
-    vec<Vector4>('uEnd').set(E[0], E[1], E[2], 0.95);
-    vec<Vector2>('uEndA').set(this.endShown[0], this.endShown[1]);
-    vec<Vector4>('uWedge').set(this.washK > 0 ? 1 : 0, this.washK, 0, 0);
-    // the zoom from the lobule (sinusoid-view.js): the tissue comes in over all of it at once as the zoom lands, its detail (fenestrae, microvilli, cells, traffic) last
-    const d = this.dive;
-    if (d != null) {
-      vec<Vector4>('uRev').set(0, 0, 0, 0); num('uAll', smooth(0.5, 0.88, d));
-      vec<Vector2>('uDet').set(smooth(0.72, 1, d), 1e5); num('uFocus', smooth(0.82, 1, d));
-    } else { vec<Vector4>('uRev').set(1, -1e5, 1e5, 1e5); num('uAll', 1); vec<Vector2>('uDet').set(1, 1e5); num('uFocus', 1); }
-    vec<Vector2>('uRes').set(this.res.x * this.dpr, this.res.y * this.dpr);
-    num('uKCap', 12 * this.dpr);
-    // the sprites: x, y (µm, the shader's y down), radius, alpha, kind
-    const n = T.sprites(), p = T.pts;
-    for (let i = 0; i < n; i++) {
-      this.pos[i * 3] = p[i * 5]!; this.pos[i * 3 + 1] = p[i * 5 + 1]!; this.pos[i * 3 + 2] = p[i * 5 + 2]!;
-      this.ak[i * 2] = p[i * 5 + 3]!; this.ak[i * 2 + 1] = p[i * 5 + 4]!;
-    }
-    const geoS = this.sprites.geometry;
-    geoS.setDrawRange(0, n);
-    (geoS.getAttribute('position') as BufferAttribute).needsUpdate = true; (geoS.getAttribute('aAK') as BufferAttribute).needsUpdate = true;
   }
 
   // ---- places, for the names ----------------------------------------------------------------------------------------------------
@@ -355,6 +254,16 @@ export class SinusoidView {
     return out;
   }
 
+  /** The eased state now (what the 3D sinusoid draws). */
+  get state(): Readonly<Cur> { return this.cur; }
+  /** How far the blood has run (µm, the traffic's clock: the streaks ride it). */
+  get flowRun(): number { return this.traffic.flowX; }
+  /** The albumin out now: x, y (µm, y down), radius, alpha, kind for each of `spriteCount`. */
+  get albumin(): Float32Array { return this.traffic.pts; }
+  /** The palette for a scheme (2D's sinusoid tokens for the look). */
+  colours(dark: boolean): Record<string, unknown> { return this.pal.palette(dark); }
+  /** How much each end's name shows now. */
+  get endShownNow(): readonly [number, number] { return this.endShown; }
   /** How open the lining's fenestrae are now (0 to 1, eased): the Fenestrae name reads it as "16% open". */
   get porosity(): number { return this.cur.por; }
   /** The widths and places the names stand on (2D's halfW, wallIn, hepIn, disseW and the fixed cells), as the shader draws them now. */
@@ -371,5 +280,5 @@ export class SinusoidView {
     try { gl.compile?.(this.group, camera); } finally { this.group.visible = was; }
   }
 
-  dispose(): void { this.tissue.geometry.dispose(); this.sprites.geometry.dispose(); for (const m of this.mats) m.dispose(); }
+  dispose(): void { /* (nothing of its own on the GPU) */ }
 }
