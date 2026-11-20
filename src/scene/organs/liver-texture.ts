@@ -60,6 +60,9 @@ export interface Cel {
   /** soft look (cel8..cel11, 20 Nov: "more cartoony, less dramatic, not flat"): the band edges ease over this much of the dome light (0: the hard bands above, a stair-step once baked) and the dome has a rounded valley
    *  (a cubic ease) instead of the disc's vertical wall, so the surface and the outline are gentle waves, never a serration */
   soft?: number;
+  /** the "height" look (cel14): the surface is a height field of irregular rounded nodules of MIXED size (a macro set of `size` units and a micro set between and over them), and its shading is the soft slope of that field
+   *  against the light (continuous, no band, no wall, no line), not a drawn cell; the dome it gives is what the mesh bump and the rim follow */
+  height?: true; micro?: { size: number; rLo: number; rHi: number; jit: number; amp: number };
   /** round domes: no wall between overlapping discs (each nodule is a circle, the deeper one holds an overlap) */
   round?: true;
   /** the look's nodule field is bent by a smooth warp of this many 2D units (a jittered grid still reads as a grid; a warped one reads as tissue) */
@@ -92,9 +95,12 @@ export const CELS: Record<string, Cel> = {
   // Soft nodules (Mohammad 20 Nov: cel12 "is NOT nodular; needs to be nodular", cel7 too pebbly): distinct rounded regenerative nodules about 24 units across, nearly touching, irregular (high jitter and a warp, so no grid),
   // each with a soft dark underside and a faint lit shoulder, a soft dark crevice between and NO line, a gently bumpy rim from the same rounded domes, the cel12 tint.
   cel13: { name: 'soft nodules', colour: '#B07A45', a: 0.4, bands: 3, ink: 0, shade: 0.22, size: 22, rLo: 0.5, rHi: 0.72, jit: 0.26, cap: 0.5, foot: -0.22, bump: 0.3, rim: 0.9, soft: 0.5, raw: 0.15, warp: 7, round: true },
+  // Irregular nodules (Mohammad 20 Nov, on cel13's same-size cobbles with a drawn border: "I hate this liver nodularity"; real cirrhosis is macro- and micronodular, 3 to 15 mm and over, seen as lumps in the light and a lumpy edge, never
+  // as cells with outlines): large lumps of varied size with small ones between, shaded by the slope of the height (soft, continuous), only a faint shade in the valleys, a strongly lumpy rim.
+  cel14: { name: 'irregular nodules', colour: '#B07A45', a: 0.4, bands: 3, ink: 0, shade: 0.1, size: 40, rLo: 0.36, rHi: 0.84, jit: 0.45, cap: 0, foot: 0, bump: 0.35, rim: 1.9, soft: 1, raw: 0.5, warp: 9, height: true, micro: { size: 20, rLo: 0.35, rHi: 0.75, jit: 0.4, amp: 0.3 } },
 };
-/** The standing cirrhotic liver is cel13, the soft nodules (Mohammad 20 Nov: cel7 "too rough", cel12 "not nodular, needs to be nodular"; he wants it nodular but subtle); `?liver=cel12` the soft valleys, `?liver=cel7` the cobbled one, `cel1..cel11` the other options and `?liver=c2b` the earlier pale-nodule surface. */
-export const DEFAULT_CEL = 'cel13';
+/** The standing cirrhotic liver is cel14, irregular nodules led by the OUTLINE (Mohammad 20 Nov: cel7 "too rough", cel12 "not nodular", cel13 "I hate this liver nodularity": "the outline should look nodular", the surface only "somehow nodular"); `?liver=cel13` the soft cobbles, `cel12` the soft valleys, `cel7` the cobbled one, `cel1..cel11` the other options and `c2b` the earlier pale-nodule surface. */
+export const DEFAULT_CEL = 'cel14';
 export const celLook = (): Cel | null => { const v = flagValue('liver'); if (v === 'c2b') return null; return CELS[v ?? ''] ?? CELS[DEFAULT_CEL]!; };
 /** Smooth value noise at (x, y) (one lattice unit = 1): a hash at each lattice point, blended by a quintic ease, 0..1, C2 across the lattice. */
 function vnoise(x: number, y: number, seed: number): number {
@@ -116,8 +122,31 @@ function fieldSurface(x: number, y: number, cel: Cel): Surface {
   // soft relief and no more: the valleys take a soft shade, the lobes' tops a faint lift (a third of it), no hard cap, no wall, no line (the first cut, a 5 % shade, read as no change at all on the device)
   return { sep: 0, dome: sstep(0, 1, h), tone: 0.5, light: -0.6 * valley + 0.35 * sstep(0.55, 0.9, h) };
 }
+/** One lump layer at (x, y): a jittered field of round discs, each a smooth dome (0 in the gap between, 1 at the middle); overlapping discs take the deeper one (no wall). */
+function lump(x: number, y: number, size: number, rLo: number, rHi: number, jit: number, seed: number): number {
+  const c = disc(x, y, size, rLo, rHi, jit, seed, true);
+  return c.edge <= 0 ? 0 : sstep(0, Math.max(2, c.r * 0.9), c.edge);
+}
+/** The height field of the "height" look at (x, y) in 2D units, 0..1: the macro lumps, and the micro ones (at their share `amp`) wherever the macro field leaves room or stands under them. */
+export function heightAt(x: number, y: number, cel: Cel, microShare = 1): number {
+  if (cel.warp) { const wl = cel.size * 1.6, wx = (vnoise(x / wl, y / wl, 21) - 0.5) * 2 * cel.warp, wy = (vnoise(x / wl + 5.3, y / wl + 2.1, 22) - 0.5) * 2 * cel.warp; x += wx; y += wy; }
+  const m = lump(x, y, cel.size, cel.rLo, cel.rHi, cel.jit, 61), u = cel.micro;
+  return u ? Math.max(m, u.amp * microShare * lump(x, y, u.size, u.rLo, u.rHi, u.jit, 73)) : m;
+}
+/** The dome's light from its slope (hx, hy per 2D unit) and its height: lit on the flank that faces the upper left, shaded on the other, a faint shade in the valleys; continuous, so the shader's mix is a soft gradient. */
+const SLOPE_GAIN = 12;
+function slopeLight(hx: number, hy: number, h: number): number {
+  const l = -(hx * LX + hy * LY) * SLOPE_GAIN - 0.3 * (1 - sstep(0, 0.3, h));
+  return Math.max(-1, Math.min(1, l));
+}
+const SLOPE_D = 0.56;   // (one texel)
+function heightSurface(x: number, y: number, cel: Cel): Surface {
+  const h = heightAt(x, y, cel), hx = (heightAt(x + SLOPE_D, y, cel) - heightAt(x - SLOPE_D, y, cel)) / (2 * SLOPE_D), hy = (heightAt(x, y + SLOPE_D, cel) - heightAt(x, y - SLOPE_D, cel)) / (2 * SLOPE_D);
+  return { sep: 0, dome: h, tone: 0.5, light: slopeLight(hx, hy, h) };
+}
 function celSurface(x: number, y: number, cel: Cel): Surface {
   if (cel.field) return fieldSurface(x, y, cel);
+  if (cel.height) return heightSurface(x, y, cel);
   if (cel.warp) { const wl = cel.size * 2.2, wx = (vnoise(x / wl, y / wl, 21) - 0.5) * 2 * cel.warp, wy = (vnoise(x / wl + 5.3, y / wl + 2.1, 22) - 0.5) * 2 * cel.warp; x += wx; y += wy; }
   const c = disc(x, y, cel.size, cel.rLo, cel.rHi, cel.jit, 61, !!cel.round), w = Math.max(2, c.r * 0.6);
   let l = lit(c, w, 0.2);
@@ -148,12 +177,26 @@ export const noduleBumpAt = (x: number, y: number): number => (celLook()?.bump ?
 export const rawNormalShare = (): number => celLook()?.raw ?? 1;
 /** The rim's scallop scale (1: the standing 0.014). */
 export const rimScale = (): number => celLook()?.rim ?? 1;
+/** What the liver's OUTLINE follows (0..1): the dome; for the height look the broad lumps with only a little of the small ones, so the silhouette reads as a few round nodules (Mohammad 20 Nov: "the outline should look nodular"), not a fuzz. */
+export const rimDomeAt = (x: number, y: number): number => { const c = celLook(); return c?.height ? heightAt(x, y, c, RIM_MICRO) : domeAt(x, y); };
+const RIM_MICRO = 0.4;
 /** The dome at a point (0..1): what the liver's outline follows. */
 export const domeAt = (x: number, y: number): number => surfaceAt(x, y).dome;
 
 /** The texture bytes (RGBA, TEX_PW x TEX_PH, row 0 at TEX_Y0): R the septum, G the nodule's tone, B the light (0.5 none), A 255. */
 export function bake(): Uint8Array {
-  const out = new Uint8Array(TEX_PW * TEX_PH * 4), f = surfaceAt;
+  const out = new Uint8Array(TEX_PW * TEX_PH * 4), cel = celLook();
+  if (cel?.height) {
+    // the height field once over the texture (and a texel's border), then each texel's slope from its neighbours: a fifth of the work of asking for the slope at every texel
+    const W = TEX_PW + 2, H = new Float32Array(W * (TEX_PH + 2));
+    for (let j = -1; j <= TEX_PH; j++) for (let i = -1; i <= TEX_PW; i++) H[(j + 1) * W + i + 1] = heightAt(TEX_X0 + (i + 0.5) / PX, TEX_Y0 + (j + 0.5) / PX, cel);
+    for (let j = 0; j < TEX_PH; j++) for (let i = 0; i < TEX_PW; i++) {
+      const c = (j + 1) * W + i + 1, h = H[c]!, hx = (H[c + 1]! - H[c - 1]!) * (PX / 2), hy = (H[c + W]! - H[c - W]!) * (PX / 2), o = (j * TEX_PW + i) * 4;
+      out[o] = 0; out[o + 1] = 128; out[o + 2] = Math.round((0.5 + 0.5 * slopeLight(hx, hy, h)) * 255); out[o + 3] = 255;
+    }
+    return out;
+  }
+  const f = surfaceAt;
   for (let j = 0; j < TEX_PH; j++) {
     const y = TEX_Y0 + (j + 0.5) / PX;
     for (let i = 0; i < TEX_PW; i++) {
