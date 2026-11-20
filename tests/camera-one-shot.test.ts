@@ -22,3 +22,6 @@ test('a retarget carries only the speed that heads to the new framing, along the
   const s = readFileSync('src/scene/camera/rig.ts', 'utf8');
   assert.match(s, /hv = \{ x: dx \* f, y: dy \* f, lh: dl \* f \}/);
 });
+test('the dive never opens a circular cut-out in the liver (owner, 20 Nov)', () => {
+  assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /cutUniform\(Infinity,/);
+});
