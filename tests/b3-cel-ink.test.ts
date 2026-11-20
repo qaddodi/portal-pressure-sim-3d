@@ -55,7 +55,7 @@ test('the shader holds the same numbers, and has no specular, no rim, no wall li
   assert.ok(VESSEL_FS.includes(CEL_TUBE_GLSL), 'the tones are the one shared GLSL, written from CEL_STYLE');
   for (const n of [`${F(CEL_STYLE.VESSEL_STEP_AT)} - et`, `b * (1.0 - ${F(CEL_STYLE.SHADE)})`]) assert.ok(CEL_TUBE_GLSL.includes(n), n);
   assert.doesNotMatch(CEL_TUBE_GLSL, /celTubeSpec|LIT_AT|window/, 'no highlight, no third band, no lumen window');
-  assert.match(VESSEL_FS, /celTubeTone\(base, mix\(sT, 1\.0, nbrT\), fwidth\(sT\) \* \(1\.0 - nbrT\), rDev\)/);
+  assert.match(VESSEL_FS, /celTubeTone\(base, mix\(sT, 1\.0, nbrT\), fwSt \* \(1\.0 - nbrT\), rDev\)/);
   assert.match(VESSEL_FS, /float sT = dot\(n, celLightView\(\)\)/, 'lit by the world light');
   assert.doesNotMatch(VESSEL_FS, /celTubeSpec|rimLight|wallT|fresnel|FAR_WALL|NEAR_WALL/, 'matte: no highlight, no rim light, no wall pass');
   assert.ok(!/sp \* 0\.32/.test(VESSEL_FS) && !/rim \* 0\.10/.test(VESSEL_FS), 'no old specular dot and no rim lift');

@@ -81,5 +81,39 @@ export function lobuleRoutes(courses: readonly LobuleRouteCourse[], tol: number)
     return { k: c.col, from: e.from, to: e.to, path: c.path, len, fwd: true, m: 1, q: q.get(c.col) ?? 1 };
   });
   const out = buildRoutes(list, undefined, seed);
+  // a channel that ends on the SIDE of another of its family (a bile canal into a duct partway along, no node there): it carries the host's own particles on a strip of the host's lanes on that side, at the host's
+  // place along it, so at the join each particle runs on into the host where the host carries it (the host's segments composed, so a host that is itself a merge hands on its roots). Only a channel nothing runs into
+  for (const c of sin) {
+    if (famOf(c.kind) === 'sin') continue;
+    const e = ends.get(c.col)!, f = famOf(c.kind);
+    if (sin.some((o) => o !== c && ends.get(o.col)!.from === e.to) || sin.some((o) => o !== c && ends.get(o.col)!.to === e.from)) continue;
+    const P = c.path[c.path.length - 1]!;
+    let best: { host: LobuleRouteCourse; arc: number; side: number; d: number } | null = null;
+    for (const h of sin) {
+      if (h === c || famOf(h.kind) !== f) continue;
+      const a = arcs(h.path), reach = Math.max(tol, 1.5 * h.radius + c.radius);
+      for (let i = 0; i < h.path.length - 1; i++) {
+        const p0 = h.path[i]!, p1 = h.path[i + 1]!, bx = p1[0] - p0[0], by = p1[1] - p0[1], bb = bx * bx + by * by;
+        const t = bb > 0 ? Math.min(1, Math.max(0, ((P[0] - p0[0]) * bx + (P[1] - p0[1]) * by) / bb)) : 0;
+        const d = Math.hypot(P[0] - p0[0] - t * bx, P[1] - p0[1] - t * by);
+        if (d > reach || (best && d >= best.d)) continue;
+        const arc = a[i]! + t * Math.sqrt(bb), L = a.at(-1)!;
+        if (arc < tol || L - arc < tol) continue;   // (at the host's end: a node, handled above)
+        const q = c.path[Math.max(0, c.path.length - 4)]!;
+        best = { host: h, arc, side: bx * (q[1] - p0[1]) - by * (q[0] - p0[0]) >= 0 ? 1 : -1, d };
+      }
+    }
+    if (!best) continue;
+    const len = arcs(c.path).at(-1)!, w = 0.35, cm = best.side * (1 - w / 2), cw = w / 2;
+    const segs: Seg[] = [];
+    for (const g of out.get(best.host.col) ?? []) {
+      // the channel's lanes y whose host lane cm + cw y lies in this segment
+      let y0 = (g.y0 - cm) / cw, y1 = (g.y1 - cm) / cw;
+      y0 = Math.max(-1, y0); y1 = Math.min(1, y1);
+      if (y1 - y0 < 1e-6) continue;
+      segs.push({ y0, y1, root: g.root, c0: g.c0 + g.c1 * cm, c1: g.c1 * cw, A: g.A + g.B * (best.arc - len), B: g.B });
+    }
+    if (segs.length) { segs[0]!.y0 = -1; segs[segs.length - 1]!.y1 = 1; out.set(c.col, segs); }
+  }
   return out;
 }

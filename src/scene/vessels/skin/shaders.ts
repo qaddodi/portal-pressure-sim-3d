@@ -284,6 +284,30 @@ void main() {
   vec3 n = nLen > 1e-5 ? vN / nLen : vec3(0.0, 0.0, 1.0);
   float sT = dot(n, celLightView());   // n.L against the WORLD light, as the tube (a camera that moves changes no shade)
   float swT = fwidth(sT);              // (a derivative: taken outside any branch)
+#ifndef SKIN_NOMARKS
+  // EVERY derivative the flow marks need is taken HERE, before the first discard: after a discard a quad's other pixels get no usable neighbour (a device like Apple's drops the discarded lane, and fwidth is then garbage), so at a crotch or a silhouette, where
+  // pixels beside each other are dropped (back faces, the ink band, the presence dither), the marks of the pixels that stay came out as clusters of blocky, wrongly coloured specks (Mohammad, 20 Nov: green and navy specks at every junction, gone with ?joins=nomarks)
+  float vLen = length(vV);
+  vec3 viewDir = vLen > 1e-6 ? vV / vLen : vec3(0.0, 0.0, 1.0);
+  float sIa[${SKIN_ARMS}], acA[${SKIN_ARMS}], pxA[${SKIN_ARMS}], awA[${SKIN_ARMS}];
+  vec3 sideA[${SKIN_ARMS}], headA[${SKIN_ARMS}];
+  for (int i = 0; i < ${SKIN_ARMS}; i++) {
+    sIa[i] = 0.0; acA[i] = 0.0; pxA[i] = 0.0; awA[i] = 0.03; sideA[i] = vec3(1.0, 0.0, 0.0); headA[i] = vec3(0.0);
+    if (armData[i].x < 0.0) continue;
+    vec3 toJ = armAxisP[i * ${SKIN_AXIS_PTS} + 1].xyz - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;   // (toward the node along the straight line through the seam)
+    float tl = length(toJ);
+    vec3 tJ = tl > 1e-6 ? toJ / tl : vec3(1.0, 0.0, 0.0);
+    sIa[i] = armArc[i].x + armArc[i].y * dot(vPos - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz, tJ) * SKIN_U;
+    headA[i] = mat3(modelViewMatrix) * (armArc[i].y * tJ);   // (a heading of zero length would normalise to NaN, and a NaN pixel is a speck of any colour: the length is checked first)
+    float headL = length(headA[i]);
+    vec3 sideX = headL > 1e-6 ? cross(headA[i] / headL, viewDir) : vec3(0.0);
+    float sideL = length(sideX);
+    sideA[i] = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
+    acA[i] = clamp(dot(n, sideA[i]), -1.0, 1.0);
+    pxA[i] = fwidth(sIa[i]);
+    awA[i] = max(fwidth(acA[i]), 0.03);
+  }
+#endif
 #ifdef SKIN_DEBUG
   if (!gl_FrontFacing) { gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
 #endif
@@ -355,30 +379,19 @@ void main() {
   float wpcM = ${wpcGlsl('vW', 'projY', 'SKIN_U')};
   float rCssM = vR / max(wpcM, 1e-6);
   vec3 litD = celTubeBase(base);
-  float vLen = length(vV);
-  vec3 viewDir = vLen > 1e-6 ? vV / vLen : vec3(0.0, 0.0, 1.0);
   DFrame FD0, FD1;
   float wD0 = 0.0, wD1 = 0.0, wD2 = 0.0, onD0 = 0.0, onD1 = 0.0, revD0 = 0.0, revD1 = 0.0;
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
     if (armData[i].x < 0.0) continue;
-    // the arm's own frame: its arc here, and the across the tube would have (its heading, in the view's frame, grows with its arc)
-    vec3 toJ = armAxisP[i * ${SKIN_AXIS_PTS} + 1].xyz - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;   // (toward the node along the straight line through the seam)
-    float tl = length(toJ);
-    vec3 tJ = tl > 1e-6 ? toJ / tl : vec3(1.0, 0.0, 0.0);
-    float sI = armArc[i].x + armArc[i].y * dot(vPos - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz, tJ) * SKIN_U;
-    vec3 headV = mat3(modelViewMatrix) * (armArc[i].y * tJ);   // (a heading of zero length would normalise to NaN, and a NaN pixel is a speck of any colour: the length is checked first)
-    float headL = length(headV);
-    vec3 sideX = headL > 1e-6 ? cross(headV / headL, viewDir) : vec3(0.0);
-    float sideL = length(sideX);
-    float acrossI = clamp(dot(n, sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0)), -1.0, 1.0);
-    float pxI = fwidth(sI);        // (derivatives are taken here, before any branch that depends on the weight)
-    float acrossW = max(fwidth(acrossI), 0.03);
+    // the arm's own frame, taken at the top of main (sIa, acA, pxA, awA, sideA, headA): its arc here, and the across the tube would have (its heading, in the view's frame, grows with its arc)
+    float sI = sIa[i], acrossI = acA[i], pxI = pxA[i], acrossW = awA[i];
+    vec3 sideDir = sideA[i];
     float wI = wAt(i);
     if (wI < 0.004 || vR <= 0.0) continue;
     float lensI = armData[i].w, Lw = armArc[i].z, rOwn = max(armArc[i].w, 1e-3);
     // the dust (blood/dust-glsl.ts dustSkin): this arm's frame, kept for the two heaviest arms; the particles are drawn once below, each at the blend of its places in the two (never two ghosts)
     DFrame FI; float revI;
-    float onI = flowFrame(acrossI, dustFrame(mat3(modelViewMatrix) * (armArc[i].y * tJ), mat3(modelViewMatrix) * vec3(0.0, 0.0, 1.0), viewDir, sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0)), sI, Lw, rOwn, vR, rCssM, lensI, armData[i].x, armData[i].y, SKIN_U, FI, revI);
+    float onI = flowFrame(acrossI, dustFrame(headA[i], mat3(modelViewMatrix) * vec3(0.0, 0.0, 1.0), viewDir, sideDir), sI, Lw, rOwn, vR, rCssM, lensI, armData[i].x, armData[i].y, SKIN_U, FI, revI);
     if (wI > wD0) { wD2 = wD1; FD1 = FD0; wD1 = wD0; onD1 = onD0; revD1 = revD0; FD0 = FI; wD0 = wI; onD0 = onI; revD0 = revI; }
     else if (wI > wD1) { wD2 = wD1; FD1 = FI; wD1 = wI; onD1 = onI; revD1 = revI; }
     else wD2 = max(wD2, wI);

@@ -60,12 +60,11 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer { opacity: 0; }
 .lb-anchor { width: var(--lb-ring); height: var(--lb-ring); margin: calc(var(--lb-ring) / -2) 0 0 calc(var(--lb-ring) / -2); border-radius: 50%; box-sizing: border-box;
   border: var(--lb-ring-w) solid var(--lb-name); background: var(--lb-ring-fill); }
 
-/* ── a narrowed vessel's arrowheads (clamp-marks.ts), flat on the screen: a fine barbed head on a hairline in the label ink. The element stands at the tip; its +x runs away from the vessel,
-   and the layer writes only its transform and opacity. ── */
+/* ── a narrowed vessel's arrowheads (clamp-marks.ts), flat on the screen: the blood chevron's own head in the label ink, outlined as the labels' letters are (the halo's colour and width, drawn under the fill).
+   The element stands at the head's point; its +x runs away from the vessel, and the layer writes only its transform and opacity. The svg is built once. ── */
 .cm { width: 0; height: 0; transform-origin: 0 0; pointer-events: none; }
-.cm::before { content: ""; position: absolute; left: 0; top: -4px; width: 9px; height: 8px; background: var(--lb-val);
-  clip-path: polygon(0 50%, 100% 0, 68% 50%, 100% 100%); }
-.cm::after { content: ""; position: absolute; left: 6px; top: -0.5px; width: 15px; height: 1px; background: color-mix(in srgb, var(--lb-val) 85%, transparent); }   /* (the stem is a shade of the ink, not an opacity: a label stylesheet holds no opacity but 0 and 1, alpha.ts owns the dim) */
+.cm svg { position: absolute; overflow: visible; display: block; }
+.cm path { fill: var(--lb-val); stroke: var(--lb-halo); stroke-width: var(--lb-halo-w); paint-order: stroke fill; stroke-linejoin: round; }
 
 /* a station the slide's words light takes the term's colour (2D .lb.term: the station colour, a step toward the text so it reads on every look) */
 .lb[data-tone] .lb-name, .lb[data-tone] .lb-val, .lb[data-tone] .lb-unit, .lb[data-tone] .lb-delta { color: color-mix(in srgb, var(--lb-tone) 80%, var(--lb-val)); }

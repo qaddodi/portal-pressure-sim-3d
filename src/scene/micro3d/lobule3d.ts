@@ -21,7 +21,7 @@ import type { LobuleView } from '../lobule/view.ts';
 import type { LookId } from '../../looks/looks.ts';
 import type { Course, LobuleNet, P2 as LP2 } from '../lobule/geometry.ts';
 import { LOBULE_R } from '../lobule/shots.ts';
-import { AN_K, DISC_R, LT_R, RS_N, congShare, inletRadius, sinRadius, twigR } from '../lobule/widths.ts';
+import { AN_K, DISC_R, DUCT_R, LT_R, RS_N, congShare, inletRadius, sinRadius, twigR } from '../lobule/widths.ts';
 /** The space of Disse's band and the widest bile canaliculus (lobule radii), which shrink to nothing as their layers go off (2D: lobule-zoom-field.js, lobule-bile.js). */
 const LYMPH_DISSE_R = 0.0132, BILE_BC_R = 0.0036;
 import { CASING } from '../vessels/cel-ink.ts';
@@ -144,6 +144,11 @@ export function lymphIntoPools(lt: readonly Course[], lv: readonly Course[]): Co
   });
 }
 
+/** How many samples a space of Disse's sleeve takes to open out to its full width from where it begins (a point under the sinusoid's foot). */
+export const DISSE_OPEN = 6;
+/** The share of its width the sleeve has `k` samples from its start. */
+export function disseOpen(k: number): number { const t = Math.min(1, Math.max(0, k / DISSE_OPEN)); return t * t * (3 - 2 * t); }
+
 export class Lobule3D {
   readonly group = new Group();
   private readonly flat: Flat;
@@ -164,6 +169,8 @@ export class Lobule3D {
   private readonly inlets: MicroPart;
   private readonly twigs: MicroPart;
   private readonly lt: MicroPart;
+  /** The lymph ductules: 2D's `ly` stretch from its channel to the sinusoid, half the channel's width (2D rs0 * 0.5 against R * 0.0075). */
+  private readonly duct: MicroPart;
   private readonly disse: MicroPart;
   private readonly bile: MicroPart;
   private readonly mouthPv: MicroPart;
@@ -205,6 +212,7 @@ export class Lobule3D {
     this.inlets = mk('inlets', { px: VESSEL_LINE, flow: true, dust });
     this.twigs = mk('arteriole-twigs', { px: S.LINE_SMALL * 0.8, flow: true, dust });
     this.lt = mk('terminal-lymphatics', { px: S.LINE_SMALL * 0.8, flow: true, dust });
+    this.duct = mk('lymph-ductules', { px: S.LINE_SMALL * 0.8, flow: true, dust });
     this.disse = mk('disse', { ink: null });
     this.bile = mk('canaliculi', { px: S.LINE_SMALL * 0.7, flow: true, dust });   // (the lymph and the bile carry the same dust, in their own colours: Mohammad 20 Nov, "the bile and lymph should have the same kind of streaks we use for blood")
     this.mouthPv = mk('portal-venules', { px: VESSEL_LINE });
@@ -222,7 +230,7 @@ export class Lobule3D {
     if (this.tex) { this.tex.flipY = true; this.tex.premultiplyAlpha = true; this.tex.generateMipmaps = true; this.tex.minFilter = LinearMipmapLinearFilter; this.tex.magFilter = LinearFilter; this.tex.anisotropy = 4; }
     const blank = new DataTexture(new Uint8Array(4), 1, 1); blank.needsUpdate = true;
     this.marksMat = new ShaderMaterial({
-      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, opacity: { value: 1 }, uDpr: MICRO_DPR },
+      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, opacity: { value: 1 }, uDpr: MICRO_DPR, fade: this.fade },
       transparent: false, depthWrite: false, depthTest: false, side: DoubleSide,
       blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
     });
@@ -231,7 +239,7 @@ export class Lobule3D {
     this.marks.position.z = LZ.marks; this.marks.name = 'lobule3d/marks'; this.marks.frustumCulled = false;
     // draw order: the ground and the tiles, then the marks over them, then every vessel (depth-tested against the tiles)
     this.ground.renderOrder = -6; this.cells.renderOrder = -5; this.nuclei.renderOrder = -5; this.disse.renderOrder = -5;
-    const vessels = [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv];
+    const vessels = [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv];
     // (the flat view's field of neighbour lobules is see-through and so draws after every solid part; the marks, drawn among the solids, were painted over by it outside the hexagon, which
     // cut the periportal scar off at the edge: Mohammad 20 Nov "it's clipped like at the hexagon". The marks and the vessels draw in the see-through list after the field instead, the vessels
     // still writing and testing depth, opaque as before)
@@ -288,7 +296,7 @@ export class Lobule3D {
     const come = 1 - f.field.wideNow;
     // (whole once it is all but whole: the fade dissolves pixels in a screen pattern below 0.999, and a field that settles a hair short of 0 left the lobule speckled at rest, its lines dotted)
     const fv = (1 - under) * come, fs = fv > FADE_SNAP ? 1 : fv;
-    this.fade.value = fs; this.marksMat.uniforms.opacity!.value = fs;
+    this.fade.value = fs;   // (the ONE dissolve: every tile, tube, mark and the marks plate drop the same pixels of one screen pattern at this value, and nothing else is scaled by it)
     const shown = on && f.isVisible && under < 1;
     this.group.visible = shown;
     // (the whole lobule, its neighbouring field too: the sinusoid's own ground lies below the lobule's plane, so the field would show through the clefts between its cells)
@@ -308,9 +316,9 @@ export class Lobule3D {
     const inf = (p: MicroPart, v: number) => { p.mats.toon.uniforms.inflate!.value = v; };
     { const sw = f.sinSwell; for (const k of ['s0', 's1', 's2', 'an'] as const) this.sin[k].setSwell(sw.whole, sw.share); }   // (per vertex: its own radius and its place's share, cel3d SWELL)
     const lyF = f.lyFade, biF = f.bileFade;
-    inf(this.lt, -LT_R * R * (1 - lyF)); inf(this.disse, -LYMPH_DISSE_R * R * (1 - lyF) + 0.004 * c.seal); inf(this.bile, -BILE_BC_R * R * (1 - biF));
+    inf(this.lt, -LT_R * R * (1 - lyF)); inf(this.duct, -DUCT_R * R * (1 - lyF)); inf(this.disse, -LYMPH_DISSE_R * R * (1 - lyF) + 0.004 * c.seal); inf(this.bile, -BILE_BC_R * R * (1 - biF));
     const lymphOn = lyF > 0.002, bileOn = biF > 0.002;
-    this.lt.group.visible = lymphOn; this.disse.group.visible = lymphOn; this.mouthLv.group.visible = lymphOn; this.bile.group.visible = bileOn;
+    this.lt.group.visible = lymphOn; this.duct.group.visible = lymphOn; this.disse.group.visible = lymphOn; this.mouthLv.group.visible = lymphOn; this.bile.group.visible = bileOn;
     // the central vein opens and narrows with congestion and its collagen (the flat view's radius)
     const kcv = f.cvRadiusNow / DISC_R.cv;
     this.mouthCv.group.scale.set(kcv, kcv, 1);
@@ -340,7 +348,7 @@ export class Lobule3D {
     const was = this.washShown;
     this.washShown = Math.abs(goal - was) < 1e-3 ? goal : was + (goal - was) * (1 - Math.exp(-dt / WASH_EASE_MS));
     if (this.washShown === 0 && was === 0) return false;
-    const rgb = hexToRgb01((LOBULE_PALETTES[this.flat.look].tones as Record<string, string>).amber!) as RGB, a = this.washShown * this.fade.value;
+    const rgb = hexToRgb01((LOBULE_PALETTES[this.flat.look].tones as Record<string, string>).amber!) as RGB, a = this.washShown;
     for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.mouthCv]) p.setRadialWash(a, this.washFrontNow, R, rgb);
     return this.washShown !== goal;
   }
@@ -358,7 +366,9 @@ export class Lobule3D {
     // (`rate` is the scene's one eased pause/play rate, 0..1: Pause eases the flow to a stop and Play eases it back up, never at once)
     const k = clamp(rate, 0, 1) * dt;
     this.flowT.blood += k * 0.11 * q; this.flowT.lymph += k * 0.05; this.flowT.bile += k * 0.035;
-    const W: RGB = [1, 1, 1], soft = (k: number) => k * this.fade.value, dpr = this.dpr;
+    // (no mark is scaled by the dive's fade: the tube's own dissolve already drops its pixels, marks and all, at the scene's one fade. A mark that was ALSO scaled by it (soft = k * fade) went as the fade squared and
+    //  a weaker one (the lymph's 0.4) earlier still, so the lymph went first and the blood's vessels after it, and the lobule's vessels flashed: Mohammad 20 Nov 2026)
+    const W: RGB = [1, 1, 1], soft = (k: number) => k, dpr = this.dpr;
     // every fluid is seen to move at the fit (Mohammad, 20 Nov 2026): the blood's dark heads (few and small on these thin tubes, the shader's screen rules) and THE ONE STREAK in every vessel, the blood's
     // only while Settings > Blood streaks is on (off: chevrons only); the lymph's and the bile's always, in their own tones
     const bs = useSettings.getState().particles ? soft(0.6) : 0;   // (quiet: sleek lanes a shade off the lumen, never bold white dashes, Mohammad 20 Nov 2026 "should be more sleek")
@@ -366,10 +376,11 @@ export class Lobule3D {
     this.sin.an.setFlow(this.flowT.blood, 0.12, W, soft(1), bs, 0, 0.0043 * R, true, dpr);
     this.inlets.setFlow(this.flowT.blood, 0.3, W, soft(1), bs, 0, 0.012 * R, true, dpr);
     for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs]) { const u = p.mats.toon.uniforms.uDustK; if (u) u.value = bs > 0 ? soft(1) : 0; }
-    { const u = this.lt.mats.toon.uniforms.uDustK; if (u) u.value = soft(0.8); }
+    for (const p of [this.lt, this.duct]) { const u = p.mats.toon.uniforms.uDustK; if (u) u.value = soft(0.8); }
     { const u = this.bile.mats.toon.uniforms.uDustK; if (u) u.value = soft(0.85); }   // (the dust replaces the streak lanes in the blood's tubes, under the same switch)
     this.twigs.setFlow(this.flowT.blood * 1.6, 0.1, [1, 0.88, 0.86], soft(1), bs, 0, 0.006 * R, true, dpr);
     this.lt.setFlow(this.flowT.lymph, 0.12, W, soft(0.4), soft(0.8), 0, LT_R * R, false, dpr);
+    this.duct.setFlow(this.flowT.lymph, 0.12, W, soft(0.4), soft(0.8), 0, DUCT_R * R, false, dpr);
     this.bile.setFlow(this.flowT.bile, 0.07, [1, 0.97, 0.7], soft(0.55), soft(0.85), 1, 0.004 * R, false, dpr);
     void lymphOn; void bileOn;
     return rate > 0.001;
@@ -385,12 +396,12 @@ export class Lobule3D {
     // the hepatocytes keep the tissue's casing; every vessel (sinusoids, inlets, twigs, lymphatics, canaliculi, the tract's mouths, the central vein) the Anatomy's dark line of its own colour
     this.cells.setInk(ink);
     const cas = CASING[look].rgb.map((v) => v / 255);
-    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.twigs, this.lt, this.bile, this.mouthCv, this.mouthLv, this.mouthPv, this.inlets, this.mouthHa, this.mouthBd]) p.setVesselInk(cas);
+    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.twigs, this.lt, this.duct, this.bile, this.mouthCv, this.mouthLv, this.mouthPv, this.inlets, this.mouthHa, this.mouthBd]) p.setVesselInk(cas);
     // the parts of one tone (the lens does not colour them, as in 2D)
     const tone = (k: string) => hexToRgb01((P as Record<string, string>)[k]!);
     this.twigs.setTint(tone('artery')); this.mouthHa.setTint(tone('artery'));
     this.mouthBd.setTint(tone('bile')); this.bile.setTint(tone('bile'));
-    this.lt.setTint(tone('lymph')); this.mouthLv.setTint(tone('lymph'));
+    this.lt.setTint(tone('lymph')); this.duct.setTint(tone('lymph')); this.mouthLv.setTint(tone('lymph'));
     this.disse.setTint(tone('disse'));
     this.cvScar.setTint(tone('collagen'));
     this.inkKey = '';
@@ -614,7 +625,8 @@ export class Lobule3D {
     // (the terminal lymphatics, and the lymph ductules: where a space of Disse leaves its channel it is a thin lymph tube as 2D draws it (`ly`, lymph-coloured, tapering), not a flat sleeve, up to where the sinusoid's
     //  own sleeve begins; Mohammad 20 Nov 2026: a grey plate stood out beside each inlet, at the end of a ductule)
     const ductules = disseDuctules(by('ly'), net.courses);
-    { const t = tubes([...lymphIntoPools(by('lt'), by('lv')), ...ductules.map((d) => d.conn)], () => LT_R, () => 0); coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    { const t = tubes(lymphIntoPools(by('lt'), by('lv')), () => LT_R, () => 0); coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    { const t = tubes(ductules.map((d) => d.conn), () => DUCT_R, () => 0); coloured(this.duct, t.b, null, t.W, t.K); this.duct.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
     // the space of Disse: a flat pale sleeve under each sinusoid (2D's Wet Disse), no light of its own
     {
       const b = new MeshBuilder(), K: number[] = [], W: number[] = [], rly = 0.0132;
@@ -624,7 +636,9 @@ export class Lobule3D {
           const a = c.pts[Math.max(0, i - 1)]!, d = c.pts[Math.min(n - 1, i + 1)]!;
           let tx = d[0] - a[0], ty = -(d[1] - a[1]); const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
           const p = at3(c.pts[i]!, LZ.disse);
-          b.v(p[0] - ty * rly * R, p[1] + tx * rly * R, p[2], 0, 0, 1, [1, 1, 1]); b.v(p[0] + ty * rly * R, p[1] - tx * rly * R, p[2], 0, 0, 1, [1, 1, 1]);
+          // (it opens out from a point over its first DISSE_OPEN samples: a square start, wider than the inlet it begins under, stood out as a small grey plate beside every sinusoid's foot, Mohammad 20 Nov 2026)
+          const wd = rly * disseOpen(i - from);
+          b.v(p[0] - ty * wd * R, p[1] + tx * wd * R, p[2], 0, 0, 1, [1, 1, 1]); b.v(p[0] + ty * wd * R, p[1] - tx * wd * R, p[2], 0, 0, 1, [1, 1, 1]);
           K.push(1, 1); W.push(0, 0);
         }
         for (let i = 0; i < n - 1 - from; i++) { const q = r0 + i * 2; b.quad(q, q + 2, q + 3, q + 1); b.quad(q, q + 1, q + 3, q + 2); }
@@ -700,11 +714,11 @@ export class Lobule3D {
   /** Vertex count of everything this scene draws (tests and the budget). */
   get vertexCount(): number {
     let n = 0;
-    for (const p of [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.disse, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar]) n += p.geometry.getAttribute('position')?.count ?? 0;
+    for (const p of [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.disse, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar]) n += p.geometry.getAttribute('position')?.count ?? 0;
     return n;
   }
   /** The parts (tests). */
-  get partsForTest(): MicroPart[] { return [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.disse, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar]; }
+  get partsForTest(): MicroPart[] { return [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.disse, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar]; }
   /** Builds the tiles for a look and state without the flat view's frame (tests). */
   buildForTest(look: LookId, congU = 0, septU = 0): void { this.buildCells(look, congU, septU); this.applyLook(look); this.buildGround(1, true); }
 

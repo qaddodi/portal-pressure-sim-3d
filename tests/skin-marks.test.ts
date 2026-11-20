@@ -106,6 +106,21 @@ test('the tube and the skin call ONE flow-marks code (glsl-shared.ts flowDust / 
 
 test('no NaN can leave the skin\'s flow marks: a heading is normalised only after its length is checked (a NaN pixel is a speck of any colour, Mohammad 20 Nov: green and dark blue specks on the welds)', () => {
   assert.ok(!/normalize\(mat3\(modelViewMatrix\) \* \(armArc/.test(SKIN_FS), 'the arm heading is never normalised unchecked');
-  assert.match(SKIN_FS, /float headL = length\(headV\);/);
-  assert.match(SKIN_FS, /headL > 1e-6 \? cross\(headV \/ headL, viewDir\)/);
+  assert.match(SKIN_FS, /float headL = length\(headA\[i\]\);/);
+  assert.match(SKIN_FS, /headL > 1e-6 \? cross\(headA\[i\] \/ headL, viewDir\)/);
+});
+
+test('every derivative of the flow marks is taken before the first discard, in uniform control flow (a quad whose neighbours were discarded gives a garbage fwidth on a device that drops the lane: blocky wrong-coloured specks at every crotch and silhouette, gone with ?joins=nomarks)', () => {
+  for (const [name, src] of [['skin', SKIN_FS], ['tube', VESSEL_FS]] as const) {
+    const first = src.indexOf('discard;', src.indexOf('void main()'));
+    assert.ok(first > 0, name);
+    const body = src.slice(src.indexOf('void main()'));
+    let n = 0;
+    for (const m of body.matchAll(/fwidth\(/g)) {
+      const at = body.indexOf('discard;');
+      if (m.index! > at) { const line = body.slice(body.lastIndexOf('\n', m.index!) + 1, body.indexOf('\n', m.index!)); if (!/fwidth\(nz\)|fwidth\(dv\)|fwidth\(tn\)|fwidth\(f\)/.test(line)) assert.fail(`${name}: a derivative after the first discard: ${line.trim()}`); }
+      n++;
+    }
+    assert.ok(n >= 3, `${name} takes its derivatives`);
+  }
 });

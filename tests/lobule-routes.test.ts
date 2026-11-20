@@ -57,3 +57,16 @@ test('each family joins only itself: a bile channel ending where a sinusoid ends
   assert.deepEqual(new Set(m.map((g) => g.root)), new Set([4, 5, 6]), 'three bile channels merge into the next, side by side');
   assert.ok(r.get(3)!.every((g) => g.root === 0), 'the blood is untouched');
 });
+
+test('a bile canal ending on the side of a duct carries the duct\'s particles, so each runs on into the duct at the join', () => {
+  const fam: LobuleRouteCourse[] = [
+    { col: 0, kind: 'bile', path: line([0, 0], [10, 0], 20), radius: 0.2 },   // the duct
+    { col: 1, kind: 'bile', path: line([4, 3], [4, 0.1]), radius: 0.05 },      // a canal into its side at arc 4, from its left (y > 0)
+  ];
+  const r = lobuleRoutes(fam, 0.01);
+  const g = r.get(1)!;
+  assert.ok(g.every((s) => s.root === 0), 'the duct\'s own particles');
+  const len = 2.9;
+  for (const s of g) assert.ok(Math.abs(s.A + s.B * len - 4) < 0.15, `at the join it is at the duct's place: ${s.A + s.B * len}`);
+  for (const s of g) { const lo = s.c0 + s.c1 * s.y0, hi = s.c0 + s.c1 * s.y1; assert.ok(Math.min(lo, hi) >= 0.6 - 1e-9 && Math.max(lo, hi) <= 1 + 1e-9, 'a strip on the duct\'s left wall'); }
+});
