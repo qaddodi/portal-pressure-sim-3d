@@ -58,7 +58,7 @@ test('the vertex attributes are the spec\'s (cen, weight, restR) on top of three
 });
 
 test('the skin draws the tubes\' flow marks, once per arm, with the tubes\' own code (tests/skin-marks.test.ts holds the rest)', () => {
-  for (const word of ['chevOne', 'dustField', 'streamTex', 'chainTex', 'streakAmt', 'armArc']) assert.ok(SKIN_FS.includes(word), `${word} is in the skin`);
+  for (const word of ['chevOne', 'dustSkin(FD0, FD1, w1, ', 'dustTube(FD0, ', 'streamTex', 'chainTex', 'streakAmt', 'armArc']) assert.ok(SKIN_FS.includes(word), `${word} is in the skin`);
 });
 
 test('the skin is back-face culled in the fragment stage like the tube, and fades out on the Circuit', () => {

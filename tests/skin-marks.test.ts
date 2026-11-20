@@ -86,14 +86,14 @@ test('the arc grows toward the node on an arm that is its vessel\'s end 1 and sh
 
 test('the skin\'s marks are the tube\'s code: the same dust call on the stream and its chain, the same heads, no fade before the seam, and the arms blended by weight', () => {
   for (const frag of [
-    'dustField(acrossI, sI, 0.0, 1.0, smS.w, rOwn, rOwn,',
-    'dustField(acrossI, sI, chD.y, chD.z, texelFetch(streamTex, ivec2(rootIx, 0), 0).w, rOwn,',
+    'DFrame FI = DFrame(acrossI, frI.xy, frI.zw, sI, Lw, rOwn, vR, rCssM, nar, smS.y, lensI, SKIN_U);',
+    'dustSkin(FD0, FD1, w1, litD, inkColor, ', 'dustTube(FD0, litD, inkColor, revD0)',
     'chevOne(sI, Lw, sI, 1.0, Dm, vd, rv, chE.xy, R, acrossI, wpcM, Pt, px)',
     'chevOne(sI, Lw, chD.y + chD.z * sI, chD.z, rootD, vd, rv, chE.xy, R, acrossI, wpcM, Pt, px)',
-    'dustAcc += wI *', 'headAcc += wI *',
+    'headAcc += wI *',
   ]) assert.ok(SKIN_FS.includes(frag), frag);
   assert.doesNotMatch(SKIN_FS, /skinMarkK|MARK_FADE/);
   assert.doesNotMatch(VESSEL_FS, /skinMarkK|skinSeamDist/, 'the tube draws its marks right up to the seam');
   // the tube's own calls (the tube and the skin must not drift)
-  assert.ok(VESSEL_FS.includes('dustField(across, sD, 0.0, 1.0, smS.w, rOwn, rOwn,') && VESSEL_FS.includes('chevOne(s, Lw, s, 1.0, Dm, vd, rv, c5.xy, R, across, wpc, Pt, px)'));
+  assert.ok(VESSEL_FS.includes('DFrame F = DFrame(across, fr.xy, fr.zw, vUv.x * len * vU, len * vU, max(radius * vU, 1e-3), vR, rCssD, nar, smS.y, lensIndex, vU);') && VESSEL_FS.includes('chevOne(s, Lw, s, 1.0, Dm, vd, rv, c5.xy, R, across, wpc, Pt, px)'));
 });

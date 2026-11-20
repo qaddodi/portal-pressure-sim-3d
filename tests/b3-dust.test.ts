@@ -6,7 +6,7 @@ import {
   DUST_BUDGET, DUST_KMAX, DUST_LEN_CAP, DUST_NMAX, DUST_NUMERIC, DUST_PRESETS, DUST_SELECTS, DUST_SPEC, DUST_UNIFORMS, DUST_VEC4, LAB_ONLY, LAB_R,
   clampKey, dustBand, dustBudget, dustClasses, dustDefaults, dustDerive, dustProf, dustText, hexRgb, parseDust,
 } from '../src/scene/blood/dust-spec.ts';
-import { DUST_GLSL, DUST_MACROS, dustArc, dustEndIntegral, dustEndRamp } from '../src/scene/blood/dust-glsl.ts';
+import { DUST_GLSL, DUST_MACROS, dustArc, dustStrip, dustTwist } from '../src/scene/blood/dust-glsl.ts';
 import { DUST_EASE_MS, DustTuner } from '../src/scene/blood/dust.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { FLAGS } from '../src/ui/debug/flags.ts';
@@ -89,18 +89,22 @@ test('adaptive (the iPhone\'s count is not measured yet): a phone carries fewer 
   assert.ok(mac.densK > 0.5 && mac.densK <= 1, 'Density thins the grid from its full 2400: his pick is the full grid');
 });
 
-test('the swirl\'s phase is a closed form: the end ramp\'s integral equals its numeric integral, on long and on short vessels', () => {
-  for (const [L, W] of [[300, 36], [120, 18], [40, 18], [1000, 120], [30, 18]] as const) {
-    let sum = 0; const n = 20000, h = L / n;
-    for (let i = 0; i < n; i++) {
-      const a = (i + 0.5) * h; sum += dustEndRamp(a, L, W) * h;
-      if (i % 2000 === 1999) assert.ok(Math.abs(dustEndIntegral((i + 1) * h, L, W) - sum) < 0.02 * W + 1e-3, `L ${L} W ${W} at ${((i + 1) * h).toFixed(1)}`);
-    }
-    assert.ok(Math.abs(dustEndIntegral(L, L, W) - sum) < 1e-2 * W, `L ${L} W ${W}: the whole`);
-    assert.equal(dustEndIntegral(-5, L, W), 0);
+test('the swirl (real flow, Mohammad 20 Nov): a whole number of turns over a vessel, so at both ends every particle is back on its lane (a joint can never move it across a branch\'s dividing line), at rest there, its rate the angle\'s own slope', () => {
+  for (const [L, n] of [[300, 3], [120, 1], [40, 2], [1000, 8]] as const) {
+    const [a0, r0] = dustTwist(0, L, n), [a1, r1] = dustTwist(L, L, n);
+    assert.equal(a0, 0); assert.ok(Math.abs(a1 - 2 * Math.PI * n) < 1e-9 && Math.abs(Math.sin(a1)) < 1e-9 && Math.abs(Math.cos(a1) - 1) < 1e-9, `L ${L}: whole turns`);
+    assert.equal(r0, 0); assert.ok(Math.abs(r1) < 1e-12, 'no twist rate at an end: the marks are not tilted at a joint');
+    const h = L / 4000; let sum = 0;
+    for (let i = 0; i < 4000; i++) sum += dustTwist((i + 0.5) * h, L, n)[1] * h;
+    assert.ok(Math.abs(sum - a1) < 1e-4 * a1, 'the rate is the slope of the angle');
   }
-  assert.match(DUST_GLSL, /float dEnd\(float a, float L, float W\)/);
-  assert.match(DUST_GLSL, /float dG\(float x, float W\) \{ float xx = clamp\(x, 0\.0, W\), t = xx \/ W; return xx - W \* \(t \* t \* t - 0\.5 \* t \* t \* t \* t\); \}/, 'the same cubic as the twin');
+  assert.match(DUST_GLSL, /return vec2\(6\.2831853 \* turns \* u \* u \* \(3\.0 - 2\.0 \* u\), 6\.2831853 \* turns \* 6\.0 \* u \* \(1\.0 - u\) \/ max\(Lw, 1e-3\)\);/, 'the same curve as the twin');
+  assert.match(DUST_GLSL, /float T = clamp\(D_turb \* \(TcRaw \+ [\d.]+ \* wEnd\), 0\.0, 1\.3\) \* smoothstep\(0\.0, 0\.5 \* Wd, d\);/, 'the wobble (it moves with time) is held to nothing at the ends');
+  // the strip: the root's lane on the wall stays on the wall, a lane carried whole is the identity, and the depth never leaves the section
+  for (const [yr, zr] of [[0.3, 0.5], [-0.7, 0.1], [0, -0.79]] as const) {
+    const [y, z] = dustStrip(yr, zr, yr / 0.8, 0.8); assert.ok(Math.abs(y - yr) < 1e-9 && Math.abs(z - zr) < 1e-9, 'one to one');
+    for (const yc of [-0.9, 0, 0.6]) { const [y2, z2] = dustStrip(yr, zr, yc, 0.8); assert.ok(y2 * y2 + z2 * z2 <= 0.8 * 0.8 + 1e-9, 'inside the section'); }
+  }
 });
 
 test('the lab\'s own profile and bands: faster in the middle, equal shares of the particles a class, and the stream\'s mean speed is the display speed', () => {
@@ -117,21 +121,23 @@ test('the lab\'s own profile and bands: faster in the middle, equal shares of th
 test('GLSL: parses; the lab\'s shapes are in it; the dust is computed from a cell\'s hash and the time, never from a CPU table; contained, fading both ends of a streak, local velocity, swirl, junctions', () => {
   const src = DUST_GLSL.replace(/^\n/, '');
   if (parse) { parse(src); parse(VESSEL_FS.replace(/^\n/, '')); }
-  assert.doesNotMatch(DUST_GLSL, /attribute |texelFetch|texture2D|iPos|iVel/, 'no per-particle data: a particle is a hash of its cell');
+  assert.doesNotMatch(DUST_GLSL, /attribute |texture2D|iPos|iVel/, 'no per-particle data: a particle is a hash of its cell');
+  for (const m of DUST_GLSL.matchAll(/texelFetch\((\w+)/g)) assert.ok(m[1] === 'routeTex' || m[1] === 'streamTex', `only the route table and the streams are read, never a particle: ${m[1]}`);
   assert.match(DUST_GLSL, /smoothstep\(rEl \* 0\.45, rEl, dist\)/, 'the lab\'s dot outline');
   assert.match(DUST_GLSL, /smoothstep\(0\.0, 0\.5, tA\) \* smoothstep\(0\.0, 0\.5, 1\.0 - tA\)/, 'the streak fades at BOTH ends');
   assert.match(DUST_GLSL, /clamp\(1\.0 \/ max\(kR \* kR, 1e-3\), D_uMin, D_uMax\)/, 'the lab\'s local velocity: Q over area (faster in a throat, slow in a bulb)');
-  assert.match(DUST_GLSL, /D_lenK, dia, D_lenCap/, 'the streak\'s length is the local velocity x lenK');
-  assert.match(DUST_GLSL, /\* \(1\.0 - 0\.4 \* rho\)/, 'the lab\'s helix');
+  assert.match(DUST_GLSL, /D_speed \* M\.spd \* D_lenK, M\.dia, D_lenCap/, 'the streak\'s length is the local velocity x lenK');
+  assert.match(DUST_GLSL, /float th = th0 - tw\.x \+ wob;/, 'the lab\'s helix, as whole turns over the vessel (dTwist)');
   assert.match(DUST_GLSL, /vec3\(1\.0, 0\.62, 0\.28\), D_warm \* rev/, 'warm when reversed');
-  assert.match(DUST_GLSL, /flowFig \* sp/, 'carried by the stream\'s own distance, each ring at its own speed');
+  assert.match(DUST_GLSL, /flowFig \* P\.prof \* D_flowK/, 'carried by the stream\'s own distance, each ring at its own speed');
   assert.match(DUST_GLSL, /dShift\(pc, -0\.2 \* D_hue, D_satShift \+ 0\.02, D_lightBias \+ D_lightSpread \* 0\.6\)/, 'the lab\'s four tones');
-  assert.match(DUST_GLSL, /for \(int kk = 0; kk < 4; kk\+\+\)/); assert.equal(DUST_KMAX, 4);
-  assert.match(DUST_GLSL, new RegExp(`for \\(int n = -${DUST_NMAX}; n <= ${DUST_NMAX}; n\\+\\+\\)`));
+  assert.match(DUST_GLSL, /for \(int kk = 0; kk < K; kk\+\+\)/); assert.equal(DUST_KMAX, 4);
+  assert.match(DUST_GLSL, /for \(int n = -N; n <= N; n\+\+\)/);
+  assert.match(DUST_GLSL, new RegExp(`int K = min\\(int\\(D_nCls \\+ 0\\.5\\), ${DUST_KMAX}\\), N = min\\(int\\(D_win \\+ 0\\.5\\), ${DUST_NMAX}\\);`), 'the loops stay inside their bounds');
   assert.match(DUST_GLSL, /\(D_densK - dHash\(sd\)\) \* 12\.0/, 'density thins by a threshold: single particles fade, nothing pops');
-  assert.match(DUST_GLSL, /return acc \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(across\)\)\);/, 'contained: nothing on the ink');
+  assert.match(DUST_GLSL, /return acc \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(F\.across\)\)\);/, 'contained: nothing on the ink');
   // in the vessel: the tube paints it, gated by the amount, the flow and the marks' own junction rule; chevrons after
-  for (const m of [/dust = dustField\(across, sD, 0\.0, 1\.0, smS\.w, /, /markK\(vUv\.x \* len \* vU, \(1\.0 - vUv\.x\) \* len \* vU\) \* streakAmt/, /smoothstep\(0\.0, [\d.]+, abs\(smS\.y\)\)/, /litD, inkColor\)/]) assert.match(VESSEL_FS, m);
+  for (const m of [/vec4 dust = dustTube\(F, litD, inkColor, smS\.z\);/, /markK\(skinCut\.x >= 0\.0 \? 1e6 : vUv\.x \* len \* vU, skinCut\.y <= 1\.0 \? 1e6 : \(1\.0 - vUv\.x\) \* len \* vU\) \* streakAmt/, /smoothstep\(0\.0, [\d.]+, abs\(smS\.y\)\)/, /litD, inkColor, smS\.z\)/]) assert.match(VESSEL_FS, m);
   assert.ok(VESSEL_FS.indexOf('streakCover = dOn * dust.a;') < VESSEL_FS.indexOf('c = c * (1.0 - ha) + core * ac'), 'chevrons draw ABOVE the particles');
   assert.match(VESSEL_FS, /if \(streakCover > 0\.0\) c = mix\(c, cBody, ha\);/);
   assert.doesNotMatch(VESSEL_FS, /END_R|streakField\(/, 'no fade at a vessel\'s ends: the dust runs through the junction (no old streak field in the tube)');
@@ -200,16 +206,12 @@ test('THE ROUTE (Mohammad, 20 Nov: "the particles should cross at the junction, 
     const later = dustArc(jj, 0.4, 1, Pf, D + 5, sp, A, B);
     assert.ok(Math.abs((later - inChild) - (5 * sp) / B) < 1e-9, `B ${B}: pace`);
   }
-  // the shader: both sets are drawn by the one function, from the stream's coordinate; a link forming or letting go cross-fades them
-  assert.match(DUST_GLSL, /float se = A0 \+ Bs \* aFig;/);
-  assert.match(DUST_GLSL, /float Pf = max\(D_cellP \* rLat, 1e-4\);/, 'the lattice is the root\'s radius: one lattice along the whole route');
-  assert.match(VESSEL_FS, /int rootIx = int\(chD\.x \+ 0\.5\) - 1;/);
-  assert.match(VESSEL_FS, /fract\(float\(rootIx\) \* 0\.6180339\) \* 50\.0/, 'the route\'s seed is the root\'s: one set of particles');
-  assert.match(VESSEL_FS, /dust = wl >= 1\.0 \? dc : mix\(dust, dc, wl\);/);
-  assert.match(VESSEL_FS, /texelFetch\(chainTex, ivec2\(int\(lensIndex\), 1\), 0\)\.w \* vU/, 'the root\'s radius rides the chain texture');
-  const { StreamChain } = await import('../src/scene/blood/chain.ts');
-  assert.match(read('../src/scene/blood/chain.ts'), /d\[o2 \+ 3\] = RADIUS\[c\.root\[i\]!\] \?\? 0;/);
-  assert.ok(StreamChain, 'the chain');
+  // the shader: every lane segment of the route table (blood/routes.ts) draws its root's particles from the root's stream coordinate; a layout changing cross-fades the two tables
+  assert.match(DUST_GLSL, /float se = g\.A \+ Bs \* F\.a;/);
+  assert.match(DUST_GLSL, /float Pf = max\(D_cellP \* g\.rLat \* F\.U, 1e-4\)/, 'the lattice is the root\'s radius: one lattice along the whole route');
+  assert.match(DUST_GLSL, /fract\(root \* 0\.6180339\) \* 50\.0/, 'the route\'s seed is the root\'s: one set of particles');
+  assert.match(DUST_GLSL, /float wSet = set == 0 \? hd\.y : 1\.0 - hd\.y;/, 'the old layout fades out as the new one fades in');
+  assert.match(read('../src/scene/blood/routes.ts'), /d\[o \+ 3\] = RADIUS\[g\.root\] \?\? 0;/, 'the root\'s radius rides the route table');
 });
 
 test('the Blood menu has the streaks switch under Moving blood, in the chevrons\' own row, on the one setting (Mohammad, 20 Nov), and the dust eases in and out', async () => {

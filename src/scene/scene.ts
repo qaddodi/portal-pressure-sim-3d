@@ -34,6 +34,7 @@ import { BloodMarks, type BloodOptions } from './blood/marks.ts';
 import { BloodField } from './blood/field.ts';
 import { BloodCells } from './blood/cells/cells.ts';
 import { dustTuner } from './blood/dust.ts';
+import { turnTargets } from './blood/routes.ts';
 import { CameraRig } from './camera/rig.ts';
 import { cutUniform, fieldSoft } from './camera/dive.ts';
 import { MICRO_DPR } from './micro3d/cel3d.ts';
@@ -216,6 +217,8 @@ export class CelScene {
   private healthyQ: ArrayLike<number> | undefined;
   private collateralsOn = false;
   private procQuietWas = false;
+  /** the swirl's turns each vessel should carry (blood/routes.ts turnTargets), kept so a frame makes no array */
+  private readonly turnsScratch = new Float32Array((EDGES as unknown[]).length);
   private wedgeSet = new Set<string>();
   /** The HVPG's amber column: a tint on the vessels upstream of the balloon (their own shader), thinning toward the branch tips. Eases with the column (one eased number from the procedure's clock). */
   private syncWedge(): void {
@@ -1056,8 +1059,9 @@ export class CelScene {
     if (procQuiet !== this.procQuietWas) { this.procQuietWas = procQuiet; this.flow.setOptions({ quiet: procQuiet }); }
     const streamsMoving = this.blood.streams.step(now, this.flowRate.value);
     const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id));
+    const routesMoving = this.blood.routes.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), turnTargets(this.blood.streams, dustTuner.uniform.value, this.turnsScratch));
     const occMoving = this.stepOcclusion(dt);
-    const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || this.stepCava(dt) || occMoving;
+    const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || routesMoving || this.stepCava(dt) || occMoving;
     const lensMoving = this.lens.step(now);
     const dustMoving = dustTuner.step(dt);
     const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving, quiet: procQuiet });
@@ -1173,6 +1177,7 @@ export class CelScene {
     this.disease.dispose();
     this.blood.streams.texture.dispose();
     this.blood.chain.texture.dispose();
+    this.blood.routes.texture.dispose();
     for (const o of this.objects) o.dispose();
     this.procs.dispose(); this.probes.dispose();
     this.tubes.dispose(); this.resistors.dispose(); this.post.dispose();

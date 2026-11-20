@@ -81,6 +81,7 @@ varying vec3 vCen;   // the tube's centreline point at this fragment, in clip sp
 varying vec3 vN;
 varying vec3 vV;
 varying vec3 vT;
+varying vec3 vZf;   // the figure's normal (model z) in the view's frame: the dust's section frame (blood/dust-glsl.ts dustFrame)
 varying vec2 vUv;
 varying float vHi;
 ${CIRCUIT_VS_HEAD}
@@ -209,6 +210,7 @@ ${CIRCUIT_VS_CALL}
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vN = normalize(normalMatrix * aNor);
   vT = normalize(normalMatrix * aTan);
+  vZf = normalize(normalMatrix * vec3(0.0, 0.0, 1.0));
   vV = normalize(-mv.xyz);
   vUv = uv;
   vec4 c = projectionMatrix * mv;
@@ -317,6 +319,7 @@ varying float vHi;
 varying vec3 vN;
 varying vec3 vV;
 varying vec3 vT;
+varying vec3 vZf;   // the figure's normal (model z) in the view's frame: the dust's section frame (blood/dust-glsl.ts dustFrame)
 varying vec2 vUv;
 
 // junction skins (skin/types.ts): the tube has a seam at either end
@@ -440,26 +443,21 @@ void main() {
   if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT));
   vec3 c = celTubeTone(base, mix(sT, 1.0, nbrT), fwidth(sT) * (1.0 - nbrT), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
-  // THE DUST (blood/dust-glsl.ts, the Dust Lab's particles, Mohammad 20 Nov) is part of the tube: painted here, in its own fragment shader, so it is inside the lumen (dustField draws nothing past 0.96 of the half width,
+  // THE DUST (blood/dust-glsl.ts, the Dust Lab's particles, Mohammad 20 Nov) is part of the tube: painted here, in its own fragment shader, so it is inside the lumen (dustTube draws nothing past 0.96 of the half width,
   // never touching the ink) and follows the tube's own alpha and fade zones by construction: there is no second mesh to stray past a tube's end, a taper or a fade. Under the chevrons, which come after.
   if (streakAmt > 0.001 && vR > 0.0 && abs(across) < 0.97) {
     vec4 smS = texelFetch(streamTex, ivec2(int(lensIndex), 0), 0);   // the blood's own distance and speed on this vessel: reversed runs back, none stands
     float rCssD = vR / max(${wpcGlsl('vW', 'projY', 'vU')}, 1e-6);
     float nar = 1.0;
     if (useData > 0.5) { ivec2 tcn = ivec2(int(mod(vindex, vdataSize.x)), int(floor(vindex / vdataSize.x))); nar = texelFetch(vdata, tcn, 0).b / max(baseD, 0.1); }
-    vec4 chD = texelFetch(chainTex, ivec2(int(lensIndex), 0), 0);
-    float dOn = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCssD) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
+    // REAL FLOW (blood/routes.ts, dust-glsl.ts): the particles of the roots this vessel's lanes carry, in its own section, at their place on their root's stream. No fade before a skin's seam: the skin draws the same particles
+    // on (dustSkin). Where the tubes still overlap at a joint (?joins=old, or no skin there) they fade as the chevrons do (markK), the vessel it opens into drawing the same particles.
+    float dOn = markK(skinCut.x >= 0.0 ? 1e6 : vUv.x * len * vU, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCssD) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
     if (dOn > 0.002) {
-      // (the streak distance, texel w: the stream's distance D held to a speed no pattern wagon-wheels at, streams.ts; the same arc and gate the heads have, and none only where the flow is none)
-      float sD = vUv.x * len * vU, rOwn = max(radius * vU, 1e-3), wl = chD.w;
       vec3 litD = celTubeBase(base);
-      vec4 dust = vec4(0.0);
-      if (wl < 1.0) dust = dustField(across, sD, 0.0, 1.0, smS.w, rOwn, rOwn, vR, rCssD, len * vU, nar, smS.y, smS.z, fract(lensIndex * 0.6180339) * 50.0, lensIndex + 1.0, litD, inkColor);
-      if (wl > 0.0) {   // the blood runs on from the parent: the root's particles, at the root's distance, A + B s along its stream (the chevrons' own placing)
-        int rootIx = int(chD.x + 0.5) - 1;
-        vec4 dc = dustField(across, sD, chD.y, chD.z, texelFetch(streamTex, ivec2(rootIx, 0), 0).w, rOwn, max(texelFetch(chainTex, ivec2(int(lensIndex), 1), 0).w * vU, 1e-3), vR, rCssD, len * vU, nar, smS.y, smS.z, fract(float(rootIx) * 0.6180339) * 50.0, chD.x, litD, inkColor);
-        dust = wl >= 1.0 ? dc : mix(dust, dc, wl);   // (a link forming or letting go cross-fades the two sets: nothing pops)
-      }
+      vec4 fr = dustFrame(vT, vZf, normalize(vV), side);
+      DFrame F = DFrame(across, fr.xy, fr.zw, vUv.x * len * vU, len * vU, max(radius * vU, 1e-3), vR, rCssD, nar, smS.y, lensIndex, vU);
+      vec4 dust = dustTube(F, litD, inkColor, smS.z);
       streakCover = dOn * dust.a;
       cBody = c;
       c = c * (1.0 - streakCover) + dust.rgb * dOn;

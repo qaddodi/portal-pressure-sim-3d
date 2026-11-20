@@ -241,6 +241,8 @@ void main() {
   float rCssM = vR / max(wpcM, 1e-6);
   vec3 litD = celTubeBase(base);
   vec3 viewDir = normalize(vV);
+  DFrame FD0, FD1;
+  float wD0 = 0.0, wD1 = 0.0, onD0 = 0.0, onD1 = 0.0, revD0 = 0.0, revD1 = 0.0;
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
     if (armData[i].x < 0.0) continue;
     // the arm's own frame: its arc here, and the across the tube would have (its heading, in the view's frame, grows with its arc)
@@ -258,21 +260,15 @@ void main() {
     float lensI = armData[i].w, Lw = armArc[i].z, rOwn = max(armArc[i].w, 1e-3);
     vec4 smS = texelFetch(streamTex, ivec2(int(lensI), 0), 0);   // the blood's own distance and speed on this vessel
     vec4 chD = texelFetch(chainTex, ivec2(int(lensI), 0), 0), chE = texelFetch(chainTex, ivec2(int(lensI), 1), 0);
-    if (streakAmt > 0.001 && abs(acrossI) < 0.97) {
-      float dOn = streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCssM) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
-      if (dOn > 0.002) {
-        float nar = 1.0;
-        if (useData > 0.5) { ivec2 tcn = ivec2(int(mod(armData[i].x, vdataSize.x)), int(floor(armData[i].x / vdataSize.x))); nar = texelFetch(vdata, tcn, 0).b / max(armData[i].y, 0.1); }
-        float wl = chD.w;
-        vec4 dust = vec4(0.0);
-        if (wl < 1.0) dust = dustField(acrossI, sI, 0.0, 1.0, smS.w, rOwn, rOwn, vR, rCssM, Lw, nar, smS.y, smS.z, fract(lensI * 0.6180339) * 50.0, lensI + 1.0, litD, inkColor);
-        if (wl > 0.0) {
-          int rootIx = int(chD.x + 0.5) - 1;
-          vec4 dc = dustField(acrossI, sI, chD.y, chD.z, texelFetch(streamTex, ivec2(rootIx, 0), 0).w, rOwn, max(chE.w * SKIN_U, 1e-3), vR, rCssM, Lw, nar, smS.y, smS.z, fract(float(rootIx) * 0.6180339) * 50.0, chD.x, litD, inkColor);
-          dust = wl >= 1.0 ? dc : mix(dust, dc, wl);
-        }
-        dustAcc += wI * vec4(dust.rgb * dOn, dOn * dust.a);
-      }
+    // the dust (blood/dust-glsl.ts dustSkin): this arm's frame, kept for the two heaviest arms; the particles are drawn once below, each at the blend of its places in the two
+    if (streakAmt > 0.001) {
+      float nar = 1.0;
+      if (useData > 0.5) { ivec2 tcn = ivec2(int(mod(armData[i].x, vdataSize.x)), int(floor(armData[i].x / vdataSize.x))); nar = texelFetch(vdata, tcn, 0).b / max(armData[i].y, 0.1); }
+      vec4 frI = dustFrame(mat3(modelViewMatrix) * (armArc[i].y * tJ), mat3(modelViewMatrix) * vec3(0.0, 0.0, 1.0), viewDir, sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0));
+      DFrame FI = DFrame(acrossI, frI.xy, frI.zw, sI, Lw, rOwn, vR, rCssM, nar, smS.y, lensI, SKIN_U);
+      float dOnI = smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
+      if (wI > wD0) { FD1 = FD0; wD1 = wD0; onD1 = onD0; revD1 = revD0; FD0 = FI; wD0 = wI; onD0 = dOnI; revD0 = smS.z; }
+      else if (wI > wD1) { FD1 = FI; wD1 = wI; onD1 = dOnI; revD1 = smS.z; }
     }
     if (armFlow[i] > 0.001) {
       float Dm = smS.x, vd = smS.y, rv = smS.z;
@@ -297,6 +293,15 @@ void main() {
         float ha = ac + ar * (1.0 - ac);
         headAcc += wI * vec4(core * ac + CHEV_RIM * ar * (1.0 - ac), ha);
       }
+    }
+  }
+  if (wD0 > 0.0 && vR > 0.0) {
+    // the two heaviest arms' share (renormalised): on a seam ring one weight is 1 and this is the tube's own dustTube pixel
+    float w1 = wD1 / max(wD0 + wD1, 1e-4);
+    float dOn = streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCssM) * mix(onD0, onD1, w1);
+    if (dOn > 0.002) {
+      vec4 dust = wD1 > 0.004 ? dustSkin(FD0, FD1, w1, litD, inkColor, mix(revD0, revD1, w1)) : dustTube(FD0, litD, inkColor, revD0);
+      dustAcc = vec4(dust.rgb * dOn, dust.a * dOn);
     }
   }
   c = c * (1.0 - dustAcc.a) + dustAcc.rgb;
