@@ -76,8 +76,27 @@ test('the gut\'s art (the small bowel\'s loops, the colon\'s haustra) wears the 
   assert.ok(p.fs.indexOf('celDelta, 0.0') < p.fs.indexOf('mix(page, ac, artState.y)'), 'the shift comes before the dim toward the page');
 });
 
-test('the cel organ line is bold: wide, and the look\'s casing ink at INK_ALPHA_MIN or more', () => {
-  assert.ok(O.LINE_SCALE >= 2.5, 'at least 2.5 times 2D\'s width in figure units');
-  assert.ok(CEL_STYLE.INK_ALPHA_MIN >= 0.85);
+test('the cel organ line is bold: wide, and the look\'s casing ink, opaque', () => {
+  assert.ok(O.LINE_PX >= 3 && O.LINE_MIN_CSS >= 2.5 && O.LINE_ALPHA === 1, 'bold, at least 2.5 CSS px, fully opaque');
   assert.match(ORGAN_INK_VS, /px \/ max\(wpc/, 'the width is in figure units');
+});
+
+test('the gut\'s cel art is calm: the bowel is a few broad loops by rule, the colon only thin even haustra lines; the rest normal is smoothed to unit length', async () => {
+  const { smoothRestNormals } = await import('../src/scene/organs/cel-normal.ts');
+  const { haustraOf, BOWEL_LOOPS } = await import('../src/scene/organs/organ-art-paint.ts');
+  const { readFileSync } = await import('node:fs');
+  assert.ok(BOWEL_LOOPS >= 6 && BOWEL_LOOPS <= 9, 'six to nine broad loops');
+  const d = JSON.parse(readFileSync(new URL('../public/anatomy/organ-art.json', import.meta.url), 'utf8')) as { arts: Record<string, never> };
+  const classes = new Set<string>();
+  const walk = (n: { kids?: unknown[]; c?: string }): void => { if (n.kids) n.kids.forEach((k) => walk(k as never)); else classes.add(n.c!); };
+  haustraOf(d.arts.colon as never).kids.forEach((k) => walk(k as never));
+  assert.deepEqual([...classes], ['cel-line'], 'no fills, no shade, no rim, no ao: one ink line');
+  // a jagged normal field over a small grid comes out smoother and unit
+  const pos: number[] = [], nor: number[] = [], idx: number[] = [], W = 6;
+  for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) { pos.push(x, y, 0); const a = ((x * 7 + y * 3) % 5) * 0.3; nor.push(Math.sin(a), 0, Math.cos(a)); }
+  for (let y = 0; y < W - 1; y++) for (let x = 0; x < W - 1; x++) { const i = y * W + x; idx.push(i, i + 1, i + W, i + 1, i + W + 1, i + W); }
+  const out = smoothRestNormals(pos, nor, idx);
+  const spread = (a: ArrayLike<number>) => { let lo = Infinity, hi = -Infinity; for (let i = 0; i < a.length; i += 3) { lo = Math.min(lo, a[i]!); hi = Math.max(hi, a[i]!); } return hi - lo; };
+  assert.ok(spread(out) < spread(nor) * 0.5, 'smoother');
+  for (let i = 0; i < out.length; i += 3) assert.ok(Math.abs(Math.hypot(out[i]!, out[i + 1]!, out[i + 2]!) - 1) < 1e-5);
 });
