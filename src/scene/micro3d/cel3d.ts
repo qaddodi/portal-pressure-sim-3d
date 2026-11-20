@@ -248,6 +248,7 @@ export class MeshBuilder {
   }
   build(into?: BufferGeometry): BufferGeometry {
     const g = into ?? new BufferGeometry();
+    this.orient();
     const set = (name: string, arr: number[], k: number) => {
       const old = g.getAttribute(name) as BufferAttribute | undefined;
       if (old && old.array.length === arr.length) { (old.array as Float32Array).set(arr); old.needsUpdate = true; } else g.setAttribute(name, new BufferAttribute(new Float32Array(arr), k));
@@ -259,6 +260,20 @@ export class MeshBuilder {
     if (ix && ix.array.length === this.idx.length) { (ix.array as Uint32Array).set(this.idx); ix.needsUpdate = true; } else g.setIndex(new BufferAttribute(new Uint32Array(this.idx), 1));
     g.computeBoundingSphere();
     return g;
+  }
+  /** Every triangle wound to face the way its vertices' normals do. A triangle wound against its normals is culled by its toon (front faces only) and drawn by its ink (back faces),
+   *  so it shows as a hole of ink colour: the dark red cells (a lathe wound inside out) and the X across every hepatocyte (the top's fan folding where the inset ring crosses itself at a
+   *  rounded corner), 20 Nov 2026. Turning each one here fixes every shape built, whatever builds it. */
+  private orient(): void {
+    const p = this.p, n = this.n, ix = this.idx;
+    for (let t = 0; t + 2 < ix.length; t += 3) {
+      const a = ix[t]! * 3, b = ix[t + 1]! * 3, c = ix[t + 2]! * 3;
+      const e1x = p[b]! - p[a]!, e1y = p[b + 1]! - p[a + 1]!, e1z = p[b + 2]! - p[a + 2]!;
+      const e2x = p[c]! - p[a]!, e2y = p[c + 1]! - p[a + 1]!, e2z = p[c + 2]! - p[a + 2]!;
+      const fx = e1y * e2z - e1z * e2y, fy = e1z * e2x - e1x * e2z, fz = e1x * e2y - e1y * e2x;
+      const d = fx * (n[a]! + n[b]! + n[c]!) + fy * (n[a + 1]! + n[b + 1]! + n[c + 1]!) + fz * (n[a + 2]! + n[b + 2]! + n[c + 2]!);
+      if (d < 0) { const k = ix[t + 1]!; ix[t + 1] = ix[t + 2]!; ix[t + 2] = k; }
+    }
   }
 }
 
