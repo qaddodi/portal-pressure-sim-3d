@@ -13,14 +13,13 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, posix } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-/** Every file under `dir` as a path relative to it, '/'-separated, without the worker itself, the build note the tester guides (two 2.6 MB PDFs testers open from a link: not worth holding offline),
- *  the atlas art (3.7 MB, fetched only when Settings > Figure depth > Atlas art is on: never part of an install)
+/** Every file under `dir` as a path relative to it, '/'-separated, without the worker itself, the build note the tester guides (two 2.6 MB PDFs testers open from a link: not worth holding offline)
  *  and the printed notes' pictures (brand/handout/, 14 MB, asked for only when a person prints a talk's notes: never part of the first load or of an install). */
 export function listFiles(dir) {
   const out = [];
   const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else out.push(relative(dir, p).split('\\').join('/')); } };
   walk(dir);
-  return out.filter((f) => f !== 'sw.js' && f !== 'build-info.txt' && !f.startsWith('guides/') && !f.startsWith('brand/handout/') && !f.startsWith('atlas/')).sort();
+  return out.filter((f) => f !== 'sw.js' && f !== 'build-info.txt' && !f.startsWith('guides/') && !f.startsWith('brand/handout/')).sort();
 }
 
 const isText = (f) => /\.(html|js|mjs|css)$/.test(f);

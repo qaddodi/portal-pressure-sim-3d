@@ -7,6 +7,7 @@
 // (treat.generated.ts) and its numbers the engine's: an order only edits the patient's settings (orders.ts).
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import './treat.css';
+import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
 import { I } from '../shell/icons.tsx';
 import { useUi } from '../ui-store.ts';
 import { useThumb } from '../shell/thumb.ts';
@@ -107,7 +108,6 @@ export function TreatCard() {
   const { about, mine, p } = useChanges();
   const ref = useRef<HTMLElement>(null), tabsRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null), paneRef = useRef<HTMLDivElement>(null), rowRef = useRef<HTMLButtonElement>(null);
   const pageRef = useRef<HTMLDivElement>(null), secRef = useRef<HTMLDetailsElement>(null);
-  const drag = useRef<{ y: number } | null>(null);
   const [gone, setGone] = useState<Record<string, boolean>>({ fluids: true, procs: true });   // (a pane whose fade is over takes no height: 2D tp-gone)
   const [mounted, setMounted] = useState(false), [top, setTop] = useState(0);
   const push = useRef<Pushed | null>(null), glides = useRef<Animation[]>([]), closing = useRef(false);
@@ -189,10 +189,8 @@ export function TreatCard() {
     const fold = () => { closing.current = false; const was = card.offsetHeight; d.open = false; remember('changes', false); a.cancel(); glides.current = glideCard(card, was, card.offsetHeight, { foot, prior: glides.current }); };
     void a.finished.then(fold, fold);
   };
-  // pull the sheet down to put it away (a phone's bottom sheet: transform only, written to the element; never through state)
-  const onDown = (e: React.PointerEvent) => { if (!thumb || (e.target as Element).closest('button')) return; drag.current = { y: e.clientY }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); };
-  const onMove = (e: React.PointerEvent) => { const d = drag.current; if (!d || !ref.current) return; ref.current.style.transition = 'none'; ref.current.style.transform = `translateY(${Math.max(0, e.clientY - d.y)}px)`; };
-  const onUp = (e: React.PointerEvent) => { const d = drag.current; drag.current = null; const el = ref.current; if (!d || !el) return; const dy = e.clientY - d.y; el.style.transition = ''; el.style.transform = ''; if (dy > 70) close(); };
+  // a phone's sheet follows a pull down from anywhere on it and closes past a short pull or a flick (2D swipeSheet; shell/sheet-swipe.ts)
+  useSheetSwipe(ref, close, () => thumb);
   const sections = (
     <details ref={keptSection} className="section chart-sec" data-id="changes">
       <summary onClick={onSummary}><span>{L.changes}</span><span className="count fd-count" hidden={mine.length === 0}>{mine.length || ''}</span><I n="chev-down" className="chev" /></summary>
@@ -212,8 +210,9 @@ export function TreatCard() {
   return (
     <section ref={ref} className="treat-card tr-card has-plate" id="treatCard" hidden={!open} data-open={open} data-bottom={thumb} data-device={device} data-page={page || undefined} style={vars} role="dialog" aria-label={L.treat} inert={!open}>
       <div className="sheet-plate" aria-hidden="true" />
+      <i className="sh-grabbar" aria-hidden="true" />
       <div className="tr-in">
-        <div className="tc-head card-head" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+        <div className="tc-head card-head">
           <h2 className="card-title"><span>{L.treat}</span></h2><span className="card-meta">{n ? `${n} running` : ''}</span>
           <button type="button" className="ib card-close" aria-label="Close Treat" title="Close (Esc)" onClick={close}><I n="close" /></button>
         </div>

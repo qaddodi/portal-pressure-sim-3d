@@ -1,5 +1,6 @@
 import { Box3, Color, type DataTexture, Group, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
+import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
@@ -8,7 +9,7 @@ import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
 import { SMOOTH } from './vessels/smooth-joins.ts';
 import { useSettings } from '../state/settings.ts';
-import { FAINT_ONLY_LAYER, VesselObject } from './vessels/vessel-object.ts';
+import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
 import { fadeOf } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
@@ -37,7 +38,10 @@ import { LobuleView, lobuleModel, sinusoidTargets, type LobuleHit, type LobuleLa
 import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
 import { LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L, lobuleShot } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
+import { shortSide } from './sinusoid/portrait.ts';
 import { SinusoidView, diveShare, isPortrait, restScale } from './sinusoid/index.ts';
+import { Sinusoid3D } from './micro3d/sinusoid3d.ts';
+import { Lobule3D } from './micro3d/lobule3d.ts';
 import { framePoint, measureScreen } from './sinusoid/portrait.ts';
 import { U as SIN_UNIT } from './sinusoid/view.ts';
 import { sinusoidBox } from './lobule/shots.ts';
@@ -60,10 +64,9 @@ import { CircuitView } from './circuit/view.ts';
 import { CIRCUIT_NODES, MAP_LOOKS, VB_CIRC } from './circuit/data.copied.ts';
 import { CircuitTubes } from './circuit/tubes.ts';
 import { PostAA } from './post-aa.ts';
-import { AtlasArt } from './atlas-art/index.ts';
 import { ResistorLayer } from './circuit/resistors.ts';
 import { RES_KINDS, type ResKey, resRatio } from './circuit/res-model.ts';
-import { MAP_K } from './circuit/map.ts';
+import { MAP_CENTRE, MAP_K, circBoostOf, mapPxPerUnit } from './circuit/map.ts';
 
 const CIRC_MID: readonly [number, number] = [VB_CIRC[0] + VB_CIRC[2] / 2, VB_CIRC[1] + VB_CIRC[3] / 2];
 /** What the figure shows: the body, the Circuit (the body's vessels flown onto a flat map), the liver lobule (hexagon) or one sinusoid. The two small views stand INSIDE the liver (the lobule in the liver, the sinusoid in the lobule). */
@@ -134,10 +137,12 @@ export class CelScene {
   /** The lobule and sinusoid views (B8), built once, hidden until the view is chosen (setView). */
   /** The organs and the disease states on the figure (B4). */
   readonly disease: DiseaseLayer;
-  /** Settings > Figure depth > Atlas art: the external artist's organs and vessel courses, behind a Classic / Atlas switch (src/scene/atlas-art/). Idle in Classic. */
-  readonly atlas: AtlasArt;
   readonly lobule: LobuleView;
   readonly sinus: SinusoidView;
+  /** The same two views as true 3D scenes (Settings > Figure depth > 3D lobule and sinusoid): drawn in place of the flat ones while the switch is on; the flat views keep the model, names, taps and clock. */
+  readonly sinus3d: Sinusoid3D;
+  readonly lobule3d: Lobule3D;
+  private micro3d = useSettings.getState().micro3d;
   /** The Circuit: the change between the body and the map, and the map's quarter turn (src/scene/circuit/). */
   readonly circuit = new CircuitView();
   private readonly mapLayer = new MapLayer();
@@ -194,11 +199,6 @@ export class CelScene {
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
     this.disease = new DiseaseLayer(this.shared, this.vessels);
     this.body.add(this.disease.group);
-    this.atlas = new AtlasArt({
-      vessel: (id) => this.vesselObject(id), classic: { organs: this.disease.organs.group, ascites: this.disease.ascites.group },
-      shapesChanged: () => this.shapes.invalidate(), wake: (why) => { this.moving = true; clock.invalidate(why); },
-    }, ORGAN_CUT, this.shared.res);
-    this.body.add(this.atlas.organs.group);
     // The organs' vertex data is a static file (src/scene/organs/meshes.ts): the organ layer builds them when it is in, in the patient's state, and asks for a frame.
     Promise.all([organsReady, artReady]).then(() => { this.disease.organs.build(); this.moving = true; clock.invalidate('organs'); }, (e) => console.error(e));
     this.catheter = new Catheter(this.shared);
@@ -214,7 +214,7 @@ export class CelScene {
     this.procs.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     for (const id of ['TIPS', 'DIPS'] as const) this.procs.addStent(id, this.byEdge.get(id) as VesselObject);
     this.probes = new ProbeLayer(this.shared, {
-      organBox: (organ) => { const a = this.atlas.shown ? this.atlas.organs.meshOf(organ) : null; if (a) return new Box3().setFromObject(a); const o = this.disease.organs.byId.get(organ); return o ? new Box3().setFromObject(o.group) : null; },
+      organBox: (organ) => { const o = this.disease.organs.byId.get(organ); return o ? new Box3().setFromObject(o.group) : null; },
       kpa: (organ) => { const m = latest.frame?.metrics as Record<string, number | null | undefined> | undefined; return m?.[organ === 'spleen' ? 'ssm' : 'lsm'] ?? null; },
       eus: () => { const pl = this.procs.playing; return pl && pl.kind === 'eus' ? this.procs.frame as unknown as EusDrive : null; },
       screen: {
@@ -242,10 +242,14 @@ export class CelScene {
     this.sinFrame.position.set(...SIN_LOCAL); this.sinFrame.scale.setScalar(SIN_REL);
     this.sinFrame.add(this.sinus.group); this.dive.add(this.lobule.group, this.sinFrame); this.scene.add(this.dive, this.mapLayer.group);
     this.lobule.setVisible(false); this.sinus.setVisible(false);
+    this.sinus3d = new Sinusoid3D(this.sinus, this.shared); this.sinus.group.add(this.sinus3d.group);
+    this.lobule3d = new Lobule3D(this.lobule, this.shared); this.lobule.group.add(this.lobule3d.group);
+    this.unMicro = useSettings.subscribe((st, prev) => { if (st.micro3d !== prev.micro3d) { this.micro3d = st.micro3d; this.moving = true; } });
     this.applyLook(this.look);
   }
 
   private unJoins: () => void = () => {};
+  private unMicro: () => void = () => {};
 
   /** The vessels each vessel's ends carry on into, for the shader's live-width easing (smooth joins on); none with it off. */
   private applyMates(): void {
@@ -283,7 +287,7 @@ export class CelScene {
     if (circ) attachRuns(built.geometry, built.runs, circ, def.radius);
     const q = STUB_Q[def.lensId] ?? 1;
     const o = new VesselObject(built.geometry, {
-      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.lensId), widthKind: def.widthKind, bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
+      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.lensId), widthKind: def.widthKind, circW: circuitWidth(def.widthKind, def.circFine ?? 1), bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
       vessel: { index: indexOf(def.lensId), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: def.baseD },
     }, this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
@@ -314,7 +318,6 @@ export class CelScene {
     this.procs.applyPalette(p); this.probes.applyPalette(p);
     this.tubes.applyPalette(p); this.resistors.setLook(look);
     this.disease.applyLook(look, p); this.disease.setPhone(this.phone);
-    this.atlas.applyLook(look, p.highlight === 'white');
     this.lens.setLook(look);
     this.lobule.applyLook(look); this.sinus.applyLook(look); this.feedSinusInk();
     this.moving = true;
@@ -325,11 +328,14 @@ export class CelScene {
   /** The clear colour now: the look's ground, on its way to the map's own ground (the dark looks) as the map comes in. */
   private readonly clear = new Color();
   private readonly mapGround = new Color();
-  clearColor(): Color {
+  clearColor(intoTexture = false): Color {
     const ground = MAP_LOOKS[this.look]?.ground;
     this.clear.set(PALETTES[this.look].bg);
     if (ground) this.clear.lerp(this.mapGround.set(ground), mapRamp(this.circuit.t));
-    return this.clear;
+    // Into the anti-aliasing pass's texture (post-aa.ts) three clears in its linear working space and the pass writes the canvas the picture's own numbers (every shader of the figure writes sRGB
+    // numbers as they are), so the ground would land as the LINEAR value of the page's colour: #F1EBE0 as #E0D4BE and Dark's #1A1917 as near black, a visible plate behind the figure against the
+    // chrome. The ground is therefore stored as its own numbers there (rawColor's rule); straight to the canvas three converts it itself.
+    return groundFor(this.clear, intoTexture);
   }
 
   setPhone(phone: boolean): void {
@@ -377,7 +383,6 @@ export class CelScene {
       presence: (id) => (this.presence.isDrawn(id) ? 1 : 0),
       recruit: (id, fr) => recruitFrac(id, fr as never),
     }, f.jump);
-    this.atlas.feed(f as never, (patient.params ?? null) as DiseaseParams | null, (patient.reference?.P as ArrayLike<number> | undefined) ?? null, first || f.jump);
   }
 
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
@@ -393,7 +398,7 @@ export class CelScene {
   // ---- lens and blood ------------------------------------------------------------------------
 
   /** Colour the veins by a lens (the Layers menu's ten, a deck's 'system' and 'since', or 'neutral' for the plain anatomy). */
-  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.lobule.setLens(lens); this.feedLobuleRef(); this.feedSinusInk(); this.disease.setLensGrey(lens !== 'pressure' && lens !== 'neutral'); this.atlas.organs.setLensGrey(lens !== 'pressure' && lens !== 'neutral'); this.moving = true; }
+  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.lobule.setLens(lens); this.feedLobuleRef(); this.feedSinusInk(); this.disease.setLensGrey(lens !== 'pressure' && lens !== 'neutral'); this.moving = true; }
   /** The healthy patient at rest (the engine's `healthyProfile`): the reference the change, congestion, velocity and direction lenses compare to. */
   setHealthy(h: { P: ArrayLike<number>; Q: ArrayLike<number>; D: ArrayLike<number> }): void {
     this.lens.setContext({ healthy: { Q: h.Q, D: h.D, P: h.P }, ref: Float32Array.from(h.P) });
@@ -604,16 +609,18 @@ export class CelScene {
     if (f === this.fadeNow || (Math.abs(f - this.fadeNow) < 1e-3 && f > 0 && f < 1)) return;
     this.fadeNow = f;
     for (const o of this.objects) o.setFade(f);
-    this.disease.setFade(Math.min(f, this.lastFade)); this.atlas.organs.setFade(Math.min(f, this.lastFade));
+    this.disease.setFade(Math.min(f, this.lastFade));
     this.body.visible = f > 0 || this.figureView === 'body';
     this.moving = true;
   }
   private readonly livePoint = new Vector3(...LIVER_POINT);
+  private readonly mapPt = new Vector3(MAP_CENTRE.x, MAP_CENTRE.y, MAP_CENTRE.z);
   /** The sinusoid's tissue is one opaque plane to every edge of the screen once the camera has landed on it (the lobule is then hidden: nothing of the lobule is ever seen through or around it). While the
    *  camera flies between the lobule and the sinusoid (the view being left stays drawn until it lands) the tissue comes in over the lobule by how far the dive has gone (the pose's own distance: the
    *  shots' `r`, blended geometrically, whatever the room and the screen), as 2D's zoom does it. */
   private stepSinusDive(): void {
-    const flying = this.hideLeftBehind && this.sinus.isVisible;
+    // (only while the camera is really flying: a dive share kept past the landing would hold the tissue dim, its detail, names and arrows away)
+    const flying = this.hideLeftBehind && this.sinus.isVisible && this.rig.isMoving;
     this.sinus.setDive(flying ? diveShare(this.rig.pose.shot.r, 2.5 * LOBULE_SCALE, 3 * SIN_SCALE) : null);
   }
   /** The dive's cutaway window in the organs' wash and the field's focus: both are functions of the camera's distance to the place dived to, so the way in and the way out are one picture run both ways,
@@ -639,7 +646,7 @@ export class CelScene {
       this.moving = true;
     }
     // what the view needs of the screen to lay its end arrows and run its traffic as 2D does: px per µm along the flow (the hand's zoom included), the room's length and the canvas's along it
-    const short = Math.min(r.w, r.h), s = this.rig.stageSize;
+    const short = shortSide(p, r), s = this.rig.stageSize;
     // (measured on the screen, not modelled: where the sinusoid's middle and a point 10 µm down the flow land, against the free room's middle)
     if (!this.sinus.isVisible) return;   // (nothing of the view is read while it is away)
     const turn = this.sinus.turn, o = this.rig.project(this.sinusPt.set(...sinusoidWorld([0, 0, 0])), this.scrO), a = this.rig.project(this.sinusPt.set(...sinusoidWorld(framePoint(10, 0, SIN_UNIT, turn))), this.scrA);
@@ -650,8 +657,8 @@ export class CelScene {
   /** The distance the camera sits at with the whole lobule framed in the room it has (kept per room size). */
   private restKey = ''; private restD = 0.1;
   private lobuleRest(): number {
-    const r = this.rig.targetRoom, key = `${r.w}x${r.h}x${this.height}`;
-    if (key !== this.restKey) { this.restKey = key; this.restD = effectiveDistance(lobuleShot('lobule'), r, this.height); }
+    const r = this.rig.targetRoom, key = `${r.w}x${r.h}x${this.height}x${this.width}`;
+    if (key !== this.restKey) { this.restKey = key; this.restD = effectiveDistance(lobuleShot('lobule'), r, this.height, this.width); }
     return this.restD;
   }
   private readonly divePt = new Vector3();
@@ -716,7 +723,7 @@ export class CelScene {
     const edge = this.pickAt(x, y, raycaster) ?? (this.figureView === 'body' ? this.nearVessel(x, y, touch ? 18 : 12) : null);
     if (edge) return { type: 'edge', id: edge };
     if (this.figureView !== 'body' || this.circuit.t > 0.5 || this.bodyShown < 0.5) return null;
-    const o = this.atlas.shown ? this.atlas.organs.pick(raycaster) : this.disease.organs.pick(raycaster);   // (the ray is the one pickAt set)
+    const o = this.disease.organs.pick(raycaster);   // (the ray is the one pickAt set)
     if (o) return organHit(o.id, x2d(o.x));
     const at = raycaster.ray.intersectPlane(new Plane(new Vector3(0, 0, 1), -FLUID_Z), new Vector3());
     if (at && this.disease.ascites.holds(x2d(at.x), y2d(at.y))) return organHit('abdomen', x2d(at.x));
@@ -763,15 +770,34 @@ export class CelScene {
     this.moving = true;
   }
 
+  private capSig = 0;
+  /** The Circuit rounds the ends no other drawn vessel meets (a collateral that opens covers its own join again; a closed one leaves a clean end). Only when the set of drawn vessels changes. */
+  private updateCaps(): void {
+    let sig = 17;
+    for (const v of MAPPED) sig = (sig * 31 + (this.presence.stateOf(v.id) === 'shown' ? 1 : 0)) | 0;
+    if (sig === this.capSig) return;
+    this.capSig = sig;
+    const shown = (id: string) => this.presence.stateOf(id) === 'shown';
+    const free = (node: string, self: string) => !(this.stationsOf.get(node) ?? []).some((e) => e !== self && shown(e));
+    for (const v of MAPPED) { const o = this.byEdge.get(v.id) as VesselObject | undefined; if (o && shown(v.id)) o.setCircCap(free(v.from, v.id) ? 1 : 0, free(v.to, v.id) ? 1 : 0); }
+  }
+
+  /** The map's size on the screen now: 2D's circBoost (the lines widen as it is zoomed out, 1 to 1.75) and the map units under one CSS pixel (the floor of every line's width). */
+  private circuitScale(): void {
+    const cam = this.rig.camera, h = this.rig.stageSize.h, sc = mapPxPerUnit(h, cam.projectionMatrix.elements[5]!, cam.position.distanceTo(this.mapPt));
+    this.circuit.shared.circBoost.value = circBoostOf(sc);
+    this.circuit.shared.circPerPx.value = sc > 0 ? Math.min(40, 1 / sc) : 1;
+  }
+
   /** Steps everything on the clock. Returns true while the scene moves, so the clock asks for another frame; false means draw nothing. */
   update(now: number): boolean {
     const dt = this.lastNow < 0 ? 16 : Math.min(100, now - this.lastNow);
     this.lastNow = now;
     this.shared.time.value = (now / 1000) % 1000;
     const camMoving = this.rig.update(now);
+    this.circuitScale();   // (the map's lines widen as it is zoomed out, as 2D's circBoost)
     const quiet = quietOf(this.rig.orbitAngle);
     for (const o of this.back) o.setQuiet(quiet);
-    { const lift = this.disease.organs.veilLift; for (const o of this.back) o.setVeilLift(lift); }   // (cel shaded organs are opaque: the vessels behind them take the wash's see-through back, vessel-object.ts)
     this.disease.organs.setQuiet(quiet);   // (quiet depth on a turn: the organs' wash eases back as the figure turns)
     const circMoving = this.stepCircuit(now, dt);
     this.fadeBody();
@@ -785,17 +811,19 @@ export class CelScene {
     const lensMoving = this.lens.step(now);
     const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving });
     const presMoving = this.presence.step(dt);
+    this.updateCaps();
     const shapeMoving = this.shapes.step(dt);
     this.stepSinusDive();
     this.stepCutaway();
     this.stepPortrait();
-    const viewMoving = this.lobule.update(now) || this.sinus.update(now);
+    const lobMoving = this.lobule.update(now), sinMoving = this.sinus.update(now);
+    const lob3 = this.lobule3d.update(this.micro3d), sin3 = this.sinus3d.update(this.micro3d);
+    const viewMoving = lob3 || sin3 || lobMoving || sinMoving;
     const procMoving = this.procs.update(now);
     const diseaseMoving = this.disease.update(now);
-    const atlasMoving = this.atlas.update(now);
     if (diseaseMoving) this.tagOverOrgans();
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
-    const needs = probesMoving || diseaseMoving || atlasMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || lensMoving || presMoving || shapeMoving || viewMoving;
+    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || lensMoving || presMoving || shapeMoving || viewMoving;
     this.moving = false;
     return needs;
   }
@@ -807,7 +835,7 @@ export class CelScene {
     if (fade !== this.lastFade) {
       this.lastFade = fade;
       for (const o of [...this.leaving, ...this.disease.organs.objects]) { o.setFade(fade); o.group.visible = fade > 0.001; }
-      this.disease.setFade(Math.min(fade, this.fadeNow)); this.atlas.organs.setFade(Math.min(fade, this.fadeNow));
+      this.disease.setFade(Math.min(fade, this.fadeNow));
     }
     this.mapLayer.set(mapRamp(t), this.circuit.rr);
     this.procs.setFade(fade);
@@ -830,7 +858,7 @@ export class CelScene {
   /** Until the camera has its first real shot and room only the background is drawn, so the figure's first picture is already in its place. */
   render(gl: WebGLRenderer): void {
     if (!this.rig.placed) { gl.clear(); return; }
-    gl.setClearColor(this.clearColor());
+    gl.setClearColor(this.clearColor(this.post.on));
     const dpr = gl.getPixelRatio?.() ?? 1;
     this.blood.shared.dpr.value = dpr;   // (the vessels' line is held in device px)
     this.disease.strands.setDpr(dpr);
@@ -857,7 +885,8 @@ export class CelScene {
   }
 
   dispose(): void {
-    this.unJoins();
+    this.unJoins(); this.unMicro();
+    this.sinus3d.dispose(); this.lobule3d.dispose();
     this.lens.dispose();
     this.cells.dispose();
     this.disease.dispose();

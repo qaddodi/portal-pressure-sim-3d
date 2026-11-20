@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { MAPPED, NETWORK_BY_ID, NODE_Z, RUN_ONS } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { TIP_K, buildTubes, buriedRadius, pointFactor, pointLength } from '../src/scene/vessels/tubes.ts';
-import { NODE_RISE, SMOOTH, UNEQUAL, joinSwell } from '../src/scene/vessels/smooth-joins.ts';
+import { CEIL, NODE_RISE, SMOOTH, UNEQUAL, joinSwell } from '../src/scene/vessels/smooth-joins.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { computeLens, lensColourAt, edgeIndex } from '../src/scene/lenses/model.ts';
@@ -105,11 +105,11 @@ test('tapers are monotone: along the first and last 30 % the radius moves from t
           assert.ok(t > 1 ? x <= prev + 1e-9 : x >= prev - 1e-9, `${v.id} end ${end} step ${i}: ${prev} then ${x}`);
           prev = x;
         }
-        assert.ok(Math.abs(prev - v.radius / v.radius * (at(Math.floor(N / 2)))) < 0.02 * at(Math.floor(N / 2)) + 1e-9, `${v.id} end ${end} reaches its own width`);
+        if (SMOOTH.get(v.id)!.span.every((x) => x < 0.5)) assert.ok(Math.abs(prev - at(Math.floor(N / 2))) < 0.02 * at(Math.floor(N / 2)) + 1e-9, `${v.id} end ${end} reaches its own width`);
         checked++;
       }
     }
-    assert.ok(checked > 20, `${checked} tapered ends`);
+    assert.ok(checked >= 20, `${checked} tapered ends`);   // (was 21: the two arterioles into the sinusoid fans are no longer drawn)
   });
 });
 
@@ -121,7 +121,7 @@ test('a branch ends on its trunk: its last ring lies on the trunk\'s centreline 
       const c = coursesOf(v, REST)[0]!;
       for (const end of [0, 1] as const) {
         const cl = c.clamp?.[end];
-        if (!cl) continue;
+        if (!cl || !sm.attach[end]) continue;   // (a collateral's or a shunt's end keeps its course; only its collar is held, below)
         fitted++;
         const hosts = sm.attach[end]!.map((id) => coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts);
         const e = (end ? c.pts[c.pts.length - 1] : c.pts[0])!;
@@ -135,7 +135,7 @@ test('a branch ends on its trunk: its last ring lies on the trunk\'s centreline 
         assert.ok(capR <= cl.max + 1e-9 && d + capR < hostR, `${v.id} end ${end} cap ${capR} stands out of a trunk of ${hostR}`);
       }
     }
-    assert.ok(fitted >= 7, `${fitted} branch ends fitted`);
+    assert.ok(fitted >= 6, `${fitted} branch ends fitted`);   // (was 7: ditto)
   });
   // (off: the same ends have no allowance and were never moved)
   off(() => { for (const v of MAPPED) assert.equal(coursesOf(v, REST)[0]!.clamp, undefined); });
@@ -193,7 +193,7 @@ test('the cava and the SVC end in the right atrium: they run on one monotone slo
     assert.ok(dist(eI, eS) < 1e-9, 'the two end at one point');
     // one slope each: the distance to the atrium's depth never grows toward the end (no dip behind the heart on the way in)
     for (const pts of [ivc, svc]) for (let i = 1; i < pts.length; i++) assert.ok(Math.abs(pts[i]![2] - ra.z) <= Math.abs(pts[i - 1]![2] - ra.z) + 1e-9, `toward the atrium at ${i}`);
-    assert.ok(Math.min(...ivc.map((p) => p[2])) > -0.1, 'the cava\'s last stretch no longer lies 0.3 behind the heart');
+    assert.ok(Math.min(...ivc.map((p) => p[2])) >= NODE_Z.get('IVCS')! - 1e-9, 'the cava never dips below the depth it arrives at (no S at its upper end)');
     // it is a ring-to-ring match with the run-on pair: no step
     assert.ok(dist(ring('IVCS_RA', 1).c, ring('SVC_RA', 1).c) < 1e-5);
   });
@@ -289,4 +289,66 @@ test('the switch applies live: toggling it rewrites every tube in place (same ve
     assert.deepEqual(Array.from(obj('PVH_L').toonMesh.geometry.getAttribute('position').array), Array.from(posOn), 'and on again is the same drawing');
     s.dispose();
   } finally { useSettings.getState().set('smoothJoins', was); setSmoothJoins(false); }
+});
+
+test('a vein narrowing into a thin bed funnels over its whole length: its radius only ever falls toward the join, never swells into a bulb (it rises from the join to its widest and only falls after)', () => {
+  on(() => {
+    let funnels = 0;
+    for (const v of MAPPED) {
+      const sm = SMOOTH.get(v.id)!;
+      for (const end of [0, 1] as const) {
+        if (sm.span[end] !== 1) continue;
+        funnels++;
+        const { b, run } = built(v.id), rk = b.geometry.getAttribute('rk');
+        const at = (k: number) => rk.getX(run.tubeStart + k * (run.radial + 1));
+        const t = sm.taper![end]!;
+        let prev = at(end ? run.tubular : 0);
+        assert.ok(Math.abs(prev - t) < 1e-6, `${v.id} end ${end} meets the thin vessel's width`);
+        // unimodal: the radius rises from the join to the vessel's widest and only falls after it (a vessel funnelling at both ends peaks between them), and never leaves 1
+        let fell = false;
+        for (let i = 1; i <= run.tubular; i++) { const x = at(end ? run.tubular - i : i); assert.ok(x <= Math.max(1, ...sm.taper!) + 1e-5, `${v.id} end ${end} step ${i} above its own width`); if (x < prev - 1e-9) fell = true; else if (fell) assert.ok(x <= prev + 1e-9, `${v.id} end ${end} step ${i}: swells again, ${prev} then ${x}`); prev = x; }
+      }
+    }
+    assert.ok(funnels >= 4, `${funnels} funnels`);
+  });
+});
+
+test('a fork\'s collar is never wider than the trunk it blends into (no blob at a junction), and the plain tube keeps its own width beyond it', () => {
+  on(() => {
+    let forks = 0;
+    for (const v of MAPPED) {
+      const c = coursesOf(v, REST)[0]!;
+      for (const end of [0, 1] as const) {
+        const cl = c.clamp?.[end];
+        if (!cl || !v.flare?.[end]) continue;
+        forks++;
+        const { b, run } = built(v.id), rk = b.geometry.getAttribute('rk');
+        const trunk = cl.ceil! / CEIL;
+        let widest = 0;
+        for (let k = 0; k <= run.tubular; k++) widest = Math.max(widest, rk.getX(run.tubeStart + k * (run.radial + 1)) * v.radius);
+        assert.ok(widest <= Math.max(cl.ceil!, v.radius) + 1e-9, `${v.id} end ${end}: collar ${widest.toFixed(4)} against a trunk of ${trunk.toFixed(4)}`);
+        // (the middle of the tube is its own width)
+        assert.ok(Math.abs(rk.getX(run.tubeStart + Math.floor(run.tubular / 2) * (run.radial + 1)) - 1) < 1e-6 || v.flare?.[1 - end]);
+      }
+    }
+    assert.ok(forks >= 5, `${forks} collared forks`);
+  });
+});
+
+test('the centreline is the 2D course with smooth joins on too: snapping only moves a branch\'s end (within the trunk\'s reach, easing out over a quarter), and adds no wiggle (no extra turn reversals)', () => {
+  const sample = (v: (typeof MAPPED)[number]) => { const b = buildTubes(coursesOf(v, REST), tubularOf(v, 16), v.radius), run = b.runs[0]!, pos = b.geometry.getAttribute('position'); const cs: V3[] = []; for (let k = 0; k <= run.tubular; k++) { let x = 0, y = 0, z = 0; for (let j = 0; j < run.radial; j++) { const i = run.tubeStart + k * (run.radial + 1) + j; x += pos.getX(i); y += pos.getY(i); z += pos.getZ(i); } cs.push([x / run.radial, y / run.radial, z / run.radial]); } return cs; };
+  const reversals = (cs: V3[]) => { let rev = 0, prev = 0; for (let k = 2; k < cs.length; k++) { const a = [cs[k - 1]![0] - cs[k - 2]![0], cs[k - 1]![1] - cs[k - 2]![1]], c = [cs[k]![0] - cs[k - 1]![0], cs[k]![1] - cs[k - 1]![1]]; const ang = Math.atan2(a[0]! * c[1]! - a[1]! * c[0]!, a[0]! * c[0]! + a[1]! * c[1]!) * 180 / Math.PI; const sg = Math.abs(ang) > 0.5 ? Math.sign(ang) : 0; if (sg && prev && sg !== prev) rev++; if (sg) prev = sg; } return rev; };
+  let moved = 0;
+  for (const v of MAPPED) {
+    if (v.id.startsWith('C') || v.kind === 'shunt') continue;
+    const a = off(() => sample(v)), b = on(() => sample(v));
+    assert.ok(reversals(b) <= reversals(a) + 1, `${v.id}: ${reversals(a)} turn reversals off, ${reversals(b)} on`);
+    // the middle half of the tube is where the 2D course put it (x and y); only the ends move
+    // (measured across the 2D course, not along it: a snapped end makes the tube a little longer, which slides the rings along the same path)
+    for (let k = Math.ceil(a.length * 0.3); k <= Math.floor(a.length * 0.7); k++) assert.ok(distToPoly([b[k]![0], b[k]![1], 0], a.map((p) => [p[0], p[1], 0] as V3)) < 0.004, `${v.id} ring ${k} moved off the 2D course`);
+    const end = Math.max(Math.hypot(a[0]![0] - b[0]![0], a[0]![1] - b[0]![1]), Math.hypot(a.at(-1)![0] - b.at(-1)![0], a.at(-1)![1] - b.at(-1)![1]));
+    if (end > 1e-6) moved++;
+    assert.ok(end < 0.06, `${v.id}: an end moved ${end.toFixed(3)}`);
+  }
+  assert.ok(moved >= 5, `${moved} vessels have an end fitted`);
 });

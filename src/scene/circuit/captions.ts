@@ -60,9 +60,14 @@ export interface CapCtx {
   must: ReadonlySet<string>;
   /** a box on the canvas that stands in the free room, off the cards, and on no vessel's line but `own`'s: where a lane's caption may go beside its lane (absent: any box) */
   clear?(box: Box, own: string): boolean;
+  /** half the drawn width (px) of the vessel a station stands on: a name keeps that much further off (2D: `it.vw / 2`). Absent: 5. */
+  halfW?(id: string): number;
 }
 
 /** The zone titles that open a card (2D stage-label-solve.js: `{ 'Liver · sinusoids': 'liver', Heart: 'heart' }`). */
+/** A tier's name: its size, px, and its letter-spacing, em. */
+export const ZONE_PX = 9.5;
+export const ZONE_TRACK = 0.08;
 export const ZONE_ORGAN: Readonly<Record<string, string>> = { 'Liver · sinusoids': 'liver', Heart: 'heart' };
 /** The places along a lane its caption tries, in order (2D stage.js `laneAlt`: the middle first, then 0.3, 0.7, 0.15, 0.85 of its run). */
 export const LANE_SPOTS: readonly number[] = [0.5, 0.3, 0.7, 0.15, 0.85];
@@ -99,15 +104,17 @@ function bandSpan(ctx: CapCtx, x0: number, x1: number): { lo: number; hi: number
   return { lo: Math.max(lo, v0), hi: Math.min(hi, v1), vertical, at: a };
 }
 
-/** The minor stations drop out on a phone and when zoomed out (2D: key level, pri under 5, or under 8 when compact). */
+
+/** The least priority a station shows at (every one: the azygos, the lower IVC and the renal vein are named on a phone as on a desktop). */
+export const MIN_PRI = 2;
 function shows(id: string, ctx: CapCtx): boolean {
   const k = CIRCUIT_LABELS[id];
   if (!k) return false;
   if (ctx.must.has(id)) return true;
   if (!ctx.stationOn(id)) return false;
   if (LIVER_INNER.includes(id) && id !== 'HA' && !ctx.liverOpen) return false;
-  if (ctx.zoomed) return true;
-  return k.pri >= (ctx.compact ? 8 : 5) || id === 'HA';
+  // (every station is named, on a phone too: the solver gives a name its shorter forms and then its dot when two collide, the least important first)
+  return k.pri >= MIN_PRI || id === 'HA' || ctx.zoomed;
 }
 
 export function buildCaptions(ctx: CapCtx): Built {
@@ -150,9 +157,10 @@ export function buildCaptions(ctx: CapCtx): Built {
   // (Upright, the title runs up the map's left edge, turned to read bottom to top, centred on the visible part of its band; it keeps 8 px from the canvas's edge, and a wide one 14 px from its top.)
   for (const [txt, x0, x1] of CIRCUIT_ZONES) {
     const span = bandSpan(ctx, x0, x1);
-    const tries = [txt, ...(ZONE_SHORT[txt] ?? [])];
+    const tries = [txt, ...(ZONE_SHORT[txt] ?? [])].map((t) => t.toUpperCase());
     for (const t of tries) {
-      const b = boxSize([{ ...nameRun(t), size: 10.5, weight: 650 }], vp, measure);
+      // (a tier's name is set in small capitals, a little spaced out: the box takes the spacing's width too)
+      const b0 = boxSize([{ ...nameRun(t), size: ZONE_PX, weight: 700 }], vp, measure), b = { ...b0, w: b0.w + ZONE_TRACK * ZONE_PX * t.length };
       const need = span.vertical ? b.h : b.w;
       if (span.hi - span.lo < need + 8) continue;
       const along = (span.lo + span.hi) / 2;
@@ -178,7 +186,7 @@ export function buildCaptions(ctx: CapCtx): Built {
     if (abbr && abbr !== name) { forms.push(mk(abbr, true)); formMeta.push({ name: abbr, value: true }); }
     forms.push(mk('', true)); formMeta.push({ name: '', value: true });
     const dirs = CIRCUIT_LABELS[id]!.dirs.map((d) => (ctx.upright ? TURN_DIR[d] : d) as Dir);
-    items.push({ id, ax, ay, au: 0.5, forms: forms.map((x) => x.f), pri: ctx.must.has(id) ? 100 : pri[id] ?? CIRCUIT_LABELS[id]!.pri, must: ctx.must.has(id), dirs, vw: 5 });
+    items.push({ id, ax, ay, au: 0.5, forms: forms.map((x) => x.f), pri: ctx.must.has(id) ? 100 : pri[id] ?? CIRCUIT_LABELS[id]!.pri, must: ctx.must.has(id), dirs, vw: ctx.halfW?.(id) ?? 5 });
     meta.set(id, { id, kind: 'station', forms: formMeta, node: readsNode(id) });
   }
 

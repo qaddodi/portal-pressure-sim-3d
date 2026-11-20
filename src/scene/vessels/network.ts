@@ -8,9 +8,10 @@ import { ANAT_HIDDEN, BACK_EDGES, EDGE_PATH_2D, HIDDEN_EDGES, IVC_EDGES, NEEDS_C
 import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
 import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts';
+import { ORGAN_Z } from '../organs/z.ts';
+import { cleanFeeders, withStartInOrgan } from './starts.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { TIER_Z, type Tier, UNITS_PER_SCENE, len3, x3, y3 } from '../frame2d.ts';
-import type { AtlasCourse } from '../atlas-art/types.ts';
 
 export interface Flare { add: number; wall: number; span: number }
 export type NetTone = 'portal' | 'sys' | 'artery';
@@ -28,6 +29,8 @@ export interface NetVessel {
   /** centreline in flow order */
   pts: Vec3[];
   kind: string;
+  /** the Circuit's finer artery (2D AP_FINE): 0.6 on an arterioportal shunt, else 1 */
+  circFine?: number;
   tier: Tier;
   /** the diameter (mm) `radius` belongs to; the width then follows the engine's diameter by the 2D rule (`widthKind`) */
   baseD: number;
@@ -80,8 +83,11 @@ const OVER_IDS = new Set(['TIPS', 'DIPS', 'C6', 'S_DSR', 'S_PC', 'C8', 'S_MC', '
 const hostOfPiece = new Map<string, string>();
 for (const [host, pieces] of Object.entries(JUNCTION_PIECES as Record<string, string[]>)) for (const p of pieces) hostOfPiece.set(p, host);
 
+/** The renal vein runs at the cava's depth, and the kidney is placed there too (Mohammad, 20 Nov: "the renal vein and the kidney should be at the same depth as the IVC"). Depth only:
+ *  it is still drawn the way the 2D figure draws it (BACK_EDGES, in the scene, is what puts a vessel behind the organs). */
+export const RENAL_VEIN_IDS: ReadonlySet<string> = new Set(['V_KID_L', 'V_KID_L_1', 'LRV_IVC']);
 function tierOf(e: Edge): Tier {
-  if (BACK_EDGES.has(e.id)) return 'back';
+  if (BACK_EDGES.has(e.id) || RENAL_VEIN_IDS.has(e.id)) return 'back';
   if (isArteryEdge(e)) return 'art';
   if (OVER_IDS.has(e.id)) return 'over';
   if (e.kind === 'collateral') return 'mid';
@@ -90,14 +96,8 @@ function tierOf(e: Edge): Tier {
 }
 const toneOf = (e: Edge): NetTone => (isArteryEdge(e) ? 'artery' : portal.has(e.from) || portal.has(e.to) ? 'portal' : 'sys');
 
-/** Atlas art (Settings > Figure depth; src/scene/atlas-art/): the artist's course of each vessel it drew, while Atlas is on. Empty in Classic, so nothing below changes. coursesOf (shape.ts) and
- *  courseOf read it; atlas-art/vessels.ts is the only writer. */
-export const ATLAS_COURSE: Map<string, AtlasCourse> = new Map();
-
-/** The 2D course of an edge carried into the scene: x and y by the linear map, z by its tier (the artist's own, while Atlas art is on and drew it). */
+/** The 2D course of an edge carried into the scene: x and y by the linear map, z by its tier. */
 export function courseOf(id: string): Vec3[] {
-  const a = ATLAS_COURSE.get(id);
-  if (a) return a.pts;
   const e = edgeById.get(id)!, z = TIER_Z[tierOf(e)];
   return pathOf(id).map(([x, y]): Vec3 => [x3(x), y3(y), z]);
 }
@@ -112,6 +112,8 @@ const SHUNT_BASE_D: Record<string, number> = { TIPS: 8, DIPS: 8 };
 export function isDrawnEdge(e: Edge): boolean {
   if (HIDDEN_EDGES.has(e.id) || ANAT_HIDDEN.has(e.id) || e.id === 'CAUD' || e.id === 'V_UP') return false;
   if (e.kind === 'wedge' || e.kind === 'diode') return false;
+  // the red arteriole strands into the sinusoid fans are not drawn (Mohammad, 20 Nov: "fuck those"); the hepatic artery trunk stays
+  if (e.id === 'A_HR' || e.id === 'A_HL') return false;
   if (e.kind === 'shunt') return e.id === 'AP_R' || e.id === 'AP_L' || SHUNT_IDS.has(e.id);
   return true;
 }
@@ -126,7 +128,7 @@ const JOIN_LIST: JoinEdge[] = edges.filter(isDrawnEdge).map((e) => ({ id: e.id, 
 export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST);
 const SMOOTH = smoothRunOns(new Map(JOIN_LIST.map((j) => [j.id, j.path])), RUN_ONS);
 /** A vessel's 2D course as drawn: smooth through the joins where it runs on into another. */
-const pathOf = (id: string): readonly (readonly [number, number])[] => SMOOTH.get(id) ?? EDGE_PATH_2D[id]!;
+const pathOf = (id: string): readonly (readonly [number, number])[] => withStartInOrgan(id, SMOOTH.get(id) ?? EDGE_PATH_2D[id]!);
 
 function build(): NetVessel[] {
   const out: NetVessel[] = [];
@@ -136,7 +138,7 @@ function build(): NetVessel[] {
     const baseD = SHUNT_BASE_D[e.id] ?? e.d ?? e.dMax ?? (dMinOf(e) || 3);
     out.push({
       id: e.id, host: hostOfPiece.get(e.id) ?? e.id, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(widthPx(e, baseD)),
-      label: e.label ?? e.id, pts: courseOf(e.id), kind: e.kind, tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: e.id,
+      label: e.label ?? e.id, pts: courseOf(e.id), kind: e.kind, circFine: e.shunt === 'ap' ? AP_FINE : 1, tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: e.id,
       plan: { kind: 'coil', base: pathOf(e.id), coils: isCoiling(e.id, e.kind, !!e.spontaneous), strands: !!STRANDS_2D[e.id] || e.id === 'C8' },
     });
   }
@@ -144,7 +146,7 @@ function build(): NetVessel[] {
   for (const [host, list] of Object.entries(FEEDERS_2D)) {
     const e = edgeById.get(host)!, hv = NETWORK_HOST_W(e);
     for (const when of [...new Set(list.map((f) => f.when))]) {
-      const group = list.filter((f) => f.when === when);
+      const group = cleanFeeders(host, list.filter((f) => f.when === when));
       const cfgK = FEEDER_K[host] ?? 1, baseD = e.d ?? e.dMax ?? (dMinOf(e) || 3);
       out.push({
         id: `${host}~F${when ? `:${when}` : ''}`, host, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(Math.max(1.2, hv * cfgK)), label: e.label ?? host,
@@ -160,11 +162,23 @@ function build(): NetVessel[] {
 export const NETWORK: readonly NetVessel[] = build();
 
 // ---- joins: depth and width continue through a node ----
-/** The depth at each node: the mean of the tiers of the vessels that meet there, so two vessels that join are at one depth where they meet (their own tier holds between). */
+/** The depth at each node. Two vessels that join are at one depth where they meet (their own tier holds between). At a node of two the depth is the mean of their tiers (a vein that
+ *  changes tier eases over its length). At a fork, a node of three or more, the widest vessels keep their own tier and the narrower ones ease to it: the mean would pull a trunk toward
+ *  the camera at every branch (the cava, a back-tier vein, bulged forward at each hepatic and renal vein, and the 14 degree view turned each bulge into a sideways jog: Mohammad, 20 Nov). */
+/** A vessel that starts in an organ starts at the organ's own depth: the splenic vein at the spleen's (organs/z.ts ORGAN_Z), and rises to the plane on its way to the confluence. */
+const NODE_Z_AT: Readonly<Record<string, number>> = { SPL: ORGAN_Z.spleen };
 export const NODE_Z: ReadonlyMap<string, number> = (() => {
-  const acc = new Map<string, number[]>();
-  for (const v of NETWORK) if (!v.feeder) for (const n of [v.from, v.to]) { const a = acc.get(n) ?? []; a.push(TIER_Z[v.tier]); acc.set(n, a); }
-  return new Map([...acc].map(([n, a]) => [n, a.reduce((x, y) => x + y, 0) / a.length]));
+  const acc = new Map<string, { z: number; r: number; main: boolean }[]>();
+  for (const v of NETWORK) if (!v.feeder) for (const n of [v.from, v.to]) { const a = acc.get(n) ?? []; a.push({ z: TIER_Z[v.tier], r: v.radius, main: v.kind !== 'shunt' && v.kind !== 'collateral' }); acc.set(n, a); }
+  return new Map([...acc].map(([n, all]) => {
+    // (a shunt or a collateral is drawn only in some states and is a small vessel on the trunk it joins: it eases to the node, it does not set it)
+    const a = all.some((x) => x.main) ? all.filter((x) => x.main) : all;
+    // (the hepatic junction too: the cava stays at its own depth through it, the hepatic veins ease down to it, and it runs on to the atrium's wall on one slope; a rise at the junction
+    // and a fall to the atrium was the kink at the cava's upper end, which the 14 degree view turned into an S: Mohammad, 20 Nov)
+    const widest = all.length >= 3 ? Math.max(...a.map((x) => x.r)) : 0;
+    const used = a.filter((x) => x.r >= 0.9 * widest);
+    return [n, NODE_Z_AT[n] ?? used.reduce((t, x) => t + x.z, 0) / used.length] as const;
+  }));
 })();
 // Two vessels that run on into one another (a node of exactly two, or the pair the 2D rule picks at a fork) ease to one width over the last third of each (the 2D tubes' own end easing,
 // tubeRadius; a branch keeps its own caliber, which the 2D figure fillets).

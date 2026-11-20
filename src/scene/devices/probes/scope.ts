@@ -8,8 +8,10 @@
 import { BufferAttribute, BufferGeometry, Color, DoubleSide, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, RingGeometry, Vector3 } from 'three';
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
-import { TIER_Z, len3, x3, y3 } from '../../frame2d.ts';
+import { TIER_Z, VESSEL_PLANE_Z, len3, x3, y3 } from '../../frame2d.ts';
 import { EDGE_PATH_2D } from '../../vessels/paths.copied.ts';
+import { ORGAN_MESHES } from '../../organs/meshes.ts';
+import { bakeGeometry, centreAt, type CentreGrid } from '../../organs/centre-z.ts';
 import { BAND } from '../../procedures/copied/band-ring.js';
 import { EUS_GLUE_ROUTE, EUS_GLUE_STATION, EUS_GLUE_TARGET, EUS_ROUTE, EUS_SCOPE_R, EUS_STATIONS, EUS_TARGETS, EUS_BEND_MIN, EUS_RIGID, EUS_PORT_R, eusPose, newTip, pointOn } from './copied/eus-scope.copied.js';
 import { ProbePart, TubeBuf, linePart, type PartColour } from './parts.ts';
@@ -73,8 +75,19 @@ export function workD(mode: ScopeMode, station: 'pv' | 'hv', way: ScopeWay = sco
   return way.cardiaD;
 }
 
-/** The scene point of a figure point on the scope's plane. */
-const at3 = (p: readonly number[], out: Vector3): Vector3 => out.set(x3(p[0]!), y3(p[1]!), SCOPE_Z);
+/** The stomach organ's middle in depth (the oesophagus is part of it): the scope travels on it, inside the lumen. Baked once, when the organ file is in; until then the scope's own plane. */
+let eso: CentreGrid | null | undefined;
+function esoCentre(): CentreGrid | null {
+  if (eso !== undefined) return eso;
+  try { eso = bakeGeometry(ORGAN_MESHES.stomach!()); } catch { return null; }   // (not loaded yet: asked again at the next pose)
+  return eso;
+}
+/** The scope's depth at a scene point: the middle of the oesophagus and stomach there. */
+export const scopeZ = (x: number, y: number): number => { const g = esoCentre(); return g ? centreAt(g, x, y) : SCOPE_Z; };
+/** The scene point of a figure point on the scope's way: through the middle of the oesophagus and stomach. */
+const at3 = (p: readonly number[], out: Vector3): Vector3 => { const x = x3(p[0]!), y = y3(p[1]!); return out.set(x, y, scopeZ(x, y)); };
+/** The scene point of a target in the liver (a vein the needle enters): on the vessels' plane. */
+const atVessel = (p: readonly number[], out: Vector3): Vector3 => out.set(x3(p[0]!), y3(p[1]!), VESSEL_PLANE_Z);
 const dir3 = (t: readonly number[], out: Vector3): Vector3 => out.set(t[0]!, -t[1]!, 0);
 
 const ease01 = (x: number): number => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
@@ -164,7 +177,7 @@ export class EndoScope {
     });
   }
   /** One of the two targets in the scope's plane (0 the portal vein's, 1 the hepatic vein's): where the EUS-PPG's cards point. */
-  targetAt(i: 0 | 1, out: Vector3): Vector3 { return at3(this.targets[i]!, out); }
+  targetAt(i: 0 | 1, out: Vector3): Vector3 { return atVessel(this.targets[i]!, out); }
   /** The aim's target now: between the two (the 2D TGT). */
   private target(out: P2 = [0, 0]): P2 {
     if (this.mode === 'glue') { out[0] = this.glueT[0]; out[1] = this.glueT[1]; return out; }
@@ -273,7 +286,7 @@ export class EndoScope {
 
   /** The hit's rings and the manometer's ripples at the target (2D eusDraw: two discs running out and fading, in the vein's colour), at `now` ms. */
   private layRings(now: number, vis: boolean): void {
-    const eus = this.mode === 'eus' && vis, T = at3(this.target(this.tgtPt), this.v);
+    const eus = this.mode === 'eus' && vis, T = atVessel(this.target(this.tgtPt), this.v);
     const hv = this.tgt >= 0.5, pvC: PartColour = (t) => t.trPv, hvC: PartColour = HV_RING as PartColour;
     const rings = (parts: ProbePart[], on: boolean, ph: number, r0: number, r1: number, a0: number, colour: PartColour): void => {
       parts.forEach((o, i) => {

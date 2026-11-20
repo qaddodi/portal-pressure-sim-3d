@@ -1,9 +1,7 @@
 // GLSL for the cel look (look-and-feel.md sections 2, 3, 9). Ported from the slice mocks, with the flow marks and the per-vessel data
 // texture added. Plain strings so the unit tests can check them without a GPU; `node scripts/glsl-compile.mjs` compiles them in
 // software WebGL2 (the one headless step the owner allows, and only on about:blank).
-import { CEL_STYLE } from '../cel-style.ts';
-/** A number as a GLSL float literal. */
-const F = (x: number): string => (Number.isInteger(x) ? x.toFixed(1) : String(x));
+import { CEL_TUBE_GLSL } from '../cel-glsl.ts';
 
 /** Texel layout of the per-vessel data texture, written by src/engine/vessel-data.ts (one texel per topology edge, RGBA32F, nearest). */
 export const VESSEL_TEXEL = {
@@ -63,6 +61,9 @@ void main() {
 
 export const TOON_FS = /* glsl */ `
 ${FADE_GLSL}
+#ifdef TUBE_TONES
+${CEL_TUBE_GLSL}
+#endif
 uniform vec3 color;
 uniform vec3 shade;
 uniform vec3 light;
@@ -140,12 +141,7 @@ void main() {
   vec2 sideS = side0.xy;
   float sl0 = length(sideS);
   sideS = sl0 > 1e-4 ? sideS / sl0 : vec2(1.0, 0.0);
-  float sT = across0 * dot(sideS, vec2(${F(CEL_STYLE.DIR[0])}, ${F(CEL_STYLE.DIR[1])}));
-  float etT = 0.5 / max(rDev0, 1e-3), hwT = smoothstep(1.5, 3.5, rDev0);
-  float shadowT = 1.0 - smoothstep(${F(CEL_STYLE.SHADE_AT)} - etT, ${F(CEL_STYLE.SHADE_AT)} + etT, sT);
-  float litT = smoothstep(${F(CEL_STYLE.LIT_AT)} - etT, ${F(CEL_STYLE.LIT_AT)} + etT, sT);
-  vec3 c = base * (1.0 - hwT * ${F(CEL_STYLE.SHADE)} * shadowT);
-  c = mix(c, vec3(1.0), ${F(CEL_STYLE.LIT)} * hwT * litT);
+  vec3 c = celTubeTone(base, across0, celTubeK(sideS), rDev0);
 #else
   vec3 c = mix(sh, base, clamp(b, 0.0, 1.0));
 #endif

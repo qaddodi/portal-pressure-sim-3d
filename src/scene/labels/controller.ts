@@ -4,6 +4,8 @@
 //
 // One rule decides when labels are on screen: they are shown only while the picture is still. The camera in flight, a drag, a card sliding
 // the room: any dot that moves hides every label at once (they fade, never slide) and they return FADE.settleMs after the picture stops.
+// The exception is a hand on the picture (a tilt, a turn, a pan, a zoom): there each label keeps its place beside its vessel's own 3D point, re-projected every frame
+// (its leader follows), and the names are placed again, only where they must change, once the picture has been still for FOLLOW_MS (Mohammad, 20 Nov: "the labels should know we're tilting and still call out the correct thing").
 import { Vector3 } from 'three';
 import { FADE, labelOpacity } from './alpha.ts';
 import { LabelFader, type Want } from './fade.ts';
@@ -60,6 +62,10 @@ export interface LabelDeps {
 /** The names stand aside while the figure is smaller than this (hysteresis: they come back above `FIG_BACK`). The names keep one size (text never shrinks to fit), so on a figure this small they would be
  *  larger than the parts they name and lie over each other: a phone with the Tests sheet up leaves the figure 130 px (Phone play-test, 20 Nov: "16.6" over "Right sinusoids"). The stations a slide
  *  names, the vessel picked and a reading the slide asks for stay. */
+/** A dot that moves farther than this in one frame was cut (a new shot, a dive), not carried by a hand: its names leave. */
+export const FOLLOW_JUMP = 60;
+/** How long the picture must be still, after a hand on it, before the names are placed again. */
+export const FOLLOW_MS = 220;
 export const FIG_MIN_H = 200;
 export const FIG_BACK = 230;
 
@@ -141,6 +147,7 @@ export class LabelController {
   private readonly formCache = new Map<string, Form[]>();
   private anchors = new Map<string, { x: number; y: number }>();
   private lastMove = -1e9;
+  private lastFollow = -1e9;
   private dirty = true;
   private sig = '';
   private last = -1;
@@ -205,7 +212,9 @@ export class LabelController {
       if (s.id === 'GV') continue;   // (the fundal varices' label comes in only with its varices)
       if (s.core || st.named.has(s.id) || st.shown.has(s.id) || s.id === picked) list.push(this.metaOf(s));
     }
-    return this.keepIfSmall(list);
+    // an organ's name is not said twice: where a station's reading names the same structure ("Right atrium 3.5"), the organ's own name ("RIGHT ATRIUM") is left out
+    const said = new Set(list.filter((m) => m.station.kind !== 'organ').map((m) => m.station.name.toLowerCase()));
+    return this.keepIfSmall(list.filter((m) => m.station.kind !== 'organ' || !said.has(m.station.name.toLowerCase())));
   }
 
   private tiny = false;
@@ -236,7 +245,7 @@ export class LabelController {
       const has = !!s.node;
       forms.push(form(s.name, stationRuns(s.name, has, reversed)));
       if (s.abbr && s.abbr !== s.name) forms.push(form(s.abbr, stationRuns(s.abbr, has, reversed)));
-      if (has) forms.push(form('', stationRuns('', true, reversed)));
+      // (never the number alone: a reading with no name beside it says nothing, "5.0" floating in the liver. A name that has no room as its short form is left out, as the 2D app's solver does when none fits; Mohammad's play-test, 20 Nov)
     }
     this.formCache.set(key, forms);
     return forms;
@@ -260,6 +269,7 @@ export class LabelController {
 
     // 1. where the dots are; any that moved hides everything until the picture is still
     let moved = this.firstTick || d.cameraMoving();
+    let following = false;
     this.firstTick = false;
     const anchors = new Map<string, { x: number; y: number }>();
     for (const m of metas) {
@@ -269,7 +279,9 @@ export class LabelController {
       if (!Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;   // (a dot behind the camera or at its plane has no place on the screen: it is not placed, never placed at a number that is not one)
       anchors.set(m.id, a);
       const was = this.anchors.get(m.id);
-      if (!was || Math.abs(was.x - a.x) > 0.35 || Math.abs(was.y - a.y) > 0.35) moved = true;
+      if (!was) moved = true;
+      else if (Math.hypot(was.x - a.x, was.y - a.y) > FOLLOW_JUMP) moved = true;   // (a dot that jumped is a cut, not a hand: the names leave and return)
+      else if (Math.abs(was.x - a.x) > 0.35 || Math.abs(was.y - a.y) > 0.35) following = true;
     }
     this.anchors = anchors;
     // the catheter's two points move with the picture too: where the tip and the point ahead stand now
@@ -283,7 +295,10 @@ export class LabelController {
     // this a solve made while the camera stood somewhere else (the dive's far end, where every dot is off the screen and nothing can be placed) was kept for ever after the camera came back, and every
     // name stayed gone until a card happened to change (Mac play-test, 19 Nov: sinusoid back to Anatomy, 10+ seconds with no names).
     if (moved) { this.lastMove = now; this.dirty = true; }
+    // a hand on the picture: the labels ride their dots (drawn below from the dots' own 3D points), and are solved again once it is still
+    if (following) { this.lastFollow = now; this.dirty = true; }
     const hold = now - this.lastMove < FADE.settleMs;
+    const resting = now - this.lastFollow >= FOLLOW_MS;
 
     // 2. solve once the picture is still and something changed (the labelled set, a card, the view, the words)
     const view = d.view(), blockers = [...d.blockers()];
@@ -292,7 +307,7 @@ export class LabelController {
     if (keyBox) blockers.push(keyBox);
     const cathSig = this.state.cath || this.state.proc ? `${this.state.proc?.sig ?? ''}|${this.cGot}|${this.cTipPx ? Math.round(this.cTipPx[0]) + ',' + Math.round(this.cTipPx[1]) : '-'}|${this.cAheadPx ? Math.round(this.cAheadPx[0]) + ',' + Math.round(this.cAheadPx[1]) : '-'}` : '';
     const sig = cathSig + '|' + (keyBox ? boxKey(keyBox) : '-') + '|' + setSig + '|' + boxKey(view) + '|' + blockers.map(boxKey).join(';') + '|' + [...this.state.named].sort().join(',') + [...this.state.shown].sort().join(',') + this.state.cath + (this.state.proc?.sig ?? '');
-    if (!hold && (this.dirty || sig !== this.sig)) {
+    if (!hold && resting && (this.dirty || sig !== this.sig)) {
       this.sig = sig; this.dirty = false;
       this.metas = next;
       // the catheter's cards stand first (cath.ts: the 2D app's own placing, clear of the cards and the key); the stations keep clear of them

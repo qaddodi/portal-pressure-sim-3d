@@ -1,0 +1,9 @@
+/* A finger has a sheet (shell/sheet-swipe.ts): its entrance and exit give way to it, so the only motion is the finger's and the let-go's. `pulled` stays until the sheet is shut and open again (an animation taken off and put back would play again). */
+[data-pulling], [data-swiped] { transition: none !important; animation: none !important; }
+[data-pulled] { animation: none !important; }
+
+/* The grab bar of a phone's sheet (36 x 4, the action card's own): the one sign that it can be pulled down. 2D draws it on none of its thumb sheets (15 Oct: it covered the titles); Mohammad asked for it on all (20 Nov), so it sits in
+   the top 10 px, above every head's padding, and is only a picture: the whole sheet is the handle (shell/sheet-swipe.ts). Shown where the sheet is a bottom sheet. */
+.sh-grabbar { display: none; position: absolute; z-index: 3; top: 6px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: color-mix(in srgb, var(--text) 22%, transparent); pointer-events: none; }
+html.thumb-ui .sh-grabbar, .sh-root[data-bottom="true"][data-mode="free"] .sh-sheet > .sh-grabbar, .menu.as-sheet > .sh-grabbar, .umenu.sheet > .sh-grabbar { display: block; }
+.app:not(.thumb) .sh-grabbar, .sh-root:not([data-bottom="true"]) .sh-sheet > .sh-grabbar { display: none; }

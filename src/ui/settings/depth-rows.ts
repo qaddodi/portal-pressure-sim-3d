@@ -8,5 +8,6 @@ export const DEPTH_ROWS: readonly DepthRow[] = [
   { key: 'organDepth', label: 'Organ depth', hint: 'Soft light and shade on the organs', icon: 'liver' },
   { key: 'tilt', label: 'Gentle tilt', hint: 'The figure leans a few degrees with the pointer or device', icon: 'layers' },
   { key: 'dof', label: 'Depth of field', hint: 'Softens the far side in the liver dive (laptop only)', icon: 'layers' },
-  { key: 'particles', label: 'Blood cells', hint: 'Moving cells beside the chevrons (off: chevrons only)', icon: 'chevrons' },
+  { key: 'particles', label: 'Blood streaks', hint: 'Fine streaks along the flow, faster in the middle, turbulent at forks (off: chevrons only)', icon: 'chevrons' },
+  { key: 'micro3d', label: '3D lobule and sinusoid', hint: 'Cells, nuclei and vessels in depth inside the liver (off: the flat views)', icon: 'liver' },
 ];

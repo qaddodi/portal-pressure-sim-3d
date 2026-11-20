@@ -19,42 +19,65 @@ export interface PullApi {
 
 // Controls that keep their own drags: fields, sliders, an editable text.
 const FIELDS = 'input:not([type="checkbox"]):not([type="radio"]):not([type="button"]), select, textarea, [role="slider"], [contenteditable], .range-wrap, .stent-editor';
+// The scrolling box under the finger, if there is one (2D dock-sheet.js scroller): a pull that starts in content scrolled away from its top scrolls it back first, it never moves the card.
+const scroller = (t: Element, card: HTMLElement): HTMLElement | null => {
+  for (let n: Element | null = t; n && n !== card; n = n.parentElement) {
+    if (n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY)) return n as HTMLElement;
+  }
+  return null;
+};
 const MOVE = 6, FLICK_UP = -0.5, FAR_UP = 40, STAY_FULL = 40;
 const ty = (el: HTMLElement) => (v: number) => { el.style.translate = v ? `0px ${v}px` : ''; };
 
 /** Wires the pull to the card (`card`) and the box that moves (`pos`). Returns the remover. */
 export function attachPull(card: HTMLElement, pos: HTMLElement, api: PullApi): () => void {
-  type St = { x: number; y: number; t0: number; moved: boolean; dy: number; h0: number; half: number; full: number; size: 0 | 1; trail: [number, number][]; m: ReturnType<typeof follow> | null; carry: number };
+  type St = { id: number; x: number; y: number; t0: number; moved: boolean; dy: number; h0: number; half: number; full: number; size: 0 | 1; sc: HTMLElement | null; scTop: number; trail: [number, number][]; m: ReturnType<typeof follow> | null; carry: number };
   let st: St | null = null, run: Glide | null = null, swallow = 0, off = 0;
-  const onDown = (e: TouchEvent) => {
-    if (st || e.touches.length !== 1 || !api.enabled()) return;
+  // The pull runs on pointer events (a finger, a pen, a mouse, and what a test dispatches to stand for one), as 2D's dock-sheet.js does; a touch's own `touchmove` only claims the gesture from the page (below).
+  const onDown = (e: PointerEvent) => {
+    if (st || !api.enabled() || (e.pointerType === 'mouse' && e.button !== 0)) return;
     const t = e.target as Element | null;
     if (!t || t.closest(FIELDS)) return;
-    const h = api.heights();
+    const h = api.heights(), sc = scroller(t, card);
     const carry = run ? off : 0;
     if (run) { run.stop(); run = null; }
-    st = { x: e.touches[0]!.clientX, y: e.touches[0]!.clientY, t0: performance.now(), moved: false, dy: 0, h0: h.h0, half: h.half, full: h.full, size: h.size, trail: [], m: null, carry };
+    st = { id: e.pointerId, x: e.clientX, y: e.clientY, t0: performance.now(), moved: false, dy: 0, h0: h.h0, half: h.half, full: h.full, size: h.size, sc, scTop: sc ? sc.scrollTop : 0, trail: [], m: null, carry };
   };
-  const onMove = (e: TouchEvent) => {
+  // A pull down from anywhere on the card, its content at the top, is claimed by the touch's first move, before 6 px: iOS hands a pull on scrollable content to the page and cancels the
+  // touch before then, and the card would never follow. Once the card follows the finger the page never scrolls under it. (2D dock-sheet.js touchmove.)
+  const onTouchMove = (e: TouchEvent) => {
     const s = st;
-    if (!s) return;
-    const t = e.touches[0]!, dx = t.clientX - s.x, dy = t.clientY - s.y;
+    if (!s || !e.cancelable) return;
+    if (s.moved) { e.preventDefault(); return; }
+    const t = e.touches[0];
+    if (!t) return;
+    const dx = t.clientX - s.x, dy = t.clientY - s.y;
+    if (dy > 0 && dy >= Math.abs(dx) && !(s.sc && s.scTop > 0)) e.preventDefault();
+  };
+  const onMove = (e: PointerEvent) => {
+    const s = st;
+    if (!s || e.pointerId !== s.id) return;
+    if (e.pointerType === 'mouse' && !(e.buttons & 1)) { end(e); return; }
+    const dx = e.clientX - s.x, dy = e.clientY - s.y;
     if (!s.moved) {
       if (Math.hypot(dx, dy) < MOVE) return;
       if (Math.abs(dx) > Math.abs(dy)) { st = null; return; }   // (sideways: the swipe between the tabs)
+      if (s.sc && (s.scTop > 0 || (dy < 0 && s.size === 1))) { st = null; return; }   // (the content scrolls: scrolled away from its top, or up at Full)
       s.moved = true; s.m = follow(ty(pos), 'tests-pull');
+      try { card.setPointerCapture(e.pointerId); } catch { /* (a pointer that is not down: nothing to capture) */ }
     }
-    if (e.cancelable) e.preventDefault();
     s.dy = dy;
-    s.trail.push([performance.now(), t.clientY]); if (s.trail.length > 8) s.trail.shift();
+    s.trail.push([performance.now(), e.clientY]); if (s.trail.length > 8) s.trail.shift();
     // (the card follows the finger, up to the room Full gives and down to its own height; past either it gives a quarter)
     const room = s.size === 0 ? s.full - s.h0 : 0, d = s.carry + dy;
     off = d < -room ? -room + (d + room) * 0.25 : d > s.h0 ? s.h0 + (d - s.h0) * 0.25 : d;
     s.m!.set(off);
   };
-  const end = () => {
-    const s = st; st = null;
-    if (!s?.moved) return;
+  const end = (e?: PointerEvent) => {
+    const s = st;
+    if (!s || (e && e.pointerId !== s.id)) return;
+    st = null;
+    if (!s.moved) return;
     swallow = performance.now() + 350;
     s.m?.flush(); s.m?.stop();
     const speed: number = releaseSpeed(s.trail, performance.now());   // (px per ms down)
@@ -85,14 +108,20 @@ export function attachPull(card: HTMLElement, pos: HTMLElement, api: PullApi): (
   };
   // (The click a drag's release makes is not a tap: swallowed if it comes within 350 ms.)
   const onClick = (e: MouseEvent) => { if (performance.now() < swallow) { swallow = 0; e.stopPropagation(); e.preventDefault(); } };
-  card.addEventListener('touchstart', onDown, { passive: true });
-  card.addEventListener('touchmove', onMove, { passive: false });
-  card.addEventListener('touchend', end, { passive: true });
-  card.addEventListener('touchcancel', end, { passive: true });
+  card.addEventListener('pointerdown', onDown);
+  card.addEventListener('pointermove', onMove);
+  card.addEventListener('pointerup', end);
+  card.addEventListener('pointercancel', end);
+  // (Not a child's: a touch is first captured by what is under the finger (a tab, a chart), and handing the capture to the card at 6 px makes that one lose it, an event that bubbles up here
+  //  and would end the pull at once. 2D dock-sheet.js: `e.target === el`.)
+  const onLost = (e: PointerEvent) => { if (e.target === card) end(e); };
+  card.addEventListener('lostpointercapture', onLost);
+  card.addEventListener('touchmove', onTouchMove, { passive: false });
   card.addEventListener('click', onClick, true);
   return () => {
-    card.removeEventListener('touchstart', onDown); card.removeEventListener('touchmove', onMove);
-    card.removeEventListener('touchend', end); card.removeEventListener('touchcancel', end); card.removeEventListener('click', onClick, true);
+    card.removeEventListener('pointerdown', onDown); card.removeEventListener('pointermove', onMove);
+    card.removeEventListener('pointerup', end); card.removeEventListener('pointercancel', end); card.removeEventListener('lostpointercapture', onLost);
+    card.removeEventListener('touchmove', onTouchMove); card.removeEventListener('click', onClick, true);
     run?.stop(); st?.m?.stop(); pos.style.translate = '';
   };
 }

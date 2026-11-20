@@ -2,6 +2,7 @@
 // button), `.um-tabs`, `.um-cols` holding the Present and Patients lists, `.um-empty` and `.um-foot`. Its stylesheet is 2D's (src/ui/css2d), copied unchanged. A popover under the menu
 // button from 768 px, a bottom sheet with a scrim on the stacked layout (STACK_MQ). It is in the page only while open and leaves by `.out`. A row opens a talk or a patient; the ⓘ
 // opens the preview under it (`.um-inline`), and a mouse that rests on a row shows the same preview beside the panel (`.um-pv`).
+import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { PRESETS } from '../../engine/hales/portal/scenario.js';
@@ -142,6 +143,7 @@ export function UMenu() {
   const hoverT = useRef(0), hideT = useRef(0);
   const root = typeof document === 'undefined' ? null : document.querySelector('.sh-root');
   const close = () => useShell.getState().close();
+  useSheetSwipe(ref, close, () => sheet, true);   // (2D menu.js: a phone's menu is a sheet that follows a pull down)
 
   useEffect(() => { const mq = matchMedia(STACK_MQ), f = () => setSheet(mq.matches); f(); mq.addEventListener('change', f); return () => mq.removeEventListener('change', f); }, []);
   // a menu opened by a link carries its search (menuQuery); every other open starts empty
@@ -285,6 +287,7 @@ export function UMenu() {
   const menu = (
     <div ref={ref} className={`umenu${sheet ? ' sheet' : ''}${leaving ? ' out' : ''}${words && here > 0 ? ' filtered' : ''}`} role="dialog" aria-modal={sheet || undefined} aria-label="Menu" data-tab={tab} inert={!open} onKeyDown={onKeyDown}>
       <div className="um-grab" aria-hidden="true" />
+      <i className="sh-grabbar" aria-hidden="true" />
       <div className="um-top">
         <label className="um-search"><I n="search" /><input className="um-q" type="search" placeholder="Find a presentation or patient" aria-label="Find a presentation or patient" autoComplete="off" spellCheck={false} value={query} onChange={(e) => setQuery(e.target.value)} /><kbd className="um-kb">/</kbd></label>
         <button type="button" className="ib um-x" aria-label="Close the menu" onClick={close}><I n="close" /></button>

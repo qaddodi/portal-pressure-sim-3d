@@ -14,7 +14,7 @@
 //
 // Lymph chevrons run on the ducts (the terminal lymphatics, the tracts' lymphatics and the space of Disse beside each sinusoid) while the Lymph layer is
 // on, out along Disse toward the tract (owner, 5d3b7e86: hepatic lymph rises in cirrhosis, and the chevrons quicken with it). The sinusoid view shows none.
-import { type BufferGeometry, type Camera, Color, Group, Matrix4, Plane, type Ray, type Object3D, Vector3 } from 'three';
+import { type BufferGeometry, type Camera, Color, Group, LinearSRGBColorSpace, Matrix4, Plane, type Ray, type Object3D, Vector3 } from 'three';
 import { CelObject, type CelShared, rawColor } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
 import type { LookId } from '../../looks/looks.ts';
@@ -24,7 +24,8 @@ import { Batch, type V3 } from './batch.ts';
 import { shadeUniforms } from './shading.ts';
 import { type LobuleHit, type PickTube, lobuleHit } from './pick.ts';
 import { type Course, type LobuleNet, type P2, buildLobule, zoneOf } from './geometry.ts';
-import { type LobuleModel, easeToward, lymphRate, lymphSeal, smooth } from './model.ts';
+import { type LobuleModel, easeToward, lymphProtein, lymphRate, lymphSeal, smooth } from './model.ts';
+import { disseColour } from './disse.ts';
 import { LOBULE_PARTS, type LobulePartName, PartSet } from './parts.ts';
 import { LOBULE_PALETTES, tone } from './tones.ts';
 import { LOBULE_R, lobuleToScene, slabZ } from './shots.ts';
@@ -39,24 +40,29 @@ import { ZonesOverlay } from './zones.ts';
 import { NeighbourField, fieldQuantizer } from './field.ts';
 import { lookColours } from './lz-colours.ts';
 import { DISC_EDGE } from './from2d/disc-glsl.generated.js';
-import { AN_K, DISC_R, LT_R, RS_N, TW_R, inletRadius, sinRadius, twigR } from './widths.ts';
+import { AN_K, DISC_R, LT_R, RS_N, TW_R, disseRadius, inletRadius, sinRadius, twigR } from './widths.ts';
 import { type Disc, type Joiner, buildDiscs, writeMouths } from './mouths.ts';
-import { lobuleShade } from './shading.ts';
+import { HEAD_K, HEAD_KIND, HEAD_PERIOD, lobuleShade } from './shading.ts';
+import { LENS_SHARED, LENS_TOKENS } from '../lenses/tokens.copied.ts';
 
 const R = LOBULE_R;
-const MARK_PITCHES = 5;   // a chevron period is this many tube radii
+const MARK_PITCHES = 5;   // uv.x counts in this many tube radii (the heads' own spacing is 2D's, in CSS px: shading.ts)
+/** Where each tube's uv.x starts, in those units: tubes of one object do not share a start, so their heads never stand in a row across the lobule (2D gives each vessel its own phase, (t.id * 977) % PERIOD). */
+const markOffset = (p: P2): number => { const h = Math.sin(p[0] * 127.1 + p[1] * 311.7) * 43758.5453; return (h - Math.floor(h)) * 7; };
 
 /** Scene radii of the parts (lobule radii × R). The sinusoid's is the 2D app's lumen, drawn about twice as wide; the rest keep the 2D ratios. */
 const RAD = {
   // (2D's own, healthy: widths.ts, lobule-zoom-field.js radiusAt; a sinusoid's is the radius at the middle of its course, the profile along it is drawn from sinRadius)
   s0: RS_N * 1.15 * R, s1: RS_N * 1.15 * R, s2: RS_N * 1.15 * R, an: RS_N * AN_K * R, in: 0.012 * R, tw: TW_R.base * R,
-  pv: DISC_R.pv * R, ha: DISC_R.ha * R, bd: DISC_R.bd * R, lv: DISC_R.lv * R, cv: DISC_R.cv * R, lt: LT_R * R, ly: 0.0132 * R, bc: 0.0046 * R, bh: 0.0075 * R,
+  pv: DISC_R.pv * R, ha: DISC_R.ha * R, bd: DISC_R.bd * R, lv: DISC_R.lv * R, cv: DISC_R.cv * R, lt: LT_R * R, ly: 0.0132 * R, bc: 0.0036 * R, bh: 0.0075 * R,   // (bc: 2D's widest canaliculus, at the edge: R * lerp(0.0004, 0.0036, smooth(0.22, 1, rho)), lobule-bile.js)
 } as const;
 /** 2D's three dark shares of a sinusoid kind that congestion widens (zone 3: 1 - smooth(0.24, 0.56, rho), at the middle of each generation): radiusAt's `1 + 1.5 congU z3`. */
 const CONG_Z3 = { s0: 0, s1: 0.4, s2: 0.95, an: 0.3 } as const;
 
 /** A disc's half thickness (an end-on vessel is a flat disc on the plate) and how far under its sinusoid the space of Disse's band lies. */
 const DISC_T = 0.008, DISSE_DZ = 0.03;
+/** A disc's sides: the rim is a polygon of this many, its sag from the true circle 0.0005 of the radius (0.3 px on a 600 px vein; at 48 it was twice that and showed as facets at 6x). */
+export const DISC_RADIAL = 96;
 /** Outline widths (CSS px). 2D's rule is clamp(0.14 × radius, 1.5, 3) device px: on these thin tubes about half a CSS px on a phone. */
 const INK = { sin: 0.55, thin: 0.45, inlet: 0.65, disc: 0.75 } as const;
 
@@ -101,12 +107,12 @@ const GREY_MS = 350;
 /** The eased scalars the drawing reads (all move toward the model's targets). */
 interface Cur {
   fibSin: number; fibPre: number; fibPost: number; congU: number; septU: number; act: number; lum: number;
-  flow: number; portal: number; art: number; lymphRate: number; seal: number;
+  flow: number; portal: number; art: number; lymphRate: number; seal: number; prot: number;
 }
-const REST: Cur = { fibSin: 0, fibPre: 0, fibPost: 0, congU: 0, septU: 0, act: 0, lum: 1, flow: 1, portal: 1, art: 1, lymphRate: 1, seal: 0 };
+const REST: Cur = { fibSin: 0, fibPre: 0, fibPost: 0, congU: 0, septU: 0, act: 0, lum: 1, flow: 1, portal: 1, art: 1, lymphRate: 1, seal: 0, prot: 1 };
 
 /** A chevron-carrying object: its pitch and how much of its marks show now. */
-interface Marked { obj: CelObject; part: LobulePartName; amount: number; dir: 1 | -1; speed: () => number; layer: 'blood' | 'lymph' | 'bile'; smokes: boolean }
+interface Marked { obj: CelObject; part: LobulePartName; amount: number; dir: 1 | -1; speed: () => number; layer: 'blood' | 'lymph' | 'bile'; smokes: boolean; /** Scene units to one chevron period of uv.x. */ arc: number; /** The stream's distance along its flow, head-world units (2D's sm.D): advanced here, never read from the clock. */ phase: number; /** The reversed flag, eased (an inlet whose portal flow runs backward). */ rev: number }
 
 const p3 = (p: P2, dz = 0): V3 => lobuleToScene(p[0], p[1], slabZ(p[0], p[1]) + dz);
 
@@ -199,7 +205,7 @@ export class LobuleView {
       vessel: c ? { index: 0, len: 0.45, stubSpeed: 0, radius: 0, baseD: 1 } : undefined,
     }, this.shared);
     // 2D's shading: three screen-space tones, the line by caliber, a disc's pale band and its wall opened at the mouths (shading.ts)
-    lobuleShade(o, geo, this.dprU, { radius: opts.radius ?? RAD.s0, disc: !!opts.disc, join: opts.disc?.join, inkRadius: opts.disc?.inkRadius, flat: opts.flat });
+    lobuleShade(o, geo, this.dprU, { radius: opts.radius ?? RAD.s0, disc: !!opts.disc, join: opts.disc?.join, inkRadius: opts.disc?.inkRadius, flat: opts.flat, heads: c ? { kind: c.bile ? HEAD_KIND.bile : c.lymph ? HEAD_KIND.lymph : HEAD_KIND.blood, arc: c.pitch } : undefined });
     this.objects.push(o);
     const p = this.set.get(part);
     p.group.add(o.group);
@@ -208,7 +214,7 @@ export class LobuleView {
       const courses = opts.ink.courses ?? [], seg = opts.ink.seg;
       this.inks.add(o.toonMesh.geometry, seg, courses.length ? b.tubes : [], courses.map((c): [number, number] => [seg === 'sin' ? sinW(c.rho[0]!) : 0, seg === 'sin' ? sinW(c.rho[c.rho.length - 1]!) : 1]));
     }
-    if (c) this.marked.push({ obj: o, part, amount: 0, dir: c.dir ?? 1, speed: c.speed, layer: c.bile ? 'bile' : c.lymph ? 'lymph' : 'blood', smokes: part === 'sinusoids' && !c.bile && !c.lymph });
+    if (c) this.marked.push({ obj: o, part, amount: 0, dir: c.dir ?? 1, speed: c.speed, layer: c.bile ? 'bile' : c.lymph ? 'lymph' : 'blood', smokes: part === 'sinusoids' && !c.bile && !c.lymph, arc: c.pitch, phase: 0, rev: 0 });
     return o;
   }
 
@@ -238,14 +244,14 @@ export class LobuleView {
     // (a tube's radius is a number, or by course the radius at each sample: 2D's profile along it, widths.ts; `mean` is the one the chevrons' pitch and the line's width are worked from)
     const tubeSet = (cs: Course[], radius: number | ((c: Course) => (i: number, n: number) => number), dz = 0, radial = 7, mean = typeof radius === 'number' ? radius : RAD.s0) => {
       const b = new Batch(), pitch = mean * MARK_PITCHES;
-      for (const c of cs) b.tube(c.pts.map((p) => p3(p, dz)), { radius: typeof radius === 'number' ? radius : radius(c), radial, uvx: (_i, arc) => arc / pitch });
+      for (const c of cs) { const off = markOffset(c.pts[0]!); b.tube(c.pts.map((p) => p3(p, dz)), { radius: typeof radius === 'number' ? radius : radius(c), radial, uvx: (_i, arc) => arc / pitch + off }); }
       return b;
     };
     // a vessel seen end-on (the central vein, the tract's venule, arteriole, ductule and lymphatic): a flat disc on the plate, as 2D's celDisc, not a
     // column standing out of it (the hexagonal prism of IMG_5637). Its face looks at the camera, so it is one flat tone inside its outline.
     const axial = (cs: Course[], radius: number) => {
       const b = new Batch();
-      for (const c of cs) { const p = c.pts[Math.floor(c.pts.length / 2)]!; b.tube([p3(p, -DISC_T), p3(p, DISC_T)], { radius, radial: 48, capped: true, disc: true, uvx: () => 0 }); }
+      for (const c of cs) { const p = c.pts[Math.floor(c.pts.length / 2)]!; b.tube([p3(p, -DISC_T), p3(p, DISC_T)], { radius, radial: DISC_RADIAL, capped: true, disc: true, uvx: () => 0 }); }
       return b;
     };
     const sinR = (c: Course) => (i: number) => sinRadius(c.kind as 's0' | 's1' | 's2' | 'an', c.rho[i]!) * R;
@@ -286,8 +292,9 @@ export class LobuleView {
     // the space of Disse: a flat pale band under its sinusoid, so only its rim shows either side (2D's Wet Disse sleeve, drawn under the sinusoid), with no
     // outline and no light of its own: no second tube wound round the first (the "rope" of IMG_5637). Its course runs inward, the lymph outward, so the marks run backwards
     const lyB = new Batch();
-    for (const c of by('ly')) lyB.tube(c.pts.map((p) => p3(p, -DISSE_DZ)), { radius: RAD.ly, radial: 8, squash: 0.08, uvx: (_i, arc) => arc / (RAD.ly * MARK_PITCHES) });
-    const ly = this.make('lymph', lyB, 'lymph', { bands: 2, flat: true, px: 0, chevrons: { pitch: RAD.ly * MARK_PITCHES, speed: lymphSpeed, dir: -1, lymph: true } });
+    for (const c of by('ly')) lyB.tube(c.pts.map((p) => p3(p, -DISSE_DZ)), { radius: (i) => disseRadius(c.rho[i]!) * R, radial: 8, squash: 0.08, uvx: () => 0 });
+    // (no marks of its own: 2D fits them to the rim, and a rim of the width 2D shows carries none but specks, which read as a yellow edge on every sinusoid)
+    const ly = this.make('lymph', lyB, 'lymph', { bands: 2, flat: true, px: 0 });
     this.flat.add(ly);
 
     // bile (the Bile layer): the canaliculi run between neighbouring plates, from the centre out toward the edge (the blood runs the other way), the canals of Hering gather them
@@ -303,14 +310,16 @@ export class LobuleView {
         const pts: P2[] = [];
         for (let i = i0; i <= i1; i++) pts.push(mid(a, b, i));
         if (Math.hypot(pts[0]![0] - pts[pts.length - 1]![0], pts[0]![1] - pts[pts.length - 1]![1]) < 0.05) return;
-        chB.tube(pts.map((p) => p3(p, 0.012)), { radius: RAD.bc, radial: 6, uvx: (_i, arc) => arc / (RAD.bc * MARK_PITCHES) });
+        const offC = markOffset(pts[0]!);
+        chB.tube(pts.map((p) => p3(p, 0.012)), { radius: RAD.bc, radial: 6, uvx: (_i, arc) => arc / (RAD.bc * MARK_PITCHES) + offC });
         this.bilePick.push({ id: BILE_ID + this.bilePick.length, kind: 'bs', pts, tri: a.tri });
         if (canals) {
           const tr = net.triads[a.tri]!, p0 = pts[0]!, bd = tr.bd;
           const pc: P2[] = [];
           // (from the ductule out along the edge, bowed in a little, to the first plate: the canal of Hering)
           for (let j = 0; j <= 8; j++) { const u = j / 8; pc.push([bd[0] + (p0[0] - bd[0]) * u + (tr.x - 0) * -0.012 * Math.sin(Math.PI * u), bd[1] + (p0[1] - bd[1]) * u + (tr.y - 0) * -0.012 * Math.sin(Math.PI * u)]); }
-          hrB.tube(pc.map((p) => p3(p, 0.014)), { radius: RAD.bh, radial: 6, uvx: (_i, arc) => arc / (RAD.bh * MARK_PITCHES) });
+          const offH = markOffset(pc[0]!);
+          hrB.tube(pc.map((p) => p3(p, 0.014)), { radius: RAD.bh, radial: 6, uvx: (_i, arc) => arc / (RAD.bh * MARK_PITCHES) + offH });
           canalPool.push({ id: CANAL_ID + canalPool.length, pts: pc });
           this.bilePick.push({ id: BILE_ID + this.bilePick.length, kind: 'bh', pts: pc, tri: a.tri });
         }
@@ -319,8 +328,9 @@ export class LobuleView {
     channel(s0c, 2, 22, true);
     channel(by('s1'), 2, 20, false);
     channel(by('s2'), 3, 22, false);
-    const bc = this.make('bile', chB, 'bile', { bands: 2, flat: true, px: INK.thin, chevrons: { pitch: RAD.bc * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
-    const bh = this.make('bile', hrB, 'bile', { bands: 2, flat: true, px: INK.thin, chevrons: { pitch: RAD.bh * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
+    // (no outline on either: 2D's wall is 0.3 px on a canaliculus and 0.6 on a canal of Hering, a faint olive hairline; the cel line's 2 px floor on a tube under a pixel wide made them dark bars, thick olive rungs between the sinusoids)
+    const bc = this.make('bile', chB, 'bile', { bands: 2, flat: true, px: 0, chevrons: { pitch: RAD.bc * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
+    const bh = this.make('bile', hrB, 'bile', { bands: 2, flat: true, px: 0, chevrons: { pitch: RAD.bh * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
     this.bileObjs = [bc, bh];
     // the ductule's wall opens where a canal of Hering joins it (2D: mouths while the Bile layer is on, mouthsNoBile while it is off)
     this.discInfo.get('bd')!.setPool(canalPool);
@@ -360,9 +370,20 @@ export class LobuleView {
     for (const [o, e] of edges) (o.ink.uniforms.color.value as Color).setRGB(cell.r + (e[0]! - cell.r) * 0.92, cell.g + (e[1]! - cell.g) * 0.92, cell.b + (e[2]! - cell.b) * 0.92);
     // the space of Disse is one flat tone (no light, no outline); the lymph's marks are soft bands with an amber core, as 2D's
     for (const o of this.flat) (o.toon.uniforms.shade.value as Color).copy(o.toon.uniforms.color.value as Color);
-    for (const mk of this.marked) if (mk.layer === 'lymph') { rawColor(p.tones['amber' as never] as string, mk.obj.toon.uniforms.markColor.value as Color); rawColor(p.tones['amber' as never] as string, mk.obj.toon.uniforms.markReversed.value as Color); }
+    this.paintDisse();
+    // the flow heads' inks: 2D's near-black and cream (the lumen's luminance picks) and the reversed orange of the look (the lymph's and the bile's are their own, in the shader)
+    for (const mk of this.marked) {
+      const u = mk.obj.toon.uniforms;
+      rawColor(LENS_SHARED.chevron, u.headDark.value as Color); rawColor(LENS_SHARED.chevronLight, u.headLight.value as Color); rawColor(LENS_TOKENS[look].flowReversed, u.headRevCol.value as Color);
+    }
     this.zones.applyLook(look);
     this.dirty = true;
+  }
+  /** The space of Disse's one flat colour (2D LYD: the lymph's teal deepened with filtration, disse.ts), shade and fill the same: no tone, no line, no marks. */
+  private paintDisse(): void {
+    const u = this.o.ly.toon.uniforms, c = disseColour(this.cur.prot, this.cur.lymphRate, lookColours(this.look).dark);
+    (u.color.value as Color).setRGB(c[0], c[1], c[2], LinearSRGBColorSpace);
+    (u.shade.value as Color).copy(u.color.value as Color);
   }
   setPhone(phone: boolean): void { this.phone = phone; for (const o of this.objects) o.setPhone(phone); this.dirty = true; }
 
@@ -389,7 +410,7 @@ export class LobuleView {
     g.portal = m.rev.pre ? -Math.abs(m.portal) : Math.abs(m.portal);
     g.art = Math.abs(m.art);
     g.lymphRate = Math.min(6, Math.max(0.2, lymphRate(m)));
-    g.seal = lymphSeal(m);
+    g.seal = lymphSeal(m); g.prot = lymphProtein(m);
     this.dirty = true;
   }
   /** The state at once, no ease (the view opens on the first frame already as the model has it). */
@@ -463,6 +484,12 @@ export class LobuleView {
       if (mk.smokes) goal *= this.stasis < 0.5 ? 1 - 2 * this.stasis : 2 * this.stasis - 1;
       if (mk.amount !== goal) { mk.amount = Math.abs(goal - mk.amount) <= k ? goal : mk.amount + Math.sign(goal - mk.amount) * k; moving = true; }
       if (mk.amount > 0.001) moving = true;   // marks run: keep asking for frames
+      // the heads' stream moves at the flow's speed (marks a second of the old period, the 2D painter's speeds), its distance kept here as 2D keeps sm.D; reduced motion holds it
+      const sp = mk.speed() * mk.dir;
+      if (!this.reduce && mk.amount > 0.001) mk.phase = (((mk.phase + sp * mk.arc * HEAD_K * dt / 1000) % HEAD_PERIOD) + HEAD_PERIOD) % HEAD_PERIOD;
+      // an inlet whose portal flow runs backward carries orange heads with a second small one behind (the flag eases, as 2D's sm.rev)
+      const revGoal = mk.part === 'inlets' && this.cur.portal < -0.02 ? 1 : 0;
+      mk.rev += (revGoal - mk.rev) * (this.reduce ? 1 : 1 - Math.exp(-dt / 500));
     }
     if (this.inks.step(dt, this.reduce)) moving = true;
     this.apply();
@@ -481,6 +508,7 @@ export class LobuleView {
     // lymph: the whole part shrinks away with its layer; no group is hidden until it has gone
     const f = this.lyFade;
     this.set.get('lymph').group.visible = f > 0.002;
+    this.paintDisse();
     infl(o.lt, -RAD.lt * (1 - f)); infl(o.ly, -RAD.ly * (1 - f) + 0.004 * c.seal);
     this.updateDiscs();
     // bile: the Bile layer's canaliculi and canals shrink away with it; the ductules at the tracts swell a little while it is on
@@ -490,8 +518,12 @@ export class LobuleView {
     // marks: speed from the flow, direction from the course (the Disse's marks run against its course), amount faded
     for (const mk of this.marked) {
       const smoke = mk.smokes && this.stasis >= 0.5;
-      mk.obj.toon.uniforms.stubSpeed.value = smoke ? 0.14 : mk.speed() * mk.dir;
-      mk.obj.setFlow(mk.amount, smoke || mk.layer === 'lymph');   // (the lymph's marks are 2D's soft dashes, not arrowheads)
+      const sp = mk.speed() * mk.dir, u = mk.obj.toon.uniforms;
+      u.stubSpeed.value = smoke ? 0.14 : sp;
+      mk.obj.setFlow(smoke ? mk.amount : 0, true);   // (the stagnant sinusoid's soft smoke bands only: the stripe chevron is gone from the lobule)
+      // the flow heads, 2D's (shading.ts): a still stream (no flow) shows none, as a sinusoid whose flow has stopped does in 2D
+      u.headAmount.value = smoke || Math.abs(sp) < 0.02 ? 0 : mk.amount;
+      u.headDir.value = sp < 0 ? -1 : 1; u.headPhase.value = mk.phase; u.headRev.value = mk.rev;
     }
     // the wedge's amber
     const k = this.washK, front = washFront(k, this.net.rcv0);
@@ -511,7 +543,7 @@ export class LobuleView {
     if (k === 'in') return inletRadius(i, n, Math.hypot(t.pts[i]![0] - t.pts[0]![0], t.pts[i]![1] - t.pts[0]![1])) / (1 + 0.45 * c.fibPre);
     if (k === 'tw') return twigR(i / (n - 1), RS_N);
     if (k === 'lt' || k === 'lv') return LT_R * lyWr(c.lymphRate, 0.4);
-    if (k === 'ly') return RAD.ly / R;
+    if (k === 'ly') return disseRadius((t as Course).rho[i]!);
     if (k === 'bs') return RAD.bc / R;
     return RAD.bh / R;
   }
