@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { blendFrom, braid, coilCourses, CoilState, wiggle, varixSize, varixSpreadK, type P2 } from '../src/scene/vessels/coil.ts';
-import { NETWORK, NETWORK_BY_ID, NODE_Z, feederLive } from '../src/scene/vessels/network.ts';
+import { LIVER_BRANCH_HOSTS } from '../src/scene/vessels/liver-branches.ts';
+import { isCut, NETWORK, NETWORK_BY_ID, NODE_Z, feederLive } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { buildTubes } from '../src/scene/vessels/tubes.ts';
 import { EDGE_PATH_2D } from '../src/scene/vessels/paths.copied.ts';
@@ -91,8 +92,9 @@ test('joined vessels meet at one depth: every course starts and ends at its node
   for (const v of NETWORK) {
     if (v.feeder) continue;
     const c = coursesOf(v, REST)[0]!, zf = NODE_Z.get(v.from)!, zt = NODE_Z.get(v.to)!;
-    assert.ok(Math.abs(c.pts[0]![2] - zf) < 1e-9, `${v.id} start`);
-    assert.ok(Math.abs(c.pts[c.pts.length - 1]![2] - zt) < 1e-9, `${v.id} end`);
+    const cutStart = isCut(v.id) && !(LIVER_BRANCH_HOSTS.out as readonly string[]).includes(v.id), cutEnd = isCut(v.id) && (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(v.id);   // (a vein that branches is cut at its split)
+    if (!cutStart) assert.ok(Math.abs(c.pts[0]![2] - zf) < 1e-9, `${v.id} start`);
+    if (!cutEnd) assert.ok(Math.abs(c.pts[c.pts.length - 1]![2] - zt) < 1e-9, `${v.id} end`);
   }
 });
 

@@ -5,6 +5,7 @@ import { len3, x3, y3 } from '../frame2d.ts';
 import { TIER_Z } from '../frame2d.ts';
 import { coilCourses } from './coil.ts';
 import { NETWORK_BY_ID, NODE_Z, type NetVessel } from './network.ts';
+import { LIVER_BRANCH_HOSTS, SPLIT_AT } from './liver-branches.ts';
 import { CAV, cavChannels, cavGrowth } from './cav.ts';
 import { BEAD_LAMBDA_FUNDAL, BEAD_SITE, beadLambda } from './varix-bead.copied.js';
 import { STRAND_FROM_2D } from './coil.copied.ts';
@@ -40,6 +41,8 @@ const to3 = (pts: readonly (readonly [number, number])[], z: number, from?: numb
 function depthEnds(v: NetVessel): { zf: number | undefined; zt: number | undefined; sf: number; st: number; through: boolean } {
   let zf = NODE_Z.get(v.from), zt = NODE_Z.get(v.to), through = false;
   if (smoothJoinsOn()) { const r = endDepth(v.to, zt); if (r.rise) { zt = r.z; through = true; } }
+  // (the end of a vein that branches is its split, not a node: it stays on its own plane, where its children begin)
+  if (SPLIT_AT[v.id] != null && SPLIT_AT[v.id]! < 0.9) { if ((LIVER_BRANCH_HOSTS.out as readonly string[]).includes(v.id)) zt = undefined; else zf = undefined; }
   return { zf, zt, sf: END_SHARE, st: END_SHARE, through };
 }
 
@@ -144,7 +147,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     })];
   }
   // a fan: each tributary's width is the host's times the group's share and its own (at least 1.2 units), thinner while the group is only part on
-  return plan.list.map((f) => ({ ...(f.taper ? { taper: f.taper, taperSpan: [0.3, 0.9] as const } : {}), pts: f.dz ? to3(f.pts, z).map((p, i): Vec3 => [p[0], p[1], p[2] + f.dz![i]!]) : to3(f.pts, z), radius: len3(Math.max(0.35, Math.max(1.2, plan.hostW * plan.cfgK * f.k * (plan.when ? 0.5 + 0.5 * s.live : 1)) / 2)) }));
+  return plan.list.map((f) => ({ ...(f.taper ? { taper: f.taper, taperSpan: f.taperSpan ?? ([0.3, 0.9] as const) } : {}), ...(f.join != null ? { capless: (f.join === 0 ? [true, false] : [false, true]) as readonly [boolean, boolean] } : {}), pts: f.dz ? to3(f.pts, z).map((p, i): Vec3 => [p[0], p[1], p[2] + f.dz![i]!]) : to3(f.pts, z), radius: len3(Math.max(0.35, Math.max(1.2, plan.hostW * plan.cfgK * f.k * (plan.when ? 0.5 + 0.5 * s.live : 1)) / 2)) }));
 }
 
 /** The tube segments each course is built with, fixed at rest so a coil changes positions and never the vertex count. */
