@@ -64,7 +64,7 @@ function SceneBridge() {
   useEffect(() => {
     if (gl.domElement.style.opacity !== '1') gl.domElement.style.opacity = '0';   // (comes in with the first drawn frame, below)
     setRenderer(gl);
-    const off = installShaderGuard(gl, cel.scene, () => clock.invalidate('shader-failed'), () => [cel.post.material]);
+    const off = installShaderGuard(gl, cel.scene, () => clock.invalidate('shader-failed'), () => [cel.post.material, ...cel.post.dof.materials]);
     return () => { off(); setRenderer(null); };
   }, [gl]);
 

@@ -780,15 +780,18 @@ export class CelScene {
     this.lobule.setDpr(gl.getPixelRatio?.() ?? 1);
     const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;
     // the figure is drawn into a texture of the canvas's size and filtered onto the canvas once (post-aa.ts), unless the pass is off or the device refused it
+    // depth of field in the dive (desktop only, post-dof.ts): zero cost unless its strength is above 0; the vessels' pass then keeps the depth the first pass drew (it draws nothing once the body is gone)
+    const dofShare = this.post.dof.frame(this.figureView, cam, this.rig.pose.shot.target, cam.position.distanceTo(this.livePoint), this.lobuleRest(), DIVE_IN);
     const into = this.post.target(gl);
+    const dof = dofShare > 0 && !!into?.depthTexture;
     if (into) gl.setRenderTarget(into);
     cam.layers.set(0);
     gl.render(this.scene, cam);
     gl.autoClear = false;
-    gl.clearDepth(); gl.clearStencil();   // (the outlines' stencil goes with the depth: each pass inks a pixel once, vessel-object.ts hullMat)
+    if (!dof) { gl.clearDepth(); gl.clearStencil(); }   // (the outlines' stencil goes with the depth: each pass inks a pixel once, vessel-object.ts hullMat)
     cam.layers.set(VESSEL_LAYER);
     gl.render(this.scene, cam);
-    if (into) { gl.setRenderTarget(null); this.post.resolve(gl); }
+    if (into) { if (dof) this.post.dof.run(gl, into); gl.setRenderTarget(null); this.post.resolve(gl); }
     gl.autoClear = ac;
     cam.layers.mask = mask;
   }
