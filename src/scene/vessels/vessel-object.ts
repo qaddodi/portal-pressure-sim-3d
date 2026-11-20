@@ -85,6 +85,7 @@ export class VesselObject extends CelObject {
     const toon = new ShaderMaterial({
       vertexShader: VESSEL_VS,
       fragmentShader: VESSEL_FS,
+      precision: 'highp',   // the ink's lateral distance is a device-pixel difference of two large clip-space numbers: never mediump (a phone's default for a missing statement)
       side: DoubleSide,
       uniforms: {
         ...u,
@@ -186,7 +187,7 @@ export class VesselObject extends CelObject {
    *  organs is the same one-draw tube as any vessel's). `faint`: the cava (F_VEIL), drawn only as that copy. `overLayer` is the camera layer of what is drawn over the organs. */
   setBehindOrgans(overLayer: number, faint: boolean): void {
     if (this.veil) return;
-    const mat = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1 } });
+    const mat = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1 } });
     if (this.tip) mat.transparent = true;   // (a fade zone blends; nothing else does)
     const mesh = new Mesh(this.toonMesh.geometry, mat);
     mesh.matrixAutoUpdate = true; mesh.renderOrder = 2; mesh.frustumCulled = false;

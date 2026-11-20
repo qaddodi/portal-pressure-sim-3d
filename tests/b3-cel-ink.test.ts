@@ -107,7 +107,7 @@ test('the outline is continuous by construction: painted in the tube\'s own frag
   const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
   assert.match(VESSEL_VS, /vCen = vec3\(cc\.x, cc\.y, cc\.w\);/, 'the vertex stage passes the axis');
   assert.match(VESSEL_FS, /float dLat = tl > 1e-3 \? abs\(dot\(dvPx, vec2\(-tS\.y, tS\.x\) \/ tl\)\) : length\(dvPx\);/, 'the exact lateral distance in device px');
-  assert.match(VESSEL_FS, /float inkT = smoothstep\(rDev - 0\.5, rDev \+ 0\.5, dLat\) \* endK \* inkOn;/, 'half a pixel of antialiasing each side of the lumen\'s edge');
+  assert.match(VESSEL_FS, /float inkT = smoothstep\(rDevAx - 0\.5, rDevAx \+ 0\.5, dLat\) \* endK \* inkOn;/, 'half a pixel of antialiasing each side of the lumen\'s edge');
   assert.doesNotMatch(VESSEL_FS + VESSEL_VS, /gl_FrontFacing \|\| |attribute float hull|vHull|hullOn/, 'no hull');
   assert.match(read('../src/scene/Stage.tsx'), /stencil: true/);
   assert.match(read('../src/scene/scene.ts'), /gl\.clearDepth\(\); gl\.clearStencil\(\)/);

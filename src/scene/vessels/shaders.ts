@@ -328,7 +328,7 @@ bool capCarved(float across) {
   float dd = 1e9;
   if (circCap.x > 0.5) dd = vUv.x * len * vU;
   if (circCap.y > 0.5) dd = min(dd, (1.0 - vUv.x) * len * vU);
-  float wpc = vW * 2.0 / (res.y * projY) * vU;
+  float wpc = vCen.z * 2.0 / (res.y * projY) * vU;   // (the axis's depth, the one the vertex stage built the line from)
   float rDev = vR / max(wpc, 1e-6) * dpr;
   float ink = clamp(${F(CEL_STYLE.LINE_R)} * rDev, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) / dpr * wpc * inkOn;
   float R = (vR + ink) * k, a = dd + ink * k;
@@ -363,6 +363,7 @@ void main() {
   float wpc0 = vW * 2.0 / (res.y * projY) * vU;
   float rDev = vR / max(wpc0, 1e-6) * dpr;
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
+  float rDevAx = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
   vec3 c = celTubeTone(base, sT, fwidth(sT), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
 
@@ -429,7 +430,7 @@ void main() {
   float dLat = tl > 1e-3 ? abs(dot(dvPx, vec2(-tS.y, tS.x) / tl)) : length(dvPx);
   float endR = min(mate0.x >= 0.0 ? vUv.x : 1e9, mate1.x >= 0.0 ? 1.0 - vUv.x : 1e9) * len * vU;
   float endK = vHi > 0.001 ? 1.0 : smoothstep(0.5 * ${F(CEL_STYLE.TUBE.END_R)}, ${F(CEL_STYLE.TUBE.END_R)}, endR / max(vR, 1e-6));
-  float inkT = smoothstep(rDev - 0.5, rDev + 0.5, dLat) * endK * inkOn;
+  float inkT = smoothstep(rDevAx - 0.5, rDevAx + 0.5, dLat) * endK * inkOn;
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);

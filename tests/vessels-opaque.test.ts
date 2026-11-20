@@ -51,3 +51,15 @@ test('outside a fade zone the outline is solid ink: the casing alpha is 1 on eve
   assert.equal(CEL_STYLE.INK_ALPHA_MIN, 1, 'the outline is solid ink');
   for (const id of LOOK_IDS) { assert.equal(CASING[id].a, 1, `${id}: casing`); assert.equal(CASING[id].circ.a, 1, `${id}: circuit casing`); }
 });
+
+// Mohammad, 20 Nov: the outline still read interrupted on his iPhone (iOS Safari, 3x). Phone-only causes pinned here.
+test('phone: the vessel programs are highp, the line is held in device px with a floor, and the ink band is measured at the depth the tube was built at', () => {
+  assert.ok(CEL_STYLE.LINE_MIN >= 1.5, 'the line never goes under 1.5 device px (it could sub-pixel out into dashes)');
+  const s = new CelScene();
+  for (const o of s.vessels) assert.equal((o.toonMesh.material as import('three').ShaderMaterial).precision, 'highp', `${o.edge!.id}: highp`);
+  s.dispose();
+  assert.match(VESSEL_FS, /float rDevAx = vR \/ max\(vCen\.z \* 2\.0 \/ \(res\.y \* projY\) \* vU, 1e-6\) \* dpr;/, 'the axis depth');
+  assert.match(VESSEL_FS, /float wpc = vCen\.z \* 2\.0 \/ \(res\.y \* projY\) \* vU;/, 'the round cap uses it too');
+  assert.match(VESSEL_FS, /vec2 dvPx = gl_FragCoord\.xy - \(vCen\.xy \/ vCen\.z \* 0\.5 \+ 0\.5\) \* res \* dpr;/, 'drawing-buffer pixels: the renderer ratio times the CSS size');
+  assert.doesNotMatch(VESSEL_VS + VESSEL_FS, /mediump|lowp/);
+});
