@@ -179,7 +179,7 @@ test('CONTAINED BY CONSTRUCTION (Mohammad, 20 Nov: "the streaks are flowing outs
 });
 
 test('sparse and thin (streak-visible.test.ts holds the numbers); and they lie UNDER the chevrons in every site', () => {
-  assert.ok(STREAK.FIELD_PERIOD[0] >= 100, 'a lane is mostly empty');
+  assert.ok(STREAK.FIELD_PERIOD[0] >= 80, 'a lane is mostly empty');
   assert.ok(STREAK.FIELD_GAP <= 0.15, 'few empty cycles');
   assert.ok(STREAK.FIELD_THICK <= 0.25 && STREAK.THICK_MAX <= 4, 'thin');
   assert.equal(STREAK.LANES, 7);

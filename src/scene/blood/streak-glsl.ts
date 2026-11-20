@@ -19,17 +19,17 @@ export const STREAK = {
   /** its thickness at the widest: this share of the tube's radius, between THICK_MIN and THICK_MAX px, a little varied by streak */
   THICK_OF_R: 0.16, THICK_MIN: 1.3, THICK_MAX: 3, THICK_JITTER: 0.3,
   /** the field's own numbers (a shape with an across and an along, um): a lane's pitch, a comet's period and length (base + spread), its half width in lane units, the share of the cycles left empty */
-  FIELD_PITCH: 0.9, FIELD_EDGE: 0.9, FIELD_AT_R: 5, FIELD_PERIOD: [150, 100], FIELD_LEN: [40, 40], FIELD_THICK: 0.18, FIELD_GAP: 0.12,
+  FIELD_PITCH: 0.9, FIELD_EDGE: 0.9, FIELD_AT_R: 5, FIELD_PERIOD: [90, 60], FIELD_LEN: [40, 40], FIELD_THICK: 0.18, FIELD_GAP: 0.12,
   /** SLEEK (Mohammad, 20 Nov: "those streaks are horrendous... more sleek", "much thinner, variable in colour, not too white"): a streak is a LONG soft lozenge, FIELD_LEN_R tube radii on average (the field's units are 5 to the radius, so 40 to 80 units are 8 to 16 radii), with a period of 150 to 250 units so
    *  a lane is mostly empty (at least 3 x a streak's length on a thin tube); its core is CORE_PX CSS px thick (CORE_WIDE_PX on a wide tube), its edge feathered EDGE_FEATHER_PX px. */
-  FIELD_LEN_R: 12, CORE_PX: 1, CORE_WIDE_PX: 1.5, EDGE_FEATHER_PX: 0.6,
+  FIELD_LEN_R: 12, CORE_PX: 1.3, CORE_WIDE_PX: 1.6, EDGE_FEATHER_PX: 0.6,
   /** both ends are feathered: the alpha ramps 0 to 1 over this share of the length at each end, whole between (a slim rounded lozenge, never a blunt head nor a point) */
   FEATHER: 0.35,
   /** each streak's own speed, seeded: +-this on top of its lane's (symmetric, so the mean stands) */
   SPEED_JITTER: 0.25,
   /** each streak's own tone, seeded, a subtle tint of the vessel's OWN tone: from the body x TONE_LO to the body mixed TONE_HI toward white (TONE_HI x (1 + TONE_WIDE_UP) on a wide tube), x (1 +- LIGHT_VAR) in lightness, a warm or cool shift of up to HUE (a share of a channel),
    *  never darker than the body and never more than WHITE_CAP of the way to white */
-  TONE_LO: 1.05, TONE_HI: 0.22, TONE_WIDE_UP: 0.25, WHITE_CAP: 0.3, DEEP_SHARE: 0.55, LIGHT_VAR: 0.08, HUE: 0.03,
+  TONE_LO: 1.1, TONE_HI: 0.26, TONE_WIDE_UP: 0.15, WHITE_CAP: 0.3, DEEP_SHARE: 0.6, LIGHT_VAR: 0.08, HUE: 0.03,
   /** how far across the tube (of its radius) the outer lane sits */
   SPAN: 0.78,
   /** a streak fades out over this many tube radii at each end of its vessel, so it never crosses a junction */
