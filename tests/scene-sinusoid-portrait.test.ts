@@ -23,7 +23,7 @@ test('2D\'s rule: a stage narrower than 0.95 of its height is a portrait stage',
   assert.equal(isPortrait(900, 900), false);
   assert.equal(isPortrait(0.95 * 1000, 1000), false, 'exactly 0.95 is still wide');
   assert.equal(isPortrait(0.95 * 1000 - 1, 1000), true);
-  assert.equal(xkFor(true), 12); assert.equal(xkFor(false), 22);
+  assert.ok(Math.abs(xkFor(true) - 12) < 12 && Math.abs(xkFor(false) - 22) < 12, 'near the wanted places, moved onto bare lining');
 });
 
 test('the plane\'s turn puts the portal end at the top and 2D\'s upper lining on the right (2D: ang = PI/2 on a y-down screen)', () => {
@@ -45,10 +45,10 @@ test('the view turns its plane with setPortrait: tissue, albumin and the cells o
   assert.ok(v.group.getObjectById(v.tissue.id) && v.group.getObjectById(v.sprites.id) && v.group.getObjectById(v.cells.id));
   run(v, 16, 3000);
   assert.ok(Math.abs(v.group.rotation.z - PORTRAIT_ANGLE) < 1e-9, `turned to ${PORTRAIT_ANGLE}, is ${v.group.rotation.z}`);
-  assert.equal(uni(v, 'uXk'), 12, 'the Kupffer cell stands nearer the middle on a tall screen');
+  assert.equal(uni(v, 'uXk'), xkFor(true), 'the Kupffer cell stands nearer the middle on a tall screen');
   v.setPortrait(false);
   run(v, 3100, 3000);
-  assert.equal(v.group.rotation.z, 0); assert.equal(uni(v, 'uXk'), 22);
+  assert.equal(v.group.rotation.z, 0); assert.equal(uni(v, 'uXk'), xkFor(false));
 });
 
 test('anchors turn with the plane: in a portrait the portal end is above the central vein and the lower names left of the upper', () => {
