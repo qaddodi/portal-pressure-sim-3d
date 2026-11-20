@@ -119,9 +119,9 @@ DMark dPlace(DFrame F, DSeg g, float yc, DPart P) {
   // turbulence, held to nothing at the ends (the wobble moves with time: at a joint the particle must be where its lane says)
   float Wd = max(18.0, 0.12 * F.Lw);
   float d = clamp(min(ae, F.Lw - ae), 0.0, F.Lw);
-  float wEnd = 1.0 - smoothstep(0.0, 1.0, d / Wd);
-  float TcRaw = clamp(${F(STREAK.T_STENOSIS)} * (1.0 - smoothstep(0.5, 0.85, F.nar)) + ${F(STREAK.T_FLOW)} * smoothstep(25.0, 45.0, abs(F.vd)), 0.0, 1.0);
-  float T = clamp(D_turb * (TcRaw + ${F(STREAK.T_END)} * wEnd), 0.0, 1.3) * smoothstep(0.0, 0.5 * Wd, d);
+  // (a narrowing only: healthy blood is laminar, calm lanes along the wall, however fast it runs and however near a joint. Mohammad, 20 Nov: "the blood streaks seem to think there is stenoses everywhere")
+  float TcRaw = clamp(${F(STREAK.T_STENOSIS)} * (1.0 - smoothstep(0.5, 0.85, F.nar)), 0.0, 1.0);
+  float T = clamp(D_turb * TcRaw, 0.0, 1.3) * smoothstep(0.0, 0.5 * Wd, d);
   vec2 tw = dTwist(ae, F.Lw, dTurns(F.edge));
   float qL = ae / max(F.rFix, 1e-4) * ${F(LAB_R)};   // (the lab's own units: its wobble's wavelengths)
   float tt = time;
