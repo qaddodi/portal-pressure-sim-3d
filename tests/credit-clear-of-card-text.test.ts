@@ -4,7 +4,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { freeSpots } from '../src/ui/shell/credit-spots.copied.js';
+import { freeSpots as spots } from '../src/ui/shell/credit-spots.copied.js';
+
+const freeSpots = spots as unknown as (fig: unknown, obs: unknown[], w: number, h: number, o: unknown) => Record<string, { x: number; y: number }>;
 
 test('the credit looks at the words and art of the cards, and again when the slide changes', () => {
   const src = readFileSync('src/ui/shell/Credit.tsx', 'utf8');
