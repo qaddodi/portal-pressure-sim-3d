@@ -22,6 +22,7 @@ import { x3, y3 } from '../frame2d.ts';
 import { bakeOrganDepth } from './organ-depth.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import type { OrganFill } from '../../state/settings.ts';
+import { OrganArt } from './organ-art.ts';
 
 type Og = keyof OrganTones2D['tones'];
 /** The tone each 2D organ takes, its 2D painter's tones (--og-<og>-1/2/3; anatomy.js `tone`), the outline's width (2D: 1.1 px, the kidney 1.4) and alpha (.62, the kidney .95, the atrium .35),
@@ -103,6 +104,8 @@ export class OrganLayer {
   private readonly solidE = new Eased(0, 0.14);
   private depthGoal = 0; private solidGoal = 0; private fillInstant = true;
   private readonly paints = new Map<string, VertexPaint>();
+  /** 2D's art on the organs (the bowel's loops, the colon's haustra, the stomach's rugae) and the esophagus's fade: organ-art.ts */
+  private readonly art = new OrganArt();
   private liverShape: LiverShape | null = null;
   private liverGeometry: BufferGeometry | null = null;
   private lastClock = -1;
@@ -134,6 +137,7 @@ export class OrganLayer {
       if (PAINTED.has(id)) { if (!g.getAttribute('normal')) g.computeVertexNormals(); this.paints.set(id, new VertexPaint(g, id as 'liver' | 'spleen' | 'stomach')); }
       const o = new CelObject(g, { tone: st.tone, bands: 3, spec: 0, px: st.px }, this.shared);
       useOrganShader(o, g, id, this.uDepth, this.uSolid);
+      this.art.attach(id, o.toon, o.ink, g);
       if (this.phone) o.setPhone(true);
       o.ink.uniforms.px!.value = this.inkPx(id);
       this.objects.push(o); this.byId.set(id, o); this.group.add(o.group);
@@ -154,7 +158,7 @@ export class OrganLayer {
   /** How big the spleen is drawn now (1: normal): a caliper along its axis grows with it. */
   get spleenScaleNow(): number { return this.spleenScale.value; }
 
-  applyLook(p: Palette): void { this.palette = p; this.dirtyColours = true; }
+  applyLook(p: Palette): void { this.palette = p; this.art.applyLook(p); this.dirtyColours = true; }
   /** The organ outline is in the figure's units (ORGAN_INK_VS), so it needs no phone trim: keep 2D's 1.1 (kidney 1.4) on every device. */
   setPhone(phone: boolean): void { this.phone = phone; for (const [id, o] of this.byId) { o.setPhone(phone); o.ink.uniforms.px!.value = this.inkPx(id); } }
   /** The organ outline's width in the figure's units: 2D's (1.1, the kidney 1.4), wider by LINE_SCALE as the fill goes cel shaded. */
@@ -220,6 +224,7 @@ export class OrganLayer {
       const t1 = rgbOf(og[0]), t2 = rgbOf(og[1]), base = mix(t1, t2, 0.5);
       const c = organColour(base, s, k);
       this.setColours(o, organColour(t1, s, k), organColour(t2, s, k), c, organInk(rgbOf(og[2]), s, k), st.inkA, organLayerAlpha(p, id), page, p.organs);
+      this.art.setState(id, s, k, p);
       o.ink.uniforms.px!.value = this.inkPx(id);
       const vp = this.paints.get(id);
       if (!vp) continue;
@@ -272,5 +277,5 @@ export class OrganLayer {
   /** The 2D organs this layer draws, for the parity table. */
   get ids(): string[] { return [...this.byId.keys()]; }
 
-  dispose(): void { for (const o of this.objects) o.dispose(); }
+  dispose(): void { for (const o of this.objects) o.dispose(); this.art.dispose(); }
 }

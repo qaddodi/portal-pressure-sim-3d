@@ -88,7 +88,7 @@ test('cel shaded: the organ\'s line is 2D\'s alpha whole, not thinned by the lay
   const mid = away();
   for (let t = 1032; t < 4000 && organs.update(t); t += 16);
   const cel = away();
-  assert.ok(wash > 0 && cel > wash * 1.4, `the line is stronger cel shaded (${wash.toFixed(3)} -> ${cel.toFixed(3)})`);
+  assert.ok(wash > 0 && cel > wash * 1.2, `the line is stronger cel shaded (${wash.toFixed(3)} -> ${cel.toFixed(3)})`);   // (Light's wash is at .72 since 19 Nov, so its line is .62 × .72, not × .55)
   assert.ok(mid > wash && mid < cel, 'and it eases');
   const px = organs.byId.get('liver')!.ink.uniforms.px!.value as number;
   assert.ok(Math.abs(px - 1.1 * O.LINE_SCALE) < 1e-6, `the outline is ${O.LINE_SCALE} times 2D's width in figure units (${px})`);

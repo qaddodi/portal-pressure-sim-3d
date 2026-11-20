@@ -7,7 +7,8 @@ import { VESSEL_FS, VESSEL_VS } from '../scene/vessels/shaders.ts';
 import { DOT_FS, DOT_VS, PLATE_FS, PLATE_VS } from '../scene/circuit/map-layer.ts';
 import { SINUSOID_PFS, SINUSOID_PVS, SINUSOID_VS } from '../scene/sinusoid/gl.copied.ts';
 import { SINUSOID_CEL_FS } from '../scene/sinusoid/view.ts';
-import { ORGAN_FS, ORGAN_VS } from '../scene/organs/organ-shader.ts';
+import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from '../scene/organs/organ-shader.ts';
+import { patchedShaders } from '../scene/organs/organ-art.ts';
 import { RES_FS, RES_VS } from '../scene/circuit/resistors.ts';
 import { DYE_FS, DYE_VS } from '../scene/disease/dye.ts';
 import { CHART_FS, CHART_VS } from '../ui/charts/gl.ts';
@@ -38,6 +39,7 @@ export const GL_FILES: Record<string, string> = {
   'scene/lobule/plate.ts': 'the lobule\'s tissue plate (2D\'s painter on a canvas texture): found on the scene graph',
   'scene/lobule/zones.ts': 'the lobule\'s Zones layer: found on the scene graph',
   'scene/lobule/field.ts': 'the neighbouring lobules out of focus: found on the scene graph',
+  'scene/organs/organ-art.ts': 'the organ wash wrapped for the organs\' art and the esophagus\'s fade (made when the art file is in): registered by name',
   'scene/blood/cells/shader.ts': 'the blood-cell particles (Settings > Figure depth; built when first switched on): registered by name, and found on the scene graph once they are in it',
   'scene/post-aa.ts': 'the anti-aliasing pass over the whole figure (FXAA on a full-screen quad, outside the scene graph): registered by name',
   'scene/post-dof.ts': 'the depth of field of the dive (desktop only: a half-size gather and a full-size blend on a full-screen quad, outside the scene graph): registered by name',
@@ -69,6 +71,18 @@ export function atlasPrograms(): Program[] {
 }
 
 /** The programs the scene graph does not hold until something happens (a Circuit, a dye bolus) and the ones outside the scene (charts, Doppler, FibroScan). */
+/** The organ wash wrapped for the art (the heart's line: art only), the stomach (art, the esophagus's tone and fade; its fill has vertex paint) and the colon (art, the rectum's fade): fill and outline. */
+function organArtPrograms(): Program[] {
+  const eso = { poly: [775, -90, 799, -90, 813, 266, 792, 266], box: [775, -90, 38, 356] as [number, number, number, number], fade: [40, -40] as [number, number], seam: [226, 262] as [number, number] };
+  const out: Program[] = [];
+  for (const [name, o, defines] of [['art', { art: true, eso: null }, undefined], ['stomach', { art: true, eso }, { VERTEX_INK: '' }], ['colon', { art: true, eso: null, fade: true }, undefined]] as const) {
+    const p = patchedShaders(ORGAN_VS, ORGAN_FS, ORGAN_INK_VS, INK_FS, o);
+    out.push(lateMaterialProgram(`organ wash + ${name}`, p.vs, p.fs, defines));
+    if (name !== 'art') out.push(lateMaterialProgram(`organ outline + ${name}`, p.inkVs, p.inkFs));
+  }
+  return out;
+}
+
 export function rawPrograms(fibroText: string): Program[] {
   const fibro = templateConstants(fibroText);
   const out = [
@@ -76,6 +90,7 @@ export function rawPrograms(fibroText: string): Program[] {
     lateMaterialProgram('circuit resistors', RES_VS, RES_FS),
     lateMaterialProgram('dye overlay', DYE_VS, DYE_FS),
     lateMaterialProgram('organ wash', ORGAN_VS, ORGAN_FS),
+    ...organArtPrograms(),
     lateMaterialProgram('blood cells', CELLS_VS, CELLS_FS),
     lateMaterialProgram('post aa', AA_VS, AA_FS),
     lateMaterialProgram('post dof', DOF_VS, DOF_GATHER_FS),
