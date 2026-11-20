@@ -62,6 +62,7 @@ export class DiseaseLayer {
     this.clots = new ClotLayer(shared);
     this.strands = new StrandLayer(shared);
     this.bleed = new BleedLayer(shared);
+    this.ascites.bindRes(shared.res);   // (the pool's sizes are screen pixels)
     this.clamps = new ClampLayer();
     for (const v of vessels) if (v.edge) this.clamps.bind(v.edge.id, v.toonMesh.geometry);
     this.dye = new DyeLayer(vessels.filter((v) => v.edge).map((v) => ({ id: v.edge!.id, geometry: v.toonMesh.geometry })));

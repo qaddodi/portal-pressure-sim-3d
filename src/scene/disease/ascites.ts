@@ -8,7 +8,7 @@
 //     the surface climbs the wall a few units like water in a glass, a pale rim lies just inside the wall, a crisp pale line rides the surface, deep water is a richer amber, and
 //     the surface sloshes a little while the level moves (a damped swing driven by how fast it rises or falls, always back to calm).
 // Everything is a number the clock eases (the volume's spring, the flow rate, the living switch's own 0.45 s glide, the slosh's damping): nothing pops.
-import { BufferAttribute, BufferGeometry, Group, Mesh, ShaderMaterial, Vector3 } from 'three';
+import { BufferAttribute, BufferGeometry, Group, Mesh, ShaderMaterial, Vector2, Vector3 } from 'three';
 import { ABDOMEN_OUTLINES } from './copied/anatomy-b4.ts';
 import { fluidBase, fluidLevel, poolFade } from './copied/fluid-step.js';
 import { x3, y3 } from '../frame2d.ts';
@@ -78,31 +78,41 @@ const hexTo01 = (hex: string): [number, number, number] => { const n = parseInt(
 
 
 // ---- Living fluid: the numbers, once (the shader below is written from them, and `poolLift` is the same sum in JS for the tests) ----
-/** Units (2D) from the wall over which the pool fades out, and over which the surface's ripple is damped to rest against the wall. */
-export const FEATHER = 16, RIPPLE_REST = 22;
-/** The surface climbs the wall by CLIMB units at the wall, falling off by exp(-distance / CLIMB_FALL); only the top RIPPLE_DEPTH units of the water move with the surface. */
-export const CLIMB = 4, CLIMB_FALL = 6, RIPPLE_DEPTH = 16;
-/** The pale rim just inside the wall: centred RIM_AT units from it, RIM_W wide, up to RIM_K toward white. */
-export const RIM_AT = 8, RIM_W = 6, RIM_K = 0.22;
-/** The crisp pale line on the surface: full to LINE_FROM units under it, gone by LINE_TO, LINE_K toward white (a cel line over 2D's soft meniscus). */
-export const LINE_FROM = 0.9, LINE_TO = 2.1, LINE_K = 0.35;
-/** Deep water is richer: from RICH_FROM to RICH_TO units under the surface the straw turns RICH_K of the way to its saturated self (x RICH_SAT, at RICH_VAL of the value). Alpha does not grow, so labels under it stay readable. */
-export const RICH_FROM = 40, RICH_TO = 190, RICH_K = 0.7, RICH_SAT = 1.45, RICH_VAL = 0.9;
-/** The slosh: the swing's own frequency (rad/s) and damping ratio, the tilt per unit of level speed (2D units per 2D unit/s), and the most the surface tilts at a wall. */
+// SIZES ARE SCREEN PIXELS, not 2D units (the 3D pool's first pass set them in 2D units and nothing read on an iPhone: the figure is about 0.6 CSS px per unit there, so a 2-unit
+// ripple, a 2-unit pale line and a 4-unit climb were each about a pixel, owner's phone shot of 20 Nov: "a flat muddy wash"). The vertex shader finds the pixels per 2D unit where it
+// is drawn (`pxu`, from the projection and the canvas height in CSS px) and converts, so the effects are the same weight on every screen and figure size.
+/** CSS px from the wall over which the pool fades out, and over which the surface's ripple is rested against the wall. */
+export const FEATHER_PX = 22, RIPPLE_REST_PX = 30;
+/** The surface climbs the wall by CLIMB_PX at the wall, falling off by exp(-distance / CLIMB_FALL_PX); only the top RIPPLE_DEPTH 2D units of the water move with the surface. */
+export const CLIMB_PX = 7, CLIMB_FALL_PX = 9, RIPPLE_DEPTH = 16;
+/** The ripple's crest-to-mean at 2D's full amplitude (2 units): never less than 2D's own units, and at least this many CSS px (so it reads on a phone). */
+export const RIPPLE_PX = 3.5, RIPPLE_AMP2D = 2;
+/** The pale rim just inside the wall: centred RIM_AT_PX from it, RIM_W_PX wide, up to RIM_K toward white. */
+export const RIM_AT_PX = 14, RIM_W_PX = 9, RIM_K = 0.28;
+/** The crisp pale line on the surface: full to LINE_FROM_PX under it, gone by LINE_TO_PX, LINE_K toward white (a cel line over 2D's soft meniscus); and a soft sheen, SHEEN_K toward white, fading over the top SHEEN_PX: the water's glassy top. */
+export const LINE_FROM_PX = 1.4, LINE_TO_PX = 3.2, LINE_K = 0.55, SHEEN_PX = 34, SHEEN_K = 0.2;
+/** Deep water is richer: from RICH_FROM to RICH_TO 2D units under the surface the straw turns RICH_K of the way to its saturated self (x RICH_SAT, at the same value: no darker, no muddier). Alpha does not grow, so labels under it stay readable. */
+export const RICH_FROM = 40, RICH_TO = 190, RICH_K = 0.85, RICH_SAT = 1.8, RICH_VAL = 1;
+/** The slosh: the swing's own frequency (rad/s) and damping ratio, the tilt per unit of level speed (2D units per 2D unit/s), and the most the surface tilts at a wall (2D units, scaled up on a small figure like the ripple). */
 export const SLOSH_W = 4.8, SLOSH_ZETA = 0.28, SLOSH_GAIN = 0.025, SLOSH_MAX = 6;
 /** 2D's ripple clock: the phase advances dt / 1.1 s at the full flow rate (stage-transitions.js), over 20 pi. */
 export const RIPPLE_PERIOD = 1.1, RIPPLE_WRAP = 20 * Math.PI;
 /** The Living fluid switch glides over this many seconds (a smoothed exponential: it never snaps). */
 export const LIVING_TAU = 0.15;
+/** One 2D unit in CSS px at the figure's own scale 1 (1400 units over ~1400 px): the floor of the boost below. */
+export const PXU_FLOOR = 1;
 
 const ss = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+/** How much the ripple and the slosh are enlarged where a 2D unit is under a pixel: RIPPLE_PX over the pixels of 2D's own full amplitude, from 1 (a big figure) to 5. */
+export const rippleBoost = (pxu: number): number => Math.min(5, Math.max(1, RIPPLE_PX / (RIPPLE_AMP2D * Math.max(pxu, 1e-3))));
 
-/** How far the water at a vertex is lifted (2D units, up is positive): 2D's two-sine ripple (rested near a wall when living), the climb up the wall and the slosh's tilt, on the top RIPPLE_DEPTH units only. The vertex shader sums the same terms. */
-export function poolLift(v: { wx: number; aW: number; aD: number; phase: number; amp: number; slosh: number; living: number }): number {
-  const ripple = (Math.sin(v.wx / 38 + v.phase) * 0.7 + Math.sin(v.wx / 23 - v.phase * 1.3) * 0.3) * v.amp;
-  const rest = 1 + (ss(0, RIPPLE_REST, v.aW) - 1) * v.living;
-  const climb = CLIMB * Math.exp(-v.aW / CLIMB_FALL);
-  const tilt = Math.min(1, Math.max(-1, (v.wx - 712) / 400)) * v.slosh;
+/** How far the water at a vertex is lifted (2D units, up is positive): 2D's two-sine ripple (rested near a wall when living, and enlarged on a small figure), the climb up the wall and the slosh's tilt, on the top RIPPLE_DEPTH units only. `pxu` is CSS px per 2D unit where it is drawn. The vertex shader sums the same terms. */
+export function poolLift(v: { wx: number; aW: number; aD: number; phase: number; amp: number; slosh: number; living: number; pxu?: number }): number {
+  const pxu = v.pxu ?? 1, boost = 1 + (rippleBoost(pxu) - 1) * v.living;
+  const ripple = (Math.sin(v.wx / 38 + v.phase) * 0.7 + Math.sin(v.wx / 23 - v.phase * 1.3) * 0.3) * v.amp * boost;
+  const rest = 1 + (ss(0, RIPPLE_REST_PX / pxu, v.aW) - 1) * v.living;
+  const climb = (CLIMB_PX / pxu) * Math.exp(-v.aW / (CLIMB_FALL_PX / pxu));
+  const tilt = Math.min(1, Math.max(-1, (v.wx - 712) / 400)) * v.slosh * rippleBoost(pxu);
   return (ripple * rest + v.living * (climb + tilt)) * (1 - ss(0, RIPPLE_DEPTH, v.aD));
 }
 
@@ -141,19 +151,26 @@ uniform float uPhase;
 uniform float uAmp;
 uniform float uSlosh;
 uniform float uLiving;
+uniform vec2 uRes;
 varying float vD;
 varying float vW;
+varying float vPxu;
 void main() {
+  // CSS px per 2D unit where this vertex is drawn (the projection's scale, the canvas height in CSS px, the depth, 300 units to a scene unit)
+  vec4 c0 = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  float pxu = projectionMatrix[1][1] * uRes.y * 0.5 / max(c0.w, 1e-3) / 300.0;
+  float boost = clamp(${f(RIPPLE_PX)} / (${f(RIPPLE_AMP2D)} * max(pxu, 1e-3)), 1.0, 5.0);
   float wx = position.x * 300.0 + 700.0;
-  float ripple = (sin(wx / 38.0 + uPhase) * 0.7 + sin(wx / 23.0 - uPhase * 1.3) * 0.3) * uAmp;
-  float rest = mix(1.0, smoothstep(0.0, ${f(RIPPLE_REST)}, aW), uLiving);
-  float climb = ${f(CLIMB)} * exp(-aW / ${f(CLIMB_FALL)});
-  float tilt = clamp((wx - 712.0) / 400.0, -1.0, 1.0) * uSlosh;
+  float ripple = (sin(wx / 38.0 + uPhase) * 0.7 + sin(wx / 23.0 - uPhase * 1.3) * 0.3) * uAmp * mix(1.0, boost, uLiving);
+  float rest = mix(1.0, smoothstep(0.0, ${f(RIPPLE_REST_PX)} / pxu, aW), uLiving);
+  float climb = ${f(CLIMB_PX)} / pxu * exp(-aW * pxu / ${f(CLIMB_FALL_PX)});
+  float tilt = clamp((wx - 712.0) / 400.0, -1.0, 1.0) * uSlosh * boost;
   float lift = (ripple * rest + uLiving * (climb + tilt)) * (1.0 - smoothstep(0.0, ${f(RIPPLE_DEPTH)}, aD));
   vec3 p = position;
   p.y += lift / 300.0;
   vD = aD;
   vW = aW;
+  vPxu = pxu;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
 }`;
 export const POOL_FS = /* glsl */ `
@@ -164,20 +181,24 @@ uniform float uOpacity;
 uniform float uLiving;
 varying float vD;
 varying float vW;
+varying float vPxu;
 void main() {
   float d = max(vD, 0.0);
+  float px = d * vPxu;   // depth under the surface in CSS px
   // 2D's fluidAt: ${SURFACE_SHARE} of the ink at the surface, the whole of it by ${DEEP_AT} units under, a soft pale meniscus
   float a = uInkA * (${f(SURFACE_SHARE)} + ${f(1 - SURFACE_SHARE)} * smoothstep(0.0, ${f(DEEP_AT)}, d));
   vec3 c = mix(uInk, mix(uInk, vec3(1.0), ${f(MENISCUS)}), exp(-d * d / ${f(MENISCUS_FALL)}));
-  // Living fluid: a crisp pale line on the surface, richer amber far under it, a pale rim just inside the wall, and the edge fading out over the last ${FEATHER} units
-  c = mix(c, vec3(1.0), ${f(LINE_K)} * (1.0 - smoothstep(${f(LINE_FROM)}, ${f(LINE_TO)}, d)) * uLiving);
+  // Living fluid: a glassy sheen over the top of the water and a crisp pale line on the surface (both in px), richer amber far under it, a pale rim just inside the wall, and the edge fading out over the last ${FEATHER_PX} px
+  c = mix(c, vec3(1.0), ${f(SHEEN_K)} * (1.0 - smoothstep(0.0, ${f(SHEEN_PX)}, px)) * uLiving);
+  c = mix(c, vec3(1.0), ${f(LINE_K)} * (1.0 - smoothstep(${f(LINE_FROM_PX)}, ${f(LINE_TO_PX)}, px)) * uLiving);
   float lum = dot(c, vec3(0.299, 0.587, 0.114));
   vec3 rich = clamp(vec3(lum) + (c - vec3(lum)) * ${f(RICH_SAT)}, 0.0, 1.0) * ${f(RICH_VAL)};
   c = mix(c, rich, ${f(RICH_K)} * smoothstep(${f(RICH_FROM)}, ${f(RICH_TO)}, d) * uLiving);
-  float rq = (vW - ${f(RIM_AT)}) / ${f(RIM_W)};
+  float wpx = vW * vPxu;
+  float rq = (wpx - ${f(RIM_AT_PX)}) / ${f(RIM_W_PX)};
   float rim = exp(-rq * rq) * ${f(RIM_K)} * uLiving;
   c = mix(c, vec3(1.0), rim);
-  float edge = mix(1.0, smoothstep(0.0, ${f(FEATHER)}, vW), uLiving);
+  float edge = mix(1.0, smoothstep(0.0, ${f(FEATHER_PX)}, wpx), uLiving);
   gl_FragColor = vec4(c, min(1.0, a * edge * (1.0 + rim)) * uOpacity);
 }`;
 
@@ -191,6 +212,7 @@ export class AscitesLayer {
   private readonly uniforms = {
     uInk: { value: this.ink }, uInkA: { value: FLUID_RGBA[3] as number }, uOpacity: { value: 0 },
     uPhase: { value: 0 }, uAmp: { value: 0 }, uSlosh: { value: 0 }, uLiving: { value: 1 },
+    uRes: { value: new Vector2(1, 1) } as { value: Vector2 },
   };
   /** The pool's level in 2D units at the middle of the belly (x 712), for the tests and the labels; null while there is no pool. */
   surface: number | null = null;
@@ -214,6 +236,8 @@ export class AscitesLayer {
     this.group.add(m);
     this.fill = m;
   }
+  /** The canvas size in CSS px (the scene's shared `res`): the pool's sizes are pixels, so its program needs the screen's. */
+  bindRes(res: { value: Vector2 }): void { this.uniforms.uRes = res; }
   /** The look's straw (tokens.css --ascites, --ascites-a): two uniforms, nothing is laid again. */
   applyLook(look: LookId): void {
     const k = ASCITES_INK[look], c = hexTo01(k.hex);

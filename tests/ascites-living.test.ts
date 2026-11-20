@@ -6,8 +6,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  AscitesLayer, CLIMB, FEATHER, LIVING_TAU, POOL_COLS, POOL_FS, POOL_ROWS, POOL_VS, RIPPLE_DEPTH, RIPPLE_REST, SLOSH_MAX,
-  bulgeStep, outlinePolygon, poolLift, sloshStep, wallDistance,
+  AscitesLayer, CLIMB_PX, FEATHER_PX, LIVING_TAU, POOL_COLS, POOL_FS, POOL_ROWS, POOL_VS, RIPPLE_DEPTH, RIPPLE_PX, RIPPLE_REST_PX, SLOSH_MAX,
+  bulgeStep, outlinePolygon, poolLift, rippleBoost, sloshStep, wallDistance,
 } from '../src/scene/disease/ascites.ts';
 import { ABDOMEN_OUTLINES } from '../src/scene/disease/copied/anatomy-b4.ts';
 import { DEFAULTS } from '../src/state/settings.ts';
@@ -23,7 +23,7 @@ test('Living fluid is a Figure depth switch, on by default', () => {
 
 test('the pool is one program with the wall distance and the depth per vertex, named so a refused shader hides it rather than greys the belly', () => {
   assert.match(POOL_VS, /attribute float aW;/); assert.match(POOL_VS, /attribute float aD;/);
-  assert.match(POOL_FS, new RegExp(`smoothstep\\(0\\.0, ${FEATHER}\\.0, vW\\)`), 'the edge fades over FEATHER units');
+  assert.match(POOL_FS, new RegExp(`smoothstep\\(0\\.0, ${FEATHER_PX}\\.0, wpx\\)`), 'the edge fades over FEATHER_PX screen pixels');
   assert.doesNotMatch(POOL_FS, /pow\(/, 'pow of a negative base is undefined in GLSL (the rim is exp(-q*q))');
   assert.equal(((new AscitesLayer().group.children[0] as unknown as { material: { name: string } }).material.name), 'pool');
   assert.match(readFileSync('src/debug/shader-guard.ts', 'utf8'), /m\.name === 'pool'/);
@@ -53,19 +53,35 @@ test('the soft edge: the surface climbs the wall and rests the ripple against it
   const poly = outlinePolygon(ABDOMEN_OUTLINES[20]!);
   assert.ok(wallDistance(poly, 336, 460) < 1e-9, 'a point on the outline is at distance 0');
   assert.ok(Math.abs(wallDistance(poly, 346, 460) - 10) < 0.6, 'ten units in from the side wall');
-  const at = (aW: number, living = 1, amp = 2) => poolLift({ wx: 500, aW, aD: 0, phase: 0.3, amp, slosh: 0, living });
-  assert.ok(Math.abs(at(0, 1, 0) - CLIMB) < 1e-9, 'at the wall the surface stands CLIMB units up it');
-  assert.ok(at(0, 1, 0) > at(6, 1, 0) && at(6, 1, 0) > at(30, 1, 0), 'and falls back to the level as it leaves the wall');
-  assert.ok(Math.abs(at(30, 1, 0)) < 0.03, 'flat water far from the wall');
-  const free = poolLift({ wx: 500, aW: 200, aD: 0, phase: 0.3, amp: 2, slosh: 0, living: 1 });
+  const at = (aW: number, living = 1, amp = 2, pxu = 1) => poolLift({ wx: 500, aW, aD: 0, phase: 0.3, amp, slosh: 0, living, pxu });
+  assert.ok(Math.abs(at(0, 1, 0) - CLIMB_PX) < 1e-9, 'at the wall the surface stands CLIMB_PX up it (one px to the unit)');
+  assert.ok(at(0, 1, 0) > at(6, 1, 0) && at(6, 1, 0) > at(40, 1, 0), 'and falls back to the level as it leaves the wall');
+  assert.ok(Math.abs(at(80, 1, 0)) < 0.02, 'flat water far from the wall');
+  const free = poolLift({ wx: 500, aW: 400, aD: 0, phase: 0.3, amp: 2, slosh: 0, living: 1 });
   const wall = poolLift({ wx: 500, aW: 0, aD: 0, phase: 0.3, amp: 2, slosh: 0, living: 1 });
-  assert.ok(Math.abs(wall - CLIMB) < 1e-9 && Math.abs(free) <= 2 + 1e-9, 'the ripple (at most its amplitude) rests to nothing at the wall');
-  assert.ok(RIPPLE_REST > 0 && FEATHER > 0);
+  assert.ok(Math.abs(wall - CLIMB_PX) < 1e-9 && Math.abs(free) <= 2 * rippleBoost(1) + 1e-9, 'the ripple rests to nothing at the wall');
+  assert.ok(RIPPLE_REST_PX > 0 && FEATHER_PX > 0);
   assert.equal(poolLift({ wx: 500, aW: 0, aD: RIPPLE_DEPTH, phase: 1, amp: 2, slosh: 3, living: 1 }), 0, 'only the top of the water moves; the deep water and the floor stay');
-  assert.ok(poolLift({ wx: 500, aW: 100, aD: 5, phase: 1, amp: 2, slosh: 0, living: 1 }) !== 0);
+  assert.ok(poolLift({ wx: 500, aW: 400, aD: 5, phase: 1, amp: 2, slosh: 0, living: 1 }) !== 0);
   // Living fluid off is 2D's pool: the ripple alone, the same at the wall, no climb and no tilt
   const t = (aW: number) => poolLift({ wx: 500, aW, aD: 0, phase: 0.3, amp: 2, slosh: 4, living: 0 });
   assert.equal(t(0), t(100)); assert.ok(Math.abs(t(0)) <= 2);
+});
+
+test('the effects are screen pixels: on a phone (0.6 px per 2D unit) the ripple, the climb and the feather are as many pixels as on a big screen (the first pass was a pixel each: "a flat muddy wash")', () => {
+  const pxu = 0.6;
+  assert.ok(rippleBoost(pxu) > 2.5 && rippleBoost(0.0001) <= 5 && rippleBoost(5) === 1, 'a small figure enlarges the ripple, a big one leaves 2D\'s own');
+  const crest = Math.max(...Array.from({ length: 200 }, (_, i) => poolLift({ wx: 100 + i * 5, aW: 900, aD: 0, phase: 0, amp: 2, slosh: 0, living: 1, pxu }))) * pxu;
+  assert.ok(crest > RIPPLE_PX * 0.55, `the ripple's crest is ${crest.toFixed(2)} px on a phone`);
+  assert.ok(Math.abs(poolLift({ wx: 500, aW: 0, aD: 0, phase: 0, amp: 0, slosh: 0, living: 1, pxu }) * pxu - CLIMB_PX) < 1e-9, 'the climb is CLIMB_PX px');
+  const off = Math.max(...Array.from({ length: 200 }, (_, i) => Math.abs(poolLift({ wx: 100 + i * 5, aW: 900, aD: 0, phase: 0, amp: 2, slosh: 0, living: 0, pxu }))));
+  assert.ok(off <= 2 + 1e-9, 'Living fluid off is 2D\'s ripple, whatever the screen');
+  assert.match(POOL_VS, /uniform vec2 uRes;/); assert.match(POOL_VS, /projectionMatrix\[1\]\[1\] \* uRes\.y/);
+  assert.match(POOL_FS, /varying float vPxu;/);
+  assert.doesNotMatch(POOL_FS, /smoothstep\(0\.0, \d+\.0, vW\)/, 'no edge is left in 2D units');
+  const a = new AscitesLayer(); const res = { value: { x: 390, y: 844 } } as never; a.bindRes(res);
+  assert.equal(uni(a).uRes, res as never, 'the pool reads the scene\'s own canvas size');
+  a.dispose();
 });
 
 test('the ripple is 2D\'s: two sines, amplitude from the volume', () => {
