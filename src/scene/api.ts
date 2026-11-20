@@ -45,10 +45,10 @@ export const gesturesRef: { current: Gestures | null } = { current: null };
 export const usePick = create<{ picked: string | null }>(() => ({ picked: null }));
 
 export const sceneApi = {
-  /** Fly the camera to a named shot, fitted into the room the cards leave free. One straight move from wherever it is (950 ms). */
-  goTo(shot: ShotName | Shot, room: Room, ms?: number): void {
+  /** Fly the camera to a named shot, fitted into the room the cards leave free. One straight move from wherever it is (950 ms). `ease`: a curve of its own for a long, even glide (a time-lapse's slow push, hp/lapse-push.ts); the default is the glide's quintic with the speed carried on. */
+  goTo(shot: ShotName | Shot, room: Room, ms?: number, ease?: (k: number) => number): void {
     gesturesRef.current?.handsOff();   // a new shot ends what the hand started: its zoom and pan come home with the move
-    cel.goTo(shot, room, performance.now(), ms ?? cel.rig.reachMs(shot));
+    cel.goTo(shot, room, performance.now(), ms ?? cel.rig.reachMs(shot), ease);
     clock.invalidate('shot');
   },
   /** Follow a world point with the camera's aim, smoothly and without restarting any move (the catheter's tip on its way in); null stops. */
@@ -135,7 +135,7 @@ export const sceneApi = {
     /** The HVPG catheter in one of the deck's states (route, free, wedge, result, blocked), `advance` how far in (0..1). */
     hvpg(mode: keyof typeof CATH_END, advance = 1): void { cel.procs.showHvpg(mode, advance); clock.invalidate('procedure'); },
     /** Where the tip is now (scene units), for the camera that follows it; null with no catheter out. */
-    tip(out: Vector3): Vector3 | null { return cel.procs.tipPosition(out) ?? cel.probes.glueFocus(out); },
+    tip(out: Vector3): Vector3 | null { return cel.procs.tipPosition(out) ?? cel.probes.glueFocus(out) ?? cel.probes.eusFocus(out); },
     /** Stop the move; with `keep` the last frame stays up. */
     stop(keep = false): void { cel.procs.stop(keep); clock.invalidate('procedure'); },
     get playing(): { kind: string; t: number } | null { return cel.procs.playing; },
@@ -151,6 +151,12 @@ export const sceneApi = {
   },
   /** Edge IDs the slide talks about; in flow-mark option A these (and the picked vessel) carry chevrons. */
   setNamedVessels(ids: readonly string[]): void { cel.setNamedVessels(ids); clock.invalidate('named-vessels'); },
+  /** The shunt waiting for its target (ui/action/shunt.ts): the vessel under a canvas point, the target under the pointer standing out, and the dashed guide from the vessel it starts at. */
+  shunt: {
+    vesselAt(x: number, y: number): string | null { return cel.vesselAtPoint(x, y); },
+    hover(id: string | null): void { cel.hoverVessel(id); clock.invalidate('shunt-guide'); },
+    guide(src: string | null, x: number, y: number, color: string): void { cel.setShuntGuide(src, x, y, color); clock.invalidate('shunt-guide'); },
+  },
   /** Light exactly these vessels (edge IDs), as the shunt's valid targets glow; [] puts them out. Replaces the pick. */
   markVessels(ids: readonly string[]): void { cel.markVessels(ids); clock.invalidate('mark'); },
   /** Outline organs by the organ layer's ids (a slide's glow, spot or term naming an organ); `normalSpleen` also draws the normal-sized spleen's line. [] clears. */

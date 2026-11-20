@@ -13,7 +13,7 @@ import {
   BufferAttribute, DoubleSide, BufferGeometry, Color, DataTexture, FrontSide, Group, InstancedMesh, LinearSRGBColorSpace, Matrix4, Mesh, ShaderMaterial, type Texture, type Vector2, Vector4,
 } from 'three';
 import { CEL_STYLE } from '../cel-style.ts';
-import { CHEV, CHEVRON_GLSL } from '../blood/chevron-glsl.ts';
+import { CHEV, CHEVRON_GLSL, CHEV_LEVEL_MIN } from '../blood/chevron-glsl.ts';
 import { LENS_SHARED } from '../lenses/tokens.copied.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
@@ -149,7 +149,7 @@ vec2 flowHeads() {
   // a half width of half the radius held between MIN_HW_PX and MAX_HW_PX (a head 7 px long and 8.8 tall from a tube 9 px across) and never past the radius plus OVER_PX, and none on a tube under MIN_R_PX of radius
   float R = max(uFlowR, 1e-5);
   float pxA = max(length(vec2(dFdx(vArc), dFdy(vArc))), 1e-7), wpc = pxA * uDpr;
-  float lv = max(-1.0, log2(${F(CHEV.PITCH_PX)} * wpc / max(uFlowPitch, 1e-5)));
+  float lv = max(${F(CHEV_LEVEL_MIN)}, log2(${F(CHEV.PITCH_PX)} * wpc / max(uFlowPitch, 1e-5)));
   float n0 = floor(lv), P = uFlowPitch * exp2(n0);
   float j = floor((vArc - uFlowT) / P + 0.5), x = vArc - uFlowT - j * P;
   float hw = min(R + ${F(CHEV.OVER_PX)} * wpc, clamp(0.5 * R, ${F(CHEV.MIN_HW_PX)} * wpc, ${F(CHEV.MAX_HW_PX)} * wpc));

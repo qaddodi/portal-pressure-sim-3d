@@ -165,9 +165,10 @@ function SceneBridge() {
   // Locked (it eases to square) while a gesture runs or the view is not the body; a camera move locks it in the rig itself.
   useEffect(() => {
     const rig = cel.rig;
-    rig.freeGate = () => useSettings.getState().freeTilt && cel.view === 'body' && useDeck.getState().mode !== 'deck';
-    let wasFree = useSettings.getState().freeTilt;
-    const offFree = useSettings.subscribe((st) => { if (st.freeTilt !== wasFree) { wasFree = st.freeTilt; if (!wasFree) { rig.levelOut(performance.now()); clock.invalidate('orbit'); } } });
+    // (owner, 20 Nov: no 'Tilt all around'. Every device turns and tilts within the limits in shots.ts (TURN_LIMIT, TILT_LIMIT), mouse drag or two fingers; one finger pans.
+    //  Body and lobule turn; the Circuit's map and the flat sinusoid do not, and a talk's camera is the slide's.)
+    rig.freeGate = () => (cel.view === 'body' || cel.view === 'lobule') && useDeck.getState().mode !== 'deck';
+    const offFree = () => {};
     rig.tiltGate = { on: () => useSettings.getState().tilt, locked: () => !!gesturesRef.current?.active || cel.view !== 'body' || cel.circuit.t > 0 || useDeck.getState().mode === 'deck' };
     const off = installTilt({
       rig, wake: (tag) => clock.invalidate(tag), on: () => useSettings.getState().tilt, reduced,

@@ -13,6 +13,8 @@ import { DYE_FS, DYE_VS } from '../scene/disease/dye.ts';
 import { CHART_FS, CHART_VS } from '../ui/charts/gl.ts';
 import { SYNTH_FS, SYNTH_VS } from '../ui/tests/copied/doppler-synth.copied.js';
 import { SPECTRUM_FS, SPECTRUM_VS } from '../ui/tests/doppler/spectrum-gl.ts';
+import { ENDO_VS } from '../ui/tests/copied/endo-shader.copied.js';
+import { endoShaderSource } from '../ui/tests/endo/endo-under.ts';
 import { LOBULE_PLATE_FS, LOBULE_PLATE_VS } from '../scene/lobule/plate.ts';
 import { LOBULE_FIELD_FS, LOBULE_FIELD_VS } from '../scene/lobule/field.ts';
 import { AA_FS, AA_VS } from '../scene/post-aa.ts';
@@ -32,6 +34,7 @@ export const GL_FILES: Record<string, string> = {
   'scene/circuit/map-layer.ts': 'the Circuit plate and dots: found on the scene graph',
   'scene/circuit/resistors.ts': 'the Circuit resistor ribbons (made when the Circuit opens): registered by name',
   'scene/disease/dye.ts': 'the dye overlay (made when a bolus is given): registered by name',
+  'scene/shunt-guide.ts': 'the shunt\'s dashed guide (a quad on the vessels\' pass, in the body group): found on the scene graph',
   'scene/devices/device-object.ts': 'a device wears the toon shader with an alpha: found on the scene graph',
   'scene/lobule/plate.ts': 'the lobule\'s tissue plate under the 3D cells (2D\'s painter on a canvas texture): found on the scene graph',
   'scene/lobule/field.ts': 'the neighbouring lobules out of focus: found on the scene graph',
@@ -42,6 +45,8 @@ export const GL_FILES: Record<string, string> = {
   'scene/post-dof.ts': 'the depth of field of the dive (desktop only: a half-size gather and a full-size blend on a full-screen quad, outside the scene graph): registered by name',
   'ui/charts/gl.ts': 'the charts\' shared drawer: registered by name',
   'ui/tests/copied/doppler-synth.copied.js': 'the Doppler spectrum: registered by name',
+  'ui/tests/copied/endo-shader.copied.js': 'the scope\'s field (2D\'s per-pixel shader), shaded under the Endoscopy chart by endo-under.ts: registered by name',
+  'ui/tests/endo/endo-under.ts': 'the scope\'s field on the chart drawer (the shader\'s colours written in): registered by name',
   'ui/tests/doppler/spectrum-gl.ts': 'the Doppler spectrum on the chart drawer (2D\'s line shader and display pass joined, with the grain): registered by name',
   'ui/tests/doppler/copied/doppler-gl.copied.js': 'the Doppler trace\'s display pass (the noise floor, the wall filter), joined with the line shader by spectrum-gl.ts: registered by name',
   'ui/tests/fibro/copied/fibro-gl.copied.js': 'the FibroScan map: its private templates are read from the file\'s text',
@@ -82,6 +87,7 @@ export function rawPrograms(fibroText: string): Program[] {
     rawProgram('charts', CHART_VS, CHART_FS),
     rawProgram('doppler spectrum', SYNTH_VS, SYNTH_FS),
     rawProgram('doppler spectrum (chart)', SPECTRUM_VS, SPECTRUM_FS),
+    rawProgram('endoscopic field', ENDO_VS, endoShaderSource()),
   ];
   if (fibro.VS && fibro.FS) out.push(rawProgram('fibroscan map', fibro.VS, fibro.FS));
   if (fibro.VS && fibro.SHOW_FS) out.push(rawProgram('fibroscan map (show)', fibro.VS, fibro.SHOW_FS));

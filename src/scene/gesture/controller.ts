@@ -52,7 +52,7 @@ export interface GestureHost {
   recentre?(): boolean;
   /** Returns whether the orbit changed. */
   setOrbit(rad: number): boolean;
-  /** Tilt all around (Settings): whether the free turn is on, and the tilt up or down. Absent: only the ±25° turn. */
+  /** Whether the viewer may tilt up and down here (body and lobule, not in a talk), within the limits in shots.ts. Absent: only the turn. */
   free?(): boolean;
   orbitPitch?(): number;
   setOrbitPitch?(rad: number): boolean;
@@ -74,7 +74,7 @@ export const isSystemEdge = (e: { pointerType: string; clientX: number; clientY:
 type Drag =
   | { type: 'rotate'; x: number; y: number; orbit0: number; pitch0?: number; moved: boolean; trail: number[]; touch: boolean }
   | { type: 'pan'; x: number; y: number; v0: View; moved: boolean; trail: number[]; noFling: boolean; touch: boolean }
-  | { type: 'pinch'; pa: [number, number]; pb: [number, number]; d0: number; k0: number; anchor: Pt; moved: boolean; m0: Pt; tilt?: { o0: number; p0: number } }
+  | { type: 'pinch'; pa: [number, number]; pb: [number, number]; d0: number; k0: number; anchor: Pt; moved: boolean; m0: Pt; tilt?: { o0: number; p0: number }; mode?: 'zoom' | 'tilt' }
   | { type: 'ignore' };
 
 export interface Gestures {
@@ -309,7 +309,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   function startPinch(): Drag {
     const [a, b] = [...pointers.values()] as [[number, number], [number, number]];
     const m = { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 };
-    // Tilt all around on a touch screen: two fingers tilt (their middle turns the figure), the spread still zooms
+    // Two fingers tilt (where the gate allows) (their middle turns the figure), the spread still zooms
     const tilt = host.free?.() && host.setOrbitPitch ? { o0: host.orbit(), p0: host.orbitPitch?.() ?? 0 } : undefined;
     return { type: 'pinch', pa: a, pb: b, d0: Math.max(1, Math.hypot(a[0] - b[0], a[1] - b[1])), k0: host.hand().k, anchor: anchorAt(m, host.hand(), host.centre()), moved: false, m0: m, tilt };
   }
@@ -329,7 +329,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     const touch = ev.pointerType === 'touch';
     // a mouse turns the figure; Shift or the middle button pans (a trackpad's own two fingers pan through wheel events)
     const free = !!host.free?.();
-    // A finger always pans, in every view and whatever the setting (two fingers pinch, or tilt when Tilt all around is on, see startPinch); a mouse drag turns the figure (both axes with Tilt all around)
+    // A finger always pans, in every view and whatever the setting (two fingers pinch, or tilt where allowed, see startPinch); a mouse drag turns the figure (both axes with Tilt all around)
     drag = ev.shiftKey || ev.button === 1 || touch ? startPan(ev.clientX, ev.clientY, touch) : { type: 'rotate', x: ev.clientX, y: ev.clientY, orbit0: host.orbit(), pitch0: free ? host.orbitPitch?.() ?? 0 : undefined, moved: false, trail: trail(ev.clientX, ev.clientY), touch };
   };
   const pushTrail = (tr: number[], x: number, y: number) => {
@@ -350,9 +350,14 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
       if (pointers.size !== 2) return;
       const a = drag.pa, b = drag.pb;
       const d = Math.hypot(a[0] - b[0], a[1] - b[1]), m = { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 };
-      if (Math.abs(d - drag.d0) > 10 || Math.hypot(m.x - drag.m0.x, m.y - drag.m0.y) > 10) drag.moved = true;
-      const k = softK((drag.k0 * d) / drag.d0, kMin()), p = panFor(drag.tilt ? drag.m0 : m, drag.anchor, k, host.centre());
-      if (drag.tilt) { turnBy(drag.tilt.o0, m.x - drag.m0.x); host.setOrbitPitch?.(dragToPitch(drag.tilt.p0, m.y - drag.m0.y)); }
+      const spread = Math.abs(d - drag.d0), slide = Math.hypot(m.x - drag.m0.x, m.y - drag.m0.y);
+      if (spread > 10 || slide > 10) drag.moved = true;
+      // two fingers either pinch (they move apart or together: zoom) or slide together (tilt), decided once from the first 12 px and kept for the gesture, so a tilt never
+      // zooms on the side and a pinch never tilts (before, both ran at once: the figure zoomed in and out while it tilted)
+      if (drag.tilt && !drag.mode && (spread > 12 || slide > 12)) { drag.mode = slide > spread * 1.2 ? 'tilt' : 'zoom'; if (drag.mode === 'tilt') { drag.m0 = m; drag.tilt = { o0: host.orbit(), p0: host.orbitPitch?.() ?? 0 }; } }
+      if (drag.mode === 'tilt' && drag.tilt) { turnBy(drag.tilt.o0, m.x - drag.m0.x); host.setOrbitPitch?.(dragToPitch(drag.tilt.p0, m.y - drag.m0.y)); return; }
+      if (drag.tilt && !drag.mode) return;   // (undecided: nothing moves yet)
+      const k = softK((drag.k0 * d) / drag.d0, kMin()), p = panFor(m, drag.anchor, k, host.centre());
       host.setHand({ k, x: p.x, y: p.y }); handSample(80);
       return;
     }

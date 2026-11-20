@@ -36,6 +36,8 @@ export interface Plan {
   shut: boolean;
   /** The reader put the data card away (2D's dock: a swipe up on it, a tap on its edge brings it back): it stands as a GRIP-px edge at the top and the figure has the room it left (a phone or an upright iPad, both cards up). */
   docked: boolean;
+  /** Where the data card stands in its own place while it is docked (it stays up, slid away to its edge by a translate: ui/cards/dock.ts), so a drag brings it back from there. */
+  tucked: Rect | null;
   /** The largest empty rectangle the cards leave: the figure's room. */
   free: Rect;
   /** Cards taller than the room they have; the card pages itself (never shrinks, never scrolls). */
@@ -146,7 +148,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
   const data = needs.find((n) => n.slot === 'data') ?? null;
   const placed: Placed[] = [];
   let bar = barOf(vp);
-  let strip: Strip | null = null, shut = false, docked = false;
+  let strip: Strip | null = null, shut = false, docked = false, tucked: Rect | null = null;
   const maxH: Record<Slot, number> = { words: 0, data: 0 };
   let bounds: Rect;
   const extra: Rect[] = [];
@@ -159,7 +161,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     const x = Math.round((vp.w - c.w) / 2), y = Math.round(c.top + (c.room - h) / 2);
     placed.push({ id: words!.id, slot: 'words', rect: { x, y: alone === 'case' ? Math.round((vp.h - h) / 2) : y, w: c.w, h } });
     bounds = { x: safe.left, y: safe.top, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - safe.bottom };
-    return { device, layout, sideways, cards: placed, strip: null, shut: false, docked: false, free: bounds, overflow: words!.h > c.maxH + 0.5 ? [words!.id] : [], maxH, bar };
+    return { device, layout, sideways, cards: placed, strip: null, shut: false, docked: false, tucked: null, free: bounds, overflow: words!.h > c.maxH + 0.5 ? [words!.id] : [], maxH, bar };
   } else if (sideways) {
     const steps = walletSteps(vp);
     const st = steps[Math.min(step, steps.length - 1)];
@@ -195,7 +197,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
       // 2D's dock: the reader's choice (kept from slide to slide) puts the data card away to its edge at the top; the words stay where they are
       docked = dock && !!data && !!words;
       if (data && !docked) placed.push({ id: data.id, slot: 'data', rect: { x, y: dtop, w, h: dh } });
-      if (data && docked) strip = { id: data.id, slot: 'data', rect: { x, y: dtop, w, h: GRIP } };   // (2D's closed data card: its edge, GRIP px)
+      if (data && docked) { strip = { id: data.id, slot: 'data', rect: { x, y: dtop, w, h: GRIP } }; tucked = { x, y: dtop, w, h: dh }; }   // (2D's closed data card: its edge, GRIP px; the card itself stays up under it)
       if (words) placed.push({ id: words.id, slot: 'words', rect: { x, y: Math.round(bottom - wh), w, h: wh } });
     } else {
       const shown = active === 'data' ? data! : words!, other = shown === data ? words! : data!;
@@ -231,7 +233,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
 
   const blockers = placed.map((p) => p.rect).concat(strip ? [strip.rect] : [], extra);
   const overflow = placed.filter((p) => p.rect.h > maxH[p.slot] + 0.5).map((p) => p.id);
-  return { device, layout, sideways, cards: placed, strip, shut, docked, free: largestFreeRect(bounds, blockers, layout === 'stack' || layout === 'tab' ? 4 : GAP), overflow, maxH, bar };
+  return { device, layout, sideways, cards: placed, strip, shut, docked, tucked, free: largestFreeRect(bounds, blockers, layout === 'stack' || layout === 'tab' ? 4 : GAP), overflow, maxH, bar };
 }
 
 /** The width over height of the figure's box (the whole body plate is taller than wide): a free rectangle is judged by the tallest figure it holds. */

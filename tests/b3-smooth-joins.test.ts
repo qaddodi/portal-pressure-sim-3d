@@ -48,6 +48,7 @@ test('the switch is off in the vessel code until the scene sets it, and off the 
   for (const v of MAPPED) {
     const c = coursesOf(v, REST)[0]!;
     assert.equal(c.clamp, undefined, v.id); assert.equal(c.point, undefined, v.id);
+    if (cutEnd(v.id) != null) continue;   // (a vein that branches narrows to its tip whatever the switch says: liver-branches.ts)
     assert.deepEqual(c.capless, v.joined, v.id); assert.deepEqual(c.taper, v.taper, v.id);
   }
 });
@@ -77,7 +78,7 @@ test('a run-on carries on as one tube: the two end rings share one centre and on
     assert.ok(pairs > 25 && unequal >= 4, `${pairs} pairs, ${unequal} of unequal caliber`);
   });
   // off, those unequal pairs keep their step (the 2D rule)
-  off(() => { const ra = ring('PVH_R_2', 1), rb = ring('PRE_R', 0); assert.ok(ra.r > rb.r * 2); });
+  off(() => { const ra = ring('PVH_L_1', 1), rb = ring('PRE_L', 0); assert.ok(ra.r > rb.r * 2); });
 });
 
 test('a vein narrowing into a thin bed keeps the bed as drawn (only the wide one narrows); two stretches of one vein ease to their mean', () => {

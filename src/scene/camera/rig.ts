@@ -8,7 +8,7 @@ import { type Room, effectiveDistance, viewOffset } from './room.ts';
 import { PLUNGE_RATIO, dollyDistance, fovAt, fovBump } from './dive.ts';
 import { Tilt } from './tilt.ts';
 import { LongPath } from './arc.ts';
-import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
+import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, TILT_LIMIT, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
 
 /** The lens swell in a plunge (dive.ts: 14 -> 35 degrees and back). OFF (20 Nov 2026, owner: the camera moves as 2D's do, 1:1; 2D has no lens): the dive is the distance and the framing alone. */
 export const LENS_SWELL = false;
@@ -20,7 +20,12 @@ export const FOLLOW_TAU_MS = 350;
 /** Radians of turn per pixel of drag. */
 export const ORBIT_PER_PX = 0.006;
 /** The most the free turn tilts up or down (radians): just short of straight over or under, where the camera's up would flip. */
-export const PITCH_LIMIT = 1.45;
+export { TILT_LIMIT as PITCH_LIMIT } from './shots.ts';
+/** A soft stop at ±lim: follows the hand exactly up to 70% of the limit, then eases into it (never a hard wall). Exact in the middle, so taking hold again never jumps there. */
+export const softLimit = (x: number, lim: number): number => {
+  const a = Math.abs(x), k = 0.7 * lim;
+  return a <= k ? x : Math.sign(x) * (k + (lim - k) * Math.tanh((a - k) / (lim - k)));
+};
 /** The tilt after a drag of `dy` CSS pixels (down = positive): the top of the figure comes toward the viewer. */
 export const dragToPitch = (start: number, dy: number): number => start + dy * ORBIT_PER_PX;
 
@@ -158,11 +163,13 @@ export class CameraRig {
   private long: LongPath | null = null;
   private readonly longPath = new LongPath();
   private active = false;
+  /** The curve of a move that brings its own (a time-lapse's slow push: 2D's driftEase); null for the plain glide's easeCarry. */
+  private easeFn: ((k: number) => number) | null = null;
   private orbit = 0;
   private orbitFrom = 0;
   /** Where the turn is heading with the move in flight: 0 (a new shot starts square on), or where it stands when only the room changed (a card opened). */
   private orbitTo = 0;
-  /** The viewer's tilt up or down (Settings > Tilt all around; zero otherwise), eased home with a new shot like the turn. */
+  /** The viewer's tilt up or down (within TILT_LIMIT, where the gate allows; zero otherwise), eased home with a new shot like the turn. */
   private pitchOrbit = 0;
   private pitchFrom = 0;
   private pitchTo = 0;
@@ -237,7 +244,7 @@ export class CameraRig {
   get targetRoom(): Readonly<Room> { return this.to.room.w > 1 ? this.to.room : { x: 0, y: 0, w: this.width, h: this.height }; }
 
   /** Fly to a shot (and a room) in one straight move. Called again mid-flight, the new move starts from where the camera is now. */
-  goTo(shot: ShotName | Shot, room: Room, now: number, ms = SHOT_MS, keepHand = false): void {
+  goTo(shot: ShotName | Shot, room: Room, now: number, ms = SHOT_MS, keepHand = false, ease: ((k: number) => number) | null = null): void {
     const s = typeof shot === 'string' ? SHOTS[shot] : shot;
     if (!keepHand) this.followAt = null;   // a new shot ends a follow (the caller that wants one asks again after it)
     // The first shot with a real room is where the camera starts, not somewhere it flies to: until then it has no pose worth showing (the constructor's
@@ -280,11 +287,14 @@ export class CameraRig {
         }
       }
     }
+    // a move with a curve of its own (a slow push) is one straight, even glide from where the camera stands: no carried speed, no long arc, no stretch
+    if (ease) { carry = 0; hv = null; }
     this.hv = hv;
+    this.easeFn = ease;
     this.from = { shot: copyShot(this.cur.shot), room: copyRoom(this.cur.room) };
     this.to = { shot: copyShot(s), room: copyRoom(room) };
     this.carry = this.reduceMotion || reduced() ? 0 : carry;
-    this.long = LONG_ARC && !isDive(this.from, this.to) && !(this.reduceMotion || reduced()) && this.longPath.fill(this.from.shot, this.to.shot, SHOTS.play.half[0] * 2).arc ? this.longPath : null;
+    this.long = LONG_ARC && !ease && !isDive(this.from, this.to) && !(this.reduceMotion || reduced()) && this.longPath.fill(this.from.shot, this.to.shot, SHOTS.play.half[0] * 2).arc ? this.longPath : null;
     // a new shot takes the hand's zoom and pan back to the shot's own framing, in the same move
     this.handFrom = { ...this.hand };
     this.handTween = keepHand ? this.handTween : this.hand.k !== 1 || this.hand.x !== 0 || this.hand.y !== 0;
@@ -331,7 +341,7 @@ export class CameraRig {
 
   /** Limited orbit by drag, ±25°, clamped. Returns true when it changed (a frame is needed). */
   setOrbit(rad: number): boolean {
-    const o = this.free ? rad : Math.max(-ORBIT_LIMIT, Math.min(ORBIT_LIMIT, rad));
+    const o = softLimit(rad, ORBIT_LIMIT);
     if (o === this.orbit) return false;
     this.orbit = o; this.orbitFrom = o; this.orbitTo = o; this.dirty = true;
     return true;
@@ -339,7 +349,7 @@ export class CameraRig {
   get orbitAngle(): number { return this.orbit; }
   /** Tilt up or down by `rad` (only while the free turn is on; otherwise it stays square). Returns true when it changed. */
   setOrbitPitch(rad: number): boolean {
-    const o = this.free ? Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, rad)) : 0;
+    const o = this.free ? softLimit(rad, TILT_LIMIT) : 0;
     if (o === this.pitchOrbit) return false;
     this.pitchOrbit = o; this.pitchFrom = o; this.pitchTo = o; this.dirty = true;
     return true;
@@ -412,7 +422,7 @@ export class CameraRig {
     let moving = false;
     if (this.active) {
       const k = this.dur <= 0 ? 1 : Math.min(1, (now - this.t0) / this.dur);
-      const e = easeCarry(k, this.carry);
+      const e = this.easeFn ? this.easeFn(k) : easeCarry(k, this.carry);
       this.eNow = e;
       this.cur = blendPose(this.from, this.to, e, 0);
       // the share of the way the room has gone (blendPose: e, or in a dive the aim's share q): what setRoom must rebuild a retargeted room from, or the picture jumps
