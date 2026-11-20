@@ -9,10 +9,11 @@
 //   * Free ends (the end of a vessel nothing meets, with no alpha fade of its own): the tube tapers to a point (`free`) instead of ending in a round cap.
 //   * The cava ends in the right atrium: it and the SVC run on one slope to the atrium's back wall (`NODE_RISE`), so in a turned view they enter the heart instead of passing 0.3 behind it.
 import { IVC_EDGES } from './paths.copied.ts';
+import { TIER_Z } from '../frame2d.ts';
 import { NETWORK, RUN_ONS, type NetVessel } from './network.ts';
 
-/** A node the cava runs into, and its depth: the right atrium's back wall, in the scene's z (the atrium's own mesh stands from 0.02 to 0.20). */
-export const NODE_RISE: ReadonlyMap<string, { z: number }> = new Map([['RA', { z: 0.06 }]]);
+/** A node the cava runs into, and its depth: the cava's own, so it runs level into the atrium and a tilted view shows no S (Mohammad, 20 Nov: "move the RA to the same plane as the IVC"; the atrium's mesh is moved to this plane by ORGAN_Z['heart-ra']). */
+export const NODE_RISE: ReadonlyMap<string, { z: number }> = new Map([['RA', { z: TIER_Z.back }]]);
 
 export interface SmoothEnds {
   /** radius at each end as a share of `radius` (a run-on pair eases to the mean of the two) */

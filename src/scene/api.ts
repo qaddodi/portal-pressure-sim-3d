@@ -47,7 +47,7 @@ export const sceneApi = {
   /** Fly the camera to a named shot, fitted into the room the cards leave free. One straight move from wherever it is (950 ms). */
   goTo(shot: ShotName | Shot, room: Room, ms?: number): void {
     gesturesRef.current?.handsOff();   // a new shot ends what the hand started: its zoom and pan come home with the move
-    cel.goTo(shot, room, performance.now(), ms);
+    cel.goTo(shot, room, performance.now(), ms ?? cel.rig.reachMs(shot));
     clock.invalidate('shot');
   },
   /** Put the hand's view back (a state link: the figure turned `orbit` radians, zoom `k`, panned `x` `y` px): what a person's fingers left, set at once, held until the next shot. */

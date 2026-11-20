@@ -19,11 +19,11 @@ const dist = (rig: CameraRig) => rig.camera.position.distanceTo({ x: LIVER_POINT
 const rigOn = (reduce = false) => { const r = new CameraRig('play', room, reduce); r.resize(1000, 700); r.goTo('play', room, 0); r.update(0); return r; };
 
 test('how long each dive takes: the body to the lobule 1.6 s, the lobule to the sinusoid 1.1 s, the body straight to the sinusoid both, and each backward the same', () => {
-  assert.equal(DIVE_BODY_MS, 1600); assert.equal(DIVE_SINUSOID_MS, 1100);
-  assert.equal(diveMs('body', 'lobule'), 1600); assert.equal(diveMs('lobule', 'body'), 1600);
+  assert.equal(DIVE_BODY_MS, 1500); assert.equal(DIVE_SINUSOID_MS, 1100);
+  assert.equal(diveMs('body', 'lobule'), 1500); assert.equal(diveMs('lobule', 'body'), 1500);
   assert.equal(diveMs('lobule', 'sinusoid'), 1100); assert.equal(diveMs('sinusoid', 'lobule'), 1100);
-  assert.equal(diveMs('body', 'sinusoid'), 2700); assert.equal(diveMs('sinusoid', 'body'), 2700);
-  assert.equal(diveMs('circuit', 'lobule'), 1600, 'the Circuit is the body to the camera');
+  assert.equal(diveMs('body', 'sinusoid'), 2600); assert.equal(diveMs('sinusoid', 'body'), 2600);
+  assert.equal(diveMs('circuit', 'lobule'), 1500, 'the Circuit is the body to the camera');
   assert.equal(diveMs('lobule', 'lobule'), undefined); assert.equal(diveMs('body', 'circuit', 700), 700);
 });
 
@@ -51,13 +51,13 @@ test('the camera dives with the lens: the body to the lobule widens to 35 in the
     assert.ok(Math.abs(rig.fov - last) < 2.5, `the lens moves smoothly (${last.toFixed(2)} -> ${rig.fov.toFixed(2)} at ${t} ms)`); last = rig.fov;
     assert.equal(rig.camera.fov, rig.fov, 'the camera wears it');
   }
-  assert.ok(peak > 34, `the lens peaks near 35 (${peak.toFixed(1)})`);
+  assert.ok(peak === FOV, `the lens stays long (2D has none): ${peak.toFixed(1)}`);
   assert.equal(rig.fov, FOV); assert.equal(rig.isMoving, false);
   // back out
   rig.goTo(SHOTS.play, room, 5000, DIVE_BODY_MS);
   peak = 0;
   for (let t = 5016; t <= 5000 + DIVE_BODY_MS + 32; t += 16) { rig.update(t); peak = Math.max(peak, rig.fov); }
-  assert.ok(peak > 34); assert.equal(rig.fov, FOV);
+  assert.equal(peak, FOV); assert.equal(rig.fov, FOV);
   // lobule to sinusoid (20 to 1) has no lens widening
   const r2 = rigOn(); r2.goTo(lobuleShot('lobule'), room, 0, 0); r2.update(0); r2.update(1);
   r2.goTo(sinusoidShot(), room, 100, DIVE_SINUSOID_MS);
@@ -80,7 +80,6 @@ test('a dive reversed half-way, twice: the pose and the lens are continuous at e
   let t = 0;
   for (; t < 700; t += 16) prev = step(t, prev);               // in, to about the middle of the lens
   const mid1 = { r: rig.pose.shot.r, fov: rig.fov };
-  assert.ok(rig.fov > 14.5, 'the lens is out at the first reversal');
   rig.goTo(SHOTS.play, room, t, DIVE_BODY_MS);                  // back out
   rig.update(t);
   near(rig.pose.shot.r, mid1.r, mid1.r * 1e-9); near(rig.fov, mid1.fov, 1e-9);
@@ -192,7 +191,7 @@ test('the body straight to the sinusoid and back, and rapid reversals: whatever 
   for (let k = 0; k < 40; k++) { t += 16; s.update(t); }
   s.setView('body', t); s.goTo('play', room, t, DIVE_BODY_MS);
   for (let k = 0; k < 15; k++) { t += 16; s.update(t); }
-  s.setView('sinusoid', t); s.goTo(sinusoidShot(), room, t, 2700);
+  s.setView('sinusoid', t); s.goTo(sinusoidShot(), room, t, 2600);
   for (let k = 0; k < 20; k++) { t += 16; s.update(t); }
   s.setView('lobule', t); s.goTo(lobuleShot('lobule'), room, t, DIVE_BODY_MS);
   for (let k = 0; k < 200 && s.rig.isMoving; k++) { t += 16; s.update(t); }

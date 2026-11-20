@@ -86,7 +86,7 @@ uniform float uProfile;   // 1: the parabolic lanes of the blood; 0: one speed; 
 uniform vec3 uStreakCol;  // the streaks' one tone
 varying vec3 vP;
 varying float vAux;
-// the ONE streak (blood/streak-glsl.ts: 3, 5 or 7 lanes, comets with a blunt round head and a tail tapering to a point, parabolic lanes): the same as the Anatomy's vessels
+// the ONE streak (blood/streak-glsl.ts: 3, 5 or 7 lanes, slim rounded lozenges feathered at both ends, a tone and a pace of their own, parabolic lanes): the same as the Anatomy's vessels
 ${STREAK_FIELD_GLSL}
 uniform float uStreakDir; // +1: the heads lead toward +x (the way the stream runs); -1: toward -x (a reversed flow)
 float streaks() { return streakField(vAux, vP.x, uFlow, uHalf, uProfile, uStreakDir); }
@@ -151,8 +151,17 @@ void main() {
 export const MICRO_INK_VS = /* glsl */ `
 uniform float px;
 uniform vec2 res;
+uniform vec3 tint;
 varying float vHy;
+varying vec3 vOwnC;
 void main() {
+  vOwnC = tint;
+#ifdef USE_COLOR
+  vOwnC *= color.rgb;
+#endif
+#ifdef USE_INSTANCING_COLOR
+  vOwnC *= instanceColor;
+#endif
   vec3 p = position;
   vec3 n = normal;
 #ifdef USE_INSTANCING
@@ -177,13 +186,17 @@ export const MICRO_INK_FS = /* glsl */ `
 ${FADE_GLSL}
 uniform vec3 color;
 uniform float opacity;
+// a vessel's line is the Anatomy's (vessels/shaders.ts): the look's casing taken uOwn of the way to a deep tone (x ${F(CEL_STYLE.TUBE.INK_TONE)}) of the part's own colour (Mohammad 20 Nov: "lobule
+// vessels should have black outlines just like other vessels"); uOwn 0: the flat ink colour (the tissue's)
+uniform float uOwn;
+varying vec3 vOwnC;
 // the haze: what lies away from the scene's subject (|y| past uHaze.x, whole by uHaze.y, local units) melts toward uHazeCol by up to uHaze.z, its detail and line with it, as a lens's
 // depth of field would soften it (the next sinusoids, their Disse and plates must not pull the eye from the one in focus, Mohammad 20 Nov 2026); uHaze.z 0: none
 uniform vec4 uHaze;
 uniform vec3 uHazeCol;
 varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
-void main() { if (fadedOut()) discard; gl_FragColor = vec4(mix(color, uHazeCol, hazeK()) * opacity, opacity); }`;
+void main() { if (fadedOut()) discard; vec3 c = mix(color, vOwnC * ${F(CEL_STYLE.TUBE.INK_TONE)}, uOwn); gl_FragColor = vec4(mix(c, uHazeCol, hazeK()) * opacity, opacity); }`;
 
 export type RGB = readonly [number, number, number] | readonly number[];
 
@@ -228,8 +241,8 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   const ink = o.ink === null ? null : new ShaderMaterial({
-    vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS,
-    uniforms: { color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, px: { value: o.px ?? CEL_STYLE.MICRO.LINE }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
+    vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors,
+    uniforms: { color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, uOwn: { value: 0 }, px: { value: o.px ?? CEL_STYLE.MICRO.LINE }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
     side: BackSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   return { toon, ink };
@@ -251,6 +264,8 @@ export class MicroPart {
   }
   setTint(rgb: RGB): void { rawRGB(this.mats.toon.uniforms.tint!.value as Color, rgb); }
   setInk(rgb: RGB): void { if (this.mats.ink) rawRGB(this.mats.ink.uniforms.color!.value as Color, rgb); }
+  /** A vessel's line: `rgb` (the look's casing) taken `own` of the way to a deep tone of the part's own colour, as the Anatomy's vessels are inked. */
+  setVesselInk(rgb: RGB, own: number = CEL_STYLE.TUBE.INK_OWN): void { if (!this.mats.ink) return; this.setInk(rgb); this.mats.ink.uniforms.uOwn!.value = own; }
   setOpacity(a: number): void { this.mats.toon.uniforms.opacity!.value = a; this.group.visible = a > 0.002; }
   /** A streaked part's flow (µm run), the stream's half width (µm), the streaks' tone and strength and whether the lanes have the blood's profile. */
   setStreaks(flow: number, half: number, rgb: RGB, strength: number, profile: number): void {
