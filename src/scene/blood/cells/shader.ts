@@ -152,7 +152,20 @@ void main() {
   float sl = length(side);
   side = sl > 1e-9 ? side / sl : vec3(1.0, 0.0, 0.0);
   float latN = clamp(lane + T * ${STREAK.WANDER.toFixed(2)} * wob, -1.0, 1.0);
-  float lat = latN * ${STREAK.SPAN.toFixed(2)} * R;
+  // how it points: along the course here (the way the blood goes), tilted by the turbulence; and the course's bend over this streak's length (screen px), which sets the longest it may be
+  vec4 k0 = projectionMatrix * (modelViewMatrix * vec4(p0, 1.0)), k1 = projectionMatrix * (modelViewMatrix * vec4(p1, 1.0));
+  vec4 ka = projectionMatrix * (modelViewMatrix * vec4(texelFetch(courseTex, ivec2(max(i0 - 2, 0), e), 0).xyz, 1.0));
+  vec4 kb = projectionMatrix * (modelViewMatrix * vec4(texelFetch(courseTex, ivec2(min(i0 + 3, SAMPLES - 1), e), 0).xyz, 1.0));
+  vec2 dpx = (k1.xy / k1.w - k0.xy / k0.w) * res * 0.5;
+  vec2 da = (k0.xy / k0.w - ka.xy / ka.w) * res * 0.5, db = (kb.xy / kb.w - k1.xy / k1.w) * res * 0.5;
+  float la2 = length(da), lb2 = length(db);
+  float turn = la2 > 1e-4 && lb2 > 1e-4 ? acos(clamp(dot(da, db) / (la2 * lb2), -1.0, 1.0)) : 0.0;
+  float rho = length((kb.xy / kb.w - ka.xy / ka.w) * res * 0.5) / max(turn, 1e-4);   // the bend's radius of curvature, screen px (huge on a straight)
+  float bendLen = 2.0 * sqrt(2.0 * rho * ${STREAK.SAG.toFixed(2)} * Rcss);
+  // CONTAINED: its offset, its width and the sideways reach of its tilt all stay within EDGE of the lumen's radius, so it never touches the ink (streak-glsl.ts streakFit)
+  vec3 fit = streakFit(latN * ${STREAK.SPAN.toFixed(2)} * Rcss, T * ${STREAK.TILT.toFixed(2)} * tilt, lenCss, thickCss, Rcss, bendLen);
+  lenCss = fit.z;
+  float lat = fit.x / cssPerWorld;
   vec3 pv = mv.xyz + side * lat;
   // in front of the tube's own surface along the view ray (it does not move on screen), so the lumen shows it and a vessel truly in front still hides it
   float k = sqrt(max(R * R - lat * lat, 0.0)) + 0.1 * R;
@@ -160,12 +173,10 @@ void main() {
   gl_Position = projectionMatrix * vec4(pv, 1.0);
 
   // the way it points on the screen: along the course here, the way the blood goes, tilted by the turbulence
-  vec4 k0 = projectionMatrix * (modelViewMatrix * vec4(p0, 1.0)), k1 = projectionMatrix * (modelViewMatrix * vec4(p1, 1.0));
-  vec2 dpx = (k1.xy / k1.w - k0.xy / k0.w) * res * 0.5;
   float dl = length(dpx);
   vec2 dir = dl > 1e-6 ? dpx / dl : vec2(1.0, 0.0);
   float sgn = stm.y != 0.0 ? sign(stm.y) : (stm.z > 0.5 ? -1.0 : 1.0);
-  float ang = T * ${STREAK.TILT.toFixed(2)} * tilt;
+  float ang = fit.y;
   dir = vec2(dir.x * cos(ang) - dir.y * sin(ang), dir.x * sin(ang) + dir.y * cos(ang)) * sgn;
   vDir = dir;
   vLen = lenCss * dpr;
