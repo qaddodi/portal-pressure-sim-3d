@@ -41,12 +41,13 @@
 
 
 > **Sinusoid parity pass, 19 Nov 2026 (portrait, names, audit).**
-> *Portrait.* A stage narrower than 0.95 of its height (2D's `W < H * 0.95`, `sinusoid/portrait.ts isPortrait`) runs the sinusoid top to bottom, portal end up. `SinusoidView.setPortrait(portrait)` turns the plane's own group
-> (`PORTRAIT_ANGLE`, -PI/2 on this y-up plane = 2D's `ang` PI/2), so the tissue, pores, albumin, the cells over them, `anchor()` and `micrometres()` all turn together; the Kupffer cell stands at xk 12 (22 wide). While the camera flies
-> between the lobule and the sinusoid the turn is the dive's share (`setDive(g)`: lobule to tall view in one move and out by the same frames), at rest it glides (critically damped, 2D's SPRING 10) or is at once with Reduce Motion.
-> `sinusoidShot(portrait, shortPx)` swaps the half extents and, given the room's short side, frames 2D's `lerp(40, 54, smooth(380, 720, short))` µm across it; `sinusoidBox(portrait)` is the box the hand keeps on screen.
-> `setScreen(k, along, stage)` (px per µm, the free room's length and the canvas's along the flow) puts the end arrows 32 px (24 tall) inside the room's ends and runs the traffic over the stretch on screen (2D layoutEnds, VW.vis);
-> `setEndShown(in, out)` fades an arrow with its name. **The scene must call** `setPortrait` (from the room: `isPortrait(room.w, room.h)`), `setScreen` while the sinusoid is up, and use `sinusoidBox(portrait)` for the subject.
+> *Portrait.* A stage narrower than 0.95 of its height (2D's `W < H * 0.95`, `sinusoid/portrait.ts isPortrait`) runs the sinusoid top to bottom, portal end up. **The camera rolls, the plane never turns** (20 Nov 2026, Mohammad: a plane turned
+> alone inside the dive "flips only the sinusoid, not the lobule"): `sinusoidShot(portrait, shortPx)` carries `roll: PORTRAIT_ROLL` (+PI/2, the picture turned by `PORTRAIT_ANGLE` = -PI/2 = 2D's `ang` PI/2), `camera/rig.ts` blends
+> `roll` on the move's own eased share (the same `k` as the zoom, so the lobule and the sinusoid turn together through the whole dive, and the way out is the way in reversed) and `apply()` rolls the camera about its view axis after the
+> aim; the viewer's orbit and tilt are carried round with the roll so they stay about the screen's axes. The plane keeps its own frame (along the lobule's capillary), so `anchor()`, `micrometres()`, the hits and the names all project
+> through the camera. `SinusoidView.setPortrait(portrait)` only lays out: the Kupffer cell stands at xk 12 (22 wide) and the names take their tall places. A phone turned in the view is a `goTo` of the other shot (the roll glides).
+> `sinusoidShot` swaps the half extents (screen axes) and, given the room's short side, frames 2D's `lerp(40, 54, smooth(380, 720, short))` µm across it; `sinusoidBox()` is the plane's own box the hand keeps on screen.
+> `setEndShown(in, out)` fades an arrow with its name. **The scene must call** `setPortrait` (from the room: `isPortrait(room.w, room.h)`), `setScreen` while the sinusoid is up, and use `sinusoidBox()` for the subject.
 > *Names.* `sinusoid/names.ts` is 2D's layout of the captions as pure functions (`layoutEnds`, `layoutTags` with `fen-place.copied.js` copied by script, `layoutTall`, `leader`): `SinusoidView.names({ W, H, C, k, free, insTop, text, lit, measure })`
 > returns each name's centre and box (px, always level), the µm it names and its leader; `explainHit(names, x, y)` is 2D's tap (8 px of slop, the note `SV_NOTE`, the slide term `sinusoid:<target>`). Not ported: `declutter` (large text),
 > the legend ("Protein"), the fade of names while a slide dims them. These belong to the label layer, which nothing yet mounts for the micro views.
@@ -158,3 +159,23 @@ real colour changes (microvilli ticks, the lilac wall, pores) step crisply; else
 **Hepatocyte plates are not stepped (20 Nov 2026, phone play-test: flat brown cells, no outlines, no nuclei).** 2D paints a plate's membrane, nucleus and lighter inside as small tone steps (a cUnder mix of 0.16, a cNuc mix of 0.24, 0.05 of white), each about one band (17 %) or less, so the absolute ladder rounded every cell to one rung. `cel.ts` now masks the plates (`onPlate`: this sinusoid's two and the repeats beyond the next sinusoid, 2D's own tissue geometry, pass 0) out of both the ladder and the ink: a plate pixel is `main2d`'s colour exactly (premultiplied, 2D's alpha, so the dive share and the focus dim stay 2D's, untouched at rest). The lumen, wall, Disse and the neighbours' linings keep the cel step. Tests: `tests/scene-sinusoid-cel.test.ts`.
 
 **The credit keeps off the vessel (same play-test).** `ui/shell/credit-avoid.ts` gives 2D's `freeSpots` its `avoid` hook the sinusoid's vessel box (the lumen and its wall at their widest, a strip across the whole screen, projected through the live camera and the plane's turn, 8 px of pad); `Credit.tsx` waits for the camera to land, then takes a free spot clear of it or, with none (a phone held upright), hides by a fade (`.covered`). The 3D `.placed { opacity: 1 }` rule had the same weight as 2D's `.covered { opacity: 0 }` and came first-or-equal, so a "covered" credit was never actually hidden: `chrome-3d.css` now puts `:is(.covered, .moving)` after it and fades opacity (a move to a new spot fades out, moves, fades in). Test: `tests/credit-sinusoid.test.ts` (390x844, 393x852, 430x932, 844x390).
+
+## Welded junctions in the Lobule (20 Nov 2026)
+
+Every place two of the Lobule's tubes meet (a sinusoid merging into the next generation, an inlet leaving its venule, an anastomosis or a bile canal landing on a side) is one closed skin, built by
+the Anatomy's junction-skin SDF and mesh builder (`src/scene/vessels/skin/`), not a second system. Code: `src/scene/lobule/` (`welds.ts` the planner, `weld-courses.ts` the courses as the scene draws
+them, `weld-splay.ts`, `weld-worker.ts` / `weld-client.ts`) and `src/scene/micro3d/lobule-welded.ts` (the per-vertex numbers). `?joins=old` (or Settings > Smooth vessel joins off) keeps the old tubes.
+
+- **When:** the plan is made in a worker at boot (about 10 s of node time) and laid in with one geometry rebuild only while the Lobule is hidden, so nothing pops.
+- **Why junctions used to be skipped, and what the planner does now** (`tests/lobule-welds.test.ts` pins what is left in `KNOWN_FALLBACKS`; the list only shrinks):
+  1. the merging sinusoids met at 4 to 15 degrees and lay on each other: `weld-splay.ts` re-routes the last stretch of each movable arm so the arms leave J at least 40 degrees apart (a T's host is not moved; branches ride a bent host);
+  2. the builder folds when its hull sheet starts far from the surface: `GENTLE` (skin/mesh.ts) pulls it in slower; and its vertex limit now counts live vertices only;
+  3. the bile hairlines (radius 0.0002) have their first sample 130 radii from J: `refineEnds` inserts samples near each end so a seam can stand a few radii out;
+  4. two junctions on one course took the same stretch: a first pass notes such pairs, and a second builds each connected set as one skin (up to 4 arms, the stretch between their touch points absorbed);
+  5. last try for a junction that would not build: seams 2.2 radii from J, past the usual clearance.
+  6. a hull that swallows one arm's ring: only that arm is pushed out (it used to move every arm and lose the others).
+- **Twigs** (`kind 'tw'`, radius from `twigR`) are welded where they land on their sinusoid, and the skin eases its colour along the arm from the arteriole's colour (Seg `'art'`, a constant palette
+  tone in `ink.ts`) to the sinusoid's, through the same alt-colour (`seg2/w2/m`) the Anatomy uses for the hepatic artery. A twig lies along its sinusoid for about 20 radii (its arteriole pool
+  is about 3 radii off the sinusoid axis, 2D parity), so the tubes overlap by design and most of them stay as plain tubes.
+- **Not welded yet:** the 17 listed in `KNOWN_FALLBACKS` (5 of the 6 twigs, tight 2-arm bends of the bile ducts under about 100 degrees, bile hairline hubs of 4 canals, two far-seamed sinusoid
+  merges) and the terminal lymphatics (they only enter their pool). The vessels' mouths already flare as 2D's do (`flareAt`, `twigRadius` in widths.ts). 211 of 228 junctions are welded.

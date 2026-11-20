@@ -346,17 +346,21 @@ export class Sinusoid3D {
 
   /** The focus band for the depth of field's band (post-dof.ts bandFrame): two points on this sinusoid's axis, where the blur starts (just past its own plates, as the haze) and where it is
    *  whole, in world space; returns the strength (0 when the scene is not shown: no blur). */
+  /** How far the blur has eased from one level over the whole screen (0) to the resting band (1): the dive's share, see focusBand. */
+  focusOpen = 1;
   focusBand(a: Vector3, b: Vector3, e0: Vector3, e1: Vector3, ends?: { mid: Vector3; f0: Vector3; f1: Vector3 }): number {
     if (!this.on || !this.group.visible) return 0;
     this.group.updateWorldMatrix(true, false);
     const d = this.flat.dive, rest = this.flat.g.hepIn(0) + UM.hep * 0.5, w = (v: Vector3, x: number, y: number) => this.group.localToWorld(v.set(x, y, 0));
-    // (in a dive, the focus pull: the band's sharp part and its ends closed to nothing (the whole picture soft) at the strength rising over FOCUS[0]-FOCUS[1], then opening back out to
-    //  the rest's over FOCUS[2]-1, so the sinusoid sharpens out of the blur it came in under)
+    // (the focus pull is one blur over the WHOLE screen, never a window opening: the band keeps its resting geometry through the dive and `open` (0 closed: the picture blurs the same everywhere, 1 the
+    //  resting band) is only how far each pixel's blur has eased from that one level to its own, post-dof.ts bandOpen. The sharp strip used to open outward from the axis and the ends, which read as a
+    //  box or a reveal to the right and left, Mohammad 20 Nov 2026: "just blur as you zoom in, then unblur the entire screen")
     const open = d == null ? 1 : smooth(FOCUS[2], 1, d);
-    const y0 = rest * open;
+    this.focusOpen = open;
+    const y0 = rest;
     w(a, -20, 0); w(b, 20, 0); w(e0, 0, y0); w(e1, 0, y0 + BLUR_RUN);
     // the two ends melt away well before the scene stops (Mohammad 20 Nov: "don't let me see the end of the sinusoid like that ... blur the ends")
-    if (ends) { w(ends.mid, 0, 0); w(ends.f0, (REACH - END_BLUR[0]) * open, 0); w(ends.f1, Math.max((REACH - END_BLUR[1]) * open, (REACH - END_BLUR[0]) * open + 2), 0); }
+    if (ends) { w(ends.mid, 0, 0); w(ends.f0, REACH - END_BLUR[0], 0); w(ends.f1, Math.max(REACH - END_BLUR[1], REACH - END_BLUR[0] + 2), 0); }
     return d == null ? this.fade.value : focusBlur(d);
   }
 

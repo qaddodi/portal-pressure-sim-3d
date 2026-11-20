@@ -26,7 +26,7 @@ export function plainFor(m: ShaderMaterial): MeshBasicMaterial {
 }
 
 /** The kind a failure is filed under: a vessel's program has the `inkColor` uniform, the rest are named by the material or the mesh. */
-export const kindOf = (m: ShaderMaterial, mesh: Object3D): string => ((m.uniforms as Record<string, unknown>).inkColor ? 'vessel' : m.name || mesh.name || 'scene');
+export const kindOf = (m: ShaderMaterial, mesh: Object3D): string => (m.name === 'skin' ? 'skin' : (m.uniforms as Record<string, unknown>).inkColor ? 'vessel' : m.name || mesh.name || 'scene');   // (a junction skin shares the vessels' ink uniform but is its own program)
 
 /** `extras`: materials drawn outside the scene graph (the anti-aliasing pass's); one whose program is refused is told through its `userData.onFail`. */
 export function installShaderGuard(renderer: GuardRenderer, root: Object3D, after: () => void = () => undefined, extras: () => readonly Material[] = () => []): () => void {
@@ -42,7 +42,8 @@ export function installShaderGuard(renderer: GuardRenderer, root: Object3D, afte
     for (const m of extras()) if ((renderer.properties.get(m) as { currentProgram?: { program?: unknown } } | undefined)?.currentProgram?.program === program) { lent.push(m); (m.userData as { onFail?: () => void }).onFail?.(); }
     for (const { mesh, m } of worn) {
       // a veil (the faint copy over the organs, and its depth-only pass) has no plain form worth drawing: the solid tube it veils is drawn
-      if ((m.defines as Record<string, unknown> | undefined)?.VEIL) mesh.visible = false;
+      const d = m.defines as Record<string, unknown> | undefined;
+      if (d?.VEIL || (m.name === 'skin' && d?.SKIN_COPY === 2)) mesh.visible = false;   // (a skin's veil copy likewise)
       else mesh.material = plainFor(m);
     }
     reportShaderFailure({ kind: worn.length ? kindOf(worn[0]!.m, worn[0]!.mesh) : lent.length ? lent[0]!.name || 'post aa' : 'scene', meshes: worn.length + lent.length, log });

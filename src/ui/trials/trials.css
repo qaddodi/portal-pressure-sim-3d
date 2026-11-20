@@ -1,50 +1,7 @@
-/* The Trials pane's rows. Its mount is 2D's own (.instrument-view.trials-view, the .pressure-switch, .tr-hd, .tr-body), laid out by the 2D stylesheet (tests-card.css); the root class and the
-   switch of ours are gone (the Treat card has a class of the same name: the two rules met). Text never shrinks and nothing scrolls inside it. */
-.trials-view { font: 400 var(--fs-data, 14px) / 1.35 var(--ui); color: var(--text); }
-.tr-t { font: 600 17px / 1.25 var(--display); }
-.tr-s { color: var(--text-2); }
-.tr-sec { display: grid; gap: 4px; }
-.tr-grp { margin: 6px 0 0; font: 600 12px / 1.2 var(--ui); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
-.tr-none { margin: 0; color: var(--text-2); }
-.tr-fh { display: flex; justify-content: space-between; align-items: center; min-height: 44px; padding: 0 4px; border: 0; background: transparent; color: var(--text-2); font: 600 12px / 1.2 var(--ui); letter-spacing: 0.08em; text-transform: uppercase; }
-.tr-fc { display: inline-flex; align-items: center; gap: 4px; }
-.tr-fc svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.tr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.tr-chips button { min-height: 44px; padding: 0 12px; border: 1px solid var(--edge); border-radius: 999px; background: transparent; color: var(--text-2); font: 600 13px / 1 var(--ui); }
-.tr-chips button[aria-pressed="true"] { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
-.tr-item { border-radius: 12px; }
-.tr-item[data-open] { background: color-mix(in srgb, var(--text) 5%, transparent); }
-.tr-row { width: 100%; display: grid; gap: 2px; padding: 8px 10px; border: 0; border-radius: 12px; background: transparent; text-align: left; color: var(--text); font: inherit; }
-.tr-row:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
-.tr-name { display: flex; align-items: center; gap: 8px; font-weight: 600; }
-.tr-pips { display: inline-flex; gap: 3px; }
-.tr-pips i { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--text-3); }
-.tr-pips i[data-p="y"] { background: var(--ok); border-color: var(--ok); }
-.tr-pips i[data-p="x"] { background: var(--danger); border-color: var(--danger); }
-.tr-rates b { font-weight: 700; }
-.tr-why { color: var(--text-2); }
-.tr-open { display: grid; gap: 8px; padding: 4px 10px 12px; }
-.tr-cmp, .tr-src { margin: 0; color: var(--text-2); }
-.tr-rules { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
-.tr-rules li { display: flex; flex-wrap: wrap; gap: 0 4px; }
-.tr-mark { width: 1.2em; font-weight: 700; }
-.tr-rules li[data-state="yes"] .tr-mark { color: var(--ok); }
-.tr-rules li[data-state="no"] .tr-mark { color: var(--danger); }
-.tr-val { color: var(--text-2); }
-/* The open trial's lesson, its other results, the Model line and the Baveno VIII lines (2D tests-card.css .tr-lesson .tr-also .tr-lab .tr-model .tr-bav) */
-.tr-lesson { margin: 0; font: 600 14px / 1.4 var(--ui); color: var(--text); text-wrap: pretty; }
-.tr-also { margin: 0; font: 500 12.5px / 1.4 var(--ui); color: var(--text-2); font-variant-numeric: tabular-nums; }
-.tr-lab { margin: 2px 0 0; font: 600 12px / 1.3 var(--ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
-.tr-model { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--text) 6%, transparent); }
-.tr-model .k { font: 600 12px / 1.3 var(--ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
-.tr-model .v { font: 600 15px / 1.35 var(--ui); font-variant-numeric: tabular-nums; color: var(--text); animation: tr-in 240ms var(--ease-arrive, ease) both; }
-.tr-model .v b { font-weight: 600; }
-.tr-model .v s { text-decoration: none; color: var(--text-3); }
-.tr-model .s { font: 400 12px / 1.4 var(--ui); color: var(--text-2); }
-.tr-model b[data-sev="caution"] { color: var(--caution); }
-.tr-model b[data-sev="danger"] { color: var(--danger); }
-.tr-bav { display: flex; flex-direction: column; gap: 4px; font: 400 12.5px / 1.45 var(--ui); color: var(--text-2); }
-.tr-bav b { font-weight: 600; color: var(--text); }
-.tr-today { color: var(--text); }
+/* The Trials pane is laid out by 2D's own stylesheet (css2d/tests-card.css: .trials-view .tr-hd .tr-sec .tr-fold .tr-fh .tr-chips .tr-chip .tr-row .tr-l1 .tr-nm .tr-rs .tr-l2 .tr-why .tr-pips .tr-exp .tr-rules
+   .tr-rule .tr-model .tr-bav .tr-src) on 2D's own markup (TrialsPane.tsx builds the nodes 2D's trials-pane.js builds). This file once held a second, different stylesheet for the same rows (upper-case fold
+   heads, 44 px chips, round-cornered rows, a rules list), which won over 2D's: the folds read as small caps with a right chevron and no chips, and the rows looked nothing like 2D's, 20 Nov 2026. It holds
+   only what 2D does with script: the Model line's words come in with a fade (2D swapFade). */
 @keyframes tr-in { from { opacity: 0; } to { opacity: 1; } }
+.tr-model .v { animation: tr-in 240ms var(--ease-arrive, ease) both; }
 @media (prefers-reduced-motion: reduce) { .tr-model .v { animation: none; } }

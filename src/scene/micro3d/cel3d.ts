@@ -18,6 +18,12 @@ import { LENS_SHARED } from '../lenses/tokens.copied.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 import { STREAK, STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
+import { dustGlsl } from '../blood/dust-glsl.ts';
+import { staticRouteTexture } from '../blood/routes.ts';
+import { dustTuner } from '../blood/dust.ts';
+/** The route table a material without dust is given (one empty column): the uniform always has a real texture, never null (tests/glsl-compile.test.ts). Made once, shared. */
+let noRoute: { value: DataTexture } | null = null;
+const noRouteTex = (): { value: DataTexture } => (noRoute ??= { value: staticRouteTexture(1, new Map(), () => 0) });
 /** The streak field's units to a tube radius, so a streak's mean length (FIELD_LEN) is LEN_OF_R radii, as the Anatomy's are. */
 const STREAK_FIELD_PER_R = (STREAK.FIELD_LEN[0] + STREAK.FIELD_LEN[1] / 2) / STREAK.FIELD_LEN_R;
 
@@ -55,6 +61,10 @@ varying float vAux;
 varying float vArc;
 varying float vAcross;
 #endif
+#ifdef DUST
+attribute vec4 fcourse;   // the dust's route (blood/routes.ts): this course's column of the route table, the arc from its start, its length (local units), the true place across (-1 .. 1, never hushed)
+varying vec4 vCourse;
+#endif
 #if defined(GAPS) || defined(HOLES)
 varying vec2 vG;
 #endif
@@ -87,6 +97,9 @@ void main() {
 #endif
 #ifdef FLOW
   vArc = aux; vAcross = aux2;
+#endif
+#ifdef DUST
+  vCourse = fcourse;
 #endif
 #if defined(GAPS) || defined(HOLES)
   vG = position.xy;
@@ -212,6 +225,26 @@ float flowStreaks() {
   return streakField(vAcross, vArc * s, uFlowT * s, 1.0, 1.0, 1.0) * uFlowStreak;
 }
 #endif
+#ifdef DUST
+// THE ANATOMY'S DUST in the lobule (Mohammad, 20 Nov: "also same streaks in lobule view please"): the same particles (blood/dust-glsl.ts), each with one identity through every joint of the lobule's
+// network (micro3d/lobule-routes.ts: a sinusoid leaving an inlet venule takes the venule's lanes on its side; two sinusoids merging lie side by side), all riding the lobule's one flow (uFlowT).
+// The lobule is seen from above: the section's N axis (the course's left in the plate) is the screen's sideways axis, its B axis faces the eye.
+varying vec4 vCourse;
+uniform float uDustK;     // how strong (the Blood streaks setting, the view's own fade)
+#define time (uFlowT * 3.0)
+${dustGlsl('return uFlowT / max(D_flowK, 1e-4);')}
+#undef time
+vec4 flowDustMicro(vec3 lit) {
+  if (uDustK <= 0.0 || abs(vCourse.w) >= 0.97) return vec4(0.0);
+  float R = max(uFlowR, 1e-5);
+  float wpc = max(length(vec2(dFdx(vArc), dFdy(vArc))), 1e-7) * uDpr, rPx = R / wpc;
+  float dOn = uDustK * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rPx);
+  if (dOn <= 0.002) return vec4(0.0);
+  DFrame Fd = DFrame(vCourse.w, vec2(1.0, 0.0), vec2(0.0, 1.0), vCourse.y, vCourse.z, R, R, rPx, 1.0, 0.0, vCourse.x, 1.0);
+  vec4 d = dustTube(Fd, lit, lit * 0.35, 0.0);
+  return vec4(d.rgb * dOn, d.a * dOn);
+}
+#endif
 #if defined(GAPS) || defined(HOLES)
 // real gaps through a sheet (the sinusoid's fenestrae, Mohammad 20 Nov 2026: "complete, not just circle holes: actually a gap in the membrane"): one texel per 1 µm slot along x, per side (row 0 the
 // side at local y > 0, row 1 the other), holding the gap's half width (red, 0..1 of 0.5 µm). A fragment within it is not drawn at all, across the whole bead and its wall, so the space of Disse shows through;
@@ -282,7 +315,11 @@ void main() {
 #ifdef FLOW
   vec2 hd = flowHeads();
   hd *= 1.0 - wz;   // (the wedged blood is still: its marks die away under the wash)
+#ifdef DUST
+  { vec4 dd = flowDustMicro(c) * (1.0 - wz); c = c * (1.0 - dd.a) + dd.rgb; }   // (under the chevrons, which come next)
+#else
   c = mix(c, streakTone(c, uFlowCol, gStreakK.x, gStreakK.y), flowStreaks() * (1.0 - clamp(hd.x + hd.y, 0.0, 1.0)) * (1.0 - wz));   // (the streaks lie UNDER the chevrons: a head's pixel is never tinted by one)
+#endif
   vec3 inkH = mix(uFlowInk, c * 0.3, 0.2), rimH = vec3(0.2314, 0.1725, 0.1333);   // (the Anatomy's: the head ink a touch of the lumen's own deep tone, the ring always the dark ink)
   float hk = uFlowDark > 0.5 ? clamp(uFlowK, 0.0, 1.0) : uFlowK * 1.6;   // (the blood's dark heads whole at uFlowK 1, and they dissolve with the view as everything else does)
   vec3 core = uFlowDark > 0.5 ? inkH : uFlowCol;
@@ -427,6 +464,8 @@ export interface MicroOptions {
   rimK?: { value: number };
   /** A per-vertex swelling (the geometry carries `swell`, see MICRO_VS), set with setSwell. */
   swell?: boolean;
+  /** The Anatomy's dust on a flowing tube (the geometry carries `fcourse`): the route table of its network and the dust's shared numbers (blood/dust.ts). */
+  dust?: { routeTex: { value: Texture }; dustP: { value: Float32Array } };
 }
 
 /** The gap table of a part without gaps: one closed texel. */
@@ -445,7 +484,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
   const haze = o.haze ?? hazeUniforms();
   const toon = new ShaderMaterial({
     vertexShader: MICRO_VS, fragmentShader: MICRO_FS, vertexColors: !!o.vertexColors,
-    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps && !o.holes ? { GAPS: '' } : {}), ...(o.gaps && o.holes ? { HOLES: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.swell ? { SWELL: '' } : {}) },
+    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps && !o.holes ? { GAPS: '' } : {}), ...(o.gaps && o.holes ? { HOLES: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.dust && o.flow ? { DUST: '' } : {}) },
     uniforms: {
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, uSwell: { value: new Vector2(0, 0) }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
@@ -453,6 +492,8 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
       uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakDir: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
+      // (always given, dust or not: the shader text declares them, and a uniform a material lacks keeps the value the last program drew with, tests/uniforms-declared.test.ts)
+      routeTex: o.dust?.routeTex ?? noRouteTex(), dustP: o.dust?.dustP ?? dustTuner.uniform, uDustK: { value: 0 },
       uFlowR: { value: 0.02 }, uDpr: { value: 2 }, uFlowDark: { value: 0 }, uFlowInk: { value: rawRGB(new Color(), hexRGB(LENS_SHARED.chevron)) },
       // (every toon carries the gaps' uniforms too, a blank texture and no slots where it has none, so a program read without GAPS still finds each one)
       uGaps: { value: o.gaps?.tex ?? NO_GAPS }, uGapX: { value: o.gaps?.x ?? new Vector4(0, 0, 0, 0) }, uHoleP: { value: new Vector2(o.holes?.s ?? 0, o.holes?.dx ?? 0) },
@@ -698,10 +739,49 @@ export function ellipsoidRingAngle(r: number, rings: number): number {
 }
 
 /** A round tube along a path (x, y, z points) with a radius per point and round ends, its normals smooth round the tube. */
-export function tube(b: MeshBuilder, path: readonly (readonly [number, number, number])[], radius: (i: number) => number, col?: RGB | ((i: number) => RGB), seg = 12, caps = true): void {
+export function tube(b: MeshBuilder, path: readonly (readonly [number, number, number])[], radius: (i: number) => number, col?: RGB | ((i: number) => RGB), seg = 12, caps = true, range?: TubeRange): void {
   const m = path.length;
   if (m < 2) return;
-  // a frame that turns as little as it can along the path (parallel transport), starting square to the first segment and to z where it can
+  const { T, N, Bn } = tubeFrames(path);
+  // (a piece of a path, for a welded junction: the rings i0..i1 of the whole path's own frames, so a cut tube's rings are exactly those the whole tube would have had)
+  const i0 = range?.i0 ?? 0, i1 = range?.i1 ?? m - 1, capStart = caps && (range?.capStart ?? true), capEnd = caps && (range?.capEnd ?? true);
+  const colAt = (i: number): RGB | undefined => (typeof col === 'function' ? col(i) : col);
+  const rows: number[] = [];
+  for (let i = i0; i <= i1; i++) {
+    rows.push(b.count);
+    const p = path[i]!, r = radius(i), nn = N[i]!, bn = Bn[i]!;
+    for (let k = 0; k < seg; k++) {
+      const a = (k / seg) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+      const dx = nn[0] * ca + bn[0] * sa, dy = nn[1] * ca + bn[1] * sa, dz = nn[2] * ca + bn[2] * sa;
+      b.v(p[0] + dx * r, p[1] + dy * r, p[2] + dz * r, dx, dy, dz, colAt(i));
+    }
+  }
+  for (let i = 0; i < i1 - i0; i++) b.strip(rows[i]!, rows[i + 1]!, seg, true);
+  if (!capStart && !capEnd) return;
+  // round ends: a half sphere at each end
+  for (const end of [i0, i1]) {
+    if (end === i0 ? !capStart : !capEnd) continue;
+    const p = path[end]!, r = radius(end), t = T[end]!, s = end === i0 ? -1 : 1, nn = N[end]!, bn = Bn[end]!;
+    const ringsE = 4, start: number[] = [rows[end - i0]!];
+    for (let q = 1; q <= ringsE; q++) {
+      const ph = (q / ringsE) * Math.PI / 2, cr = Math.cos(ph), sr = Math.sin(ph);
+      start.push(b.count);
+      for (let k = 0; k < seg; k++) {
+        const a = (k / seg) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+        const dx = (nn[0] * ca + bn[0] * sa) * cr + t[0] * s * sr, dy = (nn[1] * ca + bn[1] * sa) * cr + t[1] * s * sr, dz = (nn[2] * ca + bn[2] * sa) * cr + t[2] * s * sr;
+        b.v(p[0] + dx * r, p[1] + dy * r, p[2] + dz * r, dx, dy, dz, colAt(end));
+      }
+    }
+    for (let q = 0; q < ringsE; q++) { if (s > 0) b.strip(start[q]!, start[q + 1]!, seg, true); else b.strip(start[q + 1]!, start[q]!, seg, true); }
+  }
+}
+
+/** Which rings of a path `tube` builds (the whole path's own frames, so a cut piece's rings are the whole tube's), and which of its ends get a round cap. */
+export interface TubeRange { i0: number; i1: number; capStart?: boolean; capEnd?: boolean }
+
+/** A tube's frames along its path: the unit tangent, and the two unit vectors square to it (`N`, `Bn`) that a ring's vertices are laid out on (a frame that turns as little as it can: parallel transport, starting square to the first segment and to z where it can). */
+export function tubeFrames(path: readonly (readonly [number, number, number])[]): { T: [number, number, number][]; N: [number, number, number][]; Bn: [number, number, number][] } {
+  const m = path.length;
   const T: [number, number, number][] = [], N: [number, number, number][] = [], Bn: [number, number, number][] = [];
   for (let i = 0; i < m; i++) {
     const a = path[Math.max(0, i - 1)]!, c = path[Math.min(m - 1, i + 1)]!;
@@ -717,34 +797,7 @@ export function tube(b: MeshBuilder, path: readonly (readonly [number, number, n
     const bn = norm(cross(t, up)), nn = norm(cross(bn, t));
     N.push(nn); Bn.push(bn); up = nn;
   }
-  const colAt = (i: number): RGB | undefined => (typeof col === 'function' ? col(i) : col);
-  const rows: number[] = [];
-  for (let i = 0; i < m; i++) {
-    rows.push(b.count);
-    const p = path[i]!, r = radius(i), nn = N[i]!, bn = Bn[i]!;
-    for (let k = 0; k < seg; k++) {
-      const a = (k / seg) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
-      const dx = nn[0] * ca + bn[0] * sa, dy = nn[1] * ca + bn[1] * sa, dz = nn[2] * ca + bn[2] * sa;
-      b.v(p[0] + dx * r, p[1] + dy * r, p[2] + dz * r, dx, dy, dz, colAt(i));
-    }
-  }
-  for (let i = 0; i < m - 1; i++) b.strip(rows[i]!, rows[i + 1]!, seg, true);
-  if (!caps) return;
-  // round ends: a half sphere at each end
-  for (const end of [0, m - 1]) {
-    const p = path[end]!, r = radius(end), t = T[end]!, s = end === 0 ? -1 : 1, nn = N[end]!, bn = Bn[end]!;
-    const ringsE = 4, start: number[] = [rows[end]!];
-    for (let q = 1; q <= ringsE; q++) {
-      const ph = (q / ringsE) * Math.PI / 2, cr = Math.cos(ph), sr = Math.sin(ph);
-      start.push(b.count);
-      for (let k = 0; k < seg; k++) {
-        const a = (k / seg) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
-        const dx = (nn[0] * ca + bn[0] * sa) * cr + t[0] * s * sr, dy = (nn[1] * ca + bn[1] * sa) * cr + t[1] * s * sr, dz = (nn[2] * ca + bn[2] * sa) * cr + t[2] * s * sr;
-        b.v(p[0] + dx * r, p[1] + dy * r, p[2] + dz * r, dx, dy, dz, colAt(end));
-      }
-    }
-    for (let q = 0; q < ringsE; q++) { if (s > 0) b.strip(start[q]!, start[q + 1]!, seg, true); else b.strip(start[q + 1]!, start[q]!, seg, true); }
-  }
+  return { T, N, Bn };
 }
 
 /** A unit sphere (radius 1), for instanced round things (albumin, pores, nuclei). */

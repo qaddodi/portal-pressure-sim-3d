@@ -44,6 +44,12 @@ export interface Item {
   minLead?: number;
   /** The words stand clear of every line in `lines` (the courses drawn under them: a name over the sinusoids is hard to read), searched round the dot as far as CLEAR_MAX; only when no such spot
    *  exists does it take the cheapest one with a line under it. */
+  /** 2D's rule of 4 Nov ("when there is no room we shouldn't have labels covering the portal vein and structures completely"): a station's name never takes the last resort of a spot over a vessel; where
+   *  only that is left it is left out. The reader's own choices (the picked vessel, what a slide names or shows) and the hepatic artery keep it. */
+  offVessels?: boolean;
+  /** A name whose figure fills the view with vessels (the lobule's net): a far spot with a vessel under it is allowed, at its line cost, before the name is given up, as 2D's lobule orders
+   *  append the unclear spots after the clear ones (stage-label-solve.js `{ gap: near, leader: false }, { gap: far, leader: true }`). The Anatomy and Circuit "every far spot is clear" rule (5316a81e) does not apply to it. */
+  looseFar?: boolean;
   clearLines?: boolean;
   /** For a `clearLines` name: the side (a unit vector on the canvas) it prefers to go to when it must stand off, as 2D puts the central vein's name on the side away from the tract (the nearer clear spots on the other side cost more). */
   prefer?: readonly [number, number];
@@ -69,6 +75,8 @@ export interface SolveInput {
   keep?: readonly { id: string; x: number; y: number; r: number }[];
   /** A cost for each vessel line a label's leader crosses (past the vessel the dot stands on), up to four: a name never hangs from a long leader drawn across the sinusoids when it could stand clear (Circuit, phone and iPad, 20 Nov). 0 or absent: none. */
   leaderLineCost?: number;
+  /** A diagnostic (`?capwhy`): filled with, for each item, how many of its near spots (cost under 20) each rule threw out, and who the label or dot in the way was. */
+  why?: Map<string, Record<string, number>>;
 }
 
 export interface Placement {
@@ -104,6 +112,10 @@ const SLIDE_INSET = 18;
 const SHORT_LEAD = 45, LONG_LEAD = 60;
 const WIDE_GAPS = [40, 58, 76, 96, 120];
 const FORM_COST = 50;
+/** The least cost of a spot past the near ring (the compass gaps cost 2 a step, under this): the wide gaps and every ring beyond. */
+const NEAR_COST = 20;
+/** The least cost of a spot of the wide search (RING_SPOTS): the far last-resort spots. */
+const RING_COST = 100;
 const LINE_COST = 8;
 /** Air kept between a `clearLines` name and a line (px): half a tube's width as drawn, the ink beside it and a little. */
 export const LINE_AIR = 3;
@@ -208,7 +220,7 @@ function candidates(it: Anchored, f: Form, wide: boolean): Cand[] {
   const order: Dir[] = [...(it.dirs ?? []), ...COMPASS.filter((d) => !(it.dirs ?? []).includes(d))];
   order.forEach((d, i) => { const [dx, dy] = offsetOf(d, f.w, f.h, gap0); out.push({ dx, dy, cost: i * 2 }); });
   WIDE_GAPS.forEach((g, gi) => order.forEach((d, i) => { const [dx, dy] = offsetOf(d, f.w, f.h, g + (it.vw ?? 0)); out.push({ dx, dy, cost: 20 + gi * 8 + i }); }));
-  if (wide) RING_SPOTS.forEach(([cx, cy], i) => out.push({ dx: cx - f.w / 2, dy: cy - f.h / 2, cost: 100 + i * 0.2 }));
+  if (wide) RING_SPOTS.forEach(([cx, cy], i) => out.push({ dx: cx - f.w / 2, dy: cy - f.h / 2, cost: RING_COST + i * 0.2 }));
   if (it.clearLines) CLEAR_SPOTS.forEach(([cx, cy, r]) => out.push({ dx: cx - f.w / 2, dy: cy - f.h / 2, cost: 30 + r * 0.1 + (it.prefer ? (1 - (cx * it.prefer[0] + cy * it.prefer[1]) / r) * PREFER_COST : 0) }));
   return out;
 }
@@ -242,29 +254,31 @@ export function solve(input: SolveInput): Solved {
 
   const tryItem = (it: Anchored, relax: 0 | 1 | 2, offOrgans = false, strictLines = false, nearOnly = false) => {
     const blockers = relax >= 2 ? blockersRaw : blockersAir;
-    let best: { cost: number; form: number; c: Cand; box: Box; leader: boolean; seg: Seg | null } | null = null;
+    let best: { cost: number; form: number; c: Cand; box: Box; leader: boolean; seg: Seg | null; hits: number } | null = null;
+    const tally = input.why ? (input.why.get(it.id) ?? (input.why.set(it.id, {}), input.why.get(it.id)!)) : null;
+    const no = (c: Cand, reason: string): void => { if (tally) { const k = (c.cost < NEAR_COST ? '' : c.cost < RING_COST ? 'wide:' : 'ring:') + reason; tally[k] = (tally[k] ?? 0) + 1; } };
     for (let fi = 0; fi < (nearOnly ? 1 : it.forms.length); fi++) {
       const f = it.forms[fi];
       {
         for (const c of candidates(it, f, !!it.must || relax > 0)) {
           if (nearOnly && c.cost >= 20) continue;   // (an optional name: the ring beside its vessel only)
           const box: Box = { x0: it.ax + c.dx, y0: it.ay + c.dy, x1: it.ax + c.dx + f.w, y1: it.ay + c.dy + f.h };
-          if (!within(box, inner)) continue;
+          if (!within(box, inner)) { no(c, 'view'); continue; }
           if (offOrgans && it.onOther?.(box)) continue;
           let bad = false;
           for (const b of blockers) if (hits(box, b)) { bad = true; break; }
+          if (bad) { no(c, 'card'); continue; }
+          for (const p of placedBoxes) if (hits(box, grow(p.box, AIR_LABEL))) { bad = true; no(c, 'label:' + p.id); break; }
           if (bad) continue;
-          for (const p of placedBoxes) if (hits(box, grow(p.box, AIR_LABEL))) { bad = true; break; }
+          if (!it.region) for (const k of keep) if (k.id !== it.id && boxGap(box, k.x, k.y) < k.r + KEEP_AIR) { bad = true; no(c, 'disc:' + k.id); break; }
           if (bad) continue;
-          if (!it.region) for (const k of keep) if (k.id !== it.id && boxGap(box, k.x, k.y) < k.r + KEEP_AIR) { bad = true; break; }
-          if (bad) continue;
-          if (relax < 2) for (const o of items) if (o !== it && boxGap(box, o.ax, o.ay) < 9) { bad = true; break; }
+          if (relax < 2) for (const o of items) if (o !== it && boxGap(box, o.ax, o.ay) < 9) { bad = true; no(c, 'dot:' + o.id); break; }
           if (bad) continue;
           // the dot's own place: a label never covers its own dot (a region's name, drawn on what it names, has none)
-          if (!it.region && boxGap(box, it.ax, it.ay) < 3) continue;
+          if (!it.region && boxGap(box, it.ax, it.ay) < 3) { no(c, 'ownDot'); continue; }
           // (measured from the vessel's edge as drawn, not from its middle: a label hugging a fat vein has no line)
           const gap = it.region ? 0 : boxGap(box, it.ax, it.ay) - (it.vw ?? 0);
-          if (it.minLead && !it.region && relax < 2 && gap < it.minLead) continue;
+          if (it.minLead && !it.region && relax < 2 && gap < it.minLead) { no(c, 'minLead'); continue; }
           if (strictLines) { const air = grow(box, LINE_AIR); let under = false; for (const l of lines) if (crosses(l[0], l[1], l[2], l[3], air)) { under = true; break; } if (under) continue; }
           const leader = !it.region && !it.callout && gap > LEAD_ON;
           if (nearOnly && leader) continue;
@@ -274,7 +288,7 @@ export function solve(input: SolveInput): Solved {
             const [px, py] = nearestOn(box, it.ax, it.ay);
             seg = [it.ax, it.ay, px, py];
             const len = Math.hypot(px - it.ax, py - it.ay);
-            if (len > (it.reach ?? LONG_LEAD + (it.vw ?? 0) + 10) && c.cost < 100) continue;
+            if (len > (it.reach ?? LONG_LEAD + (it.vw ?? 0) + 10) && c.cost < 100) { no(c, 'reach'); continue; }
             if (len > SHORT_LEAD) pen += (len - SHORT_LEAD) * 0.2;
             if (leaderLineCost > 0 && len > 1) {
               const k = Math.min(1, ((it.vw ?? 0) + 4) / len), from: Seg = [seg[0] + (seg[2] - seg[0]) * k, seg[1] + (seg[3] - seg[1]) * k, seg[2], seg[3]];
@@ -282,30 +296,36 @@ export function solve(input: SolveInput): Solved {
               for (const l of lines) if (segsCross(from, [l[0], l[1], l[2], l[3]])) n++;
               pen += leaderLineCost * Math.min(n, 4);
             }
-            for (const b of blockers) if (crosses(seg[0], seg[1], seg[2], seg[3], b)) { bad = true; break; }
+            for (const b of blockers) if (crosses(seg[0], seg[1], seg[2], seg[3], b)) { bad = true; no(c, 'leaderCard'); break; }
             if (bad) continue;
-            for (const p of placedBoxes) if (crosses(seg[0], seg[1], seg[2], seg[3], grow(p.box, 1))) { bad = true; break; }
+            for (const p of placedBoxes) if (crosses(seg[0], seg[1], seg[2], seg[3], grow(p.box, 1))) { bad = true; no(c, 'leaderThrough:' + p.id); break; }
             if (bad) continue;
-            for (const k of keep) if (k.id !== it.id && segDist(seg, k.x, k.y) < k.r) { bad = true; break; }
+            for (const k of keep) if (k.id !== it.id && segDist(seg, k.x, k.y) < k.r) { bad = true; no(c, 'leaderDisc:' + k.id); break; }
             if (bad) continue;
-            if (relax < 1) for (const l of leaders) if (segsCross(seg, l.seg)) { bad = true; break; }
+            if (relax < 1) for (const l of leaders) if (segsCross(seg, l.seg)) { bad = true; no(c, 'leaderCross:' + l.id); break; }
             if (bad) continue;
           }
           // an earlier label's leader never runs through this box, whatever this label is (a region's name has no leader of its own: the right atrium's leader ran through RIGHT ATRIUM, phone play-test 20 Nov)
-          for (const l of leaders) if (crosses(l.seg[0], l.seg[1], l.seg[2], l.seg[3], box)) { bad = true; break; }
+          for (const l of leaders) if (crosses(l.seg[0], l.seg[1], l.seg[2], l.seg[3], box)) { bad = true; no(c, 'underLeader:' + l.id); break; }
           if (bad) continue;
           let lineHits = 0;
           for (const l of lines) if (crosses(l[0], l[1], l[2], l[3], box)) lineHits++;
+          // a far spot of the wide search stands clear of the vessels, as 2D's (`clear: true` on every ring: "farther out on a leader, wholly on the stage"); only the last resort may stand on one.
+          // (A line cost of 8 against a form's 50 had Lower IVC's wide form, with its change chip, 97 px up a leader on the varices' line in Compare on a phone, when its shorter form stood clear
+          // nearer: every spot past the near ring, the wide gaps as much as the rings, is clear of the lines, and the narrower form is what gives. A callout and a region's name are placed by their own rules.)
+          if (c.cost >= NEAR_COST && relax < 2 && lineHits > 0 && !it.callout && !it.region && !it.looseFar) { no(c, 'line'); continue; }
+          if (it.offVessels && relax >= 2 && lineHits > 0 && !it.region && !it.callout) { no(c, 'line'); continue; }
           if (it.face) {
             const vx = (box.x0 + box.x1) / 2 - it.face.cx, vy = (box.y0 + box.y1) / 2 - it.face.cy, l = Math.hypot(vx, vy) || 1;
             if ((vx * it.face.ux + vy * it.face.uy) / l < FACE_COS) pen += FACE_CLASH;
           }
           const cost = fi * FORM_COST + c.cost + pen + lineHits * (it.region ? REGION_LINE_COST : LINE_COST);
-          if (!best || cost < best.cost) best = { cost, form: fi, c, box, leader, seg };
+          if (!best || cost < best.cost) best = { cost, form: fi, c, box, leader, seg, hits: lineHits };
         }
       }
     }
     if (!best) return false;
+    if (tally) { tally['@relax'] = relax; tally['@form'] = best.form; tally['@lineHits'] = best.hits; tally['@spotCost'] = Math.round(best.c.cost); }
     placedBoxes.push({ id: it.id, box: best.box });
     if (best.seg) leaders.push({ id: it.id, seg: best.seg });
     placed.push({ id: it.id, form: best.form, dx: best.c.dx, dy: best.c.dy, w: it.forms[best.form].w, h: it.forms[best.form].h, leader: best.leader, au: it.au, ...(best.c.tail ? { tail: best.c.tail } : {}) });

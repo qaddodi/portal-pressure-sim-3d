@@ -63,7 +63,7 @@ export function SinusoidCaptions() {
 
     /** a place of the plane (µm along, µm across, y down as the shader has it) on the canvas, CSS px */
     const proj = (x: number, y: number): [number, number] => {
-      framePoint(x, y, U, cel.sinus.turn, f3);
+      framePoint(x, y, U, 0, f3);   // (the plane keeps its own frame; the camera's roll turns it on screen)
       const w = sinusoidWorld(f3);
       cel.rig.project(v3.set(w[0], w[1], w[2]), pt);
       return [pt.x, pt.y];

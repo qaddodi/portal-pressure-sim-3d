@@ -21,7 +21,7 @@ import { startFirstHint } from './first-hint.ts';
 import { Diagnostics } from './Diagnostics.tsx';
 import { useKeys } from '../keys/useKeys.ts';
 import { syncTransport } from './transport.ts';
-import { viewRoom, layoutVars, layoutClass, dockHeight, dockInset } from './room.ts';
+import { viewRoom, layoutVars, layoutClass, dockHeight, dockInset, topBarH } from './room.ts';
 import { M } from './metrics.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { applyDeepLink } from './open-link.ts';
@@ -111,7 +111,7 @@ function usePublishedLayout(app: React.RefObject<HTMLDivElement | null>, thumb: 
     root.classList.toggle('thumb-ui', thumb);
     const occ = thumb ? dockInset(d) + dockHeight(d) + 8 : 0;
     root.style.setProperty('--thumb-occ', px(occ)); root.style.setProperty('--sheet-foot-screen', px(occ));
-    root.style.setProperty('--thumb-top', thumb ? px(vp.safe.top + M.topSafe) : '0px');
+    root.style.setProperty('--thumb-top', thumb ? px(vp.safe.top + topBarH(vp, d)) : '0px');
     // the foot's height (the dock and the view pill over it) for what stands outside .app, the toast (2D: --toast-foot / --bot-occ, main.js)
     const lv = layoutVars(vp, d);
     if (lv['--bot-occ']) root.style.setProperty('--bot-occ', lv['--bot-occ']);

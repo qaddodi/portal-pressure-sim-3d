@@ -166,6 +166,7 @@ Address flags, where each works (live site, or the preview and a local run only)
 |---|---|---|---|
 | `?perf` | everywhere | Measure | The clock's frame panel: median, p95 and worst frame work, the frames over 20 ms with the phase and who asked for them; Copy (src/ui/perf). |
 | `?dust` | everywhere | Measure | Tunes the blood's dust (dust-panel.ts). |
+| `?joins` | everywhere | Measure | Vessel junctions as one merged mesh (docs/junction-skin-spec.md): on by default; ?joins=old is the old overlapping tubes, mesh only the SMV-SV confluence, mesh2 every junction. |
 | `?gl` | everywhere | Measure | Every shader program the app can use, compiled on this device: one line each, green or red, with the driver's own log and Copy (src/debug/gl-check.tsx). Open it once per build on the iPhone, the iPad and the Mac. |
 | `?watch` | preview and local run | Measure | The motion recorder (preview copy or a local run): keeps 20 seconds of camera, label and card numbers, judges them with the motion rules and shows a red dot with the findings (src/ui/debug/watch). |
 | `?debug` | preview and local run | Pages | The debug page (the card gallery, with Report and Full check on its bar; the motion recorder is on by default). ?debug=check is the Phone check, ?debug=full its long walk, ?debug=frame the device frame. |
@@ -175,7 +176,7 @@ Address flags, where each works (live site, or the preview and a local run only)
 | `?look` | preview and local run | Pages | The Mac look board (bare ?look; ?look&twod adds the 2D app beside each row): walks about 40 fixed states (patient, view, look, device) in one frame, reads the figure canvas in the frame that draws it, shows it beside the saved baseline and the difference (src/debug/look-board.ts, look/README.md). |
 | `?twod` | preview and local run | Pages | The look board: a button per row opens the 2D app's preview of the same patient in the row. |
 | `?capture` | preview and local run | Open | One look-board state (the look board's own frame opens it): ?capture&look=dark&preset=cirr-decomp&view=circuit&chevrons=0&orbit=25 applies it in memory (nothing saved) and window.__look hands out the canvas (src/debug/look-app.ts). |
-| `?liver` | preview and local run | Open | The cirrhotic liver's cel mock-ups: ?liver=cel1 (tawny ochre), cel2 (olive-tan), cel3 (rust), cel4 (straw), cel5 to cel7 (terracotta cobbled, after the plate), the soft family cel8 (broad soft nodules), cel9 (pillow lumps), cel10 (quiet surface, wavy rim), cel11 (knuckles, soft shade), cel12 (subtle: soft valleys with a faint lift on the lobes, slight tan shift, wavy rim); none shows cel12, the standing surface (cel7 the earlier cobbled one); ?liver=c2b the earlier pale-nodule one (src/scene/organs/liver-texture.ts). |
+| `?liver` | preview and local run | Open | The cirrhotic liver's cel mock-ups: ?liver=cel1 to cel15 (src/scene/organs/liver-texture.ts); none shows cel15, the standing surface (cel14 soft light, cel13 cobbled soft, cel7 cobbled); c2b the earlier pale-nodule one. |
 | `?only` | everywhere | Pages | The Phone check or the Sweep: just these journeys or specimens (comma list). |
 | `?steps` | everywhere | Pages | The Phone check: steps=0 leaves out the per-step rows. |
 | `?fresh` | everywhere | Pages | The Phone check: fresh=1 forgets a walk the browser was part way through. |

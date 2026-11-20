@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { buildSw, listFiles, orderFiles } from '../scripts/pwa.mjs';
-import { isUpdate, mayRegister } from '../src/pwa/register.ts';
+import { isUpdate, mayRegister, takesOverNow, CHECK_MS, CHECK_GAP_MS } from '../src/pwa/register.ts';
 import { cachePrefix } from '../src/ui/shell/build-pill.ts';
 import { hasWebGL2 } from '../src/boot/webgl.ts';
 import { NO_WEBGL } from '../src/ui/shell/words.ts';
@@ -91,11 +91,11 @@ function runSw(sw: string, names: string[]) {
   };
   const on: Record<string, (e: { waitUntil(p: Promise<unknown>): void; [k: string]: unknown }) => void> = {};
   const self = { registration: { scope: 'https://x.test/app/' }, addEventListener: (t: string, f: (typeof on)[string]) => { on[t] = f; }, skipWaiting: async () => undefined, clients: { claim: async () => undefined } };
-  const fetched: string[] = [];
-  const fetch = async (u: string) => { fetched.push(String(u)); return { status: 200, type: 'basic', clone() { return this; } }; };
+  const fetched: string[] = [], inits: (RequestInit | undefined)[] = [];
+  const fetch = async (u: string, init?: RequestInit) => { fetched.push(String(u)); inits.push(init); return { status: 200, type: 'basic', clone() { return this; } }; };
   new Function('self', 'caches', 'fetch', sw)(self, caches, fetch);
   const fire = async (type: string, extra: Record<string, unknown> = {}) => { const waits: Promise<unknown>[] = []; on[type]!({ waitUntil: (p) => { waits.push(p); }, ...extra }); await Promise.all(waits); };
-  return { store, fire, fetched };
+  return { store, fire, fetched, inits, on };
 }
 
 test('an update keeps the build before it by the order the caches were made in, not by the order of the commit hashes', async () => {
@@ -140,4 +140,32 @@ test('an update is offered only when the worker that took over holds other files
   assert.equal(isUpdate(['assets/index-A.js', 'assets/index-A.css'], ['index.html', 'assets/index-A.js', 'assets/index-A.css']), false, 'a page opened after the deploy is already on it');
   assert.equal(isUpdate(['assets/index-A.js'], ['index.html', 'assets/index-B.js']), true);
   assert.equal(isUpdate(['assets/index-A.js'], null), true, 'a worker that does not answer is taken as new');
+});
+
+test('a page is asked past the HTTP cache, in the worker and when it is held at install (the host lets a browser keep it ten minutes: a deploy was not seen for ten minutes)', async () => {
+  const sw = buildSw({ build: 'n1', files: [], boot: ['index.html', 'assets/a-1.js', 'manifest.webmanifest'], later: [] });
+  const w = runSw(sw, []);
+  await w.fire('install');
+  const at = (f: string) => w.inits[w.fetched.indexOf(`https://x.test/app/${f}`)];
+  assert.deepEqual(at('index.html'), { cache: 'no-cache' }, 'the page held at install is the newest');
+  assert.deepEqual(at('manifest.webmanifest'), { cache: 'no-cache' }, 'so is any file whose name has no hash');
+  assert.equal(at('assets/a-1.js'), undefined, 'a hashed file may come from the HTTP cache');
+  let answered: unknown;
+  w.on.fetch!({ request: { method: 'GET', url: 'https://x.test/app/', mode: 'navigate' }, respondWith: (p: Promise<unknown>) => { answered = p; }, waitUntil() {} } as never);
+  await answered;
+  assert.equal(w.fetched.at(-1), 'https://x.test/app/');
+  assert.deepEqual(w.inits.at(-1), { cache: 'no-cache', credentials: 'same-origin' }, 'a navigation is revalidated, as 2D\'s worker does');
+});
+
+test('a tab that stays open asks for a newer build itself and takes it up out of sight, never mid-talk', () => {
+  assert.equal(takesOverNow({ pending: true, hidden: true, mode: 'figure' }), true);
+  assert.equal(takesOverNow({ pending: true, hidden: false, mode: 'figure' }), false, 'in front it is offered, not forced');
+  assert.equal(takesOverNow({ pending: false, hidden: true, mode: 'figure' }), false, 'nothing waits');
+  assert.equal(takesOverNow({ pending: true, hidden: true, mode: 'deck' }), false, 'not while a talk plays');
+  assert.ok(CHECK_MS >= 60_000 && CHECK_MS <= 10 * 60_000 && CHECK_GAP_MS < CHECK_MS);
+  const reg = readFileSync(new URL('../src/pwa/register.ts', import.meta.url), 'utf8');
+  assert.match(reg, /reg\.update\(\)/, 'the page asks the host for a newer worker');
+  assert.match(reg, /addEventListener\('visibilitychange', ask\)/, 'when the tab comes to the front');
+  assert.match(reg, /setInterval\(ask, CHECK_MS\)/, 'and while it stays open');
+  assert.match(reg, /reloadUrl\(/, 'the reload keeps what is on the screen');
 });

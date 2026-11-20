@@ -7,7 +7,7 @@ import type { Palette } from '../../palette.ts';
 import { NETWORK_BY_ID, radiusOf, widthPx } from '../../vessels/network.ts';
 import { UNITS_PER_SCENE } from '../../frame2d.ts';
 import { DeviceObject } from '../device-object.ts';
-import { mergeTubes } from '../tube-rings.ts';
+import { WIRE_SIDES, mergeTubes } from '../tube-rings.ts';
 import { vesselFit, type VesselFit } from './fit.ts';
 import { buildStent, WIRE_MAX_R, type StentSpec } from './stent-build.ts';
 import { indexOf } from '../../../engine/vessel-data.ts';
@@ -15,7 +15,7 @@ import { indexOf } from '../../../engine/vessel-data.ts';
 /** The stretch of the vein the stent covers, as shares of its length (stage-venous.js VST_SPAN). */
 export const VEIN_STENT_SPAN: readonly [number, number] = [0.25, 0.75];
 export const VEIN_STENT_IN_MS = 1100, VEIN_STENT_OUT_MS = 660;
-const WIRE_RADIAL = 6;
+const WIRE_RADIAL = WIRE_SIDES;
 /** The vein's diameter when no frame has come yet (mm). */
 const D_DEFAULT = 8;
 

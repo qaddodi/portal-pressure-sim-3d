@@ -602,7 +602,7 @@ export class LabelController {
       const s0 = sil;
       items.push({
         id: m.id, ax: a.x, ay: a.y, au: m.station.u0, path: path.length ? path : undefined, forms: m.optional ? m.forms.slice(0, 1) : m.forms,
-        pri: picked ? 300 : isNamed ? 100 + (m.pri ?? m.station.pri) : m.optional ? 1 : m.pri ?? m.station.pri, must: !!picked || isNamed || !!m.must || this.state.shown.has(m.station.id), ...(m.optional ? { optional: true } : {}), dirs: m.station.dirs, region: m.station.kind === 'organ', vw,
+        pri: picked ? 300 : isNamed ? 100 + (m.pri ?? m.station.pri) : m.optional ? 1 : m.pri ?? m.station.pri, must: !!picked || isNamed || !!m.must || this.state.shown.has(m.station.id), ...(m.optional ? { optional: true } : {}), ...(!picked && !isNamed && !this.state.shown.has(m.station.id) && m.station.id !== 'HA' ? { offVessels: true } : {}), dirs: m.station.dirs, region: m.station.kind === 'organ', vw,
         ...(organ && s0 ? { spots: spotOffsets(m.station.name, m.station.at2d!, to), onOther: (b: Box) => onOtherOrgan(m.station.name, s0, b) } : {}),
       });
     }
@@ -620,7 +620,10 @@ export class LabelController {
         }
       }
     }
-    const res = solve({ items, view, blockers, lines, leaderLineCost: LEADER_LINE_COST });
+    // (?capwhy: for each label that stands on a leader, how many of its near spots each rule threw out and who stood in the way, to find what pushed it away)
+    const why = typeof location !== 'undefined' && /[?&]capwhy\b/.test(location.search) ? new Map<string, Record<string, number>>() : undefined;
+    const res = solve({ items, view, blockers, lines, leaderLineCost: LEADER_LINE_COST, ...(why ? { why } : {}) });
+    if (why) for (const p of res.placed) if (p.leader) console.info('[anatomy-labels]', p.id, 'form', p.form, 'dx,dy', Math.round(p.dx), Math.round(p.dy), 'near spots lost to', JSON.stringify(why.get(p.id) ?? {}));
     this.dropped = res.dropped; this.hiddenIds = res.hidden;
     const wants = new Map<string, Want>();
     this.skipped = res.skipped;

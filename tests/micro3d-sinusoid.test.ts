@@ -143,6 +143,15 @@ test('the focus band: nothing when the scene is off, its blur starting past this
   assert.ok(Math.abs(toLocal(e0).y) > (flat as unknown as { g: { hepIn(x: number): number } }).g.hepIn(0) && Math.abs(toLocal(e1).y) > Math.abs(toLocal(e0).y));
 });
 
+test('in a dive the band keeps its resting geometry (the blur eases in amount, it never opens as a window)', () => {
+  const { s3, flat } = scene(); s3.update(true);
+  const a = new Vector3(), b = new Vector3(), e0 = new Vector3(), e1 = new Vector3(), ends = { mid: new Vector3(), f0: new Vector3(), f1: new Vector3() };
+  const at = (d: number | null) => { flat.setDive(d); s3.focusBand(a, b, e0, e1, ends); return [e0.clone(), e1.clone(), ends.f0.clone(), ends.f1.clone(), s3.focusOpen] as const; };
+  const rest = at(null);
+  for (const d of [0.5, 0.7, 0.85]) { const g = at(d); for (let i = 0; i < 4; i++) assert.ok((g[i] as Vector3).distanceTo(rest[i] as Vector3) < 1e-9, `the band's edge ${i} stands where it rests at dive ${d}`); }
+  assert.equal(at(0.5)[4], 0, 'closed: the same blur everywhere'); assert.equal(at(null)[4], 1);
+});
+
 test('the sinusoid never visibly ends: the scene runs well past the traffic, and the blur along it melts both ends', () => {
   assert.ok(REACH >= TRAFFIC_REACH + 40);
   const { s3 } = scene(); s3.update(true);
@@ -336,4 +345,35 @@ test('the lift over the lobule never changes the sinusoid\'s size on screen: a p
   s3.group.position.z = lift; s3.holdScale(eye); s3.group.updateMatrixWorld(true);
   const lifted = [pt(10, 0), pt(-7, 4)].map(proj);
   for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) assert.ok(Math.abs(lifted[i]![j]! - landed[i]![j]!) < 1e-9, `point ${i} axis ${j}: ${lifted[i]![j]} against ${landed[i]![j]}`);
+});
+
+// Nothing of the sinusoid floats free of its cell (Mohammad, 20 Nov 2026: a small stray piece floating on the liver): every arm of the Kupffer cell and of the stellate cells (a tube out of a body)
+// starts inside its body, so its bounding box meets the body's. A tube whose root was left out of the body would float.
+function components(g: BufferGeometry): { min: Vector3; max: Vector3; verts: number }[] {
+  const idx = g.getIndex(), pos = g.getAttribute('position');
+  const n = pos.count, parent = Array.from({ length: n }, (_, i) => i);
+  const find = (a: number): number => { while (parent[a] !== a) { parent[a] = parent[parent[a]!]!; a = parent[a]!; } return a; };
+  if (idx) for (let i = 0; i < idx.count; i += 3) { const a = find(idx.getX(i)), b = find(idx.getX(i + 1)), c = find(idx.getX(i + 2)); parent[b] = a; parent[find(c)] = a; }
+  const by = new Map<number, { min: Vector3; max: Vector3; verts: number }>();
+  for (let v = 0; v < n; v++) {
+    const r = find(v), p = new Vector3(pos.getX(v), pos.getY(v), pos.getZ(v)), e = by.get(r) ?? { min: p.clone(), max: p.clone(), verts: 0 };
+    e.min.min(p); e.max.max(p); e.verts++; by.set(r, e);
+  }
+  return [...by.values()];
+}
+test('the Kupffer cell\'s arms and the stellate cells\' processes all reach their cell\'s body: no piece of the sinusoid floats free', () => {
+  const { s3 } = scene();
+  s3.update(true);
+  const ms = meshes(s3.group);
+  for (const name of ['sinusoid3d/kupffer', 'sinusoid3d/stellate']) {
+    const m = ms.find((x) => x.name === name)!, comps = components(m.geometry);
+    assert.ok(comps.length >= 2, `${name} has a body and arms`);
+    // bodies are the pieces with the most vertices; an arm (a tube) is a smaller piece that must touch one of them
+    const bodies = comps.filter((c) => c.verts >= 200), arms = comps.filter((c) => c.verts < 200);
+    assert.ok(bodies.length >= 1 && arms.length >= 2, `${name} has a body and arms (bodies ${bodies.length}, arms ${arms.length})`);
+    for (const a of arms) {
+      const touches = bodies.some((b) => a.min.x <= b.max.x && a.max.x >= b.min.x && a.min.y <= b.max.y && a.max.y >= b.min.y && a.min.z <= b.max.z && a.max.z >= b.min.z);
+      assert.ok(touches, `${name}: a piece of ${a.verts} vertices at (${a.min.x.toFixed(1)}, ${a.min.y.toFixed(1)}) floats free of every body`);
+    }
+  }
 });

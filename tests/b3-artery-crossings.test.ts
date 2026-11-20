@@ -120,7 +120,9 @@ test('the hepatic artery is one connected tree: the proper artery ends where the
     const f = fadeOf(v.id, v.tone === 'artery');
     for (const [node, atStart] of [[v.from, true], [v.to, false]] as const) {
       if ((ends.get(node) ?? 0) > 1) continue;   // joined to another vessel there
-      const fades = !!f && (atStart ? f.a0 < 1 : f.a1 < 1);
+      // (a fade down or up the figure, mode 2, is by place, not by end: it holds where the free end lies past the place the fade has let go: V_UP's top, ILI_IVC's foot)
+      const endY = (atStart ? v.pts[0]! : v.pts[v.pts.length - 1]!)[1];
+      const fades = !!f && (f.mode === 2 ? (f.a0 < 1 || f.a1 < 1) && (f.to >= f.from ? endY >= f.to : endY <= f.to) : atStart ? f.a0 < 1 : f.a1 < 1);
       if (!fades) blunt.push(`${v.id}@${atStart ? 'start' : 'end'}`);
     }
   }

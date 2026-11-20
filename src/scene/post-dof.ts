@@ -6,14 +6,17 @@
 //   - its strength is a function of the camera's distance to the place dived to (dofShare), 0 from the distance the body has gone (DIVE_IN) and 1 once the lobule is framed, so
 //     the way in and the way out are one picture run both ways and nothing pops. At 0 the pass is not drawn at all.
 //   - the scene is drawn into post-aa.ts's texture, which for this switch also carries a depth texture; the pass reads it.
+//     PASS 0 (half size, only while a blur is drawn): the picture copied into a half-size texture that keeps its MIP CHAIN. Every tap of the gather reads the mip level its spacing asks for, so each tap is itself
+//     an averaged patch of the picture and the ten-odd taps blend into one smooth disc. (Before, the taps were single texels turned by a per-pixel random angle: ten points of a disc, a different ten at every
+//     pixel, which is a speckled, grainy blur: Mohammad 20 Nov 2026, iPhone. A fixed pattern would ghost instead of speckle. Pre-filtered taps do neither.)
 //     PASS 1 (half size): per pixel the circle of confusion of its four full-size texels (the lobule's plates, the neighbour field and the sinusoid's tissue write no depth, so a
 //     pixel with none is taken to lie on the plane through the focus, facing the camera's own +z as those planes do: planeUniform); a pixel in focus costs 5 reads and stops there; a blurred one
-//     gathers TAPS (10) golden-angle taps over its disc, each tap weighted by its OWN circle (a tap in focus never reaches into a blurred pixel and a blurred tap never smears
+//     gathers TAPS golden-angle taps over its disc, each tap weighted by its OWN circle (a tap in focus never reaches into a blurred pixel and a blurred tap never smears
 //     over a crisp one: the cel look's ink lines do not bloom). Its alpha carries the smallest circle of the four texels.
 //     PASS 2 (full size): the blur blended over the picture by that alpha (a pixel whose texels are in focus has alpha 0 and is not touched at all: `discard`).
 //   - between the two passes of scene.ts the depth is not cleared while the pass runs (the vessels' pass draws nothing once the body has gone), so the depth the pass reads is the figure's.
 //   - the programs fail soft like FXAA's: a driver that refuses one turns the pass off for good (userData.onFail through the shader guard) and the figure is drawn as it was.
-import { DepthTexture, LinearFilter, Matrix4, Mesh, NoBlending, OrthographicCamera, PlaneGeometry, Scene, ShaderMaterial, UnsignedInt248Type, DepthStencilFormat, Vector2, Vector3, Vector4, WebGLRenderTarget, type PerspectiveCamera, type WebGLRenderer } from 'three';
+import { DepthTexture, LinearFilter, LinearMipmapLinearFilter, Matrix4, Mesh, NoBlending, OrthographicCamera, PlaneGeometry, Scene, ShaderMaterial, UnsignedInt248Type, DepthStencilFormat, Vector2, Vector3, Vector4, WebGLRenderTarget, type PerspectiveCamera, type WebGLRenderer } from 'three';
 import { LOBULE_SCALE, SIN_SCALE } from './lobule/frames.ts';
 import { LOBULE_T } from './lobule/shots.ts';
 import { useSettings } from '../state/settings.ts';
@@ -53,8 +56,8 @@ export const DOF_MAX_FRAC = 0.005, DOF_SPAN = 0.35;
 export const DOF_SLAB_LOBULE = 0.75 * LOBULE_T * LOBULE_SCALE, DOF_SLAB_SINUSOID = 1.0 * SIN_SCALE;
 /** The focus band's biggest circle, as a share of the picture's height (2%: about 34 px on an iPhone's 1688 px). */
 export const DOF_BAND_FRAC = 0.02;
-/** The taps of the gather. */
-export const DOF_TAPS = 10;
+/** The taps of the gather: each reads a pre-filtered mip level (no noise), so a dozen make a smooth disc. */
+export const DOF_TAPS = 12;
 
 /** The circle of confusion in pixels at view distance `z` with the focus at `zf` and `slab` kept sharp either side: 0 in focus and whenever `share` is 0, growing with the depth off the slab relative to the distance (a lens),
  *  to `maxPx`. The shader's `cocAt` is this, line for line. */
@@ -94,7 +97,7 @@ void main() {
 // PASS 1, at half size. `plane`, `focus` (x the focus distance, y the slab kept sharp, z the span, w the biggest circle in full-size px), `gate` (x the strength, y the far clip), `proj` (the projection's
 // [2][2] and [3][2]: view distance = proj.y / (ndc z + proj.x)). The picture's own numbers are averaged, as the FXAA pass takes them.
 export const DOF_GATHER_FS = /* glsl */ `
-uniform sampler2D tColor;
+uniform sampler2D tSrc;   // the picture at half size with its mip chain (pass 0)
 uniform sampler2D tDepth;
 uniform vec2 texel;
 uniform vec2 proj;
@@ -109,6 +112,8 @@ uniform vec4 bandK;
 // bandAK x the half length kept sharp, y the run to whole (px; 0: none)
 uniform vec4 bandA;
 uniform vec2 bandAK;
+// how far each pixel's blur has eased from ONE level over the whole screen (0) to its own band shape (1): the dive's focus pull is a uniform blur that lets go everywhere at once, never a window that opens
+uniform float bandO;
 varying vec2 vUv;
 #define TAPS ${DOF_TAPS}
 float distAt(vec2 uv) {
@@ -130,10 +135,9 @@ float bandCoc(vec2 uv) {
   float d = abs(dot(band.xy, p) - band.z);
   float t = clamp((d - bandK.x) / max(bandK.y, 1e-3), 0.0, 1.0), k = t * (2.0 - t);   // (eases out: the blur comes in quickly past the sharp band, then settles)
   if (bandAK.y > 0.0) k = max(k, smoothstep(bandAK.x, bandAK.x + bandAK.y, abs(dot(bandA.xy, p) - bandA.z)));
-  return k * bandK.z * bandK.w;
+  return mix(1.0, k, bandO) * bandK.z * bandK.w;
 }
 float cocOf(vec2 uv) { return max(gate.x > 0.0 ? cocAt(distAt(uv)) : 0.0, bandCoc(uv)); }
-float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 void main() {
   vec2 h = texel * 0.5;
   float c0 = cocOf(vUv + vec2(-h.x, -h.y));
@@ -142,23 +146,30 @@ void main() {
   float c3 = cocOf(vUv + vec2(h.x, h.y));
   float cMax = max(max(c0, c1), max(c2, c3));
   float cMin = min(min(c0, c1), min(c2, c3));
-  vec3 mid = texture2D(tColor, vUv).rgb;
+  vec3 mid = textureLod(tSrc, vUv, 0.0).rgb;
   if (cMax < 0.25) { gl_FragColor = vec4(mid, 0.0); return; }
   float radius = 0.25 * (c0 + c1 + c2 + c3);
-  float turn = ign(gl_FragCoord.xy) * 6.2831853;
-  vec3 sum = mid;
+  // the mip level whose texel is about the spacing between neighbouring taps (the disc's area over its taps, in half-size texels, a little over so the patches overlap): no tap is a lone texel
+  float lod = log2(max(1.0, 1.1 * radius / sqrt(float(TAPS))));
+  vec3 sum = textureLod(tSrc, vUv, lod).rgb;
   float weight = 1.0;
   for (int i = 0; i < TAPS; i++) {
     float f = float(i) + 0.5;
-    float ang = f * 2.3999632 + turn;
+    float ang = f * 2.3999632;
     vec2 off = vec2(cos(ang), sin(ang)) * (sqrt(f / float(TAPS)) * radius);
     vec2 uv = vUv + off * texel;
     float w = clamp(cocOf(uv) - length(off) + 1.0, 0.0, 1.0);
-    sum += texture2D(tColor, uv).rgb * w;
+    sum += textureLod(tSrc, uv, lod).rgb * w;
     weight += w;
   }
   gl_FragColor = vec4(sum / weight, clamp(cMin / max(max(focus.w * gate.x, bandK.z * bandK.w), 1e-3), 0.0, 1.0));
 }`;
+
+// PASS 0, at half size: the picture copied (a linear read at the half-size pixel's corner is the mean of its four texels), after which the target's mip chain is built.
+export const DOF_COPY_FS = /* glsl */ `
+uniform sampler2D tFrom;
+varying vec2 vUv;
+void main() { gl_FragColor = vec4(texture2D(tFrom, vUv).rgb, 1.0); }`;
 
 // PASS 2, at full size, blended over the picture (SRC_ALPHA, ONE_MINUS_SRC_ALPHA): the blur where its texels are all out of focus.
 export const DOF_MIX_FS = /* glsl */ `
@@ -176,10 +187,13 @@ void main() {
 export class PostDof {
   readonly gather: ShaderMaterial;
   readonly mix: ShaderMaterial;
+  readonly copy: ShaderMaterial;
   private readonly gatherScene = new Scene();
   private readonly mixScene = new Scene();
+  private readonly copyScene = new Scene();
   private readonly cam = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private half: WebGLRenderTarget | null = null;
+  private src: WebGLRenderTarget | null = null;
   private failed = false;
   private env: DofEnv | null;
   private readonly enabled: () => boolean;
@@ -192,21 +206,22 @@ export class PostDof {
     this.enabled = enabled;
     this.env = env;
     const uniforms = {
-      tColor: { value: null }, tDepth: { value: null }, texel: { value: new Vector2(1, 1) }, proj: { value: new Vector2(-1, -1) },
+      tSrc: { value: null }, tDepth: { value: null }, texel: { value: new Vector2(1, 1) }, proj: { value: new Vector2(-1, -1) },
       plane: { value: new Vector4(1, 0, 0, 1) }, focus: { value: new Vector4(1, 0, DOF_SPAN, 1) }, gate: { value: new Vector2(0, 1) },
-      band: { value: new Vector4(0, 1, 0, 0) }, bandK: { value: new Vector4(1, 1, 0, 0) }, bandA: { value: new Vector4(1, 0, 0, 0) }, bandAK: { value: new Vector2(0, 0) },
+      band: { value: new Vector4(0, 1, 0, 0) }, bandK: { value: new Vector4(1, 1, 0, 0) }, bandA: { value: new Vector4(1, 0, 0, 0) }, bandAK: { value: new Vector2(0, 0) }, bandO: { value: 1 },
     };
     this.gather = new ShaderMaterial({ name: 'post dof', vertexShader: DOF_VS, fragmentShader: DOF_GATHER_FS, depthTest: false, depthWrite: false, blending: NoBlending, uniforms });
     this.mix = new ShaderMaterial({ name: 'post dof mix', vertexShader: DOF_VS, fragmentShader: DOF_MIX_FS, depthTest: false, depthWrite: false, transparent: true, uniforms: { tBlur: { value: null } } });
     // a failure the driver reports on either program is told here by the shader guard (debug/shader-guard.ts `extras`)
-    for (const m of [this.gather, this.mix]) m.userData.onFail = () => { this.failed = true; };
+    this.copy = new ShaderMaterial({ name: 'post dof copy', vertexShader: DOF_VS, fragmentShader: DOF_COPY_FS, depthTest: false, depthWrite: false, blending: NoBlending, uniforms: { tFrom: { value: null } } });
+    for (const m of [this.gather, this.mix, this.copy]) m.userData.onFail = () => { this.failed = true; };
     const quad = (m: ShaderMaterial, s: Scene) => { const mesh = new Mesh(new PlaneGeometry(2, 2), m); mesh.frustumCulled = false; s.add(mesh); };
-    quad(this.gather, this.gatherScene); quad(this.mix, this.mixScene);
+    quad(this.gather, this.gatherScene); quad(this.mix, this.mixScene); quad(this.copy, this.copyScene);
     this.watch();
   }
 
   /** The materials the shader guard lends to the pass (a refused program turns the blur off). */
-  get materials(): readonly ShaderMaterial[] { return [this.gather, this.mix]; }
+  get materials(): readonly ShaderMaterial[] { return [this.gather, this.mix, this.copy]; }
   /** Whether the figure's texture carries a depth texture for this pass: a laptop or desktop with the switch on and the programs not refused. On a phone or an iPad it never is. */
   get wants(): boolean { return !this.failed && this.env !== null && dofAllowed(this.env) && this.enabled(); }
 
@@ -223,6 +238,8 @@ export class PostDof {
   /** The focus band's strength this frame (0: none). Unlike the depth's, it is wanted on every device (Mohammad tests on an iPhone) and needs no depth texture: it is only the picture blurred by a
    *  circle that grows with the distance from a line on the screen. */
   bandShare = 0;
+  /** How far the band's blur has eased from one level over the whole screen (0) to the resting band (1): the dive's focus pull (SinusoidScene3D focusOpen). */
+  bandOpen = 1;
   /** This frame's focus band: `a`, `b` two points on its centre line and `e0`, `e1` a point where the blur starts and one where it is whole (world points), `w`, `h` the picture's size in px,
    *  `k` the strength; `ends`, when given: the middle of the line and a point on it where the blur along it starts and one where it is whole (the scene's two ends, symmetric about the middle). Returns the strength. */
   bandFrame(cam: PerspectiveCamera, a: Vector3, b: Vector3, e0: Vector3, e1: Vector3, w: number, h: number, k: number, ends?: { mid: Vector3; f0: Vector3; f1: Vector3 }): number {
@@ -242,6 +259,7 @@ export class PostDof {
       const g0 = Math.abs(tx * px(ends.f0, _c).x + ty * _c.y - cm), g1 = Math.abs(tx * px(ends.f1, _c).x + ty * _c.y - cm);
       (u.bandA!.value as Vector4).set(tx, ty, cm, 0); (u.bandAK!.value as Vector2).set(g0, Math.max(g1 - g0, 1));
     } else (u.bandAK!.value as Vector2).set(0, 0);
+    u.bandO!.value = Math.min(1, Math.max(0, this.bandOpen));
     this.bandShare = k;
     return k;
   }
@@ -271,11 +289,17 @@ export class PostDof {
     if (this.bandShare <= 0) (this.gather.uniforms.bandK!.value as Vector4).w = 0;
     const hw = Math.max(1, Math.ceil(into.width / 2)), hh = Math.max(1, Math.ceil(into.height / 2));
     if (!this.half || this.half.width !== hw || this.half.height !== hh) {
-      this.half?.dispose();
+      this.half?.dispose(); this.src?.dispose();
       this.half = new WebGLRenderTarget(hw, hh, { depthBuffer: false, stencilBuffer: false, minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false, samples: 0 });
+      this.src = new WebGLRenderTarget(hw, hh, { depthBuffer: false, stencilBuffer: false, minFilter: LinearMipmapLinearFilter, magFilter: LinearFilter, generateMipmaps: true, samples: 0 });
     }
+    // pass 0: the picture at half size, its mip chain built when this render ends
+    this.copy.uniforms.tFrom!.value = into.texture;
+    gl.setRenderTarget(this.src!);
+    gl.render(this.copyScene, this.cam);
+    if (this.failed) return;
     const u = this.gather.uniforms;
-    u.tColor!.value = into.texture; u.tDepth!.value = into.depthTexture;
+    u.tSrc!.value = this.src!.texture; u.tDepth!.value = into.depthTexture;
     (u.texel!.value as Vector2).set(1 / into.width, 1 / into.height);
     (u.focus!.value as Vector4).w = DOF_MAX_FRAC * into.height;
     gl.setRenderTarget(this.half);
@@ -291,5 +315,5 @@ export class PostDof {
     return new DepthTexture(w, h, UnsignedInt248Type, undefined, undefined, undefined, undefined, undefined, undefined, DepthStencilFormat);
   }
 
-  dispose(): void { this.half?.dispose(); this.half = null; this.off?.(); this.off = null; }
+  dispose(): void { this.half?.dispose(); this.half = null; this.src?.dispose(); this.src = null; this.off?.(); this.off = null; }
 }
