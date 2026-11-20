@@ -132,6 +132,21 @@ ${lines(pf0, pf1).join('\n')}
 // where the Fenestrae pill and the Space of Disse's name sit on a wide screen (fen-place.js): the same pure functions, over this folder's layout.ts
 put('fen-place.copied.js', `${HEAD('fen-place.js: placeFenDisse', true)}${swap(read('src/ui/fen-place.js'), "import { underNucleus, poreOpenness } from './sinusoid-gl.js';", "import { underNucleus, poreOpenness } from './layout.ts';", 'fen-place import')}`);
 
+// the leaders' dot as the 2D captions draw it (label-captions.js leadLook defaults: the dot's radius and ring width, the halo's radius, the leader's width; app-01-chrome.css .leader-dot: the stage's
+// paper in the text-2 ring, .leader-dot-halo: the paper alone) and the small class table of the names (SV_TARGET), read out of the 2D text
+{
+  const cap = read('src/ui/label-captions.js'), m = /const leadLook = (\{[^}]*\});/.exec(cap);
+  if (!m) fail('label-captions.js: leadLook moved');
+  const look = new Function(`return ${m[1]};`)();
+  for (const k of ['lw', 'r', 'rw', 'haloR']) if (typeof look[k] !== 'number') fail(`label-captions.js: leadLook.${k} is not a number`);
+  const css = read('styles/app-01-chrome.css');
+  const dot = /\.leader-dot \{([^}]*)\}/.exec(css)?.[1], halo = /\.leader-dot-halo \{([^}]*)\}/.exec(css)?.[1];
+  if (!dot || !halo || !/fill: var\(--stage-bg\)/.test(dot) || !/stroke: var\(--text-2\)/.test(dot) || !/stroke-width: 1\.3/.test(dot) || !/fill: var\(--stage-bg\)/.test(halo)) fail('app-01-chrome.css: .leader-dot / .leader-dot-halo changed');
+  put('lead-look.copied.ts', `${HEAD('label-captions.js leadLook, app-01-chrome.css .leader-dot')}/** The leader's width, the dot's radius and ring width, and the halo's radius (CSS px, as the stage draws them at any zoom). The dot: the stage's paper, ringed in --text-2; the halo: the paper alone. */
+export const LEAD_LOOK = { lineWidth: ${look.lw}, dotR: ${look.r}, ringWidth: ${look.rw}, haloR: ${look.haloR} } as const;
+`);
+}
+
 if (changed.length) {
   if (check) { console.error(`copy-sinusoid: out of date: ${changed.join(', ')}. Run: node scripts/copy-sinusoid.mjs --from <2D checkout>`); process.exit(1); }
   console.log(`copy-sinusoid: wrote ${changed.join(', ')} (2D at ${commit.slice(0, 8)})`);

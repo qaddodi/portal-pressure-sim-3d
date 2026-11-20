@@ -1,9 +1,12 @@
-/* The sinusoid's names (SinusoidCaptions.tsx) in the figure's one label type (labels/labels.css): a name is one to three lines of words, its readings and, while a tap explains it, one more line. Always level. */
+/* The sinusoid's names (SinusoidCaptions.tsx) are 2D's own captions: `.sv-region .sv-region-<key>` with a name and a `.v` reading (<b> figure, unit), which the copied 2D stylesheet
+   (ui/css2d/app-03-layouts.css) sets: the cells' and bands' names in small capitals, the readings' names in sentence case, the figure large and bold, the unit small. Here only what a
+   3D layer needs of them: where they stand (a transform), when they show (opacity and visibility, written by the layer), and no CSS entrance or glide of their own (the layer fades them). */
 .sv-layer { z-index: var(--z-tags, 5); }
-.lb.sv-name { flex-direction: column; align-items: center; justify-content: center; padding: 0 var(--lb-pad-x); }
-.lb.sv-name::before { display: none; }
-.lb.sv-name > .sv-row { display: block; white-space: pre; text-align: center; }
-.lb.sv-name .lb-name { display: block; }
-.lb.sv-name .lb-val { display: block; margin-left: 0; }
-.lb.sv-name .sv-note { font-size: var(--lb-f-name); font-weight: 500; color: var(--lb-name); white-space: normal; max-width: 26ch; }
-.lb.sv-end .lb-name, .lb.sv-sin .lb-name { font-weight: var(--lb-w-name); }
+.sv-layer .sv-region { opacity: 0; visibility: hidden; animation: none; transition: none; will-change: transform, opacity; }
+.sv-layer .sv-region[data-on] { visibility: visible; }
+/* the one line a tap adds (2D: the explained name's note, set in the unit's type) */
+.sv-layer .sv-region .sv-note { font-size: calc(var(--t-cap) * var(--label-scale, 1)); font-weight: 500; color: var(--text-3); text-transform: none; letter-spacing: 0; white-space: normal; max-width: 26ch; }
+/* a leader: its hairline in the leader ink (labels.css .lb-lead); its dot as 2D draws it (app-01-chrome.css .leader-dot over .leader-dot-halo, sizes from lead-look.copied.ts): the stage's paper, ringed in --text-2
+   (not the name's own colour), on the paper's halo out to its radius */
+.sv-layer .lb-anchor { width: var(--sv-dot); height: var(--sv-dot); margin: calc(var(--sv-dot) / -2) 0 0 calc(var(--sv-dot) / -2); border: var(--sv-dot-w) solid var(--text-2); background: var(--lb-ring-fill);
+  box-shadow: 0 0 0 var(--sv-dot-halo) var(--lb-ring-fill); }
