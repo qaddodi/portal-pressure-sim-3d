@@ -17,8 +17,7 @@ export class ProbePart extends DeviceObject {
   private colour: PartColour | null;
   private pal: Palette | null = null;
   constructor(geometry: BufferGeometry, tone: DeviceTone, shared: CelShared, colour: PartColour | null = null, o: DeviceOptions = {}) {
-    // (a probe wears its own pale colours in two flat bands inside a dark outline: the vessels' tube tones deepen a pale colour to near black, and a probe is drawn over the dark ground)
-    super(geometry, tone, shared, { tubeTones: false, ...o }, 'ink');
+    super(geometry, tone, shared, o, 'ink');
     this.colour = colour;
     this.group.visible = false;
   }
