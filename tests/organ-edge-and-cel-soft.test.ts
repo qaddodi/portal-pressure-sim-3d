@@ -69,10 +69,10 @@ test('C: the outline\'s pixel is the drawing buffer\'s (scene.render hands the c
   assert.match(readFileSync(new URL('../src/scene/organs/layer.ts', import.meta.url), 'utf8'), /setDpr\(d: number\): void \{ for \(const o of this\.objects\)/);
 });
 
-test('cel12, the subtle look: no grid, no wall, no line, dark only in valleys by a few percent, a slow field', async () => {
+test('cel12, the subtle look: no grid, no wall, no line, soft shade in valleys and a faint lift on tops, a slow field', async () => {
   const { CELS: C, softField } = await import('../src/scene/organs/liver-texture.ts');
   const c = C.cel12!;
-  assert.ok(c.field && c.ink === 0 && c.shade <= 0.1 && c.a <= 0.5 && c.raw === 0 && c.bump <= 0.05 && c.rim <= 0.4, 'subtle numbers');
+  assert.ok(c.field && c.ink === 0 && c.shade >= 0.15 && c.shade <= 0.25 && c.a <= 0.5 && c.raw === 0 && c.bump <= 0.2 && c.rim >= 0.5 && c.rim <= 1, 'subtle but visible numbers (a 5% shade read as no change)');
   (globalThis as { location?: unknown }).location = { search: '?liver=cel12', pathname: '/', hostname: 'localhost' };
   const m = await import(`../src/scene/organs/liver-texture.ts?${'cel12'}`);
   let lo = 1, hi = 0, maxStep = 0, prev = softField(330, 300), valley = 0, n = 0, lightMax = -1, lightMin = 1;
@@ -83,7 +83,7 @@ test('cel12, the subtle look: no grid, no wall, no line, dark only in valleys by
   }
   assert.ok(hi - lo > 0.5, `the lobes use a good range (${lo.toFixed(2)}..${hi.toFixed(2)})`);
   assert.ok(maxStep < 0.04, `the field is slow: ${maxStep.toFixed(3)} in half a unit`);
-  assert.ok(lightMax <= 0 && lightMin >= -0.6 - 1e-9, `dark only, at most 0.6 of the shade (${lightMin}..${lightMax})`);
+  assert.ok(lightMax <= 0.35 + 1e-9 && lightMin >= -0.6 - 1e-9 && lightMax > 0.1 && lightMin < -0.3, `soft: dark to 0.6 of the shade, lift to 0.35 (${lightMin}..${lightMax})`);
   assert.ok(valley / n > 0.1 && valley / n < 0.7, `valleys are a share of the surface (${(100 * valley / n).toFixed(0)}%)`);
   delete (globalThis as { location?: unknown }).location;
 });

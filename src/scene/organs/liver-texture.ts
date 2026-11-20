@@ -82,8 +82,8 @@ export const CELS: Record<string, Cel> = {
   cel10: { name: 'quiet surface, wavy rim', colour: '#A8634A', a: 0.62, bands: 2, ink: 0.08, shade: 0.22, size: 26, rLo: 0.7, rHi: 0.95, jit: 0.15, cap: 0.3, foot: -0.2, bump: 0.12, rim: 1.4, soft: 0.5, raw: 0.3 },
   cel11: { name: 'knuckles, soft shade', colour: '#9E5538', a: 0.74, bands: 3, ink: 0.2, shade: 0.4, size: 11, rLo: 0.5, rHi: 0.85, jit: 0.25, cap: 0.3, foot: -0.2, bump: 0.38, rim: 1.2, soft: 0.18, raw: 0.6 },
   // Subtle (Mohammad 20 Nov, after cel8..cel11 "all suck... it needs to be subtle"; Opus's read: a regular grid, the same highlight on every nodule, a line round each cell and a strong tint all read as rough):
-  // a smooth surface with a few broad faint shadowy dips, a few percent of shade, a slight warm-tan shift, and a gently waving rim (0.3 of the rim height).
-  cel12: { name: 'soft valleys, subtle', colour: '#B07A45', a: 0.38, bands: 2, ink: 0, shade: 0.08, size: 60, rLo: 0, rHi: 1, jit: 0, cap: 0, foot: 0, bump: 0.04, rim: 0.3, soft: 1, raw: 0, field: true },
+  // a smooth surface with a few broad faint shadowy dips, a few percent of shade, a slight warm-tan shift, and a gently waving rim (0.8 of the rim height: about 3 figure units).
+  cel12: { name: 'soft valleys, subtle', colour: '#B07A45', a: 0.38, bands: 2, ink: 0, shade: 0.22, size: 60, rLo: 0, rHi: 1, jit: 0, cap: 0, foot: 0, bump: 0.15, rim: 0.8, soft: 1, raw: 0, field: true },
 };
 /** The standing cirrhotic liver is cel7 (Mohammad 20 Nov: "Cel7 for now"); `?liver=cel1..cel6` shows the other cel options and `?liver=c2b` the earlier pale-nodule surface. */
 export const DEFAULT_CEL = 'cel7';
@@ -105,8 +105,8 @@ export function softField(x: number, y: number, wl = 60): number {
 }
 function fieldSurface(x: number, y: number, cel: Cel): Surface {
   const h = softField(x, y, cel.size), valley = 1 - sstep(0.25, 0.6, h);
-  // dark only: the shade is in the valleys, the lobes' tops are the liver's own colour (no lit cap, no wall, no line)
-  return { sep: 0, dome: sstep(0, 1, h), tone: 0.5, light: -0.6 * valley };
+  // soft relief and no more: the valleys take a soft shade, the lobes' tops a faint lift (a third of it), no hard cap, no wall, no line (the first cut, a 5 % shade, read as no change at all on the device)
+  return { sep: 0, dome: sstep(0, 1, h), tone: 0.5, light: -0.6 * valley + 0.35 * sstep(0.55, 0.9, h) };
 }
 function celSurface(x: number, y: number, cel: Cel): Surface {
   if (cel.field) return fieldSurface(x, y, cel);
