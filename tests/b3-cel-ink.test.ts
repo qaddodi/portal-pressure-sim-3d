@@ -210,8 +210,9 @@ test('a pale lens colour (the ramp\'s icy end) becomes a deeper, more saturated 
 test('the tones are hue-preserving lightness steps: the lit is lighter than the base but is not a mix to white, the shade is darker and as saturated or more', () => {
   const base: [number, number, number] = [0.482, 0.631, 0.988], side: [number, number] = [1, 0], rDev = 20, b = celTubeBase(base);
   const lit = celTubeColor(base, -0.95, side, rDev), mid = celTubeColor(base, 0, side, rDev), shade = celTubeColor(base, 0.9, side, rDev);
-  assert.deepEqual(mid, b, 'the middle is the saturated base');
-  assert.ok(lumA(lit) > lumA(mid) && lumA(shade) < lumA(mid));
+  const k = 1 - CEL_STYLE.TUBE.LUMEN_DARK;
+  for (let i = 0; i < 3; i++) assert.ok(Math.abs(mid[i]! - b[i]! * k) < 1e-9, 'the middle is the saturated base seen through the wall (one darker step)');
+  assert.ok(lumA(lit) > lumA(mid) && lumA(shade) < lumA(b), 'lit over the wall, shade under the base');
   assert.ok(chroma(lit) >= chroma(mid) - 1e-9, 'the lit tone does not wash toward white');
   assert.ok(chroma(shade) / Math.max(...shade) >= chroma(mid) / Math.max(...mid) - 1e-9, 'the shade is a touch more saturated');
   for (const c of [lit, shade]) assert.ok(Math.abs(hueOf(c) - hueOf(mid)) < 6, 'hue kept');
@@ -238,3 +239,26 @@ test('the outline is a soft dark of the vessel\'s own colour, never white or bla
   const minR = 5.8, hw = Math.min(0.6 * minR, Math.min(8, Math.max(4, 0.5 * minR)));
   assert.ok(hw >= 3.4 && 1.6 * hw > hw, `smallest head half width ${hw}`);
 });
+
+test('see inside: across a wide tube the lumen is one flat darker step inside the wall, the wall keeps its three tones, a hairline has none, the outline and chevrons are unchanged', () => {
+  const side: [number, number] = [1, 0], rDev = 24, T = CEL_STYLE.TUBE, base: [number, number, number] = [0.5, 0.45, 0.9];
+  const b = celTubeBase(base), cols = new Map<string, number>(); let between = 0;
+  const N = 4000;
+  for (let i = 0; i <= N; i++) {
+    const a = -1 + (2 * i) / N, c = celTubeColor(base, a, side, rDev), key = c.map((v) => v.toFixed(5)).join(',');
+    cols.set(key, (cols.get(key) ?? 0) + 1);
+  }
+  // wall: shade, base, lit (3), lumen window: the three seen through it, each one flat step darker, so at most 3 + 3 plus the edges
+  const big = [...cols].filter(([, n]) => n > N * 0.01);
+  assert.ok(big.length <= 5 && big.length >= 4, `${big.length} flat tones (the wall's three, the lumen's darker steps)`);
+  between = [...cols].filter(([, n]) => n <= N * 0.01).reduce((t, [, n]) => t + n, 0);
+  assert.ok(between / N < 0.06, `edges only: ${(100 * between / N).toFixed(1)} %`);
+  const inside = celTubeColor(base, 0, side, rDev), wall = celTubeColor(base, 0.8, side, rDev);
+  assert.ok(lumA(inside) < lumA(b) - 1e-6 && Math.abs(lumA(inside) / lumA(b) - (1 - T.LUMEN_DARK)) < 1e-6, 'the lumen is one step darker than the base');
+  assert.ok(lumA(wall) < lumA(b), 'the wall on the shade side is its shade tone');
+  for (const a of [-0.3, 0, 0.3]) assert.ok(Math.abs(hueOf(celTubeColor(base, a, side, rDev)) - hueOf(b)) < 6, 'same hue');
+  const hair = celTubeColor(base, 0, side, TONES_HAIR); assert.deepEqual(hair, celTubeBase(base), 'a hairline is its saturated base, no window');
+  assert.ok(T.LUMEN_W > 0.3 && T.LUMEN_W < CEL_STYLE.SPEC.AT, 'the window is inside the wall rim and the highlight sits on the rim');
+  assert.match(CEL_TUBE_GLSL, /float window = 1\.0 - smoothstep\(/);
+});
+const TONES_HAIR = CEL_STYLE.TONES_FROM - 0.01;

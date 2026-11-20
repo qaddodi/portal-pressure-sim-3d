@@ -59,7 +59,9 @@ export function celTubeColor(base: readonly [number, number, number], across: nu
   const shadeAmt = (1 - t.mul) / CEL.SHADE, litAmt = t.lift / T.LIT_K;
   const sh0 = b.map((v) => v * (1 - CEL.SHADE)), ls = lumOf(sh0);
   const sh = sh0.map((v) => clamp(ls + (v - ls) * T.SHADE_SAT, 0, 1)), li0 = b.map((v) => v * (1 + T.LIT_K)), li = li0.map((v) => v / Math.max(1, ...li0));
-  return b.map((v, i) => { const m = v + (sh[i]! - v) * shadeAmt; return m + (li[i]! - m) * litAmt; }) as [number, number, number];
+  const hw = smoothstep(CEL_STYLE.TONES_FROM, CEL_STYLE.TONES_TO, rDev), e = 0.5 * CEL_STYLE.EDGE_PX / Math.max(rDev, 1e-3);
+  const window = 1 - smoothstep(T.LUMEN_W - e, T.LUMEN_W + e, Math.abs(across));   // the lumen seen through the wall: one flat darker step
+  return b.map((v, i) => { const m = v + (sh[i]! - v) * shadeAmt; return (m + (li[i]! - m) * litAmt) * (1 - hw * T.LUMEN_DARK * window); }) as [number, number, number];
 }
 /** The lit-side slope of a tube whose cross axis points `side` on the screen: cos to the light, leaned (TUBE_LEAN) and held to -1..1. */
 export const tubeK = (side: readonly [number, number]): number => clamp((side[0] * CEL.DIR[0] + side[1] * CEL.DIR[1]) * CEL_STYLE.TUBE_LEAN, -1, 1);
