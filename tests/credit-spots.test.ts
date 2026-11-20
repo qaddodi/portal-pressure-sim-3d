@@ -32,3 +32,7 @@ test('Credit.tsx places by the copied rule and hides (covered) when no corner is
   assert.match(src, /freeSpots\(/);
   assert.match(src, /classList\.toggle\('covered'/);
 });
+test('the view pill is an obstacle of its own: it stands above the dock, outside the dock\'s box (phone play-test, 20 Nov: the credit ran under it)', () => {
+  const src = readFileSync(new URL('../src/ui/shell/Credit.tsx', import.meta.url), 'utf8');
+  assert.match(src, /const OBSTACLES = '[^']*\.nb-views/);
+});
