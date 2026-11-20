@@ -115,6 +115,35 @@ export function weldRequest(net: LobuleNet): WeldRequest {
   return { courses: [...bloodWeldCourses(net, h, segs), ...bileWeldCourses(net, h, segs)], avoid };
 }
 
+/** The lymph ductule of each space of Disse that leaves a lymphatic channel (`ly` level 0 runs from the channel to its sinusoid, geometry.ts): the stretch from the channel to where the sinusoid starts, as a course of its own
+ *  (drawn as a thin lymph tube with the terminal lymphatics), and the sample the Disse sleeve begins at (the sinusoid's own start, so nothing of it stands outside the sinusoid). */
+export function disseDuctules(ly: readonly Course[], all: readonly Course[]): { src: Course; conn: Course; from: number }[] {
+  const out: { src: Course; conn: Course; from: number }[] = [];
+  for (const c of ly) {
+    if (c.lvl !== 0 || c.sib == null) continue;
+    const sib = all.find((x) => x.id === c.sib), p0 = sib?.pts[0];
+    if (!p0) continue;
+    let from = 0, best = Infinity;
+    c.pts.forEach((q, i) => { const d = Math.hypot(q[0] - p0[0], q[1] - p0[1]); if (d < best) { best = d; from = i; } });
+    if (from < 1) continue;
+    out.push({ src: c, from, conn: { ...c, kind: 'lt', pts: c.pts.slice(0, from + 1), rho: c.rho.slice(0, from + 1), len: c.len * from / (c.pts.length - 1), lvl: undefined } });
+  }
+  return out;
+}
+
+/** Each terminal lymphatic runs on into the middle of the lymphatic's pool it ends at (2D ends it on the pool's rim, under the pool's drawing; here the pool is a solid with a wall, and a tube that stopped at
+ *  the rim met that wall end to end, a butt joint with the outline between: Mohammad 20 Nov 2026, "they don't join the actual ductule at the end"). The bile's canals already end at their ductule's middle. */
+export function lymphIntoPools(lt: readonly Course[], lv: readonly Course[]): Course[] {
+  const mids = lv.map((c) => c.pts[Math.floor(c.pts.length / 2)]!);
+  return lt.map((c) => {
+    const e = c.pts[c.pts.length - 1]!;
+    let best: LP2 | null = null, bd = Infinity;
+    for (const m of mids) { const d = Math.hypot(m[0] - e[0], m[1] - e[1]); if (d < bd) { bd = d; best = m; } }
+    if (!best || bd > DISC_R.lv * 1.5 || bd < 1e-6) return c;
+    return { ...c, pts: [...c.pts, [best[0], best[1]] as LP2], rho: [...c.rho, c.rho[c.rho.length - 1]!] };
+  });
+}
+
 export class Lobule3D {
   readonly group = new Group();
   private readonly flat: Flat;
@@ -582,20 +611,23 @@ export class Lobule3D {
     else { const t = tubes(by('in'), (c, i) => inletRadius(i, c.pts.length, Math.hypot(c.pts[i]![0] - c.pts[0]![0], c.pts[i]![1] - c.pts[0]![1])), (c, i) => i / (c.pts.length - 1)); coloured(this.inlets, t.b, 'in', t.W, t.K); this.inlets.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
     if (plan) { const d = welded(by('tw'), TUBE_SEG, false, null, () => false); coloured(this.twigs, d.b, null, d.W, d.K); this.twigs.geometry.setAttribute('fcourse', new Float32BufferAttribute(d.fc!, 4)); }
     else { const t = tubes(by('tw'), (c, i) => twigR(i / (c.pts.length - 1), RS_N), () => 0, OVER_Z); coloured(this.twigs, t.b, null, t.W, t.K); this.twigs.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
-    { const t = tubes(by('lt'), () => LT_R, () => 0); coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    // (the terminal lymphatics, and the lymph ductules: where a space of Disse leaves its channel it is a thin lymph tube as 2D draws it (`ly`, lymph-coloured, tapering), not a flat sleeve, up to where the sinusoid's
+    //  own sleeve begins; Mohammad 20 Nov 2026: a grey plate stood out beside each inlet, at the end of a ductule)
+    const ductules = disseDuctules(by('ly'), net.courses);
+    { const t = tubes([...lymphIntoPools(by('lt'), by('lv')), ...ductules.map((d) => d.conn)], () => LT_R, () => 0); coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
     // the space of Disse: a flat pale sleeve under each sinusoid (2D's Wet Disse), no light of its own
     {
       const b = new MeshBuilder(), K: number[] = [], W: number[] = [], rly = 0.0132;
       for (const c of by('ly')) {
-        const n = c.pts.length, r0 = b.count;
-        for (let i = 0; i < n; i++) {
+        const from = ductules.find((d) => d.src === c)?.from ?? 0, n = c.pts.length, r0 = b.count;
+        for (let i = from; i < n; i++) {
           const a = c.pts[Math.max(0, i - 1)]!, d = c.pts[Math.min(n - 1, i + 1)]!;
           let tx = d[0] - a[0], ty = -(d[1] - a[1]); const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
           const p = at3(c.pts[i]!, LZ.disse);
           b.v(p[0] - ty * rly * R, p[1] + tx * rly * R, p[2], 0, 0, 1, [1, 1, 1]); b.v(p[0] + ty * rly * R, p[1] - tx * rly * R, p[2], 0, 0, 1, [1, 1, 1]);
           K.push(1, 1); W.push(0, 0);
         }
-        for (let i = 0; i < n - 1; i++) { const q = r0 + i * 2; b.quad(q, q + 2, q + 3, q + 1); b.quad(q, q + 1, q + 3, q + 2); }
+        for (let i = 0; i < n - 1 - from; i++) { const q = r0 + i * 2; b.quad(q, q + 2, q + 3, q + 1); b.quad(q, q + 1, q + 3, q + 2); }
       }
       coloured(this.disse, b, null, W, K);
     }

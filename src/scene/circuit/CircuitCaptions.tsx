@@ -53,7 +53,7 @@ export function CircuitCaptions() {
     const tmp = { x: 0, y: 0 };
     let placed = new Map<string, Placement>();
     let metas = new Map<string, CapMeta>();
-    const gate = new Ride(), roomFade = new RoomFade(), pa = { x: 0, y: 0 }, pb = { x: 0, y: 0 }, rp = { x: 0, y: 0 };
+    const gate = new Ride(), roomFade = new RoomFade(), pa = { x: 0, y: 0 }, pb = { x: 0, y: 0 }, pc = { x: 0, y: 0 }, pd = { x: 0, y: 0 }, rp = { x: 0, y: 0 };
     let alpha = 0, last = -1, lastValues = 0, hold: { release(): void } | null = null;
 
     const putVars = () => {
@@ -233,8 +233,10 @@ export function CircuitCaptions() {
       // two points of the map: where the picture stands (the words ride it while the camera moves it, and are placed again once it is still)
       cel.mapPoint(700, 400, tmp); pa.x = tmp.x; pa.y = tmp.y;
       cel.mapPoint(800, 400, tmp); pb.x = tmp.x; pb.y = tmp.y;
+      cel.mapPoint(800, 500, tmp); pc.x = tmp.x; pc.y = tmp.y;   // (four corners of a square on the plate: the words ride its perspective exactly under a tilt, ride.ts)
+      cel.mapPoint(700, 500, tmp); pd.x = tmp.x; pd.y = tmp.y;
       const g = gate.step({
-        now, dt, on: onMap, moving: cel.rig.isMoving, a: pa, b: pb, layout: layoutSig,
+        now, dt, on: onMap, moving: cel.rig.isMoving, a: pa, b: pb, c: pc, d: pd, layout: layoutSig,
         fits: (ride) => boxesFit(boxesOf(), ride, view(), blockers()),
       });
       if (g.solve) solveNow();
