@@ -7,7 +7,7 @@ import { BACK_EDGES, IVC_EDGES } from '../src/scene/vessels/paths.copied.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { buildTubes, TUBE_RADIAL } from '../src/scene/vessels/tubes.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
-import { PERMANENT_KINDS, SKIN_REACH, armReach, nodesBeyondReach, armsShareTier, findSkinJunctions as findAllJunctions, isPermanent, pointAtShare, skinNodesForPhase, tierSpread, withoutGrowers } from '../src/scene/vessels/skin/inventory.ts';
+import { PERMANENT_KINDS, SKIN_REACH, isLiverBranch, armReach, nodesBeyondReach, armsShareTier, findSkinJunctions as findAllJunctions, isPermanent, pointAtShare, skinNodesForPhase, tierSpread, withoutGrowers } from '../src/scene/vessels/skin/inventory.ts';
 import { CAPSULE_R, CLEAR_K, CLEAR_R, CUT_SKIN_K, MAX_TRIES, MIN_RINGS_BETWEEN, SEAM_MAX_SHARE, SEAM_MIN_R, chooseCuts, mergedNode, planSkins, type ArmTube } from '../src/scene/vessels/skin/cuts.ts';
 import { SkinBuildError, type SkinCut, type SkinJunction } from '../src/scene/vessels/skin/types.ts';
 import { indexOf } from '../src/engine/vessel-data.ts';
@@ -28,13 +28,17 @@ const TABLE: Record<string, readonly string[]> = {
   IVCI: ['IVC_IS_1:0', 'LRV_IVC:1', 'ILI_IVC_1:1'],
   SVC_E: ['EPI_SVC:1', 'SVC_RA_1:1', 'SVC_RA:0'],
   SVC: ['V_UP:1', 'AZY_SVC:1', 'SVC_RA_1:0'],
+  // the liver veins' second branches (21 Nov: "everything"): a branch that leaves its host within SKIN_REACH of the host's end is one more arm of that node (RPV_T, LPV_A); one that leaves farther from both ends is a junction in the middle of its host, with no node: the host's two sides (side arms) and the branch
+  RPV_T: ['PVH_R_1:1', 'PVH_R_2:0', 'PVH_R_2~F:b:0'],
+  LPV_A: ['PVH_L:1', 'PVH_L_1:0', 'PVH_L_1~F:b:0'],
+  'RHV_IVC_1~F:b': ['RHV_IVC_1:1', 'RHV_IVC_1:0', 'RHV_IVC_1~F:b:1'],
   SIN_R: ['A_HR:1', 'PRE_R:1', 'SIN_RR:0'],
   SIN_L: ['A_HL:1', 'PRE_L:1', 'SIN_LL:0'],
 };
 const PHASE_2 = ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'SIN_R', 'SIN_L', 'IVCI', 'SVC_E', 'SVC', 'IVCS'];
 const armKeys = (j: SkinJunction): string[] => j.arms.map((a) => `${a.vesselId}:${a.end}`).sort();
 
-test('the inventory is the table of the spec exactly: twelve nodes, their arms and ends, nothing else (spec 10.4: the nodes with an end behind the organs, IVCS with its five arms, IVCI, SVC_E and SVC, are in)', () => {
+test('the inventory is the table of the spec exactly: fifteen nodes, their arms and ends, nothing else (spec 10.4: the nodes with an end behind the organs, IVCS with its five arms, IVCI, SVC_E and SVC, are in)', () => {
   const js = on(() => findSkinJunctions());
   assert.deepEqual(js.map((j) => j.node).sort(), Object.keys(TABLE).sort());
   for (const j of js) assert.deepEqual(armKeys(j), [...TABLE[j.node]!].sort(), j.node);
@@ -54,11 +58,14 @@ test('every arm is a permanent tube: no collateral, shunt, feeder or strand is e
     for (let i = 0; i < j.arms.length; i++) {
       const a = j.arms[i]!, v = NETWORK_BY_ID.get(a.vesselId)!;
       assert.ok(v, a.vesselId);
-      assert.ok(PERMANENT_KINDS.has(v.kind) && !['collateral', 'shunt', 'feeder'].includes(v.kind), `${a.vesselId} is ${v.kind}`);
-      assert.ok(!v.feeder && !a.vesselId.includes('~F') && !/^(C\d|S_|TIPS$|DIPS$|REX$)/.test(a.vesselId), a.vesselId);
+      const branch = isLiverBranch(v);   // (a liver vein's second branch: the one feeder that is an arm)
+      assert.ok(branch || (PERMANENT_KINDS.has(v.kind) && !['collateral', 'shunt', 'feeder'].includes(v.kind)), `${a.vesselId} is ${v.kind}`);
+      assert.ok(branch || (!v.feeder && !a.vesselId.includes('~F') && !/^(C\d|S_|TIPS$|DIPS$|REX$)/.test(a.vesselId)), a.vesselId);
       assert.equal(a.courseIndex, 0);
       assert.equal(a.dataIndex, indexOf(v.lensId)); assert.equal(a.lensIndex, a.dataIndex);
       assert.equal(a.baseD, v.baseD); assert.equal(a.widthKind, v.widthKind); assert.equal(a.restR, v.radius);
+      if (isLiverBranch(NETWORK_BY_ID.get(j.node) ?? ({} as never))) continue;   // (a junction in the middle of its host has no node: its arms are the host's sides and the branch)
+      if (a.side) continue;
       assert.equal(a.end === 0 ? v.from : v.to, j.node, `${a.vesselId} end ${a.end} is at ${j.node}`);
       if (i > 0) assert.ok(j.arms[i - 1]!.restR >= a.restR, `${j.node}: widest first`);
     }
@@ -70,7 +77,7 @@ test('a node with an end behind the organs is in (its skin is drawn as three cop
   const nodes = new Set(on(() => findSkinJunctions()).map((j) => j.node));
   for (const n of ['IVCI', 'SVC_E', 'SVC']) assert.ok(nodes.has(n), n);
   assert.ok(nodes.has('IVCS'), 'IVCS has five arms and is in with the six-arm foundation');
-  for (const j of on(() => findSkinJunctions())) for (const a of j.arms) assert.notEqual(cutEnd(a.vesselId), a.end, a.vesselId);
+  for (const j of on(() => findSkinJunctions())) for (const a of j.arms) if (!a.side) assert.notEqual(cutEnd(a.vesselId), a.end, a.vesselId);
 });
 
 test('the junctions with an arm behind the organs are exactly the ones whose skin has more than a front copy (BACK_EDGES is the rule the scene draws the copies by)', () => {

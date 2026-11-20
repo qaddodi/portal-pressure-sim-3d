@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BufferAttribute, PerspectiveCamera, Vector4 } from 'three';
 import { SKIN_K } from '../src/scene/vessels/skin/sdf.ts';
+import { armWalk } from '../src/scene/vessels/skin/cuts.ts';
 import { axisOf } from '../src/scene/vessels/skin/skin-set.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import { SKIN_VS } from '../src/scene/vessels/skin/shaders.ts';
@@ -38,6 +39,7 @@ function built(): { scene: CelScene; set: SkinSet; draws: Rec[]; was: boolean } 
     add: (o: Object3D) => parent.add(o), remove: (o: Object3D) => parent.remove(o), warn: () => {},
   });
   set.build(2);
+  { const live = new Set<unknown>(set.liveDraws()); for (let i = draws.length - 1; i >= 0; i--) if (!live.has(draws[i])) draws.splice(i, 1); }   // (a skin the planner took back to plan with its neighbours is not one of them)
   return { scene, set, draws, was };
 }
 const done = (b: { scene: CelScene; was: boolean }) => { (b.scene as unknown as { dispose?(): void }).dispose?.(); setSmoothJoins(b.was); };
@@ -185,7 +187,8 @@ test('the seam\'s ink: the skin\'s outline rule gives, on the seam ring, the tub
       mesh.junction.arms.forEach((arm, ai) => {
         const tb = tubeOf(arm.vesselId), cut = mesh.cuts[ai]!;
         // the three axis points the shader draws from: the tube's own ring centres, as the set builds them
-        const axes = mesh.junction.arms.map((a, i) => axisOf({ geometry: tubeOf(a.vesselId).b.geometry, tubular: tubeOf(a.vesselId).run.tubular }, a.restR, mesh.cuts[i]!, mesh.junction.J));
+        const sided = mesh.junction.arms.some((a) => !!a.side);
+        const axes = mesh.junction.arms.map((a, i) => { const t = { geometry: tubeOf(a.vesselId).b.geometry, tubular: tubeOf(a.vesselId).run.tubular }; return axisOf(t, a.restR, mesh.cuts[i]!, mesh.junction.J, a.side ? armWalk(a, t.tubular).from : undefined, sided); });   // (as the set builds them: a side arm walks from its own ring, a skin with one has its seam headings from the ring planes)
         const tw = inkTwin(cam, axes, 1, SKIN_K * Math.min(...mesh.junction.arms.map((a) => a.restR)));
         const seam = axes[ai]!.pts[2], R = axes[ai]!.radii[2], s1 = tw.project(seam, R), c1 = tw.project(axes[ai]!.pts[3], R);
         // the arm's heading on the screen at its seam, and the offsets across it

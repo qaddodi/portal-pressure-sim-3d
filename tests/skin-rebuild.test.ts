@@ -43,14 +43,14 @@ test('a rebuild is the same skin again on the tubes as drawn now: one mesh swapp
     r.set.build(2);
     assert.ok(r.set.count >= 4, `${r.set.count} skins`);
     const node = r.set.nodes[0]!, mesh = r.set.skinOf(node)!;
-    const arm = mesh.junction.arms[0]!.vesselId, before = [...cutOf(r, arm)], objs = r.inScene.size, made = r.draws.length;
+    const arm = mesh.junction.arms[0]!.vesselId, before = [...cutOf(r, arm)], objs = r.inScene.size, made = r.draws.length, gone = r.draws.filter((d) => d.disposed).length;   // (gone: the skins the planner took back to plan with a neighbour while building)
     r.set.markDirty(arm);
     assert.equal(r.set.pending, true, 'flagged, waiting for the render phase');
     assert.equal(r.draws.length, made, 'marking draws and builds nothing');
     assert.equal(r.set.step(), r.set.pending);
     assert.equal(r.draws.length, made + 1, 'one skin made');
     assert.equal(r.inScene.size, objs, 'the old one out, the new one in: the same number of skins stands');
-    assert.equal(r.draws.filter((d) => d.disposed).length, 1, 'the old one is disposed');
+    assert.equal(r.draws.filter((d) => d.disposed).length - gone, 1, 'the old one is disposed');
     assert.deepEqual([...cutOf(r, arm)], before, 'on unchanged tubes the seam is where it was');
     assert.equal(r.set.stats.rebuilds, 1);
     assert.equal(r.set.stats.lastNode.length > 0, true);

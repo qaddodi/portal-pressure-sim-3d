@@ -20,6 +20,7 @@ test('every inventory node builds a skin, with no fallback to the old join', () 
     add: (o: Object3D) => new Group().add(o), remove: () => {}, warn: (m) => warnings.push(m),
   });
   set.build(2);
+  { const live = new Set<unknown>(set.liveDraws()); for (let i = draws.length - 1; i >= 0; i--) if (!live.has(draws[i])) draws.splice(i, 1); }   // (a skin the planner took back to plan with its neighbours is not one of them)
   assert.deepEqual(warnings, [], 'no skin falls back to the old join');
   const all = findSkinJunctions().filter((j) => !['SVC_E'].includes(j.node)), far = nodesBeyondReach(all.map((j) => withoutGrowers(j)).filter((j): j is SkinJunction => !!j));
   const built = draws.map((d) => d.mesh.name.replace('skin:', ''));
