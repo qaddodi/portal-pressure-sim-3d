@@ -85,9 +85,9 @@ export function route3d(kind: string): Route3D | null {
     for (let i = 0; i < n; i++) { let s = 0, w = 0; for (let k = -12; k <= 12; k++) { const j = Math.min(n - 1, Math.max(0, i + k)), g = Math.exp(-(k * k) / 50); s += z[j]! * g; w += g; } q[i] = s / w; }
     z = q;
   }
-  // The device runs INSIDE the lumen: where a sample lies on a vessel, its depth is that vessel's own centreline depth (read now from the course its tube is built on, so a changed course or node depth is followed),
-  // and a sample the corner-cutting smoothing left more than half a lumen from the centreline is drawn back to within half a lumen of it. Only a stretch with no vessel (the lead-in) keeps the tier depth.
-  const lumenS = (i: number): number => r.rad[i]! / UNITS_PER_SCENE;
+  // The device runs INSIDE the lumen, ON the centreline: each sample that lies on a vessel is put exactly on that vessel's own centreline (read now from the course its tube is built on, depth included, so a changed
+  // course or node depth is followed). Where the route turns from one vessel into the next (the cava into a hepatic or renal vein) the two centrelines meet at their node, so the corner is a sharp turn at that
+  // node and never a chord across the cava's lumen. Only a stretch with no vessel (the lead-in) keeps the 2D rule's own point and the tier depth.
   const offX = new Float32Array(n), offY = new Float32Array(n);
   const partAt = (d: number): RoutePart | undefined => r.parts.find((q) => d <= q.d1 + 1e-6 && d >= q.d0 - 1e-6) ?? r.parts[r.parts.length - 1];
   for (let i = 0; i < n; i++) {
@@ -96,15 +96,8 @@ export function route3d(kind: string): Route3D | null {
     let best: { x: number; y: number; z: number; dist: number } | null = null, bestXY = Infinity;
     for (const id of cands) { const c = nearestOnCourse(id, px, py, z[i]!); if (c) { const dxy = Math.hypot(c.x - px, c.y - py); if (dxy < bestXY) { bestXY = dxy; best = c; } } }
     if (!best) continue;
-    z[i] = best.z;
-    const lim = 0.5 * lumenS(i);
-    if (bestXY > lim) { const k = (bestXY - lim) / bestXY; offX[i] = (best.x - px) * k; offY[i] = (best.y - py) * k; }
+    z[i] = best.z; offX[i] = best.x - px; offY[i] = best.y - py;
   }
-  // (a light smoothing of the depth and of the pull, so a corner where the route passes from one vessel to the next bends and does not step)
-  const soft = (v: Float32Array, h: number): Float32Array => { const q = new Float32Array(n); for (let i = 0; i < n; i++) { let a = 0; for (let k = -h; k <= h; k++) a += v[Math.min(n - 1, Math.max(0, i + k))]!; q[i] = a / (2 * h + 1); } return q; };
-  z = soft(z, 2);
-  const offX2 = soft(offX, 4), offY2 = soft(offY, 4);
-  for (let i = 0; i < n; i++) { offX[i] = offX2[i]!; offY[i] = offY2[i]!; }
   const pos = r.pts.map((p, i) => new Vector3(x3(p[0]) + offX[i]!, y3(p[1]) + offY[i]!, z[i]!));
   const bracket = (d: number): [number, number] => {
     d = Math.min(r.total, Math.max(0, d));

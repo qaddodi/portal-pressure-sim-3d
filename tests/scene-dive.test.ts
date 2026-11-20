@@ -100,3 +100,21 @@ test('the dive arc is zero at both ends, peaks mid-move, and Reduce Motion (arc 
   assert.ok(arcBell(0) < 1e-12 && arcBell(1) < 1e-12); assert.ok(arcBell(0.5) > 0.99);
   assert.ok(arcSize(200, 1) > arcSize(20, 1) && arcSize(20, 1) > 0);
 });
+
+import { buildLobule, hexFrac, zoneOf } from '../src/scene/lobule/geometry.ts';
+import { SIN_LOCAL } from '../src/scene/lobule/frames.ts';
+test('the sinusoid view stands on a real sinusoid of the lobule, in zone 2, running along the view', () => {
+  const net = buildLobule(7);
+  let best = Infinity, ang = 1;
+  for (const c of net.courses) {
+    if (c.kind !== 's0' && c.kind !== 's1' && c.kind !== 's2') continue;
+    c.pts.forEach((p, i) => {
+      if (i === 0 || i === c.pts.length - 1) return;
+      const d = Math.hypot(p[0]! * LOBULE_R - SIN_LOCAL[0], -p[1]! * LOBULE_R - SIN_LOCAL[1]);
+      if (d < best) { best = d; const a = c.pts[i - 1]!, b = c.pts[i + 1]!; ang = Math.atan2(-(b[1] - a[1]), b[0] - a[0]); }
+    });
+  }
+  assert.ok(best < 0.01, `a sinusoid passes through the station (off by ${best})`);
+  assert.ok(Math.abs(ang) < 0.1, 'it runs along the sinusoid view\'s own axis');
+  assert.equal(zoneOf(hexFrac(SIN_LOCAL[0] / LOBULE_R, -SIN_LOCAL[1] / LOBULE_R)), 2);
+});

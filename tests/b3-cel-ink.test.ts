@@ -70,16 +70,19 @@ test('every look wears 2D\'s casing: its ink and alpha (the dark look\'s own in 
   s.dispose();
 });
 
-test('the ink is its own blended draw after the opaque bodies: a material for the body, one for the hull, over the two index ranges', () => {
+test('a vessel is three draws of its tube: the far wall (opaque), the near wall (blended, writes depth so the ink never lands on the lumen), then the ink (blended): one set of uniforms, the body\'s index range twice and the hull\'s once', () => {
   const s = new CelScene();
   const o = s.vesselObject('PV_TRUNK')!;
-  const mats = o.toonMesh.material as unknown as { transparent: boolean; depthWrite: boolean; uniforms: unknown }[];
-  assert.equal(mats.length, 2);
-  assert.equal(mats[1]!.transparent, true); assert.equal(mats[1]!.depthWrite, false);
-  assert.equal(mats[0]!.transparent, false);
-  assert.equal(mats[0]!.uniforms, mats[1]!.uniforms, 'one set of uniforms');
+  const mats = o.toonMesh.material as unknown as { transparent: boolean; depthWrite: boolean; uniforms: unknown; defines: Record<string, string>; stencilRef: number; stencilFuncMask: number; stencilWriteMask: number }[];
+  assert.equal(mats.length, 3);
+  const [far, near, hull] = mats as [typeof mats[0], typeof mats[0], typeof mats[0]];
+  assert.ok('FAR_WALL' in far.defines && far.transparent === false, 'the far wall is opaque');
+  assert.ok('NEAR_WALL' in near.defines && near.transparent === true && near.depthWrite === true, 'the near wall is blended and writes depth, so the ink (drawn after it) fails the depth test over the lumen');
+  assert.equal(hull.transparent, true); assert.equal(hull.depthWrite, false);
+  assert.equal(far.uniforms, hull.uniforms, 'one set of uniforms'); assert.equal(far.uniforms, near.uniforms);
+  assert.ok(near.stencilRef === 2 && near.stencilFuncMask === 2 && near.stencilWriteMask === 2 && hull.stencilRef === 1 && hull.stencilFuncMask === 1 && hull.stencilWriteMask === 1, 'two stencil bits: one near wall and one outline per pixel');
   const g = o.toonMesh.geometry, n = g.getIndex()!.count;
-  assert.deepEqual(g.groups.map((x) => [x.start, x.count, x.materialIndex]), [[0, n / 2, 0], [n / 2, n / 2, 1]]);
+  assert.deepEqual(g.groups.map((x) => [x.start, x.count, x.materialIndex]), [[0, n / 2, 0], [0, n / 2, 1], [n / 2, n / 2, 2]], 'the near wall is drawn before the ink');
   s.dispose();
 });
 
@@ -107,9 +110,9 @@ test('one outline round the union: the hull marks the stencil once per pixel, th
   const s = new CelScene();
   const o = s.vesselObject('PV_TRUNK')!;
   const mats = (o.toonMesh.material as import('three').ShaderMaterial[]);
-  const hull = mats[1]!;
+  const hull = mats[2]!;
   assert.ok(hull.stencilWrite && hull.stencilRef === 1 && hull.stencilFunc === NotEqualStencilFunc && hull.stencilZPass === ReplaceStencilOp, 'the hull inks a pixel once');
-  assert.ok(!mats[0]!.stencilWrite, 'the body does not touch the stencil');
+  assert.ok(!mats[0]!.stencilWrite, 'the far wall does not touch the stencil');
   const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
   assert.match(read('../src/scene/Stage.tsx'), /stencil: true/);
   assert.match(read('../src/scene/scene.ts'), /gl\.clearDepth\(\); gl\.clearStencil\(\)/);
@@ -262,3 +265,11 @@ test('see inside: across a wide tube the lumen is one flat darker step inside th
   assert.match(CEL_TUBE_GLSL, /float window = 1\.0 - smoothstep\(/);
 });
 const TONES_HAIR = CEL_STYLE.TONES_FROM - 0.01;
+
+test('the cava\'s one-layer veil is not left to the odds of a depth tie: the depth-only pass sits a firm offset behind the colour pass (the dashed outline of 20 Nov)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/scene/vessels/vessel-object.ts', import.meta.url), 'utf8');
+  const m = /colorWrite: false, depthWrite: true, polygonOffset: true, polygonOffsetFactor: (\d+), polygonOffsetUnits: (\d+)/.exec(src);
+  assert.ok(m && Number(m[1]) >= 2 && Number(m[2]) >= 4, 'factor and units');
+  assert.match(src, /geo\.addGroup\(0, half, 0\); geo\.addGroup\(0, half, 1\); geo\.addGroup\(half, half, 2\)/, 'the near wall before the ink');
+});

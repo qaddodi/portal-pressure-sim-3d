@@ -32,7 +32,8 @@ export const Z = { cell: 0.55, cellBot: -12.5, bead: 0.5, disse: -1.0, ground: -
 /** The red cells in the stream (2D's palette has their colour; the flat view draws none). */
 /** How far (µm) the scene stands toward the viewer from the lobule's plate. */
 const LIFT = 8;
-const RBC_N = 14, RBC_R = 1.9;
+/** Red cells in this sinusoid's lumen, and in each of the two next ones (beyond the plates). */
+const RBC_N = 34, RBC_FAR = 14, RBC_R = 1.9;
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -101,7 +102,7 @@ export class Sinusoid3D {
   private readonly fibres: MicroMany;
   private readonly albumin: MicroMany;
   private readonly rbc: MicroMany;
-  private readonly rbcs: { u: number; y: number; z: number; tilt: number; spin: number; ph: number }[] = [];
+  private readonly rbcs: { u: number; y: number; z: number; tilt: number; spin: number; ph: number; lane: -1 | 0 | 1 }[] = [];
 
   constructor(flat: SinusoidView, shared: CelShared) {
     this.flat = flat as unknown as Flat;
@@ -109,18 +110,17 @@ export class Sinusoid3D {
     this.group.name = 'sinusoid3d';
     // the scene is built in micrometres, the plane's y up: one group scales it to the flat view's units (it turns with the flat view's group in a portrait room)
     this.group.scale.setScalar(U);
-    // (it stands a little proud of the lobule's plate it sits in, so while the camera dives in it is drawn over the lobule, never through it)
-    this.group.position.z = LIFT * U;
+    // (while the camera dives in it stands a little proud of the lobule's plate it sits in, so it is drawn over the lobule, never through it; at rest it lies in the flat view's own plane, where the names are pinned)
     const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, o), `sinusoid3d/${name}`);
     const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}) => new MicroMany(geo, microMaterials(this.res, this.fade, o), cap, `sinusoid3d/${name}`);
     const S = CEL_STYLE.MICRO;
     this.ground = mk('ground', { ink: null });
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
-    this.trough = mk('lumen', { ink: null });
-    this.troughFar = mk('lumen-beyond', { ink: null });
+    this.trough = mk('lumen', { ink: null, streaks: true });
+    this.troughFar = mk('lumen-beyond', { ink: null, streaks: true });
     this.bead = mk('endothelium', { ink: null });
     this.beadLine = mk('endothelium-edge', { ink: null });
-    this.disse = mk('disse', { ink: null });
+    this.disse = mk('disse', { ink: null, streaks: true });
     this.cells = mk('hepatocytes', { px: S.LINE });
     this.nuclei = mk('nuclei', { px: S.LINE_SMALL });
     this.nucleoli = mk('nucleoli', { ink: null });
@@ -136,18 +136,27 @@ export class Sinusoid3D {
     this.pores = many('fenestrae', unitSphere(10, 6), 1200, { ink: null });
     this.villi = many('microvilli', unitRod(6), 900, { ink: null });
     this.fibres = many('collagen', unitRod(6), 400, { ink: null });
-    this.albumin = many('albumin', unitSphere(10, 6), 1400, { px: S.LINE_SMALL });
-    this.rbc = many('red-cells', unitRbc(22), RBC_N, { px: S.LINE_SMALL });
+    this.albumin = many('albumin', unitSphere(12, 8), 1400, { px: S.LINE_SMALL });
+    this.rbc = many('red-cells', unitRbc(22), RBC_N + 2 * RBC_FAR, { px: S.LINE });
     // (order: the ground first, then the solid shapes; the see-through membrane and the arrows last)
     for (const p of [this.ground, this.disse, this.troughFar, this.trough, this.bead, this.beadLine, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoN, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) this.group.add(p.group);
     for (const p of [this.pores, this.villi, this.fibres, this.albumin, this.rbc]) this.group.add(p.group);
     this.bm.renderOrder = 20;
     const r = mulberry(91);
-    for (let i = 0; i < RBC_N; i++) this.rbcs.push({ u: r(), y: r() * 1.5 - 0.75, z: r(), tilt: 0.2 + r() * 0.7, spin: (r() - 0.5) * 0.8, ph: r() * Math.PI * 2 });
+    for (let i = 0; i < RBC_N + 2 * RBC_FAR; i++) this.rbcs.push({ u: r(), y: r() * 1.5 - 0.75, z: r(), tilt: 0.2 + r() * 0.7, spin: (r() - 0.5) * 0.8, ph: r() * Math.PI * 2, lane: i < RBC_N ? 0 : i < RBC_N + RBC_FAR ? -1 : 1 });
     this.group.visible = false;
   }
 
   get enabled(): boolean { return this.on; }
+
+  /** Before the flat view's update, each frame: while this scene is on, the flat view's traffic runs over the whole built stretch (fixed to the tissue), not over the stretch on screen (2D's VW.vis,
+   *  which moves with the camera: a pan or a turn slid every albumin and red cell the other way). Off again, the flat view lays its stretch for the screen afresh. */
+  pinTraffic(on: boolean): void {
+    const f = this.flat;
+    if (on) { f.VW.vis[0] = -REACH; f.VW.vis[1] = REACH; this.pinned = true; }
+    else if (this.pinned) { this.pinned = false; (f as unknown as { screen: unknown }).screen = null; }
+  }
+  private pinned = false;
 
   /** One frame, after the flat view's own update (its state, palette and traffic are this frame's). `on` is the Settings switch. True while anything of this scene moves. */
   update(on: boolean): boolean {
@@ -162,6 +171,7 @@ export class Sinusoid3D {
     // the dive: the scene comes in over the lobule as the camera lands (the flat view's own share), whole at rest
     const d = f.dive;
     this.fade.value = d == null ? 1 : smooth(0.42, 0.86, d);
+    this.group.position.z = d == null ? 0 : LIFT * U * (1 - smooth(0.86, 1, d));
     const dark = LOOKS[f.look].scheme === 'dark';
     const P = f.pal.palette(dark) as unknown as Pal;
     const S = f.cur;
@@ -173,6 +183,7 @@ export class Sinusoid3D {
     this.stepPores(S.por);
     this.stepAlbumin();
     this.stepRbc();
+    this.stepStreaks(P);
     this.stepArrows(P);
     this.bm.setOpacity(clamp(S.bm, 0, 1) * (dark ? 0.6 : 0.8));
     return true;
@@ -200,8 +211,9 @@ export class Sinusoid3D {
     this.pores.setTint(deep(P.cEndoE, 0.85));
     this.villi.setTint(mix3(P.cLymph, P.cCell, 0.45));
     this.fibres.setTint(P.cCol);
-    this.albumin.setTint(P.cAlb); this.albumin.setInk(P.cAlbE);
-    this.rbc.setTint(mix3(P.cRbc, P.cLumen, 0.3)); this.rbc.setInk(mix3(P.cRbc, P.cLumen, 0.15));
+    this.albumin.setTint(P.cAlb); this.albumin.setInk(deep(P.cAlbE, 0.8));
+    // (a red cell is its own red in two tones with a bold dark line of it, as every solid here)
+    this.rbc.setTint(mix3(P.cRbc, P.cLumen, 0.12)); this.rbc.setInk(deep(P.cRbc, 0.42));
   }
 
   // ---- the shapes that follow the state (rebuilt at 1/64 steps of it) ------------------------------------------------------------
@@ -224,7 +236,7 @@ export class Sinusoid3D {
         for (let k = 0; k <= K; k++) {
           const th = -Math.PI / 2 + (k / K) * Math.PI, yd = h * Math.sin(th), z = -D * Math.cos(th);
           // (the inward normal of the ellipse: toward the axis and the viewer)
-          b.v(x, Y(yd), z, 0, Y(-D * Math.sin(th)), h * Math.cos(th));
+          b.v(x, Y(yd), z, 0, Y(-D * Math.sin(th)), h * Math.cos(th)); b.aux.push(Math.sin(th));
         }
       }
       for (let i = 0; i < rows.length - 1; i++) b.strip(rows[i]!, rows[i + 1]!, K + 1);
@@ -262,7 +274,7 @@ export class Sinusoid3D {
     const PERIOD = UM.hep + 2 * (UM.disse + UM.endo) + 2 * UM.lum;
     {
       const b = new MeshBuilder();
-      const bandZ = (y0: (x: number) => number, y1: (x: number) => number, z: number) => band(b, xs, y0, y1, z);
+      const bandZ = (y0: (x: number) => number, y1: (x: number) => number, z: number) => band(b, xs, y0, y1, z, true);
       for (const s of [-1, 1] as Side[]) {
         bandZ((x) => Y(s * (g.wallIn(x) - 0.1)), (x) => Y(s * (g.hepIn(x) + 1.0)), Z.disse);
         // beyond the plate: Disse, the lining, the next lumen, its lining, Disse, then the next plate (flat bands; the next lumen is a shallow trough below)
@@ -281,7 +293,7 @@ export class Sinusoid3D {
           const mid = g.hepIn(x) + UM.hep + UM.disse + UM.endo + UM.lum, h = UM.lum + UM.endo * 0.5, D = h * 0.7;
           for (let k = 0; k <= K; k++) {
             const th = -Math.PI / 2 + (k / K) * Math.PI, yd = mid + h * Math.sin(th), z = -D * Math.cos(th) + 0.1;
-            b.v(x, Y(s * yd), z, 0, Y(-s * D * Math.sin(th)), h * Math.cos(th));
+            b.v(x, Y(s * yd), z, 0, Y(-s * D * Math.sin(th)), h * Math.cos(th)); b.aux.push(Math.sin(th));
           }
         }
         for (let i = 0; i < rows.length - 1; i++) { if (s > 0) b.strip(rows[i]!, rows[i + 1]!, K + 1); else b.strip(rows[i + 1]!, rows[i]!, K + 1); }
@@ -433,29 +445,48 @@ export class Sinusoid3D {
       let z: number;
       if (ay < h) { const t = ay / h; z = -h * Z.trough * Math.sqrt(Math.max(0, 1 - t * t)) * (0.35 + 0.25 * hash(i * 0.37)) ; }
       else z = lerp(0.1, Z.disse + 0.55, smooth(h, g.wallIn(x) + 0.4, ay));
-      const rr = r * 1.15 * Math.min(1, a * 1.6);
+      // (a little larger than 2D's dot, so its two tones and its line read)
+      const rr = r * 1.7 * Math.min(1, a * 1.6);
       placeAt(this.m4, x, Y(yd), z, rr, rr, rr);
       this.albumin.setAt(n++, this.m4);
     }
     this.albumin.commit(n);
   }
 
-  /** The red cells: biconcave discs carried in the stream at the albumin's own lane speeds (fastest in the middle), tumbling a little. */
+  /** The red cells: biconcave discs carried in the stream at the albumin's own lane speeds (fastest in the middle), tumbling a little; a few ride in each of the next sinusoids too. */
   private stepRbc(): void {
-    const f = this.flat, g = f.g, [v0, v1] = f.VW.vis, span = v1 - v0 + 16, flow = f.traffic.flowX;
+    const f = this.flat, g = f.g, v0 = -REACH, span = 2 * REACH + 16, flow = f.traffic.flowX;
+    const farH = UM.lum + UM.endo * 0.5, farLim = farH - RBC_R * 0.62;
     let n = 0;
     for (const c of this.rbcs) {
       const sp = 1.5 * (1 - c.y * c.y) + 0.08;
       const x = v0 - 8 + ((((c.u * span + flow * sp) % span) + span) % span);
-      const h = g.halfW(x), lim = Math.max(0, h - RBC_R * 0.62);
-      const yd = clamp(c.y * h, -lim, lim);
-      const t = Math.abs(yd) / Math.max(h, 1e-3), z = -h * Z.trough * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.42, 0.62, c.z);
-      // a squeeze where the lumen is narrow (the stellate cell's pinch): the disc folds a little
-      const fold = clamp(h / (RBC_R + 1.2), 0.62, 1);
+      let yd: number, z: number, fold = 1;
+      if (c.lane === 0) {
+        const h = g.halfW(x), lim = Math.max(0, h - RBC_R * 0.62);
+        yd = clamp(c.y * h, -lim, lim);
+        const t = Math.abs(yd) / Math.max(h, 1e-3);
+        z = -h * Z.trough * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.42, 0.62, c.z);
+        // a squeeze where the lumen is narrow (the stellate cell's pinch): the disc folds a little
+        fold = clamp(h / (RBC_R + 1.2), 0.62, 1);
+      } else {
+        const mid = g.hepIn(x) + UM.hep + UM.disse + UM.endo + UM.lum, o = clamp(c.y * farH, -farLim, farLim), t = Math.abs(o) / farH;
+        yd = c.lane * (mid + o);
+        z = -farH * 0.7 * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.4, 0.6, c.z) + 0.1;
+      }
       placeAt(this.m4, x, Y(yd), z, RBC_R, RBC_R * fold, RBC_R, c.ph + c.spin * flow * 0.02, c.tilt);
       this.rbc.setAt(n++, this.m4);
     }
     this.rbc.commit(n);
+  }
+
+  /** The streaks: the blood's in every lumen (lighter, at the lanes' speeds, the middle fastest) and the lymph's in Disse (darker, slow, back toward the portal tract), fixed to the tissue. */
+  private stepStreaks(P: Pal): void {
+    const f = this.flat, flow = f.traffic.flowX, lym = f.traffic.lymX;
+    const blood = mix3(P.cLumen, [1, 1, 1], 0.55), lymph = deep(P.cLymph, 0.82);
+    this.trough.setStreaks(flow, Math.max(1, f.g.halfW(0)), blood, 0.32, 1);
+    this.troughFar.setStreaks(flow, UM.lum + UM.endo * 0.5, blood, 0.28, 1);
+    this.disse.setStreaks(lym, UM.disse * 0.5 + 0.5, lymph, 0.6, 0);
   }
 
   /** The two end arrows (2D's: the text's colour inside the labels' halo), in the lumen at the flat view's places, pointing the way the blood goes, fading with their names. */
@@ -483,9 +514,9 @@ export class Sinusoid3D {
 }
 
 /** A flat band between two curves along x (plane y), facing the viewer at depth z. */
-function band(b: MeshBuilder, xs: readonly number[], y0: (x: number) => number, y1: (x: number) => number, z: number): void {
+function band(b: MeshBuilder, xs: readonly number[], y0: (x: number) => number, y1: (x: number) => number, z: number, aux = false): void {
   const r0 = b.count;
-  for (const x of xs) { b.v(x, y0(x), z, 0, 0, 1); b.v(x, y1(x), z, 0, 0, 1); }
+  for (const x of xs) { b.v(x, y0(x), z, 0, 0, 1); b.v(x, y1(x), z, 0, 0, 1); if (aux) b.aux.push(-1, 1); }
   for (let i = 0; i < xs.length - 1; i++) { const a = r0 + i * 2; if (y1(xs[i]!) > y0(xs[i]!)) b.quad(a, a + 2, a + 3, a + 1); else b.quad(a, a + 1, a + 3, a + 2); }
 }
 

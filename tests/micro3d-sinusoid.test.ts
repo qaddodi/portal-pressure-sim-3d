@@ -49,3 +49,28 @@ test('a hepatocyte keeps to 2D\'s plate: between the Disse face and 20 µm in, w
   assert.ok(Math.min(...ys) > 9.2 && Math.max(...ys) < 9.2 + UM.hep, 'inside the plate');
   assert.ok(Math.min(...ys) < 9.2 + 1 && Math.max(...ys) > 9.2 + UM.hep - 1, 'and fills it');
 });
+
+test('on, the traffic is fixed to the tissue (a camera move never slides it); off, the flat view lays its stretch for the screen again', () => {
+  const { flat, s3 } = scene();
+  const F = flat as unknown as { VW: { vis: [number, number] }; screen: unknown };
+  flat.setScreen(8, 390, 390, 12);
+  const before = [...F.VW.vis];
+  s3.pinTraffic(true);
+  assert.deepEqual(F.VW.vis, [-130, 130]);
+  flat.setScreen(8, 390, 390, 30); s3.pinTraffic(true);   // (a pan: the screen's stretch moves, the traffic's does not)
+  assert.deepEqual(F.VW.vis, [-130, 130]);
+  s3.pinTraffic(false);
+  assert.equal(F.screen, null);
+  flat.setScreen(8, 390, 390, 12);
+  assert.deepEqual(F.VW.vis, before);
+});
+
+test('every streaked stream carries its place across (aux) on every vertex', () => {
+  const { s3 } = scene();
+  s3.update(true);
+  for (const n of ['sinusoid3d/lumen', 'sinusoid3d/lumen-beyond', 'sinusoid3d/disse']) {
+    const m = meshes(s3.group).find((x) => x.name === n)!;
+    const aux = m.geometry.getAttribute('aux'), pos = m.geometry.getAttribute('position');
+    assert.ok(aux && aux.count === pos!.count, `${n}: aux on every vertex`);
+  }
+});
