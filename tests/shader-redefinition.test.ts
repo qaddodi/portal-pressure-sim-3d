@@ -40,5 +40,5 @@ for (const [name, src, builtin] of SHADERS) {
 
 test('the vessel shader names the per-vertex attributes the geometry carries, once each', () => {
   const names = declared(VESSEL_VS);
-  for (const a of ['tang', 'rk', 'hull', 'narrow', 'cC', 'tC', 'fr', 'pk']) assert.equal(names.filter((n) => n === a).length, 1, `${a} is declared once`);
+  for (const a of ['tang', 'rk', 'narrow', 'cC', 'tC', 'fr', 'pk']) assert.equal(names.filter((n) => n === a).length, 1, `${a} is declared once`);
 });

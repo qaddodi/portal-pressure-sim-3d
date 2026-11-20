@@ -10,7 +10,7 @@ import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { CelScene } from '../src/scene/scene.ts';
 
 const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const INK_RE = new RegExp(esc(`clamp(${F(CEL_STYLE.LINE_R)} * rDev, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(0.3, ${F(TAPER_TO)}, rDev) / dpr`));
+const INK_RE = new RegExp(esc(`clamp(${F(CEL_STYLE.LINE_R)} * rDevV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(0.3, ${F(TAPER_TO)}, rDevV) / dpr`));
 test('the outline is LINE_R of the radius held between LINE_MIN and LINE_MAX device px: a hairline keeps a line, the trunk does not grow a rope', () => {
   const { LINE_R, LINE_MIN, LINE_MAX } = CEL_STYLE;
   assert.equal(inkWidthDev(LINE_MIN / LINE_R / 2 + 1), LINE_MIN, 'the floor');
@@ -72,19 +72,15 @@ test('every look wears 2D\'s casing: its ink and alpha (the dark look\'s own in 
   s.dispose();
 });
 
-test('a vessel is two draws of one opaque matte tube: the body (opaque, no alpha, no near-wall pass), then the ink (opaque too, one outline per pixel): one set of uniforms, the body\'s index range once and the hull\'s once', () => {
+test('a vessel is ONE draw of one opaque matte tube: one mesh, one material, no groups, no hull copy, no stencil; the outline is part of the tube', () => {
   const s = new CelScene();
   const o = s.vesselObject('PV_TRUNK')!;
-  const mats = o.toonMesh.material as unknown as { transparent: boolean; depthWrite: boolean; uniforms: unknown; defines: Record<string, string>; stencilRef: number; stencilFuncMask: number; stencilWriteMask: number }[];
-  assert.equal(mats.length, 2);
-  const [body, hull] = mats as [typeof mats[0], typeof mats[0]];
-  assert.ok(!('FAR_WALL' in body.defines) && !('NEAR_WALL' in body.defines), 'no far/near wall split');
-  assert.equal(body.transparent, false, 'the body is opaque'); assert.equal(body.depthWrite, true);
-  assert.equal(hull.transparent, false, 'the outline is solid ink'); assert.equal(hull.depthWrite, false);
-  assert.equal(body.uniforms, hull.uniforms, 'one set of uniforms');
-  assert.ok(hull.stencilRef === 1 && hull.stencilFuncMask === 1 && hull.stencilWriteMask === 1, 'one outline per pixel');
-  const g = o.toonMesh.geometry, n = g.getIndex()!.count;
-  assert.deepEqual(g.groups.map((x) => [x.start, x.count, x.materialIndex]), [[0, n / 2, 0], [n / 2, n / 2, 1]]);
+  const m = o.toonMesh.material as import('three').ShaderMaterial;
+  assert.ok(!Array.isArray(m), 'one material');
+  assert.ok(!('FAR_WALL' in m.defines) && !('NEAR_WALL' in m.defines), 'no far/near wall split');
+  assert.equal(m.transparent, false, 'opaque'); assert.equal(m.depthWrite, true); assert.equal(m.stencilWrite, false, 'no stencil: no bit to share, no ink to cut');
+  const g = o.toonMesh.geometry;
+  assert.equal(g.groups.length, 0); assert.equal(g.getAttribute('hull'), undefined);
   s.dispose();
 });
 
@@ -101,24 +97,22 @@ test('a sub-pixel lumen keeps its colour: the line thins under LINE_MIN device p
 test('the vessel shader holds the same taper and leaves the picked ring alone', async () => {
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
-  assert.ok(src.includes('smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rDev) / dpr') && src.includes('clamp(${F(CEL_STYLE.LINE_R)} * rDev, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)})'), 'the source writes the line from the style');
+  assert.ok(src.includes('smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rDevV) / dpr') && src.includes('clamp(${F(CEL_STYLE.LINE_R)} * rDevV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)})'), 'the source writes the line from the style');
   assert.match(VESSEL_VS, INK_RE);
-  assert.match(src, /\(inkPx \+ hiPx \* vHi\)/);
+  assert.match(src, /\(inkPx \* endK \+ hiPx \* vHi\)/);
 });
 
-test('one outline round the union: the hull marks the stencil once per pixel, the stencil is asked for and cleared with the depth, and a strand\'s ink shares it (2D tube-joint.js)', async () => {
+test('the outline is continuous by construction: painted in the tube\'s own fragment shader from its exact lateral distance to the axis (no second mesh, no stencil, no depth tie); a strand\'s ink still shares the one stencil (2D tube-joint.js)', async () => {
   const { readFileSync } = await import('node:fs');
-  const { NotEqualStencilFunc, ReplaceStencilOp } = await import('three');
-  const s = new CelScene();
-  const o = s.vesselObject('PV_TRUNK')!;
-  const mats = (o.toonMesh.material as import('three').ShaderMaterial[]);
-  const hull = mats[1]!;
-  assert.ok(hull.stencilWrite && hull.stencilRef === 1 && hull.stencilFunc === NotEqualStencilFunc && hull.stencilZPass === ReplaceStencilOp, 'the hull inks a pixel once');
-  assert.ok(!mats[0]!.stencilWrite, 'the body does not touch the stencil');
   const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
+  assert.match(VESSEL_VS, /vCen = vec3\(cc\.x, cc\.y, cc\.w\);/, 'the vertex stage passes the axis');
+  assert.match(VESSEL_FS, /float dLat = tl > 1e-3 \? abs\(dot\(dvPx, vec2\(-tS\.y, tS\.x\) \/ tl\)\) : length\(dvPx\);/, 'the exact lateral distance in device px');
+  assert.match(VESSEL_FS, /float inkT = smoothstep\(rDev - 0\.5, rDev \+ 0\.5, dLat\) \* endK \* inkOn;/, 'half a pixel of antialiasing each side of the lumen\'s edge');
+  assert.doesNotMatch(VESSEL_FS + VESSEL_VS, /gl_FrontFacing \|\| |attribute float hull|vHull|hullOn/, 'no hull');
   assert.match(read('../src/scene/Stage.tsx'), /stencil: true/);
   assert.match(read('../src/scene/scene.ts'), /gl\.clearDepth\(\); gl\.clearStencil\(\)/);
-  const st = (s.disease.strands as unknown as { strands: { obj: { ink: import('three').ShaderMaterial; toon: import('three').ShaderMaterial } | null }[] });
+  const s = new CelScene();
+  const st = (s.disease.strands as unknown as { strands: { obj: { ink: import('three').ShaderMaterial } | null }[] });
   assert.ok(st.strands.length > 0);
   s.dispose();
 });
@@ -199,7 +193,8 @@ test('the outline is a soft dark of the vessel\'s own colour, never white or bla
   assert.match(VESSEL_FS, /mix\(mix\(inkH, inkColorCirc, circT\), hiColor/, 'the ink colour is the vessel\'s own tone, not the raw casing');
   assert.equal(CEL_STYLE.TUBE.RIM_SHARE, 0, 'no white rim');
   assert.match(VESSEL_FS, /uniform vec3 mate0;[\s\S]*uniform vec3 mate1;/, 'the ink knows the joined ends');
-  assert.match(VESSEL_FS, /if \(endU < [0-9.]+ \* vR && vHi < 0\.001\) discard;/, 'a joined end is not outlined');
+  assert.match(VESSEL_FS, /float endK = vHi > 0\.001 \? 1\.0 : smoothstep\(0\.5 \* [0-9.]+, [0-9.]+, endR \/ max\(vR, 1e-6\)\);/, 'a joined end is not outlined');
+  assert.match(VESSEL_VS, /float endK = vHi > 0\.001 \? 1\.0 : smoothstep\(0\.5 \* [0-9.]+, [0-9.]+, endU \/ max\(vR, 1e-6\)\);/, 'nor widened (the same factor builds the tube)');
   // a head can never be smaller than a readable chevron: the smallest tube that carries one has a head half width of at least 3.5 CSS px, and a head is longer than it is wide
   const minR = 5.8, hw = Math.min(0.6 * minR, Math.min(8, Math.max(4, 0.5 * minR)));
   assert.ok(hw >= 3.4 && 1.6 * hw > hw, `smallest head half width ${hw}`);
@@ -220,10 +215,13 @@ test('over a wide tube there are exactly two flat colours, the edge between them
 });
 const TONES_HAIR = CEL_STYLE.TONES_FROM - 0.01;
 
-test('the outline sits a firm depth offset behind the body it wraps, so the body wins the tie at the silhouette (the dashed outline of 20 Nov), and the groups are the body then the ink', async () => {
+test('the tube is built ink wider than its lumen, by the figure\'s line, with its polygon corners outside it', async () => {
   const { readFileSync } = await import('node:fs');
+  const { TUBE_SAG } = await import('../src/scene/vessels/shaders.ts');
+  const { TUBE_RADIAL } = await import('../src/scene/vessels/tubes.ts');
+  assert.ok(Math.abs(TUBE_SAG - (1 / Math.cos(Math.PI / TUBE_RADIAL) - 1)) < 1e-12 && TUBE_SAG > 0 && TUBE_SAG < 0.05);
+  assert.match(VESSEL_VS, /float inkW = \(inkPx \* endK \+ hiPx \* vHi\) \* inkOn \* wpcV \/ vU;/);
+  assert.match(VESSEL_VS, /vec3 p = aPos \+ aNor \* \(inflate \+ radius \* rk \* \(swell \* \(1\.0 - narrow\) - 1\.0\) \+ inkW \+ \(lumenW \+ inkW\) \* /);
   const src = readFileSync(new URL('../src/scene/vessels/vessel-object.ts', import.meta.url), 'utf8');
-  const m = /polygonOffset: true, polygonOffsetFactor: (\d+), polygonOffsetUnits: (\d+)/.exec(src);
-  assert.ok(m && Number(m[1]) >= 2 && Number(m[2]) >= 4, 'factor and units');
-  assert.match(src, /geo\.addGroup\(0, half, 0\); geo\.addGroup\(half, half, 1\)/, 'the body, then the ink');
+  assert.doesNotMatch(src, /polygonOffset|stencil|addGroup|makeHull|hullMat/, 'no hull material is left');
 });
