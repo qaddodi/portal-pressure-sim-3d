@@ -16,7 +16,7 @@ import { CIRCUIT_VS_CALL, CIRCUIT_VS_HEAD } from '../circuit/shader.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { QUIET_BACK } from '../camera/quiet.ts';
 import { CEL_STYLE } from '../cel-style.ts';
-import { CEL_TUBE_GLSL, glslNum as F } from '../cel-glsl.ts';
+import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL, glslNum as F } from '../cel-glsl.ts';
 import { TAPER_FROM, TAPER_TO } from './cel-ink.ts';
 
 export const VESSEL_VS = /* glsl */ `
@@ -52,7 +52,6 @@ uniform float fadeMode;
 uniform vec4 fadeA;
 uniform vec4 fadeLine;   // modes 3 and 4: a line across the figure, scene (x1, y1, x2, y2); fadeA is then (offset, -, alpha at the start, alpha at the end)
 uniform float fadeKeep;
-varying float vFade;
 varying vec3 vN;
 varying vec3 vV;
 varying vec3 vT;
@@ -106,13 +105,6 @@ ${CIRCUIT_VS_CALL}
   if (mate1.x >= 0.0) { float k1 = smoothstep(0.7, 1.0, uv.x); if (k1 > 0.0) swell += k1 * (0.5 * (swell + swellOf(mate1.x, mate1.y, mate1.z)) - swell); }
   if (circShare > 0.0) swell = mix(swell, circSwell(), circShare);
   vU = mix(300.0, 1.0 / CIRC_MAPK, circShare);
-  vec3 p = aPos + aNor * (inflate + radius * rk * (swell * (1.0 - narrow) - 1.0));
-  vec4 mv = modelViewMatrix * vec4(p, 1.0);
-  vN = normalize(normalMatrix * aNor);
-  vT = normalize(normalMatrix * aTan);
-  vV = normalize(-mv.xyz);
-  vUv = uv;
-  vHull = hull;
   float fa = 1.0;
   if (fadeMode > 2.5) {
     // tube-geo.js tubeAlpha: the projection of the point on the line
@@ -131,7 +123,15 @@ ${CIRCUIT_VS_CALL}
     fa = mix(fadeA.z, fadeA.w, ft);
     fa = mix(fa, 1.0, circT);
   }
-  vFade = fa;
+  // a fade (a tip into its organ, a bed through the lobe, a vein into the cava) NEVER makes a vessel see-through: the tube thins to nothing instead (opaque, two flat tones, the ink round it), so no vessel is glassy
+  swell *= mix(${F(CEL_STYLE.TUBE.FADE_R)}, 1.0, fa);
+  vec3 p = aPos + aNor * (inflate + radius * rk * (swell * (1.0 - narrow) - 1.0));
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  vN = normalize(normalMatrix * aNor);
+  vT = normalize(normalMatrix * aTan);
+  vV = normalize(-mv.xyz);
+  vUv = uv;
+  vHull = hull;
   vHi = 0.0;
   vR = radius * rk * swell * vU;   // the tube's half width in the 2D figure's units
   vec4 c = projectionMatrix * mv;
@@ -159,14 +159,10 @@ ${CIRCUIT_VS_CALL}
 
 export const VESSEL_FS = /* glsl */ `
 ${FADE_GLSL}
+uniform float tubeDark;   // 1 on the dark looks: brighter tube caps (cel-glsl.ts celTubeBase)
 ${CEL_TUBE_GLSL}
-// a vessel behind the organs is drawn a second time over them with VEIL defined: the organ's veil (stage's VEIL_K 0.6: a vessel behind an organ shows at 0.4)
-#ifdef VEIL
-uniform float veilA;   // 0.4 while the vessel is veiled; eases to 1 as the cava is shown whole (drawn at no less than TUBE.VEIL_FLOOR: a vessel behind an organ stays a colour, never grey)
-#define VEIL_A max(veilA, ${F(CEL_STYLE.TUBE.VEIL_FLOOR)})
-#else
-const float VEIL_A = 1.0;
-#endif
+${CEL_LIGHT_GLSL}
+// a vessel behind the organs (the cava) is drawn a second time over them with VEIL defined: OPAQUE, as every vessel is (no alpha at rest: two flat tones and the ink; Mohammad, 20 Nov: "Why is the venacava glassy")
 uniform vec3 color;
 uniform vec3 inkColor;
 uniform float shadeK;
@@ -223,7 +219,6 @@ varying float vW;
 varying float vR;
 varying float vU;
 varying float vHull;
-varying float vFade;
 varying float vHi;
 varying vec3 vN;
 varying vec3 vV;
@@ -353,13 +348,13 @@ void main() {
     // the outline in the look's casing colour at its alpha (2D: --casing-a, and the Circuit's own on the dark look (.stage-wrap.cmap), by the Circuit's share, whole on a vessel behind an organ too; a picked vessel's ring is solid)
     float ca = mix(casingA, casingCircA, circT);
     // a joined end is buried in its trunk: no ink on its last stretch, so the cut is never outlined
-    float endU = min(mate0.x >= 0.0 ? vUv.x : 1e9, mate1.x >= 0.0 ? 1.0 - vUv.x : 1e9) * len * 300.0;
+    float endU = min(mate0.x >= 0.0 ? vUv.x : 1e9, mate1.x >= 0.0 ? 1.0 - vUv.x : 1e9) * len * vU;
     if (endU < ${F(CEL_STYLE.TUBE.END_R)} * vR && vHi < 0.001) discard;
     // the line's colour: the look's casing ink taken most of the way to a deep tone of the vessel's own colour (never black, never white)
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
     vec3 inkH = mix(inkColor, celTubeBase(baseH) * ${F(CEL_STYLE.TUBE.INK_TONE)}, ${F(CEL_STYLE.TUBE.INK_OWN)});
-    gl_FragColor = vec4(mix(mix(inkH, inkColorCirc, circT), hiColor, clamp(vHi, 0.0, 1.0)), mix(ca, 1.0, clamp(vHi, 0.0, 1.0)) * VEIL_A * vFade);
+    gl_FragColor = vec4(mix(mix(inkH, inkColorCirc, circT), hiColor, clamp(vHi, 0.0, 1.0)), mix(ca, 1.0, clamp(vHi, 0.0, 1.0)));
     return;
   }
   if (!gl_FrontFacing) discard;
@@ -368,21 +363,17 @@ void main() {
     float dash = fract(vUv.x * len / 0.09);
     if (dash > 0.45) discard;
   }
-  vec3 l = normalize((viewMatrix * vec4(light, 0.0)).xyz);
 
   vec4 la = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, across);
   vec4 lb = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, across);
   vec3 base = mix(mix(color, la.rgb, la.a), mix(color, lb.rgb, lb.a), lensMix);
 
-  // the fill: exactly three FLAT tones across the tube, lit from the top left of the screen (cel-glsl.ts: shade, base, lit, a hard edge EDGE_PX device px across, no gradient), so two pieces of one vein shade alike at
-  // their join and a turned vein keeps its tones; no rim, no world-lit band. rDev: the tube's radius in device px; the tones fade in over the radius (never across the tube) and a hairline is one tone.
+  // the fill: exactly TWO flat tones, lit by the one world light (cel-glsl.ts: the base, a hard edge EDGE_PX device px across, the shade, no gradient), so two pieces of one vein shade alike at their join and a turned camera
+  // changes nothing; no rim, no highlight. rDev: the tube's radius in device px; the tones fade in over the radius (never across the tube) and a hairline is one tone.
   float wpc0 = vW * 2.0 / (res.y * projY) * vU;
   float rDev = vR / max(wpc0, 1e-6) * dpr;
-  vec2 sideS = side.xy;
-  float sl = length(sideS);
-  sideS = sl > 1e-4 ? sideS / sl : vec2(1.0, 0.0);
-  float kT = celTubeK(sideS);
-  vec3 c = celTubeTone(base, across, kT, rDev);   // two flat tones, matte and opaque: no highlight, no rim light
+  float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
+  vec3 c = celTubeTone(base, sT, fwidth(sT), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
 
   float vel = 0.0;
@@ -439,5 +430,5 @@ void main() {
       c = c * (1.0 - ha) + core * ac + rimc * ar * (1.0 - ac);
     }
   }
-  gl_FragColor = vec4(c, VEIL_A * vFade);
+  gl_FragColor = vec4(c, 1.0);
 }`;
