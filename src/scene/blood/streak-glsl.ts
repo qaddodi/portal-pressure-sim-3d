@@ -19,13 +19,13 @@ export const STREAK = {
   /** its thickness at the widest: this share of the tube's radius, between THICK_MIN and THICK_MAX px, a little varied by streak */
   THICK_OF_R: 0.16, THICK_MIN: 1.3, THICK_MAX: 3, THICK_JITTER: 0.3,
   /** the field's own numbers (a shape with an across and an along, um): a lane's pitch, a comet's period and length (base + spread), its half width in lane units, the share of the cycles left empty */
-  FIELD_PITCH: 0.9, FIELD_EDGE: 0.9, FIELD_AT_R: 5, FIELD_PERIOD: [21, 16], FIELD_LEN: [12, 14], FIELD_THICK: 0.3, FIELD_GAP: 0.12,
+  FIELD_PITCH: 0.9, FIELD_EDGE: 0.9, FIELD_AT_R: 5, FIELD_PERIOD: [21, 16], FIELD_LEN: [12, 14], FIELD_THICK: 0.4, FIELD_GAP: 0.12,
   /** both ends are feathered: the alpha ramps 0 to 1 over this share of the length at each end, whole between (a slim rounded lozenge, never a blunt head nor a point) */
   FEATHER: 0.3,
   /** each streak's own speed, seeded: +-this on top of its lane's (symmetric, so the mean stands) */
   SPEED_JITTER: 0.25,
   /** each streak's own tone, seeded: between the vessel's lit tone and the lighter one, from TONE_MIN of the way up, with a warm or cool shift of up to HUE (a share of a channel), never darker than the lit tone, never white */
-  TONE_MIN: 0.2, HUE: 0.03,
+  TONE_MIN: 0.45, HUE: 0.03,
   /** how far across the tube (of its radius) the outer lane sits */
   SPAN: 0.78,
   /** a streak fades out over this many tube radii at each end of its vessel, so it never crosses a junction */
@@ -37,7 +37,9 @@ export const STREAK = {
   /** CONTAINED 100 percent (Mohammad, 20 Nov: "the streaks should be CONTAINED within the vessels 100%"): a streak's whole extent, across, stays within EDGE of the lumen's radius (the lane, the wander, its width and the sideways reach of its tilt all count), so it never touches the ink; SAG: how far a straight streak may stand off a bending course (of the radius) */
   EDGE: 0.8, SAG: 0.1,
   /** the vessel's lit tone lifted this far toward white (one shade lighter, never white) and the streak's alpha (whole inside the lumen band) */
-  LIFT: 0.28, ALPHA: 1,
+  LIFT: 0.5, ALPHA: 1,
+  /** a streak's core is never thinner than this many CSS px where its lane is wide enough (the field's own thickness is a share of a lane, so a thin vessel's would be a hairline): a floor on the half width, never past one lane */
+  MIN_PX: 2,
 } as const;
 /** Whether a streak of the field can be at `across` (-1 .. 1 over the lumen) at all: the field draws nothing past FIELD_EDGE, so a streak never reaches the ink (the twin of the clip in streakField). */
 export const streakInside = (across: number): boolean => Math.abs(across) <= STREAK.FIELD_EDGE;
@@ -69,6 +71,25 @@ export function streakFit(lat: number, ang: number, len: number, thick: number, 
 export const bendLength = (rho: number, R: number): number => 2 * Math.sqrt(2 * rho * STREAK.SAG * R);
 /** The whole sideways extent of a streak from the axis (CSS px): its offset, half its width and the reach of its tilt. Always within EDGE of R after streakFit. */
 export const streakReach = (lat: number, ang: number, len: number, thick: number): number => Math.abs(lat) + 0.5 * thick * Math.abs(Math.cos(ang)) + 0.5 * len * Math.abs(Math.sin(ang));
+
+/** The core width in CSS px of the thinnest streak of a field of `lanes` lanes in a lumen of radius `rCss` CSS px (the twin of the field's hw and its MIN_PX floor in streakField): a lane is 2 x FIELD_EDGE x radius / lanes wide, the mark is
+ *  2 x hw of a lane (hw from FIELD_THICK, a little varied), held to MIN_PX where its lane is wide enough, never past one lane. */
+export function streakCorePx(rCss: number, lanes: number): number {
+  const lanePx = (rCss * 2 * STREAK.FIELD_EDGE) / lanes, hwMin = STREAK.FIELD_THICK * (1 - STREAK.THICK_JITTER * 0.5);
+  return 2 * Math.max(hwMin, Math.min(0.5, (STREAK.MIN_PX * 0.5) / lanePx)) * lanePx;
+}
+/** The share of a lumen's face the streaks cover, on average (the field's lanes, marks, gaps and feathered ends): the marks' width over the lane, their length over the period, the lozenge's and the feather's mean, the empty cycles left out. */
+export function streakCoverage(rCss: number, lanes: number): number {
+  const lanePx = (rCss * 2 * STREAK.FIELD_EDGE) / lanes, widthShare = Math.min(1, streakCorePx(rCss, lanes) / lanePx);
+  const len = STREAK.FIELD_LEN[0] + STREAK.FIELD_LEN[1] * 0.5, period = STREAK.FIELD_PERIOD[0] + STREAK.FIELD_PERIOD[1] * 0.5;
+  const lozenge = Math.PI / 4, feather = 1 - STREAK.FEATHER * 0.5;
+  return STREAK.FIELD_EDGE * widthShare * Math.min(1, len / period) * lozenge * feather * (1 - STREAK.FIELD_GAP);
+}
+/** The twin of streakTone: k (0 .. 1) of the way from the lit tone to `light` (from TONE_MIN up), a warm or cool shift (s in 0 .. 1), never darker than the lit tone. */
+export function streakToneJs(lit: readonly number[], light: readonly number[], k: number, s: number): number[] {
+  const m = STREAK.TONE_MIN + (1 - STREAK.TONE_MIN) * k, h = STREAK.HUE * (2 * s - 1);
+  return lit.map((v, i) => { const t = (v + (light[i]! - v) * m) * (i === 0 ? 1 + h : i === 2 ? 1 - h : 1); return Math.min(1, Math.max(0, Math.max(t, Math.min(v, light[i]!)))); });
+}
 
 const F = (x: number): string => (Number.isInteger(x) ? x.toFixed(1) : String(x));
 
@@ -116,6 +137,8 @@ ${STREAK_LANE_GLSL}
 ${STREAK_MARK_GLSL}
 // gStreakK: the seeds (k, s) of the tone of the last streak streakField found, for streakTone (a per-streak colour between the surface's and the streak colour's)
 vec2 gStreakK = vec2(1.0, 0.5);
+// gStreakPx: CSS px to one unit of across (the lumen's radius) where the caller knows it, else 0: the mark's core is held to MIN_PX where its lane is wide enough
+float gStreakPx = 0.0;
 // across -1 .. 1 over the stream, along in um (fixed to the tissue), flow the um the stream has run (negative runs back), halfWidth the stream's half width (um: one lane to ${F(STREAK.FIELD_PITCH)} um, 3 to 7 of them),
 // profile 1 the blood's parabolic lanes and 0 one speed (the lymph), dir +1 or -1: the way the stream runs (the mark is the same both ways). 1 inside a mark, 0 out.
 float streakField(float across, float along, float flow, float halfWidth, float profile, float dir) {
@@ -134,6 +157,8 @@ float streakField(float across, float along, float flow, float halfWidth, float 
   float t = xl / len;
   if (dir < 0.0) t = 1.0 - t;
   float hw = ${F(STREAK.FIELD_THICK)} * (1.0 - ${F(STREAK.THICK_JITTER)} * 0.5 + ${F(STREAK.THICK_JITTER)} * streakHash(seed + 4.1));
+  float lanePx = gStreakPx * 2.0 * ${F(STREAK.FIELD_EDGE)} / lanes;
+  if (lanePx > 0.0) hw = max(hw, min(0.5, ${F(STREAK.MIN_PX)} * 0.5 / lanePx));
   float aa = max(fwidth(u), 1e-3);
   gStreakK = vec2(streakHash(seed + 8.3), streakHash(seed + 6.1));
   return inLumen * streakMark(t, fu - 0.5, hw, aa) * step(${F(STREAK.FIELD_GAP)}, streakHash(seed * 1.9 + 2.0));

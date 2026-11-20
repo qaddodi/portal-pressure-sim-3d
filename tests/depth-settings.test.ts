@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { DEFAULTS, DEPTH_DEFAULTS, DEPTH_KEYS, FIGURE_SETTINGS_VERSION as V, parseSettings } from '../src/state/settings.ts';
 import { DEPTH_ROWS } from '../src/ui/settings/depth-rows.ts';
 
-test('the Figure depth switches: on by default, except blood-cell particles (chevrons stay the flow mark)', () => {
+test('the Figure depth switches: on by default, except Free tilt and the 3D lobule (the blood streaks are on: a play-test with the switch off saw none)', () => {
   assert.deepEqual([...DEPTH_KEYS], ['smoothJoins', 'organDepth', 'tilt', 'freeTilt', 'dof', 'particles', 'micro3d']);
-  assert.deepEqual(DEPTH_DEFAULTS, { smoothJoins: true, organDepth: true, tilt: true, freeTilt: false, dof: true, particles: false, micro3d: false });
+  assert.deepEqual(DEPTH_DEFAULTS, { smoothJoins: true, organDepth: true, tilt: true, freeTilt: false, dof: true, particles: true, micro3d: false });
   for (const k of DEPTH_KEYS) assert.equal(DEFAULTS[k], DEPTH_DEFAULTS[k]);
 });
 
