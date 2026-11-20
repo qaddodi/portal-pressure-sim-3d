@@ -205,7 +205,9 @@ export class LabelController {
       if (s.id === 'GV') continue;   // (the fundal varices' label comes in only with its varices)
       if (s.core || st.named.has(s.id) || st.shown.has(s.id) || s.id === picked) list.push(this.metaOf(s));
     }
-    return this.keepIfSmall(list);
+    // an organ's name is not said twice: where a station's reading names the same structure ("Right atrium 3.5"), the organ's own name ("RIGHT ATRIUM") is left out
+    const said = new Set(list.filter((m) => m.station.kind !== 'organ').map((m) => m.station.name.toLowerCase()));
+    return this.keepIfSmall(list.filter((m) => m.station.kind !== 'organ' || !said.has(m.station.name.toLowerCase())));
   }
 
   private tiny = false;

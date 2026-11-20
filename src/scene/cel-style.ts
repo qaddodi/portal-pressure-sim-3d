@@ -63,6 +63,15 @@ export const CEL_STYLE = {
     LINE_MIN_CSS: 3.0,
     LINE_ALPHA: 1.0,
   },
+  /** The true-3D lobule and sinusoid (micro3d/, Settings > Figure depth > 3D lobule and sinusoid): solid shapes lit as the organs are (ORGAN.LIGHT, the same n.L edges),
+   *  three flat tones and a bold ink round every shape. The tones are a little stronger than the vessels' so a cell's bevel, a nucleus's dome and the trough of the lumen read as form. */
+  MICRO: {
+    SHADE: 0.24,
+    LIT: 0.16,
+    /** The ink, in CSS px: round the big shapes (hepatocytes, the trough, the cells), round the small ones (pores, albumin, microvilli). */
+    LINE: 1.25,
+    LINE_SMALL: 0.8,
+  },
 } as const;
 
 /** The band a measure `s` falls in, 0 shade, 1 base, 2 lit, with the hard edge `edge` wide (in the same units as s; 0 is a pure step). The JS twin of the shaders' step, for tests. */

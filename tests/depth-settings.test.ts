@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { DEFAULTS, DEPTH_DEFAULTS, DEPTH_KEYS, FIGURE_SETTINGS_VERSION as V, parseSettings } from '../src/state/settings.ts';
 import { DEPTH_ROWS } from '../src/ui/settings/depth-rows.ts';
 
-test('the five Figure depth switches: on by default, except blood-cell particles (chevrons stay the flow mark)', () => {
-  assert.deepEqual([...DEPTH_KEYS], ['smoothJoins', 'organDepth', 'tilt', 'dof', 'particles']);
-  assert.deepEqual(DEPTH_DEFAULTS, { smoothJoins: true, organDepth: true, tilt: true, dof: true, particles: false });
+test('the Figure depth switches: on by default, except blood-cell particles (chevrons stay the flow mark)', () => {
+  assert.deepEqual([...DEPTH_KEYS], ['smoothJoins', 'organDepth', 'tilt', 'dof', 'particles', 'micro3d']);
+  assert.deepEqual(DEPTH_DEFAULTS, { smoothJoins: true, organDepth: true, tilt: true, dof: true, particles: false, micro3d: true });
   for (const k of DEPTH_KEYS) assert.equal(DEFAULTS[k], DEPTH_DEFAULTS[k]);
 });
 
@@ -32,4 +32,9 @@ test('a phone that saved See-through (the old default) before Cel shaded existed
   assert.equal(s.organFill, 'solid'); assert.equal(s.tilt, true); assert.equal(s.smoothJoins, true);
   assert.equal(s.look, 'dark', 'the rest of the saved settings are kept');
   assert.equal(parseSettings(`{"figureV":${V - 1},"organFill":"seethrough"}`).organFill, 'solid', 'an older version too');
+});
+
+test('3D lobule and sinusoid: on by default, off is the flat views', () => {
+  assert.equal(DEFAULTS.micro3d, true);
+  assert.equal(parseSettings('{"micro3d":false,"figureV":2}').micro3d, false);
 });
