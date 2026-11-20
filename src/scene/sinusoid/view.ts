@@ -272,7 +272,7 @@ export class SinusoidView {
     const wk = wantWash ? washProgress(now - this.washLand, this.reduce) : 0;
     if (wk !== this.washK) { this.washK = wk; moving = true; }
     if (wantWash && wk < 1) moving = true;
-    const run = !this.reduce, sec = dt / 1000;
+    const run = !this.reduce && this.trafficSpeed > 0, sec = dt / 1000;
     // (the traffic runs at trafficSpeed: the 3D scene asks for a little more pace, Mohammad 20 Nov 2026 "a little faster")
     const tsec = sec * this.trafficSpeed;
     this.traffic.setDt(run ? tsec : 0);

@@ -28,6 +28,7 @@ import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
 import { installTilt } from './camera/tilt-input.ts';
 import { reduced } from '../ui/a11y/motion.ts';
+import { K_MIN } from './gesture/view.ts';
 import { type GestureTarget, createGestures } from './gesture/controller.ts';
 import { type Sel, selectStructure, useSelection } from '../ui/action/selection.ts';
 import { tapSelect } from '../ui/action/tap-select.ts';
@@ -127,6 +128,8 @@ function SceneBridge() {
       holdHand: () => cel.rig.holdHand(),
       centre: () => cel.rig.roomCentre(),
       fitRect: () => cel.rig.fitRect(),
+      // (the sinusoid keeps its own vessel framed: it never rests zoomed out past its fit, so the next sinusoids never fill the screen)
+      kMin: () => (cel.view === 'sinusoid' ? 1 : K_MIN),
       orbit: () => cel.rig.orbitAngle,
       setOrbit: (rad) => { const changed = cel.rig.setOrbit(rad); if (changed) clock.invalidate('orbit'); return changed; },
       free: () => cel.rig.free,
