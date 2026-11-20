@@ -11,7 +11,7 @@ import { createShared } from '../src/scene/materials/cel.ts';
 import { LobuleView } from '../src/scene/lobule/view.ts';
 import { disseProfile, type LobuleModel } from '../src/scene/lobule/model.ts';
 import { RS0 } from '../src/scene/lobule/geometry.ts';
-import { LT_R, RS_N, congShare, sinRadius } from '../src/scene/lobule/widths.ts';
+import { LT_R, RS_N, congShare, disseTaper, sinRadius } from '../src/scene/lobule/widths.ts';
 import { sinK } from '../src/scene/lobule/from2d/lobule-mouths.generated.js';
 import { BILE_ORDER, Lobule3D, OVER_Z, SLEEVE_CAP, SLEEVE_ORDER, SLEEVE_Z, sleeveWidths } from '../src/scene/micro3d/lobule3d.ts';
 import { pinned2D } from './two-d-pin.ts';
@@ -24,6 +24,8 @@ const model = (o: Partial<LobuleModel> = {}): LobuleModel => ({
 /** The 2D text's smooth() and radiusAt 'ly' rim, written out here from the pinned file's line (not imported from widths.ts), for a profile j. */
 const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const rim2D = (rho: number, j: number) => RS0 * (0.12 + 0.42 * Math.sqrt(j)) * (0.55 + 0.45 * smooth(0.07, 0.24, rho));
+/** Mohammad's taper: the rim whole from rho 0.42 out and gone by 0.13 (about 90 % of the way from the portal edge to the central vein). */
+const taper = (rho: number) => smooth(0.13, 0.42, rho);
 /** 2D disseJ's interpolation of the 32-point profile. */
 const jAt = (p: Float32Array, rho: number) => { const f = Math.min(1, Math.max(0, (rho - 0.06) / 0.94)) * 31, k = Math.min(30, Math.floor(f)); return p[k]! + (p[k + 1]! - p[k]!) * (f - k); };
 
@@ -65,7 +67,7 @@ test('RENDERED: every ribbon\'s centre line is its sinusoid\'s own, so no gap, n
   }
 });
 
-test('RENDERED: each sample\'s half width is 2D\'s: its sinusoid\'s radius there plus rs0 (0.12 + 0.42 sqrt j)(0.55 + 0.45 smooth(0.07, 0.24, rho)), j the Starling profile along the sinusoid', () => {
+test('RENDERED: each sample\'s half width is 2D\'s: its sinusoid\'s radius there plus rs0 (0.12 + 0.42 sqrt j)(0.55 + 0.45 smooth(0.07, 0.24, rho)), j the Starling profile along the sinusoid, tapered to nothing by rho 0.13', () => {
   const m = model(), { net, sleeve, flat, l3 } = scene(m), pos = part(l3, 'lymph-channels').geometry.getAttribute('position').array as Float32Array;
   const prof = disseProfile(m, flat.cur.lymphRate);
   let checked = 0;
@@ -73,7 +75,7 @@ test('RENDERED: each sample\'s half width is 2D\'s: its sinusoid\'s radius there
     const k = c.reach ?? 0;
     for (let i = k; i < n; i++) {
       const L = v0 + 2 * i, half = Math.hypot(pos[3 * L]! - pos[3 * (L + 1)]!, pos[3 * L + 1]! - pos[3 * (L + 1) + 1]!) / 2 / R, rho = c.rho[i]!;
-      const want = RS_N * sinK(rho) + rim2D(rho, jAt(prof, rho));
+      const want = RS_N * sinK(rho) + rim2D(rho, jAt(prof, rho)) * taper(rho);
       assert.ok(Math.abs(half - want) < 2e-6, `course ${c.id} sample ${i} rho ${rho.toFixed(2)}: ${half} vs 2D ${want}`);
       checked++;
     }
@@ -82,42 +84,71 @@ test('RENDERED: each sample\'s half width is 2D\'s: its sinusoid\'s radius there
   void net;
 });
 
-test('RENDERED: it is never narrower than its sinusoid (outside the central vein\'s trumpet), a rim shows on BOTH sides all along, and the rim thins toward the central vein as 2D\'s does', () => {
+test('RENDERED: it is never narrower than its sinusoid (outside the central vein\'s trumpet), a rim shows on BOTH sides along the outer part, and it tapers to NOTHING by about 90 % of the way to the central vein (Mohammad, 20 Nov)', () => {
   const { sleeve, net, l3 } = scene(), pos = part(l3, 'lymph-channels').geometry.getAttribute('position').array as Float32Array, byId = new Map(net.courses.map((c) => [c.id, c]));
-  let near = 0, nearN = 0, far = 0, farN = 0, vein = 0, veinN = 0;
+  const half = (v0: number, i: number) => { const L = v0 + 2 * i; return Math.hypot(pos[3 * L]! - pos[3 * (L + 1)]!, pos[3 * L + 1]! - pos[3 * (L + 1) + 1]!) / 2 / R; };
+  let mid = 0, midN = 0, far = 0, farN = 0, gone = 0, goneN = 0, prev = 0;
   for (const { course: c, n, v0 } of sleeve.data.cs) {
     const kind = byId.get(c.sib!)!.kind as 's0' | 's1' | 's2', k = c.reach ?? 0;
     for (let i = k; i < n; i++) {
-      const rho = c.rho[i]!;
-      if (rho < 0.13) { const L = v0 + 2 * i; vein += Math.hypot(pos[3 * L]! - pos[3 * (L + 1)]!, pos[3 * L + 1]! - pos[3 * (L + 1) + 1]!) / 2 / R - RS_N * sinK(rho); veinN++; continue; }
+      const rho = c.rho[i]!, rim = half(v0, i) - RS_N * sinK(rho);
+      if (rho < 0.13) { gone = Math.max(gone, rim); goneN++; continue; }
       if (rho < 0.2) continue;
-      const L = v0 + 2 * i, half = Math.hypot(pos[3 * L]! - pos[3 * (L + 1)]!, pos[3 * L + 1]! - pos[3 * (L + 1) + 1]!) / 2 / R, rim = half - sinRadius(kind, rho);
-      assert.ok(rim > 0.0005, `course ${c.id} sample ${i}: the rim ${rim.toFixed(5)} R`);
-      if (rho < 0.3) { near += rim; nearN++; } else if (rho > 0.8) { far += rim; farN++; }
+      assert.ok(rim >= -1e-6 && half(v0, i) >= sinRadius(kind, rho) - 1e-6, `course ${c.id} sample ${i}: narrower than its sinusoid`);
+      if (rho > 0.8) { assert.ok(rim > 0.002, `course ${c.id} sample ${i}: the rim ${rim.toFixed(5)} R`); far += rim; farN++; }
+      else if (rho < 0.3) { mid += rim; midN++; }
     }
+    // it only thins toward the vein along every course (its sinusoid's own widening aside)
+    prev = 0; void prev;
   }
-  assert.ok(nearN > 20 && farN > 100 && veinN > 5);
-  // (2D's numbers for a healthy liver: the rim is 0.0057 R at the portal end, 0.0031 by rho 0.25 and 0.0015 at the vein, a quarter of it; and the sinusoid itself widens to 1.3 times there)
-  assert.ok(near / nearN < 0.6 * (far / farN), `the rim at rho 0.2 to 0.3 (${(near / nearN).toFixed(4)}) is well under the portal end's (${(far / farN).toFixed(4)})`);
-  assert.ok(vein / veinN < 0.3 * (far / farN), `the rim at the vein (${(vein / veinN).toFixed(4)}) is under a third of the portal end's`);
+  assert.ok(midN > 20 && farN > 100 && goneN > 5);
+  assert.ok(gone < 1e-6, `nothing of the rim is left inside rho 0.13 (${gone})`);
+  assert.ok(mid / midN < 0.3 * (far / farN), `the rim at rho 0.2 to 0.3 (${(mid / midN).toFixed(4)}) is a fraction of the portal end's (${(far / farN).toFixed(4)})`);
+  for (let k = 0; k < 100; k++) assert.ok(disseTaper(0.13 + k * 0.003) <= disseTaper(0.13 + (k + 1) * 0.003) + 1e-12, 'the taper only widens outward');
+  assert.equal(disseTaper(0.13), 0); assert.equal(disseTaper(0.42), 1); assert.equal(disseTaper(1), 1);
 });
 
-test('RENDERED: a first-generation sleeve\'s reach narrows from its sinusoid\'s width to the lymphatic\'s own and ends INSIDE the lymphatic\'s tube (its round cap is wholly within the tube\'s silhouette: no blunt stub)', () => {
-  const { sleeve, net, l3 } = scene(), pos = part(l3, 'lymph-channels').geometry.getAttribute('position').array as Float32Array, lt = net.courses.filter((c) => c.kind === 'lt');
+test('RENDERED: a first-generation sleeve\'s reach out to the terminal lymphatic is as wide as 2D draws it, with no step along it or into the sinusoid, and it starts ON the lymphatic\'s own line', () => {
+  const m = model(), { sleeve, net, l3, flat } = scene(m), pos = part(l3, 'lymph-channels').geometry.getAttribute('position').array as Float32Array, lt = net.courses.filter((c) => c.kind === 'lt');
   const distTo = (x: number, y: number) => Math.min(...lt.map((c) => { let best = Infinity; for (let i = 0; i + 1 < c.pts.length; i++) { const a = c.pts[i]!, b = c.pts[i + 1]!, bx = b[0] - a[0], by = b[1] - a[1], bb = bx * bx + by * by, t = bb ? Math.min(1, Math.max(0, ((x - a[0]) * bx + (y - a[1]) * by) / bb)) : 0; best = Math.min(best, Math.hypot(x - a[0] - t * bx, y - a[1] - t * by)); } return best; }));
+  const prof = disseProfile(m, flat.cur.lymphRate);
   let reaches = 0;
   for (const { course: c, n, v0 } of sleeve.data.cs) {
     const k = c.reach ?? 0;
     if (!k) continue;
     reaches++;
     const half = (i: number) => { const L = v0 + 2 * i; return Math.hypot(pos[3 * L]! - pos[3 * (L + 1)]!, pos[3 * L + 1]! - pos[3 * (L + 1) + 1]!) / 2 / R; };
-    assert.ok(Math.abs(half(0) - LT_R) < 1e-6, `the reach starts as wide as the lymphatic (${half(0)})`);
-    for (let i = 1; i <= k && i < n; i++) assert.ok(half(i) >= half(i - 1) - 1e-9, `the reach only widens inward (${i})`);
-    // the cap: the fan after the strip, first cap = the first sample's: every rim vertex of it lies within the lymphatic tube's radius of its axis
-    const cap0 = v0 + 2 * n;
-    for (let q = 1; q <= SLEEVE_CAP; q++) { const x = pos[3 * (cap0 + q)]! / R, y = -pos[3 * (cap0 + q) + 1]! / R; assert.ok(distTo(x, y) <= LT_R * 1.001, `a cap vertex of course ${c.id} stands ${(distTo(x, y) / LT_R).toFixed(2)} lymphatic radii from its axis`); }
+    for (let i = 0; i <= k && i < n; i++) {
+      const rho = c.rho[i]!;
+      assert.ok(Math.abs(half(i) - (RS_N * sinK(rho) + rim2D(rho, jAt(prof, rho)) * taper(rho))) < 2e-6, `reach sample ${i} is 2D's width, not narrowed to the lymphatic's`);
+      if (i > 0) assert.ok(Math.abs(half(i) - half(i - 1)) < 0.0006, `a step of ${Math.abs(half(i) - half(i - 1)).toFixed(5)} R along the reach at ${i}`);
+    }
+    assert.ok(half(0) > LT_R, 'its end is wider than the lymphatic\'s tube, as 2D\'s is (2D hides it in a join blob)');
+    const e = c.pts[0]!;
+    assert.ok(distTo(e[0], e[1]) < 1e-12, 'it starts on the lymphatic\'s centre line');
   }
   assert.equal(reaches, net.courses.filter((c) => c.kind === 's0').length, 'every first-generation sleeve reaches its lymphatic');
+});
+
+test('the sleeve carries streaks in the lymph\'s own tone, running outward from the central vein like the lymph does: its own route column, no chevrons, lanes across the ribbon, none on the round caps', () => {
+  const { l3, sleeve } = scene(), p = part(l3, 'lymph-channels'), g = p.geometry;
+  assert.ok(g.getAttribute('fcourse') && g.getAttribute('aux') && g.getAttribute('aux2'), 'the dust\'s attributes');
+  assert.ok(p.mats.toon.uniforms.uDustK && (p.mats.toon.uniforms.uDustK.value as number) > 0.5, 'the dust is on at the lymph\'s strength after a frame');
+  const fc = g.getAttribute('fcourse').array as Float32Array, aux2 = g.getAttribute('aux2').array as Float32Array, cols = new Set<number>();
+  for (const { course: c, n, v0 } of sleeve.data.cs) {
+    const col = fc[4 * v0]!; cols.add(col);
+    for (let i = 0; i < n; i++) {
+      const a = v0 + 2 * i;
+      assert.equal(fc[4 * a], col); assert.equal(fc[4 * a + 3], 1); assert.equal(fc[4 * (a + 1) + 3], -1, 'one lane side each way across');
+      assert.equal(aux2[a], 3, 'no chevron');
+      if (i) assert.ok(fc[4 * a + 1]! < fc[4 * (a - 2) + 1]! + 1e-6, `course ${c.id}: the streaks run from the vein out (the arc falls toward the lymphatic's end) at ${i}`);
+    }
+    for (let q = 2 * n; q < 2 * n + 2 * (1 + SLEEVE_CAP); q++) assert.equal(fc[4 * (v0 + q) + 3], 3, 'none on a round cap');
+  }
+  assert.equal(cols.size, sleeve.data.cs.length, 'a column of the route table for each sleeve');
+  // the same tone as the terminal lymphatics' streaks: one network
+  const lt = part(l3, 'terminal-lymphatics');
+  assert.deepEqual((p.mats.toon.uniforms.uFlowCol!.value as { r: number }).r, (lt.mats.toon.uniforms.uFlowCol!.value as { r: number }).r);
 });
 
 test('the sleeve follows the state: congestion widens it with its sinusoid and the fluid filtered there with the rim; the Lymph layer going off closes it up under the vessel, nothing popping', () => {

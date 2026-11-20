@@ -193,12 +193,14 @@ on the sinusoid's own centre line, drawn UNDER it (Z_OF ly 0.05, the sinusoids 0
 - **Geometry** (`geometry.ts`): one `ly` course per sinusoid of generations 0 to 2 (none for a cross-link), made of the sinusoid's own samples. A first-generation one has `reach` samples in front of them, a straight run
   from the nearest point of the terminal lymphatic it drains into (2D: `poly = [E, ...P]`). It branches, merges and ends exactly where its sinusoid does, because it IS its sinusoid's line.
 - **Width** (`widths.ts`): the sinusoid's own radius plus `rs0 (0.12 + 0.42 sqrt j)(0.55 + 0.45 smooth(0.07, 0.24, rho))`, j the Starling profile along the sinusoid (`model.ts` disseProfile, 2D disseJ), scaled by the
-  eased lymph rate. A healthy liver: a rim of 0.0057 R at the portal end, 0.0031 by rho 0.25, 0.0015 at the vein (the sinusoid itself widens there). `view.sleeveNow` is the one function; the pick uses it too.
+  eased lymph rate, times `disseTaper` (Mohammad's choice, 20 Nov: whole from rho 0.42 out, nothing at 0.13, about 90 % of the way to the central vein; 2D's own rim only thins to a quarter there).
+  A healthy liver: a rim of 0.0057 R at the portal end, none by the vein. `view.sleeveNow` is the one function; the pick uses it too.
 - **Drawn** (`lobule3d.ts`): flat ribbons at the sinusoids' level with a round cap at each end (so a merge is one shape, no notch), no outline of their own, drawn first among the vessels (`SLEEVE_ORDER`) with depth writing off,
   so every blood vessel, the inlet venule and the terminal lymphatics are drawn over them: that is how the lymph passes UNDER the blood. The bile lies under the lymph (`BILE_ORDER`). Vertex positions follow the state
   (`stepSleeve`: the sinusoid's widening, the filtered fluid, the layer's fade; written only when one changes), so the layer going off closes the sleeve up under its vessel.
-- **Differences from 2D, on purpose**: the reach narrows from the sinusoid's width to the terminal lymphatic's own and ends inside its tube (2D hides that step with a join blob; here the lymphatic is solid); there are no
-  streaks on the sleeve (its rim is a hairline; the terminal lymphatics and the portal lymphatic keep theirs).
+- **Streaks**: the sleeve carries the dust in the lymph's own tone (its own route column each, running from the central vein out as the lymph does; no chevrons; lanes across the ribbon, so those under the sinusoid are
+  covered by it and the rim shows the outer ones).
+- **The one difference from 2D, chosen by Mohammad**: the rim tapers to nothing by about 90 % of the way to the central vein. The reach to the terminal lymphatic is 2D's own width (a round end wider than the lymphatic's tube, as 2D's join blob).
 
 It replaced two earlier drawings: a flat sleeve of one fixed width (0.0132 a side, which filled the cleft between sinusoids that part at a small angle) and tubes laid BESIDE each sinusoid (a gap where two outlines met,
 strands where the next vessel cut one, loops at a branch, a width of their own). Tests: `tests/lobule-disse-sleeve.test.ts` reads the rendered vertices against 2D's numbers and the pinned file's text

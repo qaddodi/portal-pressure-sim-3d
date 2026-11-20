@@ -55,8 +55,9 @@ test('a blend of two poses keeps a narrow extent that only one of them has', () 
   assert.deepEqual(blendPose(a, b, 1).shot.halfNarrow, b.shot.halfNarrow);
 });
 
-test('the space of Disse shows only a rim beside its sinusoid: 2D\'s width (the sinusoid and 0.12 to 0.54 of a lumen radius beyond), at most 0.0054 R wider', () => {
-  for (const rho of [0.08, 0.2, 0.5, 0.8, 1]) {
+test('the space of Disse shows only a rim beside its sinusoid: 2D\'s width (the sinusoid and 0.12 to 0.54 of a lumen radius beyond), at most 0.0054 R wider, none by the central vein', () => {
+  assert.ok(disseRadius(0.08) - sinRadius('s0', 0.08) < 1e-9, 'tapered to nothing by 90 % of the way to the vein');
+  for (const rho of [0.3, 0.5, 0.8, 1]) {
     const sin = RS_N * (sinRadius('s0', rho) / RS_N), rim = disseRadius(rho) - sin;
     assert.ok(rim > 0.0009 && rim < 0.0055, `rho ${rho}: rim ${rim.toFixed(4)} R`);
   }
