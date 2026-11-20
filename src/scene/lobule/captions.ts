@@ -153,7 +153,7 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
     const forms: Form[] = [mk(w.name, reads)];
     if (w.short !== w.name) { forms.push(mk(w.short, reads)); formsM.push({ name: w.short, value: reads }); }
     if (reads) { forms.push(mk(w.short, false)); formsM.push({ name: w.short, value: false }); }
-    if (reads) { forms.push(mk('', true)); formsM.push({ name: '', value: true }); }   // (the number alone; a station with no reading has no nameless form: it would stand as an empty box with a ring)
+    // (No form is a number alone, as 2D's: its lobule label always builds the name, long or short, `.n-long` / `.n-short` in lobule-zoom-labels.js labBuild; a name with no room is left out whole.)
     // a tract name stands out along the ray from the venule through what it names (its spoke); the others on the side their dot faces
     const spoke = spokeOf[k] ?? (k === 'cv' ? [0, 1] : [0, -1]);
     const must = !!ctx.must?.has(k);
