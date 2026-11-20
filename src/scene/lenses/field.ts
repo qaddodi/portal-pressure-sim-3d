@@ -7,6 +7,7 @@ import { type FrameLike, type LensContext, type LensData, type LensId, DEFAULT_L
 import { type LensShared, createLensShared } from '../vessels/vessel-object.ts';
 import type { LookId } from '../palette.ts';
 import { easeInOutCubic } from '../../clock/tween.ts';
+import { ChevronInk } from './chevron-ink.ts';
 
 export const LENS_MS = 420;
 export const LENS_RECOMPUTE_MS = 90;
@@ -33,6 +34,9 @@ export class LensField {
   private lastCompute = -1e9;
   private dirty = true;
   private fade = 1;
+  /** The flow heads' tone per vessel: latched and eased (chevron-ink.ts), written into the arriving lens's colour texture. */
+  private readonly ink = new ChevronInk();
+  private lastStep = -1;
   /** The network the Since lens counts its change from (2D: stage.js sinceP, set by a slide through changeRef; until one is set, the state the figure showed as the lens came in). */
   private since: Float32Array | null = null;
   /** True while `since` is that arrival state (taken by the lens itself) and not one a slide set. */
@@ -107,22 +111,30 @@ export class LensField {
     for (let i = 0; i < 5; i++) this.shared.laneColB.value[i]!.set(palette[i]![0], palette[i]![1], palette[i]![2]);
     this.shared.lensModeB.value = this.to.mode;
     this.shared.lensTail.value = TAIL_LENSES.has(this._lens) ? 1 : 0;
+    this.ink.decide(this.to, this.look);   // (the heads' ink follows the colours just computed, through a latch)
+    this.ink.write(this.to.grad);
     this.texTo.grad.needsUpdate = this.texTo.lanes.needsUpdate = true;
   }
 
   /** Steps the crossfade and any recompute. Returns true while it moves (the scene goes on asking for frames). */
   step(now: number): boolean {
+    const inkWas = this.ink.moving;   // (a head's ink that only starts to change in this frame's recompute begins its ease now: the idle time before it is not part of it)
     if (this.dirty && NEEDS_FRAME.has(this._lens) && now - this.lastCompute >= LENS_RECOMPUTE_MS) this.compute(now);
     else if (this.dirty && !NEEDS_FRAME.has(this._lens)) this.compute(now);
-    if (this.fade >= 1) return this.dirty;
+    const dt = !inkWas || this.lastStep < 0 ? 0 : Math.min(250, Math.max(0, now - this.lastStep));
+    this.lastStep = now;
+    this.ink.instant = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let inkMoving = false;
+    if (this.ink.moving) { inkMoving = this.ink.step(dt); this.ink.write(this.to.grad); this.texTo.grad.needsUpdate = true; }
+    if (this.fade >= 1) return this.dirty || inkMoving;
     const t = Math.min(1, (now - this.t0) / LENS_MS);
     this.fade = t;
     this.shared.lensMix.value = easeInOutCubic(t);
-    return t < 1 || this.dirty;
+    return t < 1 || this.dirty || inkMoving;
   }
 
   /** Whether the arriving lens still has a recompute waiting (the scene draws once more when it lands). */
-  get pending(): boolean { return this.dirty; }
+  get pending(): boolean { return this.dirty || this.ink.moving; }
 
   dispose(): void { for (const t of [this.texFrom.grad, this.texFrom.lanes, this.texTo.grad, this.texTo.lanes]) t.dispose(); }
 }

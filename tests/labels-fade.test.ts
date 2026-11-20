@@ -20,20 +20,50 @@ test('a label that appears fades in where it will stand: it never starts moving 
   assert.equal(f.frame.get('a')!.alpha, 1);
 });
 
-test('a label wanted at another spot fades out where it stands, then fades in at the new spot: it never slides', () => {
+test('a label wanted at another spot crosses over: the old picture fades out where it stood while the new fades in where it stands, together, never sliding and never with nothing shown between', () => {
   const f = new LabelFader();
   run(f, 400, want(P(10)));
-  const trail: { x: number; a: number }[] = [];
-  run(f, 800, want(P(200, 40)), false, (s) => { if (s) trail.push(s); });
-  const xs = new Set(trail.map((s) => s.x));
-  assert.deepEqual([...xs].sort((a, b) => a - b), [10, 200], 'only the old and the new spot are ever drawn');
-  const swap = trail.findIndex((s) => s.x === 200);
-  assert.ok(trail[swap].a <= 0.2, 'it is invisible at the moment it takes the new spot');
-  assert.ok(trail.slice(0, swap).some((s) => s.a < 1), 'it faded out first');
-  assert.equal(trail[trail.length - 1].a, 1);
+  const trail: { x: number; a: number; from: number | null; mix: number }[] = [];
+  for (let t = 0; t < 600; t += 16) { f.step(16, want(P(200, 40)), false); const s = f.frame.get('a')!; trail.push({ x: s.p.dx, a: s.alpha, from: s.from?.p.dx ?? null, mix: s.mix }); }
+  assert.ok(trail.every((s) => s.x === 200), 'the label is at its new spot from the first frame: nothing else is ever a drawn spot but the old (the ghost) and the new');
+  assert.ok(trail.every((s) => s.a === 1), 'the label itself never leaves: there is no moment with nothing shown');
+  const crossing = trail.filter((s) => s.from !== null);
+  assert.ok(crossing.length > 8, 'the old picture is held for the crossing');
+  assert.ok(crossing.every((s) => s.from === 10), 'the old picture stays where it stood');
+  assert.ok(crossing[0].mix < 0.05 && crossing[crossing.length - 1].mix > 0.9, 'the new picture takes over by easeMove');
+  assert.ok(crossing.every((s, i) => i === 0 || s.mix >= crossing[i - 1].mix), 'monotonic');
+  const ms = crossing.length * 16;
+  assert.ok(Math.abs(ms - FADE.moveMs) <= 32, `the crossing takes ${ms} ms, 2D's D_SMALL ${FADE.moveMs}`);
+  assert.equal(trail[trail.length - 1].from, null);
+  assert.equal(trail[trail.length - 1].mix, 1);
 });
 
-test('linear fades take the times of the motion table: out 120 ms, in 180 ms', () => {
+test('a move of 3 px or less is no move; a move that leaves the old and the new box overlapping is taken at once (a number one pixel wider is never drawn twice)', () => {
+  const f = new LabelFader();
+  run(f, 400, want(P(10)));
+  f.step(16, want(P(12.5)), false);
+  assert.equal(f.frame.get('a')!.from, null, '2.5 px: the same spot');
+  assert.equal(f.frame.get('a')!.p.dx, 10);
+  f.step(16, want(P(40, 6)), false);
+  assert.equal(f.frame.get('a')!.from, null, 'overlapping boxes: taken at once');
+  assert.equal(f.frame.get('a')!.p.dx, 40);
+  f.step(16, want(P(40 + 130, 6)), false);
+  assert.ok(f.frame.get('a')!.from, 'a box away: crossed over');
+});
+
+test('new words (a unit, a change badge, a shorter name) cross over in place, and a label in the middle of a crossing keeps going to the newest place', () => {
+  const f = new LabelFader();
+  run(f, 400, new Map([['a', { p: P(10), dim: false, key: 'full', snap: 'w1' }]]));
+  f.step(16, new Map([['a', { p: P(10), dim: false, key: 'full+unit', snap: 'w2' }]]), false);
+  const s = f.frame.get('a')!;
+  assert.ok(s.from && s.from.snap === 'w1' && s.snap === 'w2', 'the old words are kept to be drawn as they were');
+  for (let t = 0; t < 100; t += 16) f.step(16, new Map([['a', { p: P(400), dim: false, key: 'full+unit', snap: 'w2' }]]), false);
+  assert.equal(f.frame.get('a')!.p.dx, 400);
+  run(f, 400, new Map([['a', { p: P(400), dim: false, key: 'full+unit', snap: 'w2' }]]));
+  assert.equal(f.frame.get('a')!.from, null);
+});
+
+test('fades take the times of 2D: out 240 ms (D_SMALL), in 180 ms', () => {
   const f = new LabelFader();
   let t = 0;
   while (f.step(10, want(P(0)), false) || (f.frame.get('a')?.alpha ?? 0) < 1) { t += 10; if (t > 2000) break; }

@@ -17,10 +17,12 @@ import { labelView, placeBlockers } from './room.ts';
 import { cel, sceneApi, usePick } from '../api.ts';
 import { rectToBox, type Box } from './geometry.ts';
 import { labelsShown } from '../../boot/ready.ts';
-import { LabelController, type Draw, type LabelDeps } from './controller.ts';
+import { LabelController, type Draw, type LabelDeps, GHOST } from './controller.ts';
 import { baselineAt, lookVars, typeVars } from './type.ts';
 import { keyVars } from './key-dock.ts';
 import { STATIONS } from './stations.ts';
+import { STENT_STATIONS, decodeGeo, geoPx, geoGapPx, geoLineSize } from './stent-labels.ts';
+import { stentReads } from './stent-reads.ts';
 import { bindLabelHits, labelNodeAt } from './hit.ts';
 import { useSelection } from '../../ui/action/selection.ts';
 import { buildCath } from './cath-dom.ts';
@@ -37,12 +39,30 @@ import { Vector3 } from 'three';
 import { presenceOf, type PresenceFrame } from '../vessels/network.ts';
 import { PLATE_BOUNDS, FIGURE_Z } from '../anatomy/placeholder.ts';
 import { showNumber } from './roll.ts';
+import { StationExtras, NO_EXTRAS, type Extras } from './readings.ts';
+import { useLens } from '../lenses/store.ts';
+import { useCompare } from '../../ui/compare/store.ts';
+import { useShell } from '../../ui/shell/store.ts';
+import { EDGES } from '../../engine/hales/portal/topology.js';
+import { NETWORK_BY_ID } from '../vessels/network.ts';
 
 // the figure's top and bottom (the plate's own bounds), projected to tell how big it stands now (controller.ts FIG_MIN_H)
 const plateTop = new Vector3((PLATE_BOUNDS.x0 + PLATE_BOUNDS.x1) / 2, PLATE_BOUNDS.y1, FIGURE_Z), plateBottom = new Vector3((PLATE_BOUNDS.x0 + PLATE_BOUNDS.x1) / 2, PLATE_BOUNDS.y0, FIGURE_Z);
 const plateA = { x: 0, y: 0 }, plateB = { x: 0, y: 0 };
 
 const NODE_AT = new Map<string, number>((NODES as unknown as { id: string }[] | [string][]).map((n, i) => [Array.isArray(n) ? n[0] : (n as { id: string }).id, i]));
+
+/** The stations either side of a narrowed vessel (2D `flagged`: the findings name them). */
+function stenosedNodes(): string[] {
+  const sten = (patient.params as { stenosis?: Record<string, number> } | null)?.stenosis;
+  const out: string[] = [];
+  if (!sten) return out;
+  for (const id of Object.keys(sten)) {
+    const e = sten[id]! > 0 ? (EDGES as { id: string; from: string; to: string }[]).find((x) => x.id === id) : null;
+    if (e) out.push(e.from, e.to);
+  }
+  return out;
+}
 
 const FONT = (size: number, weight: number) => `${weight} ${size}px Inter, system-ui, -apple-system, "Segoe UI", sans-serif`;
 
@@ -78,6 +98,13 @@ interface Rec {
   leadTx: string; anchorTx: string;
   rev?: boolean;
   tone?: string;
+  unit?: HTMLElement; delta?: HTMLElement; alert?: HTMLElement;
+  /** the words written after the number, so a frame writes them only when they change */
+  say: string;
+  deltaUp?: boolean;
+  /** a stent's own label: the box its lines are written in, and the words they were written from */
+  geo?: HTMLElement; geoWord?: string;
+  vtint?: string; gate?: boolean;
 }
 
 export function LabelLayer() {
@@ -107,6 +134,8 @@ export function LabelLayer() {
   useEffect(() => {
     const root = layer.current!;
     const ui = useUi;
+    const readings = new StationExtras();
+    const stentView = stentReads(() => lookRef.current);
     const deps: LabelDeps = {
       now: () => performance.now(),
       project: (p, out) => sceneApi.project(p, out),
@@ -122,6 +151,20 @@ export function LabelLayer() {
       reversed: (edge) => { const f = latest.frame, ref = patient.reference; if (!f) return false; const k = indexOf(edge); return flowReversed(f.Qf[k] ?? 0, ref ? (ref.Q[k] ?? 0) : 0); },
       pressure: (node) => { const f = latest.frame, i = NODE_AT.get(node); return f && i !== undefined ? (f.Pf[i] ?? null) : null; },
       reading: (k) => ui.getState().readings[k] ?? null,
+      zoom: () => cel.rig.handZoom,
+      level: () => useShell.getState().figure.labelLevel,
+      stenosed: () => stenosedNodes(),
+      stents: () => stentView,
+      extras: (node, P, flags) => {
+        const f = latest.frame;
+        if (!f) return NO_EXTRAS;
+        const cmp = useCompare.getState(), lens = cmp.snap && cmp.view === 'D' ? 'delta' : useLens.getState().lens;
+        const ref = patient.reference;
+        return readings.read(node, P, {
+          f: f as never, healthy: ref ? { Q: ref.Q } : null, refP: cel.lens.sinceReference, lens, cmp: !!cmp.snap, presenting: flags.presenting, selected: flags.selected, lit: flags.lit,
+          veinShown: (edge) => { const v = NETWORK_BY_ID.get(edge); return !!v && v.tone !== 'artery' && deps.drawn!(v as never); }, params: patient.params,
+        });
+      },
       hidden: () => cel.circuit.t > 0 || cel.circuit.toCircuit,
       anatomy: () => cel.view === 'body' && cel.circuit.t === 0 && !cel.circuit.toCircuit,
       // the varices and the fundal varices: 2D's hasVarices (a label only where the patient has them; the one whose card is open stays)
@@ -156,27 +199,33 @@ export function LabelLayer() {
     const mk = (tag: string, cls: string, parent: HTMLElement = root) => { const e = document.createElement(tag); e.className = cls; parent.appendChild(e); return e; };
 
     // ── build the skeleton once ──
-    for (const s of STATIONS) {
-      const el = mk('div', 'lb');
-      if (s.kind === 'organ') el.dataset.region = '';
-      const name = mk('span', 'lb-name', el);
-      const val = mk('span', 'lb-val', el);
-      const roll = mk('span', 'lb-roll', val);
-      const cur = mk('span', 'lb-cur', roll);
-      const rev = mk('span', 'lb-rev', el); rev.textContent = '⟲';
-      const rec: Rec = { root: el, shown: false, tx: '', op: '', form: -1, size: '', value: '', name, cur, rolling: null, leadTx: '', anchorTx: '', rev: false };
-      if (s.kind !== 'organ') {
-        const lead = mk('i', 'lb-lead');
-        const anchor = mk('i', 'lb-anchor');
-        rec.lead = lead; rec.anchor = anchor;
+    // (each station has two pictures: the label, and the one it is leaving while it crosses to a new spot or new words, drawn as its own element with no ring: fade.ts)
+    for (const s of [...STATIONS, ...STENT_STATIONS]) {
+      for (const ghost of [false, true]) {
+        const el = mk('div', ghost ? 'lb lb-ghost' : 'lb');
+        if (s.stent?.pt === 'geo') el.dataset.geo = '';
+        if (s.kind === 'organ') el.dataset.region = '';
+        const name = mk('span', 'lb-name', el);
+        const val = mk('span', 'lb-val', el);
+        const roll = mk('span', 'lb-roll', val);
+        const cur = mk('span', 'lb-cur', roll);
+        const unit = mk('span', 'lb-unit', el), delta = mk('span', 'lb-delta', el), alert = mk('span', 'lb-alert', el);
+        const rev = mk('span', 'lb-rev', el); rev.textContent = '⟲';
+        const rec: Rec = { root: el, shown: false, tx: '', op: '', form: -1, size: '', value: '', name, cur, rolling: null, leadTx: '', anchorTx: '', rev: false, unit, delta, alert, say: '' };
+        if (s.stent?.pt === 'geo') rec.geo = mk('div', 'lb-geo', el);
+        if (s.kind !== 'organ') {
+          const lead = mk('i', 'lb-lead');
+          const anchor = mk('i', 'lb-anchor');
+          rec.lead = lead; rec.anchor = anchor;
+        }
+        recs.set(ghost ? s.id + GHOST : s.id, rec);
       }
-      recs.set(s.id, rec);
     }
     // the catheter's reading cards: built once, written by cath-dom.ts as transform and opacity
     const cath = buildCath(root);
     // the Tests devices' readings (the FibroScan probe's screen, the Doppler gate's callout)
     const probeLabels = buildProbeLabels(root);
-    const keyRec: Rec = { root: keyHost.current!, shown: false, tx: '', op: '', form: -1, size: '', value: '', leadTx: '', anchorTx: '' };
+    const keyRec: Rec = { root: keyHost.current!, shown: false, tx: '', op: '', form: -1, size: '', value: '', leadTx: '', anchorTx: '', say: '' };
     recs.set('key', keyRec);
 
     // ── the key reports its size (laid out once, invisible) ──
@@ -198,7 +247,7 @@ export function LabelLayer() {
     // ── state in ──
     const pushState = () => {
       const l = useLabels.getState();
-      ctl.setState({ named: l.named, shown: l.shown, tones: l.tones, picked: usePick.getState().picked, cath: l.cath, organNames: l.organNames, quiet: l.quiet, panel: l.panel, proc: l.proc, key: l.key });
+      ctl.setState({ named: l.named, shown: l.shown, tones: l.tones, picked: usePick.getState().picked, cath: l.cath, organNames: l.organNames, quiet: l.quiet, panel: l.panel, proc: l.proc, key: l.key, presenting: l.presenting });
       clock.invalidate('labels-state');
     };
     pushState();
@@ -230,7 +279,7 @@ export function LabelLayer() {
       if (ctl.out.length > 1 && ctl.out.every((d) => d.alpha >= 0.999)) labelsShown();   // (the splash waits for the labels to be fully in, boot/ready.ts)
       // the boxes the Doppler probe keeps off, and the probes' own readings
       beginLabelBoxes();
-      for (const d of ctl.out) if (d.kind === 'station' && d.alpha > 0.05) addLabelBox(d.x, d.y, d.w, d.h);
+      for (const d of ctl.out) if (d.kind === 'station' && !d.ghost && d.alpha > 0.05) addLabelBox(d.x, d.y, d.w, d.h);
       probeLabels.paint();
       if (wantFrames && !hold) hold = clock.hold('labels');
       else if (!wantFrames && hold) { hold.release(); hold = null; }
@@ -264,8 +313,10 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
   if (!r.shown) { r.shown = true; el.setAttribute('data-on', ''); }
   const tx = d.kind === 'key' ? `translate3d(${px(d.x)}px,${px(d.y)}px,0)` : `translate3d(${px(d.x)}px,${px(d.y)}px,0)`;
   if (tx !== r.tx) { el.style.transform = tx; r.tx = tx; }
-  const op = String(Math.round(d.alpha * 1000) / 1000);
+  // (a label crossing to a new spot or new words: this picture's share of the label's opacity; the ring is the label's own)
+  const op = String(Math.round(d.alpha * d.mix * 1000) / 1000);
   if (op !== r.op) { el.style.opacity = op; r.op = op; }
+  const ringOp = String(Math.round(d.ringAlpha * 1000) / 1000);
   if (d.kind === 'key') {
     const dock = d.dock, room = dock?.wrap != null ? `${px(dock.wrap)}px` : 'none', minh = `${dock?.minH ?? 0}px`;
     if (el.style.getPropertyValue('--lb-key-room') !== room) el.style.setProperty('--lb-key-room', room);
@@ -276,8 +327,9 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
   if (d.form !== r.form || r.word !== d.word || r.size !== `${d.w}x${d.h}` || r.rev !== d.rev) {
     r.form = d.form; r.word = d.word; r.size = `${d.w}x${d.h}`; r.rev = d.rev;
     el.style.width = `${px(d.w)}px`; el.style.height = `${px(d.h)}px`;
+    if (r.geo) writeGeo(r, d.word);
     if (r.name) {
-      const word = d.word;   // (the controller's own words for this form; an organ's already stand in capitals)
+      const word = r.geo ? '' : d.word;   // (the controller's own words for this form; an organ's already stand in capitals; a stent's lines are written in its own box)
       r.name.textContent = word;
       r.name.style.display = word ? '' : 'none';
       el.dataset.form = word ? String(d.form) : '2';
@@ -286,6 +338,19 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
     }
   }
   if (d.kind === 'station') {
+    // what follows the name: the unit, the change badge, an alert, or words in place of the number (written when they change: the box was laid out for them when it took its place)
+    if (r.unit) {
+      const u = d.note || d.unit, say = `${u}|${d.delta}|${d.alert}|${d.note ? 'n' : ''}`;
+      if (say !== r.say) {
+        r.say = say;
+        r.unit.textContent = u; r.delta!.textContent = d.delta; r.alert!.textContent = d.alert;
+        if (d.note) el.setAttribute('data-note', ''); else el.removeAttribute('data-note');
+      }
+    }
+    // a stent point's number colour (the velocity lens's against the stent's own normal) and the point the Doppler samples (its name in bold)
+    const tint = d.tint ?? '';
+    if ((r.vtint ?? '') !== tint) { r.vtint = tint; if (tint) { el.style.setProperty('--lb-vtint', tint); el.setAttribute('data-tint', ''); } else { el.style.removeProperty('--lb-vtint'); el.removeAttribute('data-tint'); } }
+    if (!!r.gate !== !!d.gate) { r.gate = !!d.gate; if (d.gate) el.setAttribute('data-gate', ''); else el.removeAttribute('data-gate'); }
     // the colour the slide's words give this station (2D .lb.term): written when the slide changes it, never in a moving frame
     const tone = d.tone ? toneCss(d.tone) : '';
     if ((r.tone ?? '') !== tone) { r.tone = tone; if (tone) { el.style.setProperty('--lb-tone', tone); el.setAttribute('data-tone', ''); } else { el.style.removeProperty('--lb-tone'); el.removeAttribute('data-tone'); }
@@ -301,7 +366,7 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
       if (d.dot) {
         const a = `translate(${px(d.dot.x)}px,${px(d.dot.y)}px)`;
         if (a !== r.anchorTx) { r.anchor.style.transform = a; r.anchorTx = a; }
-        r.anchor.setAttribute('data-on', ''); r.anchor.style.opacity = op;
+        r.anchor.setAttribute('data-on', ''); r.anchor.style.opacity = ringOp;
       } else { r.anchor.removeAttribute('data-on'); r.anchor.style.opacity = '0'; }
       if (d.leader) {
         const t = `translate(${px(d.leader.x)}px,${px(d.leader.y)}px) rotate(${d.leader.angle.toFixed(4)}rad) scaleX(${px(d.leader.len)})`;
@@ -309,6 +374,29 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
         r.lead.setAttribute('data-on', ''); r.lead.style.opacity = op;
       } else { r.lead.removeAttribute('data-on'); r.lead.style.opacity = '0'; }
     }
+  }
+}
+
+/** A stent's own label written as lines (stent-labels.ts encodeGeo): each line a row of runs at the 2D sizes of this screen, its baseline where the 2D app writes it. Written when its words change, while it is invisible. */
+function writeGeo(r: Rec, word: string): void {
+  if (!r.geo || r.geoWord === word) return;
+  r.geoWord = word;
+  const vp = useUi.getState().vp;
+  r.geo.textContent = '';
+  for (const line of decodeGeo(word)) {
+    const row = document.createElement('div');
+    row.className = 'lb-gl';
+    const h = geoLineSize(line, vp, (t, size) => t.length * size * 0.56).h;   // (only the height is used: the line's tallest run at the 2D line height)
+    row.style.height = `${px(h)}px`; row.style.setProperty('--b', `${px(baselineAt(h, 0))}px`);
+    line.forEach((run, i) => {
+      const sp = document.createElement('span');
+      sp.className = `lb-g-${run.k}`;
+      sp.textContent = run.t;
+      sp.style.fontSize = `${px(geoPx(run, vp))}px`; sp.style.fontWeight = String(run.weight);
+      if (i) sp.style.marginLeft = `${px(geoGapPx(run))}px`;
+      row.appendChild(sp);
+    });
+    r.geo.appendChild(row);
   }
 }
 

@@ -12,6 +12,7 @@ import { CardBoundary } from './cards/CardBoundary.tsx';
 import { PresenterBar } from './deck/PresenterBar.tsx';
 import { useDeckInput } from './deck/useDeckInput.ts';
 import { linkScene } from './deck/scene-link.ts';
+import { linkLanding } from './deck/landing.ts';
 import { linkProcs } from './deck/procs-link.ts';
 import { linkFigure } from './deck/figure-link.ts';
 import { linkModel } from './talk/deck-model.ts';
@@ -44,6 +45,8 @@ export function DeckUi() {
     return useUi.subscribe((s, prev) => { if (s.pos.stop !== prev.pos.stop) { useDeck.getState().goto(s.pos.stop); note(); } });
   }, [deck, nonce]);
 
+  // "the slide has landed" (the camera still, its cards in): what waits for the end of a slide's move asks it (landing.ts)
+  useEffect(() => linkLanding(), []);
   // the scene follows the talk: the shot, the room the cards leave, the catheter
   useEffect(() => linkScene(), []);
   // the slide's procedures, stented veins, lobule layers and wash

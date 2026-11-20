@@ -12,7 +12,8 @@ import { useSettings } from '../../../state/settings.ts';
 import type { CelShared } from '../../materials/cel.ts';
 import type { LensShared, VesselObject } from '../../vessels/vessel-object.ts';
 import type { NetVessel } from '../../vessels/network.ts';
-import { BACK_EDGES, IVC_EDGES } from '../../vessels/paths.copied.ts';
+import { BACK_EDGES } from '../../vessels/paths.copied.ts';
+import { CAVA_LIKE } from '../../vessels/fades.ts';
 import { tubularOf } from '../../vessels/shape.ts';
 import { slicesFor } from '../../circuit/geometry.ts';
 import type { BloodShared } from '../field.ts';
@@ -134,7 +135,7 @@ export class BloodCells {
       const v = deps.vessels.find((x) => x.id === it.obj.edge!.id)!;
       writeEdgeStatic(this.edge, EDGE_COUNT, it.e, {
         length: it.len * UNITS, radius: v.radius, baseD: v.baseD, design: budget[it.e]!.flow, widthKind: v.widthKind, tone: v.tone === 'portal' ? 0 : v.tone === 'sys' ? 1 : 2, taper: v.taper,
-        veil: IVC_EDGES.has(v.id) ? CAVA_VEIL : BACK_EDGES.has(v.id) ? VEIL : 1,
+        veil: CAVA_LIKE.has(v.id) ? CAVA_VEIL : BACK_EDGES.has(v.id) ? VEIL : 1,
       });
       this.sample(it);
     }

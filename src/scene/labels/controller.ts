@@ -2,12 +2,15 @@
 // Everything it needs from outside comes in through `LabelDeps`, so node runs it with fakes (tests/labels-controller.test.ts) and the
 // layer (LabelLayer.tsx) only feeds it the real camera and writes its answer to the DOM. Called once per frame in the clock's `tags` phase.
 //
-// One rule decides when labels are on screen: they are shown only while the picture is still. The camera in flight, a drag, a card sliding
-// the room: any dot that moves hides every label at once (they fade, never slide) and they return FADE.settleMs after the picture stops.
-// The exception is a hand on the picture (a tilt, a turn, a pan, a zoom): there each label keeps its place beside its vessel's own 3D point, re-projected every frame
-// (its leader follows), and the names are placed again, only where they must change, once the picture has been still for FOLLOW_MS (Mohammad, 20 Nov: "the labels should know we're tilting and still call out the correct thing").
+// Labels ride the picture (2D: "labels part of the figure"). A hand on it (a tilt, a turn, a pan, a zoom) and the camera in flight (a slide's glide, a Fit) alike: each label keeps its place
+// beside its vessel's own 3D point, re-projected every frame (its leader follows), and the names are placed again, only where they must change, once the picture has been still for FOLLOW_MS
+// (Mohammad, 20 Nov: "the labels should know we're tilting and still call out the correct thing"; audit 4.4: every slide's camera move hid every label until 180 ms after it landed). A dot
+// that jumps (a cut, a dive's far end) is not carried: everything fades and returns FADE.settleMs after the picture stops. A label that is wanted at another spot or with other words crosses
+// over from the old picture to the new (fade.ts); a label that comes to stand under a card or past the edge fades out whole and back once clear (roomFade, 2D ROOM_MS).
 import { Vector3 } from 'three';
 import { FADE, labelOpacity } from './alpha.ts';
+import { COMPACT_W, ZOOM_IN, ZOOM_OUT, extraRoom, flaggedStations, freeSet, keepExtras, type LabelLevel } from './free-set.ts';
+import { NO_EXTRAS, WIDEST, WIDEST_DELTA, readingLensOf, type Extras } from './readings.ts';
 import { LabelFader, type Want } from './fade.ts';
 import { type Box, leaderGeom } from './geometry.ts';
 import { type Form, type Item, type Placement, boxOf, solve } from './solver.ts';
@@ -15,8 +18,11 @@ import { STATIONS, ORGAN_FRONT, figureCourses, type Station } from './stations.t
 import { silhouettes, onOtherOrgan, spotOffsets, type Silhouettes, type To2Screen } from './organ-screen.ts';
 import { x3, y3 } from '../frame2d.ts';
 import { fmtPressure } from '../../ui/text/line.ts';
-import { LS, boxSize, organRun, stationRuns } from './type.ts';
+import { LS, boxSize, organRun, stationRuns, type Say } from './type.ts';
 import { dockKey, type Dock } from './key-dock.ts';
+import { RoomFade } from './ride.ts';
+import { STENT_IDS, STENT_STATIONS, COMPACT_W as STENT_COMPACT, geoFrac, geoLines, geoSets, geoSize, encodeGeo, pointName, type StentView, type StentId } from './stent-labels.ts';
+import { STENT_SITES } from '../../engine/hales/portal/topology.js';
 import type { Rect, Viewport } from '../../ui/layout/device.ts';
 import type { CathState, ReadingKey } from '../../decks/schema.ts';
 import type { ProcCards } from './store.ts';
@@ -59,6 +65,16 @@ export interface LabelDeps {
   figureH?(): number;
   /** Whether a vessel (a network id) is drawn now (a collateral only once it is open; a shunt only while a procedure has put it in). Present: every drawn vessel's course is a line the names keep off; absent: the named vessels' only. */
   drawn?(v: { id: string; kind: string; feeder?: unknown }): boolean;
+  /** What a station says beside its name (readings.ts: the unit, the change badge, the lens's own reading, an alert). Absent: the name and the pressure only. `P` is the station's pressure now. */
+  extras?(node: string, P: number | null, flags: { selected: boolean; lit: boolean; presenting: boolean }): Extras;
+  /** The camera's zoom over the shot's own framing (1 as framed; > 1.3 counts as zoomed in). Absent: 1. */
+  zoom?(): number;
+  /** The Figure menu's label level (none, key, all). Absent: key. */
+  level?(): LabelLevel;
+  /** The stations either side of a narrowed vessel (the findings flag them). Absent: none. */
+  stenosed?(): readonly string[];
+  /** The TIPS and DIPS stents: where they stand drawn and settled, what a slide reads at their three Doppler points (stent-labels.ts). Absent: no stent labels. */
+  stents?(): StentView | null;
 }
 
 /** The names stand aside while the figure is smaller than this (hysteresis: they come back above `FIG_BACK`). The names keep one size (text never shrinks to fit), so on a figure this small they would be
@@ -90,11 +106,13 @@ export interface LabelState {
   proc: ProcCards | null;
   /** The lens whose colour key the slide shows on the figure (names.copied.ts LENS_KEY), or null for none. */
   key: string | null;
+  /** A talk is on (2D `presenting`): the figure names exactly what the slide names (`named` and `shown`, and the one picked), nothing else; free play names its own set (free-set.ts). */
+  presenting: boolean;
 }
 
 /** What a leader crossing a vessel costs the solver, per line (solver `leaderLineCost`; the Circuit's captions pass theirs): a name's leader over the figure's vessels points at nothing useful. */
 const LEADER_LINE_COST = 9;
-export const NO_STATE: LabelState = { named: new Set(), shown: new Set(), tones: {}, picked: null, cath: null, organNames: false, quiet: false, proc: null, key: null };
+export const NO_STATE: LabelState = { named: new Set(), shown: new Set(), tones: {}, picked: null, cath: null, organNames: false, quiet: false, proc: null, key: null, presenting: false };
 
 /** Space between the key and the edge of the free room. */
 export const KEY_MARGIN = 12;
@@ -122,6 +140,16 @@ export interface Draw {
   dot: { x: number; y: number } | null;
   /** The station's blood runs backwards now (the reversal mark shows after its reading). */
   rev: boolean;
+  /** The unit after the reading, the change badge ("+7.9") and which way it went, an alert ("no flow", "stasis"), and words standing in for the number ("microcirculation"): readings.ts, as 2D says them. */
+  unit: string; delta: string; up: boolean; alert: string; note: string;
+  /** A stent point's number colour (the velocity lens's, toward the text) and whether the Doppler samples it (named in bold); the stent's own label (a few lines: its `word` is encodeGeo's). */
+  tint?: string; gate?: boolean; geo?: boolean;
+  /** This picture's share of the label's opacity (1 standing still; while the label crosses to a new spot or new words, the new picture's easeMove share and the old picture's rest). */
+  mix: number;
+  /** The old picture a label is leaving (drawn as its own element, fading out where it stood): its dot is not drawn, the ring is the label's. */
+  ghost?: boolean;
+  /** The ring's own opacity (the label's, whatever picture is crossing). */
+  ringAlpha: number;
   /** The key's dock (its wrap width and least height; key only). */
   dock?: Dock | null;
   /** Padding round the words inside the box (the 2D app's), px. */
@@ -138,6 +166,34 @@ interface Meta {
   vwUnits: number;
   /** The station's blood runs backwards: its words carry the reversal mark. */
   rev?: boolean;
+  /** What it says beside its name, as the layout reserves it (widest numbers), and the key of those words (a new key is new words, crossed over). */
+  say: Say;
+  vkey: string;
+  /** The live extras now (the number in place of the pressure, the badge's text, the alert, the note). */
+  ex: Extras;
+  /** Shown whole beside its vessel or not at all (2D `minor`). */
+  optional?: boolean;
+  /** One of the extra stations (shown zoomed in, only where room is free). */
+  extra?: boolean;
+  /** Never left out for want of room (the patient's flagged stations; at the All level every one). */
+  must?: boolean;
+  /** One of a stent's own labels (stent-labels.ts), and the importance it takes now. */
+  stent?: boolean;
+  pri?: number;
+}
+
+/** What a placed label says (kept with its placement: the picture it leaves is drawn as it was). */
+interface Snap { word: string; unit: string; delta: boolean; alert: string; note: string; rev: boolean; bare: boolean }
+export const GHOST = '~old';
+/** The words after a station's name as the layout reserves them: the widest number the lens ever sets, the unit, the badge (at its widest), the alert, or a note in place of the number. */
+function sayOf(ex: Extras): Say {
+  if (ex.note) return { note: ex.note };
+  const say: Say = {};
+  if (ex.number != null) say.value = ex.number === '—' ? '—' : WIDEST[ex.lens];
+  if (ex.unit) say.unit = ex.unit;
+  if (ex.delta || false) say.delta = WIDEST_DELTA[ex.lens] || ex.delta;
+  if (ex.alert) say.alert = ex.alert;
+  return say;
 }
 
 const FORM_NAMES = ['full', 'abbr', 'value'] as const;
@@ -166,16 +222,25 @@ export class LabelController {
   private cGot: 0 | 1 | 2 = 0;
   private readonly cAhead = new Vector3();
   private readonly at = new Vector3();
+  private readonly at2 = new Vector3();
   private readonly pt = { x: 0, y: 0 };
+  private readonly pt2 = { x: 0, y: 0 };
   private firstTick = true;
   private keySize: { w: number; h: number } | null = null;
   private keyNatural: { w: number; h: number } | null = null;
+  /** The room each drawn label has now (0 under a card or past the edge, 1 clear), eased over FADE.roomMs (2D roomFade). */
+  private readonly room = new RoomFade();
+  /** The last change badge each station showed: the one a badge that has just gone is crossed out with, and what the layer writes while the box still has its room. */
+  private readonly lastDelta = new Map<string, { text: string; up: boolean }>();
+  private zoomedNow = false;
   /** The dock the key stands at now (its wrap width and minimum height go to the element). */
   dock: Dock | null = null;
   readonly out: Draw[] = [];
   /** Items the last solve could not place at all (a test asserts none in the slice's framings). */
   dropped: string[] = [];
   hiddenIds: string[] = [];
+  /** Optional names (shown only where they fit) the last solve left out. */
+  skipped: string[] = [];
 
   private readonly deps: LabelDeps;
   constructor(deps: LabelDeps) { this.deps = deps; }
@@ -204,7 +269,10 @@ export class LabelController {
   /** Fonts or sizes changed: forms are measured again. */
   invalidateForms(): void { this.formCache.clear(); this.dirty = true; }
 
-  /** What is labelled now, in drawing order. */
+  /** The extra stations' ids the last frame kept (zoomed in: those with 80 px free round their dot). */
+  extrasKept: string[] = [];
+
+  /** What is labelled now, in drawing order. A talk names exactly what the slide names; free play names the set 2D's Key, All and None levels name (free-set.ts). */
   active(): Meta[] {
     const st = this.state;
     const list: Meta[] = [];
@@ -212,13 +280,54 @@ export class LabelController {
     // treatment keeps them). They fade out as the catheter comes in and back as it goes.
     if (HIDE_UNDER_CATHETER && (st.cath || st.quiet)) return list;
     if (st.panel) return list;
+    const d = this.deps;
     const picked = st.picked ? STATIONS.find((s) => s.vessel === st.picked)?.id ?? null : null;
+    const gate = (s: Station): boolean | null => ((s.id === 'VAR' || s.id === 'GV') && d.present ? d.present(s.id) : null);
+    let free: ReturnType<typeof freeSet> | null = null;
+    if (!st.presenting) {
+      const vp = d.vp();
+      const zoom = d.zoom?.() ?? 1;
+      this.zoomedNow = zoom > (this.zoomedNow ? ZOOM_OUT : ZOOM_IN);
+      free = freeSet({
+        level: d.level?.() ?? 'key', zoomed: this.zoomedNow, compact: vp.w < COMPACT_W,
+        hasVar: d.present ? d.present('VAR') : true, hasGv: d.present ? d.present('GV') : false,
+        ra: d.pressure('RA'), reversed: (id) => { const s = STATIONS.find((x) => x.id === id); return !!s?.vessel && d.reversed(s.vessel); },
+        stenosed: d.stenosed?.() ?? [], picked,
+      });
+    }
     for (const s of STATIONS) {
       if (s.kind === 'organ') { if (st.organNames) list.push(this.metaOf(s)); continue; }
-      const gated = (s.id === 'VAR' || s.id === 'GV') && this.deps.present ? this.deps.present(s.id) : null;
-      if (gated !== null) { if (gated && (s.id === 'GV' || s.core || st.named.has(s.id) || s.id === picked)) list.push(this.metaOf(s)); continue; }
-      if (s.id === 'GV') continue;   // (the fundal varices' label comes in only with its varices)
-      if (s.core || st.named.has(s.id) || st.shown.has(s.id) || s.id === picked) list.push(this.metaOf(s));
+      const gated = gate(s);
+      if (st.presenting) {
+        // a slide names exactly the stations it talks about (2D store.presentLabels = the slide's `labels` and the stations its words light), with the varices gated as 2D gates them
+        if (!(st.named.has(s.id) || st.shown.has(s.id) || s.id === picked)) continue;
+        if (gated === false && s.id !== picked) continue;
+        list.push(this.metaOf(s));
+        continue;
+      }
+      if (!free!.show.has(s.id) && !free!.extra.includes(s.id)) continue;
+      if (gated === false && s.id !== picked) continue;
+      const m = this.metaOf(s);
+      if (free!.minor.has(s.id)) m.optional = true;
+      if (free!.must.has(s.id)) m.must = true;
+      if (free!.extra.includes(s.id)) m.extra = true;
+      list.push(m);
+    }
+    // a TIPS or DIPS stent that is drawn and settled has its own label, and where a slide reads it at its three Doppler points, three more (2D stage-label-solve.js)
+    const sv = d.stents?.() ?? null;
+    if (sv) {
+      for (const sid of STENT_IDS) {
+        const ready = sv.ready(sid);
+        if (!ready) continue;
+        const seg = sv.sampled(sid), all = sv.all(sid);
+        geoFrac[sid] = seg ? (STENT_SITES as Record<string, number>)[seg] ?? 0.5 : 0.5;   // (while the Doppler samples this stent, its label points at the third the gate reads)
+        for (const s of STENT_STATIONS) {
+          if (s.stent!.sid !== sid) continue;
+          if (s.stent!.pt !== 'geo' && !all) continue;
+          const m = this.stentMeta(s, sv, all);
+          if (m) list.push(m);
+        }
+      }
     }
     // an organ's name is not said twice: where a station's reading names the same structure ("Right atrium 3.5"), the organ's own name ("RIGHT ATRIUM") is left out
     const said = new Set(list.filter((m) => m.station.kind !== 'organ').map((m) => m.station.name.toLowerCase()));
@@ -235,25 +344,68 @@ export class LabelController {
     return list.filter((m) => m.station.kind !== 'organ' && (st.named.has(m.station.id) || st.shown.has(m.station.id) || (!!st.picked && m.station.vessel === st.picked)));
   }
 
-  private metaOf(s: Station): Meta {
-    const rev = !!s.vessel && s.kind !== 'organ' && this.deps.reversed(s.vessel);
-    return { id: s.id, kind: 'station', station: s, forms: this.stationForms(s, rev), vwUnits: 0, rev };
+  /** Whether a station's label carries a number (2D: the hepatic artery's is its name only: its pressure sits off the venous scale and says little). */
+  private hasNumber = (s: Station): boolean => (s.stent ? s.stent.pt !== 'geo' : !!s.node && s.id !== 'HA');
+
+  /** A stent's label (2D geomItem / velItem). Its stent: one label, a line each for the diameter, the waist and the end stenosis, shortened by whole lines. A point: its name and its velocity, one form (a point's name without its number says nothing). */
+  private stentMeta(s: Station, v: StentView, all: boolean): Meta | null {
+    const { sid, pt } = s.stent!, d = this.deps, vp = d.vp(), padX = LS.PAD.x, padY = LS.PAD.y;
+    if (pt === 'geo') {
+      const sets = geoSets(geoLines(sid, v.facts(sid as StentId)));
+      const words = sets.map((ls) => encodeGeo(ls));
+      const key = `geo|${words[0]}|${vp.w}x${vp.h}`;
+      let forms = this.formCache.get(key);
+      if (!forms) {
+        forms = sets.map((ls, i) => { const b = geoSize(ls, vp, d.measure); return { text: words[i]!, w: Math.ceil((b.w + padX * 2) * 100) / 100, h: Math.ceil((b.h + padY * 2) * 100) / 100 }; });
+        this.formCache.set(key, forms);
+      }
+      return { id: s.id, kind: 'station', station: s, forms, vwUnits: 0, rev: false, say: {}, vkey: words[0]!, ex: NO_EXTRAS, stent: true, pri: all ? 7 : 9 };
+    }
+    const r = v.read(sid as StentId, pt as 'proximal' | 'mid' | 'distal');
+    if (!r) return null;
+    const name = pointName(sid, pt as 'proximal' | 'mid' | 'distal', vp.w < STENT_COMPACT);
+    const say: Say = { value: '000', unit: 'cm/s' };
+    const key = `pt|${s.id}|${name}|${vp.w}x${vp.h}`;
+    let forms = this.formCache.get(key);
+    if (!forms) {
+      const b = boxSize(stationRuns(name, true, false, '000', say), vp, d.measure);
+      forms = [{ text: name, w: Math.ceil(b.w * 100) / 100, h: Math.ceil(b.h * 100) / 100 }];
+      this.formCache.set(key, forms);
+    }
+    const ex: Extras = { ...NO_EXTRAS, lens: 'velocity', number: r.number, unit: r.none ? '' : 'cm/s', tint: r.tint, gate: v.sampled(sid as StentId) === pt };
+    return { id: s.id, kind: 'station', station: s, forms, vwUnits: 0, rev: false, say, vkey: name, ex, stent: true, pri: 8 };
   }
 
+  private metaOf(s: Station): Meta {
+    const rev = !!s.vessel && s.kind !== 'organ' && this.deps.reversed(s.vessel);
+    if (s.kind === 'organ' || !this.hasNumber(s)) return { id: s.id, kind: 'station', station: s, forms: this.stationForms(s, rev, '', {}), vwUnits: 0, rev, say: {}, vkey: '', ex: NO_EXTRAS };
+    const st = this.state, d = this.deps;
+    const P = d.pressure(s.node!);
+    const ex = d.extras ? d.extras(s.node!, P, { selected: !!st.picked && s.vessel === st.picked, lit: !!st.tones[s.id], presenting: st.presenting }) : NO_EXTRAS;
+    const say = sayOf(ex);
+    const vkey = `${say.value ?? ''}|${say.unit ?? ''}|${say.delta ?? ''}|${say.alert ?? ''}|${say.note ?? ''}`;
+    return { id: s.id, kind: 'station', station: s, forms: this.stationForms(s, rev, vkey, say), vwUnits: 0, rev, say, vkey, ex };
+  }
   /** The forms a station can take, widest first (the 2D app's own: the full name and reading, the short name and reading, the reading alone).
-   *  Each is its words' width and height in the 2D type (type.ts) plus the 2D padding; none has a pill. */
-  stationForms(s: Station, reversed = false): Form[] {
-    const key = s.id + (reversed ? '|r' : '');
+   *  Each is its words' width and height in the 2D type (type.ts) plus the 2D padding; none has a pill. `say` is what follows the name (the unit, the badge, the alert: laid out at the widest). */
+  stationForms(s: Station, reversed = false, vkey = '', say: Say = {}): Form[] {
+    const key = s.id + (reversed ? '|r' : '') + '|' + vkey;
     const c = this.formCache.get(key);
     if (c) return c;
     const d = this.deps, vp = d.vp(), forms: Form[] = [];
     const form = (text: string, runs: ReturnType<typeof stationRuns>, organ = false): Form => { const b = boxSize(runs, vp, d.measure, organ); return { text, w: Math.ceil(b.w * 100) / 100, h: Math.ceil(b.h * 100) / 100 }; };
     if (s.kind === 'organ') forms.push(form(s.name.toUpperCase(), [organRun(s.name)], true));
     else {
-      const has = !!s.node;
-      forms.push(form(s.name, stationRuns(s.name, has, reversed)));
-      if (s.abbr && s.abbr !== s.name) forms.push(form(s.abbr, stationRuns(s.abbr, has, reversed)));
+      const has = this.hasNumber(s);
+      forms.push(form(s.name, stationRuns(s.name, has, reversed, '00.0', say)));
+      if (s.abbr && s.abbr !== s.name) forms.push(form(s.abbr, stationRuns(s.abbr, has, reversed, '00.0', say)));
       // (never the number alone: a reading with no name beside it says nothing, "5.0" floating in the liver. A name that has no room as its short form is left out, as the 2D app's solver does when none fits; Mohammad's play-test, 20 Nov)
+      // (2D shortenItem: where a label has no room, the unit and the badge go first and the number stays: "Azygos 6.7". Forms here are wider first, so the same steps follow each other.)
+      if (has && (say.unit || say.delta || say.alert) && !say.note) {
+        const bare: Say = { value: say.value };
+        const f1 = form(s.name, stationRuns(s.name, has, reversed, '00.0', bare)); f1.bare = true; forms.push(f1);
+        if (s.abbr && s.abbr !== s.name) { const f2 = form(s.abbr, stationRuns(s.abbr, has, reversed, '00.0', bare)); f2.bare = true; forms.push(f2); }
+      }
     }
     this.formCache.set(key, forms);
     return forms;
@@ -263,35 +415,46 @@ export class LabelController {
     return m.station.at(u, out);
   }
 
-  /** Advance one frame (the clock's `tags` phase). Returns true while labels still need frames (fading, or waiting to come back). */
+  /** Advance one frame (the clock's `tags` phase). Returns true while labels still need frames (fading, crossing, or waiting to come back). */
   tick(): boolean {
     const d = this.deps, now = d.now();
     const dt = this.last < 0 ? 16 : Math.min(100, now - this.last);
     this.last = now;
-    const metas = d.hidden?.() ? [] : this.active();
-    const next = new Map<string, Meta>();
-    for (const m of metas) next.set(m.id, m);
-    // the set of labelled things changed: solve again
-    let setSig = '';
-    for (const m of metas) setSig += m.id + (m.rev ? '~' : '') + ',';
+    const all = d.hidden?.() ? [] : this.active();
 
-    // 1. where the dots are; any that moved hides everything until the picture is still
-    let moved = this.firstTick || d.cameraMoving();
-    let following = false;
+    // 1. where the dots are. A dot that jumped (a cut, a dive's far end) hides everything until the picture is still; a dot that moved by a little (a hand on the picture, the camera in flight) is carried:
+    // every label keeps its place beside it, re-projected each frame.
+    let moved = this.firstTick;
+    let following = d.cameraMoving();   // (a slide's glide carries the labels exactly as a hand does: they ride it and are placed again where it lands)
     this.firstTick = false;
     const anchors = new Map<string, { x: number; y: number }>();
-    for (const m of metas) {
+    for (const m of all) {
       const p = this.anchorOf(m, m.station.u0, this.at);
       if (!p) continue;
       const a = d.project(p, { x: 0, y: 0 });
       if (!Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;   // (a dot behind the camera or at its plane has no place on the screen: it is not placed, never placed at a number that is not one)
       anchors.set(m.id, a);
       const was = this.anchors.get(m.id);
-      if (!was) moved = true;
+      if (!was) this.dirty = true;   // (a station that comes in is placed when the picture is still; the others are not cut by it)
       else if (Math.hypot(was.x - a.x, was.y - a.y) > FOLLOW_JUMP) moved = true;   // (a dot that jumped is a cut, not a hand: the names leave and return)
       else if (Math.abs(was.x - a.x) > 0.35 || Math.abs(was.y - a.y) > 0.35) following = true;
     }
     this.anchors = anchors;
+    // zoomed in, the other stations stand where 80 px round their dot is free of every other (2D: they appear as the zoom makes room)
+    let metas = all;
+    if (all.some((m) => m.extra)) {
+      const compact = d.vp().w < COMPACT_W, base = all.filter((m) => !m.extra).map((m) => m.id);
+      const kept = new Set(keepExtras(all.filter((m) => m.extra).map((m) => m.id), anchors, base, extraRoom(compact)));
+      this.extrasKept = [...kept];
+      metas = all.filter((m) => !m.extra || kept.has(m.id));
+    } else this.extrasKept = [];
+    const next = new Map<string, Meta>();
+    for (const m of metas) next.set(m.id, m);
+    // the set of labelled things changed: solve again
+    let setSig = '';
+    for (const m of metas) setSig += m.id + (m.rev ? '~' : '') + ':' + m.vkey + (m.optional ? '?' : '') + ',';
+    // a label that is no longer asked for goes at once (it fades out where it stands); the ones that come in wait for the picture to be still
+    for (const id of this.wants.keys()) if (id !== 'key' && !next.has(id)) { this.wants.delete(id); this.dirty = true; }
     // the catheter's two points move with the picture too: where the tip and the point ahead stand now
     const pr = this.state.proc, got = pr ? (pr.points(this.cTip, this.cAhead) ? 2 : 0) : d.cathere(this.cTip, this.cAhead);
     const tipPx = got ? d.project(this.cTip, { x: 0, y: 0 }) : null, aheadPx = got ? d.project(this.cAhead, { x: 0, y: 0 }) : null;
@@ -303,7 +466,7 @@ export class LabelController {
     // this a solve made while the camera stood somewhere else (the dive's far end, where every dot is off the screen and nothing can be placed) was kept for ever after the camera came back, and every
     // name stayed gone until a card happened to change (Mac play-test, 19 Nov: sinusoid back to Anatomy, 10+ seconds with no names).
     if (moved) { this.lastMove = now; this.dirty = true; }
-    // a hand on the picture: the labels ride their dots (drawn below from the dots' own 3D points), and are solved again once it is still
+    // a hand on the picture, or the camera in flight: the labels ride their dots (drawn below from the dots' own 3D points), and are solved again once it is still
     if (following) { this.lastFollow = now; this.dirty = true; }
     const hold = now - this.lastMove < FADE.settleMs;
     const resting = now - this.lastFollow >= FOLLOW_MS;
@@ -320,12 +483,13 @@ export class LabelController {
     const sig = cathSig + '|' + (keyBox ? boxKey(keyBox) : '-') + '|' + setSig + '|' + boxKey(view) + '|' + blockers.map(boxKey).join(';') + '|' + [...this.state.named].sort().join(',') + [...this.state.shown].sort().join(',') + this.state.cath + (this.state.proc?.sig ?? '');
     if (!hold && resting && (this.dirty || sig !== this.sig)) {
       this.sig = sig; this.dirty = false;
-      this.metas = next;
+      for (const [id, m] of next) this.metas.set(id, m);
       // the catheter's cards stand first (cath.ts: the 2D app's own placing, clear of the cards and the key); the stations keep clear of them
       this.show.solve({ vp: d.vp(), cath: cathNow, measure: d.measure, band: this.cathBand(view), blockers, tip: this.cTipPx, ahead: this.cAheadPx, got: this.cGot, text: this.cathText(), ...(procNow ? { kinds: procNow.kinds, kickers: procNow.kickers, tones: procNow.tones } : {}) });
       this.solveNow(metas, view, [...blockers, ...this.show.boxes]);
       if (keyBox) this.wants.set('key', { p: { id: 'key', form: 0, dx: keyBox.x0, dy: keyBox.y0, w: keyBox.x1 - keyBox.x0, h: keyBox.y1 - keyBox.y0, leader: false, au: 0.5 }, dim: false });
     }
+    for (const [id, m] of next) this.metas.set(id, m);   // (the words the label says now; the place it was solved at is in the fader)
 
     // 3. fades (the catheter's cards have their own: the 2D app's timings)
     this.show.setText(this.cathText());
@@ -333,29 +497,71 @@ export class LabelController {
 
     // 4. what to draw: each shown label at its spot, following its dot
     this.out.length = 0;
+    const roomBlk = [...d.blockers()];
+    let roomBusy = false;
     for (const [id, s] of this.fader.frame) {
       if (s.alpha <= 0) continue;
       if (id === 'key') {
-        this.out.push({ id, kind: 'key', alpha: s.alpha, x: s.p.dx, y: s.p.dy, w: s.p.w, h: s.p.h, form: 0, word: '', value: '', tone: null, dot: null, rev: false, pad: { x: 0, y: 0 }, leader: null, dock: this.dock });
+        this.out.push({ id, kind: 'key', alpha: s.alpha, mix: 1, ringAlpha: s.alpha, x: s.p.dx, y: s.p.dy, w: s.p.w, h: s.p.h, form: 0, word: '', value: '', tone: null, dot: null, rev: false, unit: '', delta: '', up: false, alert: '', note: '', pad: { x: 0, y: 0 }, leader: null, dock: this.dock });
         continue;
       }
       const m = this.metas.get(id) ?? next.get(id);
       if (!m) continue;
+      const au = s.from ? s.from.p.au + (s.p.au - s.from.p.au) * s.mix : s.p.au;
       const p = this.anchorOf(m, s.p.au, this.at);
-      if (!p) continue;
+      const pr = s.from ? this.anchorOf(m, au, this.at2) : p;
+      if (!p || !pr) continue;
       const a = d.project(p, this.pt);
       const ax = a.x, ay = a.y;
+      const ring = s.from ? d.project(pr, this.pt2) : a;
       const box = boxOf(s.p, ax, ay);
+      // a label that comes to stand under a card or past the edge (carried by the camera, or a card sliding in) fades out whole and back once clear: never seen cut (2D roomFade)
+      const ra = this.room.of(id, box, view, roomBlk, dt);
+      if (ra > 0 && ra < 1) roomBusy = true;
+      if (ra <= 0) continue;   // (invisible: nothing to draw, the layer hides it)
       const dim = this.state.named.size > 0 && !this.isNamed(m) ? s.dim : 0;
       const organ = m.station.kind === 'organ', ringed = !organ;
       const pad = organ ? { x: LS.ORGAN.padX, y: LS.ORGAN.padY } : { x: LS.PAD.x, y: LS.PAD.y };
+      const alpha = labelOpacity(s.alpha * ra, dim);
+      const snap = s.snap as Snap | undefined;
+      const form = m.forms[s.p.form];
+      const say = this.live(m, snap);
       this.out.push({
-        id, kind: m.kind, alpha: labelOpacity(s.alpha, dim), x: box.x0, y: box.y0, w: s.p.w, h: s.p.h, form: s.p.form, word: m.forms[s.p.form]?.text ?? '',
-        value: this.valueOf(m), tone: this.state.tones[m.station.id] ?? null, dot: ringed ? { x: ax, y: ay } : null, rev: !!m.rev, pad,
+        id, kind: m.kind, alpha, mix: s.mix, ringAlpha: alpha, x: box.x0, y: box.y0, w: s.p.w, h: s.p.h, form: s.p.form, word: snap?.word ?? form?.text ?? '',
+        value: this.valueOf(m), tone: this.state.tones[m.station.id] ?? null, dot: ringed ? { x: ring.x, y: ring.y } : null, rev: snap ? snap.rev : !!m.rev, pad, ...say,
         leader: s.p.leader && ringed ? leaderGeom(ax, ay, { x0: box.x0 + pad.x, y0: box.y0 + pad.y, x1: box.x1 - pad.x, y1: box.y1 - pad.y }) : null,
       });
+      if (s.from) {
+        // the picture the label is leaving: its own box about its own dot, fading out as the new one fades in
+        const f = s.from, fs = f.snap as Snap | undefined;
+        const fp = this.anchorOf(m, f.p.au, this.tmp);
+        if (fp) {
+          const fa = d.project(fp, this.pt2), fbox = boxOf(f.p, fa.x, fa.y), fform = m.forms[f.p.form];
+          this.out.push({
+            id: id + GHOST, kind: m.kind, alpha, mix: 1 - s.mix, ringAlpha: 0, ghost: true, x: fbox.x0, y: fbox.y0, w: f.p.w, h: f.p.h, form: f.p.form, word: fs?.word ?? fform?.text ?? '',
+            value: this.valueOf(m), tone: this.state.tones[m.station.id] ?? null, dot: null, rev: fs ? fs.rev : !!m.rev, pad, ...this.live(m, fs),
+            leader: f.p.leader && ringed ? leaderGeom(fa.x, fa.y, { x0: fbox.x0 + pad.x, y0: fbox.y0 + pad.y, x1: fbox.x1 - pad.x, y1: fbox.y1 - pad.y }) : null,
+          });
+        }
+      }
     }
-    return busy || hold || this.dirty;
+    this.room.prune(this.fader.frame);
+    return busy || hold || this.dirty || roomBusy;
+  }
+
+  /** What a label says beside its name, drawn: the words it had when it was placed (its box is that wide), the number and the badge's text from now. A form that has let the unit, badge and alert go says none of them. */
+  private live(m: Meta, snap: Snap | undefined): Pick<Draw, 'unit' | 'delta' | 'up' | 'alert' | 'note' | 'tint' | 'gate' | 'geo'> {
+    const sx = { tint: m.ex.tint ?? '', gate: !!m.ex.gate, geo: m.station.stent?.pt === 'geo' };
+    if (snap?.bare) return { unit: '', delta: '', up: false, alert: '', note: '', ...sx };
+    // (a stent point with no flow says "No flow" and no unit)
+    const unit = m.stent && !m.ex.unit ? '' : snap ? snap.unit : m.say.unit ?? '', alert = snap ? snap.alert : m.say.alert ?? '', note = snap ? snap.note : m.say.note ?? '';
+    const hasDelta = snap ? snap.delta : !!m.say.delta;
+    let delta = '', up = false;
+    if (hasDelta) {
+      if (m.ex.delta) { this.lastDelta.set(m.id, { text: m.ex.delta, up: m.ex.up }); delta = m.ex.delta; up = m.ex.up; }
+      else { const l = this.lastDelta.get(m.id); if (l) { delta = l.text; up = l.up; } }
+    }
+    return { unit, delta, up, alert, note, ...sx };
   }
 
   private isNamed(m: Meta): boolean {
@@ -365,6 +571,8 @@ export class LabelController {
   }
 
   private valueOf(m: Meta): string {
+    if (!this.hasNumber(m.station)) return '';
+    if (m.ex.number != null) return m.ex.number;
     const d = this.deps;
     return m.station.node ? fmtPressure(d.pressure(m.station.node), null, false) : '';
   }
@@ -393,8 +601,8 @@ export class LabelController {
       if (organ && !sil) sil = silhouettes(to);
       const s0 = sil;
       items.push({
-        id: m.id, ax: a.x, ay: a.y, au: m.station.u0, path: path.length ? path : undefined, forms: m.forms,
-        pri: picked ? 300 : isNamed ? 100 + m.station.pri : m.station.pri, must: !!picked || isNamed || this.state.shown.has(m.station.id), dirs: m.station.dirs, region: m.station.kind === 'organ', vw,
+        id: m.id, ax: a.x, ay: a.y, au: m.station.u0, path: path.length ? path : undefined, forms: m.optional ? m.forms.slice(0, 1) : m.forms,
+        pri: picked ? 300 : isNamed ? 100 + (m.pri ?? m.station.pri) : m.optional ? 1 : m.pri ?? m.station.pri, must: !!picked || isNamed || !!m.must || this.state.shown.has(m.station.id), ...(m.optional ? { optional: true } : {}), dirs: m.station.dirs, region: m.station.kind === 'organ', vw,
         ...(organ && s0 ? { spots: spotOffsets(m.station.name, m.station.at2d!, to), onOther: (b: Box) => onOtherOrgan(m.station.name, s0, b) } : {}),
       });
     }
@@ -415,10 +623,13 @@ export class LabelController {
     const res = solve({ items, view, blockers, lines, leaderLineCost: LEADER_LINE_COST });
     this.dropped = res.dropped; this.hiddenIds = res.hidden;
     const wants = new Map<string, Want>();
+    this.skipped = res.skipped;
     for (const p of res.placed) {
       const m = this.metas.get(p.id);
       const dim = !!m && named.size > 0 && !this.isNamed(m);
-      wants.set(p.id, { p, dim });
+      const f = m?.forms[p.form];
+      const snap: Snap | undefined = m ? { word: f?.text ?? '', unit: m.say.unit ?? '', delta: !!m.say.delta, alert: m.say.alert ?? '', note: m.say.note ?? '', rev: !!m.rev, bare: !!f?.bare } : undefined;
+      wants.set(p.id, { p, dim, key: m ? `${p.form}|${m.vkey}|${m.rev ? 1 : 0}` : '', snap });
     }
     this.wants = wants;
   }

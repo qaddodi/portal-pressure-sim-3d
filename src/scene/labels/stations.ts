@@ -40,6 +40,8 @@ export interface Station {
   u0: number;
   /** The vessel family's colour on the pill's dot. */
   tone: 'portal' | 'sys' | null;
+  /** A TIPS or DIPS stent's own label (stent-labels.ts): the stent itself, or one of its three Doppler points. Not one of STATIONS. */
+  stent?: { sid: string; pt: 'proximal' | 'mid' | 'distal' | 'geo' };
 }
 
 const names = N.SHORT as Record<string, string>;

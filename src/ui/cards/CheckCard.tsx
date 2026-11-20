@@ -5,6 +5,8 @@ import { useUi } from '../ui-store.ts';
 import { NameTab } from './NameTab.tsx';
 import { Line } from './Line.tsx';
 import { pageOf } from './pages.ts';
+import { GLIDE_MS } from './rail.ts';
+import { ARRIVE_CSS } from '../../clock/tween.ts';
 
 /** The closing quick check, as the 2D app's: numbered questions; a tap opens the answer under its question (the rows below ease down by transform, the answer fades in),
  *  a second tap shuts it. On a phone on its side one answer is open at a time, so the card never outgrows its short screen. */
@@ -34,17 +36,17 @@ export function CheckCard({ deck, page = 0, pages = 1 }: { deck: Deck; page?: nu
     const from = tops.current, li = list.current?.children, fresh = opened.current;
     tops.current = null; opened.current = null;
     if (!from || !li || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-    // the answer that has just opened is in its place at once, but the card is still growing down to it (it is revealed by the same 280 ms glide the rows ease down by): its words
+    // the answer that has just opened is in its place at once, but the card is still growing down to it (it is revealed by the same 420 ms glide (rail.ts GLIDE_MS) the rows ease down by): its words
     // wait for the card's edge to reach them (clear for the first third of the glide), then come in, so the words are never outside the card
     const a = fresh == null ? null : list.current?.querySelector<HTMLElement>(`#pzc-a${fresh}`);
-    if (a && typeof a.animate === 'function') a.animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: 320, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' });
+    if (a && typeof a.animate === 'function') a.animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: GLIDE_MS, easing: ARRIVE_CSS });
     // a card on the foot (a phone's) grows and shrinks at its TOP, a centred one (this one) at its top and its foot by half each: in this same frame, before it is drawn, the card takes its new height and every row stands g higher (g = what the list gained, times the share of it the card's top takes),
     // so a row's way from where it was to where it will be is its measured way plus g (a row under the answer: no way at all; a row above it: g up)
     const anchor = list.current?.closest('.dk-pos')?.getAttribute('data-anchor');
     const g = (anchor === 'foot' ? 1 : anchor === 'mid' ? 0.5 : 0) * ((list.current?.getBoundingClientRect().height ?? 0) - height.current);
     Array.from(li).forEach((e, i) => {
       const dy = (from[i] ?? 0) - e.getBoundingClientRect().top + g;
-      if (Math.abs(dy) > 1 && typeof e.animate === 'function') e.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' });
+      if (Math.abs(dy) > 1 && typeof e.animate === 'function') e.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: GLIDE_MS, easing: ARRIVE_CSS });
     });
   }, [open]);
 

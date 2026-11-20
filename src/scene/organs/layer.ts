@@ -19,12 +19,14 @@ import { PAINTED, VertexPaint } from './vertex-paint.ts';
 import { lumenSurface } from '../disease/copied/stomach-lumen.js';
 import { POOL_SHARE } from '../disease/copied/bleed-shapes.js';
 import { LiverShape } from './liver-shape.ts';
-import { bake, celLook, shadeNow, TONE, TEX_H, TEX_PH, TEX_PW, TEX_W, TEX_X0, TEX_Y0 } from './liver-texture.ts';
+import { bake, celLook, rawNormalShare, shadeNow, TONE, TEX_H, TEX_PH, TEX_PW, TEX_W, TEX_X0, TEX_Y0 } from './liver-texture.ts';
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import { bakeOrganDepth } from './organ-depth.ts';
 import { OrganArt } from './organ-art.ts';
 import { smoothRestNormals } from './normal-smooth.ts';
-import { smoothSilhouette, tailFade } from './contour.ts';
+/** Smoothing passes of the shade normal (the outline's own is 8: this one keeps the pillow's turn, a lighter hand). */
+const SHADE_PASSES = 6;
+import { refineRim, ringDistance, smoothSilhouette, tailFade } from './contour.ts';
 import { ORGAN_Z } from './z.ts';
 
 type Og = keyof OrganTones2D['tones'];
@@ -60,6 +62,9 @@ export const ORGAN_ORDER = ['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach'
 /** The dive's cutaway window, one for every organ (scene.ts writes it each frame from the camera's distance to the place dived to; camera/dive.ts cutUniform). Nothing cleared at rest. */
 export const ORGAN_CUT: { value: Vector4 } = { value: new Vector4(0, 0, -1, 1) };
 
+/** The organs whose shade steps are cut by the smoothed normal (organ-shader.ts shadeN); the gut's folds are its relief, so it keeps its own. */
+const SMOOTH_SHADE = new Set(['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach', 'duodenum', 'liver']);
+
 /** The 1x1 texture an organ with no liver look samples (its nodAmt is 0, so it is never read). */
 const NO_TEX = new DataTexture(new Uint8Array([0, 0, 128, 255]), 1, 1);
 NO_TEX.needsUpdate = true;
@@ -74,12 +79,13 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
     ogLight: { value: new Vector4() }, ogDark: { value: new Vector4() }, volShade: { value: new Vector4() },
     volLight: { value: new Vector4() }, volGeo: { value: new Vector4() }, volShadeAt: { value: 0.8 }, shadeSteps: { value: new Vector3() }, rimK: { value: 0.58 },
     box: { value: new Vector4(b.min.x, b.max.y, b.max.x - b.min.x, b.max.y - b.min.y) },
-    nodTex: { value: NO_TEX }, nodAmt: { value: 0 }, sepDelta: { value: new Vector3() }, nodK: { value: new Vector2() },
+    shadeK: { value: SMOOTH_SHADE.has(id) ? 1 : 0 }, nodTex: { value: NO_TEX }, nodAmt: { value: 0 }, sepDelta: { value: new Vector3() }, nodK: { value: new Vector2() },
   });
   m.transparent = true; m.depthWrite = true;
   m.needsUpdate = true;
   const ink = o.ink;
   ink.vertexShader = ORGAN_INK_VS;
+  ink.defines = { ...(ink.defines ?? {}), INK_EDGE: '' };   // (the outline's outer edge is feathered by arithmetic: INK_FS)
   ink.uniforms.dpr = { value: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1 };
   // in the sorted (transparent) list too, so it keeps its place right after its own fill; it stays opaque (pre-mixed against the page)
   ink.transparent = true;
@@ -153,7 +159,7 @@ export class OrganLayer {
     this.built = true;
     // every organ's geometry first: the baked depth term (organ-depth.ts) needs them all together (where one organ meets another)
     const made: [string, BufferGeometry][] = [];
-    for (const [id, make] of Object.entries(meshes)) if (ORGAN_STYLE[id]) { const g = make(); smoothSilhouette(g); g.translate(0, 0, ORGAN_Z[id] ?? 0); made.push([id, g]); }   // (the rim's saw-tooth is smoothed out first: contour.ts; each organ at its own depth: z.ts, x and y untouched by it)
+    for (const [id, make] of Object.entries(meshes)) if (ORGAN_STYLE[id]) { const g = make(); smoothSilhouette(g); refineRim(g); g.translate(0, 0, ORGAN_Z[id] ?? 0); made.push([id, g]); }   // (the rim's saw-tooth is smoothed out first: contour.ts; each organ at its own depth: z.ts, x and y untouched by it)
     // the duodenum's free end fades out (it joins nothing there): its tail alpha, which organ-art patches into its fill and outline
     const duo = made.find(([id]) => id === 'duodenum'), stom = made.find(([id]) => id === 'stomach');
     if (duo && stom) duo[1].setAttribute('esoA', new Float32BufferAttribute(tailFade(duo[1], stom[1]), 1));
@@ -165,6 +171,8 @@ export class OrganLayer {
       const st = ORGAN_STYLE[id]!;
       g.setAttribute('depthAo', new BufferAttribute(baked[id]!, 1, true));
       // the outline is pushed out along the mesh's SMOOTHED normal: the mesh's own normals jag along a coarse rim, and the hull's edge with them (a sawtooth halo)
+      g.setAttribute('shadeN', new Float32BufferAttribute(smoothRestNormals(g.getAttribute('position').array, g.getAttribute('normal').array, g.index ? g.index.array : [], SHADE_PASSES), 3));
+      g.setAttribute('ringD', new Float32BufferAttribute(ringDistance(g), 1));
       g.setAttribute('hullN', new Float32BufferAttribute(smoothRestNormals(g.getAttribute('position').array, g.getAttribute('normal').array, g.index ? g.index.array : []), 3));
       if (id === 'liver') {   // the surface's texture (liver-texture.ts): each vertex's place in it is its rest place in the 2D figure
         const pos = g.getAttribute('position'), uv = new Float32Array(pos.count * 2);
@@ -187,6 +195,9 @@ export class OrganLayer {
     }
     this.dirtyColours = true; this.instant = true;
   }
+
+  /** The canvas's pixel ratio (the drawing buffer's, which Settings > Figure detail caps: 1.5 on a 2x screen), so the outline's one-pixel feather and floor are one pixel of the buffer drawn, not of the screen. */
+  setDpr(d: number): void { for (const o of this.objects) if (o.ink.uniforms.dpr) o.ink.uniforms.dpr.value = d; }
 
   /** Organ depth on or off (Settings > Figure depth): the baked crease and contact shade and the soft light. It eases in with the clock; `instant` takes it at once (the first call). */
   setDepth(on: boolean, instant = false): void { this.depthGoal = on ? 1 : 0; if (instant) this.fillInstant = true; }
@@ -274,6 +285,7 @@ export class OrganLayer {
         if (cel) wall = mix(c, rgbOf(og[2]), 0.8 * s.cirrhosisNod * cel.ink);   // the cel's line is the organ's own ink tone, bold
         (o.toon.uniforms.sepDelta!.value as Vector3).set(wall[0] - c[0], wall[1] - c[1], wall[2] - c[2]);
         o.toon.uniforms.nodAmt!.value = s.cirrhosisNod;
+        o.toon.uniforms.shadeK!.value = 1 - s.cirrhosisNod * rawNormalShare();   // (the scarred liver's own bumps light it, as much as the look says; eases with the scarring)
       }
       if (id === 'liver' && s.cirrhosisNod > 0.004) { vp.fillLiver(c); on = true; }
       else if (id === 'spleen' && this.infarct.value > 0.004) {

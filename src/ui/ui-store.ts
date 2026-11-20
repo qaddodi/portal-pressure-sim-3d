@@ -67,6 +67,9 @@ export interface UiState {
   setReadings(r: Readings): void;
   /** Called by the card layer once per layout change with the plan it laid out. */
   publishPlan(plan: Plan): void;
+  /** The room the figure is about to have, told when a dock glide sets off (not when it lands), with the glide's length: the camera reframes on the card's own clock (2D dockTo: layout() then reframe(ms)). */
+  roomHint: { free: Rect; ms: number } | null;
+  hintRoom(free: Rect, ms: number): void;
 }
 
 const emptyFree: Rect = { x: 0, y: 0, w: 0, h: 0 };
@@ -117,7 +120,7 @@ export const useUi = create<UiState>((set, get) => ({
   go: (stop) => {
     const { stops, pos, wallet } = get();
     if (!stops.length) return;
-    const to = goto(stops, stop);
+    const to = goto(stops, stop, { case: stop > pos.stop });   // (a jump forward meets a slide's case card; a jump back does not)
     if (samePos(to, pos)) return;
     set({ pos: to, dir: to.stop >= pos.stop ? 1 : -1, wallet: resetForSlide(wallet), page: 0, pageCount: 1 });
   },
@@ -134,6 +137,8 @@ export const useUi = create<UiState>((set, get) => ({
   docked: false,
   dockShown: false,
   setDocked: (on) => set({ docked: on ?? !get().docked }),
+  roomHint: null,
+  hintRoom: (free, ms) => set({ roomHint: { free, ms } }),
 
   setReadings: (r) => {
     const cur = get().readings;

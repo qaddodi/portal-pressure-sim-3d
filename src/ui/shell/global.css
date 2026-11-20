@@ -4,7 +4,6 @@
   --display: 'Source Serif 4', Georgia, serif;
   --safe-t: env(safe-area-inset-top, 0px); --safe-r: env(safe-area-inset-right, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px); --safe-l: env(safe-area-inset-left, 0px);
-  --ease-arrive: cubic-bezier(.2, .7, .2, 1);
   --ease-move: cubic-bezier(.65, 0, .35, 1);
   --z-stage: 1; --z-cards: 10; --z-tags: 5; --z-chrome: 20; --z-perf: 100;
 }

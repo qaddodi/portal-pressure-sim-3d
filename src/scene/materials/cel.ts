@@ -131,15 +131,15 @@ export class CelObject {
   }
 
   /** The 2D figure's line for a thin tube (a strand of a plexus, a varix): the look's casing ink at its casing alpha, blended after the opaque bodies and tested against them (the same rule as the vessels' own, vessels/cel-ink.ts),
-   *  held to `devPx` device pixels on a screen of `dpr`, and no specular glint. Organs and parts keep their solid ink. */
-  setSoftInk(rgb: readonly [number, number, number], alpha: number, devPx: number, dpr: number): void {
+   *  held to `cssPx` CSS pixels (the figure's line, cel-style.ts LINE_MIN: the same weight on every screen; the ink pass converts with the renderer's ratio itself), and no specular glint. Organs and parts keep their solid ink. */
+  setSoftInk(rgb: readonly [number, number, number], alpha: number, cssPx: number): void {
     (this.ink.uniforms.color.value as Color).setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, LinearSRGBColorSpace);
     this.ink.uniforms.inkA!.value = alpha;
     this.ink.transparent = false;   // (a vessel is opaque: its line is solid ink, never blended)
     this.ink.depthWrite = false;
     // one outline round the union, as the vessels' (vessels/vessel-object.ts hullMat): a pixel takes the ink once, strands crossing each other and their vein included
     this.ink.stencilWrite = true; this.ink.stencilRef = 1; this.ink.stencilFunc = NotEqualStencilFunc; this.ink.stencilFail = KeepStencilOp; this.ink.stencilZFail = KeepStencilOp; this.ink.stencilZPass = ReplaceStencilOp;
-    this.basePx = devPx / Math.max(dpr, 1);
+    this.basePx = cssPx;
     this.ink.uniforms.px.value = this.basePx;
     this.toon.uniforms.spec.value = 0;
     this.soft = true;

@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Poin
 import type { Rect } from '../layout/device.ts';
 import type { Entry } from './stack.ts';
 import { reduced } from '../a11y/motion.ts';
-import { rail, STAGGER, PARALLAX, RAIL_MS, IN_MS, OUT_DONE, RAIL_CSS, type Dir } from './rail.ts';
+import { ARRIVE_CSS } from '../../clock/tween.ts';
+import { rail, GLIDE_MS, STAGGER, PARALLAX, RAIL_MS, IN_MS, OUT_DONE, RAIL_CSS, type Dir } from './rail.ts';
 import { useUi } from '../ui-store.ts';
 import { closedPx } from './dock.ts';
 import { layoutOf, radius } from '../layout/rules2d.ts';
@@ -100,7 +101,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   const sink = (prev: number, next: number, opts?: KeyframeAnimationOptions) => {
     const card = cardRef.current, plate = plateRef.current;
     if (!card || !plate) return;
-    const o = opts ?? { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'forwards' }, d = prev - next, a = now.current.anchor, rr = now.current.rr, org = ORIGIN[a];
+    const o = opts ?? { duration: GLIDE_MS, easing: ARRIVE_CSS, fill: 'forwards' }, d = prev - next, a = now.current.anchor, rr = now.current.rr, org = ORIGIN[a];
     anims.current.forEach((x) => x.cancel());
     setAnimH(prev);
     // (the words take their final places at once: the frame is still its old height, so they are moved down by what the frame's top has still to lose)
@@ -114,7 +115,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   const reveal = (prev: number, next: number, opts?: KeyframeAnimationOptions) => {
     const card = cardRef.current, plate = plateRef.current;
     if (!card || !plate) return;
-    const o = opts ?? { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'forwards' };
+    const o = opts ?? { duration: GLIDE_MS, easing: ARRIVE_CSS, fill: 'forwards' };
     anims.current.forEach((a) => a.cancel());
     const a = now.current.anchor, rr = now.current.rr, org = ORIGIN[a], g = next - prev;
     anims.current = [
@@ -165,7 +166,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     if (out) { anims.current.forEach((a) => a.cancel()); anims.current = []; return; }   // (a card on its way out is never clipped by a height glide)
     if (prev == null || prev === rect.h || !live) return;
     if (typeof card.animate !== 'function' || reduced()) return;
-    const opts: KeyframeAnimationOptions = swap ? { duration: IN_MS, delay: OUT_DONE, easing: RAIL_CSS, fill: 'both' } : { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'forwards' };
+    const opts: KeyframeAnimationOptions = swap ? { duration: IN_MS, delay: OUT_DONE, easing: RAIL_CSS, fill: 'both' } : { duration: GLIDE_MS, easing: ARRIVE_CSS, fill: 'forwards' };
     if (rect.h > prev) {
       reveal(prev, rect.h, opts);
     } else {
@@ -210,8 +211,8 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
       <div ref={cardRef} className={`dk-card ${surface}`} data-card={entry.id} data-phase={phase} data-overflow={overflow || undefined}
         role="group" aria-label={label} onClick={onTap} data-zoomable={zoomable || undefined} data-visual={entry.id === 'title' ? 'outline' : entry.id === 'check' ? 'check' : entry.id === 'visual' ? visual || 'table' : undefined} style={{ height: ready ? (animH ?? rect.h) : undefined, ...(anchor === 'mid' && ready ? { top: -(animH ?? rect.h) / 2 } : null), ...(bottomR != null ? { borderRadius: round(r) } : null) }} {...pointer}>
         <div ref={innerRef} className={entry.id === 'ladder' || alone ? 'dk-in' : 'dk-in pz-text'} style={tuck ? { opacity: 0 } : undefined}>{children}</div>
-        {/* 2D's handle in the data card's foot (a touch screen, both cards up): a push up on the card puts it away */}
-        {entry.id === 'ladder' && lay !== 'wide' && lay !== 'short' && <span className="pz-grip" aria-hidden="true" />}
+        {/* 2D's handle in the data card's foot (a touch screen, both cards up): a push up on the card puts it away. Every data card has it (the summary table's too: it docks the same way) */}
+        {(entry.id === 'ladder' || entry.id === 'table') && lay !== 'wide' && lay !== 'short' && <span className="pz-grip" aria-hidden="true" />}
       </div>
     </div>
   );

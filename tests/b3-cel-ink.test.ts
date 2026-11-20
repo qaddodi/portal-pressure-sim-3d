@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Color } from 'three';
-import { CASING, CIRC_RIM_DARK, CASING_2D, CEL, RIM_A, TAPER_TO, celTones, litMeasure, inkTaper, inkWidthDev } from '../src/scene/vessels/cel-ink.ts';
+import { CASING, CIRC_RIM_DARK, CASING_2D, CEL, RIM_A, TAPER_FROM, TAPER_TO, celTones, litMeasure, inkTaper, inkWidthCss, inkWidthDev } from '../src/scene/vessels/cel-ink.ts';
 import { CEL_STYLE } from '../src/scene/cel-style.ts';
 import { CEL_TUBE_GLSL, glslNum as F } from '../src/scene/cel-glsl.ts';
 import { LOOK_IDS, PALETTES } from '../src/scene/palette.ts';
@@ -11,16 +11,32 @@ import { CHEVRON_GLSL } from '../src/scene/blood/chevron-glsl.ts';
 import { CelScene } from '../src/scene/scene.ts';
 
 const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const INK_RE = new RegExp(esc(`clamp(${F(CEL_STYLE.LINE_R)} * rDevV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(0.3, ${F(TAPER_TO)}, rDevV) / dpr`));
-test('the outline is LINE_R of the radius held between LINE_MIN and LINE_MAX device px: a hairline keeps a line, the trunk does not grow a rope', () => {
+const INK_RE = new RegExp(esc(`clamp(${F(CEL_STYLE.LINE_R)} * rCssV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rCssV);`));
+test('the outline is LINE_R of the radius held between LINE_MIN and LINE_MAX CSS px: a hairline keeps a line, the trunk does not grow a rope', () => {
   const { LINE_R, LINE_MIN, LINE_MAX } = CEL_STYLE;
-  assert.equal(inkWidthDev(LINE_MIN / LINE_R / 2 + 1), LINE_MIN, 'the floor');
-  assert.ok(Math.abs(inkWidthDev(LINE_MIN / LINE_R) - LINE_MIN) < 1e-9);
+  assert.equal(inkWidthCss(LINE_MIN / LINE_R / 2 + 1), LINE_MIN, 'the floor');
+  assert.ok(Math.abs(inkWidthCss(LINE_MIN / LINE_R) - LINE_MIN) < 1e-9);
   const mid = (LINE_MIN + LINE_MAX) / 2 / LINE_R;
-  assert.ok(Math.abs(inkWidthDev(mid) - (LINE_MIN + LINE_MAX) / 2) < 1e-9, 'in between it is LINE_R of the radius');
-  assert.equal(inkWidthDev(4 * LINE_MAX / LINE_R), LINE_MAX, 'the cap');
-  assert.ok(LINE_MIN >= 3 && LINE_MAX <= 6.5, 'a confident line, 3 to 6 device px (Mohammad, 20 Nov: veins outlines thicker everywhere)');
+  assert.ok(Math.abs(inkWidthCss(mid) - (LINE_MIN + LINE_MAX) / 2) < 1e-9, 'in between it is LINE_R of the radius');
+  assert.equal(inkWidthCss(4 * LINE_MAX / LINE_R), LINE_MAX, 'the cap');
+  assert.ok(LINE_MIN >= 1.5 && LINE_MAX <= 3.25, 'a confident line, 1.5 to 3 CSS px (Mohammad, 20 Nov: veins outlines thicker everywhere): 3 to 6 device px on a 2x Mac');
   assert.match(VESSEL_VS, INK_RE);
+});
+
+// External review, 20 Nov: "vessel ink is clamped in device pixels", so a 3x iPhone drew the line a third as heavy (in CSS px) as a 1x screen. The clamp is in CSS px and the shaders convert.
+test('the line is one weight in CSS px on a 1x, a 2x and a 3x screen: the device width is the CSS width x the pixel ratio', () => {
+  for (const rCss of [0.2, 0.8, 1.6, 3, 6, 12, 40]) {
+    const css = inkWidthCss(rCss);
+    for (const dpr of [1, 2, 3]) {
+      assert.ok(Math.abs(inkWidthDev(rCss * dpr, dpr) - css * dpr) < 1e-9, `radius ${rCss} CSS px at ${dpr}x: the same ${css.toFixed(3)} CSS px`);
+      assert.ok(Math.abs(inkWidthDev(rCss * dpr, dpr) / dpr - css) < 1e-9);
+    }
+  }
+  // the shader never clamps the radius in device px: the clamp's argument is the CSS radius (vR over the figure's units under one CSS px), and no dpr divides the result
+  assert.doesNotMatch(VESSEL_VS, /rDevV/, 'the vertex stage has no device-px radius for the line');
+  assert.doesNotMatch(VESSEL_VS, /clamp\([^;]*LINE_R[^;]*\/ dpr/);
+  assert.match(VESSEL_FS, /float rCss = vR \/ max\(wpc, 1e-6\);[\s\S]*clamp\([\d.]+ \* rCss, /, 'the Circuit\'s cap carve uses the same CSS clamp');
+  assert.match(VESSEL_FS, /clamp\([\d.]+ \* rDevAx, [\d.]+ \* dpr, [\d.]+ \* dpr\)/, 'the Circuit\'s inner fade is set in CSS px and held in device px with dpr');
 });
 
 test('two tones lit by the world light: the shade below the step, the base above it, nothing on a hairline, and the same wherever the camera is', () => {
@@ -44,11 +60,11 @@ test('the shader holds the same numbers, and has no specular, no rim, no wall li
   assert.doesNotMatch(VESSEL_FS, /celTubeSpec|rimLight|wallT|fresnel|FAR_WALL|NEAR_WALL/, 'matte: no highlight, no rim light, no wall pass');
   assert.ok(!/sp \* 0\.32/.test(VESSEL_FS) && !/rim \* 0\.10/.test(VESSEL_FS), 'no old specular dot and no rim lift');
   assert.match(VESSEL_FS, /if \(smokeOn > 0\.5 &&/, 'the smoke is gated');
-  assert.match(VESSEL_FS, /dk = 1\.0 - step\(0\.26/, 'a head is one flat tone, not a grey halfway');
+  assert.match(VESSEL_FS, /chevInk\(cream, markDark, markLight\)/, 'a head is one flat tone: the vessel\'s latched ink, eased in time, and a band of +-0.02 where it has none (tests/chevron-ink.test.ts), never a grey halfway');
   assert.match(VESSEL_FS, /vec3 rimc = CHEV_RIM;/, 'the head\'s outline is always dark');
   assert.match(CHEVRON_GLSL, /const vec3 CHEV_RIM = vec3\(0\.2314, 0\.1725, 0\.1333\);/);
   assert.ok(!/dot\(n, l\) \* 0\.5/.test(VESSEL_FS), 'no world-lit bands');
-  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade \* cavA\);/, 'opaque at rest: vFade is 1 outside a fade zone, cavaCut 0 on every vessel but a hepatic vein that opens into the cava');
+  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, fadeHere \* cavA\);/, 'opaque at rest: vFade is 1 outside a fade zone, cavaCut 0 on every vessel but a hepatic vein that opens into the cava');
 });
 
 test('every look wears 2D\'s casing: its ink and alpha (the dark look\'s own in the Circuit, by its share, not by a lens being on), a veiled vessel half, and the dark looks\' light rim', () => {
@@ -86,20 +102,20 @@ test('a vessel is ONE draw of one opaque matte tube: one mesh, one material, no 
   s.dispose();
 });
 
-test('a sub-pixel lumen keeps its colour: the line thins under LINE_MIN device px of radius, so at 0.5 px the lumen is most of the width, and from there up it is the figure\'s line', () => {
-  const share = (r: number) => (2 * r) / (2 * r + 2 * inkWidthDev(r));   // colour's share of the outer width
+test('a sub-pixel lumen keeps its colour: the line thins under LINE_MIN CSS px of radius, so at 0.25 px the lumen is most of the width, and from there up it is the figure\'s line', () => {
+  const share = (r: number) => (2 * r) / (2 * r + 2 * inkWidthCss(r));   // colour's share of the outer width
   assert.equal(TAPER_TO, CEL_STYLE.LINE_MIN, 'the taper ends where the line\'s floor starts');
-  assert.ok(share(0.5) > 0.8, `0.5 px radius: ${share(0.5)} (a bare ${CEL_STYLE.LINE_MIN} px floor would leave ${(1 / (1 + CEL_STYLE.LINE_MIN)).toFixed(2)})`);
-  assert.ok(share(0.3) > 0.99, 'a lumen of 0.3 px radius is all colour');
-  assert.equal(inkTaper(TAPER_TO), 1); assert.equal(inkWidthDev(TAPER_TO), CEL_STYLE.LINE_MIN);
-  assert.equal(inkWidthDev(TAPER_TO + 0.5), CEL_STYLE.LINE_MIN, 'the figure\'s line from there on');
-  let last = 0; for (let r = 0; r <= 4; r += 0.1) { const w = inkWidthDev(r); assert.ok(w >= last - 1e-12, 'the line never thins as the vessel widens'); last = w; }
+  assert.ok(share(0.25) > 0.8, `0.25 px radius: ${share(0.25)} (a bare ${CEL_STYLE.LINE_MIN} px floor would leave ${(1 / (1 + CEL_STYLE.LINE_MIN)).toFixed(2)})`);
+  assert.ok(share(0.15) > 0.99, 'a lumen of 0.15 px radius is all colour');
+  assert.equal(inkTaper(TAPER_TO), 1); assert.equal(inkWidthCss(TAPER_TO), CEL_STYLE.LINE_MIN);
+  assert.equal(inkWidthCss(TAPER_TO + 0.25), CEL_STYLE.LINE_MIN, 'the figure\'s line from there on');
+  let last = 0; for (let r = 0; r <= 2; r += 0.05) { const w = inkWidthCss(r); assert.ok(w >= last - 1e-12, 'the line never thins as the vessel widens'); last = w; }
 });
 
 test('the vessel shader holds the same taper and leaves the picked ring alone', async () => {
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
-  assert.ok(src.includes('smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rDevV) / dpr') && src.includes('clamp(${F(CEL_STYLE.LINE_R)} * rDevV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)})'), 'the source writes the line from the style');
+  assert.ok(src.includes('smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rCssV)') && src.includes('clamp(${F(CEL_STYLE.LINE_R)} * rCssV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)})'), 'the source writes the line from the style');
   assert.match(VESSEL_VS, INK_RE);
   assert.match(src, /\(inkPx \* endK \+ hiPx \* vHi\)/);
 });

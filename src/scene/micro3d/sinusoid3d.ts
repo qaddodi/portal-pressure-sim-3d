@@ -37,6 +37,31 @@ export const PERIOD = UM.hep + 2 * (UM.disse + UM.endo) + 2 * UM.lum;
 export const ACROSS = UM.lum + UM.endo + UM.disse + UM.hep + BEYOND * PERIOD + 12;
 /** Depths (µm, toward the viewer): the plates' tops, the lining's crest, Disse's floor, the ground under the clefts, the trough's depth as a share of the lumen's half width. */
 export const Z = { cell: 0.55, cellBot: -1.3, bead: 0.5, disse: -1.0, ground: -12.0, trough: 0.92, nucleus: 0.55 } as const;
+/**
+ * The endothelial cell is the wall itself (Mohammad, 20 Nov 2026: the lavender discs "clip through their own body, which is the wall"). The lining is one surface: a flat bead, and at each
+ * nucleus the SAME surface swells, reaching `dy` µm further into the lumen and `dz` µm higher, over `half` µm each way, as a raised cosine (no start, no end, no crease). The cell's colour and outline
+ * and the nucleus are drawn ON that surface (patches that follow it and lift off it by their own few hundredths of a µm), never as a separate solid pushed through it.
+ * Every part reads the one surface here (`wallPoint`), so the wall and what sits on it cannot disagree.
+ */
+export const ENDO = { half: 4.6, dy: 1.0, dz: 0.5, cellLift: 0.08, nucLift: 0.3, nucHalf: 3.1, nucV: 0.6 } as const;
+/** How far the lining swells at x (0 bare wall to 1 the nucleus's middle): a raised cosine round the nearest nucleus of the lining (seed nsd). */
+export function endoSwell(x: number, nsd: number): number {
+  const n = Math.floor(x / 38);
+  let sw = 0;
+  for (let k = -1; k <= 1; k++) {
+    const u = Math.abs(x - nucAt(n + k, nsd)) / ENDO.half;
+    if (u < 1) sw = Math.max(sw, 0.5 * (1 + Math.cos(Math.PI * u)));
+  }
+  return sw;
+}
+/** The lining's own geometry (the host's). */
+export interface WallGeo { halfW(x: number): number; wallIn(x: number): number }
+/** A point of the lining's surface in the sinusoid's frame (y down, as 2D's): x along, `yd` the distance from the axis, z toward the viewer. `th` runs across the bead from the lumen's edge (0) over its crest
+ *  (π/2) to Disse's side (π); `sw` is the swell at x. */
+export function wallPoint(g: WallGeo, x: number, th: number, sw: number): [number, number, number] {
+  const y0 = g.halfW(x) - ENDO.dy * sw, y1 = g.wallIn(x), zc = Z.bead + ENDO.dz * sw;
+  return [x, y0 + ((y1 - y0) / 2) * (1 - Math.cos(th)), zc * Math.sin(th)];
+}
 /** The red cells in the stream (2D's palette has their colour; the host draws none). */
 /** How far (µm) the scene stands toward the viewer from the lobule's plate. */
 // (26: the whole scene, its ground 12 µm down included, stands over the lobule's tubes (their tops about 11 µm up in these units) and tiles: at 8 the tube showed through the lumen and the
@@ -47,7 +72,19 @@ const LIFT = 26;
 export const RIM_FULL_PX = 2.5;
 /** The same for the albumin beads (about 0.4 µm round): whole from 8 CSS px per µm (eyes 20 Nov: they were the dark dots across the lumen in the dive, at 4 px per µm all line). */
 export const ALB_RIM_FULL_PX = 8;
-export const REVEAL_FROM = 0.3, REVEAL_TO = 0.86;   // (from 0.3: over 0.6-0.86 it grew in less than one 100 ms frame, the dive's share runs fast at its end, eyes 20 Nov)
+/** The dive's focus pull (Mohammad 20 Nov 2026: the disc and the band read as a window and "an old TV"): over FOCUS[0]-FOCUS[1] of the dive's share the whole picture goes soft, over
+ *  FOCUS[1]-FOCUS[2] the sinusoid comes in over the lobule inside that blur (its screen-door fade, which the blur turns into a true dissolve), and over FOCUS[2]-1 it sharpens to its own
+ *  focus band: one picture coming into focus, no edge or shape anywhere. Going out it runs back the same way. */
+export const FOCUS = [0.2, 0.45, 0.68] as const;
+/** The focus pull's blur at the dissolve's middle, against the rest's (Mohammad 20 Nov: the blur came in "kinda quickly too strongly"): only as soft as the dissolve needs, eased in with
+ *  a smootherstep from FOCUS[0] so it has no start, peaking at the dissolve's middle, then held while the sinusoid's own band opens over FOCUS[2]-1 and its sides settle to the rest's. */
+export const FOCUS_PEAK = 0.4;
+const smoother = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * t * (t * (t * 6 - 15) + 10); };
+/** The blur's strength at dive share `d` (FOCUS_PEAK at the dissolve's middle, 1 landed, as at rest). */
+export function focusBlur(d: number): number {
+  const mid = (FOCUS[1] + FOCUS[2]) / 2;
+  return d < mid ? FOCUS_PEAK * smoother(FOCUS[0], mid, d) : FOCUS_PEAK + (1 - FOCUS_PEAK) * smoother(FOCUS[2], 1, d);
+}
 /** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), the lymph streaks' pace against the lymph's own run, and the haze: how far out it takes to be whole (µm) and how deep it goes. */
 const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_K = 0.45;
 /** The focus band's run (µm) to a whole blur: from the middle of the first hepatocyte row out to the middle of the next sinusoid's lumen, rising fast at first (post-dof.ts bandCoc eases out), so
@@ -166,8 +203,8 @@ export class Sinusoid3D {
     // the scene is built in micrometres, the plane's y up: one group scales it to the host's units (it turns with the host's group in a portrait room)
     this.group.scale.setScalar(U);
     // (while the camera dives in it stands a little proud of the lobule's plate it sits in, so it is drawn over the lobule, never through it; at rest it lies in the host's own plane, where the names are pinned)
-    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, reveal: this.reveal, rimK: this.rimK, ...o }), `sinusoid3d/${name}`);
-    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, reveal: this.reveal, rimK: this.rimK, ...o }), cap, `sinusoid3d/${name}`);
+    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, ...o }), `sinusoid3d/${name}`);
+    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, ...o }), cap, `sinusoid3d/${name}`);
     const S = CEL_STYLE.MICRO;
     this.ground = mk('ground', { ink: null });
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
@@ -239,8 +276,6 @@ export class Sinusoid3D {
     g.position.x = fx * (1 - k); g.position.y = fy * (1 - k);
   }
   private readonly eyeL = new Vector3();
-  /** How far across the flow (µm) the scene is drawn while the camera lands (cel3d unrevealed; 0: whole). */
-  private readonly reveal = { value: 0 };
   /** The lines' share by the scene's size on screen (cel3d uRimK): whole from RIM_FULL_PX CSS px per µm, none at a third of it. */
   private readonly rimK = { value: 1 };
   /** The same for the albumin beads, whole from ALB_RIM_FULL_PX. */
@@ -257,10 +292,8 @@ export class Sinusoid3D {
     if (!shown) return changed;
     // the dive: the scene comes in over the lobule as the camera lands (the host's own share), whole at rest
     const d = f.dive;
-    // (no crossfade of the whole frame: it showed both scenes at once, a pale ghosted double image, eyes 20 Nov. The scene grows out from its lumen instead, over the lobule's tube, which is
-    //  the same width on screen there (scene-dive-handoff.test.ts): the lumen first, then the lining, Disse and the plates outward, whole by REVEAL_TO, when the lobule stands aside under it)
-    this.fade.value = d == null || d >= REVEAL_FROM ? 1 : 0;
-    this.reveal.value = d == null ? 0 : Math.max(1e-3, Math.hypot(REACH + 30, ACROSS + 30) * smooth(REVEAL_FROM, REVEAL_TO, d));
+    // (the sinusoid comes in inside the blur, FOCUS: dithered, which the blur over it turns into a smooth dissolve; whole before the picture sharpens)
+    this.fade.value = d == null ? 1 : smooth(FOCUS[1], FOCUS[2], d);
     { const k = f.pxPerUm; this.rimK.value = k > 0 ? smooth(RIM_FULL_PX / 3, RIM_FULL_PX, k) : d != null ? 0 : 1; this.rimKAlb.value = k > 0 ? smooth(ALB_RIM_FULL_PX / 3, ALB_RIM_FULL_PX, k) : d != null ? 0 : 1; }   // (a smooth ramp in the scene's size, never a switch; unmeasured in a dive (its first frame), none, so a line never shows whole for a frame and then thins)   // (a red cell 7 µm across keeps its whole line from about 17 px wide; smaller, the line goes before the cell is a dot)
     this.group.position.z = d == null ? 0 : LIFT * U * (1 - smooth(0.9, 1, d));   // (down only once the lobule has stood aside, scene.ts LOBULE_UNDER_FROM + 0.04)
     const dark = LOOKS[f.look].scheme === 'dark';
@@ -333,11 +366,15 @@ export class Sinusoid3D {
   focusBand(a: Vector3, b: Vector3, e0: Vector3, e1: Vector3, ends?: { mid: Vector3; f0: Vector3; f1: Vector3 }): number {
     if (!this.on || !this.group.visible) return 0;
     this.group.updateWorldMatrix(true, false);
-    const y0 = this.flat.g.hepIn(0) + UM.hep * 0.5, w = (v: Vector3, x: number, y: number) => this.group.localToWorld(v.set(x, y, 0));
+    const d = this.flat.dive, rest = this.flat.g.hepIn(0) + UM.hep * 0.5, w = (v: Vector3, x: number, y: number) => this.group.localToWorld(v.set(x, y, 0));
+    // (in a dive, the focus pull: the band's sharp part and its ends closed to nothing (the whole picture soft) at the strength rising over FOCUS[0]-FOCUS[1], then opening back out to
+    //  the rest's over FOCUS[2]-1, so the sinusoid sharpens out of the blur it came in under)
+    const open = d == null ? 1 : smooth(FOCUS[2], 1, d);
+    const y0 = rest * open;
     w(a, -20, 0); w(b, 20, 0); w(e0, 0, y0); w(e1, 0, y0 + BLUR_RUN);
     // the two ends melt away well before the scene stops (Mohammad 20 Nov: "don't let me see the end of the sinusoid like that ... blur the ends")
-    if (ends) { w(ends.mid, 0, 0); w(ends.f0, REACH - END_BLUR[0], 0); w(ends.f1, REACH - END_BLUR[1], 0); }
-    return this.fade.value;
+    if (ends) { w(ends.mid, 0, 0); w(ends.f0, (REACH - END_BLUR[0]) * open, 0); w(ends.f1, Math.max((REACH - END_BLUR[1]) * open, (REACH - END_BLUR[0]) * open + 2), 0); }
+    return d == null ? this.fade.value : focusBlur(d);
   }
 
   // ---- colours -------------------------------------------------------------------------------------------------------------------
@@ -397,18 +434,25 @@ export class Sinusoid3D {
       b.build(this.trough.geometry);
     }
 
-    // the endothelium: a rounded bead along each rim, from the lumen's edge to Disse, and its short wall down to Disse's floor
+    // the endothelium: a rounded bead along each rim, from the lumen's edge to Disse, and its short wall down to Disse's floor. At each nucleus the bead itself swells (ENDO): the cell is the wall.
     {
       const b = new MeshBuilder(), K = 8;
+      // (columns every µm, every half µm where the lining swells: the raised cosine reads smooth, not as a tent)
+      const bxs: number[] = [];
+      for (let i = 0; i < xs.length; i++) {
+        const x = xs[i]!;
+        bxs.push(x);
+        if (i + 1 < xs.length && (endoSwell(x, SEED.nucUp) > 0 || endoSwell(xs[i + 1]!, SEED.nucUp) > 0 || endoSwell(x, SEED.nucDn) > 0 || endoSwell(xs[i + 1]!, SEED.nucDn) > 0)) bxs.push(x + 0.5);
+      }
       for (const s of [-1, 1] as Side[]) {
+        const nsd = s < 0 ? SEED.nucUp : SEED.nucDn, swAt = (x: number) => endoSwell(x, nsd);
         const rows: number[] = [];
-        for (const x of xs) {
+        for (const x of bxs) {
           rows.push(b.count);
-          const h = g.halfW(x), w = g.wallIn(x) - h;
+          const sw = swAt(x);
           for (let k = 0; k <= K; k++) {
-            const th = (k / K) * Math.PI, yA = h + (w / 2) * (1 - Math.cos(th)), z = Z.bead * Math.sin(th);
-            const ny = -Math.cos(th) * Z.bead, nz = (w / 2) * Math.sin(th) + 1e-3;
-            b.v(x, Y(s * yA), z, 0, Y(s * ny), nz);
+            const th = (k / K) * Math.PI, P = wallPoint(g, x, th, sw), N = wallNormal(g, swAt, x, th);
+            b.v(x, Y(s * P[1]), P[2], N[0], Y(s * N[1]), N[2]);
           }
           // down the Disse side
           const yW = g.wallIn(x);
@@ -493,14 +537,19 @@ export class Sinusoid3D {
       cells.build(this.cells.geometry); nuc.build(this.nuclei.geometry); nol.build(this.nucleoli.geometry); bile.build(this.bile.geometry);
     }
 
-    // the endothelial cells: a lens on the lining round each nucleus, bulging into the lumen
+    // the endothelial cells: not solids set against the lining but the lining itself, outlined in the cell's colour where it swells, and the nucleus a low dome of that same surface (patches that follow it, ENDO)
     {
       const b = new MeshBuilder(), bi = new MeshBuilder();
       for (const [s, nsd] of [[-1, SEED.nucUp], [1, SEED.nucDn]] as [Side, number][]) {
         for (let n = Math.floor(X0 / 38) - 1; n <= Math.ceil(X1 / 38) + 1; n++) {
-          const x = nucAt(n, nsd), h = g.halfW(x);
-          ellipsoid(b, x, Y(s * (h - 0.35)), -0.35, 4.6, 1.45, 1.05, 0, undefined, 72, 10, true, true, true);   // (72 round: on a long lens 24 left its equator a chord 1.2 µm long between corners, and the line drawn in the fill came and went along it in beads, eyes 20 Nov)
-          ellipsoid(bi, x, Y(s * (h - 0.45)), -0.2, 3.1, 0.82, 0.98, 0, undefined, 18, 8);
+          const xn = nucAt(n, nsd);
+          // (the cell: the whole width of the wall at the nucleus, tapering to nothing at its ends like a lens; 72 round so the line drawn in the fill stays even along it)
+          surfacePatch(b, g, s, nsd, xn, ENDO.half, 1, 72, 10, (rc) => ENDO.cellLift * smooth(0, 0.12, 1 - rc), 1);
+          // (the nucleus: a dome rising from the cell's surface, ending on it)
+          surfacePatch(bi, g, s, nsd, xn, ENDO.nucHalf, ENDO.nucV, 24, 8, (rn, xx, vv) => {
+            const rc = Math.hypot((xx - xn) / ENDO.half, vv);
+            return ENDO.cellLift * smooth(0, 0.12, 1 - rc) + 0.01 * smooth(0, 0.1, 1 - rn) + ENDO.nucLift * (1 - rn * rn) ** 2;
+          }, 0);
         }
       }
       b.build(this.endoN.geometry); bi.build(this.endoNi.geometry);
@@ -703,6 +752,52 @@ function band(b: MeshBuilder, xs: readonly number[], y0: (x: number) => number, 
   const r0 = b.count;
   for (const x of xs) { b.v(x, y0(x), z, 0, 0, 1); b.v(x, y1(x), z, 0, 0, 1); if (aux) b.aux.push(-1, 1); }
   for (let i = 0; i < xs.length - 1; i++) { const a = r0 + i * 2; if (y1(xs[i]!) > y0(xs[i]!)) b.quad(a, a + 2, a + 3, a + 1); else b.quad(a, a + 1, a + 3, a + 2); }
+}
+
+/** The lining's surface normal at (x, th), in the sinusoid's frame (y down): the cross of its two slopes, along x and across, so the swell is lit as the surface it is (`swAt` the swell along the
+ *  lining; `lift` what a patch rides above it, so a dome on the wall is lit as a dome). */
+export function wallNormal(g: WallGeo, swAt: (x: number) => number, x: number, th: number, lift?: (x: number, th: number) => number): [number, number, number] {
+  const F = (xx: number, tt: number): [number, number, number] => {
+    const P = wallPoint(g, xx, tt, swAt(xx));
+    return lift ? [P[0], P[1], P[2] + lift(xx, tt)] : P;
+  };
+  const e = 0.02, t0 = Math.max(0, th - 0.02), t1 = Math.min(Math.PI, th + 0.02);
+  const a = F(x + e, th), b = F(x - e, th), c = F(x, t1), d = F(x, t0);
+  const px = [a[0] - b[0], a[1] - b[1], a[2] - b[2]] as const, pt = [c[0] - d[0], c[1] - d[1], c[2] - d[2]] as const;
+  const n: [number, number, number] = [px[1] * pt[2] - px[2] * pt[1], px[2] * pt[0] - px[0] * pt[2], px[0] * pt[1] - px[1] * pt[0]];
+  const l = Math.hypot(n[0], n[1], n[2]) || 1;
+  return [n[0] / l, n[1] / l, n[2] / l];
+}
+
+/**
+ * A patch that rides on the lining's surface round an endothelial nucleus: an ellipse of `halfX` µm along and `vScale` of the wall's width across, in polar rings (so `aux`, `aux2` carry where each
+ * vertex lies in its unit circle for the line drawn in the fill), every vertex ON the wall's surface (wallPoint) plus `lift(r, x, v)` µm. It ends on the wall (its lift 0 at its edge), so it
+ * can never be a solid pushed through it. Returns nothing: it is written into `b`.
+ */
+export function surfacePatch(
+  b: MeshBuilder, g: WallGeo, s: Side, nsd: number, xn: number, halfX: number, vScale: number, seg: number, rings: number,
+  lift: (r: number, x: number, v: number) => number, uv: 0 | 1,
+): void {
+  const base = b.count, swAt = (x: number) => endoSwell(x, nsd);
+  // (the lift as a function of where on the wall a point is, so the normal can lean with it)
+  const liftAt = (x: number, th: number): number => {
+    const v = -Math.cos(th), r = Math.min(1, Math.hypot((x - xn) / halfX, v / vScale));
+    return lift(r, x, v);
+  };
+  for (let r = 0; r <= rings; r++) {
+    const rad = r / rings;
+    for (let i = 0; i <= seg; i++) {
+      const ph = (i / seg) * Math.PI * 2, u = rad * Math.cos(ph), vv = rad * Math.sin(ph);
+      const x = xn + halfX * u, th = Math.acos(-Math.max(-1, Math.min(1, vScale * vv)));
+      const P = wallPoint(g, x, th, swAt(x)), N = wallNormal(g, swAt, x, th, liftAt);
+      b.v(x, Y(s * P[1]), P[2] + lift(rad, x, vScale * vv), N[0], Y(s * N[1]), N[2]);
+      if (uv) { b.aux.push(u); b.aux2.push(vv); }
+    }
+  }
+  for (let r = 0; r < rings; r++) for (let i = 0; i < seg; i++) {
+    const a0 = base + r * (seg + 1) + i, b0 = a0 + seg + 1;
+    b.quad(a0, b0, b0 + 1, a0 + 1);
+  }
 }
 
 /** Half the contact between two hepatocytes (µm): next to nothing, so neighbours touch and their two lines read as one thin line (Mohammad 20 Nov 2026: "the hepatocytes should be next

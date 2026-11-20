@@ -4,7 +4,7 @@ import type { Texture } from 'three';
 import { Streams } from './streams.ts';
 import { StreamChain } from './chain.ts';
 
-export interface BloodShared { streamTex: { value: Texture }; chainTex: { value: Texture }; projY: { value: number }; /** device pixels to a CSS pixel: the vessels' line is held in device px (cel-ink.ts) */ dpr: { value: number }; /** how much of the streak layer shows (the streaks are part of the tube, vessels/shaders.ts): the cells layer's eased amount, set by blood/cells/cells.ts */ streakAmt: { value: number } }
+export interface BloodShared { streamTex: { value: Texture }; chainTex: { value: Texture }; projY: { value: number }; /** device pixels to a CSS pixel: the vessels' line is set in CSS px and converted with it (cel-ink.ts) */ dpr: { value: number }; /** how much of the streak layer shows (the streaks are part of the tube, vessels/shaders.ts): the cells layer's eased amount, set by blood/cells/cells.ts */ streakAmt: { value: number } }
 
 export class BloodField {
   readonly streams = new Streams();

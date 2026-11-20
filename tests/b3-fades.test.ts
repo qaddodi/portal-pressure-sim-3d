@@ -51,8 +51,8 @@ test('the shader carries the fade into both the body and the ink, and lets go of
   assert.match(VESSEL_VS, /vFade = fa;/);
   assert.doesNotMatch(VESSEL_VS, /swell \*= mix\([^;]*fa\)/, 'a fade never thins the tube: full width to the end');
   assert.match(VESSEL_VS, /fa = mix\(fa, 1\.0, circT\)/, "the Circuit lets go of every fade, the artery's too: no vessel is faint on the map");
-  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade \* cavA\);/, 'the body fades by its alpha');
-  assert.match(VESSEL_FS, /c = mix\(c, mix\(inkH, inkColorCirc, circT\), inkT\);[\s\S]*gl_FragColor = vec4\(c, vFade \* cavA\);/, 'the outline is painted into the body\'s colour, so it has the body\'s alpha: no ink ring floats at a faded end');
+  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, fadeHere \* cavA\);/, 'the body fades by its alpha');
+  assert.match(VESSEL_FS, /c = mix\(c, mix\(inkH, inkColorCirc, circT\), inkT\);[\s\S]*gl_FragColor = vec4\(c, fadeHere \* cavA\);/, 'the outline is painted into the body\'s colour, so it has the body\'s alpha: no ink ring floats at a faded end');
 });
 
 test('the superior cava runs into the right atrium as solid as the inferior cava meets it: no fade to 0.3 at the atrium (a hard step in colour there)', () => {
@@ -72,13 +72,13 @@ test('the cava is a background vessel: faint everywhere but where the superior c
   for (const id of ['IVC_IS', 'IVC_IS_1']) { const f = fadeOf(id, false)!; assert.ok(f && f.a0 === CAVA_RECEDE && f.a1 === CAVA_RECEDE, id); }
   const ra = fadeOf('IVCS_RA', false)!;
   assert.deepEqual([ra.a0, ra.a1], [CAVA_RECEDE, 1], 'it climbs back to full at the right atrium');
-  for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) assert.ok(cavaEndSpan(id) > 0 && cavaEndSpan(id) <= 1, `${id} eases into the cava`);
+  for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) { assert.equal(cavaEndSpan(id), 0, `${id} has no end ramp: it is a solid vein to the cava's wall (Mohammad, 20 Nov: a pale, flat, see-through wedge)`); assert.equal(fadeOf(id, false)!.a1, 1, `${id} keeps its opacity to the wall`); }
   assert.equal(cavaEndSpan('RHV_IVC_1'), 0, 'the first piece of the right hepatic vein ends at the TIPS junction, mid-vein: it is not a vein into the cava (a rule keyed by the vein\'s name broke its outline at the join)');
   assert.equal(cavaEndSpan('PV_TRUNK'), 0);
   assert.equal(cavaEndSpan('LRV_IVC'), 0, 'the renal veins are receded to the same tone already');
   const s = new CelScene();
   const u = (id: string) => s.vesselObject(id)!.toon.uniforms as unknown as { fadeA: { value: { z: number; w: number } }; cavaEnd: { value: { x: number; y: number } } };
-  assert.ok(Math.abs(u('RHV_IVC').cavaEnd.value.y - CAVA_RECEDE) < 1e-9 && u('RHV_IVC').cavaEnd.value.x > 0);
+  assert.equal(u('RHV_IVC').cavaEnd.value.x, 0, 'no end ramp on a vein into the cava');
   assert.ok(Math.abs(u('IVC_IS').fadeA.value.z - CAVA_RECEDE) < 1e-9, 'the cava rests faint');
   s.setNamedVessels(['IVC_IS']);
   for (let t = 0; t <= 3000; t += 16) s.update(t);

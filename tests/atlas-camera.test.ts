@@ -137,7 +137,7 @@ test('every station keeps its dot at every zoom: "Lower IVC" stands on the cava 
   const at = (k: number) => {
     const rig = new Rig('play', room); rig.resize(vp.w, vp.h); rig.goTo('play', room, 0, 0); rig.update(0); rig.setHand({ k, x: 0, y: 0 }); rig.update(0);
     let t = 1000;
-    const deps = { now: () => t, project: (p: Vec, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: vp.w, y1: vp.h }), view: () => ({ x0: 0, y0: 56, x1: vp.w, y1: vp.h }), vp: () => vp, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0 } as unknown as LDeps;
+    const deps = { now: () => t, project: (p: Vec, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: vp.w, y1: vp.h }), view: () => ({ x0: 0, y0: 56, x1: vp.w, y1: vp.h }), vp: () => vp, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0, level: () => 'all' } as unknown as LDeps;
     const ctl = new LabelController(deps); ctl.setState({ ...NO_LABEL_STATE, organNames: true });
     for (let i = 0; i < 120; i++) { t += 16; ctl.tick(); }
     const out = new Map<string, { x: number; y: number }>();

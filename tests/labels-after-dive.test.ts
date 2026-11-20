@@ -19,7 +19,7 @@ function world() {
   const deps: LabelDeps = {
     now: () => t, project: (p: Vector3, o) => rig.project(p, o), cameraMoving: () => rig.isMoving,
     free: () => ({ x0: 0, y0: 0, x1: vp.w, y1: vp.h }), view: () => ({ x0: 0, y0: 56, x1: vp.w, y1: vp.h }), vp: () => vp, reversed: () => false, words: () => null,
-    blockers: () => cards, measure, pressure: (n) => (n.length * 1.7) % 20, reading: () => null, cathere: () => 0,
+    blockers: () => cards, measure, pressure: (n) => (n.length * 1.7) % 20, reading: () => null, cathere: () => 0, level: () => 'all',
   };
   const ctl = new LabelController(deps);
   ctl.setState({ ...NO_STATE, organNames: true });

@@ -34,13 +34,15 @@ export interface LabelsState {
   /** A centred panel (the outline, a table, a chart, the quick check) stands over the figure: its names stand aside, as they do for the catheter (they ease out, and back). */
   panel: boolean;
   proc: ProcCards | null;
+  /** A talk is on: the figure names exactly what the slide names (2D `presenting` + `presentLabels`), never its free-play set. */
+  presenting: boolean;
   /** Blood menu option: organ names on the figure (off until the Blood menu lands in batch B1/B3). */
   organNames: boolean;
   set(p: Partial<Omit<LabelsState, 'set'>>): void;
 }
 
 export const useLabels = create<LabelsState>((set) => ({
-  named: new Set(), shown: new Set(), tones: {}, cath: null, key: null, organNames: false, quiet: false, panel: false, proc: null,
+  named: new Set(), shown: new Set(), tones: {}, cath: null, key: null, organNames: false, quiet: false, panel: false, proc: null, presenting: false,
   set: (p) => set(p),
 }));
 

@@ -41,3 +41,11 @@ export function disseRadius(rho: number): number {
   const t = Math.min(1, Math.max(0, (rho - 0.07) / 0.17)), sm = t * t * (3 - 2 * t);
   return RS_N * sinK(rho) + RS0 * (0.12 + 0.42) * (0.55 + 0.45 * sm);
 }
+
+/** How much of congestion's widening a sinusoid takes at rho (0 to 0.95): most round the central vein (zone 3), none at the portal side, smoothly in between. It was one number per
+ *  sinusoid generation (2D's CONG_Z3: 0, 0.4, 0.95), so in a congested liver (Budd-Chiari) each generation stood at its own width and stepped where it met the next, Mohammad 20 Nov 2026:
+ *  "the blood vessels in Budd-Chiari don't smoothly connect", "seamless and smooth calibers". The same shares at each generation's middle (0.75, 0.47, 0.19). */
+export function congShare(rho: number): number {
+  const t = Math.min(1, Math.max(0, (0.8 - rho) / (0.8 - 0.12)));
+  return 0.95 * t * t * (3 - 2 * t);
+}

@@ -1,7 +1,7 @@
 // The top bar, on the 2D app's own markup and class names (index.html #topbar): the patient pill (.tb-id), the figure's pill (.stage-bar.top > .sb-right: Layers, Blood and the colour key) and the actions pill
 // (.top-right: Treat, Tests, History, Settings, Search). Its stylesheet is the 2D app's (src/ui/css2d), copied unchanged; nothing here styles it.
 import { UI } from '../strings.generated.ts';
-import { useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useShell, LENS_IDS } from './store.ts';
 import { useLens } from '../../scene/lenses/store.ts';
 import { sceneApi } from '../../scene/api.ts';
@@ -21,6 +21,7 @@ import { LensKey } from './LensKey.tsx';
 import { useBarFit } from './use-bar-fit.ts';
 import { shortName, COMPACT } from './scenario-names.ts';
 import { yoursName } from '../readings/yours.ts';
+import { startTopbarMotion } from './topbar-motion.ts';
 
 interface Tb { id: string; label: string | null; title: string | null; text: string | null }
 export const tb = (id: string): Tb => UI.topbar.find((t) => t.id === id) as unknown as Tb;
@@ -115,6 +116,8 @@ export function TopBar() {
   const patient = UI.presets.find((p) => p.id === patientId)?.label ?? yoursName(patientId);
   const menu = tb('btnMenu');
   const barRef = useBarFit([patient, patientId, view, mode]);
+  // a button that comes or goes, a longer name, a new fit step: the bar glides to it (2D topbar-motion.js)
+  useEffect(() => startTopbarMotion(), []);
   const short = shortName(patient || 'Custom');
   return (
     <header ref={barRef} className="topbar float-ui stage-blocker" id="topbar" data-hidden={mode === 'deck' || undefined} aria-label="Top bar">

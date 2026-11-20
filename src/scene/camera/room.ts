@@ -12,7 +12,7 @@ export const FILL = 0.92;
 export function fullRoom(width: number, height: number): Room { return { x: 0, y: 0, w: width, h: height }; }
 
 /** The nearest camera distance at which the shot's half extents fit in the room. */
-export function fitDistance(half: [number, number], room: Room, viewportH: number): number {
+export function fitDistance(half: [number, number], room: Pick<Room, 'w' | 'h'>, viewportH: number): number {
   const tan = Math.tan((FOV * Math.PI) / 360);
   const perPx = viewportH / (2 * tan); // pixels per world unit at distance 1
   const needW = (half[0] * 2) / (Math.max(room.w, 1) * FILL);
@@ -21,7 +21,7 @@ export function fitDistance(half: [number, number], room: Room, viewportH: numbe
 }
 
 /** The distance to use: the shot's own, or further out when the free room is too small for it. */
-export function effectiveDistance(shot: Pick<Shot, 'r' | 'half' | 'halfNarrow'>, room: Room, viewportH: number, viewportW = Infinity): number {
+export function effectiveDistance(shot: Pick<Shot, 'r' | 'half' | 'halfNarrow'>, room: Pick<Room, 'w' | 'h'>, viewportH: number, viewportW = Infinity): number {
   const half = shot.halfNarrow && viewportW < NARROW_STAGE ? shot.halfNarrow : shot.half;
   return Math.max(shot.r, fitDistance(half, room, viewportH));
 }

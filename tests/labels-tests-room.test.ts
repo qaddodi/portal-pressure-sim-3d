@@ -35,7 +35,7 @@ for (const sc of SCREENS) {
     const view = labelView(vp, BAR, sc.place);
     const blockers = placeBlockers(sc.place);
     let t = 1000;
-    const deps = { now: () => t, project: (pt: Vector3, o: { x: number; y: number }) => rig.project(pt, o), cameraMoving: () => rig.isMoving, free: () => rectToBox(room), view: () => view, vp: () => vp, reversed: () => false, words: () => null, blockers: () => blockers, measure, pressure: () => 5, reading: () => null, cathere: () => 0 } as unknown as LabelDeps;
+    const deps = { now: () => t, project: (pt: Vector3, o: { x: number; y: number }) => rig.project(pt, o), cameraMoving: () => rig.isMoving, free: () => rectToBox(room), view: () => view, vp: () => vp, reversed: () => false, words: () => null, blockers: () => blockers, measure, pressure: () => 5, reading: () => null, cathere: () => 0, level: () => 'all' } as unknown as LabelDeps;
     const ctl = new LabelController(deps); ctl.setState({ ...NO_STATE, organNames: true });
     for (let i = 0; i < 120; i++) { t += 16; ctl.tick(); }
     assert.ok(ctl.out.length >= 3, `${ctl.out.length} names stand`);

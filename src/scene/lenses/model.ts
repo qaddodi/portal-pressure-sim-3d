@@ -47,14 +47,16 @@ export interface LensData {
   lens: LensId;
   /** 0 = no colouring (the vessel keeps its tone), 1 = a colour at each end, 2 = lanes */
   mode: Mode;
-  /** RGBA per edge per end: sRGB 0..1; a = 1 when the lens colours the vessel, 0 when it keeps its tone. Layout [end][edge][4]; ends 0 and 1 are the upstream and downstream colours, and ends 2 and 3 the
+  /** RGBA per edge per end: sRGB 0..1; a = 1 when the lens colours the vessel, 0 when it keeps its tone. Layout [end][edge][4] (row 4 is the chevron ink, see GRAD_ROWS); ends 0 and 1 are the upstream and downstream colours, and ends 2 and 3 the
    *  colours a third and two thirds of the way along (the ramp read at the pressure there, so a vessel that crosses a threshold passes through the ramp's own colours rather than a blend of its two ends'.
    *  The shader reads them with Smooth vessel joins on; a lens whose colour does not run along the vessel gives its ends' blend there). */
   grad: Float32Array;
   /** Cumulative lane boundaries per edge per end (channels 0..3), [end][edge][4]; the fifth lane is the rest. Only mode 2 reads it. */
   lanes: Float32Array;
 }
-export const newLensData = (): LensData => ({ lens: 'neutral', mode: 0, grad: new Float32Array(NE * 4 * 4), lanes: new Float32Array(NE * 2 * 4) });
+/** Rows of the colour texture: 0 and 1 the ends, 2 and 3 a third and two thirds along, 4 the vessel's chevron ink (lenses/chevron-ink.ts: r = 0 dark ink .. 1 cream, eased). */
+export const GRAD_ROWS = 5;
+export const newLensData = (): LensData => ({ lens: 'neutral', mode: 0, grad: new Float32Array(NE * 4 * GRAD_ROWS), lanes: new Float32Array(NE * 2 * 4) });
 
 const samplers = new Map<string, Sampler>();
 export const samplerFor = (look: LookId, name: keyof Pick<LensTokens, 'pressure' | 'flow' | 'velocity' | 'heat' | 'drop' | 'oxygen'>): Sampler => {

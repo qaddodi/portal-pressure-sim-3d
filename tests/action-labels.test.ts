@@ -16,7 +16,7 @@ import { lobuleSelAt, onArteriole, ARTERIOLES, ARTERIOLE_REACH } from '../src/ui
 import { buildLobule } from '../src/scene/lobule/geometry.ts';
 import { claims } from '../src/parity/b9x.ts';
 
-const draw = (id: string, x: number, y: number, o: Partial<Draw> = {}): Draw => ({ id, kind: 'station', alpha: 1, x, y, w: 60, h: 20, form: 0, value: '', dot: null, rev: false, pad: { x: 0, y: 0 }, leader: null, ...o } as Draw);
+const draw = (id: string, x: number, y: number, o: Partial<Draw> = {}): Draw => ({ id, kind: 'station', alpha: 1, mix: 1, ringAlpha: 1, x, y, w: 60, h: 20, form: 0, value: '', dot: null, rev: false, pad: { x: 0, y: 0 }, leader: null, ...o } as Draw);
 
 test('a label is hit inside its box (with a finger\'s slack), the topmost first; a faded label, an organ\'s name and the key are not buttons', () => {
   const out = [draw('VAR', 100, 100), draw('RA', 130, 100)];
@@ -91,7 +91,7 @@ test('the hepatic arteriole is picked by where the tap fell, at the triads\' own
 test('the label layer gates the varices as 2D does: VAR only with varices, GV (the fundus) only with its own', () => {
   const vp = { w: 1280, h: 800, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
   let on = { VAR: false, GV: false };
-  const deps = { now: () => 0, project: (_p: Vector3, o: { x: number; y: number }) => o, vp: () => vp, reversed: () => false, measure: (t: string, s: number) => t.length * s * 0.56, present: (id: 'VAR' | 'GV') => on[id] } as unknown as LabelDeps;
+  const deps = { now: () => 0, project: (_p: Vector3, o: { x: number; y: number }) => o, vp: () => vp, reversed: () => false, pressure: () => null, measure: (t: string, s: number) => t.length * s * 0.56, present: (id: 'VAR' | 'GV') => on[id] } as unknown as LabelDeps;
   const ctl = new LabelController(deps);
   const ids = () => ctl.active().map((m) => m.id);
   assert.ok(!ids().includes('VAR') && !ids().includes('GV'));

@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { fadeOf } from '../src/scene/vessels/fades.ts';
+import { CAVA_RECEDE, fadeOf } from '../src/scene/vessels/fades.ts';
 import { NODE_POS_2D } from '../src/scene/vessels/paths.copied.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
 import { CelScene } from '../src/scene/scene.ts';
@@ -19,12 +19,12 @@ test('a liver bed fades along the line from its portal node to its venous node: 
 
 test('the hepatic veins fade into the cava (solid at the offset, to FADE_IN\'s alpha at the end); C9 dips behind the liver and is solid again above the dome', () => {
   const rhv = fadeOf('RHV_IVC', false)!;
-  assert.equal(rhv.mode, 3); assert.equal(rhv.a0, 1); assert.equal(rhv.a1, 0.5); assert.equal(rhv.from, 0);
+  assert.equal(rhv.mode, 3); assert.equal(rhv.a0, 1); assert.equal(rhv.a1, 1, 'solid to the cava\'s wall (2D\'s end alpha 0.5 is dropped: a pale wedge, Mohammad 20 Nov)'); assert.equal(rhv.from, 0);
   assert.equal(fadeOf('C5', false)!.from, 0.6);
   assert.equal(fadeOf('C5', false)!.a1, 0.3, 'the default end alpha of FADE_IN is 0.3');
   const c9 = fadeOf('C9', false)!;
-  assert.equal(c9.mode, 4); assert.equal(c9.from, 0.65); assert.equal(c9.a1, 0.55);
-  assert.ok(c9.line![1] < c9.line![3], 'the line runs up the figure (2D y 520 to 172)');
+  assert.equal(c9.mode, 1, 'along the vein'); assert.equal(c9.a0, CAVA_RECEDE, 'the cava\'s tone along its run behind the liver and over the dome (Mohammad, 20 Nov: still a bright full-strength purple)'); assert.equal(c9.a1, 1, 'it comes to full only over its last stretch, where it joins the azygos');
+  assert.ok(c9.from >= 0.85 && c9.from < 1, 'a short ramp');
 });
 
 test('the vessel shader carries both line modes with the 2D alpha (tube-geo.js tubeAlpha)', () => {
@@ -36,12 +36,13 @@ test('the vessel shader carries both line modes with the 2D alpha (tube-geo.js t
 
 test('every faded vessel is blended in its fade zone and a line fade is on its own vessel in the scene', () => {
   const s = new CelScene();
-  for (const id of ['SIN_RR', 'SIN_LL', 'C9', 'RHV_IVC', 'LRV_IVC', 'C5']) {
+  for (const id of ['SIN_RR', 'SIN_LL', 'RHV_IVC', 'LRV_IVC', 'C5']) {
     const o = s.vessels.find((v) => v.edge!.id === id);
     assert.ok(o, id);
     assert.ok(o.toon.uniforms.fadeMode!.value >= 3, `${id} fade mode`);
     assert.equal(o.toon.transparent, true, id);
   }
+  { const o = s.vessels.find((v) => v.edge!.id === 'C9')!; assert.equal(o.toon.uniforms.fadeMode!.value, 1); assert.equal(o.toon.transparent, true); }
   s.dispose();
 });
 

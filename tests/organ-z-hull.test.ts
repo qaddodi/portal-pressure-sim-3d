@@ -87,10 +87,14 @@ test('organ depth: each mesh is moved along z only, x and y exact, and the front
   for (const [id, o] of s.disease.organs.byId) {
     const g = o.toonMesh.geometry, rest = ORGAN_MESHES[id]!(), a = g.getAttribute('position'), b = rest.getAttribute('position');
     let zmin = Infinity, zmax = -Infinity;
+    assert.ok(a.count >= b.count, `${id}: the rim refinement only adds points (appended after the file's own)`);
     for (let i = 0; i < a.count; i++) {
+      zmin = Math.min(zmin, a.getZ(i)); zmax = Math.max(zmax, a.getZ(i));
+    }
+    // the file's own points keep their order: x and y moved only by the rim smoothing, z by the table's value
+    for (let i = 0; i < b.count; i++) {
       assert.ok(Math.hypot(a.getX(i) - b.getX(i), a.getY(i) - b.getY(i)) <= MAX_MOVE + 1e-6, `${id}: x and y moved only by the rim smoothing (at most ${MAX_MOVE})`);
       assert.ok(Math.abs(a.getZ(i) - b.getZ(i) - ORGAN_Z[id]!) < 1e-5, `${id}: z moved by its table value`);
-      zmin = Math.min(zmin, a.getZ(i)); zmax = Math.max(zmax, a.getZ(i));
     }
     // (the vessels lie in one plane THROUGH the organs now, frame2d.ts TIER_Z: no organ is required to stay behind them; tests/b3-vessels.test.ts pins the plane inside the liver, heart, kidney and stomach)
     assert.ok(zmax > zmin, `${id}: has depth`);

@@ -24,7 +24,7 @@ The tests for this push are in `tests/shell-gaps.test.ts`.
 | Blood menu: Pressure values, Key / All / None are switches on the 2D words | `main.js` blood menu | partial: stored in `useBlood` and `figure.labelLevel`, only the circuit captions read the label level; the anatomy labels do not | for owner B6 |
 | Lobule Layers > Bile | `lobule-bile.js` | partial: switch stored, no bile drawn | for owner B8 |
 | Top bar: patient pill, Blood, lens with key, Treat, Tests, History, gear, Search; compacting (`data-fit` 1-3, two rows last) | `main.js` ~1822, `index.html` | ok (`shell/bar-fit.ts`, `use-bar-fit.ts`, `tests/bar-fit.test.ts`) | Treat, Tests, Layers claims flipped to wired |
-| Top bar: a button that comes or goes (Layers chip, Sinusoid pill, name length) glides, never pops (FLIP) | `topbar-motion.js` (303 lines, with `ease.js`, `class-soon.js`, `glass-morph.js`) | missing: the buttons pop | not done (needs the GPU-glass `glass-morph.js` or a plate-less rewrite); next push |
+| Top bar: a button that comes or goes (Layers chip, Sinusoid pill, name length) glides, never pops (FLIP) | `topbar-motion.js` (303 lines, with `ease.js`, `class-soon.js`, `glass-morph.js`) | ok: copied whole (`shell/topbar-motion.copied.js`, started by `TopBar.tsx`); the GPU-glass helpers answer "no" (`topbar-motion-deps.ts`), so it takes 2D's plate-copy path | none; seen on the Mac only |
 | Footer credit | `credit.js`, `.stage-credit` | ok (`shell/Credit.tsx`) | none |
 | About the model, References, Privacy (with "Clear my data on this device") | `main.js openAbout/openPrivacy` | ok (`shell/Pages.tsx`, copied by `scripts/copy-about.mjs`) | claims flipped to wired |
 | Guide (what it is, keys, while presenting, reading the figure, thresholds, disclaimer) | `main.js openHelp` | ok (`shell/HelpSheets.tsx`) | none |
@@ -50,4 +50,4 @@ The tests for this push are in `tests/shell-gaps.test.ts`.
 - **Treat / action:** Esc cancels a shunt placement; J's key release; the shell's Esc order now ends in sinusoid, then talk.
 - **B6 (labels):** station walk with the arrows, Shift for along the flow; Blood menu Pressure values / Key / All / None on the anatomy labels.
 - **Presenter (B12):** `->` during a time-lapse runs it to its end; the pen (D, E) is not lifted.
-- **This slice, next:** the top bar's FLIP glide (`topbar-motion.js`).
+- **Done (audit 5.5):** the top bar's FLIP glide (`topbar-motion.js`).

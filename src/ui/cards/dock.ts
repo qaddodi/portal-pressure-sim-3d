@@ -27,6 +27,8 @@ interface Run { from: number; to: number; elapsed: number; ms: number; done: () 
 
 export function createDock(clock: Clock = theClock) {
   let pos: Styled | null = null, inner: Styled | null = null, px = 0, lvl = 0, run: Run | null = null, hold: Hold | null = null, off: (() => void) | null = null;
+  /** Told when a glide sets off (where it goes, how long it takes): the figure's camera sets off on the same clock (2D presenter-zoom.js dockTo: `layout()` then `reframe(ms)` as the glide starts). */
+  let onGlide: ((to: 0 | 1, ms: number) => void) | null = null;
   const paint = () => {
     if (!pos) return;
     pos.style.setProperty('transition', 'none', 'important');
@@ -66,9 +68,11 @@ export function createDock(clock: Clock = theClock) {
       if (!pos) { done(); return; }
       if (reduce || ms <= 0 || lvl === to) { land(to); done(); return; }
       run = { from: lvl, to, elapsed: 0, ms, done };
+      onGlide?.(to, ms);
       if (!off) off = clock.on('tween', step, 25);
       if (!hold) hold = clock.hold('card-dock');
     },
+    set onGlide(fn: ((to: 0 | 1, ms: number) => void) | null) { onGlide = fn; },
     /** Lets go of the card (its layout took over). */
     release() { if (run) { run = null; stop(); } pos = null; inner = null; },
   };

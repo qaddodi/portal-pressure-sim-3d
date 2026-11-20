@@ -15,7 +15,7 @@ const hit = (a: { x: number; y: number; w: number; h: number }, b: typeof a) => 
 
 test('the presenter pill ends with Exit (2D: "Exit the presentation"), shows the count, and stands above the cards it sits inside', () => {
   const bar = read('src/ui/deck/PresenterBar.tsx');
-  assert.match(bar, /leaveTalk\(\)/, 'Exit leaves the talk');
+  assert.match(bar, /stopTalk\(\)/, 'Exit leaves the talk');
   assert.match(bar, /Exit the presentation/);
   assert.match(bar, /Stop presenting/, 'a wide screen\'s Exit is 2D\'s "Stop presenting" (Esc)');
   assert.match(bar, /pzb-nt/, 'the count is drawn on every screen, an iPhone on its side too');

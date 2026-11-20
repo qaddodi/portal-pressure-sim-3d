@@ -70,6 +70,14 @@ export function planeWords(pl: PlaneDef, pts: readonly { f: Fp; name: string }[]
 // ── The plot's height for a width (2D app-11-deck-visuals.css, the stacked layout: a phone, an iPad's portrait card) ──
 const clampN = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 /** A summary's plot: a box of aspect 1.15 (zones), .94 (axes) or 1.2 (compact), as .pz.stack gives it. A card's plot: 66 % of the width between 210 and 300 px (140 to 190, 44 %, when compact), a wider one under a card with a key of its own. */
+/** A summary's plot on a wide or short screen, as 2D's CSS gives it (app-11 `.pze-plot`: `calc(44 * var(--pzh))`, at least 240 px; `.pze-short`, a compact plane: 34 pzh, at least 200 px): a height of the
+ *  WINDOW, never of the card's width. The stacked rule (aspect 1.15 of the width, `plotHeightOf`) on a 1200 px panel made a 1000 px plot, taller than the card's room, so the card's fit zoomed
+ *  the whole chart down (Mohammad, 20 Nov: "the card is insanely huge and the text is small"). undefined on a stacked screen, which keeps the aspect. */
+export function summaryHeight(pl: PlaneDef, layout: string, pzh: number): number | undefined {
+  if (layout === 'stack' || layout === 'tab') return undefined;
+  return Math.round(Math.max(pl.compact ? 200 : 240, (pl.compact ? 34 : 44) * pzh));
+}
+
 export function plotHeightOf(pl: PlaneDef, W: number, card: boolean, o: { room?: number; wide?: boolean } = {}): number {
   if (card && pl.look === 'guide') {
     // (the guideline card's graph proportions: baveno-zones plotHeight, never taller than the card's room less the key and the reading under it)

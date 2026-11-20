@@ -1,0 +1,4 @@
+/* The view pill's tap cells (review item P1, 20 Nov; tests/tap-cells.test.ts). 2D paints a 30 px capsule and reaches 7 px past it above and below (app-10 `inset: -7px 0`), so a segment's
+   touch is already 44 tall; the 2 px gap between two segments was dead. Each segment now takes half the gap on each side: the cells meet at its middle and never overlap. Loaded after chrome-3d.css,
+   so after the 2D sheets. (The talk pill's cells are in deck-ui.css.) */
+.nb-views #viewSeg button::after { inset: -7px -1px; }

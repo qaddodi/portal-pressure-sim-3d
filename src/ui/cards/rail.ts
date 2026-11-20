@@ -17,6 +17,8 @@ import { D_SMALL } from '../a11y/motion.ts';
 
 /** The most one frame may count toward a move: a stalled frame holds the cards where they were and the move goes on from there, never jumps to its end (2D card-throw.js easeNow). */
 export const MAX_DT = 50;
+/** A card whose height changes glides to it over 2D's glideCard time (card-glide.js: D_SURFACE, 420 ms) on the arrive curve (clock/tween.ts ARRIVE_CSS). */
+export const GLIDE_MS = 420;
 export const RAIL_MS = 560, OUT_MS = 340, IN_MS = 520, RAIL_GAP = 24, THROW_IN = 56, THROW_OUT = 56, FIRST_MS = 640, FIRST_RISE = 14, STAGGER = 40, BACK_MS = 280, FADE_MS = 300, FADE_DELAY = 120;
 /** How far a card travels, as a share of the words' distance, on the rail (and under a finger). */
 export const PARALLAX = { words: 1, data: 0.82 } as const;

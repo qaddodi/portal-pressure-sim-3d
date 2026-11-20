@@ -1,0 +1,20 @@
+// Three kinds of slide change, three motions (2D slide-motion.js, first-principles item 14, 11 Nov 2026), and how long the figure's own change takes.
+//   new patient   a slide that loads a preset: the figure dips, the patient is changed unseen, and the figure comes back as someone else (an eased opacity change, never a morph between two people)
+//   time passing  a slide with a time-lapse: its days play on the live figure
+//   same patient treated (params, an action, a procedure): the model eases to the slide's state
+// (lap: the slide plays its time-lapse; pre: it plays a procedure from the state before it. Both keep their own ways in.) Pure, so a test reads it.
+import type { CopiedSlide } from './types.ts';
+
+export const MORPH_ONE_MS = 1200;   // the patient's change under a camera glide (2D presenter.js MORPH_ONE_MS)
+export const MORPH_CATH_MS = 2000;  // ... on a catheter or an instrument slide, which has its own pace (2D MORPH_MS)
+
+export const freshPatient = (s: Pick<CopiedSlide, 'preset'> | null | undefined, lap: boolean, pre: boolean): boolean => !!s?.preset && !lap && !pre;
+
+export function changeKind(s: Pick<CopiedSlide, 'preset' | 'lapse' | 'params' | 'action' | 'procedure'> | null | undefined, lap: boolean, pre: boolean): 'patient' | 'time' | 'treat' | 'same' {
+  if (freshPatient(s, lap, pre)) return 'patient';
+  if (lap || s?.lapse) return 'time';
+  return s?.params || s?.action || s?.procedure ? 'treat' : 'same';
+}
+
+/** How long the figure takes to ease to a slide's state when the patient stays (2D: MORPH_ONE_MS under a glide; a slide with a catheter or an instrument keeps the longer one). */
+export const morphMsFor = (s: Pick<CopiedSlide, 'cath' | 'tool'> | null | undefined): number => (s?.cath || s?.tool ? MORPH_CATH_MS : MORPH_ONE_MS);

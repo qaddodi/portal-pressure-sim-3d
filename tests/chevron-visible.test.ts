@@ -25,7 +25,7 @@ const headShown = (R: number): number => smooth(CHEV.MIN_R_PX, CHEV.MIN_R_PX + 0
 const len = (pts: readonly (readonly number[])[]): number => { let s = 0; for (let i = 1; i < pts.length; i++) s += Math.hypot(pts[i]![0]! - pts[i - 1]![0]!, pts[i]![1]! - pts[i - 1]![1]!); return s; };
 const hex = (c: readonly number[]) => '#' + c.map((v) => Math.round(Math.min(255, Math.max(0, v * 255))).toString(16).padStart(2, '0')).join('');
 const h2 = (s: string): [number, number, number] => [1, 3, 5].map((i) => parseInt(s.slice(i, i + 2), 16) / 255) as [number, number, number];
-/** The twin of chevInk (blood/chevron-glsl.ts): near black on a lit tone lighter than 0.26 (linear luminance), cream on a darker one. */
+/** The head's tone on a vessel of ONE colour (the latch's first decision, lenses/chevron-ink.ts, and 2D's step): near black on a lit tone lighter than 0.26 (linear luminance), cream on a darker one. */
 const chevCore = (lit: readonly number[]): [number, number, number] => {
   const L = 0.2126 * lit[0]! ** 2.2 + 0.7152 * lit[1]! ** 2.2 + 0.0722 * lit[2]! ** 2.2;
   const dark = h2(LENS_SHARED.chevron), light = h2(LENS_SHARED.chevronLight);
@@ -33,16 +33,17 @@ const chevCore = (lit: readonly number[]): [number, number, number] => {
 };
 
 test('the heads follow the CHEV table: 55 percent of the lumen wide (4 px at least on a thin tube, never over 60 percent), 1.4 x as long as wide, sharp, centred, from a tube 3 px across', () => {
-  assert.ok(CHEV.PITCH_PX >= 55 && CHEV.PITCH_PX <= 65 && CHEV.MIN_R_PX <= 1.5);
+  assert.ok(CHEV.PITCH_PX === 130 && CHEV.MIN_R_PX <= 1.5, '2D\'s pitch (b3058ef3 CHEV_PITCH = 130)');
   assert.ok(CHEV.SHARE === 0.55 && CHEV.SHARE_MAX === 0.6 && CHEV.MIN_W_PX === 4 && CHEV.LEN_OF_W >= 1.3 && CHEV.LEN_OF_W <= 1.5 && CHEV.EDGE_PX <= 0.7 && CHEV.RING_PX <= 1);
-  assert.match(VESSEL_FS, /float Pt = 60\.0 \* wpc;/);
+  assert.match(VESSEL_FS, new RegExp(`float Pt = ${CHEV.PITCH_PX}\\.0 \\* wpc;`));
   assert.match(VESSEL_FS, /smoothstep\(1\.5 \* wpc, 2\.1 \* wpc, R\)/);
   assert.match(VESSEL_FS, /float hw = chevHw\(R, wpc\) \* chevSize\(kp\), L = 2\.8 \* hw;/);
   assert.match(CHEVRON_GLSL, /float chevHw\(float R, float wpc\) \{ return min\(0\.6 \* R, max\(0\.55 \* R, 2\.0 \* wpc\)\); \}/);
   assert.match(CHEVRON_GLSL, /float L = 2\.8 \* hw, tip = 0\.55 \* L/);
   assert.match(CHEVRON_GLSL, /float c = 1\.0 - smoothstep\(-0\.35 \* px, 0\.35 \* px, d\);/, 'an edge ramp of 0.7 px');
   assert.match(CHEVRON_GLSL, /float rw = 1\.0 \* px;/, 'a ring of 1 px at most, no halo');
-  assert.match(VESSEL_FS, /chevInk\(celTubeBase\(base\), markDark, markLight\)/, 'the tone follows the tube as drawn');
+  assert.match(VESSEL_FS, /chevInk\(cream, markDark, markLight\)/, 'the tone is the vessel\'s own latched ink');
+  assert.match(VESSEL_FS, /chevCreamSoft\(celTubeBase\(mix\(color, la\.rgb, la\.a\)\)\)/, 'and where there is none it follows the tube as drawn (celTubeBase)');
   assert.match(MICRO_FS, /float hw = chevHw\(R, wpc\) \* chevSize\(kp\);/, 'the lobule\'s and the sinusoid\'s micro tubes take the same head');
   assert.match(MICRO_FS, /smoothstep\(1\.5 \* wpc, 2\.1 \* wpc, R\)/);
   for (const R of [1.6, 2, 2.5, 3, 3.3, 3.64, 4.5, 6, 12, 40]) {
@@ -59,7 +60,7 @@ test('the heads follow the CHEV table: 55 percent of the lumen wide (4 px at lea
   assert.ok(headShown(1.4) === 0 && headShown(2.1) === 1, 'none only under 3 px across');
   // the lattice: heads are added at the level's pitch Pt and the finer ones have all left by 1.33 Pt (chevKeep: odd heads keep exp2(1 - f) - 1 of themselves at f of a level, gone from f = 0.585)
   const lo = CHEV.PITCH_PX * Math.pow(2, -0.585), hi = CHEV.PITCH_PX * Math.pow(2, 0.415);
-  assert.ok(lo >= 39.9 && hi <= 80.1, `spacing ${lo.toFixed(0)} to ${hi.toFixed(0)} px`);
+  assert.ok(lo >= 0.66 * CHEV.PITCH_PX && hi <= 1.34 * CHEV.PITCH_PX, `spacing ${lo.toFixed(0)} to ${hi.toFixed(0)} px (2D's pitch, 130)`);
 });
 
 test('at the default fit every labelled vessel 4.2 px across or more shows a head 55 percent of its lumen (4 px at least, 60 percent at most), over the real network', () => {

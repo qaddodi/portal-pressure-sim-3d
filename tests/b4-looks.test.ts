@@ -12,7 +12,6 @@ import { septumAt } from '../src/scene/organs/liver-shape.ts';
 import { PAINTED, VertexPaint, infarctAt, infarctEdgeY } from '../src/scene/organs/vertex-paint.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { bodyTargets } from '../src/scene/disease/targets.ts';
-import { clotShapeOf } from '../src/scene/disease/clots.ts';
 import { waistNarrow, waistSigma, isClampable, CLAMP } from '../src/scene/disease/clamps.ts';
 import { FLANK_Z, Landmarks, flankPoints, ribbon } from '../src/scene/disease/landmarks.ts';
 import { RED_WALE, waleEnvelope } from '../src/scene/disease/strands.ts';
@@ -81,17 +80,6 @@ test('the bleed\'s pool tints the stomach below its surface only, and not the wh
 });
 
 test('the painted organs are the three that vary over their surface', () => { assert.deepEqual([...PAINTED].sort(), ['liver', 'spleen', 'stomach']); assert.equal(typeof VertexPaint, 'function'); });
-
-test('a clot is never wider than its vein, and rides the front of the wall', () => {
-  const R = 0.04, pts = Array.from({ length: 20 }, (_, i) => new Vector3(i * 0.02, 0, 0.4));
-  for (const v of [0.1, 0.4, 0.8, 1]) {
-    const { centres, radii } = clotShapeOf(pts, R, v, 'PV_TRUNK');
-    for (let i = 0; i < centres.length; i++) {
-      assert.ok(Math.abs(centres[i]!.y) + radii[i]! <= R * 0.9 + 1e-9, `v ${v}: inside the lumen's width`);
-      assert.ok(centres[i]!.z > 0.4, 'toward the viewer');
-    }
-  }
-});
 
 test('a stenosis pinches the vessel at its middle in the 2D waist, and a vessel with none is untouched', () => {
   const sig = waistSigma(8, 200);

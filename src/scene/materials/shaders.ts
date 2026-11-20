@@ -177,7 +177,14 @@ void main() {
 /** "No outer end here": the highlight's distance to an end the vein does not have (it runs on into another piece of the same vein). */
 export const HI_NONE = 1e3;
 
+/** How much of its push an outline hull vertex takes (0..1): the share of its normal that lies sideways on screen. A vertex whose normal faces the eye has a near-zero screen direction (a few
+ *  thousandths, noise), and normalising that sent it the full width in a random direction: under a wide line (a tapped organ's glow, 26 figure units) those vertices drew pale hair across the
+ *  face of the organ, Mohammad 20 Nov: "streaks on the liver when I highlight the outline". Only what faces sideways is pushed (the same rule as micro3d/cel3d.ts); the rest stays hidden under the fill. */
+export const INK_RIM_GLSL = /* glsl */ `
+float inkRim(vec3 n) { vec3 v = normalMatrix * n; float l = length(v); return l > 1e-6 ? smoothstep(0.2, 0.6, length(v.xy) / l) : 0.0; }`;
+
 export const INK_VS = /* glsl */ `
+${INK_RIM_GLSL}
 uniform float inflate;
 uniform float px;
 uniform vec2 res;
@@ -205,7 +212,7 @@ void main() {
   vec2 nd = (projectionMatrix * vec4(normalMatrix * normal, 0.0)).xy;
   float l = length(nd);
   nd = l > 1e-5 ? nd / l : vec2(0.0);
-  c.xy += nd * (px + hiPx * vHi) * 2.0 / res * c.w;
+  c.xy += nd * (px + hiPx * vHi) * inkRim(normal) * 2.0 / res * c.w;
   gl_Position = c;
 }`;
 
@@ -217,4 +224,16 @@ uniform float reveal;
 uniform float inkA;   // the line's own alpha: 1 for an organ's or a part's solid ink, the look's casing alpha for a strand (setSoftInk)
 varying float vHi;
 varying float vU;
-void main() { if (frontOut(vU, reveal)) discard; if (fadedOut()) discard; gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), mix(inkA, 1.0, clamp(vHi, 0.0, 1.0))); }`;
+#ifdef INK_EDGE
+// an organ's outline (layer.ts defines it): the hull is built one device pixel wider, and its coverage ramps from its outer edge over the next pixel and a half (vRd is steps in from the rim, so vRd over its
+// own screen gradient is the distance in device pixels), so the edge is anti-aliased by arithmetic: half covered a pixel in from the raster edge, which is the line's true edge
+varying float vRd;
+#endif
+void main() {
+  if (frontOut(vU, reveal)) discard; if (fadedOut()) discard;
+  float cov = 1.0;
+#ifdef INK_EDGE
+  cov = clamp(vRd / max(length(vec2(dFdx(vRd), dFdy(vRd))), 1e-5) - 0.5, 0.0, 1.0);
+#endif
+  gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), mix(inkA, 1.0, clamp(vHi, 0.0, 1.0)) * cov);
+}`;

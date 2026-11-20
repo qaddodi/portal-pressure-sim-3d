@@ -98,7 +98,7 @@ export class DiseaseLayer {
     this.organs.setBowelLift(this.ascites.bulge / 34 * 26);
     this.landmarks.setAscites(this.fluid.shown);
     moving = this.landmarks.setCaput(ctx.recruit('C3', f), dt, inst) || moving;
-    moving = this.clots.set(t.thrombus, dt, inst) || moving;
+    moving = this.clots.set(t.thrombus, dt, inst, f.D) || moving;
     moving = this.clamps.set(this.stenosis, ctx.presence, dt, inst) || moving;
     moving = this.bandsShown.to(t.bands, dt, inst) || moving;
     const m = f.metrics ?? {};
