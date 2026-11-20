@@ -7,7 +7,7 @@ import type { BufferAttribute } from 'three';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { LobuleView } from '../src/scene/lobule/view.ts';
 import { DISC_R } from '../src/scene/lobule/widths.ts';
-import { Lobule3D, disseDuctules, lymphIntoPools } from '../src/scene/micro3d/lobule3d.ts';
+import { Lobule3D, DISSE_OPEN, disseDuctules, disseOpen, lymphIntoPools } from '../src/scene/micro3d/lobule3d.ts';
 
 const flat = new LobuleView(createShared()), net = flat.net;
 const R = 3;
@@ -46,4 +46,22 @@ test('every terminal lymphatic runs on into the middle of the lymphatic pool it 
     assert.ok(d < DISC_R.lv * 0.1, `ends ${(d / DISC_R.lv).toFixed(2)} pool radii from a pool's middle`);
     assert.equal(c.pts.length, c.rho.length);
   }
+});
+
+test('a Disse sleeve opens out from a point: it is no wider than the inlet it begins under at its start (a square start plate stood out beside every sinusoid\'s foot)', () => {
+  assert.equal(disseOpen(0), 0);
+  assert.equal(disseOpen(DISSE_OPEN), 1);
+  for (let k = 0; k < DISSE_OPEN; k++) assert.ok(disseOpen(k + 1) >= disseOpen(k), 'it only widens');
+  // (the inlet there is 0.009 to 0.015 of a lobule radius, the sleeve 0.0132 each side: the first sample's width must be inside the tube)
+  const l3 = new Lobule3D(flat, createShared());
+  l3.buildForTest('light');
+  const part = l3.partsForTest.find((p) => p.toonMesh.name === 'lobule3d/disse')!, pos = (part.geometry.getAttribute('position') as BufferAttribute).array;
+  const ly0 = net.courses.filter((c) => c.kind === 'ly' && c.lvl === 0), d = disseDuctules(net.courses.filter((c) => c.kind === 'ly'), net.courses);
+  const first = d.map((x) => x.src.pts[x.from]!);
+  // each sleeve's start row (two vertices on the same spot): find the vertex pair nearest each start and check they coincide
+  for (const q of first.slice(0, 12)) {
+    let best = Infinity; for (let v = 0; v + 5 < pos.length; v += 3) best = Math.min(best, Math.hypot(pos[v]! / R - q[0], -pos[v + 1]! / R - q[1]));
+    assert.ok(best < 1e-6, 'the sleeve begins exactly at the sinusoid\'s start');
+  }
+  assert.equal(ly0.length, d.length);
 });

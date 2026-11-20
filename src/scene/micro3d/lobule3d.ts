@@ -144,6 +144,11 @@ export function lymphIntoPools(lt: readonly Course[], lv: readonly Course[]): Co
   });
 }
 
+/** How many samples a space of Disse's sleeve takes to open out to its full width from where it begins (a point under the sinusoid's foot). */
+export const DISSE_OPEN = 6;
+/** The share of its width the sleeve has `k` samples from its start. */
+export function disseOpen(k: number): number { const t = Math.min(1, Math.max(0, k / DISSE_OPEN)); return t * t * (3 - 2 * t); }
+
 export class Lobule3D {
   readonly group = new Group();
   private readonly flat: Flat;
@@ -624,7 +629,9 @@ export class Lobule3D {
           const a = c.pts[Math.max(0, i - 1)]!, d = c.pts[Math.min(n - 1, i + 1)]!;
           let tx = d[0] - a[0], ty = -(d[1] - a[1]); const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
           const p = at3(c.pts[i]!, LZ.disse);
-          b.v(p[0] - ty * rly * R, p[1] + tx * rly * R, p[2], 0, 0, 1, [1, 1, 1]); b.v(p[0] + ty * rly * R, p[1] - tx * rly * R, p[2], 0, 0, 1, [1, 1, 1]);
+          // (it opens out from a point over its first DISSE_OPEN samples: a square start, wider than the inlet it begins under, stood out as a small grey plate beside every sinusoid's foot, Mohammad 20 Nov 2026)
+          const wd = rly * disseOpen(i - from);
+          b.v(p[0] - ty * wd * R, p[1] + tx * wd * R, p[2], 0, 0, 1, [1, 1, 1]); b.v(p[0] + ty * wd * R, p[1] - tx * wd * R, p[2], 0, 0, 1, [1, 1, 1]);
           K.push(1, 1); W.push(0, 0);
         }
         for (let i = 0; i < n - 1 - from; i++) { const q = r0 + i * 2; b.quad(q, q + 2, q + 3, q + 1); b.quad(q, q + 1, q + 3, q + 2); }
