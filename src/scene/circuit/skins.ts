@@ -17,14 +17,14 @@ import { NETWORK, NETWORK_BY_ID, cutEnd, type NetVessel } from '../vessels/netwo
 import { REST, coursesOf, tubularOf } from '../vessels/shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../vessels/tubes.ts';
 import { indexOf } from '../../engine/vessel-data.ts';
-import { MAX_ARMS, MIN_ARMS, PHASE_2_NODES, SKIN_REACH, permanentEndsByNode } from '../vessels/skin/inventory.ts';
+import { GROW_REACH, MAX_ARMS, MIN_ARMS, PHASE_2_NODES, SKIN_REACH, growerEndsByNode, permanentEndsByNode } from '../vessels/skin/inventory.ts';
 import { armPresenceAt, hiWeightAt, lensUAt, type HiState } from '../vessels/skin/arm-twins.ts';
-import { armWalk, planSkins, type ArmTube } from '../vessels/skin/cuts.ts';
+import { armWalk, planSkins, type ArmTube, type HullOk } from '../vessels/skin/cuts.ts';
 import { buildSkinSteady, hullCovers } from '../vessels/skin/mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins } from '../vessels/skin/baked.ts';
 import { sdArm, skinKOf } from '../vessels/skin/sdf.ts';
 import { weldThrough } from '../vessels/skin/through.ts';
-import { SKIN_CUT_C_NONE, SKIN_HIDDEN, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from '../vessels/skin/types.ts';
+import { SKIN_CUT_C_NONE, SKIN_GROWERS, SKIN_HIDDEN, SkinBuildError, type SkinArm, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from '../vessels/skin/types.ts';
 import { axisOf, capsuleOf, ringOf, type SkinDraw } from '../vessels/skin/skin-set.ts';
 import type { ArmAxis } from '../vessels/skin/skin-object.ts';
 import type { VesselObject } from '../vessels/vessel-object.ts';
@@ -45,35 +45,53 @@ export const circuitRadius = (v: Pick<NetVessel, 'widthKind' | 'baseD' | 'circFi
 
 const endOf = (id: string, end: 0 | 1): Vec3 => { const p = COURSES.get(id)!.curveC.getPointAt(end); return [p.x, p.y, p.z]; };
 
+/** A liver fork's child (`<host>~F:b`) has no tube on the map: the map draws the branch trees (circuit/tubes.ts) instead, so it is not an arm of a map junction. */
+const noMapTube = (v: NetVessel): boolean => v.id.includes('~F') && !COURSES.has(v.id);
+
+/** One candidate node of the map: its junction, and why it is not one when it is not. */
+interface Candidate { node: string; junction: SkinJunction; far: string[]; why: string | null }
+
 /**
- * Every junction of the map that gets a skin, as the body's inventory finds them (3 to 6 permanent tubes at a node, none a through-branch's cut end) but on the map: the arms are widest first by their MAP radius (the vein's width by its diameter, an artery 3,
- * a bed 8), J is the widest arm's end on the map (its station), `restR` the radius the rings are built at. A node with an arm that has no map course, or that lies farther than CIRC_SKIN_REACH radii from J, is not here (named by `circuitFallbacks`).
+ * Every node of the map the body's inventory would weld (skin/inventory.ts findSkinJunctions): 3 to 6 permanent tubes, or a run-on pair a collateral or shunt lands on (up to SKIN_GROWERS of them, the widest), none a through-branch's cut end; but read on the
+ * map's own courses and widths (the arms widest first by their MAP radius, J the widest arm's end on the map: its station). A growing arm that ends farther than GROW_REACH radii from J is left out of the skin and named (`far`); a node whose PERMANENT arm lies
+ * farther than CIRC_SKIN_REACH, or has no map course, is not a junction on the map (`why`).
  */
-export function findCircuitJunctions(network: readonly NetVessel[] = NETWORK, nodes: ReadonlySet<string> = CIRCUIT_SKIN_NODES): SkinJunction[] {
-  const out: SkinJunction[] = [];
-  for (const [node, ends] of permanentEndsByNode(network)) {
-    if (!nodes.has(node) || ends.some((e) => cutEnd(e.v.id) === e.end)) continue;
-    if (ends.length < MIN_ARMS || ends.length > MAX_ARMS || ends.some((e) => !COURSES.has(e.v.id))) continue;
+function candidates(network: readonly NetVessel[], nodes: ReadonlySet<string>): Candidate[] {
+  const out: Candidate[] = [], growers = growerEndsByNode(network);
+  for (const [node, all] of permanentEndsByNode(network)) {
+    if (all.some((e) => cutEnd(e.v.id) === e.end)) continue;
+    const ends = all.filter((e) => !noMapTube(e.v));
+    const slots = Math.max(0, Math.min(SKIN_GROWERS, MAX_ARMS - ends.length));
+    const grow = (growers.get(node) ?? []).filter((e) => COURSES.has(e.v.id)).slice(0, slots);
+    if (!nodes.has(node) && !grow.length) continue;
+    if (!(ends.length >= MIN_ARMS && ends.length <= MAX_ARMS) && !(ends.length === 2 && grow.length > 0)) continue;
+    const mk = (e: { v: NetVessel; end: 0 | 1 }, g: boolean): SkinArm => ({ vesselId: e.v.id, end: e.end, courseIndex: 0, dataIndex: indexOf(e.v.lensId), lensIndex: indexOf(e.v.lensId), baseD: e.v.baseD, widthKind: e.v.widthKind, restR: circuitRadius(e.v), ...(g ? { grow: true } : {}) });
+    if (ends.some((e) => !COURSES.has(e.v.id))) { out.push({ node, junction: { node, J: [0, 0, 0], arms: [] }, far: [], why: 'an arm has no map course' }); continue; }
     const sorted = ends.map((e, i) => ({ ...e, i, r: circuitRadius(e.v) })).sort((a, b) => b.r - a.r || a.i - b.i);
     const J = endOf(sorted[0]!.v.id, sorted[0]!.end);
-    const j: SkinJunction = {
-      node, J,
-      arms: sorted.map((e) => ({ vesselId: e.v.id, end: e.end, courseIndex: 0, dataIndex: indexOf(e.v.lensId), lensIndex: indexOf(e.v.lensId), baseD: e.v.baseD, widthKind: e.v.widthKind, restR: e.r })),
-    };
-    if (Math.max(...circuitReach(j)) > CIRC_SKIN_REACH) continue;
-    out.push(j);
+    const j: SkinJunction = { node, J, arms: [...sorted.map((e) => mk(e, false)), ...grow.map((e) => mk(e, true))] };
+    const reach = circuitReach(j), far = j.arms.filter((a, i) => a.grow && reach[i]! > GROW_REACH).map((a) => a.vesselId);
+    const near: SkinJunction = far.length ? { ...j, arms: j.arms.filter((a) => !far.includes(a.vesselId)) } : j;
+    const nr = circuitReach(near);
+    if (Math.max(...near.arms.map((a, i) => (a.grow ? 0 : nr[i]!))) > CIRC_SKIN_REACH) { out.push({ node, junction: near, far, why: 'an arm ends too far from the station' }); continue; }
+    out.push({ node, junction: near, far, why: null });
   }
   return out;
 }
 
+/** Every junction of the map that gets a skin (see `candidates`). */
+export function findCircuitJunctions(network: readonly NetVessel[] = NETWORK, nodes: ReadonlySet<string> = CIRCUIT_SKIN_NODES): SkinJunction[] {
+  return candidates(network, nodes).filter((c) => !c.why).map((c) => c.junction);
+}
+
+/** The growing arms the map's inventory leaves out of a skin because they end too far from its node (`node:vessel`; a test pins the list). */
+export function circuitFarGrowers(network: readonly NetVessel[] = NETWORK): string[] {
+  return candidates(network, CIRCUIT_SKIN_NODES).flatMap((c) => c.far.map((id) => `${c.node}:${id}`));
+}
+
 /** The nodes of the body's inventory the map does not weld, and why (a test pins the list: a new one fails until someone looks). */
 export function circuitFallbacks(network: readonly NetVessel[] = NETWORK): { node: string; why: string }[] {
-  const have = new Set(findCircuitJunctions(network).map((j) => j.node)), out: { node: string; why: string }[] = [];
-  for (const [node, ends] of permanentEndsByNode(network)) {
-    if (!CIRCUIT_SKIN_NODES.has(node) || have.has(node) || ends.some((e) => cutEnd(e.v.id) === e.end) || ends.length < MIN_ARMS || ends.length > MAX_ARMS) continue;
-    out.push({ node, why: ends.some((e) => !COURSES.has(e.v.id)) ? 'an arm has no map course' : 'an arm ends too far from the station' });
-  }
-  return out;
+  return candidates(network, CIRCUIT_SKIN_NODES).filter((c) => c.why).map((c) => ({ node: c.node, why: c.why! }));
 }
 
 /** How far each arm's end lies from J on the map, in radii of the widest arm. */
@@ -110,7 +128,7 @@ export function circuitTube(id: string): ArmTube & { radius: number } {
 }
 
 /** One arm as the per-frame handover reads it. */
-interface Link { obj: VesselObject; id: string; end: 0 | 1; u: number; span: readonly [number, number]; last: number[]; cp: number[]; lenC: number }
+interface Link { obj: VesselObject; id: string; end: 0 | 1; u: number; /** a growing arm the skin morphs: it hands over its growth, not its presence */ grow: boolean; span: readonly [number, number]; last: number[]; cp: number[]; lenC: number }
 interface Built { node: string; mesh: SkinMesh; draw: SkinDraw & { object: Object3D }; arms: Link[]; sources: readonly string[]; hidden: readonly string[]; bake: BakedSkin }
 
 export interface CircuitSkinDeps {
@@ -144,6 +162,8 @@ export class CircuitSkinSet {
   private readonly lostNodes: { node: string; message: string }[] = [];
   /** the nodes that fell back (their tubes keep running into one another, as before), named, once */
   readonly fellBack: string[] = [];
+  /** the growing arms the map's skins could not take (`node:vessel`): they keep their plain lines, named so a new one fails tests/circuit-skins.test.ts until someone looks */
+  readonly dropped: string[] = [];
   private readonly warned = new Set<string>();
   private shown = false;
   private readonly deps: CircuitSkinDeps;
@@ -179,16 +199,69 @@ export class CircuitSkinSet {
     return true;
   }
 
+  /** Plans (cuts.ts) the junctions on the map's rings: a set of cuts is good when the hull has every ring and every ring is clear of the other arms as the skin draws them. */
+  private plan(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube & { radius: number }>): ReturnType<typeof planSkins> {
+    return planSkins(js, tubes, (j) => { const ok: HullOk = (cs) => hullCovers(this.ringsFor(tubes, cs).pos) && this.clearOfAxes(j, tubes, cs); return ok; });
+  }
+
+  /**
+   * Plans AND makes the skins, the way the body's set does (skin-set.ts produce, spec 10.6): a junction that cannot be planned or built with its growing arms loses its narrowest one and is tried again, down to none; the arms it loses keep their lines
+   * (`dropped`); a junction that fails with none is lost (named, its tubes keep running into one another); a merged skin that fails hands both its nodes back to be planned apart.
+   */
+  private produce(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube & { radius: number }>): { made: Built[]; lost: { node: string; message: string }[] } {
+    const made: Built[] = [], lost: { node: string; message: string }[] = [];
+    let todo: SkinJunction[] = [...js];
+    const latest = new Map<string, SkinJunction>(js.map((j) => [j.node, j]));
+    for (let round = 0; todo.length && round <= SKIN_GROWERS + 1; round++) {
+      const { plans, failures } = this.plan(todo, tubes);
+      const again = new Set<string>();
+      const bad: { nodes: readonly string[]; message: string }[] = failures.map((f) => ({ nodes: f.node.split('+'), message: f.message }));
+      for (const p of plans) {
+        try { const b = this.makeBuilt(p, tubes); if (b) made.push(b); }
+        catch (e) { bad.push({ nodes: p.merged ?? [p.junction.node], message: (e as Error).message }); }
+      }
+      const next: SkinJunction[] = [];
+      for (const f of bad) {
+        for (const n of f.nodes) {
+          const j = todo.find((x) => x.node === n);
+          if (!j || again.has(n)) continue;
+          const g = j.arms.filter((a) => a.grow);
+          if (!g.length) {
+            if (f.nodes.length > 1 && f.nodes.some((m) => m !== n && todo.find((x) => x.node === m)?.arms.some((a) => a.grow))) { again.add(n); next.push(j); continue; }
+            lost.push({ node: f.nodes.join('+'), message: f.message }); continue;
+          }
+          const drop = g[g.length - 1]!, arms = j.arms.filter((a) => a !== drop);
+          this.dropped.push(`${n}:${drop.vesselId}`);
+          again.add(n);
+          if (arms.length >= MIN_ARMS) next.push({ ...j, arms });
+        }
+      }
+      for (const f of bad) for (const n of f.nodes) { const j = todo.find((x) => x.node === n); if (j && !again.has(n) && !lost.some((l) => l.node.split('+').includes(n)) && !next.some((x) => x.node === n)) next.push(j); }
+      // a node planned again is planned WITH the skins already made on a vessel it shares: those are taken back and planned again with it
+      for (const m of [...made]) {
+        if (m.sources.some((n) => next.some((x) => x.node === n))) continue;
+        const src = m.sources.map((n) => latest.get(n)).filter((x): x is SkinJunction => !!x);
+        if (!src.length || !src.some((sj) => next.some((x) => x.arms.some((p) => sj.arms.some((q) => q.vesselId === p.vesselId))))) continue;
+        made.splice(made.indexOf(m), 1); m.draw?.dispose();
+        for (const sj of src) if (!next.some((x) => x.node === sj.node)) next.push(sj);
+      }
+      todo = next.filter((j) => !made.some((m) => m.sources.includes(j.node)));
+      for (const j of todo) latest.set(j.node, j);
+    }
+    for (const j of todo) lost.push({ node: j.node, message: `skin: junction ${j.node}: no skin after ${SKIN_GROWERS + 1} rounds of dropping growing arms` });
+    return { made, lost };
+  }
+
   private makeBuilt(plan: ReturnType<typeof planSkins>['plans'][number], tubes: ReadonlyMap<string, ArmTube & { radius: number }>, ready?: BakedSkin): Built | null {
     const j = plan.junction, objs = j.arms.map((a) => this.deps.vessel(a.vesselId));
     if (objs.some((o) => !o)) return null;
     const { pos, nor, rest } = this.ringsFor(tubes, plan.cuts);
-    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined, false); }), j.arms.map(() => false));
+    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined, false); }), j.arms.map((a) => !!a.grow));
     if (ready) this.paces.set(j.node, ready.pace);
     const mesh = ready?.mesh ?? buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
     if (!ready) mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));   // (the seam ring's rest radius is the tube's own, exactly)
     const draw = this.deps.make(mesh, axes, objs as VesselObject[]);
-    const arms: Link[] = j.arms.map((a, i) => ({ obj: objs[i]!, id: a.vesselId, end: a.end, u: plan.cuts[i]!.u, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [], cp: [NaN, NaN, NaN], lenC: COURSES.get(a.vesselId)!.lenC }));
+    const arms: Link[] = j.arms.map((a, i) => ({ obj: objs[i]!, id: a.vesselId, end: a.end, u: plan.cuts[i]!.u, grow: !!a.grow && mesh.grow.some((m) => m.arm === i), span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [], cp: [NaN, NaN, NaN], lenC: COURSES.get(a.vesselId)!.lenC }));
     return { node: j.node, mesh, draw, arms, sources: plan.merged ?? [j.node], hidden: plan.hidden, bake: { plan, axes, mesh, pace: this.paces.get(j.node) ?? 0 } };
   }
 
@@ -201,16 +274,10 @@ export class CircuitSkinSet {
     this.digest = `circuit/${skinsDigest(js, tubes)}`;
     const baked = this.deps.baked?.() ?? null, usable = baked && baked.digest === this.digest ? baked : null;
     const made: Built[] = [], lost: { node: string; message: string }[] = [];
+    this.dropped.length = 0; this.dropped.push(...circuitFarGrowers());
     this.source = usable ? 'baked' : 'live';
-    if (usable) { for (const s of usable.skins) { const b = this.makeBuilt(s.plan, tubes, s); if (b) made.push(b); } lost.push(...usable.lost); }
-    else {
-      const { plans, failures } = planSkins(js, tubes, (j) => (cs) => hullCovers(this.ringsFor(tubes, cs).pos) && this.clearOfAxes(j, tubes, cs));
-      for (const f of failures) lost.push({ node: f.node, message: f.message });
-      for (const p of plans) {
-        try { const b = this.makeBuilt(p, tubes); if (b) made.push(b); }
-        catch (e) { lost.push({ node: p.merged?.join('+') ?? p.junction.node, message: (e as Error).message }); }
-      }
-    }
+    if (usable) { for (const s of usable.skins) { const b = this.makeBuilt(s.plan, tubes, s); if (b) made.push(b); } lost.push(...usable.lost); this.dropped.length = 0; this.dropped.push(...usable.dropped); }
+    else { const r = this.produce(js, tubes); made.push(...r.made); lost.push(...r.lost); }
     this.lostNodes.length = 0; this.lostNodes.push(...lost);
     for (const f of lost) { if (!this.fellBack.includes(f.node)) this.fellBack.push(f.node); if (!this.warned.has(f.node)) { this.warned.add(f.node); warn(`circuit ${f.message} (keeping the map's tubes there)`); } }
     const touched = new Set<string>();
@@ -234,7 +301,7 @@ export class CircuitSkinSet {
 
   /** What the last `build` made, as the file the build bakes. */
   bake(): BakedSkins {
-    return { digest: this.digest, skins: this.built.map((b) => b.bake), lost: [...this.lostNodes], dropped: [] };
+    return { digest: this.digest, skins: this.built.map((b) => b.bake), lost: [...this.lostNodes], dropped: [...this.dropped] };
   }
 
   /** Whether the skins are drawn at all: only over the end of the change (they have no alpha before it: nothing is drawn that is not seen). Written by the scene when the change moves. */
@@ -265,10 +332,14 @@ export class CircuitSkinSet {
         const hi: HiState = { on: u.hiOn!.value as number, dir: u.hiDir!.value as number, offset: u.hiOffset!.value as number, ahead: u.hiAhead!.value as number, behind: u.hiBehind!.value as number, ends: [v('hiEnds').x, v('hiEnds').y], fade: u.hiFade!.value as number, len: u.len!.value as number };
         const h = hiWeightAt(hi, a.u), l = lensUAt(a.span, a.u), col = u.color!.value as { r: number; g: number; b: number }, lu = (u.lensUse!.value as number) > 0.5 ? 1 : 0;
         if (a.last[0] !== h || a.last[1] !== l || a.last[2] !== col.r || a.last[3] !== col.g || a.last[4] !== col.b || a.last[5] !== lu) {
-          a.last = [h, l, col.r, col.g, col.b, lu, a.last[6] ?? NaN, a.last[7] ?? NaN, a.last[8] ?? NaN]; b.draw.setArm(i, 1, h, l, { r: col.r, g: col.g, b: col.b, a: lu }, 0); any = true;
+          a.last = [h, l, col.r, col.g, col.b, lu, a.last[6] ?? NaN, a.last[7] ?? NaN, a.last[8] ?? NaN, a.last[9] ?? NaN]; b.draw.setArm(i, 1, h, l, { r: col.r, g: col.g, b: col.b, a: lu }, 0); any = true;
         }
         const pr = armPresenceAt(a.obj.group.visible, u.reveal!.value as number, u.fade!.value as number, a.u);
-        if (a.last[6] !== pr) { a.last[6] = pr; b.draw.setPres(i, pr); any = true; }
+        if (a.grow) {
+          // a GROWING arm is not dithered away: its draw-on is the skin's own shape, eased between the closed and the open one (a dotted thread, a closed potential collateral, counts as 0: its tube is not cut)
+          const gv = (u.dotted!.value as number) > 0.5 ? 0 : pr;
+          if (a.last[9] !== gv) { a.last[9] = gv; b.draw.setGrow?.(i, gv); any = true; }
+        } else if (a.last[6] !== pr) { a.last[6] = pr; b.draw.setPres(i, pr); any = true; }
         // the flow marks ride on the arm's arc in the map's own units (the vessel shader's `len * vU` with vU = 1 / MAP_K, and the radius the tube hands the dust: its body radius in those units)
         const rd = u.radius!.value as number, fl = u.flowAmount!.value as number;
         if (a.last[7] !== rd || a.last[8] !== fl) {

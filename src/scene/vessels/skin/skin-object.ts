@@ -12,7 +12,8 @@ import { VESSEL_LAYER } from '../../layers.ts';
 import { markBlends } from '../../materials/warm.ts';
 import { GLOW_LAYER } from '../../glow.ts';
 import type { VesselObject } from '../vessel-object.ts';
-import { SKIN_ARMS, SKIN_AXIS_PTS, SKIN_FS, SKIN_VS } from './shaders.ts';
+import { SKIN_ARMS, SKIN_AXIS_PTS, SKIN_FIGURE_UNITS, SKIN_FS, SKIN_VS } from './shaders.ts';
+import { MAP_K } from '../../circuit/map.ts';
 import type { SkinDraw } from './skin-set.ts';
 import { skinKOf } from './sdf.ts';
 import { opensIntoCava } from '../fades.ts';
@@ -45,9 +46,8 @@ export const COPY_LAYER = [VESSEL_LAYER, 0, VESSEL_LAYER] as const;
 export const COPY_ORDER = [0, 0, 2] as const;
 
 /** The program's defines for copy `c` (the page's `?joins=` diagnostics: debug paints dropped pixels, nomarks and noink leave a part out). */
-function skinDefines(c: number, grow: number, circuit = false): Record<string, number> {
+function skinDefines(c: number, grow: number): Record<string, number> {
   const d: Record<string, number> = { SKIN_COPY: c, SKIN_GROW: grow, ...vdbgDefines() }, out = skinLeaveOut();
-  if (circuit) d.SKIN_CIRC = 1;   // (the Circuit's own skin: the map's widths and lines, circuit/skins.ts)
   if (skinDebugOn()) d.SKIN_DEBUG = 1;
   if (out === 'marks') d.SKIN_NOMARKS = 1;
   if (out === 'ink') d.SKIN_NOINK = 1;
@@ -65,7 +65,7 @@ export function reapplySkinDefines(root: Object3D): number {
   root.traverse((o) => {
     const m = (o as Mesh).material as ShaderMaterial | undefined;
     if (!m || !(m instanceof ShaderMaterial) || (m.name !== 'skin' && m.name !== 'skin-glow')) return;
-    const d = m.defines ?? (m.defines = {}), want = skinDefines(Number(d.SKIN_COPY ?? 0), Number(d.SKIN_GROW ?? 0), d.SKIN_CIRC !== undefined);
+    const d = m.defines ?? (m.defines = {}), want = skinDefines(Number(d.SKIN_COPY ?? 0), Number(d.SKIN_GROW ?? 0));
     let changed = false;
     for (const k of SKIN_DIAGNOSTICS) {
       if (want[k] !== undefined && d[k] === undefined) { d[k] = want[k]!; changed = true; }
@@ -137,12 +137,14 @@ export class SkinObject implements SkinDraw {
       armCopy: { value: this.armCopy },
       armAxisP: { value: armAxisP }, skinK: { value: skinKOf(skin.junction.arms) },
       armGrow: { value: this.armGrow }, growG: { value: this.growG },
+      // the Circuit's own skins (circuit/skins.ts) are the same programs as the body's: the map's units and its widths, line and fade are a uniform, so a map skin compiles nothing the body's skins have not
+      skinMap: { value: new Vector2(circuit ? 1 / MAP_K : SKIN_FIGURE_UNITS, circuit ? 1 : 0) },
       ...vdbgUniforms('skin'),   // (the inspector's view of the skins: none without ?inspect, debug-view.ts)
     };
     this.copies = Array.from({ length: SKIN_COPIES }, (_, c) => {
       const material = markBlends(new ShaderMaterial({
         name: 'skin',
-        vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: skinDefines(c, this.growArms.length, circuit),
+        vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: skinDefines(c, this.growArms.length),
         uniforms,
       }));
       const mesh = new Mesh(g, material);
@@ -153,7 +155,7 @@ export class SkinObject implements SkinDraw {
       mesh.visible = c === 0;   // (until the arms say which copies they have: a plain junction's arms are (1, 0, 0), so only the front copy ever shows)
       return mesh;
     });
-    const glowMat = new ShaderMaterial({ name: 'skin-glow', vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: false, defines: { ...skinDefines(0, this.growArms.length, circuit), GLOW: 1 }, uniforms,
+    const glowMat = new ShaderMaterial({ name: 'skin-glow', vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: false, defines: { ...skinDefines(0, this.growArms.length), GLOW: 1 }, uniforms,
       blending: CustomBlending, blendEquation: MaxEquation, blendSrc: OneFactor, blendDst: OneFactor });   // (the glow's mask, painted by max with the tubes': glow-fx.ts)
     this.glow = new Mesh(g, glowMat);
     this.glow.frustumCulled = false; this.glow.visible = false; this.glow.name = `skin:${circuit ? 'circuit:' : ''}${skin.junction.node}:glow`; this.glow.renderOrder = 30;

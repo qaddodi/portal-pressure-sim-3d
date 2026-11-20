@@ -15,49 +15,66 @@ import { SKIN_FS, SKIN_VS } from '../src/scene/vessels/skin/shaders.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { rawPrograms } from '../src/debug/gl-registry.ts';
 import { COURSES } from '../src/scene/circuit/course.ts';
-import { CIRC_SKIN_REACH, CircuitSkinSet, circuitFallbacks, circuitRadius, circuitReach, circuitTube, findCircuitJunctions, turnMatrix, type CircuitSkinDeps } from '../src/scene/circuit/skins.ts';
+import { CIRC_SKIN_REACH, CircuitSkinSet, circuitFallbacks, circuitFarGrowers, circuitRadius, circuitReach, circuitTube, findCircuitJunctions, turnMatrix, type CircuitSkinDeps } from '../src/scene/circuit/skins.ts';
 import { MAP_CENTRE, MAP_K, turnScenePt } from '../src/scene/circuit/map.ts';
 import { circuitWidthMap } from '../src/scene/circuit/width.ts';
 import { TUBE_RADIAL } from '../src/scene/vessels/tubes.ts';
-import { SKIN_REACH } from '../src/scene/vessels/skin/inventory.ts';
+import { GROW_REACH, SKIN_REACH } from '../src/scene/vessels/skin/inventory.ts';
 
 const text = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
 
-/** The junctions the map welds on 20 Nov 2026, with their arms and ends: the body's twelve less the two liver beds. */
+/** The junctions the map finds on 20 Nov 2026 (the body's permanent junctions, and every node a collateral or shunt lands on), with their permanent arms and ends; the growing arms are in GROWS. */
 const TABLE: Record<string, readonly string[]> = {
   HA: ['A_HEP:1', 'A_HR:0', 'A_HL:0'],
-  SV: ['V_IMV:1', 'SV_MID:1', 'SV_CONF:0'],
-  CONF: ['SMV_CONF:1', 'SV_CONF:1', 'PV_TRUNK_1:0'],
+  SMV: ['SMV_CONF:0', 'V_INT_1:1'],
+  SV: ['SV_MID:1', 'SV_CONF:0', 'V_IMV:1'],
+  SVD: ['V_SPL:1', 'SV_MID:0'],
+  CONF: ['PV_TRUNK_1:0', 'SMV_CONF:1', 'SV_CONF:1'],
   PVT_L: ['PV_TRUNK_1:1', 'PV_TRUNK:0', 'LGV_CONF:1'],
   PVH: ['PV_TRUNK:1', 'PVH_R:0', 'PVH_L:0'],
+  RPV_T: ['PVH_R_1:1', 'PVH_R_2:0'],
   CV_R: ['SIN_RR:1', 'POST_R_RHV:0', 'POST_R_MHV:0'],
+  RHV_T: ['RHV_IVC_1:1', 'RHV_IVC:0'],
   IVCS: ['IVC_IS:1', 'IVCS_RA:0', 'RHV_IVC:1', 'MHV_IVC:1', 'LHV_IVC:1'],
-  IVCI: ['IVC_IS_1:0', 'LRV_IVC:1', 'ILI_IVC_1:1'],
-  SVC_E: ['EPI_SVC:1', 'SVC_RA_1:1', 'SVC_RA:0'],
-  SVC: ['V_UP:1', 'AZY_SVC:1', 'SVC_RA_1:0'],
+  IVCI: ['IVC_IS_1:0', 'ILI_IVC_1:1', 'LRV_IVC:1'],
+  IVC_D: ['IVC_IS_1:1', 'IVC_IS:0'],
+  LRV_S: ['V_KID_L:1', 'V_KID_L_1:0'],
+  LRV: ['LRV_IVC:0', 'V_KID_L_1:1'],
+  EPI: ['EPI_ILI:0', 'EPI_SVC:0'],
+  SVC_E: ['SVC_RA_1:1', 'SVC_RA:0', 'EPI_SVC:1'],
+  SVC: ['V_UP:1', 'SVC_RA_1:0', 'AZY_SVC:1'],
 };
-const armKeys = (j: { arms: readonly { vesselId: string; end: number }[] }): string[] => j.arms.map((a) => `${a.vesselId}:${a.end}`).sort();
+const GROWS: Record<string, readonly string[]> = {
+  SMV: ['S_MC:0', 'REX:0'], SVD: ['C6:0', 'S_DSR:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'], IVCI: ['S_PC:1', 'C9:0'], IVC_D: ['DIPS:1'], LRV_S: ['C6:1', 'S_DSR:1'], LRV: ['C5:1'], EPI: ['C3:1'],
+};
+/** What the build leaves out of a skin: a growing arm one skin cannot take (the node's third and fourth arm, a pair a collateral alone made a junction of). */
+const DROPPED = ['IVC_D:DIPS', 'SMV:REX', 'SVD:S_DSR'];
+/** The nodes that get a skin: every junction less IVC_D (a run-on pair whose one collateral could not be taken). */
+const BUILT = Object.keys(TABLE).filter((n) => n !== 'IVC_D');
+const armKeys = (j: { arms: readonly { vesselId: string; end: number; grow?: boolean }[] }): string[] => j.arms.filter((a) => !a.grow).map((a) => `${a.vesselId}:${a.end}`).sort();
+const growKeys = (j: { arms: readonly { vesselId: string; end: number; grow?: boolean }[] }): string[] => j.arms.filter((a) => a.grow).map((a) => `${a.vesselId}:${a.end}`).sort();
 
-test('the map welds the body\'s permanent junctions: ten nodes, their arms and ends pinned; the two liver beds are named fallbacks, not hidden', () => {
+test('the map finds the body\'s junctions: eighteen nodes, their arms, growing arms and ends pinned; the two liver beds are named fallbacks, not hidden', () => {
   const js = findCircuitJunctions();
   assert.deepEqual(js.map((j) => j.node).sort(), Object.keys(TABLE).sort());
-  for (const j of js) assert.deepEqual(armKeys(j), [...TABLE[j.node]!].sort(), j.node);
+  for (const j of js) { assert.deepEqual(armKeys(j), [...TABLE[j.node]!].sort(), j.node); assert.deepEqual(growKeys(j), [...(GROWS[j.node] ?? [])].sort(), `${j.node}: growing arms`); }
+  assert.deepEqual(circuitFarGrowers(), [], 'every growing arm ends at its station on the map: none is a side-wall landing there');
   // the beds: the map draws the arteriole beside the lanes (A_HR ends at the comb, 30 map units off the bed's station), so it is not a junction there
   assert.deepEqual(circuitFallbacks().map((f) => f.node).sort(), ['SIN_L', 'SIN_R']);
   assert.ok(circuitFallbacks().every((f) => f.why === 'an arm ends too far from the station'));
   assert.equal(CIRC_SKIN_REACH, SKIN_REACH, 'the map keeps the body\'s reach');
 });
 
-test('on the map every arm of a welded node ends exactly on its station: no side-wall landing, no art gap to bridge; arms are widest first by their MAP width', () => {
+test('on the map every permanent arm of a node ends exactly on its station (a growing arm within GROW_REACH): no side-wall landing, no art gap to bridge; arms are widest first by their MAP width', () => {
   for (const j of findCircuitJunctions()) {
-    for (const r of circuitReach(j)) assert.ok(r < 1e-3, `${j.node}: an arm ends ${r} radii from J`);
-    const w = j.arms.map((a) => a.restR);
+    circuitReach(j).forEach((r, i) => assert.ok(r < (j.arms[i]!.grow ? GROW_REACH : 1e-3), `${j.node}: ${j.arms[i]!.vesselId} ends ${r} radii from J`));
+    const w = j.arms.filter((a) => !a.grow).map((a) => a.restR);
     assert.deepEqual([...w].sort((a, b) => b - a), w, `${j.node}: widest first`);
     for (const a of j.arms) {
       assert.ok(COURSES.has(a.vesselId), `${a.vesselId} has a map course`);
       assert.equal(a.restR, circuitRadius(NETWORK_BY_ID.get(a.vesselId)!), `${a.vesselId}: the radius the rings are built at is the map's`);
       assert.equal(NETWORK_BY_ID.get(a.vesselId)!.circFine ?? 1, 1, `${a.vesselId}: no fine-width artery among the arms (circSwellOf has no such term)`);
-      assert.ok(!a.side && !a.grow, 'plain arms');
+      assert.ok(!a.side, 'no side-wall arm on the map');
     }
   }
 });
@@ -102,15 +119,17 @@ function setOf(scene: CelScene, baked?: CircuitSkinDeps['baked']): { set: Circui
   return { set, made, ends };
 }
 
-test('a build welds the ten nodes with no fall back: each skin starts on its arms\' own ring vertices, the tubes take their second cut, a clear puts them back', () => {
+test('a build welds the seventeen nodes with no fall back, the growing arms it cannot take named: each skin starts on its arms\' own ring vertices, the tubes take their second cut, a clear puts them back', () => {
   const was = smoothJoinsOn(); setSmoothJoins(true);
   const scene = new CelScene({ joins: 'old' });
   try {
     const { set, made, ends } = setOf(scene);
     set.build();
-    assert.deepEqual([...set.nodes].sort(), Object.keys(TABLE).sort());
+    assert.deepEqual([...set.nodes].sort(), [...BUILT].sort());
     assert.deepEqual(set.fellBack, [], 'nothing falls back on the map');
-    assert.equal(made.length, 10);
+    assert.deepEqual([...set.dropped].sort(), DROPPED, 'the growing arms that keep their lines, named');
+    assert.equal(set.count, 17);
+    assert.ok(made.length >= 17, 'every skin was made once at least (a retry makes more)');
     assert.ok(ends[0]! >= 1, 'the scene is told the ends changed (it writes the map mates again)');
     for (const node of set.nodes) {
       const m = set.skinOf(node)!;
@@ -158,7 +177,7 @@ test('the baked file: a round trip, the digest of the map\'s own rings, and a bu
     const live = setOf(scene); live.set.build();
     const made = live.set.bake();
     assert.ok(made.digest.startsWith('circuit/'), 'a Circuit file is never taken for the Anatomy\'s');
-    assert.equal(made.skins.length, 10);
+    assert.equal(made.skins.length, 17);
     const bin = encodeSkins(made), back = decodeSkins(bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength) as ArrayBuffer)!;
     assert.ok(back && back.digest === made.digest);
     assert.equal(live.set.source, 'live');
@@ -188,12 +207,14 @@ test('the shaders: the tube has a second cut that takes effect over the END of t
   assert.match(VESSEL_FS, /uniform vec2 skinCutC;/);
   assert.match(VESSEL_FS, /bool skinPastC\(\) \{ return circT > 0\.0 && /);
   assert.match(VESSEL_FS, new RegExp(`float keepC = 1\\.0 - smoothstep\\(${SKIN_CIRC_IN.toFixed(4).replace(/0+$/, '')}0*, 1\\.0, circT\\);`), 'the tube\'s map cut and the skin come in over the same stretch');
-  assert.match(SKIN_FS, new RegExp(`\\* smoothstep\\(${SKIN_CIRC_IN.toFixed(4).replace(/0+$/, '')}0*, 1\\.0, circT\\);`));
-  assert.match(SKIN_FS, /#ifdef SKIN_CIRC/);
+  assert.match(SKIN_FS, new RegExp(`smoothstep\\(${SKIN_CIRC_IN.toFixed(4).replace(/0+$/, '')}0*, 1\\.0, circT\\), skinCirc\\)`));
+  assert.ok(!/#if(n?def)?\s+SKIN_CIRC\b/.test(SKIN_FS + SKIN_VS), 'the map\'s skins are the body\'s programs: skinCirc is a uniform, not a define (nothing new to compile)');
+  assert.match(SKIN_FS, /uniform vec2 skinMap;/);
+  assert.match(SKIN_FS, /mix\(1\.0 - smoothstep\(0\.0, [0-9.]+, circT\), smoothstep\(/);
   assert.match(SKIN_VS, /float circSwellOf\(vec4 a\)/);
-  assert.match(SKIN_FS, /circT \* [0-9.]+ \* smoothstep\(-inDepth, 0\.0, sdPx\)/, 'the Circuit\'s inner line');
+  assert.match(SKIN_FS, /skinCirc \* circT \* [0-9.]+ \* smoothstep\(-inDepth, 0\.0, sdPx\)/, 'the Circuit\'s inner line');
   const names = rawPrograms('').map((p) => p.name);
-  for (const n of ['skin (Circuit)', 'skin (Circuit, solid copy)', 'skin (Circuit, veil copy)']) assert.ok(names.includes(n), `${n} is in the compile registry`);
+  assert.ok(!names.some((n) => /Circuit/.test(n) && /skin/.test(n)), 'no program of its own: the body\'s skin programs are the map\'s');
   // the body's skin is gone before the map's comes in: the two never share a pixel
   assert.ok(SKIN_CIRC_IN > 0.35, 'the body\'s skin is gone by 0.35 (SKIN_CIRC_SPAN)');
 });

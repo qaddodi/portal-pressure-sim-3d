@@ -40,7 +40,7 @@ export function permanentEndsByNode(network: readonly NetVessel[]): Map<string, 
 }
 
 /** The ends of the growing vessels at each node, the widest first (ties keep the network's order). */
-function growerEndsByNode(network: readonly NetVessel[]): Map<string, { v: NetVessel; end: 0 | 1 }[]> {
+export function growerEndsByNode(network: readonly NetVessel[]): Map<string, { v: NetVessel; end: 0 | 1 }[]> {
   const at = new Map<string, { v: NetVessel; end: 0 | 1 }[]>();
   for (const v of network) {
     if (!isGrower(v)) continue;
