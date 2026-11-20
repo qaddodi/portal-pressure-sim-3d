@@ -39,6 +39,7 @@ const WASH_EASE_MS = 350;
 import { CEL_STYLE } from '../cel-style.ts';
 import { buildBile } from '../lobule/bile.ts';
 import { MeshBuilder, MicroPart, type P2, type RGB, ellipsoid, microMaterials, pillow, tube } from './cel3d.ts';
+import { fadeUniform } from '../materials/fade-layer.ts';
 
 const R = LOBULE_R;
 /** Heights (local units, toward the viewer; R = 3): the hexagon's ground, the tiles' tops and bottoms, the tubes' centre line, Disse's sleeve, the mouths' lips and depth, the marks' plate. */
@@ -87,7 +88,7 @@ interface Coloured { part: MicroPart; seg: Seg | null; w: Float32Array; k: Float
 export class Lobule3D {
   readonly group = new Group();
   private readonly flat: Flat;
-  private readonly fade = { value: 1 };
+  private readonly fade = fadeUniform();
   private on = false;
   private hidLobule = false;
   private cellKey = '';

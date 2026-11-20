@@ -15,12 +15,17 @@ export const VESSEL_TEXEL = {
   a: 'downstreamPressure',
 } as const;
 
-/** The dive's dissolve: a part fades by dropping a growing share of its pixels in a fixed screen pattern (interleaved gradient noise), so an object can be there, half there
- *  and gone with no alpha and no sorting, and never pops. `fade` 1 draws everything (one compare), 0 nothing. The toon, ink and vessel passes use the same pattern, so an
- *  object's ink goes with its fill. */
+/** A fading part. In the figure's frame a part that is mid-fade is left out of the main picture and drawn whole into a layer of its own, laid over the figure at one opacity (materials/fade-layer.ts:
+ *  `fadeLayer` 1 the main picture, 2 a layer, so a fade is a smooth glide with no grain and nothing shows through itself). A material that does not carry `fadeLayer` (0) keeps the old dissolve: a share of its pixels
+ *  dropped in a fixed screen pattern (interleaved gradient noise), also the fallback when `?fade=dither` or a refused texture turns the layers off. `fade` 1 draws everything (one compare), 0 nothing. */
 export const FADE_GLSL = /* glsl */ `
 uniform float fade;
-bool fadedOut() { return fade < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= fade; }
+uniform float fadeLayer;
+bool fadedOut() {
+  if (fadeLayer > 1.5) return false;
+  if (fadeLayer > 0.5) return fade < 0.999;
+  return fade < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= fade;
+}
 // A tube drawing on or retracting along its length (\`reveal\`, 0 to 1 over u): the front is a soft gradient, a tenth of the length, dissolved in the same screen pattern, never a hard cut.
 bool frontOut(float u, float rv) {
   if (rv >= 0.9999) return false;

@@ -26,6 +26,7 @@ import { OrganArt } from './organ-art.ts';
 import { smoothRestNormals } from './normal-smooth.ts';
 import { smoothSilhouette, tailFade } from './contour.ts';
 import { ORGAN_Z } from './z.ts';
+import { FADE_LAYER } from '../materials/fade-layer.ts';
 
 type Og = keyof OrganTones2D['tones'];
 /** The tone each 2D organ takes, its 2D painter's tones (--og-<og>-1/2/3; anatomy.js `tone`), the outline's width (2D: 1.1 px, the kidney 1.4) and alpha (.62, the kidney .95, the atrium .35),
@@ -92,7 +93,7 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
   // depth test, so it shows only where the fill is not, and before the outline, so the line lies over it.
   const seat = new ShaderMaterial({
     vertexShader: ORGAN_INK_VS, fragmentShader: INK_FS, side: BackSide, transparent: true, depthWrite: false,
-    uniforms: { color: { value: new Color() }, hiColor: { value: new Color() }, fade: m.uniforms.fade!, reveal: ink.uniforms.reveal!, inkA: { value: 0 }, px: { value: 0 }, dpr: ink.uniforms.dpr!, res: ink.uniforms.res!,
+    uniforms: { color: { value: new Color() }, hiColor: { value: new Color() }, fade: m.uniforms.fade!, fadeLayer: FADE_LAYER, reveal: ink.uniforms.reveal!, inkA: { value: 0 }, px: { value: 0 }, dpr: ink.uniforms.dpr!, res: ink.uniforms.res!,
       hiOn: { value: 0 }, hiPx: { value: 0 } },   // (every uniform the shader declares: a missing one keeps what the last material drawn with this program left in it, so a tapped spleen lit the stomach's seat and the esophagus)
   });
   const mesh = new Mesh(g, seat);

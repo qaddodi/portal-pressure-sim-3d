@@ -20,6 +20,7 @@ import type { SinusoidView } from '../sinusoid/view.ts';
 import { U } from '../sinusoid/view.ts';
 import { CELL, SEED, SLOT, UM, canaliculusAt, cellOf, edgeAt, nucAt, poreAt, poreOpenness, underNucleus, type Pore } from '../sinusoid/layout.ts';
 import { CEL_STYLE } from '../cel-style.ts';
+import { fadeUniform } from '../materials/fade-layer.ts';
 import {
   MeshBuilder, MicroMany, MicroPart, type P2, type RGB, chaikin, ellipsoid, hazeUniforms, microMaterials, rawRGB, outlineNormals, pillow, placeAt, tube, unitRbc, unitRod, unitSphere,
 } from './cel3d.ts';
@@ -100,7 +101,7 @@ const gapTexture = (data: Uint8Array): DataTexture => {
 export class Sinusoid3D {
   readonly group = new Group();
   private readonly flat: Flat;
-  private readonly fade = { value: 1 };
+  private readonly fade = fadeUniform();
   private readonly res: CelShared['res'];
   private on = false;
   /** The haze over what lies past this sinusoid's own plates (one set of uniforms for every part). */

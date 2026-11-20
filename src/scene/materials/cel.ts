@@ -4,6 +4,7 @@ import {
 import { HI_NONE, INK_FS, INK_VS, TOON_FS, TOON_VS } from './shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 import { type Palette, type ToneKey, flowMarkColours, highlightColour } from '../palette.ts';
+import { FADE_LAYER, fadeUniform } from './fade-layer.ts';
 
 /** A colour whose numbers are the hex's own sRGB values, not converted to linear: the cel shaders do their banding in sRGB space, as the
  *  spec's factors (shade × 0.62, rim +0.10, specular +0.32) are written, and their output is written to the canvas as is. The body plate
@@ -88,7 +89,7 @@ export class CelObject {
         bands: { value: opts.bands }, spec: { value: opts.spec }, inflate: { value: 0 },
         len: { value: v?.len ?? 1 }, time: shared.time, radius: { value: v?.radius ?? 0 }, baseD: { value: v?.baseD ?? 1 },
         vdata: shared.vdata, vdataSize: shared.vdataSize, vindex: { value: v?.index ?? 0 }, useData: { value: 0 },
-        stubSpeed: { value: v?.stubSpeed ?? 0 }, reveal: { value: 1 }, fade: { value: 1 }, inkShade: { value: 0.62 }, inkAmount: { value: 0 }, flowAmount: { value: 0 }, flowBands: { value: 0 },
+        stubSpeed: { value: v?.stubSpeed ?? 0 }, reveal: { value: 1 }, fade: fadeUniform(), fadeLayer: FADE_LAYER, inkShade: { value: 0.62 }, inkAmount: { value: 0 }, flowAmount: { value: 0 }, flowBands: { value: 0 },
         markColor: { value: new Color() }, markReversed: { value: new Color() }, tubeDark: { value: 0 },
       },
     });
@@ -97,7 +98,7 @@ export class CelObject {
       fragmentShader: INK_FS,
       side: BackSide,
       uniforms: {
-        color: { value: new Color() }, hiColor: { value: new Color() }, inflate: this.toon.uniforms.inflate, fade: this.toon.uniforms.fade,
+        color: { value: new Color() }, hiColor: { value: new Color() }, inflate: this.toon.uniforms.inflate, fade: this.toon.uniforms.fade, fadeLayer: FADE_LAYER,
         px: { value: opts.px }, res: shared.res, len: this.toon.uniforms.len, reveal: this.toon.uniforms.reveal,
         hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 }, inkA: { value: 1 },
       },

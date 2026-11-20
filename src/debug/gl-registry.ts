@@ -18,6 +18,7 @@ import { endoShaderSource } from '../ui/tests/endo/endo-under.ts';
 import { LOBULE_PLATE_FS, LOBULE_PLATE_VS } from '../scene/lobule/plate.ts';
 import { LOBULE_FIELD_FS, LOBULE_FIELD_VS } from '../scene/lobule/field.ts';
 import { AA_FS, AA_VS } from '../scene/post-aa.ts';
+import { FADE_FS, FADE_VS } from '../scene/materials/fade-layer.ts';
 import { DOF_GATHER_FS, DOF_MIX_FS, DOF_VS } from '../scene/post-dof.ts';
 import { CELLS_FS, CELLS_VS } from '../scene/blood/cells/shader.ts';
 
@@ -42,6 +43,7 @@ export const GL_FILES: Record<string, string> = {
   'scene/organs/organ-art.ts': 'the organ wash wrapped for the organs\' art and the esophagus\'s fade (made when the art file is in): registered by name',
   'scene/blood/cells/shader.ts': 'the blood-cell particles (Settings > Figure depth; built when first switched on): registered by name, and found on the scene graph once they are in it',
   'scene/post-aa.ts': 'the anti-aliasing pass over the whole figure (FXAA on a full-screen quad, outside the scene graph): registered by name',
+  'scene/materials/fade-layer.ts': 'the fade layer laid over the figure (a premultiplied texture at one opacity on a full-screen quad, outside the scene graph): registered by name',
   'scene/post-dof.ts': 'the depth of field of the dive (desktop only: a half-size gather and a full-size blend on a full-screen quad, outside the scene graph): registered by name',
   'ui/charts/gl.ts': 'the charts\' shared drawer: registered by name',
   'ui/tests/copied/doppler-synth.copied.js': 'the Doppler spectrum: registered by name',
@@ -82,6 +84,7 @@ export function rawPrograms(fibroText: string): Program[] {
     ...organArtPrograms(),
     lateMaterialProgram('blood cells', CELLS_VS, CELLS_FS),
     lateMaterialProgram('post aa', AA_VS, AA_FS),
+    lateMaterialProgram('fade layer', FADE_VS, FADE_FS),
     lateMaterialProgram('post dof', DOF_VS, DOF_GATHER_FS),
     lateMaterialProgram('post dof mix', DOF_VS, DOF_MIX_FS),
     rawProgram('charts', CHART_VS, CHART_FS),
