@@ -87,8 +87,11 @@ for (const [host, pieces] of Object.entries(JUNCTION_PIECES as Record<string, st
 /** The renal vein runs at the cava's depth, and the kidney is placed there too (Mohammad, 20 Nov: "the renal vein and the kidney should be at the same depth as the IVC"). Depth only:
  *  it is still drawn the way the 2D figure draws it (BACK_EDGES, in the scene, is what puts a vessel behind the organs). */
 export const RENAL_VEIN_IDS: ReadonlySet<string> = new Set(['V_KID_L', 'V_KID_L_1', 'LRV_IVC']);
+/** The hepatic veins lie on the cava's plane too: they join it level, with no depth to ease, so a tilted view shows no twist where they meet (Mohammad, 20 Nov). */
+export const HEPATIC_VEIN_IDS: ReadonlySet<string> = new Set(['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC']);
 function tierOf(e: Edge): Tier {
   if (BACK_EDGES.has(e.id) || RENAL_VEIN_IDS.has(e.id)) return 'back';
+  if (HEPATIC_VEIN_IDS.has(e.id)) return 'hv';   // (the cava's plane, 0.016 in front of it: the lumbar collaterals that cross them stay apart in depth)
   if (e.id === 'C3') return 'fwd';   // the paraumbilical vein rises forward over the portal trunk to the umbilicus
   if (isArteryEdge(e)) return 'art';
   if (OVER_IDS.has(e.id)) return 'over';
@@ -273,6 +276,9 @@ export function presenceOf(v: Pick<NetVessel, 'id' | 'kind' | 'feeder'>, f: Pres
   if (k == null) return 'hidden';
   if (NEEDS_C3.has(v.id)) return recruitFrac('C3', f) > C3_FRAC ? 'shown' : 'hidden';
   // (the lumbar-azygos collateral C9 runs through the right sinusoid fan: while closed it is not drawn as a dotted pink thread there; Mohammad, 20 Nov)
+  // the sinusoid beds (the "light bulb" fans, their feeding arterioles and their strands) are not drawn: the portal veins fade out into the liver and the hepatic veins fade in from it,
+  // and the liver tissue implies the sinusoids between (Mohammad, 20 Nov). They stay in the network (the flows, the labels and the Lobule read them), only never shown.
+  if (v.kind === 'liver') return 'hidden';
   if (v.kind === 'collateral') return collateralOpen(v.id, f) ? 'shown' : o.collaterals && v.id !== 'C9' ? 'ghost' : 'hidden';
   if (SHUNT_IDS.has(v.id)) return f.D[k]! > 0 ? 'shown' : 'hidden';   // a procedure's shunt is there while it has a diameter
   if (v.kind === 'shunt') return (f.Qf ?? f.Q)[k]! > AP_Q ? 'shown' : 'hidden';

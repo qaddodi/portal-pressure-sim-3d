@@ -29,6 +29,12 @@ export const orbitHome = (x0: number, t: number, omega = ORBIT_HOME_OMEGA): numb
 };
 
 export const easeInOutCubic =(t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+/** 2D's camera ease (src/ui/ease.js easeMove): the quintic smoothstep 6t⁵ − 15t⁴ + 10t³. Its speed and its acceleration both start and end at zero, so a long glide has no catch half way. */
+export const easeMove = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * t * (t * (6 * t - 15) + 10));
+/** 2D's carry (ease.js carried, CARRY_MAX): a glide begun while another is still moving starts at the speed the view has, instead of from rest: p = ease(t) + c·t(1−t)², c the old speed in the new glide's own
+ *  progress per glide, capped at 0.8 so the progress never passes 1 on the way. With c = 0 it is easeMove. */
+export const CARRY_MAX = 0.8;
+export const easeCarry = (t: number, c: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : Math.min(1, easeMove(t) + (c > 0 ? Math.min(c, CARRY_MAX) * t * (1 - t) * (1 - t) : 0)));
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 
 /** Shortest way round between two angles, so a turn never spins the long way. */
@@ -75,6 +81,7 @@ export function blendPose(a: Pose, b: Pose, k: number, arc = 1): Pose {
 /** The cinematic arc of a dive: the camera swings a little to one side and rises as it plunges, then settles square on the place it dives to, instead of a straight push. A bell in k (zero at both ends, so a
  *  move that lands or starts leaves the shots' own yaw and pitch exactly; the same both ways, so the way out is the way in run backward). Its size grows with how deep the move goes (body to lobule 0.2 rad
  *  of yaw and 0.09 of pitch, lobule to sinusoid about half that); Reduce Motion passes `arc` 0. */
+// (OFF in the rig since 20 Nov: the swing read as a zigzag; the rig passes arc 0. blendPose(…, arc = 1) still computes it for the test.)
 export const ARC_YAW = 0.2, ARC_PITCH = 0.09;
 export function arcBell(k: number): number { const s = Math.sin(Math.PI * Math.min(1, Math.max(0, k))); return s * s; }
 export function arcSize(ra: number, rb: number): number {
@@ -108,6 +115,8 @@ export class CameraRig {
   private cur: Pose;
   private t0 = 0;
   private dur = 0;
+  /** The speed the move began with (easeCarry's slope): zero from a standstill. */
+  private carry = 0;
   private active = false;
   private orbit = 0;
   private orbitFrom = 0;
@@ -184,8 +193,16 @@ export class CameraRig {
       this.orbit = this.orbitFrom = 0; this.active = false; this.handTween = false; this.dirty = true;
       return;
     }
+    // retargeted in flight: carry the speed on (the old move's progress rate over what it had left, in the new move's own units), so nothing slows to a stop and starts again
+    let carry = 0;
+    if (this.active && this.dur > 0) {
+      const k0 = Math.min(1, (now - this.t0) / this.dur), e0 = easeCarry(k0, this.carry), e1 = easeCarry(Math.min(1, k0 + 1e-3), this.carry);
+      const left = 1 - e0, newDur = reducedMs(ms, this.reduceMotion || reduced());
+      if (left > 1e-3 && newDur > 0) carry = Math.min(CARRY_MAX, Math.max(0, ((e1 - e0) / 1e-3 / this.dur) / left * newDur));
+    }
     this.from = { shot: copyShot(this.cur.shot), room: copyRoom(this.cur.room) };
     this.to = { shot: copyShot(s), room: copyRoom(room) };
+    this.carry = this.reduceMotion || reduced() ? 0 : carry;
     // a new shot takes the hand's zoom and pan back to the shot's own framing, in the same move
     this.handFrom = { ...this.hand };
     this.handTween = keepHand ? this.handTween : this.hand.k !== 1 || this.hand.x !== 0 || this.hand.y !== 0;
@@ -277,12 +294,13 @@ export class CameraRig {
     let moving = false;
     if (this.active) {
       const k = this.dur <= 0 ? 1 : Math.min(1, (now - this.t0) / this.dur);
-      this.cur = blendPose(this.from, this.to, easeInOutCubic(k), this.reduceMotion || reduced() ? 0 : 1);
+      const e = easeCarry(k, this.carry);
+      this.cur = blendPose(this.from, this.to, e, 0);
       this.bump = fovBump(k, this.bumpFrom, this.plunge);
       // the orbit eases back to centre with the shot (a new shot always starts square on), but a change of room alone (a card opening) leaves the turn the viewer chose
-      this.orbit = lerp(this.orbitFrom, this.orbitTo, easeInOutCubic(k));
-      this.pitchOrbit = lerp(this.pitchFrom, this.pitchTo, easeInOutCubic(k));
-      if (this.handTween) { lerpView(this.handFrom, { k: 1, x: 0, y: 0 }, easeInOutCubic(k), this.hand); if (k >= 1) this.handTween = false; }
+      this.orbit = lerp(this.orbitFrom, this.orbitTo, e);
+      this.pitchOrbit = lerp(this.pitchFrom, this.pitchTo, e);
+      if (this.handTween) { lerpView(this.handFrom, { k: 1, x: 0, y: 0 }, e, this.hand); if (k >= 1) this.handTween = false; }
       if (k >= 1) this.active = false; else moving = true;
       this.dirty = true;
     }

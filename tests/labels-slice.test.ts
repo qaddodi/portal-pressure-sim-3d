@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CameraRig } from '../src/scene/camera/rig.ts';
-import { planLayout, BAR, type Plan } from '../src/ui/layout/plan.ts';
+import { centredKind, planLayout, BAR, type Plan } from '../src/ui/layout/plan.ts';
 import { stopsOf, viewAt, lastSlideShot } from '../src/ui/deck/presenter-machine.ts';
 import { HVPG_DECK } from '../src/decks/hvpg.ts';
 import { LabelController, NO_STATE, type LabelDeps } from '../src/scene/labels/controller.ts';
@@ -66,6 +66,8 @@ for (const [name, vp] of Object.entries(SCREENS) as [keyof typeof SCREENS, (type
       // a slide in the lobule or sinusoid view has no body labels to judge (those views carry their own, B8)
       if (s.kind === 'slide' && s.slide.scene && s.slide.scene.view !== 'body') return;
       const h = harness(name, i, s.kind === 'slide' && s.slide.vignette ? 1 : 0);
+      // the outline, the quick check and a summary or chart slide are one centred panel with the page veiled behind it (2D `.pz-panel`, `.pz-veil`): the figure's names lie under the veil, so there is nothing to judge
+      if (h.plan.cards.length === 1 && !h.plan.strip && centredKind(h.plan.cards[0]!.id) === 'panel') return;
       h.settle();
       const view: Box = { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom };
       // a small screen may drop the least important stations (the 2D app does too); never one the slide names, and never the portal vein

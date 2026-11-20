@@ -4,7 +4,7 @@ import type { Entry } from './stack.ts';
 import { EXIT_MS } from './stack.ts';
 import { useUi } from '../ui-store.ts';
 import { layoutOf, radius } from '../layout/rules2d.ts';
-import { centredKind } from '../layout/plan.ts';
+import { centredKind, centredBox, panelVisual } from '../layout/plan.ts';
 
 interface Props {
   entry: Entry;
@@ -21,10 +21,12 @@ interface Props {
   extra?: string;
   /** a tap on the card (2D: a case card is lifted by a tap, as by Next) */
   onTap?(): void;
+  /** a visual panel's 2D visual (table, plane, walls…) */
+  visual?: string;
 }
 
 /** One card: placed by transform, sized exactly to its content with a glide, invisible until its words are laid out, then it rises in. */
-export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow, extra, onTap }: Props) {
+export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow, extra, onTap, visual }: Props) {
   const vp = useUi((s) => s.vp);
   const r = Math.round(radius(vp.w, vp.h, layoutOf(vp.w, vp.h)));
   const cardRef = useRef<HTMLDivElement>(null);
@@ -43,6 +45,14 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     const report = () => {
       const card = cardRef.current, cs = card && centredKind(entry.id) ? getComputedStyle(card) : null;
       const pad = cs ? (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) : 0;
+      // 2D's fit (presenter-zoom.js): a panel taller than its room zooms its contents down (--pz-fit, `.pz-panel > *`) until they fit, the words never under 12 px; only past that does the card split
+      if (card && cs && centredKind(entry.id) === 'panel') {
+        const room = centredBox(vp, 'panel', panelVisual({ id: entry.id, visual })).maxH, size = () => el.getBoundingClientRect().height + pad + 2;
+        card.style.removeProperty('--pz-fit');
+        const probe = card.querySelector('.pz-line, .pz-outline li, p'), lb = probe ? parseFloat(getComputedStyle(probe).getPropertyValue('font-size')) : 0, floor = lb > 12 ? Math.ceil((12 / lb) * 1000) / 1000 : 0.5;
+        let k = 1, hgt = size();
+        for (let n = 0; n < 8 && hgt > room && k > floor; n++) { k = Math.max(floor, k * Math.min(0.97, (room / hgt) ** 0.9)); card.style.setProperty('--pz-fit', k.toFixed(3)); hgt = size(); }
+      }
       onHeight(entry.key, Math.round(rect.w), Math.ceil(el.getBoundingClientRect().height + pad) + 2);
     };
     report();
@@ -103,7 +113,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     <div className="dk-pos" data-live={live && !out} data-centred={alone || undefined} style={{ width: rect.w, transform: `translate3d(${rect.x}px, ${rect.y}px, 0)` }}>
       <div ref={plateRef} className="dk-plate" data-phase={phase} style={{ height: ready ? (animH ?? rect.h) : undefined }} aria-hidden="true" />
       <div ref={cardRef} className={`dk-card ${surface}`} data-card={entry.id} data-phase={phase} data-overflow={overflow || undefined}
-        role="group" aria-label={label} onClick={onTap} data-visual={entry.id === 'title' ? 'outline' : entry.id === 'check' ? 'check' : undefined} style={{ height: ready ? (animH ?? rect.h) : undefined }} {...pointer}
+        role="group" aria-label={label} onClick={onTap} data-visual={entry.id === 'title' ? 'outline' : entry.id === 'check' ? 'check' : entry.id === 'visual' ? visual || 'table' : undefined} style={{ height: ready ? (animH ?? rect.h) : undefined }} {...pointer}
         onAnimationEnd={(e) => { if (e.target !== e.currentTarget) return; if (out) onGone(entry.key); else if (e.animationName === 'dk-in') setLive(true); }}>
         <div ref={innerRef} className={entry.id === 'ladder' || alone ? 'dk-in' : 'dk-in pz-text'}>{children}</div>
         {/* 2D's handle in the data card's foot (a touch screen, both cards up): a push up on the card puts it away */}

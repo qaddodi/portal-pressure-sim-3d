@@ -81,10 +81,13 @@ export function viewAt(stops: Stop[], p: Pos, lastShot: ShotName | Shot = lastSl
   // the figure's views after the slide's own (2D `beats`): one per Next, the words and the data staying; a beat past the case beat is the slide itself (0) or one of its beats
   const view = Math.max(0, p.beat - (caseOf(s.slide) ? 1 : 0)), beat = view > 0 ? s.slide.beats?.[view - 1] : undefined;
   if (beat) return { words: 'teach', data: dataOf(s.slide), slide: s.slide, shot: beat.shot, scene: beat, cath: s.slide.cath ?? null, number, of };
+  // a slide whose card is a summary table or a chart is 2D's one centred panel (title, line, then the table or chart in it): no words card and no data card beside it
+  const panel = !caseBeat && dataOf(s.slide) === 'table';
   return {
-    words: caseBeat ? 'case' : 'teach',
-    data: caseBeat ? null : dataOf(s.slide),
-    slide: s.slide, shot: s.slide.scene ? s.slide.scene.shot : s.slide.shot ?? TITLE_SHOT, scene: s.slide.scene ?? null, cath: s.slide.cath ?? null, number, of,
+    words: caseBeat ? 'case' : panel ? 'visual' : 'teach',
+    data: caseBeat || panel ? null : dataOf(s.slide),
+    // (2D: behind a case card the camera backs out to the whole patient; the slide's own framing comes when the card is lifted)
+    slide: s.slide, shot: caseBeat ? TITLE_SHOT : s.slide.scene ? s.slide.scene.shot : s.slide.shot ?? TITLE_SHOT, scene: s.slide.scene ?? null, cath: s.slide.cath ?? null, number, of,
   };
 }
 
