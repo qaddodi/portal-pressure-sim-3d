@@ -43,7 +43,7 @@ test('a vessel in front of the organs is drawn over them, solid, and has no veil
 
 test('the cava behind the organs is whole, not a veil: the fragment shader writes alpha 1 everywhere', () => {
   assert.doesNotMatch(VESSEL_FS, /veilA|VEIL_A/, 'no veil alpha');
-  assert.equal((VESSEL_FS.match(/gl_FragColor = vec4\(c, fadeHere \* cavA\);/g) ?? []).length, 1, 'the body writes only its fade zone\'s alpha');
+  assert.equal((VESSEL_FS.match(/gl_FragColor = vec4\(c, vFade \* cavA\);/g) ?? []).length, 1, 'the body writes only its fade zone\'s alpha');
 });
 
 test('a faint-only vessel can still be picked', () => {

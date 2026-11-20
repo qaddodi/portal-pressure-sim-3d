@@ -225,8 +225,6 @@ export class CelScene {
   private readonly ivcJoins: VesselObject[] = [];
   /** The hepatic veins, whose last stretch eases to the faint cava's alpha (fades.ts cavaEndSpan). */
   private readonly hvJoins: VesselObject[] = [];
-  /** Every vein that opens into the cava (the hepatic and the renal veins): the opacity it comes to at the cava's wall follows the cava's (named: whole). */
-  private readonly cavaCuts: VesselObject[] = [];
   /** The vessels of the back tier: they ease toward the page on a turn (quiet depth). */
   private readonly back: VesselObject[] = [];
   private cavaGoal = 0;
@@ -363,7 +361,7 @@ export class CelScene {
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
     else this.fans.set(o, def.id);   // a fan of tributaries has no map course: it never morphs, and the Circuit's shader fades it as 2D does (clamp(1 - 2 * T0))
     if (forkMateOf(def.id) || cavaMateOf(def.id)) o.setNbrOn(true);
-    { const cm = cavaMateOf(def.id); if (cm) { o.setCavaCut(true, indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1, fadeOf(cm, false)?.a0 ?? 1); this.cavaCuts.push(o); } }
+    { const cm = cavaMateOf(def.id); if (cm) { o.setCavaCut(true, indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1); } }
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
@@ -586,7 +584,6 @@ export class CelScene {
     for (const o of this.cava) o.setWholeShare(this.cavaWhole);
     for (const o of this.ivcJoins) o.setIvcWhole(this.cavaWhole);
     for (const o of this.hvJoins) o.setCavaEndWhole(this.cavaWhole);
-    for (const o of this.cavaCuts) o.setCavaJoinWhole(this.cavaWhole);
     return true;
   }
 

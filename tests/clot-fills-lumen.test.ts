@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CelScene } from '../src/scene/scene.ts';
-import { CLOT_INSIDE, CLOT_RINGS, clotShapeOf } from '../src/scene/disease/clots.ts';
+import { CLOT_INSIDE, CLOT_RINGS, clotShapeOf, clotShares } from '../src/scene/disease/clots.ts';
 import { drawnHost, hostAt, swellsOf } from '../src/scene/disease/host.ts';
 import { widthSwell } from '../src/scene/vessels/live-width.ts';
 import { vesselAlphaAt } from '../src/scene/vessels/fade-alpha.ts';
@@ -27,7 +27,7 @@ test('every clot ring lies whole inside the live lumen (0.9 of its radius), what
     const h = drawnHost(id);
     assert.ok(h, `${id} has a drawn course`);
     for (const k of [0.3, 1, 2.5]) for (const v of [0.05, 0.3, 0.7, 1]) {
-      const sw = h!.pieces.map(() => k), shape = clotShapeOf(h!, sw, v, id), on = hostAt(h!, sw, Array.from({ length: CLOT_RINGS }, (_, i) => 0.4 - 0.22 * v + (0.2 + 0.44 * v) * (i / (CLOT_RINGS - 1))));
+      const sw = h!.pieces.map(() => k), shape = clotShapeOf(h!, sw, v, id), on = hostAt(h!, sw, clotShares(h!, v));
       for (let i = 0; i < shape.centres.length; i++) {
         const off = shape.centres[i]!.distanceTo(on[i]!.p);
         assert.ok(off + shape.radii[i]! <= CLOT_INSIDE * on[i]!.r + 1e-9, `${id} swell ${k} v ${v} ring ${i}: ${(off + shape.radii[i]!).toFixed(5)} within ${(CLOT_INSIDE * on[i]!.r).toFixed(5)}`);
@@ -40,7 +40,7 @@ test('every clot ring lies whole inside the live lumen (0.9 of its radius), what
 
 test('the offset is across the vein (perpendicular to its heading), never along it or out toward the viewer', () => {
   for (const id of ALL_VEINS) {
-    const h = drawnHost(id)!, sw = h.pieces.map(() => 1), shape = clotShapeOf(h, sw, 0.3, id), on = hostAt(h, sw, Array.from({ length: CLOT_RINGS }, (_, i) => 0.4 - 0.066 + 0.332 * (i / (CLOT_RINGS - 1))));
+    const h = drawnHost(id)!, sw = h.pieces.map(() => 1), shape = clotShapeOf(h, sw, 0.3, id), on = hostAt(h, sw, clotShares(h, 0.3));
     for (let i = 0; i < shape.centres.length; i++) { const d = shape.centres[i]!.clone().sub(on[i]!.p); assert.ok(Math.abs(d.dot(on[i]!.t)) < 1e-6 * Math.max(1, d.length()) + 1e-9, `${id} ring ${i}`); }
   }
 });
@@ -76,7 +76,7 @@ test('every preset: every clot it has is built inside its vein, as a ClotObject 
       if (!(v > 0.003)) continue;
       const shape = c.shapeOf(vein, st.frame.D);
       assert.ok(shape, `${id}: clot ${vein} is built`);
-      const h = drawnHost(vein)!, sw = swellsOf(h, st.frame.D), on = hostAt(h, sw, Array.from({ length: CLOT_RINGS }, (_, i) => 0.4 - 0.22 * v + (0.2 + 0.44 * v) * (i / (CLOT_RINGS - 1))));
+      const h = drawnHost(vein)!, sw = swellsOf(h, st.frame.D), on = hostAt(h, sw, clotShares(h, v));
       for (let i = 0; i < CLOT_RINGS; i++) assert.ok(shape!.centres[i]!.distanceTo(on[i]!.p) + shape!.radii[i]! <= CLOT_INSIDE * on[i]!.r + 1e-9, `${id}: ${vein} ring ${i}`);
     }
     for (const m of c.group.children) for (const k of m.children) { const g = (k as unknown as { geometry: { getAttribute(n: string): { count: number } | undefined; getAttribute2?: never } }).geometry; assert.ok(g.getAttribute('lumA'), `${id}: a clot's vertices carry the vein's opacity`); assert.equal(g.getAttribute('lumA')!.count, g.getAttribute('position')!.count); }
@@ -92,4 +92,20 @@ test('a clot draws after the vessels and before the devices (render order), one 
   for (const g of c.group.children) for (const m of g.children) { n++; const mesh = m as unknown as { renderOrder: number; material: { depthTest: boolean; transparent: boolean } }; assert.ok(mesh.renderOrder >= 900 && mesh.renderOrder < 1000, `render order ${mesh.renderOrder}`); }
   assert.ok(n >= 6, 'three clots, a fill and an outline each');
   s.dispose?.();
+});
+
+test('a clot in a vein that opens into the cava runs to the cava\'s wall (the junction); in a vein that does not, it stays 2D\'s span', async () => {
+  const { cavaWallShare } = await import('../src/scene/disease/host.ts');
+  for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) {
+    const h = drawnHost(id)!, w = cavaWallShare(h);
+    assert.ok(w != null && w > 0.5 && w <= 1, `${id} meets the cava's wall at ${w}`);
+    for (const v of [0.05, 0.5, 1]) {
+      const sh = clotShares(h, v);
+      assert.ok(Math.abs(sh[sh.length - 1]! - Math.max(0.6 + 0.22 * v, w)) < 1e-9, `${id} v ${v}: last ring at ${sh[sh.length - 1]}`);
+    }
+  }
+  const pt = drawnHost('PV_TRUNK')!;
+  assert.equal(cavaWallShare(pt), null);
+  const s = clotShares(pt, 0.5);
+  assert.ok(Math.abs(s[0]! - (0.4 - 0.11)) < 1e-9 && Math.abs(s[s.length - 1]! - (0.6 + 0.11)) < 1e-9);
 });
