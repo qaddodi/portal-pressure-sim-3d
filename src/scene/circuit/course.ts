@@ -48,10 +48,39 @@ export interface CircuitCourse {
   mapPts: [number, number][];
 }
 
-/** The course's map polyline for an edge, in map units. */
+/** How far (map units) a sharp corner is rounded back along each side: a vein is about 15 units wide, so the inner edge of a bend still has a radius of its own. */
+export const CORNER_R = 22;
+/** A turn under this (radians) is a curve's own step, not a corner. */
+const CORNER_MIN_TURN = 0.35;
+
+/** A polyline with its sharp corners rounded (a quadratic through the corner, from where it starts to cut it to where it ends): a tube turns a mitred corner into a pinched joint with a
+ *  thick triangle of ink at its inner side. The first and last points stay where they are (stations and joins sit there). */
+export function roundCorners(pts: readonly [number, number][], r = CORNER_R): [number, number][] {
+  if (pts.length < 3) return pts.map((p) => [p[0], p[1]]);
+  const out: [number, number][] = [[pts[0]![0], pts[0]![1]]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1]!, b = pts[i]!, c = pts[i + 1]!;
+    const ux = a[0] - b[0], uy = a[1] - b[1], vx = c[0] - b[0], vy = c[1] - b[1];
+    const lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy);
+    const turn = lu > 1e-9 && lv > 1e-9 ? Math.PI - Math.acos(Math.max(-1, Math.min(1, (ux * vx + uy * vy) / (lu * lv)))) : 0;
+    // (a dense run of short steps is a curve already: only a corner with room on both sides is rounded)
+    const d = Math.min(r, 0.45 * lu, 0.45 * lv);
+    if (turn < CORNER_MIN_TURN || d < 2) { out.push([b[0], b[1]]); continue; }
+    const p0: [number, number] = [b[0] + (ux / lu) * d, b[1] + (uy / lu) * d], p1: [number, number] = [b[0] + (vx / lv) * d, b[1] + (vy / lv) * d];
+    const steps = 8;
+    for (let k = 0; k <= steps; k++) {
+      const t = k / steps, m = 1 - t;
+      out.push([m * m * p0[0] + 2 * m * t * b[0] + t * t * p1[0], m * m * p0[1] + 2 * m * t * b[1] + t * t * p1[1]]);
+    }
+  }
+  out.push([pts[pts.length - 1]![0], pts[pts.length - 1]![1]]);
+  return out;
+}
+
+/** The course's map polyline for an edge, in map units, its corners rounded. */
 export function mapCourse(id: string): [number, number][] | null {
   const d = CIRCUIT_D[id];
-  return d ? courseOf(d) : null;
+  return d ? roundCorners(courseOf(d)) : null;
 }
 
 const curvesA = new Map<string, CatmullRomCurve3>();

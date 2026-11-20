@@ -4,8 +4,8 @@ import { DEFAULTS, DEPTH_DEFAULTS, DEPTH_KEYS, FIGURE_SETTINGS_VERSION as V, par
 import { DEPTH_ROWS } from '../src/ui/settings/depth-rows.ts';
 
 test('the Figure depth switches: on by default, except blood-cell particles (chevrons stay the flow mark)', () => {
-  assert.deepEqual([...DEPTH_KEYS], ['smoothJoins', 'organDepth', 'tilt', 'dof', 'particles', 'micro3d']);
-  assert.deepEqual(DEPTH_DEFAULTS, { smoothJoins: true, organDepth: true, tilt: true, dof: true, particles: false, micro3d: false });
+  assert.deepEqual([...DEPTH_KEYS], ['smoothJoins', 'organDepth', 'tilt', 'freeTilt', 'dof', 'particles', 'micro3d']);
+  assert.deepEqual(DEPTH_DEFAULTS, { smoothJoins: true, organDepth: true, tilt: true, freeTilt: false, dof: true, particles: false, micro3d: false });
   for (const k of DEPTH_KEYS) assert.equal(DEFAULTS[k], DEPTH_DEFAULTS[k]);
 });
 

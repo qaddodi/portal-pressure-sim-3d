@@ -363,11 +363,30 @@ test('a Circuit slide frames its region of the map, draws the resistors its site
   assert.ok(Math.abs(circuitShot(true).half[0] - whole.half[1]) < 1e-9);
 });
 
-test('a tier is named in small capitals at its band, and the tiers are drawn as soft full-width washes with a hairline between them', () => {
+test('a tier is named in small capitals at its band, and the tiers are drawn as soft full-width washes and the dot grid eases off when zoomed in', () => {
   const b = buildCaptions(fakeCtx({ compact: true })), zones = b.items.filter((i) => b.meta.get(i.id)?.kind === 'zone');
   assert.ok(zones.length >= 3, 'the tiers are named');
   for (const z of zones) { const n = b.meta.get(z.id)!.forms[0]!.name; assert.equal(n, n.toUpperCase()); }
   const layer = readFileSync(new URL('../src/scene/circuit/map-layer.ts', import.meta.url), 'utf8');
-  assert.match(layer, /TIER_LINE/);
+  assert.match(layer, /DOT_CALM/);
+  assert.doesNotMatch(layer, /TIER_LINE/, 'no line is drawn between the tiers');
   assert.match(layer, /\* BAND_CALM;/);
+});
+
+test('zoomed in on the map: no vessel is culled by its body sphere, corners are rounded, and the names keep clear of the floating bars', async () => {
+  const vo = readFileSync(new URL('../src/scene/vessels/vessel-object.ts', import.meta.url), 'utf8');
+  assert.match(vo, /this\.toonMesh\.frustumCulled = false/, 'the Circuit moves the vertices far from the body course the bounding sphere was taken from');
+  assert.match(vo, /depth\.frustumCulled = false/);
+  assert.match(vo, /mesh\.frustumCulled = false/);
+  const { roundCorners, CORNER_R, mapCourse } = await import('../src/scene/circuit/course.ts');
+  const bend = roundCorners([[0, 0], [100, 0], [100, 100]]);
+  assert.deepEqual(bend[0], [0, 0]); assert.deepEqual(bend[bend.length - 1], [100, 100]);
+  assert.ok(bend.every(([x, y]) => !(x === 100 && y === 0)), 'the sharp corner is gone');
+  assert.ok(bend.some(([x, y]) => Math.abs(x - (100 - CORNER_R)) < 1e-6 && y === 0), 'the bend starts CORNER_R before the corner');
+  assert.ok(Math.min(...bend.map(([x, y]) => Math.hypot(x - 100, y))) > 3, 'and never touches it');
+  assert.equal(roundCorners([[0, 0], [10, 1], [20, 3]]).length, 3, 'a gentle curve is left as it is');
+  assert.ok(mapCourse('SMV_CONF')!.length > 4, 'a course with a corner is rounded');
+  const caps = readFileSync(new URL('../src/scene/circuit/CircuitCaptions.tsx', import.meta.url), 'utf8');
+  assert.match(caps, /readUiWalls/);
+  assert.match(readFileSync(new URL('../src/scene/circuit/ui-walls.ts', import.meta.url), 'utf8'), /\.nb-views/, 'the view pill is a wall');
 });

@@ -56,7 +56,7 @@ export function legendFor(lens: LensId, look: LookId, ref = 'healthy'): LegendSp
     case 'drop':
       return { lens, name: lensTitle('drop'), title: ['Pressure drop', 'mmHg'], caption: ['Drop', 'mmHg'],
         bar: { stops: rampStops(look, 'drop', 1), nums: [{ at: 0, text: '0' }, { at: 100, text: '≥12' }], ticks: [] },
-        aria: 'Legend: pressure drop across each vessel, 0 to 12 or more millimeters of mercury, pale to deep green' };
+        aria: 'Legend: pressure drop across each vessel, 0 to 12 or more millimeters of mercury, pale to deep purple' };
     case 'flow':
       return { lens, name: lensTitle('flow'), title: ['Flow volume', 'L/min · width ∝ √flow'], caption: ['Flow', 'L/min'],
         bar: { stops: rampStops(look, 'flow', 1), nums: [[0.02, '0.02'], [0.5, '0.5'], [5, '5']].map(([v, t]) => ({ at: flowPos(v as number) * 100, text: t as string })), ticks: [flowPos(0.5) * 100] },
