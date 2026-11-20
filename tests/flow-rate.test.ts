@@ -55,9 +55,17 @@ test('the eased rate drives the streams\' distance (the chevrons, the streaks an
   assert.match(streams, /o\.speed = rate;/);
   assert.match(streams, /\(sm\.vd !== 0 && rate > 0\.0005\)/, 'a stood stream asks for no frame');
   const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
-  assert.match(scene, /this\.flowRate\.step\(dt \/ 1000, \(latest\.frame\?\.running \?\? true\) \? 1 : 0\);/);
+  assert.match(scene, /this\.flowRate\.step\(dt \/ 1000, flowTarget\(live\.frame\?\.running\)\);/);
   assert.match(scene, /this\.blood\.streams\.step\(now, this\.flowRate\.value\)/);
   assert.doesNotMatch(readFileSync(new URL('../src/scene/flow-rate.ts', import.meta.url), 'utf8'), /requestAnimationFrame\(/, 'one clock: no raw rAF');
   // the advance is D += vd * speed * dt in the 2D app's own stream (blood.copied.js): speed 0 stands it, speed 1 runs it, in between is the ease
   assert.match(readFileSync(new URL('../src/scene/blood/blood.copied.js', import.meta.url), 'utf8'), /st\.D = \(\(\(st\.D \+ st\.vd \* speed \* dt\)/);
+});
+
+test('the Lobule and Sinusoid (3D) ride the same eased rate: none of them reads the abrupt running flag for its flow', () => {
+  const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  assert.match(scene, /this\.lobule3d\.update\([^)]*this\.flowRate\.value\)/);
+  assert.match(scene, /this\.sinus3d\.update\(this\.micro3d, this\.flowRate\.value\)/);
+  const lob3 = readFileSync(new URL('../src/scene/micro3d/lobule3d.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(lob3, /if \(running\)/);
 });

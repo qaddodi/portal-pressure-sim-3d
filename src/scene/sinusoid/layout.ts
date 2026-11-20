@@ -47,6 +47,21 @@ export function cellOf(j: number, sd: number): HepCell {
 /** The centre (µm along) of endothelial nucleus n of a lining (seed nsd). */
 export const nucAt = (n: number, nsd: number): number => 38 * n + 8 + 22 * h1(n, nsd);
 
+/** How far (µm) a Kupffer cell's centre stands from any endothelial nucleus on its lining: the endothelial cell's swell (4.6 µm each way) and the Kupffer cell's own body and arms (about 5.4 µm along)
+ *  never meet, so it sits on bare lining between two endothelial cells (Mohammad, 20 Nov 2026: "move the kupffer cell to be not on top of an endothelial cell"). */
+export const KUP_CLEAR = 10.5;
+/** The place nearest `want` (µm along) on the lining of nuclei seed `nsd` where a Kupffer cell is clear of every endothelial cell (KUP_CLEAR from each nucleus). */
+export function kupfferClear(want: number, nsd: number): number {
+  let best = want, bd = Infinity;
+  const n0 = Math.floor(want / 38);
+  for (let n = n0 - 3; n <= n0 + 3; n++) {
+    const a = nucAt(n, nsd) + KUP_CLEAR, b = nucAt(n + 1, nsd) - KUP_CLEAR;
+    if (b < a) continue;
+    const x = Math.min(b, Math.max(a, want)), d = Math.abs(x - want);
+    if (d < bd) { bd = d; best = x; }
+  }
+  return best;
+}
 /** How far (µm) from a nucleus's centre its cell's swell hides the lining's fenestrae (2D: NUC_COVER). */
 export const NUC_COVER = 4.4;
 /** Whether the swell of an endothelial nucleus (seed nsd) covers the lining at x (2D: underNucleus). */

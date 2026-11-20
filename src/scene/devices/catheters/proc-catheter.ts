@@ -7,7 +7,7 @@ import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
 import { TIER_Z, UNITS_PER_SCENE, x3, y3 } from '../../frame2d.ts';
 import { NETWORK_BY_ID } from '../../vessels/network.ts';
-import { DeviceObject, type DeviceTone } from '../device-object.ts';
+import { DeviceObject, TAIL_UNITS, type DeviceTone } from '../device-object.ts';
 import { allocTube, makeRings, showRings, writeRings } from '../tube-rings.ts';
 import { type Route3D } from '../../procedures/route3d.ts';
 import { GEO2D, routeAt } from '../../procedures/route.ts';
@@ -84,6 +84,8 @@ export class ProcCatheter {
     const wg = allocTube(nS, 6); writeRings(wg, wireRings, 6);
     this.wire = mk(wg, 'steel', 1, 'ink', 0.5);
     this.shaft = mk(sg, 'poly', 4, 'polyEdge', 0.9);
+    // the lead-in above the figure fades out as a gradient (the catheter's free end), shaft, needle and wire alike
+    for (const o of [this.shaft, this.needle, this.wire]) o.setTailFade(Math.min(0.5, TAIL_UNITS / r.total));
     this.tip = mk(withTang(new SphereGeometry(rc, 12, 8)), 'poly', 5, 'polyEdge', 0.9);
     this.band = mk(withTang(new CylinderGeometry(rc * 1.05, rc * 1.05, rc * 0.7, 14, 1, true).rotateZ(Math.PI / 2)), 'platinum', 6, 'ink', 0.5);
     // the balloon: refitted to the vein as it swells (hvpg-balloon.js), latex (or clear nylon along a TIPS tract)

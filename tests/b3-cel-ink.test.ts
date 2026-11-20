@@ -138,8 +138,8 @@ test('the tones follow the radius, never the position: a thin tube is all one to
 test('nothing inside the tube but the two tones and the flow heads: no highlight, no soft rings, heads clipped inside the wall, no dot-sized heads', () => {
   assert.doesNotMatch(VESSEL_FS, /smoothstep\(0\.0, 1\.8 \* px/, 'a head\'s ring is a hard outline, not a halo');
   assert.match(VESSEL_FS, /abs\(across\)\)\);/, 'heads are cut inside the wall');
-  assert.match(VESSEL_FS, /smoothstep\(5\.8 \* wpc, 7\.0 \* wpc, R\)/, 'a head needs a tube wide enough to read as one');
-  assert.match(VESSEL_FS, /float hw = min\(0\.6 \* R/, 'a head and its ring stay inside the lumen');
+  assert.match(VESSEL_FS, /smoothstep\(1\.5 \* wpc, 2\.1 \* wpc, R\)/, 'a head needs a tube 3 px across or more (chevron-visible.test.ts)');
+  assert.match(VESSEL_FS, /float hw = min\(1\.0 \* R/, "a head is never wider than the lumen");
   assert.ok(!('SPEC' in CEL_STYLE), 'the style has no highlight');
 });
 
@@ -179,7 +179,7 @@ test('no pale halo: the vessel keeps no white inner rim, a veiled one keeps its 
 test('the outline is a soft dark of the vessel\'s own colour, never white or black; a joined end draws no ink; heads are never dots', () => {
   const T = CEL_STYLE.TUBE;
   assert.ok(T.INK_OWN >= 0.5 && T.INK_TONE > 0.15 && T.INK_TONE < 0.5, 'mostly the vessel\'s own colour, deep but not black');
-  assert.match(VESSEL_FS, new RegExp(`mix\\(inkColor, celTubeBase\\(baseH\\) \\* ${F(T.INK_TONE).replace('.', '\\.')}, ${F(T.INK_OWN).replace('.', '\\.')}\\)`));
+  assert.match(VESSEL_FS, new RegExp(`mix\\(inkColor, celTubeBase\\(baseH\\) \\* mix\\(${F(T.INK_TONE).replace('.', '\\.')}, ${F(T.INK_TONE_DARK).replace('.', '\\.')}, tubeDark\\), ${F(T.INK_OWN).replace('.', '\\.')}\\)`));
   assert.match(VESSEL_FS, /mix\(mix\(inkH, inkColorCirc, circT\), hiColor/, 'the ink colour is the vessel\'s own tone, not the raw casing');
   assert.equal(CEL_STYLE.TUBE.RIM_SHARE, 0, 'no white rim');
   assert.match(VESSEL_FS, /uniform vec3 mate0;[\s\S]*uniform vec3 mate1;/, 'the ink knows the joined ends');

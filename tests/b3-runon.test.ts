@@ -16,7 +16,7 @@ test('the main trunks run on into each other: splenic to its confluence, portal 
   assert.ok(has('V_SPL', 'SV_MID'));
   assert.ok(has('SV_MID', 'SV_CONF'));
   assert.ok(has('PV_TRUNK', 'PVH_R'));
-  assert.ok(has('POST_R_RHV', 'RHV_IVC_1'));
+  // (RHV_IVC_1 is drawn only from its split, so the hidden bed behind it no longer runs on into it)
   assert.ok(has('IVC_IS', 'IVCS_RA'));
 });
 

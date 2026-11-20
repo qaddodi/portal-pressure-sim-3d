@@ -19,11 +19,12 @@ test('the hepatic artery crosses no vein (and an arterioportal shunt, which ends
     for (const v of NETWORK) {
       if (v.feeder || v.tone === 'artery' || v.kind === 'shunt' || v.kind === 'liver' || v.id === 'C9') continue;   // (the hidden sinusoid beds; C9, the lumbar collateral behind everything, only when it is open)
       const pv = P(v.id);
-      // (the one place the 2D plan makes an artery pass a vein: the hilum, where the hepatic artery, anterior to the portal vein and the cava, passes behind them: one tier back, checked below)
+      // (the one place the 2D plan makes an artery pass a vein: the hilum, where the hepatic artery, anterior to the portal vein and the cava, passes in front of the cava and behind the portal veins, checked below)
       const hilum = HEPATIC.has(a.id) && (v.id === 'PVH_L' || v.id === 'PVH_R' || v.id === 'PV_TRUNK' || v.tier === 'back');
       for (let i = 1; i < pa.length; i++) for (let j = 1; j < pv.length; j++) {
         const x = cross(pa[i - 1]!, pa[i]!, pv[j - 1]!, pv[j]!);
         if (!hilum) assert.ok(!x, `${a.id} crosses ${v.id}`);
+        else if (x && v.tier === 'back') assert.ok(a.pts[i]![2] > v.pts[j]![2] + 0.008, `${a.id} passes ${v.id} (the cava) at the hilum in front of it`);
         else if (x) assert.ok(a.pts[i]![2] < v.pts[j]![2] - 0.008, `${a.id} passes ${v.id} at the hilum behind it`);
       }
     }
@@ -80,18 +81,21 @@ test('the sinusoid beds are not drawn: the portal branches fade out into the liv
   const { fadeOf } = await import('../src/scene/vessels/fades.ts');
   const f = { Q: new Array(200).fill(1), D: new Array(200).fill(5) } as never;
   for (const id of ['SIN_RR', 'SIN_LL', 'PRE_R', 'PRE_L', 'POST_R_RHV', 'POST_L_LHV']) assert.equal(presenceOf(N.find((v) => v.id === id)!, f, { collaterals: true }), 'hidden', id);
-  for (const id of ['PVH_R_2', 'PVH_L_1']) { const x = fadeOf(id, false)!; assert.equal(x.mode, 1); assert.deepEqual([x.to, x.a0, x.a1], [1, 1, 0], `${id} ends in the liver's tissue`); }
-  for (const id of ['RHV_IVC_1', 'MHV_IVC', 'LHV_IVC']) { const x = fadeOf(id, false)!; assert.equal(x.mode, 1); assert.deepEqual([x.from, x.a0, x.a1], [0, 0, 1], `${id} begins in the liver's tissue`); }
+  // (a vein that branches is drawn only up to its split; its children fade out of / in from the liver: they carry its fade)
+  for (const id of ['PVH_R_2', 'PVH_L_1']) { assert.equal(fadeOf(id, false), null, `${id} ends in its split`); const x = fadeOf(`${id}~F:b`, false, id)!; assert.equal(x.mode, 1); assert.deepEqual([x.to, x.a0, x.a1], [1, 1, 0], `${id}'s children end in the liver's tissue`); }
+  for (const id of ['RHV_IVC_1', 'LHV_IVC']) { { const h = fadeOf(id, false); assert.ok(!h || h.a0 !== 0, `${id} begins at its split, not in a fade-in`); } const x = fadeOf(`${id}~F:b`, false, id)!; assert.equal(x.mode, 1); assert.deepEqual([x.from, x.a0, x.a1], [0, 0, 1], `${id}'s children begin in the liver's tissue`); }
+  { const x = fadeOf('MHV_IVC', false)!; assert.equal(x.mode, 1); assert.deepEqual([x.from, x.a0, x.a1], [0, 0, 1], 'the middle hepatic vein, which does not branch, begins in the liver\'s tissue'); }
 });
 
-test('each portal-branch end, hepatic-vein start and the umbilical vein branches once more into the liver: two children, one forward and one back in depth, leaving the host\'s own course', async () => {
+test('each portal-branch end, and hepatic-vein start branches once more into the liver: two children, one forward and one back in depth, leaving the host\'s own course', async () => {
   const { LIVER_BRANCHES } = await import('../src/scene/vessels/liver-branches.ts');
   const { EDGE_PATH_2D: PATHS } = await import('../src/scene/vessels/paths.copied.ts');
-  assert.deepEqual(LIVER_BRANCHES.map((b) => b.host).sort(), ['C3', 'LHV_IVC', 'PVH_L_1', 'PVH_R_2', 'RHV_IVC_1']);
+  assert.deepEqual(LIVER_BRANCHES.map((b) => b.host).sort(), ['LHV_IVC', 'PVH_L_1', 'PVH_R_2', 'RHV_IVC_1']);
   for (const b of LIVER_BRANCHES) {
-    assert.equal(b.list.length, 2, `${b.host}: two children`);
-    const [a, c] = b.list as readonly { pts: readonly (readonly [number, number])[]; dz: readonly number[] }[];
-    assert.ok(Math.max(...a!.dz) > 0.05 && Math.min(...c!.dz) < 0, `${b.host}: one goes forward, one back`);
+    // (the left hepatic vein has one child, into the left lobe: none goes into the capsule)
+    assert.equal(b.list.length, b.host === 'LHV_IVC' ? 1 : 2, `${b.host}: children`);
+    const [a, c = a] = b.list as readonly { pts: readonly (readonly [number, number])[]; dz: readonly number[] }[];
+    if (b.list.length === 2) assert.ok(Math.max(...a!.dz) > 0.05 && Math.min(...c!.dz) < 0, `${b.host}: one goes forward, one back`);
     const host = PATHS[b.host]!, onHost = (p: readonly [number, number]) => Math.min(...host.map((q) => Math.hypot(p[0] - q[0], p[1] - q[1])));
     const near = [a!.pts[0]!, a!.pts[a!.pts.length - 1]!, c!.pts[0]!, c!.pts[c!.pts.length - 1]!].map(onHost);
     assert.ok(Math.min(...near) < 2, `${b.host}: the children are the host's own course where they leave it`);
@@ -113,7 +117,8 @@ test('the hepatic artery is one connected tree: the proper artery ends where the
   const ends = new Map<string, number>();
   for (const v of drawn) if (v.kind !== 'collateral') { ends.set(v.from, (ends.get(v.from) ?? 0) + 1); ends.set(v.to, (ends.get(v.to) ?? 0) + 1); }   // (a collateral is closed, hidden or dotted, in health: it joins nothing then)
   const blunt: string[] = [];
-  for (const v of drawn.filter((q) => q.kind !== 'collateral' && q.kind !== 'shunt')) {
+  const { SPLIT_AT } = await import('../src/scene/vessels/liver-branches.ts');
+  for (const v of drawn.filter((q) => q.kind !== 'collateral' && q.kind !== 'shunt' && !SPLIT_AT[q.id])) {   // (a branching vein's free end is its split: its children carry on from it)
     const f = fadeOf(v.id, v.tone === 'artery');
     for (const [node, atStart] of [[v.from, true], [v.to, false]] as const) {
       if ((ends.get(node) ?? 0) > 1) continue;   // joined to another vessel there

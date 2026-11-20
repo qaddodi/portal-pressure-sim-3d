@@ -6,15 +6,15 @@
 // A point is "inside the liver" when it lies inside the liver mesh; the placeholder right lobe is an ellipsoid (anatomy/placeholder.ts), and the artist's
 // real liver replaces it, so the place is ONE constant in the 2D frame (LIVER_2D) to move when the mesh differs (tests/scene-dive.test.ts checks it is inside).
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
-import type { V3 } from './batch.ts';
+import type { V3 } from './shots.ts';
 
 /** The place in the 2D figure's world units (x right, y down; the confluence is at 700, 556) the dive goes to: the open liver between the right portal branch (below: (602,442) up-left to the right sinusoid fan at about (450,340)), the right hepatic vein (above, y about 245) and the IVC (right, x about 620), about 65 units clear of each (owner, 20 Nov: zoom in between the right portal vein and the IVC, not to the edge). The courses are src/scene/vessels/paths.copied.ts. */
 export const LIVER_2D = { x: 515, y: 330 } as const;
 /** Depth of the place (the organs straddle z = 0; the right lobe's centre is a little behind the plate's middle). */
 export const LIVER_Z = -0.15;
-/** The lobule's frame in the scene: where its local (0, 0, 0) is, and how many scene units one local unit is. A real lobule is about 1/150 of a liver; this is 1/150 of the scene. */
+/** The lobule's frame in the scene: where its local (0, 0, 0) is, and how many scene units one local unit is. A real lobule (about 1 mm) is well over a thousand times smaller than a liver (owner, 20 Nov: it was ~10x too big and showed on the liver): 1/1500 of the scene. */
 export const LIVER_POINT: V3 = [x3(LIVER_2D.x), y3(LIVER_2D.y), LIVER_Z];
-export const LOBULE_SCALE = 1 / 150;
+export const LOBULE_SCALE = 1 / 1500;
 
 /** Where the sinusoid stands in the lobule's local units (the 2D 'lobule:sinusoid' station: half-way from the left portal corner to the centre, on the slab), and its scale
  *  against the lobule's: one local sinusoid unit is SIN_REL lobule units, so the sinusoid's lumen (0.34) is as wide as the lobule's own sinusoid tube (0.036). */

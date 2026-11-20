@@ -2,6 +2,7 @@
 // 2D turning its drawing by ang = PI / 2 on a y-down screen. Here the plane's own group is turned, so the tissue, the pores, the albumin, the names' anchors and the hits all turn
 // together; the plane's y runs up, so the same turn is -PI / 2. Pure numbers, no GPU: tests/scene-sinusoid-portrait.test.ts.
 import { FILL } from '../camera/room.ts';
+import { SEED, kupfferClear } from './layout.ts';
 
 
 /** 2D's rule: a stage narrower than 0.95 of its height is a portrait stage (W < H * 0.95). */
@@ -10,8 +11,8 @@ export const isPortrait = (w: number, h: number): boolean => w < h * 0.95;
 export const PORTRAIT_ANGLE = -Math.PI / 2;
 /** Where the Kupffer cell stands (µm along): 22 on a wide screen, nearer the middle (12) on a tall one, clear of the central vein's name (2D: geo.xk). */
 export const XK = { wide: 22, tall: 12 } as const;
-/** The Kupffer cell's place for a screen. */
-export const xkFor = (portrait: boolean): number => (portrait ? XK.tall : XK.wide);
+/** The Kupffer cell's place for a screen: the wanted place moved onto the nearest bare stretch of its (lower) lining, never on top of an endothelial cell (layout.ts kupfferClear). */
+export const xkFor = (portrait: boolean): number => kupfferClear(portrait ? XK.tall : XK.wide, SEED.nucDn);
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;

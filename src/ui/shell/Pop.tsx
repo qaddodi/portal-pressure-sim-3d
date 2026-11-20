@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useUi } from '../ui-store.ts';
 import { useShell, type Sheet } from './store.ts';
+import { InApp } from './InApp.tsx';
 
 /** Closes the open sheet when a press lands outside it and outside the control that opened it. A press on the opener is the opener's own business (it toggles). */
 export function useOutside(sheet: Exclude<Sheet, null>, ref: React.RefObject<HTMLElement | null>) {
@@ -19,7 +20,12 @@ export function useOutside(sheet: Exclude<Sheet, null>, ref: React.RefObject<HTM
 }
 
 /** A button and the popover it opens. The button stays a child of its bar, exactly as the 2D markup has it (its stylesheet addresses `.sb-right > .chip-btn`, `.tl-split > .tl-speed`); the popover is
- *  a fixed sibling after it, always in the page, faded by opacity and transform, and put by the button's box once as it opens (never per frame). */
+ *  fixed, always in the page, faded by opacity and transform, and put by the button's box once as it opens (never per frame).
+ *  It is mounted in `#app`, not beside its button (owner, 20 Nov: "hitting the fast forward or 1x menus doesn't actually show any menus"). A `position: fixed` box measures from the nearest ancestor that
+ *  has a transform (and a filter, or containment): the Mac's dock is centred with `translateX(-50%)`, so a popover beside its button was placed from the dock, not the screen, and landed below the
+ *  page. In `#app` no bar's own transform can reach it, whichever bar the button is in.
+ *  Its place is `left` and `top` only: shell.css gives `[data-place="above"]` a `bottom: calc(100% + 8px)` for a popover inside its button's box, and with `top` set as well a fixed box stretches
+ *  between the two, a height of nothing: the panel and its glass vanished and the rows spilled out of it at the top of the screen (owner, 20 Nov, build 13fd959). `right` and `bottom` are `auto` here. */
 export function Anchored({ sheet, place = 'below', align = 'start', width, cls, button, children, label }: {
   sheet: Exclude<Sheet, null>; place?: 'below' | 'above'; align?: 'start' | 'end' | 'center'; width?: number; /** the 2D popover's own class (its stylesheet sizes it: `layers-pop`) */ cls?: string;
   button: (p: { id: string; open: boolean; toggle: () => void; ref: (el: HTMLElement | null) => void }) => ReactNode; children: ReactNode; label: string;
@@ -42,7 +48,7 @@ export function Anchored({ sheet, place = 'below', align = 'start', width, cls, 
   return (
     <>
       {button({ id, open, toggle, ref: (el) => { btn.current = el; } })}
-      <div ref={pop} id={id} className={`sh-pop${cls ? ` ${cls}` : ''}`} data-open={open} data-place={place} role="dialog" aria-label={label} inert={!open} style={{ left: at.left, top: at.top, ...(width ? { width } : {}) }}>{children}</div>
+      <InApp><div ref={pop} id={id} className={`sh-pop${cls ? ` ${cls}` : ''}`} data-open={open} data-place={place} role="dialog" aria-label={label} inert={!open} style={{ left: at.left, top: at.top, right: 'auto', bottom: 'auto', ...(width ? { width } : {}) }}>{children}</div></InApp>
     </>
   );
 }

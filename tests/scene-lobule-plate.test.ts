@@ -4,12 +4,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { pinned2D } from './two-d-pin.ts';
-import { createShared } from '../src/scene/materials/cel.ts';
 import { buildLobule } from '../src/scene/lobule/geometry.ts';
-import { LobuleView } from '../src/scene/lobule/view.ts';
 import { lobuleShot, LOBULE_R, LOBULE_CAMS } from '../src/scene/lobule/shots.ts';
-import { PLATE_PX, PLATE_S, PLATE_Z, paintPlate, plateKey, plateShape } from '../src/scene/lobule/plate.ts';
-import { FIELD_TILE_R, FIELD_Z, fieldKey, fieldQuantizer, paintFieldTile } from '../src/scene/lobule/field.ts';
+import { PLATE_PX, PLATE_S, paintPlate, plateKey, plateShape } from '../src/scene/lobule/plate.ts';
+import { FIELD_TILE_R, fieldKey, fieldQuantizer, paintFieldTile } from '../src/scene/lobule/field.ts';
 import { lookColours } from '../src/scene/lobule/lz-colours.ts';
 import { LOOK_IDS } from '../src/looks/looks.ts';
 import { fadeAt, fadeOuter, FADE_MID } from '../src/scene/lobule/from2d/lobule-look.generated.js';
@@ -75,40 +73,6 @@ test('a state is painted at 1/32 steps: an easing model asks for a few paintings
   assert.equal(plateKey(H, 'light'), plateKey({ ...H, congU: 0.01 }, 'light'));
   assert.notEqual(plateKey(H, 'light'), plateKey({ ...H, congU: 0.05 }, 'light'));
   assert.notEqual(plateKey(H, 'light'), plateKey(H, 'dark'), 'a new look paints again');
-});
-
-test('the plate crossfades a new state in (nothing jumps) and opens on its own state at once', () => {
-  const v = new LobuleView(createShared());
-  v.setVisible(true);
-  const [a, b] = v.plate.meshes;
-  assert.ok(a!.visible && !b!.visible, 'the view opens with its tissue already painted');
-  v.setModel({ ...modelOf(), congU: 0.6 } as never);
-  v.update(16);
-  assert.ok(a!.visible && b!.visible, 'the new state comes in over the old');
-  let t = 16; while (v.plate.pending && t < 3000) v.update(t += 16);
-  assert.ok(!v.plate.pending);
-  assert.equal(v.plate.meshes.filter((m) => m.visible).length, 1, 'one plate at rest');
-});
-
-function modelOf() {
-  return { zone: { pre: 1, sin: 1, post: 1 }, Qs: { pre: 18, sin: 9, post: 18 }, Q0: { pre: 18, sin: 9, post: 18 }, oxy: [0.85, 0.85, 0.75], P1: 11, P2: 8, P3: 5, P4: 4, flow: 1, portal: 1, art: 1, rev: { pre: false, sin: false, post: false },
-    lymph: 0.9, lymph0: 0.9, lyProt: 0.87, sigma: 0.15, iap: 5, alb: 4, s: 0, cong: 0, fibSin: 0, fibPre: 0, fibPost: 0, congU: 0, shuntU: 0, septU: 0, act: 0 };
-}
-
-test('nothing stands out of the plate: every vessel lies in one plane over the tissue, the end-on ones are flat discs, and nothing is below the tissue but the field', () => {
-  const v = new LobuleView(createShared());
-  for (const o of v.objects) {
-    const g = o.toonMesh.geometry; g.computeBoundingBox();
-    const bb = g.boundingBox!;
-    assert.ok(bb.min.z > PLATE_Z && bb.max.z < 0.08, `${o.tone}: z ${bb.min.z.toFixed(3)} … ${bb.max.z.toFixed(3)} lies on the plate`);
-  }
-  for (const k of ['pv', 'cv'] as const) {
-    const o = v.parts[k]; const g = o.toonMesh.geometry; g.computeBoundingBox();
-    const bb = g.boundingBox!;
-    assert.ok(bb.max.z - bb.min.z < 0.02, `${k} is a disc, not a column`);
-    assert.ok(bb.max.x - bb.min.x > 0.1, `${k} is round and wide`);
-  }
-  assert.ok(FIELD_Z < PLATE_Z, 'the neighbours lie under the tissue');
 });
 
 test('the lobule is seen face on, as 2D shows it', () => {

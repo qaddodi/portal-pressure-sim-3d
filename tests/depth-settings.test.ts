@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { DEFAULTS, DEPTH_DEFAULTS, DEPTH_KEYS, FIGURE_SETTINGS_VERSION as V, parseSettings } from '../src/state/settings.ts';
 import { DEPTH_ROWS } from '../src/ui/settings/depth-rows.ts';
 
-test('the Figure depth switches: on by default, except blood-cell particles (chevrons stay the flow mark)', () => {
-  assert.deepEqual([...DEPTH_KEYS], ['smoothJoins', 'organDepth', 'tilt', 'freeTilt', 'dof', 'particles', 'micro3d']);
-  assert.deepEqual(DEPTH_DEFAULTS, { smoothJoins: true, organDepth: true, tilt: true, freeTilt: true, dof: true, particles: false, micro3d: false });
+test('the Figure depth switches: on by default, except Free tilt (the blood streaks are on: a play-test with the switch off saw none)', () => {
+  assert.deepEqual([...DEPTH_KEYS], ['smoothJoins', 'organDepth', 'tilt', 'freeTilt', 'dof', 'particles']);
+  assert.deepEqual(DEPTH_DEFAULTS, { smoothJoins: true, organDepth: true, tilt: true, freeTilt: true, dof: true, particles: true });
   for (const k of DEPTH_KEYS) assert.equal(DEFAULTS[k], DEPTH_DEFAULTS[k]);
 });
 
@@ -28,7 +28,12 @@ test('the organs are always the see-through wash: there is no Organ fill setting
   assert.equal(s.tilt, true); assert.equal(s.smoothJoins, true); assert.equal(s.look, 'dark', 'the rest of the saved settings are kept');
 });
 
-test('3D lobule and sinusoid: off by default until approved, on is kept', () => {
-  assert.equal(DEFAULTS.micro3d, false);
-  assert.equal(parseSettings(`{"micro3d":true,"figureV":${V}}`).micro3d, true);
+test('the lobule and the sinusoid are always 3D: no switch, no row, and a saved one is dropped (Mohammad, 20 Nov 2026: "remove the toggle for 3D or not 3D; everything 3D")', async () => {
+  assert.ok(!('micro3d' in DEFAULTS));
+  assert.ok(!DEPTH_ROWS.some((r) => (r.key as string) === 'micro3d'));
+  assert.ok(!('micro3d' in parseSettings(`{"micro3d":false,"figureV":${V}}`)));
+  const { readFileSync } = await import('node:fs');
+  const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  assert.match(scene, /private readonly micro3d = true;/);
+  assert.doesNotMatch(scene, /useSettings\.getState\(\)\.micro3d/);
 });

@@ -231,7 +231,7 @@ test('the program is found on the scene graph once on, declares nothing the mate
   useSettings.setState({ particles: settings.particles });
 });
 
-test('Settings: blood cells are off by default (the chevrons stay the flow mark)', () => {
-  assert.equal(settings.particles, false);
-  assert.match(readFileSync('src/state/settings.ts', 'utf8'), /particles: false/);
+test('Settings: the blood streaks are on by default (a play-test with the switch off saw no streaks at all)', () => {
+  assert.equal(settings.particles, true);
+  assert.match(readFileSync('src/state/settings.ts', 'utf8'), /particles: true/);
 });

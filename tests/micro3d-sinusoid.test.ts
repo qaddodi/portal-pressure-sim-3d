@@ -4,7 +4,8 @@ import { type BufferGeometry, Matrix4, type Mesh, type Object3D, Vector3 } from 
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { Sinusoid3D } from '../src/scene/micro3d/sinusoid3d.ts';
-import { REACH, TRAFFIC_REACH, cellOutline } from '../src/scene/micro3d/sinusoid3d.ts';
+import { GAP_SLOTS, GAP_X0, REACH, TRAFFIC_REACH, cellOutline } from '../src/scene/micro3d/sinusoid3d.ts';
+const GAP_REACH = REACH;
 import { UM } from '../src/scene/sinusoid/layout.ts';
 
 function meshes(root: Object3D): Mesh[] { const out: Mesh[] = []; root.traverse((o) => { if ((o as Mesh).isMesh) out.push(o as Mesh); }); return out; }
@@ -20,11 +21,11 @@ function scene() {
   return { flat, s3 };
 }
 
-test('the 3D sinusoid builds every part, finite, and stands in for the flat drawing while on', () => {
+test('the 3D sinusoid builds every part, finite: it is the only picture of the sinusoid', () => {
   const { flat, s3 } = scene();
   assert.equal(s3.update(true), true);
   assert.equal(s3.group.visible, true);
-  assert.equal(flat.tissue.visible, false); assert.equal(flat.cells.visible, false); assert.equal(flat.sprites.visible, false);
+  assert.ok(!meshes(flat.group).some((m) => !m.name.startsWith('sinusoid3d/')), 'the host draws nothing of its own');
   const ms = meshes(s3.group);
   let verts = 0;
   for (const m of ms) { assert.ok(finite(m.geometry), `${m.name} has no NaN`); verts += m.geometry.getAttribute('position')?.count ?? 0; }
@@ -32,14 +33,13 @@ test('the 3D sinusoid builds every part, finite, and stands in for the flat draw
     const m = ms.find((x) => x.name === n);
     assert.ok(m && (m.geometry.getAttribute('position')?.count ?? 0) > 50, `${n} is built`);
   }
-  assert.ok(verts < 300_000, `a phone draws it: ${verts} vertices`);
+  assert.ok(verts < 320_000, `a phone draws it: ${verts} vertices`);   // (two sinusoids and plates beyond each side now, the outer ones coarser)
 });
 
-test('off: the flat view draws again and the 3D scene is hidden', () => {
-  const { flat, s3 } = scene();
+test('off (tests only): the 3D scene is hidden', () => {
+  const { s3 } = scene();
   s3.update(true); s3.update(false);
   assert.equal(s3.group.visible, false);
-  assert.equal(flat.tissue.visible, true);
 });
 
 test('a hepatocyte keeps to 2D\'s plate: between the Disse face and 20 µm in, with its cleft taken off', () => {
@@ -109,7 +109,7 @@ test('the next sinusoids are hazed (from past this one\'s plates outward) and th
 
 test('paused, the blood stands still: the traffic stops, and the view asks for no frames for it', () => {
   const { flat, s3 } = scene();
-  s3.update(true, false);
+  s3.update(true, 0);   // (the eased rate, settled at rest)
   const F = flat as unknown as { trafficSpeed: number; traffic: { flowX: number } };
   assert.equal(F.trafficSpeed, 0);
   const x0 = F.traffic.flowX;
@@ -165,4 +165,90 @@ test('the ends\' arrows are never 3D objects in the scene: they are part of the 
   for (const d of ['l', 'r', 'u', 'd']) assert.match(css, new RegExp(`\\.sv-end-arrow-${d} \\{`));
   assert.match(css, /\.sv-end-arrow-l \{ right: calc\(100% \+ 12px\)/);
   assert.match(css, /\.sv-end-arrow-d \{ top: calc\(100% \+ 13px\)/);
+});
+
+test('Pause eases the 3D sinusoid traffic to a stop and Play back up: traffic speed follows the scene\'s one eased rate, never a jump from full to 0', () => {
+  const { flat, s3 } = scene();
+  s3.update(true, 1); const full = flat.trafficSpeed;
+  assert.ok(full > 0);
+  s3.update(true, 0.5); assert.ok(Math.abs(flat.trafficSpeed - full * 0.5) < 1e-9, 'half the rate, half the pace');
+  s3.update(true, 0); assert.equal(flat.trafficSpeed, 0, 'stood at rest');
+  s3.update(false, 0.25); assert.ok(Math.abs(flat.trafficSpeed - 0.25) < 1e-9, 'the flat view eases too');
+});
+
+test('the fenestrae are real gaps through the lining (bead and edges cut through to Disse), not dark dots; they close as the lining capillarizes', () => {
+  const { flat, s3 } = scene();
+  const S = s3 as unknown as { bead: { mats: { toon: { defines: Record<string, string>; uniforms: Record<string, { value: unknown }> } } }; beadLine: { mats: { toon: { defines: Record<string, string> } } }; gapData: Uint8Array; gapKey: number; stepPores(p: number): void };
+  assert.ok('GAPS' in S.bead.mats.toon.defines && 'GAPS' in S.beadLine.mats.toon.defines, 'the bead and its edge lines are cut');
+  assert.ok(!meshes(s3.group).some((m) => m.name.startsWith('sinusoid3d/fenestrae')), 'no pore dots drawn over the lining');
+  s3.update(true, 1);
+  S.gapKey = -1; S.stepPores(1);
+  const open = (d: Uint8Array) => { let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i]! > 0) n++; return n; };
+  const n1 = open(S.gapData);
+  // ±200 µm of lining both sides, sieve plates of five in most stretches of ten (minus the nuclei's swells)
+  assert.ok(n1 > 2 * 2 * GAP_REACH * 0.25, `healthy: many gaps (${n1})`);
+  let far = 0; for (let side = 0; side < 2; side++) for (let j = 0; j < GAP_SLOTS; j++) if (Math.abs(GAP_X0 + j) > 140 && Math.abs(GAP_X0 + j) < REACH && S.gapData[(side * GAP_SLOTS + j) * 4]! > 0) far++;
+  assert.ok(far > 20, `gaps run on past the flat view's 130 µm, out to the blurred ends (${far})`);
+  S.stepPores(0.05);
+  assert.ok(open(S.gapData) < n1 * 0.2, 'capillarized: nearly all closed');
+  void flat;
+});
+
+test('Disse lies under the whole lining, so a gap shows the space of Disse, never the ground', () => {
+  const { s3 } = scene();
+  s3.update(true);
+  const d = meshes(s3.group).find((m) => m.name === 'sinusoid3d/disse')!;
+  const pos = d.geometry.getAttribute('position')!, aux = d.geometry.getAttribute('aux')!;
+  assert.equal(aux.count, pos.count, 'one aux per vertex');
+  let inner = Infinity; for (let i = 0; i < pos.count; i++) inner = Math.min(inner, Math.abs(pos.getY(i)));
+  assert.ok(inner < UM.lum + 0.1, `Disse reaches in under the bead (${inner.toFixed(2)} µm from the axis)`);
+});
+
+test('the Kupffer cell sits on bare lining, never on top of an endothelial cell, on a wide and a tall screen (and no endothelial cells overlap each other)', async () => {
+  const { xkFor } = await import('../src/scene/sinusoid/portrait.ts');
+  const { KUP_CLEAR, SEED, nucAt } = await import('../src/scene/sinusoid/layout.ts');
+  for (const p of [false, true]) {
+    const xk = xkFor(p);
+    for (let n = -6; n <= 6; n++) assert.ok(Math.abs(xk - nucAt(n, SEED.nucDn)) >= KUP_CLEAR - 1e-9, `portrait ${p}: clear of the nucleus at ${nucAt(n, SEED.nucDn).toFixed(1)} (xk ${xk.toFixed(1)})`);
+  }
+  for (const sd of [SEED.nucUp, SEED.nucDn]) for (let n = -8; n <= 8; n++) assert.ok(nucAt(n + 1, sd) - nucAt(n, sd) > 2 * 4.6, 'neighbouring endothelial cells never overlap');
+});
+
+test('two more sinusoids and plates lie beyond the main plates each way, and the blur starts at the middle of the first hepatocyte row and grows gradually', async () => {
+  const { BEYOND, PERIOD, ACROSS } = await import('../src/scene/micro3d/sinusoid3d.ts');
+  assert.equal(BEYOND, 2);
+  assert.ok(ACROSS >= UM.lum + UM.endo + UM.disse + UM.hep + 2 * PERIOD, 'the ground reaches past the last plate');
+  const { flat, s3 } = scene();
+  const G = (flat as unknown as { g: { hepIn(x: number): number } }).g;
+  s3.update(true);
+  const far = meshes(s3.group).find((m) => m.name === 'sinusoid3d/lumen-beyond')!;
+  const pos = far.geometry.getAttribute('position')!;
+  let ymax = 0; for (let i = 0; i < pos.count; i++) ymax = Math.max(ymax, Math.abs(pos.getY(i)));
+  assert.ok(ymax > G.hepIn(0) + UM.hep + PERIOD + UM.disse, `a second lumen beyond each side (${ymax.toFixed(1)} µm)`);
+  const a = new Vector3(), b = new Vector3(), e0 = new Vector3(), e1 = new Vector3();
+  s3.focusBand(a, b, e0, e1);
+  const inv = new Matrix4().copy(s3.group.matrixWorld).invert();
+  const y0 = Math.abs(e0.clone().applyMatrix4(inv).y), y1 = Math.abs(e1.clone().applyMatrix4(inv).y);
+  assert.ok(Math.abs(y0 - (G.hepIn(0) + UM.hep * 0.5)) < 1e-6, 'sharp to the middle of the first hepatocyte row, then it begins');
+  assert.ok(y1 - y0 > PERIOD, `then gradual, over more than a whole repeat (${(y1 - y0).toFixed(0)} µm)`);
+});
+
+test('the bile canaliculus is a small round lumen between each pair of hepatocytes, not a long channel down the border (Mohammad 20 Nov: "like a circle in between each hepatocyte")', () => {
+  const { s3 } = scene(); s3.update(true);
+  const m = meshes(s3.group).find((o) => o.name === 'sinusoid3d/canaliculi')!;
+  const a = m.geometry.getAttribute('position').array;
+  // group the vertices into blobs (they lie a cell apart along the plate), then each blob is as tall as it is wide
+  const pts: [number, number][] = []; for (let i = 0; i < a.length; i += 3) pts.push([a[i]!, a[i + 1]!]);
+  pts.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+  const blobs: [number, number][][] = [];
+  for (const p of pts) {
+    const b = blobs.find((k) => Math.hypot(k[0]![0] - p[0], k[0]![1] - p[1]) < 4);
+    if (b) b.push(p); else blobs.push([p]);
+  }
+  assert.ok(blobs.length >= 8, `a canaliculus at each border on both plates (${blobs.length})`);
+  for (const b of blobs) {
+    const xs = b.map((p) => p[0]), ys = b.map((p) => p[1]);
+    const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
+    assert.ok(Math.abs(w / h - 1) < 0.1, `round, not a sliver: ${w.toFixed(3)} x ${h.toFixed(3)}`);
+  }
 });

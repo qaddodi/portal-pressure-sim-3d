@@ -5,6 +5,7 @@ import { len3, x3, y3 } from '../frame2d.ts';
 import { TIER_Z } from '../frame2d.ts';
 import { coilCourses } from './coil.ts';
 import { NETWORK_BY_ID, NODE_Z, type NetVessel } from './network.ts';
+import { LIVER_BRANCH_HOSTS, SPLIT_AT } from './liver-branches.ts';
 import { CAV, cavChannels, cavGrowth } from './cav.ts';
 import { BEAD_LAMBDA_FUNDAL, BEAD_SITE, beadLambda } from './varix-bead.copied.js';
 import { STRAND_FROM_2D } from './coil.copied.ts';
@@ -15,6 +16,8 @@ import { fadeOf } from './fades.ts';
 const len2d = (pts: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); return l; };
 /** the vessels the bands strangle (topology code C1: the coronary vein to the varices, and the varices to the azygos) */
 const BANDED = new Set(['C1a', 'C1b']);
+/** What a banded strand keeps of its width: a closed varix is a thin sclerosed cord, never gone (Mohammad, 20 Nov: banding left "stumps" and floating bands). The varices shrink as each band closes one, and the path from the coronary vein to the azygos stays one tube end to end. */
+export const BANDED_CORD = 0.28;
 /** whether a vessel beads (varix-bead.js BEAD_SITE): its strands do, and the gastrorenal shunt itself does */
 export const beadsOn = (id: string): boolean => !!(BEAD_SITE as Record<string, string>)[id];
 import { type Buried, type Course, tubularFor } from './tubes.ts';
@@ -38,6 +41,8 @@ const to3 = (pts: readonly (readonly [number, number])[], z: number, from?: numb
 function depthEnds(v: NetVessel): { zf: number | undefined; zt: number | undefined; sf: number; st: number; through: boolean } {
   let zf = NODE_Z.get(v.from), zt = NODE_Z.get(v.to), through = false;
   if (smoothJoinsOn()) { const r = endDepth(v.to, zt); if (r.rise) { zt = r.z; through = true; } }
+  // (the end of a vein that branches is its split, not a node: it stays on its own plane, where its children begin)
+  if (SPLIT_AT[v.id] != null && SPLIT_AT[v.id]! < 0.9) { if ((LIVER_BRANCH_HOSTS.out as readonly string[]).includes(v.id)) zt = undefined; else zf = undefined; }
   return { zf, zt, sf: END_SHARE, st: END_SHARE, through };
 }
 
@@ -133,16 +138,16 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     if (bundle) own.radius = 0;
     return [own, ...strands.map((c, i) => {
       if (!s.strandsOn) return own;
-      const live = (banded ? Math.min(1, Math.max(0, i + 1 - s.bands)) : 1) * (c.live ?? 1);
+      const live = (banded ? Math.max(BANDED_CORD, Math.min(1, Math.max(0, i + 1 - s.bands))) : 1) * (c.live ?? 1);
       return {
-        pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through), radius: Math.max(minR, rad * c.k) * live,   // (0: a closed channel, a strand a band has closed, a channel not yet grown: the shader draws none of it)
+        pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through), radius: Math.max(minR, rad * c.k) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
         ...(bundle && v.id !== 'C5' ? { taper: [(own.taper?.[0] ?? 1) / c.k, (own.taper?.[1] ?? 1) / c.k] as const, taperSpan: own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
         bead: beads && v.id !== 'C5' ? { b: s.bead, ph: c.ph * 1.7, u0: (STRAND_FROM_2D as Record<string, number>)[v.id] ?? 0, lambda, len: len2d(c.pts) } : undefined,
       };
     })];
   }
   // a fan: each tributary's width is the host's times the group's share and its own (at least 1.2 units), thinner while the group is only part on
-  return plan.list.map((f) => ({ pts: f.dz ? to3(f.pts, z).map((p, i): Vec3 => [p[0], p[1], p[2] + f.dz![i]!]) : to3(f.pts, z), radius: len3(Math.max(0.35, Math.max(1.2, plan.hostW * plan.cfgK * f.k * (plan.when ? 0.5 + 0.5 * s.live : 1)) / 2)) }));
+  return plan.list.map((f) => ({ ...(f.taper ? { taper: f.taper, taperSpan: f.taperSpan ?? ([0.3, 0.9] as const) } : {}), ...(f.join != null ? { capless: (f.join === 0 ? [true, false] : [false, true]) as readonly [boolean, boolean] } : {}), pts: f.dz ? to3(f.pts, z).map((p, i): Vec3 => [p[0], p[1], p[2] + f.dz![i]!]) : to3(f.pts, z), radius: len3(Math.max(0.35, Math.max(1.2, plan.hostW * plan.cfgK * f.k * (plan.when ? 0.5 + 0.5 * s.live : 1)) / 2)) }));
 }
 
 /** The tube segments each course is built with, fixed at rest so a coil changes positions and never the vertex count. */

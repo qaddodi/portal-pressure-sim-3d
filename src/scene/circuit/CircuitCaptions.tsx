@@ -105,7 +105,7 @@ export function CircuitCaptions() {
       const must = new Set([...named].filter((id) => CIRCUIT_LABELS[id]));
       const zoom = cel.handZoom;
       const upright = cel.circuit.upright;
-      const free = rectToBox(boxes.free);
+      const free = rectToBox(boxes.free), room = view();   // (the words stand in the screen's room, kept off the cards by the blockers: `boxes.free` is empty in free play and is the cards' leftovers otherwise, it must not clip a tier's title or a lane's caption)
       const laneOf = (id: string): readonly (readonly [number, number])[] | null => COURSES.get(id)?.mapPts ?? (CIRCUIT_D[id] ? courseOf(CIRCUIT_D[id]!) : null);
       // the vessels' centrelines on the canvas, for the soft cost of standing on one (and, by vessel, for a lane's caption to stand clear of every other)
       const lines: [number, number, number, number][] = [];
@@ -134,13 +134,13 @@ export function CircuitCaptions() {
         }
       }
       const walls = blockers();
-      const clear = (box: Box, own: string): boolean => within(box, free) && !walls.some((w) => hits(box, w)) && !owned.some((o) => o.id !== own && crosses(o.s[0], o.s[1], o.s[2], o.s[3], box));
+      const clear = (box: Box, own: string): boolean => within(box, room) && !walls.some((w) => hits(box, w)) && !owned.some((o) => o.id !== own && crosses(o.s[0], o.s[1], o.s[2], o.s[3], box));
       const built = buildCaptions({
         proj: (x, y) => { cel.mapPoint(x, y, tmp); return [tmp.x, tmp.y]; },
         upright, vp, measure,
         stationOn: (id) => cel.stationOn(id),
         laneDrawn: (id) => cel.vesselDrawn(id),
-        view: free,
+        view: room,
         liverOpen: zoom >= 1.9 || (!!picked && LIVER_EDGES.includes(picked)),
         zoomed: level === 'all' || zoom > 1.3,
         compact: vp.w < 700,

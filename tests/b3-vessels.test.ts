@@ -18,6 +18,7 @@ const nodeIds = new Set((NODES as { id: string }[]).map((n) => n.id));
 const edge = new Map((EDGES as { id: string; kind: string; from: string; to: string }[]).map((e) => [e.id, e]));
 
 import { ALONG_VEIN_IDS, withStartInOrgan } from '../src/scene/vessels/starts.ts';
+import { SPLIT_AT, trimHost } from '../src/scene/vessels/liver-branches.ts';
 
 test('every vessel the 2D figure draws is a vessel here, named by its engine edge id', () => {
   const have = new Set(NETWORK.map((v) => v.id));
@@ -121,12 +122,13 @@ test('every vessel is its 2D course through the one linear map: back through it,
   for (const v of NETWORK) {
     if (v.feeder) continue;   // (a fan of tributaries: its own test, below)
     if (ALONG_VEIN_IDS.has(v.id)) continue;   // (the hepatic arteries run beside their portal branches: starts.ts alongVein)
-    const c = withStartInOrgan(v.id, EDGE_PATH_2D[v.id]!);   // (the splenic vein is carried on into the spleen: starts.ts)
+    const c = trimHost(v.id, withStartInOrgan(v.id, EDGE_PATH_2D[v.id]!));   // (the splenic vein is carried on into the spleen: starts.ts; a vein that branches is drawn to its split: liver-branches.ts)
     assert.equal(v.pts.length, c.length, v.id);
     // (the 2D figure redraws the last 11 samples either side of a run-on as one smooth cubic through the join: joins.ts)
     const near = (i: number) => RUN_ONS.some((r) => (r.a === v.id && (r.ia ? i >= c.length - 12 : i <= 11)) || (r.b === v.id && (r.ib ? i >= c.length - 12 : i <= 11)));
+    const cut = SPLIT_AT[v.id] != null && SPLIT_AT[v.id]! < 0.9;   // (a vein cut at its split: the smoothed stretch at its run-on end is a larger share of what is left)
     v.pts.forEach((p, i) => {
-      if (near(i)) return;
+      if (near(i) || (cut && (i <= 40 || i >= c.length - 41))) return;
       assert.ok(Math.abs(x2d(p[0]) - c[i]![0]) < 1e-6 && Math.abs(y2d(p[1]) - c[i]![1]) < 1e-6, `${v.id} point ${i}`);
     });
   }
@@ -174,7 +176,8 @@ test('over and under follow the 2D tiers: the portal tree over the network, the 
   assert.ok(z('PV_TRUNK') > z('RHV_IVC'), 'portal trunk over the hepatic vein');
   assert.ok(z('RHV_IVC') > z('C1a') || z('RHV_IVC') < z('C1a'), 'distinct tiers');
   assert.equal(z('PV_TRUNK'), TIER_Z.front);
-  assert.equal(z('A_HEP'), TIER_Z.hep, 'the hepatic artery lies behind the portal vein and the cava it passes at the hilum');
+  assert.equal(z('A_HEP'), TIER_Z.art);
+  assert.ok(z('IVCS_RA') < z('A_HEP') && z('A_HEP') < z('PV_TRUNK'), 'the hepatic artery runs in front of the cava and behind the portal vein (Mohammad, 20 Nov)');
   assert.ok(z('IVCS_RA') < z('PV_TRUNK') && z('IVCS_RA') <= TIER_Z.back + 1e-9, 'the cava is the rearmost tier');
   assert.ok(TIER_Z.back < TIER_Z.art && TIER_Z.art < TIER_Z.mid && TIER_Z.mid < TIER_Z.net && TIER_Z.net < TIER_Z.front && TIER_Z.front < TIER_Z.over);
   for (const v of NETWORK) assert.ok(v.pts.every((p) => p[2] === TIER_Z[v.tier]), `${v.id} is one plane`);

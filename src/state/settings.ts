@@ -29,8 +29,6 @@ export interface Settings {
   freeTilt: boolean;
   dof: boolean;
   particles: boolean;
-  /** The lobule and the sinusoid as true 3D scenes (micro3d/): extruded cells and nuclei, round vessels, a cut sinusoid with its lining, Disse and flowing cells. Off: the flat 2D-style views. */
-  micro3d: boolean;
 }
 interface Store extends Settings {
   setLook(l: LookChoice): void; setBlur(on: boolean): void;
@@ -42,13 +40,13 @@ const KEY = 'pps3d.settings.v1';
 /** The Figure depth switches and Organ fill are saved with this version. Every Settings change saves ALL the settings, so a phone that changed its look while See-through was still the default
  *  stored 'seethrough' as if it had been chosen (20 Nov 2026: "still glass" on an iPhone while the Mac was cel). A saved figure choice older than this is dropped and the defaults apply; raise it
  *  when a default changes. */
-export const FIGURE_SETTINGS_VERSION = 3;
+export const FIGURE_SETTINGS_VERSION = 4;   // (4: the blood streaks default on; a save made before this carries the old default, so the figure switches are taken afresh once)
 /** Everything this app stores on the device starts with this, so Reset everything can clear it and nothing else. */
 export const STORAGE_PREFIX = 'pps3d.';
-/** The "Figure depth" switches (owner, 19 Nov 2026: "Yes do all properly"): a deliberate exception to match-2D, each behind its own switch. All on by default, except blood-cell particles (chevrons stay the flow mark). */
-export const DEPTH_KEYS = ['smoothJoins', 'organDepth', 'tilt', 'freeTilt', 'dof', 'particles', 'micro3d'] as const;
+/** The "Figure depth" switches (owner, 19 Nov 2026: "Yes do all properly"): a deliberate exception to match-2D, each behind its own switch. All on by default except Free tilt (the 3D lobule and sinusoid are no longer a switch: everything is 3D, Mohammad 20 Nov 2026); the blood streaks went on by default on 20 Nov (play-test: "no laminar streak lanes are visible": the switch was off, so only the chevrons showed). */
+export const DEPTH_KEYS = ['smoothJoins', 'organDepth', 'tilt', 'freeTilt', 'dof', 'particles'] as const;
 export type DepthKey = (typeof DEPTH_KEYS)[number];
-export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { smoothJoins: true, organDepth: true, tilt: true, freeTilt: true, dof: true, particles: false, micro3d: false };
+export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { smoothJoins: true, organDepth: true, tilt: true, freeTilt: true, dof: true, particles: true };
 export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS };
 
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
@@ -62,12 +60,12 @@ export function parseSettings(raw: string | null): Settings {
       blur: bool(o.blur, DEFAULTS.blur),
       figureDetail: Number.isInteger(o.figureDetail) && o.figureDetail >= 0 && o.figureDetail < FIGURE_DETAIL.length ? o.figureDetail : DEFAULTS.figureDetail,
       sharpMoving: bool(o.sharpMoving, DEFAULTS.sharpMoving), keys: bool(o.keys, true), showFps: bool(o.showFps, false), showBreakdown: bool(o.showBreakdown, false),
-      smoothJoins: bool(fig.smoothJoins, DEPTH_DEFAULTS.smoothJoins), organDepth: bool(fig.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(fig.tilt, DEPTH_DEFAULTS.tilt), freeTilt: bool(fig.freeTilt, DEPTH_DEFAULTS.freeTilt), dof: bool(fig.dof, DEPTH_DEFAULTS.dof), particles: bool(fig.particles, DEPTH_DEFAULTS.particles), micro3d: bool(fig.micro3d, DEPTH_DEFAULTS.micro3d),
+      smoothJoins: bool(fig.smoothJoins, DEPTH_DEFAULTS.smoothJoins), organDepth: bool(fig.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(fig.tilt, DEPTH_DEFAULTS.tilt), freeTilt: bool(fig.freeTilt, DEPTH_DEFAULTS.freeTilt), dof: bool(fig.dof, DEPTH_DEFAULTS.dof), particles: bool(fig.particles, DEPTH_DEFAULTS.particles),
     };
   } catch { return { ...DEFAULTS }; }
 }
 const read = (): Settings => { try { return parseSettings(localStorage.getItem(KEY)); } catch { return parseSettings(null); } };
-const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, smoothJoins: s.smoothJoins, organDepth: s.organDepth, tilt: s.tilt, freeTilt: s.freeTilt, dof: s.dof, particles: s.particles, micro3d: s.micro3d });
+const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, smoothJoins: s.smoothJoins, organDepth: s.organDepth, tilt: s.tilt, freeTilt: s.freeTilt, dof: s.dof, particles: s.particles });
 const save = (s: Settings) => { try { localStorage.setItem(KEY, JSON.stringify({ ...pick(s), figureV: FIGURE_SETTINGS_VERSION })); } catch { /* private window: the choice lasts for this visit */ } };
 
 export const useSettings = create<Store>((set, get) => ({

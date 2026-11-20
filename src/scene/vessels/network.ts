@@ -10,7 +10,7 @@ import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts';
 import { ORGAN_Z } from '../organs/z.ts';
 import { ALONG_VEIN_IDS, alongVein } from './starts.ts';
-import { LIVER_BRANCHES } from './liver-branches.ts';
+import { LIVER_BRANCHES, LIVER_BRANCH_HOSTS, SPLIT_AT, trimHost } from './liver-branches.ts';
 import { withStartInOrgan } from './starts.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { TIER_Z, type Tier, UNITS_PER_SCENE, len3, x3, y3 } from '../frame2d.ts';
@@ -40,8 +40,10 @@ export interface NetVessel {
   widthKind: 0 | 1 | 2;
   /** the edge whose data texel (pressure, flow, diameter) this vessel wears: its own, or its host's for a feeder */
   lensId: string;
+  /** a branch of a vessel (liver-branches.ts): the stretch of its host's lens ramp it wears, 0 to 1 */
+  lensSpan?: readonly [number, number];
   /** how its shape is made: a vessel's own course, coiled and with strands (a collateral or a liver bed), or a fan of tributaries on a host */
-  plan?: { kind: 'coil'; base: readonly (readonly [number, number])[]; coils: boolean; strands: boolean } | { kind: 'feeder'; list: readonly (Feeder2D & { dz?: readonly number[] })[]; cfgK: number; hostW: number; when: string | null };
+  plan?: { kind: 'coil'; base: readonly (readonly [number, number])[]; coils: boolean; strands: boolean } | { kind: 'feeder'; list: readonly (Feeder2D & { dz?: readonly number[]; taper?: readonly [number, number]; taperSpan?: readonly [number, number]; join?: 0 | 1 })[]; cfgK: number; hostW: number; when: string | null };
   /** the radius at each end as a share of `radius`, where this vessel runs on into exactly one other (no branch): both ease to their mean, so no step shows at the join */
   taper?: readonly [number, number];
   /** where this vessel ends on a trunk without running on into it (a branch of a fork): a collar that blooms where the branch meets the host's wall, the 2D figure's fillet (the smooth union of the
@@ -91,12 +93,10 @@ for (const [host, pieces] of Object.entries(JUNCTION_PIECES as Record<string, st
 export const RENAL_VEIN_IDS: ReadonlySet<string> = new Set(['V_KID_L', 'V_KID_L_1', 'LRV_IVC']);
 /** The hepatic veins lie on the cava's plane too: they join it level, with no depth to ease, so a tilted view shows no twist where they meet (Mohammad, 20 Nov). */
 export const HEPATIC_VEIN_IDS: ReadonlySet<string> = new Set(['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC']);
-const HEPATIC_ARTERY_IDS: ReadonlySet<string> = new Set(['A_HEP', 'A_HR', 'A_HL']);
 function tierOf(e: Edge): Tier {
   if (BACK_EDGES.has(e.id) || RENAL_VEIN_IDS.has(e.id)) return 'back';
   if (HEPATIC_VEIN_IDS.has(e.id)) return 'hv';   // (the cava's plane, 0.016 in front of it: the lumbar collaterals that cross them stay apart in depth)
   if (e.id === 'C3') return 'fwd';   // the paraumbilical vein rises forward over the portal trunk to the umbilicus
-  if (HEPATIC_ARTERY_IDS.has(e.id)) return 'hep';   // (Mohammad, 20 Nov: "it should be behind the veins": the hepatic artery runs behind the portal veins and the cava it passes at the hilum, so it is hidden where it goes under them and joined, never blunt)
   if (isArteryEdge(e)) return 'art';
   if (OVER_IDS.has(e.id)) return 'over';
   if (e.kind === 'collateral') return 'mid';
@@ -121,7 +121,8 @@ const SHUNT_BASE_D: Record<string, number> = { TIPS: 8, DIPS: 8 };
 export function isDrawnEdge(e: Edge): boolean {
   if (HIDDEN_EDGES.has(e.id) || ANAT_HIDDEN.has(e.id) || e.id === 'CAUD' || e.id === 'V_UP') return false;
   if (e.kind === 'wedge' || e.kind === 'diode') return false;
-  if (e.kind === 'shunt') return e.id === 'AP_R' || e.id === 'AP_L' || SHUNT_IDS.has(e.id);
+  // (the arterioportal shunts are never drawn: Mohammad, 20 Nov, "remove the arterioportal fistulas completely no matter what"; the engine still has them, its numbers are unchanged)
+  if (e.kind === 'shunt') return e.shunt !== 'ap' && SHUNT_IDS.has(e.id);
   return true;
 }
 
@@ -136,10 +137,13 @@ const NETWORK_HOST_W = (e: Edge): number => widthPx(e, e.d ?? e.dMax ?? (dMinOf(
 const JOIN_LIST: JoinEdge[] = edges.filter(isDrawnEdge).map((e) => ({ id: e.id, from: e.from, to: e.to, art: isArteryEdge(e), kind: e.kind, path: EDGE_PATH_2D[e.id]! }));
 /** The pairs of vessels that run on into one another, by the 2D rule. */
 // (the hepatic artery and its two branches are one tree: they meet at the hilum's node, each end joined to the others, none a blunt cap)
-export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST);
+export const isCut = (id: string): boolean => SPLIT_AT[id] != null && SPLIT_AT[id]! < 0.9;   // (the left portal vein splits at its very end, where the umbilical vein joins: it is drawn whole)
+// (a vein that branches is drawn only up to its split: the end it was cut at carries on into its children, not into the vessel it ran on into in the full course)
+const cutEnd = (id: string): number | null => (SPLIT_AT[id] == null || !isCut(id) ? null : (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id) ? 1 : 0);
+export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST).filter((r) => cutEnd(r.a) !== r.ia && cutEnd(r.b) !== r.ib);
 const SMOOTH = smoothRunOns(new Map(JOIN_LIST.map((j) => [j.id, j.path])), RUN_ONS);
 /** A vessel's 2D course as drawn: smooth through the joins where it runs on into another. */
-const pathOf = (id: string): readonly (readonly [number, number])[] => alongVein(id, EDGE_PATH_2D) ?? withStartInOrgan(id, (id === 'A_HEP' ? undefined : SMOOTH.get(id)) ?? EDGE_PATH_2D[id]!);   // (the hepatic artery's end is the node its branches start at, as it is)
+const pathOf = (id: string): readonly (readonly [number, number])[] => trimHost(id, alongVein(id, EDGE_PATH_2D) ?? withStartInOrgan(id, (id === 'A_HEP' ? undefined : SMOOTH.get(id)) ?? EDGE_PATH_2D[id]!));   // (the hepatic artery's end is the node its branches start at, as it is)
 
 function build(): NetVessel[] {
   const out: NetVessel[] = [];
@@ -149,7 +153,7 @@ function build(): NetVessel[] {
     const baseD = SHUNT_BASE_D[e.id] ?? e.d ?? e.dMax ?? (dMinOf(e) || 3);
     out.push({
       id: e.id, host: hostOfPiece.get(e.id) ?? e.id, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(widthPx(e, baseD)),
-      label: e.label ?? e.id, pts: courseOf(e.id), kind: e.kind, circFine: e.shunt === 'ap' ? AP_FINE : 1, tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: e.id,
+      label: e.label ?? e.id, pts: courseOf(e.id), kind: e.kind, circFine: e.shunt === 'ap' ? AP_FINE : 1, tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: e.id, lensSpan: SPLIT_AT[e.id] == null ? undefined : (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(e.id) ? [0, SPLIT_AT[e.id]!] : [1 - SPLIT_AT[e.id]!, 1],
       plan: { kind: 'coil', base: pathOf(e.id), coils: isCoiling(e.id, e.kind, !!e.spontaneous), strands: !!STRANDS_2D[e.id] || e.id === 'C8' },
     });
   }
@@ -173,7 +177,7 @@ function build(): NetVessel[] {
     out.push({
       id: `${b.host}~F:b`, host: b.host, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(Math.max(1.2, hv)), label: e.label ?? b.host,
       pts: b.list[0]!.pts.map(([x, y]): Vec3 => [x3(x), y3(y), TIER_Z[tierOf(e)]]), kind: 'feeder', tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: b.host,
-      plan: { kind: 'feeder', list: b.list, cfgK: 1, hostW: hv, when: b.when }, feeder: { host: b.host, when: b.when },
+      plan: { kind: 'feeder', list: b.list, cfgK: 1, hostW: hv, when: b.when }, feeder: { host: b.host, when: b.when }, lensSpan: b.span,
     });
   }
   return out;

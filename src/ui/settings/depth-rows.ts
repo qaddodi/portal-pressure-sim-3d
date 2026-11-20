@@ -10,5 +10,4 @@ export const DEPTH_ROWS: readonly DepthRow[] = [
   { key: 'freeTilt', label: 'Tilt all around', hint: 'Turn the figure any way to see the veins from every side: one finger pans, two fingers tilt (a mouse drag turns it)', icon: 'layers' },
   { key: 'dof', label: 'Depth of field', hint: 'Softens the far side in the liver dive (laptop only)', icon: 'layers' },
   { key: 'particles', label: 'Blood streaks', hint: 'Fine streaks along the flow, faster in the middle, turbulent at forks (off: chevrons only)', icon: 'chevrons' },
-  { key: 'micro3d', label: '3D lobule and sinusoid', hint: 'Cells, nuclei and vessels in depth inside the liver (off: the flat views)', icon: 'liver' },
 ];

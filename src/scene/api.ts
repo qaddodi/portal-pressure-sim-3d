@@ -1,5 +1,6 @@
 // What the other threads call. The scene is one object (CelScene) for the whole page; this file is its handle and the few things that
 // have to be asked of it by name. Every call asks the clock for a frame, so nothing here draws and nothing runs when nobody asked.
+import type { LobuleHit } from './lobule/pick.ts';
 import { Vector3 } from 'three';
 import { clock } from '../clock/frame.ts';
 import { CelScene } from './scene.ts';
@@ -153,6 +154,8 @@ export const sceneApi = {
   /** Light exactly these vessels (edge IDs), as the shunt's valid targets glow; [] puts them out. Replaces the pick. */
   markVessels(ids: readonly string[]): void { cel.markVessels(ids); clock.invalidate('mark'); },
   /** Outline organs by the organ layer's ids (a slide's glow, spot or term naming an organ); `normalSpleen` also draws the normal-sized spleen's line. [] clears. */
+  /** The lobule's tapped part: a halo on it; null clears it. */
+  markLobule(hit: LobuleHit | null): void { cel.markLobule(hit); clock.invalidate('lobule-mark'); },
   /** The tapped organ's heavy outline (organ layer ids); [] clears it. */
   selectOrgans(ids: readonly string[]): void { cel.selectOrgans(ids); clock.invalidate('select-organ'); },
   pinOrgans(ids: readonly string[], normalSpleen = false): void { cel.pinOrgans(ids, normalSpleen); clock.invalidate('pin'); },

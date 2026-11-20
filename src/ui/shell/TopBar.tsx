@@ -7,7 +7,8 @@ import { sceneApi } from '../../scene/api.ts';
 import type { LensId } from '../../scene/lenses/model.ts';
 import { Anchored } from './Pop.tsx';
 import { I } from './icons.tsx';
-import { LENS_ART } from './lens-art.ts';
+import { lensSwatch } from './lens-art.ts';
+import { useLook } from '../../scene/lenses/Legend.tsx';
 import { VIEWS, pillHidden, tapView, type ViewId } from './views.ts';
 import { runFeature, type FeatureId } from './features.ts';
 import { notYet } from './words.ts';
@@ -60,13 +61,14 @@ export function LensButton() {
 }
 function LensMenu() {
   const lens = useLens((s) => s.lens);
+  const look = useLook();
   return (
     <div className="lens-grid" role="radiogroup" aria-label="Color the vessels by">
       {LENS_IDS.map((id) => {
         const l = UI.lenses.find((x) => x.id === id)!;
         return (
           <button key={id} type="button" role="radio" className={`lens${lens === id ? ' on' : ''}`} aria-checked={lens === id} onClick={() => setLens(id)}>
-            <span className="lens-sw" style={{ background: LENS_ART[id] }} /><span className="lens-t">{l.name}</span><span className="lens-d">{l.note}</span>
+            <span className="lens-sw" style={{ background: lensSwatch(id, look) }} /><span className="lens-t">{l.name}</span><span className="lens-d">{l.note}</span>
           </button>
         );
       })}

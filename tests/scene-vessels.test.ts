@@ -97,7 +97,7 @@ test('every vessel object knows its edge and its data texel', () => {
   s.dispose();
 });
 
-test('the figure\'s views: the new one shows at once, the one left behind is hidden when the camera has landed (nothing pops)', () => {
+test('the figure\'s views: the lobule is never drawn on or through the liver; it comes in once the camera is inside, and the view left behind goes when the camera has landed', () => {
   const s = new CelScene();
   const room = { x: 0, y: 0, w: 1000, h: 700 };
   s.resize(1000, 700);
@@ -106,7 +106,7 @@ test('the figure\'s views: the new one shows at once, the one left behind is hid
   s.update(10);
   const body = drawn();
   s.setView('lobule');
-  assert.ok(s.lobule.isVisible && drawn() > body, 'the lobule is up and the body still drawn while the camera flies');
+  assert.ok(s.lobule.isVisible && drawn() === body, 'the lobule is ready but nothing of it is drawn while the camera is still outside the liver (owner, 20 Nov)');
   s.goTo(lobuleShot('lobule'), room, 100, 0);
   s.update(110);
   assert.ok(s.lobule.isVisible && !s.sinus.isVisible);
