@@ -69,8 +69,7 @@ test('the renal veins are drawn receded: a constant share of their opacity along
 });
 
 test('the cava is a background vessel: faint everywhere but where the superior cava arrives whole, the hepatic veins ease to its alpha at its wall, and all of it rises to whole when the cava is named', () => {
-  { const f = fadeOf('IVC_IS_1', false)!; assert.ok(f && f.a0 === CAVA_RECEDE && f.a1 === CAVA_RECEDE, 'IVC_IS_1'); }
-  { const f = fadeOf('IVC_IS', false)!; assert.ok(f.mode === 5 && f.a0 === CAVA_RECEDE && f.a1 === 1, 'IVC_IS is faint, and whole on the window where the hepatic veins join it'); }
+  for (const id of ['IVC_IS', 'IVC_IS_1']) { const f = fadeOf(id, false)!; assert.ok(f && f.a0 === CAVA_RECEDE && f.a1 === CAVA_RECEDE, id); }
   const ra = fadeOf('IVCS_RA', false)!;
   assert.deepEqual([ra.a0, ra.a1], [CAVA_RECEDE, 1], 'it climbs back to full at the right atrium');
   for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) { assert.equal(cavaEndSpan(id), 0, `${id} has no end ramp: it is a solid vein to the cava's wall (Mohammad, 20 Nov: a pale, flat, see-through wedge)`); assert.equal(fadeOf(id, false)!.a1, 1, `${id} keeps its opacity to the wall`); }

@@ -43,9 +43,9 @@ export function ivcJoinSpan(id: string): number {
 
 export interface TipFade {
   /** 1: along the vessel (0 to 1), 2: down the figure (scene y), 3: along a line across the figure (2D's linear mask: solid from `from` = its offset), 4: along a line, with a dip (faintest at `from`, solid at the end) */
-  mode: 1 | 2 | 3 | 4 | 5;
+  mode: 1 | 2 | 3 | 4;
   from: number; to: number;
-  /** modes 3 and 4: the line, scene (x1, y1, x2, y2). Mode 5 (a window down the figure: `from` the window's centre y, `to` its plateau's half height, `a0` the alpha away from it, `a1` the alpha on it): line[0] is the feather's height on each side */
+  /** modes 3 and 4: the line, scene (x1, y1, x2, y2) */
   line?: readonly [number, number, number, number];
   /** alpha at `from` and at `to` */
   a0: number; a1: number;
@@ -104,15 +104,6 @@ export const CAVA_END_LEN = 0;
 export function cavaEndSpan(_id: string): number { return 0; }
 /** A hepatic vein that opens into the cava (not a renal vein, which is receded to the cava's tone already) keeps its alpha to the wall: 2D's end alpha for it (0.5) is dropped. */
 export const keepsAlphaToCava = (id: string): boolean => opensIntoCava(id) && id !== 'LRV_IVC' && id !== 'RRV_IVC';
-/** The cava is whole where the hepatic veins join it (Mohammad, 20 Nov: a vessel that merges into a faded one has the same fade at the junction; the veins stayed pale flaps against a faint cava): a window down the figure over their entry
- *  (the veins' own end heights, from the 2D courses), solid on its plateau and easing out to the cava's faint tone over CONFLUENCE_FEATHER above and below. */
-export const CONFLUENCE_FEATHER = 0.1;
-const CONFLUENCE_PAD = 0.03;
-export const CONFLUENCE: TipFade = (() => {
-  const ys = [...HEPATIC_VEINS].filter((id) => opensIntoCava(id) && cavaPieceOf(id) === 'IVC_IS' && EDGE_PATH_2D[id]).map((id) => { const p = EDGE_PATH_2D[id]!; return y3(p[p.length - 1]![1]); });
-  const lo = Math.min(...ys) - CONFLUENCE_PAD, hi = Math.max(...ys) + CONFLUENCE_PAD;
-  return { mode: 5, from: (lo + hi) / 2, to: (hi - lo) / 2, line: [CONFLUENCE_FEATHER, 0, 0, 1], a0: CAVA_RECEDE, a1: 1, keep: false, connect: [] };
-})();
 export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
   const f = fadeOf0(id, isArtery, feederHost);
   if (CAVA_LIKE.has(id)) {
@@ -120,7 +111,6 @@ export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipF
     //  2D's dip behind the liver and its solid return above the dome are gone: the part above the dome was a full-strength purple in a faded figure)
     if (id === 'C9') return { mode: 1, from: 1 - C9_JOIN_RAMP, to: 1, a0: CAVA_RECEDE, a1: 1, keep: false, connect: [] };
     if (id === 'IVCS_RA') return { mode: 1, from: 1 - CAVA_RA_RAMP, to: 1, a0: CAVA_RECEDE, a1: 1, keep: false, connect: [] };
-    if (id === 'IVC_IS') return CONFLUENCE;
     return f ? { ...f, a0: f.a0 * CAVA_RECEDE, a1: f.a1 * CAVA_RECEDE } : { mode: 1, from: 0, to: 1, a0: CAVA_RECEDE, a1: CAVA_RECEDE, keep: false, connect: [] };
   }
   const k = RECEDE[id];

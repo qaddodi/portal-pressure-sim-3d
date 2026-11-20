@@ -9,7 +9,6 @@ import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { CAVA_RAMP_R, cavaRamp } from '../src/scene/vessels/fade-alpha.ts';
 import { drawnHost, cavaWallShare } from '../src/scene/disease/host.ts';
 import { clotShapeOf } from '../src/scene/disease/clots.ts';
-import { cavaMateOf } from '../src/scene/vessels/neighbour.ts';
 
 test('the ramp is gradual: nothing 2.5 cava radii before the wall, the whole of it at the wall, smooth between', () => {
   assert.equal(cavaRamp(-CAVA_RAMP_R), 0); assert.equal(cavaRamp(0), 1); assert.equal(cavaRamp(1), 1);
@@ -29,7 +28,7 @@ test('every vessel that ends on the faint cava comes to the cava\'s own opacity 
       n++;
       const o = s.vesselObject(v.id)!, u = o.toon.uniforms as unknown as { cavaCut: { value: number }; cavaA: { value: number }; bury: { value: { y: number } } };
       assert.equal(u.cavaCut.value, 1, v.id);
-      assert.ok(Math.abs(u.cavaA.value - fadeOf(cavaMateOf(v.id)!, false)!.a1) < 1e-9, `${v.id} comes to the opacity the cava has where it joins`);
+      assert.ok(Math.abs(u.cavaA.value - CAVA_RECEDE) < 1e-9, `${v.id} cava opacity`);
       assert.ok(u.bury.value.y > 0, `${v.id}: its outline is buried at the junction`);
     }
     assert.ok(n >= 3);
@@ -83,24 +82,6 @@ test('where a vein meets the cava follows the cava\'s drawn width: a wider cava 
     const h = drawnHost(id)!, w1 = cavaWallShare(h, 1)!, w3 = cavaWallShare(h, 3)!, w05 = cavaWallShare(h, 0.5)!;
     assert.ok(w3 < w1 && w1 <= w05, `${id}: ${w3} < ${w1} <= ${w05}`);
   }
-});
-
-test('the cava is whole where the hepatic veins join it and eases to its faint tone above and below: both vessels have the same (solid) opacity at the junction', async () => {
-  const { CONFLUENCE, CONFLUENCE_FEATHER } = await import('../src/scene/vessels/fades.ts');
-  const { tipAlpha } = await import('../src/scene/vessels/fade-alpha.ts');
-  const { EDGE_PATH_2D } = await import('../src/scene/vessels/paths.copied.ts');
-  const { y3 } = await import('../src/scene/frame2d.ts');
-  const f = fadeOf('IVC_IS', false)!;
-  assert.deepEqual(f, CONFLUENCE);
-  for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) {
-    const p = EDGE_PATH_2D[id]!, y = y3(p[p.length - 1]![1]);
-    assert.equal(tipAlpha(f, 0.5, 0, y), 1, `${id}: the cava is solid at the height its vein enters`);
-  }
-  assert.equal(tipAlpha(f, 0.5, 0, f.from + f.to + CONFLUENCE_FEATHER + 0.01), CAVA_RECEDE, 'faint well away from it');
-  assert.equal(tipAlpha(f, 0.5, 0, f.from - f.to - CONFLUENCE_FEATHER - 0.01), CAVA_RECEDE);
-  let prev = 1;
-  for (let i = 1; i <= 20; i++) { const a = tipAlpha(f, 0.5, 0, f.from + f.to + (CONFLUENCE_FEATHER * i) / 20); assert.ok(a <= prev + 1e-12 && prev - a < 0.12, `gradual at ${i}`); prev = a; }
-  assert.match((await import('node:fs')).readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8'), /fa = mix\(fadeA\.z, fadeA\.w, 1\.0 - smoothstep\(fadeA\.y, fadeA\.y \+ max\(fadeLine\.x, 1e-4\), abs\(position\.y - fadeA\.x\)\)\);/);
 });
 
 test('no vein end renders open: on every vessel that opens into the cava, no point of its surface that the shader keeps lies inside the cava\'s lumen (every triangle sampled, against the true distance to the cava\'s course)', async () => {
