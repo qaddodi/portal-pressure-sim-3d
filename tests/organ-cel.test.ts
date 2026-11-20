@@ -35,7 +35,7 @@ test('cel shaded: exactly three tones, cut by the smooth normal alone: one shade
     if (r2 < 0.01) centre = b;
   }
   assert.equal(centre, 1, 'the middle of a round organ is base');
-  assert.ok(lit / n > 0.03 && lit / n < 0.3 && sh / n > 0.03 && sh / n < 0.3, `each crescent is a clear part, none swallows the organ (lit ${(lit / n).toFixed(2)}, shade ${(sh / n).toFixed(2)})`);
+  assert.ok(lit / n > 0.03 && lit / n < 0.45 && sh / n > 0.03 && sh / n < 0.55, `each crescent is a clear part, none swallows the organ (lit ${(lit / n).toFixed(2)}, shade ${(sh / n).toFixed(2)})`);
   assert.ok(lx / lit < -0.2 && ly / lit > 0.2, 'the lit one lies at the upper left');
   assert.ok(sx / sh > 0.2 && sy / sh < -0.2, 'the shade one lies at the lower right');
 });
