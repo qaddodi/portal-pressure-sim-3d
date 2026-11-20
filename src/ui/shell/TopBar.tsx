@@ -1,6 +1,7 @@
 // The top bar, on the 2D app's own markup and class names (index.html #topbar): the patient pill (.tb-id), the figure's pill (.stage-bar.top > .sb-right: Layers, Blood and the colour key) and the actions pill
 // (.top-right: Treat, Tests, History, Settings, Search). Its stylesheet is the 2D app's (src/ui/css2d), copied unchanged; nothing here styles it.
 import { UI } from '../strings.generated.ts';
+import { useLayoutEffect, useRef } from 'react';
 import { useShell, LENS_IDS } from './store.ts';
 import { useLens } from '../../scene/lenses/store.ts';
 import { sceneApi } from '../../scene/api.ts';
@@ -10,6 +11,7 @@ import { I } from './icons.tsx';
 import { lensSwatch } from './lens-art.ts';
 import { useLook } from '../../scene/lenses/Legend.tsx';
 import { VIEWS, pillHidden, tapView, type ViewId } from './views.ts';
+import { playFold, snapOf, stopFold, type Snap } from './pill-fold.ts';
 import { runFeature, type FeatureId } from './features.ts';
 import { notYet } from './words.ts';
 import { goToView, refitFigure } from './view-actions.ts';
@@ -24,12 +26,29 @@ interface Tb { id: string; label: string | null; title: string | null; text: str
 export const tb = (id: string): Tb => UI.topbar.find((t) => t.id === id) as unknown as Tb;
 const labelOf = (id: string) => tb(id).label ?? tb(id).text ?? id;
 
-/** The view switch (Circuit, Anatomy, Lobule, Sinusoid): 2D's #viewSeg. A second tap on the active view refits it; Sinusoid shows only while the lobule is up. */
+/** The view switch (Circuit, Anatomy, Lobule, Sinusoid): 2D's #viewSeg. A second tap on the active view refits it. It shows the view it is on and its neighbours on the path (views.ts), and the buttons ease in and out as the view changes (pill-fold.ts). */
 export function ViewPills() {
   const view = useShell((s) => s.view);
   const ready = useShell((s) => s.ready);
+  const seg = useRef<HTMLDivElement>(null);
+  const last = useRef<{ view: ViewId; snap: Snap } | null>(null);
+  // after every commit the pill's layout is kept; a change of the view plays the fold from the layout kept to the one now (nothing is drawn per frame)
+  useLayoutEffect(() => {
+    const el = seg.current, box = el?.parentElement;
+    if (!el || !box || !box.offsetWidth) return;
+    const was = last.current;
+    if (was && was.view !== view && !matchMedia('(prefers-reduced-motion: reduce)').matches) playFold(el, box, was.snap, VIEWS.map((v) => v.id));
+    last.current = { view, snap: snapOf(el, box) };
+  }, [view]);
+  useLayoutEffect(() => {
+    const el = seg.current, box = el?.parentElement;
+    if (!el || !box) return;
+    const keep = () => { if (box.offsetWidth) last.current = { view: useShell.getState().view, snap: snapOf(el, box) }; };
+    window.addEventListener('resize', keep);
+    return () => { window.removeEventListener('resize', keep); stopFold(el); };
+  }, []);
   return (
-    <div className="seg" id="viewSeg" role="group" aria-label="View" data-view-pills>
+    <div className="seg" id="viewSeg" role="group" aria-label="View" data-view-pills ref={seg}>
       {VIEWS.map((v) => {
         const hidden = pillHidden(v.id, view);
         return (

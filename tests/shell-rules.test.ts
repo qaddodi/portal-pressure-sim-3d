@@ -58,12 +58,13 @@ test('deep links: script wins over preset, which wins over home; slides count fr
   assert.equal(queryFromId('cirr-decomp'), 'cirr');
 });
 
-test('view pills: a second tap refits; Sinusoid shows only in the lobule; A turns anatomy and circuit', () => {
+test('view pills: a second tap refits; the pill shows a view and its neighbours; A turns anatomy and circuit', () => {
   assert.deepEqual(tapView('anatomic', 'anatomic'), { type: 'refit' });
   assert.deepEqual(tapView('circuit', 'anatomic'), { type: 'go', view: 'circuit', from: 'anatomic' });
   assert.equal(pillHidden('sinusoid', 'anatomic'), true);
   assert.equal(pillHidden('sinusoid', 'lobule'), false);
   assert.equal(pillHidden('sinusoid', 'sinusoid'), false);
+  assert.equal(pillHidden('circuit', 'lobule'), true);
   assert.equal(toggleKey('circuit'), 'anatomic');
   assert.equal(toggleKey('lobule'), null);
   assert.equal(zoomInDisabled('sinusoid'), true);
