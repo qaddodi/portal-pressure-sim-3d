@@ -79,6 +79,9 @@ export const bendLength = (rho: number, R: number): number => 2 * Math.sqrt(2 * 
 /** The whole sideways extent of a streak from the axis (CSS px): its offset, half its width and the reach of its tilt. Always within EDGE of R after streakFit. */
 export const streakReach = (lat: number, ang: number, len: number, thick: number): number => Math.abs(lat) + 0.5 * thick * Math.abs(Math.cos(ang)) + 0.5 * len * Math.abs(Math.sin(ang));
 
+/** The twin of the field's phase (`x = along - flow * sp + ...` in streakField): where a streak of the lane's pace `sp` (always above 0) stands, along the tube, when the stream has run `flow`: a mark at phase `c` is at along = c + flow * sp, so it moves the way `flow` grows
+ *  (with the blood, the way the chevron heads of the same stream move: their lattice stands at Dm + j P), forward on a forward flow, back on a reversed one. */
+export const streakAlong = (c: number, flow: number, sp: number): number => c + flow * sp;
 const sstep = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** How wide a tube is on screen, 0 to 1 (the shader's gStreakWide): from WIDE_R_PX[0] to WIDE_R_PX[1] CSS px of radius. */
 export const streakWide = (rCss: number): number => sstep(STREAK.WIDE_R_PX[0], STREAK.WIDE_R_PX[1], rCss);

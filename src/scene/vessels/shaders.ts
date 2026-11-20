@@ -13,7 +13,7 @@
 
 import { CIRCUIT_VS_CALL, CIRCUIT_VS_HEAD } from '../circuit/shader.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
-import { CHEV, CHEVRON_GLSL } from '../blood/chevron-glsl.ts';
+import { CHEV, CHEVRON_GLSL, CHEV_LEVEL_MIN } from '../blood/chevron-glsl.ts';
 import { STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
 import { STREAK } from '../blood/streak-glsl.ts';
 import { QUIET_BACK } from '../camera/quiet.ts';
@@ -273,7 +273,7 @@ ${STREAK_FIELD_GLSL}
 // spacing is the zoom's, by the arc a head takes here (B), so a parcel that slows on entering a vessel bunches up as the blood does. ends: the weights of a link at the vessel's from and
 // to end (above 0: a chained end, through which the heads run on instead of fading). Returns the head's coverage and its rim, already faded by its place and its lattice.
 vec2 chevOne(float s, float Lw, float se, float Bm, float Dm, float vd, float rv, vec2 ends, float R, float across, float wpc, float Pt, float px) {
-  float lv = max(-1.0, log2(Pt * max(abs(Bm), 0.05) / 28.0));
+  float lv = max(${F(CHEV_LEVEL_MIN)}, log2(Pt * max(abs(Bm), 0.05) / 28.0));
   float n0 = floor(lv), P = 28.0 * exp2(n0);
   float j = floor((se - Dm) / P + 0.5);
   float x = (se - (Dm + j * P)) / (abs(Bm) < 0.05 ? (Bm < 0.0 ? -0.05 : 0.05) : Bm), sc = s - x;
