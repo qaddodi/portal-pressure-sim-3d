@@ -86,11 +86,10 @@ uniform float uProfile;   // 1: the parabolic lanes of the blood; 0: one speed; 
 uniform vec3 uStreakCol;  // the streaks' one tone
 varying vec3 vP;
 varying float vAux;
-// the ONE streak (blood/streak-glsl.ts: 3, 5 or 7 lanes, comets with a blunt round head and a tail tapering to a point, parabolic lanes): the same as the Anatomy's vessels
+// the ONE streak (blood/streak-glsl.ts: 3, 5 or 7 lanes, slim rounded lozenges feathered at both ends, a tone and a pace of their own, parabolic lanes): the same as the Anatomy's vessels
 ${STREAK_FIELD_GLSL}
 uniform float uStreakDir; // +1: the heads lead toward +x (the way the stream runs); -1: toward -x (a reversed flow)
 float streaks() { return streakField(vAux, vP.x, uFlow, uHalf, uProfile, uStreakDir); }
-float sTone = 1.0;   // (each streak's own tone comes from the shared field)
 // a chevron every 6 µm across the whole stream, its point leading the way the stream runs (the flow's sign), quiet and hard-edged
 float chevrons() {
   float a = abs(vAux), dir = uFlow >= 0.0 ? 1.0 : -1.0, pitch = 6.0, w = 1.1;
@@ -140,7 +139,7 @@ void main() {
   c *= 1.0 - ${F(CEL_STYLE.MICRO.SHADE)} * shadeT;
 #ifdef STREAKS
   float sk = uProfile < 0.0 ? chevrons() : streaks();
-  c = mix(c, uStreakCol, uStreak * sk * sTone);
+  c = mix(c, uProfile < 0.0 ? uStreakCol : streakTone(c, uStreakCol, gStreakK.x, gStreakK.y), uStreak * sk);   // (a streak's own tone between the surface's and the streak colour's)
 #endif
 #ifdef FLOW
   c = mix(c, uFlowCol, uFlowK * flowMarks());
