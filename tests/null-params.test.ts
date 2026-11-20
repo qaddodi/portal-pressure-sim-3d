@@ -17,7 +17,7 @@ test('the Compare card names the patient\'s settings, not a frame that mostly ca
   const c = readFileSync('src/ui/compare/CompareUi.tsx', 'utf8');
   assert.match(c, /activeLabels\(f\?\.params \?\? patient\.params\)/);
   assert.doesNotMatch(c, /f\?\.params \?\? null/);
-  assert.match(readFileSync('src/ui/treat/palette-orders.ts', 'utf8'), /const p = currentParams\(\); return !!p && c\.when\(p\)/);
+  assert.match(readFileSync('src/ui/treat/palette-orders.ts', 'utf8'), /return !c \|\| c\.when\(currentParams\(\)\)/);
 });
 
 test('a Settings, menu, History, Compare or Help sheet coming up puts Treat away (one card in the column)', () => {

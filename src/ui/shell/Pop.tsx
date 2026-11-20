@@ -1,7 +1,8 @@
-import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useShell, type Sheet } from './store.ts';
 import { InApp } from './InApp.tsx';
 import { placePopover } from './place.ts';
+import { useSheetSwipe, onPhone } from './use-sheet-swipe.ts';
 
 /** Closes the open sheet when a press lands outside it and outside the control that opened it. A press on the opener is the opener's own business (it toggles). */
 export function useOutside(sheet: Exclude<Sheet, null>, ref: React.RefObject<HTMLElement | null>) {
@@ -31,7 +32,8 @@ export function Anchored({ sheet, place = 'below', align = 'start', width, cls, 
   button: (p: { id: string; open: boolean; toggle: () => void; ref: (el: HTMLElement | null) => void }) => ReactNode; children: ReactNode; label: string;
 }) {
   const btn = useRef<HTMLElement | null>(null);
-  const pop = useRef<HTMLDivElement>(null);
+  const pop = useRef<HTMLDivElement | null>(null);
+  const [popEl, setPopEl] = useState<HTMLDivElement | null>(null);   // (the popover mounts a render after its button: InApp waits for #app; the swipe is wired once it is there)
   const id = useId();
   const open = useOutside(sheet, pop);
   // 2D's one placer (shell/place.ts placePopover, util.js popover `put`), written once as the menu opens and again when the window or the visual viewport moves (the on-screen keyboard coming up on a phone
@@ -45,11 +47,13 @@ export function Anchored({ sheet, place = 'below', align = 'start', width, cls, 
     addEventListener('resize', put); vv?.addEventListener('resize', put); vv?.addEventListener('scroll', put);
     return () => { removeEventListener('resize', put); vv?.removeEventListener('resize', put); vv?.removeEventListener('scroll', put); };
   }, [open, align, place, width]);
+  // a phone's menu follows a pull down and closes past a short one, like every sheet (shell/sheet-swipe.ts; its `translate` is its place, so the pull is written as `transform`)
+  useSheetSwipe(pop, () => useShell.getState().close(), onPhone, !!popEl, 'transform');
   const toggle = () => useShell.getState().toggle(sheet);
   return (
     <>
       {button({ id, open, toggle, ref: (el) => { btn.current = el; } })}
-      <InApp><div ref={pop} id={id} className={`sh-pop${cls ? ` ${cls}` : ''}`} data-open={open} data-place={place} role="dialog" aria-label={label} inert={!open} style={{ left: 0, top: 0, right: 'auto', bottom: 'auto', ...(width ? { width } : {}) }}>{children}</div></InApp>
+      <InApp><div ref={(el) => { pop.current = el; setPopEl(el); }} id={id} className={`sh-pop${cls ? ` ${cls}` : ''}`} data-open={open} data-place={place} role="dialog" aria-label={label} inert={!open} style={{ left: 0, top: 0, right: 'auto', bottom: 'auto', ...(width ? { width } : {}) }}>{children}</div></InApp>
     </>
   );
 }
