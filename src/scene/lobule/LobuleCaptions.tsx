@@ -147,7 +147,7 @@ export function LobuleCaptions() {
       const on = cel.view === 'lobule' && cel.lobule.group.visible;
       if (on) { const a = proj(0, 0), b = proj(1, 0); pa.x = a[0]; pa.y = a[1]; pb.x = b[0]; pb.y = b[1]; } else { pa.x = pa.y = pb.x = pb.y = 0; }
       const g = gate.step({ now, dt, on, moving: cel.rig.isMoving, a: pa, b: pb, layout: layoutSig, fits: (ride) => boxesFit(boxesOf(), ride, view(), blockers()) });
-      if (g.solve) solveNow(); else if (alpha > 0) refreshReadings();
+      if (g.solve) { solveNow(); if (typeof location !== 'undefined' && /[?&]capwhy\b/.test(location.search)) console.info('[lobule-captions] re-placed:', gate.why, gate.whySig); } else if (alpha > 0) refreshReadings();
       alpha = g.alpha;
       if (alpha > 0 || wasShown) {
         const walls = blockers(), room = view();
