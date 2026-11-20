@@ -453,7 +453,7 @@ export class CelScene {
 
   // ---- slide state ---------------------------------------------------------------------------
 
-  goTo(shot: ShotName | Shot, room: Room, now: number, ms?: number): void { this.rig.goTo(shot, room, now, ms); this.moving = true; }
+  goTo(shot: ShotName | Shot, room: Room, now: number, ms?: number, ease?: (k: number) => number): void { this.rig.goTo(shot, room, now, ms, false, ease ?? null); this.moving = true; }
 
   /** The deck's catheter (route, free, wedge, hvpg): drawn by the procedure layer on the HVPG route of the 2D figure, so it is the same device the Tests card plays. The slice catheter keeps the state
    *  (the labels read its tip) and draws nothing. */

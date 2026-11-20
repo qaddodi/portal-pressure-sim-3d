@@ -7,7 +7,11 @@ import { tokensOf } from '../../ui/text/tokens.ts';
 import type { Deck } from '../schema.ts';
 import { ensureStates, useStates } from './calc.ts';
 import { copiedOf } from './deck.ts';
-import { playLapse, playsLapse, stopLapse } from './lapse.ts';
+import { sceneApi } from '../../scene/api.ts';
+import { viewAt } from '../../ui/deck/presenter-machine.ts';
+import { playLapse, playsLapse, showLapseEnd, stopLapse } from './lapse.ts';
+import { pushFor, showPushEnd } from './lapse-push.ts';
+import { pushShotOf } from './lapse-cam.ts';
 
 /** How long the figure takes to ease to the next slide's state (ms). */
 export const MORPH_MS = 1100;
@@ -36,10 +40,16 @@ export function linkStates(deck: Deck): () => void {
   useUi.setState({ readings: {} });
   void ensureStates(copied);
   let morphed: unknown = null;
+  // where the talk came from (2D lastAt): a slide reached by Back or a jump back does not play its days (2D `back`), it shows where they ended
+  let lastStop = -1, from = -1;
+  // the stop whose time-lapse moved the camera (its push, or its end framing): the camera is brought to the next slide's own framing as it is left, whatever that slide asks of the scene
+  let pushedAt = -1;
   const sync = () => {
     const { stops, pos } = useUi.getState();
     const stop = stops[pos.stop];
     if (!stop) return;
+    if (pos.stop !== lastStop) { from = lastStop; lastStop = pos.stop; }
+    if (pushedAt >= 0 && pos.stop !== pushedAt) { pushedAt = -1; reframe(); }
     const res = useStates.getState().results[deck.id];
     const i = stateIndex(stop.kind, pos.stop, ids.length);
     // until this slide's state is in, the headline numbers are the live figure's (the first slide opens at once; the others follow as the states arrive)
@@ -55,15 +65,27 @@ export function linkStates(deck: Deck): () => void {
     if (snap && snap !== morphed) {
       morphed = snap;
       const cs = stop.kind === 'slide' ? copied.slides[i] : undefined;
-      if (playsLapse(cs, i) && res?.[i - 1]?.snap) {
-        // a time-lapse: the days play on the live figure from the slide before's state, then it eases to this slide's computed end
-        playLapse(`${deck.id}/${ids[i]}`, cs, res[i - 1]!.snap, snap, () => {}, window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+      const key = `${deck.id}/${ids[i]}`, cam = cs && stop.kind === 'slide' ? pushShotOf(cs) : null;
+      if (playsLapse(cs, i) && res?.[i - 1]?.snap && !(from > pos.stop)) {
+        // a time-lapse: the days play on the live figure from the slide before's state (the camera pushing slowly to where they end), then it eases to this slide's computed end;
+        // Next runs what is left of the days out (ui/deck/lapse-next.ts)
+        playLapse(key, cs, res[i - 1]!.snap, snap, () => {}, window.matchMedia?.('(prefers-reduced-motion: reduce)').matches, cam ? pushFor(cam) : null);
+        if (cam) pushedAt = pos.stop;
       } else {
         stopLapse();
+        if (cs?.lapse && typeof cs.days === 'number' && stop.kind === 'slide') showLapseEnd(key, cs);
+        if (cam) { pushedAt = pos.stop; queueMicrotask(() => showPushEnd(cam)); }   // (after the scene's own move to the slide's framing, so the figure goes once, to where the days end)
         try { engine().send({ type: 'morph', snap, ms: MORPH_MS }); } catch { /* the engine is not up yet: the first slide is shown when it is */ }
       }
     }
   };
+  // the slide a time-lapse's camera was left on is not the next slide's: its own framing, in the one eased move (after the scene's own, so a slide with the same shot as the one before still gets it)
+  const reframe = () => queueMicrotask(() => {
+    const { stops, pos, boxes } = useUi.getState();
+    if (!stops[pos.stop] || boxes.free.w <= 0 || boxes.free.h <= 0) return;
+    const v = viewAt(stops, pos);
+    if (!v.scene || v.scene.view === 'body') sceneApi.goTo(v.shot, boxes.free);
+  });
   sync();
   const offUi = useUi.subscribe((s, p) => { if (s.pos !== p.pos || s.stops !== p.stops) sync(); });
   const offStates = useStates.subscribe((s, p) => { if (s.results[deck.id] !== p.results[deck.id]) sync(); });

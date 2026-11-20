@@ -6,7 +6,7 @@ import { x3, y3 } from '../frame2d.ts';
 import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, FEEDER_FADE_Y_2D, SIN_EDGES_2D, SIN_FADE_C9_2D, SIN_FADE_ROW_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
 import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D } from './paths.copied.ts';
 import { startInOrganShare } from './starts.ts';
-import { SPLIT_AT } from './liver-branches.ts';
+import { END_JOIN, LIVER_BRANCH_HOSTS, splitShare } from './liver-branches.ts';
 
 /** stage-geo.js IVC_NODES, IVC_JOIN_LEN, HEPATIC_VEINS: a vein that ends on the faint cava fades into it over its last 60 units (12 for the portocaval and mesocaval shunts), so the join is seamless. */
 const IVC_NODES: ReadonlySet<string> = new Set(['IVCS', 'IVCI', 'RA', 'IVC_D', 'ILI_R']);
@@ -90,8 +90,11 @@ function fadeOf0(id: string, isArtery: boolean, feederHost?: string): TipFade | 
   if (feederHost === 'C3' && id.endsWith('~F:b')) return { mode: 1, from: 0.25, to: 1, a0: 1, a1: 0, keep: false, connect: [] };
   if (feederHost) { const yy = FEEDER_FADE_Y_2D[feederHost]; return yy ? { mode: 2, from: y3(yy[0]), to: y3(yy[1]), a0: 1, a1: 0, keep: false, connect: [] } : null; }
   const art = ART_FADE_2D[id];
-  if (!isArtery && LIVER_FADE_OUT[id] && !SPLIT_AT[id]) return { mode: 1, from: 1 - LIVER_FADE_OUT[id]!, to: 1, a0: 1, a1: 0, keep: false, connect: [] };
-  if (!isArtery && LIVER_FADE_IN[id] && !SPLIT_AT[id]) return { mode: 1, from: 0, to: LIVER_FADE_IN[id]!, a0: 0, a1: 1, keep: false, connect: [] };
+  // (a vein that branches is one tube to its tip: it fades out of / in from the liver along its through branch, over the same stretch of the course as its side branch does)
+  const sp = isArtery ? null : splitShare(id);
+  if (sp != null) return (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id) ? { mode: 1, from: sp + 0.25 * (1 - sp), to: sp + 0.92 * (1 - sp), a0: 1, a1: 0, keep: false, connect: [] } : { mode: 1, from: 0.08 * sp, to: 0.75 * sp, a0: 0, a1: 1, keep: false, connect: [] };
+  if (!isArtery && LIVER_FADE_OUT[id] && !END_JOIN.has(id)) return { mode: 1, from: 1 - LIVER_FADE_OUT[id]!, to: 1, a0: 1, a1: 0, keep: false, connect: [] };
+  if (!isArtery && LIVER_FADE_IN[id]) return { mode: 1, from: 0, to: LIVER_FADE_IN[id]!, a0: 0, a1: 1, keep: false, connect: [] };
   // (the hepatic artery is cut short beside the portal trunk, starts/stub-free: it grows out of nothing over nearly all of what is drawn: starts.ts TRIM)
   if (art?.in) return { mode: 1, from: 0, to: id === 'A_HEP' ? HEP_FADE_IN : art.in, a0: 0, a1: 1, keep: true, connect: [] };
   // (the lobar arteries fade out with the portal branch they run beside, over the same share of their length: Mohammad, 20 Nov, "the right branch doesn't fade at the end")
