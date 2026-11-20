@@ -21,14 +21,18 @@ export const RAIL_MS = 560, OUT_MS = 340, IN_MS = 520, RAIL_GAP = 24, THROW_IN =
 /** How far a card travels, as a share of the words' distance, on the rail (and under a finger). */
 export const PARALLAX = { words: 1, data: 0.82 } as const;
 export const easeRail = cubicBezier(0.32, 0.72, 0, 1);
+/** The curve as CSS, and when the old cards are wholly gone (their fade ends at 80 % of their move): a card the talk keeps glides to its new place then, with the new cards. */
+export const RAIL_CSS = 'cubic-bezier(0.32, 0.72, 0, 1)';
+export const OUT_DONE = Math.round(0.8 * OUT_MS);
 
 export type Kind = 'out' | 'in' | 'back';
 export interface Pt { x: number; o: number }
 
-/** Where a card is at k (0 to 1) of its move: out, gone by 85 % of its way; in, whole by 40 % of its way; back, fading in as it moves. Written into `out`. */
+/** Where a card is at k (0 to 1) of its move: out, gone by 80 % of its time; in, whole by 60 % of its time (a smooth fade on time); back, fading over the whole move. Written into `out`. */
 export function throwInto(out: Pt, kind: Kind, k: number, from: Pt, to: Pt): Pt {
   k = k <= 0 ? 0 : k >= 1 ? 1 : k;
-  const e = easeRail(k), f = kind === 'out' ? Math.min(1, e / 0.85) : kind === 'back' ? e : Math.min(1, e / 0.4);
+  // the slide is front-loaded (easeRail), the fade is not: it runs on time through the move's first part, so a card never pops to 0 or 1 in a frame or two
+  const e = easeRail(k), u = Math.min(1, k / (kind === 'out' ? 0.8 : kind === 'in' ? 0.6 : 1)), f = u * u * (3 - 2 * u);
   out.x = from.x + (to.x - from.x) * e;
   out.o = from.o + (to.o - from.o) * f;
   return out;

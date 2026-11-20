@@ -165,9 +165,9 @@ test('a sideways drag pages to the next tab and a short one springs back; nothin
 test('a vertical pull settles the sheet at Half or Full, or closes it; a pull that goes sideways is the swipe\'s', async () => {
   const card = el(), pos = el();
   const calls: string[] = [];
-  let size: 0 | 1 = 0;
+  let size: 0 | 1 | 2 = 0;
   const off = attachPull(card as unknown as HTMLElement, pos as unknown as HTMLElement, {
-    enabled: () => true, heights: () => ({ h0: size ? 700 : 520, half: 520, full: 700, size }), setSize: (n) => { size = n; calls.push(`size ${n}`); }, close: () => { calls.push('close'); },
+    enabled: () => true, heights: () => ({ h0: size === 1 ? 700 : size === 2 ? 72 : 520, half: 520, full: 700, peek: 72, size }), setSize: (n) => { size = n; calls.push(`size ${n}`); }, close: () => { calls.push('close'); },
   });
   // (slow pulls: the finger rests before it lifts, so only how far it went counts; a flick has its own case below)
   const ptr = (target: unknown, x: number, y: number) => ({ target, pointerId: 1, pointerType: 'touch', button: 0, buttons: 1, clientX: x, clientY: y });
@@ -185,12 +185,18 @@ test('a vertical pull settles the sheet at Half or Full, or closes it; a pull th
   await pull(15, 200); await sleep(450);
   assert.deepEqual(calls, [], 'a sideways move is left to the swipe');
   await pull(200); await sleep(450);
-  assert.deepEqual(calls, ['close'], 'a far pull down from Half closes the card');
+  assert.deepEqual(calls, ['size 2'], 'a far pull down from Half settles at Peek: the head row, the figure free');
+  await pull(-50); await sleep(450);
+  assert.deepEqual(calls, ['size 2', 'size 0'], 'a pull up from Peek brings it back to Half');
+  await pull(200); await sleep(450); calls.length = 0;
+  await pull(120); await sleep(450);
+  assert.deepEqual(calls, ['close'], 'a pull down from Peek closes the card');
+  size = 0; calls.length = 0;
   await pull(30, 0, true); await sleep(450);
-  assert.deepEqual(calls, ['close'], 'a short pull, even a quick one, is not a flick past 40 px: it eases back');
+  assert.deepEqual(calls, [], 'a short pull, even a quick one, is not a flick past 40 px: it eases back');
   const field = el({ closest: (sel: string) => (/input/.test(sel) ? field : null) });
   card.fire('pointerdown', ptr(field, 200, 400)); card.fire('pointermove', ptr(field, 200, 480)); card.fire('pointerup', ptr(field, 200, 480)); await sleep(30);
-  assert.deepEqual(calls, ['close'], 'a field keeps its own drag');
+  assert.deepEqual(calls, [], 'a field keeps its own drag');
   off();
 });
 

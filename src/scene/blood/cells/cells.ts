@@ -89,7 +89,7 @@ export class BloodCells {
   /** Steps the layer one frame. Returns true while it needs frames: fading in or out, or on and the blood moving. Off and faded out it does nothing at all. */
   step(dtMs: number, f: CellsFrame): boolean {
     const want = cellsWanted({ on: useSettings.getState().particles, reduceMotion: this.reduceMotion(), view: f.view });
-    if (!want && this.amount === 0) { if (this.points) this.points.visible = false; return false; }
+    if (!want && this.amount === 0) { if (this.points) this.points.visible = false; this.deps.blood.streakAmt.value = 0; return false; }
     if (want && (!this.points || this.builtPhone !== this.deps.phone())) this.build();
     const pts = this.points, mat = this.material;
     if (!pts || !mat) return false;
@@ -97,9 +97,12 @@ export class BloodCells {
     this.amount = easeAmount(this.amount, goal, dtMs, FADE_MS);
     // (a program the device refused is swapped for a plain material by the shader guard: the cells are then not drawn, never as grey dots)
     const drawn = this.amount > 0.001 && pts.material === mat;
-    pts.visible = drawn;
+    // THE STREAKS ARE PART OF THE TUBES (vessels/shaders.ts, in the tube's own fragment shader: contained in the lumen, following its alpha and fades by construction). This layer keeps the amount
+    // (the setting, the view, the Circuit) and hands it to them; its own sprites are never drawn, so nothing can stray past a tube's end.
+    pts.visible = false;
+    this.deps.blood.streakAmt.value = drawn ? this.amount * (1 - Math.min(1, Math.max(0, f.circuit))) * Math.min(1, Math.max(0, f.body)) : 0;
     if (!drawn) return false;
-    mat.uniforms.amount!.value = this.amount * (1 - Math.min(1, Math.max(0, f.circuit))) * Math.min(1, Math.max(0, f.body));
+    mat.uniforms.amount!.value = this.deps.blood.streakAmt.value;
     this.poll();
     return this.amount !== goal || f.flowMoving;
   }

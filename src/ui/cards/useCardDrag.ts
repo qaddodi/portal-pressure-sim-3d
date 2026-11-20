@@ -14,6 +14,8 @@ interface Opts {
   onMove(m: Move): void;
   /** whether a sideways drag may move the cards now (a slide change is possible: the talk is not at an end, no zoom is up) */
   can(dx: number): boolean;
+  /** whether the data card is kept by the slide this drag goes to: it does not follow the finger */
+  keeps(dx: number): boolean;
   /** the width the cards' travel is scaled to */
   width: number;
   /** the card elements on screen, each with its plate, and its slot */
@@ -42,7 +44,7 @@ export function useCardDrag(o: Opts) {
         const dx = e.clientX - g.x, dy = e.clientY - g.y;
         if (!g.on) {
           if (Math.abs(dx) < 8 || Math.abs(dx) < 1.5 * Math.abs(dy) || !opts.current.can(dx)) return;
-          g.on = true; g.cards = opts.current.cards();
+          g.on = true; { const keep = opts.current.keeps(dx); g.cards = opts.current.cards().filter((c) => !(keep && c.data)); }
           try { (e.currentTarget as Element).setPointerCapture?.(e.pointerId); } catch { /* (the touch is gone) */ }
         }
         g.pts.push([e.clientX, e.timeStamp]);

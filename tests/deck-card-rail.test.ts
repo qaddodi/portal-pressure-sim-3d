@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createClock } from '../src/clock/frame.ts';
-import { createRail, throwAt, followOf, commitOf, speedOf, RAIL_MS, THROW_IN, THROW_OUT, FIRST_MS, STAGGER, PARALLAX, type Styled } from '../src/ui/cards/rail.ts';
+import { createRail, throwAt, followOf, commitOf, speedOf, RAIL_MS, THROW_IN, THROW_OUT, FIRST_MS, OUT_DONE, STAGGER, PARALLAX, type Styled } from '../src/ui/cards/rail.ts';
 
 // Mohammad, 20 Nov: cards appeared one before the other and grew as they came in; the slide change should move the cards out of view (forward right to left, back
 // left to right), the new ones come in from the other side, and on a phone the cards follow the finger. 2D's card-throw.js, kept, then refined.
@@ -20,10 +20,12 @@ const world = () => {
 };
 const xOf = (e: { v: Record<string, string> }) => parseFloat(/-?[\d.]+/.exec(e.v.transform ?? '')?.[0] ?? '0');
 
-test('2D\'s curve and times: out is gone by 85% of its way, in whole by 40%, no overshoot', () => {
+test('2D\'s curve and times: out is gone by 80% of its time, in whole by 60%, fading smoothly (never a pop), no overshoot', () => {
   assert.equal(RAIL_MS, 560); assert.equal(THROW_IN, 56); assert.equal(STAGGER, 40);
   assert.equal(throwAt('out', 0, { x: 0, o: 1 }, { x: -300, o: 0 }).o, 1);
-  assert.ok(throwAt('out', 0.5, { x: 0, o: 1 }, { x: -300, o: 0 }).o < 0.05 || throwAt('out', 0.5, { x: 0, o: 1 }, { x: -300, o: 0 }).o <= 0.2);
+  assert.equal(throwAt('out', 0.8, { x: 0, o: 1 }, { x: -56, o: 0 }).o, 0);
+  assert.equal(throwAt('in', 0.6, { x: 56, o: 0 }, { x: 0, o: 1 }).o, 1);
+  for (const kind of ['in', 'out'] as const) { let last = kind === 'in' ? 0 : 1; for (let k = 0; k <= 1; k += 1 / 60) { const o = throwAt(kind, k, { x: 0, o: kind === 'in' ? 0 : 1 }, { x: 0, o: kind === 'in' ? 1 : 0 }).o; assert.ok(Math.abs(o - last) < 0.12, `${kind}: no frame at 60 fps jumps the opacity (${last} to ${o})`); last = o; } }
   assert.equal(throwAt('in', 1, { x: 56, o: 0 }, { x: 0, o: 1 }).o, 1);
   for (let k = 0; k <= 1; k += 0.05) assert.ok(throwAt('in', k, { x: 56, o: 0 }, { x: 0, o: 1 }).x >= -1e-6, 'it never passes its place');
   assert.equal(THROW_OUT, 56, 'a card leaves by a short slide, not off the screen');
@@ -178,4 +180,16 @@ test('the first card of a talk fades in where it stands, rising a little, never 
   assert.ok(parseFloat(a[0]!.v.opacity!) > 0 && parseFloat(a[0]!.v.opacity!) < 1, 'fading in');
   for (let i = 0; i < Math.ceil(FIRST_MS / 16) + 4; i++) tick(16);
   assert.equal(a[0]!.v.transform, undefined); assert.equal(rail.busy, 0);
+});
+
+// Mohammad, 20 Nov: "when the instrument card does not change, we should not be able to swipe it (it shouldn't swipe away and back in)". A data card the next slide keeps
+// (the same key) stays put under a finger and on Next, and moves to its new place with the new cards, on their curve, after the old ones are gone.
+test('the data card a slide keeps does not follow the finger, and glides with the swap on the rail\'s curve', () => {
+  const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
+  const drag = readFileSync(new URL('../src/ui/cards/useCardDrag.ts', import.meta.url), 'utf8');
+  const frame = readFileSync(new URL('../src/ui/cards/CardFrame.tsx', import.meta.url), 'utf8');
+  assert.match(layer, /keeps: \(dx\) => .*dataKeyOf\(to\) === dataKey/, 'the layer says whether the data card is kept by the slide a drag goes to');
+  assert.match(drag, /filter\(\(c\) => !\(keep && c\.data\)\)/, 'a kept data card is left out of the drag');
+  assert.match(frame, /transition: `transform \$\{IN_MS\}ms \$\{RAIL_CSS\} \$\{OUT_DONE\}ms`/, 'its move to a new place waits for the old cards to be gone, then runs as long as the new cards\' entrance');
+  assert.equal(OUT_DONE, 272);
 });

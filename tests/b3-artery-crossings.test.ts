@@ -19,12 +19,12 @@ test('the hepatic artery crosses no vein (and an arterioportal shunt, which ends
     for (const v of NETWORK) {
       if (v.feeder || v.tone === 'artery' || v.kind === 'shunt' || v.kind === 'liver' || v.id === 'C9') continue;   // (the hidden sinusoid beds; C9, the lumbar collateral behind everything, only when it is open)
       const pv = P(v.id);
-      // (the one place the 2D plan makes an artery pass a vein: the hilum, where the hepatic artery, anterior to the portal vein and the cava, passes in front of them: one tier forward, checked below)
+      // (the one place the 2D plan makes an artery pass a vein: the hilum, where the hepatic artery, anterior to the portal vein and the cava, passes behind them: one tier back, checked below)
       const hilum = HEPATIC.has(a.id) && (v.id === 'PVH_L' || v.id === 'PVH_R' || v.id === 'PV_TRUNK' || v.tier === 'back');
       for (let i = 1; i < pa.length; i++) for (let j = 1; j < pv.length; j++) {
         const x = cross(pa[i - 1]!, pa[i]!, pv[j - 1]!, pv[j]!);
         if (!hilum) assert.ok(!x, `${a.id} crosses ${v.id}`);
-        else if (x) assert.ok(a.pts[i]![2] > v.pts[j]![2] + 0.008, `${a.id} passes ${v.id} at the hilum in front of it`);
+        else if (x) assert.ok(a.pts[i]![2] < v.pts[j]![2] - 0.008, `${a.id} passes ${v.id} at the hilum behind it`);
       }
     }
   }
@@ -128,4 +128,12 @@ test('the azygos arch fades in from its free left end (no blunt hook over the ri
   const { fadeOf } = await import('../src/scene/vessels/fades.ts');
   const f = fadeOf('AZY_SVC', false)!;
   assert.ok(f && f.mode === 1 && f.a0 === 0 && f.a1 === 1 && f.to >= 0.4, 'faded in over the first half');
+});
+
+test('the hepatic artery\'s blood runs on through its junction into both branches (the stream chain carries it), and the lobar arteries fade out with their portal branches', async () => {
+  const { INFO } = await import('../src/scene/blood/chain.ts');
+  const { EDGES } = await import('../src/engine/hales/portal/topology.js');
+  for (const id of ['A_HEP', 'A_HR', 'A_HL']) assert.ok(INFO[(EDGES as { id: string }[]).findIndex((e) => e.id === id)], `${id} is in the chain`);
+  const { fadeOf } = await import('../src/scene/vessels/fades.ts');
+  for (const id of ['A_HR', 'A_HL']) { const f = fadeOf(id, true)!; assert.ok(f.a1 === 0 && 1 - f.from >= 0.5, `${id} fades out over at least half its length`); }
 });

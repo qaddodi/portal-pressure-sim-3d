@@ -96,7 +96,7 @@ function tierOf(e: Edge): Tier {
   if (BACK_EDGES.has(e.id) || RENAL_VEIN_IDS.has(e.id)) return 'back';
   if (HEPATIC_VEIN_IDS.has(e.id)) return 'hv';   // (the cava's plane, 0.016 in front of it: the lumbar collaterals that cross them stay apart in depth)
   if (e.id === 'C3') return 'fwd';   // the paraumbilical vein rises forward over the portal trunk to the umbilicus
-  if (HEPATIC_ARTERY_IDS.has(e.id)) return 'hep';   // (the hepatic artery lies anterior to the portal vein and the cava it passes at the hilum: in front, so it crosses them in depth and is joined, never blunt)
+  if (HEPATIC_ARTERY_IDS.has(e.id)) return 'hep';   // (Mohammad, 20 Nov: "it should be behind the veins": the hepatic artery runs behind the portal veins and the cava it passes at the hilum, so it is hidden where it goes under them and joined, never blunt)
   if (isArteryEdge(e)) return 'art';
   if (OVER_IDS.has(e.id)) return 'over';
   if (e.kind === 'collateral') return 'mid';

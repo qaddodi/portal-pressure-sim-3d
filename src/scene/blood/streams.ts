@@ -50,7 +50,7 @@ export class Streams {
   speedOf(k: number): number { return this.streams[k]!.vd; }
 
   /** Advances every stream to `nowMs`. Returns true while any stream moves (the scene keeps asking for frames). */
-  step(nowMs: number): boolean {
+  step(nowMs: number, rate = 1): boolean {
     const f = this.frame;
     if (!f) return false;
     const dt = this.last < 0 ? 0 : Math.min(0.1, Math.max(0, (nowMs - this.last) / 1000));
@@ -64,7 +64,7 @@ export class Streams {
       for (let k = 0; k < NE; k++) { sc.Q[k] = (f.Qf ?? f.Q)[k]!; this.velQf[k] = meanVel(sc, k); sc.Q[k] = f.Q[k]!; this.velQ[k] = meanVel(sc, k); }
     }
     const o = this.opts, ease = -Math.expm1(-dt / EASE_S);
-    o.dt = dt; o.bt = nowMs / 1000;
+    o.dt = dt; o.bt = nowMs / 1000; o.speed = rate;   // (the one eased flow rate, scene/flow-rate.ts: a pause eases the distance's advance to a stop, a play eases it back up)
     let moving = false;
     for (let k = 0; k < NE; k++) {
       const rt = this.hold.hold[k]!;
@@ -73,7 +73,7 @@ export class Streams {
       sm.rev = sm.rev == null ? rt : sm.rev + (rt - sm.rev) * ease;
       const i = k * 4;
       this.data[i] = sm.D; this.data[i + 1] = sm.vd; this.data[i + 2] = sm.rev; this.data[i + 3] = 1;
-      if (sm.vd !== 0 || Math.abs(sm.rev - rt) > 0.002) moving = true;
+      if ((sm.vd !== 0 && rate > 0.0005) || Math.abs(sm.rev - rt) > 0.002) moving = true;
     }
     this.texture.needsUpdate = true;
     this.moving = moving;
