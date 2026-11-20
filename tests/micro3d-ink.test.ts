@@ -84,3 +84,24 @@ test('a flat shape on the plate is a dome open below, so nothing of it shows pas
   const src = (await import('node:fs')).readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
   assert.match(src, /ellipsoid\(nuc,[^;]*, true, true\);/); assert.match(src, /ellipsoid\(b, x, Y\(s \* \(h - 0\.35\)\)[^;]*, true, true\);/);
 });
+
+test('the lining lens draws its line from its own ellipse, exact whatever its triangles (eyes 20 Nov: nicks along its long edge between corners)', async () => {
+  const { MICRO_FS, ellipsoid, MeshBuilder } = await import('../src/scene/micro3d/cel3d.ts');
+  assert.match(MICRO_FS, /dpx = \(1\.0 - rr\) \/ max\(length\(vec2\(dFdx\(rr\), dFdy\(rr\)\)\), 1e-5\);/);
+  const b = new MeshBuilder(); ellipsoid(b, 0, 0, 0, 4, 1.5, 1, 0.3, undefined, 16, 10, true, true, true);
+  const g = b.build(), pos = g.getAttribute('position'), ux = g.getAttribute('aux'), uy = g.getAttribute('aux2');
+  assert.equal(ux.count, pos.count); assert.equal(uy.count, pos.count);
+  for (let i = 0; i < pos.count; i++) {   // (the unit circle's coordinates are the position's, unturned and over the radii: linear in position)
+    const c = Math.cos(0.3), s = Math.sin(0.3), x = pos.getX(i), y = pos.getY(i);
+    assert.ok(Math.abs((x * c + y * s) / 4 - ux.getX(i)) < 1e-6 && Math.abs((-x * s + y * c) / 1.5 - uy.getX(i)) < 1e-6);
+  }
+  const src = (await import('node:fs')).readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
+  assert.match(src, /mk\('endothelial-cells', \{[^}]*rimUV: true/);
+});
+
+test('far off, the sinusoid\'s small shapes lose their line before they are all line (eyes 20 Nov: dark dots across the lumen in the dive)', async () => {
+  const { MICRO_FS } = await import('../src/scene/micro3d/cel3d.ts');
+  assert.match(MICRO_FS, /float rp = uRim \* uMicroDpr \* uRimK;/);
+  const { RIM_FULL_PX } = await import('../src/scene/micro3d/sinusoid3d.ts');
+  assert.ok(RIM_FULL_PX <= 3, 'whole at every landed size');
+});

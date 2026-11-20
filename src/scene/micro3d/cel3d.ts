@@ -21,9 +21,6 @@ import { STREAK, STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
 /** The streak field's units to a tube radius, so a streak's mean length (FIELD_LEN) is LEN_OF_R radii, as the Anatomy's are. */
 const STREAK_FIELD_PER_R = (STREAK.FIELD_LEN[0] + STREAK.FIELD_LEN[1] / 2) / STREAK.FIELD_LEN_R;
 
-/** The width (local units) of the reveal's soft edge (uReveal). */
-export const REVEAL_SOFT = 4;
-
 const hexRGB = (h: string): [number, number, number] => { const n = parseInt(h.slice(1), 16); return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; };
 const F = (x: number): string => (Number.isInteger(x) ? x.toFixed(1) : String(x));
 const L = CEL_LIGHT_UNIT;
@@ -34,15 +31,20 @@ varying vec3 vN;
 varying vec3 vVD;
 varying vec3 vC;
 varying float vHy;
-#if defined(STREAKS) || defined(FLOW)
+#if defined(STREAKS) || defined(FLOW) || defined(RIM_UV)
 attribute float aux;
+#endif
+#if defined(FLOW) || defined(RIM_UV)
+attribute float aux2;
+#endif
+#ifdef RIM_UV
+varying vec2 vRimUV;
 #endif
 varying vec3 vP;
 #ifdef STREAKS
 varying float vAux;
 #endif
 #ifdef FLOW
-attribute float aux2;
 varying float vArc;
 varying float vAcross;
 #endif
@@ -67,6 +69,9 @@ void main() {
 #endif
   vN = normalize(mat3(modelMatrix) * n);   // the normal in WORLD axes: the light is fixed in the world, not on the screen
   vHy = p.y; vP = p;
+#ifdef RIM_UV
+  vRimUV = vec2(aux, aux2);
+#endif
 #ifdef STREAKS
   vAux = aux;
 #endif
@@ -95,11 +100,11 @@ varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
 uniform float uHole;
 uniform float uReveal;
-// the reveal (uReveal > 0, local units): only what lies within uReveal of the part's origin is drawn (a disc: a band across the flow ran straight on where the lobule's tube curves away, and showed the tube beside it, eyes 20 Nov), its edge a soft dissolve REVEAL_SOFT wide in the fade's own screen pattern: the sinusoid
+// the reveal (uReveal > 0, local units): only what lies within uReveal of the part's origin is drawn (a disc: a band across the flow ran straight on where the lobule's tube curves away, and showed the tube beside it, eyes 20 Nov), its edge an antialiased 1.5 px in the fade's own screen pattern: the sinusoid
 // grows out from its lumen over the lobule's tube as the camera lands, in place of a crossfade of the whole frame, which showed two scenes at once (eyes 20 Nov). 0: drawn whole.
 bool unrevealed(vec2 xy) {
   if (uReveal <= 0.0) return false;
-  float k = clamp((uReveal - length(xy)) / ${F(REVEAL_SOFT)}, 0.0, 1.0);
+  float rl = length(xy), k = clamp((uReveal - rl) / max(fwidth(rl) * 1.5, 1e-5) + 0.5, 0.0, 1.0);   // (its edge about 1.5 px on screen at every size: a fixed width in µm was a dithered seam 5-8 px wide, eyes 20 Nov)
   return k < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= k;
 }
 // the shape's own line, drawn in its fill (uRim CSS px wide, uMicroDpr the canvas's pixel ratio, ink uRimCol, 0: none): where the surface turns away from the eye, measured in screen pixels from the outline by the
@@ -107,6 +112,10 @@ bool unrevealed(vec2 xy) {
 // can never fight a surface behind it or its own fill, so it is whole and smooth on every screen (the hull's line broke into dashes and specks, eyes 20 Nov).
 uniform float uRim;
 uniform float uRimUp;
+uniform float uRimK;
+#ifdef RIM_UV
+varying vec2 vRimUV;
+#endif
 uniform float uMicroDpr;
 uniform vec3 uRimCol;
 varying vec3 vVD;
@@ -259,7 +268,13 @@ void main() {
     //  is at the zooms these parts are seen at; a half of it, for a smooth surface's square-root fall-off, drew the line twice its width on the nuclei, eyes 20 Nov. The gradient's length, not
     //  fwidth: fwidth reads a diagonal edge up to 1.4 times steep, so a ring was thicker on its diagonals)
     float dpx = nv / max(length(vec2(dFdx(nv), dFdy(nv))), 1e-5);
-    float rp = uRim * uMicroDpr;
+#ifdef RIM_UV
+    // (a dome on the plate that carries its own ellipse (aux, aux2: where each vertex lies in the unit circle of its outline): the distance to its outline from that, which is linear in
+    //  position over every facet, so the line is exact whatever the triangles: from the normal, a long lens's line came and went in nicks between its corners, eyes 20 Nov)
+    float rr = length(vRimUV);
+    dpx = (1.0 - rr) / max(length(vec2(dFdx(rr), dFdy(rr))), 1e-5);
+#endif
+    float rp = uRim * uMicroDpr * uRimK;   // (uRimK: the scene's share of the line by how big its shapes are on screen, see MicroOptions.rimK)
     c = mix(c, uRimCol, 1.0 - smoothstep(rp - 0.6, rp + 0.6, dpx));
   }
   c = mix(c, uHazeCol, hazeK());
@@ -336,11 +351,11 @@ varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
 uniform float uHole;
 uniform float uReveal;
-// the reveal (uReveal > 0, local units): only what lies within uReveal of the part's origin is drawn (a disc: a band across the flow ran straight on where the lobule's tube curves away, and showed the tube beside it, eyes 20 Nov), its edge a soft dissolve REVEAL_SOFT wide in the fade's own screen pattern: the sinusoid
+// the reveal (uReveal > 0, local units): only what lies within uReveal of the part's origin is drawn (a disc: a band across the flow ran straight on where the lobule's tube curves away, and showed the tube beside it, eyes 20 Nov), its edge an antialiased 1.5 px in the fade's own screen pattern: the sinusoid
 // grows out from its lumen over the lobule's tube as the camera lands, in place of a crossfade of the whole frame, which showed two scenes at once (eyes 20 Nov). 0: drawn whole.
 bool unrevealed(vec2 xy) {
   if (uReveal <= 0.0) return false;
-  float k = clamp((uReveal - length(xy)) / ${F(REVEAL_SOFT)}, 0.0, 1.0);
+  float rl = length(xy), k = clamp((uReveal - rl) / max(fwidth(rl) * 1.5, 1e-5) + 0.5, 0.0, 1.0);   // (its edge about 1.5 px on screen at every size: a fixed width in µm was a dithered seam 5-8 px wide, eyes 20 Nov)
   return k < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= k;
 }
 varying vec2 vXY;
@@ -373,6 +388,10 @@ export interface MicroOptions {
   /** The rim measured against the plane's up (world z) instead of the eye: for a flat shape lying on the plate (a nucleus, the lining, a stellate cell), whose n.v fall-off is steep on one side
    *  and shallow on the other wherever the eye is not straight over it, so its ring was twice as thick on the side away from the eye (eyes 20 Nov). Its equator is its outline from above, and it is one tone (no shade crescent inside the ring). */
   rimUp?: boolean;
+  /** The rim from the dome's own ellipse (aux, aux2 per vertex: ellipsoid(..., dome, uv)), exact whatever the triangles. */
+  rimUV?: boolean;
+  /** The scene's share of the line (one shared uniform, 0 to 1): far off, a red cell a few px across was all line, a dark dot (eyes 20 Nov, the lumen in the dive). */
+  rimK?: { value: number };
 }
 
 /** The gap table of a part without gaps: one closed texel. */
@@ -391,11 +410,11 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
   const haze = o.haze ?? hazeUniforms();
   const toon = new ShaderMaterial({
     vertexShader: MICRO_VS, fragmentShader: MICRO_FS, vertexColors: !!o.vertexColors,
-    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps ? { GAPS: '' } : {}) },
+    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps ? { GAPS: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}) },
     uniforms: {
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
-      uHole: { value: 0 }, uReveal: o.reveal ?? { value: 0 }, uRim: { value: o.rim ?? 0 }, uRimUp: { value: o.rimUp ? 1 : 0 }, uMicroDpr: MICRO_DPR, uRimCol: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, uWash: { value: new Vector4(0, 0, 0, 0) }, uWashCol: { value: new Color(1, 0.7, 0.2) }, uWashR: { value: 0 },
+      uHole: { value: 0 }, uReveal: o.reveal ?? { value: 0 }, uRim: { value: o.rim ?? 0 }, uRimUp: { value: o.rimUp ? 1 : 0 }, uRimK: o.rimK ?? { value: 1 }, uMicroDpr: MICRO_DPR, uRimCol: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, uWash: { value: new Vector4(0, 0, 0, 0) }, uWashCol: { value: new Color(1, 0.7, 0.2) }, uWashR: { value: 0 },
       uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakDir: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
@@ -612,7 +631,7 @@ export function pillow(b: MeshBuilder, outline: readonly P2[], zTop: number, zBo
 }
 
 /** An ellipsoid (a sphere scaled by rx, ry, rz) at (x, y, z), its own axes turned by `a` about z. */
-export function ellipsoid(b: MeshBuilder, x: number, y: number, z: number, rx: number, ry: number, rz: number, a = 0, col?: RGB, seg = 18, rings = 10, even = false, dome = false): void {
+export function ellipsoid(b: MeshBuilder, x: number, y: number, z: number, rx: number, ry: number, rz: number, a = 0, col?: RGB, seg = 18, rings = 10, even = false, dome = false, uv = false): void {
   const ca = Math.cos(a), sa = Math.sin(a), base = b.count;
   // (dome: the top half only, open below. A flat shape on the plate seen from one side showed a sliver of its lower half past its equator, where its line (drawn at the equator against the
   //  plate's up) is, so the outline broke into a beaded line with gaps of pale fill there, eyes 20 Nov. From above, the lower half is never what shows.)
@@ -626,6 +645,7 @@ export function ellipsoid(b: MeshBuilder, x: number, y: number, z: number, rx: n
       const ux = st * cp, uy = st * sp, uz = ct;
       const lx = ux * rx, ly = uy * ry, nx = ux / rx, ny = uy / ry;
       b.v(x + lx * ca - ly * sa, y + lx * sa + ly * ca, z + uz * rz, nx * ca - ny * sa, nx * sa + ny * ca, uz / rz, col);
+      if (uv) { b.aux.push(ux); b.aux2.push(uy); }   // (where it lies in its outline's unit circle, for RIM_UV)
     }
   }
   for (let r = 0; r < last; r++) for (let i = 0; i < seg; i++) {
