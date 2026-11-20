@@ -297,7 +297,10 @@ vec3 dHsl2Rgb(vec3 h) {
   return vec3(dHue(p, q, h.x + 1.0 / 3.0), dHue(p, q, h.x), dHue(p, q, h.x - 1.0 / 3.0));
 }
 // the lab's shift(): hue by dh (a turn is 1), saturation by ds, lightness by dl
-vec3 dShift(vec3 c, float dh, float ds, float dl) { vec3 h = dRgb2Hsl(c); return dHsl2Rgb(vec3(fract(h.x + dh + 1.0), clamp(h.y + ds, 0.0, 1.0), clamp(h.z + dl, 0.04, 0.96))); }
+// THE HUE STAYS IN THE VESSEL'S FAMILY (Mohammad, 20 Nov: brown flecks in the faded vessels): the hue of a near-grey colour is noise (HSL's hue is 0/0 at grey) and adding the lab's saturation to it paints an arbitrary hue, brown on a faded blue.
+// The hue shift and the saturation added are both scaled by how much colour the base has (dShiftK), so a grey base stays grey and only the lightness varies.
+float dShiftK(float s) { return smoothstep(0.02, 0.12, s); }
+vec3 dShift(vec3 c, float dh, float ds, float dl) { vec3 h = dRgb2Hsl(c); float k = dShiftK(h.y); return dHsl2Rgb(vec3(fract(h.x + dh * k + 1.0), clamp(h.y + ds * k, 0.0, 1.0), clamp(h.z + dl, 0.04, 0.96))); }
 // THE FRAME a pixel of a vessel is seen in (the tube's own, or one arm's on a skin)
 struct DFrame {
   float across;   // the pixel across the lumen on screen (-1 .. 1)
