@@ -11,6 +11,10 @@ import type { SkinArm, SkinJunction, Vec3 } from './types.ts';
 export const PERMANENT_KINDS: ReadonlySet<string> = new Set(['vein', 'artery', 'arteriole', 'liver']);
 /** How far (in radii of the widest arm) an arm's end may lie from J (spec 4.2, amended): fitEnds puts the branches onto the trunk (within ATTACH_REACH of 1.6), and the one gap the 2D art leaves, CV_R's liver beds at 1.72, is spanned by the skin's hull. */
 export const SKIN_REACH = 6;
+/** The nodes whose arms the art leaves further apart than `SKIN_REACH` (spec 10.5, 10.6): not a junction but the art's own spacing, so they keep the old join. Named, never hidden: tests/skin-inventory.test.ts pins this list. */
+export function nodesBeyondReach(js: readonly SkinJunction[], network: readonly NetVessel[] = NETWORK, state: ShapeState = REST): string[] {
+  return js.filter((j) => Math.max(...armReach(j, network, state)) > SKIN_REACH).map((j) => j.node);
+}
 /** A node needs this many permanent ends for a skin, and at most this many (the shader's `armData[4]`). */
 export const MIN_ARMS = 3;
 export const MAX_ARMS = 6;
@@ -57,10 +61,10 @@ export function findSkinJunctions(network: readonly NetVessel[] = NETWORK, state
   return out;
 }
 
-/** The nodes whose skins are built in each phase (spec 4.1, 6): phase 1 the SMV-SV confluence alone, phase 2 every node the table marks 2 that the BACK_EDGES rule keeps. The liver beds' nodes (SIN_R, SIN_L) are phase 3 and are in neither. */
+/** The nodes whose skins are built in each phase (spec 4.1, 6): phase 1 the SMV-SV confluence alone, phase 2 every node the table marks 2 that the BACK_EDGES rule keeps. The liver beds' nodes (SIN_R, SIN_L) are in the list too (spec 10.5): the node's far arm decides whether it is a junction (`SKIN_REACH`, below). */
 export const PHASE_1_NODES: ReadonlySet<string> = new Set(['CONF']);
 // (SVC_E is marked 2 in the spec's table but its arms are BACK_EDGES, so the inventory leaves it out, see findSkinJunctions)
-export const PHASE_2_NODES: ReadonlySet<string> = new Set(['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R']);
+export const PHASE_2_NODES: ReadonlySet<string> = new Set(['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'SIN_R', 'SIN_L']);
 export function skinNodesForPhase(phase: 1 | 2): ReadonlySet<string> {
   return phase === 1 ? PHASE_1_NODES : PHASE_2_NODES;
 }

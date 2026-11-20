@@ -38,7 +38,7 @@ function built(): { scene: CelScene; made: Made[]; was: boolean } {
 
 /** The skin shader's arc at a rest position (the twin of THE FLOW MARKS' `sI`): the arc at the seam, plus which way it grows, times the distance toward the node along the arm's axis, in figure units. */
 const arcAt = (axis: ArmAxis, seamArc: number, dir: number, p: readonly number[]): number => {
-  const a = axis.pts[0], b = axis.pts[1];
+  const a = axis.pts[1], b = axis.pts[2];
   const tx = a[0] - b[0], ty = a[1] - b[1], tz = a[2] - b[2], tl = Math.hypot(tx, ty, tz) || 1;
   return seamArc + dir * (((p[0]! - b[0]) * tx + (p[1]! - b[1]) * ty + (p[2]! - b[2]) * tz) / tl) * SKIN_FIGURE_UNITS;
 };

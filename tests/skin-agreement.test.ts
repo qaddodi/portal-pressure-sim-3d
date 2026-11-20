@@ -138,7 +138,7 @@ test('the stenosis waist: nothing on any seam ring at rest; with a stenosis the 
 });
 
 test('the skin\'s vertex stage takes each arm\'s waist into its live width, and the set hands the seam\'s narrow attribute over', () => {
-  assert.match(SKIN_VS, /uniform float armNarrow\[4\];/);
+  assert.match(SKIN_VS, /uniform float armNarrow\[6\];/);
   assert.match(SKIN_VS, /swellOf\(armData\[i\]\.x, armData\[i\]\.y, armData\[i\]\.z\) \* \(1\.0 - clamp\(armNarrow\[i\], 0\.0, 0\.97\)\)/);
   const b = built();
   try {
@@ -163,12 +163,12 @@ function inkTwin(cam: PerspectiveCamera, axes: readonly ArmAxis[], swell: number
     return [(q.x / q.w * 0.5 + 0.5) * RES * DPR, (q.y / q.w * 0.5 + 0.5) * RES * DPR, R * swell / ((q.w * 2) / (RES * cam.projectionMatrix.elements[5]!)) * DPR];
   };
   const armPx = (frag: readonly number[], ax: ArmAxis): number => {
-    const a = project(ax.pts[0], ax.radii[0]), b = project(ax.pts[1], ax.radii[1]), c = project(ax.pts[2], ax.radii[2]);
+    const a = project(ax.pts[0], ax.radii[0]), b = project(ax.pts[1], ax.radii[1]), c = project(ax.pts[2], ax.radii[2]), d = project(ax.pts[3], ax.radii[3]);
     const seg = (p: number[], q: number[]): number => {
       const abx = q[0]! - p[0]!, aby = q[1]! - p[1]!, t = Math.min(1, Math.max(0, ((frag[0]! - p[0]!) * abx + (frag[1]! - p[1]!) * aby) / Math.max(abx * abx + aby * aby, 1e-6)));
       return Math.hypot(frag[0]! - p[0]! - abx * t, frag[1]! - p[1]! - aby * t) - (p[2]! + t * (q[2]! - p[2]!));
     };
-    return Math.min(seg(a, b), seg(b, c));
+    return Math.min(seg(a, b), seg(b, c), seg(c, d));
   };
   const smin = (a: number, b: number, k: number): number => { const h = Math.min(1, Math.max(0, 0.5 + 0.5 * (b - a) / Math.max(k, 1e-4))); return b + (a - b) * h - k * h * (1 - h); };
   const kPx = (centre: readonly number[]): number => { const q = new Vector4(centre[0]!, centre[1]!, centre[2]!, 1).applyMatrix4(cam.matrixWorldInverse).applyMatrix4(cam.projectionMatrix); return kM / ((q.w * 2) / (RES * cam.projectionMatrix.elements[5]!)) * DPR; };
@@ -185,9 +185,9 @@ test('the seam\'s ink: the skin\'s outline rule gives, on the seam ring, the tub
       mesh.junction.arms.forEach((arm, ai) => {
         const tb = tubeOf(arm.vesselId), cut = mesh.cuts[ai]!;
         // the three axis points the shader draws from: the tube's own ring centres, as the set builds them
-        const axes = mesh.junction.arms.map((a, i) => axisOf({ geometry: tubeOf(a.vesselId).b.geometry, tubular: tubeOf(a.vesselId).run.tubular }, a.restR, mesh.cuts[i]!));
+        const axes = mesh.junction.arms.map((a, i) => axisOf({ geometry: tubeOf(a.vesselId).b.geometry, tubular: tubeOf(a.vesselId).run.tubular }, a.restR, mesh.cuts[i]!, mesh.junction.J));
         const tw = inkTwin(cam, axes, 1, SKIN_K * Math.min(...mesh.junction.arms.map((a) => a.restR)));
-        const seam = axes[ai]!.pts[1], R = axes[ai]!.radii[1], a0 = tw.project(axes[ai]!.pts[0], R), s1 = tw.project(seam, R), c1 = tw.project(axes[ai]!.pts[2], R);
+        const seam = axes[ai]!.pts[2], R = axes[ai]!.radii[2], s1 = tw.project(seam, R), c1 = tw.project(axes[ai]!.pts[3], R);
         // the arm's heading on the screen at its seam, and the offsets across it
         let hx = c1[0] - s1[0], hy = c1[1] - s1[1]; const hl = Math.hypot(hx, hy);
         if (hl < 1) return;   // (seen end on: no sideways direction to measure across)

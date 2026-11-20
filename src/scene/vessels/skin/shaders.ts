@@ -10,15 +10,13 @@
 //   4. It does no run-on mate easing: the weights do the blending.
 //
 // THE UNIFORMS (the scene wiring, skin-object.ts, spreads the shared ones by reference and writes the per-arm ones; the table is the spec's section 3, plus the three marked +):
-//   armData[4]   vec4   (dataIndex, baseD, widthKind, lensIndex) per arm, in arm order; an unused arm has dataIndex < 0 (and weight 0 everywhere)
-//   armLensU[4]  float  the arm's lens ramp position at its seam (lensSpan already applied)
-//   armFade[4]   float  the arm tube's alpha at its seam ring (the JS twin, fade-alpha.ts)
-//   armPres[4]   float  + how much of the arm's tube is there at its seam: its group visible, its draw-on (`reveal`) at the seam's u and its dive fade (arm-twins.ts armPresenceAt): the skin dissolves in the tubes' own pattern as they do, so it never stands alone
-//   armHi[4]     float  the arm tube's highlight weight vHi at its seam
-//   armNarrow[4] float  + (vertex stage only) the arm tube's stenosis waist at its seam: its live width there is swell x (1 - narrow), as the tube's is, so a seam inside a short piece's waist meets the tube with no step
-//   armColor[4]  vec4 + the arm tube's own `color` uniform (rgb: an artery wears the look's artery red, a vein its portal or systemic tone) and, in a, its `lensUse` (an artery 0, a vein 1)
-//   armAxis[12]  vec3   per arm three points of its axis, the junction side first, rest positions, model space
-//   armAxisR[12] float  the rest radius at those points
+//   armData[6]   vec4   (dataIndex, baseD, widthKind, lensIndex) per arm, in arm order; an unused arm has dataIndex < 0 (and weight 0 everywhere)
+//   armAF[6]     vec4   per arm: x the arm's lens ramp position at its seam (lensSpan already applied), y the arm tube's alpha at its seam ring (the JS twin, fade-alpha.ts), z the arm tube's highlight weight vHi at its seam,
+//                       w + how much of the arm's tube is there at its seam: its group visible, its draw-on (`reveal`) at the seam's u and its dive fade (arm-twins.ts armPresenceAt): the skin dissolves in the tubes' own pattern as they do, so it never stands alone
+//                       (one vec4 each: a float array costs a whole vector a slot, and six arms of five floats broke the fragment budget)
+//   armNarrow[6] float  + (vertex stage only) the arm tube's stenosis waist at its seam: its live width there is swell x (1 - narrow), as the tube's is, so a seam inside a short piece's waist meets the tube with no step
+//   armColor[6]  vec4 + the arm tube's own `color` uniform (rgb: an artery wears the look's artery red, a vein its portal or systemic tone) and, in a, its `lensUse` (an artery 0, a vein 1)
+//   armAxisP[24] vec4   per arm four points of its axis (the node J, the start of the straight line through the seam, the seam, the far point), rest positions, model space; w the rest radius at the point
 //   armArc[4]    vec4 + (the arm's flow marks) the arc, figure units, at its seam (u x len x SKIN_FIGURE_UNITS), +1 if the arc grows toward the node (the arm is its vessel's end 1) else -1, the vessel's length (figure units), its rest radius (figure units)
 //   armFlow[4]   float + the arm tube's `flowAmount`
 //   streamTex, chainTex, streakAmt, dustP, time, markDark, markLight, markRev: the tubes' (shared by reference)
@@ -46,7 +44,7 @@ export const SKIN_FIGURE_UNITS = 300;
 export const SKIN_CIRCUIT_FADE = 0.35;
 
 /** The weighted sum of a per-arm float uniform array over all the arms (`wAt` and `wAtF` read the two weight attributes). */
-const BLEND = (name: string, w = 'wAt'): string => Array.from({ length: SKIN_ARMS }, (_, i) => `${w}(${i}) * ${name}[${i}]`).join(' + ');
+const BLEND = (name: string, w = 'wAt', comp = ''): string => Array.from({ length: SKIN_ARMS }, (_, i) => `${w}(${i}) * ${name}[${i}]${comp}`).join(' + ');
 
 export const SKIN_VS = /* glsl */ `
 const float SKIN_U = ${F(SKIN_FIGURE_UNITS)};
@@ -61,7 +59,7 @@ uniform float useData;
 uniform vec2 res;
 uniform float hiPx;
 uniform vec4 armData[${SKIN_ARMS}];
-uniform float armHi[${SKIN_ARMS}];
+uniform vec4 armAF[${SKIN_ARMS}];   // per arm (lensU, fade, hi, pres): one vec4 each, because a float array costs a whole vector a slot
 uniform float armNarrow[${SKIN_ARMS}];   // each arm tube's stenosis waist at its seam (the narrow attribute there): 0 at rest and at a vessel's ends, a little more where a cut lies inside a short piece's waist
 varying vec3 vN;
 varying vec3 vV;
@@ -87,7 +85,7 @@ void main() {
   float wpcV = ${wpcGlsl('cc.w', 'projectionMatrix[1][1]', 'SKIN_U')};   // the figure's units under one CSS px here
   float lumenW = restR * swell;
   float rCssV = lumenW * SKIN_U / max(wpcV, 1e-6);   // the lumen's radius in CSS px
-  float hi = ${BLEND('armHi')};
+  float hi = ${BLEND('armAF', 'wAt', '.z')};
   // the tube's own ink width (no stenosis waist at a seam, narrowK 1) plus the picked vein's extra line, blended
   float inkPx = ${inkPxGlsl('rCssV', 'rCssV')};
   float inkW = (inkPx + hiPx * hi) * wpcV / SKIN_U;   // scene units
@@ -137,13 +135,9 @@ uniform float lensModeB;
 uniform vec3 laneColA[5];
 uniform vec3 laneColB[5];
 uniform vec4 armData[${SKIN_ARMS}];
-uniform float armLensU[${SKIN_ARMS}];
-uniform float armFade[${SKIN_ARMS}];
-uniform float armHi[${SKIN_ARMS}];
-uniform float armPres[${SKIN_ARMS}];
+uniform vec4 armAF[${SKIN_ARMS}];   // per arm (lensU, fade, hi, pres)
 uniform vec4 armColor[${SKIN_ARMS}];
-uniform vec3 armAxis[${SKIN_ARMS * SKIN_AXIS_PTS}];
-uniform float armAxisR[${SKIN_ARMS * SKIN_AXIS_PTS}];
+uniform vec4 armAxisP[${SKIN_ARMS * SKIN_AXIS_PTS}];   // xyz a point of the arm's axis, w the rest radius there
 uniform float skinK;
 uniform vec4 armArc[${SKIN_ARMS}];
 uniform float armFlow[${SKIN_ARMS}];
@@ -188,10 +182,10 @@ vec3 skinPx(vec3 p, float R, float swell) {
 // signed distance, in device px, from this pixel to the live capsule of one arm: the least over its two segments of (the distance to the segment, less the radius interpolated at the closest point)
 float skinArmPx(vec2 frag, int arm, float swell) {
   // the axis: J (the bridge over the art's gap), the start of the straight line through the seam, the seam, the far point
-  vec3 p0 = skinPx(armAxis[arm * ${SKIN_AXIS_PTS}], armAxisR[arm * ${SKIN_AXIS_PTS}], swell);
-  vec3 p1 = skinPx(armAxis[arm * ${SKIN_AXIS_PTS} + 1], armAxisR[arm * ${SKIN_AXIS_PTS} + 1], swell);
-  vec3 p2 = skinPx(armAxis[arm * ${SKIN_AXIS_PTS} + 2], armAxisR[arm * ${SKIN_AXIS_PTS} + 2], swell);
-  vec3 p3 = skinPx(armAxis[arm * ${SKIN_AXIS_PTS} + 3], armAxisR[arm * ${SKIN_AXIS_PTS} + 3], swell);
+  vec3 p0 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS}].xyz, armAxisP[arm * ${SKIN_AXIS_PTS}].w, swell);
+  vec3 p1 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS} + 1].xyz, armAxisP[arm * ${SKIN_AXIS_PTS} + 1].w, swell);
+  vec3 p2 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS} + 2].xyz, armAxisP[arm * ${SKIN_AXIS_PTS} + 2].w, swell);
+  vec3 p3 = skinPx(armAxisP[arm * ${SKIN_AXIS_PTS} + 3].xyz, armAxisP[arm * ${SKIN_AXIS_PTS} + 3].w, swell);
   vec2 a = p1.xy - p0.xy, b = p2.xy - p1.xy, c = p3.xy - p2.xy;
   float t0 = clamp(dot(frag - p0.xy, a) / max(dot(a, a), 1e-6), 0.0, 1.0);
   float t1 = clamp(dot(frag - p1.xy, b) / max(dot(b, b), 1e-6), 0.0, 1.0);
@@ -219,11 +213,11 @@ void main() {
   float swT = fwidth(sT);              // (a derivative: taken outside any branch)
   if (!gl_FrontFacing) discard;
   // the skin is there only as much as its arms are (a tube not yet drawn on, retracted, dissolved or hidden has none at its seam): the tube's own screen pattern, so the skin comes and goes with the vessels, never beside them
-  float pres = ${BLEND('armPres')};
+  float pres = ${BLEND('armAF', 'wAt', '.w')};
   if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) discard;
   // the arms' alphas, blended by weight: the junction fade rule already holds on the tubes, so their seam alphas agree and the skin runs through them. On the Circuit's map the tubes become flat lines and the map draws its own
   // joins, so the skin fades out over the first SKIN_CIRCUIT_FADE of the morph (the arm tubes' cut fades back in over the same)
-  float alpha = (${BLEND('armFade')}) * (1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT));
+  float alpha = (${BLEND('armAF', 'wAt', '.y')}) * (1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT));
   if (alpha < 0.004) discard;
   // the live lumen's radius at the axis' depth, and the line the vertex stage built the mesh ink wider by (the tube's own rule: a share of the radius held between two CSS widths, thinned with a hairline)
   float swellB = 0.0;
@@ -231,7 +225,7 @@ void main() {
   float wpcAx = ${wpcGlsl('vCenW', 'projY', 'SKIN_U')};
   float vR = vRest * swellB * SKIN_U;
   float rCssAx = vR / max(wpcAx, 1e-6);
-  float hi = ${BLEND('armHi')};
+  float hi = ${BLEND('armAF', 'wAt', '.z')};
   float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx')} + hiPx * hi) * dpr;
   float kPx = skinK / max(wpcAx / SKIN_U, 1e-9) * dpr;
   float sdPx = skinSdPx(kPx);
@@ -243,8 +237,8 @@ void main() {
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
     laArm[i] = vec4(0.0); lbArm[i] = vec4(0.0);
     if (armData[i].x < 0.0) continue;
-    vec4 la = lensOfAt(armData[i].w, armLensU[i], lensGradA, lensLaneA, lensModeA, laneColA, 0.0);
-    vec4 lb = lensOfAt(armData[i].w, armLensU[i], lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
+    vec4 la = lensOfAt(armData[i].w, armAF[i].x, lensGradA, lensLaneA, lensModeA, laneColA, 0.0);
+    vec4 lb = lensOfAt(armData[i].w, armAF[i].x, lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     la.a *= armColor[i].a;
     lb.a *= armColor[i].a;
     laArm[i] = la; lbArm[i] = lb;
@@ -266,10 +260,10 @@ void main() {
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
     if (armData[i].x < 0.0) continue;
     // the arm's own frame: its arc here, and the across the tube would have (its heading, in the view's frame, grows with its arc)
-    vec3 toJ = armAxis[i * ${SKIN_AXIS_PTS} + 1] - armAxis[i * ${SKIN_AXIS_PTS} + 2];   // (toward the node along the straight line through the seam)
+    vec3 toJ = armAxisP[i * ${SKIN_AXIS_PTS} + 1].xyz - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;   // (toward the node along the straight line through the seam)
     float tl = length(toJ);
     vec3 tJ = tl > 1e-6 ? toJ / tl : vec3(1.0, 0.0, 0.0);
-    float sI = armArc[i].x + armArc[i].y * dot(vPos - armAxis[i * ${SKIN_AXIS_PTS} + 2], tJ) * SKIN_U;
+    float sI = armArc[i].x + armArc[i].y * dot(vPos - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz, tJ) * SKIN_U;
     vec3 sideX = cross(normalize(mat3(modelViewMatrix) * (armArc[i].y * tJ)), viewDir);
     float sideL = length(sideX);
     float acrossI = dot(n, sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0));

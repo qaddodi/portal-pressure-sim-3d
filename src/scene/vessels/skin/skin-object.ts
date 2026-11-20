@@ -27,7 +27,7 @@ export class SkinObject implements SkinDraw {
   readonly mesh: Mesh;
   readonly material: ShaderMaterial;
   readonly object: Object3D;
-  private readonly armData: Vector4[]; private readonly armColor: Vector4[]; private readonly armArc: Vector4[];
+  private readonly armAF: Vector4[]; private readonly armData: Vector4[]; private readonly armColor: Vector4[]; private readonly armArc: Vector4[];
 
   constructor(skin: SkinMesh, donor: VesselObject, axes: readonly ArmAxis[], armObjs: readonly VesselObject[]) {
     const g = new BufferGeometry();
@@ -47,8 +47,9 @@ export class SkinObject implements SkinDraw {
     });
     this.armColor = Array.from({ length: SKIN_ARMS }, () => new Vector4(0, 0, 0, 1));
     this.armArc = Array.from({ length: SKIN_ARMS }, () => new Vector4(0, 1, 1, 1));
-    const armAxis = Array.from({ length: SKIN_ARMS * SKIN_AXIS_PTS }, () => new Vector3()), armAxisR: number[] = new Array(SKIN_ARMS * SKIN_AXIS_PTS).fill(0);
-    axes.forEach((ax, i) => ax.pts.forEach((p, k) => { armAxis[i * SKIN_AXIS_PTS + k]!.set(p[0], p[1], p[2]); armAxisR[i * SKIN_AXIS_PTS + k] = ax.radii[k]!; }));
+    const armAxisP = Array.from({ length: SKIN_ARMS * SKIN_AXIS_PTS }, () => new Vector4());
+    axes.forEach((ax, i) => ax.pts.forEach((p, k) => armAxisP[i * SKIN_AXIS_PTS + k]!.set(p[0], p[1], p[2], ax.radii[k]!)));
+    this.armAF = Array.from({ length: SKIN_ARMS }, () => new Vector4(0, 1, 0, 1));
     this.material = new ShaderMaterial({
       name: 'skin',
       vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true,
@@ -57,8 +58,8 @@ export class SkinObject implements SkinDraw {
         // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
         color: du.color!,
         lensUse: { value: 1 },
-        armData: { value: this.armData }, armLensU: { value: new Array(SKIN_ARMS).fill(0) }, armFade: { value: new Array(SKIN_ARMS).fill(1) }, armPres: { value: new Array(SKIN_ARMS).fill(1) }, armHi: { value: new Array(SKIN_ARMS).fill(0) }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: new Array(SKIN_ARMS).fill(0) }, armColor: { value: this.armColor },
-        armAxis: { value: armAxis }, armAxisR: { value: armAxisR }, skinK: { value: skinKOf(skin.junction.arms) },
+        armData: { value: this.armData }, armAF: { value: this.armAF }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: new Array(SKIN_ARMS).fill(0) }, armColor: { value: this.armColor },
+        armAxisP: { value: armAxisP }, skinK: { value: skinKOf(skin.junction.arms) },
       },
     });
     this.mesh = new Mesh(g, this.material);
@@ -77,7 +78,7 @@ export class SkinObject implements SkinDraw {
 
   setArm(i: number, fade: number, hi: number, lensU: number, colour?: ArmColour, narrow = 0): void {
     const u = this.material.uniforms;
-    (u.armFade!.value as number[])[i] = fade; (u.armHi!.value as number[])[i] = hi; (u.armLensU!.value as number[])[i] = lensU; (u.armNarrow!.value as number[])[i] = narrow;
+    this.armAF[i]!.set(lensU, fade, hi, this.armAF[i]!.w); (u.armNarrow!.value as number[])[i] = narrow;
     if (colour) this.armColor[i]!.set(colour.r, colour.g, colour.b, colour.a);
   }
 
@@ -89,9 +90,8 @@ export class SkinObject implements SkinDraw {
 
   /** How much of arm `i`'s tube is there at its seam (arm-twins.ts armPresenceAt); with none of them the skin is not drawn at all. */
   setPres(i: number, p: number): void {
-    const a = this.material.uniforms.armPres!.value as number[];
-    a[i] = p;
-    this.mesh.visible = a.some((x, k) => this.armData[k]!.x >= 0 && x > 0.002);
+    this.armAF[i]!.w = p;
+    this.mesh.visible = this.armAF.some((x, k) => this.armData[k]!.x >= 0 && x.w > 0.002);
   }
 
   setTransparent(on: boolean): void { if (this.material.transparent !== on) { this.material.transparent = on; this.material.needsUpdate = true; } }

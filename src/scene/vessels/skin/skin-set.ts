@@ -17,7 +17,7 @@ import { NETWORK_BY_ID } from '../network.ts';
 import { REST, coursesOf, tubularOf, type ShapeState } from '../shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { slicesFor } from '../../circuit/geometry.ts';
-import { findSkinJunctions, skinNodesForPhase } from './inventory.ts';
+import { findSkinJunctions, nodesBeyondReach, skinNodesForPhase } from './inventory.ts';
 import { planSkins, type ArmTube } from './cuts.ts';
 import { buildSkin, hullCovers } from './mesh.ts';
 import type { Capsule } from './sdf.ts';
@@ -247,7 +247,10 @@ export class SkinSet {
   build(phase: 1 | 2): void {
     this.clear();
     const nodes = skinNodesForPhase(phase);
-    const js = findSkinJunctions().filter((j) => nodes.has(j.node));
+    const all = findSkinJunctions().filter((j) => nodes.has(j.node));
+    const far = new Set(nodesBeyondReach(all));   // (the art's own spacing, not a junction: the old join stays, named in `fellBack` and not warned)
+    for (const n of far) if (!this.fellBack.includes(n)) this.fellBack.push(n);
+    const js = all.filter((j) => !far.has(j.node));
     this.sources = js;
     if (!js.length) return;
     const tubes = this.tubesOf(js);

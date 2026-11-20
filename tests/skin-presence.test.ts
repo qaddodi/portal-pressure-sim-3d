@@ -26,7 +26,7 @@ function built() {
   set.sync();
   return { scene, set, draws, was };
 }
-const pres = (d: SkinObject) => (d.material.uniforms.armPres!.value as number[]).slice();
+const pres = (d: SkinObject) => (d.material.uniforms.armAF!.value as Array<{ w: number }>).map((v) => v.w);
 
 test('the twin: hidden is 0; drawn whole is 1; the draw-on front is a tenth of the length wide at 1.1 x reveal, as the tube\'s frontOut; the dive fade multiplies', () => {
   assert.equal(armPresenceAt(false, 1, 1, 0.5), 0);
@@ -35,7 +35,7 @@ test('the twin: hidden is 0; drawn whole is 1; the draw-on front is a tenth of t
   assert.equal(armPresenceAt(true, 0.3, 1, 0.1), 1, 'and has passed 0.1');
   assert.ok(Math.abs(armPresenceAt(true, 0.5, 1, 0.5) - 0.5) < 1e-9, 'half way across its gradient');
   assert.equal(armPresenceAt(true, 1, 0.4, 0.2), 0.4);
-  assert.match(SKIN_FS, /float pres = dot\(vWeight,/);
+  assert.match(SKIN_FS, /float pres = wAt\(0\) \* armAF\[0\]\.w/);
   assert.match(SKIN_FS, /if \(pres < 0\.999 && fract\(52\.9829189 \* fract\(dot\(gl_FragCoord\.xy, vec2\(0\.06711056, 0\.00583715\)\)\)\) >= pres\) discard;/, 'the tubes\' own pattern');
 });
 
