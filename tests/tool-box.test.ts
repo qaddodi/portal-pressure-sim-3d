@@ -15,3 +15,7 @@ test('the chart is mounted inside it, and the profile and flows boxes are contai
   assert.match(readFileSync('src/ui/talk/ToolCard.tsx', 'utf8'), /className="pz-tool" data-kind=\{kind\}/);
   assert.match(readFileSync('src/ui/deck-ui.css', 'utf8'), /\.pz-data > \.dk-in > \.pz-tool:is\(\[data-kind="profile"\], \[data-kind="flows"\]\) \{ container-type: inline-size; \}/);
 });
+
+test('the profile chart box takes its height from the chart (one source), not from a second CSS figure', () => {
+  assert.match(readFileSync('src/ui/deck-ui.css', 'utf8'), /\.deck-ui\.pz \.pz-tool > \.pz-prof \{ height: auto; min-height: 0; max-height: none; \}/);
+});

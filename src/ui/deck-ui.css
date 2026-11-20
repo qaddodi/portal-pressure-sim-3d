@@ -217,3 +217,7 @@ body[data-card-zoom] .deck-ui .dk-card[data-zoomable] { cursor: zoom-out; }
 body[data-card-zoom] .lb-layer { opacity: 0; transition: opacity 240ms var(--ease); }
 .dk-card { z-index: 2; }
 .dk-pos { z-index: 2; }
+
+/* The profile chart's height is the model's (charts/profile/model.ts layoutHeight: 2D's `--prof-h` worked out for the layout, at least what its plot needs), and the chart box takes it.
+   2D's CSS also gives `.pz-prof` a height of its own, a second figure for the same thing: where the two differ, the box was taller than the chart (a spare strip under "sinusoidal") or shorter (the chart over the card's foot). One source: the chart's. */
+.deck-ui.pz .pz-tool > .pz-prof { height: auto; min-height: 0; max-height: none; }
