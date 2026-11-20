@@ -20,8 +20,8 @@ export function useOutside(sheet: Exclude<Sheet, null>, ref: React.RefObject<HTM
 
 /** A button and the popover it opens. The button stays a child of its bar, exactly as the 2D markup has it (its stylesheet addresses `.sb-right > .chip-btn`, `.tl-split > .tl-speed`); the popover is
  *  a fixed sibling after it, always in the page, faded by opacity and transform, and put by the button's box once as it opens (never per frame). */
-export function Anchored({ sheet, place = 'below', align = 'start', width, button, children, label }: {
-  sheet: Exclude<Sheet, null>; place?: 'below' | 'above'; align?: 'start' | 'end' | 'center'; width?: number;
+export function Anchored({ sheet, place = 'below', align = 'start', width, cls, button, children, label }: {
+  sheet: Exclude<Sheet, null>; place?: 'below' | 'above'; align?: 'start' | 'end' | 'center'; width?: number; /** the 2D popover's own class (its stylesheet sizes it: `layers-pop`) */ cls?: string;
   button: (p: { id: string; open: boolean; toggle: () => void; ref: (el: HTMLElement | null) => void }) => ReactNode; children: ReactNode; label: string;
 }) {
   const btn = useRef<HTMLElement | null>(null);
@@ -42,7 +42,7 @@ export function Anchored({ sheet, place = 'below', align = 'start', width, butto
   return (
     <>
       {button({ id, open, toggle, ref: (el) => { btn.current = el; } })}
-      <div ref={pop} id={id} className="sh-pop" data-open={open} data-place={place} role="dialog" aria-label={label} inert={!open} style={{ left: at.left, top: at.top, ...(width ? { width } : {}) }}>{children}</div>
+      <div ref={pop} id={id} className={`sh-pop${cls ? ` ${cls}` : ''}`} data-open={open} data-place={place} role="dialog" aria-label={label} inert={!open} style={{ left: at.left, top: at.top, ...(width ? { width } : {}) }}>{children}</div>
     </>
   );
 }

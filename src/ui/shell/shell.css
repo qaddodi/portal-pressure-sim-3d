@@ -46,11 +46,6 @@
 .sh-seg-row { display: flex; gap: 4px; padding: 4px 6px 8px; }
 .sh-seg-row button { flex: 1; min-height: 44px; border-radius: 10px; border: 1px solid var(--edge); background: transparent; font: 600 14px / 1 var(--ui); color: var(--text-2); }
 .sh-seg-row button[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); border-color: transparent; }
-.sh-swatch { width: 24px; height: 10px; border-radius: 5px; }
-.sh-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; min-width: 420px; }
-.sh-grid .sh-row { grid-template-columns: 40px 1fr; }
-.sh-grid .sh-row .sh-d { grid-column: 2; }
-.sh-grid .sh-row[aria-checked="true"] { background: var(--accent-soft); }
 
 /* ── sheets: the main menu, Settings, Search, Help (a panel on a laptop, a sheet from the foot on a phone) ── */
 .sh-sheet { position: absolute; z-index: 3; display: flex; flex-direction: column; overflow: hidden; pointer-events: auto; border: 1px solid var(--edge); background: var(--surface); border-radius: 18px;

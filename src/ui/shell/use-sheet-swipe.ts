@@ -1,5 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { attachSheetSwipe } from './sheet-swipe.ts';
+import './sheet-swipe.css';   // (what a pulled sheet and its grab bar look like; kept out of node tests, which import sheet-swipe.ts alone)
 
 /** Wires a sheet's swipe-down-to-close (sheet-swipe.ts) to its element for as long as it is mounted. `enabled` and `onClose` are read when they are needed, so a new closure does not rewire it. */
 export function useSheetSwipe(ref: RefObject<HTMLElement | null>, onClose: () => void, enabled: () => boolean = () => true, on = true): void {
