@@ -126,6 +126,8 @@ test('real network: through the weld the skin keeps the trunk\'s calibre: on the
       const R = Math.max(...runIdx.map((i) => ax[i]!.radii[2]!));
       // (a liver branch is a fork child that leaves its host at a shallow angle from behind the node: its own start lies where this test looks for a bulge, so it is not a side vein here; tests/skin-sheet.test.ts judges those)
       const sides = ax.map((a, i) => (a.mate === undefined && !mesh.junction.arms[i]!.grow && !isLiverBranch(NETWORK_BY_ID.get(mesh.junction.arms[i]!.vesselId)!) ? i : -1)).filter((i) => i >= 0);
+      // (a growing arm welded to the trunk has its fillet there: its crotch is no bulge either)
+      const crotch = ax.map((a, i) => (a.mate === undefined && !isLiverBranch(NETWORK_BY_ID.get(mesh.junction.arms[i]!.vesselId)!) ? i : -1)).filter((i) => i >= 0);
       let far = 0;
       for (const si of sides) {
         const sa = ax[si]!, o = [sa.pts[2][0] - sa.pts[1][0], sa.pts[2][1] - sa.pts[1][1], sa.pts[2][2] - sa.pts[1][2]], ol = Math.hypot(...o);
@@ -133,7 +135,7 @@ test('real network: through the weld the skin keeps the trunk\'s calibre: on the
           const x = mesh.position[3 * v]!, y = mesh.position[3 * v + 1]!, z = mesh.position[3 * v + 2]!;
           // only the vertices on the side of the node away from this side vein (the far wall of the trunk), and clear of every OTHER side vein's crotch
           if (((x - mesh.junction.J[0]) * o[0]! + (y - mesh.junction.J[1]) * o[1]! + (z - mesh.junction.J[2]) * o[2]!) / ol > -0.3 * R) continue;
-          if (sides.some((q) => q !== si && sdArm(caps[q]!, x, y, z) < 2 * ax[q]!.radii[2]!)) continue;
+          if (crotch.some((q) => q !== si && sdArm(caps[q]!, x, y, z) < 2 * ax[q]!.radii[2]!)) continue;
           far = Math.max(far, Math.min(...runIdx.map((i) => sdArm(caps[i]!, x, y, z))));
         }
       }

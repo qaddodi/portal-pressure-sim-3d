@@ -68,3 +68,24 @@ export function wallJunctions(landings: readonly WallLanding[], state: ShapeStat
   }
   return { junctions: out, skipped };
 }
+
+/** A growing end that lands within this many radii (of the junction's widest arm) of an existing junction's centre is an arm of THAT junction, whatever node the network names for it (S_MC lands 1.5 radii from IVCI's centre, on the iliac vein's end). */
+export const ATTACH_NEAR_R = 2.6;
+
+/** The landings that are near an existing junction's centre become arms of it (at most `SKIN_GROWERS` growing arms and `MAX_ARMS` in all per junction, the nearest first); the junctions come back with them, and the landings left over are the walls. */
+export function attachNear(js: readonly SkinJunction[], landings: readonly WallLanding[], state: ShapeState = REST): { junctions: SkinJunction[]; left: WallLanding[] } {
+  const out = js.map((j) => ({ ...j, arms: [...j.arms] }));
+  const left: WallLanding[] = [];
+  const ranked = landings.map((l) => {
+    const pts = coursesOf(l.v, state)[0]!.pts, p = pts[l.end ? pts.length - 1 : 0]!;
+    let best = -1, bd = Infinity;
+    out.forEach((j, i) => { const d = Math.hypot(p[0] - j.J[0], p[1] - j.J[1], p[2] - j.J[2]) / j.arms[0]!.restR; if (d < bd) { bd = d; best = i; } });
+    return { l, best, bd };
+  }).sort((a, b) => a.bd - b.bd);
+  for (const { l, best, bd } of ranked) {
+    const j = out[best];
+    if (!j || bd > ATTACH_NEAR_R || j.arms.length >= MAX_ARMS || j.arms.filter((a) => a.grow).length >= SKIN_GROWERS || j.arms.some((a) => a.vesselId === l.v.id)) { left.push(l); continue; }
+    j.arms.push(armOf(l.v, l.end, { grow: true }));
+  }
+  return { junctions: out, left };
+}

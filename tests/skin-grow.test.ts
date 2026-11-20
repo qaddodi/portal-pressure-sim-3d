@@ -34,7 +34,7 @@ const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 // (21 Nov: RPV_T keeps its TIPS arm beside the right portal vein's second branch: the planner no longer asks the hull rule of a junction with a liver branch. LRV_S:S_DSR stays dropped: the sheet started on the surface is the liver forks' rung only, a pair of growers that run along one another has no closed shape on the trunk, tests/skin-closed-footprint.test.ts)
 // (the `wall:` entries are the landings on a host's wall that keep the fork method, wall.ts, tests/skin-wall.test.ts: each is named, none is silent)
 const DROPPED = ['EPI:C3', 'IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'LRV_S:S_DSR', 'PVH:DIPS', 'RHV_T:TIPS', 'SVD:S_DSR',
-  'wall:AZY_SVC:C9', 'wall:ILI_IVC_1:S_MC1:S_MC', 'wall:IVC_IS:DIPS1:DIPS', 'wall:IVC_IS_1:C9', 'wall:IVC_IS_1:S_PC1:S_PC', 'wall:PVH_L_1:C30:C3', 'wall:PVH_L_1:REX'];
+  'wall:AZY_SVC:C9', 'wall:IVC_IS:DIPS1:DIPS', 'wall:IVC_IS_1:C9', 'wall:IVC_IS_1:S_PC1:S_PC', 'wall:PVH_L_1:REX1:REX'];
 
 const armKey = (a: { vesselId: string; end: number }) => `${a.vesselId}:${a.end}`;
 
@@ -102,7 +102,8 @@ test('the real network builds the growing arms it can, names the ones it cannot,
     const grown = new Map(b.draws.map((d) => [nodeOf(d), meshOf(b, d).grow.map((m) => armKey(meshOf(b, d).junction.arms[m.arm]!))]));
     const want: Record<string, string[]> = {};
     for (const [n, gs] of Object.entries(GROWERS)) { const kept = gs.filter((g) => !DROPPED.includes(`${n}:${g.split(':')[0]}`)); if (kept.length) want[n] = kept; }
-    want['wall:AZY_SVC:C1b1'] = ['C1b:1'];   // (the one landing on a host's wall that builds so far, wall.ts)
+    // (the landings on a host's wall that build, wall.ts: S_MC and C3 land within 2.6 radii of a node's centre and are arms of that node's skin, the azygos C1b has a node of its own)
+    want.IVCI = ['S_MC:1']; want.LPV_A = ['C3:0']; want['wall:AZY_SVC:C1b1'] = ['C1b:1'];
     const got = Object.fromEntries([...grown].filter(([, g]) => g.length));
     assert.deepEqual(got, want);
     // the skins of the permanent junctions are all still there (the SVC's two are one: their seams were under 1.5 radii apart, cuts.ts MIN_STUB_R)
@@ -337,10 +338,10 @@ test('closed shape = the skin without the arm: EVERY free vertex of every growin
     const n = eachGrower(b, (d, m, g, caps) => {
       const arms = m.junction.arms, others = caps.filter((_, i) => i !== g.arm), kAll = skinKOf(arms), kOthers = skinKOf(arms.filter((_, i) => i !== g.arm)), Rmin = Math.min(...arms.map((a) => a.restR));
       const V = m.position.length / 3, S = arms.length * RADIAL;
-      void kAll;
+      void kOthers;   // (the closed shape keeps the skin's own blend, kAll: a narrow grower changes the blend, spec 10.2)
       for (let v = S; v < V; v++) {
         const x = m.position[3 * v]! - g.dPos[3 * v]!, y = m.position[3 * v + 1]! - g.dPos[3 * v + 1]!, z = m.position[3 * v + 2]! - g.dPos[3 * v + 2]!;
-        assert.ok(Math.abs(sdUnion(others, kOthers, x, y, z)) <= 0.02 * Rmin, `${nodeOf(d)} ${arms[g.arm]!.vesselId} vertex ${v}: ${(sdUnion(others, kOthers, x, y, z) / Rmin).toFixed(3)} R off the plain trunk (a thread's horn)`);
+        assert.ok(Math.abs(sdUnion(others, kAll, x, y, z)) <= 0.02 * Rmin, `${nodeOf(d)} ${arms[g.arm]!.vesselId} vertex ${v}: ${(sdUnion(others, kAll, x, y, z) / Rmin).toFixed(3)} R off the plain trunk (a thread's horn)`);
         const wg = g.arm < 4 ? m.weight[4 * v + g.arm]! - g.dWeight[4 * v + g.arm]! : m.weight2[2 * v + g.arm - 4]! - g.dWeight2[2 * v + g.arm - 4]!;
         assert.ok(Math.abs(wg) < 1e-6, `${nodeOf(d)} vertex ${v}: weight of the absent arm ${wg}`);
       }

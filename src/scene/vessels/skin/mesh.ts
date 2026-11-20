@@ -38,7 +38,7 @@ export const MAX_VERTS = 12000;
 export const SMOOTH_LAMBDA = 0.6;
 export const POLISH_ROUNDS = 2;
 /** Newton steps that put a vertex on the surface (spec 4.5.5), and the central-difference step as a share of k. */
-export const PROJECT_STEPS = 6;
+export const PROJECT_STEPS = 12;
 /** A closed growing arm's rows are laid on the trunk's wall from this weight of the arm (over the next FOOT_SPAN), and relaxed over it FOOT_RELAX rounds with the fillet round them held. */
 export const FOOT_FROM = 0.3;
 export const FOOT_SPAN = 0.4;

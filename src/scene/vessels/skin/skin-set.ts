@@ -17,7 +17,7 @@ import { NETWORK_BY_ID } from '../network.ts';
 import { REST, coursesOf, tubularOf, type ShapeState } from '../shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { slicesFor } from '../../circuit/geometry.ts';
-import { wallJunctions, wallLandings } from './wall.ts';
+import { attachNear, wallJunctions, wallLandings } from './wall.ts';
 import { MIN_ARMS, dropFarGrowers, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
 import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
 import { PACES, buildSkinSteady, hullCovers, onWall } from './mesh.ts';
@@ -423,8 +423,9 @@ export class SkinSet {
     const near = all.map((j) => { const d = dropFarGrowers(j); for (const id of d.far) farGone.push({ node: j.node, id }); return d.junction; }).filter((j) => j.arms.length >= MIN_ARMS);
     // ...and every growing vessel's end that is not an arm of a node's skin lands on a host's WALL (spec 10.1, wall.ts): each makes a virtual node on the host
     const welded = new Set(near.flatMap((j) => j.arms.filter((a) => a.grow).map((a) => `${a.vesselId}:${a.end}`)));
-    const walls = wallJunctions(phase === 2 ? wallLandings(welded) : []);
-    near.push(...walls.junctions);
+    const lands = phase === 2 ? attachNear(near, wallLandings(welded)) : { junctions: near, left: [] };
+    const walls = wallJunctions(lands.left);
+    near.length = 0; near.push(...lands.junctions, ...walls.junctions);
     for (const l of walls.skipped) this.dropped.push(`wall:${l.host.id}:${l.v.id}`);
     for (const f of farGone) this.dropped.push(`${f.node}:${f.id}`);   // (named whether or not a wall skin takes the end up: the node's own skin goes without it)
     all.length = 0; all.push(...near);
