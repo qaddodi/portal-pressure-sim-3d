@@ -11,6 +11,8 @@ import { clock } from '../../../clock/frame.ts';
 import { useBlood } from '../../../scene/blood/options.ts';
 import { useSelection } from '../../action/selection.ts';
 import { setForce } from '../../../engine/force-all.ts';
+import { currentParams, updateParams } from '../../action/params.ts';
+import { CIRCUIT_ROOM, CUSTOM_SHUNTS, GROUPS, PAGE_SIZES, customRecord, inGroup, pageCount, pageOf, type ShuntGroup } from './pager.ts';
 import { setPart, SHADE_NAMES, type PartView, type ShadeMode } from '../../../scene/vessels/debug-view.ts';
 import { clearJoinsOverride, joinsMode, setJoinsOverride, skinDebugOn, skinLeaveOut, type JoinsMode } from '../../../scene/vessels/skin/joins-mode.ts';
 import { reapplySkinDefines } from '../../../scene/vessels/skin/skin-object.ts';
@@ -204,6 +206,36 @@ export function mountInspect(): void {
   jr.append(jrList, el('div', { className: 'hint', textContent: 'Red: left out of its node\'s skin. Orange: the node\'s skin could not be built. Violet: a braid of strands. Yellow: a collateral or shunt that is not an arm of any skin (the fork method). Blue: a junction with no skin. Body only; the Circuit\'s list is the node names above. Marks stay where the report found them: Refresh after a change.' }));
   jr.addEventListener('toggle', () => { if (jr.open) report(); });
 
+  // ---- Custom shunts, a page at a time ----
+  const cs = section('Custom shunts (pager)', false);
+  let group: ShuntGroup = 'all', size = 6, page = 0, shown = false;
+  let kept: Record<string, number> | null = null;   // (the patient's own custom shunts before the pager touched them: given back on Clear)
+  const csInfo = el('div', { className: 'hint' });
+  const pageIds = () => pageOf(inGroup(group), size, page);
+  const putShown = (on: boolean): void => {
+    const cur = (currentParams()?.customShunts ?? {}) as Record<string, number>;
+    if (on && !kept) kept = { ...cur };
+    const base = kept ?? cur, ids = on ? pageIds().map((x) => x.id) : [];
+    const next = on ? customRecord(base, ids) : { ...base };
+    if (!updateParams((p) => { p.customShunts = next; }, { label: 'Inspector: custom shunts', history: false })) { msg.textContent = 'No patient loaded yet.'; return; }
+    shown = on; if (!on) kept = null;
+    msg.textContent = on ? `${ids.length} custom shunt(s) open.` : 'Custom shunts back to the patient\'s own.';
+  };
+  const csRefresh = (): void => {
+    const n = inGroup(group).length, pc = pageCount(n, size), ids = pageIds();
+    csInfo.textContent = `${n} shunts in this group, page ${((page % pc) + pc) % pc + 1} of ${pc}${shown ? ' (open now)' : ''}: ${ids.map((x) => x.id).join(', ') || 'none'}. ${CUSTOM_SHUNTS.length} in all; the Circuit routes at most ${CIRCUIT_ROOM} at once.`;
+  };
+  select(cs, 'Group', GROUPS.map((g) => [g.id, g.label] as const), () => group, (v) => { group = v as ShuntGroup; page = 0; if (shown) putShown(true); csRefresh(); });
+  select(cs, 'Per page', PAGE_SIZES.map((n) => [String(n), String(n)] as const), () => String(size), (v) => { size = Number(v); page = 0; if (shown) putShown(true); csRefresh(); });
+  buttons(cs, [
+    { label: 'Prev', run: () => { page -= 1; if (shown) putShown(true); csRefresh(); } },
+    { label: 'Next', run: () => { page += 1; if (shown) putShown(true); csRefresh(); } },
+    { label: 'Open this page', title: 'Opens these shunts at 10 mm, as the stent tool would (the patient\'s own stay open)', run: () => { putShown(true); csRefresh(); } },
+    { label: 'Clear', title: 'Back to the patient\'s own custom shunts', run: () => { putShown(false); csRefresh(); } },
+  ]);
+  cs.append(csInfo, el('div', { className: 'hint', textContent: 'This changes the patient (the same way the stent tool does, with no History entry): every number moves with the opened shunts, and Clear gives the patient\'s own back. A shunt shows in the body as the stent the tool draws, and in the Circuit as a routed tube (the first 12 only).' }));
+  csRefresh();
+
   // ---- Overlaps and id labels ----
   const ov = section('Overlaps and id labels', false);
   const ovList = el('div'); ovList.style.cssText = 'max-height:200px;overflow:auto;border:1px solid #fff3;border-radius:6px;padding:2px 4px;margin:4px 0';
@@ -268,7 +300,7 @@ export function mountInspect(): void {
   hunt.append(el('div', { className: 'hint', textContent: 'Each press changes only what it says; press Reset all to start over. A speck that goes was that part.' }));
   buttons(hunt, PRESETS.map((p) => ({ label: p.label, title: p.hint, run: () => { Object.assign(state, p.make(state)); apply(); syncAll(); msg.textContent = p.hint; } })));
   buttons(hunt, [
-    { label: 'Reset all', run: () => { clearJoinsOverride(); const cur = { yaw: state.yawDeg, pitch: state.pitchDeg, free: state.free }; Object.assign(state, defaultState(wantJoins), { ghosts: ghosts0, yawDeg: cur.yaw, pitchDeg: cur.pitch, free: cur.free }); apply(); syncAll(); msg.textContent = 'Everything as drawn.'; } },
+    { label: 'Reset all', run: () => { if (shown) { putShown(false); csRefresh(); } clearJoinsOverride(); const cur = { yaw: state.yawDeg, pitch: state.pitchDeg, free: state.free }; Object.assign(state, defaultState(wantJoins), { ghosts: ghosts0, yawDeg: cur.yaw, pitchDeg: cur.pitch, free: cur.free }); apply(); syncAll(); msg.textContent = 'Everything as drawn.'; } },
     { label: 'Copy', title: 'What is on, as text for a thread', run: () => { const t = stateText(state, document.title); void navigator.clipboard?.writeText(t).then(() => { msg.textContent = 'Copied.'; }, () => { msg.textContent = t; }); } },
   ]);
   box.append(msg);
