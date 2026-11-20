@@ -6,7 +6,7 @@ import {
   DUST_BUDGET, DUST_KMAX, DUST_LEN_CAP, DUST_NMAX, DUST_NUMERIC, DUST_PRESETS, DUST_SELECTS, DUST_SPEC, DUST_UNIFORMS, DUST_VEC4, LAB_ONLY, LAB_R,
   clampKey, dustBand, dustBudget, dustClasses, dustDefaults, dustDerive, dustProf, dustText, hexRgb, parseDust,
 } from '../src/scene/blood/dust-spec.ts';
-import { DUST_GLSL, DUST_MACROS, dustEndIntegral, dustEndRamp } from '../src/scene/blood/dust-glsl.ts';
+import { DUST_GLSL, DUST_MACROS, dustArc, dustEndIntegral, dustEndRamp } from '../src/scene/blood/dust-glsl.ts';
 import { DUST_EASE_MS, DustTuner } from '../src/scene/blood/dust.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { FLAGS } from '../src/ui/debug/flags.ts';
@@ -126,7 +126,7 @@ test('GLSL: parses; the lab\'s shapes are in it; the dust is computed from a cel
   assert.match(DUST_GLSL, /\(D_densK - dHash\(sd\)\) \* 12\.0/, 'density thins by a threshold: single particles fade, nothing pops');
   assert.match(DUST_GLSL, /return acc \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(across\)\)\);/, 'contained: nothing on the ink');
   // in the vessel: the tube paints it, gated by the amount, the flow and the marks' own junction rule; chevrons after
-  for (const m of [/vec4 dust = dustField\(across, vUv\.x \* len \* vU, smS\.w, /, /markK\(vUv\.x \* len \* vU, \(1\.0 - vUv\.x\) \* len \* vU\) \* streakAmt/, /smoothstep\(0\.0, [\d.]+, abs\(smS\.y\)\)/, /celTubeBase\(base\), inkColor\)/]) assert.match(VESSEL_FS, m);
+  for (const m of [/dust = dustField\(across, sD, 0\.0, 1\.0, smS\.w, /, /markK\(vUv\.x \* len \* vU, \(1\.0 - vUv\.x\) \* len \* vU\) \* streakAmt/, /smoothstep\(0\.0, [\d.]+, abs\(smS\.y\)\)/, /litD, inkColor\)/]) assert.match(VESSEL_FS, m);
   assert.ok(VESSEL_FS.indexOf('streakCover = dOn * dust.a;') < VESSEL_FS.indexOf('c = c * (1.0 - ha) + core * ac'), 'chevrons draw ABOVE the particles');
   assert.match(VESSEL_FS, /if \(streakCover > 0\.0\) c = mix\(c, cBody, ha\);/);
   assert.doesNotMatch(VESSEL_FS, /END_R|streakField\(/, 'no fade at a vessel\'s ends: the dust runs through the junction (no old streak field in the tube)');
@@ -180,4 +180,29 @@ test('the scene steps the tuner on the one clock, keeps the clock awake while it
   assert.match(sc, /dustTuner\.onWake = \(\) => \{ this\.moving = true; clock\.invalidate\('dust'\); \};/);
   assert.match(read('../src/scene/vessels/vessel-object.ts'), /dustP: blood\.dustP/);
   assert.match(read('../src/scene/blood/field.ts'), /dustP: dustTuner\.uniform/);
+});
+
+test('THE ROUTE (Mohammad, 20 Nov: "the particles should cross at the junction, not disappear"): a particle that leaves a vessel is the same particle in the vessel the blood runs on into, at the joint and at that vessel\'s own pace; the chain feeds the shader the root\'s distance, A, B and the root\'s radius', async () => {
+  // the twin: a parent of length Lp (A 0, B 1) and a child that starts where it ends (the chain's A = Lp - B * 0), for several B (the child slower or faster) and times
+  const Pf = 3, sp = 1.2, Lp = 40;
+  for (const B of [0.5, 1, 1.7, -1]) for (const D of [0, 7.3, 91.9]) for (const jj of [3, 4, 5, 6, 7]) {
+    const A = Lp;   // (the child's arc 0 is the stream's coordinate Lp)
+    const inParent = dustArc(jj, 0.4, 1, Pf, D, sp, 0, 1);
+    const inChild = dustArc(jj, 0.4, 1, Pf, D, sp, A, B);
+    // the same particle: its stream coordinate is the same, so where the parent holds it at Lp + e, the child holds it at e / B
+    assert.ok(Math.abs(inChild - (inParent - Lp) / B) < 1e-9, `B ${B} D ${D} cell ${jj}: ${inChild} against ${(inParent - Lp) / B}`);
+    // and it runs on at the child's own pace: the stream moves it dD * sp, the child's arc 1 / B of that
+    const later = dustArc(jj, 0.4, 1, Pf, D + 5, sp, A, B);
+    assert.ok(Math.abs((later - inChild) - (5 * sp) / B) < 1e-9, `B ${B}: pace`);
+  }
+  // the shader: both sets are drawn by the one function, from the stream's coordinate; a link forming or letting go cross-fades them
+  assert.match(DUST_GLSL, /float se = A0 \+ Bs \* aFig;/);
+  assert.match(DUST_GLSL, /float Pf = max\(D_cellP \* rLat, 1e-4\);/, 'the lattice is the root\'s radius: one lattice along the whole route');
+  assert.match(VESSEL_FS, /int rootIx = int\(chD\.x \+ 0\.5\) - 1;/);
+  assert.match(VESSEL_FS, /fract\(float\(rootIx\) \* 0\.6180339\) \* 50\.0/, 'the route\'s seed is the root\'s: one set of particles');
+  assert.match(VESSEL_FS, /dust = wl >= 1\.0 \? dc : mix\(dust, dc, wl\);/);
+  assert.match(VESSEL_FS, /texelFetch\(chainTex, ivec2\(int\(lensIndex\), 1\), 0\)\.w \* vU/, 'the root\'s radius rides the chain texture');
+  const { StreamChain } = await import('../src/scene/blood/chain.ts');
+  assert.match(read('../src/scene/blood/chain.ts'), /d\[o2 \+ 3\] = RADIUS\[c\.root\[i\]!\] \?\? 0;/);
+  assert.ok(StreamChain, 'the chain');
 });

@@ -9,7 +9,7 @@ export interface Flag { id: string; group: 'Measure' | 'Pages' | 'Open'; gate: G
 
 export const FLAGS: readonly Flag[] = Object.freeze([
   { id: 'perf', group: 'Measure', gate: 'live', meaning: "The clock's frame panel: median, p95 and worst frame work, the frames over 20 ms with the phase and who asked for them; Copy (src/ui/perf)." },
-  { id: 'dust', group: 'Measure', gate: 'live', meaning: "The hidden tuning panel for the blood's dust (the Dust Lab's particles on the real vessels): the lab's sliders, presets (the owner's two picks), Copy settings, Apply pasted text, Keep on this device (src/ui/debug/dust-panel.ts)." },
+  { id: 'dust', group: 'Measure', gate: 'live', meaning: "The hidden panel that tunes the blood's dust (dust-panel.ts)." },
   { id: 'gl', group: 'Measure', gate: 'live', meaning: "Every shader program the app can use, compiled on this device: one line each, green or red, with the driver's own log and Copy (src/debug/gl-check.tsx). Open it once per build on the iPhone, the iPad and the Mac." },
   { id: 'watch', group: 'Measure', gate: 'local', meaning: 'The motion recorder (preview copy or a local run): keeps 20 seconds of camera, label and card numbers, judges them with the motion rules and shows a red dot with the findings (src/ui/debug/watch).' },
   { id: 'debug', group: 'Pages', gate: 'local', meaning: 'The debug page (the card gallery, with Report and Full check on its bar; the motion recorder is on by default). ?debug=check is the Phone check, ?debug=full its long walk, ?debug=frame the device frame.' },
