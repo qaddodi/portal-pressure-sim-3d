@@ -62,10 +62,8 @@ test('the reader\'s dock is kept from slide to slide, put back when a talk start
   assert.equal(useUi.getState().docked, false, 'a new talk starts with the card up');
 });
 
-test('the figure is locked while a talk plays: the stage hands the gestures the deck check and the tilt stands still', () => {
+test('the figure is locked while a talk plays: the stage hands the gestures the deck check (the gesture controller test covers what it blocks) and the tilt stands still', () => {
   const stage = read('src/scene/Stage.tsx');
   assert.match(stage, /locked: \(\) => useDeck\.getState\(\)\.mode === 'deck'/);
   assert.match(stage, /rig\.tiltGate = \{[^}]*useDeck\.getState\(\)\.mode === 'deck'/);
-  const ctl = read('src/scene/gesture/controller.ts');
-  for (const need of [/host\.locked\?\.\(\)\) return;\s*\/\/ \(the page never zooms/, /if \(host\.locked\?\.\(\)\) \{\s*ev\.preventDefault/, /zoomStep\(factor\) \{ if \(host\.locked/, /if \(host\.locked\?\.\(\)\) return; host\.context/]) assert.match(ctl, need);
 });

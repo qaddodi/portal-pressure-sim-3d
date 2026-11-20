@@ -2,6 +2,7 @@
 // actions of what is selected on the figure, from the card catalogue (cards.ts). On a laptop or an iPad on its side it stands at the left under the top bar (276 px); on a phone or an upright
 // iPad it is a sheet above the view switch. Always in the page, faded in and out; the numbers on it re-render only when what they print changes (snap.ts). Number keys 1 to 9 run its
 // first nine controls. Text never shrinks to fit and nothing scrolls inside it (but the Details face's own words, as 2D's .ad-scroll: its head stays and what is under it scrolls only where it is taller than the card's room).
+import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
 import './action.css';
 import { OrderIcon } from './icons.tsx';
@@ -182,7 +183,6 @@ export function ActionCard() {
   const [held, setHeld] = useState<Card | null>(null);   // the card on show, kept while it fades out
   const [fonts, setFonts] = useState(() => typeof document === 'undefined' || !document.fonts || document.fonts.status === 'loaded');
   const ref = useRef<HTMLElement>(null);
-  const drag = useRef<{ y: number } | null>(null);
   const [face, setFace] = useState<'card' | 'details'>('card');   // (a card's name turns it to its Details face; another structure comes up on its card)
   const hasDetails = !!card && !card.noDetails && !!detailsFor(sel);
   useEffect(() => { setFace('card'); }, [card?.key]);
@@ -193,14 +193,12 @@ export function ActionCard() {
   useEffect(() => { if (face === 'details') keyed = []; }, [face]);   // (the number keys run a card's controls; the Details face has none)
   const onKeys = useMemo(() => (list: (() => void)[]) => { keyed = list; }, []);
   const close = () => import('./selection.ts').then((m) => m.selectStructure(null));
-  // pull the sheet down to put it away (a phone's sheet: transform only, written to the element)
-  const onDown = (e: React.PointerEvent) => { if (!bottom) return; drag.current = { y: e.clientY }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); };
-  const onMove = (e: React.PointerEvent) => { const d = drag.current; if (!d || !ref.current) return; ref.current.style.transition = 'none'; ref.current.style.transform = `translateY(${Math.max(0, e.clientY - d.y)}px)`; };
-  const onUp = (e: React.PointerEvent) => { const d = drag.current; drag.current = null; const el = ref.current; if (!d || !el) return; const dy = e.clientY - d.y; el.style.transition = ''; el.style.transform = ''; if (dy > 70) void close(); };
+  // a phone's sheet follows a pull down from anywhere on it and closes past a short pull or a flick (2D swipeSheet; shell/sheet-swipe.ts)
+  useSheetSwipe(ref, () => { void close(); }, () => bottom);
   const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${footHeight(device) - 8 - (device === 'phone-landscape' ? 0 : 0)}px)` } : undefined;
   return (
     <section ref={ref} className="ac-card" data-open={open} data-bottom={bottom || undefined} data-device={device} style={style} role="dialog" aria-label="Actions" inert={!open}>
-      <div className="ac-grab" aria-hidden="true" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}><i /></div>
+      <div className="ac-grab" aria-hidden="true"><i /></div>
       {shown && (face === 'details' && card && sel ? <DetailsFace key={`d-${shown.key}`} sel={sel} onBack={() => setFace('card')} />
         : <Face key={shown.key} card={shown} onKeys={onKeys} onDetails={card && hasDetails ? () => setFace('details') : null} />)}
       <button type="button" className="ac-x" aria-label="Close" title="Close (Esc)" onClick={() => void close()}><Icon n="close" /></button>

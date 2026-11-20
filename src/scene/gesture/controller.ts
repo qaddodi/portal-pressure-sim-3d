@@ -31,6 +31,8 @@ export interface GestureEnv {
   clearTimer(id: number): void;
   reduceMotion(): boolean;
   viewport(): { w: number; h: number };
+  /** The camera is the slide's, not the hand's (a talk): a tap still lands, but nothing turns, pans or zooms the figure. Absent: never locked. */
+  locked?(): boolean;
 }
 
 export interface GestureHost {
@@ -53,8 +55,6 @@ export interface GestureHost {
   setPicked(sel: unknown): void;
   /** Right click or long press: the same as a tap here. */
   context(x: number, y: number, touch?: boolean): void;
-  /** The figure is the talk's, not the viewer's (a deck is playing): no turn, pan, zoom, flick, wheel or double click; a tap alone still reaches `tap`. 2D's `offFig` (presenter.js): its figure is read-only in a talk. */
-  locked?(): boolean;
 }
 
 export const TAP_SLOP_TOUCH = 8, TAP_SLOP_MOUSE = 4;
@@ -227,7 +227,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   interface WheelEv { deltaMode: number; deltaX: number; deltaY: number; wheelDeltaY?: number | null; ctrlKey: boolean; metaKey: boolean; clientX: number; clientY: number; preventDefault(): void }
   const onWheel = (ev: WheelEv) => {
     ev.preventDefault();
-    if (host.locked?.()) return;   // (the page never zooms or scrolls over the figure either: the default is already prevented)
+    if (env.locked?.()) return;
     const now = env.now();
     if (wheelMute) { if (now - wheelAt < 250) { wheelAt = now; return; } wheelMute = false; }
     host.holdHand(); stopAnim(); stopFlick(); stopOrbitMomentum();
@@ -293,22 +293,14 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     const m = { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 };
     return { type: 'pinch', pa: a, pb: b, d0: Math.max(1, Math.hypot(a[0] - b[0], a[1] - b[1])), k0: host.hand().k, anchor: anchorAt(m, host.hand(), host.centre()), moved: false, m0: m };
   }
-  // A locked figure (a talk is playing): a finger or the mouse on it moves nothing and holds nothing, not even the shot's own glide; a press that stays put is still a tap.
-  let still: { id: number; x: number; y: number; slop: number; moved: boolean } | null = null;
   const onDown = (ev: PtrEv) => {
     if (isSystemEdge(ev, env.viewport())) return;
-    if (host.locked?.()) {
-      ev.preventDefault?.();
-      if (ev.isPrimary && ev.button === 0 && ev.pointerType) still = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, slop: ev.pointerType === 'touch' ? TAP_SLOP_TOUCH : TAP_SLOP_MOUSE, moved: false };
-      else if (still) still.moved = true;   // (a second finger: not a tap)
-      return;
-    }
-    still = null;
     if (ev.isPrimary) pointers.clear();
     pointers.set(ev.pointerId, [ev.clientX, ev.clientY]);
     fit = null;
     host.holdHand(); stopAnim(); stopFlick(); stopOrbitMomentum(); stopOrbitHome(); wheelGlide.cancel(); hand.begin(); env.clearTimer(settleT);
     (el as GestureTarget).setPointerCapture?.(ev.pointerId);
+    if (env.locked?.()) { if (pointers.size < 2) drag = { type: 'rotate', x: ev.clientX, y: ev.clientY, orbit0: host.orbit(), moved: false, trail: trail(ev.clientX, ev.clientY), touch: ev.pointerType === 'touch' }; else if (drag && drag.type === 'rotate') drag.moved = true; return; }   // (a talk: the touch is a tap or nothing)
     if (pointers.size >= 2) { drag = pointers.size === 2 ? startPinch() : drag; return; }
     if (ev.button === 2) { drag = { type: 'ignore' }; return; }   // the context menu is the pick's
     const touch = ev.pointerType === 'touch';
@@ -321,10 +313,14 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     while (tr.length > 6 && now - tr[0]! > 90) tr.splice(0, 3);
   };
   const onMove = (ev: PtrEv) => {
-    if (still) { if (Math.abs(ev.clientX - still.x) + Math.abs(ev.clientY - still.y) > still.slop) still.moved = true; return; }
     const pt = pointers.get(ev.pointerId);
     if (!pt || !drag || drag.type === 'ignore') return;
     pt[0] = ev.clientX; pt[1] = ev.clientY;
+    if (env.locked?.()) {
+      // (nothing moves, but a touch that travelled is not a tap)
+      if (drag.type === 'rotate' && !drag.moved && Math.abs(ev.clientX - drag.x) + Math.abs(ev.clientY - drag.y) > (drag.touch ? TAP_SLOP_TOUCH : TAP_SLOP_MOUSE)) drag.moved = true;
+      return;
+    }
     if (drag.type === 'pinch') {
       if (pointers.size !== 2) return;
       const a = drag.pa, b = drag.pb;
@@ -349,12 +345,6 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     }
   };
   const onUp = (ev: PtrEv & { type: string }) => {
-    if (still) {
-      if (ev.pointerId !== still.id) return;
-      const s = still; still = null;
-      if (!s.moved && ev.type === 'pointerup') host.tap(ev.clientX, ev.clientY, ev.pointerType === 'touch');   // (no double click zoom: that is a move of the figure)
-      return;
-    }
     if (!pointers.delete(ev.pointerId)) return;
     const d = drag;
     if (!d) return;
@@ -383,7 +373,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   function tap(ev: PtrEv) {
     const now = env.now();
     // the second click of a double click zooms (and puts back whatever the first click picked); never by touch, where the first tap picks and a second would fight it
-    if (ev.pointerType !== 'touch' && lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(ev.clientX - lastTap.x, ev.clientY - lastTap.y) < DOUBLE_TAP_PX) {
+    if (!env.locked?.() && ev.pointerType !== 'touch' && lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(ev.clientX - lastTap.x, ev.clientY - lastTap.y) < DOUBLE_TAP_PX) {
       const prev = lastTap.sel;
       lastTap = null;
       host.setPicked(prev);
@@ -393,7 +383,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     lastTap = { t: now, x: ev.clientX, y: ev.clientY, sel: host.picked() };
     host.tap(ev.clientX, ev.clientY, ev.pointerType === 'touch');
   }
-  const onContext = (ev: PtrEv) => { ev.preventDefault?.(); if (host.locked?.()) return; host.context(ev.clientX, ev.clientY, ev.pointerType === 'touch'); };
+  const onContext = (ev: PtrEv) => { ev.preventDefault?.(); if (env.locked?.()) return; host.context(ev.clientX, ev.clientY, ev.pointerType === 'touch'); };
   on(el, 'pointerdown', onDown);
   on(el, 'pointermove', onMove);
   for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) on(el, t, onUp);
@@ -405,7 +395,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     turnOff() { stopOrbitMomentum(); stopOrbitHome(); },
     refit() { handsOff(); fit = null; animateTo({ ...IDENTITY }, undefined, null); orbitToShot(); },
     animateTo(to, ms) { handsOff(); animateTo(to, ms, null); },
-    zoomStep(factor) { if (host.locked?.()) return; handsOff(); const c = host.centre(); animZoomAt(c.x, c.y, factor); },
+    zoomStep(factor) { if (env.locked?.()) return; handsOff(); const c = host.centre(); animZoomAt(c.x, c.y, factor); },
     dispose() {
       handsOff(); stopOrbitHome();
       for (const off of offs) off();

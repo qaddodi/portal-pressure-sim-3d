@@ -145,14 +145,13 @@ function SceneBridge() {
       picked: () => useSelection.getState().sel,
       setPicked: (sel) => selectStructure(sel as Sel | null),
       // right click and long press open the card of what is under the pointer and never close it (2D's contextmenu)
-      // a talk plays the figure: the viewer does not move it (2D presenter.js offFig)
-      locked: () => useDeck.getState().mode === 'deck',
       context: (x, y, touch) => { const hit = cel.pickTargetAt(x, y, raycaster.current, !!touch); if (hit) tapSelect(hit, { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: true }, false); },
     }, {
       now: () => performance.now(),
       ask: frames.ask, cancel: frames.cancel,
       timer: (fn, ms) => window.setTimeout(fn, ms), clearTimer: (id) => window.clearTimeout(id),
       reduceMotion: () => matchMedia('(prefers-reduced-motion: reduce)').matches,
+      locked: () => useDeck.getState().mode === 'deck',   // (in a talk the camera is the slide's: the figure is not turned, panned or zoomed by hand)
       viewport: () => cel.rig.stageSize,
     }, window as unknown as GestureTarget);
     gesturesRef.current = g;

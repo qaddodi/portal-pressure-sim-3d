@@ -11,7 +11,17 @@ const here = dirname(fileURLToPath(import.meta.url));
 const inv = JSON.parse(readFileSync(resolve(here, '../parity/inventory.json'), 'utf8'));
 const out = resolve(here, '../src/ui/strings.generated.ts');
 
-export function render(inventory) {
+/** The inventory was read from the 2D app's source text, so a string written there as `'vessel\\u2019s'` arrives with the backslash-u still in it (a person read "vessel\\u2019s" in the colour menu).
+ *  Every string is turned into the characters the source means: \\uXXXX, \\xXX and the one-letter escapes. */
+export const unescapeSource = (v) => {
+  if (typeof v === 'string') return v.replace(/\\(?:u([0-9a-fA-F]{4})|x([0-9a-fA-F]{2})|(["'\\`])|([nt]))/g, (_, u, x, q, c) => u ? String.fromCharCode(parseInt(u, 16)) : x ? String.fromCharCode(parseInt(x, 16)) : q ? q : c === 'n' ? '\n' : '\t');
+  if (Array.isArray(v)) return v.map(unescapeSource);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, unescapeSource(x)]));
+  return v;
+};
+
+export function render(raw) {
+  const inventory = unescapeSource(raw);
   const { shell, presets, looks, lenses } = inventory;
   const data = {
     topbar: shell.topbar, views: shell.views, zoomGroup: shell.zoomGroup, playbar: shell.playbar,

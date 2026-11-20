@@ -3,7 +3,7 @@
 // (Mohammad, 20 Nov), so the pool is the 2D one and the proxy mesh is not used. The shown volume follows the model with the same spring as Classic's (FluidFollow), and the bowel floats up with the
 // wall's bulge as it does there.
 import { BufferAttribute, BufferGeometry, Color, Group, GLSL3, Mesh, RawShaderMaterial, type Vector4 } from 'three';
-import { COLS, FLUID_Z, STEP, X0, bulgeStep, crossings, polyOf } from '../disease/ascites.ts';
+import { COLS, FLUID_RGBA, FLUID_Z, STEP, X0, bulgeStep, crossings, polyOf } from '../disease/ascites.ts';
 import { FluidFollow } from '../disease/follow.ts';
 import { fluidBase, fluidLevel, poolFade } from '../disease/copied/fluid-step.js';
 import { CASING } from '../vessels/cel-ink.ts';
@@ -11,8 +11,10 @@ import type { LookId } from '../../looks/looks.ts';
 import { ATLAS_ASCITES_FS, ATLAS_POOL_VS, stripVersion } from './shaders.ts';
 import { y3, x3 } from '../frame2d.ts';
 
-/** The wash's strength over the organs (the 2D pool is 0.4; a little more here, as the cel look asked for it to read without a label). */
-export const POOL_WASH = 0.5;
+/** The wash's strength over the organs: 2D's (FLUID_RGBA's alpha, 0.4) a touch firmer, so the pool reads without a label. */
+export const POOL_WASH = 0.46;
+/** 2D's lighter band on the pool's surface (ascites.ts: 0xf6dc86). */
+const SKIN = 0xf6dc86;
 /** The meniscus band under the surface in scene units (2D draws 7 units of it). */
 const BAND = 8 / 300;
 /** Drawn after every organ (organs.ts orders them 0 to 9) and the ink hulls, tested against nothing: it is a wash over the cavity, as in 2D. */
@@ -40,7 +42,7 @@ export class AtlasPool {
     g.setIndex(idx);
     this.mat = new RawShaderMaterial({
       glslVersion: GLSL3, vertexShader: stripVersion(ATLAS_POOL_VS), fragmentShader: stripVersion(ATLAS_ASCITES_FS), transparent: true, depthWrite: false, depthTest: false,
-      uniforms: { uColor: { value: new Color() }, uAlpha: { value: 0 }, uWash: { value: POOL_WASH }, uBand: { value: BAND }, inkColor: { value: new Color() }, inkA: { value: 0.5 }, cut },
+      uniforms: { uColor: { value: new Color().setRGB(FLUID_RGBA[0], FLUID_RGBA[1], FLUID_RGBA[2]) }, uSkin: { value: new Color().setRGB(((SKIN >> 16) & 255) / 255, ((SKIN >> 8) & 255) / 255, (SKIN & 255) / 255) }, uAlpha: { value: 0 }, uWash: { value: POOL_WASH }, uBand: { value: BAND }, inkColor: { value: new Color() }, inkA: { value: 0.5 }, cut },
     });
     this.mat.name = 'atlas ascites';
     this.mesh = new Mesh(g, this.mat);
@@ -78,10 +80,9 @@ export class AtlasPool {
     return true;
   }
 
-  /** The colour (the artist's palette), the look's casing ink for the waterline, and the pool's visibility with the body's fade (`a`: 0 hides it). */
-  paint(color: Color, look: LookId, a: number): void {
+  /** The look's casing ink for the waterline, and the pool's visibility with the body's fade (`a`: 0 hides it). The fluid's colours are 2D's, the same in every look. */
+  paint(look: LookId, a: number): void {
     const u = this.mat.uniforms;
-    (u.uColor!.value as Color).copy(color);
     const k = CASING[look];
     (u.inkColor!.value as Color).setRGB(k.rgb[0] / 255, k.rgb[1] / 255, k.rgb[2] / 255);
     u.inkA!.value = Math.min(0.6, k.a);

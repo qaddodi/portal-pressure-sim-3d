@@ -11,7 +11,7 @@ const light = (c: readonly number[]) => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * 
 
 test('the cel step reads cel-style.ts: one band step is one shade step, the ink is the shade three times over, no number of its own', () => {
   assert.ok(Math.abs(Math.exp(-CEL_STEP) - (1 - CEL_STYLE.SHADE)) < 1e-12, 'a band is one shade step: x (1 - SHADE)');
-  assert.equal(CEL_EDGE_LO, 2 * CEL_STYLE.SHADE); assert.equal(CEL_EDGE_HI, 3 * CEL_STYLE.SHADE);
+  assert.equal(CEL_EDGE_LO, CEL_STYLE.TISSUE.SIN_EDGE_LO); assert.equal(CEL_EDGE_HI, CEL_STYLE.TISSUE.SIN_EDGE_HI);   // the painted lines' own contrast: a stronger tone must not unink a cell's outline
   assert.ok(Math.abs(CEL_INK - (1 - CEL_STYLE.SHADE) ** 3) < 1e-12);
   assert.match(CEL_MAIN_GLSL, new RegExp(`CEL_STEP \\* ${CEL_STYLE.EDGE_PX.toFixed(2)}`), 'the band edge is EDGE_PX across');
   const src = readFileSync(new URL('../src/scene/sinusoid/cel.ts', import.meta.url), 'utf8');
@@ -47,7 +47,7 @@ test('the ink: a flat or gently shaded pixel carries none, a cell edge carries i
   assert.equal(celEdge(0, 0.6), 0);
   assert.equal(celEdge(0.02, 0.6), 0, 'a smooth gradient is not an edge');
   assert.equal(celEdge(0.6 * CEL_EDGE_HI * 1.01, 0.6), 1);
-  assert.equal(celEdge(0.6 * CEL_STYLE.SHADE * 1.5, 0.6), 0, 'a change of a shade step and a half (a membrane, a lymph dash) is not inked');
+  assert.equal(celEdge(0.6 * CEL_EDGE_LO * 0.9, 0.6), 0, 'a change just under the edge threshold (a membrane, a lymph dash) is not inked');
   assert.ok(celEdge(0.6 * (CEL_EDGE_LO + CEL_EDGE_HI) / 2, 0.6) > 0.4 && celEdge(0.6 * (CEL_EDGE_LO + CEL_EDGE_HI) / 2, 0.6) < 0.6);
 });
 
@@ -67,7 +67,7 @@ test('the Disse and the wall are one flat tone in 2D\'s own colour; the lumen st
   assert.ok(lum.size >= 3 && lum.size <= 6, `the lumen's shading is ${lum.size} tones`);
   assert.ok(lum.has(base.toFixed(6)), 'its own colour is one of them');
   // the ink: none for the Disse's gradients and dashes, full on a wall's outline
-  assert.equal(celEdge(lb * 0.12, lb), 0); assert.equal(celEdge(lb * 0.3, lb) < 0.3, true);
-  assert.equal(celEdge(lb * 0.6, lb), 1);
+  assert.equal(celEdge(lb * CEL_EDGE_LO * 0.35, lb), 0); assert.equal(celEdge(lb * CEL_EDGE_LO * 0.9, lb), 0);
+  assert.equal(celEdge(lb * CEL_EDGE_HI * 1.2, lb), 1);
   assert.match(CEL_MAIN_GLSL, /onDisse \* smoothstep/, 'no ink inside the Disse band');
 });
