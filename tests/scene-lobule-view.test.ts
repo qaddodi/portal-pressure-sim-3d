@@ -183,7 +183,7 @@ test('the tones are made from the looks table: every extra tone in every look, i
 // ---- the lymph chevrons (and none in the sinusoid view) ----------------------------------------------------------------------------
 
 const marked = (v: LobuleView) => v.objects.filter((o) => o.isVessel);
-const flowOf = (o: CelObject) => o.toon.uniforms.flowAmount!.value as number;
+const flowOf = (o: CelObject) => o.toon.uniforms.headAmount!.value as number;   // (the flow heads, 2D's chevrons: shading.ts)
 const speedOf = (o: CelObject) => o.toon.uniforms.stubSpeed!.value as number;
 const settle = (v: LobuleView | SinusoidView, from = 0, ms = 1500) => { for (let t = from; t <= from + ms; t += 16) v.update(t); return from + ms; };
 
