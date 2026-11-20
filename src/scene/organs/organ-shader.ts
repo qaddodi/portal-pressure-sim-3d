@@ -89,11 +89,7 @@ vec3 celDelta = vec3(0.0);
 // shade tone. An edge is EDGE_PX device pixels either side of the line (fwidth) and no softer. tests/organ-depth.test.ts mirrors this function with celBand.
 const float CEL_SHADE_LAM = ${num(CEL_STYLE.ORGAN.SHADE_LAM)};
 const float CEL_LIT_LAM = ${num(CEL_STYLE.ORGAN.LIT_LAM)};
-const float CEL_TUCK_AO = ${num(CEL_STYLE.ORGAN.TUCK_AO)};
 const float CEL_EDGE_PX = ${num(CEL_STYLE.EDGE_PX)};
-const float CEL_BOX_BIAS = ${num(CEL_STYLE.ORGAN.BOX_BIAS)};
-const float CEL_BOX_R0 = ${num(CEL_STYLE.ORGAN.BOX_R0)};
-const vec2 CEL_BOX_LIGHT = vec2(${num(CEL_STYLE.ORGAN.BOX_LIGHT[0])}, ${num(CEL_STYLE.ORGAN.BOX_LIGHT[1])});   // the light's spot in the organ's own box (x right, y DOWN), 2D's og-vol light
 const vec3 CEL_LIGHT = vec3(${num(CEL_LIGHT_N[0])}, ${num(CEL_LIGHT_N[1])}, ${num(CEL_LIGHT_N[2])});   // (normalized here, not by a constant expression in GLSL: one less thing a phone's compiler can refuse)
 // how much of the shade tone (x) and the lit tone (y) a point wears, each 0 or 1 but for the pixel of an edge; tuckAt is where the tuck band starts (above 1: no band)
 vec2 celBands(float lam, float ao, float tuckAt) {
@@ -149,15 +145,14 @@ void main() {
     fill = mix(fill, ogLight.rgb, clamp(ogLight.a * 0.5 * toward, 0.0, 1.0) * depthAmt);
   }
   // Cel shaded: the wash's soft shade, rim light and light are replaced (eased by solid) by three flat, matte tones: the organ's own 2D tone and a lightness step either side of it (celShade, celBase, celLit), no gradient
-  // inside a band and no gloss; what varies over the organ (nodules, the dead spleen, the pool) is laid on all three as the same shift. The measure is n.L plus a lean that is the distance from the light's spot in the organ's own box,
-  // so a flat face-on organ still shows a round lit cap and a shade side, in curves that follow it.
+  // inside a band and no gloss; what varies over the organ (nodules, the dead spleen, the pool) is laid on all three as the same shift. The measure is n.L of the organ's smooth rest normal: one shade crescent along the lower right edge,
+  // one lit crescent along the upper left, following the silhouette.
   if (solid > 0.001) {
     vec3 paint = vec3(0.0);
 #ifdef VERTEX_INK
     paint = (vInk - color) * inkAmount * ${num(CEL_STYLE.ORGAN.PAINT)};   // (what varies over the organ, at its low-contrast share: the wash laid it at the layer's opacity)
 #endif
-    float lean = CEL_BOX_R0 - distance(vBox, CEL_BOX_LIGHT);
-    vec2 b = celBands(dot(normalize(vCn), CEL_LIGHT) + CEL_BOX_BIAS * lean, clamp(vAo, 0.0, 1.0), mix(1.5, CEL_TUCK_AO, depthAmt));
+    vec2 b = celBands(dot(normalize(vCn), CEL_LIGHT), 0.0, 2.0);   // (the smooth rest normal alone)
     vec3 base = celBase + paint;
     vec3 cel = mix(mix(base, celShade + paint, b.x), celLit + paint, b.y);
     celDelta = (cel - base) * solid;
@@ -174,6 +169,7 @@ void main() {
 export const ORGAN_INK_VS = /* glsl */ `
 uniform float px;
 uniform float dpr;
+uniform float minPx;   // the least width, CSS px (the cel organ's bold line; 0 in the wash)
 uniform vec2 res;
 varying float vHi;
 varying float vU;
@@ -182,7 +178,7 @@ void main() {
   vU = uv.x;
   vHi = 0.0;
   float wpc = c.w * 2.0 / (res.y * projectionMatrix[1][1]) * 300.0;   // the figure's units under one CSS px here
-  float w = max(1.0 / max(dpr, 1.0), px / max(wpc, 1e-6));
+  float w = max(max(1.0 / max(dpr, 1.0), minPx), px / max(wpc, 1e-6));
   vec2 nd = (projectionMatrix * vec4(normalMatrix * normal, 0.0)).xy;
   float l = length(nd);
   nd = l > 1e-5 ? nd / l : vec2(0.0);
