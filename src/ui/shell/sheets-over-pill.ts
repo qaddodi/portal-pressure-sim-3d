@@ -1,0 +1,2 @@
+/** The sheets that rise over the dock on a phone. 2D marks them `.menu-sheet-open` on .app, and its lifted rule takes the view pill away while one is up (app-10-thumb-dock.css: the pill lies above the sheets, in the dock); the 3D sheets are not 2D's `.sheet-layer > .menu`, so nothing said it, and the pill was drawn over the Layers sheet's Labels row. */
+export const SHEETS_OVER_PILL: ReadonlySet<string> = new Set(['menu', 'settings', 'search', 'help', 'history', 'compare', 'why', 'guide', 'layers']);
