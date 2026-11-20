@@ -89,7 +89,7 @@ interface Built {
 }
 
 /** The seam ring's vertices and normals of one arm, read from the tube `buildTubes` made (spec 4.4: not recomputed): `RADIAL` of them, in the tube's ring order. */
-function ringOf(g: BufferGeometry, ring: number, radius: number): { pos: Float32Array; nor: Float32Array; rest: Float32Array } {
+export function ringOf(g: BufferGeometry, ring: number, radius: number): { pos: Float32Array; nor: Float32Array; rest: Float32Array } {
   const p = g.getAttribute('position'), n = g.getAttribute('normal'), rk = g.getAttribute('rk');
   const pos = new Float32Array(TUBE_RADIAL * 3), nor = new Float32Array(TUBE_RADIAL * 3), rest = new Float32Array(TUBE_RADIAL);
   for (let j = 0; j < TUBE_RADIAL; j++) {
@@ -155,7 +155,7 @@ export function armArcOf(end: 0 | 1, u: number, len: number, radius: number): { 
 }
 
 /** An axis as the mesh builder's capsule (sdf.ts): the same three points and radii. */
-const capsuleOf = (a: ArmAxis): Capsule => ({ n: a.pts.length, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii), mate: a.mate });
+export const capsuleOf = (a: ArmAxis): Capsule => ({ n: a.pts.length, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii), mate: a.mate });
 
 /** The holes a skin's cuts leave (spec 10.1): a vessel with a side-wall arm on each side of the junction is not drawn between their seams; with an arm on one side only its cut is an ordinary one (the rest of the tube is inside the skin's reach). */
 export function holesOf(cuts: readonly SkinCut[]): { id: string; lo: number; hi: number }[] {
