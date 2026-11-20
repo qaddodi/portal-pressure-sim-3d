@@ -17,9 +17,24 @@ const STEP = 3;   // 2D units between added points (the copied courses are sampl
 const TRIM: Readonly<Record<string, readonly [number, number]>> = { A_HEP: [20, 64] };
 const trimmed = (id: string, path: readonly P2[]): readonly P2[] => { const t = TRIM[id]; return t && path.length >= t[1] ? path.slice(t[0], t[1]) : path; };
 
+/** The extra end of a vessel that runs on further than the 2D figure draws it: the rectal varices run on down the rectum (Mohammad, 20 Nov: "rectal varices should reach more"), the 2D course carried straight on along its last heading to `to`. */
+const END_ON: Readonly<Record<string, P2>> = { C4: [742, 1010] };
+export const endOn = (id: string): P2 | null => END_ON[id] ?? null;
+
 /** `path` with its start carried into the organ (or its ends cut), or `path` itself for a vessel that has neither. */
 export function withStartInOrgan(id: string, path0: readonly P2[]): readonly P2[] {
   const path = trimmed(id, path0);
+  const e = END_ON[id];
+  if (e && path.length >= 2) {
+    const [x1, y1] = path[path.length - 1]!, [ax, ay] = path[path.length - 4]!, d = Math.hypot(x1 - ax, y1 - ay) || 1, L = Math.hypot(e[0] - x1, e[1] - y1), n = Math.max(1, Math.round(L / STEP));
+    // (a gentle bend from the last heading onto the target, so the extension is a continuation and not a corner)
+    const post: P2[] = [];
+    for (let i = 1; i <= n; i++) { const t = i / n, hx = x1 + ((x1 - ax) / d) * L * 0.5 * t * (1 - t) * 2; post.push([hx + (e[0] - x1) * t, y1 + ((y1 - ay) / d) * L * 0.5 * t * (1 - t) * 2 + (e[1] - y1) * t]); }
+    return withStartInOrgan0(id, [...path, ...post]);
+  }
+  return withStartInOrgan0(id, path);
+}
+function withStartInOrgan0(id: string, path: readonly P2[]): readonly P2[] {
   const s = START_IN_ORGAN[id];
   if (!s || path.length < 2) return path;
   const [x0, y0] = path[0]!, [tx, ty] = s.to, d = Math.hypot(tx - x0, ty - y0), n = Math.max(1, Math.round(d / STEP));
