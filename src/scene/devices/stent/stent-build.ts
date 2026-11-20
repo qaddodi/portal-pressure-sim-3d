@@ -42,7 +42,10 @@ export interface StentPaths {
   wireR: number;
 }
 
-const RING_STEPS = 40;
+/** The most a wire is drawn thick (scene units): the 2D stent's struts are hairlines (1 to 1.4 px, stage-transitions.js), so the 3D ones stay fine however far the figure is zoomed; a device's own one-pixel grow keeps them seen. */
+export const WIRE_MAX_R = 0.0006;
+/** Steps round a wire's ring; the near (front) half is the first RING_STEPS + 1 stations, the far half the rest. */
+export const RING_STEPS = 40;
 const PROFILE_N = 96;
 const Z = new Vector3(0, 0, 1), X = new Vector3(1, 0, 0);
 

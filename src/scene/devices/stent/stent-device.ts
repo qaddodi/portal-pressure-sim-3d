@@ -10,7 +10,7 @@ import type { VesselObject } from '../../vessels/vessel-object.ts';
 import { UNITS_PER_SCENE } from '../../frame2d.ts';
 import { DeviceObject } from '../device-object.ts';
 import { mergeTubes } from '../tube-rings.ts';
-import { buildStent, type StentPaths, type StentSpec } from './stent-build.ts';
+import { buildStent, RING_STEPS, WIRE_MAX_R, type StentPaths, type StentSpec } from './stent-build.ts';
 import { EDGES, STENT_SITES } from '../../../engine/hales/portal/topology.js';
 import { endOf, endSiteOf, geomOf, kindOf } from '../../../engine/hales/portal/stent-geom.js';
 import { stentOpen } from '../../../engine/hales/portal/stent-ease.js';
@@ -20,7 +20,10 @@ const INSET = 2 / UNITS_PER_SCENE;   // the 2D draws the stent from 2 figure uni
 const FADE_MS = 420;
 const WIRE_RADIAL = 6, GRAFT_RADIAL = 24, GOLD_RADIAL = 6;
 /** The 2D device's own alpha for the graft: nearly clear (stent-mesh.js graftAlpha, 0.86 lit, a tenth of that in the shade; the tube is lit from every side, so the mean). */
-const GRAFT_ALPHA = 0.3;
+/** (The 2D graft is white where the light falls, 0.86, and a tenth of that in the shade; here, lit from every side, a milky sleeve over the lumen: the cover reads as a cover.) */
+const GRAFT_ALPHA = 0.5;
+/** The far wires of the weave, thinner and half seen (the 2D draws the back half at 0.5 and 0.12 of the front's strength), and the bright core along the near ones (the 2D's glint). */
+const BACK_ALPHA = 0.28, FRONT_ALPHA = 0.8, GLINT_ALPHA = 0.6, BACK_R = 0.7, GLINT_R = 0.38;
 
 interface Params { stentGeom?: unknown; stenosis?: unknown; thrombus?: unknown; stenosisSite?: unknown }
 interface Frame { D: ArrayLike<number> }
@@ -32,7 +35,7 @@ const swap = (o: DeviceObject, g: BufferGeometry): void => {
 export class StentDevice {
   readonly group = new Group();
   readonly id: 'TIPS' | 'DIPS';
-  readonly graft: DeviceObject; readonly wires: DeviceObject; readonly gold: DeviceObject;
+  readonly graft: DeviceObject; readonly back: DeviceObject; readonly wires: DeviceObject; readonly glint: DeviceObject; readonly gold: DeviceObject;
   readonly objects: DeviceObject[];
   /** how much of the stent is shown now (0 gone, 1 whole) and where it is going */
   amount = 0; goal = 0;
@@ -52,9 +55,11 @@ export class StentDevice {
     this.L = this.curve.getLength();
     const empty = mergeTubes([], WIRE_RADIAL);
     this.graft = new DeviceObject(empty.clone(), 'graft', shared, { px: 0.8, order: 1, spec: 0 }, 'ink');
-    this.wires = new DeviceObject(empty.clone(), 'stentWire', shared, { px: 0.7, order: 3 }, 'ink');
-    this.gold = new DeviceObject(empty.clone(), 'gold', shared, { px: 0.7, order: 4 }, 'ink');
-    this.objects = [this.graft, this.wires, this.gold];
+    this.back = new DeviceObject(empty.clone(), 'stentWire', shared, { px: 0.3, order: 2 }, 'ink');
+    this.wires = new DeviceObject(empty.clone(), 'stentWire', shared, { px: 0.4, order: 3 }, 'ink');
+    this.glint = new DeviceObject(empty.clone(), 'stentGlint', shared, { px: 0, order: 4, spec: 0 }, 'ink');
+    this.gold = new DeviceObject(empty.clone(), 'gold', shared, { px: 0.6, order: 5 }, 'ink');
+    this.objects = [this.graft, this.back, this.wires, this.glint, this.gold];
     for (const o of this.objects) this.group.add(o.group);
     this.group.visible = false;
   }
@@ -103,9 +108,12 @@ export class StentDevice {
 
   private rebuild(spec: StentSpec): void {
     const p = (this.paths = buildStent(spec));
-    swap(this.wires, mergeTubes(p.wires.map((w) => w.map((r) => ({ ...r, r: p.wireR }))), WIRE_RADIAL));
+    const wr = Math.min(p.wireR, WIRE_MAX_R), near = p.wires.map((w) => w.slice(0, RING_STEPS + 1)), far = p.wires.map((w) => w.slice(RING_STEPS));
+    swap(this.wires, mergeTubes(near.map((w) => w.map((r) => ({ ...r, r: wr }))), WIRE_RADIAL));
+    swap(this.back, mergeTubes(far.map((w) => w.map((r) => ({ ...r, r: wr * BACK_R }))), WIRE_RADIAL));
+    swap(this.glint, mergeTubes(near.map((w) => w.map((r) => ({ ...r, r: wr * GLINT_R }))), WIRE_RADIAL));
     swap(this.graft, mergeTubes([p.graft], GRAFT_RADIAL));
-    swap(this.gold, mergeTubes([p.band.map((r) => ({ ...r, r: p.wireR * 2.5 })), p.tab.map((r) => ({ ...r, r: p.wireR * 1.8 }))], GOLD_RADIAL));
+    swap(this.gold, mergeTubes([p.band.map((r) => ({ ...r, r: wr * 2.2 })), p.tab.map((r) => ({ ...r, r: wr * 1.8 }))], GOLD_RADIAL));
     this.narrowVessel(spec, p);
     this.apply();
   }
@@ -127,7 +135,7 @@ export class StentDevice {
   private apply(): void {
     const a = this.amount;
     this.group.visible = a > 0.002 && !!this.paths;
-    this.graft.setAlpha(a * GRAFT_ALPHA); this.wires.setAlpha(a); this.gold.setAlpha(a);
+    this.graft.setAlpha(a * GRAFT_ALPHA); this.back.setAlpha(a * BACK_ALPHA); this.wires.setAlpha(a * FRONT_ALPHA); this.glint.setAlpha(a * GLINT_ALPHA); this.gold.setAlpha(a);
     if (this.lastPalette) for (const o of this.objects) o.applyPalette(this.lastPalette);
     if (!this.paths) return;
     // the vessel's own narrowing eases with the stent: it is only there while the stent is
