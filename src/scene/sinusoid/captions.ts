@@ -42,6 +42,18 @@ export function readings(m: CapModel | null, porosity: number): NamesInput['text
   return { inValue: fmt1(m.P1), outValue: fmt1(m.P3), sin: fmt1(m.P2), fen: pct, lymph: `${lym} · ${prot}`, lymphTall: `${lym} · ${prot}` };
 }
 
+/** What a reading changes about where the names may stand: only how many characters each prints, never its value (the pulse and a treatment move a pressure by a tenth all the time, and a place
+ *  solved again for every tenth made the names jump: the same cause as the lobule names' flash, 20 Nov). The text is written again in place (SinusoidCaptions refreshReadings). */
+export function readingsSig(m: CapModel | null): string {
+  const t = readings(m, 0.5);
+  return [t.inValue, t.outValue, t.sin, t.lymph, t.lymphTall].map((x) => x.length).join(',');
+}
+/** The reading a placed name carries now (empty for a name with none). */
+export function readingOf(key: string, m: CapModel | null, porosity: number, tall: boolean): string | null {
+  const t = readings(m, porosity);
+  return key === 'in' ? t.inValue : key === 'out' ? t.outValue : key === 'sin' ? t.sin : key === 'fen' ? t.fen : key === 'lymph' ? (tall ? t.lymphTall : t.lymph) : null;
+}
+
 /** The lines a name is written in: its words (one a line), then each reading (a figure and its unit), then, while it is explained, the one line saying what the part is. */
 export interface Lines { name: string[]; value: string[]; note: string | null }
 export function linesOf(name: string, value: string, key: NameKey, explain: NameKey | null | undefined): Lines {
