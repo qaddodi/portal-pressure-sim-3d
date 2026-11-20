@@ -40,3 +40,8 @@ test('the distal end is its own section: a wider creased bending cover, then a c
   assert.ok(max > 1.08, 'wider than the tube'); assert.ok(max - min > 0.05, 'creased');
   assert.ok(m.TIP_WIDE >= m.BEND_WIDE - 1e-9, 'the cap is the cover\'s width');
 });
+
+test('the bending section is long (several tube widths), on both scopes', async () => {
+  const m = await import('../src/scene/devices/probes/scope.ts');
+  assert.ok(m.BEND_LEN >= 35);
+});
