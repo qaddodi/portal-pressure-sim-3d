@@ -15,6 +15,7 @@ import { slicesFor } from '../../circuit/geometry.ts';
 import { findSkinJunctions, skinNodesForPhase } from './inventory.ts';
 import { planSkins, type ArmTube } from './cuts.ts';
 import { buildSkin, hullCovers } from './mesh.ts';
+import type { Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, SKIN_HIDDEN, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
 import { hiWeightAt, lensUAt, liveFadeAt, type FadeState, type HiState } from './arm-twins.ts';
 import type { VesselObject } from '../vessel-object.ts';
@@ -24,7 +25,7 @@ import type { ArmAxis, ArmColour } from './skin-object.ts';
 export interface SkinDraw {
   readonly object: Object3D;
   /** the live handover for arm `i`: its tube's alpha at its seam, its highlight weight there, and its lens ramp's position there */
-  setArm(i: number, fade: number, hi: number, lensU: number, colour: ArmColour): void;
+  setArm(i: number, fade: number, hi: number, lensU: number, colour: ArmColour, narrow: number): void;
   /** a skin blends only when one of its arms does (a fade zone): opaque otherwise, as the tubes are */
   setTransparent(on: boolean): void;
   dispose(): void;
@@ -44,19 +45,20 @@ export interface SkinSetDeps {
 }
 
 /** One arm as the per-frame handover reads it: its tube, the seam's place along it and in the figure. */
-interface ArmLink { obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[] }
+interface ArmLink { /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[] }
 interface Built { node: string; mesh: SkinMesh; draw: SkinDraw; arms: ArmLink[] }
 
 /** The seam ring's vertices and normals of one arm, read from the tube `buildTubes` made (spec 4.4: not recomputed): `RADIAL` of them, in the tube's ring order. */
-function ringOf(g: BufferGeometry, ring: number): { pos: Float32Array; nor: Float32Array } {
-  const p = g.getAttribute('position'), n = g.getAttribute('normal');
-  const pos = new Float32Array(TUBE_RADIAL * 3), nor = new Float32Array(TUBE_RADIAL * 3);
+function ringOf(g: BufferGeometry, ring: number, radius: number): { pos: Float32Array; nor: Float32Array; rest: Float32Array } {
+  const p = g.getAttribute('position'), n = g.getAttribute('normal'), rk = g.getAttribute('rk');
+  const pos = new Float32Array(TUBE_RADIAL * 3), nor = new Float32Array(TUBE_RADIAL * 3), rest = new Float32Array(TUBE_RADIAL);
   for (let j = 0; j < TUBE_RADIAL; j++) {
     const i = ring * (TUBE_RADIAL + 1) + j;
     pos[j * 3] = p.getX(i); pos[j * 3 + 1] = p.getY(i); pos[j * 3 + 2] = p.getZ(i);
     nor[j * 3] = n.getX(i); nor[j * 3 + 1] = n.getY(i); nor[j * 3 + 2] = n.getZ(i);
+    rest[j] = radius * rk.getX(i);   // the tube's own rest radius here: the vertex stage's `radius * rk`
   }
-  return { pos, nor };
+  return { pos, nor, rest };
 }
 
 /** The centre of a tube's ring and its mean radius. */
@@ -69,16 +71,26 @@ function ringCentre(g: BufferGeometry, ring: number): { c: Vec3; r: number } {
   for (let j = 0; j < TUBE_RADIAL; j++) { const i = ring * (TUBE_RADIAL + 1) + j; r += Math.hypot(p.getX(i) - x, p.getY(i) - y, p.getZ(i) - z); }
   return { c: [x, y, z], r: r / TUBE_RADIAL };
 }
-/** The three points of an arm's axis its skin's ink is drawn from (spec 4.7), junction side first, the tube's own ring centres and radii: the arm's end ring, its seam ring, and the ring `AXIS_REACH_R` radii from the end (the capsule of spec 4.3 reaches 6). */
+/** The three points of an arm's axis its skin's ink and fillet are made from (spec 4.3, 4.7), junction side first. The seam point is the tube's own seam ring centre and radius (so the outline is exact there); the other two lie on the line through it along the tube's heading at the seam
+ *  (the difference of the neighbouring ring centres), the first as far back toward the node as the arm's end ring is, the last `AXIS_REACH_R` radii from that end: a straight capsule through the seam never kinks against the tube's smooth curve at it, which a polyline of the
+ *  tube's own, coarse, ring centres does (HA's left branch turns 45 degrees between two rings, a half pixel of ink off at the seam). Their radii are the end ring's and the tube's radius where the far point's ring is. */
 export const AXIS_REACH_R = 6;
 export function axisOf(tube: ArmTube, restR: number, cut: SkinCut): ArmAxis {
-  const end = cut.end ? tube.tubular : 0, step = cut.end ? -1 : 1;
-  const a = ringCentre(tube.geometry, end), s = ringCentre(tube.geometry, cut.ring);
-  let far = cut.ring, at = a.c;
-  for (let k = cut.ring; k >= 0 && k <= tube.tubular; k += step) { far = k; at = ringCentre(tube.geometry, k).c; if (Math.hypot(at[0] - a.c[0], at[1] - a.c[1], at[2] - a.c[2]) >= AXIS_REACH_R * restR) break; }
+  const out = cut.end ? -1 : 1, last = tube.tubular;
+  const end = cut.end ? last : 0, a = ringCentre(tube.geometry, end), s = ringCentre(tube.geometry, cut.ring);
+  const lo = Math.min(last, Math.max(0, cut.ring - out)), hi = Math.min(last, Math.max(0, cut.ring + out));   // (the ring nearer the node, the ring farther from it)
+  const cl = ringCentre(tube.geometry, lo).c, ch = ringCentre(tube.geometry, hi).c;
+  let tx = ch[0] - cl[0], ty = ch[1] - cl[1], tz = ch[2] - cl[2];
+  const tl = Math.hypot(tx, ty, tz) || 1; tx /= tl; ty /= tl; tz /= tl;
+  const d0 = Math.hypot(s.c[0] - a.c[0], s.c[1] - a.c[1], s.c[2] - a.c[2]), d2 = Math.max(AXIS_REACH_R * restR - d0, restR);
+  let far = cut.ring, at = s.c;
+  for (let k = cut.ring; k >= 0 && k <= last; k += out) { far = k; at = ringCentre(tube.geometry, k).c; if (Math.hypot(at[0] - a.c[0], at[1] - a.c[1], at[2] - a.c[2]) >= AXIS_REACH_R * restR) break; }
   const f = ringCentre(tube.geometry, far);
-  return { pts: [a.c, s.c, f.c], radii: [a.r, s.r, f.r] };
+  return { pts: [[s.c[0] - tx * d0, s.c[1] - ty * d0, s.c[2] - tz * d0], s.c, [s.c[0] + tx * d2, s.c[1] + ty * d2, s.c[2] + tz * d2]], radii: [a.r, s.r, f.r] };
 }
+
+/** An axis as the mesh builder's capsule (sdf.ts): the same three points and radii. */
+const capsuleOf = (a: ArmAxis): Capsule => ({ n: 3, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii) });
 
 export class SkinSet {
   private built: Built[] = [];
@@ -121,9 +133,9 @@ export class SkinSet {
     if (!js.length) return;
     const tubes = this.tubesOf(js);
     const warn = this.deps.warn ?? ((m: string) => console.warn(m));
-    const ringsFor = (cuts: SkinCut[]): { pos: Float32Array[]; nor: Float32Array[] } => {
-      const r = cuts.map((c) => ringOf(tubes.get(c.vesselId)!.geometry, c.ring));
-      return { pos: r.map((x) => x.pos), nor: r.map((x) => x.nor) };
+    const ringsFor = (cuts: SkinCut[]): { pos: Float32Array[]; nor: Float32Array[]; rest: Float32Array[] } => {
+      const r = cuts.map((c) => ringOf(tubes.get(c.vesselId)!.geometry, c.ring, NETWORK_BY_ID.get(c.vesselId)!.radius));
+      return { pos: r.map((x) => x.pos), nor: r.map((x) => x.nor), rest: r.map((x) => x.rest) };
     };
     const { plans, failures } = planSkins(js, tubes, () => (cs) => hullCovers(ringsFor(cs).pos));
     for (const f of failures) this.fail(f.node, f.message, warn);
@@ -133,15 +145,19 @@ export class SkinSet {
       try {
         const objs = j.arms.map((a) => this.deps.vessel(a.vesselId));
         if (objs.some((o) => !o)) continue;   // (a vessel not in this scene: no skin; the tubes are untouched)
-        const { pos, nor } = ringsFor(plan.cuts);
-        const mesh = buildSkin(j, plan.cuts, pos, nor);
-        const draw = this.deps.make(mesh, j.arms.map((a, i) => axisOf(tubes.get(a.vesselId)!, a.restR, plan.cuts[i]!)), objs as VesselObject[]);
+        const { pos, nor, rest } = ringsFor(plan.cuts);
+        // the arms' axes: the tubes' own ring centres and radii, the SAME three-point polylines the skin's fragment stage draws its ink from, so the mesh's fillet and its outline are one shape
+        const axes = j.arms.map((a, i) => axisOf(tubes.get(a.vesselId)!, a.restR, plan.cuts[i]!));
+        const mesh = buildSkin(j, plan.cuts, pos, nor, axes.map(capsuleOf));
+        // on a seam ring the skin's rest radius is the tube's own, exactly (the mesh builder measures the ring's mean radius, a few parts in 10^4 off the tube's `radius * rk`): the live move of a seam vertex is then the tube's to the last bit (spec 4.6)
+        mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));
+        const draw = this.deps.make(mesh, axes, objs as VesselObject[]);
         this.deps.add(draw.object);
         const arms: ArmLink[] = j.arms.map((a, i) => {
           const cut = plan.cuts[i]!, ring = pos[i]!;
           let x = 0, y = 0;
           for (let v = 0; v < TUBE_RADIAL; v++) { x += ring[v * 3]!; y += ring[v * 3 + 1]!; }
-          return { obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [] };
+          return { vi: cut.ring * (TUBE_RADIAL + 1), obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [] };
         });
         this.built.push({ node: j.node, mesh, draw, arms });
         // the tubes: cut at their seams, both ends of a vessel that two skins share in ONE cut (the second never overwrites the first); a vessel a merged skin replaces whole is hidden (2, -1)
@@ -185,8 +201,9 @@ export class SkinSet {
         const hi: HiState = { on: u.hiOn!.value as number, dir: u.hiDir!.value as number, offset: u.hiOffset!.value as number, ahead: u.hiAhead!.value as number, behind: u.hiBehind!.value as number, ends: [v('hiEnds').x, v('hiEnds').y], fade: u.hiFade!.value as number, len: u.len!.value as number };
         const f = liveFadeAt(fade, a.u, a.x, a.y), h = hiWeightAt(hi, a.u), l = lensUAt(a.span, a.u);
         const col = u.color!.value as { r: number; g: number; b: number }, lu = (u.lensUse!.value as number) > 0.5 ? 1 : 0;
-        if (a.last[0] !== f || a.last[1] !== h || a.last[2] !== l || a.last[3] !== col.r || a.last[4] !== col.g || a.last[5] !== col.b || a.last[6] !== lu) {
-          a.last = [f, h, l, col.r, col.g, col.b, lu]; b.draw.setArm(i, f, h, l, { r: col.r, g: col.g, b: col.b, a: lu }); any = true;
+        const nar = a.obj.toonMesh.geometry.getAttribute('narrow')?.getX(a.vi) ?? 0;   // (the stenosis waist the tube has at its seam; disease/clamps.ts writes it, only for a vessel that is stenosed)
+        if (a.last[0] !== f || a.last[1] !== h || a.last[2] !== l || a.last[3] !== col.r || a.last[4] !== col.g || a.last[5] !== col.b || a.last[6] !== lu || a.last[7] !== nar) {
+          a.last = [f, h, l, col.r, col.g, col.b, lu, nar]; b.draw.setArm(i, f, h, l, { r: col.r, g: col.g, b: col.b, a: lu }, nar); any = true;
         }
         if (a.obj.toon.transparent) blend = true;
       });

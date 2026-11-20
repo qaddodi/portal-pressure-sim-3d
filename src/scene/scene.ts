@@ -13,7 +13,7 @@ import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
 import { SkinSet } from './vessels/skin/skin-set.ts';
 import { SkinObject } from './vessels/skin/skin-object.ts';
-import { joinsMode, joinsPhase } from './vessels/skin/joins-mode.ts';
+import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
 /** A hepatic vein that opens into the cava dissolves over the last 0.8 of a cava radius before its wall (shaders.ts cavA) and is not there inside it: its flow marks are held back from where the dissolve starts, 1.8 cava radii from the vein's end
  *  (times the marks' ramp, 2.0 to 3.6, shaders.ts markK), so no chevron is ever caught half faded in it (eyes, v11). */
@@ -140,6 +140,8 @@ export interface SceneOptions {
   phone?: boolean;
   flowMode?: FlowMarkMode;
   reduceMotion?: boolean;
+  /** Which junction method to draw (vessels/skin/joins-mode.ts): the page's `?joins` and the default when left out. A test hands one in. */
+  joins?: JoinsMode;
 }
 
 /** A fork's two tubes know each other (vessels/neighbour.ts): `nbr` on every vertex. */
@@ -253,6 +255,7 @@ export class CelScene {
 
   constructor(opts: SceneOptions = {}) {
     this.look = opts.look ?? 'light';
+    this.joins = opts.joins ?? joinsMode();
     this.phone = !!opts.phone;
     this.rig = new CameraRig('title', undefined, opts.reduceMotion);
 
@@ -340,8 +343,11 @@ export class CelScene {
 
   /** Junction skins (vessels/skin, docs/junction-skin-spec.md): one welded mesh at each junction the page asks for, only with Smooth vessel joins on and `?joins` not `old`. Built here, once per scene load and per join toggle; null: today's joins everywhere. */
   private skins: SkinSet | null = null;
+  private readonly joins: JoinsMode;
+  /** The junction skins now drawn (the node names), for tests and the debug page. */
+  get skinNodes(): readonly string[] { return this.skins?.nodes ?? []; }
   private refreshSkins(): void {
-    const phase = useSettings.getState().smoothJoins ? joinsPhase(joinsMode()) : 0;
+    const phase = useSettings.getState().smoothJoins ? joinsPhase(this.joins) : 0;
     if (!phase) { this.skins?.dispose(); this.skins = null; return; }
     this.skins ??= new SkinSet({
       vessel: (id) => this.byEdge.get(id) as VesselObject | undefined,

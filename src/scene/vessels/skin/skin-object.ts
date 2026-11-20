@@ -6,7 +6,7 @@ import { VESSEL_LAYER } from '../../layers.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import { SKIN_ARMS, SKIN_FS, SKIN_VS } from './shaders.ts';
 import type { SkinDraw } from './skin-set.ts';
-import { SKIN_K } from './sdf.ts';
+import { skinKOf } from './sdf.ts';
 import type { SkinMesh, Vec3 } from './types.ts';
 
 /** The uniforms the skin shares with its arm tubes, by reference (taken from the first arm: every vessel's copy has the same value, and each one follows the same writers: the look, the lens, the engine, the Circuit). */
@@ -45,7 +45,6 @@ export class SkinObject implements SkinDraw {
     this.armColor = Array.from({ length: SKIN_ARMS }, () => new Vector4(0, 0, 0, 1));
     const armAxis = Array.from({ length: SKIN_ARMS * 3 }, () => new Vector3()), armAxisR: number[] = new Array(SKIN_ARMS * 3).fill(0);
     axes.forEach((ax, i) => ax.pts.forEach((p, k) => { armAxis[i * 3 + k]!.set(p[0], p[1], p[2]); armAxisR[i * 3 + k] = ax.radii[k]!; }));
-    const min = Math.min(...skin.junction.arms.map((a) => a.restR));
     this.material = new ShaderMaterial({
       name: 'skin',
       vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true,
@@ -54,8 +53,8 @@ export class SkinObject implements SkinDraw {
         // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
         color: du.color!,
         lensUse: { value: 1 },
-        armData: { value: this.armData }, armLensU: { value: [0, 0, 0, 0] }, armFade: { value: [1, 1, 1, 1] }, armHi: { value: [0, 0, 0, 0] }, armColor: { value: this.armColor },
-        armAxis: { value: armAxis }, armAxisR: { value: armAxisR }, skinK: { value: skinKOf(min) },
+        armData: { value: this.armData }, armLensU: { value: [0, 0, 0, 0] }, armFade: { value: [1, 1, 1, 1] }, armHi: { value: [0, 0, 0, 0] }, armNarrow: { value: [0, 0, 0, 0] }, armColor: { value: this.armColor },
+        armAxis: { value: armAxis }, armAxisR: { value: armAxisR }, skinK: { value: skinKOf(skin.junction.arms) },
       },
     });
     this.mesh = new Mesh(g, this.material);
@@ -72,9 +71,9 @@ export class SkinObject implements SkinDraw {
     this.armColor[i]!.set(c.r, c.g, c.b, (o.toon.uniforms.lensUse!.value as number) > 0.5 ? 1 : 0);
   }
 
-  setArm(i: number, fade: number, hi: number, lensU: number, colour?: ArmColour): void {
+  setArm(i: number, fade: number, hi: number, lensU: number, colour?: ArmColour, narrow = 0): void {
     const u = this.material.uniforms;
-    (u.armFade!.value as number[])[i] = fade; (u.armHi!.value as number[])[i] = hi; (u.armLensU!.value as number[])[i] = lensU;
+    (u.armFade!.value as number[])[i] = fade; (u.armHi!.value as number[])[i] = hi; (u.armLensU!.value as number[])[i] = lensU; (u.armNarrow!.value as number[])[i] = narrow;
     if (colour) this.armColor[i]!.set(colour.r, colour.g, colour.b, colour.a);
   }
 
@@ -83,5 +82,3 @@ export class SkinObject implements SkinDraw {
   dispose(): void { this.mesh.geometry.dispose(); this.material.dispose(); }
 }
 
-/** The smooth-min blend width of a skin, scene units: SKIN_K of the narrowest arm's radius (spec 4.3; sdf.ts owns the factor). */
-export const skinKOf = (narrowestR: number): number => SKIN_K * narrowestR;
