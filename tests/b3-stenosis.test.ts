@@ -12,7 +12,7 @@ import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { UNITS_PER_SCENE as U } from '../src/scene/frame2d.ts';
 import { VESSEL_VS, VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { CelScene } from '../src/scene/scene.ts';
-import { MARK, markScale, placeMarks } from '../src/scene/labels/clamp-marks.ts';
+import { MARK, MARK_PATH, markScale, placeMarks } from '../src/scene/labels/clamp-marks.ts';
 import { readFileSync } from 'node:fs';
 
 const STENOSABLE = MAPPED.filter((v) => isClampable(v.id));
@@ -135,20 +135,22 @@ test('the placing: the tip stands a gap off the pinched wall on each side, the h
     }
   }
   assert.equal(placeMarks({ x: 5, y: 5 }, { x: 5, y: 5 }, 0.5), null, 'a vessel seen end-on has no side to mark');
-  assert.ok(markScale(1) === 0.85 && markScale(100) === 1.4);
+  assert.ok(markScale(1) === 0.95 && markScale(100) === 1.5);
 });
 
-test('the marks are drawn by the label layer in the tags phase with transform and opacity only, from the shared css', () => {
+test('the marks are bold chevrons with the labels\' halo, drawn by the label layer in the tags phase with transform and opacity only', () => {
   const dom = readFileSync(new URL('../src/scene/labels/clamp-marks.ts', import.meta.url), 'utf8');
   const layer = readFileSync(new URL('../src/scene/labels/LabelLayer.tsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../src/scene/labels/labels.css', import.meta.url), 'utf8');
   assert.match(layer, /clampMarks\.paint\(cel\.disease\.clamps\.marks\(\)\)/);
-  assert.doesNotMatch(dom, /style\.(left|top|width|height|display)\b/, 'no layout property is written');
+  assert.doesNotMatch(dom, /style\.(left|top|width|height|display)\b/, 'no layout property is written in a frame');
   assert.doesNotMatch(dom, /requestAnimationFrame/);
-  const block = css.match(/\.cm::before \{[^}]*\}/)![0], stem = css.match(/\.cm::after \{[^}]*\}/)![0];
-  assert.match(block, new RegExp(`width: ${MARK.head}px; height: ${MARK.wing}px`));
-  assert.match(block, new RegExp(`top: -${MARK.wing / 2}px`));
-  assert.match(stem, new RegExp(`width: ${MARK.stem}px; height: ${MARK.line}px`));
+  assert.equal(MARK_PATH, `M${MARK.len} ${-MARK.span / 2}L0 0L${MARK.len} ${MARK.span / 2}`, 'a chevron: two arms meeting at the tip, no stem');
+  assert.match(dom, /class="cm-halo"[^>]*\/><path class="cm-ink"/, 'the halo is drawn under the ink');
+  assert.match(css, /\.cm-halo \{ stroke: var\(--lb-halo\); stroke-width: calc\(var\(--cm-stroke\) \+ 2 \* var\(--lb-halo-w\)\); \}/, 'the halo is the labels\' own');
+  assert.match(css, /\.cm-ink \{ stroke: var\(--lb-val\)/);
+  assert.doesNotMatch(css, /\.cm::(before|after)/, 'no hairline');
+  assert.ok(MARK.stroke >= 3 && MARK.span >= 14, 'prominent');
 });
 
 // ── the cavernoma's hubs (Mohammad, 20 Nov: "the collaterals fan out from faceted star hubs"): the six channels meet at the two nodes, each ending in a fine tip, never a widened, collared, round-capped end ──
