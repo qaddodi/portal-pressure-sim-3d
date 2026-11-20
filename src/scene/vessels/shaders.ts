@@ -23,6 +23,11 @@ import { TUBE_RADIAL } from './tubes.ts';
 
 /** The tube's ring is a polygon of TUBE_RADIAL sides: its corners stand 1 / cos(pi / n) - 1 of the radius outside its flats. The tube is built that much fatter, so the silhouette never falls inside the outline. */
 export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
+/** How much of a tube's own round depth its pixels keep. The figure is a stack of tiers 0.01 to 0.02 apart (frame2d.ts TIER_Z) whose order is the 2D figure's over and under (the hepatic artery between the cava and the portal vein),
+ *  but a round tube's front stands its RADIUS in front of its axis: the cava (z -0.02, radius 0.027) bulged 0.007, past the hepatic artery's axis (z 0.0) and its own front (0.005), and hid it (Mohammad, 20 Nov: "fix the hepatic artery
+ *  to be between the IVC and PV"). The vertex shader moves each vertex's depth (along its own ray: nothing moves on screen) to the axis's depth plus this share of the bulge, so a crossing is decided by the tiers and the thick tube's bulge
+ *  (at most 0.15 x 0.035 = 0.005, under the narrowest gap that has to hold, cava to artery 0.02) only sorts two tubes of one tier. */
+export const TUBE_DEPTH_SHARE = 0.15;
 import { CIRC_INK_K, CIRC_INNER, TAPER_FROM, TAPER_TO } from './cel-ink.ts';
 
 export const VESSEL_VS = /* glsl */ `
@@ -165,6 +170,7 @@ ${CIRCUIT_VS_CALL}
   vV = normalize(-mv.xyz);
   vUv = uv;
   vec4 c = projectionMatrix * mv;
+  c.z = mix(cc.z / cc.w, c.z / c.w, ${F(TUBE_DEPTH_SHARE)}) * c.w;   // depth by the tier of the axis (TUBE_DEPTH_SHARE): a fat tube at a lower tier never bulges over a thin one above it
   vW = c.w;
   gl_Position = c;
   // a tube of no radius (a strand a band has closed, a channel not yet grown) is not drawn: not even its ink, which has a width of its own on screen
@@ -369,8 +375,8 @@ void main() {
   if (streakAmt > 0.001 && vR > 0.0) {
     vec4 smS = texelFetch(streamTex, ivec2(int(lensIndex), 0), 0);   // the blood's own distance and speed on this vessel: reversed runs back, none stands
     float rFix = max(radius * vU, 1e-3);   // (the vessel's own radius, not its live width: the pattern does not slip when a stenosis narrows it)
-    float sc = ${F(STREAK.FIELD_AT_R)} / rFix;
     float rCss = vR / max(vW * 2.0 / (res.y * projY) * vU, 1e-6);
+    float sc = ${F(STREAK.FIELD_AT_R)} / rFix * rCss / clamp(rCss, ${F(STREAK.LEN_R_PX[0])}, ${F(STREAK.LEN_R_PX[1])});   // (the pattern's scale: a streak is 24 to 96 CSS px long whatever the zoom, STREAK.LEN_R_PX)
     gStreakPx = rCss;   // (the lumen's radius in CSS px: the field draws a core of CORE_PX on screen)
     gStreakWide = smoothstep(${F(STREAK.WIDE_R_PX[0])}, ${F(STREAK.WIDE_R_PX[1])}, rCss);
     gStreakLanes = rCss < ${F(STREAK.LANE_R_PX[0])} ? 1.0 : rCss < ${F(STREAK.LANE_R_PX[1])} ? 3.0 : 5.0;   // (the lanes by the width on screen: 1 under 8 px across, 3 to 16 px, 5 above)

@@ -84,7 +84,7 @@ test('at the default fit the streaks are sleek and seen: a core of about 1 px, 2
       if (R < STREAK.MIN_R_PX) { assert.equal(lanes, 0, `${v.id}: none under 3.5 px across`); continue; }
       assert.ok(lanes === 1 || lanes === 3 || lanes === 5, `${v.id} lanes ${lanes}`);
       if (R < 4) assert.equal(lanes, 1, `${name} ${v.id}: ${lanes} lanes on a ${(2 * R).toFixed(1)} px vessel`);
-      assert.ok(streakCorePx(R, lanes, true) >= 1.1 && streakCorePx(R, lanes, false) <= 1.9, `${name} ${v.id}: core ${streakCorePx(R, lanes, true).toFixed(2)} px`);
+      assert.ok(streakCorePx(R, lanes, true) >= 0.8 && streakCorePx(R, lanes, false) <= 1.1, `${name} ${v.id}: core ${streakCorePx(R, lanes, true).toFixed(2)} px`);
       const meanLen = STREAK.FIELD_LEN_R * R;   // (px: the field's 5 units to a radius)
       if (R >= 2 && R <= 5) assert.ok(meanLen >= 24 && meanLen <= 60, `${name} ${v.id}: a streak ${meanLen.toFixed(0)} px long`);
       const L = len(courseOf(v.id)) * k, period = ((STREAK.FIELD_PERIOD[0] + STREAK.FIELD_PERIOD[1] * 0.5) / STREAK.FIELD_AT_R) * R;
@@ -94,11 +94,11 @@ test('at the default fit the streaks are sleek and seen: a core of about 1 px, 2
   }
 });
 
-test('on a tube 8 px across there are visibly several streaks along 200 px, with a core of 1.3 px or more, and the tint is 1.15:1 to 1.45:1 against the lit body at the middle of its range, in Light and Dark', () => {
+test('on a tube 8 px across there are visibly several streaks along 200 px, with a 1 px core, and the tint is 1.15:1 to 1.45:1 against the lit body at the middle of its range, in Light and Dark', () => {
   const R = 4, lanes = lanesForPx(R), period = ((STREAK.FIELD_PERIOD[0] + STREAK.FIELD_PERIOD[1] * 0.5) / STREAK.FIELD_AT_R) * R;
   assert.equal(lanes, 3);
   assert.ok((lanes * 200) / period * (1 - STREAK.FIELD_GAP) >= 4, `${((lanes * 200) / period).toFixed(1)} streaks over 200 px`);
-  assert.ok(streakCorePx(R, lanes, true) >= 1.1 && STREAK.CORE_PX >= 1.3);
+  assert.ok(streakCorePx(R, lanes, true) >= 0.8 && STREAK.CORE_PX === 1);
   for (const id of ['light', 'dark'] as const) {
     const p = PALETTES[id];
     for (const v of ['portal', 'sys'] as const) {
