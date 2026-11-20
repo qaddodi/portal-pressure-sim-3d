@@ -3,7 +3,7 @@
 //      or lanes side by side for the Blood origin and First pass lenses. Two lenses are held and crossfaded by `lensMix`, so a lens switch is
 //      one uniform tween on the clock, no CPU work per frame.
 //   2. Moving blood: the 2D app's flow heads (chevron-glsl.js chevHead, blood-heads.js): a slim head with a notched back, 4 to 8 CSS px of half width,
-//      one every 130 CSS px along the vessel (the spacing level 28 * 2^n units, coarser heads a subset of finer ones), riding the stream the CPU keeps
+//      one every 67 CSS px (45 to 89 with the lattice's levels) along the vessel (the spacing level 28 * 2^n units, coarser heads a subset of finer ones), riding the stream the CPU keeps
 //      (streams.ts: distance, display speed, eased reversed flag); near-black on a light lumen and cream on a dark one, orange where reversed with a
 //      second small head behind; stagnant blood in a big vein drifts as smoke.
 //   3. Closed potential collaterals: a dotted thread (`dotted` 1) instead of a tube.
@@ -13,7 +13,7 @@
 
 import { CIRCUIT_VS_CALL, CIRCUIT_VS_HEAD } from '../circuit/shader.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
-import { CHEVRON_GLSL } from '../blood/chevron-glsl.ts';
+import { CHEV, CHEVRON_GLSL } from '../blood/chevron-glsl.ts';
 import { STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
 import { STREAK } from '../blood/streak-glsl.ts';
 import { QUIET_BACK } from '../camera/quiet.ts';
@@ -271,7 +271,7 @@ vec2 chevOne(float s, float Lw, float se, float Bm, float Dm, float vd, float rv
   float n0 = floor(lv), P = 28.0 * exp2(n0);
   float j = floor((se - Dm) / P + 0.5);
   float x = (se - (Dm + j * P)) / (abs(Bm) < 0.05 ? (Bm < 0.0 ? -0.05 : 0.05) : Bm), sc = s - x;
-  float hw = min(0.6 * R, clamp(0.5 * R, 4.0 * wpc, 8.0 * wpc)), L = 1.6 * hw;   // (a head's half width is at most 0.6 of the tube's radius, so it and its ring stay inside the lumen)
+  float hw = min(${F(CHEV.TUBE_SHARE)} * R, clamp(0.5 * R, ${F(CHEV.MIN_HW_PX)} * wpc, ${F(CHEV.MAX_HW_PX)} * wpc)), L = 1.6 * hw;   // (a head is 6 CSS px tall from a tube 6 px across, as tall as the tube on a narrower one)
   if (abs(x) > (0.6 + 0.4 * rv) * L + 0.15 * hw + 4.0 * px) return vec2(0.0);
   float lo = 0.6 * L, ramp = max(2.0 * L, 0.12 * Pt);
   float a0 = sc < lo ? 0.0 : smoothstep(lo, lo + ramp, sc), a1 = Lw - sc < lo ? 0.0 : smoothstep(lo, lo + ramp, Lw - sc);
@@ -374,9 +374,10 @@ void main() {
     float rFix = max(radius * vU, 1e-3);   // (the vessel's own radius, not its live width: the pattern does not slip when a stenosis narrows it)
     float sc = ${F(STREAK.FIELD_AT_R)} / rFix, nL = rFix >= ${F(STREAK.LANE_7)} ? ${F(STREAK.LANES)} : rFix >= ${F(STREAK.LANE_5)} ? 5.0 : 3.0;
     float rCss = vR / max(vW * 2.0 / (res.y * projY) * vU, 1e-6);
-    gStreakPx = rCss;   // (the lumen's radius in CSS px: the field holds a streak's core to MIN_PX where its lane allows)
+    gStreakPx = rCss;
+    gStreakLanes = clamp(2.0 * floor((floor(2.0 * ${F(STREAK.FIELD_EDGE)} * rCss / ${F(STREAK.LANE_PX)}) - 1.0) * 0.5) + 1.0, 1.0, ${F(STREAK.LANES)});   // (the lanes by the width on screen: 1 to 7 of about LANE_PX px)   // (the lumen's radius in CSS px: the field holds a streak's core to MIN_PX where its lane allows)
     float fld = streakField(across, vUv.x * len * vU * sc, smS.x * sc, nL * ${F(STREAK.FIELD_PITCH / 2)} + 0.01, 1.0, 1.0);
-    float sOn = streakAmt * smoothstep(2.5, 3.5, rCss) * smoothstep(0.02, 0.2, abs(smS.y));
+    float sOn = streakAmt * smoothstep(1.8, 2.6, rCss) * smoothstep(0.02, 0.2, abs(smS.y));
     streakCover = sOn * fld;
     cBody = c;
     c = mix(c, streakTone(c, mix(c, vec3(1.0), ${F(STREAK.LIFT)}), gStreakK.x, gStreakK.y), streakCover);
@@ -410,7 +411,7 @@ void main() {
     float wpc = vW * 2.0 / (res.y * projY) * vU;      // the figure's units under one CSS px here
     float R = max(vR, 0.3), Lw = len * vU, s = vUv.x * Lw;
     float px = clamp(pxArc, 0.15 * wpc, 1.5 * wpc);   // (held to a CSS pixel: at a grazing silhouette the arc's derivative runs away and would smear a head)
-    float Pt = 130.0 * wpc;
+    float Pt = ${F(CHEV.PITCH_PX)} * wpc;
     vec4 c4 = texelFetch(chainTex, ivec2(int(lensIndex), 0), 0), c5 = texelFetch(chainTex, ivec2(int(lensIndex), 1), 0);
     vec2 ch = vec2(0.0);
     if (c4.w < 1.0) ch = chevOne(s, Lw, s, 1.0, Dm, vd, rv, c5.xy, R, across, wpc, Pt, px);
@@ -419,15 +420,14 @@ void main() {
       vec2 cc = chevOne(s, Lw, c4.y + c4.z * s, c4.z, rootD, vd, rv, c5.xy, R, across, wpc, Pt, px);
       ch = c4.w >= 1.0 ? cc : mix(ch, cc, c4.w);
     }
-    float hwv = min(0.6 * R, clamp(0.5 * R, 4.0 * wpc, 8.0 * wpc));
-    // heads come in only on a tube wide enough to carry one that reads as a head (half width 3.5 CSS px, so R from 5.8 px: a smaller one is a dot), and are cut a little inside the wall (never on the ink or the edge)
-    float fade = flowAmount * smoothstep(5.8 * wpc, 7.0 * wpc, R) * (1.0 - smoothstep(0.78, 0.78 + acrossW, abs(across)));
+    // heads are on every tube down to about 4 CSS px across (R 1.5 px: the spacing never depends on the width), and are cut at the wall (never on the ink)
+    float fade = flowAmount * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R) * (1.0 - smoothstep(0.93, 0.93 + acrossW, abs(across)));
     fade *= mix(0.3, 1.0, smoothstep(0.5, 3.0, abs(vd)));
     if (fade > 0.0 && ch.x + ch.y > 0.0) {
       float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);
       // one flat tone for the head, never a grey halfway: dark ink on a light lumen, cream on a dark one, decided by a hard step on the lumen's luminance (2D blended over 0.175 to 0.205, which on a mid lavender is a grey head)
       float rk = rv * (1.0 - origin), warm = rk * chevOrange(base);
-      vec3 core = mix(mix(chevInk(base, markDark, markLight), markRev, rk), markLight, warm);   // (the one chevron's tone: blood/chevron-glsl.ts)
+      vec3 core = mix(mix(chevInk(celTubeBase(base), markDark, markLight), markRev, rk), markLight, warm);   // (the one chevron's tone: blood/chevron-glsl.ts)
       vec3 rimc = CHEV_RIM;   // the head's outline is always the dark ink: a flat head with a dark line, never a pale ring
       float ar = clamp(ch.y * 0.75 * fade, 0.0, 1.0), ac = clamp(ch.x * fade, 0.0, 1.0);
       float ha = ac + ar * (1.0 - ac);

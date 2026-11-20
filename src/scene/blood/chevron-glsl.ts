@@ -6,6 +6,9 @@
 //   chevHead(u, ay, hw, px, rev)           (coverage, ring) of one head, px the pixel in the same unit
 //   chevInk(base, markDark, markLight)     the head's core tone on a lumen of colour `base`
 //   chevLattice(arc, across, pitch, px, dir)  heads every `pitch` along `arc`, in a tube whose face runs -1 .. 1 across: heads in the middle 0.6 of it (never near the wall), pointing toward `dir`
+/** The Anatomy's and the Circuit's heads on screen (vessels/shaders.ts chevOne), in CSS px, whatever the zoom: the lattice's spacing is PITCH_PX at the level where a head is added and 1.33 x PITCH_PX where the finer ones have just left (chevKeep), so heads stand
+ *  every 45 to 89 px along the vessel whatever its width, down to the thinnest tube that can carry one (MIN_R_PX: under 3 px across there is none); a head's half width is half the tube's radius held between MIN_HW_PX and MAX_HW_PX (so it is 6 px tall from a tube 6 px across, the tube's own width on a narrower one) and never over TUBE_SHARE of the radius. tests/chevron-visible.test.ts measures them over the real network at the default fit. */
+export const CHEV = { PITCH_PX: 67, MIN_R_PX: 1.5, MIN_HW_PX: 3, MAX_HW_PX: 8, TUBE_SHARE: 1 } as const;
 export const CHEVRON_GLSL = /* glsl */ `
 float chevD(float u, float ay, float hw) {
   float L = 1.6 * hw, tip = 0.55 * L, back = -0.45 * L, notch = 0.32 * L, k = L / hw;
@@ -36,6 +39,7 @@ float chevKeep(float j, float n0, float lv) {
 // the head's ring: always the dark ink, never a pale ring
 const vec3 CHEV_RIM = vec3(0.2314, 0.1725, 0.1333);
 // one flat tone for the head, never a grey halfway: dark ink on a light lumen, cream on a dark one, a hard step on the lumen's luminance (2D blended over 0.175 to 0.205, which on a mid lavender is a grey head)
+// (base is the lit tone the tube is DRAWN in, celTubeBase(lens colour): the dark looks cap it brighter, so the head's tone follows what is on screen)
 vec3 chevInk(vec3 base, vec3 markDark, vec3 markLight) {
   float dk = 1.0 - step(0.19, dot(pow(max(base, vec3(0.0)), vec3(2.2)), vec3(0.2126, 0.7152, 0.0722)));
   return mix(mix(markDark, base * 0.3, 0.2), markLight, dk);

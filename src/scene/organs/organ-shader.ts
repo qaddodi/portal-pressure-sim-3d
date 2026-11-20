@@ -17,6 +17,9 @@ varying vec3 vInk;
 // organ depth (organ-depth.ts): how tucked in this vertex is, 0..1, baked at load (a geometry without it reads 0)
 attribute float depthAo;
 varying float vAo;
+// the liver look's place in its texture (liver-texture.ts): the vertex's rest place in the 2D figure; the other organs leave it 0
+attribute vec2 restUV;
+varying vec2 vRest;
 uniform vec4 box;
 varying vec3 vN;
 varying vec3 vNw;   // the normal in WORLD axes (the model matrix: the light is fixed in the world, not on the screen)
@@ -29,6 +32,7 @@ void main() {
   vNw = normalize(mat3(modelMatrix) * normal);
   vV = normalize(-mv.xyz);
   vAo = depthAo;
+  vRest = restUV;
   // where this point sits in the organ's own 2D box: (0,0) top left, (1,1) bottom right, as the SVG gradient's objectBoundingBox
   vBox = vec2((position.x - box.x) / max(box.z, 1e-5), (box.y - position.y) / max(box.w, 1e-5));
 #ifdef VERTEX_INK
@@ -55,6 +59,12 @@ uniform float rimK;      // the rim light's opacity (0 on the liver and the stom
 uniform vec3 page;
 uniform float layer;
 uniform float inkAmount;
+// the liver look (liver-texture.ts): R septum, G tone, B light; nodAmt 0 when the organ has none
+uniform sampler2D nodTex;
+uniform float nodAmt;
+uniform vec3 sepDelta;
+uniform vec2 nodK;
+varying vec2 vRest;
 // Settings > Figure depth: organDepth (0 off, 1 on, eased) adds the baked crease and contact shade and a soft light from the upper left
 uniform float depthAmt;
 // the dive's cutaway window (atlas-look-plan 3.1): x, y the dive point on the screen (ndc), z the radius that is cleared (ndc half-heights; below 0 nothing is), w the aspect; the same for every organ
@@ -83,6 +93,13 @@ void main() {
   // what varies over the surface (nodules, the dead spleen, the pool) moves the fill by as much as it moves the organ's one colour
   fill += (vInk - color) * inkAmount;
 #endif
+  if (nodAmt > 0.0) {
+    vec4 nt = texture2D(nodTex, vRest);
+    fill += sepDelta * nt.r;
+    fill *= 1.0 + (nt.g - 0.5) * nodK.y * nodAmt;
+    float nl = (nt.b - 0.5) * 2.0;
+    fill = mix(fill, nl > 0.0 ? ogLight.rgb : ogDark.rgb, abs(nl) * nodK.x * nodAmt * (1.0 - nt.r));
+  }
   // #ogVol (2D stage.js): --light-ink at its first stop's opacity from the centre out to the light's end, then --og-vol-shade from its start to the rim
   float r = distance(vBox, volGeo.xy) / volGeo.z;
   fill = mix(fill, volLight.rgb, volLight.a * (1.0 - clamp(r / volGeo.w, 0.0, 1.0)));

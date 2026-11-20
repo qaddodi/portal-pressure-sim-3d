@@ -115,7 +115,14 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
 
   /** 2D's declutter, here for every size: names that still overlap (a large text size, a small room, a card open) step apart, the later one moving the least way that clears every other and keeps it
    *  in the free room; the ends stay where their arrows are. A name that has moved gets its leader again from what it names. */
-  const settle = (list: NamePlacement[]): NamePlacement[] => {
+  const settle = (all: NamePlacement[]): NamePlacement[] => {
+    // a name whose tissue is off the free room (panned or zoomed away) would be held over some other tissue (a plate's name in the lumen, over the Kupffer cell; Mohammad, 20 Nov 2026): it stands
+    // aside until what it names is back on screen (the label layer fades it out). What it names: its leader's end where it has one, else its own place
+    const list = V ? all : all.filter((n) => {
+      if (n.end) return true;
+      const t = aim.get(n.key) ?? [n.x, n.y], [, ty] = toScreen(t[0], t[1]);
+      return ty >= fe.t - 2 && ty <= fe.b + 2;
+    });
     const GAP = 4, bx = (n: NamePlacement) => ({ x0: n.cx - n.w / 2, x1: n.cx + n.w / 2, y0: n.cy - n.hh / 2, y1: n.cy + n.hh / 2 });
     const hits = (a: NamePlacement, cx: number, cy: number, b: NamePlacement) => cx - a.w / 2 < b.cx + b.w / 2 + GAP && cx + a.w / 2 > b.cx - b.w / 2 - GAP && cy - a.hh / 2 < b.cy + b.hh / 2 + GAP && cy + a.hh / 2 > b.cy - b.hh / 2 - GAP;
     const inside = (a: NamePlacement, cx: number, cy: number) => cx - a.w / 2 >= fe.l - 0.5 && cx + a.w / 2 <= fe.r + 0.5 && cy - a.hh / 2 >= fe.t - 0.5 && cy + a.hh / 2 <= fe.b + 0.5;

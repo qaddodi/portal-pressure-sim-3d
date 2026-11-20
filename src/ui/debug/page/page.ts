@@ -177,6 +177,7 @@ export function mountPage(kind: 'gallery' | 'check' | 'full' | 'frame'): void {
   useSettings.subscribe(() => setTimeout(paintLooks, 50));
 
   attach('vessels', () => cel.probeVessels());
+  attach('rig', () => { const p = cel.rig.pose; return { target: [...p.shot.target], half: [...p.shot.half], yaw: p.shot.yaw, pitch: p.shot.pitch, r: p.shot.r }; });   // the camera's pose now, for a per-frame measurement (pps.rig() in a rAF loop)
   attach('debug', { catalog: () => cat, open: (id: string) => { const e = byId(cat, id); return e ? open(e) : Promise.reject(new Error(`no specimen ${id}`)); }, settle, sweep: (s: string, l: string[]) => sweep(s, l), check: (full = false) => walk(full), packet: packetNow, report: () => outText });
 
   // ── what the address asks for ──

@@ -138,8 +138,8 @@ test('the tones follow the radius, never the position: a thin tube is all one to
 test('nothing inside the tube but the two tones and the flow heads: no highlight, no soft rings, heads clipped inside the wall, no dot-sized heads', () => {
   assert.doesNotMatch(VESSEL_FS, /smoothstep\(0\.0, 1\.8 \* px/, 'a head\'s ring is a hard outline, not a halo');
   assert.match(VESSEL_FS, /abs\(across\)\)\);/, 'heads are cut inside the wall');
-  assert.match(VESSEL_FS, /smoothstep\(5\.8 \* wpc, 7\.0 \* wpc, R\)/, 'a head needs a tube wide enough to read as one');
-  assert.match(VESSEL_FS, /float hw = min\(0\.6 \* R/, 'a head and its ring stay inside the lumen');
+  assert.match(VESSEL_FS, /smoothstep\(1\.5 \* wpc, 2\.1 \* wpc, R\)/, 'a head needs a tube 3 px across or more (chevron-visible.test.ts)');
+  assert.match(VESSEL_FS, /float hw = min\(1\.0 \* R/, "a head is never wider than the lumen");
   assert.ok(!('SPEC' in CEL_STYLE), 'the style has no highlight');
 });
 
