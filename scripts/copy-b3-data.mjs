@@ -38,12 +38,15 @@ const fixed = (name) => { const m = new RegExp(`--${name}:\\s*([^;]+);`).exec(cs
 const ramp = (text) => text.split(',').map((s) => { const [hex, pos] = s.trim().split(/\s+/); return [hex.toUpperCase(), Number(pos)]; });
 const rgbHex = (s) => { const m = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(s); return m ? '#' + [1, 2, 3].map((i) => Number(m[i]).toString(16).padStart(2, '0')).join('').toUpperCase() : s.toUpperCase(); };
 const rampOf = (t, name) => ramp(t[`ramp-${name}`] ?? fixed(`ramp-${name}`));
+// The one place this build departs from the 2D app's lens colours (owner, 20 Nov 2026: "the lens itself is purple but the legend when I choose it is green"): the Pressure drop ramp is purple, as its
+// menu swatch is, where 2D's is green. Light and Soft end deep; Dark, Navy and Black lift the dark end as 2D does for its other ramps.
+const DROP_PURPLE = { deep: [['#E4DBEA', 0], ['#B79ADB', 0.3], ['#7A4FB5', 0.65], ['#3F2A6B', 1]], lifted: [['#E4DBEA', 0], ['#B79ADB', 0.3], ['#7A4FB5', 0.65], ['#6D55A6', 1]] };
 const looks = {};
 for (const id of LOOK_IDS) {
   const t = tokensOfLook(id);
   const hex = (name) => { const v = (t[name] ?? fixed(name)).trim(); if (!/^#[0-9a-fA-F]{6}$/.test(v)) throw new Error(`${id}: --${name} is not a plain hex (${v})`); return v.toUpperCase(); };
   looks[id] = {
-    pressure: rampOf(t, 'pressure'), flow: rampOf(t, 'flow'), velocity: rampOf(t, 'velocity'), heat: rampOf(t, 'heat'), drop: rampOf(t, 'drop'), oxygen: rampOf(t, 'oxygen'),
+    pressure: rampOf(t, 'pressure'), flow: rampOf(t, 'flow'), velocity: rampOf(t, 'velocity'), heat: rampOf(t, 'heat'), drop: DROP_PURPLE[id === 'light' || id === 'soft' ? 'deep' : 'lifted'], oxygen: rampOf(t, 'oxygen'),
     artery: hex('artery'), flowNormal: hex('flow-normal'), flowReversed: hex('flow-reversed'), trPv: hex('tr-pv'), trIvc: hex('tr-ivc'), trVar: hex('tr-var'),
   };
 }
