@@ -5,15 +5,20 @@
 // What the atlas organs follow from the live patient: the specimen, the spleen's size (the healthy form; the diseased forms are already drawn enlarged) and its ghost after a splenectomy,
 // the ascites volume (the pool's height and its fade-in, the 2D rules' own numbers), the grey of a lens other than Pressure, the body's dissolve (the dive, the Circuit) and the dive's
 // cutaway window. What they do not follow: a live liver shape (the specimens are the three shapes), the spleen's partial-embolization infarct, and the quiet depth of a turn.
-import { BackSide, BufferAttribute, BufferGeometry, Color, Group, GLSL3, type Mesh as MeshT, Mesh, type Raycaster, RawShaderMaterial, type Texture, Vector3, type Vector2, type Vector4 } from 'three';
+import { BackSide, BufferAttribute, BufferGeometry, Color, Group, GLSL3, type Mesh as MeshT, Mesh, type Raycaster, RawShaderMaterial, type Texture, Vector3, type Vector2, Vector4 } from 'three';
 import { ATLAS_FS, ATLAS_INK_FS, ATLAS_INK_VS, ATLAS_VS, stripVersion } from './shaders.ts';
-import { CASING } from '../vessels/cel-ink.ts';
+import { CEL_STYLE } from '../cel-style.ts';
+import { ORGAN_STYLE } from '../organs/layer.ts';
+import { PLAIN, mix, organColour, organInk, rgbOf, type OrganState, type RGB } from '../organs/organ-look.ts';
+import { liverSurface } from '../disease/copied/liver-morph.js';
+import { LiverFollow } from '../disease/follow.ts';
+import type { BodyTargets } from '../disease/targets.ts';
+import type { Palette } from '../palette.ts';
 import type { LookId } from '../../looks/looks.ts';
-import { ATLAS_PALETTE, type AtlasKey } from './palette.ts';
 import type { GlbMesh } from './glb.ts';
 import type { Specimen } from './types.ts';
 import { PICK_OF } from '../organs/pick.ts';
-import { LENS_GREY, SPLEEN_CENTER } from '../disease/copied/anatomy-b4.ts';
+import { LENS_GREY, LUMA, SPLEEN_CENTER } from '../disease/copied/anatomy-b4.ts';
 import { AtlasPool } from './pool.ts';
 import { calmWash, smoothNormals } from './smooth.ts';
 import { x3, y3 } from '../frame2d.ts';
@@ -27,8 +32,10 @@ const ORDER = ['heart', 'heart-ra', 'kidney-l', 'kidney-r', 'spleen', 'stomach',
 /** How long a crossfade takes. */
 const FADE_TAU = 0.12;   // seconds
 
-/** The ink line's width in the figure's units (the 2D organ line is 1.1, a touch firmer here for the cel look), never under 1.5 device px (shaders.ts ATLAS_INK_VS). */
-export const INK_UNITS = 1.4;
+/** The organ outline's width in the figure's units: 2D's (1.1, the kidney 1.4) wider by LINE_SCALE, as the classic cel organ's is (organs/layer.ts inkPx), never under 1.5 device px (shaders.ts ATLAS_INK_VS). */
+const inkPx = (id: string): number => ORGAN_STYLE[styleId(id)]!.px * CEL_STYLE.ORGAN.LINE_SCALE;
+/** The classic organ whose style (2D's tones, line width and alpha) an atlas organ takes: the right kidney is the left's. */
+const styleId = (id: string): string => (id === 'kidney-r' ? 'kidney-l' : id);
 
 interface Part {
   id: string;
@@ -47,8 +54,10 @@ interface Part {
 /** The liver's calming (smooth.ts): the heavy pass the light bands read, the middle pass the broad nodules come from, and how much of the cirrhotic wash's mottle stays (keep, contrast). */
 const LIVER_HEAVY = 24, LIVER_MID = 6;
 const LIVER_WASH: Partial<Record<Specimen, { keep: number; contrast: number }>> = { 'cirr-decomp': { keep: 0.3, contrast: 0.55 }, 'budd-chiari': { keep: 0.5, contrast: 0.75 } };
-/** The share of the shading the liver's broad nodules take, and of the pale lit band it keeps (the liver was too shiny). */
-export const LIVER_NODULE = 1, LIVER_SHINE = 0.25;
+/** The share of the shading the liver's broad nodules take (shaders.ts uNod). */
+export const LIVER_NODULE = 1;
+/** The mean of an organ's wash (the first channel; the artist's wash is grey), which the shader divides out so his mottle varies a tone and never moves it. */
+const washMean = (g: BufferGeometry): number => { const c = g.getAttribute('color').array as ArrayLike<number>; let s = 0; for (let i = 0; i < c.length; i += 3) s += c[i]!; return c.length ? s / (c.length / 3) : 1; };
 
 const geometryOf = (m: GlbMesh, s: Specimen): BufferGeometry => {
   const g = new BufferGeometry();
@@ -79,6 +88,9 @@ export class AtlasOrgans {
   private res: { value: Vector2 };
   private look: LookId = 'light';
   private dark = false;
+  private pal: Palette | null = null;
+  private readonly liver = new LiverFollow();
+  private targets: Pick<BodyTargets, 'cirrhosis' | 'congestion' | 'tint'> = { cirrhosis: 0, congestion: 0, tint: 0 };
   private specimen: Specimen = 'healthy';
   /** the form shown (the wanted one once it is in) and the volume of the ascites in mL */
   private shown: Specimen = 'healthy';
@@ -113,7 +125,11 @@ export class AtlasOrgans {
       const g = geometryOf(m, s);
       const mat = new RawShaderMaterial({
         glslVersion: GLSL3, vertexShader: stripVersion(ATLAS_VS), fragmentShader: stripVersion(ATLAS_FS), transparent: true, depthWrite: true,
-        uniforms: { uGrain: { value: this.grain }, uColor: { value: new Color() }, uDark: { value: 0 }, uAlpha: { value: 1 }, uNod: { value: m.name === 'liver' ? LIVER_NODULE : 0 }, uShine: { value: m.name === 'liver' ? LIVER_SHINE : 1 }, cut: this.cut },
+        uniforms: {
+          uGrain: { value: this.grain }, uBase: { value: new Color() }, uShade: { value: new Color() }, uLit: { value: new Color() }, uAlpha: { value: 1 },
+          uBox: { value: new Vector4(g.boundingBox!.min.x, g.boundingBox!.min.y, g.boundingBox!.max.x - g.boundingBox!.min.x, g.boundingBox!.max.y - g.boundingBox!.min.y) },
+          uWashMean: { value: washMean(g) }, uNod: { value: m.name === 'liver' ? LIVER_NODULE : 0 }, cut: this.cut,
+        },
       });
       const order = Math.max(0, ORDER.indexOf(m.name));
       const grp = new Group();
@@ -125,7 +141,7 @@ export class AtlasOrgans {
       // the ink line: the same mesh again, back faces only, pushed out in screen space (shaders.ts); after its own fill, tested against it
       const inkMat = new RawShaderMaterial({
         glslVersion: GLSL3, vertexShader: stripVersion(ATLAS_INK_VS), fragmentShader: stripVersion(ATLAS_INK_FS), transparent: true, depthWrite: false, side: BackSide,
-        uniforms: { px: { value: INK_UNITS }, dpr: { value: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1 }, res: this.res, inkColor: { value: new Color() }, inkA: { value: 0.64 }, uAlpha: { value: 1 }, cut: this.cut },
+        uniforms: { px: { value: inkPx(m.name) }, dpr: { value: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1 }, res: this.res, inkColor: { value: new Color() }, inkA: { value: 0.64 }, uAlpha: { value: 1 }, cut: this.cut },
       });
       const ink = new Mesh(g, inkMat);
       ink.renderOrder = order + 0.5;
@@ -136,13 +152,14 @@ export class AtlasOrgans {
     this.dirty = true;
   }
 
-  /** The look: the artist's Light palette on Light and Soft, his Dark palette on the dark looks (`dark`), and the look's own casing ink for the outline line. */
-  setLook(look: LookId, dark: boolean): void { if (look !== this.look || dark !== this.dark) { this.look = look; this.dark = dark; this.dirty = true; } }
+  /** The look and its palette: 2D's organ tones for it (`pal.organs`), the page the organs lie on, and whether it is a dark look (organ-look's congestion and septum inks differ). */
+  setLook(look: LookId, dark: boolean, pal: Palette): void { if (look !== this.look || dark !== this.dark || pal !== this.pal) { this.look = look; this.dark = dark; this.pal = pal; this.dirty = true; } }
   /** The form the patient is: what the swapped organs crossfade to once its file is in (until then the form shown stays). */
   setSpecimen(s: Specimen): void { if (s !== this.specimen) { this.specimen = s; this.dirty = true; } }
-  /** The patient's ascites (mL), the spleen's size against normal and its splenic treatment (2 = removed: a ghost), from the engine's body targets. */
-  setBody(ascitesMl: number, spleenScale: number, splenicRx: 0 | 1 | 2, instant = false): void {
+  /** The patient's ascites (mL), the spleen's size against normal and its splenic treatment (2 = removed: a ghost), and the liver's cirrhosis, congestion and tint (they colour it as Classic's liver is coloured), from the engine's body targets. */
+  setBody(ascitesMl: number, spleenScale: number, splenicRx: 0 | 1 | 2, instant = false, liver?: Pick<BodyTargets, 'cirrhosis' | 'congestion' | 'tint'>): void {
     this.ascites = ascitesMl; this.spleenScale = spleenScale; this.spleenGhost = splenicRx === 2 ? 0.14 : 1;
+    if (liver) this.targets = liver;
     if (instant) this.snap();
     this.dirty = true;
   }
@@ -184,6 +201,7 @@ export class AtlasOrgans {
     }
     // the pool: the shown volume springs to the model's, as Classic's does, and the bowel floats up with the wall
     const inst = this.instantPool; this.instantPool = false;
+    if (this.liver.follow(this.targets as BodyTargets, dt, inst)) { moving = true; this.dirty = true; }
     if (this.pool.step(this.ascites, dt, inst)) { moving = true; this.dirty = true; }
     if (this.pool.bulge !== this.bulge || this.pool.fade !== this.fade) { this.bulge = this.pool.bulge; this.fade = this.pool.fade; this.dirty = true; }
     const g = this.grey ? LENS_GREY : { dim: 1, sat: 1 }, kd = 1 - Math.exp(-dt / 0.42);
@@ -196,24 +214,40 @@ export class AtlasOrgans {
     return moving;
   }
 
-  private readonly c = new Color();
+  /** The classic painter's three tones for an organ in this look and state (organs/layer.ts paint, organ-shader.ts celTones): the base is its second tone, the shade is the base less SHADE of itself and then
+   *  DEEP of the way to the organ's own darkest tone (its third, or og-dark where that is the light edge of a dark look), the lit tone is LIT_O1 of the way to its first and then LIT to og-light. All sRGB. */
+  private tones(id: string, s: OrganState): { base: RGB; shade: RGB; lit: RGB; ink: RGB } {
+    const pal = this.pal!, st = ORGAN_STYLE[styleId(id)]!, og = pal.organs.tones[st.og], page = rgbOf(pal.bg);
+    const k = { plate: page, dark: pal.highlight === 'white', bleed: rgbOf('#8E1A20'), bg: page };
+    const o1 = organColour(rgbOf(og[0]), s, k), base = organColour(rgbOf(og[1]), s, k), o3 = organInk(rgbOf(og[2]), s, k);
+    const lum = (c: RGB) => LUMA[0]! * c[0] + LUMA[1]! * c[1] + LUMA[2]! * c[2];
+    const rgb255 = (c: readonly number[]): RGB => [c[0]! / 255, c[1]! / 255, c[2]! / 255];
+    const deep = lum(o3) < lum(base) ? o3 : rgb255(pal.organs.dark);
+    const E = CEL_STYLE.ORGAN;
+    const shade = mix([base[0] * (1 - E.SHADE), base[1] * (1 - E.SHADE), base[2] * (1 - E.SHADE)], deep, E.DEEP);
+    const lit = mix(mix(base, o1, E.LIT_O1), rgb255(pal.organs.light), E.LIT);
+    // the outline: the organ's own third tone at its alpha, pre-mixed against the page, stronger by INK_BOOST of what is left (organs/layer.ts setColours, solid)
+    const ink = mix(page, o3, Math.min(1, st.inkA + (1 - st.inkA) * CEL_STYLE.ORGAN.INK_BOOST));
+    return { base, shade, lit, ink };
+  }
+
   private paint(): void {
-    const pal = this.dark ? ATLAS_PALETTE.dark : ATLAS_PALETTE.light;
-    this.c.set(pal.ascites);
-    this.pool.paint(this.c, this.look, this.body);
+    const pal = this.pal;
+    if (!pal) return;   // (no look yet: nothing is drawn until the scene hands one over)
+    this.pool.paint(this.look, this.body);
+    const ls = this.liver.shown;
     for (const p of this.parts) {
-      const key: AtlasKey = p.id === 'liver' ? (p.specimen === 'cirr-decomp' ? 'liver.cirr' : p.specimen === 'budd-chiari' ? 'liver.budd' : 'liver') : (p.id as AtlasKey);
-      this.c.set(pal[key] ?? pal.liver);
-      if (this.sat !== 1) { const l = 0.2126 * this.c.r + 0.7152 * this.c.g + 0.0722 * this.c.b; this.c.r = l + (this.c.r - l) * this.sat; this.c.g = l + (this.c.g - l) * this.sat; this.c.b = l + (this.c.b - l) * this.sat; }
-      (p.mat.uniforms.uColor!.value as Color).copy(this.c);
-      p.mat.uniforms.uDark!.value = this.dark ? 1 : 0;
-      let a = this.body * p.mix * this.dim;
-      if (p.id === 'spleen') a *= this.spleenGhost;
+      const s: OrganState = { ...PLAIN, sat: this.sat, dim: this.dim, ghost: p.id === 'spleen' ? this.spleenGhost : 1 };
+      if (p.id === 'liver') { s.congestion = ls.congestion; s.tint = ls.tint; s.cirrhosisNod = liverSurface(ls.cirrhosis).nod; }
+      const t = this.tones(p.id, s);
+      (p.mat.uniforms.uBase!.value as Color).setRGB(t.base[0], t.base[1], t.base[2]);
+      (p.mat.uniforms.uShade!.value as Color).setRGB(t.shade[0], t.shade[1], t.shade[2]);
+      (p.mat.uniforms.uLit!.value as Color).setRGB(t.lit[0], t.lit[1], t.lit[2]);
+      const a = this.body * p.mix;
       p.mat.uniforms.uAlpha!.value = a;
       p.g.visible = this.visible && a > 0.003;
-      const k = CASING[this.look];
-      (p.inkMat.uniforms.inkColor!.value as Color).setRGB(k.rgb[0] / 255, k.rgb[1] / 255, k.rgb[2] / 255);   // (sRGB as is: the ink pass writes it unconverted, as the cel shaders do)
-      p.inkMat.uniforms.inkA!.value = k.a; p.inkMat.uniforms.uAlpha!.value = a;
+      (p.inkMat.uniforms.inkColor!.value as Color).setRGB(t.ink[0], t.ink[1], t.ink[2]);   // (sRGB as is: the ink pass writes it unconverted, as the cel shaders do)
+      p.inkMat.uniforms.inkA!.value = 1; p.inkMat.uniforms.uAlpha!.value = a;
       // the gut floats up on ascites as the classic one does (organs/layer.ts setBowelLift: the wall's bulge, 26 of its 34 half units)
       if (p.id === 'bowel') p.g.position.y = (this.bulge / 34 * 26) / 300;
       if (p.id === 'spleen') {
