@@ -11,7 +11,7 @@ import { mix, rgbOf } from '../src/scene/organs/organ-look.ts';
 const hex = (c: readonly number[]) => '#' + c.map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
 
 test('the organ layer sits at 2D\'s opacity: .55, Soft .72, the kidney .85 (Soft .88), the gut at --gut-a', () => {
-  assert.equal(organLayerAlpha(PALETTES.light, 'liver'), 0.55);
+  assert.equal(organLayerAlpha(PALETTES.light, 'liver'), 0.72, 'Light at .72 by decision (19 Nov), not 2D .55');
   assert.equal(organLayerAlpha(PALETTES.dark, 'liver'), 0.55);
   assert.equal(organLayerAlpha(PALETTES.soft, 'liver'), 0.72);
   assert.equal(organLayerAlpha(PALETTES.light, 'kidney-l'), 0.85);
