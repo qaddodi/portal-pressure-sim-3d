@@ -9,6 +9,8 @@ import { createShared } from '../src/scene/materials/cel.ts';
 import { LobuleView } from '../src/scene/lobule/view.ts';
 import { Lobule3D } from '../src/scene/micro3d/lobule3d.ts';
 import { LOBULE_PLATE_FS } from '../src/scene/lobule/plate.ts';
+import { LobuleFade, LobuleRoot, readsFade } from '../src/scene/lobule/one-fade.ts';
+import { BoxGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, Points, PointsMaterial } from 'three';
 
 const shared = createShared();
 const flat = new LobuleView(shared);
@@ -55,5 +57,72 @@ test('the neighbours\' plate (the yellow tissue round the lobule) goes under the
   l3.update(true, 0.5, 3000, 1);
   assert.equal(flat.field.fadeNow, 0.5);
   const src = readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
-  assert.match(src, /f\.field\.setFade\(/);
+  assert.match(src, /f\.group\.setFade\(/);
+});
+
+// ---- the rule is structural: one place hands the fade to everything under the Lobule root (Mohammad 20 Nov 2026: every flash was a layer with a fade of its own) -------------------------------------
+
+const everything = (root: Group) => { const o: { name: string; type: string; mats: unknown[] }[] = []; root.traverse((x) => { const m = (x as Mesh).material; if (m) o.push({ name: x.name, type: x.type, mats: Array.isArray(m) ? m : [m] }); }); return o; };
+
+test('walking the whole Lobule scene graph: every mesh and material under the root reads the lobule\'s one fade, and the walk finds the tiles, tubes, plate, neighbours and halo', () => {
+  l3.update(true, 0.3, 4000, 1);
+  const seen = everything(flat.group);
+  const names = seen.map((s) => s.name);
+  for (const must of ['lobule/field', 'lobule/mark', 'lobule3d/marks', 'lobule3d/hepatocytes', 'lobule3d/sinusoids-0', 'lobule3d/arteriole-twigs', 'lobule3d/terminal-lymphatics', 'lobule3d/lymph-ductules', 'lobule3d/canaliculi', 'lobule3d/central-vein-scar']) assert.ok(names.includes(must), `${must} is under the Lobule root`);
+  assert.ok(seen.length >= 25, `the walk covers the whole graph (${seen.length} drawn objects)`);
+  assert.deepEqual(flat.fade.unfaded(flat.group), [], 'nothing under the Lobule root has a fade of its own');
+  // and the values they read are the ones written through the root, nothing else
+  const detail = flat.fade.detail, ground = flat.fade.ground;
+  for (const { mats } of seen) for (const m of mats as ShaderMaterial[]) {
+    const u = m.uniforms?.fade ?? (m.userData as { oneFade?: unknown }).oneFade;
+    assert.ok(u === detail || u === ground, 'a material holds the root\'s detail or ground fade object');
+  }
+  flat.group.setFade(0.37, 0.61);
+  assert.equal(detail.value, 0.37); assert.equal(ground.value, 0.61);
+  const field = flat.group.children.find((c) => c.name === 'lobule/field') as Mesh;
+  assert.equal((field.material as ShaderMaterial).uniforms.fade!.value, 0.61, 'the neighbours\' ground reads the ground fade');
+  assert.equal(l3.partsForTest[0]!.mats.toon.uniforms.fade!.value, 0.37, 'the tiles read the detail fade');
+});
+
+test('anything added later, to the root or to a group deep inside it, is taken into the fade: a new layer cannot have a fade of its own', () => {
+  const fade = new LobuleFade(), root = new LobuleRoot(fade);
+  const shader = (src: string) => new ShaderMaterial({ fragmentShader: src, uniforms: {} });
+  const ok = new Mesh(new BoxGeometry(), shader('uniform float fade; bool fadedOut(){return fade < 0.999;} void main(){ if (fadedOut()) discard; gl_FragColor = vec4(1.0); }')); ok.name = 'ok';
+  const halo = new Mesh(new BoxGeometry(), new MeshBasicMaterial({ transparent: true })); halo.name = 'halo';
+  root.add(ok, halo);
+  assert.deepEqual(fade.unfaded(root), [], 'a shader that reads it and a stock material are taken in on add');
+  // a rogue: a stock material hidden inside a child group, added after (the way a new layer would arrive)
+  const inner = new Group(); root.add(inner);
+  const rogue = new Mesh(new BoxGeometry(), new MeshStandardMaterial()); rogue.name = 'rogue'; inner.add(rogue);
+  assert.deepEqual(fade.unfaded(root).map((r) => r[0]), ['rogue'], 'the walk finds the one that was not given the fade');
+  root.setFade(0.5, 0.5);
+  assert.deepEqual(fade.unfaded(root), [], 'and the next write of the fade takes it in');
+  assert.equal((rogue.material as MeshStandardMaterial).userData.oneFade, fade.detail);
+  // a shader that never reads the fade is refused even though it holds the uniform
+  const blind = new Mesh(new BoxGeometry(), shader('void main(){ gl_FragColor = vec4(1.0); }')); blind.name = 'blind';
+  root.add(blind);
+  assert.deepEqual(fade.unfaded(root), [['blind', 'its fragment shader never reads the fade']]);
+  const pts = new Points(new BoxGeometry(), new PointsMaterial()); pts.name = 'pts'; inner.add(pts); root.setFade(1, 1);
+  assert.equal(fade.unfaded(root).filter((r) => r[0] === 'pts').length, 0, 'points and lines are covered too');
+  assert.ok(readsFade('if (fadedOut()) discard;') && readsFade('gl_FragColor = vec4(col, a * fade);') && !readsFade('// fade\nvoid main(){}'));
+});
+
+test('the stock material\'s patch scales its alpha by the same value in its program', () => {
+  const fade = new LobuleFade(), root = new LobuleRoot(fade);
+  const m = new MeshBasicMaterial({ transparent: true });
+  root.add(new Mesh(new BoxGeometry(), m));
+  const shader = { uniforms: {} as Record<string, unknown>, fragmentShader: 'void main(){\n#include <dithering_fragment>\n}' };
+  (m.onBeforeCompile as (s: unknown, r: unknown) => void)(shader, null);
+  assert.equal(shader.uniforms.fade, fade.detail);
+  assert.match(shader.fragmentShader, /uniform float fade;[\s\S]*gl_FragColor\.a \*= fade;/);
+});
+
+test('the fade values have ONE writer: no file but one-fade.ts and the lobule\'s update writes a lobule fade, and no layer hides itself during the dive with a toggle of its own', () => {
+  const lob = readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8').replace(/\/\/.*$/gm, '');
+  assert.equal((lob.match(/\.setFade\(/g) ?? []).length, 1, 'lobule3d.ts writes the fade once, through the root');
+  assert.doesNotMatch(lob, /this\.fade\.value\s*=[^=]/, 'and never to the uniform directly');
+  const field = readFileSync('src/scene/lobule/field.ts', 'utf8').replace(/\/\/.*$/gm, '');
+  assert.doesNotMatch(field, /setFade|uniforms\.fade!?\.value\s*=[^=]/, 'the neighbours\' plate has no writer of its own');
+  const scene = readFileSync('src/scene/scene.ts', 'utf8');
+  assert.doesNotMatch(scene, /lobule\.group\.add\(/, 'the scene adds nothing to the Lobule root behind the fade\'s back (Lobule3D mounts itself, through add)');
 });

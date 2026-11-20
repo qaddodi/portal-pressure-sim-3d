@@ -8,7 +8,7 @@
 //   lobule.setLayers({ lymph: true, zones: false });               // the toolbar's Layers (the 2D app starts with lymph on)
 //   lobule.startWash(now) / stopWash();                            // HVPG slide 5: the wedge's amber from the central vein out
 //   lobule.update(now) → true while anything moves                 // called by the scene, in the clock's order
-import { type Camera, Group, Matrix4, Plane, type Ray, Vector3 } from 'three';
+import { type Camera, type Group, Matrix4, Plane, type Ray, Vector3 } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import { highlightColour } from '../palette.ts';
 import type { LookId } from '../../looks/looks.ts';
@@ -28,6 +28,7 @@ import { washProgress } from './wash.ts';
 import { NeighbourField, fieldQuantizer } from './field.ts';
 import { DISC_R, LT_R, RS_N, congShare, disseRadius, inletRadius, sinRadius, twigR } from './widths.ts';
 import { defaultCanvas, type MakeCanvas } from './plate.ts';
+import { LobuleFade, LobuleRoot } from './one-fade.ts';
 
 /** Tags hang just over the plate (it is flat: a point any higher would slide against the tissue as the view turns). */
 const ANCHOR_Z = 0.05;
@@ -54,7 +55,9 @@ const REST: Cur = { fibSin: 0, fibPre: 0, fibPost: 0, congU: 0, septU: 0, act: 0
 
 export class LobuleView {
   /** The halo and the neighbouring field (the lobule itself is the 3D lobule's group). */
-  readonly group = new Group();
+  /** The ONE fade of everything in this group (one-fade.ts): the lobule's tiles, tubes, marks, plate and the neighbours' ground all read it, and `group.setFade` is its only writer. */
+  readonly fade = new LobuleFade();
+  readonly group = new LobuleRoot(this.fade);
   readonly net: LobuleNet;
   private lens: LensId = 'pressure';
   private ref: ArrayLike<number> | null = null;

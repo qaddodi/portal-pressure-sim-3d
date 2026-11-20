@@ -3,7 +3,7 @@
 // soft septa, a triad at each corner) is painted once per look and tissue state, blurred as 2D's quiet copy is (blurWrapped, its Gaussian of
 // neighbourBlur(R)), and repeated on one flat plane under the lobule. A shader then does what 2D's field pass does at rest in the lobule view:
 // drains it (saturation 0.45), lays the page's colour over it (0.42, then NEIGHBOUR_FLAT), fades it into the page from 1.1 R of the lobule in focus
-// (FADE_MID halfway, never more than EDGE_FADE at any screen corner) and softens it with distance (fieldDof's mip bias). One draw, no dither of its own: its alpha is scaled by the lobule's dissolve (setFade).
+// (FADE_MID halfway, never more than EDGE_FADE at any screen corner) and softens it with distance (fieldDof's mip bias). One draw, no dither of its own: its alpha is scaled by the lobule's ground fade (one-fade.ts).
 // The page shows through where it fades (the clear colour is the page's), so on the dive in it never stands as an opaque square inside the liver.
 import { CEL_TISSUE_GLSL, FIELD_EDGE_PER_MIP } from './cel.ts';
 import { CanvasTexture, Color, Mesh, PlaneGeometry, RepeatWrapping, LinearFilter, LinearMipmapLinearFilter, ShaderMaterial, Vector2 } from 'three';
@@ -147,6 +147,7 @@ export class NeighbourField {
       vertexShader: LOBULE_FIELD_VS, fragmentShader: LOBULE_FIELD_FS,
       uniforms: { tile: { value: blankTexture() }, bg: { value: new Color() }, grey: { value: new Vector2(1, 1) }, ready: { value: 0 }, soft: { value: 0 }, wide: { value: 0 }, fade: { value: 1 } },
       transparent: true, depthWrite: false,
+      userData: { fadeKind: 'ground' },   // (an alpha draw: it takes the lobule's ground fade from LobuleRoot, one-fade.ts)
     });
     const side = 2 * FIELD_HALF * LOBULE_R;
     this.mesh = new Mesh(new PlaneGeometry(side, side), this.mat);
@@ -180,8 +181,7 @@ export class NeighbourField {
   setSoft(k: number): void { this.mat.uniforms.soft!.value = k; }
   /** The dive's breadth (fieldWide): 0 at the lobule's framing, 1 from afar. */
   setWide(k: number): void { this.mat.uniforms.wide!.value = k; }
-  /** The lobule's dissolve under the sinusoid (1 whole, 0 gone): one value with the lobule's own parts (lobule3d.ts update). */
-  setFade(k: number): void { this.mat.uniforms.fade!.value = k; }
+  /** The lobule's dissolve under the sinusoid as this plate reads it (1 whole, 0 gone). Its only writer is LobuleFade.set (one-fade.ts): the uniform is the lobule root's own, given when the mesh is added. */
   get fadeNow(): number { return this.mat.uniforms.fade!.value as number; }
   get wideNow(): number { return this.mat.uniforms.wide!.value as number; }
   get softNow(): number { return this.mat.uniforms.soft!.value as number; }

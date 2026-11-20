@@ -82,13 +82,15 @@ const at3 = (p: LP2, z: number): [number, number, number] => [p[0] * R, -p[1] * 
 /** What this scene reads of the lobule's host (lobule/view.ts: the network, the eased state, the layers' fades, the look, the field). */
 interface Flat {
   net: LobuleNet;
-  field: { readonly wideNow: number; setFade(k: number): void };
+  field: { readonly wideNow: number };
+  /** The lobule root's one fade (lobule/one-fade.ts): this scene reads its `detail` uniform and writes both values through `group.setFade`. */
+  fade: { readonly detail: { value: number } };
+  group: Group & { setFade(detail: number, ground: number): void };
   cur: { fibSin: number; fibPre: number; fibPost: number; congU: number; septU: number; act: number; lum: number; flow: number; portal: number; art: number; lymphRate: number; seal: number };
   layers: { lymph: boolean; zones: boolean; bile: boolean };
   lyFade: number; bileFade: number; zoneFade: number;
   look: LookId;
   isVisible: boolean;
-  group: Group;
   readonly sinSwell: { whole: number; share: number };
   cvRadiusNow: number;
   /** The wedge's wash, 0..1 (0 when no slide runs it). */
@@ -152,7 +154,7 @@ export function disseOpen(k: number): number { const t = Math.min(1, Math.max(0,
 export class Lobule3D {
   readonly group = new Group();
   private readonly flat: Flat;
-  private readonly fade = { value: 1 };
+  private readonly fade: { value: number };
   private on = false;
   private hidLobule = false;
   private cellKey = '';
@@ -199,6 +201,7 @@ export class Lobule3D {
 
   constructor(flat: LobuleView, shared: CelShared) {
     this.flat = flat as unknown as Flat;
+    this.fade = this.flat.fade.detail;   // (the lobule root's one dissolve: lobule/one-fade.ts)
     this.group.name = 'lobule3d';
     const res = shared.res, S = CEL_STYLE.MICRO;
     const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(res, this.fade, { vertexColors: true, ...o }), `lobule3d/${name}`);
@@ -254,6 +257,7 @@ export class Lobule3D {
     this.group.add(this.marks);
     this.buildVessels();
     this.group.visible = false;
+    flat.group.add(this.group);   // (the Lobule's root takes everything under it into its one fade)
     this.askWelds();
   }
 
@@ -297,8 +301,9 @@ export class Lobule3D {
     // (whole once it is all but whole: the fade dissolves pixels in a screen pattern below 0.999, and a field that settles a hair short of 0 left the lobule speckled at rest, its lines dotted)
     const fv = (1 - under) * come, fs = fv > FADE_SNAP ? 1 : fv;
     // (the neighbours' plate goes under the sinusoid on the same curve as the tiles and tubes, `1 - under`; it is NOT also faded by the field's own breadth `come`, which is how the field itself widens)
-    f.field.setFade(1 - under > FADE_SNAP ? 1 : 1 - under);
-    this.fade.value = fs;   // (the ONE dissolve: every tile, tube, mark and the marks plate drop the same pixels of one screen pattern at this value, and nothing else is scaled by it)
+    // (the ONE dissolve, written here and nowhere else: every tile, tube, mark and the marks plate drop the same pixels of one screen pattern at `fs`, the neighbours' ground fades at `1 - under`, and
+    //  nothing else is scaled by either; the root group hands both to everything under it, lobule/one-fade.ts)
+    f.group.setFade(fs, 1 - under > FADE_SNAP ? 1 : 1 - under);
     const shown = on && f.isVisible && under < 1;
     this.group.visible = shown;
     // (the whole lobule, its neighbouring field too: the sinusoid's own ground lies below the lobule's plane, so the field would show through the clefts between its cells)

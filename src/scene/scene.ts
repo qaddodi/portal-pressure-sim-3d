@@ -341,7 +341,7 @@ export class CelScene {
     this.lobule.setVisible(false); this.sinus.setVisible(false);
     this.dive.visible = false;   // (the whole dive frame is off at the body's rest: nothing of the lobule or the sinusoid, or anything added to them later, can show on the liver)
     this.sinus3d = new Sinusoid3D(this.sinus, this.shared); this.sinus.group.add(this.sinus3d.group);
-    this.lobule3d = new Lobule3D(this.lobule, this.shared); this.lobule.group.add(this.lobule3d.group);
+    this.lobule3d = new Lobule3D(this.lobule, this.shared);   // (it mounts itself under the Lobule's root: lobule/one-fade.ts)
     this.applyLook(this.look);
   }
 

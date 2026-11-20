@@ -179,3 +179,8 @@ them, `weld-splay.ts`, `weld-worker.ts` / `weld-client.ts`) and `src/scene/micro
   is about 3 radii off the sinusoid axis, 2D parity), so the tubes overlap by design and most of them stay as plain tubes.
 - **Not welded yet:** the 17 listed in `KNOWN_FALLBACKS` (5 of the 6 twigs, tight 2-arm bends of the bile ducts under about 100 degrees, bile hairline hubs of 4 canals, two far-seamed sinusoid
   merges) and the terminal lymphatics (they only enter their pool). The vessels' mouths already flare as 2D's do (`flareAt`, `twigRadius` in widths.ts). 211 of 228 junctions are welded.
+
+## The Lobule's one fade (structural, 20 Nov 2026)
+Every object under the Lobule root takes its fade from `LobuleFade` (`src/scene/lobule/one-fade.ts`); the root (`LobuleView.group`, a `LobuleRoot`) adopts whatever is added to it, and `group.setFade(detail, ground)` is the only writer
+(called once, from `Lobule3D.update`). `detail` (dither, `1 - under` times the field's breadth) is for the lobule's tiles, tubes, marks and plate; `ground` (alpha, `1 - under`) is for the neighbours' plate
+(`userData.fadeKind = 'ground'`). A stock material (the tap halo) is patched to scale its alpha by the same value. `tests/lobule-one-fade.test.ts` walks the whole graph and fails on any mesh or material that does not read it.
