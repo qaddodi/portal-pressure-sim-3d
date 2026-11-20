@@ -87,7 +87,17 @@ const isDive = (a: Pose, b: Pose) => Math.max(a.shot.r, b.shot.r) / Math.max(1e-
  *  A dive (the two distances differ by more than DIVE_RATIO: into the liver, the lobule, the sinusoid, and back out) zooms the way the eye does: the distance and the
  *  framing change by the same ratio every moment (geometric, so the picture grows evenly instead of nothing happening and then a plunge at the end), and the aim
  *  settles on the target as the distance closes (the target's share is the distance covered), so the place dived to stays in the middle of the picture all the way. */
-export function blendPose(a: Pose, b: Pose, k: number, arc = 1): Pose {
+/** A shot may fit one side only (half 0 on the other: the sinusoid fits its short side, 2D's rule). For blending, the free side takes the extent the room's shape gives the fitted one,
+ *  which frames the shot exactly the same at the end. Blending a 0 straight (geo falls back to a line to 0) made the fit distance sag and then collapse near the end of the move: the camera
+ *  ran 2.2x closer in one frame as the Lobule -> Sinusoid zoom landed (and the same going out). */
+function fillHalf(p: Pose): Pose {
+  const h = p.shot.half, w = p.room.w > 1 ? p.room.w : 1, ht = p.room.h > 1 ? p.room.h : 1;
+  if ((h[0] > 0) === (h[1] > 0)) return p;
+  const half: [number, number] = h[0] > 0 ? [h[0], (h[0] * ht) / w] : [(h[1] * w) / ht, h[1]];
+  return { shot: { ...p.shot, half }, room: p.room };
+}
+export function blendPose(a0: Pose, b0: Pose, k: number, arc = 1): Pose {
+  const a = fillHalf(a0), b = fillHalf(b0);
   if (isDive(a, b)) return blendDive(a, b, k, arc);
   return {
     shot: {

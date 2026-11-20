@@ -99,3 +99,21 @@ test('the Tests card never squeezes the room the instruments frame in (cutRoom k
   assert.equal(r.w, 390); assert.equal(r.h, 700);
   useTestsRoom.setState({ place: null });
 });
+test('Lobule <-> Sinusoid in the app rooms: the camera distance changes smoothly every 100 ms (no 2x step as the sinusoid lands or leaves)', async () => {
+  const { CelScene } = await import('../src/scene/scene.ts');
+  const { lobuleShot, sinusoidShot } = await import('../src/scene/lobule/shots.ts');
+  const { viewRoom } = await import('../src/ui/shell/room.ts');
+  const vp = { w: 1440, h: 900, safe: { top: 0, bottom: 0, left: 0, right: 0 } } as never;
+  const s = new CelScene(); s.resize(1440, 900);
+  const lr = viewRoom('lobule', vp, 'desktop'), sr = viewRoom('sinusoid', vp, 'desktop');
+  s.rig.goTo('play', lr, 0); s.update(0);
+  s.setView('lobule', 10); s.goTo(lobuleShot('lobule'), lr, 10, 1500);
+  let t = 10; for (; t < 2000; t += 16) s.update(t);
+  const dist = () => { const c = s.rig.camera.position, T = s.rig.pose.shot.target; return Math.hypot(c.x - T[0], c.y - T[1], c.z - T[2]); };
+  for (const [view, shot, room] of [['sinusoid', sinusoidShot(false, sr.h), sr], ['lobule', lobuleShot('lobule'), lr]] as const) {
+    s.setView(view, t); s.goTo(shot, room, t, 1800);
+    let last = dist();
+    for (const t0 = t; t < t0 + 2000; t += 100) { s.update(t); const d = dist(), k = Math.max(d / last, last / d); assert.ok(k < 1.5, `${view} at ${t - t0} ms: the distance stepped ${k.toFixed(2)}x`); last = d; }
+  }
+  s.dispose();
+});
