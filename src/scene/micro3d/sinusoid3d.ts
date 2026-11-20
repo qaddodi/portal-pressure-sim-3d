@@ -12,6 +12,8 @@
 // Everything reads the host's own state (its eased targets, palette, traffic, places), so the two can never disagree: this file draws, the host keeps the model, the names and
 // the clock. Every place is 2D's (layout.ts and the copied widths); every colour is 2D's palette for the look. Nothing here is per-pixel painting: the shapes are meshes, cel shaded
 // (cel3d.ts), and only the albumin, the red cells and the fenestrae's gap table are rewritten while the view is up.
+import { staticRouteTexture } from '../blood/routes.ts';
+import { dustTuner } from '../blood/dust.ts';
 import { useSettings } from '../../state/settings.ts';
 import { DataTexture, Group, Matrix4, NearestFilter, RGBAFormat, UnsignedByteType, Vector3, Vector4, type ShaderMaterial } from 'three';
 import type { CelShared } from '../materials/cel.ts';
@@ -188,8 +190,10 @@ export class Sinusoid3D {
     const S = CEL_STYLE.MICRO;
     this.ground = mk('ground', { ink: null });
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
-    this.trough = mk('lumen', { ink: null, streaks: true });
-    this.troughFar = mk('lumen-beyond', { ink: null, streaks: true });
+    // (the Anatomy's dust in place of the lanes, in the blood's and the lymph's own colours: Mohammad 20 Nov, the same streaks everywhere. Each stream one lane table, its lattice's pitch its half width in µm)
+    const dustOf = (half: number) => ({ routeTex: { value: staticRouteTexture(1, new Map(), () => half) }, dustP: dustTuner.uniform });
+    this.trough = mk('lumen', { ink: null, streaks: true, dust: dustOf(UM.lum) });
+    this.troughFar = mk('lumen-beyond', { ink: null, streaks: true, dust: dustOf(UM.lum) });
     // (the fenestrae are real gaps through the lining, the bead and its edges alike: one texel a 1 µm slot, each side; stepPores writes how open each is)
     const gaps = { tex: this.gapTex, x: new Vector4(GAP_X0, GAP_SLOTS, 0.5, 0) };
     // (the lining's two edges are its own line, drawn in its fill against the plate's up: its rounded bead turns square to the plate at the lumen's rim and at Disse's side. They were thin ribbons
@@ -200,7 +204,7 @@ export class Sinusoid3D {
     this.bead = mk('endothelium', { ink: null, gaps, holes: { s: WALL.s2, dx: WALL.dx2 }, rim: S.LINE_SMALL, vertexColors: true });
     this.beadLine = mk('endothelium-cut', { ink: null, gaps, rim: S.LINE_SMALL, rimUp: true, rimUV: true, vertexColors: true });
     this.bores = mk('endothelium-bores', { ink: null, vertexColors: true });
-    this.disse = mk('disse', { ink: null, streaks: true });
+    this.disse = mk('disse', { ink: null, streaks: true, dust: dustOf(UM.disse * 0.5 + 0.5) });
     this.cells = mk('hepatocytes', { px: S.LINE });
     // (the small solid shapes, the nuclei, the canaliculi, the lining's cells, the Kupffer and stellate cells, albumin and the red cells, draw their line inside their own fill (cel3d.ts uRim):
     //  whole and smooth on every screen, never fighting the surface behind; their hull lines broke into dashes and specks, eyes 20 Nov)
