@@ -123,7 +123,7 @@ export function route3d(kind: string): Route3D | null {
   // ROUNDED CORNERS (20 Nov 2026): snapping each sample to its vessel's centreline leaves a sharp elbow where one vessel turns into the next (the cava into a hepatic vein), and a tube swept
   // through an elbow kinks. The path is smoothed along its arc length with a Gaussian whose width is a minimum bend radius (BEND_RADII catheter radii), and each sample may move off the
   // centreline only as far as the lumen has room beyond the shaft (SAFE of it), so the catheter takes a generous bend and still lies wholly inside its vessel at any tilt.
-  const rcS = (kind === 'hvpg' ? Math.max(0.5, routeAt(r, r.free, { p: [0, 0], t: [1, 0], w: [0, 0], r: 0 }).r * 0.3) : catheterRadius(r)) / UNITS_PER_SCENE;
+  const rcS = (kind === 'hvpg' ? Math.max(0.5, routeAt(r, r.free, { p: [0, 0], t: [1, 0], w: [0, 0], r: 0 }).r * 0.27) : catheterRadius(r)) / UNITS_PER_SCENE;
   smoothBends(r, rcS, z, offX, offY);
   const pos = r.pts.map((p, i) => new Vector3(x3(p[0]) + offX[i]!, y3(p[1]) + offY[i]!, z[i]!));
   const bracket = (d: number): [number, number] => {

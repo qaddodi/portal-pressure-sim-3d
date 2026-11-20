@@ -2,7 +2,7 @@
 // `procFrame(kind, t)` of the 2D app says at time t (proc-anim.js): how far in the tip is (u), the balloon (0 to 1), the needle and wire tips, the portal hit's rings, the coil and the column
 // (wedged blood or sclerosant) — each laid on the route as stage-cath.js cathGL lays them, in the same proportions (the shaft's radius rc, the taper, the marker bands, the balloon fitted to the
 // vein by hvpg-balloon.js, the needle's bevel, the wire's hairline). Parts are device objects: drawn over the anatomy, never under a vessel they sit in.
-import { Group, SphereGeometry, CylinderGeometry, RingGeometry, type BufferGeometry, Vector3, Float32BufferAttribute } from 'three';
+import { Group, LatheGeometry, Vector2, CylinderGeometry, RingGeometry, type BufferGeometry, Vector3, Float32BufferAttribute } from 'three';
 import type { CelShared } from '../../materials/cel.ts';
 import { PALETTES, type LookId, type Palette } from '../../palette.ts';
 import { DEVICE_TOKENS } from '../../procedures/copied/device-tokens.copied.ts';
@@ -38,7 +38,7 @@ export interface CatheterState {
 export const CATHETER_IDLE: CatheterState = { u: 0, balloon: 0, column: 0, opacity: 0, needle: 0, wire: 0, flash: 0, coil: 0, ring: null, clock: 0 };
 
 const RING_TONE = { free: 'monFree', wedge: 'monWedge', bad: 'monAlarm', pv: 'trPv', ivc: 'trIvc' } as const;
-const SHAFT_RADIAL = 16, BALLOON_N = 40, BALLOON_RADIAL = 16;
+const SHAFT_RADIAL = 16, BALLOON_N = 40, BALLOON_RADIAL = 24, GLINT_N = 24;
 
 export class ProcCatheter {
   readonly group = new Group();
@@ -48,7 +48,7 @@ export class ProcCatheter {
   private readonly shaft: DeviceObject; private readonly tip: DeviceObject; private readonly band: DeviceObject;
   private readonly needle: DeviceObject; private readonly needleCone: DeviceObject; private readonly wire: DeviceObject;
   private readonly column: DeviceObject; private readonly columnGeo: BufferGeometry;
-  private readonly balloon: DeviceObject; private readonly balloonGeo: BufferGeometry; private readonly balloonBands: DeviceObject[];
+  private readonly balloon: DeviceObject; private readonly balloonGeo: BufferGeometry; private readonly balloonBands: DeviceObject[]; private readonly glints: { g: BufferGeometry; o: DeviceObject }[];
   private readonly rings: DeviceObject[] = []; private readonly flashes: DeviceObject[] = [];
   private readonly coil: DeviceObject | null; private readonly coilGeo: BufferGeometry | null; private readonly coilN = 120;
   private last: CatheterState = { ...CATHETER_IDLE };
@@ -62,8 +62,8 @@ export class ProcCatheter {
     this.r3 = r3; this.span = span;
     const r = r3.route, rc = (this.rc = r3.rc);
     const nS = (this.n = Math.max(24, Math.ceil(r.total / 2.4)));
-    const mk = (g: BufferGeometry, tone: DeviceTone, order: number, edge: 'ink' | 'polyEdge' | 'latexEdge' = 'ink', px = 0.9): DeviceObject => {
-      const o = new DeviceObject(g, tone, shared, { px, order }, edge);
+    const mk = (g: BufferGeometry, tone: DeviceTone, order: number, edge: 'ink' | 'polyEdge' | 'latexEdge' = 'ink', px = 0.9, more: { bands?: 2 | 3; tubeTones?: boolean } = {}): DeviceObject => {
+      const o = new DeviceObject(g, tone, shared, { px, order, ...more }, edge);
       this.group.add(o.group); this.objects.push(o); return o;
     };
     // the shaft (a polymer tube with its dark hairline), revealed along its length up to the tip
@@ -84,15 +84,24 @@ export class ProcCatheter {
     const wireRings = makeRings(nS); fill(wireRings, () => Math.max(rc * 0.16, 0.0009));
     const wg = allocTube(nS, 6); writeRings(wg, wireRings, 6);
     this.wire = mk(wg, 'steel', 1, 'ink', 0.5);
-    this.shaft = mk(sg, 'poly', 4, 'polyEdge', 0.9);
+    // (lit by the world with a highlight, three bands: a round polymer line, not the vessels' flat screen tones, which read as a ribbon)
+    this.shaft = mk(sg, 'poly', 4, 'polyEdge', 0.9, { bands: 3, tubeTones: false });
     // the lead-in above the figure fades out as a gradient (the catheter's free end), shaft, needle and wire alike
     for (const o of [this.shaft, this.needle, this.wire]) o.setTailFade(Math.min(0.5, TAIL_UNITS / r.total));
-    this.tip = mk(withTang(new SphereGeometry(rc, 12, 8)), 'poly', 5, 'polyEdge', 0.9);
-    this.band = mk(withTang(new CylinderGeometry(rc * 1.05, rc * 1.05, rc * 0.7, 14, 1, true).rotateZ(Math.PI / 2)), 'platinum', 6, 'ink', 0.5);
+    // the tip (a Fogarty's: a short white taper that ends in a rounded point, the shaft's own radius at its base), set a little back so it covers where the shaft is cut
+    const tipLen = rc * 2.6, prof: Vector2[] = [];
+    for (let k = 0; k <= 8; k++) { const t = k / 8; prof.push(new Vector2(rc * (1 - 0.45 * t * t * (3 - 2 * t)), tipLen * t)); }
+    for (let k = 1; k <= 4; k++) { const a = (k / 4) * (Math.PI / 2); prof.push(new Vector2(rc * 0.55 * Math.cos(a), tipLen + rc * 0.5 * Math.sin(a))); }
+    this.tip = mk(withTang(new LatheGeometry(prof, 16).rotateZ(-Math.PI / 2).translate(-tipLen * 0.4, 0, 0)), 'poly', 5, 'polyEdge', 0.9);
+    // (no marker ring behind the tip: the only rings are the two collars at the balloon's ends)
+    this.band = mk(withTang(new CylinderGeometry(rc, rc, rc * 0.1, 6, 1, true).rotateZ(Math.PI / 2)), 'platinum', 6, 'ink', 0);
     // the balloon: refitted to the vein as it swells (hvpg-balloon.js), latex (or clear nylon along a TIPS tract)
+    // A balloon is clear and glassy (a Fogarty's: a colourless barrel, the shaft seen straight through it): a faint pale body, a thin crisp outline, two curved white highlights on its near side.
     this.balloonGeo = allocTube(BALLOON_N + 1, BALLOON_RADIAL);
-    this.balloon = mk(this.balloonGeo, span ? 'nylon' : 'latex', 7, span ? 'ink' : 'latexEdge', 1.1);
-    this.balloonBands = [0, 1].map(() => mk(withTang(new CylinderGeometry(rc * 1.0, rc * 1.0, rc * 0.7, 14, 1, true).rotateZ(Math.PI / 2)), 'platinum', 8, 'ink', 0.5));
+    this.balloon = mk(this.balloonGeo, 'nylon', 7, 'ink', 0.8);
+    this.glints = [0, 1].map(() => { const g = allocTube(GLINT_N, 6); return { g, o: mk(g, 'graft', 9, 'ink', 0) }; });
+    // the two small dark collars where the balloon is bonded to the shaft
+    this.balloonBands = [0, 1].map(() => mk(withTang(new CylinderGeometry(rc * 1.14, rc * 1.14, rc * 0.6, 16, 1, true).rotateZ(Math.PI / 2)), 'collar', 8, 'ink', 0.5));
     for (let i = 0; i < 2; i++) {
       this.flashes.push(mk(withTang(new RingGeometry(0.8, 1, 36)), 'trPv', 9, 'ink', 0));
       this.rings.push(mk(withTang(new RingGeometry(0.8, 1, 36)), 'monFree', 9, 'ink', 0));
@@ -128,12 +137,10 @@ export class ProcCatheter {
     for (const o of this.objects) o.group.visible = false;
     if (!showing) { this.group.visible = false; return; }
     this.group.visible = true;
-    for (const o of [this.shaft, this.tip, this.band]) { o.group.visible = true; o.setAlpha(op); }
+    for (const o of [this.shaft, this.tip]) { o.group.visible = true; o.setAlpha(op); }
     this.shaft.setReveal(Math.min(1, tipD / r.total));
     r3.point(tipD, this.v); this.tip.group.position.copy(this.v);
     this.orient(this.tip, tipD);
-    // the marker band, just behind the taper
-    r3.point(Math.max(0, tipD - (rc * U) * 2.75), this.v); this.band.group.position.copy(this.v); this.orient(this.band, tipD - rc * U * 2.75);
 
     // the wire (a fine dark line on into the portal trunk) and the needle (steel, narrowing to a bevelled point), only ahead of the catheter's tip
     const toD = (u: number): number => r3.tipD(u);
@@ -155,7 +162,7 @@ export class ProcCatheter {
     this.column.group.visible = col > 0.001;
     if (col > 0.001) {
       this.column.setTone(s.columnTone ?? 'trWedge'); this.column.setAlpha(0.55 * op);
-      const reach = tipD + (r.total - tipD) * col, i0 = Math.max(0, Math.floor((tipD / r.total) * (this.n - 1))), i1 = Math.min(this.n - 1, Math.ceil((reach / r.total) * (this.n - 1)));
+      const part = r.parts.find((q) => q.id && tipD <= q.d1 + 1e-6 && tipD >= q.d0 - 1e-6), end = part ? part.d1 : r.total, reach = tipD + (end - tipD) * col, i0 = Math.max(0, Math.floor((tipD / r.total) * (this.n - 1))), i1 = Math.min(this.n - 1, Math.ceil((reach / r.total) * (this.n - 1)));
       showRings(this.columnGeo, i0, i1, 12);
     }
 
@@ -163,6 +170,7 @@ export class ProcCatheter {
     const bl = clamp01(s.balloon);
     this.balloon.group.visible = bl > 0.001;
     for (const b of this.balloonBands) b.group.visible = bl > 0.001;
+    for (const q of this.glints) q.o.group.visible = bl > 0.001;
     if (bl > 0.001) this.fitBalloon(bl, tipD, op);
 
     // the tip's reading ripples, and the coil
@@ -187,16 +195,39 @@ export class ProcCatheter {
     const rings = this.ballRings ||= makeRings(ol.length);
     ol.forEach((o, i) => {
       const q = rings[i]!, d = dC + rx * o.s;
-      q.c.set(x3(o.c[0]), y3(o.c[1]), r3.point(d, this.v).z); q.t.set(o.t[0], -o.t[1], 0); q.r = Math.max(o.h / U, 0.0004);
+      q.c.set(x3(o.c[0]), y3(o.c[1]), r3.point(d, this.v).z); q.t.set(o.t[0], -o.t[1], 0); q.r = Math.max((o.h * 0.93) / U, 0.0004);
     });
     writeRings(this.balloonGeo, rings, BALLOON_RADIAL);
-    // a soft translucent bubble, as the 2D app draws it (--dev-latex-a, .34 to .45): the vein and the catheter read through the body, a firmer rim outlines it, and both ease in with the swelling
-    const e = bl * bl * (3 - 2 * bl), a = this.latexA;
-    this.balloon.setAlphas(Math.min(0.5, a * 1.1) * Math.min(1, e * 2.2) * op, (0.35 + 0.45 * e) * op * Math.min(1, bl * 4));
-    // its two marker bands, at the shoulders
+    // clear glass: the body is barely there (the vein and the shaft read straight through it), the outline is crisp and eases in with the swelling
+    const e = bl * bl * (3 - 2 * bl);
+    this.balloon.setAlphas(0.13 * Math.min(1, e * 2.2) * op, (0.35 + 0.5 * e) * op * Math.min(1, bl * 4));
+    this.lay(ol, rings, e, op);
+    // its two collars, where the glass meets the shaft
     [-1, 1].forEach((side, i) => {
-      const b = this.balloonBands[i]!, d = dC + side * rx * 0.72;
+      const b = this.balloonBands[i]!, d = dC + side * rx * 0.97;
       b.setAlpha(op); b.group.position.copy(r3.point(d, this.v)); this.orient(b, d);
+    });
+  }
+  private readonly gr = [makeRings(GLINT_N), makeRings(GLINT_N)];
+  private readonly n1 = new Vector3(); private readonly n2 = new Vector3(); private readonly tt = new Vector3();
+  /** Two white curved highlights on the glass's near side (the figure's front is +z): arcs a hair inside the balloon's surface, one long above the shaft and one short below it, as a Fogarty's light curves round its barrel. */
+  private lay(ol: { s: number }[], rings: ReturnType<typeof makeRings>, e: number, op: number): void {
+    const arcs = [{ phi: 0.62, s0: -0.62, s1: 0.5, a: 0.8 }, { phi: -0.5, s0: 0.12, s1: 0.62, a: 0.5 }];
+    arcs.forEach((arc, k) => {
+      const out = this.gr[k]!;
+      for (let i = 0; i < GLINT_N; i++) {
+        const s = arc.s0 + ((arc.s1 - arc.s0) * i) / (GLINT_N - 1);
+        let j = 0; while (j < ol.length - 1 && ol[j]!.s < s) j++;
+        const q = rings[j]!, tt = this.tt.copy(q.t).normalize();
+        this.n1.crossVectors(tt, Z); if (this.n1.lengthSq() < 1e-6) this.n1.crossVectors(tt, X);
+        this.n1.normalize(); this.n2.crossVectors(tt, this.n1).normalize();
+        // up on the screen is -n1, toward the viewer is -n2
+        const c = Math.cos(arc.phi), sn = Math.sin(arc.phi), r = out[i]!;
+        r.c.copy(q.c).addScaledVector(this.n2, -c * q.r * 0.9).addScaledVector(this.n1, -sn * q.r * 0.9);
+        r.t.copy(tt); r.r = Math.max(this.rc * 0.075 * Math.sin(Math.PI * (i / (GLINT_N - 1))) + this.rc * 0.01, 0.0003);
+      }
+      writeRings(this.glints[k]!.g, out, 6);
+      this.glints[k]!.o.setAlpha(arc.a * e * op);
     });
   }
   private latexA = 0.4;
