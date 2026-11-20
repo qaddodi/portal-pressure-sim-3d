@@ -238,7 +238,8 @@ uniform float smokeOn;
 uniform vec3 hiColor;
 uniform float inkOn;
 uniform vec3 stump;   // (the vertex stage's: a divided vein's stump and its tie)
-uniform vec2 seam;   // a surgical shunt's stitch rings: the distance in from its start and from its end (figure units, 0: none)
+uniform vec4 seamA[2];   // a surgical shunt's stitches, its start's then its end's (seams.ts): the seam's distance in from the end as a quartic in the place across (c0..c3 here, c0 = 0: none)
+uniform vec4 seamB[2];   // (c4, how many dashes (0: three ticks), one dash's share of the seam, one dash and its gap's share)
 uniform vec4 stentU;   // a stent in this vessel, drawn on the tube in the Circuit (where the 3D device is faded out): x its share shown (0 none), y and z where it starts and ends along the course (0..1), w where its graft starts
 // smooth joins, as in the vertex shader: the ends that carry on into another vessel (x < 0 where nothing); their last stretch draws no ink, so no flat cut is outlined where a branch meets its trunk
 uniform vec3 mate0;
@@ -527,13 +528,27 @@ void main() {
     c = mix(c, inkColor, 0.85 * cov * kS);
     c = mix(c, vec3(0.86, 0.66, 0.2), gold * kS);
   }
-  // the running stitch at a surgical shunt's sewn end (suture-marks.js seamDashes): a ring of thread dashes round the tube where it meets its host's wall, with the 2D's thread and edge colours
-  if ((seam.x > 0.0 || seam.y > 0.0) && circT < 0.001) {
-    float Lw = len * vU, aF = vUv.x * Lw, ph = vUv.y * 6.2831853, dsh = smoothstep(0.35, 0.5, fract(ph / 6.2831853 * 9.0)) * (1.0 - smoothstep(0.85, 1.0, fract(ph / 6.2831853 * 9.0)));
-    float dd = 1e3;
-    if (seam.x > 0.0) dd = min(dd, abs(aF - seam.x));
-    if (seam.y > 0.0) dd = min(dd, abs(Lw - aF - seam.y));
-    float tw = (1.0 - smoothstep(0.32, 0.5, dd)) * dsh, te = (1.0 - smoothstep(0.7, 1.0, dd)) * dsh;
+  // the running stitch at a surgical shunt's sewn end (suture-marks.js seamDashes): dashes along the curve where the host's wall crosses the shunt (a slanted curve, found on the 2D courses), a dark halo under a thin thread,
+  // with the 2D's thread and edge colours; a shunt in no host keeps 2D's three ticks. The distance to the curve is taken square to it (its slant against the tube's half width).
+  if ((seamA[0].x > 0.0 || seamA[1].x > 0.0) && circT < 0.001) {
+    float Lw = len * vU, aF = vUv.x * Lw, aa = clamp(across, -1.0, 1.0), rr = max(vR, 0.3), tw = 0.0, te = 0.0;
+    for (int e = 0; e < 2; e++) {
+      vec4 A = seamA[e], B = seamB[e];
+      if (A.x <= 0.0) continue;
+      float sl = e == 0 ? aF : Lw - aF;
+      float s0 = A.x + aa * (A.y + aa * (A.z + aa * (A.w + aa * B.x)));
+      float ds = (A.y + aa * (2.0 * A.z + aa * (3.0 * A.w + aa * 4.0 * B.x))) / rr;
+      float dd = abs(sl - s0) / sqrt(1.0 + ds * ds), dsh = 1.0;
+      if (B.y > 0.5) {
+        float tn = clamp((aa + 0.97) / 1.94, 0.0, 1.0), kd = floor(tn / B.w), q = tn - kd * B.w, ew = max(fwidth(tn), 1e-4);
+        dsh = (1.0 - smoothstep(B.z - ew, B.z + ew, q)) * step(kd, B.y - 0.5) * smoothstep(0.97, 0.9, abs(aa));
+      } else {
+        dd = min(dd, min(abs(sl - s0 - 3.5), abs(sl - s0 + 3.5)));
+        dsh = smoothstep(1.0, 0.92, abs(aa));
+      }
+      tw = max(tw, (1.0 - smoothstep(0.32, 0.5, dd)) * dsh);
+      te = max(te, (1.0 - smoothstep(0.7, 1.0, dd)) * dsh);
+    }
     c = mix(c, vec3(0.227, 0.114, 0.039), te * 0.4);
     c = mix(c, vec3(0.910, 0.455, 0.165), tw);
   }

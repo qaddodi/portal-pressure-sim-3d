@@ -9,6 +9,7 @@ import { LENS_SHARED, LENS_TOKENS } from '../lenses/tokens.copied.ts';
 import type { LookId } from '../palette.ts';
 import { CIRCUIT_ATTRIBUTES } from '../circuit/geometry.ts';
 import { CASING, RIM_A, RIM_INK } from './cel-ink.ts';
+import type { SeamCurve } from './seams.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import type { CircuitShared } from '../circuit/uniforms.ts';
 
@@ -91,7 +92,7 @@ export class VesselObject extends CelObject {
       uniforms: {
         ...u,
         inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, inkOn: { value: 1 },
-        lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, bury: { value: new Vector2(0, 0) }, mouth: { value: new Vector4(0, 0, 0, 0) }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, seam: { value: new Vector2(0, 0) }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
+        lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, bury: { value: new Vector2(0, 0) }, mouth: { value: new Vector4(0, 0, 0, 0) }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, seamA: { value: [new Vector4(), new Vector4()] }, seamB: { value: [new Vector4(), new Vector4()] }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circFlat: { value: 0 }, circAnchA: { value: new Vector3() }, circAnchC: { value: new Vector3() }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
         veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 }, cavaEnd: { value: new Vector2(0, 1) }, cavaTail: { value: 0 },
@@ -167,11 +168,17 @@ export class VesselObject extends CelObject {
   }
   /** The stent in this vessel as the Circuit draws it on the tube: its share shown, where it starts and ends along the course (0..1) and where its graft starts (stent-device.ts). */
   setStent(k: number, u0: number, u1: number, ub: number): void { (this.toon.uniforms.stentU!.value as Vector4).set(k, u0, u1, ub); }
-  /** A surgical shunt's stitch rings (seams.ts): the distance in from its start and from its end, figure units; 0 none. */
-  setSeam(start: number, end: number): boolean {
-    const v = this.toon.uniforms.seam!.value as Vector2;
-    if (v.x === start && v.y === end) return false;
-    v.set(start, end); return true;
+  /** A surgical shunt's stitches (seams.ts): the seam curve at its start and at its end (null: none there). */
+  setSeam(start: SeamCurve | null, end: SeamCurve | null): boolean {
+    const A = this.toon.uniforms.seamA!.value as Vector4[], B = this.toon.uniforms.seamB!.value as Vector4[];
+    let changed = false;
+    [start, end].forEach((s, i) => {
+      const a = s ? [s.c[0], s.c[1], s.c[2], s.c[3]] : [0, 0, 0, 0], b = s ? [s.c[4], s.n, s.dash, s.per] : [0, 0, 0, 0];
+      if (A[i]!.x !== a[0] || A[i]!.y !== a[1] || A[i]!.z !== a[2] || A[i]!.w !== a[3] || B[i]!.x !== b[0] || B[i]!.y !== b[1] || B[i]!.z !== b[2] || B[i]!.w !== b[3]) {
+        A[i]!.set(a[0]!, a[1]!, a[2]!, a[3]!); B[i]!.set(b[0]!, b[1]!, b[2]!, b[3]!); changed = true;
+      }
+    });
+    return changed;
   }
   /** Where a side branch leaves this vein (mouth.ts): the vein draws no outline over that stretch of its wall, on that side. */
   setMouth(u0: number, u1: number, side: number, margin: number): void { (this.toon.uniforms.mouth!.value as Vector4).set(u0, u1, side, margin); }
