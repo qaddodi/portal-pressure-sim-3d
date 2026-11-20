@@ -96,6 +96,10 @@
   background: var(--glass); border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
   box-shadow: 0 14px 34px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6)), 0 2px 6px -1px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.2));
   font: var(--lb-key-weight, 400) var(--lb-key-fs, 12px) / var(--lb-key-line, 1.25) var(--font-ui, Inter, system-ui, sans-serif); color: var(--text-2); }
+.lb-key-in { animation: lb-key-in 240ms var(--ease, ease) both; }
+.lb-key-out { position: absolute; left: 0; top: 0; pointer-events: none; animation: lb-key-out 240ms var(--ease, ease) both; }
+@keyframes lb-key-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lb-key-out { from { opacity: 1; } to { opacity: 0; } }
 .lb-key-twin { flex-wrap: nowrap; max-width: none; min-height: 0; }
 .lb-key[data-grad] { flex-direction: column; flex-wrap: nowrap; }
 .lb-key b { font-weight: 600; color: var(--text); margin-right: .1em; }

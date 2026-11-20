@@ -82,6 +82,8 @@ export interface LabelState {
   organNames: boolean;
   /** a procedure asks the figure's names to stand aside while it works (2D `quiet`) */
   quiet: boolean;
+  /** a centred panel stands over the figure: the names stand aside */
+  panel?: boolean;
   /** a procedure's own reading cards (the EUS-PPG's) in place of the catheter's */
   proc: ProcCards | null;
   /** The lens whose colour key the slide shows on the figure (names.copied.ts LENS_KEY), or null for none. */
@@ -204,6 +206,7 @@ export class LabelController {
     // Under the HVPG catheter the figure's names are hidden: "the HVPG catheter's readings stand alone, so it hides them" (stage.js setCatheter, `cath-on`; a
     // treatment keeps them). They fade out as the catheter comes in and back as it goes.
     if (HIDE_UNDER_CATHETER && (st.cath || st.quiet)) return list;
+    if (st.panel) return list;
     const picked = st.picked ? STATIONS.find((s) => s.vessel === st.picked)?.id ?? null : null;
     for (const s of STATIONS) {
       if (s.kind === 'organ') { if (st.organNames) list.push(this.metaOf(s)); continue; }

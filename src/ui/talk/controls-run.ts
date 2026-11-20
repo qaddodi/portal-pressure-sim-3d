@@ -11,6 +11,8 @@ import { LENS_IDS, type LensId, DEFAULT_LENS } from '../../scene/lenses/model.ts
 import { LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
 import { camPlan } from '../../decks/hp/cams.ts';
 import { useUi } from '../ui-store.ts';
+import { useLabels } from '../../scene/labels/store.ts';
+import { KEY_LENSES } from '../../scene/labels/key.ts';
 import { useToolPatch } from './tool-options.ts';
 import { useDopplerProbe, type Gate } from '../tests/doppler/probe-state.ts';
 import type { Deck } from '../../decks/schema.ts';
@@ -46,7 +48,7 @@ export async function pickCompare(deck: Deck, i: number, o: CompareOpt): Promise
   if (o.how === 'lens') {
     const own = slide.scene?.lens ?? DEFAULT_LENS;
     const lens = o.own && !(LENS_IDS as readonly string[]).includes(o.lens ?? '') ? own : o.lens!;
-    if ((LENS_IDS as readonly string[]).includes(lens)) sceneApi.setLens(lens as LensId);
+    if ((LENS_IDS as readonly string[]).includes(lens)) { sceneApi.setLens(lens as LensId); useLabels.getState().set({ key: KEY_LENSES.includes(lens) ? lens : null }); }   // (2D lensPick: the key under the line follows)
     return;
   }
   const at = o.slide ? deck.slides.find((s) => s.id === o.slide) ?? null : null;

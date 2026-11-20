@@ -1,7 +1,8 @@
-// The summary table (the 2D `visual: 'table'`), in the data card's place: one block per patient, its readings in a grid under its name, each with the arrow the 2D table draws against normal
-// (or against the row it is compared with) and the colour that goes with it. Every cell is computed by table-model.ts from the 2D app's own cut-offs. A row that names a slide opens that slide.
-// Text keeps its size and nothing scrolls: the blocks stack, and a screen that cannot hold them all makes the card taller (the planner pages or widens), never smaller type.
-import { useEffect, useMemo, useState } from 'react';
+// The summary table (the 2D `visual: 'table'`), drawn as the 2D app draws it (presenter.js summaryTable, its own stylesheet lifted into css2d: `.pz-table`): ONE heading row, a row per patient
+// (its site's heading over its name), and in each cell the arrow against normal (or against the row it is compared with) in the colour that goes with it, and no number: the numbers are
+// the reference row's (the anchor for the arrows) and the words a screen reader and a long press hear. On a phone each row is one line of a grid (css2d: `.pz-table tr`). Every cell is computed by
+// table-model.ts from the 2D app's own cut-offs. A row that names a slide opens that slide. Text keeps its size and nothing scrolls inside the card.
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { Deck, Slide } from '../../decks/schema.ts';
 import { useUi } from '../ui-store.ts';
 import { tableModel, type Cell } from '../talk/table-model.ts';
@@ -9,8 +10,30 @@ import { resolveTable, useTables, fpOfSlide, pendingRows } from '../talk/table-r
 import { CUT } from '../deck/from2d/table-marks.js';
 import { WaveCell } from './WaveCell.tsx';
 
-const ARROW = ['↓↓', '↓', '•', '↑', '↑↑'];
-const glyph = (c: Cell) => (c.kind === 'blank' ? '○' : c.kind === 'dir' ? ARROW[c.arrow + 2] : '');
+/** 2D's purpose-drawn arrow (css2d `.pz-arr`): one arrow, two, or the level dash for a cell within normal. */
+export const Arrow = ({ n }: { n: number }) => {
+  const m = Math.abs(n);
+  return <span className={`pz-arr${n < 0 ? ' dn' : ''}${n === 0 ? ' zero' : ''}${m === 2 ? ' two' : ''}`} aria-hidden="true"><i className="pz-ag">{Array.from({ length: Math.max(1, m) }, (_, k) => <i key={k} />)}</i></span>;
+};
+const None = () => <span className="pz-nm" aria-hidden="true" />;
+/** A legend line with its symbols drawn as the table's own (2D withArrows): arrows, the dash and the ring. */
+export const withArrows = (t: string) => t.split(/(↑↑|↓↓|↑|↓|•|○)/).map((x, i) => (x === '↑↑' ? <Arrow key={i} n={2} /> : x === '↓↓' ? <Arrow key={i} n={-2} /> : x === '↑' ? <Arrow key={i} n={1} /> : x === '↓' ? <Arrow key={i} n={-1} /> : x === '•' ? <Arrow key={i} n={0} /> : x === '○' ? <None key={i} /> : x));
+
+function Td({ c }: { c: Cell }) {
+  switch (c.kind) {
+    case 'wave': return <td className="num wave" aria-hidden="true" title={c.wave!.title || undefined}>{c.wave!.trace ? <WaveCell trace={c.wave!.trace} vessel={c.wave!.vessel} max={c.wave!.max} words={c.sr} /> : c.wave!.pending ? <span className="dk-tpend" /> : <span className="dk-tnone">—</span>}<span className="sr-only">{c.sr}</span></td>;
+    case 'pend': return <td className="num pend" aria-busy="true"><span className="dk-tpend" aria-hidden="true" /><span className="sr-only">calculating</span></td>;
+    case 'blank': return <td className="num blank" title={c.sr}><None /><span className="sr-only">{c.sr}</span></td>;
+    case 'removed': return <td className="num none">Removed</td>;
+    case 'none': return <td className="num none" colSpan={2}>None</td>;
+    case 'ref': return <td className="num ref" data-rate={c.rate ?? undefined}>{c.text}<span className="sr-only">{c.sr}</span></td>;
+    default: return (
+      <td className={`num dir${c.arrow === 0 ? ' zero' : ''}${c.miss ? ' miss' : ''}`} data-rate={c.rate ?? undefined} data-eff={c.eff ?? undefined} title={c.miss ? `${c.sr}` : `${c.text}`}>
+        <Arrow n={c.arrow} />{c.miss ? <span className="pz-miss" aria-hidden="true">{c.miss}</span> : null}<span className="sr-only">{c.sr}</span>
+      </td>
+    );
+  }
+}
 
 export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
   const spec = slide.table!;
@@ -18,43 +41,48 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
   const stored = useTables((s) => s.rows[key]);
   const pending = useMemo(() => pendingRows(deck, slide), [deck, slide]);
   const rows = stored ?? pending;
-  const [cut, setCut] = useState('');
+  const [cut, setCut] = useState<{ label: string; text: string } | null>(null);
   useEffect(() => { resolveTable(deck, slide); }, [deck, slide]);
   const model = useMemo(() => tableModel(spec, rows, (id) => fpOfSlide(deck, id)), [rows, spec, deck]);
-  const showCut = (k: string, label: string, cutText?: string) => () => setCut(`${label}: ${cutText || (CUT as Record<string, string>)[k] || ''}`);
+  const showCut = (k: string, label: string, cutText?: string) => () => setCut({ label, text: cutText || (CUT as Record<string, string>)[k] || '' });
+  const nc = model.cols.length;
+  // (a Doppler column is wider than a pressure's: the grid's columns follow what each holds)
+  const grid = `minmax(6.2rem, 1.7fr) ${model.cols.map((c) => (c.k === 'wave' ? 'minmax(0, 3.4fr)' : 'minmax(0, 1fr)')).join(' ')}`;
   return (
-    <div className="dk-tbl" aria-label={spec.rowHead || 'Summary table'}>
-      <div className="dk-tbl-head"><p className="dk-kicker">{spec.rowHead || 'Summary'}</p></div>
-      {model.rows.map((r, n) => (
-        <section key={`${r.key}:${n}`} className="dk-trow" data-ref={r.ref || undefined} data-focus={r.focus || undefined} data-cont={r.cont || undefined}
-          data-on={r.i >= 0 || undefined} tabIndex={r.i >= 0 ? 0 : undefined} role={r.i >= 0 ? 'button' : undefined} aria-description={r.i >= 0 ? 'Press Enter to go to this slide' : undefined}
-          onClick={r.i >= 0 ? () => useUi.getState().go(r.i) : undefined} onKeyDown={r.i >= 0 ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); useUi.getState().go(r.i); } } : undefined}>
-          <header>
-            {r.head && !r.cont ? <span className="dk-tkick" data-site={r.site}>{r.head}</span> : null}
-            <b>{r.title}</b>
-            {r.vs ? <i>{r.vs}</i> : null}
-          </header>
-          <div className="dk-tcells">
-            {r.cells.map((c, j) => {
-              const col = model.cols[j];
-              return (
-                <div key={c.k + j} className="dk-tcell" data-kind={c.kind} data-rate={c.rate ?? undefined} data-eff={c.eff ?? undefined} data-miss={c.miss || undefined} data-zero={c.kind === 'dir' && c.arrow === 0 ? '' : undefined}>
-                  <button type="button" className="dk-tl" onClick={(e) => { e.stopPropagation(); showCut(col.k, col.label, col.cut)(); }} aria-label={`${col.label}: ${col.cut}`}>{col.label}</button>
-                  {c.kind === 'wave' ? (
-                    <span className="dk-tw" aria-hidden="true" title={c.wave!.title || undefined}>{c.wave!.trace ? <WaveCell trace={c.wave!.trace} vessel={c.wave!.vessel} max={c.wave!.max} words={c.sr} /> : c.wave!.pending ? <span className="dk-tpend" /> : <span className="dk-tnone">—</span>}</span>
-                  ) : null}
-                  <span className="dk-tv" aria-hidden="true">{c.kind === 'wave' ? '' : c.kind === 'dir' || c.kind === 'blank' ? <em className="dk-ta">{glyph(c)}</em> : null}{c.kind === 'blank' || c.kind === 'pend' ? '' : c.text}</span>
-                  {c.miss ? <span className="dk-tm" aria-hidden="true">{c.miss}</span> : null}
-                  <span className="sr-only">{c.sr}</span>
-                </div>
-              );
-            })}
-          </div>
-          {r.notes.map((t, j) => (t ? <p key={j} className="dk-tnote">{model.noteHeads[j] ? <b className="dk-tnh">{model.noteHeads[j]}</b> : null}{t}</p> : null))}
-        </section>
-      ))}
-      <p className="dk-tfoot">{model.legend}</p>
-      {cut ? <p className="dk-tcut" role="status">{cut}</p> : null}
+    <div className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-grid' as string]: grid }}>
+      <table>
+        <thead>
+          <tr>
+            <th>{model.rowHead}</th>
+            {model.cols.map((c) => (
+              <th key={c.k} className="num" title={c.cut || undefined} tabIndex={c.cut ? 0 : undefined}
+                onClick={c.cut ? showCut(c.k, c.label, c.cut) : undefined} onKeyDown={c.cut ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); showCut(c.k, c.label, c.cut)(); } } : undefined}>{c.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {model.rows.map((r, n) => {
+            const go = r.i >= 0 ? () => useUi.getState().go(r.i) : undefined;
+            return (
+              <Fragment key={`${r.key}:${n}`}>
+                <tr className={`${r.i >= 0 ? '' : 'static'}${r.focus ? ' pzv-focus' : ''}${r.cont ? ' pz-cont' : ''}`.trim() || undefined} data-ref={r.ref || undefined}
+                  tabIndex={r.i >= 0 ? 0 : undefined} aria-label={r.i >= 0 ? `${r.title}: go to this slide` : undefined}
+                  onClick={go} onKeyDown={go ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); go(); } } : undefined}>
+                  <th scope="row">
+                    <span className="pz-kick" data-site={r.site || 'none'}>{r.head}</span>
+                    <span className="tw"><span className="tn">{r.title}</span>{r.vs ? <span className="vs">{r.vs}</span> : null}</span>
+                  </th>
+                  {r.cells.map((c, j) => <Td key={c.k + j} c={c} />)}
+                </tr>
+                {r.notes.some(Boolean) ? (
+                  <tr className="dk-tnrow"><td colSpan={nc + 1}>{r.notes.map((t, j) => (t ? <p key={j} className="dk-tnote">{model.noteHeads[j] ? <b className="dk-tnh">{model.noteHeads[j]}</b> : null}{t}</p> : null))}</td></tr>
+                ) : null}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="pz-foot dk-tfoot">{withArrows(model.legend)}{cut ? <span className="pz-cutl" role="status"><b>{cut.label}: </b>{withArrows(cut.text.replace(/\.?$/, '.'))}</span> : null}</p>
     </div>
   );
 }
