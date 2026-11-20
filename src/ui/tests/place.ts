@@ -6,7 +6,7 @@ import { isPhone } from '../layout/device.ts';
 import { footHeight, usesBottomBar } from '../shell/room.ts';
 import { M } from '../shell/metrics.ts';
 import { clamp } from './copied/num.copied.js';
-import { testsHalfPx, MIN_HALF } from './copied/stack-plan.copied.js';
+import { testsHalfPx } from './copied/stack-plan.copied.js';
 import { sheetDockVars } from './copied/dock-vars.copied.js';
 
 export const SIDE_W = 500, SIDE_W_WIDE = 600;
@@ -22,14 +22,12 @@ export const SIDE_MAX_H = 760;
 export const TESTS_HALF_PX = 520;
 /** The sheet's third stop, Peek (owner, 20 Nov: swipe the instrument panel down out of the way to see more of the figure, and bring it back): the head row, tabs and grab handle only. */
 export const PEEK_H = 72;
-/** The share of the screen the figure keeps above a phone's Half sheet (owner, 20 Nov 2026: at 520 px the figure was left with 62 px, then 'about 55 %'; the sheet's content scrolls instead). */
-export const FIGURE_KEEPS = 0.55;
-/** The tallest a phone's Half may be: the card's top edge stays at least FIGURE_KEEPS of the screen down (`foot` is the card's distance from the screen's bottom); never under MIN_HALF. */
-export const halfCap = (H: number, foot: number): number => Math.max(MIN_HALF, Math.floor((1 - FIGURE_KEEPS) * H - foot));
-export function sheetStops(device: DeviceClass, H: number, R: number, vesselCard = false, foot?: number): [number, number] {
+/** A phone's Half is 2D's (testsHalfPx: about 90 % of the room, 520 px at most), so a pane is never squeezed into a scroll inside the card (owner, 20 Nov: cards not opening full, unlike 2D);
+ *  the figure is seen over it by pulling the card down to Peek. */
+export function sheetStops(device: DeviceClass, H: number, R: number, vesselCard = false): [number, number] {
   if (device === 'tablet-portrait') return [Math.round(Math.min(1, testsHalfPx(R, 0.45 * H, vesselCard) / R) * R), Math.round(Math.min(1, (0.62 * H) / R) * R)];
   const half = Math.round(Math.min(0.9, testsHalfPx(R, TESTS_HALF_PX, vesselCard) / R) * R);
-  return [foot == null ? half : Math.min(half, halfCap(H, foot), Math.round(R)), Math.round(R)];
+  return [half, Math.round(R)];
 }
 /** The sizes a card on the right hands its panes (dock.js sizeObserver): the plots share the body's height, a square is the card's width less its padding. */
 export const sideVars = (w: number, bodyH: number, count: number): { plot: number; square: number } => ({ plot: clamp(bodyH / Math.max(1, count) - 90, 190, 380), square: clamp(w - 80, 220, 380) });
@@ -93,7 +91,7 @@ export function testsPlace(vp: Viewport, device: DeviceClass, o: PlaceOpts = {})
   // a sheet over the foot of the figure: the full width less the margins, rising from just above the bottom bars; Half or Full (dock-sheet.js)
   const margin = 8, w = vp.w - vp.safe.left - vp.safe.right - 2 * margin;
   const R = Math.max(1, vp.h - vp.safe.top - M.topSafe - bottom - 22);
-  const stops = sheetStops(device, vp.h, R, !!o.vesselCard, bottom);
+  const stops = sheetStops(device, vp.h, R, !!o.vesselCard);
   const maxH = stops[1];
   const h = o.sheetSize === 2 ? PEEK_H : contentH > 0 ? Math.min(contentH, maxH) : o.heightRatio != null ? Math.max(140, Math.min(maxH, Math.max(180, vp.h * o.heightRatio))) : stops[o.sheetSize === 1 ? 1 : 0];
   return { kind: 'sheet', rect: { x: vp.safe.left + margin, y: vp.h - bottom - h, w, h }, maxH, vars: sheetDockVars(h, isPhone(device)), focus: false, stops };

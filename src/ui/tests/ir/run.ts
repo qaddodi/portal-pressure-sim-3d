@@ -17,6 +17,7 @@ import { updateParams } from '../../action/params.ts';
 import { runCards, type CardRun } from '../../../scene/labels/proc-cards.ts';
 import { setProcMarks, type ProcMark } from '../../../scene/labels/proc-marks.ts';
 import { useShell } from '../../shell/store.ts';
+import { E } from '../endo/eus-run.ts';
 import { goToView } from '../../shell/view-actions.ts';
 import { useUi } from '../../ui-store.ts';
 import { freeRoom } from '../../shell/room.ts';
@@ -42,7 +43,7 @@ export const R = {
 };
 export const tEnd = (): number => (R.blocked ? TB.end : T.end);
 export const hvpgRunning = (): boolean => R.t0 != null && R.t < tEnd();
-export const busy = (): boolean => hvpgRunning() || !!R.procKind || R.ppg.run;
+export const busy = (): boolean => hvpgRunning() || !!R.procKind || R.ppg.run || E.run;   // (an EUS run holds the procedure layer too)
 
 /** Bumps when a word on the pane changes (a phase, a step, a reading, a button's state). */
 export const useRun = create<{ n: number }>(() => ({ n: 0 }));

@@ -130,6 +130,8 @@ export class EndoScope {
   /** the hit's rings (0 none to 1) and the reading (0 none, 1 portal, 2 hepatic) the last drive gave */
   flash = 0; read = 0;
   private drove = false;
+  /** The Tests card's EUS run (or a slide's) is driving the scope: the camera may follow its tip. */
+  get driven(): boolean { return this.drove; }
   private readonly tgtPt: P2 = [0, 0];
   private readonly fanGeo = new BufferGeometry();
   private readonly fanMat = new MeshBasicMaterial({ transparent: true, vertexColors: true, depthTest: false, depthWrite: false, side: DoubleSide });
