@@ -6,6 +6,7 @@ import { lensSwatch, swatchOfLegend } from '../src/ui/shell/lens-art.ts';
 import { LENS_TOKENS } from '../src/scene/lenses/tokens.copied.ts';
 import { samplerFor } from '../src/scene/lenses/model.ts';
 import { rgb01ToHex } from '../src/scene/lenses/oklab.ts';
+import { figureHex } from '../src/scene/vessels/cel-ink.ts';
 import type { LensId } from '../src/scene/lenses/model.ts';
 
 const LENSES: LensId[] = ['pressure', 'delta', 'heat', 'drop', 'flow', 'velocity', 'direction', 'oxygen', 'origin', 'firstpass'];
@@ -20,11 +21,11 @@ test('the menu swatch of each of the ten lenses is built from its key, in every 
   }
 });
 
-test('the key of a ramp lens runs through the colours the vessels are painted with', () => {
+test('the key of a ramp lens runs through the colours the vessels are painted with (the ramp, then the vessel saturation and brightness caps)', () => {
   for (const look of LOOKS) for (const [lens, name, max] of [['pressure', 'pressure', 30], ['flow', 'flow', 1], ['velocity', 'velocity', 1], ['heat', 'heat', 1], ['drop', 'drop', 1], ['oxygen', 'oxygen', 1]] as const) {
     const g = legendFor(lens, look), s = samplerFor(look, name);
     assert.ok(LENS_TOKENS[look][name].length > 1);
     const stops = g.bar!.stops;
-    for (const [c, p] of [stops[0]!, stops[stops.length - 1]!, stops[Math.floor(stops.length / 2)]!]) assert.equal(c, rgb01ToHex(s.at((p / 100) * max, [0, 0, 0])), `${look} ${lens} at ${p}%`);
+    for (const [c, p] of [stops[0]!, stops[stops.length - 1]!, stops[Math.floor(stops.length / 2)]!]) assert.equal(c, figureHex(rgb01ToHex(s.at((p / 100) * max, [0, 0, 0])), look), `${look} ${lens} at ${p}%: the ramp as the vessels wear it`);
   }
 });

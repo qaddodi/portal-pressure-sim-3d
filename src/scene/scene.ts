@@ -1067,10 +1067,9 @@ export class CelScene {
     if (!this.rig.placed) { gl.clear(); return; }
     gl.setClearColor(this.clearColor(this.post.on));
     const dpr = gl.getPixelRatio?.() ?? 1;
-    this.blood.shared.dpr.value = dpr;   // (the vessels' line is held in device px)
+    this.blood.shared.dpr.value = dpr;   // (the vessels' line is set in CSS px and converted with it)
     this.lobule3d.setDpr(dpr);
     MICRO_DPR.value = dpr;   // (the micro parts' lines drawn in the fill are CSS px wide on every screen)
-    this.disease.strands.setDpr(dpr);
     // Two passes, as the 2D figure paints: the organs first, then the vessels (and what is in them) over the cleared depth, so no organ's relief ever hides a vessel and a joined
     // vessel never looks cut. (The vessels keep their own depth among themselves: their tiers.)
     const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;

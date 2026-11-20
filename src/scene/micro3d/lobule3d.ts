@@ -38,7 +38,7 @@ import { WASH_AMOUNT, washAmount, washFront } from '../lobule/wash.ts';
 const WASH_EASE_MS = 350;
 import { CEL_STYLE } from '../cel-style.ts';
 import { buildBile } from '../lobule/bile.ts';
-import { MeshBuilder, MicroPart, type P2, type RGB, ellipsoid, microMaterials, pillow, tube } from './cel3d.ts';
+import { MICRO_DPR, MeshBuilder, MicroPart, type P2, type RGB, ellipsoid, microMaterials, pillow, tube } from './cel3d.ts';
 
 const R = LOBULE_R;
 /** Heights (local units, toward the viewer; R = 3): the hexagon's ground, the tiles' tops and bottoms, the tubes' centre line, Disse's sleeve, the mouths' lips and depth, the marks' plate. */
@@ -161,7 +161,7 @@ export class Lobule3D {
     if (this.tex) { this.tex.flipY = true; this.tex.premultiplyAlpha = true; this.tex.generateMipmaps = true; this.tex.minFilter = LinearMipmapLinearFilter; this.tex.magFilter = LinearFilter; this.tex.anisotropy = 4; }
     const blank = new DataTexture(new Uint8Array(4), 1, 1); blank.needsUpdate = true;
     this.marksMat = new ShaderMaterial({
-      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, opacity: { value: 1 }, ink: { value: new Color() } },
+      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, opacity: { value: 1 }, ink: { value: new Color() }, uDpr: MICRO_DPR },
       transparent: false, depthWrite: false, depthTest: false, side: DoubleSide,
       blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
     });

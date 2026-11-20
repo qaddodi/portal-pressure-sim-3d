@@ -1,6 +1,6 @@
 // The lobule's tissue, cel shaded (owner, 20 Nov 2026: "everything cel shaded in the figures, it should look beautiful"). 2D's painter paints the plate with soft gradients; here the same painted
 // colours go through the figure's one cel style (src/scene/cel-style.ts CEL_STYLE, no number of its own): three flat tones, shade / base / lit, the shade taking SHADE off the base and the lit
-// lifting LIT toward white, the edge between them a hard line one anti-aliased pixel wide, and a clean ink line (2D's casing colour at casing alpha, LINE_MIN device px) on every strong edge.
+// lifting LIT toward white, the edge between them a hard line one anti-aliased pixel wide, and a clean ink line (2D's casing colour at casing alpha, LINE_MIN CSS px) on every strong edge.
 //
 // The base of a pixel is its OWN local lightness (the painted colour blurred a few mip levels): a flat cell is exactly 2D's colour; only what the painter shades round it (the membranes' halo,
 // the vignette, the nutmeg, the collagen's soft edge) steps into the shade or lit tone, so no stripes on a near-flat area and no new palette. A pixel keeps its own hue and chroma (a nucleus stays
@@ -25,7 +25,7 @@ export const CEL_TISSUE_GLSL = /* glsl */ `
 ${CEL_QUANT_GLSL}
 const float CEL_SHADE_AT = ${n(CEL_STYLE.TISSUE.SHADE_AT)};
 const float CEL_LIT_AT = ${n(CEL_STYLE.TISSUE.LIT_AT)};
-const float CEL_LINE_MIN = ${n(CEL_STYLE.LINE_MIN)};
+const float CEL_LINE_MIN = ${n(CEL_STYLE.LINE_MIN)};   // CSS px: celEdge multiplies by the pixel ratio, so the clean line is one weight on every screen
 const float CEL_DETAIL = ${n(CEL_STYLE.TISSUE.DETAIL)};
 const float CEL_EDGE_LO = ${n(EDGE_LO)};
 const float CEL_EDGE_HI = ${n(EDGE_HI)};
@@ -42,8 +42,8 @@ vec3 celTissue(vec3 c, float lb, float w) {
   return mix(t, c, clamp(keep, 0.0, 1.0));
 }
 // the lightness jump across one device pixel's neighbourhood of a painted plate (premultiplied RGBA in a sampler): 0 flat, large at a line
-float celEdge(sampler2D map, vec2 uv, vec2 uvPerPx) {
-  vec2 o = uvPerPx * CEL_LINE_MIN * 0.5;
+float celEdge(sampler2D map, vec2 uv, vec2 uvPerPx, float dpr) {
+  vec2 o = uvPerPx * CEL_LINE_MIN * dpr * 0.5;
   float a = celLight(texture2D(map, uv + vec2(o.x, 0.0)).rgb), b = celLight(texture2D(map, uv - vec2(o.x, 0.0)).rgb);
   float c = celLight(texture2D(map, uv + vec2(0.0, o.y)).rgb), d = celLight(texture2D(map, uv - vec2(0.0, o.y)).rgb);
   return length(vec2(a - b, c - d));

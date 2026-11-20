@@ -80,7 +80,6 @@ export class StrandLayer {
   private trunk: ReturnType<typeof trunkFrame> | null = null;
   private trunkZ = 0.46;
   private look: LookId = 'light';
-  private dpr = 1;
   /** How much of the anatomy is shown, 0..1 (DiseaseLayer.setFade: the dive into the liver, the Circuit's change). The strands belong to the anatomy: they dissolve with the body, and one made while it is away stays away. */
   private fade = 1;
   constructor(shared: CelShared) {
@@ -109,17 +108,11 @@ export class StrandLayer {
     this.fade = f;
     for (const s of this.strands) if (s.obj) { s.obj.setFade(f); s.obj.group.visible = s.on && f > 0.001; }
   }
-  /** The renderer's pixel ratio: the strands' line is held in device pixels (the same rule as the vessels', cel-ink.ts). */
-  setDpr(dpr: number): void {
-    if (Math.abs(dpr - this.dpr) < 1e-3) return;
-    this.dpr = dpr;
-    for (const s of this.strands) if (s.obj) this.line(s);
-  }
-  /** A strand wears the 2D figure's line (WP2/WP9): the look's casing ink at its casing alpha (a bed's faint strands half of it), 1.5 device px on a tube this fine, blended after the bodies, and no specular glint: never the black spindle of a solid ink. */
+  /** A strand wears the 2D figure's line (WP2/WP9): the look's casing ink at its casing alpha (a bed's faint strands half of it), LINE_MIN CSS px on a tube this fine, blended after the bodies, and no specular glint: never the black spindle of a solid ink. */
   private line(s: Strand): void {
     if (!s.obj) return;
     const c = CASING[this.look], sin = SIN_EDGES.has(s.host);
-    s.obj.setSoftInk(c.rgb, c.a, CEL.LINE_MIN, this.dpr);   // (solid ink, the figure's line, on a bed's hairline strands too: a half line on a sub-pixel tube read as dashes)
+    s.obj.setSoftInk(c.rgb, c.a, CEL.LINE_MIN);   // (solid ink, the figure's line, on a bed's hairline strands too: a half line on a sub-pixel tube read as dashes)
   }
   setPhone(phone: boolean): void { for (const s of this.strands) s.obj?.setPhone(phone); }
 
