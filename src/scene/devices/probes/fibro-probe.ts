@@ -14,9 +14,9 @@ import type { OrganEdge } from './fibro-place.ts';
 import { SCAN } from './copied/scan-probe.copied.js';
 import { ProbePart, TubeBuf, linePart, type PartStyle } from './parts.ts';
 import { ArriveTrack } from './ease-track.ts';
-import { D_SMALL, D_SURFACE } from '../../../ui/tests/copied/motion.copied.js';
+import { D_SMALL, D_SURFACE, EASE_MOVE, cssCurve } from '../../../ui/tests/copied/motion.copied.js';
 import { LOOKS } from '../../../looks/looks.ts';
-import { SCAN_BODY_PX } from '../edges.ts';
+import { SCAN_BODY_PX, mixHex } from '../edges.ts';
 import { basisAt, newBasis, toPlate, type Basis, type Box, type ScreenEnv } from './screen.ts';
 import { headCovered, scanTilt, scanTurnOf } from './fibro-place.ts';
 import type { FibroOrgan } from './state.ts';
@@ -33,6 +33,18 @@ export const WAVE_HALF_PX = [0.7, 1.1, 0.7] as const, WAVE_STROKE_A = [0.35, 0.9
 export const fadeOf = (u: number): number => Math.sin(Math.PI * Math.min(1, u * 1.15 + 0.04)) ** 1.2 * (1 - u * 0.35);
 /** The whole probe fades in and out over D_SURFACE (420 ms) and its head and cable over D_SMALL (240 ms), each on the arrive curve (2D: scanEase op, headOp, cableOp; app-06-plate.css .scan-probe). */
 export const SCAN_FADE_MS = D_SURFACE, HEAD_MS = D_SMALL;
+/** How far the body's fill is moved toward its line's colour (--text-2), a share. */
+export const BODY_LIFT = 0.12;
+/** The tip's tap (app-06-plate.css @keyframes sp-tap, scan-ease.js scanStep): once a second the pad moves along the probe's axis, 0, +2, -1.2, +0.6, 0 px at 0, 20, 45, 70, 100 % of D_SURFACE, each leg on --ease-move. */
+export const TAP_O = [0, 0.2, 0.45, 0.7, 1] as const, TAP_V = [0, 2, -1.2, 0.6, 0] as const, TAP_EVERY_MS = 1000;
+const tapCurve = cssCurve(EASE_MOVE) as (x: number) => number;
+/** The pad's offset along the axis (px) at progress p (0 to 1) of a tap. */
+export function tapAt(p: number): number {
+  if (!(p > 0) || p >= 1) return 0;
+  let i = 0;
+  while (i < TAP_O.length - 2 && p >= TAP_O[i + 1]!) i++;
+  return TAP_V[i]! + (TAP_V[i + 1]! - TAP_V[i]!) * tapCurve((p - TAP_O[i]!) / (TAP_O[i + 1]! - TAP_O[i]!));
+}
 /** The turn eases over D_SURFACE (2D: scanEase ang). */
 const TURN_TAU = 0.14;
 
@@ -57,6 +69,9 @@ export class FibroProbe {
   private placedOrgan: FibroOrgan | null = null;
   private readonly place = { tip: new Vector3(), dir: new Vector3() };
   private readonly again = { tip: new Vector3(), dir: new Vector3() };
+  private readonly padAx = new Vector3(); private readonly padDir = new Vector3(); private padS = 1;
+  /** the tap: when the next one is due and when this one began (ms), and the pad's offset along the axis now (px) */
+  private nextTap = 0; private tapT0 = -1; tipX = 0;
   private readonly body: TubeBuf; private readonly pad: TubeBuf; private readonly screen: TubeBuf; private readonly cable: TubeBuf;
   /** SCAN.N packets of three arcs each (2D .sp-pk: a ripple ahead, the crest, a ripple behind), WAVE_ARCS per packet */
   private readonly waves: { buf: TubeBuf; part: ProbePart; r: number }[] = [];
@@ -94,10 +109,12 @@ export class FibroProbe {
     // the body, its pad, its screen and its cable are the head (they fade where a card covers them); the waves and the beam are not
     // The materials are 2D's (app-06-plate.css .scan-probe): the body in the look's surface under a 1.6 px line in --text-2 (the line sits half inside the fill: `fat`), the tip --text-2 and the cable --text-3, no outline
     // on either, the screen and the waves in the exam's own colour, no outline. Not the look's ink.
-    this.body = mk('poly', (_t, look) => LOOKS[look].card, 6, SCAN_BODY_PX, 2, true, { edge: { colour: ({ look }) => LOOKS[look].text2 }, fat: -SCAN_BODY_PX / 2 }).buf;
-    this.pad = mk('steel', (_t, look) => LOOKS[look].text2, 3, 0.9, 3, true, { edge: 'none' }).buf;
-    this.screen = mk('marker', () => fixed(this.organ), 2, 0.7, 4, true, { edge: 'none' }).buf;
-    this.cable = mk('steel', (_t, look) => LOOKS[look].text3, 2, 0.8, 1, true, { edge: 'none' }).buf;
+    // (Flat, not cel-banded: a banded surface colour is a black band on the dark looks (owner, 20 Nov 2026: "the fibroscan probe shading is too strong black"), and 2D's body is one flat fill. It is lifted a little
+    //  toward its line's colour, so it reads as the probe's own body and not as a hole in the figure.)
+    this.body = mk('poly', (_t, look) => mixHex(LOOKS[look].card, LOOKS[look].text2, BODY_LIFT), 6, SCAN_BODY_PX, 2, true, { edge: { colour: ({ look }) => LOOKS[look].text2 }, fat: -SCAN_BODY_PX / 2, flat: true, spec: 0 }).buf;
+    this.pad = mk('steel', (_t, look) => LOOKS[look].text2, 3, 0.9, 3, true, { edge: 'none', flat: true, spec: 0 }).buf;
+    this.screen = mk('marker', () => fixed(this.organ), 2, 0.7, 4, true, { edge: 'none', flat: true, spec: 0 }).buf;
+    this.cable = mk('steel', (_t, look) => LOOKS[look].text3, 2, 0.8, 1, true, { edge: 'none', flat: true, spec: 0 }).buf;
     // The waves are 2D's packets (app-06-plate.css .sp-rip, .sp-front: strokes in the exam's colour, never filled, no outline, no highlight): the crest 2.2 px at .95, the ripples 1.4 px at .35, each arc see-through
     // at the packet's own opacity (fadeOf), so the organ and the vessels show through them.
     for (let i = 0; i < SCAN.N * WAVE_ARCS; i++) {
@@ -135,9 +152,8 @@ export class FibroProbe {
     const prof: [number, number][] = [[u0, R * 0.5], [u0 + 2, R * 0.92], [u0 + 7, R], [u1 - 7, R], [u1 - 2, R * 0.92], [u1, R * 0.6]];
     prof.forEach(([u, r], i) => { const g = this.body.rings[i]!; along(u, g.c); g.t.copy(dir); g.r = S(r); });
     this.body.commit();
-    const [px0, , pw, ph] = SCAN.PAD as [number, number, number, number, number];
-    [[px0 - tx, ph / 2 * 0.7], [px0 - tx + pw / 2, ph / 2], [px0 - tx + pw, ph / 2 * 0.7]].forEach(([u, r], i) => { const g = this.pad.rings[i]!; along(u!, g.c); g.t.copy(dir); g.r = S(r!); });
-    this.pad.commit();
+    this.padAx.copy(ax); this.padDir.copy(dir); this.padS = U;
+    this.layPad();
     // the probe's own display along its axis, on the face toward the viewer
     const [sx, , sw, sh] = SCAN.SCREEN as [number, number, number, number, number];
     const lift = S(R * 0.9);
@@ -154,6 +170,13 @@ export class FibroProbe {
       col.setW(i + 1, 0);
     }
     pos.needsUpdate = col.needsUpdate = true; this.beamGeo.computeBoundingSphere();
+  }
+
+  /** The pad (2D .sp-tip) along the axis, `tipX` px along it: the tap moves only this. */
+  private layPad(): void {
+    const { tip } = this.place, [px0, , pw, ph] = SCAN.PAD as [number, number, number, number, number], [tx] = SCAN.TIP as [number, number], S = this.padS, X = this.tipX;
+    [[px0 - tx, ph / 2 * 0.7], [px0 - tx + pw / 2, ph / 2], [px0 - tx + pw, ph / 2 * 0.7]].forEach(([u, r], i) => { const g = this.pad.rings[i]!; g.c.copy(tip).addScaledVector(this.padAx, u! + X); g.t.copy(this.padDir); g.r = S * r!; });
+    this.pad.commit();
   }
 
   /** The box of the organ the exam reads, and where its probe stands: laid on the figure once per organ. */
@@ -204,7 +227,7 @@ export class FibroProbe {
       this.beam.visible = vis; this.beamMat.opacity = this.shown;
     }
     this.screenAt.placed = vis;
-    if (!vis) { this.fronts = []; this.reading = null; return moving; }
+    if (!vis) { this.fronts = []; this.reading = null; this.nextTap = 0; this.tapT0 = -1; this.tipX = 0; return moving; }
     // The tip stays on the organ's edge as the organ changes (a spleen that grows, a liver that shrinks): found again from the organ now, the tip following its edge.
     if (edge && this.placedOrgan) {
       const b = box(this.organ);
@@ -239,6 +262,14 @@ export class FibroProbe {
     const key = `${this.U.toFixed(6)}|${this.turn.toFixed(2)}|${this.B.a.toFixed(3)}|${this.B.b.toFixed(3)}|${this.B.c.toFixed(3)}|${this.B.d.toFixed(3)}`;
     if (key !== this.shapeKey) { this.shapeKey = key; this.shape(env); }
     for (const o of this.headPartsList) { const a = this.shown * this.headOp; if (a > 0.002) o.setAlpha(a); o.group.visible = a > 0.002; }
+    // the tip's tap, once a second from the first frame the probe shows: only the pad moves, a little, along the probe's own axis (2D scanTick / scanStep; none with Reduce Motion)
+    if (env?.reduceMotion?.()) { this.tapT0 = -1; }
+    else {
+      if (!(nowMs < this.nextTap)) { this.nextTap = this.nextTap && nowMs - this.nextTap < 250 ? this.nextTap + TAP_EVERY_MS : nowMs + TAP_EVERY_MS; this.tapT0 = nowMs; }
+    }
+    const tx = this.tapT0 >= 0 ? tapAt((nowMs - this.tapT0) / D_SURFACE) : 0;
+    if (this.tapT0 >= 0 && nowMs - this.tapT0 >= D_SURFACE) this.tapT0 = -1;
+    if (tx !== this.tipX) { this.tipX = tx; this.layPad(); }
     // the shear wave: a front every EVERY seconds; each spreads at the pace the stiffness gives and fades by the time it has crossed `span`
     const v = waveSpeed(kpa), span = clamp(v * 2.5, 70, SCAN.SPAN);
     if (nowMs >= this.next) { this.fronts.push(0); this.next = nowMs + SCAN.EVERY * 1000; }   // (a front starts at the tip: 2D scan.fronts.push(0); SCAN.GAP is the ripples' widest gap)

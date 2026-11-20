@@ -58,6 +58,8 @@ export class ProbeLayer {
   private writeLabels(edge: string, seg: string | null): void {
     const sc = probeLabel.scan, fp = this.fibro, at = fp.screenAt;
     sc.on = at.placed; sc.alpha = fp.shown * at.headOp; sc.x = at.x; sc.y = at.y; sc.turn = at.turn; sc.k = fp.reading;
+    const dp = probeLabel.dop, dd = this.doppler;
+    dp.on = dd.overlay && dd.shown > 0; dp.alpha = dd.shown; dp.shut = dd.sampleShut; dp.lines.set(dd.lines);
   }
 
   /** Every device object, for the scene's look and phone switches. */
