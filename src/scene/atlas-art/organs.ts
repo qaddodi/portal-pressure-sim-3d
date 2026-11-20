@@ -5,8 +5,8 @@
 // What the atlas organs follow from the live patient: the specimen, the spleen's size (the healthy form; the diseased forms are already drawn enlarged) and its ghost after a splenectomy,
 // the ascites volume (the pool's height and its fade-in, the 2D rules' own numbers), the grey of a lens other than Pressure, the body's dissolve (the dive, the Circuit) and the dive's
 // cutaway window. What they do not follow: a live liver shape (the specimens are the three shapes), the spleen's partial-embolization infarct, and the quiet depth of a turn.
-import { BackSide, BufferAttribute, BufferGeometry, Color, DoubleSide, Group, GLSL3, type Mesh as MeshT, Mesh, type Raycaster, RawShaderMaterial, type Texture, Vector3, type Vector2, Vector4 } from 'three';
-import { ATLAS_ASCITES_FS, ATLAS_FS, ATLAS_INK_FS, ATLAS_INK_VS, ATLAS_VS, stripVersion } from './shaders.ts';
+import { BackSide, BufferAttribute, BufferGeometry, Color, Group, GLSL3, type Mesh as MeshT, Mesh, type Raycaster, RawShaderMaterial, type Texture, Vector3, type Vector2, type Vector4 } from 'three';
+import { ATLAS_FS, ATLAS_INK_FS, ATLAS_INK_VS, ATLAS_VS, stripVersion } from './shaders.ts';
 import { CASING } from '../vessels/cel-ink.ts';
 import type { LookId } from '../../looks/looks.ts';
 import { ATLAS_PALETTE, type AtlasKey } from './palette.ts';
@@ -14,20 +14,18 @@ import type { GlbMesh } from './glb.ts';
 import type { Specimen } from './types.ts';
 import { PICK_OF } from '../organs/pick.ts';
 import { LENS_GREY, SPLEEN_CENTER } from '../disease/copied/anatomy-b4.ts';
-import { fluidLevel, poolFade, POOL_MIN } from '../disease/copied/fluid-step.js';
+import { AtlasPool } from './pool.ts';
+import { calmWash, smoothNormals } from './smooth.ts';
 import { x3, y3 } from '../frame2d.ts';
 
 
 /** The organs that never change with the disease (the artist's healthy file); liver, spleen and bowel swap, and the ascites comes with the diseased files. */
 export const FIXED_ORGANS = ['heart', 'heart-ra', 'kidney-l', 'kidney-r', 'duodenum', 'stomach', 'colon'] as const;
 export const SWAP_ORGANS = ['liver', 'spleen', 'bowel'] as const;
-/** Back to front, as the classic layer draws them (the gut last); the pool BEHIND all of them (it pools round the organs; shaders.ts ATLAS_ASCITES_FS). */
-const ORDER = ['ascites', 'heart', 'heart-ra', 'kidney-l', 'kidney-r', 'spleen', 'stomach', 'duodenum', 'liver', 'bowel', 'colon'];
-/** The artist's alpha for the fluid proxy (the node's extras) and how long a crossfade takes. */
-export const ASCITES_ALPHA = 0.36;
+/** Back to front, as the classic layer draws them (the gut last); the pool (pool.ts) is drawn after all of them. */
+const ORDER = ['heart', 'heart-ra', 'kidney-l', 'kidney-r', 'spleen', 'stomach', 'duodenum', 'liver', 'bowel', 'colon'];
+/** How long a crossfade takes. */
 const FADE_TAU = 0.12;   // seconds
-/** The fluid's full height as a share of the proxy at the fullest belly, and the least it shows at: the proxy is a fixed trapezoid, so a pool is the proxy squeezed up from its floor. */
-const POOL_LEAST = 0.22;
 
 /** The ink line's width in the figure's units (the 2D organ line is 1.1, a touch firmer here for the cel look), never under 1.5 device px (shaders.ts ATLAS_INK_VS). */
 export const INK_UNITS = 1.4;
@@ -36,25 +34,37 @@ interface Part {
   id: string;
   /** the transform of the organ and of its ink (the spleen's size) */
   g: Group;
-  /** the ink hull's mesh and material (none on the ascites) */
-  ink: MeshT | null; inkMat: RawShaderMaterial | null;
-  /** which form it belongs to (the swapped organs and the ascites); undefined: the organs that do not change */
+  /** the ink hull's mesh and material */
+  ink: MeshT; inkMat: RawShaderMaterial;
+  /** which form it belongs to (the swapped organs); undefined: the organs that do not change */
   specimen?: Specimen;
   mesh: MeshT;
   mat: RawShaderMaterial;
   /** 0..1, eased toward `goal` */
   mix: number; goal: number;
-  /** the mesh's own lowest y (the pool is squeezed up from it) */
-  floorY: number;
 }
 
-const geometryOf = (m: GlbMesh): BufferGeometry => {
+/** The liver's calming (smooth.ts): the heavy pass the light bands read, the middle pass the broad nodules come from, and how much of the cirrhotic wash's mottle stays (keep, contrast). */
+const LIVER_HEAVY = 24, LIVER_MID = 6;
+const LIVER_WASH: Partial<Record<Specimen, { keep: number; contrast: number }>> = { 'cirr-decomp': { keep: 0.3, contrast: 0.55 }, 'budd-chiari': { keep: 0.5, contrast: 0.75 } };
+/** The share of the shading the liver's broad nodules take, and of the pale lit band it keeps (the liver was too shiny). */
+export const LIVER_NODULE = 1, LIVER_SHINE = 0.25;
+
+const geometryOf = (m: GlbMesh, s: Specimen): BufferGeometry => {
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(m.position, 3));
   if (m.normal) g.setAttribute('normal', new BufferAttribute(m.normal, 3)); else { g.setIndex(new BufferAttribute(m.index, 1)); g.computeVertexNormals(); }
+  // `detail` is the normal the broad nodules are read from; every organ but the liver has no relief to calm, so it is its normal
+  g.setAttribute('detail', g.getAttribute('normal')!);
+  if (m.name === 'liver') {
+    const nrm = (g.getAttribute('normal') as BufferAttribute).array;
+    g.setAttribute('normal', new BufferAttribute(smoothNormals(nrm, m.index, LIVER_HEAVY), 3));
+    g.setAttribute('detail', new BufferAttribute(smoothNormals(nrm, m.index, LIVER_MID), 3));
+  }
   if (m.uv) g.setAttribute('uv', new BufferAttribute(m.uv, 2)); else g.setAttribute('uv', new BufferAttribute(new Float32Array((m.position.length / 3) * 2), 2));
   // COLOR_0 is the artist's linear multiplicative wash (3 values a vertex); an organ without one is washed 1
-  g.setAttribute('color', new BufferAttribute(m.color ?? new Float32Array(m.position.length).fill(1), 3));
+  const wash = m.name === 'liver' && m.color ? LIVER_WASH[s] : undefined;
+  g.setAttribute('color', new BufferAttribute(wash && m.color ? calmWash(m.color, m.index, 6, wash.keep, wash.contrast) : m.color ?? new Float32Array(m.position.length).fill(1), 3));
   g.setIndex(new BufferAttribute(m.index, 1));
   g.computeBoundingSphere(); g.computeBoundingBox();
   return g;
@@ -80,9 +90,12 @@ export class AtlasOrgans {
   private lastClock = -1;
   private dirty = true;
   private visible = false;
+  readonly pool: AtlasPool;
+  private instantPool = true;
+  private bulge = 0; private fade = 0;
 
   /** `cut`: the dive's window (organs/layer.ts ORGAN_CUT), shared with the classic organs. */
-  constructor(cut: { value: Vector4 }, res: { value: Vector2 }) { this.cut = cut; this.res = res; this.group.visible = false; }
+  constructor(cut: { value: Vector4 }, res: { value: Vector2 }) { this.cut = cut; this.res = res; this.pool = new AtlasPool(cut); this.group.add(this.pool.group); this.group.visible = false; }
 
   /** Whether the form `s`'s organ file is in. */
   has(s: Specimen): boolean { return this.loaded.has(s); }
@@ -90,43 +103,35 @@ export class AtlasOrgans {
   /** The grain every material reads (a linear grayscale texture, repeat wrap, mipmaps: loader.ts). */
   setGrain(t: Texture): void { this.grain = t; for (const p of this.parts) p.mat.uniforms.uGrain!.value = t; }
 
-  /** Adds one organ file: the healthy file brings the organs that never change; every file brings its liver, spleen and bowel (and the ascites proxy). */
+  /** Adds one organ file: the healthy file brings the organs that never change; every file brings its liver, spleen and bowel (the artist's fluid proxy in them is not used: pool.ts). */
   add(s: Specimen, meshes: readonly GlbMesh[]): void {
     if (this.loaded.has(s)) return;
     this.loaded.add(s);
     for (const m of meshes) {
-      const fixed = (FIXED_ORGANS as readonly string[]).includes(m.name), swap = (SWAP_ORGANS as readonly string[]).includes(m.name), asc = m.name === 'ascites';
-      if (!(swap || asc || (fixed && s === 'healthy'))) continue;
-      const g = geometryOf(m);
+      const fixed = (FIXED_ORGANS as readonly string[]).includes(m.name), swap = (SWAP_ORGANS as readonly string[]).includes(m.name);
+      if (!(swap || (fixed && s === 'healthy'))) continue;
+      const g = geometryOf(m, s);
       const mat = new RawShaderMaterial({
-        glslVersion: GLSL3, vertexShader: stripVersion(ATLAS_VS), fragmentShader: stripVersion(asc ? ATLAS_ASCITES_FS : ATLAS_FS), transparent: true, depthWrite: !asc, side: asc ? DoubleSide : 0,
-        uniforms: asc ? {
-          uColor: { value: new Color() }, uAlpha: { value: 1 }, uWash: { value: ASCITES_ALPHA }, uBox: { value: new Vector4(g.boundingBox!.min.y, g.boundingBox!.max.y, g.boundingBox!.min.z, g.boundingBox!.max.z) },
-          uBand: { value: 0.02 }, inkColor: { value: new Color() }, inkA: { value: 0.5 }, cut: this.cut,
-        } : {
-          uGrain: { value: this.grain }, uColor: { value: new Color() }, uDark: { value: 0 }, uAlpha: { value: 1 }, cut: this.cut,
-        },
+        glslVersion: GLSL3, vertexShader: stripVersion(ATLAS_VS), fragmentShader: stripVersion(ATLAS_FS), transparent: true, depthWrite: true,
+        uniforms: { uGrain: { value: this.grain }, uColor: { value: new Color() }, uDark: { value: 0 }, uAlpha: { value: 1 }, uNod: { value: m.name === 'liver' ? LIVER_NODULE : 0 }, uShine: { value: m.name === 'liver' ? LIVER_SHINE : 1 }, cut: this.cut },
       });
-      const order = ORDER.indexOf(m.name) - 1;   // (the pool is -1, behind the organs)
+      const order = Math.max(0, ORDER.indexOf(m.name));
       const grp = new Group();
-      grp.name = asc ? `atlas ascites (${s})` : `atlas ${m.name}`;
+      grp.name = `atlas ${m.name}`;
       grp.visible = false;
       const mesh = new Mesh(g, mat);
       mesh.renderOrder = order;
       grp.add(mesh);
       // the ink line: the same mesh again, back faces only, pushed out in screen space (shaders.ts); after its own fill, tested against it
-      let ink: MeshT | null = null, inkMat: RawShaderMaterial | null = null;
-      if (!asc) {
-        inkMat = new RawShaderMaterial({
-          glslVersion: GLSL3, vertexShader: stripVersion(ATLAS_INK_VS), fragmentShader: stripVersion(ATLAS_INK_FS), transparent: true, depthWrite: false, side: BackSide,
-          uniforms: { px: { value: INK_UNITS }, dpr: { value: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1 }, res: this.res, inkColor: { value: new Color() }, inkA: { value: 0.64 }, uAlpha: { value: 1 }, cut: this.cut },
-        });
-        ink = new Mesh(g, inkMat);
-        ink.renderOrder = order + 0.5;
-        grp.add(ink);
-      }
+      const inkMat = new RawShaderMaterial({
+        glslVersion: GLSL3, vertexShader: stripVersion(ATLAS_INK_VS), fragmentShader: stripVersion(ATLAS_INK_FS), transparent: true, depthWrite: false, side: BackSide,
+        uniforms: { px: { value: INK_UNITS }, dpr: { value: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1 }, res: this.res, inkColor: { value: new Color() }, inkA: { value: 0.64 }, uAlpha: { value: 1 }, cut: this.cut },
+      });
+      const ink = new Mesh(g, inkMat);
+      ink.renderOrder = order + 0.5;
+      grp.add(ink);
       this.group.add(grp);
-      this.parts.push({ id: m.name, g: grp, ink, inkMat, specimen: swap || asc ? s : undefined, mesh, mat, mix: 0, goal: 0, floorY: g.boundingBox?.min.y ?? 0 });
+      this.parts.push({ id: m.name, g: grp, ink, inkMat, specimen: swap ? s : undefined, mesh, mat, mix: 0, goal: 0 });
     }
     this.dirty = true;
   }
@@ -148,30 +153,19 @@ export class AtlasOrgans {
   /** Shown or not (Atlas art on and its files in). Going back to Classic is this with false. */
   setVisible(on: boolean): void { if (on !== this.visible) { this.visible = on; this.group.visible = on; this.dirty = true; } }
 
-  /** Which of the forms' files the patient needs now: its own, and the diseased ascites proxy when there is a pool in a healthy-form patient. */
-  needs(): Specimen[] {
-    const out: Specimen[] = [this.specimen];
-    if (this.specimen === 'healthy' && this.ascites >= POOL_MIN) out.push('cirr-decomp');
-    return out;
-  }
+  /** Which of the forms' files the patient needs now: its own. */
+  needs(): Specimen[] { return [this.specimen]; }
 
   /** The form the swapped organs show: the wanted one when its file is in, else the one already showing. */
   private pickShown(): Specimen { if (this.loaded.has(this.specimen)) return this.specimen; return this.loaded.has(this.shown) ? this.shown : 'healthy'; }
-  /** The form the ascites proxy comes from: the patient's own file's, else the decompensated one's (a healthy-form patient with a pool). */
-  private ascitesFrom(): Specimen | null {
-    for (const s of [this.shown, 'cirr-decomp', 'budd-chiari'] as Specimen[]) if (s !== 'healthy' && this.loaded.has(s)) return s;
-    return null;
-  }
-
-  /** Which form and which pool each part is for now. */
+  /** Which form each part is for now. */
   private setGoals(): void {
     const shown = this.pickShown();
     if (shown !== this.shown) { this.shown = shown; this.dirty = true; }
-    const asc = this.ascitesFrom(), pool = poolFade(this.ascites) > 0;
-    for (const p of this.parts) p.goal = p.id === 'ascites' ? (pool && p.specimen === asc ? 1 : 0) : p.specimen === undefined ? 1 : p.specimen === this.shown ? 1 : 0;
+    for (const p of this.parts) p.goal = p.specimen === undefined ? 1 : p.specimen === this.shown ? 1 : 0;
   }
   /** Takes every crossfade to its end at once (Atlas has just come on, or a new patient: nothing eases across a jump). */
-  snap(): void { this.setGoals(); for (const p of this.parts) p.mix = p.goal; this.dirty = true; }
+  snap(): void { this.setGoals(); for (const p of this.parts) p.mix = p.goal; this.instantPool = true; this.dirty = true; }
 
   /** Steps the crossfades one frame; true while anything moves. */
   update(now: number): boolean {
@@ -188,6 +182,10 @@ export class AtlasOrgans {
         moving = true; this.dirty = true;
       }
     }
+    // the pool: the shown volume springs to the model's, as Classic's does, and the bowel floats up with the wall
+    const inst = this.instantPool; this.instantPool = false;
+    if (this.pool.step(this.ascites, dt, inst)) { moving = true; this.dirty = true; }
+    if (this.pool.bulge !== this.bulge || this.pool.fade !== this.fade) { this.bulge = this.pool.bulge; this.fade = this.pool.fade; this.dirty = true; }
     const g = this.grey ? LENS_GREY : { dim: 1, sat: 1 }, kd = 1 - Math.exp(-dt / 0.42);
     if (this.dim !== g.dim || this.sat !== g.sat) {
       this.dim += (g.dim - this.dim) * kd; this.sat += (g.sat - this.sat) * kd;
@@ -201,31 +199,23 @@ export class AtlasOrgans {
   private readonly c = new Color();
   private paint(): void {
     const pal = this.dark ? ATLAS_PALETTE.dark : ATLAS_PALETTE.light;
-    const pool = Math.min(1, Math.max(POOL_LEAST, POOL_LEAST + (1 - POOL_LEAST) * (fluidLevel(this.ascites).h / 485)));
+    this.c.set(pal.ascites);
+    this.pool.paint(this.c, this.look, this.body);
     for (const p of this.parts) {
       const key: AtlasKey = p.id === 'liver' ? (p.specimen === 'cirr-decomp' ? 'liver.cirr' : p.specimen === 'budd-chiari' ? 'liver.budd' : 'liver') : (p.id as AtlasKey);
       this.c.set(pal[key] ?? pal.liver);
       if (this.sat !== 1) { const l = 0.2126 * this.c.r + 0.7152 * this.c.g + 0.0722 * this.c.b; this.c.r = l + (this.c.r - l) * this.sat; this.c.g = l + (this.c.g - l) * this.sat; this.c.b = l + (this.c.b - l) * this.sat; }
       (p.mat.uniforms.uColor!.value as Color).copy(this.c);
-      const asc = p.id === 'ascites';
-      if (!asc) p.mat.uniforms.uDark!.value = this.dark ? 1 : 0;
-      let a = this.body * p.mix * (asc ? poolFade(this.ascites) : this.dim);
+      p.mat.uniforms.uDark!.value = this.dark ? 1 : 0;
+      let a = this.body * p.mix * this.dim;
       if (p.id === 'spleen') a *= this.spleenGhost;
       p.mat.uniforms.uAlpha!.value = a;
       p.g.visible = this.visible && a > 0.003;
-      if (p.inkMat) {
-        const k = CASING[this.look];
-        (p.inkMat.uniforms.inkColor!.value as Color).setRGB(k.rgb[0] / 255, k.rgb[1] / 255, k.rgb[2] / 255);   // (sRGB as is: the ink pass writes it unconverted, as the cel shaders do)
-        p.inkMat.uniforms.inkA!.value = k.a; p.inkMat.uniforms.uAlpha!.value = a;
-      }
-      if (asc) {
-        p.g.scale.y = pool; p.g.position.y = p.floorY * (1 - pool);
-        // the waterline's ink is the look's casing; the meniscus keeps its width on screen as the pool is squeezed
-        const k = CASING[this.look];
-        (p.mat.uniforms.inkColor!.value as Color).setRGB(k.rgb[0] / 255, k.rgb[1] / 255, k.rgb[2] / 255);
-        p.mat.uniforms.inkA!.value = Math.min(0.6, k.a);
-        p.mat.uniforms.uBand!.value = 0.02 / pool;
-      }
+      const k = CASING[this.look];
+      (p.inkMat.uniforms.inkColor!.value as Color).setRGB(k.rgb[0] / 255, k.rgb[1] / 255, k.rgb[2] / 255);   // (sRGB as is: the ink pass writes it unconverted, as the cel shaders do)
+      p.inkMat.uniforms.inkA!.value = k.a; p.inkMat.uniforms.uAlpha!.value = a;
+      // the gut floats up on ascites as the classic one does (organs/layer.ts setBowelLift: the wall's bulge, 26 of its 34 half units)
+      if (p.id === 'bowel') p.g.position.y = (this.bulge / 34 * 26) / 300;
       if (p.id === 'spleen') {
         // the healthy form's spleen is the model's size about its centre, as the classic one is (the diseased forms are drawn enlarged already)
         const s = p.specimen === 'healthy' ? this.spleenScale : 1, cx = x3(SPLEEN_CENTER[0]), cy = y3(SPLEEN_CENTER[1]);

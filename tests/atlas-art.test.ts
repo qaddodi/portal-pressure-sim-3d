@@ -11,7 +11,13 @@ import { parseGlb } from '../src/scene/atlas-art/glb.ts';
 import { specimenOf } from '../src/scene/atlas-art/specimen.ts';
 import { ATLAS_ASCITES_FS, ATLAS_FS, ATLAS_INK_FS, ATLAS_INK_VS, ATLAS_VS } from '../src/scene/atlas-art/shaders.ts';
 import { ATLAS_PALETTE } from '../src/scene/atlas-art/palette.ts';
-import { AtlasOrgans, ASCITES_ALPHA } from '../src/scene/atlas-art/organs.ts';
+import { AtlasOrgans } from '../src/scene/atlas-art/organs.ts';
+import { POOL_WASH } from '../src/scene/atlas-art/pool.ts';
+import { calmWash, smoothNormals } from '../src/scene/atlas-art/smooth.ts';
+import { LIVER_SHINE } from '../src/scene/atlas-art/organs.ts';
+import { STEP, X0, bulgeStep } from '../src/scene/disease/ascites.ts';
+import { fluidBase, fluidLevel } from '../src/scene/disease/copied/fluid-step.js';
+import { y3 } from '../src/scene/frame2d.ts';
 import { AtlasVessels } from '../src/scene/atlas-art/vessels.ts';
 import { ATLAS_COURSE, NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { profileAt } from '../src/scene/vessels/tubes.ts';
@@ -127,19 +133,22 @@ test('the atlas organs: the healthy form shows, a diseased patient crossfades it
   const liverMeshes = o.group.children.filter((g) => g.name === 'atlas liver');
   assert.equal(liverMeshes.length, 2, 'both forms of the liver are held');
   assert.equal(liverMeshes.filter((g) => g.visible).length, 1, 'one is shown');
-  const pool = o.group.children.find((g) => g.name === 'atlas ascites (cirr-decomp)' && g.visible);
+  // the pool is the 2D figure's (columns cut to the cavity, standing to the 2D surface) in the cel look, drawn after every organ, with a waterline; the bowel floats up with the wall
+  const pool = o.group.children.find((g) => g.name === 'atlas ascites' && g.visible);
   assert.ok(pool, 'the pool shows at 3 L');
-  // the pool is a soft fluid behind the organs, with a waterline: its own program, drawn first, a rim that melts away, and a band and line at the top that keep their width as the pool is squeezed
-  const poolMesh = pool!.children[0] as unknown as { renderOrder: number; material: { fragmentShader: string; uniforms: Record<string, { value: unknown }> } };
-  assert.ok(poolMesh.renderOrder < 0 && o.group.children.filter((g) => g.visible && g !== pool).every((g) => (g.children[0] as { renderOrder: number }).renderOrder > poolMesh.renderOrder), 'behind every organ');
-  assert.match(poolMesh.material.fragmentShader, /smoothstep\(0\.0, 0\.30, t\)/);
-  assert.match(poolMesh.material.fragmentShader, /dTop \/ max\(fwidth/);
-  const band = poolMesh.material.uniforms.uBand!.value as number, sy = pool!.scale.y;
-  assert.ok(sy < 1 && Math.abs(band * sy - 0.02) < 1e-9, 'the meniscus is 0.02 on screen whatever the squeeze');
-  assert.ok(ASCITES_ALPHA > 0.3 && ASCITES_ALPHA < 0.5);
+  const poolMesh = pool!.children[0] as unknown as { renderOrder: number; geometry: { getAttribute(n: string): { array: Float32Array } }; material: { fragmentShader: string; depthTest: boolean } };
+  assert.ok(o.group.children.filter((g) => g !== pool).every((g) => (g.children[0] as { renderOrder: number }).renderOrder < poolMesh.renderOrder && (g.children[1] as { renderOrder: number }).renderOrder < poolMesh.renderOrder), 'over every organ and its ink');
+  assert.match(poolMesh.material.fragmentShader, /dTop \/ max\(fwidth\(dTop\)/, 'a waterline of ink');
+  const P = poolMesh.geometry.getAttribute('position').array, mid = Math.round((712 - X0) / STEP);
+  assert.ok(Math.abs(P[mid * 6 + 1]! - y3(fluidBase(712, fluidLevel(3000).h))) < 0.01, 'the surface stands at the 2D level for 3 L');
+  assert.ok(P[mid * 6 + 1]! > P[mid * 6 + 4]!, 'the surface is above the cavity floor');
+  assert.ok(POOL_WASH > 0.4 && POOL_WASH <= 0.6);
+  const bowel = o.group.children.find((g) => g.name === 'atlas bowel' && g.visible)!;
+  assert.ok(Math.abs(bowel.position.y - (bulgeStep(3000) / 2 / 34 * 26) / 300) < 1e-9 && bowel.position.y > 0, 'the gut floats up with the wall, as Classic\'s does');
   o.setBody(0, 1, 0);
-  for (let i = 0; i < 200; i++) o.update((t += 16));
-  assert.ok(!o.group.children.some((g) => g.name.startsWith('atlas ascites') && g.visible), 'no pool at 0 mL');
+  for (let i = 0; i < 400; i++) o.update((t += 16));
+  assert.equal(bowel.position.y, 0, 'and sinks back');
+  assert.ok(!o.group.children.some((g) => g.name === 'atlas ascites' && g.visible), 'no pool at 0 mL');
   // the dive's window and the body's fade reach the materials
   o.setBody(0, 1, 0); o.setFade(0.5); o.update((t += 16));
   const m = o.group.children.find((g) => g.name === 'atlas heart')!;
@@ -223,4 +232,27 @@ test('the tube segment counts are the 2D courses\' whatever atlas course is set 
     assert.ok(ATLAS_COURSE.size > 50);
     for (const v of NETWORK) assert.deepEqual(tubularOf(v, 0), classic.get(v.id), v.id);
   } finally { ATLAS_COURSE.clear(); }
+});
+
+test('the cirrhotic liver is calm for the cel look: its normals are smoothed, its wash keeps less mottle, the nodules are one flat low-contrast band and the liver keeps little of the shine', () => {
+  const liver = parseGlb(organFile('cirr-decomp')).find((m) => m.name === 'liver')!;
+  const rough = (nrm: ArrayLike<number>) => {   // the mean cosine between a normal and its neighbours' sum
+    const n = nrm.length / 3, acc = new Float32Array(n * 3);
+    for (let t = 0; t < liver.index.length; t += 3) for (const [p, q] of [[0, 1], [1, 0], [1, 2], [2, 1], [2, 0], [0, 2]] as const) { const a = liver.index[t + p]!, b = liver.index[t + q]!; for (let k = 0; k < 3; k++) acc[a * 3 + k]! += nrm[b * 3 + k]!; }
+    let d = 0;
+    for (let i = 0; i < n; i++) d += (acc[i * 3]! * nrm[i * 3]! + acc[i * 3 + 1]! * nrm[i * 3 + 1]! + acc[i * 3 + 2]! * nrm[i * 3 + 2]!) / (Math.hypot(acc[i * 3]!, acc[i * 3 + 1]!, acc[i * 3 + 2]!) || 1);
+    return d / n;
+  };
+  const heavy = smoothNormals(liver.normal!, liver.index, 24);
+  assert.ok(rough(liver.normal!) < 0.97 && rough(heavy) > 0.995, 'the artist\'s nodules are small; the heavy pass takes them out');
+  for (let i = 0; i < heavy.length; i++) assert.ok(Number.isFinite(heavy[i]));
+  for (let i = 0; i < heavy.length; i += 3) assert.ok(Math.abs(Math.hypot(heavy[i]!, heavy[i + 1]!, heavy[i + 2]!) - 1) < 1e-4, 'unit normals');
+  const sd = (a: ArrayLike<number>) => { let s1 = 0, s2 = 0; for (let i = 0; i < a.length; i++) { s1 += a[i]!; s2 += a[i]! * a[i]!; } return Math.sqrt(s2 / a.length - (s1 / a.length) ** 2); };
+  assert.ok(sd(calmWash(liver.color!, liver.index, 6, 0.3, 0.55)) < 0.6 * sd(liver.color!), 'the wash has well under its mottle');
+  assert.match(ATLAS_VS, /in vec3 detail;/); assert.match(ATLAS_FS, /uNod \* CEL_SHADE \* nod/); assert.match(ATLAS_FS, /CEL_LIT \* lit \* uShine/);
+  assert.ok(LIVER_SHINE <= 0.3);
+  const o = new AtlasOrgans({ value: new Vector4(0, 0, -1, 1) }, { value: new Vector2(800, 600) });
+  o.add('cirr-decomp', parseGlb(organFile('cirr-decomp')));
+  const mat = (o.group.children.find((g) => g.name === 'atlas liver')!.children[0] as unknown as { material: { uniforms: Record<string, { value: number }> } }).material;
+  assert.equal(mat.uniforms.uShine!.value, LIVER_SHINE); assert.ok(mat.uniforms.uNod!.value > 0);
 });

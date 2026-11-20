@@ -20,7 +20,7 @@ export const ATLAS_ART_DEFAULT: AtlasArt = 'classic';
 
 export interface Settings {
   look: LookChoice;
-  /** True once the viewer picked a look in Settings: until then the app opens on Light, as the 2D app's first screen does (a stored "System" the viewer never chose is not a choice). */
+  /** True once the viewer picked a look in Settings: until then the app follows the device (System), as the 2D app does with no saved look (looks.js: a missing pps.theme is System): dark on a dark device, light on a light one. */
   lookChosen: boolean;
   /** Blur effect: the frosted glass under cards, the pill, the strip and menus. On by default on every device, as in the 2D app; off is the solid look (html[data-noglass]). */
   blur: boolean;
@@ -55,7 +55,7 @@ export const STORAGE_PREFIX = 'pps3d.';
 export const DEPTH_KEYS = ['smoothJoins', 'organDepth', 'tilt', 'dof', 'particles'] as const;
 export type DepthKey = (typeof DEPTH_KEYS)[number];
 export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { smoothJoins: true, organDepth: true, tilt: true, dof: true, particles: false };
-export const DEFAULTS: Settings = { look: 'light', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS, organFill: ORGAN_FILL_DEFAULT, atlasArt: ATLAS_ART_DEFAULT };
+export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS, organFill: ORGAN_FILL_DEFAULT, atlasArt: ATLAS_ART_DEFAULT };
 
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
 export function parseSettings(raw: string | null): Settings {
