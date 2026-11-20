@@ -425,20 +425,23 @@ export class Lobule3D {
     }
     // the mouths: each end-on vessel (venule, arteriole, ductule, lymphatic, central vein) a round wall FULL of its own colour, never an empty cylinder (Mohammad 20 Nov 2026: "the blood vessels
     // and bile should not look like empty cyllindars, just filll them with the color")
-    const mouths = (part: MicroPart, cs: Course[], r: number, seg: Seg | null, vessel = false) => {
+    const mouths = (part: MicroPart, cs: Course[], r: number, seg: Seg | null, vessel = false, top?: number) => {
       const b = new MeshBuilder(), W: number[] = [], K: number[] = [];
       for (const c of cs) {
         const p = c.pts[Math.floor(c.pts.length / 2)]!;
-        mouth(b, p[0] * R, -p[1] * R, r * R, LZ.lip, LZ.mouthDepth * Math.min(1, r / DISC_R.pv), K, MOUTH_SEG, vessel);
+        mouth(b, p[0] * R, -p[1] * R, r * R, LZ.lip, LZ.mouthDepth * Math.min(1, r / DISC_R.pv), K, MOUTH_SEG, vessel, top);
       }
       for (let v = 0; v < b.count; v++) W.push(seg === 'cv' ? 1 : 0);
       coloured(part, b, seg, W, K);
     };
-    mouths(this.mouthPv, by('pv'), DISC_R.pv, 'pv', true);
-    mouths(this.mouthHa, by('ha'), DISC_R.ha * HA_K, null, true);
-    mouths(this.mouthBd, by('bd'), DISC_R.bd * BD_K, null, true);
-    mouths(this.mouthLv, by('lv'), DISC_R.lv, null, true);
-    mouths(this.mouthCv, by('cv'), DISC_R.cv, 'cv', true);
+    // each pool's top: a hair above the tallest tube that runs into it (the inlets into the venule, the twigs into the arteriole, the canals of Hering into the ductule, the terminal
+    // lymphatics into the lymphatic, the sinusoids into the central vein), so a tube that reaches it is lost inside it and none runs over it
+    const POUR = 1.04, N_IN = by('in')[0]?.pts.length ?? 40;
+    mouths(this.mouthPv, by('pv'), DISC_R.pv, 'pv', true, (LZ.tube + inletRadius(0, N_IN, 0) * R) * POUR);
+    mouths(this.mouthHa, by('ha'), DISC_R.ha * HA_K, null, true, (OVER_Z + twigR(0, RS_N) * R) * POUR);
+    mouths(this.mouthBd, by('bd'), DISC_R.bd * BD_K, null, true, (LZ.cellTop + 0.001 + 0.0078 * R) * POUR);
+    mouths(this.mouthLv, by('lv'), DISC_R.lv, null, true, (LZ.tube + LT_R * R) * POUR);
+    mouths(this.mouthCv, by('cv'), DISC_R.cv, 'cv', true, (OVER_Z + sinRadius('s2', DISC_R.cv) * R) * POUR);
   }
 
   /** Vertex count of everything this scene draws (tests and the budget). */
@@ -492,16 +495,30 @@ function trimInside(c: Course, r: number): Course {
 }
 
 /** A round opening at (x, y) of radius r going down into the slab: a rounded lip, the wall inside it and a dark floor. `K` gets each vertex's brightness (lip 1, wall deeper, floor deepest). */
-export function mouth(b: MeshBuilder, x: number, y: number, r: number, zTop: number, depth: number, K: number[], seg = MOUTH_SEG, vessel = false): void {
-  // a vessel (the central vein, Mohammad 20 Nov 2026: "just a void; not a blood vessel"): a wall (the lip, a darker tone of the blood) round a lumen full of blood (a shallow floor in the
-  // blood's own colour), not a dark hole
-  if (vessel) { depth *= 0.1; }
-  const kW = vessel ? 0.7 : 1, kIn = vessel ? [0.82, 0.92, 0.97, 1] : [0.86, 0.74, 0.62, 0.55];
-  const lip = Math.max(r * (vessel ? 0.16 : 0.2), 0.004), rows: number[] = [], start = b.count;
+export function mouth(b: MeshBuilder, x: number, y: number, r: number, zTop: number, depth: number, K: number[], seg = MOUTH_SEG, vessel = false, top?: number): void {
+  // a vessel cut end on (the central vein, the tract's venule, arteriole, ductule and lymphatic): a solid round pool FULL to the brim with its own colour, its top flush with the tubes
+  // that join it (`top`), so they run into it and are lost in it, with no rim and no drop (Mohammad 20 Nov 2026: "fill to the brim, without noticable drop in depth", "blend better")
+  if (vessel) {
+    const zT = top ?? zTop, lip = Math.min(Math.max(r * 0.22, 0.004), (zT - LZ.ground) * 0.8), rows: number[] = [];
+    const prof: [number, number, number, number][] = [[r, LZ.ground - 0.012, 1, 0], [r, zT - lip, 1, 0]];
+    for (let i = 1; i <= 6; i++) { const t = (i / 6) * Math.PI / 2; prof.push([r - lip + lip * Math.cos(t), zT - lip + lip * Math.sin(t), Math.cos(t), Math.sin(t)]); }
+    prof.push([(r - lip) * 0.5, zT, 0, 1]);
+    for (const [pr, pz, nr, nz] of prof) {
+      rows.push(b.count);
+      for (let s = 0; s < seg; s++) { const a = (s / seg) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a); b.v(x + ca * pr, y + sa * pr, pz, ca * nr, sa * nr, nz, [1, 1, 1]); K.push(1); }
+    }
+    for (let i = 0; i < rows.length - 1; i++) b.strip(rows[i]!, rows[i + 1]!, seg, true);
+    const c = b.v(x, y, zT, 0, 0, 1, [1, 1, 1]); K.push(1);
+    const last = rows[rows.length - 1]!;
+    for (let s = 0; s < seg; s++) b.tri(c, last + s, last + ((s + 1) % seg));
+    return;
+  }
+  const kIn = [0.86, 0.74, 0.62, 0.55];
+  const lip = Math.max(r * 0.2, 0.004), rows: number[] = [];
   // the profile from outside in: outer wall foot, over the lip, down the inner wall, the floor's edge
   const prof: [number, number, number, number, number][] = [];   // radius, z, normal r, normal z, brightness
-  prof.push([r, Math.min(zTop - lip * 1.6, LZ.ground - 0.012), 1, 0, kW]);
-  for (let i = 0; i <= 6; i++) { const t = (i / 6) * Math.PI, cr = Math.cos(t), sr = Math.sin(t); prof.push([r - lip / 2 + (lip / 2) * cr, zTop - lip / 2 + (lip / 2) * sr, cr, sr, kW]); }
+  prof.push([r, Math.min(zTop - lip * 1.6, LZ.ground - 0.012), 1, 0, 1]);
+  for (let i = 0; i <= 6; i++) { const t = (i / 6) * Math.PI, cr = Math.cos(t), sr = Math.sin(t); prof.push([r - lip / 2 + (lip / 2) * cr, zTop - lip / 2 + (lip / 2) * sr, cr, sr, 1]); }
   prof.push([r - lip, zTop - lip * 0.9, -1, 0, kIn[0]!]);
   prof.push([r - lip, zTop - depth * 0.5, -1, 0, kIn[1]!]);
   prof.push([r - lip, zTop - depth, -1, 0, kIn[2]!]);
@@ -518,7 +535,6 @@ export function mouth(b: MeshBuilder, x: number, y: number, r: number, zTop: num
   const c = b.v(x, y, zTop - depth, 0, 0, 1, [1, 1, 1]); K.push(kIn[3]!);
   const last = rows[rows.length - 1]!;
   for (let s = 0; s < seg; s++) b.tri(c, last + s, last + ((s + 1) % seg));
-  void start;
 }
 
 /** The flow marks' place on a tube's vertices (tube() just wrote them from `before`): aux, how far along the path in its own direction (local units, from a per-tube offset), and
