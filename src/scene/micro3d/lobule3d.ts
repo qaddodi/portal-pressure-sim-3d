@@ -14,7 +14,7 @@
 // names, the taps and the clock. Flow marks: 2D's chevrons ride on the flat view's own tubes, which are hidden here, so this scene shows none (the blood's colour along each sinusoid
 // still runs from the portal's to the central vein's).
 import { useSettings } from '../../state/settings.ts';
-import { ShapeUtils, Vector2, CanvasTexture, Color, CustomBlending, DataTexture, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial, Float32BufferAttribute, type BufferAttribute } from 'three';
+import { ShapeUtils, Vector2, CanvasTexture, CustomBlending, DataTexture, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial, Float32BufferAttribute, type BufferAttribute } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import type { CelObject } from '../materials/cel.ts';
 import type { LobuleView } from '../lobule/view.ts';
@@ -38,6 +38,9 @@ import { WASH_AMOUNT, washAmount, washFront } from '../lobule/wash.ts';
 const WASH_EASE_MS = 350;
 import { CEL_STYLE } from '../cel-style.ts';
 import { buildBile } from '../lobule/bile.ts';
+import { lobuleRoutes, type LobuleRouteCourse } from './lobule-routes.ts';
+import { dustTuner } from '../blood/dust.ts';
+import { staticRouteTexture } from '../blood/routes.ts';
 import { MICRO_DPR, MeshBuilder, MicroPart, type P2, type RGB, ellipsoid, microMaterials, pillow, tube } from './cel3d.ts';
 import { joinsMode } from '../vessels/skin/joins-mode.ts';
 import { bileWeldCourses, bloodWeldCourses, trimmedInside } from '../lobule/weld-courses.ts';
@@ -115,6 +118,8 @@ export class Lobule3D {
   private readonly cells: MicroPart;
   private readonly nuclei: MicroPart;
   private readonly sin: Record<'s0' | 's1' | 's2' | 'an', MicroPart>;
+  /** the dust's route table for the lobule's blood (lobule-routes.ts), built with the vessels; every blood tube reads it */
+  private readonly dustRoute: { value: DataTexture } = { value: staticRouteTexture(1, new Map(), () => 0) };
   private readonly inlets: MicroPart;
   private readonly twigs: MicroPart;
   private readonly lt: MicroPart;
@@ -154,8 +159,9 @@ export class Lobule3D {
     this.nuclei = mk('nuclei', { ink: null });
     // (the vessels' line is the Anatomy's weight, VESSEL_LINE CSS px, so a lobule vessel reads outlined as a vessel of the body does: Mohammad 20 Nov 2026, "the lobule sinusoid vessels need black
     //  outlines like the vessels in anatomy"; at 1.25 px it broke into dots against the tiles)
-    this.sin = { s0: mk('sinusoids-0', { px: VESSEL_LINE, flow: true, swell: true }), s1: mk('sinusoids-1', { px: VESSEL_LINE, flow: true, swell: true }), s2: mk('sinusoids-2', { px: VESSEL_LINE, flow: true, swell: true }), an: mk('sinusoids-links', { px: VESSEL_LINE * 0.8, flow: true, swell: true }) };
-    this.inlets = mk('inlets', { px: VESSEL_LINE, flow: true });
+    const dust = { routeTex: this.dustRoute, dustP: dustTuner.uniform };   // (the Anatomy's dust in the blood's tubes: Mohammad 20 Nov, "also same streaks in lobule view please")
+    this.sin = { s0: mk('sinusoids-0', { px: VESSEL_LINE, flow: true, swell: true, dust }), s1: mk('sinusoids-1', { px: VESSEL_LINE, flow: true, swell: true, dust }), s2: mk('sinusoids-2', { px: VESSEL_LINE, flow: true, swell: true, dust }), an: mk('sinusoids-links', { px: VESSEL_LINE * 0.8, flow: true, swell: true, dust }) };
+    this.inlets = mk('inlets', { px: VESSEL_LINE, flow: true, dust });
     this.twigs = mk('arteriole-twigs', { px: S.LINE_SMALL * 0.8, flow: true });
     this.lt = mk('terminal-lymphatics', { px: S.LINE_SMALL * 0.8, flow: true });
     this.disse = mk('disse', { ink: null });
@@ -175,7 +181,7 @@ export class Lobule3D {
     if (this.tex) { this.tex.flipY = true; this.tex.premultiplyAlpha = true; this.tex.generateMipmaps = true; this.tex.minFilter = LinearMipmapLinearFilter; this.tex.magFilter = LinearFilter; this.tex.anisotropy = 4; }
     const blank = new DataTexture(new Uint8Array(4), 1, 1); blank.needsUpdate = true;
     this.marksMat = new ShaderMaterial({
-      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, opacity: { value: 1 }, ink: { value: new Color() }, uDpr: MICRO_DPR },
+      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, opacity: { value: 1 }, uDpr: MICRO_DPR },
       transparent: false, depthWrite: false, depthTest: false, side: DoubleSide,
       blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
     });
@@ -321,6 +327,7 @@ export class Lobule3D {
     for (const p of [this.sin.s0, this.sin.s1, this.sin.s2]) p.setFlow(this.flowT.blood, 0.16, W, soft(1), bs, 0, 0.0082 * R, true, dpr);
     this.sin.an.setFlow(this.flowT.blood, 0.12, W, soft(1), bs, 0, 0.0043 * R, true, dpr);
     this.inlets.setFlow(this.flowT.blood, 0.3, W, soft(1), bs, 0, 0.012 * R, true, dpr);
+    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets]) { const u = p.mats.toon.uniforms.uDustK; if (u) u.value = bs > 0 ? soft(1) : 0; }   // (the dust replaces the streak lanes in the blood's tubes, under the same switch)
     this.twigs.setFlow(this.flowT.blood * 1.6, 0.1, [1, 0.88, 0.86], soft(1), bs, 0, 0.006 * R, true, dpr);
     this.lt.setFlow(this.flowT.lymph, 0.12, W, soft(0.4), soft(0.8), 0, LT_R * R, false, dpr);
     this.bile.setFlow(this.flowT.bile, 0.07, [1, 0.97, 0.7], soft(0.55), soft(0.85), 1, 0.004 * R, false, dpr);
@@ -346,7 +353,6 @@ export class Lobule3D {
     this.lt.setTint(tone('lymph')); this.mouthLv.setTint(tone('lymph'));
     this.disse.setTint(tone('disse'));
     this.cvScar.setTint(tone('collagen'));
-    (this.marksMat.uniforms.ink!.value as Color).setRGB(ink[0], ink[1], ink[2]);
     this.inkKey = '';
   }
 
@@ -478,13 +484,24 @@ export class Lobule3D {
       this.coloured.push({ part, seg, w: Float32Array.from(w), k: Float32Array.from(k), ...(alt ? { seg2: alt.seg2, w2: Float32Array.from(alt.w2), m: Float32Array.from(alt.m) } : {}) });
       part.setTint([1, 1, 1]);
     };
+    // the dust's courses (lobule-routes.ts), one column each, in the order they are first written
+    const dustCourses: LobuleRouteCourse[] = [], weldCols = new Map<string, number>();
+    const weldCol = (key: string): number => {
+      let col = weldCols.get(key);
+      if (col == null) {
+        const out = plan!.courses.get(key)!;
+        col = dustCourses.length; weldCols.set(key, col);
+        dustCourses.push({ col, kind: kindOf.get(key)!, path: out.pts.map((q) => [q[0], q[1]] as const), radius: Math.max(1e-4, out.rad[0]!) });
+      }
+      return col;
+    };
     // the welded tubes (lobule/welds.ts): each course's kept stretches, then the skin of every junction whose host it is, written with the same per-vertex numbers the unwelded tubes have
     const kindOf = new Map<string, Course['kind']>(net.courses.map((c) => [`${c.kind}${c.id}`, c.kind]));
     const welded = (cs: Course[], seg: number, withSwell: boolean, alt: boolean, family: (kind: Course['kind']) => boolean) => {
-      const d: PartData = { b: new MeshBuilder(), W: [], K: [], ...(withSwell ? { sw: [] as number[] } : {}), ...(alt ? { W2: [] as number[], M: [] as number[] } : {}) };
+      const d: PartData = { b: new MeshBuilder(), W: [], K: [], fc: [], ...(withSwell ? { sw: [] as number[] } : {}), ...(alt ? { W2: [] as number[], M: [] as number[] } : {}) };
       const keys = new Set(cs.map((c) => `${c.kind}${c.id}`));
       const opts = (out: WeldCourseOut): EmitOpts => ({
-        R, seg, endHush: END_HUSH_R * out.rad[0]!, ...(withSwell ? { cong: congShare } : {}), ...(alt ? { altW: sinW } : {}),
+        R, seg, endHush: END_HUSH_R * out.rad[0]!, dustCol: weldCol, ...(withSwell ? { cong: congShare } : {}), ...(alt ? { altW: sinW } : {}),
         // (no marks just outside the central vein, where the sinusoids pour into it)
         marksAt: (o, i) => !(withSwell && Math.hypot(o.pts[i]![0], o.pts[i]![1]) / R < DISC_R.cv * 1.6),
       });
@@ -494,7 +511,7 @@ export class Lobule3D {
     };
     /** Tubes along courses: radius per sample, colour place per sample (w), brightness 1. */
     const tubes = (cs: Course[], radius: (c: Course, i: number) => number, w: (c: Course, i: number) => number, z: number = LZ.tube) => {
-      const b = new MeshBuilder(), W: number[] = [], K: number[] = [], caps = new Map<Course, number>();
+      const b = new MeshBuilder(), W: number[] = [], K: number[] = [], caps = new Map<Course, number>(), FC: number[] = [];
       for (const c of cs) {
         const pts = c.pts.map((p) => at3(p, z));
         const before = b.count;
@@ -506,8 +523,19 @@ export class Lobule3D {
         for (let v = 0; v < capVerts; v++) { W.push(w(c, 0)); K.push(1); }
         for (let v = 0; v < capVerts; v++) { W.push(w(c, c.pts.length - 1)); K.push(1); }
         flowAux(b, before, pts, ringVerts, capVerts, c.id * 0.137, (i) => (c.kind[0] === 's' || c.kind === 'an') && c.rho[i]! < DISC_R.cv * 1.6, TUBE_SEG, END_HUSH_R * radius(c, 0) * R);
+        // the dust's place on each vertex (lobule-routes.ts): the course's column, its arc from the start, its length, and the true place across (never hushed: the particles run on through every joint)
+        const col = dustCourses.length, path = pts.map((q) => [q[0], q[1]] as const), arc = [0];
+        for (let i = 1; i < path.length; i++) arc.push(arc[i - 1]! + Math.hypot(path[i]![0] - path[i - 1]![0], path[i]![1] - path[i - 1]![1]));
+        dustCourses.push({ col, kind: c.kind, path, radius: Math.max(1e-4, radius(c, 0) * R) });
+        const Lw = arc[arc.length - 1]!;
+        for (let v = before; v < before + ringVerts; v++) {
+          const i = Math.floor((v - before) / TUBE_SEG), a = path[Math.max(0, i - 1)]!, d = path[Math.min(path.length - 1, i + 1)]!;
+          let tx = d[0] - a[0], ty = d[1] - a[1]; const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
+          FC.push(col, arc[i]!, Lw, -ty * b.n[v * 3]! + tx * b.n[v * 3 + 1]!);
+        }
+        for (let v = 0; v < 2 * capVerts; v++) FC.push(col, v < capVerts ? 0 : Lw, Lw, 3);   // (the round ends: none)
       }
-      return { b, W, K, caps };
+      return { b, W, K, caps, FC };
     };
     const sinR = (c: Course, i: number) => sinRadius(c.kind as 's0' | 's1' | 's2' | 'an', c.rho[i]!);
     const sinWAt = (c: Course, i: number) => sinW(c.rho[i]!);
@@ -518,10 +546,12 @@ export class Lobule3D {
         const d = welded(cs, TUBE_SEG, true, false, () => true);
         coloured(this.sin[kind], d.b, 'sin', d.W, d.K);
         this.sin[kind].geometry.setAttribute('swell', new Float32BufferAttribute(d.sw!, 2));
+        this.sin[kind].geometry.setAttribute('fcourse', new Float32BufferAttribute(d.fc!, 4));
         continue;
       }
       const t = tubes(cs, sinR, sinWAt, OVER_Z);
       coloured(this.sin[kind], t.b, 'sin', t.W, t.K);
+      this.sin[kind].geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4));
       // each vertex's radius and its place's share of congestion's widening (cel3d SWELL): the width runs smoothly along every course and through every join (widths.ts congShare)
       const sw: number[] = [];
       for (const c of cs) {
@@ -533,8 +563,16 @@ export class Lobule3D {
       }
       this.sin[kind].geometry.setAttribute('swell', new Float32BufferAttribute(sw, 2));
     }
-    if (plan) { const d = welded(by('in'), TUBE_SEG, false, true, (k) => k === 'in'); coloured(this.inlets, d.b, 'in', d.W, d.K, { seg2: 'sin', w2: d.W2!, m: d.M! }); }
-    else { const t = tubes(by('in'), (c, i) => inletRadius(i, c.pts.length, Math.hypot(c.pts[i]![0] - c.pts[0]![0], c.pts[i]![1] - c.pts[0]![1])), (c, i) => i / (c.pts.length - 1)); coloured(this.inlets, t.b, 'in', t.W, t.K); }
+    if (plan) { const d = welded(by('in'), TUBE_SEG, false, true, (k) => k === 'in'); coloured(this.inlets, d.b, 'in', d.W, d.K, { seg2: 'sin', w2: d.W2!, m: d.M! }); this.inlets.geometry.setAttribute('fcourse', new Float32BufferAttribute(d.fc!, 4)); }
+    else { const t = tubes(by('in'), (c, i) => inletRadius(i, c.pts.length, Math.hypot(c.pts[i]![0] - c.pts[0]![0], c.pts[i]![1] - c.pts[0]![1])), (c, i) => i / (c.pts.length - 1)); coloured(this.inlets, t.b, 'in', t.W, t.K); this.inlets.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    // the lobule's dust routes, built once from the blood's courses (the twigs, the lymph and the bile keep their own marks)
+    {
+      const blood = dustCourses.filter((c) => c.kind !== 'tw' && c.kind !== 'lt');
+      const segs = lobuleRoutes(blood, 0.004 * R);
+      const rad = new Map(dustCourses.map((c) => [c.col, c.radius]));
+      this.dustRoute.value.dispose();
+      this.dustRoute.value = staticRouteTexture(Math.max(1, dustCourses.length), segs, (k) => rad.get(k) ?? 0.01 * R);
+    }
     { const t = tubes(by('tw'), (c, i) => twigR(i / (c.pts.length - 1), RS_N), () => 0, OVER_Z); coloured(this.twigs, t.b, null, t.W, t.K); }
     { const t = tubes(by('lt'), () => LT_R, () => 0); coloured(this.lt, t.b, null, t.W, t.K); }
     // the space of Disse: a flat pale sleeve under each sinusoid (2D's Wet Disse), no light of its own

@@ -22,6 +22,7 @@ import type { Streams } from './streams.ts';
 import { STREAK } from './streak-glsl.ts';
 import { DUST_UNIFORMS } from './dust-spec.ts';
 import { UNITS_PER_SCENE } from '../frame2d.ts';
+import { flowLenAt } from '../circuit/mates.ts';
 
 export const SEG_MAX = 6;
 /** A segment narrower than this (of the -1 .. 1 lane span) is dropped and its neighbours take its lanes. */
@@ -120,7 +121,8 @@ const psiAt = (a: Arm, y: number): number => a.ps + a.dp * (yOut(a, y) + 1);
 const yAt = (a: Arm, p: number): number => { const yo = (p - a.ps) / a.dp - 1; return a.atStart ? yo : -yo; };
 
 /** The segments of every vessel: whose particles each range of its lanes carries, and where. Pure: the scene's wrapper (StreamRoutes) and the tests call it. */
-export function buildRoutes(list: readonly RouteEdge[], dropped?: Set<number>): Map<number, Seg[]> {
+/** `seed`: segments fixed beforehand for some vessels (a branch off the SIDE of another, which no node at their ends describes: the lobule's sinusoids leaving an inlet venule); its children are composed from them as from any. */
+export function buildRoutes(list: readonly RouteEdge[], dropped?: Set<number>, seed?: ReadonlyMap<number, Seg[]>): Map<number, Seg[]> {
   const byK = new Map(list.map((e) => [e.k, e]));
   const arms = nodeArms(list);
   const out = new Map<number, Seg[]>();
@@ -128,6 +130,8 @@ export function buildRoutes(list: readonly RouteEdge[], dropped?: Set<number>): 
   const go = (k: number): Seg[] => {
     const done = out.get(k);
     if (done) return done;
+    const sd = seed?.get(k);
+    if (sd) { out.set(k, sd); return sd; }
     const e = byK.get(k)!;
     if (busy.has(k) || !(e.q > 0) || !e.m) { const o = own(k); if (!busy.has(k)) out.set(k, o); return o; }   // (a loop back on itself carries its own particles)
     busy.add(k);
@@ -226,7 +230,7 @@ export class StreamRoutes {
   turnsOf(k: number): number { return this.turns[k]!; }
 
   /** `drawn(id)`: the vessel is drawn and carries blood. `turnTarget(k)`: the swirl's whole turns this vessel should carry now. Returns true while anything is still easing. */
-  step(nowMs: number, streams: Streams, drawn: (id: string) => boolean, turnTarget: ArrayLike<number>): boolean {
+  step(nowMs: number, streams: Streams, drawn: (id: string) => boolean, turnTarget: ArrayLike<number>, view = 0): boolean {
     const dt = this.lastNow < 0 ? 1 : Math.min(0.1, Math.max(0, (nowMs - this.lastNow) / 1000));
     this.lastNow = nowMs;
     const list: RouteEdge[] = [];
@@ -236,7 +240,7 @@ export class StreamRoutes {
       const sm = streams.stream(k), sg = sm.sgn || 1;
       const m = displaySpeed(sg * Math.max(0, sg * (sm.vSlow ?? 0))) as number;
       if (!m) continue;
-      list.push({ k, from: inf.from, to: inf.to, path: inf.path, len: inf.len, fwd: sg > 0, m, q: streams.flowOf(k) });
+      list.push({ k, from: inf.from, to: inf.to, path: inf.path, len: flowLenAt(inf.id, inf.len, view), fwd: sg > 0, m, q: streams.flowOf(k) });
     }
     const next = buildRoutes(list);
     let easing = false;
@@ -259,8 +263,14 @@ export class StreamRoutes {
   }
 
   private put(k: number, segs: readonly Seg[], turns: number, mix: number): void {
-    const d = this.data, row = (r: number): number => (r * NE + k) * 4;
-    const prev = this.prev.get(k) ?? own(k);
+    writeRoute(this.data, NE, k, segs, this.prev.get(k) ?? own(k), turns, mix, (r) => RADIUS[r] ?? 0);
+  }
+}
+
+/** Writes one vessel's column of a route table (the layout the shader reads, dust-glsl.ts dSeg): `n` columns, the current set, the one fading out, the swirl's turns, the fade, and each root's lattice radius. */
+export function writeRoute(d: Float32Array, n: number, k: number, segs: readonly Seg[], prev: readonly Seg[], turns: number, mix: number, radius: (root: number) => number): void {
+  {
+    const NE = n, row = (r: number): number => (r * NE + k) * 4;
     let o = row(0);
     d[o] = segs.length; d[o + 1] = mix; d[o + 2] = mix < 1 ? prev.length : 0; d[o + 3] = turns;
     const write = (set: readonly Seg[], base: number): void => {
@@ -270,10 +280,19 @@ export class StreamRoutes {
         if (!g) { d[o] = d[o + 1] = d[o + 2] = d[o + 3] = 0; o = row(base + 2 * i + 1); d[o] = d[o + 1] = d[o + 2] = d[o + 3] = 0; continue; }
         d[o] = g.y0; d[o + 1] = g.y1; d[o + 2] = g.root + 1; d[o + 3] = g.c0;
         o = row(base + 2 * i + 1);
-        d[o] = g.c1; d[o + 1] = g.A; d[o + 2] = g.B; d[o + 3] = RADIUS[g.root] ?? 0;
+        d[o] = g.c1; d[o + 1] = g.A; d[o + 2] = g.B; d[o + 3] = radius(g.root);
       }
     };
     write(segs, 1);
     write(prev, 1 + 2 * SEG_MAX);
   }
+}
+
+/** A route table that never changes (the lobule's: one flow, built once): `n` columns, each vessel's segments, each root's lattice radius (the program's own units). */
+export function staticRouteTexture(n: number, segs: ReadonlyMap<number, Seg[]>, radius: (root: number) => number): DataTexture {
+  const data = new Float32Array(n * ROWS * 4);
+  for (let k = 0; k < n; k++) { const s = segs.get(k) ?? own(k); writeRoute(data, n, k, s, s, 0, 1, radius); }
+  const t = new DataTexture(data, n, ROWS, RGBAFormat, FloatType);
+  t.minFilter = t.magFilter = NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
+  return t;
 }

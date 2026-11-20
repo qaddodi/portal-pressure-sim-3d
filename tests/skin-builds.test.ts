@@ -30,3 +30,25 @@ test('every inventory node builds a skin, with no fallback to the old join', () 
   assert.deepEqual([...set.fellBack].sort(), ['SIN_L', 'SIN_R'], 'the pinned list of nodes that keep the old join');
   assert.ok(set.nodes.includes('IVCS'), 'IVCS is welded as a side-wall junction');
 });
+
+test('shading normals across a ridge: no two neighbouring vertices of a skin differ by 80 degrees or more, and the seam rings keep the tube\'s own normals (a crotch\'s two-tone band drew a dark line along the ridge: PVT_L 138, CV_R 116 degrees before the easing)', () => {
+  setSmoothJoins(true);
+  const scene = new CelScene({ joins: 'old' });
+  const meshes: Array<{ node: string; normal: Float32Array; index: Uint32Array }> = [];
+  const set = new SkinSet({
+    vessel: (id) => scene.vesselObject(id), stateOf: () => undefined,
+    make: (mesh, axes, arms) => { meshes.push({ node: mesh.junction.node, normal: mesh.normal, index: mesh.index }); return new SkinObject(mesh, arms[0]!, axes, arms); },
+    add: (o: Object3D) => new Group().add(o), remove: () => {}, warn: () => {},
+  });
+  set.build(2);
+  assert.ok(meshes.length >= 9);
+  for (const m of meshes) {
+    let worst = 0;
+    for (let i = 0; i < m.index.length; i += 3) for (let s = 0; s < 3; s++) {
+      const a = m.index[i + s]!, b = m.index[i + (s + 1) % 3]!;
+      const d = m.normal[3 * a]! * m.normal[3 * b]! + m.normal[3 * a + 1]! * m.normal[3 * b + 1]! + m.normal[3 * a + 2]! * m.normal[3 * b + 2]!;
+      worst = Math.max(worst, (Math.acos(Math.min(1, Math.max(-1, d))) * 180) / Math.PI);
+    }
+    assert.ok(worst < 80, `${m.node}: neighbouring normals differ by ${worst.toFixed(0)} degrees`);
+  }
+});

@@ -19,7 +19,7 @@ import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { slicesFor } from '../../circuit/geometry.ts';
 import { findSkinJunctions, nodesBeyondReach, skinNodesForPhase } from './inventory.ts';
 import { armWalk, planSkins, type ArmTube } from './cuts.ts';
-import { buildSkin, hullCovers } from './mesh.ts';
+import { buildSkinSteady, hullCovers } from './mesh.ts';
 import type { Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
 import { armPresenceAt, hiWeightAt, lensUAt, liveFadeAt, type FadeState, type HiState } from './arm-twins.ts';
@@ -227,7 +227,7 @@ export class SkinSet {
     const { pos, nor, rest } = this.ringsFor(tubes, plan.cuts);
     // the arms' axes: the tubes' own ring centres and radii, the SAME three-point polylines the skin's fragment stage draws its ink from, so the mesh's fillet and its outline are one shape
     const axes = j.arms.map((a, i) => { const t = tubes.get(a.vesselId)!; return axisOf(t, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, t.tubular).from : undefined); });
-    const mesh = buildSkin(j, plan.cuts, pos, nor, axes.map(capsuleOf));
+    const mesh = buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf));
     // on a seam ring the skin's rest radius is the tube's own, exactly (the mesh builder measures the ring's mean radius, a few parts in 10^4 off the tube's `radius * rk`): the live move of a seam vertex is then the tube's to the last bit (spec 4.6)
     mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));
     const draw = this.deps.make(mesh, axes, objs as VesselObject[]);

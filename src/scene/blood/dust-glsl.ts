@@ -22,7 +22,8 @@ const F = (x: number): string => { const r = Number(x.toPrecision(6)); return Nu
 /** `D_<name>`: the uniform's place in the vec4 array. */
 export const DUST_MACROS: string = DUST_UNIFORMS.map((n, i) => `#define D_${n} dustP[${i >> 2}].${'xyzw'[i & 3]}`).join('\n');
 
-export const DUST_GLSL = /* glsl */ `
+/** The dust's GLSL with the root's stream distance read by `flowBody` (the body of float dFlow(float root)): the Anatomy's reads the streams' texture (DUST_GLSL); the lobule's tubes, which share one flow, read their own (micro3d/cel3d.ts). */
+export const dustGlsl = (flowBody: string): string => /* glsl */ `
 uniform vec4 dustP[${DUST_VEC4}];
 uniform sampler2D routeTex;
 ${DUST_MACROS}
@@ -74,10 +75,15 @@ DSeg dSeg(float edge, int row) {
   return DSeg(p.x, p.y, p.z - 1.0, p.w, q.x, q.y, q.z, q.w);
 }
 // the section's frame from the course's heading T, the figure's normal Z and the eye V (all in the view's frame) and the screen's sideways axis side: x, y the N and B axes on the side, z, w toward the eye
+// Every input can be degenerate on some pixel (a skin arm's heading of zero length, a heading along the eye, a figure normal along the heading): normalize() of a zero vector is NaN, and a NaN particle is drawn as
+// a speck of any colour (Mohammad, 20 Nov: green and dark blue specks on the joints). So nothing here is normalised without a length check, and the frame always comes out unit and finite.
 vec4 dustFrame(vec3 T, vec3 Z, vec3 V, vec3 side) {
-  vec3 t = normalize(T), N = cross(t, normalize(Z));
+  float tl = length(T), zl = length(Z);
+  if (tl < 1e-6) return vec4(1.0, 0.0, 0.0, 1.0);   // (no heading: a plain section seen square on)
+  vec3 t = T / tl, N = zl > 1e-6 ? cross(t, Z / zl) : vec3(0.0);
   float nl = length(N);
-  N = nl > 0.2 ? N / nl : side;   // (a course heading out of the figure: the screen's own side stands in)
+  if (nl > 0.2) N /= nl;
+  else { N = side - t * dot(side, t); float sl = length(N); N = sl > 1e-4 ? N / sl : vec3(-t.y, t.x, 0.0) / max(length(t.xy), 1e-4); }   // (a course heading out of the figure: the screen's own side, square to the heading, stands in)
   vec3 B = cross(t, N);
   return vec4(dot(N, side), dot(B, side), dot(N, V), dot(B, V));
 }
@@ -93,7 +99,7 @@ struct DMark { vec2 dp; float slope; float depth; float len; float dia; float sp
 float dTurns(float edge) { return texelFetch(routeTex, ivec2(int(edge), 0), 0).w; }
 // the particle's lane in this segment, and how much of it is there (soft at a dividing line; whole at a wall)
 vec2 dMember(DSeg g, float yl) {
-  float y = (yl - g.c0) / g.c1, e = 0.04;
+  float y = (yl - g.c0) / (g.c1 < 0.0 ? min(g.c1, -1e-4) : max(g.c1, 1e-4)), e = 0.04;   // (a strip of no width: never 0 / 0)
   float m = (g.y0 <= -0.999 ? 1.0 : smoothstep(g.y0 - e, g.y0 + e, y)) * (g.y1 >= 0.999 ? 1.0 : 1.0 - smoothstep(g.y1 - e, g.y1 + e, y));
   return vec2(y, m);
 }
@@ -204,7 +210,7 @@ vec2 dLaneWin(DFrame F) {
   return vec2(min(a, b), max(a, b));
 }
 // the root's stream distance (streams.ts texel w) and the lattice's pitch (the root's radius)
-float dFlow(float root) { return texelFetch(streamTex, ivec2(int(root), 0), 0).w; }
+float dFlow(float root) { ${flowBody} }
 
 // THE TUBE: every lane segment the pixel can see, of the current layout and (while it fades out) the last one
 vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
@@ -238,7 +244,7 @@ vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
     }
   }
   // nothing past the lumen's edge: the dust stops short of the ink, with a soft fall (never a hard cut)
-  return acc * (1.0 - smoothstep(0.90, 0.96, abs(F.across)));
+  return clamp(acc, 0.0, 1.0) * (1.0 - smoothstep(0.90, 0.96, abs(F.across)));   // (premultiplied: never past 0 .. 1, or the lumen under it would be inverted)
 }
 // the segment of edge edge (current layout) that carries the root's lane yl, if any: its index (-1 none) and the particle's lane there and membership
 vec3 dFind(float edge, float root, float yl) {
@@ -283,14 +289,16 @@ vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
           DPart P = dPart(g.root, k, j0 + float(n), Pf, flowFig);
           if (P.alive <= 0.0) continue;
           vec2 ma = dMember(g, P.yl);
-          if (ma.y <= 0.0 || (wb <= 0.004 && !dNear(Fa, g, ma.x, P))) continue;
+          if (ma.y <= 0.0) continue;
           vec3 fb = wb > 0.004 ? dFind(Fb.edge, g.root, P.yl) : vec3(-1.0, 0.0, 0.0);
           if (arm == 1 && fb.x >= 0.0) continue;   // (the first arm drew it)
+          DSeg gb = dSeg(Fb.edge, 1 + 2 * int(max(fb.x, 0.0) + 0.5));
+          if (!dNear(Fa, g, ma.x, P) && (fb.x < 0.0 || !dNear(Fb, gb, fb.y, P))) continue;   // (out of reach in both frames: its blend is too)
           DMark M = dPlace(Fa, g, ma.x, P);
           float sa = wa * ma.y, sb = 0.0;
           if (fb.x >= 0.0) {
             sb = wb * fb.z;
-            M = dMix(M, dPlace(Fb, dSeg(Fb.edge, 1 + 2 * int(fb.x + 0.5)), fb.y, P), sb / max(sa + sb, 1e-4));
+            M = dMix(M, dPlace(Fb, gb, fb.y, P), sb / max(sa + sb, 1e-4));
           }
           vec4 c = dDraw(M, P, t0, t1, t2, t3, ink, rev) * (sa + sb);
           acc = c + acc * (1.0 - c.a);
@@ -298,9 +306,33 @@ vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
       }
     }
   }
-  return acc * (1.0 - smoothstep(0.90, 0.96, abs(mix(F0.across, F1.across, w1))));
+  return clamp(acc, 0.0, 1.0) * (1.0 - smoothstep(0.90, 0.96, abs(mix(F0.across, F1.across, w1))));
 }
 `;
+/** The Anatomy's: the root's stream distance is texel w of the streams' texture (blood/streams.ts). */
+export const DUST_GLSL: string = dustGlsl('return texelFetch(streamTex, ivec2(int(root), 0), 0).w;');
+
+
+type V3 = readonly [number, number, number];
+const dot3 = (a: V3, b: V3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross3 = (a: V3, b: V3): [number, number, number] => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const len3 = (a: V3): number => Math.hypot(a[0], a[1], a[2]);
+const sc3 = (a: V3, k: number): [number, number, number] => [a[0] * k, a[1] * k, a[2] * k];
+/** The twin of dustFrame: the section's N and B axes on the screen's side and toward the eye. Finite and unit for every input, degenerate ones included (tests/b3-dust.test.ts). */
+export function dustFrameJs(T: V3, Z: V3, V: V3, side: V3): [number, number, number, number] {
+  const tl = len3(T), zl = len3(Z);
+  if (tl < 1e-6) return [1, 0, 0, 1];
+  const t = sc3(T, 1 / tl);
+  let N: [number, number, number] = zl > 1e-6 ? cross3(t, sc3(Z, 1 / zl)) : [0, 0, 0];
+  const nl = len3(N);
+  if (nl > 0.2) N = sc3(N, 1 / nl);
+  else {
+    const d = dot3(side, t), q: [number, number, number] = [side[0] - t[0] * d, side[1] - t[1] * d, side[2] - t[2] * d], sl = len3(q);
+    N = sl > 1e-4 ? sc3(q, 1 / sl) : sc3([-t[1], t[0], 0], 1 / Math.max(Math.hypot(t[0], t[1]), 1e-4));
+  }
+  const B = cross3(t, N);
+  return [dot3(N, side), dot3(B, side), dot3(N, V), dot3(B, V)];
+}
 
 /** The twin of dTwist: the swirl's angle at arc `ae` of a vessel of length `Lw` that turns `turns` times, and its rate. A whole number of turns puts every particle back on its lane at both ends; the rate is 0 there. */
 export function dustTwist(ae: number, Lw: number, turns: number): [number, number] {

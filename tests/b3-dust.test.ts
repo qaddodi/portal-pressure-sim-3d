@@ -6,7 +6,7 @@ import {
   DUST_BUDGET, DUST_KMAX, DUST_LEN_CAP, DUST_NMAX, DUST_NUMERIC, DUST_PRESETS, DUST_SELECTS, DUST_SPEC, DUST_UNIFORMS, DUST_VEC4, LAB_ONLY, LAB_R,
   clampKey, dustBand, dustBudget, dustClasses, dustDefaults, dustDerive, dustProf, dustText, hexRgb, parseDust,
 } from '../src/scene/blood/dust-spec.ts';
-import { DUST_GLSL, DUST_MACROS, dustArc, dustStrip, dustTwist } from '../src/scene/blood/dust-glsl.ts';
+import { DUST_GLSL, DUST_MACROS, dustArc, dustFrameJs, dustStrip, dustTwist } from '../src/scene/blood/dust-glsl.ts';
 import { DUST_EASE_MS, DustTuner } from '../src/scene/blood/dust.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { FLAGS } from '../src/ui/debug/flags.ts';
@@ -135,7 +135,7 @@ test('GLSL: parses; the lab\'s shapes are in it; the dust is computed from a cel
   assert.match(DUST_GLSL, /for \(int n = -N; n <= N; n\+\+\)/);
   assert.match(DUST_GLSL, new RegExp(`int K = min\\(int\\(D_nCls \\+ 0\\.5\\), ${DUST_KMAX}\\), N = min\\(int\\(D_win \\+ 0\\.5\\), ${DUST_NMAX}\\);`), 'the loops stay inside their bounds');
   assert.match(DUST_GLSL, /\(D_densK - dHash\(sd\)\) \* 12\.0/, 'density thins by a threshold: single particles fade, nothing pops');
-  assert.match(DUST_GLSL, /return acc \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(F\.across\)\)\);/, 'contained: nothing on the ink');
+  assert.match(DUST_GLSL, /return clamp\(acc, 0\.0, 1\.0\) \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(F\.across\)\)\);/, 'contained: nothing on the ink');
   // in the vessel: the tube paints it, gated by the amount, the flow and the marks' own junction rule; chevrons after
   for (const m of [/vec4 dust = dustTube\(F, lit, inkColor, rev\);/, /return streakAmt \* smoothstep/, /smoothstep\(0\.0, [\d.]+, abs\(smS\.y\)\)/, /\* markK\(skinCut\.x >= 0\.0 \? 1e6 : sD, skinCut\.y <= 1\.0 \? 1e6 : \(1\.0 - vUv\.x\) \* len \* vU\)/]) assert.match(VESSEL_FS, m);
   assert.ok(VESSEL_FS.indexOf('streakCover = fd.a;') < VESSEL_FS.indexOf('c = c * (1.0 - hd.a) + hd.rgb;'), 'chevrons draw ABOVE the particles');
@@ -211,7 +211,7 @@ test('THE ROUTE (Mohammad, 20 Nov: "the particles should cross at the junction, 
   assert.match(DUST_GLSL, /float Pf = max\(D_cellP \* g\.rLat \* F\.U, 1e-4\)/, 'the lattice is the root\'s radius: one lattice along the whole route');
   assert.match(DUST_GLSL, /fract\(root \* 0\.6180339\) \* 50\.0/, 'the route\'s seed is the root\'s: one set of particles');
   assert.match(DUST_GLSL, /float wSet = set == 0 \? hd\.y : 1\.0 - hd\.y;/, 'the old layout fades out as the new one fades in');
-  assert.match(read('../src/scene/blood/routes.ts'), /d\[o \+ 3\] = RADIUS\[g\.root\] \?\? 0;/, 'the root\'s radius rides the route table');
+  assert.match(read('../src/scene/blood/routes.ts'), /d\[o \+ 3\] = radius\(g\.root\);/, 'the root\'s radius rides the route table');
 });
 
 test('the Blood menu has the streaks switch under Moving blood, in the chevrons\' own row, on the one setting (Mohammad, 20 Nov), and the dust eases in and out', async () => {
@@ -227,4 +227,20 @@ test('the Blood menu has the streaks switch under Moving blood, in the chevrons\
   assert.match(read('../src/ui/shell/icons.tsx'), /\bdust: 'M/, 'the icon exists');
   assert.match(read('../src/scene/blood/cells/cells.ts'), /this\.amount = easeAmount\(this\.amount, goal, dtMs, FADE_MS\)/, 'the amount that scales the dust eases');
   assert.match(read('../src/scene/blood/cells/cells.ts'), /streakAmt\.value = drawn \? this\.amount/, 'and is what the vessels read');
+});
+
+// Root cause of the green and dark blue specks on the joints (Mohammad, 20 Nov): dustFrame normalised a skin arm's heading, which is zero on some pixels; normalize(0) is NaN on a GPU and a NaN particle is drawn as a speck of any colour.
+test('the dust frame is finite and unit for every heading, the degenerate ones included (no NaN specks)', () => {
+  const cases: [number, number, number][] = [[0, 0, 0], [0, 0, 1], [0, 0, -1e-9], [1, 0, 0], [0.3, -0.7, 0.2], [1e-7, 0, 0]];
+  const sides: [number, number, number][] = [[1, 0, 0], [0, 0, 1], [0, 0, 0]];
+  for (const T of cases) for (const Z of [[0, 0, 1], [0, 0, 0], T] as [number, number, number][]) for (const side of sides) {
+    const f = dustFrameJs(T, Z, [0, 0, 1], side);
+    assert.ok(f.every(Number.isFinite), `finite for T ${T}, Z ${Z}, side ${side}: ${f}`);
+    assert.ok(Math.hypot(f[0], f[1]) <= 1 + 1e-9 && Math.hypot(f[2], f[3]) <= 1 + 1e-9, 'never past unit');
+  }
+  assert.doesNotMatch(DUST_GLSL, /vec3 t = normalize\(T\)/, 'no unguarded normalize of the heading');
+  assert.match(DUST_GLSL, /if \(tl < 1e-6\) return vec4\(1\.0, 0\.0, 0\.0, 1\.0\)/);
+  assert.match(DUST_GLSL, /\/ \(g\.c1 < 0\.0 \? min\(g\.c1, -1e-4\) : max\(g\.c1, 1e-4\)\)/, 'a strip of no width never divides 0 by 0');
+  assert.equal((DUST_GLSL.match(/return clamp\(acc, 0\.0, 1\.0\)/g) ?? []).length, 2, 'tube and skin dust stay inside 0 .. 1 premultiplied');
+  assert.match(DUST_GLSL, /if \(!dNear\(Fa, g, ma\.x, P\) && \(fb\.x < 0\.0 \|\| !dNear\(Fb, gb, fb\.y, P\)\)\) continue;/, 'the skin culls a particle out of reach in both frames');
 });

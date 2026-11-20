@@ -68,3 +68,26 @@ test('the skin is back-face culled in the fragment stage like the tube, and fade
 test('the skin\'s program is registered for the compile check and the ?gl page', () => {
   assert.ok(rawPrograms(FIBRO).some((p) => p.name === 'skin'), 'rawPrograms lists the skin');
 });
+
+// The seam down a fork's skin (Mohammad, 20 Nov: "i still see a seam at the blood vessels junction", PV into RPV and LPV): the dust is drawn in the two heaviest arms' frames, and on the line where the
+// second and third arms weigh the same the pair changes. The second's share is taken less the third's weight, so it is 0 on both sides of that line and the change is continuous.
+test('the skin dust\'s second-arm share is 0 where the second and third arms tie (no seam between a fork\'s branches)', () => {
+  assert.match(SKIN_FS, /else wD2 = max\(wD2, wI\);/);
+  assert.match(SKIN_FS, /float w1 = max\(wD1 - wD2, 0\.0\) \/ max\(wD0 \+ wD1 - 2\.0 \* wD2, 1e-4\);/);
+  const share = (w: number[]) => { const s = [...w].sort((a, b) => b - a); return Math.max(s[1]! - (s[2] ?? 0), 0) / Math.max(s[0]! + s[1]! - 2 * (s[2] ?? 0), 1e-4); };
+  for (const e of [1e-3, 1e-5]) {
+    const a = share([0.5, 0.25 + e, 0.25 - e]), b = share([0.5, 0.25 - e, 0.25 + e]);
+    assert.ok(a < 0.01 && b < 0.01, `continuous across the tie: ${a}, ${b}`);
+  }
+  assert.ok(Math.abs(share([0.5, 0.5, 0]) - 0.5) < 1e-9, 'a plain two-arm seam keeps its even blend');
+});
+
+test('?joins=debug paints each pixel the skin would drop, in the colour of its reason (red back face, cyan presence dither, yellow no alpha, magenta past the ink band), and the plain program is the same without it', async () => {
+  const { joinsMode, skinDebugOn } = await import('../src/scene/vessels/skin/joins-mode.ts');
+  assert.equal(skinDebugOn('?joins=debug'), true); assert.equal(skinDebugOn('?joins=old'), false); assert.equal(skinDebugOn(''), false);
+  assert.equal(joinsMode('?joins=debug'), 'mesh2', 'debug builds every skin');
+  for (const [why, col] of [['!gl_FrontFacing', '1.0, 0.0, 0.0'], ['alpha < 0.004', '1.0, 1.0, 0.0'], ['sdPx > inkDev + 0.5', '1.0, 0.0, 1.0']] as const) {
+    assert.ok(SKIN_FS.includes(`#ifdef SKIN_DEBUG\n  if (${why}) { gl_FragColor = vec4(${col}, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }\n#endif\n`), why);
+  }
+  assert.ok(SKIN_FS.includes('vec4(0.0, 1.0, 1.0, 1.0); gl_FragDepth'), 'the presence dither is cyan; a painted pixel is pushed a little behind, so a real surface in front of it hides it and only a true hole shows its colour');
+});

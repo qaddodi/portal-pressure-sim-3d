@@ -12,7 +12,7 @@ import { TUBE_RADIAL, buildTubes } from '../src/scene/vessels/tubes.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { armWalk, chooseCuts, type ArmTube } from '../src/scene/vessels/skin/cuts.ts';
 import { SIDE_TOL_R, SKIN_REACH, armReach, findSkinJunctions, nearestOnPolyline, pointAtShare } from '../src/scene/vessels/skin/inventory.ts';
-import { GENTLE_PACE, QUICK_PACE, buildSkin, buildSkinPaced, foldedTriangles, hullCovers, minAngleDeg } from '../src/scene/vessels/skin/mesh.ts';
+import { GENTLE, SLOW, buildSkin, buildSkinSteady, foldedTriangles, hullCovers, minAngleDeg } from '../src/scene/vessels/skin/mesh.ts';
 import { SkinSet, axisOf, holesOf } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
 import { SKIN_HOLE_NONE, SkinBuildError, type SkinArm, type SkinCut, type SkinJunction, type Vec3 } from '../src/scene/vessels/skin/types.ts';
@@ -175,10 +175,11 @@ test('IVCS is welded: five arms, the cava cut below the hepatic veins and its en
     const j = m.junction, tubes = (set as unknown as { tubesOf(js: SkinJunction[]): Map<string, ArmTube> }).tubesOf([j]);
     const rings = m.cuts.map((c) => ringOf(tubes.get(c.vesselId)!, c.ring));
     const axes = j.arms.map((a, i) => { const t = tubes.get(a.vesselId)!; return axisOf(t, a.restR, m.cuts[i]!, j.J, a.side ? armWalk(a, t.tubular).from : undefined); });
-    const args = [j, m.cuts, rings.map((x) => x.pos), rings.map((x) => x.nor), axes.map(capsuleOf), 12000, true] as const;
-    assert.throws(() => buildSkinPaced(...args, QUICK_PACE), /folds/, 'the quick pace folds on IVCS');
-    assert.doesNotThrow(() => buildSkinPaced(...args, GENTLE_PACE));
-    assert.doesNotThrow(() => buildSkin(j, m.cuts, rings.map((x) => x.pos), rings.map((x) => x.nor), axes.map(capsuleOf)), 'buildSkin retries with the gentle pace');
+    const seam = rings.map((x) => x.pos), nor = rings.map((x) => x.nor), cap = axes.map(capsuleOf);
+    assert.throws(() => buildSkin(j, m.cuts, seam, nor, cap, 12000), /folds/, 'the usual pace folds on IVCS');
+    assert.throws(() => buildSkin(j, m.cuts, seam, nor, cap, 12000, GENTLE), /folds/, 'and so does the lobule\'s gentle one (8 triangles)');
+    assert.doesNotThrow(() => buildSkin(j, m.cuts, seam, nor, cap, 12000, SLOW), 'the slow one closes it');
+    assert.doesNotThrow(() => buildSkinSteady(j, m.cuts, seam, nor, cap), 'buildSkinSteady tries the three in turn');
   } finally { scene.dispose?.(); setSmoothJoins(was); }
 });
 
