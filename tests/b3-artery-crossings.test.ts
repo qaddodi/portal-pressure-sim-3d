@@ -132,7 +132,12 @@ test('the hepatic artery is one connected tree: the proper artery ends where the
 test('the azygos arch fades in from its free left end (no blunt hook over the right atrium)', async () => {
   const { fadeOf } = await import('../src/scene/vessels/fades.ts');
   const f = fadeOf('AZY_SVC', false)!;
-  assert.ok(f && f.mode === 1 && f.a0 === 0 && f.a1 === 1 && f.to >= 0.4, 'faded in over the first half');
+  assert.ok(f && f.mode === 1 && f.a0 === 0 && f.a1 === 1, 'fades in from its free left end');
+  // (the esophageal collateral meets the arch at its 2D start: the arch is carried on to the left and fades in over that stretch alone, so the collateral joins where it is solid)
+  const { startInOrganShare } = await import('../src/scene/vessels/starts.ts');
+  const { EDGE_PATH_2D } = await import('../src/scene/vessels/paths.copied.ts');
+  const share = startInOrganShare('AZY_SVC', EDGE_PATH_2D.AZY_SVC!);
+  assert.ok(share > 0.15 && Math.abs(f.to - share) < 1e-9, `faded in over the carried-on stretch (${share}) and solid where the collateral meets it`);
 });
 
 test('the hepatic artery\'s blood runs on through its junction into both branches (the stream chain carries it), and the lobar arteries fade out with their portal branches', async () => {

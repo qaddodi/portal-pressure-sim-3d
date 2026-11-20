@@ -13,7 +13,7 @@ import {
   BufferAttribute, DoubleSide, BufferGeometry, Color, DataTexture, FrontSide, Group, InstancedMesh, LinearSRGBColorSpace, Matrix4, Mesh, ShaderMaterial, type Texture, type Vector2, Vector4,
 } from 'three';
 import { CEL_STYLE } from '../cel-style.ts';
-import { CHEVRON_GLSL } from '../blood/chevron-glsl.ts';
+import { CHEV, CHEVRON_GLSL } from '../blood/chevron-glsl.ts';
 import { LENS_SHARED } from '../lenses/tokens.copied.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
@@ -141,18 +141,16 @@ float fh(float x) { return fract(sin(x * 91.7 + 13.3) * 43758.5453); }
 // near black with their dark ring (uFlowDark 1, uFlowInk), as the Anatomy's are; the lymph's and the bile's in their own lighter tone. Returns (coverage, ring).
 vec2 flowHeads() {
   if (vAcross > 2.0) return vec2(0.0);
-  // the Anatomy's rules, in its CSS px (vessels/shaders.ts chevOne): one head every 130 CSS px along the tube on the SCREEN, on a lattice that halves and doubles with the zoom (nothing jumps),
-  // a half width of half the radius held between 4 and 8 CSS px and never past 0.6 of the radius, and none on a tube under 5.8 CSS px of radius (a head there is a dot)
+  // the Anatomy's rules, in its CSS px (blood/chevron-glsl.ts CHEV, the one table: vessels/shaders.ts chevOne): one head every PITCH_PX CSS px along the tube on the SCREEN, on a lattice that halves and doubles with the zoom (nothing jumps),
+  // a half width of half the radius held between MIN_HW_PX and MAX_HW_PX (a head 7 px long and 8.8 tall from a tube 9 px across) and never past the radius plus OVER_PX, and none on a tube under MIN_R_PX of radius
   float R = max(uFlowR, 1e-5);
   float pxA = max(length(vec2(dFdx(vArc), dFdy(vArc))), 1e-7), wpc = pxA * uDpr;
-  float lv = max(-1.0, log2(130.0 * wpc / max(uFlowPitch, 1e-5)));
+  float lv = max(-1.0, log2(${F(CHEV.PITCH_PX)} * wpc / max(uFlowPitch, 1e-5)));
   float n0 = floor(lv), P = uFlowPitch * exp2(n0);
   float j = floor((vArc - uFlowT) / P + 0.5), x = vArc - uFlowT - j * P;
-  // (the lobule's tubes are a few CSS px wide at the fit, under the Anatomy's 5.8 px floor, and the blood must always be seen to move, Mohammad 20 Nov 2026: "at normal lobule zoom level, i can't see chevrons
-  // or streaks anywhere": so a micro tube keeps a SMALL head down to 2.4 CSS px of radius, 3 CSS px of half width there and never past 0.6 of the radius (it stays inside the lumen), the Anatomy's 4 to 8 px once it is wide enough)
-  float hw = min(0.6 * R, clamp(0.5 * R, 3.0 * wpc, 8.0 * wpc));
+  float hw = min(R + ${F(CHEV.OVER_PX)} * wpc, clamp(0.5 * R, ${F(CHEV.MIN_HW_PX)} * wpc, ${F(CHEV.MAX_HW_PX)} * wpc));
   if (abs(x) > 2.0 * hw + 4.0 * pxA) return vec2(0.0);
-  float k = chevKeep(j, n0, lv) * smoothstep(2.4 * wpc, 3.2 * wpc, R);
+  float k = chevKeep(j, n0, lv) * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R);
   return chevHead(x, abs(vAcross) * R, hw, pxA, 0.0) * k;
 }
 // the streaks: THE ONE STREAK field (blood/streak-glsl.ts, the Anatomy's and the sinusoid's), sized on the SCREEN as the Anatomy's are: 3, 5 or 7 lanes by the tube's radius in CSS px, each streak a long

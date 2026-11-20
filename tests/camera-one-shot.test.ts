@@ -10,7 +10,7 @@ test('the dive frame is never switched on at setView: only fadeBody shows it, on
 });
 test('in a dive the room moves with the aim (one clock), never on its own', () => {
   const s = readFileSync('src/scene/camera/rig.ts', 'utf8');
-  assert.match(s, /lerp\(a\.room\.x, b\.room\.x, q\)/);
+  assert.match(s, /diveRoomShare\(a\.shot\.r, b\.shot\.r, r\)/);
 });
 test('blendPose runs for a plain move and for a dive (a throw here freezes every camera move)', async () => {
   const { blendPose } = await import('../src/scene/camera/rig.ts');
@@ -44,5 +44,25 @@ test('cards arriving mid-dive (lobule -> sinusoid) never make the picture jump o
     assert.ok(size >= last * 0.999, `the place grows on screen every frame (t ${t}: ${last.toFixed(2)} -> ${size.toFixed(2)})`);
     if (!Number.isNaN(lastX)) assert.ok(Math.abs(a.x - lastX) < 40, `no jump sideways (t ${t})`);
     last = size; lastX = a.x;
+  }
+});
+test('the way out of the sinusoid to the lobule with the room widening: the sinusoid moves one way on screen and only shrinks (no zigzag)', async () => {
+  const { CameraRig } = await import('../src/scene/camera/rig.ts');
+  const { lobuleShot, sinusoidShot } = await import('../src/scene/lobule/shots.ts');
+  const { Vector3 } = await import('three');
+  for (const [r0, r1] of [[{ x: 0, y: 0, w: 560, h: 700 }, { x: 0, y: 0, w: 1000, h: 700 }], [{ x: 0, y: 0, w: 1000, h: 700 }, { x: 0, y: 0, w: 560, h: 700 }]] as const) {
+    for (const out of [true, false]) {
+      const rig = new CameraRig('play', r0); rig.resize(1000, 700);
+      const sin = sinusoidShot(), lob = lobuleShot('lobule');
+      rig.goTo(out ? sin : lob, r0, 0); rig.update(0); rig.goTo(out ? lob : sin, r1, 0, 1100);
+      const p = new Vector3(...sin.target), q = new Vector3(sin.target[0] + 0.001, sin.target[1], sin.target[2]);
+      let dx0 = 0, lastX = rig.project(p).x, lastS = NaN;
+      for (let t = 16; t <= 1200; t += 16) {
+        rig.update(t); const a = rig.project(p), b = rig.project(q), sz = Math.hypot(b.x - a.x, b.y - a.y), dx = a.x - lastX;
+        if (Math.abs(dx) > 0.05) { if (dx0 && Math.sign(dx) !== Math.sign(dx0)) assert.fail(`x reversed at ${t} ms (out ${out})`); dx0 = dx; }
+        if (!Number.isNaN(lastS)) assert.ok(out ? sz <= lastS + 1e-6 : sz >= lastS - 1e-6);
+        lastX = a.x; lastS = sz;
+      }
+    }
   }
 });

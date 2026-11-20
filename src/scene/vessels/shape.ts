@@ -107,6 +107,7 @@ export function fitEnds(v: NetVessel, pts: Vec3[]): { pts: Vec3[]; buried: reado
   return { pts: out, buried };
 }
 const minR = len3(0.35);
+const CAV_MEET = 1 / 7;
 
 /** The courses (the vessel's own first) at `s`. */
 export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
@@ -119,7 +120,13 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
       // the cavernoma: channels in the frame of the clotted trunk (its two pieces), grown with the recruitment, each whole and joined at both ends
       const trunk = ['PV_TRUNK_1', 'PV_TRUNK'].map((id) => (NETWORK_BY_ID.get(id)!.plan as unknown as { base: [number, number][] }).base);
       const ch = cavChannels(trunk, main);
-      strands = ch.map((pts, i) => { const g = cavGrowth(i, s.rec); return { pts, k: CAV[i]!.k * g, ph: 0, live: Math.min(1, g * 4) }; });   // (grown whole and joined at both ends; its opacity over its first quarter: here its width)
+      // (each channel is drawn in the frame of the trunk, so its ends lay across the trunk's width and their round caps stood out of its side as a knot: they ease onto the vessel's own course over the last
+      // seventh at each end, where the channels meet the portal vein and the hepatic hilum, so all of them run into the trunk's centre there and the trunk covers the joins; Mohammad, 20 Nov: "a knotted, capped lump")
+      const meet = (pts: readonly (readonly [number, number])[]): [number, number][] => pts.map((p, j): [number, number] => {
+        const u = j / Math.max(1, pts.length - 1), e = Math.min(u, 1 - u) / CAV_MEET, w = e >= 1 ? 1 : smooth(e), m = main[Math.min(main.length - 1, j)]!;
+        return [m[0] + (p[0] - m[0]) * w, m[1] + (p[1] - m[1]) * w];
+      });
+      strands = ch.map((pts, i) => { const g = cavGrowth(i, s.rec); return { pts: meet(pts), k: CAV[i]!.k * g, ph: 0, live: Math.min(1, g * 4) }; });   // (grown whole and joined at both ends; its opacity over its first quarter: here its width)
     }
     const de = depthEnds(v), zf = de.zf, zt = de.zt;
     let m = to3(main, z, zf, zt, de.sf, de.st, de.through);

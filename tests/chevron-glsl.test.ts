@@ -19,9 +19,9 @@ test('the Lobule\'s 3D vessels draw THE head, the blood\'s near black', () => {
   for (const p of ['this.sin.an', 'this.inlets', 'this.twigs']) assert.match(lob, new RegExp(`${p.replace(/\./g, '\\.')}\\.setFlow\\([^\\n]*, true, dpr\\);`), p);
 });
 
-test('the Lobule\'s heads: 130 CSS px apart on a zoom lattice (few), small (3 to 8 CSS px of half width, inside 0.6 of the radius), and SEEN at the fit: down to 2.4 CSS px of radius, not the Anatomy\'s 5.8 floor that hid every one', () => {
-  assert.match(MICRO_FS, /130\.0 \* wpc/);
-  assert.match(MICRO_FS, /min\(0\.6 \* R, clamp\(0\.5 \* R, 3\.0 \* wpc, 8\.0 \* wpc\)\)/);
-  assert.match(MICRO_FS, /smoothstep\(2\.4 \* wpc, 3\.2 \* wpc, R\)/);
+test('the Lobule\'s heads: 60 CSS px apart on a zoom lattice, 4.4 to 9 CSS px of half width (a pixel over a wall at most), and SEEN at the fit: down to 1.5 CSS px of radius', () => {
+  assert.match(MICRO_FS, /60\.0 \* wpc/);
+  assert.match(MICRO_FS, /min\(R \+ 1\.0 \* wpc, clamp\(0\.5 \* R, 4\.4 \* wpc, 9\.0 \* wpc\)\)/);
+  assert.match(MICRO_FS, /smoothstep\(1\.5 \* wpc, 2\.1 \* wpc, R\)/);
   assert.match(MICRO_FS, /chevKeep\(j, n0, lv\)/);
 });

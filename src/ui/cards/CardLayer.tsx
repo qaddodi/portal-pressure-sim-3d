@@ -38,7 +38,7 @@ function useFontsReady(): boolean {
 }
 
 const ZERO: Rect = { x: 0, y: 0, w: 0, h: 0 };
-interface Snap { slide: Slide | null; pages: number; at: number; trim: boolean }
+interface Snap { slide: Slide | null; /** the slide whose instrument the data card shows (the slide itself, or the one before it whose card stays) */ dslide: Slide | null; pages: number; at: number; trim: boolean }
 
 /** Every card on screen: what the presenter says is up, where the planner puts it, kept through a leave and an enter. */
 export function CardLayer({ deck }: { deck: Deck }) {
@@ -53,7 +53,15 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const setDocked = useUi((s) => s.setDocked);
   const publishPlan = useUi((s) => s.publishPlan);
 
-  const view = useMemo(() => (stops.length ? viewAt(stops, pos, lastSlideShot(stops)) : null), [stops, pos]);
+  // the data card at every stop (ui/cards/keep.ts): a slide with no instrument of its own keeps the one before it on screen unless a case, a lapse, a catheter or a patient change needs the screen
+  const dataAt = useMemo(() => dataKeys(deck, stops), [deck, stops]);
+  const here = dataAt[pos.stop] ?? null;
+  const view = useMemo(() => {
+    if (!stops.length) return null;
+    const v = viewAt(stops, pos, lastSlideShot(stops));
+    return !v.data && here && v.words === 'teach' ? { ...v, data: here.kind } : v;
+  }, [stops, pos, here]);
+  const carried = here && stops[here.from]?.kind === 'slide' ? (stops[here.from] as { slide: Slide }).slide : null;   // (the slide whose instrument the data card shows)
   // heights are tagged with the page they were measured on, so a card that has just been split is never judged by its whole height
   const [heights, setHeights] = useState<Record<string, { h: number; sig: string }>>({});
   const sigRef = useRef('');
@@ -84,10 +92,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const sig = `${wordsKey}|${pages}|${at}|${stepAt}|${vp.w}x${vp.h}`;
   sigRef.current = sig;
 
-  // the data card's key at every stop: the same instrument on the next slide is the same card (2D keepData, ui/cards/keep.ts), so it stays and only the words swap
-  const keyAt = useMemo(() => dataKeys(deck, stops), [deck, stops]);
-  const dataKeyAt = (p: { stop: number }, v: typeof view): string => keyAt[p.stop] ?? (v?.data === 'table' && v.slide ? `table:${v.slide.id}` : v?.data === 'ladder' && v.slide && hasToolChart(v.slide) ? `tool:${v.slide.id}` : 'ladder');
-  const dataKey = dataKeyAt(pos, view);
+  const dataKey = here?.key ?? 'ladder';
   const needs: Need[] = view ? [{ id: view.words, slot: 'words', visual: view.slide?.visual, h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey) }] : [])] : [];
   const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step, docked), [vp, wallet.active, step, docked, needs.map((n) => `${n.id}:${n.slot}:${n.h}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -173,7 +178,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     onMove: goTo,
     // a drag follows only where it will do something: a slide to go to (or a page to turn), not the first slide's Back
     // the data card the next slide keeps (same key) stays put under a drag: only the cards that change follow the finger
-    keeps: (dx) => { if (dx < 0 && atEnd(useUi.getState())) return false; const np = apply(stops, pos, dx < 0 ? 'next' : 'back'), to = viewAt(stops, np, lastSlideShot(stops)); return !!view?.data && !!to.data && dataKeyAt(np, to) === dataKey; },
+    keeps: (dx) => { if (dx < 0 && atEnd(useUi.getState())) return false; const to = dataAt[apply(stops, pos, dx < 0 ? 'next' : 'back').stop]; return !!view?.data && !!to && to.key === dataKey; },
     can: (dx) => pages > 1 || (dx < 0 && atEnd(useUi.getState())) || !samePos(apply(stops, pos, dx < 0 ? 'next' : 'back'), pos),
     width: vp.w,
     cards: () => [...document.querySelectorAll<HTMLElement>('.dk-card[data-card]:not([data-phase="out"])')].map((card) => ({ els: [card, ...(card.previousElementSibling?.classList.contains('dk-plate') ? [card.previousElementSibling as HTMLElement] : [])], data: card.getAttribute('data-card') === 'ladder' || card.getAttribute('data-card') === 'table' })),
@@ -185,7 +190,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const stacked = layoutOf(vp.w, vp.h) === 'stack' || layoutOf(vp.w, vp.h) === 'tab';
   // each card draws what it was given when it came in, so a card that is leaving keeps its own words while it goes
   const snaps = snapRef.current;
-  const now: Snap = { slide: view.slide, pages, at, trim };
+  const now: Snap = { slide: view.slide, dslide: carried ?? view.slide, pages, at, trim };
   const content = (e: Entry) => {
     // (only the card the view is on takes the view's words: for the render before a slide change reaches the stack, the card still standing is the old slide's, and must keep its own)
     if (e.phase === 'in' && (e.key === wordsKey || e.key === dataKey)) snaps[e.key] = now;
@@ -194,12 +199,12 @@ export function CardLayer({ deck }: { deck: Deck }) {
       case 'title': return <TitleCard deck={deck} page={sn.at} pages={sn.pages} />;
       case 'case': return sn.slide ? <CaseCard slide={sn.slide} page={sn.at} pages={sn.pages} /> : null;   // (a leaving card with no snapshot falls back to the view now, which on the title or the quick check has no slide: Back from slide 2 crashed the app)
       case 'teach': return sn.slide ? <TeachingCard slide={sn.slide} deck={deck} read={read} page={sn.at} pages={sn.pages} trim={sn.trim} /> : null;
-      case 'table': return sn.slide?.table ? <TableCard deck={deck} slide={sn.slide} /> : sn.slide ? <ToolCard deck={deck} slide={sn.slide} /> : null;
+      case 'table': return sn.dslide?.table ? <TableCard deck={deck} slide={sn.dslide} /> : sn.dslide ? <ToolCard deck={deck} slide={sn.dslide} /> : null;
       case 'ladder': return (
         <>
-          {sn.slide?.tiles || (sn.slide && hasToolChart(sn.slide)) ? <TilesHead deckId={deck.id} slideId={sn.slide.id} /> : null}
-          {sn.slide && hasToolChart(sn.slide) ? <ToolCard deck={deck} slide={sn.slide} /> : null}
-          {sn.slide?.ladder ? <LadderCard ladder={sn.slide.ladder} readings={readings} /> : sn.slide?.tiles ? <TilesCard deckId={deck.id} slideId={sn.slide.id} /> : null}
+          {sn.dslide?.tiles || (sn.dslide && hasToolChart(sn.dslide)) ? <TilesHead deckId={deck.id} slideId={sn.dslide.id} /> : null}
+          {sn.dslide && hasToolChart(sn.dslide) ? <ToolCard deck={deck} slide={sn.dslide} /> : null}
+          {sn.dslide?.ladder ? <LadderCard ladder={sn.dslide.ladder} readings={readings} /> : sn.dslide?.tiles ? <TilesCard deckId={deck.id} slideId={sn.dslide.id} /> : null}
         </>
       );
       case 'visual': return sn.slide ? <VisualCard deck={deck} slide={sn.slide} read={read} /> : null;
@@ -208,7 +213,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   };
   const labelOf = (id: CardId) => ({ title: 'Talk', case: 'Case', teach: 'Slide', ladder: 'Pressures', table: 'Summary', check: 'Quick check', visual: 'Summary' })[id];
   // a data card of tiles wears the 2D card's own state classes (presenter.js dataIn): every such card is tiles-only, a floating screen's is a column under the words, an instrument's has-tool and tool-only
-  const dataClass = (e: Entry) => { const sl = snaps[e.key]?.slide; return sl?.tiles || (sl && hasToolChart(sl)) ? ['tiles-only', stacked ? '' : 'col', sl.tool ? 'has-tool tool-only' : ''].filter(Boolean).join(' ') : undefined; };
+  const dataClass = (e: Entry) => { const sl = snaps[e.key]?.dslide; return sl?.tiles || (sl && hasToolChart(sl)) ? ['tiles-only', stacked ? '' : 'col', sl.tool ? 'has-tool tool-only' : ''].filter(Boolean).join(' ') : undefined; };
   const swapping = wordsStack.entries.some((e) => e.phase === 'out');
   const frames = (stack: ReturnType<typeof useStack>, slot: 'words' | 'data') => stack.entries.map((e) => {
     // (only the card the plan is for takes its place: for a render the card on its way out is still 'in', and it must not be given the new card's box)

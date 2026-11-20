@@ -108,9 +108,13 @@ export function arcSize(ra: number, rb: number): number {
 }
 const geo = (a: number, b: number, k: number) => (a > 0 && b > 0 ? a * Math.pow(b / a, k) : lerp(a, b, k));
 /** The room's share in a dive (blendDive's q) at the pose `c` between `a` and `b`. */
-function roomShareOf(a: Pose, b: Pose, c: Pose): number {
-  const span = a.shot.r - b.shot.r;
-  return Math.abs(span) < 1e-12 ? 1 : Math.min(1, Math.max(0, (a.shot.r - c.shot.r) / span));
+function roomShareOf(a: Pose, b: Pose, c: Pose): number { return diveRoomShare(a.shot.r, b.shot.r, c.shot.r); }
+/** The room's share in a dive with the camera at distance r (a.r to b.r): the zoom's own share, log(a/r) / log(a/b), the same both ways. Tied to the aim's share q (21539e4) the room and the aim
+ *  ran on different profiles and pulled the place dived to one way and back on screen (the zoom out of the sinusoid zigzagged); on the zoom's share it moves one way. tests/camera-one-shot.test.ts traces it. */
+export function diveRoomShare(ra: number, rb: number, r: number): number {
+  const span = ra - rb;
+  if (Math.abs(span) < 1e-12 || !(r > 0)) return 1;
+  return Math.min(1, Math.max(0, Math.log(ra / r) / Math.log(ra / rb)));
 }
 function blendDive(a: Pose, b: Pose, k: number, arc = 1): Pose {
   const swing = arc * arcSize(a.shot.r, b.shot.r) * arcBell(k);
@@ -125,7 +129,7 @@ function blendDive(a: Pose, b: Pose, k: number, arc = 1): Pose {
       half: [geo(a.shot.half[0], b.shot.half[0], k), geo(a.shot.half[1], b.shot.half[1], k)],
       ...narrowOf(a.shot, b.shot, (x, y) => geo(x, y, k)),
     },
-    room: { x: lerp(a.room.x, b.room.x, q), y: lerp(a.room.y, b.room.y, q), w: lerp(a.room.w, b.room.w, q), h: lerp(a.room.h, b.room.h, q) },
+    room: (() => { const m = diveRoomShare(a.shot.r, b.shot.r, r); return { x: lerp(a.room.x, b.room.x, m), y: lerp(a.room.y, b.room.y, m), w: lerp(a.room.w, b.room.w, m), h: lerp(a.room.h, b.room.h, m) }; })(),
   };
 }
 
