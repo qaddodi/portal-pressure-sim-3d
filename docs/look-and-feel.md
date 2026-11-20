@@ -137,7 +137,7 @@ Safe areas are always respected (59 px at the sides in landscape, 59 top and 34 
 
 ## 9. Vessel highlight
 
-The picked vessel gets a bolder outline in its own deep colour (white on the dark looks), which **runs on downstream and fades**, and reaches only
+The picked vessel gets a bolder outline in its own deep colour (on the dark looks its own tone lifted toward white, never pure white), which **fades out a short way past each end, further downstream than upstream** (0.5 and 0.2 scene units: it never runs on through the liver to light the cava, the shunts or the collaterals), and reaches only
 a short way upstream ("long ahead, short behind", from the 19 Nov highlight mocks). It also lifts a hair. **Nothing else is dimmed.** The data card
 names the vessel, its pressure and flow, and the gradient with words ("PPG 14 · high").
 

@@ -16,7 +16,7 @@
 // on, out along Disse toward the tract (owner, 5d3b7e86: hepatic lymph rises in cirrhosis, and the chevrons quicken with it). The sinusoid view shows none.
 import { type BufferGeometry, type Camera, Color, Group, LinearSRGBColorSpace, Matrix4, Plane, type Ray, type Object3D, Vector3 } from 'three';
 import { CelObject, type CelShared, rawColor } from '../materials/cel.ts';
-import type { Palette } from '../palette.ts';
+import { type Palette, highlightColour } from '../palette.ts';
 import type { LookId } from '../../looks/looks.ts';
 import { type FlowMarkMode, DEFAULT_FLOW_MODE, FLOW_FADE_MS, PULSE_MS, markSpeed } from '../flow.ts';
 import type { LensId } from '../lenses/model.ts';
@@ -30,6 +30,7 @@ import { disseColour } from './disse.ts';
 import { LOBULE_PARTS, type LobulePartName, PartSet } from './parts.ts';
 import { LOBULE_PALETTES, tone } from './tones.ts';
 import { LOBULE_R, lobuleToScene, slabZ } from './shots.ts';
+import { LobuleMark } from './mark.ts';
 /** Tags hang just over the plate (it is flat: a point any higher would slide against the tissue as the view turns). */
 const ANCHOR_Z = 0.05;
 import { lobuleWorld } from './frames.ts';
@@ -149,6 +150,9 @@ export class LobuleView {
   readonly plate: LobulePlate;
   readonly zones = new ZonesOverlay();
   readonly field: NeighbourField;
+  /** The halo on the part the learner tapped (mark.ts). */
+  private mark!: LobuleMark;
+  private markUntil = false;
   private readonly fsQ = fieldQuantizer();
   /** Objects drawn flat (one tone, no light): the space of Disse's band. */
   private flat = new Set<CelObject>();
@@ -185,6 +189,7 @@ export class LobuleView {
     this.plate = new LobulePlate(net, this.sinCourses(net), RAD.cv / R, mk);
     this.field = new NeighbourField((w, h) => { const c = mk(1); if (c) { c.width = w; c.height = h; } return c; });
     this.build();
+    this.mark = new LobuleMark(this.group);
     this.applyLook(this.look);
     this.group.visible = false;
   }
@@ -342,6 +347,7 @@ export class LobuleView {
     this.look = look; this.pushInk();
     const p = LOBULE_PALETTES[look], L = lookColours(look);
     for (const o of this.objects) { o.applyPalette(p); o.setPhone(this.phone); }
+    this.mark.setColour(highlightColour(p, 'portal'));
     // every outline is 2D's casing (--vessel-casing: a warm sepia at .64 on Light, near black at .3 on Dark) laid over the tissue it crosses, not the look's hard ink
     const casing = new Color(...L.rgb01('--vessel-casing')), ca = L.alpha('--vessel-casing');
     const cell = L.dark ? (() => { const g = L.rgb01('--og-liver-2'), c = L.rgb01('--og-liver-1'); return new Color(g[0] + (c[0] - g[0]) * 0.28, g[1] + (c[1] - g[1]) * 0.28, g[2] + (c[2] - g[2]) * 0.28); })() : new Color(...L.rgb01('--og-liver-1'));
@@ -448,6 +454,7 @@ export class LobuleView {
     if (this.bileFade !== biGoal) { this.bileFade = Math.abs(biGoal - this.bileFade) <= k ? biGoal : this.bileFade + Math.sign(biGoal - this.bileFade) * k; moving = true; }
     if (this.zoneFade !== zoGoal) { this.zoneFade = Math.abs(zoGoal - this.zoneFade) <= k ? zoGoal : this.zoneFade + Math.sign(zoGoal - this.zoneFade) * k; moving = true; }
     this.zones.set(this.zoneFade);
+    if (this.mark.step(dt, this.reduce)) moving = true;
     // the tissue: a new state is painted once and crossfaded in (plate.ts); the field's tile follows the state in 2D's eighths
     this.wantTissue();
     if (this.plate.step(dt, this.reduce)) moving = true;
@@ -617,7 +624,13 @@ export class LobuleView {
     try { gl.compile?.(this.group, camera); } finally { this.group.visible = was; }
   }
 
-  dispose(): void { for (const o of this.objects) o.dispose(); this.plate.dispose(); this.zones.dispose(); this.field.dispose(); }
+  /** Marks the part a tap landed on (null lets it go): a halo of its own shape that fades in and out. */
+  setMark(hit: LobuleHit | null): void {
+    this.mark.set(hit, { net: this.net, tubes: [...this.net.courses, ...this.bilePick], cvRadius: this.cvRadiusNow, septU: this.cur.septU, radius: (t, i) => this.radiusNow(t, i) });
+    this.dirty = true;
+  }
+
+  dispose(): void { this.mark.dispose(); for (const o of this.objects) o.dispose(); this.plate.dispose(); this.zones.dispose(); this.field.dispose(); }
 }
 
 /** One zone name for a place, for labels ('Zone 1 · periportal'). */

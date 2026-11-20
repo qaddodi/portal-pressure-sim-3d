@@ -80,7 +80,8 @@ export const PALETTES: Readonly<Record<LookId, Palette>> = Object.fromEntries(LO
 
 /** The colour of a picked vessel's outline in a look (section 9). */
 export function highlightColour(p: Palette, tone: ToneKey): string {
-  if (p.highlight === 'white') return '#FFFFFF';
+  // the dark looks lift the vessel's own tone toward white (a hard white band read as a block, 20 Nov); the light looks take half of it, deeper
+  if (p.highlight === 'white') { const [r, g, b] = hexToRgb255(p.tones[tone]).map((v) => Math.round(v + (255 - v) * 0.6)); return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join(''); }
   const [r, g, b] = hexToRgb255(p.tones[tone]).map((v) => Math.round(v * 0.5));
   return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
 }

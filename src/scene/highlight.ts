@@ -28,7 +28,8 @@ export interface HighlightRange {
   behind: number;
 }
 
-export const DEFAULT_RANGE: HighlightRange = { ahead: 2.4, behind: 0.45 };
+/** A pick lights its own vein and fades out along the flow a short way past each end (Mohammad, 20 Nov: only the vein I tap; 2.4 ahead ran through the liver and lit the cava, the shunts and every collateral). */
+export const DEFAULT_RANGE: HighlightRange = { ahead: 0.5, behind: 0.2 };
 /** Outline lift on the picked vessel (scene units), mocks: 0.012. */
 export const PICK_LIFT = 0.012;
 /** Fade in and out of the outline, ms. */
