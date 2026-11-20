@@ -23,6 +23,24 @@ export const MIN_RADIUS = 2;
 export const MIN_PER_EDGE = 2;
 /** A cell's widest diameter in CSS px: the biggest veins take bigger cells no further. */
 export const MAX_CELL_CSS = 7;
+
+/** The streak's numbers (shader.ts): a long soft-ended lozenge along the flow, faint, one flat tone, under the chevrons. Lengths and thickness in CSS px, of the tube's radius where it says so. */
+export const STREAK = {
+  /** a streak at the wall runs at this share of the mean speed (the middle runs at 1.5 of it, the mean over the section is 1): a slow, near-even laminar drift */
+  WALL_SPEED: 0.7,
+  /** the lozenge's length: this many tube radii (a little varied by streak), never under LEN_FLOOR nor over LEN_MAX px */
+  LEN_OF_R: 4.5, LEN_FLOOR: 8, LEN_MAX: 48,
+  /** its thickness at the widest: this share of the tube's radius, between THICK_MIN and THICK_MAX px */
+  THICK_OF_R: 0.3, THICK_MIN: 1.6, THICK_MAX: 4,
+  /** how far across the tube (of its radius) a streak may sit */
+  SPAN: 0.78,
+  /** the turbulence's weights: near a vessel's end (a fork), in a narrowed vessel, in a vessel at its design flow */
+  T_END: 0.4, T_STENOSIS: 0.9, T_FLOW: 0.5,
+  /** the most a streak wanders across (of the tube's half width) and tilts (radians) at full turbulence */
+  WANDER: 0.45, TILT: 0.6,
+  /** the colour lifted toward white (the vessel's lighter tone) and the streak's faintness */
+  LIFT: 0.6, ALPHA: 0.55,
+} as const;
 /** The design flow of a vessel as a multiple of its resting flow: the flow at which all its slots show. */
 export const DESIGN_HEADROOM = 1.5;
 /** The flow below which a vessel counts as not flowing (flow.ts markSpeed: 0.05 mL/s). */
@@ -108,7 +126,7 @@ export function hash2(a: number, b: number): number {
 export interface CellLayout {
   /** per cell: edge index, phase along the course (0 to 1), thinning order (0 to 1) */
   place: Float32Array;
-  /** per cell: slots on its vessel, lateral place across the tube (-1 to 1), size jitter (0 to 1), 0 */
+  /** per cell: slots on its vessel, lateral place across the tube (-1 to 1), size jitter (0 to 1), a second hash (0 to 1) */
   extra: Float32Array;
   count: number;
 }
@@ -126,6 +144,7 @@ export function layoutCells(counts: readonly number[]): CellLayout {
       extra[at * 4] = n;
       extra[at * 4 + 1] = ((j * 0.6180339887 + hash2(j, e) * 0.2) % 1) * 2 - 1;
       extra[at * 4 + 2] = hash2(e + 977, j);
+      extra[at * 4 + 3] = hash2(e + 31, j + 4001);
     }
   });
   return { place, extra, count };
@@ -245,7 +264,7 @@ export function writeCourse(out: Float32Array, e: number, pts: ArrayLike<number>
 // ---- when the layer is on ----
 
 export interface CellsContext {
-  /** Settings > Figure depth > Blood cells */
+  /** Settings > Figure depth > Blood streaks */
   on: boolean;
   /** the viewer asked for less motion: the cells are not drawn at all (a still scatter of dots would read as noise, and the chevrons already show the direction) */
   reduceMotion: boolean;

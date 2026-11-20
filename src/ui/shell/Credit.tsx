@@ -9,6 +9,27 @@ import { CREDIT } from './words.ts';
 import { M } from './metrics.ts';
 import { useThumb } from './thumb.ts';
 import { CORNERS, freeSpots } from './credit-spots.copied.js';
+import { useShell } from './store.ts';
+import { avoidVessel, vesselRect, widestWall } from './credit-avoid.ts';
+import { cel } from '../../scene/api.ts';
+import { framePoint } from '../../scene/sinusoid/portrait.ts';
+import { sinusoidWorld } from '../../scene/lobule/frames.ts';
+import { U } from '../../scene/sinusoid/view.ts';
+import { Vector3 } from 'three';
+
+/** The Sinusoid view's vessel on the canvas now (the lumen and its wall as a strip over the whole screen), or null when the view is not up or the camera is still flying to it (the strip is not where it will be yet). */
+const v3 = new Vector3(), pt = { x: 0, y: 0 }, f3: [number, number, number] = [0, 0, 0];
+function sinusoidVessel() {
+  const s = cel.sinus;
+  if (!s.isVisible || cel.rig.isMoving) return null;
+  const g = s.nameGeom, turn = s.turn;
+  return vesselRect((x, y) => {
+    framePoint(x, y, U, turn, f3);
+    const w = sinusoidWorld(f3);
+    cel.rig.project(v3.set(w[0], w[1], w[2]), pt);
+    return [pt.x, pt.y];
+  }, widestWall((x) => g.wallIn(x)));
+}
 
 /** What the credit keeps clear of: every floating bar, card and chip on screen (the bottom dock with its view pill, the top bar's chips, the zoom pill, a card), as rectangles. */
 // (the view pill stands above the dock as its child: the dock's own box stops under it, so the pill is named too. Phone play-test, 20 Nov: the credit ran half under the pill.)
@@ -25,33 +46,46 @@ function obstacles(vw: number, vh: number): { l: number; t: number; r: number; b
   return out;
 }
 
+/** The credit's fade (ms), the same as the CSS transition in chrome-3d.css. */
+const FADE_MS = 240;
+
 export function Credit() {
   const ref = useRef<HTMLDivElement>(null);
   const vp = useUi((s) => s.vp);
   const fps = useSettings((s) => s.showFps);
   const thumb = useThumb();
+  const view = useShell((s) => s.view);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    let timer = 0;
+    let timer = 0, shown = false, at0: { x: number; y: number } | null = null, hop = 0;
+    // the bars settle after the layout change (the dock's height, a card's transition): look again once they have, and again when one resizes
+    function again() { clearTimeout(timer); timer = window.setTimeout(place, 260); }
     const place = () => {
       const vw = innerWidth, vh = innerHeight, h = M.creditFont * M.creditLine, w = el.offsetWidth || 220;
       // the figure is the screen inside the safe areas; the frame-rate counter stands at the bottom corner too, so the credit's bottom corner rides above it
       const rise = fps ? M.fpsInset + M.fpsFont * M.fpsLine + 4 : 0;
       const fig = { l: vp.safe.left, t: vp.safe.top, r: vw - vp.safe.right, b: vh - vp.safe.bottom - rise };
-      const spots = freeSpots(fig, obstacles(vw, vh), w, h, { gap: 10, inset: M.creditInset }) as Record<string, { x: number; y: number } | null>;
-      const at = CORNERS.map((c) => spots[c]).find((s) => s);
-      if (at) { el.style.setProperty('--cx', `${Math.round(at.x)}px`); el.style.setProperty('--cy', `${Math.round(at.y)}px`); }
-      el.classList.toggle('covered', !at);   // (no free place: hidden, as 2D's)
+      // the Sinusoid's vessel runs across the whole screen: the credit keeps off it (2D's `avoid` hook), and with no bare spot left it is hidden. While the camera is still flying to the view the vessel is not where it will land: look again once it has.
+      const sinus = view === 'sinusoid';
+      const ves = sinus ? sinusoidVessel() : null;
+      if (sinus && !ves) { el.classList.add('moving'); again(); return; }   // (fades out, comes back once the view has landed)
+      const spots = (freeSpots as (fig: unknown, obs: unknown[], w: number, h: number, o: unknown) => Record<string, { x: number; y: number } | null>)(fig, obstacles(vw, vh), w, h, { gap: 10, inset: M.creditInset, avoid: ves ? avoidVessel(ves) : null });
+      const at = CORNERS.map((c) => spots[c]).find((s) => s) ?? null;
+      el.classList.toggle('covered', !at);   // (no free place: hidden by a fade, never a pop)
       el.classList.add('placed');
+      if (!at) { shown = false; return; }
+      const put = () => { el.style.setProperty('--cx', `${Math.round(at.x)}px`); el.style.setProperty('--cy', `${Math.round(at.y)}px`); at0 = at; shown = true; el.classList.remove('moving'); };
+      // a spot that moves while the credit shows fades out, moves while it is clear and fades back (never a jump across the figure)
+      if (shown && at0 && (Math.abs(at0.x - at.x) > 4 || Math.abs(at0.y - at.y) > 4)) {
+        el.classList.add('moving'); clearTimeout(hop); hop = window.setTimeout(put, FADE_MS);
+      } else { clearTimeout(hop); put(); }
     };
     place();
-    // the bars settle after the layout change (the dock's height, a card's transition): look again once they have, and again when one resizes
-    const again = () => { clearTimeout(timer); timer = window.setTimeout(place, 260); };
     again();
     const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(again) : null;
     for (const e of document.querySelectorAll(OBSTACLES)) ro?.observe(e);
-    return () => { clearTimeout(timer); ro?.disconnect(); };
-  }, [vp.w, vp.h, vp.safe.bottom, vp.safe.left, vp.safe.top, vp.safe.right, fps, thumb]);
+    return () => { clearTimeout(timer); clearTimeout(hop); ro?.disconnect(); };
+  }, [view, vp.w, vp.h, vp.safe.bottom, vp.safe.left, vp.safe.top, vp.safe.right, fps, thumb]);
   return <div className="stage-credit" ref={ref} aria-hidden="true">{CREDIT}</div>;
 }

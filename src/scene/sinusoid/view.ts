@@ -107,6 +107,8 @@ export class SinusoidView {
   private readonly model = { hide: false, P2: 5, lyProt: 0.88 };
   private readonly geo: { xs: number; xk: number; pores: Pore[][] };
   private readonly VW = { vis: [-VIS, VIS] as [number, number] };
+  /** How fast the traffic (albumin, the flow's run) goes against 2D's (1); the 3D scene sets its own. */
+  trafficSpeed = 1;
   private readonly g: { halfW(x: number): number; disseW(x: number): number; wallIn(x: number): number; hepIn(x: number): number };
   private readonly traffic: { stepMovers(dt: number): void; sprites(): number; pts: Float32Array; readonly flowX: number; readonly lymX: number; setDt(v: number): void };
   private readonly pal: { palette(dark: boolean): Record<string, unknown>; PAL: Record<string, unknown>; bump(): void };
@@ -270,9 +272,11 @@ export class SinusoidView {
     const wk = wantWash ? washProgress(now - this.washLand, this.reduce) : 0;
     if (wk !== this.washK) { this.washK = wk; moving = true; }
     if (wantWash && wk < 1) moving = true;
-    const run = !this.reduce, sec = dt / 1000;
-    this.traffic.setDt(run ? sec : 0);
-    if (run) { this.traffic.stepMovers(sec); moving = true; }
+    const run = !this.reduce && this.trafficSpeed > 0, sec = dt / 1000;
+    // (the traffic runs at trafficSpeed: the 3D scene asks for a little more pace, Mohammad 20 Nov 2026 "a little faster")
+    const tsec = sec * this.trafficSpeed;
+    this.traffic.setDt(run ? tsec : 0);
+    if (run) { this.traffic.stepMovers(tsec); moving = true; }
     this.write();
     return moving;
   }

@@ -39,6 +39,16 @@ export interface Item {
   face?: { cx: number; cy: number; ux: number; uy: number };
   /** Half the vessel's width on the canvas, so a label starts clear of it. */
   vw?: number;
+  /** A name of a vessel that always shows its leader and ring (2D's lobule: a name keeps a visible stretch of leader and never sits right over what it names, lobule-zoom-records.js `Math.max(0, 16 - lead)`):
+   *  the words stand at least this many px from the vessel's edge, so the gap is over LEAD_ON and the leader is drawn. Not enforced on the last resort of a `must` label. */
+  minLead?: number;
+  /** The words stand clear of every line in `lines` (the courses drawn under them: a name over the sinusoids is hard to read), searched round the dot as far as CLEAR_MAX; only when no such spot
+   *  exists does it take the cheapest one with a line under it. */
+  clearLines?: boolean;
+  /** For a `clearLines` name: the side (a unit vector on the canvas) it prefers to go to when it must stand off, as 2D puts the central vein's name on the side away from the tract (the nearer clear spots on the other side cost more). */
+  prefer?: readonly [number, number];
+  /** The longest leader (px from the dot) this item may take on the ordinary passes; default LONG_LEAD + the vessel's width + 10. */
+  reach?: number;
   /** A reading card with a pointer whose tip is the dot (the catheter's FHVP / WHVP / HVPG): it stands below or above its point, leans, and keeps
    *  clear of the vessels round it (the 2D app's callout-room.js, ported). `below` is the side it prefers. */
   callout?: { below: boolean };
@@ -84,10 +94,22 @@ export const AIR_LABEL = 4;
 export const DOT_ROOM = 40;
 export const VIEW_INSET = 8;
 const SLIDE_INSET = 18;
-const SHORT_LEAD = 45, LONG_LEAD = 140;
+const SHORT_LEAD = 45, LONG_LEAD = 60;
 const WIDE_GAPS = [40, 58, 76, 96, 120];
 const FORM_COST = 50;
 const LINE_COST = 8;
+/** Air kept between a `clearLines` name and a line (px): half a tube's width as drawn, the ink beside it and a little. */
+export const LINE_AIR = 3;
+const DROP_ROUNDS = 3;
+/** What a clear spot on the side opposite the preferred one costs over one on it (px of leader at 0.1 each, as 20 px more). */
+const PREFER_COST = 12;
+const CLEAR_STEP = 10, CLEAR_MAX = 340, CLEAR_ANGLES = 36;
+/** The spots of an item that must stand clear of the lines: the box's centre on rings about the dot, nearest ring first. */
+const CLEAR_SPOTS: readonly (readonly [number, number, number])[] = (() => {
+  const out: [number, number, number][] = [];
+  for (let r = 24; r <= CLEAR_MAX; r += CLEAR_STEP) for (let a = 0; a < CLEAR_ANGLES; a++) out.push([Math.round(r * Math.cos((a * 2 * Math.PI) / CLEAR_ANGLES)), Math.round(r * Math.sin((a * 2 * Math.PI) / CLEAR_ANGLES)), r]);
+  return out;
+})();
 /** An organ's name under a vessel steps to the next spot of its organ that no vessel touches (the 2D app: the first spot no vessel touches), so a crossing costs more than any step. */
 const REGION_LINE_COST = 60;
 
@@ -174,11 +196,12 @@ function candidates(it: Anchored, f: Form, wide: boolean): Cand[] {
     const [dx, dy] = offsetOf('C', f.w, f.h, 0);
     return [{ dx, dy, cost: 0 }, ...(it.spots ?? []).map(([cx, cy], i) => ({ dx: cx - f.w / 2, dy: cy - f.h / 2, cost: 1 + i * 0.4 }))];
   }
-  const gap0 = Math.max(12, (it.vw ?? 3) + 8);
+  const gap0 = Math.max(12, (it.vw ?? 3) + 8, it.minLead ? (it.vw ?? 0) + it.minLead + 1 : 0);
   const order: Dir[] = [...(it.dirs ?? []), ...COMPASS.filter((d) => !(it.dirs ?? []).includes(d))];
   order.forEach((d, i) => { const [dx, dy] = offsetOf(d, f.w, f.h, gap0); out.push({ dx, dy, cost: i * 2 }); });
   WIDE_GAPS.forEach((g, gi) => order.forEach((d, i) => { const [dx, dy] = offsetOf(d, f.w, f.h, g + (it.vw ?? 0)); out.push({ dx, dy, cost: 20 + gi * 8 + i }); }));
   if (wide) RING_SPOTS.forEach(([cx, cy], i) => out.push({ dx: cx - f.w / 2, dy: cy - f.h / 2, cost: 100 + i * 0.2 }));
+  if (it.clearLines) CLEAR_SPOTS.forEach(([cx, cy, r]) => out.push({ dx: cx - f.w / 2, dy: cy - f.h / 2, cost: 30 + r * 0.1 + (it.prefer ? (1 - (cx * it.prefer[0] + cy * it.prefer[1]) / r) * PREFER_COST : 0) }));
   return out;
 }
 
@@ -203,12 +226,12 @@ export function solve(input: SolveInput): Solved {
   }
   spreadDots(items, view, input.blockers);
 
-  const placedBoxes: { id: string; box: Box }[] = [];
-  const leaders: { id: string; seg: Seg }[] = [];
-  const placed: Placement[] = [];
-  const dropped: string[] = [];
+  let placedBoxes: { id: string; box: Box }[] = [];
+  let leaders: { id: string; seg: Seg }[] = [];
+  let placed: Placement[] = [];
+  let dropped: string[] = [];
 
-  const tryItem = (it: Anchored, relax: 0 | 1 | 2, offOrgans = false) => {
+  const tryItem = (it: Anchored, relax: 0 | 1 | 2, offOrgans = false, strictLines = false) => {
     const blockers = relax >= 2 ? blockersRaw : blockersAir;
     let best: { cost: number; form: number; c: Cand; box: Box; leader: boolean; seg: Seg | null } | null = null;
     for (let fi = 0; fi < it.forms.length; fi++) {
@@ -231,6 +254,8 @@ export function solve(input: SolveInput): Solved {
           if (!it.region && boxGap(box, it.ax, it.ay) < 3) continue;
           // (measured from the vessel's edge as drawn, not from its middle: a label hugging a fat vein has no line)
           const gap = it.region ? 0 : boxGap(box, it.ax, it.ay) - (it.vw ?? 0);
+          if (it.minLead && !it.region && relax < 2 && gap < it.minLead) continue;
+          if (strictLines) { const air = grow(box, LINE_AIR); let under = false; for (const l of lines) if (crosses(l[0], l[1], l[2], l[3], air)) { under = true; break; } if (under) continue; }
           const leader = !it.region && !it.callout && gap > LEAD_ON;
           let seg: Seg | null = null;
           let pen = 0;
@@ -238,7 +263,7 @@ export function solve(input: SolveInput): Solved {
             const [px, py] = nearestOn(box, it.ax, it.ay);
             seg = [it.ax, it.ay, px, py];
             const len = Math.hypot(px - it.ax, py - it.ay);
-            if (len > LONG_LEAD + (it.vw ?? 0) + 10 && c.cost < 100) continue;
+            if (len > (it.reach ?? LONG_LEAD + (it.vw ?? 0) + 10) && c.cost < 100) continue;
             if (len > SHORT_LEAD) pen += (len - SHORT_LEAD) * 0.2;
             for (const b of blockers) if (crosses(seg[0], seg[1], seg[2], seg[3], b)) { bad = true; break; }
             if (bad) continue;
@@ -270,13 +295,31 @@ export function solve(input: SolveInput): Solved {
     return true;
   };
 
-  for (const it of [...items].sort(rank)) {
-    if (it.region && it.onOther) { if (tryItem(it, 0, true) || tryItem(it, 0, false)) continue; dropped.push(it.id); continue; }
-    if (tryItem(it, 0)) continue;
-    if (it.must && (tryItem(it, 1) || tryItem(it, 2))) continue;
-    dropped.push(it.id);
+  const pass = (order: readonly Anchored[]) => {
+    placedBoxes = []; leaders = []; placed = []; dropped = [];
+    for (const it of order) {
+      if (it.region && it.onOther) { if (tryItem(it, 0, true) || tryItem(it, 0, false)) continue; dropped.push(it.id); continue; }
+      if (it.clearLines && tryItem(it, 0, false, true)) continue;
+      if (tryItem(it, 0)) continue;
+      if (it.must && (tryItem(it, 1) || tryItem(it, 2))) continue;
+      dropped.push(it.id);
+    }
+  };
+  const byRank = [...items].sort(rank);
+  pass(byRank);
+  // A name the greedy order left out for want of room that a higher ranked name took (the sinusoids' name standing across the arteriole's place) is tried first, as 2D tries its orders (lobule-zoom-records.js
+  // nextPerm), and the order kept when it leaves out less (by rank). Deterministic, at most DROP_ROUNDS more passes.
+  const lost = (d: readonly string[]) => d.reduce((n, id) => { const it = items.find((o) => o.id === id)!; return n + (it.must ? 1e4 : 0) + it.pri; }, 0);
+  let bestSol = { placed, dropped, boxes: placedBoxes };
+  let order = byRank;
+  for (let round = 0; round < DROP_ROUNDS && bestSol.dropped.length; round++) {
+    const first = new Set(bestSol.dropped);
+    order = [...items.filter((o) => first.has(o.id)).sort(rank), ...order.filter((o) => !first.has(o.id))];
+    pass(order);
+    if (lost(dropped) < lost(bestSol.dropped)) bestSol = { placed, dropped, boxes: placedBoxes }; else break;
   }
-  return { placed, dropped, hidden };
+  const at = new Map(byRank.map((o, i) => [o.id, i]));
+  return { placed: [...bestSol.placed].sort((a, b) => at.get(a.id)! - at.get(b.id)!), dropped: bestSol.dropped, hidden };
 }
 
 /** The box a placement occupies, given the dot's position now. */

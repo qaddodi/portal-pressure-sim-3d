@@ -36,8 +36,30 @@ test('the swipe moves the sheet by `translate` and makes the stylesheet give its
   const src = read('src/ui/shell/sheet-swipe.ts');
   assert.match(src, /el\.style\.translate/);
   assert.ok(!/requestAnimationFrame/.test(src), 'the one clock');
-  const css = read('src/ui/shell/chrome-3d.css');
+  const css = read('src/ui/shell/sheet-swipe.css');
   assert.match(css, /\[data-pulling\], \[data-swiped\] \{ transition: none !important; animation: none !important; \}/);
   assert.match(css, /\[data-pulled\] \{ animation: none !important; \}/);
   assert.match(src, /pointerType === 'mouse'/, 'a mouse is not a swipe, as in 2D');
+});
+
+test('a phone\'s shell sheet is laid like 2D\'s thumb sheets (inset 6 px, rounded all round) and its close button has a 44 px target', () => {
+  const css = read('src/ui/shell/shell.css');
+  const rule = /\.sh-root\[data-bottom="true"\]\[data-mode="free"\] \.sh-sheet \{([^}]*)\}/.exec(css)![1]!;
+  assert.match(rule, /left: calc\(var\(--safe-l, 0px\) \+ 6px\) !important; right: calc\(var\(--safe-r, 0px\) \+ 6px\) !important/);
+  assert.match(rule, /border-radius: var\(--r-sheet\)/);
+  assert.match(css, /\.sh-x::after \{ content: ''; position: absolute; inset: -4px; \}/);
+});
+
+test('the shell\'s own small controls reach 44 px for a thumb (a taller box or a hit area)', () => {
+  const sh = read('src/ui/shell/shell.css');
+  for (const r of ['.sh-seg-row button { flex: 1; min-height: 44px;', '.sh-tabs button { flex: 1; height: 44px;', '.sh-fig button { height: 44px;']) assert.ok(sh.includes(r), r);
+  assert.match(read('src/ui/action/action.css'), /\.ac-x::after \{ content: ''; position: absolute; inset: -6px; \}/);
+  assert.match(read('src/ui/compare/compare.css'), /\.cmp-seg button::after, \.cmp-table-btn::after \{ content: ''; position: absolute; inset: -6px 0; \}/);
+});
+
+test('every phone sheet draws the 36 x 4 grab bar (the action card has its own, the same size), and the menu and the popover-sheets are wired to the swipe', () => {
+  for (const f of ['src/ui/shell/Frame.tsx', 'src/ui/menu/UMenu.tsx', 'src/ui/shell/Menu.tsx', 'src/ui/treat/TreatCard.tsx', 'src/ui/tests/TestsLayer.tsx']) assert.match(read(f), /className="sh-grabbar"/, f);
+  assert.match(read('src/ui/action/action.css'), /\.ac-grab i \{ width: 36px; height: 4px;/);
+  assert.match(read('src/ui/shell/sheet-swipe.css'), /\.sh-grabbar \{[^}]*width: 36px; height: 4px;[^}]*pointer-events: none;/);
+  assert.match(read('src/ui/shell/Menu.tsx'), /useSheetSwipe\(ref, /);
 });

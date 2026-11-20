@@ -22,6 +22,12 @@
 
 /* the face: the name, the bar or the reading, the readings, the controls, the actions (what the card reads at the top, what it does at the foot) */
 .ac-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 16px 18px 14px; animation: ac-in 200ms var(--sh-ease, ease) backwards; }
+/* The card's body is in the card's flow, which gives the card its height. The 2D stylesheets (css2d/app-03-layouts.css) lay a body over its box (`.ac-body { position: absolute; inset: 0 }`) and
+   put it back in the flow only under 2D's own `.action-card`, which this card is not: with them loaded the body took no room and the card stood 12 px high with its words cut off (a vessel's tap
+   "opened no card", 20 Nov). Past the card's max-height the body scrolls, as 2D's shelf card does. tests/ac-card-flow.test.ts */
+.ac-card > .ac-body { position: relative; inset: auto; flex: 0 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.ac-card > .ac-body::-webkit-scrollbar { display: none; }
+.ac-card > .ac-body.ac-details { overflow: hidden; }   /* (the Details face scrolls what is under its head itself) */
 @keyframes ac-in { from { opacity: 0; transform: translateX(-8px); } }
 .ac-card[data-bottom] .ac-body { padding: 10px 16px 12px; gap: 6px; animation-name: ac-in-up; }
 @keyframes ac-in-up { from { opacity: 0; transform: translateY(8px); } }
@@ -60,14 +66,8 @@
 .ac-c .ctl-top { display: flex; align-items: center; gap: 6px; height: 16px; min-width: 0; font-size: 12.5px; color: var(--text-2); white-space: nowrap; }
 .ac-c .ctl-val { margin-left: auto; color: var(--text); font-variant-numeric: tabular-nums; }
 .ac-ic { width: 16px; height: 16px; flex: none; color: var(--text-2); }
-.ac-rangewrap { position: relative; margin: -4px 0; }
-.ac-range { width: 100%; height: 24px; margin: 0; background: transparent; -webkit-appearance: none; appearance: none; touch-action: pan-y; }
-.ac-range::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 16%, transparent); }
-.ac-range::-moz-range-track { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 16%, transparent); }
-.ac-range::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; margin-top: -8px; border-radius: 50%; border: 0; background: var(--accent); box-shadow: 0 1px 3px rgb(var(--shadow-rgb, 0 0 0) / 0.3); }
-.ac-range::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; border: 0; background: var(--accent); box-shadow: 0 1px 3px rgb(var(--shadow-rgb, 0 0 0) / 0.3); }
-.ac-ticks { position: absolute; inset: 0; pointer-events: none; }
-.ac-tick { position: absolute; top: calc(50% + 5px); width: 1px; height: 5px; margin-left: -0.5px; background: var(--text-3); left: calc(10px + (100% - 20px) * var(--t, 0)); }
+/* the sliders are 2D's own `.range-wrap` (app-02-controls.css: the wrapper draws the track and fill from --p, the input keeps a clear track and the dot; app-03-layouts.css: the ticks) */
+.ac-card [data-key]::after { display: none; }   /* (2D hides the number-key mark under .action-card; this card is .ac-card, so the global `[data-key]::after` printed the id, "o:liver") */
 .ac-meter { position: relative; height: 6px; margin: 5px 0; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--text) 10%, transparent); }
 .ac-meter-fill { position: absolute; inset: 0; border-radius: inherit; background: color-mix(in srgb, var(--accent) 60%, transparent); transform-origin: 0 50%; }
 .ac-toggle { padding: 0; border: 0; background: none; text-align: left; } .ac-toggle .ctl-top { height: 18px; }
@@ -119,3 +119,5 @@
 .ad-scroll { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; touch-action: pan-y; }
 .ad-scroll::-webkit-scrollbar { display: none; }
 .ad-scroll > :first-child { margin-top: 0; }
+
+.ac-x::after { content: ''; position: absolute; inset: -6px; }   /* (the close button is 32 px: a thumb gets 44) */

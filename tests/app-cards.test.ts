@@ -29,3 +29,22 @@ test('Treat is `hidden` while closed, as in 2D (its stylesheet puts the phone vi
   assert.match(read('src/ui/treat/treat.css'), /\.sh-root #treatCard\.treat-card\[hidden\]\s*\{\s*display:\s*block !important/);
   assert.match(read('src/ui/css2d/app-10-thumb-dock.css'), /:has\(#treatCard:not\(\[hidden\]\)\)/);   // (the 2D rule this answers)
 });
+
+test('the Layers tab is never disabled: 2D dims no tab, and Anatomy and Circuit have Layers content (Fit to screen, Turn upright, the Blood rows)', () => {
+  const bar = read('src/ui/shell/ThumbBar.tsx');
+  assert.ok(!/disabled=/.test(bar), 'no tab of the thumb bar is disabled');
+  const sheet = read('src/ui/shell/FigureMenu.tsx');
+  assert.match(sheet, /<FigureRows kind=\{lobule \? 'layers' : 'blood'\} \/>/, 'the sheet holds the Blood rows outside the lobule');
+  assert.match(sheet, /view === 'circuit' &&/, 'and Turn upright in Circuit');
+  assert.match(bar, /view === 'sinusoid' && \(t\.id === 'treat' \|\| t\.id === 'tests' \|\| t\.id === 'layers'\)\) goToView\('lobule'\)/, 'from the sinusoid view the tab first goes out to the lobule (2D outOfSin)');
+});
+
+test('the colour-lens menu is the 2D markup (lens-grid of .lens), so its own phone rule makes it one column that fits; our two-column 420 px grid is gone', () => {
+  const top = read('src/ui/shell/TopBar.tsx');
+  assert.match(top, /className="lens-grid"/);
+  assert.match(top, /className=\{`lens\$\{lens === id \? ' on' : ''\}`\}/);
+  assert.match(top, /cls="layers-pop"/, 'the 2D popover class sizes it: min(360px, 100vw - 16px)');
+  assert.ok(!/\.sh-grid\b/.test(read('src/ui/shell/shell.css')), 'no min-width: 420px grid');
+  const lens2d = read('src/ui/css2d/app-02-controls.css');
+  assert.match(lens2d, /\.lens-grid \{ grid-template-columns: minmax\(0, 1fr\);/, '2D: one column on a phone');
+});

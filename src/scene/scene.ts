@@ -1,5 +1,6 @@
 import { Box3, Color, type DataTexture, Group, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
+import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
@@ -8,7 +9,7 @@ import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
 import { SMOOTH } from './vessels/smooth-joins.ts';
 import { useSettings } from '../state/settings.ts';
-import { FAINT_ONLY_LAYER, VesselObject } from './vessels/vessel-object.ts';
+import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
 import { fadeOf } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
@@ -37,7 +38,10 @@ import { LobuleView, lobuleModel, sinusoidTargets, type LobuleHit, type LobuleLa
 import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
 import { LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L, lobuleShot } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
+import { shortSide } from './sinusoid/portrait.ts';
 import { SinusoidView, diveShare, isPortrait, restScale } from './sinusoid/index.ts';
+import { Sinusoid3D } from './micro3d/sinusoid3d.ts';
+import { Lobule3D } from './micro3d/lobule3d.ts';
 import { framePoint, measureScreen } from './sinusoid/portrait.ts';
 import { U as SIN_UNIT } from './sinusoid/view.ts';
 import { sinusoidBox } from './lobule/shots.ts';
@@ -62,7 +66,7 @@ import { CircuitTubes } from './circuit/tubes.ts';
 import { PostAA } from './post-aa.ts';
 import { ResistorLayer } from './circuit/resistors.ts';
 import { RES_KINDS, type ResKey, resRatio } from './circuit/res-model.ts';
-import { MAP_K } from './circuit/map.ts';
+import { MAP_CENTRE, MAP_K, circBoostOf, mapPxPerUnit } from './circuit/map.ts';
 
 const CIRC_MID: readonly [number, number] = [VB_CIRC[0] + VB_CIRC[2] / 2, VB_CIRC[1] + VB_CIRC[3] / 2];
 /** What the figure shows: the body, the Circuit (the body's vessels flown onto a flat map), the liver lobule (hexagon) or one sinusoid. The two small views stand INSIDE the liver (the lobule in the liver, the sinusoid in the lobule). */
@@ -135,6 +139,10 @@ export class CelScene {
   readonly disease: DiseaseLayer;
   readonly lobule: LobuleView;
   readonly sinus: SinusoidView;
+  /** The same two views as true 3D scenes (Settings > Figure depth > 3D lobule and sinusoid): drawn in place of the flat ones while the switch is on; the flat views keep the model, names, taps and clock. */
+  readonly sinus3d: Sinusoid3D;
+  readonly lobule3d: Lobule3D;
+  private micro3d = useSettings.getState().micro3d;
   /** The Circuit: the change between the body and the map, and the map's quarter turn (src/scene/circuit/). */
   readonly circuit = new CircuitView();
   private readonly mapLayer = new MapLayer();
@@ -234,10 +242,15 @@ export class CelScene {
     this.sinFrame.position.set(...SIN_LOCAL); this.sinFrame.scale.setScalar(SIN_REL);
     this.sinFrame.add(this.sinus.group); this.dive.add(this.lobule.group, this.sinFrame); this.scene.add(this.dive, this.mapLayer.group);
     this.lobule.setVisible(false); this.sinus.setVisible(false);
+    this.dive.visible = false;   // (the whole dive frame is off at the body's rest: nothing of the lobule or the sinusoid, or anything added to them later, can show on the liver)
+    this.sinus3d = new Sinusoid3D(this.sinus, this.shared); this.sinus.group.add(this.sinus3d.group);
+    this.lobule3d = new Lobule3D(this.lobule, this.shared); this.lobule.group.add(this.lobule3d.group);
+    this.unMicro = useSettings.subscribe((st, prev) => { if (st.micro3d !== prev.micro3d) { this.micro3d = st.micro3d; this.moving = true; } });
     this.applyLook(this.look);
   }
 
   private unJoins: () => void = () => {};
+  private unMicro: () => void = () => {};
 
   /** The vessels each vessel's ends carry on into, for the shader's live-width easing (smooth joins on); none with it off. */
   private applyMates(): void {
@@ -275,7 +288,7 @@ export class CelScene {
     if (circ) attachRuns(built.geometry, built.runs, circ, def.radius);
     const q = STUB_Q[def.lensId] ?? 1;
     const o = new VesselObject(built.geometry, {
-      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.lensId), widthKind: def.widthKind, bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
+      tone: def.tone, artery: def.tone === 'artery', lensIndex: indexOf(def.lensId), widthKind: def.widthKind, circW: circuitWidth(def.widthKind, def.circFine ?? 1), bands: 2, spec: 1, px: def.kind === 'liver' ? 0.9 : def.tone === 'artery' ? 1 : 1.2,
       vessel: { index: indexOf(def.lensId), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: def.baseD },
     }, this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
@@ -316,11 +329,14 @@ export class CelScene {
   /** The clear colour now: the look's ground, on its way to the map's own ground (the dark looks) as the map comes in. */
   private readonly clear = new Color();
   private readonly mapGround = new Color();
-  clearColor(): Color {
+  clearColor(intoTexture = false): Color {
     const ground = MAP_LOOKS[this.look]?.ground;
     this.clear.set(PALETTES[this.look].bg);
     if (ground) this.clear.lerp(this.mapGround.set(ground), mapRamp(this.circuit.t));
-    return this.clear;
+    // Into the anti-aliasing pass's texture (post-aa.ts) three clears in its linear working space and the pass writes the canvas the picture's own numbers (every shader of the figure writes sRGB
+    // numbers as they are), so the ground would land as the LINEAR value of the page's colour: #F1EBE0 as #E0D4BE and Dark's #1A1917 as near black, a visible plate behind the figure against the
+    // chrome. The ground is therefore stored as its own numbers there (rawColor's rule); straight to the canvas three converts it itself.
+    return groundFor(this.clear, intoTexture);
   }
 
   setPhone(phone: boolean): void {
@@ -495,6 +511,7 @@ export class CelScene {
     this.rig.setBounds(v === 'circuit' ? circuitBounds(this.circuit.upright) : { ...PLATE_BOUNDS, z: FIGURE_Z });
     if (v === 'lobule') this.lobule.setVisible(true);
     if (v === 'sinusoid') this.sinus.setVisible(true);
+    this.dive.visible = true;   // (until settleViews: the view being left stays up while the camera flies)
     this.hideLeftBehind = true;
     if (v !== 'body') this.feedViews(true);
     this.moving = true;
@@ -586,6 +603,7 @@ export class CelScene {
     const v = this.figureView;
     this.body.visible = v === 'body' || v === 'circuit' || this.fadeNow > 0;
     this.lobule.setVisible(v === 'lobule'); this.sinus.setVisible(v === 'sinusoid');
+    this.dive.visible = v === 'lobule' || v === 'sinusoid';
     this.hideLeftBehind = false;
   }
   /** The body dissolves as the camera goes into the liver and comes back as it leaves (a function of the camera's distance to the lobule's place, so the dive in and the way out are the same picture run both ways). */
@@ -599,11 +617,13 @@ export class CelScene {
     this.moving = true;
   }
   private readonly livePoint = new Vector3(...LIVER_POINT);
+  private readonly mapPt = new Vector3(MAP_CENTRE.x, MAP_CENTRE.y, MAP_CENTRE.z);
   /** The sinusoid's tissue is one opaque plane to every edge of the screen once the camera has landed on it (the lobule is then hidden: nothing of the lobule is ever seen through or around it). While the
    *  camera flies between the lobule and the sinusoid (the view being left stays drawn until it lands) the tissue comes in over the lobule by how far the dive has gone (the pose's own distance: the
    *  shots' `r`, blended geometrically, whatever the room and the screen), as 2D's zoom does it. */
   private stepSinusDive(): void {
-    const flying = this.hideLeftBehind && this.sinus.isVisible;
+    // (only while the camera is really flying: a dive share kept past the landing would hold the tissue dim, its detail, names and arrows away)
+    const flying = this.hideLeftBehind && this.sinus.isVisible && this.rig.isMoving;
     this.sinus.setDive(flying ? diveShare(this.rig.pose.shot.r, 2.5 * LOBULE_SCALE, 3 * SIN_SCALE) : null);
   }
   /** The dive's cutaway window in the organs' wash and the field's focus: both are functions of the camera's distance to the place dived to, so the way in and the way out are one picture run both ways,
@@ -629,7 +649,7 @@ export class CelScene {
       this.moving = true;
     }
     // what the view needs of the screen to lay its end arrows and run its traffic as 2D does: px per µm along the flow (the hand's zoom included), the room's length and the canvas's along it
-    const short = Math.min(r.w, r.h), s = this.rig.stageSize;
+    const short = shortSide(p, r), s = this.rig.stageSize;
     // (measured on the screen, not modelled: where the sinusoid's middle and a point 10 µm down the flow land, against the free room's middle)
     if (!this.sinus.isVisible) return;   // (nothing of the view is read while it is away)
     const turn = this.sinus.turn, o = this.rig.project(this.sinusPt.set(...sinusoidWorld([0, 0, 0])), this.scrO), a = this.rig.project(this.sinusPt.set(...sinusoidWorld(framePoint(10, 0, SIN_UNIT, turn))), this.scrA);
@@ -640,8 +660,8 @@ export class CelScene {
   /** The distance the camera sits at with the whole lobule framed in the room it has (kept per room size). */
   private restKey = ''; private restD = 0.1;
   private lobuleRest(): number {
-    const r = this.rig.targetRoom, key = `${r.w}x${r.h}x${this.height}`;
-    if (key !== this.restKey) { this.restKey = key; this.restD = effectiveDistance(lobuleShot('lobule'), r, this.height); }
+    const r = this.rig.targetRoom, key = `${r.w}x${r.h}x${this.height}x${this.width}`;
+    if (key !== this.restKey) { this.restKey = key; this.restD = effectiveDistance(lobuleShot('lobule'), r, this.height, this.width); }
     return this.restD;
   }
   private readonly divePt = new Vector3();
@@ -753,19 +773,39 @@ export class CelScene {
     this.moving = true;
   }
 
+  private capSig = 0;
+  /** The Circuit rounds the ends no other drawn vessel meets (a collateral that opens covers its own join again; a closed one leaves a clean end). Only when the set of drawn vessels changes. */
+  private updateCaps(): void {
+    let sig = 17;
+    for (const v of MAPPED) sig = (sig * 31 + (this.presence.stateOf(v.id) === 'shown' ? 1 : 0)) | 0;
+    if (sig === this.capSig) return;
+    this.capSig = sig;
+    const shown = (id: string) => this.presence.stateOf(id) === 'shown';
+    const free = (node: string, self: string) => !(this.stationsOf.get(node) ?? []).some((e) => e !== self && shown(e));
+    for (const v of MAPPED) { const o = this.byEdge.get(v.id) as VesselObject | undefined; if (o && shown(v.id)) o.setCircCap(free(v.from, v.id) ? 1 : 0, free(v.to, v.id) ? 1 : 0); }
+  }
+
+  /** The map's size on the screen now: 2D's circBoost (the lines widen as it is zoomed out, 1 to 1.75) and the map units under one CSS pixel (the floor of every line's width). */
+  private circuitScale(): void {
+    const cam = this.rig.camera, h = this.rig.stageSize.h, sc = mapPxPerUnit(h, cam.projectionMatrix.elements[5]!, cam.position.distanceTo(this.mapPt));
+    this.circuit.shared.circBoost.value = circBoostOf(sc);
+    this.circuit.shared.circPerPx.value = sc > 0 ? Math.min(40, 1 / sc) : 1;
+  }
+
   /** Steps everything on the clock. Returns true while the scene moves, so the clock asks for another frame; false means draw nothing. */
   update(now: number): boolean {
     const dt = this.lastNow < 0 ? 16 : Math.min(100, now - this.lastNow);
     this.lastNow = now;
     this.shared.time.value = (now / 1000) % 1000;
     const camMoving = this.rig.update(now);
+    this.circuitScale();   // (the map's lines widen as it is zoomed out, as 2D's circBoost)
     const quiet = quietOf(this.rig.orbitAngle);
     for (const o of this.back) o.setQuiet(quiet);
-    { const lift = this.disease.organs.veilLift; for (const o of this.back) o.setVeilLift(lift); }   // (cel shaded organs are opaque: the vessels behind them take the wash's see-through back, vessel-object.ts)
     this.disease.organs.setQuiet(quiet);   // (quiet depth on a turn: the organs' wash eases back as the figure turns)
     const circMoving = this.stepCircuit(now, dt);
     this.fadeBody();
-    if (this.hideLeftBehind && !camMoving && !this.circuit.moving) this.settleViews();
+    // (the camera's own move, not the gentle tilt still easing or a hand on the figure: the view left behind goes the moment the move lands)
+    if (this.hideLeftBehind && !this.rig.isMoving && !this.circuit.moving) this.settleViews();
     const hiMoving = this.highlight.step(dt);
     const pinMoving = this.pins.step(dt, this.disease.organs.byId);
     this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
@@ -775,11 +815,17 @@ export class CelScene {
     const lensMoving = this.lens.step(now);
     const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving });
     const presMoving = this.presence.step(dt);
+    this.updateCaps();
     const shapeMoving = this.shapes.step(dt);
     this.stepSinusDive();
     this.stepCutaway();
     this.stepPortrait();
-    const viewMoving = this.lobule.update(now) || this.sinus.update(now);
+    this.sinus3d.pinTraffic(this.micro3d);
+    const lobMoving = this.lobule.update(now), sinMoving = this.sinus.update(now);
+    // (the 3D lobule dissolves as the camera goes down onto the sinusoid, and stands aside once landed: its solid tiles and tubes rise above the sinusoid's plane and would cross it in the foreground)
+    const dv = this.sinus.diveShareNow, under = !this.sinus.isVisible ? 0 : dv == null ? 1 : smoothstep01(0.4, 0.78, dv);
+    const lob3 = this.lobule3d.update(this.micro3d, under, now, latest.frame?.running ?? true), sin3 = this.sinus3d.update(this.micro3d, latest.frame?.running ?? true);
+    const viewMoving = lob3 || sin3 || lobMoving || sinMoving;
     const procMoving = this.procs.update(now);
     const diseaseMoving = this.disease.update(now);
     if (diseaseMoving) this.tagOverOrgans();
@@ -819,7 +865,7 @@ export class CelScene {
   /** Until the camera has its first real shot and room only the background is drawn, so the figure's first picture is already in its place. */
   render(gl: WebGLRenderer): void {
     if (!this.rig.placed) { gl.clear(); return; }
-    gl.setClearColor(this.clearColor());
+    gl.setClearColor(this.clearColor(this.post.on));
     const dpr = gl.getPixelRatio?.() ?? 1;
     this.blood.shared.dpr.value = dpr;   // (the vessels' line is held in device px)
     this.disease.strands.setDpr(dpr);
@@ -846,7 +892,8 @@ export class CelScene {
   }
 
   dispose(): void {
-    this.unJoins();
+    this.unJoins(); this.unMicro();
+    this.sinus3d.dispose(); this.lobule3d.dispose();
     this.lens.dispose();
     this.cells.dispose();
     this.disease.dispose();
@@ -870,3 +917,6 @@ const ANCHORS = {
 } as const satisfies Record<string, readonly [string, number]>;
 
 export { SHOTS };
+
+/** 0 below a, 1 above b, smooth between. */
+function smoothstep01(a: number, b: number, x: number): number { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }

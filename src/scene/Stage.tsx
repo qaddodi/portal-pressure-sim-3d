@@ -28,6 +28,7 @@ import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
 import { installTilt } from './camera/tilt-input.ts';
 import { reduced } from '../ui/a11y/motion.ts';
+import { K_MIN } from './gesture/view.ts';
 import { type GestureTarget, createGestures } from './gesture/controller.ts';
 import { type Sel, selectStructure, useSelection } from '../ui/action/selection.ts';
 import { tapSelect } from '../ui/action/tap-select.ts';
@@ -127,8 +128,13 @@ function SceneBridge() {
       holdHand: () => cel.rig.holdHand(),
       centre: () => cel.rig.roomCentre(),
       fitRect: () => cel.rig.fitRect(),
+      // (the sinusoid and the lobule keep their subject framed: neither rests zoomed out past its fit, so the neighbours never fill the screen; a pinch out springs back)
+      kMin: () => (cel.view === 'sinusoid' || cel.view === 'lobule' ? 1 : K_MIN),
       orbit: () => cel.rig.orbitAngle,
       setOrbit: (rad) => { const changed = cel.rig.setOrbit(rad); if (changed) clock.invalidate('orbit'); return changed; },
+      free: () => cel.rig.free,
+      orbitPitch: () => cel.rig.pitchAngle,
+      setOrbitPitch: (rad) => { const changed = cel.rig.setOrbitPitch(rad); if (changed) clock.invalidate('orbit'); return changed; },
       // a tap picks what 2D's does (src/ui/action/tap-select.ts): a vessel, an organ (liver with its lobe, heart, spleen) or the belly's fluid; a tap on nothing puts the selection away
       tap: (x, y, touch) => {
         if (cel.view === 'sinusoid' && sinusoidTap(x, y, useDeck.getState().mode === 'deck')) return;   // (2D's explain rule: a tap on a sinusoid name, in a talk: sinusoid/explain-store.ts)
@@ -158,12 +164,15 @@ function SceneBridge() {
   // Locked (it eases to square) while a gesture runs or the view is not the body; a camera move locks it in the rig itself.
   useEffect(() => {
     const rig = cel.rig;
+    rig.freeGate = () => useSettings.getState().freeTilt && cel.view === 'body' && useDeck.getState().mode !== 'deck';
+    let wasFree = useSettings.getState().freeTilt;
+    const offFree = useSettings.subscribe((st) => { if (st.freeTilt !== wasFree) { wasFree = st.freeTilt; if (!wasFree) { rig.levelOut(performance.now()); clock.invalidate('orbit'); } } });
     rig.tiltGate = { on: () => useSettings.getState().tilt, locked: () => !!gesturesRef.current?.active || cel.view !== 'body' || cel.circuit.t > 0 || useDeck.getState().mode === 'deck' };
     const off = installTilt({
       rig, wake: (tag) => clock.invalidate(tag), on: () => useSettings.getState().tilt, reduced,
       onSwitch: (fn) => { let was = useSettings.getState().tilt; return useSettings.subscribe((s) => { if (s.tilt !== was) { was = s.tilt; fn(was); } }); },
     });
-    return () => { off(); rig.tiltGate = null; };
+    return () => { off(); offFree(); rig.tiltGate = null; rig.freeGate = null; };
   }, []);
 
   return null;

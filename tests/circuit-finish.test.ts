@@ -129,12 +129,13 @@ test('the five zone titles stand along the top of the wide map, and a narrow ban
   if (z) assert.ok(ZONE_SHORT['Hepatic veins · IVC']!.includes(z.forms[0]!.text), 'the short form');
   assert.ok(narrow.items.filter((i) => i.id.startsWith('z:')).length < 5 || narrow.items.every((i) => !i.id.startsWith('z:') || true));
 });
-test('a phone shows only the major stations, the liver\'s inner ones wait for a zoom, and a named one always stands', () => {
+test('every station is named, on a phone too (the azygos, the lower IVC); the liver\'s inner ones wait for a zoom, and a named one always stands', () => {
   const full = buildCaptions(fakeCtx()), phone = buildCaptions(fakeCtx({ compact: true })), zoomed = buildCaptions(fakeCtx({ zoomed: true, liverOpen: true }));
   const ids = (b: ReturnType<typeof buildCaptions>) => new Set(b.items.filter((i) => b.meta.get(i.id)?.kind === 'station').map((i) => i.id));
   assert.ok(ids(full).has('CONF') && ids(full).has('SIN_R') === false, 'collapsed liver: its inner stations are hidden');
   assert.ok(ids(zoomed).has('SIN_R') && ids(zoomed).has('CV_R'));
-  assert.ok(ids(phone).size < ids(full).size && [...ids(phone)].every((id) => CIRCUIT_LABELS[id]!.pri >= 8 || id === 'HA'));
+  assert.deepEqual([...ids(phone)].sort(), [...ids(full)].sort(), 'a phone names the same stations a desktop does');
+  for (const id of ['AZY', 'IVCI', 'ILI', 'LRV']) assert.ok(ids(phone).has(id), `${id} is named on a phone`);
   assert.ok(ids(buildCaptions(fakeCtx({ compact: true, must: new Set(['COL']) }))).has('COL'));
   assert.ok(ids(zoomed).size > ids(full).size);
 });
@@ -360,4 +361,31 @@ test('a Circuit slide frames its region of the map, draws the resistors its site
   const up = circuitBoxShot(box, true);
   assert.ok(Math.abs(up.half[0] - part.half[1]) < 1e-9 && Math.abs(up.half[1] - part.half[0]) < 1e-9);
   assert.ok(Math.abs(circuitShot(true).half[0] - whole.half[1]) < 1e-9);
+});
+
+test('a tier is named in small capitals at its band, and the tiers are drawn as soft full-width washes and the dot grid eases off when zoomed in', () => {
+  const b = buildCaptions(fakeCtx({ compact: true })), zones = b.items.filter((i) => b.meta.get(i.id)?.kind === 'zone');
+  assert.ok(zones.length >= 3, 'the tiers are named');
+  for (const z of zones) { const n = b.meta.get(z.id)!.forms[0]!.name; assert.equal(n, n.toUpperCase()); }
+  const layer = readFileSync(new URL('../src/scene/circuit/map-layer.ts', import.meta.url), 'utf8');
+  assert.match(layer, /DOT_CALM/);
+  assert.doesNotMatch(layer, /TIER_LINE/, 'no line is drawn between the tiers');
+  assert.match(layer, /\* BAND_CALM;/);
+});
+
+test('zoomed in on the map: no vessel is culled by its body sphere, corners are rounded, and the names keep clear of the floating bars', async () => {
+  const vo = readFileSync(new URL('../src/scene/vessels/vessel-object.ts', import.meta.url), 'utf8');
+  assert.match(vo, /this\.toonMesh\.frustumCulled = false/, 'the Circuit moves the vertices far from the body course the bounding sphere was taken from');
+  assert.match(vo, /mesh\.frustumCulled = false/);
+  const { roundCorners, CORNER_R, mapCourse } = await import('../src/scene/circuit/course.ts');
+  const bend = roundCorners([[0, 0], [100, 0], [100, 100]]);
+  assert.deepEqual(bend[0], [0, 0]); assert.deepEqual(bend[bend.length - 1], [100, 100]);
+  assert.ok(bend.every(([x, y]) => !(x === 100 && y === 0)), 'the sharp corner is gone');
+  assert.ok(bend.some(([x, y]) => Math.abs(x - (100 - CORNER_R)) < 1e-6 && y === 0), 'the bend starts CORNER_R before the corner');
+  assert.ok(Math.min(...bend.map(([x, y]) => Math.hypot(x - 100, y))) > 3, 'and never touches it');
+  assert.equal(roundCorners([[0, 0], [10, 1], [20, 3]]).length, 3, 'a gentle curve is left as it is');
+  assert.ok(mapCourse('SMV_CONF')!.length > 4, 'a course with a corner is rounded');
+  const caps = readFileSync(new URL('../src/scene/circuit/CircuitCaptions.tsx', import.meta.url), 'utf8');
+  assert.match(caps, /readUiWalls/);
+  assert.match(readFileSync(new URL('../src/scene/circuit/ui-walls.ts', import.meta.url), 'utf8'), /\.nb-views/, 'the view pill is a wall');
 });

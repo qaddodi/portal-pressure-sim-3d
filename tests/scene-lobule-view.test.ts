@@ -187,21 +187,21 @@ const flowOf = (o: CelObject) => o.toon.uniforms.headAmount!.value as number;   
 const speedOf = (o: CelObject) => o.toon.uniforms.stubSpeed!.value as number;
 const settle = (v: LobuleView | SinusoidView, from = 0, ms = 1500) => { for (let t = from; t <= from + ms; t += 16) v.update(t); return from + ms; };
 
-test('lymph chevrons run on the ducts while the Lymph layer is on, out along the space of Disse (against the blood) and in along the terminal lymphatics', () => {
+test('lymph chevrons run on the terminal lymphatics, in toward the tract, while the Lymph layer is on; the space of Disse is a plain sleeve under its sinusoid and carries none (a yellow edge on every sinusoid)', () => {
   const v = new LobuleView(createShared());
   v.setVisible(true); v.snapModel(model()); settle(v);
   const ly = v.objects.filter((o) => v.set.get('lymph').group.children.includes(o.group) && o.isVessel);
-  assert.equal(ly.length, 2, 'the terminal lymphatics and the space of Disse');
-  for (const o of ly) assert.ok(flowOf(o) > 0.99, 'chevrons on');
-  const speeds = ly.map(speedOf).sort((a, b) => a - b);
-  assert.ok(speeds[0]! < 0 && speeds[1]! > 0, 'the Disse\'s marks run against its course (out), the terminal lymphatics\' with theirs (in toward the tract)');
+  assert.ok(ly.length >= 1);
+  const marked = ly.filter((o) => flowOf(o) > 0.99);
+  assert.equal(marked.length, 1, 'chevrons on the lymphatics alone');
+  assert.ok(speedOf(marked[0]!) > 0, 'with their course (in toward the tract)');
 });
 
 test('hepatic lymph rises in cirrhosis, and the chevrons quicken with it', () => {
   const calm = new LobuleView(createShared()), wet = new LobuleView(createShared());
   for (const [v, m] of [[calm, model()], [wet, model({ lymph: 5.5, lyProt: 0.43 })]] as const) { v.setVisible(true); v.snapModel(m); settle(v); }
-  const disse = (v: LobuleView) => v.objects.filter((o) => v.set.get('lymph').group.children.includes(o.group) && o.isVessel).map(speedOf).find((s) => s < 0)!;
-  assert.ok(Math.abs(disse(wet)) > Math.abs(disse(calm)) * 1.4);
+  const lt = (v: LobuleView) => v.objects.filter((o) => v.set.get('lymph').group.children.includes(o.group) && o.isVessel && flowOf(o) > 0.99).map(speedOf)[0]!;
+  assert.ok(Math.abs(lt(wet)) > Math.abs(lt(calm)) * 1.4);
 });
 
 test('turning the Lymph layer off fades the ducts away (they shrink to nothing, never pop) and stops their frames', () => {

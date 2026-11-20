@@ -8,6 +8,8 @@ import { ANAT_HIDDEN, BACK_EDGES, EDGE_PATH_2D, HIDDEN_EDGES, IVC_EDGES, NEEDS_C
 import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
 import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts';
+import { ORGAN_Z } from '../organs/z.ts';
+import { withStartInOrgan } from './starts.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { TIER_Z, type Tier, UNITS_PER_SCENE, len3, x3, y3 } from '../frame2d.ts';
 
@@ -27,6 +29,8 @@ export interface NetVessel {
   /** centreline in flow order */
   pts: Vec3[];
   kind: string;
+  /** the Circuit's finer artery (2D AP_FINE): 0.6 on an arterioportal shunt, else 1 */
+  circFine?: number;
   tier: Tier;
   /** the diameter (mm) `radius` belongs to; the width then follows the engine's diameter by the 2D rule (`widthKind`) */
   baseD: number;
@@ -66,6 +70,7 @@ export function widthPx(e: Edge, dmm: number): number {
   if (isArteryEdge(e)) return Math.max(1.8, vesselPx(dmm) * 0.5 * (e.shunt === 'ap' ? AP_FINE : 1));
   let w = vesselPx(IVC_EDGES.has(e.id) ? IVC_ONE_D() : dmm) * (IVC_EDGES.has(e.id) || e.id === 'SVC_RA' || e.id === 'V_UP' ? 0.72 : 1);
   if (e.id === 'C8') w *= 0.6;
+  if (e.id === 'C3') w *= 0.6;   // the paraumbilical vein is a branch of the left portal vein, not as wide as it: it leaves it as a filleted Y (the fork rule), not a blunt stack of equal tubes (Mohammad, 20 Nov)
   if (e.id === 'LGV_CONF') w *= 0.85;
   return w;
 }
@@ -79,8 +84,12 @@ const OVER_IDS = new Set(['TIPS', 'DIPS', 'C6', 'S_DSR', 'S_PC', 'C8', 'S_MC', '
 const hostOfPiece = new Map<string, string>();
 for (const [host, pieces] of Object.entries(JUNCTION_PIECES as Record<string, string[]>)) for (const p of pieces) hostOfPiece.set(p, host);
 
+/** The renal vein runs at the cava's depth, and the kidney is placed there too (Mohammad, 20 Nov: "the renal vein and the kidney should be at the same depth as the IVC"). Depth only:
+ *  it is still drawn the way the 2D figure draws it (BACK_EDGES, in the scene, is what puts a vessel behind the organs). */
+export const RENAL_VEIN_IDS: ReadonlySet<string> = new Set(['V_KID_L', 'V_KID_L_1', 'LRV_IVC']);
 function tierOf(e: Edge): Tier {
-  if (BACK_EDGES.has(e.id)) return 'back';
+  if (BACK_EDGES.has(e.id) || RENAL_VEIN_IDS.has(e.id)) return 'back';
+  if (e.id === 'C3') return 'fwd';   // the paraumbilical vein rises forward over the portal trunk to the umbilicus
   if (isArteryEdge(e)) return 'art';
   if (OVER_IDS.has(e.id)) return 'over';
   if (e.kind === 'collateral') return 'mid';
@@ -105,10 +114,15 @@ const SHUNT_BASE_D: Record<string, number> = { TIPS: 8, DIPS: 8 };
 export function isDrawnEdge(e: Edge): boolean {
   if (HIDDEN_EDGES.has(e.id) || ANAT_HIDDEN.has(e.id) || e.id === 'CAUD' || e.id === 'V_UP') return false;
   if (e.kind === 'wedge' || e.kind === 'diode') return false;
+  // the red arteriole strands into the sinusoid fans are not drawn (Mohammad, 20 Nov: "fuck those"); the hepatic artery trunk stays
+  if (e.id === 'A_HR' || e.id === 'A_HL') return false;
   if (e.kind === 'shunt') return e.id === 'AP_R' || e.id === 'AP_L' || SHUNT_IDS.has(e.id);
   return true;
 }
 
+/** Tributary fans that are not drawn: the caudate lobe's twigs hung in the middle of the liver joined to nothing (Mohammad, 20 Nov: "random veins in the middle of the liver not
+ *  connected to anything, remove them"). The caudate's own drainage stays in its card (details: CAUD). */
+const NOT_DRAWN_FEEDERS: ReadonlySet<string> = new Set(['CAUD', 'AZY_SVC']);   // (AZY_SVC: the azygos' tributary strand ran up the figure's right and arched over the SVC's top as a cane with a needle end; the SVC comes in from above and the azygos is its short side branch, Mohammad, 20 Nov)
 /** anatomy.js FEEDERS[host].k: the share of the host's width its tributaries take. */
 const FEEDER_K: Record<string, number> = { AZY_SVC: 1, C3: 0.5, CAUD: 0.55 };
 const NETWORK_HOST_W = (e: Edge): number => widthPx(e, e.d ?? e.dMax ?? (dMinOf(e) || 3));
@@ -119,7 +133,7 @@ const JOIN_LIST: JoinEdge[] = edges.filter(isDrawnEdge).map((e) => ({ id: e.id, 
 export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST);
 const SMOOTH = smoothRunOns(new Map(JOIN_LIST.map((j) => [j.id, j.path])), RUN_ONS);
 /** A vessel's 2D course as drawn: smooth through the joins where it runs on into another. */
-const pathOf = (id: string): readonly (readonly [number, number])[] => SMOOTH.get(id) ?? EDGE_PATH_2D[id]!;
+const pathOf = (id: string): readonly (readonly [number, number])[] => withStartInOrgan(id, SMOOTH.get(id) ?? EDGE_PATH_2D[id]!);
 
 function build(): NetVessel[] {
   const out: NetVessel[] = [];
@@ -129,12 +143,13 @@ function build(): NetVessel[] {
     const baseD = SHUNT_BASE_D[e.id] ?? e.d ?? e.dMax ?? (dMinOf(e) || 3);
     out.push({
       id: e.id, host: hostOfPiece.get(e.id) ?? e.id, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(widthPx(e, baseD)),
-      label: e.label ?? e.id, pts: courseOf(e.id), kind: e.kind, tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: e.id,
+      label: e.label ?? e.id, pts: courseOf(e.id), kind: e.kind, circFine: e.shunt === 'ap' ? AP_FINE : 1, tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: e.id,
       plan: { kind: 'coil', base: pathOf(e.id), coils: isCoiling(e.id, e.kind, !!e.spontaneous), strands: !!STRANDS_2D[e.id] || e.id === 'C8' },
     });
   }
   // The tributaries (stage-geo.js feedGeo): each host's, grouped by the rule that shows them, one vessel a group.
   for (const [host, list] of Object.entries(FEEDERS_2D)) {
+    if (NOT_DRAWN_FEEDERS.has(host)) continue;
     const e = edgeById.get(host)!, hv = NETWORK_HOST_W(e);
     for (const when of [...new Set(list.map((f) => f.when))]) {
       const group = list.filter((f) => f.when === when);
@@ -156,18 +171,19 @@ export const NETWORK: readonly NetVessel[] = build();
 /** The depth at each node. Two vessels that join are at one depth where they meet (their own tier holds between). At a node of two the depth is the mean of their tiers (a vein that
  *  changes tier eases over its length). At a fork, a node of three or more, the widest vessels keep their own tier and the narrower ones ease to it: the mean would pull a trunk toward
  *  the camera at every branch (the cava, a back-tier vein, bulged forward at each hepatic and renal vein, and the 14 degree view turned each bulge into a sideways jog: Mohammad, 20 Nov). */
-/** Nodes where a trunk deliberately rises to the vessels that meet it (the cava at the hepatic veins). */
-const RISE_NODES: ReadonlySet<string> = new Set(['IVCS']);
+/** A vessel that starts in an organ starts at the organ's own depth: the splenic vein at the spleen's (organs/z.ts ORGAN_Z), and rises to the plane on its way to the confluence. */
+const NODE_Z_AT: Readonly<Record<string, number>> = { SPL: ORGAN_Z.spleen, EPI: TIER_Z.fwd };   // (EPI: the umbilicus, on the anterior wall)
 export const NODE_Z: ReadonlyMap<string, number> = (() => {
   const acc = new Map<string, { z: number; r: number; main: boolean }[]>();
   for (const v of NETWORK) if (!v.feeder) for (const n of [v.from, v.to]) { const a = acc.get(n) ?? []; a.push({ z: TIER_Z[v.tier], r: v.radius, main: v.kind !== 'shunt' && v.kind !== 'collateral' }); acc.set(n, a); }
   return new Map([...acc].map(([n, all]) => {
     // (a shunt or a collateral is drawn only in some states and is a small vessel on the trunk it joins: it eases to the node, it does not set it)
     const a = all.some((x) => x.main) ? all.filter((x) => x.main) : all;
-    // (the hepatic junction keeps the mean: the cava rises to meet the hepatic veins and runs on to the atrium's wall, one slope, a design of the labels and the smooth joins)
-    const widest = all.length >= 3 && !RISE_NODES.has(n) ? Math.max(...a.map((x) => x.r)) : 0;
+    // (the hepatic junction too: the cava stays at its own depth through it, the hepatic veins ease down to it, and it runs on to the atrium's wall on one slope; a rise at the junction
+    // and a fall to the atrium was the kink at the cava's upper end, which the 14 degree view turned into an S: Mohammad, 20 Nov)
+    const widest = all.length >= 3 ? Math.max(...a.map((x) => x.r)) : 0;
     const used = a.filter((x) => x.r >= 0.9 * widest);
-    return [n, used.reduce((t, x) => t + x.z, 0) / used.length] as const;
+    return [n, NODE_Z_AT[n] ?? used.reduce((t, x) => t + x.z, 0) / used.length] as const;
   }));
 })();
 // Two vessels that run on into one another (a node of exactly two, or the pair the 2D rule picks at a fork) ease to one width over the last third of each (the 2D tubes' own end easing,
@@ -210,7 +226,11 @@ export const MAPPED: readonly NetVessel[] = NETWORK.filter((v) => !v.feeder);
     const mains = list.filter((e) => e.v.kind !== 'collateral');
     // (a trunk drawn faint, the cava behind the organs, has no wall to blend into: the collar would show as a bulb on the branch's end)
     if (list.some((e) => IVC_EDGES.has(e.v.id))) continue;
-    const hostR = Math.max(...(mains.length ? mains : list).map((e) => e.v.radius));
+    // (the trunk's width AT the node: two vessels that run on into one another meet at the mean of their widths, so a branch is fitted to that, not to the wider one's full width)
+    const pair = list.filter((e) => runOn.has(`${e.v.id}|${e.end}`) && e.v.kind !== 'collateral');
+    const meet = pair.length === 2 ? (pair[0]!.v.radius + pair[1]!.v.radius) / 2 : null;
+    const widthHere = (e: { v: NetVessel; end: 0 | 1 }) => (meet != null && pair.includes(e) ? meet : e.v.radius);
+    const hostR = Math.max(...(mains.length ? mains : list).map(widthHere));
     for (const { v, end } of list) {
       if (runOn.has(`${v.id}|${end}`) || v.radius >= 0.9 * hostR) continue;
       // 2D's blend width in its own units (vein-joins.js kOf: 1.2 times the smallest radius at the join plus 1.2, 1.5 to 11), here in scene units
@@ -252,7 +272,8 @@ export function presenceOf(v: Pick<NetVessel, 'id' | 'kind' | 'feeder'>, f: Pres
   const k = indexOf.get(v.id);
   if (k == null) return 'hidden';
   if (NEEDS_C3.has(v.id)) return recruitFrac('C3', f) > C3_FRAC ? 'shown' : 'hidden';
-  if (v.kind === 'collateral') return collateralOpen(v.id, f) ? 'shown' : o.collaterals ? 'ghost' : 'hidden';
+  // (the lumbar-azygos collateral C9 runs through the right sinusoid fan: while closed it is not drawn as a dotted pink thread there; Mohammad, 20 Nov)
+  if (v.kind === 'collateral') return collateralOpen(v.id, f) ? 'shown' : o.collaterals && v.id !== 'C9' ? 'ghost' : 'hidden';
   if (SHUNT_IDS.has(v.id)) return f.D[k]! > 0 ? 'shown' : 'hidden';   // a procedure's shunt is there while it has a diameter
   if (v.kind === 'shunt') return (f.Qf ?? f.Q)[k]! > AP_Q ? 'shown' : 'hidden';
   return 'shown';

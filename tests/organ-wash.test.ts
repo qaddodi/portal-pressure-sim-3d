@@ -18,7 +18,7 @@ const hex = (c: readonly number[]) => '#' + c.map((v) => Math.round(v * 255).toS
 
 test('the organ layer sits at 2D\'s opacity: .55, Soft .72, the kidney .85 (Soft .88), the gut at --gut-a', () => {
   assert.equal(organLayerAlpha(PALETTES.light, 'liver'), 0.72, 'Light at .72 by decision (19 Nov), not 2D .55');
-  assert.equal(organLayerAlpha(PALETTES.dark, 'liver'), 0.55);
+  assert.equal(organLayerAlpha(PALETTES.dark, 'liver'), 0.72, 'the dark looks at .72 by decision (20 Nov, more contrast), not 2D .55');
   assert.equal(organLayerAlpha(PALETTES.soft, 'liver'), 0.72);
   assert.equal(organLayerAlpha(PALETTES.light, 'kidney-l'), 0.85);
   assert.equal(organLayerAlpha(PALETTES.soft, 'kidney-l'), 0.88);
@@ -47,9 +47,7 @@ test('the organ painter blends at the layer\'s opacity, fades without dots and k
   assert.doesNotMatch(ORGAN_FS, /if \(fadedOut\(\)\)/, 'the dive fades the layer, no dots');
   assert.match(ORGAN_FS, /vInk - color/);
   assert.match(ORGAN_VS, /attribute vec3 ink/);
-  // (the organ fill setting: with `solid` 0 the alpha is the layer's opacity, exactly as before; tests/organ-depth.test.ts)
-  assert.match(ORGAN_FS, /float a = mix\(layer, 1\.0, solid\);/);
-  assert.match(ORGAN_FS, /gl_FragColor = vec4\(fill, a \* fade \* win\)/, 'blended at the layer, so organs show through each other');
+  assert.match(ORGAN_FS, /gl_FragColor = vec4\(fill, layer \* fade \* win\)/, 'blended at the layer, so organs show through each other');
 });
 
 const twoD = pinned2D('styles/tokens.css');
@@ -150,7 +148,7 @@ async function liverLayer(look: keyof typeof PALETTES): Promise<{ u: U; seat: U 
   const meshes: Record<string, () => BufferGeometry> = {};
   for (const id of Object.keys(ORGAN_STYLE)) meshes[id] = id === 'liver' ? ORGAN_MESHES.liver! : () => new BoxGeometry(0.4, 0.3, 0.1);
   const layer = new OrganLayer(createShared(), meshes);
-  layer.setFill('seethrough', true); layer.applyLook(PALETTES[look]); layer.update(0);   // (these terms are the see-through fill's: the cel fill replaces them)
+  layer.applyLook(PALETTES[look]); layer.update(0);   // (these terms are the see-through fill's: the cel fill replaces them)
   const w = bb.max.x - bb.min.x, h = bb.max.y - bb.min.y;
   const at = (fx: number, fy: number) => ({ box: [fx, fy] as [number, number], svg: [700 + 300 * (bb.min.x + fx * w), 556 - 300 * (bb.max.y - fy * h)] as [number, number] });
   const o = layer.byId.get('liver')!;
@@ -183,7 +181,7 @@ test('WP1b: the liver on Light and Dark is not the washed blob: its centre is th
 
 test('WP1b: the rim light (og-light on the upper left edge) is off on the liver, the stomach and the duodenum, 2D\'s on the others, in the see-through fill', () => {
   const layer = new OrganLayer(createShared(), Object.fromEntries(Object.keys(ORGAN_STYLE).map((id) => [id, () => new BoxGeometry(0.4, 0.3, 0.1)])));
-  layer.setFill('seethrough', true); layer.applyLook(PALETTES.light); layer.update(0);
+  layer.applyLook(PALETTES.light); layer.update(0);
   for (const id of Object.keys(ORGAN_STYLE)) {
     const rim = layer.byId.get(id)!.toon.uniforms.rimK!.value;
     if (['liver', 'stomach', 'duodenum'].includes(id)) assert.equal(rim, 0, id); else assert.ok(rim > 0, id);
@@ -205,26 +203,21 @@ test('WP1b: the soft AO seat (.org-ao): round every plain organ at --og-ao under
   assert.equal(seat!.px!.value, 4.5, 'the 9-unit stroke\'s outer half');
   for (const id of Object.keys(ORGAN_STYLE)) assert.equal(!!ORGAN_STYLE[id]!.ao, ['heart', 'liver', 'spleen', 'stomach', 'kidney-l'].includes(id), id);
   const layer = new OrganLayer(createShared(), Object.fromEntries(Object.keys(ORGAN_STYLE).map((id) => [id, () => new BoxGeometry(0.4, 0.3, 0.1)])));
-  layer.setFill('seethrough', true); layer.applyLook(PALETTES.light); layer.update(0);
+  layer.applyLook(PALETTES.light); layer.update(0);
   assert.ok(layer.byId.get('heart-ra')!.toon.uniforms.shadeSteps!.value.x < 0.06, 'the atrium\'s inner shade is its own, faint');
   assert.equal(layer.byId.get('heart-ra')!.group.children.length, 2, 'no AO seat on the atrium');
   assert.equal(layer.byId.get('bowel')!.group.children.length, 2, 'none on the gut');
   layer.dispose();
 });
 
-// Cel shaded organs (fill 'solid') have none of these: every term this commit added is faded by (1 - solid) in the shader, and the AO seat's alpha with it, so the cel branch is as it was.
-test('WP1b: #ogVol and the AO seat belong to the see-through fill only: faded by (1 - solid), the seat gone and unseen once the fill is cel shaded', async () => {
-  assert.match(ORGAN_FS, /uniform float wash;/);
-  for (const term of [/volLight\.a \* \(1\.0 - clamp\(r \/ volGeo\.w, 0\.0, 1\.0\)\) \* wash/, /\(1\.0 - volShadeAt\), 0\.0, 1\.0\) \* wash/]) assert.match(ORGAN_FS, term);
+test('WP1b: #ogVol and the AO seat: the terms are in the shader and the seat shows', async () => {
+  for (const term of [/volLight\.a \* \(1\.0 - clamp\(r \/ volGeo\.w, 0\.0, 1\.0\)\)/, /\(1\.0 - volShadeAt\), 0\.0, 1\.0\)/]) assert.match(ORGAN_FS, term);
   const bb = await liverBox, meshes: Record<string, () => BufferGeometry> = {};
   for (const id of Object.keys(ORGAN_STYLE)) meshes[id] = id === 'liver' ? ORGAN_MESHES.liver! : () => new BoxGeometry(0.4, 0.3, 0.1);
   assert.ok(bb);
   const layer = new OrganLayer(createShared(), meshes);
   const seatOf = () => layer.byId.get('liver')!.group.children.find((c) => c.name === 'org-ao') as unknown as { visible: boolean; material: { uniforms: U } };
-  layer.setFill('seethrough', true); layer.applyLook(PALETTES.dark); layer.update(0);
+  layer.applyLook(PALETTES.dark); layer.update(0);
   assert.ok(seatOf().visible && seatOf().material.uniforms.inkA!.value > 0.1, 'see-through: the seat shows');
-  layer.setFill('solid', true); layer.update(1);
-  assert.equal(seatOf().material.uniforms.inkA!.value, 0, 'cel shaded: the seat\'s alpha is 0');
-  assert.equal(seatOf().visible, false, 'and it is not drawn');
   layer.dispose();
 });

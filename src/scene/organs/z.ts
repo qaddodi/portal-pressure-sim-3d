@@ -1,0 +1,17 @@
+// The organs' depth (Mohammad, 20 Nov 2026: "give the organs Z depth ... the liver should be IN FRONT of the stomach; the renal vein and the kidney at the same depth as the IVC").
+// Each organ's mesh is moved along z by its value here, in scene units (the vessels' tiers are frame2d.ts TIER_Z: the cava, the renal veins and the other back-tier veins sit at -0.32; arteries at 0.30 and up). x and y are not touched.
+// Vessels are drawn over the organs after a depth clear (scene.ts), so this decides only how the organs lie among themselves (the see-through wash's depth order, the gut's cut-away behind the others, the contact shade).
+import { TIER_Z } from '../frame2d.ts';
+
+/** Where each organ's mesh centre lies. The kidney is at the cava's depth; the liver is in front of the stomach (and of the esophagus, which is part of the stomach's mesh) and of the heart; the gut lies behind the liver and stomach. */
+export const ORGAN_Z: Readonly<Record<string, number>> = {
+  'kidney-l': TIER_Z.back,
+  spleen: -0.12,
+  stomach: -0.06,
+  duodenum: -0.06,
+  bowel: -0.04,
+  colon: -0.04,
+  heart: -0.03,
+  'heart-ra': 0.01,
+  liver: 0.03,
+};

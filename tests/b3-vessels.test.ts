@@ -1,3 +1,7 @@
+import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
+import { ORGAN_Z } from '../src/scene/organs/z.ts';
+import { readFileSync } from 'node:fs';
+import manifest from '../src/scene/organs/organs-manifest.json' with { type: 'json' };
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EDGES, NODES } from '../src/engine/hales/portal/topology.js';
@@ -12,6 +16,8 @@ import { HIDDEN_EDGES } from '../src/scene/vessels/paths.copied.ts';
 
 const nodeIds = new Set((NODES as { id: string }[]).map((n) => n.id));
 const edge = new Map((EDGES as { id: string; kind: string; from: string; to: string }[]).map((e) => [e.id, e]));
+
+import { withStartInOrgan } from '../src/scene/vessels/starts.ts';
 
 test('every vessel the 2D figure draws is a vessel here, named by its engine edge id', () => {
   const have = new Set(NETWORK.map((v) => v.id));
@@ -82,30 +88,30 @@ test('a closed collateral changing to dotted retracts the solid one first, then 
 });
 
 import { BufferAttribute, BufferGeometry } from 'three';
-import { withHull } from '../src/scene/vessels/vessel-object.ts';
+import { withRk } from '../src/scene/vessels/vessel-object.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 
-test('the hull copy is the body again, flagged, with its own indices: one geometry, one draw', () => {
+test('the vessel geometry is the tube once (the outline is part of it, not a second copy), with a radius share of 1 where the course gave none', () => {
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), 3));
   g.setAttribute('normal', new BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]), 3));
   g.setAttribute('uv', new BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 1]), 2));
   g.setAttribute('tang', new BufferAttribute(new Float32Array(9).fill(1), 3));
   g.setIndex([0, 1, 2]);
-  const m = withHull(g);
-  assert.equal(m.getAttribute('position').count, 6);
-  assert.deepEqual([...m.getAttribute('hull').array], [0, 0, 0, 1, 1, 1]);
-  assert.deepEqual([...m.getIndex()!.array], [0, 1, 2, 3, 4, 5]);
-  assert.deepEqual([...m.getAttribute('uv').array.slice(6)], [0, 0, 1, 0, 0, 1]);
+  const m = withRk(g);
+  assert.equal(m.getAttribute('position').count, 3);
+  assert.equal(m.getAttribute('hull'), undefined, 'no hull copy');
+  assert.deepEqual([...m.getIndex()!.array], [0, 1, 2]);
+  assert.deepEqual([...m.getAttribute('rk').array], [1, 1, 1]);
 });
 
 const parserName = '@shaderfrog/glsl-parser';
 let parse: ((s: string) => unknown) | null = null;
 try { const mod = await import(parserName); parse = (s) => mod.parser.parse(s.replace(/^#include.*$/gm, ''), { quiet: true }); } catch { /* not installed */ }
-test('the vessel vertex shader parses, and body and ink are told apart by `hull` and the face', { skip: !parse }, () => {
+test('the vessel vertex shader parses; there is no hull attribute and the outline is painted in the fragment stage', { skip: !parse }, () => {
   parse!(VESSEL_VS.replace(/^\n/, ''));
-  assert.match(VESSEL_VS, /attribute float hull/);
-  assert.match(VESSEL_FS, /gl_FrontFacing \|\| hullOn < 0\.5/);
+  assert.doesNotMatch(VESSEL_VS, /attribute float hull/);
+  assert.doesNotMatch(VESSEL_FS, /hullOn|vHull/);
   assert.match(VESSEL_FS, /if \(!gl_FrontFacing\) discard/);
 });
 
@@ -114,7 +120,7 @@ test('the vessel vertex shader parses, and body and ink are told apart by `hull`
 test('every vessel is its 2D course through the one linear map: back through it, each point is the 2D point', () => {
   for (const v of NETWORK) {
     if (v.feeder) continue;   // (a fan of tributaries: its own test, below)
-    const c = EDGE_PATH_2D[v.id]!;
+    const c = withStartInOrgan(v.id, EDGE_PATH_2D[v.id]!);   // (the splenic vein is carried on into the spleen: starts.ts)
     assert.equal(v.pts.length, c.length, v.id);
     // (the 2D figure redraws the last 11 samples either side of a run-on as one smooth cubic through the join: joins.ts)
     const near = (i: number) => RUN_ONS.some((r) => (r.a === v.id && (r.ia ? i >= c.length - 12 : i <= 11)) || (r.b === v.id && (r.ib ? i >= c.length - 12 : i <= 11)));
@@ -123,6 +129,24 @@ test('every vessel is its 2D course through the one linear map: back through it,
       assert.ok(Math.abs(x2d(p[0]) - c[i]![0]) < 1e-6 && Math.abs(y2d(p[1]) - c[i]![1]) < 1e-6, `${v.id} point ${i}`);
     });
   }
+});
+
+test('the vessels lie in one plane through the organs, not in front of them: every tier is inside the liver, the heart, the kidney and the stomach, and the tiers are close (Mohammad, 20 Nov)', () => {
+  const b = readFileSync('public/anatomy/organs.bin'), buf = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+  const M = manifest as unknown as { q: number; organs: Record<string, [number, number]> };
+  const zr = (id: string) => { const [pb, nv] = M.organs[id]!, q = new Int16Array(buf, pb, nv * 3); let lo = Infinity, hi = -Infinity; for (let i = 0; i < nv; i++) { const z = q[i * 3 + 2]! / M.q; lo = Math.min(lo, z); hi = Math.max(hi, z); } return { lo, hi }; };
+  const zs = Object.entries(TIER_Z).filter(([k]) => k !== 'fwd').map(([, z]) => z);
+  for (const id of ['liver', 'heart', 'kidney-l', 'stomach']) { const r0 = zr(id), r = { lo: r0.lo + ORGAN_Z[id]!, hi: r0.hi + ORGAN_Z[id]! }; for (const t of Object.entries(TIER_Z).filter(([k]) => k !== 'fwd')) assert.ok(t[1] > r.lo && t[1] < r.hi, `${t[0]} (${t[1]}) is inside ${id} (${r.lo} to ${r.hi})`); }
+  { const r0 = zr('spleen'), z = NZ.get('SPL')!; assert.ok(z > r0.lo + ORGAN_Z.spleen! && z < r0.hi + ORGAN_Z.spleen!, 'the splenic vein starts inside the spleen'); }
+  assert.ok(Math.max(...zs) - Math.min(...zs) <= 0.2, 'one plane: the tiers differ by a crossing only');
+  // the paraumbilical vein runs in front of the main portal vein where they cross, by more than both their radii (never through it)
+  { const c3 = NETWORK_BY_ID.get('C3')!, pv = NETWORK_BY_ID.get('PV_TRUNK')!, a = coursesOf(c3, REST)[0]!.pts, b = coursesOf(pv, REST)[0]!.pts;
+    let min = Infinity, near = 0;
+    for (const p of a) for (const q of b) { if (Math.hypot(p[0] - q[0], p[1] - q[1]) < c3.radius + pv.radius) { near++; min = Math.min(min, p[2] - q[2] - c3.radius - pv.radius); } }
+    assert.ok(near > 0, 'they cross');
+    assert.ok(min > 0, `C3 passes ${min.toFixed(3)} clear in front of the portal trunk`); }
+  // a vessel's own depth never moves more than that along its course (a jog of a quarter unit in z was a 14 degree sideways zigzag)
+  for (const v of NETWORK) if (!v.feeder) { const zz = v.pts.map((p) => p[2]); assert.ok(Math.max(...zz) - Math.min(...zz) <= 0.2, `${v.id} stays in the plane`); }
 });
 
 test('the map is the artist\'s: confluence at the origin, 300 2D units to a scene unit, y up', () => {
@@ -150,8 +174,8 @@ test('over and under follow the 2D tiers: the portal tree over the network, the 
   assert.ok(z('RHV_IVC') > z('C1a') || z('RHV_IVC') < z('C1a'), 'distinct tiers');
   assert.equal(z('PV_TRUNK'), TIER_Z.front);
   assert.equal(z('A_HEP'), TIER_Z.art);
-  assert.ok(z('IVCS_RA') < 0 && z('IVCS_RA') < z('PV_TRUNK'), 'the cava runs behind the liver');
-  assert.ok(TIER_Z.back < 0 && TIER_Z.art < TIER_Z.mid && TIER_Z.mid < TIER_Z.net && TIER_Z.net < TIER_Z.front && TIER_Z.front < TIER_Z.over);
+  assert.ok(z('IVCS_RA') < z('PV_TRUNK') && z('IVCS_RA') <= TIER_Z.back + 1e-9, 'the cava is the rearmost tier');
+  assert.ok(TIER_Z.back < TIER_Z.art && TIER_Z.art < TIER_Z.mid && TIER_Z.mid < TIER_Z.net && TIER_Z.net < TIER_Z.front && TIER_Z.front < TIER_Z.over);
   for (const v of NETWORK) assert.ok(v.pts.every((p) => p[2] === TIER_Z[v.tier]), `${v.id} is one plane`);
 });
 

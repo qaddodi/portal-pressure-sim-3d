@@ -210,6 +210,7 @@ export function TreatCard() {
   return (
     <section ref={ref} className="treat-card tr-card has-plate" id="treatCard" hidden={!open} data-open={open} data-bottom={thumb} data-device={device} data-page={page || undefined} style={vars} role="dialog" aria-label={L.treat} inert={!open}>
       <div className="sheet-plate" aria-hidden="true" />
+      <i className="sh-grabbar" aria-hidden="true" />
       <div className="tr-in">
         <div className="tc-head card-head">
           <h2 className="card-title"><span>{L.treat}</span></h2><span className="card-meta">{n ? `${n} running` : ''}</span>

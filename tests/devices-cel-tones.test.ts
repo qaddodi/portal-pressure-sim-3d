@@ -22,7 +22,7 @@ test('a device built on a ring tube (allocTube, mergeTubes) wears the three tone
 });
 
 test('the tube tones read their thresholds and strengths from the one cel style, and a device keeps its fade and its ink', () => {
-  for (const n of [CEL_STYLE.SHADE_AT, CEL_STYLE.LIT_AT, CEL_STYLE.SHADE, CEL_STYLE.LIT]) assert.ok(TOON_FS.includes(String(n)), String(n));
+  for (const n of [CEL_STYLE.VESSEL_STEP_AT, CEL_STYLE.SHADE]) assert.ok(TOON_FS.includes(String(n)), String(n));
   const o = new DeviceObject(allocTube(8, 8), 'poly', shared);
   assert.match(o.toon.fragmentShader, /gl_FragColor = vec4\(c, alpha\)/);
   assert.match(o.ink.fragmentShader, /mix\(inkA, 1\.0, clamp\(vHi, 0\.0, 1\.0\)\) \* alpha/, 'the ink fades with the device (a fade that matched nothing left the outline whole)');

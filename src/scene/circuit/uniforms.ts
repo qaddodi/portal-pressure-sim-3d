@@ -5,6 +5,10 @@ import { N_TRACK } from './course.ts';
 /** Uniforms every vessel shares for the morph (shader.ts): the change's eased share, the map's turn, its centre, and the track texture. */
 export interface CircuitShared {
   circT: { value: number };
+  /** 2D's circBoost, by the zoom (map.ts circBoostOf): the map's lines are drawn wider when it is zoomed out */
+  circBoost: { value: number };
+  /** map units under one CSS pixel (the floor of every line's width) */
+  circPerPx: { value: number };
   circRot: { value: Vector2 };
   circM: { value: Vector3 };
   circTrack: { value: DataTexture };
@@ -23,6 +27,8 @@ export function createTrackTexture(rows: number): DataTexture {
 export function createCircuitShared(rows: number): CircuitShared {
   return {
     circT: { value: 0 },
+    circBoost: { value: 1 },
+    circPerPx: { value: 1 },
     circRot: { value: new Vector2(1, 0) },
     circM: { value: new Vector3(MAP_CENTRE.x, MAP_CENTRE.y, MAP_CENTRE.z) },
     circTrack: { value: createTrackTexture(rows) },

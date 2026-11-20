@@ -11,6 +11,10 @@ import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, SHOTS, SHOT_MS, type Shot, type Sho
 
 /** Radians of turn per pixel of drag. */
 export const ORBIT_PER_PX = 0.006;
+/** The most the free turn tilts up or down (radians): just short of straight over or under, where the camera's up would flip. */
+export const PITCH_LIMIT = 1.45;
+/** The tilt after a drag of `dy` CSS pixels (down = positive): the top of the figure comes toward the viewer. */
+export const dragToPitch = (start: number, dy: number): number => start + dy * ORBIT_PER_PX;
 
 /** The orbit angle after a drag of `dx` CSS pixels (positive = to the right) from `start`. The figure follows the finger or pointer: its front
  *  face moves the way the drag moves, which means the camera swings the other way, so yaw goes down as dx goes up. One rule for every input
@@ -37,7 +41,13 @@ export function lerpAngle(a: number, b: number, k: number): number {
 
 interface Pose { shot: Shot; room: Room }
 
-const copyShot = (s: Shot): Shot => ({ yaw: s.yaw, pitch: s.pitch, r: s.r, target: [...s.target], half: [...s.half] });
+const copyShot = (s: Shot): Shot => ({ yaw: s.yaw, pitch: s.pitch, r: s.r, target: [...s.target], half: [...s.half], ...(s.halfNarrow ? { halfNarrow: [...s.halfNarrow] as [number, number] } : {}) });
+/** A blend's narrow-stage extents: only where one of the two shots has its own (a shot without one frames a phone as any other screen). */
+const narrowOf = (a: Shot, b: Shot, f: (x: number, y: number) => number): { halfNarrow?: [number, number] } => {
+  if (!a.halfNarrow && !b.halfNarrow) return {};
+  const p = a.halfNarrow ?? a.half, q = b.halfNarrow ?? b.half;
+  return { halfNarrow: [f(p[0], q[0]), f(p[1], q[1])] };
+};
 const copyRoom = (r: Room): Room => ({ ...r });
 
 /** Beyond this ratio between two shots' distances the move is a dive (body to lobule is 200 to 1, lobule to sinusoid 20 to 1): see `blendPose`. */
@@ -56,6 +66,7 @@ export function blendPose(a: Pose, b: Pose, k: number, arc = 1): Pose {
       yaw: lerpAngle(a.shot.yaw, b.shot.yaw, k), pitch: lerp(a.shot.pitch, b.shot.pitch, k), r: lerp(a.shot.r, b.shot.r, k),
       target: [lerp(a.shot.target[0], b.shot.target[0], k), lerp(a.shot.target[1], b.shot.target[1], k), lerp(a.shot.target[2], b.shot.target[2], k)],
       half: [lerp(a.shot.half[0], b.shot.half[0], k), lerp(a.shot.half[1], b.shot.half[1], k)],
+      ...narrowOf(a.shot, b.shot, (x, y) => lerp(x, y, k)),
     },
     room: { x: lerp(a.room.x, b.room.x, k), y: lerp(a.room.y, b.room.y, k), w: lerp(a.room.w, b.room.w, k), h: lerp(a.room.h, b.room.h, k) },
   };
@@ -82,6 +93,7 @@ function blendDive(a: Pose, b: Pose, k: number, arc = 1): Pose {
       yaw: lerpAngle(a.shot.yaw, b.shot.yaw, k) + ARC_YAW * swing, pitch: lerp(a.shot.pitch, b.shot.pitch, k) + ARC_PITCH * swing, r,
       target: [lerp(a.shot.target[0], b.shot.target[0], q), lerp(a.shot.target[1], b.shot.target[1], q), lerp(a.shot.target[2], b.shot.target[2], q)],
       half: [geo(a.shot.half[0], b.shot.half[0], k), geo(a.shot.half[1], b.shot.half[1], k)],
+      ...narrowOf(a.shot, b.shot, (x, y) => geo(x, y, k)),
     },
     room: { x: lerp(a.room.x, b.room.x, k), y: lerp(a.room.y, b.room.y, k), w: lerp(a.room.w, b.room.w, k), h: lerp(a.room.h, b.room.h, k) },
   };
@@ -101,6 +113,10 @@ export class CameraRig {
   private orbitFrom = 0;
   /** Where the turn is heading with the move in flight: 0 (a new shot starts square on), or where it stands when only the room changed (a card opened). */
   private orbitTo = 0;
+  /** The viewer's tilt up or down (Settings > Tilt all around; zero otherwise), eased home with a new shot like the turn. */
+  private pitchOrbit = 0;
+  private pitchFrom = 0;
+  private pitchTo = 0;
   /** The lens's share now (0 the long lens, 1 the widest, dive.ts), the share a move began with (a move reversed mid-plunge carries it, so the lens never jumps) and whether this move is a plunge into the figure. */
   private bump = 0;
   private bumpFrom = 0;
@@ -119,6 +135,9 @@ export class CameraRig {
   /** The plate the hand may pan the figure within (the body's plate, or the Circuit's map), as a rectangle in the plane at depth z. */
   private bounds: { x0: number; x1: number; y0: number; y1: number; z: number } = { ...PLATE_BOUNDS, z: FIGURE_Z };
   readonly reduceMotion: boolean;
+  /** Whether the viewer may turn the figure without limit on both axes (Stage: the setting is on and the view is the body). */
+  freeGate: (() => boolean) | null = null;
+  get free(): boolean { return !!this.freeGate && this.freeGate(); }
   /** Gentle tilt (tilt.ts): a few degrees added to the shot's yaw and pitch when the camera is written, never kept in the hand's or the orbit's state. Square (zero) until Stage gives it a gate. */
   readonly tilt = new Tilt();
   /** What Stage says about the tilt: whether Settings > Figure depth has it on, and whether something other than a camera move holds it (a gesture, a view other than the body). */
@@ -177,6 +196,8 @@ export class CameraRig {
     this.dur = reducedMs(ms, this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
     this.orbitTo = keepHand ? (this.active ? this.orbitTo : this.orbit) : 0;
     this.orbitFrom = this.orbit;
+    this.pitchTo = keepHand ? (this.active ? this.pitchTo : this.pitchOrbit) : 0;
+    this.pitchFrom = this.pitchOrbit;
     this.active = true;
     this.dirty = true;
   }
@@ -192,12 +213,26 @@ export class CameraRig {
 
   /** Limited orbit by drag, ±25°, clamped. Returns true when it changed (a frame is needed). */
   setOrbit(rad: number): boolean {
-    const o = Math.max(-ORBIT_LIMIT, Math.min(ORBIT_LIMIT, rad));
+    const o = this.free ? rad : Math.max(-ORBIT_LIMIT, Math.min(ORBIT_LIMIT, rad));
     if (o === this.orbit) return false;
     this.orbit = o; this.orbitFrom = o; this.orbitTo = o; this.dirty = true;
     return true;
   }
   get orbitAngle(): number { return this.orbit; }
+  /** Tilt up or down by `rad` (only while the free turn is on; otherwise it stays square). Returns true when it changed. */
+  setOrbitPitch(rad: number): boolean {
+    const o = this.free ? Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, rad)) : 0;
+    if (o === this.pitchOrbit) return false;
+    this.pitchOrbit = o; this.pitchFrom = o; this.pitchTo = o; this.dirty = true;
+    return true;
+  }
+  get pitchAngle(): number { return this.pitchOrbit; }
+  /** The free turn was switched off: ease the turn and the tilt home (the pose and the hand stay). */
+  levelOut(now: number): void {
+    if (this.orbit === 0 && this.pitchOrbit === 0) return;
+    this.goTo(this.to.shot, this.to.room, now, 500, true);
+    this.orbitTo = 0; this.pitchTo = 0;
+  }
 
   get handView(): Readonly<View> { return this.hand; }
   /** The hand puts the figure where its fingers are. */
@@ -246,6 +281,7 @@ export class CameraRig {
       this.bump = fovBump(k, this.bumpFrom, this.plunge);
       // the orbit eases back to centre with the shot (a new shot always starts square on), but a change of room alone (a card opening) leaves the turn the viewer chose
       this.orbit = lerp(this.orbitFrom, this.orbitTo, easeInOutCubic(k));
+      this.pitchOrbit = lerp(this.pitchFrom, this.pitchTo, easeInOutCubic(k));
       if (this.handTween) { lerpView(this.handFrom, { k: 1, x: 0, y: 0 }, easeInOutCubic(k), this.hand); if (k >= 1) this.handTween = false; }
       if (k >= 1) this.active = false; else moving = true;
       this.dirty = true;
@@ -268,10 +304,10 @@ export class CameraRig {
     const w = this.width, h = this.height;
     const fov = fovAt(this.bump);
     // (the dolly zoom: as the lens widens the camera comes in by the same ratio, so what the dive aims at keeps its size and the world opens round it)
-    const r = dollyDistance(effectiveDistance(shot, room.w > 1 ? room : { x: 0, y: 0, w, h }, h), fov);
+    const r = dollyDistance(effectiveDistance(shot, room.w > 1 ? room : { x: 0, y: 0, w, h }, h, w), fov);
     this.camera.fov = fov;
     // the tilt is added here, at render time, on top of the shot and the viewer's turn; `project` and every pick use this same camera, so tags and taps agree with what is drawn
-    const yaw = shot.yaw + this.orbit + (this.noTilt ? 0 : this.tilt.yaw), pitch = shot.pitch + (this.noTilt ? 0 : this.tilt.pitch);
+    const yaw = shot.yaw + this.orbit + (this.noTilt ? 0 : this.tilt.yaw), pitch = shot.pitch + this.pitchOrbit + (this.noTilt ? 0 : this.tilt.pitch);
     const cp = Math.cos(pitch);
     const [tx, ty, tz] = shot.target;
     this.pos.set(tx + Math.sin(yaw) * cp * r, ty + Math.sin(pitch) * r, tz + Math.cos(yaw) * cp * r);

@@ -1,4 +1,4 @@
-import { ORBIT_PER_PX, dragToOrbit, orbitHome } from '../camera/rig.ts';
+import { ORBIT_PER_PX, dragToOrbit, dragToPitch, orbitHome } from '../camera/rig.ts';
 import { ORBIT_LIMIT } from '../camera/shots.ts';
 import { CAM_MS_MAX, type View, carried, camMs, createGlideTracker, easeMove, lerpView, springSlope } from './ease.ts';
 import { FLICK, runFlick } from './flick.ts';
@@ -46,8 +46,14 @@ export interface GestureHost {
   /** The figure's rectangle on screen in the shot's own framing (hand at the fit). */
   fitRect(): Rect;
   orbit(): number;
+  /** The least zoom the hand may rest at for the view now (absent: K_MIN). The sinusoid keeps its own vessel framed: never under its fit (Mohammad, 20 Nov 2026: "i shouldn't be able to zoom this much in sinusoid; spring me back"). */
+  kMin?(): number;
   /** Returns whether the orbit changed. */
   setOrbit(rad: number): boolean;
+  /** Tilt all around (Settings): whether the free turn is on, and the tilt up or down. Absent: only the ±25° turn. */
+  free?(): boolean;
+  orbitPitch?(): number;
+  setOrbitPitch?(rad: number): boolean;
   /** A tap on the figure at canvas point (x, y); `touch` when a finger made it (a finger's reach is wider). */
   tap(x: number, y: number, touch?: boolean): void;
   /** What is selected now (a vessel or an organ: the host's own token), and a way to put it back (a double click's first click selected one). */
@@ -64,9 +70,9 @@ export const isSystemEdge = (e: { pointerType: string; clientX: number; clientY:
   e.pointerType === 'touch' && (e.clientY > vp.h - 34 || e.clientX < 12 || e.clientX > vp.w - 12);
 
 type Drag =
-  | { type: 'rotate'; x: number; y: number; orbit0: number; moved: boolean; trail: number[]; touch: boolean }
+  | { type: 'rotate'; x: number; y: number; orbit0: number; pitch0?: number; moved: boolean; trail: number[]; touch: boolean }
   | { type: 'pan'; x: number; y: number; v0: View; moved: boolean; trail: number[]; noFling: boolean; touch: boolean }
-  | { type: 'pinch'; pa: [number, number]; pb: [number, number]; d0: number; k0: number; anchor: Pt; moved: boolean; m0: Pt }
+  | { type: 'pinch'; pa: [number, number]; pb: [number, number]; d0: number; k0: number; anchor: Pt; moved: boolean; m0: Pt; tilt?: { o0: number; p0: number } }
   | { type: 'ignore' };
 
 export interface Gestures {
@@ -136,19 +142,20 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   }
   const animZoomAt = (x: number, y: number, factor: number) => {
     const v = host.hand(), c = host.centre();
-    const k = limitK(v.k * factor), f = k / v.k;
+    const k = limitK(v.k * factor, kMin()), f = k / v.k;
     const to = zoomAbout(v, f, { x, y }, c);
     animateTo(k <= FIT_K ? { k, x: 0, y: 0 } : hardOf(to), undefined, null);
   };
 
   // ── the spring-back: back inside the limits, never lost ────────────────────────────────────────────────────────────────────────
+  const kMin = () => host.kMin?.() ?? K_MIN;
   let springAsk = 0;
   const springBack = () => { springAsk ||= env.ask(springRead); };
   function springRead() {
     springAsk = 0;
     if (drag || flicking || wheelGlide.active) { if (wheelGlide.active) settleSoon(60); return; }
     const v0 = hand.take(env.now(), handAge);
-    const to = restingView(host.hand(), fitRect(), host.centre());
+    const to = restingView(host.hand(), fitRect(), host.centre(), kMin());
     if (!sameView(to, host.hand())) animateTo(to, undefined, v0);
   }
   const settleSoon = (ms = 220) => { env.clearTimer(settleT); settleT = env.timer(springBack, ms); };
@@ -192,17 +199,17 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   function stopOrbitHome() { if (homeId) env.cancel(homeId); homeId = 0; }
   function orbitToShot() {
     stopOrbitHome();
-    const o0 = host.orbit();
-    if (o0 === 0) return;
-    if (env.reduceMotion()) { host.setOrbit(0); return; }
+    const o0 = host.orbit(), p0 = host.orbitPitch?.() ?? 0;
+    if (o0 === 0 && p0 === 0) return;
+    if (env.reduceMotion()) { host.setOrbit(0); host.setOrbitPitch?.(0); return; }
     const t0 = env.now();
-    let last = o0;
+    let last = o0, lastP = p0;
     const step = (now: number) => {
       homeId = 0;
-      if (host.orbit() !== last) return;   // something else moved the turn (a new shot eases it home itself): not ours to carry on
-      const o = orbitHome(o0, now - t0);
-      if (Math.abs(o) < 1e-4) { host.setOrbit(0); return; }
-      host.setOrbit(o); last = host.orbit();
+      if (host.orbit() !== last || (host.orbitPitch?.() ?? 0) !== lastP) return;   // something else moved the turn (a new shot eases it home itself): not ours to carry on
+      const o = orbitHome(o0, now - t0), p = orbitHome(p0, now - t0);
+      if (Math.abs(o) < 1e-4 && Math.abs(p) < 1e-4) { host.setOrbit(0); host.setOrbitPitch?.(0); return; }
+      host.setOrbit(o); host.setOrbitPitch?.(p); last = host.orbit(); lastP = host.orbitPitch?.() ?? 0;
       homeId = env.ask(step);
     };
     homeId = env.ask(step);
@@ -216,7 +223,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   function zoomBy(factor: number, x: number, y: number, stretch: boolean) {
     const v = host.hand();
     let k = v.k * factor;
-    k = stretch ? softK(k) : clamp(k, K_MIN, K_MAX);
+    k = stretch ? softK(k, kMin()) : clamp(k, kMin(), K_MAX);
     host.setHand(zoomAbout(v, k / v.k, { x, y }, host.centre()));
   }
   const wheelPx = (ev: WheelEv, d: number) => d * (ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? env.viewport().h : 1);
@@ -247,7 +254,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
       if (env.reduceMotion()) zoomBy(Math.exp(step), at.x, at.y, false);
       else {
         // a notch glides about 100 ms and carries the speed of the one before; the zoom it asks for stays inside the limits counting what the glide still owes
-        const k = host.hand().k, owed = wheelGlide.left(), kTo = clamp(k * Math.exp(owed + step), K_MIN, K_MAX);
+        const k = host.hand().k, owed = wheelGlide.left(), kTo = clamp(k * Math.exp(owed + step), kMin(), K_MAX);
         wheelGlide.push(Math.log(kTo / k) - owed, at.x, at.y, now);
       }
       settleSoon();
@@ -291,8 +298,12 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   function startPinch(): Drag {
     const [a, b] = [...pointers.values()] as [[number, number], [number, number]];
     const m = { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 };
-    return { type: 'pinch', pa: a, pb: b, d0: Math.max(1, Math.hypot(a[0] - b[0], a[1] - b[1])), k0: host.hand().k, anchor: anchorAt(m, host.hand(), host.centre()), moved: false, m0: m };
+    // Tilt all around on a touch screen: two fingers tilt (their middle turns the figure), the spread still zooms
+    const tilt = host.free?.() && host.setOrbitPitch ? { o0: host.orbit(), p0: host.orbitPitch?.() ?? 0 } : undefined;
+    return { type: 'pinch', pa: a, pb: b, d0: Math.max(1, Math.hypot(a[0] - b[0], a[1] - b[1])), k0: host.hand().k, anchor: anchorAt(m, host.hand(), host.centre()), moved: false, m0: m, tilt };
   }
+  /** The one place a drag turns the figure (dragToOrbit): the one finger's or mouse's, or two fingers' middle. */
+  const turnBy = (o0: number, dx: number) => host.setOrbit(dragToOrbit(o0, dx));
   const onDown = (ev: PtrEv) => {
     if (isSystemEdge(ev, env.viewport())) return;
     if (ev.isPrimary) pointers.clear();
@@ -305,7 +316,9 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     if (ev.button === 2) { drag = { type: 'ignore' }; return; }   // the context menu is the pick's
     const touch = ev.pointerType === 'touch';
     // a mouse turns the figure; Shift or the middle button pans (a trackpad's own two fingers pan through wheel events)
-    drag = ev.shiftKey || ev.button === 1 ? startPan(ev.clientX, ev.clientY, touch) : { type: 'rotate', x: ev.clientX, y: ev.clientY, orbit0: host.orbit(), moved: false, trail: trail(ev.clientX, ev.clientY), touch };
+    const free = !!host.free?.();
+    // Tilt all around: a finger pans (two tilt, see startPinch); a mouse drag turns the figure on both axes
+    drag = ev.shiftKey || ev.button === 1 || (free && touch) ? startPan(ev.clientX, ev.clientY, touch) : { type: 'rotate', x: ev.clientX, y: ev.clientY, orbit0: host.orbit(), pitch0: free ? host.orbitPitch?.() ?? 0 : undefined, moved: false, trail: trail(ev.clientX, ev.clientY), touch };
   };
   const pushTrail = (tr: number[], x: number, y: number) => {
     const now = env.now();
@@ -326,7 +339,8 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
       const a = drag.pa, b = drag.pb;
       const d = Math.hypot(a[0] - b[0], a[1] - b[1]), m = { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 };
       if (Math.abs(d - drag.d0) > 10 || Math.hypot(m.x - drag.m0.x, m.y - drag.m0.y) > 10) drag.moved = true;
-      const k = softK((drag.k0 * d) / drag.d0), p = panFor(m, drag.anchor, k, host.centre());
+      const k = softK((drag.k0 * d) / drag.d0, kMin()), p = panFor(drag.tilt ? drag.m0 : m, drag.anchor, k, host.centre());
+      if (drag.tilt) { turnBy(drag.tilt.o0, m.x - drag.m0.x); host.setOrbitPitch?.(dragToPitch(drag.tilt.p0, m.y - drag.m0.y)); }
       host.setHand({ k, x: p.x, y: p.y }); handSample(80);
       return;
     }
@@ -334,7 +348,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     if (drag.type === 'rotate') {
       const dx = ev.clientX - drag.x;
       if (!drag.moved && Math.abs(dx) + Math.abs(ev.clientY - drag.y) > slop) { drag.moved = true; drag.x = ev.clientX; drag.y = ev.clientY; }
-      else if (drag.moved) { host.setOrbit(dragToOrbit(drag.orbit0, dx)); pushTrail(drag.trail, ev.clientX, ev.clientY); }
+      else if (drag.moved) { turnBy(drag.orbit0, dx); if (drag.pitch0 != null) host.setOrbitPitch?.(dragToPitch(drag.pitch0, ev.clientY - drag.y)); pushTrail(drag.trail, ev.clientX, ev.clientY); }
       return;
     }
     // pan

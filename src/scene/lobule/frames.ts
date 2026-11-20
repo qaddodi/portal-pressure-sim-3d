@@ -8,8 +8,8 @@
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import type { V3 } from './batch.ts';
 
-/** The place in the 2D figure's world units (x right, y down; the confluence is at 700, 556) the dive goes to: the right lobe, between the portal and hepatic veins. */
-export const LIVER_2D = { x: 460, y: 241 } as const;
+/** The place in the 2D figure's world units (x right, y down; the confluence is at 700, 556) the dive goes to: the open liver between the right portal branch (below: (602,442) up-left to the right sinusoid fan at about (450,340)), the right hepatic vein (above, y about 245) and the IVC (right, x about 620), about 65 units clear of each (owner, 20 Nov: zoom in between the right portal vein and the IVC, not to the edge). The courses are src/scene/vessels/paths.copied.ts. */
+export const LIVER_2D = { x: 515, y: 330 } as const;
 /** Depth of the place (the organs straddle z = 0; the right lobe's centre is a little behind the plate's middle). */
 export const LIVER_Z = -0.15;
 /** The lobule's frame in the scene: where its local (0, 0, 0) is, and how many scene units one local unit is. A real lobule is about 1/150 of a liver; this is 1/150 of the scene. */
@@ -18,7 +18,9 @@ export const LOBULE_SCALE = 1 / 150;
 
 /** Where the sinusoid stands in the lobule's local units (the 2D 'lobule:sinusoid' station: half-way from the left portal corner to the centre, on the slab), and its scale
  *  against the lobule's: one local sinusoid unit is SIN_REL lobule units, so the sinusoid's lumen (0.34) is as wide as the lobule's own sinusoid tube (0.036). */
-export const SIN_LOCAL: V3 = [-0.5 * 3, 0, 0];
+export const SIN_LOCAL: V3 = [-1.3213, 0.2455, 0];
+// (owner, 20 Nov: the sinusoid view lines up with a real sinusoid of the lobule, mid zone 2: this is point 23 of the lobule's own course 90 (a second-generation sinusoid, hexFrac 0.49,
+//  running along +x within 0.01 rad), so the dive from the lobule lands on a sinusoid that is drawn there. tests/scene-dive.test.ts holds it against buildLobule(7).)
 export const SIN_REL = 0.106;
 export const SIN_SCALE = LOBULE_SCALE * SIN_REL;
 

@@ -16,6 +16,13 @@ export function mapRamp(t: number): number {
   return x * x * (3 - 2 * x);
 }
 
+/** How far a zone band's edge is softened along the flow, map units. */
+export const BAND_SOFT = 36;
+/** A band's tint, as a share of the look's own: a calm wash behind the vessels, not a block. */
+export const BAND_CALM = 0.8;
+/** The dot grid's share of its opacity once the map is zoomed in (a dot is 20 map units apart: it must not become a field of blobs), and the zoom (map units under a pixel) it eases over. */
+export const DOT_CALM = 0.3;
+export const DOT_CALM_PX: readonly [number, number] = [0.12, 0.35];
 const PLATE_UNITS = 1600;   // (the grid runs on this far past the figure's box, fading out in steps)
 
 export const PLATE_VS = /* glsl */ `
@@ -29,6 +36,10 @@ void main() {
 
 /** The 2D map's fragment: mapAt of veins-gl.js, premultiplied. */
 export const PLATE_FS = /* glsl */ `
+const float BAND_SOFT = ${BAND_SOFT.toFixed(1)};
+const float BAND_CALM = ${BAND_CALM.toFixed(2)};
+const float DOT_CALM = ${DOT_CALM.toFixed(2)};
+const vec2 DOT_CALM_PX = vec2(${DOT_CALM_PX[0].toFixed(2)}, ${DOT_CALM_PX[1].toFixed(2)});
 uniform float mapA;
 uniform vec4 mapDot;
 uniform vec4 mapZone[3];
@@ -45,18 +56,18 @@ void main() {
   if (op > 0.0) {
     float d = length(w - (floor(w / 20.0) * 20.0 + 10.0));
     float rr = max(0.9, 0.7 * pxW);
-    float a = mapDot.a * op * clamp((rr - d) / pxW + 0.5, 0.0, 1.0) * min(1.0, 0.81 / (rr * rr));
+    float calm = mix(DOT_CALM, 1.0, smoothstep(DOT_CALM_PX.x, DOT_CALM_PX.y, pxW));
+    float a = mapDot.a * op * calm * clamp((rr - d) / pxW + 0.5, 0.0, 1.0) * min(1.0, 0.81 / (rr * rr));
     c = vec4(mapDot.rgb * a, a);
   }
-  float iy = clamp(min(w.y - 40.0, 730.0 - w.y) / pxW + 0.5, 0.0, 1.0);
-  if (iy > 0.0) {
-    float zp = clamp(min(w.x - mapAlt.x, mapAlt.y - w.x) / pxW + 0.5, 0.0, 1.0) * iy * mapZone[0].a;
-    float zl = clamp(min(w.x - mapAlt.y, mapAlt.z - w.x) / pxW + 0.5, 0.0, 1.0) * iy * mapZone[1].a;
-    float zh = clamp(min(w.x - mapAlt.z, mapAlt.w - w.x) / pxW + 0.5, 0.0, 1.0) * iy * mapZone[2].a;
-    c = overP(vec4(mapZone[0].rgb * zp, zp), c);
-    c = overP(vec4(mapZone[1].rgb * zl, zl), c);
-    c = overP(vec4(mapZone[2].rgb * zh, zh), c);
-  }
+  // the tinted zones run the whole way across the map (and the plate beyond it, so the screen's sides are in them) and fade into one another and into the ground over BAND_SOFT map units
+  // along the flow: a band is a wash behind the vessels, never a box with edges and margins
+  float zp = clamp(min(w.x - mapAlt.x, mapAlt.y - w.x) / BAND_SOFT + 0.5, 0.0, 1.0) * mapZone[0].a * BAND_CALM;
+  float zl = clamp(min(w.x - mapAlt.y, mapAlt.z - w.x) / BAND_SOFT + 0.5, 0.0, 1.0) * mapZone[1].a * BAND_CALM;
+  float zh = clamp(min(w.x - mapAlt.z, mapAlt.w - w.x) / BAND_SOFT + 0.5, 0.0, 1.0) * mapZone[2].a * BAND_CALM;
+  c = overP(vec4(mapZone[0].rgb * zp, zp), c);
+  c = overP(vec4(mapZone[1].rgb * zl, zl), c);
+  c = overP(vec4(mapZone[2].rgb * zh, zh), c);
   gl_FragColor = c * mapA;
 }`;
 

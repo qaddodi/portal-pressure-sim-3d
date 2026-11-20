@@ -1,7 +1,7 @@
 // GLSL for the cel look (look-and-feel.md sections 2, 3, 9). Ported from the slice mocks, with the flow marks and the per-vessel data
 // texture added. Plain strings so the unit tests can check them without a GPU; `node scripts/glsl-compile.mjs` compiles them in
 // software WebGL2 (the one headless step the owner allows, and only on about:blank).
-import { CEL_TUBE_GLSL } from '../cel-glsl.ts';
+import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../cel-glsl.ts';
 
 /** Texel layout of the per-vessel data texture, written by src/engine/vessel-data.ts (one texel per topology edge, RGBA32F, nearest). */
 export const VESSEL_TEXEL = {
@@ -61,8 +61,10 @@ void main() {
 
 export const TOON_FS = /* glsl */ `
 ${FADE_GLSL}
+uniform float tubeDark;   // 1 on the dark looks: brighter tube caps (cel-glsl.ts celTubeBase)
 #ifdef TUBE_TONES
 ${CEL_TUBE_GLSL}
+${CEL_LIGHT_GLSL}
 #endif
 uniform vec3 color;
 uniform vec3 shade;
@@ -118,7 +120,7 @@ void main() {
   if (reveal < 0.9999 && vUv.x > reveal) discard;
   if (fadedOut()) discard;
   vec3 n = normalize(vN);
-  vec3 l = normalize((viewMatrix * vec4(light, 0.0)).xyz);
+  vec3 l = normalize((viewMatrix * vec4(light, 0.0)).xyz);   // the world light turned by the camera: a world-fixed n.L
   float d = dot(n, l) * 0.5 + 0.5;
   float q = d * bands;
   float f = fract(q);
@@ -131,17 +133,15 @@ void main() {
   sh = mix(shade, vInk * inkShade, inkAmount);
 #endif
 #ifdef TUBE_TONES
-  // a tube of the vessels' own look (a plexus strand, a varix): the three tones lit from the top left of the SCREEN (vessels/shaders.ts, 2D celTones), not the world-lit bands, so a varix beside its
-  // vein shades as the vein does and keeps its tones as the figure turns. rDev, the radius in device px, is read from how fast across changes (it is the lateral position over the radius).
+  // a tube of the vessels' own look (a plexus strand, a varix): the two tones lit by the one WORLD light (n.L, cel-glsl.ts celLightView: the camera never changes a shade), as vessels/shaders.ts does, so a varix
+  // beside its vein shades as the vein does. rDev, the radius in device px, is read from how fast across changes (it is the lateral position over the radius).
   vec3 sideX = cross(normalize(vT), normalize(vV));
   float sideL = length(sideX);
   vec3 side0 = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
   float across0 = dot(n, side0);
   float rDev0 = 1.0 / max(fwidth(across0), 1e-3);
-  vec2 sideS = side0.xy;
-  float sl0 = length(sideS);
-  sideS = sl0 > 1e-4 ? sideS / sl0 : vec2(1.0, 0.0);
-  vec3 c = celTubeTone(base, across0, celTubeK(sideS), rDev0);
+  float sT0 = dot(n, celLightView());
+  vec3 c = celTubeTone(base, sT0, fwidth(sT0), rDev0);
 #else
   vec3 c = mix(sh, base, clamp(b, 0.0, 1.0));
 #endif
