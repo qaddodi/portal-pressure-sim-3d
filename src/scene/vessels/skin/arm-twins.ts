@@ -54,10 +54,6 @@ export function hiWeightAt(h: HiState, u: number): number {
   return h.on * (Math.abs(h.dir) > 0.5 ? 1 - sstep(0, Math.max(limitH, 1e-4), distH) : ownH);
 }
 
-/** How much of a tube is drawn at `u` along it while it draws on or retracts (`reveal` rv, 0 to 1): the JS twin of `frontOut` (materials/shaders.ts: a soft front a tenth of the length wide, `k = clamp((rv * 1.1 - u) / 0.1, 0, 1)`), 1 once whole.
- *  The skin takes it at each arm's seam as part of that arm's share, so the mouth of a vessel that is drawing on is never drawn ahead of the vessel (spec 10.2: a skin is never visible where its arms are not). */
-export const revealAt = (rv: number, u: number): number => (rv >= 0.9999 ? 1 : clamp01((rv * 1.1 - u) / 0.1));
-
 /** The lens ramp's position at the seam: the stretch `span` of the host's ramp the vessel wears, at `u` along the vessel (`lensOf`: mix(lensSpan.x, lensSpan.y, vUv.x)). */
 export const lensUAt = (span: readonly [number, number], u: number): number => mix(span[0], span[1], u);
 
@@ -76,4 +72,14 @@ export function copyAlpha(w: readonly number[], shares: readonly (readonly numbe
   let a = 0;
   for (let i = 0; i < w.length; i++) a += (w[i] ?? 0) * (shares[i]?.[copy] ?? 0) * (fades[i] ?? 0);
   return a;
+}
+
+/**
+ * How much of an arm's tube is THERE at its seam (0 gone, 1 whole): the JS twin of the tube's own presence in the fragment stage. A skin inherits it exactly, so a skin is never drawn where its arms are not (a liver branch the Circuit's change has not grown yet, a collateral
+ * retracted, a vessel faded by the dive): `visible` the tube's group (presence-track.ts `apply` and `drive`), `reveal` its drawing-on (materials/shaders.ts frontOut: a gradient a tenth of the length wide at `reveal * 1.1`), `fade` its dissolve (fadedOut).
+ */
+export function armPresenceAt(visible: boolean, reveal: number, fade: number, u: number): number {
+  if (!visible) return 0;
+  const k = reveal >= 0.9999 ? 1 : clamp01((reveal * 1.1 - u) / 0.1);
+  return k * clamp01(fade);
 }

@@ -73,7 +73,7 @@ export class SkinObject implements SkinDraw {
       // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
       color: du.color!,
       lensUse: { value: 1 },
-      armData: { value: this.armData }, armLensU: { value: [0, 0, 0, 0] }, armFade: { value: [1, 1, 1, 1] }, armHi: { value: [0, 0, 0, 0] }, armNarrow: { value: [0, 0, 0, 0] }, armArc: { value: this.armArc }, armFlow: { value: [0, 0, 0, 0] }, armColor: { value: this.armColor },
+      armData: { value: this.armData }, armLensU: { value: [0, 0, 0, 0] }, armFade: { value: [1, 1, 1, 1] }, armPres: { value: [1, 1, 1, 1] }, armHi: { value: [0, 0, 0, 0] }, armNarrow: { value: [0, 0, 0, 0] }, armArc: { value: this.armArc }, armFlow: { value: [0, 0, 0, 0] }, armColor: { value: this.armColor },
       armCopy: { value: this.armCopy },
       armAxis: { value: armAxis }, armAxisR: { value: armAxisR }, skinK: { value: skinKOf(skin.junction.arms) },
     };
@@ -117,15 +117,26 @@ export class SkinObject implements SkinDraw {
     (this.material.uniforms.armFlow!.value as number[])[i] = flow;
   }
 
-  /** The shares arm `i` has of the three copies (its tube's `copyShares`), and which copies show now: one is visible while the arms' shares of it add up to something. */
+  /** The shares arm `i` has of the three copies (its tube's `copyShares`), and which copies show now: one is visible while the arms' shares of it add up to something and some arm of the skin is there at all. */
   setArmCopy(i: number, front: number, solid: number, veil: number): void {
     this.armCopy[i]!.set(front, solid, veil);
-    this.copies.forEach((m, c) => { m.visible = this.armCopy.reduce((t, v) => t + (c === 0 ? v.x : c === 1 ? v.y : v.z), 0) > COPY_SEEN; });
+    this.showCopies();
   }
   /** The shares arm `i` has now (front, solid, veil), as written by the handover. */
   armCopyOf(i: number): readonly number[] { const v = this.armCopy[i]!; return [v.x, v.y, v.z]; }
   /** Whether copy `c` is drawn now (a test reads it). */
   copyShown(c: number): boolean { return this.copies[c]!.visible; }
+
+  /** How much of arm `i`'s tube is there at its seam (arm-twins.ts armPresenceAt); with none of them the skin is not drawn at all. */
+  setPres(i: number, p: number): void {
+    (this.material.uniforms.armPres!.value as number[])[i] = p;
+    this.showCopies();
+  }
+  /** A copy is drawn when the arms' shares of it add up to something (`COPY_SEEN`), counting only an arm that is there (`armPres`): a skin has no visibility of its own, it inherits its arms'. */
+  private showCopies(): void {
+    const pres = this.material.uniforms.armPres!.value as number[];
+    this.copies.forEach((m, c) => { m.visible = this.armCopy.reduce((t, v, k) => t + (this.armData[k]!.x >= 0 && pres[k]! > 0.002 ? (c === 0 ? v.x : c === 1 ? v.y : v.z) : 0), 0) > COPY_SEEN; });
+  }
 
   setTransparent(on: boolean): void { for (const m of this.copies) { const mat = m.material as ShaderMaterial; if (mat.transparent !== on) { mat.transparent = on; mat.needsUpdate = true; } } }
 

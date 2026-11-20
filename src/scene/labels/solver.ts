@@ -47,6 +47,9 @@ export interface Item {
   /** 2D's rule of 4 Nov ("when there is no room we shouldn't have labels covering the portal vein and structures completely"): a station's name never takes the last resort of a spot over a vessel; where
    *  only that is left it is left out. The reader's own choices (the picked vessel, what a slide names or shows) and the hepatic artery keep it. */
   offVessels?: boolean;
+  /** A name whose figure fills the view with vessels (the lobule's net): a far spot with a vessel under it is allowed, at its line cost, before the name is given up, as 2D's lobule orders
+   *  append the unclear spots after the clear ones (stage-label-solve.js `{ gap: near, leader: false }, { gap: far, leader: true }`). The Anatomy and Circuit "every far spot is clear" rule (5316a81e) does not apply to it. */
+  looseFar?: boolean;
   clearLines?: boolean;
   /** For a `clearLines` name: the side (a unit vector on the canvas) it prefers to go to when it must stand off, as 2D puts the central vein's name on the side away from the tract (the nearer clear spots on the other side cost more). */
   prefer?: readonly [number, number];
@@ -310,7 +313,7 @@ export function solve(input: SolveInput): Solved {
           // a far spot of the wide search stands clear of the vessels, as 2D's (`clear: true` on every ring: "farther out on a leader, wholly on the stage"); only the last resort may stand on one.
           // (A line cost of 8 against a form's 50 had Lower IVC's wide form, with its change chip, 97 px up a leader on the varices' line in Compare on a phone, when its shorter form stood clear
           // nearer: every spot past the near ring, the wide gaps as much as the rings, is clear of the lines, and the narrower form is what gives. A callout and a region's name are placed by their own rules.)
-          if (c.cost >= NEAR_COST && relax < 2 && lineHits > 0 && !it.callout && !it.region) { no(c, 'line'); continue; }
+          if (c.cost >= NEAR_COST && relax < 2 && lineHits > 0 && !it.callout && !it.region && !it.looseFar) { no(c, 'line'); continue; }
           if (it.offVessels && relax >= 2 && lineHits > 0 && !it.region && !it.callout) { no(c, 'line'); continue; }
           if (it.face) {
             const vx = (box.x0 + box.x1) / 2 - it.face.cx, vy = (box.y0 + box.y1) / 2 - it.face.cy, l = Math.hypot(vx, vy) || 1;

@@ -139,6 +139,18 @@ test('a label whose near spots are taken keeps off the vessels at every far spot
   assert.equal(solve({ items: [call], view: VIEW, blockers: [], lines: [[0, 50, 1000, 50], [450, 56, 450, 700], [0, 150, 1000, 150], [0, 200, 1000, 200], [0, 250, 1000, 250]] }).placed.length, 1, 'a callout is placed over lines');
 });
 
+test('a lobule name (looseFar) may stand at a far spot with a vessel under it before it is given up: the net fills the view, and 2D\'s lobule orders append the unclear spots (the bile ductule vanished on an iPhone after 5316a81e)', () => {
+  // free ground: a corridor east of the dot with a vessel through it (a line under every spot there); the dot is boxed in on the other sides
+  const blockers: Box[] = [{ x0: 0, y0: 56, x1: 440, y1: 700 }, { x0: 440, y0: 56, x1: 1000, y1: 270 }, { x0: 440, y0: 330, x1: 1000, y1: 700 }];
+  const lines: [number, number, number, number][] = [[440, 300, 1000, 300]];
+  const mk = (extra: object) => item('f', 460, 300, { forms: [form(100)], reach: 400, ...extra });
+  const strict = solve({ items: [mk({})], view: VIEW, blockers, lines }), loose = solve({ items: [mk({ looseFar: true })], view: VIEW, blockers, lines });
+  assert.equal(loose.placed.length, 1, 'with looseFar the name stands, over the net');
+  assert.ok(strict.placed.length <= loose.placed.length);
+  const src = readFileSync(new URL('../src/scene/lobule/captions.ts', import.meta.url), 'utf8');
+  assert.match(src, /minLead: MIN_LEAD, looseFar: true/, 'every lobule station asks for it');
+});
+
 test('the diagnostic (?capwhy) names who stood in the way of a label\'s near spots, and costs nothing when it is not asked for', () => {
   const a = item('a', 300, 300), b = item('b', 330, 300, { pri: 1 });
   const why = new Map<string, Record<string, number>>();
