@@ -18,6 +18,7 @@ import { LENS_SHARED } from '../lenses/tokens.copied.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 import { STREAK, STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
+import { dustGlsl } from '../blood/dust-glsl.ts';
 /** The streak field's units to a tube radius, so a streak's mean length (FIELD_LEN) is LEN_OF_R radii, as the Anatomy's are. */
 const STREAK_FIELD_PER_R = (STREAK.FIELD_LEN[0] + STREAK.FIELD_LEN[1] / 2) / STREAK.FIELD_LEN_R;
 
@@ -55,6 +56,10 @@ varying float vAux;
 varying float vArc;
 varying float vAcross;
 #endif
+#ifdef DUST
+attribute vec4 fcourse;   // the dust's route (blood/routes.ts): this course's column of the route table, the arc from its start, its length (local units), the true place across (-1 .. 1, never hushed)
+varying vec4 vCourse;
+#endif
 #if defined(GAPS) || defined(HOLES)
 varying vec2 vG;
 #endif
@@ -87,6 +92,9 @@ void main() {
 #endif
 #ifdef FLOW
   vArc = aux; vAcross = aux2;
+#endif
+#ifdef DUST
+  vCourse = fcourse;
 #endif
 #if defined(GAPS) || defined(HOLES)
   vG = position.xy;
@@ -212,6 +220,26 @@ float flowStreaks() {
   return streakField(vAcross, vArc * s, uFlowT * s, 1.0, 1.0, 1.0) * uFlowStreak;
 }
 #endif
+#ifdef DUST
+// THE ANATOMY'S DUST in the lobule (Mohammad, 20 Nov: "also same streaks in lobule view please"): the same particles (blood/dust-glsl.ts), each with one identity through every joint of the lobule's
+// network (micro3d/lobule-routes.ts: a sinusoid leaving an inlet venule takes the venule's lanes on its side; two sinusoids merging lie side by side), all riding the lobule's one flow (uFlowT).
+// The lobule is seen from above: the section's N axis (the course's left in the plate) is the screen's sideways axis, its B axis faces the eye.
+varying vec4 vCourse;
+uniform float uDustK;     // how strong (the Blood streaks setting, the view's own fade)
+#define time (uFlowT * 3.0)
+${dustGlsl('return uFlowT / max(D_flowK, 1e-4);')}
+#undef time
+vec4 flowDustMicro(vec3 lit) {
+  if (uDustK <= 0.0 || abs(vCourse.w) >= 0.97) return vec4(0.0);
+  float R = max(uFlowR, 1e-5);
+  float wpc = max(length(vec2(dFdx(vArc), dFdy(vArc))), 1e-7) * uDpr, rPx = R / wpc;
+  float dOn = uDustK * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rPx);
+  if (dOn <= 0.002) return vec4(0.0);
+  DFrame Fd = DFrame(vCourse.w, vec2(1.0, 0.0), vec2(0.0, 1.0), vCourse.y, vCourse.z, R, R, rPx, 1.0, 0.0, vCourse.x, 1.0);
+  vec4 d = dustTube(Fd, lit, lit * 0.35, 0.0);
+  return vec4(d.rgb * dOn, d.a * dOn);
+}
+#endif
 #if defined(GAPS) || defined(HOLES)
 // real gaps through a sheet (the sinusoid's fenestrae, Mohammad 20 Nov 2026: "complete, not just circle holes: actually a gap in the membrane"): one texel per 1 µm slot along x, per side (row 0 the
 // side at local y > 0, row 1 the other), holding the gap's half width (red, 0..1 of 0.5 µm). A fragment within it is not drawn at all, across the whole bead and its wall, so the space of Disse shows through;
@@ -282,7 +310,11 @@ void main() {
 #ifdef FLOW
   vec2 hd = flowHeads();
   hd *= 1.0 - wz;   // (the wedged blood is still: its marks die away under the wash)
+#ifdef DUST
+  { vec4 dd = flowDustMicro(c) * (1.0 - wz); c = c * (1.0 - dd.a) + dd.rgb; }   // (under the chevrons, which come next)
+#else
   c = mix(c, streakTone(c, uFlowCol, gStreakK.x, gStreakK.y), flowStreaks() * (1.0 - clamp(hd.x + hd.y, 0.0, 1.0)) * (1.0 - wz));   // (the streaks lie UNDER the chevrons: a head's pixel is never tinted by one)
+#endif
   vec3 inkH = mix(uFlowInk, c * 0.3, 0.2), rimH = vec3(0.2314, 0.1725, 0.1333);   // (the Anatomy's: the head ink a touch of the lumen's own deep tone, the ring always the dark ink)
   float hk = uFlowDark > 0.5 ? clamp(uFlowK, 0.0, 1.0) : uFlowK * 1.6;   // (the blood's dark heads whole at uFlowK 1, and they dissolve with the view as everything else does)
   vec3 core = uFlowDark > 0.5 ? inkH : uFlowCol;
@@ -427,6 +459,8 @@ export interface MicroOptions {
   rimK?: { value: number };
   /** A per-vertex swelling (the geometry carries `swell`, see MICRO_VS), set with setSwell. */
   swell?: boolean;
+  /** The Anatomy's dust on a flowing tube (the geometry carries `fcourse`): the route table of its network and the dust's shared numbers (blood/dust.ts). */
+  dust?: { routeTex: { value: Texture }; dustP: { value: Float32Array } };
 }
 
 /** The gap table of a part without gaps: one closed texel. */
@@ -445,7 +479,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
   const haze = o.haze ?? hazeUniforms();
   const toon = new ShaderMaterial({
     vertexShader: MICRO_VS, fragmentShader: MICRO_FS, vertexColors: !!o.vertexColors,
-    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps && !o.holes ? { GAPS: '' } : {}), ...(o.gaps && o.holes ? { HOLES: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.swell ? { SWELL: '' } : {}) },
+    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps && !o.holes ? { GAPS: '' } : {}), ...(o.gaps && o.holes ? { HOLES: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.dust && o.flow ? { DUST: '' } : {}) },
     uniforms: {
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, uSwell: { value: new Vector2(0, 0) }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
@@ -453,6 +487,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
       uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakDir: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
+      ...(o.dust ? { routeTex: o.dust.routeTex, dustP: o.dust.dustP } : {}), uDustK: { value: 0 },
       uFlowR: { value: 0.02 }, uDpr: { value: 2 }, uFlowDark: { value: 0 }, uFlowInk: { value: rawRGB(new Color(), hexRGB(LENS_SHARED.chevron)) },
       // (every toon carries the gaps' uniforms too, a blank texture and no slots where it has none, so a program read without GAPS still finds each one)
       uGaps: { value: o.gaps?.tex ?? NO_GAPS }, uGapX: { value: o.gaps?.x ?? new Vector4(0, 0, 0, 0) }, uHoleP: { value: new Vector2(o.holes?.s ?? 0, o.holes?.dx ?? 0) },
