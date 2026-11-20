@@ -1,5 +1,5 @@
 /* Compare (2D: app-01-chrome.css .cmp-*, app-03-layouts.css .cmp-*), in the 3D shell's tokens. Opacity and transform only. */
-.cmp-banner { position: absolute; left: 50%; top: calc(var(--sh-pad-top) + 52px); transform: translate(-50%, -4px); display: flex; align-items: center; gap: 10px; padding: 4px 6px 4px 14px; border-radius: 999px; border: 1px solid var(--edge); background: var(--surface); pointer-events: auto;
+.cmp-banner { position: absolute; left: 50%; width: max-content; max-width: calc(100vw - 24px); top: calc(var(--sh-pad-top) + 52px); transform: translate(-50%, -4px); display: flex; align-items: center; gap: 10px; padding: 4px 6px 4px 14px; border-radius: 999px; border: 1px solid var(--edge); background: var(--surface); pointer-events: auto;
   box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 8px 22px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.4));
   opacity: 0; visibility: hidden; transition: opacity 200ms var(--sh-ease), transform 200ms var(--sh-ease), visibility 0s linear 200ms; }
 .cmp-banner[data-on="true"] { opacity: 1; visibility: visible; transform: translate(-50%, 0); transition-delay: 0s; }
@@ -9,7 +9,7 @@
 .cmp-seg button b { font-weight: 600; }
 .cmp-seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); }
 .cmp-table-btn { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--edge); background: transparent; font: 600 13px / 1 var(--ui); }
-.cmp-badge { position: absolute; left: 50%; top: calc(var(--sh-pad-top) + 96px); transform: translateX(-50%); padding: 4px 12px; border-radius: 999px; background: var(--text); color: var(--surface); font: 600 12px / 1.2 var(--ui); pointer-events: none; opacity: 0; transition: opacity 200ms var(--sh-ease); }
+.cmp-badge { position: absolute; left: 50%; width: max-content; max-width: calc(100vw - 24px); top: calc(var(--sh-pad-top) + 96px); transform: translateX(-50%); padding: 4px 12px; border-radius: 999px; background: var(--text); color: var(--surface); font: 600 12px / 1.2 var(--ui); pointer-events: none; opacity: 0; transition: opacity 200ms var(--sh-ease); }
 .cmp-badge[data-on="true"] { opacity: 1; }
 .sh-root[data-mode="deck"] .cmp-badge, .sh-root[data-mode="deck"] .cmp-banner { display: none; }
 @media (max-width: 520px) { .cmp-label { display: none; } .cmp-banner { padding-left: 6px; } }

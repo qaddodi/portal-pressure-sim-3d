@@ -158,7 +158,7 @@ test('CONTAINED BY CONSTRUCTION (Mohammad, 20 Nov: "the streaks are flowing outs
   assert.ok(VESSEL_FS.includes(DUST_GLSL), 'the Anatomy: the Dust Lab\'s particles (blood/dust-glsl.ts) in the tube shader, clipped to the lumen the same way');
   assert.match(DUST_GLSL, /return acc \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(across\)\)\);/, 'nothing past the lumen\'s edge');
   assert.ok(MICRO_FS.includes(STREAK_FIELD_GLSL), 'the 3D lobule and sinusoid');
-  assert.match(VESSEL_FS, /vec4 dust = dustField\(across, /);
+  assert.match(VESSEL_FS, /dust = dustField\(across, /);
   assert.match(VESSEL_FS, /if \(streakAmt > 0\.001 && vR > 0\.0 && abs\(across\) < 0\.97\) \{/);
   // the JS twin: every lane count keeps every mark inside FIELD_EDGE of the half width, short of the ink (which starts at 1)
   for (const L of [3, 5, 7]) assert.ok(fieldReach(L) <= STREAK.FIELD_EDGE + 1e-9 && fieldReach(L) < 1, `${L} lanes: reach ${fieldReach(L)}`);

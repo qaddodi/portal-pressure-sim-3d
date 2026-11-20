@@ -116,29 +116,34 @@ test('tapers are monotone: along the first and last 30 % the radius moves from t
   });
 });
 
-test('a branch ends on its trunk: its last ring lies on the trunk\'s centreline (no gap), and its collar and cap stay inside the trunk (no stub out of the far wall)', () => {
+test('a junction is a fork: the branch ends on its trunk\'s centreline at its own width, behind the trunk, with no collar and no buried ring (the outline is the union\'s: neighbour.ts)', () => {
   on(() => {
     let fitted = 0;
     for (const v of MAPPED) {
       const sm = SMOOTH.get(v.id)!;
       const c = coursesOf(v, REST)[0]!;
       for (const end of [0, 1] as const) {
-        const cl = c.clamp?.[end];
-        if (!cl || !sm.attach[end]) continue;   // (a collateral's or a shunt's end keeps its course; only its collar is held, below)
+        if (!sm.attach[end]) continue;   // (a collateral's or a shunt's end keeps its course; only its collar is held, below)
         fitted++;
+        assert.equal(c.clamp?.[end] ?? null, null, `${v.id} end ${end}: no buried ring`);
+        assert.equal(c.flare?.[end] ?? null, null, `${v.id} end ${end}: no collar (a pad or a knot where it meets the trunk)`);
         const hosts = sm.attach[end]!.map((id) => coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts);
         const e = (end ? c.pts[c.pts.length - 1] : c.pts[0])!;
-        const hostR = cl.max / 0.8;
-        const d = Math.min(...hosts.map((h) => distToPoly(e, h)));
-        assert.ok(d < 0.15 * hostR, `${v.id} end ${end}: ${d.toFixed(4)} off the trunk's axis (radius ${hostR.toFixed(4)})`);
-        // the end ring and the cap are held to the allowance, and so the ball stays inside the trunk
+        const hostR = Math.max(...sm.attach[end]!.map((id) => NETWORK_BY_ID.get(id)!.radius));
+        const flat = (p: V3): V3 => [p[0], p[1], 0];   // (the figure's plane: the depth is the tuck, below)
+        const d = Math.min(...hosts.map((h) => distToPoly(flat(e), h.map(flat))));
+        assert.ok(d < 0.2 * hostR + 0.003, `${v.id} end ${end}: ${d.toFixed(4)} off the trunk's axis (radius ${hostR.toFixed(4)})`);
+        // the branch keeps its own width to its very end, and its end ball stays inside the trunk
         const { b: bt, run } = built(v.id), rk = bt.geometry.getAttribute('rk');
         const ringR = rk.getX(run.tubeStart + (end ? run.tubular : 0) * (run.radial + 1)) * v.radius, capR = rk.getX(run.capStart + end * run.capCount) * v.radius;
-        assert.ok(ringR <= cl.max + 1e-9, `${v.id} end ${end} ring ${ringR} over ${cl.max}`);
-        assert.ok(capR <= cl.max + 1e-9 && d + capR < hostR, `${v.id} end ${end} cap ${capR} stands out of a trunk of ${hostR}`);
+        assert.ok(ringR <= v.radius * 1.0001 && ringR >= v.radius * 0.97 * (c.taper?.[end] ?? 1), `${v.id} end ${end}: the end ring ${ringR} is the branch's own width ${v.radius}`);
+        assert.ok(d + capR < hostR * 1.05 + 0.003, `${v.id} end ${end} cap ${capR} stands out of a trunk of ${hostR}`);
+        // it ends a little behind the trunk's axis, so the trunk's wall covers its start (the order is decided by the axes' depths)
+        const hz = Math.min(...hosts.map((h) => { let best = Infinity, z = 0; for (const p of h) { const dd = Math.hypot(p[0] - e[0], p[1] - e[1]); if (dd < best) { best = dd; z = p[2]; } } return z; }));
+        assert.ok(e[2] < hz - 0.0015, `${v.id} end ${end}: ends ${(hz - e[2]).toFixed(4)} behind the trunk`);
       }
     }
-    assert.ok(fitted >= 6, `${fitted} branch ends fitted`);   // (was 7: ditto)
+    assert.ok(fitted >= 6, `${fitted} branch ends fitted`);
   });
   // (off: the same ends have no allowance and were never moved)
   off(() => { for (const v of MAPPED) assert.equal(coursesOf(v, REST)[0]!.clamp, undefined); });
@@ -311,29 +316,6 @@ test('a vein narrowing into a thin bed funnels over its whole length: its radius
       }
     }
     assert.ok(funnels >= 4, `${funnels} funnels`);
-  });
-});
-
-test('a fork\'s collar is never wider than the trunk it blends into (no blob at a junction), and the plain tube keeps its own width beyond it', () => {
-  on(() => {
-    let forks = 0;
-    for (const v of MAPPED) {
-      const c = coursesOf(v, REST)[0]!;
-      if (!c.radius) continue;   // (a varix's own tube is not drawn: its strands are, vessels/shape.ts)
-      for (const end of [0, 1] as const) {
-        const cl = c.clamp?.[end];
-        if (!cl || !v.flare?.[end]) continue;
-        forks++;
-        const { b, run } = built(v.id), rk = b.geometry.getAttribute('rk');
-        const trunk = cl.ceil! / CEIL;
-        let widest = 0;
-        for (let k = 0; k <= run.tubular; k++) widest = Math.max(widest, rk.getX(run.tubeStart + k * (run.radial + 1)) * v.radius);
-        assert.ok(widest <= Math.max(cl.ceil!, v.radius) + 1e-9, `${v.id} end ${end}: collar ${widest.toFixed(4)} against a trunk of ${trunk.toFixed(4)}`);
-        // (the middle of the tube is its own width)
-        assert.ok(Math.abs(rk.getX(run.tubeStart + Math.floor(run.tubular / 2) * (run.radial + 1)) - 1) < 1e-6 || v.flare?.[1 - end]);
-      }
-    }
-    assert.ok(forks >= 5, `${forks} collared forks`);
   });
 });
 

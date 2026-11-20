@@ -22,7 +22,7 @@ import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES } from './vessels/paths.copied.ts';
 import { centrelineOf, type Centreline } from './vessels/centreline.ts';
-import { cavaMateOf, forkMateOf, neighbourAttr } from './vessels/neighbour.ts';
+import { nbrMatesOf, cavaMateOf, neighbourAttr } from './vessels/neighbour.ts';
 import { fadeOf, opensIntoCava, cavaEndSpan, CAVA_LIKE, CAVA_RECEDE } from './vessels/fades.ts';
 import { IVC_EDGES } from './vessels/paths.copied.ts';
 import { LensField } from './lenses/field.ts';
@@ -141,8 +141,9 @@ export interface SceneOptions {
 
 /** A fork's two tubes know each other (vessels/neighbour.ts): `nbr` on every vertex. */
 function withNeighbour(id: string, g: BufferGeometry): void {
-  const a = neighbourAttr(id, g.getAttribute('position').array);
-  if (a) g.setAttribute('nbr', new Float32BufferAttribute(a, 2));
+  // (every tube carries it, zeros where it has no mate: a junction is a fork only with Smooth vessel joins on, and a toggle rewrites the tubes in place, which needs the attribute to be there either way)
+  const a = neighbourAttr(id, g.getAttribute('position').array) ?? new Float32Array(g.getAttribute('position').count * 2);
+  g.setAttribute('nbr', new Float32BufferAttribute(a, 2));
 }
 
 export class CelScene {
@@ -341,6 +342,8 @@ export class CelScene {
       if (!o) continue;
       const mate = (id: string | null | undefined) => { const m = on && id ? NETWORK_MATE.get(id) : undefined; return m ? { index: indexOf(m.lensId), baseD: m.baseD, widthKind: m.widthKind } : null; };
       o.setMates(mate(sj?.mate[0]), mate(sj?.mate[1]));
+      // (a junction's fork: the outline of the branch and its trunk is the union's, with the switch on)
+      { const nm = nbrMatesOf(def.id)[0], md = nm ? NETWORK_BY_ID.get(nm) : undefined; o.setNbrOn(!!md); if (md) o.setNbrMate(indexOf(md.lensId), md.baseD, md.widthKind); }
       // (a declared branch's end buried in its trunk: the ink stays off inside it, and only there. One rule for every junction, Mohammad 20 Nov: a child's outline is not drawn where it lies inside its parent's lumen.
       //  Besides the declared branches: a hepatic vein's last stretch inside the cava, and a liver branch's first stretch inside the vein it leaves, as far as that vein is wide)
       const bury: [number, number] = [0, 0];
@@ -384,7 +387,7 @@ export class CelScene {
     }, this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
     else this.fans.set(o, def.id);   // a fan of tributaries has no map course: it never morphs, and the Circuit's shader fades it as 2D does (clamp(1 - 2 * T0))
-    { const nm = forkMateOf(def.id) ?? cavaMateOf(def.id), md = nm ? NETWORK_BY_ID.get(nm) : undefined; if (md) { o.setNbrOn(true); o.setNbrMate(indexOf(md.lensId), md.baseD, md.widthKind); } }
+    { const nm = nbrMatesOf(def.id)[0], md = nm ? NETWORK_BY_ID.get(nm) : undefined; if (md) { o.setNbrOn(true); o.setNbrMate(indexOf(md.lensId), md.baseD, md.widthKind); } }
     { const cm = cavaMateOf(def.id); if (cm) { o.setCavaCut(true, indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1, fadeOf(cm, false)?.a0 ?? 1); this.cavaCuts.push(o); } }
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };

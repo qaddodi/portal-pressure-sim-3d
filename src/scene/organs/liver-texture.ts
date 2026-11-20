@@ -85,8 +85,8 @@ export const CELS: Record<string, Cel> = {
   // a smooth surface with a few broad faint shadowy dips, a few percent of shade, a slight warm-tan shift, and a gently waving rim (0.8 of the rim height: about 3 figure units).
   cel12: { name: 'soft valleys, subtle', colour: '#B07A45', a: 0.38, bands: 2, ink: 0, shade: 0.22, size: 60, rLo: 0, rHi: 1, jit: 0, cap: 0, foot: 0, bump: 0.15, rim: 0.8, soft: 1, raw: 0, field: true },
 };
-/** The standing cirrhotic liver is cel7 (Mohammad 20 Nov: "Cel7 for now"); `?liver=cel1..cel6` shows the other cel options and `?liver=c2b` the earlier pale-nodule surface. */
-export const DEFAULT_CEL = 'cel7';
+/** The standing cirrhotic liver is cel12, the subtle soft valleys (Mohammad 20 Nov: "it needs to be subtle", "let me see 1"; before it cel7, "Cel7 for now"); `?liver=cel1..cel11` shows the other cel options and `?liver=c2b` the earlier pale-nodule surface. */
+export const DEFAULT_CEL = 'cel12';
 export const celLook = (): Cel | null => { const v = flagValue('liver'); if (v === 'c2b') return null; return CELS[v ?? ''] ?? CELS[DEFAULT_CEL]!; };
 /** Smooth value noise at (x, y) (one lattice unit = 1): a hash at each lattice point, blended by a quintic ease, 0..1, C2 across the lattice. */
 function vnoise(x: number, y: number, seed: number): number {
