@@ -38,9 +38,11 @@ export function CheckCard({ deck, page = 0, pages = 1 }: { deck: Deck; page?: nu
 
   return (
     <>
-      <NameTab deck={deck} />
-      <h2 className="pz-h">{CHECK_TITLE}</h2>
-      <p className="pz-line">{CHECK_LINE}{pages > 1 ? <span className="dk-pageno"> · {page + 1} of {pages}</span> : null}</p>
+      <NameTab deck={deck} air={false} />
+      <div className="pz-ph">
+        <h1 className="pz-h">{CHECK_TITLE}</h1>
+        <p className="pz-line">{CHECK_LINE}{pages > 1 ? <span className="dk-pageno"> · {page + 1} of {pages}</span> : null}</p>
+      </div>
       <ol className="pz-check" ref={list} start={first + 1}>
         {shown.map(([q, a], j) => { const k = first + j; return (
           <li key={k} className={open.has(k) ? 'open' : undefined}>

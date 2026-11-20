@@ -80,6 +80,29 @@ export function barOf(vp: Viewport, colRight = 0): BarPlace {
   return { edge: 'foot', rect: { x, y, w, h: BAR_H }, title: !sideways && tw >= TITLE_MIN_W ? { x: tx, y, w: tw, h: BAR_H } : null };
 }
 
+/** The cards that stand alone in the middle of the screen (2D: the outline's and the quick check's `.pz-panel`, a case's `.pz-case`): they have no data card beside them and the page behind them is veiled.
+ *  Measures are 2D's own CSS (styles app-04-presenter.css .pz-panel, .pz-case; app-05 .pz.stack .pz-panel), worked out from the screen. */
+export type CentredKind = 'panel' | 'case';
+export const centredKind = (id: CardId): CentredKind | null => (id === 'title' || id === 'check' ? 'panel' : id === 'case' ? 'case' : null);
+const clampN = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+/** 2D's `--pzh`: 1vh, and on a portrait screen 700 px or wider the smaller of 1vh and .75vw. */
+export const pzhOf = (vp: Viewport) => (vp.h > vp.w && vp.w >= 700 ? Math.min(vp.h / 100, (0.75 * vp.w) / 100) : vp.h / 100);
+export function centredBox(vp: Viewport, kind: CentredKind): { w: number; maxH: number; top: number; room: number } {
+  const layout = layoutOf(vp.w, vp.h), pzh = pzhOf(vp), { safe } = vp;
+  const stack = layout === 'stack' || layout === 'tab';
+  if (kind === 'case') {
+    const w = layout === 'tab' ? 0.7 * vp.w : Math.min(vp.w - 32 - 2 * Math.max(safe.left, safe.right), 920);
+    return { w: Math.round(w), maxH: Math.round(vp.h - 2 * Math.max(84, 0.11 * vp.h)), top: 0, room: vp.h };
+  }
+  if (stack) {
+    // a phone's panel: 8 px from the top, 64 px (and the home bar) clear at the foot, centred between; an upright iPad's is 70% wide
+    const sb = Math.max(safe.bottom, 0), w = layout === 'tab' ? 0.7 * vp.w : vp.w - 16;
+    return { w: Math.round(w), maxH: Math.round(vp.h - 72 - sb), top: 8, room: vp.h - 72 - sb };
+  }
+  const w = Math.min(1560, vp.w - 2 * Math.max(clampN(0.03 * vp.w, 16, 64), safe.left, safe.right)), m = clampN(4 * pzh, 16, 56);
+  return { w: Math.round(w), maxH: Math.round(vp.h - 2 * m), top: m, room: vp.h - 2 * m };
+}
+
 /** The wallet's steps that fit across this screen (a column never reaches under the pill). */
 export function walletSteps(vp: Viewport) {
   const room = barOf(vp).rect.x - 8 - Math.max(vp.safe.left, 10);
@@ -119,7 +142,16 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
   let bounds: Rect;
   const extra: Rect[] = [];
 
-  if (sideways) {
+  const alone = words && !data ? centredKind(words.id) : null;
+  if (alone) {
+    // the outline, the quick check and a case: one card in the middle, as tall as its words need (never past its room), the figure framed whole behind the veil
+    const c = centredBox(vp, alone), h = Math.min(words!.h, c.maxH);
+    maxH.words = maxH.data = c.maxH;
+    const x = Math.round((vp.w - c.w) / 2), y = Math.round(c.top + (c.room - h) / 2);
+    placed.push({ id: words!.id, slot: 'words', rect: { x, y: alone === 'case' ? Math.round((vp.h - h) / 2) : y, w: c.w, h } });
+    bounds = { x: safe.left, y: safe.top, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - safe.bottom };
+    return { device, layout, sideways, cards: placed, strip: null, shut: false, docked: false, free: bounds, overflow: words!.h > c.maxH + 0.5 ? [words!.id] : [], maxH, bar };
+  } else if (sideways) {
     const steps = walletSteps(vp);
     const st = steps[Math.min(step, steps.length - 1)];
     const w = widthOf(vp, !!(words && data), step);

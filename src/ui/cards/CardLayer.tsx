@@ -2,7 +2,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { caseOf, type Deck, type ReadingKey, type Slide } from '../../decks/schema.ts';
 import { useUi } from '../ui-store.ts';
 import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
-import { planLayout, widthOf, stepsFor, type CardId, type Need, type Plan } from '../layout/plan.ts';
+import { planLayout, widthOf, stepsFor, centredKind, centredBox, type CardId, type Need, type Plan } from '../layout/plan.ts';
 import { isSideways, layoutOf } from '../layout/rules2d.ts';
 import type { Rect } from '../layout/device.ts';
 import { useStack } from './useStack.ts';
@@ -14,6 +14,7 @@ import { TeachingCard } from './TeachingCard.tsx';
 import { LadderCard } from './LadderCard.tsx';
 import { TilesCard, TilesHead } from './TilesCard.tsx';
 import { CheckCard } from './CheckCard.tsx';
+import { nameTabOf } from './NameTab.tsx';
 import { TableCard } from './TableCard.tsx';
 import { ToolCard } from '../talk/ToolCard.tsx';
 import { hasToolChart } from '../../decks/charts.ts';
@@ -61,7 +62,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // past the widest column the title takes one step down (never under 1.4× the words), then the words page: the body never shrinks
   const stepAt = sideways ? Math.min(stepMap[pagesKey] ?? 0, nSteps) : 0;
   const step = Math.min(stepAt, nSteps - 1), trim = stepAt >= nSteps;
-  const wide = Math.round(widthOf(vp, pair, step));
+  const alone = view && !view.data ? centredKind(view.words) : null;   // the outline, the quick check and a case stand alone in the middle at 2D's own width
+  const wide = alone ? centredBox(vp, alone).w : Math.round(widthOf(vp, pair, step));
   const hit = (key: string) => heights[`${key}@${wide}`];
   const h = (key: string) => hit(key)?.h ?? 0;
   const capOf = (v: NonNullable<typeof view>) => maxPages(v.words, v.slide && v.words === 'case' ? caseOf(v.slide)?.text : v.slide?.line, v.words === 'check' ? deck.checks.length : 0);
@@ -149,14 +151,17 @@ export function CardLayer({ deck }: { deck: Deck }) {
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
       <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onGone={stack.gone} label={labelOf(e.id)}
-        pointer={swipe} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? dataClass(e) : undefined}>
+        pointer={swipe} onTap={e.id === 'case' && e.phase === 'in' ? () => move('next') : undefined} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? dataClass(e) : e.id === 'check' && nameTabOf(deck) ? 'tabbed' : undefined}>
         {content(e)}
       </CardFrame>
     );
   });
 
+  // 2D's veil: behind the outline and the quick check the page is washed to its own colour (92%), so the card stands on a clear field
+  const veil = view.words === 'title' || view.words === 'check';
   return (
     <>
+      <div className={`pz-veil${veil ? ' on' : ''}`} aria-hidden="true" />
       {frames(wordsStack, 'words')}
       {frames(dataStack, 'data')}
       {stripStack.entries.map((e) => {
