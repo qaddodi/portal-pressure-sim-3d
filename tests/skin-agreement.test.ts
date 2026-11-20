@@ -34,7 +34,7 @@ function built(): { scene: CelScene; set: SkinSet; draws: Rec[]; was: boolean } 
   const parent = new Group();
   const set = new SkinSet({
     vessel: (id) => scene.vesselObject(id), stateOf: () => undefined,
-    make: (mesh) => { const got: Rec['got'] = []; const d: Rec = { mesh, got, object: new Group(), setArm(i, _f, _h, _l, _c, narrow) { got.push({ i, narrow }); }, setArc() {}, setPres() {}, setTransparent() {}, dispose() {} }; draws.push(d); return d; },
+    make: (mesh) => { const got: Rec['got'] = []; const d: Rec = { mesh, got, object: new Group(), setArm(i, _f, _h, _l, _c, narrow) { got.push({ i, narrow }); }, setArc() {}, setPres() {}, setArmCopy() {}, setTransparent() {}, dispose() {} }; draws.push(d); return d; },
     add: (o: Object3D) => parent.add(o), remove: (o: Object3D) => parent.remove(o), warn: () => {},
   });
   set.build(2);

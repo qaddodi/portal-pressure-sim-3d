@@ -45,6 +45,8 @@ export const SKIN_CIRCUIT_FADE = 0.35;
 
 /** The weighted sum of a per-arm float uniform array over all the arms (`wAt` and `wAtF` read the two weight attributes). */
 const BLEND = (name: string, w = 'wAt', comp = ''): string => Array.from({ length: SKIN_ARMS }, (_, i) => `${w}(${i}) * ${name}[${i}]${comp}`).join(' + ');
+/** The four arms' shares of THIS copy are read per arm: component `SKIN_COPY` of each arm's (front, solid, veil), spec 10.4. */
+const COPY_OF = (i: number): string => `armCopy[${i}][SKIN_COPY]`;
 
 export const SKIN_VS = /* glsl */ `
 const float SKIN_U = ${F(SKIN_FIGURE_UNITS)};
@@ -108,6 +110,9 @@ void main() {
 }`;
 
 export const SKIN_FS = /* glsl */ `
+#ifndef SKIN_COPY
+#define SKIN_COPY 0   // which of the three copies this program draws (0 front, 1 solid, 2 veil): the material's define; a plain skin is its front copy
+#endif
 ${FADE_GLSL}
 uniform float tubeDark;
 ${CEL_TUBE_GLSL}
@@ -136,6 +141,7 @@ uniform vec3 laneColA[5];
 uniform vec3 laneColB[5];
 uniform vec4 armData[${SKIN_ARMS}];
 uniform vec4 armAF[${SKIN_ARMS}];   // per arm (lensU, fade, hi, pres)
+uniform vec3 armCopy[${SKIN_ARMS}];   // each arm's shares of the three copies (front, solid, veil: vessel-object.ts copyShares); this program is ONE of them, SKIN_COPY
 uniform vec4 armColor[${SKIN_ARMS}];
 uniform vec4 armAxisP[${SKIN_ARMS * SKIN_AXIS_PTS}];   // xyz a point of the arm's axis, w the rest radius there
 uniform float skinK;
@@ -217,7 +223,7 @@ void main() {
   if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) discard;
   // the arms' alphas, blended by weight: the junction fade rule already holds on the tubes, so their seam alphas agree and the skin runs through them. On the Circuit's map the tubes become flat lines and the map draws its own
   // joins, so the skin fades out over the first SKIN_CIRCUIT_FADE of the morph (the arm tubes' cut fades back in over the same)
-  float alpha = (${BLEND('armAF', 'wAt', '.y')}) * (1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT));
+  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * armAF[${i}].y * ${COPY_OF(i)}`).join(' + ')}) * (1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT));
   if (alpha < 0.004) discard;
   // the live lumen's radius at the axis' depth, and the line the vertex stage built the mesh ink wider by (the tube's own rule: a share of the radius held between two CSS widths, thinned with a hairline)
   float swellB = 0.0;

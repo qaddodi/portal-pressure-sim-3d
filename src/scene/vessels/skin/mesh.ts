@@ -116,7 +116,7 @@ function axisFromRing(ring: Float32Array, J: Vec3): Capsule {
  * tube's own radial normals there. They are copied bit for bit into the skin, so there is no crack. `axes`, when given (`armCapsule` of each arm), shapes the fillet;
  * without them each arm's axis is recovered from its ring. Throws `SkinBuildError` when the hull misses a ring (spec 4.4.3).
  */
-export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[]): SkinMesh {
+export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS): SkinMesh {
   const A = j.arms.length, n = seamRings[0]!.length / 3, S = A * n;   // S: the ring vertices, ids 0..S-1 (arm * n + j), fixed for ever
   if (A < 2 || A > MAX_SKIN_ARMS || seamRings.length !== A || seamNormals.length !== A || cuts.length !== A) throw new SkinBuildError(j.node, 'needs 2 to 6 arms with a ring, a normal set and a cut each');
   const hull = ringHull(seamRings);
@@ -161,7 +161,7 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
       if (!ringEdge.has(kk) && dist(a, b) > SPLIT_AT * target(a, b)) want.add(kk);
     }
     if (!want.size) return 0;
-    if (pos.length / 3 + want.size > MAX_VERTS) throw new SkinBuildError(j.node, 'the mesh grew past its vertex limit');
+    if (pos.length / 3 + want.size > maxVerts) throw new SkinBuildError(j.node, 'the mesh grew past its vertex limit');
     const mid = new Map<number, number>();
     const midOf = (a: number, b: number): number => {
       const kk = ekey(a, b);

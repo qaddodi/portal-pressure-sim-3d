@@ -698,10 +698,49 @@ export function ellipsoidRingAngle(r: number, rings: number): number {
 }
 
 /** A round tube along a path (x, y, z points) with a radius per point and round ends, its normals smooth round the tube. */
-export function tube(b: MeshBuilder, path: readonly (readonly [number, number, number])[], radius: (i: number) => number, col?: RGB | ((i: number) => RGB), seg = 12, caps = true): void {
+export function tube(b: MeshBuilder, path: readonly (readonly [number, number, number])[], radius: (i: number) => number, col?: RGB | ((i: number) => RGB), seg = 12, caps = true, range?: TubeRange): void {
   const m = path.length;
   if (m < 2) return;
-  // a frame that turns as little as it can along the path (parallel transport), starting square to the first segment and to z where it can
+  const { T, N, Bn } = tubeFrames(path);
+  // (a piece of a path, for a welded junction: the rings i0..i1 of the whole path's own frames, so a cut tube's rings are exactly those the whole tube would have had)
+  const i0 = range?.i0 ?? 0, i1 = range?.i1 ?? m - 1, capStart = caps && (range?.capStart ?? true), capEnd = caps && (range?.capEnd ?? true);
+  const colAt = (i: number): RGB | undefined => (typeof col === 'function' ? col(i) : col);
+  const rows: number[] = [];
+  for (let i = i0; i <= i1; i++) {
+    rows.push(b.count);
+    const p = path[i]!, r = radius(i), nn = N[i]!, bn = Bn[i]!;
+    for (let k = 0; k < seg; k++) {
+      const a = (k / seg) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+      const dx = nn[0] * ca + bn[0] * sa, dy = nn[1] * ca + bn[1] * sa, dz = nn[2] * ca + bn[2] * sa;
+      b.v(p[0] + dx * r, p[1] + dy * r, p[2] + dz * r, dx, dy, dz, colAt(i));
+    }
+  }
+  for (let i = 0; i < i1 - i0; i++) b.strip(rows[i]!, rows[i + 1]!, seg, true);
+  if (!capStart && !capEnd) return;
+  // round ends: a half sphere at each end
+  for (const end of [i0, i1]) {
+    if (end === i0 ? !capStart : !capEnd) continue;
+    const p = path[end]!, r = radius(end), t = T[end]!, s = end === i0 ? -1 : 1, nn = N[end]!, bn = Bn[end]!;
+    const ringsE = 4, start: number[] = [rows[end - i0]!];
+    for (let q = 1; q <= ringsE; q++) {
+      const ph = (q / ringsE) * Math.PI / 2, cr = Math.cos(ph), sr = Math.sin(ph);
+      start.push(b.count);
+      for (let k = 0; k < seg; k++) {
+        const a = (k / seg) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+        const dx = (nn[0] * ca + bn[0] * sa) * cr + t[0] * s * sr, dy = (nn[1] * ca + bn[1] * sa) * cr + t[1] * s * sr, dz = (nn[2] * ca + bn[2] * sa) * cr + t[2] * s * sr;
+        b.v(p[0] + dx * r, p[1] + dy * r, p[2] + dz * r, dx, dy, dz, colAt(end));
+      }
+    }
+    for (let q = 0; q < ringsE; q++) { if (s > 0) b.strip(start[q]!, start[q + 1]!, seg, true); else b.strip(start[q + 1]!, start[q]!, seg, true); }
+  }
+}
+
+/** Which rings of a path `tube` builds (the whole path's own frames, so a cut piece's rings are the whole tube's), and which of its ends get a round cap. */
+export interface TubeRange { i0: number; i1: number; capStart?: boolean; capEnd?: boolean }
+
+/** A tube's frames along its path: the unit tangent, and the two unit vectors square to it (`N`, `Bn`) that a ring's vertices are laid out on (a frame that turns as little as it can: parallel transport, starting square to the first segment and to z where it can). */
+export function tubeFrames(path: readonly (readonly [number, number, number])[]): { T: [number, number, number][]; N: [number, number, number][]; Bn: [number, number, number][] } {
+  const m = path.length;
   const T: [number, number, number][] = [], N: [number, number, number][] = [], Bn: [number, number, number][] = [];
   for (let i = 0; i < m; i++) {
     const a = path[Math.max(0, i - 1)]!, c = path[Math.min(m - 1, i + 1)]!;
@@ -717,34 +756,7 @@ export function tube(b: MeshBuilder, path: readonly (readonly [number, number, n
     const bn = norm(cross(t, up)), nn = norm(cross(bn, t));
     N.push(nn); Bn.push(bn); up = nn;
   }
-  const colAt = (i: number): RGB | undefined => (typeof col === 'function' ? col(i) : col);
-  const rows: number[] = [];
-  for (let i = 0; i < m; i++) {
-    rows.push(b.count);
-    const p = path[i]!, r = radius(i), nn = N[i]!, bn = Bn[i]!;
-    for (let k = 0; k < seg; k++) {
-      const a = (k / seg) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
-      const dx = nn[0] * ca + bn[0] * sa, dy = nn[1] * ca + bn[1] * sa, dz = nn[2] * ca + bn[2] * sa;
-      b.v(p[0] + dx * r, p[1] + dy * r, p[2] + dz * r, dx, dy, dz, colAt(i));
-    }
-  }
-  for (let i = 0; i < m - 1; i++) b.strip(rows[i]!, rows[i + 1]!, seg, true);
-  if (!caps) return;
-  // round ends: a half sphere at each end
-  for (const end of [0, m - 1]) {
-    const p = path[end]!, r = radius(end), t = T[end]!, s = end === 0 ? -1 : 1, nn = N[end]!, bn = Bn[end]!;
-    const ringsE = 4, start: number[] = [rows[end]!];
-    for (let q = 1; q <= ringsE; q++) {
-      const ph = (q / ringsE) * Math.PI / 2, cr = Math.cos(ph), sr = Math.sin(ph);
-      start.push(b.count);
-      for (let k = 0; k < seg; k++) {
-        const a = (k / seg) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
-        const dx = (nn[0] * ca + bn[0] * sa) * cr + t[0] * s * sr, dy = (nn[1] * ca + bn[1] * sa) * cr + t[1] * s * sr, dz = (nn[2] * ca + bn[2] * sa) * cr + t[2] * s * sr;
-        b.v(p[0] + dx * r, p[1] + dy * r, p[2] + dz * r, dx, dy, dz, colAt(end));
-      }
-    }
-    for (let q = 0; q < ringsE; q++) { if (s > 0) b.strip(start[q]!, start[q + 1]!, seg, true); else b.strip(start[q + 1]!, start[q]!, seg, true); }
-  }
+  return { T, N, Bn };
 }
 
 /** A unit sphere (radius 1), for instanced round things (albumin, pores, nuclei). */
