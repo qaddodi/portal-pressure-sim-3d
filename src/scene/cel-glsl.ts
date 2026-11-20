@@ -21,8 +21,8 @@ vec3 celTubeBase(vec3 b) {
   vec3 c = clamp(mix(vec3(l), b, ${F(CEL_STYLE.TUBE.SAT)}), 0.0, 1.0);
   return c * min(min(1.0, ${F(CEL_STYLE.TUBE.LCAP)} / max(celTubeLum(c), 1e-3)), ${F(CEL_STYLE.TUBE.VCAP)} / max(max(c.r, max(c.g, c.b)), 1e-3));
 }
-// the fill: three flat tones across the tube, hue-preserving lightness steps (the shade a little more saturated, the lit the base lifted, never a mix to white). across -1..1, k celTubeK, rDev the radius in device px
-vec3 celTubeTone(vec3 base, float across, float k, float rDev) {
+// the wall: three flat tones across the tube, hue-preserving lightness steps (the shade a little more saturated, the lit the base lifted, never a mix to white). across -1..1, k celTubeK, rDev the radius in device px
+vec3 celTubeWall(vec3 base, float across, float k, float rDev) {
   float s = across * k, et = celTubeEt(k, rDev), hw = celTubeHw(rDev);
   float shadowT = 1.0 - smoothstep(${F(CEL_STYLE.SHADE_AT)} - et, ${F(CEL_STYLE.SHADE_AT)} + et, s);
   float litT = smoothstep(${F(CEL_STYLE.LIT_AT)} - et, ${F(CEL_STYLE.LIT_AT)} + et, s);
@@ -31,8 +31,12 @@ vec3 celTubeTone(vec3 base, float across, float k, float rDev) {
   sh = clamp(mix(vec3(celTubeLum(sh)), sh, ${F(CEL_STYLE.TUBE.SHADE_SAT)}), 0.0, 1.0);
   vec3 li = b * (1.0 + ${F(CEL_STYLE.TUBE.LIT_K)});
   li /= max(1.0, max(li.r, max(li.g, li.b)));   // (over 1 the whole colour is scaled, so its hue never slides)
-  vec3 wall = mix(mix(b, sh, hw * shadowT), li, hw * litT);
-  // the lumen seen through the wall: one flat darker step inside LUMEN_W of the tube's half width (the far wall), a hard edge, none on a hairline
+  return mix(mix(b, sh, hw * shadowT), li, hw * litT);
+}
+// an opaque tube (a strand, the lobule's vessels, a veiled vessel): the wall with the lumen seen through it as one flat darker step inside LUMEN_W of the half width, a hard edge, none on a hairline
+vec3 celTubeTone(vec3 base, float across, float k, float rDev) {
+  float hw = celTubeHw(rDev);
+  vec3 wall = celTubeWall(base, across, k, rDev);
   float window = 1.0 - smoothstep(${F(CEL_STYLE.TUBE.LUMEN_W)} - 0.5 * ${F(CEL_STYLE.EDGE_PX)} / max(rDev, 1e-3), ${F(CEL_STYLE.TUBE.LUMEN_W)} + 0.5 * ${F(CEL_STYLE.EDGE_PX)} / max(rDev, 1e-3), abs(across));
   return wall * (1.0 - hw * ${F(CEL_STYLE.TUBE.LUMEN_DARK)} * window);
 }

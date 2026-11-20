@@ -43,5 +43,5 @@ test('the vessels that have a free end in the 2D figure all have a fade in the s
 test('the shader carries the fade into both the body and the ink, and lets go of it in the Circuit', () => {
   assert.match(VESSEL_VS, /vFade = fa;/);
   assert.match(VESSEL_VS, /fa = mix\(fa, 1\.0, circT\)/, "the Circuit lets go of every fade, the artery's too: no vessel is faint on the map");
-  assert.equal((VESSEL_FS.match(/VEIL_A \* vFade/g) ?? []).length, 2);
+  assert.equal((VESSEL_FS.match(/VEIL_A \* vFade/g) ?? []).length, 3, "the ink, the near wall and the far wall");
 });

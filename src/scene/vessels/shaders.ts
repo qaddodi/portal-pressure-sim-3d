@@ -363,7 +363,11 @@ void main() {
     gl_FragColor = vec4(mix(mix(inkH, inkColorCirc, circT), hiColor, clamp(vHi, 0.0, 1.0)), mix(ca, 1.0, clamp(vHi, 0.0, 1.0)) * VEIL_A * vFade);
     return;
   }
+#ifdef FAR_WALL
+  if (gl_FrontFacing) discard;   // the far wall: the tube's back faces, the lumen's inside, opaque
+#else
   if (!gl_FrontFacing) discard;
+#endif
   if (dotted > 0.5) {
     // a closed potential collateral: a dotted thread along the tube's axis, nothing round it
     float dash = fract(vUv.x * len / 0.09);
@@ -383,11 +387,20 @@ void main() {
   float sl = length(sideS);
   sideS = sl > 1e-4 ? sideS / sl : vec2(1.0, 0.0);
   float kT = celTubeK(sideS);
+#ifdef FAR_WALL
+  vec3 c = celTubeBase(base) * (1.0 - ${F(CEL_STYLE.TUBE.FAR_DARK)});   // the lumen seen through the wall: ONE flat darker tone (the far wall), the flow heads and the devices over it
+#elif defined(NEAR_WALL)
+  vec3 c = celTubeWall(base, across, kT, rDev);   // the near wall: its three flat tones, laid over the lumen at NEAR_A
+#else
   vec3 c = celTubeTone(base, across, kT, rDev);
+#endif
   // the hard highlight: a flat pale streak on the lit side, at the middle of each stretch of the vessel (a long one has one every SPEC.PERIOD figure units, a short one has one), none on a hairline
   float lenU = len * vU, cntS = max(1.0, floor(lenU / ${F(CEL_STYLE.SPEC.PERIOD)} + 0.5));
   float alongR = (fract(vUv.x * cntS) - 0.5) * lenU / cntS / max(vR, 1e-4);
-  c = mix(c, vec3(1.0), celTubeSpec(across, kT, rDev, alongR) * (dotted > 0.5 ? 0.0 : 1.0));
+  float specK = celTubeSpec(across, kT, rDev, alongR) * (dotted > 0.5 ? 0.0 : 1.0);
+#ifndef FAR_WALL
+  c = mix(c, vec3(1.0), specK);
+#endif
   // a dark lumen on the dark looks (where the outline is no darker than the ground) gets a light edge a device pixel wide just inside its wall, hard-edged (2D rimInk)
   float lumY = dot(base, vec3(0.299, 0.587, 0.114));
   c = mix(c, rimInk.rgb, rimInk.a * (1.0 - smoothstep(0.2, 0.4, lumY)) * (1.0 - smoothstep(1.0 - ${F(CEL_STYLE.EDGE_PX * 0.5)}, 1.0 + ${F(CEL_STYLE.EDGE_PX * 0.5)}, (1.0 - abs(across)) * rDev)) * celTubeHw(rDev));
@@ -415,7 +428,8 @@ void main() {
     c = mix(c, mix(base, vec3(lum(base) > 0.5 ? 0.15 : 0.92), 0.5), smoothstep(0.62 - amt - nzW, 0.62 - amt + nzW, nz) * 0.3);
   }
 
-  // the flow heads, over the lit lumen as the 2D composite lays them
+  // the flow heads, over the lit lumen as the 2D composite lays them (on the far wall, inside the tube: the near wall's translucent tone is laid over them)
+#ifndef NEAR_WALL
   float pxArc = fwidth(vUv.x * len * vU);   // (a derivative: taken outside any branch)
   float acrossW = max(fwidth(across), 0.03);
   if (flowAmount > 0.001 && vR > 0.0) {
@@ -450,5 +464,11 @@ void main() {
       c = c * (1.0 - ha) + core * ac + rimc * ar * (1.0 - ac);
     }
   }
+#endif
+#ifdef NEAR_WALL
+  // the near wall is the one translucent layer (stencil bit 2: one layer per pixel, so a join never doubles it); the highlight is solid
+  gl_FragColor = vec4(c, mix(${F(CEL_STYLE.TUBE.NEAR_A)}, 1.0, specK / ${F(CEL_STYLE.SPEC.ALPHA)}) * VEIL_A * vFade);
+#else
   gl_FragColor = vec4(c, VEIL_A * vFade);
+#endif
 }`;
