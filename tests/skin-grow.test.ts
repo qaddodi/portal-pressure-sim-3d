@@ -99,14 +99,14 @@ test('the real network builds the growing arms it can, names the ones it cannot,
     for (const [n, gs] of Object.entries(GROWERS)) { const kept = gs.filter((g) => !DROPPED.includes(`${n}:${g.split(':')[0]}`)); if (kept.length) want[n] = kept; }
     const got = Object.fromEntries([...grown].filter(([, g]) => g.length));
     assert.deepEqual(got, want);
-    // the skins of the permanent junctions are all still there
-    for (const n of ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'SVC_E', 'SVC']) assert.ok(grown.has(n), `${n} still has its skin`);
+    // the skins of the permanent junctions are all still there (the SVC's two are one: their seams were under 1.5 radii apart, cuts.ts MIN_STUB_R)
+    for (const n of ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'SVC_E+SVC']) assert.ok(grown.has(n), `${n} still has its skin`);
   } finally { done(b); }
 });
 
 // ---- the second shape ----
 const RADIAL = TUBE_RADIAL;
-const capsOf = (ax: readonly ArmAxis[]): Capsule[] => ax.map((a) => ({ n: 4, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii) }));
+const capsOf = (ax: readonly ArmAxis[]): Capsule[] => ax.map((a) => ({ n: 4, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii), mate: a.mate }));
 const eachGrower = (b: ReturnType<typeof built>, f: (d: SkinObject, m: SkinMesh, g: SkinMesh['grow'][number], caps: Capsule[]) => void): number => {
   let n = 0;
   for (const d of b.draws) { const m = meshOf(b, d); for (const g of m.grow) { f(d, m, g, capsOf(b.axes.get(d)!)); n++; } }
@@ -140,7 +140,7 @@ test('morph, closed: every free vertex of the closed shape that is not on the ar
   try {
     const cp = new Float64Array(7);
     const n = eachGrower(b, (d, m, g, caps) => {
-      const arms = m.junction.arms, others = caps.filter((_, i) => i !== g.arm), kOthers = skinKOf(arms.filter((_, i) => i !== g.arm)), kAll = skinKOf(arms), Rmin = Math.min(...arms.map((a) => a.restR));
+      const arms = m.junction.arms, others = caps.filter((_, i) => i !== g.arm).map((c) => ({ ...c, mate: c.mate === undefined || c.mate < 0 ? c.mate : c.mate - (c.mate > g.arm ? 1 : 0) }))   /* (a run's mate is an index: it follows the arm that is left out) */, kOthers = skinKOf(arms.filter((_, i) => i !== g.arm)), kAll = skinKOf(arms), Rmin = Math.min(...arms.map((a) => a.restR));
       const V = m.position.length / 3, S = arms.length * RADIAL;
       let checked = 0;
       for (let v = 0; v < V; v++) {

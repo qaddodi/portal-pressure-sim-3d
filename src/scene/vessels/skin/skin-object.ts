@@ -6,7 +6,7 @@
 // and its veil copy (over the organs, seen through them). A skin that has such an arm is drawn the same way: ONE geometry, three meshes with a material each (`defines: { SKIN_COPY: 0 | 1 | 2 }`: one source, three programs), every copy's alpha the sum over the
 // arms of weight x that arm's share of that copy x its fade (skin/shaders.ts), the shares being the arm tube's own (VesselObject.copyShares, written through `setArmCopy`). A copy whose arms all have no share of it is not visible, so a plain junction (every
 // arm (1, 0, 0)) draws only its front copy, as before, and a skin is never visible where its arms are not: it has no visibility of its own, it inherits the arms' shares, fades, layers and grow state.
-import { BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, ShaderMaterial, Vector2, Vector3, Vector4, type IUniform, type Object3D } from 'three';
+import { BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, ShaderMaterial, Vector2, Vector4, type IUniform, type Object3D } from 'three';
 import { VESSEL_LAYER } from '../../layers.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import { SKIN_ARMS, SKIN_AXIS_PTS, SKIN_FS, SKIN_VS } from './shaders.ts';
@@ -24,7 +24,7 @@ export const SHARED_WITH_TUBES = [
 
 /** The four points of an arm's axis the fragment stage draws its ink from, with the rest radius at each: the node J (the bridge over the art's gap, spec 10.5; the next point again when the arm's end is at J), the start of the straight line
  *  through the seam, the seam, the far point. */
-export interface ArmAxis { pts: readonly [Vec3, Vec3, Vec3, Vec3]; radii: readonly [number, number, number, number] }
+export interface ArmAxis { pts: readonly [Vec3, Vec3, Vec3, Vec3]; radii: readonly [number, number, number, number]; /** the arm this one runs THROUGH the node with (through.ts): their union is a plain minimum, no blend */ mate?: number }
 
 /** An arm's own `color` uniform (rgb) and whether a lens colours it (a: its `lensUse`). */
 export interface ArmColour { r: number; g: number; b: number; a: number }
@@ -46,7 +46,7 @@ export class SkinObject implements SkinDraw {
   readonly copies: readonly Mesh[];
   /** the group the copies stand in (it is what the scene adds) */
   readonly object: Object3D;
-  private readonly armAF: Vector4[]; private readonly armCopy: Vector3[];
+  private readonly armAF: Vector4[]; private readonly armCopy: Vector4[];
   private readonly armData: Vector4[]; private readonly armColor: Vector4[]; private readonly armArc: Vector4[];
   /** the arms (indices) that grow, in the order of the mesh's morphs, and each arm's growth (1 whole) as the shader reads it */
   private readonly growArms: number[];
@@ -84,7 +84,7 @@ export class SkinObject implements SkinDraw {
     const armAxisP = Array.from({ length: SKIN_ARMS * SKIN_AXIS_PTS }, () => new Vector4());
     axes.forEach((ax, i) => ax.pts.forEach((p, k) => armAxisP[i * SKIN_AXIS_PTS + k]!.set(p[0], p[1], p[2], ax.radii[k]!)));
     this.armAF = Array.from({ length: SKIN_ARMS }, () => new Vector4(0, 1, 0, 1));
-    this.armCopy = Array.from({ length: SKIN_ARMS }, () => new Vector3(0, 0, 0));   // (an arm no arm fills has no share of any copy)
+    this.armCopy = Array.from({ length: SKIN_ARMS }, (_, i) => new Vector4(0, 0, 0, axes[i]?.mate ?? -1));   // (an arm no arm fills has no share of any copy; w is the arm it runs through the node with)
     // ONE uniforms object for the three programs (as the tube's veil shares the tube's): a value written once reaches every copy
     const uniforms: Record<string, IUniform> = {
       ...shared,
@@ -138,7 +138,7 @@ export class SkinObject implements SkinDraw {
 
   /** The shares arm `i` has of the three copies (its tube's `copyShares`), and which copies show now: one is visible while the arms' shares of it add up to something and some arm of the skin is there at all. */
   setArmCopy(i: number, front: number, solid: number, veil: number): void {
-    this.armCopy[i]!.set(front, solid, veil);
+    this.armCopy[i]!.set(front, solid, veil, this.armCopy[i]!.w);
     this.showCopies();
   }
   /** The shares arm `i` has now (front, solid, veil), as written by the handover. */
