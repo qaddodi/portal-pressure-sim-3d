@@ -533,6 +533,7 @@ void main() {
   if (dbgHeads < 0.5) headAcc = vec4(0.0);
 #endif
   headAcc = clamp(headAcc, 0.0, 1.0);   // (the arms' weights can sum past 1 while an arm grows: premultiplied marks never past 0 .. 1, or the lumen under them is inverted)
+  dustAcc *= dHold(alpha);   // (the dust follows this pixel's final alpha: blood/dust-glsl.ts dHold)
   c = c * (1.0 - dustAcc.a) + dustAcc.rgb;
   c = mix(c, cBody, headAcc.a);   // (the streaks lie UNDER the heads: a head's pixel is never tinted by one)
   c = c * (1.0 - headAcc.a) + headAcc.rgb;

@@ -147,3 +147,13 @@ test('the dust is colour only: the final alpha carries no dust term, and the ink
     assert.ok(!/alpha\s*(\*|=)[^;]*dust/i.test(src.replace(/\/\/.*$/gm, '')), `${name}: alpha is never scaled by the dust`);
   }
 });
+
+// The dust follows the pixel's final alpha (dHold) in the tube and the skin, and a NaN/inf from the lattice is no dust (dSafe), in both dust functions.
+test('the dust is held back by the pixel\'s final alpha and guarded against NaN', async () => {
+  const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
+  const { DUST_GLSL } = await import('../src/scene/blood/dust-glsl.ts');
+  assert.match(VESSEL_FS, /dHold\(fadeHere \* cavA\)/);
+  assert.match(SKIN_FS, /dustAcc \*= dHold\(alpha\);/);
+  assert.match(DUST_GLSL, /float dHold\(float a\) \{ return smoothstep\(0\.05, 0\.6, a\); \}/);
+  assert.equal((DUST_GLSL.match(/clamp\(dSafe\(acc\), 0\.0, 1\.0\)/g) ?? []).length, 2);
+});

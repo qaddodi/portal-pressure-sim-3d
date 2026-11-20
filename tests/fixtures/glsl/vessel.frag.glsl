@@ -297,7 +297,10 @@ vec3 dHsl2Rgb(vec3 h) {
   return vec3(dHue(p, q, h.x + 1.0 / 3.0), dHue(p, q, h.x), dHue(p, q, h.x - 1.0 / 3.0));
 }
 // the lab's shift(): hue by dh (a turn is 1), saturation by ds, lightness by dl
-vec3 dShift(vec3 c, float dh, float ds, float dl) { vec3 h = dRgb2Hsl(c); return dHsl2Rgb(vec3(fract(h.x + dh + 1.0), clamp(h.y + ds, 0.0, 1.0), clamp(h.z + dl, 0.04, 0.96))); }
+// THE HUE STAYS IN THE VESSEL'S FAMILY (Mohammad, 20 Nov: brown flecks in the faded vessels): the hue of a near-grey colour is noise (HSL's hue is 0/0 at grey) and adding the lab's saturation to it paints an arbitrary hue, brown on a faded blue.
+// The hue shift and the saturation added are both scaled by how much colour the base has (dShiftK), so a grey base stays grey and only the lightness varies.
+float dShiftK(float s) { return smoothstep(0.02, 0.12, s); }
+vec3 dShift(vec3 c, float dh, float ds, float dl) { vec3 h = dRgb2Hsl(c); float k = dShiftK(h.y); return dHsl2Rgb(vec3(fract(h.x + dh * k + 1.0), clamp(h.y + ds * k, 0.0, 1.0), clamp(h.z + dl, 0.04, 0.96))); }
 // THE FRAME a pixel of a vessel is seen in (the tube's own, or one arm's on a skin)
 struct DFrame {
   float across;   // the pixel across the lumen on screen (-1 .. 1)
@@ -459,6 +462,11 @@ float dFlow(float root) { return texelFetch(streamTex, ivec2(int(root), 0), 0).w
 
 // THE TUBE: every lane segment the pixel can see, of the current layout and (while it fades out) the last one
 // how much of the vessel's dust shows ("Key streaks only" eases a vessel's out: routes.ts KEEP_ROW)
+// THE DUST FOLLOWS THE PIXEL'S FINAL ALPHA (Mohammad, 20 Nov: dark specks and torn blocks at junctions, only with Blood streaks on): the dust is a colour inside the vessel's own, so a faded, veiled or half-present vessel (the cava, a vein into it, a vessel behind an
+// organ, a skin's seam) carries it at that alpha too; this holds it back further where the pixel is mostly gone, so a particle never stands out from a vessel that is not there (a plain ease, 0 below 0.05, whole from 0.6: nothing pops).
+float dHold(float a) { return smoothstep(0.05, 0.6, a); }
+// a NaN or an infinity from any term of the lattice (a degenerate route, a zero-width lane) becomes no dust, never a pixel of some other colour (a comparison with NaN is false)
+vec4 dSafe(vec4 v) { return dot(v, v) < 64.0 ? v : vec4(0.0); }
 float dKeep(float edge) { return texelFetch(routeTex, ivec2(int(edge), 25), 0).x; }
 bool dEdgeOk(float edge) { return edge >= 0.0 && edge < float(textureSize(routeTex, 0).x); }   // (a fetch outside the table is undefined: garbage, or NaN, on some GPUs)
 vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
@@ -495,7 +503,7 @@ vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
     }
   }
   // nothing past the lumen's edge: the dust stops short of the ink, with a soft fall (never a hard cut)
-  return clamp(acc, 0.0, 1.0) * keepT * (1.0 - smoothstep(0.90, 0.96, abs(F.across)));   // (premultiplied: never past 0 .. 1, or the lumen under it would be inverted)
+  return clamp(dSafe(acc), 0.0, 1.0) * keepT * (1.0 - smoothstep(0.90, 0.96, abs(F.across)));   // (premultiplied: never past 0 .. 1, or the lumen under it would be inverted)
 }
 // the segment of edge edge (current layout) that carries the root's lane yl, if any: its index (-1 none) and the particle's lane there and membership
 vec3 dFind(float edge, float root, float yl) {
@@ -562,7 +570,7 @@ vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
       }
     }
   }
-  return clamp(acc, 0.0, 1.0) * keepS * (1.0 - smoothstep(0.90, 0.96, abs(mix(F0.across, F1.across, w1))));
+  return clamp(dSafe(acc), 0.0, 1.0) * keepS * (1.0 - smoothstep(0.90, 0.96, abs(mix(F0.across, F1.across, w1))));
 }
 
 // (chevKeep, the lattice's keep, is in the one chevron chunk above: blood/chevron-glsl.ts)
@@ -815,7 +823,7 @@ void main() {
   // REAL FLOW (blood/routes.ts): the particles of the roots this vessel's lanes carry, in its own section, at their place on their root's stream. No fade at a skin's seam (the skin draws the same particles on); where tubes
   // still overlap at a joint with no skin they fade as the chevrons do (markK), the vessel it opens into drawing the same particles.
   vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(vW * 2.0 / (res.y * projY) * vU, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(skinCut.x >= 0.0 ? 1e6 : sD, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU);
-  fd = clamp(fd, 0.0, 1.0);   // (premultiplied marks are never past 0 .. 1: an alpha over 1 would invert the lumen under them, a blue one to yellow-green and a dark mark to black)
+  fd = clamp(fd, 0.0, 1.0) * dHold(fadeHere * cavA);   // (the dust follows this pixel's final alpha: dust-glsl.ts dHold; premultiplied marks are never past 0 .. 1: an alpha over 1 would invert the lumen under them, a blue one to yellow-green and a dark mark to black)
 #ifdef VDBG
   if (dbgDust < 0.5) fd = vec4(0.0);
 #endif

@@ -220,6 +220,11 @@ float dFlow(float root) { ${flowBody} }
 
 // THE TUBE: every lane segment the pixel can see, of the current layout and (while it fades out) the last one
 // how much of the vessel's dust shows ("Key streaks only" eases a vessel's out: routes.ts KEEP_ROW)
+// THE DUST FOLLOWS THE PIXEL'S FINAL ALPHA (Mohammad, 20 Nov: dark specks and torn blocks at junctions, only with Blood streaks on): the dust is a colour inside the vessel's own, so a faded, veiled or half-present vessel (the cava, a vein into it, a vessel behind an
+// organ, a skin's seam) carries it at that alpha too; this holds it back further where the pixel is mostly gone, so a particle never stands out from a vessel that is not there (a plain ease, 0 below 0.05, whole from 0.6: nothing pops).
+float dHold(float a) { return smoothstep(0.05, 0.6, a); }
+// a NaN or an infinity from any term of the lattice (a degenerate route, a zero-width lane) becomes no dust, never a pixel of some other colour (a comparison with NaN is false)
+vec4 dSafe(vec4 v) { return dot(v, v) < 64.0 ? v : vec4(0.0); }
 float dKeep(float edge) { return texelFetch(routeTex, ivec2(int(edge), ${KEEP_ROW}), 0).x; }
 bool dEdgeOk(float edge) { return edge >= 0.0 && edge < float(textureSize(routeTex, 0).x); }   // (a fetch outside the table is undefined: garbage, or NaN, on some GPUs)
 vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
@@ -256,7 +261,7 @@ vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
     }
   }
   // nothing past the lumen's edge: the dust stops short of the ink, with a soft fall (never a hard cut)
-  return clamp(acc, 0.0, 1.0) * keepT * (1.0 - smoothstep(0.90, 0.96, abs(F.across)));   // (premultiplied: never past 0 .. 1, or the lumen under it would be inverted)
+  return clamp(dSafe(acc), 0.0, 1.0) * keepT * (1.0 - smoothstep(0.90, 0.96, abs(F.across)));   // (premultiplied: never past 0 .. 1, or the lumen under it would be inverted)
 }
 // the segment of edge edge (current layout) that carries the root's lane yl, if any: its index (-1 none) and the particle's lane there and membership
 vec3 dFind(float edge, float root, float yl) {
@@ -323,7 +328,7 @@ vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
       }
     }
   }
-  return clamp(acc, 0.0, 1.0) * keepS * (1.0 - smoothstep(0.90, 0.96, abs(mix(F0.across, F1.across, w1))));
+  return clamp(dSafe(acc), 0.0, 1.0) * keepS * (1.0 - smoothstep(0.90, 0.96, abs(mix(F0.across, F1.across, w1))));
 }
 `;
 /** The Anatomy's: the root's stream distance is texel w of the streams' texture (blood/streams.ts). */
