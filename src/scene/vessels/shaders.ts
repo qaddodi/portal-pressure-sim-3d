@@ -242,6 +242,7 @@ uniform vec4 stentU;   // a stent in this vessel, drawn on the tube in the Circu
 uniform vec3 mate0;
 uniform vec3 mate1;
 uniform vec2 bury;   // the ink is held back ONLY inside a declared branch's trunk: how far from the branch's start and end (figure units per radius unit, 0: none: a run-on, a crossing, a free end keep their whole outline)
+uniform vec4 mouth;   // where a side branch leaves this vein (vessels/mouth.ts): x, y the stretch of the vein (0..1) whose wall the branch's lumen covers, z the side it leaves (+1 left of the heading, -1 right, 0 none), w the ease at each end
 uniform sampler2D streamTex;
 uniform sampler2D chainTex;
 uniform float streakAmt;   // how much of the streak layer shows (the Blood streaks setting, the view, the Circuit): 0 none
@@ -476,6 +477,15 @@ void main() {
   float dLat = tl > 1e-3 ? abs(dot(dvPx, vec2(-tS.y, tS.x) / tl)) : length(dvPx);
   float endK = vHi > 0.001 ? 1.0 : buryK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU);
   float inkT = smoothstep(rDevAx - 0.5, rDevAx + 0.5, dLat) * endK * inkOn;
+  // the outline of the two tubes together is the outline of their union: along the stretch of this vein's wall that a side branch's lumen covers, on the side it leaves, this vein draws no outline (and no fill outside its lumen,
+  // where the branch behind it shows), so no line closes the branch's mouth. It eases back in at each end, where the two outlines meet in the crotch.
+  float mouthK = 0.0;
+  if (mouth.z != 0.0 && tl > 1e-3) {
+    float sdSide = dot(dvPx, vec2(-tS.y, tS.x)) / tl, mg = max(mouth.w, 1e-4);
+    mouthK = smoothstep(mouth.x - mg, mouth.x + mg, vUv.x) * (1.0 - smoothstep(mouth.y - mg, mouth.y + mg, vUv.x)) * smoothstep(-0.5, 0.5, sdSide * mouth.z) * (1.0 - circT);
+  }
+  inkT *= 1.0 - mouthK;
+  if (mouthK > 0.5 && dLat > rDevAx + 0.5) discard;
   // in the Circuit the outline also sits a little inside the vessel and fades inward, so on a dark map the edge still reads (the ink outside it is lost on the ground)
   float inDepth = clamp(${F(CIRC_INNER.R)} * rDevAx, ${F(CIRC_INNER.MIN_PX)}, ${F(CIRC_INNER.MAX_PX)});
   c = mix(c, inkColorCirc, circT * ${F(CIRC_INNER.K)} * smoothstep(rDevAx - inDepth, rDevAx, dLat) * endK * inkOn);

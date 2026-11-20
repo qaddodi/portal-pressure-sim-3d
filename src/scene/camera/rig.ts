@@ -298,6 +298,9 @@ export class CameraRig {
     if (ease) { carry = 0; hv = null; }
     this.hv = hv;
     this.easeFn = ease;
+    // a dive between the lobule and the sinusoid from a standstill takes the gentler cubic ease: the quintic packs its middle (where the sinusoid crossfades over the lobule, share 0.42 to
+    // 0.86) into a quarter of the move, which read as a cut; the cubic spends a third of it there (with DIVE_SINUSOID_MS, about 0.6 s)
+    if (!ease && carry === 0 && !hv && isDive(this.from, this.to) && Math.max(this.from.shot.r, this.to.shot.r) / Math.max(1e-12, Math.min(this.from.shot.r, this.to.shot.r)) < PLUNGE_RATIO) this.easeFn = (k: number) => k * k * (3 - 2 * k);
     this.from = { shot: copyShot(this.cur.shot), room: copyRoom(this.cur.room) };
     this.to = { shot: copyShot(s), room: copyRoom(room) };
     this.scaleFrom = { ...this.scaleNow };

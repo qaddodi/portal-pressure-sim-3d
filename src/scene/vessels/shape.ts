@@ -47,13 +47,24 @@ export const REST: ShapeState = { wig: 0, spr: 1, rec: 1, bead: 0, bands: 0, str
 const smooth = (u: number) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
 /** The course in the scene: x and y by the one linear map; depth is the vessel's tier between, easing over its first and last quarter to the depth of the node it meets, so
  *  joined vessels meet at one depth (a vessel in front and one behind it would otherwise stand apart in a turned view). */
-const to3 = (pts: readonly (readonly [number, number])[], z: number, from?: number, to?: number, shareFrom = 0.25, shareTo = 0.25, through = false): Vec3[] => pts.map(([x, y], i, a): Vec3 => {
-  const u = i / Math.max(1, a.length - 1);
-  // (`through`: smooth joins, a vessel that ends in the right atrium: no level of its own, one gentle slope from the depth it starts at to the atrium's)
-  if (through && to != null) { const z0 = from ?? z; return [x3(x), y3(y), z0 + (to - z0) * smooth(u)]; }
-  const zz = z + (from == null ? 0 : (from - z) * (1 - smooth(u / shareFrom))) + (to == null ? 0 : (to - z) * (1 - smooth((1 - u) / shareTo)));
-  return [x3(x), y3(y), zz];
-});
+/** The steepest a vessel's depth may change along its course (rise per unit run, about 50 degrees at the steepest point of the ease): a tube diving at the camera is shaded by its normals, not by its colour. */
+export const DEPTH_SLOPE_CAP = 1.2;
+const to3 = (pts: readonly (readonly [number, number])[], z: number, from?: number, to?: number, shareFrom = 0.25, shareTo = 0.25, through = false): Vec3[] => {
+  // (the easing runs over the share of the course's LENGTH, not of its point count: a course whose points are bunched (the umbilical vein's leave-the-wall bend) would otherwise climb to its tier within the bend, a tube
+  //  diving at the camera, whose shading is a dark patch (20 Nov, the eyes' crops of 4089d1a))
+  const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
+  const total = cum[cum.length - 1]! || 1;
+  // (and a change of depth never runs steeper than DEPTH_SLOPE_CAP: a short course between far tiers eases over more of itself than a quarter)
+  const wide = (dz: number, share: number): number => Math.min(0.5, Math.max(share, (1.5 * Math.abs(dz)) / (DEPTH_SLOPE_CAP * len3(total))));
+  const sf = from == null ? shareFrom : wide(from - z, shareFrom), st = to == null ? shareTo : wide(to - z, shareTo);
+  return pts.map(([x, y], i): Vec3 => {
+    const u = cum[i]! / total;
+    // (`through`: smooth joins, a vessel that ends in the right atrium: no level of its own, one gentle slope from the depth it starts at to the atrium's)
+    if (through && to != null) { const z0 = from ?? z; return [x3(x), y3(y), z0 + (to - z0) * smooth(u)]; }
+    const zz = z + (from == null ? 0 : (from - z) * (1 - smooth(u / sf))) + (to == null ? 0 : (to - z) * (1 - smooth((1 - u) / st)));
+    return [x3(x), y3(y), zz];
+  });
+};
 
 /** Smooth joins: the depth each end eases to. Most nodes are the network's own (NODE_Z, a quarter of the course); a vessel that ends in the right atrium (smooth-joins.ts NODE_RISE) runs on a
  *  single slope to the atrium's back wall, so the cava and the SVC meet the heart at one depth and, turned, enter it (`through`). */
