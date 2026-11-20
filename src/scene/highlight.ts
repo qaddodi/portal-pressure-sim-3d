@@ -172,6 +172,12 @@ export class Highlight {
     }
   }
 
+  /** The shunt's target under the pointer (the lit ones stay lit): its outline stands a little further out (2D shuntGlow: stronger and wider); null lets it go. */
+  setHover(id: string | null): void {
+    const host = id ? (this.hostOf.get(id) ?? id) : null;
+    for (const [eid, t] of this.tracks) if (t.target === 1) t.liftTarget = host != null && (this.hostOf.get(eid) ?? eid) === host ? PICK_LIFT * 1.7 : 0;
+  }
+
   /** All the pieces of the vein a picked piece belongs to. */
   private group(id: string): string[] {
     const host = this.hostOf.get(id) ?? id;

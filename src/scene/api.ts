@@ -151,6 +151,12 @@ export const sceneApi = {
   },
   /** Edge IDs the slide talks about; in flow-mark option A these (and the picked vessel) carry chevrons. */
   setNamedVessels(ids: readonly string[]): void { cel.setNamedVessels(ids); clock.invalidate('named-vessels'); },
+  /** The shunt waiting for its target (ui/action/shunt.ts): the vessel under a canvas point, the target under the pointer standing out, and the dashed guide from the vessel it starts at. */
+  shunt: {
+    vesselAt(x: number, y: number): string | null { return cel.vesselAtPoint(x, y); },
+    hover(id: string | null): void { cel.hoverVessel(id); clock.invalidate('shunt-guide'); },
+    guide(src: string | null, x: number, y: number, color: string): void { cel.setShuntGuide(src, x, y, color); clock.invalidate('shunt-guide'); },
+  },
   /** Light exactly these vessels (edge IDs), as the shunt's valid targets glow; [] puts them out. Replaces the pick. */
   markVessels(ids: readonly string[]): void { cel.markVessels(ids); clock.invalidate('mark'); },
   /** Outline organs by the organ layer's ids (a slide's glow, spot or term naming an organ); `normalSpleen` also draws the normal-sized spleen's line. [] clears. */
