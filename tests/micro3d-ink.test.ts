@@ -23,8 +23,8 @@ test('the ink never z-fights its shape, is thick enough to read and near black (
   const m = microMaterials({ value: new Vector2(1, 1) }, { value: 1 } as never, { haze: hazeUniforms() } as never);
   assert.equal(m.toon.polygonOffset, true, 'the fill is offset toward the eye, so it always wins over its own ink at one depth');
   assert.ok(m.toon.polygonOffsetFactor < 0 && m.toon.polygonOffsetUnits < 0);
-  assert.ok(CEL_STYLE.MICRO.LINE >= 2 && CEL_STYLE.MICRO.LINE_SMALL >= 1.5, 'a line of 1.5 to 2 CSS px, never a sub-pixel stipple');
-  assert.ok(CEL_STYLE.MICRO.INK_K <= 0.25, 'the ink is near black');
+  assert.ok(CEL_STYLE.MICRO.LINE >= 1.25 && CEL_STYLE.MICRO.LINE <= 2 && CEL_STYLE.MICRO.LINE_SMALL <= 1, 'a confident line round big bodies, a hairline round fine things (Mohammad 20 Nov: "too much")');
+  assert.ok(CEL_STYLE.MICRO.INK_K <= 0.3, 'the ink is dark');
   const fs = await import('node:fs');
   const src = fs.readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
   for (const part of ['rbc', 'nuclei', 'kup', 'hsc', 'albumin', 'bile']) assert.match(src, new RegExp(`this\\.${part}\\.setInk\\(inkOf\\(`), `${part} uses the one near-black ink rule`);
