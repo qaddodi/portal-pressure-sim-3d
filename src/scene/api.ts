@@ -45,10 +45,10 @@ export const gesturesRef: { current: Gestures | null } = { current: null };
 export const usePick = create<{ picked: string | null }>(() => ({ picked: null }));
 
 export const sceneApi = {
-  /** Fly the camera to a named shot, fitted into the room the cards leave free. One straight move from wherever it is (950 ms). */
-  goTo(shot: ShotName | Shot, room: Room, ms?: number): void {
+  /** Fly the camera to a named shot, fitted into the room the cards leave free. One straight move from wherever it is (950 ms). `ease`: a curve of its own for a long, even glide (a time-lapse's slow push, hp/lapse-push.ts); the default is the glide's quintic with the speed carried on. */
+  goTo(shot: ShotName | Shot, room: Room, ms?: number, ease?: (k: number) => number): void {
     gesturesRef.current?.handsOff();   // a new shot ends what the hand started: its zoom and pan come home with the move
-    cel.goTo(shot, room, performance.now(), ms ?? cel.rig.reachMs(shot));
+    cel.goTo(shot, room, performance.now(), ms ?? cel.rig.reachMs(shot), ease);
     clock.invalidate('shot');
   },
   /** Follow a world point with the camera's aim, smoothly and without restarting any move (the catheter's tip on its way in); null stops. */

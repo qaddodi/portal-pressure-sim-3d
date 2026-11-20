@@ -3,6 +3,7 @@
 // nothing here imports the engine, and nothing in the engine imports this.
 
 import { toolStep } from './talk/tool-step.ts';
+import { lapseNext } from './deck/lapse-next.ts';
 import { create } from 'zustand';
 import type { Deck } from '../decks/schema.ts';
 import type { Rect, Viewport } from './layout/device.ts';
@@ -96,6 +97,8 @@ export const useUi = create<UiState>((set, get) => ({
   move: (m) => {
     const { stops, pos, wallet, page, pageCount } = get();
     if (!stops.length) return;
+    // a time-lapse still running its days: the first Next runs them to their end, the second moves on (2D V-SLIDE-10; ui/deck/lapse-next.ts)
+    if (m === 'next' && lapseNext()) return;
     // a split card turns its pages before the talk moves on
     const at = page === 'last' ? pageCount - 1 : Math.min(page, pageCount - 1);
     if (m === 'next' && at < pageCount - 1) { set({ page: at + 1 }); return; }
