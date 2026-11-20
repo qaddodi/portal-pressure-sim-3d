@@ -44,8 +44,8 @@ test('pressure: a congested portal vein reads hotter than the vena cava, from th
 
 test('velocity is neutral where there is no normal to compare to (the liver\'s beds)', () => {
   const d = computeLens('velocity', c.frame, 'light', ctx as never);
-  const neutral = lensColourAt(d, 'PRE_R', 0)!;
-  for (const id of ['SIN_R', 'POST_R_RHV']) if (edgeIndex.has(id)) assert.deepEqual(lensColourAt(d, id, 0), neutral, id);
+  const neutral = lensColourAt(d, 'PRE_R', 2)!;   // (a third along: the vessel's own colour, its ends take its junctions')
+  for (const id of ['SIN_R', 'POST_R_RHV']) if (edgeIndex.has(id)) assert.deepEqual(lensColourAt(d, id, 2), neutral, id);
 });
 
 test('direction: a vein whose flow runs against the healthy patient\'s wears the reversed colour', () => {
@@ -80,7 +80,7 @@ test('the portal trunk of a healthy patient is mostly gut blood; of a cirrhotic 
 test('the system lens gives the three territories three colours (portal, caval, collateral)', () => {
   const d = computeLens('system', c.frame, 'light', ctx as never);
   const seen = new Set<string>();
-  for (let k = 0; k < LENS_EDGE_COUNT; k++) { if (isArtery(k)) continue; const col = lensColourAt(d, edges[k]!.id, 0); if (col) seen.add(`${systemOf(EDGES[k] as never)}:${col.join()}`); }
+  for (let k = 0; k < LENS_EDGE_COUNT; k++) { if (isArtery(k)) continue; const col = lensColourAt(d, edges[k]!.id, 2); if (col) seen.add(`${systemOf(EDGES[k] as never)}:${col.join()}`); }   // (a third along: the vessel's own colour)
   assert.equal(new Set([...seen].map((s) => s.split(':')[0])).size, 3);
   const perSystem = new Map<string, Set<string>>();
   for (const s of seen) { const [sys, col] = s.split(':'); (perSystem.get(sys!) ?? perSystem.set(sys!, new Set()).get(sys!)!).add(col!); }
@@ -239,4 +239,24 @@ test('streams advance with time and not with frames: the same seconds, the same 
   const run = (step: number) => { const s = new Streams(); s.setHealthy(h.healthy as never); s.onFrame(c.frame as never); for (let t = 0; t <= 6000; t += step) s.step(t); const d = (s.texture.image.data as Float32Array)[edgeIx.get('PV_TRUNK')! * 4]!; s.texture.dispose(); return d; };
   const a = run(16), b = run(50);
   assert.ok(Math.abs(a - b) < 0.05 * Math.max(1, Math.abs(a)), `${a} vs ${b}`);
+});
+
+test('a lens that gives a vessel one colour still changes gradually: every vein that meets at a node ends in that node\'s one colour, and keeps its own through its middle (no hard line at a junction)', async () => {
+  const { presetIds, presetState } = await import('./b4-presets.ts');
+  const E = EDGES as { id: string; from: string; to: string }[];
+  for (const lens of ['velocity', 'flow', 'drop', 'direction', 'system'] as const) {
+    for (const id of ['cirr-decomp', 'healthy']) {
+      const f = (await presetState(id)).frame;
+      const d = computeLens(lens, f, 'light', ctx as never);
+      const at = new Map<string, number[][]>();
+      for (const [k, e] of E.entries()) {
+        const a = lensColourAt(d, e.id, 0), b = lensColourAt(d, e.id, 1);
+        if (!a || !b) continue;
+        (at.get(e.from) ?? at.set(e.from, []).get(e.from)!).push(Array.from(a));
+        (at.get(e.to) ?? at.set(e.to, []).get(e.to)!).push(Array.from(b));
+        void k;
+      }
+      for (const [node, cols] of at) for (const c1 of cols) for (let i = 0; i < 3; i++) assert.ok(Math.abs(c1[i]! - cols[0]![i]!) < 1e-5, `${lens} ${id}: veins meeting at ${node} end in different colours`);
+    }
+  }
 });
