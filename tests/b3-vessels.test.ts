@@ -212,3 +212,15 @@ test('against the 2D app\'s own SVG courses: every sample lies on its path (with
     });
   }
 });
+
+import { NETWORK as NET_Z, NODE_Z as NZ } from '../src/scene/vessels/network.ts';
+import { TIER_Z as TZ } from '../src/scene/frame2d.ts';
+test('at a fork the widest vessels keep their tier (the cava does not bulge toward the camera at each hepatic or renal vein: the zigzag IVC)', () => {
+  for (const n of ['IVCI', 'IVC_D', 'ILI', 'ILI_R']) assert.equal(NZ.get(n), TZ.back, `${n} stays on the cava's own tier`);
+  // one rise along the cava, to the hepatic junction: no bulge at the renal veins or the shunts' ends, then a dip, then the rise
+  const z = ['ILI', 'IVCI', 'IVC_D', 'IVCS'].map((n) => NZ.get(n)!);
+  for (let i = 1; i < z.length; i++) assert.ok(z[i]! >= z[i - 1]! - 1e-9, `the cava never dips back on its way up: ${z.join(', ')}`);
+  for (const n of ['PVH', 'CONF']) assert.equal(NZ.get(n), TZ.front, `${n} stays on the portal tree's tier`);
+  const two = NET_Z.filter((v) => !v.feeder && (v.from === 'SVC' || v.to === 'SVC'));
+  assert.ok(two.length === 2 && NZ.get('SVC') !== undefined, 'a node of two still eases between its tiers');
+});

@@ -13,8 +13,8 @@ import type { LookId } from '../../looks/looks.ts';
 
 /** The radial Zones' hard boundaries (share of R): the middle of 2D's 0.18 → 0.5 and 0.5 → 0.85 ramps. */
 export const ZONE_EDGES = [0.34, 0.675] as const;
-/** How strong a lightness jump per device pixel must be to count as an edge worth an ink line (a fraction of the shade tone's strength: a membrane is, a soft gradient is not). */
-export const EDGE_LO = CEL_STYLE.SHADE * 0.3, EDGE_HI = CEL_STYLE.SHADE * 0.7;
+/** How strong a lightness jump per device pixel must be to count as an edge worth an ink line (the painted lines' own contrast, CEL_STYLE.TISSUE, not a share of the tone strength: a membrane is, a soft gradient is not). */
+export const EDGE_LO = CEL_STYLE.TISSUE.EDGE_LO, EDGE_HI = CEL_STYLE.TISSUE.EDGE_HI;
 /** A neighbour tile's softness: the figure's edge width grows with the blur (mip bias) the field is drawn at. */
 export const FIELD_EDGE_PER_MIP = 0.04;
 
@@ -23,9 +23,10 @@ const n = (v: number) => v.toFixed(5);
 /** GLSL: the shared cel step plus the tissue's: `celTissue(c, base lightness, edge width)` and `celEdge`. Fragment shaders only (fwidth, dFdx). */
 export const CEL_TISSUE_GLSL = /* glsl */ `
 ${CEL_QUANT_GLSL}
-const float CEL_SHADE_AT = ${n(CEL_STYLE.SHADE_AT)};
-const float CEL_LIT_AT = ${n(CEL_STYLE.LIT_AT)};
+const float CEL_SHADE_AT = ${n(CEL_STYLE.TISSUE.SHADE_AT)};
+const float CEL_LIT_AT = ${n(CEL_STYLE.TISSUE.LIT_AT)};
 const float CEL_LINE_MIN = ${n(CEL_STYLE.LINE_MIN)};
+const float CEL_DETAIL = ${n(CEL_STYLE.TISSUE.DETAIL)};
 const float CEL_EDGE_LO = ${n(EDGE_LO)};
 const float CEL_EDGE_HI = ${n(EDGE_HI)};
 // c: the painted colour; lb: its local (blurred) lightness; w: the soft edge between two tones, in the units of the relative lightness (one pixel)
@@ -36,8 +37,8 @@ vec3 celTissue(vec3 c, float lb, float w) {
   // the tone's lightness: the base's own, the shade's share lower, the lit's share toward white
   float lq = mix(mix(lb, lb * (1.0 - CEL_SHADE), sh), lb + (1.0 - lb) * CEL_LIT, lt);
   vec3 t = c * clamp(lq / l, 0.5, 1.5);
-  // detail (twice a tone away from the base: a membrane line, a nucleolus) stays as painted
-  float keep = (1.0 - smoothstep(2.0 * CEL_SHADE_AT - w, 2.0 * CEL_SHADE_AT + w, dev)) + smoothstep(2.0 * CEL_LIT_AT - w, 2.0 * CEL_LIT_AT + w, dev);
+  // detail (further from the base than CEL_DETAIL: a membrane line, a nucleolus) stays as painted
+  float keep = (1.0 - smoothstep(-CEL_DETAIL - w, -CEL_DETAIL + w, dev)) + smoothstep(CEL_DETAIL - w, CEL_DETAIL + w, dev);
   return mix(t, c, clamp(keep, 0.0, 1.0));
 }
 // the lightness jump across one device pixel's neighbourhood of a painted plate (premultiplied RGBA in a sampler): 0 flat, large at a line
@@ -62,10 +63,10 @@ const luma = (c: readonly number[]) => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * c
 /** The JS twin of `celTissue` with a hard edge (w = 0), for the tests and for reading what a pixel becomes: c the painted colour, lb its local lightness. */
 export function celTissueJS(c: readonly [number, number, number], lb: number): [number, number, number] {
   const l = Math.max(luma(c), 1e-4), dev = (l - lb) / Math.max(lb, 0.08);
-  if (dev < 2 * CEL_STYLE.SHADE_AT || dev > 2 * CEL_STYLE.LIT_AT) return [c[0], c[1], c[2]];
-  const lq = dev < CEL_STYLE.SHADE_AT ? lb * (1 - CEL_STYLE.SHADE) : dev > CEL_STYLE.LIT_AT ? lb + (1 - lb) * CEL_STYLE.LIT : lb;
+  if (dev < -CEL_STYLE.TISSUE.DETAIL || dev > CEL_STYLE.TISSUE.DETAIL) return [c[0], c[1], c[2]];
+  const lq = dev < CEL_STYLE.TISSUE.SHADE_AT ? lb * (1 - CEL_STYLE.SHADE) : dev > CEL_STYLE.TISSUE.LIT_AT ? lb + (1 - lb) * CEL_STYLE.LIT : lb;
   const g = Math.min(1.5, Math.max(0.5, lq / l));
   return [c[0] * g, c[1] * g, c[2] * g];
 }
 /** The tone a pixel falls in against its local lightness: 0 shade, 1 base, 2 lit (cel-style.ts celBand on the relative lightness). */
-export const tissueTone = (l: number, lb: number): 0 | 1 | 2 => { const d = (l - lb) / Math.max(lb, 0.08); return d < CEL_STYLE.SHADE_AT ? 0 : d >= CEL_STYLE.LIT_AT ? 2 : 1; };
+export const tissueTone = (l: number, lb: number): 0 | 1 | 2 => { const d = (l - lb) / Math.max(lb, 0.08); return d < CEL_STYLE.TISSUE.SHADE_AT ? 0 : d >= CEL_STYLE.TISSUE.LIT_AT ? 2 : 1; };

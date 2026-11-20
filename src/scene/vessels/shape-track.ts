@@ -94,9 +94,6 @@ export class ShapeTracks {
     return moving;
   }
 
-  /** Forgets what each shape was last built as, so the next step builds every one again from its present state (Atlas art swapped the courses under them: atlas-art/vessels.ts). */
-  invalidate(): void { for (const it of this.items) it.built = ''; }
-
   /** Eases the shapes one frame; true while any is still moving. */
   step(dtMs: number): boolean {
     let moving = false;

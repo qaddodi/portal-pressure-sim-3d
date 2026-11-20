@@ -23,7 +23,6 @@ import { lookCapture } from '../debug/look-hook.ts';
 import { lobulePicked } from './lobule/pick-store.ts';
 import { lobuleSel } from './lobule/pick.ts';
 import { bindOrganSettings } from './organs/organ-settings.ts';
-import { bindAtlasSettings } from './atlas-art/index.ts';
 import { cel, frames, gesturesRef, sceneApi } from './api.ts';
 import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
@@ -100,9 +99,6 @@ function SceneBridge() {
   // Settings > Figure depth: Organ depth and Organ fill drive the organs live (the layer eases them on the clock)
   useEffect(() => bindOrganSettings(cel.disease.organs, useSettings, (why) => clock.invalidate(why)), []);
 
-  // Settings > Figure depth > Atlas art: Classic (nothing loaded) or Atlas (the artist's organs and vessel courses, fetched when chosen)
-  useEffect(() => bindAtlasSettings(cel.atlas, useSettings), []);
-
   // Settings > Figure detail caps the pixel ratio; with Sharp while moving off, the figure drops to 1x while a gesture or a camera move runs and comes back sharp when it settles (2D's rule)
   const setDpr = useThree((s) => s.setDpr);
   useEffect(() => {
@@ -151,6 +147,7 @@ function SceneBridge() {
       ask: frames.ask, cancel: frames.cancel,
       timer: (fn, ms) => window.setTimeout(fn, ms), clearTimer: (id) => window.clearTimeout(id),
       reduceMotion: () => matchMedia('(prefers-reduced-motion: reduce)').matches,
+      locked: () => useDeck.getState().mode === 'deck',   // (in a talk the camera is the slide's: the figure is not turned, panned or zoomed by hand)
       viewport: () => cel.rig.stageSize,
     }, window as unknown as GestureTarget);
     gesturesRef.current = g;
@@ -161,7 +158,7 @@ function SceneBridge() {
   // Locked (it eases to square) while a gesture runs or the view is not the body; a camera move locks it in the rig itself.
   useEffect(() => {
     const rig = cel.rig;
-    rig.tiltGate = { on: () => useSettings.getState().tilt, locked: () => !!gesturesRef.current?.active || cel.view !== 'body' || cel.circuit.t > 0 };
+    rig.tiltGate = { on: () => useSettings.getState().tilt, locked: () => !!gesturesRef.current?.active || cel.view !== 'body' || cel.circuit.t > 0 || useDeck.getState().mode === 'deck' };
     const off = installTilt({
       rig, wake: (tag) => clock.invalidate(tag), on: () => useSettings.getState().tilt, reduced,
       onSwitch: (fn) => { let was = useSettings.getState().tilt; return useSettings.subscribe((s) => { if (s.tilt !== was) { was = s.tilt; fn(was); } }); },
