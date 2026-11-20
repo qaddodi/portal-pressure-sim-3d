@@ -11,5 +11,10 @@
 .sv-layer .lb-anchor { width: var(--sv-dot); height: var(--sv-dot); margin: calc(var(--sv-dot) / -2) 0 0 calc(var(--sv-dot) / -2); border: var(--sv-dot-w) solid var(--text-2); background: var(--lb-ring-fill);
   box-shadow: 0 0 0 var(--sv-dot-halo) var(--lb-ring-fill); }
 
-/* an end's arrow, part of its name (the 3D sinusoid draws none in the scene): bold, in the name's own ink, a little air between it and the words */
-.sv-arrow { display: inline-block; font-weight: 700; margin: 0 0.3em; }
+/* an end's arrow, part of its name (the 3D sinusoid draws none in the scene): 2D's arrow (layoutEnds: 22 px, standing in the middle of the 48 px it keeps outside the name), in the name's ink on
+   its halo, pointing toward its vessel off the view; it goes where its name goes */
+.sv-layer .sv-end-arrow { position: absolute; width: 24px; height: 21px; overflow: visible; fill: var(--text-2); stroke: var(--cap-outline); stroke-width: 0.16; stroke-linejoin: round; paint-order: stroke fill; }
+.sv-layer .sv-end-arrow-l { right: calc(100% + 12px); top: calc(50% - 10.5px); transform: rotate(180deg); }
+.sv-layer .sv-end-arrow-r { left: calc(100% + 12px); top: calc(50% - 10.5px); }
+.sv-layer .sv-end-arrow-u { bottom: calc(100% + 13px); left: calc(50% - 12px); transform: rotate(-90deg); }
+.sv-layer .sv-end-arrow-d { top: calc(100% + 13px); left: calc(50% - 12px); transform: rotate(90deg); }
