@@ -61,7 +61,7 @@ export function styleOf(cls: string, t: Tones, w?: number): Style {
     // the lines an organ carries on its surface
     case 'od-fine': return { stroke: solid(t.o3, 0.55), w: 0.9 };
     case 'od-fold': return { stroke: solid(t.o3, 0.16), w: 1.4 };
-    case 'cel-line': return { stroke: solid(t.o3, 0.9), w: 1.6, join: 'round', cap: 'round' };   // (cel shaded: the one thin even ink line)
+    case 'cel-line': return { stroke: solid(t.o3, 0.8), w: 2.2, join: 'round', cap: 'round' };   // (cel shaded: the one thin even ink line)
     default: throw new Error(`organ art: no style for class "${cls}"`);
   }
 }
@@ -127,9 +127,9 @@ export function haustraOf(art: Art): Art {
   return { ...art, kids: walk(art.kids) };
 }
 
-/** The small bowel for the cel fill, drawn by rule: LOOPS broad loops in one serpentine across its box, each an even tube of the base tone between two thin ink lines (the fill under it is the banded cel fill: the art takes its shift),
+/** The small bowel for the cel fill, drawn by rule: a few broad S-curved loops (one serpentine across its box), each a smooth even tube of the base tone with ONE soft outline (the shade tone, a little darker: never black) (the fill under it is the banded cel fill: the art takes its shift),
  *  no stipple, no dashes, no shading. The ends of the serpentine lie outside the organ and are cut by it. */
-export const BOWEL_LOOPS = 8;
+export const BOWEL_LOOPS = 4;
 export function paintBowelCel(ctx: Ctx2D, box: readonly [number, number, number, number], t: Tones, setBase: (c: Ctx2D) => void, loops = BOWEL_LOOPS): void {
   const [bx, by, bw, bh] = box, pitch = bh / loops, r = pitch / 2, x0 = bx + r, x1 = bx + bw - r;
   const p = new Path2D();
@@ -142,7 +142,7 @@ export function paintBowelCel(ctx: Ctx2D, box: readonly [number, number, number,
   setBase(ctx);
   ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
   const css = (c: Rgb, a: number) => `rgba(${Math.round(c[0] * 255)},${Math.round(c[1] * 255)},${Math.round(c[2] * 255)},${a})`;
-  const line = 3.4;
-  ctx.strokeStyle = css(t.o3, 1); ctx.lineWidth = pitch; ctx.stroke(p);
+  const line = 4.0;
+  ctx.strokeStyle = css(t.o3, 0.85); ctx.lineWidth = pitch; ctx.stroke(p);
   ctx.strokeStyle = css(t.o1, 1); ctx.lineWidth = pitch - line; ctx.stroke(p);
 }
