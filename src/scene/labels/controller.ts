@@ -20,6 +20,7 @@ import { x3, y3 } from '../frame2d.ts';
 import { fmtPressure } from '../../ui/text/line.ts';
 import { LS, boxSize, organRun, stationRuns, type Say } from './type.ts';
 import { dockKey, type Dock } from './key-dock.ts';
+import { RoomFade } from './ride.ts';
 import { STENT_IDS, STENT_STATIONS, COMPACT_W as STENT_COMPACT, geoFrac, geoLines, geoSets, geoSize, encodeGeo, pointName, type StentView, type StentId } from './stent-labels.ts';
 import { STENT_SITES } from '../../engine/hales/portal/topology.js';
 import type { Rect, Viewport } from '../../ui/layout/device.ts';
@@ -228,7 +229,7 @@ export class LabelController {
   private keySize: { w: number; h: number } | null = null;
   private keyNatural: { w: number; h: number } | null = null;
   /** The room each drawn label has now (0 under a card or past the edge, 1 clear), eased over FADE.roomMs (2D roomFade). */
-  private readonly room = new Map<string, number>();
+  private readonly room = new RoomFade();
   /** The last change badge each station showed: the one a badge that has just gone is crossed out with, and what the layer writes while the box still has its room. */
   private readonly lastDelta = new Map<string, { text: string; up: boolean }>();
   private zoomedNow = false;
@@ -515,7 +516,7 @@ export class LabelController {
       const ring = s.from ? d.project(pr, this.pt2) : a;
       const box = boxOf(s.p, ax, ay);
       // a label that comes to stand under a card or past the edge (carried by the camera, or a card sliding in) fades out whole and back once clear: never seen cut (2D roomFade)
-      const ra = this.roomOf(id, box, view, roomBlk, dt);
+      const ra = this.room.of(id, box, view, roomBlk, dt);
       if (ra > 0 && ra < 1) roomBusy = true;
       if (ra <= 0) continue;   // (invisible: nothing to draw, the layer hides it)
       const dim = this.state.named.size > 0 && !this.isNamed(m) ? s.dim : 0;
@@ -544,7 +545,7 @@ export class LabelController {
         }
       }
     }
-    for (const id of this.room.keys()) if (!this.fader.frame.has(id)) this.room.delete(id);
+    this.room.prune(this.fader.frame);
     return busy || hold || this.dirty || roomBusy;
   }
 
@@ -561,19 +562,6 @@ export class LabelController {
       else { const l = this.lastDelta.get(m.id); if (l) { delta = l.text; up = l.up; } }
     }
     return { unit, delta, up, alert, note, ...sx };
-  }
-
-  /** A label's room (2D roomFade): 1 while its box stands clear of every card and inside the view, 0 once it touches one; eased over FADE.roomMs, with the air a label needs to come back (FADE.roomAir). */
-  private roomOf(id: string, box: Box, view: Box, blockers: readonly Box[], dt: number): number {
-    const was = this.room.get(id);
-    const m = (was ?? 1) >= 0.5 ? 0 : FADE.roomAir;
-    let ok = box.x0 >= view.x0 + m && box.y0 >= view.y0 + m && box.x1 <= view.x1 - m && box.y1 <= view.y1 - m;
-    if (ok) for (const b of blockers) if (box.x0 < b.x1 + m && box.x1 > b.x0 - m && box.y0 < b.y1 + m && box.y1 > b.y0 - m) { ok = false; break; }
-    const t = ok ? 1 : 0;
-    if (was === undefined) { this.room.set(id, t); return t; }   // (first drawn: as it stands; its own fade in does the rest)
-    const a = t > was ? Math.min(1, was + dt / FADE.roomMs) : t < was ? Math.max(0, was - dt / FADE.roomMs) : was;
-    this.room.set(id, a);
-    return a;
   }
 
   private isNamed(m: Meta): boolean {

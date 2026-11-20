@@ -1,6 +1,7 @@
 // The Circuit's words: zone titles, station names with their readings, lane captions and the resistors' readings, as DOM over the canvas in the one label type (labels.css), moved by the clock.
 // What stands where is decided by the one label solver (labels/solver.ts) from the items captions.ts builds; this file only feeds it the map as the camera shows it and writes the answer.
-// The words come in once the picture is still (the camera, the change and the turn at rest) and go the moment anything moves, as every figure label does.
+// The words ride the picture while the camera pans or zooms it (labels/ride.ts, as the Anatomy's labels do), are placed again once it is still where their carried places no longer hold, and
+// fade out while the map itself changes (the turn, the morph).
 import { useEffect, useRef } from 'react';
 import '../labels/labels.css';
 import './captions.css';
@@ -27,11 +28,12 @@ import { halfWidthPx } from './cap-width.ts';
 import { readUiWalls } from './ui-walls.ts';
 import { resText } from './res-model.ts';
 import { selectStructure } from '../../ui/action/selection.ts';
+import { Ride, RoomFade, boxesFit } from '../labels/ride.ts';
 
 const NODE_AT = new Map<string, number>((NODES as unknown as { id: string }[]).map((n, i) => [n.id, i]));
 /** What a leader crossing a vessel costs the solver, per line (the hepatic artery's name hung from a leader across the whole sinusoid bundle). */
 const LEADER_LINE_COST = 10;
-const SETTLE_MS = 180, FADE_MS = 180, VALUE_EVERY_MS = 250;
+const VALUE_EVERY_MS = 250;
 
 interface El { root: HTMLElement; name: HTMLElement | null; val: HTMLElement | null; key: HTMLElement | null; lead: HTMLElement | null; tx: string; text: string; valText: string; form: number; size: string }
 
@@ -51,13 +53,14 @@ export function CircuitCaptions() {
     const tmp = { x: 0, y: 0 };
     let placed = new Map<string, Placement>();
     let metas = new Map<string, CapMeta>();
-    let sig = '', lastMove = -1e9, lastRefs = '', alpha = 0, last = -1, lastValues = 0, hold: { release(): void } | null = null;
+    const gate = new Ride(), roomFade = new RoomFade(), pa = { x: 0, y: 0 }, pb = { x: 0, y: 0 }, rp = { x: 0, y: 0 };
+    let alpha = 0, last = -1, lastValues = 0, hold: { release(): void } | null = null;
 
     const putVars = () => {
       const { vp } = useUi.getState();
       for (const [k, v] of Object.entries({ ...typeVars(vp), ...lookVars(lookRef.current, vp) })) root.style.setProperty(k, v);
       root.style.setProperty('--cc-ink', (LS.LOOKS as Record<string, Record<string, string>>)[lookRef.current]!['text-3']!);
-      sig = '';
+      gate.invalidate();
     };
     putVars();
     retype.current = putVars;
@@ -92,7 +95,7 @@ export function CircuitCaptions() {
     const view = (): Box => { const { vp } = useUi.getState(); return { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom }; };
     // the floating bars are read at rest (once the layout has settled after a change), not in a frame
     let uiWalls: Box[] = [], wallTimer = 0;
-    const readWalls = () => { uiWalls = readUiWalls(); sig = ''; clock.invalidate('circuit-captions'); };
+    const readWalls = () => { uiWalls = readUiWalls(); gate.invalidate(); clock.invalidate('circuit-captions'); };
     const wallsLater = () => { clearTimeout(wallTimer); wallTimer = window.setTimeout(readWalls, 260); };
     wallsLater();
     addEventListener('resize', wallsLater);
@@ -209,65 +212,80 @@ export function CircuitCaptions() {
       }
     };
 
+    /** Everything that decides what the words say and where they may stand but the map's place on the screen (a pan only carries them). */
+    const layoutSig = (): string => {
+      const { vp, boxes } = useUi.getState();
+      const res = cel.resistorsNow;
+      return [vp.w, vp.h, cel.circuit.upright, [...cel.stationsOf.keys()].filter((id) => cel.stationOn(id)).join(','), Object.keys(CIRCUIT_LABELS).length,
+        COURSES.size, Object.entries(res).map(([k, v]) => `${k}${Math.round((v ?? 0) * 10)}`).join(','), cel.resistors.widthNow('rLiver'), cel.resistors.widthNow('rColl'), cel.resistors.widthNow('rGut'),
+        useShell.getState().figure.labelLevel, [...useLabels.getState().named].join(','), usePick.getState().picked, Math.round(cel.handZoom * 20), boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'),
+        [...COURSES.keys()].filter((id) => cel.vesselDrawn(id)).length, lookRef.current].join('|');
+    };
     const tick = () => {
       const now = performance.now(), dt = last < 0 ? 16 : Math.min(100, now - last);
       last = now;
       const onMap = cel.view === 'circuit' && cel.circuit.t >= 1 && !cel.circuit.moving;
-      // the picture is still when the camera, the change and the turn are at rest, and the map's own points have not moved
-      const a = cel.mapPoint(700, 400, tmp), b = cel.mapPoint(800, 400, { x: 0, y: 0 });
-      const refs = `${Math.round(a.x * 2)},${Math.round(a.y * 2)},${Math.round(b.x * 2)},${Math.round(b.y * 2)}`;
-      if (sceneMoving() || refs !== lastRefs) lastMove = now;
-      lastRefs = refs;
-      const still = onMap && now - lastMove >= SETTLE_MS;
-      if (still) {
-        const { vp, boxes } = useUi.getState();
-        const res = cel.resistorsNow;
-        const s = [vp.w, vp.h, refs, cel.circuit.upright, [...cel.stationsOf.keys()].filter((id) => cel.stationOn(id)).join(','), Object.keys(CIRCUIT_LABELS).length,
-          COURSES.size, Object.entries(res).map(([k, v]) => `${k}${Math.round((v ?? 0) * 10)}`).join(','), cel.resistors.widthNow('rLiver'), cel.resistors.widthNow('rColl'), cel.resistors.widthNow('rGut'),
-          useShell.getState().figure.labelLevel, [...useLabels.getState().named].join(','), usePick.getState().picked, Math.round(cel.handZoom * 20), boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'),
-          [...COURSES.keys()].filter((id) => cel.vesselDrawn(id)).length, lookRef.current].join('|');
-        if (s !== sig) { sig = s; solveNow(); }
-      }
-      const to = still ? 1 : 0;
-      const wasAlpha = alpha;
-      if (alpha !== to) alpha = Math.abs(to - alpha) <= dt / FADE_MS ? to : alpha + Math.sign(to - alpha) * (dt / FADE_MS);
-      if (still) writeValues(false, now);
-      if (alpha > 0 || wasAlpha > 0) {
+      // two points of the map: where the picture stands (the words ride it while the camera moves it, and are placed again once it is still)
+      cel.mapPoint(700, 400, tmp); pa.x = tmp.x; pa.y = tmp.y;
+      cel.mapPoint(800, 400, tmp); pb.x = tmp.x; pb.y = tmp.y;
+      const g = gate.step({
+        now, dt, on: onMap, moving: cel.rig.isMoving, a: pa, b: pb, layout: layoutSig,
+        fits: (ride) => boxesFit(boxesOf(), ride, view(), blockers()),
+      });
+      if (g.solve) solveNow();
+      alpha = g.alpha;
+      if (alpha > 0) writeValues(false, now);
+      if (alpha > 0 || wasShown) {
+        const walls = blockers(), room = view();
+        let any = false;
         for (const [id, e] of els) {
           const p = placed.get(id);
           if (!p) continue;
           const it = itemsNow.get(id);
           if (!it) continue;
-          const bx = it.ax + p.dx, by = it.ay + p.dy;
+          gate.ride(it.ax, it.ay, rp);
+          const bx = rp.x + p.dx, by = rp.y + p.dy, ax = rp.x, ay = rp.y;
+          // (a caption carried under a card or past the edge fades out whole and back once it stands clear: never seen cut)
+          const ra = roomFade.of(id, { x0: bx, y0: by, x1: bx + p.w, y1: by + p.h }, room, walls, dt), a = alpha * ra;
+          if (a <= 0) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); continue; }
+          any = true;
           const turned = !!metas.get(id)?.rot;
           const tx = turned
             ? `translate3d(${Math.round((bx + p.w / 2 - p.h / 2) * 100) / 100}px,${Math.round((by + p.h / 2 - p.w / 2) * 100) / 100}px,0) rotate(-90deg)`
             : `translate3d(${Math.round(bx * 100) / 100}px,${Math.round(by * 100) / 100}px,0)`;
           if (tx !== e.tx) { e.root.style.transform = tx; e.tx = tx; }
-          e.root.style.opacity = String(Math.round(alpha * 1000) / 1000);
+          const op = String(Math.round(a * 1000) / 1000);
+          e.root.style.opacity = op;
           e.root.setAttribute('data-on', '');
           if (e.lead) {
             if (p.leader) {
-              const g = leaderGeom(it.ax, it.ay, { x0: bx, y0: by, x1: bx + p.w, y1: by + p.h });
-              e.lead.style.transform = `translate(${Math.round(g.x * 100) / 100}px,${Math.round(g.y * 100) / 100}px) rotate(${g.angle.toFixed(4)}rad) scaleX(${Math.round(g.len * 100) / 100})`;
-              e.lead.style.opacity = String(Math.round(alpha * 1000) / 1000); e.lead.setAttribute('data-on', '');
+              const gm = leaderGeom(ax, ay, { x0: bx, y0: by, x1: bx + p.w, y1: by + p.h });
+              e.lead.style.transform = `translate(${Math.round(gm.x * 100) / 100}px,${Math.round(gm.y * 100) / 100}px) rotate(${gm.angle.toFixed(4)}rad) scaleX(${Math.round(gm.len * 100) / 100})`;
+              e.lead.style.opacity = op; e.lead.setAttribute('data-on', '');
             } else { e.lead.removeAttribute('data-on'); }
           }
         }
-        if (alpha === 0) for (const e of els.values()) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); }
+        wasShown = any;
+        if (alpha === 0) { for (const e of els.values()) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); } roomFade.clear(); }
       }
-      const busy = alpha !== to || (onMap && !still);
+      const busy = g.busy;
       if (busy && !hold) hold = clock.hold('circuit-captions');
       else if (!busy && hold) { hold.release(); hold = null; }
     };
-    const sceneMoving = () => cel.rig.isMoving || cel.circuit.moving;
+    let wasShown = false;
+    /** The placed captions as boxes about their dots (what a carried place is judged by). */
+    const boxesOf = () => {
+      const out: { ax: number; ay: number; dx: number; dy: number; w: number; h: number }[] = [];
+      for (const [id, p] of placed) { const it = itemsNow.get(id); if (it) out.push({ ax: it.ax, ay: it.ay, dx: p.dx, dy: p.dy, w: p.w, h: p.h }); }
+      return out;
+    };
     const off = clock.on('tags', tick, 1);
-    const offLabels = useLabels.subscribe(() => { sig = ''; clock.invalidate('circuit-captions'); });
-    const offPick = usePick.subscribe(() => { sig = ''; clock.invalidate('circuit-captions'); });
-    const offShell = useShell.subscribe(() => { sig = ''; clock.invalidate('circuit-captions'); });
-    const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) { sig = ''; clock.invalidate('circuit-captions'); } });
+    const offLabels = useLabels.subscribe(() => { gate.invalidate(); clock.invalidate('circuit-captions'); });
+    const offPick = usePick.subscribe(() => { gate.invalidate(); clock.invalidate('circuit-captions'); });
+    const offShell = useShell.subscribe(() => { gate.invalidate(); clock.invalidate('circuit-captions'); });
+    const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) { gate.invalidate(); clock.invalidate('circuit-captions'); } });
     void document.fonts?.ready.then(() => { measureReset(); });
-    const measureReset = () => { sig = ''; clock.invalidate('circuit-captions'); };
+    const measureReset = () => { gate.invalidate(); clock.invalidate('circuit-captions'); };
     return () => { off(); offLabels(); offPick(); offShell(); offUi(); offUi2(); offWalls(); clearTimeout(wallTimer); removeEventListener('resize', wallsLater); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); } };
   }, []);
 
