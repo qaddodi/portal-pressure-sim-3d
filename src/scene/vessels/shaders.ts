@@ -258,13 +258,7 @@ float meanVelocity(float q, float dmm) {
 // ---- the 2D app's flow heads (chevron-glsl.js, blood-heads.js) ----
 ${CHEVRON_GLSL}
 ${STREAK_FIELD_GLSL}
-// how much of head j of the lattice of level n0 shows at level lv (coarser heads are a subset of finer ones; nothing jumps)
-float chevKeep(float j, float n0, float lv) {
-  float m = 0.0, q = abs(j);
-  for (int i = 0; i < 10; i++) { if (q < 0.5 || mod(q, 2.0) > 0.5) break; q *= 0.5; m += 1.0; }
-  if (q < 0.5) m = 10.0;
-  return clamp(exp2(1.0 - (lv - n0 - m)) - 1.0, 0.0, 1.0);
-}
+// (chevKeep, the lattice's keep, is in the one chevron chunk above: blood/chevron-glsl.ts)
 // One vessel's heads placed by a stream's pattern (veins-gl.js chevOne): se = A + B s is the vessel's arc along that stream (B = 1, se = s for its own), Dm the stream's distance. The
 // spacing is the zoom's, by the arc a head takes here (B), so a parcel that slows on entering a vessel bunches up as the blood does. ends: the weights of a link at the vessel's from and
 // to end (above 0: a chained end, through which the heads run on instead of fading). Returns the head's coverage and its rim, already faded by its place and its lattice.

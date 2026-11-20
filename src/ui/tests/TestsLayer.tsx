@@ -12,7 +12,7 @@ import { registerFeature } from '../shell/features.ts';
 import { useTests } from './store.ts';
 import { PaneHost } from './Cv.tsx';
 import { TABS, PANE_ORDER, tabOf, shortName, tinyName, PANES, type PaneId } from './panes.ts';
-import { testsPlace, sideVars, HEAD_H } from './place.ts';
+import { testsPlace, sideVars, HEAD_H, PEEK_H } from './place.ts';
 import { useTestsRoom } from './room.ts';
 import { I } from '../shell/icons.tsx';
 import { TAB_ICONS } from './copied/dock-words.copied.js';
@@ -99,10 +99,12 @@ export function TestsLayer() {
   const bodyRef = useRef<HTMLDivElement>(null), tabsRef = useRef<HTMLDivElement>(null), cardRef = useRef<HTMLElement>(null), posRef = useRef<HTMLDivElement>(null), dividerRef = useRef<HTMLDivElement>(null);
   const [bodyH, setBodyH] = useState<number | null>(null);
   const bodyW = useRef(0);
+  const peeking = sheetSize === 2 && place.kind === 'sheet', peekRef = useRef(false);
+  peekRef.current = peeking;
   useLayoutEffect(() => {
     const el = bodyRef.current;
     if (!el || typeof ResizeObserver !== 'function') return;
-    const ro = new ResizeObserver((es) => { const r = es[es.length - 1]?.contentRect; if (!r) return; bodyW.current = r.width; const h = Math.round(r.height); if (h) setBodyH((o) => (o === h ? o : h)); });
+    const ro = new ResizeObserver((es) => { const r = es[es.length - 1]?.contentRect; if (!r) return; bodyW.current = r.width; const h = Math.round(r.height); if (h && !peekRef.current) setBodyH((o) => (o === h ? o : h)); });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -187,7 +189,7 @@ export function TestsLayer() {
   }, [open]);
 
   // arrow keys, Home and End move between the tabs (2D dock.js tabs keydown); only the open tab is in the tab order (roving tabindex)
-  const onTab = (id: PaneId) => { if (useTests.getState().picking && id !== tabRef.current) useTests.getState().pickSecond(id); else show(id); };
+  const onTab = (id: PaneId) => { if (live.current.sheetSize === 2) onGrab(); if (useTests.getState().picking && id !== tabRef.current) useTests.getState().pickSecond(id); else show(id); };
   const onTabKey = (e: KeyboardEvent<HTMLDivElement>) => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
     e.preventDefault();
@@ -235,7 +237,7 @@ export function TestsLayer() {
     if (!card || !pos) return;
     return attachPull(card, pos, {
       enabled: () => { const g = live.current; return g.thumb && g.open && !g.focus && g.kind === 'sheet' && !!g.stops; },
-      heights: () => { const g = live.current, st = g.stops ?? [g.h, g.h]; return { h0: g.h, half: st[0], full: st[1], size: g.sheetSize }; },
+      heights: () => { const g = live.current, st = g.stops ?? [g.h, g.h]; return { h0: g.h, half: st[0], full: st[1], peek: PEEK_H, size: g.sheetSize }; },
       setSize: (n) => flushSync(() => useTests.getState().setSheetSize(n)),
       close: () => useTests.getState().close(),
     });
@@ -243,7 +245,7 @@ export function TestsLayer() {
   const onGrab = () => {
     const g = live.current, pos = posRef.current;
     if (!g.thumb || !g.open || g.kind !== 'sheet' || !g.stops || !pos) return;
-    const n: 0 | 1 = g.sheetSize === 0 ? 1 : 0, h0 = g.h;
+    const n: 0 | 1 = g.sheetSize === 1 || g.sheetSize === 2 ? 0 : 1, h0 = g.h;   // (Half to Full and back; from Peek the handle brings it up to Half)
     flushSync(() => useTests.getState().setSheetSize(n));
     if (!reduced()) easeBack(pos, g.stops[n] - h0);
   };
@@ -290,7 +292,7 @@ export function TestsLayer() {
   const dividerNow = side ? Math.round((place.rect.w / Math.max(1, vp.w)) * 100) : Math.round(((heightRatio ?? place.rect.h / Math.max(1, vp.h))) * 100);
   return (
     <div ref={posRef} className="t-pos" data-open={open} data-live={open} data-narrow={narrow} data-kind={place.kind} data-device={device} style={style}>
-      <section ref={cardRef} className={`t-card dock instrument-workspace float-ui stage-blocker${side ? ' side' : ''}${picking ? ' picking' : ''}`} id="dock" role="dialog" aria-label="Tests" data-state={tstate} data-safe={side ? 'right' : 'bottom'} inert={!open} style={card} onKeyDown={onCardKey}>
+      <section ref={cardRef} className={`t-card dock instrument-workspace float-ui stage-blocker${side ? ' side' : ''}${picking ? ' picking' : ''}`} id="dock" role="dialog" aria-label="Tests" data-state={tstate} data-peek={peeking || undefined} data-safe={side ? 'right' : 'bottom'} inert={!open} style={card} onKeyDown={onCardKey}>
         <button type="button" className="sheet-grab" aria-label="Resize the Tests card" onClick={onGrab} />
         <i className="sh-grabbar" aria-hidden="true" />
         <div ref={dividerRef} className="workspace-divider" role="separator" tabIndex={0} aria-label="Instruments size" aria-orientation={side ? 'vertical' : 'horizontal'} aria-valuenow={dividerNow} hidden={tstate !== 'open' || (side && device !== 'phone-landscape')}><span /></div>

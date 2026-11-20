@@ -7,22 +7,27 @@ import assert from 'node:assert/strict';
 (globalThis as any).matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
 const { attachPull } = await import('../src/ui/tests/dock/pull.ts');
 
-const rig = (scrollTop = 0, size: 0 | 1 = 0) => {
+const rig = (scrollTop = 0, size: 0 | 1 | 2 = 0) => {
   const L: Record<string, ((e: any) => void)[]> = {};
   const card: any = { addEventListener: (k: string, f: any) => (L[k] ??= []).push(f), removeEventListener() {}, setPointerCapture() {}, parentElement: null };
   const pane: any = { scrollHeight: 900, clientHeight: 300, scrollTop, parentElement: card, closest: () => null };
   (globalThis as any).getComputedStyle = () => ({ overflowY: 'hidden auto' });
   const pos: any = { style: {} };
   const calls: string[] = [];
-  attachPull(card, pos, { enabled: () => true, heights: () => ({ h0: 520, half: 520, full: 700, size }), setSize: (n) => calls.push(`size${n}`), close: () => calls.push('close') });
+  attachPull(card, pos, { enabled: () => true, heights: () => ({ h0: 520, half: 520, full: 700, peek: 72, size }), setSize: (n) => calls.push(`size${n}`), close: () => calls.push('close') });
   const tab: any = { parentElement: card, closest: () => null };
   const ptr = (k: string, y: number, x = 100, extra: object = {}) => L[k]!.forEach((f) => f({ target: pane, pointerId: 7, pointerType: 'touch', button: 0, buttons: 1, clientX: x, clientY: y, ...extra }));
   const touch = (y: number, x = 100) => { let stopped = false; const e: any = { target: pane, touches: [{ clientX: x, clientY: y }], cancelable: true, preventDefault: () => { stopped = true; } }; L.touchmove!.forEach((f) => f(e)); return stopped; };
   return { ptr, touch, calls, pos, card, tab };
 };
 
-test('a touch-type pointer drag down 300 px (pointerdown, 10 moves, pointerup) closes a sheet at Half', () => {
-  const r = rig();
+test('a touch-type pointer drag down 300 px (pointerdown, 10 moves, pointerup) takes a sheet at Half to Peek, and from Peek closes it', () => {
+  const half = rig();
+  half.ptr('pointerdown', 300);
+  for (let i = 1; i <= 10; i++) half.ptr('pointermove', 300 + i * 30);
+  half.ptr('pointerup', 600);
+  assert.deepEqual(half.calls, ['size2']);
+  const r = rig(0, 2);
   r.ptr('pointerdown', 300);
   for (let i = 1; i <= 10; i++) r.ptr('pointermove', 300 + i * 30);
   r.ptr('pointerup', 600);
@@ -82,7 +87,7 @@ test('a drag that starts on a tab (a button) pulls the sheet, and the capture ha
     if (i === 1) r.ptr('lostpointercapture', 0, 0, { target: r.tab });
   }
   r.ptr('pointerup', 420, 100, { target: r.tab });
-  assert.deepEqual(r.calls, ['close']);
+  assert.deepEqual(r.calls, ['size2']);
   // a tap on a tab moves nothing and leaves the click alone
   const tap = rig();
   tap.ptr('pointerdown', 120, 100, { target: tap.tab }); tap.ptr('pointermove', 122, 100, { target: tap.tab }); tap.ptr('pointerup', 122, 100, { target: tap.tab });
