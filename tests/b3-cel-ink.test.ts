@@ -11,7 +11,7 @@ import { CHEVRON_GLSL } from '../src/scene/blood/chevron-glsl.ts';
 import { CelScene } from '../src/scene/scene.ts';
 
 const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const INK_RE = new RegExp(esc(`clamp(${F(CEL_STYLE.LINE_R)} * rCssV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rCssV);`));
+const INK_RE = new RegExp(esc(`clamp(${F(CEL_STYLE.LINE_R)} * rCssV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rCssV / narrowK);`));
 test('the outline is LINE_R of the radius held between LINE_MIN and LINE_MAX CSS px: a hairline keeps a line, the trunk does not grow a rope', () => {
   const { LINE_R, LINE_MIN, LINE_MAX } = CEL_STYLE;
   assert.equal(inkWidthCss(LINE_MIN / LINE_R / 2 + 1), LINE_MIN, 'the floor');
@@ -115,7 +115,7 @@ test('a sub-pixel lumen keeps its colour: the line thins under LINE_MIN CSS px o
 test('the vessel shader holds the same taper and leaves the picked ring alone', async () => {
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
-  assert.ok(src.includes('smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rCssV)') && src.includes('clamp(${F(CEL_STYLE.LINE_R)} * rCssV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)})'), 'the source writes the line from the style');
+  assert.ok(src.includes('smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rCssV / narrowK)') && src.includes('clamp(${F(CEL_STYLE.LINE_R)} * rCssV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)})'), 'the source writes the line from the style');
   assert.match(VESSEL_VS, INK_RE);
   assert.match(src, /\(inkPx \* endK \+ hiPx \* vHi\)/);
 });
@@ -227,7 +227,7 @@ test('the tube is built ink wider than its lumen, by the figure\'s line, with it
   const { TUBE_RADIAL } = await import('../src/scene/vessels/tubes.ts');
   assert.ok(Math.abs(TUBE_SAG - (1 / Math.cos(Math.PI / TUBE_RADIAL) - 1)) < 1e-12 && TUBE_SAG > 0 && TUBE_SAG < 0.05);
   assert.match(VESSEL_VS, /float inkW = \(inkPx \* endK \+ hiPx \* vHi\) \* inkOn \* wpcV \/ vU;/);
-  assert.match(VESSEL_VS, /vec3 p = aPos \+ aNor \* \(inflate \+ radius \* rkE \* \(swell \* \(1\.0 - narrow\) - 1\.0\) \+ inkW \+ \(lumenW \+ inkW\) \* /);
+  assert.match(VESSEL_VS, /vec3 p = aPos \+ aNor \* \(inflate \+ radius \* rkE \* \(swell \* narrowK - 1\.0\) \+ inkW \+ \(lumenW \+ inkW\) \* /);
   const src = readFileSync(new URL('../src/scene/vessels/vessel-object.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /polygonOffset|stencil|addGroup|makeHull|hullMat/, 'no hull material is left');
 });
