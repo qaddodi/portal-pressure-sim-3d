@@ -354,7 +354,7 @@ void main() {
     // the outline in the look's casing colour at its alpha (2D: --casing-a, and the Circuit's own on the dark look (.stage-wrap.cmap), by the Circuit's share, whole on a vessel behind an organ too; a picked vessel's ring is solid)
     float ca = mix(casingA, casingCircA, circT);
     // a joined end is buried in its trunk: no ink on its last stretch, so the cut is never outlined
-    float endU = min(mate0.x >= 0.0 ? vUv.x : 1e9, mate1.x >= 0.0 ? 1.0 - vUv.x : 1e9) * len * 300.0;
+    float endU = min(mate0.x >= 0.0 ? vUv.x : 1e9, mate1.x >= 0.0 ? 1.0 - vUv.x : 1e9) * len * vU;
     if (endU < ${F(CEL_STYLE.TUBE.END_R)} * vR && vHi < 0.001) discard;
     // the line's colour: the look's casing ink taken most of the way to a deep tone of the vessel's own colour (never black, never white)
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);

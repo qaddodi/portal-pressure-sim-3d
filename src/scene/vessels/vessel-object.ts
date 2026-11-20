@@ -124,6 +124,8 @@ export class VesselObject extends CelObject {
     this.nearMat = new ShaderMaterial({ vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, side: DoubleSide, uniforms: toon.uniforms, transparent: true, depthWrite: true, defines: { NEAR_WALL: '' },
       stencilWrite: true, stencilRef: 2, stencilFuncMask: 2, stencilWriteMask: 2, stencilFunc: NotEqualStencilFunc, stencilFail: KeepStencilOp, stencilZFail: KeepStencilOp, stencilZPass: ReplaceStencilOp });
     this.toonMesh.material = [toon, this.nearMat, this.hullMat];
+    // (the mesh's bounding sphere is the body course's; in the Circuit the vertices stand on the map, far from it, so a vessel was culled once the camera came in on the map and its body sphere left the view)
+    this.toonMesh.frustumCulled = false;
     (this as unknown as { toon: ShaderMaterial }).toon = toon;
     // the ink is part of this draw now: its mesh goes, and `ink.uniforms` becomes the handle on the merged material's own uniforms
     this.group.remove(this.group.children[0]!);
@@ -212,11 +214,11 @@ export class VesselObject extends CelObject {
     // iPhone, 19 Nov 2026: "the cava ghost shows dark ball joints").
     const pre = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, side: DoubleSide, transparent: true, colorWrite: false, depthWrite: true, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 8, defines: { VEIL: 1 } });   // (a firm offset: with the tiers 0.07 apart a 1,1 offset left the colour pass failing the depth test at random along the cava's outline, the dashes of 20 Nov)
     const depth = new Mesh(this.toonMesh.geometry, pre);
-    depth.matrixAutoUpdate = true; depth.renderOrder = 1;
+    depth.matrixAutoUpdate = true; depth.renderOrder = 1; depth.frustumCulled = false;
     depth.layers.set(overLayer);
     this.group.add(depth);
     const mesh = new Mesh(this.toonMesh.geometry, mat);
-    mesh.matrixAutoUpdate = true; mesh.renderOrder = 2;
+    mesh.matrixAutoUpdate = true; mesh.renderOrder = 2; mesh.frustumCulled = false;
     mesh.layers.set(overLayer);
     this.group.add(mesh);
     this.veil = { mesh, depth, mat, pre, overLayer, faint, whole: false };
