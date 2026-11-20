@@ -162,7 +162,7 @@ varying vec2 vUv;
 // junction skins (skin/types.ts): the tube has a seam at either end
 bool inSkinHole(vec2 h) { return h.y > h.x && vUv.x > h.x + 0.00002 && vUv.x < h.y - 0.00002; }
 // (a dotted thread, a closed potential collateral, is never cut: it runs on into the trunk's wall, and the skin there is a plain trunk, its growth 0: skin-set.ts sync, spec 10.2. A hole is the host's own and is never a dotted thread's)
-bool skinPastC() { return circT > 0.0 && ((skinCutC.x >= 0.0 && vUv.x < skinCutC.x - 0.00002) || (skinCutC.y <= 1.0 && vUv.x > skinCutC.y + 0.00002)); }
+bool skinPastC() { return circT > 0.0 && dotted < 0.5 && ((skinCutC.x >= 0.0 && vUv.x < skinCutC.x - 0.00002) || (skinCutC.y <= 1.0 && vUv.x > skinCutC.y + 0.00002)); }
 bool skinCutOn() { return dotted < 0.5 && (skinCut.x >= 0.0 || skinCut.y <= 1.0) || skinHole.y > skinHole.x || skinHole2.y > skinHole2.x; }
 bool skinPast() { return (dotted < 0.5 && ((skinCut.x >= 0.0 && vUv.x < skinCut.x - 0.00002) || (skinCut.y <= 1.0 && vUv.x > skinCut.y + 0.00002))) || inSkinHole(skinHole) || inSkinHole(skinHole2); }
 

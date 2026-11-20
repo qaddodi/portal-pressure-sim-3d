@@ -81,6 +81,7 @@ test('not independent like bile: no lymph strays from its own sinusoid (further 
   }
 });
 
+const trunkStart = (par: Course, r: Course) => ly.some((o) => o.sib === par.id && close(o.pts[0]!, r.pts[r.pts.length - 1]!, 1e-5));
 test('it splits where the sinusoids split: at every merge each of the trunk\'s two lines runs on from a branch\'s outer line, and the inner lines stay on their own walls and stop', () => {
   let lines = 0, joined = 0;
   for (const par of net.courses.filter((c) => c.kind === 's1' || c.kind === 's2')) {
@@ -92,12 +93,11 @@ test('it splits where the sinusoids split: at every merge each of the trunk\'s t
       lines++;
       if (ly.some((o) => kids.some((k) => k.id === o.sib) && close(o.pts[o.pts.length - 1]!, run.pts[0]!, 1e-5))) joined++;
     }
-    // exactly one line of each branch runs on into the trunk (its outer one); the other ends free, a thread
-    for (const k of kids) {
-      const mine = ly.filter((r) => r.sib === k.id), onward = mine.filter((r) => !(r.free ?? [true, true])[1]);
-      assert.equal(onward.length, 1, `branch ${k.id}: one line runs on into the trunk, the inner one ends at the crotch`);
-      assert.equal(mine.length, 2);
-    }
+    // each branch has two lines: one runs on into the trunk (its outer), the other (its inner) ends where it crosses its sibling's inner line, at the crotch, the same point
+    for (const k of kids) assert.equal(ly.filter((r) => r.sib === k.id).length, 2);
+    const inner = ly.filter((r) => kids.some((k) => k.id === r.sib) && !ly.some((o) => o !== r && close(o.pts[0]!, r.pts[r.pts.length - 1]!, 1e-9)) && !trunkStart(par, r));
+    assert.ok(inner.length >= 2, 'the inner lines');
+    assert.ok(inner.filter((a) => inner.some((b) => b !== a && b.sib !== a.sib && close(a.pts[a.pts.length - 1]!, b.pts[b.pts.length - 1]!, 1e-9))).length >= 2, `at ${par.id} the inner lines meet at the crotch`);
   }
   assert.equal(joined, lines, 'every trunk line continues a branch line');
 });
@@ -148,9 +148,10 @@ test('the lines come from geometry, not a list: a single straight sinusoid gets 
   for (const id of [1, 2, 3]) for (const side of [1, -1]) assert.ok(of(id, side), `arm/trunk ${id} side ${side}`);
   // the trunk's two lines begin where an arm's outer line ends; that arm's outer line is the one away from its sibling
   assert.ok(close(of(1, -1).pts.at(-1)!, of(3, -1).pts[0]!, 1e-9) && close(of(2, 1).pts.at(-1)!, of(3, 1).pts[0]!, 1e-9) || close(of(1, 1).pts.at(-1)!, of(3, 1).pts[0]!, 1e-9) && close(of(2, -1).pts.at(-1)!, of(3, -1).pts[0]!, 1e-9), 'outer lines run on into the trunk');
-  const inner = y.filter((r) => r.sib !== 3 && r.freeTail);
-  assert.equal(inner.length, 2, 'the two inner lines end free (a thread), the outer two do not');
-  for (const r of inner) assert.ok(close(r.pts.at(-1)!, [0.3, 0], 0.03), 'at the crotch');
+  const ends = y.filter((r) => r.sib !== 3).map((r) => r.pts.at(-1)!), meet = ends.filter((a, i) => ends.some((b, j) => i !== j && close(a, b, 1e-9)));
+  assert.equal(meet.length, 2, 'the two inner lines end at one point where they cross, in the crotch');
+  assert.ok(close(meet[0]!, [0.3, 0], 0.04), 'at the crotch');
+  assert.equal(y.filter((r) => r.freeTail).length, y.filter((r) => r.sib === 3).length, 'only the trunk\'s two lines (toward the central vein) are free; nothing is left free at the crotch');
   assert.ok(resampleRun([[0, 0], [1, 0]]).pts.length >= 40, 'tubes are sampled at about one tube-width and a half');
 });
 
@@ -226,4 +227,21 @@ test('drawn: the tubes are thin and whole, and thin out to nothing toward the ce
   assert.ok(Math.abs(rmax - DUCT_R * R) < 1e-9, `widest tube ${rmax}`);
   assert.ok(nearCv <= DUCT_R * R * 0.05, `${nearCv} at the vein`);
   assert.ok(Math.abs(midMax - DUCT_R * R) < 1e-9, 'whole in the middle');
+});
+
+test('drawn: in congestion the lymph moves out with its sinusoid\'s wall (HUG): each vertex carries its sinusoid\'s outward direction, wall radius and share of the widening, so it moves by exactly the wall\'s own growth', () => {
+  const hug = part.geometry.getAttribute('hug') as BufferAttribute;
+  assert.ok(hug, 'the part has a hug attribute'); assert.equal(hug.count, pos.length / 3);
+  assert.equal((part.mats.toon.uniforms.uHug!.value as { x: number }).x, 0, 'a uniform for the sinusoid\'s swelling');
+  let n = 0, hugging = 0;
+  for (let v = 0; v < hug.count; v++) {
+    const nx = hug.getX(v), ny = hug.getY(v), wall = hug.getZ(v), share = hug.getW(v);
+    assert.ok(Math.abs(Math.hypot(nx, ny) - 1) < 1e-5, 'a unit direction');
+    assert.ok(share >= 0 && share <= 1);
+    n++; if (wall > 0) { hugging++; assert.ok(wall > 0.01 && wall < 0.1, `a wall radius in scene units: ${wall}`); }
+  }
+  assert.ok(hugging / n > 0.8, `${hugging} of ${n} vertices hug`);
+  // the displacement of a vertex in a swollen sinusoid is wall x (whole + share x place), the sinusoid\'s own vertex displacement (cel3d SWELL), so the gap between tube and wall is the same as at rest
+  const whole = 0.4, sh = 0.3, v = Math.floor(hug.count / 2), grow = hug.getZ(v) * (whole + sh * hug.getW(v));
+  assert.ok(Math.abs(grow - hug.getZ(v) * whole - hug.getZ(v) * sh * hug.getW(v)) < 1e-12);
 });

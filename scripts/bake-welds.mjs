@@ -19,7 +19,7 @@ if (process.argv.includes('--check')) {
   console.log(ok ? 'baked welds: current' : 'baked welds: missing or for other numbers');
   process.exit(ok ? 0 : 1);
 }
-const t = Date.now(), plan = planWelds(req.courses, { avoid: req.avoid });
+const t = Date.now(), plan = planWelds(req.courses, { avoid: req.avoid, splay: false });
 mkdirSync(fileURLToPath(new URL('../public/lobule/', import.meta.url)), { recursive: true });
 const gz = gzipSync(encodePlan(plan, digest), { level: 9 });
 writeFileSync(out, gz);

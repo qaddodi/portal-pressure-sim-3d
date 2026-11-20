@@ -16,8 +16,13 @@ import { buildSkin, ringHull, GENTLE, type BuildPace } from '../vessels/skin/mes
 import { sdArm, skinKOf, type Capsule } from '../vessels/skin/sdf.ts';
 import { tubeFrames } from '../micro3d/cel3d.ts';
 import { splayCourses } from './weld-splay.ts';
+import { findNodes, refineEnds, TOUCH, REFINE_FIRST_R, REFINE_GROW, REFINE_OVER_R, type Node } from './weld-nodes.ts';
+export { refineEnds, REFINE_FIRST_R, REFINE_GROW, REFINE_OVER_R };
 
 export type V3 = [number, number, number];
+
+const hyp = Math.hypot;
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /** One tube of the network: its path (x, y, z, local units), the radius it has at each sample, and a colour place per sample (what the scene's lens gives it a colour from). */
 export interface WeldCourse {
@@ -34,7 +39,7 @@ export interface WeldCourse {
 }
 
 /** How near (local units, in the plan) a course's end must lie to another course for the two to be one junction: the sampling's own sag, far below any radius. */
-export const TOUCH = 4e-4;
+export { TOUCH };
 /** A seam is at least this many of its own radii from the junction centre (spec 4.4 rule 2) and clear of the other arms' blend by this many more radii beyond the blend width (rule 1, amended). */
 export const SEAM_MIN_R = 1.5, SEAM_CLEAR_R = 0.5;
 /** The last try for a junction that would not build: its seams stand this many radii from J, clear of the others' blend or not. */
@@ -105,68 +110,6 @@ export interface WeldPlan {
   conflicts?: [string, string][];
 }
 
-interface Touch { c: number; end: 0 | 1; to: number; seg: number; t: number; x: number; y: number; atEnd: boolean }
-
-const hyp = Math.hypot;
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-
-/** Plan distance from (x, y) to the segment a-b, with the foot's parameter. */
-function footOnSegment(x: number, y: number, a: V3, b: V3): { d: number; t: number } {
-  const bx = b[0] - a[0], by = b[1] - a[1], bb = bx * bx + by * by;
-  let t = bb > 0 ? ((x - a[0]) * bx + (y - a[1]) * by) / bb : 0;
-  t = Math.min(1, Math.max(0, t));
-  return { d: hyp(x - a[0] - t * bx, y - a[1] - t * by), t };
-}
-
-/** Every place one course's end touches another course of its family. */
-function findTouches(cs: readonly WeldCourse[]): Touch[] {
-  const out: Touch[] = [];
-  cs.forEach((c, i) => {
-    for (const end of [0, 1] as const) {
-      const P = end === 0 ? c.pts[0]! : c.pts[c.pts.length - 1]!;
-      let best: Touch | null = null, bd = TOUCH;
-      cs.forEach((o, j) => {
-        if (j === i || o.family !== c.family) return;
-        for (let s = 0; s < o.pts.length - 1; s++) {
-          const f = footOnSegment(P[0], P[1], o.pts[s]!, o.pts[s + 1]!);
-          if (f.d < bd) { bd = f.d; best = { c: i, end, to: j, seg: s, t: f.t, x: lerp(o.pts[s]![0], o.pts[s + 1]![0], f.t), y: lerp(o.pts[s]![1], o.pts[s + 1]![1], f.t), atEnd: (s === 0 && f.t < 1e-6) || (s === o.pts.length - 2 && f.t > 1 - 1e-6) }; }
-        }
-      });
-      if (best) out.push(best);
-    }
-  });
-  return out;
-}
-
-interface Node { id: string; kind: 'Y' | 'T'; J: V3; ends: { c: number; end: 0 | 1 }[]; host?: { c: number; seg: number; t: number } }
-
-/** The junctions of the network: ends that meet at one place (Y), and ends that land on the side of another course (T). */
-function findNodes(cs: readonly WeldCourse[]): Node[] {
-  const touches = findTouches(cs), nodes: Node[] = [], used = new Set<string>();
-  const endKey = (c: number, end: number) => `${c}:${end}`;
-  // ends that meet another course's END: cluster the ends that lie at one place
-  const endTouch = touches.filter((t) => t.atEnd);
-  for (const t of endTouch) {
-    if (used.has(endKey(t.c, t.end))) continue;
-    const c = cs[t.c]!, P = t.end === 0 ? c.pts[0]! : c.pts[c.pts.length - 1]!;
-    const ends: { c: number; end: 0 | 1 }[] = [];
-    cs.forEach((o, j) => { for (const e of [0, 1] as const) { const Q = e === 0 ? o.pts[0]! : o.pts[o.pts.length - 1]!; if (hyp(Q[0] - P[0], Q[1] - P[1]) < TOUCH && !used.has(endKey(j, e)) && o.family === c.family) ends.push({ c: j, end: e }); } });
-    if (ends.length < 2) continue;
-    for (const e of ends) used.add(endKey(e.c, e.end));
-    const J: V3 = [0, 0, 0];
-    for (const e of ends) { const o = cs[e.c]!, Q = e.end === 0 ? o.pts[0]! : o.pts[o.pts.length - 1]!; for (let d = 0; d < 3; d++) J[d] += Q[d]! / ends.length; }
-    nodes.push({ id: `Y(${ends.map((e) => `${cs[e.c]!.key}.${e.end}`).join('+')})`, kind: 'Y', J, ends });
-  }
-  // ends that land on a side
-  for (const t of touches) {
-    if (t.atEnd || used.has(endKey(t.c, t.end))) continue;
-    used.add(endKey(t.c, t.end));
-    const h = cs[t.to]!, z = lerp(h.pts[t.seg]![2], h.pts[t.seg + 1]![2], t.t);
-    nodes.push({ id: `T(${cs[t.c]!.key}.${t.end}>${h.key})`, kind: 'T', J: [t.x, t.y, z], ends: [{ c: t.c, end: t.end }], host: { c: t.to, seg: t.seg, t: t.t } });
-  }
-  return nodes;
-}
-
 /** A capsule along `idx` samples of a course outward from J: the sample positions with the radius at each. */
 function capsuleOf(path: readonly V3[], rad: readonly number[], J: V3, at: number, dir: 1 | -1, room: number, reach: number): Capsule {
   const pts: number[] = [J[0], J[1], J[2]], r: number[] = [rad[at]!];
@@ -200,33 +143,6 @@ const arcsOf = (pts: readonly V3[]): number[] => { const a = [0]; for (let i = 1
 /** The room an arm has outward from index `at`: the plan length of the path beyond it (the tube is only kept to its far end). */
 const roomOf = (arc: readonly number[], at: number, dir: 1 | -1): number => (dir === 1 ? arc[arc.length - 1]! - arc[at]! : arc[at]!);
 
-/** The first seam candidate on a refined arm is this many radii from the end, and each further one this many times as far as the last. */
-export const REFINE_FIRST_R = 1.6, REFINE_GROW = 1.45;
-/** A segment at an end is refined when it is longer than this many of the end's radii. */
-export const REFINE_OVER_R = 3;
-
-/** A copy of `cs` with extra samples in the first segment at each end of a course whose radius is small beside its sample spacing (the bile canaliculi: a hair of 0.0002 on samples 0.026 apart, so the
- *  first sample is 130 radii from the junction and the seam, one of the samples, was 450 radii out and the skin a thousand vertices of nothing). The new samples lie on the segment itself, at
- *  distances growing by REFINE_GROW from REFINE_FIRST_R radii, so the seam can stand a few radii from the junction. The tube is the same line; it only has more rings there. */
-export function refineEnds(cs: readonly WeldCourse[]): WeldCourse[] {
-  return cs.map((c) => {
-    const n = c.pts.length;
-    if (n < 3) return c;
-    const pts = c.pts.map((p) => [...p] as V3), rad = [...c.rad], w = [...c.w];
-    const refine = (end: 0 | 1) => {
-      const i0 = end === 0 ? 0 : pts.length - 1, i1 = end === 0 ? 1 : pts.length - 2, a = pts[i0]!, b = pts[i1]!, R = rad[i0]!, L = hyp(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
-      if (!(L > REFINE_OVER_R * R)) return;
-      const add: { d: number }[] = [];
-      for (let d = REFINE_FIRST_R * R; d < L * 0.97; d *= REFINE_GROW) add.push({ d });
-      const made = add.map(({ d }) => { const t = d / L; return { p: [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)] as V3, r: lerp(rad[i0]!, rad[i1]!, t), w: lerp(w[i0]!, w[i1]!, t) }; });
-      if (end === 0) { pts.splice(1, 0, ...made.map((m) => m.p)); rad.splice(1, 0, ...made.map((m) => m.r)); w.splice(1, 0, ...made.map((m) => m.w)); }
-      else { const at = pts.length - 1; pts.splice(at, 0, ...made.reverse().map((m) => m.p)); rad.splice(at, 0, ...made.map((m) => m.r)); w.splice(at, 0, ...made.map((m) => m.w)); }
-    };
-    refine(0); refine(1);
-    return pts.length === n ? c : { ...c, pts, rad, w };
-  });
-}
-
 /** Plans every junction of `courses`. */
 export interface PlanOpts { /** Builds already made (the planner's second pass finds most of the first's again): set by planWelds. */ memo?: Map<string, SkinMesh | SkinBuildError>; avoid?: readonly { x: number; y: number; r: number }[]; splay?: boolean; merge?: boolean; trace?: (node: string, msg: string) => void }
 
@@ -252,7 +168,7 @@ function planOnce(coarse: readonly WeldCourse[], opts: PlanOpts, merge: string[]
   const courses = refineEnds(coarse);
   const skipped: WeldPlan['skipped'] = [];
   // (a meeting inside a vessel's mouth is not a junction: the tubes run into the pool and are lost in it, whatever they do there)
-  const nodes = findNodes(courses).filter((n) => !(opts.avoid ?? []).some((d) => hyp(n.J[0] - d.x, n.J[1] - d.y) < d.r));
+  const nodes = findNodes(courses, TOUCH).filter((n) => !(opts.avoid ?? []).some((d) => hyp(n.J[0] - d.x, n.J[1] - d.y) < d.r));
   // the planned paths: a copy of each course with every T's junction point inserted into its host
   // (arms that meet at a shallow V are bent apart over their last stretch first: weld-splay.ts)
   const bent = opts.splay === false ? courses : splayCourses(courses, nodes, undefined, opts.trace);
