@@ -270,7 +270,9 @@ void main() {
     float tl = length(toJ);
     vec3 tJ = tl > 1e-6 ? toJ / tl : vec3(1.0, 0.0, 0.0);
     float sI = armArc[i].x + armArc[i].y * dot(vPos - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz, tJ) * SKIN_U;
-    vec3 sideX = cross(normalize(mat3(modelViewMatrix) * (armArc[i].y * tJ)), viewDir);
+    vec3 headV = mat3(modelViewMatrix) * (armArc[i].y * tJ);   // (a heading of zero length would normalise to NaN, and a NaN pixel is a speck of any colour: the length is checked first)
+    float headL = length(headV);
+    vec3 sideX = headL > 1e-6 ? cross(headV / headL, viewDir) : vec3(0.0);
     float sideL = length(sideX);
     float acrossI = dot(n, sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0));
     float pxI = fwidth(sI);        // (derivatives are taken here, before any branch that depends on the weight)
