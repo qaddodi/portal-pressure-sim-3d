@@ -48,6 +48,8 @@ export interface GestureHost {
   orbit(): number;
   /** The least zoom the hand may rest at for the view now (absent: K_MIN). The sinusoid keeps its own vessel framed: never under its fit (Mohammad, 20 Nov 2026: "i shouldn't be able to zoom this much in sinusoid; spring me back"). */
   kMin?(): number;
+  /** A pan let go outside the allowed area glides back to the middle of the view (the sinusoid), not just to its edge. */
+  recentre?(): boolean;
   /** Returns whether the orbit changed. */
   setOrbit(rad: number): boolean;
   /** Tilt all around (Settings): whether the free turn is on, and the tilt up or down. Absent: only the ±25° turn. */
@@ -155,7 +157,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     springAsk = 0;
     if (drag || flicking || wheelGlide.active) { if (wheelGlide.active) settleSoon(60); return; }
     const v0 = hand.take(env.now(), handAge);
-    const to = restingView(host.hand(), fitRect(), host.centre(), kMin());
+    const to = restingView(host.hand(), fitRect(), host.centre(), kMin(), !!host.recentre?.());
     if (!sameView(to, host.hand())) animateTo(to, undefined, v0);
   }
   const settleSoon = (ms = 220) => { env.clearTimer(settleT); settleT = env.timer(springBack, ms); };

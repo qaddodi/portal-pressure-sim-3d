@@ -111,6 +111,7 @@ test('a card opened in the middle of a dive: the dive goes on, lands when it wou
   rig.goTo(lob, room, 0, DIVE_BODY_MS);
   let t = 16;
   for (; t < 800; t += 16) rig.update(t);
+  rig.update(t);
   const r0 = rig.pose.shot.r, small = { x: 0, y: 0, w: 640, h: 700 };
   rig.setRoom(small, t);                                          // the card opens
   rig.update(t);

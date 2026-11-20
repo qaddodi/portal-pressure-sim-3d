@@ -105,3 +105,15 @@ test('the cards come in together, whole: a card is let in only by the group\'s g
   assert.doesNotMatch(css, /\.dk-card\[data-phase="in"\]\s*\{\s*animation/);
   assert.doesNotMatch(frame, /onAnimationEnd/);
 });
+
+// Mohammad, 20 Nov: "when i finish the slides, the whole thing goes black". 2D ends the talk on a Next past the last slide (presenter.js next(): `else stop()`), and
+// 3D's quick check (2D has none) is veiled so softly that the figure the talk ended on stays in view.
+test('a Next from the last stop, with no page left, ends the talk; the quick check keeps the figure in view', async () => {
+  const { atEnd } = await import('../src/ui/ui-store.ts');
+  const stops = [{ kind: 'title' }, { kind: 'check' }] as never;
+  assert.equal(atEnd({ stops, pos: { stop: 1, beat: 0 }, page: 0, pageCount: 1 }), true);
+  assert.equal(atEnd({ stops, pos: { stop: 1, beat: 0 }, page: 0, pageCount: 2 }), false, 'a page left to turn');
+  assert.equal(atEnd({ stops, pos: { stop: 0, beat: 0 }, page: 0, pageCount: 1 }), false);
+  const css = readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8');
+  assert.match(css, /\.pz-veil\.soft \{ opacity: 0\.5; \}/);
+});

@@ -488,6 +488,8 @@ export class CelScene {
   markVessels(ids: readonly string[]): void { this.highlight.setOnly(ids); this.moving = true; }
 
   /** Outline these organs (organ ids: liver, spleen, heart, bowel, colon, duodenum, kidney-l...); [] clears. */
+  /** The tapped organ gets a heavy outline (the selection's mark); [] puts it out. */
+  selectOrgans(ids: readonly string[]): void { this.pins.select(ids); this.moving = true; }
   pinOrgans(ids: readonly string[], normalSpleen = false): void { this.pins.set(ids); this.pins.setNormalOutline(normalSpleen); this.moving = true; }
 
   /** Free play: pick a vessel by edge ID (or clear it with null). */
@@ -636,6 +638,10 @@ export class CelScene {
     ORGAN_CUT.value.set(this.cutArr[0], this.cutArr[1], this.cutArr[2], this.cutArr[3]);
     this.lobule.field.setSoft(fieldSoft(d, this.lobuleRest()));
     if (was !== this.cutArr[2] && (was > -1 || this.cutArr[2] > -1)) this.moving = true;
+    // while the window is open the organs' fill stops writing depth: a half-cleared fragment (the window's soft edge, the dive's fade) is nearly invisible, and writing depth with it hid the vessels, the lobule and the organ's own far side
+    // behind it in a pattern that changed every frame of the dive (the surface "flickers", Mohammad 20 Nov). At rest (nothing cleared) the fill writes depth as before.
+    const open = this.cutArr[2] > -1;
+    if (open !== this.organsOpen) { this.organsOpen = open; for (const o of this.disease.organs.objects) o.toon.depthWrite = !open; this.moving = true; }
   }
   /** A portrait room (narrower than tall, 2D's `W < H * 0.95`) runs the sinusoid top to bottom: the sinusoid view takes it (SinusoidView.setPortrait, the sinusoid worker's), and the shot asks for it (sinusoidShot(portrait)). */
   private portrait = false;
@@ -664,6 +670,7 @@ export class CelScene {
     if (key !== this.restKey) { this.restKey = key; this.restD = effectiveDistance(lobuleShot('lobule'), r, this.height, this.width); }
     return this.restD;
   }
+  private organsOpen = false;
   private readonly divePt = new Vector3();
   private readonly cutArr: [number, number, number, number] = [0, 0, -1, 1];
   /** How much of the body is drawn now (1 whole, 0 gone): for tests and tags. */
@@ -880,8 +887,8 @@ export class CelScene {
     const into = this.post.target(gl);
     const dof = dofShare > 0 && !!into?.depthTexture;
     // the sinusoid's focus band (every device): its own lumen and plates sharp, the neighbours and whatever drifts off them blurring by distance (post-dof.ts bandFrame)
-    const bandK = into && this.figureView === 'sinusoid' ? this.sinus3d.focusBand(_bA, _bB, _bE0, _bE1) : 0;
-    const band = bandK > 0 && this.post.dof.bandFrame(cam, _bA, _bB, _bE0, _bE1, into!.width, into!.height, bandK) > 0;
+    const bandK = into && this.figureView === 'sinusoid' ? this.sinus3d.focusBand(_bA, _bB, _bE0, _bE1, _bEnds) : 0;
+    const band = bandK > 0 && this.post.dof.bandFrame(cam, _bA, _bB, _bE0, _bE1, into!.width, into!.height, bandK, _bEnds) > 0;
     if (!band) this.post.dof.bandShare = 0;
     if (into) gl.setRenderTarget(into);
     cam.layers.set(0);
@@ -924,4 +931,4 @@ export { SHOTS };
 
 /** 0 below a, 1 above b, smooth between. */
 function smoothstep01(a: number, b: number, x: number): number { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
-const _bA = new Vector3(), _bB = new Vector3(), _bE0 = new Vector3(), _bE1 = new Vector3();
+const _bA = new Vector3(), _bB = new Vector3(), _bE0 = new Vector3(), _bE1 = new Vector3(), _bEnds = { mid: new Vector3(), f0: new Vector3(), f1: new Vector3() };

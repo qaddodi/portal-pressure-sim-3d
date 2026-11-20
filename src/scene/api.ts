@@ -151,6 +151,8 @@ export const sceneApi = {
   /** Light exactly these vessels (edge IDs), as the shunt's valid targets glow; [] puts them out. Replaces the pick. */
   markVessels(ids: readonly string[]): void { cel.markVessels(ids); clock.invalidate('mark'); },
   /** Outline organs by the organ layer's ids (a slide's glow, spot or term naming an organ); `normalSpleen` also draws the normal-sized spleen's line. [] clears. */
+  /** The tapped organ's heavy outline (organ layer ids); [] clears it. */
+  selectOrgans(ids: readonly string[]): void { cel.selectOrgans(ids); clock.invalidate('select-organ'); },
   pinOrgans(ids: readonly string[], normalSpleen = false): void { cel.pinOrgans(ids, normalSpleen); clock.invalidate('pin'); },
   /** Pick a vessel by edge ID, or clear with null. */
   pick(id: string | null): void { cel.pick(id); usePick.setState({ picked: cel.highlight.picked }); clock.invalidate('pick'); },

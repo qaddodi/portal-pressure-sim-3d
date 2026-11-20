@@ -11,7 +11,7 @@ import { ClockBridge } from '../clock/r3f.tsx';
 import { clock } from '../clock/frame.ts';
 import { VesselData, latest } from '../engine/index.ts';
 import { useEngine } from '../engine/store.ts';
-import { resolveLook } from '../looks/looks.ts';
+import { lookGlide } from '../looks/glide.ts';
 import { useDeck } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
 import { figureDpr, msaaFor } from './quality.ts';
@@ -82,20 +82,12 @@ function SceneBridge() {
     return useEngine.subscribe(load);
   }, []);
 
-  // look and flow-mark style follow the settings (and the device's light/dark when the look is "System")
-  useEffect(() => {
-    const dark = matchMedia('(prefers-color-scheme: dark)');
-    const paint = () => {
-      const look = resolveLook(useSettings.getState().look, dark.matches);
-      cel.applyLook(look);
-      gl.setClearColor(cel.background);
-      clock.invalidate('look');
-    };
-    paint();
-    const un = useSettings.subscribe(paint);
-    dark.addEventListener('change', paint);
-    return () => { un(); dark.removeEventListener('change', paint); };
-  }, [gl]);
+  // the figure's look follows the page's: one change runs the page's colours and the figure's together, eased (looks/glide.ts); the first paint is at once
+  useEffect(() => lookGlide.onLook((look) => {
+    cel.applyLook(look);
+    gl.setClearColor(cel.background);
+    clock.invalidate('look');
+  }), [gl]);
 
   // Settings > Figure depth: Organ depth and Organ fill drive the organs live (the layer eases them on the clock)
   useEffect(() => bindOrganSettings(cel.disease.organs, useSettings, (why) => clock.invalidate(why)), []);
@@ -130,6 +122,7 @@ function SceneBridge() {
       fitRect: () => cel.rig.fitRect(),
       // (the sinusoid and the lobule keep their subject framed, and Anatomy never rests zoomed out past its fit (owner, 20 Nov: "spring back zoom to fit when i try to zoom out"): a pinch out stretches a little and springs back on release)
       kMin: () => (cel.view === 'sinusoid' || cel.view === 'lobule' || cel.view === 'body' ? 1 : K_MIN),
+      recentre: () => cel.view === 'sinusoid',
       orbit: () => cel.rig.orbitAngle,
       setOrbit: (rad) => { const changed = cel.rig.setOrbit(rad); if (changed) clock.invalidate('orbit'); return changed; },
       free: () => cel.rig.free,

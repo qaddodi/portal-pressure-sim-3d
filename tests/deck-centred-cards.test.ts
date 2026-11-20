@@ -110,3 +110,10 @@ test('the measures are 2D\'s CSS (the lifted copy): the panel, the stacked panel
   assert.match(lifted, /\.pz-case \{[^}]*width: min\(calc\(100% - 32px - 2 \* max\(env\(safe-area-inset-left, 0px\), env\(safe-area-inset-right, 0px\)\)\), 920px\)[^}]*max-height: calc\(100% - 2 \* max\(84px, 11vh\)\)/);
   assert.match(lifted, /\.pz\.stack\.tab \.pz-case \{ width: 70%; \}/);
 });
+
+test('the six ladders are 2D\'s `.pz-panel.fill`: the screen\'s width, not a reading width', () => {
+  const full = centredBox(mac, 'panel', 'ladders').w, table = centredBox(mac, 'panel', 'table').w;
+  assert.ok(full > table, 'wider than a table');
+  assert.equal(full, Math.round(Math.min(1560, 1440 - 2 * Math.max(Math.min(64, Math.max(16, 0.03 * 1440)), 0))));
+  assert.match(readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8'), /visual === 'ladders' \? 'fill'/);
+});

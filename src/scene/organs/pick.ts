@@ -17,3 +17,6 @@ export const lobeAt = (x2d: number): 'L' | 'R' => (x2d < LIVER_SPLIT_X ? 'R' : '
 export function organHit(og: 'liver' | 'heart' | 'spleen' | 'abdomen', x2d: number): FigureHit {
   return og === 'liver' ? { type: 'organ', id: og, lobe: lobeAt(x2d) } : { type: 'organ', id: og };
 }
+
+/** The organ-layer meshes a selected organ's outline is drawn on (the heart is two: the ventricle and the atrium). Organs with no mesh (the varices, the fundus) have none. */
+export const MESHES_OF: Readonly<Record<string, readonly string[]>> = { liver: ['liver'], heart: ['heart', 'heart-ra'], spleen: ['spleen'] };
