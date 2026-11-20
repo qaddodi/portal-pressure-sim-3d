@@ -5,13 +5,15 @@ import { CIRR, liverField, liverSurface } from '../disease/copied/liver-morph.js
 import { NODULE_SIZE } from '../disease/copied/liver-geo.js';
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import { flagValue } from '../../ui/debug/flags.ts';
-import { LIVER_LOOKS, lookBump, type LiverLook } from './liver-texture.ts';
+import { LIVER_LOOKS, lookBump, lookDome, type LiverLook } from './liver-texture.ts';
 
 /** The liver look the address asks for (?liver=a|b|c|d, preview copy), or null: the old per-vertex surface. */
 export const liverLook = (): LiverLook | null => { const v = flagValue('liver'); return (LIVER_LOOKS as readonly string[]).includes(v ?? '') ? (v as LiverLook) : null; };
 
 /** Nodule bump height at full strength, scene units (the 2D nodules stand out about 2 to 3 units: 0.01). */
 export const NODULE_HEIGHT = 0.011;
+/** How far a nodule at the liver's rim stands out of its outline at full scarring, scene units (about 2 units of the 2D figure: a scalloped edge, never inward, so the vessels keep their margin). */
+export const RIM_HEIGHT = 0.0068;
 const CELL = 13 * NODULE_SIZE * CIRR.nod / 4;   // 2D units: a nodule's width, from liver-geo.js's spacing and the nodule scale
 
 const hash2 = (i: number, j: number, k: number): number => { let h = (i * 374761393 + j * 668265263 + k * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -60,7 +62,7 @@ export class LiverShape {
     if (c === this.lastC) return false;
     this.lastC = c;
     const pos = this.position.array, r = this.rest, n = this.normals;
-    const bump = liverSurface(c).nod * NODULE_HEIGHT;
+    const nodS = liverSurface(c).nod, bump = nodS * NODULE_HEIGHT, look = liverLook();
     for (let i = 0; i < r.length; i += 3) {
       const x0 = r[i]!, y0 = r[i + 1]!;
       const f = liverField(x2d(x0), y2d(y0), c);
@@ -70,6 +72,11 @@ export class LiverShape {
         // the bumps push along the normal, but not sideways at the edge: there the normal lies in the plane, the rim's samples (one every 2.5 units) would each be pushed by a different cell's bump, and the liver's outline came out as a saw-tooth
         const k = edgeFree(Math.abs(n[i + 2]!));
         x += n[i]! * h * k; y += n[i + 1]! * h * k;
+        // the outline is nodular too (Mohammad 20 Nov): at the rim the nodules stand out along the in-plane normal, by the same dome the surface has, so the edge is scalloped by the same cells. Outward only.
+        if (look) {
+          const m = Math.hypot(n[i]!, n[i + 1]!);
+          if (m > 1e-3) { const r = (1 - k) * RIM_HEIGHT * nodS * lookDome(look, x2d(x0), y2d(y0)) / m; x += n[i]! * r; y += n[i + 1]! * r; }
+        }
         pos[i + 2] = r[i + 2]! + n[i + 2]! * h;
       } else pos[i + 2] = r[i + 2]!;
       pos[i] = x; pos[i + 1] = y;

@@ -452,7 +452,7 @@ void main() {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
     vec3 inkH = mix(inkColor, celTubeBase(baseH) * mix(${F(CEL_STYLE.TUBE.INK_TONE)}, ${F(CEL_STYLE.TUBE.INK_TONE_DARK)}, tubeDark), ${F(CEL_STYLE.TUBE.INK_OWN)});
-    c = mix(c, mix(mix(inkH, inkColorCirc, circT), hiColor, clamp(vHi, 0.0, 1.0)), inkT);
+    c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (a selected vessel's line is its own: the glow is a separate halo, glow.ts)
   }
   gl_FragColor = vec4(c, vFade);
 }`;
