@@ -423,7 +423,8 @@ export class Lobule3D {
       });
       coloured(this.bile, b, null, W, K);
     }
-    // the mouths: each end-on vessel a round opening down into the slab
+    // the mouths: each end-on vessel (venule, arteriole, ductule, lymphatic, central vein) a round wall FULL of its own colour, never an empty cylinder (Mohammad 20 Nov 2026: "the blood vessels
+    // and bile should not look like empty cyllindars, just filll them with the color")
     const mouths = (part: MicroPart, cs: Course[], r: number, seg: Seg | null, vessel = false) => {
       const b = new MeshBuilder(), W: number[] = [], K: number[] = [];
       for (const c of cs) {
@@ -433,10 +434,10 @@ export class Lobule3D {
       for (let v = 0; v < b.count; v++) W.push(seg === 'cv' ? 1 : 0);
       coloured(part, b, seg, W, K);
     };
-    mouths(this.mouthPv, by('pv'), DISC_R.pv, 'pv');
-    mouths(this.mouthHa, by('ha'), DISC_R.ha * HA_K, null);
-    mouths(this.mouthBd, by('bd'), DISC_R.bd * BD_K, null);
-    mouths(this.mouthLv, by('lv'), DISC_R.lv, null);
+    mouths(this.mouthPv, by('pv'), DISC_R.pv, 'pv', true);
+    mouths(this.mouthHa, by('ha'), DISC_R.ha * HA_K, null, true);
+    mouths(this.mouthBd, by('bd'), DISC_R.bd * BD_K, null, true);
+    mouths(this.mouthLv, by('lv'), DISC_R.lv, null, true);
     mouths(this.mouthCv, by('cv'), DISC_R.cv, 'cv', true);
   }
 
@@ -494,7 +495,7 @@ function trimInside(c: Course, r: number): Course {
 export function mouth(b: MeshBuilder, x: number, y: number, r: number, zTop: number, depth: number, K: number[], seg = MOUTH_SEG, vessel = false): void {
   // a vessel (the central vein, Mohammad 20 Nov 2026: "just a void; not a blood vessel"): a wall (the lip, a darker tone of the blood) round a lumen full of blood (a shallow floor in the
   // blood's own colour), not a dark hole
-  if (vessel) { depth *= 0.18; }
+  if (vessel) { depth *= 0.1; }
   const kW = vessel ? 0.7 : 1, kIn = vessel ? [0.82, 0.92, 0.97, 1] : [0.86, 0.74, 0.62, 0.55];
   const lip = Math.max(r * (vessel ? 0.16 : 0.2), 0.004), rows: number[] = [], start = b.count;
   // the profile from outside in: outer wall foot, over the lip, down the inner wall, the floor's edge
