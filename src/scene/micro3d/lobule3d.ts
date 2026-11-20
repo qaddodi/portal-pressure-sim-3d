@@ -82,7 +82,7 @@ const at3 = (p: LP2, z: number): [number, number, number] => [p[0] * R, -p[1] * 
 /** What this scene reads of the lobule's host (lobule/view.ts: the network, the eased state, the layers' fades, the look, the field). */
 interface Flat {
   net: LobuleNet;
-  field: { readonly wideNow: number };
+  field: { readonly wideNow: number; setFade(k: number): void };
   cur: { fibSin: number; fibPre: number; fibPost: number; congU: number; septU: number; act: number; lum: number; flow: number; portal: number; art: number; lymphRate: number; seal: number };
   layers: { lymph: boolean; zones: boolean; bile: boolean };
   lyFade: number; bileFade: number; zoneFade: number;
@@ -288,6 +288,8 @@ export class Lobule3D {
     const come = 1 - f.field.wideNow;
     // (whole once it is all but whole: the fade dissolves pixels in a screen pattern below 0.999, and a field that settles a hair short of 0 left the lobule speckled at rest, its lines dotted)
     const fv = (1 - under) * come, fs = fv > FADE_SNAP ? 1 : fv;
+    // (the neighbours' plate goes under the sinusoid on the same curve as the tiles and tubes, `1 - under`; it is NOT also faded by the field's own breadth `come`, which is how the field itself widens)
+    f.field.setFade(1 - under > FADE_SNAP ? 1 : 1 - under);
     this.fade.value = fs;   // (the ONE dissolve: every tile, tube, mark and the marks plate drop the same pixels of one screen pattern at this value, and nothing else is scaled by it)
     const shown = on && f.isVisible && under < 1;
     this.group.visible = shown;

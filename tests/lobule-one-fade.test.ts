@@ -43,3 +43,17 @@ test('no mark, wash or tone in the lobule scene multiplies by its fade', () => {
   assert.doesNotMatch(src, /\*\s*this\.fade\.value|this\.fade\.value\s*\*/, 'nothing is scaled by the fade a second time');
   assert.doesNotMatch(src, /opacity!?\.value\s*=\s*fs/, 'the marks plate has no alpha fade of its own');
 });
+
+test('the neighbours\' plate (the yellow tissue round the lobule) goes under the sinusoid on the same curve as the tiles and the vessels, not as a hard switch of its own (Mohammad 20 Nov: "the yellow plate appears first before blood vessels")', async () => {
+  const { LOBULE_FIELD_FS } = await import('../src/scene/lobule/field.ts');
+  assert.match(LOBULE_FIELD_FS, /gl_FragColor = vec4\(col, a \* fade\);/, 'the plate\'s alpha is scaled by the lobule\'s dissolve');
+  for (const under of [0, 0.25, 0.5, 0.75, 0.99]) {
+    l3.update(true, under, 2000 + under * 100, 1);
+    assert.ok(Math.abs(flat.field.fadeNow - (1 - under > 0.98 ? 1 : 1 - under)) < 1e-9, `the plate is at ${(1 - under).toFixed(2)} when the lobule is, at ${under} under`);
+  }
+  // and the tiles read the same number (the field's own breadth is not part of it)
+  l3.update(true, 0.5, 3000, 1);
+  assert.equal(flat.field.fadeNow, 0.5);
+  const src = readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
+  assert.match(src, /f\.field\.setFade\(/);
+});
