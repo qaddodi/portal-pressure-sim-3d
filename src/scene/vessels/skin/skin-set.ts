@@ -18,10 +18,10 @@ import { REST, coursesOf, tubularOf, type ShapeState } from '../shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { slicesFor } from '../../circuit/geometry.ts';
 import { MIN_ARMS, dropFarGrowers, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
-import { planSkins, type ArmTube } from './cuts.ts';
-import { buildSkin, hullCovers } from './mesh.ts';
+import { armWalk, planSkins, type ArmTube } from './cuts.ts';
+import { buildSkinSteady, hullCovers } from './mesh.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
-import { SKIN_CUT_NONE, SKIN_GROWERS, SKIN_HIDDEN, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
+import { SKIN_CUT_NONE, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
 import { armPresenceAt, hiWeightAt, lensUAt, liveFadeAt, type FadeState, type HiState } from './arm-twins.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import type { ArmAxis, ArmColour } from './skin-object.ts';
@@ -79,6 +79,8 @@ interface Built {
   sources: readonly string[]; vessels: ReadonlySet<string>; hidden: readonly string[];
   /** an arm changed since the last rebuild; `slow`: that rebuild took over SKIN_BUILD_SLOW_MS; `at`: the step it ran in */
   dirty: boolean; slow: boolean; at: number;
+  /** the holes this skin leaves in a host (a vessel with side-wall arms on both sides of its junction): the vessel and the u range the skin draws instead of the tube */
+  holes: { id: string; lo: number; hi: number }[];
 }
 
 /** The seam ring's vertices and normals of one arm, read from the tube `buildTubes` made (spec 4.4: not recomputed): `RADIAL` of them, in the tube's ring order. */
@@ -104,19 +106,34 @@ function ringCentre(g: BufferGeometry, ring: number): { c: Vec3; r: number } {
   for (let j = 0; j < TUBE_RADIAL; j++) { const i = ring * (TUBE_RADIAL + 1) + j; r += Math.hypot(p.getX(i) - x, p.getY(i) - y, p.getZ(i) - z); }
   return { c: [x, y, z], r: r / TUBE_RADIAL };
 }
+/** The unit normal of a tube ring's plane (the sum of the cross products of its radial vectors), or null when the ring is degenerate. */
+function ringPlaneNormal(g: BufferGeometry, ring: number): Vec3 | null {
+  const { c } = ringCentre(g, ring), p = g.getAttribute('position');
+  let nx = 0, ny = 0, nz = 0;
+  for (let j = 0; j < TUBE_RADIAL; j++) {
+    const a = ring * (TUBE_RADIAL + 1) + j, b = ring * (TUBE_RADIAL + 1) + ((j + 1) % TUBE_RADIAL);
+    const ax = p.getX(a) - c[0], ay = p.getY(a) - c[1], az = p.getZ(a) - c[2], bx = p.getX(b) - c[0], by = p.getY(b) - c[1], bz = p.getZ(b) - c[2];
+    nx += ay * bz - az * by; ny += az * bx - ax * bz; nz += ax * by - ay * bx;
+  }
+  const l = Math.hypot(nx, ny, nz);
+  return l > 1e-12 ? [nx / l, ny / l, nz / l] : null;
+}
 /** The three points of an arm's axis its skin's ink and fillet are made from (spec 4.3, 4.7), junction side first. The seam point is the tube's own seam ring centre and radius (so the outline is exact there); the other two lie on the line through it along the tube's heading at the seam
  *  (the difference of the neighbouring ring centres), the first as far back toward the node as the arm's end ring is, the last `AXIS_REACH_R` radii from that end: a straight capsule through the seam never kinks against the tube's smooth curve at it, which a polyline of the
  *  tube's own, coarse, ring centres does (HA's left branch turns 45 degrees between two rings, a half pixel of ink off at the seam). Their radii are the end ring's and the tube's radius where the far point's ring is. */
 export const AXIS_REACH_R = 6;
 /** An arm whose end ring lies more than this many of its radii from J gets J put in front of its capsule (spec 10.5). */
 export const BRIDGE_MIN_R = 0.1;
-export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3): ArmAxis {
+export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, startRing?: number): ArmAxis {
   const out = cut.end ? -1 : 1, last = tube.tubular;
-  const end = cut.end ? last : 0, a = ringCentre(tube.geometry, end), s = ringCentre(tube.geometry, cut.ring);
+  const end = startRing ?? (cut.end ? last : 0), a = ringCentre(tube.geometry, end), s = ringCentre(tube.geometry, cut.ring);
   const lo = Math.min(last, Math.max(0, cut.ring - out)), hi = Math.min(last, Math.max(0, cut.ring + out));   // (the ring nearer the node, the ring farther from it)
   const cl = ringCentre(tube.geometry, lo).c, ch = ringCentre(tube.geometry, hi).c;
+  // the heading is the seam ring's own plane normal (the way the tube's flow marks and ink are laid across it), turned to run away from the node; the neighbouring ring centres give the sense and, for a degenerate ring, the heading itself
   let tx = ch[0] - cl[0], ty = ch[1] - cl[1], tz = ch[2] - cl[2];
   const tl = Math.hypot(tx, ty, tz) || 1; tx /= tl; ty /= tl; tz /= tl;
+  const rn = ringPlaneNormal(tube.geometry, cut.ring);
+  if (rn) { const sgn = rn[0] * tx + rn[1] * ty + rn[2] * tz < 0 ? -1 : 1; tx = rn[0] * sgn; ty = rn[1] * sgn; tz = rn[2] * sgn; }
   const d0 = Math.hypot(s.c[0] - a.c[0], s.c[1] - a.c[1], s.c[2] - a.c[2]), d2 = Math.max(AXIS_REACH_R * restR - d0, restR);
   let far = cut.ring, at = s.c;
   for (let k = cut.ring; k >= 0 && k <= last; k += out) { far = k; at = ringCentre(tube.geometry, k).c; if (Math.hypot(at[0] - a.c[0], at[1] - a.c[1], at[2] - a.c[2]) >= AXIS_REACH_R * restR) break; }
@@ -135,12 +152,25 @@ export function armArcOf(end: 0 | 1, u: number, len: number, radius: number): { 
 /** An axis as the mesh builder's capsule (sdf.ts): the same three points and radii. */
 const capsuleOf = (a: ArmAxis): Capsule => ({ n: a.pts.length, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii), mate: a.mate });
 
+/** The holes a skin's cuts leave (spec 10.1): a vessel with a side-wall arm on each side of the junction is not drawn between their seams; with an arm on one side only its cut is an ordinary one (the rest of the tube is inside the skin's reach). */
+export function holesOf(cuts: readonly SkinCut[]): { id: string; lo: number; hi: number }[] {
+  const out: { id: string; lo: number; hi: number }[] = [];
+  for (const c of cuts) {
+    if (c.side !== -1) continue;
+    const up = cuts.find((o) => o.vesselId === c.vesselId && o.side === 1);
+    if (up) out.push({ id: c.vesselId, lo: c.u, hi: up.u });
+  }
+  return out;
+}
+
 export class SkinSet {
   private built: Built[] = [];
   /** the ends that are skinned, by vessel id: [start, end] */
   private readonly ends = new Map<string, [boolean, boolean]>();
   /** the cut each skinned tube takes now, by vessel id (both ends of a vessel two skins share in one entry; a vessel a merged skin replaces whole is hidden) */
   private readonly cuts = new Map<string, [number, number]>();
+  /** the holes each skinned tube has now, by vessel id (at most two: `skinHole`, `skinHole2`) */
+  private readonly holes = new Map<string, { node: string; lo: number; hi: number }[]>();
   private readonly warned = new Set<string>();
   /** the nodes that fell back to today's method (named, once) */
   readonly fellBack: string[] = [];
@@ -232,7 +262,11 @@ export class SkinSet {
           const j = todo.find((x) => x.node === n);
           if (!j || again.has(n)) continue;
           const g = j.arms.filter((a) => a.grow);
-          if (!g.length) { lost.push({ node: f.nodes.join('+'), message: f.message }); continue; }
+          if (!g.length) {
+            // a merged skin that failed: this node has nothing to drop, but its partner's growing arm goes (with fewer than three arms the partner is no junction), so the merge goes too and this node is planned again alone: the cava's IVCS and the run-on RHV_T the TIPS lands on
+            if (f.nodes.length > 1 && f.nodes.some((m) => m !== n && todo.find((x) => x.node === m)?.arms.some((a) => a.grow))) { again.set(n, f.message); next.push(j); continue; }
+            lost.push({ node: f.nodes.join('+'), message: f.message }); continue;
+          }
           const drop = g[g.length - 1]!, arms = j.arms.filter((a) => a !== drop);
           this.dropped.push(`${n}:${drop.vesselId}`);
           again.set(n, f.message);
@@ -255,8 +289,8 @@ export class SkinSet {
     if (objs.some((o) => !o)) return null;   // (a vessel not in this scene: no skin; the tubes are untouched)
     const { pos, nor, rest } = this.ringsFor(tubes, plan.cuts);
     // the arms' axes: the tubes' own ring centres and radii, the SAME three-point polylines the skin's fragment stage draws its ink from, so the mesh's fillet and its outline are one shape
-    const axes = weldThrough(j.arms.map((a, i) => axisOf(tubes.get(a.vesselId)!, a.restR, plan.cuts[i]!, j.J)), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
-    const mesh = buildSkin(j, plan.cuts, pos, nor, axes.map(capsuleOf));
+    const axes = weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
+    const mesh = buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf));
     // on a seam ring the skin's rest radius is the tube's own, exactly (the mesh builder measures the ring's mean radius, a few parts in 10^4 off the tube's `radius * rk`): the live move of a seam vertex is then the tube's to the last bit (spec 4.6)
     mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));
     const draw = this.deps.make(mesh, axes, objs as VesselObject[]);
@@ -269,13 +303,19 @@ export class SkinSet {
     const sources = plan.merged ?? [j.node];
     const vessels = new Set<string>(this.sources.filter((s) => sources.includes(s.node)).flatMap((s) => s.arms.map((a) => a.vesselId)));
     for (const a of j.arms) vessels.add(a.vesselId);
-    return { node: j.node, mesh, draw, arms, sources, vessels, hidden: plan.hidden, dirty: false, slow: false, at: -Infinity };
+    return { node: j.node, mesh, draw, arms, sources, vessels, hidden: plan.hidden, dirty: false, slow: false, at: -Infinity, holes: holesOf(plan.cuts) };
   }
 
   /** Records a skin's cuts and skinned ends (its arms' ends, and every vessel it replaces whole), without touching the tubes. */
   private takeCuts(b: Built): string[] {
     const touched: string[] = [];
+    for (const h of b.holes) {
+      const hs = this.holes.get(h.id) ?? [];
+      if (hs.length >= 2) throw new SkinBuildError(b.node, `${h.id} would have more than two holes`);   // (spec 10.1: a vessel has `skinHole` and `skinHole2`)
+      hs.push({ node: b.node, lo: h.lo, hi: h.hi }); this.holes.set(h.id, hs); touched.push(h.id);
+    }
     for (const a of b.arms) {
+      if (b.holes.some((h) => h.id === a.id)) continue;   // (both sides of this host are arms of the skin: a hole, the host's own ends stay as they are)
       const c = this.cuts.get(a.id) ?? [SKIN_CUT_NONE[0], SKIN_CUT_NONE[1]];
       if (a.end === 0) c[0] = a.u; else c[1] = a.u;
       this.cuts.set(a.id, c);
@@ -289,7 +329,9 @@ export class SkinSet {
   /** Forgets a skin's cuts and skinned ends (only the ends it owns: a vessel two skins share keeps the other's), and puts the tubes' cuts as they are now. */
   private dropCuts(b: Built): void {
     const touched = new Set<string>();
+    this.dropHoles(b, touched);
     for (const a of b.arms) {
+      if (b.holes.some((h) => h.id === a.id)) continue;
       const c = this.cuts.get(a.id), e = this.ends.get(a.id);
       if (c) { c[a.end] = SKIN_CUT_NONE[a.end]; }
       if (e) e[a.end] = false;
@@ -300,8 +342,27 @@ export class SkinSet {
       const c = this.cuts.get(id), e = this.ends.get(id);
       if (c && e && !e[0] && !e[1]) { this.cuts.delete(id); this.ends.delete(id); }
       this.deps.vessel(id)?.setSkinCut(...(this.cuts.get(id) ?? SKIN_CUT_NONE) as [number, number]);
+      this.putHoles(id);
     }
   }
+
+  /** Forgets a skin's holes (the vessels it touched are added to `touched`). */
+  private dropHoles(b: Built, touched: Set<string>): void {
+    for (const h of b.holes) {
+      const hs = (this.holes.get(h.id) ?? []).filter((x) => x.node !== b.node);
+      if (hs.length) this.holes.set(h.id, hs); else this.holes.delete(h.id);
+      touched.add(h.id);
+    }
+  }
+
+  /** Writes a tube's holes (the two slots; an empty one is `SKIN_HOLE_NONE`). */
+  private putHoles(id: string): void {
+    const o = this.deps.vessel(id), hs = this.holes.get(id) ?? [];
+    if (!o) return;
+    for (const slot of [0, 1] as const) { const h = hs[slot]; o.setSkinHole(slot, h ? h.lo : SKIN_HOLE_NONE[0], h ? h.hi : SKIN_HOLE_NONE[1]); }
+  }
+  /** The holes a vessel has now (a test reads them). */
+  holesOn(id: string): readonly { node: string; lo: number; hi: number }[] { return this.holes.get(id) ?? []; }
 
   /** Builds the skins of `phase` (spec 4.1) with the joins as they stand now (Smooth vessel joins on). Any skin built before is removed first. Planned together (cuts.ts planSkins: two skins on one vessel merge when they would crowd); a node that cannot be
    *  built keeps today's joins, is named in `fellBack` and warned once. */
@@ -329,7 +390,7 @@ export class SkinSet {
       // the tubes: cut at their seams, both ends of a vessel that two skins share in ONE cut (the second never overwrites the first); a vessel a merged skin replaces whole is hidden (2, -1)
       for (const id of this.takeCuts(b)) touched.add(id);
     }
-    for (const id of touched) { const c = this.cuts.get(id)!; this.deps.vessel(id)?.setSkinCut(c[0], c[1]); }
+    for (const id of touched) { const c = this.cuts.get(id) ?? SKIN_CUT_NONE; this.deps.vessel(id)?.setSkinCut(c[0], c[1]); this.putHoles(id); }
     for (const t of tubes.values()) t.geometry.dispose();
     this.sync();   // (the skins start from what their arms have NOW, from the first frame: a hidden or still drawing arm gives its skin nothing, never a stray one)
   }
@@ -338,7 +399,7 @@ export class SkinSet {
   private lost(node: string): Built {
     const sources = node.split('+');
     const vessels = new Set<string>(this.sources.filter((s) => sources.includes(s.node)).flatMap((s) => s.arms.map((a) => a.vesselId)));
-    return { node, mesh: null, draw: null, arms: [], sources, vessels, hidden: [], dirty: false, slow: false, at: -Infinity };
+    return { node, mesh: null, draw: null, arms: [], sources, vessels, hidden: [], dirty: false, slow: false, at: -Infinity, holes: [] };
   }
 
   private fail(node: string, message: string, warn: (m: string) => void): void {
@@ -386,10 +447,11 @@ export class SkinSet {
       const old = b.draw, i = this.built.indexOf(b);
       const gone = new Set<string>([...b.arms.map((a) => a.id), ...b.hidden]);
       if (old) this.dropCutsQuiet(b);
+      for (const h of b.holes) gone.add(h.id);
       this.deps.add(nb.draw!.object);
       this.built[i] = nb;
       for (const id of this.takeCuts(nb)) gone.add(id);
-      for (const id of gone) { const c = this.cuts.get(id) ?? SKIN_CUT_NONE; this.deps.vessel(id)?.setSkinCut(c[0], c[1]); }
+      for (const id of gone) { const c = this.cuts.get(id) ?? SKIN_CUT_NONE; this.deps.vessel(id)?.setSkinCut(c[0], c[1]); this.putHoles(id); }
       if (old) { this.deps.remove(old.object); old.dispose(); }
       const fi = this.fellBack.indexOf(b.node); if (fi >= 0) this.fellBack.splice(fi, 1);
       if (!was) this.deps.endsChanged?.();
@@ -408,13 +470,18 @@ export class SkinSet {
 
   /** Forgets a skin's recorded cuts and ends before another skin takes them (the caller sets the tubes' cuts right after, so nothing is drawn between). */
   private dropCutsQuiet(b: Built): void {
-    for (const a of b.arms) { const c = this.cuts.get(a.id), e = this.ends.get(a.id); if (c) c[a.end] = SKIN_CUT_NONE[a.end]; if (e) e[a.end] = false; }
+    this.dropHoles(b, new Set());
+    for (const a of b.arms) {
+      if (b.holes.some((h) => h.id === a.id)) continue; const c = this.cuts.get(a.id), e = this.ends.get(a.id); if (c) c[a.end] = SKIN_CUT_NONE[a.end]; if (e) e[a.end] = false; }
     for (const id of b.hidden) { this.cuts.delete(id); this.ends.delete(id); }
   }
 
   /** Every cut, skin and flag back to today's joins (the caller runs applyMates afterwards, which reads `endsOf` again). */
   clear(): void {
     for (const id of this.ends.keys()) this.deps.vessel(id)?.setSkinCut(SKIN_CUT_NONE[0], SKIN_CUT_NONE[1]);
+    const held = [...this.holes.keys()];
+    this.holes.clear();
+    for (const id of held) this.putHoles(id);
     this.ends.clear();
     this.cuts.clear();
     for (const b of this.built) if (b.draw) { this.deps.remove(b.draw.object); b.draw.dispose(); }

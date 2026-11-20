@@ -61,11 +61,11 @@ test('every skinned arm\'s seam, on the real network: the skin\'s vertex stage l
             assert.ok(Math.abs(mesh.normal[sv * 3 + d]! - nor[get](ti)) < 1e-6, `${arm.vesselId} normal`);
           }
           // the weight is 1 on its own arm and the rest radius is the tube's here (radius x rk)
-          assert.equal(mesh.weight[sv * 4 + ai], 1); assert.ok(Math.abs(mesh.restR[sv]! - v.radius * rk.getX(ti)) < 1e-6, `${arm.vesselId} rest radius ${mesh.restR[sv]} vs ${v.radius * rk.getX(ti)}`);
+          assert.equal(ai < 4 ? mesh.weight[sv * 4 + ai] : mesh.weight2[sv * 2 + ai - 4], 1);   // (arms 4 and 5 are the second attribute: IVCS has five) assert.ok(Math.abs(mesh.restR[sv]! - v.radius * rk.getX(ti)) < 1e-6, `${arm.vesselId} rest radius ${mesh.restR[sv]} vs ${v.radius * rk.getX(ti)}`);
           // the live move: the tube's expression with its own swell, the skin's with the weights' blend of ALL the arms' swells (the others varied independently)
           for (const own of SWELLS) for (const other of SWELLS) {
             const sw = mesh.junction.arms.map((_, k) => (k === ai ? own : other));
-            const blend = [0, 1, 2, 3].reduce((s, k) => s + mesh.weight[sv * 4 + k]! * (sw[k] ?? 1), 0);
+            const blend = [0, 1, 2, 3, 4, 5].reduce((s, k) => s + (k < 4 ? mesh.weight[sv * 4 + k]! : mesh.weight2[sv * 2 + k - 4]!) * (sw[k] ?? 1), 0);
             const inkW = 0.0123, inflate = 0.002;
             const tube = normalShift(v.radius * rk.getX(ti), own, 1, inkW, inflate), skin = normalShift(mesh.restR[sv]!, blend, 1, inkW, inflate);
             assert.ok(Math.abs(tube - skin) < 1e-6, `${arm.vesselId} swell ${own}/${other}: tube ${tube} skin ${skin}`);

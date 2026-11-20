@@ -14,6 +14,9 @@ export interface SkinArm {
   baseD: number;             // def.baseD
   widthKind: 0 | 1 | 2;      // def.widthKind
   restR: number;             // def.radius (scene units)
+  /** A SIDE-WALL arm (spec 10.1): the stretch of this vessel on one side of the point `u` along it (`dir` -1 the part below `u`, +1 the part above), where the junction lies on the vessel's side and not at a node. `end` is then 1 for dir -1 and 0 for dir +1
+   *  (the rings run away from the junction the way an end's do), and the arm's walk starts at the ring nearest `u` instead of the tube's own end. Two side arms of one vessel (a virtual node mid-host) leave a HOLE in it (VesselObject.setSkinHole). */
+  side?: { u: number; dir: -1 | 1 };
   /** A GROWING arm (spec 10.2): a collateral or a shunt, which comes and goes. Its seam is chosen at full radius and never moves; the skin carries a second shape (`GrowMorph`) with this arm at radius 0, and the live growth eases between the two. */
   grow?: boolean;
 }
@@ -30,6 +33,8 @@ export interface SkinCut {
   vesselId: string; end: 0 | 1;
   ring: number;              // tube ring index k (0..tubular) that is the seam
   u: number;                 // uv.x of that ring = k / tubular
+  /** the arm is a side-wall arm of its vessel (types.ts SkinArm.side): its dir. Two of one vessel are a HOLE, not two cuts. */
+  side?: -1 | 1;
 }
 
 /** The built skin of one junction, ready for a BufferGeometry. */
@@ -67,6 +72,9 @@ export interface GrowMorph {
 
 /** The tube's `skinCut` uniform when nothing is cut: no u is below -1 or above 2, so every branch it guards is a no-op and the picture is today's (spec section 3, WP4). */
 export const SKIN_CUT_NONE: readonly [number, number] = [-1, 2];
+
+/** The tube's `skinHole` uniform when it has no hole (spec 10.1): the range is empty, so `inSkinHole` is false for every u. */
+export const SKIN_HOLE_NONE: readonly [number, number] = [2, -1];
 
 /** How far the Circuit's change must have gone (0..1 of circT) before a cut tube is whole again and the skin gone (spec 4.9). */
 export const SKIN_CIRC_SPAN = 0.35;

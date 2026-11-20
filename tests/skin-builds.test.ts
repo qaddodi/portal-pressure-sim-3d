@@ -31,9 +31,11 @@ test('every inventory node builds a skin, with no fallback to the old join', () 
     else assert.ok(skinned || j.arms.filter((a) => a.grow).every((a) => set.dropped.includes(`${j.node}:${a.vesselId}`)), `${j.node}: a skin, or every growing arm named as dropped`);
   }
   // the nodes the 2D art leaves too far apart for a junction (spec 10.6) keep the old join, named here so a new one fails until someone looks:
-  // SIN_R and SIN_L, where the hepatic arteriole ends 20 and 38 radii of the bed's inflow from J (the arteriole feeds the bed from beside it; there is no fork to weld)
-  // IVCS too: the hepatic veins end on the cava's SIDE, 1.7 to 7 radii down its axis from the node (MHV 7.1): a side-wall junction (spec 10.1), which the side-wall arms (T3) weld; as a star at the node it is not a shape the art has
-  assert.deepEqual([...set.fellBack].sort(), ['IVCS', 'SIN_L', 'SIN_R'], 'the pinned list of nodes that keep the old join');
+  // SIN_R and SIN_L, where the hepatic arteriole ends 20 and 38 radii of the bed's inflow from J. Measured (tests/skin-side-wall.test.ts): A_HR ends 3.2 radii of PRE_R from the start of PRE_R and 5.4 of the right portal vein's end from RPV, which is no junction (a
+  // through branch's tip); A_HL ends 1.8 radii from LPV_A, the left portal vein's bend, where the cuts' hull rule refuses PVH_L_1. Neither lands on the SIDE of a tube, so the side-wall rule (spec 10.1) cannot weld them without drawing new tube.
+  // IVCS is no longer here: the hepatic veins end on the cava's SIDE, 1.7 to 7.1 radii down its axis, so it is a side-wall junction (T3): the cava is a side arm and the skin stands mid-cava.
+  assert.deepEqual([...set.fellBack].sort(), ['SIN_L', 'SIN_R'], 'the pinned list of nodes that keep the old join');
+  assert.ok(set.nodes.includes('IVCS'), 'IVCS is welded as a side-wall junction');
 });
 
 test('shading normals across a ridge: no two neighbouring vertices of a skin differ by 80 degrees or more, and the seam rings keep the tube\'s own normals (a crotch\'s two-tone band drew a dark line along the ridge: PVT_L 138, CV_R 116 degrees before the easing)', () => {
