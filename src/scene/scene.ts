@@ -7,7 +7,7 @@ import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
-import { SMOOTH } from './vessels/smooth-joins.ts';
+import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
@@ -260,6 +260,7 @@ export class CelScene {
       if (!o) continue;
       const mate = (id: string | null | undefined) => { const m = on && id ? NETWORK_MATE.get(id) : undefined; return m ? { index: indexOf(m.lensId), baseD: m.baseD, widthKind: m.widthKind } : null; };
       o.setMates(mate(sj?.mate[0]), mate(sj?.mate[1]));
+      o.setBury(...([0, 1] as const).map((e) => (on && sj?.attach[e] ? BURY * (sj.hostR[e] ?? def.radius) : 0)) as [number, number]);   // (a declared branch's end buried in its trunk: the ink stays off inside it, and only there)
       o.setSmoothColour(on);
     }
   }

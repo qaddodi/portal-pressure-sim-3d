@@ -13,6 +13,7 @@
 
 import { CIRCUIT_VS_CALL, CIRCUIT_VS_HEAD } from '../circuit/shader.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
+import { CHEVRON_GLSL } from '../blood/chevron-glsl.ts';
 import { QUIET_BACK } from '../camera/quiet.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL, glslNum as F } from '../cel-glsl.ts';
@@ -42,6 +43,7 @@ uniform vec2 res;
 // x < 0 where nothing, which is every vessel with the switch off
 uniform vec3 mate0;
 uniform vec3 mate1;
+uniform vec2 bury;   // the ink is held back ONLY inside a declared branch's trunk: how far from the branch's start and end (figure units per radius unit, 0: none: a run-on, a crossing, a free end keep their whole outline)
 uniform float hiOn;
 uniform float hiDir;
 uniform float hiOffset;
@@ -66,6 +68,11 @@ ${CIRCUIT_VS_HEAD}
 varying float vW;
 varying float vR;
 varying float vU;   // the figure's units in one scene unit here: 300 on the body, 1 / MAP_K on the map (the Circuit share of this vertex)
+float buryK(float d0, float d1) {   // d0, d1: the figure units from the start and from the end of the tube
+  float k0 = bury.x > 0.0 ? smoothstep(0.5 * bury.x * vU, bury.x * vU, d0) : 1.0;
+  float k1 = bury.y > 0.0 ? smoothstep(0.5 * bury.y * vU, bury.y * vU, d1) : 1.0;
+  return k0 * k1;
+}
 uniform float circBoost;   // 2D's circBoost: the map's lines are drawn up to 1.75 times wide when it is zoomed out (stage-tubes.js)
 uniform float circPerPx;   // map units under one CSS pixel here
 uniform vec4 circW;   // the vessel's width in the Circuit, map units: (fixed width or -1 for the engine's diameter, 1 if circBoost applies, the least width, the least width on the screen in CSS px)
@@ -142,8 +149,8 @@ ${CIRCUIT_VS_CALL}
   float distH = hiDir > 0.5 ? hiOffset + aU : (hiDir < -0.5 ? hiOffset + (len - aU) : 0.0);
   float limitH = hiDir < -0.5 ? hiBehind : hiAhead;
   vHi = hiOn * (1.0 - smoothstep(0.0, max(limitH, 0.0001), distH));
-  float endU = min(mate0.x >= 0.0 ? uv.x : 1e9, mate1.x >= 0.0 ? 1.0 - uv.x : 1e9) * len * vU;
-  float endK = vHi > 0.001 ? 1.0 : smoothstep(0.5 * ${F(CEL_STYLE.TUBE.END_R)}, ${F(CEL_STYLE.TUBE.END_R)}, endU / max(vR, 1e-6));   // a joined end is buried in its trunk: no ink on its last stretch
+  // the ink is held back ONLY on the part of a declared branch's end that lies inside its trunk (bury: the trunk's radius, per end): never along a vessel's own sides, never at a run-on's ring, never where vessels merely cross
+  float endK = vHi > 0.001 ? 1.0 : buryK(uv.x * len * vU, (1.0 - uv.x) * len * vU);
   float inkPx = clamp(${F(CEL_STYLE.LINE_R)} * rDevV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rDevV) / dpr;
   float inkW = (inkPx * endK + hiPx * vHi) * inkOn * wpcV / vU;   // scene units
   float lumenW = radius * rk * swell * (1.0 - narrow);
@@ -206,6 +213,7 @@ uniform float inkOn;
 // smooth joins, as in the vertex shader: the ends that carry on into another vessel (x < 0 where nothing); their last stretch draws no ink, so no flat cut is outlined where a branch meets its trunk
 uniform vec3 mate0;
 uniform vec3 mate1;
+uniform vec2 bury;   // the ink is held back ONLY inside a declared branch's trunk: how far from the branch's start and end (figure units per radius unit, 0: none: a run-on, a crossing, a free end keep their whole outline)
 uniform sampler2D streamTex;
 uniform sampler2D chainTex;
 uniform float projY;
@@ -222,6 +230,11 @@ uniform vec4 rimInk;        // (kept for the palette's API: no light rim is draw
 varying float vW;
 varying float vR;
 varying float vU;
+float buryK(float d0, float d1) {   // d0, d1: the figure units from the start and from the end of the tube
+  float k0 = bury.x > 0.0 ? smoothstep(0.5 * bury.x * vU, bury.x * vU, d0) : 1.0;
+  float k1 = bury.y > 0.0 ? smoothstep(0.5 * bury.y * vU, bury.y * vU, d1) : 1.0;
+  return k0 * k1;
+}
 varying float vFade;
 varying vec3 vCen;
 varying float vHi;
@@ -238,25 +251,7 @@ float meanVelocity(float q, float dmm) {
   return q / (3.14159265 * r * r);
 }
 // ---- the 2D app's flow heads (chevron-glsl.js, blood-heads.js) ----
-float chevD(float u, float ay, float hw) {
-  float L = 1.6 * hw, tip = 0.55 * L, back = -0.45 * L, notch = 0.32 * L, k = L / hw;
-  float side = (u - tip + ay * k) / sqrt(1.0 + k * k);
-  float rear = back + notch * (1.0 - clamp(ay / hw, 0.0, 1.0)) - u;
-  return max(max(side, rear), ay - hw);
-}
-vec2 chevHead(float u, float ay, float hw, float px, float rev) {
-  float d = chevD(u, ay, hw);
-  float c = 1.0 - smoothstep(-0.7 * px, 0.7 * px, d);
-  float rw = 1.8 * px + 0.1 * hw;   // the head's ring: a hard-edged outline of this width, never a halo
-  float rim = 1.0 - smoothstep(rw - 0.7 * px, rw + 0.7 * px, d);
-  if (rev > 0.0) {
-    float d2 = 0.6 * chevD((u + 1.088 * hw) / 0.6, ay / 0.6, hw);
-    c = max(c, rev * (1.0 - smoothstep(-0.7 * px, 0.7 * px, d2)));
-    float rw2 = 1.8 * px + 0.06 * hw;
-    rim = max(rim, rev * (1.0 - smoothstep(rw2 - 0.7 * px, rw2 + 0.7 * px, d2)));
-  }
-  return vec2(c, rim * (1.0 - c));
-}
+${CHEVRON_GLSL}
 // how much of head j of the lattice of level n0 shows at level lv (coarser heads are a subset of finer ones; nothing jumps)
 float chevKeep(float j, float n0, float lv) {
   float m = 0.0, q = abs(j);
@@ -411,11 +406,9 @@ void main() {
     if (fade > 0.0 && ch.x + ch.y > 0.0) {
       float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);
       // one flat tone for the head, never a grey halfway: dark ink on a light lumen, cream on a dark one, decided by a hard step on the lumen's luminance (2D blended over 0.175 to 0.205, which on a mid lavender is a grey head)
-      float dk = 1.0 - step(0.19, dot(pow(max(base, vec3(0.0)), vec3(2.2)), vec3(0.2126, 0.7152, 0.0722)));
       float rk = rv * (1.0 - origin), warm = rk * chevOrange(base);
-      vec3 ink = mix(markDark, base * 0.3, 0.2);
-      vec3 core = mix(mix(mix(ink, markLight, dk), markRev, rk), markLight, warm);
-      vec3 rimc = vec3(0.2314, 0.1725, 0.1333);   // the head's outline is always the dark ink: a flat head with a dark line, never a pale ring
+      vec3 core = mix(mix(chevInk(base, markDark, markLight), markRev, rk), markLight, warm);   // (the one chevron's tone: blood/chevron-glsl.ts)
+      vec3 rimc = CHEV_RIM;   // the head's outline is always the dark ink: a flat head with a dark line, never a pale ring
       float ar = clamp(ch.y * 0.75 * fade, 0.0, 1.0), ac = clamp(ch.x * fade, 0.0, 1.0);
       float ha = ac + ar * (1.0 - ac);
       c = c * (1.0 - ha) + core * ac + rimc * ar * (1.0 - ac);
@@ -428,8 +421,7 @@ void main() {
   float tl = length(tS);
   vec2 dvPx = gl_FragCoord.xy - (vCen.xy / vCen.z * 0.5 + 0.5) * res * dpr;
   float dLat = tl > 1e-3 ? abs(dot(dvPx, vec2(-tS.y, tS.x) / tl)) : length(dvPx);
-  float endR = min(mate0.x >= 0.0 ? vUv.x : 1e9, mate1.x >= 0.0 ? 1.0 - vUv.x : 1e9) * len * vU;
-  float endK = vHi > 0.001 ? 1.0 : smoothstep(0.5 * ${F(CEL_STYLE.TUBE.END_R)}, ${F(CEL_STYLE.TUBE.END_R)}, endR / max(vR, 1e-6));
+  float endK = vHi > 0.001 ? 1.0 : buryK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU);
   float inkT = smoothstep(rDevAx - 0.5, rDevAx + 0.5, dLat) * endK * inkOn;
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
