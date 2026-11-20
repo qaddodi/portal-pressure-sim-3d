@@ -21,3 +21,27 @@ test('the caption layer reads no pressure into its layout signature, and writes 
   assert.match(src, /readingSig\(m\)/);
   assert.match(src, /else if \(alpha > 0\) refreshReadings\(\)/);
 });
+
+// The Circuit's captions had the same cause: resistor ratios rounded to a tenth, and the drawn widths as raw floats, in the layout signature.
+import { resSig } from '../src/scene/circuit/res-model.ts';
+test('the circuit signature holds a resistor reading\'s width, not its value, and writes the text in place', () => {
+  assert.equal(resSig({ rLiver: 3.1, rColl: 1.2 }), resSig({ rLiver: 3.2, rColl: 1.3 }));
+  assert.notEqual(resSig({ rLiver: 9.9 }), resSig({ rLiver: 10.4 }));
+  const src = readFileSync('src/scene/circuit/CircuitCaptions.tsx', 'utf8');
+  assert.match(src, /resSig\(res\)/);
+  assert.doesNotMatch(src, /Math\.round\(\(v \?\? 0\) \* 10\)/);
+  assert.match(src, /m\?\.kind === 'res'/);
+});
+
+// ...and the Sinusoid's names re-solved their places for every tenth.
+import { readingOf, readingsSig } from '../src/scene/sinusoid/captions.ts';
+test('the sinusoid signature holds the readings\' widths, never their values, and the text is written in place', () => {
+  const a = { P1: 7.7, P2: 7.4, P3: 5.8, lymph: 0.9, lyProt: 0.87 }, b = { P1: 7.8, P2: 7.3, P3: 5.9, lymph: 0.91, lyProt: 0.88 };
+  assert.equal(readingsSig(a), readingsSig(b));
+  assert.notEqual(readingsSig(a), readingsSig({ ...a, P1: 10.2 }));
+  assert.equal(readingOf('in', b, 0.5, false), '7.8');
+  assert.equal(readingOf('hep', b, 0.5, false), null);
+  const src = readFileSync('src/scene/sinusoid/SinusoidCaptions.tsx', 'utf8');
+  assert.doesNotMatch(src, /toFixed\(1\)/);
+  assert.match(src, /else refreshReadings\(\)/);
+});

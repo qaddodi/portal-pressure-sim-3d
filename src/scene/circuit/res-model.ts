@@ -50,6 +50,9 @@ export function resRatio(kind: ResKind, now: ResFrame, healthy: ResFrame | null,
 
 /** The reading's text: "x2.3" (one decimal under 10). */
 export const resText = (ratio: number): string => '×' + (ratio < 10 ? ratio.toFixed(1) : String(Math.round(ratio)));
+/** What a resistor's reading changes about where the words may stand: how wide the reading prints, never its value (a ratio that eases a tenth must not send the captions through fade out, solve and fade in:
+ *  the text is written in place, CircuitCaptions refresh). */
+export const resSig = (res: Readonly<Partial<Record<string, number>>>): string => Object.entries(res).map(([k, v]) => `${k}${resText(v ?? 0).length}`).join(',');
 
 // ---- how the zigzag looks ----
 const { amp: AMP, teeth: TEETH, outline: OUTLINE, w0: W0, w1: W1, wk: WK } = RES_SIZES;
