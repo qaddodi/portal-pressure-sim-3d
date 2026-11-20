@@ -59,6 +59,9 @@ export const SKIN_CIRCUIT_FADE = 0.35;
 export const SKIN_ARM_ABSENT = 0.3;
 /** How many CSS px wider the outline's band is on a seam ring, so the skin never trims a pixel of the silhouette the cut tube no longer covers (the specks along the walls, Mohammad 20 Nov). */
 export const SKIN_SEAM_PAD_PX = 1.5;
+/** A head of an arm's frame is drawn only within that arm's own cylinder: fully inside SKIN_HEAD_LAT_FROM radii of its axis line, gone by SKIN_HEAD_LAT_TO. */
+export const SKIN_HEAD_LAT_FROM = 1.1;
+export const SKIN_HEAD_LAT_TO = 1.7;
 
 /** The weighted sum of a per-arm float uniform array over all the arms (`wAt` and `wAtF` read the two weight attributes). */
 const BLEND = (name: string, w = 'wAt', comp = ''): string => Array.from({ length: SKIN_ARMS }, (_, i) => `${w}(${i}) * ${name}[${i}]${comp}`).join(' + ');
@@ -324,6 +327,26 @@ float skinSdPx(float kPx) {
   }
   return d;
 }
+// WHO OWNS A HEAD (Mohammad, 20 Nov: a chevron cut in two at the fork). A head is drawn in its arm's frame and was weighted by the arm's mesh weight AT THE PIXEL, so where the ownership of the skin changes across a head, the head was cut along the line.
+// A head now belongs to the arm that owns its CENTRE, whole: the centre is the point of the arm's axis at the head's arc (the axis line through the seam, the arc growing along it as the marks' own arc does), its owner the mesh's own rule
+// (a softmax of the arms' distances, sharpened to the fourth power, sdf.ts weights) taken in device px at that point
+float skinOwner(int arm, vec3 centre, float kPx) {
+  vec2 fc = skinPx(centre, 0.0, 1.0).xy;
+  float d[${SKIN_ARMS}];
+  float lo = 1.0e9;
+  for (int k = 0; k < ${SKIN_ARMS}; k++) {
+    d[k] = armData[k].x < 0.0 ? 1.0e9 : skinArmPx(fc, k, swAt(k)) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(k)));
+    lo = min(lo, d[k]);
+  }
+  float mine = 0.0, sum = 0.0;
+  for (int k = 0; k < ${SKIN_ARMS}; k++) {
+    if (armData[k].x < 0.0) continue;
+    float w = exp(-4.0 * (d[k] - lo) / max(kPx, 1e-3));
+    sum += w;
+    if (k == arm) mine = w;
+  }
+  return mine / max(sum, 1e-6);
+}
 void main() {
   // (a welded skin's normal is interpolated between vertices whose normals can face apart at a crease: its length can come to nothing, and normalize() of nothing is NaN, which the flow marks turned into
   // specks of any colour, one channel lost reading green on a blue lumen. Mohammad 20 Nov, gone with ?joins=nomarks. The length is checked first, everywhere in this shader)
@@ -337,13 +360,14 @@ void main() {
   float vLen = length(vV);
   vec3 viewDir = vLen > 1e-6 ? vV / vLen : vec3(0.0, 0.0, 1.0);
   float sIa[${SKIN_ARMS}], acA[${SKIN_ARMS}], pxA[${SKIN_ARMS}], awA[${SKIN_ARMS}], fwLn[${SKIN_ARMS}];
-  vec3 sideA[${SKIN_ARMS}], headA[${SKIN_ARMS}];
+  vec3 sideA[${SKIN_ARMS}], headA[${SKIN_ARMS}], tJA[${SKIN_ARMS}];
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
-    sIa[i] = 0.0; acA[i] = 0.0; pxA[i] = 0.0; awA[i] = 0.03; fwLn[i] = 0.0; sideA[i] = vec3(1.0, 0.0, 0.0); headA[i] = vec3(0.0);
+    sIa[i] = 0.0; acA[i] = 0.0; pxA[i] = 0.0; awA[i] = 0.03; fwLn[i] = 0.0; sideA[i] = vec3(1.0, 0.0, 0.0); headA[i] = vec3(0.0); tJA[i] = vec3(1.0, 0.0, 0.0);
     if (armData[i].x < 0.0) continue;
     vec3 toJ = armAxisP[i * ${SKIN_AXIS_PTS} + 1].xyz - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;   // (toward the node along the straight line through the seam)
     float tl = length(toJ);
     vec3 tJ = tl > 1e-6 ? toJ / tl : vec3(1.0, 0.0, 0.0);
+    tJA[i] = tJ;
     sIa[i] = armArc[i].x + armArc[i].y * dot(vPos - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz, tJ) * SKIN_U;
     headA[i] = mat3(modelViewMatrix) * (armArc[i].y * tJ);   // (a heading of zero length would normalise to NaN, and a NaN pixel is a speck of any colour: the length is checked first)
     float headL = length(headA[i]);
@@ -449,17 +473,28 @@ void main() {
     float sI = sIa[i], acrossI = acA[i], pxI = pxA[i], acrossW = awA[i];
     vec3 sideDir = sideA[i];
     float wI = wAt(i);
-    if (wI < 0.004 || vR <= 0.0) continue;
     float lensI = armData[i].w, Lw = armArc[i].z, rOwn = max(armArc[i].w, 1e-3);
+#ifndef SKIN_NOHEADS
+    // THE HEADS: this arm's own, each drawn whole by the arm that owns its centre (skinOwner), within the arm's own cylinder (a head of this arm's frame is never drawn on another arm's wall, which the pixel's weight used to see to)
+    if (vR > 0.0) {
+      vec4 hI = flowHeads(acrossI, acrossW, sI, Lw, vR, wpcM, pxI, lensI, armFlow[i], 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
+      if (hI.a > 0.002) {
+        vec3 seamP = armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz, relP = vPos - seamP;
+        float latK = length(relP - tJA[i] * dot(relP, tJA[i])) * SKIN_U / max(rOwn * swAt(i), 1e-4);
+        float gate = 1.0 - smoothstep(${F(SKIN_HEAD_LAT_FROM)}, ${F(SKIN_HEAD_LAT_TO)}, latK);
+        if (gate > 0.0 && abs(armArc[i].y) > 0.5) hI *= gate * skinOwner(i, seamP + tJA[i] * ((chevCentreArc - armArc[i].x) / (armArc[i].y * SKIN_U)), kPx);
+        else hI = vec4(0.0);
+      }
+      headAcc += hI;
+    }
+#endif
+    if (wI < 0.004 || vR <= 0.0) continue;
     // the dust (blood/dust-glsl.ts dustSkin): this arm's frame, kept for the two heaviest arms; the particles are drawn once below, each at the blend of its places in the two (never two ghosts)
     DFrame FI; float revI;
     float onI = flowFrame(acrossI, dustFrame(headA[i], mat3(modelViewMatrix) * vec3(0.0, 0.0, 1.0), viewDir, sideDir), sI, Lw, rOwn, vR, rCssM, lensI, armData[i].x, armData[i].y, SKIN_U, FI, revI);
     if (wI > wD0) { wD2 = wD1; FD1 = FD0; wD1 = wD0; onD1 = onD0; revD1 = revD0; FD0 = FI; wD0 = wI; onD0 = onI; revD0 = revI; }
     else if (wI > wD1) { wD2 = wD1; FD1 = FI; wD1 = wI; onD1 = onI; revD1 = revI; }
     else wD2 = max(wD2, wI);
-#ifndef SKIN_NOHEADS
-    headAcc += wI * flowHeads(acrossI, acrossW, sI, Lw, vR, wpcM, pxI, lensI, armFlow[i], 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
-#endif
   }
   if (wD0 > 0.0) {
     // the two heaviest arms' share (renormalised): on a seam ring one weight is 1 and this is the tube's own pixel (dustTube)
