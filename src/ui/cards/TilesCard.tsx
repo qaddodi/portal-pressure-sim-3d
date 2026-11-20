@@ -5,26 +5,38 @@
 import { useLayoutEffect, useMemo, useRef, type MouseEvent, type RefObject } from 'react';
 import { copiedOf } from '../../decks/hp/deck.ts';
 import { useStates } from '../../decks/hp/calc.ts';
+import { useLapse } from '../../decks/hp/lapse.ts';
+import { liveFp } from '../../decks/hp/figure-engine.ts';
 import type { CopiedSlide } from '../../decks/hp/types.ts';
 import { layoutOf, isShortSide } from '../layout/rules2d.ts';
 import { cardTitle, titleUnits } from '../talk/tool-title.ts';
 import { useUi } from '../ui-store.ts';
-import { tilesAt, type SlideTiles, type TileView } from './tiles-2d.ts';
+import { tilesAt, liveResults, type Fp, type SlideTiles, type TileView } from './tiles-2d.ts';
 import { Roll } from './Roll.tsx';
 import { I } from '../shell/icons.tsx';
 import { useCardZoomOn } from './card-zoom.ts';
 
 /** A slide's tiles from its state: the slide's own (the last one before it that changed the patient, as 2D has it), the state its change counts from, and the page's phone-ness. */
-export function useSlideTiles(deckId: string, slideId: string): SlideTiles | null {
+export function useSlideTiles(deckId: string, slideId: string): (SlideTiles & { live?: boolean }) | null {
   const results = useStates((s) => s.results[deckId]);
   const vp = useUi((s) => s.vp);
   const copied = copiedOf(deckId);
+  // while the slide's days run the tiles stand where they begin and then climb with them (2D presenter-case.js playLapse: every poll `dataTo(liveFp(fr))`, but "only once a day has run: before that the live
+  // figure is at the bedside, its numbers swinging with each beat, while the card already shows the settled start"); when the days are done they ease to the slide's own end (the counter's `done`)
+  const lap = useLapse((s) => (s.key === `${deckId}/${slideId}` && !s.done ? (s.d >= 1 ? s.d : 0) : -1));
   return useMemo(() => {
     if (!copied) return null;
-    const lay = layoutOf(vp.w, vp.h);
-    return tilesAt(copied.slides as CopiedSlide[], results as never, (copied.slides as CopiedSlide[]).findIndex((x) => x.id === slideId), lay === 'stack' || lay === 'tab');
-  }, [copied, results, slideId, vp.w, vp.h]);
+    const lay = layoutOf(vp.w, vp.h), slides = copied.slides as CopiedSlide[], i = slides.findIndex((x) => x.id === slideId);
+    const fp = lap > 0 ? liveFp() : lap === 0 ? startOf(results, i) : null;
+    const live = fp ? liveResults(results, i, fp) : null;
+    const t = tilesAt(slides, (live ?? results) as never, i, lay === 'stack' || lay === 'tab');
+    return t && live ? { ...t, live: true } : t;
+  }, [copied, results, slideId, vp.w, vp.h, lap]);
 }
+
+/** Where a slide's days begin: the state the engine made them from (its `start`), else the slide before's. */
+const startOf = (results: readonly (object | undefined)[] | undefined, i: number): Fp | null =>
+  ((results?.[i] as { start?: { fp?: Fp } } | undefined)?.start?.fp ?? (results?.[i - 1] as { fp?: Fp } | undefined)?.fp) ?? null;
 
 /** The card's header (.pz-dh): its title, and an instrument card's readings beside it. The title is 2D's cardTitle (presenter-question.js): the slide's own `dataTitle`, else its instrument's
  *  (ui/talk/tool-title.ts), else "The patient" for a tiles card with no instrument; a phone, or a phone held sideways, takes the short form of a long one. A unit in it keeps its own case (.pz-unit). */
@@ -42,7 +54,7 @@ export function TilesHead({ deckId, slideId, onZoom }: { deckId: string; slideId
       <span className="pz-hr" data-n={heads.length}>
         {heads.map((x) => (
           <span key={x.k} className={`pz-hi${x.key ? ' key' : ''}`} data-rate={x.rate} data-measured={['hvpg', 'hvpgFall', 'ppg'].includes(x.k) ? '' : undefined}>
-            <span className="pz-hk">{x.head.name}</span><b><Roll text={x.head.text} /></b><small hidden={!x.head.unit}>{x.head.unit}</small>
+            <span className="pz-hk">{x.head.name}</span><b><Roll text={x.head.text} still={t?.live} /></b><small hidden={!x.head.unit}>{x.head.unit}</small>
           </span>
         ))}
       </span>
@@ -51,12 +63,12 @@ export function TilesHead({ deckId, slideId, onZoom }: { deckId: string; slideId
   );
 }
 
-export function Tile({ t }: { t: TileView }) {
+export function Tile({ t, live }: { t: TileView; live?: boolean }) {
   const b = t.bar;
   return (
     <div className={`pz-tile${b ? ' scaled' : ''}${t.key ? ' key' : ''}`} data-rate={t.rate}>
       <span className="pzt-k" data-s={t.short ?? undefined}>{t.name}</span>
-      <span className={`pzt-vu${t.pct ? ' pct' : ''}`}><span className="pzt-v"><Roll text={t.text} /></span><small hidden={!t.unit}>{t.unit}</small></span>
+      <span className={`pzt-vu${t.pct ? ' pct' : ''}`}><span className="pzt-v"><Roll text={t.text} still={live} /></span><small hidden={!t.unit}>{t.unit}</small></span>
       <span className="pzt-r">{t.word}</span>
       <span className="pzt-d">{t.delta}</span>
       <span className={`pzt-bar${b ? '' : ' empty'}`} aria-hidden="true">
@@ -121,7 +133,7 @@ export function TilesCard({ deckId, slideId }: { deckId: string; slideId: string
   if (!t || t.toolOnly) return null;
   return (
     <div className="pz-tiles" ref={row} data-n={t.tiles.length} data-keys={t.keys.join()}>
-      {t.tiles.map((x) => <Tile key={x.k} t={x} />)}
+      {t.tiles.map((x) => <Tile key={x.k} t={x} live={t.live} />)}
     </div>
   );
 }

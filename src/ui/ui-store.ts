@@ -120,7 +120,7 @@ export const useUi = create<UiState>((set, get) => ({
   go: (stop) => {
     const { stops, pos, wallet } = get();
     if (!stops.length) return;
-    const to = goto(stops, stop);
+    const to = goto(stops, stop, { case: stop > pos.stop });   // (a jump forward meets a slide's case card; a jump back does not)
     if (samePos(to, pos)) return;
     set({ pos: to, dir: to.stop >= pos.stop ? 1 : -1, wallet: resetForSlide(wallet), page: 0, pageCount: 1 });
   },

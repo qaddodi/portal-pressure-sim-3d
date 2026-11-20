@@ -22,6 +22,11 @@ import { type StepClock, makeStepClock, aim as aimClock, stepClock, landed } fro
 const procFrame = procFrameJs as (kind: string, t: number, stops?: Record<string, [number, number]> | null, into?: object | null, from?: number) => Rec;
 /** How far the bypass drops from the 'over' tier so it sits below the 'front' tier the splenic and coronary veins are on (frame2d.ts TIER_Z: over .54, front .46, net .38). */
 export const REX_LOWER = -0.12;
+/** How a procedure's devices leave when the slide is left (2D presenter-lapse.js cathOut): the balloon and the column to nothing in 400 ms, the whole device's opacity in 650 ms, in place. */
+export const LEAVE_BALLOON_MS = 400, LEAVE_MS = 650;
+const smooth = (k: number): number => { const x = Math.min(1, Math.max(0, k)); return x * x * (3 - 2 * x); };
+interface Leaving { t: number; from: CatheterState | null; glue: GlueLast | null }
+interface GlueLast { coil: number; column: number; flash: number; opacity: number }
 type Rec = { u: number; balloon: number; column: number; opacity: number; step: number; shot: string; needle: number; wire: number; flash: number; coil?: number; read?: number; [k: string]: unknown };
 /** One move of a procedure on the clock. */
 interface Run { kind: string; t: number; t0: number; from: number; to: number; speed: number; rec: Rec; onEnd?: () => void; onFrame?: (r: Readonly<Rec>) => void; keep: boolean }
@@ -67,6 +72,9 @@ export class ProcedureLayer {
   private shown: ProcCatheter | null = null;
   private run: Run | null = null;
   private step: StepRun | null = null;
+  /** The devices easing out where they stand (stop/clear with a fade), or null. */
+  private leaving: Leaving | null = null;
+  private glueLast: GlueLast | null = null;
   /** The HVPG catheter as the deck last put it (showHvpgState): while it stands in a reading's ring, the layer redraws it each frame with the clock moving on so the ring goes on pulsing (2D cathFrame ran for as long as the catheter was on). */
   private held: { advance: number; balloon: number; column: number; ring: RingName | null } | null = null;
   private palette: Palette | null = null;
@@ -198,9 +206,10 @@ export class ProcedureLayer {
   private draw(kind: string, rec: Rec, clock: number): void {
     const c = this.catheterFor(kind);
     if (this.shown && this.shown !== c) this.shown.set({ ...this.shown.current, u: 0, opacity: 0 });
-    this.shown = c; this.lastKind = kind; this.held = null;
+    this.shown = c; this.lastKind = kind; this.held = null; this.leaving = null;
     Object.assign(this.frame, rec);
     if (kind === 'eusglue') {
+      this.glueLast = { coil: rec.coil ?? 0, column: rec.column, flash: rec.flash, opacity: rec.opacity };
       // the glue's scope is the probes' (it follows glueDrive); what it leaves in the varix is drawn here
       this.glue.set({ coil: rec.coil ?? 0, column: rec.column, flash: rec.flash, opacity: rec.opacity });
       this.glueDrive = { u: rec.u, aim: Number(rec.aim ?? 0), fan: Number(rec.fan ?? 0), needle: rec.needle };
@@ -221,7 +230,7 @@ export class ProcedureLayer {
     const rec = { ...this.frame, u: advance, balloon, column, opacity: advance > 0.001 ? 1 : 0, step: -1, shot: '', needle: 0, wire: 0, flash: 0, coil: 0, read: 0 } as Rec;
     const c = this.catheterFor('hvpgcath');
     if (this.shown && this.shown !== c) this.shown.set({ ...this.shown.current, u: 0, opacity: 0 });
-    this.shown = c; this.lastKind = 'hvpgcath';
+    this.shown = c; this.lastKind = 'hvpgcath'; this.leaving = null;
     this.held = advance > 0.001 ? { advance, balloon, column, ring } : null;
     Object.assign(this.frame, rec);
     c?.set({ u: advance, balloon, column, opacity: rec.opacity, needle: 0, wire: 0, flash: 0, coil: 0, ring: ring ?? this.keptRing, columnTone: 'trWedge', clock });
@@ -272,10 +281,18 @@ export class ProcedureLayer {
   /** End the move: clear the devices (or leave the last frame up with `keep`). */
   stop(keep = false): void {
     this.run = null; this.step = null;
-    if (!keep) this.clear();
+    if (!keep) this.clear(LEAVE_MS);
   }
 
-  clear(): void {
+  /** Take the devices off the figure: at once, or (`fadeMs`) easing out in place as 2D's cathOut does when a slide is left, so nothing pops (the device a leaving slide's step left standing, the glue's coil and cast). */
+  clear(fadeMs = 0): void {
+    const c0 = this.shown, g0 = this.glueLast;
+    if (fadeMs > 0 && ((c0 && c0.current.opacity > 0.02) || (g0 && g0.opacity > 0.02))) {
+      this.leaving = { t: 0, from: c0 && c0.current.opacity > 0.02 ? { ...c0.current } : null, glue: g0 && g0.opacity > 0.02 ? { ...g0 } : null };
+      this.held = null; this.glueDrive = null; this.dirty = true;
+      return;
+    }
+    this.leaving = null; this.glueLast = null;
     for (const c of this.caths.values()) c.set({ ...c.current, u: 0, opacity: 0, balloon: 0, column: 0, needle: 0, wire: 0, flash: 0, coil: 0, ring: null });
     this.glue.clear(); this.glueDrive = null;
     this.shown = null; this.held = null; this.dirty = true;
@@ -336,6 +353,16 @@ export class ProcedureLayer {
       this.draw(r.kind, procFrame(r.kind, t, this.stopsFor(r.kind), r.rec), t);
       r.onFrame?.(this.frame);
       if (t >= r.to) { const end = r.onEnd; const keep = r.keep; this.run = null; if (!keep) this.clear(); end?.(); }
+      return true;
+    }
+    const lv = this.leaving;
+    if (lv) {
+      lv.t += dt;
+      const k = smooth(lv.t / LEAVE_MS), kb = smooth(lv.t / LEAVE_BALLOON_MS);
+      if (lv.t >= LEAVE_MS) { this.leaving = null; this.clear(); return true; }
+      if (lv.from && this.shown) this.shown.set({ ...lv.from, opacity: lv.from.opacity * (1 - k), balloon: lv.from.balloon * (1 - kb), column: lv.from.column * (1 - kb), flash: 0, clock: lv.from.clock + lv.t });
+      if (lv.glue) this.glue.set({ coil: lv.glue.coil, column: lv.glue.column * (1 - kb), flash: 0, opacity: lv.glue.opacity * (1 - k) });
+      this.dirty = true;
       return true;
     }
     const h = this.held;

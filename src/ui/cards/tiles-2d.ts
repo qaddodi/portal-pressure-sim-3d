@@ -138,3 +138,10 @@ export function tilesAt(slides: readonly CopiedSlide[], results: readonly ({ fp:
   const tips = !!(results?.[stateOf[i]!]?.params as { tips?: { on?: boolean } } | undefined)?.tips?.on;
   return slideTiles(s, fpAt(i), { ref: refFor(deltaOf(s, i, changes as (x: CopiedSlide) => boolean)), respBase: base, phone, tips });
 }
+
+/** The deck's states with slide `i`'s reading replaced by the live one (its parameters stay: the live figure's own settings are not the slide's). */
+export function liveResults(results: readonly (object | undefined)[] | undefined, i: number, fp: Fp): ({ fp: Fp; params?: unknown } | undefined)[] {
+  const out = [...(results ?? [])] as ({ fp: Fp; params?: unknown } | undefined)[];
+  out[i] = { ...(results?.[i] ?? {}), fp };
+  return out;
+}
