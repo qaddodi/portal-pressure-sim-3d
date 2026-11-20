@@ -6,6 +6,9 @@
 //   chevHead(u, ay, hw, px, rev)           (coverage, ring) of one head, px the pixel in the same unit
 //   chevInk(base, markDark, markLight)     the head's core tone on a lumen of colour `base`
 //   chevLattice(arc, across, pitch, px, dir)  heads every `pitch` along `arc`, in a tube whose face runs -1 .. 1 across: heads in the middle 0.6 of it (never near the wall), pointing toward `dir`
+/** The Anatomy's and the Circuit's heads on screen (vessels/shaders.ts chevOne), in CSS px, the 2D rule: one every PITCH_PX along the vessel whatever its width, down to the thinnest tube that can carry one (MIN_R_PX: under about 4 px across there is none);
+ *  a head's half width is half the tube's radius held between MIN_HW_PX and MAX_HW_PX (so it is 5 px tall from a tube 6 px across) and never over TUBE_SHARE of the radius. tests/chevron-visible.test.ts measures them over the real network at the default fit. */
+export const CHEV = { PITCH_PX: 130, MIN_R_PX: 2, MIN_HW_PX: 2.5, MAX_HW_PX: 8, TUBE_SHARE: 0.8 } as const;
 export const CHEVRON_GLSL = /* glsl */ `
 float chevD(float u, float ay, float hw) {
   float L = 1.6 * hw, tip = 0.55 * L, back = -0.45 * L, notch = 0.32 * L, k = L / hw;

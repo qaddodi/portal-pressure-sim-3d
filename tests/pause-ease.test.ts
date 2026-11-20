@@ -25,9 +25,9 @@ test('one shared rate, exported from one module, is what the scene steps and eve
   assert.match(sc, /readonly flowRate = flowRate;/, 'the scene steps the shared instance, not a copy of its own');
   assert.doesNotMatch(sc, /new FlowRate\(/);
   assert.match(sc, /this\.flowRate\.step\(dt \/ 1000, flowTarget\(live\.frame\?\.running\)\)/, 'the target is the live model\'s own running flag (not a pinned Compare frame)');
-  assert.match(sc, /this\.lobule\.rate = rate;/);
-  assert.match(sc, /this\.lobule3d\.update\(this\.micro3d, under, now, rate\)/);
-  assert.match(sc, /this\.sinus3d\.update\(this\.micro3d, rate\)/);
+  assert.match(sc, /this\.lobule\.flowRate = this\.flowRate\.value;/);
+  assert.match(sc, /this\.lobule3d\.update\(this\.micro3d, under, now, this\.flowRate\.value\)/);
+  assert.match(sc, /this\.sinus3d\.update\(this\.micro3d, this\.flowRate\.value\)/);
   assert.match(sc, /streams\.step\(now, this\.flowRate\.value\)/);
   // no site still takes the boolean that froze the picture at once
   assert.doesNotMatch(sc, /frame\?\.running \?\? true\)/);
@@ -35,11 +35,12 @@ test('one shared rate, exported from one module, is what the scene steps and eve
 
 test('every phase advance multiplies by the rate (grep pins)', () => {
   const l3 = src('scene/micro3d/lobule3d.ts');
-  assert.match(l3, /this\.flowT\.blood \+= dt \* rate \* /);
-  assert.match(l3, /this\.flowT\.lymph \+= dt \* rate \* /);
-  assert.match(l3, /this\.flowT\.bile \+= dt \* rate \* /);
-  assert.match(src('scene/micro3d/sinusoid3d.ts'), /f\.trafficSpeed = \(on \? PACE : 1\) \* rate/);
-  assert.match(src('scene/lobule/view.ts'), /mk\.phase \+ sp \* this\.rate \* /);
+  assert.match(l3, /const k = clamp\(rate, 0, 1\) \* dt;/);
+  assert.match(l3, /this\.flowT\.blood \+= k \* /);
+  assert.match(l3, /this\.flowT\.lymph \+= k \* /);
+  assert.match(l3, /this\.flowT\.bile \+= k \* /);
+  assert.match(src('scene/micro3d/sinusoid3d.ts'), /f\.trafficSpeed = Math\.min\(1, Math\.max\(0, rate\)\) \* \(on \? PACE : 1\)/);
+  assert.match(src('scene/lobule/view.ts'), /mk\.phase \+ sp \* mk\.arc \* HEAD_K \* this\.flowRate /);
   assert.match(src('scene/blood/streams.ts'), /o\.speed = rate/);
 });
 
@@ -93,14 +94,14 @@ test('the 3D lobule\'s flow clocks advance by the rate: slower mid-pause, none o
 
 test('the flat lobule\'s heads: the rate scales their distance, 0 stands them and they ask for no frames', () => {
   const flat = new LobuleView(createShared()); flat.setVisible(true);
-  const V = flat as unknown as { rate: number; marked: { amount: number; phase: number }[] };
-  V.rate = 1;
+  const V = flat as unknown as { flowRate: number; marked: { amount: number; phase: number }[] };
+  V.flowRate = 1;
   let now = 1000; for (let i = 0; i < 40; i++) { now += 16; flat.update(now); }
   const m = V.marked.find((x) => x.amount > 0.001);
   if (!m) return;   // (no heads shown in this setup: the grep pin above holds the multiplier)
   const p0 = m.phase; now += 16; flat.update(now); const full = Math.abs(m.phase - p0);
-  V.rate = 0.5; const p1 = m.phase; now += 16; flat.update(now); const half = Math.abs(m.phase - p1);
-  V.rate = 0; const p2 = m.phase; now += 16; flat.update(now);
+  V.flowRate = 0.5; const p1 = m.phase; now += 16; flat.update(now); const half = Math.abs(m.phase - p1);
+  V.flowRate = 0; const p2 = m.phase; now += 16; flat.update(now);
   assert.ok(half < full * 0.75 || full === 0, 'half the rate, about half the advance');
   assert.equal(m.phase, p2, 'stood');
 });
