@@ -25,7 +25,8 @@ function withScene<T>(f: (s: CelScene, built: Built[]) => T): T {
   // (a node that fell back is listed with no draw: left out)
   try { return f(s, (s as unknown as Inner).skins.built.filter((b) => b.draw)); } finally { s.dispose(); setSmoothJoins(was); }
 }
-const BACK_NODES = ['IVCI', 'SVC_E', 'SVC'];
+// (the SVC's two junctions, SVC_E and SVC, are ONE skin: their seams are 0.9 radii apart, cuts.ts MIN_STUB_R)
+const BACK_NODES = ['IVCI', 'SVC_E+SVC'];
 const sync = (s: CelScene): boolean => (s as unknown as Inner).skins.sync();
 
 /** What the tube draws of each of its copies, read from the tube's OWN state (layer, uniforms, mesh) and not through `copyShares`: the front copy is the tube's mesh in the vessels' pass, the solid copy the same mesh with the organs (layer 0), the veil the second mesh. */
@@ -36,7 +37,7 @@ function tubeCopies(o: VesselObject): [number, number, number] {
   return [lay === 'front' ? solidK : 0, lay === 'solid' ? solidK : 0, veil && veil.mesh.visible ? veilK : 0];
 }
 
-test('the junctions with an arm behind the organs are skinned: IVCI, SVC_E and SVC (IVCS has five arms and waits for the six-arm foundation)', () => {
+test('the junctions with an arm behind the organs are skinned: IVCI and the two SVC junctions as one skin (IVCS keeps the old join: its hepatic veins land too far apart along the cava to be a junction)', () => {
   withScene((s) => { for (const n of BACK_NODES) assert.ok(s.skinNodes.includes(n), `${n} is skinned (${s.skinNodes.join(', ')})`); });
 });
 
@@ -75,7 +76,7 @@ test('a plain junction (no arm behind the organs) draws its front copy alone, as
 test('at every arm\'s seam each copy\'s alpha is the arm tube\'s own alpha of that copy (its front, solid and veil), for the Hide-vessels-behind-organs share k in {0, 0.5, 1} and the cava whole or not', () => {
   withScene((s, built) => {
     const back = built.filter((b) => BACK_NODES.includes(b.node));
-    assert.ok(back.length === 3);
+    assert.ok(back.length === 2);
     for (const k of [0, 0.5, 1]) for (const whole of [0, 1]) {
       for (const b of back) for (const a of b.arms) { if (a.obj.behindOrgans) { a.obj.setOcclusion(k); if (CAVA_LIKE.has(a.id)) a.obj.setWholeShare(whole); } }
       sync(s);
@@ -98,7 +99,7 @@ test('at every arm\'s seam each copy\'s alpha is the arm tube\'s own alpha of th
 
 test('a skin has no visibility of its own: it shows a copy only where an arm that is there has a share of it, and a hidden arm or one not yet drawn gives it nothing', () => {
   withScene((s, built) => {
-    const b = built.find((x) => x.node === 'SVC_E')!;
+    const b = built.find((x) => x.node === 'SVC_E+SVC')!;
     sync(s);
     assert.ok(b.draw.copies.some((m) => m.visible));
     // every arm hidden by the scene (presence): no copy is drawn
@@ -113,7 +114,7 @@ test('a skin has no visibility of its own: it shows a copy only where an arm tha
     // still drawing on: a tube whose reveal has not reached its seam gives its skin nothing at that arm
     for (const a of b.arms) a.obj.group.visible = true;
     b.arms[2]!.obj.setReveal(0);
-    for (const a of b.arms.slice(0, 2)) a.obj.group.visible = false;
+    b.arms.forEach((a, i) => { if (i !== 2) a.obj.group.visible = false; });
     sync(s);
     assert.deepEqual(b.draw.copies.map((m) => m.visible), [false, false, false], 'reveal 0 and the others hidden: the seam is not drawn, so neither is the skin');
     b.arms[2]!.obj.setReveal(1);

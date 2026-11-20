@@ -11,7 +11,7 @@ export const ARM_REACH = 6;
 export const CAPSULE_SEGS = 6;
 
 /** One arm's capsule: its axis polyline from J outward (`n` points, xyz packed) and the radius the tube really has at each point. */
-export interface Capsule { readonly n: number; readonly pts: Float64Array; readonly r: Float64Array }
+export interface Capsule { readonly n: number; readonly pts: Float64Array; readonly r: Float64Array; /** the index of the arm this one runs THROUGH the node with (through.ts): the two are united by a plain minimum, and blend with the others as one */ readonly mate?: number }
 
 /**
  * The capsule of `arm` (spec 4.3).
@@ -96,10 +96,17 @@ export function smin(a: number, b: number, k: number): number {
   return b + (a - b) * h - k * h * (1 - h);
 }
 
-/** The smooth union of the arms, applied pairwise in arm order (spec 4.3); zero on the skin's surface, negative inside. */
+/** The smooth union of the arms, applied pairwise in arm order (spec 4.3); zero on the skin's surface, negative inside. Two arms that run THROUGH the node (`Capsule.mate`, through.ts) are united by a plain minimum first and then count as one arm: a blend between two halves of one trunk only adds a bulge. */
 export function sdUnion(caps: readonly Capsule[], k: number, x: number, y: number, z: number): number {
-  let acc = sdArm(caps[0]!, x, y, z);
-  for (let i = 1; i < caps.length; i++) acc = smin(acc, sdArm(caps[i]!, x, y, z), k);
+  let acc = 0, first = true;
+  for (let i = 0; i < caps.length; i++) {
+    const m = caps[i]!.mate ?? -1;
+    if (m >= 0 && m < i) continue;   // (the second half of a run: taken with the first)
+    let d = sdArm(caps[i]!, x, y, z);
+    if (m > i) d = Math.min(d, sdArm(caps[m]!, x, y, z));
+    acc = first ? d : smin(acc, d, k);
+    first = false;
+  }
   return acc;
 }
 
@@ -128,12 +135,18 @@ export function gradient(caps: readonly Capsule[], k: number, x: number, y: numb
   out[0] = out[0]! * s; out[1] = out[1]! * s; out[2] = out[2]! * s;
 }
 
-const ag = new Float64Array(3), ug = new Float64Array(3);
+const ag = new Float64Array(3), ug = new Float64Array(3), mg = new Float64Array(3);
 /** `sdUnion` and its exact gradient in one pass (the chain rule through the pairwise smooth-min): returns the distance, writes the gradient into `g`. */
 export function sdUnionGrad(caps: readonly Capsule[], k: number, x: number, y: number, z: number, g: Float64Array | number[]): number {
-  let acc = sdArmGrad(caps[0]!, x, y, z, g);
-  for (let i = 1; i < caps.length; i++) {
-    const b = sdArmGrad(caps[i]!, x, y, z, ug), a = acc;
+  let acc = 0, first = true;
+  for (let i = 0; i < caps.length; i++) {
+    const m = caps[i]!.mate ?? -1;
+    if (m >= 0 && m < i) continue;
+    // this term: one arm, or the plain minimum of the two halves of a run (the gradient of the nearer)
+    let b = sdArmGrad(caps[i]!, x, y, z, ug);
+    if (m > i) { const o = sdArmGrad(caps[m]!, x, y, z, mg); if (o < b) { b = o; ug[0] = mg[0]!; ug[1] = mg[1]!; ug[2] = mg[2]!; } }
+    if (first) { acc = b; g[0] = ug[0]!; g[1] = ug[1]!; g[2] = ug[2]!; first = false; continue; }
+    const a = acc;
     ag[0] = g[0]!; ag[1] = g[1]!; ag[2] = g[2]!;
     const raw = 0.5 + (0.5 * (b - a)) / k, inside = raw > 0 && raw < 1, h = Math.min(1, Math.max(0, raw));
     // f = b + (a - b) h - k h (1 - h); df/dh = (a - b) - k + 2 k h; dh/da = -0.5/k, dh/db = +0.5/k inside the blend, 0 outside
