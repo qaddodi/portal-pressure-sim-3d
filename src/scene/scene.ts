@@ -416,6 +416,13 @@ export class CelScene {
     }, false);
   }
 
+  private readonly focusP = new Vector3();
+  /** Where the exam the Tests card is about stands on the screen now, CSS px (a probe's gate or tip); null with no probe up. */
+  testFocus(out: { x: number; y: number }): { x: number; y: number } | null {
+    const p = this.probes.focus(this.focusP);
+    return p ? this.rig.project(this.body.localToWorld(p.clone()), out) : null;
+  }
+
   /** The divided veins (vessels/divide.ts): the splenic vein under a Warren shunt, the portal trunk under a portocaval one, opening and closing with the shunt's drawing on and off. */
   private syncStumps(): void {
     const side = !!(patient.params as { portocavalSide?: boolean } | null)?.portocavalSide;

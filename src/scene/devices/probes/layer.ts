@@ -69,6 +69,12 @@ export class ProbeLayer {
     const tip = this.scope.pose.tip;
     return this.scope.needle > 0.01 || this.scope.fan > 0.5 ? out.copy(tip).add(glueTarget3(new Vector3())).multiplyScalar(0.5) : out.copy(tip);
   }
+  /** The scene point an exam is about: the Doppler's gate or the FibroScan's tip, while a probe is up (the figure pans to keep it in the free part of the screen under the Tests card); null otherwise. */
+  focus(out: Vector3): Vector3 | null {
+    if (this.fibro.shown > 0.3) return out.copy(this.fibro.placement.tip);
+    const p = this.doppler.placed;
+    return p && this.doppler.shown > 0.3 ? out.copy(p.gate) : null;
+  }
   /** The scope's tip while an EUS run drives it (the camera follows it, 2D playProcedure's follow); null otherwise. */
   eusFocus(out: Vector3): Vector3 | null { return this.scope.driven && this.scope.d > 0.5 ? out.copy(this.scope.pose.tip) : null; }
   /** True when a device is on the figure or asked for (the clock keeps drawing while the FibroScan's waves run). */
