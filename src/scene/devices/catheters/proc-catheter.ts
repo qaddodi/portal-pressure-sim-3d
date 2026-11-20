@@ -4,7 +4,8 @@
 // vein by hvpg-balloon.js, the needle's bevel, the wire's hairline). Parts are device objects: drawn over the anatomy, never under a vessel they sit in.
 import { Group, SphereGeometry, CylinderGeometry, RingGeometry, type BufferGeometry, Vector3, Float32BufferAttribute } from 'three';
 import type { CelShared } from '../../materials/cel.ts';
-import type { Palette } from '../../palette.ts';
+import { PALETTES, type LookId, type Palette } from '../../palette.ts';
+import { DEVICE_TOKENS } from '../../procedures/copied/device-tokens.copied.ts';
 import { TIER_Z, UNITS_PER_SCENE, x3, y3 } from '../../frame2d.ts';
 import { NETWORK_BY_ID } from '../../vessels/network.ts';
 import { DeviceObject, TAIL_UNITS, type DeviceTone } from '../device-object.ts';
@@ -37,7 +38,7 @@ export interface CatheterState {
 export const CATHETER_IDLE: CatheterState = { u: 0, balloon: 0, column: 0, opacity: 0, needle: 0, wire: 0, flash: 0, coil: 0, ring: null, clock: 0 };
 
 const RING_TONE = { free: 'monFree', wedge: 'monWedge', bad: 'monAlarm', pv: 'trPv', ivc: 'trIvc' } as const;
-const SHAFT_RADIAL = 10, BALLOON_N = 40, BALLOON_RADIAL = 16;
+const SHAFT_RADIAL = 16, BALLOON_N = 40, BALLOON_RADIAL = 16;
 
 export class ProcCatheter {
   readonly group = new Group();
@@ -104,7 +105,11 @@ export class ProcCatheter {
     this.set({ ...CATHETER_IDLE });
   }
 
-  applyPalette(p: Palette): void { for (const o of this.objects) o.applyPalette(p); }
+  applyPalette(p: Palette): void {
+    for (const o of this.objects) o.applyPalette(p);
+    const look = (Object.keys(PALETTES) as LookId[]).find((id) => PALETTES[id] === p) ?? 'light';
+    this.latexA = Number(DEVICE_TOKENS[look].latexA) || 0.4;
+  }
   setPhone(phone: boolean): void { for (const o of this.objects) o.setPhone(phone); }
 
   /** Where the tip is for a share u of its way (scene units), for tags and the camera. */
@@ -185,13 +190,16 @@ export class ProcCatheter {
       q.c.set(x3(o.c[0]), y3(o.c[1]), r3.point(d, this.v).z); q.t.set(o.t[0], -o.t[1], 0); q.r = Math.max(o.h / U, 0.0004);
     });
     writeRings(this.balloonGeo, rings, BALLOON_RADIAL);
-    this.balloon.setAlpha((0.7 + 0.3 * bl) * op);
+    // a soft translucent bubble, as the 2D app draws it (--dev-latex-a, .34 to .45): the vein and the catheter read through the body, a firmer rim outlines it, and both ease in with the swelling
+    const e = bl * bl * (3 - 2 * bl), a = this.latexA;
+    this.balloon.setAlphas(Math.min(0.5, a * 1.1) * Math.min(1, e * 2.2) * op, (0.35 + 0.45 * e) * op * Math.min(1, bl * 4));
     // its two marker bands, at the shoulders
     [-1, 1].forEach((side, i) => {
       const b = this.balloonBands[i]!, d = dC + side * rx * 0.72;
       b.setAlpha(op); b.group.position.copy(r3.point(d, this.v)); this.orient(b, d);
     });
   }
+  private latexA = 0.4;
   private ballRings: ReturnType<typeof makeRings> | null = null;
 
   /** The portal hit: two rings in the portal vein's colour, running out from the needle's point and fading as they go. */
