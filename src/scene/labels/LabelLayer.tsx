@@ -67,6 +67,7 @@ interface Rec {
   shown: boolean;
   tx: string; op: string;
   form: number;
+  word?: string;
   size: string;
   value: string;
   name?: HTMLElement;
@@ -255,15 +256,14 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
     return;
   }
   // a new spot or form is taken while the label is invisible: its size and words are written then, never in a visible frame
-  if (d.form !== r.form || r.size !== `${d.w}x${d.h}` || r.rev !== d.rev) {
-    r.form = d.form; r.size = `${d.w}x${d.h}`; r.rev = d.rev;
+  if (d.form !== r.form || r.word !== d.word || r.size !== `${d.w}x${d.h}` || r.rev !== d.rev) {
+    r.form = d.form; r.word = d.word; r.size = `${d.w}x${d.h}`; r.rev = d.rev;
     el.style.width = `${px(d.w)}px`; el.style.height = `${px(d.h)}px`;
     if (r.name) {
-      const st = STATIONS.find((s) => s.id === d.id);
-      const word = st ? (d.form === 0 ? st.name : d.form === 1 ? (st.abbr ?? st.name) : '') : '';
-      r.name.textContent = st?.kind === 'organ' ? word.toUpperCase() : word;
+      const word = d.word;   // (the controller's own words for this form; an organ's already stand in capitals)
+      r.name.textContent = word;
       r.name.style.display = word ? '' : 'none';
-      el.dataset.form = String(d.form);
+      el.dataset.form = word ? String(d.form) : '2';
       if (d.rev) el.setAttribute('data-rev', ''); else el.removeAttribute('data-rev');
       el.style.setProperty('--b', `${px(baselineAt(d.h, d.pad.y))}px`);
     }
