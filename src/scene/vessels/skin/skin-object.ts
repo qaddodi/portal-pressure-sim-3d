@@ -17,7 +17,7 @@ import type { SkinMesh, Vec3 } from './types.ts';
 /** The uniforms the skin shares with its arm tubes, by reference (taken from the first arm: every vessel's copy has the same value, and each one follows the same writers: the look, the lens, the engine, the Circuit). */
 export const SHARED_WITH_TUBES = [
   'inflate', 'vdata', 'vdataSize', 'useData', 'res', 'hiPx', 'tubeDark', 'fade', 'inkColor', 'inkColorCirc', 'circT', 'dpr', 'projY',
-  'streamTex', 'chainTex', 'streakAmt', 'dustP', 'time', 'markDark', 'markLight', 'markRev',
+  'streamTex', 'chainTex', 'routeTex', 'streakAmt', 'dustP', 'time', 'markDark', 'markLight', 'markRev',
   'lensGradA', 'lensLaneA', 'lensModeA', 'lensGradB', 'lensLaneB', 'lensModeB', 'laneColA', 'laneColB', 'lensMix', 'lensTail', 'lensSmooth',
 ] as const;
 

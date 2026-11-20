@@ -131,7 +131,7 @@ test('a 1 px filament is never dotted: the area it covers is the same at every s
   }
   // the strip never vanishes between two pixel rows: some row holds at least half of it at any offset (for a footprint of one pixel)
   for (let off = 0; off < 1; off += 0.05) { const peak = Math.max(...[-1, 0, 1].map((r) => streakBoxJs(r - off, 1, 1))); assert.ok(peak >= 0.5 - 1e-9, `offset ${off}: peak ${peak}`); }
-  assert.match(VESSEL_FS, /dust = dustField\(/, 'the tube draws the dust (its marks are capsules with a soft edge, not a 1 px filament); the lobule and sinusoid still draw the filament');
+  assert.match(VESSEL_FS, /dust = dustTube\(/, 'the tube draws the dust (its marks are capsules with a soft edge, not a 1 px filament); the lobule and sinusoid still draw the filament');
   assert.match(MICRO_FS, /streakField\(vAux, /);
 });
 
