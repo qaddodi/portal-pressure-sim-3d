@@ -209,7 +209,7 @@ test('the resistors\' readings must stand, and "vs healthy liver" rides once, on
 });
 
 // ── the trees, the caudate lane, custom shunts ──
-const tubes = () => new CircuitTubes(createShared(), createLensShared(), { streamTex: { value: null as never }, chainTex: { value: null as never }, projY: { value: 1 }, dpr: { value: 1 }, streakAmt: { value: 0 }, dustP: { value: new Float32Array(52) } }, createCircuitShared(8));
+const tubes = () => new CircuitTubes(createShared(), createLensShared(), { streamTex: { value: null as never }, chainTex: { value: null as never }, routeTex: { value: null as never }, projY: { value: 1 }, dpr: { value: 1 }, streakAmt: { value: 0 }, dustP: { value: new Float32Array(52) } }, createCircuitShared(8));
 test('every branch of the liver\'s four trees is a tube on the map, fixed to its parent\'s lane, thinner than it', () => {
   const t = tubes();
   const trees = t.ids.filter((e) => e.kind === 'tree');
@@ -509,9 +509,9 @@ test('a station name with no abbreviation of its own is shortened before its rea
   assert.equal(compactName('Azygos'), null); assert.equal(compactName('Portal vein'), null);
   const b = buildCaptions(fakeCtx({ zoomed: true, liverOpen: true }));
   const l = b.items.find((i) => i.id === 'SIN_L')!, m = b.meta.get('SIN_L')!;
-  assert.deepEqual(m.forms.map((f) => f.name), ['Left sinusoids', 'L sinusoids', '']);
-  assert.ok(l.forms[1]!.w < l.forms[0]!.w && l.forms[2]!.w < l.forms[1]!.w, 'each form is narrower than the last');
-  assert.deepEqual(b.meta.get('RPV')!.forms.map((f) => f.name), ['Right portal vein', 'RPV', ''], '2D\'s own abbreviation is kept');
+  assert.deepEqual(m.forms.map((f) => f.name), ['Left sinusoids', 'L sinusoids'], 'no form is a reading alone (65878f1a: 2D leaves a name with no room to its dot)');
+  assert.ok(l.forms[1]!.w < l.forms[0]!.w, 'each form is narrower than the last');
+  assert.deepEqual(b.meta.get('RPV')!.forms.map((f) => f.name), ['Right portal vein', 'RPV'], '2D\'s own abbreviation is kept');
 });
 
 test('a name never hangs from a leader drawn across the vessels when it can stand clear: the hepatic artery\'s name stood north of the sinusoids on a leader through all of them', async () => {

@@ -10,7 +10,7 @@ import { vesselFit, type VesselFit } from './fit.ts';
 import type { VesselObject } from '../../vessels/vessel-object.ts';
 import { UNITS_PER_SCENE } from '../../frame2d.ts';
 import { DeviceObject } from '../device-object.ts';
-import { mergeTubes } from '../tube-rings.ts';
+import { DEVICE_SIDES, WIRE_SIDES, mergeTubes } from '../tube-rings.ts';
 import { buildStent, RING_STEPS, WIRE_MAX_R, type StentPaths, type StentSpec } from './stent-build.ts';
 import { EDGES, STENT_SITES } from '../../../engine/hales/portal/topology.js';
 import { endOf, endSiteOf, geomOf, kindOf } from '../../../engine/hales/portal/stent-geom.js';
@@ -19,7 +19,7 @@ import { indexOf } from '../../../engine/vessel-data.ts';
 
 const INSET = 2 / UNITS_PER_SCENE;   // the 2D draws the stent from 2 figure units in to 2 from the end (stage-transitions.js stentMesh)
 const FADE_MS = 420;
-const WIRE_RADIAL = 6, GRAFT_RADIAL = 24, GOLD_RADIAL = 6;
+const WIRE_RADIAL = WIRE_SIDES, GRAFT_RADIAL = DEVICE_SIDES, GOLD_RADIAL = WIRE_SIDES;
 /** The 2D device's own alpha for the graft: nearly clear (stent-mesh.js graftAlpha, 0.86 lit, a tenth of that in the shade; the tube is lit from every side, so the mean). */
 /** (The 2D graft is white where the light falls, 0.86, and a tenth of that in the shade; here, lit from every side, a milky sleeve over the lumen: the cover reads as a cover.) */
 const GRAFT_ALPHA = 0.5;

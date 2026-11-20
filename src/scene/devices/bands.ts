@@ -7,7 +7,7 @@ import type { Palette } from '../palette.ts';
 import { TIER_Z, x3, y3 } from '../frame2d.ts';
 import { DeviceObject } from './device-object.ts';
 import { inVesselPass } from '../layers.ts';
-import { allocTube, makeRings, writeRings } from './tube-rings.ts';
+import { WIRE_SIDES, allocTube, makeRings, writeRings } from './tube-rings.ts';
 import { BAND, bandRing } from '../procedures/copied/band-ring.js';
 import { bandsStep } from '../procedures/copied/band-ease.js';
 
@@ -26,7 +26,7 @@ export class Bands {
     for (let i = 0; i < BANDS_MAX; i++) {
       const b = bandRing(i, N) as { pts: [number, number][] };
       const pts = [...b.pts, b.pts[0]!];
-      const g = allocTube(pts.length, 6), rings = makeRings(pts.length);
+      const g = allocTube(pts.length, WIRE_SIDES), rings = makeRings(pts.length);
       for (let k = 0; k < pts.length; k++) {
         const p = pts[k]!, q = pts[(k + 1) % (pts.length - 1)]!, r = pts[(k + pts.length - 2) % (pts.length - 1)]!;
         rings[k]!.c.set(x3(p[0]), y3(p[1]), TIER_Z.mid + 0.02);
