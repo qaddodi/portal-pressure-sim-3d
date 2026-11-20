@@ -40,3 +40,6 @@
 .cmp-table .unit { display: block; margin: 1px 0 0; font-size: 12px; font-weight: 400; color: var(--text-3); line-height: 1.3; }
 .cmp-table td.d .tri { display: inline-block; margin-right: 4px; font-size: 12px; vertical-align: 1px; }
 .cmp-hint { margin: 0; font: 400 13px / 1.4 var(--ui); color: var(--text-2); }
+
+.cmp-seg button, .cmp-table-btn { position: relative; }
+.cmp-seg button::after, .cmp-table-btn::after { content: ''; position: absolute; inset: -6px 0; }   /* (32 px tall: a thumb gets 44) */

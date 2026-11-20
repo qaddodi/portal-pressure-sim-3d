@@ -64,7 +64,8 @@ varying float vW;
 varying float vR;
 varying float vU;   // the figure's units in one scene unit here: 300 on the body, 1 / MAP_K on the map (the Circuit share of this vertex)
 uniform float circBoost;   // 2D's circBoost: the map's lines are drawn up to 1.75 times wide when it is zoomed out (stage-tubes.js)
-uniform vec3 circW;   // the vessel's width in the Circuit, map units: (fixed width or -1 for the engine's diameter, 1 if circBoost applies, the least width)
+uniform float circPerPx;   // map units under one CSS pixel here
+uniform vec4 circW;   // the vessel's width in the Circuit, map units: (fixed width or -1 for the engine's diameter, 1 if circBoost applies, the least width, the least width on the screen in CSS px)
 // a vessel's live width against the one its tube was built at (the engine's diameter by the 2D figure's rule), as the body of main() reads it for this vessel
 float swellOf(float idx, float bD, float kind) {
   if (useData < 0.5 || kind > 1.5) return 1.0;
@@ -84,6 +85,7 @@ float circSwell() {
     if (useData > 0.5) { ivec2 tc = ivec2(int(mod(vindex, vdataSize.x)), int(floor(vindex / vdataSize.x))); d = texelFetch(vdata, tc, 0).b; }
     wc = clamp(1.3 * max(2.6, 2.0 * pow(max(d, 0.1), 0.72)) * 0.95, 6.0, 15.0) * circBoost;
   }
+  wc = max(wc, circW.w * circPerPx);
   return 0.5 * wc * CIRC_MAPK / max(radius, 1e-6);
 }
 void main() {
@@ -122,12 +124,12 @@ ${CIRCUIT_VS_CALL}
     } else {
       fa = mix(fadeA.z, fadeA.w, clamp((fv - fadeA.x) / max(1.0 - fadeA.x, 1e-4), 0.0, 1.0));
     }
-    fa = mix(fa, 1.0, circT * (1.0 - fadeKeep));
+    fa = mix(fa, 1.0, circT);
   } else if (fadeMode > 0.5) {
     float fs = fadeMode < 1.5 ? uv.x : position.y;
     float ft = clamp((fs - fadeA.x) / (abs(fadeA.y - fadeA.x) < 1e-5 ? 1e-5 : fadeA.y - fadeA.x), 0.0, 1.0);
     fa = mix(fadeA.z, fadeA.w, ft);
-    fa = mix(fa, 1.0, circT * (1.0 - fadeKeep));
+    fa = mix(fa, 1.0, circT);
   }
   vFade = fa;
   vHi = 0.0;
@@ -210,6 +212,7 @@ uniform float casingA;      // the look's casing alpha (2D --casing-a)
 uniform float casingCircA;  // and in the Circuit (2D .stage-wrap.cmap), by circT
 uniform vec3 inkColorCirc;
 uniform float circT;
+uniform vec2 circCap;       // the Circuit rounds this vessel's start / end (1): the ends nothing joins
 uniform float wallLine;     // 1 on an artery: a lighter inner line, the wall, at a quarter of the radius in from the edge (visual review 10.5), so an artery reads apart from a vein without colour
 uniform float quietK;       // quiet depth on a turn (camera/quiet.ts): the back tier eases toward the page by QUIET_BACK of this, 0 face on
 uniform vec3 pageCol;       // the plate colour it eases toward
@@ -315,9 +318,33 @@ vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float acro
   return vec4(col, 1.0);
 }
 
+// A free end in the Circuit is round: the pixels outside a half circle of the tube's own radius at the end are carved away (the outline's hull the same, a line's width wider, so the ink runs round the cap).
+// Exact at any ring spacing, which a geometry dome is not (a tube has a ring every 1/24 of a scene unit, about a radius).
+bool capCarved(float across, bool hull) {
+  float k = smoothstep(0.7, 1.0, circT);
+  if (k <= 0.0 || circCap.x + circCap.y < 0.5) return false;
+  float dd = 1e9;
+  if (circCap.x > 0.5) dd = vUv.x * len * vU;
+  if (circCap.y > 0.5) dd = min(dd, (1.0 - vUv.x) * len * vU);
+  float wpc = vW * 2.0 / (res.y * projY) * vU;
+  float rDev = vR / max(wpc, 1e-6) * dpr;
+  float ink = hull ? clamp(${F(CEL_STYLE.LINE_R)} * rDev, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) / dpr * wpc : 0.0;
+  float R = (vR + ink) * k, a = dd + ink * k;
+  if (a >= R) return false;
+  float q = 1.0 - a / R;
+  return across * across + q * q > 1.0;
+}
+
 void main() {
   if (reveal < 0.9999 && vUv.x > reveal) discard;
   if (fadedOut()) discard;
+  vec3 n = normalize(vN);
+  // (a tube seen end on has no sideways direction: a fixed one keeps the fragment finite, never a NaN, which a device draws black)
+  vec3 sideX = cross(normalize(vT), normalize(vV));
+  float sideL = length(sideX);
+  vec3 side = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
+  float across = dot(n, side);
+  if (capCarved(across, vHull > 0.5)) discard;
   if (vHull > 0.5) {
     // the ink: the hull's back faces only, in the ink colour, warming to the highlight colour where the vessel is picked
     if (gl_FrontFacing || hullOn < 0.5) discard;
@@ -332,13 +359,7 @@ void main() {
     float dash = fract(vUv.x * len / 0.09);
     if (dash > 0.45) discard;
   }
-  vec3 n = normalize(vN);
   vec3 l = normalize((viewMatrix * vec4(light, 0.0)).xyz);
-  // (a tube seen end on has no sideways direction: a fixed one keeps the fragment finite, never a NaN, which a device draws black)
-  vec3 sideX = cross(normalize(vT), normalize(vV));
-  float sideL = length(sideX);
-  vec3 side = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
-  float across = dot(n, side);
 
   vec4 la = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, across);
   vec4 lb = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, across);

@@ -9,7 +9,7 @@ import type { LookId, Palette } from '../palette.ts';
 import { LOOK_IDS } from '../palette.ts';
 import { LUMA } from '../disease/copied/anatomy-b4.ts';
 import { type OrganInks, type OrganState, organColour, rgbOf } from './organ-look.ts';
-import { type Art, type ArtTokens, type Ctx2D, type Surface, type Tones, paintArt } from './organ-art-paint.ts';
+import { type Art, type ArtTokens, type Ctx2D, type Surface, type Tones, haustraOf, paintArt, paintBowelCel } from './organ-art-paint.ts';
 import { CEL_OF, celTones, lookOfOrgans } from './cel-tones.ts';
 import { UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
 
@@ -133,6 +133,7 @@ export function patchedShaders(vs: string, fs: string, inkVs: string, inkFs: str
 interface Slot { id: string; art: Art; mat: ShaderMaterial; tex: Texture | null; texCel: Texture | null; w: number; h: number; scale: number }
 
 const blank = (): Texture => { const t = new DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1); t.needsUpdate = true; return t; };
+const envOf = (s: Slot) => ({ path: () => new Path2D(), surface: () => canvasOf(s.w, s.h) });
 function canvasOf(w: number, h: number): Surface | null {
   if (typeof document === 'undefined') return null;
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -195,17 +196,19 @@ export class OrganArt {
     const ct = celTones(lookOfOrgans(p.organs), CEL_OF[s.id]!);
     const cel: Tones = { o1: ct.base, o2: ct.shade, o3: ct.line, light: [ct.lit[0], ct.lit[1], ct.lit[2], 0.5], tok: { ...tok, hi: ct.lit, ao }, soft: false, cel: true };
     s.tex?.dispose(); s.texCel?.dispose();
-    s.tex = this.paintTexture(s, wash); s.texCel = this.paintTexture(s, cel);
-    s.mat.uniforms.art!.value = s.tex; s.mat.uniforms.artCel!.value = s.texCel;
+    s.tex = this.paintTexture(s, (c, base) => paintArt(envOf(s), c, s.art, wash, base));
+    // Cel shaded: only the gut has art, and it is calm: the small bowel's broad loops by rule, the colon's haustra lines (organ-art-paint.ts); every other organ is the flat fill and its outline
+    if (s.id === 'bowel') s.texCel = this.paintTexture(s, (c, base) => paintBowelCel(c, s.art.box, cel, base));
+    else if (s.id === 'colon') s.texCel = this.paintTexture(s, (c, base) => paintArt(envOf(s), c, haustraOf(s.art), cel, base));
+    else s.texCel = null;
+    s.mat.uniforms.art!.value = s.tex ?? blank(); s.mat.uniforms.artCel!.value = s.texCel ?? blank();
   }
 
-  private paintTexture(s: Slot, t: Tones): Texture | null {
+  private paintTexture(s: Slot, draw: (c: Ctx2D, base: (c: Ctx2D) => void) => void): Texture | null {
     const surf = canvasOf(s.w, s.h);
     if (!surf) return null;
     const [bx, by] = s.art.box;
-    const base = (c: Ctx2D): void => { c.setTransform(s.scale, 0, 0, s.scale, -bx * s.scale, -by * s.scale); };
-    const env = { path: () => new Path2D(), surface: () => canvasOf(s.w, s.h) };
-    paintArt(env, surf.ctx, s.art, t, base);
+    draw(surf.ctx, (c) => { c.setTransform(s.scale, 0, 0, s.scale, -bx * s.scale, -by * s.scale); });
     const tex = new CanvasTexture(surf.canvas as HTMLCanvasElement);
     tex.flipY = false; tex.premultiplyAlpha = true; tex.generateMipmaps = true; tex.minFilter = LinearMipmapLinearFilter; tex.anisotropy = 4;
     tex.needsUpdate = true;

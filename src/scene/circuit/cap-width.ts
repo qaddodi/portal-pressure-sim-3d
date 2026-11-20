@@ -7,7 +7,7 @@ import { circuitWidthMap } from './width.ts';
 
 /** A station without a vessel of its own (an inner or minor station) takes a plain vein's width. `scale`: the map's CSS pixels per map unit. */
 export function halfWidthPx(station: string, scale: number): number {
-  const boost = circBoostOf(scale), v = NETWORK_BY_ID.get(LABEL_VESSEL[station] ?? '');
-  const w = v ? circuitWidthMap(v.widthKind, v.baseD, boost, v.circFine ?? 1) : circuitWidthMap(0, 6, boost);
+  const boost = circBoostOf(scale), perPx = scale > 0 ? Math.min(40, 1 / scale) : 0, v = NETWORK_BY_ID.get(LABEL_VESSEL[station] ?? '');
+  const w = v ? circuitWidthMap(v.widthKind, v.baseD, boost, v.circFine ?? 1, perPx) : circuitWidthMap(0, 6, boost, 1, perPx);
   return 0.5 * w * scale;
 }

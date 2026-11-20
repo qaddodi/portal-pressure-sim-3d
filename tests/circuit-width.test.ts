@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { circuitWidthMap, circuitBranchWidth, CIRC_ARTERY, CIRC_BED } from '../src/scene/circuit/width.ts';
+import { circuitWidthMap, circuitBranchWidth, CIRC_ARTERY, CIRC_BED, MIN_PX } from '../src/scene/circuit/width.ts';
 import { circBoostOf, mapPxPerUnit, MAP_K } from '../src/scene/circuit/map.ts';
 import { circuitWidth } from '../src/scene/vessels/vessel-object.ts';
 import { treeCircW } from '../src/scene/circuit/tubes.ts';
@@ -59,15 +59,17 @@ test('the shader carries the rule: the same constants, the units the map is in, 
   assert.match(sh, /return 0\.5 \* wc \* CIRC_MAPK/);
   assert.match(sh, /vU = mix\(300\.0, 1\.0 \/ CIRC_MAPK, circShare\)/);
   assert.doesNotMatch(sh.replace(/mix\(300\.0, 1\.0 \/ CIRC_MAPK, circShare\)/, ''), /\* 300\.0/, 'no figure-unit factor is left fixed at 300');
-  assert.deepEqual([...circuitWidth(0)], [-1, 1, 0]);
-  assert.deepEqual([...circuitWidth(1, 0.6)], [CIRC_ARTERY * 0.6, 0, 0]);
-  assert.deepEqual([...circuitWidth(2)], [CIRC_BED, 1, 0]);
+  assert.deepEqual([...circuitWidth(0)], [-1, 1, 0, MIN_PX.vein]);
+  assert.deepEqual([...circuitWidth(1, 0.6)], [CIRC_ARTERY * 0.6, 0, 0, MIN_PX.artery]);
+  assert.deepEqual([...circuitWidth(2)], [CIRC_BED, 1, 0, MIN_PX.bed]);
+  assert.match(sh, /wc = max\(wc, circW\.w \* circPerPx\)/, 'no line is under its least width on the screen');
 });
 
 test('a liver branch follows its host: the uniform is the host\'s width times its share, held at 1.2', () => {
   const [w, boost, min] = treeCircW(0, 12, 1, 0.5);
   assert.equal(w, Math.min(15, vesselPx(12) * 0.95) * 0.5); assert.equal(boost, 1); assert.equal(min, 1.2);
-  assert.deepEqual([...treeCircW(1, 3, 0.6, 0.5)], [CIRC_ARTERY * 0.6 * 0.5, 0, 1.2]);
+  assert.equal(treeCircW(0, 12, 1, 0.5)[3], MIN_PX.branch);
+  assert.deepEqual([...treeCircW(1, 3, 0.6, 0.5)], [CIRC_ARTERY * 0.6 * 0.5, 0, 1.2, MIN_PX.branch]);
 });
 
 test('the figure frames the map\'s drawn box, not the 8% taller view box (2D uprightFitOf)', () => {
@@ -92,4 +94,25 @@ test('a name keeps off its vessel by half the drawn width: wider as the map is d
   const mine = buildCaptions(ctx({ halfW: () => 9 })).items.find((i) => i.id === 'CONF');
   assert.equal(mine?.vw, 9);
   assert.equal(buildCaptions(ctx({})).items.find((i) => i.id === 'CONF')?.vw, 5, 'absent: the old 5');
+});
+
+test('no line is a hairline: a floor in CSS px for every kind, whatever the zoom', () => {
+  const sc = 0.3, boost = circBoostOf(sc), perPx = 1 / sc;
+  for (const [kind, d, min] of [[0, 1, MIN_PX.vein], [1, 5, MIN_PX.artery], [2, 1, MIN_PX.bed]] as const) assert.ok(circuitWidthMap(kind, d, boost, 1, perPx) * sc >= min - 1e-9, `kind ${kind}`);
+  assert.ok(circuitBranchWidth(1, 3, boost, 0.6, 0.2, perPx) * sc >= MIN_PX.branch - 1e-9);
+  assert.equal(circuitWidthMap(0, 12, 1, 1, 0), circuitWidthMap(0, 12, 1), 'no floor asked: as before');
+});
+
+test('the Circuit holds nothing faint: the tip fades let go, the bands run full width and soft, free ends are round', async () => {
+  const sh = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(sh, /circT \* \(1\.0 - fadeKeep\)/, 'the artery\'s fades no longer hold in the Circuit');
+  assert.match(sh, /bool capCarved\(float across, bool hull\)/);
+  assert.match(sh, /if \(capCarved\(across, vHull > 0\.5\)\) discard;/);
+  const layer = readFileSync(new URL('../src/scene/circuit/map-layer.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(layer, /float iy = /, 'the bands are not cut off across the map');
+  assert.match(layer, /\/ BAND_SOFT \+ 0\.5/);
+  const sc = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  assert.match(sc, /setCircCap\(free\(v\.from, v\.id\) \? 1 : 0, free\(v\.to, v\.id\) \? 1 : 0\)/);
+  const cap = readFileSync(new URL('../src/scene/circuit/CircuitCaptions.tsx', import.meta.url), 'utf8');
+  assert.match(cap, /CIRCUIT_TREES/, 'a caption keeps off the sinusoid bundle');
 });
