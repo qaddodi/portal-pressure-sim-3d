@@ -12,6 +12,7 @@ import { hvpgFrame, type TraceSt } from '../tests/ir/hvpg.ts';
 import { T, newWave, syncWave } from '../tests/copied/hvpg-clock.copied.js';
 import { HVPG_STEPS, STEP_T, stepsOf, levelsOf } from './hvpg-plan.ts';
 import { setToolStep } from './tool-step.ts';
+import { cathScript } from '../deck/cath-clock.ts';
 
 type Rec = Record<string, unknown>;
 /** What the card was showing when it was last taken down: a card that comes back within a moment (the next slide of the same measurement, or its re-mount) carries on from there (2D card-keep.js). */
@@ -24,8 +25,8 @@ export function HvpgTool({ fp, cath, catheter, forward }: { fp: Rec | null; cath
   const first = useRef(true);
   const [at, setAt] = useState<number>(() => (follow ? HVPG_STEPS.indexOf(follow) : forward ? 0 : 2));
   const [n, setN] = useState(0);
-  const L = useRef({ lv, t: 0, to: 0, running: false, at: -1, off: null as null | (() => void) });
-  L.current.lv = lv;
+  const L = useRef({ lv, t: 0, to: 0, running: false, at: -1, follow: false, off: null as null | (() => void) });
+  L.current.lv = lv; L.current.follow = !!follow;
   const stepped = useRef(false);
   useEffect(() => { if (follow) setAt(HVPG_STEPS.indexOf(follow)); }, [follow]);
   const src = useMemo<MonSource>(() => {
@@ -55,7 +56,8 @@ export function HvpgTool({ fp, cath, catheter, forward }: { fp: Rec | null; cath
     const hold = clock.hold('hvpg-tool');
     const off = clock.on('tween', () => {
       const now = performance.now(), dt = Math.min(100, now - last); last = now;
-      c.t = Math.min(c.to, c.t + dt);
+      // (with the catheter on the figure the card reads the figure's own time (scene-link.ts, the one hvpg-clock script), so the trace steps in the frame the balloon fills; with none, its own)
+      c.t = Math.min(c.to, c.follow && cathScript.on ? Math.max(c.t, cathScript.t) : c.t + dt);
       if (c.t >= c.to) { c.running = false; setN((x) => x + 1); c.off?.(); c.off = null; }
     });
     let done = false;
