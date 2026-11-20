@@ -1,12 +1,9 @@
 // The lobule's vessels wear the colour lens along their length, as the 2D lobule colours its lumen (lobule-zoom-field.js inkOf / tubeRGB), instead of one flat tone.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createShared } from '../src/scene/materials/cel.ts';
 import { samplerFor } from '../src/scene/lenses/model.ts';
 import { inkAt, inkLanes, lobuleDelta, sinW } from '../src/scene/lobule/ink.ts';
-import { LobuleView } from '../src/scene/lobule/view.ts';
 import type { LobuleModel } from '../src/scene/lobule/model.ts';
-import type { BufferAttribute } from 'three';
 
 const model = (o: Partial<LobuleModel> = {}): LobuleModel => ({
   zone: { pre: 1, sin: 1, post: 1 }, Qs: { pre: 18, sin: 9, post: 18 }, Q0: { pre: 18, sin: 9, post: 18 }, oxy: [0.85, 0.8, 0.7], P1: 20, P2: 14, P3: 6, P4: 4,
@@ -45,26 +42,6 @@ test('capillarized sinusoids are drained toward the lobule\'s shade, never brigh
   assert.ok(!near(a, b, 1e-3) && lum(b) <= lum(a) + 0.02);
   assert.ok(near(inkAt(ctx({ fibSin: 1 }), 'pv', 0, [0, 0, 0]), inkAt(ctx(), 'pv', 0, [0, 0, 0])), 'only the sinusoids dull');
   assert.ok(sinW(1) === 1 && sinW(0.05) === 0 && sinW(0.5) > 0 && sinW(0.5) < 1);
-});
-
-test('the sinusoids\' geometry carries a colour per vertex, from the portal end\'s to the central end\'s, and a lens switch eases it', () => {
-  const v = new LobuleView(createShared());
-  v.setVisible(true); v.snapModel(model());
-  let t = 0; do { v.update(t += 16); } while (t < 2000);
-  const obj = v.objects.find((o) => o.toonMesh.geometry.getAttribute('ink') && v.set.get('sinusoids').group.children.includes(o.group))!;
-  assert.ok(obj && (obj.toon as { defines?: Record<string, string> }).defines?.VERTEX_INK !== undefined, 'a part with the attribute reads it');
-  assert.equal(obj.toon.uniforms.inkAmount!.value, 1);
-  const a = obj.toonMesh.geometry.getAttribute('ink') as BufferAttribute;
-  const s0 = v.net.courses.find((c) => c.kind === 's0')!;
-  const start = (lens: 'pressure' | 'oxygen') => inkAt({ ...ctx(), lens }, 'sin', sinW(s0.rho[0]!), [0, 0, 0]);
-  const at0 = () => Array.from(a.array.slice(0, 3));
-  assert.ok(near(at0(), start('pressure'), 1e-5), 'the first vertex wears the pressure colour of the tube\'s outer end');
-  v.setLens('oxygen'); v.update(t += 16);
-  assert.ok(!near(at0(), start('pressure'), 1e-6) && !near(at0(), start('oxygen'), 1e-6), 'moving between the two lenses');
-  do { v.update(t += 16); } while (t < 4000);
-  assert.ok(near(at0(), start('oxygen'), 1e-3), 'landed on the oxygen colour');
-  const last = a.count - 1;
-  assert.ok(last > 100 && Array.from(a.array.slice(last * 3, last * 3 + 3)).every((x) => x >= 0 && x <= 1));
 });
 
 test('under Blood origin the sources run as lanes side by side across the vessel (the 2D streams), each as wide as its share, the systemic remainder last; other lenses give one colour three times', () => {

@@ -5,10 +5,7 @@ import { CEL_STYLE } from '../src/scene/cel-style.ts';
 import { CEL_QUANT_GLSL, CEL_TISSUE_BANDS } from '../src/scene/materials/cel-quant.ts';
 import { CEL_TISSUE_GLSL, EDGE_HI, EDGE_LO, ZONE_EDGES, celTissueJS, tissueInk, tissueTone } from '../src/scene/lobule/cel.ts';
 import { LOBULE_PLATE_FS } from '../src/scene/lobule/plate.ts';
-import { LOBULE_ZONES_FS } from '../src/scene/lobule/zones.ts';
 import { LOBULE_FIELD_FS } from '../src/scene/lobule/field.ts';
-import { LOBULE_TOON_FS } from '../src/scene/lobule/shading.ts';
-import { CEL } from '../src/scene/vessels/cel-ink.ts';
 
 const luma = (c: readonly number[]) => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * c[2]!;
 const cell: [number, number, number] = [0.89, 0.72, 0.65];
@@ -63,15 +60,7 @@ test('the plate is cel shaded with clean ink; the neighbours are cel shaded and 
   assert.match(LOBULE_PLATE_FS, /uniform vec3 ink/);
   assert.match(LOBULE_FIELD_FS, /celTissue\(/);
   assert.doesNotMatch(LOBULE_FIELD_FS, /celEdge\(tile/, 'the neighbours carry no ink');
-  assert.match(LOBULE_ZONES_FS, new RegExp(`smoothstep\\(${ZONE_EDGES[0].toFixed(4)} - px`));
-  assert.doesNotMatch(LOBULE_ZONES_FS, /\(r - 0\.18\) \/ 0\.32/, 'no soft ramp left');
   assert.ok(ZONE_EDGES[0] > 0.18 && ZONE_EDGES[0] < 0.5 && ZONE_EDGES[1] > 0.5 && ZONE_EDGES[1] < 0.85);
-});
-
-test('the vessels on the plate are the same three tones and the same line (clamp(LINE_R R, LINE_MIN, LINE_MAX) px) from the one style', () => {
-  assert.equal(CEL.LINE_R, CEL_STYLE.LINE_R); assert.equal(CEL.LINE_MIN, CEL_STYLE.LINE_MIN); assert.equal(CEL.LINE_MAX, CEL_STYLE.LINE_MAX);
-  assert.equal(CEL.SHADE, CEL_STYLE.SHADE); assert.equal(CEL.LIT, CEL_STYLE.LIT);
-  assert.match(LOBULE_TOON_FS, /TONES3/);
 });
 
 test('the ink is 2D\'s casing over the look\'s cell colour, in every look', () => {

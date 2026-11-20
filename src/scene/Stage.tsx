@@ -3,7 +3,6 @@
 //   engine phase  the engine's newest frame goes into the vessel data texture (the scene samples it)
 //   camera phase  the scene steps its tweens (shot, highlight, flow marks) and says whether it needs another frame
 //   render phase  one gl.render of the cel scene (a useFrame with a render priority, so R3F does not draw its own empty scene)
-import { tapFigure } from '../ui/action/tap.ts';
 import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Raycaster } from 'three';

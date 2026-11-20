@@ -6,7 +6,7 @@
 // A point is "inside the liver" when it lies inside the liver mesh; the placeholder right lobe is an ellipsoid (anatomy/placeholder.ts), and the artist's
 // real liver replaces it, so the place is ONE constant in the 2D frame (LIVER_2D) to move when the mesh differs (tests/scene-dive.test.ts checks it is inside).
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
-import type { V3 } from './batch.ts';
+import type { V3 } from './shots.ts';
 
 /** The place in the 2D figure's world units (x right, y down; the confluence is at 700, 556) the dive goes to: the open liver between the right portal branch (below: (602,442) up-left to the right sinusoid fan at about (450,340)), the right hepatic vein (above, y about 245) and the IVC (right, x about 620), about 65 units clear of each (owner, 20 Nov: zoom in between the right portal vein and the IVC, not to the edge). The courses are src/scene/vessels/paths.copied.ts. */
 export const LIVER_2D = { x: 515, y: 330 } as const;
