@@ -33,6 +33,17 @@ interface Props {
   zoomable?: boolean;
 }
 
+/** 2D's markLong (presenter.js): a title that sets in more than 2.4 lines is a long one and takes the smaller step (`.pz-h.long`, --s-big), so a long title never fills the card.
+ *  Judged at the full size each time (the class is taken off, measured, put back), so a resize or a new title is judged afresh. A phone's stacked card has its own small title. */
+export function markLong(root: HTMLElement | null, on: boolean): void {
+  const ttl = root?.querySelector<HTMLElement>('.pz-h');
+  if (!ttl) return;
+  ttl.classList.remove('long');
+  if (!on) return;
+  const lh = parseFloat(getComputedStyle(ttl).lineHeight) || ttl.offsetHeight;
+  if (ttl.offsetHeight > lh * 2.4) ttl.classList.add('long');
+}
+
 /** One card: placed by transform, sized exactly to its content with a glide, invisible until its words are laid out, then it rises in. */
 export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow, extra, onTap, visual, go = true, data = false, fresh = false, zoomable = false }: Props) {
   const vp = useUi((s) => s.vp);
@@ -51,6 +62,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     if (!el) return;
     // a centred card (2D's panel and case) keeps its padding on the card itself, so its height is its words' and that padding
     const report = () => {
+      markLong(innerRef.current, layoutOf(vp.w, vp.h) !== 'stack' && layoutOf(vp.w, vp.h) !== 'tab');
       const card = cardRef.current, cs = card && centredKind(entry.id) ? getComputedStyle(card) : null;
       const pad = cs ? (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) : 0;
       // 2D's fit (presenter-zoom.js): a panel taller than its room zooms its contents down (--pz-fit, `.pz-panel > *`) until they fit, the words never under 12 px; only past that does the card split
