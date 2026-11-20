@@ -46,7 +46,11 @@ function bodyPoints(d: string, n: number): Vector3[] {
   return resample(courseOf(d), n).map(([x, y]) => new Vector3(x3(x), y3(y), TIER_Z.over));
 }
 
-export type TubeKind = 'tree' | 'caud' | 'custom';
+export type TubeKind = 'tree' | 'caud' | 'custom' | 'arteriole';
+/** The hepatic artery's two branches to the lobes: the 2D Circuit draws them (the body figure leaves the arterioles out, 20 Nov), so they are map-only strands on the artery's own course. */
+export const ARTERIOLES: readonly string[] = ['A_HR', 'A_HL'];
+/** The vessel they carry on from (and are drawn with). */
+export const ARTERIOLE_HOST = 'A_HEP';
 interface Entry { id: string; kind: TubeKind; obj: VesselObject; parent: string; goal: number; amount: number; /** a custom shunt closed and opened again: the old tube eases out and goes */ dead?: boolean; /** the vessel's two course lengths (scene units), when it has two */ lens?: readonly [number, number] }
 
 export interface TubesContext {
@@ -88,6 +92,12 @@ export class CircuitTubes {
       if (!parent) continue;
       list.forEach((b, i) => this.add(`${id}#${i}`, 'tree', id, courseOf(b.d), Math.max(len3(MIN_BRANCH_W / 2), parent.radius * b.k), parent.tone === 'artery' ? 'portal' : parent.tone, parent.baseD, 2, undefined, treeCircW(parent.widthKind, parent.baseD, parent.circFine ?? 1, b.k), [0, 1]));
     }
+    // the hepatic artery's two branches to the lobes (2D draws them in the Circuit; the body leaves them out), each a map-only strand at the artery's own width
+    const ha = NETWORK_BY_ID.get(ARTERIOLE_HOST);
+    if (ha) for (const id of ARTERIOLES) {
+      const dd = CIRCUIT_D[id];
+      if (dd && hasVessel(id)) this.add(id, 'arteriole', id, courseOf(dd), ha.radius * 0.8, 'artery', 3, 1, undefined, [CIRC_ARTERY, 0, 0, MIN_PX.artery], [0, 1], ARTERIOLE_HOST);
+    }
     // the caudate's own vein, drawn only while a slide is about the caudate lobe
     const caud = edgeById.get('CAUD');
     const d = CIRCUIT_D.CAUD;
@@ -95,7 +105,7 @@ export class CircuitTubes {
   }
 
   /** `body`: the body course of a vessel that lies on the body too (a custom shunt: custom-shunt-paths.js); the tube is built along it and the map course carries it, as every vessel of the figure is. */
-  private add(id: string, kind: TubeKind, edge: string, dense: [number, number][], radius: number, tone: 'portal' | 'sys', baseD: number, widthKind: 0 | 1 | 2, body?: string, circW?: readonly [number, number, number, number], circCap?: readonly [number, number]): Entry {
+  private add(id: string, kind: TubeKind, edge: string, dense: [number, number][], radius: number, tone: 'portal' | 'sys' | 'artery', baseD: number, widthKind: 0 | 1 | 2, body?: string, circW?: readonly [number, number, number, number], circCap?: readonly [number, number], host?: string): Entry {
     const mapPts = scenePoints(dense);
     let built, courseLens: readonly [number, number] | undefined;
     if (body) {
@@ -112,7 +122,7 @@ export class CircuitTubes {
     }
     const { shared, lens, blood, circuit } = this.deps;
     const o = new VesselObject(built.geometry, {
-      tone, artery: false, lensIndex: indexOf(edge), widthKind, circW, circCap, bands: 2, spec: 1, px: kind === 'tree' ? 0.9 : 1.2,
+      tone, artery: tone === 'artery', lensIndex: indexOf(edge), widthKind, circW, circCap, bands: 2, spec: 1, px: kind === 'tree' ? 0.9 : 1.2,
       vessel: { index: indexOf(edge), len: built.length, stubSpeed: markSpeed(1), radius, baseD },
     }, shared, lens, blood, circuit);
     o.edge = { id: edge, from: edgeById.get(edge)?.from ?? '', to: edgeById.get(edge)?.to ?? '', length: built.length };
@@ -124,7 +134,7 @@ export class CircuitTubes {
     o.setPhone(this.phone);
     o.setUseData(this.useData);
     this.group.add(o.group);
-    const e: Entry = { id, kind, obj: o, parent: edge, goal: 0, amount: 0, lens: courseLens };
+    const e: Entry = { id, kind, obj: o, parent: host ?? edge, goal: 0, amount: 0, lens: courseLens };
     this.entries.push(e);
     return e;
   }
