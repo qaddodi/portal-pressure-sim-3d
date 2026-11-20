@@ -33,9 +33,9 @@ const chevCore = (lit: readonly number[]): [number, number, number] => {
 };
 
 test('the heads follow the CHEV table: 55 percent of the lumen wide (4 px at least on a thin tube, never over 60 percent), 1.4 x as long as wide, sharp, centred, from a tube 3 px across', () => {
-  assert.ok(CHEV.PITCH_PX >= 55 && CHEV.PITCH_PX <= 65 && CHEV.MIN_R_PX <= 1.5);
+  assert.ok(CHEV.PITCH_PX === 130 && CHEV.MIN_R_PX <= 1.5, '2D\'s pitch (b3058ef3 CHEV_PITCH = 130)');
   assert.ok(CHEV.SHARE === 0.55 && CHEV.SHARE_MAX === 0.6 && CHEV.MIN_W_PX === 4 && CHEV.LEN_OF_W >= 1.3 && CHEV.LEN_OF_W <= 1.5 && CHEV.EDGE_PX <= 0.7 && CHEV.RING_PX <= 1);
-  assert.match(VESSEL_FS, /float Pt = 60\.0 \* wpc;/);
+  assert.match(VESSEL_FS, new RegExp(`float Pt = ${CHEV.PITCH_PX}\\.0 \\* wpc;`));
   assert.match(VESSEL_FS, /smoothstep\(1\.5 \* wpc, 2\.1 \* wpc, R\)/);
   assert.match(VESSEL_FS, /float hw = chevHw\(R, wpc\) \* chevSize\(kp\), L = 2\.8 \* hw;/);
   assert.match(CHEVRON_GLSL, /float chevHw\(float R, float wpc\) \{ return min\(0\.6 \* R, max\(0\.55 \* R, 2\.0 \* wpc\)\); \}/);
@@ -60,7 +60,7 @@ test('the heads follow the CHEV table: 55 percent of the lumen wide (4 px at lea
   assert.ok(headShown(1.4) === 0 && headShown(2.1) === 1, 'none only under 3 px across');
   // the lattice: heads are added at the level's pitch Pt and the finer ones have all left by 1.33 Pt (chevKeep: odd heads keep exp2(1 - f) - 1 of themselves at f of a level, gone from f = 0.585)
   const lo = CHEV.PITCH_PX * Math.pow(2, -0.585), hi = CHEV.PITCH_PX * Math.pow(2, 0.415);
-  assert.ok(lo >= 39.9 && hi <= 80.1, `spacing ${lo.toFixed(0)} to ${hi.toFixed(0)} px`);
+  assert.ok(lo >= 0.66 * CHEV.PITCH_PX && hi <= 1.34 * CHEV.PITCH_PX, `spacing ${lo.toFixed(0)} to ${hi.toFixed(0)} px (2D's pitch, 130)`);
 });
 
 test('at the default fit every labelled vessel 4.2 px across or more shows a head 55 percent of its lumen (4 px at least, 60 percent at most), over the real network', () => {
