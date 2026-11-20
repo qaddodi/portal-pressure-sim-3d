@@ -76,9 +76,9 @@ const ART_OUT_SHARE: Readonly<Record<string, number>> = { A_HR: 0.6, A_HL: 0.5 }
 
 /** The fade of a vessel, or null for one that has none. A tributary fan (`feederHost`, the vein it feeds) fades as its host's FEEDER_FADE_Y says (the azygos's runs out down the figure, never ends in a cap). */
 export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
-  // the children that branch off these ends in the liver (liver-branches.ts) fade the way their host does, along each one's own length
-  if (feederHost && LIVER_FADE_OUT[feederHost]) return { mode: 1, from: 0.25, to: 1, a0: 1, a1: 0, keep: false, connect: [] };
-  if (feederHost && LIVER_FADE_IN[feederHost]) return { mode: 1, from: 0, to: 0.75, a0: 0, a1: 1, keep: false, connect: [] };
+  // the children that branch off these ends in the liver (liver-branches.ts) fade the way their host does, along each one's own length, to nothing a little before their tip so no cut end is ever seen (a 3x look at the live build saw a flat pale end)
+  if (feederHost && LIVER_FADE_OUT[feederHost]) return { mode: 1, from: 0.25, to: 0.92, a0: 1, a1: 0, keep: false, connect: [] };
+  if (feederHost && LIVER_FADE_IN[feederHost]) return { mode: 1, from: 0.08, to: 0.75, a0: 0, a1: 1, keep: false, connect: [] };
   if (feederHost === 'C3' && id.endsWith('~F:b')) return { mode: 1, from: 0.25, to: 1, a0: 1, a1: 0, keep: false, connect: [] };
   if (feederHost) { const yy = FEEDER_FADE_Y_2D[feederHost]; return yy ? { mode: 2, from: y3(yy[0]), to: y3(yy[1]), a0: 1, a1: 0, keep: false, connect: [] } : null; }
   const art = ART_FADE_2D[id];

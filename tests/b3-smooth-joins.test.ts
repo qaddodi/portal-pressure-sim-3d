@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { MAPPED, NETWORK_BY_ID, NODE_Z, RUN_ONS } from '../src/scene/vessels/network.ts';
+import { MAPPED, NETWORK_BY_ID, NODE_Z, RUN_ONS, cutEnd } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { TIP_K, buildTubes, buriedRadius, pointFactor, pointLength } from '../src/scene/vessels/tubes.ts';
 import { ORGAN_Z } from '../src/scene/organs/z.ts';
@@ -110,7 +110,7 @@ test('tapers are monotone: along the first and last 30 % the radius moves from t
         checked++;
       }
     }
-    assert.ok(checked >= 20, `${checked} tapered ends`);   // (was 21: the two arterioles into the sinusoid fans are no longer drawn)
+    assert.ok(checked >= 16, `${checked} tapered ends`);   // (was 21, less the four split ends of the veins that branch, which keep their width: liver-branches.ts; before: 21: the two arterioles into the sinusoid fans are no longer drawn)
   });
 });
 
@@ -275,13 +275,13 @@ test('the switch applies live: toggling it rewrites every tube in place (same ve
     assert.equal(smoothJoinsOn(), true, 'the scene took the setting');
     const obj = (id: string) => s.vesselObject(id) as unknown as { toonMesh: { geometry: { getAttribute(n: string): { array: Float32Array; count: number } } }; toon: { uniforms: Record<string, { value: { x: number } | number }> } };
     const posOn = Float32Array.from(obj('PVH_L').toonMesh.geometry.getAttribute('position').array), nOn = obj('PVH_L').toonMesh.geometry.getAttribute('position').count;
-    const rkOn = Float32Array.from(obj('PVH_R_2').toonMesh.geometry.getAttribute('rk').array);
+    const rkOn = Float32Array.from(obj('PVH_L_1').toonMesh.geometry.getAttribute('rk').array);
     assert.ok((obj('PV_TRUNK').toon.uniforms.mate1!.value as { x: number }).x >= 0 && obj('PV_TRUNK').toon.uniforms.lensSmooth!.value === 1);
     useSettings.getState().set('smoothJoins', false);
     assert.equal(smoothJoinsOn(), false);
     assert.equal(obj('PVH_L').toonMesh.geometry.getAttribute('position').count, nOn, 'the same vertices');
     assert.notDeepEqual(Array.from(posOn), Array.from(obj('PVH_L').toonMesh.geometry.getAttribute('position').array), 'the branch end moved back');
-    assert.notDeepEqual(Array.from(rkOn), Array.from(obj('PVH_R_2').toonMesh.geometry.getAttribute('rk').array), 'the step is back');
+    assert.notDeepEqual(Array.from(rkOn), Array.from(obj('PVH_L_1').toonMesh.geometry.getAttribute('rk').array), 'the step is back');
     assert.equal((obj('PV_TRUNK').toon.uniforms.mate1!.value as { x: number }).x, -1);
     assert.equal(obj('PV_TRUNK').toon.uniforms.lensSmooth!.value, 0);
     useSettings.getState().set('smoothJoins', true);
@@ -296,7 +296,7 @@ test('a vein narrowing into a thin bed funnels over its whole length: its radius
     for (const v of MAPPED) {
       const sm = SMOOTH.get(v.id)!;
       for (const end of [0, 1] as const) {
-        if (sm.span[end] !== 1) continue;
+        if (sm.span[end] !== 1 || cutEnd(v.id) === end) continue;   // (a vein that branches is cut at its split: it keeps its width there)
         funnels++;
         const { b, run } = built(v.id), rk = b.geometry.getAttribute('rk');
         const at = (k: number) => rk.getX(run.tubeStart + k * (run.radial + 1));
