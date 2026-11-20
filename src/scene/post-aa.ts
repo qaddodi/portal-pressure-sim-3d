@@ -6,6 +6,8 @@
 //
 // Modes (`?aa=` on the address): fxaa (the default), msaa (the canvas is multisampled below 2x, as before, and nothing here runs), off (nothing at all). A device that refuses the
 // program draws the scene straight to the canvas (the shader guard tells `fail()`), so a bad driver gives hard edges, never a blank figure.
+// The same texture carries a depth texture, on a laptop or desktop with Settings > Figure depth > depth of field on, for the dive's depth of field (post-dof.ts, after the scene and before this pass).
+import { PostDof } from './post-dof.ts';
 import { LinearFilter, Mesh, OrthographicCamera, PlaneGeometry, Scene, ShaderMaterial, Vector2, WebGLRenderTarget, type WebGLRenderer } from 'three';
 
 export type AaMode = 'fxaa' | 'msaa' | 'off';
@@ -62,9 +64,14 @@ export class PostAA {
   private rt: WebGLRenderTarget | null = null;
   private readonly size = new Vector2();
   private failed = false;
+  /** Whether the target now carries a depth texture (the depth of field reads it: post-dof.ts). */
+  private rtDepth = false;
+  /** Depth of field for the dive (desktop only, its own switch); it has no cost, and the target no depth texture, unless it is wanted. */
+  readonly dof: PostDof;
 
-  constructor(mode: AaMode = aaMode()) {
+  constructor(mode: AaMode = aaMode(), dof: PostDof = new PostDof()) {
     this.mode = mode;
+    this.dof = dof;
     this.material = new ShaderMaterial({
       name: 'post aa', vertexShader: AA_VS, fragmentShader: AA_FS, depthTest: false, depthWrite: false,
       uniforms: { tDiffuse: { value: null }, resolution: { value: new Vector2(1, 1) } },
@@ -86,10 +93,13 @@ export class PostAA {
     if (!this.on) return null;
     gl.getDrawingBufferSize(this.size);
     const w = Math.max(1, Math.floor(this.size.x)), h = Math.max(1, Math.floor(this.size.y));
-    if (!this.rt || this.rt.width !== w || this.rt.height !== h) {
-      this.rt?.dispose();
+    const depth = this.dof.wants;
+    if (!this.rt || this.rt.width !== w || this.rt.height !== h || this.rtDepth !== depth) {
+      this.free();
+      this.rtDepth = depth;
       // (a stencil with the depth: the vessels' outlines mark it so each pixel is inked once, vessels/vessel-object.ts hullMat; no depth sharing and no samples: the two passes of the figure clear and refill the depth in this texture as they did on the canvas)
-      this.rt = new WebGLRenderTarget(w, h, { depthBuffer: true, stencilBuffer: true, minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false, samples: 0 });
+      this.rt = new WebGLRenderTarget(w, h, { depthBuffer: true, stencilBuffer: true, minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false, samples: 0,
+        depthTexture: depth ? this.dof.makeDepth(w, h) : null });   // (a depth texture in place of the depth buffer only when the depth of field wants it)
       (this.material.uniforms.resolution!.value as Vector2).set(1 / w, 1 / h);
     }
     return this.rt;
@@ -102,5 +112,6 @@ export class PostAA {
     gl.render(this.quad, this.cam);
   }
 
-  dispose(): void { this.rt?.dispose(); this.rt = null; }
+  private free(): void { this.rt?.depthTexture?.dispose(); this.rt?.dispose(); this.rt = null; }
+  dispose(): void { this.free(); this.dof.dispose(); }
 }
