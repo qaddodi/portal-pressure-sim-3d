@@ -87,7 +87,7 @@ test('?joins=debug paints each pixel the skin would drop, in the colour of its r
   assert.equal(skinDebugOn('?joins=debug'), true); assert.equal(skinDebugOn('?joins=old'), false); assert.equal(skinDebugOn(''), false);
   assert.equal(joinsMode('?joins=debug'), 'mesh2', 'debug builds every skin');
   for (const [why, col] of [['!gl_FrontFacing', '1.0, 0.0, 0.0'], ['alpha < 0.004', '1.0, 1.0, 0.0'], ['sdPx > inkDev + 0.5', '1.0, 0.0, 1.0']] as const) {
-    assert.ok(SKIN_FS.includes(`#ifdef SKIN_DEBUG\n  if (${why}) { gl_FragColor = vec4(${col}, 1.0); return; }\n#endif\n`), why);
+    assert.ok(SKIN_FS.includes(`#ifdef SKIN_DEBUG\n  if (${why}) { gl_FragColor = vec4(${col}, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }\n#endif\n`), why);
   }
-  assert.ok(SKIN_FS.includes('vec4(0.0, 1.0, 1.0, 1.0)'), 'the presence dither is cyan');
+  assert.ok(SKIN_FS.includes('vec4(0.0, 1.0, 1.0, 1.0); gl_FragDepth'), 'the presence dither is cyan; a painted pixel is pushed a little behind, so a real surface in front of it hides it and only a true hole shows its colour');
 });
