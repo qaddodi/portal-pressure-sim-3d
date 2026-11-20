@@ -12,6 +12,10 @@ const preset = process.env.VITE_BUILD?.split('@');
 const commit = preset?.[1] || sh('rev-parse', '--short=8', 'HEAD') || process.env.GITHUB_SHA?.slice(0, 8) || 'local';
 const branch = preset?.[0] || sh('rev-parse', '--abbrev-ref', 'HEAD') || process.env.GITHUB_REF_NAME || 'unknown';
 
+// The Lobule's weld plan is made here, once, and shipped as a file (a phone plans nothing). A failure only warns: the page then plans in a worker.
+const bake = spawnSync(process.execPath, [fileURLToPath(new URL('./bake-welds.mjs', import.meta.url))], { cwd: root, stdio: 'inherit' });
+if (bake.status !== 0) console.warn('warning: the Lobule weld plan was not baked; the page will plan it in a worker');
+
 const r = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), 'build'], { cwd: root, stdio: 'inherit', env: { ...process.env, VITE_BUILD: `${branch}@${commit}` } });
 if (r.status !== 0) process.exit(r.status ?? 1);
 writeFileSync(`${root}dist/build-info.txt`, `branch ${branch}\ncommit ${commit}\nbuilt ${new Date().toISOString()}\n`);
