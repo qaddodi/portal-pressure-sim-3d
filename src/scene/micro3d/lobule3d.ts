@@ -14,14 +14,14 @@
 // names, the taps and the clock. Flow marks: 2D's chevrons ride on the flat view's own tubes, which are hidden here, so this scene shows none (the blood's colour along each sinusoid
 // still runs from the portal's to the central vein's).
 import { useSettings } from '../../state/settings.ts';
-import { ShapeUtils, Vector2, CanvasTexture, Color, CustomBlending, DataTexture, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial, type BufferAttribute } from 'three';
+import { ShapeUtils, Vector2, CanvasTexture, Color, CustomBlending, DataTexture, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial, Float32BufferAttribute, type BufferAttribute } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import type { CelObject } from '../materials/cel.ts';
 import type { LobuleView } from '../lobule/view.ts';
 import type { LookId } from '../../looks/looks.ts';
 import type { Course, LobuleNet, P2 as LP2 } from '../lobule/geometry.ts';
 import { LOBULE_R } from '../lobule/shots.ts';
-import { AN_K, DISC_R, LT_R, RS_N, inletRadius, sinRadius, twigR } from '../lobule/widths.ts';
+import { AN_K, DISC_R, LT_R, RS_N, congShare, inletRadius, sinRadius, twigR } from '../lobule/widths.ts';
 /** The space of Disse's band and the widest bile canaliculus (lobule radii), which shrink to nothing as their layers go off (2D: lobule-zoom-field.js, lobule-bile.js). */
 const LYMPH_DISSE_R = 0.0132, BILE_BC_R = 0.0036;
 import { CASING } from '../vessels/cel-ink.ts';
@@ -49,7 +49,6 @@ export const VESSEL_LINE = 2;
 export const TUBE_SEG = 10, MOUTH_SEG = 64;
 /** The share of a tile's short side its bevel takes. */
 const BEVEL = 0.28;
-/** 2D's three dark shares of a sinusoid kind that congestion widens (the flat view's CONG_Z3). */
 const BILE_ID = 2_000_000;
 /** The vessels that run over the plates (the sinusoids, their cross-links, the arteriole's twigs) lie with their axis at the tiles' tops: lower, a thin one was buried under every tile it
  *  crossed and showed only in the gaps, as short pieces floating between the cords (Mohammad, 20 Nov: "disconnected vessels in the middle"). */
@@ -82,7 +81,7 @@ interface Flat {
   look: LookId;
   isVisible: boolean;
   group: Group;
-  sinScale(k: 's0' | 's1' | 's2' | 'an'): number;
+  readonly sinSwell: { whole: number; share: number };
   cvRadiusNow: number;
   /** The wedge's wash, 0..1 (0 when no slide runs it). */
   readonly washProgress: number;
@@ -141,7 +140,7 @@ export class Lobule3D {
     this.nuclei = mk('nuclei', { ink: null });
     // (the vessels' line is the Anatomy's weight, VESSEL_LINE CSS px, so a lobule vessel reads outlined as a vessel of the body does: Mohammad 20 Nov 2026, "the lobule sinusoid vessels need black
     //  outlines like the vessels in anatomy"; at 1.25 px it broke into dots against the tiles)
-    this.sin = { s0: mk('sinusoids-0', { px: VESSEL_LINE, flow: true }), s1: mk('sinusoids-1', { px: VESSEL_LINE, flow: true }), s2: mk('sinusoids-2', { px: VESSEL_LINE, flow: true }), an: mk('sinusoids-links', { px: VESSEL_LINE * 0.8, flow: true }) };
+    this.sin = { s0: mk('sinusoids-0', { px: VESSEL_LINE, flow: true, swell: true }), s1: mk('sinusoids-1', { px: VESSEL_LINE, flow: true, swell: true }), s2: mk('sinusoids-2', { px: VESSEL_LINE, flow: true, swell: true }), an: mk('sinusoids-links', { px: VESSEL_LINE * 0.8, flow: true, swell: true }) };
     this.inlets = mk('inlets', { px: VESSEL_LINE, flow: true });
     this.twigs = mk('arteriole-twigs', { px: S.LINE_SMALL * 0.8, flow: true });
     this.lt = mk('terminal-lymphatics', { px: S.LINE_SMALL * 0.8, flow: true });
@@ -218,9 +217,8 @@ export class Lobule3D {
     this.stepMarks();
     // widths and layers as the state has them now: each sinusoid swells and shrinks with congestion and capillarization (inflate, the absolute change of its radius), the lymph and the bile
     // shrink away with their layers and only then hide
-    const sinR = (k: 's0' | 's1' | 's2' | 'an') => (k === 'an' ? RS_N * AN_K : RS_N * 1.15) * R;
     const inf = (p: MicroPart, v: number) => { p.mats.toon.uniforms.inflate!.value = v; };
-    for (const k of ['s0', 's1', 's2', 'an'] as const) inf(this.sin[k], sinR(k) * (f.sinScale(k) - 1));
+    { const sw = f.sinSwell; for (const k of ['s0', 's1', 's2', 'an'] as const) this.sin[k].setSwell(sw.whole, sw.share); }   // (per vertex: its own radius and its place's share, cel3d SWELL)
     const lyF = f.lyFade, biF = f.bileFade;
     inf(this.lt, -LT_R * R * (1 - lyF)); inf(this.disse, -LYMPH_DISSE_R * R * (1 - lyF) + 0.004 * c.seal); inf(this.bile, -BILE_BC_R * R * (1 - biF));
     const lymphOn = lyF > 0.002, bileOn = biF > 0.002;
@@ -432,19 +430,20 @@ export class Lobule3D {
     };
     /** Tubes along courses: radius per sample, colour place per sample (w), brightness 1. */
     const tubes = (cs: Course[], radius: (c: Course, i: number) => number, w: (c: Course, i: number) => number, z: number = LZ.tube) => {
-      const b = new MeshBuilder(), W: number[] = [], K: number[] = [];
+      const b = new MeshBuilder(), W: number[] = [], K: number[] = [], caps = new Map<Course, number>();
       for (const c of cs) {
         const pts = c.pts.map((p) => at3(p, z));
         const before = b.count;
         tube(b, pts, (i) => Math.max(1e-4, radius(c, i) * R), [1, 1, 1], TUBE_SEG, true);
         // (tube() writes the rings in order, then the two caps: the first cap's rings are the first sample's, the last's the last's)
         const ringVerts = c.pts.length * TUBE_SEG, capVerts = (b.count - before - ringVerts) / 2;
+        caps.set(c, capVerts);
         for (let i = 0; i < c.pts.length; i++) for (let s = 0; s < TUBE_SEG; s++) { W.push(w(c, i)); K.push(1); }
         for (let v = 0; v < capVerts; v++) { W.push(w(c, 0)); K.push(1); }
         for (let v = 0; v < capVerts; v++) { W.push(w(c, c.pts.length - 1)); K.push(1); }
         flowAux(b, before, pts, ringVerts, capVerts, c.id * 0.137, (i) => (c.kind[0] === 's' || c.kind === 'an') && c.rho[i]! < DISC_R.cv * 1.6, TUBE_SEG, END_HUSH_R * radius(c, 0) * R);
       }
-      return { b, W, K };
+      return { b, W, K, caps };
     };
     const sinR = (c: Course, i: number) => sinRadius(c.kind as 's0' | 's1' | 's2' | 'an', c.rho[i]!);
     const sinWAt = (c: Course, i: number) => sinW(c.rho[i]!);
@@ -453,6 +452,16 @@ export class Lobule3D {
       const cs = by(kind).map((c) => trimInside(c, DISC_R.cv * 0.78));
       const t = tubes(cs, sinR, sinWAt, OVER_Z);
       coloured(this.sin[kind], t.b, 'sin', t.W, t.K);
+      // each vertex's radius and its place's share of congestion's widening (cel3d SWELL): the width runs smoothly along every course and through every join (widths.ts congShare)
+      const sw: number[] = [];
+      for (const c of cs) {
+        const n = c.pts.length, at = (i: number) => { const r = sinR(c, i) * R; sw.push(r, r * congShare(c.rho[i]!)); };
+        for (let i = 0; i < n; i++) for (let k = 0; k < TUBE_SEG; k++) at(i);
+        const cap = t.caps.get(c)!;
+        for (let v = 0; v < cap; v++) at(0);
+        for (let v = 0; v < cap; v++) at(n - 1);
+      }
+      this.sin[kind].geometry.setAttribute('swell', new Float32BufferAttribute(sw, 2));
     }
     { const t = tubes(by('in'), (c, i) => inletRadius(i, c.pts.length, Math.hypot(c.pts[i]![0] - c.pts[0]![0], c.pts[i]![1] - c.pts[0]![1])), (c, i) => i / (c.pts.length - 1)); coloured(this.inlets, t.b, 'in', t.W, t.K); }
     { const t = tubes(by('tw'), (c, i) => twigR(i / (c.pts.length - 1), RS_N), () => 0, OVER_Z); coloured(this.twigs, t.b, null, t.W, t.K); }

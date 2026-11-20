@@ -26,7 +26,7 @@ import { lobuleWorld } from './frames.ts';
 import type { InkContext } from './ink.ts';
 import { washProgress } from './wash.ts';
 import { NeighbourField, fieldQuantizer } from './field.ts';
-import { DISC_R, LT_R, RS_N, disseRadius, inletRadius, sinRadius, twigR } from './widths.ts';
+import { DISC_R, LT_R, RS_N, congShare, disseRadius, inletRadius, sinRadius, twigR } from './widths.ts';
 import { defaultCanvas, type MakeCanvas } from './plate.ts';
 
 /** Tags hang just over the plate (it is flat: a point any higher would slide against the tissue as the view turns). */
@@ -35,7 +35,6 @@ const R = LOBULE_R;
 /** The Bile layer's widest canaliculus and its canals of Hering (lobule radii; 2D lobule-bile.js). */
 const BC_R = 0.0036, BH_R = 0.0075;
 /** 2D's three dark shares of a sinusoid kind that congestion widens (zone 3: 1 - smooth(0.24, 0.56, rho), at the middle of each generation): radiusAt's `1 + 1.5 congU z3`. */
-const CONG_Z3 = { s0: 0, s1: 0.4, s2: 0.95, an: 0.3 } as const;
 /** Ids of the Bile layer's vessels for picking. */
 const BILE_ID = 2_000_000;
 /** 2D's lymphatic caliber against the healthy flow (lobule-zoom-field.js lyWr): 1 at a normal rate. */
@@ -175,7 +174,7 @@ export class LobuleView {
   /** A vessel's radius at its sample i as drawn now, in lobule radii: 2D's radiusAt (widths.ts) with the state's widening and narrowing. */
   radiusNow(t: PickTube, i: number): number {
     const c = this.cur, k = t.kind, n = t.pts.length;
-    if (k === 's0' || k === 's1' || k === 's2' || k === 'an') return sinRadius(k, (t as Course).rho[i]!) * c.lum * (1 + 1.5 * c.congU * CONG_Z3[k]);
+    if (k === 's0' || k === 's1' || k === 's2' || k === 'an') { const rho = (t as Course).rho[i]!; return sinRadius(k, rho) * c.lum * (1 + 1.5 * c.congU * congShare(rho)); }
     if (k === 'in') return inletRadius(i, n, Math.hypot(t.pts[i]![0] - t.pts[0]![0], t.pts[i]![1] - t.pts[0]![1])) / (1 + 0.45 * c.fibPre);
     if (k === 'tw') return twigR(i / (n - 1), RS_N);
     if (k === 'lt' || k === 'lv') return LT_R * lyWr(c.lymphRate, 0.4);
@@ -184,7 +183,10 @@ export class LobuleView {
     return BH_R;
   }
   /** How much each sinusoid generation is widened (congested zone 3) or narrowed (capillarized) now, as a share of its healthy radius. */
-  sinScale(k: keyof typeof CONG_Z3): number { return this.cur.lum * (1 + 1.5 * this.cur.congU * CONG_Z3[k]); }
+  /** The sinusoids' widening now: radius x (whole + share x congShare(rho)) (widths.ts), the same at every place along every course. */
+  /** A sinusoid's share of its healthy radius now at rho. */
+  sinScaleAt(rho: number): number { return this.cur.lum * (1 + 1.5 * this.cur.congU * congShare(rho)); }
+  get sinSwell(): { whole: number; share: number } { return { whole: this.cur.lum - 1, share: this.cur.lum * 1.5 * this.cur.congU }; }
   /** The inlet venules' share of their healthy radius (they narrow with pre-sinusoidal fibrosis). */
   get inletScale(): number { return 1 / (1 + 0.45 * this.cur.fibPre); }
 
