@@ -5,7 +5,7 @@
 import { CatmullRomCurve3, Vector3 } from 'three';
 import { MAPPED, type NetVessel } from '../vessels/network.ts';
 import { vesselPoints } from '../anatomy/vessels.ts';
-import { CIRCUIT_D, VB_CIRC } from './data.copied.ts';
+import { CIRCUIT_D, NODE_CIRCUIT, VB_CIRC } from './data.copied.ts';
 import { MAP_K, mapToScene, sceneToMap } from './map.ts';
 import { courseOf, cumulative, resample } from './paths.ts';
 import { chordShape, peelRank } from './peel.ts';
@@ -77,10 +77,17 @@ export function roundCorners(pts: readonly [number, number][], r = CORNER_R): [n
   return out;
 }
 
+/** The beds' arterioles (Mohammad, 20 Nov: "extend the arteriole"; the body's own rule, vessels/starts.ts BED_OF): the 2D art stops each lobar artery at the comb beside its bed's lanes, 30 map units short of the bed's station, so the bed was no junction on the map
+ *  and its two lanes and its arteriole kept running into one another. On the map the artery carries on to the station and ends there, as the arteriole that opens into the sinusoids does (circuit/skins.ts welds the bed there). */
+export const BED_REACH: Readonly<Record<string, string>> = { A_HR: 'SIN_R', A_HL: 'SIN_L' };
+
 /** The course's map polyline for an edge, in map units, its corners rounded. */
 export function mapCourse(id: string): [number, number][] | null {
   const d = CIRCUIT_D[id];
-  return d ? roundCorners(courseOf(d)) : null;
+  if (!d) return null;
+  const pts = courseOf(d), bed = BED_REACH[id] ? NODE_CIRCUIT[BED_REACH[id]!] : undefined;
+  if (bed) pts.push([bed[0], bed[1]]);
+  return roundCorners(pts);
 }
 
 const curvesA = new Map<string, CatmullRomCurve3>();

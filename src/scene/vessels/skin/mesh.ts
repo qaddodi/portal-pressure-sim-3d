@@ -115,7 +115,7 @@ export const FROM_SURFACE: BuildPace = { rounds: 20, shrinkRounds: 4, pull: 0.5,
 export const PACES: readonly (BuildPace | undefined)[] = [undefined, GENTLE, SLOW, FROM_SURFACE];
 /** Whether a junction is meshed from the surface itself (the last rung, sheet.ts) and its seams need no hull of the rings: the forks of the liver (a fork child's id carries `~F:`) and a growing arm that lands on a host's wall (a virtual node `wall:`, wall.ts: the hull of two host rings and a ring that comes in at 40 to 70 degrees leaves the near vertices of the growing arm's ring inside it, tests/skin-wall.test.ts). */
 export const onWall = (j: SkinJunction): boolean => j.node.includes('wall:') && j.arms.some((a) => !!a.side);
-export const fromSurface = (j: SkinJunction): boolean => j.arms.some((a) => a.vesselId.includes('~F:')) || onWall(j);
+export const fromSurface = (j: SkinJunction): boolean => !!j.surface || j.arms.some((a) => a.vesselId.includes('~F:')) || onWall(j);
 export function buildSkinSteady(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS, memo?: Map<string, number>): SkinMesh {
   let last: unknown;
   // the last rung, the sheet started on the surface, is for the forks of the liver (a fork child's id carries `~F:`): another junction that needs it keeps the arms it could not take at the three rungs before it dropped, as before (a pair of growing arms

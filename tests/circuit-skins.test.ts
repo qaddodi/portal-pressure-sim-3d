@@ -33,6 +33,8 @@ const TABLE: Record<string, readonly string[]> = {
   PVT_L: ['PV_TRUNK_1:1', 'PV_TRUNK:0', 'LGV_CONF:1'],
   PVH: ['PV_TRUNK:1', 'PVH_R:0', 'PVH_L:0'],
   RPV_T: ['PVH_R_1:1', 'PVH_R_2:0'],
+  SIN_R: ['PRE_R:1', 'SIN_RR:0', 'A_HR:1'],
+  SIN_L: ['PRE_L:1', 'SIN_LL:0', 'A_HL:1'],
   CV_R: ['SIN_RR:1', 'POST_R_RHV:0', 'POST_R_MHV:0'],
   RHV_T: ['RHV_IVC_1:1', 'RHV_IVC:0'],
   IVCS: ['IVC_IS:1', 'IVCS_RA:0', 'RHV_IVC:1', 'MHV_IVC:1', 'LHV_IVC:1'],
@@ -47,21 +49,20 @@ const TABLE: Record<string, readonly string[]> = {
 const GROWS: Record<string, readonly string[]> = {
   SMV: ['S_MC:0', 'REX:0'], SVD: ['C6:0', 'S_DSR:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'], IVCI: ['S_PC:1', 'C9:0'], IVC_D: ['DIPS:1'], LRV_S: ['C6:1', 'S_DSR:1'], LRV: ['C5:1'], EPI: ['C3:1'],
 };
-/** What the build leaves out of a skin: a growing arm one skin cannot take (the node's third and fourth arm, a pair a collateral alone made a junction of). */
-const DROPPED = ['IVC_D:DIPS', 'SMV:REX', 'SVD:S_DSR'];
-/** The nodes that get a skin: every junction less IVC_D (a run-on pair whose one collateral could not be taken). */
-const BUILT = Object.keys(TABLE).filter((n) => n !== 'IVC_D');
+/** What the build leaves out of a skin: a growing arm one skin cannot take. None: REX and S_DSR (the hull of their seam rings refused them: SMV's and SVD's skins are meshed from the surface, sheet.ts) and DIPS (the cava's IVCS and the run-on IVC_D are one skin, meshed from the surface) are welded on the map. */
+const DROPPED: string[] = [];
+/** The nodes that get a skin, as built: every junction, the cava's IVCS and the run-on pair IVC_D one skin (`IVCS+IVC_D`). */
+const BUILT = Object.keys(TABLE).filter((n) => n !== 'IVC_D' && n !== 'IVCS').concat('IVCS+IVC_D');
 const armKeys = (j: { arms: readonly { vesselId: string; end: number; grow?: boolean }[] }): string[] => j.arms.filter((a) => !a.grow).map((a) => `${a.vesselId}:${a.end}`).sort();
 const growKeys = (j: { arms: readonly { vesselId: string; end: number; grow?: boolean }[] }): string[] => j.arms.filter((a) => a.grow).map((a) => `${a.vesselId}:${a.end}`).sort();
 
-test('the map finds the body\'s junctions: eighteen nodes, their arms, growing arms and ends pinned; the two liver beds are named fallbacks, not hidden', () => {
+test('the map finds the body\'s junctions: twenty nodes, their arms, growing arms and ends pinned; the two liver beds are junctions on the map too (the arteriole runs on to the bed\'s station), nothing falls back', () => {
   const js = findCircuitJunctions();
   assert.deepEqual(js.map((j) => j.node).sort(), Object.keys(TABLE).sort());
   for (const j of js) { assert.deepEqual(armKeys(j), [...TABLE[j.node]!].sort(), j.node); assert.deepEqual(growKeys(j), [...(GROWS[j.node] ?? [])].sort(), `${j.node}: growing arms`); }
   assert.deepEqual(circuitFarGrowers(), [], 'every growing arm ends at its station on the map: none is a side-wall landing there');
-  // the beds: the map draws the arteriole beside the lanes (A_HR ends at the comb, 30 map units off the bed's station), so it is not a junction there
-  assert.deepEqual(circuitFallbacks().map((f) => f.node).sort(), ['SIN_L', 'SIN_R']);
-  assert.ok(circuitFallbacks().every((f) => f.why === 'an arm ends too far from the station'));
+  // the beds: the 2D art stops the arteriole at the comb beside the lanes (A_HR ends 30 map units off the bed's station), the map carries it on to the station (course.ts BED_REACH) as the body does: SIN_R and SIN_L are junctions on the map
+  assert.deepEqual(circuitFallbacks(), [], 'no node of the body\'s inventory is left out of the map\'s');
   assert.equal(CIRC_SKIN_REACH, SKIN_REACH, 'the map keeps the body\'s reach');
 });
 
@@ -119,7 +120,7 @@ function setOf(scene: CelScene, baked?: CircuitSkinDeps['baked']): { set: Circui
   return { set, made, ends };
 }
 
-test('a build welds the seventeen nodes with no fall back, the growing arms it cannot take named: each skin starts on its arms\' own ring vertices, the tubes take their second cut, a clear puts them back', () => {
+test('a build welds the nineteen skins (the cava and its run-on one) with no fall back and no growing arm left out: each skin starts on its arms\' own ring vertices, the tubes take their second cut, a clear puts them back', () => {
   const was = smoothJoinsOn(); setSmoothJoins(true);
   const scene = new CelScene({ joins: 'old' });
   try {
@@ -128,8 +129,8 @@ test('a build welds the seventeen nodes with no fall back, the growing arms it c
     assert.deepEqual([...set.nodes].sort(), [...BUILT].sort());
     assert.deepEqual(set.fellBack, [], 'nothing falls back on the map');
     assert.deepEqual([...set.dropped].sort(), DROPPED, 'the growing arms that keep their lines, named');
-    assert.equal(set.count, 17);
-    assert.ok(made.length >= 17, 'every skin was made once at least (a retry makes more)');
+    assert.equal(set.count, 19);
+    assert.ok(made.length >= 19, 'every skin was made once at least (a retry makes more)');
     assert.ok(ends[0]! >= 1, 'the scene is told the ends changed (it writes the map mates again)');
     for (const node of set.nodes) {
       const m = set.skinOf(node)!;
@@ -177,7 +178,7 @@ test('the baked file: a round trip, the digest of the map\'s own rings, and a bu
     const live = setOf(scene); live.set.build();
     const made = live.set.bake();
     assert.ok(made.digest.startsWith('circuit/'), 'a Circuit file is never taken for the Anatomy\'s');
-    assert.equal(made.skins.length, 17);
+    assert.equal(made.skins.length, 19);
     const bin = encodeSkins(made), back = decodeSkins(bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength) as ArrayBuffer)!;
     assert.ok(back && back.digest === made.digest);
     assert.equal(live.set.source, 'live');

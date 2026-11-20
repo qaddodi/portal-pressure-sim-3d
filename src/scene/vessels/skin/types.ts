@@ -26,6 +26,8 @@ export interface SkinJunction {
   node: string;              // topology node id, e.g. 'CONF'
   J: Vec3;                   // the junction centre (spec section 4.2)
   arms: SkinArm[];           // 3 or 4, sorted widest first
+  /** meshed from the surface itself (sheet.ts, the last rung), its seams chosen with no hull of the rings: a junction whose seam rings the hull cannot cover (the Circuit's, circuit/skins.ts) */
+  surface?: boolean;
 }
 
 /** Where an arm's tube hands over to the skin. */
