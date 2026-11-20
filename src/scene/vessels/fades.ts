@@ -96,17 +96,20 @@ export const CAVA_RECEDE = 0.45;
  *  should be faded just like the IVC, and behind the liver"); its 2D dip behind the liver (SIN_FADE.C9) keeps its shape, scaled, and it comes out solid above the dome where it joins the azygos. */
 export const CAVA_LIKE: ReadonlySet<string> = new Set([...IVC_EDGES, 'C9']);
 const CAVA_RA_RAMP = 0.5;
-/** The hepatic veins open into the cava at full strength; their last stretch (as a share of their length) eases to the cava's alpha, so no solid vein end lies in a faint cava. */
-export const CAVA_END_LEN = 40;
-export function cavaEndSpan(id: string): number {
-  const path = EDGE_PATH_2D[id];
-  if (!path || !opensIntoCava(id) || id === 'LRV_IVC' || id === 'RRV_IVC') return 0;   // (the renal veins are receded to the cava's tone already)
-  const l = lenOfPath(path);
-  return l > 0 ? Math.min(CAVA_END_LEN, l) / l : 0;
-}
+export const C9_JOIN_RAMP = 0.12;
+/** The hepatic veins open into the cava as solid veins, body and outline whole, to its wall (Mohammad, 20 Nov: the last stretch was "a pale, flat, see-through wedge": a vein faded to the cava's alpha over its last 40 units, and
+ *  2D's own end alpha 0.5 on top of it, was a cut ribbon, not a round vein opening into the cava): no end ramp any more, so this is 0 for every vein. The vein takes the cava's colour near the wall and feathers out inside the lumen
+ *  (shaders.ts cavA). */
+export const CAVA_END_LEN = 0;
+export function cavaEndSpan(_id: string): number { return 0; }
+/** A hepatic vein that opens into the cava (not a renal vein, which is receded to the cava's tone already) keeps its alpha to the wall: 2D's end alpha for it (0.5) is dropped. */
+export const keepsAlphaToCava = (id: string): boolean => opensIntoCava(id) && id !== 'LRV_IVC' && id !== 'RRV_IVC';
 export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
   const f = fadeOf0(id, isArtery, feederHost);
   if (CAVA_LIKE.has(id)) {
+    // (the ascending lumbar collateral: the cava's tone along its whole run behind the liver and over the dome, climbing to full only over its last stretch where it joins the azygos arch, as the cava does at the atrium;
+    //  2D's dip behind the liver and its solid return above the dome are gone: the part above the dome was a full-strength purple in a faded figure)
+    if (id === 'C9') return { mode: 1, from: 1 - C9_JOIN_RAMP, to: 1, a0: CAVA_RECEDE, a1: 1, keep: false, connect: [] };
     if (id === 'IVCS_RA') return { mode: 1, from: 1 - CAVA_RA_RAMP, to: 1, a0: CAVA_RECEDE, a1: 1, keep: false, connect: [] };
     return f ? { ...f, a0: f.a0 * CAVA_RECEDE, a1: f.a1 * CAVA_RECEDE } : { mode: 1, from: 0, to: 1, a0: CAVA_RECEDE, a1: CAVA_RECEDE, keep: false, connect: [] };
   }
@@ -138,5 +141,6 @@ function fadeOf0(id: string, isArtery: boolean, feederHost?: string): TipFade | 
   if (join > 0) return { mode: 1, from: 1 - join, to: 1, a0: 1, a1: IVC_JOIN_ALPHA, keep: false, connect: [], ivcJoin: true };
   const down = FADE_DOWN_ON[id] ?? FADE_DOWN_Y_2D[id];
   if (down) return { mode: 2, from: y3(down[0]), to: y3(down[1]), a0: 1, a1: 0, keep: false, connect: [] };
-  return sinFade(id) ?? fadeIn(id);
+  const fi = fadeIn(id);
+  return fi && keepsAlphaToCava(id) ? { ...fi, a1: 1 } : (sinFade(id) ?? fi);
 }
