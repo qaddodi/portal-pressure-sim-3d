@@ -217,13 +217,22 @@ void main() {
   vec3 n = normalize(vN);
   float sT = dot(n, celLightView());   // n.L against the WORLD light, as the tube (a camera that moves changes no shade)
   float swT = fwidth(sT);              // (a derivative: taken outside any branch)
+#ifdef SKIN_DEBUG
+  if (!gl_FrontFacing) { gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
+#endif
   if (!gl_FrontFacing) discard;
   // the skin is there only as much as its arms are (a tube not yet drawn on, retracted, dissolved or hidden has none at its seam): the tube's own screen pattern, so the skin comes and goes with the vessels, never beside them
   float pres = ${BLEND('armAF', 'wAt', '.w')};
+#ifdef SKIN_DEBUG
+  if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) { gl_FragColor = vec4(0.0, 1.0, 1.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
+#endif
   if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) discard;
   // the arms' alphas, blended by weight: the junction fade rule already holds on the tubes, so their seam alphas agree and the skin runs through them. On the Circuit's map the tubes become flat lines and the map draws its own
   // joins, so the skin fades out over the first SKIN_CIRCUIT_FADE of the morph (the arm tubes' cut fades back in over the same)
   float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * armAF[${i}].y * ${COPY_OF(i)}`).join(' + ')}) * (1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT));
+#ifdef SKIN_DEBUG
+  if (alpha < 0.004) { gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
+#endif
   if (alpha < 0.004) discard;
   // the live lumen's radius at the axis' depth, and the line the vertex stage built the mesh ink wider by (the tube's own rule: a share of the radius held between two CSS widths, thinned with a hairline)
   float swellB = 0.0;
@@ -235,6 +244,9 @@ void main() {
   float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx')} + hiPx * hi) * dpr;
   float kPx = skinK / max(wpcAx / SKIN_U, 1e-9) * dpr;
   float sdPx = skinSdPx(kPx);
+#ifdef SKIN_DEBUG
+  if (sdPx > inkDev + 0.5) { gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
+#endif
   if (sdPx > inkDev + 0.5) discard;   // (past the band: the mesh is a little wider than the union's line where the arms spread)
   // THE BODY COLOUR: each arm's lens colour at its seam's ramp position (the tube's own rule, the two lens sets crossfaded by lensMix), then the arms blended by weight: a gradient through the junction, the tube's colour on a seam
   vec3 base = vec3(0.0);

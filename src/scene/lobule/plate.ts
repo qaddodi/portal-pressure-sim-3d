@@ -71,12 +71,15 @@ varying vec2 vUv;
 void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 // (The canvas is sent premultiplied, so its transparent edge filters to nothing rather than to a dark fringe; the colours are the canvas's sRGB as they are,
 // as the cel shaders write theirs.)
+/** The plate's edge line: the tissue's own colour times SHADE, mixed in at K at most (no dark casing on collagen: Mohammad 20 Nov). */
+export const PLATE_EDGE_SHADE = 0.8, PLATE_EDGE_K = 0.6;
 export const LOBULE_PLATE_FS = /* glsl */ `
 ${CEL_TISSUE_GLSL}
+const float PLATE_EDGE_SHADE = ${PLATE_EDGE_SHADE.toFixed(3)};
+const float PLATE_EDGE_K = ${PLATE_EDGE_K.toFixed(3)};
 uniform sampler2D map;
 uniform float opacity;
 uniform float uDpr;   // the renderer's pixel ratio (micro3d/cel3d.ts MICRO_DPR): the clean line is LINE_MIN CSS px on every screen
-uniform vec3 ink;   // 2D's casing over the cell colour: the colour of the clean line on every strong edge (cel.ts)
 varying vec2 vUv;
 void main() {
   vec4 p = texture2D(map, vUv);
@@ -87,9 +90,10 @@ void main() {
   float lb = celLight(m.rgb / max(m.a, 1e-3));
   float dv = (celLight(c) - lb) / max(lb, 0.08);
   c = celTissue(c, lb, max(fwidth(dv) * CEL_EDGE_PX * 1.5, 1e-3));
-  // the clean ink: every strong edge of the painting takes 2D's casing line, LINE_MIN CSS px across
+  // the plate's edges (Mohammad 20 Nov: "fibrosis shouldn't be outlined with black ink"): what it holds is soft tissue (collagen, septa, nutmeg, the Zones), so a strong edge takes a
+  // faint, deeper shade of the tissue's OWN colour, LINE_MIN CSS px across, never the cells' dark casing; it comes and goes with the mark, as the edge does
   vec2 uvPerPx = vec2(length(vec2(dFdx(vUv.x), dFdy(vUv.x))), length(vec2(dFdx(vUv.y), dFdy(vUv.y))));
-  c = mix(c, ink, smoothstep(CEL_EDGE_LO, CEL_EDGE_HI, celEdge(map, vUv, uvPerPx, uDpr)));
+  c = mix(c, c * PLATE_EDGE_SHADE, PLATE_EDGE_K * smoothstep(CEL_EDGE_LO, CEL_EDGE_HI, celEdge(map, vUv, uvPerPx, uDpr)));
   gl_FragColor = vec4(c * p.a, p.a) * opacity;
 }`;
 
