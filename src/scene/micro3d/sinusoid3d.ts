@@ -43,6 +43,8 @@ export const Z = { cell: 0.55, cellBot: -1.3, bead: 0.5, disse: -1.0, ground: -1
 //  lobule's branches through the ground while it grew, a hybrid picture, eyes 20 Nov. holdScale keeps it its landed size on screen however high it stands.)
 const LIFT = 26;
 /** The dive share over which the scene grows out from its lumen (see update): from nothing to whole, which the lobule's standing aside follows (scene.ts LOBULE_UNDER_FROM). */
+/** CSS px per µm from which the small shapes' lines are whole (see rimK). */
+export const RIM_FULL_PX = 2.5;
 export const REVEAL_FROM = 0.3, REVEAL_TO = 0.86;   // (from 0.3: over 0.6-0.86 it grew in less than one 100 ms frame, the dive's share runs fast at its end, eyes 20 Nov)
 /** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), the lymph streaks' pace against the lymph's own run, and the haze: how far out it takes to be whole (µm) and how deep it goes. */
 const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_K = 0.45;
@@ -88,6 +90,7 @@ interface Flat {
   endShown: [number, number];
   dive: number | null;
   lifeTime: number;
+  readonly pxPerUm: number;
   look: LookId;
   spriteCount: number;
   readonly washProgress: number;
@@ -161,8 +164,8 @@ export class Sinusoid3D {
     // the scene is built in micrometres, the plane's y up: one group scales it to the host's units (it turns with the host's group in a portrait room)
     this.group.scale.setScalar(U);
     // (while the camera dives in it stands a little proud of the lobule's plate it sits in, so it is drawn over the lobule, never through it; at rest it lies in the host's own plane, where the names are pinned)
-    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, reveal: this.reveal, ...o }), `sinusoid3d/${name}`);
-    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, reveal: this.reveal, ...o }), cap, `sinusoid3d/${name}`);
+    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, reveal: this.reveal, rimK: this.rimK, ...o }), `sinusoid3d/${name}`);
+    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, reveal: this.reveal, rimK: this.rimK, ...o }), cap, `sinusoid3d/${name}`);
     const S = CEL_STYLE.MICRO;
     this.ground = mk('ground', { ink: null });
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
@@ -181,7 +184,7 @@ export class Sinusoid3D {
     this.nuclei = mk('nuclei', { ink: null, rim: S.LINE, rimUp: true });
     this.nucleoli = mk('nucleoli', { ink: null });
     this.bile = mk('canaliculi', { ink: null, rim: S.LINE_SMALL, rimUp: true });
-    this.endoN = mk('endothelial-cells', { ink: null, rim: S.LINE_SMALL, rimUp: true });
+    this.endoN = mk('endothelial-cells', { ink: null, rim: S.LINE_SMALL, rimUp: true, rimUV: true });
     this.endoNi = mk('endothelial-nuclei', { ink: null });
     this.kup = mk('kupffer', { ink: null, rim: S.LINE });
     this.kupN = mk('kupffer-nucleus', { ink: null });
@@ -236,6 +239,8 @@ export class Sinusoid3D {
   private readonly eyeL = new Vector3();
   /** How far across the flow (µm) the scene is drawn while the camera lands (cel3d unrevealed; 0: whole). */
   private readonly reveal = { value: 0 };
+  /** The lines' share by the scene's size on screen (cel3d uRimK): whole from RIM_FULL_PX CSS px per µm, none at a third of it. */
+  private readonly rimK = { value: 1 };
 
   update(on: boolean, rate = 1): boolean {
     const f = this.flat;
@@ -252,6 +257,7 @@ export class Sinusoid3D {
     //  the same width on screen there (scene-dive-handoff.test.ts): the lumen first, then the lining, Disse and the plates outward, whole by REVEAL_TO, when the lobule stands aside under it)
     this.fade.value = d == null || d >= REVEAL_FROM ? 1 : 0;
     this.reveal.value = d == null ? 0 : Math.max(1e-3, Math.hypot(REACH + 30, ACROSS + 30) * smooth(REVEAL_FROM, REVEAL_TO, d));
+    { const k = f.pxPerUm; this.rimK.value = k > 0 ? smooth(RIM_FULL_PX / 3, RIM_FULL_PX, k) : 1; }   // (a red cell 7 µm across keeps its whole line from about 17 px wide; smaller, the line goes before the cell is a dot)
     this.group.position.z = d == null ? 0 : LIFT * U * (1 - smooth(0.9, 1, d));   // (down only once the lobule has stood aside, scene.ts LOBULE_UNDER_FROM + 0.04)
     const dark = LOOKS[f.look].scheme === 'dark';
     const P = f.pal.palette(dark) as unknown as Pal;
@@ -489,7 +495,7 @@ export class Sinusoid3D {
       for (const [s, nsd] of [[-1, SEED.nucUp], [1, SEED.nucDn]] as [Side, number][]) {
         for (let n = Math.floor(X0 / 38) - 1; n <= Math.ceil(X1 / 38) + 1; n++) {
           const x = nucAt(n, nsd), h = g.halfW(x);
-          ellipsoid(b, x, Y(s * (h - 0.35)), -0.35, 4.6, 1.45, 1.05, 0, undefined, 72, 10, true, true);   // (72 round: on a long lens 24 left its equator a chord 1.2 µm long between corners, and the line drawn in the fill came and went along it in beads, eyes 20 Nov)
+          ellipsoid(b, x, Y(s * (h - 0.35)), -0.35, 4.6, 1.45, 1.05, 0, undefined, 72, 10, true, true, true);   // (72 round: on a long lens 24 left its equator a chord 1.2 µm long between corners, and the line drawn in the fill came and went along it in beads, eyes 20 Nov)
           ellipsoid(bi, x, Y(s * (h - 0.45)), -0.2, 3.1, 0.82, 0.98, 0, undefined, 18, 8);
         }
       }

@@ -163,6 +163,8 @@ export class SinusoidView {
   private target(): number { return this.portrait ? PORTRAIT_ANGLE : 0; }
   /** What the scene knows of the screen: `k`, CSS px per µm along the plane now, and `along`, the free room's length in px in the flow's direction, and `stage`, the whole canvas's (the traffic runs over what is on screen, cards or no). The end arrows stand 32 px (24 on a tall screen)
    *  inside the room's ends and the traffic runs over the stretch on screen, as 2D lays them out (layoutEnds, VW.vis). Without it the defaults hold (arrows at ±46 µm, traffic over ±70). */
+  /** CSS px per µm on the screen now (setScreen), 0 before it is known. */
+  get pxPerUm(): number { return this.screen?.k ?? 0; }
   setScreen(k: number, along: number, stage = along, centre = 0): void {
     if (!(k > 0) || !(along > 0)) { if (this.screen) { this.screen = null; this.dirty = true; } return; }
     const s = this.screen;
