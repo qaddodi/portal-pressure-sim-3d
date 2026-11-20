@@ -82,3 +82,12 @@ test('colour mixes follow CSS: a mix with transparent lowers the alpha, srgb hal
   assert.ok(Math.abs(g[0] - g[1]) < 1e-3 && Math.abs(g[1] - g[2]) < 1e-3 && g[0] > 0.3 && g[0] < 0.5);
   assert.ok(contrast(parseColour('#000'), parseColour('#fff')) > 20.9);
 });
+
+test('a radial gradient is a ring of triangles with the colour of each stop on its own ring, blended between them (the balloon\'s highlight, a spot)', async () => {
+  const { tessellate } = await import('../src/ui/charts/geometry.ts');
+  const m = tessellate([{ k: 'radial', cx: 50, cy: 50, stops: [{ r: 0, c: [1, 0, 0, 1] }, { r: 20, c: [0, 0, 1, 0] }] }]);
+  assert.ok(m.triangles >= 48);
+  const cols = new Set<string>();
+  for (let i = 0; i < m.verts.length; i += 6) cols.add(`${m.verts[i + 2]!.toFixed(2)}|${m.verts[i + 4]!.toFixed(2)}`);
+  assert.equal(cols.size, 2, 'red at the centre, clear blue at the edge: the GPU blends between');
+});
