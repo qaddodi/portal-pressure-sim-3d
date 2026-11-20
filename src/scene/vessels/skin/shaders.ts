@@ -262,7 +262,7 @@ void main() {
   vec3 litD = celTubeBase(base);
   vec3 viewDir = normalize(vV);
   DFrame FD0, FD1;
-  float wD0 = 0.0, wD1 = 0.0, onD0 = 0.0, onD1 = 0.0, revD0 = 0.0, revD1 = 0.0;
+  float wD0 = 0.0, wD1 = 0.0, wD2 = 0.0, onD0 = 0.0, onD1 = 0.0, revD0 = 0.0, revD1 = 0.0;
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
     if (armData[i].x < 0.0) continue;
     // the arm's own frame: its arc here, and the across the tube would have (its heading, in the view's frame, grows with its arc)
@@ -281,16 +281,19 @@ void main() {
     // the dust (blood/dust-glsl.ts dustSkin): this arm's frame, kept for the two heaviest arms; the particles are drawn once below, each at the blend of its places in the two (never two ghosts)
     DFrame FI; float revI;
     float onI = flowFrame(acrossI, dustFrame(mat3(modelViewMatrix) * (armArc[i].y * tJ), mat3(modelViewMatrix) * vec3(0.0, 0.0, 1.0), viewDir, sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0)), sI, Lw, rOwn, vR, rCssM, lensI, armData[i].x, armData[i].y, SKIN_U, FI, revI);
-    if (wI > wD0) { FD1 = FD0; wD1 = wD0; onD1 = onD0; revD1 = revD0; FD0 = FI; wD0 = wI; onD0 = onI; revD0 = revI; }
-    else if (wI > wD1) { FD1 = FI; wD1 = wI; onD1 = onI; revD1 = revI; }
+    if (wI > wD0) { wD2 = wD1; FD1 = FD0; wD1 = wD0; onD1 = onD0; revD1 = revD0; FD0 = FI; wD0 = wI; onD0 = onI; revD0 = revI; }
+    else if (wI > wD1) { wD2 = wD1; FD1 = FI; wD1 = wI; onD1 = onI; revD1 = revI; }
+    else wD2 = max(wD2, wI);
     headAcc += wI * flowHeads(acrossI, acrossW, sI, Lw, vR, wpcM, pxI, lensI, armFlow[i], 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
   }
   if (wD0 > 0.0) {
     // the two heaviest arms' share (renormalised): on a seam ring one weight is 1 and this is the tube's own pixel (dustTube)
-    float w1 = wD1 / max(wD0 + wD1, 1e-4);
+    // (less the third heaviest's weight: where the second and third arms weigh the same, the pair the dust is drawn in changes, and the second's share is 0 on both sides of that line, so the change is
+    // continuous. Without it a fork's skin showed a seam down the line between its two branches, Mohammad 20 Nov: "i still see a seam at the blood vessels junction")
+    float w1 = max(wD1 - wD2, 0.0) / max(wD0 + wD1 - 2.0 * wD2, 1e-4);
     float dOn = mix(onD0, onD1, w1);
     if (dOn > 0.002) {
-      vec4 dust = wD1 > 0.004 ? dustSkin(FD0, FD1, w1, litD, inkColor, mix(revD0, revD1, w1)) : dustTube(FD0, litD, inkColor, revD0);
+      vec4 dust = w1 > 0.004 ? dustSkin(FD0, FD1, w1, litD, inkColor, mix(revD0, revD1, w1)) : dustTube(FD0, litD, inkColor, revD0);
       dustAcc = vec4(dust.rgb * dOn, dust.a * dOn);
     }
   }
