@@ -86,6 +86,8 @@ export class VesselObject extends CelObject {
   readonly artery: boolean;
   /** the ink's material (the hull's draw): blended, no depth write */
   private hullMat!: ShaderMaterial;
+  /** the near wall: the tube's front faces, its three flat tones at CEL_STYLE.TUBE.NEAR_A over the lumen (the far wall, the flow heads and the devices), once per pixel by stencil bit 2 */
+  private nearMat!: ShaderMaterial;
 
   constructor(geometry: BufferGeometry, opts: VesselOptions, shared: CelShared, lens: LensShared, blood: BloodShared, circuit: CircuitShared) {
     super(withHull(geometry), { ...opts, tone: opts.tone === 'artery' ? 'portal' : opts.tone }, shared);
@@ -96,6 +98,7 @@ export class VesselObject extends CelObject {
       vertexShader: VESSEL_VS,
       fragmentShader: VESSEL_FS,
       side: DoubleSide,
+      defines: { FAR_WALL: '' },   // (the far wall: the tube's back faces, opaque; the near wall is `nearMat` below)
       uniforms: {
         ...u,
         inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, hullOn: { value: 1 },
@@ -112,12 +115,15 @@ export class VesselObject extends CelObject {
     // The ink is its own draw: the hull (the index range after the body's, withHull) is blended at the look's casing alpha (2D --casing-a), after every opaque body and tested against them,
     // so a joined vessel's outline never lands on its neighbour's body and an outline never hides a vessel in front. The body stays opaque. Both share one set of uniforms.
     const geo = this.toonMesh.geometry, half = geo.getIndex()!.count / 2;
-    geo.clearGroups(); geo.addGroup(0, half, 0); geo.addGroup(half, half, 1);
+    geo.clearGroups(); geo.addGroup(0, half, 0); geo.addGroup(0, half, 1); geo.addGroup(half, half, 2);   // (far wall, near wall, then the ink: the near wall writes depth first, so the ink never lands on the lumen)
     this.hullMat = new ShaderMaterial({ vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, side: DoubleSide, uniforms: toon.uniforms, transparent: true, depthWrite: false,
       // one outline round the union (2D's tube-joint.js), not one per tube: each pixel takes the ink once, so where two outlines overlap (a fork's crotch, a run-on, a free end's cap and its tube,
       // the inside of a tight bend) the alpha is not applied twice (.64 would be .87). The first hull fragment to pass the depth test marks the pixel; the stencil is cleared with the depth between the passes.
-      stencilWrite: true, stencilRef: 1, stencilFunc: NotEqualStencilFunc, stencilFail: KeepStencilOp, stencilZFail: KeepStencilOp, stencilZPass: ReplaceStencilOp });
-    this.toonMesh.material = [toon, this.hullMat];
+      stencilWrite: true, stencilRef: 1, stencilFuncMask: 1, stencilWriteMask: 1, stencilFunc: NotEqualStencilFunc, stencilFail: KeepStencilOp, stencilZFail: KeepStencilOp, stencilZPass: ReplaceStencilOp });
+    // the near wall is drawn after the devices (they are opaque, drawn with the opaque pass; this is blended) and after the far wall, over the same index range as the body
+    this.nearMat = new ShaderMaterial({ vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, side: DoubleSide, uniforms: toon.uniforms, transparent: true, depthWrite: true, defines: { NEAR_WALL: '' },
+      stencilWrite: true, stencilRef: 2, stencilFuncMask: 2, stencilWriteMask: 2, stencilFunc: NotEqualStencilFunc, stencilFail: KeepStencilOp, stencilZFail: KeepStencilOp, stencilZPass: ReplaceStencilOp });
+    this.toonMesh.material = [toon, this.nearMat, this.hullMat];
     (this as unknown as { toon: ShaderMaterial }).toon = toon;
     // the ink is part of this draw now: its mesh goes, and `ink.uniforms` becomes the handle on the merged material's own uniforms
     this.group.remove(this.group.children[0]!);
@@ -204,7 +210,7 @@ export class VesselObject extends CelObject {
     // The veil is one layer, not several: a depth-only pass (same shader, so the same silhouette, pushed a hair farther) comes first for every veiled vessel, and the colour pass then draws only
     // where it is the nearest. Without it the tube's own back faces, its ink and the round caps of the next piece blend over each other and show as dark ball joints and a dark core (Mohammad's
     // iPhone, 19 Nov 2026: "the cava ghost shows dark ball joints").
-    const pre = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, side: DoubleSide, transparent: true, colorWrite: false, depthWrite: true, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, defines: { VEIL: 1 } });
+    const pre = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, side: DoubleSide, transparent: true, colorWrite: false, depthWrite: true, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 8, defines: { VEIL: 1 } });   // (a firm offset: with the tiers 0.07 apart a 1,1 offset left the colour pass failing the depth test at random along the cava's outline, the dashes of 20 Nov)
     const depth = new Mesh(this.toonMesh.geometry, pre);
     depth.matrixAutoUpdate = true; depth.renderOrder = 1;
     depth.layers.set(overLayer);
@@ -239,7 +245,7 @@ export class VesselObject extends CelObject {
     this.lift = lift;
     v.mat.uniforms.veilA!.value = Math.min(1, 0.4 + 0.6 * this.whole + lift * (1 - this.whole));
   }
-  override dispose(): void { this.hullMat?.dispose(); this.veil?.mat.dispose(); this.veil?.pre.dispose(); super.dispose(); }
+  override dispose(): void { this.hullMat?.dispose(); this.nearMat?.dispose(); this.veil?.mat.dispose(); this.veil?.pre.dispose(); super.dispose(); }
 
   /** A closed potential collateral: a dotted thread with no ink. */
   setDotted(on: boolean): void { this.toon.uniforms.dotted!.value = on ? 1 : 0; this.toon.uniforms.hullOn!.value = on ? 0 : 1; }
