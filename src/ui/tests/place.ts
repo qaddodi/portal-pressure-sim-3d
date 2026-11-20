@@ -18,6 +18,8 @@ export const sideWidth = (W: number): number => Math.min(sideFixed(W), Math.max(
 export const sidewaysWidth = (W: number, widthPx: number | null): number => clamp(widthPx ?? Math.max(340, W * 0.45), 320, Math.max(360, W * 0.62));
 /** The tallest a side card is on a Mac or an iPad on its side (app-07-floating.css --ws-max). */
 export const SIDE_MAX_H = 760;
+/** A phone held sideways keeps its toolbar in a rail at the right edge (--rail-w, app-11-deck-visuals.css:617) and its cards 8 px (--gap) clear of it. */
+export const RAIL_W = 54, SIDEWAYS_GAP = 8;
 /** The sheet's two heights, Half and Full (dock-sheet.js stops): a phone's Half is one fixed 520 px (testsHalfPx), Full the room; a tablet held upright 45 % and 62 % of the screen. */
 export const TESTS_HALF_PX = 520;
 /** The sheet's third stop, Peek (owner, 20 Nov: swipe the instrument panel down out of the way to see more of the figure, and bring it back): the head row, tabs and grab handle only. */
@@ -83,8 +85,15 @@ export function testsPlace(vp: Viewport, device: DeviceClass, o: PlaceOpts = {})
   }
   if (side) {
     // beside the figure: right-hand column (a phone held sideways docks on the right too, so the figure keeps the full height)
-    const w = device === 'phone-landscape' ? sidewaysWidth(vp.w, o.widthPx ?? null) : sideWidth(vp.w);
-    const maxH = device === 'phone-landscape' ? room : Math.min(SIDE_MAX_H, room);
+    if (device === 'phone-landscape') {
+      // a phone on its side (2D app-07-floating.css:595, app-09-tests.css:214, app-11-deck-visuals.css:617): the toolbar stands in a 54 px rail at the right edge, so the card ends 8 px + the rail from the edge (not 12 px: the card
+      // covered the rail's Tests, History, Settings and Search); it starts 2 px under the top bar and runs down to 6 px above the bottom edge, the play bar having moved left beside it (dock-side.generated.css). 20 Nov play-test, 844 x 390: 3D 452 to 832
+      // wide and 216 tall, 2D 402 to 782 and 334.
+      const wS = sidewaysWidth(vp.w, o.widthPx ?? null), yS = vp.safe.top + barH + 2, hS = Math.max(0, vp.h - yS - vp.safe.bottom - 6);
+      return { kind: 'side', rect: { x: vp.w - vp.safe.right - SIDEWAYS_GAP - RAIL_W - wS, y: yS, w: wS, h: hS }, maxH: hS, vars: sideVars(wS, bodyOf(hS), count), focus: false, stops: null };
+    }
+    const w = sideWidth(vp.w);
+    const maxH = Math.min(SIDE_MAX_H, room);
     const h = contentH > 0 ? Math.min(contentH, maxH) : maxH;
     const x = vp.w - vp.safe.right - 12 - w;
     return { kind: 'side', rect: { x, y: top, w, h }, maxH, vars: sideVars(w, bodyOf(h), count), focus: false, stops: null };
