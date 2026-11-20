@@ -133,3 +133,7 @@ ink lines in focus never bloom) and a full-size blend run before the FXAA pass, 
 is taken to lie on the plane through the camera's target facing +z (`planeUniform`): with the camera square on, the plane is all in focus and only what stands off it (a vessel past the sharp slab) blurs; tilt and turn
 put the far side of the plane out of focus. While the pass runs the vessels' pass does not clear the depth (it draws nothing once the body is gone). A refused program turns the blur off (shader guard) and the figure is
 drawn as before.
+
+## Sinusoid, cel shaded (20 Nov 2026)
+2D's tissue shader stays a byte-for-byte copy (`gl.copied.ts`, `scripts/copy-sinusoid.mjs --check`). `src/scene/sinusoid/cel.ts` wraps it: 2D's `main` becomes `main2d`, and a new `main` steps the pixel's lightness onto hard bands one shade step wide
+(`-ln(1 - CEL_STYLE.SHADE)`, so the bands are the figure's own shade step), keeps hue and chroma, inks sharp colour changes (the colour shaded three times) and puts the pixel back premultiplied with 2D's alpha. Every number comes from `src/scene/cel-style.ts`.

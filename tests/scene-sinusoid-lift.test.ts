@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { pinned2D } from './two-d-pin.ts';
 import { Vector2, Vector3, Vector4 } from 'three';
 import { createShared } from '../src/scene/materials/cel.ts';
-import { SinusoidView, diveShare, PLANE_HALF, U } from '../src/scene/sinusoid/view.ts';
+import { SinusoidView, SINUSOID_CEL_FS, diveShare, PLANE_HALF, U } from '../src/scene/sinusoid/view.ts';
 import { SINUSOID_FS, SINUSOID_PFS, SINUSOID_PVS, SINUSOID_UNIFORMS, SINUSOID_VS } from '../src/scene/sinusoid/gl.copied.ts';
 import { UM } from '../src/scene/sinusoid/layout.ts';
 import { LOOK_IDS } from '../src/looks/looks.ts';
@@ -184,7 +184,7 @@ function compile(stage: 'vert' | 'frag', source: string): { ok: boolean; log: st
   return { ok: r.status === 0, log: (r.stdout + r.stderr).split(file).join(stage) };
 }
 test('the plane\'s shaders compile: the 3D vertex stage, 2D\'s tissue fragment shader, the sprites', { skip: !haveGlslang && 'no glslangValidator' }, () => {
-  for (const [stage, src, name] of [['vert', SINUSOID_VS, 'plane vertex'], ['frag', SINUSOID_FS, 'tissue fragment'], ['vert', SINUSOID_PVS, 'sprite vertex'], ['frag', SINUSOID_PFS, 'sprite fragment']] as const) {
+  for (const [stage, src, name] of [['vert', SINUSOID_VS, 'plane vertex'], ['frag', SINUSOID_FS, 'tissue fragment'], ['frag', SINUSOID_CEL_FS, 'tissue fragment with the cel step'], ['vert', SINUSOID_PVS, 'sprite vertex'], ['frag', SINUSOID_PFS, 'sprite fragment']] as const) {
     const r = compile(stage, src);
     assert.ok(r.ok, `${name}: ${r.log}`);
   }
