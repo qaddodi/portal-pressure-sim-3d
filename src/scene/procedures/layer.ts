@@ -172,6 +172,15 @@ export class ProcedureLayer {
   applyPalette(p: Palette): void { this.palette = p; for (const c of this.caths.values()) c.applyPalette(p); for (const s of this.stents.values()) s.applyPalette(p); for (const s of this.veinStents.values()) s.applyPalette(p); this.tamponade.applyPalette(p); this.bands.applyPalette(p); this.glue.applyPalette(p); this.dirty = true; }
   setPhone(phone: boolean): void { this.phone = phone; for (const c of this.caths.values()) c.setPhone(phone); for (const s of this.stents.values()) s.setPhone(phone); for (const s of this.veinStents.values()) s.setPhone(phone); this.tamponade.setPhone(phone); this.bands.setPhone(phone); this.glue.setPhone(phone); this.dirty = true; }
 
+  /** The engine's diameters (per edge, mm): every catheter's veins are drawn at their live width, so each follows (ProcCatheter.setLive). True when one moved. */
+  setLive(D: ArrayLike<number> | null | undefined): boolean {
+    let moved = false;
+    for (const c of this.caths.values()) if (c.setLive(D)) moved = true;
+    this.liveD = D ?? null;
+    return moved;
+  }
+  private liveD: ArrayLike<number> | null = null;
+
   /** The route a procedure's catheter travels (its spec's `route`, else the kind itself), or null for one with no catheter (a graft, a scope). */
   routeKindOf(kind: string): string | null {
     const spec = specOf(kind) as { route?: string; graft?: boolean } | null;
@@ -188,6 +197,7 @@ export class ProcedureLayer {
     if (!c) {
       const r3 = route3d(rk)!;
       c = new ProcCatheter(r3, this.shared, (specOf(kind) as { balloonSpan?: string } | null)?.balloonSpan ?? null);
+      c.setLive(this.liveD);
       if (this.palette) c.applyPalette(this.palette);
       c.setPhone(this.phone);
       this.group.add(inVesselPass(c.group));
