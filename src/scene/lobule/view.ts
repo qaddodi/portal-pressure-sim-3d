@@ -434,6 +434,9 @@ export class LobuleView {
 
   // ---- the frame ------------------------------------------------------------------------------------------------------------------
 
+  /** The scene's one eased pause/play rate (0 paused, 1 playing; it eases between them over FLOW_EASE_S): the marks' heads advance by it, so Pause eases them to a stop and Play back up. */
+  flowRate = 1;
+
   /** Steps the view on the clock. Returns true while anything moves (marks running, a state easing, the wash, a fade): the scene draws another frame. */
   update(now: number): boolean {
     if (!this.visible) { this.lastNow = -1; return false; }
@@ -465,10 +468,10 @@ export class LobuleView {
       // a stagnant sinusoid: the chevrons fade out over the first half of the stasis, the smoke (soft bands, drifting slowly) in over the second, and back
       if (mk.smokes) goal *= this.stasis < 0.5 ? 1 - 2 * this.stasis : 2 * this.stasis - 1;
       if (mk.amount !== goal) { mk.amount = Math.abs(goal - mk.amount) <= k ? goal : mk.amount + Math.sign(goal - mk.amount) * k; moving = true; }
-      if (mk.amount > 0.001) moving = true;   // marks run: keep asking for frames
+      if (mk.amount > 0.001 && this.flowRate > 0.001) moving = true;   // marks run: keep asking for frames (paused and settled, nothing moves)
       // the heads' stream moves at the flow's speed (marks a second of the old period, the 2D painter's speeds), its distance kept here as 2D keeps sm.D; reduced motion holds it
       const sp = mk.speed() * mk.dir;
-      if (!this.reduce && mk.amount > 0.001) mk.phase = (((mk.phase + sp * mk.arc * HEAD_K * dt / 1000) % HEAD_PERIOD) + HEAD_PERIOD) % HEAD_PERIOD;
+      if (!this.reduce && mk.amount > 0.001) mk.phase = (((mk.phase + sp * mk.arc * HEAD_K * this.flowRate * dt / 1000) % HEAD_PERIOD) + HEAD_PERIOD) % HEAD_PERIOD;
       // an inlet whose portal flow runs backward carries orange heads with a second small one behind (the flag eases, as 2D's sm.rev)
       const revGoal = mk.part === 'inlets' && this.cur.portal < -0.02 ? 1 : 0;
       mk.rev += (revGoal - mk.rev) * (this.reduce ? 1 : 1 - Math.exp(-dt / 500));

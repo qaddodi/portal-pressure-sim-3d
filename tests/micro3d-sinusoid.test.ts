@@ -109,7 +109,7 @@ test('the next sinusoids are hazed (from past this one\'s plates outward) and th
 
 test('paused, the blood stands still: the traffic stops, and the view asks for no frames for it', () => {
   const { flat, s3 } = scene();
-  s3.update(true, false);
+  s3.update(true, 0);   // (the eased rate, settled at rest)
   const F = flat as unknown as { trafficSpeed: number; traffic: { flowX: number } };
   assert.equal(F.trafficSpeed, 0);
   const x0 = F.traffic.flowX;
@@ -165,4 +165,13 @@ test('the ends\' arrows are never 3D objects in the scene: they are part of the 
   for (const d of ['l', 'r', 'u', 'd']) assert.match(css, new RegExp(`\\.sv-end-arrow-${d} \\{`));
   assert.match(css, /\.sv-end-arrow-l \{ right: calc\(100% \+ 12px\)/);
   assert.match(css, /\.sv-end-arrow-d \{ top: calc\(100% \+ 13px\)/);
+});
+
+test('Pause eases the 3D sinusoid traffic to a stop and Play back up: traffic speed follows the scene\'s one eased rate, never a jump from full to 0', () => {
+  const { flat, s3 } = scene();
+  s3.update(true, 1); const full = flat.trafficSpeed;
+  assert.ok(full > 0);
+  s3.update(true, 0.5); assert.ok(Math.abs(flat.trafficSpeed - full * 0.5) < 1e-9, 'half the rate, half the pace');
+  s3.update(true, 0); assert.equal(flat.trafficSpeed, 0, 'stood at rest');
+  s3.update(false, 0.25); assert.ok(Math.abs(flat.trafficSpeed - 0.25) < 1e-9, 'the flat view eases too');
 });
