@@ -35,7 +35,7 @@
 // (pressure, oxygen...) are exact.
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../../cel-glsl.ts';
 import { FADE_GLSL } from '../../materials/shaders.ts';
-import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
+import { TUBE_DEPTH_SHARE } from '../shaders.ts';
 import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkHiColourGlsl, inkPxGlsl, wpcGlsl } from '../glsl-shared.ts';
 import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
 import { DUST_GLSL } from '../../blood/dust-glsl.ts';
@@ -49,6 +49,8 @@ export const SKIN_AXIS_PTS = 4;
 export const SKIN_FIGURE_UNITS = 300;
 /** The Circuit crossfade (section 4.9): the skin is gone by this share of the morph, and the tubes' cut fades in over the same. */
 export const SKIN_CIRCUIT_FADE = 0.35;
+/** An arm whose live width share (its width times its growth) is under this is held out of the skin's outline, smoothly: a width of nothing is a line, not a vessel (the thorns on the SMV, Mohammad 20 Nov). */
+export const SKIN_ARM_ABSENT = 0.3;
 
 /** The weighted sum of a per-arm float uniform array over all the arms (`wAt` and `wAtF` read the two weight attributes). */
 const BLEND = (name: string, w = 'wAt', comp = ''): string => Array.from({ length: SKIN_ARMS }, (_, i) => `${w}(${i}) * ${name}[${i}]${comp}`).join(' + ');
@@ -82,6 +84,7 @@ attribute vec3 cen;      // the nearest point on the nearest arm's axis: the dep
 attribute vec4 weight;   // how much of this vertex belongs to each arm (arms 0 to 3; the six sum to 1, arm order)
 attribute vec2 weight2;  // arms 4 and 5
 attribute float restR;   // the blended rest radius here (scene units)
+attribute float sagK;    // the share of the radius this vertex stands out for its facets' chord sag (facet-sag.ts; a seam ring's is the tube's TUBE_SAG)
 uniform float inflate;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
@@ -151,7 +154,7 @@ void main() {
   float inkPx = ${inkPxGlsl('rCssV', 'rCssV')};
   float inkW = (inkPx + hiPx * hi) * wpcV / SKIN_U;   // scene units
   // the tube's vertex rule (vessels/shaders.ts) with its radius * rk replaced by this vertex's own rest radius and its swell by the blend; the ring is a polygon, so its corners stand TUBE_SAG farther out
-  vec3 p = pos + nor * (inflate + rst * (swellE - 1.0) + inkW + (lumenW + inkW) * ${F(TUBE_SAG)});
+  vec3 p = pos + nor * (inflate + rst * (swellE - 1.0) + inkW + (lumenW + inkW) * sagK);
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vN = normalize(normalMatrix * nor);
   vV = normalize(-mv.xyz);
@@ -267,6 +270,9 @@ float skinSdPx(float kPx) {
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
     if (armData[i].x < 0.0) continue;
     float di = skinArmPx(gl_FragCoord.xy, i, swAt(i));
+    // an arm that is not there (a collateral not yet grown, a vessel closed to nothing) is not in the outline: a capsule of no width is a LINE, and its smooth union with the trunk is a horn along it, and the cone of the
+    // arm's collapsed ring out to the wall stayed inside its band as a spike (Mohammad, 20 Nov). It is held out of reach (the blend sees nothing of it past k) and comes in as its width does: continuous, never a pop
+    di += 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(i)));
     d = first ? di : skinSmin(d, di, kPx);
     first = false;
   }

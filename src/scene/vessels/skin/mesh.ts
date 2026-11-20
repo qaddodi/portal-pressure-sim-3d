@@ -453,13 +453,18 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   const grow: GrowMorph[] = [];
   for (let a = 0; a < A && grow.length < SKIN_GROWERS; a++) {
     if (!j.arms[a]!.grow) continue;
-    const caps0 = caps.map((c, i) => (i === a ? { n: c.n, pts: c.pts, r: new Float64Array(c.n) } : c));   // (the arm's capsule at radius 0: its axis stays, it is a thread)
+    // THE CLOSED SHAPE IS THE TRUNK WITHOUT THE ARM (Mohammad, 20 Nov: "a long thin spike juts out from the SMV's left wall", "a skin spike drips downward like a stalactite"). Root cause, in two parts: the closed shape kept the
+    // arm as a THREAD, a zero-radius capsule, so its smooth union grew a horn along the axis; and the fragment stage's outline did the same with the arm's zero-width capsule (skin/shaders.ts skinSdPx), which kept every
+    // pixel of the cone from the arm's collapsed ring out to the wall inside its band. Here the capsule is moved out of reach (it has no say in the distance, the normal or the weights of any free vertex); the ring
+    // itself stays at the ring's centre, the tube's ring at width share g, so the skin meets the tube at every growth. The fragment stage drops the arm from the outline while it is not there.
+    const far = 1e6;
+    const caps0 = caps.map((c, i) => (i === a ? { n: c.n, pts: Float64Array.from(c.pts, (q) => q + far), r: new Float64Array(c.n) } : c));
     let rcx = 0, rcy = 0, rcz = 0;
     for (let q = 0; q < n; q++) { rcx += seamRings[a]![3 * q]! / n; rcy += seamRings[a]![3 * q + 1]! / n; rcz += seamRings[a]![3 * q + 2]! / n; }
     const m: GrowMorph = { arm: a, dPos: new Float32Array(3 * V), dNor: new Float32Array(3 * V), dRest: new Float32Array(V), dWeight: new Float32Array(4 * V), dWeight2: new Float32Array(2 * V) };
     const w0 = new Float64Array(MAX_SKIN_ARMS), n0 = new Float64Array(3);
     for (let v = 0; v < V; v++) {
-      // where the vertex stands with the arm closed: the arm's own seam ring at the ring's centre, the other seam rings where they are (they are the tubes'), a free vertex projected onto the union without the arm's width
+      // where the vertex stands with the arm closed: the arm's own seam ring at the ring's centre, the other seam rings where they are (they are the tubes'), a free vertex projected onto the union without the arm
       let x = position[3 * v]!, y = position[3 * v + 1]!, z = position[3 * v + 2]!;
       if (v < S) { if (Math.floor(v / n) === a) { x = rcx; y = rcy; z = rcz; } }
       else for (let s = 0; s < PROJECT_STEPS; s++) {
@@ -469,9 +474,8 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
       }
       if (!(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z))) { x = position[3 * v]!; y = position[3 * v + 1]!; z = position[3 * v + 2]!; }
       const rest0 = weightsAt(caps0, v, x, y, z, w0);
-      // the normal: the SDF's, except on the arm's own thread, where the surface has no direction (the radial normal it had stays, so a ring that shrinks to its centre keeps its normals: the tube's ring at any share has them too)
-      closestOnArm(caps[a]!, x, y, z, cp);
-      if (v < S || (cp[4]! < THREAD_R * cp[3]!)) { n0[0] = normal[3 * v]!; n0[1] = normal[3 * v + 1]!; n0[2] = normal[3 * v + 2]!; } else normalAt(caps0, v, x, y, z, n0);
+      // the normal: the SDF's of the trunk; a seam ring keeps the one it had (a ring that shrinks to its centre keeps its normals: the tube's ring at any share has them too)
+      if (v < S) { n0[0] = normal[3 * v]!; n0[1] = normal[3 * v + 1]!; n0[2] = normal[3 * v + 2]!; } else normalAt(caps0, v, x, y, z, n0);
       m.dPos[3 * v] = position[3 * v]! - x; m.dPos[3 * v + 1] = position[3 * v + 1]! - y; m.dPos[3 * v + 2] = position[3 * v + 2]! - z;
       m.dNor[3 * v] = normal[3 * v]! - n0[0]!; m.dNor[3 * v + 1] = normal[3 * v + 1]! - n0[1]!; m.dNor[3 * v + 2] = normal[3 * v + 2]! - n0[2]!;
       m.dRest[v] = restR[v]! - rest0;

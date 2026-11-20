@@ -6,6 +6,7 @@
 // and its veil copy (over the organs, seen through them). A skin that has such an arm is drawn the same way: ONE geometry, three meshes with a material each (`defines: { SKIN_COPY: 0 | 1 | 2 }`: one source, three programs), every copy's alpha the sum over the
 // arms of weight x that arm's share of that copy x its fade (skin/shaders.ts), the shares being the arm tube's own (VesselObject.copyShares, written through `setArmCopy`). A copy whose arms all have no share of it is not visible, so a plain junction (every
 // arm (1, 0, 0)) draws only its front copy, as before, and a skin is never visible where its arms are not: it has no visibility of its own, it inherits the arms' shares, fades, layers and grow state.
+import { facetSag } from './facet-sag.ts';
 import { BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, ShaderMaterial, Vector2, Vector3, Vector4, type IUniform, type Object3D } from 'three';
 import { VESSEL_LAYER } from '../../layers.ts';
 import type { VesselObject } from '../vessel-object.ts';
@@ -70,6 +71,7 @@ export class SkinObject implements SkinDraw {
     g.setAttribute('weight', new BufferAttribute(skin.weight, 4));
     g.setAttribute('weight2', new BufferAttribute(skin.weight2, 2));
     g.setAttribute('restR', new BufferAttribute(skin.restR, 1));
+    g.setAttribute('sagK', new BufferAttribute(facetSag(skin.position, skin.index, skin.restR, skin.seamVerts.flatMap((a) => [...a])), 1));
     g.setIndex(new BufferAttribute(skin.index, 1));
     // the growing arms' second shapes (spec 10.2): per arm, the difference between the whole skin and the one with that arm at radius 0; the vertex stage takes the growth's share of it
     skin.grow.forEach((m, s) => {

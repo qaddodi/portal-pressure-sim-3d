@@ -316,3 +316,30 @@ test('the axes a growing arm is drawn from end at the node: its capsule starts a
     });
   } finally { done(b); }
 });
+
+// THE THORNS (Mohammad, 20 Nov: three thorn-like barbs on the SMV where a collateral or shunt branches off, a stalactite on the middle hepatic vein). Root cause: an absent growing arm was kept as a zero-width
+// capsule, in the closed shape (a horn along its axis, a free vertex near it pulled onto the horn) and in the fragment outline (a line whose band kept the cone from the arm's collapsed ring out to the wall). An absent arm
+// must contribute exactly nothing, and come in continuously as it grows.
+test('closed shape = the skin without the arm: EVERY free vertex of every growing skin lies on the union of the other arms, the arm\'s weight is nothing, and the closed ring is a point inside nothing but its own centre', () => {
+  const b = built();
+  try {
+    const n = eachGrower(b, (d, m, g, caps) => {
+      const arms = m.junction.arms, others = caps.filter((_, i) => i !== g.arm), kAll = skinKOf(arms), kOthers = skinKOf(arms.filter((_, i) => i !== g.arm)), Rmin = Math.min(...arms.map((a) => a.restR));
+      const V = m.position.length / 3, S = arms.length * RADIAL;
+      void kAll;
+      for (let v = S; v < V; v++) {
+        const x = m.position[3 * v]! - g.dPos[3 * v]!, y = m.position[3 * v + 1]! - g.dPos[3 * v + 1]!, z = m.position[3 * v + 2]! - g.dPos[3 * v + 2]!;
+        assert.ok(Math.abs(sdUnion(others, kOthers, x, y, z)) <= 0.02 * Rmin, `${nodeOf(d)} ${arms[g.arm]!.vesselId} vertex ${v}: ${(sdUnion(others, kOthers, x, y, z) / Rmin).toFixed(3)} R off the plain trunk (a thread's horn)`);
+        const wg = g.arm < 4 ? m.weight[4 * v + g.arm]! - g.dWeight[4 * v + g.arm]! : m.weight2[2 * v + g.arm - 4]! - g.dWeight2[2 * v + g.arm - 4]!;
+        assert.ok(Math.abs(wg) < 1e-6, `${nodeOf(d)} vertex ${v}: weight of the absent arm ${wg}`);
+      }
+    });
+    assert.ok(n >= 7);
+  } finally { done(b); }
+});
+
+test('the fragment outline holds an absent arm out of reach, smoothly (SKIN_ARM_ABSENT), so no thorn is drawn at growth 0', async () => {
+  const { SKIN_FS, SKIN_ARM_ABSENT } = await import('../src/scene/vessels/skin/shaders.ts');
+  assert.match(SKIN_FS, /di \+= 2\.0 \* kPx \* \(1\.0 - smoothstep\(0\.0, 0\.3\d*, swAt\(i\)\)\);/);
+  assert.equal(SKIN_ARM_ABSENT, 0.3);
+});
