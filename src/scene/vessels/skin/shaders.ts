@@ -17,7 +17,7 @@
 //                       (one vec4 each: a float array costs a whole vector a slot, and six arms of five floats broke the fragment budget)
 //   armNarrow[6] float  + (vertex stage only) the arm tube's stenosis waist at its seam: its live width there is swell x (1 - narrow), as the tube's is, so a seam inside a short piece's waist meets the tube with no step
 //   armColor[6]  vec4 + the arm tube's own `color` uniform (rgb: an artery wears the look's artery red, a vein its portal or systemic tone) and, in a, its `lensUse` (an artery 0, a vein 1)
-//   armCopy[6]   vec4   + (w) the arm this one runs through the node with (through.ts), or -1: the outline's union takes the pair by a plain minimum
+//   armCopy[6]   vec4   + (w) the arm this one runs through the node with (through.ts), or -1 (-2: none, and a vein that opens into the trunk's side: THE JUNCTION FADE RULE): the outline's union takes the pair by a plain minimum
 //   armAxisP[24] vec4   per arm four points of its axis (the node J, the start of the straight line through the seam, the seam, the far point), rest positions, model space; w the rest radius at the point
 //   armArc[4]    vec4 + (the arm's flow marks) the arc, figure units, at its seam (u x len x SKIN_FIGURE_UNITS), +1 if the arc grows toward the node (the arm is its vessel's end 1) else -1, the vessel's length (figure units), its rest radius (figure units)
 //   armFlow[4]   float + the arm tube's `flowAmount`
@@ -46,6 +46,8 @@ import { glslNum as F } from '../../cel-glsl.ts';
 import { CIRC_INK_K, CIRC_INNER } from '../cel-ink.ts';
 import { MAP_K } from '../../circuit/map.ts';
 import { SKIN_CIRC_IN } from './types.ts';
+import { skinNormalGlsl, SKIN_SHADE_K, SKIN_RING_W_FROM } from './exact-normal.ts';
+import { CAVA_RAMP_R } from '../fade-alpha.ts';
 
 /** How many arms a skin blends (a junction of three or four tubes): the weights are one vec4. */
 export const SKIN_ARMS = 6;
@@ -327,6 +329,7 @@ float skinSdPx(float kPx) {
   }
   return d;
 }
+${skinNormalGlsl(SKIN_ARMS, SKIN_AXIS_PTS, (sw) => `smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, ${sw})`)}
 // WHO OWNS A HEAD (Mohammad, 20 Nov: a chevron cut in two at the fork). A head is drawn in its arm's frame and was weighted by the arm's mesh weight AT THE PIXEL, so where the ownership of the skin changes across a head, the head was cut along the line.
 // A head now belongs to the arm that owns its CENTRE, whole: the centre is the point of the arm's axis at the head's arc (the axis line through the seam, the arc growing along it as the marks' own arc does), its owner the mesh's own rule
 // (a softmax of the arms' distances, sharpened to the fourth power, sdf.ts weights) taken in device px at that point
@@ -352,6 +355,15 @@ void main() {
   // specks of any colour, one channel lost reading green on a blue lumen. Mohammad 20 Nov, gone with ?joins=nomarks. The length is checked first, everywhere in this shader)
   float nLen = length(vN);
   vec3 n = nLen > 1e-5 ? vN / nLen : vec3(0.0, 0.0, 1.0);
+  // THE NORMAL IS THE SMOOTH UNION'S OWN GRADIENT AT THIS PIXEL (exact-normal.ts), not the vertices' normals lerped over a triangle: across a fillet those are wrong by up to 56 degrees and every contour of them (the cel shade's
+  // hard threshold, the lens lanes, the streaks' across) is a polygon, and in a crease the mesh's eased vertex normals depend on how the triangles lie (Mohammad, 20 Nov: the torn edge at the hepatic veins' mouths). The vertices' normal stays only as the fallback where the union has no gradient
+  // (a seam ring keeps the tube's own normal: where an arm's weight is 1 the pixel takes the lerped vertex normal, SKIN_RING_W_FROM)
+  {
+    float wTop = 0.0;
+    for (int i = 0; i < ${SKIN_ARMS}; i++) wTop = max(wTop, wAt(i));
+    vec3 gx = skinNormalExact(vPos, skinK * ${F(SKIN_SHADE_K)}, vec3(0.0));
+    if (dot(gx, gx) > 0.25) n = normalize(mix(n, normalize(mat3(modelViewMatrix) * gx), (1.0 - smoothstep(${F(SKIN_RING_W_FROM)}, 1.0, wTop))));
+  }
   float sT = dot(n, celLightView());   // n.L against the WORLD light, as the tube (a camera that moves changes no shade)
   float swT = fwidth(sT);              // (a derivative: taken outside any branch)
   // (the lens lanes need the arms' across and its derivative too, so this block is the skin's always, whatever marks are left out)
@@ -391,7 +403,19 @@ void main() {
   if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) discard;
   // the arms' alphas, blended by weight: the junction fade rule already holds on the tubes, so their seam alphas agree and the skin runs through them. On the Circuit's map the tubes become flat lines and the map draws its own
   // joins, so the skin fades out over the first SKIN_CIRCUIT_FADE of the morph (the arm tubes' cut fades back in over the same)
-  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * armAF[${i}].y * ${COPY_OF(i)}`).join(' + ')}) 
+  // THE JUNCTION FADE RULE (Mohammad, 20 Nov: "a vessel merging into a faded vessel fades gradually on approach, so both share the same fade at the junction", and the torn edge where the hepatic veins' solid streaks met the faint cava): a vein that opens into the side
+  // of a trunk (armCopy.w -2: the hepatic veins into the cava, fades.ts opensIntoCava; the trunk is the arms of the run through the node) comes to the trunk's opacity as the pixel nears the trunk's wall: 0 from CAVA_RAMP_R trunk radii out, whole at the wall, by the pixel's own distance to the trunk (the tube's own ramp, vessels/shaders.ts wA, which a
+  // skinned vein keeps: cavaCut 2). Before, a vein stayed solid to its seam and the skin changed from its opacity to the cava's across the weights' contour, a polygon: the tear
+  float aTrunk = 0.0, sdTrunk = 1.0e9, radTrunk = 1.0;
+  bool hasTrunk = false;
+  for (int k = 0; k < ${SKIN_ARMS}; k++) {
+    if (armData[k].x < 0.0 || armCopy[k].w < -0.5) continue;
+    vec3 gT; float rT;
+    float dT = skinArmSd3(vPos, k, swAt(k), gT, rT);
+    if (dT < sdTrunk) { sdTrunk = dT; radTrunk = rT; aTrunk = armAF[k].y; hasTrunk = true; }
+  }
+  float wRamp = hasTrunk ? 1.0 - smoothstep(0.0, ${F(CAVA_RAMP_R)} * max(radTrunk, 1.0e-5), sdTrunk) : 0.0;
+  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * ${COPY_OF(i)}`).join(' + ')}) 
 #ifdef SKIN_CIRC
     * smoothstep(${F(SKIN_CIRC_IN)}, 1.0, circT);   // (the map's own skin: in over the end of the change, as the arm tubes' map cut takes their ends away)
 #else

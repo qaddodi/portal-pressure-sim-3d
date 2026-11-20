@@ -8,7 +8,7 @@ import { Group, type Object3D } from 'three';
 import { CelScene } from '../src/scene/scene.ts';
 import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
-import { GROW_REACH, GROWER_KINDS, dropFarGrowers, findSkinJunctions, isGrower, isPermanent, withoutGrowers } from '../src/scene/vessels/skin/inventory.ts';
+import { GROW_REACH, GROWER_KINDS, dropFarGrowers, findSkinJunctions, isGrower, isPermanent, isLiverBranch, withoutGrowers } from '../src/scene/vessels/skin/inventory.ts';
 import { SkinSet, axisOf } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
 import { SKIN_VS } from '../src/scene/vessels/skin/shaders.ts';
@@ -31,6 +31,7 @@ const GROWERS: Record<string, readonly string[]> = {
 const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 /** The growing arms a skin could not take on the real network (`node:vessel`), each for a reason a person can read: a landing on a host's wall (GROW_REACH), or an arm that runs along another (the surface cannot clear the blend: PVH's DIPS lies 12 degrees from PVH_R, SVD's S_DSR and LRV_S's S_DSR run along C6). */
 // (RHV_T:TIPS: the hepatic vein's run-on RHV_T lies on the piece RHV_IVC that the cava's IVCS skin takes 15 of 20 rings of, so the two skins crowd; they cannot merge (the hull refuses the seven rings), and the cava's weld is the one kept (Mohammad, 20 Nov: "did you weld the hepatic veins into the IVC?"). TIPS keeps the fork method at that end.)
+// (21 Nov: RPV_T keeps its TIPS arm beside the right portal vein's second branch: the planner no longer asks the hull rule of a junction with a liver branch. LRV_S:S_DSR stays dropped: the sheet started on the surface is the liver forks' rung only, a pair of growers that run along one another has no closed shape on the trunk, tests/skin-closed-footprint.test.ts)
 const DROPPED = ['EPI:C3', 'IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'LRV_S:S_DSR', 'PVH:DIPS', 'RHV_T:TIPS', 'SVD:S_DSR'];
 
 const armKey = (a: { vesselId: string; end: number }) => `${a.vesselId}:${a.end}`;
@@ -49,7 +50,7 @@ test('the growing arms are the single-tube collaterals and shunts, pinned by nod
       for (const a of j.arms) {
         const v = NETWORK_BY_ID.get(a.vesselId)!;
         if (a.grow) assert.ok(isGrower(v) && GROWER_KINDS.has(v.kind) && !isPermanent(v) && !BRAIDS.includes(v.id), `${a.vesselId} is a growing arm`);
-        else assert.ok(isPermanent(v), `${a.vesselId} is a permanent arm`);
+        else assert.ok(isPermanent(v) || isLiverBranch(v), `${a.vesselId} is a permanent arm (or a liver branch that leaves its host at the node)`);
       }
       // J is the widest PERMANENT arm's end, whatever the growing arms are
       assert.ok(!j.arms[0]!.grow, j.node);
@@ -83,6 +84,7 @@ function built(): { scene: CelScene; set: SkinSet; draws: SkinObject[]; axes: Ma
     add: (o: Object3D) => parent.add(o), remove: (o: Object3D) => parent.remove(o), warn: (m) => warnings.push(m),
   });
   set.build(2);
+  { const live = new Set<unknown>(set.liveDraws()); for (let i = draws.length - 1; i >= 0; i--) if (!live.has(draws[i])) draws.splice(i, 1); }   // (a skin the planner took back to plan with its neighbours is not one of them)
   return { scene, set, draws, axes, warnings, was };
 }
 const done = (b: { scene: CelScene; was: boolean }) => { b.scene.dispose(); setSmoothJoins(b.was); };
@@ -225,24 +227,24 @@ const sagOf = (): number => TUBE_SAG;
 // ---- the live handover ----
 const seamU = (b: ReturnType<typeof built>, d: SkinObject, vessel: string): number => { const m = meshOf(b, d); return m.cuts[m.junction.arms.findIndex((a) => a.vesselId === vessel)]!.u; };
 const meshOf2 = (b: { set: SkinSet }, node: string): SkinMesh => b.set.skinOf(node)!;
-const drawOf = (b: ReturnType<typeof built>, node: string): SkinObject => b.draws.find((d) => nodeOf(d) === node)!;
+const drawOf = (b: ReturnType<typeof built>, node: string): SkinObject => b.draws.findLast((d) => nodeOf(d) === node)!;
 const armIndex = (b: ReturnType<typeof built>, d: SkinObject, vessel: string): number => b.set.armIdsOf(d).indexOf(vessel);
 
 test('the growth follows the vessel\'s own draw-on at the seam: 0 hidden, 0 until the front reaches the seam, 1 whole, eased between (the tube\'s frontOut), never a jump; the trunk\'s own presence is untouched', () => {
   const b = built();
   try {
-    const tips = b.scene.vesselObject('TIPS') as VesselObject, d = drawOf(b, 'RPV_T'), i = armIndex(b, d, 'TIPS'), u = seamU(b, d, 'TIPS');
-    assert.ok(d.grows(i) && i >= 2, 'TIPS is a growing arm of RPV_T, after the two portal vein pieces');
-    assert.ok(u < 0.3, `TIPS starts at RPV_T, so its seam is near its start (u ${u.toFixed(2)})`);
-    tips.group.visible = false;
+    const spc = b.scene.vesselObject('S_PC') as VesselObject, d = drawOf(b, 'CONF'), i = armIndex(b, d, 'S_PC'), u = seamU(b, d, 'S_PC');
+    assert.ok(d.grows(i) && i >= 3, 'S_PC is a growing arm of CONF, after the three portal pieces');
+    assert.ok(u < 0.4, `S_PC starts at CONF, so its seam is near its start (u ${u.toFixed(2)})`);
+    spc.group.visible = false;
     b.set.sync();
     assert.equal(d.growOf(i), 0, 'hidden: the trunk is a plain trunk');
-    tips.group.visible = true; tips.setReveal(0);
+    spc.group.visible = true; spc.setReveal(0);
     b.set.sync();
     assert.equal(d.growOf(i), 0, 'drawing on: the front is at the start');
     let last = 0, biggest = 0;
     for (let s = 1; s <= 200; s++) {
-      tips.setReveal(s / 200);
+      spc.setReveal(s / 200);
       b.set.sync();
       const g = d.growOf(i);
       assert.ok(Math.abs(g - armPresenceAt(true, s / 200, 1, u)) < 1e-12, 'the twin of the tube\'s dissolve front');
@@ -251,12 +253,12 @@ test('the growth follows the vessel\'s own draw-on at the seam: 0 hidden, 0 unti
     }
     assert.equal(last, 1, 'whole');
     assert.ok(biggest < 0.12, `the biggest step of 200 is ${biggest.toFixed(3)}: it eases`);
-    tips.setReveal(u / 2); b.set.sync();   // (retracting to before the seam: the same curve backwards)
+    spc.setReveal(u / 2); b.set.sync();   // (retracting to before the seam: the same curve backwards)
     assert.ok(d.growOf(i) < 1);
     // the trunk arms are never dithered by it, and never read as grown
-    for (let k = 0; k < 2; k++) assert.ok(!d.grows(k));
+    for (let k = 0; k < 3; k++) assert.ok(!d.grows(k));
     // a vessel the dive fades eases the growth with it
-    tips.setReveal(1); tips.setFade(0.5); b.set.sync();
+    spc.setReveal(1); spc.setFade(0.5); b.set.sync();
     assert.ok(Math.abs(d.growOf(i) - 0.5) < 1e-9);
   } finally { done(b); }
 });
@@ -264,7 +266,7 @@ test('the growth follows the vessel\'s own draw-on at the seam: 0 hidden, 0 unti
 test('a dotted thread (a closed potential collateral) is not a grown arm: growth 0 however far it is drawn, and its tube is never cut by the skin; hidden, it counts 0 too', () => {
   const b = built();
   try {
-    const o = b.scene.vesselObject('TIPS') as VesselObject, d = drawOf(b, 'RPV_T'), i = armIndex(b, d, 'TIPS');
+    const o = b.scene.vesselObject('S_PC') as VesselObject, d = drawOf(b, 'CONF'), i = armIndex(b, d, 'S_PC');
     o.group.visible = true; o.setReveal(1); b.set.sync();
     assert.equal(d.growOf(i), 1);
     o.setDotted(true); b.set.sync();
@@ -280,14 +282,14 @@ test('a dotted thread (a closed potential collateral) is not a grown arm: growth
 test('copies: a growing arm is a plain arm\'s front copy, and a skin with no arm there at all is not drawn (a trunk hidden, a collateral grown or not)', () => {
   const b = built();
   try {
-    const d = drawOf(b, 'RPV_T'), ids = b.set.armIdsOf(d);
+    const d = drawOf(b, 'CONF'), ids = b.set.armIdsOf(d);
     b.set.sync();
     assert.ok(d.copyShown(0), 'the trunk is there: the front copy');
     for (const id of ids) (b.scene.vesselObject(id) as VesselObject).group.visible = false;
     b.set.sync();
     assert.ok(!d.copyShown(0), 'nothing there, nothing drawn');
     // only the collateral there: the skin is its own part alone
-    (b.scene.vesselObject('TIPS') as VesselObject).group.visible = true; (b.scene.vesselObject('TIPS') as VesselObject).setReveal(1);
+    (b.scene.vesselObject('S_PC') as VesselObject).group.visible = true; (b.scene.vesselObject('S_PC') as VesselObject).setReveal(1);
     b.set.sync();
     assert.ok(d.copyShown(0));
   } finally { done(b); }
@@ -296,15 +298,15 @@ test('copies: a growing arm is a plain arm\'s front copy, and a skin with no arm
 test('a rebuild keeps the growing arms: marking the growing vessel rebuilds the skin it stands on, once a frame, with the same morph', () => {
   const b = built();
   try {
-    const was = meshOf(b, drawOf(b, 'RPV_T'));
-    assert.deepEqual(was.grow.map((m) => was.junction.arms[m.arm]!.vesselId), ['TIPS']);
-    b.set.markDirty('TIPS');
+    const was = meshOf(b, drawOf(b, 'CONF'));
+    assert.deepEqual(was.grow.map((m) => was.junction.arms[m.arm]!.vesselId), ['S_PC']);
+    b.set.markDirty('S_PC');
     assert.ok(b.set.pending);
     b.set.step();
-    assert.ok(!b.set.pending, 'TIPS is an arm of one skin now (its hepatic vein end keeps the fork method): one rebuild, one frame');
-    const now = b.set.skinOf('RPV_T')!;
+    assert.ok(!b.set.pending, 'S_PC is an arm of one skin now (its other end, at IVCI, keeps the fork method): one rebuild, one frame');
+    const now = b.set.skinOf('CONF')!;
     assert.notEqual(now, was, 'rebuilt');
-    assert.deepEqual(now.grow.map((g) => now.junction.arms[g.arm]!.vesselId), ['TIPS']);
+    assert.deepEqual(now.grow.map((g) => now.junction.arms[g.arm]!.vesselId), ['S_PC']);
     assert.equal(now.position.length, was.position.length, 'the same shape, built again on the same tubes');
     assert.equal(b.set.stats.rebuilds, 1);
   } finally { done(b); }
