@@ -43,6 +43,10 @@ export interface OrganState {
 }
 export const PLAIN: OrganState = { sat: 1, dim: 1, ghost: 1, congestion: 0, tint: 0, cirrhosisNod: 0, septum: 0, dead: 0, blood: 0, quiet: 0 };
 
+/** A scarred liver's own colour (the cel mock-ups, liver-texture.ts CELS): at full scarring `a` of it replaces the liver's tone, instead of the pale septa and tawny nodules. Null: the 2D tokens. */
+export let LIVER_TINT: { rgb: RGB; a: number } | null = null;
+export const setLiverTint = (t: { rgb: RGB; a: number } | null): void => { LIVER_TINT = t; };
+
 export interface OrganInks { plate: RGB; dark: boolean; bleed: RGB; /** the stage's colour (2D --stage-bg) */ bg: RGB }
 
 export function organColour(base: RGB, s: OrganState, k: OrganInks): [number, number, number] {
@@ -53,7 +57,8 @@ export function organColour(base: RGB, s: OrganState, k: OrganInks): [number, nu
   const dusk = Math.min(1, tk.congA * smooth01(s.congestion / 0.5) + s.tint * (1 - smooth01(s.congestion / 0.5)) * 0.5);
   if (dusk > 0) c = mix(c, tk.cong, dusk);
   // cirrhosis: the pale septa lie over the whole liver and the tawny nodules over them, so a nodule is tawny on pale and a septum only pale (stage-organs.js lv.sep, lv.nod)
-  if (s.cirrhosisNod > 0) {
+  if (s.cirrhosisNod > 0 && LIVER_TINT) c = mix(c, LIVER_TINT.rgb, s.cirrhosisNod * LIVER_TINT.a);
+  else if (s.cirrhosisNod > 0) {
     c = mix(c, tk.sep, s.cirrhosisNod * tk.sepA * (1 + SEPTUM_BOOST * s.septum));
     if (s.septum < 1) c = mix(c, tk.nod, s.cirrhosisNod * tk.nodA * (1 - s.septum));
   }
