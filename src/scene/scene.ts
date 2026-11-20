@@ -59,7 +59,7 @@ import { organsReady } from './organs/meshes.ts';
 import { artReady } from './organs/organ-art.ts';
 import { clock } from '../clock/frame.ts';
 import { COURSES } from './circuit/course.ts';
-import { growOf, stageOf } from './circuit/grow.ts';
+import { flatOf, growOf, stageOf } from './circuit/grow.ts';
 import { attachRuns, slicesFor } from './circuit/geometry.ts';
 import { mapToScene, turnScenePt } from './circuit/map.ts';
 import { MapLayer, mapRamp } from './circuit/map-layer.ts';
@@ -245,6 +245,7 @@ export class CelScene {
     this.cells = new BloodCells({ vessels: NETWORK, object: (id) => this.vesselObject(id), shared: this.shared, lens: this.lens.shared, blood: this.blood.shared, parent: this.body, layer: VESSEL_LAYER, phone: () => this.phone });
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
     this.presence.own(this.grownIds);
+    for (const id of this.grownIds) { const g = COURSES.get(id); if (g) this.vesselObject(id)?.setStretchAnchors(g.curveA.getPointAt(0), g.curveC.getPointAt(0)); }
     this.shapes = new ShapeTracks(NETWORK, this.byEdge as unknown as Map<string, VesselObject>);
     this.lens.setContext({ healthy: null, ref: null });
     const vo = { look: this.look, phone: this.phone, flowMode: opts.flowMode ?? DEFAULT_FLOW_MODE, reduceMotion: opts.reduceMotion };
@@ -891,7 +892,11 @@ export class CelScene {
   private growLiver(t: number): void {
     if (t === this.lastGrow) return;
     this.lastGrow = t;
-    for (const id of this.grownIds) this.presence.drive(id, growOf(id, t) ?? 0);
+    for (const id of this.grownIds) {
+      const g = growOf(id, t) ?? 0;
+      this.presence.drive(id, g);
+      this.vesselObject(id)?.setFlat(flatOf(g));
+    }
   }
   private lastGrow = -1;
   private readonly grownIds: readonly string[] = NETWORK.filter((v) => v.kind === 'liver' && stageOf(v.id)).map((v) => v.id);

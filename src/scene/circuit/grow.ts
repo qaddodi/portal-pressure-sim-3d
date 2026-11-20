@@ -26,3 +26,8 @@ export function growOf(id: string, t: number): number | null {
   const s = stageOf(id);
   return s ? growAt(s, t) : null;
 }
+
+/** How much a branch is squeezed toward its start when it has not grown yet (0.5: half its reach): it is drawn on along its flow AND stretches out from its start to its place. */
+export const SQUEEZE = 0.5;
+/** The squeeze at a growth (0 grown, SQUEEZE not at all). */
+export const flatOf = (grown: number): number => SQUEEZE * (1 - grown);

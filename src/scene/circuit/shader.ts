@@ -20,6 +20,10 @@ float circShare = 0.0;   // this vertex's share of the change (the peel on its r
 uniform vec2 circRot;
 uniform vec3 circM;
 uniform float circRow;
+// a liver branch growing with the change is drawn squeezed toward its own start (circFlat, 0 whole): its two courses' first points, body and map (grow.ts)
+uniform float circFlat;
+uniform vec3 circAnchA;
+uniform vec3 circAnchC;
 uniform vec2 circTrackSize;
 uniform sampler2D circTrack;
 const float CIRC_DL = ${PEEL_DL.toFixed(4)};
@@ -58,6 +62,7 @@ void circuitMorph(inout vec3 P, inout vec3 Nn, inout vec3 Tn) {
   circShare = w;
   vec3 cT = circTurnPt(cC);
   vec3 cen = mix(cA, cT, w);
+  if (circFlat > 0.0) { vec3 o0 = mix(circAnchA, circTurnPt(circAnchC), w); cen = o0 + (cen - o0) * (1.0 - circFlat); }
   // the direction of the moving centreline is its derivative along the vessel: (1 - w) A' + w C' + w' (C - A), the last term the flow peel's own gradient (the rank changes along the
   // vessel, so the share of the change does too); a plain blend of the two directions is up to a quarter off mid-change, this is exact (it is 'tang' and 'tC' at either end)
   float rs = (pk.x > 0.0 && pk.x < 1.0) ? cl.y * tC.x / CIRC_MAPK / CIRC_SPAN : 0.0;

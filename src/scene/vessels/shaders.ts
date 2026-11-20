@@ -336,7 +336,7 @@ bool capCarved(float across) {
 void main() {
   float streakCover = 0.0;   // (how much a streak covers this pixel: a chevron's pixel is never tinted by one)
   vec3 cBody = vec3(0.0);    // (the tube's tone before the streaks)
-  if (reveal < 0.9999 && vUv.x > reveal) discard;
+  if (frontOut(vUv.x, reveal)) discard;
   if (fadedOut()) discard;
   vec3 n = normalize(vN);
   // (a tube seen end on has no sideways direction: a fixed one keeps the fragment finite, never a NaN, which a device draws black)
