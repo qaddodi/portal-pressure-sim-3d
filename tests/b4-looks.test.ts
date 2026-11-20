@@ -127,12 +127,11 @@ test('the navel\'s ring comes with the paraumbilical vein, in steps, and the fla
   l.dispose();
 });
 
-test('the sinusoids\' strands are drawn, faint and fine; the wale lies over the middle of the esophageal strands only', async () => {
+test('the wale lies over the middle of a strand only (the strand layer draws none of the vessels\' plexuses: tests/b3-no-mesh.test.ts)', async () => {
   const s = new CelScene(); const d = s.disease;
   const f = (await presetState('cirr-decomp')).frame;
   d.feed(f as never, {}, null, { instant: true, presence: () => 1, recruit: () => 1 }, true);
   d.update(1000);
-  assert.ok((d.strands.drawn().SIN_RR ?? 0) > 0, 'a sinusoid strand is drawn');
   assert.ok(waleEnvelope(0.5) === 1 && waleEnvelope(0.05) === 0 && waleEnvelope(0.95) === 0);
   assert.equal(varixWale(false, 1, 1), 0); assert.ok(varixWale(true, 1, 1) > 0);
   assert.ok(RED_WALE[0] > 0.8);

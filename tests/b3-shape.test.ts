@@ -63,14 +63,17 @@ test('a collateral coils once it is past a quarter open and straightens below a 
   c.step(0.96, 1, 1000, false); assert.equal(c.wig, full, 'a small change leaves the target');
 });
 
-test('the braids: the varices, the rectal and retroperitoneal veins and the gastric channel carry the 2D strand counts', () => {
+test('the braids: the varices, the rectal and retroperitoneal veins and the gastric channel carry the 2D strand data, drawn as at most three separate strands each (no mesh)', () => {
   assert.equal(STRANDS_2D.C1a!.length, 5); assert.equal(STRANDS_2D.C2!.length, 4); assert.equal(STRANDS_2D.C4!.length, 5); assert.equal(STRANDS_2D.C7!.length, 4);
   for (const id of ['C1a', 'C2', 'C4', 'C7']) {
     const v = NETWORK_BY_ID.get(id)!;
-    assert.equal(coursesOf(v, REST).length, 1 + STRANDS_2D[id]!.length, id);
+    const cs = coursesOf(v, REST);
+    assert.equal(cs.length, 1 + Math.min(3, STRANDS_2D[id]!.length), id);
+    assert.equal(cs[0]!.radius, 0, `${id}: the trunk's own tube, a solid fill the width of the bundle, is not drawn (the red mesh)`);
+    assert.ok(cs.slice(1).every((c) => c.radius > 0), `${id}: every strand is drawn whole`);
   }
   const c = coilCourses('C1a', EDGE_PATH_2D.C1a as P2[], true, 5, 1);
-  assert.equal(c.strands.length, 5);
+  assert.equal(c.strands.length, 3);
   assert.deepEqual(c.strands[0]!.pts[0], EDGE_PATH_2D.C1a![0], 'a strand with no start offset leaves the vessel\'s own end');
 });
 
