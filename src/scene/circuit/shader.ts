@@ -16,6 +16,7 @@ attribute vec2 pk;
 // the lengths of the vessel's two courses (body, map), scene units: the speed of each along the vessel's own 0 to 1
 attribute vec2 cl;
 uniform float circT;
+float circShare = 0.0;   // this vertex's share of the change (the peel on its rank), kept for the width and the units the shader reads after the morph
 uniform vec2 circRot;
 uniform vec3 circM;
 uniform float circRow;
@@ -54,6 +55,7 @@ void circuitMorph(inout vec3 P, inout vec3 Nn, inout vec3 Tn) {
   vec3 N0 = circFrameN(tang);
   vec3 cA = position - radius * rk * (fr.x * N0 + fr.y * cross(tang, N0) + fr.z * tang);
   float w = circPeel(circT, pk.x);
+  circShare = w;
   vec3 cT = circTurnPt(cC);
   vec3 cen = mix(cA, cT, w);
   // the direction of the moving centreline is its derivative along the vessel: (1 - w) A' + w C' + w' (C - A), the last term the flow peel's own gradient (the rank changes along the

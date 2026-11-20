@@ -1,3 +1,4 @@
+import { CIRC_ARTERY, CIRC_BED } from '../circuit/width.ts';
 import { BufferAttribute, BufferGeometry, Color, DataTexture, DoubleSide, FloatType, KeepStencilOp, LinearSRGBColorSpace, Mesh, NearestFilter, NotEqualStencilFunc, ReplaceStencilOp, RGBAFormat, ShaderMaterial, Vector3, Vector4, type Texture } from 'three';
 import { CelObject, type CelOptions, type CelShared, rawColor } from '../materials/cel.ts';
 import { PALETTES, type Palette } from '../palette.ts';
@@ -6,8 +7,8 @@ import type { BloodShared } from '../blood/field.ts';
 import { LENS_SHARED, LENS_TOKENS } from '../lenses/tokens.copied.ts';
 import type { LookId } from '../palette.ts';
 import { CIRCUIT_ATTRIBUTES } from '../circuit/geometry.ts';
-import { LOOKS } from '../../looks/looks.ts';
-import { CASING, RIM_A } from './cel-ink.ts';
+import { CASING, RIM_A, RIM_INK } from './cel-ink.ts';
+import { CEL_STYLE } from '../cel-style.ts';
 import type { CircuitShared } from '../circuit/uniforms.ts';
 
 /** Uniforms every vessel shares: the two lens textures held for the crossfade, their stream colours, and the cross-fade itself. */
@@ -37,7 +38,12 @@ export interface VesselOptions extends Omit<CelOptions, 'tone'> {
   widthKind: 0 | 1 | 2;
   /** arteries keep their own colour under every lens (the 2D figure's rule) */
   artery?: boolean;
+  /** the width in the Circuit (see circuitWidth): map units, or -1 for the engine's diameter; 1 when circBoost applies; the least width. Default by `widthKind`. */
+  circW?: readonly [number, number, number];
 }
+
+/** 2D stage-tubes.js widthAt at the Circuit (t = 1): a vein clamp(vesselPx(D) * 0.95, 6, 15) and the boost, an artery 3 (finer shunts less), a liver bed 8 and the boost. */
+export const circuitWidth = (widthKind: 0 | 1 | 2, fine = 1): readonly [number, number, number] => (widthKind === 1 ? [CIRC_ARTERY * fine, 0, 0] : widthKind === 2 ? [CIRC_BED, 1, 0] : [-1, 1, 0]);
 
 /** The tube twice in one geometry: copy 0 is the body (`hull` 0), copy 1 the ink's hull (`hull` 1). One mesh then draws both, so a vessel is one draw call. */
 export function withHull(g: BufferGeometry): BufferGeometry {
@@ -93,7 +99,7 @@ export class VesselObject extends CelObject {
         inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, hullOn: { value: 1 },
         lensSmooth: { value: 0 }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
-        circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 },
+        circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circBoost: circuit.circBoost, circW: { value: new Vector3(...(opts.circW ?? circuitWidth(opts.widthKind))) },
         veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 },
         lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, chainTex: blood.chainTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, quietK: { value: 0 }, wallLine: { value: this.artery ? 1 : 0 }, pageCol: { value: new Color() }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 0 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
@@ -131,8 +137,8 @@ export class VesselObject extends CelObject {
     // the 2D look's line: its casing ink (set above, p.ink) at its casing alpha, and a dark lumen's light rim on the dark looks
     u.casingA!.value = CASING[look].a; u.casingCircA!.value = CASING[look].circ.a;
     { const [r, g, b] = CASING[look].circ.rgb; (u.inkColorCirc!.value as Color).setRGB(r / 255, g / 255, b / 255, LinearSRGBColorSpace); }
-    const rim = rawColor(LOOKS[look].text);
-    (u.rimInk!.value as Vector4).set(rim.r, rim.g, rim.b, RIM_A[look]);
+    const rim = rawColor(RIM_INK);
+    (u.rimInk!.value as Vector4).set(rim.r, rim.g, rim.b, RIM_A[look] * CEL_STYLE.TUBE.RIM_SHARE);   // (no pale inner rim: the ink is a vessel's only edge)
     rawColor(LENS_TOKENS[look].flowReversed, u.markRev!.value as Color);
   }
 

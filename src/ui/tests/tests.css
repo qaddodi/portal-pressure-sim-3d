@@ -30,3 +30,6 @@
 /* The shell around the panes (src/ui/tests/dock/): the sheet's grab handle takes no touch over the thumb dock (2D app-10-thumb-dock.css `.app.thumb :is(.panel-grab, .sheet-grab)`: the pull works from anywhere
    in the card, dock/pull.ts); the card is not inside .app here, so the sheet kind says it. The divider and the guide line are the 2D sheets' own (app-06-plate.css, app-07-floating.css). */
 .t-pos[data-kind="sheet"] .sheet-grab { pointer-events: none; }
+/* The grab bar is always drawn on a phone's sheet (owner, 20 Nov 2026; 2D keeps it hidden until focused): 36 x 4, centred on the card's top edge. */
+.t-pos[data-kind="sheet"] .sheet-grab { opacity: 1; width: 56px; height: 14px; }
+.t-pos[data-kind="sheet"] .sheet-grab::before { top: 5px; width: 36px; height: 4px; border-radius: 2px; background: var(--border-strong); }

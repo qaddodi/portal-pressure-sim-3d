@@ -1,11 +1,13 @@
 import type { Shot } from '../camera/shots.ts';
-import { MAP_CENTRE, MAP_HALF_UPRIGHT, MAP_HALF_WIDE, MAP_K, mapToScene, turnScenePt } from './map.ts';
+import { MAP_CENTRE, MAP_K, mapToScene, turnScenePt } from './map.ts';
 import { VB_CIRC } from './data.copied.ts';
 
-/** The Circuit: straight on to the map, the whole map in the room (the room solver pulls the camera back as far as the room needs). Upright, the map is tall. */
+/** The map's drawn box in map units (2D stage-fit.js ART_CIRC): the figure the camera frames. The view box is 8% taller than it, and framing that left the map small, high under the top bar and short of the view pill. */
+export const ART_CIRC: readonly [number, number, number, number] = [70, 30, 1330, 730];
+
+/** The Circuit: straight on to the map's drawn box, the whole of it in the room (the room solver pulls the camera back as far as the room needs). Upright, the map is tall. */
 export function circuitShot(upright: boolean): Shot {
-  const half = upright ? MAP_HALF_UPRIGHT : MAP_HALF_WIDE;
-  return { yaw: 0, pitch: 0, r: 5, target: [MAP_CENTRE.x, MAP_CENTRE.y, MAP_CENTRE.z], half: [half[0], half[1]] };
+  return circuitBoxShot(ART_CIRC, upright);
 }
 
 /** The map's plate for the hand's limits: its rectangle in the scene's plane, wide or upright. */
@@ -22,7 +24,8 @@ export function circuitBoxShot(box: readonly [number, number, number, number], u
   let hx = ((x1 - x0) * MAP_K) / 2, hy = ((y1 - y0) * MAP_K) / 2;
   if (upright) [hx, hy] = [hy, hx];
   if (kMax && kMax > 0) {
-    const whole = upright ? MAP_HALF_UPRIGHT : MAP_HALF_WIDE;
+    const wide: [number, number] = [((ART_CIRC[2] - ART_CIRC[0]) * MAP_K) / 2, ((ART_CIRC[3] - ART_CIRC[1]) * MAP_K) / 2];
+    const whole = upright ? [wide[1], wide[0]] : wide;
     hx = Math.max(hx, whole[0] / kMax); hy = Math.max(hy, whole[1] / kMax);
   }
   return { yaw: 0, pitch: 0, r: 5, target: [t[0], t[1], MAP_CENTRE.z], half: [hx, hy] };
