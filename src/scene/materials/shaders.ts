@@ -168,6 +168,9 @@ void main() {
   gl_FragColor = vec4(c, 1.0);
 }`;
 
+/** "No outer end here": the highlight's distance to an end the vein does not have (it runs on into another piece of the same vein). */
+export const HI_NONE = 1e3;
+
 export const INK_VS = /* glsl */ `
 uniform float inflate;
 uniform float px;
@@ -179,6 +182,8 @@ uniform float hiDir;
 uniform float hiOffset;
 uniform float hiAhead;
 uniform float hiBehind;
+uniform vec2 hiEnds;   // the picked vein's own outline: its distance to the vein's outer start and outer end (HI_NONE: that end runs on, no fade)
+uniform float hiFade;  // how far in from an outer end the outline takes to come to full
 uniform float hiPx;
 varying float vHi;
 varying float vU;
@@ -189,7 +194,8 @@ void main() {
   float a = uv.x * len;
   float dist = hiDir > 0.5 ? hiOffset + a : (hiDir < -0.5 ? hiOffset + (len - a) : 0.0);
   float limit = hiDir < -0.5 ? hiBehind : hiAhead;
-  vHi = hiOn * (1.0 - smoothstep(0.0, max(limit, 0.0001), dist));
+  float own = smoothstep(0.0, max(hiFade, 0.0001), min(hiEnds.x + a, hiEnds.y + (len - a)));
+  vHi = hiOn * (abs(hiDir) > 0.5 ? 1.0 - smoothstep(0.0, max(limit, 0.0001), dist) : own);
   vec2 nd = (projectionMatrix * vec4(normalMatrix * normal, 0.0)).xy;
   float l = length(nd);
   nd = l > 1e-5 ? nd / l : vec2(0.0);
