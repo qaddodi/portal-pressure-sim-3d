@@ -104,6 +104,8 @@ const SLIDE_INSET = 18;
 const SHORT_LEAD = 45, LONG_LEAD = 60;
 const WIDE_GAPS = [40, 58, 76, 96, 120];
 const FORM_COST = 50;
+/** The least cost of a spot of the wide search (RING_SPOTS): the far last-resort spots. */
+const RING_COST = 100;
 const LINE_COST = 8;
 /** Air kept between a `clearLines` name and a line (px): half a tube's width as drawn, the ink beside it and a little. */
 export const LINE_AIR = 3;
@@ -208,7 +210,7 @@ function candidates(it: Anchored, f: Form, wide: boolean): Cand[] {
   const order: Dir[] = [...(it.dirs ?? []), ...COMPASS.filter((d) => !(it.dirs ?? []).includes(d))];
   order.forEach((d, i) => { const [dx, dy] = offsetOf(d, f.w, f.h, gap0); out.push({ dx, dy, cost: i * 2 }); });
   WIDE_GAPS.forEach((g, gi) => order.forEach((d, i) => { const [dx, dy] = offsetOf(d, f.w, f.h, g + (it.vw ?? 0)); out.push({ dx, dy, cost: 20 + gi * 8 + i }); }));
-  if (wide) RING_SPOTS.forEach(([cx, cy], i) => out.push({ dx: cx - f.w / 2, dy: cy - f.h / 2, cost: 100 + i * 0.2 }));
+  if (wide) RING_SPOTS.forEach(([cx, cy], i) => out.push({ dx: cx - f.w / 2, dy: cy - f.h / 2, cost: RING_COST + i * 0.2 }));
   if (it.clearLines) CLEAR_SPOTS.forEach(([cx, cy, r]) => out.push({ dx: cx - f.w / 2, dy: cy - f.h / 2, cost: 30 + r * 0.1 + (it.prefer ? (1 - (cx * it.prefer[0] + cy * it.prefer[1]) / r) * PREFER_COST : 0) }));
   return out;
 }
@@ -296,6 +298,9 @@ export function solve(input: SolveInput): Solved {
           if (bad) continue;
           let lineHits = 0;
           for (const l of lines) if (crosses(l[0], l[1], l[2], l[3], box)) lineHits++;
+          // a far spot of the wide search stands clear of the vessels, as 2D's (`clear: true` on every ring: "farther out on a leader, wholly on the stage"); only the last resort may stand on one.
+          // (A line cost of 8 against a form's 50 had a must label's far spot on the varices' line in Compare on a phone, when a clear one lay a little further round.)
+          if (c.cost >= RING_COST && relax < 2 && lineHits > 0) continue;
           if (it.face) {
             const vx = (box.x0 + box.x1) / 2 - it.face.cx, vy = (box.y0 + box.y1) / 2 - it.face.cy, l = Math.hypot(vx, vy) || 1;
             if ((vx * it.face.ux + vy * it.face.uy) / l < FACE_COS) pen += FACE_CLASH;
