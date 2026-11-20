@@ -34,6 +34,12 @@ export const END_JOIN: ReadonlySet<string> = new Set<string>();
 const EXT: Readonly<Record<string, number>> = { PVH_R_2: 0.55, PVH_L_1: 0.55, RHV_IVC_1: 0.4, LHV_IVC: 0.4 };
 /** How far the through branch and the side branch spread from the vein's own line, as a share of the run: [through, side]. The left hepatic vein has only its through branch, bent downward into the left lobe (never up to the capsule). */
 const SPREAD: Readonly<Record<string, readonly [number, number | null]>> = { PVH_R_2: [0, 0.5], PVH_L_1: [0, 0.5], RHV_IVC_1: [0, 0.55], LHV_IVC: [0.54, null] };
+/** A side branch drawn as a hand-set curve instead of a straight spread: from where it leaves the vein, `along` units on the way the vein runs into the liver and `down` units toward the lower edge of the figure (2D y grows down), as a cubic through
+ *  four control points [along, down] and `z` toward the viewer at its far end (Mohammad, 20 Nov: the right hepatic vein's upper branch "below, kinda like the red marking I made, and make it go towards us a little in z"). It leaves the vein's underside
+ *  heading on along the vein, then bends away downward. */
+export const SIDE_SHAPE: Readonly<Record<string, { ctrl: readonly (readonly [number, number])[]; z: number }>> = {
+  RHV_IVC_1: { ctrl: [[0, 0], [12, 6], [30, 28], [46, 82]], z: 0.16 },
+};
 /** The width a branch narrows to at its tip, as a share of its vein's: gently, over the whole length, and it fades out before it could end. */
 export const TIP = 0.5;
 const smooth = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
@@ -83,7 +89,21 @@ function grow(id: string, host: readonly P2[], prefix: readonly P2[] | null): Tr
     }
     return { pts, dz };
   };
-  const a = off(sa, 0), sd = sb == null ? null : off(sb, Z_FWD, SIDE_P);
+  const shaped = SIDE_SHAPE[id];
+  const hand = (): { pts: P2[]; dz: number[] } => {
+    // (the frame at the split: e1 the way the vein runs on, e2 the normal that points down the figure)
+    const e1x = (b[N - 1]![0] - b[0]![0]), e1y = (b[N - 1]![1] - b[0]![1]), l1 = Math.hypot(e1x, e1y) || 1, ux = e1x / l1, uy = e1y / l1;
+    const sgn = ux > 0 ? 1 : -1, nx = -uy * sgn, ny = ux * sgn;   // (a normal with ny >= 0: down the figure)
+    const [c0, c1, c2, c3] = shaped!.ctrl;
+    const pts: P2[] = [], dz: number[] = [];
+    for (let i = 0; i < N; i++) {
+      const t = i / (N - 1), m = 1 - t, k0 = m * m * m, k1 = 3 * m * m * t, k2 = 3 * m * t * t, k3 = t * t * t;
+      const al = k0 * c0![0] + k1 * c1![0] + k2 * c2![0] + k3 * c3![0], dn = k0 * c0![1] + k1 * c1![1] + k2 * c2![1] + k3 * c3![1];
+      pts.push([b[0]![0] + ux * al + nx * dn, b[0]![1] + uy * al + ny * dn]); dz.push(tuckedDepth(dn, shaped!.z));
+    }
+    return { pts, dz };
+  };
+  const a = off(sa, 0), sd = shaped ? hand() : sb == null ? null : off(sb, Z_FWD, SIDE_P);
   const lead = prefix ? [...prefix].slice(0, i0 + 1) : root.slice(0, i0 + 1);   // (the root end as drawn, smoothed into its joins; the split is past those)
   const through = resample([...lead, ...a.pts.slice(1)], N);
   return { through, side: sd, q: lenOf(lead) / lenOf([...lead, ...a.pts.slice(1)]) };

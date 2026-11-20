@@ -37,11 +37,12 @@ test('sleek: a core of 1 px on every tube, a 0.6 px feather, long soft lozenges,
 test('lanes by the width on screen: 1 under 8 px across, 3 to 12 px, 5 above (20 Nov: 5 from 4.5 px of radius: the 3-lane band covered 8 to 9 percent of the face against 15 percent for 5 lanes, so a branch at the default fit read as a smooth fill), none under 3.5 px; and the shaders cut them so, in the tube\'s own fragment and in the lobule/sinusoid\'s', () => {
   assert.equal(lanesForPx(1.4), 0); assert.equal(lanesForPx(1.5), 1); assert.equal(lanesForPx(1.8), 1); assert.equal(lanesForPx(2.9), 1); assert.equal(lanesForPx(3), 3); assert.equal(lanesForPx(4.4), 3); assert.equal(lanesForPx(4.5), 5); assert.equal(lanesForPx(20), 5);
   assert.equal(STREAK.MIN_R_PX, 1.5); assert.deepEqual([...STREAK.LANE_R_PX], [3, 4.5]);
-  for (const fs of [VESSEL_FS, MICRO_FS]) {
+  // (the Anatomy's tubes draw the dust now, which has no lanes: it opens at the chevrons' gate; the lobule and the sinusoid still draw the lanes)
+  for (const fs of [MICRO_FS]) {
     assert.match(fs, /< 3\.0 \? 1\.0 : [a-zA-Z]+ < 4\.5 \? 3\.0 : 5\.0/, 'lanes 1, 3, 5');
     assert.match(fs, /gStreakWide = smoothstep\(5\.5, 9\.0, /);
   }
-  assert.match(VESSEL_FS, /smoothstep\(1\.5, 2\.1, rCss\)/); assert.match(MICRO_FS, /if \(rPx < 1\.5\) return 0\.0;/);
+  assert.match(VESSEL_FS, /smoothstep\(1\.5, 2\.1, rCssD\)/); assert.match(MICRO_FS, /if \(rPx < 1\.5\) return 0\.0;/);
   assert.match(STREAK_FIELD_GLSL, /lanes > 1\.5 \?/, 'one lane has no shear to divide by');
 });
 
