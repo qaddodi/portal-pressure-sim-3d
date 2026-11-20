@@ -52,7 +52,7 @@ export interface GestureHost {
   recentre?(): boolean;
   /** Returns whether the orbit changed. */
   setOrbit(rad: number): boolean;
-  /** Tilt all around (Settings): whether the free turn is on, and the tilt up or down. Absent: only the ±25° turn. */
+  /** Whether the viewer may tilt up and down here (body and lobule, not in a talk), within the limits in shots.ts. Absent: only the turn. */
   free?(): boolean;
   orbitPitch?(): number;
   setOrbitPitch?(rad: number): boolean;
@@ -309,7 +309,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   function startPinch(): Drag {
     const [a, b] = [...pointers.values()] as [[number, number], [number, number]];
     const m = { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 };
-    // Tilt all around on a touch screen: two fingers tilt (their middle turns the figure), the spread still zooms
+    // Two fingers tilt (where the gate allows) (their middle turns the figure), the spread still zooms
     const tilt = host.free?.() && host.setOrbitPitch ? { o0: host.orbit(), p0: host.orbitPitch?.() ?? 0 } : undefined;
     return { type: 'pinch', pa: a, pb: b, d0: Math.max(1, Math.hypot(a[0] - b[0], a[1] - b[1])), k0: host.hand().k, anchor: anchorAt(m, host.hand(), host.centre()), moved: false, m0: m, tilt };
   }
@@ -329,7 +329,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     const touch = ev.pointerType === 'touch';
     // a mouse turns the figure; Shift or the middle button pans (a trackpad's own two fingers pan through wheel events)
     const free = !!host.free?.();
-    // A finger always pans, in every view and whatever the setting (two fingers pinch, or tilt when Tilt all around is on, see startPinch); a mouse drag turns the figure (both axes with Tilt all around)
+    // A finger always pans, in every view and whatever the setting (two fingers pinch, or tilt where allowed, see startPinch); a mouse drag turns the figure (both axes with Tilt all around)
     drag = ev.shiftKey || ev.button === 1 || touch ? startPan(ev.clientX, ev.clientY, touch) : { type: 'rotate', x: ev.clientX, y: ev.clientY, orbit0: host.orbit(), pitch0: free ? host.orbitPitch?.() ?? 0 : undefined, moved: false, trail: trail(ev.clientX, ev.clientY), touch };
   };
   const pushTrail = (tr: number[], x: number, y: number) => {

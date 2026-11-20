@@ -8,7 +8,7 @@ import { type Room, effectiveDistance, viewOffset } from './room.ts';
 import { PLUNGE_RATIO, dollyDistance, fovAt, fovBump } from './dive.ts';
 import { Tilt } from './tilt.ts';
 import { LongPath } from './arc.ts';
-import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
+import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, TILT_LIMIT, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
 
 /** The lens swell in a plunge (dive.ts: 14 -> 35 degrees and back). OFF (20 Nov 2026, owner: the camera moves as 2D's do, 1:1; 2D has no lens): the dive is the distance and the framing alone. */
 export const LENS_SWELL = false;
@@ -20,7 +20,12 @@ export const FOLLOW_TAU_MS = 350;
 /** Radians of turn per pixel of drag. */
 export const ORBIT_PER_PX = 0.006;
 /** The most the free turn tilts up or down (radians): just short of straight over or under, where the camera's up would flip. */
-export const PITCH_LIMIT = 1.45;
+export { TILT_LIMIT as PITCH_LIMIT } from './shots.ts';
+/** A soft stop at ±lim: follows the hand exactly up to 70% of the limit, then eases into it (never a hard wall). Exact in the middle, so taking hold again never jumps there. */
+export const softLimit = (x: number, lim: number): number => {
+  const a = Math.abs(x), k = 0.7 * lim;
+  return a <= k ? x : Math.sign(x) * (k + (lim - k) * Math.tanh((a - k) / (lim - k)));
+};
 /** The tilt after a drag of `dy` CSS pixels (down = positive): the top of the figure comes toward the viewer. */
 export const dragToPitch = (start: number, dy: number): number => start + dy * ORBIT_PER_PX;
 
@@ -162,7 +167,7 @@ export class CameraRig {
   private orbitFrom = 0;
   /** Where the turn is heading with the move in flight: 0 (a new shot starts square on), or where it stands when only the room changed (a card opened). */
   private orbitTo = 0;
-  /** The viewer's tilt up or down (Settings > Tilt all around; zero otherwise), eased home with a new shot like the turn. */
+  /** The viewer's tilt up or down (within TILT_LIMIT, where the gate allows; zero otherwise), eased home with a new shot like the turn. */
   private pitchOrbit = 0;
   private pitchFrom = 0;
   private pitchTo = 0;
@@ -331,7 +336,7 @@ export class CameraRig {
 
   /** Limited orbit by drag, ±25°, clamped. Returns true when it changed (a frame is needed). */
   setOrbit(rad: number): boolean {
-    const o = this.free ? rad : Math.max(-ORBIT_LIMIT, Math.min(ORBIT_LIMIT, rad));
+    const o = softLimit(rad, ORBIT_LIMIT);
     if (o === this.orbit) return false;
     this.orbit = o; this.orbitFrom = o; this.orbitTo = o; this.dirty = true;
     return true;
@@ -339,7 +344,7 @@ export class CameraRig {
   get orbitAngle(): number { return this.orbit; }
   /** Tilt up or down by `rad` (only while the free turn is on; otherwise it stays square). Returns true when it changed. */
   setOrbitPitch(rad: number): boolean {
-    const o = this.free ? Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, rad)) : 0;
+    const o = this.free ? softLimit(rad, TILT_LIMIT) : 0;
     if (o === this.pitchOrbit) return false;
     this.pitchOrbit = o; this.pitchFrom = o; this.pitchTo = o; this.dirty = true;
     return true;
