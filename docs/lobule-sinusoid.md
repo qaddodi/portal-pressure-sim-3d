@@ -3,6 +3,14 @@
 > **Cel shaded tissue (20 Nov 2026, C1).** The plate, the neighbours and the Zones are cel shaded from the figure's one style (`src/scene/cel-style.ts`): `lobule/cel.ts` puts 2D's painted colours in three flat tones (shade / base / lit about each pixel's own local lightness, hue and chroma kept, detail beyond two tones left as painted), hard edges one pixel wide, and 2D's casing ink on every strong edge of the plate (the neighbours carry none); the Zones are three hard zones with a shade line. The vessels' three tones and line are the same CEL_STYLE (`shading.ts`). The space of Disse band stays one flat tone with no outline, as 2D's.
 
 
+> **Lobule names, leaders and the central vein (20 Nov 2026, Mac play-test at 390x844).** (1) "Hepatic arteriole" had no leader: a name with no reading had a last, *nameless* form, which the solver chose when crowded (a 6 px empty box beside the ring), and
+> any name within 12 px of its vessel's edge draws no leader (`LEAD_ON`; the first ring of candidates stood `max(12, vw + 8)` from the dot). Now: no nameless form for a station without a reading; every station carries `minLead` (`captions.ts MIN_LEAD`,
+> `solver.ts`: the words stand over `LEAD_ON` from the vessel's edge, so the leader and ring always show, as 2D's `Math.max(0, 16 - lead)` keeps a visible stretch); a name that finds no room with a leader is left out whole (ring too), as 2D leaves out a name
+> no slide asks for. A name the greedy order dropped is tried first (at most 3 more passes, kept when it loses less by rank, 2D's `nextPerm` in small). The labelled tract is the lowest one with all four of its dots in view (the Mac's arteriole and lymph were `hidden`
+> under the foot). (2) The central vein's name stood over the sinusoids (2D's has a glass pill, 3D's has only a halo): it is `clearLines` (`solver.ts`): the box, with `LINE_AIR` 3 px, crosses no course of `LINE_KINDS` (sinusoids, cross-links, inlets, twigs, every
+> sample), searched on rings round the vein up to 340 px (`CV_REACH` 300 of leader), on the side away from the labelled tract; only if nothing is clear does it take the cheapest spot. On a phone the hexagon fills the width, so the nearest clear band is past its rim
+> (a 140 to 160 px leader); on an iPad or a Mac it stands beside the vein between two sinusoids. Test `scene-lobule-labels-clear.test.ts` (frames from the real camera: `tests/lobule-frame.ts`). Not seen on a screen.
+
 > **Lobule parity audit, 19 Nov 2026 (LOBULE worker, against the 2D pin b3058ef3; 2D's own code is copied by `node scripts/copy-lobule.mjs --from <2D checkout> [--check]`).**
 >
 > | 2D | 3D now | state |
