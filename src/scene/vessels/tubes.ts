@@ -35,8 +35,8 @@ export const factorSpan = (t: readonly [number, number], sp: readonly [number, n
   const fs = u < sp[0] ? t[0] + (1 - t[0]) * smooth(u / sp[0]) : 1, fe = u > 1 - sp[1] ? 1 + (t[1] - 1) * smooth((u - (1 - sp[1])) / sp[1]) : 1;
   return fs < 1 && fe < 1 ? Math.min(fs, fe) : fs * fe;   // (two narrowings that overlap, a funnel and a tapered end, take the narrower: the radius then rises from each end to the middle and never dips on the way)
 };
-/** A shunt's sewn end (shunt-ends.ts) as a share of the tube's radius at distance `d` from that end: narrowed inside its host (2D sideEndScale), flared in front of the wall (flareScale, the far end only). */
-const sewnAt = (e: ShuntEnd | null | undefined, end: number, d: number): number => (!e ? 1 : (e.inside && !e.sink ? (sideEndScale(d, e.hostR) as number) : 1) * (end === 1 && e.flare ? (flareScale(d, e.hostR) as number) : 1));
+/** A shunt's sewn end (shunt-ends.ts) as a share of the tube's radius at distance `d` from that end: narrowed inside its host (2D sideEndScale), flared in front of the wall (flareScale). */
+const sewnAt = (e: ShuntEnd | null | undefined, end: number, d: number): number => (!e ? 1 : (e.inside && !e.sink ? (sideEndScale(d, e.hostR) as number) : 1) * (e.flare ? (flareScale(d, e.hostR) as number) : 1));
 const factorAt = (t: readonly [number, number] | undefined, u: number): number => (!t ? 1 : u < 0.3 ? t[0] + (1 - t[0]) * smooth(u / 0.3) : u > 0.7 ? 1 + (t[1] - 1) * smooth((u - 0.7) / 0.3) : 1);
 
 /** A course's radius at `u` (0 to 1 along it) as its tube is built, without the collar and the bead: its own radius, its end tapers, a buried end held under its trunk and a free end's point. `len` is the course's length (scene units). */
