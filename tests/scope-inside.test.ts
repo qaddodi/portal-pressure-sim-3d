@@ -42,7 +42,7 @@ test('a device draws its ink before its fill (no depth test: the ink hull drawn 
   const dev = readFileSync(new URL('../src/scene/devices/device-object.ts', import.meta.url), 'utf8');
   assert.match(dev, /2 \* \(o\.order \?\? 0\) \+ \(c === this\.toonMesh \? 1 : 0\)/);
   const scope = readFileSync(new URL('../src/scene/devices/probes/scope.ts', import.meta.url), 'utf8');
-  assert.match(scope, /sh = mk\('poly', \(t\) => t\.steel/);
+  assert.match(scope, /sh = mk\('poly', \(t\) => t\.scope,/);   // (2D's black polymer, --dev-scope; it was the grey steel)
   assert.ok(!/sh = mk\('poly', \(t\) => t\.polyEdge/.test(scope));
 });
 

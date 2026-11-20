@@ -329,7 +329,48 @@ test('in a talk a right click or long press opens no card and a zoom key or butt
 test('Anatomy never rests zoomed out past its fit: the host gives kMin 1 for the body (and the sinusoid)', async () => {
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/scene/Stage.tsx', import.meta.url), 'utf8');
-  assert.match(src, /cel\.view === 'body' \? 1 : K_MIN/);
+  assert.match(src, /cel\.view === 'sinusoid' \|\| cel\.view === 'lobule' \? 1 : zoomLimits\(wholeHome\(\), 1\)\.kMin/);
+  assert.match(src, /home: \(\) => wholeHome\(\)/);
+});
+
+// 2D measures the zoom limits on the whole plate, not on the shot now up (audit 2.5): from a close shot the hand reaches the whole figure and no further, and never zooms 6x past the close-up
+const closeShot = { k: 0.4, x: 120, y: -60 } as const;   // the hand view that frames the whole figure from a close shot: 0.4 of its zoom, panned
+const lim = { kMin: () => closeShot.k, kMax: () => 6 * closeShot.k, home: () => ({ ...closeShot }) };
+test('from a close shot a zoom-out step lands on the whole figure, centred, and the next one stays there (2D zoomOut: the last step out lands on the whole figure)', () => {
+  const r = rig(lim);
+  for (let i = 0; i < 6; i++) { r.g.zoomStep(1 / 1.4); r.run(2000); }
+  assert.ok(Math.abs(r.hand.k - closeShot.k) < 1e-6, `rests at the whole figure's zoom, not past it: ${r.hand.k}`);
+  assert.ok(Math.abs(r.hand.x - closeShot.x) < 1e-3 && Math.abs(r.hand.y - closeShot.y) < 1e-3, 'and centred as the whole-figure shot frames it');
+});
+test('from a close shot the zoom-in stops at 6 x the whole figure, not 6 x the close-up', () => {
+  const r = rig(lim);
+  for (let i = 0; i < 20; i++) { r.g.zoomStep(1.4); r.run(2000); }
+  assert.ok(Math.abs(r.hand.k - 6 * closeShot.k) < 1e-6, `${r.hand.k}`);
+});
+test('a pinch out past the whole figure springs back to it (the limit is the whole figure, not the shot)', () => {
+  const r = rig(lim);
+  r.ptr('pointerdown', 1, 380, 300, { pointerType: 'touch' }); r.ptr('pointerdown', 2, 420, 300, { pointerType: 'touch' });
+  r.ptr('pointermove', 1, 395, 300, { pointerType: 'touch' }); r.ptr('pointermove', 2, 405, 300, { pointerType: 'touch' });
+  r.ptr('pointerup', 1, 395, 300, { pointerType: 'touch' }); r.ptr('pointerup', 2, 405, 300, { pointerType: 'touch' });
+  r.run(3000);
+  assert.ok(Math.abs(r.hand.k - closeShot.k) < 1e-3, `${r.hand.k}`);
+});
+test('Fit on the Circuit toggles: from the shot\'s own framing to the whole map, and back (2D stage-fit.js)', () => {
+  const r = rig({ ...lim, fitToggles: () => true });
+  r.g.refit(); r.run(2500);
+  assert.ok(Math.abs(r.hand.k - closeShot.k) < 1e-6 && Math.abs(r.hand.x - closeShot.x) < 1e-3, `to the whole map: ${JSON.stringify(r.hand)}`);
+  r.g.refit(); r.run(2500);
+  assert.deepEqual({ k: r.hand.k, x: r.hand.x, y: r.hand.y }, { k: 1, x: 0, y: 0 });
+  // a second press while the first is still gliding goes the other way (judged from where the glide is going)
+  r.g.refit(); r.run(100); r.g.refit(); r.run(2500);
+  assert.deepEqual({ k: r.hand.k, x: r.hand.x, y: r.hand.y }, { k: 1, x: 0, y: 0 });
+});
+test('without a whole to return to (the shot is the whole figure) the limits are the old ones: 1 to 6, and Fit goes to the shot\'s framing', () => {
+  const r = rig({ kMin: () => 1, home: () => null, fitToggles: () => true });
+  r.g.zoomStep(1 / 1.4); r.run(2000);
+  assert.equal(r.hand.k, 1);
+  r.g.refit(); r.run(2000);
+  assert.deepEqual({ k: r.hand.k, x: r.hand.x, y: r.hand.y }, { k: 1, x: 0, y: 0 });
 });
 
 test('one finger pans in every view, whatever the setting; it never turns the figure', () => {
@@ -359,4 +400,10 @@ test('two fingers: sliding together tilts (no zoom), spreading zooms (no tilt); 
   r.ptr('pointerdown', 3, 300, 300, t); r.ptr('pointerdown', 4, 400, 300, t);
   for (let i = 1; i <= 6; i++) { r.advance(16); r.ptr('pointermove', 3, 300 - i * 8, 300, t); r.ptr('pointermove', 4, 400 + i * 8, 300, t); }
   assert.ok(r.hand.k > 1, 'the spread zoomed'); assert.equal(pitch, p0, 'and did not tilt');
+});
+
+test('zoom presses stack: pressed again while a glide runs, the step goes on from where that glide is going (2D zooms from vtTarget)', () => {
+  const r = rig();
+  r.g.zoomStep(1.4); r.run(100); r.g.zoomStep(1.4); r.run(3000);
+  assert.ok(Math.abs(r.hand.k - 1.4 * 1.4) < 1e-6, `${r.hand.k}`);
 });

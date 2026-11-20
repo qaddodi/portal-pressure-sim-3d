@@ -36,7 +36,7 @@ export function roll(r: { cur?: HTMLElement }, next: string, was: string): void 
   box.appendChild(old);
   cur.textContent = next;
   cur.style.opacity = '0';
-  const ease = 'cubic-bezier(.2, .7, .2, 1)';
+  const ease = 'cubic-bezier(.2, .8, .2, 1)';
   const out = old.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-0.55em)' }], { duration: MOTION.rollMs, easing: ease, fill: 'both' });
   const inn = cur.animate([{ opacity: 0, transform: 'translateY(0.55em)' }, { opacity: 1, transform: 'none' }], { duration: MOTION.rollMs, easing: ease, fill: 'both' });
   const doneOut = () => old.remove();

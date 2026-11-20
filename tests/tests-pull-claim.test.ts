@@ -12,7 +12,7 @@ const rig = (scrollTop = 0, size: 0 | 1 | 2 = 0) => {
   const card: any = { addEventListener: (k: string, f: any) => (L[k] ??= []).push(f), removeEventListener() {}, setPointerCapture() {}, parentElement: null };
   const pane: any = { scrollHeight: 900, clientHeight: 300, scrollTop, parentElement: card, closest: () => null };
   (globalThis as any).getComputedStyle = () => ({ overflowY: 'hidden auto' });
-  const pos: any = { style: { setProperty(k: string, v: string) { (this as any)[k] = v; }, removeProperty(k: string) { delete (this as any)[k]; } } };
+  const pos: any = { dataset: {} as Record<string, string>, style: { setProperty(k: string, v: string) { (this as any)[k] = v; }, removeProperty(k: string) { delete (this as any)[k]; } } };
   const calls: string[] = [];
   attachPull(card, pos, { enabled: () => true, heights: () => ({ h0: 520, half: 520, full: 700, peek: 72, size }), setSize: (n) => calls.push(`size${n}`), close: () => calls.push('close') });
   const tab: any = { parentElement: card, closest: () => null };
@@ -21,17 +21,20 @@ const rig = (scrollTop = 0, size: 0 | 1 | 2 = 0) => {
   return { ptr, touch, calls, pos, card, tab };
 };
 
-test('a touch-type pointer drag down 300 px (pointerdown, 10 moves, pointerup) takes a sheet at Half to Peek, and from Peek closes it', () => {
+test('a touch-type pointer drag down 300 px (pointerdown, 10 moves, pointerup) closes a sheet at Half in that one pull (2D: no stop at Peek), marked as pulled shut so it plays no leave of its own', () => {
   const half = rig();
   half.ptr('pointerdown', 300);
   for (let i = 1; i <= 10; i++) half.ptr('pointermove', 300 + i * 30);
   half.ptr('pointerup', 600);
-  assert.deepEqual(half.calls, ['size2']);
-  const r = rig(0, 2);
-  r.ptr('pointerdown', 300);
-  for (let i = 1; i <= 10; i++) r.ptr('pointermove', 300 + i * 30);
-  r.ptr('pointerup', 600);
-  assert.deepEqual(r.calls, ['close']);
+  assert.deepEqual(half.calls, ['close']);
+  assert.equal(half.pos.dataset.swiped, '', 'data-swiped is on the box when the card closes (tests.css: the close plays nothing, the card is already out of sight)');
+  assert.equal(half.pos.style.translate, '', 'and the offset goes with it');
+  // from Full a pull down only settles at Half, however far (a second pull closes it)
+  const full = rig(0, 1);
+  full.ptr('pointerdown', 300);
+  for (let i = 1; i <= 10; i++) full.ptr('pointermove', 300 + i * 30);
+  full.ptr('pointerup', 600);
+  assert.deepEqual(full.calls, ['size0']);
 });
 
 test('a drag up from Half goes to Full; a short drag down eases back and does nothing', () => {
@@ -87,7 +90,7 @@ test('a drag that starts on a tab (a button) pulls the sheet, and the capture ha
     if (i === 1) r.ptr('lostpointercapture', 0, 0, { target: r.tab });
   }
   r.ptr('pointerup', 420, 100, { target: r.tab });
-  assert.deepEqual(r.calls, ['size2']);
+  assert.deepEqual(r.calls, ['close']);   // (a long pull from Half closes it: 2D)
   // a tap on a tab moves nothing and leaves the click alone
   const tap = rig();
   tap.ptr('pointerdown', 120, 100, { target: tap.tab }); tap.ptr('pointermove', 122, 100, { target: tap.tab }); tap.ptr('pointerup', 122, 100, { target: tap.tab });

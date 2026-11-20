@@ -11,7 +11,11 @@ import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
 import { len3 } from '../../frame2d.ts';
 import { SCAN } from './copied/scan-probe.copied.js';
-import { ProbePart, TubeBuf, linePart } from './parts.ts';
+import { ProbePart, TubeBuf, linePart, type PartStyle } from './parts.ts';
+import { ArriveTrack } from './ease-track.ts';
+import { D_SMALL, D_SURFACE } from '../../../ui/tests/copied/motion.copied.js';
+import { LOOKS } from '../../../looks/looks.ts';
+import { SCAN_BODY_PX } from '../edges.ts';
 import { basisAt, newBasis, toPlate, type Basis, type Box, type ScreenEnv } from './screen.ts';
 import { headCovered, scanTilt, scanTurnOf } from './fibro-place.ts';
 import type { FibroOrgan } from './state.ts';
@@ -21,8 +25,8 @@ const clamp = (x: number, a: number, b: number): number => Math.min(b, Math.max(
 /** The front's speed in px/s for a stiffness (scanSpeed). */
 export const waveSpeed = (kpa: number | null): number => SCAN.SPEED.base * (clamp(kpa ?? SCAN.SPEED.dflt, SCAN.SPEED.lo, SCAN.SPEED.hi) / SCAN.SPEED.ref) ** SCAN.SPEED.pow;
 const ARC_RINGS = 14;
-/** The head fades in and out over D_SMALL (2D: scanEase headOp, cableOp). */
-const HEAD_MS = 240;
+/** The whole probe fades in and out over D_SURFACE (420 ms) and its head and cable over D_SMALL (240 ms), each on the arrive curve (2D: scanEase op, headOp, cableOp; app-06-plate.css .scan-probe). */
+export const SCAN_FADE_MS = D_SURFACE, HEAD_MS = D_SMALL;
 /** The turn eases over D_SURFACE (2D: scanEase ang). */
 const TURN_TAU = 0.14;
 
@@ -56,7 +60,10 @@ export class FibroProbe {
   // the screen
   private readonly B: Basis = newBasis();
   private U = len3(1);
-  private turn = 0; private turnGoal = 0; private headOp = 1; private headGoal = 1; private headAt = 0; private shapeKey = '';
+  private turn = 0; private turnGoal = 0; private headGoal = 1; private headAt = 0; private shapeKey = '';
+  /** the probe's fade, and its head's and cable's, each eased as 2D's are (ArriveTrack) */
+  private readonly opT = new ArriveTrack(0); private readonly headT = new ArriveTrack(1);
+  private get headOp(): number { return this.headT.value; }
   /** the tilt below the level the probe stands at (2D scan.deg) and its turn on the screen (scan.turn), degrees */
   deg = 45;
   /** the tip on the screen now (px), the probe's turn there (degrees clockwise from +x, y down), and its body's box: what the reading's labels stand by */
@@ -66,19 +73,21 @@ export class FibroProbe {
 
   constructor(shared: CelShared) {
     const fixed = (organ: FibroOrgan) => SCAN.COLOUR[organ] as string;
-    const mk = (tone: Parameters<typeof linePart>[1], colour: Parameters<typeof linePart>[2], rings: number, px: number, order: number, head = false) => {
-      const { part, buf } = linePart(shared, tone, colour, rings, px, order);
+    const mk = (tone: Parameters<typeof linePart>[1], colour: Parameters<typeof linePart>[2], rings: number, px: number, order: number, head = false, style: PartStyle = {}) => {
+      const { part, buf } = linePart(shared, tone, colour, rings, px, order, style);
       this.parts.push(part); this.bufs.push(buf); this.group.add(part.group);
       if (head) this.headPartsList.push(part);
       return { part, buf };
     };
     // the body, its pad, its screen and its cable are the head (they fade where a card covers them); the waves and the beam are not
-    this.body = mk('poly', null, 6, 1, 2, true).buf;
-    this.pad = mk('steel', null, 3, 0.9, 3, true).buf;
-    this.screen = mk('marker', () => fixed(this.organ), 2, 0.7, 4, true).buf;
-    this.cable = mk('steel', null, 2, 0.8, 1, true).buf;
+    // The materials are 2D's (app-06-plate.css .scan-probe): the body in the look's surface under a 1.6 px line in --text-2 (the line sits half inside the fill: `fat`), the tip --text-2 and the cable --text-3, no outline
+    // on either, the screen and the waves in the exam's own colour, no outline. Not the look's ink.
+    this.body = mk('poly', (_t, look) => LOOKS[look].card, 6, SCAN_BODY_PX, 2, true, { edge: { colour: ({ look }) => LOOKS[look].text2 }, fat: -SCAN_BODY_PX / 2 }).buf;
+    this.pad = mk('steel', (_t, look) => LOOKS[look].text2, 3, 0.9, 3, true, { edge: 'none' }).buf;
+    this.screen = mk('marker', () => fixed(this.organ), 2, 0.7, 4, true, { edge: 'none' }).buf;
+    this.cable = mk('steel', (_t, look) => LOOKS[look].text3, 2, 0.8, 1, true, { edge: 'none' }).buf;
     for (let i = 0; i < SCAN.N; i++) {
-      const { part, buf } = mk('marker', () => fixed(this.organ), ARC_RINGS, 0.6, 5);
+      const { part, buf } = mk('marker', () => fixed(this.organ), ARC_RINGS, 0.6, 5, false, { edge: 'none' });
       this.waves.push({ buf, part, r: -1 });
     }
     const pos = new Float32Array((ARC_RINGS + 1) * 3), col = new Float32Array((ARC_RINGS + 1) * 4);
@@ -167,13 +176,14 @@ export class FibroProbe {
     if (on && this.placedOrgan && organ !== this.placedOrgan && this.shown > 0.001) want = 0;
     if (this.shown <= 0.001 && want === 1 && organ !== this.placedOrgan) {
       const b = box(organ);
-      if (b) { this.organ = organ; this.placedOrgan = organ; this.anchor(b); this.turn = this.turnGoal = SCAN.TURN[organ] as number; this.deg = 45; this.headOp = this.headGoal = 1; } else want = 0;
+      if (b) { this.organ = organ; this.placedOrgan = organ; this.anchor(b); this.turn = this.turnGoal = SCAN.TURN[organ] as number; this.deg = 45; this.headT.set(1); this.headGoal = 1; } else want = 0;
     }
-    const k = 1 - Math.exp(-Math.max(0, dtMs) / 90), prev = this.shown;
-    this.shown += (want - this.shown) * k;
-    if (Math.abs(want - this.shown) < 0.004) this.shown = want;
+    const prev = this.shown;
+    this.opT.go(want, SCAN_FADE_MS, nowMs);
+    this.opT.step(nowMs);
+    this.shown = this.opT.value;
     const vis = this.shown > 0.002;
-    let moving = this.shown !== prev;
+    let moving = this.shown !== prev || this.opT.running;
     if (this.shown !== prev) {
       this.group.visible = vis;
       for (const o of this.parts) { o.group.visible = vis; if (vis && !this.waves.some((w) => w.part === o) && !this.headPartsList.includes(o)) o.setAlpha(this.shown); }
@@ -200,7 +210,8 @@ export class FibroProbe {
       if (Math.abs(df) > 0.05) { this.turn += df * (1 - Math.exp(-dt / TURN_TAU)); moving = true; } else this.turn = this.turnGoal;
       // the head looks again four times a second
       if (!(nowMs < this.headAt)) { this.headAt = nowMs + 250; this.headGoal = headCovered(B.ox, B.oy, this.turnGoal, cards) ? 0 : 1; }
-      if (this.headOp !== this.headGoal) { const st = (dt * 1000) / HEAD_MS; this.headOp = this.headGoal > this.headOp ? Math.min(this.headGoal, this.headOp + st) : Math.max(this.headGoal, this.headOp - st); moving = true; }
+      this.headT.go(this.headGoal, HEAD_MS, nowMs);
+      if (this.headT.step(nowMs)) moving = true;
       this.screenAt.x = B.ox; this.screenAt.y = B.oy; this.screenAt.turn = this.turn; this.screenAt.headOp = this.headOp;
     } else { this.U = len3(1); this.turn = this.turnGoal = SCAN.TURN[this.organ] as number; this.screenAt.turn = this.turn; }
     const key = `${this.U.toFixed(6)}|${this.turn.toFixed(2)}|${this.B.a.toFixed(3)}|${this.B.b.toFixed(3)}|${this.B.c.toFixed(3)}|${this.B.d.toFixed(3)}`;

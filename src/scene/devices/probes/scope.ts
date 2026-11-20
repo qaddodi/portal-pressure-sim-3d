@@ -15,7 +15,9 @@ import { bakeGeometry, centreAt, type CentreGrid } from '../../organs/centre-z.t
 import { BAND } from '../../procedures/copied/band-ring.js';
 import { EUS_GLUE_ROUTE, EUS_GLUE_STATION, EUS_GLUE_TARGET, EUS_ROUTE, EUS_SCOPE_R, EUS_STATIONS, EUS_TARGETS, EUS_BEND_MIN, EUS_RIGID, EUS_PORT_R, eusPose, newTip, pointOn } from './copied/eus-scope.copied.js';
 import { TAIL_UNITS } from '../device-object.ts';
-import { ProbePart, TubeBuf, linePart, type PartColour } from './parts.ts';
+import { ProbePart, TubeBuf, linePart, lookOf, type PartColour, type PartStyle } from './parts.ts';
+import { DEVICE_TOKENS } from '../../procedures/copied/device-tokens.copied.ts';
+import { NEEDLE_EDGE, scopeEdge } from '../edges.ts';
 import { showRings } from '../tube-rings.ts';
 import type { ScopeMode } from './state.ts';
 
@@ -151,18 +153,21 @@ export class EndoScope {
 
   constructor(shared: CelShared) {
     const R = len3(EUS_SCOPE_R as number);
-    const mk = (tone: Parameters<typeof linePart>[1], colour: Parameters<typeof linePart>[2], rings: number, px: number, order: number) => {
-      const { part, buf } = linePart(shared, tone, colour, rings, px, order);
+    const mk = (tone: Parameters<typeof linePart>[1], colour: Parameters<typeof linePart>[2], rings: number, px: number, order: number, style: PartStyle = {}) => {
+      const { part, buf } = linePart(shared, tone, colour, rings, px, order, style);
       this.parts.push(part); this.bufs.push(buf); this.group.add(part.group);
       return { part, buf };
     };
     const N = Math.max(this.way.pts.length, this.glueWay.pts.length);
-    const sh = mk('poly', (t) => t.steel, N, 1, 1), bd = mk('poly', (t) => t.steel, 17, 1, 1), tp = mk('steel', null, 4, 1, 2), ln = mk('poly', (t) => t.polyEdge, 2, 0.7, 3);
-    const cp = mk('graft', null, 2, 0.8, 3), bn = mk('platinum', null, 18, 0.9, 4), nd = mk('steel', null, NEEDLE_RINGS, 0.8, 5);
-    // the transducer's curved array (its pale face on the side that meets the wall) and the working channel's port, where the needle leaves (2D --dev-scope-face, --dev-port)
-    const fc = mk('graft', '#C7C9CC', 2, 0.6, 3), pt = mk('graft', '#0D0D0F', 2, 0.4, 4);
+    // The materials and the edges are 2D's (eus-scope.js, tokens.css): the insertion tube black polymer (--dev-scope) and the rigid tip grey (--dev-scope-tip), each in a faint hairline of the scope's own colour
+    // (the edge moved 55 % to the body's, drawn at 0.26: devices/edges.ts), the needle's steel in the catheter's dark edge at 0.8, the transducer's face and the port as the device table has them. Not the look's ink.
+    const SOFT: PartStyle = { edge: scopeEdge() };
+    const sh = mk('poly', (t) => t.scope, N, 1, 1, SOFT), bd = mk('poly', (t) => t.scope, 17, 1, 1, SOFT), tp = mk('steel', (t) => t.scopeTip, 4, 1, 2, SOFT), ln = mk('poly', (t) => t.polyEdge, 2, 0.7, 3, SOFT);
+    const cp = mk('graft', null, 2, 0.8, 3), bn = mk('platinum', null, 18, 0.9, 4, { edge: 'none' }), nd = mk('steel', null, NEEDLE_RINGS, 0.8, 5, { edge: NEEDLE_EDGE });
+    // the transducer's curved array (its pale face on the side that meets the wall) and the working channel's port, where the needle leaves (2D --dev-scope-face, --dev-port; the port has no outline)
+    const fc = mk('graft', (t) => t.scopeFace, 2, 0.6, 3, { edge: scopeEdge(0.8) }), pt = mk('graft', (t) => t.port, 2, 0.4, 4, { edge: 'none' });
     this.faceBuf = fc.buf; this.portBuf = pt.buf;
-    const ringPart = (colour: PartColour, order: number): ProbePart => { const part = new ProbePart(withTang(new RingGeometry(0.8, 1, 48)), 'steel', shared, colour, { px: 0, order }); this.parts.push(part); this.group.add(part.group); return part; };
+    const ringPart = (colour: PartColour, order: number): ProbePart => { const part = new ProbePart(withTang(new RingGeometry(0.8, 1, 48)), 'steel', shared, colour, { px: 0, order }, { edge: 'none' }); this.parts.push(part); this.group.add(part.group); return part; };
     for (let i = 0; i < 2; i++) { this.flashRings.push(ringPart((t) => t.trPv, 6)); this.rippleRings.push(ringPart((t) => t.trPv, 6)); }
     this.shaft = sh.buf; this.bend = bd.buf; this.tip = tp.buf; this.lens = ln.buf; this.capBuf = cp.buf; this.bandBuf = bn.buf; this.needleBuf = nd.buf;
     this.parts_ = { shaft: sh.part, bend: bd.part, tip: tp.part, lens: ln.part, cap: cp.part, band: bn.part, needle: nd.part, face: fc.part, port: pt.part };
@@ -417,7 +422,7 @@ export class EndoScope {
 
   applyPalette(p: Palette): void {
     for (const o of this.parts) o.applyPalette(p);
-    const c = new Color(p.ink);
+    const c = new Color(DEVICE_TOKENS[lookOf(p)].dopGlow);   // (the sector is drawn in the Doppler's glow, --dop-glow: eus-scope.js MAT.fan)
     const col = this.fanGeo.getAttribute('color') as BufferAttribute;
     for (let i = 0; i < 20; i++) col.setXYZ(i, c.r, c.g, c.b);
     col.needsUpdate = true;

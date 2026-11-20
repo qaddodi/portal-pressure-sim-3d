@@ -1,6 +1,9 @@
 // The phone's sheet is pulled, flicked and settled (2D dock-sheet.js sheetBehaviour, the Tests card's part): a vertical drag from the head, the grab handle or anywhere in the card that is not a field
-// moves the card with the finger; on release it settles at Half, Full or Peek (the head row only, the figure free above it), or closes. From Full a pull down always settles at Half (only a second pull from Half closes the card: past a short way or a
-// quick flick); a pull up from Half goes to Full past 40 px or on a flick. The grab handle's tap steps Half, Full, Half. The same rules as every sheet over the thumb dock (ease.js SHEET_*).
+// moves the card with the finger; on release it settles at Half or Full, or closes. From Full a pull down always settles at Half (only a second pull, from Half, closes the card: past a short way or a
+// quick flick; ONE pull from Half closes it, as 2D's does: owner, 20 Nov 2026, "close in one pull", replacing the stop at Peek); a pull up from Half goes to Full past 40 px or on a flick. The grab handle's tap steps
+// Half, Full, Half. The same rules as every sheet over the thumb dock (ease.js SHEET_*).
+// A card pulled shut has already sunk out of sight by the time it closes, so its close plays nothing of its own (2D sheet-hold: `dataset.swiped`): `data-swiped` is set on the box for that close (tests.css), or the card
+// would jump back to its place at full strength and only then fade.
 // While the finger moves only the card's `translate` is written (a number, by the clock); the card takes its new height once, on release, with the offset that keeps its edge where the finger left it
 // easing back to zero (the 2D box is laid out once for the gesture and its content held by an offset: this lands the same picture with one layout at the end).
 // @ts-ignore plain JS copied from the 2D app
@@ -14,6 +17,7 @@ export interface PullApi {
   heights(): { h0: number; half: number; full: number; peek: number; size: 0 | 1 | 2 };
   /** takes the new height in this task (the card is laid out once, at it) */
   setSize(n: 0 | 1 | 2): void;
+  /** closes the card in this task (the box already carries `data-swiped`, so it plays no leave of its own) */
   close(): void;
 }
 
@@ -90,8 +94,7 @@ export function attachPull(card: HTMLElement, pos: HTMLElement, api: PullApi): (
     const flick = dy > 0 && isFlick(dy, speed, dy / Math.max(1, performance.now() - s.t0), SHEET_FLICK_MIN, SHEET_FLICK_FAR);
     if (dy > 0) {
       if (from === 1) to = dy > STAY_FULL ? 0 : 1;   // (From Full a pull down settles at Half)
-      else if (from === 0) to = flick || dy > Math.min(SHEET_CLOSE_PX, s.h0 * SHEET_CLOSE_SHARE) ? 2 : 0;   // (From Half: down to Peek, the figure free, the instruments still at hand)
-      else to = flick || dy > Math.min(SHEET_CLOSE_PX, s.h0 * SHEET_CLOSE_SHARE) ? 'close' : 2;   // (Only a second pull from Peek closes it)
+      else to = flick || dy > Math.min(SHEET_CLOSE_PX, s.h0 * SHEET_CLOSE_SHARE) ? 'close' : from;   // (From Half: one pull or flick closes it, 2D's rule; a short pull eases back)
     } else if (dy < 0) {
       if (from === 0) to = -dy > FAR_UP || speed < FLICK_UP ? 1 : 0;
       else if (from === 2) to = -dy > PEEK_UP || speed < FLICK_UP ? 0 : 2;   // (From Peek up to Half; a long pull goes on to Full at the next one)
@@ -101,7 +104,8 @@ export function attachPull(card: HTMLElement, pos: HTMLElement, api: PullApi): (
       const curve = cssCurve(carryCurve(speed, target - cur, D_SMALL) as string) as (u: number) => number, w = ty(pos);
       run = glide({ ms: D_SMALL, curve, tag: 'tests-pull', apply: (k) => { off = cur + (target - cur) * k; w(off); }, done: () => { run = null; off = 0; then(); } });
     };
-    if (to === 'close') { settle(s.h0 + 8, () => { api.close(); pos.style.translate = ''; tail(pos, 0); }); return; }
+    // (it has sunk out of sight: it closes with nothing of its own to play, then the offset goes, so the card is never seen back in its place)
+    if (to === 'close') { settle(s.h0 + 8, () => { pos.dataset.swiped = ''; api.close(); pos.style.translate = ''; tail(pos, 0); }); return; }
     if (to === from) { settle(0, () => { pos.style.translate = ''; tail(pos, 0); }); return; }
     // the card takes its new height now; its edge stays where the finger left it and eases to its place
     const target = to === 1 ? s.full : to === 2 ? s.peek : s.half;

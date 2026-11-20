@@ -113,6 +113,7 @@ test('a new vessel eases the probe out and in at its new place; a new organ does
   for (let i = 0; i < 60; i++) { d.update(16, true, 'PV_TRUNK', null); f.update(16, i * 16, true, 'liver', box, 5); }
   const first = d.placed!.gate.clone(), tip = f.placement.tip.clone();
   d.update(16, true, 'RHV_IVC', null); f.update(16, 2000, true, 'spleen', box, 5);
+  f.update(16, 2016, true, 'spleen', box, 5);   // (2D's ease starts at the clock of the change: one frame on, it has begun)
   assert.ok(d.shown < 1 && d.shown > 0, 'it starts to leave, it does not jump');
   assert.ok(f.shown < 1 && f.shown > 0);
   for (let i = 0; i < 120; i++) { d.update(16, true, 'RHV_IVC', null); f.update(16, 3000 + i * 16, true, 'spleen', box, 5); }

@@ -136,6 +136,8 @@ export function TestsLayer() {
     const offs = [registerFeature('doppler', () => { probeSelected(); show('doppler')(); }), registerFeature('endoscopy', show('endoscopy')), registerFeature('fibroscan', show('fibroscan')), registerFeature('ir', show('hvpg'))];
     return () => offs.forEach((f) => f());
   }, []);
+  // a card that was pulled shut (dock/pull.ts) closed without a leave of its own: opening again takes the mark off, so the next close is the usual one
+  useEffect(() => { if (open) posRef.current?.removeAttribute('data-swiped'); }, [open]);
   // the figure keeps the room the card leaves
   useEffect(() => {
     useTestsRoom.setState({ place: open ? place : null });
@@ -239,7 +241,7 @@ export function TestsLayer() {
       enabled: () => { const g = live.current; return g.thumb && g.open && !g.focus && g.kind === 'sheet' && !!g.stops; },
       heights: () => { const g = live.current, st = g.stops ?? [g.h, g.h]; return { h0: g.h, half: st[0], full: st[1], peek: PEEK_H, size: g.sheetSize }; },
       setSize: (n) => flushSync(() => useTests.getState().setSheetSize(n)),
-      close: () => useTests.getState().close(),
+      close: () => flushSync(() => useTests.getState().close()),
     });
   }, []);
   const onGrab = () => {
@@ -291,7 +293,7 @@ export function TestsLayer() {
   const slotOf = (id: PaneId) => (split && second && tabOf(second) === id ? 2 : 1);
   const dividerNow = side ? Math.round((place.rect.w / Math.max(1, vp.w)) * 100) : Math.round(((heightRatio ?? place.rect.h / Math.max(1, vp.h))) * 100);
   return (
-    <div ref={posRef} className="t-pos" data-open={open} data-live={open} data-narrow={narrow} data-kind={place.kind} data-device={device} style={style}>
+    <div ref={posRef} className="t-pos" data-open={open} data-live={open} data-narrow={narrow} data-kind={place.kind} data-thumb={thumb} data-device={device} style={style}>
       <section ref={cardRef} className={`t-card dock instrument-workspace float-ui stage-blocker${side ? ' side' : ''}${picking ? ' picking' : ''}${place.kind === 'sheet' && sheetSize === 0 ? ' sheet-half' : ''}`} id="dock" role="dialog" aria-label="Tests" data-state={tstate} data-peek={peeking || undefined} data-safe={side ? 'right' : 'bottom'} inert={!open} style={card} onKeyDown={onCardKey}>
         <button type="button" className="sheet-grab" aria-label="Resize the Tests card" onClick={onGrab} />
         <i className="sh-grabbar" aria-hidden="true" />

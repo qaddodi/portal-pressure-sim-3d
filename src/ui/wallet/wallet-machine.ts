@@ -4,7 +4,7 @@
 import type { Slot } from '../layout/plan.ts';
 
 export const WALLET_MS = 280;
-export const WALLET_EASE = 'cubic-bezier(0.2, 0.7, 0.2, 1)';
+export const WALLET_EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
 /** How far (px) a swipe must travel, or how fast (px/ms), before it counts. Under that it is a tap or a slow drag, which does nothing. */
 export const SWIPE_MIN_PX = 36;
 export const SWIPE_FAST_PX_PER_MS = 0.45;
