@@ -26,7 +26,7 @@ test('the ink never z-fights its shape, is thick enough to read and near black (
   assert.equal(r.ink, null, 'a small solid shape has no hull');
   assert.equal(r.toon.uniforms.uRim!.value, 1.5, 'its line is drawn in its fill');
   const { MICRO_FS } = await import('../src/scene/micro3d/cel3d.ts');
-  assert.match(MICRO_FS, /0\.5 \* nv \/ max\(length\(vec2\(dFdx\(nv\), dFdy\(nv\)\)\)/, 'measured in screen pixels from the outline, the same on a diagonal as on an axis (not fwidth)');
+  assert.match(MICRO_FS, /dpx = nv \/ max\(length\(vec2\(dFdx\(nv\), dFdy\(nv\)\)\)/, 'measured in screen pixels from the outline, the same on a diagonal as on an axis (not fwidth)');
   assert.match(MICRO_INK_FS, /uHole > 0\.0 && length\(vXY\) < uHole\) discard/, 'the ink is cut by the same hole as its shape');
   assert.equal(m.ink!.uniforms.uHole, m.toon.uniforms.uHole, 'one hole for the shape and its line');
   assert.ok(CEL_STYLE.MICRO.LINE >= 1.25 && CEL_STYLE.MICRO.LINE <= 2 && CEL_STYLE.MICRO.LINE_SMALL <= 1, 'a confident line round big bodies, a hairline round fine things (Mohammad 20 Nov: "too much")');
@@ -65,4 +65,11 @@ test('a flat lens with a line in its fill has its rings even seen from above, so
   const src = (await import('node:fs')).readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
   assert.match(src, /ellipsoid\(nuc,[^;]*, true\);/, 'the hepatocyte nuclei');
   assert.match(src, /ellipsoid\(bile,[^;]*, true\);/, 'the canaliculi');
+});
+
+test('a flat shape on the plate measures its line against the plate\'s up, so its ring is as thick on every side wherever the eye stands (eyes 20 Nov: the nucleus ring 3 px on one side, 6-7 on the other)', async () => {
+  const { MICRO_FS } = await import('../src/scene/micro3d/cel3d.ts');
+  assert.match(MICRO_FS, /uRimUp > 0\.5 \? vec3\(0\.0, 0\.0, 1\.0\) : normalize\(vVD\)/);
+  const src = (await import('node:fs')).readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
+  for (const name of ['nuclei', 'canaliculi', 'endothelial-cells', 'stellate']) assert.match(src, new RegExp(`mk\\('${name}', \\{[^}]*rimUp: true`), name);
 });

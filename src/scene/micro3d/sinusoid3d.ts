@@ -172,10 +172,10 @@ export class Sinusoid3D {
     this.cells = mk('hepatocytes', { px: S.LINE });
     // (the small solid shapes, the nuclei, the canaliculi, the lining's cells, the Kupffer and stellate cells, albumin and the red cells, draw their line inside their own fill (cel3d.ts uRim):
     //  whole and smooth on every screen, never fighting the surface behind; their hull lines broke into dashes and specks, eyes 20 Nov)
-    this.nuclei = mk('nuclei', { ink: null, rim: S.LINE });
+    this.nuclei = mk('nuclei', { ink: null, rim: S.LINE, rimUp: true });
     this.nucleoli = mk('nucleoli', { ink: null });
-    this.bile = mk('canaliculi', { ink: null, rim: S.LINE_SMALL });
-    this.endoN = mk('endothelial-cells', { ink: null, rim: S.LINE_SMALL });
+    this.bile = mk('canaliculi', { ink: null, rim: S.LINE_SMALL, rimUp: true });
+    this.endoN = mk('endothelial-cells', { ink: null, rim: S.LINE_SMALL, rimUp: true });
     this.endoNi = mk('endothelial-nuclei', { ink: null });
     this.kup = mk('kupffer', { ink: null, rim: S.LINE });
     this.kupN = mk('kupffer-nucleus', { ink: null });
@@ -183,14 +183,15 @@ export class Sinusoid3D {
     for (const [p, o] of [[this.kup, 10], [this.kupN, 11]] as const) {
       const m = p.mats.toon; m.transparent = true; m.depthWrite = true; m.premultipliedAlpha = true; m.uniforms.opacity!.value = KUP_ALPHA; p.toonMesh.renderOrder = o;
     }
-    this.hsc = mk('stellate', { ink: null, rim: S.LINE_SMALL });
+    this.hsc = mk('stellate', { ink: null, rim: S.LINE_SMALL, rimUp: true });
     this.hscN = mk('stellate-nucleus', { ink: null });
     this.bm = mk('basement', { ink: null, transparent: true });
     this.arrows = mk('ends', { px: S.LINE_SMALL });
     this.villi = many('microvilli', unitRod(8), 900, { px: S.LINE_SMALL });
     this.fibres = many('collagen', unitRod(6), 800, { ink: null });
     this.albumin = many('albumin', unitSphere(12, 8), 2000, { ink: null, rim: S.LINE_SMALL });
-    this.rbc = many('red-cells', unitRbc(22), RBC_N + 2 * RBC_FAR, { ink: null, rim: S.LINE });
+    // (40 round, not 22: a tumbling cell's outline crosses its lathe at a slant, and with 22 its faces ended before n.v reached 0 in places, a dashed line, eyes 20 Nov)
+    this.rbc = many('red-cells', unitRbc(40), RBC_N + 2 * RBC_FAR, { ink: null, rim: S.LINE });
     // (order: the ground first, then the solid shapes; the see-through membrane and the arrows last)
     for (const p of [this.ground, this.disse, this.troughFar, this.trough, this.bead, this.beadLine, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoN, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) this.group.add(p.group);
     for (const p of [this.villi, this.fibres, this.albumin, this.rbc]) this.group.add(p.group);
