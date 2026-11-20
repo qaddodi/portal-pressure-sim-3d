@@ -60,7 +60,7 @@ function Tile({ id, k, value, from, sev, word, ticks, scale = MMHG, unit = 'mmHg
     <div className={`metric inert primary${value == null ? ' hidden-val' : ''}`} data-id={id} data-sev={value == null ? 'none' : sev} role="group"
       aria-label={value == null ? k : `${k}: ${shown} ${unit}${unitWords}, ${word}`} title={k}>
       <span className="k">{k}</span>
-      <span className="v"><span className="val" style={{ ['--vr' as string]: 'round(up, calc(3ch + 0.26em), 1px)' }}>{shown ?? '—'}</span><span className="unit">{unit}{unitWords}</span><span className="tr" aria-hidden="true" /></span>
+      <span className="v"><span className="val" style={{ ['--vr' as string]: 'round(up, calc(3ch + 0.26em), 1px)' }}>{shown ?? '—'}</span><span className={unit === '%' ? 'unit pct' : 'unit'}>{unit}{unitWords ? <span className="u-x">{unitWords}</span> : null}</span><span className="tr" aria-hidden="true" /></span>
       <span className="rb" aria-hidden="true"><i className="rb-fill" style={{ ['--fl' as string]: pos(from), ['--fw' as string]: value == null ? 0 : pos(value) - pos(from) }} />{ticks.map((t) => <i key={t} className="rb-tick" style={{ left: `${pos(t) * 100}%` }} />)}</span>
       <span className="s"><span className="status">{word}</span><span className="cmp" /></span>
     </div>
@@ -79,7 +79,7 @@ function LobuleReadouts() {
   useEngine((s) => s.hvpg);   // (a new frame: the reading is worked out from the engine's newest, as the cards are)
   const v = lobuleFlowPct();
   return (
-    <section className="readouts" id="strip" aria-label="Clinical readouts" data-lobule="">
+    <section className="readouts lob" id="strip" aria-label="Clinical readouts" data-lobule="">
       <div className="ro-row">
         <div className="ro-group" data-group="lobule" role="group" aria-label="Lobule, % of normal" style={{ ['--n' as string]: LOBULE_TILES.length }}>
           <span className="ro-cap" aria-hidden="true">Lobule, % of normal</span>
