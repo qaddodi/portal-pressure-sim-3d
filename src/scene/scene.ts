@@ -94,6 +94,7 @@ import { CircuitView } from './circuit/view.ts';
 import { CIRCUIT_NODES, MAP_LOOKS, VB_CIRC } from './circuit/data.copied.ts';
 import { CircuitTubes } from './circuit/tubes.ts';
 import { PostAA } from './post-aa.ts';
+import { diveBlur } from './post-dof.ts';
 import { GlowFx } from './glow-fx.ts';
 import { GLOW_LAYER } from './glow.ts';
 import { ResistorLayer } from './circuit/resistors.ts';
@@ -1325,7 +1326,9 @@ export class CelScene {
     // the sinusoid's focus band (every device): its own lumen and plates sharp, the neighbours and whatever drifts off them blurring by distance (post-dof.ts bandFrame)
     const bandK = into && (this.figureView === 'sinusoid' || this.sinus.diveShareNow != null) ? this.sinus3d.focusBand(_bA, _bB, _bE0, _bE1, _bEnds) : 0;
     this.post.dof.bandOpen = this.sinus3d.focusOpen;
-    const band = bandK > 0 && this.post.dof.bandFrame(cam, _bA, _bB, _bE0, _bE1, into!.width, into!.height, bandK, _bEnds) > 0;
+    let band = bandK > 0 && this.post.dof.bandFrame(cam, _bA, _bB, _bE0, _bE1, into!.width, into!.height, bandK, _bEnds) > 0;
+    // the Anatomy <-> Lobule move: the same one blur over the whole screen, from the camera's distance alone (post-dof.ts diveBlur), in and out; the sinusoid's own focus pull has the pass when it is drawn
+    if (!band && into && this.figureView !== 'circuit' && this.inDive()) band = this.post.dof.uniformFrame(into.height, diveBlur(cam.position.distanceTo(this.livePoint), this.lobuleRest(), this.diveIn(), DIVE_OUT)) > 0;
     if (!band) this.post.dof.bandShare = 0;
     if (into) gl.setRenderTarget(into);
     cam.layers.set(0);
