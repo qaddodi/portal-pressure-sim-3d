@@ -8,6 +8,7 @@ import { chipsOf, shownOf, type Snap } from '../src/ui/menu/umenu-logic.ts';
 import { profileScene, steepest, PROF_H } from '../src/ui/menu/profile-frame.ts';
 import { glide, follow } from '../src/ui/menu/motion.ts';
 import { settleMs } from '../src/ui/shell/page-push.ts';
+import { pinned2D } from './two-d-pin.ts';
 // @ts-ignore plain JS copied from the 2D app
 import { SNAPSHOTS, PATH } from '../src/ui/menu/snapshots.copied.js';
 // @ts-ignore plain JS copied from the 2D app
@@ -75,8 +76,10 @@ test('the preview words and the curve are the menu\'s patient preview', () => {
   for (const c of ['hp-prof', 'hp-chip', 'hp-facts', 'hp-cap']) assert.ok(new RegExp(`\\.${c}\\b`).test(css), c);
 });
 
-test('the copied menu files are the 2D app\'s (when its checkout is beside this one)', { skip: !existsSync('/home/claude/portal-pressure-simulator/src/ui/menu.js') }, () => {
-  execFileSync('node', ['scripts/copy-menu.mjs', '--from', '/home/claude/portal-pressure-simulator', '--check'], { cwd: new URL('..', import.meta.url), stdio: 'pipe' });
+// (against the pinned 2D commit only, like every copy check: a checkout of some other 2D commit lying beside this one is not what the files were copied from; tests/two-d-pin.ts)
+const two = pinned2D('src/ui/menu.js');
+test('the copied menu files are the 2D app\'s (when a 2D checkout at the pin is beside this one)', { skip: two.skip }, () => {
+  execFileSync('node', ['scripts/copy-menu.mjs', '--from', two.repo, '--check'], { cwd: new URL('..', import.meta.url), stdio: 'pipe' });
 });
 
 test('paging between tabs: a third of the width or a quick flick goes on, a flick back springs back (2D pageGo)', () => {
