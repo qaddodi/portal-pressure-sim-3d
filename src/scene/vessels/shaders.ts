@@ -14,6 +14,8 @@
 import { CIRCUIT_VS_CALL, CIRCUIT_VS_HEAD } from '../circuit/shader.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { CHEVRON_GLSL } from '../blood/chevron-glsl.ts';
+import { STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
+import { STREAK } from '../blood/streak-glsl.ts';
 import { QUIET_BACK } from '../camera/quiet.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL, glslNum as F } from '../cel-glsl.ts';
@@ -181,6 +183,7 @@ uniform vec3 light;
 uniform float bands;
 uniform float spec;
 uniform float len;
+uniform float radius;
 uniform float time;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
@@ -216,6 +219,7 @@ uniform vec3 mate1;
 uniform vec2 bury;   // the ink is held back ONLY inside a declared branch's trunk: how far from the branch's start and end (figure units per radius unit, 0: none: a run-on, a crossing, a free end keep their whole outline)
 uniform sampler2D streamTex;
 uniform sampler2D chainTex;
+uniform float streakAmt;   // how much of the streak layer shows (the Blood streaks setting, the view, the Circuit): 0 none
 uniform float projY;
 uniform vec2 res;
 uniform float dpr;
@@ -252,6 +256,7 @@ float meanVelocity(float q, float dmm) {
 }
 // ---- the 2D app's flow heads (chevron-glsl.js, blood-heads.js) ----
 ${CHEVRON_GLSL}
+${STREAK_FIELD_GLSL}
 // how much of head j of the lattice of level n0 shows at level lv (coarser heads are a subset of finer ones; nothing jumps)
 float chevKeep(float j, float n0, float lv) {
   float m = 0.0, q = abs(j);
@@ -333,6 +338,7 @@ bool capCarved(float across) {
 }
 
 void main() {
+  float streakCover = 0.0;   // (how much a streak covers this pixel: a chevron's pixel is never tinted by one)
   if (reveal < 0.9999 && vUv.x > reveal) discard;
   if (fadedOut()) discard;
   vec3 n = normalize(vN);
@@ -361,6 +367,18 @@ void main() {
   float rDevAx = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
   vec3 c = celTubeTone(base, sT, fwidth(sT), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
+  // THE STREAKS (blood/streak-glsl.ts, the one streak) are part of the tube: painted here, in its own fragment shader, so they are inside the lumen (the field draws nothing past FIELD_EDGE of its half width,
+  // never touching the ink) and follow the tube's own alpha and fade zones by construction: there is no second mesh to stray past a tube's end, a taper or a fade. Under the chevrons, which come after.
+  if (streakAmt > 0.001 && vR > 0.0) {
+    vec4 smS = texelFetch(streamTex, ivec2(int(lensIndex), 0), 0);   // the blood's own distance and speed on this vessel: reversed runs back, none stands
+    float rFix = max(radius * vU, 1e-3);   // (the vessel's own radius, not its live width: the pattern does not slip when a stenosis narrows it)
+    float sc = ${F(STREAK.FIELD_AT_R)} / rFix, nL = rFix >= ${F(STREAK.LANE_7)} ? ${F(STREAK.LANES)} : rFix >= ${F(STREAK.LANE_5)} ? 5.0 : 3.0;
+    float fld = streakField(across, vUv.x * len * vU * sc, smS.x * sc, nL * ${F(STREAK.FIELD_PITCH / 2)} + 0.01, 1.0, 1.0);
+    float rCss = vR / max(vW * 2.0 / (res.y * projY) * vU, 1e-6);
+    float sOn = streakAmt * smoothstep(2.5, 3.5, rCss) * smoothstep(0.02, 0.2, abs(smS.y));
+    streakCover = sOn * fld;
+    c = mix(c, streakTone(c, mix(c, vec3(1.0), ${F(STREAK.LIFT)}), gStreakK.x, gStreakK.y), streakCover);
+  }
 
   float vel = 0.0;
   float dmm = 8.0;

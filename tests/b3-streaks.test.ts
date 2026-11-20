@@ -7,7 +7,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CELLS_FS, CELLS_VS } from '../src/scene/blood/cells/shader.ts';
 import { STREAK, laneSpeed, lanesFor, layoutCells } from '../src/scene/blood/cells/core.ts';
-import { STREAK_MARK_GLSL, STREAK_FIELD_GLSL, STREAK_LANE_GLSL, bendLength, streakFit, streakReach } from '../src/scene/blood/streak-glsl.ts';
+import { STREAK_MARK_GLSL, STREAK_FIELD_GLSL, STREAK_LANE_GLSL, bendLength, fieldReach, streakFit, streakInside, streakReach } from '../src/scene/blood/streak-glsl.ts';
+import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
+import { useSettings } from '../src/state/settings.ts';
+import { CelScene } from '../src/scene/scene.ts';
 import { MICRO_FS, MICRO_VS } from '../src/scene/micro3d/cel3d.ts';
 
 const have = spawnSync('glslangValidator', ['--version']).status === 0;
@@ -145,4 +148,32 @@ test('CONTAINED 100 percent: sampled at full turbulence, every lane, every size 
   assert.match(CELLS_VS, /float bendLen = 2\.0 \* sqrt\(2\.0 \* rho \* 0\.10 \* Rcss\);/);
   assert.match(STREAK_LANE_GLSL, /float room = max\(0\.8 \* R - 0\.5 \* thick, 0\.0\);/);
   assert.match(CELLS_VS, /float ang = fit\.y;/);
+});
+
+test('CONTAINED BY CONSTRUCTION (Mohammad, 20 Nov: "the streaks are flowing outside all the vessels"): the streaks are painted in the tube\'s own fragment shader, clipped to the lumen, in every site; no sprite is drawn, so none can stray past an end, a taper or a fade', () => {
+  // the clip is in the shared field itself, which every site includes
+  assert.match(STREAK_FIELD_GLSL, /float ca = across \/ 0\.9;\n\s*float inLumen = step\(abs\(ca\), 1\.0\);/);
+  assert.match(STREAK_FIELD_GLSL, /return inLumen \* streakMark\(/, 'nothing past the edge');
+  assert.ok(VESSEL_FS.includes(STREAK_FIELD_GLSL), 'the Anatomy: in the tube shader');
+  assert.ok(MICRO_FS.includes(STREAK_FIELD_GLSL), 'the 3D lobule and sinusoid');
+  assert.match(VESSEL_FS, /float fld = streakField\(across, /);
+  assert.match(VESSEL_FS, /if \(streakAmt > 0\.001 && vR > 0\.0\) \{/);
+  // the JS twin: every lane count keeps every mark inside FIELD_EDGE of the half width, short of the ink (which starts at 1)
+  for (const L of [3, 5, 7]) assert.ok(fieldReach(L) <= STREAK.FIELD_EDGE + 1e-9 && fieldReach(L) < 1, `${L} lanes: reach ${fieldReach(L)}`);
+  assert.ok(!streakInside(0.95) && !streakInside(-1) && streakInside(0.9));
+  // every vessel of the network, the decorative branches and the fade-zone ones too, draws it through its own tube material (one program, one draw), and the sprite layer draws nothing
+  useSettings.setState({ particles: true });
+  const sc = new CelScene();
+  for (let i = 0; i < 40; i++) sc.cells.step(16, { view: 'body', circuit: 0, body: 1, flowMoving: true } as never);
+  assert.equal(sc.cells.object?.visible, false, 'no streak sprite is ever drawn');
+  let n = 0;
+  for (const o of sc.vessels) {
+    const m = o.toonMesh.material as import('three').ShaderMaterial;
+    assert.ok(m.uniforms.streakAmt, `${o.edge!.id}: the streak amount reaches the tube`);
+    assert.equal(m.fragmentShader.includes(STREAK_FIELD_GLSL.trim().split('\n')[1]!), true, `${o.edge!.id}: the tube paints them`);
+    n++;
+  }
+  assert.ok(n > 50, `${n} vessels`);
+  assert.ok(sc.vessels.some((o) => (o.toon.uniforms.fadeMode!.value as number) > 0), 'the fade-zone vessels are among them');
+  sc.dispose();
 });
