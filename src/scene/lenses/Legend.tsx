@@ -7,7 +7,7 @@ import { resolveLook } from '../../looks/looks.ts';
 import { useSettings } from '../../state/settings.ts';
 import './legend.css';
 
-function useLook() {
+export function useLook() {
   const [dark, setDark] = useState(() => matchMedia('(prefers-color-scheme: dark)').matches);
   useEffect(() => { const m = matchMedia('(prefers-color-scheme: dark)'); const f = () => setDark(m.matches); m.addEventListener('change', f); return () => m.removeEventListener('change', f); }, []);
   return resolveLook(useSettings((s) => s.look), dark);
