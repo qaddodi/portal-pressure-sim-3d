@@ -21,7 +21,7 @@ import { CEL_STYLE } from '../cel-style.ts';
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL, glslNum as F } from '../cel-glsl.ts';
 import { TUBE_RADIAL } from './tubes.ts';
 import { SKIN_CIRC_SPAN, SKIN_CUT_EPS } from './skin/types.ts';
-import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl } from './glsl-shared.ts';
+import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkHiColourGlsl, inkPxGlsl, wpcGlsl } from './glsl-shared.ts';
 
 /** The tube's ring is a polygon of TUBE_RADIAL sides: its corners stand 1 / cos(pi / n) - 1 of the radius outside its flats. The tube is built that much fatter, so the silhouette never falls inside the outline. */
 export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
@@ -95,6 +95,9 @@ float buryK(float d0, float d1) {   // d0, d1: the figure units from the start a
 }
 uniform float circBoost;   // 2D's circBoost: the map's lines are drawn up to 1.75 times wide when it is zoomed out (stage-tubes.js)
 uniform float circPerPx;   // map units under one CSS pixel here
+uniform vec3 cmate0;   // the vessel this one's start and end carry on into on the MAP (circuit/mates.ts), as mate0 and mate1: x < 0 where nothing
+uniform vec3 cmate1;
+uniform vec2 cease;    // the half length (map units) of the taper at each of those ends
 uniform vec4 circW;   // the vessel's width in the Circuit, map units: (fixed width or -1 for the engine's diameter, 1 if circBoost applies, the least width, the least width on the screen in CSS px)
 ${SWELL_OF_GLSL}
 // the swell the tube has at the map's end (2D stage-tubes.js widthAt, t = 1): a vein clamp(vesselPx(D) * 0.95, 6, 15) map units, an artery 3, a liver bed 8, the boost on veins and beds;
@@ -105,6 +108,7 @@ float circWidthOf(float d, float kind) {
   if (kind > 0.5) return 3.0;
   return clamp(1.3 * max(2.6, 2.0 * pow(max(d, 0.1), 0.72)) * 0.95, 6.0, 15.0) * circBoost;
 }
+float circMateMin(vec3 m) { return m.z > 1.5 ? 4.5 : (m.z > 0.5 ? 3.0 : 5.0); }   // the least width on the screen of a mate's kind, CSS px (circuit/width.ts MIN_PX)
 float circMateWidth(vec3 m) {   // a run-on mate's width on the map (m: its data index, its built diameter, its kind)
   float d = m.y;
   if (useData > 0.5) { ivec2 tc = ivec2(int(mod(m.x, vdataSize.x)), int(floor(m.x / vdataSize.x))); d = texelFetch(vdata, tc, 0).b; }
@@ -118,9 +122,14 @@ float circSwell() {
     if (useData > 0.5) { ivec2 tc = ivec2(int(mod(vindex, vdataSize.x)), int(floor(vindex / vdataSize.x))); d = texelFetch(vdata, tc, 0).b; }
     wc = clamp(1.3 * max(2.6, 2.0 * pow(max(d, 0.1), 0.72)) * 0.95, 6.0, 15.0) * circBoost;
   }
-  // where this vessel carries on into another, the two meet at the mean of their widths over the first and last 30 %, as the body's do: the map's width is its own (the body's tapers are not carried onto it), so the join is eased here
-  if (mate0.x >= 0.0) { float k0 = 1.0 - smoothstep(0.0, 0.3, uv.x); if (k0 > 0.0) wc += k0 * (0.5 * (wc + circMateWidth(mate0)) - wc); }
-  if (mate1.x >= 0.0) { float k1 = smoothstep(0.7, 1.0, uv.x); if (k1 > 0.0) wc += k1 * (0.5 * (wc + circMateWidth(mate1)) - wc); }
+  // WHERE THIS VESSEL CARRIES ON INTO ANOTHER (circuit/mates.ts: the map's own pairs) the two calibres are joined by ONE smoothstep through the node, over cease map units each way (the mean at the node): the 2D map blends a join over a fixed run, never over a share
+  // of each vessel's length (that made a 6 unit step on a short stretch and a 36 unit taper on a long one, each ending flat at the node: a shoulder; Mohammad, 20 Nov: "why is this not smooth tapering?"). Both widths take the least width on the screen
+  // before they are joined, so the two sides of a node agree whatever the zoom.
+  wc = max(wc, circW.w * circPerPx);
+  float circAt = uv.x * cl.y / CIRC_MAPK;   // map units from this vessel's start
+  float circTo = (1.0 - uv.x) * cl.y / CIRC_MAPK;   // and from its end
+  if (cmate0.x >= 0.0 && cease.x > 0.0) wc += (max(circMateWidth(cmate0), circMateMin(cmate0) * circPerPx) - wc) * (1.0 - smoothstep(-cease.x, cease.x, circAt));
+  if (cmate1.x >= 0.0 && cease.y > 0.0) wc += (max(circMateWidth(cmate1), circMateMin(cmate1) * circPerPx) - wc) * (1.0 - smoothstep(-cease.y, cease.y, circTo));
   wc = max(wc, circW.w * circPerPx);
   return 0.5 * wc * CIRC_MAPK / max(radius, 1e-6);
 }
@@ -495,8 +504,8 @@ void main() {
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
-    vec3 inkH = ${inkColourGlsl('baseH')};
-    c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (a selected vessel's line is its own: the glow is a separate halo, glow.ts)
+    vec3 inkH = ${inkHiColourGlsl('baseH', 'vHi')};   // (a picked vessel's line is its own colour as drawn, eased by the pick's weight: the glow is a separate halo, glow.ts)
+    c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (the glow is a separate halo, glow.ts)
   }
   // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
   // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph

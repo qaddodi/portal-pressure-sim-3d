@@ -12,6 +12,7 @@ import type { VesselObject } from '../vessel-object.ts';
 import { SKIN_ARMS, SKIN_AXIS_PTS, SKIN_FS, SKIN_VS } from './shaders.ts';
 import type { SkinDraw } from './skin-set.ts';
 import { skinKOf } from './sdf.ts';
+import { skinDebugOn } from './joins-mode.ts';
 import type { SkinMesh, Vec3 } from './types.ts';
 
 /** The uniforms the skin shares with its arm tubes, by reference (taken from the first arm: every vessel's copy has the same value, and each one follows the same writers: the look, the lens, the engine, the Circuit). */
@@ -98,7 +99,7 @@ export class SkinObject implements SkinDraw {
     this.copies = Array.from({ length: SKIN_COPIES }, (_, c) => {
       const material = new ShaderMaterial({
         name: 'skin',
-        vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: { SKIN_COPY: c, SKIN_GROW: this.growArms.length },
+        vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: skinDebugOn() ? { SKIN_COPY: c, SKIN_GROW: this.growArms.length, SKIN_DEBUG: 1 } : { SKIN_COPY: c, SKIN_GROW: this.growArms.length },
         uniforms,
       });
       const mesh = new Mesh(g, material);

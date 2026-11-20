@@ -60,6 +60,11 @@ float chevCreamOf(vec4 la, sampler2D grad, float mode, float idx, vec3 col) {
 export const inkColourGlsl = (base: string): string =>
   `mix(inkColor, celTubeBase(${base}) * mix(${F(CEL_STYLE.TUBE.INK_TONE)}, ${F(CEL_STYLE.TUBE.INK_TONE_DARK)}, tubeDark), ${F(CEL_STYLE.TUBE.INK_OWN)})`;
 
+/** A picked vessel's outline colour (Mohammad, 20 Nov: "i don't like the outline; the glow is ok; maybe make it the color of the vessel"): the ink of `inkColourGlsl(base)` taken HI_INK of the way (eased by `hi`, the pick's own weight 0..1: vHi on a tube, the blended arm weight on a
+ *  junction skin) to the vessel's own colour as drawn: the lit tone x HI_DEEP on the light looks, lifted HI_LIFT toward white on the dark ones (the glow's own rule, highlight.ts). One expression for the tube and the skin, so a welded junction's line is the tube's. Reads: inkColor, tubeDark, celTubeBase. */
+export const inkHiColourGlsl = (base: string, hi: string): string =>
+  `mix(${inkColourGlsl(base)}, mix(celTubeBase(${base}) * ${F(CEL_STYLE.TUBE.HI_DEEP)}, mix(celTubeBase(${base}), vec3(1.0), ${F(CEL_STYLE.TUBE.HI_LIFT)}), tubeDark), ${F(CEL_STYLE.TUBE.HI_INK)} * smoothstep(0.0, 1.0, ${hi}))`;
+
 /** The ink line's width in CSS px (a GLSL expression) for a lumen of `rCss` CSS px of radius: LINE_R of it held between LINE_MIN and LINE_MAX, thinned with a hairline lumen (cel-ink.ts inkTaper, judged on `taperR`). */
 export const inkPxGlsl = (rCss: string, taperR: string): string =>
   `clamp(${F(CEL_STYLE.LINE_R)} * ${rCss}, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, ${taperR})`;

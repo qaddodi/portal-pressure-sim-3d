@@ -159,3 +159,19 @@ real colour changes (microvilli ticks, the lilac wall, pores) step crisply; else
 **Hepatocyte plates are not stepped (20 Nov 2026, phone play-test: flat brown cells, no outlines, no nuclei).** 2D paints a plate's membrane, nucleus and lighter inside as small tone steps (a cUnder mix of 0.16, a cNuc mix of 0.24, 0.05 of white), each about one band (17 %) or less, so the absolute ladder rounded every cell to one rung. `cel.ts` now masks the plates (`onPlate`: this sinusoid's two and the repeats beyond the next sinusoid, 2D's own tissue geometry, pass 0) out of both the ladder and the ink: a plate pixel is `main2d`'s colour exactly (premultiplied, 2D's alpha, so the dive share and the focus dim stay 2D's, untouched at rest). The lumen, wall, Disse and the neighbours' linings keep the cel step. Tests: `tests/scene-sinusoid-cel.test.ts`.
 
 **The credit keeps off the vessel (same play-test).** `ui/shell/credit-avoid.ts` gives 2D's `freeSpots` its `avoid` hook the sinusoid's vessel box (the lumen and its wall at their widest, a strip across the whole screen, projected through the live camera and the plane's turn, 8 px of pad); `Credit.tsx` waits for the camera to land, then takes a free spot clear of it or, with none (a phone held upright), hides by a fade (`.covered`). The 3D `.placed { opacity: 1 }` rule had the same weight as 2D's `.covered { opacity: 0 }` and came first-or-equal, so a "covered" credit was never actually hidden: `chrome-3d.css` now puts `:is(.covered, .moving)` after it and fades opacity (a move to a new spot fades out, moves, fades in). Test: `tests/credit-sinusoid.test.ts` (390x844, 393x852, 430x932, 844x390).
+
+## Welded junctions in the Lobule (20 Nov 2026)
+
+Every place two of the Lobule's tubes meet (a sinusoid merging into the next generation, an inlet leaving its venule, an anastomosis or a bile canal landing on a side) is one closed skin, built by
+the Anatomy's junction-skin SDF and mesh builder (`src/scene/vessels/skin/`), not a second system. Code: `src/scene/lobule/` (`welds.ts` the planner, `weld-courses.ts` the courses as the scene draws
+them, `weld-splay.ts`, `weld-worker.ts` / `weld-client.ts`) and `src/scene/micro3d/lobule-welded.ts` (the per-vertex numbers). `?joins=old` (or Settings > Smooth vessel joins off) keeps the old tubes.
+
+- **When:** the plan is made in a worker at boot (about 10 s of node time) and laid in with one geometry rebuild only while the Lobule is hidden, so nothing pops.
+- **Why junctions used to be skipped, and what the planner does now** (`tests/lobule-welds.test.ts` pins what is left in `KNOWN_FALLBACKS`; the list only shrinks):
+  1. the merging sinusoids met at 4 to 15 degrees and lay on each other: `weld-splay.ts` re-routes the last stretch of each movable arm so the arms leave J at least 40 degrees apart (a T's host is not moved; branches ride a bent host);
+  2. the builder folds when its hull sheet starts far from the surface: `GENTLE` (skin/mesh.ts) pulls it in slower; and its vertex limit now counts live vertices only;
+  3. the bile hairlines (radius 0.0002) have their first sample 130 radii from J: `refineEnds` inserts samples near each end so a seam can stand a few radii out;
+  4. two junctions on one course took the same stretch: a first pass notes such pairs, and a second builds each connected set as one skin (up to 4 arms, the stretch between their touch points absorbed);
+  5. last try for a junction that would not build: seams 2.2 radii from J, past the usual clearance.
+- **Not welded yet:** the 22 listed in `KNOWN_FALLBACKS` (tight 2-arm bends of the bile ducts, bile hairline hubs, a few far-seamed sinusoid merges), the arteriole's twigs (a different colour from the sinusoid
+  they land on: needs an artery colour ramp) and the terminal lymphatics (they only enter their pool). The vessels' mouths already flare as 2D's do (`flareAt`, `twigRadius` in widths.ts).
