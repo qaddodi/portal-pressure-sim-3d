@@ -612,9 +612,12 @@ export function pillow(b: MeshBuilder, outline: readonly P2[], zTop: number, zBo
 }
 
 /** An ellipsoid (a sphere scaled by rx, ry, rz) at (x, y, z), its own axes turned by `a` about z. */
-export function ellipsoid(b: MeshBuilder, x: number, y: number, z: number, rx: number, ry: number, rz: number, a = 0, col?: RGB, seg = 18, rings = 10, even = false): void {
+export function ellipsoid(b: MeshBuilder, x: number, y: number, z: number, rx: number, ry: number, rz: number, a = 0, col?: RGB, seg = 18, rings = 10, even = false, dome = false): void {
   const ca = Math.cos(a), sa = Math.sin(a), base = b.count;
-  for (let r = 0; r <= rings; r++) {
+  // (dome: the top half only, open below. A flat shape on the plate seen from one side showed a sliver of its lower half past its equator, where its line (drawn at the equator against the
+  //  plate's up) is, so the outline broke into a beaded line with gaps of pale fill there, eyes 20 Nov. From above, the lower half is never what shows.)
+  const last = dome ? rings / 2 : rings;
+  for (let r = 0; r <= last; r++) {
     // (even: the rings even in their width seen from above, not in angle, so a flat lens's outline falls off over a whole band and not one sliver of a ring at its edge: the line drawn in
     // the fill (uRim) reads its width from that fall-off, and a sliver gave a ring one device pixel wide and uneven, eyes 20 Nov)
     const th = even ? ellipsoidRingAngle(r, rings) : (r / rings) * Math.PI, st = Math.sin(th), ct = Math.cos(th);
@@ -625,7 +628,7 @@ export function ellipsoid(b: MeshBuilder, x: number, y: number, z: number, rx: n
       b.v(x + lx * ca - ly * sa, y + lx * sa + ly * ca, z + uz * rz, nx * ca - ny * sa, nx * sa + ny * ca, uz / rz, col);
     }
   }
-  for (let r = 0; r < rings; r++) for (let i = 0; i < seg; i++) {
+  for (let r = 0; r < last; r++) for (let i = 0; i < seg; i++) {
     const a0 = base + r * (seg + 1) + i, b0 = a0 + seg + 1;
     b.quad(a0, b0, b0 + 1, a0 + 1);
   }
