@@ -250,7 +250,7 @@ export function solve(input: SolveInput): Solved {
     const blockers = relax >= 2 ? blockersRaw : blockersAir;
     let best: { cost: number; form: number; c: Cand; box: Box; leader: boolean; seg: Seg | null; hits: number } | null = null;
     const tally = input.why ? (input.why.get(it.id) ?? (input.why.set(it.id, {}), input.why.get(it.id)!)) : null;
-    const no = (c: Cand, reason: string): void => { if (tally && c.cost < 20) tally[reason] = (tally[reason] ?? 0) + 1; };
+    const no = (c: Cand, reason: string): void => { if (tally) { const k = (c.cost < NEAR_COST ? '' : c.cost < RING_COST ? 'wide:' : 'ring:') + reason; tally[k] = (tally[k] ?? 0) + 1; } };
     for (let fi = 0; fi < (nearOnly ? 1 : it.forms.length); fi++) {
       const f = it.forms[fi];
       {
@@ -307,7 +307,7 @@ export function solve(input: SolveInput): Solved {
           // a far spot of the wide search stands clear of the vessels, as 2D's (`clear: true` on every ring: "farther out on a leader, wholly on the stage"); only the last resort may stand on one.
           // (A line cost of 8 against a form's 50 had Lower IVC's wide form, with its change chip, 97 px up a leader on the varices' line in Compare on a phone, when its shorter form stood clear
           // nearer: every spot past the near ring, the wide gaps as much as the rings, is clear of the lines, and the narrower form is what gives. A callout and a region's name are placed by their own rules.)
-          if (c.cost >= NEAR_COST && relax < 2 && lineHits > 0 && !it.callout && !it.region) continue;
+          if (c.cost >= NEAR_COST && relax < 2 && lineHits > 0 && !it.callout && !it.region) { no(c, 'line'); continue; }
           if (it.face) {
             const vx = (box.x0 + box.x1) / 2 - it.face.cx, vy = (box.y0 + box.y1) / 2 - it.face.cy, l = Math.hypot(vx, vy) || 1;
             if ((vx * it.face.ux + vy * it.face.uy) / l < FACE_COS) pen += FACE_CLASH;
