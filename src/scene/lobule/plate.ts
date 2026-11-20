@@ -1,17 +1,10 @@
-// The lobule's tissue as ONE flat plate (WP5, atlas-look-plan.md §5.1): the 2D app's own painter (lobule-paint.js paintLobule, copied by
-// scripts/copy-lobule.mjs) paints the hepatocyte plates, their membranes and nuclei, the nutmeg of congestion, the collagen of fibrosis and cirrhosis
-// and the stellate cells into a canvas, once per state, and the canvas is laid on a flat square under the vessels. Nothing is extruded, so nothing
-// shows a side wall; the plates are 2D's to the pixel. As in 2D ("drawn once into a cached canvas, never per frame"), a new state is painted into the
-// second canvas and crossfaded in over PLATE_FADE_MS, so nothing jumps.
-//
-//   const plate = new LobulePlate(net);          group.add(plate.group)
-//   plate.want(state, look)                       the state the tissue should show (cheap: compares a key)
-//   plate.step(dtMs) → true while it fades        paints at most one state at a time, in the frame after it was asked for
-import { CEL_TISSUE_GLSL, tissueInk } from './cel.ts';
-import { CanvasTexture, Color, CustomBlending, DataTexture, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial } from 'three';
+// The lobule's tissue painting: the 2D app's own painter (lobule-paint.js paintLobule, copied by scripts/copy-lobule.mjs) paints the hepatocyte plates, their membranes
+// and nuclei, the nutmeg of congestion, the collagen of fibrosis and cirrhosis and the stellate cells into a canvas, once per state ("drawn once into a cached canvas,
+// never per frame"); the 3D lobule (micro3d/lobule3d.ts) lays it under its cells with the shader here.
+import { CEL_TISSUE_GLSL } from './cel.ts';
+import { DataTexture } from 'three';
 import { paintWorldInto, useTokens } from './from2d/lobule-paint.generated.js';
 import type { LobuleNet, Course, P2 } from './geometry.ts';
-import { LOBULE_R } from './shots.ts';
 import { lookColours } from './lz-colours.ts';
 import type { LookId } from '../../looks/looks.ts';
 
@@ -25,7 +18,6 @@ export const PLATE_BOX = 1.22;
 export const PLATE_PX = 2048;
 /** The plate's depth under the courses (the vessels lie at 0, their lowest edge about -0.07 when congested zone 3 dilates). */
 export const PLATE_Z = -0.1;
-export const PLATE_FADE_MS = 320;
 
 /** The tissue values the painting reads (lobule-paint.js P.m), and the layers it draws. */
 export interface PlateState { congU: number; septU: number; fibSin: number; act: number; fibPre: number; fibPost: number }
@@ -109,103 +101,3 @@ export const defaultCanvas: MakeCanvas = (n) => {
   if (typeof document === 'undefined') return null;
   const c = document.createElement('canvas'); c.width = c.height = n; return c;
 };
-
-interface Slot { mesh: Mesh; mat: ShaderMaterial; tex: CanvasTexture | null; canvas: HTMLCanvasElement | null; key: string }
-
-export class LobulePlate {
-  readonly group = new Group();
-  private readonly G: ReturnType<typeof plateShape>;
-  private readonly slots: [Slot, Slot];
-  private front = 0;
-  /** The key on the front plate, the one wanted, and the crossfade's progress (1: the front alone). */
-  private shown = '';
-  private wanted = '';
-  private fade = 1;
-  /** How many times the tissue was painted (for the tests: a state change paints once, a frame of the same state never). */
-  paints = 0;
-  private readonly sins: readonly SinCourse[];
-  private readonly cvR: number;
-  constructor(net: LobuleNet, sins: readonly SinCourse[], cvR: number, makeCanvas: MakeCanvas = defaultCanvas) {
-    this.sins = sins; this.cvR = cvR;
-    this.G = plateShape(net);
-    const side = 2 * PLATE_BOX * LOBULE_R;
-    const geo = new PlaneGeometry(side, side);
-    const mk = (order: number): Slot => {
-      const canvas = makeCanvas(PLATE_PX);
-      let tex: CanvasTexture | null = null;
-      if (canvas) {
-        tex = new CanvasTexture(canvas);
-        tex.flipY = true; tex.premultiplyAlpha = true; tex.generateMipmaps = true; tex.minFilter = LinearMipmapLinearFilter; tex.magFilter = LinearFilter; tex.anisotropy = 4;
-      }
-      const mat = new ShaderMaterial({
-        vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: tex ?? blankTexture() }, opacity: { value: 0 }, ink: { value: new Color() } },
-        transparent: true, depthWrite: false, side: DoubleSide,
-        blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
-      });
-      const mesh = new Mesh(geo, mat);
-      mesh.position.z = PLATE_Z; mesh.renderOrder = order; mesh.visible = false; mesh.name = 'lobule/plate';
-      this.group.add(mesh);
-      return { mesh, mat, tex, canvas, key: '' };
-    };
-    this.slots = [mk(-2), mk(-1)];
-  }
-
-  /** The meshes (picking: a tap on the tissue is a tap on the cords). */
-  get meshes(): readonly Mesh[] { return this.slots.map((s) => s.mesh); }
-  get key(): string { return this.shown; }
-  get pending(): boolean { return this.wanted !== this.shown || this.fade < 1; }
-
-  want(s: PlateState, look: LookId): void {
-    this.wanted = plateKey(s, look);
-    if (look !== this.inkLook) { this.inkLook = look; const c = tissueInk(look); for (const sl of this.slots) (sl.mat.uniforms.ink!.value as Color).setRGB(c[0], c[1], c[2]); }
-  }
-  private inkLook: LookId | '' = '';
-
-  /** Paints the wanted state straight onto the front plate, no crossfade (the view opening, a new look). */
-  snap(): void { if (this.wanted && this.wanted !== this.shown) { this.paintInto(this.slots[this.front]!, this.wanted); this.shown = this.wanted; } this.fade = 1; this.show(); }
-
-  /** One frame: finishes the crossfade under way, or begins the next one. True while anything changes. */
-  step(dtMs: number, reduce = false): boolean {
-    if (this.fade < 1) {
-      this.fade = reduce ? 1 : Math.min(1, this.fade + dtMs / PLATE_FADE_MS);
-      if (this.fade >= 1) this.front = 1 - this.front;
-      this.show();
-      return true;
-    }
-    if (!this.wanted || this.wanted === this.shown) return false;
-    if (!this.shown) { this.snap(); return true; }
-    // (one painting at a time: the next state waits for this one's fade, so an easing model paints a few times in all, never every frame)
-    const back = this.slots[1 - this.front]!;
-    this.paintInto(back, this.wanted);
-    this.shown = this.wanted;
-    this.fade = reduce ? 1 : 0;
-    if (reduce) this.front = 1 - this.front;
-    this.show();
-    return true;
-  }
-
-  private paintInto(slot: Slot, key: string): void {
-    this.paints++;
-    slot.key = key;
-    if (!slot.canvas || !slot.tex) return;
-    const ctx = slot.canvas.getContext('2d');
-    if (!ctx) return;
-    const look = key.split('|')[0] as LookId;
-    paintPlate(ctx, PLATE_PX, this.G, this.sins, this.cvR, unkey(key), look);
-    slot.tex.needsUpdate = true;
-  }
-
-  /** The two plates' opacities: the front whole, the back coming in over it (painted over, so the pair never shows the field through). */
-  private show(): void {
-    const f = this.slots[this.front]!, b = this.slots[1 - this.front]!;
-    if (this.fade >= 1) {
-      f.mesh.visible = !!f.key; f.mat.uniforms.opacity!.value = 1; f.mesh.renderOrder = -2;
-      b.mesh.visible = false; b.mat.uniforms.opacity!.value = 0;
-    } else {
-      f.mesh.visible = true; f.mat.uniforms.opacity!.value = 1; f.mesh.renderOrder = -2;
-      b.mesh.visible = true; b.mat.uniforms.opacity!.value = this.fade; b.mesh.renderOrder = -1;
-    }
-  }
-
-  dispose(): void { for (const s of this.slots) { s.tex?.dispose(); s.mat.dispose(); } this.slots[0].mesh.geometry.dispose(); }
-}

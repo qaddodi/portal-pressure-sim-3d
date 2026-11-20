@@ -37,3 +37,9 @@ test('the rectal varices run on further down the rectum than the 2D course and f
   const f = fadeOf('C4', false)!;
   assert.ok(f.mode === 2 && f.a1 === 0, 'faded out down the figure');
 });
+
+test('the arterioportal shunts are never drawn, in any preset or view (Mohammad, 20 Nov: "remove the arterioportal fistulas completely no matter what")', async () => {
+  const { NETWORK, DRAWN_EDGE_IDS } = await import('../src/scene/vessels/network.ts');
+  assert.ok(!NETWORK.some((v) => v.id.startsWith('AP_') || v.host.startsWith('AP_')), 'no AP vessel in the network');
+  assert.ok(!DRAWN_EDGE_IDS.some((id) => id.startsWith('AP_')), 'no AP edge is drawn');
+});
