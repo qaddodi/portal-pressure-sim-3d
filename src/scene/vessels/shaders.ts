@@ -266,6 +266,12 @@ float buryK(float d0, float d1) {   // d0, d1: the figure units from the start a
   float k1 = bury.y > 0.0 ? smoothstep(0.5 * bury.y * vU, bury.y * vU, d1) : 1.0;
   return k0 * k1;
 }
+// no flow marks (chevrons, streaks) inside the vessel a tube leaves or opens into: where the tube lies in its parent's lumen its marks would be drawn over the parent's own (a torn chevron at every fork). They begin a little beyond where the ink does.
+float markK(float d0, float d1) {
+  float k0 = bury.x > 0.0 ? smoothstep(1.2 * bury.x * vU, 3.0 * bury.x * vU, d0) : 1.0;
+  float k1 = bury.y > 0.0 ? smoothstep(1.2 * bury.y * vU, 3.0 * bury.y * vU, d1) : 1.0;
+  return k0 * k1;
+}
 varying float vFade;
 varying vec3 vCen;
 varying float vHi;
@@ -403,7 +409,7 @@ void main() {
     gStreakSpan = len * vU * sc;   // (the vessel's own length in field units: a lane's period never runs past it)
     // the streak distance (texel w: the stream's distance D, held to a speed no pattern wagon-wheels at, streams.ts) with the arc, as the heads ride D; the same gate as the heads' (the radius from MIN_R_PX), and none only where the flow is none
     float fld = streakField(across, vUv.x * len * vU * sc, smS.w * sc, 1.0, 1.0, 1.0);
-    float sOn = streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCss) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
+    float sOn = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCss) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
     streakCover = sOn * fld;
     cBody = c;
     c = mix(c, streakTone(c, vec3(1.0), gStreakK.x, gStreakK.y), streakCover);
@@ -447,7 +453,7 @@ void main() {
       ch = c4.w >= 1.0 ? cc : mix(ch, cc, c4.w);
     }
     // heads are on every tube down to about 4 CSS px across (R 1.5 px: the spacing never depends on the width), and are cut at the wall (never on the ink)
-    float fade = flowAmount * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));   // (a head stands inside the lumen, 55 percent of it: this is only the wall's own cut)
+    float fade = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * flowAmount * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));   // (a head stands inside the lumen, 55 percent of it: this is only the wall's own cut)
     fade *= mix(0.3, 1.0, smoothstep(0.5, 3.0, abs(vd)));
     if (fade > 0.0 && ch.x + ch.y > 0.0) {
       float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);

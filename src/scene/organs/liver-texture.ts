@@ -6,6 +6,8 @@
 
 
 /** The texture's frame in 2D figure units (the liver's outline sits well inside it). */
+import { flagValue } from '../../ui/debug/flags.ts';
+
 export const TEX_X0 = 270, TEX_Y0 = 130, TEX_W = 660, TEX_H = 430;
 const PX = 1.8;   // texels per 2D unit
 export const TEX_PW = Math.round(TEX_W * PX), TEX_PH = Math.round(TEX_H * PX);
@@ -46,13 +48,33 @@ function disc(x: number, y: number, s: number, rLo: number, rHi: number, jit: nu
   // where two discs overlap the wall lies between them (best == second); in a gap no disc holds the point (best < 0)
   return { edge: Math.min(best, (best - second) * 0.5) * s, id, dx: bx, dy: by, r: br * s };
 }
+/** Cel mock-ups of the cirrhotic liver (Mohammad 20 Nov: "I hate the cirrhotic look, I want a celshaded look, and a change of colour"), `?liver=cel1..cel4` on the preview copy:
+ *  clean round nodules with an ink line between them, the dome in two or three flat bands, and a tawny, olive, rust or straw colour. No flag: the c2b surface above. */
+export interface Cel { name: string; /** the liver's colour at full scarring (sRGB hex) */ colour: string; /** share of it taken (0..1) */ a: number; /** flat tones on a nodule: 2 (lit, body) or 3 (lit, body, shade) */ bands: 2 | 3; /** ink line strength, 0..1 */ ink: number; /** band contrast on the wash */ shade: number }
+export const CELS: Record<string, Cel> = {
+  cel1: { name: 'tawny ochre', colour: '#C98F3A', a: 0.62, bands: 3, ink: 0.7, shade: 0.34 },
+  cel2: { name: 'muted olive-tan', colour: '#A89A5C', a: 0.62, bands: 3, ink: 0.7, shade: 0.34 },
+  cel3: { name: 'desaturated rust', colour: '#A8634A', a: 0.58, bands: 2, ink: 0.9, shade: 0.3 },
+  cel4: { name: 'straw yellow', colour: '#D9B966', a: 0.62, bands: 3, ink: 0.55, shade: 0.3 },
+};
+export const celLook = (): Cel | null => { const v = flagValue('liver'); return v !== null && CELS[v] ? CELS[v]! : null; };
+function celSurface(x: number, y: number, cel: Cel): Surface {
+  const c = disc(x, y, 17, 0.46, 0.78, 0.2, 61), w = Math.max(3, c.r * 0.6);
+  const l = lit(c, w, 0.2);
+  // flat bands: the lit cap, the body, the shaded foot (a 2-band nodule drops the cap)
+  const light = l > 0.3 && cel.bands === 3 ? 0.9 : l < -0.28 ? -0.9 : 0;
+  // the ink line: a crisp bold wall where nodules meet or part
+  return { sep: cel.ink * (1 - sstep(0.15, 0.75, c.edge)), dome: c.edge <= 0 ? 0 : round(c.edge, w), tone: 0.5, light };
+}
 /** The surface at (x, y) in 2D units: round nodules of mixed size (c2b of the options Mohammad picked from: size 13, discs 0.34 to 0.78 of a cell, septa at 45%, a soft dome shade). */
 export function surfaceAt(x: number, y: number): Surface {
+  const cel = celLook(); if (cel) return celSurface(x, y, cel);
   const c = disc(x, y, 13, 0.34, 0.78, 0.26, 43), w = Math.max(2, c.r * 0.7);
   return { sep: 0.45 * (1 - sstep(-0.1, 0.9, c.edge)), dome: c.edge <= 0 ? 0 : round(c.edge, w), tone: c.id, light: lit(c, w, 0.35) };
 }
 /** The shade's strength on the wash and the tone spread (none: the colour is the liver's own). */
 export const SHADE = 0.16, TONE = 0;
+export const shadeNow = (): number => celLook()?.shade ?? SHADE;
 /** The nodule's bump for the mesh (0..1): the dome, scaled by how much of it the mesh can carry. */
 export const noduleBumpAt = (x: number, y: number): number => 0.2 * surfaceAt(x, y).dome;
 /** The dome at a point (0..1): what the liver's outline follows. */

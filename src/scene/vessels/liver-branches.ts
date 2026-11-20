@@ -15,6 +15,8 @@ const N = 64, Z_FWD = 0.1;
 const Z_TUCK = 0.02;
 const tuck = (u: number): number => -Z_TUCK * (1 - smooth(u / 0.35));
 /** The centre-to-centre distance (2D units) at which a side branch has cleared the vein it leaves: the two radii and a little. */
+/** How fast a side branch parts from its vein (the power of its distance along the run): straight, so it leaves at an angle and is clear of the vein within a few radii, not after a long sliver lying on it. */
+const SIDE_P = 1.0;
 const CLEAR: Readonly<Record<string, number>> = { PVH_R_2: 11, PVH_L_1: 9.5, RHV_IVC_1: 9, LHV_IVC: 9 };
 /** The depth of a side branch at lateral distance `w` from its vein's line: behind the vein (its wall covers it, so no outline is drawn across the vein) for as long as the two overlap, and forward to `z` only once it is clear of it.
  *  (It used to rise with the distance along the vein, so by a fifth of the way it was already in front while still lying on the vein: a crease and a darker overlap at every fork; Mohammad, 20 Nov.) */
@@ -68,15 +70,15 @@ function grow(id: string, host: readonly P2[], prefix: readonly P2[] | null): Tr
   for (let t = 3; t <= e; t += 3) base.push([root[n - 1]![0] + (dx / dl) * t, root[n - 1]![1] + (dy / dl) * t]);
   const b = resample(base, N), s = [0]; for (let i = 1; i < N; i++) s.push(s[i - 1]! + Math.hypot(b[i]![0] - b[i - 1]![0], b[i]![1] - b[i - 1]![1]));
   const L = s[N - 1]! || 1, [sa, sb] = SPREAD[id]!;
-  const off = (spread: number, z: number): { pts: P2[]; dz: number[] } => {
+  const off = (spread: number, z: number, p = 1.4): { pts: P2[]; dz: number[] } => {
     const pts: P2[] = [], dz: number[] = [];
     for (let i = 0; i < N; i++) {
-      const a = b[Math.max(0, i - 1)]!, c = b[Math.min(N - 1, i + 1)]!, tx = c[0] - a[0], ty = c[1] - a[1], tl = Math.hypot(tx, ty) || 1, u = s[i]! / L, w = spread * L * Math.pow(u, 1.4);
+      const a = b[Math.max(0, i - 1)]!, c = b[Math.min(N - 1, i + 1)]!, tx = c[0] - a[0], ty = c[1] - a[1], tl = Math.hypot(tx, ty) || 1, u = s[i]! / L, w = spread * L * Math.pow(u, p);
       pts.push([b[i]![0] - (ty / tl) * w, b[i]![1] + (tx / tl) * w]); dz.push(z > 0 ? tuckedDepth(Math.abs(w), CLEAR[id] ?? 10, z) : 0);
     }
     return { pts, dz };
   };
-  const a = off(sa, 0), sd = sb == null ? null : off(sb, Z_FWD);
+  const a = off(sa, 0), sd = sb == null ? null : off(sb, Z_FWD, SIDE_P);
   const lead = prefix ? [...prefix].slice(0, i0 + 1) : root.slice(0, i0 + 1);   // (the root end as drawn, smoothed into its joins; the split is past those)
   const through = resample([...lead, ...a.pts.slice(1)], N);
   return { through, side: sd, q: lenOf(lead) / lenOf([...lead, ...a.pts.slice(1)]) };
