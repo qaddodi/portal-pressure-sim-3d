@@ -31,7 +31,7 @@ test('a held start that never draws is released by the failsafe path (release), 
 test('the wiring: the page lifts its cover for the app only on the ready signal, Stage reports each drawn frame, main holds the splash before mounting', () => {
   const html = readFileSync('index.html', 'utf8');
   assert.match(html, /data-boot'\)==='wait'\)return false/);
-  assert.match(readFileSync('src/scene/Stage.tsx', 'utf8'), /figureDrawn\(\);/);
+  assert.match(readFileSync('src/scene/Stage.tsx', 'utf8'), /if \(cel\.rig\.placed\) figureDrawn\(\);/);
   assert.match(readFileSync('src/main.tsx', 'utf8'), /holdSplash\(\);[\s\S]{0,200}render\(<StrictMode><App \/>/);
 });
 

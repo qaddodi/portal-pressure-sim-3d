@@ -59,7 +59,7 @@ function SceneBridge() {
     // the canvas comes in once, with its first drawn frame (until then the page's own ground shows, never the context's black); a reduced-motion viewer gets it at once
     const el = gl.domElement;
     if (el.style.opacity !== '1') { el.style.transition = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'none' : 'opacity 200ms ease-out'; el.style.opacity = '1'; }
-    figureDrawn();   // (the splash waits for this: the first frame, then the labels it places; boot/ready.ts)
+    if (cel.rig.placed) figureDrawn();   // (the splash waits for this: the first frame WITH the figure, then the labels it places; boot/ready.ts. A frame that only cleared (the camera has no room yet) is not the figure)
     // every program of every view (the lobule, the sinusoid, the Circuit, the devices, the hidden ones) is built once, off the frame, a moment after the first picture, so the first show of a view never stalls on a driver
     // compile (the ?gl check does the same on request, debug/gl-check-run.ts): three builds them in parallel where the driver can
     if (!warmed.current) {
