@@ -46,6 +46,8 @@ function skinDefines(c: number, grow: number): Record<string, number> {
   if (skinDebugOn()) d.SKIN_DEBUG = 1;
   if (out === 'marks') d.SKIN_NOMARKS = 1;
   if (out === 'ink') d.SKIN_NOINK = 1;
+  if (out === 'dust') d.SKIN_NODUST = 1;
+  if (out === 'heads') d.SKIN_NOHEADS = 1;
   return d;
 }
 

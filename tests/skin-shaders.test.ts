@@ -116,3 +116,12 @@ test('the outline band is padded on a seam so it never trims the silhouette of t
   assert.match(SKIN_FS, /if \(sdPx > inkDev \+ 0\.5 \+ seamPad\) discard;/);
   assert.match(SKIN_FS, /float wMax = 0\.0;\n\s+for \(int i = 0; i < 6; i\+\+\) wMax = max\(wMax, wAt\(i\)\);/);
 });
+
+test('?joins=nodust and ?joins=noheads split the marks for the A/B that finds a speck\'s layer (diagnostics: each leaves out one half of the skin\'s marks)', async () => {
+  const { skinLeaveOut } = await import('../src/scene/vessels/skin/joins-mode.ts');
+  assert.equal(skinLeaveOut('?joins=nodust'), 'dust');
+  assert.equal(skinLeaveOut('?joins=noheads'), 'heads');
+  assert.equal(skinLeaveOut('?joins=nomarks'), 'marks');
+  assert.match(SKIN_FS, /#ifndef SKIN_NOHEADS\s+headAcc \+= wI \* flowHeads\([^\n]*\n#endif/);
+  assert.match(SKIN_FS, /#ifndef SKIN_NODUST\s+if \(dOn > 0\.002\) \{/);
+});

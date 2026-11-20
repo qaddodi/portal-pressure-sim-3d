@@ -405,7 +405,9 @@ void main() {
     if (wI > wD0) { wD2 = wD1; FD1 = FD0; wD1 = wD0; onD1 = onD0; revD1 = revD0; FD0 = FI; wD0 = wI; onD0 = onI; revD0 = revI; }
     else if (wI > wD1) { wD2 = wD1; FD1 = FI; wD1 = wI; onD1 = onI; revD1 = revI; }
     else wD2 = max(wD2, wI);
+#ifndef SKIN_NOHEADS
     headAcc += wI * flowHeads(acrossI, acrossW, sI, Lw, vR, wpcM, pxI, lensI, armFlow[i], 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
+#endif
   }
   if (wD0 > 0.0) {
     // the two heaviest arms' share (renormalised): on a seam ring one weight is 1 and this is the tube's own pixel (dustTube)
@@ -413,10 +415,12 @@ void main() {
     // continuous. Without it a fork's skin showed a seam down the line between its two branches, Mohammad 20 Nov: "i still see a seam at the blood vessels junction")
     float w1 = max(wD1 - wD2, 0.0) / max(wD0 + wD1 - 2.0 * wD2, 1e-4);
     float dOn = mix(onD0, onD1, w1);
+#ifndef SKIN_NODUST
     if (dOn > 0.002) {
       vec4 dust = w1 > 0.004 ? dustSkin(FD0, FD1, w1, litD, inkColor, mix(revD0, revD1, w1)) : dustTube(FD0, litD, inkColor, revD0);
       dustAcc = clamp(vec4(dust.rgb * dOn, dust.a * dOn), 0.0, 1.0);
     }
+#endif
   }
   headAcc = clamp(headAcc, 0.0, 1.0);   // (the arms' weights can sum past 1 while an arm grows: premultiplied marks never past 0 .. 1, or the lumen under them is inverted)
   c = c * (1.0 - dustAcc.a) + dustAcc.rgb;

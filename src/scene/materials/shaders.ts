@@ -123,14 +123,24 @@ float flowMask(float speed, float across) {
 }
 
 void main() {
-  if (frontOut(vUv.x, reveal)) discard;
-  if (fadedOut()) discard;
+  // EVERY derivative here is taken before the first discard (a quad whose other pixels were dropped gives a garbage fwidth on a device that drops the lane: specks, Mohammad 20 Nov; tests/no-derivative-after-discard.test.ts)
   vec3 n = normalize(vN);
   vec3 l = normalize((viewMatrix * vec4(light, 0.0)).xyz);   // the world light turned by the camera: a world-fixed n.L
   float d = dot(n, l) * 0.5 + 0.5;
   float q = d * bands;
   float f = fract(q);
   float w = fwidth(q) * 0.75;
+#ifdef TUBE_TONES
+  vec3 sideX = cross(normalize(vT), normalize(vV));
+  float sideL = length(sideX);
+  vec3 side0 = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
+  float across0 = dot(n, side0);
+  float fwAcross0 = fwidth(across0);
+  float sT0 = dot(n, celLightView());
+  float fwS0 = fwidth(sT0);
+#endif
+  if (frontOut(vUv.x, reveal)) discard;
+  if (fadedOut()) discard;
   float b = (floor(q) + smoothstep(0.5 - w, 0.5 + w, f)) / bands;
   vec3 base = color;
   vec3 sh = shade;
@@ -141,13 +151,8 @@ void main() {
 #ifdef TUBE_TONES
   // a tube of the vessels' own look (a plexus strand, a varix): the two tones lit by the one WORLD light (n.L, cel-glsl.ts celLightView: the camera never changes a shade), as vessels/shaders.ts does, so a varix
   // beside its vein shades as the vein does. rDev, the radius in device px, is read from how fast across changes (it is the lateral position over the radius).
-  vec3 sideX = cross(normalize(vT), normalize(vV));
-  float sideL = length(sideX);
-  vec3 side0 = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
-  float across0 = dot(n, side0);
-  float rDev0 = 1.0 / max(fwidth(across0), 1e-3);
-  float sT0 = dot(n, celLightView());
-  vec3 c = celTubeTone(base, sT0, fwidth(sT0), rDev0);
+  float rDev0 = 1.0 / max(fwAcross0, 1e-3);
+  vec3 c = celTubeTone(base, sT0, fwS0, rDev0);
 #else
   vec3 c = mix(sh, base, clamp(b, 0.0, 1.0));
 #endif
@@ -230,10 +235,10 @@ varying float vU;
 varying float vRd;
 #endif
 void main() {
-  if (frontOut(vU, reveal)) discard; if (fadedOut()) discard;
   float cov = 1.0;
 #ifdef INK_EDGE
-  cov = clamp(vRd / max(length(vec2(dFdx(vRd), dFdy(vRd))), 1e-5) - 0.5, 0.0, 1.0);
+  cov = clamp(vRd / max(length(vec2(dFdx(vRd), dFdy(vRd))), 1e-5) - 0.5, 0.0, 1.0);   // (the derivative before the discards: tests/no-derivative-after-discard.test.ts)
 #endif
+  if (frontOut(vU, reveal)) discard; if (fadedOut()) discard;
   gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), mix(inkA, 1.0, clamp(vHi, 0.0, 1.0)) * cov);
 }`;
