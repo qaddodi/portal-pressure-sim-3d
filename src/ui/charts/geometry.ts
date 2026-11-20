@@ -263,6 +263,35 @@ export function tessellate(frame: Frame | readonly Shape[]): Mesh {
         if (s.pen) strokeAny(out, pts, s.pen, true);
         break;
       }
+      case 'radial': {
+        const n = s.stops.length;
+        if (n < 2) break;
+        const rMax = s.stops[n - 1]!.r, seg = Math.max(24, Math.min(160, Math.ceil((Math.PI * 2 * rMax) / 3)));
+        for (let k = 0; k + 1 < n; k++) {
+          const a = s.stops[k]!, b = s.stops[k + 1]!;
+          if (a.c[3] <= 0 && b.c[3] <= 0) continue;
+          out.grow(seg * 6);
+          for (let j = 0; j < seg; j++) {
+            const t0 = (j / seg) * Math.PI * 2, t1 = ((j + 1) / seg) * Math.PI * 2, c0 = Math.cos(t0), s0 = Math.sin(t0), c1 = Math.cos(t1), s1 = Math.sin(t1);
+            const ax = s.cx + c0 * a.r, ay = s.cy + s0 * a.r, bx = s.cx + c1 * a.r, by = s.cy + s1 * a.r, cx2 = s.cx + c0 * b.r, cy2 = s.cy + s0 * b.r, dx = s.cx + c1 * b.r, dy = s.cy + s1 * b.r;
+            out.v(ax, ay, a.c); out.v(bx, by, a.c); out.v(cx2, cy2, b.c);
+            out.v(bx, by, a.c); out.v(dx, dy, b.c); out.v(cx2, cy2, b.c);
+          }
+        }
+        break;
+      }
+      case 'grid': {
+        out.grow((s.rows - 1) * (s.cols - 1) * 6);
+        for (let r = 0; r + 1 < s.rows; r++) {
+          for (let c = 0; c + 1 < s.cols; c++) {
+            const i00 = r * s.cols + c, i01 = i00 + 1, i10 = i00 + s.cols, i11 = i10 + 1;
+            const P = (i: number, q: Rgba) => out.v(s.pts[i * 2]!, s.pts[i * 2 + 1]!, q);
+            P(i00, s.colors[i00]!); P(i01, s.colors[i01]!); P(i10, s.colors[i10]!);
+            P(i01, s.colors[i01]!); P(i11, s.colors[i11]!); P(i10, s.colors[i10]!);
+          }
+        }
+        break;
+      }
       case 'clip': {
         flush();
         fillConvex(out, roundRectPoints(s.x, s.y, s.w, s.h, s.r ?? 0), [0, 0, 0, 1]);

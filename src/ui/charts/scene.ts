@@ -20,6 +20,10 @@ export interface PathShape { k: 'path'; pts: readonly number[]; closed?: boolean
 /** The area between two polylines of the same length, in the same order along x: a series' area, a band. */
 export interface BandShape { k: 'band'; top: readonly number[]; bottom: readonly number[]; fill: Rgba; key?: string }
 export interface CircleShape { k: 'circle'; cx: number; cy: number; r: number; fill?: Rgba; pen?: Pen; key?: string }
+/** A radial gradient: `stops` from the centre out (r ascending, the first may be 0), each its own colour, blended smoothly between (the picture's soft round things: a wall lit by a tip light, a dome, a spot). */
+export interface RadialShape { k: 'radial'; cx: number; cy: number; stops: readonly { r: number; c: Rgba }[]; key?: string }
+/** A grid of points (rows × cols, x y pairs, row-major), each with its own colour; each cell is blended smoothly between its four corners (a vein that swells along its length, shaded across it). */
+export interface GridShape { k: 'grid'; rows: number; cols: number; pts: readonly number[]; colors: readonly Rgba[]; key?: string }
 /** Everything after this, up to the matching unclip, is drawn only inside the rounded rectangle (a plot's rounded panel). One clip at a time. */
 export interface ClipShape { k: 'clip'; x: number; y: number; w: number; h: number; r?: number }
 export interface UnclipShape { k: 'unclip' }
@@ -48,7 +52,7 @@ export interface TextShape {
   key?: string;
 }
 
-export type Shape = RectShape | LineShape | PathShape | BandShape | CircleShape | ClipShape | UnclipShape | TextShape;
+export type Shape = RectShape | LineShape | PathShape | BandShape | CircleShape | RadialShape | GridShape | ClipShape | UnclipShape | TextShape;
 
 export interface Frame {
   /** the box, px */
