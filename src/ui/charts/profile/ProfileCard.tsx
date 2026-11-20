@@ -5,7 +5,10 @@ import type { ChartPainter } from '../painter.ts';
 import type { Frame } from '../scene.ts';
 import { profileFrame, type CellOpts } from './frame.ts';
 import { ProfileMotion } from './glide.ts';
-import { planProfile, profileWords, spansFor, type Fp, type ProfilePlan } from './model.ts';
+import { planProfile, profileWords, spansFor, layoutHeight, type Fp, type ProfilePlan } from './model.ts';
+import { useUi } from '../../ui-store.ts';
+import { layoutOf, isSideways } from '../../layout/rules2d.ts';
+import { pzhOf } from '../../layout/plan.ts';
 import { profileInputs } from './data.ts';
 import '../charts.css';
 
@@ -33,6 +36,7 @@ const empty: Frame = { w: 0, h: 0, shapes: [], label: '' };
 
 /** The pressure from gut to heart through the circuit's eight stations, the healthy line dashed beneath it, the liver's stations on a tint, the HVPG and PPG (and the EUS-PPG) as brackets. */
 export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Before', spans: want, hold = false, height, cell }: ProfileCardProps) {
+  const vpNow = useUi((st) => st.vp);   // (the ladder's height is the window's: a new height redraws it)
   const inp = useMemo(() => profileInputs(fp, healthy, before), [fp, healthy, before]);
   const spans = useMemo(() => spansFor(want, fp), [want?.join(), fp]);  // eslint-disable-line react-hooks/exhaustive-deps
   const motion = useRef<ProfileMotion | null>(null);
@@ -63,10 +67,12 @@ export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Be
     const m = motion.current!, now = performance.now();
     m.reduce = reduced();
     const f = Math.max(12, cell ? (cell.chCap ?? c.type.sm) * (cell.lad ?? 1) : c.type.sm);
-    const key = [c.w, f, height ?? '', cellKey, spans.map(([k]) => k).join(), fromLabel, inp.goal.v.join(), inp.goal.hvpg, inp.goal.ppg, inp.goal.eus, inp.goal.top, inp.hl?.v.join() ?? '', inp.bf?.v.join() ?? ''].join('|');
+    // (the box this layout gives the ladder, as 2D's CSS does; a cell of the six ladders has its own, and an explicit height wins)
+    const vp = useUi.getState().vp, own = height ?? (cell ? undefined : layoutHeight(c.w, f, layoutOf(vp.w, vp.h), isSideways(vp.w, vp.h), pzhOf(vp)));
+    const key = [c.w, f, own ?? '', cellKey, spans.map(([k]) => k).join(), fromLabel, inp.goal.v.join(), inp.goal.hvpg, inp.goal.ppg, inp.goal.eus, inp.goal.top, inp.hl?.v.join() ?? '', inp.bf?.v.join() ?? ''].join('|');
     if (key !== planKey.current) {
       planKey.current = key;
-      plan.current = planProfile(c.w, height ?? 0, f, inp.goal, inp.hl, inp.bf, spans, fromLabel);
+      plan.current = planProfile(c.w, own ?? 0, f, inp.goal, inp.hl, inp.bf, spans, fromLabel);
       m.aim(inp.goal, plan.current, now, { held: hold });
       // a new look or width is drawn at once; a new state of the same box eases (the shown numbers follow the goal)
       m.tick(now);
@@ -86,7 +92,7 @@ export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Be
   if (!inp) return null;
   return (
     <div className="pz-prof">
-      <Chart tag="chart:profile" glide={false} painter={painter} deps={[inp, spans, fromLabel, hold, height, cellKey]} label={profileWords(inp.goal, spans)} build={build} />
+      <Chart tag="chart:profile" glide={false} painter={painter} deps={[inp, spans, fromLabel, hold, height, cellKey, vpNow.w, vpNow.h]} label={profileWords(inp.goal, spans)} build={build} />
     </div>
   );
 }

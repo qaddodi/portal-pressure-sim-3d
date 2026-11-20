@@ -23,6 +23,8 @@ export const BAND_CALM = 0.8;
 /** The dot grid's share of its opacity once the map is zoomed in (a dot is 20 map units apart: it must not become a field of blobs), and the zoom (map units under a pixel) it eases over. */
 export const DOT_CALM = 0.3;
 export const DOT_CALM_PX: readonly [number, number] = [0.12, 0.35];
+/** A station dot's ring on a dark ground. */
+export const DOT_RING_DARK = '#c4d0e6';
 const PLATE_UNITS = 1600;   // (the grid runs on this far past the figure's box, fading out in steps)
 
 export const PLATE_VS = /* glsl */ `
@@ -166,7 +168,9 @@ export class MapLayer {
     m.bands.forEach((b, i) => u.mapZone.value[i]!.set(...rgb(b)));
     // the dots and the grid are written in sRGB and drawn as they are (the cel shaders' rule: no conversion)
     rawColor(ground, this.dotMat.uniforms.fillCol!.value as never);
-    rawColor(text, this.dotMat.uniforms.ringCol!.value as never);
+    // the ring is the text's colour, so on a dark ground it must be a light one (the palette's ink is dark there and the ring vanished, leaving a black disc over the line)
+    const g = ground.replace('#', ''), lum = g.length === 6 ? (0.299 * parseInt(g.slice(0, 2), 16) + 0.587 * parseInt(g.slice(2, 4), 16) + 0.114 * parseInt(g.slice(4, 6), 16)) / 255 : 1;
+    rawColor(lum < 0.5 ? DOT_RING_DARK : text, this.dotMat.uniforms.ringCol!.value as never);
   }
 
   /** The layer's opacity (mapRamp of the change) and the turn's share. Nothing is drawn at 0. */

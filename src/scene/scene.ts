@@ -62,7 +62,7 @@ import { MapLayer, mapRamp } from './circuit/map-layer.ts';
 import { circuitBounds } from './circuit/shots.ts';
 import { CircuitView } from './circuit/view.ts';
 import { CIRCUIT_NODES, MAP_LOOKS, VB_CIRC } from './circuit/data.copied.ts';
-import { ARTERIOLE_HOST, CircuitTubes } from './circuit/tubes.ts';
+import { CircuitTubes } from './circuit/tubes.ts';
 import { PostAA } from './post-aa.ts';
 import { ResistorLayer } from './circuit/resistors.ts';
 import { RES_KINDS, type ResKey, resRatio } from './circuit/res-model.ts';
@@ -388,7 +388,7 @@ export class CelScene {
 
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
   private syncPresence(f: NonNullable<typeof latest.frame>, instant: boolean): void {
-    for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn }, this.healthyQ), instant);
+    for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn, circuit: this.figureView === 'circuit' }, this.healthyQ), instant);
     this.shapes.onFrame(f as never, performance.now(), this.healthyQ, instant);
     for (const t of this.tipFades) if (t.connect.length) t.o.setTipJoined(t.connect.some((c) => this.presence.stateOf(c) === 'shown'));
     const rexOn = this.presence.stateOf('REX') === 'shown';
@@ -503,7 +503,9 @@ export class CelScene {
   get view(): FigureView { return this.figureView; }
   /** Show the body, the lobule or the sinusoid: the others are hidden and cost nothing (nothing is built or compiled here; the views were made at start). The camera is the caller's. */
   setView(v: FigureView, now = performance.now()): void {
+    const wasCircuit = this.figureView === 'circuit';
     this.figureView = v;
+    if (wasCircuit !== (v === 'circuit') && latest.frame) this.syncPresence(latest.frame, false);   // (the liver's beds are drawn on the map only: they draw on as the body turns into it, and draw back as it returns)
     this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? (sinusoidBox(this.portrait) as Vec3[]) : null);
     // the view being left stays drawn until the camera has landed on the new one (nothing pops while it flies); then it is hidden
     this.body.visible ||= v === 'body' || v === 'circuit';
@@ -802,7 +804,7 @@ export class CelScene {
     this.capSig = sig;
     const shown = (id: string) => this.presence.stateOf(id) === 'shown';
     const free = (node: string, self: string) => !(this.stationsOf.get(node) ?? []).some((e) => e !== self && shown(e));
-    for (const v of MAPPED) { const o = this.byEdge.get(v.id) as VesselObject | undefined; if (o && shown(v.id)) o.setCircCap(free(v.from, v.id) ? 1 : 0, free(v.to, v.id) && v.id !== ARTERIOLE_HOST ? 1 : 0); }   // (the hepatic artery carries on into its two arterioles, map-only strands)
+    for (const v of MAPPED) { const o = this.byEdge.get(v.id) as VesselObject | undefined; if (o && shown(v.id)) o.setCircCap(free(v.from, v.id) ? 1 : 0, free(v.to, v.id) ? 1 : 0); }
   }
 
   /** The map's size on the screen now: 2D's circBoost (the lines widen as it is zoomed out, 1 to 1.75) and the map units under one CSS pixel (the floor of every line's width). */

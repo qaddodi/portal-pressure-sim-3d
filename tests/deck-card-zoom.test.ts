@@ -13,7 +13,7 @@ const el = (box: { left: number; top: number; width: number; height: number }) =
 const world = () => {
   let t = 1000, cb: ((t: number) => void) | null = null;
   const clock = createClock({ raf: (f) => { cb = f; return 1; }, cancel: () => { cb = null; }, now: () => t });
-  return { zoom: createCardZoom(clock, () => t), tick: (ms: number) => { t += ms; const f = cb; cb = null; f?.(t); } };
+  return { zoom: createCardZoom(clock), tick: (ms: number) => { t += ms; const f = cb; cb = null; f?.(t); } };
 };
 
 test('2D\'s numbers: at most 2.2 times, none under 1.2, a margin of a tenth of the short side between 72 and 110, the card centred', () => {
