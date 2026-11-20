@@ -14,9 +14,10 @@ import { NODE_POS_2D } from '../vessels/paths.copied.ts';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { x3, y3 } from '../frame2d.ts';
 import { spanOf, spanStrokes } from './span-math.ts';
+import { TIP_FADE_2D } from '../vessels/fades.copied.ts';
 
 /** Where a card points: a vessel's middle, a station, a point of the 2D plate (organs, the spleen's ends), or a node of the 2D figure. */
-export type Anchor = { edge: string } | { station: string } | { at2d: readonly [number, number] } | { node: string } | { lobule: string };
+export type Anchor = { edge: string } | { edges: readonly string[] } | { station: string } | { at2d: readonly [number, number] } | { node: string } | { lobule: string };
 
 /** A bracket on the Circuit between two stations (a slide's `span`): its words, as printed, standing under its middle. */
 export interface FigSpan { id: string; from: string; to: string; text: string }
@@ -36,6 +37,8 @@ export interface FigCard {
   split?: { liver: number; shunt: number; rate: string };
   /** The number in a step's circle. */
   n?: number;
+  /** A step: the vessel's half width on screen is read live; a group's number stands between its vessels with a leader to the middle of each (2D stage-label-solve.js, `fans`). */
+  group?: readonly string[];
 }
 export interface FigCaliper {
   id: string;
@@ -44,6 +47,8 @@ export interface FigCaliper {
   text: string;
 }
 
+/** How near its point a step's number may stand, at least (2D STEP_LEAD_GAP), px. */
+export const STEP_LEAD_GAP = 10;
 const normal = (px: number) => px * (INTER.asc + INTER.desc);
 const ceil2 = (n: number) => Math.ceil(n * 100) / 100;
 
@@ -59,10 +64,37 @@ export function cardSize(c: FigCard, t: CathType, measure: Measure): { w: number
   return pillSize(t, { kicker: c.text, value: c.value ?? '', unit: c.unit ?? '', tone: 'free' }, measure, false);
 }
 
-export interface CardIn { id: string; /** the point it names, canvas px */ x: number; y: number; w: number; h: number; below?: boolean }
+export interface CardIn { id: string; /** the point it names, canvas px */ x: number; y: number; w: number; h: number; below?: boolean; /** a step's number: how far its edge stands from the point it names, px (2D `near`); it stands off the point, on a leader to it */ near?: number }
 export interface CardOut { id: string; x0: number; y0: number; dir: 'top' | 'bottom' | 'none'; /** the point it names, from the card's centre */ ax: number; box: Box; /** false: no clear place in the view (the card waits) */ ok: boolean }
 
 const overlap = (a: Box, b: Box) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+
+/** The directions a step's number tries, in 2D's order (stage-label-solve.js placeMulti: NE, NW, SE, SW, N, S, E, W): the first that is clear wins. */
+export const STEP_DIRS: readonly (readonly [number, number])[] = [[1, -1], [-1, -1], [1, 1], [-1, 1], [0, -1], [0, 1], [1, 0], [-1, 0]].map(([x, y]) => { const n = Math.hypot(x!, y!); return [x! / n, y! / n] as const; });
+
+/** A step's number (a circle) by the point it names: its edge `near` px from the point, off the vessel, in the first of eight directions that is in view and clear of the cards; where none is, the
+ *  one that covers least. The point stands on a leader from the circle (stepLeader). Before, the circle stood straight above or below the point at the callout gap, on the vessel it numbered or far from it. */
+export function placeStep(it: CardIn, view: Box, blockers: readonly Box[], placed: readonly Box[]): CardOut {
+  const r = it.w / 2, d = r + (it.near ?? 10);
+  let best: { cost: number; o: CardOut } | null = null;
+  STEP_DIRS.forEach(([ux, uy], i) => {
+    const cx = it.x + ux * d, cy = it.y + uy * d, box: Box = { x0: cx - r, y0: cy - r, x1: cx + r, y1: cy + r };
+    let cost = i * 0.01;
+    if (!within(box, view)) cost += 1e6;
+    for (const b of blockers) if (hits(box, b)) cost += 1e4 + overlap(box, b);
+    for (const b of placed) if (hits(box, b)) cost += 1e4 + overlap(box, b);
+    const o: CardOut = { id: it.id, x0: box.x0, y0: box.y0, dir: 'none', ax: 0, box, ok: cost < 1e6 };
+    if (!best || cost < best.cost) best = { cost, o };
+  });
+  return best!.o;
+}
+
+/** A leader from a step's circle to a point it names: it starts on the circle's edge, on the line to the point, and ends at the point. null when the point stands inside the circle. */
+export function stepLeader(circle: { cx: number; cy: number; r: number }, to: { x: number; y: number }): [number, number, number, number] | null {
+  const dx = to.x - circle.cx, dy = to.y - circle.cy, len = Math.hypot(dx, dy);
+  if (len <= circle.r + 1) return null;
+  return [circle.cx + (dx / len) * circle.r, circle.cy + (dy / len) * circle.r, to.x, to.y];
+}
 
 /** Where each card stands (the 2D callout rule: above its point, or below it, slid sideways until it clears the cards, the view's edges and the others; the first clear
  *  spot in that order wins, and a card with none takes the one that covers least). In order, so the first of a slide has its pick. */
@@ -70,6 +102,7 @@ export function placeCards(items: readonly CardIn[], view: Box, blockers: readon
   const placed: Box[] = [], out: CardOut[] = [];
   for (const it of items) {
     if (it.w >= view.x1 - view.x0) { out.push({ id: it.id, x0: it.x - it.w / 2, y0: it.y, dir: 'none', ax: 0, box: { x0: it.x - it.w / 2, y0: it.y, x1: it.x + it.w / 2, y1: it.y + it.h }, ok: false }); continue; }
+    if (it.near != null) { const o = placeStep(it, view, blockers, placed); placed.push(o.box); out.push(o); continue; }
     const sides: boolean[] = it.below ? [false, true] : [true, false];
     let best: { cost: number; o: CardOut } | null = null;
     const steps = [0, 0.25, -0.25, 0.5, -0.5, 0.75, -0.75, 1, -1, 1.5, -1.5].map((k) => k * it.w);
@@ -108,10 +141,19 @@ export interface CardDeps {
   circuit(): { k: number; project(x: number, y: number, out: { x: number; y: number }): { x: number; y: number } } | null;
 }
 
+/** Where along a vessel a step's number points (2D stage-label-solve.js: arcMid at 0.5, and for a vein that fades in from its start (TIP_FADE over half its length) the middle of its solid
+ *  stretch, which the fade leaves, not the middle of the whole, which is faint). */
+export const stepMidOf = (edge: string): number => { const f = TIP_FADE_2D[edge] ?? 0; return f > 0.5 ? (1 + f) / 2 : 0.5; };
+
 /** The point a card names, scene units; null when the 3D figure does not have it. */
-export function anchorPoint(a: Anchor, out: Vector3, lobule?: CardDeps['lobule']): Vector3 | null {
+export function anchorPoint(a: Anchor, out: Vector3, lobule?: CardDeps['lobule'], at = 0.5): Vector3 | null {
   if ('lobule' in a) return lobule ? lobule(a.lobule, out) : null;
-  if ('edge' in a) { const c = curveOf(a.edge); return c ? c.getPointAt(0.5, out) : null; }
+  if ('edge' in a) { const c = curveOf(a.edge); return c ? c.getPointAt(at, out) : null; }
+  if ('edges' in a) {
+    let n = 0; const sum = { x: 0, y: 0, z: 0 }, q = new Vector3();
+    for (const e of a.edges) { const c = curveOf(e); if (!c) continue; c.getPointAt(stepMidOf(e), q); sum.x += q.x; sum.y += q.y; sum.z += q.z; n++; }
+    return n ? out.set(sum.x / n, sum.y / n, sum.z / n) : null;
+  }
   if ('station' in a) { const s = stationById(a.station); return s ? s.at(0.5, out) : null; }
   if ('at2d' in a) return out.set(x3(a.at2d[0]), y3(a.at2d[1]), ORGAN_FRONT);
   const p = NODE_POS_2D[a.node];
@@ -119,7 +161,8 @@ export function anchorPoint(a: Anchor, out: Vector3, lobule?: CardDeps['lobule']
   try { return out.set(x3(p[0]), y3(p[1]), nodeZ(a.node)); } catch { return null; }
 }
 
-interface Rec { card: Card; spec: FigCard; a: number; box: CardOut | null; sig: string; root: HTMLElement; split?: { n: HTMLElement; lt: HTMLElement; l: HTMLElement; s: HTMLElement } }
+interface Lead { root: HTMLElement; lines: HTMLElement[]; dots: HTMLElement[]; tx: string[] }
+interface Rec { card: Card; spec: FigCard; a: number; box: CardOut | null; sig: string; root: HTMLElement; lead?: Lead; split?: { n: HTMLElement; lt: HTMLElement; l: HTMLElement; s: HTMLElement } }
 interface SpanRec { root: HTMLElement; segs: HTMLElement[]; tx: string[]; card: Card; spec: FigSpan; a: number; box: CardOut | null }
 interface CalRec { root: HTMLElement; line: HTMLElement; ticks: [HTMLElement, HTMLElement]; tickTx: string; card: Card; spec: FigCaliper; a: number; tx: string; box: CardOut | null }
 
@@ -157,6 +200,11 @@ export class FigureCards {
     const card = makeCard(this.parent, split ? 'cath-label site split' : spec.kind === 'step' ? 'cl cl-step' : 'cl cl-pill cl-fig');
     card.root.dataset.fig = spec.kind;
     const rec: Rec = { card, spec, a: 0, box: null, sig: '', root: card.root };
+    if (spec.kind === 'step') {
+      // the leader to the vessel the number names (2D: a dot on the vessel and a thin line to the chip; a group's number a line to each of its vessels)
+      const root = document.createElement('div'); root.className = 'cl-lead'; this.parent.appendChild(root);
+      rec.lead = { root, lines: [], dots: [], tx: [] };
+    }
     if (split) {
       // the 2D portal-blood label, its own markup (stage-sites-paint.js SPLIT_B): the number and "bypasses the liver", the caption, the bar split into the liver's and the shunts' share
       card.glass.remove(); card.k.remove(); card.n.remove(); card.u.remove();
@@ -199,7 +247,7 @@ export class FigureCards {
     const vp = d.vp(), t = cathType(vp), view = d.view();
     // the cards of this slide: made once each, gone with the slide
     const want = new Set(this.cards.map((c) => c.id));
-    for (const [id, r] of this.recs) if (!want.has(id) && r.a <= 0) { r.root.remove(); this.recs.delete(id); }
+    for (const [id, r] of this.recs) if (!want.has(id) && r.a <= 0) { r.root.remove(); r.lead?.root.remove(); this.recs.delete(id); }
     for (const c of this.cards) {
       let r = this.recs.get(c.id);
       if (!r) { r = this.make(c); this.recs.set(c.id, r); }
@@ -216,13 +264,17 @@ export class FigureCards {
     // where each named place stands now; any that moved hides the cards until the picture is still
     let moved = d.cameraMoving();
     const anchors = new Map<string, { x: number; y: number }>();
-    for (const c of this.cards) {
-      const p = anchorPoint(c.anchor, this.p, d.lobule);
-      if (!p) continue;
-      const a = d.project(p, { x: 0, y: 0 });
-      anchors.set(c.id, a);
-      const was = this.anchors.get(c.id);
+    const put = (key: string, a: { x: number; y: number }) => {
+      anchors.set(key, a);
+      const was = this.anchors.get(key);
       if (!was || Math.abs(was.x - a.x) > 0.35 || Math.abs(was.y - a.y) > 0.35) moved = true;
+    };
+    for (const c of this.cards) {
+      // a step's number points at the middle of its vessel's solid stretch (stepMidOf); a group's at the middle of its vessels, with a leader to each (the fans)
+      const p = anchorPoint(c.anchor, this.p, d.lobule, c.kind === 'step' && 'edge' in c.anchor ? stepMidOf(c.anchor.edge) : 0.5);
+      if (!p) continue;
+      put(c.id, d.project(p, { x: 0, y: 0 }));
+      if (c.kind === 'step' && 'edges' in c.anchor) c.anchor.edges.forEach((e, i) => { const q = anchorPoint({ edge: e }, this.q, d.lobule, stepMidOf(e)); if (q) put(`${c.id}#${i}`, d.project(q, { x: 0, y: 0 })); });
     }
     // each caliper's two ends on the canvas
     const ends = new Map<string, [number, number, number, number]>();
@@ -260,7 +312,7 @@ export class FigureCards {
     if (!hold && (this.dirty || sig !== this.sig)) {
       this.sig = sig; this.dirty = false;
       const ins: CardIn[] = [];
-      for (const c of this.cards) { const a = anchors.get(c.id); if (!a) continue; const s = cardSize(c, t, d.measure); ins.push({ id: c.id, x: a.x, y: a.y, w: s.w, h: s.h, below: c.below }); }
+      for (const c of this.cards) { const a = anchors.get(c.id); if (!a) continue; const s = cardSize(c, t, d.measure); ins.push({ id: c.id, x: a.x, y: a.y, w: s.w, h: s.h, below: c.below, ...(c.kind === 'step' ? { near: this.stepNear(c) } : null) }); }
       for (const c of this.calipers) {
         const e = ends.get(c.id); if (!e) continue;
         const w = ceil2(d.measure(c.text, t.name, LS.CATH.NAME.weight, LS.CATH.NAME.track * t.name) + 2 * t.padX + 2 * t.border), h = ceil2(t.padTop + t.padBottom + 2 * t.border + normal(t.name));
@@ -310,6 +362,41 @@ export class FigureCards {
     return busy || hold || this.dirty;
   }
 
+  /** How near its point a step's number may stand (2D STEP_LEAD_GAP and 4 + half the vessel's width): room for the dot's ring and a leader to the chip. An organ's, or a group's, stands close (4). */
+  private stepNear(c: FigCard): number {
+    if (!('edge' in c.anchor)) return 4;
+    const curve = curveOf(c.anchor.edge), v = NETWORK_BY_ID.get(c.anchor.edge);
+    if (!curve || !v) return 10;
+    const at = stepMidOf(c.anchor.edge), d = this.deps;
+    curve.getPointAt(at, this.p); curve.getPointAt(Math.min(1, at + 0.02), this.q);
+    const a = d.project(this.p, this.pt), b = d.project(this.q, this.pt2), n = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const per = n / (this.p.distanceTo(this.q) || 1);
+    return Math.max(STEP_LEAD_GAP, 4 + Math.max(2, v.radius * per));
+  }
+
+  /** The leader of a step: a dot on each point the number names and a thin line to it from the circle's edge (transform and opacity only). */
+  private paintLead(r: Rec, box: CardOut, a: number, dia: number): void {
+    const lead = r.lead; if (!lead) return;
+    const c = r.spec, pts: { x: number; y: number }[] = [];
+    if ('edge' in c.anchor) { const p = this.anchors.get(c.id); if (p) pts.push(p); }
+    else if ('edges' in c.anchor) c.anchor.edges.forEach((_, i) => { const p = this.anchors.get(`${c.id}#${i}`); if (p) pts.push(p); });
+    const circle = { cx: box.x0 + dia / 2, cy: box.y0 + dia / 2, r: dia / 2 };
+    while (lead.lines.length < pts.length) {
+      const l = document.createElement('i'); l.className = 'cl-lead-line'; const dt = document.createElement('i'); dt.className = 'cl-lead-dot';
+      lead.root.append(l, dt); lead.lines.push(l); lead.dots.push(dt); lead.tx.push('');
+    }
+    lead.lines.forEach((l, i) => {
+      const p = pts[i], seg = p ? stepLeader(circle, p) : null;
+      const on = !!p && r.box?.ok !== false;
+      lead.dots[i]!.style.visibility = on ? 'visible' : 'hidden'; l.style.visibility = on && seg ? 'visible' : 'hidden';
+      if (!p) return;
+      const round = (n: number) => Math.round(n * 100) / 100;
+      lead.dots[i]!.style.transform = `translate3d(${round(p.x)}px,${round(p.y)}px,0)`;
+      if (seg) { const len = Math.hypot(seg[2] - seg[0], seg[3] - seg[1]), ang = Math.atan2(seg[3] - seg[1], seg[2] - seg[0]); const tx = `translate3d(${round(seg[0])}px,${round(seg[1])}px,0) rotate(${ang.toFixed(4)}rad) scaleX(${round(len)})`; if (tx !== lead.tx[i]) { lead.tx[i] = tx; l.style.transform = tx; } }
+    });
+    lead.root.style.opacity = String(Math.round(a * 1000) / 1000);
+  }
+
   /** A caliper's two ends on the canvas: the spleen's axis (2D `spleenCaliper`) or a line across a vessel, wall to wall at its middle. */
   private caliperEnds(c: FigCaliper): [number, number, number, number] | null {
     const d = this.deps;
@@ -331,7 +418,7 @@ export class FigureCards {
 
   private paintCard(r: Rec, t: CathType, a: { x: number; y: number } | undefined): void {
     const c = r.spec, box = r.box;
-    if (r.a <= 0 || !box || !a) { if (r.root.hasAttribute('data-on')) { show(r.card, false); r.root.style.opacity = '0'; fadeKids(r.card, 0); } return; }
+    if (r.a <= 0 || !box || !a) { if (r.lead) r.lead.root.style.opacity = '0'; if (r.root.hasAttribute('data-on')) { show(r.card, false); r.root.style.opacity = '0'; fadeKids(r.card, 0); } return; }
     show(r.card, true);
     if (c.kind === 'split') { this.paintSplit(r, box); return; }
     const sz = cardSize(c, t, this.deps.measure);
@@ -354,6 +441,7 @@ export class FigureCards {
     }
     place(r.card, box.x0, box.y0);
     fade(r.card, r.a);
+    if (c.kind === 'step') this.paintLead(r, box, r.a, sz.w);
   }
 
   private paintSplit(r: Rec, box: CardOut): void {

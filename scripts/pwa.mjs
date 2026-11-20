@@ -66,7 +66,9 @@ const URLS = new Set(BOOT.concat(LATER).map(href));
 const HOME = href('index.html');
 
 // A file asked again on a failed answer (right after a deploy an edge of the host can still be on the old site), up to three more times, past the HTTP cache.
-const pull = async (url) => { let res; for (let i = 0; i < 4; i++) { try { res = await fetch(url, i ? { cache: 'reload' } : undefined); if (res.status < 400) return res; } catch (err) { if (i === 3) throw err; } await new Promise((r) => setTimeout(r, 400 * 2 ** i)); } return res; };
+// (A file whose name carries no hash (the page, the manifest, the data) is asked past the HTTP cache: the host lets a browser keep it ten minutes, and the page held at install was an old one.)
+const hashed = (url) => url.includes("/assets/");
+const pull = async (url) => { let res; for (let i = 0; i < 4; i++) { try { res = await fetch(url, i ? { cache: 'reload' } : hashed(url) ? undefined : { cache: 'no-cache' }); if (res.status < 400) return res; } catch (err) { if (i === 3) throw err; } await new Promise((r) => setTimeout(r, 400 * 2 ** i)); } return res; };
 // Put one file in this build's cache unless it is there. \`must\`: a failure stops the install; otherwise it is left for the next fill.
 const hold = async (c, f, must) => {
   const url = href(f);
@@ -112,7 +114,8 @@ self.addEventListener('fetch', (e) => {
     const home = url.pathname === SCOPE.pathname || url.pathname === SCOPE.pathname + 'index.html';
     if (!home) return;
     e.respondWith((async () => {
-      try { return await Promise.race([fetch(req), new Promise((_, no) => setTimeout(no, 4000))]); }
+      // (past the HTTP cache, as 2D's worker: the host lets a browser keep the page ten minutes, which showed the build before the one just deployed)
+      try { return await Promise.race([fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }), new Promise((_, no) => setTimeout(no, 4000))]); }
       catch { return (await held(HOME)) || Response.error(); }
     })());
     return;
