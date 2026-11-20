@@ -9,7 +9,7 @@ import { createShared } from '../src/scene/materials/cel.ts';
 import { LobuleView } from '../src/scene/lobule/view.ts';
 import { tissueInk } from '../src/scene/lobule/cel.ts';
 import { DISC_R, DUCT_R, RS0, RS_N, inletRadius, lyTaper, sinRadius } from '../src/scene/lobule/widths.ts';
-import { LZ, LYMPH_UNDER_Z, OVER_Z, Lobule3D, lymphIntoPools } from '../src/scene/micro3d/lobule3d.ts';
+import { LZ, LYMPH_UNDER_Z, LYMPH_Z, Lobule3D, lymphIntoPools } from '../src/scene/micro3d/lobule3d.ts';
 
 const flat = new LobuleView(createShared()), net = flat.net;
 const R = 3, ly = net.courses.filter((c) => c.kind === 'ly'), byId = new Map(net.courses.map((c) => [c.id, c]));
@@ -33,7 +33,7 @@ test('no flat lymph sleeve is drawn, and the channels are tubes no wider than 2D
   for (let v = 0; v < sw.length; v += 2) rmax = Math.max(rmax, sw[v]!);
   for (let i = 2; i < pos.length; i += 3) { zlo = Math.min(zlo, pos[i]!); zhi = Math.max(zhi, pos[i]!); }
   assert.ok(Math.abs(rmax - DUCT_R * R) < 1e-9, `widest ${rmax}`);
-  assert.ok(Math.abs(zhi - (OVER_Z + DUCT_R * R)) < 1e-3, 'and the mesh is that wide, beside the sinusoids at their level');
+  assert.ok(Math.abs(zhi - (LYMPH_Z + DUCT_R * R)) < 1e-3, 'and the mesh is that wide, beside the sinusoids at their level');
   assert.ok(Math.abs(zlo - (LYMPH_UNDER_Z - DUCT_R * R)) < 1e-3, 'and no deeper than where it passes under a vessel');
   // the thread end: the vertices nearest the central vein carry the taper's own small radius
   let near = Infinity; for (let v = 0; v < pos.length / 3; v++) if (Math.hypot(pos[3 * v]!, pos[3 * v + 1]!) < 0.1 * R) near = Math.min(near, sw[2 * v]!);
