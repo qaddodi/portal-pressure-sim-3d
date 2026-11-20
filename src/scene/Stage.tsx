@@ -189,7 +189,7 @@ export function Stage() {
   // refusing the samples at 2x left the figure with no anti-aliasing at all)
   const msaa = aaMode() === 'msaa';
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-stage)' as unknown as number, touchAction: 'none' }}>
+    <div className="stage-root" style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-stage)' as unknown as number, touchAction: 'none' }}>
       <Canvas key={msaa ? 'msaa' : 'no-msaa'} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, stencil: true, powerPreference: 'high-performance' }}>
         <ClockBridge />
         <SceneBridge />
