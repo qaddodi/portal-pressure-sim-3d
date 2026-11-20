@@ -179,7 +179,7 @@ test('Pause eases the 3D sinusoid traffic to a stop and Play back up: traffic sp
 test('the fenestrae are real gaps through the lining (bead and edges cut through to Disse), not dark dots; they close as the lining capillarizes', () => {
   const { flat, s3 } = scene();
   const S = s3 as unknown as { bead: { mats: { toon: { defines: Record<string, string>; uniforms: Record<string, { value: unknown }> } } }; beadLine: { mats: { toon: { defines: Record<string, string> } } }; gapData: Uint8Array; gapKey: number; stepPores(p: number): void };
-  assert.ok('GAPS' in S.bead.mats.toon.defines && 'GAPS' in S.beadLine.mats.toon.defines, 'the bead and its edge lines are cut');
+  assert.ok('HOLES' in S.bead.mats.toon.defines && 'GAPS' in S.beadLine.mats.toon.defines, 'the shell has its round holes and the cut face its slots');
   assert.ok(!meshes(s3.group).some((m) => m.name.startsWith('sinusoid3d/fenestrae')), 'no pore dots drawn over the lining');
   s3.update(true, 1);
   S.gapKey = -1; S.stepPores(1);
