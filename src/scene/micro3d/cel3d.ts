@@ -71,7 +71,7 @@ float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
 uniform float uFlow;      // how far the stream has run (µm)
 uniform float uHalf;      // the stream's half width (µm): the lanes' pitch is across it
 uniform float uStreak;    // how strong the streaks are (0 none)
-uniform float uProfile;   // 1: the parabolic lanes of the blood; 0: one speed (the lymph)
+uniform float uProfile;   // 1: the parabolic lanes of the blood; 0: one speed; under 0: chevrons across the stream (the lymph), pointing the way it runs
 uniform vec3 uStreakCol;  // the streaks' one tone
 varying vec3 vP;
 varying float vAux;
@@ -89,6 +89,12 @@ float streaks() {
   float d = abs(fu - 0.5) - hw, w = max(fwidth(u), 1e-3);
   return (1.0 - smoothstep(-w, w, d)) * step(0.3, h11(lane * 5.3 + 2.0));
 }
+// a chevron every 6 µm across the whole stream, its point leading the way the stream runs (the flow's sign), quiet and hard-edged
+float chevrons() {
+  float a = abs(vAux), dir = uFlow >= 0.0 ? 1.0 : -1.0, pitch = 6.0, w = 1.1;
+  float f = mod((vP.x - uFlow) * dir + a * 1.4, pitch), wx = max(fwidth(vP.x) * 1.2, 1e-3);
+  return smoothstep(0.0, wx, f) * (1.0 - smoothstep(w - wx, w, f)) * (1.0 - smoothstep(0.82, 0.95, a));
+}
 #endif
 void main() {
   if (fadedOut()) discard;
@@ -101,7 +107,7 @@ void main() {
   vec3 c = tint * vC;
   c *= 1.0 - ${F(CEL_STYLE.MICRO.SHADE)} * shadeT;
 #ifdef STREAKS
-  c = mix(c, uStreakCol, uStreak * streaks());
+  c = mix(c, uStreakCol, uStreak * (uProfile < 0.0 ? chevrons() : streaks()));
 #endif
   c = mix(c, uHazeCol, hazeK());
   gl_FragColor = vec4(c * opacity, opacity);

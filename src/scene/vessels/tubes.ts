@@ -55,7 +55,8 @@ export const flareAdd = (f: { add: number; wall: number; span: number } | null |
   return f.add * (1 - u) * (1 - u);
 };
 
-const RADIAL = 14;
+export const TUBE_RADIAL = 14;
+const RADIAL = TUBE_RADIAL;
 
 /** The tubes, each with round caps, in one geometry: uv.x runs 0 to 1 along each, uv.y round it; `tang` is the unit tangent; `rk` the tube's radius against `radius0`. */
 /** Where one course sits in the merged geometry: its tube's vertices, then its two caps' (the Circuit's morph reads this layout). */

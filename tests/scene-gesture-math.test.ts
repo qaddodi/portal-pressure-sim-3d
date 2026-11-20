@@ -154,3 +154,12 @@ test('the frame queue asks the clock for one frame per ask, runs asks in order, 
   assert.deepEqual(seen, [2, 3]);
   assert.equal(q.pending, 0);
 });
+
+test('a view may keep its own least zoom: the sinusoid rests no further out than its fit, and a pinch past it only stretches', async () => {
+  const v = await import('../src/scene/gesture/view.ts');
+  assert.equal(v.limitK(0.7, 1), 1);
+  assert.ok(v.softK(0.5, 1) > 0.5 && v.softK(0.5, 1) < 1);
+  const r = v.restingView({ k: 0.7, x: 40, y: -20 }, { x0: 0, y0: 0, x1: 400, y1: 400 }, { x: 200, y: 200 }, 1);
+  assert.deepEqual(r, { k: 1, x: 0, y: 0 });
+  assert.equal(v.limitK(0.7), 0.7);
+});
