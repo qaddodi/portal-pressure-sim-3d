@@ -24,6 +24,7 @@ import { BloodField } from './blood/field.ts';
 import { BloodCells } from './blood/cells/cells.ts';
 import { CameraRig } from './camera/rig.ts';
 import { cutUniform, fieldSoft } from './camera/dive.ts';
+import { MICRO_DPR } from './micro3d/cel3d.ts';
 import { fieldWide } from './lobule/field.ts';
 import { ORGAN_CUT } from './organs/layer.ts';
 import { quietOf } from './camera/quiet.ts';
@@ -1000,6 +1001,7 @@ export class CelScene {
     const dpr = gl.getPixelRatio?.() ?? 1;
     this.blood.shared.dpr.value = dpr;   // (the vessels' line is held in device px)
     this.lobule3d.setDpr(dpr);
+    MICRO_DPR.value = dpr;   // (the micro parts' lines drawn in the fill are CSS px wide on every screen)
     this.disease.strands.setDpr(dpr);
     // Two passes, as the 2D figure paints: the organs first, then the vessels (and what is in them) over the cleared depth, so no organ's relief ever hides a vessel and a joined
     // vessel never looks cut. (The vessels keep their own depth among themselves: their tiers.)
