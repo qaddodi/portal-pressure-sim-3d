@@ -1,5 +1,8 @@
 # Lobule and sinusoid views (batch B8)
 
+> **Cel shaded tissue (20 Nov 2026, C1).** The plate, the neighbours and the Zones are cel shaded from the figure's one style (`src/scene/cel-style.ts`): `lobule/cel.ts` puts 2D's painted colours in three flat tones (shade / base / lit about each pixel's own local lightness, hue and chroma kept, detail beyond two tones left as painted), hard edges one pixel wide, and 2D's casing ink on every strong edge of the plate (the neighbours carry none); the Zones are three hard zones with a shade line. The vessels' three tones and line are the same CEL_STYLE (`shading.ts`). The space of Disse band stays one flat tone with no outline, as 2D's.
+
+
 > **Lobule parity audit, 19 Nov 2026 (LOBULE worker, against the 2D pin b3058ef3; 2D's own code is copied by `node scripts/copy-lobule.mjs --from <2D checkout> [--check]`).**
 >
 > | 2D | 3D now | state |
@@ -133,3 +136,7 @@ ink lines in focus never bloom) and a full-size blend run before the FXAA pass, 
 is taken to lie on the plane through the camera's target facing +z (`planeUniform`): with the camera square on, the plane is all in focus and only what stands off it (a vessel past the sharp slab) blurs; tilt and turn
 put the far side of the plane out of focus. While the pass runs the vessels' pass does not clear the depth (it draws nothing once the body is gone). A refused program turns the blur off (shader guard) and the figure is
 drawn as before.
+
+## Sinusoid, cel shaded (20 Nov 2026)
+2D's tissue shader stays a byte-for-byte copy (`gl.copied.ts`, `scripts/copy-sinusoid.mjs --check`). `src/scene/sinusoid/cel.ts` wraps it: 2D's `main` becomes `main2d`, and a new `main` steps the pixel's lightness onto hard bands one shade step wide
+(`-ln(1 - CEL_STYLE.SHADE)`, so the bands are the figure's own shade step), keeps hue and chroma, inks sharp colour changes (the colour shaded three times) and puts the pixel back premultiplied with 2D's alpha. Every number comes from `src/scene/cel-style.ts`.

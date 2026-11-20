@@ -8,9 +8,9 @@ import { LOOK_IDS, type LookChoice } from '../looks/looks.ts';
 export const FIGURE_DETAIL = [{ name: 'Soft', dpr: 1 }, { name: 'Standard', dpr: 1.5 }, { name: 'Sharp', dpr: 2 }] as const;
 export const FIGURE_DETAIL_DEFAULT = 1;
 
-export const ORGAN_FILLS = ['seethrough', 'solid'] as const;
+export const ORGAN_FILLS = ['solid', 'seethrough'] as const;
 export type OrganFill = (typeof ORGAN_FILLS)[number];
-export const ORGAN_FILL_DEFAULT: OrganFill = 'seethrough';
+export const ORGAN_FILL_DEFAULT: OrganFill = 'solid';
 
 export interface Settings {
   look: LookChoice;
@@ -31,7 +31,7 @@ export interface Settings {
   tilt: boolean;
   dof: boolean;
   particles: boolean;
-  /** Organ fill (3D only): the see-through wash (the default, adopted 19 Nov) or solid shaded organs (opaque, the page colour pre-mixed, 2D-style 3-tone shade). Mohammad: "It really depends on how it's gonna look". */
+  /** Organ fill (3D only): solid cel-shaded organs (the default since 20 Nov: "I want the organs to be cell shaded") or the see-through wash (adopted 19 Nov, kept as the alternative); solid is (opaque, the page colour pre-mixed, 2D-style 3-tone shade). Mohammad: "It really depends on how it's gonna look". */
   organFill: OrganFill;
 }
 interface Store extends Settings {
