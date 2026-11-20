@@ -232,3 +232,23 @@ test('two more sinusoids and plates lie beyond the main plates each way, and the
   assert.ok(Math.abs(y0 - (G.hepIn(0) + UM.hep * 0.5)) < 1e-6, 'sharp to the middle of the first hepatocyte row, then it begins');
   assert.ok(y1 - y0 > PERIOD, `then gradual, over more than a whole repeat (${(y1 - y0).toFixed(0)} µm)`);
 });
+
+test('the bile canaliculus is a small round lumen between each pair of hepatocytes, not a long channel down the border (Mohammad 20 Nov: "like a circle in between each hepatocyte")', () => {
+  const { s3 } = scene(); s3.update(true);
+  const m = meshes(s3.group).find((o) => o.name === 'sinusoid3d/canaliculi')!;
+  const a = m.geometry.getAttribute('position').array;
+  // group the vertices into blobs (they lie a cell apart along the plate), then each blob is as tall as it is wide
+  const pts: [number, number][] = []; for (let i = 0; i < a.length; i += 3) pts.push([a[i]!, a[i + 1]!]);
+  pts.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+  const blobs: [number, number][][] = [];
+  for (const p of pts) {
+    const b = blobs.find((k) => Math.hypot(k[0]![0] - p[0], k[0]![1] - p[1]) < 4);
+    if (b) b.push(p); else blobs.push([p]);
+  }
+  assert.ok(blobs.length >= 8, `a canaliculus at each border on both plates (${blobs.length})`);
+  for (const b of blobs) {
+    const xs = b.map((p) => p[0]), ys = b.map((p) => p[1]);
+    const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
+    assert.ok(Math.abs(w / h - 1) < 0.1, `round, not a sliver: ${w.toFixed(3)} x ${h.toFixed(3)}`);
+  }
+});
