@@ -69,6 +69,8 @@ export class ProbeLayer {
     const tip = this.scope.pose.tip;
     return this.scope.needle > 0.01 || this.scope.fan > 0.5 ? out.copy(tip).add(glueTarget3(new Vector3())).multiplyScalar(0.5) : out.copy(tip);
   }
+  /** The scope's tip while an EUS run drives it (the camera follows it, 2D playProcedure's follow); null otherwise. */
+  eusFocus(out: Vector3): Vector3 | null { return this.scope.driven && this.scope.d > 0.5 ? out.copy(this.scope.pose.tip) : null; }
   /** True when a device is on the figure or asked for (the clock keeps drawing while the FibroScan's waves run). */
   get active(): boolean { const s = useProbes.getState(); return s.doppler.on || s.fibro.on || s.endoscope.on || this.doppler.active || this.fibro.shown > 0 || this.scope.d > 0.5 || this.gluing; }
   dispose(): void { this.doppler.dispose(); this.fibro.dispose(); this.scope.dispose(); }

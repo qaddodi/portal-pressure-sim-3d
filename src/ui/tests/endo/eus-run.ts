@@ -7,7 +7,13 @@ import { latest } from '../../../engine/index.ts';
 import { sceneApi } from '../../../scene/api.ts';
 import { READS, markAt, specOf } from '../../../scene/procedures/copied/proc-anim.js';
 import { runCards, type CardRun } from '../../../scene/labels/proc-cards.ts';
+import { Vector3 } from 'three';
 import { useShell } from '../../shell/store.ts';
+import { goToView } from '../../shell/view-actions.ts';
+import { useUi } from '../../ui-store.ts';
+import { freeRoom } from '../../shell/room.ts';
+import { cutRoom } from '../room.ts';
+import { tipShot } from '../../deck/procs-plan.ts';
 import { createTakeover } from '../copied/monitor-takeover.copied.js';
 import { EUS, type Reads } from './eus-words.ts';
 import { ENDO_WORDS as W } from '../copied/endo-words.copied.js';
@@ -31,6 +37,25 @@ export const tk = createTakeover({ onChange: (p: string) => { const ph = p as 'i
 
 let cards: CardRun | null = null;   // (the readings' cards on the figure, and the names standing aside: 2D quiet)
 let hold: { release(): void } | null = null;
+const V = new Vector3();
+const room = () => { const { vp, device } = useUi.getState(); return cutRoom(freeRoom(vp, device)); };
+/** The camera follows the scope as 2D's playProcedure does: the way in as one glide behind the tip, then a close shot where it works, home when it is out. */
+let camAt = '';
+function camera(shot: string): void {
+  if (!shot) return;
+  const tip = sceneApi.procedure.tip(V);
+  if (!tip) return;
+  if (shot === 'way') {
+    if (camAt !== 'way') { camAt = 'way'; const sh = tipShot('way', tip); if (sh) sceneApi.goTo(sh, room(), 1100); }
+    sceneApi.follow([tip.x, tip.y, tip.z]);
+    return;
+  }
+  if (shot === camAt) return;
+  const sh = tipShot(shot, tip);
+  if (!sh) return;
+  camAt = shot; sceneApi.follow(null); sceneApi.goTo(sh, room(), 900);
+}
+const camHome = () => { camAt = ''; sceneApi.follow(null); sceneApi.goTo('play', room()); };
 const wake = () => { hold ||= clock.hold('eus-ppg'); };
 const sleep = () => { hold?.release(); hold = null; };
 
@@ -38,8 +63,10 @@ const sleep = () => { hold?.release(); hold = null; };
 export function playEus(): void {
   if (performance.now() - E.playT < 600 || E.run) return;
   E.playT = performance.now();
-  if (sceneApi.procedure.playing) { useShell.getState().say(W.eusBusy); return; }
+  if (sceneApi.procedure.playing || sceneApi.procedure.tip(V)) { useShell.getState().say(W.eusBusy); return; }
   for (const k of Object.keys(readsRef.eus)) (readsRef.eus as unknown as Record<string, number>)[k] = NaN;
+  if (useShell.getState().view !== 'anatomic') goToView('anatomic');   // (2D leaveFor: the needle is drawn on the body, so the Circuit, the lobule and the sinusoid close first)
+  camAt = '';
   E.run = true; E.step = 0; E.done = false; E.got = -1; M.run = true;
   tk.start();
   resetMonitor();   // (a new run: the monitor starts afresh, waiting for the needle)
@@ -51,13 +78,14 @@ export function playEus(): void {
       const t = sceneApi.procedure.playing?.t ?? 0;
       eusAt(t);
       cards?.frame(t, latest.frame);
+      camera(String(r.shot || ''));
       if (r.step !== E.step && r.step >= 0) { E.step = r.step; useScope.getState().setEus('run', r.step); bump(); }
       // each reading is taken once its callout has come (the needle has reached the vein and the pressure has settled): the model's frame then
       const mk = r.step < 0 ? -1 : t >= markAt('eus', r.step) ? r.step : r.step - 1;
       for (let i = E.got + 1; i <= mk; i++) { spec.capture(i, readsRef.eus, latest.frame); E.got = i; bump(); }
       if (t >= EUS.T.end - 1) E.done = true;
     },
-    onEnd: () => { cards?.end(); cards = null; E.run = false; M.run = false; E.step = -1; tk.finish(E.done); pinLive(); sleep(); bump(); },
+    onEnd: () => { camHome(); cards?.end(); cards = null; E.run = false; M.run = false; E.step = -1; tk.finish(E.done); pinLive(); sleep(); bump(); },
   });
 }
 

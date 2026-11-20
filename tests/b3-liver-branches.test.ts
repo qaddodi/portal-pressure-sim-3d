@@ -89,9 +89,10 @@ test('a vein that branches is ONE tube from its root to its tip; its side branch
     const host = NETWORK_BY_ID.get(set.host)!, hostC = coursesOf(host, REST)[0]!, kid = coursesOf(NETWORK_BY_ID.get(`${set.host}~F:b`)!, REST)[0]!;
     const isIn = (LIVER_BRANCH_HOSTS.in as readonly string[]).includes(set.host), t = treeOf(set.host)!;
     const at = isIn ? kid.pts[kid.pts.length - 1]! : kid.pts[0]!;
-    // (the branch's start is a point of the vein's own tube)
-    let near = 1e9, nearI = 0; hostC.pts.forEach((p, i) => { const d = Math.hypot(at[0] - p[0], at[1] - p[1], at[2] - p[2]); if (d < near) { near = d; nearI = i; } });
+    // (the branch's start is a point of the vein's own tube, in the plane: it starts a little behind the vein, whose wall covers its start)
+    let near = 1e9, nearI = 0; hostC.pts.forEach((p, i) => { const d = Math.hypot(at[0] - p[0], at[1] - p[1]); if (d < near) { near = d; nearI = i; } });
     assert.ok(near < 0.01, `${set.host}: the branch starts on the vein's own centreline (${near.toFixed(4)})`);
+    assert.ok(at[2] <= hostC.pts[nearI]![2] && hostC.pts[nearI]![2] - at[2] < 0.03, `${set.host}: it starts just behind the vein, so the vein's wall covers it`);
     assert.ok(nearI > 0.1 * hostC.pts.length && nearI < 0.9 * hostC.pts.length, `${set.host}: it leaves the vein part-way along, at point ${nearI}`);
     assert.ok(kid.capless?.[isIn ? 1 : 0], `${set.host}: no cap where the branch starts`);
     assert.ok(t.q > 0.1 && t.q < 0.9);

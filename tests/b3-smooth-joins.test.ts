@@ -48,6 +48,7 @@ test('the switch is off in the vessel code until the scene sets it, and off the 
   for (const v of MAPPED) {
     const c = coursesOf(v, REST)[0]!;
     assert.equal(c.clamp, undefined, v.id); assert.equal(c.point, undefined, v.id);
+    if (c.sewn) continue;   // (a shunt sewn onto a vein narrows to its host's caliber there, shunt-ends.ts, switch or not)
     if (cutEnd(v.id) != null) continue;   // (a vein that branches narrows to its tip whatever the switch says: liver-branches.ts)
     assert.deepEqual(c.capless, v.joined, v.id); assert.deepEqual(c.taper, v.taper, v.id);
   }
@@ -94,7 +95,7 @@ test('tapers are monotone: along the first and last 30 % the radius moves from t
     let checked = 0;
     for (const v of MAPPED) {
       const c = coursesOf(v, REST)[0]!;
-      if (!c.taper || v.flare || v.id.startsWith('C')) continue;
+      if (!c.taper || v.flare || v.id.startsWith('C') || c.sewn) continue;   // (a sewn shunt's heel flares over its taper: shunt-ends.ts)
       const { b: bt, run } = built(v.id), rk = bt.geometry.getAttribute('rk');
       const at = (k: number) => rk.getX(run.tubeStart + k * (run.radial + 1));
       const N = run.tubular, lo = Math.ceil(0.3 * N);
@@ -251,9 +252,9 @@ test('pressure colour runs smoothly along a chain: the two vessels of a run-on w
     if (rows[2]!.some((x, i) => Math.abs(x - lerp[i]!) > 0.02)) differsFromBlend++;
   }
   assert.ok(differsFromBlend >= 1, 'some vessel\'s colour along it is the ramp\'s, not the blend of its ends');
-  // a lens whose colour does not run along the vessel gives its ends\' blend (so nothing else moves with the switch on)
+  // a lens whose colour does not run along the vessel keeps its own colour a third and two thirds along, and its ends take the node's (lenses/model.ts meetAtNodes): the colour never steps at a junction
   const f = computeLens('flow', frame as never, 'light', { healthy, ref: null });
-  for (let k = 0; k < NE; k++) { if (f.grad[k * 4 + 3] === 0) continue; for (let i = 0; i < 3; i++) { const a = f.grad[k * 4 + i]!, b = f.grad[(NE + k) * 4 + i]!; assert.ok(Math.abs(f.grad[(2 * NE + k) * 4 + i]! - (a + (b - a) / 3)) < 1e-6); assert.ok(Math.abs(f.grad[(3 * NE + k) * 4 + i]! - (a + (b - a) * 2 / 3)) < 1e-6); } }
+  for (let k = 0; k < NE; k++) { if (f.grad[k * 4 + 3] === 0) continue; for (let i = 0; i < 3; i++) assert.ok(Math.abs(f.grad[(2 * NE + k) * 4 + i]! - f.grad[(3 * NE + k) * 4 + i]!) < 1e-6, `${edges[k]!.id}: one colour through the middle`); }
 });
 
 test('no vessel shares a stencil bit with another: every tube is one opaque draw with the outline in its own fragments, so a crossing is never merged and a join is buried only by the mates (the same on or off)', () => {
