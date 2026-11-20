@@ -143,17 +143,59 @@ test('a vein that branches runs on as one tube inside the liver\'s outline, past
   }
 });
 
-test('a side branch stays behind its vein for as long as the two overlap and comes forward only once it is clear of it (so no outline or darker fill is drawn across the vein at a fork)', async () => {
-  const { LIVER_BRANCHES, tuckedDepth } = await import('../src/scene/vessels/liver-branches.ts');
-  assert.ok(tuckedDepth(0, 10, 0.1) < 0 && tuckedDepth(3, 10, 0.1) < 0, 'behind while on the vein');
-  assert.ok(tuckedDepth(6, 10, 0.1) < 0.02, 'still behind or level at the vein\'s wall');
-  assert.ok(Math.abs(tuckedDepth(14, 10, 0.1) - 0.1) < 1e-9, 'forward once clear');
+test('a side branch stays behind its vein for as long as the two overlap and never dives at the camera (so no outline or darker fill is drawn across the vein at a fork)', async () => {
+  const { LIVER_BRANCHES, tuckedDepth, SIDE_SLOPE } = await import('../src/scene/vessels/liver-branches.ts');
+  const { len3 } = await import('../src/scene/frame2d.ts');
+  assert.ok(tuckedDepth(0, 0.1) < 0 && tuckedDepth(3, 0.1) < 0, 'behind while on the vein');
+  assert.ok(tuckedDepth(12, 0.1) < 0.002, 'behind or level with the vein by the time it has cleared it (two radii out)');
+  assert.ok(tuckedDepth(1e4, 0.1) < 0.0801 && tuckedDepth(1e4, 0.1) > 0.079, 'it comes forward to its own depth and does not pass it');
   let prev = -1;
-  for (let w = 0; w < 20; w += 0.5) { const z = tuckedDepth(w, 10, 0.1); assert.ok(z >= prev - 1e-12, 'never goes back'); prev = z; }
+  for (let w = 0; w < 60; w += 0.5) {
+    const z = tuckedDepth(w, 0.1); assert.ok(z >= prev - 1e-12, 'never goes back');
+    if (w > 0) assert.ok((z - prev) / len3(0.5) <= SIDE_SLOPE + 1e-9, `no steeper than SIDE_SLOPE at ${w}`);
+    prev = z;
+  }
   for (const b of LIVER_BRANCHES) {
     const item = b.list[0]! as { dz: readonly number[]; pts: readonly (readonly [number, number])[] };
     assert.ok(item.dz.length === item.pts.length && item.dz.every(Number.isFinite), b.host);
   }
+});
+
+test('no vessel dives at the camera: along every course, depth changes by no more than about 50 degrees of run (root cause of the dark patch laid over the vein at the portal forks and the umbilical vein: a steep tube is shaded by its normals, and its whole width went to the shade tone)', async () => {
+  const { NETWORK } = await import('../src/scene/vessels/network.ts');
+  const { REST, coursesOf, DEPTH_SLOPE_CAP } = await import('../src/scene/vessels/shape.ts');
+  const { setSmoothJoins } = await import('../src/scene/vessels/join-mode.ts');
+  for (const on of [true, false]) {
+    setSmoothJoins(on);
+    for (const v of NETWORK) {
+      if (!v.plan) continue;
+      for (const c of coursesOf(v, REST)) for (let i = 1; i < c.pts.length; i++) {
+        const dxy = Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1]), dz = Math.abs(c.pts[i]![2] - c.pts[i - 1]![2]);
+        if (dxy < 1e-5) continue;
+        assert.ok(dz / dxy <= DEPTH_SLOPE_CAP * 1.01 + 0.05 || v.plan.kind === 'coil', `${v.id} (smooth joins ${on}) dives at point ${i}: slope ${(dz / dxy).toFixed(2)}`);
+      }
+    }
+  }
+  setSmoothJoins(true);
+});
+
+test('a vein draws no outline across the mouth of the side branch that leaves it: its wall is open on the branch\'s side, from where the branch reaches it to where it has cleared it', async () => {
+  const { SIDE_BRANCHES, mouthOf } = await import('../src/scene/vessels/mouth.ts');
+  const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
+  const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
+  const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
+  assert.deepEqual([...SIDE_BRANCHES.keys()].sort(), ['PVH_L_1', 'PVH_R_2', 'RHV_IVC_1']);
+  for (const [host, kids] of SIDE_BRANCHES) for (const k of kids) {
+    const m = mouthOf(k)!;
+    assert.ok(m && m.u1 > m.u0 && m.u0 >= 0 && m.u1 <= 1 && m.margin > 0 && m.margin <= 0.5 * (m.u1 - m.u0), `${host}: a mouth`);
+    // the branch really leaves on that side: its far end lies on side `side` of the vein's heading
+    const h = coursesOf(B.get(host)!, REST).reduce((a, b) => (b.radius > a.radius ? b : a)), c = coursesOf(B.get(k)!, REST)[0]!;
+    const far = c.pts.reduce((a, p) => { let bj = 0, bd = Infinity; h.pts.forEach((q, j) => { const d = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2; if (d < bd) { bd = d; bj = j; } }); const t = h.pts[Math.min(h.pts.length - 1, bj + 1)]!, t0 = h.pts[Math.max(0, bj - 1)]!; const l = ((t[0] - t0[0]) * (p[1] - h.pts[bj]![1]) - (t[1] - t0[1]) * (p[0] - h.pts[bj]![0])); return Math.abs(l) > Math.abs(a) ? l : a; }, 0);
+    assert.equal(Math.sign(far), m.side, `${host}: the branch leaves on the mouth's side`);
+  }
+  assert.equal(mouthOf('PVH_R_2'), null, 'a vein is not a side branch');
+  assert.match(VESSEL_FS, /uniform vec4 mouth;/);
+  assert.match(VESSEL_FS, /inkT \*= 1\.0 - mouthK;/);
 });
 
 test('the bed that continues a vein which branches wears no fork collar (root cause of the fat bulb on the left portal vein in the Circuit: the cut stopped counting the pair as a run-on, so the bed was dressed as a branch on a wall, and the Circuit draws the beds)', async () => {
