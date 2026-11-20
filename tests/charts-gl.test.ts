@@ -30,10 +30,11 @@ class FakeOffscreen extends Emitter {
   transferToImageBitmap() { return { w: this.width, h: this.height }; }
 }
 class FakeCanvas extends Emitter {
+  style: Record<string, string> = {};
   width = 300; height = 150; shown: { w: number; h: number } | null = null; own: object | null = null; dead = false;
   static live: FakeCanvas[] = [];
   getContext(kind: string) {
-    if (kind === 'bitmaprenderer') return { transferFromImageBitmap: (b: { w: number; h: number }) => { this.shown = b; this.width = b.w; this.height = b.h; } };
+    if (kind === 'bitmaprenderer') return { transferFromImageBitmap: (b: { w: number; h: number }) => { this.shown = b; } };
     if (kind !== 'webgl2') return null;
     // a dedicated context: a browser keeps CONTEXT_CAP and loses the oldest silently
     world.webgl++;
@@ -88,4 +89,15 @@ test('a browser with no WebGL2 on an OffscreenCanvas falls back to a context per
   assert.equal(g.shared, false);
   assert.ok(g.ok);
   assert.ok((world.drawn.get(c) ?? 0) > 0);
+});
+
+test('a chart\'s canvas is exactly its box in CSS px and its picture\'s size in pixels: no 300 x 150 left from its making, no stretching of a fractional box', () => {
+  for (const dpr of [1, 2, 3]) {
+    const c = new FakeCanvas(), g = new ChartGL(c as unknown as HTMLCanvasElement);
+    g.size(447, 447, dpr); g.draw(tessellate({ ...frame, w: 447, h: 447 }));
+    const r = Math.min(2, dpr);
+    assert.equal(c.width, 447 * r); assert.equal(c.height, 447 * r);
+    assert.equal(c.style.width, '447px'); assert.equal(c.style.height, '447px');
+    assert.deepEqual(c.shown, { w: 447 * r, h: 447 * r });
+  }
 });

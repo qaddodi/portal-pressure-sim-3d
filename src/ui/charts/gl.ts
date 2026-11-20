@@ -156,6 +156,10 @@ export class ChartGL {
   /** The box in CSS px; the canvas takes its pixels from it at the capped ratio when it next draws (a canvas resized now would show blank until then). */
   size(w: number, h: number, dpr = typeof devicePixelRatio === 'number' ? devicePixelRatio : 1) {
     this.w = w; this.h = h; this.dpr = Math.min(MAX_DPR, Math.max(1, dpr));
+    // The canvas element is exactly the box the mesh is made for, in CSS px (not 100% of a box that may be a fraction wider): the picture is drawn at w x h x ratio device pixels and shown at w x h, so at
+    // a whole device ratio each of its pixels is one device pixel and nothing is stretched or resampled (a 447 px picture shown in a 447.4 px canvas put a seam row through the Scope, Mohammad 20 Nov).
+    const st = this.canvas.style;
+    if (st) { const cw = `${w}px`, ch = `${h}px`; if (st.width !== cw) st.width = cw; if (st.height !== ch) st.height = ch; }
   }
 
   draw(mesh: Mesh) { this.last = mesh; this.paint(mesh); }
@@ -166,6 +170,8 @@ export class ChartGL {
     if (this.show) {
       const d = sharedDrawer();
       if (!d || !d.paint(mesh, this.w, this.h, pw, ph, this.under)) return;
+      // (the canvas's own pixel size is the picture's, set in this task right before the picture is handed over: a bitmap renderer keeps the 300 x 150 it was made with, and the browser then fits the picture to it)
+      if (this.canvas.width !== pw || this.canvas.height !== ph) { this.canvas.width = pw; this.canvas.height = ph; }
       this.show.transferFromImageBitmap((d.surface as OffscreenCanvas).transferToImageBitmap());
     } else this.own?.paint(mesh, this.w, this.h, pw, ph, this.under);
   }
