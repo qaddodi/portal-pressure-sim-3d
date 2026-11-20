@@ -27,7 +27,6 @@ varying vec3 vN;
 varying vec3 vV;
 varying vec2 vBox;
 varying vec4 vClip;
-varying vec2 vSvg;
 void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
   vN = normalize(normalMatrix * normal);
@@ -40,8 +39,6 @@ void main() {
   vAo = depthAo;
   // where this point sits in the organ's own 2D box: (0,0) top left, (1,1) bottom right, as the SVG gradient's objectBoundingBox
   vBox = vec2((position.x - box.x) / max(box.z, 1e-5), (box.y - position.y) / max(box.w, 1e-5));
-  // where this point sits in the 2D figure's own units (x right, y down: frame2d.ts), for what 2D lays in the figure's frame (the liver's sheen)
-  vSvg = vec2(700.0 + 300.0 * position.x, 556.0 - 300.0 * position.y);
 #ifdef VERTEX_INK
   vInk = ink;
 #endif
@@ -62,12 +59,7 @@ uniform vec4 volShade;   // its shade stop: --og-vol-shade and its opacity
 uniform vec4 volGeo;     // its centre (cx, cy), radius, and the offset where the light has ended
 uniform float volShadeAt;
 uniform vec3 shadeSteps; // the inner shade's three strokes' opacities (the right atrium's are fainter)
-uniform float rimK;      // the rim light's opacity
-uniform vec4 sheenE0;    // the liver's capsule sheen: two ellipses (cx, cy, rx, ry in the figure's units) and their turns, its stops and its strength (0: no sheen on this organ)
-uniform vec4 sheenE1;
-uniform vec2 sheenRot;
-uniform vec4 sheenStops; // the opacities at the centre, at the middle stop and at the edge, and the middle stop's offset
-uniform float sheenK;
+uniform float rimK;      // the rim light's opacity (0 on the liver and the stomach: too shiny, owner 20 Nov)
 uniform float wash;      // 1 minus the cel fill's share (layer.ts uWash): the see-through fill's own terms fade out with it
 uniform vec3 page;
 uniform float layer;
@@ -87,14 +79,6 @@ varying vec3 vV;
 varying vec2 vBox;
 varying float vAo;
 varying vec3 vCn;
-varying vec2 vSvg;
-/** One of the sheen's ellipses as a radial gradient in its own box: the opacity at this point (SVG: rotate(a cx cy), then r = 1 at the ellipse's edge). */
-float sheenAt(vec4 e, float turn) {
-  vec2 d = vSvg - e.xy;
-  float c = cos(turn), s = sin(turn);
-  float r = length(vec2(c * d.x + s * d.y, -s * d.x + c * d.y) / e.zw);
-  return r >= 1.0 ? 0.0 : (r < sheenStops.w ? mix(sheenStops.x, sheenStops.y, r / sheenStops.w) : mix(sheenStops.y, sheenStops.z, (r - sheenStops.w) / (1.0 - sheenStops.w)));
-}
 // Cel shaded (organFill solid): the figure's one cel style (src/scene/cel-style.ts, injected below, never retyped): three flat tones, shade / base / lit, from the organ's own colour, 2D's og-dark and
 // og-light; the terminator is where the lambert of the screen's upper-left light crosses SHADE_LAM, the lit cap where it crosses LIT_LAM, and with organ depth on the baked tuck is one hard band of the
 // shade tone. An edge is EDGE_PX device pixels either side of the line (fwidth) and no softer. tests/organ-depth.test.ts mirrors this function with celBand.
@@ -132,9 +116,6 @@ void main() {
   float r = distance(vBox, volGeo.xy) / volGeo.z;
   fill = mix(fill, volLight.rgb, volLight.a * (1.0 - clamp(r / volGeo.w, 0.0, 1.0)) * wash);
   fill = mix(fill, volShade.rgb, volShade.a * clamp((r - volShadeAt) / (1.0 - volShadeAt), 0.0, 1.0) * wash);
-  // the liver's capsule sheen (.lv-gloss): two soft reflections on the domes, --light-ink, at the capsule's gloss (a quarter of it left in cirrhosis)
-  fill = mix(fill, volLight.rgb, sheenAt(sheenE0, sheenRot.x) * sheenK * wash);
-  fill = mix(fill, volLight.rgb, sheenAt(sheenE1, sheenRot.y) * sheenK * wash);
   // the inner shade: three soft steps of the turn away from the eye (2D strokes 30/18/8 px)
   float ndv = clamp(dot(n, normalize(vV)), 0.0, 1.0);
   float turn = 1.0 - ndv;
