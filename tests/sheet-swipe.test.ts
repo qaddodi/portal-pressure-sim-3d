@@ -41,3 +41,18 @@ test('the swipe moves the sheet by `translate` and makes the stylesheet give its
   assert.match(css, /\[data-pulled\] \{ animation: none !important; \}/);
   assert.match(src, /pointerType === 'mouse'/, 'a mouse is not a swipe, as in 2D');
 });
+
+test('a phone\'s shell sheet is laid like 2D\'s thumb sheets (inset 6 px, rounded all round) and its close button has a 44 px target', () => {
+  const css = read('src/ui/shell/shell.css');
+  const rule = /\.sh-root\[data-bottom="true"\]\[data-mode="free"\] \.sh-sheet \{([^}]*)\}/.exec(css)![1]!;
+  assert.match(rule, /left: calc\(var\(--safe-l, 0px\) \+ 6px\) !important; right: calc\(var\(--safe-r, 0px\) \+ 6px\) !important/);
+  assert.match(rule, /border-radius: var\(--r-sheet\)/);
+  assert.match(css, /\.sh-x::after \{ content: ''; position: absolute; inset: -4px; \}/);
+});
+
+test('the shell\'s own small controls reach 44 px for a thumb (a taller box or a hit area)', () => {
+  const sh = read('src/ui/shell/shell.css');
+  for (const r of ['.sh-seg-row button { flex: 1; min-height: 44px;', '.sh-tabs button { flex: 1; height: 44px;', '.sh-fig button { height: 44px;']) assert.ok(sh.includes(r), r);
+  assert.match(read('src/ui/action/action.css'), /\.ac-x::after \{ content: ''; position: absolute; inset: -6px; \}/);
+  assert.match(read('src/ui/compare/compare.css'), /\.cmp-seg button::after, \.cmp-table-btn::after \{ content: ''; position: absolute; inset: -6px 0; \}/);
+});
