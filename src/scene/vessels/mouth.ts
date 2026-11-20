@@ -51,6 +51,8 @@ export function mouthOf(childId: string, state: ShapeState = REST): Mouth | null
   }
   side = far >= 0 ? 1 : -1;
   if (!(u1 > u0)) return null;
+  // (the ease at each end is short, a quarter of a radius each side, so the two outlines trade places over a few units, not a stretch where both lines show)
+  const margin = Math.min(0.5 * (u1 - u0), (0.25 * radiusAtU(hc, 0.5 * (u0 + u1), hL)) / hL);
   // the branch's own outline is held back inside the vein it leaves for the first stretch of it (scene.ts BURY, fading in from half that), so the vein keeps its outline over that stretch at the end where the branch joins:
   // the union's outline is then never missing, and there is no notch where the vein's line stops and the branch's has not begun
   const joinEnd = cd.plan?.kind === 'feeder' ? cd.plan.list[0]!.join : undefined;
@@ -58,9 +60,8 @@ export function mouthOf(childId: string, state: ShapeState = REST): Mouth | null
     const pj = cc.pts[joinEnd === 0 ? 0 : cc.pts.length - 1]!;
     let bj = 0, bd = Infinity;
     for (let j = 0; j < hc.pts.length; j++) { const d = (hc.pts[j]![0] - pj[0]) ** 2 + (hc.pts[j]![1] - pj[1]) ** 2; if (d < bd) { bd = d; bj = j; } }
-    const uj = hs[bj]! / hL, shift = (0.75 * BURY * cc.radius) / hL;
+    const uj = hs[bj]! / hL, shift = (0.95 * BURY * cc.radius) / hL + margin;
     if (Math.abs(uj - u0) <= Math.abs(uj - u1)) u0 += Math.min(shift, 0.4 * (u1 - u0)); else u1 -= Math.min(shift, 0.4 * (u1 - u0));
   }
-  const rh = radiusAtU(hc, 0.5 * (u0 + u1), hL);
-  return { child: childId, u0, u1, side: side as 1 | -1, margin: Math.min(0.5 * (u1 - u0), (0.6 * rh) / hL) };
+  return { child: childId, u0, u1, side: side as 1 | -1, margin };
 }

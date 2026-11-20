@@ -170,27 +170,27 @@ export class Sinusoid3D {
     this.beadLine = mk('endothelium-edge', { ink: null, gaps });
     this.disse = mk('disse', { ink: null, streaks: true });
     this.cells = mk('hepatocytes', { px: S.LINE });
-    this.nuclei = mk('nuclei', { px: S.LINE_SMALL });
+    // (the small solid shapes, the nuclei, the canaliculi, the lining's cells, the Kupffer and stellate cells, albumin and the red cells, draw their line inside their own fill (cel3d.ts uRim):
+    //  whole and smooth on every screen, never fighting the surface behind; their hull lines broke into dashes and specks, eyes 20 Nov)
+    this.nuclei = mk('nuclei', { ink: null, rim: S.LINE });
     this.nucleoli = mk('nucleoli', { ink: null });
-    this.bile = mk('canaliculi', { px: S.LINE_SMALL });
-    this.endoN = mk('endothelial-cells', { px: S.LINE_SMALL });
+    this.bile = mk('canaliculi', { ink: null, rim: S.LINE_SMALL });
+    this.endoN = mk('endothelial-cells', { ink: null, rim: S.LINE_SMALL });
     this.endoNi = mk('endothelial-nuclei', { ink: null });
-    this.kup = mk('kupffer', { px: S.LINE });
+    this.kup = mk('kupffer', { ink: null, rim: S.LINE });
     this.kupN = mk('kupffer-nucleus', { ink: null });
     // (see-through: the body and its nucleus blend over the stream but still write depth and draw before the line, so the line behind the body never shows through it; colour premultiplied)
     for (const [p, o] of [[this.kup, 10], [this.kupN, 11]] as const) {
       const m = p.mats.toon; m.transparent = true; m.depthWrite = true; m.premultipliedAlpha = true; m.uniforms.opacity!.value = KUP_ALPHA; p.toonMesh.renderOrder = o;
     }
-    // (the line in the same see-through list, so it truly draws after the body: an opaque line would draw first and its hull behind the body would show through it)
-    if (this.kup.inkMesh) { this.kup.inkMesh.renderOrder = 12; const im = this.kup.inkMesh.material as ShaderMaterial; im.transparent = true; im.depthWrite = true; }
-    this.hsc = mk('stellate', { px: S.LINE_SMALL });
+    this.hsc = mk('stellate', { ink: null, rim: S.LINE_SMALL });
     this.hscN = mk('stellate-nucleus', { ink: null });
     this.bm = mk('basement', { ink: null, transparent: true });
     this.arrows = mk('ends', { px: S.LINE_SMALL });
     this.villi = many('microvilli', unitRod(8), 900, { px: S.LINE_SMALL });
     this.fibres = many('collagen', unitRod(6), 800, { ink: null });
-    this.albumin = many('albumin', unitSphere(12, 8), 2000, { px: S.LINE_SMALL });
-    this.rbc = many('red-cells', unitRbc(22), RBC_N + 2 * RBC_FAR, { px: S.LINE });
+    this.albumin = many('albumin', unitSphere(12, 8), 2000, { ink: null, rim: S.LINE_SMALL });
+    this.rbc = many('red-cells', unitRbc(22), RBC_N + 2 * RBC_FAR, { ink: null, rim: S.LINE });
     // (order: the ground first, then the solid shapes; the see-through membrane and the arrows last)
     for (const p of [this.ground, this.disse, this.troughFar, this.trough, this.bead, this.beadLine, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoN, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) this.group.add(p.group);
     for (const p of [this.villi, this.fibres, this.albumin, this.rbc]) this.group.add(p.group);
