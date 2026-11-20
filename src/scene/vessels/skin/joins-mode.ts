@@ -16,9 +16,9 @@ export function joinsMode(search?: string): JoinsMode {
 export const skinDebugOn = (search?: string): boolean => flagValue('joins', search ?? undefined) === 'debug';
 /** `?joins=nomarks` and `?joins=noink`: every skin as mesh2, with its flow marks (dust, streaks, heads) or its outline ink left out: take one away and see whether a speck goes (a diagnostic, never a look). */
 /** `?joins=nodust` and `?joins=noheads` split the marks: only the dust's particles, or only the chevron heads, left out (the A/B that says which of the two draws a speck). */
-export const skinLeaveOut = (search?: string): 'marks' | 'ink' | 'dust' | 'heads' | '' => {
+export const skinLeaveOut = (search?: string): 'marks' | 'ink' | 'dust' | 'heads' | 'dustblend' | '' => {
   const v = flagValue('joins', search ?? undefined);
-  return v === 'nomarks' ? 'marks' : v === 'noink' ? 'ink' : v === 'nodust' ? 'dust' : v === 'noheads' ? 'heads' : '';
+  return v === 'nomarks' ? 'marks' : v === 'noink' ? 'ink' : v === 'nodust' ? 'dust' : v === 'noheads' ? 'heads' : v === 'dustblend' ? 'dustblend' : '';
 };
 /** The skin phase a mode builds (spec 4.1): 0 none. */
 export const joinsPhase = (m: JoinsMode): 0 | 1 | 2 => (m === 'mesh' ? 1 : m === 'mesh2' ? 2 : 0);

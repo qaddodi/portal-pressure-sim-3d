@@ -125,3 +125,12 @@ test('?joins=nodust and ?joins=noheads split the marks for the A/B that finds a 
   assert.match(SKIN_FS, /#ifndef SKIN_NOHEADS\s+headAcc \+= wI \* flowHeads\([^\n]*\n#endif/);
   assert.match(SKIN_FS, /#ifndef SKIN_NODUST\s+if \(dOn > 0\.002\) \{/);
 });
+
+// THE DUST SPECKS (Mohammad, 20 Nov: black and lime specks at every crotch and seam band; gone with ?joins=nodust, not with noheads). The two-frame blend (dustSkin) drew a particle at the average of its places in two frames
+// that disagree on a pixel that belongs to neither: a dot where no lane passes. The default is each arm's own dustTube, crossfaded by the weights; ?joins=dustblend is the old one, for the A/B.
+test('the skin\'s dust is each arm\'s own dustTube crossfaded by the weights; the two-frame blend is only behind ?joins=dustblend', async () => {
+  const { skinLeaveOut } = await import('../src/scene/vessels/skin/joins-mode.ts');
+  assert.equal(skinLeaveOut('?joins=dustblend'), 'dustblend');
+  assert.match(SKIN_FS, /#else\s+vec4 dust = dustTube\(FD0, litD, inkColor, revD0\);\s+if \(w1 > 0\.004\) dust = mix\(dust, dustTube\(FD1, litD, inkColor, revD1\), w1\);\s+#endif/);
+  assert.match(SKIN_FS, /#ifdef SKIN_DUSTBLEND\s+vec4 dust = w1 > 0\.004 \? dustSkin\(/);
+});

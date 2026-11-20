@@ -48,6 +48,7 @@ function skinDefines(c: number, grow: number): Record<string, number> {
   if (out === 'ink') d.SKIN_NOINK = 1;
   if (out === 'dust') d.SKIN_NODUST = 1;
   if (out === 'heads') d.SKIN_NOHEADS = 1;
+  if (out === 'dustblend') d.SKIN_DUSTBLEND = 1;
   return d;
 }
 
