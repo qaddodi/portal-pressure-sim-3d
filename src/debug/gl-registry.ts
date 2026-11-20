@@ -30,6 +30,7 @@ export const GL_FILES: Record<string, string> = {
   'scene/materials/shaders.ts': 'cel toon and ink (every organ, lobule and sinusoid part, the devices): found on the scene graph',
   'scene/blood/chevron-glsl.ts': 'the one chevron (the Anatomy\'s flow head), spliced into the vessel and the 3D lobule and sinusoid programs: part of those',
   'scene/blood/streak-glsl.ts': 'the one streak (lanes, comets), spliced into the blood streaks, the 3D lobule and the 3D sinusoid programs: part of those',
+  'scene/blood/dust-glsl.ts': 'the dust (the Dust Lab\'s particles, drawn by the vessel\'s own fragment shader), spliced into the vessel program: part of that',
   'scene/cel-glsl.ts': 'the cel style\'s shared tube GLSL (two tones, the world light), spliced into the vessel, toon and lobule programs: part of those',
   'scene/vessels/shaders.ts': 'the vessel, with its veil (VEIL define): found on the scene graph',
   'scene/sinusoid/view.ts': 'where the sinusoid\'s RawShaderMaterials are made (version moved to glslVersion): found on the scene graph',

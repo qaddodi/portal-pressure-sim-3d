@@ -13,6 +13,7 @@ import { edgeIndex } from '../src/scene/lenses/model.ts';
 import { CHEV, chevAlphaJs, chevSizeJs } from '../src/scene/blood/chevron-glsl.ts';
 import { STREAK, laneSpeed, lanesForPx, streakBoxJs, streakCoverage, streakDCap, streakToneJs } from '../src/scene/blood/streak-glsl.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
+import { MICRO_FS } from '../src/scene/micro3d/cel3d.ts';
 import { UNITS_PER_SCENE } from '../src/scene/frame2d.ts';
 
 const FITS: [string, number][] = [['phone', 390], ['Mac', 800]];
@@ -32,7 +33,7 @@ const lanePace = (lanes: number, k: number): number => (lanes === 1 ? 1 : laneSp
 
 test('every tube of the network, every preset, phone and Mac: where the flow is not none and the tube is 3 px across or more it carries filaments at the chevrons\' gate, the wall lane runs at 0.7 of the stream\'s mean or more, and the same tubes carry chevrons', () => {
   assert.equal(STREAK.MIN_R_PX, CHEV.MIN_R_PX, 'one gate: a tube shows a streak exactly where it shows a head');
-  assert.match(VESSEL_FS, /smoothstep\(1\.5, 2\.1, rCss\)/);
+  assert.match(VESSEL_FS, /smoothstep\(1\.5, 2\.1, rCssD\)/, 'the dust opens at the chevrons\' gate');
   assert.match(VESSEL_FS, /smoothstep\(0\.0, 2\.0, abs\(smS\.y\)\)/);
   const report: string[] = [];
   let carrying = 0, none = 0;
@@ -130,7 +131,8 @@ test('a 1 px filament is never dotted: the area it covers is the same at every s
   }
   // the strip never vanishes between two pixel rows: some row holds at least half of it at any offset (for a footprint of one pixel)
   for (let off = 0; off < 1; off += 0.05) { const peak = Math.max(...[-1, 0, 1].map((r) => streakBoxJs(r - off, 1, 1))); assert.ok(peak >= 0.5 - 1e-9, `offset ${off}: peak ${peak}`); }
-  assert.match(VESSEL_FS, /float fld = streakField\(/);
+  assert.match(VESSEL_FS, /vec4 dust = dustField\(/, 'the tube draws the dust (its marks are capsules with a soft edge, not a 1 px filament); the lobule and sinusoid still draw the filament');
+  assert.match(MICRO_FS, /streakField\(vAux, /);
 });
 
 test('the chevron lattice\'s second octave is never translucent: a head leaves by shrinking and is fully inked until the last of its keep', () => {
