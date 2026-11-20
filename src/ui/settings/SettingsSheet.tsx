@@ -113,7 +113,7 @@ function DepthGroup() {
     </MenuGroup>
   );
 }
-const FILL_WORDS: Record<OrganFill, string> = { seethrough: 'See-through', solid: 'Solid shaded' };
+const FILL_WORDS: Record<OrganFill, string> = { solid: 'Cel shaded', seethrough: 'See-through' };
 /** Organ fill: how the organs are painted, as two steps of the same segmented control the Figure detail uses (see-through wash by default; solid is opaque with 2D-style 3-tone shade). */
 function OrganFillChoice() {
   const at = useSettings((s) => s.organFill);
