@@ -110,15 +110,6 @@ uniform vec3 uHazeCol;
 varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
 uniform float uHole;
-uniform float uReveal;
-uniform float uRevealAx;
-// the reveal (uReveal > 0, local units): only what lies within uReveal of the part's origin is drawn (a disc: a band across the flow ran straight on where the lobule's tube curves away, and showed the tube beside it, eyes 20 Nov), its edge an antialiased 1.5 px in the fade's own screen pattern: the sinusoid
-// grows out from its lumen over the lobule's tube as the camera lands, in place of a crossfade of the whole frame, which showed two scenes at once (eyes 20 Nov). 0: drawn whole.
-bool unrevealed(vec2 xy) {
-  if (uReveal <= 0.0) return false;
-  float rl = length(vec2(xy.x / max(uRevealAx, 1.0), xy.y)), k = clamp((uReveal - rl) / max(fwidth(rl) * 1.5, 1e-5) + 0.5, 0.0, 1.0);   // (uRevealAx: an ellipse that long along the flow: the channel first, its whole length, then outward across)   // (its edge about 1.5 px on screen at every size: a fixed width in µm was a dithered seam 5-8 px wide, eyes 20 Nov)
-  return k < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= k;
-}
 // the shape's own line, drawn in its fill (uRim CSS px wide, uMicroDpr the canvas's pixel ratio, ink uRimCol, 0: none): where the surface turns away from the eye, measured in screen pixels from the outline by the
 // rate the facing changes (a dome's facing falls as the square root of the distance to its rim, so half the facing over its screen rate is that distance). It lies inside the shape: it
 // can never fight a surface behind it or its own fill, so it is whole and smooth on every screen (the hull's line broke into dashes and specks, eyes 20 Nov).
@@ -236,7 +227,6 @@ void main() {
   if (fadedOut()) discard;
   // (a hole: what lies within uHole of the part's own origin is not drawn: the sinusoids' ends inside the central vein's pool, so they merge into it with no shade or line of theirs inside)
   if (uHole > 0.0 && length(vP.xy) < uHole) discard;
-  if (unrevealed(vP.xy)) discard;
   vec3 n = normalize(vN);
   if (!gl_FrontFacing) n = -n;
   // the world light (CEL_STYLE.LIGHT): n.L with n in world axes. TWO tones: the base, and the shade below the step
@@ -373,17 +363,8 @@ uniform vec3 uHazeCol;
 varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
 uniform float uHole;
-uniform float uReveal;
-uniform float uRevealAx;
-// the reveal (uReveal > 0, local units): only what lies within uReveal of the part's origin is drawn (a disc: a band across the flow ran straight on where the lobule's tube curves away, and showed the tube beside it, eyes 20 Nov), its edge an antialiased 1.5 px in the fade's own screen pattern: the sinusoid
-// grows out from its lumen over the lobule's tube as the camera lands, in place of a crossfade of the whole frame, which showed two scenes at once (eyes 20 Nov). 0: drawn whole.
-bool unrevealed(vec2 xy) {
-  if (uReveal <= 0.0) return false;
-  float rl = length(vec2(xy.x / max(uRevealAx, 1.0), xy.y)), k = clamp((uReveal - rl) / max(fwidth(rl) * 1.5, 1e-5) + 0.5, 0.0, 1.0);   // (uRevealAx: an ellipse that long along the flow: the channel first, its whole length, then outward across)   // (its edge about 1.5 px on screen at every size: a fixed width in µm was a dithered seam 5-8 px wide, eyes 20 Nov)
-  return k < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= k;
-}
 varying vec2 vXY;
-void main() { if (fadedOut()) discard; if (uHole > 0.0 && length(vXY) < uHole) discard; if (unrevealed(vXY)) discard; vec3 c = mix(color, vOwnC * ${F(CEL_STYLE.TUBE.INK_TONE)}, uOwn); gl_FragColor = vec4(mix(c, uHazeCol, hazeK()) * opacity, opacity); }`;
+void main() { if (fadedOut()) discard; if (uHole > 0.0 && length(vXY) < uHole) discard; vec3 c = mix(color, vOwnC * ${F(CEL_STYLE.TUBE.INK_TONE)}, uOwn); gl_FragColor = vec4(mix(c, uHazeCol, hazeK()) * opacity, opacity); }`;
 
 export type RGB = readonly [number, number, number] | readonly number[];
 
@@ -397,10 +378,6 @@ export interface MicroOptions {
   streaks?: boolean;
   /** The haze's uniforms, shared by every part of a scene (hazeUniforms()); none by default. */
   haze?: HazeUniforms;
-  /** The reveal across the flow (local units, 0 whole): one shared uniform per scene (see unrevealed in the shaders). */
-  reveal?: { value: number };
-  /** How much longer along the flow (x) than across the reveal reaches (1: a disc). */
-  revealAx?: { value: number };
   /** Flow marks along a tube (the geometry has `aux`, the place along it, and `aux2`, across it): set them with MicroPart.setFlow. */
   flow?: boolean;
   /** Real gaps through the sheet along x (the geometry's local x and y): `gaps.tex` holds one texel per slot per side, `gaps.x` its layout (see MICRO_FS GAPS). */
@@ -442,7 +419,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
     uniforms: {
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, uSwell: { value: new Vector2(0, 0) }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
-      uHole: { value: 0 }, uReveal: o.reveal ?? { value: 0 }, uRevealAx: o.revealAx ?? { value: 1 }, uRim: { value: o.rim ?? 0 }, uRimUp: { value: o.rimUp ? 1 : 0 }, uRimK: o.rimK ?? { value: 1 }, uMicroDpr: MICRO_DPR, uRimCol: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, uWash: { value: new Vector4(0, 0, 0, 0) }, uWashCol: { value: new Color(1, 0.7, 0.2) }, uWashR: { value: 0 },
+      uHole: { value: 0 }, uRim: { value: o.rim ?? 0 }, uRimUp: { value: o.rimUp ? 1 : 0 }, uRimK: o.rimK ?? { value: 1 }, uMicroDpr: MICRO_DPR, uRimCol: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, uWash: { value: new Vector4(0, 0, 0, 0) }, uWashCol: { value: new Color(1, 0.7, 0.2) }, uWashR: { value: 0 },
       uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakDir: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
@@ -454,7 +431,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
   });
   const ink = o.ink === null ? null : new ShaderMaterial({
     vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors, defines: o.swell ? { SWELL: '' } : {},
-    uniforms: { uSwell: toon.uniforms.uSwell!, color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uReveal: toon.uniforms.uReveal!, uRevealAx: toon.uniforms.uRevealAx!, uOwn: { value: 0 }, px: { value: Math.max(MIN_LINE, o.px ?? CEL_STYLE.MICRO.LINE) }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
+    uniforms: { uSwell: toon.uniforms.uSwell!, color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: Math.max(MIN_LINE, o.px ?? CEL_STYLE.MICRO.LINE) }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
     side: DoubleSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   return { toon, ink };
