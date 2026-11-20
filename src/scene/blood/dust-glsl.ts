@@ -55,13 +55,18 @@ float dG(float x, float W) { float xx = clamp(x, 0.0, W), t = xx / W; return xx 
 // the same along a vessel of length L whose two ends both carry the ramp
 float dEnd(float a, float L, float W) { float x = clamp(a, 0.0, L); return x <= 0.5 * L ? dG(x, W) : 2.0 * dG(0.5 * L, W) - dG(L - x, W); }
 
-// The dust at one pixel of a tube: premultiplied colour and alpha (0 outside the lumen). across -1 .. 1; aFig the arc from the vessel's start, figure units; flowFig the stream's distance for the dust (figure units, back when reversed);
+// The dust at one pixel of a tube: premultiplied colour and alpha (0 outside the lumen). across -1 .. 1; aFig the arc from the vessel's start, figure units.
+// THE ROUTE (Mohammad, 20 Nov: "the particles should cross at the junction, not disappear"; the lab's routes): the particles live on the STREAM's coordinate, se = A0 + Bm aFig (a vessel's own: A0 0, Bm 1; a vessel the
+// blood runs on into from its parent: the chain's A and B, the same ones the chevrons use, blood/chain.ts), at the stream's distance flowFig (the root's), on a lattice of the ROOT's radius rLat: the same particle is
+// at the same place in the next vessel, drawn there at that vessel's own width and at its own speed (the lattice is Bm times as fine where the blood slows, as flow is conserved), so it crosses the junction whole.
 // rFix the vessel's own radius and vRc the lumen's radius now (figure units); rCss the lumen's radius in CSS px; Lw the vessel's length; nar the diameter against its healthy one; vd the display speed; rev 0 .. 1 reversed;
-// seedV the vessel's seed; srcId the source vessel (the chain's root, else its own); lit the vessel's lit tone; ink the outline colour.
-vec4 dustField(float across, float aFig, float flowFig, float rFix, float vRc, float rCss, float Lw, float nar, float vd, float rev, float seedV, float srcId, vec3 lit, vec3 ink) {
+// seedV the stream's seed (the root's: a route's particles are one set); srcId the source vessel (the chain's root, else its own); lit the vessel's lit tone; ink the outline colour.
+vec4 dustField(float across, float aFig, float A0, float Bm, float flowFig, float rFix, float rLat, float vRc, float rCss, float Lw, float nar, float vd, float rev, float seedV, float srcId, vec3 lit, vec3 ink) {
   const float TWO_PI = 6.2831853;
   int K = int(D_nCls + 0.5), N = int(D_win + 0.5);
-  float Pf = max(D_cellP * rFix, 1e-4);
+  float Pf = max(D_cellP * rLat, 1e-4);
+  float Bs = abs(Bm) < 0.05 ? (Bm < 0.0 ? -0.05 : 0.05) : Bm;
+  float se = A0 + Bs * aFig;
   float kR = vRc / max(rFix, 1e-4);
   float uLoc = mix(1.0, clamp(1.0 / max(kR * kR, 1e-3), D_uMin, D_uMax), D_velLocal);
   float aa = 0.6 / max(rCss, 0.5), minDia = 1.1 / max(rCss, 0.5), maxDia = 7.0 / max(rCss, 0.5);
@@ -86,7 +91,7 @@ vec4 dustField(float across, float aFig, float flowFig, float rFix, float vRc, f
     float rlo = D_rhoMax * pow(fk / fK, D_radExp), rhi = D_rhoMax * pow((fk + 1.0) / fK, D_radExp);
     float prof = 1.0 + D_flat * (1.0 - 2.0 * (0.5 * (rlo + rhi)) * (0.5 * (rlo + rhi)));
     float sp = prof * D_flowK;
-    float xs = (aFig - flowFig * sp) / Pf + 0.37 * fk;
+    float xs = (se - flowFig * sp) / Pf + 0.37 * fk;
     float j0 = floor(xs);
     for (int n = -${DUST_NMAX}; n <= ${DUST_NMAX}; n++) {
       if (n < -N || n > N) continue;
@@ -95,7 +100,7 @@ vec4 dustField(float across, float aFig, float flowFig, float rFix, float vRc, f
       float alive = clamp((D_densK - dHash(sd)) * 12.0, 0.0, 1.0);   // (thinned by a threshold: a density change fades single particles in and out, nothing pops)
       if (alive <= 0.0) continue;
       float h1 = dHash(sd + vec2(17.1, 3.7)), h2 = dHash(sd + vec2(5.3, 29.9)), h3 = dHash(sd + vec2(41.3, 11.1)), h4 = dHash(sd + vec2(23.7, 53.9)), h5 = dHash(sd + vec2(61.3, 7.9)), h6 = dHash(sd + vec2(2.9, 71.7)), h7 = dHash(sd + vec2(37.7, 19.3));
-      float ae = (jj + 0.1 + 0.8 * h1 - 0.37 * fk) * Pf + flowFig * sp;   // where the particle is along the vessel now
+      float ae = ((jj + 0.1 + 0.8 * h1 - 0.37 * fk) * Pf + flowFig * sp - A0) / Bs;   // where the particle is along the vessel now (from the stream's coordinate back to this vessel's arc)
       float rho = mix(rlo, rhi, h3);
       float d = min(ae, Lw - ae);
       float w = 1.0 - smoothstep(0.0, 1.0, clamp(d / Wd, 0.0, 1.0));
@@ -148,3 +153,10 @@ export function dustEndIntegral(a: number, L: number, W: number): number {
 }
 /** The ramp itself (the shader's w). */
 export function dustEndRamp(a: number, L: number, W: number): number { const d = Math.min(a, L - a), t = clamp01(d / W); return 1 - t * t * (3 - 2 * t); }
+
+/** The twin of the dust's place along a vessel (dustField's `ae`): the particle of lattice cell `jj` (a hash `h1` in it, ring offset `fk`), on a stream of lattice spacing `Pf` at distance `flowD`, ring pace `sp`,
+ *  seen from a vessel whose arc is se = A0 + Bm s along the stream. A vessel the blood runs on into has A0 and Bm of the chain (blood/chain.ts), so its particle is the parent's, carried on. */
+export function dustArc(jj: number, h1: number, fk: number, Pf: number, flowD: number, sp: number, A0: number, Bm: number): number {
+  const Bs = Math.abs(Bm) < 0.05 ? (Bm < 0 ? -0.05 : 0.05) : Bm;
+  return (((jj + 0.1 + 0.8 * h1 - 0.37 * fk) * Pf + flowD * sp) - A0) / Bs;
+}
