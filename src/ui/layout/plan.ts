@@ -60,8 +60,16 @@ export const PILL_W_SIDE = 156;   // (iPhone on its side: the count, the setting
 export const FOOT_ZONE = 62;
 /** The least room for the talk's title to the left of the pill (a wide screen). */
 const TITLE_MIN_W = 220;
-/** The room under a stacked screen's words card: its margin and the safe area. */
-export const footReserve = (vp: Viewport) => Math.max(vp.safe.bottom, 0) + 8;
+/** The corner radius of an iPhone's own screen (a phone whose page reaches the home-bar inset has rounded corners; the older models, whose page has no bottom inset, are square). */
+export const screenRadius = (vp: Viewport): number => (layoutOf(vp.w, vp.h) === 'stack' && vp.safe.bottom > 0 ? (vp.w <= 376 ? 44 : vp.w <= 390 ? 47 : 55) : 0);
+/** The gap an iPhone's bottom card keeps from the screen's edge on its three sides: its corners are the screen's own, inset by this (concentric). */
+export const CARD_INSET = 8;
+/** The bottom corners of the words card on a rounded iPhone: the screen's radius less the inset it keeps, so the card's corners and the screen's run parallel (null: the card's usual radius). */
+export const footRadius = (vp: Viewport): number | null => { const r = screenRadius(vp); return r > 0 ? r - CARD_INSET : null; };
+/** The room under a stacked screen's words card: its margin, and on an iPhone with rounded corners only that margin (the card reaches down to the corner, the home bar over it; the text keeps its own clear foot), else the safe area too. */
+export const footReserve = (vp: Viewport) => (screenRadius(vp) > 0 ? CARD_INSET : Math.max(vp.safe.bottom, 0) + 8);
+/** How far the card's foot is lower than the safe-area rule had it (what things standing beside the pill follow). */
+export const footDrop = (vp: Viewport) => Math.max(vp.safe.bottom, 0) + 8 - footReserve(vp);
 
 export interface BarPlace { edge: 'foot' | 'card'; rect: Rect; /** where the deck's title stands (a wide screen, when it has room), left of the pill */ title: Rect | null }
 /** Where the pill stands: lower right of a wide screen (2D `pzb-pill`), centred in the foot of the words' card on a phone, at its lower right on an upright iPad. */
@@ -73,7 +81,8 @@ export function barOf(vp: Viewport, colRight = 0): BarPlace {
     const y = cardBottom - 12 - BAR_H;
     const w = Math.round(vp.w * (layout === 'tab' ? 0.7 : 1) - (layout === 'tab' ? 0 : 16));
     const left = layout === 'tab' ? Math.round((vp.w - w) / 2) : Math.max(8, safe.left);
-    return { edge: 'card', rect: { x: layout === 'tab' ? left + w - 13 - PILL_W : Math.round((vp.w - PILL_W) / 2), y, w: PILL_W, h: BAR_H }, title: null };
+    // the lower right corner of the words card, inside it (an iPhone, as an upright iPad: Mohammad, 20 Nov)
+    return { edge: 'card', rect: { x: left + w - 13 - PILL_W, y, w: PILL_W, h: BAR_H }, title: null };
   }
   const sideways = isSideways(vp.w, vp.h);
   const cm = margin(vp.w, vp.h, layout), w = sideways ? PILL_W_SIDE : PILL_W;
