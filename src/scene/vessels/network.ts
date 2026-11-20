@@ -8,6 +8,7 @@ import { ANAT_HIDDEN, BACK_EDGES, EDGE_PATH_2D, HIDDEN_EDGES, IVC_EDGES, NEEDS_C
 import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
 import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts';
+import { ORGAN_Z } from '../organs/z.ts';
 import { withStartInOrgan } from './starts.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { TIER_Z, type Tier, UNITS_PER_SCENE, len3, x3, y3 } from '../frame2d.ts';
@@ -162,6 +163,8 @@ export const NETWORK: readonly NetVessel[] = build();
 /** The depth at each node. Two vessels that join are at one depth where they meet (their own tier holds between). At a node of two the depth is the mean of their tiers (a vein that
  *  changes tier eases over its length). At a fork, a node of three or more, the widest vessels keep their own tier and the narrower ones ease to it: the mean would pull a trunk toward
  *  the camera at every branch (the cava, a back-tier vein, bulged forward at each hepatic and renal vein, and the 14 degree view turned each bulge into a sideways jog: Mohammad, 20 Nov). */
+/** A vessel that starts in an organ starts at the organ's own depth: the splenic vein at the spleen's (organs/z.ts ORGAN_Z), and rises to the plane on its way to the confluence. */
+const NODE_Z_AT: Readonly<Record<string, number>> = { SPL: ORGAN_Z.spleen };
 export const NODE_Z: ReadonlyMap<string, number> = (() => {
   const acc = new Map<string, { z: number; r: number; main: boolean }[]>();
   for (const v of NETWORK) if (!v.feeder) for (const n of [v.from, v.to]) { const a = acc.get(n) ?? []; a.push({ z: TIER_Z[v.tier], r: v.radius, main: v.kind !== 'shunt' && v.kind !== 'collateral' }); acc.set(n, a); }
@@ -172,7 +175,7 @@ export const NODE_Z: ReadonlyMap<string, number> = (() => {
     // and a fall to the atrium was the kink at the cava's upper end, which the 14 degree view turned into an S: Mohammad, 20 Nov)
     const widest = all.length >= 3 ? Math.max(...a.map((x) => x.r)) : 0;
     const used = a.filter((x) => x.r >= 0.9 * widest);
-    return [n, used.reduce((t, x) => t + x.z, 0) / used.length] as const;
+    return [n, NODE_Z_AT[n] ?? used.reduce((t, x) => t + x.z, 0) / used.length] as const;
   }));
 })();
 // Two vessels that run on into one another (a node of exactly two, or the pair the 2D rule picks at a fork) ease to one width over the last third of each (the 2D tubes' own end easing,

@@ -1,3 +1,4 @@
+import { ORGAN_Z } from '../src/scene/organs/z.ts';
 import { readFileSync } from 'node:fs';
 import manifest from '../src/scene/organs/organs-manifest.json' with { type: 'json' };
 import { test } from 'node:test';
@@ -134,7 +135,8 @@ test('the vessels lie in one plane through the organs, not in front of them: eve
   const M = manifest as unknown as { q: number; organs: Record<string, [number, number]> };
   const zr = (id: string) => { const [pb, nv] = M.organs[id]!, q = new Int16Array(buf, pb, nv * 3); let lo = Infinity, hi = -Infinity; for (let i = 0; i < nv; i++) { const z = q[i * 3 + 2]! / M.q; lo = Math.min(lo, z); hi = Math.max(hi, z); } return { lo, hi }; };
   const zs = Object.values(TIER_Z);
-  for (const id of ['liver', 'heart', 'kidney-l', 'stomach']) { const r = zr(id); for (const t of Object.entries(TIER_Z)) assert.ok(t[1] > r.lo && t[1] < r.hi, `${t[0]} (${t[1]}) is inside ${id} (${r.lo} to ${r.hi})`); }
+  for (const id of ['liver', 'heart', 'kidney-l', 'stomach']) { const r0 = zr(id), r = { lo: r0.lo + ORGAN_Z[id]!, hi: r0.hi + ORGAN_Z[id]! }; for (const t of Object.entries(TIER_Z)) assert.ok(t[1] > r.lo && t[1] < r.hi, `${t[0]} (${t[1]}) is inside ${id} (${r.lo} to ${r.hi})`); }
+  { const r0 = zr('spleen'), z = NZ.get('SPL')!; assert.ok(z > r0.lo + ORGAN_Z.spleen! && z < r0.hi + ORGAN_Z.spleen!, 'the splenic vein starts inside the spleen'); }
   assert.ok(Math.max(...zs) - Math.min(...zs) <= 0.2, 'one plane: the tiers differ by a crossing only');
   // a vessel's own depth never moves more than that along its course (a jog of a quarter unit in z was a 14 degree sideways zigzag)
   for (const v of NETWORK) if (!v.feeder) { const zz = v.pts.map((p) => p[2]); assert.ok(Math.max(...zz) - Math.min(...zz) <= 0.2, `${v.id} stays in the plane`); }

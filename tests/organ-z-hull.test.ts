@@ -34,7 +34,8 @@ test('organ depth: each mesh is moved along z only, x and y exact, and the front
       assert.ok(Math.abs(a.getZ(i) - b.getZ(i) - ORGAN_Z[id]!) < 1e-5, `${id}: z moved by its table value`);
       zmin = Math.min(zmin, a.getZ(i)); zmax = Math.max(zmax, a.getZ(i));
     }
-    assert.ok(zmax < TIER_Z.art, `${id}: its front (${zmax.toFixed(2)}) stays behind the arteries (${TIER_Z.art})`);
+    // (the vessels lie in one plane THROUGH the organs now, frame2d.ts TIER_Z: no organ is required to stay behind them; tests/b3-vessels.test.ts pins the plane inside the liver, heart, kidney and stomach)
+    assert.ok(zmax > zmin, `${id}: has depth`);
   }
   assert.ok(Number.isFinite(x3(0)));
   s.dispose?.();
