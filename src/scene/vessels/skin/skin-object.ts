@@ -47,10 +47,15 @@ function skinDefines(c: number, grow: number): Record<string, number> {
   if (skinDebugOn()) d.SKIN_DEBUG = 1;
   if (out === 'marks') d.SKIN_NOMARKS = 1;
   if (out === 'ink') d.SKIN_NOINK = 1;
+  if (out === 'dust') d.SKIN_NODUST = 1;
+  if (out === 'heads') d.SKIN_NOHEADS = 1;
+  if (out === 'dustblend') d.SKIN_DUSTBLEND = 1;
   return d;
 }
 
-/** The inspector's switch for the three build-time diagnostics (`?joins=debug`, `nomarks`, `noink`): every skin program under `root` has its defines set from the page's live answer and is compiled again (a second or so on a phone). A skin built later takes them from `skinDefines` itself. Returns how many programs changed. */
+/** The defines the page's `?joins=` diagnostics set on a skin program (skinDefines): the inspector switches exactly these. */
+export const SKIN_DIAGNOSTICS = ['SKIN_DEBUG', 'SKIN_NOMARKS', 'SKIN_NOINK', 'SKIN_NODUST', 'SKIN_NOHEADS', 'SKIN_DUSTBLEND'] as const;
+/** The inspector's switch for the build-time diagnostics (`?joins=debug`, `nomarks`, `noink`, `nodust`, `noheads`, `dustblend`): every skin program under `root` has its defines set from the page's live answer and is compiled again (a second or so on a phone). A skin built later takes them from `skinDefines` itself. Returns how many programs changed. */
 export function reapplySkinDefines(root: Object3D): number {
   let n = 0;
   root.traverse((o) => {
@@ -58,7 +63,7 @@ export function reapplySkinDefines(root: Object3D): number {
     if (!m || !(m instanceof ShaderMaterial) || (m.name !== 'skin' && m.name !== 'skin-glow')) return;
     const d = m.defines ?? (m.defines = {}), want = skinDefines(Number(d.SKIN_COPY ?? 0), Number(d.SKIN_GROW ?? 0));
     let changed = false;
-    for (const k of ['SKIN_DEBUG', 'SKIN_NOMARKS', 'SKIN_NOINK']) {
+    for (const k of SKIN_DIAGNOSTICS) {
       if (want[k] !== undefined && d[k] === undefined) { d[k] = want[k]!; changed = true; }
       else if (want[k] === undefined && d[k] !== undefined) { delete d[k]; changed = true; }
     }

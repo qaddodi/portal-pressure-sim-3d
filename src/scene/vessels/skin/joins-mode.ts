@@ -9,7 +9,7 @@ export const JOINS_DEFAULT: JoinsMode = 'mesh2';
 
 /** The live answers of the inspector's panel (src/ui/debug/inspect), over the address's: set, a call with no search string (the page's own) answers with them, so the scene, the skins' programs and the lobule's welds all follow one switch. A test or the
  *  address's own string (a search argument) never sees them. `undefined` leaves the address's answer. */
-export interface JoinsOverride { mode?: JoinsMode; drop?: boolean; leave?: 'marks' | 'ink' | '' }
+export interface JoinsOverride { mode?: JoinsMode; drop?: boolean; leave?: Leave }
 const live: JoinsOverride = {};
 /** Changes the live answers (the panel). Returns what changed. */
 export function setJoinsOverride(o: JoinsOverride): (keyof JoinsOverride)[] {
@@ -29,9 +29,12 @@ export function joinsMode(search?: string): JoinsMode {
 /** `?joins=debug`: every junction as with mesh2, and a skin pixel its shader would drop is painted instead, in the colour of the reason: red a back face, cyan the presence dither, yellow no alpha, magenta past the ink band. A hole in a weld is then a colour, and a hole that stays brown is not the skin's own drop. */
 export const skinDebugOn = (search?: string): boolean => (search === undefined && live.drop !== undefined ? live.drop : flagValue('joins', search ?? undefined) === 'debug');
 /** `?joins=nomarks` and `?joins=noink`: every skin as mesh2, with its flow marks (dust, streaks, heads) or its outline ink left out: take one away and see whether a speck goes (a diagnostic, never a look). */
-export const skinLeaveOut = (search?: string): 'marks' | 'ink' | '' => {
+/** `?joins=nodust` and `?joins=noheads` split the marks: only the dust's particles, or only the chevron heads, left out (the A/B that says which of the two draws a speck); `?joins=dustblend` keeps the old blend of the two frames. */
+export type Leave = 'marks' | 'ink' | 'dust' | 'heads' | 'dustblend' | '';
+export const skinLeaveOut = (search?: string): Leave => {
   if (search === undefined && live.leave !== undefined) return live.leave;
-  const v = flagValue('joins', search ?? undefined); return v === 'nomarks' ? 'marks' : v === 'noink' ? 'ink' : '';
+  const v = flagValue('joins', search ?? undefined);
+  return v === 'nomarks' ? 'marks' : v === 'noink' ? 'ink' : v === 'nodust' ? 'dust' : v === 'noheads' ? 'heads' : v === 'dustblend' ? 'dustblend' : '';
 };
 /** The skin phase a mode builds (spec 4.1): 0 none. */
 export const joinsPhase = (m: JoinsMode): 0 | 1 | 2 => (m === 'mesh' ? 1 : m === 'mesh2' ? 2 : 0);

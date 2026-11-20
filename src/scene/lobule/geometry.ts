@@ -257,15 +257,18 @@ export function buildLobule(seed = 7): LobuleNet {
     lt[k] = t;
   }
   for (const tr of triads) join(tr.lv[0], tr.lv[1], 0.008);
+  // 2D's `beside`: each sinusoid's channel runs along its outside, lyOff = rsN + rs0 * 1.1 from its axis (the same gap from the wall), the course turned a quarter to the left of its way
+  const lyOff = rsN + rs0 * 1.1;
+  const beside = (t: Course): P2[] => t.pts.map((q, i) => { const a = t.pts[Math.max(0, i - 1)]!, b = t.pts[Math.min(N - 1, i + 1)]!, L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [q[0] - ((b[1] - a[1]) / L) * lyOff, q[1] + ((b[0] - a[0]) / L) * lyOff] as P2; });
   for (const t of L0) {
-    const P = t.pts, side = t.tri === t.edge ? lt[t.edge! * 2]! : lt[((t.edge! + 1) % 6) * 2 + 1]!;
+    const P = beside(t), side = t.tri === t.edge ? lt[t.edge! * 2]! : lt[((t.edge! + 1) % 6) * 2 + 1]!;
     let E = side.pts[0]!, bd = Infinity;
     for (const q of side.pts) { const d = Math.hypot(q[0] - P[0]![0], q[1] - P[0]![1]); if (d < bd) { bd = d; E = q; } }
     const poly: P2[] = [E, ...P];
     add('ly', curve((u) => at(poly, u)), { lvl: 0, sib: t.id });
   }
-  for (const t of L1) add('ly', curve((u) => at(t.pts, u)), { lvl: 1, sib: t.id });
-  for (const t of L2) add('ly', curve((u) => at(t.pts, u)), { lvl: 2, sib: t.id });
+  for (const t of L1) add('ly', curve((u) => at(beside(t), u)), { lvl: 1, sib: t.id });
+  for (const t of L2) add('ly', curve((u) => at(beside(t), u)), { lvl: 2, sib: t.id });
 
   return { R: 1, rs0, rsN, rcv0, rt, courses, triads, corners: C, cells, stellate, septa, joins };
 }

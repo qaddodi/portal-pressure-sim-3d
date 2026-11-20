@@ -1,8 +1,8 @@
 // The inspector's state and its named settings, with no DOM and no scene (a Node test loads it): what the panel holds, the camera's named views, the presets for hunting a speck, and the text Copy puts on the clipboard.
 import { partDefault, type PartView } from '../../../scene/vessels/debug-view.ts';
-import type { JoinsMode } from '../../../scene/vessels/skin/joins-mode.ts';
+import type { JoinsMode, Leave } from '../../../scene/vessels/skin/joins-mode.ts';
 
-export type Leave = '' | 'marks' | 'ink';
+export type { Leave };
 export interface InspectState {
   /** the junction method (old: the overlapping tubes; mesh: the SMV-SV confluence; mesh2: every junction) */
   joins: JoinsMode;

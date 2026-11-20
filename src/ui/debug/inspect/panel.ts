@@ -104,7 +104,7 @@ export function mountInspect(): void {
   const jn = section('Joins and diagnostics');
   select(jn, 'Junction method', [['old', 'Old: overlapping tubes'], ['mesh', 'Mesh: SMV-SV confluence'], ['mesh2', 'Mesh 2: every junction']], () => state.joins, (v) => commit({ joins: v as JoinsMode }));
   check(jn, 'Paint dropped skin pixels', () => state.drop, (v) => commit({ drop: v }));
-  select(jn, 'Skin without', [['', 'Nothing'], ['marks', 'Flow marks (no dust, no chevrons)'], ['ink', 'Outline ink']], () => state.leave, (v) => commit({ leave: v as Leave }));
+  select(jn, 'Skin without', [['', 'Nothing'], ['marks', 'Flow marks (no dust, no chevrons)'], ['dust', 'Dust only'], ['heads', 'Chevrons only'], ['ink', 'Outline ink'], ['dustblend', 'Old dust blend (A/B)']], () => state.leave, (v) => commit({ leave: v as Leave }));
   jn.append(el('div', { className: 'hint', textContent: 'Red back face, cyan presence dither, yellow no alpha, magenta past the ink band. Changing a diagnostic compiles the skins again (a second or so). The lobule reads the method once, when it opens.' }));
 
   // ---- Tubes and Skins ----

@@ -118,9 +118,20 @@ export const MARK_UNITS = 30, MARK_HALF = 0.2, MARK_EVERY = 5, BEND_GROOVES = 8;
 /** The metals and the cap the scope is drawn in, from the device tokens: the distal housing a polished silver (the tip's grey lifted toward white), the bending section the tube's black a little lifted with grooves a shade down, the transducer's cap a warm cream and its dark acoustic face, the needle bright steel. */
 export const SCOPE_SILVER = (t: { scopeTip: string }): string => mixHex(t.scopeTip, '#FFFFFF', 0.38);
 /** The plain scope's distal end: the tube's black a shade lifted, not chrome. */
-export const SCOPE_DISTAL = (t: { scope: string; scopeTip: string }): string => mixHex(t.scope, t.scopeTip, 0.35);
+export const SCOPE_DISTAL = (t: { scope: string; scopeTip: string }): string => mixHex(t.scope, t.scopeTip, 0.12);
+/** The distal end as the owner's photo has it (20 Nov 2026, "the tip end should look different"): a bending section a little WIDER than the insertion tube (its rubber cover, BEND_WIDE of the tube's radius),
+ *  glossy black, with soft creases where its cover wrinkles (CREASES of them, the deepest CREASE_DEPTH of the radius, bunched toward its two ends as a bent cover bunches), then the cap, the cover's width, domed. */
+export const BEND_RINGS = 56, BEND_WIDE = 1.12, TIP_WIDE = 1.12, CREASES = 7, CREASE_DEPTH = 0.07;
+export function bendRadius(u: number): number {
+  const rise = Math.min(1, u / 0.08);   // (a short swell from the tube's width up to the cover's: a collar, not a step)
+  const w = 1 + (BEND_WIDE - 1) * rise * rise * (3 - 2 * rise);
+  // the creases: narrow soft grooves, deeper near the ends of the section
+  let c = 0;
+  for (let k = 0; k < CREASES; k++) { const at = 0.12 + (0.8 * k) / (CREASES - 1), d = (u - at) / 0.022, depth = CREASE_DEPTH * (0.55 + 0.45 * Math.abs(at - 0.52) / 0.4); c = Math.max(c, depth * Math.exp(-d * d)); }
+  return w * (1 - c);
+}
 const SCOPE_SILVER_C: PartColour = (t) => SCOPE_SILVER(t), SCOPE_DISTAL_C: PartColour = (t) => SCOPE_DISTAL(t);
-export const SCOPE_BEND = (t: { scope: string; scopeTip: string }): string => mixHex(t.scope, t.scopeTip, 0.22);
+export const SCOPE_BEND = (t: { scope: string; scopeTip: string }): string => mixHex(t.scope, t.scopeTip, 0.08);
 export const SCOPE_GROOVE = (t: { scope: string }): string => mixHex(t.scope, '#000000', 0.55);
 export const SCOPE_CREAM = (t: { scopeTip: string }): string => mixHex(t.scopeTip, '#FFFFFF', 0.3);
 /** The insertion tube's tone: 2D's black polymer lifted a little toward the tip's grey, a soft glossy black, never a near-black slab (owner, 20 Nov 2026: "too cartoony and too prominent"). */
@@ -200,7 +211,7 @@ export class EndoScope {
     const SOFT: PartStyle = { edge: scopeEdge(), radial: SCOPE_RADIAL };
     // (the redesign, 20 Nov 2026, from the owner's photos of echoendoscopes: a black flexible tube with thin white depth rings; a bending section a shade lifted and grooved; a polished silver distal housing; the curvilinear transducer's
     //  cream cap with its dark acoustic face; a thin bright needle out of the port behind it. A forward-viewing endoscope has the bending section too, and a tip with a lens, two light guides and the working channel.)
-    const sh = mk('poly', (t) => SCOPE_TUBE(t), N, 1, 1, SOFT), bd = mk('poly', (t) => SCOPE_BEND(t), 17, 1, 1, SOFT), tp = mk('steel', (t) => SCOPE_SILVER(t), TIP_RINGS, 1, 2, { edge: scopeEdge(), radial: SCOPE_RADIAL }), ln = mk('poly', (t) => t.port, 2, 0.7, 3, SOFT);
+    const sh = mk('poly', (t) => SCOPE_TUBE(t), N, 1, 1, SOFT), bd = mk('poly', (t) => SCOPE_BEND(t), BEND_RINGS, 1, 1, SOFT), tp = mk('steel', (t) => SCOPE_SILVER(t), TIP_RINGS, 1, 2, { edge: scopeEdge(), radial: SCOPE_RADIAL }), ln = mk('poly', (t) => t.port, 2, 0.7, 3, SOFT);
     const cp = mk('graft', null, 2, 0.8, 3), bn = mk('platinum', null, 18, 0.9, 4, { edge: 'none' }), nd = mk('steel', SCOPE_NEEDLE, NEEDLE_RINGS, 0.6, 5, { edge: NEEDLE_EDGE, radial: 12 });
     // the transducer's cap (cream, curved, on the side that meets the wall), its dark face, and the working channel's port, where the needle leaves (2D --dev-scope-face, --dev-port; the port has no outline)
     const fc = mk('graft', (t) => SCOPE_CREAM(t), CAP_RINGS, 0.6, 3, { edge: scopeEdge(), radial: SCOPE_RADIAL }), pt = mk('graft', (t) => t.port, 2, 0.4, 4, { edge: 'none' });
@@ -303,6 +314,7 @@ export class EndoScope {
       for (let i = 0; i <= n; i++) {
         if (i) { const h = Math.atan2(way.at(way, shaftEnd + ds * (i - 0.5)).t[1], way.at(way, shaftEnd + ds * (i - 0.5)).t[0]) + (phi * (i - 0.5)) / n; x += Math.cos(h) * ds; y += Math.sin(h) * ds; }
         const r = this.bend.rings[i]!;
+        r.r = R * bendRadius(i / n);
         at3([x, y], r.c);
         const hh = (i ? Math.atan2(way.at(way, shaftEnd + ds * (i - 0.5)).t[1], way.at(way, shaftEnd + ds * (i - 0.5)).t[0]) + (phi * (i - 0.5)) / n : h0);
         r.t.set(Math.cos(hh), -Math.sin(hh), 0);
@@ -314,7 +326,7 @@ export class EndoScope {
     // (One tube with the shaft: the tip is the shaft's own width from end to end, and it starts a ring's length back inside the shaft, so there is no step and no gap at the seam: owner, 20 Nov 2026, "the tip of the
     //  scope is disconnected from its body". It was 8 % wider than the shaft and started where the shaft's last ring stopped.)
     v.addScaledVector(dv, -len3(STEP * 1.5));
-    for (let i = 0; i < this.tip.n; i++) { const r = this.tip.rings[i]!, u = i / (this.tip.n - 1); r.c.lerpVectors(v, w, u); r.t.copy(dv); r.r = R * tipRadius(u); }   // (the end domed, as a real distal end is, not a box)
+    for (let i = 0; i < this.tip.n; i++) { const r = this.tip.rings[i]!, u = i / (this.tip.n - 1); r.c.lerpVectors(v, w, u); r.t.copy(dv); r.r = R * TIP_WIDE * tipRadius(u); }   // (the end domed, as a real distal end is, not a box)
     this.tip.commit();
     // the tip's face: a forward-viewing endoscope's lens (dead centre, a hair toward the eye), two light guides either side and the working channel behind them; the echoendoscope has its lens alone (its working end is the transducer)
     {
@@ -344,8 +356,8 @@ export class EndoScope {
       const R2 = (EUS_SCOPE_R as number) * SCOPE_SLIM, RIG = EUS_RIGID as number;
       // the transducer: its curved array, a pale face on the side that meets the wall, just behind the tip's end (2D: centred 0.3 rigid lengths back and 0.52 radii across, 0.56 rigid lengths long)
       // (the redesign: the cap is the curvilinear array's cream housing, proud of the silver tip on the wall's side and rounded at both ends; on its outer face a darker, narrower strip, the acoustic lens)
-      const fx = g.end[0] - g.a1[0] * RIG * 0.3 + g.side[0] * R2 * 0.62, fy = g.end[1] - g.a1[1] * RIG * 0.3 + g.side[1] * R2 * 0.62;
-      const fr = len3(R2 * 0.55), fh = Math.max(0, len3(RIG * 0.56) - fr), U1 = len3(1);
+      const fx = g.end[0] - g.a1[0] * RIG * 0.3 + g.side[0] * R2 * 0.62 * TIP_WIDE, fy = g.end[1] - g.a1[1] * RIG * 0.3 + g.side[1] * R2 * 0.62 * TIP_WIDE;
+      const fr = len3(R2 * 0.55 * TIP_WIDE), fh = Math.max(0, len3(RIG * 0.56) - fr), U1 = len3(1);
       const capRings = (buf: TubeBuf, cx: number, cy: number, half: number, r0: number): void => {
         const a = at3([cx - g.a1[0] * half / U1, cy - g.a1[1] * half / U1], this.v), b = at3([cx + g.a1[0] * half / U1, cy + g.a1[1] * half / U1], this.w);
         const t = this.dv.subVectors(b, a).normalize();

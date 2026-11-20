@@ -410,7 +410,9 @@ void main() {
     if (wI > wD0) { wD2 = wD1; FD1 = FD0; wD1 = wD0; onD1 = onD0; revD1 = revD0; FD0 = FI; wD0 = wI; onD0 = onI; revD0 = revI; }
     else if (wI > wD1) { wD2 = wD1; FD1 = FI; wD1 = wI; onD1 = onI; revD1 = revI; }
     else wD2 = max(wD2, wI);
+#ifndef SKIN_NOHEADS
     headAcc += wI * flowHeads(acrossI, acrossW, sI, Lw, vR, wpcM, pxI, lensI, armFlow[i], 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
+#endif
   }
   if (wD0 > 0.0) {
     // the two heaviest arms' share (renormalised): on a seam ring one weight is 1 and this is the tube's own pixel (dustTube)
@@ -418,10 +420,20 @@ void main() {
     // continuous. Without it a fork's skin showed a seam down the line between its two branches, Mohammad 20 Nov: "i still see a seam at the blood vessels junction")
     float w1 = max(wD1 - wD2, 0.0) / max(wD0 + wD1 - 2.0 * wD2, 1e-4);
     float dOn = mix(onD0, onD1, w1);
+#ifndef SKIN_NODUST
     if (dOn > 0.002) {
+      // THE DUST IS EACH ARM'S OWN, CROSSFADED (Mohammad, 20 Nov: black and lime specks at every crotch and seam band, gone with ?joins=nodust, not with noheads). dustSkin drew each particle ONCE at the BLEND of its places in the two
+      // frames; a frame's own pixel (its across, its arc) means nothing where the pixel is on the other arm's side, and the average of two frames that disagree puts a particle where neither has one: a dot of ink and a hue-shifted
+      // tone at a place no lane passes. dustTube is the tube's own, exact in its frame and drawing nothing past the lumen it knows; the two frames' dust is mixed by the weights instead (?joins=dustblend: the old blend, to compare)
+#ifdef SKIN_DUSTBLEND
       vec4 dust = w1 > 0.004 ? dustSkin(FD0, FD1, w1, litD, inkColor, mix(revD0, revD1, w1)) : dustTube(FD0, litD, inkColor, revD0);
+#else
+      vec4 dust = dustTube(FD0, litD, inkColor, revD0);
+      if (w1 > 0.004) dust = mix(dust, dustTube(FD1, litD, inkColor, revD1), w1);
+#endif
       dustAcc = clamp(vec4(dust.rgb * dOn, dust.a * dOn), 0.0, 1.0);
     }
+#endif
   }
 #ifdef VDBG
   if (dbgDust < 0.5) dustAcc = vec4(0.0);

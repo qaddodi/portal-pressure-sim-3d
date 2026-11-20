@@ -182,3 +182,18 @@ test('a program\'s budget and uniform check read its source as the driver\'s pre
   assert.equal(bh.fragmentUniformVectors - bp.fragmentUniformVectors, 6);
   for (const k of Object.keys(ES3_FLOOR) as Array<keyof typeof ES3_FLOOR>) assert.ok(bh[k] <= ES3_FLOOR[k], `${k}: ${bh[k]} of ${ES3_FLOOR[k]}`);
 });
+
+test('every diagnostic the skin\'s program can carry is one the inspector switches (marks, ink, dust, chevrons, the old dust blend, dropped pixels), and each takes its own define and no other', () => {
+  const root = new Group(), m = new ShaderMaterial({ name: 'skin', defines: { SKIN_COPY: 0, SKIN_GROW: 0 } });
+  root.add(new Mesh(new BufferGeometry(), m));
+  const want: Record<string, string> = { marks: 'SKIN_NOMARKS', ink: 'SKIN_NOINK', dust: 'SKIN_NODUST', heads: 'SKIN_NOHEADS', dustblend: 'SKIN_DUSTBLEND' };
+  for (const [leave, define] of Object.entries(want)) {
+    setJoinsOverride({ leave: leave as 'marks' }); reapplySkinDefines(root);
+    assert.deepEqual(Object.keys(m.defines!).filter((k) => k.startsWith('SKIN_') && k !== 'SKIN_COPY' && k !== 'SKIN_GROW'), [define], leave);
+  }
+  setJoinsOverride({ leave: '', drop: true }); reapplySkinDefines(root);
+  assert.deepEqual(Object.keys(m.defines!).filter((k) => k !== 'SKIN_COPY' && k !== 'SKIN_GROW'), ['SKIN_DEBUG']);
+  clearJoinsOverride();
+  const src = SKIN_FS;
+  for (const d of Object.values(want).concat('SKIN_DEBUG')) assert.ok(src.includes(d), `${d} is in the skin shader`);
+});
