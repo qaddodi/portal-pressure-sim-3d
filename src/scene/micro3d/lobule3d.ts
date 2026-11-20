@@ -131,6 +131,19 @@ export function disseDuctules(ly: readonly Course[], all: readonly Course[]): { 
   return out;
 }
 
+/** Each terminal lymphatic runs on into the middle of the lymphatic's pool it ends at (2D ends it on the pool's rim, under the pool's drawing; here the pool is a solid with a wall, and a tube that stopped at
+ *  the rim met that wall end to end, a butt joint with the outline between: Mohammad 20 Nov 2026, "they don't join the actual ductule at the end"). The bile's canals already end at their ductule's middle. */
+export function lymphIntoPools(lt: readonly Course[], lv: readonly Course[]): Course[] {
+  const mids = lv.map((c) => c.pts[Math.floor(c.pts.length / 2)]!);
+  return lt.map((c) => {
+    const e = c.pts[c.pts.length - 1]!;
+    let best: LP2 | null = null, bd = Infinity;
+    for (const m of mids) { const d = Math.hypot(m[0] - e[0], m[1] - e[1]); if (d < bd) { bd = d; best = m; } }
+    if (!best || bd > DISC_R.lv * 1.5 || bd < 1e-6) return c;
+    return { ...c, pts: [...c.pts, [best[0], best[1]] as LP2], rho: [...c.rho, c.rho[c.rho.length - 1]!] };
+  });
+}
+
 export class Lobule3D {
   readonly group = new Group();
   private readonly flat: Flat;
@@ -601,7 +614,7 @@ export class Lobule3D {
     // (the terminal lymphatics, and the lymph ductules: where a space of Disse leaves its channel it is a thin lymph tube as 2D draws it (`ly`, lymph-coloured, tapering), not a flat sleeve, up to where the sinusoid's
     //  own sleeve begins; Mohammad 20 Nov 2026: a grey plate stood out beside each inlet, at the end of a ductule)
     const ductules = disseDuctules(by('ly'), net.courses);
-    { const t = tubes([...by('lt'), ...ductules.map((d) => d.conn)], () => LT_R, () => 0); coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    { const t = tubes([...lymphIntoPools(by('lt'), by('lv')), ...ductules.map((d) => d.conn)], () => LT_R, () => 0); coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
     // the space of Disse: a flat pale sleeve under each sinusoid (2D's Wet Disse), no light of its own
     {
       const b = new MeshBuilder(), K: number[] = [], W: number[] = [], rly = 0.0132;

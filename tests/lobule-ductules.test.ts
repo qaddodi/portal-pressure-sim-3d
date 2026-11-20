@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import type { BufferAttribute } from 'three';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { LobuleView } from '../src/scene/lobule/view.ts';
-import { Lobule3D, disseDuctules } from '../src/scene/micro3d/lobule3d.ts';
+import { DISC_R } from '../src/scene/lobule/widths.ts';
+import { Lobule3D, disseDuctules, lymphIntoPools } from '../src/scene/micro3d/lobule3d.ts';
 
 const flat = new LobuleView(createShared()), net = flat.net;
 const R = 3;
@@ -35,4 +36,14 @@ test('no flat Disse sleeve stands out beside a sinusoid or an inlet: every verte
   let worst = 0;
   for (let v = 0; v < pos.length; v += 3) worst = Math.max(worst, near(pos[v]! / R, -pos[v + 1]! / R));
   assert.ok(worst < 0.02, `a sleeve vertex stands ${worst.toFixed(4)} lobule radii from every sinusoid and inlet`);
+});
+
+test('every terminal lymphatic runs on into the middle of the lymphatic pool it meets (it stopped on the pool\'s rim, a butt joint against the pool\'s wall)', () => {
+  const lt = net.courses.filter((c) => c.kind === 'lt'), lv = net.courses.filter((c) => c.kind === 'lv'), out = lymphIntoPools(lt, lv);
+  assert.equal(out.length, lt.length);
+  for (const c of out) {
+    const e = c.pts[c.pts.length - 1]!, d = Math.min(...lv.map((v) => { const m = v.pts[Math.floor(v.pts.length / 2)]!; return Math.hypot(m[0] - e[0], m[1] - e[1]); }));
+    assert.ok(d < DISC_R.lv * 0.1, `ends ${(d / DISC_R.lv).toFixed(2)} pool radii from a pool's middle`);
+    assert.equal(c.pts.length, c.rho.length);
+  }
 });
