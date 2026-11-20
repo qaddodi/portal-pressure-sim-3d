@@ -179,7 +179,7 @@ test('no pale halo: the vessel keeps no white inner rim, a veiled one keeps its 
 test('the outline is a soft dark of the vessel\'s own colour, never white or black; a joined end draws no ink; heads are never dots', () => {
   const T = CEL_STYLE.TUBE;
   assert.ok(T.INK_OWN >= 0.5 && T.INK_TONE > 0.15 && T.INK_TONE < 0.5, 'mostly the vessel\'s own colour, deep but not black');
-  assert.match(VESSEL_FS, new RegExp(`mix\\(inkColor, celTubeBase\\(baseH\\) \\* ${F(T.INK_TONE).replace('.', '\\.')}, ${F(T.INK_OWN).replace('.', '\\.')}\\)`));
+  assert.match(VESSEL_FS, new RegExp(`mix\\(inkColor, celTubeBase\\(baseH\\) \\* mix\\(${F(T.INK_TONE).replace('.', '\\.')}, ${F(T.INK_TONE_DARK).replace('.', '\\.')}, tubeDark\\), ${F(T.INK_OWN).replace('.', '\\.')}\\)`));
   assert.match(VESSEL_FS, /mix\(mix\(inkH, inkColorCirc, circT\), hiColor/, 'the ink colour is the vessel\'s own tone, not the raw casing');
   assert.equal(CEL_STYLE.TUBE.RIM_SHARE, 0, 'no white rim');
   assert.match(VESSEL_FS, /uniform vec3 mate0;[\s\S]*uniform vec3 mate1;/, 'the ink knows the joined ends');

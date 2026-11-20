@@ -69,3 +69,10 @@ export function celTubeColor(base: readonly [number, number, number], s: number,
   const sh = sh0.map((v) => clamp(ls + (v - ls) * T.SHADE_SAT, 0, 1));
   return b.map((v, i) => v + (sh[i]! - v) * shadeAmt) as [number, number, number];
 }
+
+/** The twin of the outline's colour (shaders.ts inkH): the look's casing taken INK_OWN of the way to a deep tone of the vessel's own base (x INK_TONE, INK_TONE_DARK on the dark looks), in 0..1 sRGB as the shader blends it. */
+export function tubeInk(look: LookId, base: readonly [number, number, number]): [number, number, number] {
+  const T = CEL_STYLE.TUBE, tone = DARK_LOOKS.has(look) ? T.INK_TONE_DARK : T.INK_TONE, b = celTubeBase(base, DARK_LOOKS.has(look));
+  const cas = CASING[look].rgb;
+  return [0, 1, 2].map((i) => (cas[i]! / 255) * (1 - T.INK_OWN) + b[i]! * tone * T.INK_OWN) as [number, number, number];
+}
