@@ -251,9 +251,9 @@ test('pressure colour runs smoothly along a chain: the two vessels of a run-on w
     if (rows[2]!.some((x, i) => Math.abs(x - lerp[i]!) > 0.02)) differsFromBlend++;
   }
   assert.ok(differsFromBlend >= 1, 'some vessel\'s colour along it is the ramp\'s, not the blend of its ends');
-  // a lens whose colour does not run along the vessel gives its ends\' blend (so nothing else moves with the switch on)
+  // a lens whose colour does not run along the vessel keeps its own colour a third and two thirds along, and its ends take the node's (lenses/model.ts meetAtNodes): the colour never steps at a junction
   const f = computeLens('flow', frame as never, 'light', { healthy, ref: null });
-  for (let k = 0; k < NE; k++) { if (f.grad[k * 4 + 3] === 0) continue; for (let i = 0; i < 3; i++) { const a = f.grad[k * 4 + i]!, b = f.grad[(NE + k) * 4 + i]!; assert.ok(Math.abs(f.grad[(2 * NE + k) * 4 + i]! - (a + (b - a) / 3)) < 1e-6); assert.ok(Math.abs(f.grad[(3 * NE + k) * 4 + i]! - (a + (b - a) * 2 / 3)) < 1e-6); } }
+  for (let k = 0; k < NE; k++) { if (f.grad[k * 4 + 3] === 0) continue; for (let i = 0; i < 3; i++) assert.ok(Math.abs(f.grad[(2 * NE + k) * 4 + i]! - f.grad[(3 * NE + k) * 4 + i]!) < 1e-6, `${edges[k]!.id}: one colour through the middle`); }
 });
 
 test('no vessel shares a stencil bit with another: every tube is one opaque draw with the outline in its own fragments, so a crossing is never merged and a join is buried only by the mates (the same on or off)', () => {
