@@ -9,7 +9,7 @@ import { viewAt, cathPlace } from './presenter-machine.ts';
 import { makeCathClock, aimCath, stepCath, poseAt, cathScript, rankOf, ARRIVE_MS, type CathPose } from './cath-clock.ts';
 import { tipCloseShot, closeUpOf } from './cath-shot.ts';
 import type { Shot, ShotName } from '../../scene/camera/shots.ts';
-import type { LensId } from '../../scene/lenses/model.ts';
+import { DEFAULT_LENS, type LensId } from '../../scene/lenses/model.ts';
 import type { CathState } from '../../decks/schema.ts';
 
 /** The time the catheter takes to come in from the neck: the route's leg at the travel speed (hvpg-clock.js legMs, 3.4 s), after its 300 ms of stillness. procs-link.ts waits this long before the blocked vein's pushes. */
@@ -19,6 +19,7 @@ export function linkScene(): () => void {
   const cc = makeCathClock(), pose: CathPose = { advance: 0, balloon: 0, column: 0 };
   let place: CathState | null = null, drawn = false, hold: Hold | null = null;
   let shot: ShotName | Shot | null = null;
+  // the lens (2D start() sets pressure; each slide sets its own with slideLens; a stop returns to pressure): a slide that says none, and the title, stand on pressure, never on the last slide's
   let lens: LensId | null = null;
   cathScript.on = true; cathScript.t = 0;
 
@@ -45,6 +46,9 @@ export function linkScene(): () => void {
       if (cc.clk.t !== cc.clk.goal && !hold) hold = clock.hold('catheter');
       clock.invalidate('catheter');
     }
+    // (a visual over the figure keeps the colours already showing: 2D `lensDone = !!s.visual`)
+    const wantLens = v.slide?.visual ? lens ?? DEFAULT_LENS : v.scene?.lens ?? DEFAULT_LENS;
+    if (wantLens !== lens) { lens = wantLens; sceneApi.setLens(lens); }
     const room = boxes.free;
     if (room.w <= 0 || room.h <= 0) return;   // the cards have not been measured yet: no room to frame in
     // The catheter's own shots: the tip close up, the balloon just behind it and the vein ahead (2D cathFocus 'tip', both). The route step keeps the slide's own (the whole way in).
@@ -56,11 +60,10 @@ export function linkScene(): () => void {
       if (v.scene?.view === 'circuit') sceneApi.showCircuit(room, { box: v.scene.circuit?.box ?? null, kMax: v.scene.circuit?.kMax ?? null, resistors: (v.scene.circuit?.resistors ?? []) as never, caudate: !!v.scene.circuit?.caudate });
       else sceneApi.showShot(v.scene ? v.scene.view : 'body', want, room);
     } else sceneApi.setRoom(room, undefined, stepped);   // a step on to a slide with the same shot still brings the viewer's turn home
-    if (v.scene && v.scene.lens !== lens) { lens = v.scene.lens; sceneApi.setLens(lens); }
   };
 
   sync();
   const off = useUi.subscribe((s, prev) => { if (s.pos !== prev.pos || s.boxes.free !== prev.boxes.free || s.stops !== prev.stops) sync(s.pos !== prev.pos || s.stops !== prev.stops); });
   // (leaving the talk takes the catheter out: it never stays on the free figure)
-  return () => { off(); offClock(); hold?.release(); cathScript.on = false; cathScript.t = 0; sceneApi.setCatheter({ advance: 0, balloon: 0, column: 0 }); };
+  return () => { off(); offClock(); hold?.release(); if (lens && lens !== DEFAULT_LENS) sceneApi.setLens(DEFAULT_LENS); cathScript.on = false; cathScript.t = 0; sceneApi.setCatheter({ advance: 0, balloon: 0, column: 0 }); };
 }

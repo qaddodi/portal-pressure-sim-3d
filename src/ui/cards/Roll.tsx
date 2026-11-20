@@ -2,13 +2,15 @@ import { useRef, useState, useLayoutEffect } from 'react';
 
 /** A number that rolls when its text changes (the old one goes up and out, the new one comes up from below; 400 ms; transform and opacity only).
  *  The first text appears without a roll. The box keeps the width of the longest text it has shown so the line never jitters. */
-export function Roll({ text, className }: { text: string; className?: string }) {
+export function Roll({ text, className, still = false }: { text: string; className?: string; still?: boolean }) {
   const [shown, setShown] = useState<{ cur: string; prev: string | null; n: number }>({ cur: text, prev: null, n: 0 });
   const mounted = useRef(false);
   useLayoutEffect(() => {
     if (!mounted.current) { mounted.current = true; return; }
+    // (`still`: a number that follows a running clock, a time-lapse's days, changes in place: a roll on every poll would never finish before the next)
+    if (still) { setShown((s) => (s.cur === text && s.prev === null ? s : { cur: text, prev: null, n: s.n })); return; }
     setShown((s) => (s.cur === text ? s : { cur: text, prev: s.cur, n: s.n + 1 }));
-  }, [text]);
+  }, [text, still]);
   const latest = shown.cur === text ? shown : { ...shown, cur: text };
   return (
     <span className={`dk-roll${className ? ` ${className}` : ''}`}>

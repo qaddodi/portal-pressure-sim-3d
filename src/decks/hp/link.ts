@@ -9,12 +9,15 @@ import { ensureStates, useStates } from './calc.ts';
 import { copiedOf } from './deck.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { viewAt } from '../../ui/deck/presenter-machine.ts';
-import { playLapse, playsLapse, showLapseEnd, stopLapse } from './lapse.ts';
+import { playLapse, playsLapse, readyLapse, showLapseEnd, stopLapse } from './lapse.ts';
+import { slideLanded, onLanded } from '../../ui/deck/landing.ts';
 import { pushFor, showPushEnd } from './lapse-push.ts';
 import { pushShotOf } from './lapse-cam.ts';
+import { freshPatient, morphMsFor } from './slide-motion.ts';
+import { dipIn, dipOut } from '../../ui/shell/figure-dip.ts';
 
-/** How long the figure takes to ease to the next slide's state (ms). */
-export const MORPH_MS = 1100;
+/** How long the figure takes to ease to the next slide's state when the patient stays (ms; slide-motion.ts: 2D's MORPH_ONE_MS). */
+export const MORPH_MS = 1200;
 
 const at = (deck: Deck): { key: string; at: string }[] => {
   const texts = [...deck.slides.flatMap((s) => [s.line, s.vignette ?? '']), ...deck.checks.flat()];
@@ -39,16 +42,34 @@ export function linkStates(deck: Deck): () => void {
   const named = at(deck);
   useUi.setState({ readings: {} });
   void ensureStates(copied);
-  let morphed: unknown = null;
+  let morphed: unknown = null, shownOnce = false;   // (shownOnce: a state has been put on the figure: the first slide's patient is in before the talk is seen, never dipped in)
+  const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
   // where the talk came from (2D lastAt): a slide reached by Back or a jump back does not play its days (2D `back`), it shows where they ended
   let lastStop = -1, from = -1;
   // the stop whose time-lapse moved the camera (its push, or its end framing): the camera is brought to the next slide's own framing as it is left, whatever that slide asks of the scene
   let pushedAt = -1;
+  // a time-lapse waits for its slide to land (2D playLapse runs after the move: the camera still, the cards in, a case card lifted) and plays only if that slide is still the one on show
+  let waiting: { stop: number; run: () => void } | null = null;
+  const tryRun = () => {
+    const w = waiting;
+    if (!w) return;
+    const { stops, pos } = useUi.getState();
+    if (pos.stop !== w.stop || !slideLanded() || viewAt(stops, pos).words === 'case') return;
+    waiting = null; w.run();
+  };
+  const dipTo = (snap: unknown) => {
+    const who = {};
+    void (async () => {
+      await dipIn(who);
+      if (morphed === snap) { try { engine().send({ type: 'morph', snap, ms: 0 }); } catch { /* the engine is not up yet */ } await wait(180); }   // (a newer slide took over: it puts its own state in)
+      await dipOut(who);
+    })();
+  };
   const sync = () => {
     const { stops, pos } = useUi.getState();
     const stop = stops[pos.stop];
     if (!stop) return;
-    if (pos.stop !== lastStop) { from = lastStop; lastStop = pos.stop; }
+    if (pos.stop !== lastStop) { from = lastStop; lastStop = pos.stop; waiting = null; }
     if (pushedAt >= 0 && pos.stop !== pushedAt) { pushedAt = -1; reframe(); }
     const res = useStates.getState().results[deck.id];
     const i = stateIndex(stop.kind, pos.stop, ids.length);
@@ -69,13 +90,23 @@ export function linkStates(deck: Deck): () => void {
       if (playsLapse(cs, i) && res?.[i - 1]?.snap && !(from > pos.stop)) {
         // a time-lapse: the days play on the live figure from the slide before's state (the camera pushing slowly to where they end), then it eases to this slide's computed end;
         // Next runs what is left of the days out (ui/deck/lapse-next.ts)
-        playLapse(key, cs, res[i - 1]!.snap, snap, () => {}, window.matchMedia?.('(prefers-reduced-motion: reduce)').matches, cam ? pushFor(cam) : null);
+        // (the figure eases to where the days start at the press, with the camera; the days themselves begin once the slide has landed)
+        const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches, start = res[i - 1]!.snap, push = cam ? pushFor(cam) : null;
+        readyLapse(key, cs);
+        try { engine().send({ type: 'morph', snap: start, ms: MORPH_MS }); } catch { /* the engine is not up yet */ }
+        waiting = { stop: pos.stop, run: () => playLapse(key, cs, start, snap, () => {}, reduce, push, true) };
         if (cam) pushedAt = pos.stop;
+        tryRun();
       } else {
         stopLapse();
         if (cs?.lapse && typeof cs.days === 'number' && stop.kind === 'slide') showLapseEnd(key, cs);
         if (cam) { pushedAt = pos.stop; queueMicrotask(() => showPushEnd(cam)); }   // (after the scene's own move to the slide's framing, so the figure goes once, to where the days end)
-        try { engine().send({ type: 'morph', snap, ms: MORPH_MS }); } catch { /* the engine is not up yet: the first slide is shown when it is */ }
+        // A new patient (2D `dip`): the figure dims, the state changes unseen, and it comes back as someone else, never a morph between two people. Not for the first slide, behind a case or question card
+        // (its card covers the change), with a catheter up (its own way out dims the figure), or when the slide keeps its patient (it eases, over the glide's time).
+        const behindCard = stop.kind === 'slide' && viewAt(stops, pos).words === 'case';
+        if (freshPatient(cs, false, false) && shownOnce && !behindCard && !cs?.cath && snap) dipTo(snap);
+        else try { engine().send({ type: 'morph', snap, ms: morphMsFor(cs) }); } catch { /* the engine is not up yet: the first slide is shown when it is */ }
+        shownOnce = true;
       }
     }
   };
@@ -89,5 +120,6 @@ export function linkStates(deck: Deck): () => void {
   sync();
   const offUi = useUi.subscribe((s, p) => { if (s.pos !== p.pos || s.stops !== p.stops) sync(); });
   const offStates = useStates.subscribe((s, p) => { if (s.results[deck.id] !== p.results[deck.id]) sync(); });
-  return () => { offUi(); offStates(); stopLapse(); };
+  const offLanded = onLanded(tryRun);
+  return () => { offUi(); offStates(); offLanded(); waiting = null; stopLapse(); };
 }

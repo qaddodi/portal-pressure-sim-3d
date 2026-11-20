@@ -12,6 +12,7 @@ import { copiedSlideOf } from '../../scene/labels/deck-link.ts';
 import { useStates } from '../../decks/hp/calc.ts';
 import { copiedOf } from '../../decks/hp/deck.ts';
 import { figurePlan } from './figure-plan.ts';
+import { slideLanded, onLanded } from './landing.ts';
 import { figureCalls, EMPTY_CALLS, type FigureCalls, type Fp, type Reads } from './figure-calls.ts';
 
 
@@ -46,6 +47,9 @@ export function linkFigure(): () => void {
   let t0 = 0;
   let seq: { named: FigureCalls['named']; shown: number; hold: { release(): void } | null } = { named: [], shown: -1, hold: null };
   let sinceOn = false;
+  // 2D paints a slide's glows and marks after its move has landed (presenter.js paintOverlays: the camera still, the cards in), and clears the old slide's at the press: what the slide asks waits here
+  let pending: FigureCalls | null = null, applied = true;
+  const flush = () => { if (pending && !applied) { applied = true; const c = pending; pending = null; apply(c); } };
 
   const stopSeq = () => { seq.hold?.release(); seq = { named: [], shown: -1, hold: null }; };
   const offClock = clock.on('tween', () => {
@@ -90,13 +94,18 @@ export function linkFigure(): () => void {
     key = next;
     if (sameSlide) {
       // the numbers arrived (the slide's state came in): only the cards' words change, never what is lit
-      useFigure.getState().set({ cards: calls.cards, calipers: calls.calipers, spans: calls.spans });
-    } else apply(calls);
+      if (applied) useFigure.getState().set({ cards: calls.cards, calipers: calls.calipers, spans: calls.spans }); else pending = calls;
+    } else {
+      // the slide before's marks go at the press; this one's come once it has landed
+      apply(EMPTY_CALLS); pending = calls; applied = false;
+      if (slideLanded()) flush();
+    }
     if (since) { setSince(since); sinceOn = true; } else if (sinceOn) { setSince(null); sinceOn = false; }
   };
 
   sync();
   const off = useUi.subscribe((s, p) => { if (s.pos !== p.pos || s.stops !== p.stops || s.deck !== p.deck) sync(); });
   const offStates = useStates.subscribe(() => sync());
-  return () => { off(); offStates(); offClock(); stopSeq(); if (sinceOn) setSince(null); apply(EMPTY_CALLS); };
+  const offLanded = onLanded(flush);
+  return () => { off(); offStates(); offLanded(); offClock(); stopSeq(); pending = null; if (sinceOn) setSince(null); apply(EMPTY_CALLS); };
 }

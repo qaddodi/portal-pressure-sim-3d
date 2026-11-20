@@ -202,7 +202,9 @@ test('a card whose words grow is revealed in the measuring callback, and a swipe
   assert.match(layer, /can: \(dx\) => pages > 1 \|\| \(dx < 0 && atEnd\(useUi\.getState\(\)\)\)/, 'a sideways drag is allowed on the last slide');
   assert.match(layer, /m === 'next' && atEnd\(useUi\.getState\(\)\)\) finishTalk\(\)/, 'a swipe on the last slide ends the talk');
   const fin = readFileSync(new URL('../src/ui/cards/finish.ts', import.meta.url), 'utf8');
-  assert.match(fin, /rail\.leave\(/, 'the cards go out on the rail before the talk is let go');
+  assert.match(fin, /stopTalk\(\)/, 'Finish ends the talk through the one exit');
+  const talk = readFileSync(new URL('../src/ui/shell/talk.ts', import.meta.url), 'utf8');
+  assert.match(talk, /rail\.leave\(/, 'the cards go out on the rail before the talk is let go');
 });
 
 test('a card the finger took far on keeps going the way it went: it never drifts back toward its end as it fades (the bounce)', () => {
