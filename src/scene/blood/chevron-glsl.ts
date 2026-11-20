@@ -5,11 +5,14 @@
 //   chevD(u, ay, hw)                       the head's signed distance (u along, toward the point; ay across; hw its half width)
 //   chevHead(u, ay, hw, px, rev)           (coverage, ring) of one head, px the pixel in the same unit
 //   chevInk(base, markDark, markLight)     the head's core tone on a lumen of colour `base`
-//   chevLattice(arc, across, pitch, px, dir)  heads every `pitch` along `arc`, in a tube whose face runs -1 .. 1 across: heads in the middle 0.6 of it (never near the wall), pointing toward `dir`
-/** The Anatomy's, the Circuit's and the micro tubes' heads on screen (vessels/shaders.ts chevOne, micro3d/cel3d.ts flowHeads), in CSS px, whatever the zoom: the lattice's spacing is PITCH_PX at the level where a head is added and 1.33 x PITCH_PX where the finer ones
- *  have just left (chevKeep), so heads stand every 40 to 80 px along the vessel whatever its width, on every tube from MIN_R_PX of radius (under 3 px across there is none); a head's half width is half the tube's radius held between MIN_HW_PX and MAX_HW_PX
- *  (so it is 8.8 px tall and 7 px long from a tube 9 px across) and never over the radius plus OVER_PX: on a thinner tube it may stand a pixel over each wall, where the ink outline (drawn over it) clips it to the tube. */
-export const CHEV = { PITCH_PX: 60, MIN_R_PX: 1.5, MIN_HW_PX: 4.4, MAX_HW_PX: 9, OVER_PX: 1 } as const;
+//   chevLattice(arc, across, pitch, px, dir)  heads every `pitch` along `arc`, in a tube whose face runs -1 .. 1 across: heads over the middle 0.55 of it (never near the wall), pointing toward `dir`
+/** The Anatomy's, the Circuit's and the micro tubes' heads, ONE shape in every view (Mohammad, 20 Nov: "the chevrons should not be 100% of the width of the vessel, elegant and sharp"): a SLIM, SHARP head, centred in the lumen with clear blood on both
+ *  sides, never touching the ink. Its width is SHARE (55 percent) of the lumen's, never over SHARE_MAX (60 percent), at least MIN_W_PX CSS px wide on a thin tube (4 px: on a tube under 6.7 px across the floor would pass SHARE_MAX, and then 60 percent wins);
+ *  its length along the vessel is LEN_OF_W x its width (1.4: a narrow point of about 39 degrees, the tip sharp, never rounded); its edge is ramped EDGE_PX px and its ring is RING_PX px wide at most. Spacing: the lattice's spacing is PITCH_PX at the level where a head is added and
+ *  1.33 x PITCH_PX where the finer ones have just left (chevKeep), on every tube from MIN_R_PX of radius (under 3 px across there is none). */
+export const CHEV = { PITCH_PX: 60, MIN_R_PX: 1.5, SHARE: 0.55, SHARE_MAX: 0.6, MIN_W_PX: 4, LEN_OF_W: 1.4, EDGE_PX: 0.7, RING_PX: 1 } as const;
+/** The twin of chevHw in the shaders: a head's half width, CSS px, on a lumen of radius `R` CSS px. */
+export const chevHalfWidthPx = (R: number): number => Math.min(CHEV.SHARE_MAX * R, Math.max(CHEV.SHARE * R, 0.5 * CHEV.MIN_W_PX));
 /** The finest octave of the lattice (Mohammad, 20 Nov: "too many chevrons when I zoom in and not many when zoomed out, spaced equally no matter what zoom"). The spacing is held in SCREEN px by octaves: the lattice level is lv = log2(PITCH_PX in world units / the base pitch),
  *  its heads stand at base x 2^floor(lv) along the stream (a coarser octave's heads are every other head of the finer one, so a head never moves when the octave changes), and the in-between heads of the finer octave fade out as lv rises through the octave
  *  (chevKeep: the odd heads keep exp2(1 - f) - 1 of themselves, 1 at the octave's start and 0 at its end, which holds the DENSITY at one head per PITCH_PX at every zoom): the full heads are 1 to 2 x PITCH_PX apart (60 to 120 px) and the whole lattice 0.5 to 1 x
@@ -28,22 +31,23 @@ export function chevKeepJs(j: number, n0: number, lv: number): number {
   return Math.min(1, Math.max(0, Math.pow(2, 1 - (lv - n0 - m)) - 1));
 }
 export const CHEVRON_GLSL = /* glsl */ `
+// a head's half width: SHARE of the lumen's radius, at least MIN_W_PX wide (wpc: the units under one CSS px), never over SHARE_MAX of the radius
+float chevHw(float R, float wpc) { return min(${CHEV.SHARE_MAX} * R, max(${CHEV.SHARE} * R, ${(0.5 * CHEV.MIN_W_PX).toFixed(1)} * wpc)); }
 float chevD(float u, float ay, float hw) {
-  float L = 1.6 * hw, tip = 0.55 * L, back = -0.45 * L, notch = 0.32 * L, k = L / hw;
+  float L = ${(2 * CHEV.LEN_OF_W).toFixed(1)} * hw, tip = 0.55 * L, back = -0.45 * L, notch = 0.32 * L, k = L / hw;
   float side = (u - tip + ay * k) / sqrt(1.0 + k * k);
   float rear = back + notch * (1.0 - clamp(ay / hw, 0.0, 1.0)) - u;
   return max(max(side, rear), ay - hw);
 }
 vec2 chevHead(float u, float ay, float hw, float px, float rev) {
   float d = chevD(u, ay, hw);
-  float c = 1.0 - smoothstep(-0.7 * px, 0.7 * px, d);
-  float rw = 1.8 * px + 0.1 * hw;   // the head's ring: a hard-edged outline of this width, never a halo
-  float rim = 1.0 - smoothstep(rw - 0.7 * px, rw + 0.7 * px, d);
+  float c = 1.0 - smoothstep(-${CHEV.EDGE_PX / 2} * px, ${CHEV.EDGE_PX / 2} * px, d);   // (an edge ramp of EDGE_PX px: crisp)
+  float rw = ${CHEV.RING_PX.toFixed(1)} * px;   // the head's ring: a hard-edged outline this wide at most, never a halo
+  float rim = 1.0 - smoothstep(rw - ${CHEV.EDGE_PX / 2} * px, rw + ${CHEV.EDGE_PX / 2} * px, d);
   if (rev > 0.0) {
-    float d2 = 0.6 * chevD((u + 1.088 * hw) / 0.6, ay / 0.6, hw);
-    c = max(c, rev * (1.0 - smoothstep(-0.7 * px, 0.7 * px, d2)));
-    float rw2 = 1.8 * px + 0.06 * hw;
-    rim = max(rim, rev * (1.0 - smoothstep(rw2 - 0.7 * px, rw2 + 0.7 * px, d2)));
+    float d2 = 0.6 * chevD((u + ${(0.68 * 2 * CHEV.LEN_OF_W).toFixed(3)} * hw) / 0.6, ay / 0.6, hw);
+    c = max(c, rev * (1.0 - smoothstep(-${CHEV.EDGE_PX / 2} * px, ${CHEV.EDGE_PX / 2} * px, d2)));
+    rim = max(rim, rev * (1.0 - smoothstep(rw - ${CHEV.EDGE_PX / 2} * px, rw + ${CHEV.EDGE_PX / 2} * px, d2)));
   }
   return vec2(c, rim * (1.0 - c));
 }
@@ -65,7 +69,7 @@ vec3 chevInk(vec3 base, vec3 markDark, vec3 markLight) {
 vec2 chevLattice(float arc, float across, float pitch, float px, float dir) {
   float hw = pitch / 5.5;
   float x = mod(arc + 0.5 * pitch, pitch) - 0.5 * pitch;
-  return chevHead(dir * x, abs(across) * hw / 0.6, hw, px, 0.0);
+  return chevHead(dir * x, abs(across) * hw / ${CHEV.SHARE}, hw, px, 0.0);
 }
 `;
 /** The name the first lobule wiring used: the same chunk. */
