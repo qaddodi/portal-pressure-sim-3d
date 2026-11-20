@@ -4,13 +4,12 @@ import type { Vec3 } from '../anatomy/vessels.ts';
 import { len3, x3, y3 } from '../frame2d.ts';
 import { TIER_Z } from '../frame2d.ts';
 import { coilCourses } from './coil.ts';
-import { ATLAS_COURSE, NETWORK_BY_ID, NODE_Z, type NetVessel } from './network.ts';
+import { NETWORK_BY_ID, NODE_Z, type NetVessel } from './network.ts';
 import { CAV, cavChannels, cavGrowth } from './cav.ts';
 import { BEAD_LAMBDA_FUNDAL, BEAD_SITE, beadLambda } from './varix-bead.copied.js';
 import { STRAND_FROM_2D } from './coil.copied.ts';
-import type { AtlasCourse } from '../atlas-art/types.ts';
 import { setSmoothJoins, smoothJoinsOn } from './join-mode.ts';
-import { ATTACH_REACH, BURY, END_SHARE, SMOOTH, endDepth, isPlain } from './smooth-joins.ts';
+import { ATTACH_REACH, BURY, CEIL, END_SHARE, SMOOTH, endDepth, isPlain } from './smooth-joins.ts';
 import { fadeOf } from './fades.ts';
 
 const len2d = (pts: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); return l; };
@@ -18,7 +17,7 @@ const len2d = (pts: readonly (readonly [number, number])[]): number => { let l =
 const BANDED = new Set(['C1a', 'C1b']);
 /** whether a vessel beads (varix-bead.js BEAD_SITE): its strands do, and the gastrorenal shunt itself does */
 export const beadsOn = (id: string): boolean => !!(BEAD_SITE as Record<string, string>)[id];
-import { type Course, tubularFor } from './tubes.ts';
+import { type Buried, type Course, tubularFor } from './tubes.ts';
 
 export interface ShapeState { wig: number; spr: number; /** how far the collaterals are recruited, 0 to 1 (the cavernoma's channels grow with it) */ rec: number; /** the varix's beading, 0 to 0.35 (varix-bead.js) */ bead: number; /** the bands on the esophageal varices, eased (band-ease.js) */ bands: number; /** strands drawn (a closed, dotted collateral has none) */ strandsOn: boolean; /** a feeder group's 0 to 1 live share */ live: number }
 export const REST: ShapeState = { wig: 0, spr: 1, rec: 1, bead: 0, bands: 0, strandsOn: true, live: 1 };
@@ -68,12 +67,17 @@ const nearestOn = (p: Vec3, poly: readonly Vec3[]): { at: Vec3; d: number } => {
 };
 
 /** What a branch's end is fitted to: where it ends, and the trunk's radius, so the tube's collar and cap stay inside it. */
-export interface Buried { max: number; d0: number; d1: number }
+export type { Buried } from './tubes.ts';
 /** Smooth joins: a branch's end moves onto the centreline of the trunk it ends on (the nearest of its candidates, if within `ATTACH_REACH` of that trunk's radii), easing back to its course over
  *  its first or last quarter, so no gap shows between its last ring and the trunk's wall; the radius its collar and cap may take is returned, so they never stand out of the trunk's far side. */
 export function fitEnds(v: NetVessel, pts: Vec3[]): { pts: Vec3[]; buried: readonly [Buried | null, Buried | null] } {
   const sm = SMOOTH.get(v.id), buried: [Buried | null, Buried | null] = [null, null];
-  if (!sm || !isPlain(v)) return { pts, buried };
+  if (!sm) return { pts, buried };
+  if (!isPlain(v)) {
+    // a collateral or a shunt keeps its own course (its strands braid along it), but its fillet is never wider than the trunk it ends on
+    for (const end of [0, 1] as const) { const r = sm.hostR[end]; if (r && v.flare?.[end]) buried[end] = { max: CEIL * r, d0: 0.5 * r, d1: 0.85 * r, ceil: CEIL * r }; }
+    return { pts, buried };
+  }
   const out = pts.map((p): Vec3 => [p[0], p[1], p[2]]), n = out.length;
   for (const end of [0, 1] as const) {
     const cands = sm.attach[end];
@@ -93,26 +97,14 @@ export function fitEnds(v: NetVessel, pts: Vec3[]): { pts: Vec3[]; buried: reado
       if (w <= 0) continue;
       out[i]![0] += delta[0]! * w; out[i]![1] += delta[1]! * w; out[i]![2] += delta[2]! * w;
     }
-    buried[end] = { max: BURY * best.r, d0: 0.5 * best.r, d1: 0.85 * best.r };
+    buried[end] = { max: BURY * best.r, d0: 0.5 * best.r, d1: 0.85 * best.r, ceil: CEIL * best.r };
   }
   return { pts: out, buried };
 }
 const minR = len3(0.35);
 
-/** The courses (the vessel's own first) at `s`. With Atlas art on and the artist having drawn this vessel, its first course is the artist's (atlasCourses); otherwise the 2D figure's, untouched. */
+/** The courses (the vessel's own first) at `s`. */
 export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
-  const base = classicCourses(v, s), a = ATLAS_COURSE.get(v.id);
-  return a ? atlasCourses(v, a, base) : base;
-}
-
-/** Atlas art: the artist's centreline and radii are the vessel's one tube. The classic shape's other tubes (a varix's strands, the cavernoma's channels, a fan of tributaries) stay in the
- *  geometry at no radius (rk 0, kept off the screen) so the vertex count is the one the vessel was built with and VesselObject.reshape can swap the shape in place. The radius is the vessel's
- *  own (what the live width and the Circuit read against); the artist's calibre is the profile along it. */
-function atlasCourses(v: NetVessel, a: AtlasCourse, base: Course[]): Course[] {
-  return base.map((c, i) => (i === 0 ? { pts: a.pts, radius: v.radius, profile: a.profile, capless: a.joined } : { pts: c.pts, radius: 0 }));
-}
-
-function classicCourses(v: NetVessel, s: ShapeState): Course[] {
   const plan = v.plan!, z = TIER_Z[v.tier];
   if (plan.kind === 'coil') {
     const coiled = coilCourses(v.id, plan.base as [number, number][], plan.coils, s.wig, s.spr);
@@ -134,7 +126,7 @@ function classicCourses(v: NetVessel, s: ShapeState): Course[] {
     const banded = BANDED.has(v.id), rad = banded ? v.radius * (1 - 0.14 * Math.min(4, s.bands)) : v.radius;
     // the varices bead by their size: every strand, and the gastrorenal shunt itself (varix-bead.js)
     const lambda = beadLambda(v.id) as number, beads = s.bead > 0 && beadsOn(v.id);
-    const own: Course = { pts: m, radius: rad, taper: sj ? sj.taper : v.taper, flare: v.flare, capless: sj ? sj.joined : v.joined, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? sj.free : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
+    const own: Course = { pts: m, radius: rad, taper: sj ? sj.taper : v.taper, taperSpan: sj?.taper ? sj.span : undefined, flare: v.flare, capless: sj ? sj.joined : v.joined, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? sj.free : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
     return [own, ...strands.map((c, i) => {
       if (!s.strandsOn) return own;
       const live = (banded ? Math.min(1, Math.max(0, i + 1 - s.bands)) : 1) * (c.live ?? 1);
@@ -150,10 +142,10 @@ function classicCourses(v: NetVessel, s: ShapeState): Course[] {
 
 /** The tube segments each course is built with, fixed at rest so a coil changes positions and never the vertex count. */
 export function tubularOf(v: NetVessel, minFirst = 0): number[] {
-  // (always counted on the 2D rule's courses, so the vertex count never depends on the smooth-joins switch or on Atlas art: either one rewrites the tubes in place, VesselObject.reshape)
+  // (always counted on the 2D rule's courses, so the vertex count never depends on the smooth-joins switch: a toggle rewrites the tubes in place, VesselObject.reshape)
   const was = smoothJoinsOn();
   setSmoothJoins(false);
-  const rest = (() => { try { return classicCourses(v, REST); } finally { setSmoothJoins(was); } })(), plan = v.plan!;
+  const rest = (() => { try { return coursesOf(v, REST); } finally { setSmoothJoins(was); } })(), plan = v.plan!;
   return rest.map((c, i) => {
     let len = 0;
     for (let i = 1; i < c.pts.length; i++) len += Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1], c.pts[i]![2] - c.pts[i - 1]![2]);

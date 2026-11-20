@@ -15,7 +15,12 @@ export interface Shot {
   target: Vec3;
   /** Half extents (scene units, in the view plane) of what the shot must keep in the free room. */
   half: [number, number];
+  /** The half extents on a narrow stage (a phone, under `NARROW_STAGE` px wide), where the shot is framed differently (the lobule's: 2D's phone frame box). */
+  halfNarrow?: [number, number];
 }
+
+/** A stage narrower than this is a phone (2D: `phoneMQ`, the lobule's `W < 720`). */
+export const NARROW_STAGE = 720;
 
 export type ShotName = 'title' | 'route' | 'free' | 'wedge' | 'hvpg' | 'play' | 'pick';
 

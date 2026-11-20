@@ -31,9 +31,26 @@ export const INFO: readonly (EdgeInfo | null)[] = edges.map((e) => {
   return len > 0 ? { id: e.id, from: e.from, to: e.to, path, len } : null;
 });
 
+const sstep = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+/** A head carried on through a join is cut by the tube's end and drawn again, turned, on the next tube: past this turn between the two courses it shows as a black wedge at the fork,
+ *  so the link's end weights ease to nothing there (the heads fade at the ends as they do at a free end). Straight on (within `STRAIGHT_COS`) a link keeps them whole. */
+export const TURN_FULL_COS = 0.98, TURN_NONE_COS = 0.82;   // 11 and 35 degrees
+const dirAt = (path: readonly (readonly [number, number])[], atEnd: boolean): number[] => {
+  const n = path.length, a = atEnd ? path[n - 1]! : path[0]!, b = atEnd ? path[Math.max(0, n - 1 - Math.min(4, n - 1))]! : path[Math.min(4, n - 1)]!;
+  const dx = atEnd ? a[0] - b[0] : b[0] - a[0], dy = atEnd ? a[1] - b[1] : b[1] - a[1], l = Math.hypot(dx, dy) || 1;
+  return [dx / l, dy / l];
+};
+/** How straight on a link runs: 1 where the child carries the parent's course on, 0 where it turns away (a fork's branch). `childFwd` / `parFwd`: each vessel's flow runs from its path's start. */
+export function linkStraightness(child: readonly (readonly [number, number])[], childFwd: boolean, parent: readonly (readonly [number, number])[], parFwd: boolean): number {
+  // the way the blood travels where it leaves the parent and where it enters the child
+  const pd = parFwd ? dirAt(parent, true) : dirAt(parent, false).map((x) => -x), cd = childFwd ? dirAt(child, false) : dirAt(child, true).map((x) => -x);
+  return sstep(TURN_NONE_COS, TURN_FULL_COS, pd[0]! * cd[0]! + pd[1]! * cd[1]!);
+}
+
 export class StreamChain {
   readonly texture: DataTexture;
   private readonly data = new Float32Array(NE * 8);
+  private readonly itemAt = new Int16Array(NE);
   private readonly chain = createStreamChain() as unknown as Chained;
   private readonly items: Item[] = [];
   private last: Chained | null = null;
@@ -75,8 +92,25 @@ export class StreamChain {
     if (changed || c.easing) {
       const d = this.data;
       d.fill(0);
+      // the end weights, eased to nothing where a link turns away (see TURN_NONE_COS): the child's entry end by its own link, the parent's exit end by the straightest of its children
+      const exF = Float32Array.from(c.ef.slice(0, n)), exT = Float32Array.from(c.et.slice(0, n)), keep = new Float32Array(n), isParent = new Uint8Array(n), at = this.itemAt.fill(-1);
+      for (let i = 0; i < n; i++) at[items[i]!.key] = i;
       for (let i = 0; i < n; i++) {
-        const k = items[i]!.key, w = c.w[i]!, ef = c.ef[i]!, et = c.et[i]!;
+        const pi = c.par[i]! >= 0 ? at[c.par[i]!]! : -1;   // (par holds the parent's key, its edge)
+        if (!(c.w[i]! > 0) || pi < 0) continue;
+        const it = items[i]!, pt = items[pi]!, ci = INFO[it.k], pinf = INFO[pt.k];
+        if (!ci || !pinf) continue;
+        const f = linkStraightness(ci.path, it.s0 === 0, pinf.path, pt.s0 === 0);
+        if (it.s0 === 0) exF[i] = exF[i]! * f; else exT[i] = exT[i]! * f;
+        keep[pi] = Math.max(keep[pi]!, f); isParent[pi] = 1;
+      }
+      for (let i = 0; i < n; i++) {
+        if (!isParent[i]) continue;
+        const f = keep[i]!;
+        if (items[i]!.s0 === 0) exT[i] = exT[i]! * f; else exF[i] = exF[i]! * f;
+      }
+      for (let i = 0; i < n; i++) {
+        const k = items[i]!.key, w = c.w[i]!, ef = exF[i]!, et = exT[i]!;
         const o = k * 4, o2 = NE * 4 + k * 4;
         if (w > 0) { d[o] = c.root[i]! + 1; d[o + 1] = c.A[i]!; d[o + 2] = c.B[i]!; d[o + 3] = w; d[o2 + 2] = c.par[i]! + 1; }
         d[o2] = ef; d[o2 + 1] = et;

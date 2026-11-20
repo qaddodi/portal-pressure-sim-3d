@@ -33,16 +33,17 @@ test('cel shaded: the bands are exactly three tones over a whole sweep of light 
   const face = O.LIGHT[2] / Math.hypot(...O.LIGHT);
   assert.equal(organBand(face, 0, 1), 1, 'face on is base');
   assert.ok(O.SHADE_LAM < face && face < O.LIT_LAM);
-  // a flat face-on organ still shows all three tones across its box: the measure leans toward the light (box coordinates: x right, y down; the light is up and to the left)
+  // a flat face-on organ still shows all three tones across its box: the measure leans by the distance from the light's spot in the box (x right, y down; the spot is up and to the left), in round, curved bands
+  const lean = (x: number, y: number) => O.BOX_R0 - Math.hypot(x - O.BOX_LIGHT[0], y - O.BOX_LIGHT[1]);
   const seen = new Set<number>();
-  const dir = [CEL_STYLE.DIR[0], -CEL_STYLE.DIR[1]] as const;
-  for (let x = 0; x <= 1; x += 0.02) for (let y = 0; y <= 1; y += 0.02) seen.add(organBand(face, 0, 0, (x - 0.5) * dir[0] + (y - 0.5) * dir[1]));
+  for (let x = 0; x <= 1; x += 0.02) for (let y = 0; y <= 1; y += 0.02) seen.add(organBand(face, 0, 0, lean(x, y)));
   assert.deepEqual([...seen].sort(), [0, 1, 2], 'a flat organ: lit cap, base, shade side');
-  assert.equal(organBand(face, 0, 0, (0.15 - 0.5) * dir[0] + (0.15 - 0.5) * dir[1]), 2, 'upper left is lit');
-  assert.equal(organBand(face, 0, 0, (0.9 - 0.5) * dir[0] + (0.9 - 0.5) * dir[1]), 0, 'lower right is shade');
+  assert.equal(organBand(face, 0, 0, lean(...O.BOX_LIGHT)), 2, 'the light\'s spot is lit');
+  assert.equal(organBand(face, 0, 0, lean(0.9, 0.9)), 0, 'lower right is shade');
+  assert.equal(organBand(face, 0, 0, lean(0.5, 0.5)), 1, 'the middle is base');
   // the shares of a face-on box: each of lit and shade is a clear part, none swallows the organ
   let lit = 0, sh = 0, n = 0;
-  for (let x = 0; x <= 1; x += 0.02) for (let y = 0; y <= 1; y += 0.02) { const b = organBand(face, 0, 0, (x - 0.5) * dir[0] + (y - 0.5) * dir[1]); n++; if (b === 2) lit++; if (b === 0) sh++; }
+  for (let x = 0; x <= 1; x += 0.02) for (let y = 0; y <= 1; y += 0.02) { const b = organBand(face, 0, 0, lean(x, y)); n++; if (b === 2) lit++; if (b === 0) sh++; }
   assert.ok(lit / n > 0.1 && lit / n < 0.4 && sh / n > 0.1 && sh / n < 0.4, `lit ${(lit / n).toFixed(2)}, shade ${(sh / n).toFixed(2)}`);
 });
 
@@ -61,11 +62,11 @@ test('cel shaded: the numbers are cel-style.ts\'s (no second copy), edges are ED
   assert.doesNotMatch(fn, /smoothstep\([^)]*[0-9]\.[0-9]+ ?[-+]/, 'no literal softness in an edge');
   const cel = ORGAN_FS.slice(ORGAN_FS.indexOf('// Cel shaded: the wash'), ORGAN_FS.indexOf('float a = mix(layer'));
   assert.match(cel, /if \(solid > 0\.001\) \{/);
-  assert.ok(cel.includes(`vec3 base = o2;`), 'the base is the organ\'s own second tone, at full strength');
-  assert.ok(cel.includes(`mix(base * (1.0 - ${O.SHADE}), deep, ${O.DEEP})`), 'shade: the base x (1 - SHADE), DEEP of the way to the organ\'s own darkest tone');
-  assert.ok(cel.includes('? o3 : ogDark.rgb'), 'the organ\'s third tone where it is darker than the base (light looks), og-dark where it is the light edge (dark looks)');
-  assert.ok(cel.includes(`mix(mix(base, o1, ${O.LIT_O1}), ogLight.rgb, ${O.LIT})`), 'lit: toward its first tone, then og-light');
+  assert.ok(cel.includes('vec3 base = celBase + paint;'), 'the base is the organ\'s own 2D tone (cel-tones.ts), flat, with what varies over it');
+  assert.ok(cel.includes('mix(mix(base, celShade + paint, b.x), celLit + paint, b.y)'), 'three flat tones, nothing mixed in between');
+  assert.doesNotMatch(cel, /ogLight|ogDark|volShade|\bo1\b|\bo2\b|\bo3\b|mix\(o1|smoothstep\((?!.*celBands)/, 'no og-light, og-dark, gradient or rim in the cel block');
   assert.match(cel, /CEL_BOX_BIAS \* lean/);
+  assert.match(cel, /float lean = CEL_BOX_R0 - distance\(vBox, CEL_BOX_LIGHT\);/, 'curved: the distance from the light\'s spot, not a straight line');
   assert.doesNotMatch(cel, /#[0-9A-Fa-f]{6}|vec3\([0-9.]+, [0-9.]+, [0-9.]+\)/, 'no literal colour');
   assert.ok(!cel.includes('mix(page'), 'no pre-mix against the page');
   assert.match(cel, /fill = mix\(fill, cel, solid\);/, 'eased by the solid uniform');

@@ -4,6 +4,7 @@
 //   uv.x  per tube, set by the caller's `uvx(i, arc)`: arc length in chevron pitches for chevrons; the distance from the lobule's centre for
 //         the amber wash (the toon pass cuts at `reveal`); anything the part needs.
 //   uv.y  angle round the tube, 0..1.
+//   rad   the tube's radius at the vertex (scene units).
 import { BufferGeometry, Float32BufferAttribute, Matrix3, Matrix4, type SphereGeometry, Vector3 } from 'three';
 
 export type V3 = [number, number, number];
@@ -29,6 +30,8 @@ export class Batch {
   private nor: number[] = [];
   private uv: number[] = [];
   private tan: number[] = [];
+  /** The tube's own radius at each of its vertices (sparse: a cap or a shape has none): the flow heads are sized by it (the radius varies along a sinusoid). */
+  private rad: number[] = [];
   private idx: number[] = [];
   private dsc: number[] = [];
   private dct: number[] = [];
@@ -76,6 +79,7 @@ export class Batch {
         else { const l = Math.hypot(nx, ny, nz / k) || 1; this.nor.push(nx / l, ny / l, nz / k / l); }
         this.uv.push(ux, j / radial);
         this.tan.push(T[i]!.x, T[i]!.y, T[i]!.z);
+        this.rad[this.count] = r;
         this.dsc.push(-1, nx, -ny); this.dct.push(P[i]!.x, P[i]!.y);   // (the wall: no pale band on it; its direction is the mask's, in the 2D plane, y down)
         this.count++;
       }
@@ -132,6 +136,7 @@ export class Batch {
     g.setAttribute('normal', new Float32BufferAttribute(this.nor, 3));
     g.setAttribute('uv', new Float32BufferAttribute(this.uv, 2));
     g.setAttribute('tang', new Float32BufferAttribute(this.tan, 3));
+    g.setAttribute('rad', new Float32BufferAttribute(Float32Array.from({ length: this.count }, (_, i) => this.rad[i] ?? 0), 1));
     if (this.inkOn) g.setAttribute('ink', new Float32BufferAttribute(new Float32Array(this.count * 3).fill(0.6), 3));
     if (this.discOn) {
       g.setAttribute('disc', new Float32BufferAttribute(this.dsc, 3));

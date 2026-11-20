@@ -34,3 +34,10 @@ export function twigR(u: number, rs: number): number {
   const leave = TW_R.leave * DISC_R.ha;
   return twigRadius(Math.max(TW_R.base, 0), leave, TW_R.join * rs, u);
 }
+
+/** The space of Disse's sleeve at distance `rho` from the centre (lobule radii): the sinusoid's own radius there and a rim beside it (2D lobule-zoom-field.js radiusAt, case 'ly':
+ *  rs * sinK + rs0 * (0.12 + 0.42 sqrt(j)) * (0.55 + 0.45 smooth(0.07, 0.24, rho)), here at j = 1, the healthy liver's mean). The sleeve lies under its sinusoid, so only that rim shows. */
+export function disseRadius(rho: number): number {
+  const t = Math.min(1, Math.max(0, (rho - 0.07) / 0.17)), sm = t * t * (3 - 2 * t);
+  return RS_N * sinK(rho) + RS0 * (0.12 + 0.42) * (0.55 + 0.45 * sm);
+}

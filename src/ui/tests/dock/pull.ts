@@ -19,29 +19,40 @@ export interface PullApi {
 
 // Controls that keep their own drags: fields, sliders, an editable text.
 const FIELDS = 'input:not([type="checkbox"]):not([type="radio"]):not([type="button"]), select, textarea, [role="slider"], [contenteditable], .range-wrap, .stent-editor';
+// The scrolling box under the finger, if there is one (2D dock-sheet.js scroller): a pull that starts in content scrolled away from its top scrolls it back first, it never moves the card.
+const scroller = (t: Element, card: HTMLElement): HTMLElement | null => {
+  for (let n: Element | null = t; n && n !== card; n = n.parentElement) {
+    if (n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY)) return n as HTMLElement;
+  }
+  return null;
+};
 const MOVE = 6, FLICK_UP = -0.5, FAR_UP = 40, STAY_FULL = 40;
 const ty = (el: HTMLElement) => (v: number) => { el.style.translate = v ? `0px ${v}px` : ''; };
 
 /** Wires the pull to the card (`card`) and the box that moves (`pos`). Returns the remover. */
 export function attachPull(card: HTMLElement, pos: HTMLElement, api: PullApi): () => void {
-  type St = { x: number; y: number; t0: number; moved: boolean; dy: number; h0: number; half: number; full: number; size: 0 | 1; trail: [number, number][]; m: ReturnType<typeof follow> | null; carry: number };
+  type St = { x: number; y: number; t0: number; moved: boolean; dy: number; h0: number; half: number; full: number; size: 0 | 1; sc: HTMLElement | null; scTop: number; trail: [number, number][]; m: ReturnType<typeof follow> | null; carry: number };
   let st: St | null = null, run: Glide | null = null, swallow = 0, off = 0;
   const onDown = (e: TouchEvent) => {
     if (st || e.touches.length !== 1 || !api.enabled()) return;
     const t = e.target as Element | null;
     if (!t || t.closest(FIELDS)) return;
-    const h = api.heights();
+    const h = api.heights(), sc = scroller(t, card);
     const carry = run ? off : 0;
     if (run) { run.stop(); run = null; }
-    st = { x: e.touches[0]!.clientX, y: e.touches[0]!.clientY, t0: performance.now(), moved: false, dy: 0, h0: h.h0, half: h.half, full: h.full, size: h.size, trail: [], m: null, carry };
+    st = { x: e.touches[0]!.clientX, y: e.touches[0]!.clientY, t0: performance.now(), moved: false, dy: 0, h0: h.h0, half: h.half, full: h.full, size: h.size, sc, scTop: sc ? sc.scrollTop : 0, trail: [], m: null, carry };
   };
   const onMove = (e: TouchEvent) => {
     const s = st;
     if (!s) return;
     const t = e.touches[0]!, dx = t.clientX - s.x, dy = t.clientY - s.y;
     if (!s.moved) {
+      // (A pull down from anywhere on the card, its content at the top, is claimed by the first move, before 6 px: iOS hands a pull on scrollable content to the page and cancels the touch
+      //  before then, and the card would never follow. 2D dock-sheet.js does the same.)
+      if (dy > 0 && dy >= Math.abs(dx) && !(s.sc && s.scTop > 0) && e.cancelable) e.preventDefault();
       if (Math.hypot(dx, dy) < MOVE) return;
       if (Math.abs(dx) > Math.abs(dy)) { st = null; return; }   // (sideways: the swipe between the tabs)
+      if (s.sc && (s.scTop > 0 || (dy < 0 && s.size === 1))) { st = null; return; }   // (the content scrolls: scrolled away from its top, or up at Full)
       s.moved = true; s.m = follow(ty(pos), 'tests-pull');
     }
     if (e.cancelable) e.preventDefault();
