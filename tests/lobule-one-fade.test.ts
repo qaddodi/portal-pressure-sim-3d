@@ -68,7 +68,7 @@ test('walking the whole Lobule scene graph: every mesh and material under the ro
   l3.update(true, 0.3, 4000, 1);
   const seen = everything(flat.group);
   const names = seen.map((s) => s.name);
-  for (const must of ['lobule/field', 'lobule/mark', 'lobule3d/marks', 'lobule3d/hepatocytes', 'lobule3d/sinusoids-0', 'lobule3d/arteriole-twigs', 'lobule3d/terminal-lymphatics', 'lobule3d/lymph-ductules', 'lobule3d/canaliculi', 'lobule3d/central-vein-scar']) assert.ok(names.includes(must), `${must} is under the Lobule root`);
+  for (const must of ['lobule/field', 'lobule/mark', 'lobule3d/marks', 'lobule3d/hepatocytes', 'lobule3d/sinusoids-0', 'lobule3d/arteriole-twigs', 'lobule3d/terminal-lymphatics', 'lobule3d/lymph-channels', 'lobule3d/canaliculi', 'lobule3d/central-vein-scar']) assert.ok(names.includes(must), `${must} is under the Lobule root`);
   assert.ok(seen.length >= 25, `the walk covers the whole graph (${seen.length} drawn objects)`);
   assert.deepEqual(flat.fade.unfaded(flat.group), [], 'nothing under the Lobule root has a fade of its own');
   // and the values they read are the ones written through the root, nothing else

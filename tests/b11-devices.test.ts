@@ -1,5 +1,6 @@
 // B11 scene devices: the Doppler probe, the FibroScan probe and the endoscope with its ligator cap and EUS needle (src/scene/devices/probes/). Numbers are the 2D app's, copied by script; here: the copy is
 // current (when a 2D checkout is named), the geometry keeps the 2D app's rules (the Doppler angle, the gate, the stations' order), the devices ease in and out and leave with the Circuit, and the Tests card drives them.
+import { NEEDLE_POINT } from '../src/scene/devices/probes/scope.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -276,11 +277,11 @@ test('the echoendoscope follows the EUS-PPG\'s procedure frame: the way in, the 
   assert.ok(priv.parts_.port.group.visible, 'the port opens with the aim');
   assert.equal(priv.parts_.needle.group.visible, false, 'no needle until it is out');
   assert.equal(priv.flashRings[0]!.group.visible, false); assert.equal(priv.rippleRings[0]!.group.visible, false);
-  // the needle out: steel to a bevelled point (the last rings narrow to a fifth of the width), its end on the line from the port
+  // the needle out: steel to a bevelled point (the last rings narrow to NEEDLE_POINT of the width: a sharp point, owner 20 Nov 2026 "more needle-y"; it was 2D's fifth), its end on the line from the port
   drive.needle = 1; run();
   const rs = priv.needleBuf.rings, full = rs[0]!.r;
   assert.ok(priv.parts_.needle.group.visible);
-  assert.ok(Math.abs(rs[rs.length - 1]!.r / full - 0.2) < 1e-6, `the point is a fifth: ${rs[rs.length - 1]!.r / full}`);
+  assert.ok(Math.abs(rs[rs.length - 1]!.r / full - NEEDLE_POINT) < 1e-6, `the point is sharp: ${rs[rs.length - 1]!.r / full}`);
   assert.ok(rs[rs.length - 2]!.r < full && rs[rs.length - 2]!.r > rs[rs.length - 1]!.r, 'it narrows over the bevel');
   assert.ok(sc.pose.needleEnd.length() > 0);
   // the hit: two rings; the reading: two ripples
