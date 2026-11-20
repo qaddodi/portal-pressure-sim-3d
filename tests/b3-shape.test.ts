@@ -157,14 +157,15 @@ test('a channel grows with the recruitment: none before it begins, whole after',
 
 // ── the bands and the bead (the esophageal varices) ──
 import { VESSEL_VS } from '../src/scene/vessels/shaders.ts';
-test('each band closes one strand of the varices\' plexus and the rest shrink by 14 % a band (to four)', () => {
+test('each band narrows one strand of the varices\' plexus to a thin cord (never to nothing: no stump) and the rest shrink by 14 % a band (to four)', () => {
   const v = NETWORK_BY_ID.get('C1a')!;
   const rad = (bands: number) => coursesOf(v, { ...REST, bands }).map((c) => c.radius);
   const r0 = rad(0), r1 = rad(1), r2 = rad(2), r4 = rad(4);
   assert.ok(r0.length >= 2 && r0.slice(1).every((r) => r > 0), 'no band: every strand is there');
-  assert.equal(r1[1], 0, 'one band closes the first strand');
-  assert.ok(r1[2]! > 0);
-  assert.equal(r2[2], 0, 'two bands close the second');
+  assert.ok(r1[1]! > 0 && r1[1]! < r0[1]! * 0.4, 'one band narrows the first strand to a cord');
+  assert.ok(r1[2]! > r1[1]! * 2, 'the next is still whole');
+  assert.ok(r2[2]! < r0[2]! * 0.4 && r2[2]! > 0, 'two bands narrow the second');
+  assert.ok(rad(4).slice(1).every((r) => r > 0), 'four bands: every strand is still a drawn cord, the path is one tube end to end');
   assert.ok(Math.abs(r1[0]! - r0[0]! * (1 - 0.14)) < 1e-9, 'the main channel shrinks by 14 % a band');
   assert.ok(Math.abs(r4[0]! - r0[0]! * (1 - 0.56)) < 1e-9);
   assert.ok(Math.abs(rad(7)[0]! - r4[0]!) < 1e-9, 'more than four bands shrink no further');
