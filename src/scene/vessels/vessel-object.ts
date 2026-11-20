@@ -74,6 +74,8 @@ export function withRk(g: BufferGeometry): BufferGeometry {
 
 /** The camera layer nothing is drawn from: the cava's solid mesh, kept only to be picked. */
 export const FAINT_ONLY_LAYER = 2;
+/** The copies' shares of a vessel that is not behind the organs, or one that is shown whole: its front copy alone (`copyShares`). */
+const COPIES_FRONT: readonly [number, number, number] = [1, 0, 0];
 
 const lookOf = (p: Palette): LookId => ((Object.keys(PALETTES) as LookId[]).find((id) => PALETTES[id] === p) ?? 'light');
 
@@ -99,7 +101,7 @@ export class VesselObject extends CelObject {
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circFlat: { value: 0 }, circAnchA: { value: new Vector3() }, circAnchC: { value: new Vector3() }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
         veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 }, cavaEnd: { value: new Vector2(0, 1) }, cavaCut: { value: 0 }, cavaA: { value: 1 }, solidK: { value: 1 }, veilK: { value: 1 }, cavaRef: { value: new Vector2(0, 1) },
-        lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, streakAmt: blood.streakAmt, dustP: blood.dustP, chainTex: blood.chainTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, quietK: { value: 0 }, wedge: { value: new Vector4(0, 2, 0.6, 0) }, wedgeCol: { value: new Color() }, wallLine: { value: this.artery ? 1 : 0 }, pageCol: { value: new Color() }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 0 },
+        lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, streakAmt: blood.streakAmt, dustP: blood.dustP, chainTex: blood.chainTex, routeTex: blood.routeTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, quietK: { value: 0 }, wedge: { value: new Vector4(0, 2, 0.6, 0) }, wedgeCol: { value: new Color() }, wallLine: { value: this.artery ? 1 : 0 }, pageCol: { value: new Color() }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 0 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
       },
@@ -284,9 +286,24 @@ export class VesselObject extends CelObject {
     this.occK = k;
     this.applyBehind();
   }
+  /** How much of each of this vessel's three drawn copies shows (front, solid, veil: spec 10.4), read by a junction skin that has this vessel as an arm so that its own three copies are weighted the same way. Exactly what `applyBehind` sets on the tube:
+   *  a plain vessel is its front copy alone, (1, 0, 0). A vessel behind the organs is: whole (named or selected), its front copy over the organs, (1, 0, 0); otherwise its solid copy (drawn with the organs, so one in front hides it) at `solidK`
+   *  (the cava, a faint one, only as far as Settings > Hide vessels behind organs has come; any other vessel behind the organs always) and its veil copy (over the organs) at `veilK` = 1 - k, gone at the mesh's own cut-off, k >= 0.999. The veil's
+   *  `veilA` is not among them: the shader has no use for it (tests/b3-cava-whole.test.ts), the cava is opaque and its tone is its fade. */
+  copyShares(): readonly [number, number, number] {
+    const v = this.veil;
+    if (!v || v.whole) return COPIES_FRONT;
+    const k = this.occK;
+    return [0, v.faint ? k : 1, k < 0.999 ? 1 - k : 0];
+  }
+  /** Whether this vessel is one the figure draws behind the organs (it has a veil copy), so its skin's copies blend. */
+  get behindOrgans(): boolean { return !!this.veil; }
+  /** A counter that goes up whenever `copyShares` may have changed (the skin's handover compares it, so a vessel that does not move costs nothing). */
+  copyVersion = 0;
   private applyBehind(): void {
     const v = this.veil;
     if (!v) return;
+    this.copyVersion++;
     const k = v.whole ? 0 : this.occK;
     this.toon.uniforms.veilK!.value = 1 - k;
     this.toon.uniforms.solidK!.value = v.faint && !v.whole ? k : 1;

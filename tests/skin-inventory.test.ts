@@ -7,7 +7,7 @@ import { BACK_EDGES, IVC_EDGES } from '../src/scene/vessels/paths.copied.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { buildTubes, TUBE_RADIAL } from '../src/scene/vessels/tubes.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
-import { PERMANENT_KINDS, SKIN_REACH, armReach, armsShareTier, findSkinJunctions, isPermanent, skinNodesForPhase, tierSpread } from '../src/scene/vessels/skin/inventory.ts';
+import { PERMANENT_KINDS, SKIN_REACH, armReach, nodesBeyondReach, armsShareTier, findSkinJunctions, isPermanent, skinNodesForPhase, tierSpread } from '../src/scene/vessels/skin/inventory.ts';
 import { CAPSULE_R, CLEAR_K, CLEAR_R, CUT_SKIN_K, MAX_TRIES, MIN_RINGS_BETWEEN, SEAM_MAX_SHARE, SEAM_MIN_R, chooseCuts, mergedNode, planSkins, type ArmTube } from '../src/scene/vessels/skin/cuts.ts';
 import { SkinBuildError, type SkinCut, type SkinJunction } from '../src/scene/vessels/skin/types.ts';
 import { indexOf } from '../src/engine/vessel-data.ts';
@@ -22,29 +22,33 @@ const TABLE: Record<string, readonly string[]> = {
   PVH: ['PV_TRUNK:1', 'PVH_R:0', 'PVH_L:0'],
   HA: ['A_HEP:1', 'A_HR:0', 'A_HL:0'],
   CV_R: ['SIN_RR:1', 'POST_R_RHV:0', 'POST_R_MHV:0'],
+  IVCS: ['IVC_IS:1', 'IVCS_RA:0', 'RHV_IVC:1', 'MHV_IVC:1', 'LHV_IVC:1'],
+  IVCI: ['IVC_IS_1:0', 'LRV_IVC:1', 'ILI_IVC_1:1'],
+  SVC_E: ['EPI_SVC:1', 'SVC_RA_1:1', 'SVC_RA:0'],
+  SVC: ['V_UP:1', 'AZY_SVC:1', 'SVC_RA_1:0'],
   SIN_R: ['A_HR:1', 'PRE_R:1', 'SIN_RR:0'],
   SIN_L: ['A_HL:1', 'PRE_L:1', 'SIN_LL:0'],
 };
-const PHASE_2 = ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R'];
+const PHASE_2 = ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'SIN_R', 'SIN_L', 'IVCI', 'SVC_E', 'SVC', 'IVCS'];
 const armKeys = (j: SkinJunction): string[] => j.arms.map((a) => `${a.vesselId}:${a.end}`).sort();
 
-test('the inventory is the table of the spec exactly: eight nodes, their arms and ends, nothing else (SVC_E, in the spec table, is out: its arms are BACK_EDGES, spec 4.8)', () => {
+test('the inventory is the table of the spec exactly: twelve nodes, their arms and ends, nothing else (spec 10.4: the nodes with an end behind the organs, IVCS with its five arms, IVCI, SVC_E and SVC, are in)', () => {
   const js = on(() => findSkinJunctions());
   assert.deepEqual(js.map((j) => j.node).sort(), Object.keys(TABLE).sort());
   for (const j of js) assert.deepEqual(armKeys(j), [...TABLE[j.node]!].sort(), j.node);
 });
 
-test('phase 1 is the confluence alone and phase 2 every node the table marks 2; the liver beds are in neither', () => {
+test('phase 1 is the confluence alone and phase 2 every node the table marks 2, and the liver beds (spec 10.5, which then keep the old join: their arteriole ends beyond SKIN_REACH, tests/skin-builds.test.ts)', () => {
   assert.deepEqual([...skinNodesForPhase(1)], ['CONF']);
   assert.deepEqual([...skinNodesForPhase(2)].sort(), [...PHASE_2].sort());
   const nodes = new Set(on(() => findSkinJunctions()).map((j) => j.node));
   for (const p of [1, 2] as const) for (const n of skinNodesForPhase(p)) assert.ok(nodes.has(n), `${n} is in the inventory`);
-  for (const n of ['SIN_R', 'SIN_L']) for (const p of [1, 2] as const) assert.ok(!skinNodesForPhase(p).has(n));
+  for (const n of ['SIN_R', 'SIN_L']) assert.ok(skinNodesForPhase(2).has(n) && !skinNodesForPhase(1).has(n));
 });
 
-test('every arm is a permanent tube: no collateral, shunt, feeder or strand is ever an arm; 3 or 4 arms, widest first, with the vessel\'s own numbers', () => {
+test('every arm is a permanent tube: no collateral, shunt, feeder or strand is ever an arm; 3 to 6 arms, widest first, with the vessel\'s own numbers', () => {
   for (const j of on(() => findSkinJunctions())) {
-    assert.ok(j.arms.length === 3 || j.arms.length === 4, j.node);
+    assert.ok(j.arms.length >= 3 && j.arms.length <= 6, j.node);
     for (let i = 0; i < j.arms.length; i++) {
       const a = j.arms[i]!, v = NETWORK_BY_ID.get(a.vesselId)!;
       assert.ok(v, a.vesselId);
@@ -60,22 +64,25 @@ test('every arm is a permanent tube: no collateral, shunt, feeder or strand is e
   for (const v of NETWORK) if (v.kind === 'collateral' || v.kind === 'shunt' || v.feeder) assert.ok(!isPermanent(v), v.id);
 });
 
-test('the node where a faded cava or a vessel behind the organs meets is out, and so is the end of a vein that branches into a through-tube', () => {
+test('a node with an end behind the organs is in (its skin is drawn as three copies, spec 10.4); a vein that branches into a through-tube still ends short of its node; IVCS has five arms', () => {
   const nodes = new Set(on(() => findSkinJunctions()).map((j) => j.node));
-  for (const n of ['IVCS', 'IVCI', 'SVC_E']) assert.ok(!nodes.has(n), n);
-  for (const j of on(() => findSkinJunctions())) for (const a of j.arms) { assert.ok(!IVC_EDGES.has(a.vesselId), a.vesselId); assert.notEqual(cutEnd(a.vesselId), a.end, a.vesselId); }
+  for (const n of ['IVCI', 'SVC_E', 'SVC']) assert.ok(nodes.has(n), n);
+  assert.ok(nodes.has('IVCS'), 'IVCS has five arms and is in with the six-arm foundation');
+  for (const j of on(() => findSkinJunctions())) for (const a of j.arms) assert.notEqual(cutEnd(a.vesselId), a.end, a.vesselId);
 });
 
-test('no arm is drawn behind the organs (BACK_EDGES): a skin is drawn on the vessel layer only', () => {
-  for (const j of on(() => findSkinJunctions())) for (const a of j.arms) assert.ok(!BACK_EDGES.has(a.vesselId), `${j.node}: ${a.vesselId}`);
+test('the junctions with an arm behind the organs are exactly the ones whose skin has more than a front copy (BACK_EDGES is the rule the scene draws the copies by)', () => {
+  const behind = on(() => findSkinJunctions()).filter((j) => j.arms.some((a) => BACK_EDGES.has(a.vesselId))).map((j) => j.node).sort();
+  assert.deepEqual(behind, ['IVCI', 'IVCS', 'SVC', 'SVC_E']);
+  assert.ok(IVC_EDGES.has('IVC_IS_1') && IVC_EDGES.has('ILI_IVC_1'), 'IVCI joins two pieces of the cava');
 });
 
-test('J is the end point of the widest arm\'s course; with smooth joins on every arm of a phase node ends within SKIN_REACH (2 radii) of it', () => {
+test('J is the end point of the widest arm\'s course; with smooth joins on every arm of a phase node ends within SKIN_REACH (6 radii) of it', () => {
   on(() => {
     for (const j of findSkinJunctions()) {
       const w = NETWORK_BY_ID.get(j.arms[0]!.vesselId)!, pts = coursesOf(w, REST)[0]!.pts, e = pts[j.arms[0]!.end ? pts.length - 1 : 0]!;
       assert.deepEqual([...j.J], [...e], `${j.node}: J`);
-      if (!PHASE_2.includes(j.node)) continue;
+      if (!PHASE_2.includes(j.node) || nodesBeyondReach([j]).length) continue;   // (the beds' arteriole is the art's own spacing: nodesBeyondReach, listed in skin-builds.test.ts)
       const reach = armReach(j);
       assert.equal(reach[0], 0, j.node);
       // (CV_R: the 2D art leaves its two hepatic-vein beds 1.7 radii of a thin bed from the sinusoid's end, shape.ts fitEnds does not move beds; the skin's hull spans the gap)
@@ -101,7 +108,7 @@ const ringVerts = (t: ArmTube, k: number): number[][] => {
 const accept = () => true;
 
 /** Where the cut rules succeed on the real tubes today. Under the relaxed clearance (k + 0.5 R, 20 Nov) every phase node cuts, the portal bifurcation PVH included; only SIN_L (phase 3: its 85 % bound is reached before a clear ring) has no seam, a named SkinBuildError, so the scene keeps today's method there. Pinned so a change either way is seen. */
-const CUTTABLE = PHASE_2, UNCUTTABLE = ['SIN_L'];   // (SIN_R, phase 3, is cut at the far end of its arteriole, 20 radii from J: not pinned until it is asked for)
+const CUTTABLE = PHASE_2.filter((n) => n !== 'SIN_R' && n !== 'SIN_L'), UNCUTTABLE = ['SIN_L'];   // (SIN_R, phase 3, is cut at the far end of its arteriole, 20 radii from J: not pinned until it is asked for)
 
 test('a cut is one of the tube\'s own rings, at the right end, with u = ring / tubular, at least 1.5 radii from J, and clear of the blend', () => {
   on(() => {
@@ -157,7 +164,7 @@ test('a hull that never agrees ends in a named SkinBuildError carrying the node,
 
 test('the cut constants are the spec\'s: blend 0.8 of the narrowest radius, clearance k + 0.5 R, a seam 1.5 radii out and within 85 % of the arm, a capsule 6 radii long, 40 tries, 2 rings between two skins', () => {
   assert.equal(CUT_SKIN_K, 0.8); assert.equal(SEAM_MIN_R, 1.5); assert.equal(CAPSULE_R, 6); assert.equal(MAX_TRIES, 40);
-  assert.equal(CLEAR_K, 1); assert.equal(CLEAR_R, 0.5); assert.equal(SEAM_MAX_SHARE, 0.85); assert.equal(MIN_RINGS_BETWEEN, 2); assert.equal(SKIN_REACH, 2);
+  assert.equal(CLEAR_K, 1); assert.equal(CLEAR_R, 0.5); assert.equal(SEAM_MAX_SHARE, 0.85); assert.equal(MIN_RINGS_BETWEEN, 2); assert.equal(SKIN_REACH, 6);
 });
 
 test('the inventory leaves the figure as it found it: the smooth-joins switch is where the test left it, and nothing here reads the scene', () => {

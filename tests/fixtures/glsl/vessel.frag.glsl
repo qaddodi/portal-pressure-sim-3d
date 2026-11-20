@@ -131,6 +131,7 @@ varying float vHi;
 varying vec3 vN;
 varying vec3 vV;
 varying vec3 vT;
+varying vec3 vZf;   // the figure's normal (model z) in the view's frame: the dust's section frame (blood/dust-glsl.ts dustFrame)
 varying vec2 vUv;
 
 // junction skins (skin/types.ts): the tube has a seam at either end
@@ -194,6 +195,7 @@ vec2 chevLattice(float arc, float across, float pitch, float px, float dir) {
 
 
 uniform vec4 dustP[12];
+uniform sampler2D routeTex;
 #define D_size dustP[0].x
 #define D_sizeVar dustP[0].y
 #define D_soft dustP[0].z
@@ -268,95 +270,260 @@ vec3 dHsl2Rgb(vec3 h) {
 }
 // the lab's shift(): hue by dh (a turn is 1), saturation by ds, lightness by dl
 vec3 dShift(vec3 c, float dh, float ds, float dl) { vec3 h = dRgb2Hsl(c); return dHsl2Rgb(vec3(fract(h.x + dh + 1.0), clamp(h.y + ds, 0.0, 1.0), clamp(h.z + dl, 0.04, 0.96))); }
-// the integral from 0 to x of the end ramp (1 - smoothstep(0, 1, u / W)): x - W (t^3 - t^4 / 2) up to W, then W / 2
-float dG(float x, float W) { float xx = clamp(x, 0.0, W), t = xx / W; return xx - W * (t * t * t - 0.5 * t * t * t * t); }
-// the same along a vessel of length L whose two ends both carry the ramp
-float dEnd(float a, float L, float W) { float x = clamp(a, 0.0, L); return x <= 0.5 * L ? dG(x, W) : 2.0 * dG(0.5 * L, W) - dG(L - x, W); }
-
-// The dust at one pixel of a tube: premultiplied colour and alpha (0 outside the lumen). across -1 .. 1; aFig the arc from the vessel's start, figure units.
-// THE ROUTE (Mohammad, 20 Nov: "the particles should cross at the junction, not disappear"; the lab's routes): the particles live on the STREAM's coordinate, se = A0 + Bm aFig (a vessel's own: A0 0, Bm 1; a vessel the
-// blood runs on into from its parent: the chain's A and B, the same ones the chevrons use, blood/chain.ts), at the stream's distance flowFig (the root's), on a lattice of the ROOT's radius rLat: the same particle is
-// at the same place in the next vessel, drawn there at that vessel's own width and at its own speed (the lattice is Bm times as fine where the blood slows, as flow is conserved), so it crosses the junction whole.
-// rFix the vessel's own radius and vRc the lumen's radius now (figure units); rCss the lumen's radius in CSS px; Lw the vessel's length; nar the diameter against its healthy one; vd the display speed; rev 0 .. 1 reversed;
-// seedV the stream's seed (the root's: a route's particles are one set); srcId the source vessel (the chain's root, else its own); lit the vessel's lit tone; ink the outline colour.
-vec4 dustField(float across, float aFig, float A0, float Bm, float flowFig, float rFix, float rLat, float vRc, float rCss, float Lw, float nar, float vd, float rev, float seedV, float srcId, vec3 lit, vec3 ink) {
+// THE FRAME a pixel of a vessel is seen in (the tube's own, or one arm's on a skin)
+struct DFrame {
+  float across;   // the pixel across the lumen on screen (-1 .. 1)
+  vec2 cS;        // the section's N and B axes on the screen's sideways axis
+  vec2 cV;        // ... and toward the eye
+  float a;        // the pixel's arc along the vessel (figure units)
+  float Lw;       // the vessel's length (figure units)
+  float rFix;     // its built radius (figure units)
+  float vRc;      // its lumen's radius now (figure units)
+  float rCss;     // that in CSS px
+  float nar;      // its diameter against its healthy one
+  float vd;       // its display speed
+  float edge;     // its column of the route table
+  float U;        // figure units in one scene unit here (the route table's radii are scene units)
+};
+// one range of a vessel's lanes and the root it carries (routes.ts Seg)
+struct DSeg { float y0; float y1; float root; float c0; float c1; float A; float B; float rLat; };
+DSeg dSeg(float edge, int row) {
+  vec4 p = texelFetch(routeTex, ivec2(int(edge), row), 0), q = texelFetch(routeTex, ivec2(int(edge), row + 1), 0);
+  return DSeg(p.x, p.y, p.z - 1.0, p.w, q.x, q.y, q.z, q.w);
+}
+// the section's frame from the course's heading T, the figure's normal Z and the eye V (all in the view's frame) and the screen's sideways axis side: x, y the N and B axes on the side, z, w toward the eye
+// Every input can be degenerate on some pixel (a skin arm's heading of zero length, a heading along the eye, a figure normal along the heading): normalize() of a zero vector is NaN, and a NaN particle is drawn as
+// a speck of any colour (Mohammad, 20 Nov: green and dark blue specks on the joints). So nothing here is normalised without a length check, and the frame always comes out unit and finite.
+vec4 dustFrame(vec3 T, vec3 Z, vec3 V, vec3 side) {
+  float tl = length(T), zl = length(Z);
+  if (tl < 1e-6) return vec4(1.0, 0.0, 0.0, 1.0);   // (no heading: a plain section seen square on)
+  vec3 t = T / tl, N = zl > 1e-6 ? cross(t, Z / zl) : vec3(0.0);
+  float nl = length(N);
+  if (nl > 0.2) N /= nl;
+  else { N = side - t * dot(side, t); float sl = length(N); N = sl > 1e-4 ? N / sl : vec3(-t.y, t.x, 0.0) / max(length(t.xy), 1e-4); }   // (a course heading out of the figure: the screen's own side, square to the heading, stands in)
+  vec3 B = cross(t, N);
+  return vec4(dot(N, side), dot(B, side), dot(N, V), dot(B, V));
+}
+// the twist (a whole number of turns over the vessel, none at either end) and its rate along the arc
+vec2 dTwist(float ae, float Lw, float turns) {
+  float u = clamp(ae / max(Lw, 1e-3), 0.0, 1.0);
+  return vec2(6.2831853 * turns * u * u * (3.0 - 2.0 * u), 6.2831853 * turns * 6.0 * u * (1.0 - u) / max(Lw, 1e-3));
+}
+// a particle of a root's lattice
+struct DPart { float alive; float h1; float h2; float h3; float h4; float h5; float h6; float h7; float rho; float yl; float zr; float se; float prof; float root; };
+// its mark seen in one frame: the offset from the pixel (lumen radii, along and across), its tilt, depth, length and diameter, local speed, the edge's anti-aliasing
+struct DMark { vec2 dp; float slope; float depth; float len; float dia; float spd; float aa; float rhoE; };
+float dTurns(float edge) { return texelFetch(routeTex, ivec2(int(edge), 0), 0).w; }
+// the particle's lane in this segment, and how much of it is there (soft at a dividing line; whole at a wall)
+vec2 dMember(DSeg g, float yl) {
+  float y = (yl - g.c0) / (g.c1 < 0.0 ? min(g.c1, -1e-4) : max(g.c1, 1e-4)), e = 0.04;   // (a strip of no width: never 0 / 0)
+  float m = (g.y0 <= -0.999 ? 1.0 : smoothstep(g.y0 - e, g.y0 + e, y)) * (g.y1 >= 0.999 ? 1.0 : 1.0 - smoothstep(g.y1 - e, g.y1 + e, y));
+  return vec2(y, m);
+}
+DMark dPlace(DFrame F, DSeg g, float yc, DPart P) {
   const float TWO_PI = 6.2831853;
-  int K = int(D_nCls + 0.5), N = int(D_win + 0.5);
-  float Pf = max(D_cellP * rLat, 1e-4);
-  float Bs = abs(Bm) < 0.05 ? (Bm < 0.0 ? -0.05 : 0.05) : Bm;
-  float se = A0 + Bs * aFig;
-  float kR = vRc / max(rFix, 1e-4);
+  DMark M;
+  float rm = max(D_rhoMax, 0.05);
+  float Bs = abs(g.B) < 0.05 ? (g.B < 0.0 ? -0.05 : 0.05) : g.B;
+  float ae = (P.se - g.A) / Bs;   // where it is along this vessel now (from the root's stream back to this vessel's arc)
+  // the strip of the root's section this vessel carries, filled out to the vessel's round section: the lane mapped, the depth in proportion to the chord
+  float yr = P.yl * rm, ycS = yc * rm;
+  float zc = P.zr * sqrt(max(rm * rm - ycS * ycS, 0.0)) / sqrt(max(rm * rm - yr * yr, 1e-4));
+  float rho = length(vec2(ycS, zc)), th0 = rho > 1e-5 ? atan(zc, ycS) : 0.0;   // (atan(0, 0) is undefined: a device can draw it black)
+  float kR = F.vRc / max(F.rFix, 1e-4);
   float uLoc = mix(1.0, clamp(1.0 / max(kR * kR, 1e-3), D_uMin, D_uMax), D_velLocal);
-  float aa = 0.6 / max(rCss, 0.5), minDia = 1.1 / max(rCss, 0.5), maxDia = 7.0 / max(rCss, 0.5);
   float shr = 1.0 - D_shrink * (1.0 - clamp(kR / 0.9 * 1.2, 0.55, 1.0));
-  // turbulence: constant along the vessel but for the ramp at its two ends (a fork), so the swirl's phase is a closed form
-  float Wd = max(18.0, 0.12 * Lw);
-  float TcRaw = clamp(0.9 * (1.0 - smoothstep(0.5, 0.85, nar)) + 0.5 * smoothstep(25.0, 45.0, abs(vd)), 0.0, 1.0);
-  float Hc = min(1.0, D_swirl * D_turb * TcRaw);
-  float He = (1.0 - Hc) * min(1.0, D_swirl * D_turb * 0.4);
-  float rotK = TWO_PI / max(D_pitch * rFix, 1e-3);
+  // turbulence, held to nothing at the ends (the wobble moves with time: at a joint the particle must be where its lane says)
+  float Wd = max(18.0, 0.12 * F.Lw);
+  float d = clamp(min(ae, F.Lw - ae), 0.0, F.Lw);
+  float wEnd = 1.0 - smoothstep(0.0, 1.0, d / Wd);
+  float TcRaw = clamp(0.9 * (1.0 - smoothstep(0.5, 0.85, F.nar)) + 0.5 * smoothstep(25.0, 45.0, abs(F.vd)), 0.0, 1.0);
+  float T = clamp(D_turb * (TcRaw + 0.4 * wEnd), 0.0, 1.3) * smoothstep(0.0, 0.5 * Wd, d);
+  vec2 tw = dTwist(ae, F.Lw, dTurns(F.edge));
+  float qL = ae / max(F.rFix, 1e-4) * 5.5;   // (the lab's own units: its wobble's wavelengths)
+  float tt = time;
+  float wob = T * D_wobble * (sin(TWO_PI * qL * D_turbFreq / 38.0 + P.h6 * TWO_PI + 0.8 * D_turbSpeed * tt) + 0.5 * sin(TWO_PI * qL * D_turbFreq / 17.0 + 2.0 * P.h6 * TWO_PI - 1.1 * D_turbSpeed * tt));
+  float th = th0 - tw.x + wob;
+  float rhoE = clamp(rho + 0.15 * T * D_rhoJit * sin(TWO_PI * qL * D_turbFreq / 29.0 + P.h6 * 9.0 + 1.3 * D_turbSpeed * tt), 0.0, rm);
+  float cs = cos(th), sn = sin(th);
+  float yp = rhoE * (cs * F.cS.x + sn * F.cS.y);
+  M.depth = rhoE * (cs * F.cV.x + sn * F.cV.y) / max(rm, 0.1);
+  M.dia = clamp(D_size * (1.0 + D_sizeVar * (2.0 * P.h4 - 1.0)) * shr * (1.0 + D_depthSize * M.depth), 1.1 / max(F.rCss, 0.5), 7.0 / max(F.rCss, 0.5));
+  // its length: the lab's velocity (local: faster in a throat, slow in a bulb) x lenK, a dot under it; tilted by the twist's slope on the screen
+  M.spd = uLoc * P.prof;
+  M.len = mix(M.dia, clamp(D_speed * M.spd * D_lenK, M.dia, D_lenCap), D_stretch);
+  M.slope = clamp(F.vRc * rhoE * (sn * F.cS.x - cs * F.cS.y) * tw.y, -1.5, 1.5);
+  M.dp = vec2((F.a - ae) / max(F.vRc, 1e-5), F.across - yp);
+  M.aa = 0.6 / max(F.rCss, 0.5);
+  M.rhoE = rhoE;
+  return M;
+}
+// whether the particle can reach the pixel at all (along: the longest mark; across: the section seen at a slant), before the full place is worked out
+bool dNear(DFrame F, DSeg g, float yc, DPart P) {
+  float Bs = abs(g.B) < 0.05 ? (g.B < 0.0 ? -0.05 : 0.05) : g.B;
+  float rm = max(D_rhoMax, 0.05), vr = max(F.vRc, 1e-5);
+  if (abs(F.a - (P.se - g.A) / Bs) / vr > D_lenCap * 3.0 + 8.0 / max(F.rCss, 0.5)) return false;
+  return abs(F.across - yc * rm * F.cS.x) <= rm * abs(F.cS.y) + 0.35;
+}
+// the particle's colour and coverage at the pixel (premultiplied), from its mark
+vec4 dDraw(DMark M, DPart P, vec3 t0, vec3 t1, vec3 t2, vec3 t3, vec3 ink, float rev) {
+  vec2 dir = normalize(vec2(1.0, M.slope));
+  float tl = dot(M.dp, dir), nl = M.dp.y * dir.x - M.dp.x * dir.y;
+  float hl = max(M.len - M.dia, 0.0) * 0.5, rEl = 0.5 * M.dia;
+  float dist = length(vec2(max(abs(tl) - hl, 0.0), nl));
+  if (dist > rEl + M.aa) return vec4(0.0);
+  float lo = min(rEl * (1.0 - max(D_soft, 0.03)), rEl - 2.0 * M.aa);
+  float cov = 1.0 - smoothstep(lo, rEl, dist);
+  float tA = tl / max(M.len, 1e-4) + 0.5;
+  cov *= mix(1.0, smoothstep(0.0, 0.5, tA) * smoothstep(0.0, 0.5, 1.0 - tA), clamp(D_feather * hl / max(rEl, 0.09), 0.0, 1.0));
+  float twk = 1.0 - D_twinkle + D_twinkle * (0.5 + 0.5 * sin(time * 3.0 + P.h5 * 40.0));
+  float al = D_opacity * (1.0 - D_opVar + D_opVar * P.h7) * (1.0 - D_depthDim * (1.0 - smoothstep(-0.5, 0.5, M.depth))) * twk * P.alive * cov;
+  float srcHue = dHash(vec2((P.root + 1.0) * 3.7 + 1.3, 9.1)) * 2.0 - 1.0;
+  float m = D_wRandom * P.h5 + D_wSpeed * clamp((M.spd - 0.5) / 2.5, 0.0, 1.0) + D_wDepth * (M.depth * 0.5 + 0.5) + D_wRadius * clamp(P.rho / max(D_rhoMax, 0.1), 0.0, 1.0) + D_wSource * clamp(0.5 + 0.5 * srcHue + (P.h5 - 0.5) * 0.3, 0.0, 1.0);
+  if (D_steps > 0.5) m = clamp(floor(m * D_steps * 0.9999) / max(D_steps - 1.0, 1.0), 0.0, 1.0);
+  vec3 col = mix(mix(mix(t0, t1, clamp(m * 3.0, 0.0, 1.0)), t2, clamp(m * 3.0 - 1.0, 0.0, 1.0)), t3, clamp(m * 3.0 - 2.0, 0.0, 1.0));
+  col = mix(col, vec3(1.0, 0.62, 0.28), D_warm * rev);
+  col = mix(col, ink, D_ring * smoothstep(rEl * 0.45, rEl, dist));
+  return vec4(col * al, al);
+}
+// the lab's four tones from the lumen's lit tone
+void dTones(vec3 lit, out vec3 t0, out vec3 t1, out vec3 t2, out vec3 t3) {
   vec3 pc = mix(lit, vec3(D_cr, D_cg, D_cb), D_custom);
-  vec3 t0 = dShift(pc, -0.2 * D_hue, D_satShift + 0.02, D_lightBias + D_lightSpread * 0.6);
-  vec3 t1 = dShift(pc, 0.5 * D_hue, D_satShift + 0.04, D_lightBias + D_lightSpread * 0.27);
-  vec3 t2 = dShift(pc, -0.55 * D_hue, D_satShift, D_lightBias);
-  vec3 t3 = dShift(pc, 0.0, D_satShift + 0.03, D_lightBias - D_lightSpread * 0.67);
-  float srcHue = dHash(vec2(srcId * 3.7 + 1.3, 9.1)) * 2.0 - 1.0;
+  t0 = dShift(pc, -0.2 * D_hue, D_satShift + 0.02, D_lightBias + D_lightSpread * 0.6);
+  t1 = dShift(pc, 0.5 * D_hue, D_satShift + 0.04, D_lightBias + D_lightSpread * 0.27);
+  t2 = dShift(pc, -0.55 * D_hue, D_satShift, D_lightBias);
+  t3 = dShift(pc, 0.0, D_satShift + 0.03, D_lightBias - D_lightSpread * 0.67);
+}
+// the particle of class k, cell jj of root root's lattice (its hashes, its place in the root's section, where it is along the root's stream now)
+DPart dPart(float root, int k, float jj, float Pf, float flowFig) {
+  DPart P;
+  float fk = float(k), fK = max(D_nCls, 1.0);
+  float rlo = D_rhoMax * pow(fk / fK, D_radExp), rhi = D_rhoMax * pow((fk + 1.0) / fK, D_radExp);
+  P.prof = 1.0 + D_flat * (1.0 - 2.0 * (0.5 * (rlo + rhi)) * (0.5 * (rlo + rhi)));
+  vec2 sd = vec2(mod(jj, 4093.0) + 0.5, fk * 7.13 + fract(root * 0.6180339) * 50.0);
+  P.alive = clamp((D_densK - dHash(sd)) * 12.0, 0.0, 1.0);   // (thinned by a threshold: a density change fades single particles in and out, nothing pops)
+  P.h1 = dHash(sd + vec2(17.1, 3.7)); P.h2 = dHash(sd + vec2(5.3, 29.9)); P.h3 = dHash(sd + vec2(41.3, 11.1)); P.h4 = dHash(sd + vec2(23.7, 53.9));
+  P.h5 = dHash(sd + vec2(61.3, 7.9)); P.h6 = dHash(sd + vec2(2.9, 71.7)); P.h7 = dHash(sd + vec2(37.7, 19.3));
+  P.rho = mix(rlo, rhi, P.h3);
+  float th = P.h2 * 6.2831853;
+  P.yl = P.rho * cos(th) / max(D_rhoMax, 0.05);   // its lane in the root (-1 .. 1)
+  P.zr = P.rho * sin(th);
+  P.se = (jj + 0.1 + 0.8 * P.h1 - 0.37 * fk) * Pf + flowFig * P.prof * D_flowK;
+  P.root = root;
+  return P;
+}
+// the cell of class k nearest the pixel's place se on the root's stream
+float dCell(float se, int k, float Pf, float flowFig) {
+  float fk = float(k), fK = max(D_nCls, 1.0);
+  float rlo = D_rhoMax * pow(fk / fK, D_radExp), rhi = D_rhoMax * pow((fk + 1.0) / fK, D_radExp);
+  float prof = 1.0 + D_flat * (1.0 - 2.0 * (0.5 * (rlo + rhi)) * (0.5 * (rlo + rhi)));
+  return floor((se - flowFig * prof * D_flowK) / Pf + 0.37 * fk);
+}
+// which lanes of the vessel can hold a particle the pixel sees (the section seen at a slant shows more of it)
+vec2 dLaneWin(DFrame F) {
+  float rm = max(D_rhoMax, 0.05), mg = 0.3;
+  if (abs(F.cS.x) < 0.3) return vec2(-2.0, 2.0);
+  float a = (F.across - abs(F.cS.y) * rm - mg) / F.cS.x / rm, b = (F.across + abs(F.cS.y) * rm + mg) / F.cS.x / rm;
+  return vec2(min(a, b), max(a, b));
+}
+// the root's stream distance (streams.ts texel w) and the lattice's pitch (the root's radius)
+float dFlow(float root) { return texelFetch(streamTex, ivec2(int(root), 0), 0).w; }
+
+// THE TUBE: every lane segment the pixel can see, of the current layout and (while it fades out) the last one
+vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
+  vec3 t0, t1, t2, t3; dTones(lit, t0, t1, t2, t3);
+  vec4 hd = texelFetch(routeTex, ivec2(int(F.edge), 0), 0);
+  vec2 win = dLaneWin(F);
+  int K = min(int(D_nCls + 0.5), 4), N = min(int(D_win + 0.5), 9);   // (the loops' bounds are runtime numbers, GLSL ES 3.0: no compiler unrolls them into hundreds of copies)
   vec4 acc = vec4(0.0);
-  for (int kk = 0; kk < 4; kk++) {
-    if (kk >= K) break;
-    int k = K - 1 - kk;   // the outer rings first: the inner ones (nearer the axis, faster) lie over them
-    float fk = float(k), fK = float(K);
-    float rlo = D_rhoMax * pow(fk / fK, D_radExp), rhi = D_rhoMax * pow((fk + 1.0) / fK, D_radExp);
-    float prof = 1.0 + D_flat * (1.0 - 2.0 * (0.5 * (rlo + rhi)) * (0.5 * (rlo + rhi)));
-    float sp = prof * D_flowK;
-    float xs = (se - flowFig * sp) / Pf + 0.37 * fk;
-    float j0 = floor(xs);
-    for (int n = -9; n <= 9; n++) {
-      if (n < -N || n > N) continue;
-      float jj = j0 + float(n);
-      vec2 sd = vec2(mod(jj, 4093.0) + 0.5, fk * 7.13 + seedV);
-      float alive = clamp((D_densK - dHash(sd)) * 12.0, 0.0, 1.0);   // (thinned by a threshold: a density change fades single particles in and out, nothing pops)
-      if (alive <= 0.0) continue;
-      float h1 = dHash(sd + vec2(17.1, 3.7)), h2 = dHash(sd + vec2(5.3, 29.9)), h3 = dHash(sd + vec2(41.3, 11.1)), h4 = dHash(sd + vec2(23.7, 53.9)), h5 = dHash(sd + vec2(61.3, 7.9)), h6 = dHash(sd + vec2(2.9, 71.7)), h7 = dHash(sd + vec2(37.7, 19.3));
-      float ae = ((jj + 0.1 + 0.8 * h1 - 0.37 * fk) * Pf + flowFig * sp - A0) / Bs;   // where the particle is along the vessel now (from the stream's coordinate back to this vessel's arc)
-      float rho = mix(rlo, rhi, h3);
-      float d = min(ae, Lw - ae);
-      float w = 1.0 - smoothstep(0.0, 1.0, clamp(d / Wd, 0.0, 1.0));
-      float phase = rotK * (Hc * clamp(ae, 0.0, Lw) + He * dEnd(ae, Lw, Wd));
-      float T = clamp(D_turb * (TcRaw + 0.4 * w), 0.0, 1.3);
-      float qL = ae / max(rFix, 1e-4) * 5.5;   // (the lab's own units: its wobble's wavelengths)
-      float tt = time;
-      float wob = T * D_wobble * (sin(TWO_PI * qL * D_turbFreq / 38.0 + h6 * TWO_PI + 0.8 * D_turbSpeed * tt) + 0.5 * sin(TWO_PI * qL * D_turbFreq / 17.0 + 2.0 * h6 * TWO_PI - 1.1 * D_turbSpeed * tt));
-      float th = h2 * TWO_PI - phase * (1.0 - 0.4 * rho) + wob;
-      float rhoE = clamp(rho + 0.15 * T * D_rhoJit * sin(TWO_PI * qL * D_turbFreq / 29.0 + h6 * 9.0 + 1.3 * D_turbSpeed * tt), 0.0, D_rhoMax);
-      float yp = rhoE * cos(th), depth = rhoE * sin(th) / max(D_rhoMax, 0.1);
-      float dia = clamp(D_size * (1.0 + D_sizeVar * (2.0 * h4 - 1.0)) * shr * (1.0 + D_depthSize * depth), minDia, maxDia);
-      // its length: the lab's velocity (local: faster in a throat, slow in a bulb) x lenK, a dot under it; tilted by the swirl's slope
-      float vLoc = D_speed * uLoc * prof;
-      float len = mix(dia, clamp(vLoc * D_lenK, dia, D_lenCap), D_stretch);
-      float slope = clamp(rhoE * sin(th) * rotK * (Hc + He * w) * (1.0 - 0.4 * rho) * vRc, -1.5, 1.5);
-      vec2 dir = normalize(vec2(1.0, slope));
-      vec2 dp = vec2((aFig - ae) / max(vRc, 1e-5), across - yp);
-      float tl = dot(dp, dir), nl = dp.y * dir.x - dp.x * dir.y;
-      float hl = max(len - dia, 0.0) * 0.5, rEl = 0.5 * dia;
-      float dist = length(vec2(max(abs(tl) - hl, 0.0), nl));
-      if (dist > rEl + aa) continue;
-      float lo = min(rEl * (1.0 - max(D_soft, 0.03)), rEl - 2.0 * aa);
-      float cov = 1.0 - smoothstep(lo, rEl, dist);
-      float tA = tl / max(len, 1e-4) + 0.5;
-      cov *= mix(1.0, smoothstep(0.0, 0.5, tA) * smoothstep(0.0, 0.5, 1.0 - tA), clamp(D_feather * hl / max(rEl, 0.09), 0.0, 1.0));
-      float tw = 1.0 - D_twinkle + D_twinkle * (0.5 + 0.5 * sin(time * 3.0 + h5 * 40.0));
-      float al = D_opacity * (1.0 - D_opVar + D_opVar * h7) * (1.0 - D_depthDim * (1.0 - smoothstep(-0.5, 0.5, depth))) * tw * alive * cov;
-      float m = D_wRandom * h5 + D_wSpeed * clamp((uLoc * prof - 0.5) / 2.5, 0.0, 1.0) + D_wDepth * (depth * 0.5 + 0.5) + D_wRadius * clamp(rho / max(D_rhoMax, 0.1), 0.0, 1.0) + D_wSource * clamp(0.5 + 0.5 * srcHue + (h5 - 0.5) * 0.3, 0.0, 1.0);
-      if (D_steps > 0.5) m = clamp(floor(m * D_steps * 0.9999) / max(D_steps - 1.0, 1.0), 0.0, 1.0);
-      vec3 col = mix(mix(mix(t0, t1, clamp(m * 3.0, 0.0, 1.0)), t2, clamp(m * 3.0 - 1.0, 0.0, 1.0)), t3, clamp(m * 3.0 - 2.0, 0.0, 1.0));
-      col = mix(col, vec3(1.0, 0.62, 0.28), D_warm * rev);
-      col = mix(col, ink, D_ring * smoothstep(rEl * 0.45, rEl, dist));
-      acc = vec4(col * al, al) + acc * (1.0 - al);
+  for (int set = 0; set < 2; set++) {
+    float wSet = set == 0 ? hd.y : 1.0 - hd.y;
+    int nSeg = min(int((set == 0 ? hd.x : hd.z) + 0.5), 6);
+    if (wSet < 0.002) continue;
+    for (int i = 0; i < nSeg; i++) {
+      DSeg g = dSeg(F.edge, 1 + 2 * i + set * 12);
+      if (g.y1 < win.x || g.y0 > win.y) continue;
+      float Pf = max(D_cellP * g.rLat * F.U, 1e-4), flowFig = dFlow(g.root);
+      float Bs = abs(g.B) < 0.05 ? (g.B < 0.0 ? -0.05 : 0.05) : g.B;
+      float se = g.A + Bs * F.a;
+      for (int kk = 0; kk < K; kk++) {
+        int k = K - 1 - kk;   // the outer rings first: the inner ones (nearer the axis, faster) lie over them
+        float j0 = dCell(se, k, Pf, flowFig);
+        for (int n = -N; n <= N; n++) {
+          DPart P = dPart(g.root, k, j0 + float(n), Pf, flowFig);
+          if (P.alive <= 0.0) continue;
+          vec2 mb = dMember(g, P.yl);
+          if (mb.y <= 0.0 || !dNear(F, g, mb.x, P)) continue;
+          vec4 c = dDraw(dPlace(F, g, mb.x, P), P, t0, t1, t2, t3, ink, rev) * (mb.y * wSet);
+          acc = c + acc * (1.0 - c.a);
+        }
+      }
     }
   }
   // nothing past the lumen's edge: the dust stops short of the ink, with a soft fall (never a hard cut)
-  return acc * (1.0 - smoothstep(0.90, 0.96, abs(across)));
+  return clamp(acc, 0.0, 1.0) * (1.0 - smoothstep(0.90, 0.96, abs(F.across)));   // (premultiplied: never past 0 .. 1, or the lumen under it would be inverted)
+}
+// the segment of edge edge (current layout) that carries the root's lane yl, if any: its index (-1 none) and the particle's lane there and membership
+vec3 dFind(float edge, float root, float yl) {
+  vec4 hd = texelFetch(routeTex, ivec2(int(edge), 0), 0);
+  int nSeg = min(int(hd.x + 0.5), 6);
+  for (int i = 0; i < nSeg; i++) {
+    DSeg g = dSeg(edge, 1 + 2 * i);
+    if (abs(g.root - root) > 0.5) continue;
+    vec2 mb = dMember(g, yl);
+    if (mb.y > 0.0) return vec3(float(i), mb);
+  }
+  return vec3(-1.0, 0.0, 0.0);
+}
+DMark dMix(DMark a, DMark b, float t) {
+  DMark M;
+  M.dp = mix(a.dp, b.dp, t); M.slope = mix(a.slope, b.slope, t); M.depth = mix(a.depth, b.depth, t); M.len = mix(a.len, b.len, t);
+  M.dia = mix(a.dia, b.dia, t); M.spd = mix(a.spd, b.spd, t); M.aa = mix(a.aa, b.aa, t); M.rhoE = mix(a.rhoE, b.rhoE, t);
+  return M;
+}
+// THE SKIN: a junction's pixel seen in its two heaviest arms' frames (F0, F1; w1 the share of the second). Each particle the first arm can see is drawn at the BLEND of its places in the two frames, by the share of each
+// that carries it, and only as much as the arms that carry it weigh here (a particle bound for the other branch fades as the pixel nears this one). Then the particles only the second arm carries.
+vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
+  vec3 t0, t1, t2, t3; dTones(lit, t0, t1, t2, t3);
+  int K = min(int(D_nCls + 0.5), 4), N = min(int(D_win + 0.5), 9);   // (the loops' bounds are runtime numbers, GLSL ES 3.0: no compiler unrolls them into hundreds of copies)
+  vec4 acc = vec4(0.0);
+  for (int arm = 0; arm < 2; arm++) {
+    DFrame Fa = F0, Fb = F1;
+    if (arm == 1) { Fa = F1; Fb = F0; }
+    float wa = arm == 0 ? 1.0 - w1 : w1, wb = 1.0 - wa;
+    if (wa < 0.004 && arm == 1) break;
+    vec4 hd = texelFetch(routeTex, ivec2(int(Fa.edge), 0), 0);
+    int nSeg = min(int(hd.x + 0.5), 6);
+    for (int i = 0; i < nSeg; i++) {
+      DSeg g = dSeg(Fa.edge, 1 + 2 * i);
+      float Pf = max(D_cellP * g.rLat * Fa.U, 1e-4), flowFig = dFlow(g.root);
+      float Bs = abs(g.B) < 0.05 ? (g.B < 0.0 ? -0.05 : 0.05) : g.B;
+      float se = g.A + Bs * Fa.a;
+      for (int kk = 0; kk < K; kk++) {
+        int k = K - 1 - kk;
+        float j0 = dCell(se, k, Pf, flowFig);
+        for (int n = -N; n <= N; n++) {
+          DPart P = dPart(g.root, k, j0 + float(n), Pf, flowFig);
+          if (P.alive <= 0.0) continue;
+          vec2 ma = dMember(g, P.yl);
+          if (ma.y <= 0.0) continue;
+          vec3 fb = wb > 0.004 ? dFind(Fb.edge, g.root, P.yl) : vec3(-1.0, 0.0, 0.0);
+          if (arm == 1 && fb.x >= 0.0) continue;   // (the first arm drew it)
+          DSeg gb = dSeg(Fb.edge, 1 + 2 * int(max(fb.x, 0.0) + 0.5));
+          if (!dNear(Fa, g, ma.x, P) && (fb.x < 0.0 || !dNear(Fb, gb, fb.y, P))) continue;   // (out of reach in both frames: its blend is too)
+          DMark M = dPlace(Fa, g, ma.x, P);
+          float sa = wa * ma.y, sb = 0.0;
+          if (fb.x >= 0.0) {
+            sb = wb * fb.z;
+            M = dMix(M, dPlace(Fb, gb, fb.y, P), sb / max(sa + sb, 1e-4));
+          }
+          vec4 c = dDraw(M, P, t0, t1, t2, t3, ink, rev) * (sa + sb);
+          acc = c + acc * (1.0 - c.a);
+        }
+      }
+    }
+  }
+  return clamp(acc, 0.0, 1.0) * (1.0 - smoothstep(0.90, 0.96, abs(mix(F0.across, F1.across, w1))));
 }
 
 // (chevKeep, the lattice's keep, is in the one chevron chunk above: blood/chevron-glsl.ts)
@@ -421,23 +588,23 @@ float chevCreamOf(vec4 la, sampler2D grad, float mode, float idx, vec3 col) {
   if (la.a > 0.5 && mode < 1.5) return smoothstep(0.0, 1.0, texelFetch(grad, ivec2(int(idx), 4), 0).r);
   return chevCreamSoft(celTubeBase(mix(col, la.rgb, la.a)));
 }
-vec4 flowDust(float across, float s, float Lw, float rOwn, float vR, float rCss, float lensI, float dataI, float baseDv, vec3 lit, float vUn) {
-  if (streakAmt <= 0.001 || vR <= 0.0 || abs(across) >= 0.97) return vec4(0.0);
+// the dust's frame for one vessel at this pixel (blood/dust-glsl.ts DFrame): fr the section frame (dustFrame), and the gate it shows by (the streak amount, the flow, the lumen's width), returned; rev its stream's eased reversed flag
+float flowFrame(float across, vec4 fr, float s, float Lw, float rOwn, float vR, float rCss, float lensI, float dataI, float baseDv, float vUn, out DFrame F, out float rev) {
   vec4 smS = texelFetch(streamTex, ivec2(int(lensI), 0), 0);   // the blood's own distance and speed on this vessel: reversed runs back, none stands
-  // (the streak distance, texel w: the stream's distance D held to a speed no pattern wagon-wheels at, streams.ts; the same arc and gate the heads have, and none only where the flow is none)
-  float dOn = streakAmt * smoothstep(1.5, 2.1, rCss) * smoothstep(0.0, 2.0, abs(smS.y));
-  if (dOn <= 0.002) return vec4(0.0);
   float nar = 1.0;
   if (useData > 0.5) { ivec2 tcn = ivec2(int(mod(dataI, vdataSize.x)), int(floor(dataI / vdataSize.x))); nar = texelFetch(vdata, tcn, 0).b / max(baseDv, 0.1); }
-  vec4 chD = texelFetch(chainTex, ivec2(int(lensI), 0), 0);
-  float wl = chD.w;
-  vec4 dust = vec4(0.0);
-  if (wl < 1.0) dust = dustField(across, s, 0.0, 1.0, smS.w, rOwn, rOwn, vR, rCss, Lw, nar, smS.y, smS.z, fract(lensI * 0.6180339) * 50.0, lensI + 1.0, lit, inkColor);
-  if (wl > 0.0) {   // the blood runs on from the parent: the root's particles, at the root's distance, A + B s along its stream (the chevrons' own placing)
-    int rootIx = int(chD.x + 0.5) - 1;
-    vec4 dc = dustField(across, s, chD.y, chD.z, texelFetch(streamTex, ivec2(rootIx, 0), 0).w, rOwn, max(texelFetch(chainTex, ivec2(int(lensI), 1), 0).w * vUn, 1e-3), vR, rCss, Lw, nar, smS.y, smS.z, fract(float(rootIx) * 0.6180339) * 50.0, chD.x, lit, inkColor);
-    dust = wl >= 1.0 ? dc : mix(dust, dc, wl);   // (a link forming or letting go cross-fades the two sets: nothing pops)
-  }
+  F = DFrame(across, fr.xy, fr.zw, s, Lw, rOwn, vR, rCss, nar, smS.y, lensI, vUn);
+  rev = smS.z;
+  if (streakAmt <= 0.001 || vR <= 0.0 || abs(across) >= 0.97) return 0.0;
+  // (none only where the flow is none: the particles ride the root's own distance, streams.ts texel w, through the route table, blood/routes.ts)
+  return streakAmt * smoothstep(1.5, 2.1, rCss) * smoothstep(0.0, 2.0, abs(smS.y));
+}
+// the dust of one vessel at this pixel (the tube's), premultiplied and gated: its roots' particles in its own section frame (dustTube). The skin blends its two heaviest arms' frames instead (dustSkin), from the same flowFrame.
+vec4 flowDust(float across, vec4 fr, float s, float Lw, float rOwn, float vR, float rCss, float lensI, float dataI, float baseDv, vec3 lit, float vUn) {
+  DFrame F; float rev;
+  float dOn = flowFrame(across, fr, s, Lw, rOwn, vR, rCss, lensI, dataI, baseDv, vUn, F, rev);
+  if (dOn <= 0.002) return vec4(0.0);
+  vec4 dust = dustTube(F, lit, inkColor, rev);
   return vec4(dust.rgb * dOn, dOn * dust.a);
 }
 vec4 flowHeads(float across, float acrossW, float s, float Lw, float vR, float wpc, float pxArc, float lensI, float flowAmt, float endK, vec4 la, vec4 lb, vec3 col, vec3 base) {
@@ -562,10 +729,12 @@ void main() {
   if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT));
   vec3 c = celTubeTone(base, mix(sT, 1.0, nbrT), fwidth(sT) * (1.0 - nbrT), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, 0.080 * quietK);   // (0 for every tier but the back one)
-  // THE DUST (blood/dust-glsl.ts, the Dust Lab's particles, Mohammad 20 Nov) is part of the tube: painted here, in its own fragment shader, so it is inside the lumen (dustField draws nothing past 0.96 of the half width,
+  // THE DUST (blood/dust-glsl.ts, the Dust Lab's particles, Mohammad 20 Nov) is part of the tube: painted here, in its own fragment shader, so it is inside the lumen (dustTube draws nothing past 0.96 of the half width,
   // never touching the ink) and follows the tube's own alpha and fade zones by construction: there is no second mesh to stray past a tube's end, a taper or a fade. Under the chevrons, which come after.
   float sD = vUv.x * len * vU;
-  vec4 fd = flowDust(across, sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(vW * 2.0 / (res.y * projY) * vU, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(sD, (1.0 - vUv.x) * len * vU);
+  // REAL FLOW (blood/routes.ts): the particles of the roots this vessel's lanes carry, in its own section, at their place on their root's stream. No fade at a skin's seam (the skin draws the same particles on); where tubes
+  // still overlap at a joint with no skin they fade as the chevrons do (markK), the vessel it opens into drawing the same particles.
+  vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(vW * 2.0 / (res.y * projY) * vU, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(skinCut.x >= 0.0 ? 1e6 : sD, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU);
   cBody = c;
   streakCover = fd.a;
   c = c * (1.0 - fd.a) + fd.rgb;
@@ -610,8 +779,8 @@ void main() {
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
-    vec3 inkH = mix(inkColor, celTubeBase(baseH) * mix(0.32, 0.55, tubeDark), 0.75);
-    c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (a selected vessel's line is its own: the glow is a separate halo, glow.ts)
+    vec3 inkH = mix(mix(inkColor, celTubeBase(baseH) * mix(0.32, 0.55, tubeDark), 0.75), mix(celTubeBase(baseH) * 0.88, mix(celTubeBase(baseH), vec3(1.0), 0.25), tubeDark), 0.9 * smoothstep(0.0, 1.0, vHi));   // (a picked vessel's line is its own colour as drawn, eased by the pick's weight: the glow is a separate halo, glow.ts)
+    c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (the glow is a separate halo, glow.ts)
   }
   // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
   // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph

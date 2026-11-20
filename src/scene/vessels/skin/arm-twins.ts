@@ -65,3 +65,21 @@ export const lensUAt = (span: readonly [number, number], u: number): number => m
 export function normalShift(R: number, swell: number, narrowK: number, inkW: number, inflate: number): number {
   return inflate + R * (swell * narrowK - 1) + inkW + (R * swell * narrowK + inkW) * TUBE_SAG;
 }
+
+/** The alpha of one copy (0 front, 1 solid, 2 veil) of a skin at a point whose arm weights are `w`: the JS twin of the fragment stage's `dot(vWeight, armFade * armCopy[.][SKIN_COPY])` (skin/shaders.ts, spec 10.4). On a seam ring one weight is 1 and this is
+ *  that arm tube's own alpha of that copy there (its share of the copy times its fade), which tests/skin-copies.test.ts holds to the tube's own state. */
+export function copyAlpha(w: readonly number[], shares: readonly (readonly number[])[], fades: readonly number[], copy: 0 | 1 | 2): number {
+  let a = 0;
+  for (let i = 0; i < w.length; i++) a += (w[i] ?? 0) * (shares[i]?.[copy] ?? 0) * (fades[i] ?? 0);
+  return a;
+}
+
+/**
+ * How much of an arm's tube is THERE at its seam (0 gone, 1 whole): the JS twin of the tube's own presence in the fragment stage. A skin inherits it exactly, so a skin is never drawn where its arms are not (a liver branch the Circuit's change has not grown yet, a collateral
+ * retracted, a vessel faded by the dive): `visible` the tube's group (presence-track.ts `apply` and `drive`), `reveal` its drawing-on (materials/shaders.ts frontOut: a gradient a tenth of the length wide at `reveal * 1.1`), `fade` its dissolve (fadedOut).
+ */
+export function armPresenceAt(visible: boolean, reveal: number, fade: number, u: number): number {
+  if (!visible) return 0;
+  const k = reveal >= 0.9999 ? 1 : clamp01((reveal * 1.1 - u) / 0.1);
+  return k * clamp01(fade);
+}

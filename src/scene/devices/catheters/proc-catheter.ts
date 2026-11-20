@@ -2,15 +2,16 @@
 // `procFrame(kind, t)` of the 2D app says at time t (proc-anim.js): how far in the tip is (u), the balloon (0 to 1), the needle and wire tips, the portal hit's rings, the coil and the column
 // (wedged blood or sclerosant) — each laid on the route as stage-cath.js cathGL lays them, in the same proportions (the shaft's radius rc, the taper, the marker bands, the balloon fitted to the
 // vein by hvpg-balloon.js, the needle's bevel, the wire's hairline). Parts are device objects: drawn over the anatomy, never under a vessel they sit in.
-import { Color, Group, LatheGeometry, Vector2, CylinderGeometry, RingGeometry, type BufferGeometry, Vector3, Float32BufferAttribute } from 'three';
+import { Color, Group, CylinderGeometry, RingGeometry, type BufferGeometry, Vector3, Float32BufferAttribute } from 'three';
 import { rawColor, type CelShared } from '../../materials/cel.ts';
 import { PALETTES, type LookId, type Palette } from '../../palette.ts';
 import { DEVICE_TOKENS } from '../../procedures/copied/device-tokens.copied.ts';
 import { TIER_Z, UNITS_PER_SCENE, x3, y3 } from '../../frame2d.ts';
 import { NETWORK, NETWORK_BY_ID } from '../../vessels/network.ts';
 import { DeviceObject, TAIL_UNITS, type DeviceTone } from '../device-object.ts';
-import { allocTube, makeRings, showRings, writeRings } from '../tube-rings.ts';
-import { type Route3D, nearestOnCourse } from '../../procedures/route3d.ts';
+import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, showRings, writeRings } from '../tube-rings.ts';
+import { BALLOON_EDGE, CATH_EDGE, MARKER_EDGE, type EdgeRule } from '../edges.ts';
+import { type Route3D, drawnShare } from '../../procedures/route3d.ts';
 import { GEO2D, routeAt } from '../../procedures/route.ts';
 import { balloonOutline, balloonRy } from '../../procedures/copied/hvpg-balloon.js';
 
@@ -38,16 +39,35 @@ export interface CatheterState {
 export const CATHETER_IDLE: CatheterState = { u: 0, balloon: 0, column: 0, opacity: 0, needle: 0, wire: 0, flash: 0, coil: 0, ring: null, clock: 0 };
 
 const RING_TONE = { free: 'monFree', wedge: 'monWedge', bad: 'monAlarm', pv: 'trPv', ivc: 'trIvc' } as const;
-const SHAFT_RADIAL = 16, BALLOON_N = 40, BALLOON_RADIAL = 24, GLINT_N = 24;
+const SHAFT_RADIAL = DEVICE_SIDES, BALLOON_N = 40, BALLOON_RADIAL = DEVICE_SIDES, GLINT_N = 24, GLINT_SIDES = 8;
+
+/** The shaft's end is part of the shaft: its last TIP_RINGS rings taper over TIP_LEN_R radii to a tip TIP_END_K of the shaft's radius wide and close in a hemisphere, so there is no seam, no second part and no lump at a bend
+ *  (owner, 20 Nov 2026: "a blunt, lumpy tip"; before it was a lathe part set on the end of the shaft, straight, so on a bend it stood off the tube's own direction). */
+export const TIP_RINGS = 18, TIP_LEN_R = 4.5, TIP_END_K = 0.42;
+/** The shaft's radius `s` behind the tip's end (the same unit as `rc`): `rc` beyond the taper, a smoothstep down to the tip's radius, then a hemisphere to a point. Continuous in value and slope. */
+export function tipRadius(s: number, rc: number): number {
+  const L = rc * TIP_LEN_R, rt = rc * TIP_END_K;
+  if (s >= L) return rc;
+  if (s <= rt) return Math.sqrt(Math.max(0, rt * rt - (rt - Math.max(0, s)) ** 2));
+  const t = (L - s) / (L - rt), e = t * t * (3 - 2 * t);
+  return rc + (rt - rc) * e;
+}
+/** The depth marks along the shaft (a real catheter's centimetre rings, fine like the scope's): a thin ring every MARK_UNITS figure units back from the tip, a heavier one every fifth, none within MARK_CLEAR of the tip (the balloon's). */
+/** The most of the live lumen's radius the shaft takes: a catheter is thin in its vein, and in a narrowed one (cirrhosis) it is drawn thinner with it rather than filling it (owner, 20 Nov 2026: "thick, chunky"). */
+export const SHAFT_MAX_SHARE = 0.2;
+export const MARK_UNITS = 22, MARK_HALF = 0.26, MARK_CLEAR = 36, MARK_HEX = '#7E889A';
 
 
 /** The balloon's rings (centre, direction, radius) fitted in the vein, as the 2D app fits it (stage-cath.js cathGL): along a TIPS tract its whole length, else just behind the tip. It sits ON the vessel's own
  *  centreline once wedged (on the shaft while it is small) and its radius is held under the lumen's with a margin, so the glass and its outline stay inside the drawn wall at any zoom (Mohammad, 20 Nov:
  *  "the balloon has to be maintained within the bounds of the vessel"). Before, its centre was 2D's own and only the depth was the 3D vessel's: a vessel drawn a unit off 2D's course put one wall outside. */
-export const BALLOON_FIT = 0.84;
+export const BALLOON_FIT = 0.92;
+/** (a balloon fills a narrowed vein whole; in a dilated one it is held to the width it was built for) */
+const SWELL_FILL = 1.6;
 export function balloonFit(r3: Route3D, rc: number, bl: number, tipD: number, span: string | null, rings: ReturnType<typeof makeRings>): { dC: number; rx: number; ol: { s: number }[] } {
   const r = r3.route, rc2 = rc * U, proc = r.kind !== 'hvpg';
-  const at = (d: number) => routeAt(r, d, { p: [0, 0], t: [1, 0], w: [0, 0], r: 0 });
+  // (the vein as drawn now: its radius at the engine's live width, `swellAt`)
+  const at = (d: number) => { const o = routeAt(r, d, { p: [0, 0], t: [1, 0], w: [0, 0], r: 0 }); o.r *= r3.swellAt(d); return o; };
   const Rf = at(r.free).r, gap = rc2 * 4.2, Rb = at(tipD - gap - Rf * 1.6).r, sp = span ? r.spans[span] : null;
   const rx = sp ? (sp[1] - sp[0]) * 0.45 : proc ? lerp(rc2 * 3.4, Rb * 2.6, bl) : lerp(rc2 * 3.4, Rb * 1.6, bl);
   const dC = sp ? (sp[0] + sp[1]) / 2 : tipD - gap - rx;
@@ -59,11 +79,12 @@ export function balloonFit(r3: Route3D, rc: number, bl: number, tipD: number, sp
     r3.point(d, a); r3.centre(d, b);
     q.c.copy(a).lerp(b, bl); q.t.set(o.t[0], -o.t[1], 0);
     // (the radius the 2D route knows may be wider than the vein the 3D scene draws: the drawn vessel's own radius, less how far the ring's centre is off its centreline, is the last word)
+    // (the DRAWN radius of the vein there, its end tapers included, not the nominal one)
     let room = Infinity;
-    for (const id of r.ids) { const c = nearestOnCourse(id, q.c.x, q.c.y, q.c.z), v = NETWORK_BY_ID.get(id); if (c && v && c.dist < v.radius) room = Math.min(room, Math.max(v.radius - c.dist, 0)); }
+    for (const id of r.ids) { const c = drawnShare(id, q.c.x, q.c.y, q.c.z); if (c && c.share < 1) room = Math.min(room, Math.max(c.radius * Math.min(r3.swellAt(d), SWELL_FILL) - c.dist, 0)); }
     // (a barrel, as a Fogarty's glass: the profile is a round superellipse of the fullest ring, not 2D's flat-shouldered one, held under what the vein has room for at each ring)
     const shoulder = Math.pow(Math.max(0, 1 - Math.pow(Math.abs(o.s), 2.6)), 1 / 2.6);
-    q.r = Math.max(Math.min(hFull * Math.max(shoulder, 0.0001), (at(d).r / U) * BALLOON_FIT, room === Infinity ? Infinity : room * 0.93), 0.0004);
+    q.r = Math.max(Math.min(hFull * Math.max(shoulder, 0.0001), (at(d).r / U) * BALLOON_FIT, room === Infinity ? Infinity : room * 0.96), 0.0004);
   });
   return { dC, rx, ol };
 }
@@ -73,13 +94,15 @@ export class ProcCatheter {
   readonly objects: DeviceObject[] = [];
   private readonly rc: number;
   private readonly n: number;
-  private readonly shaft: DeviceObject; private readonly tip: DeviceObject; private readonly band: DeviceObject;
+  private readonly shaft: DeviceObject; private readonly band: DeviceObject;
   private readonly needle: DeviceObject; private readonly needleCone: DeviceObject; private readonly wire: DeviceObject;
   private readonly column: DeviceObject; private readonly columnGeo: BufferGeometry;
+  private readonly shaftGeo: BufferGeometry; private readonly shaftRings: ReturnType<typeof makeRings>; private readonly shaftU: Float32Array; private shaftAt = -1;
   private readonly balloon: DeviceObject; private readonly balloonGeo: BufferGeometry; private readonly balloonBands: DeviceObject[]; private readonly glints: { g: BufferGeometry; o: DeviceObject }[];
   private readonly rings: DeviceObject[] = []; private readonly flashes: DeviceObject[] = [];
   private readonly coil: DeviceObject | null; private readonly coilGeo: BufferGeometry | null; private readonly coilN = 120;
   private last: CatheterState = { ...CATHETER_IDLE };
+  private liveSeen = 0;
   private readonly v = new Vector3();
   private readonly w = new Vector3();
 
@@ -90,7 +113,7 @@ export class ProcCatheter {
     this.r3 = r3; this.span = span;
     const r = r3.route, rc = (this.rc = r3.rc);
     const nS = (this.n = Math.max(24, Math.ceil(r.total / 2.4)));
-    const mk = (g: BufferGeometry, tone: DeviceTone, order: number, edge: 'ink' | 'polyEdge' | 'latexEdge' = 'ink', px = 0.9, more: { bands?: 2 | 3; tubeTones?: boolean } = {}): DeviceObject => {
+    const mk = (g: BufferGeometry, tone: DeviceTone, order: number, edge: EdgeRule = 'ink', px = 0.9, more: { bands?: 2 | 3; tubeTones?: boolean; fat?: number } = {}): DeviceObject => {
       const o = new DeviceObject(g, tone, shared, { px, order, ...more }, edge);
       this.group.add(o.group); this.objects.push(o); return o;
     };
@@ -99,45 +122,41 @@ export class ProcCatheter {
     const fill = (rs: typeof rings, radius: (i: number, d: number) => number): void => { rs.forEach((q, i) => { const d = (r.total * i) / (nS - 1); r3.point(d, q.c); r3.dir(d, q.t); q.r = radius(i, d); }); };
     fill(rings, () => rc);
     const sg = allocTube(nS, SHAFT_RADIAL); writeRings(sg, rings, SHAFT_RADIAL);
+    this.shaftGeo = sg; this.shaftRings = rings; this.shaftU = new Float32Array(nS);
     // the column of wedged blood or sclerosant lies under everything, as wide as the vein it fills
     const cr = makeRings(nS); fill(cr, (_i, d) => r3.lumen(d) * 0.94);
-    this.columnGeo = allocTube(nS, 12); writeRings(this.columnGeo, cr, 12);
+    this.columnGeo = allocTube(nS, DEVICE_SIDES); writeRings(this.columnGeo, cr, DEVICE_SIDES);
     this.column = mk(this.columnGeo, 'trWedge', 0, 'ink', 0.5);
     // the needle and the wire: the shaft's own course, finer, shown from the catheter's tip on to where they are
     const nw0 = Math.max(rc * 0.42, 0.0015);
     const needleRings = makeRings(nS); fill(needleRings, () => nw0);
-    const ng = allocTube(nS, 8); writeRings(ng, needleRings, 8);
+    const ng = allocTube(nS, WIRE_SIDES + 4); writeRings(ng, needleRings, WIRE_SIDES + 4);
     this.needle = mk(ng, 'steel', 2, 'ink', 0.7);
     this.needleCone = mk(withTang(new CylinderGeometry(0.01, nw0, rc * 1.4, 8, 1, false).rotateX(Math.PI / 2)), 'steel', 2, 'ink', 0.5);
     const wireRings = makeRings(nS); fill(wireRings, () => Math.max(rc * 0.16, 0.0009));
-    const wg = allocTube(nS, 6); writeRings(wg, wireRings, 6);
+    const wg = allocTube(nS, WIRE_SIDES); writeRings(wg, wireRings, WIRE_SIDES);
     this.wire = mk(wg, 'steel', 1, 'ink', 0.5);
     // (lit by the world with a highlight, three bands: a round polymer line, not the vessels' flat screen tones, which read as a ribbon)
-    this.shaft = mk(sg, 'poly', 4, 'polyEdge', 0.9, { bands: 3, tubeTones: false });
+    this.shaft = mk(sg, 'poly', 4, CATH_EDGE, 0.7, { bands: 3, tubeTones: false, fat: 0.7 });
     // the lead-in above the figure fades out as a gradient (the catheter's free end), shaft, needle and wire alike
     for (const o of [this.shaft, this.needle, this.wire]) o.setTailFade(Math.min(0.5, TAIL_UNITS / r.total));
-    // the tip (a Fogarty's: a short white taper that ends in a rounded point, the shaft's own radius at its base), set a little back so it covers where the shaft is cut
-    const tipLen = rc * 2.6, prof: Vector2[] = [];
-    for (let k = 0; k <= 8; k++) { const t = k / 8; prof.push(new Vector2(rc * (1 - 0.45 * t * t * (3 - 2 * t)), tipLen * t)); }
-    for (let k = 1; k <= 4; k++) { const a = (k / 4) * (Math.PI / 2); prof.push(new Vector2(rc * 0.55 * Math.cos(a), tipLen + rc * 0.5 * Math.sin(a))); }
-    this.tip = mk(withTang(new LatheGeometry(prof, 16).rotateZ(-Math.PI / 2).translate(-tipLen * 0.4, 0, 0)), 'poly', 5, 'polyEdge', 0.9);
     // (no marker ring behind the tip: the only rings are the two collars at the balloon's ends)
     this.band = mk(withTang(new CylinderGeometry(rc, rc, rc * 0.1, 6, 1, true).rotateZ(Math.PI / 2)), 'platinum', 6, 'ink', 0);
     // the balloon: refitted to the vein as it swells (hvpg-balloon.js), latex (or clear nylon along a TIPS tract)
     // A balloon is clear and glassy (a Fogarty's: a colourless barrel, the shaft seen straight through it): a faint pale body, a thin crisp outline, two curved white highlights on its near side.
     this.balloonGeo = allocTube(BALLOON_N + 1, BALLOON_RADIAL);
-    this.balloon = mk(this.balloonGeo, 'nylon', 7, 'ink', 0.8);
+    this.balloon = mk(this.balloonGeo, 'nylon', 7, BALLOON_EDGE, 0.7);
     this.balloon.setGlass(1.4, 0.4);
-    this.glints = [0, 1].map(() => { const g = allocTube(GLINT_N, 6); return { g, o: mk(g, 'graft', 9, 'ink', 0) }; });
+    this.glints = [0, 1].map(() => { const g = allocTube(GLINT_N, GLINT_SIDES); return { g, o: mk(g, 'graft', 9, 'ink', 0) }; });
     // the two small dark collars where the balloon is bonded to the shaft
-    this.balloonBands = [0, 1].map(() => mk(withTang(new CylinderGeometry(rc * 1.14, rc * 1.14, rc * 0.6, 16, 1, true).rotateZ(Math.PI / 2)), 'collar', 8, 'ink', 0.5));
+    this.balloonBands = [0, 1].map(() => mk(withTang(new CylinderGeometry(rc * 1.16, rc * 1.16, rc * 0.5, DEVICE_SIDES, 1, true).rotateZ(Math.PI / 2)), 'platinum', 8, MARKER_EDGE, 0.4));
     for (let i = 0; i < 2; i++) {
       this.flashes.push(mk(withTang(new RingGeometry(0.8, 1, 72)), 'trPv', 9, 'ink', 0));
       this.rings.push(mk(withTang(new RingGeometry(0.8, 1, 72)), 'monFree', 9, 'ink', 0));
     }
     // the coil of a TIPS that coils the coronary vein, curling on up the vein past the tip
     if (r.coilAt) {
-      this.coilGeo = allocTube(this.coilN, 6);
+      this.coilGeo = allocTube(this.coilN, WIRE_SIDES);
       this.coil = mk(this.coilGeo, 'platinum', 3, 'ink', 0.7);
     } else { this.coil = null; this.coilGeo = null; }
     this.set({ ...CATHETER_IDLE });
@@ -161,6 +180,15 @@ export class ProcCatheter {
     return r.kind === 'hvpg' ? r3.point(Math.min(r.total, r3.tipD(u) + r3.lumen(r.free) * U * 6.4), out) : r3.point(r3.tipD(Math.min(1, u + share)), out);
   }
   get current(): Readonly<CatheterState> { return this.last; }
+  /** The engine's diameters changed (the veins are drawn at their live width): the catheter follows its veins, shaft and balloon alike. True when it moved. */
+  setLive(D: ArrayLike<number> | null | undefined): boolean {
+    this.r3.setLive(D);
+    if (this.liveSeen === this.r3.liveVersion()) return false;
+    this.liveSeen = this.r3.liveVersion();
+    this.shaftAt = -1;
+    if (this.group.visible) this.set(this.last);
+    return true;
+  }
 
   /** The wedge's amber column on the HVPG route, as a tint on the vessels themselves: everything upstream of the balloon in the vein the tip is in, and the branches that leave it, fading out toward their tips.
    *  `pieces`: for each vessel id, how far up its own course the tint reaches (a share of the course from its outer end; 2 is all of it) and over how much of it it thins toward the tip. Null when there is none. */
@@ -189,10 +217,8 @@ export class ProcCatheter {
     for (const o of this.objects) o.group.visible = false;
     if (!showing) { this.group.visible = false; return; }
     this.group.visible = true;
-    for (const o of [this.shaft, this.tip]) { o.group.visible = true; o.setAlpha(op); }
-    this.shaft.setReveal(Math.min(1, tipD / r.total));
-    r3.point(tipD, this.v); this.tip.group.position.copy(this.v);
-    this.orient(this.tip, tipD);
+    this.shaft.group.visible = true; this.shaft.setAlpha(op);
+    this.layShaft(tipD);
 
     // the wire (a fine dark line on into the portal trunk) and the needle (steel, narrowing to a bevelled point), only ahead of the catheter's tip
     const toD = (u: number): number => r3.tipD(u);
@@ -216,7 +242,7 @@ export class ProcCatheter {
     if (col > 0.001 && r.kind !== 'hvpg') {
       this.column.setTone(s.columnTone ?? 'trWedge'); this.column.setAlpha(0.55 * op);
       const part = r.parts.find((q) => q.id && tipD <= q.d1 + 1e-6 && tipD >= q.d0 - 1e-6), end = part ? part.d1 : r.total, reach = tipD + (end - tipD) * col, i0 = Math.max(0, Math.floor((tipD / r.total) * (this.n - 1))), i1 = Math.min(this.n - 1, Math.ceil((reach / r.total) * (this.n - 1)));
-      showRings(this.columnGeo, i0, i1, 12);
+      showRings(this.columnGeo, i0, i1, DEVICE_SIDES);
     }
 
     // the balloon
@@ -231,6 +257,25 @@ export class ProcCatheter {
     if (this.coil && s.coil > 0.001) this.layCoil(s.coil, op);
   }
 
+  /** The shaft from the route's start to the tip, tip included: the body's rings are spread evenly over the way, the last TIP_RINGS (closer together toward the end) are the taper and its rounded point (tipRadius).
+   *  uv.x stays the share of the whole route, so the lead-in's fade and the depth marks (counted back from the tip) are as before. Rewritten only when the tip has moved. */
+  private layShaft(tipD: number): void {
+    if (Math.abs(tipD - this.shaftAt) < 1e-6) return;
+    this.shaftAt = tipD;
+    const { r3, rc } = this, total = r3.route.total, rings = this.shaftRings, us = this.shaftU, n = rings.length, nb = n - TIP_RINGS;
+    const rcTip = Math.min(rc, SHAFT_MAX_SHARE * r3.lumen(tipD)), dTip = Math.max(0, tipD - rcTip * U * TIP_LEN_R);
+    for (let i = 0; i < n; i++) {
+      const q = rings[i]!;
+      const d = i < nb ? (dTip * i) / Math.max(1, nb - 1) : dTip + (tipD - dTip) * Math.sin(((i - nb + 1) / TIP_RINGS) * Math.PI / 2);
+      r3.point(d, q.c); r3.dir(d, q.t);
+      q.r = Math.max(Math.min(tipRadius((tipD - d) / U, rcTip), SHAFT_MAX_SHARE * r3.lumen(d), rc), 1e-5);
+      us[i] = d / total;
+    }
+    writeRings(this.shaftGeo, rings, SHAFT_RADIAL, 0, 1, us);
+    // the depth marks, counted back from the tip so they travel with the tube (as the scope's do)
+    this.shaft.setStripes(MARK_UNITS / total, tipD / total, MARK_HALF / total, MARK_CLEAR / total, MARK_HEX, 1.7);
+  }
+
   private orient(o: DeviceObject, d: number): void {
     this.r3.dir(d, this.w);
     o.group.quaternion.setFromUnitVectors(X, this.w);
@@ -239,12 +284,14 @@ export class ProcCatheter {
   /** The balloon, fitted inside the vein as the 2D app fits it (stage-cath.js cathGL): along a TIPS tract its whole length, else just behind the tip; wedged it lies on the vein's own centreline and fills the lumen. */
   private fitBalloon(bl: number, tipD: number, op: number): void {
     const { rc } = this, r3 = this.r3;
-    const ol = balloonFit(r3, rc, bl, tipD, this.span, (this.ballRings ||= makeRings(BALLOON_N + 1)));
+    // it swells on a smootherstep of the model's own 0..1, so it starts and ends gently and never jumps (owner, 20 Nov 2026: "easing as it inflates")
+    const sw = bl * bl * bl * (bl * (bl * 6 - 15) + 10);
+    const ol = balloonFit(r3, rc, Math.max(sw, 1e-4), tipD, this.span, (this.ballRings ||= makeRings(BALLOON_N + 1)));
     const rings = this.ballRings!, dC = ol.dC, rx = ol.rx;
     writeRings(this.balloonGeo, rings, BALLOON_RADIAL);
     // clear glass: the body is barely there (the vein and the shaft read straight through it), the outline is crisp and eases in with the swelling
     const e = bl * bl * (3 - 2 * bl);
-    this.balloon.setAlphas(0.13 * Math.min(1, e * 2.2) * op, (0.35 + 0.5 * e) * op * Math.min(1, bl * 4));
+    this.balloon.setAlphas(0.12 * Math.min(1, e * 2.2) * op, (0.25 + 0.5 * e) * op * Math.min(1, bl * 4));
     this.lay(ol.ol, rings, e, op);
     // its two collars, where the glass meets the shaft
     [-1, 1].forEach((side, i) => {
@@ -270,7 +317,7 @@ export class ProcCatheter {
         r.c.copy(q.c).addScaledVector(this.n2, -c * q.r * 0.9).addScaledVector(this.n1, -sn * q.r * 0.9);
         r.t.copy(tt); r.r = Math.max(this.rc * 0.075 * Math.sin(Math.PI * (i / (GLINT_N - 1))) + this.rc * 0.01, 0.0003);
       }
-      writeRings(this.glints[k]!.g, out, 6);
+      writeRings(this.glints[k]!.g, out, GLINT_SIDES);
       this.glints[k]!.o.setAlpha(arc.a * e * op);
     });
   }
@@ -308,8 +355,8 @@ export class ProcCatheter {
       rs[i]!.c.copy(pos).addScaledVector(side, Math.cos(ang) * rr).addScaledVector(Z, Math.sin(ang) * rr * 0.4);
       rs[i]!.t.copy(tan); rs[i]!.r = Math.max(this.rc * 0.3, 0.0012);
     }
-    writeRings(geo, rs, 6);
-    showRings(geo, 0, Math.round(k * (N - 1)), 6);
+    writeRings(geo, rs, WIRE_SIDES);
+    showRings(geo, 0, Math.round(k * (N - 1)), WIRE_SIDES);
     this.coil!.group.visible = true; this.coil!.setAlpha(op);
   }
   private coilRings: ReturnType<typeof makeRings> | null = null;

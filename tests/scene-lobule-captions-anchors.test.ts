@@ -52,7 +52,7 @@ for (const room of ROOMS) for (const shot of Object.keys(SHOTS) as (keyof typeof
       assert.ok(placed.has('triad') && placed.has('cv'), `the venule and the central vein are named (placed: ${[...placed.keys()]})`);
       if (room.name !== 'iPhone landscape') assert.ok(placed.has('ha') && placed.has('bd'), `the arteriole and the ductule are named (placed: ${[...placed.keys()]})`);
     }
-    for (const it of stations) if (it.id === 'ha' || it.id === 'bd') assert.ok(it.forms.every((f) => f.text !== ''), `${it.id}: no form of a name with no reading is an empty box`);
+    for (const it of stations) assert.ok(it.forms.every((f) => f.text !== ''), `${it.id}: no form is a reading alone or an empty box (2D builds the name always)`);
     for (const it of stations) {
       const p = placed.get(it.id);
       if (!p) continue;

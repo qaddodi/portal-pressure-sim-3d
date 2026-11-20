@@ -47,6 +47,8 @@ export class Streams {
   stream(k: number): Stream { return this.streams[k]!; }
   /** Edge k's flow's size (the chain's weight for which inflow is the parent). */
   flowOf(k: number): number { return Math.abs(this.frame ? (this.frame.Qf ?? this.frame.Q)[k] ?? 0 : 0); }
+  /** Edge k's diameter now (the engine's, mm), for the swirl's strength (routes.ts): 0 before a frame. */
+  diamOf(k: number): number { return this.frame ? Number(this.frame.D[k] ?? 0) : 0; }
   /** Whether any stream moved at the last step (the chain's easing runs slower while the blood is still). */
   moving = false;
 

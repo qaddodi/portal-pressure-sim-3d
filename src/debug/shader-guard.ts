@@ -42,7 +42,8 @@ export function installShaderGuard(renderer: GuardRenderer, root: Object3D, afte
     for (const m of extras()) if ((renderer.properties.get(m) as { currentProgram?: { program?: unknown } } | undefined)?.currentProgram?.program === program) { lent.push(m); (m.userData as { onFail?: () => void }).onFail?.(); }
     for (const { mesh, m } of worn) {
       // a veil (the faint copy over the organs, and its depth-only pass) has no plain form worth drawing: the solid tube it veils is drawn
-      if ((m.defines as Record<string, unknown> | undefined)?.VEIL) mesh.visible = false;
+      const d = m.defines as Record<string, unknown> | undefined;
+      if (d?.VEIL || (m.name === 'skin' && d?.SKIN_COPY === 2)) mesh.visible = false;   // (a skin's veil copy likewise)
       else mesh.material = plainFor(m);
     }
     reportShaderFailure({ kind: worn.length ? kindOf(worn[0]!.m, worn[0]!.mesh) : lent.length ? lent[0]!.name || 'post aa' : 'scene', meshes: worn.length + lent.length, log });

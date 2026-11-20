@@ -11,7 +11,7 @@ import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
-import { SkinSet } from './vessels/skin/skin-set.ts';
+import { SkinSet, SKIN_BUILD_TAG } from './vessels/skin/skin-set.ts';
 import { SkinObject } from './vessels/skin/skin-object.ts';
 import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
@@ -34,6 +34,7 @@ import { BloodMarks, type BloodOptions } from './blood/marks.ts';
 import { BloodField } from './blood/field.ts';
 import { BloodCells } from './blood/cells/cells.ts';
 import { dustTuner } from './blood/dust.ts';
+import { turnTargets } from './blood/routes.ts';
 import { CameraRig } from './camera/rig.ts';
 import { cutUniform, fieldSoft } from './camera/dive.ts';
 import { MICRO_DPR } from './micro3d/cel3d.ts';
@@ -216,6 +217,8 @@ export class CelScene {
   private healthyQ: ArrayLike<number> | undefined;
   private collateralsOn = false;
   private procQuietWas = false;
+  /** the swirl's turns each vessel should carry (blood/routes.ts turnTargets), kept so a frame makes no array */
+  private readonly turnsScratch = new Float32Array((EDGES as unknown[]).length);
   private wedgeSet = new Set<string>();
   /** The HVPG's amber column: a tint on the vessels upstream of the balloon (their own shader), thinning toward the branch tips. Eases with the column (one eased number from the procedure's clock). */
   private syncWedge(): void {
@@ -238,6 +241,8 @@ export class CelScene {
   private readonly hvJoins: VesselObject[] = [];
   /** Every vein that opens into the cava (the hepatic and the renal veins): the opacity it comes to at the cava's wall follows the cava's (named: whole). */
   private readonly cavaCuts: VesselObject[] = [];
+  /** what each cut hepatic vein's `setCavaCut` was given (the cava piece's lens, where along it, its alpha), so a skin that takes the end over can switch the cut off and the scene put it back */
+  private readonly cavaCutArgs = new Map<string, [number, number, number]>();
   /** The vessels of the back tier: they ease toward the page on a turn (quiet depth). */
   private readonly back: VesselObject[] = [];
   /** Settings > Hide vessels behind organs: the share (0 show-through, 1 normal occlusion) the vessels of the back tier are at, and where it is going; eased on the clock. */
@@ -325,6 +330,7 @@ export class CelScene {
     this.presence.own(this.feeders.ids());
     for (const id of this.grownIds) { const g = COURSES.get(id); if (g) this.vesselObject(id)?.setStretchAnchors(g.curveA.getPointAt(0), g.curveC.getPointAt(0)); }
     this.shapes = new ShapeTracks(NETWORK, this.byEdge as unknown as Map<string, VesselObject>);
+    this.shapes.onReshaped = (id) => this.skins?.markDirty(id);   // (an arm's course changed: the skin on it is rebuilt in the render phase, skins.step below)
     this.lens.setContext({ healthy: null, ref: null });
     const vo = { look: this.look, phone: this.phone, flowMode: opts.flowMode ?? DEFAULT_FLOW_MODE, reduceMotion: opts.reduceMotion };
     this.lobule = new LobuleView(this.shared, vo); this.sinus = new SinusoidView(this.shared, vo);
@@ -355,6 +361,7 @@ export class CelScene {
       make: (skin, axes, arms) => new SkinObject(skin, arms[0]!, axes, arms),
       add: (o) => { this.body.add(o); },
       remove: (o) => { this.body.remove(o); },
+      endsChanged: () => { this.applyMates(); },   // (a rebuild that failed or came back: the mates and burial of its ends follow)
     });
     this.skins.build(phase);
   }
@@ -375,7 +382,11 @@ export class CelScene {
       const bury: [number, number] = [0, 0];
       for (const e of [0, 1] as const) if (on && sj?.attach[e]) bury[e] = BURY * (sj.hostR[e] ?? def.radius);
       for (const e of [0, 1] as const) if (sk[e]) bury[e] = 0;   // (the part of the tube the bury guarded is cut away)
-      if (on && (this.ivcJoins.includes(o) || opensIntoCava(def.id))) bury[1] = Math.max(bury[1], CAVA_BURY * (NETWORK_BY_ID.get('IVC_IS')?.radius ?? def.radius));
+      // THE CAVA'S CUT RULES (spec 10.4): a hepatic vein that opens into the cava is cut away inside the cava's lumen (`cavaCut`, shaders.ts cavA) and its ink held back there (`CAVA_BURY`). Where a skin has taken over that end of it the skin IS the
+      // opening (the tube stops at its seam ring, outside the cava's wall), so both are off there and come back, exactly, with the skin. (Its `cavaEnd` ease is zero for every vein now: fades.ts cavaEndSpan.)
+      const cc = this.cavaCutArgs.get(def.id);
+      if (cc) o.setCavaCut(!sk[1], ...cc);
+      if (on && !sk[1] && (this.ivcJoins.includes(o) || opensIntoCava(def.id))) bury[1] = Math.max(bury[1], CAVA_BURY * (NETWORK_BY_ID.get('IVC_IS')?.radius ?? def.radius));
       const joinEnd = def.plan?.kind === 'feeder' ? def.plan.list[0]?.join : undefined;
       if (on && joinEnd != null) bury[joinEnd] = Math.max(bury[joinEnd], BURY * def.radius * (def.plan?.kind === 'feeder' ? (def.plan.list[0]?.k ?? 1) : 1));
       o.setBury(bury[0], bury[1]);
@@ -416,7 +427,7 @@ export class CelScene {
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
     else this.fans.set(o, def.id);   // a fan of tributaries has no map course: it never morphs, and the Circuit's shader fades it as 2D does (clamp(1 - 2 * T0))
     { const nm = nbrMatesOf(def.id)[0], md = nm ? NETWORK_BY_ID.get(nm) : undefined; if (md) { o.setNbrOn(true); o.setNbrMate(indexOf(md.lensId), md.baseD, md.widthKind); } }
-    { const cm = cavaMateOf(def.id); if (cm) { o.setCavaCut(true, indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1, fadeOf(cm, false)?.a0 ?? 1); this.cavaCuts.push(o); } }
+    { const cm = cavaMateOf(def.id); if (cm) { const args: [number, number, number] = [indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1, fadeOf(cm, false)?.a0 ?? 1]; o.setCavaCut(true, ...args); this.cavaCuts.push(o); this.cavaCutArgs.set(def.id, args); } }
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
@@ -496,6 +507,7 @@ export class CelScene {
     this.lens.onFrame(f, !!f?.jump && this.sawFrame, performance.now());   // (a new patient: the colours glide from the old patient's)
     this.blood.streams.onFrame(f);
     if (f) { this.syncPresence(f, !this.sawFrame); this.feedDisease(f, !this.sawFrame); }
+    if (this.procs.setLive((f as { D?: ArrayLike<number> } | null)?.D ?? null)) this.moving = true;   // (the catheters follow the veins' live width)
     this.procs.syncStents(f, patient.params, f ? !this.sawFrame : false);
     this.procs.syncBands((f as { bands?: number } | null)?.bands ?? 0, f ? !this.sawFrame : false);
     this.procs.syncTamponade(patient.params as never, f ? !this.sawFrame : false);
@@ -1056,8 +1068,9 @@ export class CelScene {
     if (procQuiet !== this.procQuietWas) { this.procQuietWas = procQuiet; this.flow.setOptions({ quiet: procQuiet }); }
     const streamsMoving = this.blood.streams.step(now, this.flowRate.value);
     const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id));
+    const routesMoving = this.blood.routes.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), turnTargets(this.blood.streams, dustTuner.uniform.value, this.turnsScratch));
     const occMoving = this.stepOcclusion(dt);
-    const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || this.stepCava(dt) || occMoving;
+    const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || routesMoving || this.stepCava(dt) || occMoving;
     const lensMoving = this.lens.step(now);
     const dustMoving = dustTuner.step(dt);
     const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving, quiet: procQuiet });
@@ -1065,7 +1078,10 @@ export class CelScene {
     this.syncStumps();
     this.updateCaps();
     const shapeMoving = this.shapes.step(dt);
-    const skinMoving = this.skins?.sync() ?? false;   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
+    // (one junction skin rebuilt at most, here in the render phase and before the handover, so the tubes and the skin change together; while one still waits, the clock is asked for the next frame under the tag `skin-build`)
+    const skinPending = this.skins?.step() ?? false;
+    if (skinPending) clock.invalidate(SKIN_BUILD_TAG);
+    const skinMoving = (this.skins?.sync() ?? false) || skinPending;   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
     this.stepSinusDive();
     this.stepCutaway();
     this.stepPortrait();
@@ -1173,6 +1189,7 @@ export class CelScene {
     this.disease.dispose();
     this.blood.streams.texture.dispose();
     this.blood.chain.texture.dispose();
+    this.blood.routes.texture.dispose();
     for (const o of this.objects) o.dispose();
     this.procs.dispose(); this.probes.dispose();
     this.tubes.dispose(); this.resistors.dispose(); this.post.dispose();

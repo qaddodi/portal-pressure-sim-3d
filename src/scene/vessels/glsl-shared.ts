@@ -60,6 +60,11 @@ float chevCreamOf(vec4 la, sampler2D grad, float mode, float idx, vec3 col) {
 export const inkColourGlsl = (base: string): string =>
   `mix(inkColor, celTubeBase(${base}) * mix(${F(CEL_STYLE.TUBE.INK_TONE)}, ${F(CEL_STYLE.TUBE.INK_TONE_DARK)}, tubeDark), ${F(CEL_STYLE.TUBE.INK_OWN)})`;
 
+/** A picked vessel's outline colour (Mohammad, 20 Nov: "i don't like the outline; the glow is ok; maybe make it the color of the vessel"): the ink of `inkColourGlsl(base)` taken HI_INK of the way (eased by `hi`, the pick's own weight 0..1: vHi on a tube, the blended arm weight on a
+ *  junction skin) to the vessel's own colour as drawn: the lit tone x HI_DEEP on the light looks, lifted HI_LIFT toward white on the dark ones (the glow's own rule, highlight.ts). One expression for the tube and the skin, so a welded junction's line is the tube's. Reads: inkColor, tubeDark, celTubeBase. */
+export const inkHiColourGlsl = (base: string, hi: string): string =>
+  `mix(${inkColourGlsl(base)}, mix(celTubeBase(${base}) * ${F(CEL_STYLE.TUBE.HI_DEEP)}, mix(celTubeBase(${base}), vec3(1.0), ${F(CEL_STYLE.TUBE.HI_LIFT)}), tubeDark), ${F(CEL_STYLE.TUBE.HI_INK)} * smoothstep(0.0, 1.0, ${hi}))`;
+
 /** The ink line's width in CSS px (a GLSL expression) for a lumen of `rCss` CSS px of radius: LINE_R of it held between LINE_MIN and LINE_MAX, thinned with a hairline lumen (cel-ink.ts inkTaper, judged on `taperR`). */
 export const inkPxGlsl = (rCss: string, taperR: string): string =>
   `clamp(${F(CEL_STYLE.LINE_R)} * ${rCss}, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, ${taperR})`;
@@ -93,28 +98,28 @@ float chevOrange(vec3 c) {
 /**
  * THE FLOW MARKS of one vessel at one pixel, written once: the tube (vessels/shaders.ts) calls them with its own arc and the skin (skin/shaders.ts) calls them once per ARM with that arm's arc, so a streak or a head is the same code on both
  * (Mohammad, 20 Nov: "the streaks still break between vessels"; the dust, chevrons and the stream chain's routes are drawn by these two functions and nowhere else).
- *   flowDust(across, s, Lw, rOwn, vR, rCss, lensI, dataI, baseDv, lit, vUn)   the dust, premultiplied (rgb, a), already scaled by the streak amount, the flow gate and the lumen's width gate. s the arc along the vessel (figure units), Lw its length,
+ *   flowDust(across, fr, s, Lw, rOwn, vR, rCss, lensI, dataI, baseDv, lit, vUn)   (fr: the section frame, blood/dust-glsl.ts dustFrame; flowFrame gives a skin arm's frame and gate)   the dust, premultiplied (rgb, a), already scaled by the streak amount, the flow gate and the lumen's width gate. s the arc along the vessel (figure units), Lw its length,
  *                                                                        rOwn its rest radius, vR the lumen's radius now, rCss the same in CSS px, lensI its lens index (stream and chain texels), dataI and baseDv its data texel and built diameter, lit its lit tone, vUn the figure's units in a scene unit here (the chain hands a root's radius in scene units).
  *   flowHeads(across, acrossW, s, Lw, vR, wpc, pxArc, lensI, flowAmt, endK, la, lb, col, base)   the heads, premultiplied (rgb, coverage); endK the tube's end fade (1 where nothing buries the end), la/lb the lens colours of the two sets at this pixel, col the vessel's own colour, base the colour it is drawn in.
- * Reads: streakAmt, streamTex, chainTex, useData, vdata, vdataSize, markDark, markLight, markRev, lensMix, lensModeA/B, lensGradA/B, inkColor, and dustField, chevOne, chevOrange, chevInk, chevCreamOf, CHEV_RIM.
+ * Reads: streakAmt, streamTex, chainTex, useData, vdata, vdataSize, markDark, markLight, markRev, lensMix, lensModeA/B, lensGradA/B, inkColor, and dustTube, dustSkin, DFrame, chevOne, chevOrange, chevInk, chevCreamOf, CHEV_RIM.
  */
-export const FLOW_MARKS_GLSL = /* glsl */ `vec4 flowDust(float across, float s, float Lw, float rOwn, float vR, float rCss, float lensI, float dataI, float baseDv, vec3 lit, float vUn) {
-  if (streakAmt <= 0.001 || vR <= 0.0 || abs(across) >= 0.97) return vec4(0.0);
+export const FLOW_MARKS_GLSL = /* glsl */ `// the dust's frame for one vessel at this pixel (blood/dust-glsl.ts DFrame): fr the section frame (dustFrame), and the gate it shows by (the streak amount, the flow, the lumen's width), returned; rev its stream's eased reversed flag
+float flowFrame(float across, vec4 fr, float s, float Lw, float rOwn, float vR, float rCss, float lensI, float dataI, float baseDv, float vUn, out DFrame F, out float rev) {
   vec4 smS = texelFetch(streamTex, ivec2(int(lensI), 0), 0);   // the blood's own distance and speed on this vessel: reversed runs back, none stands
-  // (the streak distance, texel w: the stream's distance D held to a speed no pattern wagon-wheels at, streams.ts; the same arc and gate the heads have, and none only where the flow is none)
-  float dOn = streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCss) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
-  if (dOn <= 0.002) return vec4(0.0);
   float nar = 1.0;
   if (useData > 0.5) { ivec2 tcn = ivec2(int(mod(dataI, vdataSize.x)), int(floor(dataI / vdataSize.x))); nar = texelFetch(vdata, tcn, 0).b / max(baseDv, 0.1); }
-  vec4 chD = texelFetch(chainTex, ivec2(int(lensI), 0), 0);
-  float wl = chD.w;
-  vec4 dust = vec4(0.0);
-  if (wl < 1.0) dust = dustField(across, s, 0.0, 1.0, smS.w, rOwn, rOwn, vR, rCss, Lw, nar, smS.y, smS.z, fract(lensI * 0.6180339) * 50.0, lensI + 1.0, lit, inkColor);
-  if (wl > 0.0) {   // the blood runs on from the parent: the root's particles, at the root's distance, A + B s along its stream (the chevrons' own placing)
-    int rootIx = int(chD.x + 0.5) - 1;
-    vec4 dc = dustField(across, s, chD.y, chD.z, texelFetch(streamTex, ivec2(rootIx, 0), 0).w, rOwn, max(texelFetch(chainTex, ivec2(int(lensI), 1), 0).w * vUn, 1e-3), vR, rCss, Lw, nar, smS.y, smS.z, fract(float(rootIx) * 0.6180339) * 50.0, chD.x, lit, inkColor);
-    dust = wl >= 1.0 ? dc : mix(dust, dc, wl);   // (a link forming or letting go cross-fades the two sets: nothing pops)
-  }
+  F = DFrame(across, fr.xy, fr.zw, s, Lw, rOwn, vR, rCss, nar, smS.y, lensI, vUn);
+  rev = smS.z;
+  if (streakAmt <= 0.001 || vR <= 0.0 || abs(across) >= 0.97) return 0.0;
+  // (none only where the flow is none: the particles ride the root's own distance, streams.ts texel w, through the route table, blood/routes.ts)
+  return streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCss) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
+}
+// the dust of one vessel at this pixel (the tube's), premultiplied and gated: its roots' particles in its own section frame (dustTube). The skin blends its two heaviest arms' frames instead (dustSkin), from the same flowFrame.
+vec4 flowDust(float across, vec4 fr, float s, float Lw, float rOwn, float vR, float rCss, float lensI, float dataI, float baseDv, vec3 lit, float vUn) {
+  DFrame F; float rev;
+  float dOn = flowFrame(across, fr, s, Lw, rOwn, vR, rCss, lensI, dataI, baseDv, vUn, F, rev);
+  if (dOn <= 0.002) return vec4(0.0);
+  vec4 dust = dustTube(F, lit, inkColor, rev);
   return vec4(dust.rgb * dOn, dOn * dust.a);
 }
 vec4 flowHeads(float across, float acrossW, float s, float Lw, float vR, float wpc, float pxArc, float lensI, float flowAmt, float endK, vec4 la, vec4 lb, vec3 col, vec3 base) {
