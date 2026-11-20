@@ -283,3 +283,14 @@ test('every flat part on every device is plain-shaded (no tube tones): FibroScan
   assert.ok(luma(fill(body)) > luma(raw(LOOKS.black.card)) + 0.08, 'the body is visibly lighter than the black surface');
   f.dispose(); d.dispose();
 });
+
+test('the EUS bending cover is long, curves through its length (not straight then a knee), and meets the rigid tip', () => {
+  const sc = driveScope('eus'), k = sc as unknown as { bend: { rings: { c: { x: number; y: number; z: number }; t: { x: number; y: number } }[] }; tip: { rings: { c: { x: number; y: number } }[] } };
+  const rs = k.bend.rings, n = rs.length - 1, ang = (i: number): number => Math.atan2(rs[i]!.t.y, rs[i]!.t.x);
+  const total = Math.abs(ang(n) - ang(0)), firstThird = Math.abs(ang(Math.floor(n / 3)) - ang(0));
+  assert.ok(total > 0.05, `it turns (${total})`);
+  assert.ok(firstThird > total * 0.05, `the turn starts early along the cover (${firstThird} of ${total})`);
+  const e = rs[n]!.c, t0 = k.tip.rings[0]!.c;
+  assert.ok(Math.hypot(e.x - t0.x, e.y - t0.y) < 0.03, 'the cover ends at the tip');
+  sc.dispose();
+});

@@ -45,3 +45,4 @@ test('the bending section is long (several tube widths), on both scopes', async 
   const m = await import('../src/scene/devices/probes/scope.ts');
   assert.ok(m.BEND_LEN >= 35);
 });
+

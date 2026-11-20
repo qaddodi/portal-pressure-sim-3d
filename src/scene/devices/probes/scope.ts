@@ -315,15 +315,23 @@ export class EndoScope {
     this.bendOn = showBend;
     if (showBend) {
       const n = this.bend.n - 1, q0 = way.at(way, shaftEnd), ds = bendLen / n, flat = bendLen - turnLen;
-      const head = (sAt: number): number => { const t = way.at(way, shaftEnd + sAt).t; return Math.atan2(t[1], t[0]) + (turnLen > 0 ? phi * Math.min(1, Math.max(0, (sAt - flat) / turnLen)) : 0); };
+      // (owner, 20 Nov 2026: "EUS scope also has the bendy region": the turn runs through the whole cover, eased in and out, not straight then a short knee. Walked so, its end misses 2D's tip start by a
+      //  little; that miss is taken up smoothly along the cover (none at the shaft, all of it at the tip), so the tip, the port and the needle's aim stay exactly 2D's.)
+      const head = (sAt: number): number => { const t = way.at(way, shaftEnd + sAt).t, u = Math.min(1, Math.max(0, sAt / bendLen)); return Math.atan2(t[1], t[0]) + (turnLen > 0 ? phi * u * u * (3 - 2 * u) : 0); };
+      void flat;
+      const xs: number[] = [], ys: number[] = [];
       let x = q0.p[0], y = q0.p[1];
+      for (let i = 0; i <= n; i++) { if (i) { const h = head(ds * (i - 0.5)); x += Math.cos(h) * ds; y += Math.sin(h) * ds; } xs.push(x); ys.push(y); }
+      const ex = turnLen > 0 ? tipFrom[0] - xs[n]! : 0, ey = turnLen > 0 ? tipFrom[1] - ys[n]! : 0;
       for (let i = 0; i <= n; i++) {
-        if (i) { const h = head(ds * (i - 0.5)); x += Math.cos(h) * ds; y += Math.sin(h) * ds; }
-        const r = this.bend.rings[i]!;
-        r.r = R * bendRadius(i / n);
-        at3([x, y], r.c);
-        const hh = head(i ? ds * (i - 0.5) : 0);
-        r.t.set(Math.cos(hh), -Math.sin(hh), 0);
+        const u = i / n, k = u * u * (3 - 2 * u), r = this.bend.rings[i]!;
+        xs[i] = xs[i]! + ex * k; ys[i] = ys[i]! + ey * k;
+        r.r = R * bendRadius(u);
+        at3([xs[i]!, ys[i]!], r.c);
+      }
+      for (let i = 0; i <= n; i++) {
+        const a0 = Math.max(0, i - 1), a1 = Math.min(n, i + 1), dx = xs[a1]! - xs[a0]!, dy = ys[a1]! - ys[a0]!, l = Math.hypot(dx, dy) || 1;
+        this.bend.rings[i]!.t.set(dx / l, -dy / l, 0);
       }
       this.bend.commit();
     }
