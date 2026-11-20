@@ -7,7 +7,8 @@ import { CelScene } from '../src/scene/scene.ts';
 import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
 import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
-import { findSkinJunctions, nodesBeyondReach } from '../src/scene/vessels/skin/inventory.ts';
+import { findSkinJunctions, nodesBeyondReach, withoutGrowers } from '../src/scene/vessels/skin/inventory.ts';
+import type { SkinJunction } from '../src/scene/vessels/skin/types.ts';
 
 test('every inventory node builds a skin, with no fallback to the old join', () => {
   setSmoothJoins(true);
@@ -20,9 +21,15 @@ test('every inventory node builds a skin, with no fallback to the old join', () 
   });
   set.build(2);
   assert.deepEqual(warnings, [], 'no skin falls back to the old join');
-  const all = findSkinJunctions().filter((j) => !['SVC_E'].includes(j.node)), far = nodesBeyondReach(all);
+  const all = findSkinJunctions().filter((j) => !['SVC_E'].includes(j.node)), far = nodesBeyondReach(all.map((j) => withoutGrowers(j)).filter((j): j is SkinJunction => !!j));
   const built = draws.map((d) => d.mesh.name.replace('skin:', ''));
-  for (const j of all) if (!far.includes(j.node)) assert.ok(built.some((b) => b.split('+').includes(j.node)), `${j.node} has a skin`);
+  for (const j of all) {
+    if (far.includes(j.node)) continue;
+    const skinned = built.some((b) => b.split('+').includes(j.node));
+    // a node of three or more permanent arms always has its skin; a run-on pair has one only where a collateral or shunt stayed on it (the arms a skin could not take are named in `dropped`, tests/skin-grow.test.ts)
+    if (j.arms.filter((a) => !a.grow).length >= 3) assert.ok(skinned, `${j.node} has a skin`);
+    else assert.ok(skinned || j.arms.filter((a) => a.grow).every((a) => set.dropped.includes(`${j.node}:${a.vesselId}`)), `${j.node}: a skin, or every growing arm named as dropped`);
+  }
   // the nodes the 2D art leaves too far apart for a junction (spec 10.6) keep the old join, named here so a new one fails until someone looks:
   // SIN_R and SIN_L, where the hepatic arteriole ends 20 and 38 radii of the bed's inflow from J. Measured (tests/skin-side-wall.test.ts): A_HR ends 3.2 radii of PRE_R from the start of PRE_R and 5.4 of the right portal vein's end from RPV, which is no junction (a
   // through branch's tip); A_HL ends 1.8 radii from LPV_A, the left portal vein's bend, where the cuts' hull rule refuses PVH_L_1. Neither lands on the SIDE of a tube, so the side-wall rule (spec 10.1) cannot weld them without drawing new tube.

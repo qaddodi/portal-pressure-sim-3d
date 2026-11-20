@@ -24,6 +24,13 @@
 //   lensUse + : 1 (the per-arm flag above is multiplied in), inkColor, inkColorCirc, tubeDark, fade, hiPx, inflate, res, dpr, projY, circT, vdata, vdataSize, useData, the two lens sets (lensGradA/B, lensLaneA/B,
 //   lensModeA/B, laneColA/B, lensMix, lensTail, lensSmooth) are the tubes' (shared by reference).
 //
+// GROWING ARMS (spec 10.2; mesh.ts `GrowMorph`): a collateral or a shunt comes and goes, and its mouth on the trunk must ease in with it, never pop. The skin carries a second shape for each growing arm (at most SKIN_GROWERS, the shader's SKIN_GROW define): the same
+// topology with that arm's capsule at radius 0. The vertex stage is `value = P1 - (1 - g) * delta` for position, normal, rest radius and weights, `g` the arm's live growth (`armGrow`, written by the SkinSet: its tube's draw-on at the seam), so on the arm's seam ring that
+// is the tube's own ring at share g, and at g = 0 the trunk is a plain trunk (the weights are the trunk's own, so no dent). The arm's live width in the ink's capsule is `g x swell`, the same lumen, so the outline of the mouth grows with it. Plain skins compile without any of it.
+//   armGrow[6]   float  + each arm's growth: 1 for a plain arm; a growing arm's draw-on at its seam (0 gone, 1 whole)
+//   growG        vec2   + the growth of the first and second growing arm (the same numbers, in the order of the mesh's morphs)
+//   gPosA0, gNorA0, gWtA0, gWt2A0 (and A1)   attributes +  per growing arm: (P1 - P0 position, restR1 - restR0), N1 - N0, the weight differences of arms 0 to 3 and of arms 4, 5
+//
 // Lane lenses (the Blood origin and First pass lenses draw lanes side by side ACROSS a tube): a skin has no "across" and takes the lane's centre (across 0), so a junction shows its arms' middle lane; the lens ramps
 // (pressure, oxygen...) are exact.
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../../cel-glsl.ts';
@@ -48,8 +55,29 @@ const BLEND = (name: string, w = 'wAt', comp = ''): string => Array.from({ lengt
 /** The four arms' shares of THIS copy are read per arm: component `SKIN_COPY` of each arm's (front, solid, veil), spec 10.4. */
 const COPY_OF = (i: number): string => `armCopy[${i}][SKIN_COPY]`;
 
+/** The vertex stage's growing-arm declarations and its morph (empty for a skin with none: SKIN_GROW 0). */
+const GROW_DECL = /* glsl */ `
+#if SKIN_GROW > 0
+attribute vec4 gPosA0;   // growing arm 0: P1 - P0 (xyz) and restR1 - restR0 (w)
+attribute vec3 gNorA0;   // N1 - N0
+attribute vec4 gWtA0;    // weight1 - weight0, arms 0 to 3
+attribute vec2 gWt2A0;   // arms 4 and 5
+#endif
+#if SKIN_GROW > 1
+attribute vec4 gPosA1;
+attribute vec3 gNorA1;
+attribute vec4 gWtA1;
+attribute vec2 gWt2A1;
+#endif
+uniform float armGrow[${SKIN_ARMS}];   // each arm's growth (1 for an arm that does not grow)
+uniform vec2 growG;                    // the growth of the first and of the second growing arm
+`;
+
 export const SKIN_VS = /* glsl */ `
 const float SKIN_U = ${F(SKIN_FIGURE_UNITS)};
+#ifndef SKIN_GROW
+#define SKIN_GROW 0   // how many growing arms the skin morphs (the material's define; a skin with none has no morph)
+#endif
 attribute vec3 cen;      // the nearest point on the nearest arm's axis: the depth and the lumen's centre, as a tube's ring centre is
 attribute vec4 weight;   // how much of this vertex belongs to each arm (arms 0 to 3; the six sum to 1, arm order)
 attribute vec2 weight2;  // arms 4 and 5
@@ -63,6 +91,7 @@ uniform float hiPx;
 uniform vec4 armData[${SKIN_ARMS}];
 uniform vec4 armAF[${SKIN_ARMS}];   // per arm (lensU, fade, hi, pres): one vec4 each, because a float array costs a whole vector a slot
 uniform float armNarrow[${SKIN_ARMS}];   // each arm tube's stenosis waist at its seam (the narrow attribute there): 0 at rest and at a vessel's ends, a little more where a cut lies inside a short piece's waist
+${GROW_DECL}
 varying vec3 vN;
 varying vec3 vV;
 varying float vW;        // the surface's clip depth
@@ -74,37 +103,67 @@ varying vec4 vSwell;
 varying vec2 vSwell2;    // the arms' live widths against their built ones, read once here so the fragment stage does not fetch them again
 varying vec3 vPos;       // the rest position: each arm's arc at this pixel (the flow marks) is read from it
 ${SWELL_OF_GLSL}
-float wAt(int i) { return i < 4 ? weight[i] : weight2[i - 4]; }
+vec4 wgA;   // the weights now (the mesh's, less what each growing arm has still to grow)
+vec2 wgB;
+float wAt(int i) { return i < 4 ? wgA[i] : wgB[i - 4]; }
 void main() {
-  // each arm's live width (the engine's diameter by the 2D figure's rule), then the blend: on a seam ring the weight is 1 on its own arm, so this IS the tube's swell and the ring lands where the tube's ring lands
-  float sw[${SKIN_ARMS}];
-  for (int i = 0; i < ${SKIN_ARMS}; i++) sw[i] = 1.0;
+  // THE SHAPE NOW: P1 less, for each growing arm, how far it has still to grow times its difference to the closed shape (a plain skin is its mesh as it is)
+  vec3 pos = position, nor = normal;
+  float rst = restR;
+  vec4 wA = weight;
+  vec2 wB = weight2;
+#if SKIN_GROW > 0
+  { float q = 1.0 - growG.x; pos -= q * gPosA0.xyz; rst -= q * gPosA0.w; nor -= q * gNorA0; wA -= q * gWtA0; wB -= q * gWt2A0; }
+#endif
+#if SKIN_GROW > 1
+  { float q = 1.0 - growG.y; pos -= q * gPosA1.xyz; rst -= q * gPosA1.w; nor -= q * gNorA1; wA -= q * gWtA1; wB -= q * gWt2A1; }
+#endif
+#if SKIN_GROW > 0
+  nor = normalize(nor + vec3(1e-6, 0.0, 0.0));
+  wA = max(wA, vec4(0.0)); wB = max(wB, vec2(0.0));
+  float wSum = max(wA.x + wA.y + wA.z + wA.w + wB.x + wB.y, 1e-6);
+  wA /= wSum; wB /= wSum;
+#endif
+  wgA = wA; wgB = wB;
+  // each arm's live width (the engine's diameter by the 2D figure's rule), then the blend: on a seam ring the weight is 1 on its own arm, so this IS the tube's swell and the ring lands where the tube's ring lands.
+  // A growing arm has two: its LUMEN (swT: the width times its growth, what the ink's capsule and the flow marks are made from) and the SHIFT its vertices take along their normals (swE: the morph has already moved
+  // them by the growth, so the engine's width is applied to the grown part only: radius g x R x swell = g R + g R (swell - 1))
+  float swT[${SKIN_ARMS}];
+  float swE[${SKIN_ARMS}];
+  for (int i = 0; i < ${SKIN_ARMS}; i++) { swT[i] = 1.0; swE[i] = 1.0; }
   // (an arm's waist at its seam is part of its width there, as the tube's own narrowK is: the same share kept, 1 - narrow clamped as the tube clamps it)
-  for (int i = 0; i < ${SKIN_ARMS}; i++) if (armData[i].x >= 0.0) sw[i] = swellOf(armData[i].x, armData[i].y, armData[i].z) * (1.0 - clamp(armNarrow[i], 0.0, 0.97));
-  float swell = 0.0;
-  for (int i = 0; i < ${SKIN_ARMS}; i++) swell += wAt(i) * sw[i];
+  for (int i = 0; i < ${SKIN_ARMS}; i++) if (armData[i].x >= 0.0) {
+    float sw = swellOf(armData[i].x, armData[i].y, armData[i].z) * (1.0 - clamp(armNarrow[i], 0.0, 0.97));
+    float gi = 1.0;
+#if SKIN_GROW > 0
+    gi = armGrow[i];
+#endif
+    swT[i] = sw * gi; swE[i] = 1.0 + gi * (sw - 1.0);
+  }
+  float swell = 0.0, swellE = 0.0;
+  for (int i = 0; i < ${SKIN_ARMS}; i++) { float wi = wAt(i); swell += wi * swT[i]; swellE += wi * swE[i]; }
   vec4 cc = projectionMatrix * (modelViewMatrix * vec4(cen, 1.0));
   float wpcV = ${wpcGlsl('cc.w', 'projectionMatrix[1][1]', 'SKIN_U')};   // the figure's units under one CSS px here
-  float lumenW = restR * swell;
+  float lumenW = rst * swell;
   float rCssV = lumenW * SKIN_U / max(wpcV, 1e-6);   // the lumen's radius in CSS px
   float hi = ${BLEND('armAF', 'wAt', '.z')};
   // the tube's own ink width (no stenosis waist at a seam, narrowK 1) plus the picked vein's extra line, blended
   float inkPx = ${inkPxGlsl('rCssV', 'rCssV')};
   float inkW = (inkPx + hiPx * hi) * wpcV / SKIN_U;   // scene units
   // the tube's vertex rule (vessels/shaders.ts) with its radius * rk replaced by this vertex's own rest radius and its swell by the blend; the ring is a polygon, so its corners stand TUBE_SAG farther out
-  vec3 p = position + normal * (inflate + restR * (swell - 1.0) + inkW + (lumenW + inkW) * ${F(TUBE_SAG)});
+  vec3 p = pos + nor * (inflate + rst * (swellE - 1.0) + inkW + (lumenW + inkW) * ${F(TUBE_SAG)});
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
-  vN = normalize(normalMatrix * normal);
+  vN = normalize(normalMatrix * nor);
   vV = normalize(-mv.xyz);
   vec4 c = projectionMatrix * mv;
   c.z = mix(cc.z / cc.w, c.z / c.w, ${F(TUBE_DEPTH_SHARE)}) * c.w;   // depth by the axis, as the tube's: a fat skin never bulges over a thinner vessel above it
   vW = c.w;
   vCenW = cc.w;
-  vWeight = weight;
-  vWeight2 = weight2;
-  vRest = restR;
-  vSwell = vec4(sw[0], sw[1], sw[2], sw[3]);
-  vSwell2 = vec2(sw[4], sw[5]);
+  vWeight = wA;
+  vWeight2 = wB;
+  vRest = rst;
+  vSwell = vec4(swT[0], swT[1], swT[2], swT[3]);
+  vSwell2 = vec2(swT[4], swT[5]);
   vPos = position;
   gl_Position = c;
 }`;

@@ -7,11 +7,13 @@ import { BACK_EDGES, IVC_EDGES } from '../src/scene/vessels/paths.copied.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { buildTubes, TUBE_RADIAL } from '../src/scene/vessels/tubes.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
-import { PERMANENT_KINDS, SKIN_REACH, armReach, nodesBeyondReach, armsShareTier, findSkinJunctions, isPermanent, pointAtShare, skinNodesForPhase, tierSpread } from '../src/scene/vessels/skin/inventory.ts';
+import { PERMANENT_KINDS, SKIN_REACH, armReach, nodesBeyondReach, armsShareTier, findSkinJunctions as findAllJunctions, isPermanent, pointAtShare, skinNodesForPhase, tierSpread, withoutGrowers } from '../src/scene/vessels/skin/inventory.ts';
 import { CAPSULE_R, CLEAR_K, CLEAR_R, CUT_SKIN_K, MAX_TRIES, MIN_RINGS_BETWEEN, SEAM_MAX_SHARE, SEAM_MIN_R, chooseCuts, mergedNode, planSkins, type ArmTube } from '../src/scene/vessels/skin/cuts.ts';
 import { SkinBuildError, type SkinCut, type SkinJunction } from '../src/scene/vessels/skin/types.ts';
 import { indexOf } from '../src/engine/vessel-data.ts';
 
+/** The junctions as the spec's first table has them: the permanent arms alone (the growing arms of spec 10.2 are pinned in tests/skin-grow.test.ts). A node that is only a run-on pair with a collateral on it is not here. */
+const findSkinJunctions = (): SkinJunction[] => findAllJunctions().map((j) => withoutGrowers(j)).filter((j): j is SkinJunction => !!j);
 const on = <T>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(true); try { return f(); } finally { setSmoothJoins(was); } };
 
 /** The table of spec 4.1, as the network's own rule computes it on 20 Nov 2026 (the arms by id and end). The test pins it exactly. */
@@ -208,11 +210,11 @@ test('when two cuts on one vessel cross or crowd, the two junctions become one s
   });
 });
 
-test('a merge that would leave more than 4 arms makes both nodes fall back with a named error, and planSkins never throws', () => {
+test('a merge that would leave more than 5 arms makes both nodes fall back with a named error, and planSkins never throws', () => {
   on(() => {
     const all = findSkinJunctions(), conf = all.find((j) => j.node === 'CONF')!, pvtl = all.find((j) => j.node === 'PVT_L')!, sv = all.find((j) => j.node === 'SV')!;
-    // a fat PVT_L with a 4th arm borrowed from SV: the union less PV_TRUNK_1 is 5
-    const fat: SkinJunction = { node: 'PVT_L', J: pvtl.J, arms: [...pvtl.arms, sv.arms[0]!] };
+    // a fat PVT_L with 3 more arms borrowed from SV: the union less PV_TRUNK_1 is 6 (more than MERGED_MAX_PERMANENT, 5 since the side-wall cava)
+    const fat: SkinJunction = { node: 'PVT_L', J: pvtl.J, arms: [...pvtl.arms, ...sv.arms] };
     const tubes = new Map<string, ArmTube>();
     for (const j of [conf, pvtl, sv]) for (const [k, v] of tubesOf(j)) tubes.set(k, v);
     const res = planSkins([conf, fat], tubes, () => accept, 99);

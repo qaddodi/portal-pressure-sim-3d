@@ -17,11 +17,11 @@ import { NETWORK_BY_ID } from '../network.ts';
 import { REST, coursesOf, tubularOf, type ShapeState } from '../shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { slicesFor } from '../../circuit/geometry.ts';
-import { findSkinJunctions, nodesBeyondReach, skinNodesForPhase } from './inventory.ts';
+import { MIN_ARMS, dropFarGrowers, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
 import { armWalk, planSkins, type ArmTube } from './cuts.ts';
 import { buildSkinSteady, hullCovers } from './mesh.ts';
-import type { Capsule } from './sdf.ts';
-import { SKIN_CUT_NONE, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
+import { sdArm, skinKOf, type Capsule } from './sdf.ts';
+import { SKIN_CUT_NONE, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
 import { armPresenceAt, hiWeightAt, lensUAt, liveFadeAt, type FadeState, type HiState } from './arm-twins.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import type { ArmAxis, ArmColour } from './skin-object.ts';
@@ -34,6 +34,8 @@ export interface SkinDraw {
   setArm(i: number, fade: number, hi: number, lensU: number, colour: ArmColour, narrow: number): void;
   setArc(i: number, seamArc: number, dir: number, length: number, restR: number, flow: number): void;
   setPres(i: number, p: number): void;
+  /** a growing arm's growth at its seam (0 gone, 1 whole): the skin's own shape eases with it (spec 10.2); an arm the skin does not morph ignores it */
+  setGrow?(i: number, g: number): void;
   /** arm `i`'s shares of the three copies (front, solid, veil) as its tube has them: a skin copy shows where its arms' shares of it are, and nowhere else (spec 10.4) */
   setArmCopy(i: number, front: number, solid: number, veil: number): void;
   /** a skin blends only when one of its arms does (a fade zone): opaque otherwise, as the tubes are */
@@ -68,7 +70,7 @@ export const SKIN_BUILD_TAG = 'skin-build';
 export interface SkinBuildStats { rebuilds: number; lastMs: number; worstMs: number; lastNode: string }
 
 /** One arm as the per-frame handover reads it: its tube, the seam's place along it and in the figure. */
-interface ArmLink { /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[] }
+interface ArmLink { /** the arm is a growing one (a collateral or a shunt): it hands over its growth, not its presence */ grow: boolean; /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[] }
 /** One skin of the set. `draw` is null for a node that fell back at a rebuild (today's joins there): it stays listed so a later change of an arm tries it again. */
 interface Built {
   node: string; mesh: SkinMesh | null; draw: SkinDraw | null; arms: ArmLink[];
@@ -171,6 +173,8 @@ export class SkinSet {
   private readonly warned = new Set<string>();
   /** the nodes that fell back to today's method (named, once) */
   readonly fellBack: string[] = [];
+  /** the growing arms a skin could not take (`node:vessel`): they keep today's fork method (spec 10.6), named so a new one fails tests/skin-grow.test.ts until someone looks */
+  readonly dropped: string[] = [];
   /** the junctions of the phase built, as the inventory found them (a rebuild plans from these again) */
   private sources: SkinJunction[] = [];
   private step_ = 0;
@@ -216,7 +220,65 @@ export class SkinSet {
 
   /** Plans (cuts.ts) the junctions on the given tubes: one plan per skin, a named failure for a node that cannot be built. */
   private plan(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube>): ReturnType<typeof planSkins> {
-    return planSkins(js, tubes, () => (cs) => hullCovers(this.ringsFor(tubes, cs).pos));
+    // A set of cuts is good when the hull has every ring (spec 4.4.3) AND every ring is clear of the other arms as the skin DRAWS them (`clearOfAxes`)
+    return planSkins(js, tubes, (j) => (cs) => hullCovers(this.ringsFor(tubes, cs).pos) && this.clearOfAxes(j, tubes, cs));
+  }
+
+  /**
+   * Rule 4.4.1 on the arms the mesh and the ink are made from. cuts.ts judges the clearance on each arm's own ring centres, but the skin's fillet and its outline (skin/shaders.ts) use `axisOf`: the straight line through the seam's heading. They agree where an arm runs
+   * straight to its node and part where it bends on the way (a shunt that curves in), and then a seam ring stands inside the BLEND of another arm's drawn capsule, so the outline is a fraction of a pixel inside the tube's own where they meet: a kink at the seam
+   * (tests/skin-agreement.test.ts, the seam's ink). So the clearance is also judged on the drawn capsules: every vertex of a seam ring is at least the blend width `k` from every other arm's drawn capsule.
+   */
+  private clearOfAxes(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>, cuts: SkinCut[]): boolean {
+    const caps = j.arms.map((a, i) => capsuleOf(axisOf(tubes.get(a.vesselId)!, a.restR, cuts[i]!, j.J)));
+    const k = skinKOf(j.arms), { pos } = this.ringsFor(tubes, cuts);
+    for (let i = 0; i < j.arms.length; i++) for (let o = 0; o < j.arms.length; o++) {
+      if (o === i) continue;
+      for (let v = 0; v < TUBE_RADIAL; v++) if (sdArm(caps[o]!, pos[i]![3 * v]!, pos[i]![3 * v + 1]!, pos[i]![3 * v + 2]!) < k) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Plans AND makes the skins of the junctions, the way a junction with growing arms has to be (spec 10.6: what falls back is named, and a skin that was there before the collaterals landed on it must not be lost to them): a junction that cannot be planned or built with
+   * its growing arms loses its narrowest one and is tried again, down to none. The arms it loses keep today's fork method and are named in `droppedGrowers`; a junction that fails with none is `lost` (named, the node keeps today's joins). A merged skin that fails
+   * hands both its nodes back to be planned apart. Nothing is added to the scene here: the caller does that, so a rebuild can swap.
+   */
+  private produce(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube>): { made: Built[]; lost: { node: string; message: string }[] } {
+    const made: Built[] = [], lost: { node: string; message: string }[] = [];
+    let todo: SkinJunction[] = [...js];
+    for (let round = 0; todo.length && round <= SKIN_GROWERS + 1; round++) {
+      const { plans, failures } = this.plan(todo, tubes);
+      const again = new Map<string, string>();   // (node -> why: the junctions to try again with one growing arm fewer)
+      const bad: { nodes: readonly string[]; message: string }[] = failures.map((f) => ({ nodes: f.node.split('+'), message: f.message }));
+      for (const p of plans) {
+        try { const b = this.makeBuilt(p, tubes); if (b) made.push(b); }
+        catch (e) { bad.push({ nodes: p.merged ?? [p.junction.node], message: (e as Error).message }); }
+      }
+      const next: SkinJunction[] = [];
+      for (const f of bad) {
+        for (const n of f.nodes) {
+          const j = todo.find((x) => x.node === n);
+          if (!j || again.has(n)) continue;
+          const g = j.arms.filter((a) => a.grow);
+          if (!g.length) {
+            // a merged skin that failed: this node has nothing to drop, but its partner's growing arm goes (with fewer than three arms the partner is no junction), so the merge goes too and this node is planned again alone: the cava's IVCS and the run-on RHV_T the TIPS lands on
+            if (f.nodes.length > 1 && f.nodes.some((m) => m !== n && todo.find((x) => x.node === m)?.arms.some((a) => a.grow))) { again.set(n, f.message); next.push(j); continue; }
+            lost.push({ node: f.nodes.join('+'), message: f.message }); continue;
+          }
+          const drop = g[g.length - 1]!, arms = j.arms.filter((a) => a !== drop);
+          this.dropped.push(`${n}:${drop.vesselId}`);
+          again.set(n, f.message);
+          if (arms.length >= MIN_ARMS) next.push({ ...j, arms });   // (a run-on pair with its collateral gone is no junction: it never had a skin, so it is not a fall back, only a dropped arm)
+        }
+      }
+      // (a merged skin that failed hands both its nodes back: the one without growers is planned again too, as it was)
+      for (const f of bad) for (const n of f.nodes) { const j = todo.find((x) => x.node === n); if (j && !again.has(n) && !lost.some((l) => l.node.split('+').includes(n)) && !next.some((x) => x.node === n)) next.push(j); }
+      // a node of this round whose skin was made is not planned again
+      todo = next.filter((j) => !made.some((m) => m.sources.includes(j.node)));
+    }
+    for (const j of todo) lost.push({ node: j.node, message: `skin: junction ${j.node}: no skin after ${SKIN_GROWERS + 1} rounds of dropping growing arms` });
+    return { made, lost };
   }
 
   /** The skin of one plan, made but not yet in the scene: its mesh, its drawing object and the handover links. Throws a SkinBuildError (or any error) the caller turns into a fallback. Null: an arm's vessel is not in this scene. */
@@ -235,7 +297,7 @@ export class SkinSet {
       const cut = plan.cuts[i]!, ring = pos[i]!;
       let x = 0, y = 0;
       for (let v = 0; v < TUBE_RADIAL; v++) { x += ring[v * 3]!; y += ring[v * 3 + 1]!; }
-      return { vi: cut.ring * (TUBE_RADIAL + 1), obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [], cp: [NaN, NaN, NaN] };
+      return { grow: !!a.grow && mesh.grow.some((m) => m.arm === i), vi: cut.ring * (TUBE_RADIAL + 1), obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [], cp: [NaN, NaN, NaN] };
     });
     const sources = plan.merged ?? [j.node];
     const vessels = new Set<string>(this.sources.filter((s) => sources.includes(s.node)).flatMap((s) => s.arms.map((a) => a.vesselId)));
@@ -306,7 +368,11 @@ export class SkinSet {
   build(phase: 1 | 2): void {
     this.clear();
     const nodes = skinNodesForPhase(phase);
-    const all = findSkinJunctions().filter((j) => nodes.has(j.node));
+    // phase 2 also builds every node a collateral or a shunt lands on (spec 10.2); phase 1 (the confluence alone) has none of them
+    const all: SkinJunction[] = findSkinJunctions().filter((j) => nodes.has(j.node) || (phase === 2 && j.arms.some((a) => a.grow))).map((j) => (phase === 1 ? withoutGrowers(j) : j)).filter((j): j is SkinJunction => !!j);
+    // a collateral or shunt whose end lies farther from J than SKIN_REACH is on a host's side, not at the node: it is left out of the skin (named in `dropped`), and never takes the node's skin with it
+    const near = all.map((j) => { const d = dropFarGrowers(j); for (const id of d.far) this.dropped.push(`${j.node}:${id}`); return d.junction; }).filter((j) => j.arms.length >= MIN_ARMS);
+    all.length = 0; all.push(...near);
     const far = new Set(nodesBeyondReach(all));   // (the art's own spacing, not a junction: the old join stays, named in `fellBack` and not warned)
     for (const n of far) if (!this.fellBack.includes(n)) this.fellBack.push(n);
     const js = all.filter((j) => !far.has(j.node));
@@ -314,18 +380,14 @@ export class SkinSet {
     if (!js.length) return;
     const tubes = this.tubesOf(js);
     const warn = this.deps.warn ?? ((m: string) => console.warn(m));
-    const { plans, failures } = this.plan(js, tubes);
-    for (const f of failures) { this.fail(f.node, f.message, warn); this.built.push(this.lost(f.node)); }
+    const { made, lost } = this.produce(js, tubes);
+    for (const f of lost) { this.fail(f.node, f.message, warn); this.built.push(this.lost(f.node)); }
     const touched = new Set<string>();
-    for (const plan of plans) {
-      try {
-        const b = this.makeBuilt(plan, tubes);
-        if (!b) continue;
-        this.deps.add(b.draw!.object);
-        this.built.push(b);
-        // the tubes: cut at their seams, both ends of a vessel that two skins share in ONE cut (the second never overwrites the first); a vessel a merged skin replaces whole is hidden (2, -1)
-        for (const id of this.takeCuts(b)) touched.add(id);
-      } catch (e) { this.fail(plan.junction.node, (e as Error).message, warn); this.built.push(this.lost(plan.junction.node)); }   // (never crashes the scene: this node keeps today's joins)
+    for (const b of made) {
+      this.deps.add(b.draw!.object);
+      this.built.push(b);
+      // the tubes: cut at their seams, both ends of a vessel that two skins share in ONE cut (the second never overwrites the first); a vessel a merged skin replaces whole is hidden (2, -1)
+      for (const id of this.takeCuts(b)) touched.add(id);
     }
     for (const id of touched) { const c = this.cuts.get(id) ?? SKIN_CUT_NONE; this.deps.vessel(id)?.setSkinCut(c[0], c[1]); this.putHoles(id); }
     for (const t of tubes.values()) t.geometry.dispose();
@@ -371,11 +433,11 @@ export class SkinSet {
     const warn = this.deps.warn ?? ((m: string) => console.warn(m));
     let nb: Built | null = null;
     try {
-      const { plans, failures } = this.plan(js, tubes);
-      if (failures.length) throw failures[0]!;
-      const plan = plans.find((p) => p.junction.node === b.node);
-      if (!plan) throw new Error(`skin ${b.node}: the rebuild planned ${plans.map((p) => p.junction.node).join(', ') || 'nothing'}`);
-      nb = this.makeBuilt(plan, tubes);
+      const { made, lost } = this.produce(js, tubes);
+      if (lost.length) throw new Error(lost[0]!.message);
+      nb = made.find((m) => m.node === b.node) ?? null;
+      for (const m of made) if (m !== nb) { m.draw?.dispose(); }   // (a skin the rebuild made for a node it was not asked about is not used)
+      if (!nb) throw new Error(`skin ${b.node}: the rebuild made ${made.map((m) => m.node).join(', ') || 'nothing'}`);
     } catch (e) { this.fail(b.node, (e as Error).message, warn); }
     for (const t of tubes.values()) t.geometry.dispose();
     const was = !!b.draw;
@@ -424,6 +486,7 @@ export class SkinSet {
     for (const b of this.built) if (b.draw) { this.deps.remove(b.draw.object); b.draw.dispose(); }
     this.built = [];
     this.fellBack.length = 0;
+    this.dropped.length = 0;
   }
 
   dispose(): void { this.clear(); }
@@ -445,7 +508,12 @@ export class SkinSet {
         }
         // the arm's presence: the skin is there as much as its tube is (visible, drawn on, dissolved)
         const pr = armPresenceAt(a.obj.group.visible, u.reveal!.value as number, u.fade!.value as number, a.u);
-        if (a.last[10] !== pr) { a.last[10] = pr; b.draw.setPres(i, pr); any = true; }
+        if (a.grow) {
+          // a GROWING arm is not dithered away (that would punch holes in the trunk where its mouth was): its draw-on is the skin's own shape, eased between the closed and the open one (spec 10.2). A dotted thread (a closed potential collateral) counts as 0:
+          // its tube is not cut, and the trunk is a plain trunk
+          const gv = (u.dotted!.value as number) > 0.5 ? 0 : pr;
+          if (a.last[11] !== gv) { a.last[11] = gv; b.draw.setGrow?.(i, gv); any = true; }
+        } else if (a.last[10] !== pr) { a.last[10] = pr; b.draw.setPres(i, pr); any = true; }
         // the arm's flow marks ride on its arc (armArcOf: the tube's own u x len x figure units) and its tube's flowAmount
         const ln = u.len!.value as number, rd = u.radius!.value as number, fl = u.flowAmount!.value as number;
         if (a.last[8] !== ln || a.last[9] !== fl) {

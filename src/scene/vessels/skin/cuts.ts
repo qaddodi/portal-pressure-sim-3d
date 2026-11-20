@@ -2,7 +2,7 @@
 // Pure geometry on the tubes `buildTubes` made; no scene objects. The hull rule (4.4 rule 3) is WP2's, called back through `hullOk`.
 import type { BufferGeometry } from 'three';
 import { TUBE_RADIAL } from '../tubes.ts';
-import { SkinBuildError, type SkinArm, type SkinCut, type SkinJunction, type Vec3 } from './types.ts';
+import { SKIN_GROWERS, SkinBuildError, type SkinArm, type SkinCut, type SkinJunction, type Vec3 } from './types.ts';
 
 /** The tube vertices of one arm: its merged geometry (`buildTubes`, the vessel's own course first, so ring k's vertex j is position index `k * (RADIAL + 1) + j`) and the course's `tubular` segment count. */
 export interface ArmTube { geometry: BufferGeometry; tubular: number }
@@ -128,6 +128,9 @@ export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>,
 // ---- two skins on one vessel (spec 4.4 rule 1c) ----
 /** The least tube rings that must stay between the two cuts of a vessel that is an arm at both of its nodes (PV_TRUNK_1: CONF at its start, PVT_L at its end). */
 export const MIN_RINGS_BETWEEN = 2;
+/** The most permanent arms a merged skin has (spec 4.4.1c: 3 or 4, 5 for the cava), and the most of all: its growing arms ride along (spec 10.2), the six arms of the foundation. */
+export const MERGED_MAX_PERMANENT = 5;   // (5 since the side-wall IVCS: its five arms and the run-on RHV_T beside it are one skin, spec 10.1)
+export const MERGED_MAX_ARMS = 6;
 /** The ids of a merged skin's two nodes joined, e.g. `CONF+PVT_L`. */
 export const mergedNode = (a: string, b: string): string => `${a}+${b}`;
 
@@ -166,9 +169,12 @@ export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string
         // two skins would crowd or cross on this vessel: one skin for both nodes
         merged = true; done.add(a); done.add(b);
         const A = js[a]!, B = js[b]!;
-        const arms = [...A.arms, ...B.arms].filter((m) => m.vesselId !== ca.vesselId).sort((x, y) => y.restR - x.restR);
+        // the growing arms of both nodes ride along, but a skin morphs at most SKIN_GROWERS of them: the widest stay, the rest keep today's fork method (spec 10.2)
+        const rest = [...A.arms, ...B.arms].filter((m) => m.vesselId !== ca.vesselId);
+        const arms = [...rest.filter((m) => !m.grow).sort((x, y) => y.restR - x.restR), ...rest.filter((m) => m.grow).sort((x, y) => y.restR - x.restR).slice(0, SKIN_GROWERS)];
         const node = mergedNode(A.node, B.node);
-        if (arms.length > 4 || arms.length < 3) { failures.push(new SkinBuildError(node, `${arms.length} arms after the merge (3 or 4 allowed)`)); break; }
+        const permanent = arms.filter((m) => !m.grow).length;
+        if (permanent > MERGED_MAX_PERMANENT || permanent < 3 || arms.length > MERGED_MAX_ARMS) { failures.push(new SkinBuildError(node, `${permanent} permanent arms and ${arms.length - permanent} growing ones after the merge (3 to ${MERGED_MAX_PERMANENT} permanent, at most ${MERGED_MAX_ARMS} in all)`)); break; }
         const J: Vec3 = [(A.J[0] + B.J[0]) / 2, (A.J[1] + B.J[1]) / 2, (A.J[2] + B.J[2]) / 2];
         const mj: SkinJunction = { node, J, arms };
         try { out.push({ junction: mj, cuts: chooseCuts(mj, tubes, hullFor(mj)), hidden: [ca.vesselId], merged: [A.node, B.node] }); }
