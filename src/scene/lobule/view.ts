@@ -60,6 +60,8 @@ const CONG_Z3 = { s0: 0, s1: 0.4, s2: 0.95, an: 0.3 } as const;
 
 /** A disc's half thickness (an end-on vessel is a flat disc on the plate) and how far under its sinusoid the space of Disse's band lies. */
 const DISC_T = 0.008, DISSE_DZ = 0.03;
+/** A disc's sides: the rim is a polygon of this many, its sag from the true circle 0.0005 of the radius (0.3 px on a 600 px vein; at 48 it was twice that and showed as facets at 6x). */
+export const DISC_RADIAL = 96;
 /** Outline widths (CSS px). 2D's rule is clamp(0.14 × radius, 1.5, 3) device px: on these thin tubes about half a CSS px on a phone. */
 const INK = { sin: 0.55, thin: 0.45, inlet: 0.65, disc: 0.75 } as const;
 
@@ -248,7 +250,7 @@ export class LobuleView {
     // column standing out of it (the hexagonal prism of IMG_5637). Its face looks at the camera, so it is one flat tone inside its outline.
     const axial = (cs: Course[], radius: number) => {
       const b = new Batch();
-      for (const c of cs) { const p = c.pts[Math.floor(c.pts.length / 2)]!; b.tube([p3(p, -DISC_T), p3(p, DISC_T)], { radius, radial: 48, capped: true, disc: true, uvx: () => 0 }); }
+      for (const c of cs) { const p = c.pts[Math.floor(c.pts.length / 2)]!; b.tube([p3(p, -DISC_T), p3(p, DISC_T)], { radius, radial: DISC_RADIAL, capped: true, disc: true, uvx: () => 0 }); }
       return b;
     };
     const sinR = (c: Course) => (i: number) => sinRadius(c.kind as 's0' | 's1' | 's2' | 'an', c.rho[i]!) * R;

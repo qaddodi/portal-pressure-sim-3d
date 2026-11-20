@@ -9,6 +9,8 @@ import { CEL } from '../src/scene/vessels/cel-ink.ts';
 import { DISC_GLSL, DISC_EDGE } from '../src/scene/lobule/from2d/disc-glsl.generated.js';
 import { binOpen } from '../src/scene/lobule/from2d/lobule-mouths.generated.js';
 import { DISC_R } from '../src/scene/lobule/widths.ts';
+import { Batch } from '../src/scene/lobule/batch.ts';
+import { DISC_RADIAL } from '../src/scene/lobule/view.ts';
 
 interface Priv { discInfo: Map<string, { geo: { getAttribute(n: string): { count: number; getX(i: number): number; getY(i: number): number; getZ(i: number): number } | undefined }; discs: { site: { list: { ang: number }[] } | null; start: number; count: number }[] }> }
 const open = (g: Priv['discInfo'] extends Map<string, infer I> ? I : never, k: number) => {
@@ -79,4 +81,31 @@ test('the discs\' radii follow the state as 2D\'s radiusAt does', () => {
   assert.ok(Math.abs(k('pv') - 1 / 1.35) < 1e-9);
   assert.ok(Math.abs(k('ha') - 2 ** 0.3) < 1e-9);
   assert.equal(DISC_R.cv, 0.07);
+});
+
+test('a disc is a smooth circle: its radius and direction come from the unit-disc position, never from fwidth\'s per-triangle slope', () => {
+  for (const f of [LOBULE_TOON_FS, LOBULE_INK_FS]) assert.ok(!/fwidth\s*\(\s*vDisc/.test(f), 'no radius worked out from a derivative of the fan\'s own ramp (|dx|+|dy| is 1 to 1.41 times the slope by direction: a faceted, star-shaped vein)');
+  assert.match(LOBULE_TOON_FS, /float Dd = \(length\(vDiscP\) - 1\.0\) \* Rpx;/, 'the distance to the rim is length() of the unit-disc position');
+  assert.match(LOBULE_TOON_FS, /float Rpx = vRdev \* discK;/, 'the radius in device pixels is the camera\'s, scaled by how much of its radius the disc has');
+  assert.match(LOBULE_TOON_FS, /ringOpen\(vMouth, vDiscP\)/);
+  assert.match(LOBULE_INK_FS, /ringOpen\(vMouth, vDiscP\)/);
+  for (const v of [LOBULE_TOON_VS, LOBULE_INK_VS]) assert.match(v, /vDiscP = disc\.x >= 0\.0 \? disc\.x \* disc\.yz : disc\.yz;/);
+});
+
+test('a disc\'s cap carries the plane position over its radius: 0 at the centre, a unit vector at every rim vertex, so the fan interpolates the true circle', () => {
+  assert.ok(DISC_RADIAL >= 96, 'a rim of at least 96 sides');
+  const b = new Batch();
+  b.tube([[0.3, -0.2, -0.01], [0.3, -0.2, 0.01]], { radius: 0.07, radial: DISC_RADIAL, capped: true, disc: true, uvx: () => 0 });
+  const g = b.build(), p = g.getAttribute('position'), d = g.getAttribute('disc');
+  let centres = 0, rims = 0;
+  for (let i = 0; i < d.count; i++) {
+    if (d.getX(i) < 0) continue;   // (the wall: no cap tone)
+    const q = d.getX(i) * Math.hypot(d.getY(i), d.getZ(i));
+    if (d.getX(i) === 0) { assert.equal(q, 0); centres++; continue; }
+    assert.ok(Math.abs(q - 1) < 1e-6, 'a unit vector at the rim'); rims++;
+    // and it is the vertex's own direction from the centre, y down
+    const dx = (p.getX(i) - 0.3) / 0.07, dy = -(p.getY(i) + 0.2) / 0.07;
+    assert.ok(Math.hypot(dx - d.getY(i), dy - d.getZ(i)) < 1e-4, 'its direction from the centre');
+  }
+  assert.equal(centres, 2); assert.equal(rims, 2 * (DISC_RADIAL + 1));
 });
