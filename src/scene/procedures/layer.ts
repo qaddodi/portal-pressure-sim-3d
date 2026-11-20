@@ -244,6 +244,8 @@ export class ProcedureLayer {
     this.dirty = true;
   }
 
+  /** A procedure is on the figure: a run or a driven step is going, or a catheter stands out (the deck's HVPG states, a held last frame). The flow marks are quiet while it is. */
+  get busy(): boolean { return !!this.run || !!this.step || !!this.held || (!!this.shown && this.frame.u > 0.001); }
   get playing(): { kind: string; t: number } | null { return this.run ? { kind: this.run.kind, t: this.run.t } : this.step ? { kind: this.step.kind, t: this.step.clk.t } : null; }
 
   /** Start a procedure that goes where it is told, a stop at a time (aimAt): it stands at `from` until then. Replaces a run on the figure. */
@@ -291,6 +293,8 @@ export class ProcedureLayer {
   get isRexUnder(): boolean { return this.rexUnder; }
 
   /** The tip's scene position now, for tags and the camera (null with no catheter out). */
+  /** The wedge's amber tint on the vessels (ProcCatheter.wedgeTint), or null. */
+  wedgeTint() { return this.shown ? this.shown.wedgeTint() : null; }
   tipPosition(out: Vector3): Vector3 | null { return this.shown && this.frame.u > 0.001 ? this.shown.tipAt(this.frame.u, out) : null; }
 
   /** The point a little ahead of the tip along the route (where a wedged reading's card points), null with no catheter out. */

@@ -217,7 +217,7 @@ export class SinusoidView {
     // (the traffic runs at trafficSpeed: the 3D scene asks for a little more pace, Mohammad 20 Nov 2026 "a little faster")
     const tsec = sec * this.trafficSpeed;
     this.traffic.setDt(run ? tsec : 0);
-    if (run) { this.traffic.stepMovers(tsec); moving = true; }
+    if (run) { this.traffic.stepMovers(tsec); this.lifeT += tsec; moving = true; }
     this.spriteCount = this.traffic.sprites();
     return moving;
   }
@@ -258,6 +258,9 @@ export class SinusoidView {
   get state(): Readonly<Cur> { return this.cur; }
   /** How far the blood has run (µm, the traffic's clock: the streaks ride it). */
   get flowRun(): number { return this.traffic.flowX; }
+  /** The cells' own slow life (seconds, run at the traffic's pace: it eases to a stop with pause and stands still with reduced motion): the Kupffer cell's arms and the microvilli sway on it. */
+  get lifeTime(): number { return this.lifeT; }
+  private lifeT = 0;
   /** The albumin out now: x, y (µm, y down), radius, alpha, kind for each of `spriteCount`. */
   get albumin(): Float32Array { return this.traffic.pts; }
   /** The palette for a scheme (2D's sinusoid tokens for the look). */

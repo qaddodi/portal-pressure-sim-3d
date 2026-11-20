@@ -181,3 +181,30 @@ test('the wedge\'s wash (HVPG slide 5) is drawn on the 3D lobule\'s sinusoids an
   assert.ok(wash().x < 1e-3, 'and is gone');
   assert.ok((m3 as unknown as { mouthCv: { mats: { toon: { uniforms: Record<string, { value: { x: number } }> } } } }).mouthCv.mats.toon.uniforms.uWash!.value.x < 1e-3);
 });
+
+test('SOS: a faded scar fills in the central vein from its wall, with collagen strands across it, growing with fibPost as 2D grows its plug (Mohammad 20 Nov)', async () => {
+  const { buildCvScar, cvScarGrowth, CV_FILL, CV_SCAR_ALPHA } = await import('../src/scene/micro3d/lobule3d.ts');
+  const { BufferGeometry } = await import('three');
+  assert.equal(CV_FILL, 0.55, '2D CV_FILL');
+  assert.ok(CV_SCAR_ALPHA > 0.3 && CV_SCAR_ALPHA < 0.85, 'faded: see-through, never a solid lid');
+  assert.equal(cvScarGrowth(0), 0); assert.ok(Math.abs(cvScarGrowth(1) - 1) < 1e-9);
+  const g0 = new BufferGeometry(), g1 = new BufferGeometry();
+  buildCvScar(g0, 0.21, 0.1, 0.03); buildCvScar(g1, 0.21, 1, 0.03);
+  const n = (g: InstanceType<typeof BufferGeometry>) => g.getAttribute('position')!.count;
+  assert.ok(n(g1) > n(g0), 'more strands as it grows');
+  const pos = g1.getAttribute('position')!;
+  let rMin = 9, rMax = 0;
+  for (let i = 0; i < pos.count; i++) { const r = Math.hypot(pos.getX(i), pos.getY(i)); rMin = Math.min(rMin, r); rMax = Math.max(rMax, r); }
+  assert.ok(rMax <= 0.21, 'inside the vein');
+  assert.ok(rMin < 0.21 * (1 - CV_FILL), 'strands cross the open lumen');
+});
+
+test('the sinusoids end in the central vein\'s pool as one surface: nothing of them is drawn inside its rim (Mohammad 20 Nov: "shadows inside the central vein")', async () => {
+  const { CV_HOLE_K } = await import('../src/scene/micro3d/lobule3d.ts');
+  assert.ok(CV_HOLE_K > 0.85 && CV_HOLE_K < 1);
+  flat.setVisible?.(true);
+  l3.update(true, 0, 1000, 1);
+  const s2 = l3.partsForTest.find((p) => p.toonMesh.name === 'lobule3d/sinusoids-2')!;
+  const h = (s2.mats.toon.uniforms.uHole!.value as number);
+  assert.ok(Math.abs(h - (flat as unknown as { cvRadiusNow: number }).cvRadiusNow * LOBULE_R * CV_HOLE_K) < 1e-9, `the hole follows the vein's radius now (${h})`);
+});

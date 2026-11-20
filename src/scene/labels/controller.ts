@@ -50,6 +50,8 @@ export interface LabelDeps {
   cathere(tip: Vector3, ahead: Vector3): 0 | 1 | 2;
   /** The body's labels stand aside while the figure is the Circuit (or on its way there): the map has its own captions (circuit/CircuitCaptions.tsx). */
   hidden?(): boolean;
+  /** The Anatomy is the figure (the catheter and its reading cards live on the body: a hepatic vein is not in the Lobule, the Sinusoid or the Circuit). Absent: always. */
+  anatomy?(): boolean;
   /** Whether the varices (VAR) or the fundal varices (GV) exist now, as 2D's hasVarices answers it: no varices, no callout (a healthy patient's node is only the balance between
    *  the coronary vein and the azygos, and a "varices" label on it would mislead), and the fundus label comes in with its varices. Absent: the old behaviour (VAR always, GV never). */
   present?(id: 'VAR' | 'GV'): boolean;
@@ -82,6 +84,8 @@ export interface LabelState {
   organNames: boolean;
   /** a procedure asks the figure's names to stand aside while it works (2D `quiet`) */
   quiet: boolean;
+  /** a centred panel stands over the figure: the names stand aside */
+  panel?: boolean;
   /** a procedure's own reading cards (the EUS-PPG's) in place of the catheter's */
   proc: ProcCards | null;
   /** The lens whose colour key the slide shows on the figure (names.copied.ts LENS_KEY), or null for none. */
@@ -204,6 +208,7 @@ export class LabelController {
     // Under the HVPG catheter the figure's names are hidden: "the HVPG catheter's readings stand alone, so it hides them" (stage.js setCatheter, `cath-on`; a
     // treatment keeps them). They fade out as the catheter comes in and back as it goes.
     if (HIDE_UNDER_CATHETER && (st.cath || st.quiet)) return list;
+    if (st.panel) return list;
     const picked = st.picked ? STATIONS.find((s) => s.vessel === st.picked)?.id ?? null : null;
     for (const s of STATIONS) {
       if (s.kind === 'organ') { if (st.organNames) list.push(this.metaOf(s)); continue; }
@@ -305,13 +310,16 @@ export class LabelController {
     this.dock = this.keyDock();
     const keyBox = this.dock?.box ?? null;
     if (keyBox) blockers.push(keyBox);
-    const cathSig = this.state.cath || this.state.proc ? `${this.state.proc?.sig ?? ''}|${this.cGot}|${this.cTipPx ? Math.round(this.cTipPx[0]) + ',' + Math.round(this.cTipPx[1]) : '-'}|${this.cAheadPx ? Math.round(this.cAheadPx[0]) + ',' + Math.round(this.cAheadPx[1]) : '-'}` : '';
+    // a card stands only where what it points at exists: in the Anatomy. In another view it eases out (the cards' own 240 ms) instead of being clamped to the screen's edge
+    const here = d.anatomy ? d.anatomy() : true;
+    const cathNow = here ? this.state.cath : null, procNow = here ? this.state.proc : null;
+    const cathSig = (here ? '' : 'away|') + (this.state.cath || this.state.proc ? `${this.state.proc?.sig ?? ''}|${this.cGot}|${this.cTipPx ? Math.round(this.cTipPx[0]) + ',' + Math.round(this.cTipPx[1]) : '-'}|${this.cAheadPx ? Math.round(this.cAheadPx[0]) + ',' + Math.round(this.cAheadPx[1]) : '-'}` : '');
     const sig = cathSig + '|' + (keyBox ? boxKey(keyBox) : '-') + '|' + setSig + '|' + boxKey(view) + '|' + blockers.map(boxKey).join(';') + '|' + [...this.state.named].sort().join(',') + [...this.state.shown].sort().join(',') + this.state.cath + (this.state.proc?.sig ?? '');
     if (!hold && resting && (this.dirty || sig !== this.sig)) {
       this.sig = sig; this.dirty = false;
       this.metas = next;
       // the catheter's cards stand first (cath.ts: the 2D app's own placing, clear of the cards and the key); the stations keep clear of them
-      this.show.solve({ vp: d.vp(), cath: this.state.cath, measure: d.measure, band: this.cathBand(view), blockers, tip: this.cTipPx, ahead: this.cAheadPx, got: this.cGot, text: this.cathText(), ...(this.state.proc ? { kinds: this.state.proc.kinds, kickers: this.state.proc.kickers, tones: this.state.proc.tones } : {}) });
+      this.show.solve({ vp: d.vp(), cath: cathNow, measure: d.measure, band: this.cathBand(view), blockers, tip: this.cTipPx, ahead: this.cAheadPx, got: this.cGot, text: this.cathText(), ...(procNow ? { kinds: procNow.kinds, kickers: procNow.kickers, tones: procNow.tones } : {}) });
       this.solveNow(metas, view, [...blockers, ...this.show.boxes]);
       if (keyBox) this.wants.set('key', { p: { id: 'key', form: 0, dx: keyBox.x0, dy: keyBox.y0, w: keyBox.x1 - keyBox.x0, h: keyBox.y1 - keyBox.y0, leader: false, au: 0.5 }, dim: false });
     }

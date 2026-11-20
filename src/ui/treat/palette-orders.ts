@@ -55,7 +55,7 @@ const NAMES = table(NO_ENV);
 /** The work behind a command of the Change or Treat group, or null when it is not one of the orders. */
 export function commandWork(env: Env, group: string, title: string): Work | null { return table(env).get(`${group}/${title}`)?.work ?? null; }
 /** Whether the search offers a command now (a take-down only for what is in place). */
-export function commandOffered(group: string, title: string): boolean { const c = NAMES.get(`${group}/${title}`); if (!c) return true; const p = currentParams(); return !!p && c.when(p); }
+export function commandOffered(group: string, title: string): boolean { const c = NAMES.get(`${group}/${title}`); return !c || c.when(currentParams()); }  // (the take-downs read `P?.`, so no patient offers none of them)
 /** Whether a command of the Change or Treat group does its 2D work here (for the parity claims). */
 export const isOrderCommand = (group: string, title: string): boolean => NAMES.has(`${group}/${title}`);
 export const ORDER_WORDS = TREAT_WORDS;

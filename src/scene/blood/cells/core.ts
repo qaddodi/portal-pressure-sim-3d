@@ -256,9 +256,11 @@ export interface CellsContext {
   /** the viewer asked for less motion: the cells are not drawn at all (a still scatter of dots would read as noise, and the chevrons already show the direction) */
   reduceMotion: boolean;
   view: 'body' | 'circuit' | 'lobule' | 'sinusoid';
+  /** a procedure is on the figure: no streaks while it runs */
+  quiet?: boolean;
 }
 /** Whether the layer wants to be showing: on, motion allowed, and the body is the view (the Circuit, the lobule and the sinusoid have their own blood). */
-export const cellsWanted = (c: CellsContext): boolean => c.on && !c.reduceMotion && c.view === 'body';
+export const cellsWanted = (c: CellsContext): boolean => c.on && !c.reduceMotion && c.view === 'body' && !c.quiet;
 
 /** Eases `amount` toward `goal` (0 or 1) over `ms`. */
 export function easeAmount(amount: number, goal: number, dtMs: number, ms = 240): number {

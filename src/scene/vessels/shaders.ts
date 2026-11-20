@@ -253,6 +253,8 @@ uniform float casingCircA;  // and in the Circuit (2D .stage-wrap.cmap), by circ
 uniform vec3 inkColorCirc;
 uniform float circT;
 uniform vec2 circCap;       // the Circuit rounds this vessel's start / end (1): the ends nothing joins
+uniform vec4 wedge;       // the wedged vein's static column as a tint on the vessels themselves: x how much, y the share of the course (u) it reaches up to (2 = all of it), z how far the fade to the branch tip runs, w how much of it fades
+uniform vec3 wedgeCol;
 uniform float quietK;       // quiet depth on a turn (camera/quiet.ts): the back tier eases toward the page by QUIET_BACK of this, 0 face on
 uniform vec3 pageCol;       // the plate colour it eases toward
 uniform vec4 rimInk;        // (kept for the palette's API: no light rim is drawn)
@@ -531,6 +533,12 @@ void main() {
     }
     c = mix(c, vec3(0.227, 0.114, 0.039), te * 0.4 * stump.z);
     c = mix(c, vec3(0.910, 0.455, 0.165), tw * stump.z);
+  }
+  // the amber column of the wedge: everything upstream of the balloon in that vein and its branches, a tint on the tube itself that thins toward each branch's tip
+  if (wedge.x > 0.001 && circT < 0.001) {
+    float wa = wedge.x * (1.0 - smoothstep(wedge.y - 0.08, wedge.y, vUv.x));
+    wa *= mix(1.0, smoothstep(0.0, max(wedge.z, 0.001), vUv.x), wedge.w);
+    c = mix(c, wedgeCol, 0.6 * wa);
   }
   gl_FragColor = vec4(c, vFade);
 }`;

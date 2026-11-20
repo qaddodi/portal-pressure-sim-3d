@@ -299,3 +299,29 @@ test('neighbouring hepatocytes touch, with only a round gap round the canaliculu
   assert.ok(xm > xr - 2 && CANAL_R < CANAL_HOLE, 'the canaliculus sits inside the round gap');
   void H;
 });
+
+test('the Kupffer cell\'s arms and the microvilli move slowly on the scene\'s life, and stand still when it stops (Mohammad 20 Nov: "animate its podocytes ... microvilli very slowly")', async () => {
+  const { KUP_SWAY, VILLUS_SWAY } = await import('../src/scene/micro3d/sinusoid3d.ts');
+  assert.ok(KUP_SWAY > 0 && KUP_SWAY < 0.3 && VILLUS_SWAY > 0 && VILLUS_SWAY < 0.15, 'a small reach, never a pulse');
+  const { flat, s3 } = scene(); s3.update(true);
+  const kup = meshes(s3.group).find((o) => o.name === 'sinusoid3d/kupffer')!;
+  const snap = () => Array.from((kup.geometry.getAttribute('position')!.array as Float32Array).slice(0, 4000));
+  const t0 = flat.lifeTime, a = snap();
+  s3.update(true); assert.deepEqual(snap(), a, 'no change while the life stands still');
+  flat.update(1016 + 2000); s3.update(true);
+  assert.ok(flat.lifeTime > t0, 'the life runs with the traffic');
+  const b = snap(); let d = 0; for (let i = 0; i < a.length; i++) d = Math.max(d, Math.abs(a[i]! - b[i]!));
+  assert.ok(d > 1e-4 && d < 1.5, `the arms moved a little (${d.toFixed(3)} µm)`);
+  const src = (await import('node:fs')).readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
+  assert.match(src, /this\.kup\.setInk\(deep\(P\.cKup/, 'the Kupffer cell is outlined in its own colour, darker');
+});
+
+test('the Kupffer cell is smaller and see-through, its line never showing through its body (Mohammad 20 Nov: "a bit transparent translucent and smaller")', async () => {
+  const { KUP_SCALE, KUP_ALPHA } = await import('../src/scene/micro3d/sinusoid3d.ts');
+  assert.ok(KUP_SCALE < 0.85 && KUP_SCALE > 0.5 && KUP_ALPHA < 0.85 && KUP_ALPHA > 0.5);
+  const { s3 } = scene(); s3.update(true);
+  const ms = meshes(s3.group), body = ms.find((o) => o.name === 'sinusoid3d/kupffer')!, ink = ms.find((o) => o.name === 'sinusoid3d/kupffer/ink')!;
+  const m = body.material as unknown as { transparent: boolean; depthWrite: boolean; premultipliedAlpha: boolean };
+  assert.ok(m.transparent && m.depthWrite && m.premultipliedAlpha, 'blends, but still hides what lies behind it');
+  assert.ok(body.renderOrder < ink.renderOrder, 'the body draws before its line');
+});

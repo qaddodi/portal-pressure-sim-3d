@@ -65,6 +65,12 @@ export class DeviceObject extends CelObject {
     this.toon.uniforms.tailFade = this.ink.uniforms.tailFade = { value: 0 };
     this.toon.fragmentShader = TAIL_GLSL + withAlpha(this.toon.fragmentShader, 'gl_FragColor = vec4(c, alpha);', 'gl_FragColor = vec4(c, alpha * tailK(vUv.x));');
     this.ink.fragmentShader = TAIL_GLSL + withAlpha(this.ink.fragmentShader, ' * alpha', ' * alpha * tailK(vU)');
+    // A clear device (a balloon) is glass: its fill is faint in the middle and firmer toward the rim (rimFill), and its ink is the rim only (rimOnly, the width of the rim as n.v): drawn whole, the ink's far wall
+    // showed through the faint fill as a solid dark barrel (20 Nov 2026, "the balloon is black").
+    this.toon.uniforms.rimFill = { value: 0 }; this.ink.uniforms.rimOnly = { value: 0 };
+    this.toon.fragmentShader = 'uniform float rimFill;\n' + withAlpha(this.toon.fragmentShader, 'gl_FragColor = vec4(c, alpha * tailK(vUv.x));', 'float fr = 1.0 - abs(dot(normalize(vN), normalize(vV)));\n  float alpha = clamp(alpha * (1.0 + rimFill * fr * fr * 6.0), 0.0, 1.0);\n  gl_FragColor = vec4(c, alpha * tailK(vUv.x));');
+    this.ink.vertexShader = 'varying float vRim;\n' + withAlpha(this.ink.vertexShader, '  vU = uv.x;', '  vU = uv.x;\n  { vec4 q = modelViewMatrix * vec4(p, 1.0); vRim = abs(dot(normalize(normalMatrix * normal), normalize(-q.xyz))); }');
+    this.ink.fragmentShader = 'varying float vRim;\nuniform float rimOnly;\n' + withAlpha(this.ink.fragmentShader, ' * alpha * tailK(vU)', ' * alpha * tailK(vU) * (rimOnly > 0.0 ? 1.0 - smoothstep(0.0, rimOnly, vRim) : 1.0)');
     this.toon.uniforms.res = shared.res; this.toon.uniforms.fatPx = { value: FAT_PX }; this.ink.uniforms.fatPx = { value: FAT_PX };
     this.toon.vertexShader = 'uniform vec2 res;\nuniform float fatPx;\n' + withAlpha(this.toon.vertexShader, 'gl_Position = projectionMatrix * mv;', FAT_TOON);
     this.ink.vertexShader = 'uniform float fatPx;\n' + withAlpha(this.ink.vertexShader, '(px + hiPx * vHi)', '(px + fatPx + hiPx * vHi)');
@@ -92,6 +98,9 @@ export class DeviceObject extends CelObject {
     (this.toon.uniforms.shade!.value as Color).copy(base).multiplyScalar(p.shade).lerp(ink, 0.08);
     (this.ink.uniforms.color!.value as Color).copy(ink);
   }
+
+  /** Glass: `fill` makes the body firmer toward its rim, `rim` (n.v width, 0 off) keeps only the outline that is at the silhouette. */
+  setGlass(fill: number, rim: number): void { this.toon.uniforms.rimFill!.value = fill; this.ink.uniforms.rimOnly!.value = rim; }
 
   /** The fill and the outline fade apart (a translucent balloon: a faint body inside a firmer rim). */
   setAlphas(fill: number, ink: number): void {

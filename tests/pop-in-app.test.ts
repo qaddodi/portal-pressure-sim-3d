@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 
 test('Anchored mounts its popover in #app, not beside its button', () => {
   const src = readFileSync('src/ui/shell/Pop.tsx', 'utf8');
-  assert.match(src, /<InApp><div ref=\{pop\}[^>]*className=\{`sh-pop/);
+  assert.match(src, /<InApp><div ref=\{\(el\) => \{ pop\.current = el; setPopEl\(el\); \}\}[^>]*className=\{`sh-pop/);
   assert.match(src, /import \{ InApp \} from '\.\/InApp\.tsx'/);
 });
 test('the Mac dock is centred with a transform (why a popover inside it cannot be fixed to the screen), and #app has none', () => {
