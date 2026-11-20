@@ -122,7 +122,7 @@ test('two junctions too close to be two skins (a T on a tube a few radii before 
 });
 
 /** The junctions of the real Lobule that still keep today's round ends (the planner cannot weld them yet). This list only ever shrinks: a new fallback fails the test until someone looks. */
-const KNOWN_FALLBACKS = new Set(['Y(s032.1+s033.1+s179.0)', 'Y(s050.1+s051.1+s188.0)', 'Y(s056.1+s057.1+s191.0)', 'T(an127.1>s058)', 'T(an134.1>s072)', 'T(s038.0>in20)', 'Y(bile1.0+bile2.0+bile3.0+bile4.0)', 'Y(bile11.0+bile12.0+bile13.0+bile14.0)', 'Y(bile26.0+bile27.0)', 'Y(bile28.0+bile29.0)', 'Y(bile31.0+bile32.0+bile33.0)', 'Y(bile36.0+bile37.0)', 'Y(bile48.0+bile49.0)', 'Y(bile53.0+bile54.0)', 'Y(bile58.0+bile59.0)', 'Y(bile6.0+bile7.0+bile8.0+bile9.0)', 'Y(s058.1+s059.1+s192.0)', 'Y(s066.1+s067.1+s196.0)', 'Y(s072.1+s073.1+s199.0)', 'Y(s076.1+s077.1+s1101.0)', 'Y(s182.1+s183.1+s2104.0)', 'Y(s044.1+s045.1+s185.0)']);
+const KNOWN_FALLBACKS = new Set(['T(tw150.1>s030)', 'T(tw151.1>s038)', 'T(tw153.1>s054)', 'T(tw155.1>s070)', 'Y(bile1.0+bile2.0+bile3.0+bile4.0)', 'Y(bile11.0+bile12.0+bile13.0+bile14.0)', 'Y(bile26.0+bile27.0)', 'Y(bile28.0+bile29.0)', 'Y(bile31.0+bile32.0+bile33.0)', 'Y(bile36.0+bile37.0)', 'Y(bile48.0+bile49.0)', 'Y(bile53.0+bile54.0)', 'Y(bile58.0+bile59.0)', 'Y(bile6.0+bile7.0+bile8.0+bile9.0)', 'Y(s050.1+s051.1+s188.0)', 'Y(s076.1+s077.1+s1101.0)', 'T(tw152.1>s046)']);
 test('no junction of the real Lobule falls back that is not on the known list (the list only shrinks)', () => {
   const fresh = plan.skipped.filter((x) => !KNOWN_FALLBACKS.has(x.node));
   assert.deepEqual(fresh, [], `new fallbacks: ${fresh.map((x) => `${x.node} (${x.why})`).join('; ')}`);
@@ -195,4 +195,14 @@ test('laid in, the Lobule\'s vessel parts stay finite and whole: attributes the 
 
 test('?joins=old is the way back: it asks for no welds', () => {
   assert.equal(joinsMode('?joins=old'), 'old');
+});
+
+test('the arteriole\'s twigs are weld courses, and the ones that can be built are welded to their sinusoid (their skin eases from the artery tone: ink.ts \'art\'); the rest lie along it for 20 radii and keep their ends', () => {
+  const twigs = courses.filter((c) => c.key.startsWith('tw'));
+  assert.equal(twigs.length, 6, 'one twig per triad');
+  const welded = plan.skins.filter((s) => s.arms.some((a) => a.key.startsWith('tw')));
+  const left = plan.skipped.filter((s) => s.node.startsWith('T(tw'));
+  assert.equal(welded.length + left.length, 6, 'every twig is either welded or on the fallback list');
+  assert.ok(welded.length >= 1, 'at least one twig welds');
+  for (const s of welded) assert.ok(s.arms.some((a) => a.key.startsWith('s') || a.key.startsWith('an')), 'on a sinusoid');
 });
