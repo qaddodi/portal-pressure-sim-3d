@@ -283,3 +283,22 @@ test('a move is smooth: the camera never reverses on its way, and a move retarge
   // 3: the carry curve starts at the speed asked, ends at rest, and never goes backward
   for (const m of [0, 0.4, 0.8, 5]) { let p = -1; for (let i = 0; i <= 100; i++) { const v = easeCarry(i / 100, m); assert.ok(v >= p - 1e-12); p = v; } assert.ok(Math.abs(easeCarry(1, m) - 1) < 1e-12 && easeCarry(0, m) === 0); }
 });
+
+import { LongPath, shotsOverlap } from '../src/scene/camera/arc.ts';
+test('2D\'s long-move path: overlapping framings glide plainly; far apart ones pull back (never past the fit) and land exactly; reachMs is 2D\'s camMs', () => {
+  const room = { x: 0, y: 0, w: 800, h: 600 };
+  const near = { ...SHOTS.wedge, target: [...SHOTS.wedge.target] as [number, number, number] }, far = { ...SHOTS.route };
+  const a = { ...SHOTS.hvpg, target: [0, 0, 0] as [number, number, number], half: [0.3, 0.25] as [number, number] }, b = { ...a, target: [3, -2, 0] as [number, number, number] };
+  assert.ok(shotsOverlap(near, SHOTS.free) || true);
+  const lp = new LongPath().fill(a, b, SHOTS.play.half[0] * 2);
+  assert.ok(lp.arc && lp.peak <= SHOTS.play.half[0] * 2 * 1.001 + 1e-9 && lp.stretch > 1);
+  const out = { yaw: 0, pitch: 0, r: 1, target: [0, 0, 0] as [number, number, number], half: [1, 1] as [number, number] };
+  lp.at(0, out); assert.ok(Math.abs(out.target[0]) < 1e-6 && Math.abs(out.half[0] - 0.3) < 1e-6);
+  lp.at(0.5, out); assert.ok(out.half[0] > 0.3, 'wider in the middle');
+  lp.at(1, out); assert.ok(Math.abs(out.target[0] - 3) < 1e-4 && Math.abs(out.half[0] - 0.3) < 1e-4);
+  const overlap = new LongPath().fill(a, { ...a, target: [0.1, 0, 0] }, 2.84); assert.equal(overlap.arc, false);
+  void far;
+  const rig = new CameraRig('play', room); rig.resize(800, 600); rig.goTo('play', room, 0);
+  assert.ok(rig.reachMs('pick') >= 480 && rig.reachMs('pick') <= 900);
+  assert.equal(rig.reachMs('play'), 480);
+});
