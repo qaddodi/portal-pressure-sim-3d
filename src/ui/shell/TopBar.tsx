@@ -47,7 +47,7 @@ function tapPill(id: ViewId, cur: ViewId) {
 export function LensButton() {
   const lens = useLens((s) => s.lens);
   return (
-    <Anchored sheet="lens" label={labelOf('btnLayers')} width={440} align="end" button={({ id, open, toggle, ref }) => (
+    <Anchored sheet="lens" label={labelOf('btnLayers')} cls="layers-pop" align="end" button={({ id, open, toggle, ref }) => (
       <div ref={ref as React.Ref<HTMLDivElement>} className="lens-btn" id="btnLayers" role="button" tabIndex={0} data-opens="lens" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} title={tb('btnLayers').title ?? undefined}
         onClick={toggle} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}>
         <span className="lens-name" id="colorModeLabel">{UI.lenses.find((l) => l.id === lens)?.name ?? ''}</span>
@@ -61,12 +61,12 @@ export function LensButton() {
 function LensMenu() {
   const lens = useLens((s) => s.lens);
   return (
-    <div className="sh-grid" role="radiogroup" aria-label="Color the vessels by">
+    <div className="lens-grid" role="radiogroup" aria-label="Color the vessels by">
       {LENS_IDS.map((id) => {
         const l = UI.lenses.find((x) => x.id === id)!;
         return (
-          <button key={id} type="button" role="radio" className="sh-row" aria-checked={lens === id} onClick={() => setLens(id)}>
-            <span className="sh-swatch" style={{ background: LENS_ART[id] }} /><span className="sh-t">{l.name}</span><span className="sh-d">{l.note}</span>
+          <button key={id} type="button" role="radio" className={`lens${lens === id ? ' on' : ''}`} aria-checked={lens === id} onClick={() => setLens(id)}>
+            <span className="lens-sw" style={{ background: LENS_ART[id] }} /><span className="lens-t">{l.name}</span><span className="lens-d">{l.note}</span>
           </button>
         );
       })}
