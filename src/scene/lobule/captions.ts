@@ -157,7 +157,7 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
     // a tract name stands out along the ray from the venule through what it names (its spoke); the others on the side their dot faces
     const spoke = spokeOf[k] ?? (k === 'cv' ? [0, 1] : [0, -1]);
     const must = !!ctx.must?.has(k);
-    items.push({ id: k, ax, ay, au: 0.5, forms, pri: must ? 100 : w.pri, must, dirs: sidesToward(spoke[0]!, spoke[1]!), vw: rOf(k), minLead: MIN_LEAD, reach: LOBULE_REACH + rOf(k) + 10, ...(k === 'cv' ? { clearLines: true, reach: CV_REACH, prefer: [-out[0], -out[1]] as const } : {}), ...(k === 'triad' || k === 'ha' || k === 'bd' || k === 'lymph' ? { face: { cx: venule[0], cy: venule[1], ux: spoke[0]!, uy: spoke[1]! } } : {}) });
+    items.push({ id: k, ax, ay, au: 0.5, forms, pri: must ? 100 : w.pri, must, dirs: sidesToward(spoke[0]!, spoke[1]!), vw: rOf(k), minLead: MIN_LEAD, looseFar: true, reach: LOBULE_REACH + rOf(k) + 10, ...(k === 'cv' ? { clearLines: true, reach: CV_REACH, prefer: [-out[0], -out[1]] as const } : {}), ...(k === 'triad' || k === 'ha' || k === 'bd' || k === 'lymph' ? { face: { cx: venule[0], cy: venule[1], ux: spoke[0]!, uy: spoke[1]! } } : {}) });
     meta.set(k, { id: k, kind: 'station', forms: formsM, read: READ[k], label: w.name, target: w.target });
   }
   return { items, meta, tri, keep, lines };

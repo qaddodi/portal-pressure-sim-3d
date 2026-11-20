@@ -65,7 +65,7 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer { opacity: 0; }
 .cm { width: 0; height: 0; transform-origin: 0 0; pointer-events: none; }
 .cm::before { content: ""; position: absolute; left: 0; top: -4px; width: 9px; height: 8px; background: var(--lb-val);
   clip-path: polygon(0 50%, 100% 0, 68% 50%, 100% 100%); }
-.cm::after { content: ""; position: absolute; left: 6px; top: -0.5px; width: 15px; height: 1px; background: var(--lb-val); opacity: 0.85; }
+.cm::after { content: ""; position: absolute; left: 6px; top: -0.5px; width: 15px; height: 1px; background: color-mix(in srgb, var(--lb-val) 85%, transparent); }   /* (the stem is a shade of the ink, not an opacity: a label stylesheet holds no opacity but 0 and 1, alpha.ts owns the dim) */
 
 /* a station the slide's words light takes the term's colour (2D .lb.term: the station colour, a step toward the text so it reads on every look) */
 .lb[data-tone] .lb-name, .lb[data-tone] .lb-val, .lb[data-tone] .lb-unit, .lb[data-tone] .lb-delta { color: color-mix(in srgb, var(--lb-tone) 80%, var(--lb-val)); }
