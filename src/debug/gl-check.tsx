@@ -34,8 +34,8 @@ function GlCheck() {
         <div style={{ opacity: .75 }}>{res.limits.renderer} · {res.limits.version}</div>
         <div style={{ opacity: .75 }}>attributes {res.limits.attributes} · varyings {res.limits.varyings} · uniforms {res.limits.vertexUniforms}/{res.limits.fragmentUniforms} · units {res.limits.textureUnits} · highp {res.limits.highpFragment ? 'yes' : 'NO'}</div>
         <div style={{ margin: '6px 0', fontWeight: 700, color: bad ? '#ff8a80' : '#8de08d' }}>{bad ? `${bad} of ${res.rows.length} programs FAILED` : `all ${res.rows.length} programs link`}</div>
-        {res.rows.map((r) => (
-          <div key={r.name} style={{ margin: '3px 0' }}>
+        {res.rows.map((r, i) => (
+          <div key={`${i}:${r.name}`} style={{ margin: '3px 0' }}>
             <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 5, marginRight: 6, background: r.ok ? (r.warn.length ? '#ffc400' : '#43d36b') : '#ff5252' }} />
             {r.name} <span style={{ opacity: .55 }}>({r.how}, {r.ms} ms)</span>
             {r.warn.length > 0 && <div style={{ color: '#ffd54f', marginLeft: 15 }}>over this device's limits: {r.warn.join('; ')}</div>}
