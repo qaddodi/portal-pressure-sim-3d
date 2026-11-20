@@ -103,3 +103,9 @@ test('the tube and the skin call ONE flow-marks code (glsl-shared.ts flowDust / 
   assert.match(FLOW_MARKS_GLSL, /chevOne\(s, Lw, c4\.y \+ c4\.z \* s, c4\.z, rootD,/);
   assert.match(FLOW_MARKS_GLSL, /F = DFrame\(across, fr\.xy, fr\.zw, s, Lw, rOwn, vR, rCss, nar, smS\.y, lensI, vUn\);/, 'the root\'s radius (route table, scene units) is scaled by the program\'s own figure units (the Circuit\'s map is not 300)');
 });
+
+test('no NaN can leave the skin\'s flow marks: a heading is normalised only after its length is checked (a NaN pixel is a speck of any colour, Mohammad 20 Nov: green and dark blue specks on the welds)', () => {
+  assert.ok(!/normalize\(mat3\(modelViewMatrix\) \* \(armArc/.test(SKIN_FS), 'the arm heading is never normalised unchecked');
+  assert.match(SKIN_FS, /float headL = length\(headV\);/);
+  assert.match(SKIN_FS, /headL > 1e-6 \? cross\(headV \/ headL, viewDir\)/);
+});
