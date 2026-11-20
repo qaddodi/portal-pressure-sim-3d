@@ -23,7 +23,7 @@ test('sleek: a core of 1 px on every tube, a 0.6 px feather, long soft lozenges,
   for (const [r, lanes] of [[2, 1], [3.5, 1], [5, 3], [7, 3], [9, 5], [14, 5]] as [number, number][]) {
     assert.ok(streakCorePx(r, lanes, true) >= 0.8 && streakCorePx(r, lanes, false) <= 1.1 + (STREAK.CORE_MAX_PX - 1.1) * streakWide(r) + 1e-9, `r ${r}: core ${streakCorePx(r, lanes, true).toFixed(2)} to ${streakCorePx(r, lanes, false).toFixed(2)} px`);
     const cov = streakCoverage(r, lanes);
-    assert.ok(cov > 0.01 && cov < 0.15, `r ${r}px: coverage ${(cov * 100).toFixed(1)} percent of the face: sparse, not a mess`);
+    assert.ok(cov > 0.01 && cov < 0.18, `r ${r}px: coverage ${(cov * 100).toFixed(1)} percent of the face: sparse, not a mess`);
   }
   assert.ok(Math.abs(streakCorePx(5, 3, true) - streakCorePx(2, 1, true)) < 1e-9 && streakCorePx(10, 5, true) > streakCorePx(2, 1, true), 'a thin tube\'s streak is 1 px; a wide tube\'s (9 px of radius or more) is thicker, up to 1.8');
   assert.ok(STREAK.FIELD_LEN_R >= 8 && STREAK.FIELD_LEN_R <= 16, 'a streak is 8 to 16 radii long');

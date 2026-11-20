@@ -50,7 +50,7 @@ export const STREAK = {
   /** FILAMENTS (round 3, Mohammad 20 Nov: "the streaks of blood need a lot of work... stagnant sometimes... dotted"): each one is a strip of constant width CORE_PX whose coverage is the exact AREA of its overlap with the pixel (a 1 px filament is never dotted
    *  and never crawls), its ends soft in alpha (FEATHER), its own opacity from OPACITY_LO to 1, drifting sideways by DRIFT of its lane's width over DRIFT_LEN field units. The wall lane runs at WALL_SPEED (never under half) of the middle one's. A flow of FLOW_ON
    *  display units a second or more shows them whole; none at none. A pattern never advances more than MAX_STEP of its (shortest) period per frame at FRAME_HZ (streakDCap: the streak distance the shaders read is capped there; the chevrons' D is not). */
-  OPACITY_LO: 0.55, DRIFT: 0.2, DRIFT_LEN: 160, FLOW_ON: 2, MAX_STEP: 0.25, FRAME_HZ: 60, SC_MAX: 4.2, SP_MAX: 1.8,
+  OPACITY_LO: 0.8, DRIFT: 0.2, DRIFT_LEN: 160, FLOW_ON: 2, MAX_STEP: 0.25, FRAME_HZ: 60, SC_MAX: 4.2, SP_MAX: 1.8,
 } as const;
 /** Whether a streak of the field can be at `across` (-1 .. 1 over the lumen) at all: the field draws nothing past FIELD_EDGE, so a streak never reaches the ink (the twin of the clip in streakField). */
 export const streakInside = (across: number): boolean => Math.abs(across) <= STREAK.FIELD_EDGE;
