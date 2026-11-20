@@ -427,7 +427,7 @@ export class CelScene {
       if (cc) o.setCavaCut(!sk[1], ...cc);
       if (on && !sk[1] && (this.ivcJoins.includes(o) || opensIntoCava(def.id))) bury[1] = Math.max(bury[1], CAVA_BURY * (NETWORK_BY_ID.get('IVC_IS')?.radius ?? def.radius));
       const joinEnd = def.plan?.kind === 'feeder' ? def.plan.list[0]?.join : undefined;
-      if (on && joinEnd != null) bury[joinEnd] = Math.max(bury[joinEnd], BURY * def.radius * (def.plan?.kind === 'feeder' ? (def.plan.list[0]?.k ?? 1) : 1));
+      if (on && joinEnd != null && !sk[joinEnd]) bury[joinEnd] = Math.max(bury[joinEnd], BURY * def.radius * (def.plan?.kind === 'feeder' ? (def.plan.list[0]?.k ?? 1) : 1));
       o.setBury(bury[0], bury[1]);
       o.setSmoothColour(on);
     }

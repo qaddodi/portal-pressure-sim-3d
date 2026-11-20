@@ -13,13 +13,14 @@ import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 const text = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
 
 function setOf(scene: CelScene, baked?: () => BakedSkins | null): { set: SkinSet; meshes: SkinMesh[] } {
-  const meshes: SkinMesh[] = [], parent = new Group();
+  const all: SkinMesh[] = [], parent = new Group();   // (`meshes`: the ones that stand, not those a retried plan took back)
   const deps: SkinSetDeps = {
     vessel: (id) => scene.vesselObject(id), stateOf: () => undefined,
-    make: (mesh) => { meshes.push(mesh); return { mesh, object: new Group(), setArm() {}, setArc() {}, setPres() {}, setArmCopy() {}, setTransparent() {}, dispose() {} } as never; },
+    make: (mesh) => { all.push(mesh); return { mesh, object: new Group(), setArm() {}, setArc() {}, setPres() {}, setArmCopy() {}, setTransparent() {}, dispose() {} } as never; },
     add: (o: Object3D) => parent.add(o), remove: (o: Object3D) => parent.remove(o), warn: () => {}, baked,
   };
-  return { set: new SkinSet(deps), meshes };
+  const set = new SkinSet(deps);
+  return { set, get meshes() { const live = new Set<unknown>(set.liveDraws().map((d) => (d as unknown as { mesh: SkinMesh }).mesh)); return all.filter((m) => live.has(m)); } };
 }
 
 test('the baked file unpacks to the skins it was made from, and a build that is given it lays those in and meshes nothing (live build once, then the baked one)', () => {

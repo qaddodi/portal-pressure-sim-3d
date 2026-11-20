@@ -186,6 +186,6 @@ test('IVCS is welded: five arms, the cava cut below the hepatic veins and its en
 test('the side-wall rule changes only a node the art spreads past SKIN_REACH: every other junction is as it was (no side arm, J at the widest arm\'s end)', () => {
   withSmooth(() => {
     const sides = findSkinJunctions().filter((j) => j.arms.some((a) => a.side)).map((j) => j.node);
-    assert.deepEqual(sides, ['IVCS']);
+    assert.deepEqual(sides, ['IVCS', 'RHV_IVC_1~F:b'], 'the cava, and the hepatic vein fork that leaves its host mid-run (a liver branch: a virtual node on the host with two side arms)');
   });
 });

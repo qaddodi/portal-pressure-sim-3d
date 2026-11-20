@@ -7,6 +7,8 @@ import { Group, type Object3D } from 'three';
 import { CelScene } from '../src/scene/scene.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
+import { isLiverBranch } from '../src/scene/vessels/skin/inventory.ts';
+import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { SkinObject, type ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import { SKIN_FS } from '../src/scene/vessels/skin/shaders.ts';
 import { ENTER_DEPTH_R, THROUGH_DEG, throughMates, weldThrough } from '../src/scene/vessels/skin/through.ts';
@@ -107,6 +109,7 @@ function built(): { scene: CelScene; set: SkinSet; draws: SkinObject[]; axes: Ma
     add: (o: Object3D) => parent.add(o), remove: (o: Object3D) => parent.remove(o), warn: () => {},
   });
   set.build(2);
+  { const live = new Set<unknown>(set.liveDraws()); for (let i = draws.length - 1; i >= 0; i--) if (!live.has(draws[i])) draws.splice(i, 1); }   // (a skin the planner took back to plan with its neighbours is not one of them)
   return { scene, set, draws, axes, was };
 }
 const nodeOf = (d: SkinObject) => d.mesh.name.replace('skin:', '');
@@ -121,7 +124,8 @@ test('real network: through the weld the skin keeps the trunk\'s calibre: on the
       if (!runIdx.length) continue;
       runs++;
       const R = Math.max(...runIdx.map((i) => ax[i]!.radii[2]!));
-      const sides = ax.map((a, i) => (a.mate === undefined && !mesh.junction.arms[i]!.grow ? i : -1)).filter((i) => i >= 0);
+      // (a liver branch is a fork child that leaves its host at a shallow angle from behind the node: its own start lies where this test looks for a bulge, so it is not a side vein here; tests/skin-sheet.test.ts judges those)
+      const sides = ax.map((a, i) => (a.mate === undefined && !mesh.junction.arms[i]!.grow && !isLiverBranch(NETWORK_BY_ID.get(mesh.junction.arms[i]!.vesselId)!) ? i : -1)).filter((i) => i >= 0);
       let far = 0;
       for (const si of sides) {
         const sa = ax[si]!, o = [sa.pts[2][0] - sa.pts[1][0], sa.pts[2][1] - sa.pts[1][1], sa.pts[2][2] - sa.pts[1][2]], ol = Math.hypot(...o);
@@ -154,7 +158,9 @@ test('real network: the SVC\'s two junctions (azygos arch and epigastric vein, 0
     assert.ok(m.junction.arms.every((a) => a.vesselId !== 'SVC_RA_1'), 'the piece between them is inside the skin');
     assert.ok(MIN_STUB_R > 0.9 && MIN_STUB_R < 2.18, 'the threshold splits the SVC pair (0.9) from the portal confluence pair CONF / PVT_L (2.2), which has always been two skins');
     const ends = new Map<string, { node: string; u: number; end: number }[]>();
+    const sideCut = new Set<string>();   // (a vessel with a hole in its wall, a side-wall junction's two cuts: the end 1 cut lies before the end 0 cut there, on purpose)
+    for (const d of b.draws) { const sm = b.set.skinOf(nodeOf(d))!; for (const c of sm.cuts) if (c.side) sideCut.add(c.vesselId); }
     for (const d of b.draws) { const sm = b.set.skinOf(nodeOf(d))!; for (const c of sm.cuts) ends.set(c.vesselId, [...(ends.get(c.vesselId) ?? []), { node: nodeOf(d), u: c.u, end: c.end }]); }
-    for (const [id, es] of ends) if (es.length > 1) { const lo = es.find((e) => e.end === 0), hi = es.find((e) => e.end === 1); if (lo && hi) assert.ok(hi.u > lo.u, `${id}: the seams do not cross`); }
+    for (const [id, es] of ends) if (es.length > 1 && !sideCut.has(id)) { const lo = es.find((e) => e.end === 0), hi = es.find((e) => e.end === 1); if (lo && hi) assert.ok(hi.u > lo.u, `${id}: the seams do not cross`); }
   } finally { b.scene.dispose(); setSmoothJoins(b.was); }
 });

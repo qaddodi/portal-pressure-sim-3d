@@ -350,9 +350,13 @@ test('one outline rule at every junction: a vein that opens into the cava, and a
     const old = new CelScene({ joins: 'old' });
     assert.ok(((old.vesselObject('LRV_IVC') as unknown as { toon: { uniforms: { bury: { value: { y: number } } } } }).toon.uniforms.bury.value).y > 0, 'so is a renal vein\'s, with the old joins');
     assert.ok(((old.vesselObject('RHV_IVC') as unknown as { toon: { uniforms: { bury: { value: { y: number } } } } }).toon.uniforms.bury.value).y > 0, 'a hepatic vein\'s is held back inside the cava, with the old joins');
+    const oldBury = (id: string) => (old.vesselObject(id) as unknown as { toon: { uniforms: { bury: { value: { x: number; y: number } } } } }).toon.uniforms.bury.value;
+    assert.ok(oldBury('PVH_R_2~F:b').x > 0, 'a portal branch\'s start is held back inside the vein it leaves');
+    assert.ok(oldBury('RHV_IVC_1~F:b').y > 0, 'a hepatic vein\'s side branch holds back its end (the flow end, at the vein)');
     old.dispose();
-    assert.ok(bury('PVH_R_2~F:b').x > 0, 'a portal branch\'s start is held back inside the vein it leaves');
-    assert.ok(bury('RHV_IVC_1~F:b').y > 0, 'a hepatic vein\'s side branch holds back its end (the flow end, at the vein)');
+    // (a branch whose join end a skin has (the whole-network weld, 21 Nov: the intrahepatic forks) stops at the skin's seam, outside the vein, so nothing is held back there either)
+    assert.equal(bury('PVH_R_2~F:b').x, 0, 'a welded portal branch: the tube starts at the skin\'s seam');
+    assert.equal(bury('RHV_IVC_1~F:b').y, 0, 'a welded hepatic side branch: the tube ends at the skin\'s seam');
     assert.equal(bury('PVH_R_2').x, 0, 'a vein\'s own free end keeps its whole outline');
     s.dispose();
   } finally { useSettings.getState().set('smoothJoins', was); setSmoothJoins(false); }

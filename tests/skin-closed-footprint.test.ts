@@ -14,17 +14,19 @@ import { sdUnionGrad, skinKOf, type Capsule } from '../src/scene/vessels/skin/sd
 import { foldedTriangles } from '../src/scene/vessels/skin/mesh.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 
-const built: Array<{ mesh: SkinMesh; caps: Capsule[] }> = [];
+const built: Array<{ mesh: SkinMesh; caps: Capsule[]; draw: unknown }> = [];
 function build(): void {
   if (built.length) return;
   setSmoothJoins(true);
   const scene = new CelScene({ joins: 'old' });
   const set = new SkinSet({
     vessel: (id) => scene.vesselObject(id), stateOf: () => undefined,
-    make: (mesh, axes, arms) => { built.push({ mesh, caps: axes.map((a) => ({ n: a.pts.length, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii), mate: a.mate })) }); return new SkinObject(mesh, arms[0]!, axes, arms); },
+    make: (mesh, axes, arms) => { const draw = new SkinObject(mesh, arms[0]!, axes, arms); built.push({ mesh, draw, caps: axes.map((a) => ({ n: a.pts.length, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii), mate: a.mate })) }); return draw; },
     add: (o: Object3D) => new Group().add(o), remove: () => {}, warn: () => {},
   });
   set.build(2);
+  const live = new Set<unknown>(set.liveDraws());   // (a skin the planner took back to plan with its neighbours does not stand)
+  for (let i = built.length - 1; i >= 0; i--) if (!live.has(built[i]!.draw)) built.splice(i, 1);
 }
 
 /** The mesh with each growing arm at growth g[k] (the vertex stage's morph: P1 less (1 - g) times the difference). */
