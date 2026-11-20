@@ -41,6 +41,10 @@ export const GRADIENT_H = 0.05;
 export const FLIP_GAIN = 1.05;
 /** Rows of vertices from a seam over which the normal blends from the tube's to the SDF gradient (spec 4.5.7). */
 export const NORMAL_BLEND_ROWS = 2;
+/** Shading normals across a ridge: a vertex whose normal is more than `CREASE_DEG` from a neighbour's is eased `CREASE_EASE` of the way to its neighbours' mean, `CREASE_ROUNDS` times. A round tube's neighbouring rings differ by about 26 degrees (14 sides), so 35 leaves every plain stretch exact. */
+export const CREASE_DEG = 35;
+export const CREASE_EASE = 0.6;
+export const CREASE_ROUNDS = 6;
 /** The farthest a seam may be pushed out (spec 4.4). */
 export const MAX_TRIES = 40;
 
@@ -411,6 +415,30 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
     restR[v] = rr;
     closestOnArm(caps[top]!, x, y, z, cp);
     cen[3 * v] = cp[0]!; cen[3 * v + 1] = cp[1]!; cen[3 * v + 2] = cp[2]!;
+  }
+  // the SHADING normal across a ridge: where two arms meet, the SDF's gradient turns fast (a crotch's normals differ by 50 to 140 degrees between neighbouring vertices), and the cel shading's two-tone band then draws a hard dark line along the ridge,
+  // which the 2D joins hid by blending the shade toward the neighbour (nbrK). So a vertex whose normal differs from a neighbour's by more than CREASE_DEG is eased toward its neighbours' mean, a few rounds, over the free rows only: the seam rings and the
+  // rows blended from the tube's own normal stay exact, the positions (and with them the ink outline, which the fragment stage takes from the SDF) are not touched.
+  {
+    const cosMax = Math.cos((CREASE_DEG * Math.PI) / 180), cur = Float32Array.from(normal), nxt = new Float32Array(normal.length);
+    for (let it = 0; it < CREASE_ROUNDS; it++) {
+      nxt.set(cur);
+      for (let v = 0; v < V; v++) {
+        if (row[v]! < NORMAL_BLEND_ROWS) continue;
+        let mx = 0, my = 0, mz = 0, c = 0, sharp = false;
+        for (let q = deg[v]!; q < deg[v + 1]!; q++) {
+          const u = nbr[q]!, d = cur[3 * v]! * cur[3 * u]! + cur[3 * v + 1]! * cur[3 * u + 1]! + cur[3 * v + 2]! * cur[3 * u + 2]!;
+          if (d < cosMax) sharp = true;
+          mx += cur[3 * u]!; my += cur[3 * u + 1]!; mz += cur[3 * u + 2]!; c++;
+        }
+        if (!sharp || !c) continue;
+        let nx = cur[3 * v]! + CREASE_EASE * (mx / c - cur[3 * v]!), ny = cur[3 * v + 1]! + CREASE_EASE * (my / c - cur[3 * v + 1]!), nz = cur[3 * v + 2]! + CREASE_EASE * (mz / c - cur[3 * v + 2]!);
+        const l = Math.hypot(nx, ny, nz) || 1;
+        nxt[3 * v] = nx / l; nxt[3 * v + 1] = ny / l; nxt[3 * v + 2] = nz / l;
+      }
+      cur.set(nxt);
+    }
+    normal.set(cur);
   }
   // a face turned against its own vertex normals is a fold: the hull was too far from the surface for the remesh to follow, so this junction falls back to today's method
   for (let i = 0; i < index.length; i += 3) {
