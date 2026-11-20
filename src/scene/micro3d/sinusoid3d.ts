@@ -45,6 +45,8 @@ const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_K = 0.45;
 /** The focus band's run (µm) to a whole blur: from the middle of the first hepatocyte row out to the middle of the next sinusoid's lumen, rising fast at first (post-dof.ts bandCoc eases out), so
  *  the next sinusoid is already well out of focus (Mohammad, 20 Nov 2026: "the blur should really start earlier and be more intense quickly"). The haze follows the same run, lighter, so the
  *  neighbours' disease still shows. */
+/** A microvillus's radius (µm, thick enough that its fill reads inside its line) and how far its root runs inside the cell. */
+export const VILLUS_R = 0.24, VILLUS_ROOT = 0.6;
 export const BLUR_RUN = UM.hep * 0.5 + UM.disse + UM.endo + UM.lum * 0.5;
 const HAZE_RUN = BLUR_RUN;
 /** The scene's ends: the blur along the sinusoid starts this far (µm) inside each end and is whole this far in. */
@@ -463,8 +465,10 @@ export class Sinusoid3D {
       const mv = clamp(S.mv, 0, 1), len = 0.3 + 0.8 * mv;
       if (mv > 0.03) for (const s of [-1, 1] as Side[]) for (let x = -REACH + 0.4; x < REACH; x += 1.7) {
         if (n >= this.villi.capacity) break;
-        const yd = s * (g.hepIn(x) - len * 0.5 + 0.1);
-        placeAt(this.m4, x, Y(yd), Z.disse + 0.35, len, 0.2, 0.2, Math.PI / 2 + 0.25 * Math.sin(x * 1.7));   // (thick enough that the fill reads inside its line)
+        // (each villus starts VILLUS_ROOT inside the cell, just under its top face, so the cell covers its root and the villus covers the cell's line there: cell and villi read as one shape with one
+        //  outline round them all, Mohammad 20 Nov 2026: "the microvilli need a black outline so they look connected to the hepatocyte")
+        const L = len + VILLUS_ROOT, yd = s * (g.hepIn(x) + VILLUS_ROOT - L * 0.5);
+        placeAt(this.m4, x, Y(yd), Z.cell - 0.05 - VILLUS_R, L, VILLUS_R, VILLUS_R, Math.PI / 2 + 0.25 * Math.sin(x * 1.7));
         this.villi.setAt(n++, this.m4);
       }
       this.villi.commit(n);
