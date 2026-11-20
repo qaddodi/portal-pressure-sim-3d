@@ -11,7 +11,7 @@ test('the micro ink hull is double-sided, sits just behind its shape, keeps ever
   assert.ok(INK_BACK > 0 && INK_BACK < 0.005);
   assert.match(MICRO_INK_VS, /mv\.xyz \*= 1\.0 \+ /);
   assert.doesNotMatch(MICRO_INK_FS, /vFace/, 'no cull by the normal (it dropped the hull at every rim vertex: a dotted outline)');
-  assert.match(MICRO_INK_VS, /p \+= normal \* inflate;/);
+  assert.match(MICRO_INK_VS, /float infl = inflate;\n#ifdef SWELL\n  infl \+= dot\(uSwell, swell\);\n#endif\n  p \+= normal \* infl;/);
   assert.match(MICRO_INK_VS, /float back = [^;]*smoothstep\(0\.05, 0\.35, dot\(vn,/, 'only the faces toward the viewer go back: the rim keeps its depth, so a surface just behind never sinks the line');
   assert.equal(m.ink!.uniforms.inflate, m.toon.uniforms.inflate, 'one inflate for the shape and its line');
 });
@@ -104,4 +104,26 @@ test('far off, the sinusoid\'s small shapes lose their line before they are all 
   assert.match(MICRO_FS, /float rp = uRim \* uMicroDpr \* uRimK;/);
   const { RIM_FULL_PX } = await import('../src/scene/micro3d/sinusoid3d.ts');
   assert.ok(RIM_FULL_PX <= 3, 'whole at every landed size');
+});
+
+test('a congested lobule\'s sinusoids widen by place, not by generation: one width where two meet, smooth along each (Mohammad 20 Nov: Budd-Chiari "don\'t smoothly connect", "seamless and smooth calibers")', async () => {
+  const { congShare } = await import('../src/scene/lobule/widths.ts');
+  const { buildLobule } = await import('../src/scene/lobule/geometry.ts');
+  const { MICRO_VS } = await import('../src/scene/micro3d/cel3d.ts');
+  assert.match(MICRO_VS, /infl \+= dot\(uSwell, swell\);/);
+  // the share is smooth in rho: no step bigger than a hair between neighbouring places
+  for (let r = 0; r < 1; r += 0.001) assert.ok(Math.abs(congShare(r + 0.001) - congShare(r)) < 0.003);
+  // where any two sinusoid courses meet (an end of one within a hair of a point of another), the widening is the same on both
+  const net = buildLobule(), sins = net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an');
+  let joins = 0;
+  for (const a of sins) for (const end of [0, a.pts.length - 1]) {
+    const p = a.pts[end]!;
+    for (const b of sins) {
+      if (b === a) continue;
+      for (let i = 0; i < b.pts.length; i++) if (Math.hypot(b.pts[i]![0] - p[0], b.pts[i]![1] - p[1]) < 0.01) { joins++; assert.ok(Math.abs(congShare(a.rho[end]!) - congShare(b.rho[i]!)) < 0.03, `${a.kind} meets ${b.kind}`); }
+    }
+  }
+  assert.ok(joins > 20, `${joins} joins checked`);
+  const src = (await import('node:fs')).readFileSync(new URL('../src/scene/micro3d/lobule3d.ts', import.meta.url), 'utf8');
+  for (const n of ['sinusoids-0', 'sinusoids-1', 'sinusoids-2', 'sinusoids-links']) assert.match(src, new RegExp(`mk\\('${n}', \\{[^}]*swell: true`), n);
 });

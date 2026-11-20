@@ -169,16 +169,16 @@ test('turning the Lymph layer off fades it away (the 3D ducts shrink to nothing,
 test('the lobule\'s disease states: congested zone 3 sinusoids dilate, capillarized ones narrow, the central vein widens with congestion and narrows with its collagen', () => {
   const v = new LobuleView(createShared());
   v.setVisible(true); v.snapModel(model()); settle(v);
-  assert.ok(Math.abs(v.sinScale('s2') - 1) < 1e-9 && Math.abs(v.sinScale('s0') - 1) < 1e-9);
+  assert.ok(Math.abs(v.sinScaleAt(0.19) - 1) < 1e-9 && Math.abs(v.sinScaleAt(0.75) - 1) < 1e-9);
   const cv0 = v.cvRadiusNow;
   v.setModel(model({ congU: 0.8 }));
   settle(v, 2000, 3000);
-  assert.ok(v.sinScale('s2') > v.sinScale('s1') && v.sinScale('s1') > 1, 'congested zone-3 sinusoids dilate most');
-  assert.ok(Math.abs(v.sinScale('s0') - 1) < 1e-9, 'the portal end does not');
+  assert.ok(v.sinScaleAt(0.19) > v.sinScaleAt(0.47) && v.sinScaleAt(0.47) > 1, 'congested zone-3 sinusoids dilate most');
+  assert.ok(Math.abs(v.sinScaleAt(0.85) - 1) < 1e-9, 'the portal end does not');
   assert.ok(v.cvRadiusNow > cv0);
   v.setModel(model({ zone: { pre: 1, sin: 20, post: 1 }, fibPost: 1 }));
   settle(v, 6000, 3000);
-  assert.ok(v.sinScale('s0') < 1, 'capillarized sinusoids narrow');
+  assert.ok(v.sinScaleAt(0.75) < 1, 'capillarized sinusoids narrow');
   assert.ok(v.cvRadiusNow < cv0, 'the central vein\'s collagen narrows it');
 });
 
