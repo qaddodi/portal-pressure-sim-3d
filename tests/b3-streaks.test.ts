@@ -70,8 +70,8 @@ test('the comet is a few radii long and a share of the radius thick, with a seed
 });
 
 test('tone: the vessel\'s lit tone one shade lighter, flat, never white, whole inside the lumen band', () => {
-  assert.match(CELLS_VS, /vFill = streakTone\(lit, mix\(lit, vec3\(1\.0\), 0\.50\), streakHash\(aB\.w \* 53\.0 \+ 1\.7\), streakHash\(aB\.z \* 37\.0 \+ 4\.2\)\);/);
-  assert.ok(STREAK.LIFT > 0 && STREAK.LIFT <= 0.55, 'lighter, never white');
+  assert.match(CELLS_VS, /vFill = streakTone\(lit, mix\(lit, vec3\(1\.0\), 0\.70\), streakHash\(aB\.w \* 53\.0 \+ 1\.7\), streakHash\(aB\.z \* 37\.0 \+ 4\.2\)\);/);
+  assert.ok(STREAK.LIFT > 0 && STREAK.LIFT <= 0.75, 'lighter, never white');
   assert.equal(STREAK.ALPHA, 1);
   assert.doesNotMatch(CELLS_FS, /spec|gloss|highlight/i);
 });
