@@ -89,7 +89,8 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
   // depth test, so it shows only where the fill is not, and before the outline, so the line lies over it.
   const seat = new ShaderMaterial({
     vertexShader: ORGAN_INK_VS, fragmentShader: INK_FS, side: BackSide, transparent: true, depthWrite: false,
-    uniforms: { color: { value: new Color() }, hiColor: { value: new Color() }, fade: m.uniforms.fade!, reveal: ink.uniforms.reveal!, inkA: { value: 0 }, px: { value: 0 }, dpr: ink.uniforms.dpr!, res: ink.uniforms.res! },
+    uniforms: { color: { value: new Color() }, hiColor: { value: new Color() }, fade: m.uniforms.fade!, reveal: ink.uniforms.reveal!, inkA: { value: 0 }, px: { value: 0 }, dpr: ink.uniforms.dpr!, res: ink.uniforms.res!,
+      hiOn: { value: 0 }, hiPx: { value: 0 } },   // (every uniform the shader declares: a missing one keeps what the last material drawn with this program left in it, so a tapped spleen lit the stomach's seat and the esophagus)
   });
   const mesh = new Mesh(g, seat);
   mesh.renderOrder = 2 * i + 0.5;

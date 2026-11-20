@@ -36,8 +36,8 @@ export interface HighlightRange {
 /** A pick lights its own vein and nothing else: the line fades away at the vein's two ends (Mohammad, 20 Nov: "the outline fades away at both ends"; only the vein I tap, not the
  *  cava, the shunts and every collateral that 2.4 ahead lit). Nothing runs on into the next vessel, so the range is none; `computeHighlight` still walks the flow when given one. */
 export const DEFAULT_RANGE: HighlightRange = { ahead: 0, behind: 0 };
-/** The share of a vein's length each end takes to fade in (the middle third holds full). */
-export const END_FADE = 0.35;
+/** The share of a vein's length each end takes to fade in (the middle half holds full). */
+export const END_FADE = 0.25;
 /** The picked outline's width over the vessel's own line, CSS px (it was 1.6: "less thick", 20 Nov). */
 export const HI_PX = 0.8;
 /** Outline lift on the picked vessel (scene units), mocks: 0.012. */
