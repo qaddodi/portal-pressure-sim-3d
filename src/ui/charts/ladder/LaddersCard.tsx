@@ -6,7 +6,7 @@ import type { RunSteps } from '../../../decks/rw/numbers.ts';
 import { ProfileCard } from '../profile/ProfileCard.tsx';
 import { ladderData, type LadderData } from './data.ts';
 import { namesFrame, stripFrame } from './frame.ts';
-import { causeFit, headOf, pillReadings, stripLabel, type Fp, type LadderRow, type OfRow } from './model.ts';
+import { causeFit, chartScale, headOf, pillReadings, stripLabel, type Fp, type LadderRow, type OfRow } from './model.ts';
 import '../charts.css';
 
 const engineRun: RunSteps = (steps) => engine().sequence(steps).then((r) => r.map((x) => (x?.fp ?? {}) as never));
@@ -54,12 +54,44 @@ function CellHead({ r }: { r: LadderRow }) {
 }
 
 /** A wide screen's cell: the profile chart for the row, in the ladder's cell variant (2D tool-profile.js in 'cell'). */
-const inCell = (r: LadderRow, healthy: Fp | null): ReactNode => <ProfileCard fp={r.f} healthy={healthy} cell={{}} />;
+const inCell = (r: LadderRow, healthy: Fp | null, lad = 1): ReactNode => <ProfileCard fp={r.f} healthy={healthy} cell={{ lad }} />;
+
+/** 2D presenter-question.js fitChart: the cell's chart is the data card's instrument drawn once at its own size (`--lad-w`, type `--lad-f`) and scaled down as one piece to the room the cell has (`--lad-k`, never above 1),
+ *  its words never under 12 px on the screen (where the scale would take them the picture is drawn in larger type, `--lad-s`, and scaled by the same k). The holder takes the scaled height (`.pz-cc` in the 2D sheet).
+ *  The port had no such step: every chart stood at the instrument's full width inside a cell about a fifth narrower, over its neighbour and past the card's edge, with the unscaled height blank under it (Mohammad, 20 Nov, 11/14). */
+export function fitLadderChart(cc: HTMLElement): number | null {
+  const p = cc.firstElementChild as HTMLElement | null;
+  if (!p) return null;
+  const s0 = parseFloat(cc.style.getPropertyValue('--lad-s')) || 1, W = cc.clientWidth, w0 = p.offsetWidth, f0 = (parseFloat(getComputedStyle(p).fontSize) || 0) / s0;
+  if (!(W > 0 && w0 > 0 && f0 > 0)) return null;
+  const { k, s } = chartScale(W, w0, f0), ks = k.toFixed(4), ss = s.toFixed(4);
+  if (cc.style.getPropertyValue('--lad-k') !== ks) cc.style.setProperty('--lad-k', ks);
+  if (cc.style.getPropertyValue('--lad-s') !== ss) cc.style.setProperty('--lad-s', ss);
+  return +ss;
+}
+
+function LadderChart({ r, healthy, chart }: { r: LadderRow; healthy: Fp | null; chart: (row: LadderRow, healthy: Fp | null, lad: number) => ReactNode }) {
+  const cc = useRef<HTMLDivElement>(null);
+  const [lad, setLad] = useState(1);
+  useLayoutEffect(() => {
+    const el = cc.current;
+    if (!el) return;
+    const fit = () => { const s = fitLadderChart(el); if (s != null) setLad((o) => (o === s ? o : s)); };
+    fit();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    const p = el.firstElementChild;
+    if (p) ro.observe(p);
+    return () => ro.disconnect();
+  }, [r.f]);
+  return <div ref={cc} className="pz-cc">{chart(r, healthy, lad)}</div>;
+}
 
 /** The six levels side by side (2D visual: 'ladders'): each case in a cell of its own, the site and cause in its first row, its Gut to heart chart under it. A phone draws each case on one
  *  line (the strip) with the stations named once over the six; a wide screen's cell holds `chart`, the profile chart for the row (the `profile` chart; absent, the cell shows the strip).
  *  slide: the slide with its `of` rows; deck: the deck it is in (a row names a slide of it); data: the rows when the caller has them (a specimen, a test); run: how to ask the model. */
-export function LaddersCard({ slide, deck, data: given, run = engineRun, chart = inCell }: { slide: { id: string; of?: readonly OfRow[] }; deck: CopiedDeck; data?: LadderData | null; run?: RunSteps; chart?: (row: LadderRow, healthy: Fp | null) => ReactNode }) {
+export function LaddersCard({ slide, deck, data: given, run = engineRun, chart = inCell }: { slide: { id: string; of?: readonly OfRow[] }; deck: CopiedDeck; data?: LadderData | null; run?: RunSteps; chart?: (row: LadderRow, healthy: Fp | null, lad: number) => ReactNode }) {
   const [got, setGot] = useState<LadderData | null>(null);
   useEffect(() => {
     if (given !== undefined) return;
@@ -74,7 +106,7 @@ export function LaddersCard({ slide, deck, data: given, run = engineRun, chart =
       {(data?.rows ?? []).map((r, i) => (
         <div className="pz-cell" key={`${r.id ?? r.name}-${i}`}>
           <CellHead r={r} />
-          <div className="pz-cc">{chart?.(r, data!.healthy)}</div>
+          <LadderChart r={r} healthy={data!.healthy} chart={chart} />
           <LadderStrip fp={r.f} healthy={data!.healthy} id={`${r.id ?? r.name}`} />
         </div>
       ))}
