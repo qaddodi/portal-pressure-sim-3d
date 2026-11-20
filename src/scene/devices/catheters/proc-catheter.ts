@@ -104,8 +104,8 @@ export class ProcCatheter {
     // the two small dark collars where the balloon is bonded to the shaft
     this.balloonBands = [0, 1].map(() => mk(withTang(new CylinderGeometry(rc * 1.14, rc * 1.14, rc * 0.6, 16, 1, true).rotateZ(Math.PI / 2)), 'collar', 8, 'ink', 0.5));
     for (let i = 0; i < 2; i++) {
-      this.flashes.push(mk(withTang(new RingGeometry(0.8, 1, 36)), 'trPv', 9, 'ink', 0));
-      this.rings.push(mk(withTang(new RingGeometry(0.8, 1, 36)), 'monFree', 9, 'ink', 0));
+      this.flashes.push(mk(withTang(new RingGeometry(0.8, 1, 72)), 'trPv', 9, 'ink', 0));
+      this.rings.push(mk(withTang(new RingGeometry(0.8, 1, 72)), 'monFree', 9, 'ink', 0));
     }
     // the coil of a TIPS that coils the coronary vein, curling on up the vein past the tip
     if (r.coilAt) {
