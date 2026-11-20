@@ -37,6 +37,31 @@ export const PERIOD = UM.hep + 2 * (UM.disse + UM.endo) + 2 * UM.lum;
 export const ACROSS = UM.lum + UM.endo + UM.disse + UM.hep + BEYOND * PERIOD + 12;
 /** Depths (µm, toward the viewer): the plates' tops, the lining's crest, Disse's floor, the ground under the clefts, the trough's depth as a share of the lumen's half width. */
 export const Z = { cell: 0.55, cellBot: -1.3, bead: 0.5, disse: -1.0, ground: -12.0, trough: 0.92, nucleus: 0.55 } as const;
+/**
+ * The endothelial cell is the wall itself (Mohammad, 20 Nov 2026: the lavender discs "clip through their own body, which is the wall"). The lining is one surface: a flat bead, and at each
+ * nucleus the SAME surface swells, reaching `dy` µm further into the lumen and `dz` µm higher, over `half` µm each way, as a raised cosine (no start, no end, no crease). The cell's colour and outline
+ * and the nucleus are drawn ON that surface (patches that follow it and lift off it by their own few hundredths of a µm), never as a separate solid pushed through it.
+ * Every part reads the one surface here (`wallPoint`), so the wall and what sits on it cannot disagree.
+ */
+export const ENDO = { half: 4.6, dy: 1.0, dz: 0.5, cellLift: 0.08, nucLift: 0.3, nucHalf: 3.1, nucV: 0.6 } as const;
+/** How far the lining swells at x (0 bare wall to 1 the nucleus's middle): a raised cosine round the nearest nucleus of the lining (seed nsd). */
+export function endoSwell(x: number, nsd: number): number {
+  const n = Math.floor(x / 38);
+  let sw = 0;
+  for (let k = -1; k <= 1; k++) {
+    const u = Math.abs(x - nucAt(n + k, nsd)) / ENDO.half;
+    if (u < 1) sw = Math.max(sw, 0.5 * (1 + Math.cos(Math.PI * u)));
+  }
+  return sw;
+}
+/** The lining's own geometry (the host's). */
+export interface WallGeo { halfW(x: number): number; wallIn(x: number): number }
+/** A point of the lining's surface in the sinusoid's frame (y down, as 2D's): x along, `yd` the distance from the axis, z toward the viewer. `th` runs across the bead from the lumen's edge (0) over its crest
+ *  (π/2) to Disse's side (π); `sw` is the swell at x. */
+export function wallPoint(g: WallGeo, x: number, th: number, sw: number): [number, number, number] {
+  const y0 = g.halfW(x) - ENDO.dy * sw, y1 = g.wallIn(x), zc = Z.bead + ENDO.dz * sw;
+  return [x, y0 + ((y1 - y0) / 2) * (1 - Math.cos(th)), zc * Math.sin(th)];
+}
 /** The red cells in the stream (2D's palette has their colour; the host draws none). */
 /** How far (µm) the scene stands toward the viewer from the lobule's plate. */
 // (26: the whole scene, its ground 12 µm down included, stands over the lobule's tubes (their tops about 11 µm up in these units) and tiles: at 8 the tube showed through the lumen and the
@@ -409,18 +434,25 @@ export class Sinusoid3D {
       b.build(this.trough.geometry);
     }
 
-    // the endothelium: a rounded bead along each rim, from the lumen's edge to Disse, and its short wall down to Disse's floor
+    // the endothelium: a rounded bead along each rim, from the lumen's edge to Disse, and its short wall down to Disse's floor. At each nucleus the bead itself swells (ENDO): the cell is the wall.
     {
       const b = new MeshBuilder(), K = 8;
+      // (columns every µm, every half µm where the lining swells: the raised cosine reads smooth, not as a tent)
+      const bxs: number[] = [];
+      for (let i = 0; i < xs.length; i++) {
+        const x = xs[i]!;
+        bxs.push(x);
+        if (i + 1 < xs.length && (endoSwell(x, SEED.nucUp) > 0 || endoSwell(xs[i + 1]!, SEED.nucUp) > 0 || endoSwell(x, SEED.nucDn) > 0 || endoSwell(xs[i + 1]!, SEED.nucDn) > 0)) bxs.push(x + 0.5);
+      }
       for (const s of [-1, 1] as Side[]) {
+        const nsd = s < 0 ? SEED.nucUp : SEED.nucDn, swAt = (x: number) => endoSwell(x, nsd);
         const rows: number[] = [];
-        for (const x of xs) {
+        for (const x of bxs) {
           rows.push(b.count);
-          const h = g.halfW(x), w = g.wallIn(x) - h;
+          const sw = swAt(x);
           for (let k = 0; k <= K; k++) {
-            const th = (k / K) * Math.PI, yA = h + (w / 2) * (1 - Math.cos(th)), z = Z.bead * Math.sin(th);
-            const ny = -Math.cos(th) * Z.bead, nz = (w / 2) * Math.sin(th) + 1e-3;
-            b.v(x, Y(s * yA), z, 0, Y(s * ny), nz);
+            const th = (k / K) * Math.PI, P = wallPoint(g, x, th, sw), N = wallNormal(g, swAt, x, th);
+            b.v(x, Y(s * P[1]), P[2], N[0], Y(s * N[1]), N[2]);
           }
           // down the Disse side
           const yW = g.wallIn(x);
@@ -505,14 +537,19 @@ export class Sinusoid3D {
       cells.build(this.cells.geometry); nuc.build(this.nuclei.geometry); nol.build(this.nucleoli.geometry); bile.build(this.bile.geometry);
     }
 
-    // the endothelial cells: a lens on the lining round each nucleus, bulging into the lumen
+    // the endothelial cells: not solids set against the lining but the lining itself, outlined in the cell's colour where it swells, and the nucleus a low dome of that same surface (patches that follow it, ENDO)
     {
       const b = new MeshBuilder(), bi = new MeshBuilder();
       for (const [s, nsd] of [[-1, SEED.nucUp], [1, SEED.nucDn]] as [Side, number][]) {
         for (let n = Math.floor(X0 / 38) - 1; n <= Math.ceil(X1 / 38) + 1; n++) {
-          const x = nucAt(n, nsd), h = g.halfW(x);
-          ellipsoid(b, x, Y(s * (h - 0.35)), -0.35, 4.6, 1.45, 1.05, 0, undefined, 72, 10, true, true, true);   // (72 round: on a long lens 24 left its equator a chord 1.2 µm long between corners, and the line drawn in the fill came and went along it in beads, eyes 20 Nov)
-          ellipsoid(bi, x, Y(s * (h - 0.45)), -0.2, 3.1, 0.82, 0.98, 0, undefined, 18, 8);
+          const xn = nucAt(n, nsd);
+          // (the cell: the whole width of the wall at the nucleus, tapering to nothing at its ends like a lens; 72 round so the line drawn in the fill stays even along it)
+          surfacePatch(b, g, s, nsd, xn, ENDO.half, 1, 72, 10, (rc) => ENDO.cellLift * smooth(0, 0.12, 1 - rc), 1);
+          // (the nucleus: a dome rising from the cell's surface, ending on it)
+          surfacePatch(bi, g, s, nsd, xn, ENDO.nucHalf, ENDO.nucV, 24, 8, (rn, xx, vv) => {
+            const rc = Math.hypot((xx - xn) / ENDO.half, vv);
+            return ENDO.cellLift * smooth(0, 0.12, 1 - rc) + 0.01 * smooth(0, 0.1, 1 - rn) + ENDO.nucLift * (1 - rn * rn) ** 2;
+          }, 0);
         }
       }
       b.build(this.endoN.geometry); bi.build(this.endoNi.geometry);
@@ -715,6 +752,52 @@ function band(b: MeshBuilder, xs: readonly number[], y0: (x: number) => number, 
   const r0 = b.count;
   for (const x of xs) { b.v(x, y0(x), z, 0, 0, 1); b.v(x, y1(x), z, 0, 0, 1); if (aux) b.aux.push(-1, 1); }
   for (let i = 0; i < xs.length - 1; i++) { const a = r0 + i * 2; if (y1(xs[i]!) > y0(xs[i]!)) b.quad(a, a + 2, a + 3, a + 1); else b.quad(a, a + 1, a + 3, a + 2); }
+}
+
+/** The lining's surface normal at (x, th), in the sinusoid's frame (y down): the cross of its two slopes, along x and across, so the swell is lit as the surface it is (`swAt` the swell along the
+ *  lining; `lift` what a patch rides above it, so a dome on the wall is lit as a dome). */
+export function wallNormal(g: WallGeo, swAt: (x: number) => number, x: number, th: number, lift?: (x: number, th: number) => number): [number, number, number] {
+  const F = (xx: number, tt: number): [number, number, number] => {
+    const P = wallPoint(g, xx, tt, swAt(xx));
+    return lift ? [P[0], P[1], P[2] + lift(xx, tt)] : P;
+  };
+  const e = 0.02, t0 = Math.max(0, th - 0.02), t1 = Math.min(Math.PI, th + 0.02);
+  const a = F(x + e, th), b = F(x - e, th), c = F(x, t1), d = F(x, t0);
+  const px = [a[0] - b[0], a[1] - b[1], a[2] - b[2]] as const, pt = [c[0] - d[0], c[1] - d[1], c[2] - d[2]] as const;
+  const n: [number, number, number] = [px[1] * pt[2] - px[2] * pt[1], px[2] * pt[0] - px[0] * pt[2], px[0] * pt[1] - px[1] * pt[0]];
+  const l = Math.hypot(n[0], n[1], n[2]) || 1;
+  return [n[0] / l, n[1] / l, n[2] / l];
+}
+
+/**
+ * A patch that rides on the lining's surface round an endothelial nucleus: an ellipse of `halfX` µm along and `vScale` of the wall's width across, in polar rings (so `aux`, `aux2` carry where each
+ * vertex lies in its unit circle for the line drawn in the fill), every vertex ON the wall's surface (wallPoint) plus `lift(r, x, v)` µm. It ends on the wall (its lift 0 at its edge), so it
+ * can never be a solid pushed through it. Returns nothing: it is written into `b`.
+ */
+export function surfacePatch(
+  b: MeshBuilder, g: WallGeo, s: Side, nsd: number, xn: number, halfX: number, vScale: number, seg: number, rings: number,
+  lift: (r: number, x: number, v: number) => number, uv: 0 | 1,
+): void {
+  const base = b.count, swAt = (x: number) => endoSwell(x, nsd);
+  // (the lift as a function of where on the wall a point is, so the normal can lean with it)
+  const liftAt = (x: number, th: number): number => {
+    const v = -Math.cos(th), r = Math.min(1, Math.hypot((x - xn) / halfX, v / vScale));
+    return lift(r, x, v);
+  };
+  for (let r = 0; r <= rings; r++) {
+    const rad = r / rings;
+    for (let i = 0; i <= seg; i++) {
+      const ph = (i / seg) * Math.PI * 2, u = rad * Math.cos(ph), vv = rad * Math.sin(ph);
+      const x = xn + halfX * u, th = Math.acos(-Math.max(-1, Math.min(1, vScale * vv)));
+      const P = wallPoint(g, x, th, swAt(x)), N = wallNormal(g, swAt, x, th, liftAt);
+      b.v(x, Y(s * P[1]), P[2] + lift(rad, x, vScale * vv), N[0], Y(s * N[1]), N[2]);
+      if (uv) { b.aux.push(u); b.aux2.push(vv); }
+    }
+  }
+  for (let r = 0; r < rings; r++) for (let i = 0; i < seg; i++) {
+    const a0 = base + r * (seg + 1) + i, b0 = a0 + seg + 1;
+    b.quad(a0, b0, b0 + 1, a0 + 1);
+  }
 }
 
 /** Half the contact between two hepatocytes (µm): next to nothing, so neighbours touch and their two lines read as one thin line (Mohammad 20 Nov 2026: "the hepatocytes should be next
