@@ -11,6 +11,7 @@ import type { Palette } from '../../palette.ts';
 import { TIER_Z, VESSEL_PLANE_Z, len3, x3, y3 } from '../../frame2d.ts';
 import { EDGE_PATH_2D } from '../../vessels/paths.copied.ts';
 import { ORGAN_MESHES } from '../../organs/meshes.ts';
+import { ORGAN_Z } from '../../organs/z.ts';
 import { bakeGeometry, centreAt, type CentreGrid } from '../../organs/centre-z.ts';
 import { BAND } from '../../procedures/copied/band-ring.js';
 import { EUS_GLUE_ROUTE, EUS_GLUE_STATION, EUS_GLUE_TARGET, EUS_ROUTE, EUS_SCOPE_R, EUS_STATIONS, EUS_TARGETS, EUS_BEND_MIN, EUS_RIGID, EUS_PORT_R, eusPose, newTip, pointOn } from './copied/eus-scope.copied.js';
@@ -90,7 +91,9 @@ function esoCentre(): CentreGrid | null {
   return eso;
 }
 /** The scope's depth at a scene point: the middle of the oesophagus and stomach there. */
-export const scopeZ = (x: number, y: number): number => { const g = esoCentre(); return g ? centreAt(g, x, y) : SCOPE_Z; };
+// (The organ is drawn moved along z by ORGAN_Z (organs/z.ts), but the grid is baked from the raw mesh: the scope ran 0.06 in front of the oesophagus's real middle, so any turned view slid it off the tube
+//  (owner, 20 Nov 2026: "the scope is NOT inside the esophagus"). The middle is the placed organ's: the raw middle plus the organ's own shift.)
+export const scopeZ = (x: number, y: number): number => { const g = esoCentre(); return g ? centreAt(g, x, y) + (ORGAN_Z.stomach ?? 0) : SCOPE_Z; };
 /** The scene point of a figure point on the scope's way: through the middle of the oesophagus and stomach. */
 const at3 = (p: readonly number[], out: Vector3): Vector3 => { const x = x3(p[0]!), y = y3(p[1]!); return out.set(x, y, scopeZ(x, y)); };
 /** The scene point of a target in the liver (a vein the needle enters): on the vessels' plane. */
