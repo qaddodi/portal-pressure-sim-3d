@@ -70,6 +70,9 @@ test('the names come back with a little margin (no flicker at the edge): hidden 
 
 // ── names keep off every drawn vessel, not only the named ones' ──
 import { figureCourses } from '../src/scene/labels/stations.ts';
+import { NEEDS_C3_IDS } from '../src/scene/vessels/network.ts';
+// (a vessel drawn at rest: not a collateral or a shunt, and not the epigastric network that comes in with the paraumbilical route)
+const atRest = (v: { id: string; kind: string }) => v.kind !== 'collateral' && v.kind !== 'shunt' && !(NEEDS_C3_IDS as ReadonlySet<string>).has(v.id);
 import { crosses } from '../src/scene/labels/geometry.ts';
 
 test('with every drawn vessel known to the solver the phone\'s names cross fewer vessels than with the named ones only (phone play-test: strokes through "Portal vein", "SMV", "Right hepatic vein")', () => {
@@ -77,14 +80,18 @@ test('with every drawn vessel known to the solver the phone\'s names cross fewer
   const run = (all: boolean) => {
     const rig = new CameraRig('play', room); rig.resize(phone.w, phone.h); rig.goTo('play', room, 0, 0); rig.update(0);
     let t = 1000;
-    const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: phone.w, y1: phone.h }), view: () => ({ x0: 0, y0: 56, x1: phone.w, y1: phone.h }), vp: () => phone, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0, ...(all ? { drawn: (v: { kind: string }) => v.kind !== 'collateral' && v.kind !== 'shunt' } : {}) } as unknown as LabelDeps;
+    const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: phone.w, y1: phone.h }), view: () => ({ x0: 0, y0: 56, x1: phone.w, y1: phone.h }), vp: () => phone, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0, ...(all ? { drawn: atRest } : {}) } as unknown as LabelDeps;
     const ctl = new LabelController(deps); ctl.setState({ ...NO_STATE, organNames: true });
     for (let i = 0; i < 120; i++) { t += 16; ctl.tick(); }
     const segs: number[][] = [];
-    for (const c of figureCourses()) { if (c.v.kind === 'collateral' || c.v.kind === 'shunt') continue; let prev: { x: number; y: number } | null = null; for (const q of c.pts) { const a = rig.project(q, { x: 0, y: 0 }); if (prev) segs.push([prev.x, prev.y, a.x, a.y]); prev = { x: a.x, y: a.y }; } }
+    for (const c of figureCourses()) { if (!atRest(c.v)) continue; let prev: { x: number; y: number } | null = null; for (const q of c.pts) { const a = rig.project(q, { x: 0, y: 0 }); if (prev) segs.push([prev.x, prev.y, a.x, a.y]); prev = { x: a.x, y: a.y }; } }
+    const sv = ctl.out.find((d) => d.id === 'SV')!;
+    svGap.push(sv.dot ? Math.max(0, Math.max(sv.x - sv.dot.x, sv.dot.x - (sv.x + sv.w)), Math.max(sv.y - sv.dot.y, sv.dot.y - (sv.y + sv.h))) : 1e9);
     return ctl.out.filter((d) => d.kind === 'station' && !d.id.startsWith('organ') && segs.some((s) => crosses(s[0]!, s[1]!, s[2]!, s[3]!, { x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h }))).map((d) => d.id);
   };
+  const svGap: number[] = [];
   const named = run(false), all = run(true);
   assert.ok(all.length < named.length, `crossing ${all.join(',')} against ${named.join(',')}`);
-  assert.ok(all.length <= 2, `${all.join(',')}`);
+  assert.ok(all.length <= 1, `${all.join(',')}`);
+  assert.ok(svGap[1]! <= 20, `"Splenic vein" stands ${svGap[1]!.toFixed(0)} px from its dot (phone play-test: on the stomach, far from its vessel)`);
 });
