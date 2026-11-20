@@ -17,6 +17,11 @@ varying vec3 vInk;
 // organ depth (organ-depth.ts): how tucked in this vertex is, 0..1, baked at load (a geometry without it reads 0)
 attribute float depthAo;
 varying float vAo;
+// the normal the shade steps, the lit patch and the soft light are cut by: the mesh's own normal jags over a mesh that is a vertex every 2.5 units (and its slivers), and every contour cut by it wobbles
+// (the dark crescent on the spleen, the lit patch on the liver, Mohammad 20 Nov: "jagged edges"). shadeN is the rest normal smoothed over the surface (normal-smooth.ts), shadeK how much of it (1 at rest;
+// the scarred liver takes back some of its own bumpy normal, the gut keeps all of its own: its folds are the relief)
+attribute vec3 shadeN;
+uniform float shadeK;
 // the liver look's place in its texture (liver-texture.ts): the vertex's rest place in the 2D figure; the other organs leave it 0
 attribute vec2 restUV;
 varying vec2 vRest;
@@ -28,8 +33,9 @@ varying vec2 vBox;
 varying vec4 vClip;
 void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
-  vN = normalize(normalMatrix * normal);
-  vNw = normalize(mat3(modelMatrix) * normal);
+  vec3 sn = normalize(mix(normal, shadeN, shadeK));
+  vN = normalize(normalMatrix * sn);
+  vNw = normalize(mat3(modelMatrix) * sn);
   vV = normalize(-mv.xyz);
   vAo = depthAo;
   vRest = restUV;
@@ -144,6 +150,10 @@ export const ORGAN_INK_VS = /* glsl */ `
 ${INK_RIM_GLSL}
 uniform float px;
 uniform float dpr;
+#ifdef INK_EDGE
+attribute float ringD;   // steps in from the rim ring (contour.ts ringDistance)
+varying float vRd;
+#endif
 attribute vec3 hullN;   // the smoothed normal the outline is pushed out along (normal-smooth.ts): the mesh's own normals jag at a coarse rim
 uniform vec2 res;
 uniform float hiOn;   // 0..1: a slide's pin or a tapped organ (highlight.ts OrganPins): the line widens by hiPx figure units and takes the organ's highlight colour
@@ -156,6 +166,10 @@ void main() {
   vHi = hiOn;
   float wpc = c.w * 2.0 / (res.y * projectionMatrix[1][1]) * 300.0;   // the figure's units under one CSS px here
   float w = max(1.0 / max(dpr, 1.0), (px + hiOn * hiPx) / max(wpc, 1e-6));
+#ifdef INK_EDGE
+  vRd = ringD;
+  w += 1.0 / max(dpr, 1.0);   // (one device pixel past the line: the coverage ramp takes it back, INK_FS)
+#endif
   vec2 nd = (projectionMatrix * vec4(normalMatrix * hullN, 0.0)).xy;
   float l = length(nd);
   nd = l > 1e-5 ? nd / l : vec2(0.0);

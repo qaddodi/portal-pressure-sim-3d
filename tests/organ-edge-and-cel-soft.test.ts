@@ -1,0 +1,64 @@
+// 20 Nov, Mohammad: the organ edges are jagged and the cirrhotic liver "really looks rough"; he wants it "more cartoony and less dramatic and not flat".
+// Root causes pinned here: (A) the organ shade steps were cut by the mesh's own per-vertex normal (shadeN is the smoothed one); (C) the outline hull's outer edge had no coverage ramp where the canvas has no
+// multisampling (ringD, INK_EDGE); (cel8..cel11) the baked bands were hard-quantised (stair-stepped once sampled) and the nodule dome had a vertical wall (a serrated rim): the soft family eases both.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { ORGAN_VS, ORGAN_INK_VS } from '../src/scene/organs/organ-shader.ts';
+import { INK_FS } from '../src/scene/materials/shaders.ts';
+import { ORGAN_MESHES, organsReady, setOrganData } from '../src/scene/organs/meshes.ts';
+import { ringDistance, refineRim, smoothSilhouette } from '../src/scene/organs/contour.ts';
+import { CELS, DEFAULT_CEL } from '../src/scene/organs/liver-texture.ts';
+
+const file = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
+setOrganData(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer);
+
+test('A: the shade steps are cut by the smoothed normal, mixed in by shadeK (the gut keeps its own)', () => {
+  assert.match(ORGAN_VS, /attribute vec3 shadeN;/);
+  assert.match(ORGAN_VS, /uniform float shadeK;/);
+  assert.match(ORGAN_VS, /normalize\(mix\(normal, shadeN, shadeK\)\)/);
+  assert.match(ORGAN_VS, /vN = normalize\(normalMatrix \* sn\)/);
+});
+
+test('C: the organ outline is one pixel wider and its edge ramps by distance in pixels from the rim', () => {
+  assert.match(ORGAN_INK_VS, /#ifdef INK_EDGE[\s\S]*attribute float ringD;[\s\S]*varying float vRd;/);
+  assert.match(ORGAN_INK_VS, /vRd = ringD;/);
+  assert.match(ORGAN_INK_VS, /w \+= 1\.0 \/ max\(dpr, 1\.0\);/);
+  assert.match(INK_FS, /#ifdef INK_EDGE[\s\S]*?varying float vRd;/);
+  assert.match(INK_FS, /clamp\(vRd \/ max\(length\(vec2\(dFdx\(vRd\), dFdy\(vRd\)\)\), 1e-5\) - 0\.5, 0\.0, 1\.0\)/);
+  assert.match(INK_FS, /\* cov\)/);
+});
+
+test('C: ringDistance is 0 on the rim, rises inward to the cap, and the liver has a rim', async () => {
+  await organsReady;
+  for (const id of ['liver', 'spleen', 'stomach']) {
+    const g = ORGAN_MESHES[id]!(); smoothSilhouette(g); refineRim(g);
+    const d = ringDistance(g);
+    let zero = 0, cap = 0;
+    for (const v of d) { assert.ok(v >= 0 && v <= 3); if (v === 0) zero++; if (v === 3) cap++; }
+    assert.ok(zero > 20, `${id}: rim points ${zero}`);
+    assert.ok(cap > d.length * 0.3, `${id}: most of the mesh is inside the feather (${cap})`);
+  }
+});
+
+test('the soft cirrhosis looks (cel8..cel11): defined, cel7 still the default, bands eased and dome wall rounded', async () => {
+  assert.equal(DEFAULT_CEL, 'cel7');
+  for (const k of ['cel8', 'cel9', 'cel10', 'cel11']) assert.ok(CELS[k]!.soft! > 0 && CELS[k]!.raw! <= 0.6, `${k} is soft`);
+  assert.equal(CELS.cel7!.soft, undefined);
+  // sample each look through the real surface function (the page's address picks it: flags.ts)
+  const levels = async (name: string) => {
+    (globalThis as { location?: unknown }).location = { search: `?liver=${name}`, pathname: '/', hostname: 'localhost' };
+    const mod = await import(`../src/scene/organs/liver-texture.ts?${name}`);
+    const lights = new Set<number>(); let maxStep = 0, prev = mod.surfaceAt(330, 300).dome;
+    for (let x = 330.25; x < 880; x += 0.25) { const s = mod.surfaceAt(x, 300); lights.add(Math.round(s.light * 50)); maxStep = Math.max(maxStep, Math.abs(s.dome - prev)); prev = s.dome; }
+    return { lights: lights.size, maxStep };
+  };
+  const hard = await levels('cel7');
+  assert.ok(hard.lights <= 3, `cel7 keeps its three flat bands (${hard.lights})`);
+  for (const k of ['cel8', 'cel9', 'cel10', 'cel11']) {
+    const soft = await levels(k);
+    assert.ok(soft.lights > 6, `${k}: the light eases between bands (${soft.lights} levels)`);
+    assert.ok(soft.maxStep < 0.3, `${k}: no wall in the dome (${soft.maxStep.toFixed(2)} in 0.25 units)`);
+  }
+  delete (globalThis as { location?: unknown }).location;
+});

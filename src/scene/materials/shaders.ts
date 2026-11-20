@@ -224,4 +224,16 @@ uniform float reveal;
 uniform float inkA;   // the line's own alpha: 1 for an organ's or a part's solid ink, the look's casing alpha for a strand (setSoftInk)
 varying float vHi;
 varying float vU;
-void main() { if (frontOut(vU, reveal)) discard; if (fadedOut()) discard; gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), mix(inkA, 1.0, clamp(vHi, 0.0, 1.0))); }`;
+#ifdef INK_EDGE
+// an organ's outline (layer.ts defines it): the hull is built one device pixel wider, and its coverage ramps from its outer edge over the next pixel and a half (vRd is steps in from the rim, so vRd over its
+// own screen gradient is the distance in device pixels), so the edge is anti-aliased by arithmetic: half covered a pixel in from the raster edge, which is the line's true edge
+varying float vRd;
+#endif
+void main() {
+  if (frontOut(vU, reveal)) discard; if (fadedOut()) discard;
+  float cov = 1.0;
+#ifdef INK_EDGE
+  cov = clamp(vRd / max(length(vec2(dFdx(vRd), dFdy(vRd))), 1e-5) - 0.5, 0.0, 1.0);
+#endif
+  gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), mix(inkA, 1.0, clamp(vHi, 0.0, 1.0)) * cov);
+}`;
