@@ -52,7 +52,9 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
   // a slide's data card: the report sits over the monitor's top strip (2D --dop-ov), the trace begins under the strip's words (2D stripLayout: their bottom less the box's top, plus 4 px)
   const reportRef = useRef<HTMLDivElement>(null);
   const [ovTop, setOvTop] = useState<number | null>(null);
-  m.ovTop = p.slide ? ovTop : null;
+  // (2D doppler.js reads `--dop-ov` from the box's style, which its stylesheet sets on a slide's data card, on the Tests card beside the figure and on a phone's sheet: the report sits over the monitor's top strip
+  //  and the label and settings go along the foot. It was read from `p.slide` only, so the Tests card drew them along the top, under the report's words, 20 Nov 2026.)
+  m.ovTop = ovTop;
 
   const refresh = () => {
     const r = m.report();
@@ -101,10 +103,10 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
 
   const stripKey = `${rep?.dir}|${rep?.vel}|${rep?.pattern}|${rep?.none}|${rep?.acquiring}`;
   useLayoutEffect(() => {
-    if (!p.slide) { setOvTop(null); return; }
     const rp = reportRef.current, box = cv.ref.current;
     if (!rp || !box) return;
     const put = () => {
+      if (!p.slide && getComputedStyle(box).getPropertyValue('--dop-ov').trim() !== '1') { setOvTop((o) => (o == null ? o : null)); return; }
       let b = -Infinity;
       for (const e of Array.from(rp.querySelectorAll<HTMLElement>('.dop-dir, .dop-vel, .dop-pattern'))) { const r = e.getBoundingClientRect(); if (r.width > 0 && r.height > 0) b = Math.max(b, r.bottom); }
       if (!Number.isFinite(b)) return;
