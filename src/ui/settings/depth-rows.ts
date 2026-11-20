@@ -3,6 +3,8 @@
 import type { DepthKey } from '../../state/settings.ts';
 
 export interface DepthRow { key: DepthKey; label: string; hint: string; icon: string }
+/** The Blood menu's own row for the same switch (Moving blood, under the chevrons): the setting is the one `particles`, so the two rows always agree; the figure's streaks ease in and out (cells.ts). */
+export const STREAKS_ROW = { key: 'particles' as const, label: 'Blood streaks', hint: 'Fine particles carried by the flow', icon: 'dust' };
 export const DEPTH_ROWS: readonly DepthRow[] = [
   { key: 'smoothJoins', label: 'Smooth vessel joins', hint: 'Branches meet as one joined tube, and pressure colour runs along it', icon: 'route' },
   { key: 'organDepth', label: 'Organ depth', hint: 'Soft light and shade on the organs', icon: 'liver' },
