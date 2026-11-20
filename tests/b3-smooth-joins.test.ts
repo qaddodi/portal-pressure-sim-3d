@@ -193,7 +193,7 @@ test('the cava and the SVC end in the right atrium: they run on one monotone slo
     assert.ok(dist(eI, eS) < 1e-9, 'the two end at one point');
     // one slope each: the distance to the atrium's depth never grows toward the end (no dip behind the heart on the way in)
     for (const pts of [ivc, svc]) for (let i = 1; i < pts.length; i++) assert.ok(Math.abs(pts[i]![2] - ra.z) <= Math.abs(pts[i - 1]![2] - ra.z) + 1e-9, `toward the atrium at ${i}`);
-    assert.ok(Math.min(...ivc.map((p) => p[2])) > -0.1, 'the cava\'s last stretch no longer lies 0.3 behind the heart');
+    assert.ok(Math.min(...ivc.map((p) => p[2])) >= NODE_Z.get('IVCS')! - 1e-9, 'the cava never dips below the depth it arrives at (no S at its upper end)');
     // it is a ring-to-ring match with the run-on pair: no step
     assert.ok(dist(ring('IVCS_RA', 1).c, ring('SVC_RA', 1).c) < 1e-5);
   });

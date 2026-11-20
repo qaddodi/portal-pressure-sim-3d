@@ -8,6 +8,7 @@ import { ANAT_HIDDEN, BACK_EDGES, EDGE_PATH_2D, HIDDEN_EDGES, IVC_EDGES, NEEDS_C
 import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
 import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts';
+import { withStartInOrgan } from './starts.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { TIER_Z, type Tier, UNITS_PER_SCENE, len3, x3, y3 } from '../frame2d.ts';
 
@@ -81,8 +82,11 @@ const OVER_IDS = new Set(['TIPS', 'DIPS', 'C6', 'S_DSR', 'S_PC', 'C8', 'S_MC', '
 const hostOfPiece = new Map<string, string>();
 for (const [host, pieces] of Object.entries(JUNCTION_PIECES as Record<string, string[]>)) for (const p of pieces) hostOfPiece.set(p, host);
 
+/** The renal vein runs at the cava's depth, and the kidney is placed there too (Mohammad, 20 Nov: "the renal vein and the kidney should be at the same depth as the IVC"). Depth only:
+ *  it is still drawn the way the 2D figure draws it (BACK_EDGES, in the scene, is what puts a vessel behind the organs). */
+export const RENAL_VEIN_IDS: ReadonlySet<string> = new Set(['V_KID_L', 'V_KID_L_1', 'LRV_IVC']);
 function tierOf(e: Edge): Tier {
-  if (BACK_EDGES.has(e.id)) return 'back';
+  if (BACK_EDGES.has(e.id) || RENAL_VEIN_IDS.has(e.id)) return 'back';
   if (isArteryEdge(e)) return 'art';
   if (OVER_IDS.has(e.id)) return 'over';
   if (e.kind === 'collateral') return 'mid';
@@ -121,7 +125,7 @@ const JOIN_LIST: JoinEdge[] = edges.filter(isDrawnEdge).map((e) => ({ id: e.id, 
 export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST);
 const SMOOTH = smoothRunOns(new Map(JOIN_LIST.map((j) => [j.id, j.path])), RUN_ONS);
 /** A vessel's 2D course as drawn: smooth through the joins where it runs on into another. */
-const pathOf = (id: string): readonly (readonly [number, number])[] => SMOOTH.get(id) ?? EDGE_PATH_2D[id]!;
+const pathOf = (id: string): readonly (readonly [number, number])[] => withStartInOrgan(id, SMOOTH.get(id) ?? EDGE_PATH_2D[id]!);
 
 function build(): NetVessel[] {
   const out: NetVessel[] = [];
@@ -158,16 +162,15 @@ export const NETWORK: readonly NetVessel[] = build();
 /** The depth at each node. Two vessels that join are at one depth where they meet (their own tier holds between). At a node of two the depth is the mean of their tiers (a vein that
  *  changes tier eases over its length). At a fork, a node of three or more, the widest vessels keep their own tier and the narrower ones ease to it: the mean would pull a trunk toward
  *  the camera at every branch (the cava, a back-tier vein, bulged forward at each hepatic and renal vein, and the 14 degree view turned each bulge into a sideways jog: Mohammad, 20 Nov). */
-/** Nodes where a trunk deliberately rises to the vessels that meet it (the cava at the hepatic veins). */
-const RISE_NODES: ReadonlySet<string> = new Set(['IVCS']);
 export const NODE_Z: ReadonlyMap<string, number> = (() => {
   const acc = new Map<string, { z: number; r: number; main: boolean }[]>();
   for (const v of NETWORK) if (!v.feeder) for (const n of [v.from, v.to]) { const a = acc.get(n) ?? []; a.push({ z: TIER_Z[v.tier], r: v.radius, main: v.kind !== 'shunt' && v.kind !== 'collateral' }); acc.set(n, a); }
   return new Map([...acc].map(([n, all]) => {
     // (a shunt or a collateral is drawn only in some states and is a small vessel on the trunk it joins: it eases to the node, it does not set it)
     const a = all.some((x) => x.main) ? all.filter((x) => x.main) : all;
-    // (the hepatic junction keeps the mean: the cava rises to meet the hepatic veins and runs on to the atrium's wall, one slope, a design of the labels and the smooth joins)
-    const widest = all.length >= 3 && !RISE_NODES.has(n) ? Math.max(...a.map((x) => x.r)) : 0;
+    // (the hepatic junction too: the cava stays at its own depth through it, the hepatic veins ease down to it, and it runs on to the atrium's wall on one slope; a rise at the junction
+    // and a fall to the atrium was the kink at the cava's upper end, which the 14 degree view turned into an S: Mohammad, 20 Nov)
+    const widest = all.length >= 3 ? Math.max(...a.map((x) => x.r)) : 0;
     const used = a.filter((x) => x.r >= 0.9 * widest);
     return [n, used.reduce((t, x) => t + x.z, 0) / used.length] as const;
   }));

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import manifest from '../src/scene/organs/organs-manifest.json' with { type: 'json' };
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EDGES, NODES } from '../src/engine/hales/portal/topology.js';
@@ -12,6 +14,8 @@ import { HIDDEN_EDGES } from '../src/scene/vessels/paths.copied.ts';
 
 const nodeIds = new Set((NODES as { id: string }[]).map((n) => n.id));
 const edge = new Map((EDGES as { id: string; kind: string; from: string; to: string }[]).map((e) => [e.id, e]));
+
+import { withStartInOrgan } from '../src/scene/vessels/starts.ts';
 
 test('every vessel the 2D figure draws is a vessel here, named by its engine edge id', () => {
   const have = new Set(NETWORK.map((v) => v.id));
@@ -114,7 +118,7 @@ test('the vessel vertex shader parses, and body and ink are told apart by `hull`
 test('every vessel is its 2D course through the one linear map: back through it, each point is the 2D point', () => {
   for (const v of NETWORK) {
     if (v.feeder) continue;   // (a fan of tributaries: its own test, below)
-    const c = EDGE_PATH_2D[v.id]!;
+    const c = withStartInOrgan(v.id, EDGE_PATH_2D[v.id]!);   // (the splenic vein is carried on into the spleen: starts.ts)
     assert.equal(v.pts.length, c.length, v.id);
     // (the 2D figure redraws the last 11 samples either side of a run-on as one smooth cubic through the join: joins.ts)
     const near = (i: number) => RUN_ONS.some((r) => (r.a === v.id && (r.ia ? i >= c.length - 12 : i <= 11)) || (r.b === v.id && (r.ib ? i >= c.length - 12 : i <= 11)));
@@ -123,6 +127,17 @@ test('every vessel is its 2D course through the one linear map: back through it,
       assert.ok(Math.abs(x2d(p[0]) - c[i]![0]) < 1e-6 && Math.abs(y2d(p[1]) - c[i]![1]) < 1e-6, `${v.id} point ${i}`);
     });
   }
+});
+
+test('the vessels lie in one plane through the organs, not in front of them: every tier is inside the liver, the heart, the kidney and the stomach, and the tiers are close (Mohammad, 20 Nov)', () => {
+  const b = readFileSync('public/anatomy/organs.bin'), buf = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+  const M = manifest as unknown as { q: number; organs: Record<string, [number, number]> };
+  const zr = (id: string) => { const [pb, nv] = M.organs[id]!, q = new Int16Array(buf, pb, nv * 3); let lo = Infinity, hi = -Infinity; for (let i = 0; i < nv; i++) { const z = q[i * 3 + 2]! / M.q; lo = Math.min(lo, z); hi = Math.max(hi, z); } return { lo, hi }; };
+  const zs = Object.values(TIER_Z);
+  for (const id of ['liver', 'heart', 'kidney-l', 'stomach']) { const r = zr(id); for (const t of Object.entries(TIER_Z)) assert.ok(t[1] > r.lo && t[1] < r.hi, `${t[0]} (${t[1]}) is inside ${id} (${r.lo} to ${r.hi})`); }
+  assert.ok(Math.max(...zs) - Math.min(...zs) <= 0.2, 'one plane: the tiers differ by a crossing only');
+  // a vessel's own depth never moves more than that along its course (a jog of a quarter unit in z was a 14 degree sideways zigzag)
+  for (const v of NETWORK) if (!v.feeder) { const zz = v.pts.map((p) => p[2]); assert.ok(Math.max(...zz) - Math.min(...zz) <= 0.2, `${v.id} stays in the plane`); }
 });
 
 test('the map is the artist\'s: confluence at the origin, 300 2D units to a scene unit, y up', () => {
@@ -150,8 +165,8 @@ test('over and under follow the 2D tiers: the portal tree over the network, the 
   assert.ok(z('RHV_IVC') > z('C1a') || z('RHV_IVC') < z('C1a'), 'distinct tiers');
   assert.equal(z('PV_TRUNK'), TIER_Z.front);
   assert.equal(z('A_HEP'), TIER_Z.art);
-  assert.ok(z('IVCS_RA') < 0 && z('IVCS_RA') < z('PV_TRUNK'), 'the cava runs behind the liver');
-  assert.ok(TIER_Z.back < 0 && TIER_Z.art < TIER_Z.mid && TIER_Z.mid < TIER_Z.net && TIER_Z.net < TIER_Z.front && TIER_Z.front < TIER_Z.over);
+  assert.ok(z('IVCS_RA') < z('PV_TRUNK') && z('IVCS_RA') <= TIER_Z.back + 1e-9, 'the cava is the rearmost tier');
+  assert.ok(TIER_Z.back < TIER_Z.art && TIER_Z.art < TIER_Z.mid && TIER_Z.mid < TIER_Z.net && TIER_Z.net < TIER_Z.front && TIER_Z.front < TIER_Z.over);
   for (const v of NETWORK) assert.ok(v.pts.every((p) => p[2] === TIER_Z[v.tier]), `${v.id} is one plane`);
 });
 

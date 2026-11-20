@@ -5,6 +5,7 @@ import { EDGES } from '../../engine/hales/portal/topology.js';
 import { x3, y3 } from '../frame2d.ts';
 import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, FEEDER_FADE_Y_2D, SIN_EDGES_2D, SIN_FADE_C9_2D, SIN_FADE_ROW_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
 import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D } from './paths.copied.ts';
+import { startInOrganShare } from './starts.ts';
 
 /** stage-geo.js IVC_NODES, IVC_JOIN_LEN, HEPATIC_VEINS: a vein that ends on the faint cava fades into it over its last 60 units (12 for the portocaval and mesocaval shunts), so the join is seamless. */
 const IVC_NODES: ReadonlySet<string> = new Set(['IVCS', 'IVCI', 'RA', 'IVC_D', 'ILI_R']);
@@ -62,6 +63,8 @@ export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipF
   const art = ART_FADE_2D[id];
   if (art?.in) return { mode: 1, from: 0, to: art.in, a0: 0, a1: 1, keep: true, connect: [] };
   if (art?.out) return { mode: 1, from: 1 - art.out, to: 1, a0: 1, a1: 0, keep: true, connect: [] };
+  const inOrgan = startInOrganShare(id, EDGE_PATH_2D[id] ?? []);
+  if (inOrgan > 0 && !isArtery) return { mode: 1, from: 0, to: inOrgan, a0: 0, a1: 1, keep: false, connect: TIP_CONNECT_2D[id] ?? [] };
   const tip = TIP_FADE_2D[id];
   if (tip && !isArtery) return { mode: 1, from: 0, to: tip, a0: 0, a1: 1, keep: false, connect: TIP_CONNECT_2D[id] ?? [] };
   const join = isArtery ? 0 : ivcJoinSpan(id);

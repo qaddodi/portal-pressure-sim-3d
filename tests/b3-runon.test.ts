@@ -10,6 +10,8 @@ import { findRunOns, smoothRunOns } from '../src/scene/vessels/joins.ts';
 
 const has = (a: string, b: string) => RUN_ONS.some((r) => (r.a === a && r.b === b) || (r.a === b && r.b === a));
 
+import { withStartInOrgan } from '../src/scene/vessels/starts.ts';
+
 test('the main trunks run on into each other: splenic to its confluence, portal trunk to the right branch, the hepatic veins into the cava', () => {
   assert.ok(has('V_SPL', 'SV_MID'));
   assert.ok(has('SV_MID', 'SV_CONF'));
@@ -56,10 +58,12 @@ test('through a run-on the two courses meet with no kink (the cubic follows each
 test('the scene course carries the smooth one: x and y by the one linear map', () => {
   const r = RUN_ONS.find((q) => q.a === 'V_SPL' && q.b === 'SV_MID')!;
   const c = courseOf('V_SPL'), n = c.length, raw = EDGE_PATH_2D.V_SPL!;
-  assert.equal(n, raw.length);
-  // away from the join the course is the 2D sample itself
-  assert.equal(c[0]![0], x3(raw[0]![0]));
-  assert.equal(c[0]![1], y3(raw[0]![1]));
+  const ext = withStartInOrgan('V_SPL', raw).length - raw.length;   // (carried on into the spleen: starts.ts)
+  assert.ok(ext > 0);
+  assert.equal(n, raw.length + ext);
+  // away from the join the course is the 2D sample itself, after the stretch inside the spleen
+  assert.equal(c[ext]![0], x3(raw[0]![0]));
+  assert.equal(c[ext]![1], y3(raw[0]![1]));
   assert.ok(r);
 });
 
