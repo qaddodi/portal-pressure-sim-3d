@@ -144,7 +144,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     const cap = capOf(view);
     if (tooTallPair && stepAt < nSteps) { setStepMap((m) => ({ ...m, [pagesKey]: stepAt + 1 })); return; }
     if (tooTall && pages < cap) setPagesMap((m) => ({ ...m, [pagesKey]: pages + 1 }));
-  }, [tooTall, tooTallPair, ladBusy, lad, stepAt, nSteps, pages, pagesKey, view, deck.checks.length]);
+  }, [tooTall, tooTallPair, ladBusy, lad, cands.length, stepAt, nSteps, pages, pagesKey, view, deck.checks.length]);
   useLayoutEffect(() => { setPageCount(pages); }, [pages, setPageCount, wordsKey]);
 
   // a leaving card stays where it was while it goes

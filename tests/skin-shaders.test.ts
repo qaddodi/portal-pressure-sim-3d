@@ -20,11 +20,11 @@ test('the figure\'s units in a scene unit are the vessel\'s own (vU on the body)
   assert.ok(VESSEL_VS.includes(`mix(${SKIN_FIGURE_UNITS}.0, 1.0 / CIRC_MAPK, circShare)`), 'vessels/shaders.ts sets vU = mix(300, ...): the skin\'s ink and width rules are in the same units');
 });
 
-test('the varyings stay within 12 vec4s (an iPhone must have room: the floor is 15 and three adds none)', () => {
+test('the varyings stay within 12 vec4s (an iPhone must have room: the floor is 15 and three adds none; vPos places each arm\'s arc)', () => {
   const b = budget(program);
   assert.ok(b.varyings <= 12, `${b.varyings} varying vectors`);
   const names = declarations(SKIN_VS).filter((d) => d.storage === 'varying').map((d) => d.name).sort();
-  assert.deepEqual(names, ['vCenW', 'vN', 'vRest', 'vSwell', 'vV', 'vW', 'vWeight'], 'the vertex stage hands the fragment stage exactly these');
+  assert.deepEqual(names, ['vCenW', 'vN', 'vPos', 'vRest', 'vSwell', 'vV', 'vW', 'vWeight'], 'the vertex stage hands the fragment stage exactly these');
   const fs = declarations(SKIN_FS).filter((d) => d.storage === 'varying').map((d) => d.name).sort();
   assert.deepEqual(fs, names, 'the fragment stage declares the same varyings');
 });
@@ -57,8 +57,8 @@ test('the vertex attributes are the spec\'s (cen, weight, restR) on top of three
   assert.deepEqual(a, ['float restR', 'vec3 cen', 'vec4 weight']);
 });
 
-test('the skin draws no flow marks: no chevron, streak or dust code, no stream texture', () => {
-  for (const word of ['chevHead', 'dustField', 'streamTex', 'chainTex', 'streakAmt']) assert.ok(!SKIN_FS.includes(word), `${word} is not in the skin`);
+test('the skin draws the tubes\' flow marks, once per arm, with the tubes\' own code (tests/skin-marks.test.ts holds the rest)', () => {
+  for (const word of ['chevOne', 'dustField', 'streamTex', 'chainTex', 'streakAmt', 'armArc']) assert.ok(SKIN_FS.includes(word), `${word} is in the skin`);
 });
 
 test('the skin is back-face culled in the fragment stage like the tube, and fades out on the Circuit', () => {

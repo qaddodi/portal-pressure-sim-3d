@@ -136,15 +136,6 @@ varying vec2 vUv;
 // junction skins (skin/types.ts): the tube has a seam at either end
 bool skinCutOn() { return skinCut.x >= 0.0 || skinCut.y <= 1.0; }
 bool skinPast() { return (skinCut.x >= 0.0 && vUv.x < skinCut.x - 0.00002) || (skinCut.y <= 1.0 && vUv.x > skinCut.y + 0.00002); }
-// the figure's units from this pixel to the nearest seam along the tube
-float skinSeamDist() {
-  float Lw = len * vU, d = 1e9;
-  if (skinCut.x >= 0.0) d = (vUv.x - skinCut.x) * Lw;
-  if (skinCut.y <= 1.0) d = min(d, (skinCut.y - vUv.x) * Lw);
-  return d;
-}
-// the flow marks (chevrons, streaks, dust) die away over MARK_FADE_R radii before the seam: the skin draws none, and the stream chain carries the heads on into the next vessel past the junction
-float skinMarkK() { return skinCutOn() ? smoothstep(0.0, 1.5 * max(vR, 1e-3), skinSeamDist()) : 1.0; }
 
 float lum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 
@@ -533,7 +524,7 @@ void main() {
     float nar = 1.0;
     if (useData > 0.5) { ivec2 tcn = ivec2(int(mod(vindex, vdataSize.x)), int(floor(vindex / vdataSize.x))); nar = texelFetch(vdata, tcn, 0).b / max(baseD, 0.1); }
     vec4 chD = texelFetch(chainTex, ivec2(int(lensIndex), 0), 0);
-    float dOn = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * skinMarkK() * streakAmt * smoothstep(1.5, 2.1, rCssD) * smoothstep(0.0, 2.0, abs(smS.y));
+    float dOn = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * streakAmt * smoothstep(1.5, 2.1, rCssD) * smoothstep(0.0, 2.0, abs(smS.y));
     if (dOn > 0.002) {
       // (the streak distance, texel w: the stream's distance D held to a speed no pattern wagon-wheels at, streams.ts; the same arc and gate the heads have, and none only where the flow is none)
       float sD = vUv.x * len * vU, rOwn = max(radius * vU, 1e-3), wl = chD.w;
@@ -589,7 +580,7 @@ void main() {
       ch = c4.w >= 1.0 ? cc : mix(ch, cc, c4.w);
     }
     // heads are on every tube down to about 4 CSS px across (R 1.5 px: the spacing never depends on the width), and are cut at the wall (never on the ink)
-    float fade = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * skinMarkK() * flowAmount * smoothstep(1.5 * wpc, 2.1 * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));   // (a head stands inside the lumen, 55 percent of it: this is only the wall's own cut)
+    float fade = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * flowAmount * smoothstep(1.5 * wpc, 2.1 * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));   // (a head stands inside the lumen, 55 percent of it: this is only the wall's own cut)
     fade *= mix(0.3, 1.0, smoothstep(0.5, 3.0, abs(vd)));
     if (fade > 0.0 && ch.x + ch.y > 0.0) {
       float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);

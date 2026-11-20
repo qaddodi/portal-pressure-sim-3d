@@ -106,7 +106,9 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
   for (const s of plan.steps ?? []) {
     const ids = s.ids ?? plan.glow.filter((g) => g.at === s.at).map((g) => g.id);
     const edge = ids.find((id) => NETWORK_BY_ID.has(id));
-    const anchor: Anchor | null = s.organ ? { at2d: ORGAN_ANCHOR_2D[s.organ]!.at } : edge ? { edge } : null;
+    // a group's number stands between its vessels, on a leader to the middle of each (2D stage-label-solve.js: `fans`); a single vessel's, by its own middle
+    const members = s.group ? ids.filter((id) => NETWORK_BY_ID.has(id)) : [];
+    const anchor: Anchor | null = s.organ ? { at2d: ORGAN_ANCHOR_2D[s.organ]!.at } : members.length > 1 ? { edges: members } : edge ? { edge } : null;
     if (!anchor) { notDrawn.push(`step ${s.n}`); continue; }
     cards.push({ id: `step:${s.n}`, kind: 'step', text: String(s.n), n: s.n, tone: 'note', anchor, at: s.at });
   }

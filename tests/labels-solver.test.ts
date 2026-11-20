@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { solve, slideInView, boxOf, LEAD_ON, CALL_MIN_GAP, type Item, type Form } from '../src/scene/labels/solver.ts';
 import { hits, grow, type Box } from '../src/scene/labels/geometry.ts';
@@ -144,4 +145,20 @@ test('the diagnostic (?capwhy) names who stood in the way of a label\'s near spo
   const r = solve({ items: [a, b], view: VIEW, blockers: [], why });
   assert.ok(Object.keys(why.get('b') ?? {}).some((k) => k.startsWith('label:a') || k.startsWith('dot:a') || k.startsWith('underLeader:a') || k === 'ownDot'), JSON.stringify(why.get('b')));
   assert.deepEqual(r.placed.map((p) => p.id).sort(), solve({ items: [a, b], view: VIEW, blockers: [] }).placed.map((p) => p.id).sort(), 'the answer is the same with or without it');
+});
+
+test('a station\'s name never takes the last resort of a spot over a vessel; the reader\'s own choices and the hepatic artery keep it (2D, 4 Nov: no labels covering the portal vein)', () => {
+  // a corridor 140 wide that the label (138) fits only by touching the cards' edges (the last resort), with a vessel under every spot
+  const blockers: Box[] = [{ x0: 0, y0: 56, x1: 430, y1: 700 }, { x0: 570, y0: 56, x1: 1000, y1: 700 }];
+  const lines: [number, number, number, number][] = Array.from({ length: 40 }, (_, i) => [430, 70 + i * 14, 570, 70 + i * 14]);
+  const mk = (over: Partial<Item>) => item('x', 500, 300, { forms: [form(138)], must: true, ...over });
+  assert.equal(solve({ items: [mk({ offVessels: true })], view: VIEW, blockers, lines }).placed.length, 0, 'a station with no clear spot is left out');
+  assert.deepEqual(solve({ items: [mk({ offVessels: true })], view: VIEW, blockers, lines }).dropped, ['x']);
+  assert.equal(solve({ items: [mk({})], view: VIEW, blockers, lines }).placed.length, 1, 'a name that is not marked stands, as before (the picked, a slide\'s, the hepatic artery)');
+  assert.equal(solve({ items: [mk({ offVessels: true })], view: VIEW, blockers, lines: [] }).placed.length, 1, 'with no vessel under it, it stands');
+});
+
+test('the controller marks every station name offVessels but the picked vessel, what a slide names or shows, and the hepatic artery', () => {
+  const src = readFileSync(new URL('../src/scene/labels/controller.ts', import.meta.url), 'utf8');
+  assert.match(src, /!picked && !isNamed && !this\.state\.shown\.has\(m\.station\.id\) && m\.station\.id !== 'HA' \? \{ offVessels: true \}/);
 });

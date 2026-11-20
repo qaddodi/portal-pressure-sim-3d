@@ -43,4 +43,5 @@ test('the card layer takes the steps before the words page, and writes them on b
   assert.match(layer, /ladOn = pair && !sideways && !stacked0/, 'a laptop or tablet on its side only: the phone has its own steps');
   assert.match(frame, /style=\{\{ \.\.\.vars, width: rect\.w/);
   assert.match(frame, /\}, \[entry\.key, Math\.round\(rect\.w\), remeasure\]\);/, 'a step that changes no height is still judged afresh');
+  assert.match(layer, /ladBusy, lad, cands\.length,/, 'the effect runs again when the ladder\'s sizes arrive, or it never takes its first step (the first pass only reads them)');
 });
