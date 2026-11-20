@@ -44,7 +44,7 @@ import { staticRouteTexture } from '../blood/routes.ts';
 import { MICRO_DPR, MeshBuilder, MicroPart, type P2, type RGB, ellipsoid, microMaterials, pillow, tube } from './cel3d.ts';
 import { joinsMode } from '../vessels/skin/joins-mode.ts';
 import { bileWeldCourses, bloodWeldCourses, trimmedInside } from '../lobule/weld-courses.ts';
-import { requestWelds } from '../lobule/weld-client.ts';
+import { requestWelds, type WeldRequest } from '../lobule/weld-client.ts';
 import type { WeldCourseOut, WeldPlan } from '../lobule/welds.ts';
 import { type EmitOpts, type PartData, emitCourse, emitSkin } from './lobule-welded.ts';
 
@@ -101,6 +101,18 @@ interface Coloured {
   part: MicroPart; seg: Seg | null; w: Float32Array; k: Float32Array;
   /** Where a welded junction blends two colour families (a sinusoid leaving an inlet): the other segment, each vertex's place on it, and how much of it the vertex wears (0 to 1). */
   seg2?: Seg; w2?: Float32Array; m?: Float32Array;
+}
+
+/** The scene's fade below which a waiting weld plan may be laid in (nothing of it can be told). */
+const WELD_SWAP_FADE = 0.02;
+
+/** What the weld planner is given for a network (lobule/welds.ts): its courses as the scene draws them, and the discs of the vessels' mouths (a meeting inside a mouth is the pool's, not a junction). The same call
+ *  makes the baked plan at build time (scripts/bake-welds.mjs) and asks for it at run time, so a baked file made for other numbers is known by its digest and never laid in. */
+export function weldRequest(net: LobuleNet): WeldRequest {
+  const h = { R, over: OVER_Z, tube: LZ.tube, bile: LZ.cellTop + 0.001 }, segs = { vessel: TUBE_SEG, bile: 6 };
+  const mouthR: Partial<Record<Course['kind'], number>> = { pv: DISC_R.pv, ha: DISC_R.ha * HA_K, bd: DISC_R.bd * BD_K, lv: DISC_R.lv, cv: DISC_R.cv };
+  const avoid = net.courses.filter((c) => mouthR[c.kind] !== undefined).map((c) => { const p = c.pts[Math.floor(c.pts.length / 2)]!; return { x: p[0] * R, y: -p[1] * R, r: mouthR[c.kind]! * R }; });
+  return { courses: [...bloodWeldCourses(net, h, segs), ...bileWeldCourses(net, h, segs)], avoid };
 }
 
 export class Lobule3D {
@@ -214,11 +226,7 @@ export class Lobule3D {
   private askWelds(): void {
     if (this.weldsAsked || joinsMode() === 'old' || !useSettings.getState().smoothJoins) return;
     this.weldsAsked = true;
-    const h = { R, over: OVER_Z, tube: LZ.tube, bile: LZ.cellTop + 0.001 }, segs = { vessel: TUBE_SEG, bile: 6 }, net = this.flat.net;
-    // (a meeting inside a vessel's mouth is the pool's, not a junction)
-    const mouthR: Partial<Record<Course['kind'], number>> = { pv: DISC_R.pv, ha: DISC_R.ha * HA_K, bd: DISC_R.bd * BD_K, lv: DISC_R.lv, cv: DISC_R.cv };
-    const avoid = net.courses.filter((c) => mouthR[c.kind] !== undefined).map((c) => { const p = c.pts[Math.floor(c.pts.length / 2)]!; return { x: p[0] * R, y: -p[1] * R, r: mouthR[c.kind]! * R }; });
-    void requestWelds({ courses: [...bloodWeldCourses(net, h, segs), ...bileWeldCourses(net, h, segs)], avoid }).then((plan) => {
+    void requestWelds(weldRequest(this.flat.net)).then((plan) => {
       if (!plan || this.disposed) return;
       this.pendingWelds = plan;
       this.layWelds();
@@ -226,7 +234,8 @@ export class Lobule3D {
   }
   /** Lays a waiting plan into the vessels, when the Lobule is not on the screen. */
   private layWelds(): void {
-    if (!this.pendingWelds || this.group.visible) return;
+    // (out of sight, or so faded in or out that the swap cannot be told: the baked plan is here at boot, so a Lobule entered from the body comes in already welded)
+    if (!this.pendingWelds || (this.group.visible && this.fade.value > WELD_SWAP_FADE)) return;
     this.weldPlan = this.pendingWelds; this.pendingWelds = null;
     this.buildVessels();
     this.inkKey = '';
@@ -240,7 +249,7 @@ export class Lobule3D {
 
   /** One frame, after the flat lobule's own update. `on` is the Settings switch. True while anything of this scene changed. */
   update(on: boolean, under = 0, now = 0, rate = 1): boolean {
-    if (this.pendingWelds && !this.group.visible) this.layWelds();
+    if (this.pendingWelds && (!this.group.visible || this.fade.value <= WELD_SWAP_FADE)) this.layWelds();
     const f = this.flat, changed = on !== this.on;
     this.on = on;
     // `under`: how far the camera has gone down onto the sinusoid (0 on the lobule, 1 landed). The lobule dissolves away as the sinusoid comes in (Mohammad: "Should fade when zooming"), and once
