@@ -20,7 +20,7 @@ import { useLabels } from '../labels/store.ts';
 import { type Placement, solve } from '../labels/solver.ts';
 import { LS, baselineAt, fontPx, lookVars, typeVars } from '../labels/type.ts';
 import { COURSES } from './course.ts';
-import { type CapMeta, buildCaptions } from './captions.ts';
+import { type CapMeta, ZONE_PX, buildCaptions } from './captions.ts';
 import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, CIRCUIT_TREES, LIVER_EDGES } from './data.copied.ts';
 import { courseOf } from './paths.ts';
 import { halfWidthPx } from './cap-width.ts';
@@ -166,7 +166,7 @@ export function CircuitCaptions() {
           e.root.style.width = `${Math.round(ow * 100) / 100}px`; e.root.style.height = `${Math.round(oh * 100) / 100}px`;
           e.root.dataset.form = f.name ? '0' : '2';
           e.root.style.setProperty('--b', `${Math.round(baselineAt(oh, LS.PAD.y) * 100) / 100}px`);
-          if (m.kind === 'zone') { e.name!.style.fontSize = `${fontPx(10.5, vp)}px`; }
+          if (m.kind === 'zone') { e.name!.style.fontSize = `${fontPx(ZONE_PX, vp)}px`; }
           else if (m.kind === 'lane') { e.name!.style.fontSize = `${fontPx(10, vp)}px`; }
           else if (m.kind === 'res') { e.name!.style.fontSize = `${fontPx(11.5, vp)}px`; e.val!.style.fontSize = `${fontPx(11.5, vp)}px`; if (e.key) { e.key.style.fontSize = `${fontPx(9.5, vp)}px`; } }
         }

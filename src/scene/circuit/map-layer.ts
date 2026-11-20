@@ -17,7 +17,11 @@ export function mapRamp(t: number): number {
 }
 
 /** How far a zone band's edge is softened along the flow, map units. */
-export const BAND_SOFT = 70;
+export const BAND_SOFT = 36;
+/** A band's tint, as a share of the look's own: a calm wash behind the vessels, not a block. */
+export const BAND_CALM = 0.8;
+/** The hairline that stands where one tier ends and the next begins: its share of the dot colour's opacity, and its width in CSS px. */
+export const TIER_LINE = 0.55;
 const PLATE_UNITS = 1600;   // (the grid runs on this far past the figure's box, fading out in steps)
 
 export const PLATE_VS = /* glsl */ `
@@ -32,6 +36,8 @@ void main() {
 /** The 2D map's fragment: mapAt of veins-gl.js, premultiplied. */
 export const PLATE_FS = /* glsl */ `
 const float BAND_SOFT = ${BAND_SOFT.toFixed(1)};
+const float BAND_CALM = ${BAND_CALM.toFixed(2)};
+const float TIER_LINE = ${TIER_LINE.toFixed(2)};
 uniform float mapA;
 uniform vec4 mapDot;
 uniform vec4 mapZone[3];
@@ -53,12 +59,16 @@ void main() {
   }
   // the tinted zones run the whole way across the map (and the plate beyond it, so the screen's sides are in them) and fade into one another and into the ground over BAND_SOFT map units
   // along the flow: a band is a wash behind the vessels, never a box with edges and margins
-  float zp = clamp(min(w.x - mapAlt.x, mapAlt.y - w.x) / BAND_SOFT + 0.5, 0.0, 1.0) * mapZone[0].a;
-  float zl = clamp(min(w.x - mapAlt.y, mapAlt.z - w.x) / BAND_SOFT + 0.5, 0.0, 1.0) * mapZone[1].a;
-  float zh = clamp(min(w.x - mapAlt.z, mapAlt.w - w.x) / BAND_SOFT + 0.5, 0.0, 1.0) * mapZone[2].a;
+  float zp = clamp(min(w.x - mapAlt.x, mapAlt.y - w.x) / BAND_SOFT + 0.5, 0.0, 1.0) * mapZone[0].a * BAND_CALM;
+  float zl = clamp(min(w.x - mapAlt.y, mapAlt.z - w.x) / BAND_SOFT + 0.5, 0.0, 1.0) * mapZone[1].a * BAND_CALM;
+  float zh = clamp(min(w.x - mapAlt.z, mapAlt.w - w.x) / BAND_SOFT + 0.5, 0.0, 1.0) * mapZone[2].a * BAND_CALM;
   c = overP(vec4(mapZone[0].rgb * zp, zp), c);
   c = overP(vec4(mapZone[1].rgb * zl, zl), c);
   c = overP(vec4(mapZone[2].rgb * zh, zh), c);
+  // a hairline where one tier ends and the next begins, so the tiers read as separate without a hard-edged box
+  vec4 ex = abs(w.x - mapAlt) / pxW;
+  float tl = clamp(1.25 - min(min(ex.x, ex.y), min(ex.z, ex.w)), 0.0, 1.0) * mapDot.a * TIER_LINE * 2.0;
+  c = overP(vec4(mapDot.rgb * tl, tl), c);
   gl_FragColor = c * mapA;
 }`;
 

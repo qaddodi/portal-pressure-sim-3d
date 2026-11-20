@@ -129,12 +129,13 @@ test('the five zone titles stand along the top of the wide map, and a narrow ban
   if (z) assert.ok(ZONE_SHORT['Hepatic veins · IVC']!.includes(z.forms[0]!.text), 'the short form');
   assert.ok(narrow.items.filter((i) => i.id.startsWith('z:')).length < 5 || narrow.items.every((i) => !i.id.startsWith('z:') || true));
 });
-test('a phone shows only the major stations, the liver\'s inner ones wait for a zoom, and a named one always stands', () => {
+test('every station is named, on a phone too (the azygos, the lower IVC); the liver\'s inner ones wait for a zoom, and a named one always stands', () => {
   const full = buildCaptions(fakeCtx()), phone = buildCaptions(fakeCtx({ compact: true })), zoomed = buildCaptions(fakeCtx({ zoomed: true, liverOpen: true }));
   const ids = (b: ReturnType<typeof buildCaptions>) => new Set(b.items.filter((i) => b.meta.get(i.id)?.kind === 'station').map((i) => i.id));
   assert.ok(ids(full).has('CONF') && ids(full).has('SIN_R') === false, 'collapsed liver: its inner stations are hidden');
   assert.ok(ids(zoomed).has('SIN_R') && ids(zoomed).has('CV_R'));
-  assert.ok(ids(phone).size < ids(full).size && [...ids(phone)].every((id) => CIRCUIT_LABELS[id]!.pri >= 8 || id === 'HA'));
+  assert.deepEqual([...ids(phone)].sort(), [...ids(full)].sort(), 'a phone names the same stations a desktop does');
+  for (const id of ['AZY', 'IVCI', 'ILI', 'LRV']) assert.ok(ids(phone).has(id), `${id} is named on a phone`);
   assert.ok(ids(buildCaptions(fakeCtx({ compact: true, must: new Set(['COL']) }))).has('COL'));
   assert.ok(ids(zoomed).size > ids(full).size);
 });
@@ -360,4 +361,13 @@ test('a Circuit slide frames its region of the map, draws the resistors its site
   const up = circuitBoxShot(box, true);
   assert.ok(Math.abs(up.half[0] - part.half[1]) < 1e-9 && Math.abs(up.half[1] - part.half[0]) < 1e-9);
   assert.ok(Math.abs(circuitShot(true).half[0] - whole.half[1]) < 1e-9);
+});
+
+test('a tier is named in small capitals at its band, and the tiers are drawn as soft full-width washes with a hairline between them', () => {
+  const b = buildCaptions(fakeCtx({ compact: true })), zones = b.items.filter((i) => b.meta.get(i.id)?.kind === 'zone');
+  assert.ok(zones.length >= 3, 'the tiers are named');
+  for (const z of zones) { const n = b.meta.get(z.id)!.forms[0]!.name; assert.equal(n, n.toUpperCase()); }
+  const layer = readFileSync(new URL('../src/scene/circuit/map-layer.ts', import.meta.url), 'utf8');
+  assert.match(layer, /TIER_LINE/);
+  assert.match(layer, /\* BAND_CALM;/);
 });
