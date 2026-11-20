@@ -4,6 +4,7 @@
 
 import { toolStep } from './talk/tool-step.ts';
 import { lapseNext } from './deck/lapse-next.ts';
+import { procStep } from './deck/proc-step.ts';
 import { create } from 'zustand';
 import type { Deck } from '../decks/schema.ts';
 import type { Rect, Viewport } from './layout/device.ts';
@@ -103,6 +104,8 @@ export const useUi = create<UiState>((set, get) => ({
     const at = page === 'last' ? pageCount - 1 : Math.min(page, pageCount - 1);
     if (m === 'next' && at < pageCount - 1) { set({ page: at + 1 }); return; }
     if (m === 'back' && at > 0) { set({ page: at - 1 }); return; }
+    // a slide whose procedure is guided by Next plays or takes back one step first (2D procNext; ui/deck/procs-link.ts)
+    if ((m === 'next' || m === 'back') && procStep(m === 'next' ? 1 : -1)) return;
     // a data card that takes its readings one Next at a time (the HVPG tracing) takes this one first (ui/talk/tool-step.ts)
     if ((m === 'next' || m === 'back') && toolStep(m === 'next' ? 1 : -1)) return;
     const to = apply(stops, pos, m);

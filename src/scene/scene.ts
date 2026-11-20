@@ -470,10 +470,12 @@ export class CelScene {
     this.body.localToWorld(tip); this.body.localToWorld(ahead);
     return true;
   }
-  setCatheter(s: CatheterState & { ring?: 'free' | 'wedge' | 'bad' | null }): void {
-    this.catheter.set(s);
+  setCatheter(s: CatheterState & { ring?: 'free' | 'wedge' | 'bad' | null; column?: number; clock?: number }): void {
+    // (the still column fills after the balloon is up and the WHVP pill comes after the column, 2D cathTo: the labels read the slice's balloon as "wedged" at 0.999, so it says so only once the column is full)
+    const col = s.column ?? s.balloon;
+    this.catheter.set({ advance: s.advance, balloon: col >= 0.999 ? s.balloon : Math.min(s.balloon, 0.99) });
     this.catheter.group.visible = false;
-    this.procs.showHvpgState(this.catheter.current.advance, this.catheter.current.balloon, s.ring ?? null, performance.now());
+    this.procs.showHvpgState(s.advance, s.balloon, s.ring ?? null, s.clock ?? performance.now(), col);
     this.moving = true;
   }
 

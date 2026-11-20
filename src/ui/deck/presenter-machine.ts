@@ -132,15 +132,21 @@ export function apply(stops: Stop[], p: Pos, m: Move): Pos {
   return m === 'next' ? next(stops, p) : m === 'back' ? back(stops, p) : m === 'first' ? first() : last(stops);
 }
 
-/** How far the catheter is advanced along its route and how far its balloon is up at a position, each 0 to 1 (the scene draws; the presenter tweens).
+/** The catheter state on show at a position (null: none out). The case beat has no catheter yet; the route slide's words bring it in; the quick check leaves the figure as the last slide with a catheter left it.
+ *  scene-link.ts runs the catheter's one clock (cath-clock.ts) to the place on the HVPG script this names. */
+export function cathPlace(stops: Stop[], p: Pos): CathState | null {
+  const s = stops[p.stop];
+  if (s.kind === 'title') return null;
+  if (s.kind === 'check') return lastCath(stops) ?? null;
+  if (caseOf(s.slide) && p.beat === 0) return null;
+  return s.slide.cath ?? null;
+}
+
+/** How far the catheter is advanced along its route and how far its balloon is up at a position, each 0 to 1 (where the clock lands at that position: cath-clock.ts poseAt of the place's time).
  *  The case beat has no catheter yet; the route slide's words bring it in; the wedge slide inflates the balloon; the result keeps both, and the quick
  *  check leaves the figure as the result left it. */
 export function catheterAt(stops: Stop[], p: Pos): { advance: number; balloon: number } {
-  const s = stops[p.stop];
-  if (s.kind === 'title') return { advance: 0, balloon: 0 };
-  if (s.kind === 'check') return catheterOf(lastCath(stops));
-  if (caseOf(s.slide) && p.beat === 0) return { advance: 0, balloon: 0 };
-  return catheterOf(s.slide.cath);
+  return catheterOf(cathPlace(stops, p));
 }
 const catheterOf = (c: CathState | undefined | null): { advance: number; balloon: number } =>
   c === 'route' || c === 'free' ? { advance: 1, balloon: 0 } : c === 'wedge' || c === 'result' ? { advance: 1, balloon: 1 } : c === 'blocked' ? { advance: OSTIUM_U, balloon: 0 } : { advance: 0, balloon: 0 };
