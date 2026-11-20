@@ -17,7 +17,7 @@ import { planSkins, type ArmTube } from './cuts.ts';
 import { buildSkin, hullCovers } from './mesh.ts';
 import type { Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, SKIN_HIDDEN, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
-import { hiWeightAt, lensUAt, liveFadeAt, type FadeState, type HiState } from './arm-twins.ts';
+import { armPresenceAt, hiWeightAt, lensUAt, liveFadeAt, type FadeState, type HiState } from './arm-twins.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import type { ArmAxis, ArmColour } from './skin-object.ts';
 import { SKIN_FIGURE_UNITS } from './shaders.ts';
@@ -28,6 +28,7 @@ export interface SkinDraw {
   /** the live handover for arm `i`: its tube's alpha at its seam, its highlight weight there, and its lens ramp's position there */
   setArm(i: number, fade: number, hi: number, lensU: number, colour: ArmColour, narrow: number): void;
   setArc(i: number, seamArc: number, dir: number, length: number, restR: number, flow: number): void;
+  setPres(i: number, p: number): void;
   /** a skin blends only when one of its arms does (a fade zone): opaque otherwise, as the tubes are */
   setTransparent(on: boolean): void;
   dispose(): void;
@@ -116,6 +117,8 @@ export class SkinSet {
   get count(): number { return this.built.length; }
   /** The junction nodes that are skinned. */
   get nodes(): readonly string[] { return this.built.map((b) => b.node); }
+  /** The vessel ids of a built skin's arms, in arm order (the draw returned by `make`). */
+  armIdsOf(draw: SkinDraw): readonly string[] { return this.built.find((b) => b.draw === draw)?.arms.map((a) => a.id) ?? []; }
   /** The built skin of a node, or undefined. */
   skinOf(node: string): SkinMesh | undefined { return this.built.find((b) => b.node === node)?.mesh; }
 
@@ -210,8 +213,11 @@ export class SkinSet {
         const col = u.color!.value as { r: number; g: number; b: number }, lu = (u.lensUse!.value as number) > 0.5 ? 1 : 0;
         const nar = a.obj.toonMesh.geometry.getAttribute('narrow')?.getX(a.vi) ?? 0;   // (the stenosis waist the tube has at its seam; disease/clamps.ts writes it, only for a vessel that is stenosed)
         if (a.last[0] !== f || a.last[1] !== h || a.last[2] !== l || a.last[3] !== col.r || a.last[4] !== col.g || a.last[5] !== col.b || a.last[6] !== lu || a.last[7] !== nar) {
-          a.last = [f, h, l, col.r, col.g, col.b, lu, nar, a.last[8] ?? NaN, a.last[9] ?? NaN]; b.draw.setArm(i, f, h, l, { r: col.r, g: col.g, b: col.b, a: lu }, nar); any = true;
+          a.last = [f, h, l, col.r, col.g, col.b, lu, nar, a.last[8] ?? NaN, a.last[9] ?? NaN, a.last[10] ?? NaN]; b.draw.setArm(i, f, h, l, { r: col.r, g: col.g, b: col.b, a: lu }, nar); any = true;
         }
+        // the arm's presence: the skin is there as much as its tube is (visible, drawn on, dissolved)
+        const pr = armPresenceAt(a.obj.group.visible, u.reveal!.value as number, u.fade!.value as number, a.u);
+        if (a.last[10] !== pr) { a.last[10] = pr; b.draw.setPres(i, pr); any = true; }
         // the arm's flow marks ride on its arc (armArcOf: the tube's own u x len x figure units) and its tube's flowAmount
         const ln = u.len!.value as number, rd = u.radius!.value as number, fl = u.flowAmount!.value as number;
         if (a.last[8] !== ln || a.last[9] !== fl) {

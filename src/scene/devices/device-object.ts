@@ -75,11 +75,24 @@ export class DeviceObject extends CelObject {
     this.toon.fragmentShader = 'uniform float rimFill;\n' + withAlpha(this.toon.fragmentShader, 'gl_FragColor = vec4(c, alpha * tailK(vUv.x));', 'float fr = 1.0 - abs(dot(normalize(vN), normalize(vV)));\n  float alpha = clamp(alpha * (1.0 + rimFill * fr * fr * 6.0), 0.0, 1.0);\n  gl_FragColor = vec4(c, alpha * tailK(vUv.x));');
     // Depth rings (an endoscope's insertion tube has thin white rings every few cm, a heavier one every fifth): bands across the tube, by distance along it (uv.x), counted back from `stripeOff` (where the tip is, in uv),
     // none within `stripeSkip` of it (the bending section has none). `stripeP` is the spacing in uv (0: none, the default).
-    this.toon.uniforms.stripeP = { value: 0 }; this.toon.uniforms.stripeOff = { value: 0 }; this.toon.uniforms.stripeW = { value: 0 }; this.toon.uniforms.stripeSkip = { value: 0 }; this.toon.uniforms.stripeCol = { value: new Color(1, 1, 1) }; this.toon.uniforms.stripeHeavy = { value: 2.4 };
-    this.toon.fragmentShader = 'uniform float stripeP;\nuniform float stripeOff;\nuniform float stripeW;\nuniform float stripeSkip;\nuniform vec3 stripeCol;\nuniform float stripeHeavy;\n' + withAlpha(this.toon.fragmentShader, '  gl_FragColor = vec4(c, alpha * tailK(vUv.x));', `  if (stripeP > 0.0) {
+    this.toon.uniforms.stripeP = { value: 0 }; this.toon.uniforms.stripeOff = { value: 0 }; this.toon.uniforms.stripeW = { value: 0 }; this.toon.uniforms.stripeSkip = { value: 0 }; this.toon.uniforms.stripeCol = { value: new Color(1, 1, 1) }; this.toon.uniforms.stripeHeavy = { value: 2.4 }; this.toon.uniforms.gloss = { value: 0 };
+    this.toon.fragmentShader = 'uniform float gloss;\nuniform float stripeP;\nuniform float stripeOff;\nuniform float stripeW;\nuniform float stripeSkip;\nuniform vec3 stripeCol;\nuniform float stripeHeavy;\n' + withAlpha(this.toon.fragmentShader, '  gl_FragColor = vec4(c, alpha * tailK(vUv.x));', `  // Gloss (an endoscope's insertion tube, owner's Olympus and Fujifilm photos): a smooth round shade across the tube as seen, no cel steps, with one soft long highlight a third of the way in from
+  // one side; it is placed by the tube's own screen-side, so an orbit never makes it swim. 0: off (the cel bands above).
+  float gAcross = 0.0;
+  if (gloss > 0.0) {
+    vec3 gs = cross(normalize(vT), normalize(vV)); float gl = length(gs);
+    gAcross = gl > 1e-4 ? dot(normalize(vN), gs / gl) : 0.0;
+    float body = 1.0 - gAcross * gAcross;   // 1 in the middle, 0 at the silhouette
+    vec3 smoothC = mix(shade * 0.82, color * 1.08, smoothstep(0.0, 1.0, body * 0.85 + 0.15 * (0.5 - 0.5 * gAcross)));
+    float hl = exp(-pow((gAcross + 0.38) / 0.13, 2.0));
+    c = mix(c, smoothC + vec3(0.42) * hl * gloss, gloss);
+  }
+  if (stripeP > 0.0) {
     float sd = (stripeOff - vUv.x) / stripeP, sn = floor(sd + 0.5), sw = mod(abs(sn), 5.0) < 0.5 ? stripeW * stripeHeavy : stripeW;
     float sk = step(stripeSkip, stripeOff - vUv.x) * step(0.5, sn);
-    c = mix(c, stripeCol, sk * (1.0 - smoothstep(sw * 0.55, sw, abs(sd - sn) * stripeP)));
+    // printed ticks, not painted hoops: on the glossy tube a mark covers only the front of the tube (fading out toward the silhouette) and is a little see-through, as ink on a real scope reads
+    float face = gloss > 0.0 ? (1.0 - smoothstep(0.35, 0.7, abs(gAcross))) * 0.85 : 1.0;
+    c = mix(c, stripeCol, face * sk * (1.0 - smoothstep(sw * 0.55, sw, abs(sd - sn) * stripeP)));
   }
   gl_FragColor = vec4(c, alpha * tailK(vUv.x));`);
     this.ink.vertexShader = 'varying float vRim;\n' + withAlpha(this.ink.vertexShader, '  vU = uv.x;', '  vU = uv.x;\n  { vec4 q = modelViewMatrix * vec4(p, 1.0); vRim = abs(dot(normalize(normalMatrix * normal), normalize(-q.xyz))); }');
@@ -117,6 +130,8 @@ export class DeviceObject extends CelObject {
   }
 
   /** Rings across the tube: every `period` (uv) back from `tip` (uv), a heavier one every fifth, `half` (uv) half width, none within `skip` (uv) of the tip. `period` 0 takes them away. */
+  /** A smooth glossy tube (0 off, 1 on): see the fragment above. */
+  setGloss(k: number): void { this.toon.uniforms.gloss!.value = k; }
   setStripes(period: number, tip: number, half: number, skip: number, hex = '#F4F2EC', heavy = 2.4): void {
     const u = this.toon.uniforms;
     u.stripeHeavy!.value = heavy;

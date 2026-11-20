@@ -55,7 +55,7 @@ export class SkinObject implements SkinDraw {
         // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
         color: du.color!,
         lensUse: { value: 1 },
-        armData: { value: this.armData }, armLensU: { value: [0, 0, 0, 0] }, armFade: { value: [1, 1, 1, 1] }, armHi: { value: [0, 0, 0, 0] }, armNarrow: { value: [0, 0, 0, 0] }, armArc: { value: this.armArc }, armFlow: { value: [0, 0, 0, 0] }, armColor: { value: this.armColor },
+        armData: { value: this.armData }, armLensU: { value: [0, 0, 0, 0] }, armFade: { value: [1, 1, 1, 1] }, armPres: { value: [1, 1, 1, 1] }, armHi: { value: [0, 0, 0, 0] }, armNarrow: { value: [0, 0, 0, 0] }, armArc: { value: this.armArc }, armFlow: { value: [0, 0, 0, 0] }, armColor: { value: this.armColor },
         armAxis: { value: armAxis }, armAxisR: { value: armAxisR }, skinK: { value: skinKOf(skin.junction.arms) },
       },
     });
@@ -83,6 +83,13 @@ export class SkinObject implements SkinDraw {
   setArc(i: number, seamArc: number, dir: number, length: number, restR: number, flow: number): void {
     this.armArc[i]!.set(seamArc, dir, length, restR);
     (this.material.uniforms.armFlow!.value as number[])[i] = flow;
+  }
+
+  /** How much of arm `i`'s tube is there at its seam (arm-twins.ts armPresenceAt); with none of them the skin is not drawn at all. */
+  setPres(i: number, p: number): void {
+    const a = this.material.uniforms.armPres!.value as number[];
+    a[i] = p;
+    this.mesh.visible = a.some((x, k) => this.armData[k]!.x >= 0 && x > 0.002);
   }
 
   setTransparent(on: boolean): void { if (this.material.transparent !== on) { this.material.transparent = on; this.material.needsUpdate = true; } }

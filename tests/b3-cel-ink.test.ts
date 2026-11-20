@@ -61,7 +61,7 @@ test('the shader holds the same numbers, and has no specular, no rim, no wall li
   assert.ok(!/sp \* 0\.32/.test(VESSEL_FS) && !/rim \* 0\.10/.test(VESSEL_FS), 'no old specular dot and no rim lift');
   assert.match(VESSEL_FS, /if \(smokeOn > 0\.5 &&/, 'the smoke is gated');
   assert.match(VESSEL_FS, /chevInk\(cream, markDark, markLight\)/, 'a head is one flat tone: the vessel\'s latched ink, eased in time, and a band of +-0.02 where it has none (tests/chevron-ink.test.ts), never a grey halfway');
-  assert.match(VESSEL_FS, /vec3 rimc = CHEV_RIM;/, 'the head\'s outline is always dark');
+  assert.match(VESSEL_FS, /CHEV_RIM \* ar \* \(1\.0 - ac\)/, 'the head\'s outline is always dark');
   assert.match(CHEVRON_GLSL, /const vec3 CHEV_RIM = vec3\(0\.2314, 0\.1725, 0\.1333\);/);
   assert.ok(!/dot\(n, l\) \* 0\.5/.test(VESSEL_FS), 'no world-lit bands');
   assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, fadeHere \* cavA\);/, 'opaque at rest: vFade is 1 outside a fade zone, cavaCut 0 on every vessel but a hepatic vein that opens into the cava');
