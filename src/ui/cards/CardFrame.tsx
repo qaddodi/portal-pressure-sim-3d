@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type PointerEventHandler, type MouseEvent } from 'react';
 import type { Rect } from '../layout/device.ts';
 import type { Entry } from './stack.ts';
-import { rail, outDistance, STAGGER, PARALLAX, RAIL_MS, type Dir } from './rail.ts';
+import { rail, outDistance, inDistance, STAGGER, PARALLAX, RAIL_MS, type Dir } from './rail.ts';
 import { useUi } from '../ui-store.ts';
 import { layoutOf, radius } from '../layout/rules2d.ts';
 import { centredKind, centredBox, panelVisual } from '../layout/plan.ts';
@@ -81,7 +81,8 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     if (!card || !plate || !ready) return;
     const prev = shownH.current;
     shownH.current = rect.h;
-    if (prev == null || prev === rect.h || !live || out) return;
+    if (out) { anims.current.forEach((a) => a.cancel()); anims.current = []; return; }   // (a card on its way out is never clipped by a height glide)
+    if (prev == null || prev === rect.h || !live) return;
     if (typeof card.animate !== 'function' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
     const opts: KeyframeAnimationOptions = { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'forwards' };
     anims.current.forEach((a) => a.cancel());
@@ -106,7 +107,6 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
 
   // a card comes in only when its whole group can (every card measured at its final height, the fonts in), never on its own measure:
   // once let in it stays in, whatever the group does after
-  const firstFade = useRef(fresh);   // (the card's own: the cards of a talk's first slide fade in; it is read when the card comes in, not when the talk has moved on)
   const gate = useRef(false);
   if (go && ready) gate.current = true;
   const phase = out ? 'out' : ready && gate.current ? 'in' : 'wait';
@@ -119,15 +119,15 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     const card = cardRef.current, plate = plateRef.current;
     if (!card || !plate) return;
     const els = [card, plate], reduce = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (phase === 'in') rail.enter(els, { dir, delay: data ? STAGGER : 0, par, fade: firstFade.current, reduce, done: () => setLive(true) });
-    else if (phase === 'out') rail.leave(els, { dir, dist: outDistance(cardW, vw), par, reduce, done: () => onGone(entry.key) });
+    if (phase === 'in') rail.enter(els, { dir, dist: inDistance(rect.x, vw), delay: data ? STAGGER : 0, par, reduce, done: () => setLive(true) });
+    else if (phase === 'out') rail.leave(els, { dir, dist: outDistance(rect.x, cardW), par, reduce, done: () => onGone(entry.key) });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
   useLayoutEffect(() => () => { const card = cardRef.current, plate = plateRef.current; if (card && plate) rail.forget([card, plate]); }, []);
   // (the net, if the clock never reports a landing)
   useEffect(() => {
     if (!out) return;
-    const t = setTimeout(() => onGone(entry.key), RAIL_MS + 300);
+    const t = setTimeout(() => onGone(entry.key), RAIL_MS + 500);
     return () => clearTimeout(t);
   }, [out, entry.key, onGone]);
   // the 2D app's own classes (src/ui/css2d): the words' card is its glass `pz-shade` with `pz-text` inside; the data card is `pz-data`
