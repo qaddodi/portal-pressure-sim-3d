@@ -98,3 +98,12 @@ test('a callout stands clear of the cards and its pointer reaches its point', ()
   assert.ok(p.tail!.below ? b.y0 >= it.ay + 18 : b.y1 <= it.ay - 18, 'with room it stands the usual 18 px or more from its point');
 });
 
+
+test('a name\'s leader prefers the side where it crosses no vessel (the leader over a vessel points at nothing useful)', () => {
+  const it = item('a', 500, 300, { dirs: ['E', 'W'], vw: 0, minLead: 30 });
+  const free = solve({ items: [it], view: VIEW, blockers: [] });
+  assert.equal(free.placed[0].leader, true, 'a name with a minimum lead takes a leader');
+  assert.ok(free.placed[0].dx > 0, 'without a vessel it keeps its first side, east');
+  const withLine = solve({ items: [it], view: VIEW, blockers: [], lines: [[520, 100, 520, 500]] });
+  assert.ok(withLine.placed[0].dx < 0, 'with a vessel across the east leader, it stands west');
+});

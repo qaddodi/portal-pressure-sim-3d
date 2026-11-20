@@ -100,6 +100,8 @@ const SHORT_LEAD = 45, LONG_LEAD = 60;
 const WIDE_GAPS = [40, 58, 76, 96, 120];
 const FORM_COST = 50;
 const LINE_COST = 8;
+/** What a leader costs for each vessel it runs across: a leader over the figure's vessels points at nothing useful, so a nearer spot or another side wins. */
+const LEAD_LINE_COST = 9;
 /** Air kept between a `clearLines` name and a line (px): half a tube's width as drawn, the ink beside it and a little. */
 export const LINE_AIR = 3;
 const DROP_ROUNDS = 3;
@@ -291,6 +293,8 @@ export function solve(input: SolveInput): Solved {
             const vx = (box.x0 + box.x1) / 2 - it.face.cx, vy = (box.y0 + box.y1) / 2 - it.face.cy, l = Math.hypot(vx, vy) || 1;
             if ((vx * it.face.ux + vy * it.face.uy) / l < FACE_COS) pen += FACE_CLASH;
           }
+          // (a `clearLines` name's leader runs back through the tissue it stands clear of, by design: only the figure's names charge for the vessels their leader crosses)
+          if (seg && !it.region && !it.clearLines) for (const l of lines) if (segsCross(seg, l as unknown as Seg)) pen += LEAD_LINE_COST;
           const cost = fi * FORM_COST + c.cost + pen + lineHits * (it.region ? REGION_LINE_COST : LINE_COST);
           if (!best || cost < best.cost) best = { cost, form: fi, c, box, leader, seg };
         }
