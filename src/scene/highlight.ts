@@ -1,7 +1,6 @@
 import { BackSide, Color, Mesh, ShaderMaterial } from 'three';
 import type { CelObject } from './materials/cel.ts';
 import { HI_NONE } from './materials/shaders.ts';
-import { VesselGlow } from './glow.ts';
 
 // Vessel highlight (look-and-feel.md section 9): the picked vein (every piece the engine cuts it into) gets a bolder outline in its own tone lifted, thin, that fades
 // away at the vein's two ends and is full in the middle. It lifts a hair. Nothing else is lit or dimmed. (`computeHighlight` can still walk the flow past the ends
@@ -110,10 +109,7 @@ export function outlineStrength(spec: HighlightSpec, arc: number, length: number
 /** Moves `v` toward `goal` by at most `step`, landing on it exactly. */
 const approach = (v: number, goal: number, step: number): number => (Math.abs(goal - v) <= step ? goal : v + Math.sign(goal - v) * step);
 
-interface Track { obj: CelObject; on: number; target: number; lift: number; liftTarget: number; spec: HighlightSpec | null; glow: VesselGlow | null; built: HighlightSpec | null }
-
-/** A vessel's course for the glow: its points in the scene and its radius. */
-export type CourseOf = (id: string) => { pts: readonly (readonly [number, number, number])[]; radius: number } | undefined;
+interface Track { obj: CelObject; on: number; target: number; lift: number; liftTarget: number; spec: HighlightSpec | null }
 
 /** Applies a pick to the vessel objects and fades it in and out. `step` returns true while anything is still moving, so the clock keeps
  *  asking for frames and goes quiet afterwards (nothing is drawn when nothing moves). */
@@ -124,18 +120,16 @@ export class Highlight {
   picked: string | null = null;
   private hostOf: ReadonlyMap<string, string>;
 
-  private courseOf: CourseOf;
   private glowShown = 1;
 
-  constructor(objects: readonly CelObject[], range: HighlightRange = DEFAULT_RANGE, hostOf: ReadonlyMap<string, string> = new Map(), courseOf: CourseOf = () => undefined) {
+  constructor(objects: readonly CelObject[], range: HighlightRange = DEFAULT_RANGE, hostOf: ReadonlyMap<string, string> = new Map()) {
     this.hostOf = hostOf;
-    this.courseOf = courseOf;
     this.range = range;
     this.edges = [];
     for (const o of objects) {
       if (!o.isVessel || !o.edge) continue;
       this.edges.push({ id: o.edge.id, from: o.edge.from, to: o.edge.to, length: o.edge.length });
-      this.tracks.set(o.edge.id, { obj: o, on: 0, target: 0, lift: 0, liftTarget: 0, spec: null, glow: null, built: null });
+      this.tracks.set(o.edge.id, { obj: o, on: 0, target: 0, lift: 0, liftTarget: 0, spec: null });
       const u = o.ink.uniforms;
       u.hiAhead.value = range.ahead;
       u.hiBehind.value = range.behind;
@@ -206,21 +200,12 @@ export class Highlight {
    *  boolean made it snap off at the first frame of a view switch. */
   setGlowShown(shown: boolean | number): void { this.glowShown = typeof shown === 'number' ? Math.min(1, Math.max(0, shown)) : shown ? 1 : 0; }
 
-  /** The glow of one track: laid along the vessel's course when it is first lit (or lit differently), in the vessel's own tone, eased in with `on`. */
+  /** The glow of one track (glow.ts): the vessel's own hull, drawn by its program built with `GLOW`. Its reach and alpha follow the pick's weight in the vertex and fragment stages (`hiOn` x the weight along the vein, the uniforms the tube
+   *  shares with it), so all this does is show the mesh while the pick is on or easing, and hide it when it has gone (nothing drawn that draws nothing). */
   private glow(t: Track): void {
-    if (!t.spec || (t.on === 0 && t.target === 0)) { t.glow?.show(0, 0); return; }
-    const o = t.obj, c = this.courseOf(o.edge!.id);
-    if (!c) return;
-    if (!t.glow) t.glow = new VesselGlow(o.group);
-    if (t.built !== t.spec) {
-      const spec = t.spec;
-      t.glow.build(c.pts, c.radius, (u) => outlineStrength(spec, u * o.edge!.length, o.edge!.length, this.range));
-      t.built = spec;
-    }
-    const base = o.toon.uniforms.color!.value as { r: number; g: number; b: number }, dark = (o.toon.uniforms.tubeDark!.value as number) > 0.5;
-    const up = dark ? 0.25 : 0;   // (on the dark looks the halo is the vessel's tone lifted, so it glows on the ground; on the light ones it is the tone itself)
-    t.glow.setColour(base.r + (1 - base.r) * up, base.g + (1 - base.g) * up, base.b + (1 - base.b) * up);
-    t.glow.show(t.on, this.glowShown);
+    const m = t.obj.glowMesh;
+    if (!m) return;
+    m.visible = !!t.spec && (t.on > 0 || t.target > 0) && this.glowShown > 0.001;
   }
 }
 

@@ -21,7 +21,7 @@ import { CEL_STYLE } from '../cel-style.ts';
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL, glslNum as F } from '../cel-glsl.ts';
 import { TUBE_RADIAL } from './tubes.ts';
 import { SKIN_CIRC_SPAN, SKIN_CUT_EPS } from './skin/types.ts';
-import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkHiColourGlsl, inkPxGlsl, wpcGlsl } from './glsl-shared.ts';
+import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowReachGlsl, glowAlphaGlsl, glowToneGlsl } from './glsl-shared.ts';
 
 /** The tube's ring is a polygon of TUBE_RADIAL sides: its corners stand 1 / cos(pi / n) - 1 of the radius outside its flats. The tube is built that much fatter, so the silhouette never falls inside the outline. */
 export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
@@ -207,7 +207,12 @@ ${CIRCUIT_VS_CALL}
   // (the line thins with a lumen that is hairline by NATURE, a small branch; a pinch is not one: the taper is judged on the radius the vessel would have without it, so the outline runs on through a stenosis at the figure's least weight)
   float inkPx = ${inkPxGlsl('rCssV', 'rCssV / narrowK')};   // CSS px
   inkPx *= mix(1.0, ${F(CIRC_INK_K)}, circT);   // (the Circuit's line is bolder: its tubes are thick and its ground flat)
-  float inkW = (inkPx * endK + hiPx * vHi) * inkOn * wpcV / vU;   // scene units
+#ifdef GLOW
+  float hiReach = ${glowReachGlsl('rCssV')};   // (the glow's hull: the lumen's LIVE radius here, so the halo narrows at a stenosis and swells with the engine's diameter)
+#else
+  float hiReach = hiPx;
+#endif
+  float inkW = (inkPx * endK + hiReach * vHi) * inkOn * wpcV / vU;   // scene units
   float lumenW = radius * rkE * swell * narrowK;
   // (the ring is a polygon: its flats sit at the radius, its corners ${F(TUBE_SAG)} of the radius farther out, so the silhouette never falls inside the line)
   vec3 p = aPos + aNor * (inflate + radius * rkE * (swell * narrowK - 1.0) + inkW + (lumenW + inkW) * ${F(TUBE_SAG)});
@@ -454,6 +459,18 @@ void main() {
 #else
   fadeHere *= solidK;
 #endif
+#ifdef GLOW
+  // THE GLOW (glow.ts): the same tube, grown by the glow's reach in the vertex stage, drawn here as a halo outside the line only, in the vessel's colour as drawn. The reach and the alpha follow the pick's weight vHi (nothing at the vein's ends).
+  {
+    float rCssG = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6);
+    float lineG = ${inkPxGlsl('rCssG', 'rCssG')} * mix(1.0, ${F(CIRC_INK_K)}, circT) * inkOn;
+    float sG = dLat / dpr - rCssG - lineG;   // CSS px past the line's outer edge
+    float aG = ${glowAlphaGlsl('sG', glowReachGlsl('rCssG') + ' * vHi', 'vHi')} * fadeHere * cavA;
+    if (aG < 0.002) discard;
+    gl_FragColor = vec4(${glowToneGlsl('base')}, aG);
+    return;
+  }
+#endif
   if (fadeHere < 0.004) discard;
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
@@ -512,8 +529,8 @@ void main() {
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
-    vec3 inkH = ${inkHiColourGlsl('baseH', 'vHi')};   // (a picked vessel's line is its own colour as drawn, eased by the pick's weight: the glow is a separate halo, glow.ts)
-    c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (the glow is a separate halo, glow.ts)
+    vec3 inkH = ${inkColourGlsl('baseH')};
+    c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (a selected vessel's line is its own: the glow is a separate halo, glow.ts)
   }
   // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
   // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph

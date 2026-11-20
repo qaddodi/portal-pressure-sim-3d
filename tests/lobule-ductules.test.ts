@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import type { BufferAttribute } from 'three';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { LobuleView } from '../src/scene/lobule/view.ts';
-import { DISC_R } from '../src/scene/lobule/widths.ts';
+import { DISC_R, DUCT_R } from '../src/scene/lobule/widths.ts';
 import { Lobule3D, DISSE_OPEN, disseDuctules, disseOpen, lymphIntoPools } from '../src/scene/micro3d/lobule3d.ts';
 
 const flat = new LobuleView(createShared()), net = flat.net;
@@ -64,4 +64,14 @@ test('a Disse sleeve opens out from a point: it is no wider than the inlet it be
     assert.ok(best < 1e-6, 'the sleeve begins exactly at the sinusoid\'s start');
   }
   assert.equal(ly0.length, d.length);
+});
+
+test('the ductules are their own part, at 2D\'s width: a thread half a sinusoid\'s radius, beside the terminal lymphatics\' 0.0075', () => {
+  const l3 = new Lobule3D(flat, createShared());
+  l3.buildForTest('light');
+  const duct = l3.partsForTest.find((p) => p.toonMesh.name === 'lobule3d/lymph-ductules')!, lt = l3.partsForTest.find((p) => p.toonMesh.name === 'lobule3d/terminal-lymphatics')!;
+  assert.ok(duct && (duct.geometry.getAttribute('position') as BufferAttribute).count > 0, 'the ductules are drawn');
+  const ext = (p: typeof duct) => { const a = (p.geometry.getAttribute('position') as BufferAttribute).array; let z0 = Infinity, z1 = -Infinity; for (let i = 2; i < a.length; i += 3) { z0 = Math.min(z0, a[i]!); z1 = Math.max(z1, a[i]!); } return (z1 - z0) / 2; };
+  assert.ok(Math.abs(ext(duct) - DUCT_R * R) < 1e-3, `ductule radius ${ext(duct)}`);
+  assert.ok(Math.abs(ext(lt) - 0.0075 * R) < 1e-3, `channel radius ${ext(lt)}`);
 });

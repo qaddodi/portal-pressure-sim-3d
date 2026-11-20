@@ -742,6 +742,18 @@ void main() {
 #else
   fadeHere *= solidK;
 #endif
+#ifdef GLOW
+  // THE GLOW (glow.ts): the same tube, grown by the glow's reach in the vertex stage, drawn here as a halo outside the line only, in the vessel's colour as drawn. The reach and the alpha follow the pick's weight vHi (nothing at the vein's ends).
+  {
+    float rCssG = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6);
+    float lineG = clamp(0.3 * rCssG, 1.6, 3.0) * smoothstep(0.15, 1.6, rCssG) * mix(1.0, 1.1, circT) * inkOn;
+    float sG = dLat / dpr - rCssG - lineG;   // CSS px past the line's outer edge
+    float aG = (0.62 * pow(1.0 - smoothstep(0.0, max((6.0 + 0.55 * rCssG) * vHi, 1e-3), sG), 2.0) * smoothstep(-0.5, 0.5, sG * dpr) * smoothstep(0.0, 1.0, vHi) * (1.0 - smoothstep(0.0, 0.15, circT))) * fadeHere * cavA;
+    if (aG < 0.002) discard;
+    gl_FragColor = vec4(mix(celTubeBase(base), vec3(1.0), 0.25 * tubeDark), aG);
+    return;
+  }
+#endif
   if (fadeHere < 0.004) discard;
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
@@ -800,8 +812,8 @@ void main() {
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
-    vec3 inkH = mix(mix(inkColor, celTubeBase(baseH) * mix(0.32, 0.55, tubeDark), 0.75), mix(celTubeBase(baseH) * 0.88, mix(celTubeBase(baseH), vec3(1.0), 0.25), tubeDark), 0.9 * smoothstep(0.0, 1.0, vHi));   // (a picked vessel's line is its own colour as drawn, eased by the pick's weight: the glow is a separate halo, glow.ts)
-    c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (the glow is a separate halo, glow.ts)
+    vec3 inkH = mix(inkColor, celTubeBase(baseH) * mix(0.32, 0.55, tubeDark), 0.75);
+    c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (a selected vessel's line is its own: the glow is a separate halo, glow.ts)
   }
   // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
   // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph

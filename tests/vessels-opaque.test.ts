@@ -25,7 +25,7 @@ test('a vessel material is transparent only through a fade zone: the body, the o
     for (const id of LOOK_IDS) {
       o.applyPalette(PALETTES[id]);
       const all: Material[] = [...mats(o.toonMesh.material)];
-      o.group.traverse((c) => { const m = (c as Mesh).material; if (m && c !== o.toonMesh) all.push(...mats(m)); });
+      o.group.traverse((c) => { const m = (c as Mesh).material; if (m && c !== o.toonMesh && c !== o.glowMesh) all.push(...mats(m)); });   // (the selection glow's hull blends by design and is hidden at rest: glow.ts)
       for (const m of all) { assert.equal(m.transparent, inZone, `${v.id} (${id}): ${m.type} ${inZone ? 'must blend in its fade zone' : 'is blended at rest'}`); assert.equal(m.opacity, 1, `${v.id}: opacity`); n++; }
     }
   }

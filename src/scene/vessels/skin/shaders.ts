@@ -16,6 +16,7 @@
 //                       (one vec4 each: a float array costs a whole vector a slot, and six arms of five floats broke the fragment budget)
 //   armNarrow[6] float  + (vertex stage only) the arm tube's stenosis waist at its seam: its live width there is swell x (1 - narrow), as the tube's is, so a seam inside a short piece's waist meets the tube with no step
 //   armColor[6]  vec4 + the arm tube's own `color` uniform (rgb: an artery wears the look's artery red, a vein its portal or systemic tone) and, in a, its `lensUse` (an artery 0, a vein 1)
+//   armCopy[6]   vec4   + (w) the arm this one runs through the node with (through.ts), or -1: the outline's union takes the pair by a plain minimum
 //   armAxisP[24] vec4   per arm four points of its axis (the node J, the start of the straight line through the seam, the seam, the far point), rest positions, model space; w the rest radius at the point
 //   armArc[4]    vec4 + (the arm's flow marks) the arc, figure units, at its seam (u x len x SKIN_FIGURE_UNITS), +1 if the arc grows toward the node (the arm is its vessel's end 1) else -1, the vessel's length (figure units), its rest radius (figure units)
 //   armFlow[4]   float + the arm tube's `flowAmount`
@@ -36,7 +37,7 @@
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../../cel-glsl.ts';
 import { FADE_GLSL } from '../../materials/shaders.ts';
 import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
-import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkHiColourGlsl, inkPxGlsl, wpcGlsl } from '../glsl-shared.ts';
+import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowReachGlsl, glowAlphaGlsl, glowToneGlsl } from '../glsl-shared.ts';
 import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
 import { DUST_GLSL } from '../../blood/dust-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
@@ -149,7 +150,12 @@ void main() {
   float hi = ${BLEND('armAF', 'wAt', '.z')};
   // the tube's own ink width (no stenosis waist at a seam, narrowK 1) plus the picked vein's extra line, blended
   float inkPx = ${inkPxGlsl('rCssV', 'rCssV')};
-  float inkW = (inkPx + hiPx * hi) * wpcV / SKIN_U;   // scene units
+#ifdef GLOW
+  float hiReach = ${glowReachGlsl('rCssV')};   // (the glow's hull: the skin's own live radius, so the halo runs on from the arm tubes' with no seam)
+#else
+  float hiReach = hiPx;
+#endif
+  float inkW = (inkPx + hiReach * hi) * wpcV / SKIN_U;   // scene units
   // the tube's vertex rule (vessels/shaders.ts) with its radius * rk replaced by this vertex's own rest radius and its swell by the blend; the ring is a polygon, so its corners stand TUBE_SAG farther out
   vec3 p = pos + nor * (inflate + rst * (swellE - 1.0) + inkW + (lumenW + inkW) * ${F(TUBE_SAG)});
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
@@ -200,7 +206,7 @@ uniform vec3 laneColA[5];
 uniform vec3 laneColB[5];
 uniform vec4 armData[${SKIN_ARMS}];
 uniform vec4 armAF[${SKIN_ARMS}];   // per arm (lensU, fade, hi, pres)
-uniform vec3 armCopy[${SKIN_ARMS}];   // each arm's shares of the three copies (front, solid, veil: vessel-object.ts copyShares); this program is ONE of them, SKIN_COPY
+uniform vec4 armCopy[${SKIN_ARMS}];   // each arm's shares of the three copies (xyz: front, solid, veil: vessel-object.ts copyShares; this program is ONE of them, SKIN_COPY) and in w the arm it runs THROUGH the node with (through.ts), or -1: their union is a plain minimum (one vec4, because a float array costs a whole vector a slot)
 uniform vec4 armColor[${SKIN_ARMS}];
 uniform vec4 armAxisP[${SKIN_ARMS * SKIN_AXIS_PTS}];   // xyz a point of the arm's axis, w the rest radius there
 uniform float skinK;
@@ -260,13 +266,19 @@ float skinArmPx(vec2 frag, int arm, float swell) {
   float d2 = length(frag - p2.xy - c * t2) - mix(p2.z, p3.z, t2);
   return min(d0, min(d1, d2));
 }
-// the outline of the smooth union of the live arms, in device px: negative inside the lumen, 0 on the wall (pairwise in arm order, as the mesh's own SDF)
+// the outline of the smooth union of the live arms, in device px: negative inside the lumen, 0 on the wall (in arm order, as the mesh's own SDF: sdf.ts sdUnion). Two arms that run THROUGH the node (armCopy.w, through.ts: the trunk above and below
+// a side vein) are united by a plain minimum and count as one: a blend between the halves of one trunk only adds a bulge
 float skinSdPx(float kPx) {
+  float dArm[${SKIN_ARMS}];
+  for (int i = 0; i < ${SKIN_ARMS}; i++) dArm[i] = armData[i].x < 0.0 ? 1.0e9 : skinArmPx(gl_FragCoord.xy, i, swAt(i));
   float d = 0.0;
   bool first = true;
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
     if (armData[i].x < 0.0) continue;
-    float di = skinArmPx(gl_FragCoord.xy, i, swAt(i));
+    float m = armCopy[i].w;
+    if (m > -0.5 && m < float(i) - 0.5) continue;   // (the second half of a run: taken with the first)
+    float di = dArm[i];
+    if (m > float(i) + 0.5) di = min(di, dArm[int(m + 0.5)]);
     d = first ? di : skinSmin(d, di, kPx);
     first = false;
   }
@@ -327,7 +339,12 @@ void main() {
   float vR = vRest * swellB * SKIN_U;
   float rCssAx = vR / max(wpcAx, 1e-6);
   float hi = ${BLEND('armAF', 'wAt', '.z')};
-  float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx')} + hiPx * hi) * dpr;
+#ifdef GLOW
+  float hiReachF = ${glowReachGlsl('rCssAx')};
+#else
+  float hiReachF = hiPx;
+#endif
+  float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx')} + hiReachF * hi) * dpr;
   float kPx = skinK / max(wpcAx / SKIN_U, 1e-9) * dpr;
   float sdPx = skinSdPx(kPx);
 #ifdef SKIN_DEBUG
@@ -348,6 +365,16 @@ void main() {
     laArm[i] = la; lbArm[i] = lb;
     base += wAt(i) * mix(mix(armColor[i].rgb, la.rgb, la.a), mix(armColor[i].rgb, lb.rgb, lb.a), lensMix);
   }
+#ifdef GLOW
+  // THE GLOW (glow.ts): the skin grown by the glow's reach, drawn as a halo outside the line only, the arms' blended pick weight giving its reach and alpha: the tubes' halo carried on through the junction
+  {
+    float sG = sdPx / dpr - ${inkPxGlsl('rCssAx', 'rCssAx')};   // CSS px past the line's outer edge
+    float aG = ${glowAlphaGlsl('sG', glowReachGlsl('rCssAx') + ' * hi', 'hi')} * alpha;
+    if (aG < 0.002) discard;
+    gl_FragColor = vec4(${glowToneGlsl('base')}, aG);
+    return;
+  }
+#endif
   float rDev = vR / max(${wpcGlsl('vW', 'projY', 'SKIN_U')}, 1e-6) * dpr;
   vec3 c = celTubeTone(base, sT, swT, rDev);   // two flat tones, matte and opaque: the tube's own
   // THE FLOW MARKS (Mohammad, 20 Nov: "the streaks still break between vessels", "the particles should cross at the junction, not disappear"). The tube draws its dust and chevrons from its own arc and the stream chain's A and B
@@ -395,7 +422,7 @@ void main() {
 #endif
   float inkT = smoothstep(-0.5, 0.5, sdPx);   // the outline: ink outside the live lumen, antialiased half a pixel each side
 #ifndef SKIN_NOINK
-  c = mix(c, mix(${inkHiColourGlsl('base', 'hi')}, inkColorCirc, circT), inkT);
+  c = mix(c, mix(${inkColourGlsl('base')}, inkColorCirc, circT), inkT);
 #endif
   gl_FragColor = vec4(c, alpha);
 }`;
