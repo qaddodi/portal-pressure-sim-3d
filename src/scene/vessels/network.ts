@@ -91,10 +91,12 @@ for (const [host, pieces] of Object.entries(JUNCTION_PIECES as Record<string, st
 export const RENAL_VEIN_IDS: ReadonlySet<string> = new Set(['V_KID_L', 'V_KID_L_1', 'LRV_IVC']);
 /** The hepatic veins lie on the cava's plane too: they join it level, with no depth to ease, so a tilted view shows no twist where they meet (Mohammad, 20 Nov). */
 export const HEPATIC_VEIN_IDS: ReadonlySet<string> = new Set(['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC']);
+const HEPATIC_ARTERY_IDS: ReadonlySet<string> = new Set(['A_HEP', 'A_HR', 'A_HL']);
 function tierOf(e: Edge): Tier {
   if (BACK_EDGES.has(e.id) || RENAL_VEIN_IDS.has(e.id)) return 'back';
   if (HEPATIC_VEIN_IDS.has(e.id)) return 'hv';   // (the cava's plane, 0.016 in front of it: the lumbar collaterals that cross them stay apart in depth)
   if (e.id === 'C3') return 'fwd';   // the paraumbilical vein rises forward over the portal trunk to the umbilicus
+  if (HEPATIC_ARTERY_IDS.has(e.id)) return 'hep';   // (the hepatic artery lies anterior to the portal vein and the cava it passes at the hilum: in front, so it crosses them in depth and is joined, never blunt)
   if (isArteryEdge(e)) return 'art';
   if (OVER_IDS.has(e.id)) return 'over';
   if (e.kind === 'collateral') return 'mid';
@@ -132,13 +134,12 @@ const NETWORK_HOST_W = (e: Edge): number => widthPx(e, e.d ?? e.dMax ?? (dMinOf(
 
 // ---- joins: the 2D figure's run-ons (joins.ts): the pairs that continue one another, and their courses redrawn smooth through the join ----
 const JOIN_LIST: JoinEdge[] = edges.filter(isDrawnEdge).map((e) => ({ id: e.id, from: e.from, to: e.to, art: isArteryEdge(e), kind: e.kind, path: EDGE_PATH_2D[e.id]! }));
-const ARTERY_OWN: ReadonlySet<string> = new Set(['A_HEP', ...ALONG_VEIN_IDS]);
 /** The pairs of vessels that run on into one another, by the 2D rule. */
-// (the hepatic artery and its two branches are drawn on courses of their own beside the portal branches, so they no longer run on into one another)
-export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST).filter((r) => !ARTERY_OWN.has(r.a) && !ARTERY_OWN.has(r.b));
+// (the hepatic artery and its two branches are one tree: they meet at the hilum's node, each end joined to the others, none a blunt cap)
+export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST);
 const SMOOTH = smoothRunOns(new Map(JOIN_LIST.map((j) => [j.id, j.path])), RUN_ONS);
 /** A vessel's 2D course as drawn: smooth through the joins where it runs on into another. */
-const pathOf = (id: string): readonly (readonly [number, number])[] => alongVein(id, EDGE_PATH_2D) ?? withStartInOrgan(id, SMOOTH.get(id) ?? EDGE_PATH_2D[id]!);
+const pathOf = (id: string): readonly (readonly [number, number])[] => alongVein(id, EDGE_PATH_2D) ?? withStartInOrgan(id, (id === 'A_HEP' ? undefined : SMOOTH.get(id)) ?? EDGE_PATH_2D[id]!);   // (the hepatic artery's end is the node its branches start at, as it is)
 
 function build(): NetVessel[] {
   const out: NetVessel[] = [];
