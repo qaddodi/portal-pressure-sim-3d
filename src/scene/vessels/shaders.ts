@@ -429,8 +429,8 @@ void main() {
   // lumen opens there, lit). nbrK: how far inside, in device px, from 0 (on the other's wall) to 1 (half a pixel in).
   float nbrK = 0.0;
   if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * (1.0 - circT);
-  // a hepatic vein into the cava dissolves over the last third of a cava radius before the wall, straight across (the wall's own line, not the vein's section), and is not there inside the lumen: it ends AT the wall with no seam and no round end
-  float cavA = (cavaCut > 0.5 && vNbr.y > 0.0) ? mix(1.0 - smoothstep(-0.35 * vNbr.y, 0.0, vNbr.y - abs(vNbr.x)), 1.0, circT) : 1.0;
+  // a hepatic vein into the cava dissolves over the last 0.8 of a cava radius before the wall, straight across (the wall's own line, not the vein's section), and is not there inside the lumen: it ends AT the wall with no seam and no round end
+  float cavA = (cavaCut > 0.5 && vNbr.y > 0.0) ? mix(1.0 - smoothstep(-0.8 * vNbr.y, 0.0, vNbr.y - abs(vNbr.x)), 1.0, circT) : 1.0;
   if (cavA < 0.004) discard;
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
