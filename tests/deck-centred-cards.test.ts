@@ -94,7 +94,7 @@ test('the card layer dresses them in 2D\'s own surfaces and veils the page behin
   assert.match(frame, /pz-panel/); assert.match(frame, /pz-case on/); assert.match(frame, /data-visual=\{entry\.id === 'title' \? 'outline'/);
   const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
   assert.match(layer, /pz-veil/); assert.match(layer, /view\.words === 'title' \|\| view\.words === 'check'/);
-  assert.match(layer, /onTap=\{e\.id === 'case'/, 'a tap on the case card goes on, as in 2D');
+  assert.match(layer, /e\.id === 'case' && e\.phase === 'in' \? \(\) => \{ if \(!justDragged\(\)\) move\('next'\)/, 'a tap on the case card goes on, as in 2D');
   const css = readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8');
   assert.match(css, /\.dk-card\.pz-panel, \.deck-ui\.pz \.dk-card\.pz-case \{ position: relative/);
 });
