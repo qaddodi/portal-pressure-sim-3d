@@ -5,6 +5,7 @@ import {
   CustomBlending, Group, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial, Vector2, Vector4,
 } from 'three';
 import { rawColor } from '../materials/cel.ts';
+import { VESSEL_LAYER } from '../layers.ts';
 import { CIRCUIT_NODES, MAP_LOOKS, MAP_ZONE_X, VB_CIRC } from './data.copied.ts';
 import { CIRC_C, MAP_CENTRE, MAP_K, turnAngle } from './map.ts';
 
@@ -24,7 +25,11 @@ export const BAND_CALM = 0.8;
 export const DOT_CALM = 0.3;
 export const DOT_CALM_PX: readonly [number, number] = [0.12, 0.35];
 /** A station dot's ring on a dark ground. */
-export const DOT_RING_DARK = '#8f9ab0';
+export const DOT_RING_DARK = '#e6eaf2';
+/** A station dot is never smaller than this on the screen, CSS px of radius, and its ring never thinner than this, CSS px (2D stage.js DOT_MIN_PX 4, the ring 1.6 wide). */
+export const DOT_MIN_PX = 4;
+export const DOT_RING_MIN_PX = 0.75;
+export const DOT_RING_HALF = 0.8;
 const PLATE_UNITS = 1600;   // (the grid runs on this far past the figure's box, fading out in steps)
 
 export const PLATE_VS = /* glsl */ `
@@ -77,13 +82,20 @@ export const DOT_VS = /* glsl */ `
 attribute vec3 iPos;
 attribute vec2 iRO;
 uniform float mapK;
+uniform float unitPx;   // CSS px under a map unit now (the map's scale): a dot keeps its size in px when the map is small
 varying vec2 vLoc;
-varying float vR;
+varying vec2 vR;
 varying float vOn;
+const float MIN_PX = ${DOT_MIN_PX.toFixed(2)};
+const float RING_PX = ${DOT_RING_MIN_PX.toFixed(2)};
+const float RING_HALF = ${DOT_RING_HALF.toFixed(2)};
 void main() {
-  float ext = iRO.x + 2.0;
+  float up = max(unitPx, 1e-3);
+  float r = max(iRO.x, MIN_PX / up);
+  float hw = max(RING_HALF, RING_PX / up);
+  float ext = r + hw + 1.0;
   vLoc = position.xy * ext;
-  vR = iRO.x;
+  vR = vec2(r, hw);
   vOn = iRO.y;
   vec3 p = iPos + vec3(position.xy * ext * mapK, 0.0);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
@@ -95,13 +107,13 @@ uniform vec3 fillCol;
 uniform vec3 ringCol;
 uniform float mapA;
 varying vec2 vLoc;
-varying float vR;
+varying vec2 vR;
 varying float vOn;
 void main() {
   float d = length(vLoc);
   float aa = max(fwidth(d), 1e-4);
-  float fill = 1.0 - smoothstep(vR - 0.4 - aa, vR - 0.4 + aa, d);
-  float ring = 1.0 - smoothstep(0.8 - aa, 0.8 + aa, abs(d - vR));
+  float fill = 1.0 - smoothstep(vR.x - vR.y * 0.5 - aa, vR.x - vR.y * 0.5 + aa, d);
+  float ring = 1.0 - smoothstep(vR.y - aa, vR.y + aa, abs(d - vR.x));
   float a = max(fill, ring) * mapA * vOn;
   if (a <= 0.002) discard;
   gl_FragColor = vec4(mix(fillCol, ringCol, ring), a);
@@ -149,10 +161,12 @@ export class MapLayer {
     g.instanceCount = n;
     this.dotMat = new ShaderMaterial({
       vertexShader: DOT_VS, fragmentShader: DOT_FS, transparent: true, depthTest: false, depthWrite: false,
-      uniforms: { mapK: { value: MAP_K }, fillCol: { value: rawColor('#000000') }, ringCol: { value: rawColor('#ffffff') }, mapA: { value: 0 } },
+      uniforms: { mapK: { value: MAP_K }, unitPx: { value: 1 }, fillCol: { value: rawColor('#000000') }, ringCol: { value: rawColor('#ffffff') }, mapA: { value: 0 } },
     });
     this.dots = new Mesh(g, this.dotMat);
     this.dots.renderOrder = 20;
+    // the dots stand over the vessels, as 2D draws them last: in the vessels' own pass (the first pass is the organs and the plate, and every vessel is drawn over it)
+    this.dots.layers.set(VESSEL_LAYER);
     this.dots.frustumCulled = false;
     this.group.position.set(MAP_CENTRE.x, MAP_CENTRE.y, MAP_CENTRE.z);
     this.group.add(this.plate, this.dots);
@@ -172,6 +186,9 @@ export class MapLayer {
     const g = ground.replace('#', ''), lum = g.length === 6 ? (0.299 * parseInt(g.slice(0, 2), 16) + 0.587 * parseInt(g.slice(2, 4), 16) + 0.114 * parseInt(g.slice(4, 6), 16)) / 255 : 1;
     rawColor(lum < 0.5 ? DOT_RING_DARK : text, this.dotMat.uniforms.ringCol!.value as never);
   }
+
+  /** The map's scale, CSS px a map unit: a dot's least size and its ring's least width are in px. */
+  setScale(px: number): void { this.dotMat.uniforms.unitPx!.value = px; }
 
   /** The layer's opacity (mapRamp of the change) and the turn's share. Nothing is drawn at 0. */
   set(alpha: number, rr: number): void {

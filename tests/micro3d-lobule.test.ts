@@ -198,3 +198,13 @@ test('SOS: a faded scar fills in the central vein from its wall, with collagen s
   assert.ok(rMax <= 0.21, 'inside the vein');
   assert.ok(rMin < 0.21 * (1 - CV_FILL), 'strands cross the open lumen');
 });
+
+test('the sinusoids end in the central vein\'s pool as one surface: nothing of them is drawn inside its rim (Mohammad 20 Nov: "shadows inside the central vein")', async () => {
+  const { CV_HOLE_K } = await import('../src/scene/micro3d/lobule3d.ts');
+  assert.ok(CV_HOLE_K > 0.85 && CV_HOLE_K < 1);
+  flat.setVisible?.(true);
+  l3.update(true, 0, 1000, 1);
+  const s2 = l3.partsForTest.find((p) => p.toonMesh.name === 'lobule3d/sinusoids-2')!;
+  const h = (s2.mats.toon.uniforms.uHole!.value as number);
+  assert.ok(Math.abs(h - (flat as unknown as { cvRadiusNow: number }).cvRadiusNow * LOBULE_R * CV_HOLE_K) < 1e-9, `the hole follows the vein's radius now (${h})`);
+});

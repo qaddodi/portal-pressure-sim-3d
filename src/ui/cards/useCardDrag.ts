@@ -20,6 +20,9 @@ interface Opts {
   can(dx: number): boolean;
   /** whether the data card is kept by the slide this drag goes to: it does not follow the finger */
   keeps(dx: number): boolean;
+  /** whether this move sends the cards under the finger out (a slide change: they leave on the rail from where the finger let go) or leaves them where they are (a page turned, a beat of the same slide):
+   *  those come back to their place; the ones that leave are never brought back first (that was the bounce: out to the left, back right, then away) */
+  leaves?(m: Move): boolean;
   /** the width the cards' travel is scaled to */
   width: number;
   /** the card elements on screen, each with its plate, and its slot */
@@ -70,10 +73,15 @@ export function useCardDrag(o: Opts) {
       lastDragEnd = performance.now();
       g.pts.push([e.clientX, e.timeStamp]);
       const m = commitOf(dx, dy, speedOf(g.pts));
-      // the cards the talk keeps (the same data card on the next slide) are not sent out: they ease back from the finger's place
+      // the cards the talk keeps (the same data card on the next slide) are not sent out: they ease back from the finger's place. A card that is about to leave is NEVER eased back first: its leave
+      // takes it on from where the finger let go, in the swipe's direction (a back-ease started in the gap before the slide's render landed, and the leave then began from the half-way-home card).
       const put = g.f, cards = g.cards;
+      const out = m ? opts.current.leaves?.(m) ?? true : false;
       if (m) opts.current.onMove(m);
-      setTimeout(() => { for (const c of cards) if (!c.els[0]!.isConnected || c.els[0]!.closest('[data-phase="out"]') || c.els[0]!.getAttribute('data-phase') === 'out' || rail.moving(c.els)) continue; else rail.back(c.els, put.x, put.o, slot(c.data)); }, m ? 60 : 0);
+      const home = () => { for (const c of cards) if (!c.els[0]!.isConnected || c.els[0]!.closest('[data-phase="out"]') || c.els[0]!.getAttribute('data-phase') === 'out' || rail.moving(c.els)) continue; else rail.back(c.els, put.x, put.o, slot(c.data)); };
+      if (!m) setTimeout(home, 0);
+      else if (!out) setTimeout(home, 60);
+      else setTimeout(home, 900);   // (the net: a leave that never came leaves nothing displaced)
     };
     const cancel = (e: Pe) => {
       const g = st.current; st.current = null;

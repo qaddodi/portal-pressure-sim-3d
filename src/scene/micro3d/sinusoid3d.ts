@@ -13,7 +13,7 @@
 // the clock. Every place is 2D's (layout.ts and the copied widths); every colour is 2D's palette for the look. Nothing here is per-pixel painting: the shapes are meshes, cel shaded
 // (cel3d.ts), and only the albumin, the red cells and the fenestrae's gap table are rewritten while the view is up.
 import { useSettings } from '../../state/settings.ts';
-import { DataTexture, Group, Matrix4, NearestFilter, RGBAFormat, UnsignedByteType, Vector4, type Vector3 } from 'three';
+import { DataTexture, Group, Matrix4, NearestFilter, RGBAFormat, UnsignedByteType, Vector4, type ShaderMaterial, type Vector3 } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
 import type { SinusoidView } from '../sinusoid/view.ts';
@@ -47,6 +47,12 @@ const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_K = 0.45;
  *  neighbours' disease still shows. */
 /** A microvillus's radius (µm, thick enough that its fill reads inside its line) and how far its root runs inside the cell. */
 export const VILLUS_R = 0.13, VILLUS_ROOT = 0.4;
+/** How far a hepatocyte's nucleus stands over the cell's top (µm): its outline at a depth of its own, never fighting the cell's face. */
+export const NUC_LIFT = 0.12;
+/** The cells' slow life: how far a Kupffer arm's tip swings and a microvillus waves (radians). */
+export const KUP_SWAY = 0.16, VILLUS_SWAY = 0.09;
+/** The Kupffer cell: its size against 2D's, and how solid it is (the stream behind shows through). */
+export const KUP_SCALE = 0.72, KUP_ALPHA = 0.72;
 export const BLUR_RUN = UM.hep * 0.5 + UM.disse + UM.endo + UM.lum * 0.5;
 const HAZE_RUN = BLUR_RUN;
 /** The scene's ends: the blur along the sinusoid starts this far (µm) inside each end and is whole this far in. */
@@ -77,6 +83,7 @@ interface Flat {
   g: { halfW(x: number): number; disseW(x: number): number; wallIn(x: number): number; hepIn(x: number): number };
   endShown: [number, number];
   dive: number | null;
+  lifeTime: number;
   look: LookId;
   spriteCount: number;
   readonly washProgress: number;
@@ -163,21 +170,27 @@ export class Sinusoid3D {
     this.beadLine = mk('endothelium-edge', { ink: null, gaps });
     this.disse = mk('disse', { ink: null, streaks: true });
     this.cells = mk('hepatocytes', { px: S.LINE });
-    this.nuclei = mk('nuclei', { px: S.LINE_SMALL });
+    this.nuclei = mk('nuclei', { px: S.LINE_SMALL, floating: true });
     this.nucleoli = mk('nucleoli', { ink: null });
     this.bile = mk('canaliculi', { px: S.LINE_SMALL });
-    this.endoN = mk('endothelial-cells', { px: S.LINE_SMALL });
+    this.endoN = mk('endothelial-cells', { px: S.LINE_SMALL, floating: true });
     this.endoNi = mk('endothelial-nuclei', { ink: null });
-    this.kup = mk('kupffer', { px: S.LINE });
+    this.kup = mk('kupffer', { px: S.LINE, floating: true });
     this.kupN = mk('kupffer-nucleus', { ink: null });
-    this.hsc = mk('stellate', { px: S.LINE_SMALL });
+    // (see-through: the body and its nucleus blend over the stream but still write depth and draw before the line, so the line behind the body never shows through it; colour premultiplied)
+    for (const [p, o] of [[this.kup, 10], [this.kupN, 11]] as const) {
+      const m = p.mats.toon; m.transparent = true; m.depthWrite = true; m.premultipliedAlpha = true; m.uniforms.opacity!.value = KUP_ALPHA; p.toonMesh.renderOrder = o;
+    }
+    // (the line in the same see-through list, so it truly draws after the body: an opaque line would draw first and its hull behind the body would show through it)
+    if (this.kup.inkMesh) { this.kup.inkMesh.renderOrder = 12; const im = this.kup.inkMesh.material as ShaderMaterial; im.transparent = true; im.depthWrite = true; }
+    this.hsc = mk('stellate', { px: S.LINE_SMALL, floating: true });
     this.hscN = mk('stellate-nucleus', { ink: null });
     this.bm = mk('basement', { ink: null, transparent: true });
     this.arrows = mk('ends', { px: S.LINE_SMALL });
     this.villi = many('microvilli', unitRod(8), 900, { px: S.LINE_SMALL });
     this.fibres = many('collagen', unitRod(6), 800, { ink: null });
-    this.albumin = many('albumin', unitSphere(12, 8), 2000, { px: S.LINE_SMALL });
-    this.rbc = many('red-cells', unitRbc(22), RBC_N + 2 * RBC_FAR, { px: S.LINE });
+    this.albumin = many('albumin', unitSphere(12, 8), 2000, { px: S.LINE_SMALL, floating: true });
+    this.rbc = many('red-cells', unitRbc(22), RBC_N + 2 * RBC_FAR, { px: S.LINE, floating: true });
     // (order: the ground first, then the solid shapes; the see-through membrane and the arrows last)
     for (const p of [this.ground, this.disse, this.troughFar, this.trough, this.bead, this.beadLine, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoN, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) this.group.add(p.group);
     for (const p of [this.villi, this.fibres, this.albumin, this.rbc]) this.group.add(p.group);
@@ -221,12 +234,60 @@ export class Sinusoid3D {
     const lk = `${f.look}|${P.cLumen.join(',')}|${P.cLymph.join(',')}|${q(S.act)}`;
     if (lk !== this.lookKey) { this.lookKey = lk; this.colour(P, S.act); }
     this.stepPores(S.por);
+    this.stepLife();
     this.stepAlbumin();
     this.stepRbc();
     this.stepStreaks(P);
     this.stepArrows(P);
     this.bm.setOpacity(clamp(S.bm, 0, 1) * (dark ? 0.6 : 0.8));
     return true;
+  }
+
+  // ---- the cells' slow life ----------------------------------------------------------------------------------------------------------
+  // (Mohammad 20 Nov 2026: "maybe animate its podocytes. Same for hepatocyte microvilli animate them very slowly". Calm, never a pulse: periods of several seconds, a small reach, each arm and
+  //  each villus on its own phase so nothing moves in step; on the host's lifeTime, so it eases to a stop with pause and stands still with reduced motion)
+
+  private kupT = Number.NaN;
+  private stepLife(force = false): void {
+    const f = this.flat, t = f.lifeTime;
+    if (!force && t === this.kupT) return;
+    this.kupT = t;
+    const g = f.g, S = f.cur;
+    // the Kupffer cell: on the lower lining at xk, its arms reaching into the stream, each swaying slowly (a period of 7 to 11 s, a few degrees, more toward its tip)
+    {
+      const b = new MeshBuilder(), bn = new MeshBuilder();
+      // (smaller and see-through, so it sits in the stream without stopping the eye: Mohammad 20 Nov 2026, "a bit transparent translucent and smaller so it's not too disruptive")
+      const K = KUP_SCALE, x = f.geo.xk, h = g.halfW(x), yd = h - 2.3 * K, z = -1.6 * K;
+      ellipsoid(b, x, Y(yd), z, 3.0 * K, 2.3 * K, 1.9 * K, 0.2, undefined, 22, 12);
+      const arms: [number, number, number][] = [[-1.3, 4.6, 0.1], [-0.55, 5.4, 0.25], [0.25, 3.8, 0.3], [0.85, 5.0, 0.05], [1.4, 3.6, 0.0]];
+      arms.forEach(([a, L, dz], k) => {
+        const path: [number, number, number][] = [];
+        const w = (Math.PI * 2) / (7 + 1.1 * k), ph = k * 2.17, reach = K * (1 + 0.06 * Math.sin(t * w * 0.7 + ph * 1.3));
+        for (let i = 0; i <= 8; i++) {
+          const u = i / 8, r = 1.6 * K + u * L * reach, sway = KUP_SWAY * u * u * Math.sin(t * w + ph - u * 1.2), bend = 0.25 * Math.sin(u * 3 + a) + sway;
+          // (2D y down: the arms reach up, toward the axis, and along the flow)
+          path.push([x + Math.cos(a + bend - Math.PI / 2) * r * 1.0, Y(yd + Math.sin(a + bend - Math.PI / 2) * r * 0.9), z + (dz * u * 2 + 0.3 * u) * K]);
+        }
+        tube(b, path, (i) => lerp(0.7, 0.12, i / 8) * K, undefined, 10, true);
+      });
+      ellipsoid(bn, x - 0.6 * K, Y(yd + 0.3 * K), z + 0.75 * K, 1.55 * K, 1.15 * K, 1.25 * K, 0.3, undefined, 16, 8);
+      b.build(this.kup.geometry); bn.build(this.kupN.geometry);
+    }
+    // the microvilli: short fingers off each plate's face into Disse (they flatten in cirrhosis: 2D's mv), each waving a few degrees on its own slow phase (a period of about 9 s)
+    {
+      let n = 0;
+      const mv = clamp(S.mv, 0, 1), len = 0.25 + 0.55 * mv;   // (short fine bristles, Mohammad 20 Nov 2026: the outlined ones read "huge")
+      if (mv > 0.03) for (const s of [-1, 1] as Side[]) for (let x = -REACH + 0.4; x < REACH; x += 1.2) {
+        if (n >= this.villi.capacity) break;
+        // (each villus starts VILLUS_ROOT inside the cell, just under its top face, so the cell covers its root and the villus covers the cell's line there: cell and villi read as one shape with one
+        //  outline round them all, Mohammad 20 Nov 2026: "the microvilli need a black outline so they look connected to the hepatocyte")
+        const L = len + VILLUS_ROOT, yd = s * (g.hepIn(x) + VILLUS_ROOT - L * 0.5);
+        const wave = VILLUS_SWAY * Math.sin(t * (Math.PI * 2 / 9) + x * 0.83 + s * 1.7);
+        placeAt(this.m4, x, Y(yd), Z.cell - 0.05 - VILLUS_R, L, VILLUS_R, VILLUS_R, Math.PI / 2 + 0.25 * Math.sin(x * 1.7) + wave);
+        this.villi.setAt(n++, this.m4);
+      }
+      this.villi.commit(n);
+    }
   }
 
   /** The focus band for the depth of field's band (post-dof.ts bandFrame): two points on this sinusoid's axis, where the blur starts (just past its own plates, as the haze) and where it is
@@ -259,7 +320,7 @@ export class Sinusoid3D {
     this.bile.setTint(P.cBile); this.bile.setInk(inkOf(P.cBile));
     this.endoN.setTint(P.cEndoS); this.endoN.setInk(inkOf(P.cEndoE));
     this.endoNi.setTint(P.cEndoN);
-    this.kup.setTint(mix3(P.cKup, P.cLumen, 0.25)); this.kup.setInk(inkOf(P.cKupE)); this.kupN.setTint(mix3(P.cKupN, P.cKup, 0.3));
+    this.kup.setTint(mix3(P.cKup, P.cLumen, 0.45)); this.kup.setInk(deep(P.cKup, 0.55));   // (a little faded, outlined in its own colour, darker: Mohammad 20 Nov 2026) this.kupN.setTint(deep(P.cKup, 0.62));   // (the nucleus a deeper shade of the cell itself)
     const hc = mix3(P.cHscQ, P.cHscA, clamp(act, 0, 1));
     this.hsc.setTint(hc); this.hsc.setInk(inkOf(hc)); this.hscN.setTint(P.cHscN);
     this.bm.setTint(P.cBm);
@@ -372,7 +433,7 @@ export class Sinusoid3D {
           const c = cellOf(j, sd), xn = lerp(c.x0, c.x1, c.nu), v = c.nv * UM.hep;
           const put = (x: number, r: number) => {
             const yd = s * (face(x) + v);
-            ellipsoid(nuc, x, Y(yd), Z.cell, r, r * 1.08, 0.42, 0, undefined, far ? 14 : 28, far ? 5 : 10);
+            ellipsoid(nuc, x, Y(yd), Z.cell + NUC_LIFT, r, r * 1.08, 0.42, 0, undefined, far ? 14 : 28, far ? 5 : 10);   // (its rim a hair over the cell's top, so its line never shares the cell's depth)
             if (far) return;
             const a = 1.7 + 2.2 * ((j * 7 + sd) % 5) / 5;
             ellipsoid(nol, x + r * 0.3 * Math.cos(a), Y(yd) + r * 0.3 * Math.sin(a), Z.cell + 0.32, r * 0.13, r * 0.13, 0.12, 0, undefined, 12, 6);
@@ -407,24 +468,8 @@ export class Sinusoid3D {
       b.build(this.endoN.geometry); bi.build(this.endoNi.geometry);
     }
 
-    // the Kupffer cell: on the lower lining at xk, its arms reaching into the stream
-    {
-      const b = new MeshBuilder(), bn = new MeshBuilder();
-      const x = geo.xk, h = g.halfW(x), yd = h - 2.3, z = -1.6;
-      ellipsoid(b, x, Y(yd), z, 3.0, 2.3, 1.9, 0.2, undefined, 22, 12);
-      const arms: [number, number, number][] = [[-1.3, 4.6, 0.1], [-0.55, 5.4, 0.25], [0.25, 3.8, 0.3], [0.85, 5.0, 0.05], [1.4, 3.6, 0.0]];
-      for (const [a, L, dz] of arms) {
-        const path: [number, number, number][] = [];
-        for (let i = 0; i <= 8; i++) {
-          const t = i / 8, r = 1.6 + t * L, bend = 0.25 * Math.sin(t * 3 + a);
-          // (2D y down: the arms reach up, toward the axis, and along the flow)
-          path.push([x + Math.cos(a + bend - Math.PI / 2) * r * 1.0, Y(yd + Math.sin(a + bend - Math.PI / 2) * r * 0.9), z + dz * t * 2 + 0.3 * t]);
-        }
-        tube(b, path, (i) => lerp(0.7, 0.12, i / 8), undefined, 10, true);
-      }
-      ellipsoid(bn, x - 0.6, Y(yd + 0.3), z + 0.75, 1.55, 1.15, 1.25, 0.3, undefined, 16, 8);
-      b.build(this.kup.geometry); bn.build(this.kupN.geometry);
-    }
+    // the Kupffer cell (its arms move on the scene's life: stepLife)
+    this.kupT = Number.NaN; this.stepLife(true);
 
     // the stellate cell: a spindle in the upper Disse at xs, long processes along it; it grows as it activates
     {
@@ -465,20 +510,6 @@ export class Sinusoid3D {
       b.build(this.bm.geometry);
     }
 
-    // the microvilli: short fingers off each plate's face into Disse (they flatten in cirrhosis: 2D's mv)
-    {
-      let n = 0;
-      const mv = clamp(S.mv, 0, 1), len = 0.25 + 0.55 * mv;   // (short fine bristles, Mohammad 20 Nov 2026: the outlined ones read "huge")
-      if (mv > 0.03) for (const s of [-1, 1] as Side[]) for (let x = -REACH + 0.4; x < REACH; x += 1.2) {
-        if (n >= this.villi.capacity) break;
-        // (each villus starts VILLUS_ROOT inside the cell, just under its top face, so the cell covers its root and the villus covers the cell's line there: cell and villi read as one shape with one
-        //  outline round them all, Mohammad 20 Nov 2026: "the microvilli need a black outline so they look connected to the hepatocyte")
-        const L = len + VILLUS_ROOT, yd = s * (g.hepIn(x) + VILLUS_ROOT - L * 0.5);
-        placeAt(this.m4, x, Y(yd), Z.cell - 0.05 - VILLUS_R, L, VILLUS_R, VILLUS_R, Math.PI / 2 + 0.25 * Math.sin(x * 1.7));
-        this.villi.setAt(n++, this.m4);
-      }
-      this.villi.commit(n);
-    }
     // collagen in Disse (capillarization): fibres along it, more and thicker with col
     {
       let n = 0;

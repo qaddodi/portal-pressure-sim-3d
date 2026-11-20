@@ -16,6 +16,8 @@ const IVC_JOIN_LEN = 60;
 const SVC_STRETCH: ReadonlySet<string> = new Set(['SVC_RA', 'SVC_RA_1']);
 /** Its alpha at the cava's wall (stage-geo.js IVC_JOIN: 0.3). */
 export const IVC_JOIN_ALPHA = 0.3;
+/** A branching portal vein and its side branch stay whole until the side branch has cleared the vein (a share of the run past the split): fading both over the overlap stacked their alphas into a dark ghost stub at every fork (Mohammad, 20 Nov). */
+export const FORK_CLEAR = 0.5;
 const edgeById = new Map((EDGES as { id: string; from: string; to: string; kind: string }[]).map((e) => [e.id, e]));
 const lenOfPath = (p: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < p.length; i++) l += Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]); return l; };
 /** The share of its length over which vessel `id` fades into the faint cava, or 0 for a vessel that does not end on it. */
@@ -102,14 +104,14 @@ export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipF
 }
 function fadeOf0(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
   // the children that branch off these ends in the liver (liver-branches.ts) fade the way their host does, along each one's own length, to nothing a little before their tip so no cut end is ever seen (a 3x look at the live build saw a flat pale end)
-  if (feederHost && LIVER_FADE_OUT[feederHost]) return { mode: 1, from: 0.25, to: 0.92, a0: 1, a1: 0, keep: false, connect: [] };
+  if (feederHost && LIVER_FADE_OUT[feederHost]) return { mode: 1, from: FORK_CLEAR, to: 0.92, a0: 1, a1: 0, keep: false, connect: [] };
   if (feederHost && LIVER_FADE_IN[feederHost]) return { mode: 1, from: 0.08, to: 0.75, a0: 0, a1: 1, keep: false, connect: [] };
   if (feederHost === 'C3' && id.endsWith('~F:b')) return { mode: 1, from: 0.25, to: 1, a0: 1, a1: 0, keep: false, connect: [] };
   if (feederHost) { const yy = FEEDER_FADE_Y_2D[feederHost]; return yy ? { mode: 2, from: y3(yy[0]), to: y3(yy[1]), a0: 1, a1: 0, keep: false, connect: [] } : null; }
   const art = ART_FADE_2D[id];
   // (a vein that branches is one tube to its tip: it fades out of / in from the liver along its through branch, over the same stretch of the course as its side branch does)
   const sp = isArtery ? null : splitShare(id);
-  if (sp != null) return (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id) ? { mode: 1, from: sp + 0.25 * (1 - sp), to: sp + 0.92 * (1 - sp), a0: 1, a1: 0, keep: false, connect: [] } : { mode: 1, from: 0.08 * sp, to: 0.75 * sp, a0: 0, a1: 1, keep: false, connect: [] };
+  if (sp != null) return (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id) ? { mode: 1, from: sp + FORK_CLEAR * (1 - sp), to: sp + 0.92 * (1 - sp), a0: 1, a1: 0, keep: false, connect: [] } : { mode: 1, from: 0.08 * sp, to: 0.75 * sp, a0: 0, a1: 1, keep: false, connect: [] };
   if (!isArtery && LIVER_FADE_OUT[id] && !END_JOIN.has(id)) return { mode: 1, from: 1 - LIVER_FADE_OUT[id]!, to: 1, a0: 1, a1: 0, keep: false, connect: [] };
   if (!isArtery && LIVER_FADE_IN[id]) return { mode: 1, from: 0, to: LIVER_FADE_IN[id]!, a0: 0, a1: 1, keep: false, connect: [] };
   // (the hepatic artery is cut short beside the portal trunk, starts/stub-free: it grows out of nothing over nearly all of what is drawn: starts.ts TRIM)

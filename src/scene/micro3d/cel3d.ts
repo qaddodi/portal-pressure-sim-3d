@@ -87,6 +87,7 @@ uniform vec4 uHaze;
 uniform vec3 uHazeCol;
 varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
+uniform float uHole;
 varying vec3 vP;
 // the wedged column's wash (2D sinusoid-gl.js wedgeA): an amber column in the stream from the central vein's end (uWash.z) toward the portal venule's (uWash.y), as far as uWash.w of the way, soft at
 // its front; uWash.x its strength (0: none, as on every slide but one). The blood in it is still: its streaks die away.
@@ -190,6 +191,8 @@ float gapCut() {
 #endif
 void main() {
   if (fadedOut()) discard;
+  // (a hole: what lies within uHole of the part's own origin is not drawn: the sinusoids' ends inside the central vein's pool, so they merge into it with no shade or line of theirs inside)
+  if (uHole > 0.0 && length(vP.xy) < uHole) discard;
   vec3 n = normalize(vN);
   if (!gl_FrontFacing) n = -n;
   // the world light (CEL_STYLE.LIGHT): n.L with n in world axes. TWO tones: the base, and the shade below the step
@@ -238,6 +241,7 @@ uniform vec2 res;
 uniform vec3 tint;
 uniform float inflate;
 varying float vHy;
+varying vec2 vXY;
 varying vec3 vOwnC;
 void main() {
   vOwnC = tint;
@@ -256,7 +260,7 @@ void main() {
   p = (instanceMatrix * vec4(p, 1.0)).xyz;
 #endif
   p += normal * inflate;   // (as its shape swells or shrinks: a dilated sinusoid keeps its line)
-  vHy = p.y;
+  vHy = p.y; vXY = p.xy;
   // the hull's faces toward the viewer sit a hair behind the shape (0.15 % farther from the eye, which moves nothing on screen): drawn on both sides, they lie just under the shape's own and
   // never show, and everything pushed out past the outline shows whichever way its triangles ended up wound. (A back-face cull dropped the thin rim strips the push turned over, and a
   // cull by the normal dropped the hull at every rim vertex: the red cells' outline came out dotted, Mohammad 20 Nov: "the RBC outline is interrupted".)
@@ -292,7 +296,9 @@ uniform vec4 uHaze;
 uniform vec3 uHazeCol;
 varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
-void main() { if (fadedOut()) discard; vec3 c = mix(color, vOwnC * ${F(CEL_STYLE.TUBE.INK_TONE)}, uOwn); gl_FragColor = vec4(mix(c, uHazeCol, hazeK()) * opacity, opacity); }`;
+uniform float uHole;
+varying vec2 vXY;
+void main() { if (fadedOut()) discard; if (uHole > 0.0 && length(vXY) < uHole) discard; vec3 c = mix(color, vOwnC * ${F(CEL_STYLE.TUBE.INK_TONE)}, uOwn); gl_FragColor = vec4(mix(c, uHazeCol, hazeK()) * opacity, opacity); }`;
 
 export type RGB = readonly [number, number, number] | readonly number[];
 
@@ -314,6 +320,9 @@ export interface MicroOptions {
   doubleSide?: boolean;
   /** Drawn see-through (opacity below 1): sorted after the solid parts, no depth written. */
   transparent?: boolean;
+  /** A shape that floats free (a red cell, albumin, a Kupffer or stellate cell, a nucleus): its fill always wins over its own ink at one depth (slope-scaled polygon offset). Never on a surface
+   *  other shapes' lines lie on (the plates, the ground, the trough, the lobule's tiles and vessels): there the offset sank their lines (eyes 20 Nov: no outline on the nuclei, the central vein). */
+  floating?: boolean;
 }
 
 /** The gap table of a part without gaps: one closed texel. */
@@ -336,7 +345,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
     uniforms: {
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
-      uWash: { value: new Vector4(0, 0, 0, 0) }, uWashCol: { value: new Color(1, 0.7, 0.2) }, uWashR: { value: 0 },
+      uHole: { value: 0 }, uWash: { value: new Vector4(0, 0, 0, 0) }, uWashCol: { value: new Color(1, 0.7, 0.2) }, uWashR: { value: 0 },
       uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakDir: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
@@ -347,11 +356,11 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
     // (the shape always wins over its own ink where the two meet at one depth, just inside the outline at the rim: a slope-scaled hair toward the eye, so the ink never z-fights the fill
     // pixel by pixel. That speckle was the stippled, broken outline round the red cells, the nuclei and every small shape, Mohammad 20 Nov 2026: "most certainly NOT continuous")
-    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2,
+    polygonOffset: !!o.floating, polygonOffsetFactor: o.floating ? -1 : 0, polygonOffsetUnits: o.floating ? -2 : 0,
   });
   const ink = o.ink === null ? null : new ShaderMaterial({
     vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors,
-    uniforms: { color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uOwn: { value: 0 }, px: { value: o.px ?? CEL_STYLE.MICRO.LINE }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
+    uniforms: { color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: o.px ?? CEL_STYLE.MICRO.LINE }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
     side: DoubleSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   return { toon, ink };
@@ -375,6 +384,8 @@ export class MicroPart {
   setInk(rgb: RGB): void { if (this.mats.ink) rawRGB(this.mats.ink.uniforms.color!.value as Color, rgb); }
   /** A vessel's line: `rgb` (the look's casing) taken `own` of the way to a deep tone of the part's own colour, as the Anatomy's vessels are inked. */
   setVesselInk(rgb: RGB, own: number = CEL_STYLE.TUBE.INK_OWN): void { if (!this.mats.ink) return; this.setInk(rgb); this.mats.ink.uniforms.uOwn!.value = own; }
+  /** Not drawn within r (local units) of the part's origin, its ink neither; 0: drawn whole. */
+  setHole(r: number): void { this.mats.toon.uniforms.uHole!.value = r; }
   setOpacity(a: number): void { this.mats.toon.uniforms.opacity!.value = a; this.group.visible = a > 0.002; }
   /** A streaked part's flow (µm run), the stream's half width (µm), the streaks' tone and strength and whether the lanes have the blood's profile. */
   setStreaks(flow: number, half: number, rgb: RGB, strength: number, profile: number): void {
