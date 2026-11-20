@@ -32,7 +32,7 @@ import { FigureCards } from './figure-cards.ts';
 import { toneCss } from '../../ui/deck/figure-plan.ts';
 import { VesselWalk } from './VesselWalk.tsx';
 import { Vector3 } from 'three';
-import { MOTION } from '../../clock/tween.ts';
+import { roll } from './roll.ts';
 
 const NODE_AT = new Map<string, number>((NODES as unknown as { id: string }[] | [string][]).map((n, i) => [Array.isArray(n) ? n[0] : (n as { id: string }).id, i]));
 
@@ -285,21 +285,6 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
       } else { r.lead.removeAttribute('data-on'); r.lead.style.opacity = '0'; }
     }
   }
-}
-
-/** A number that changes rolls: the old one goes up and out, the new one comes up from below (400 ms, transform and opacity). */
-function roll(r: Rec, next: string, was: string): void {
-  const cur = r.cur!;
-  const box = cur.parentElement!;
-  box.querySelectorAll('.lb-old').forEach((e) => e.remove());
-  const old = document.createElement('span');
-  old.className = 'lb-old'; old.textContent = was;
-  box.appendChild(old);
-  cur.textContent = next;
-  const ease = 'cubic-bezier(.2, .7, .2, 1)';
-  const out = old.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-0.55em)' }], { duration: MOTION.rollMs, easing: ease, fill: 'both' });
-  out.onfinish = () => old.remove();
-  cur.animate([{ opacity: 0, transform: 'translateY(0.55em)' }, { opacity: 1, transform: 'none' }], { duration: MOTION.rollMs, easing: ease });
 }
 
 /** The key's pill: the lens named, then its scale or its named swatches (the 2D app's presenter.js keyNodes). */
