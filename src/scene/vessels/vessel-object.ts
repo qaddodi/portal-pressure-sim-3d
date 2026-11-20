@@ -90,7 +90,7 @@ export class VesselObject extends CelObject {
       uniforms: {
         ...u,
         inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, inkOn: { value: 1 },
-        lensSmooth: { value: 0 }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, bury: { value: new Vector2(0, 0) }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 },
+        lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, bury: { value: new Vector2(0, 0) }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
         veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 },
@@ -149,6 +149,8 @@ export class VesselObject extends CelObject {
   }
 
   /** Smooth joins: the lens colour runs through the ramp along the vessel (shaders.ts `lensOf`). */
+  /** A branch of a vessel (liver-branches.ts) wears the stretch `a` to `b` of its host's lens ramp, the part it leaves, so the colour is continuous at the branch point. */
+  setLensSpan(a: number, b: number): void { (this.toon.uniforms.lensSpan!.value as Vector2).set(a, b); }
   setSmoothColour(on: boolean): void { this.toon.uniforms.lensSmooth!.value = on ? 1 : 0; }
   /** Smooth joins: the vessels this one's start and end carry on into (null: none), as the shader needs them to ease their live widths together (shaders.ts `swellOf`). Off, both are null. */
   /** The trunk each end of a declared branch is buried in, in radius units (0: not buried: a run-on, a crossing, a free end). The ink is held back only on that part. */

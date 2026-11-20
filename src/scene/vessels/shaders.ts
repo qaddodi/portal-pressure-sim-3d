@@ -210,6 +210,7 @@ uniform float lensModeB;
 uniform vec3 laneColA[5];
 uniform vec3 laneColB[5];
 uniform float lensIndex;
+uniform vec2 lensSpan;
 uniform float lensSmooth;   // smooth joins on (1): the lens colour runs through the colours a third and two thirds along (grad rows 2 and 3), not straight from one end's to the other's
 uniform float smokeOn;
 uniform vec3 hiColor;
@@ -293,7 +294,7 @@ vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float acro
   ivec2 i0 = ivec2(int(lensIndex), 0), i1 = ivec2(int(lensIndex), 1);
   vec4 g0 = texelFetch(grad, i0, 0), g1 = texelFetch(grad, i1, 0);
   if (g0.a + g1.a < 0.5) return vec4(0.0);
-  float u = vUv.x;
+  float u = mix(lensSpan.x, lensSpan.y, vUv.x);   // (a branch of a vessel wears the stretch of its host's ramp it leaves from: no step in colour at the branch point)
   float t = lensTail > 0.5 ? smoothstep(0.55, 1.0, u) : u;
   if (mode < 1.5) {
     if (lensSmooth > 0.5) {
