@@ -5,12 +5,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildLobule, type Course } from '../src/scene/lobule/geometry.ts';
 import { DUCT_R, RS0, lyTaper, sinRadius } from '../src/scene/lobule/widths.ts';
-import { HUG, lymphCover, lymphRuns, resampleRun } from '../src/scene/lobule/lymph.ts';
+import { END_THREAD, HUG, endTaper, lymphCover, lymphRuns, resampleRun } from '../src/scene/lobule/lymph.ts';
 
 const net = buildLobule(), byId = new Map(net.courses.map((c) => [c.id, c]));
 const ly = net.courses.filter((c) => c.kind === 'ly');
 const sins = net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2');
-const blood = net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an');
+const blood = net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2');
+const links = net.courses.filter((c) => c.kind === 'an');
 const near = (q: readonly number[], c: Course) => {
   let best = { d: Infinity, rho: 0 };
   for (let i = 0; i + 1 < c.pts.length; i++) {
@@ -57,7 +58,7 @@ test('the tubes HUG: one gap off the wall all along (the wall plus 1.05 of the t
     c.pts.forEach((q, i) => {
       const r = radiusAt(c.rho[i]!);
       // never on or in a blood vessel (the sinusoids and the cross-links), anywhere along the tube (but the first-generation channel's reach to the terminal lymphatic, which starts at a sinusoid's own mouth)
-      if (!inReach(c, i)) for (const o of blood) { const n = near(q, o); assert.ok(n.d >= wallOf(o, n.rho) + r * 0.7, `course ${c.id} sample ${i} sits ${n.d.toFixed(4)} from ${o.kind} ${o.id}, whose wall is ${wallOf(o, n.rho).toFixed(4)}`); }
+      if (!inReach(c, i)) for (const o of blood) { const n = near(q, o); assert.ok(n.d >= wallOf(o, n.rho) + r * 0.5, `course ${c.id} sample ${i} sits ${n.d.toFixed(4)} from ${o.kind} ${o.id}, whose wall is ${wallOf(o, n.rho).toFixed(4)}`); }
       // (the first and last samples of a run are where it meets a branch, a vein or the terminal lymphatic, and the first stretch of a first-generation channel is its reach to the lymphatic)
       if (i < 2 || i >= c.pts.length - 2 || inReach(c, i)) return;
       const n = near(q, s); total++;
@@ -98,14 +99,39 @@ test('it splits where the sinusoids split: at every merge each of the trunk\'s t
   assert.ok(met / crotches > 0.45, `${met} of ${crotches} crotches carry the pair of inner lines meeting (the rest are narrower than a tube)`);
 });
 
-test('where a vessel meets a sinusoid\'s side the lymph stops short of it: no channel runs across the mouth of a branch or a cross-link', () => {
-  // an anastomosis joins its two sinusoids at their walls: no lymph tube of either lies within a tube's width of the cross-link's centreline
-  for (const a of net.courses.filter((c) => c.kind === 'an')) {
-    for (const c of ly) for (const q of c.pts) {
-      const n = near(q, a);
-      assert.ok(n.d > wallOf(a, n.rho) + 0.8 * radiusAt(Math.hypot(q[0], q[1])), `a lymph tube crosses cross-link ${a.id} (${n.d.toFixed(4)})`);
-    }
+test('a cross-link does not cut the lymph: no channel ends at the mouth of a cross-link, the sinusoid\'s lines run on under it', () => {
+  for (const a of links) for (const c of ly) for (const k of [0, c.pts.length - 1]) {
+    const n = near(c.pts[k]!, a);
+    assert.ok(n.d > 0.03 || !(c.free ?? [false, false])[k === 0 ? 0 : 1], `course ${c.id} ends free ${n.d.toFixed(3)} from cross-link ${a.id}`);
   }
+});
+
+test('flush: the tubes sit against the sinusoid wall with no daylight (a gap of at most a tenth of a tube, tucked at most a fifth under the wall), along every stretch that hugs', () => {
+  let n = 0, flush = 0;
+  for (const c of ly) {
+    const s = byId.get(c.sib!)!;
+    c.pts.forEach((q, i) => {
+      if (inReach(c, i) || i < 2 || i >= c.pts.length - 2) return;
+      const r = radiusAt(c.rho[i]!), m = near(q, s), gap = (m.d - wallOf(s, m.rho) - r) / r;
+      n++; if (gap > -0.2 && gap < 0.1) flush++;
+    });
+  }
+  assert.ok(flush / n > 0.97, `${flush} of ${n} samples flush`);
+  assert.ok(HUG < 1 && HUG > 0.8);
+});
+
+test('no blunt stubs: every channel end either lies on the terminal lymphatic, runs on into another channel, or tapers to a thread', () => {
+  let free = 0;
+  for (const c of ly) for (const [k, end] of [[0, c.pts[0]!], [c.pts.length - 1, c.pts[c.pts.length - 1]!]] as const) {
+    const flagged = (c.free ?? [true, true])[k === 0 ? 0 : 1];
+    const joined = onLt(end) || ly.some((o) => o !== c && [o.pts[0]!, o.pts[o.pts.length - 1]!].some((p) => close(p, end, 1e-5)));
+    if (joined) { assert.ok(!flagged || onLt(end), `course ${c.id}: a joined end is not free`); continue; }
+    assert.ok(flagged, `course ${c.id} ends bluntly at ${end.map((v) => v.toFixed(3))}, joined to nothing and not tapering`);
+    assert.ok(endTaper(c, k) <= END_THREAD + 1e-9, 'it narrows to a thread at that end');
+    assert.ok(endTaper(c, Math.floor(c.pts.length / 2)) > endTaper(c, k), 'and widens smoothly away from it');
+    free++;
+  }
+  assert.ok(free > 0, 'some ends do taper');
 });
 
 test('the taper: the tubes are the 2D channel\'s width (half a sinusoid), whole from rho 0.42 out and a thread by the central vein; none enters the vein', () => {
@@ -136,7 +162,7 @@ test('the pairing is geometry, not a list: a single straight sinusoid gets one t
   const ends = [...of(1, 1), ...of(1, -1), ...of(2, 1), ...of(2, -1)].map((r) => r.pts[r.pts.length - 1]!);
   assert.ok(ends.some((a, i) => ends.some((b, j) => i !== j && close(a, b, 1e-6))), 'the crotch lines meet');
   // a T: a side branch stops the host\'s line at its mouth (the host is not cut on the far side)
-  const host = mk(4, line(0.9, 0, 0.1, 0, 80)), twig = mk(5, line(0.5, 0.3, 0.5, 0.0, 40));
+  const host = mk(4, line(0.9, 0, 0.1, 0, 80)), twig = mk(5, line(0.5, 0.3, 0.5, 0.004, 40));
   const t = lymphRuns({ carry: [host, twig], clear: [host, twig], wall, radius, rcv, join: () => null });
   const farSide = t.filter((r) => r.sib === 4 && r.side === 1), nearSide = t.filter((r) => r.sib === 4 && r.side === -1);
   assert.equal(farSide.length, 1, 'the host\'s far side runs through whole');

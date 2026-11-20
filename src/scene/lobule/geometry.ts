@@ -28,6 +28,8 @@ export interface Course {
   /** The sinusoid a space-of-Disse course sits beside. */
   sib?: number;
   parent?: number;
+  /** A lymph channel's two ends (first, last) that join nothing: they taper to a thread (lymph.ts endTaper). */
+  free?: [boolean, boolean];
 }
 
 export interface Triad { i: number; x: number; y: number; a: number; ha: P2; bd: P2; lv: P2; pv: number; haT: number; bdT: number; lvT: number }
@@ -269,11 +271,11 @@ export function buildLobule(seed = 7): LobuleNet {
   const wallOf = (kind: TubeKind, rho: number): number => kind === 'an' ? rsN * AN_K : rsN * sinK(rho) * (kind === 's2' ? flareAt(rho - rcv0, rsN * 1.3) : 1);
   const channelOf = (t: Course): Course => (t.tri === t.edge ? lt[t.edge! * 2]! : lt[((t.edge! + 1) % 6) * 2 + 1]!);
   const runs = lymphRuns({
-    carry: [...L0, ...L1, ...L2], clear: courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an'),
+    carry: [...L0, ...L1, ...L2], clear: courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2'),   // (a cross-link does not cut the lymph: the channel runs under it)
     wall: wallOf, radius: (rho) => DUCT_R * lyTaper(rho), rcv: rcv0,
     join: (c, p) => { if (c.kind !== 's0') return null; let E: P2 | null = null, bd = Infinity; for (const q of channelOf(c).pts) { const d = Math.hypot(q[0] - p[0], q[1] - p[1]); if (d < bd) { bd = d; E = q; } } return E; },
   });
-  for (const run of runs) { const f = resampleRun(run.pts, undefined, run.lvl === 0 ? 0.1 : 0); add('ly', f, { lvl: run.lvl, sib: run.sib, sign: run.side }); }
+  for (const run of runs) { const f = resampleRun(run.pts, undefined, run.lvl === 0 ? 0.1 : 0); add('ly', f, { lvl: run.lvl, sib: run.sib, sign: run.side, free: [run.freeHead, run.freeTail] }); }
 
   return { R: 1, rs0, rsN, rcv0, rt, courses, triads, corners: C, cells, stellate, septa, joins };
 }
