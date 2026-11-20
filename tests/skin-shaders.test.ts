@@ -81,3 +81,13 @@ test('the skin dust\'s second-arm share is 0 where the second and third arms tie
   }
   assert.ok(Math.abs(share([0.5, 0.5, 0]) - 0.5) < 1e-9, 'a plain two-arm seam keeps its even blend');
 });
+
+test('?joins=debug paints each pixel the skin would drop, in the colour of its reason (red back face, cyan presence dither, yellow no alpha, magenta past the ink band), and the plain program is the same without it', async () => {
+  const { joinsMode, skinDebugOn } = await import('../src/scene/vessels/skin/joins-mode.ts');
+  assert.equal(skinDebugOn('?joins=debug'), true); assert.equal(skinDebugOn('?joins=old'), false); assert.equal(skinDebugOn(''), false);
+  assert.equal(joinsMode('?joins=debug'), 'mesh2', 'debug builds every skin');
+  for (const [why, col] of [['!gl_FrontFacing', '1.0, 0.0, 0.0'], ['alpha < 0.004', '1.0, 1.0, 0.0'], ['sdPx > inkDev + 0.5', '1.0, 0.0, 1.0']] as const) {
+    assert.ok(SKIN_FS.includes(`#ifdef SKIN_DEBUG\n  if (${why}) { gl_FragColor = vec4(${col}, 1.0); return; }\n#endif\n`), why);
+  }
+  assert.ok(SKIN_FS.includes('vec4(0.0, 1.0, 1.0, 1.0)'), 'the presence dither is cyan');
+});
