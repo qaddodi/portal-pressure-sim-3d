@@ -100,11 +100,13 @@ export function ringHull(rings: readonly Float32Array[]): RingHull {
 export const hullCovers = (seamRings: readonly Float32Array[]): boolean => ringHull(seamRings).ok;
 
 /** `buildSkin` with the schedules tried in turn on a fold (the surface doubling back on itself, which a sheet pulled onto the surface too fast does): the usual one, then `GENTLE`, then `SLOW`. The first that closes is the skin; the last error stands if none does.
- *  Every junction that closed at the usual pace is built exactly as before. */
-export function buildSkinSteady(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS): SkinMesh {
+ *  Every junction that closed at the usual pace is built exactly as before. `memo` (node -> the rung that closed) starts the next build of a node at its own rung and not at the top: the cava's skin folds twice before it closes, 1.6 s of a rebuild that
+ *  every later rebuild of it would repeat. */
+export const PACES: readonly (BuildPace | undefined)[] = [undefined, GENTLE, SLOW];
+export function buildSkinSteady(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS, memo?: Map<string, number>): SkinMesh {
   let last: unknown;
-  for (const pace of [undefined, GENTLE, SLOW]) {
-    try { return buildSkin(j, cuts, seamRings, seamNormals, axes, maxVerts, pace); }
+  for (let i = memo?.get(j.node) ?? 0; i < PACES.length; i++) {
+    try { const m = buildSkin(j, cuts, seamRings, seamNormals, axes, maxVerts, PACES[i]); memo?.set(j.node, i); return m; }
     catch (e) { last = e; if (!(e instanceof SkinBuildError) || !e.message.includes('folds')) throw e; }
   }
   throw last;

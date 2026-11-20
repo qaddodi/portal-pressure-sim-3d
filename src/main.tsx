@@ -18,6 +18,7 @@ import { NoWebGL } from './ui/shell/NoWebGL.tsx';
 import { BootCrash } from './ui/shell/BootCrash.tsx';
 import { installNoPageZoom } from './ui/shell/no-page-zoom.ts';
 import { holdSplash } from './boot/ready.ts';
+import { bakedReady } from './scene/vessels/skin/baked.ts';
 import { registerPwa } from './pwa/register.ts';
 import { warmLater } from './boot/warm.ts';
 import { mountCharts } from './ui/charts/gallery/mount.tsx';
@@ -65,7 +66,7 @@ async function start() {
     return;
   }
   if (!hasWebGL2()) { createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }
-  const [fonts] = await Promise.all([fontsReady(), bootEngine().catch((err) => { console.error(err); })]);
+  const [fonts] = await Promise.all([fontsReady(), bootEngine().catch((err) => { console.error(err); }), bakedReady]);   // (the junction skins baked at build time are fetched with them: the figure's first frame has its welds)
   if (!fonts) console.warn('[boot] fonts were late; continuing with fallback faces');
   // The engine did not start (its worker failed, crashed or never answered: bootEngine leaves the reason in the store): say so, with Reload, never a page that waits for ever.
   const eng = useEngine.getState();

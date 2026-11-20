@@ -16,6 +16,10 @@ const branch = preset?.[0] || sh('rev-parse', '--abbrev-ref', 'HEAD') || process
 const bake = spawnSync(process.execPath, [fileURLToPath(new URL('./bake-welds.mjs', import.meta.url))], { cwd: root, stdio: 'inherit' });
 if (bake.status !== 0) console.warn('warning: the Lobule weld plan was not baked; the page will plan it in a worker');
 
+// The Anatomy's junction skins (src/scene/vessels/skin) are made here too: planning and meshing the 14 of them is seconds of CPU, a stall before the first picture. A failure only warns: the page then builds them live.
+const bakeSkins = spawnSync(process.execPath, [fileURLToPath(new URL('./bake-skins.mjs', import.meta.url))], { cwd: root, stdio: 'inherit' });
+if (bakeSkins.status !== 0) console.warn('warning: the Anatomy skins were not baked; the page will build them at load');
+
 const r = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), 'build'], { cwd: root, stdio: 'inherit', env: { ...process.env, VITE_BUILD: `${branch}@${commit}` } });
 if (r.status !== 0) process.exit(r.status ?? 1);
 writeFileSync(`${root}dist/build-info.txt`, `branch ${branch}\ncommit ${commit}\nbuilt ${new Date().toISOString()}\n`);

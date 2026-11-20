@@ -5,3 +5,4 @@ dist
 look/*
 !look/README.md
 public/lobule/
+public/anatomy/skins.bin

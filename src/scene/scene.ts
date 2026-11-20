@@ -14,6 +14,7 @@ import { setSmoothJoins } from './vessels/join-mode.ts';
 import { SkinSet, SKIN_BUILD_TAG } from './vessels/skin/skin-set.ts';
 import { SkinObject } from './vessels/skin/skin-object.ts';
 import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
+import { bakedPending, bakedReady, bakedSkins } from './vessels/skin/baked.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
 /** A hepatic vein that opens into the cava dissolves over the last 0.8 of a cava radius before its wall (shaders.ts cavA) and is not there inside it: its flow marks are held back from where the dissolve starts, 1.8 cava radii from the vein's end
  *  (times the marks' ramp, 2.0 to 3.6, shaders.ts markK), so no chevron is ever caught half faded in it (eyes, v11). */
@@ -272,7 +273,9 @@ export class CelScene {
 
     setSmoothJoins(useSettings.getState().smoothJoins);   // (Settings > Figure depth > Smooth vessel joins: read before any tube is built)
     for (const def of NETWORK) this.addVessel(def);
-    this.refreshSkins();   // (junction skins: before the mates, which skip the ends a skin has taken over)
+    // (junction skins: before the mates, which skip the ends a skin has taken over. On the page they are baked at build time and still on their way: the figure is not drawn before they are in, the boot waits for the same promise)
+    if (bakedPending()) void bakedReady.then(() => { if (this.disposed) return; this.refreshSkins(); this.applyMates(); this.moving = true; clock.invalidate('skins'); });
+    else this.refreshSkins();
     this.applyMates();
     this.occGoal = this.occNow = useSettings.getState().hideBehind ? 1 : 0;
     for (const o of this.back) o.setOcclusion(this.occNow);
@@ -350,6 +353,7 @@ export class CelScene {
   }
 
   private unJoins: () => void = () => {};
+  private disposed = false;
 
   /** Junction skins (vessels/skin, docs/junction-skin-spec.md): one welded mesh at each junction the page asks for, only with Smooth vessel joins on and `?joins` not `old`. Built here, once per scene load and per join toggle; null: today's joins everywhere. */
   private skins: SkinSet | null = null;
@@ -365,6 +369,7 @@ export class CelScene {
       make: (skin, axes, arms) => new SkinObject(skin, arms[0]!, axes, arms),
       add: (o) => { this.body.add(o); },
       remove: (o) => { this.body.remove(o); },
+      baked: bakedSkins,
       endsChanged: () => { this.applyMates(); },   // (a rebuild that failed or came back: the mates and burial of its ends follow)
     });
     this.skins.build(phase);
@@ -1190,6 +1195,7 @@ export class CelScene {
   }
 
   dispose(): void {
+    this.disposed = true;
     this.unJoins();
     this.skins?.dispose();
     this.sinus3d.dispose(); this.lobule3d.dispose();

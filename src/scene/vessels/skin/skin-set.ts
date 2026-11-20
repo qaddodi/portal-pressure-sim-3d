@@ -20,6 +20,7 @@ import { slicesFor } from '../../circuit/geometry.ts';
 import { MIN_ARMS, dropFarGrowers, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
 import { armWalk, planSkins, type ArmTube } from './cuts.ts';
 import { buildSkinSteady, hullCovers } from './mesh.ts';
+import { skinsDigest, type BakedSkin, type BakedSkins } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
 import { armPresenceAt, hiWeightAt, lensUAt, liveFadeAt, type FadeState, type HiState } from './arm-twins.ts';
@@ -59,6 +60,8 @@ export interface SkinSetDeps {
   endsChanged?(): void;
   /** milliseconds on the page's clock (a test hands in a fake to give a rebuild a cost) */
   now?(): number;
+  /** the skins baked at build time (baked.ts), if the page has them: `build` lays them in when they were made for exactly these junctions and tubes, and plans and meshes nothing */
+  baked?(): BakedSkins | null;
 }
 
 /** A rebuild that takes longer than this (ms) is done on every other frame while its arms keep changing (spec 10.3), and once more when they stop. */
@@ -81,6 +84,8 @@ interface Built {
   dirty: boolean; slow: boolean; at: number;
   /** the holes this skin leaves in a host (a vessel with side-wall arms on both sides of its junction): the vessel and the u range the skin draws instead of the tube */
   holes: { id: string; lo: number; hi: number }[];
+  /** what this skin was made from, for `bake()` (null on a node that fell back) */
+  bake: BakedSkin | null;
 }
 
 /** The seam ring's vertices and normals of one arm, read from the tube `buildTubes` made (spec 4.4: not recomputed): `RADIAL` of them, in the tube's ring order. */
@@ -172,6 +177,12 @@ export class SkinSet {
   /** the holes each skinned tube has now, by vessel id (at most two: `skinHole`, `skinHole2`) */
   private readonly holes = new Map<string, { node: string; lo: number; hi: number }[]>();
   private readonly warned = new Set<string>();
+  /** the rung of the pace ladder (mesh.ts PACES) each node's skin closed at: its next build starts there */
+  private readonly paces = new Map<string, number>();
+  /** what the last `build` was made from and gave (`bake()`) */
+  private digest = '';
+  private readonly lostNodes: { node: string; message: string }[] = [];
+  private readonly madeDropped: string[] = [];
   /** the nodes that fell back to today's method (named, once) */
   readonly fellBack: string[] = [];
   /** the growing arms a skin could not take (`node:vessel`): they keep today's fork method (spec 10.6), named so a new one fails tests/skin-grow.test.ts until someone looks */
@@ -283,17 +294,19 @@ export class SkinSet {
   }
 
   /** The skin of one plan, made but not yet in the scene: its mesh, its drawing object and the handover links. Throws a SkinBuildError (or any error) the caller turns into a fallback. Null: an arm's vessel is not in this scene. */
-  private makeBuilt(plan: ReturnType<typeof planSkins>['plans'][number], tubes: ReadonlyMap<string, ArmTube>): Built | null {
+  private makeBuilt(plan: ReturnType<typeof planSkins>['plans'][number], tubes: ReadonlyMap<string, ArmTube>, ready?: BakedSkin): Built | null {
     const j = plan.junction;
     const objs = j.arms.map((a) => this.deps.vessel(a.vesselId));
     if (objs.some((o) => !o)) return null;   // (a vessel not in this scene: no skin; the tubes are untouched)
     const { pos, nor, rest } = this.ringsFor(tubes, plan.cuts);
     // the arms' axes: the tubes' own ring centres and radii, the SAME three-point polylines the skin's fragment stage draws its ink from, so the mesh's fillet and its outline are one shape
+    // (a baked skin brings its axes and its mesh: the page plans nothing and remeshes nothing)
     const sided = j.arms.some((a) => !!a.side);   // (a skin with a side-wall arm: its arms' headings are the seam rings' own plane normals; every other skin keeps the neighbouring-ring heading it always had)
-    const axes = weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
-    const mesh = buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf));
+    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
+    if (ready) this.paces.set(j.node, ready.pace);
+    const mesh = ready?.mesh ?? buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
     // on a seam ring the skin's rest radius is the tube's own, exactly (the mesh builder measures the ring's mean radius, a few parts in 10^4 off the tube's `radius * rk`): the live move of a seam vertex is then the tube's to the last bit (spec 4.6)
-    mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));
+    if (!ready) mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));   // (a baked mesh has had it done)
     const draw = this.deps.make(mesh, axes, objs as VesselObject[]);
     const arms: ArmLink[] = j.arms.map((a, i) => {
       const cut = plan.cuts[i]!, ring = pos[i]!;
@@ -304,7 +317,7 @@ export class SkinSet {
     const sources = plan.merged ?? [j.node];
     const vessels = new Set<string>(this.sources.filter((s) => sources.includes(s.node)).flatMap((s) => s.arms.map((a) => a.vesselId)));
     for (const a of j.arms) vessels.add(a.vesselId);
-    return { node: j.node, mesh, draw, arms, sources, vessels, hidden: plan.hidden, dirty: false, slow: false, at: -Infinity, holes: holesOf(plan.cuts) };
+    return { node: j.node, mesh, draw, arms, sources, vessels, hidden: plan.hidden, dirty: false, slow: false, at: -Infinity, holes: holesOf(plan.cuts), bake: { plan, axes, mesh, pace: this.paces.get(j.node) ?? 0 } };
   }
 
   /** Records a skin's cuts and skinned ends (its arms' ends, and every vessel it replaces whole), without touching the tubes. */
@@ -382,7 +395,17 @@ export class SkinSet {
     if (!js.length) return;
     const tubes = this.tubesOf(js);
     const warn = this.deps.warn ?? ((m: string) => console.warn(m));
-    const { made, lost } = this.produce(js, tubes);
+    // the skins baked at build time, when they were made for exactly these junctions and tubes (the digest): laid in as they are, nothing planned or meshed here
+    this.digest = skinsDigest(js, tubes);
+    const baked = this.deps.baked?.() ?? null, usable = baked && baked.digest === this.digest ? baked : null;
+    const d0 = this.dropped.length;
+    let made: Built[], lost: { node: string; message: string }[];
+    if (usable) {
+      made = usable.skins.map((s) => this.makeBuilt(s.plan, tubes, s)).filter((b): b is Built => !!b);
+      lost = usable.lost; this.dropped.push(...usable.dropped);
+    } else ({ made, lost } = this.produce(js, tubes));
+    this.lostNodes.length = 0; this.lostNodes.push(...lost);
+    this.madeDropped.length = 0; this.madeDropped.push(...this.dropped.slice(d0));
     for (const f of lost) { this.fail(f.node, f.message, warn); this.built.push(this.lost(f.node)); }
     const touched = new Set<string>();
     for (const b of made) {
@@ -396,11 +419,16 @@ export class SkinSet {
     this.sync();   // (the skins start from what their arms have NOW, from the first frame: a hidden or still drawing arm gives its skin nothing, never a stray one)
   }
 
+  /** What the last `build` made, as the file the build bakes (scripts/bake-skins.mjs): every skin with the plan, axes and mesh it was made from, the nodes that fell back, the growing arms it dropped, and the digest of the junctions and tubes it was made for. */
+  bake(): BakedSkins {
+    return { digest: this.digest, skins: this.built.filter((b): b is Built & { bake: BakedSkin } => !!b.bake).map((b) => b.bake), lost: [...this.lostNodes], dropped: [...this.madeDropped] };
+  }
+
   /** A node that has no skin (it fell back): kept in the list, undrawn, so a change of one of its arms plans it again. */
   private lost(node: string): Built {
     const sources = node.split('+');
     const vessels = new Set<string>(this.sources.filter((s) => sources.includes(s.node)).flatMap((s) => s.arms.map((a) => a.vesselId)));
-    return { node, mesh: null, draw: null, arms: [], sources, vessels, hidden: [], dirty: false, slow: false, at: -Infinity, holes: [] };
+    return { node, mesh: null, draw: null, arms: [], sources, vessels, hidden: [], dirty: false, slow: false, at: -Infinity, holes: [], bake: null };
   }
 
   private fail(node: string, message: string, warn: (m: string) => void): void {
