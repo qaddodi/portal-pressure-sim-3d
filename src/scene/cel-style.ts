@@ -23,7 +23,29 @@ export const CEL_STYLE = {
   /** A band's edge is this many device px across in each direction: crisp, antialiased by fwidth, never a gradient. */
   EDGE_PX: 0.5,
   /** Solid organs (organ-shader.ts, the cel fill): the band edges in n·L terms (lambert against the screen-space light), the same three tones; a shape too round to reach LIT_AT keeps two. */
-  ORGAN: { SHADE_LAM: 0.3, LIT_LAM: 0.7, LIGHT: [-0.5, 0.62, 0.6] as const },
+  ORGAN: {
+    /** Where an organ's tones change, in n.L plus the box lean below: a flat face-on organ sits at LIGHT.z / |LIGHT| = 0.6, between the two. */
+    SHADE_LAM: 0.42,
+    LIT_LAM: 0.8,
+    LIGHT: [-0.5, 0.62, 0.6] as const,
+    /** The baked tuck (organ-depth.ts, 0..1) above which an organ with Organ depth on wears one hard band of the shade tone. */
+    TUCK_AO: 0.6,
+    /** A flat organ still shows its bands: the measure leans by this much across the organ's own box toward the light (upper left lit, lower right shade), as 2D's og-vol light does. */
+    BOX_BIAS: 1.0,
+    /** How strong the organ tones are (stronger than the vessels', which stay 2D's): the shade is the base less SHADE of itself, then DEEP of the way to the organ's own darkest tone (og-dark where the third tone is the light edge of a dark look);
+     *  the lit tone is LIT_O1 of the way to the organ's own light tone, then LIT of the way to og-light. */
+    SHADE: 0.2,
+    DEEP: 0.62,
+    LIT_O1: 0.9,
+    LIT: 0.3,
+    /** The cel organ's line: its width grows by LINE_SCALE (figure units, as 2D's .org-line) and its alpha by INK_BOOST of what is left to 1, so an edge and an overlap read as ink. */
+    /** What varies over the organ's surface (the liver's nodules and septa, the dead spleen, the stomach's pool) is laid at this share of its wash strength: the wash dilutes it by the layer's opacity, the cel does not. */
+    PAINT: 0.5,
+    /** A vessel behind an organ (the cava: vessel-object.ts setBehindOrgans) is seen under the 2D wash at (1 - layer); cel organs are opaque, so its veil takes this share of that back: veil = 0.4 + 0.6 x VEIL_SEE x (1 - layer). */
+    VEIL_SEE: 1.0,
+    LINE_SCALE: 1.5,
+    INK_BOOST: 0.8,
+  },
 } as const;
 
 /** The band a measure `s` falls in, 0 shade, 1 base, 2 lit, with the hard edge `edge` wide (in the same units as s; 0 is a pure step). The JS twin of the shaders' step, for tests. */

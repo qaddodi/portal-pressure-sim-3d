@@ -24,6 +24,8 @@ export interface CapCtx {
   insTop: number;
   /** the model, or null before the first frame (the readings read "?") */
   model: CapModel | null;
+  /** A caption's size on the canvas as it is drawn (px), when the layer can measure its own element: the 2D stylesheet sets the type, so its box is the page's. Without it the box is worked out from the label type. */
+  size?(key: NameKey, name: string, value: string, note: string | null): readonly [number, number];
   /** the name a tap explained (it takes one more line), and the terms a slide lights */
   explain?: NameKey | null;
   lit?: ReadonlySet<string>;
@@ -64,7 +66,7 @@ export function buildSinusoidNames(c: CapCtx): NamePlacement[] {
   return c.view.names({
     W: c.stage.w, H: c.stage.h, C: o, k, free: c.free, insTop: c.insTop,
     text: readings(c.model, c.view.porosity), lit: c.lit,
-    measure: (key, name, value) => boxOf(linesOf(name, value, key, c.explain), c.vp, c.measure),
+    measure: (key, name, value) => (c.size ? c.size(key, name, value, c.explain === key ? SV_NOTE[key] ?? null : null) : boxOf(linesOf(name, value, key, c.explain), c.vp, c.measure)),
   });
 }
 

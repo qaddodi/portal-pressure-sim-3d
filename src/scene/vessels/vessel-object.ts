@@ -91,7 +91,7 @@ export class VesselObject extends CelObject {
       uniforms: {
         ...u,
         inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, hullOn: { value: 1 },
-        px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 },
+        lensSmooth: { value: 0 }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 },
         veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 },
@@ -139,7 +139,8 @@ export class VesselObject extends CelObject {
   /** Swaps in a new shape of the same vertex count (a collateral coiling, a fan changing width): the positions are written in place, so nothing is rebuilt. */
   reshape(g: BufferGeometry, len: number): void {
     const geo = this.toonMesh.geometry;
-    for (const name of ['position', 'normal', 'uv', 'tang', 'rk']) {
+    // (the Circuit's morph attributes ride along when the new shape carries them: Atlas art swaps a vessel's whole course and rebuilds them with it, atlas-art/vessels.ts)
+    for (const name of ['position', 'normal', 'uv', 'tang', 'rk', ...CIRCUIT_ATTRIBUTES]) {
       const src = g.getAttribute(name), dst = geo.getAttribute(name);
       if (!src || !dst) continue;
       const a = src.array as Float32Array, b = dst.array as Float32Array;
@@ -149,6 +150,15 @@ export class VesselObject extends CelObject {
     }
     geo.computeBoundingSphere();
     this.toon.uniforms.len!.value = len;
+  }
+
+  /** Smooth joins: the lens colour runs through the ramp along the vessel (shaders.ts `lensOf`). */
+  setSmoothColour(on: boolean): void { this.toon.uniforms.lensSmooth!.value = on ? 1 : 0; }
+  /** Smooth joins: the vessels this one's start and end carry on into (null: none), as the shader needs them to ease their live widths together (shaders.ts `swellOf`). Off, both are null. */
+  setMates(start: { index: number; baseD: number; widthKind: number } | null, end: { index: number; baseD: number; widthKind: number } | null): void {
+    const u = this.toon.uniforms;
+    (u.mate0!.value as Vector3).set(start ? start.index : -1, start ? start.baseD : 1, start ? start.widthKind : 0);
+    (u.mate1!.value as Vector3).set(end ? end.index : -1, end ? end.baseD : 1, end ? end.widthKind : 0);
   }
 
   /** Quiet depth on a turn (camera/quiet.ts quietOf, 0..1): the back tier eases toward the page; for the vessels behind the organs only (the scene sets it). */
@@ -202,13 +212,22 @@ export class VesselObject extends CelObject {
   setWholeShare(k: number): void {
     const v = this.veil;
     if (!v) return;
-    v.mat.uniforms.veilA!.value = 0.4 + 0.6 * k;
+    this.whole = k;
+    v.mat.uniforms.veilA!.value = Math.min(1, 0.4 + 0.6 * k + this.lift * (1 - k));
     const whole = k >= 1;
     v.mesh.visible = v.depth.visible = !whole;
     if (whole !== v.whole) {
       v.whole = whole;
       this.toonMesh.layers.set(whole ? v.overLayer : v.faint ? FAINT_ONLY_LAYER : 0);
     }
+  }
+  private whole = 0; private lift = 0;
+  /** Opaque (cel shaded) organs hide what the 2D wash let through, so a veiled vessel's veil takes `lift` of it back (OrganLayer.veilLift); 0 is the 2D veil exactly. */
+  setVeilLift(lift: number): void {
+    const v = this.veil;
+    if (!v || lift === this.lift) return;
+    this.lift = lift;
+    v.mat.uniforms.veilA!.value = Math.min(1, 0.4 + 0.6 * this.whole + lift * (1 - this.whole));
   }
   override dispose(): void { this.hullMat?.dispose(); this.veil?.mat.dispose(); this.veil?.pre.dispose(); super.dispose(); }
 

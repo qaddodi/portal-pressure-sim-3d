@@ -5,6 +5,9 @@ import { PresenceTracks } from './vessels/presence-track.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
+import { setSmoothJoins } from './vessels/join-mode.ts';
+import { SMOOTH } from './vessels/smooth-joins.ts';
+import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
 import { fadeOf } from './vessels/fades.ts';
@@ -46,6 +49,7 @@ import { probeCards } from './devices/probes/cards.ts';
 import { probeAvoid } from './labels/probe-boxes.ts';
 import { useUi } from '../ui/ui-store.ts';
 import { organsReady } from './organs/meshes.ts';
+import { artReady } from './organs/organ-art.ts';
 import { clock } from '../clock/frame.ts';
 import { COURSES } from './circuit/course.ts';
 import { attachRuns, slicesFor } from './circuit/geometry.ts';
@@ -56,6 +60,7 @@ import { CircuitView } from './circuit/view.ts';
 import { CIRCUIT_NODES, MAP_LOOKS, VB_CIRC } from './circuit/data.copied.ts';
 import { CircuitTubes } from './circuit/tubes.ts';
 import { PostAA } from './post-aa.ts';
+import { AtlasArt } from './atlas-art/index.ts';
 import { ResistorLayer } from './circuit/resistors.ts';
 import { RES_KINDS, type ResKey, resRatio } from './circuit/res-model.ts';
 import { MAP_K } from './circuit/map.ts';
@@ -129,6 +134,8 @@ export class CelScene {
   /** The lobule and sinusoid views (B8), built once, hidden until the view is chosen (setView). */
   /** The organs and the disease states on the figure (B4). */
   readonly disease: DiseaseLayer;
+  /** Settings > Figure depth > Atlas art: the external artist's organs and vessel courses, behind a Classic / Atlas switch (src/scene/atlas-art/). Idle in Classic. */
+  readonly atlas: AtlasArt;
   readonly lobule: LobuleView;
   readonly sinus: SinusoidView;
   /** The Circuit: the change between the body and the map, and the map's quarter turn (src/scene/circuit/). */
@@ -180,12 +187,20 @@ export class CelScene {
 
     this.scene.add(this.body);
 
+    setSmoothJoins(useSettings.getState().smoothJoins);   // (Settings > Figure depth > Smooth vessel joins: read before any tube is built)
     for (const def of NETWORK) this.addVessel(def);
+    this.applyMates();
+    this.unJoins = useSettings.subscribe((st, prev) => { if (st.smoothJoins !== prev.smoothJoins) this.useSmoothJoins(st.smoothJoins); });
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
     this.disease = new DiseaseLayer(this.shared, this.vessels);
     this.body.add(this.disease.group);
+    this.atlas = new AtlasArt({
+      vessel: (id) => this.vesselObject(id), classic: { organs: this.disease.organs.group, ascites: this.disease.ascites.group },
+      shapesChanged: () => this.shapes.invalidate(), wake: (why) => { this.moving = true; clock.invalidate(why); },
+    }, ORGAN_CUT, this.shared.res);
+    this.body.add(this.atlas.organs.group);
     // The organs' vertex data is a static file (src/scene/organs/meshes.ts): the organ layer builds them when it is in, in the patient's state, and asks for a frame.
-    organsReady.then(() => { this.disease.organs.build(); this.moving = true; clock.invalidate('organs'); }, (e) => console.error(e));
+    Promise.all([organsReady, artReady]).then(() => { this.disease.organs.build(); this.moving = true; clock.invalidate('organs'); }, (e) => console.error(e));
     this.catheter = new Catheter(this.shared);
     this.body.add(this.catheter.group);
     this.catheter.group.traverse((c) => c.layers.set(VESSEL_LAYER));
@@ -199,7 +214,7 @@ export class CelScene {
     this.procs.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     for (const id of ['TIPS', 'DIPS'] as const) this.procs.addStent(id, this.byEdge.get(id) as VesselObject);
     this.probes = new ProbeLayer(this.shared, {
-      organBox: (organ) => { const o = this.disease.organs.byId.get(organ); return o ? new Box3().setFromObject(o.group) : null; },
+      organBox: (organ) => { const a = this.atlas.shown ? this.atlas.organs.meshOf(organ) : null; if (a) return new Box3().setFromObject(a); const o = this.disease.organs.byId.get(organ); return o ? new Box3().setFromObject(o.group) : null; },
       kpa: (organ) => { const m = latest.frame?.metrics as Record<string, number | null | undefined> | undefined; return m?.[organ === 'spleen' ? 'ssm' : 'lsm'] ?? null; },
       eus: () => { const pl = this.procs.playing; return pl && pl.kind === 'eus' ? this.procs.frame as unknown as EusDrive : null; },
       screen: {
@@ -228,6 +243,35 @@ export class CelScene {
     this.sinFrame.add(this.sinus.group); this.dive.add(this.lobule.group, this.sinFrame); this.scene.add(this.dive, this.mapLayer.group);
     this.lobule.setVisible(false); this.sinus.setVisible(false);
     this.applyLook(this.look);
+  }
+
+  private unJoins: () => void = () => {};
+
+  /** The vessels each vessel's ends carry on into, for the shader's live-width easing (smooth joins on); none with it off. */
+  private applyMates(): void {
+    const on = useSettings.getState().smoothJoins;
+    for (const def of NETWORK) {
+      const o = this.byEdge.get(def.id) as VesselObject | undefined, sj = SMOOTH.get(def.id);
+      if (!o) continue;
+      const mate = (id: string | null | undefined) => { const m = on && id ? NETWORK_MATE.get(id) : undefined; return m ? { index: indexOf(m.lensId), baseD: m.baseD, widthKind: m.widthKind } : null; };
+      o.setMates(mate(sj?.mate[0]), mate(sj?.mate[1]));
+      o.setSmoothColour(on);
+    }
+  }
+
+  /** Settings > Figure depth > Smooth vessel joins changed: every tube is rewritten in place (same vertices, new positions and widths: the joins are geometry), then drawn once. */
+  private useSmoothJoins(on: boolean): void {
+    if (!setSmoothJoins(on)) return;
+    for (const def of NETWORK) {
+      const o = this.byEdge.get(def.id) as VesselObject | undefined;
+      if (!o) continue;
+      const built = buildTubes(coursesOf(def, this.shapes.stateOf(def.id) ?? REST), tubularOf(def, slicesFor(def.id)), def.radius);
+      o.reshape(built.geometry, built.length);
+      built.geometry.dispose();
+    }
+    this.applyMates();
+    this.moving = true;
+    clock.invalidate('smooth-joins');
   }
 
   private add(o: CelObject): void { this.objects.push(o); this.body.add(o.group); }
@@ -270,6 +314,7 @@ export class CelScene {
     this.procs.applyPalette(p); this.probes.applyPalette(p);
     this.tubes.applyPalette(p); this.resistors.setLook(look);
     this.disease.applyLook(look, p); this.disease.setPhone(this.phone);
+    this.atlas.applyLook(look, p.highlight === 'white');
     this.lens.setLook(look);
     this.lobule.applyLook(look); this.sinus.applyLook(look); this.feedSinusInk();
     this.moving = true;
@@ -332,6 +377,7 @@ export class CelScene {
       presence: (id) => (this.presence.isDrawn(id) ? 1 : 0),
       recruit: (id, fr) => recruitFrac(id, fr as never),
     }, f.jump);
+    this.atlas.feed(f as never, (patient.params ?? null) as DiseaseParams | null, (patient.reference?.P as ArrayLike<number> | undefined) ?? null, first || f.jump);
   }
 
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
@@ -347,7 +393,7 @@ export class CelScene {
   // ---- lens and blood ------------------------------------------------------------------------
 
   /** Colour the veins by a lens (the Layers menu's ten, a deck's 'system' and 'since', or 'neutral' for the plain anatomy). */
-  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.lobule.setLens(lens); this.feedLobuleRef(); this.feedSinusInk(); this.disease.setLensGrey(lens !== 'pressure' && lens !== 'neutral'); this.moving = true; }
+  setLens(lens: LensId, now: number, instant = false): void { this.lens.setLens(lens, now, instant); this.lobule.setLens(lens); this.feedLobuleRef(); this.feedSinusInk(); this.disease.setLensGrey(lens !== 'pressure' && lens !== 'neutral'); this.atlas.organs.setLensGrey(lens !== 'pressure' && lens !== 'neutral'); this.moving = true; }
   /** The healthy patient at rest (the engine's `healthyProfile`): the reference the change, congestion, velocity and direction lenses compare to. */
   setHealthy(h: { P: ArrayLike<number>; Q: ArrayLike<number>; D: ArrayLike<number> }): void {
     this.lens.setContext({ healthy: { Q: h.Q, D: h.D, P: h.P }, ref: Float32Array.from(h.P) });
@@ -558,7 +604,7 @@ export class CelScene {
     if (f === this.fadeNow || (Math.abs(f - this.fadeNow) < 1e-3 && f > 0 && f < 1)) return;
     this.fadeNow = f;
     for (const o of this.objects) o.setFade(f);
-    this.disease.setFade(Math.min(f, this.lastFade));
+    this.disease.setFade(Math.min(f, this.lastFade)); this.atlas.organs.setFade(Math.min(f, this.lastFade));
     this.body.visible = f > 0 || this.figureView === 'body';
     this.moving = true;
   }
@@ -670,7 +716,7 @@ export class CelScene {
     const edge = this.pickAt(x, y, raycaster) ?? (this.figureView === 'body' ? this.nearVessel(x, y, touch ? 18 : 12) : null);
     if (edge) return { type: 'edge', id: edge };
     if (this.figureView !== 'body' || this.circuit.t > 0.5 || this.bodyShown < 0.5) return null;
-    const o = this.disease.organs.pick(raycaster);   // (the ray is the one pickAt set)
+    const o = this.atlas.shown ? this.atlas.organs.pick(raycaster) : this.disease.organs.pick(raycaster);   // (the ray is the one pickAt set)
     if (o) return organHit(o.id, x2d(o.x));
     const at = raycaster.ray.intersectPlane(new Plane(new Vector3(0, 0, 1), -FLUID_Z), new Vector3());
     if (at && this.disease.ascites.holds(x2d(at.x), y2d(at.y))) return organHit('abdomen', x2d(at.x));
@@ -725,6 +771,7 @@ export class CelScene {
     const camMoving = this.rig.update(now);
     const quiet = quietOf(this.rig.orbitAngle);
     for (const o of this.back) o.setQuiet(quiet);
+    { const lift = this.disease.organs.veilLift; for (const o of this.back) o.setVeilLift(lift); }   // (cel shaded organs are opaque: the vessels behind them take the wash's see-through back, vessel-object.ts)
     this.disease.organs.setQuiet(quiet);   // (quiet depth on a turn: the organs' wash eases back as the figure turns)
     const circMoving = this.stepCircuit(now, dt);
     this.fadeBody();
@@ -745,9 +792,10 @@ export class CelScene {
     const viewMoving = this.lobule.update(now) || this.sinus.update(now);
     const procMoving = this.procs.update(now);
     const diseaseMoving = this.disease.update(now);
+    const atlasMoving = this.atlas.update(now);
     if (diseaseMoving) this.tagOverOrgans();
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
-    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || lensMoving || presMoving || shapeMoving || viewMoving;
+    const needs = probesMoving || diseaseMoving || atlasMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || lensMoving || presMoving || shapeMoving || viewMoving;
     this.moving = false;
     return needs;
   }
@@ -759,7 +807,7 @@ export class CelScene {
     if (fade !== this.lastFade) {
       this.lastFade = fade;
       for (const o of [...this.leaving, ...this.disease.organs.objects]) { o.setFade(fade); o.group.visible = fade > 0.001; }
-      this.disease.setFade(Math.min(fade, this.fadeNow));
+      this.disease.setFade(Math.min(fade, this.fadeNow)); this.atlas.organs.setFade(Math.min(fade, this.fadeNow));
     }
     this.mapLayer.set(mapRamp(t), this.circuit.rr);
     this.procs.setFade(fade);
@@ -809,6 +857,7 @@ export class CelScene {
   }
 
   dispose(): void {
+    this.unJoins();
     this.lens.dispose();
     this.cells.dispose();
     this.disease.dispose();
@@ -819,6 +868,8 @@ export class CelScene {
     this.tubes.dispose(); this.resistors.dispose(); this.post.dispose();
   }
 }
+
+const NETWORK_MATE: ReadonlyMap<string, NetVessel> = new Map(NETWORK.map((v) => [v.id, v]));
 
 /** The camera layer of everything drawn over the organs: the vessels, the catheter, the varices. */
 /** The organs a tap opens a card for in the body view (2D ORGAN_KEYS: the heart, the liver, the spleen; the heart is two meshes). */

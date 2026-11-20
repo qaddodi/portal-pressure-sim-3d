@@ -33,6 +33,10 @@ uniform float widthKind;
 uniform float len;
 uniform float px;
 uniform vec2 res;
+// smooth joins (Settings > Figure depth): the vessel this one's start (mate0) and end (mate1) carries on into, as (its texel in the vessel data, the diameter its tube was built at, its width rule);
+// x < 0 where nothing, which is every vessel with the switch off
+uniform vec3 mate0;
+uniform vec3 mate1;
 uniform float hiOn;
 uniform float hiDir;
 uniform float hiOffset;
@@ -55,6 +59,15 @@ varying float vHi;
 ${CIRCUIT_VS_HEAD}
 varying float vW;
 varying float vR;
+// a vessel's live width against the one its tube was built at (the engine's diameter by the 2D figure's rule), as the body of main() reads it for this vessel
+float swellOf(float idx, float bD, float kind) {
+  if (useData < 0.5 || kind > 1.5) return 1.0;
+  ivec2 tm = ivec2(int(mod(idx, vdataSize.x)), int(floor(idx / vdataSize.x)));
+  float dm = texelFetch(vdata, tm, 0).b;
+  float m1 = 1.3 * max(2.6, 2.0 * pow(max(dm, 0.1), 0.72)), m0 = 1.3 * max(2.6, 2.0 * pow(max(bD, 0.1), 0.72));
+  if (kind > 0.5) { m1 = max(1.8, m1 * 0.5); m0 = max(1.8, m0 * 0.5); }
+  return clamp(m1 / m0, 0.2, 8.0);
+}
 void main() {
 ${CIRCUIT_VS_CALL}
   // the width follows the engine's diameter by the 2D figure's own rule (stage-tubes.js widthAt): a vein 1.3 * max(2.6, 2 d^0.72), an artery half of that (at
@@ -67,6 +80,10 @@ ${CIRCUIT_VS_CALL}
     if (widthKind > 0.5) { w1 = max(1.8, w1 * 0.5); w0 = max(1.8, w0 * 0.5); }
     swell = clamp(w1 / w0, 0.2, 8.0);
   }
+  // smooth joins: where this vessel carries on into another, both ease to the mean of their two live widths over the same stretch the tube's own taper takes (tubes.ts factorAt: the first and
+  // last 30 %), so the ring they share has one radius and no step or seam shows when the engine widens one of them and not the other (smooth-joins.ts joinSwell)
+  if (mate0.x >= 0.0) { float k0 = 1.0 - smoothstep(0.0, 0.3, uv.x); if (k0 > 0.0) swell += k0 * (0.5 * (swell + swellOf(mate0.x, mate0.y, mate0.z)) - swell); }
+  if (mate1.x >= 0.0) { float k1 = smoothstep(0.7, 1.0, uv.x); if (k1 > 0.0) swell += k1 * (0.5 * (swell + swellOf(mate1.x, mate1.y, mate1.z)) - swell); }
   vec3 p = aPos + aNor * (inflate + radius * rk * (swell * (1.0 - narrow) - 1.0));
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vN = normalize(normalMatrix * aNor);
@@ -159,6 +176,7 @@ uniform float lensModeB;
 uniform vec3 laneColA[5];
 uniform vec3 laneColB[5];
 uniform float lensIndex;
+uniform float lensSmooth;   // smooth joins on (1): the lens colour runs through the colours a third and two thirds along (grad rows 2 and 3), not straight from one end's to the other's
 uniform float smokeOn;
 uniform vec3 hiColor;
 uniform float hullOn;
@@ -253,7 +271,15 @@ vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float acro
   if (g0.a + g1.a < 0.5) return vec4(0.0);
   float u = vUv.x;
   float t = lensTail > 0.5 ? smoothstep(0.55, 1.0, u) : u;
-  if (mode < 1.5) return vec4(mix(g0.rgb, g1.rgb, t), 1.0);
+  if (mode < 1.5) {
+    if (lensSmooth > 0.5) {
+      // the ramp's own colours along the vessel (model.ts: the pressure a third and two thirds of the way along), so a vessel that crosses a threshold passes through amber and not through a blend of its ends
+      vec3 g2 = texelFetch(grad, ivec2(int(lensIndex), 2), 0).rgb, g3 = texelFetch(grad, ivec2(int(lensIndex), 3), 0).rgb;
+      float x = t * 3.0;
+      return vec4(x < 1.0 ? mix(g0.rgb, g2, x) : (x < 2.0 ? mix(g2, g3, x - 1.0) : mix(g3, g1.rgb, x - 2.0)), 1.0);
+    }
+    return vec4(mix(g0.rgb, g1.rgb, t), 1.0);
+  }
   vec4 c = mix(texelFetch(lanes, i0, 0), texelFetch(lanes, i1, 0), t);
   float f = across * 0.5 + 0.5;
   float w = max(fwidth(f) * 1.2, 0.002);

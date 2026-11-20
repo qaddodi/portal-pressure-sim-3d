@@ -72,7 +72,7 @@ test('with the switch off the shader adds nothing: the depth block is behind dep
   assert.match(ORGAN_FS, /uniform float depthAmt;/);
   assert.match(ORGAN_FS, /if \(depthAmt > 0\.001\) \{/);
   // everything the depth adds is inside that block and scaled by depthAmt; the wash above it is untouched
-  const block = ORGAN_FS.slice(ORGAN_FS.indexOf('if (depthAmt > 0.001)'), ORGAN_FS.indexOf('float a = mix(layer'));
+  const block = ORGAN_FS.slice(ORGAN_FS.indexOf('if (depthAmt > 0.001)'), ORGAN_FS.indexOf('// Cel shaded: the wash'));
   assert.equal((block.match(/depthAmt/g) ?? []).length, 3);
   assert.match(block, /fill = mix\(fill, ogDark\.rgb,.*\* depthAmt\)/);
   assert.match(block, /fill = mix\(fill, ogLight\.rgb,.*\* depthAmt\)/);
@@ -82,10 +82,10 @@ test('with the switch off the shader adds nothing: the depth block is behind dep
   assert.doesNotMatch(block, /vec3\(\s*[01]\.\d+\s*,\s*[01]\.\d+\s*,\s*[01]\.\d+\s*\)\s*[,)]\s*[^;]*depthAmt/);
 });
 
-test('the solid fill is opaque and pre-mixed against the page; the see-through wash stays the layer\'s opacity', () => {
+test('the cel shaded fill is opaque, the organ\'s full tones (no pre-mix against the page); the see-through wash stays the layer\'s opacity', () => {
   assert.match(ORGAN_FS, /uniform float solid;/);
   assert.match(ORGAN_FS, /float a = mix\(layer, 1\.0, solid\);/);
-  assert.match(ORGAN_FS, /fill = mix\(fill, mix\(page, fill, layer\), solid\);/);
+  assert.doesNotMatch(ORGAN_FS, /mix\(page, fill, layer\)/, 'cel shaded: the organ\'s full tones, no pre-mix against the page');
   assert.match(ORGAN_FS, /gl_FragColor = vec4\(fill, a \* fade \* win\)/);
   // the same arithmetic in JS: solid 0 is layer (and the fill untouched), solid 1 is 1
   const mix = (x: number, y: number, t: number) => x * (1 - t) + y * t;

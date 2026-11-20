@@ -23,6 +23,7 @@ import { lookCapture } from '../debug/look-hook.ts';
 import { lobulePicked } from './lobule/pick-store.ts';
 import { lobuleSel } from './lobule/pick.ts';
 import { bindOrganSettings } from './organs/organ-settings.ts';
+import { bindAtlasSettings } from './atlas-art/index.ts';
 import { cel, frames, gesturesRef, sceneApi } from './api.ts';
 import { useLens } from './lenses/store.ts';
 import { dragToOrbit } from './camera/rig.ts';
@@ -98,6 +99,9 @@ function SceneBridge() {
 
   // Settings > Figure depth: Organ depth and Organ fill drive the organs live (the layer eases them on the clock)
   useEffect(() => bindOrganSettings(cel.disease.organs, useSettings, (why) => clock.invalidate(why)), []);
+
+  // Settings > Figure depth > Atlas art: Classic (nothing loaded) or Atlas (the artist's organs and vessel courses, fetched when chosen)
+  useEffect(() => bindAtlasSettings(cel.atlas, useSettings), []);
 
   // Settings > Figure detail caps the pixel ratio; with Sharp while moving off, the figure drops to 1x while a gesture or a camera move runs and comes back sharp when it settles (2D's rule)
   const setDpr = useThree((s) => s.setDpr);

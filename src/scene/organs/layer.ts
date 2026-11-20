@@ -2,7 +2,7 @@
 // as the 2D figure does it (stage-diaphragm.js updateOrgans): the liver's shape (cirrhosis) and dusk (congestion), a scale of the spleen with the model's size, a ghost of
 // a removed spleen, the grey of a lens other than Pressure, blood in the stomach. Meshes come from meshes.ts (the organs thread) in the shared frame; this file never
 // builds one. Everything moves on the clock: `update(now)` returns true while something eases, and nothing is touched when nothing moves.
-import { type BufferGeometry, BufferAttribute, Color, Group, type Raycaster, Vector3, Vector4 } from 'three';
+import { type BufferGeometry, AlwaysDepth, BufferAttribute, Color, Int8BufferAttribute, LessEqualDepth, Group, type Raycaster, Vector3, Vector4 } from 'three';
 import { PICK_OF } from './pick.ts';
 import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from './organ-shader.ts';
 import type { OrganTones2D } from '../../looks/organ-tones.copied.ts';
@@ -20,7 +20,9 @@ import { POOL_SHARE } from '../disease/copied/bleed-shapes.js';
 import { LiverShape } from './liver-shape.ts';
 import { x3, y3 } from '../frame2d.ts';
 import { bakeOrganDepth } from './organ-depth.ts';
+import { CEL_STYLE } from '../cel-style.ts';
 import type { OrganFill } from '../../state/settings.ts';
+import { OrganArt } from './organ-art.ts';
 
 type Og = keyof OrganTones2D['tones'];
 /** The tone each 2D organ takes, its 2D painter's tones (--og-<og>-1/2/3; anatomy.js `tone`), the outline's width (2D: 1.1 px, the kidney 1.4) and alpha (.62, the kidney .95, the atrium .35),
@@ -56,10 +58,11 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
   const m = o.toon;
   m.vertexShader = ORGAN_VS; m.fragmentShader = ORGAN_FS;
   Object.assign(m.uniforms, {
-    cut: ORGAN_CUT, depthAmt: depth, solid, o1: { value: new Color() }, o2: { value: new Color() }, page: { value: new Color() }, layer: { value: 0.55 },
+    cut: ORGAN_CUT, depthAmt: depth, solid, o1: { value: new Color() }, o2: { value: new Color() }, o3: { value: new Color() }, page: { value: new Color() }, layer: { value: 0.55 },
     ogLight: { value: new Vector4() }, ogDark: { value: new Vector4() }, volShade: { value: new Vector4() },
     box: { value: new Vector4(b.min.x, b.max.y, b.max.x - b.min.x, b.max.y - b.min.y) },
   });
+  if (id === 'liver') m.defines = { ...m.defines, CEL_NORMAL: '' };   // (its cel normal, set in build)
   m.transparent = true; m.depthWrite = true;
   m.needsUpdate = true;
   const ink = o.ink;
@@ -100,8 +103,11 @@ export class OrganLayer {
   private readonly uSolid = { value: 0 };
   private readonly depthE = new Eased(0, 0.14);
   private readonly solidE = new Eased(0, 0.14);
+  private painterOn = false;
   private depthGoal = 0; private solidGoal = 0; private fillInstant = true;
   private readonly paints = new Map<string, VertexPaint>();
+  /** 2D's art on the organs (the bowel's loops, the colon's haustra, the stomach's rugae) and the esophagus's fade: organ-art.ts */
+  private readonly art = new OrganArt();
   private liverShape: LiverShape | null = null;
   private liverGeometry: BufferGeometry | null = null;
   private lastClock = -1;
@@ -133,12 +139,15 @@ export class OrganLayer {
       if (PAINTED.has(id)) { if (!g.getAttribute('normal')) g.computeVertexNormals(); this.paints.set(id, new VertexPaint(g, id as 'liver' | 'spleen' | 'stomach')); }
       const o = new CelObject(g, { tone: st.tone, bands: 3, spec: 0, px: st.px }, this.shared);
       useOrganShader(o, g, id, this.uDepth, this.uSolid);
+      this.art.attach(id, o.toon, o.ink, g);
       if (this.phone) o.setPhone(true);
-      o.ink.uniforms.px!.value = st.px;
+      o.ink.uniforms.px!.value = this.inkPx(id);
       this.objects.push(o); this.byId.set(id, o); this.group.add(o.group);
       if (id === 'liver') {
         this.liverGeometry = g;
         if (!g.getAttribute('normal')) g.computeVertexNormals();
+        // the cel bands are cut by the healthy liver's smooth normal, one byte an axis: cirrhosis's nodule bumps would make a hard-edged honeycomb of them
+        g.setAttribute('celNormal', new Int8BufferAttribute(Int8Array.from(g.getAttribute('normal').array, (v) => Math.round(v * 127)), 3, true));
         this.liverShape = new LiverShape(g.getAttribute('position') as never, g.getAttribute('normal').array);
       }
     }
@@ -153,9 +162,27 @@ export class OrganLayer {
   /** How big the spleen is drawn now (1: normal): a caliper along its axis grows with it. */
   get spleenScaleNow(): number { return this.spleenScale.value; }
 
-  applyLook(p: Palette): void { this.palette = p; this.dirtyColours = true; }
+  applyLook(p: Palette): void { this.palette = p; this.art.applyLook(p); this.dirtyColours = true; }
+  /** Cel shaded organs are painted in 2D's order, flat, as 2D lays its groups: each organ's outline first, then its fill over it, no depth test among the organs (the gut keeps its test, so it stays cut away
+   *  behind the others), so the organ laid later always has its line over the one before, wherever their surfaces cross in depth, and it never depends on which is nearer. The wash keeps its depth order. */
+  private setPainter(on: boolean): void {
+    this.painterOn = on;
+    for (const [id, o] of this.byId) {
+      if (ORGAN_STYLE[id]!.layer === 'gut') continue;
+      const i = Math.max(0, ORGAN_ORDER.indexOf(id));
+      o.toon.depthFunc = on ? AlwaysDepth : LessEqualDepth;
+      o.ink.depthFunc = on ? AlwaysDepth : LessEqualDepth;
+      o.ink.depthWrite = !on;
+      o.toonMesh.renderOrder = on ? 2 * i + 1 : 2 * i;
+      for (const c of o.group.children) if (c !== o.toonMesh) c.renderOrder = on ? 2 * i : 2 * i + 1;
+    }
+  }
+  /** How much more a vessel behind the organs (the cava's veil) shows once the organs are opaque: the share of it the 2D wash let through (1 - layer) that the veil takes back (cel-style ORGAN.VEIL_SEE), eased with the fill. */
+  get veilLift(): number { return this.uSolid.value * 0.6 * CEL_STYLE.ORGAN.VEIL_SEE * (1 - (this.palette?.organLayer ?? 0.55)); }
   /** The organ outline is in the figure's units (ORGAN_INK_VS), so it needs no phone trim: keep 2D's 1.1 (kidney 1.4) on every device. */
-  setPhone(phone: boolean): void { this.phone = phone; for (const [id, o] of this.byId) { o.setPhone(phone); o.ink.uniforms.px!.value = ORGAN_STYLE[id]!.px; } }
+  setPhone(phone: boolean): void { this.phone = phone; for (const [id, o] of this.byId) { o.setPhone(phone); o.ink.uniforms.px!.value = this.inkPx(id); } }
+  /** The organ outline's width in the figure's units: 2D's (1.1, the kidney 1.4), wider by LINE_SCALE as the fill goes cel shaded. */
+  private inkPx(id: string): number { return ORGAN_STYLE[id]!.px * (1 + (CEL_STYLE.ORGAN.LINE_SCALE - 1) * this.uSolid.value); }
   /** A lens other than Pressure greys the organs (organ-dim.js: saturation 0.12, opacity 0.72) and eases in 420 ms (D_SURFACE). */
   setLensGrey(on: boolean): void { this.grey = on; }
   /** The turn's quiet depth (0..1 in steps): the organs' wash eases toward the page; repaints only when the step changes. */
@@ -169,7 +196,10 @@ export class OrganLayer {
     this.lastClock = now;
     const sw = this.fillInstant; this.fillInstant = false;
     let eased = this.depthE.to(this.depthGoal, dt, sw);
+    const before = this.solidE.value;
     eased = this.solidE.to(this.solidGoal, dt, sw) || eased;
+    if (this.solidE.value !== before) this.dirtyColours = true;
+    if ((this.solidE.value > 0.5) !== this.painterOn) this.setPainter(this.solidE.value > 0.5);   // (the cel-shaded outline's strength follows the fill: setColours)
     this.uDepth.value = this.depthE.value; this.uSolid.value = this.solidE.value;
     const t = this.body;
     if (!t) { if (this.dirtyColours) { this.paint(); this.dirtyColours = false; } return eased; }
@@ -215,6 +245,8 @@ export class OrganLayer {
       const t1 = rgbOf(og[0]), t2 = rgbOf(og[1]), base = mix(t1, t2, 0.5);
       const c = organColour(base, s, k);
       this.setColours(o, organColour(t1, s, k), organColour(t2, s, k), c, organInk(rgbOf(og[2]), s, k), st.inkA, organLayerAlpha(p, id), page, p.organs);
+      this.art.setState(id, s, k, p);
+      o.ink.uniforms.px!.value = this.inkPx(id);
       const vp = this.paints.get(id);
       if (!vp) continue;
       // what varies over the surface: the vertices carry it (an organ that has none of it shows its one colour)
@@ -235,11 +267,13 @@ export class OrganLayer {
    *  the organ's own third tone at its alpha under the layer, pre-mixed against the page (2D: .62 × .55, so about a third), never black. */
   private setColours(o: CelObject, t1: RGB, t2: RGB, c: RGB, o3: RGB, inkA: number, layer: number, page: RGB, og: OrganTones2D): void {
     const u = o.toon.uniforms;
-    (u.o1!.value as Color).setRGB(t1[0], t1[1], t1[2]); (u.o2!.value as Color).setRGB(t2[0], t2[1], t2[2]);
+    (u.o1!.value as Color).setRGB(t1[0], t1[1], t1[2]); (u.o2!.value as Color).setRGB(t2[0], t2[1], t2[2]); (u.o3!.value as Color).setRGB(o3[0], o3[1], o3[2]);
     (u.color!.value as Color).setRGB(c[0], c[1], c[2]); (u.page!.value as Color).setRGB(page[0], page[1], page[2]);
     u.layer!.value = layer;
     (u.ogLight!.value as Vector4).copy(rgba(og.light)); (u.ogDark!.value as Vector4).copy(rgba(og.dark)); (u.volShade!.value as Vector4).copy(rgba(og.volShade));
-    const ink = mix(page, o3, Math.min(1, inkA * layer));
+    // cel shaded (solid): the organ's line is 2D's alpha whole, not thinned by the layer's opacity, and stronger by INK_BOOST of what is left, so the silhouette and the edge where one organ passes over another read as ink
+    const k = this.uSolid.value, ca = inkA * (layer + (1 - layer) * k);
+    const ink = mix(page, o3, Math.min(1, ca + (1 - ca) * k * CEL_STYLE.ORGAN.INK_BOOST));
     (o.ink.uniforms.color!.value as Color).setRGB(ink[0], ink[1], ink[2]);
   }
 
@@ -264,5 +298,5 @@ export class OrganLayer {
   /** The 2D organs this layer draws, for the parity table. */
   get ids(): string[] { return [...this.byId.keys()]; }
 
-  dispose(): void { for (const o of this.objects) o.dispose(); }
+  dispose(): void { for (const o of this.objects) o.dispose(); this.art.dispose(); }
 }

@@ -16,9 +16,37 @@ export interface Course {
   /** the ends that carry on into another tube, which need no cap (network.ts `joined`) */
   capless?: readonly [boolean, boolean];
   flare?: readonly [{ add: number; wall: number; span: number } | null, { add: number; wall: number; span: number } | null];
+  /** smooth joins (smooth-joins.ts): the end is buried in a trunk, so its radius (the collar, the cap) stays under `max` for `d0` of course from the end and eases back to its own by `d1` */
+  clamp?: readonly [{ max: number; d0: number; d1: number } | null, { max: number; d0: number; d1: number } | null];
+  /** smooth joins: nothing meets this end, so the tube tapers to a point over its last stretch (`pointLength`) instead of ending in a round cap */
+  point?: readonly [boolean, boolean];
+  /** Settings > Figure depth > Atlas art: the artist's own radius along the course, as flat [arcShare, radiusShare, ...] pairs (radiusShare is against `radius`); absent for every classic course */
+  profile?: readonly number[];
 }
 const smooth = (u: number) => u * u * (3 - 2 * u);
+/** The atlas course's radius share at arc-length share `u` (flat [u0, f0, u1, f1, ...], u rising). */
+export function profileAt(p: readonly number[], u: number): number {
+  const n = p.length / 2;
+  if (u <= p[0]!) return p[1]!;
+  for (let i = 1; i < n; i++) {
+    const u1 = p[2 * i]!;
+    if (u <= u1) { const u0 = p[2 * i - 2]!, t = u1 > u0 ? (u - u0) / (u1 - u0) : 1; return p[2 * i - 1]! + (p[2 * i + 1]! - p[2 * i - 1]!) * t; }
+  }
+  return p[2 * n - 1]!;
+}
 const factorAt = (t: readonly [number, number] | undefined, u: number): number => (!t ? 1 : u < 0.3 ? t[0] + (1 - t[0]) * smooth(u / 0.3) : u > 0.7 ? 1 + (t[1] - 1) * smooth((u - 0.7) / 0.3) : 1);
+
+/** The share of its radius a free end tapers down to (a point, not a hole: the tube stays closed). */
+export const TIP_K = 0.07;
+/** The length (scene units) a free end tapers over: four radii, never more than 40 % of the course. */
+export const pointLength = (radius: number, courseLen: number): number => Math.min(0.4 * courseLen, 4 * radius);
+/** The tube's radius share at distance `d` from a free end: TIP_K at the end, 1 at `len` and beyond (a smooth ease, so it is monotone). */
+export const pointFactor = (d: number, len: number): number => (len <= 0 || d >= len ? 1 : TIP_K + (1 - TIP_K) * smooth(Math.max(0, d) / len));
+/** A radius `r` at distance `d` from an end that is buried in a trunk, held under the trunk's allowance there. */
+export const buriedRadius = (r: number, d: number, b: { max: number; d0: number; d1: number } | null | undefined): number => {
+  if (!b || d >= b.d1 || r <= b.max) return r;
+  return d <= b.d0 ? b.max : b.max + (r - b.max) * smooth((d - b.d0) / Math.max(1e-9, b.d1 - b.d0));
+};
 
 /** Tube segments for a course of `len` scene units, with `room` to grow into when it coils. */
 export const tubularFor = (len: number, room = 1.6): number => Math.max(16, Math.round(len * 30 * room));
@@ -56,8 +84,17 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     const P = new Vector3(), pos = tube.attributes.position as Float32BufferAttribute;
     for (let k = 0; k <= seg; k++) {
       const u = k / seg;
-      const f = open ? (factorAt(c.taper, u) + (flareAdd(c.flare?.[0], u * clen) + flareAdd(c.flare?.[1], (1 - u) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) : 1) : 1;
+      let f = open ? (factorAt(c.taper, u) + (flareAdd(c.flare?.[0], u * clen) + flareAdd(c.flare?.[1], (1 - u) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) : 1) * (c.profile ? profileAt(c.profile, u) : 1) : 1;
       curve.getPointAt(k / seg, P);
+      if (open && (c.clamp || c.point)) {
+        // (smooth joins) the buried ends keep their collar inside the trunk, and a free end narrows to a point
+        const d0 = u * clen, d1 = (1 - u) * clen;
+        let R = c.radius * f;
+        if (c.clamp) R = Math.min(buriedRadius(R, d0, c.clamp[0]), buriedRadius(R, d1, c.clamp[1]));
+        if (c.point?.[0]) R *= pointFactor(d0, pointLength(c.radius, clen));
+        if (c.point?.[1]) R *= pointFactor(d1, pointLength(c.radius, clen));
+        f = R / c.radius;
+      }
       for (let j = 0; j <= RADIAL; j++) {
         const at = k * (RADIAL + 1) + j;
         if (f !== 1) pos.setXYZ(at, P.x + (pos.getX(at) - P.x) * f, P.y + (pos.getY(at) - P.y) * f, P.z + (pos.getZ(at) - P.z) * f);
@@ -68,9 +105,17 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     const tang: number[] = [];
     for (let k = 0; k <= seg; k++) { const t = curve.getTangentAt(k / seg); for (let j = 0; j <= RADIAL; j++) tang.push(t.x, t.y, t.z); }
     tube.setAttribute('tang', new Float32BufferAttribute(tang, 3));
+    // the radius a round cap is built at: the tube's own at that end (the collar's, a buried end's held inside its trunk, a free end's tip); none at an end that carries on
+    const capRadius = (end: number): number => {
+      let r = open && !c.capless?.[end] ? c.radius * factorAt(c.taper, end) + flareAdd(c.flare?.[end], 0) : HAIR;
+      if (open && r > HAIR && c.profile) r *= profileAt(c.profile, end);
+      if (open && r > HAIR && c.clamp?.[end]) r = Math.min(r, c.clamp[end]!.max);
+      if (open && r > HAIR && c.point?.[end]) r *= TIP_K;
+      return r;
+    };
     const group: BufferGeometry[] = [tube];
     for (const end of [0, 1]) {
-      const capR = open && !c.capless?.[end] ? c.radius * factorAt(c.taper, end) + flareAdd(c.flare?.[end], 0) : HAIR;
+      const capR = capRadius(end);
       const s = new SphereGeometry(capR, 14, 10);
       const pos = curve.getPointAt(end), t = curve.getTangentAt(end);
       s.translate(pos.x, pos.y, pos.z);
@@ -80,7 +125,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
       s.setAttribute('tang', new Float32BufferAttribute(tg, 3));
       group.push(s);
     }
-    for (const e of [1, 2]) group[e]!.setAttribute('rk', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(open && !c.capless?.[e - 1] ? (c.radius * factorAt(c.taper, e - 1) + flareAdd(c.flare?.[e - 1], 0)) / radius0 : 0), 1));
+    for (const e of [1, 2]) group[e]!.setAttribute('rk', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(open && !c.capless?.[e - 1] ? capRadius(e - 1) / radius0 : 0), 1));
     const tubeCount = tube.attributes.position!.count, capCount = group[1]!.attributes.position!.count;
     runs.push({ curve, tubular: seg, radial: RADIAL, tubeStart: at, tubeCount, capStart: at + tubeCount, capCount });
     at += tubeCount + 2 * capCount;

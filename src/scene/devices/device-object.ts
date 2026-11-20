@@ -20,7 +20,14 @@ const lookOf = (p: Palette): LookId => ((Object.keys(PALETTES) as LookId[]).find
 /** Where devices draw: after the anatomy, in the order of their `order`. */
 export const DEVICE_RENDER_ORDER = 1000;
 
-export interface DeviceOptions { bands?: 2 | 3; spec?: 0 | 1; px?: number; order?: number }
+/** `tubeTones`: the vessels' own three screen-lit tones (shadow, base, lift; no rim, no glint) on a tube; by default on a tube built by `allocTube` / `mergeTubes` (a shaft, a wire, a balloon, a column), off on the spheres, cylinders and discs, which keep the world-lit bands. */
+/** A shader with its alpha swapped for the device's fade. A shader that changed under it fails here, loudly: a silent miss left a faded catheter's outline whole. */
+export function withAlpha(src: string, from: string, to: string): string {
+  if (!src.includes(from)) throw new Error(`device alpha: "${from}" is not in the shader`);
+  return src.replace(from, to);
+}
+
+export interface DeviceOptions { bands?: 2 | 3; spec?: 0 | 1; px?: number; order?: number; tubeTones?: boolean }
 
 export class DeviceObject extends CelObject {
   deviceTone: DeviceTone;
@@ -29,13 +36,14 @@ export class DeviceObject extends CelObject {
   private edgeInk: 'ink' | 'polyEdge' | 'latexEdge';
 
   constructor(geometry: BufferGeometry, deviceTone: DeviceTone, shared: CelShared, o: DeviceOptions = {}, edge: 'ink' | 'polyEdge' | 'latexEdge' = 'ink') {
-    super(geometry, { tone: 'cath', bands: o.bands ?? 2, spec: o.spec ?? 1, px: o.px ?? 0.9 }, shared);
+    super(geometry, { tone: 'cath', bands: o.bands ?? 2, spec: o.spec ?? 1, px: o.px ?? 0.9, tubeTones: o.tubeTones ?? geometry.userData.ringTube === true }, shared);
     this.deviceTone = deviceTone;
     this.edgeInk = edge;
     this.toon.uniforms.alpha = { value: 1 };
     this.ink.uniforms.alpha = { value: 1 };
-    this.toon.fragmentShader = 'uniform float alpha;\n' + TOON_FS.replace('gl_FragColor = vec4(c, 1.0);', 'gl_FragColor = vec4(c, alpha);');
-    this.ink.fragmentShader = 'uniform float alpha;\n' + INK_FS.replace('clamp(vHi, 0.0, 1.0)), 1.0)', 'clamp(vHi, 0.0, 1.0)), alpha)');
+    this.toon.fragmentShader = 'uniform float alpha;\n' + withAlpha(TOON_FS, 'gl_FragColor = vec4(c, 1.0);', 'gl_FragColor = vec4(c, alpha);');
+    // (the ink's alpha is the soft ink's own `inkA` (1 for a hard ink) and the pick's solid ring: a device's fade multiplies the first)
+    this.ink.fragmentShader = 'uniform float alpha;\n' + withAlpha(INK_FS, 'mix(inkA, 1.0, clamp(vHi, 0.0, 1.0))', 'mix(inkA, 1.0, clamp(vHi, 0.0, 1.0)) * alpha');
     for (const m of [this.toon, this.ink]) { m.depthTest = false; m.depthWrite = false; m.needsUpdate = true; }
     this.group.traverse((c) => { c.renderOrder = DEVICE_RENDER_ORDER + (o.order ?? 0); c.frustumCulled = false; });
   }

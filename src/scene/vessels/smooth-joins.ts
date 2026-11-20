@@ -1,0 +1,110 @@
+// "Smooth vessel joins" (Settings > Figure depth): where the tubes of the network meet, what makes the meeting one clean piece of geometry rather than separate tubes that touch.
+// Built once from the network's own rules (network.ts: the run-on pairs, the forks), nothing here is drawn per frame, and nothing here is read unless the switch is on (join-mode.ts).
+//
+//   * Run-on pairs (two vessels that carry on into one another): the two tubes share the join's ring (same centre, same radius: both ease to the mean width over the last 30 %,
+//     including pairs of different caliber that the 2D rule leaves with a step), have no cap there, and the vertex shader eases their live engine widths to one as well (`mate`),
+//     so no ring or step shows when the engine widens one and not the other.
+//   * Branch ends (a vessel that ends on a trunk without carrying on into it): the end is moved onto the trunk's centreline (`attach`, shape.ts `fitEnds`) and its collar and cap kept
+//     inside the trunk, so there is no gap between the branch's last ring and the trunk's wall and no cap standing out of the far side.
+//   * Free ends (the end of a vessel nothing meets, with no alpha fade of its own): the tube tapers to a point (`free`) instead of ending in a round cap.
+//   * The cava ends in the right atrium: it and the SVC run on one slope to the atrium's back wall (`NODE_RISE`), so in a turned view they enter the heart instead of passing 0.3 behind it.
+import { IVC_EDGES } from './paths.copied.ts';
+import { NETWORK, RUN_ONS, type NetVessel } from './network.ts';
+
+/** A node the cava runs into, and its depth: the right atrium's back wall, in the scene's z (the atrium's own mesh stands from 0.02 to 0.20). */
+export const NODE_RISE: ReadonlyMap<string, { z: number }> = new Map([['RA', { z: 0.06 }]]);
+
+export interface SmoothEnds {
+  /** radius at each end as a share of `radius` (a run-on pair eases to the mean of the two) */
+  taper?: readonly [number, number];
+  /** the end carries on into another tube: no cap */
+  joined: readonly [boolean, boolean];
+  /** the vessel this end carries on into (whose live width it eases to) */
+  mate: readonly [string | null, string | null];
+  /** the vessels this end may end on: a branch's end is moved onto the nearest one's centreline (shape.ts) */
+  attach: readonly [readonly string[] | null, readonly string[] | null];
+  /** nothing meets this end: it tapers to a point (unless the vessel has an alpha fade of its own, which shape.ts checks) */
+  free: readonly [boolean, boolean];
+}
+
+/** How close a branch's end has to be to a trunk (in the trunk's radii) to be moved onto its centreline: nearer than this is a drawing gap or stub, farther is the 2D art's own placing. */
+export const ATTACH_REACH = 1.6;
+/** The share of a trunk's radius a branch's end collar and cap may take while buried in it (so they never stand out of its far wall). */
+export const BURY = 0.8;
+/** The share of a course (first or last) over which a moved end eases back to the course, as the depth does at a node (shape.ts `to3`). */
+export const END_SHARE = 0.25;
+
+/** Radii further apart than this share: the pair is a trunk narrowing into a thin vessel (a vein into a liver bed), not two stretches of one vein. */
+export const UNEQUAL = 1.25;
+const isCollateral = (v: NetVessel) => v.kind === 'collateral';
+/** A vessel whose course is its own plain path: no coils, no strands (a collateral braids along its path and keeps it). */
+export const isPlain = (v: NetVessel): boolean => !v.feeder && v.plan?.kind === 'coil' && !v.plan.coils && !v.plan.strands && v.kind !== 'shunt';
+
+function build(): ReadonlyMap<string, SmoothEnds> {
+  const mains = NETWORK.filter((v) => !v.feeder);
+  const byId = new Map(mains.map((v) => [v.id, v]));
+  const info = new Map<string, { taper: [number, number]; joined: [boolean, boolean]; mate: [string | null, string | null]; attach: [string[] | null, string[] | null]; free: [boolean, boolean]; paired: boolean }>();
+  const get = (v: NetVessel) => { let i = info.get(v.id); if (!i) { i = { taper: [1, 1], joined: [false, false], mate: [null, null], attach: [null, null], free: [false, false], paired: false }; info.set(v.id, i); } return i; };
+  const outward = (v: NetVessel, end: 0 | 1): [number, number, number] | null => {
+    const p = v.pts, n = p.length, a = end ? p[n - 1]! : p[0]!, b = end ? p[n - 4 >= 0 ? n - 4 : 0]! : p[3 < n ? 3 : n - 1]!;
+    const d: [number, number, number] = [a[0] - b[0], a[1] - b[1], a[2] - b[2]], l = Math.hypot(d[0], d[1], d[2]);
+    return l > 1e-9 ? [d[0] / l, d[1] / l, d[2] / l] : null;
+  };
+  const taken = new Set<string>();
+  const pair = (a: { v: NetVessel; end: 0 | 1 }, b: { v: NetVessel; end: 0 | 1 }) => {
+    if (a.v === b.v || isCollateral(a.v) || isCollateral(b.v) || (a.v.tone === 'artery') !== (b.v.tone === 'artery')) return;
+    if (taken.has(`${a.v.id}|${a.end}`) || taken.has(`${b.v.id}|${b.end}`)) return;
+    taken.add(`${a.v.id}|${a.end}`); taken.add(`${b.v.id}|${b.end}`);
+    // two of nearly one caliber ease to their mean (the 2D tubes' own end profile); a big vein into a thin bed (more than a quarter apart) is the wider one narrowing to the thin one's width, which keeps
+    // the thin one as drawn (a mean would swell the bed's first stretch into a bulb)
+    const hi = Math.max(a.v.radius, b.v.radius), lo = Math.min(a.v.radius, b.v.radius), m = hi > lo * UNEQUAL ? lo : (a.v.radius + b.v.radius) / 2;
+    const da = outward(a.v, a.end), db = outward(b.v, b.end);
+    const straight = !!da && !!db && da[0] * db[0] + da[1] * db[1] + da[2] * db[2] < -0.9;
+    for (const [x, y] of [[a, b], [b, a]] as const) {
+      const i = get(x.v);
+      i.taper[x.end] = m / x.v.radius; i.mate[x.end] = y.v.id; i.paired = true;
+      if (straight) i.joined[x.end] = true;
+    }
+  };
+  const at = new Map<string, { v: NetVessel; end: 0 | 1 }[]>();
+  for (const v of mains) for (const [n, end] of [[v.from, 0], [v.to, 1]] as const) { const a = at.get(n) ?? []; a.push({ v, end }); at.set(n, a); }
+  // the 2D rule's own run-on pairs first (they pick the pair at a fork), then the nodes of exactly two
+  for (const r of RUN_ONS) { const a = byId.get(r.a), b = byId.get(r.b); if (a && b) pair({ v: a, end: r.ia }, { v: b, end: r.ib }); }
+  for (const list of at.values()) if (list.length === 2) pair(list[0]!, list[1]!);
+  // the ends of what is left: a branch on a trunk, or nothing at all
+  const art = (v: NetVessel) => (v.tone === 'artery' ? 1 : 0);
+  for (const v of mains) {
+    const i = get(v);
+    for (const end of [0, 1] as const) {
+      if (taken.has(`${v.id}|${end}`)) continue;
+      const node = end ? v.to : v.from;
+      const others = (at.get(node) ?? []).filter((e) => e.v !== v && art(e.v) === art(v));
+      if (!others.length) { if (!isCollateral(v) && v.kind !== 'shunt') i.free[end] = true; continue; }
+      if (!isPlain(v) || IVC_EDGES.has(v.id)) continue;
+      // a trunk it can end on is one that carries on through the node (a run-on pair there): a vessel that only ends at the node is another branch, not a wall
+      const hosts = others.filter((e) => !isCollateral(e.v) && e.v.kind !== 'shunt' && !IVC_EDGES.has(e.v.id) && e.v.radius >= 0.9 * v.radius && get(e.v).mate[e.end]).flatMap((e) => [e.v.id, get(e.v).mate[e.end]!]);
+      if (hosts.length) i.attach[end] = [...new Set(hosts)];
+    }
+  }
+  const out = new Map<string, SmoothEnds>();
+  for (const [id, i] of info) out.set(id, { taper: i.paired ? i.taper : undefined, joined: i.joined, mate: i.mate, attach: i.attach, free: i.free });
+  return out;
+}
+
+/** Per vessel (by id): how its ends are drawn with smooth joins on. */
+export const SMOOTH: ReadonlyMap<string, SmoothEnds> = build();
+
+/** The depth a vessel's end goes to with smooth joins on: the right atrium's back wall where it has one (`rise`), else the node's depth (network.ts NODE_Z). */
+export function endDepth(node: string, fallback: number | undefined): { z: number | undefined; rise: boolean } {
+  const r = NODE_RISE.get(node);
+  return r ? { z: r.z, rise: true } : { z: fallback, rise: false };
+}
+
+/** Both of a pair's widths at the join, the mean of the two as the geometry has it (`taper`), for the shader's live width: the same easing as tubes.ts `factorAt`, so a width the engine changes
+ *  moves the join's ring by the same share on both sides. `own` and `mate` are the two vessels' live swells (the engine's diameter against the one the tube was built at), `u` the place along
+ *  this vessel (0 to 1), `end` the end the mate is at. Mirrors the vertex shader's `joinSwell`. */
+export function joinSwell(own: number, mate: number, u: number, end: 0 | 1): number {
+  const t = end ? (u - 0.7) / 0.3 : 1 - u / 0.3;
+  const k = Math.min(1, Math.max(0, t)), w = k * k * (3 - 2 * k);
+  return own + w * ((own + mate) / 2 - own);
+}
