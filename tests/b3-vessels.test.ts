@@ -251,6 +251,8 @@ test('at a fork the widest vessels keep their tier (the cava does not bulge towa
   const z = ['ILI', 'IVCI', 'IVC_D', 'IVCS'].map((n) => NZ.get(n)!);
   for (let i = 1; i < z.length; i++) assert.ok(z[i]! >= z[i - 1]! - 1e-9, `the cava never dips back on its way up: ${z.join(', ')}`);
   for (const n of ['PVH', 'CONF']) assert.equal(NZ.get(n), TZ.front, `${n} stays on the portal tree's tier`);
-  const two = NET_Z.filter((v) => !v.feeder && (v.from === 'SVC' || v.to === 'SVC'));
-  assert.ok(two.length === 2 && NZ.get('SVC') !== undefined, 'a node of two still eases between its tiers');
+  // (the SVC node is a fork of three since the cava runs up out of the figure as V_UP: the cava's two pieces keep the cava's tier, the azygos eases down to it)
+  const svc = NET_Z.filter((v) => !v.feeder && (v.from === 'SVC' || v.to === 'SVC'));
+  assert.deepEqual(svc.map((v) => v.id).sort(), ['AZY_SVC', 'SVC_RA_1', 'V_UP'], 'the SVC node: the cava above and below, and the azygos');
+  assert.equal(NZ.get('SVC'), TZ.back, 'the cava keeps its own tier through the fork');
 });
