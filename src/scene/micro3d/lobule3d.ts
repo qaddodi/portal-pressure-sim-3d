@@ -63,10 +63,12 @@ const BILE_ID = 2_000_000;
  *  crossed and showed only in the gaps, as short pieces floating between the cords (Mohammad, 20 Nov: "disconnected vessels in the middle"). */
 export const OVER_Z = LZ.cellTop + 0.002;
 /** How deep a lymph channel lies where it passes under a blood vessel (below the vessel's own underside, above the ground). */
-/** Beside a sinusoid the channel lies a hair below the sinusoid's own level, so the vessel's wall just covers the channel's inner edge (no daylight between them). */
-export const LYMPH_Z = OVER_Z - 0.004;
+/** Beside a sinusoid the tube lies low enough that its top never stands above the sinusoid's own surface where the two overlap (it stands 0.55 of its radius off the wall: its inner 45 % is under the vessel). */
+export const LYMPH_Z = OVER_Z - 0.0075;
 export const LYMPH_UNDER_Z = LZ.disse - 0.01;
 /** The scene's fade is taken as whole from here up (FADE_GLSL's screen pattern drops pixels below 0.999). */
+/** Where the bile is drawn: before every blood vessel and the lymph (all -1), writing no depth. */
+export const BILE_ORDER = -1.8;
 export const FADE_SNAP = 0.98;
 /** How far from each end of a vessel (in its own radii) no flow mark is drawn: where it runs into another vessel. */
 export const END_HUSH_R = 3;
@@ -234,6 +236,10 @@ export class Lobule3D {
       v.renderOrder = -1;
       for (const m of [v.toonMesh, v.inkMesh]) if (m) { const mat = m.material as ShaderMaterial; mat.transparent = true; mat.depthWrite = true; }
     }
+    // (the bile lies in the lowest tier, UNDER every blood vessel and the lymph, as 2D draws it (lobule-pick.js tiers; Mohammad 20 Nov 2026: "bile ducts go right through blood vessels still in lobule"): it is drawn before them and
+    //  writes no depth, so wherever a canal of Hering, a duct or a canaliculus meets a sinusoid, an inlet or a cross-link, the vessel is drawn over it, never the other way round. Its line goes first, its body over it)
+    this.bile.inkMesh!.renderOrder = BILE_ORDER - 0.05; this.bile.toonMesh.renderOrder = BILE_ORDER;
+    for (const m of [this.bile.inkMesh!, this.bile.toonMesh]) (m.material as ShaderMaterial).depthWrite = false;
     this.cvScar.renderOrder = 0;
     { const m = this.cvScar.toonMesh.material as ShaderMaterial; m.depthWrite = false; m.premultipliedAlpha = true; }   // (the toon writes its colour already times its opacity)
     for (const p of [this.ground, this.cells, this.nuclei, ...vessels, this.cvScar]) this.group.add(p.group);
@@ -626,7 +632,7 @@ export class Lobule3D {
       const covers: Cover[] = [
         ...by('in').map((c) => ({ pts: c.pts, rad: c.pts.map((q, i) => inletRadius(i, c.pts.length, Math.hypot(q[0] - c.pts[0]![0], q[1] - c.pts[0]![1]))), band: 3 })),
         ...by('lt').map((c) => ({ pts: c.pts, rad: c.pts.map(() => LT_R), band: 3 })),
-        ...[...by('s0'), ...by('s1'), ...by('s2')].map((c) => ({ pts: c.pts, rad: c.pts.map((_, i) => sinRadius(c.kind as 's0', c.rho[i]!)), band: 0.9 })),
+        ...[...by('s0'), ...by('s1'), ...by('s2')].map((c) => ({ pts: c.pts, rad: c.pts.map((_, i) => sinRadius(c.kind as 's0', c.rho[i]!)), band: 0.4 })),
         // (a cross-link meets the sinusoid's side where its lymph runs: the channel dives under it over a few tube widths rather than stopping at its mouth)
         ...by('an').map((c) => ({ pts: c.pts, rad: c.pts.map((_, i) => sinRadius('an', c.rho[i]!)), band: 2.5 })),
       ];

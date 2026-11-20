@@ -107,7 +107,7 @@ uniform vec4 stentU;   // a stent in this vessel, drawn on the tube in the Circu
 uniform vec3 mate0;
 uniform vec3 mate1;
 uniform vec2 bury;   // the ink is held back ONLY inside a declared branch's trunk: how far from the branch's start and end (figure units per radius unit, 0: none: a run-on, a crossing, a free end keep their whole outline)
-uniform float cavaCut;   // 1 on a vein that opens into the cava (nbr is the cava's): it takes the cava's colour and alpha as it nears the wall and is not drawn inside the lumen, so it ends exactly at the wall with no step
+uniform float cavaCut;   // 1 on a vein that opens into the cava (2: only its opacity ramp, where a skin has the end) (nbr is the cava's): it takes the cava's colour and alpha as it nears the wall and is not drawn inside the lumen, so it ends exactly at the wall with no step
 uniform float solidK;    // a vessel drawn behind the organs: how much of its solid copy (drawn with the organs, hidden by one in front) shows: 1 for every other vessel (Settings > Hide vessels behind organs)
 uniform float veilK;     // and of its veil copy (drawn over the organs, shown through them)
 uniform float cavaA;     // the cava's opacity where the vein joins it: the vein's own comes to it at the wall (no step in alpha)
@@ -297,7 +297,10 @@ vec3 dHsl2Rgb(vec3 h) {
   return vec3(dHue(p, q, h.x + 1.0 / 3.0), dHue(p, q, h.x), dHue(p, q, h.x - 1.0 / 3.0));
 }
 // the lab's shift(): hue by dh (a turn is 1), saturation by ds, lightness by dl
-vec3 dShift(vec3 c, float dh, float ds, float dl) { vec3 h = dRgb2Hsl(c); return dHsl2Rgb(vec3(fract(h.x + dh + 1.0), clamp(h.y + ds, 0.0, 1.0), clamp(h.z + dl, 0.04, 0.96))); }
+// THE HUE STAYS IN THE VESSEL'S FAMILY (Mohammad, 20 Nov: brown flecks in the faded vessels): the hue of a near-grey colour is noise (HSL's hue is 0/0 at grey) and adding the lab's saturation to it paints an arbitrary hue, brown on a faded blue.
+// The hue shift and the saturation added are both scaled by how much colour the base has (dShiftK), so a grey base stays grey and only the lightness varies.
+float dShiftK(float s) { return smoothstep(0.02, 0.12, s); }
+vec3 dShift(vec3 c, float dh, float ds, float dl) { vec3 h = dRgb2Hsl(c); float k = dShiftK(h.y); return dHsl2Rgb(vec3(fract(h.x + dh * k + 1.0), clamp(h.y + ds * k, 0.0, 1.0), clamp(h.z + dl, 0.04, 0.96))); }
 // THE FRAME a pixel of a vessel is seen in (the tube's own, or one arm's on a skin)
 struct DFrame {
   float across;   // the pixel across the lumen on screen (-1 .. 1)
@@ -569,11 +572,13 @@ vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
 // One vessel's heads placed by a stream's pattern (veins-gl.js chevOne): se = A + B s is the vessel's arc along that stream (B = 1, se = s for its own), Dm the stream's distance. The
 // spacing is the zoom's, by the arc a head takes here (B), so a parcel that slows on entering a vessel bunches up as the blood does. ends: the weights of a link at the vessel's from and
 // to end (above 0: a chained end, through which the heads run on instead of fading). Returns the head's coverage and its rim, already faded by its place and its lattice.
+float chevCentreArc = 0.0;   // the arc (figure units) of the centre of the head the last chevOne call looked at: a skin hands a whole head to the one arm that owns its centre
 vec2 chevOne(float s, float Lw, float se, float Bm, float Dm, float vd, float rv, vec2 ends, float R, float across, float wpc, float Pt, float px) {
   float lv = max(-10.0, log2(Pt * max(abs(Bm), 0.05) / 28.0));
   float n0 = floor(lv), P = 28.0 * exp2(n0);
   float j = floor((se - Dm) / P + 0.5);
   float x = (se - (Dm + j * P)) / (abs(Bm) < 0.05 ? (Bm < 0.0 ? -0.05 : 0.05) : Bm), sc = s - x;
+  chevCentreArc = sc;
   float kp = chevKeep(j, n0, lv);
   float hw = chevHw(R, wpc) * chevSize(kp), L = 2.8 * hw;   // (a head is 6 CSS px tall from a tube 6 px across, as tall as the tube on a narrower one)
   if (abs(x) > (0.6 + 0.4 * rv) * L + 0.15 * hw + 4.0 * px) return vec2(0.0);
@@ -656,11 +661,13 @@ vec4 flowHeads(float across, float acrossW, float s, float Lw, float vR, float w
   float Pt = 130.0 * wpc;
   vec4 c4 = texelFetch(chainTex, ivec2(int(lensI), 0), 0), c5 = texelFetch(chainTex, ivec2(int(lensI), 1), 0);
   vec2 ch = vec2(0.0);
-  if (c4.w < 1.0) ch = chevOne(s, Lw, s, 1.0, Dm, vd, rv, c5.xy, R, across, wpc, Pt, px);
+  float scOwn = s;
+  if (c4.w < 1.0) { ch = chevOne(s, Lw, s, 1.0, Dm, vd, rv, c5.xy, R, across, wpc, Pt, px); scOwn = chevCentreArc; }
   if (c4.w > 0.0) {
     float rootD = texelFetch(streamTex, ivec2(int(c4.x + 0.5) - 1, 0), 0).x;
     vec2 cc = chevOne(s, Lw, c4.y + c4.z * s, c4.z, rootD, vd, rv, c5.xy, R, across, wpc, Pt, px);
     ch = c4.w >= 1.0 ? cc : mix(ch, cc, c4.w);
+    chevCentreArc = c4.w >= 1.0 ? chevCentreArc : mix(scOwn, chevCentreArc, c4.w);
   }
   // heads are on every tube down to about 4 CSS px across (R 1.5 px: the spacing never depends on the width), and are cut at the wall (never on the ink)
   float fade = endK * flowAmt * smoothstep(1.5 * wpc, 2.1 * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));
@@ -770,11 +777,14 @@ void main() {
     float cd = vNbr.y - abs(vNbr.x);
     float wB = smoothstep(-1.6 * vNbr.y, 0.0, cd) * (1.0 - circT);
     float wA = smoothstep(-2.5 * vNbr.y, 0.0, cd) * (1.0 - circT);
-    vec4 la2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradA, lensLaneA, lensModeA, laneColA, across), lb2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradB, lensLaneB, lensModeB, laneColB, across);
-    base = mix(base, mix(mix(color, la2.rgb, la2.a), mix(color, lb2.rgb, lb2.a), lensMix), wB);
     fadeHere = mix(vFade, cavaA, wA);
-    float cdPx = cd / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
-    cavA = mix(1.0 - smoothstep(-0.5, 0.5, cdPx), 1.0, circT);
+    // (cavaCut 2: a vein whose cava end a SKIN has taken over (skin/shaders.ts THE JUNCTION FADE RULE): the tube stops at its seam outside the wall, so no cut and no colour of the cava's here, but the same opacity ramp, which the skin carries on through the junction)
+    if (cavaCut < 1.5) {
+      vec4 la2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradA, lensLaneA, lensModeA, laneColA, across), lb2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradB, lensLaneB, lensModeB, laneColB, across);
+      base = mix(base, mix(mix(color, la2.rgb, la2.a), mix(color, lb2.rgb, lb2.a), lensMix), wB);
+      float cdPx = cd / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
+      cavA = mix(1.0 - smoothstep(-0.5, 0.5, cdPx), 1.0, circT);
+    }
   }
   if (cavA < 0.004) discard;
 #ifdef VEIL

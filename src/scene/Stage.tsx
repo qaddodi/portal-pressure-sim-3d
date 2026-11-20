@@ -36,6 +36,7 @@ import { type Sel, selectStructure, useSelection } from '../ui/action/selection.
 import { tapSelect } from '../ui/action/tap-select.ts';
 import { labelHit } from '../ui/action/label-tap.ts';
 import { labelAt } from './labels/hit.ts';
+import { warmPrograms, type WarmRenderer } from './materials/warm.ts';
 
 const vesselData = new VesselData();
 cel.bindData(vesselData.texture);
@@ -68,7 +69,7 @@ function SceneBridge() {
     // compile (the ?gl check does the same on request, debug/gl-check-run.ts): three builds them in parallel where the driver can
     if (!warmed.current) {
       warmed.current = true;
-      setTimeout(() => { void (gl as unknown as { compileAsync(s: unknown, c: unknown): Promise<unknown> }).compileAsync(cel.scene, cel.rig.camera).catch(() => undefined); }, 400);
+      setTimeout(() => { void warmPrograms(gl as unknown as WarmRenderer, cel.scene, cel.rig.camera).catch(() => undefined); }, 400);   // (and each vessel and skin program in its other blend state too: materials/warm.ts)
     }
   }, 1);
 

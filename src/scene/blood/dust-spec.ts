@@ -106,7 +106,7 @@ export const DUST_DENSITY_FULL = 2400;
 /** The longest streak the scan can find, in lumen radii. */
 export const DUST_LEN_CAP = 2.4;
 /** Samples a pixel: the Mac and the iPad, the iPhone (its GPU has a quarter of the pixels' worth of work to spare, and the count is the one not yet measured there: the panel's budget overrides it). */
-export const DUST_BUDGET = { desktop: 56, phone: 28 } as const;
+export const DUST_BUDGET = { desktop: 28, phone: 16 } as const;
 /** The classes the grid has: 4, 3 on a phone. */
 export const dustClasses = (phone: boolean): number => (phone ? 3 : DUST_KMAX);
 /** The budget for a view: by device, held between half and 1.3 of it by how many device pixels the figure covers (a bigger canvas, fewer samples a pixel). */

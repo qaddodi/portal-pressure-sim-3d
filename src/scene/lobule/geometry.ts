@@ -58,8 +58,8 @@ export const TRIAD_D = 0.09, TRIAD_A = 0.98;
  *  It was 0.016 (drawn twice as wide "to read at the fit"), which put the cords of cells 1.9 times too far apart and the tubes 1.5 times too wide (visual review, 19 Nov). */
 export const RS0 = 0.0085;
 export const SIN_NARROW = 0.75;
-/** The lymph channel's (and the ductule's) own radius at the portal end (2D: rs0 * 0.5 * lyWr, lyWr = 1 at the healthy rate): half a sinusoid's. */
-export const DUCT_R = RS0 * 0.5;
+/** The lymph tube's radius at the portal end: a thin tube, 0.31 of rs0 (0.0026 R; a sinusoid's is 0.0064), the same all along it (only the taper toward the central vein narrows it). Mohammad, 20 Nov 2026: thin, like a ductule, "never a filled area". */
+export const DUCT_R = RS0 * 0.31;
 /** An anastomosis is 0.68 of a sinusoid (2D: rs * 0.68). */
 export const AN_K = 0.68;
 const TAU = Math.PI * 2;
@@ -271,7 +271,7 @@ export function buildLobule(seed = 7): LobuleNet {
   const wallOf = (kind: TubeKind, rho: number): number => kind === 'an' ? rsN * AN_K : rsN * sinK(rho) * (kind === 's2' ? flareAt(rho - rcv0, rsN * 1.3) : 1);
   const channelOf = (t: Course): Course => (t.tri === t.edge ? lt[t.edge! * 2]! : lt[((t.edge! + 1) % 6) * 2 + 1]!);
   const runs = lymphRuns({
-    carry: [...L0, ...L1, ...L2], clear: courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2'),   // (a cross-link does not cut the lymph: the channel runs under it)
+    carry: [...L0, ...L1, ...L2],
     wall: wallOf, radius: (rho) => DUCT_R * lyTaper(rho), rcv: rcv0,
     join: (c, p) => { if (c.kind !== 's0') return null; let E: P2 | null = null, bd = Infinity; for (const q of channelOf(c).pts) { const d = Math.hypot(q[0] - p[0], q[1] - p[1]); if (d < bd) { bd = d; E = q; } } return E; },
   });

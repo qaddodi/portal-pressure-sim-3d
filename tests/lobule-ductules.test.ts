@@ -15,8 +15,8 @@ const flat = new LobuleView(createShared()), net = flat.net;
 const R = 3, ly = net.courses.filter((c) => c.kind === 'ly'), byId = new Map(net.courses.map((c) => [c.id, c]));
 const distToAxis = (q: readonly number[], c: { pts: readonly (readonly number[])[] }) => { let best = Infinity; for (let i = 0; i + 1 < c.pts.length; i++) { const a = c.pts[i]!, b = c.pts[i + 1]!, bx = b[0]! - a[0]!, by = b[1]! - a[1]!, bb = bx * bx + by * by, t = bb ? Math.min(1, Math.max(0, ((q[0]! - a[0]!) * bx + (q[1]! - a[1]!) * by) / bb)) : 0; best = Math.min(best, Math.hypot(q[0]! - a[0]! - t * bx, q[1]! - a[1]! - t * by)); } return best; };
 
-test('the channel tapers to a thread toward the central vein (2D lyTaper): whole from rho 0.42 out, 6 % inside 0.13, never wider outward than inward', () => {
-  assert.equal(lyTaper(1), 1); assert.equal(lyTaper(0.42), 1); assert.ok(Math.abs(lyTaper(0.13) - 0.06) < 1e-12); assert.ok(Math.abs(lyTaper(0.05) - 0.06) < 1e-12);
+test('the channel tapers to nothing toward the central vein (about 90 % of the way, Mohammad 20 Nov 2026): whole from rho 0.42 out, zero at 0.13 and inside, never wider outward than inward', () => {
+  assert.equal(lyTaper(1), 1); assert.equal(lyTaper(0.42), 1); assert.equal(lyTaper(0.13), 0); assert.equal(lyTaper(0.05), 0);
   for (let k = 0; k < 100; k++) assert.ok(lyTaper(k / 100 + 0.01) >= lyTaper(k / 100) - 1e-12, 'it only widens outward');
   assert.ok(lyTaper(0.28) > 0.2 && lyTaper(0.28) < 0.8, 'a smooth way between');
 });
