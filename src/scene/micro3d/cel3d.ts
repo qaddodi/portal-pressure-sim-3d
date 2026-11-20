@@ -256,14 +256,18 @@ void main() {
 #endif
   p += normal * inflate;   // (as its shape swells or shrinks: a dilated sinusoid keeps its line)
   vHy = p.y;
-  // the hull sits a hair behind its shape (0.15 % farther from the eye, which moves nothing on screen): drawn on both sides, its faces that face the viewer lie just under the shape's own and
+  // the hull's faces toward the viewer sit a hair behind the shape (0.15 % farther from the eye, which moves nothing on screen): drawn on both sides, they lie just under the shape's own and
   // never show, and everything pushed out past the outline shows whichever way its triangles ended up wound. (A back-face cull dropped the thin rim strips the push turned over, and a
   // cull by the normal dropped the hull at every rim vertex: the red cells' outline came out dotted, Mohammad 20 Nov: "the RBC outline is interrupted".)
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
-  mv.xyz *= 1.0 + ${F(INK_BACK)};
-  vec4 c = projectionMatrix * mv;
-  if (projectionMatrix[2][3] == 0.0) c.z += ${F(INK_BACK)} * c.w;
   vec3 vn = normalize(normalMatrix * n);
+  // only what faces the viewer goes back (it must hide under the shape's own face); the rim and the far side stay at their true depth, so the line pushed out past the outline is never sunk
+  // under a surface just behind the shape (Disse behind a microvillus, the plate under a lobule vessel: there a push of the whole hull hid the line, Mohammad 20 Nov: "the microvilli need a black outline")
+  bool ortho = projectionMatrix[2][3] == 0.0;
+  float back = ${F(INK_BACK)} * smoothstep(0.05, 0.35, dot(vn, ortho ? vec3(0.0, 0.0, 1.0) : normalize(-mv.xyz)));
+  mv.xyz *= 1.0 + back;
+  vec4 c = projectionMatrix * mv;
+  if (ortho) c.z += back * c.w;
   vec2 nd = (projectionMatrix * vec4(vn, 0.0)).xy;
   float l = length(nd);
   nd = l > 1e-6 ? nd / l : vec2(0.0);

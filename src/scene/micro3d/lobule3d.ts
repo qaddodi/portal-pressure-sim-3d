@@ -43,6 +43,8 @@ import { MeshBuilder, MicroPart, type P2, type RGB, ellipsoid, microMaterials, p
 const R = LOBULE_R;
 /** Heights (local units, toward the viewer; R = 3): the hexagon's ground, the tiles' tops and bottoms, the tubes' centre line, Disse's sleeve, the mouths' lips and depth, the marks' plate. */
 export const LZ = { ground: -0.03, cellTop: 0.026, cellBot: -0.05, tube: 0.008, disse: -0.012, lip: 0.03, mouthDepth: 0.22, marks: 0.031 } as const;
+/** The lobule vessels' line (CSS px): the Anatomy's vessels' weight (about 2 px at the fit). */
+export const VESSEL_LINE = 2;
 /** Segments round a tube and round a mouth. */
 export const TUBE_SEG = 10, MOUTH_SEG = 64;
 /** The share of a tile's short side its bevel takes. */
@@ -128,17 +130,19 @@ export class Lobule3D {
     this.ground = mk('ground', { ink: null, vertexColors: false });
     this.cells = mk('hepatocytes', { px: S.LINE_SMALL });
     this.nuclei = mk('nuclei', { ink: null });
-    this.sin = { s0: mk('sinusoids-0', { px: S.LINE, flow: true }), s1: mk('sinusoids-1', { px: S.LINE, flow: true }), s2: mk('sinusoids-2', { px: S.LINE, flow: true }), an: mk('sinusoids-links', { px: S.LINE_SMALL, flow: true }) };
-    this.inlets = mk('inlets', { px: S.LINE, flow: true });
+    // (the vessels' line is the Anatomy's weight, VESSEL_LINE CSS px, so a lobule vessel reads outlined as a vessel of the body does: Mohammad 20 Nov 2026, "the lobule sinusoid vessels need black
+    //  outlines like the vessels in anatomy"; at 1.25 px it broke into dots against the tiles)
+    this.sin = { s0: mk('sinusoids-0', { px: VESSEL_LINE, flow: true }), s1: mk('sinusoids-1', { px: VESSEL_LINE, flow: true }), s2: mk('sinusoids-2', { px: VESSEL_LINE, flow: true }), an: mk('sinusoids-links', { px: VESSEL_LINE * 0.8, flow: true }) };
+    this.inlets = mk('inlets', { px: VESSEL_LINE, flow: true });
     this.twigs = mk('arteriole-twigs', { px: S.LINE_SMALL * 0.8, flow: true });
     this.lt = mk('terminal-lymphatics', { px: S.LINE_SMALL * 0.8, flow: true });
     this.disse = mk('disse', { ink: null });
     this.bile = mk('canaliculi', { px: S.LINE_SMALL * 0.7, flow: true });
-    this.mouthPv = mk('portal-venules', { px: S.LINE });
-    this.mouthHa = mk('arterioles', { px: S.LINE_SMALL });
+    this.mouthPv = mk('portal-venules', { px: VESSEL_LINE });
+    this.mouthHa = mk('arterioles', { px: VESSEL_LINE * 0.8 });
     this.mouthBd = mk('ductules', { px: S.LINE_SMALL });
     this.mouthLv = mk('lymphatics', { px: S.LINE_SMALL });
-    this.mouthCv = mk('central-vein', { px: S.LINE });
+    this.mouthCv = mk('central-vein', { px: VESSEL_LINE });
     // the marks plate (above the tiles, under the vessels: drawn after the tiles with no depth test, the vessels after it)
     this.shape = { ...plateShape(this.flat.net), cells: [] };
     this.sins = this.flat.net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an').map((c) => ({ c, r: sinRadius(c.kind as 's0', 0.5) * 1.15 }));
