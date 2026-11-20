@@ -1,3 +1,5 @@
+// (these pin the cobbled cel7 surface, the standing look until 20 Nov: the default is now cel12, the subtle one, tests/organ-edge-and-cel-soft.test.ts)
+(globalThis as { location?: unknown }).location = { search: '?liver=cel7', pathname: '/', hostname: 'localhost' };
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bake, surfaceAt, noduleBumpAt, domeAt, TEX_PH, TEX_PW } from '../src/scene/organs/liver-texture.ts';
