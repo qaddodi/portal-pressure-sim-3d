@@ -32,6 +32,8 @@ export const TAB_FOOT = D.tabRow;
 export const TAB_UP_FOOT = D.tabUp;
 export const TAB_LEFT = { share: D.tabLeftShare, px: D.tabLeftPx } as const;
 const BESIDE_GAP = 8, CARD_GAP = 6;
+/** The gap between the words' card's top edge and a key standing above it: the card's name tab (about 22 px) and a breath. */
+const ABOVE_CARD = 30;
 /** A key wrapped over two lines is about this much taller than on one (its rows share a line gap of .1 em). */
 const TWO_LINES = 1.9;
 
@@ -79,7 +81,8 @@ export function dockKey(i: DockIn): Dock {
     const drop = tab ? 0 : footDrop(vp), rowBottom = foot + safe.bottom - drop;
     if (natural.w <= room) return place(natural.w, natural.h, rowBottom, null, 'beside-pill');
     if (!tab && natural.w <= 2 * room && room > 0 && natural.h * TWO_LINES <= D.pillH + 1.5) return place(room, natural.h * TWO_LINES, rowBottom, room, 'beside-pill');
-    const up = (tab ? TAB_UP_FOOT : PHONE_UP_FOOT) + safe.bottom - drop;
+    // too long for the pill's row: a row of its own ABOVE the words' card (2D: "somewhere else above the card if it doesn't fit"), clear of the card's name tab; never over the card's words
+    const up = i.words ? vp.h - i.words.y + ABOVE_CARD : (tab ? TAB_UP_FOOT : PHONE_UP_FOOT) + safe.bottom - drop;
     return natural.w <= full ? place(natural.w, natural.h, up, null, 'above-pill') : place(full, natural.h * Math.ceil(natural.w / full), up, full, 'above-pill');
   }
   // wide screens and a phone on its side: on top of the pill, right-aligned with it
