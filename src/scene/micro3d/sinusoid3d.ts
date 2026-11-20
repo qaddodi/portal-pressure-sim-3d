@@ -30,7 +30,9 @@ export const ACROSS = 80;
 /** Depths (µm, toward the viewer): the plates' tops, the lining's crest, Disse's floor, the ground under the clefts, the trough's depth as a share of the lumen's half width. */
 export const Z = { cell: 0.55, cellBot: -3.2, bead: 0.5, disse: -1.0, ground: -3.0, trough: 0.92, nucleus: 0.55 } as const;
 /** The red cells in the stream (2D's palette has their colour; the flat view draws none). */
-const RBC_N = 34, RBC_R = 2.7;
+/** How far (µm) the scene stands toward the viewer from the lobule's plate. */
+const LIFT = 8;
+const RBC_N = 34, RBC_R = 2.5;
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -80,6 +82,7 @@ export class Sinusoid3D {
   private readonly trough: MicroPart;
   private readonly troughFar: MicroPart;
   private readonly bead: MicroPart;
+  private readonly beadLine: MicroPart;
   private readonly disse: MicroPart;
   private readonly cells: MicroPart;
   private readonly nuclei: MicroPart;
@@ -106,13 +109,17 @@ export class Sinusoid3D {
     this.group.name = 'sinusoid3d';
     // the scene is built in micrometres, the plane's y up: one group scales it to the flat view's units (it turns with the flat view's group in a portrait room)
     this.group.scale.setScalar(U);
+    // (it stands a little proud of the lobule's plate it sits in, so while the camera dives in it is drawn over the lobule, never through it)
+    this.group.position.z = LIFT * U;
     const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, o), `sinusoid3d/${name}`);
     const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}) => new MicroMany(geo, microMaterials(this.res, this.fade, o), cap, `sinusoid3d/${name}`);
     const S = CEL_STYLE.MICRO;
     this.ground = mk('ground', { ink: null });
-    this.trough = mk('lumen', { px: S.LINE });
-    this.troughFar = mk('lumen-beyond', { px: S.LINE });
-    this.bead = mk('endothelium', { px: S.LINE_SMALL });
+    // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
+    this.trough = mk('lumen', { ink: null });
+    this.troughFar = mk('lumen-beyond', { ink: null });
+    this.bead = mk('endothelium', { ink: null });
+    this.beadLine = mk('endothelium-edge', { ink: null });
     this.disse = mk('disse', { ink: null });
     this.cells = mk('hepatocytes', { px: S.LINE });
     this.nuclei = mk('nuclei', { px: S.LINE_SMALL });
@@ -125,18 +132,18 @@ export class Sinusoid3D {
     this.hsc = mk('stellate', { px: S.LINE_SMALL });
     this.hscN = mk('stellate-nucleus', { ink: null });
     this.bm = mk('basement', { ink: null, transparent: true });
-    this.arrows = mk('ends', { px: S.LINE, transparent: true });
+    this.arrows = mk('ends', { px: S.LINE_SMALL });
     this.pores = many('fenestrae', unitSphere(10, 6), 1200, { ink: null });
     this.villi = many('microvilli', unitRod(6), 900, { px: S.LINE_SMALL * 0.6 });
     this.fibres = many('collagen', unitRod(6), 400, { ink: null });
     this.albumin = many('albumin', unitSphere(10, 6), 1400, { px: S.LINE_SMALL });
     this.rbc = many('red-cells', unitRbc(22), RBC_N, { px: S.LINE_SMALL });
     // (order: the ground first, then the solid shapes; the see-through membrane and the arrows last)
-    for (const p of [this.ground, this.disse, this.troughFar, this.trough, this.bead, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoN, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) this.group.add(p.group);
+    for (const p of [this.ground, this.disse, this.troughFar, this.trough, this.bead, this.beadLine, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoN, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) this.group.add(p.group);
     for (const p of [this.pores, this.villi, this.fibres, this.albumin, this.rbc]) this.group.add(p.group);
-    this.bm.renderOrder = 20; this.arrows.renderOrder = 21;
+    this.bm.renderOrder = 20;
     const r = mulberry(91);
-    for (let i = 0; i < RBC_N; i++) this.rbcs.push({ u: r(), y: r() * 1.5 - 0.75, z: r(), tilt: 0.35 + r() * 0.9, spin: (r() - 0.5) * 0.8, ph: r() * Math.PI * 2 });
+    for (let i = 0; i < RBC_N; i++) this.rbcs.push({ u: r(), y: r() * 1.5 - 0.75, z: r(), tilt: 0.2 + r() * 0.7, spin: (r() - 0.5) * 0.8, ph: r() * Math.PI * 2 });
     this.group.visible = false;
   }
 
@@ -178,7 +185,7 @@ export class Sinusoid3D {
     this.ground.setTint(P.cUnder);
     this.trough.setTint(P.cLumen); this.trough.setInk(deep(P.cEndoE, 0.9));
     this.troughFar.setTint(mix3(P.cLumen, P.cUnder, 0.35)); this.troughFar.setInk(deep(P.cEndoE, 0.9));
-    this.bead.setTint(P.cEndo); this.bead.setInk(P.cEndoE);
+    this.bead.setTint(P.cEndo); this.beadLine.setTint(P.cEndoE);
     this.disse.setTint(P.cLymph);
     this.cells.setTint(P.cCell); this.cells.setInk(cellInk);
     this.nuclei.setTint(mix3(P.cCell, P.cNuc, 0.55)); this.nuclei.setInk(deep(P.cNuc, 0.7));
@@ -190,7 +197,6 @@ export class Sinusoid3D {
     const hc = mix3(P.cHscQ, P.cHscA, clamp(act, 0, 1));
     this.hsc.setTint(hc); this.hsc.setInk(deep(hc, 0.5)); this.hscN.setTint(P.cHscN);
     this.bm.setTint(P.cBm);
-    this.arrows.setTint(P.cEndF); this.arrows.setInk(P.cEndE);
     this.pores.setTint(deep(P.cEndoE, 0.85));
     this.villi.setTint(mix3(P.cCell, P.cUnder, 0.3)); this.villi.setInk(cellInk);
     this.fibres.setTint(P.cCol);
@@ -243,26 +249,26 @@ export class Sinusoid3D {
           b.v(x, Y(s * yW), Z.disse - 0.3, 0, Y(s), 0);
         }
         // (the winding faces the viewer: for the upper side the strip runs the other way)
-        for (let i = 0; i < rows.length - 1; i++) { if (s < 0) b.strip(rows[i]!, rows[i + 1]!, K + 2); else b.strip(rows[i + 1]!, rows[i]!, K + 2); }
+        for (let i = 0; i < rows.length - 1; i++) { if (s > 0) b.strip(rows[i]!, rows[i + 1]!, K + 2); else b.strip(rows[i + 1]!, rows[i]!, K + 2); }
       }
       b.build(this.bead.geometry);
+      // the lining's two edges, inked as 2D draws them (the endothelium's edge colour): thin ribbons on the lumen's rim and on Disse's side
+      const L = new MeshBuilder();
+      for (const s of [-1, 1] as Side[]) for (const edge of [0, 1]) band(L, xs, (x) => Y(s * ((edge ? g.wallIn(x) : g.halfW(x)) - 0.11)), (x) => Y(s * ((edge ? g.wallIn(x) : g.halfW(x)) + 0.11)), 0.06);
+      L.build(this.beadLine.geometry);
     }
 
     // Disse's floor, each side, and the beyond's (the next sinusoid's Disse and lumen, as flat as 2D draws its repeat)
     const PERIOD = UM.hep + 2 * (UM.disse + UM.endo) + 2 * UM.lum;
     {
       const b = new MeshBuilder();
-      const band = (y0: (x: number) => number, y1: (x: number) => number, z: number) => {
-        const r0 = b.count;
-        for (const x of xs) { b.v(x, y0(x), z, 0, 0, 1); b.v(x, y1(x), z, 0, 0, 1); }
-        for (let i = 0; i < xs.length - 1; i++) { const a = r0 + i * 2; if (y1(xs[i]!) > y0(xs[i]!)) b.quad(a, a + 2, a + 3, a + 1); else b.quad(a, a + 1, a + 3, a + 2); }
-      };
+      const bandZ = (y0: (x: number) => number, y1: (x: number) => number, z: number) => band(b, xs, y0, y1, z);
       for (const s of [-1, 1] as Side[]) {
-        band((x) => Y(s * (g.wallIn(x) - 0.1)), (x) => Y(s * (g.hepIn(x) + 0.4)), Z.disse);
+        bandZ((x) => Y(s * (g.wallIn(x) - 0.1)), (x) => Y(s * (g.hepIn(x) + 1.0)), Z.disse);
         // beyond the plate: Disse, the lining, the next lumen, its lining, Disse, then the next plate (flat bands; the next lumen is a shallow trough below)
         const base = (x: number) => g.hepIn(x) + UM.hep;
-        band((x) => Y(s * (base(x) - 0.4)), (x) => Y(s * (base(x) + UM.disse + 0.1)), Z.disse);
-        band((x) => Y(s * (base(x) + 2 * UM.endo + UM.disse + 2 * UM.lum - 0.1)), (x) => Y(s * (base(x) + PERIOD - UM.hep + 0.4)), Z.disse);
+        bandZ((x) => Y(s * (base(x) - 1.0)), (x) => Y(s * (base(x) + UM.disse + 0.1)), Z.disse);
+        bandZ((x) => Y(s * (base(x) + 2 * UM.endo + UM.disse + 2 * UM.lum - 0.1)), (x) => Y(s * (base(x) + PERIOD - UM.hep + 1.0)), Z.disse);
       }
       b.build(this.disse.geometry);
     }
@@ -330,7 +336,7 @@ export class Sinusoid3D {
       const b = new MeshBuilder(), bn = new MeshBuilder();
       const x = geo.xk, h = g.halfW(x), yd = h - 2.3, z = -1.6;
       ellipsoid(b, x, Y(yd), z, 3.0, 2.3, 1.9, 0.2, undefined, 22, 12);
-      const arms: [number, number, number][] = [[-2.5, 6.5, 0.2], [-1.6, 5.2, 0.5], [-0.75, 7.2, -0.1], [0.15, 4.8, 0.4], [0.95, 6.2, 0.0], [2.2, 5.6, 0.3], [2.9, 4.2, -0.2]];
+      const arms: [number, number, number][] = [[-1.45, 6.2, 0.15], [-0.95, 5.0, 0.45], [-0.4, 7.0, -0.05], [0.15, 4.6, 0.4], [0.6, 6.4, 0.0], [1.05, 5.2, 0.3], [1.45, 4.4, -0.1]];
       for (const [a, L, dz] of arms) {
         const path: [number, number, number][] = [];
         for (let i = 0; i <= 8; i++) {
@@ -366,11 +372,7 @@ export class Sinusoid3D {
     // the basement membrane (cirrhosis): a band on Disse's lining side, shown by its own opacity
     {
       const b = new MeshBuilder();
-      for (const s of [-1, 1] as Side[]) {
-        const r0 = b.count;
-        for (const x of xs) { const w = g.wallIn(x); b.v(x, Y(s * (w - 0.05)), Z.disse + 0.12, 0, 0, 1); b.v(x, Y(s * (w + 0.55)), Z.disse + 0.12, 0, 0, 1); }
-        for (let i = 0; i < xs.length - 1; i++) { const a = r0 + i * 2; if (s > 0) b.quad(a, a + 2, a + 3, a + 1); else b.quad(a, a + 1, a + 3, a + 2); }
-      }
+      for (const s of [-1, 1] as Side[]) band(b, xs, (x) => Y(s * (g.wallIn(x) - 0.05)), (x) => Y(s * (g.wallIn(x) + 0.55)), Z.disse + 0.12);
       b.build(this.bm.geometry);
     }
 
@@ -413,7 +415,7 @@ export class Sinusoid3D {
         const o = poreOpenness(p.th, por);
         if (o < 0.04 || underNucleus(p.x, nsd) || n >= this.pores.capacity) continue;
         const yd = s * (g.halfW(p.x) + UM.endo * 0.5);
-        placeAt(this.m4, p.x, Y(yd), Z.bead - 0.04, p.w * 0.5 * o, 0.3, 0.12);
+        placeAt(this.m4, p.x, Y(yd), Z.bead - 0.04, p.w * 0.45 * o, 0.28, 0.12);
         this.pores.setAt(n++, this.m4);
       }
     }
@@ -458,7 +460,7 @@ export class Sinusoid3D {
 
   /** The two end arrows (2D's: the text's colour inside the labels' halo), in the lumen at the flat view's places, pointing the way the blood goes, fading with their names. */
   private arrowKey = '';
-  private stepArrows(_P: Pal): void {
+  private stepArrows(P: Pal): void {
     const f = this.flat, E = f.ends, dir = Math.sign(f.cur.v || 1), sh = f.endShown;
     const key = `${E[0].toFixed(2)}|${E[1].toFixed(2)}|${E[2].toFixed(2)}|${dir}`;
     if (key !== this.arrowKey) {
@@ -468,13 +470,23 @@ export class Sinusoid3D {
       for (const [x, d] of [[E[0], -dir], [E[1], dir]] as [number, number][]) pillow(b, arrowOutline(x, 0, E[2], d), 0.6, -0.6, Math.min(0.45, E[2] * 0.1), undefined, 3, [x + d * 0.12 * E[2], 0]);
       b.build(this.arrows.geometry);
     }
-    this.arrows.setOpacity(0.62 * Math.max(sh[0], sh[1]));
+    // (2D lays the arrow in the labels' ink at half strength over the blood: here the same mix, opaque, so its ink never shows through it)
+    const k = Math.max(sh[0], sh[1]);
+    this.arrows.setTint(mix3(P.cLumen, P.cEndF, 0.5 * k)); this.arrows.setInk(mix3(P.cLumen, P.cEndE, 0.45 * k));
+    this.arrows.group.visible = k > 0.02;
   }
 
   dispose(): void {
-    for (const p of [this.ground, this.trough, this.troughFar, this.bead, this.disse, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoN, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) p.dispose();
+    for (const p of [this.ground, this.trough, this.troughFar, this.bead, this.beadLine, this.disse, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoN, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) p.dispose();
     for (const p of [this.pores, this.villi, this.fibres, this.albumin, this.rbc]) p.dispose();
   }
+}
+
+/** A flat band between two curves along x (plane y), facing the viewer at depth z. */
+function band(b: MeshBuilder, xs: readonly number[], y0: (x: number) => number, y1: (x: number) => number, z: number): void {
+  const r0 = b.count;
+  for (const x of xs) { b.v(x, y0(x), z, 0, 0, 1); b.v(x, y1(x), z, 0, 0, 1); }
+  for (let i = 0; i < xs.length - 1; i++) { const a = r0 + i * 2; if (y1(xs[i]!) > y0(xs[i]!)) b.quad(a, a + 2, a + 3, a + 1); else b.quad(a, a + 1, a + 3, a + 2); }
 }
 
 /** A hepatocyte's outline (plane units, counter-clockwise), from 2D's bent borders: the Disse face, the far side 20 µm in, the two borders; the cleft between cells taken off and the corners rounded. */
