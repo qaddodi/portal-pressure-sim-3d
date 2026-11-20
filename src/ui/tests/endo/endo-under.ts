@@ -55,7 +55,7 @@ export function endoUnder(read: () => EndoDraw | null, onFail: () => void = () =
     try {
       const g = gl as WebGL2RenderingContext;
       if (!b || b.gl !== g || b.gen !== gen) b = build(g, gen);
-      const k = pw / Math.max(1, d.size), side = Math.max(2, Math.round(pw - 8 * k)), o = Math.round(4 * k);
+      const k = pw / Math.max(1, d.size), side = Math.max(2, 2 * Math.round((pw - 8 * k) / 2)), o = Math.round(4 * k);   // (an EVEN side: with an odd one a row of pixels sits exactly on the field's centre line, y = 0, where the shader's atan/sign axis is, and that row drew a hairline across the lumen)
       g.useProgram(b.prog);
       g.disable(g.BLEND);
       g.viewport(o, ph - o - side, side, side);   // (the box is square: the same margin each side; GL counts rows from the bottom)

@@ -293,6 +293,8 @@ export class ProcedureLayer {
   get isRexUnder(): boolean { return this.rexUnder; }
 
   /** The tip's scene position now, for tags and the camera (null with no catheter out). */
+  /** The wedge's amber tint on the vessels (ProcCatheter.wedgeTint), or null. */
+  wedgeTint() { return this.shown ? this.shown.wedgeTint() : null; }
   tipPosition(out: Vector3): Vector3 | null { return this.shown && this.frame.u > 0.001 ? this.shown.tipAt(this.frame.u, out) : null; }
 
   /** The point a little ahead of the tip along the route (where a wedged reading's card points), null with no catheter out. */
