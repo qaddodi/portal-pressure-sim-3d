@@ -19,8 +19,8 @@ test('every drawn strand has a soft ink in the look\'s casing, LINE_MIN device p
       const u = obj!.ink.uniforms, c = CASING[look];
       assert.ok(!obj!.ink.transparent && !obj!.ink.depthWrite, `${host}: the ink is solid, drawn once per pixel`);
       const a = u.inkA!.value as number;
-      assert.ok(Math.abs(a - c.a) < 1e-6 || Math.abs(a - c.a * 0.5) < 1e-6, `${host}: alpha ${a}`);
-      assert.ok(Math.abs((u.px!.value as number) - (host.startsWith('SIN') ? 0.25 : CEL_STYLE.LINE_MIN / 3)) < 1e-6, `${host}: LINE_MIN device px (a bed's hairlines 0.75) on a 3x screen`);
+      assert.ok(Math.abs(a - c.a) < 1e-6, `${host}: the whole casing alpha ${a} (a bed's strands are solid too)`);
+      assert.ok(Math.abs((u.px!.value as number) - CEL_STYLE.LINE_MIN / 3) < 1e-6, `${host}: LINE_MIN device px, a bed's hairlines too (a half line on a sub-pixel tube read as dashes), on a 3x screen`);
       assert.equal(obj!.toon.uniforms.spec!.value, 0, `${host}: no glint`);
       const col = u.color!.value as { r: number; g: number; b: number };
       assert.ok(Math.abs(col.r - c.rgb[0] / 255) < 1e-6, `${host}: casing ink, not the palette's black`);

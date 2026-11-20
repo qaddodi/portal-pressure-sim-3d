@@ -8,9 +8,10 @@ import { FAINT_ONLY_LAYER } from '../src/scene/vessels/vessel-object.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 
 const s = new CelScene();
-const veilAll = (id: string) => s.vesselObject(id)!.group.children.filter((c) => (c as { material?: { defines?: Record<string, unknown> } }).material?.defines?.VEIL);
-/** The colour pass of the veil (its depth-only pass, drawn first, has colorWrite off). */
-const veilMeshes = (id: string) => veilAll(id).filter((c) => (c as unknown as { material: { colorWrite: boolean } }).material.colorWrite);
+const matsOf = (c: unknown): { defines?: Record<string, unknown>; transparent: boolean; depthWrite: boolean; polygonOffset: boolean; stencilWrite: boolean }[] => { const m = (c as { material?: unknown }).material; return (Array.isArray(m) ? m : m ? [m] : []) as never; };
+const veilAll = (id: string) => s.vesselObject(id)!.group.children.filter((c) => matsOf(c).some((m) => m.defines?.VEIL));
+/** The copy over the organs: one mesh, the body then the ink. */
+const veilMeshes = (id: string) => veilAll(id);
 
 test('every vessel the 2D figure puts behind the organs has its faint copy over them', () => {
   for (const id of BACK_EDGES) {
@@ -19,7 +20,8 @@ test('every vessel the 2D figure puts behind the organs has its faint copy over 
     const v = veilMeshes(id);
     assert.equal(v.length, 1, `${id} has one veil mesh`);
     assert.ok(v[0]!.layers.isEnabled(1), `${id}'s veil is drawn in the pass over the organs`);
-    assert.ok(!(v[0] as unknown as { material: { transparent: boolean } }).material.transparent, 'the cava is opaque, not a veil');
+    const fades = (s.vesselObject(id)!.toon.uniforms.fadeMode!.value as number) > 0;
+    assert.ok(matsOf(v[0]).every((m) => m.transparent === fades), 'opaque, not a veil, except through a fade zone');
   }
 });
 
@@ -39,8 +41,8 @@ test('a vessel in front of the organs is drawn over them, solid, and has no veil
 });
 
 test('the cava behind the organs is whole, not a veil: the fragment shader writes alpha 1 everywhere', () => {
-  assert.doesNotMatch(VESSEL_FS, /veilA|VEIL_A|vFade/, 'no veil alpha and no fade alpha');
-  assert.equal((VESSEL_FS.match(/gl_FragColor = vec4\(c, 1\.0\);/g) ?? []).length, 1, 'the body writes alpha 1');
+  assert.doesNotMatch(VESSEL_FS, /veilA|VEIL_A/, 'no veil alpha');
+  assert.equal((VESSEL_FS.match(/gl_FragColor = vec4\(c, vFade\);/g) ?? []).length, 1, 'the body writes only its fade zone\'s alpha');
 });
 
 test('a faint-only vessel can still be picked', () => {
@@ -49,13 +51,11 @@ test('a faint-only vessel can still be picked', () => {
   assert.ok(o.toonMesh.layers.isEnabled(FAINT_ONLY_LAYER));
 });
 
-test('the veil has a depth-only pass first, so the colour pass draws one layer where tubes, ink and caps overlap (no dark ball joints)', () => {
+test('the copy over the organs is the vessel\'s own one draw: an opaque (outside a fade zone) body that writes depth, the outline part of the tube', () => {
   for (const id of ['IVC_IS', 'IVCS_RA', 'ILI_IVC']) {
-    const all = veilAll(id) as unknown as { renderOrder: number; material: { colorWrite: boolean; depthWrite: boolean; polygonOffset: boolean } }[];
-    const pre = all.find((c) => !c.material.colorWrite)!, col = all.find((c) => c.material.colorWrite)!;
-    assert.ok(pre && col, `${id} has both passes`);
-    assert.equal(pre.material.depthWrite, true); assert.equal(pre.material.polygonOffset, true);
-    assert.equal(col.material.depthWrite, true, 'opaque: the colour pass writes depth too');
-    assert.ok(pre.renderOrder < col.renderOrder, 'the depth pass is drawn first');
+    const ms = matsOf(veilAll(id)[0]);
+    assert.equal(ms.length, 1, `${id}: one material`);
+    assert.equal(ms[0]!.transparent, (s.vesselObject(id)!.toon.uniforms.fadeMode!.value as number) > 0); assert.equal(ms[0]!.depthWrite, true);
+    assert.equal(ms[0]!.stencilWrite, false, 'no stencil bit to share');
   }
 });

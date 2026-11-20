@@ -1,5 +1,5 @@
 import { CIRC_ARTERY, CIRC_BED, MIN_PX } from '../circuit/width.ts';
-import { BufferAttribute, BufferGeometry, Color, DataTexture, DoubleSide, FloatType, KeepStencilOp, LinearSRGBColorSpace, Mesh, NearestFilter, NotEqualStencilFunc, ReplaceStencilOp, RGBAFormat, ShaderMaterial, Vector2, Vector3, Vector4, type Texture } from 'three';
+import { BufferAttribute, BufferGeometry, Color, DataTexture, DoubleSide, FloatType, LinearSRGBColorSpace, Mesh, NearestFilter, RGBAFormat, ShaderMaterial, Vector2, Vector3, Vector4, type Texture } from 'three';
 import { CelObject, type CelOptions, type CelShared, rawColor } from '../materials/cel.ts';
 import { PALETTES, type Palette } from '../palette.ts';
 import { VESSEL_FS, VESSEL_VS } from './shaders.ts';
@@ -47,28 +47,20 @@ export interface VesselOptions extends Omit<CelOptions, 'tone'> {
 /** 2D stage-tubes.js widthAt at the Circuit (t = 1): a vein clamp(vesselPx(D) * 0.95, 6, 15) and the boost, an artery 3 (finer shunts less), a liver bed 8 and the boost. */
 export const circuitWidth = (widthKind: 0 | 1 | 2, fine = 1): readonly [number, number, number, number] => (widthKind === 1 ? [CIRC_ARTERY * fine, 0, 0, MIN_PX.artery] : widthKind === 2 ? [CIRC_BED, 1, 0, MIN_PX.bed] : [-1, 1, 0, MIN_PX.vein]);
 
-/** The tube twice in one geometry: copy 0 is the body (`hull` 0), copy 1 the ink's hull (`hull` 1). One mesh then draws both, so a vessel is one draw call. */
-export function withHull(g: BufferGeometry): BufferGeometry {
+/** The tube's geometry with the attributes the vessel shader reads (a missing `rk`, the tube's radius share, is 1). One copy: the outline is part of the tube (vessels/shaders.ts), not a second mesh. */
+export function withRk(g: BufferGeometry): BufferGeometry {
   const out = new BufferGeometry();
   for (const name of ['position', 'normal', 'uv', 'tang', 'rk', ...CIRCUIT_ATTRIBUTES]) {
     const a = g.getAttribute(name);
-    if (!a) continue;
-    const arr = a.array as Float32Array, copy = new Float32Array(arr.length * 2);
-    copy.set(arr); copy.set(arr, arr.length);
-    out.setAttribute(name, new BufferAttribute(copy, a.itemSize));
+    if (a) out.setAttribute(name, a.clone());   // (a copy: reshape writes in place)
   }
   const n = g.getAttribute('position').count;
-  if (!g.getAttribute('rk')) out.setAttribute('rk', new BufferAttribute(new Float32Array(n * 2).fill(1), 1));
-  const hull = new Float32Array(n * 2).fill(0, 0, n).fill(1, n);
-  out.setAttribute('hull', new BufferAttribute(hull, 1));
+  if (!g.getAttribute('rk')) out.setAttribute('rk', new BufferAttribute(new Float32Array(n).fill(1), 1));
   const idx = g.getIndex();
-  if (idx) {
-    const a = idx.array, m = a.length, ix = new Uint32Array(m * 2);
-    for (let i = 0; i < m; i++) { ix[i] = a[i]!; ix[m + i] = a[i]! + n; }
-    out.setIndex(new BufferAttribute(ix, 1));
-  } else {
-    const ix = new Uint32Array(n * 2);
-    for (let i = 0; i < ix.length; i++) ix[i] = i;
+  if (idx) out.setIndex(idx.clone());
+  else {
+    const ix = new Uint32Array(n);
+    for (let i = 0; i < n; i++) ix[i] = i;
     out.setIndex(new BufferAttribute(ix, 1));
   }
   out.computeBoundingSphere();
@@ -84,21 +76,20 @@ const lookOf = (p: Palette): LookId => ((Object.keys(PALETTES) as LookId[]).find
  *  stays as the highlight's handle on the uniforms (colour, hiOn, hiDir, ...) but is never drawn. */
 export class VesselObject extends CelObject {
   readonly artery: boolean;
-  /** the ink's material (the hull's draw): blended, no depth write */
-  private hullMat!: ShaderMaterial;
 
   constructor(geometry: BufferGeometry, opts: VesselOptions, shared: CelShared, lens: LensShared, blood: BloodShared, circuit: CircuitShared) {
-    super(withHull(geometry), { ...opts, tone: opts.tone === 'artery' ? 'portal' : opts.tone }, shared);
+    super(withRk(geometry), { ...opts, tone: opts.tone === 'artery' ? 'portal' : opts.tone }, shared);
     this.artery = !!opts.artery;
     const old = this.toon;
     const u = old.uniforms;
     const toon = new ShaderMaterial({
       vertexShader: VESSEL_VS,
       fragmentShader: VESSEL_FS,
+      precision: 'highp',   // the ink's lateral distance is a device-pixel difference of two large clip-space numbers: never mediump (a phone's default for a missing statement)
       side: DoubleSide,
       uniforms: {
         ...u,
-        inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, hullOn: { value: 1 },
+        inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, inkOn: { value: 1 },
         lensSmooth: { value: 0 }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
@@ -109,15 +100,8 @@ export class VesselObject extends CelObject {
       },
     });
     old.dispose();
-    // The ink is its own draw: the hull (the index range after the body's, withHull) is blended at the look's casing alpha (2D --casing-a), after every opaque body and tested against them,
-    // so a joined vessel's outline never lands on its neighbour's body and an outline never hides a vessel in front. The body stays opaque. Both share one set of uniforms.
-    const geo = this.toonMesh.geometry, half = geo.getIndex()!.count / 2;
-    geo.clearGroups(); geo.addGroup(0, half, 0); geo.addGroup(half, half, 1);
-    this.hullMat = new ShaderMaterial({ vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, side: DoubleSide, uniforms: toon.uniforms, transparent: false, depthWrite: false,
-      // one outline round the union (2D's tube-joint.js), not one per tube: each pixel takes the ink once, so where two outlines overlap (a fork's crotch, a run-on, a free end's cap and its tube,
-      // the inside of a tight bend) the alpha is not applied twice (.64 would be .87). The first hull fragment to pass the depth test marks the pixel; the stencil is cleared with the depth between the passes.
-      stencilWrite: true, stencilRef: 1, stencilFuncMask: 1, stencilWriteMask: 1, stencilFunc: NotEqualStencilFunc, stencilFail: KeepStencilOp, stencilZFail: KeepStencilOp, stencilZPass: ReplaceStencilOp });
-    this.toonMesh.material = [toon, this.hullMat];
+    // One mesh, one material, one draw: the outline is part of the tube (the vertex stage builds it ink wider than its lumen, the fragment stage paints the band), so it is continuous by construction.
+    this.toonMesh.material = toon;
     // (the mesh's bounding sphere is the body course's; in the Circuit the vertices stand on the map, far from it, so a vessel was culled once the camera came in on the map and its body sphere left the view)
     this.toonMesh.frustumCulled = false;
     (this as unknown as { toon: ShaderMaterial }).toon = toon;
@@ -156,8 +140,8 @@ export class VesselObject extends CelObject {
       const src = g.getAttribute(name), dst = geo.getAttribute(name);
       if (!src || !dst) continue;
       const a = src.array as Float32Array, b = dst.array as Float32Array;
-      if (a.length * 2 !== b.length) throw new Error(`reshape: ${name} has ${a.length} values, the vessel was built with ${b.length / 2}`);
-      b.set(a, 0); b.set(a, a.length);
+      if (a.length !== b.length) throw new Error(`reshape: ${name} has ${a.length} values, the vessel was built with ${b.length}`);
+      b.set(a, 0);
       dst.needsUpdate = true;
     }
     geo.computeBoundingSphere();
@@ -177,13 +161,15 @@ export class VesselObject extends CelObject {
   setQuiet(q: number): void { this.toon.uniforms.quietK!.value = q; }
 
   private tip: { a0: number; a1: number } | null = null;
-  /** The fade at a free end (fades.ts). A fade never makes a vessel see-through: the shader thins the tube to nothing along it (TUBE.FADE_R), so the material stays opaque. */
+  /** The fade at a free end (fades.ts): the one place a vessel is not opaque. Its zone fades by opacity, body and outline together, at FULL width (no taper); the material is blended only because of it. */
   setTipFade(f: { mode: number; from: number; to: number; a0: number; a1: number; keep: boolean; line?: readonly [number, number, number, number] }): void {
     const u = this.toon.uniforms;
     u.fadeMode!.value = f.mode; u.fadeKeep!.value = f.keep ? 1 : 0;
     (u.fadeA!.value as Vector4).set(f.from, f.to, f.a0, f.a1);
     if (f.line) (u.fadeLine!.value as Vector4).set(f.line[0], f.line[1], f.line[2], f.line[3]);
     this.tip = { a0: f.a0, a1: f.a1 };
+    this.toon.transparent = true;
+    if (this.veil) this.veil.mat.transparent = true;
   }
   /** A fading tip with a collateral attached is solid to its end: its start alpha goes to 1. */
   setTipJoined(joined: boolean): void {
@@ -196,26 +182,19 @@ export class VesselObject extends CelObject {
     (this.toon.uniforms.fadeA!.value as Vector4).w = this.tip.a1 + (1 - this.tip.a1) * whole;
   }
 
-  private veil: { mesh: Mesh; depth: Mesh; mat: ShaderMaterial; pre: ShaderMaterial; overLayer: number; faint: boolean; whole: boolean } | null = null;
-  /** A vessel the 2D figure draws behind the organs (BACK_EDGES; the cava above all): it is drawn with the organs, so one in front hides it, and again over them at 0.4, the organ's veil, so
-   *  it shows through faintly (stage.js VEIL_K). `faint`: faded along its whole course as well (the cava, F_VEIL), not only where an organ is over it. `overLayer` is the camera layer of what is drawn over the organs. */
+  private veil: { mesh: Mesh; mat: ShaderMaterial; overLayer: number; faint: boolean; whole: boolean } | null = null;
+  /** A vessel the 2D figure draws behind the organs (BACK_EDGES; the cava above all): it is drawn with the organs, so one in front hides it, and again over them (the cava is whole, opaque, two tones: the copy over the
+   *  organs is the same one-draw tube as any vessel's). `faint`: the cava (F_VEIL), drawn only as that copy. `overLayer` is the camera layer of what is drawn over the organs. */
   setBehindOrgans(overLayer: number, faint: boolean): void {
     if (this.veil) return;
-    const mat = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1 } });   // (opaque like every vessel: no alpha at rest)
-    // The veil is one layer, not several: a depth-only pass (same shader, so the same silhouette, pushed a hair farther) comes first for every veiled vessel, and the colour pass then draws only
-    // where it is the nearest. Without it the tube's own back faces, its ink and the round caps of the next piece blend over each other and show as dark ball joints and a dark core (Mohammad's
-    // iPhone, 19 Nov 2026: "the cava ghost shows dark ball joints").
-    const pre = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, side: DoubleSide, transparent: false, colorWrite: false, depthWrite: true, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 8, defines: { VEIL: 1 } });   // (a firm offset: with the tiers 0.07 apart a 1,1 offset left the colour pass failing the depth test at random along the cava's outline, the dashes of 20 Nov)
-    const depth = new Mesh(this.toonMesh.geometry, pre);
-    depth.matrixAutoUpdate = true; depth.renderOrder = 1; depth.frustumCulled = false;
-    depth.layers.set(overLayer);
-    this.group.add(depth);
+    const mat = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1 } });
+    if (this.tip) mat.transparent = true;   // (a fade zone blends; nothing else does)
     const mesh = new Mesh(this.toonMesh.geometry, mat);
     mesh.matrixAutoUpdate = true; mesh.renderOrder = 2; mesh.frustumCulled = false;
     mesh.layers.set(overLayer);
     this.group.add(mesh);
-    this.veil = { mesh, depth, mat, pre, overLayer, faint, whole: false };
-    // drawn with the organs (layer 0), or, faint all along, not drawn solid at all (its mesh stays for picking, on a layer no pass draws)
+    this.veil = { mesh, mat, overLayer, faint, whole: false };
+    // drawn with the organs (layer 0), or, the cava, not drawn solid at all (its mesh stays for picking, on a layer no pass draws)
     this.toonMesh.layers.set(faint ? FAINT_ONLY_LAYER : 0);
   }
   /** The cava shown whole (2D's F_WHOLE, selected or named): the organs do not fade it. It eases over from the veil's 0.4 to 1, and once whole it is drawn solid over the organs, in its tier
@@ -226,7 +205,7 @@ export class VesselObject extends CelObject {
     this.whole = k;
     v.mat.uniforms.veilA!.value = Math.min(1, 0.4 + 0.6 * k + this.lift * (1 - k));
     const whole = k >= 1;
-    v.mesh.visible = v.depth.visible = !whole;
+    v.mesh.visible = !whole;
     if (whole !== v.whole) {
       v.whole = whole;
       this.toonMesh.layers.set(whole ? v.overLayer : v.faint ? FAINT_ONLY_LAYER : 0);
@@ -240,10 +219,10 @@ export class VesselObject extends CelObject {
     this.lift = lift;
     v.mat.uniforms.veilA!.value = Math.min(1, 0.4 + 0.6 * this.whole + lift * (1 - this.whole));
   }
-  override dispose(): void { this.hullMat?.dispose(); this.veil?.mat.dispose(); this.veil?.pre.dispose(); super.dispose(); }
+  override dispose(): void { this.veil?.mat.dispose(); super.dispose(); }
 
   /** A closed potential collateral: a dotted thread with no ink. */
-  setDotted(on: boolean): void { this.toon.uniforms.dotted!.value = on ? 1 : 0; this.toon.uniforms.hullOn!.value = on ? 0 : 1; }
+  setDotted(on: boolean): void { this.toon.uniforms.dotted!.value = on ? 1 : 0; this.toon.uniforms.inkOn!.value = on ? 0 : 1; }
   /** Stagnant-blood smoke on or off: OFF by default (no blobs inside a tube); a slide that asks for stasis turns it on. */
   setSmoke(on: boolean): void { this.toon.uniforms.smokeOn!.value = on ? 1 : 0; }
 }

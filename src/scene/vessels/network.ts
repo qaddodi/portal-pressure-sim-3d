@@ -121,7 +121,7 @@ export function isDrawnEdge(e: Edge): boolean {
 
 /** Tributary fans that are not drawn: the caudate lobe's twigs hung in the middle of the liver joined to nothing (Mohammad, 20 Nov: "random veins in the middle of the liver not
  *  connected to anything, remove them"). The caudate's own drainage stays in its card (details: CAUD). */
-const NOT_DRAWN_FEEDERS: ReadonlySet<string> = new Set(['CAUD']);
+const NOT_DRAWN_FEEDERS: ReadonlySet<string> = new Set(['CAUD', 'AZY_SVC']);   // (AZY_SVC: the azygos' tributary strand ran up the figure's right and arched over the SVC's top as a cane with a needle end; the SVC comes in from above and the azygos is its short side branch, Mohammad, 20 Nov)
 /** anatomy.js FEEDERS[host].k: the share of the host's width its tributaries take. */
 const FEEDER_K: Record<string, number> = { AZY_SVC: 1, C3: 0.5, CAUD: 0.55 };
 const NETWORK_HOST_W = (e: Edge): number => widthPx(e, e.d ?? e.dMax ?? (dMinOf(e) || 3));

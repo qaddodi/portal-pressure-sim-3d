@@ -8,8 +8,8 @@
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import type { V3 } from './batch.ts';
 
-/** The place in the 2D figure's world units (x right, y down; the confluence is at 700, 556) the dive goes to: the middle of the right lobe, below the right portal branch (y about 266) and well clear of the liver's edge (owner, 20 Nov: zoom into the middle of the right lobe, between the vessels, not to the edge). */
-export const LIVER_2D = { x: 470, y: 390 } as const;
+/** The place in the 2D figure's world units (x right, y down; the confluence is at 700, 556) the dive goes to: the open liver between the right portal branch (below: (602,442) up-left to the right sinusoid fan at about (450,340)), the right hepatic vein (above, y about 245) and the IVC (right, x about 620), about 65 units clear of each (owner, 20 Nov: zoom in between the right portal vein and the IVC, not to the edge). The courses are src/scene/vessels/paths.copied.ts. */
+export const LIVER_2D = { x: 515, y: 330 } as const;
 /** Depth of the place (the organs straddle z = 0; the right lobe's centre is a little behind the plate's middle). */
 export const LIVER_Z = -0.15;
 /** The lobule's frame in the scene: where its local (0, 0, 0) is, and how many scene units one local unit is. A real lobule is about 1/150 of a liver; this is 1/150 of the scene. */

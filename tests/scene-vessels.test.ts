@@ -66,7 +66,7 @@ test('a vessel is one geometry with uv.x along the flow from 0 to 1 and a tangen
   assert.equal(g.attributes.tang!.count, g.attributes.position!.count);
 });
 
-// 55 vessels at one draw each (the ink hull and the toon body are two copies in one geometry, vessel-object.ts withHull) plus the organs.
+// 55 vessels at one draw each (the outline is part of the tube: one mesh, one material) plus the organs.
 test('the scene stays inside the draw-call budget (spec: under 100)', () => {
   const s = new CelScene();
   let meshes = 0;
@@ -76,14 +76,14 @@ test('the scene stays inside the draw-call budget (spec: under 100)', () => {
   s.dispose();
 });
 
-test('a vessel is one draw: body and ink share one mesh and one material (a vessel behind the organs has its faint copy as a second and a depth-only pass before it, b3-veil.test.ts)', () => {
+test('a vessel is one draw: body and ink share one mesh and one material (a vessel behind the organs has its copy over the organs as a second mesh, b3-veil.test.ts)', () => {
   const s = new CelScene();
   for (const o of s.vessels) {
     let n = 0;
     o.group.traverse((c) => { if ((c as { isMesh?: boolean }).isMesh) n++; });
-    assert.equal(n, BACK_EDGES.has(o.edge!.id) ? 3 : 1, o.edge!.id);
-    const h = o.toonMesh.geometry.getAttribute('hull');
-    assert.ok(h && h.count === o.toonMesh.geometry.getAttribute('position').count, 'hull attribute');
+    assert.equal(n, BACK_EDGES.has(o.edge!.id) ? 2 : 1, o.edge!.id);
+    assert.equal(o.toonMesh.geometry.getAttribute('hull'), undefined, 'no hull copy');
+    assert.ok(!Array.isArray(o.toonMesh.material), 'one material');
     // the highlight's handle on the ink writes the merged material's own uniforms
     assert.equal(o.ink.uniforms.hiOn, o.toon.uniforms.hiOn);
     assert.equal(o.ink.uniforms.inflate, o.toon.uniforms.inflate);

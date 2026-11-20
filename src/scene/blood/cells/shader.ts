@@ -1,8 +1,8 @@
 // The blood's streaks: one vertex a streak, drawn as a point sprite (one draw call for every streak of the figure). Nothing is placed on the CPU: the vertex shader finds its vessel's
 // place from the textures the figure already keeps on the GPU, slides along the vessel's course with the blood's own distance, and lays itself on the tube's front like the chevrons.
 // A streak is a fine line along the flow (Mohammad, 20 Nov: "make them streaks with laminar flow and turbulence"), not a disc:
-//   laminar      a streak's lateral place sets its speed: parabolic, fastest in the middle, slow at the wall, the mean speed the stream's own (so the chevrons and the streaks agree)
-//   length       grows with the speed it runs at, so the middle streaks are long and the wall's are short dashes
+//   laminar      a streak's lateral place sets its speed: parabolic, a little faster in the middle than at the wall (a slow, near-even drift), the mean speed the stream's own (so the chevrons and the streaks agree)
+//   shape        (Mohammad, 20 Nov: "the streaks can look better") a long soft-ended lozenge, several tube radii long, tapering to a point at both ends, one flat lighter tone: never a hard-edged dash
 //   turbulence   (no clock: a fixed field along the vessel that the streaks run through) a lateral wander and a tilt of the line, by how near a vessel's end (a fork), how high its flow, and how
 //                narrowed it is (a stenosis): none in a quiet straight vein
 //   colour       the tube's colour (the lens over it) lifted toward white, one flat tone, no ink ring, faint: it sits under the chevrons, never over them
@@ -131,11 +131,9 @@ void main() {
   float wob = sin(s * 0.11 + ph) * cos(s * 0.047 + 3.0 * aB.z);
   float tilt = cos(s * 0.11 + ph) * 0.6 + 0.4 * sin(s * 0.047 + 2.0 * aB.z);
 
-  // the line: its length grows with the speed it runs at, its thickness is fixed, both in CSS px; a tumbling streak is shorter
-  float speed = abs(stm.y) * prof;
-  float lenCss = mix(${STREAK.LEN_MIN.toFixed(1)}, ${STREAK.LEN_MAX.toFixed(1)}, smoothstep(0.2, 3.0, speed)) * (0.85 + 0.3 * aB.z) * (1.0 - 0.4 * T);
-  lenCss = clamp(lenCss, ${STREAK.LEN_FLOOR.toFixed(1)}, max(${STREAK.LEN_FLOOR.toFixed(1)}, ${STREAK.LEN_OF_R.toFixed(1)} * Rcss));
-  float thickCss = ${STREAK.THICK.toFixed(2)} + 0.4 * aB.z;
+  // the lozenge: several tube radii long and a share of the radius thick, both in CSS px (so a wide vein has long streaks, a thin one short); a tumbling streak is a little shorter
+  float lenCss = clamp(${STREAK.LEN_OF_R.toFixed(1)} * Rcss * (0.85 + 0.3 * aB.z) * (1.0 - 0.3 * T), ${STREAK.LEN_FLOOR.toFixed(1)}, ${STREAK.LEN_MAX.toFixed(1)});
+  float thickCss = clamp(${STREAK.THICK_OF_R.toFixed(2)} * Rcss, ${STREAK.THICK_MIN.toFixed(1)}, ${STREAK.THICK_MAX.toFixed(1)});
 
   // across the tube: its place in the width, in the screen plane, with the turbulent wander
   vec3 Tv = mat3(modelViewMatrix) * (p1 - p0);
@@ -160,7 +158,7 @@ void main() {
   dir = vec2(dir.x * cos(ang) - dir.y * sin(ang), dir.x * sin(ang) + dir.y * cos(ang)) * sgn;
   vDir = dir;
   vLen = lenCss * dpr;
-  vThick = max(thickCss * dpr, 1.0);
+  vThick = thickCss * dpr;
   gl_PointSize = vLen + 4.0;
   vSize = gl_PointSize;
 
@@ -210,12 +208,11 @@ void main() {
   vec2 q = (gl_PointCoord * 2.0 - 1.0) * vSize * 0.5;
   q.y = -q.y;
   vec2 p = vec2(dot(q, vDir), dot(q, vec2(-vDir.y, vDir.x)));
-  // a capsule: a flat line with round ends, a device pixel of antialiasing, bright at its head (the way it runs) and fading toward its tail
-  float hl = max(0.5 * vLen - 0.5 * vThick, 0.0);
-  float d = length(vec2(max(abs(p.x) - hl, 0.0), p.y)) - 0.5 * vThick;
-  float a = 1.0 - smoothstep(-0.6, 0.6, d);
+  // a lozenge: widest in the middle, tapering to a point at both ends along one smooth curve (the same both ways, so no head and no tail), one flat tone, half a device pixel of antialiasing each side,
+  // and the last sixth of each end fades out so a tip never ends in an edge
+  float x = clamp(abs(p.x) / max(0.5 * vLen, 1e-3), 0.0, 1.0);
+  float w = 0.5 * vThick * pow(max(1.0 - x * x, 0.0), 0.75);
+  float a = (1.0 - smoothstep(-0.6, 0.6, abs(p.y) - w)) * (1.0 - smoothstep(0.84, 1.0, x));
   if (a <= 0.003) discard;
-  float head = clamp(p.x / max(0.5 * vLen, 1e-3) * 0.5 + 0.5, 0.0, 1.0);
-  a *= mix(${STREAK.TAIL.toFixed(2)}, 1.0, head);
   gl_FragColor = vec4(vFill, a * vA);
 }`;

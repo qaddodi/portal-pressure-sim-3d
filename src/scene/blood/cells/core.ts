@@ -24,20 +24,22 @@ export const MIN_PER_EDGE = 2;
 /** A cell's widest diameter in CSS px: the biggest veins take bigger cells no further. */
 export const MAX_CELL_CSS = 7;
 
-/** The streak's numbers (shader.ts): fine, faint, one flat tone, under the chevrons. Lengths and thickness in CSS px. */
+/** The streak's numbers (shader.ts): a long soft-ended lozenge along the flow, faint, one flat tone, under the chevrons. Lengths and thickness in CSS px, of the tube's radius where it says so. */
 export const STREAK = {
-  /** a streak at the wall runs at this share of the mean speed (the middle runs at 1.5 of it, the mean over the section is 1) */
-  WALL_SPEED: 0.3,
-  LEN_MIN: 4, LEN_MAX: 15, LEN_FLOOR: 3, LEN_OF_R: 2.4,
-  THICK: 1.1,
+  /** a streak at the wall runs at this share of the mean speed (the middle runs at 1.5 of it, the mean over the section is 1): a slow, near-even laminar drift */
+  WALL_SPEED: 0.7,
+  /** the lozenge's length: this many tube radii (a little varied by streak), never under LEN_FLOOR nor over LEN_MAX px */
+  LEN_OF_R: 4.5, LEN_FLOOR: 8, LEN_MAX: 48,
+  /** its thickness at the widest: this share of the tube's radius, between THICK_MIN and THICK_MAX px */
+  THICK_OF_R: 0.3, THICK_MIN: 1.6, THICK_MAX: 4,
   /** how far across the tube (of its radius) a streak may sit */
-  SPAN: 0.88,
+  SPAN: 0.78,
   /** the turbulence's weights: near a vessel's end (a fork), in a narrowed vessel, in a vessel at its design flow */
   T_END: 0.4, T_STENOSIS: 0.9, T_FLOW: 0.5,
   /** the most a streak wanders across (of the tube's half width) and tilts (radians) at full turbulence */
   WANDER: 0.45, TILT: 0.6,
-  /** the colour lifted toward white, the streak's faintness, and how faint its tail is against its head */
-  LIFT: 0.6, ALPHA: 0.55, TAIL: 0.15,
+  /** the colour lifted toward white (the vessel's lighter tone) and the streak's faintness */
+  LIFT: 0.6, ALPHA: 0.55,
 } as const;
 /** The design flow of a vessel as a multiple of its resting flow: the flow at which all its slots show. */
 export const DESIGN_HEADROOM = 1.5;

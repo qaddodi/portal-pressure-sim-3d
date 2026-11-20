@@ -24,10 +24,12 @@ test('the streak programs compile (glslangValidator)', { skip: !have }, () => {
   const f = compile('frag', CELLS_FS); assert.ok(f.ok, f.log);
 });
 
-test('a streak is a line along the flow, not a disc: an oriented capsule, no ink ring, no particle size', () => {
+test('a streak is a long soft-ended lozenge along the flow, not a disc nor a dash: widest in the middle, a point at both ends, the same both ways, no ink ring, no particle size', () => {
   assert.match(CELLS_FS, /vec2 p = vec2\(dot\(q, vDir\)/, 'drawn in its own axes');
-  assert.match(CELLS_FS, /length\(vec2\(max\(abs\(p\.x\) - hl, 0\.0\), p\.y\)\)/, 'a capsule');
-  assert.doesNotMatch(CELLS_FS, /inkCol|inkA|ring/, 'no outlined disc');
+  assert.match(CELLS_FS, /float w = 0\.5 \* vThick \* pow\(max\(1\.0 - x \* x, 0\.0\), 0\.75\);/, 'a lozenge: the width tapers to nothing at both ends');
+  assert.match(CELLS_FS, /\(1\.0 - smoothstep\(0\.84, 1\.0, x\)\)/, 'the tips fade out');
+  assert.doesNotMatch(CELLS_FS, /float head|\bhl\b|length\(vec2\(max|TAIL/, 'no head, no tail, no capsule end');
+  assert.doesNotMatch(CELLS_FS, /inkCol|inkA|\bring\b/, 'no outlined disc');
   assert.match(CELLS_VS, /vDir = dir;/);
   assert.doesNotMatch(CELLS_VS, /MAX_CSS|diaCss/);
 });
@@ -41,9 +43,16 @@ test('laminar: the speed share across the tube is parabolic, fastest in the midd
   assert.ok(Math.abs(adv(1) - STREAK.WALL_SPEED) < 1e-9, 'the wall runs at the floor');
   let m = 0; const n = 4000; for (let i = 0; i < n; i++) m += adv(-1 + (2 * (i + 0.5)) / n) / n;
   assert.ok(Math.abs(m - 1) < 0.01 || Math.abs(m - (STREAK.WALL_SPEED + (1 - STREAK.WALL_SPEED) * 1)) < 0.01, `mean advance ${m}`);
-  // the streak's length follows the speed it runs at
-  assert.match(CELLS_VS, /float speed = abs\(stm\.y\) \* prof;/);
-  assert.match(CELLS_VS, /mix\(4\.0, 15\.0, smoothstep\(0\.2, 3\.0, speed\)\)/);
+  // a slow, near-even drift: the wall runs at most a third under the middle
+  assert.ok(adv(1) / adv(0) > 0.6, 'near-constant drift');
+});
+
+test('the lozenge is several radii long, of the tube\'s radius, and tapers: long streaks in a wide vein, short in a thin one, never a dash', () => {
+  assert.ok(STREAK.LEN_OF_R >= 4 && STREAK.LEN_FLOOR >= 8, 'several radii, never a short dash');
+  assert.match(CELLS_VS, /clamp\(4\.5 \* Rcss \* \(0\.85 \+ 0\.3 \* aB\.z\) \* \(1\.0 - 0\.3 \* T\), 8\.0, 48\.0\)/);
+  assert.match(CELLS_VS, /float thickCss = clamp\(0\.30 \* Rcss, 1\.6, 4\.0\);/);
+  assert.doesNotMatch(CELLS_VS, /float speed = /, 'the length is the tube\'s, not the speed\'s');
+  assert.ok(STREAK.THICK_OF_R / 2 + STREAK.SPAN <= 1, 'the lozenge stays inside the tube');
 });
 
 test('turbulence: by the vessel\'s ends, its flow and its narrowing; a fixed field (no clock), tilting and wandering the streaks; none in a quiet straight vein', () => {
@@ -54,7 +63,7 @@ test('turbulence: by the vessel\'s ends, its flow and its narrowing; a fixed fie
 });
 
 test('subtle: faint, fine and under the chevrons (the owner count of 1500 to 3000 stands)', () => {
-  assert.ok(STREAK.ALPHA <= 0.6 && STREAK.THICK <= 1.3 && STREAK.LEN_MAX <= 16);
+  assert.ok(STREAK.ALPHA <= 0.6 && STREAK.THICK_MAX <= 4);
   const l = layoutCells([20, 20]);
   for (let i = 0; i < l.count; i++) assert.ok(l.extra[i * 4 + 3]! >= 0 && l.extra[i * 4 + 3]! < 1, 'a second hash for the turbulence phase');
   const cells = readFileSync(new URL('../src/scene/blood/cells/cells.ts', import.meta.url), 'utf8');
