@@ -13,7 +13,10 @@
 
 import { clock as theClock, type Clock, type FrameInfo, type Hold } from '../../clock/frame.ts';
 import { cubicBezier } from '../../clock/tween.ts';
+import { D_SMALL } from '../a11y/motion.ts';
 
+/** The most one frame may count toward a move: a stalled frame holds the cards where they were and the move goes on from there, never jumps to its end (2D card-throw.js easeNow). */
+export const MAX_DT = 50;
 export const RAIL_MS = 560, OUT_MS = 340, IN_MS = 520, RAIL_GAP = 24, STAGGER = 40, BACK_MS = 280, FADE_MS = 300, FADE_DELAY = 120;
 /** How far a card travels, as a share of the words' distance, on the rail (and under a finger). */
 export const PARALLAX = { words: 1, data: 0.82 } as const;
@@ -72,18 +75,22 @@ export function speedOf(pts: ReadonlyArray<readonly [number, number]>): number {
 /** What the rail writes to: the style of an element. */
 export interface Styled { style: { setProperty(n: string, v: string, p?: string): void; removeProperty(n: string): unknown; transform: string; opacity: string } }
 
-interface Run { kind: Kind; els: Styled[]; par: number; from: Pt; to: Pt; t0: number; ms: number; x: number; o: number; done?: () => void; /** a way in that waits for every card on its way out to be gone, then sets off after this many ms */ after?: number }
+interface Run { kind: Kind; els: Styled[]; par: number; from: Pt; to: Pt; /** ms of the clock's own time the move has had (a long frame counts at most MAX_DT, so a stall never eats a move) */ elapsed: number; delay: number; ms: number; x: number; o: number; done?: () => void; /** a way in that waits for every card on its way out to be gone, then sets off after this many ms */ after?: number }
 
-export function createRail(clock: Clock = theClock, now: () => number = () => performance.now()) {
+export function createRail(clock: Clock = theClock) {
   const runs = new Map<Styled, Run>();   // keyed by the group's first element
+  const log: string[] = [];   // (which moves ran, newest last: window.__rail.log in the page, for a measurement)
   let hold: Hold | null = null, off: (() => void) | null = null;
   const pos: Pt = { x: 0, o: 0 };
 
+  // (A card moved here has NO CSS transition on transform or opacity while it moves: the lifted 2D rules give `.pz-shade.pz-card` a 420 ms transition after a 120 ms
+  // delay, and a transition restarted by every frame's write never gets going: the card stood still and then faded at its place. 2D's card-throw.js writes
+  // `transition: none` first for the same reason.)
   const put = (els: Styled[], x: number, o: number, par: number) => {
     const tx = `translateX(${(x * par).toFixed(2)}px)`, op = o <= 0 ? '0' : o >= 1 ? '1' : o.toFixed(3);
-    for (const el of els) { el.style.setProperty('transform', tx); el.style.setProperty('opacity', op); }
+    for (const el of els) { el.style.setProperty('transition', 'none', 'important'); el.style.setProperty('transform', tx); el.style.setProperty('opacity', op); }
   };
-  const clear = (els: Styled[]) => { for (const el of els) { el.style.removeProperty('transform'); el.style.removeProperty('opacity'); } };
+  const clear = (els: Styled[]) => { for (const el of els) { el.style.removeProperty('transform'); el.style.removeProperty('opacity'); el.style.removeProperty('transition'); } };
   const here = (els: Styled[], par = 1): Pt => {
     const r = runs.get(els[0]!);
     if (r) return { x: r.x, o: r.o };
@@ -98,10 +105,12 @@ export function createRail(clock: Clock = theClock, now: () => number = () => pe
   const anyOut = () => { for (const r of runs.values()) if (r.kind === 'out') return true; return false; };
   function step(f: FrameInfo) {
     // the new cards go in only when the old are wholly out (2D waits for throwsOut()): no card ever lies over another
-    if (!anyOut()) for (const r of runs.values()) if (r.after != null) { r.t0 = f.time + r.after; r.after = undefined; }
+    if (!anyOut()) for (const r of runs.values()) if (r.after != null) { r.delay = r.after; r.elapsed = 0; r.after = undefined; }
+    const dt = Math.min(f.dt > 0 ? f.dt : 16, MAX_DT);
     for (const r of [...runs.values()]) {
       if (r.after != null) continue;
-      const k = r.ms > 0 ? (f.time - r.t0) / r.ms : 1;
+      r.elapsed += dt;
+      const k = r.ms > 0 ? (r.elapsed - r.delay) / r.ms : 1;
       if (k < 0) continue;   // (a staggered card waits where it starts)
       throwInto(pos, r.kind, k, r.from, r.to);
       r.x = pos.x; r.o = pos.o;
@@ -117,7 +126,8 @@ export function createRail(clock: Clock = theClock, now: () => number = () => pe
     const key = els[0]!;
     runs.delete(key);
     put(els, from.x, from.o, par);   // (at once, in the task that starts it: no frame shows the card's own place first)
-    runs.set(key, { kind, els, par, from, to, t0: now() + delay, ms, x: from.x, o: from.o, done, after: kind === 'in' && anyOut() ? delay : undefined });
+    log.push(`${kind} ${Math.round(from.x * par)}->${Math.round(to.x * par)}px ${ms}ms delay ${delay}${anyOut() && kind === 'in' ? ' (after the old cards)' : ''}`); if (log.length > 40) log.shift();
+    runs.set(key, { kind, els, par, from, to, elapsed: 0, delay, ms, x: from.x, o: from.o, done, after: kind === 'in' && anyOut() ? delay : undefined });
     wake();
   }
 
@@ -126,7 +136,7 @@ export function createRail(clock: Clock = theClock, now: () => number = () => pe
     enter(els: Styled[], o: { dir: Dir; dist: number; delay?: number; par?: number; reduce?: boolean; done?: () => void }) {
       const was = runs.get(els[0]!), par = o.par ?? 1;
       if (was && was.kind !== 'out') { was.done = o.done ?? was.done; return; }   // (already coming in: left alone, never restarted from nothing)
-      if (o.reduce) { start(els, 'back', was ? here(els, par) : { x: 0, o: 0 }, { x: 0, o: 1 }, 180, 0, par, o.done); return; }
+      if (o.reduce) { start(els, 'back', was ? here(els, par) : { x: 0, o: 0 }, { x: 0, o: 1 }, D_SMALL, 0, par, o.done); return; }
       // (a card's travel is the same on screen whatever its parallax: its offsets are divided by it)
       const at = was ? here(els, par) : { x: (o.dir * o.dist) / par, o: 1 };
       start(els, 'in', at, { x: 0, o: 1 }, IN_MS, was ? 0 : o.delay ?? 0, par, o.done);
@@ -134,7 +144,7 @@ export function createRail(clock: Clock = theClock, now: () => number = () => pe
     /** Sends a card out the way the talk goes, from where it stands (a finger's place included); `done` when it is out of sight. */
     leave(els: Styled[], o: { dir: Dir; dist: number; par?: number; reduce?: boolean; done?: () => void }) {
       const par = o.par ?? 1, from = here(els, par);
-      if (o.reduce) { start(els, 'out', from, { x: from.x, o: 0 }, 160, 0, 1, o.done); return; }
+      if (o.reduce) { start(els, 'out', from, { x: from.x, o: 0 }, D_SMALL, 0, 1, o.done); return; }
       start(els, 'out', from, { x: (-o.dir * o.dist) / par, o: 1 }, OUT_MS, 0, par, o.done);
     },
     /** A card let go short of a swipe eases back to its place from where the finger left it. */
@@ -150,6 +160,7 @@ export function createRail(clock: Clock = theClock, now: () => number = () => pe
     moving: (els: Styled[]) => runs.has(els[0]!),
     /** Lets go of a card (it is gone, or at rest): its inline values go. */
     forget(els: Styled[]) { runs.delete(els[0]!); if (!runs.size) sleep(); },
+    log,
     /** Steps the runs by hand (a test's frame). */
     step,
     get busy() { return runs.size; },
@@ -157,3 +168,4 @@ export function createRail(clock: Clock = theClock, now: () => number = () => pe
 }
 
 export const rail = createRail();
+if (typeof window !== 'undefined') (window as unknown as { __rail?: { log: string[] } }).__rail = { log: rail.log };

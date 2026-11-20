@@ -101,7 +101,8 @@ export function coilCourses(id: string, base: readonly P2[], coils: boolean, wig
   const u0 = STRAND_FROM_2D[id] ?? 0;
   let main = base as P2[];
   if (coils) { const wz = wiggle(base, Math.min(wig, WIG_CAP_2D[id] ?? Infinity), id.length); main = u0 ? blendFrom(base, wz, u0) : wz; }
-  const rows = STRANDS_2D[id] ?? [];
+  // (a varix is a few separate strands, three at most: the 2D figure's five overlapped into a solid-looking bundle in 3D)
+  const all = STRANDS_2D[id] ?? [], rows = id !== 'C8' && !/^SIN/.test(id) && all.length > 3 ? [0, 1, 2].map((i) => all[Math.round((i * (all.length - 1)) / 2)]!) : all;
   const soft = STRAND_SOFT_2D.has(id), sp0 = LOOK_SITE[id] ? spr : 1;
   const strands = rows.map((r): CoilCourse => {
     const [off, ph, k, ua, ub] = r as [number, number, number, number?, number?];

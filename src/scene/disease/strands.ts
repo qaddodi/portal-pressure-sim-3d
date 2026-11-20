@@ -16,13 +16,17 @@ import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import type { LookId } from '../../looks/looks.ts';
 import { CASING, CEL } from '../vessels/cel-ink.ts';
 import { hostCourse } from './course.ts';
+import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { mix, rgbOf, type RGB } from '../organs/organ-look.ts';
 import { recolour } from './paint.ts';
 import { ringTube, sampleAlong } from './tube.ts';
 
 const N = 44;
 // (the sinusoids' own strands, SIN_RR and SIN_LL, are drawn faint and fine: sin-perfusion.js)
-const HOSTS = Object.keys(STRANDS);
+/** The plexuses the vessels draw themselves (a collateral's own strands, vessels/shape.ts coursesOf, in the vessel's colour and line, joined to the vessels it joins). This layer drew the same plexuses a second time in the
+ *  portal tone: the pink crosshatch over the cavernoma, the varices and the rectal varices (Mohammad, 20 Nov: "REMOVE THEM"). It draws only a plexus no vessel draws, and today there is none. */
+export const strandsDrawnByVessels = (host: string): boolean => NETWORK_BY_ID.has(host);
+const HOSTS = Object.keys(STRANDS).filter((h) => !strandsDrawnByVessels(h));
 /** The red wale's colour (tokens.css --red-wale), and where along the strand it lies: over the middle, easing in and out over 15% of its length at each end (stage-vessels.js). */
 export const RED_WALE = rgbOf('#E8404A');
 export const waleEnvelope = (u: number): number => { const k = (a: number, b: number) => { const t = Math.min(1, Math.max(0, (u - a) / (b - a))); return t * t * (3 - 2 * t); }; return k(0.1, 0.25) * (1 - k(0.75, 0.9)); };

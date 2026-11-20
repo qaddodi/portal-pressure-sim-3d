@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type PointerEventHandler, type MouseEvent } from 'react';
 import type { Rect } from '../layout/device.ts';
 import type { Entry } from './stack.ts';
+import { reduced } from '../a11y/motion.ts';
 import { rail, outDistance, inDistance, STAGGER, PARALLAX, RAIL_MS, type Dir } from './rail.ts';
 import { useUi } from '../ui-store.ts';
 import { layoutOf, radius } from '../layout/rules2d.ts';
@@ -95,7 +96,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     shownH.current = rect.h;
     if (out) { anims.current.forEach((a) => a.cancel()); anims.current = []; return; }   // (a card on its way out is never clipped by a height glide)
     if (prev == null || prev === rect.h || !live) return;
-    if (typeof card.animate !== 'function' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    if (typeof card.animate !== 'function' || reduced()) return;
     const opts: KeyframeAnimationOptions = { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'forwards' };
     anims.current.forEach((a) => a.cancel());
     if (rect.h > prev) {
@@ -130,7 +131,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   useLayoutEffect(() => {
     const card = cardRef.current, plate = plateRef.current;
     if (!card || !plate) return;
-    const els = [card, plate], reduce = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const els = [card, plate], reduce = reduced();
     if (phase === 'in') rail.enter(els, { dir, dist: inDistance(rect.x, vw), delay: data ? STAGGER : 0, par, reduce, done: () => setLive(true) });
     else if (phase === 'out') rail.leave(els, { dir, dist: outDistance(rect.x, cardW), par, reduce, done: () => onGone(entry.key) });
   // eslint-disable-next-line react-hooks/exhaustive-deps
