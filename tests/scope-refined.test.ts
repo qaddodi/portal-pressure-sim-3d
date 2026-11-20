@@ -32,3 +32,11 @@ test('the EUS needle reads as a needle: thin, a long bevel to a sharp point, a s
   assert.ok(m.NEEDLE_POINT <= 0.05, 'a sharp point');
   assert.ok(m.SHEATH_HALF > m.NEEDLE_HALF * 1.8 && m.SHEATH_LEN > 4, 'a sheath, wider than the needle');
 });
+
+test('the distal end is its own section: a wider creased bending cover, then a cap of the cover\'s width', async () => {
+  const m = await import('../src/scene/devices/probes/scope.ts');
+  assert.ok(Math.abs(m.bendRadius(0) - 1) < 0.02, 'it starts at the tube\'s width (no step)');
+  let max = 0, min = Infinity; for (let u = 0.1; u <= 1; u += 0.002) { max = Math.max(max, m.bendRadius(u)); min = Math.min(min, m.bendRadius(u)); }
+  assert.ok(max > 1.08, 'wider than the tube'); assert.ok(max - min > 0.05, 'creased');
+  assert.ok(m.TIP_WIDE >= m.BEND_WIDE - 1e-9, 'the cap is the cover\'s width');
+});
