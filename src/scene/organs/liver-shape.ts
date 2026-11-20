@@ -32,6 +32,12 @@ export function septumAt(x: number, y: number): number {
   return 1 - u * u * (3 - 2 * u);
 }
 
+/** How much of a nodule's sideways push a vertex takes: 0 where its normal lies in the figure's plane (the rim), 1 where it faces the viewer (|n.z| from 0.3 to 0.75). */
+export function edgeFree(nz: number): number {
+  const t = Math.min(1, Math.max(0, (nz - 0.3) / 0.45));
+  return t * t * (3 - 2 * t);
+}
+
 export class LiverShape {
   private rest: Float32Array;
   private normals: Float32Array;
@@ -54,7 +60,9 @@ export class LiverShape {
       let x = x3(f[0]!), y = y3(f[1]!);
       if (bump > 0) {
         const h = bump * noduleBump(x2d(x0), y2d(y0));
-        x += n[i]! * h; y += n[i + 1]! * h;
+        // the bumps push along the normal, but not sideways at the edge: there the normal lies in the plane, the rim's samples (one every 2.5 units) would each be pushed by a different cell's bump, and the liver's outline came out as a saw-tooth
+        const k = edgeFree(Math.abs(n[i + 2]!));
+        x += n[i]! * h * k; y += n[i + 1]! * h * k;
         pos[i + 2] = r[i + 2]! + n[i + 2]! * h;
       } else pos[i + 2] = r[i + 2]!;
       pos[i] = x; pos[i + 1] = y;
