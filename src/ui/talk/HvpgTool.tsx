@@ -10,7 +10,7 @@ import { latest } from '../../engine/index.ts';
 import { Monitor, type MonSource } from '../tests/ir/Monitor.tsx';
 import { hvpgFrame, type TraceSt } from '../tests/ir/hvpg.ts';
 import { T, newWave, syncWave } from '../tests/copied/hvpg-clock.copied.js';
-import { HVPG_STEPS, STEP_T, stepsOf, levelsOf } from './hvpg-plan.ts';
+import { HVPG_STEPS, STEP_T, stepsOf, levelsOf, startAt } from './hvpg-plan.ts';
 import { setToolStep } from './tool-step.ts';
 import { cathScript } from '../deck/cath-clock.ts';
 
@@ -48,7 +48,7 @@ export function HvpgTool({ fp, cath, catheter, forward }: { fp: Rec | null; cath
     c.off?.(); c.off = null;
     const k = first.current ? kept : null, fresh = first.current;
     first.current = false;
-    const from = fresh ? (k && performance.now() - k.at0 < KEEP_MS && k.at < at ? k.t : forward && !follow ? T.free - 300 : to) : c.t;
+    const from = fresh ? startAt({ to, carry: k && performance.now() - k.at0 < KEEP_MS && k.at < at ? k.t : null, follow: !!follow, figure: cathScript.on ? cathScript.t : null, forward }) : c.t;
     c.to = to; c.t = from; c.at = at;
     if (!c.lv || from >= to) { c.t = to; c.running = false; setN((x) => x + 1); return; }
     c.running = true; setN((x) => x + 1);
