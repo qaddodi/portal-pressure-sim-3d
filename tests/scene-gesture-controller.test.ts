@@ -221,14 +221,16 @@ test('dispose removes every listener and every pending frame or timer', () => {
 // ── the turn stays where the viewer leaves it; only Fit brings it home (owner, 19 Nov, after the independent review) ──────────────────
 const turn = (r: ReturnType<typeof rig>) => { r.ptr('pointerdown', 1, 400, 300); r.ptr('pointermove', 1, 440, 300); r.advance(16); r.ptr('pointermove', 1, 540, 300); };
 
-test('after a free drag the figure stays at the angle the viewer left, however long it waits', () => {
+test('after a free drag the figure holds its angle for 2 s, then springs home smoothly and goes quiet (owner, 20 Nov)', () => {
   const r = rig();
   turn(r); r.advance(200);                       // held still before letting go: no momentum
   r.ptr('pointerup', 1, 540, 300);
   const turned = r.orbit;
   assert.ok(Math.abs(turned) > 0.1);
-  r.run(10000);
-  assert.equal(r.orbit, turned, 'no spring-back');
+  r.run(1900);
+  assert.equal(r.orbit, turned, 'held for the 2 s');
+  r.run(4000);
+  assert.equal(r.orbit, 0, 'home');
   assert.equal(r.asks, 0, 'and nothing asks for a frame');
   assert.equal(r.timers, 0);
 });
@@ -240,8 +242,8 @@ test('a pan, a pinch or a tap on a turned figure leaves the turn alone', () => {
   r.ptr('pointerdown', 3, 400, 300, { shiftKey: true }); r.ptr('pointermove', 3, 460, 300, { shiftKey: true }); r.advance(16); r.ptr('pointermove', 3, 520, 300, { shiftKey: true });
   r.advance(200); r.ptr('pointerup', 3, 520, 300, { shiftKey: true });
   r.ptr('pointerdown', 4, 300, 200); r.ptr('pointerup', 4, 301, 200);
-  r.run(6000);
-  assert.equal(r.orbit, turned);
+  r.run(1500);
+  assert.equal(r.orbit, turned, 'each touch restarts the 2 s wait');
 });
 
 test('Fit brings the turn home: critically damped, never past the shot, and quiet once it lands', () => {
@@ -336,4 +338,11 @@ test('one finger pans in every view, whatever the setting; it never turns the fi
   r.ptr('pointerdown', 1, 400, 300, T); r.ptr('pointermove', 1, 440, 300, T); r.advance(16); r.ptr('pointermove', 1, 520, 300, T);
   assert.equal(r.orbit, 0, 'a finger does not turn');
   assert.ok(r.hand.x !== 0, `it pans: ${r.hand.x}`);
+});
+
+test('a turn springs home by itself 2 s after the last finger lifts; a new touch restarts the wait', async () => {
+  const src = (await import('node:fs')).readFileSync('src/scene/gesture/controller.ts', 'utf8');
+  assert.match(src, /HOME_AFTER_MS = 2000/);
+  assert.match(src, /if \(!pointers\.size\) homeLater\(\);/);
+  assert.match(src, /const onDown = \(ev: PtrEv\) => \{\n    homeCancel\(\);/);
 });

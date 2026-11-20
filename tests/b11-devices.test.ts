@@ -73,7 +73,7 @@ test('the scope\'s way runs in at the top, down the esophagus and through the ca
   const w = scopeWay();
   assert.ok(w.total > 400);
   assert.ok(workD('band', 'pv') < workD('eus', 'hv'), 'the lowest band is above the hepatic vein\'s station');
-  assert.ok(workD('eus', 'hv') <= workD('scope', 'pv') + 1e-6 && workD('scope', 'pv') < workD('eus', 'pv'));
+  assert.ok(workD('scope', 'pv') < w.cardiaD && workD('scope', 'pv') < workD('eus', 'hv') && workD('scope', 'pv') < workD('eus', 'pv'), 'the plain scope stops in the oesophagus, above the cardia (owner, 20 Nov 2026)');
   assert.equal(workD('eus', 'pv'), w.total);
   const end = w.at(w, w.total).p, st = EUS_STATIONS.pv.at;
   assert.ok(Math.hypot(end[0] - st[0], end[1] - st[1]) < 1.5, 'the route ends on the portal vein\'s station');

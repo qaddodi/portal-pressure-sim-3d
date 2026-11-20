@@ -29,3 +29,9 @@ export class FlowRate {
   /** Still moving the picture: above a hair of speed, or in the middle of an ease. Settled at 0, nothing asks for a frame. */
   get active(): boolean { return this.el < FLOW_EASE_S || this.value > 0.001; }
 }
+
+/** THE one rate, shared by every view (the Anatomy and Circuit streams, the lobule, the sinusoid and the 3D scenes of both): the scene steps it once a frame, everything that moves with the blood multiplies its advance by `.value`. */
+export const flowRate = new FlowRate();
+
+/** What the rate is easing toward: 1 while the model runs, 0 once Pause has stopped it. Read from the live model's own frame (not the pinned one Compare's Then view shows), as the play button reads it. */
+export function flowTarget(running: boolean | undefined): number { return running === false ? 0 : 1; }
