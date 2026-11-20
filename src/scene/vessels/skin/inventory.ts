@@ -1,6 +1,6 @@
 // Junction skins, WP1 (spec 4.1 and 4.2): which nodes of the network get a skin, which tubes are its arms, and where its centre is. Computed from the network's own data, never from a list of ids:
 // the one literal here is the kind filter (a permanent vessel is a vein, an artery, an arteriole or a liver bed). Nothing is drawn here; the scene reads this once and builds the skins from it.
-import { NETWORK, cutEnd, type NetVessel } from '../network.ts';
+import { NETWORK, NETWORK_BY_ID, cutEnd, type NetVessel } from '../network.ts';
 import { REST, coursesOf, type ShapeState } from '../shape.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../join-mode.ts';
 import { indexOf } from '../../../engine/vessel-data.ts';
@@ -31,8 +31,10 @@ export const isPermanent = (v: NetVessel): boolean => !v.feeder && !v.id.include
 function permanentEndsByNode(network: readonly NetVessel[]): Map<string, { v: NetVessel; end: 0 | 1 }[]> {
   const at = new Map<string, { v: NetVessel; end: 0 | 1 }[]>();
   for (const v of network) {
-    if (!isPermanent(v)) continue;
-    for (const [node, end] of [[v.from, 0], [v.to, 1]] as const) { const a = at.get(node) ?? []; a.push({ v, end }); at.set(node, a); }
+    if (!isPermanent(v) && !joinsNode(v)) continue;   // (a liver branch that leaves its host near a node is an arm of that node)
+    // (a branch's own node end is the one at its host: the other end is the tip it fades out at)
+    const ends: readonly (readonly [string, 0 | 1])[] = isLiverBranch(v) ? [[branchEndOf(v) ? v.to : v.from, branchEndOf(v)]] : [[v.from, 0], [v.to, 1]];
+    for (const [node, end] of ends) { const a = at.get(node) ?? []; a.push({ v, end }); at.set(node, a); }
   }
   return at;
 }
@@ -147,6 +149,47 @@ export function findSkinJunctions(network: readonly NetVessel[] = NETWORK, state
     const widest = sorted[0]!;
     const side = hostSides(arms, arms.map((a) => coursesOf(byId.get(a.vesselId)!, state)[0]!.pts as readonly Vec3[]), endPoint(widest.v, widest.end, state));
     out.push({ node, J: side.J, arms: side.arms });
+  }
+  out.push(...liverBranchJunctions(network, state));
+  return out;
+}
+
+/** A liver branch's own tube: a branching vein is one through-tube (liver-branches.ts), its second branch a feeder tube `<host>~F:b` whose join end lies ON the host's centreline, a few radii from the host's end at the child's node. */
+export const isLiverBranch = (v: NetVessel): boolean => !!v.feeder && v.feeder.when === null && v.id.endsWith('~F:b');
+
+/** The end of a liver branch that lies on its host (the feeder's `join`). */
+const branchEndOf = (v: NetVessel): 0 | 1 => ((v.plan?.kind === 'feeder' ? v.plan.list[0]?.join : 0) ?? 0) as 0 | 1;
+
+/** Where a liver branch meets its host: the host, the branch's end at the host, the point of the host's axis nearest to it, its share `u` of the host and its distance along the host from the host's end at the branch's node (in the host's radii). */
+function branchMeet(v: NetVessel, state: ShapeState): { host: NetVessel; end: 0 | 1; at: Vec3; u: number; fromNodeR: number } | null {
+  const host = NETWORK_BY_ID.get(v.feeder!.host), item = v.plan?.kind === 'feeder' ? v.plan.list[0] : undefined;
+  if (!host || !item) return null;
+  const hp = coursesOf(host, state)[0]!.pts as readonly Vec3[], cp = coursesOf(v, state)[0]!.pts as readonly Vec3[];
+  const end = (item.join ?? 0) as 0 | 1, near = nearestOnPolyline(hp, cp[end ? cp.length - 1 : 0]!);
+  if (near.u <= SIDE_EDGE || near.u >= 1 - SIDE_EDGE) return null;
+  // (the host's end at the branch's node: the end whose node the branch names for its own join end)
+  const node = end ? v.to : v.from, hostEnd = host.from === node ? 0 : host.to === node ? 1 : -1;
+  if (hostEnd < 0) return { host, end, at: near.at, u: near.u, fromNodeR: Infinity };
+  let total = 0, upTo = 0;
+  for (let i = 1; i < hp.length; i++) total += Math.hypot(hp[i]![0] - hp[i - 1]![0], hp[i]![1] - hp[i - 1]![1], hp[i]![2] - hp[i - 1]![2]);
+  upTo = hostEnd ? (1 - near.u) * total : near.u * total;
+  return { host, end, at: near.at, u: near.u, fromNodeR: upTo / host.radius };
+}
+/** A liver branch that leaves its host within `SKIN_REACH` radii of the host's end at their node is one more arm of that node's skin (the right portal vein's second branch at RPV_T, the left's at LPV_A): its end lies inside the host's wall, bridged to J like any arm. */
+export const joinsNode = (v: NetVessel, state: ShapeState = REST): boolean => { const m = isLiverBranch(v) ? branchMeet(v, state) : null; return !!m && m.fromNodeR <= SKIN_REACH; };
+
+/**
+ * The junctions in the middle of a liver vein (Mohammad, 20 Nov: "how about the hepatic vein and portal vein branches?", "everything"): a branch that leaves its host farther from the host's ends than a skin reaches (the right hepatic vein's child, 8.6 radii from the cava end) has no
+ * node of the figure to be an arm of. It is a side-wall junction with no node (spec 10.1, "a virtual node mid-host"): the host's two sides (`side { u, dir -1 }` below the branch and `dir +1` above it, which together leave a HOLE in the host's tube) and the branch, J the point of the host's
+ * axis nearest the branch's end. The node's name is the branch's id.
+ */
+export function liverBranchJunctions(network: readonly NetVessel[] = NETWORK, state: ShapeState = REST): SkinJunction[] {
+  const out: SkinJunction[] = [];
+  for (const v of network) {
+    const m = isLiverBranch(v) ? branchMeet(v, state) : null;
+    if (!m || m.fromNodeR <= SKIN_REACH) continue;
+    const arm = (o: NetVessel, e: 0 | 1, side?: SkinArm['side']): SkinArm => ({ vesselId: o.id, end: e, courseIndex: 0, dataIndex: indexOf(o.lensId), lensIndex: indexOf(o.lensId), baseD: o.baseD, widthKind: o.widthKind, restR: o.radius, ...(side ? { side } : {}) });
+    out.push({ node: v.id, J: m.at, arms: [arm(m.host, 1, { u: m.u, dir: -1 }), arm(m.host, 0, { u: m.u, dir: 1 }), arm(v, m.end)] });
   }
   return out;
 }

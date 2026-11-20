@@ -7,7 +7,10 @@ import { SKIN_GROWERS, SkinBuildError, type SkinArm, type SkinCut, type SkinJunc
 /** The tube vertices of one arm: its merged geometry (`buildTubes`, the vessel's own course first, so ring k's vertex j is position index `k * (RADIAL + 1) + j`) and the course's `tubular` segment count. */
 export interface ArmTube { geometry: BufferGeometry; tubular: number }
 /** WP2's check (mesh.ts `hullCovers`, spec 4.4 rule 3): with these cuts, is every seam ring vertex a vertex of the convex hull of all the rings? */
-export type HullOk = (cuts: SkinCut[]) => boolean;
+export type HullOk = ((cuts: SkinCut[]) => boolean) & {
+  /** after a refusal: the arm whose seam is the one to move out (the check knows which seam stands too near which arm); the seam nearest J when absent or -1 */
+  blame?: () => number;
+};
 
 /** The blend width factor of the smooth union, as a share of the narrowest arm's radius (spec 4.3 `SKIN_K`). WP2 owns the export in skin/sdf.ts; the value is the spec's. */
 export const CUT_SKIN_K = 0.8;
@@ -48,6 +51,9 @@ export function armWalk(a: Pick<SkinArm, 'end' | 'side'>, tubular: number): { fr
   const from = a.side ? Math.max(0, Math.min(tubular, Math.round(a.side.u * tubular))) : a.end ? tubular : 0;
   return { from, step: a.end ? -1 : 1, count: a.end ? from + 1 : tubular - from + 1 };
 }
+
+/** The two side arms of one vessel (a junction in the middle of a vein, spec 10.1): they run on into each other through J as ONE straight tube, so neither is "another arm" to the other's seam (the union of their capsules is the vein itself, no blend lies between them). */
+export const isThroughPair = (a: Pick<SkinArm, 'vesselId' | 'side'>, b: Pick<SkinArm, 'vesselId' | 'side'>): boolean => !!a.side && !!b.side && a.vesselId === b.vesselId && a.side.dir !== b.side.dir;
 
 /** The arm's capsule (spec 4.3): its axis from J outward, the tube's own ring centres, out to `CAPSULE_R` of its radii, with the radius the tube really has at each (tapers included). */
 function capsuleOf(j: SkinJunction, rings: readonly Ring[], restR: number): Capsule {
@@ -100,7 +106,7 @@ export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>,
     if (dist3(g.centre, j.J) < SEAM_MIN_R * a.restR) return 'too near J (2)';
     const need = clear.k * k + clear.r * a.restR;
     for (let o = 0; o < n; o++) {
-      if (o === i) continue;
+      if (o === i || isThroughPair(a, j.arms[o]!)) continue;
       for (let v = 0; v < RADIAL; v++) if (sdCapsule(g.verts, v * 3, caps[o]!) < need) return `${j.arms[o]!.vesselId}${j.arms[o]!.side ? ' (side)' : ''}`;
     }
     return null;
@@ -120,6 +126,8 @@ export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>,
     // the seam nearest to the centre, in its own radii, moves out one eligible ring
     let m = 0, best = Infinity;
     for (let i = 0; i < n; i++) { const d = dist3(rings[i]![at[i]!]!.centre, j.J) / j.arms[i]!.restR; if (d < best) { best = d; m = i; } }
+    const blamed = hullOk.blame?.() ?? -1;
+    if (blamed >= 0 && blamed < n) m = blamed;
     at[m] = next(m, at[m]! + 1);
   }
   throw new SkinBuildError(j.node, `the hull rule still fails after ${MAX_TRIES} tries`);

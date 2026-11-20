@@ -1,6 +1,7 @@
 // The junction skin mesh (spec 4.5): one closed, welded fillet that starts exactly on each arm's seam ring and fills the junction. It is the convex hull of the
 // rings (minus the rings' own caps), subdivided on a regular grid, projected onto the smooth union of the arms and relaxed. Pure: numbers in, typed arrays out; the
 // only three.js it touches is `Vector3` and `ConvexHull`. Never marching cubes: an irregular mesh makes the cel bands wobble.
+import { sdfSheet } from './sheet.ts';
 import { Vector3 } from 'three';
 import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
 import { SKIN_GROWERS, SkinBuildError, type GrowMorph, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
@@ -29,7 +30,7 @@ export const SHRINK_PULL = 0.5;
 /** The gentle schedule for a sheet that starts far from the surface (seams many radii from the junction: the long hull faces fold if pulled in at the usual rate): a third of the pull for 20 rounds, 40 in all. */
 export const GENTLE: BuildPace = { rounds: 40, shrinkRounds: 20, pull: 0.3 };
 /** How fast the remesh pulls the hull sheet onto the surface. */
-export interface BuildPace { rounds: number; shrinkRounds: number; pull: number }
+export interface BuildPace { rounds: number; shrinkRounds: number; pull: number; /** start from the surface itself (sheet.ts) and not from the hull of the rings: for a junction whose hull sheet folds at every schedule */ sdf?: boolean; /** polish rounds at the end (flips and a full smooth), `POLISH_ROUNDS` when absent */ polish?: number }
 /** The slowest schedule, for a sheet that starts very far from the surface (five arms spread along a long host: the cava's three hepatic veins, 9 radii of cava in the skin): a seventh of the pull for 30 rounds, 48 in all. The quick schedule folds there and `GENTLE` leaves 8 triangles folded. */
 export const SLOW: BuildPace = { rounds: 48, shrinkRounds: 30, pull: 0.15 };
 export const MAX_VERTS = 12000;
@@ -46,7 +47,7 @@ export const NORMAL_BLEND_ROWS = 2;
 /** Shading normals across a ridge: a vertex whose normal is more than `CREASE_DEG` from a neighbour's is eased `CREASE_EASE` of the way to its neighbours' mean, `CREASE_ROUNDS` times. A round tube's neighbouring rings differ by about 26 degrees (14 sides), so 35 leaves every plain stretch exact. */
 export const CREASE_DEG = 35;
 export const CREASE_EASE = 0.6;
-export const CREASE_ROUNDS = 6;
+export const CREASE_ROUNDS = 8;
 /** The farthest a seam may be pushed out (spec 4.4). */
 export const MAX_TRIES = 40;
 /** A vertex of the second shape that is this close to the closing arm's axis (in that arm's radii) is on its thread, where the surface has no direction: it keeps the normal it had. */
@@ -102,7 +103,9 @@ export const hullCovers = (seamRings: readonly Float32Array[]): boolean => ringH
 /** `buildSkin` with the schedules tried in turn on a fold (the surface doubling back on itself, which a sheet pulled onto the surface too fast does): the usual one, then `GENTLE`, then `SLOW`. The first that closes is the skin; the last error stands if none does.
  *  Every junction that closed at the usual pace is built exactly as before. `memo` (node -> the rung that closed) starts the next build of a node at its own rung and not at the top: the cava's skin folds twice before it closes, 1.6 s of a rebuild that
  *  every later rebuild of it would repeat. */
-export const PACES: readonly (BuildPace | undefined)[] = [undefined, GENTLE, SLOW];
+/** The last rung: the sheet starts on the surface (sheet.ts), so the remesh has nothing to fold and the usual schedule evens it out. */
+export const FROM_SURFACE: BuildPace = { rounds: 20, shrinkRounds: 4, pull: 0.5, sdf: true, polish: 8 };
+export const PACES: readonly (BuildPace | undefined)[] = [undefined, GENTLE, SLOW, FROM_SURFACE];
 export function buildSkinSteady(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS, memo?: Map<string, number>): SkinMesh {
   let last: unknown;
   for (let i = memo?.get(j.node) ?? 0; i < PACES.length; i++) {
@@ -144,16 +147,17 @@ function axisFromRing(ring: Float32Array, J: Vec3): Capsule {
 export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS, pace?: BuildPace): SkinMesh {
   const A = j.arms.length, n = seamRings[0]!.length / 3, S = A * n;   // S: the ring vertices, ids 0..S-1 (arm * n + j), fixed for ever
   if (A < 2 || A > MAX_SKIN_ARMS || seamRings.length !== A || seamNormals.length !== A || cuts.length !== A) throw new SkinBuildError(j.node, 'needs 2 to 6 arms with a ring, a normal set and a cut each');
-  const hull = ringHull(seamRings);
-  if (!hull.ok) throw new SkinBuildError(j.node, `the hull misses the seam rings: ${hull.why}`);
+  const hull = pace?.sdf ? null : ringHull(seamRings);
+  if (hull && !hull.ok) throw new SkinBuildError(j.node, `the hull misses the seam rings: ${hull.why}`);
   const caps = axes ?? seamRings.map((r) => axisFromRing(r, j.J));
   const k = skinKOf(j.arms), h = GRADIENT_H * k, tau = (2 * Math.PI) / n;
   const ekey = (a: number, b: number) => (a < b ? a * 1e7 + b : b * 1e7 + a);
 
   // the guess at the topology: the vertices are the rings, the triangles the hull's
-  const pos: number[] = [];
-  for (let a = 0; a < A; a++) for (let q = 0; q < n; q++) pos.push(seamRings[a]![3 * q]!, seamRings[a]![3 * q + 1]!, seamRings[a]![3 * q + 2]!);
-  let tris = hull.faces.slice();
+  const sheet = pace?.sdf ? sdfSheet(j.node, caps, k, seamRings, j.J) : null;   // (a sheet started on the surface: sheet.ts)
+  const pos: number[] = sheet ? sheet.pos : [];
+  if (!sheet) for (let a = 0; a < A; a++) for (let q = 0; q < n; q++) pos.push(seamRings[a]![3 * q]!, seamRings[a]![3 * q + 1]!, seamRings[a]![3 * q + 2]!);
+  let tris = sheet ? sheet.tris : hull!.faces.slice();
   const ringEdge = new Set<number>();   // the seam edges: never split, collapsed or flipped
   for (let a = 0; a < A; a++) for (let q = 0; q < n; q++) ringEdge.add(ekey(a * n + q, a * n + ((q + 1) % n)));
   const g = new Float64Array(3);
@@ -233,7 +237,7 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
 
   /** Collapse edges shorter than COLLAPSE_AT targets, one vertex into the other (a free one into a seam vertex, or two free ones into their midpoint), where that keeps the mesh a closed
    *  manifold (the link condition) and flips no face. Vertices touched are locked for the pass so the data it reads stays true. Returns how many collapsed. */
-  const collapse = (): number => {
+  const collapse = (force?: [number, number][]): number => {
     const V = pos.length / 3, vt: number[][] = Array.from({ length: V }, () => []);
     for (let i = 0; i < tris.length; i += 3) for (let s = 0; s < 3; s++) vt[tris[i + s]!]!.push(i);
     const cand: [number, number, number][] = [], seen = new Set<number>();
@@ -243,8 +247,9 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
       seen.add(kk);
       if (ringEdge.has(kk) || (a < S && b < S)) continue;
       const l = dist(a, b);
-      if (l < COLLAPSE_AT * target(a, b)) cand.push([l, a, b]);
+      if (!force && l < COLLAPSE_AT * target(a, b)) cand.push([l, a, b]);
     }
+    if (force) for (const [a, b] of force) if (!(a < S && b < S) && !ringEdge.has(ekey(a, b))) cand.push([dist(a, b), a, b]);
     if (!cand.length) return 0;
     cand.sort((x, y) => x[0] - y[0]);
     const locked = new Uint8Array(V), dead = new Uint8Array(tris.length / 3), n0 = [0, 0, 0], n1 = [0, 0, 0];
@@ -372,7 +377,46 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
     smooth(r < shrinkRounds ? shrinkPull : 1);
     if (r >= shrinkRounds && changes <= Math.max(2, SETTLED * tris.length / 3)) break;   // settled: only a stray edge still changes
   }
-  for (let r = 0; r < POLISH_ROUNDS; r++) { flip(); smooth(1); }
+  for (let r = 0; r < (pace?.polish ?? POLISH_ROUNDS); r++) { flip(); smooth(1); }
+  // a triangle turned against the surface (its normal against the field's gradient at its centre) is turned over by flipping one of its edges, when that gives two that face outward: a sheet started on the surface (sheet.ts) can have a few where its quads were cut
+  if (pace?.sdf) {
+    const faces = (a: number, b: number, c: number): boolean => {
+      triNormal(a, b, c, nA);
+      sdUnionGrad(caps, k, (pos[3 * a]! + pos[3 * b]! + pos[3 * c]!) / 3, (pos[3 * a + 1]! + pos[3 * b + 1]! + pos[3 * c + 1]!) / 3, (pos[3 * a + 2]! + pos[3 * b + 2]! + pos[3 * c + 2]!) / 3, g);
+      return nA[0]! * g[0]! + nA[1]! * g[1]! + nA[2]! * g[2]! > 0;
+    };
+    const nA = [0, 0, 0];
+    for (let pass = 0; pass < 24; pass++) {
+      const owner = new Map<number, [number, number]>();
+      for (let i = 0; i < tris.length; i += 3) for (let s = 0; s < 3; s++) { const e = ekey(tris[i + s]!, tris[i + (s + 1) % 3]!), o = owner.get(e); if (!o) owner.set(e, [i, -1]); else o[1] = i; }
+      let fixed = 0;
+      for (let t1 = 0; t1 < tris.length && !fixed; t1 += 3) {
+        if (faces(tris[t1]!, tris[t1 + 1]!, tris[t1 + 2]!)) continue;
+        for (let s = 0; s < 3 && !fixed; s++) {
+          const a = tris[t1 + s]!, b = tris[t1 + (s + 1) % 3]!, c = tris[t1 + (s + 2) % 3]!, e = ekey(a, b), o = owner.get(e)!;
+          if (o[1] < 0 || ringEdge.has(e)) continue;
+          const t2 = o[0] === t1 ? o[1] : o[0];
+          let d = -1;
+          for (let q = 0; q < 3; q++) { const x = tris[t2 + q]!; if (x !== a && x !== b) d = x; }
+          if (d < 0 || owner.has(ekey(c, d)) || !faces(a, d, c) || !faces(d, b, c)) continue;
+          tris[t1] = a; tris[t1 + 1] = d; tris[t1 + 2] = c; tris[t2] = d; tris[t2 + 1] = b; tris[t2 + 2] = c; fixed++;
+        }
+      }
+      if (!fixed) break;
+    }
+    // what a flip cannot turn (a sliver whose neighbours also face away): its edges are collapsed, the shortest first, so it leaves the sheet
+    for (let pass = 0; pass < 6; pass++) {
+      const bad: [number, number][] = [];
+      for (let t1 = 0; t1 < tris.length; t1 += 3) {
+        const a = tris[t1]!, b = tris[t1 + 1]!, c = tris[t1 + 2]!;
+        if (!faces(a, b, c)) bad.push([a, b], [b, c], [c, a]);
+      }
+      if (!bad.length) break;
+      bad.sort((x, y) => dist(x[0], x[1]) - dist(y[0], y[1]));
+      if (!collapse(bad)) break;
+      for (let r = 0; r < 2; r++) { flip(); smooth(1); }
+    }
+  }
   for (let v = S; v < pos.length / 3; v++) project(v, 2);
 
   // compact: drop vertices no triangle uses (collapsed away), keeping the order, so the ring ids stay arm * n + j

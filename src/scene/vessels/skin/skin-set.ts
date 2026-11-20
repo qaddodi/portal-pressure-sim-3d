@@ -17,9 +17,9 @@ import { NETWORK_BY_ID } from '../network.ts';
 import { REST, coursesOf, tubularOf, type ShapeState } from '../shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { slicesFor } from '../../circuit/geometry.ts';
-import { MIN_ARMS, dropFarGrowers, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
-import { armWalk, planSkins, type ArmTube } from './cuts.ts';
-import { buildSkinSteady, hullCovers } from './mesh.ts';
+import { MIN_ARMS, dropFarGrowers, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
+import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
+import { PACES, buildSkinSteady, hullCovers } from './mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
@@ -157,6 +157,9 @@ export function armArcOf(end: 0 | 1, u: number, len: number, radius: number): { 
 /** An axis as the mesh builder's capsule (sdf.ts): the same three points and radii. */
 const capsuleOf = (a: ArmAxis): Capsule => ({ n: a.pts.length, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii), mate: a.mate });
 
+/** Whether a junction has a liver vein's second branch among its arms (inventory.ts `isLiverBranch`). */
+const hasLiverBranch = (j: SkinJunction): boolean => j.arms.some((a) => { const v = NETWORK_BY_ID.get(a.vesselId); return !!v && isLiverBranch(v); });
+
 /** The holes a skin's cuts leave (spec 10.1): a vessel with a side-wall arm on each side of the junction is not drawn between their seams; with an arm on one side only its cut is an ordinary one (the rest of the tube is inside the skin's reach). */
 export function holesOf(cuts: readonly SkinCut[]): { id: string; lo: number; hi: number }[] {
   const out: { id: string; lo: number; hi: number }[] = [];
@@ -204,6 +207,8 @@ export class SkinSet {
   get nodes(): readonly string[] { return this.drawn.map((b) => b.node); }
   /** The vessel ids of a built skin's arms, in arm order (the draw returned by `make`). */
   armIdsOf(draw: SkinDraw): readonly string[] { return this.built.find((b) => b.draw === draw)?.arms.map((a) => a.id) ?? []; }
+  /** The drawing objects of the skins as they stand (the ones a retried plan took back are not among them). */
+  liveDraws(): readonly SkinDraw[] { return this.drawn.map((b) => b.draw!).filter(Boolean); }
   /** The built skin of a node, or undefined. */
   skinOf(node: string): SkinMesh | undefined { return this.drawn.find((b) => b.node === node)?.mesh ?? undefined; }
   /** How many rebuilds ran, what the last and the worst cost (ms), and which node was the last. */
@@ -233,7 +238,14 @@ export class SkinSet {
   /** Plans (cuts.ts) the junctions on the given tubes: one plan per skin, a named failure for a node that cannot be built. */
   private plan(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube>): ReturnType<typeof planSkins> {
     // A set of cuts is good when the hull has every ring (spec 4.4.3) AND every ring is clear of the other arms as the skin DRAWS them (`clearOfAxes`)
-    return planSkins(js, tubes, (j) => (cs) => hullCovers(this.ringsFor(tubes, cs).pos) && this.clearOfAxes(j, tubes, cs));
+    // (a junction with a liver branch is meshed from the surface itself, skin/sheet.ts, which needs no hull of the rings: its seams are as near as the clearance allows, not pushed out until a hull covers them, which on a fork at 30 degrees means
+    //  seams 8 radii out and a skin that crowds its neighbours)
+    return planSkins(js, tubes, (j) => {
+      let blamed = -1;
+      const ok: HullOk = (cs) => { blamed = -1; if (!(hasLiverBranch(j) || hullCovers(this.ringsFor(tubes, cs).pos))) return false; blamed = this.clearOfAxes(j, tubes, cs); return blamed < 0; };
+      ok.blame = () => (hasLiverBranch(j) ? blamed : -1);   // (the arm whose seam stands too near another arm moves out, not the seam nearest J)
+      return ok;
+    });
   }
 
   /**
@@ -241,14 +253,14 @@ export class SkinSet {
    * straight to its node and part where it bends on the way (a shunt that curves in), and then a seam ring stands inside the BLEND of another arm's drawn capsule, so the outline is a fraction of a pixel inside the tube's own where they meet: a kink at the seam
    * (tests/skin-agreement.test.ts, the seam's ink). So the clearance is also judged on the drawn capsules: every vertex of a seam ring is at least the blend width `k` from every other arm's drawn capsule.
    */
-  private clearOfAxes(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>, cuts: SkinCut[]): boolean {
+  private clearOfAxes(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>, cuts: SkinCut[]): number {
     const caps = j.arms.map((a, i) => capsuleOf(axisOf(tubes.get(a.vesselId)!, a.restR, cuts[i]!, j.J)));
     const k = skinKOf(j.arms), { pos } = this.ringsFor(tubes, cuts);
     for (let i = 0; i < j.arms.length; i++) for (let o = 0; o < j.arms.length; o++) {
-      if (o === i) continue;
-      for (let v = 0; v < TUBE_RADIAL; v++) if (sdArm(caps[o]!, pos[i]![3 * v]!, pos[i]![3 * v + 1]!, pos[i]![3 * v + 2]!) < k) return false;
+      if (o === i || isThroughPair(j.arms[i]!, j.arms[o]!)) continue;
+      for (let v = 0; v < TUBE_RADIAL; v++) if (sdArm(caps[o]!, pos[i]![3 * v]!, pos[i]![3 * v + 1]!, pos[i]![3 * v + 2]!) < k) return i;
     }
-    return true;
+    return -1;
   }
 
   /**
@@ -259,6 +271,7 @@ export class SkinSet {
   private produce(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube>): { made: Built[]; lost: { node: string; message: string }[] } {
     const made: Built[] = [], lost: { node: string; message: string }[] = [];
     let todo: SkinJunction[] = [...js];
+    const latest = new Map<string, SkinJunction>(js.map((j) => [j.node, j]));   // (the junction of each node as it was last planned: growing arms dropped included)
     for (let round = 0; todo.length && round <= SKIN_GROWERS + 1; round++) {
       const { plans, failures } = this.plan(todo, tubes);
       const again = new Map<string, string>();   // (node -> why: the junctions to try again with one growing arm fewer)
@@ -286,8 +299,18 @@ export class SkinSet {
       }
       // (a merged skin that failed hands both its nodes back: the one without growers is planned again too, as it was)
       for (const f of bad) for (const n of f.nodes) { const j = todo.find((x) => x.node === n); if (j && !again.has(n) && !lost.some((l) => l.node.split('+').includes(n)) && !next.some((x) => x.node === n)) next.push(j); }
+      // a node planned again is planned WITH the skins already made on a vessel it shares (a junction retried without its growing arm may now lie against a neighbour's seams, which only a planned-together pair merges: the left portal vein's skin and the portal fork's,
+      // PVH_L between them): those are taken back and planned again with it
+      for (const m of [...made]) {
+        if (m.sources.some((n) => next.some((x) => x.node === n))) continue;
+        const src = m.sources.map((n) => latest.get(n)).filter((x): x is SkinJunction => !!x);
+        if (!src.length || !src.some((sj) => next.some((x) => x.arms.some((p) => sj.arms.some((q) => q.vesselId === p.vesselId))))) continue;
+        made.splice(made.indexOf(m), 1); m.draw?.dispose();
+        for (const sj of src) if (!next.some((x) => x.node === sj.node)) next.push(sj);
+      }
       // a node of this round whose skin was made is not planned again
       todo = next.filter((j) => !made.some((m) => m.sources.includes(j.node)));
+      for (const j of todo) latest.set(j.node, j);
     }
     for (const j of todo) lost.push({ node: j.node, message: `skin: junction ${j.node}: no skin after ${SKIN_GROWERS + 1} rounds of dropping growing arms` });
     return { made, lost };
@@ -304,6 +327,7 @@ export class SkinSet {
     const sided = j.arms.some((a) => !!a.side);   // (a skin with a side-wall arm: its arms' headings are the seam rings' own plane normals; every other skin keeps the neighbouring-ring heading it always had)
     const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
     if (ready) this.paces.set(j.node, ready.pace);
+    if (!ready && hasLiverBranch(j)) this.paces.set(j.node, Math.max(this.paces.get(j.node) ?? 0, PACES.length - 1));   // (meshed from the surface from the start)
     const mesh = ready?.mesh ?? buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
     // on a seam ring the skin's rest radius is the tube's own, exactly (the mesh builder measures the ring's mean radius, a few parts in 10^4 off the tube's `radius * rk`): the live move of a seam vertex is then the tube's to the last bit (spec 4.6)
     if (!ready) mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));   // (a baked mesh has had it done)
@@ -384,7 +408,7 @@ export class SkinSet {
     this.clear();
     const nodes = skinNodesForPhase(phase);
     // phase 2 also builds every node a collateral or a shunt lands on (spec 10.2); phase 1 (the confluence alone) has none of them
-    const all: SkinJunction[] = findSkinJunctions().filter((j) => nodes.has(j.node) || (phase === 2 && j.arms.some((a) => a.grow))).map((j) => (phase === 1 ? withoutGrowers(j) : j)).filter((j): j is SkinJunction => !!j);
+    const all: SkinJunction[] = findSkinJunctions().filter((j) => nodes.has(j.node) || (phase === 2 && (j.arms.some((a) => a.grow || isLiverBranch(NETWORK_BY_ID.get(a.vesselId)!))))).map((j) => (phase === 1 ? withoutGrowers(j) : j)).filter((j): j is SkinJunction => !!j);
     // a collateral or shunt whose end lies farther from J than SKIN_REACH is on a host's side, not at the node: it is left out of the skin (named in `dropped`), and never takes the node's skin with it
     const near = all.map((j) => { const d = dropFarGrowers(j); for (const id of d.far) this.dropped.push(`${j.node}:${id}`); return d.junction; }).filter((j) => j.arms.length >= MIN_ARMS);
     all.length = 0; all.push(...near);
