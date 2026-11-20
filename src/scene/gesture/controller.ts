@@ -383,7 +383,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     lastTap = { t: now, x: ev.clientX, y: ev.clientY, sel: host.picked() };
     host.tap(ev.clientX, ev.clientY, ev.pointerType === 'touch');
   }
-  const onContext = (ev: PtrEv) => { ev.preventDefault?.(); host.context(ev.clientX, ev.clientY, ev.pointerType === 'touch'); };
+  const onContext = (ev: PtrEv) => { ev.preventDefault?.(); if (env.locked?.()) return; host.context(ev.clientX, ev.clientY, ev.pointerType === 'touch'); };
   on(el, 'pointerdown', onDown);
   on(el, 'pointermove', onMove);
   for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) on(el, t, onUp);
@@ -395,7 +395,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     turnOff() { stopOrbitMomentum(); stopOrbitHome(); },
     refit() { handsOff(); fit = null; animateTo({ ...IDENTITY }, undefined, null); orbitToShot(); },
     animateTo(to, ms) { handsOff(); animateTo(to, ms, null); },
-    zoomStep(factor) { handsOff(); const c = host.centre(); animZoomAt(c.x, c.y, factor); },
+    zoomStep(factor) { if (env.locked?.()) return; handsOff(); const c = host.centre(); animZoomAt(c.x, c.y, factor); },
     dispose() {
       handsOff(); stopOrbitHome();
       for (const off of offs) off();

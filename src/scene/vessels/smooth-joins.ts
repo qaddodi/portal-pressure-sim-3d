@@ -17,12 +17,16 @@ export const NODE_RISE: ReadonlyMap<string, { z: number }> = new Map([['RA', { z
 export interface SmoothEnds {
   /** radius at each end as a share of `radius` (a run-on pair eases to the mean of the two) */
   taper?: readonly [number, number];
+  /** the share of the course each end's taper eases over: 0.3 (the 2D tubes' own) except a wide vein narrowing into a thin bed, which funnels over the whole of it */
+  span: readonly [number, number];
   /** the end carries on into another tube: no cap */
   joined: readonly [boolean, boolean];
   /** the vessel this end carries on into (whose live width it eases to) */
   mate: readonly [string | null, string | null];
   /** the vessels this end may end on: a branch's end is moved onto the nearest one's centreline (shape.ts) */
   attach: readonly [readonly string[] | null, readonly string[] | null];
+  /** the radius of the widest trunk (a run-on pair there) this end ends on, for a collar that must never be wider than it (a collateral or shunt keeps its own course, which is not moved) */
+  hostR: readonly [number | null, number | null];
   /** nothing meets this end: it tapers to a point (unless the vessel has an alpha fade of its own, which shape.ts checks) */
   free: readonly [boolean, boolean];
 }
@@ -31,6 +35,8 @@ export interface SmoothEnds {
 export const ATTACH_REACH = 1.6;
 /** The share of a trunk's radius a branch's end collar and cap may take while buried in it (so they never stand out of its far wall). */
 export const BURY = 0.8;
+/** The widest a fork's collar may be, as a share of the trunk's radius: a fillet blends the branch into the trunk, it is never a bulb wider than the trunk. */
+export const CEIL = 0.9;
 /** The share of a course (first or last) over which a moved end eases back to the course, as the depth does at a node (shape.ts `to3`). */
 export const END_SHARE = 0.25;
 
@@ -43,8 +49,8 @@ export const isPlain = (v: NetVessel): boolean => !v.feeder && v.plan?.kind === 
 function build(): ReadonlyMap<string, SmoothEnds> {
   const mains = NETWORK.filter((v) => !v.feeder);
   const byId = new Map(mains.map((v) => [v.id, v]));
-  const info = new Map<string, { taper: [number, number]; joined: [boolean, boolean]; mate: [string | null, string | null]; attach: [string[] | null, string[] | null]; free: [boolean, boolean]; paired: boolean }>();
-  const get = (v: NetVessel) => { let i = info.get(v.id); if (!i) { i = { taper: [1, 1], joined: [false, false], mate: [null, null], attach: [null, null], free: [false, false], paired: false }; info.set(v.id, i); } return i; };
+  const info = new Map<string, { taper: [number, number]; joined: [boolean, boolean]; mate: [string | null, string | null]; attach: [string[] | null, string[] | null]; free: [boolean, boolean]; span: [number, number]; hostR: [number | null, number | null]; paired: boolean }>();
+  const get = (v: NetVessel) => { let i = info.get(v.id); if (!i) { i = { taper: [1, 1], joined: [false, false], mate: [null, null], attach: [null, null], free: [false, false], span: [0.3, 0.3], hostR: [null, null], paired: false }; info.set(v.id, i); } return i; };
   const outward = (v: NetVessel, end: 0 | 1): [number, number, number] | null => {
     const p = v.pts, n = p.length, a = end ? p[n - 1]! : p[0]!, b = end ? p[n - 4 >= 0 ? n - 4 : 0]! : p[3 < n ? 3 : n - 1]!;
     const d: [number, number, number] = [a[0] - b[0], a[1] - b[1], a[2] - b[2]], l = Math.hypot(d[0], d[1], d[2]);
@@ -63,6 +69,7 @@ function build(): ReadonlyMap<string, SmoothEnds> {
     for (const [x, y] of [[a, b], [b, a]] as const) {
       const i = get(x.v);
       i.taper[x.end] = m / x.v.radius; i.mate[x.end] = y.v.id; i.paired = true;
+      if (hi > lo * UNEQUAL && x.v.radius === hi) i.span[x.end] = 1;
       if (straight) i.joined[x.end] = true;
     }
   };
@@ -80,14 +87,17 @@ function build(): ReadonlyMap<string, SmoothEnds> {
       const node = end ? v.to : v.from;
       const others = (at.get(node) ?? []).filter((e) => e.v !== v && art(e.v) === art(v));
       if (!others.length) { if (!isCollateral(v) && v.kind !== 'shunt') i.free[end] = true; continue; }
-      if (!isPlain(v) || IVC_EDGES.has(v.id)) continue;
+      if (IVC_EDGES.has(v.id)) continue;
+      const trunks = others.filter((e) => !isCollateral(e.v) && e.v.kind !== 'shunt' && !IVC_EDGES.has(e.v.id) && get(e.v).mate[e.end]);
+      if (trunks.length) i.hostR[end] = Math.max(...trunks.map((e) => e.v.radius));
+      if (!isPlain(v)) continue;
       // a trunk it can end on is one that carries on through the node (a run-on pair there): a vessel that only ends at the node is another branch, not a wall
       const hosts = others.filter((e) => !isCollateral(e.v) && e.v.kind !== 'shunt' && !IVC_EDGES.has(e.v.id) && e.v.radius >= 0.9 * v.radius && get(e.v).mate[e.end]).flatMap((e) => [e.v.id, get(e.v).mate[e.end]!]);
       if (hosts.length) i.attach[end] = [...new Set(hosts)];
     }
   }
   const out = new Map<string, SmoothEnds>();
-  for (const [id, i] of info) out.set(id, { taper: i.paired ? i.taper : undefined, joined: i.joined, mate: i.mate, attach: i.attach, free: i.free });
+  for (const [id, i] of info) out.set(id, { taper: i.paired ? i.taper : undefined, joined: i.joined, mate: i.mate, attach: i.attach, free: i.free, span: i.span, hostR: i.hostR });
   return out;
 }
 

@@ -4,6 +4,8 @@ import { isFirst, isLast } from './presenter-machine.ts';
 import { SettingsMenu } from '../settings/SettingsMenu.tsx';
 import { barOf } from '../layout/plan.ts';
 import { layoutOf } from '../layout/rules2d.ts';
+import { Icon } from '../shell/icons.tsx';
+import { leaveTalk } from '../shell/talk.ts';
 
 // the 2D app's chev-left / chev-right (its `.ib` rules size and stroke them)
 const Chevron = ({ dir }: { dir: 'l' | 'r' }) => (
@@ -29,16 +31,18 @@ export function PresenterBar({ title }: { title: string }) {
     <>
       {place.title && <span className="dk-bar-title" style={{ left: place.title.x, top: place.title.y, width: place.title.w, height: place.title.h }}>{title}</span>}
       <div className={`dk-bar pz-bar ${stacked ? 'phone' : 'pzb-pill'}`} data-edge={place.edge} role="toolbar" aria-label="Presenter" style={{ left: place.rect.x, top: place.rect.y, width: place.rect.w, height: place.rect.h, right: 'auto', bottom: 'auto' }}>
-        <button type="button" className="ib" aria-label="Previous slide" title="Previous (←)" disabled={first} onClick={() => move('back')}><Chevron dir="l" /></button>
-        {!sideways && (
+        {!sideways && <button type="button" className="ib" aria-label="Previous slide" title="Previous (←)" disabled={first} onClick={() => move('back')}><Chevron dir="l" /></button>}
+        {(
           // 2D presenter-scales.js: the count is a button that opens the slide list (G); a slide with two beats (a case, then its slide) shows them as strokes under the number
           <button type="button" className="pzb-n" aria-label={`Slide ${pos.stop + 1} of ${stops.length}. Open the slide list`} title="Slide list (G)" aria-expanded={jump} onClick={() => useUi.getState().setJump()}>
             <span className="pzb-nt">{pos.stop + 1} / {stops.length}</span>
             <span className="pzb-pips" aria-hidden="true" data-n={beatsAt} data-at={pos.beat}><i /><i /><i /></span>
           </button>
         )}
-        <button type="button" className="ib pzb-next" aria-label="Next slide" title="Next (→)" disabled={end} onClick={() => move('next')}><Chevron dir="r" /></button>
+        {!sideways && <button type="button" className="ib pzb-next" aria-label="Next slide" title="Next (→)" disabled={end} onClick={() => move('next')}><Chevron dir="r" /></button>}
         <SettingsMenu />
+        {/* 2D presenter-scales.js: the pill ends with Exit (a phone: "Exit the presentation", a wide screen: "Stop presenting", Esc) */}
+        <button type="button" className="ib pzb-exit" aria-label={stacked ? 'Exit the presentation' : 'Stop presenting'} title={stacked ? 'Exit' : 'Stop (Esc)'} onClick={() => leaveTalk()}><Icon n="close" /></button>
       </div>
     </>
   );
