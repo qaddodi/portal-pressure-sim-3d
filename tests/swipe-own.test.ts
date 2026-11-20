@@ -25,3 +25,13 @@ test('the sideways recogniser listens on the window for touches (the figure, eit
   assert.match(dock, /axisOf\(g\.id, dx, dy\) !== 'y'/);
   assert.match(card, /isPrimary/, 'a second finger gives the swipe up');
 });
+
+// Eyes on 69eb86d (20 Nov): an up-swipe that began on the WORDS card pushed the instrument card away with the finger and, on release, it came straight back; the same swipe on the figure docked it.
+// Root cause: a card-started touch is also reported to the card recogniser's onEnd on the same pointerup. The dock lands at once when the card was pushed all the way (level already 1), the store
+// re-renders between the two listeners (a microtask), `plan.strip` is then the docked card's edge, and onEnd read the same swipe again as the wallet's swap, which brings a docked card back.
+test('a vertical swipe the dock took is never also the wallet\'s swap', async () => {
+  const { readFileSync } = await import('node:fs');
+  const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
+  const i = layer.indexOf('onEnd: (g, e) => {');
+  assert.ok(i > 0 && layer.slice(i, layer.indexOf('swapWallet()', i)).includes('if (justDocked()) return;'), 'onEnd lets a swipe the dock took go before it can swap the wallet');
+});

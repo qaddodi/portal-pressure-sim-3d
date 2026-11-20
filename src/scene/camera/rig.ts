@@ -185,6 +185,8 @@ export class CameraRig {
   private scaleTo = { w: 0, h: 0 };
   private scaleNow = { w: 0, h: 0 };
   private keepScale = false;
+  /** The room size the distance is fitted to now (debug: pps.rig). */
+  get fitSize(): { w: number; h: number } { return { ...this.scaleNow }; }
   private lateRoom: { from: Room; e0: number } | null = null;
   private width = 1;
   private height = 1;

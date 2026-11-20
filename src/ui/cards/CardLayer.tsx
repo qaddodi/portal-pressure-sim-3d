@@ -175,6 +175,9 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // phones: a vertical swipe on a card swaps the wallet; anywhere: a sideways swipe on a card moves the talk
   const swipe = useCardDrag({
     onEnd: (g, e) => {
+      // a vertical swipe the dock took (useDockSwipe lets go on this same pointerup) is not also the wallet's swap: once the dock has landed and the store has re-rendered (a card pushed fully away
+      // lands at once), `plan.strip` is the docked card's edge, and the swipe that docked it was read a second time as "swap" and brought the card straight back
+      if (justDocked()) return;
       if (plan.strip && isSwapSwipe(g)) { swapWallet(); return; }
       const m = swipeMove(g.dx, g.dy, g.ms);
       if (m) goTo(m);

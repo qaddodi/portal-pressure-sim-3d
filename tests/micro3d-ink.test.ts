@@ -69,6 +69,7 @@ test('a flat lens with a line in its fill has its rings even seen from above, so
 
 test('a flat shape on the plate measures its line against the plate\'s up, so its ring is as thick on every side wherever the eye stands (eyes 20 Nov: the nucleus ring 3 px on one side, 6-7 on the other)', async () => {
   const { MICRO_FS } = await import('../src/scene/micro3d/cel3d.ts');
+  assert.match(MICRO_FS, /shadeT \* \(1\.0 - uRimUp\)/, 'one tone');
   assert.match(MICRO_FS, /uRimUp > 0\.5 \? vec3\(0\.0, 0\.0, 1\.0\) : normalize\(vVD\)/);
   const src = (await import('node:fs')).readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
   for (const name of ['nuclei', 'canaliculi', 'endothelial-cells', 'stellate']) assert.match(src, new RegExp(`mk\\('${name}', \\{[^}]*rimUp: true`), name);
