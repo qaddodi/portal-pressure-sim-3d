@@ -103,3 +103,25 @@ test('cel shaded: every organ is OPAQUE and matte (alpha 1, normal blending, wri
   assert.deepEqual(writes, ['gl_FragColor.a *= vEsoA;'], 'the only alpha the art writes is the two fades');
   s.dispose?.();
 });
+
+test('cel shaded: the crescents read on the real meshes: each organ\'s share of shade and lit from its smooth rest normal (front-facing vertices, printed per organ)', async () => {
+  const { celBand } = await import('../src/scene/cel-style.ts');
+  const { s, organs: ol } = await organs();
+  const l = Math.hypot(...O.LIGHT), N = O.LIGHT.map((v) => v / l) as unknown as [number, number, number];
+  const rows: string[] = [];
+  for (const [id, o] of ol.byId) {
+    const at = o.toonMesh.geometry.getAttribute('celNormal'), pos = o.toonMesh.geometry.getAttribute('position');
+    let n = 0, sh = 0, li = 0;
+    for (let i = 0; i < at.count; i++) {
+      if (at.getZ(i) <= 0.05) continue;   // (the back of the pillow is never seen)
+      n++;
+      const b = celBand(at.getX(i) * N[0] + at.getY(i) * N[1] + at.getZ(i) * N[2], 0, O.SHADE_LAM, O.LIT_LAM);
+      if (b === 0) sh++; else if (b === 2) li++;
+    }
+    rows.push(`${id.padEnd(9)} shade ${(100 * sh / Math.max(1, n)).toFixed(0)}%  lit ${(100 * li / Math.max(1, n)).toFixed(0)}%  (${n} of ${pos.count} vertices face the eye)`);
+    assert.ok(n > 0 && sh / n < 0.7 && li / n < 0.4, `${id}: the crescents do not swallow it (shade ${(sh / n).toFixed(2)}, lit ${(li / n).toFixed(2)})`);
+    if (['liver', 'stomach', 'spleen', 'heart'].includes(id)) assert.ok(sh / n >= 0.12 && li / n >= 0.1, `${id}: both crescents big enough to read (shade ${(sh / n).toFixed(2)}, lit ${(li / n).toFixed(2)})`);
+  }
+  console.log(`crescent shares per organ:\n  ${rows.join('\n  ')}`);
+  s.dispose?.();
+});

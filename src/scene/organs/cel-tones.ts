@@ -43,8 +43,8 @@ export interface CelTones { shade: RGB; base: RGB; lit: RGB; /** a darker, ink-l
 /** The three tones of a base colour: the same hue and saturation, lightness a step down and a step up (CEL_STYLE.ORGAN.TONES). */
 export function tonesOf(base: RGB): CelTones {
   const T = CEL_STYLE.ORGAN.TONES, [h, s, l] = toHsl(base);
-  const shade = fromHsl(h, s, Math.max(0, l - Math.max(l * T.SHADE_L, T.SHADE_MIN)));
-  const lit = fromHsl(h, s, Math.min(1, l + Math.max((1 - l) * T.LIT_L, T.LIT_MIN)));
+  const shade = fromHsl(h, Math.min(1, s * T.SHADE_SAT), Math.max(0, l - Math.max(l * T.SHADE_L, T.SHADE_MIN)));
+  const lit = fromHsl(h, s, Math.min(Math.max(l, T.LIT_MAX), Math.max(l * T.LIT_K, l + T.LIT_MIN)));
   const line = fromHsl(h, s, l * (1 - T.LINE_L));
   return { shade, base, lit, line };
 }

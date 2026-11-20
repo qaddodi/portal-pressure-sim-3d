@@ -13,7 +13,7 @@ import { CEL_ORGANS, TOKEN_OF, celTones, celBase } from '../src/scene/organs/cel
 
 const O = CEL_STYLE.ORGAN;
 /** The least step between two neighbouring tones of one organ, as the sum over the three channels of |difference| in sRGB 0..255 (65 is about 22 a channel). */
-export const ORGAN_MIN_STEP = 65;
+export const ORGAN_MIN_STEP = 80;
 /** The most a lit tone may lift above the base on the same measure (a modest step, not a gloss), and the brightest luma it may reach (2D's lightest base, the light gut, is about .83). */
 const LIT_MAX_STEP = 200, LIT_MAX_LUMA = 0.88;
 const sum = (a: RGB, b: RGB) => 255 * (Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]));
@@ -59,7 +59,7 @@ test('organ against organ: the cel bases are 2D\'s own, so no pair is closer tha
 });
 
 test('the lit tone has no gloss: it never leans on og-light (white), and the cel block has no rim light or sheen', () => {
-  assert.ok(O.TONES.LIT_L <= 0.3, 'lit is a modest step of the organ\'s own hue, never toward og-light');
+  assert.ok(O.TONES.LIT_K <= 1.3 && O.TONES.LIT_MAX <= 0.9, 'lit is a modest step of the organ\'s own hue, never toward og-light');
   const cel = ORGAN_FS.slice(ORGAN_FS.indexOf('// Cel shaded: the wash'), ORGAN_FS.indexOf('float a = mix(layer')).split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
   assert.doesNotMatch(cel, /rim|smoothstep\(0\.62|dot\(side|spec/i, 'the wash\'s rim light and the depth light are replaced, not added to, by the cel tones');
   assert.ok(cel.indexOf('fill = mix(fill, cel, solid);') > 0, 'the cel tones replace the wash\'s fill at solid 1');

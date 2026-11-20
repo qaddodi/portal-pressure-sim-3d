@@ -48,12 +48,12 @@ export const CEL_STYLE = {
   ORGAN: {
     /** Where an organ's tones change, in n.L of its SMOOTH rest normal (a flat face-on organ sits at LIGHT.z / |LIGHT| = 0.6, between the two): the shade is one crescent along the lower right edge where the surface turns away from the light, the lit one crescent
      *  along the upper left where it turns toward it, both following the silhouette; nothing is cut across the middle (no box lean, no baked tuck band: Mohammad, 20 Nov, "blotchy wedges ... a cut"). */
-    SHADE_LAM: 0.1,
-    LIT_LAM: 0.9,
+    SHADE_LAM: 0.42,
+    LIT_LAM: 0.74,
     LIGHT: [-0.5, 0.62, 0.6] as const,
     /** Matte and flat (Mohammad, 20 Nov: "like glass ... not too shiny"; "the colors are wrong"): the cel base is the organ's own 2D tone (og-N-2, organs/cel-tones.ts), the shade and the lit are the SAME hue and saturation one flat lightness step away
-     *  (HSL: the shade's lightness x (1 - SHADE_L) and at least SHADE_MIN less, the lit LIT_L of the way to white and at least LIT_MIN more), never mixed toward white, black or the grey og-light / og-dark. The line tone, for the art's fine lines, is darker still (LINE_L). */
-    TONES: { SHADE_L: 0.3, SHADE_MIN: 0.12, LIT_L: 0.27, LIT_MIN: 0.1, LINE_L: 0.6 },
+     *  (HSL: the shade's lightness x (1 - SHADE_L) and at least SHADE_MIN less, a touch richer; the lit's lightness x LIT_K and at least LIT_MIN more, never past LIT_MAX), never mixed toward white, black or the grey og-light / og-dark. The line tone, for the art's fine lines, is darker still (LINE_L). */
+    TONES: { SHADE_L: 0.27, SHADE_SAT: 1.08, SHADE_MIN: 0.14, LIT_K: 1.3, LIT_MIN: 0.16, LIT_MAX: 0.88, LINE_L: 0.6 },
     /** What varies over the organ's surface (the liver's nodules and septa, the dead spleen, the stomach's pool) is laid at this share of its wash strength: the wash dilutes it by the layer's opacity, the cel does not. */
     PAINT: 0.5,
     /** A vessel behind an organ (the cava: vessel-object.ts setBehindOrgans) is seen under the 2D wash at (1 - layer); cel organs are opaque, so its veil takes this share of that back: veil = 0.4 + 0.6 x VEIL_SEE x (1 - layer). */
