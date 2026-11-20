@@ -14,12 +14,12 @@ import { LIVER_PIVOT, SPLEEN_CENTER, LENS_GREY } from '../disease/copied/anatomy
 import { liverShrink, liverSurface } from '../disease/copied/liver-morph.js';
 import { Eased, LiverFollow } from '../disease/follow.ts';
 import { type BodyTargets, SPLENIC_GHOST, poolFill } from '../disease/targets.ts';
-import { PLAIN, type OrganState, organColour, organInk, mix, rgbOf, type RGB } from './organ-look.ts';
+import { PLAIN, type OrganState, organColour, organInk, mix, rgbOf, setLiverTint, type RGB } from './organ-look.ts';
 import { PAINTED, VertexPaint } from './vertex-paint.ts';
 import { lumenSurface } from '../disease/copied/stomach-lumen.js';
 import { POOL_SHARE } from '../disease/copied/bleed-shapes.js';
 import { LiverShape } from './liver-shape.ts';
-import { bake, SHADE, TONE, TEX_H, TEX_PH, TEX_PW, TEX_W, TEX_X0, TEX_Y0 } from './liver-texture.ts';
+import { bake, celLook, shadeNow, TONE, TEX_H, TEX_PH, TEX_PW, TEX_W, TEX_X0, TEX_Y0 } from './liver-texture.ts';
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import { bakeOrganDepth } from './organ-depth.ts';
 import { OrganArt } from './organ-art.ts';
@@ -180,7 +180,7 @@ export class OrganLayer {
       o.ink.uniforms.px!.value = ORGAN_STYLE[id]!.px;
       this.objects.push(o); this.byId.set(id, o); this.group.add(o.group);
       if (id === 'liver') {
-        (o.toon.uniforms.nodK!.value as Vector2).set(SHADE, TONE);   // (the texture itself is baked the first time the liver is scarred: paint())
+        (o.toon.uniforms.nodK!.value as Vector2).set(shadeNow(), TONE);   // (the texture itself is baked the first time the liver is scarred: paint())
         this.liverGeometry = g;
         this.liverShape = new LiverShape(g.getAttribute('position') as never, g.getAttribute('normal').array);
       }
@@ -253,6 +253,7 @@ export class OrganLayer {
       if (id === 'spleen') s.ghost = this.ghost.value;
       const st = ORGAN_STYLE[id]!, og = p.organs.tones[st.og];
       const t1 = rgbOf(og[0]), t2 = rgbOf(og[1]), base = mix(t1, t2, 0.5);
+      if (id === 'liver') { const cel = celLook(); setLiverTint(cel ? { rgb: rgbOf(cel.colour), a: cel.a } : null); }
       const c = organColour(base, s, k);
       this.setColours(id, o, organColour(t1, s, k), organColour(t2, s, k), c, organInk(rgbOf(og[2]), s, k), st.inkA, organLayerAlpha(p, id), page, p.organs, s.dim * s.ghost);
       this.art.setState(id, s, k, p);
@@ -268,7 +269,9 @@ export class OrganLayer {
           o.toon.uniforms.nodTex!.value = tex;
         }
         // the septum is per pixel: the vertices carry the nodule colour only, the shader adds the wall (sepDelta) and the dome's light and tone (nodAmt)
-        const wall = organColour(base, { ...s, septum: 1 }, k);
+        let wall = organColour(base, { ...s, septum: 1 }, k);
+        const cel = celLook();
+        if (cel) wall = mix(c, rgbOf(og[2]), 0.8 * s.cirrhosisNod * cel.ink);   // the cel's line is the organ's own ink tone, bold
         (o.toon.uniforms.sepDelta!.value as Vector3).set(wall[0] - c[0], wall[1] - c[1], wall[2] - c[2]);
         o.toon.uniforms.nodAmt!.value = s.cirrhosisNod;
       }
