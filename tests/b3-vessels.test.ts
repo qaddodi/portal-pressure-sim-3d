@@ -17,7 +17,7 @@ import { HIDDEN_EDGES } from '../src/scene/vessels/paths.copied.ts';
 const nodeIds = new Set((NODES as { id: string }[]).map((n) => n.id));
 const edge = new Map((EDGES as { id: string; kind: string; from: string; to: string }[]).map((e) => [e.id, e]));
 
-import { withStartInOrgan } from '../src/scene/vessels/starts.ts';
+import { ALONG_VEIN_IDS, withStartInOrgan } from '../src/scene/vessels/starts.ts';
 
 test('every vessel the 2D figure draws is a vessel here, named by its engine edge id', () => {
   const have = new Set(NETWORK.map((v) => v.id));
@@ -120,6 +120,7 @@ test('the vessel vertex shader parses; there is no hull attribute and the outlin
 test('every vessel is its 2D course through the one linear map: back through it, each point is the 2D point', () => {
   for (const v of NETWORK) {
     if (v.feeder) continue;   // (a fan of tributaries: its own test, below)
+    if (ALONG_VEIN_IDS.has(v.id)) continue;   // (the hepatic arteries run beside their portal branches: starts.ts alongVein)
     const c = withStartInOrgan(v.id, EDGE_PATH_2D[v.id]!);   // (the splenic vein is carried on into the spleen: starts.ts)
     assert.equal(v.pts.length, c.length, v.id);
     // (the 2D figure redraws the last 11 samples either side of a run-on as one smooth cubic through the join: joins.ts)

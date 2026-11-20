@@ -122,6 +122,7 @@ function SceneBridge() {
       fitRect: () => cel.rig.fitRect(),
       // (the sinusoid and the lobule keep their subject framed, and Anatomy never rests zoomed out past its fit (owner, 20 Nov: "spring back zoom to fit when i try to zoom out"): a pinch out stretches a little and springs back on release)
       kMin: () => (cel.view === 'sinusoid' || cel.view === 'lobule' || cel.view === 'body' ? 1 : K_MIN),
+      recentre: () => cel.view === 'sinusoid',
       orbit: () => cel.rig.orbitAngle,
       setOrbit: (rad) => { const changed = cel.rig.setOrbit(rad); if (changed) clock.invalidate('orbit'); return changed; },
       free: () => cel.rig.free,
