@@ -12,25 +12,28 @@ import { rgbOf, type RGB } from '../src/scene/organs/organ-look.ts';
 import { CEL_ORGANS, TOKEN_OF, celTones, celBase } from '../src/scene/organs/cel-tones.ts';
 
 const O = CEL_STYLE.ORGAN;
-/** The least step between two neighbouring tones of one organ, as the sum over the three channels of |difference| in sRGB 0..255 (65 is about 22 a channel). */
-export const ORGAN_MIN_STEP = 80;
+/** The least step between two neighbouring tones of one organ, as the sum over the three channels of |difference| in sRGB 0..255 (40 is about 13 a channel: gentle, the vessels lead, but a step you can see). */
+export const ORGAN_MIN_STEP = 38;
 /** The most a lit tone may lift above the base on the same measure (a modest step, not a gloss), and the brightest luma it may reach (2D's lightest base, the light gut, is about .83). */
-const LIT_MAX_STEP = 200, LIT_MAX_LUMA = 0.88;
+const LIT_MAX_STEP = 120, LIT_MAX_LUMA = 0.88;
 const sum = (a: RGB, b: RGB) => 255 * (Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]));
 const lum = (c: RGB) => c[0] * LUMA[0]! + c[1] * LUMA[1]! + c[2] * LUMA[2]!;
 const hue = (c: RGB): number => { const [r, g, b] = c, mx = Math.max(r, g, b), d = mx - Math.min(r, g, b); if (d < 1e-9) return 0; const h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return h * 60; };
 
-test('the cel base of every organ in every look is its own 2D tone (og-N-2), and shade and lit are the same hue, flat steps either side', () => {
+test('the cel base of every organ in every look is its own 2D tone (og-N-2) softened: the same hue, a little less chroma, lifted only where it is dark; shade and lit are the same hue, gentle flat steps either side', () => {
   for (const id of LOOK_IDS) for (const organ of CEL_ORGANS) {
     const og = ORGAN_TONES_2D[id].tones[TOKEN_OF[organ]];
     const t = celTones(id, organ), b2d = rgbOf(og[1]);
-    assert.ok(sum(t.base, b2d) < 1e-6, `${id} ${organ}: the base is 2D's ${og[1]}`);
+    const chroma = (c: RGB) => Math.max(...c) - Math.min(...c);
+    const sat = (c: RGB) => { const d = Math.max(...c) - Math.min(...c), l = (Math.max(...c) + Math.min(...c)) / 2; return d < 1e-9 ? 0 : d / (1 - Math.abs(2 * l - 1)); };
+    assert.ok(sat(t.base) <= sat(b2d) * 0.9 + 1e-9, `${id} ${organ}: less saturated than 2D's ${og[1]}`);
+    assert.ok(lum(t.base) >= lum(b2d) - 1e-9 && lum(t.base) - lum(b2d) < 0.12, `${id} ${organ}: not darker than 2D, lifted by under .12 (${(lum(t.base) - lum(b2d)).toFixed(3)})`);
     // the same hue (a brown-red stays brown-red: not grey-mauve), within a few degrees; a near-grey tone has no hue to keep
-    const sat = Math.max(...t.base) - Math.min(...t.base);
-    if (sat > 0.1) for (const [name, c] of [['shade', t.shade], ['lit', t.lit]] as const) {
-      const d = Math.abs(((hue(c) - hue(t.base) + 540) % 360) - 180);
-      assert.ok(d < 4, `${id} ${organ}: ${name} keeps the hue (${d.toFixed(1)} degrees off)`);
+    if (chroma(b2d) > 0.1) for (const [name, c] of [['base', t.base], ['shade', t.shade], ['lit', t.lit], ['ink', t.ink]] as const) {
+      const d = Math.abs(((hue(c) - hue(b2d) + 540) % 360) - 180);
+      assert.ok(d < 5, `${id} ${organ}: ${name} keeps 2D's hue (${d.toFixed(1)} degrees off)`);
     }
+    assert.ok(lum(t.ink) < lum(t.shade) * 0.85 && lum(t.ink) > 0.04, `${id} ${organ}: the ink is a soft dark of the organ's own colour, not black`);
   }
 });
 
@@ -41,17 +44,17 @@ test('every organ in every look: shade, base and lit are visibly apart, and lit 
     assert.ok(a >= ORGAN_MIN_STEP, `${id} ${organ}: the shade is ${a.toFixed(0)} from the base (least ${ORGAN_MIN_STEP})`);
     assert.ok(b >= ORGAN_MIN_STEP && b <= LIT_MAX_STEP, `${id} ${organ}: the lit is ${b.toFixed(0)} from the base (${ORGAN_MIN_STEP}..${LIT_MAX_STEP})`);
     assert.ok(lum(lit) > lum(base) && lum(shade) < lum(base), `${id} ${organ}: lit lighter, shade darker`);
-    assert.ok(c > Math.max(a, b), `${id} ${organ}: the outer tones are furthest apart`);
+    assert.ok(c >= Math.max(a, b), `${id} ${organ}: the outer tones are furthest apart`);
     assert.ok(lum(lit) <= LIT_MAX_LUMA, `${id} ${organ}: lit is not near white (luma ${lum(lit).toFixed(2)})`);
   }
 });
 
-test('organ against organ: the cel bases are 2D\'s own, so no pair is closer than 2D makes it (the close ones are printed, not changed)', () => {
+test('organ against organ: the cel bases are 2D\'s softened, so no pair is much closer than 2D makes it (the close ones are printed, not changed)', () => {
   const close: string[] = [];
   for (const id of LOOK_IDS) for (let i = 0; i < CEL_ORGANS.length; i++) for (let j = i + 1; j < CEL_ORGANS.length; j++) {
     const A = CEL_ORGANS[i]!, B = CEL_ORGANS[j]!;
     const d = sum(celBase(id, A), celBase(id, B)), d2d = sum(rgbOf(ORGAN_TONES_2D[id].tones[TOKEN_OF[A]][1]), rgbOf(ORGAN_TONES_2D[id].tones[TOKEN_OF[B]][1]));
-    assert.ok(Math.abs(d - d2d) < 1e-6, `${id} ${A}/${B}: as 2D`);
+    assert.ok(d >= d2d * 0.5 - 1, `${id} ${A}/${B}: not much closer than 2D makes them (${d.toFixed(0)} against ${d2d.toFixed(0)})`);
     if (d < 45) close.push(`${id}: ${A} / ${B} ${d.toFixed(0)}`);
   }
   console.log(`pairs 2D itself makes close (sum of channel differences < 45; bowel and colon are one 2D tone, \`gut\`):\n  ${close.join('\n  ')}`);
@@ -77,7 +80,7 @@ test('the gut\'s art (the small bowel\'s loops, the colon\'s haustra) wears the 
 });
 
 test('the cel organ line is bold: wide, and the look\'s casing ink, opaque', () => {
-  assert.ok(O.LINE_PX >= 3 && O.LINE_MIN_CSS >= 2.5 && O.LINE_ALPHA === 1, 'bold, at least 2.5 CSS px, fully opaque');
+  assert.ok(O.LINE_PX >= 3 && O.LINE_MIN_CSS >= 2 && O.LINE_MIN_CSS <= 2.5 && O.LINE_ALPHA === 1, 'about 2 to 2.5 CSS px, fully opaque, the same on every organ');
   assert.match(ORGAN_INK_VS, /px \/ max\(wpc/, 'the width is in figure units');
 });
 
@@ -85,7 +88,7 @@ test('the gut\'s cel art is calm: the bowel is a few broad loops by rule, the co
   const { smoothRestNormals } = await import('../src/scene/organs/cel-normal.ts');
   const { haustraOf, BOWEL_LOOPS } = await import('../src/scene/organs/organ-art-paint.ts');
   const { readFileSync } = await import('node:fs');
-  assert.ok(BOWEL_LOOPS >= 6 && BOWEL_LOOPS <= 9, 'six to nine broad loops');
+  assert.ok(BOWEL_LOOPS >= 3 && BOWEL_LOOPS <= 4, 'three or four broad loops');
   const d = JSON.parse(readFileSync(new URL('../public/anatomy/organ-art.json', import.meta.url), 'utf8')) as { arts: Record<string, never> };
   const classes = new Set<string>();
   const walk = (n: { kids?: unknown[]; c?: string }): void => { if (n.kids) n.kids.forEach((k) => walk(k as never)); else classes.add(n.c!); };

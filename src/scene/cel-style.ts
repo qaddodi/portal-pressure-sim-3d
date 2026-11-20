@@ -51,16 +51,17 @@ export const CEL_STYLE = {
     SHADE_LAM: 0.42,
     LIT_LAM: 0.74,
     LIGHT: [-0.5, 0.62, 0.6] as const,
-    /** Matte and flat (Mohammad, 20 Nov: "like glass ... not too shiny"; "the colors are wrong"): the cel base is the organ's own 2D tone (og-N-2, organs/cel-tones.ts), the shade and the lit are the SAME hue and saturation one flat lightness step away
-     *  (HSL: the shade's lightness x (1 - SHADE_L) and at least SHADE_MIN less, a touch richer; the lit's lightness x LIT_K and at least LIT_MIN more, never past LIT_MAX), never mixed toward white, black or the grey og-light / og-dark. The line tone, for the art's fine lines, is darker still (LINE_L). */
-    TONES: { SHADE_L: 0.27, SHADE_SAT: 1.08, SHADE_MIN: 0.14, LIT_K: 1.3, LIT_MIN: 0.16, LIT_MAX: 0.88, LINE_L: 0.6 },
+    /** Matte, flat and gentle (Mohammad, 20 Nov: "tone it down and fade a bit", so the vessels lead): the cel base is the organ's own 2D tone (og-N-2, organs/cel-tones.ts) with its saturation x BASE_SAT and, where it is darker than LIFT_FLOOR (the dark looks), lifted LIFT of the way to it;
+     *  the shade and the lit are the SAME hue one gentle lightness step away (HSL: the shade's lightness x (1 - SHADE_L) and at least SHADE_MIN less; the lit's x LIT_K and at least LIT_MIN more, never past LIT_MAX), never mixed toward white, black or the grey og-light / og-dark.
+     *  The art's fine lines are the shade tone LINE_L darker, the organ's outline the shade tone INK_L darker (a soft dark of the organ's own colour, not black). */
+    TONES: { BASE_SAT: 0.88, LIFT_FLOOR: 0.5, LIFT: 0.5, SHADE_L: 0.1, SHADE_MIN: 0.065, SHADE_SAT: 1.0, LIT_K: 1.1, LIT_MIN: 0.065, LIT_MAX: 0.88, LINE_L: 0.2, INK_L: 0.4 },
     /** What varies over the organ's surface (the liver's nodules and septa, the dead spleen, the stomach's pool) is laid at this share of its wash strength: the wash dilutes it by the layer's opacity, the cel does not. */
     PAINT: 0.5,
     /** A vessel behind an organ (the cava: vessel-object.ts setBehindOrgans) is seen under the 2D wash at (1 - layer); cel organs are opaque, so its veil takes this share of that back: veil = 0.4 + 0.6 x VEIL_SEE x (1 - layer). */
     VEIL_SEE: 1.0,
-    /** The cel organ's line, the same on every organ (the kidney too): the look's casing ink, fully opaque, LINE_PX figure units wide (it grows with the zoom, thicker on a Mac) and never under LINE_MIN_CSS CSS px (the part outside the organ's own edge: 3 px on a phone). */
-    LINE_PX: 4.0,
-    LINE_MIN_CSS: 3.0,
+    /** The cel organ's line, the same on every organ (the kidney too): the organ's own ink tone (cel-tones.ts: its shade, INK_L darker), fully opaque, LINE_PX figure units wide (it grows with the zoom, thicker on a Mac) and never under LINE_MIN_CSS CSS px (the part outside the organ's own edge). */
+    LINE_PX: 3.0,
+    LINE_MIN_CSS: 2.2,
     LINE_ALPHA: 1.0,
   },
 } as const;

@@ -192,10 +192,10 @@ export class OrganLayer {
   private setPainter(on: boolean): void {
     this.painterOn = on;
     for (const [id, o] of this.byId) {
-      if (ORGAN_STYLE[id]!.layer === 'gut') continue;
       const i = Math.max(0, ORGAN_ORDER.indexOf(id));
-      o.toon.depthFunc = on ? AlwaysDepth : LessEqualDepth;
-      o.ink.depthFunc = on ? AlwaysDepth : LessEqualDepth;
+      // (the gut keeps its depth test, so it stays cut away behind the others; its outline is laid first and writes no depth, so its fill covers it everywhere and only the silhouette of the whole gut shows: the hull of a loop that
+      //  overlaps another would otherwise be inked across the loops below it, a black net)
+      if (ORGAN_STYLE[id]!.layer !== 'gut') { o.toon.depthFunc = on ? AlwaysDepth : LessEqualDepth; o.ink.depthFunc = on ? AlwaysDepth : LessEqualDepth; }
       o.ink.depthWrite = !on;
       o.toonMesh.renderOrder = on ? 2 * i + 1 : 2 * i;
       for (const c of o.group.children) if (c !== o.toonMesh) c.renderOrder = c.name === 'org-ao' ? 2 * i + 0.5 : on ? 2 * i : 2 * i + 1;
@@ -272,9 +272,9 @@ export class OrganLayer {
       const st = ORGAN_STYLE[id]!, og = p.organs.tones[st.og];
       const t1 = rgbOf(og[0]), t2 = rgbOf(og[1]), base = mix(t1, t2, 0.5);
       const c = organColour(base, s, k);
-      this.setColours(id, o, organColour(t1, s, k), organColour(t2, s, k), c, organInk(rgbOf(og[2]), s, k), st.inkA, organLayerAlpha(p, id), page, p.organs, s.dim * s.ghost, organInk(rgbOf(p.ink), s, k));
-      // the cel tones: the organ's own 2D tone and a lightness step either side, through the same state (lens grey, dim, ghost, dusk, quiet) as its colour
+      // the cel tones: the organ's own 2D tone (softened) and a gentle lightness step either side, through the same state (lens grey, dim, ghost, dusk, quiet) as its colour; its outline is its own ink tone
       const ct = celTones(lookOfOrgans(p.organs), CEL_OF[id]!), cu = o.toon.uniforms;
+      this.setColours(id, o, organColour(t1, s, k), organColour(t2, s, k), c, organInk(rgbOf(og[2]), s, k), st.inkA, organLayerAlpha(p, id), page, p.organs, s.dim * s.ghost, organInk(ct.ink, s, k));
       (cu.celShade!.value as Color).setRGB(...organColour(ct.shade, s, k)); (cu.celBase!.value as Color).setRGB(...organColour(ct.base, s, k)); (cu.celLit!.value as Color).setRGB(...organColour(ct.lit, s, k));
       this.art.setState(id, s, k, p);
       this.inkWidth(id, o);
@@ -295,7 +295,7 @@ export class OrganLayer {
   }
 
   /** The painter's uniforms: the two gradient stops, the organ's one colour (what the vertex paint is measured from), the page, the layer, and the outline:
-   *  the wash's is the organ's own third tone at its alpha under the layer, pre-mixed against the page (2D: .62 × .55, so about a third); the cel's is the look's casing ink, bold. */
+   *  the wash's is the organ's own third tone at its alpha under the layer, pre-mixed against the page (2D: .62 × .55, so about a third); the cel's is the organ's own ink tone, bold. */
   private setColours(id: string, o: CelObject, t1: RGB, t2: RGB, c: RGB, o3: RGB, inkA: number, layer: number, page: RGB, og: OrganTones2D, shown: number, casing: RGB): void {
     const u = o.toon.uniforms;
     (u.o1!.value as Color).setRGB(t1[0], t1[1], t1[2]); (u.o2!.value as Color).setRGB(t2[0], t2[1], t2[2]); (u.o3!.value as Color).setRGB(o3[0], o3[1], o3[2]);
@@ -308,7 +308,7 @@ export class OrganLayer {
     (u.volGeo!.value as Vector4).set(v.cx, v.cy, v.r, v.lightEnd); u.volShadeAt!.value = v.shadeStart;
     (u.shadeSteps!.value as Vector3).set(...(st.atrium ? [og.raShade, og.raShade, og.raShade] : og.shade) as [number, number, number]);
     u.rimK!.value = st.noRim ? 0 : st.atrium ? og.raRim : og.rim;   // (no rim light on the liver and the stomach: too shiny; the cel fill has its own tones)
-    // cel shaded (solid): the organ's line is the look's casing ink (the vessels' line), fully opaque and the same on every organ (not thinned by the layer's opacity), so the silhouette and the edge where one organ passes over another read as bold ink;
+    // cel shaded (solid): the organ's line is its own ink tone (a soft dark of its colour), fully opaque and the same on every organ (not thinned by the layer's opacity), so the silhouette and the edge where one organ passes over another read as bold ink;
     // the wash keeps 2D's thin line in the organ's own third tone. The two ease with the fill.
     const k = this.uSolid.value, washInk = mix(page, o3, inkA * layer);
     const cel = mix(page, casing, CEL_STYLE.ORGAN.LINE_ALPHA);

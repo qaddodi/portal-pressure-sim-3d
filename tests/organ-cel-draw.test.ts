@@ -44,7 +44,7 @@ test('the cel organs are painted in 2D\'s order, outline first and fill over it,
   for (const [id, o] of ol.byId) {
     const i = ORGAN_ORDER.indexOf(id);
     const hull = o.group.children.find((c) => c !== o.toonMesh)!;
-    if (ORGAN_STYLE[id]!.layer === 'gut') { assert.equal(o.toon.depthFunc, 3, `${id}: the gut keeps its depth test`); assert.ok(hull.renderOrder > o.toonMesh.renderOrder); continue; }
+    if (ORGAN_STYLE[id]!.layer === 'gut') { assert.equal(o.toon.depthFunc, 3, `${id}: the gut keeps its depth test`); assert.equal(o.ink.depthWrite, false, `${id}: its outline writes no depth`); assert.ok(hull.renderOrder < o.toonMesh.renderOrder, `${id}: its outline first, its fill over it: only the whole gut's silhouette shows, no ink across the loops`); continue; }
     assert.equal(o.toon.depthFunc, 1, `${id}: no depth test (AlwaysDepth)`);
     assert.equal(o.ink.depthWrite, false);
     assert.equal(hull.renderOrder, 2 * i); assert.equal(o.toonMesh.renderOrder, 2 * i + 1, `${id}: the outline, then the fill over it`);

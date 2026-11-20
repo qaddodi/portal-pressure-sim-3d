@@ -1,5 +1,5 @@
-// The cel shaded organs' colours (Mohammad, 20 Nov 2026: "the colors are wrong"): the base of each organ is its own 2D tone, og-N-2 of the look (Dark's liver is 2D's brown-red), flat; the shade and the lit are the same hue and saturation,
-// one flat lightness step darker and lighter (CEL_STYLE.ORGAN.TONES), never mixed toward white, black or the grey og-light / og-dark, so a dark look's liver stays brown-red in all three tones and nothing glosses.
+// The cel shaded organs' colours (Mohammad, 20 Nov 2026: "the colors are wrong", then "tone it down and fade a bit"): the base of each organ is its own 2D tone, og-N-2 of the look (Dark's liver is 2D's brown-red), a little softer and, in the dark looks, lifted; the shade and the lit are the same hue,
+// one gentle flat lightness step darker and lighter (CEL_STYLE.ORGAN.TONES), never mixed toward white, black or the grey og-light / og-dark, so a dark look's liver stays brown-red in all three tones and nothing glosses.
 // Pure arithmetic on sRGB (0..1), so the tests run it without three.js. The see-through wash does not read this file.
 import { CEL_STYLE } from '../cel-style.ts';
 import type { LookId } from '../palette.ts';
@@ -38,18 +38,24 @@ function turn(h: number, target: number, max: number): number {
   return (h + Math.max(-max, Math.min(max, d)) + 360) % 360;
 }
 
-export interface CelTones { shade: RGB; base: RGB; lit: RGB; /** a darker, ink-like tone for the art's fine lines */ line: RGB }
+export interface CelTones { shade: RGB; base: RGB; lit: RGB; /** the shade a little darker: the art's fine lines */ line: RGB; /** the shade darker (INK_L): the organ's outline */ ink: RGB }
 
-/** The three tones of a base colour: the same hue and saturation, lightness a step down and a step up (CEL_STYLE.ORGAN.TONES). */
+/** An organ's cel base: its 2D tone with its saturation eased and, where it is dark (the dark looks), lifted toward a softer value: the same hue, so Dark's liver stays brown-red. */
+export function softBase(c: RGB): RGB {
+  const T = CEL_STYLE.ORGAN.TONES, [h, s, l] = toHsl(c);
+  return fromHsl(h, s * T.BASE_SAT, l + Math.max(0, T.LIFT_FLOOR - l) * T.LIFT);
+}
+
+/** The three tones of a base colour: the same hue and saturation, lightness a gentle step down and up (CEL_STYLE.ORGAN.TONES), and the line and ink tones from the shade. */
 export function tonesOf(base: RGB): CelTones {
   const T = CEL_STYLE.ORGAN.TONES, [h, s, l] = toHsl(base);
   const shade = fromHsl(h, Math.min(1, s * T.SHADE_SAT), Math.max(0, l - Math.max(l * T.SHADE_L, T.SHADE_MIN)));
   const lit = fromHsl(h, s, Math.min(Math.max(l, T.LIT_MAX), Math.max(l * T.LIT_K, l + T.LIT_MIN)));
-  const line = fromHsl(h, s, l * (1 - T.LINE_L));
-  return { shade, base, lit, line };
+  const [, ss, sl] = toHsl(shade);
+  return { shade, base, lit, line: fromHsl(h, ss, sl * (1 - T.LINE_L)), ink: fromHsl(h, ss, sl * (1 - T.INK_L)) };
 }
 
-/** The base colour of an organ in a look: its 2D tone og-N-2, exactly. */
-export const celBase = (look: LookId, organ: CelOrgan): RGB => rgbOf(ORGAN_TONES_2D[look].tones[TOKEN_OF[organ]][1]);
+/** The base colour of an organ in a look: its 2D tone og-N-2, softened (softBase). */
+export const celBase = (look: LookId, organ: CelOrgan): RGB => softBase(rgbOf(ORGAN_TONES_2D[look].tones[TOKEN_OF[organ]][1]));
 /** The shade, base and lit tones of an organ in a look. */
 export const celTones = (look: LookId, organ: CelOrgan): CelTones => tonesOf(celBase(look, organ));
