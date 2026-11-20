@@ -218,3 +218,10 @@ sinusoids after the layers were laid along the unbent courses (a shift of about 
 shared); the base sizes (`RS0`, `DUCT_R`, ...) to `sizes.ts` so geometry.ts can import widths without a cycle. `public/lobule/welds.bin` is baked at build time and is not committed.
 Inner lymph lines of a fork now cross and end at the crossing (`firstCrossing` in lymph.ts), so no end is left free at a crotch. A bile lane starts clear of every vessel but its own chain and parts from an earlier lane
 before it begins (bile.ts). Test: `tests/lobule-drawn-source.test.ts`.
+
+### The lymph follows a swelling sinusoid (congested presets)
+
+A sinusoid widens in congestion in the vertex shader (cel3d SWELL: each vertex out by its radius x (whole + share x its place's share)). The lymph tube is baked at the resting width and used to stay put, so a
+swollen sinusoid grew over it. The lymph part now has `hug` (cel3d HUG): per vertex the plan direction out from its sinusoid's axis, the wall radius there and the place's `congShare`, and a uniform `uHug` fed the same
+`sinSwell` the sinusoids get (`setHug` in lobule3d's step). The vertex moves out by the wall's own growth, so the gap between tube and wall stays what it is at rest. The stretch that does not stand against its
+sinusoid (the reach to the terminal lymphatic) carries a zero wall and does not move.

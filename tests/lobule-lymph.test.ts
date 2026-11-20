@@ -228,3 +228,20 @@ test('drawn: the tubes are thin and whole, and thin out to nothing toward the ce
   assert.ok(nearCv <= DUCT_R * R * 0.05, `${nearCv} at the vein`);
   assert.ok(Math.abs(midMax - DUCT_R * R) < 1e-9, 'whole in the middle');
 });
+
+test('drawn: in congestion the lymph moves out with its sinusoid\'s wall (HUG): each vertex carries its sinusoid\'s outward direction, wall radius and share of the widening, so it moves by exactly the wall\'s own growth', () => {
+  const hug = part.geometry.getAttribute('hug') as BufferAttribute;
+  assert.ok(hug, 'the part has a hug attribute'); assert.equal(hug.count, pos.length / 3);
+  assert.equal((part.mats.toon.uniforms.uHug!.value as { x: number }).x, 0, 'a uniform for the sinusoid\'s swelling');
+  let n = 0, hugging = 0;
+  for (let v = 0; v < hug.count; v++) {
+    const nx = hug.getX(v), ny = hug.getY(v), wall = hug.getZ(v), share = hug.getW(v);
+    assert.ok(Math.abs(Math.hypot(nx, ny) - 1) < 1e-5, 'a unit direction');
+    assert.ok(share >= 0 && share <= 1);
+    n++; if (wall > 0) { hugging++; assert.ok(wall > 0.01 && wall < 0.1, `a wall radius in scene units: ${wall}`); }
+  }
+  assert.ok(hugging / n > 0.8, `${hugging} of ${n} vertices hug`);
+  // the displacement of a vertex in a swollen sinusoid is wall x (whole + share x place), the sinusoid\'s own vertex displacement (cel3d SWELL), so the gap between tube and wall is the same as at rest
+  const whole = 0.4, sh = 0.3, v = Math.floor(hug.count / 2), grow = hug.getZ(v) * (whole + sh * hug.getW(v));
+  assert.ok(Math.abs(grow - hug.getZ(v) * whole - hug.getZ(v) * sh * hug.getW(v)) < 1e-12);
+});

@@ -40,6 +40,11 @@ uniform float inflate;
 attribute vec2 swell;
 uniform vec2 uSwell;
 #endif
+#ifdef HUG
+// (a part that hugs a swelling vessel moves with that vessel's wall: hug = (the unit direction, in the plan, from its vessel's axis to the part, the vessel's wall radius there, the vessel's share of the swelling), uHug = (the vessel's whole widening, its share's): the part moves out by the wall's own growth, so the lymph stays on the sinusoid's wall in congestion)
+attribute vec4 hug;
+uniform vec2 uHug;
+#endif
 varying vec3 vN;
 varying vec3 vVD;
 varying vec3 vC;
@@ -79,6 +84,9 @@ void main() {
   vec3 s2 = vec3(dot(im[0], im[0]), dot(im[1], im[1]), dot(im[2], im[2]));
   n = im * (n / max(s2, vec3(1e-12)));
   p = (instanceMatrix * vec4(p, 1.0)).xyz;
+#endif
+#ifdef HUG
+  p.xy += hug.xy * hug.z * (uHug.x + uHug.y * hug.w);
 #endif
   vC = vec3(1.0);
 #ifdef USE_COLOR
@@ -416,6 +424,11 @@ uniform float inflate;
 attribute vec2 swell;
 uniform vec2 uSwell;
 #endif
+#ifdef HUG
+// (a part that hugs a swelling vessel moves with that vessel's wall: hug = (the unit direction, in the plan, from its vessel's axis to the part, the vessel's wall radius there, the vessel's share of the swelling), uHug = (the vessel's whole widening, its share's): the part moves out by the wall's own growth, so the lymph stays on the sinusoid's wall in congestion)
+attribute vec4 hug;
+uniform vec2 uHug;
+#endif
 varying float vHy;
 varying vec2 vXY;
 varying vec3 vOwnC;
@@ -434,6 +447,9 @@ void main() {
   vec3 s2 = vec3(dot(im[0], im[0]), dot(im[1], im[1]), dot(im[2], im[2]));
   n = im * (n / max(s2, vec3(1e-12)));
   p = (instanceMatrix * vec4(p, 1.0)).xyz;
+#endif
+#ifdef HUG
+  p.xy += hug.xy * hug.z * (uHug.x + uHug.y * hug.w);
 #endif
   float infl = inflate;
 #ifdef SWELL
@@ -513,6 +529,8 @@ export interface MicroOptions {
   rimK?: { value: number };
   /** A per-vertex swelling (the geometry carries `swell`, see MICRO_VS), set with setSwell. */
   swell?: boolean;
+  /** The part moves with its vessel's wall as the vessel swells (the geometry carries `hug`, see MICRO_VS), set with setHug. */
+  hug?: boolean;
   /** The Anatomy's dust on a flowing tube (the geometry carries `fcourse`): the route table of its network and the dust's shared numbers (blood/dust.ts). */
   dust?: { routeTex: { value: Texture }; dustP: { value: Float32Array } };
 }
@@ -533,9 +551,9 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
   const haze = o.haze ?? hazeUniforms();
   const toon = new ShaderMaterial({
     vertexShader: MICRO_VS, fragmentShader: MICRO_FS, vertexColors: !!o.vertexColors,
-    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps && !o.holes ? { GAPS: '' } : {}), ...(o.gaps && o.holes ? { HOLES: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.dust && (o.flow || o.streaks) ? { DUST: '' } : {}) },
+    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps && !o.holes ? { GAPS: '' } : {}), ...(o.gaps && o.holes ? { HOLES: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.hug ? { HUG: '' } : {}), ...(o.dust && (o.flow || o.streaks) ? { DUST: '' } : {}) },
     uniforms: {
-      tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, uSwell: { value: new Vector2(0, 0) }, fade,
+      tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, uSwell: { value: new Vector2(0, 0) }, uHug: { value: new Vector2(0, 0) }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
       uHole: { value: 0 }, uRim: { value: o.rim ?? 0 }, uRimUp: { value: o.rimUp ? 1 : 0 }, uRimK: o.rimK ?? { value: 1 }, uMicroDpr: MICRO_DPR, uRimCol: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, uWash: { value: new Vector4(0, 0, 0, 0) }, uWashCol: { value: new Color(1, 0.7, 0.2) }, uWashR: { value: 0 },
       uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakDir: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
@@ -550,8 +568,8 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   const ink = o.ink === null ? null : new ShaderMaterial({
-    vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors, defines: o.swell ? { SWELL: '' } : {},
-    uniforms: { uSwell: toon.uniforms.uSwell!, color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: Math.max(MIN_LINE, o.px ?? CEL_STYLE.MICRO.LINE) }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
+    vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors, defines: { ...(o.swell ? { SWELL: '' } : {}), ...(o.hug ? { HUG: '' } : {}) },
+    uniforms: { uSwell: toon.uniforms.uSwell!, uHug: toon.uniforms.uHug!, color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: Math.max(MIN_LINE, o.px ?? CEL_STYLE.MICRO.LINE) }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
     side: DoubleSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   return { toon, ink };
@@ -579,6 +597,8 @@ export class MicroPart {
   setHole(r: number): void { this.mats.toon.uniforms.uHole!.value = r; }
   /** The swelling now (SWELL parts): each vertex moves out by its radius times (whole + share x its own share). */
   setSwell(whole: number, share: number): void { (this.mats.toon.uniforms.uSwell!.value as Vector2).set(whole, share); }
+  /** The vessel's swelling the part hugs now (HUG parts): its whole widening and its share's, as the vessel's own setSwell has them. */
+  setHug(whole: number, share: number): void { (this.mats.toon.uniforms.uHug!.value as Vector2).set(whole, share); }
   setOpacity(a: number): void { this.mats.toon.uniforms.opacity!.value = a; this.group.visible = a > 0.002; }
   /** A streaked part's flow (µm run), the stream's half width (µm), the streaks' tone and strength and whether the lanes have the blood's profile. */
   setStreaks(flow: number, half: number, rgb: RGB, strength: number, profile: number): void {
