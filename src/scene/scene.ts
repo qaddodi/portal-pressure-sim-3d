@@ -816,6 +816,7 @@ export class CelScene {
     this.stepSinusDive();
     this.stepCutaway();
     this.stepPortrait();
+    this.sinus3d.pinTraffic(this.micro3d);
     const lobMoving = this.lobule.update(now), sinMoving = this.sinus.update(now);
     const lob3 = this.lobule3d.update(this.micro3d), sin3 = this.sinus3d.update(this.micro3d);
     const viewMoving = lob3 || sin3 || lobMoving || sinMoving;

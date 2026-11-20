@@ -21,6 +21,11 @@ export const MICRO_VS = /* glsl */ `
 uniform float inflate;
 varying vec3 vN;
 varying vec3 vC;
+#ifdef STREAKS
+attribute float aux;
+varying vec3 vP;
+varying float vAux;
+#endif
 void main() {
   vec3 p = position;
   vec3 n = normal;
@@ -38,6 +43,9 @@ void main() {
   vC *= instanceColor;
 #endif
   vN = normalize(normalMatrix * n);
+#ifdef STREAKS
+  vP = p; vAux = aux;
+#endif
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p + normal * inflate, 1.0);
 }`;
 
@@ -47,6 +55,31 @@ uniform vec3 tint;
 uniform float opacity;
 varying vec3 vN;
 varying vec3 vC;
+#ifdef STREAKS
+// streaks in a stream (the blood in a lumen, the lymph in Disse), fixed to the tissue (µm along x) and carried by the flow: lanes across the stream (aux: -1 .. 1 across it),
+// each with its own phase and length, the middle lanes fastest (2D's lanes: 1.5 (1 - a^2) + 0.08); one hard-edged lighter tone, never a gradient
+uniform float uFlow;      // how far the stream has run (µm)
+uniform float uHalf;      // the stream's half width (µm): the lanes' pitch is across it
+uniform float uStreak;    // how strong the streaks are (0 none)
+uniform float uProfile;   // 1: the parabolic lanes of the blood; 0: one speed (the lymph)
+uniform vec3 uStreakCol;  // the streaks' one tone
+varying vec3 vP;
+varying float vAux;
+float h11(float x) { return fract(sin(x * 127.1 + 311.7) * 43758.5453); }
+// one lane's streak at this pixel (1 inside, 0 out): long and slim, round at both ends, its edge antialiased over a pixel
+float streaks() {
+  float lanes = max(2.0, floor(uHalf * 2.0 / 0.6));
+  float u = (vAux * 0.5 + 0.5) * lanes, lane = floor(u), fu = fract(u);
+  float a = (lane + 0.5) / lanes * 2.0 - 1.0;
+  float sp = mix(1.0, 1.5 * (1.0 - a * a) + 0.08, uProfile);
+  float period = 30.0 + 22.0 * h11(lane * 3.1), len = 11.0 + 12.0 * h11(lane * 7.7 + 1.3);
+  float t = mod(vP.x - uFlow * sp + period * h11(lane * 1.7 + 9.1), period);
+  float q = clamp(t / len * 2.0 - 1.0, -1.0, 1.0);
+  float hw = 0.2 * sqrt(max(0.0, 1.0 - q * q)) * step(t, len);
+  float d = abs(fu - 0.5) - hw, w = max(fwidth(u), 1e-3);
+  return (1.0 - smoothstep(-w, w, d)) * step(0.3, h11(lane * 5.3 + 2.0));
+}
+#endif
 void main() {
   if (fadedOut()) discard;
   vec3 n = normalize(vN);
@@ -59,6 +92,9 @@ void main() {
   vec3 c = tint * vC;
   c *= 1.0 - ${F(CEL_STYLE.MICRO.SHADE)} * shadeT;
   c = mix(c, vec3(1.0), ${F(CEL_STYLE.MICRO.LIT)} * litT);
+#ifdef STREAKS
+  c = mix(c, uStreakCol, uStreak * streaks());
+#endif
   gl_FragColor = vec4(c * opacity, opacity);
 }`;
 
@@ -99,6 +135,8 @@ export interface MicroOptions {
   tint?: RGB; ink?: RGB | null; px?: number;
   /** The geometry carries a `color` attribute (vertex colours). */
   vertexColors?: boolean;
+  /** Streaks carried by a flow (the geometry has an `aux` attribute: the place across the stream, -1 to 1): set uFlow, uHalf, uStreak, uProfile, uStreakCol. */
+  streaks?: boolean;
   /** Draw both sides (a thin sheet seen from either side). */
   doubleSide?: boolean;
   /** Drawn see-through (opacity below 1): sorted after the solid parts, no depth written. */
@@ -112,7 +150,12 @@ export const rawRGB = (c: Color, rgb: RGB): Color => c.setRGB(rgb[0]!, rgb[1]!, 
 export function microMaterials(res: { value: Vector2 }, fade: { value: number }, o: MicroOptions = {}): MicroMats {
   const toon = new ShaderMaterial({
     vertexShader: MICRO_VS, fragmentShader: MICRO_FS, vertexColors: !!o.vertexColors,
-    uniforms: { tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, fade },
+    ...(o.streaks ? { defines: { STREAKS: '' } } : {}),
+    uniforms: {
+      tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, fade,
+      // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
+      uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
+    },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   const ink = o.ink === null ? null : new ShaderMaterial({
@@ -140,6 +183,11 @@ export class MicroPart {
   setTint(rgb: RGB): void { rawRGB(this.mats.toon.uniforms.tint!.value as Color, rgb); }
   setInk(rgb: RGB): void { if (this.mats.ink) rawRGB(this.mats.ink.uniforms.color!.value as Color, rgb); }
   setOpacity(a: number): void { this.mats.toon.uniforms.opacity!.value = a; this.group.visible = a > 0.002; }
+  /** A streaked part's flow (µm run), the stream's half width (µm), the streaks' tone and strength and whether the lanes have the blood's profile. */
+  setStreaks(flow: number, half: number, rgb: RGB, strength: number, profile: number): void {
+    const u = this.mats.toon.uniforms;
+    u.uFlow.value = flow % 1e6; u.uHalf!.value = half; u.uStreak!.value = strength; u.uProfile!.value = profile; rawRGB(u.uStreakCol!.value as Color, rgb);
+  }
   set renderOrder(o: number) { this.toonMesh.renderOrder = o; if (this.inkMesh) this.inkMesh.renderOrder = o; }
   dispose(): void { this.geometry.dispose(); this.mats.toon.dispose(); this.mats.ink?.dispose(); }
 }
@@ -182,6 +230,8 @@ export class MicroMany {
 /** A growing indexed mesh: positions, normals, optional colours. */
 export class MeshBuilder {
   p: number[] = []; n: number[] = []; c: number[] = []; idx: number[] = [];
+  /** One number per vertex for a shader's own use (`aux`): push it right after each v(), for every vertex or none. */
+  aux: number[] = [];
   get count(): number { return this.p.length / 3; }
   v(x: number, y: number, z: number, nx: number, ny: number, nz: number, col?: RGB): number {
     const l = Math.hypot(nx, ny, nz) || 1;
@@ -204,6 +254,7 @@ export class MeshBuilder {
     };
     set('position', this.p, 3); set('normal', this.n, 3);
     if (this.c.length) set('color', this.c, 3);
+    if (this.aux.length) set('aux', this.aux, 1);
     const ix = g.getIndex();
     if (ix && ix.array.length === this.idx.length) { (ix.array as Uint32Array).set(this.idx); ix.needsUpdate = true; } else g.setIndex(new BufferAttribute(new Uint32Array(this.idx), 1));
     g.computeBoundingSphere();

@@ -60,7 +60,8 @@ export const CEL_STYLE = {
    *  three flat tones and a bold ink round every shape. The tones are a little stronger than the vessels' so a cell's bevel, a nucleus's dome and the trough of the lumen read as form. */
   MICRO: {
     SHADE: 0.24,
-    LIT: 0.16,
+    /** Two tones only (Mohammad, 20 Nov 2026: "All 2 shades grades ONLY"): base and shade, no lit band. */
+    LIT: 0,
     /** The ink, in CSS px: round the big shapes (hepatocytes, the trough, the cells), round the small ones (pores, albumin, microvilli). */
     LINE: 1.25,
     LINE_SMALL: 0.8,
