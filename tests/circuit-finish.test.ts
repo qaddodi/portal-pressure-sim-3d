@@ -417,3 +417,20 @@ test('the Circuit\'s outline is seen on a dark map: a soft near-black line that 
   assert.match(sh, /mix\(1\.0, \$\{F\(CIRC_INK_K\)\}, circT\)/);
   assert.match(readFileSync(new URL('../src/scene/circuit/map-layer.ts', import.meta.url), 'utf8'), /DOT_RING_DARK/);
 });
+
+test('a hidden or a big layer never walls off a side of the Circuit: every left-hand station and the first tier name stand on a wide screen', async () => {
+  const { isChip } = await import('../src/scene/circuit/ui-walls.ts');
+  const { solve } = await import('../src/scene/labels/solver.ts');
+  assert.ok(isChip(1600, 52, 1600, 870), 'the top bar');
+  assert.ok(isChip(560, 120, 1600, 870), 'the dock');
+  assert.ok(isChip(44, 120, 1600, 870), 'the zoom pill');
+  assert.ok(!isChip(520, 800, 1600, 870), 'a card or a layer down a side');
+  assert.ok(!isChip(1580, 860, 1600, 870), 'a layer over the screen');
+  const view = { x0: 0, y0: 56, x1: 1600, y1: 870 };
+  const b = buildCaptions(fakeCtx({ proj: (x, y) => [(88 + (x - 140) * 1.475) * 0.8, (190 + (y - 191) * 1.46) * 0.8 + 100], vp: { w: 1600, h: 870 }, view }));
+  const out = solve({ items: b.items, view, blockers: [], lines: [] });
+  const placed = new Set(out.placed.map((p) => p.id));
+  for (const id of ['INT', 'COL', 'SPL', 'STO', 'SMV', 'IMV', 'SV', 'LGV', 'GV', 'z:Splanchnic beds']) assert.ok(placed.has(id), `${id} stands`);
+  const src = readFileSync(new URL('../src/scene/circuit/CircuitCaptions.tsx', import.meta.url), 'utf8');
+  assert.match(src, /view: room,/, 'the tier names and the lanes are kept to the screen, not to the cards\' leftovers');
+});

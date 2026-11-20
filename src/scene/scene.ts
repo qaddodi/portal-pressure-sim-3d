@@ -50,6 +50,7 @@ import { sinusoidBox } from './lobule/shots.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
 import { ProbeLayer } from './devices/probes/layer.ts';
+import { VESSEL_LAYER, inVesselPass } from './layers.ts';
 import type { EusDrive } from './devices/probes/scope.ts';
 import { probeCards } from './devices/probes/cards.ts';
 import { probeAvoid } from './labels/probe-boxes.ts';
@@ -236,7 +237,7 @@ export class CelScene {
         presenting: () => useUi.getState().deck != null,
       },
     });
-    this.body.add(this.probes.group);
+    this.body.add(inVesselPass(this.probes.group));
 
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
     this.flow = new BloodMarks(this.vessels);
@@ -962,7 +963,6 @@ const NETWORK_MATE: ReadonlyMap<string, NetVessel> = new Map(NETWORK.map((v) => 
 
 /** The camera layer of everything drawn over the organs: the vessels, the catheter, the varices. */
 /** The organs a tap opens a card for in the body view (2D ORGAN_KEYS: the heart, the liver, the spleen; the heart is two meshes). */
-const VESSEL_LAYER = 1;
 
 /** Where each named place is: the vessel's id and how far along its 2D course (0 to 1). */
 const ANCHORS = {

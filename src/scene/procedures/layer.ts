@@ -3,6 +3,7 @@
 // `update(now)` is called from the scene's frame and answers whether it needs another.
 import { Group, type Vector3 } from 'three';
 import type { VesselObject } from '../vessels/vessel-object.ts';
+import { inVesselPass } from '../layers.ts';
 import type { CelShared } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
 import { ProcCatheter, type CatheterState, type RingName } from '../devices/catheters/proc-catheter.ts';
@@ -85,7 +86,7 @@ export class ProcedureLayer {
     s.bindVessel(vessel);
     if (this.palette) s.applyPalette(this.palette);
     s.setPhone(this.phone);
-    this.group.add(s.group);
+    this.group.add(inVesselPass(s.group));
     this.stents.set(id, s);
     return s;
   }
@@ -128,7 +129,7 @@ export class ProcedureLayer {
         if (this.palette) v.applyPalette(this.palette);
         v.setPhone(this.phone);
         v.setFade(this.fadeNow);
-        this.group.add(v.group);
+        this.group.add(inVesselPass(v.group));
         this.veinStents.set(id, v);
       }
       v.want(true, instant);
@@ -162,7 +163,7 @@ export class ProcedureLayer {
       c = new ProcCatheter(r3, this.shared, (specOf(kind) as { balloonSpan?: string } | null)?.balloonSpan ?? null);
       if (this.palette) c.applyPalette(this.palette);
       c.setPhone(this.phone);
-      this.group.add(c.group);
+      this.group.add(inVesselPass(c.group));
       this.caths.set(key, c);
     }
     return c;
