@@ -54,7 +54,7 @@ export function linkScene(): () => void {
       shot = want;
       // a ported slide says its own view and its lens; the slice's slides are the body. A Circuit slide frames its region of the map and draws the resistors it names.
       if (v.scene?.view === 'circuit') sceneApi.showCircuit(room, { box: v.scene.circuit?.box ?? null, kMax: v.scene.circuit?.kMax ?? null, resistors: (v.scene.circuit?.resistors ?? []) as never, caudate: !!v.scene.circuit?.caudate });
-      else sceneApi.showShot(v.scene ? v.scene.view : 'body', want, room);
+      else sceneApi.showShot(v.scene ? v.scene.view : 'body', want, room, want === v.shot);   // (the slide's own framing takes a slide's time; the catheter's tip close-ups keep the hand's glide)
     } else sceneApi.setRoom(room, undefined, stepped);   // a step on to a slide with the same shot still brings the viewer's turn home
     if (v.scene && v.scene.lens !== lens) { lens = v.scene.lens; sceneApi.setLens(lens); }
   };

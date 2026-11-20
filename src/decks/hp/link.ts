@@ -84,7 +84,7 @@ export function linkStates(deck: Deck): () => void {
     const { stops, pos, boxes } = useUi.getState();
     if (!stops[pos.stop] || boxes.free.w <= 0 || boxes.free.h <= 0) return;
     const v = viewAt(stops, pos);
-    if (!v.scene || v.scene.view === 'body') sceneApi.goTo(v.shot, boxes.free);
+    if (!v.scene || v.scene.view === 'body') sceneApi.goToSlide(v.shot, boxes.free);
   });
   sync();
   const offUi = useUi.subscribe((s, p) => { if (s.pos !== p.pos || s.stops !== p.stops) sync(); });
