@@ -121,3 +121,11 @@ test('a must label that has to stand far off takes a spot no vessel runs under w
   const last = solve({ items: [m], view: VIEW, blockers: pocket, lines: all });
   assert.equal(last.placed.length, 1, 'a must label is never left off for a vessel');
 });
+
+test('the diagnostic (?capwhy) names who stood in the way of a label\'s near spots, and costs nothing when it is not asked for', () => {
+  const a = item('a', 300, 300), b = item('b', 330, 300, { pri: 1 });
+  const why = new Map<string, Record<string, number>>();
+  const r = solve({ items: [a, b], view: VIEW, blockers: [], why });
+  assert.ok(Object.keys(why.get('b') ?? {}).some((k) => k.startsWith('label:a') || k.startsWith('dot:a') || k.startsWith('underLeader:a') || k === 'ownDot'), JSON.stringify(why.get('b')));
+  assert.deepEqual(r.placed.map((p) => p.id).sort(), solve({ items: [a, b], view: VIEW, blockers: [] }).placed.map((p) => p.id).sort(), 'the answer is the same with or without it');
+});
