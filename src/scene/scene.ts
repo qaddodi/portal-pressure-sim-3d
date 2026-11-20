@@ -587,7 +587,8 @@ export class CelScene {
   /** The lobule's colours count from the Since reference while that lens is on, from the healthy patient otherwise (2D: lobule-model.js sinceOf). */
   private feedLobuleRef(): void { this.lobule.setReference(this.lens.lens === 'since' ? this.lens.sinceReference : this.healthyP); }
   /** The Blood menu: chevrons on or off, key routes only, and potential collaterals (dotted routes). */
-  setBlood(o: Partial<BloodOptions> & { collaterals?: boolean }): void {
+  setBlood(o: Partial<BloodOptions> & { collaterals?: boolean; keyStreaks?: boolean }): void {
+    if (o.keyStreaks !== undefined) this.blood.routes.setKeyOnly(o.keyStreaks);
     if (o.collaterals !== undefined && o.collaterals !== this.collateralsOn) {
       this.collateralsOn = o.collaterals;
       if (latest.frame) this.syncPresence(latest.frame, false);

@@ -197,7 +197,7 @@ export const sceneApi = {
   setBlood(patch: Partial<BloodChoice>, presenting = false): void {
     useBlood.getState().set(patch);
     const b = useBlood.getState();
-    cel.setBlood({ chevrons: b.chevrons, keyChevrons: b.keyChevrons, collaterals: b.collaterals, presenting });
+    cel.setBlood({ chevrons: b.chevrons, keyChevrons: b.keyChevrons, keyStreaks: b.keyStreaks, collaterals: b.collaterals, presenting });
     clock.invalidate('blood');
   },
   /** Once the engine is up: the healthy reference for the lenses (a second or two of the worker's time, once per visit). */
