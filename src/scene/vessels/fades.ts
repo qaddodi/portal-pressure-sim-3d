@@ -75,7 +75,15 @@ const FADE_DOWN_ON: Readonly<Record<string, readonly [number, number]>> = { C4: 
 const ART_OUT_SHARE: Readonly<Record<string, number>> = { A_HR: 0.6, A_HL: 0.5 };
 
 /** The fade of a vessel, or null for one that has none. A tributary fan (`feederHost`, the vein it feeds) fades as its host's FEEDER_FADE_Y says (the azygos's runs out down the figure, never ends in a cap). */
+/** The veins that lie deep behind the main plane, not directly in view: they are drawn receded, at this share of their opacity everywhere, blended with whatever fade they already have (Mohammad, 20 Nov: "IVC and renal veins ... faded cuz they're
+ *  not directly in view"). The cava itself is already drawn as the organs' veil (vessel-object.ts setBehindOrgans). */
+export const RECEDE: Readonly<Record<string, number>> = { V_KID_L: 0.55, V_KID_L_1: 0.55, V_KID_R: 0.55, LRV_IVC: 0.55, RRV_IVC: 0.55 };
 export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
+  const f = fadeOf0(id, isArtery, feederHost), k = RECEDE[id];
+  if (k == null) return f;
+  return f ? { ...f, a0: f.a0 * k, a1: f.a1 * k } : { mode: 1, from: 0, to: 1, a0: k, a1: k, keep: false, connect: [] };
+}
+function fadeOf0(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
   // the children that branch off these ends in the liver (liver-branches.ts) fade the way their host does, along each one's own length, to nothing a little before their tip so no cut end is ever seen (a 3x look at the live build saw a flat pale end)
   if (feederHost && LIVER_FADE_OUT[feederHost]) return { mode: 1, from: 0.25, to: 0.92, a0: 1, a1: 0, keep: false, connect: [] };
   if (feederHost && LIVER_FADE_IN[feederHost]) return { mode: 1, from: 0.08, to: 0.75, a0: 0, a1: 1, keep: false, connect: [] };
