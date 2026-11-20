@@ -21,6 +21,7 @@ import { sinusoidWorld } from '../lobule/frames.ts';
 import { SINUSOID_L } from '../lobule/shots.ts';
 import { type NameKey, type NamePlacement } from './names.ts';
 import { SV_NOTE } from './names.ts';
+import { useFootNote } from '../../ui/shell/foot-note.ts';
 import { buildSinusoidNames, namesFree, namesOn, placeOf } from './captions.ts';
 import { type RNode, dotCss, regionClass, regionTree, treeKey } from './region.ts';
 import { U } from './view.ts';
@@ -106,7 +107,7 @@ export function SinusoidCaptions() {
       const level = useShell.getState().figure.labelLevel;
       const m = cel.lobule.inkContext()?.model ?? null;
       const st = useSinusoidNames.getState();
-      const free = namesFree(cel.rig.targetRoom, { w: vp.w, h: vp.h });
+      const free = namesFree(cel.rig.targetRoom, { w: vp.w, h: vp.h }, useFootNote.getState().rect);
       const built = buildSinusoidNames({
         view: cel.sinus, proj, vp, measure, size, stage: { w: vp.w, h: vp.h }, free, insTop: vp.safe.top + BAR,
         model: m ? { P1: m.P1, P2: m.P2, P3: m.P3, lymph: m.lymph, lyProt: m.lyProt } : null, explain: st.explain, lit: st.lit,
@@ -133,7 +134,7 @@ export function SinusoidCaptions() {
       if (still) {
         const { vp } = useUi.getState(), st = useSinusoidNames.getState();
         const m = cel.lobule.inkContext()?.model;
-        const fr = namesFree(cel.rig.targetRoom, { w: vp.w, h: vp.h });
+        const fr = namesFree(cel.rig.targetRoom, { w: vp.w, h: vp.h }, useFootNote.getState().rect);
         const s = [vp.w, vp.h, refs, cel.sinus.isPortrait, useShell.getState().figure.labelLevel, [fr.l, fr.t, fr.r, fr.b].join(','), lookRef.current, st.explain, [...st.lit].join(' '),
           Math.round(cel.sinus.porosity * 100), m ? [m.P1, m.P2, m.P3].map((x) => x.toFixed(1)).join(',') + Math.round(m.lymph * 100) + Math.round(m.lyProt * 100) : '-'].join('|');
         if (s !== sig) { sig = s; solveNow(); }
@@ -179,11 +180,12 @@ export function SinusoidCaptions() {
     const off = clock.on('tags', tick, 1);
     const wake = () => { sig = ''; clock.invalidate('sinusoid-captions'); };
     const offShell = useShell.subscribe(wake);
+    const offFoot = useFootNote.subscribe(wake);
     const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) wake(); });   // (the room itself is read each frame in the signature: it moves with the camera's room, which the cards and the shell set)
     const offEx = useSinusoidNames.subscribe((s, p) => { if (s.explain !== p.explain || s.lit !== p.lit) wake(); });
     void document.fonts?.ready.then(wake);
     void DIM_ALPHA; void SINUSOID_L;
-    return () => { off(); offShell(); offUi(); offUi2(); offEx(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
+    return () => { off(); offShell(); offFoot(); offUi(); offUi2(); offEx(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
   }, []);
 
   return <div ref={layer} className="lb-layer cc-layer sv-layer" aria-hidden="true" />;
