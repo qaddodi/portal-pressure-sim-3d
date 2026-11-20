@@ -8,7 +8,8 @@
 // anatomy, liver, lobule, sinusoid, and back out the same way. Nothing is built or moved to open one (the views open instantly, owner 17 Nov).
 // The shots here are in WORLD units (local × the frame's scale, plus its place), so `goTo` needs nothing else.
 import type { Shot } from '../camera/shots.ts';
-import type { V3 } from './batch.ts';
+/** A point in the scene: x, y, z. */
+export type V3 = [number, number, number];
 import { LOBULE_SCALE, SIN_SCALE, lobuleWorld, sinusoidWorld } from './frames.ts';
 import { FILL } from '../camera/room.ts';
 import { shownUm } from '../sinusoid/portrait.ts';

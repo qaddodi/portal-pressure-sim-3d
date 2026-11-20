@@ -180,7 +180,7 @@ test('the outline is a soft dark of the vessel\'s own colour, never white or bla
   const T = CEL_STYLE.TUBE;
   assert.ok(T.INK_OWN >= 0.5 && T.INK_TONE > 0.15 && T.INK_TONE < 0.5, 'mostly the vessel\'s own colour, deep but not black');
   assert.match(VESSEL_FS, new RegExp(`mix\\(inkColor, celTubeBase\\(baseH\\) \\* mix\\(${F(T.INK_TONE).replace('.', '\\.')}, ${F(T.INK_TONE_DARK).replace('.', '\\.')}, tubeDark\\), ${F(T.INK_OWN).replace('.', '\\.')}\\)`));
-  assert.match(VESSEL_FS, /mix\(mix\(inkH, inkColorCirc, circT\), hiColor/, 'the ink colour is the vessel\'s own tone, not the raw casing');
+  assert.match(VESSEL_FS, /mix\(inkH, inkColorCirc, circT\), inkT/, 'the ink colour is the vessel\'s own tone, not the raw casing');
   assert.equal(CEL_STYLE.TUBE.RIM_SHARE, 0, 'no white rim');
   assert.match(VESSEL_FS, /uniform vec3 mate0;[\s\S]*uniform vec3 mate1;/, 'the ink knows the joined ends');
   assert.match(VESSEL_FS, /float endK = vHi > 0\.001 \? 1\.0 : buryK\(vUv\.x \* len \* vU, \(1\.0 - vUv\.x\) \* len \* vU\);/, 'only a declared branch\'s buried end is not outlined');

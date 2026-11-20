@@ -52,7 +52,7 @@ test('the shader carries the fade into both the body and the ink, and lets go of
   assert.doesNotMatch(VESSEL_VS, /swell \*= mix\([^;]*fa\)/, 'a fade never thins the tube: full width to the end');
   assert.match(VESSEL_VS, /fa = mix\(fa, 1\.0, circT\)/, "the Circuit lets go of every fade, the artery's too: no vessel is faint on the map");
   assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade\);/, 'the body fades by its alpha');
-  assert.match(VESSEL_FS, /c = mix\(c, mix\(mix\(inkH, inkColorCirc, circT\), hiColor, clamp\(vHi, 0\.0, 1\.0\)\), inkT\);[\s\S]*gl_FragColor = vec4\(c, vFade\);/, 'the outline is painted into the body\'s colour, so it has the body\'s alpha: no ink ring floats at a faded end');
+  assert.match(VESSEL_FS, /c = mix\(c, mix\(inkH, inkColorCirc, circT\), inkT\);[\s\S]*gl_FragColor = vec4\(c, vFade\);/, 'the outline is painted into the body\'s colour, so it has the body\'s alpha: no ink ring floats at a faded end');
 });
 
 test('the superior cava runs into the right atrium as solid as the inferior cava meets it: no fade to 0.3 at the atrium (a hard step in colour there)', () => {

@@ -28,6 +28,8 @@ import { SHOTS, type Shot, type ShotName } from './camera/shots.ts';
 import { Catheter, type CatheterState } from './catheter.ts';
 import { DEFAULT_FLOW_MODE, FLOW_FADE_MS, type FlowMarkMode, markSpeed } from './flow.ts';
 import { Highlight, OrganPins } from './highlight.ts';
+/** Each vessel's course and radius, for the selection's glow (glow.ts). */
+const GLOW_COURSES: ReadonlyMap<string, { pts: readonly (readonly [number, number, number])[]; radius: number }> = new Map(NETWORK.map((v) => [v.id, { pts: v.pts, radius: v.radius }]));
 import { CelObject, type CelShared, createShared } from './materials/cel.ts';
 import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
@@ -240,7 +242,7 @@ export class CelScene {
     });
     this.body.add(inVesselPass(this.probes.group));
 
-    this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
+    this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])), (id) => GLOW_COURSES.get(id));
     this.flow = new BloodMarks(this.vessels);
     this.cells = new BloodCells({ vessels: NETWORK, object: (id) => this.vesselObject(id), shared: this.shared, lens: this.lens.shared, blood: this.blood.shared, parent: this.body, layer: VESSEL_LAYER, phone: () => this.phone });
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
@@ -357,7 +359,7 @@ export class CelScene {
     for (const o of this.objects) o.setPhone(phone);
     this.procs.setPhone(phone); this.probes.setPhone(phone); this.tubes.setPhone(phone);
     this.disease.setPhone(phone);
-    this.lobule.setPhone(phone); this.sinus.setPhone(phone);
+    this.sinus.setPhone(phone);
     this.moving = true;
   }
 
@@ -441,7 +443,7 @@ export class CelScene {
     if (o.presenting !== undefined) patch.presenting = o.presenting;
     this.flow.setOptions(patch);
     this.bloodOpts = { chevrons: o.chevrons ?? this.bloodOpts.chevrons, keyChevrons: (o.keyChevrons ?? this.bloodOpts.keyChevrons) || !!o.presenting };
-    this.lobule.setBlood(this.bloodOpts); this.sinus.setBlood(this.bloodOpts);
+    this.sinus.setBlood(this.bloodOpts);
     this.moving = true;
   }
 
@@ -511,7 +513,7 @@ export class CelScene {
   pick(id: string | null): void { this.highlight.set(id); this.syncNamed(); }
 
   /** (The 2D app has one style of flow head; the four options of the first slice are gone. Kept for the views that still take a mode.) */
-  setFlowMode(mode: FlowMarkMode): void { this.lobule.setFlowMode(mode); this.sinus.setFlowMode(mode); this.moving = true; }
+  setFlowMode(mode: FlowMarkMode): void { this.sinus.setFlowMode(mode); this.moving = true; }
 
   // ---- the figure's view: body, lobule, sinusoid ---------------------------------------------
 
@@ -746,16 +748,6 @@ export class CelScene {
     return this.lobule.hitRay(raycaster.ray, this.rig.camera, { w: this.width, h: this.height });
   }
 
-  /** The lobule part a tap lands on, in the lobule view, with the tap's place on the lobule plate in its own units (the centre is 0, 0; a triad is at a corner, about 1 away). */
-  pickLobuleAt(x: number, y: number, raycaster: Raycaster): { part: LobulePartName; x: number; y: number } | null {
-    if (this.figureView !== 'lobule') return null;
-    raycaster.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
-    const hits = raycaster.intersectObjects(this.lobule.pickables, false);
-    const part = this.lobule.partAt(hits);
-    const p = hits[0]?.point;
-    return part && p ? { part, x: (p.x - LOBULE_ORIGIN[0]) / LOBULE_R, y: -(p.y - LOBULE_ORIGIN[1]) / LOBULE_R } : null;
-  }
-
   /** What a tap at canvas point (x, y) opens, in the 2D app's order (stage.js pick): the vessel under it, else the nearest vessel within reach of the finger (12 px, 18 for a touch),
    *  else the organ under it (the liver with its lobe, the heart, the spleen), else the belly's fluid, else nothing. Only the body takes organ and fluid taps (the Circuit has no organs). */
   pickTargetAt(x: number, y: number, raycaster: Raycaster, touch = false): FigureHit | null {
@@ -855,6 +847,7 @@ export class CelScene {
     this.fadeBody();
     // (the camera's own move, not the gentle tilt still easing or a hand on the figure: the view left behind goes the moment the move lands)
     if (this.hideLeftBehind && !this.rig.isMoving && !this.circuit.moving) this.settleViews();
+    this.highlight.setGlowShown(this.circuit.t < 0.02 && !this.circuit.toCircuit);
     const hiMoving = this.highlight.step(dt);
     const pinMoving = this.pins.step(dt, this.disease.organs.byId);
     this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
@@ -871,7 +864,6 @@ export class CelScene {
     this.stepCutaway();
     this.stepPortrait();
     this.sinus3d.pinTraffic(this.micro3d);
-    this.lobule.flowRate = this.flowRate.value;
     const lobMoving = this.lobule.update(now), sinMoving = this.sinus.update(now);
     // (the 3D lobule dissolves as the camera goes down onto the sinusoid, and stands aside once landed: its solid tiles and tubes rise above the sinusoid's plane and would cross it in the foreground)
     const dv = this.sinus.diveShareNow, under = !this.sinus.isVisible ? 0 : dv == null ? 1 : smoothstep01(0.4, 0.78, dv);
@@ -933,10 +925,10 @@ export class CelScene {
     gl.setClearColor(this.clearColor(this.post.on));
     const dpr = gl.getPixelRatio?.() ?? 1;
     this.blood.shared.dpr.value = dpr;   // (the vessels' line is held in device px)
+    this.lobule3d.setDpr(dpr);
     this.disease.strands.setDpr(dpr);
     // Two passes, as the 2D figure paints: the organs first, then the vessels (and what is in them) over the cleared depth, so no organ's relief ever hides a vessel and a joined
     // vessel never looks cut. (The vessels keep their own depth among themselves: their tiers.)
-    this.lobule.setDpr(gl.getPixelRatio?.() ?? 1);
     const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;
     // the figure is drawn into a texture of the canvas's size and filtered onto the canvas once (post-aa.ts), unless the pass is off or the device refused it
     // depth of field in the dive (desktop only, post-dof.ts): zero cost unless its strength is above 0; the vessels' pass then keeps the depth the first pass drew (it draws nothing once the body is gone)

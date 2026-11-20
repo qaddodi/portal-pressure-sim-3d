@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { caseOf, type Deck, type ReadingKey, type Slide } from '../../decks/schema.ts';
 import { useUi, atEnd } from '../ui-store.ts';
 import { finishTalk } from './finish.ts';
+import { dataKeys } from './keep.ts';
 import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
 import { planLayout, widthOf, stepsFor, centredKind, centredBox, panelVisual, type CardId, type Need, type Plan } from '../layout/plan.ts';
 import { isSideways, layoutOf } from '../layout/rules2d.ts';
@@ -83,8 +84,10 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const sig = `${wordsKey}|${pages}|${at}|${stepAt}|${vp.w}x${vp.h}`;
   sigRef.current = sig;
 
-  const dataKeyOf = (v: typeof view): string => (v?.data === 'table' && v.slide ? `table:${v.slide.id}` : v?.data === 'ladder' && v.slide && hasToolChart(v.slide) ? `tool:${v.slide.id}` : 'ladder');
-  const dataKey = dataKeyOf(view);
+  // the data card's key at every stop: the same instrument on the next slide is the same card (2D keepData, ui/cards/keep.ts), so it stays and only the words swap
+  const keyAt = useMemo(() => dataKeys(deck, stops), [deck, stops]);
+  const dataKeyAt = (p: { stop: number }, v: typeof view): string => keyAt[p.stop] ?? (v?.data === 'table' && v.slide ? `table:${v.slide.id}` : v?.data === 'ladder' && v.slide && hasToolChart(v.slide) ? `tool:${v.slide.id}` : 'ladder');
+  const dataKey = dataKeyAt(pos, view);
   const needs: Need[] = view ? [{ id: view.words, slot: 'words', visual: view.slide?.visual, h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey) }] : [])] : [];
   const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step, docked), [vp, wallet.active, step, docked, needs.map((n) => `${n.id}:${n.slot}:${n.h}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -170,7 +173,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     onMove: goTo,
     // a drag follows only where it will do something: a slide to go to (or a page to turn), not the first slide's Back
     // the data card the next slide keeps (same key) stays put under a drag: only the cards that change follow the finger
-    keeps: (dx) => { if (dx < 0 && atEnd(useUi.getState())) return false; const to = viewAt(stops, apply(stops, pos, dx < 0 ? 'next' : 'back'), lastSlideShot(stops)); return !!view?.data && !!to.data && dataKeyOf(to) === dataKey; },
+    keeps: (dx) => { if (dx < 0 && atEnd(useUi.getState())) return false; const np = apply(stops, pos, dx < 0 ? 'next' : 'back'), to = viewAt(stops, np, lastSlideShot(stops)); return !!view?.data && !!to.data && dataKeyAt(np, to) === dataKey; },
     can: (dx) => pages > 1 || (dx < 0 && atEnd(useUi.getState())) || !samePos(apply(stops, pos, dx < 0 ? 'next' : 'back'), pos),
     width: vp.w,
     cards: () => [...document.querySelectorAll<HTMLElement>('.dk-card[data-card]:not([data-phase="out"])')].map((card) => ({ els: [card, ...(card.previousElementSibling?.classList.contains('dk-plate') ? [card.previousElementSibling as HTMLElement] : [])], data: card.getAttribute('data-card') === 'ladder' || card.getAttribute('data-card') === 'table' })),
@@ -184,7 +187,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const snaps = snapRef.current;
   const now: Snap = { slide: view.slide, pages, at, trim };
   const content = (e: Entry) => {
-    if (e.phase === 'in') snaps[e.key] = now;
+    // (only the card the view is on takes the view's words: for the render before a slide change reaches the stack, the card still standing is the old slide's, and must keep its own)
+    if (e.phase === 'in' && (e.key === wordsKey || e.key === dataKey)) snaps[e.key] = now;
     const sn = snaps[e.key] ?? now;
     switch (e.id) {
       case 'title': return <TitleCard deck={deck} page={sn.at} pages={sn.pages} />;

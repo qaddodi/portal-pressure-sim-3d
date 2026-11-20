@@ -5,8 +5,8 @@
 // in the 2D figure (so the pattern follows the tissue as the liver reshapes). Pure arithmetic: a node test can run it.
 // `?liver=a|b|c|d` (preview copy) picks one of four looks to compare; no flag keeps the old surface until one is chosen.
 
-export type LiverLook = 'a' | 'b' | 'c' | 'd' | 'c1' | 'c2' | 'c3' | 'c4';
-export const LIVER_LOOKS: readonly LiverLook[] = ['a', 'b', 'c', 'd', 'c1', 'c2', 'c3', 'c4'];
+export type LiverLook = 'a' | 'b' | 'c' | 'd' | 'c1' | 'c2' | 'c3' | 'c4' | 'c2a' | 'c2b' | 'c2c' | 'c2d';
+export const LIVER_LOOKS: readonly LiverLook[] = ['a', 'b', 'c', 'd', 'c1', 'c2', 'c3', 'c4', 'c2a', 'c2b', 'c2c', 'c2d'];
 
 /** The texture's frame in 2D figure units (the liver's outline sits well inside it). */
 export const TEX_X0 = 270, TEX_Y0 = 130, TEX_W = 660, TEX_H = 430;
@@ -110,10 +110,20 @@ FIELDS.c2 = { bump: 0.28, shade: 0.26, tone: 0.04, f: micro(13, 0.34, 0.78, 0.26
 FIELDS.c3 = { bump: 0.2, shade: 0.14, tone: 0.05, f: micro(9.5, 0.36, 0.72, 0.26, 0.9, 0.8, 0.7, 0.35, 45) };
 FIELDS.c4 = { bump: 0.35, shade: 0.4, tone: 0, f: micro(12, 0.38, 0.76, 0.26, 1.0, 0.9, 0.75, 0.7, 47) };
 
+// Subtler c2 (Mohammad 20 Nov: "variations of c2, more subtle textures"): c2's round nodules of mixed size with the texture turned down in steps.
+// c2a: the septa at 70%, the dome shade a quarter lower. c2b: septa at half, shade lower still, colour flat. c2c: no visible wall to speak of, the nodules read by soft light alone.
+// c2d: the faintest: a hint of wall and light, the surface almost smooth.
+FIELDS.c2a = { bump: 0.24, shade: 0.2, tone: 0.02, f: micro(13, 0.34, 0.78, 0.26, 0.9, 0.6, 0.7, 0.4, 43) };
+FIELDS.c2b = { bump: 0.2, shade: 0.16, tone: 0, f: micro(13, 0.34, 0.78, 0.26, 0.9, 0.45, 0.7, 0.35, 43) };
+FIELDS.c2c = { bump: 0.2, shade: 0.28, tone: 0, f: micro(13, 0.34, 0.78, 0.26, 0.9, 0.28, 0.75, 0.3, 43) };
+FIELDS.c2d = { bump: 0.14, shade: 0.1, tone: 0, f: micro(13, 0.34, 0.78, 0.26, 0.9, 0.22, 0.75, 0.25, 43) };
+
 /** The surface of look `k` at (x, y) in 2D units. */
 export const surfaceAt = (k: LiverLook, x: number, y: number): Surface => FIELDS[k].f(x, y);
 export const lookShade = (k: LiverLook): number => FIELDS[k].shade;
 export const lookTone = (k: LiverLook): number => FIELDS[k].tone;
+/** The dome at a point (0..1), whatever the look's bump scale: what the liver's outline follows. */
+export const lookDome = (k: LiverLook, x: number, y: number): number => FIELDS[k]!.f(x, y).dome;
 /** The nodule's bump for the mesh (0..1): the dome, scaled by how much of it the mesh can carry. */
 export const lookBump = (k: LiverLook, x: number, y: number): number => FIELDS[k].bump * FIELDS[k].f(x, y).dome;
 

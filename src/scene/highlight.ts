@@ -1,6 +1,7 @@
-import { BackSide, Mesh, ShaderMaterial } from 'three';
+import { BackSide, Color, Mesh, ShaderMaterial } from 'three';
 import type { CelObject } from './materials/cel.ts';
 import { HI_NONE } from './materials/shaders.ts';
+import { VesselGlow } from './glow.ts';
 
 // Vessel highlight (look-and-feel.md section 9): the picked vein (every piece the engine cuts it into) gets a bolder outline in its own tone lifted, thin, that fades
 // away at the vein's two ends and is full in the middle. It lifts a hair. Nothing else is lit or dimmed. (`computeHighlight` can still walk the flow past the ends
@@ -38,8 +39,8 @@ export interface HighlightRange {
 export const DEFAULT_RANGE: HighlightRange = { ahead: 0, behind: 0 };
 /** The share of a vein's length each end takes to fade in (the middle half holds full). */
 export const END_FADE = 0.25;
-/** The picked outline's width over the vessel's own line, CSS px (it was 1.6: "less thick", 20 Nov). */
-export const HI_PX = 0.8;
+/** The picked outline's extra width over the vessel's own line, CSS px: none (it was 1.6, then 0.8: "instead of an outline, make it a glow", 20 Nov; the glow is glow.ts). */
+export const HI_PX = 0;
 /** Outline lift on the picked vessel (scene units), mocks: 0.012. */
 export const PICK_LIFT = 0.012;
 /** Fade in and out of the outline, ms. */
@@ -107,7 +108,10 @@ export function outlineStrength(spec: HighlightSpec, arc: number, length: number
 /** Moves `v` toward `goal` by at most `step`, landing on it exactly. */
 const approach = (v: number, goal: number, step: number): number => (Math.abs(goal - v) <= step ? goal : v + Math.sign(goal - v) * step);
 
-interface Track { obj: CelObject; on: number; target: number; lift: number; liftTarget: number }
+interface Track { obj: CelObject; on: number; target: number; lift: number; liftTarget: number; spec: HighlightSpec | null; glow: VesselGlow | null; built: HighlightSpec | null }
+
+/** A vessel's course for the glow: its points in the scene and its radius. */
+export type CourseOf = (id: string) => { pts: readonly (readonly [number, number, number])[]; radius: number } | undefined;
 
 /** Applies a pick to the vessel objects and fades it in and out. `step` returns true while anything is still moving, so the clock keeps
  *  asking for frames and goes quiet afterwards (nothing is drawn when nothing moves). */
@@ -118,14 +122,18 @@ export class Highlight {
   picked: string | null = null;
   private hostOf: ReadonlyMap<string, string>;
 
-  constructor(objects: readonly CelObject[], range: HighlightRange = DEFAULT_RANGE, hostOf: ReadonlyMap<string, string> = new Map()) {
+  private courseOf: CourseOf;
+  private glowShown = true;
+
+  constructor(objects: readonly CelObject[], range: HighlightRange = DEFAULT_RANGE, hostOf: ReadonlyMap<string, string> = new Map(), courseOf: CourseOf = () => undefined) {
     this.hostOf = hostOf;
+    this.courseOf = courseOf;
     this.range = range;
     this.edges = [];
     for (const o of objects) {
       if (!o.isVessel || !o.edge) continue;
       this.edges.push({ id: o.edge.id, from: o.edge.from, to: o.edge.to, length: o.edge.length });
-      this.tracks.set(o.edge.id, { obj: o, on: 0, target: 0, lift: 0, liftTarget: 0 });
+      this.tracks.set(o.edge.id, { obj: o, on: 0, target: 0, lift: 0, liftTarget: 0, spec: null, glow: null, built: null });
       const u = o.ink.uniforms;
       u.hiAhead.value = range.ahead;
       u.hiBehind.value = range.behind;
@@ -138,6 +146,7 @@ export class Highlight {
     const spec = this.picked ? computeHighlight(this.group(this.picked), this.edges, this.range) : new Map<string, HighlightSpec>();
     for (const [eid, t] of this.tracks) {
       const s = spec.get(eid);
+      t.spec = s ?? t.spec;
       t.target = s ? 1 : 0;
       t.liftTarget = s && s.dir === 0 ? PICK_LIFT : 0;
       if (s) {
@@ -158,6 +167,7 @@ export class Highlight {
       const on = hosts.has(this.hostOf.get(eid) ?? eid);
       t.target = on ? 1 : 0;
       t.liftTarget = 0;
+      if (on) t.spec = { dir: 0, offset: 0 };
       if (on) { const u = t.obj.ink.uniforms; u.hiDir.value = 0; u.hiOffset.value = 0; (u.hiEnds!.value as { set(x: number, y: number): void }).set(HI_NONE, HI_NONE); }
     }
   }
@@ -179,8 +189,29 @@ export class Highlight {
       }
       t.obj.ink.uniforms.hiOn.value = t.on;
       t.obj.toon.uniforms.inflate.value = t.lift;
+      this.glow(t);
     }
     return moving;
+  }
+
+  /** Whether the glow may show (the body's courses only: the Circuit lays the vessels out afresh). */
+  setGlowShown(shown: boolean): void { this.glowShown = shown; }
+
+  /** The glow of one track: laid along the vessel's course when it is first lit (or lit differently), in the vessel's own tone, eased in with `on`. */
+  private glow(t: Track): void {
+    if (!t.spec || (t.on === 0 && t.target === 0)) { t.glow?.show(0, false); return; }
+    const o = t.obj, c = this.courseOf(o.edge!.id);
+    if (!c) return;
+    if (!t.glow) t.glow = new VesselGlow(o.group);
+    if (t.built !== t.spec) {
+      const spec = t.spec;
+      t.glow.build(c.pts, c.radius, (u) => outlineStrength(spec, u * o.edge!.length, o.edge!.length, this.range));
+      t.built = spec;
+    }
+    const base = o.toon.uniforms.color!.value as { r: number; g: number; b: number }, dark = (o.toon.uniforms.tubeDark!.value as number) > 0.5;
+    const up = dark ? 0.25 : 0;   // (on the dark looks the halo is the vessel's tone lifted, so it glows on the ground; on the light ones it is the tone itself)
+    t.glow.setColour(base.r + (1 - base.r) * up, base.g + (1 - base.g) * up, base.b + (1 - base.b) * up);
+    t.glow.show(t.on, this.glowShown);
   }
 }
 
@@ -188,7 +219,9 @@ export class Highlight {
 export const PIN_FADE_MS = 300;
 /** The thin line of the normal-sized spleen inside an enlarged one (2D OL_LOOK.normal: 1.4 px, half an alpha). */
 /** What a slide's pin and a tapped organ add to the organ's own 1.1 line: a modest step up (Mohammad, 20 Nov: "insanely thick"). */
-export const PIN_PX = 0.6, SELECT_PX = 0.9;   // (figure units, as the organ's own 1.1 line is: 1.6 and 3.6 drew a white band several times the line when zoomed, 20 Nov)
+export const PIN_PX = 0, SELECT_PX = 0;   // (figure units, as the organ's own 1.1 line is: 1.6 and 3.6 drew a white band several times the line when zoomed, 20 Nov)
+/** An organ's glow as hulls from the widest (drawn first) to the narrowest: how far past the organ's line each reaches (figure units, as the organ's line is) and the alpha it adds. They stack to a bright rim and a long soft tail. */
+export const ORGAN_GLOW: readonly { out: number; alpha: number }[] = [{ out: 26, alpha: 0.05 }, { out: 19, alpha: 0.07 }, { out: 13, alpha: 0.1 }, { out: 8, alpha: 0.14 }, { out: 4, alpha: 0.2 }];
 export const NORMAL_LINE = { px: 1.4, alpha: 0.5 };
 
 /** A slide's outlined organs (2D `pinOrgans`: the organ's own deep tone, a wider line, fading in and out), by the organs' own ids. The line is the organ's ink hull at the
@@ -211,6 +244,34 @@ export class OrganPins {
   /** The normal-sized spleen's outline inside an enlarged one (2D `normalOutline`). */
   setNormalOutline(on: boolean): void { this.normal = on; }
 
+  private glows = new Map<string, Mesh[]>();
+
+  /** The organ's glow: ORGAN_GLOW's hulls, each wider and fainter than the last, round the organ's own line, in the organ's selection colour, eased in with `amount`. Made the first time the organ is lit. */
+  private glowOf(id: string, o: CelObject, amount: number): void {
+    let shells = this.glows.get(id);
+    if (!shells) {
+      if (amount <= 0 || !o.group.parent) return;
+      const ink = o.group.children.find((c) => (c as Mesh).material === o.ink) as Mesh | undefined, base = ink ? ink.renderOrder - 0.45 : 0;
+      shells = ORGAN_GLOW.map((g, j) => {
+        const u = o.ink.uniforms;
+        const mat = new ShaderMaterial({ vertexShader: o.ink.vertexShader, fragmentShader: o.ink.fragmentShader, side: BackSide, transparent: true, depthWrite: false,
+          uniforms: { ...u, px: { value: 0 }, color: { value: new Color() }, hiColor: { value: new Color() }, inkA: { value: 0 }, hiOn: { value: 0 }, hiPx: { value: 0 } } });
+        const m = new Mesh(ink?.geometry ?? o.toonMesh.geometry, mat);
+        m.frustumCulled = false; m.renderOrder = base + 0.05 * j; m.visible = false; m.name = `highlight/glow/${id}/${j}`;
+        o.group.add(m);
+        return m;
+      });
+      this.glows.set(id, shells);
+    }
+    const e = amount * amount * (3 - 2 * amount), hi = o.ink.uniforms.hiColor!.value as Color, px = o.ink.uniforms.px!.value as number;
+    shells.forEach((m, j) => {
+      const u = (m.material as ShaderMaterial).uniforms, g = ORGAN_GLOW[j]!;
+      u.px!.value = px + g.out; u.inkA!.value = g.alpha * e;
+      (u.color!.value as Color).copy(hi); (u.hiColor!.value as Color).copy(hi);
+      m.visible = e > 0.001;
+    });
+  }
+
   step(dtMs: number, byId: ReadonlyMap<string, CelObject>): boolean {
     const k = Math.min(1, dtMs / PIN_FADE_MS);
     let moving = false;
@@ -218,11 +279,13 @@ export class OrganPins {
       const goal = this.want.has(id) || this.chosen.has(id) ? 1 : 0, was = this.on.get(id) ?? 0;
       const px = this.chosen.has(id) ? SELECT_PX : PIN_PX;
       if (o.ink.uniforms.hiPx!.value !== px) { o.ink.uniforms.hiPx!.value = px; moving = true; }
-      if (was === goal) continue;
-      const v = approach(was, goal, k);
-      this.on.set(id, v);
-      o.ink.uniforms.hiOn.value = v; o.ink.uniforms.hiDir.value = 0; o.ink.uniforms.hiOffset.value = 0;
-      moving = true;
+      if (was !== goal) {
+        const v = approach(was, goal, k);
+        this.on.set(id, v);
+        o.ink.uniforms.hiOn.value = v; o.ink.uniforms.hiDir.value = 0; o.ink.uniforms.hiOffset.value = 0;
+        moving = true;
+      }
+      this.glowOf(id, o, this.on.get(id) ?? 0);
     }
     // an organ asked for that the layer has not built: keep asking for frames until it is in
     for (const id of [...this.want, ...this.chosen]) if (!byId.has(id)) moving = true;
