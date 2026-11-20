@@ -132,3 +132,23 @@ test('the tint reads as 2D\'s teal on every look (blue and green both above red:
     assert.ok(Math.abs(c.r - want[0]) < 1e-6 && Math.abs(c.g - want[1]) < 1e-6 && Math.abs(c.b - want[2]) < 1e-6, `${look}: the view paints 2D's tone`);
   }
 });
+
+test('the bile channels (olive, the thing a phone showed as thick bars between the sinusoids) are hairlines as 2D\'s: no outline, never wider than 2D\'s 0.0036 R canaliculus', () => {
+  const v = new LobuleView(createShared());
+  v.setVisible(true); v.snapModel(model()); settle(v);
+  const bile = v.objects.filter((o) => v.set.get('bile').group.children.includes(o.group));
+  assert.equal(bile.length, 2, 'canaliculi and canals of Hering');
+  const k = pxPerR(390, 844);
+  for (const o of bile) {
+    v.setPhone(true); v.setDpr(2);
+    assert.equal(o.ink.uniforms.px.value, 0, 'no line: the cel ink\'s 2 px floor on a 1 px tube makes a bar');
+    // the widest ring of the tube, in px at the phone fit
+    const rad = o.toonMesh.geometry.getAttribute('rad');
+    let r = 0; for (let i = 0; i < rad.count; i++) r = Math.max(r, rad.getX(i));
+    assert.ok((r / LOBULE_R) * k <= 0.0075 * k + 1e-4, 'no wider than the canal of Hering');
+  }
+  const bc = bile.find((o) => (o.toonMesh.geometry.getAttribute('rad') as { getX(i: number): number }).getX(0) < 0.0075 * LOBULE_R - 1e-6)!;
+  const rad = bc.toonMesh.geometry.getAttribute('rad'); let rc = 0; for (let i = 0; i < rad.count; i++) rc = Math.max(rc, rad.getX(i));
+  assert.ok(rc / LOBULE_R <= 0.0036 + 1e-6, `a canaliculus ${(rc / LOBULE_R).toFixed(4)} R, 2D's widest 0.0036 R`);
+  assert.ok((rc / LOBULE_R) * k * 2 < 1.5, 'a canaliculus is under 1.5 px across at the phone fit');
+});

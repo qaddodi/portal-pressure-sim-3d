@@ -54,7 +54,7 @@ const markOffset = (p: P2): number => { const h = Math.sin(p[0] * 127.1 + p[1] *
 const RAD = {
   // (2D's own, healthy: widths.ts, lobule-zoom-field.js radiusAt; a sinusoid's is the radius at the middle of its course, the profile along it is drawn from sinRadius)
   s0: RS_N * 1.15 * R, s1: RS_N * 1.15 * R, s2: RS_N * 1.15 * R, an: RS_N * AN_K * R, in: 0.012 * R, tw: TW_R.base * R,
-  pv: DISC_R.pv * R, ha: DISC_R.ha * R, bd: DISC_R.bd * R, lv: DISC_R.lv * R, cv: DISC_R.cv * R, lt: LT_R * R, ly: 0.0132 * R, bc: 0.0046 * R, bh: 0.0075 * R,
+  pv: DISC_R.pv * R, ha: DISC_R.ha * R, bd: DISC_R.bd * R, lv: DISC_R.lv * R, cv: DISC_R.cv * R, lt: LT_R * R, ly: 0.0132 * R, bc: 0.0036 * R, bh: 0.0075 * R,   // (bc: 2D's widest canaliculus, at the edge: R * lerp(0.0004, 0.0036, smooth(0.22, 1, rho)), lobule-bile.js)
 } as const;
 /** 2D's three dark shares of a sinusoid kind that congestion widens (zone 3: 1 - smooth(0.24, 0.56, rho), at the middle of each generation): radiusAt's `1 + 1.5 congU z3`. */
 const CONG_Z3 = { s0: 0, s1: 0.4, s2: 0.95, an: 0.3 } as const;
@@ -328,8 +328,9 @@ export class LobuleView {
     channel(s0c, 2, 22, true);
     channel(by('s1'), 2, 20, false);
     channel(by('s2'), 3, 22, false);
-    const bc = this.make('bile', chB, 'bile', { bands: 2, flat: true, px: INK.thin, chevrons: { pitch: RAD.bc * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
-    const bh = this.make('bile', hrB, 'bile', { bands: 2, flat: true, px: INK.thin, chevrons: { pitch: RAD.bh * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
+    // (no outline on either: 2D's wall is 0.3 px on a canaliculus and 0.6 on a canal of Hering, a faint olive hairline; the cel line's 2 px floor on a tube under a pixel wide made them dark bars, thick olive rungs between the sinusoids)
+    const bc = this.make('bile', chB, 'bile', { bands: 2, flat: true, px: 0, chevrons: { pitch: RAD.bc * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
+    const bh = this.make('bile', hrB, 'bile', { bands: 2, flat: true, px: 0, chevrons: { pitch: RAD.bh * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
     this.bileObjs = [bc, bh];
     // the ductule's wall opens where a canal of Hering joins it (2D: mouths while the Bile layer is on, mouthsNoBile while it is off)
     this.discInfo.get('bd')!.setPool(canalPool);
