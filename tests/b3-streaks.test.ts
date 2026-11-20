@@ -32,7 +32,7 @@ test('the streak programs compile (glslangValidator)', { skip: !have }, () => {
 test('a streak is a slim rounded lozenge along the flow, its alpha feathered at BOTH ends: not a disc, not a dash, not a blunt head nor a point; no ink ring, no particle size', () => {
   assert.match(CELLS_FS, /vec2 p = vec2\(dot\(q, vDir\)/, 'drawn in its own axes');
   assert.match(CELLS_FS, /float a = streakMark\(p\.x \/ max\(vLen, 1e-3\) \+ 0\.5, p\.y, 0\.5 \* vThick, 0\.6\);/, 'from the shared chunk');
-  assert.match(STREAK_MARK_GLSL, /float fe = smoothstep\(0\.0, 0\.35, t\) \* smoothstep\(0\.0, 0\.35, 1\.0 - t\);/, 'smooth alpha in, whole between, smooth alpha out');
+  assert.match(STREAK_MARK_GLSL, /float fe = smoothstep\(0\.0, 0\.4, t\) \* smoothstep\(0\.0, 0\.4, 1\.0 - t\);/, 'smooth alpha in, whole between, smooth alpha out');
   assert.match(STREAK_MARK_GLSL, /float w = halfW \* sqrt\(max\(1\.0 - c \* c, 0\.0\)\);/, 'rounded: the same at both ends');
   assert.ok(STREAK.FEATHER >= 0.2 && STREAK.FEATHER <= 0.5);
   assert.doesNotMatch(CELLS_FS, /inkCol|inkA|\bring\b|smoothstep\(0\.84/, 'no outlined disc, no soft tips');
@@ -153,7 +153,7 @@ test('CONTAINED 100 percent: sampled at full turbulence, every lane, every size 
 test('CONTAINED BY CONSTRUCTION (Mohammad, 20 Nov: "the streaks are flowing outside all the vessels"): the streaks are painted in the tube\'s own fragment shader, clipped to the lumen, in every site; no sprite is drawn, so none can stray past an end, a taper or a fade', () => {
   // the clip is in the shared field itself, which every site includes
   assert.match(STREAK_FIELD_GLSL, /float ca = across \/ 0\.9;\n\s*float inLumen = step\(abs\(ca\), 1\.0\);/);
-  assert.match(STREAK_FIELD_GLSL, /return inLumen \* streakMark\(/, 'nothing past the edge');
+  assert.match(STREAK_FIELD_GLSL, /return inLumen \* cov \* fe \* op \* on;/, 'nothing past the edge');
   assert.ok(VESSEL_FS.includes(STREAK_FIELD_GLSL), 'the Anatomy: in the tube shader');
   assert.ok(MICRO_FS.includes(STREAK_FIELD_GLSL), 'the 3D lobule and sinusoid');
   assert.match(VESSEL_FS, /float fld = streakField\(across, /);
