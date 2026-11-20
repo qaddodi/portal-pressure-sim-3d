@@ -22,6 +22,14 @@ function kept<T>(key: string, make: () => Promise<T | null>): Promise<T | null> 
   return p;
 }
 
+/** Works a curve or a course out ahead (the deck's slide after the one on show): its sweep runs the model through every point on the worker and takes a while, so a slide that opens on it
+ *  finds it done and draws its lines in the first drawing, never an empty chart and then the lines. Asked once (`kept`); the card asks the same question with the same key. */
+export function warmCurve(tool: CurveTool | CourseTool, slide: SlideState | null, id: string, fpOf?: (slideId: string) => Fp | null): void {
+  if ((tool as { kind?: string }).kind === 'course') { const t = tool as CourseTool; void kept(curveKey(t, id), () => courseWork(t, engineRun(slide))).catch(() => undefined); return; }
+  const t = tool as CurveTool;
+  if (slide) void kept(curveKey(t, id), () => curveWork(t, slide, engineRun(slide), fpOf)).catch(() => undefined);
+}
+
 interface CardProps {
   /** the slide's `tool: { kind: 'curve' | 'course', … }`, as the 2D decks write it */
   tool: CurveTool | CourseTool;

@@ -82,8 +82,8 @@ test('the sinusoid beds are not drawn: the portal branches fade out into the liv
   const f = { Q: new Array(200).fill(1), D: new Array(200).fill(5) } as never;
   for (const id of ['SIN_RR', 'SIN_LL', 'PRE_R', 'PRE_L', 'POST_R_RHV', 'POST_L_LHV']) assert.equal(presenceOf(N.find((v) => v.id === id)!, f, { collaterals: true }), 'hidden', id);
   // (a vein that branches is drawn only up to its split; its children fade out of / in from the liver: they carry its fade)
-  for (const id of ['PVH_R_2', 'PVH_L_1']) { assert.equal(fadeOf(id, false), null, `${id} ends in its split`); const x = fadeOf(`${id}~F:b`, false, id)!; assert.equal(x.mode, 1); assert.deepEqual([x.to, x.a0, x.a1], [1, 1, 0], `${id}'s children end in the liver's tissue`); }
-  for (const id of ['RHV_IVC_1', 'LHV_IVC']) { { const h = fadeOf(id, false); assert.ok(!h || h.a0 !== 0, `${id} begins at its split, not in a fade-in`); } const x = fadeOf(`${id}~F:b`, false, id)!; assert.equal(x.mode, 1); assert.deepEqual([x.from, x.a0, x.a1], [0, 0, 1], `${id}'s children begin in the liver's tissue`); }
+  for (const id of ['PVH_R_2', 'PVH_L_1']) { assert.equal(fadeOf(id, false), null, `${id} ends in its split`); const x = fadeOf(`${id}~F:b`, false, id)!; assert.equal(x.mode, 1); assert.deepEqual([x.to, x.a0, x.a1], [0.92, 1, 0], `${id}'s children end in the liver's tissue`); }
+  for (const id of ['RHV_IVC_1', 'LHV_IVC']) { { const h = fadeOf(id, false); assert.ok(!h || h.a0 !== 0, `${id} begins at its split, not in a fade-in`); } const x = fadeOf(`${id}~F:b`, false, id)!; assert.equal(x.mode, 1); assert.deepEqual([x.from, x.a0, x.a1], [0.08, 0, 1], `${id}'s children begin in the liver's tissue`); }
   { const x = fadeOf('MHV_IVC', false)!; assert.equal(x.mode, 1); assert.deepEqual([x.from, x.a0, x.a1], [0, 0, 1], 'the middle hepatic vein, which does not branch, begins in the liver\'s tissue'); }
 });
 

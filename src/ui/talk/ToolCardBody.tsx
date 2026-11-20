@@ -15,7 +15,7 @@ import { CriteriaCard } from '../charts/criteria/CriteriaCard.tsx';
 import { PathCard } from '../charts/path/PathCard.tsx';
 import { ProfileCard } from '../charts/profile/ProfileCard.tsx';
 import { MenuCard } from '../charts/menu/MenuCard.tsx';
-import { CurveCard } from '../charts/curve/CurveCard.tsx';
+import { CurveCard, warmCurve } from '../charts/curve/CurveCard.tsx';
 import { FluidCard } from '../charts/fluid/FluidCard.tsx';
 import { StentCard } from '../charts/stent/StentCard.tsx';
 import { LumenCard } from '../charts/lumen/LumenCard.tsx';
@@ -61,6 +61,9 @@ const DopplerPane = lazy(() => import('../tests/doppler/DopplerPane.tsx').then((
 const FibroPane = lazy(() => import('../tests/fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
 const EndoPane = lazy(() => import('../tests/endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));
 
+/** The kinds that draw the live model's frames. */
+const FRAMED = new Set(['fluid', 'stent', 'flows']);
+
 type Rec = Record<string, unknown>;
 type Fp = Record<string, number | null | undefined>;
 
@@ -93,12 +96,27 @@ export function ToolCard({ deck, slide }: { deck: Deck; slide: Slide }): ReactNo
 
 function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): ReactNode {
   const env = useEnv(deck, i);
-  const { copied, cs, fp, params, healthy, results, fpOf } = env;
+  const { copied, cs, st, fp, params, healthy, results, fpOf } = env;
   const tool = (cs.tool ?? {}) as Rec;
   const kind = slide.visual && (CHART_VISUALS as readonly string[]).includes(slide.visual) ? `visual:${slide.visual}` : String(tool.kind ?? '');
   const forward = useRef(useUi.getState().dir > 0).current;   // (stepped onto from the slide before: a tracing that takes its readings one Next at a time starts at the first)
-  useEngine((s) => s.frames);   // (the live model's charts follow its frames)
+  // (only the charts of the live model follow its frames: any other kind re-rendered on every frame for nothing, and every fresh object it handed down redrew its chart)
+  useEngine((s) => (FRAMED.has(kind) ? s.frames : 0));
   const frame = latest.frame;
+  // The slide's state as a chart takes it: ONE object while the state is the same. The body re-renders on every engine frame (the live model's charts follow its frames), and a state object made
+  // fresh each time made the curve work out its goal again and the chart redraw on every one of them: the card flickered and the main thread never rested (Mohammad, 20 Nov: slide 10/11).
+  const slideState = useMemo(() => (fp ? { fp: fp as never, params, base: st?.base, snap: st?.snap } : null), [fp, params, st?.base, st?.snap]);  // eslint-disable-line react-hooks/exhaustive-deps
+  // the next two slides' curves and courses are worked out while this one is read, so they open drawn
+  useEffect(() => {
+    const t = setTimeout(() => {
+      for (let j = i + 1; j <= i + 2 && j < copied.slides.length; j++) {
+        const c = copied.slides[j] as CopiedSlide, tl = (c.tool ?? {}) as Rec, r = results?.[j];
+        if (tl.kind === 'curve' || tl.kind === 'course') warmCurve(tl as never, r?.fp ? { fp: r.fp as never, params: r.params, base: r.base, snap: r.snap } : null, `${deck.id}/${c.id}`, fpOf as never);
+      }
+    }, 700);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [i, deck.id, results]);
   const stateOf = useMemo(() => { let last = 0; return copied.slides.map((s, j) => (j === 0 || changes(s as CopiedSlide) ? (last = j) : last)); }, [copied]);
   const before = useMemo(() => beforeOf(tool.from as string | boolean | undefined, { slides: copied.slides, index: i, fp, fpOf }), [tool.from, copied, i, fp, results]);  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -106,8 +124,8 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'criteria': return <CriteriaCard tool={tool as never} fp={fp as never} />;
     case 'path': return <PathCard of={tool.of as string | undefined} patient={(tool.patient as Rec | undefined) ?? null} fp={fp as never} />;
     case 'profile': return <ProfileCard fp={fp as never} healthy={healthy as never} before={before as never} fromLabel={typeof tool.fromLabel === 'string' ? tool.fromLabel : 'Before'} spans={tool.spans as string[] | undefined} hold={!!cs.hold} />;
-    case 'curve': case 'course': return <CurveCard tool={tool as never} slide={fp ? { fp: fp as never, params, base: results?.[i]?.base, snap: results?.[i]?.snap } : null} fpOf={fpOf as never} id={`${deck.id}/${slide.id}`} />;
-    case 'menu': return <MenuCard rows={Array.isArray(tool.rows) ? (tool.rows as string[]) : null} slide={fp ? { fp: fp as never, params, base: results?.[i]?.base, snap: results?.[i]?.snap } : null} id={`${deck.id}/${slide.id}`} />;
+    case 'curve': case 'course': return <CurveCard tool={tool as never} slide={slideState} fpOf={fpOf as never} id={`${deck.id}/${slide.id}`} />;
+    case 'menu': return <MenuCard rows={Array.isArray(tool.rows) ? (tool.rows as string[]) : null} slide={slideState} id={`${deck.id}/${slide.id}`} />;
     case 'fluid': return <FluidCard fp={fp as never} frame={frame as never} params={(params ?? patient.params) as never} window={!!tool.window} forces={!!tool.forces} caveat={!!tool.caveat} compare={(cs.compare as never) ?? null} />;
     case 'stent': return <StentCard vessel={tool.vessel as never} show={tool.show as never} lens={tool.lens as never} color={tool.color as never} colorSwitch={tool.colorSwitch !== false} pick={tool.pick as never} panels={tool.panels as never} to={tool.to as never} max={tool.max as number | undefined} gate={tool.gate as never} fp={fp as never} frame={frame as never} params={params ?? patient.params} />;
     case 'lumen': return <LumenCard params={(params ?? patient.params ?? null) as never} vessel={(tool.vessel as string | undefined) ?? 'PV_TRUNK'} site={(tool.site as string | undefined) ?? null} name={(tool.name as string | undefined) ?? null} />;

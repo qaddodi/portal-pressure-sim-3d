@@ -30,9 +30,12 @@ import { lookColours } from '../lobule/lz-colours.ts';
 import { LOBULE_PALETTES } from '../lobule/tones.ts';
 import { cordToneInto } from '../lobule/from2d/lobule-look.generated.js';
 import { paintWorldInto, useTokens } from '../lobule/from2d/lobule-paint.generated.js';
-import { LOBULE_PLATE_FS, LOBULE_PLATE_VS, PLATE_BOX, PLATE_PX, PLATE_S, type PlateState, plateInput, plateKey, plateShape } from '../lobule/plate.ts';
+import { LOBULE_PLATE_FS, LOBULE_PLATE_VS, PLATE_BOX, defaultCanvas, PLATE_PX, PLATE_S, type PlateState, plateInput, plateKey, plateShape } from '../lobule/plate.ts';
 import { tissueInk } from '../lobule/cel.ts';
 import { hexToRgb01 } from '../lenses/oklab.ts';
+import { WASH_AMOUNT, washAmount, washFront } from '../lobule/wash.ts';
+/** How quickly the wash comes in and goes away (ms, an exponential ease). */
+const WASH_EASE_MS = 350;
 import { CEL_STYLE } from '../cel-style.ts';
 import { buildBile } from '../lobule/bile.ts';
 import { MeshBuilder, MicroPart, type P2, type RGB, ellipsoid, microMaterials, pillow, tube } from './cel3d.ts';
@@ -73,6 +76,8 @@ interface Flat {
   group: Group;
   sinScale(k: 's0' | 's1' | 's2' | 'an'): number;
   cvRadiusNow: number;
+  /** The wedge's wash, 0..1 (0 when no slide runs it). */
+  readonly washProgress: number;
   inkContext(): InkContext | null;
 }
 
@@ -137,7 +142,7 @@ export class Lobule3D {
     // the marks plate (above the tiles, under the vessels: drawn after the tiles with no depth test, the vessels after it)
     this.shape = { ...plateShape(this.flat.net), cells: [] };
     this.sins = this.flat.net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an').map((c) => ({ c, r: sinRadius(c.kind as 's0', 0.5) * 1.15 }));
-    this.canvas = typeof document === 'undefined' ? null : Object.assign(document.createElement('canvas'), { width: PLATE_PX, height: PLATE_PX });
+    this.canvas = defaultCanvas(PLATE_PX);   // (the plate's one canvas maker, plate.ts: a 2D canvas sent as a texture, no GL context of its own)
     this.tex = this.canvas ? new CanvasTexture(this.canvas) : null;
     if (this.tex) { this.tex.flipY = true; this.tex.premultiplyAlpha = true; this.tex.generateMipmaps = true; this.tex.minFilter = LinearMipmapLinearFilter; this.tex.magFilter = LinearFilter; this.tex.anisotropy = 4; }
     const blank = new DataTexture(new Uint8Array(4), 1, 1); blank.needsUpdate = true;
@@ -205,10 +210,30 @@ export class Lobule3D {
     const kcv = f.cvRadiusNow / DISC_R.cv;
     this.mouthCv.group.scale.set(kcv, kcv, 1);
     this.buildGround(kcv, lymphOn);
-    return this.stepFlow(now, rate, lymphOn, bileOn) || changed;
+    const washing = this.stepWash(now);
+    return this.stepFlow(now, rate, lymphOn, bileOn) || washing || changed;
   }
 
   // ---- the flow marks (quiet chevrons inside each vessel, streaks in the blood; they stop at the central vein's mouth and with the simulation) ------------------------
+
+  // ---- the wedge's wash (HVPG and PPG decks, slide 5): amber over the blood's own vessels, the sinusoids and the central vein, in a front from the centre out ----------------
+
+  private washAt = -1;
+  /** The wash's strength as drawn, eased toward the slide's (it comes in and goes away, never at once), and the front it was last drawn at. */
+  private washShown = 0;
+  private washFrontNow = 0;
+  private stepWash(now: number): boolean {
+    const dt = this.washAt < 0 ? 0 : clamp(now - this.washAt, 0, 100);
+    this.washAt = now;
+    const k = this.flat.washProgress, goal = k > 0 ? washAmount(k) / WASH_AMOUNT : 0;
+    if (k > 0) this.washFrontNow = washFront(k, this.flat.net.rcv0);
+    const was = this.washShown;
+    this.washShown = Math.abs(goal - was) < 1e-3 ? goal : was + (goal - was) * (1 - Math.exp(-dt / WASH_EASE_MS));
+    if (this.washShown === 0 && was === 0) return false;
+    const rgb = hexToRgb01((LOBULE_PALETTES[this.flat.look].tones as Record<string, string>).amber!) as RGB, a = this.washShown * this.fade.value;
+    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.mouthCv]) p.setRadialWash(a, this.washFrontNow, R, rgb);
+    return this.washShown !== goal;
+  }
 
   private flowAt = -1;
   /** The drawing buffer's pixel ratio (the scene's render asks the renderer): the heads and streaks are sized in device px. */
