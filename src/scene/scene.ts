@@ -28,6 +28,8 @@ import { SHOTS, type Shot, type ShotName } from './camera/shots.ts';
 import { Catheter, type CatheterState } from './catheter.ts';
 import { DEFAULT_FLOW_MODE, FLOW_FADE_MS, type FlowMarkMode, markSpeed } from './flow.ts';
 import { Highlight, OrganPins } from './highlight.ts';
+/** Each vessel's course and radius, for the selection's glow (glow.ts). */
+const GLOW_COURSES: ReadonlyMap<string, { pts: readonly (readonly [number, number, number])[]; radius: number }> = new Map(NETWORK.map((v) => [v.id, { pts: v.pts, radius: v.radius }]));
 import { CelObject, type CelShared, createShared } from './materials/cel.ts';
 import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
@@ -240,7 +242,7 @@ export class CelScene {
     });
     this.body.add(inVesselPass(this.probes.group));
 
-    this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
+    this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])), (id) => GLOW_COURSES.get(id));
     this.flow = new BloodMarks(this.vessels);
     this.cells = new BloodCells({ vessels: NETWORK, object: (id) => this.vesselObject(id), shared: this.shared, lens: this.lens.shared, blood: this.blood.shared, parent: this.body, layer: VESSEL_LAYER, phone: () => this.phone });
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
@@ -855,6 +857,7 @@ export class CelScene {
     this.fadeBody();
     // (the camera's own move, not the gentle tilt still easing or a hand on the figure: the view left behind goes the moment the move lands)
     if (this.hideLeftBehind && !this.rig.isMoving && !this.circuit.moving) this.settleViews();
+    this.highlight.setGlowShown(this.circuit.t < 0.02 && !this.circuit.toCircuit);
     const hiMoving = this.highlight.step(dt);
     const pinMoving = this.pins.step(dt, this.disease.organs.byId);
     this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
