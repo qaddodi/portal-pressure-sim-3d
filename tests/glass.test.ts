@@ -47,3 +47,11 @@ test('main imports the glass after the lifted 2D sheets', () => {
   const m = readFileSync('src/main.tsx', 'utf8');
   assert.ok(m.indexOf("./ui/css2d/index.css") > -1 && m.indexOf("./ui/css2d/index.css") < m.indexOf("./ui/glass.css"));
 });
+
+test('the phone dock is one glass: 2D\'s opaque layers (::before, tab row face and top) come off unless blur is off', () => {
+  for (const r of [
+    /html:not\(\[data-noglass\]\) \.app\.thumb \.vdock:not\(\.mini\)::before \{ background: none; box-shadow: none; \}/,
+    /html:not\(\[data-noglass\]\) \.app\.thumb \.vdock:not\(\.mini\) \.thumb-bar \{ background: none; box-shadow: none; \}/,
+    /html:not\(\[data-noglass\]\) \.app\.thumb \.vdock:not\(\.mini\) \.thumb-bar::before \{ background: none; box-shadow: inset 0 1px 0 var\(--hairline\); \}/,
+  ]) assert.match(bare, r);
+});
