@@ -53,7 +53,7 @@ export function balloonFit(r3: Route3D, rc: number, bl: number, tipD: number, sp
   const dC = sp ? (sp[0] + sp[1]) / 2 : tipD - gap - rx;
   const ry0 = balloonRy(at, dC, rx, proc ? Math.max(rc2 * 1.35, Rb) : rc2 * 1.35, { floor: rc2 * 1.05 });
   const ol = balloonOutline(at, dC, rx, ry0, bl, { floor: rc2 * 1.05 }) as { c: [number, number]; t: [number, number]; h: number; s: number }[];
-  const a = new Vector3(), b = new Vector3();
+  const a = new Vector3(), b = new Vector3(), hFull = Math.max(...ol.map((o) => o.h)) / U;
   ol.forEach((o, i) => {
     const q = rings[i]!, d = dC + rx * o.s;
     r3.point(d, a); r3.centre(d, b);
@@ -61,7 +61,9 @@ export function balloonFit(r3: Route3D, rc: number, bl: number, tipD: number, sp
     // (the radius the 2D route knows may be wider than the vein the 3D scene draws: the drawn vessel's own radius, less how far the ring's centre is off its centreline, is the last word)
     let room = Infinity;
     for (const id of r.ids) { const c = nearestOnCourse(id, q.c.x, q.c.y, q.c.z), v = NETWORK_BY_ID.get(id); if (c && v && c.dist < v.radius) room = Math.min(room, Math.max(v.radius - c.dist, 0)); }
-    q.r = Math.max(Math.min(o.h / U, (at(d).r / U) * BALLOON_FIT, room === Infinity ? Infinity : room * 0.93), 0.0004);
+    // (a barrel, as a Fogarty's glass: the profile is a round superellipse of the fullest ring, not 2D's flat-shouldered one, held under what the vein has room for at each ring)
+    const shoulder = Math.pow(Math.max(0, 1 - Math.pow(Math.abs(o.s), 2.6)), 1 / 2.6);
+    q.r = Math.max(Math.min(hFull * Math.max(shoulder, 0.0001), (at(d).r / U) * BALLOON_FIT, room === Infinity ? Infinity : room * 0.93), 0.0004);
   });
   return { dC, rx, ol };
 }
@@ -165,7 +167,8 @@ export class ProcCatheter {
   wedgeTint(): { amount: number; color: Color; pieces: Map<string, { cut: number; fade: number }> } | null {
     const { r3 } = this, r = r3.route, s = this.last, col = clamp01(s.column);
     if (r.kind !== 'hvpg' || col <= 0.001 || !this.group.visible) return null;
-    const tipD = r3.tipD(s.u), pieces = new Map<string, { cut: number; fade: number }>();
+    // (the column starts at the balloon's distal end, a little behind the tip: no untinted gap between the glass and the amber)
+    const tipD = r3.tipD(s.u) - this.rc * U * 4.0, pieces = new Map<string, { cut: number; fade: number }>();
     const hv = r.parts.find((q) => q.name === 'hv');
     for (const sub of hv?.subs?.length ? hv.subs : hv ? [hv] : []) {
       if (!sub.id || tipD >= sub.d1 - 1e-6) continue;   // (downstream of the balloon: not tinted)
