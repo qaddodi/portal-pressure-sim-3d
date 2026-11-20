@@ -213,7 +213,9 @@ vec2 dLaneWin(DFrame F) {
 float dFlow(float root) { ${flowBody} }
 
 // THE TUBE: every lane segment the pixel can see, of the current layout and (while it fades out) the last one
+bool dEdgeOk(float edge) { return edge >= 0.0 && edge < float(textureSize(routeTex, 0).x); }   // (a fetch outside the table is undefined: garbage, or NaN, on some GPUs)
 vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
+  if (!dEdgeOk(F.edge)) return vec4(0.0);
   vec3 t0, t1, t2, t3; dTones(lit, t0, t1, t2, t3);
   vec4 hd = texelFetch(routeTex, ivec2(int(F.edge), 0), 0);
   vec2 win = dLaneWin(F);
@@ -248,6 +250,7 @@ vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
 }
 // the segment of edge edge (current layout) that carries the root's lane yl, if any: its index (-1 none) and the particle's lane there and membership
 vec3 dFind(float edge, float root, float yl) {
+  if (!dEdgeOk(edge)) return vec3(-1.0, 0.0, 0.0);
   vec4 hd = texelFetch(routeTex, ivec2(int(edge), 0), 0);
   int nSeg = min(int(hd.x + 0.5), ${SEG_MAX});
   for (int i = 0; i < nSeg; i++) {
@@ -267,6 +270,8 @@ DMark dMix(DMark a, DMark b, float t) {
 // THE SKIN: a junction's pixel seen in its two heaviest arms' frames (F0, F1; w1 the share of the second). Each particle the first arm can see is drawn at the BLEND of its places in the two frames, by the share of each
 // that carries it, and only as much as the arms that carry it weigh here (a particle bound for the other branch fades as the pixel nears this one). Then the particles only the second arm carries.
 vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
+  if (!dEdgeOk(F0.edge)) return vec4(0.0);
+  if (!dEdgeOk(F1.edge)) w1 = 0.0;
   vec3 t0, t1, t2, t3; dTones(lit, t0, t1, t2, t3);
   int K = min(int(D_nCls + 0.5), ${DUST_KMAX}), N = min(int(D_win + 0.5), ${DUST_NMAX});   // (the loops' bounds are runtime numbers, GLSL ES 3.0: no compiler unrolls them into hundreds of copies)
   vec4 acc = vec4(0.0);
