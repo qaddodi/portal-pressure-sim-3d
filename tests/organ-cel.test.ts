@@ -38,8 +38,10 @@ test('cel shaded: the bands are exactly three tones over a whole sweep of light 
 test('cel shaded: the numbers are cel-style.ts\'s (no second copy), edges are EDGE_PX of fwidth, the tones are 2D\'s tokens, and the wash is behind `solid`', () => {
   const g = (name: string) => Number(new RegExp(`const float ${name} = ([0-9.]+);`).exec(ORGAN_FS)![1]);
   assert.equal(g('CEL_SHADE_LAM'), O.SHADE_LAM); assert.equal(g('CEL_LIT_LAM'), O.LIT_LAM); assert.equal(g('CEL_TUCK_AO'), O.TUCK_AO); assert.equal(g('CEL_EDGE_PX'), CEL_STYLE.EDGE_PX);
-  const lg = /CEL_LIGHT = normalize\(vec3\((-?[0-9.]+), ([0-9.]+), ([0-9.]+)\)\)/.exec(ORGAN_FS)!.slice(1).map(Number);
-  assert.deepEqual(lg, [...O.LIGHT], 'the light is the style\'s');
+  const lg = /CEL_LIGHT = vec3\((-?[0-9.]+), ([0-9.]+), ([0-9.]+)\)/.exec(ORGAN_FS)!.slice(1).map(Number);
+  const len = Math.hypot(...O.LIGHT);
+  O.LIGHT.forEach((v, i) => assert.ok(Math.abs(lg[i]! - v / len) < 1e-6, 'the light is the style\'s, normalized once in JS'));
+  assert.ok(Math.abs(Math.hypot(...lg) - 1) < 1e-5, 'a unit vector, so the shader needs no normalize');
   assert.match(ORGAN_FS, /float lam = dot\(n, CEL_LIGHT\);/, 'organ depth\'s soft light is the same light, not a copy');
   const fn = ORGAN_FS.slice(ORGAN_FS.indexOf('vec2 celBands'), ORGAN_FS.indexOf('void main()'));
   assert.match(fn, /wl = max\(fwidth\(lam\) \* CEL_EDGE_PX, 1e-5\)/);

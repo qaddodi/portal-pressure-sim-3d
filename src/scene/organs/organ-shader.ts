@@ -6,6 +6,8 @@ import { CEL_STYLE } from '../cel-style.ts';
 
 const num = (n: number) => (Number.isInteger(n) ? `${n}.0` : String(n));
 
+const CEL_LIGHT_N = (() => { const [x, y, z] = CEL_STYLE.ORGAN.LIGHT; const l = Math.hypot(x, y, z); return [x / l, y / l, z / l] as const; })();
+
 export const ORGAN_VS = /* glsl */ `
 #ifdef VERTEX_INK
 attribute vec3 ink;
@@ -65,7 +67,7 @@ const float CEL_SHADE_LAM = ${num(CEL_STYLE.ORGAN.SHADE_LAM)};
 const float CEL_LIT_LAM = ${num(CEL_STYLE.ORGAN.LIT_LAM)};
 const float CEL_TUCK_AO = ${num(CEL_STYLE.ORGAN.TUCK_AO)};
 const float CEL_EDGE_PX = ${num(CEL_STYLE.EDGE_PX)};
-const vec3 CEL_LIGHT = normalize(vec3(${num(CEL_STYLE.ORGAN.LIGHT[0])}, ${num(CEL_STYLE.ORGAN.LIGHT[1])}, ${num(CEL_STYLE.ORGAN.LIGHT[2])}));
+const vec3 CEL_LIGHT = vec3(${num(CEL_LIGHT_N[0])}, ${num(CEL_LIGHT_N[1])}, ${num(CEL_LIGHT_N[2])});   // (normalized here, not by a constant expression in GLSL: one less thing a phone's compiler can refuse)
 // how much of the shade tone (x) and the lit tone (y) a point wears, each 0 or 1 but for the pixel of an edge; tuckAt is where the tuck band starts (above 1: no band)
 vec2 celBands(float lam, float ao, float tuckAt) {
   float wl = max(fwidth(lam) * CEL_EDGE_PX, 1e-5), wa = max(fwidth(ao) * CEL_EDGE_PX, 1e-5);
