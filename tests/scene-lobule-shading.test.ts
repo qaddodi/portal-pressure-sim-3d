@@ -1,5 +1,6 @@
 // The lobule's vessels are shaded as 2D's Tube shades them (shading.ts): three screen-space tones, no world light or specular, the line by caliber, and the end-on vessels as celDisc (a pale band, the
 // wall opened where a vessel joins, an inner line where nothing does). The GLSL is compiled by glsl-compile.test.ts; here the text and the masks are held to 2D's numbers.
+import { CEL_TUBE_GLSL } from '../src/scene/cel-glsl.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createShared } from '../src/scene/materials/cel.ts';
@@ -16,18 +17,18 @@ const open = (g: Priv['discInfo'] extends Map<string, infer I> ? I : never, k: n
   return Array.from({ length: 72 }, (_, b) => binOpen(w, b));
 };
 
-test('a tube is three tones lit from the top left of the screen, 2D\'s numbers, with no specular and no band', () => {
+test('a tube is three tones lit from the top left of the screen, the figure\'s numbers (the one shared tube GLSL), with no specular and no band', () => {
   const t = LOBULE_TOON_FS;
   assert.match(t, /#ifdef TONES3/);
-  assert.ok(t.includes(`vec2(${CEL.DIR[0]}, ${CEL.DIR[1]})`));
-  assert.ok(t.includes(`${CEL.SHADE_AT} - etT`) && t.includes(`${CEL.LIT_AT} - etT`));
-  assert.ok(t.includes(`* ${CEL.SHADE} * shadowT`) && t.includes(`${CEL.LIT} * hwT * litT`));
-  assert.ok(t.includes('smoothstep(1.5, 3.5, vRdev)'), 'left out on a hairline');
+  assert.ok(t.includes(CEL_TUBE_GLSL), 'the same program text as the vessels\'');
+  assert.match(t, /celTubeTone\(c, acrossT, celTubeK\(sideS\), vRdev\)/);
+  assert.ok(CEL_TUBE_GLSL.includes('celTubeHw(rDev)') && /smoothstep\(1\.0, 2\.0, rDev\)/.test(CEL_TUBE_GLSL), 'left out on a hairline');
   assert.match(t, /#ifndef TONES3\s+c \+= rim \* 0\.10 \+ sp \* 0\.32;\s+#endif/, 'no rim light and no specular glint in the tones path');
 });
 
-test('the line is 2D\'s: 0.14 of the radius held between 1.5 and 3 device px, by the tube\'s own radius on screen', () => {
-  assert.ok(LOBULE_INK_VS.includes(`clamp(${CEL.LINE_R} * rDev, ${CEL.LINE_MIN}, ${CEL.LINE_MAX.toFixed(1)}) / dpr`));
+test('the line is the figure\'s: LINE_R of the radius held between LINE_MIN and LINE_MAX device px, by the tube\'s own radius on screen', () => {
+  const g = (x: number) => (Number.isInteger(x) ? x.toFixed(1) : String(x));
+  assert.ok(LOBULE_INK_VS.includes(`clamp(${g(CEL.LINE_R)} * rDev, ${g(CEL.LINE_MIN)}, ${g(CEL.LINE_MAX)}) / dpr`));
   assert.ok(LOBULE_INK_VS.includes('px > 0.0'), 'a part drawn with no line (the space of Disse\'s band) keeps none');
 });
 
