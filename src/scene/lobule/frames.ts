@@ -21,7 +21,9 @@ export const LOBULE_SCALE = 1 / 1500;
 export const SIN_LOCAL: V3 = [-1.3213, 0.2455, 0];
 // (owner, 20 Nov: the sinusoid view lines up with a real sinusoid of the lobule, mid zone 2: this is point 23 of the lobule's own course 90 (a second-generation sinusoid, hexFrac 0.49,
 //  running along +x within 0.01 rad), so the dive from the lobule lands on a sinusoid that is drawn there. tests/scene-dive.test.ts holds it against buildLobule(7).)
-export const SIN_REL = 0.106;
+// (20 Nov, the dive's handoff read as a cut: the 3D sinusoid's lumen, 10 µm at U, came out 1.44 times the 3D lobule's tube it grows out of at 0.106. Now the lumen is as wide as that tube,
+//  tests/scene-dive-handoff.test.ts, so the sinusoid grows out of the very capillary the camera goes into.)
+export const SIN_REL = 0.0735;
 export const SIN_SCALE = LOBULE_SCALE * SIN_REL;
 
 /** A point of the lobule's local units in the scene. */
