@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createClock } from '../src/clock/frame.ts';
-import { createRail, throwAt, followOf, commitOf, speedOf, RAIL_MS, THROW_IN, THROW_OUT, FIRST_MS, STAGGER, PARALLAX, type Styled } from '../src/ui/cards/rail.ts';
+import { createRail, throwAt, followOf, commitOf, speedOf, RAIL_MS, THROW_IN, THROW_OUT, FIRST_MS, OUT_DONE, STAGGER, PARALLAX, type Styled } from '../src/ui/cards/rail.ts';
 
 // Mohammad, 20 Nov: cards appeared one before the other and grew as they came in; the slide change should move the cards out of view (forward right to left, back
 // left to right), the new ones come in from the other side, and on a phone the cards follow the finger. 2D's card-throw.js, kept, then refined.
@@ -180,4 +180,16 @@ test('the first card of a talk fades in where it stands, rising a little, never 
   assert.ok(parseFloat(a[0]!.v.opacity!) > 0 && parseFloat(a[0]!.v.opacity!) < 1, 'fading in');
   for (let i = 0; i < Math.ceil(FIRST_MS / 16) + 4; i++) tick(16);
   assert.equal(a[0]!.v.transform, undefined); assert.equal(rail.busy, 0);
+});
+
+// Mohammad, 20 Nov: "when the instrument card does not change, we should not be able to swipe it (it shouldn't swipe away and back in)". A data card the next slide keeps
+// (the same key) stays put under a finger and on Next, and moves to its new place with the new cards, on their curve, after the old ones are gone.
+test('the data card a slide keeps does not follow the finger, and glides with the swap on the rail\'s curve', () => {
+  const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
+  const drag = readFileSync(new URL('../src/ui/cards/useCardDrag.ts', import.meta.url), 'utf8');
+  const frame = readFileSync(new URL('../src/ui/cards/CardFrame.tsx', import.meta.url), 'utf8');
+  assert.match(layer, /keeps: \(dx\) => .*dataKeyOf\(to\) === dataKey/, 'the layer says whether the data card is kept by the slide a drag goes to');
+  assert.match(drag, /filter\(\(c\) => !\(keep && c\.data\)\)/, 'a kept data card is left out of the drag');
+  assert.match(frame, /transition: `transform \$\{IN_MS\}ms \$\{RAIL_CSS\} \$\{OUT_DONE\}ms`/, 'its move to a new place waits for the old cards to be gone, then runs as long as the new cards\' entrance');
+  assert.equal(OUT_DONE, 272);
 });
