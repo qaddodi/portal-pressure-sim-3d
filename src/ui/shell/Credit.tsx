@@ -43,6 +43,29 @@ function obstacles(vw: number, vh: number): { l: number; t: number; r: number; b
     if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.05) continue;
     out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom });
   }
+  out.push(...cardContent(vw, vh));
+  return out;
+}
+
+/** What a deck's cards hold: each line of their words and each picture, chart or tile, as rectangles. The credit may stand on a card's bare glass (Mohammad, 20 Nov: "(C) over the card is ok"), never on its text:
+ *  on the HVPG slides it printed over the words of the card. A corner that these cover rises above them, as it does above a bar. */
+const CARDS = '.pz-shade, .pz-data, .pz-case, .pz-panel';
+const CARD_ART = 'canvas, img, svg, .pz-tool, .pz-tile, .pz-tiles';
+function cardContent(vw: number, vh: number): { l: number; t: number; r: number; b: number }[] {
+  const out: { l: number; t: number; r: number; b: number }[] = [];
+  const add = (r: DOMRect) => { if (r.width >= 1 && r.height >= 1 && r.right > 0 && r.bottom > 0 && r.left < vw && r.top < vh) out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom }); };
+  const range = document.createRange();
+  for (const card of document.querySelectorAll<HTMLElement>(CARDS)) {
+    const cs = getComputedStyle(card);
+    if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.05 || card.closest('[hidden]')) continue;
+    const walk = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      if (!n.nodeValue?.trim() || n.parentElement?.closest('button, [aria-hidden="true"], [hidden], .stage-credit')) continue;
+      range.selectNodeContents(n);
+      for (const r of range.getClientRects()) add(r);
+    }
+    for (const a of card.querySelectorAll<HTMLElement>(CARD_ART)) { if (!a.closest('button, [hidden]')) add(a.getBoundingClientRect()); }
+  }
   return out;
 }
 
@@ -55,6 +78,7 @@ export function Credit() {
   const fps = useSettings((s) => s.showFps);
   const thumb = useThumb();
   const view = useShell((s) => s.view);
+  const slideKey = useUi((s) => `${s.pos.stop}.${s.pos.beat}.${s.page}`);   // (a talk's slide, beat or page: its cards, and so what the credit keeps clear of, change)
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -83,9 +107,10 @@ export function Credit() {
     };
     place();
     again();
+    const late = window.setTimeout(place, 900);   // (a slide's cards come in after their measure and a short fade)
     const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(again) : null;
     for (const e of document.querySelectorAll(OBSTACLES)) ro?.observe(e);
-    return () => { clearTimeout(timer); clearTimeout(hop); ro?.disconnect(); };
-  }, [view, vp.w, vp.h, vp.safe.bottom, vp.safe.left, vp.safe.top, vp.safe.right, fps, thumb]);
+    return () => { clearTimeout(timer); clearTimeout(hop); clearTimeout(late); ro?.disconnect(); };
+  }, [view, slideKey, vp.w, vp.h, vp.safe.bottom, vp.safe.left, vp.safe.top, vp.safe.right, fps, thumb]);
   return <div className="stage-credit" ref={ref} aria-hidden="true">{CREDIT}</div>;
 }

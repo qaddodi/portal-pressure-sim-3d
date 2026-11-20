@@ -50,20 +50,32 @@ function disc(x: number, y: number, s: number, rLo: number, rHi: number, jit: nu
 }
 /** Cel mock-ups of the cirrhotic liver (Mohammad 20 Nov: "I hate the cirrhotic look, I want a celshaded look, and a change of colour"), `?liver=cel1..cel4` on the preview copy:
  *  clean round nodules with an ink line between them, the dome in two or three flat bands, and a tawny, olive, rust or straw colour. No flag: the c2b surface above. */
-export interface Cel { name: string; /** the liver's colour at full scarring (sRGB hex) */ colour: string; /** share of it taken (0..1) */ a: number; /** flat tones on a nodule: 2 (lit, body) or 3 (lit, body, shade) */ bands: 2 | 3; /** ink line strength, 0..1 */ ink: number; /** band contrast on the wash */ shade: number }
+export interface Cel {
+  name: string; /** the liver's colour at full scarring (sRGB hex) */ colour: string; /** share of it taken (0..1) */ a: number;
+  /** flat tones on a nodule: 2 (body, shade) or 3 (lit cap, body, shade) */ bands: 2 | 3; /** ink line between nodules, 0..1 */ ink: number; /** band contrast on the wash */ shade: number;
+  /** cell size in 2D units, disc radius range (of a cell) and grid jitter */ size: number; rLo: number; rHi: number; jit: number;
+  /** the lit cap's and the shaded foot's thresholds on the dome light (-1..1) */ cap: number; foot: number;
+  /** mesh bump scale (the base c2b is 0.2) and the rim's scallop scale (1 = 0.014) */ bump: number; rim: number;
+}
+const BIG = { size: 17, rLo: 0.46, rHi: 0.78, jit: 0.2, cap: 0.3, foot: -0.28, bump: 0.2, rim: 1 };
 export const CELS: Record<string, Cel> = {
-  cel1: { name: 'tawny ochre', colour: '#C98F3A', a: 0.62, bands: 3, ink: 0.7, shade: 0.34 },
-  cel2: { name: 'muted olive-tan', colour: '#A89A5C', a: 0.62, bands: 3, ink: 0.7, shade: 0.34 },
-  cel3: { name: 'desaturated rust', colour: '#A8634A', a: 0.58, bands: 2, ink: 0.9, shade: 0.3 },
-  cel4: { name: 'straw yellow', colour: '#D9B966', a: 0.62, bands: 3, ink: 0.55, shade: 0.3 },
+  cel1: { name: 'tawny ochre', colour: '#C98F3A', a: 0.62, bands: 3, ink: 0.7, shade: 0.34, ...BIG },
+  cel2: { name: 'muted olive-tan', colour: '#A89A5C', a: 0.62, bands: 3, ink: 0.7, shade: 0.34, ...BIG },
+  cel3: { name: 'desaturated rust', colour: '#A8634A', a: 0.58, bands: 2, ink: 0.9, shade: 0.3, ...BIG },
+  cel4: { name: 'straw yellow', colour: '#D9B966', a: 0.62, bands: 3, ink: 0.55, shade: 0.3, ...BIG },
+  // Cobbled, after the patient-education cirrhosis plate Mohammad sent (20 Nov): terracotta, the whole surface packed with small round bumps of mixed size, each a lit cap over a body over a
+  // shaded underside, no ink lines between them (a faint crevice only), the outline lumpy all the way round.
+  cel5: { name: 'terracotta, fine bumps', colour: '#B0603F', a: 0.74, bands: 3, ink: 0.16, shade: 0.4, size: 8.5, rLo: 0.42, rHi: 0.9, jit: 0.3, cap: 0.22, foot: -0.2, bump: 0.5, rim: 1.4 },
+  cel6: { name: 'terracotta, chunkier bumps', colour: '#A95A3B', a: 0.74, bands: 3, ink: 0.16, shade: 0.42, size: 12, rLo: 0.4, rHi: 0.9, jit: 0.3, cap: 0.22, foot: -0.2, bump: 0.6, rim: 1.7 },
+  cel7: { name: 'warm brown, finest bumps', colour: '#9A5238', a: 0.76, bands: 3, ink: 0.12, shade: 0.38, size: 6.5, rLo: 0.45, rHi: 0.92, jit: 0.32, cap: 0.2, foot: -0.18, bump: 0.4, rim: 1.2 },
 };
 export const celLook = (): Cel | null => { const v = flagValue('liver'); return v !== null && CELS[v] ? CELS[v]! : null; };
 function celSurface(x: number, y: number, cel: Cel): Surface {
-  const c = disc(x, y, 17, 0.46, 0.78, 0.2, 61), w = Math.max(3, c.r * 0.6);
+  const c = disc(x, y, cel.size, cel.rLo, cel.rHi, cel.jit, 61), w = Math.max(2, c.r * 0.6);
   const l = lit(c, w, 0.2);
   // flat bands: the lit cap, the body, the shaded foot (a 2-band nodule drops the cap)
-  const light = l > 0.3 && cel.bands === 3 ? 0.9 : l < -0.28 ? -0.9 : 0;
-  // the ink line: a crisp bold wall where nodules meet or part
+  const light = l > cel.cap && cel.bands === 3 ? 0.9 : l < cel.foot ? -0.9 : 0;
+  // the line: crisp where nodules meet or part, faint on the cobbled looks
   return { sep: cel.ink * (1 - sstep(0.15, 0.75, c.edge)), dome: c.edge <= 0 ? 0 : round(c.edge, w), tone: 0.5, light };
 }
 /** The surface at (x, y) in 2D units: round nodules of mixed size (c2b of the options Mohammad picked from: size 13, discs 0.34 to 0.78 of a cell, septa at 45%, a soft dome shade). */
@@ -76,7 +88,9 @@ export function surfaceAt(x: number, y: number): Surface {
 export const SHADE = 0.16, TONE = 0;
 export const shadeNow = (): number => celLook()?.shade ?? SHADE;
 /** The nodule's bump for the mesh (0..1): the dome, scaled by how much of it the mesh can carry. */
-export const noduleBumpAt = (x: number, y: number): number => 0.2 * surfaceAt(x, y).dome;
+export const noduleBumpAt = (x: number, y: number): number => (celLook()?.bump ?? 0.2) * surfaceAt(x, y).dome;
+/** The rim's scallop scale (1: the standing 0.014). */
+export const rimScale = (): number => celLook()?.rim ?? 1;
 /** The dome at a point (0..1): what the liver's outline follows. */
 export const domeAt = (x: number, y: number): number => surfaceAt(x, y).dome;
 
