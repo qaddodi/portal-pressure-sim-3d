@@ -142,7 +142,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     })];
   }
   // a fan: each tributary's width is the host's times the group's share and its own (at least 1.2 units), thinner while the group is only part on
-  return plan.list.map((f) => ({ pts: f.dz ? to3(f.pts, z).map((p, i): Vec3 => [p[0], p[1], p[2] + f.dz![i]!]) : to3(f.pts, z), radius: len3(Math.max(0.35, Math.max(1.2, plan.hostW * plan.cfgK * f.k * (plan.when ? 0.5 + 0.5 * s.live : 1)) / 2)) }));
+  return plan.list.map((f) => ({ ...(f.taper ? { taper: f.taper, taperSpan: [0.3, 0.9] as const } : {}), pts: f.dz ? to3(f.pts, z).map((p, i): Vec3 => [p[0], p[1], p[2] + f.dz![i]!]) : to3(f.pts, z), radius: len3(Math.max(0.35, Math.max(1.2, plan.hostW * plan.cfgK * f.k * (plan.when ? 0.5 + 0.5 * s.live : 1)) / 2)) }));
 }
 
 /** The tube segments each course is built with, fixed at rest so a coil changes positions and never the vertex count. */

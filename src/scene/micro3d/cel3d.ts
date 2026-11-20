@@ -10,7 +10,7 @@
 //   const part = microPart(geometry, m);                group.add(part.group)
 //   const many = microInstanced(geometry, m, count);    many.toon.setMatrixAt(i, m4); many.ink.setMatrixAt(i, m4) (or `many.setAt(i, m4, colour)`)
 import {
-  BackSide, BufferAttribute, BufferGeometry, Color, FrontSide, Group, InstancedMesh, LinearSRGBColorSpace, Matrix4, Mesh, ShaderMaterial, type Texture, type Vector2, Vector4,
+  BackSide, BufferAttribute, BufferGeometry, Color, DataTexture, FrontSide, Group, InstancedMesh, LinearSRGBColorSpace, Matrix4, Mesh, ShaderMaterial, type Texture, type Vector2, Vector4,
 } from 'three';
 import { CEL_STYLE } from '../cel-style.ts';
 import { CHEVRON_GLSL } from '../blood/chevron-glsl.ts';
@@ -158,6 +158,7 @@ float flowStreaks() {
 // side at local y > 0, row 1 the other), holding the gap's half width (red, 0..1 of 0.5 µm). A fragment within it is not drawn at all, across the whole bead and its wall, so the space of Disse shows through;
 // the cut's own edge is a slim dark line (screen px wide, antialiased), as the sheet's other edges are inked.
 uniform sampler2D uGaps;
+varying vec2 vG;      // the fragment's own place on the sheet (local x and y, µm)
 uniform vec4 uGapX;   // x: the first slot's x (µm), y: the slots (the texture's width), z: 0.5 µm per unit of red
 float gapCut() {
   float u = vG.x - uGapX.x, j = floor(u);
@@ -277,6 +278,10 @@ export interface MicroOptions {
   transparent?: boolean;
 }
 
+/** The gap table of a part without gaps: one closed texel. */
+const NO_GAPS = new DataTexture(new Uint8Array(4), 1, 1);
+NO_GAPS.needsUpdate = true;
+
 /** Sets a three Color from raw sRGB numbers (no conversion: the shaders write them as they are). */
 export const rawRGB = (c: Color, rgb: RGB): Color => c.setRGB(rgb[0]!, rgb[1]!, rgb[2]!, LinearSRGBColorSpace);
 
@@ -297,7 +302,8 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
       uFlowR: { value: 0.02 }, uDpr: { value: 2 }, uFlowDark: { value: 0 }, uFlowInk: { value: rawRGB(new Color(), hexRGB(LENS_SHARED.chevron)) },
-      ...(o.gaps ? { uGaps: { value: o.gaps.tex }, uGapX: { value: o.gaps.x } } : {}),
+      // (every toon carries the gaps' uniforms too, a blank texture and no slots where it has none, so a program read without GAPS still finds each one)
+      uGaps: { value: o.gaps?.tex ?? NO_GAPS }, uGapX: { value: o.gaps?.x ?? new Vector4(0, 0, 0, 0) },
     },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
