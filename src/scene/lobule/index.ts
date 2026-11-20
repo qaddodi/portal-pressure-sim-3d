@@ -1,5 +1,5 @@
 // The lobule view (batch B8): public face. See docs/lobule-sinusoid.md.
-export { LobuleView, litParts, TERM_PARTS, ZONE_NAMES } from './view.ts';
+export { LobuleView } from './view.ts';
 export type { LobuleLayers, LobuleViewOptions } from './view.ts';
 export { buildLobule, zoneOf, hexFrac, N as COURSE_SAMPLES } from './geometry.ts';
 export type { Course, LobuleNet, TubeKind } from './geometry.ts';
