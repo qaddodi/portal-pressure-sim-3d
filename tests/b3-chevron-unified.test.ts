@@ -40,5 +40,5 @@ test('the blood chevron is black like the Anatomy\'s: the look\'s chevron ink on
 test('chevrons stay in the lumen: the head is confined to the middle 0.55 of the face (its half width is the lattice\'s hw at |across| 0.55)', () => {
   assert.match(CHEVRON_GLSL, /return chevHead\(dir \* x, abs\(across\) \* hw \/ 0\.55, hw, px, 0\.0\);/);
   // (the lobule's tubes: the Anatomy's own rule, CHEV: chevHw, 55 percent of the lumen, 60 at most)
-  assert.match(MICRO_FS, /float hw = chevHw\(R, wpc\);/);
+  assert.match(MICRO_FS, /float hw = chevHw\(R, wpc\) \* chevSize\(kp\);/);
 });
