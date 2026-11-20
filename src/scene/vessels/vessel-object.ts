@@ -7,8 +7,7 @@ import type { BloodShared } from '../blood/field.ts';
 import { LENS_SHARED, LENS_TOKENS } from '../lenses/tokens.copied.ts';
 import type { LookId } from '../palette.ts';
 import { CIRCUIT_ATTRIBUTES } from '../circuit/geometry.ts';
-import { LOOKS } from '../../looks/looks.ts';
-import { CASING, RIM_A } from './cel-ink.ts';
+import { CASING, RIM_A, RIM_INK } from './cel-ink.ts';
 import type { CircuitShared } from '../circuit/uniforms.ts';
 
 /** Uniforms every vessel shares: the two lens textures held for the crossfade, their stream colours, and the cross-fade itself. */
@@ -137,7 +136,7 @@ export class VesselObject extends CelObject {
     // the 2D look's line: its casing ink (set above, p.ink) at its casing alpha, and a dark lumen's light rim on the dark looks
     u.casingA!.value = CASING[look].a; u.casingCircA!.value = CASING[look].circ.a;
     { const [r, g, b] = CASING[look].circ.rgb; (u.inkColorCirc!.value as Color).setRGB(r / 255, g / 255, b / 255, LinearSRGBColorSpace); }
-    const rim = rawColor(LOOKS[look].text);
+    const rim = rawColor(RIM_INK);
     (u.rimInk!.value as Vector4).set(rim.r, rim.g, rim.b, RIM_A[look]);
     rawColor(LENS_TOKENS[look].flowReversed, u.markRev!.value as Color);
   }

@@ -12,7 +12,7 @@ export const CEL_DIR_VIEW = CEL.DIR;
 
 /** The look's casing (tokens.css --casing-rgb / --casing-a) in the Anatomy, and `circ` its casing in the Circuit (`.stage-wrap.cmap`, which is the Circuit view and not a colour lens: stage-frame.js 250): only the
  *  dark look changes there (ink 0 0 0, alpha .38); Navy and Black keep theirs, Light and Soft are unchanged. The shader mixes the two by the Circuit's share (`circT`). */
-const RAW_CASING: Readonly<Record<LookId, { rgb: readonly [number, number, number]; a: number; circ: { rgb: readonly [number, number, number]; a: number } }>> = {
+export const CASING_2D: Readonly<Record<LookId, { rgb: readonly [number, number, number]; a: number; circ: { rgb: readonly [number, number, number]; a: number } }>> = {
   light: { rgb: [59, 44, 34], a: 0.64, circ: { rgb: [59, 44, 34], a: 0.64 } },
   soft: { rgb: [51, 37, 26], a: 0.66, circ: { rgb: [51, 37, 26], a: 0.66 } },
   dark: { rgb: [14, 11, 9], a: 0.3, circ: { rgb: [0, 0, 0], a: 0.38 } },
@@ -21,9 +21,11 @@ const RAW_CASING: Readonly<Record<LookId, { rgb: readonly [number, number, numbe
 };
 /** The casing the shaders wear: 2D's, with the alpha held at the figure's least (cel-style INK_ALPHA_MIN), so the line reads as ink on every look. */
 const floorA = (a: number) => Math.max(a, CEL_STYLE.INK_ALPHA_MIN);
-export const CASING: typeof RAW_CASING = Object.fromEntries(Object.entries(RAW_CASING).map(([k, v]) => [k, { rgb: v.rgb, a: floorA(v.a), circ: { rgb: v.circ.rgb, a: floorA(v.circ.a) } }])) as unknown as typeof RAW_CASING;
+export const CASING: typeof CASING_2D = Object.fromEntries(Object.entries(CASING_2D).map(([k, v]) => [k, { rgb: v.rgb, a: floorA(v.a), circ: { rgb: v.circ.rgb, a: floorA(v.circ.a) } }])) as unknown as typeof CASING_2D;
 /** A dark lumen's light rim on the dark looks (tokens.css --vessel-rim-a: .3 there, 0 on the light looks): its alpha. */
 export const RIM_A: Readonly<Record<LookId, number>> = { light: 0, soft: 0, dark: 0.3, navy: 0.3, black: 0.3 };
+/** The rim's colour: 2D's --light-ink, white (stage-vessels.js: `rim: toRGB('var(--light-ink)')`), on every look. It was the look's text colour, a warm grey-cream, which lay a dirty halo inside the ink. */
+export const RIM_INK = '#FFFFFF';
 
 const clamp = (x: number, a: number, b: number): number => Math.min(Math.max(x, a), b);
 const smoothstep = (a: number, b: number, x: number): number => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };

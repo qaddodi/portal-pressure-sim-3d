@@ -221,3 +221,16 @@ test('the glide finds the one chosen button of a control (a fold\'s ghost, a hid
   assert.equal(handOver(keep, 'side', [top]), false); assert.equal(top.scrollTop, 40, 'the first placement keeps the scroll');
   assert.equal(handOver(keep, 'sheet', [top, null]), true); assert.equal(top.scrollTop, 0);
 });
+
+test('a phone\'s Half leaves the figure about 45 % of the screen (the sheet\'s content scrolls instead)', async () => {
+  const { halfCap, FIGURE_KEEPS } = await import('../src/ui/tests/place.ts');
+  const H = 812, foot = 90, R = H - 100 - foot - 22;
+  const [half, full] = sheetStops('phone-portrait', H, R, false, foot);
+  assert.ok(half < TESTS_HALF_PX, `Half ${half} is under the old 520`);
+  assert.equal(half, halfCap(H, foot));
+  assert.ok(H - foot - half >= FIGURE_KEEPS * H - 1, 'the card\'s top edge is at least 45 % down the screen');
+  assert.ok(half >= 240 && full === Math.round(R), 'Full is unchanged and Half keeps its tabs and a chart\'s worth');
+  assert.ok(half <= full);
+  // a tall screen keeps the 520 px Half where it already leaves the figure that much
+  assert.equal(sheetStops('phone-portrait', 1400, 1200, false, 90)[0], TESTS_HALF_PX);
+});
