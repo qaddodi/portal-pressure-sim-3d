@@ -880,8 +880,8 @@ export class CelScene {
     const into = this.post.target(gl);
     const dof = dofShare > 0 && !!into?.depthTexture;
     // the sinusoid's focus band (every device): its own lumen and plates sharp, the neighbours and whatever drifts off them blurring by distance (post-dof.ts bandFrame)
-    const bandK = into && this.figureView === 'sinusoid' ? this.sinus3d.focusBand(_bA, _bB, _bE0, _bE1) : 0;
-    const band = bandK > 0 && this.post.dof.bandFrame(cam, _bA, _bB, _bE0, _bE1, into!.width, into!.height, bandK) > 0;
+    const bandK = into && this.figureView === 'sinusoid' ? this.sinus3d.focusBand(_bA, _bB, _bE0, _bE1, _bEnds) : 0;
+    const band = bandK > 0 && this.post.dof.bandFrame(cam, _bA, _bB, _bE0, _bE1, into!.width, into!.height, bandK, _bEnds) > 0;
     if (!band) this.post.dof.bandShare = 0;
     if (into) gl.setRenderTarget(into);
     cam.layers.set(0);
@@ -924,4 +924,4 @@ export { SHOTS };
 
 /** 0 below a, 1 above b, smooth between. */
 function smoothstep01(a: number, b: number, x: number): number { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
-const _bA = new Vector3(), _bB = new Vector3(), _bE0 = new Vector3(), _bE1 = new Vector3();
+const _bA = new Vector3(), _bB = new Vector3(), _bE0 = new Vector3(), _bE1 = new Vector3(), _bEnds = { mid: new Vector3(), f0: new Vector3(), f1: new Vector3() };

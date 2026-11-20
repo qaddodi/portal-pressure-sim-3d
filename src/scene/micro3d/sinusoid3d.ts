@@ -24,7 +24,9 @@ import {
 } from './cel3d.ts';
 
 /** How far along the sinusoid (µm each way) the scene is built: past anything the camera can hold (the flat view's reach). */
-export const REACH = 130;
+export const REACH = 200;
+/** The traffic runs this far each way (µm): past the ends' blur, short of the scene's ends, so its density stays 2D's. */
+export const TRAFFIC_REACH = 150;
 /** How far across (µm each way, from the axis): the main plates and, beyond each, one more sinusoid and plate, as 2D repeats them outward. */
 export const ACROSS = 80;
 /** Depths (µm, toward the viewer): the plates' tops, the lining's crest, Disse's floor, the ground under the clefts, the trough's depth as a share of the lumen's half width. */
@@ -36,8 +38,10 @@ const LIFT = 8;
 const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_RUN = 8, HAZE_K = 0.45;
 /** The focus band's run (µm past the haze's start) to a whole blur (post-dof.ts bandFrame): the next lumen soft, the plate past it gone. The haze is lighter with the blur, so the neighbours' disease still shows. */
 const BLUR_RUN = 9;
+/** The scene's ends: the blur along the sinusoid starts this far (µm) inside each end and is whole this far in. */
+const END_BLUR = [95, 55] as const;
 /** Red cells in this sinusoid's lumen, and in each of the two next ones (beyond the plates). */
-const RBC_N = 34, RBC_FAR = 14, RBC_R = 1.05;
+const RBC_N = 50, RBC_FAR = 20, RBC_R = 1.05;
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -160,7 +164,7 @@ export class Sinusoid3D {
    *  which moves with the camera: a pan or a turn slid every albumin and red cell the other way). Off again, the flat view lays its stretch for the screen afresh. */
   pinTraffic(on: boolean): void {
     const f = this.flat;
-    if (on) { f.VW.vis[0] = -REACH; f.VW.vis[1] = REACH; this.pinned = true; }
+    if (on) { f.VW.vis[0] = -TRAFFIC_REACH; f.VW.vis[1] = TRAFFIC_REACH; this.pinned = true; }
     else if (this.pinned) { this.pinned = false; (f as unknown as { screen: unknown }).screen = null; }
   }
   private pinned = false;
@@ -200,11 +204,13 @@ export class Sinusoid3D {
 
   /** The focus band for the depth of field's band (post-dof.ts bandFrame): two points on this sinusoid's axis, where the blur starts (just past its own plates, as the haze) and where it is
    *  whole, in world space; returns the strength (0 when the scene is not shown: no blur). */
-  focusBand(a: Vector3, b: Vector3, e0: Vector3, e1: Vector3): number {
+  focusBand(a: Vector3, b: Vector3, e0: Vector3, e1: Vector3, ends?: { mid: Vector3; f0: Vector3; f1: Vector3 }): number {
     if (!this.on || !this.group.visible) return 0;
     this.group.updateWorldMatrix(true, false);
     const y0 = this.flat.g.hepIn(0) + UM.hep * 0.45, w = (v: Vector3, x: number, y: number) => this.group.localToWorld(v.set(x, y, 0));
     w(a, -20, 0); w(b, 20, 0); w(e0, 0, y0); w(e1, 0, y0 + BLUR_RUN);
+    // the two ends melt away well before the scene stops (Mohammad 20 Nov: "don't let me see the end of the sinusoid like that ... blur the ends")
+    if (ends) { w(ends.mid, 0, 0); w(ends.f0, REACH - END_BLUR[0], 0); w(ends.f1, REACH - END_BLUR[1], 0); }
     return this.fade.value;
   }
 
@@ -336,9 +342,13 @@ export class Sinusoid3D {
             ellipsoid(nol, x + r * 0.3 * Math.cos(a), Y(yd) + r * 0.3 * Math.sin(a), Z.cell + 0.32, r * 0.13, r * 0.13, 0.12, 0, undefined, 12, 6);
           };
           if (c.bi) { const dx = (c.x1 - c.x0) * 0.17; put(xn - dx, c.nr * 0.8); put(xn + dx, c.nr * 0.8); } else put(xn, c.nr);
-          // the canaliculus on this cell's leading border, half way into the plate: a small capsule across the border
-          const xb = canaliculusAt(j, sd), yb = s * (face(xb) + UM.hep * 0.5);
-          tube(bile, [[xb, Y(yb) - 1.05, Z.cell - 0.45], [xb, Y(yb) + 1.05, Z.cell - 0.45]], () => 0.62, undefined, 10, true);
+          // the canaliculus on this cell's leading border: a slim channel running down the cleft between the two cells over the middle of the plate, tapering to a point at each end
+          // (Mohammad 20 Nov 2026: "the bile ductule here should look better"; it was a short pill across the border)
+          {
+            const M = 14, path: [number, number, number][] = [];
+            for (let i = 0; i <= M; i++) { const v = UM.hep * lerp(0.16, 0.84, i / M); path.push([edgeAt(j, sd, v), Y(s * (face(edgeAt(j, sd, v)) + v)), Z.cell - 0.4]); }
+            tube(bile, path, (i) => 0.5 * Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, (i / M) * 0.9 + 0.05))), 0.45), undefined, 10, true);
+          }
         }
       };
       const seeds: Record<Side, number> = { [-1]: SEED.plateUp, 1: SEED.plateDn } as Record<Side, number>;
