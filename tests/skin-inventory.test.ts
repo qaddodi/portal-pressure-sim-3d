@@ -7,7 +7,7 @@ import { BACK_EDGES, IVC_EDGES } from '../src/scene/vessels/paths.copied.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { buildTubes, TUBE_RADIAL } from '../src/scene/vessels/tubes.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
-import { PERMANENT_KINDS, SKIN_REACH, armReach, nodesBeyondReach, armsShareTier, findSkinJunctions, isPermanent, skinNodesForPhase, tierSpread } from '../src/scene/vessels/skin/inventory.ts';
+import { PERMANENT_KINDS, SKIN_REACH, armReach, nodesBeyondReach, armsShareTier, findSkinJunctions, isPermanent, pointAtShare, skinNodesForPhase, tierSpread } from '../src/scene/vessels/skin/inventory.ts';
 import { CAPSULE_R, CLEAR_K, CLEAR_R, CUT_SKIN_K, MAX_TRIES, MIN_RINGS_BETWEEN, SEAM_MAX_SHARE, SEAM_MIN_R, chooseCuts, mergedNode, planSkins, type ArmTube } from '../src/scene/vessels/skin/cuts.ts';
 import { SkinBuildError, type SkinCut, type SkinJunction } from '../src/scene/vessels/skin/types.ts';
 import { indexOf } from '../src/engine/vessel-data.ts';
@@ -81,7 +81,11 @@ test('J is the end point of the widest arm\'s course; with smooth joins on every
   on(() => {
     for (const j of findSkinJunctions()) {
       const w = NETWORK_BY_ID.get(j.arms[0]!.vesselId)!, pts = coursesOf(w, REST)[0]!.pts, e = pts[j.arms[0]!.end ? pts.length - 1 : 0]!;
-      assert.deepEqual([...j.J], [...e], `${j.node}: J`);
+      const sideArm = j.arms.find((a) => a.side);
+      if (sideArm) {   // (a side-wall junction, spec 10.1: J is the point of the host's axis at its side `u`, not the end of a course)
+        const host = coursesOf(NETWORK_BY_ID.get(sideArm.vesselId)!, REST)[0]!.pts, at = pointAtShare(host, sideArm.side!.u);
+        assert.deepEqual([...j.J], [...at], `${j.node}: J on the host's axis`);
+      } else assert.deepEqual([...j.J], [...e], `${j.node}: J`);
       if (!PHASE_2.includes(j.node) || nodesBeyondReach([j]).length) continue;   // (the beds' arteriole is the art's own spacing: nodesBeyondReach, listed in skin-builds.test.ts)
       const reach = armReach(j);
       assert.equal(reach[0], 0, j.node);

@@ -116,7 +116,22 @@ function axisFromRing(ring: Float32Array, J: Vec3): Capsule {
  * tube's own radial normals there. They are copied bit for bit into the skin, so there is no crack. `axes`, when given (`armCapsule` of each arm), shapes the fillet;
  * without them each arm's axis is recovered from its ring. Throws `SkinBuildError` when the hull misses a ring (spec 4.4.3).
  */
-export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS): SkinMesh {
+export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS, foldCheck: boolean = true): SkinMesh {
+  try { return buildSkinPaced(j, cuts, seamRings, seamNormals, axes, maxVerts, foldCheck, QUICK_PACE); }
+  catch (e) {
+    // a junction whose rings are far from its surface (several arms spread along a long host: the cava's three hepatic veins) folds when the sheet is pulled onto the surface fast: the same build again with a gentler pull, slower and finer
+    if (foldCheck && e instanceof SkinBuildError && e.message.includes('folds')) return buildSkinPaced(j, cuts, seamRings, seamNormals, axes, maxVerts, foldCheck, GENTLE_PACE);
+    throw e;
+  }
+}
+
+/** How fast the remesh pulls the hull's sheet onto the surface: the rounds that shrink it, the share of the way each pulls, the most rounds. The quick one settles a junction of three or four near arms in a few rounds; the gentle one (`buildSkin` retries with it on a fold) is for the far ones. */
+export interface Pace { shrinkRounds: number; shrinkPull: number; rounds: number }
+export const QUICK_PACE: Pace = { shrinkRounds: SHRINK_ROUNDS, shrinkPull: SHRINK_PULL, rounds: REMESH_ROUNDS };
+export const GENTLE_PACE: Pace = { shrinkRounds: 30, shrinkPull: 0.15, rounds: 48 };
+
+/** `buildSkin` at one pace. */
+export function buildSkinPaced(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes: readonly Capsule[] | undefined, maxVerts: number, foldCheck: boolean, pace: Pace): SkinMesh {
   const A = j.arms.length, n = seamRings[0]!.length / 3, S = A * n;   // S: the ring vertices, ids 0..S-1 (arm * n + j), fixed for ever
   if (A < 2 || A > MAX_SKIN_ARMS || seamRings.length !== A || seamNormals.length !== A || cuts.length !== A) throw new SkinBuildError(j.node, 'needs 2 to 6 arms with a ring, a normal set and a cut each');
   const hull = ringHull(seamRings);
@@ -319,15 +334,15 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   };
 
   // the remeshing loop (spec 4.5.4 to 4.5.6, with the topology kept welded and closed throughout)
-  for (let r = 0; r < REMESH_ROUNDS; r++) {
+  for (let r = 0; r < pace.rounds; r++) {
     let changes = 0;
     for (let s = 0; s < 4; s++) { const c = split(); changes += c; if (!c) break; }
     let c1 = 0;
     for (let s = 0; s < COLLAPSE_PASSES; s++) { const c = collapse(); c1 += c; if (c < 3) break; }   // (a pass locks every neighbour of what it collapsed, so a crowded patch needs several)
     changes += c1;
     changes += flip();
-    smooth(r < SHRINK_ROUNDS ? SHRINK_PULL : 1);
-    if (r >= SHRINK_ROUNDS && changes <= Math.max(2, SETTLED * tris.length / 3)) break;   // settled: only a stray edge still changes
+    smooth(r < pace.shrinkRounds ? pace.shrinkPull : 1);
+    if (r >= pace.shrinkRounds && changes <= Math.max(2, SETTLED * tris.length / 3)) break;   // settled: only a stray edge still changes
   }
   for (let r = 0; r < POLISH_ROUNDS; r++) { flip(); smooth(1); }
   for (let v = S; v < pos.length / 3; v++) project(v, 2);
@@ -391,14 +406,8 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
     cen[3 * v] = cp[0]!; cen[3 * v + 1] = cp[1]!; cen[3 * v + 2] = cp[2]!;
   }
   // a face turned against its own vertex normals is a fold: the hull was too far from the surface for the remesh to follow, so this junction falls back to today's method
-  for (let i = 0; i < index.length; i += 3) {
-    const a = index[i]!, b = index[i + 1]!, c = index[i + 2]!;
-    const ux = position[3 * b]! - position[3 * a]!, uy = position[3 * b + 1]! - position[3 * a + 1]!, uz = position[3 * b + 2]! - position[3 * a + 2]!, vx = position[3 * c]! - position[3 * a]!, vy = position[3 * c + 1]! - position[3 * a + 1]!, vz = position[3 * c + 2]! - position[3 * a + 2]!;
-    const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
-    let d = 0;
-    for (const v of [a, b, c]) d += fx * normal[3 * v]! + fy * normal[3 * v + 1]! + fz * normal[3 * v + 2]!;
-    if (d <= 0) { throw new SkinBuildError(j.node, `the surface folds at triangle ${i / 3}`); }
-  }
+  const folds = foldedTriangles(position, normal, index);
+  if (foldCheck && folds.length) throw new SkinBuildError(j.node, `the surface folds at triangle ${folds[0]} (${folds.length} in all)`);
   const seamVerts: Uint32Array[] = [];
   for (let a = 0; a < A; a++) { const ids = new Uint32Array(n); for (let q = 0; q < n; q++) ids[q] = a * n + q; seamVerts.push(ids); }
   return { junction: j, cuts, position, normal, cen, weight, weight2, restR, index, seamVerts };
@@ -425,4 +434,18 @@ export function minAngleDeg(pos: ArrayLike<number>, a: number, b: number, c: num
     lo = Math.min(lo, (Math.acos(Math.max(-1, Math.min(1, cs))) * 180) / Math.PI);
   }
   return lo;
+}
+
+/** The triangles turned against the normals of their own vertices (a fold: the surface doubles back on itself). */
+export function foldedTriangles(position: ArrayLike<number>, normal: ArrayLike<number>, index: ArrayLike<number>): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < index.length; i += 3) {
+    const a = index[i]!, b = index[i + 1]!, c = index[i + 2]!;
+    const ux = position[3 * b]! - position[3 * a]!, uy = position[3 * b + 1]! - position[3 * a + 1]!, uz = position[3 * b + 2]! - position[3 * a + 2]!, vx = position[3 * c]! - position[3 * a]!, vy = position[3 * c + 1]! - position[3 * a + 1]!, vz = position[3 * c + 2]! - position[3 * a + 2]!;
+    const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
+    let d = 0;
+    for (const v of [a, b, c]) d += fx * normal[3 * v]! + fy * normal[3 * v + 1]! + fz * normal[3 * v + 2]!;
+    if (d <= 0) out.push(i / 3);
+  }
+  return out;
 }

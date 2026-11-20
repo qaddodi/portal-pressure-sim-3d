@@ -2,7 +2,7 @@
 // Pure geometry on the tubes `buildTubes` made; no scene objects. The hull rule (4.4 rule 3) is WP2's, called back through `hullOk`.
 import type { BufferGeometry } from 'three';
 import { TUBE_RADIAL } from '../tubes.ts';
-import { SkinBuildError, type SkinCut, type SkinJunction, type Vec3 } from './types.ts';
+import { SkinBuildError, type SkinArm, type SkinCut, type SkinJunction, type Vec3 } from './types.ts';
 
 /** The tube vertices of one arm: its merged geometry (`buildTubes`, the vessel's own course first, so ring k's vertex j is position index `k * (RADIAL + 1) + j`) and the course's `tubular` segment count. */
 export interface ArmTube { geometry: BufferGeometry; tubular: number }
@@ -43,6 +43,12 @@ function ringAt(t: ArmTube, k: number): Ring {
 }
 const dist3 = (a: Vec3, b: Vec3): number => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
+/** Where an arm's rings are walked from and which way (spec 10.1): from the tube's own end (the ring `tubular` for end 1, 0 for end 0), or for a SIDE-WALL arm from the ring nearest its point `u`, outward either way. `count` rings lie on the arm's side of it. */
+export function armWalk(a: Pick<SkinArm, 'end' | 'side'>, tubular: number): { from: number; step: 1 | -1; count: number } {
+  const from = a.side ? Math.max(0, Math.min(tubular, Math.round(a.side.u * tubular))) : a.end ? tubular : 0;
+  return { from, step: a.end ? -1 : 1, count: a.end ? from + 1 : tubular - from + 1 };
+}
+
 /** The arm's capsule (spec 4.3): its axis from J outward, the tube's own ring centres, out to `CAPSULE_R` of its radii, with the radius the tube really has at each (tapers included). */
 function capsuleOf(j: SkinJunction, rings: readonly Ring[], restR: number): Capsule {
   const pts: Vec3[] = [j.J], rad: number[] = [rings[0]!.r];
@@ -80,31 +86,34 @@ export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>,
   const rings: Ring[][] = j.arms.map((a) => {
     const t = tubes.get(a.vesselId);
     if (!t) throw new SkinBuildError(j.node, `no tube for ${a.vesselId}`);
-    const out: Ring[] = [];
-    for (let s = 0; s <= t.tubular; s++) out.push(ringAt(t, a.end ? t.tubular - s : s));
+    const out: Ring[] = [], w = armWalk(a, t.tubular);
+    for (let s = 0; s < w.count; s++) out.push(ringAt(t, w.from + w.step * s));
     return out;
   });
   const caps = j.arms.map((a, i) => capsuleOf(j, rings[i]!, a.restR));
   // the arc length from J to each ring's centre (the arm's own length is the last): rule 1b
   const arc = rings.map((rs) => { let d = 0, prev: Vec3 = j.J; return rs.map((g) => { d += dist3(prev, g.centre); prev = g.centre; return d; }); });
-  /** whether ring `s` (counted from J) of arm `i` meets rules 1 and 2 */
-  const eligible = (i: number, s: number): boolean => {
+  /** why ring `s` (counted from J) of arm `i` is not eligible under rules 1, 1b and 2 (null: eligible), and for rule 1 which arm's capsule it is too near */
+  const why = (i: number, s: number): string | null => {
     const a = j.arms[i]!, g = rings[i]![s]!;
-    if (arc[i]![s]! > SEAM_MAX_SHARE * arc[i]![arc[i]!.length - 1]!) return false;
-    if (dist3(g.centre, j.J) < SEAM_MIN_R * a.restR) return false;
+    if (arc[i]![s]! > SEAM_MAX_SHARE * arc[i]![arc[i]!.length - 1]!) return 'too far (1b)';
+    if (dist3(g.centre, j.J) < SEAM_MIN_R * a.restR) return 'too near J (2)';
     const need = clear.k * k + clear.r * a.restR;
     for (let o = 0; o < n; o++) {
       if (o === i) continue;
-      for (let v = 0; v < RADIAL; v++) if (sdCapsule(g.verts, v * 3, caps[o]!) < need) return false;
+      for (let v = 0; v < RADIAL; v++) if (sdCapsule(g.verts, v * 3, caps[o]!) < need) return `${j.arms[o]!.vesselId}${j.arms[o]!.side ? ' (side)' : ''}`;
     }
-    return true;
+    return null;
   };
+  const eligible = (i: number, s: number): boolean => why(i, s) === null;
   const next = (i: number, from: number): number => {
     for (let s = from; s < rings[i]!.length; s++) if (eligible(i, s)) return s;
-    throw new SkinBuildError(j.node, `${j.arms[i]!.vesselId} has no ring that clears the blend within 85 % of its length`);
+    const tally = new Map<string, number>();
+    for (let s = from; s < rings[i]!.length; s++) { const w = why(i, s)!; tally.set(w, (tally.get(w) ?? 0) + 1); }
+    throw new SkinBuildError(j.node, `${j.arms[i]!.vesselId} has no ring that clears the blend within 85 % of its length (rings refused: ${[...tally].map(([w, c]) => `${w} ${c}`).join(', ')})`);
   };
   const at = j.arms.map((_, i) => next(i, 0));
-  const cutsOf = (): SkinCut[] => j.arms.map((a, i) => { const ring = rings[i]![at[i]!]!.k, tubular = tubes.get(a.vesselId)!.tubular; return { vesselId: a.vesselId, end: a.end, ring, u: ring / tubular }; });
+  const cutsOf = (): SkinCut[] => j.arms.map((a, i) => { const ring = rings[i]![at[i]!]!.k, tubular = tubes.get(a.vesselId)!.tubular; return { vesselId: a.vesselId, end: a.end, ring, u: ring / tubular, ...(a.side ? { side: a.side.dir } : {}) }; });
   for (let tries = 0; tries < MAX_TRIES; tries++) {
     const cuts = cutsOf();
     if (hullOk(cuts)) return cuts;

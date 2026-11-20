@@ -37,6 +37,71 @@ function endPoint(v: NetVessel, end: 0 | 1, state: ShapeState): Vec3 {
   return pts[end ? pts.length - 1 : 0]!;
 }
 
+/** An end lies on a host's SIDE (spec 10.1) when it is within this many of the host's radii of the host's axis: it is inside the host's wall, so the host runs on past it and the junction is on its side, not at a node. */
+export const SIDE_TOL_R = 1.5;
+/** An end that is more than this many radii (of the widest arm) from J is not at the node's centre: it is a candidate for a side-wall attachment or for another node (shape.ts ATTACH_REACH is 1.6). */
+export const NEAR_R = 1.6;
+/** A side-wall point is not at a host's end: within this share of its length of either end the host is a plain end arm, not a side one. */
+export const SIDE_EDGE = 0.02;
+
+/** The nearest point of a polyline to `p`: its distance, its share of the polyline's length (0..1) and the point. */
+export function nearestOnPolyline(pts: readonly Vec3[], p: Vec3): { d: number; u: number; at: Vec3 } {
+  let total = 0;
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) { total += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1], pts[i]![2] - pts[i - 1]![2]); cum.push(total); }
+  let best = Infinity, bu = 0, bat: Vec3 = pts[0]!;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]!, b = pts[i + 1]!, ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]] as const, l2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
+    const t = l2 > 0 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * ab[0] + (p[1] - a[1]) * ab[1] + (p[2] - a[2]) * ab[2]) / l2)) : 0;
+    const q: Vec3 = [a[0] + ab[0] * t, a[1] + ab[1] * t, a[2] + ab[2] * t], d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+    if (d < best) { best = d; bat = q; bu = total > 0 ? (cum[i]! + t * (cum[i + 1]! - cum[i]!)) / total : 0; }
+  }
+  return { d: best, u: bu, at: bat };
+}
+
+/** The point at share `u` of a polyline's length. */
+export function pointAtShare(pts: readonly Vec3[], u: number): Vec3 {
+  let total = 0;
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) { total += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1], pts[i]![2] - pts[i - 1]![2]); cum.push(total); }
+  const d = u * total;
+  let i = 0;
+  while (i < pts.length - 2 && cum[i + 1]! < d) i++;
+  const a = pts[i]!, b = pts[i + 1]!, l = cum[i + 1]! - cum[i]!, t = l > 0 ? Math.min(1, Math.max(0, (d - cum[i]!) / l)) : 0;
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+/**
+ * The SIDE-WALL rule (spec 10.1) on one node's arms. An arm whose end is not at the node's centre (more than `NEAR_R` radii of the widest from J) but INSIDE another arm's wall (within `SIDE_TOL_R` radii of that arm's axis, not at its ends) lands on that arm's
+ * side: the hepatic veins open into the cava's side, 0.4 to 0.6 radii from its axis and 1.7 to 7.1 radii down it from the cava's node IVCS. When every such end lands on ONE host, the host arm becomes a side arm
+ * (`side: { u, dir }`, u the mean of the attachments' places along it) and the junction's centre is that point of the host's axis: a junction in the middle of the cava, not at its end. Nothing changes otherwise (arms keep their ends, the skin's capsules bridge the gaps).
+ */
+function hostSides(arms: SkinArm[], pts: readonly (readonly Vec3[])[], J: Vec3): { arms: SkinArm[]; J: Vec3 } {
+  const R0 = arms[0]!.restR;
+  // only a node the art spreads beyond SKIN_REACH needs it (an end 1.6 radii out that lands in its host's wall is a plain arm of a node: its bridge is the skin's own, and nothing else about the node changes)
+  const far = arms.some((a, i) => { const p = pts[i]![a.end ? pts[i]!.length - 1 : 0]!; return Math.hypot(p[0] - J[0], p[1] - J[1], p[2] - J[2]) / R0 > SKIN_REACH; });
+  if (!far) return { arms, J };
+  const landing = new Map<number, number[]>();   // host arm -> the places along it the others land on
+  for (let e = 0; e < arms.length; e++) {
+    const a = arms[e]!, p = pts[e]![a.end ? pts[e]!.length - 1 : 0]!;
+    if (Math.hypot(p[0] - J[0], p[1] - J[1], p[2] - J[2]) / R0 <= NEAR_R) continue;
+    let host = -1, hu = 0, hd = Infinity;
+    for (let h = 0; h < arms.length; h++) {
+      if (h === e) continue;
+      const r = nearestOnPolyline(pts[h]!, p);
+      if (r.d <= SIDE_TOL_R * arms[h]!.restR && r.u > SIDE_EDGE && r.u < 1 - SIDE_EDGE && r.d < hd) { host = h; hu = r.u; hd = r.d; }
+    }
+    if (host < 0) return { arms, J };   // (an end that lands on no side: the node is not a side-wall junction as a whole)
+    landing.set(host, [...(landing.get(host) ?? []), hu]);
+  }
+  if (landing.size !== 1) return { arms, J };
+  const [[h, us]] = [...landing.entries()] as [[number, number[]]];
+  const arm = arms[h]!, u = us.reduce((s, x) => s + x, 0) / us.length;
+  // the host's share runs from its start (0) to its end (1) in the course's own order; end 1 means the node is at u = 1, so the part below u is the arm (dir -1)
+  const out = arms.map((a, i) => (i === h ? { ...arm, side: { u, dir: (arm.end ? -1 : 1) as -1 | 1 } } : a));
+  return { arms: out, J: pointAtShare(pts[h]!, u) };
+}
+
 /**
  * Every junction that gets a skin, in the network's order of nodes (spec 4.1). A node gets one when 3 or 4 permanent tube ends meet there, except:
  *   - (a node with an end drawn behind the organs (BACK_EDGES: the cava and its run-ons, the SVC's pieces) used to be left out, because one mesh on the vessel layer cannot be half behind an organ. Spec 10.4, Mohammad 20 Nov "all the junctions":
@@ -55,7 +120,8 @@ export function findSkinJunctions(network: readonly NetVessel[] = NETWORK, state
       vesselId: v.id, end, courseIndex: 0, dataIndex: indexOf(v.lensId), lensIndex: indexOf(v.lensId), baseD: v.baseD, widthKind: v.widthKind, restR: v.radius,
     }));
     const widest = sorted[0]!;
-    out.push({ node, J: endPoint(widest.v, widest.end, state), arms });
+    const side = hostSides(arms, sorted.map(({ v }) => coursesOf(v, state)[0]!.pts as readonly Vec3[]), endPoint(widest.v, widest.end, state));
+    out.push({ node, J: side.J, arms: side.arms });
   }
   return out;
 }
@@ -72,6 +138,7 @@ export function skinNodesForPhase(phase: 1 | 2): ReadonlySet<string> {
 export function armReach(j: SkinJunction, network: readonly NetVessel[] = NETWORK, state: ShapeState = REST): number[] {
   const byId = new Map(network.map((v) => [v.id, v]));
   return j.arms.map((a) => {
+    if (a.side) return 0;   // (a side-wall arm runs through the junction's centre: J is a point of its axis)
     const e = endPoint(byId.get(a.vesselId)!, a.end, state);
     return Math.hypot(e[0] - j.J[0], e[1] - j.J[1], e[2] - j.J[2]) / j.arms[0]!.restR;
   });
