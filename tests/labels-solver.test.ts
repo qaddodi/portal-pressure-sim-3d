@@ -107,3 +107,17 @@ test('a name\'s leader prefers the side where it crosses no vessel (the leader o
   const withLine = solve({ items: [it], view: VIEW, blockers: [], lines: [[520, 100, 520, 500]], leaderLineCost: 9 });
   assert.ok(withLine.placed[0].dx < 0, 'with a vessel across the east leader, it stands west');
 });
+
+test('a must label that has to stand far off takes a spot no vessel runs under when one lies round the pocket (2D: every ring is clear)', () => {
+  const pocket: Box[] = [{ x0: 0, y0: 56, x1: 470, y1: 700 }, { x0: 530, y0: 56, x1: 1000, y1: 330 }, { x0: 470, y0: 56, x1: 530, y1: 250 }];
+  const lines: [number, number, number, number][] = [[470, 360, 1000, 360], [470, 340, 1000, 340], [470, 380, 1000, 380]];
+  const m = item('x', 500, 300, { forms: [form(150)], must: true });
+  const r = solve({ items: [m], view: VIEW, blockers: pocket, lines });
+  assert.equal(r.placed.length, 1, 'it is placed');
+  const b = boxOf(r.placed[0], m.ax, m.ay);
+  for (const l of lines) assert.ok(!(l[1] > b.y0 && l[1] < b.y1), `it stands on the vessel at y ${l[1]} (box ${b.y0.toFixed(0)}-${b.y1.toFixed(0)})`);
+  // and with every spot under a vessel, it still stands (the last resort), never dropped
+  const all: [number, number, number, number][] = Array.from({ length: 30 }, (_, i) => [470, 335 + i * 13, 1000, 335 + i * 13]);
+  const last = solve({ items: [m], view: VIEW, blockers: pocket, lines: all });
+  assert.equal(last.placed.length, 1, 'a must label is never left off for a vessel');
+});
