@@ -10,6 +10,23 @@
  *  have just left (chevKeep), so heads stand every 40 to 80 px along the vessel whatever its width, on every tube from MIN_R_PX of radius (under 3 px across there is none); a head's half width is half the tube's radius held between MIN_HW_PX and MAX_HW_PX
  *  (so it is 8.8 px tall and 7 px long from a tube 9 px across) and never over the radius plus OVER_PX: on a thinner tube it may stand a pixel over each wall, where the ink outline (drawn over it) clips it to the tube. */
 export const CHEV = { PITCH_PX: 60, MIN_R_PX: 1.5, MIN_HW_PX: 4.4, MAX_HW_PX: 9, OVER_PX: 1 } as const;
+/** The finest octave of the lattice (Mohammad, 20 Nov: "too many chevrons when I zoom in and not many when zoomed out, spaced equally no matter what zoom"). The spacing is held in SCREEN px by octaves: the lattice level is lv = log2(PITCH_PX in world units / the base pitch),
+ *  its heads stand at base x 2^floor(lv) along the stream (a coarser octave's heads are every other head of the finer one, so a head never moves when the octave changes), and the in-between heads of the finer octave fade out as lv rises through the octave
+ *  (chevKeep: the odd heads keep exp2(1 - f) - 1 of themselves, 1 at the octave's start and 0 at its end, which holds the DENSITY at one head per PITCH_PX at every zoom): the full heads are 1 to 2 x PITCH_PX apart (60 to 120 px) and the whole lattice 0.5 to 1 x
+ *  (30 to 60 px) at every zoom. No floor short of this many octaves (about 1000x of zoom): there used to be one at -1, past which a zoom-in only stretched the spacing. */
+export const CHEV_LEVEL_MIN = -10;
+/** The twin of the shaders' level: `ptWorld` the pitch in world units (PITCH_PX x the world units under one CSS px), `baseWorld` the lattice's base pitch (28 figure units; the micro tubes' uFlowPitch). */
+export function chevLevel(ptWorld: number, baseWorld: number): { lv: number; n0: number; f: number; P: number } {
+  const lv = Math.max(CHEV_LEVEL_MIN, Math.log2(ptWorld / baseWorld)), n0 = Math.floor(lv);
+  return { lv, n0, f: lv - n0, P: baseWorld * Math.pow(2, n0) };
+}
+/** The twin of chevKeep: how much of head j (of the lattice of level n0) shows at level lv. Every other head (j even) belongs to the next octave and stays whole; the odd heads fade over the octave. */
+export function chevKeepJs(j: number, n0: number, lv: number): number {
+  let q = Math.abs(j), m = 0;
+  for (let i = 0; i < 10; i++) { if (q < 0.5 || q % 2 > 0.5) break; q *= 0.5; m += 1; }
+  if (q < 0.5) m = 10;
+  return Math.min(1, Math.max(0, Math.pow(2, 1 - (lv - n0 - m)) - 1));
+}
 export const CHEVRON_GLSL = /* glsl */ `
 float chevD(float u, float ay, float hw) {
   float L = 1.6 * hw, tip = 0.55 * L, back = -0.45 * L, notch = 0.32 * L, k = L / hw;

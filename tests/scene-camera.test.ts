@@ -242,14 +242,15 @@ test('anchors sit on the vessels they name', async () => {
 });
 
 import { dragToPitch, PITCH_LIMIT } from '../src/scene/camera/rig.ts';
-test('Tilt all around: off keeps the ±25° turn and no tilt; on turns without limit and tilts up to the pitch limit; levelOut eases both home', () => {
+test('the turn and the tilt: within their limits everywhere (tilt tighter than turn), soft stops, tilt only where the gate allows; levelOut eases both home', () => {
   const rig = new CameraRig('play', { x: 0, y: 0, w: 800, h: 600 });
   rig.resize(800, 600); rig.goTo('play', { x: 0, y: 0, w: 800, h: 600 }, 0);
   rig.setOrbit(3); rig.setOrbitPitch(1);
-  assert.ok(Math.abs(rig.orbitAngle) <= (25 * Math.PI) / 180 + 1e-9 && rig.pitchAngle === 0);
+  assert.ok(Math.abs(rig.orbitAngle) <= ORBIT_LIMIT && Math.abs(rig.orbitAngle) > ORBIT_LIMIT * 0.9 && rig.pitchAngle === 0);
   let on = true; rig.freeGate = () => on;
-  rig.setOrbit(3); rig.setOrbitPitch(5);
-  assert.equal(rig.orbitAngle, 3); assert.equal(rig.pitchAngle, PITCH_LIMIT);
+  rig.setOrbitPitch(5);
+  assert.ok(rig.pitchAngle <= PITCH_LIMIT && rig.pitchAngle > PITCH_LIMIT * 0.9 && PITCH_LIMIT < ORBIT_LIMIT);
+  rig.setOrbit(0.1); assert.equal(rig.orbitAngle, 0.1, 'exact in the middle');
   assert.ok(dragToPitch(0, 100) > 0);
   on = false; rig.levelOut(0);
   rig.update(1000);
