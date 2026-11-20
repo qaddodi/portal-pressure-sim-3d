@@ -46,7 +46,7 @@ test('the shader holds the same numbers, and has no specular, no rim, no wall li
   assert.match(VESSEL_FS, /dk = 1\.0 - step\(0\.19/, 'a head is one flat tone, not a grey halfway');
   assert.match(VESSEL_FS, /vec3 rimc = vec3\(0\.2314, 0\.1725, 0\.1333\);/, 'the head\'s outline is always dark');
   assert.ok(!/dot\(n, l\) \* 0\.5/.test(VESSEL_FS), 'no world-lit bands');
-  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, 1\.0\);/, 'opaque: alpha 1');
+  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade\);/, 'opaque at rest: vFade is 1 outside a fade zone');
 });
 
 test('every look wears 2D\'s casing: its ink and alpha (the dark look\'s own in the Circuit, by its share, not by a lens being on), a veiled vessel half, and the dark looks\' light rim', () => {
@@ -220,10 +220,10 @@ test('over a wide tube there are exactly two flat colours, the edge between them
 });
 const TONES_HAIR = CEL_STYLE.TONES_FROM - 0.01;
 
-test('the cava\'s one-layer veil is not left to the odds of a depth tie: the depth-only pass sits a firm offset behind the colour pass (the dashed outline of 20 Nov)', async () => {
+test('the outline sits a firm depth offset behind the body it wraps, so the body wins the tie at the silhouette (the dashed outline of 20 Nov), and the groups are the body then the ink', async () => {
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/scene/vessels/vessel-object.ts', import.meta.url), 'utf8');
-  const m = /colorWrite: false, depthWrite: true, polygonOffset: true, polygonOffsetFactor: (\d+), polygonOffsetUnits: (\d+)/.exec(src);
+  const m = /polygonOffset: true, polygonOffsetFactor: (\d+), polygonOffsetUnits: (\d+)/.exec(src);
   assert.ok(m && Number(m[1]) >= 2 && Number(m[2]) >= 4, 'factor and units');
   assert.match(src, /geo\.addGroup\(0, half, 0\); geo\.addGroup\(half, half, 1\)/, 'the body, then the ink');
 });
