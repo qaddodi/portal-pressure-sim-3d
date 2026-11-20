@@ -6,7 +6,8 @@ import { CEL_STYLE } from '../cel-style.ts';
 
 const num = (n: number) => (Number.isInteger(n) ? `${n}.0` : String(n));
 
-const CEL_LIGHT_N = (() => { const [x, y, z] = CEL_STYLE.ORGAN.LIGHT; const l = Math.hypot(x, y, z); return [x / l, y / l, z / l] as const; })();
+/** The soft light of Organ depth, from the upper left of the screen (x right, y up, z toward the eye), as a unit vector. */
+const ORGAN_LIGHT: readonly [number, number, number] = (() => { const [x, y, z] = CEL_STYLE.ORGAN.LIGHT; const l = Math.hypot(x, y, z); return [x / l, y / l, z / l]; })();
 
 export const ORGAN_VS = /* glsl */ `
 #ifdef VERTEX_INK
@@ -16,11 +17,6 @@ varying vec3 vInk;
 // organ depth (organ-depth.ts): how tucked in this vertex is, 0..1, baked at load (a geometry without it reads 0)
 attribute float depthAo;
 varying float vAo;
-// the normal the cel bands are cut by: the liver's at rest, before cirrhosis's nodule bumps (a hard band on a bumpy normal is a honeycomb); an organ without CEL_NORMAL uses its own
-#ifdef CEL_NORMAL
-attribute vec3 celNormal;
-#endif
-varying vec3 vCn;
 uniform vec4 box;
 varying vec3 vN;
 varying vec3 vV;
@@ -29,11 +25,6 @@ varying vec4 vClip;
 void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
   vN = normalize(normalMatrix * normal);
-#ifdef CEL_NORMAL
-  vCn = normalize(normalMatrix * celNormal);
-#else
-  vCn = vN;
-#endif
   vV = normalize(-mv.xyz);
   vAo = depthAo;
   // where this point sits in the organ's own 2D box: (0,0) top left, (1,1) bottom right, as the SVG gradient's objectBoundingBox
@@ -53,24 +44,17 @@ uniform vec3 o3;
 uniform vec3 color;
 uniform vec4 ogLight;
 uniform vec4 ogDark;
-// the cel tones (organs/cel-tones.ts, through organColour): flat, matte, the organ's own 2D tone and a lightness step either side of it
-uniform vec3 celShade;
-uniform vec3 celBase;
-uniform vec3 celLit;
 uniform vec4 volLight;   // see-through fill: #ogVol's light stop (--light-ink and its opacity)
 uniform vec4 volShade;   // its shade stop: --og-vol-shade and its opacity
 uniform vec4 volGeo;     // its centre (cx, cy), radius, and the offset where the light has ended
 uniform float volShadeAt;
 uniform vec3 shadeSteps; // the inner shade's three strokes' opacities (the right atrium's are fainter)
 uniform float rimK;      // the rim light's opacity (0 on the liver and the stomach: too shiny, owner 20 Nov)
-uniform float wash;      // 1 minus the cel fill's share (layer.ts uWash): the see-through fill's own terms fade out with it
 uniform vec3 page;
 uniform float layer;
 uniform float inkAmount;
-// Settings > Figure depth: organDepth (0 off, 1 on, eased) adds the baked crease and contact shade and a soft light from the upper left; organFill solid (0 the see-through wash, 1 solid, eased)
-// lays the same painted colour opaque, pre-mixed against the page
+// Settings > Figure depth: organDepth (0 off, 1 on, eased) adds the baked crease and contact shade and a soft light from the upper left
 uniform float depthAmt;
-uniform float solid;
 // the dive's cutaway window (atlas-look-plan 3.1): x, y the dive point on the screen (ndc), z the radius that is cleared (ndc half-heights; below 0 nothing is), w the aspect; the same for every organ
 uniform vec4 cut;
 varying vec4 vClip;
@@ -81,23 +65,7 @@ varying vec3 vN;
 varying vec3 vV;
 varying vec2 vBox;
 varying float vAo;
-varying vec3 vCn;
-// What the cel bands moved the fill by at this pixel (cel tone - base, times solid; 0 in the wash): organ-art.ts lays the same shift on the gut's loops and haustra, so the art wears the bands too
-vec3 celDelta = vec3(0.0);
-// Cel shaded (organFill solid): the figure's one cel style (src/scene/cel-style.ts, injected below, never retyped): three flat tones, shade / base / lit, from the organ's own colour, 2D's og-dark and
-// og-light; the terminator is where the lambert of the screen's upper-left light crosses SHADE_LAM, the lit cap where it crosses LIT_LAM, and with organ depth on the baked tuck is one hard band of the
-// shade tone. An edge is EDGE_PX device pixels either side of the line (fwidth) and no softer. tests/organ-depth.test.ts mirrors this function with celBand.
-const float CEL_SHADE_LAM = ${num(CEL_STYLE.ORGAN.SHADE_LAM)};
-const float CEL_LIT_LAM = ${num(CEL_STYLE.ORGAN.LIT_LAM)};
-const float CEL_EDGE_PX = ${num(CEL_STYLE.EDGE_PX)};
-const vec3 CEL_LIGHT = vec3(${num(CEL_LIGHT_N[0])}, ${num(CEL_LIGHT_N[1])}, ${num(CEL_LIGHT_N[2])});   // (normalized here, not by a constant expression in GLSL: one less thing a phone's compiler can refuse)
-// how much of the shade tone (x) and the lit tone (y) a point wears, each 0 or 1 but for the pixel of an edge; tuckAt is where the tuck band starts (above 1: no band)
-vec2 celBands(float lam, float ao, float tuckAt) {
-  float wl = max(fwidth(lam) * CEL_EDGE_PX, 1e-5), wa = max(fwidth(ao) * CEL_EDGE_PX, 1e-5);
-  float shade = max(1.0 - smoothstep(CEL_SHADE_LAM - wl, CEL_SHADE_LAM + wl, lam), smoothstep(tuckAt - wa, tuckAt + wa, ao));
-  float lit = smoothstep(CEL_LIT_LAM - wl, CEL_LIT_LAM + wl, lam) * (1.0 - shade);
-  return vec2(shade, lit);
-}
+const vec3 LIGHT = vec3(${ORGAN_LIGHT.map((v) => num(v)).join(', ')});   // (normalized here, not by a constant expression in GLSL: one less thing a phone's compiler can refuse)
 void main() {
   // the window: the wash clears round the dive point, soft at its edge, so the lobule shows inside
   vec2 q = vClip.xy / vClip.w - cut.xy;
@@ -112,11 +80,10 @@ void main() {
   // what varies over the surface (nodules, the dead spleen, the pool) moves the fill by as much as it moves the organ's one colour
   fill += (vInk - color) * inkAmount;
 #endif
-  // The terms below that 2D adds on top of the plain gradient belong to the see-through fill: wash (1 at the wash, 0 once the fill is cel shaded, eased with it) fades each out.
   // #ogVol (2D stage.js): --light-ink at its first stop's opacity from the centre out to the light's end, then --og-vol-shade from its start to the rim
   float r = distance(vBox, volGeo.xy) / volGeo.z;
-  fill = mix(fill, volLight.rgb, volLight.a * (1.0 - clamp(r / volGeo.w, 0.0, 1.0)) * wash);
-  fill = mix(fill, volShade.rgb, volShade.a * clamp((r - volShadeAt) / (1.0 - volShadeAt), 0.0, 1.0) * wash);
+  fill = mix(fill, volLight.rgb, volLight.a * (1.0 - clamp(r / volGeo.w, 0.0, 1.0)));
+  fill = mix(fill, volShade.rgb, volShade.a * clamp((r - volShadeAt) / (1.0 - volShadeAt), 0.0, 1.0));
   // the inner shade: three soft steps of the turn away from the eye (2D strokes 30/18/8 px)
   float ndv = clamp(dot(n, normalize(vV)), 0.0, 1.0);
   float turn = 1.0 - ndv;
@@ -137,31 +104,15 @@ void main() {
     float ao = clamp(vAo, 0.0, 1.0);
     float wa = 0.12;
     float tuck = (smoothstep(0.2 - wa, 0.2 + wa, ao) + smoothstep(0.5 - wa, 0.5 + wa, ao) + smoothstep(0.8 - wa, 0.8 + wa, ao)) * (1.0 / 3.0);
-    float lam = dot(n, CEL_LIGHT);
+    float lam = dot(n, LIGHT);
     float wl = 0.08 + fwidth(lam);
     float away = 1.0 - smoothstep(0.3 - wl, 0.3 + wl, lam);
     float toward = smoothstep(0.7 - wl, 0.7 + wl, lam) * (1.0 - ao);
     fill = mix(fill, ogDark.rgb, clamp(ogDark.a * (1.5 * tuck + 0.6 * away), 0.0, 1.0) * depthAmt);
     fill = mix(fill, ogLight.rgb, clamp(ogLight.a * 0.5 * toward, 0.0, 1.0) * depthAmt);
   }
-  // Cel shaded: the wash's soft shade, rim light and light are replaced (eased by solid) by three flat, matte tones: the organ's own 2D tone and a lightness step either side of it (celShade, celBase, celLit), no gradient
-  // inside a band and no gloss; what varies over the organ (nodules, the dead spleen, the pool) is laid on all three as the same shift. The measure is n.L of the organ's smooth rest normal: one shade crescent along the lower right edge,
-  // one lit crescent along the upper left, following the silhouette.
-  if (solid > 0.001) {
-    vec3 paint = vec3(0.0);
-#ifdef VERTEX_INK
-    paint = (vInk - color) * inkAmount * ${num(CEL_STYLE.ORGAN.PAINT)};   // (what varies over the organ, at its low-contrast share: the wash laid it at the layer's opacity)
-#endif
-    vec2 b = celBands(dot(normalize(vCn), CEL_LIGHT), 0.0, 2.0);   // (the smooth rest normal alone)
-    vec3 base = celBase + paint;
-    vec3 cel = mix(mix(base, celShade + paint, b.x), celLit + paint, b.y);
-    celDelta = (cel - base) * solid;
-    fill = mix(fill, cel, solid);
-  }
   // the organ lies on whatever is behind it at the layer's opacity, as 2D's organ groups do (blended in 2D's order: layer.ts); the dive fades the layer, no dots.
-  // Cel shaded (solid): the organ's own full tones laid opaque (alpha 1, no pre-mix against the page), so nothing shows through it; the dive's fade and window still thin it, never pop it
-  float a = mix(layer, 1.0, solid);
-  gl_FragColor = vec4(fill, a * fade * win);
+  gl_FragColor = vec4(fill, layer * fade * win);
 }`;
 
 /** The organ outline: the hull's width in the figure's units (2D's .org-line is 1.1 SVG units, the kidney 1.4), so it scales with the figure as 2D's does,
@@ -169,7 +120,7 @@ void main() {
 export const ORGAN_INK_VS = /* glsl */ `
 uniform float px;
 uniform float dpr;
-uniform float minPx;   // the least width, CSS px (the cel organ's bold line; 0 in the wash)
+attribute vec3 hullN;   // the smoothed normal the outline is pushed out along (normal-smooth.ts): the mesh's own normals jag at a coarse rim
 uniform vec2 res;
 varying float vHi;
 varying float vU;
@@ -178,8 +129,8 @@ void main() {
   vU = uv.x;
   vHi = 0.0;
   float wpc = c.w * 2.0 / (res.y * projectionMatrix[1][1]) * 300.0;   // the figure's units under one CSS px here
-  float w = max(max(1.0 / max(dpr, 1.0), minPx), px / max(wpc, 1e-6));
-  vec2 nd = (projectionMatrix * vec4(normalMatrix * normal, 0.0)).xy;
+  float w = max(1.0 / max(dpr, 1.0), px / max(wpc, 1e-6));
+  vec2 nd = (projectionMatrix * vec4(normalMatrix * hullN, 0.0)).xy;
   float l = length(nd);
   nd = l > 1e-5 ? nd / l : vec2(0.0);
   c.xy += nd * w * 2.0 / res * c.w;
