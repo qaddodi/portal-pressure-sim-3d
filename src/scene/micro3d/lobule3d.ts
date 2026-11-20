@@ -111,6 +111,9 @@ export class Lobule3D {
   private readonly mouthBd: MicroPart;
   private readonly mouthLv: MicroPart;
   private readonly mouthCv: MicroPart;
+  /** SOS: the scar inside the central vein (2D's plug, lobule-zoom.js: from the wall in, the open lumen narrowing to 1 - CV_FILL of it), faded, with collagen strands across what is left open. */
+  private readonly cvScar: MicroPart;
+  private cvScarKey = -1;
   private readonly coloured: Coloured[] = [];
   // the marks plate: 2D's painter with the cells left out
   private readonly marks: Mesh;
@@ -143,6 +146,8 @@ export class Lobule3D {
     this.mouthBd = mk('ductules', { px: S.LINE_SMALL });
     this.mouthLv = mk('lymphatics', { px: S.LINE_SMALL });
     this.mouthCv = mk('central-vein', { px: VESSEL_LINE });
+    this.cvScar = mk('central-vein-scar', { ink: null, vertexColors: false, transparent: true });
+    buildCvScar(this.cvScar.geometry, DISC_R.cv * R, 0, CV_SCAR_Z()); this.cvScar.setOpacity(0);
     // the marks plate (above the tiles, under the vessels: drawn after the tiles with no depth test, the vessels after it)
     this.shape = { ...plateShape(this.flat.net), cells: [] };
     this.sins = this.flat.net.courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2' || c.kind === 'an').map((c) => ({ c, r: sinRadius(c.kind as 's0', 0.5) * 1.15 }));
@@ -169,7 +174,9 @@ export class Lobule3D {
       v.renderOrder = -1;
       for (const m of [v.toonMesh, v.inkMesh]) if (m) { const mat = m.material as ShaderMaterial; mat.transparent = true; mat.depthWrite = true; }
     }
-    for (const p of [this.ground, this.cells, this.nuclei, this.disse, ...vessels]) this.group.add(p.group);
+    this.cvScar.renderOrder = 0;
+    { const m = this.cvScar.toonMesh.material as ShaderMaterial; m.depthWrite = false; m.premultipliedAlpha = true; }   // (the toon writes its colour already times its opacity)
+    for (const p of [this.ground, this.cells, this.nuclei, this.disse, ...vessels, this.cvScar]) this.group.add(p.group);
     this.group.add(this.marks);
     this.buildVessels();
     this.group.visible = false;
@@ -213,6 +220,7 @@ export class Lobule3D {
     // the central vein opens and narrows with congestion and its collagen (the flat view's radius)
     const kcv = f.cvRadiusNow / DISC_R.cv;
     this.mouthCv.group.scale.set(kcv, kcv, 1);
+    this.stepCvScar(c.fibPost, kcv);
     this.buildGround(kcv, lymphOn);
     const washing = this.stepWash(now);
     return this.stepFlow(now, rate, lymphOn, bileOn) || washing || changed;
@@ -283,6 +291,7 @@ export class Lobule3D {
     this.mouthBd.setTint(tone('bile')); this.bile.setTint(tone('bile'));
     this.lt.setTint(tone('lymph')); this.mouthLv.setTint(tone('lymph'));
     this.disse.setTint(tone('disse'));
+    this.cvScar.setTint(tone('collagen'));
     (this.marksMat.uniforms.ink!.value as Color).setRGB(ink[0], ink[1], ink[2]);
     this.inkKey = '';
   }
@@ -476,14 +485,27 @@ export class Lobule3D {
     mouths(this.mouthCv, by('cv'), DISC_R.cv, 'cv', true, (OVER_Z + sinRadius('s2', DISC_R.cv) * R) * POUR);
   }
 
+  /** SOS (Mohammad 20 Nov 2026: "fiber collagen to be inside the central vein as well but faded so it shows it's blocked"): from the host's eased fibPost, as 2D grows its plug (scarGrowth,
+   *  CV_FILL): a soft ring of scar from the wall in and strands of collagen across the lumen left open, see-through, coming in with the disease and going with it. */
+  private stepCvScar(fibPost: number, kcv: number): void {
+    const grow = cvScarGrowth(fibPost), a = CV_SCAR_ALPHA * clamp((fibPost - 0.05) / 0.25, 0, 1);
+    this.cvScar.setOpacity(a);
+    this.cvScar.group.scale.set(kcv, kcv, 1);
+    if (a <= 0.002) return;
+    const key = Math.round(grow * 100);
+    if (key === this.cvScarKey) return;
+    this.cvScarKey = key;
+    buildCvScar(this.cvScar.geometry, DISC_R.cv * R, grow, CV_SCAR_Z());
+  }
+
   /** Vertex count of everything this scene draws (tests and the budget). */
   get vertexCount(): number {
     let n = 0;
-    for (const p of [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.disse, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv]) n += p.geometry.getAttribute('position')?.count ?? 0;
+    for (const p of [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.disse, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar]) n += p.geometry.getAttribute('position')?.count ?? 0;
     return n;
   }
   /** The parts (tests). */
-  get partsForTest(): MicroPart[] { return [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.disse, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv]; }
+  get partsForTest(): MicroPart[] { return [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.disse, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar]; }
   /** Builds the tiles for a look and state without the flat view's frame (tests). */
   buildForTest(look: LookId, congU = 0, septU = 0): void { this.buildCells(look, congU, septU); this.applyLook(look); this.buildGround(1, true); }
 
@@ -621,4 +643,38 @@ export function skipFirstFills(ctx: CanvasRenderingContext2D, n: number): Canvas
     },
     set(t, p, v) { return Reflect.set(t, p, v, t); },
   });
+}
+
+/** SOS's scar in the central vein: how much of the lumen it takes at most (2D CV_FILL), how see-through it is at its fullest, and 2D's growth curve (lobule-paint.js scarGrowth). */
+export const CV_FILL = 0.55, CV_SCAR_ALPHA = 0.6;
+/** Just over the central vein's pool top (its mouth's top, buildVessels' POUR), under nothing else. */
+const CV_SCAR_Z = (): number => (OVER_Z + sinRadius('s2', DISC_R.cv) * R) * 1.04 + 0.002;
+export const cvScarGrowth = (fibPost: number): number => clamp(fibPost, 0, 1) ** 1.1;
+
+/** The scar's mesh, flat at height z over a vein of radius rw: a ring from the wall in to the open lumen (its inner edge ragged, as scar is), and wavy strands of collagen across the open lumen,
+ *  more of them as it grows. Seeded, so it never flickers as it grows. */
+export function buildCvScar(geo: import('three').BufferGeometry, rw: number, grow: number, z: number): void {
+  const b = new MeshBuilder(), N = 72, open = rw * (1 - CV_FILL * grow);
+  const rag = (t: number) => 1 + 0.07 * Math.sin(t * 5 + 1.3) + 0.05 * Math.sin(t * 11 + 0.4) + 0.03 * Math.sin(t * 19 + 2.1);
+  const outer: number[] = [], inner: number[] = [];
+  for (let i = 0; i < N; i++) {
+    const t = (i / N) * Math.PI * 2, c = Math.cos(t), sn = Math.sin(t), ri = Math.min(rw * 0.97, open * rag(t));
+    outer.push(b.v(rw * 0.98 * c, rw * 0.98 * sn, z, 0, 0, 1)); inner.push(b.v(ri * c, ri * sn, z, 0, 0, 1));
+  }
+  for (let i = 0; i < N; i++) { const j = (i + 1) % N; b.quad(inner[i]!, outer[i]!, outer[j]!, inner[j]!); }
+  // the strands: chords across the vein at seeded angles, gently wavy, a ribbon each; the k-th comes in as grow passes its share
+  const M = 9, w = rw * 0.035;
+  for (let k = 0; k < M; k++) {
+    const on = clamp((grow - k / M) * M, 0, 1);
+    if (on <= 0) break;
+    const ang = 0.37 + k * 2.39996, off = (((k * 0.6180339) % 1) - 0.5) * 1.1 * open, L = Math.sqrt(Math.max(0, rw * rw * 0.94 - off * off)) * on;
+    const ux = Math.cos(ang), uy = Math.sin(ang), nx = -uy, ny = ux, S = 14, rows: number[] = [];
+    for (let i = 0; i <= S; i++) {
+      const u = -L + (2 * L * i) / S, wav = Math.sin(u / rw * 7 + k) * rw * 0.04, cx = ux * u + nx * (off + wav), cy = uy * u + ny * (off + wav);
+      const ww = w * (0.6 + 0.4 * Math.sin((i / S) * Math.PI));
+      rows.push(b.v(cx - nx * ww, cy - ny * ww, z + 0.0004, 0, 0, 1), b.v(cx + nx * ww, cy + ny * ww, z + 0.0004, 0, 0, 1));
+    }
+    for (let i = 0; i < S; i++) b.quad(rows[2 * i]!, rows[2 * i + 2]!, rows[2 * i + 3]!, rows[2 * i + 1]!);
+  }
+  b.build(geo);
 }
