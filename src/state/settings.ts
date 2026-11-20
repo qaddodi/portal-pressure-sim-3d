@@ -52,7 +52,7 @@ export const STORAGE_PREFIX = 'pps3d.';
 /** The "Figure depth" switches (owner, 19 Nov 2026: "Yes do all properly"): a deliberate exception to match-2D, each behind its own switch. All on by default, except blood-cell particles (chevrons stay the flow mark). */
 export const DEPTH_KEYS = ['smoothJoins', 'organDepth', 'tilt', 'dof', 'particles', 'micro3d'] as const;
 export type DepthKey = (typeof DEPTH_KEYS)[number];
-export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { smoothJoins: true, organDepth: true, tilt: true, dof: true, particles: false, micro3d: true };
+export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { smoothJoins: true, organDepth: true, tilt: true, dof: true, particles: false, micro3d: false };
 export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS, organFill: ORGAN_FILL_DEFAULT };
 
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
