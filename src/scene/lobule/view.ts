@@ -163,6 +163,8 @@ export class LobuleView {
   private look: LookId;
   private phone: boolean;
   private reduce: boolean;
+  /** The flow's one eased rate (scene/flow-rate.ts), set by the scene each frame: the heads' distance advances by it, so Pause eases them to a stop. */
+  rate = 1;
   private washAt = -1;
   private washOn = false;
   private washK = 0;

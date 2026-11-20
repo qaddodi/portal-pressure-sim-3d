@@ -17,11 +17,12 @@ test('every look\'s drop ramp runs pale to purple (hue 250 to 290), not 2D\'s gr
   }
 });
 
-test('the legend bar and its words say purple, and the menu swatch is the same family', () => {
+test('the legend bar and its words say purple, and the menu swatch is the same family', async () => {
   const lg = legendFor('drop', 'light') as { bar: { stops: [string, number][] }; aria: string };
   assert.match(lg.aria, /pale to deep purple/);
   for (const [c] of lg.bar.stops.slice(3)) { const h = hue(c.length === 7 ? c : '#7A4FB5'); if (c.length === 7) assert.ok(h >= 240 && h <= 295, c); }
-  assert.match(readFileSync(new URL('../src/ui/shell/lens-art.ts', import.meta.url), 'utf8'), /drop: 'linear-gradient\(90deg, #E9E1D2, #8E6BB5, #3F2A6B\)'/);
+  const { lensSwatch } = await import('../src/ui/shell/lens-art.ts');
+  assert.equal(lensSwatch('drop', 'light'), `linear-gradient(90deg, ${lg.bar.stops.map(([c, p]) => `${c} ${p}%`).join(', ')})`, 'the menu swatch is the key');
 });
 
 test('the generator carries the departure, so a re-copy from 2D keeps it', () => {

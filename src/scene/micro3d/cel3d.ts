@@ -10,14 +10,16 @@
 //   const part = microPart(geometry, m);                group.add(part.group)
 //   const many = microInstanced(geometry, m, count);    many.toon.setMatrixAt(i, m4); many.ink.setMatrixAt(i, m4) (or `many.setAt(i, m4, colour)`)
 import {
-  BackSide, BufferAttribute, BufferGeometry, Color, FrontSide, Group, InstancedMesh, LinearSRGBColorSpace, Matrix4, Mesh, ShaderMaterial, type Texture, type Vector2, Vector4,
+  BackSide, BufferAttribute, BufferGeometry, Color, DataTexture, FrontSide, Group, InstancedMesh, LinearSRGBColorSpace, Matrix4, Mesh, ShaderMaterial, type Texture, type Vector2, Vector4,
 } from 'three';
 import { CEL_STYLE } from '../cel-style.ts';
 import { CHEVRON_GLSL } from '../blood/chevron-glsl.ts';
 import { LENS_SHARED } from '../lenses/tokens.copied.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
-import { STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
+import { STREAK, STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
+/** The streak field's units to a tube radius, so a streak's mean length (FIELD_LEN) is LEN_OF_R radii, as the Anatomy's are. */
+const STREAK_FIELD_PER_R = (STREAK.FIELD_LEN[0] + STREAK.FIELD_LEN[1] / 2) / STREAK.LEN_OF_R;
 
 const hexRGB = (h: string): [number, number, number] => { const n = parseInt(h.slice(1), 16); return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; };
 const F = (x: number): string => (Number.isInteger(x) ? x.toFixed(1) : String(x));
@@ -87,6 +89,8 @@ varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
 #if defined(STREAKS) || defined(FLOW)
 ${CHEVRON_GLSL}
+// the ONE streak (blood/streak-glsl.ts: 3, 5 or 7 lanes, slim rounded lozenges feathered at both ends, a tone and a pace of their own, parabolic lanes): the same as the Anatomy's vessels
+${STREAK_FIELD_GLSL}
 #endif
 #ifdef STREAKS
 // streaks in a stream (the blood in a lumen, the lymph in Disse), fixed to the tissue (µm along x) and carried by the flow: lanes across the stream (aux: -1 .. 1 across it), the middle lanes fastest;
@@ -98,8 +102,6 @@ uniform float uProfile;   // 1: the parabolic lanes of the blood; 0: one speed; 
 uniform vec3 uStreakCol;  // the streaks' one tone
 varying vec3 vP;
 varying float vAux;
-// the ONE streak (blood/streak-glsl.ts: 3, 5 or 7 lanes, slim rounded lozenges feathered at both ends, a tone and a pace of their own, parabolic lanes): the same as the Anatomy's vessels
-${STREAK_FIELD_GLSL}
 uniform float uStreakDir; // +1: the heads lead toward +x (the way the stream runs); -1: toward -x (a reversed flow)
 float streaks() { return streakField(vAux, vP.x, uFlow, uHalf, uProfile, uStreakDir); }
 // the Anatomy's chevron (blood/chevron-glsl.ts), every 6 µm across the stream, its point leading the way the stream runs (the flow's sign): (core, ring)
@@ -136,21 +138,25 @@ vec2 flowHeads() {
   float lv = max(-1.0, log2(130.0 * wpc / max(uFlowPitch, 1e-5)));
   float n0 = floor(lv), P = uFlowPitch * exp2(n0);
   float j = floor((vArc - uFlowT) / P + 0.5), x = vArc - uFlowT - j * P;
-  float hw = min(0.6 * R, clamp(0.5 * R, 4.0 * wpc, 8.0 * wpc));
+  // (the lobule's tubes are a few CSS px wide at the fit, under the Anatomy's 5.8 px floor, and the blood must always be seen to move, Mohammad 20 Nov 2026: "at normal lobule zoom level, i can't see chevrons
+  // or streaks anywhere": so a micro tube keeps a SMALL head down to 2.4 CSS px of radius, 3 CSS px of half width there and never past 0.6 of the radius (it stays inside the lumen), the Anatomy's 4 to 8 px once it is wide enough)
+  float hw = min(0.6 * R, clamp(0.5 * R, 3.0 * wpc, 8.0 * wpc));
   if (abs(x) > 2.0 * hw + 4.0 * pxA) return vec2(0.0);
-  float k = chevKeep(j, n0, lv) * smoothstep(5.8 * wpc, 7.0 * wpc, R);
+  float k = chevKeep(j, n0, lv) * smoothstep(2.4 * wpc, 3.2 * wpc, R);
   return chevHead(x, abs(vAcross) * R, hw, pxA, 0.0) * k;
 }
-// the streaks between them (uFlowStreak: their share of uFlowK), slim lanes in the lighter tone
+// the streaks: THE ONE STREAK field (blood/streak-glsl.ts, the Anatomy's and the sinusoid's), sized on the SCREEN as the Anatomy's are: 3, 5 or 7 lanes by the tube's radius in CSS px, each streak about
+// 2.6 radii long (STREAK.LEN_OF_R), its core never under MIN_PX. A tube too thin on screen for three lanes (under 3 CSS px of radius: the bile, the lymph at the fit) carries one lane down its middle, so
+// every fluid is seen to move at any zoom. uFlowStreak: how strong (0 none: the Blood streaks setting off, or not this fluid).
 float flowStreaks() {
   if (uFlowStreak <= 0.0 || vAcross > 2.0) return 0.0;
-  float pitch = uFlowPitch, wa = max(fwidth(vArc), 1e-5);
-  float u = (vAcross * 0.5 + 0.5) * 4.0, lane = floor(u), fu = fract(u), wu = max(fwidth(u), 1e-3);
-  float P = pitch * (2.4 + 1.2 * fh(lane)), len = pitch * (0.9 + 0.6 * fh(lane + 4.0));
-  float t = mod(vArc - uFlowT * (0.8 + 0.3 * (1.0 - abs(lane - 1.5) / 1.5)) + P * fh(lane + 9.0), P);
-  float s = t / len, along = smoothstep(0.0, 0.3, s) * (1.0 - smoothstep(0.7, 1.0, s)) * step(t, len);
-  float across = 1.0 - smoothstep(0.12 - wu, 0.12 + wu, abs(fu - 0.5));
-  return along * across * uFlowStreak * step(abs(vAcross), 0.85);
+  float R = max(uFlowR, 1e-5);
+  float wpc = max(length(vec2(dFdx(vArc), dFdy(vArc))), 1e-7) * uDpr, rPx = R / wpc;
+  if (rPx < 0.8) return 0.0;
+  float lanes = rPx >= 10.0 ? 7.0 : rPx >= 6.0 ? 5.0 : 3.0, one = rPx < 3.0 ? 3.0 : 1.0;
+  float s = ${F(STREAK_FIELD_PER_R)} / R;   // field units per local unit: a streak's mean length about LEN_OF_R radii
+  gStreakPx = rPx * one;
+  return streakField(vAcross * one, vArc * s, uFlowT * s, lanes * 0.45 + 0.05, 1.0, 1.0) * uFlowStreak;
 }
 #endif
 #ifdef GAPS
@@ -158,6 +164,7 @@ float flowStreaks() {
 // side at local y > 0, row 1 the other), holding the gap's half width (red, 0..1 of 0.5 µm). A fragment within it is not drawn at all, across the whole bead and its wall, so the space of Disse shows through;
 // the cut's own edge is a slim dark line (screen px wide, antialiased), as the sheet's other edges are inked.
 uniform sampler2D uGaps;
+varying vec2 vG;      // the fragment's own place on the sheet (local x and y, µm)
 uniform vec4 uGapX;   // x: the first slot's x (µm), y: the slots (the texture's width), z: 0.5 µm per unit of red
 float gapCut() {
   float u = vG.x - uGapX.x, j = floor(u);
@@ -194,9 +201,9 @@ void main() {
 #endif
 #ifdef FLOW
   vec2 hd = flowHeads();
-  c = mix(c, uFlowCol, uFlowK * flowStreaks() * (1.0 - clamp(hd.x + hd.y, 0.0, 1.0)));   // (the streaks lie UNDER the chevrons: a head's pixel is never tinted by one)
+  c = mix(c, streakTone(c, uFlowCol, gStreakK.x, gStreakK.y), flowStreaks() * (1.0 - clamp(hd.x + hd.y, 0.0, 1.0)));   // (the streaks lie UNDER the chevrons: a head's pixel is never tinted by one)
   vec3 inkH = mix(uFlowInk, c * 0.3, 0.2), rimH = vec3(0.2314, 0.1725, 0.1333);   // (the Anatomy's: the head ink a touch of the lumen's own deep tone, the ring always the dark ink)
-  float hk = uFlowDark > 0.5 ? 1.0 : uFlowK * 1.6;
+  float hk = uFlowDark > 0.5 ? clamp(uFlowK, 0.0, 1.0) : uFlowK * 1.6;   // (the blood's dark heads whole at uFlowK 1, and they dissolve with the view as everything else does)
   vec3 core = uFlowDark > 0.5 ? inkH : uFlowCol;
   float ac = clamp(hd.x * hk, 0.0, 1.0), ar = clamp(hd.y * 0.75 * hk, 0.0, 1.0);
   c = c * (1.0 - ac - ar * (1.0 - ac)) + core * ac + rimH * ar * (1.0 - ac);
@@ -277,6 +284,10 @@ export interface MicroOptions {
   transparent?: boolean;
 }
 
+/** The gap table of a part without gaps: one closed texel. */
+const NO_GAPS = new DataTexture(new Uint8Array(4), 1, 1);
+NO_GAPS.needsUpdate = true;
+
 /** Sets a three Color from raw sRGB numbers (no conversion: the shaders write them as they are). */
 export const rawRGB = (c: Color, rgb: RGB): Color => c.setRGB(rgb[0]!, rgb[1]!, rgb[2]!, LinearSRGBColorSpace);
 
@@ -297,7 +308,8 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
       uFlowR: { value: 0.02 }, uDpr: { value: 2 }, uFlowDark: { value: 0 }, uFlowInk: { value: rawRGB(new Color(), hexRGB(LENS_SHARED.chevron)) },
-      ...(o.gaps ? { uGaps: { value: o.gaps.tex }, uGapX: { value: o.gaps.x } } : {}),
+      // (every toon carries the gaps' uniforms too, a blank texture and no slots where it has none, so a program read without GAPS still finds each one)
+      uGaps: { value: o.gaps?.tex ?? NO_GAPS }, uGapX: { value: o.gaps?.x ?? new Vector4(0, 0, 0, 0) },
     },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });

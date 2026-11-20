@@ -254,8 +254,18 @@ export class CameraRig {
       let vx = this.vel.x * newDur, vy = this.vel.y * newDur, vl = this.vel.lh * newDur;
       const w = a.half[0] + s.half[0], mv = Math.hypot(vx / w, vy / w, vl / (2 * Math.LN2)), md = Math.hypot(dx / w, dy / w, dl / (2 * Math.LN2));
       if (mv > 1e-9 && md > 1e-9) {
-        const f = Math.min(1, (2.5 * md) / mv);   // (never carry so much that the curve overshoots its target)
-        vx *= f; vy *= f; vl *= f; hv = { x: vx, y: vy, lh: vl };
+        // only the part of the speed that already heads to the new framing is carried, along the straight way there: the path stays one straight shot. Carrying the whole
+        // velocity (sideways or backwards parts too) bent the path out and back, the zigzag of a slide that retargets while the camera still moves (outline -> first slide).
+        const along = ((vx / w) * (dx / w) + (vy / w) * (dy / w) + (vl / (2 * Math.LN2)) * (dl / (2 * Math.LN2))) / (md * md);
+        if (along > 1e-6) {
+          const f = Math.min(along, 2.5);   // (never carry so much that the curve overshoots its target)
+          hv = { x: dx * f, y: dy * f, lh: dl * f };
+        } else {
+          // the new framing is behind or beside the way it was going: a straight line would stop dead (a jolt), so the old speed runs out over one short bulge (half the speed it had,
+          // never more than the old cap) and the camera turns back once, smoothly: one bend, never a zig and a zag
+          const f = Math.min(0.5, (2.5 * md) / mv);
+          hv = { x: vx * f, y: vy * f, lh: vl * f };
+        }
       }
     }
     this.hv = hv;
@@ -269,7 +279,7 @@ export class CameraRig {
     // the lens: a plunge into the figure (the body to the lobule or the sinusoid, or back) widens it and narrows it again (dive.ts); Reduce Motion keeps the long lens throughout
     this.bumpFrom = this.bump;
     this.plunge = LENS_SWELL && !(this.reduceMotion || reduced()) && Math.max(this.from.shot.r, this.to.shot.r) / Math.max(1e-9, Math.min(this.from.shot.r, this.to.shot.r)) > PLUNGE_RATIO;
-    this.t0 = carry > 0 || hv ? now - 16 : now; this.eNow = 0;   // (carrying speed: the first frame is one frame in, so the retarget frame is not a stand-still)
+    this.t0 = carry > 0 || hv || (this.active && this.vel.on) ? now - 16 : now; this.eNow = 0;   // (carrying speed: the first frame is one frame in, so the retarget frame is not a stand-still)
     this.dur = reducedMs(ms * (this.long ? this.long.stretch : 1), this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
     this.orbitTo = keepHand ? (this.active ? this.orbitTo : this.orbit) : 0;
     this.orbitFrom = this.orbit;

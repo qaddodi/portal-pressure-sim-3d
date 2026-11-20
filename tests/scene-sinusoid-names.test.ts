@@ -110,3 +110,17 @@ test('a tap on a name takes its card: every name has its note, bile only while i
   assert.equal(SV_TARGET.sin, 'lumen');
   assert.ok(UM.lum > 0);
 });
+
+test('wide, panned up: a name whose tissue has left the free room stands aside instead of being held over other tissue (the lower plate\'s names never sit in the lumen over the Kupffer cell)', () => {
+  const W = 1440, H = 900;
+  const v = new SinusoidView(createShared());
+  v.setVisible(true); v.snapTargets(targets()); v.update(0);
+  const free = { l: 12, t: 90, r: W - 12, b: H - 80 }, k = restScale(free.b - free.t) * 2.2;
+  // the axis well down the screen: the lower plate is under the room's foot
+  const C: [number, number] = [W / 2, free.b - 3 * k];
+  const names = v.names({ W, H, C, k, free, insTop: 70, text: TEXT, lit: new Set(), measure });
+  const keys = new Set(names.map((n) => n.key));
+  for (const kk of ['hep', 'bc', 'lymph'] as NameKey[]) assert.ok(!keys.has(kk), `${kk}: its tissue is off the room, so its name is not drawn`);
+  assert.ok(keys.has('sin') && keys.has('in') && keys.has('out'), 'what is on screen keeps its name');
+  for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) assert.ok(!overlap(names[i]!, names[j]!), `${names[i]!.key} clear of ${names[j]!.key}`);
+});

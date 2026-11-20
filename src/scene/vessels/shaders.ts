@@ -210,6 +210,7 @@ uniform float lensModeB;
 uniform vec3 laneColA[5];
 uniform vec3 laneColB[5];
 uniform float lensIndex;
+uniform vec2 lensSpan;
 uniform float lensSmooth;   // smooth joins on (1): the lens colour runs through the colours a third and two thirds along (grad rows 2 and 3), not straight from one end's to the other's
 uniform float smokeOn;
 uniform vec3 hiColor;
@@ -293,7 +294,7 @@ vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float acro
   ivec2 i0 = ivec2(int(lensIndex), 0), i1 = ivec2(int(lensIndex), 1);
   vec4 g0 = texelFetch(grad, i0, 0), g1 = texelFetch(grad, i1, 0);
   if (g0.a + g1.a < 0.5) return vec4(0.0);
-  float u = vUv.x;
+  float u = mix(lensSpan.x, lensSpan.y, vUv.x);   // (a branch of a vessel wears the stretch of its host's ramp it leaves from: no step in colour at the branch point)
   float t = lensTail > 0.5 ? smoothstep(0.55, 1.0, u) : u;
   if (mode < 1.5) {
     if (lensSmooth > 0.5) {
@@ -369,8 +370,9 @@ void main() {
     vec4 smS = texelFetch(streamTex, ivec2(int(lensIndex), 0), 0);   // the blood's own distance and speed on this vessel: reversed runs back, none stands
     float rFix = max(radius * vU, 1e-3);   // (the vessel's own radius, not its live width: the pattern does not slip when a stenosis narrows it)
     float sc = ${F(STREAK.FIELD_AT_R)} / rFix, nL = rFix >= ${F(STREAK.LANE_7)} ? ${F(STREAK.LANES)} : rFix >= ${F(STREAK.LANE_5)} ? 5.0 : 3.0;
-    float fld = streakField(across, vUv.x * len * vU * sc, smS.x * sc, nL * ${F(STREAK.FIELD_PITCH / 2)} + 0.01, 1.0, 1.0);
     float rCss = vR / max(vW * 2.0 / (res.y * projY) * vU, 1e-6);
+    gStreakPx = rCss;   // (the lumen's radius in CSS px: the field holds a streak's core to MIN_PX where its lane allows)
+    float fld = streakField(across, vUv.x * len * vU * sc, smS.x * sc, nL * ${F(STREAK.FIELD_PITCH / 2)} + 0.01, 1.0, 1.0);
     float sOn = streakAmt * smoothstep(2.5, 3.5, rCss) * smoothstep(0.02, 0.2, abs(smS.y));
     streakCover = sOn * fld;
     cBody = c;
@@ -445,7 +447,7 @@ void main() {
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
-    vec3 inkH = mix(inkColor, celTubeBase(baseH) * ${F(CEL_STYLE.TUBE.INK_TONE)}, ${F(CEL_STYLE.TUBE.INK_OWN)});
+    vec3 inkH = mix(inkColor, celTubeBase(baseH) * mix(${F(CEL_STYLE.TUBE.INK_TONE)}, ${F(CEL_STYLE.TUBE.INK_TONE_DARK)}, tubeDark), ${F(CEL_STYLE.TUBE.INK_OWN)});
     c = mix(c, mix(mix(inkH, inkColorCirc, circT), hiColor, clamp(vHi, 0.0, 1.0)), inkT);
   }
   gl_FragColor = vec4(c, vFade);

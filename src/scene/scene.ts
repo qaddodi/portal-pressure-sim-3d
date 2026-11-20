@@ -8,7 +8,7 @@ import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
-import { FlowRate } from './flow-rate.ts';
+import { flowRate, flowTarget } from './flow-rate.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
@@ -31,7 +31,7 @@ import { CelObject, type CelShared, createShared } from './materials/cel.ts';
 import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, hasVessel, indexOf } from '../engine/vessel-data.ts';
-import { latest, patient } from '../engine/store.ts';
+import { latest, live, patient } from '../engine/store.ts';
 import { x2d, x3, y2d, y3 } from './frame2d.ts';
 import { type FigureHit, organHit } from './organs/pick.ts';
 import { FLUID_Z } from './disease/ascites.ts';
@@ -86,9 +86,14 @@ const STUB_Q: Record<string, number> = {
 };
 
 /** The body dissolves as the camera goes into the liver: whole at DIVE_OUT scene units from the lobule's place, gone at DIVE_IN (the right lobe's surface is about 0.85 from it). */
-export const DIVE_OUT = 1.9, DIVE_IN = 0.7;
+// (DIVE_IN follows the lobule's scale: the body is gone only when the camera is a few lobule-fits away, where the lobule's field starts to fill the screen. A fixed 0.7 left
+//  the screen showing the bare page between the body going and the 1/1500 lobule growing: the near-white flash in the Anatomy -> Lobule dive.)
+/** The dive share (sinusoid/view.ts diveShare) below which nothing of the sinusoid is drawn on the way in from the lobule. */
+export const SIN_SHOW_FROM = 0.4;
+export const DIVE_OUT = 1.9, DIVE_IN = 40 * LOBULE_SCALE;
 /** How much of the body is drawn with the camera `d` scene units from the lobule's place: 1 whole, 0 gone (smoothstep between DIVE_IN and DIVE_OUT). */
-export function bodyFade(d: number): number { const t = Math.min(1, Math.max(0, (d - DIVE_IN) / (DIVE_OUT - DIVE_IN))); return t * t * (3 - 2 * t); }
+// (in log distance: the zoom is geometric, so the dissolve runs evenly through the whole dive instead of all at once at its end)
+export function bodyFade(d: number, inner = DIVE_IN): number { const t = d <= 0 ? 0 : Math.min(1, Math.max(0, Math.log(d / inner) / Math.log(DIVE_OUT / inner))); return t * t * (3 - 2 * t); }
 
 /** The corners (scene units) of the lobule's box and of the sinusoid's: what the hand's pan and zoom keep on screen while each is the view. */
 export function lobuleCorners(): Vec3[] {
@@ -136,7 +141,7 @@ export class CelScene {
   /** The blood's streams (the chevrons' distance, speed and reversed flag, from the 2D app's own stream model). */
   readonly blood = new BloodField();
   /** The flow's one eased rate (flow-rate.ts): every visible phase that rides the blood's distance advances by it. */
-  readonly flowRate = new FlowRate();
+  readonly flowRate = flowRate;
   /** The lobule and sinusoid views (B8), built once, hidden until the view is chosen (setView). */
   /** The organs and the disease states on the figure (B4). */
   readonly disease: DiseaseLayer;
@@ -297,6 +302,7 @@ export class CelScene {
     }, this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
     else this.leaving.push(o);   // a fan of tributaries has no map course: it leaves with the organs as the figure turns into the map
+    if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     const fade = fadeOf(def.id, def.tone === 'artery', def.feeder?.host);
@@ -619,7 +625,7 @@ export class CelScene {
   /** The body dissolves as the camera goes into the liver and comes back as it leaves (a function of the camera's distance to the lobule's place, so the dive in and the way out are the same picture run both ways). */
   private fadeBody(): void {
     // the dive's effects belong to a dive (or to the lobule and the sinusoid): a close-up of the body at rest (a deck's zoom on the liver) is outside every dive and never fades the organs or opens the window
-    const f = this.inDive() ? bodyFade(this.rig.camera.position.distanceTo(this.livePoint)) : 1;
+    const f = this.inDive() ? bodyFade(this.rig.camera.position.distanceTo(this.livePoint), this.diveIn()) : 1;
     // the lobule and the sinusoid live inside the liver: drawn only once the body has begun to dissolve (the camera is through the surface) or when one of them is the view at rest.
     // Before, the dive frame was on for the whole flight, so the see-through liver showed the lobule on its surface and the two fought in the wash (the dive's flicker).
     const dv = this.figureView === 'lobule' || this.figureView === 'sinusoid' ? (!this.hideLeftBehind || f < 1) : this.hideLeftBehind && f < 1;
@@ -641,14 +647,19 @@ export class CelScene {
   private stepSinusDive(): void {
     // (only while the camera is really flying: a dive share kept past the landing would hold the tissue dim, its detail, names and arrows away)
     const flying = this.hideLeftBehind && this.sinus.isVisible && this.rig.isMoving;
-    this.sinus.setDive(flying ? diveShare(this.rig.pose.shot.r, 2.5 * LOBULE_SCALE, 3 * SIN_SCALE) : null);
+    const share = flying ? diveShare(this.rig.pose.shot.r, 2.5 * LOBULE_SCALE, 3 * SIN_SCALE) : null;
+    this.sinus.setDive(share);
+    // (the same rule as the lobule in the liver: nothing of the sinusoid is drawn until the dive is close to landing. Before, its frame was up for the whole flight and a line of it
+    //  showed over the zoomed-out lobule. Every part of it fades in from SIN_SHOW_FROM or later (the tissue 0.5, the 3D parts 0.42), so hiding it below that never pops.)
+    const sv = share == null || share >= SIN_SHOW_FROM;
+    if (this.sinFrame.visible !== sv) { this.sinFrame.visible = sv; this.moving = true; }
   }
   /** The dive's cutaway window in the organs' wash and the field's focus: both are functions of the camera's distance to the place dived to, so the way in and the way out are one picture run both ways,
    *  however the move is reversed, held or resized by a card (camera/dive.ts). Nothing changes at rest: every body shot is outside the window. */
   private stepCutaway(): void {
     const cam = this.rig.camera, d = this.inDive() ? cam.position.distanceTo(this.livePoint) : Infinity;
     const p = this.divePt.copy(this.livePoint).project(cam);
-    cutUniform(d, p.x, p.y, cam.aspect, this.cutArr);
+    cutUniform(d, p.x, p.y, cam.aspect, this.cutArr, this.diveIn());
     const was = ORGAN_CUT.value.z;
     ORGAN_CUT.value.set(this.cutArr[0], this.cutArr[1], this.cutArr[2], this.cutArr[3]);
     this.lobule.field.setSoft(fieldSoft(d, this.lobuleRest()));
@@ -681,6 +692,8 @@ export class CelScene {
     if (key !== this.restKey) { this.restKey = key; this.restD = effectiveDistance(lobuleShot('lobule'), r, this.height, this.width); }
     return this.restD;
   }
+  /** Where the body is gone: twice the distance the lobule lands at in this room (never nearer than DIVE_IN), so the body is always gone on landing, whatever the screen. */
+  private diveIn(): number { return Math.max(DIVE_IN, 2 * this.lobuleRest()); }
   private readonly divePt = new Vector3();
   private readonly cutArr: [number, number, number, number] = [0, 0, -1, 1];
   /** How much of the body is drawn now (1 whole, 0 gone): for tests and tags. */
@@ -839,7 +852,7 @@ export class CelScene {
     const hiMoving = this.highlight.step(dt);
     const pinMoving = this.pins.step(dt, this.disease.organs.byId);
     this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
-    this.flowRate.step(dt / 1000, (latest.frame?.running ?? true) ? 1 : 0);   // (Pause and Play ease the visible flow, 0.5 s each way; the model's own numbers pause at once)
+    this.flowRate.step(dt / 1000, flowTarget(live.frame?.running));   // (Pause and Play ease the visible flow, 0.5 s each way; the model's own numbers pause at once)
     const streamsMoving = this.blood.streams.step(now, this.flowRate.value);
     const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id));
     const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || this.stepCava(dt);
