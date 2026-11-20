@@ -20,6 +20,7 @@ import { POOL_SHARE } from '../disease/copied/bleed-shapes.js';
 import { LiverShape } from './liver-shape.ts';
 import { x3, y3 } from '../frame2d.ts';
 import { bakeOrganDepth } from './organ-depth.ts';
+import { CEL_STYLE } from '../cel-style.ts';
 import type { OrganFill } from '../../state/settings.ts';
 
 type Og = keyof OrganTones2D['tones'];
@@ -56,7 +57,7 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
   const m = o.toon;
   m.vertexShader = ORGAN_VS; m.fragmentShader = ORGAN_FS;
   Object.assign(m.uniforms, {
-    cut: ORGAN_CUT, depthAmt: depth, solid, o1: { value: new Color() }, o2: { value: new Color() }, page: { value: new Color() }, layer: { value: 0.55 },
+    cut: ORGAN_CUT, depthAmt: depth, solid, o1: { value: new Color() }, o2: { value: new Color() }, o3: { value: new Color() }, page: { value: new Color() }, layer: { value: 0.55 },
     ogLight: { value: new Vector4() }, ogDark: { value: new Vector4() }, volShade: { value: new Vector4() },
     box: { value: new Vector4(b.min.x, b.max.y, b.max.x - b.min.x, b.max.y - b.min.y) },
   });
@@ -134,7 +135,7 @@ export class OrganLayer {
       const o = new CelObject(g, { tone: st.tone, bands: 3, spec: 0, px: st.px }, this.shared);
       useOrganShader(o, g, id, this.uDepth, this.uSolid);
       if (this.phone) o.setPhone(true);
-      o.ink.uniforms.px!.value = st.px;
+      o.ink.uniforms.px!.value = this.inkPx(id);
       this.objects.push(o); this.byId.set(id, o); this.group.add(o.group);
       if (id === 'liver') {
         this.liverGeometry = g;
@@ -155,7 +156,9 @@ export class OrganLayer {
 
   applyLook(p: Palette): void { this.palette = p; this.dirtyColours = true; }
   /** The organ outline is in the figure's units (ORGAN_INK_VS), so it needs no phone trim: keep 2D's 1.1 (kidney 1.4) on every device. */
-  setPhone(phone: boolean): void { this.phone = phone; for (const [id, o] of this.byId) { o.setPhone(phone); o.ink.uniforms.px!.value = ORGAN_STYLE[id]!.px; } }
+  setPhone(phone: boolean): void { this.phone = phone; for (const [id, o] of this.byId) { o.setPhone(phone); o.ink.uniforms.px!.value = this.inkPx(id); } }
+  /** The organ outline's width in the figure's units: 2D's (1.1, the kidney 1.4), wider by LINE_SCALE as the fill goes cel shaded. */
+  private inkPx(id: string): number { return ORGAN_STYLE[id]!.px * (1 + (CEL_STYLE.ORGAN.LINE_SCALE - 1) * this.uSolid.value); }
   /** A lens other than Pressure greys the organs (organ-dim.js: saturation 0.12, opacity 0.72) and eases in 420 ms (D_SURFACE). */
   setLensGrey(on: boolean): void { this.grey = on; }
   /** The turn's quiet depth (0..1 in steps): the organs' wash eases toward the page; repaints only when the step changes. */
@@ -217,6 +220,7 @@ export class OrganLayer {
       const t1 = rgbOf(og[0]), t2 = rgbOf(og[1]), base = mix(t1, t2, 0.5);
       const c = organColour(base, s, k);
       this.setColours(o, organColour(t1, s, k), organColour(t2, s, k), c, organInk(rgbOf(og[2]), s, k), st.inkA, organLayerAlpha(p, id), page, p.organs);
+      o.ink.uniforms.px!.value = this.inkPx(id);
       const vp = this.paints.get(id);
       if (!vp) continue;
       // what varies over the surface: the vertices carry it (an organ that has none of it shows its one colour)
@@ -237,12 +241,13 @@ export class OrganLayer {
    *  the organ's own third tone at its alpha under the layer, pre-mixed against the page (2D: .62 × .55, so about a third), never black. */
   private setColours(o: CelObject, t1: RGB, t2: RGB, c: RGB, o3: RGB, inkA: number, layer: number, page: RGB, og: OrganTones2D): void {
     const u = o.toon.uniforms;
-    (u.o1!.value as Color).setRGB(t1[0], t1[1], t1[2]); (u.o2!.value as Color).setRGB(t2[0], t2[1], t2[2]);
+    (u.o1!.value as Color).setRGB(t1[0], t1[1], t1[2]); (u.o2!.value as Color).setRGB(t2[0], t2[1], t2[2]); (u.o3!.value as Color).setRGB(o3[0], o3[1], o3[2]);
     (u.color!.value as Color).setRGB(c[0], c[1], c[2]); (u.page!.value as Color).setRGB(page[0], page[1], page[2]);
     u.layer!.value = layer;
     (u.ogLight!.value as Vector4).copy(rgba(og.light)); (u.ogDark!.value as Vector4).copy(rgba(og.dark)); (u.volShade!.value as Vector4).copy(rgba(og.volShade));
-    // cel shaded (solid): the organ's line is 2D's alpha (.62, the kidney .95) laid on the page whole, not thinned by the layer's opacity, so the silhouette and the edge where one organ passes over another read as ink
-    const ink = mix(page, o3, Math.min(1, inkA * (layer + (1 - layer) * this.uSolid.value)));
+    // cel shaded (solid): the organ's line is 2D's alpha whole, not thinned by the layer's opacity, and stronger by INK_BOOST of what is left, so the silhouette and the edge where one organ passes over another read as ink
+    const k = this.uSolid.value, ca = inkA * (layer + (1 - layer) * k);
+    const ink = mix(page, o3, Math.min(1, ca + (1 - ca) * k * CEL_STYLE.ORGAN.INK_BOOST));
     (o.ink.uniforms.color!.value as Color).setRGB(ink[0], ink[1], ink[2]);
   }
 

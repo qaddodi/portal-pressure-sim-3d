@@ -3,6 +3,7 @@
 // each once per pixel, so they show through each other as 2D's groups do. Plain strings so the tests can read them without a GPU.
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { CEL_STYLE } from '../cel-style.ts';
+import { LUMA } from '../disease/copied/anatomy-b4.ts';
 
 const num = (n: number) => (Number.isInteger(n) ? `${n}.0` : String(n));
 
@@ -39,6 +40,7 @@ export const ORGAN_FS = /* glsl */ `
 ${FADE_GLSL}
 uniform vec3 o1;
 uniform vec3 o2;
+uniform vec3 o3;
 uniform vec3 color;
 uniform vec4 ogLight;
 uniform vec4 ogDark;
@@ -67,6 +69,9 @@ const float CEL_SHADE_LAM = ${num(CEL_STYLE.ORGAN.SHADE_LAM)};
 const float CEL_LIT_LAM = ${num(CEL_STYLE.ORGAN.LIT_LAM)};
 const float CEL_TUCK_AO = ${num(CEL_STYLE.ORGAN.TUCK_AO)};
 const float CEL_EDGE_PX = ${num(CEL_STYLE.EDGE_PX)};
+const float CEL_BOX_BIAS = ${num(CEL_STYLE.ORGAN.BOX_BIAS)};
+const vec2 CEL_BOX_DIR = vec2(${num(CEL_STYLE.DIR[0])}, ${num(-CEL_STYLE.DIR[1])});   // toward the light in the organ's own box (x right, y DOWN)
+const vec3 CEL_LUMA = vec3(${num(LUMA[0]!)}, ${num(LUMA[1]!)}, ${num(LUMA[2]!)});
 const vec3 CEL_LIGHT = vec3(${num(CEL_LIGHT_N[0])}, ${num(CEL_LIGHT_N[1])}, ${num(CEL_LIGHT_N[2])});   // (normalized here, not by a constant expression in GLSL: one less thing a phone's compiler can refuse)
 // how much of the shade tone (x) and the lit tone (y) a point wears, each 0 or 1 but for the pixel of an edge; tuckAt is where the tuck band starts (above 1: no band)
 vec2 celBands(float lam, float ao, float tuckAt) {
@@ -121,23 +126,25 @@ void main() {
     fill = mix(fill, ogDark.rgb, clamp(ogDark.a * (1.5 * tuck + 0.6 * away), 0.0, 1.0) * depthAmt);
     fill = mix(fill, ogLight.rgb, clamp(ogLight.a * 0.5 * toward, 0.0, 1.0) * depthAmt);
   }
-  // Cel shaded: the wash's soft shade is replaced (eased by solid) by the three hard tones; the base is the organ's one colour with what varies over it (nodules, the dead spleen, the pool)
+  // Cel shaded: the wash's soft shade is replaced (eased by solid) by three hard tones in the organ's own hues: the base is its second tone (og-N-2) with what varies over it (nodules, the dead spleen, the pool);
+  // the lit tone is toward its first (og-N-1) and og-light; the shade toward its third (og-N-3) or, where that is the light edge of a dark look, og-dark. The measure is n.L leaned across the organ's box toward
+  // the light, so a flat face-on organ still shows a lit cap and a shade side.
   if (solid > 0.001) {
-    vec3 base = color;
+    vec3 base = o2;
 #ifdef VERTEX_INK
     base += (vInk - color) * inkAmount;
 #endif
-    vec2 b = celBands(dot(n, CEL_LIGHT), clamp(vAo, 0.0, 1.0), mix(1.5, CEL_TUCK_AO, depthAmt));
-    // shade: the base less ${num(CEL_STYLE.SHADE)} of itself, toward og-dark by its own alpha; lit: ${num(CEL_STYLE.LIT)} of the way to og-light (the vessels' tones: white on every look but the Soft one's cream)
-    vec3 shadeTone = mix(base * (1.0 - ${num(CEL_STYLE.SHADE)}), ogDark.rgb, ogDark.a);
-    vec3 litTone = mix(base, ogLight.rgb, ${num(CEL_STYLE.LIT)});
+    float lean = dot(vBox - vec2(0.5), CEL_BOX_DIR);
+    vec2 b = celBands(dot(n, CEL_LIGHT) + CEL_BOX_BIAS * lean, clamp(vAo, 0.0, 1.0), mix(1.5, CEL_TUCK_AO, depthAmt));
+    vec3 deep = dot(o3, CEL_LUMA) < dot(base, CEL_LUMA) ? o3 : ogDark.rgb;
+    vec3 shadeTone = mix(base * (1.0 - ${num(CEL_STYLE.ORGAN.SHADE)}), deep, ${num(CEL_STYLE.ORGAN.DEEP)});
+    vec3 litTone = mix(mix(base, o1, ${num(CEL_STYLE.ORGAN.LIT_O1)}), ogLight.rgb, ${num(CEL_STYLE.ORGAN.LIT)});
     vec3 cel = mix(mix(base, shadeTone, b.x), litTone, b.y);
     fill = mix(fill, cel, solid);
   }
   // the organ lies on whatever is behind it at the layer's opacity, as 2D's organ groups do (blended in 2D's order: layer.ts); the dive fades the layer, no dots.
-  // Solid: the same colour pre-mixed against the page and laid opaque (alpha 1), so nothing shows through it; the dive's fade and window still thin it, never pop it
+  // Cel shaded (solid): the organ's own full tones laid opaque (alpha 1, no pre-mix against the page), so nothing shows through it; the dive's fade and window still thin it, never pop it
   float a = mix(layer, 1.0, solid);
-  fill = mix(fill, mix(page, fill, layer), solid);
   gl_FragColor = vec4(fill, a * fade * win);
 }`;
 
