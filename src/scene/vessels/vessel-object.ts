@@ -97,7 +97,7 @@ export class VesselObject extends CelObject {
         liveW: { value: 1 }, lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, bury: { value: new Vector2(0, 0) }, nbrOn: { value: 0 }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, seamA: { value: [new Vector4(), new Vector4()] }, seamB: { value: [new Vector4(), new Vector4()] }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circFlat: { value: 0 }, circAnchA: { value: new Vector3() }, circAnchC: { value: new Vector3() }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
-        veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 }, cavaEnd: { value: new Vector2(0, 1) }, cavaCut: { value: 0 }, cavaA: { value: 1 }, cavaRef: { value: new Vector2(0, 1) },
+        veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 }, cavaEnd: { value: new Vector2(0, 1) }, cavaCut: { value: 0 }, cavaA: { value: 1 }, solidK: { value: 1 }, veilK: { value: 1 }, cavaRef: { value: new Vector2(0, 1) },
         lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, streakAmt: blood.streakAmt, chainTex: blood.chainTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, quietK: { value: 0 }, wedge: { value: new Vector4(0, 2, 0.6, 0) }, wedgeCol: { value: new Color() }, wallLine: { value: this.artery ? 1 : 0 }, pageCol: { value: new Color() }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 0 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
@@ -253,7 +253,7 @@ export class VesselObject extends CelObject {
     this.group.add(mesh);
     this.veil = { mesh, mat, overLayer, faint, whole: false };
     // drawn with the organs (layer 0), or, the cava, not drawn solid at all (its mesh stays for picking, on a layer no pass draws)
-    this.toonMesh.layers.set(faint ? FAINT_ONLY_LAYER : 0);
+    this.applyBehind();
   }
   /** The cava shown whole (2D's F_WHOLE, selected or named): the organs do not fade it. It eases over from the veil's 0.4 to 1, and once whole it is drawn solid over the organs, in its tier
    *  behind every vessel of the network; back, it is the veil again. */
@@ -264,11 +264,24 @@ export class VesselObject extends CelObject {
     if (this.tip) { const a = this.toon.uniforms.fadeA!.value as Vector4; a.z = this.tip.a0 + (1 - this.tip.a0) * k; a.w = this.tip.a1 + (1 - this.tip.a1) * k; }   // (the faint cava rises to whole: body, outline and chevrons)
     v.mat.uniforms.veilA!.value = Math.min(1, 0.4 + 0.6 * k + this.lift * (1 - k));
     const whole = k >= 1;
-    v.mesh.visible = !whole;
-    if (whole !== v.whole) {
-      v.whole = whole;
-      this.toonMesh.layers.set(whole ? v.overLayer : v.faint ? FAINT_ONLY_LAYER : 0);
-    }
+    if (whole !== v.whole) { v.whole = whole; this.applyBehind(); }
+  }
+  private occK = 0;
+  /** Settings > Hide vessels behind organs, eased 0..1 by the scene: 0 is the show-through look (the vessel's veil copy over the organs), 1 normal occlusion (its solid copy, drawn with the organs, which an organ in front hides). In between the two copies
+   *  trade their opacity, so nothing pops. Naming the vessel (whole) still reveals it over the organs. */
+  setOcclusion(k: number): void {
+    if (!this.veil || k === this.occK) return;
+    this.occK = k;
+    this.applyBehind();
+  }
+  private applyBehind(): void {
+    const v = this.veil;
+    if (!v) return;
+    const k = v.whole ? 0 : this.occK;
+    this.toon.uniforms.veilK!.value = 1 - k;
+    this.toon.uniforms.solidK!.value = v.faint && !v.whole ? k : 1;
+    v.mesh.visible = !v.whole && k < 0.999;
+    this.toonMesh.layers.set(v.whole ? v.overLayer : v.faint && k <= 0.001 ? FAINT_ONLY_LAYER : 0);
   }
   private whole = 0; private lift = 0;
   /** Opaque (cel shaded) organs hide what the 2D wash let through, so a veiled vessel's veil takes `lift` of it back (OrganLayer.veilLift); 0 is the 2D veil exactly. */

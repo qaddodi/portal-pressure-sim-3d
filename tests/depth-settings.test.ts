@@ -4,8 +4,8 @@ import { DEFAULTS, DEPTH_DEFAULTS, DEPTH_KEYS, FIGURE_SETTINGS_VERSION as V, par
 import { DEPTH_ROWS } from '../src/ui/settings/depth-rows.ts';
 
 test('the Figure depth switches: on by default, except Free tilt (the blood streaks are on: a play-test with the switch off saw none)', () => {
-  assert.deepEqual([...DEPTH_KEYS], ['smoothJoins', 'organDepth', 'tilt', 'dof', 'particles']);
-  assert.deepEqual(DEPTH_DEFAULTS, { smoothJoins: true, organDepth: true, tilt: true, dof: true, particles: true });
+  assert.deepEqual([...DEPTH_KEYS], ['smoothJoins', 'organDepth', 'tilt', 'dof', 'particles', 'hideBehind']);
+  assert.deepEqual(DEPTH_DEFAULTS, { smoothJoins: true, organDepth: true, tilt: true, dof: true, particles: true, hideBehind: false });
   for (const k of DEPTH_KEYS) assert.equal(DEFAULTS[k], DEPTH_DEFAULTS[k]);
 });
 

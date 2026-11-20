@@ -1,7 +1,7 @@
 // The organs' own fill: 2D's three-tone organ painter (the #og-<organ> gradient, the og-vol radial, the inner shade strokes s1..s3 and the top-left rim light),
 // laid at the organ layer's opacity over whatever is behind (atlas-look-plan.md 2.5 and 2.6; the visual review's 2.1 to 2.4). layer.ts blends the organs in 2D's order,
 // each once per pixel, so they show through each other as 2D's groups do. Plain strings so the tests can read them without a GPU.
-import { FADE_GLSL } from '../materials/shaders.ts';
+import { FADE_GLSL, INK_RIM_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 
 const num = (n: number) => (Number.isInteger(n) ? `${n}.0` : String(n));
@@ -141,6 +141,7 @@ void main() {
 /** The organ outline: the hull's width in the figure's units (2D's .org-line is 1.1 SVG units, the kidney 1.4), so it scales with the figure as 2D's does,
  *  never under one device pixel. Feeds INK_FS (its varyings vHi and vU). */
 export const ORGAN_INK_VS = /* glsl */ `
+${INK_RIM_GLSL}
 uniform float px;
 uniform float dpr;
 attribute vec3 hullN;   // the smoothed normal the outline is pushed out along (normal-smooth.ts): the mesh's own normals jag at a coarse rim
@@ -158,6 +159,6 @@ void main() {
   vec2 nd = (projectionMatrix * vec4(normalMatrix * hullN, 0.0)).xy;
   float l = length(nd);
   nd = l > 1e-5 ? nd / l : vec2(0.0);
-  c.xy += nd * w * 2.0 / res * c.w;
+  c.xy += nd * w * inkRim(hullN) * 2.0 / res * c.w;
   gl_Position = c;
 }`;
