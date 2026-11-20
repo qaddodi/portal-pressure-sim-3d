@@ -56,8 +56,33 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   const plateRef = useRef<HTMLDivElement>(null);
   const [live, setLive] = useState(false);          // the card has landed: from now on a move of its place glides
   const shownH = useRef<number | null>(null);        // the height the card is drawn at (for the glide)
+  const anims = useRef<Animation[]>([]);
+  const now = useRef({ live: false, out: false, overflow: false, r: 0 });   // (what the measuring callback, made once, needs to know of the latest render)
   const out = entry.phase === 'out';
   const ready = rect.h > 0;
+  now.current = { live, out, overflow: !!overflow, r };
+
+  // A card whose own words grow (an answer opens under its question) is that tall at once and revealed down to it by the same glide the rows under the question ease down by,
+  // started in the measuring callback itself, before the frame is painted: the height the plan gives it comes a React round trip later, and until then the words stood below the
+  // card's edge (Mohammad, 20 Nov: "the card is not expanding as fast as the text"). The plan's later height is the same, and finds the card already there.
+  const growNow = (h: number) => {
+    const card = cardRef.current, plate = plateRef.current, n = now.current, prev = shownH.current;
+    if (!card || !plate || prev == null || !n.live || n.out || n.overflow || h <= prev + 1 || typeof card.animate !== 'function' || reduced()) return;
+    shownH.current = h;
+    card.style.height = `${h}px`; plate.style.height = `${h}px`;
+    reveal(prev, h);
+  };
+  const reveal = (prev: number, next: number, opts?: KeyframeAnimationOptions) => {
+    const card = cardRef.current, plate = plateRef.current;
+    if (!card || !plate) return;
+    const o = opts ?? { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'forwards' };
+    anims.current.forEach((a) => a.cancel());
+    anims.current = [
+      card.animate([{ clipPath: `inset(0 0 ${next - prev}px 0 round ${now.current.r}px)` }, { clipPath: `inset(0 0 0 0 round ${now.current.r}px)` }], o),
+      plate.animate([{ transform: `scaleY(${prev / next})` }, { transform: 'scaleY(1)' }], o),
+    ];
+    anims.current[0].onfinish = () => anims.current.forEach((a) => a.cancel());
+  };
 
   // measure the words' natural height: the card is sized to it exactly
   useLayoutEffect(() => {
@@ -76,7 +101,9 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
         let k = 1, hgt = size();
         for (let n = 0; n < 8 && hgt > room && k > floor; n++) { k = Math.max(floor, k * Math.min(0.97, (room / hgt) ** 0.9)); card.style.setProperty('--pz-fit', k.toFixed(3)); hgt = size(); }
       }
-      onHeight(entry.key, Math.round(rect.w), Math.ceil(el.getBoundingClientRect().height + pad) + 2);
+      const h = Math.ceil(el.getBoundingClientRect().height + pad) + 2;
+      growNow(h);
+      onHeight(entry.key, Math.round(rect.w), h);
     };
     report();
     if (typeof ResizeObserver === 'undefined') return;
@@ -90,7 +117,6 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   // growing, the card is its new height at once and is revealed down to it; shrinking, it stays its old height, is clipped up to the new
   // one, and takes the new height only when the glide has finished.
   const [animH, setAnimH] = useState<number | null>(null);
-  const anims = useRef<Animation[]>([]);
   useLayoutEffect(() => {
     const card = cardRef.current, plate = plateRef.current;
     if (!card || !plate || !ready) return;
@@ -100,14 +126,10 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     if (prev == null || prev === rect.h || !live) return;
     if (typeof card.animate !== 'function' || reduced()) return;
     const opts: KeyframeAnimationOptions = swap ? { duration: IN_MS, delay: OUT_DONE, easing: RAIL_CSS, fill: 'both' } : { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'forwards' };
-    anims.current.forEach((a) => a.cancel());
     if (rect.h > prev) {
-      anims.current = [
-        card.animate([{ clipPath: `inset(0 0 ${rect.h - prev}px 0 round ${r}px)` }, { clipPath: `inset(0 0 0 0 round ${r}px)` }], opts),
-        plate.animate([{ transform: `scaleY(${prev / rect.h})` }, { transform: 'scaleY(1)' }], opts),
-      ];
-      anims.current[0].onfinish = () => anims.current.forEach((a) => a.cancel());
+      reveal(prev, rect.h, opts);
     } else {
+      anims.current.forEach((a) => a.cancel());
       setAnimH(prev);
       const k = rect.h / prev;
       anims.current = [
