@@ -17,7 +17,7 @@
 //                       (one vec4 each: a float array costs a whole vector a slot, and six arms of five floats broke the fragment budget)
 //   armNarrow[6] float  + (vertex stage only) the arm tube's stenosis waist at its seam: its live width there is swell x (1 - narrow), as the tube's is, so a seam inside a short piece's waist meets the tube with no step
 //   armColor[6]  vec4 + the arm tube's own `color` uniform (rgb: an artery wears the look's artery red, a vein its portal or systemic tone) and, in a, its `lensUse` (an artery 0, a vein 1)
-//   armCopy[6]   vec4   + (w) the arm this one runs through the node with (through.ts), or -1: the outline's union takes the pair by a plain minimum
+//   armCopy[6]   vec4   + (w) the arm this one runs through the node with (through.ts), or -1 (-2: none, and a vein that opens into the trunk's side: THE JUNCTION FADE RULE): the outline's union takes the pair by a plain minimum
 //   armAxisP[24] vec4   per arm four points of its axis (the node J, the start of the straight line through the seam, the seam, the far point), rest positions, model space; w the rest radius at the point
 //   armArc[4]    vec4 + (the arm's flow marks) the arc, figure units, at its seam (u x len x SKIN_FIGURE_UNITS), +1 if the arc grows toward the node (the arm is its vessel's end 1) else -1, the vessel's length (figure units), its rest radius (figure units)
 //   armFlow[4]   float + the arm tube's `flowAmount`
@@ -47,6 +47,7 @@ import { CIRC_INK_K, CIRC_INNER } from '../cel-ink.ts';
 import { MAP_K } from '../../circuit/map.ts';
 import { SKIN_CIRC_IN } from './types.ts';
 import { skinNormalGlsl, SKIN_SHADE_K, SKIN_RING_W_FROM } from './exact-normal.ts';
+import { CAVA_RAMP_R } from '../fade-alpha.ts';
 
 /** How many arms a skin blends (a junction of three or four tubes): the weights are one vec4. */
 export const SKIN_ARMS = 6;
@@ -402,7 +403,19 @@ void main() {
   if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) discard;
   // the arms' alphas, blended by weight: the junction fade rule already holds on the tubes, so their seam alphas agree and the skin runs through them. On the Circuit's map the tubes become flat lines and the map draws its own
   // joins, so the skin fades out over the first SKIN_CIRCUIT_FADE of the morph (the arm tubes' cut fades back in over the same)
-  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * armAF[${i}].y * ${COPY_OF(i)}`).join(' + ')}) 
+  // THE JUNCTION FADE RULE (Mohammad, 20 Nov: "a vessel merging into a faded vessel fades gradually on approach, so both share the same fade at the junction", and the torn edge where the hepatic veins' solid streaks met the faint cava): a vein that opens into the side
+  // of a trunk (armCopy.w -2: the hepatic veins into the cava, fades.ts opensIntoCava; the trunk is the arms of the run through the node) comes to the trunk's opacity as the pixel nears the trunk's wall: 0 from CAVA_RAMP_R trunk radii out, whole at the wall, by the pixel's own distance to the trunk (the tube's own ramp, vessels/shaders.ts wA, which a
+  // skinned vein keeps: cavaCut 2). Before, a vein stayed solid to its seam and the skin changed from its opacity to the cava's across the weights' contour, a polygon: the tear
+  float aTrunk = 0.0, sdTrunk = 1.0e9, radTrunk = 1.0;
+  bool hasTrunk = false;
+  for (int k = 0; k < ${SKIN_ARMS}; k++) {
+    if (armData[k].x < 0.0 || armCopy[k].w < -0.5) continue;
+    vec3 gT; float rT;
+    float dT = skinArmSd3(vPos, k, swAt(k), gT, rT);
+    if (dT < sdTrunk) { sdTrunk = dT; radTrunk = rT; aTrunk = armAF[k].y; hasTrunk = true; }
+  }
+  float wRamp = hasTrunk ? 1.0 - smoothstep(0.0, ${F(CAVA_RAMP_R)} * max(radTrunk, 1.0e-5), sdTrunk) : 0.0;
+  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(armAF[${i}].y, aTrunk, wRamp) : armAF[${i}].y) * ${COPY_OF(i)}`).join(' + ')}) 
 #ifdef SKIN_CIRC
     * smoothstep(${F(SKIN_CIRC_IN)}, 1.0, circT);   // (the map's own skin: in over the end of the change, as the arm tubes' map cut takes their ends away)
 #else

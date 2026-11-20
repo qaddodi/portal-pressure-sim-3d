@@ -15,7 +15,7 @@ export const SKIN_RING_W_FROM = 0.97;
 /** The polynomial smooth-min's gradient and the arm distances, as GLSL. Needs: armAxisP, armData, armCopy and swAt() declared above it; `absent(sw)` is the GLSL of SKIN_ARM_ABSENT's smoothstep (the outline's own rule). Returns the unit gradient of the union at the point `p`. */
 export const skinNormalGlsl = (arms: number, SKIN_AXIS_PTS: number, absent: (sw: string) => string): string => /* glsl */ `
 // one arm's signed distance to its live capsule (the radius at the closest point of its four-point axis, times the arm's live width) and the distance's gradient: sdf.ts sdArmGrad
-float skinArmSd3(vec3 p, int arm, float sw, out vec3 g) {
+float skinArmSd3(vec3 p, int arm, float sw, out vec3 g, out float rad) {
   float best = 1.0e20, bt = 0.0;
   int bi = 0;
   for (int s = 0; s < ${SKIN_AXIS_PTS - 1}; s++) {
@@ -31,7 +31,8 @@ float skinArmSd3(vec3 p, int arm, float sw, out vec3 g) {
   g = (p - (a0 + bv * bt)) * inv;
   float bb = dot(bv, bv);
   if (bt > 0.0 && bt < 1.0 && bb > 0.0) g -= (r1 - r0) * sw / bb * bv;
-  return d - mix(r0, r1, bt) * sw;
+  rad = mix(r0, r1, bt) * sw;
+  return d - rad;
 }
 // the unit gradient of the smooth union of the live arms at p (sdf.ts sdUnionGrad), arm order, the two halves of a run through the node taken as the plain minimum first; fallback if there is none
 vec3 skinNormalExact(vec3 p, float k, vec3 fallback) {
@@ -43,13 +44,13 @@ vec3 skinNormalExact(vec3 p, float k, vec3 fallback) {
     float m = armCopy[i].w;
     if (m > -0.5 && m < float(i) - 0.5) continue;
     vec3 ug;
-    float swi = swAt(i);
-    float b = skinArmSd3(p, i, swi, ug) + 2.0 * k * (1.0 - ${absent('swi')});
+    float swi = swAt(i), rdi;
+    float b = skinArmSd3(p, i, swi, ug, rdi) + 2.0 * k * (1.0 - ${absent('swi')});
     if (m > float(i) + 0.5) {
       int mi = int(m + 0.5);
       vec3 mg;
-      float swm = swAt(mi);
-      float o = skinArmSd3(p, mi, swm, mg) + 2.0 * k * (1.0 - ${absent('swm')});
+      float swm = swAt(mi), rdm;
+      float o = skinArmSd3(p, mi, swm, mg, rdm) + 2.0 * k * (1.0 - ${absent('swm')});
       if (o < b) { b = o; ug = mg; }
     }
     if (first) { acc = b; g = ug; first = false; continue; }

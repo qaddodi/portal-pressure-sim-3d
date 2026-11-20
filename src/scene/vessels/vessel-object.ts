@@ -1,6 +1,7 @@
 import { CIRC_ARTERY, CIRC_BED, MIN_PX } from '../circuit/width.ts';
 import { vdbgDefines, vdbgUniforms } from './debug-view.ts';
 import { HI_NONE } from '../materials/shaders.ts';
+import { markBlends } from '../materials/warm.ts';
 import { BufferAttribute, BufferGeometry, Color, CustomBlending, DataTexture, DoubleSide, FloatType, LinearSRGBColorSpace, MaxEquation, Mesh, NearestFilter, OneFactor, RGBAFormat, ShaderMaterial, Vector2, Vector3, Vector4, type Texture } from 'three';
 import { CelObject, type CelOptions, type CelShared, rawColor } from '../materials/cel.ts';
 import { PALETTES, type Palette } from '../palette.ts';
@@ -91,7 +92,7 @@ export class VesselObject extends CelObject {
     this.artery = !!opts.artery;
     const old = this.toon;
     const u = old.uniforms;
-    const toon = new ShaderMaterial({
+    const toon = markBlends(new ShaderMaterial({
       vertexShader: VESSEL_VS,
       fragmentShader: VESSEL_FS,
       precision: 'highp',   // the ink's lateral distance is a device-pixel difference of two large clip-space numbers: never mediump (a phone's default for a missing statement)
@@ -109,7 +110,7 @@ export class VesselObject extends CelObject {
         ...vdbgUniforms('tube'),   // (the inspector's view of the tubes: none without ?inspect, debug-view.ts)
       },
       defines: vdbgDefines(),
-    });
+    }));
     old.dispose();
     // One mesh, one material, one draw: the outline is part of the tube (the vertex stage builds it ink wider than its lumen, the fragment stage paints the band), so it is continuous by construction.
     this.toonMesh.material = toon;
@@ -271,8 +272,8 @@ export class VesselObject extends CelObject {
   }
   /** A hepatic vein that opens into the cava ends on the cava's axis: the last `share` of it (the cava's radius) lies in its lumen and fades out, whatever the cava's own alpha. */
   /** A vein that opens into the cava (its `nbr` is the cava's): it takes the cava's colour (the lens colour of cava piece `lensIndex`, `u` of the way along it) and alpha as it nears the wall, and is not drawn inside the lumen (shaders.ts cavA). */
-  setCavaCut(on: boolean, lensIndex = 0, u = 1, cavaAlpha = 1): void {
-    this.toon.uniforms.cavaCut!.value = on ? 1 : 0; (this.toon.uniforms.cavaRef!.value as Vector2).set(lensIndex, u);
+  setCavaCut(on: boolean | 'fade', lensIndex = 0, u = 1, cavaAlpha = 1): void {
+    this.toon.uniforms.cavaCut!.value = on === 'fade' ? 2 : on ? 1 : 0; (this.toon.uniforms.cavaRef!.value as Vector2).set(lensIndex, u);
     this.cavaJoinA = cavaAlpha; this.toon.uniforms.cavaA!.value = cavaAlpha;
     if (on) { this.toon.transparent = true; if (this.veil) this.veil.mat.transparent = true; }
   }
@@ -291,7 +292,7 @@ export class VesselObject extends CelObject {
    *  organs is the same one-draw tube as any vessel's). `faint`: the cava (F_VEIL), drawn only as that copy. `overLayer` is the camera layer of what is drawn over the organs. */
   setBehindOrgans(overLayer: number, faint: boolean): void {
     if (this.veil) return;
-    const mat = new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1, ...vdbgDefines() } });
+    const mat = markBlends(new ShaderMaterial({ vertexShader: this.toon.vertexShader, fragmentShader: this.toon.fragmentShader, uniforms: this.toon.uniforms, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: { VEIL: 1, ...vdbgDefines() } }));
     if (this.tip) mat.transparent = true;   // (a fade zone blends; nothing else does)
     const mesh = new Mesh(this.toonMesh.geometry, mat);
     mesh.matrixAutoUpdate = true; mesh.renderOrder = 2; mesh.frustumCulled = false;

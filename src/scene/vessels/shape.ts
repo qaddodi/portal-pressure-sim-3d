@@ -14,6 +14,7 @@ import { ATTACH_REACH, BURY, CEIL, END_SHARE, SMOOTH, endDepth, isPlain } from '
 import { fadeOf } from './fades.ts';
 import { endShare, shuntEnds } from './shunt-ends.ts';
 import { DIVIDED } from './divide.ts';
+import { clearAt, clearances, type ClearProfile } from './clearance.ts';
 const DIVIDED_IDS: ReadonlySet<string> = new Set(DIVIDED.map(([, v]) => v));
 
 const len2d = (pts: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); return l; };
@@ -49,7 +50,7 @@ const smooth = (u: number) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
  *  joined vessels meet at one depth (a vessel in front and one behind it would otherwise stand apart in a turned view). */
 /** The steepest a vessel's depth may change along its course (rise per unit run, about 50 degrees at the steepest point of the ease): a tube diving at the camera is shaded by its normals, not by its colour. */
 export const DEPTH_SLOPE_CAP = 1.2;
-const to3 = (pts: readonly (readonly [number, number])[], z: number, from?: number, to?: number, shareFrom = 0.25, shareTo = 0.25, through = false): Vec3[] => {
+const to3 = (pts: readonly (readonly [number, number])[], z: number, from?: number, to?: number, shareFrom = 0.25, shareTo = 0.25, through = false, clear?: ClearProfile): Vec3[] => {
   // (the easing runs over the share of the course's LENGTH, not of its point count: a course whose points are bunched (the umbilical vein's leave-the-wall bend) would otherwise climb to its tier within the bend, a tube
   //  diving at the camera, whose shading is a dark patch (20 Nov, the eyes' crops of 4089d1a))
   const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
@@ -60,8 +61,8 @@ const to3 = (pts: readonly (readonly [number, number])[], z: number, from?: numb
   return pts.map(([x, y], i): Vec3 => {
     const u = cum[i]! / total;
     // (`through`: smooth joins, a vessel that ends in the right atrium: no level of its own, one gentle slope from the depth it starts at to the atrium's)
-    if (through && to != null) { const z0 = from ?? z; return [x3(x), y3(y), z0 + (to - z0) * smooth(u)]; }
-    const zz = z + (from == null ? 0 : (from - z) * (1 - smooth(u / sf))) + (to == null ? 0 : (to - z) * (1 - smooth((1 - u) / st)));
+    if (through && to != null) { const z0 = from ?? z; return [x3(x), y3(y), z0 + (to - z0) * smooth(u) + clearAt(clear, u)]; }
+    const zz = clearAt(clear, u) + z + (from == null ? 0 : (from - z) * (1 - smooth(u / sf))) + (to == null ? 0 : (to - z) * (1 - smooth((1 - u) / st)));
     return [x3(x), y3(y), zz];
   });
 };
@@ -145,6 +146,23 @@ export const JUNCTION_TUCK_MIN = 0.002;
 const minR = len3(0.35);
 const CAV_MEET = 1 / 7;
 
+/** The depth each crossing asks of a vessel (clearance.ts), made once from the courses with none, per smooth-joins setting (the courses differ at the ends). Undefined for a vessel that gives way nowhere. */
+const CLEAR = new Map<boolean, Map<string, ClearProfile>>();
+let clearing = false;
+/** Every vessel's clearance profile (the ones that give way somewhere), for the current smooth-joins setting. */
+export function clearanceProfiles(): ReadonlyMap<string, ClearProfile> { return clearanceTable(); }
+function clearanceOf(v: NetVessel): ClearProfile | undefined { return clearing ? undefined : clearanceTable().get(v.id); }
+function clearanceTable(): Map<string, ClearProfile> {
+  const on = smoothJoinsOn();
+  let m = CLEAR.get(on);
+  if (!m) {
+    clearing = true;
+    try { m = clearances({ network: NETWORK, course: (n) => coursesOf(n, REST)[0]?.pts as Vec3[] | undefined }); } finally { clearing = false; }
+    CLEAR.set(on, m);
+  }
+  return m;
+}
+
 /** The courses (the vessel's own first) at `s`. */
 export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
   const plan = v.plan!, z = TIER_Z[v.tier];
@@ -165,7 +183,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
       strands = ch.map((pts, i) => { const g = cavGrowth(i, s.rec); return { pts: meet(pts), k: CAV[i]!.k * g, ph: 0, live: Math.min(1, g * 4) }; });   // (grown whole and joined at both ends; its opacity over its first quarter: here its width)
     }
     const de = depthEnds(v), zf = de.zf, zt = de.zt;
-    let m = to3(main, z, zf, zt, de.sf, de.st, de.through);
+    let m = to3(main, z, zf, zt, de.sf, de.st, de.through, clearanceOf(v));
     // smooth joins: a branch's end onto its trunk, the ends' widths and caps by the pairs (smooth-joins.ts); off, the course is the 2D rule's own
     const sj = smoothJoinsOn() ? SMOOTH.get(v.id) : undefined;
     let buried: readonly [Buried | null, Buried | null] | undefined;
