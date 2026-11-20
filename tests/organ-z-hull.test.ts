@@ -9,6 +9,10 @@ import { organsReady, setOrganData, ORGAN_MESHES } from '../src/scene/organs/mes
 import { CelScene } from '../src/scene/scene.ts';
 import { smoothRestNormals } from '../src/scene/organs/normal-smooth.ts';
 import { ORGAN_INK_VS } from '../src/scene/organs/organ-shader.ts';
+import { MAX_MOVE, rimRoughness, smoothSilhouette, tailFade } from '../src/scene/organs/contour.ts';
+import { patchedShaders } from '../src/scene/organs/organ-art.ts';
+import { LiverShape, edgeFree } from '../src/scene/organs/liver-shape.ts';
+import { BufferGeometry, Float32BufferAttribute } from 'three';
 
 const file = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
 setOrganData(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer);
@@ -19,7 +23,60 @@ test('organ depth: the liver is in front of the stomach (and the heart), the kid
   assert.equal(ORGAN_Z['kidney-l'], TIER_Z.back, 'the kidney lies where the cava and the renal veins lie (the back tier)');
   assert.ok(ORGAN_Z.spleen! < ORGAN_Z.stomach!, 'the spleen lies behind the stomach');
   assert.ok(ORGAN_Z.bowel! < ORGAN_Z.liver! && ORGAN_Z.colon! < ORGAN_Z.liver!, 'the gut lies behind the liver');
+  assert.ok(ORGAN_Z.duodenum! < ORGAN_Z.colon!, 'the duodenum lies behind the colon');
   for (const id of Object.keys(ORGAN_STYLE)) assert.ok(typeof ORGAN_Z[id] === 'number', `${id} has a z`);
+});
+
+test('smooth silhouette: every organ\'s rim is smoother than the file\'s, moved by at most MAX_MOVE, and the surface stays whole', async () => {
+  await organsReady;
+  for (const [id, make] of Object.entries(ORGAN_MESHES)) {
+    const raw = make(), sm = make(), before = rimRoughness(raw), moved = smoothSilhouette(sm), after = rimRoughness(sm);
+    if (before === 0) continue;   // (no silhouette ring in this mesh)
+    assert.ok(moved <= MAX_MOVE + 1e-9, `${id}: moved ${moved}`);
+    assert.ok(after <= before, `${id}: rim roughness ${before.toFixed(5)} -> ${after.toFixed(5)}`);
+    const p = sm.getAttribute('position'), n = sm.getAttribute('normal');
+    for (let i = 0; i < p.count; i++) assert.ok(Number.isFinite(p.getX(i) + p.getY(i) + p.getZ(i) + n.getX(i)), `${id}: finite`);
+  }
+  // a synthetic jagged disc: a saw-tooth rim becomes a near-circle
+  const N = 48, pos: number[] = [0, 0, 0.1, 0, 0, -0.1], idx: number[] = [];
+  for (let k = 0; k < N; k++) { const r = 1 + (k % 2 ? 0.03 : -0.03), a = (k / N) * 2 * Math.PI; pos.push(r * Math.cos(a), r * Math.sin(a), 0); }
+  for (let k = 0; k < N; k++) { const a = 2 + k, b = 2 + ((k + 1) % N); idx.push(0, a, b, 1, b, a); }
+  const disc = new BufferGeometry(); disc.setAttribute('position', new Float32BufferAttribute(pos, 3)); disc.setIndex(idx);
+  const rough0 = rimRoughness(disc); smoothSilhouette(disc, 8, 0.05);
+  assert.ok(rimRoughness(disc) < rough0 * 0.3, `the saw-tooth is gone (${rough0.toFixed(5)} -> ${rimRoughness(disc).toFixed(5)})`);
+});
+
+test('the cirrhotic liver\'s nodules do not push its rim sideways: the outline stays as smooth as the healthy liver\'s', async () => {
+  await organsReady;
+  const g = ORGAN_MESHES.liver!(); g.computeVertexNormals();
+  const rest = rimRoughness(g), ls = new LiverShape(g.getAttribute('position') as never, g.getAttribute('normal').array);
+  const out: string[] = [];
+  for (const c of [0.5, 1]) { ls.apply(c); out.push(`${c}: ${rimRoughness(g).toFixed(5)}`); assert.ok(rimRoughness(g) < rest * 2.2, `liver rim at scarring ${c}: ${rimRoughness(g)} against ${rest} healthy`); }
+  assert.equal(edgeFree(0), 0); assert.equal(edgeFree(1), 1); assert.ok(edgeFree(0.5) > 0 && edgeFree(0.5) < 1);
+  console.log('liver rim', rest.toFixed(5), out.join(' '));
+});
+
+test('duodenum fade: its free end fades to clear along its last stretch, the end at the stomach is whole, and the shaders carry the ramp', async () => {
+  await organsReady;
+  const duo = ORGAN_MESHES.duodenum!(), stom = ORGAN_MESHES.stomach!();
+  const a = tailFade(duo, stom), pos = duo.getAttribute('position');
+  assert.equal(a.length, pos.count);
+  let lo = Infinity, hi = -Infinity, clear = 0, whole = 0;
+  for (const v of a) { lo = Math.min(lo, v); hi = Math.max(hi, v); if (v < 0.05) clear++; if (v > 0.999) whole++; }
+  assert.ok(lo < 0.01 && hi > 0.999, `the ramp runs from clear to whole (${lo}..${hi})`);
+  assert.ok(clear > 0 && whole > a.length * 0.4, 'a clear end and most of the tube whole');
+  // the clear end is the one away from the stomach
+  const sp = stom.getAttribute('position');
+  const away = (i: number) => { let m = Infinity; for (let j = 0; j < sp.count; j++) m = Math.min(m, Math.hypot(sp.getX(j) - pos.getX(i), sp.getY(j) - pos.getY(i))); return m; };
+  let dClear = 0, nClear = 0, dWhole = 0, nWhole = 0;
+  for (let i = 0; i < a.length; i += 5) { if (a[i]! < 0.05) { dClear += away(i); nClear++; } else if (a[i]! > 0.999) { dWhole += away(i); nWhole++; } }
+  assert.ok(dClear / nClear > dWhole / nWhole, 'the faded end is the one farther from the stomach');
+  // wired: the built duodenum carries the attribute, and its fill and its outline multiply their alpha by it
+  const s = new CelScene(); s.disease.organs.build();
+  assert.ok(s.disease.organs.byId.get('duodenum')!.toonMesh.geometry.getAttribute('esoA'), 'esoA on the duodenum');
+  const p = patchedShaders('void main() {\n}', 'void main() {\n}', 'void main() {\n}', 'void main() {\n}', { art: false, eso: null, fade: true });
+  assert.match(p.fs, /gl_FragColor\.a \*= vEsoA/); assert.match(p.inkFs, /gl_FragColor\.a \*= vEsoA/);
+  s.dispose?.();
 });
 
 test('organ depth: each mesh is moved along z only, x and y exact, and the front face stays behind the vessels\' arteries', async () => {
@@ -30,7 +87,7 @@ test('organ depth: each mesh is moved along z only, x and y exact, and the front
     const g = o.toonMesh.geometry, rest = ORGAN_MESHES[id]!(), a = g.getAttribute('position'), b = rest.getAttribute('position');
     let zmin = Infinity, zmax = -Infinity;
     for (let i = 0; i < a.count; i++) {
-      assert.ok(Math.abs(a.getX(i) - b.getX(i)) < 1e-6 && Math.abs(a.getY(i) - b.getY(i)) < 1e-6, `${id}: x and y exact`);
+      assert.ok(Math.hypot(a.getX(i) - b.getX(i), a.getY(i) - b.getY(i)) <= MAX_MOVE + 1e-6, `${id}: x and y moved only by the rim smoothing (at most ${MAX_MOVE})`);
       assert.ok(Math.abs(a.getZ(i) - b.getZ(i) - ORGAN_Z[id]!) < 1e-5, `${id}: z moved by its table value`);
       zmin = Math.min(zmin, a.getZ(i)); zmax = Math.max(zmax, a.getZ(i));
     }

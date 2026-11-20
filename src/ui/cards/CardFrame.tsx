@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Poin
 import type { Rect } from '../layout/device.ts';
 import type { Entry } from './stack.ts';
 import { reduced } from '../a11y/motion.ts';
-import { rail, outDistance, inDistance, STAGGER, PARALLAX, RAIL_MS, type Dir } from './rail.ts';
+import { rail, STAGGER, PARALLAX, RAIL_MS, type Dir } from './rail.ts';
 import { useUi } from '../ui-store.ts';
 import { layoutOf, radius } from '../layout/rules2d.ts';
 import { centredKind, centredBox, panelVisual } from '../layout/plan.ts';
@@ -127,13 +127,12 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   // The rail (rail.ts, 2D's card throw): in from the side the talk comes from, out the way it goes, on the one clock; no CSS animation
   const dir: Dir = useUi((s) => s.dir);
   const par = data ? PARALLAX.data : PARALLAX.words;
-  const vw = vp.w, cardW = rect.w;
-  useLayoutEffect(() => {
+    useLayoutEffect(() => {
     const card = cardRef.current, plate = plateRef.current;
     if (!card || !plate) return;
     const els = [card, plate], reduce = reduced();
-    if (phase === 'in') rail.enter(els, { dir, dist: inDistance(rect.x, vw), delay: data ? STAGGER : 0, par, reduce, done: () => setLive(true) });
-    else if (phase === 'out') rail.leave(els, { dir, dist: outDistance(rect.x, cardW), par, reduce, done: () => onGone(entry.key) });
+    if (phase === 'in') rail.enter(els, { dir, delay: data ? STAGGER : 0, par, reduce, fresh, done: () => setLive(true) });
+    else if (phase === 'out') rail.leave(els, { dir, par, reduce, done: () => onGone(entry.key) });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
   useLayoutEffect(() => () => { const card = cardRef.current, plate = plateRef.current; if (card && plate) rail.forget([card, plate]); }, []);

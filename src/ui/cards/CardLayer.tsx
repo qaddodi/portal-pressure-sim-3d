@@ -182,8 +182,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
     const sn = snaps[e.key] ?? now;
     switch (e.id) {
       case 'title': return <TitleCard deck={deck} page={sn.at} pages={sn.pages} />;
-      case 'case': return <CaseCard slide={sn.slide!} page={sn.at} pages={sn.pages} />;
-      case 'teach': return <TeachingCard slide={sn.slide!} deck={deck} read={read} page={sn.at} pages={sn.pages} trim={sn.trim} />;
+      case 'case': return sn.slide ? <CaseCard slide={sn.slide} page={sn.at} pages={sn.pages} /> : null;   // (a leaving card with no snapshot falls back to the view now, which on the title or the quick check has no slide: Back from slide 2 crashed the app)
+      case 'teach': return sn.slide ? <TeachingCard slide={sn.slide} deck={deck} read={read} page={sn.at} pages={sn.pages} trim={sn.trim} /> : null;
       case 'table': return sn.slide?.table ? <TableCard deck={deck} slide={sn.slide} /> : sn.slide ? <ToolCard deck={deck} slide={sn.slide} /> : null;
       case 'ladder': return (
         <>
