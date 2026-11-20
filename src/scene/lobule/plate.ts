@@ -2,6 +2,7 @@
 // and nuclei, the nutmeg of congestion, the collagen of fibrosis and cirrhosis and the stellate cells into a canvas, once per state ("drawn once into a cached canvas,
 // never per frame"); the 3D lobule (micro3d/lobule3d.ts) lays it under its cells with the shader here.
 import { CEL_TISSUE_GLSL } from './cel.ts';
+import { FADE_GLSL } from '../materials/shaders.ts';
 import { DataTexture } from 'three';
 import { paintWorldInto, useTokens } from './from2d/lobule-paint.generated.js';
 import type { LobuleNet, Course, P2 } from './geometry.ts';
@@ -77,11 +78,14 @@ export const LOBULE_PLATE_FS = /* glsl */ `
 ${CEL_TISSUE_GLSL}
 const float PLATE_EDGE_SHADE = ${PLATE_EDGE_SHADE.toFixed(3)};
 const float PLATE_EDGE_K = ${PLATE_EDGE_K.toFixed(3)};
+${FADE_GLSL}
 uniform sampler2D map;
 uniform float opacity;
 uniform float uDpr;   // the renderer's pixel ratio (micro3d/cel3d.ts MICRO_DPR): the clean line is LINE_MIN CSS px on every screen
 varying vec2 vUv;
 void main() {
+  // (the dive's ONE dissolve, the same screen pattern as every tube, tile and mark of the scene: the marks go with the lobule, never before or after it)
+  if (fadedOut()) discard;
   vec4 p = texture2D(map, vUv);
   if (p.a < 0.002) { gl_FragColor = vec4(0.0); return; }
   vec3 c = p.rgb / p.a;
