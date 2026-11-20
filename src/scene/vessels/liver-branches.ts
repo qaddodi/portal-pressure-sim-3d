@@ -12,8 +12,9 @@ export interface BranchItem { /** the width at its start as a share of its vein'
 export interface BranchSet { host: string; when: string | null; list: readonly BranchItem[]; /** the stretch (0 to 1) of the host's lens ramp the children wear: the part they leave, so there is no step in colour at the branch point */ span: readonly [number, number] }
 
 const N = 64, Z_FWD = 0.1;
-/** The share of its width a side branch has where it starts inside its vein, and the share of its length it widens over. */
-export const JOIN_K = 0.5, JOIN_SPAN = 0.14;
+/** The share of its width a side branch has where it starts inside its vein, and the share of its length it widens over. It starts WHOLE (1): a half-width start (tried in 5b59c0a) made a step on the vein's outline where the branch's own
+ *  begins, worse than the kink it was meant to remove (eyes, v8). */
+export const JOIN_K = 1, JOIN_SPAN = 0.14;
 /** A branch begins this far behind the vein it leaves, rising to its own depth over its first third, so the vein's wall covers the branch's start and its outline is not drawn across the vein (a crease where it joins). */
 const Z_TUCK = 0.02;
 const tuck = (u: number): number => -Z_TUCK * (1 - smooth(u / 0.35));

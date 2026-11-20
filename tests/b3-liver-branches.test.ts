@@ -221,29 +221,41 @@ test('flow marks hold back inside the vessel a tube leaves: the shader multiplie
   assert.match(VESSEL_FS, /float fade = markK\(/);
 });
 
-test('a hepatic vein is not a tube inside the cava it opens into: the last cava radius of it, which lies in the cava\'s lumen, fades out (root cause of the round disc, wall line and dark wedge inside the IVC at every hepatic vein)', async () => {
-  const { cavaTailOf } = await import('../src/scene/vessels/cava-tail.ts');
+test('a hepatic vein opens into the cava with a clean edge: it is cut away exactly where it lies inside the cava\'s lumen, and only a piece that ENDS on the cava does it (root cause of the round end inside the IVC, and of the broken outline at the join of the right hepatic vein\'s two pieces in the Circuit: the rule was keyed by the vein\'s name)', async () => {
+  const { opensIntoCava } = await import('../src/scene/vessels/fades.ts');
+  const { cavaMateOf, neighbourAttr } = await import('../src/scene/vessels/neighbour.ts');
   const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
   const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
-  const { VESSEL_FS, VESSEL_VS } = await import('../src/scene/vessels/shaders.ts');
-  const lenOf = (cs: ReturnType<typeof coursesOf>): number => { const c = cs[0]!; let L = 0; for (let i = 1; i < c.pts.length; i++) L += Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1], c.pts[i]![2] - c.pts[i - 1]![2]); return L; };
-  for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) { const cs = coursesOf(B.get(id)!, REST), t = cavaTailOf(id, cs, lenOf(cs)); assert.ok(t > 0.03 && t <= 0.5, `${id} tail ${t}`); }
-  for (const id of ['PVH_R_2', 'IVC_IS', 'RHV_IVC_1']) { const cs = coursesOf(B.get(id)!, REST); assert.equal(cavaTailOf(id, cs, lenOf(cs)), 0, `${id} has none`); }
-  assert.match(VESSEL_VS, /uniform float cavaTail;/);
-  assert.match(VESSEL_VS, /fa \*= mix\(pow\(1\.0 - smoothstep\(1\.0 - cavaTail, 1\.0 - 0\.35 \* cavaTail, uv\.x\), 2\.0\), 1\.0, circT\)/);
-  assert.match(VESSEL_FS, /if \(vFade < 0\.004\) discard;/);
+  const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
+  for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC', 'LRV_IVC']) assert.equal(opensIntoCava(id), true, `${id} opens into the cava`);
+  for (const id of ['RHV_IVC_1', 'PVH_R_2', 'IVC_IS']) assert.equal(opensIntoCava(id), false, `${id} does not`);
+  assert.equal(cavaMateOf('RHV_IVC_1'), null);
+  assert.equal(cavaMateOf('MHV_IVC'), 'IVC_IS');
+  assert.equal(cavaMateOf('LRV_IVC'), 'IVC_IS_1', 'a renal vein meets the cava below the hepatic veins');
+  // the vein's last vertices lie inside the cava's lumen (distance to its axis under its radius), its first ones outside
+  for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) {
+    const c = coursesOf(B.get(id)!, REST)[0]!, flat = new Float32Array(c.pts.length * 3);
+    c.pts.forEach((p, i) => { flat[3 * i] = p[0]; flat[3 * i + 1] = p[1]; flat[3 * i + 2] = p[2]; });
+    const a = neighbourAttr(id, flat)!, n = c.pts.length;
+    assert.ok(a, `${id} knows the cava`);
+    const inside = (i: number): boolean => a[2 * i + 1]! > 0 && Math.abs(a[2 * i]!) < a[2 * i + 1]!;
+    assert.ok(!inside(0) && inside(n - 1), `${id}: starts outside the cava, ends inside it`);
+  }
+  assert.match(VESSEL_FS, /uniform float cavaCut;/);
+  assert.match(VESSEL_FS, /if \(cavaCut > 0\.5 && nbrK > 0\.995\) discard;/);
+  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade \* \(1\.0 - cavaCut \* nbrK\)\);/);
 });
 
-test('a side branch starts narrower than it is and widens over its first stretch, so its flat start never stands out of the vein\'s wall as a square ledge', async () => {
+test('a side branch starts as wide as it is where it leaves its vein (a half-width start made a step on the vein\'s outline where the branch\'s own begins: eyes, v8 of 5b59c0a)', async () => {
   const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
   const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
   const { radiusAtU } = await import('../src/scene/vessels/tubes.ts');
   const { JOIN_K } = await import('../src/scene/vessels/liver-branches.ts');
+  assert.equal(JOIN_K, 1);
   for (const id of ['PVH_R_2~F:b', 'PVH_L_1~F:b', 'RHV_IVC_1~F:b']) {
     const v = B.get(id)!, c = coursesOf(v, REST)[0]!, join = (v.plan as unknown as { list: { join: 0 | 1 }[] }).list[0]!.join;
     let L = 0; for (let i = 1; i < c.pts.length; i++) L += Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1], c.pts[i]![2] - c.pts[i - 1]![2]);
     const at = (u: number): number => radiusAtU(c, join === 0 ? u : 1 - u, L);
-    assert.ok(at(0) <= (JOIN_K + 0.1) * at(0.3), `${id}: ${at(0).toFixed(4)} at the join against ${at(0.3).toFixed(4)} further on`);
-    let prev = 0; for (let u = 0; u <= 0.14; u += 0.02) { const r = at(u); assert.ok(r >= prev - 1e-9, `${id}: widens`); prev = r; }
+    assert.ok(at(0) >= 0.9 * at(0.14), `${id}: ${at(0).toFixed(4)} at the join against ${at(0.14).toFixed(4)} further on`);
   }
 });

@@ -10,16 +10,16 @@ import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
-/** How far into a vein's last stretch the ink is held back where it opens into the cava: past the cava's wall, to its middle (in the cava's radii). */
-const CAVA_BURY = 1.3;
+/** A hepatic vein that opens into the cava is cut away at the cava's wall (shaders.ts cavaCut), so its outline is whole up to it; only its flow marks are held back, from the wall (one cava radius from the vein's end) inwards: this, in the cava's radii,
+ *  times the marks' ramp (2.0 to 3.6, shaders.ts markK) puts their start at the wall. */
+const CAVA_BURY = 0.5;
 import { flowRate, flowTarget } from './flow-rate.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
 import { centrelineOf, type Centreline } from './vessels/centreline.ts';
-import { forkMateOf, neighbourAttr } from './vessels/neighbour.ts';
-import { cavaTailOf } from './vessels/cava-tail.ts';
-import { fadeOf, HEPATIC_VEINS, cavaEndSpan, CAVA_RECEDE } from './vessels/fades.ts';
+import { cavaMateOf, forkMateOf, neighbourAttr } from './vessels/neighbour.ts';
+import { fadeOf, opensIntoCava, cavaEndSpan, CAVA_RECEDE } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
@@ -313,7 +313,7 @@ export class CelScene {
       //  Besides the declared branches: a hepatic vein's last stretch inside the cava, and a liver branch's first stretch inside the vein it leaves, as far as that vein is wide)
       const bury: [number, number] = [0, 0];
       for (const e of [0, 1] as const) if (on && sj?.attach[e]) bury[e] = BURY * (sj.hostR[e] ?? def.radius);
-      if (on && (this.ivcJoins.includes(o) || HEPATIC_VEINS.has(def.id))) bury[1] = Math.max(bury[1], CAVA_BURY * (NETWORK_BY_ID.get('IVC_IS')?.radius ?? def.radius));
+      if (on && (this.ivcJoins.includes(o) || opensIntoCava(def.id))) bury[1] = Math.max(bury[1], CAVA_BURY * (NETWORK_BY_ID.get('IVC_IS')?.radius ?? def.radius));
       const joinEnd = def.plan?.kind === 'feeder' ? def.plan.list[0]?.join : undefined;
       if (on && joinEnd != null) bury[joinEnd] = Math.max(bury[joinEnd], BURY * def.radius * (def.plan?.kind === 'feeder' ? (def.plan.list[0]?.k ?? 1) : 1));
       o.setBury(bury[0], bury[1]);
@@ -352,14 +352,14 @@ export class CelScene {
     }, this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
     else this.leaving.push(o);   // a fan of tributaries has no map course: it leaves with the organs as the figure turns into the map
-    if (forkMateOf(def.id)) o.setNbrOn(true);
+    if (forkMateOf(def.id) || cavaMateOf(def.id)) o.setNbrOn(true);
+    if (cavaMateOf(def.id)) o.setCavaCut(true);
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     const fade = fadeOf(def.id, def.tone === 'artery', def.feeder?.host);
     if (fade) { o.setTipFade(fade); this.tipFades.push({ o, connect: fade.connect }); if (fade.ivcJoin) this.ivcJoins.push(o); }
     { const span = cavaEndSpan(def.id); if (span > 0) { o.setCavaEnd(span, CAVA_RECEDE); this.hvJoins.push(o); } }
-    { const tail = cavaTailOf(def.id, courses, built.length); if (tail > 0) o.setCavaTail(tail); }
     if (BACK_EDGES.has(def.id)) { o.setBehindOrgans(VESSEL_LAYER, IVC_EDGES.has(def.id)); this.back.push(o); if (IVC_EDGES.has(def.id)) this.cava.push(o); }
     this.add(o);
     this.vessels.push(o);

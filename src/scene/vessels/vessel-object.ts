@@ -52,12 +52,13 @@ export const circuitWidth = (widthKind: 0 | 1 | 2, fine = 1): readonly [number, 
 /** The tube's geometry with the attributes the vessel shader reads (a missing `rk`, the tube's radius share, is 1). One copy: the outline is part of the tube (vessels/shaders.ts), not a second mesh. */
 export function withRk(g: BufferGeometry): BufferGeometry {
   const out = new BufferGeometry();
-  for (const name of ['position', 'normal', 'uv', 'tang', 'rk', 'nbr', ...CIRCUIT_ATTRIBUTES]) {
+  for (const name of ['position', 'normal', 'uv', 'tang', 'rk', 'rkc', 'nbr', ...CIRCUIT_ATTRIBUTES]) {
     const a = g.getAttribute(name);
     if (a) out.setAttribute(name, a.clone());   // (a copy: reshape writes in place)
   }
   const n = g.getAttribute('position').count;
   if (!g.getAttribute('rk')) out.setAttribute('rk', new BufferAttribute(new Float32Array(n).fill(1), 1));
+  if (!g.getAttribute('rkc')) out.setAttribute('rkc', out.getAttribute('rk')!.clone());   // (a tube built without the map's own radius share draws the map at the body's)
   const idx = g.getIndex();
   if (idx) out.setIndex(idx.clone());
   else {
@@ -95,7 +96,7 @@ export class VesselObject extends CelObject {
         lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, bury: { value: new Vector2(0, 0) }, nbrOn: { value: 0 }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, seamA: { value: [new Vector4(), new Vector4()] }, seamB: { value: [new Vector4(), new Vector4()] }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circFlat: { value: 0 }, circAnchA: { value: new Vector3() }, circAnchC: { value: new Vector3() }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
-        veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 }, cavaEnd: { value: new Vector2(0, 1) }, cavaTail: { value: 0 },
+        veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 }, cavaEnd: { value: new Vector2(0, 1) }, cavaCut: { value: 0 },
         lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, streakAmt: blood.streakAmt, chainTex: blood.chainTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, quietK: { value: 0 }, wedge: { value: new Vector4(0, 2, 0.6, 0) }, wedgeCol: { value: new Color() }, wallLine: { value: this.artery ? 1 : 0 }, pageCol: { value: new Color() }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 0 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
@@ -142,7 +143,7 @@ export class VesselObject extends CelObject {
   /** Swaps in a new shape of the same vertex count (a collateral coiling, a fan changing width): the positions are written in place, so nothing is rebuilt. */
   reshape(g: BufferGeometry, len: number): void {
     const geo = this.toonMesh.geometry;
-    for (const name of ['position', 'normal', 'uv', 'tang', 'rk', 'nbr']) {
+    for (const name of ['position', 'normal', 'uv', 'tang', 'rk', 'rkc', 'nbr']) {
       const src = g.getAttribute(name), dst = geo.getAttribute(name);
       if (!src || !dst) continue;
       const a = src.array as Float32Array, b = dst.array as Float32Array;
@@ -222,7 +223,8 @@ export class VesselObject extends CelObject {
     if (this.veil) this.veil.mat.transparent = true;
   }
   /** A hepatic vein that opens into the cava ends on the cava's axis: the last `share` of it (the cava's radius) lies in its lumen and fades out, whatever the cava's own alpha. */
-  setCavaTail(share: number): void { this.toon.uniforms.cavaTail!.value = share; this.toon.transparent = true; if (this.veil) this.veil.mat.transparent = true; }
+  /** A hepatic vein that opens into the cava is cut away where it lies inside the cava's lumen (shaders.ts cavaCut; its `nbr` is the cava's): it ends exactly at the wall. */
+  setCavaCut(on: boolean): void { this.toon.uniforms.cavaCut!.value = on ? 1 : 0; if (on) { this.toon.transparent = true; if (this.veil) this.veil.mat.transparent = true; } }
   setCavaEndWhole(whole: number): void { (this.toon.uniforms.cavaEnd!.value as Vector2).y = this.cavaEndA + (1 - this.cavaEndA) * whole; }
   /** A vein fading into the faint cava (fades.ts ivcJoin): `whole` 0..1 is how far the cava is shown whole, and the fade lets go by as much (its alpha at the wall rises from its own to 1). */
   setIvcWhole(whole: number): void {

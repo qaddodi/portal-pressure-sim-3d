@@ -48,7 +48,7 @@ test('the shader holds the same numbers, and has no specular, no rim, no wall li
   assert.match(VESSEL_FS, /vec3 rimc = CHEV_RIM;/, 'the head\'s outline is always dark');
   assert.match(CHEVRON_GLSL, /const vec3 CHEV_RIM = vec3\(0\.2314, 0\.1725, 0\.1333\);/);
   assert.ok(!/dot\(n, l\) \* 0\.5/.test(VESSEL_FS), 'no world-lit bands');
-  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade\);/, 'opaque at rest: vFade is 1 outside a fade zone');
+  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade \* \(1\.0 - cavaCut \* nbrK\)\);/, 'opaque at rest: vFade is 1 outside a fade zone, cavaCut 0 on every vessel but a hepatic vein that opens into the cava');
 });
 
 test('every look wears 2D\'s casing: its ink and alpha (the dark look\'s own in the Circuit, by its share, not by a lens being on), a veiled vessel half, and the dark looks\' light rim', () => {
@@ -211,7 +211,7 @@ test('the tube is built ink wider than its lumen, by the figure\'s line, with it
   const { TUBE_RADIAL } = await import('../src/scene/vessels/tubes.ts');
   assert.ok(Math.abs(TUBE_SAG - (1 / Math.cos(Math.PI / TUBE_RADIAL) - 1)) < 1e-12 && TUBE_SAG > 0 && TUBE_SAG < 0.05);
   assert.match(VESSEL_VS, /float inkW = \(inkPx \* endK \+ hiPx \* vHi\) \* inkOn \* wpcV \/ vU;/);
-  assert.match(VESSEL_VS, /vec3 p = aPos \+ aNor \* \(inflate \+ radius \* rk \* \(swell \* \(1\.0 - narrow\) - 1\.0\) \+ inkW \+ \(lumenW \+ inkW\) \* /);
+  assert.match(VESSEL_VS, /vec3 p = aPos \+ aNor \* \(inflate \+ radius \* rkE \* \(swell \* \(1\.0 - narrow\) - 1\.0\) \+ inkW \+ \(lumenW \+ inkW\) \* /);
   const src = readFileSync(new URL('../src/scene/vessels/vessel-object.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /polygonOffset|stencil|addGroup|makeHull|hullMat/, 'no hull material is left');
 });
