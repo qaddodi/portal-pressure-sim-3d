@@ -79,7 +79,7 @@ test('the caput medusae fan and the tributaries are vessels of their own, on the
   const fan = NETWORK_BY_ID.get('C3~F:caput')!;
   assert.equal(fan.lensId, 'C3'); assert.equal(fan.host, 'C3');
   assert.equal(coursesOf(fan, REST).length, 40);
-  assert.ok(NETWORK_BY_ID.has('AZY_SVC~F') && !NETWORK_BY_ID.has('CAUD~F') && !NETWORK_BY_ID.has('CAUD~F:caudate'));
+  assert.ok(!NETWORK_BY_ID.has('AZY_SVC~F') && !NETWORK_BY_ID.has('CAUD~F') && !NETWORK_BY_ID.has('CAUD~F:caudate'));
   const f = { Q: [], D: [] };
   assert.equal(feederLive({ host: 'AZY_SVC', when: null }, f as never), 1);
 });
