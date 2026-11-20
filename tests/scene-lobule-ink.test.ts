@@ -60,3 +60,12 @@ test('under Blood origin the sources run as lanes side by side across the vessel
   inkLanes(ctx({ model: m }), 'sin', 1, out);
   assert.ok(near(out.slice(0, 3), out.slice(3, 6)) && near(out.slice(3, 6), out.slice(6, 9)), 'pressure lens: one colour');
 });
+
+test('the arteriole\'s twig wears one tone whatever the lens (the skin that welds it to its sinusoid eases from it): the palette\'s artery, under every lens and look', async () => {
+  const { LOBULE_PALETTES } = await import('../src/scene/lobule/tones.ts');
+  const { hexToRgb01 } = await import('../src/scene/lenses/oklab.ts');
+  for (const look of ['light', 'dark'] as const) for (const lens of ['pressure', 'oxygen', 'flow', 'neutral'] as const) {
+    const want = hexToRgb01((LOBULE_PALETTES[look].tones as Record<string, string>).artery!);
+    assert.ok(near(inkAt(ctx({ look, lens }), 'art', 0.3, [0, 0, 0]), want), `${look} ${lens}`);
+  }
+});
