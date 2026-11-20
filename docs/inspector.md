@@ -7,6 +7,8 @@ Normal mode never loads it. `src/main.tsx` imports `ui/debug/inspect/panel.ts` o
 | Section | What it does | How |
 |---|---|---|
 | Camera | Free orbit: the drag turns the figure all the way round and tilts to 88 degrees, nothing springs home; Turn and Tilt sliders; Front, Back, Left, Right, Top, Bottom (they ease, the short way round); Reset (turn, tilt, zoom and pan) | `rig.setInspect`, `inspectTo`; the gesture host's `holdTurn` |
+| Show everything | All collaterals open (C1a to C9 at full diameter), all six fixed shunts in (TIPS, DIPS, portocaval, DSRS, mesocaval, Meso-Rex), dotted potential collaterals, Freeze the model. Body and Circuit alike | `engine/force-all.ts`: a forged COPY of the engine frame held with `holdFrame` (as Compare's Then view does) and remade from each live frame; a frame Compare holds is never taken |
+| Vessel list | Every vessel piece by id (SMV_CONF, S_MC, C6 ...) with a filter and a kind select; Solo (only these drawn), Mute (never drawn), Solo these, Solo the drawn, Clear; "A tap on a vessel solos it". A green dot is drawn now. A junction skin is drawn while any of its arms is | `CelScene.setInspectVessels`, `inspectVesselList`, `SkinSet.drawnArms`; flags on for one draw only. Collateral braids (strands) are not vessels here and stay |
 | Joins and diagnostics | Junction method old / mesh / mesh2; paint dropped skin pixels; skin without flow marks, or without ink | `setJoinsOverride` (`joins-mode.ts`), `CelScene.useJoinsLive`, `reapplySkinDefines` (the skins compile again, a second or so) |
 | Tubes, Skins | Each its own: shade (as drawn, flat, normals, lens colour), dust, chevrons, outline ink, a colour per vessel / junction, a colour laid over it | uniforms of `debug-view.ts`, shared by reference |
 | Layers | Vessel tubes, junction skins, organs, clots/plexus/bleed/dye, devices, the Circuit map, the lobule and sinusoid: drawn or not, drawn as wireframe; the anti-aliasing pass | `CelScene.inspectLayers`, `setInspectShown`, `setInspectWire` (flags are put on for one draw and taken off) |
@@ -17,3 +19,5 @@ A part left out is cleared (`fd = vec4(0.0)`), never multiplied by 0: a NaN time
 Copy puts what was on, as text, on the clipboard: paste it in a thread so the other thread can set the same.
 
 Not covered: the lobule reads the junction method once, when it opens; the msaa canvas (`?aa=msaa`) needs a reload.
+
+While a Show-everything box is on, the numbers, labels and lens colours are the forged frame's, not the patient's. The engine is never edited and `live.frame` is the model's own; switching the boxes off puts it back and the scene eases the vessels away on its own tracks.

@@ -14,7 +14,9 @@ import { setSmoothJoins } from './vessels/join-mode.ts';
 import { SkinSet, SKIN_BUILD_TAG } from './vessels/skin/skin-set.ts';
 import { SkinObject } from './vessels/skin/skin-object.ts';
 import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
-import { bakedPending, bakedReady, bakedSkins } from './vessels/skin/baked.ts';
+import { bakedCircuitSkins, bakedPending, bakedReady, bakedSkins } from './vessels/skin/baked.ts';
+import { CircuitSkinSet } from './circuit/skins.ts';
+import { SKIN_CIRC_IN } from './vessels/skin/types.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
 /** A hepatic vein that opens into the cava dissolves over the last 0.8 of a cava radius before its wall (shaders.ts cavA) and is not there inside it: its flow marks are held back from where the dissolve starts, 1.8 cava radii from the vein's end
  *  (times the marks' ramp, 2.0 to 3.6, shaders.ts markK), so no chevron is ever caught half faded in it (eyes, v11). */
@@ -231,9 +233,9 @@ export class CelScene {
     if (w) for (const o of this.vessels) {
       const id = o.edge?.id, p = id ? w.pieces.get(id) : undefined;
       if (!id || !p) continue;
-      (o as VesselObject).setWedge(w.amount, p.cut, p.fade, w.color); now.add(id);
+      (o as VesselObject).setWedge(w.amount, p.cut, p.fade, w.color, p.edge, p.front, p.frontEdge); now.add(id);
     }
-    for (const id of this.wedgeSet) if (!now.has(id)) (this.vessels.find((o) => o.edge?.id === id) as VesselObject | undefined)?.setWedge(0, 2, 0);
+    for (const id of this.wedgeSet) if (!now.has(id)) (this.vessels.find((o) => o.edge?.id === id) as VesselObject | undefined)?.setWedge(0, 2, 0, undefined, 0.02, -1, 0.02);
     this.wedgeSet = now;
   }
   private bloodOpts = { chevrons: true, keyChevrons: false };
@@ -282,11 +284,14 @@ export class CelScene {
     this.unJoins = useSettings.subscribe((st, prev) => {
       if (st.smoothJoins !== prev.smoothJoins) this.useSmoothJoins(st.smoothJoins);
       if (st.hideBehind !== prev.hideBehind) { this.occGoal = st.hideBehind ? 1 : 0; this.moving = true; }
+      if (st.fluidSurface !== prev.fluidSurface) { this.disease.ascites.setLiving(st.fluidSurface); this.moving = true; clock.invalidate('living-fluid'); }
     });
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
     this.disease = new DiseaseLayer(this.shared, this.vessels);
     this.body.add(this.disease.group);
     this.disease.bleed.still = !!opts.reduceMotion;   // (the jet holds still under Reduce Motion)
+    this.disease.ascites.still = !!opts.reduceMotion;   // (so does the pool's surface: no ripple, no slosh)
+    this.disease.ascites.setLiving(useSettings.getState().fluidSurface, true);   // (Settings > Figure depth > Living fluid: read at boot, then glided)
     // The organs' vertex data is a static file (src/scene/organs/meshes.ts): the organ layer builds them when it is in, in the patient's state, and asks for a frame.
     Promise.all([organsReady, artReady]).then(() => { this.disease.organs.build(); this.moving = true; clock.invalidate('organs'); }, (e) => console.error(e));
     this.catheter = new Catheter(this.shared);
@@ -357,6 +362,9 @@ export class CelScene {
 
   /** Junction skins (vessels/skin, docs/junction-skin-spec.md): one welded mesh at each junction the page asks for, only with Smooth vessel joins on and `?joins` not `old`. Built here, once per scene load and per join toggle; null: today's joins everywhere. */
   private skins: SkinSet | null = null;
+  /** The Circuit's own junction skins (circuit/skins.ts): the same welds on the map, built with the Anatomy's, drawn over the end of the change. */
+  private circuitSkins: CircuitSkinSet | null = null;
+  private circuitSkinKey = '';
   private joins: JoinsMode;
   /** The inspector's join switch (`?inspect`, src/ui/debug/inspect): the mode is read again from the page's live answer (joins-mode.ts) and the skins are built again on the tubes, or taken away for `old`: the same path as the Smooth vessel joins switch. */
   useJoinsLive(): void {
@@ -370,7 +378,7 @@ export class CelScene {
   get skinNodes(): readonly string[] { return this.skins?.nodes ?? []; }
   private refreshSkins(): void {
     const phase = useSettings.getState().smoothJoins ? joinsPhase(this.joins) : 0;
-    if (!phase) { this.skins?.dispose(); this.skins = null; return; }
+    if (!phase) { this.skins?.dispose(); this.skins = null; this.circuitSkins?.dispose(); this.circuitSkins = null; return; }
     this.skins ??= new SkinSet({
       vessel: (id) => this.byEdge.get(id) as VesselObject | undefined,
       stateOf: (id) => this.shapes?.stateOf(id),
@@ -381,6 +389,16 @@ export class CelScene {
       endsChanged: () => { this.applyMates(); },   // (a rebuild that failed or came back: the mates and burial of its ends follow)
     });
     this.skins.build(phase);
+    this.circuitSkins ??= new CircuitSkinSet({
+      vessel: (id) => this.byEdge.get(id) as VesselObject | undefined,
+      make: (skin, axes, arms) => new SkinObject(skin, arms[0]!, axes, arms, true),
+      add: (o) => { this.body.add(o); },
+      remove: (o) => { this.body.remove(o); },
+      baked: bakedCircuitSkins,
+      endsChanged: () => { this.applyMates(); },   // (a skinned end of the map has no taper of its own: applyMates writes the map's mates again)
+    });
+    this.circuitSkinKey = '';
+    this.circuitSkins.build();
   }
 
   /** The vessels each vessel's ends carry on into, for the shader's live-width easing (smooth joins on); none with it off. */
@@ -392,6 +410,8 @@ export class CelScene {
       const mate = (id: string | null | undefined) => { const m = on && id ? NETWORK_MATE.get(id) : undefined; return m ? { index: indexOf(m.lensId), baseD: m.baseD, widthKind: m.widthKind } : null; };
       const sk = this.skins?.endsOf(def.id) ?? [false, false];   // (a skinned end's mate is off: the skin's weights blend the live widths, spec 4.6)
       o.setMates(sk[0] ? null : mate(sj?.mate[0]), sk[1] ? null : mate(sj?.mate[1]));
+      // (the map's own pairs and their taper: an end the Circuit's skin has taken over has none, the skin's weights blend the live widths there, as on the body)
+      { const cm = CIRCUIT_MATES.get(def.id), ce = this.circuitSkins?.endsOf(def.id) ?? [false, false]; if (cm) o.setCircuitMates(ce[0] ? null : mateUniform(cm[0]), ce[1] ? null : mateUniform(cm[1]), [cm[0]?.ease ?? 0, cm[1]?.ease ?? 0]); }
       // (a junction's fork: the outline of the branch and its trunk is the union's, with the switch on)
       { const nm = nbrMatesOf(def.id)[0], md = nm ? NETWORK_BY_ID.get(nm) : undefined; o.setNbrOn(!!md); if (md) o.setNbrMate(indexOf(md.lensId), md.baseD, md.widthKind); }
       // (a declared branch's end buried in its trunk: the ink stays off inside it, and only there. One rule for every junction, Mohammad 20 Nov: a child's outline is not drawn where it lies inside its parent's lumen.
@@ -1101,7 +1121,7 @@ export class CelScene {
     // (one junction skin rebuilt at most, here in the render phase and before the handover, so the tubes and the skin change together; while one still waits, the clock is asked for the next frame under the tag `skin-build`)
     const skinPending = this.skins?.step() ?? false;
     if (skinPending) clock.invalidate(SKIN_BUILD_TAG);
-    const skinMoving = (this.skins?.sync() ?? false) || skinPending;   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
+    const skinMoving = (this.skins?.sync() ?? false) || skinPending || (this.circuitSkins?.sync() ?? false);   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
     this.stepSinusDive();
     this.stepCutaway();
     this.stepPortrait();
@@ -1116,7 +1136,7 @@ export class CelScene {
     const viewMoving = lob3 || sin3 || lobMoving || sinMoving;
     const procMoving = this.procs.update(now);
     this.syncWedge();
-    const diseaseMoving = this.disease.update(now);
+    const diseaseMoving = this.disease.update(now, this.flowRate.value);
     if (diseaseMoving) this.tagOverOrgans();
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
     const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || dustMoving || lensMoving || presMoving || shapeMoving || viewMoving || skinMoving;
@@ -1148,6 +1168,11 @@ export class CelScene {
       this.disease.setFade(Math.min(fade, this.fadeNow));
     }
     this.mapLayer.set(mapRamp(t), this.circuit.rr);
+    // the map's junction skins: drawn only over the end of the change, turned with the map (they are built on the unturned map; the tubes turn in their shader)
+    if (this.circuitSkins) {
+      const rot = this.circuit.shared.circRot.value, key = `${t > SKIN_CIRC_IN - 0.02 ? 1 : 0}|${rot.x}|${rot.y}`;
+      if (key !== this.circuitSkinKey) { this.circuitSkinKey = key; this.circuitSkins.show(t > SKIN_CIRC_IN - 0.02); this.circuitSkins.setTurn(rot.x, rot.y); }
+    }
     this.procs.setFade(fade);
     const ramp = mapRamp(t);
     this.growLiver(t);
@@ -1182,6 +1207,14 @@ export class CelScene {
       { id: 'dive', label: 'Lobule and sinusoid', objects: () => [this.dive] },
     ];
   }
+  private inspectSolo = new Set<string>();
+  private inspectMute = new Set<string>();
+  /** Solo and mute by vessel id (`?inspect`, the panel's vessel list): with a solo set only those are drawn, a muted one never; a junction skin is drawn while any of its arms is. */
+  setInspectVessels(solo: readonly string[], mute: readonly string[]): void { this.inspectSolo = new Set(solo); this.inspectMute = new Set(mute); this.moving = true; clock.invalidate('inspect'); }
+  /** Every vessel the scene has (id, kind, label), and whether it is drawn now, for the panel's list. */
+  inspectVesselList(): readonly { id: string; kind: string; label: string; drawn: boolean }[] {
+    return NETWORK.map((v) => ({ id: v.id, kind: v.kind, label: v.label, drawn: this.presence.isDrawn(v.id) }));
+  }
   /** Shows or hides one of `inspectLayers` (drawn or not; what the scene itself shows and hides is not touched: the flag is put on for the draw and taken off after it). */
   setInspectShown(id: string, shown: boolean): void { if (shown) this.inspectHidden.delete(id); else this.inspectHidden.add(id); this.moving = true; clock.invalidate('inspect'); }
   isInspectShown(id: string): boolean { return !this.inspectHidden.has(id); }
@@ -1196,8 +1229,13 @@ export class CelScene {
   }
   /** Before the draw: the hidden layers' flags go off and the wired layers' materials are set; returns what puts the flags back, or null when the inspector asked for nothing. */
   private inspectBegin(): (() => void) | null {
-    if (!this.inspectHidden.size && !this.inspectWired.size) return null;
+    if (!this.inspectHidden.size && !this.inspectWired.size && !this.inspectSolo.size && !this.inspectMute.size) return null;
     const back: Object3D[] = [];
+    if (this.inspectSolo.size || this.inspectMute.size) {
+      const shown = (id: string | undefined) => !!id && !this.inspectMute.has(id) && (!this.inspectSolo.size || this.inspectSolo.has(id));
+      for (const o of this.vessels) if (o.group.visible && !shown(o.edge?.id)) { o.group.visible = false; back.push(o.group); }
+      for (const s of this.skins?.drawnArms() ?? []) if (s.object.visible && !s.arms.some(shown)) { s.object.visible = false; back.push(s.object); }
+    }
     for (const l of this.inspectLayers()) {
       const hide = this.inspectHidden.has(l.id), wire = this.inspectWired.has(l.id);
       if (!hide && !wire) continue;
@@ -1251,6 +1289,7 @@ export class CelScene {
     this.disposed = true;
     this.unJoins();
     this.skins?.dispose();
+    this.circuitSkins?.dispose();
     this.sinus3d.dispose(); this.lobule3d.dispose();
     this.lens.dispose();
     this.cells.dispose();

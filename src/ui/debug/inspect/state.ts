@@ -15,6 +15,15 @@ export interface InspectState {
   /** the layers not drawn, and the layers drawn as wireframe, by id (scene.inspectLayers) */
   hidden: string[];
   wired: string[];
+  /** show everything (engine/force-all.ts): every collateral open, every fixed shunt in, the model frozen; the dotted potential collaterals */
+  allCollaterals: boolean;
+  allShunts: boolean;
+  freeze: boolean;
+  ghosts: boolean;
+  /** vessels soloed (only these drawn) and muted (never drawn), by id, and whether a tap on the figure solos the vessel it picks */
+  solo: string[];
+  mute: string[];
+  tapSolo: boolean;
   /** the anti-aliasing pass */
   aa: boolean;
   /** the free orbit: the drag turns the figure all the way round, and nothing springs back */
@@ -23,7 +32,7 @@ export interface InspectState {
   pitchDeg: number;
 }
 
-export const defaultState = (joins: JoinsMode = 'mesh2'): InspectState => ({ joins, drop: false, leave: '', tube: partDefault(), skin: partDefault(), hidden: [], wired: [], aa: true, free: false, yawDeg: 0, pitchDeg: 0 });
+export const defaultState = (joins: JoinsMode = 'mesh2'): InspectState => ({ joins, drop: false, leave: '', tube: partDefault(), skin: partDefault(), hidden: [], wired: [], allCollaterals: false, allShunts: false, freeze: false, ghosts: false, solo: [], mute: [], tapSolo: false, aa: true, free: false, yawDeg: 0, pitchDeg: 0 });
 
 /** The camera's named views: the yaw (0 the front, positive swings the camera to the viewer's right) and the tilt above the horizon, in degrees. */
 export const VIEWS: readonly { id: string; label: string; yaw: number; pitch: number }[] = [
@@ -47,6 +56,7 @@ export const PRESETS: readonly Preset[] = [
   { id: 'normals', label: 'Normals', hint: 'The surface normal as colour: a NaN or a flipped normal shows as a black or a hard-edged patch.', make: (s) => both(s, { shade: 2 }) },
   { id: 'who', label: 'Who draws it', hint: 'Every tube its own colour, every skin solid magenta: which pixels are skin and which are tube.', make: (s) => ({ ...s, tube: { ...s.tube, tint: true }, skin: { ...s.skin, colour: '#ff00ff', amount: 0.55 } }) },
   { id: 'drops', label: 'Dropped pixels', hint: 'Skin pixels the shader would drop are painted: red a back face, cyan the presence dither, yellow no alpha, magenta past the ink band.', make: (s) => ({ ...s, drop: true }) },
+  { id: 'all', label: 'Show all collaterals + shunts', hint: 'Every collateral open and every fixed shunt in at once (a forged frame: the numbers are not the patient\'s). Look for gaps, stubs and overlaps.', make: (s) => ({ ...s, allCollaterals: true, allShunts: true }) },
   { id: 'old', label: 'Old joins', hint: 'The old overlapping tubes with no skins: a speck that stays is not a skin.', make: (s) => ({ ...s, joins: 'old' }) },
 ];
 
@@ -59,6 +69,8 @@ export function stateText(s: InspectState, build = ''): string {
     `tubes ${part(s.tube)}`,
     `skins ${part(s.skin)}`,
     `hidden=[${s.hidden.join(',')}] wire=[${s.wired.join(',')}]`,
+    `solo=[${s.solo.join(',')}] mute=[${s.mute.join(',')}]`,
+    `forced collaterals=${+s.allCollaterals} shunts=${+s.allShunts} freeze=${+s.freeze} ghosts=${+s.ghosts}`,
     `camera free=${+s.free} yaw=${s.yawDeg.toFixed(1)} pitch=${s.pitchDeg.toFixed(1)}`,
   ].join('\n');
 }

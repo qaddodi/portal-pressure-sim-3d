@@ -21,6 +21,7 @@ import { E } from '../endo/eus-run.ts';
 import { goToView } from '../../shell/view-actions.ts';
 import { useUi } from '../../ui-store.ts';
 import { freeRoom } from '../../shell/room.ts';
+import { tipCloseShot } from '../../deck/cath-shot.ts';
 import { cutRoom } from '../room.ts';
 import type { MonitorState } from './monitor.ts';
 import { useMeasured } from '../hidden.ts';
@@ -65,7 +66,14 @@ function sleep(): void { off?.(); off = null; hold?.release(); hold = null; }
 const room = () => { const { vp, device } = useUi.getState(); return cutRoom(freeRoom(vp, device)); };
 /** The 2D step shots on the 3D camera's: the route down from the neck, the tip close up, home. */
 const SHOT: Record<string, ShotName> = { route: 'route', way: 'route', tip: 'hvpg', fill: 'hvpg', free: 'free', wedge: 'wedge', home: 'play' };
-function camTo(name: string): void { const s = SHOT[name]; if (s) sceneApi.goTo(s, room()); }
+/** The readings' close-up is the deck's (cath-shot.ts tipCloseShot): read from the route itself, centred between the tip and the vein ahead of it where the wedged reading hangs, framed so the balloon and
+ *  the vein fill the free room. The Tests had a hand-set shot of their own ('hvpg': a fixed 1.7 x 1.4 scene window on the right lobe, two to three times wider than the deck's), so the same measurement was
+ *  framed looser here than on its slide (Mohammad, 20 Nov: "fix the camera zoom in HVPG measurement, should be better and zoomed in as we measure"). A blocked vein holds the tip and the ostium it cannot pass. */
+function camTo(name: string): void {
+  const close = name === 'tip' || name === 'fill' ? tipCloseShot(R.blocked ? 'ostium' : 'tip') : null;
+  const s = close ?? SHOT[name];
+  if (s) sceneApi.goTo(s, room());
+}
 /** A catheter is drawn on the body, so the view leaves the Circuit, the lobule and the sinusoid first (2D leaveFor). */
 function onBody(): void { if (useShell.getState().view !== 'anatomic') goToView('anatomic'); }
 

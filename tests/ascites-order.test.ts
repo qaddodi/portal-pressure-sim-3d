@@ -1,7 +1,7 @@
 // The pool is painted over the organ plate and the vessels in 2D (veins-gl.js fluidAt), and the AO seat fades with the organ's line.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { AscitesLayer, POOL_ORDER } from '../src/scene/disease/ascites.ts';
+import { AscitesLayer, POOL_ORDER, POOL_ROWS } from '../src/scene/disease/ascites.ts';
 import { ORGAN_ORDER } from '../src/scene/organs/layer.ts';
 import { patchedShaders } from '../src/scene/organs/organ-art.ts';
 import { INK_FS } from '../src/scene/materials/shaders.ts';
@@ -20,7 +20,7 @@ test('the AO seat takes the end fade the outline takes', () => {
 test('the pool is a basin: its last row lies on the cavity floor, far below its 28-unit ramp', () => {
   const a = new AscitesLayer(); a.set(5000);
   const pos = (a.group.children[0] as any).geometry.getAttribute('position');
-  const ROWS = 6, mid = 52 * ROWS;
+  const ROWS = POOL_ROWS, mid = 52 * ROWS;
   const top = pos.getY(mid), floor = pos.getY(mid + ROWS - 1);
   assert.ok(top - floor > 100 / 300, `top ${top} floor ${floor}`);
 });
