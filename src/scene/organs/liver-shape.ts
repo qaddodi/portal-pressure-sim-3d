@@ -12,8 +12,8 @@ export const liverLook = (): LiverLook | null => { const v = flagValue('liver');
 
 /** Nodule bump height at full strength, scene units (the 2D nodules stand out about 2 to 3 units: 0.01). */
 export const NODULE_HEIGHT = 0.011;
-/** How far a nodule at the liver's rim stands out of its outline at full scarring, scene units (about 2 units of the 2D figure: a scalloped edge, never inward, so the vessels keep their margin). */
-export const RIM_HEIGHT = 0.0068;
+/** How far a nodule at the liver's rim stands out of its outline at full scarring, scene units (about 4 units of the 2D figure: a scalloped edge, never inward, so the vessels keep their margin). */
+export const RIM_HEIGHT = 0.014;
 const CELL = 13 * NODULE_SIZE * CIRR.nod / 4;   // 2D units: a nodule's width, from liver-geo.js's spacing and the nodule scale
 
 const hash2 = (i: number, j: number, k: number): number => { let h = (i * 374761393 + j * 668265263 + k * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
