@@ -5,11 +5,14 @@
 import { useEffect, useState, type ComponentType, type ReactNode } from 'react';
 import { loadToolCard, toolCardBody, type ToolCardProps } from './tool-card-load.ts';
 import { toolBoxKind } from './tool-box.ts';
+import { ToolRoom, useToolRoom } from './tool-room.ts';
 
 export function ToolCard(props: ToolCardProps): ReactNode {
   const [B, setB] = useState<ComponentType<ToolCardProps> | null>(toolCardBody);
   useEffect(() => { let on = true; if (!B) void loadToolCard().then(() => { const b = toolCardBody(); if (on && b) setB(() => b); }); return () => { on = false; }; }, [B]);
   // 2D's box (presenter-tools.js `.pz-tool[data-kind]`): its lifted rules size and fit each chart by the kind on it (the profile's height, the scope's row), so a chart is never mounted bare
   const kind = toolBoxKind(props.slide);
-  return B ? (kind ? <div className="pz-tool" data-kind={kind}><B {...props} /></div> : <B {...props} />) : null;
+  // the room the card leaves this box (2D presenter-zoom.js toolRoom): measured from the card, handed to the picture
+  const [box, room] = useToolRoom();
+  return B ? (kind ? <div ref={box} className="pz-tool" data-kind={kind}><ToolRoom.Provider value={room}><B {...props} /></ToolRoom.Provider></div> : <B {...props} />) : null;
 }
