@@ -134,6 +134,7 @@ test('a build welds the nineteen skins with no fall back, the two growing arms i
     assert.deepEqual(set.fellBack, [], 'nothing falls back on the map');
     assert.deepEqual([...set.dropped].sort(), DROPPED, 'the growing arms that keep their lines, named');
     for (const d of DROPPED) assert.match(set.why[d] ?? '', /the closed shape folds/, `${d}: why`);
+    // (REX and S_MC leave SMV together: closed alone or together their rows fold, 33 triangles over the three states; DIPS: 2)
     assert.equal(set.count, 19);
     assert.ok(made.length >= 19, 'every skin was made once at least (a retry makes more)');
     assert.ok(ends[0]! >= 1, 'the scene is told the ends changed (it writes the map mates again)');
@@ -200,6 +201,7 @@ test('what the map still draws the old way is named: the four liver trees\' 24 b
   const old = circuitOldJoins();
   assert.deepEqual(old.trees, ['PRE_R', 'PRE_L', 'SIN_RR', 'SIN_LL'].flatMap((l) => [0, 1, 2, 3, 4, 5].map((i) => `${l}#${i}`)));
   assert.deepEqual(old.caudate, ['CAUD']);
+  for (const k of ['trees', 'caudate', 'custom'] as const) assert.ok(old.why[k].length > 40, `${k}: the reason it is not welded is named`);
   assert.equal(old.custom.length, 119);
   assert.ok(old.custom.every((id) => id.startsWith('X_')));
   for (const id of [...old.trees, ...old.caudate, ...old.custom]) assert.ok(!NETWORK_BY_ID.has(id), `${id} is a map-only tube`);
