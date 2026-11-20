@@ -139,6 +139,8 @@ export class CircuitSkinSet {
   private readonly cuts = new Map<string, [number, number]>();
   private readonly paces = new Map<string, number>();
   private digest = '';
+  /** Where the last build's meshes came from: the baked file (nothing meshed on the page) or the live planner (a stall of a second or more, the first Circuit change's cost on a device). */
+  source: 'none' | 'baked' | 'live' = 'none';
   private readonly lostNodes: { node: string; message: string }[] = [];
   /** the nodes that fell back (their tubes keep running into one another, as before), named, once */
   readonly fellBack: string[] = [];
@@ -199,6 +201,7 @@ export class CircuitSkinSet {
     this.digest = `circuit/${skinsDigest(js, tubes)}`;
     const baked = this.deps.baked?.() ?? null, usable = baked && baked.digest === this.digest ? baked : null;
     const made: Built[] = [], lost: { node: string; message: string }[] = [];
+    this.source = usable ? 'baked' : 'live';
     if (usable) { for (const s of usable.skins) { const b = this.makeBuilt(s.plan, tubes, s); if (b) made.push(b); } lost.push(...usable.lost); }
     else {
       const { plans, failures } = planSkins(js, tubes, (j) => (cs) => hullCovers(this.ringsFor(tubes, cs).pos) && this.clearOfAxes(j, tubes, cs));

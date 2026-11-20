@@ -9,6 +9,7 @@
 import { facetSag } from './facet-sag.ts';
 import { BufferAttribute, BufferGeometry, Color, CustomBlending, DoubleSide, Group, MaxEquation, Mesh, OneFactor, ShaderMaterial, Vector2, Vector4, type IUniform, type Object3D } from 'three';
 import { VESSEL_LAYER } from '../../layers.ts';
+import { markBlends } from '../../materials/warm.ts';
 import { GLOW_LAYER } from '../../glow.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import { SKIN_ARMS, SKIN_AXIS_PTS, SKIN_FS, SKIN_VS } from './shaders.ts';
@@ -139,11 +140,11 @@ export class SkinObject implements SkinDraw {
       ...vdbgUniforms('skin'),   // (the inspector's view of the skins: none without ?inspect, debug-view.ts)
     };
     this.copies = Array.from({ length: SKIN_COPIES }, (_, c) => {
-      const material = new ShaderMaterial({
+      const material = markBlends(new ShaderMaterial({
         name: 'skin',
         vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: skinDefines(c, this.growArms.length, circuit),
         uniforms,
-      });
+      }));
       const mesh = new Mesh(g, material);
       mesh.frustumCulled = false;   // (the vertex stage moves the skin by the live widths: its rest sphere is not where it is drawn)
       mesh.name = `skin:${circuit ? 'circuit:' : ''}${skin.junction.node}${c ? (c === 1 ? ':solid' : ':veil') : ''}`;
