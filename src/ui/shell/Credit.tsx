@@ -11,7 +11,8 @@ import { useThumb } from './thumb.ts';
 import { CORNERS, freeSpots } from './credit-spots.copied.js';
 
 /** What the credit keeps clear of: every floating bar, card and chip on screen (the bottom dock with its view pill, the top bar's chips, the zoom pill, a card), as rectangles. */
-const OBSTACLES = '.float-ui, .stage-blocker, .vdock, .zoom-pill';
+// (the view pill stands above the dock as its child: the dock's own box stops under it, so the pill is named too. Phone play-test, 20 Nov: the credit ran half under the pill.)
+const OBSTACLES = '.float-ui, .stage-blocker, .vdock, .nb-views, .zoom-pill';
 function obstacles(vw: number, vh: number): { l: number; t: number; r: number; b: number }[] {
   const out: { l: number; t: number; r: number; b: number }[] = [];
   for (const el of document.querySelectorAll<HTMLElement>(OBSTACLES)) {

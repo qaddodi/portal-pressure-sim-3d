@@ -9,7 +9,7 @@ import { FADE, labelOpacity } from './alpha.ts';
 import { LabelFader, type Want } from './fade.ts';
 import { type Box, leaderGeom } from './geometry.ts';
 import { type Form, type Item, type Placement, boxOf, solve } from './solver.ts';
-import { STATIONS, ORGAN_FRONT, type Station } from './stations.ts';
+import { STATIONS, ORGAN_FRONT, figureCourses, type Station } from './stations.ts';
 import { silhouettes, onOtherOrgan, spotOffsets, type Silhouettes, type To2Screen } from './organ-screen.ts';
 import { x3, y3 } from '../frame2d.ts';
 import { fmtPressure } from '../../ui/text/line.ts';
@@ -51,7 +51,17 @@ export interface LabelDeps {
   /** Whether the varices (VAR) or the fundal varices (GV) exist now, as 2D's hasVarices answers it: no varices, no callout (a healthy patient's node is only the balance between
    *  the coronary vein and the azygos, and a "varices" label on it would mislead), and the fundus label comes in with its varices. Absent: the old behaviour (VAR always, GV never). */
   present?(id: 'VAR' | 'GV'): boolean;
+  /** How tall the whole figure stands on the screen now, CSS px (the plate's top to its bottom). Absent: the figure is never too small for its names. */
+  figureH?(): number;
+  /** Whether a vessel (a network id) is drawn now (a collateral only once it is open; a shunt only while a procedure has put it in). Present: every drawn vessel's course is a line the names keep off; absent: the named vessels' only. */
+  drawn?(v: { id: string; kind: string; feeder?: unknown }): boolean;
 }
+
+/** The names stand aside while the figure is smaller than this (hysteresis: they come back above `FIG_BACK`). The names keep one size (text never shrinks to fit), so on a figure this small they would be
+ *  larger than the parts they name and lie over each other: a phone with the Tests sheet up leaves the figure 130 px (Phone play-test, 20 Nov: "16.6" over "Right sinusoids"). The stations a slide
+ *  names, the vessel picked and a reading the slide asks for stay. */
+export const FIG_MIN_H = 200;
+export const FIG_BACK = 230;
 
 export interface LabelState {
   /** Stations the slide's words light (bright, never dropped); when empty nothing is dimmed. */
@@ -193,7 +203,17 @@ export class LabelController {
       if (s.id === 'GV') continue;   // (the fundal varices' label comes in only with its varices)
       if (s.core || st.named.has(s.id) || st.shown.has(s.id) || s.id === picked) list.push(this.metaOf(s));
     }
-    return list;
+    return this.keepIfSmall(list);
+  }
+
+  private tiny = false;
+  /** While the figure is too small for its names only the ones that were asked for stand (see FIG_MIN_H). */
+  private keepIfSmall(list: Meta[]): Meta[] {
+    const h = this.deps.figureH?.();
+    if (h !== undefined && Number.isFinite(h)) this.tiny = h < (this.tiny ? FIG_BACK : FIG_MIN_H);
+    if (!this.tiny) return list;
+    const st = this.state;
+    return list.filter((m) => m.station.kind !== 'organ' && (st.named.has(m.station.id) || st.shown.has(m.station.id) || (!!st.picked && m.station.vessel === st.picked)));
   }
 
   private metaOf(s: Station): Meta {
@@ -241,7 +261,7 @@ export class LabelController {
     this.firstTick = false;
     const anchors = new Map<string, { x: number; y: number }>();
     for (const m of metas) {
-      const p = this.anchorOf(m, 0.5, this.at);
+      const p = this.anchorOf(m, m.station.u0, this.at);
       if (!p) continue;
       const a = d.project(p, { x: 0, y: 0 });
       if (!Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;   // (a dot behind the camera or at its plane has no place on the screen: it is not placed, never placed at a number that is not one)
@@ -345,10 +365,24 @@ export class LabelController {
       if (organ && !sil) sil = silhouettes(to);
       const s0 = sil;
       items.push({
-        id: m.id, ax: a.x, ay: a.y, au: 0.5, path: path.length ? path : undefined, forms: m.forms,
+        id: m.id, ax: a.x, ay: a.y, au: m.station.u0, path: path.length ? path : undefined, forms: m.forms,
         pri: picked ? 300 : isNamed ? 100 + m.station.pri : m.station.pri, must: !!picked || isNamed || this.state.shown.has(m.station.id), dirs: m.station.dirs, region: m.station.kind === 'organ', vw,
         ...(organ && s0 ? { spots: spotOffsets(m.station.name, m.station.at2d!, to), onOther: (b: Box) => onOtherOrgan(m.station.name, s0, b) } : {}),
       });
+    }
+    // every vessel the figure draws is a line a name keeps off (the named ones' courses above, the rest here)
+    if (d.drawn) {
+      lines.length = 0;
+      for (const c of figureCourses()) {
+        if (!d.drawn(c.v)) continue;
+        let prev: { x: number; y: number } | null = null;
+        for (const q of c.pts) {
+          const a = d.project(q, { x: 0, y: 0 });
+          const ok = Number.isFinite(a.x) && Number.isFinite(a.y);
+          if (prev && ok) lines.push([prev.x, prev.y, a.x, a.y]);
+          prev = ok ? a : null;
+        }
+      }
     }
     const res = solve({ items, view, blockers, lines });
     this.dropped = res.dropped; this.hiddenIds = res.hidden;
@@ -387,7 +421,7 @@ const boxKey = (b: Box) => `${Math.round(b.x0)},${Math.round(b.y0)},${Math.round
 /** The vessel's half width on the canvas at its middle: its drawn radius times the pixels one scene unit covers there. */
 function vesselHalfWidthPx(s: Station, d: LabelDeps, a: Vector3, b: Vector3): number {
   if (!s.vessel) return 3;
-  s.at(0.5, a); b.copy(a); b.x += 0.1;
+  s.at(s.u0, a); b.copy(a); b.x += 0.1;
   const p = d.project(a, { x: 0, y: 0 }), q = d.project(b, { x: 0, y: 0 });
   const perUnit = Math.hypot(q.x - p.x, q.y - p.y) / 0.1;
   return Math.max(2, (VESSEL_RADIUS.get(s.vessel) ?? 0.06) * perUnit);

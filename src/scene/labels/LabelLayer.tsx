@@ -32,7 +32,13 @@ import { FigureCards } from './figure-cards.ts';
 import { toneCss } from '../../ui/deck/figure-plan.ts';
 import { VesselWalk } from './VesselWalk.tsx';
 import { Vector3 } from 'three';
-import { roll } from './roll.ts';
+import { presenceOf, type PresenceFrame } from '../vessels/network.ts';
+import { PLATE_BOUNDS, FIGURE_Z } from '../anatomy/placeholder.ts';
+import { showNumber } from './roll.ts';
+
+// the figure's top and bottom (the plate's own bounds), projected to tell how big it stands now (controller.ts FIG_MIN_H)
+const plateTop = new Vector3((PLATE_BOUNDS.x0 + PLATE_BOUNDS.x1) / 2, PLATE_BOUNDS.y1, FIGURE_Z), plateBottom = new Vector3((PLATE_BOUNDS.x0 + PLATE_BOUNDS.x1) / 2, PLATE_BOUNDS.y0, FIGURE_Z);
+const plateA = { x: 0, y: 0 }, plateB = { x: 0, y: 0 };
 
 const NODE_AT = new Map<string, number>((NODES as unknown as { id: string }[] | [string][]).map((n, i) => [Array.isArray(n) ? n[0] : (n as { id: string }).id, i]));
 
@@ -102,6 +108,8 @@ export function LabelLayer() {
       view: () => labelView(ui.getState().vp, BAR, useTestsRoom.getState().place),
       blockers: () => { const b = ui.getState().boxes; return [...[b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox), ...placeBlockers(useTestsRoom.getState().place), ...figCards.boxes]; },
       measure: makeMeasure(),
+      drawn: (v) => { const f = latest.frame; return f ? presenceOf(v as never, f as unknown as PresenceFrame, { collaterals: false }) === 'shown' : v.kind !== 'collateral' && v.kind !== 'shunt'; },
+      figureH: () => { const a = sceneApi.project(plateTop, plateA), b = sceneApi.project(plateBottom, plateB); return Math.abs(b.y - a.y); },
       vp: () => ui.getState().vp,
       words: () => ui.getState().boxes.words,
       reversed: (edge) => { const f = latest.frame, ref = patient.reference; if (!f) return false; const k = indexOf(edge); return flowReversed(f.Qf[k] ?? 0, ref ? (ref.Q[k] ?? 0) : 0); },
@@ -269,7 +277,7 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
       const was = r.value;
       r.value = d.value;
       if (!was || d.alpha < 0.05 || was === '') r.cur.textContent = d.value;
-      else roll(r, d.value, was);
+      else showNumber(r, d.value, was);
     }
     if (r.lead && r.anchor) {
       // the ring stands on the vessel for every station; the leader joins it to the words only when they stand away

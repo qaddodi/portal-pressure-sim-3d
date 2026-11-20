@@ -16,7 +16,8 @@ import { type Box, leaderGeom, rectToBox } from '../labels/geometry.ts';
 import { makeMeasure } from '../labels/LabelLayer.tsx';
 import { type Placement, solve } from '../labels/solver.ts';
 import { LS, baselineAt, fontPx, lookVars, typeVars } from '../labels/type.ts';
-import { type CapMeta, buildLobuleCaptions, readingText } from './captions.ts';
+import { type CapMeta, buildLobuleCaptions, lobuleLabelView, readingText } from './captions.ts';
+import { footBlocker, useFootNote } from '../../ui/shell/foot-note.ts';
 
 const SETTLE_MS = 180, FADE_MS = 180;
 interface El { root: HTMLElement; name: HTMLElement; val: HTMLElement | null; lead: HTMLElement | null; ring: HTMLElement | null; ringTx: string; tx: string; text: string; valText: string; size: string }
@@ -54,8 +55,11 @@ export function LobuleCaptions() {
       cel.rig.project(v3.set(w3[0], w3[1], w3[2]), pt);
       return [pt.x, pt.y];
     };
-    const view = (): Box => { const { vp } = useUi.getState(); return { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom }; };
-    const blockers = (): Box[] => { const b = useUi.getState().boxes; return [b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox); };
+    const view = (): Box => lobuleLabelView(useUi.getState().vp, BAR, cel.rig.targetRoom);
+    const blockers = (): Box[] => {
+      const b = useUi.getState().boxes, out = [b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox), note = footBlocker(useFootNote.getState().rect);
+      return note ? [...out, note] : out;   // (the foot note, while it shows: no name, reading or leader stands under it)
+    };
 
     const make = (id: string, m: CapMeta): El => {
       const r = document.createElement('div');
@@ -124,7 +128,7 @@ export function LobuleCaptions() {
       if (still) {
         const { vp, boxes } = useUi.getState();
         const L = cel.lobule.currentLayers, m = cel.lobule.inkContext()?.model;
-        const s = [vp.w, vp.h, refs, L.zones, L.lymph, useShell.getState().figure.labelLevel, boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'), lookRef.current,
+        const s = [vp.w, vp.h, refs, L.zones, L.lymph, useShell.getState().figure.labelLevel, boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'), boxKey(view()), lookRef.current,
           m ? [m.P1, m.P2, m.P3].map((x) => x.toFixed(1)).join(',') + Math.round(m.lymph * 100) : '-'].join('|');
         if (s !== sig) { sig = s; solveNow(); }
       }
@@ -162,8 +166,9 @@ export function LobuleCaptions() {
     const wake = () => { sig = ''; clock.invalidate('lobule-captions'); };
     const offShell = useShell.subscribe(wake);
     const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) wake(); });
+    const offFoot = useFootNote.subscribe(wake);
     void document.fonts?.ready.then(wake);
-    return () => { off(); offShell(); offUi(); offUi2(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
+    return () => { off(); offShell(); offUi(); offUi2(); offFoot(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
   }, []);
 
   return <div ref={layer} className="lb-layer cc-layer" aria-hidden="true" />;
