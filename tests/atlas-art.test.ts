@@ -9,9 +9,9 @@ import { ATLAS_ART_DEFAULT, ATLAS_ARTS, DEFAULTS, parseSettings } from '../src/s
 import { AtlasCourses, KEEP_CLASSIC, SOURCE_ORDER, type CourseFile } from '../src/scene/atlas-art/courses.ts';
 import { parseGlb } from '../src/scene/atlas-art/glb.ts';
 import { specimenOf } from '../src/scene/atlas-art/specimen.ts';
-import { ATLAS_FS, ATLAS_INK_FS, ATLAS_INK_VS, ATLAS_VS } from '../src/scene/atlas-art/shaders.ts';
+import { ATLAS_ASCITES_FS, ATLAS_FS, ATLAS_INK_FS, ATLAS_INK_VS, ATLAS_VS } from '../src/scene/atlas-art/shaders.ts';
 import { ATLAS_PALETTE } from '../src/scene/atlas-art/palette.ts';
-import { AtlasOrgans } from '../src/scene/atlas-art/organs.ts';
+import { AtlasOrgans, ASCITES_ALPHA } from '../src/scene/atlas-art/organs.ts';
 import { AtlasVessels } from '../src/scene/atlas-art/vessels.ts';
 import { ATLAS_COURSE, NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { profileAt } from '../src/scene/vessels/tubes.ts';
@@ -127,7 +127,16 @@ test('the atlas organs: the healthy form shows, a diseased patient crossfades it
   const liverMeshes = o.group.children.filter((g) => g.name === 'atlas liver');
   assert.equal(liverMeshes.length, 2, 'both forms of the liver are held');
   assert.equal(liverMeshes.filter((g) => g.visible).length, 1, 'one is shown');
-  assert.ok(o.group.children.some((g) => g.name === 'atlas ascites (cirr-decomp)' && g.visible), 'the pool shows at 3 L');
+  const pool = o.group.children.find((g) => g.name === 'atlas ascites (cirr-decomp)' && g.visible);
+  assert.ok(pool, 'the pool shows at 3 L');
+  // the pool is a soft fluid behind the organs, with a waterline: its own program, drawn first, a rim that melts away, and a band and line at the top that keep their width as the pool is squeezed
+  const poolMesh = pool!.children[0] as unknown as { renderOrder: number; material: { fragmentShader: string; uniforms: Record<string, { value: unknown }> } };
+  assert.ok(poolMesh.renderOrder < 0 && o.group.children.filter((g) => g.visible && g !== pool).every((g) => (g.children[0] as { renderOrder: number }).renderOrder > poolMesh.renderOrder), 'behind every organ');
+  assert.match(poolMesh.material.fragmentShader, /smoothstep\(0\.0, 0\.30, t\)/);
+  assert.match(poolMesh.material.fragmentShader, /dTop \/ max\(fwidth/);
+  const band = poolMesh.material.uniforms.uBand!.value as number, sy = pool!.scale.y;
+  assert.ok(sy < 1 && Math.abs(band * sy - 0.02) < 1e-9, 'the meniscus is 0.02 on screen whatever the squeeze');
+  assert.ok(ASCITES_ALPHA > 0.3 && ASCITES_ALPHA < 0.5);
   o.setBody(0, 1, 0);
   for (let i = 0; i < 200; i++) o.update((t += 16));
   assert.ok(!o.group.children.some((g) => g.name.startsWith('atlas ascites') && g.visible), 'no pool at 0 mL');
@@ -189,7 +198,7 @@ test('the atlas shader is cel stepped with the figure\'s own constants, has the 
     assert.match(p.vertexGlsl, /^#version 300 es\n/, name); assert.match(p.fragmentGlsl, /^#version 300 es\n/, name);
     assert.equal((p.vertexGlsl.match(/#version/g) ?? []).length, 1, `${name}: one version line`);
   }
-  assert.deepEqual(atlasPrograms().map((p) => p.name), ['atlas organ', 'atlas organ ink']);
+  assert.deepEqual(atlasPrograms().map((p) => p.name), ['atlas organ', 'atlas organ ink', 'atlas ascites']);
 });
 
 test('both palettes name every organ the files carry, and each is a hex colour', () => {
