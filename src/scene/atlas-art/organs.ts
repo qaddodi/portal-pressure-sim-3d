@@ -15,6 +15,7 @@ import type { Specimen } from './types.ts';
 import { PICK_OF } from '../organs/pick.ts';
 import { LENS_GREY, SPLEEN_CENTER } from '../disease/copied/anatomy-b4.ts';
 import { AtlasPool } from './pool.ts';
+import { calmWash, smoothNormals } from './smooth.ts';
 import { x3, y3 } from '../frame2d.ts';
 
 
@@ -43,13 +44,27 @@ interface Part {
   mix: number; goal: number;
 }
 
-const geometryOf = (m: GlbMesh): BufferGeometry => {
+/** The liver's calming (smooth.ts): the heavy pass the light bands read, the middle pass the broad nodules come from, and how much of the cirrhotic wash's mottle stays (keep, contrast). */
+const LIVER_HEAVY = 24, LIVER_MID = 6;
+const LIVER_WASH: Partial<Record<Specimen, { keep: number; contrast: number }>> = { 'cirr-decomp': { keep: 0.3, contrast: 0.55 }, 'budd-chiari': { keep: 0.5, contrast: 0.75 } };
+/** The share of the shading the liver's broad nodules take, and of the pale lit band it keeps (the liver was too shiny). */
+export const LIVER_NODULE = 1, LIVER_SHINE = 0.25;
+
+const geometryOf = (m: GlbMesh, s: Specimen): BufferGeometry => {
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(m.position, 3));
   if (m.normal) g.setAttribute('normal', new BufferAttribute(m.normal, 3)); else { g.setIndex(new BufferAttribute(m.index, 1)); g.computeVertexNormals(); }
+  // `detail` is the normal the broad nodules are read from; every organ but the liver has no relief to calm, so it is its normal
+  g.setAttribute('detail', g.getAttribute('normal')!);
+  if (m.name === 'liver') {
+    const nrm = (g.getAttribute('normal') as BufferAttribute).array;
+    g.setAttribute('normal', new BufferAttribute(smoothNormals(nrm, m.index, LIVER_HEAVY), 3));
+    g.setAttribute('detail', new BufferAttribute(smoothNormals(nrm, m.index, LIVER_MID), 3));
+  }
   if (m.uv) g.setAttribute('uv', new BufferAttribute(m.uv, 2)); else g.setAttribute('uv', new BufferAttribute(new Float32Array((m.position.length / 3) * 2), 2));
   // COLOR_0 is the artist's linear multiplicative wash (3 values a vertex); an organ without one is washed 1
-  g.setAttribute('color', new BufferAttribute(m.color ?? new Float32Array(m.position.length).fill(1), 3));
+  const wash = m.name === 'liver' && m.color ? LIVER_WASH[s] : undefined;
+  g.setAttribute('color', new BufferAttribute(wash && m.color ? calmWash(m.color, m.index, 6, wash.keep, wash.contrast) : m.color ?? new Float32Array(m.position.length).fill(1), 3));
   g.setIndex(new BufferAttribute(m.index, 1));
   g.computeBoundingSphere(); g.computeBoundingBox();
   return g;
@@ -95,10 +110,10 @@ export class AtlasOrgans {
     for (const m of meshes) {
       const fixed = (FIXED_ORGANS as readonly string[]).includes(m.name), swap = (SWAP_ORGANS as readonly string[]).includes(m.name);
       if (!(swap || (fixed && s === 'healthy'))) continue;
-      const g = geometryOf(m);
+      const g = geometryOf(m, s);
       const mat = new RawShaderMaterial({
         glslVersion: GLSL3, vertexShader: stripVersion(ATLAS_VS), fragmentShader: stripVersion(ATLAS_FS), transparent: true, depthWrite: true,
-        uniforms: { uGrain: { value: this.grain }, uColor: { value: new Color() }, uDark: { value: 0 }, uAlpha: { value: 1 }, cut: this.cut },
+        uniforms: { uGrain: { value: this.grain }, uColor: { value: new Color() }, uDark: { value: 0 }, uAlpha: { value: 1 }, uNod: { value: m.name === 'liver' ? LIVER_NODULE : 0 }, uShine: { value: m.name === 'liver' ? LIVER_SHINE : 1 }, cut: this.cut },
       });
       const order = Math.max(0, ORDER.indexOf(m.name));
       const grp = new Group();

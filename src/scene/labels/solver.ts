@@ -248,10 +248,10 @@ export function solve(input: SolveInput): Solved {
             if (bad) continue;
             if (relax < 1) for (const l of leaders) if (segsCross(seg, l.seg)) { bad = true; break; }
             if (bad) continue;
-            // a later label's leader must not run through an earlier label: checked above; an earlier leader through this box:
-            for (const l of leaders) if (crosses(l.seg[0], l.seg[1], l.seg[2], l.seg[3], box)) { bad = true; break; }
-            if (bad) continue;
           }
+          // an earlier label's leader never runs through this box, whatever this label is (a region's name has no leader of its own: the right atrium's leader ran through RIGHT ATRIUM, phone play-test 20 Nov)
+          for (const l of leaders) if (crosses(l.seg[0], l.seg[1], l.seg[2], l.seg[3], box)) { bad = true; break; }
+          if (bad) continue;
           let lineHits = 0;
           for (const l of lines) if (crosses(l[0], l[1], l[2], l[3], box)) lineHits++;
           if (it.face) {
