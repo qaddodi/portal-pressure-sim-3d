@@ -16,15 +16,21 @@ test('the hepatic artery crosses no vein (and an arterioportal shunt, which ends
   for (const a of arts) {
     const pa = P(a.id);
     for (const v of NETWORK) {
-      if (v.feeder || v.tone === 'artery' || v.kind === 'shunt') continue;
+      if (v.feeder || v.tone === 'artery' || v.kind === 'shunt' || v.kind === 'liver' || v.id === 'C9') continue;   // (the hidden sinusoid beds; C9, the lumbar collateral behind everything, only when it is open)
       const pv = P(v.id);
       for (let i = 1; i < pa.length; i++) for (let j = 1; j < pv.length; j++) assert.ok(!cross(pa[i - 1]!, pa[i]!, pv[j - 1]!, pv[j]!), `${a.id} crosses ${v.id}`);
     }
   }
 });
 
-test('the arterioles into the sinusoid fans are not drawn', () => {
-  assert.ok(!NETWORK_BY_ID.has('A_HR') && !NETWORK_BY_ID.has('A_HL'));
+test('the left and right hepatic arteries run beside their portal branches, a little below them, and fade out with them', () => {
+  for (const [a, host] of [['A_HR', 'PVH_R_1'], ['A_HL', 'PVH_L_1']] as const) {
+    const art = P(a), v = P(host);
+    assert.equal(art.length, 64);
+    const near = Math.min(...art.map((p) => Math.min(...v.map((q) => Math.hypot(p[0] - q[0], p[1] - q[1])))));
+    assert.ok(near > 3 && near < 14, `${a} runs ${near.toFixed(1)} units from ${host}`);
+    if (a === 'A_HR') assert.ok(art.reduce((t, p) => t + p[1], 0) / 64 > v.reduce((t, p) => t + p[1], 0) / 64 - 5, `${a} is below its vein`);
+  }
 });
 
 test('no vein hangs unconnected in the middle of the liver: the caudate fan is not drawn', () => {
@@ -69,4 +75,19 @@ test('the sinusoid beds are not drawn: the portal branches fade out into the liv
   for (const id of ['SIN_RR', 'SIN_LL', 'PRE_R', 'PRE_L', 'POST_R_RHV', 'POST_L_LHV']) assert.equal(presenceOf(N.find((v) => v.id === id)!, f, { collaterals: true }), 'hidden', id);
   for (const id of ['PVH_R_2', 'PVH_L_1']) { const x = fadeOf(id, false)!; assert.equal(x.mode, 1); assert.deepEqual([x.to, x.a0, x.a1], [1, 1, 0], `${id} ends in the liver's tissue`); }
   for (const id of ['RHV_IVC_1', 'MHV_IVC', 'LHV_IVC']) { const x = fadeOf(id, false)!; assert.equal(x.mode, 1); assert.deepEqual([x.from, x.a0, x.a1], [0, 0, 1], `${id} begins in the liver's tissue`); }
+});
+
+test('each portal-branch end, hepatic-vein start and the umbilical vein branches once more into the liver: two children, one forward and one back in depth, leaving the host\'s own course', async () => {
+  const { LIVER_BRANCHES } = await import('../src/scene/vessels/liver-branches.ts');
+  const { EDGE_PATH_2D: PATHS } = await import('../src/scene/vessels/paths.copied.ts');
+  assert.deepEqual(LIVER_BRANCHES.map((b) => b.host).sort(), ['C3', 'LHV_IVC', 'MHV_IVC', 'PVH_L_1', 'PVH_R_2', 'RHV_IVC_1']);
+  for (const b of LIVER_BRANCHES) {
+    assert.equal(b.list.length, 2, `${b.host}: two children`);
+    const [a, c] = b.list as readonly { pts: readonly (readonly [number, number])[]; dz: readonly number[] }[];
+    assert.ok(Math.max(...a!.dz) > 0.05 && Math.min(...c!.dz) < 0, `${b.host}: one goes forward, one back`);
+    const host = PATHS[b.host]!, onHost = (p: readonly [number, number]) => Math.min(...host.map((q) => Math.hypot(p[0] - q[0], p[1] - q[1])));
+    const near = [a!.pts[0]!, a!.pts[a!.pts.length - 1]!, c!.pts[0]!, c!.pts[c!.pts.length - 1]!].map(onHost);
+    assert.ok(Math.min(...near) < 2, `${b.host}: the children are the host's own course where they leave it`);
+    assert.ok(NETWORK_BY_ID.has(`${b.host}~F:b`) && NETWORK_BY_ID.get(`${b.host}~F:b`)!.feeder, `${b.host}: drawn as a tributary group`);
+  }
 });
