@@ -6,6 +6,8 @@ import { DataTexture, FloatType, NearestFilter, RGBAFormat } from 'three';
 import { EDGES } from '../../engine/hales/portal/topology.js';
 import { STASIS_MIN_D, advanceStreamAt, createReversalHold } from './blood.copied.js';
 import { flowReversed, meanVel } from '../lenses/vel-normal.copied.js';
+import { streakDCap } from './streak-glsl.ts';
+import { PERIOD } from './blood.copied.js';
 
 interface Stream { vSlow?: number; vFast?: number; D: number; vd: number; hold?: number; settle?: number; sgn?: number; seed?: number; rev?: number }
 interface Frame { Q: ArrayLike<number>; Qf?: ArrayLike<number>; D: ArrayLike<number> }
@@ -20,6 +22,8 @@ export class Streams {
   readonly texture: DataTexture;
   private readonly data = new Float32Array(NE * 4);
   private readonly streams: Stream[] = edges.map((_, k) => ({ D: 0, vd: 0, seed: k + 1 }));
+  /** The streaks' own distance: D's increments, each held to streakDCap() display units a second (no pattern advances more than a quarter of its period a frame), so nothing wagon-wheels; the same as D below the cap. Texel w. */
+  private readonly ds = new Float64Array(NE);
   private readonly velQf = new Float64Array(NE);
   private readonly velQ = new Float64Array(NE);
   private readonly scratch = { Q: new Float64Array(NE), D: new Float64Array(NE) };
@@ -72,7 +76,9 @@ export class Streams {
       const sm = advanceStreamAt(this.streams[k], this.velQf, this.velQ, k, o) as Stream;
       sm.rev = sm.rev == null ? rt : sm.rev + (rt - sm.rev) * ease;
       const i = k * 4;
-      this.data[i] = sm.D; this.data[i + 1] = sm.vd; this.data[i + 2] = sm.rev; this.data[i + 3] = 1;
+      const cap = streakDCap(), step = Math.max(-cap, Math.min(cap, sm.vd * rate)) * dt;
+      this.ds[k] = (((this.ds[k]! + step) % PERIOD) + PERIOD) % PERIOD;
+      this.data[i] = sm.D; this.data[i + 1] = sm.vd; this.data[i + 2] = sm.rev; this.data[i + 3] = this.ds[k]!;
       if ((sm.vd !== 0 && rate > 0.0005) || Math.abs(sm.rev - rt) > 0.002) moving = true;
     }
     this.texture.needsUpdate = true;

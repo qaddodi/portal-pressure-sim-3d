@@ -19,8 +19,10 @@ const numbered = (key: string, pre: string, suf: string, v: number, scale: numbe
 const worded = (key: string, label: string, remove: (q: Params) => void): Change => ({ key, label, remove });
 
 /** The changes of these params, in the 2D app's order. A new list each call (a handful of rows; called on a change, never per frame). */
-export function activeInterventions(p: Params): Change[] {
+/** (No settings known, a null or a frame that carries none: nothing is changed. Frames carry `params` only on a change, so a caller that reads them off the frame gets nothing most of the time; owner, 20 Nov: Compare blanked the app with "Cannot read properties of null (reading 'cirrhosis')".) */
+export function activeInterventions(p: Params | null | undefined): Change[] {
   const out: Change[] = [];
+  if (!p) return out;
   const put = (c: Change) => { out.push(c); };
   if (p.cirrhosis > 0) put(numbered('cirrhosis', 'Cirrhosis ', '%', p.cirrhosis, 100, -1, (q) => { q.cirrhosis = 0; }));
   for (let i = 0; i < 3; i++) {
@@ -67,7 +69,7 @@ export function activeInterventions(p: Params): Change[] {
 /** The interventions treatCount counts, besides any drug (chart.js). */
 const TREATMENT_KEYS = new Set(['anticoag', 'diuretics', 'tips', 'dips', 'balloonEso', 'balloonGas', 'portocaval', 'dsrs', 'mesocaval', 'rex', 'occ:C5', 'splenicRx']);
 /** How many treatments are running now (drugs, shunts, balloons, BRTO). */
-export function treatCount(p: Params): number {
+export function treatCount(p: Params | null | undefined): number {
   let n = 0;
   for (const c of activeInterventions(p)) if (c.key.startsWith('drug:') || TREATMENT_KEYS.has(c.key)) n++;
   return n;

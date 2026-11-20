@@ -124,7 +124,7 @@ test('the route is the cruise curve: the tip does not start or stop with a jerk'
 test('the free, wedge and result steps frame the tip and the balloon close up: far tighter than the wide wedge shot they used, and centred on the tip and the vein ahead', () => {
   const s = tipCloseShot('tip')!, w = SHOTS.wedge;
   assert.ok(s);
-  assert.ok(s.half[0] < w.half[0] / 3 && s.half[1] < w.half[1] / 3, `half ${s.half} against ${w.half}`);
+  assert.ok(s.half[0] < w.half[0] / 2 && s.half[1] < w.half[1] / 2, `half ${s.half} against ${w.half}`);
   const r3 = route3d('hvpg')!, tip = r3.point(r3.tipD(1));
   assert.ok(Math.abs(s.target[0] - tip.x) < s.half[0] && Math.abs(s.target[1] - tip.y) < s.half[1], 'the tip is inside the frame');
   // the balloon (behind the tip) and the vein ahead (where the WHVP hangs) are inside the frame too

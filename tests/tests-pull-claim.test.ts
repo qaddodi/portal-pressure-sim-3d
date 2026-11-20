@@ -12,7 +12,7 @@ const rig = (scrollTop = 0, size: 0 | 1 | 2 = 0) => {
   const card: any = { addEventListener: (k: string, f: any) => (L[k] ??= []).push(f), removeEventListener() {}, setPointerCapture() {}, parentElement: null };
   const pane: any = { scrollHeight: 900, clientHeight: 300, scrollTop, parentElement: card, closest: () => null };
   (globalThis as any).getComputedStyle = () => ({ overflowY: 'hidden auto' });
-  const pos: any = { style: {} };
+  const pos: any = { style: { setProperty(k: string, v: string) { (this as any)[k] = v; }, removeProperty(k: string) { delete (this as any)[k]; } } };
   const calls: string[] = [];
   attachPull(card, pos, { enabled: () => true, heights: () => ({ h0: 520, half: 520, full: 700, peek: 72, size }), setSize: (n) => calls.push(`size${n}`), close: () => calls.push('close') });
   const tab: any = { parentElement: card, closest: () => null };
@@ -92,4 +92,19 @@ test('a drag that starts on a tab (a button) pulls the sheet, and the capture ha
   const tap = rig();
   tap.ptr('pointerdown', 120, 100, { target: tap.tab }); tap.ptr('pointermove', 122, 100, { target: tap.tab }); tap.ptr('pointerup', 122, 100, { target: tap.tab });
   assert.deepEqual(tap.calls, []);
+});
+
+test('a pulled card keeps a tail under its foot while it is off the screen\'s edge, and drops it once it has landed (no gap under a card lifted by a pull up or shrunk by a release)', () => {
+  const up = rig();
+  up.ptr('pointerdown', 400);
+  for (let i = 1; i <= 4; i++) up.ptr('pointermove', 400 - i * 12);
+  assert.ok(parseFloat(up.pos.style['--sheet-tail']) >= 180 + 60, 'the room Full gives, and a little for the band, sits under the card as it lifts');
+  up.ptr('pointerup', 352);
+  assert.equal(up.pos.style['--sheet-tail'], undefined, 'gone when it has landed');
+  const down = rig(0, 1);
+  down.ptr('pointerdown', 300);
+  for (let i = 1; i <= 10; i++) down.ptr('pointermove', 300 + i * 12);
+  down.ptr('pointerup', 420);
+  assert.deepEqual(down.calls, ['size0']);
+  assert.equal(down.pos.style['--sheet-tail'], undefined);
 });

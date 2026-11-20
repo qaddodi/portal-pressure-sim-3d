@@ -54,10 +54,10 @@ export const CEL_STYLE = {
   MICRO: {
     SHADE: 0.3,
     /** The ink, in CSS px: round the big shapes (hepatocytes, the trough, the cells), round the small ones (pores, albumin, microvilli). */
-    LINE: 2.0,
-    LINE_SMALL: 1.5,
+    LINE: 1.5,
+    LINE_SMALL: 0.75,
     /** Every cell's and particle's ink: its own fill this deep (near black, as the Anatomy's lines read; a mid red round a red cell read as no line at all). */
-    INK_K: 0.2,
+    INK_K: 0.28,
   },
 } as const;
 

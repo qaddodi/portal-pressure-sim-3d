@@ -27,3 +27,12 @@ test('bake fills the whole texture', () => {
   assert.equal(t.length, TEX_PW * TEX_PH * 4);
   assert.ok(t.some((v, i) => i % 4 === 0 && v > 200));
 });
+
+import { organColour, LIVER_TOKENS, PLAIN, rgbOf } from '../src/scene/organs/organ-look.ts';
+test('a fully congested liver takes the 2D dusk (0.44 of the maroon in Light), never more', () => {
+  const base = rgbOf('#B07868'), k = { plate: rgbOf('#F0EBE0'), dark: false, bleed: rgbOf('#8E1A20'), bg: rgbOf('#F0EBE0') };
+  const full = organColour(base, { ...PLAIN, congestion: 1.6 }, k), half = organColour(base, { ...PLAIN, congestion: 0.5 }, k);
+  const t = LIVER_TOKENS.light, want = base.map((b, i) => b + (t.cong[i]! - b) * t.congA);
+  full.forEach((v, i) => assert.ok(Math.abs(v - want[i]!) < 1e-9, `channel ${i}`));
+  assert.deepEqual(full, half.map((_, i) => full[i]!));   // past g 0.5 the smoothstep is done: more congestion darkens nothing more
+});
