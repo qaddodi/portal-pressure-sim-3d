@@ -109,7 +109,7 @@ test('the next sinusoids are hazed (from past this one\'s plates outward) and th
 
 test('paused, the blood stands still: the traffic stops, and the view asks for no frames for it', () => {
   const { flat, s3 } = scene();
-  s3.update(true, false);
+  s3.update(true, 0);
   const F = flat as unknown as { trafficSpeed: number; traffic: { flowX: number } };
   assert.equal(F.trafficSpeed, 0);
   const x0 = F.traffic.flowX;

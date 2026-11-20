@@ -159,6 +159,8 @@ export class LobuleView {
   private look: LookId;
   private phone: boolean;
   private reduce: boolean;
+  /** The flow's one eased rate (scene/flow-rate.ts), set by the scene each frame: the heads' distance advances by it, so Pause eases them to a stop. */
+  rate = 1;
   private washAt = -1;
   private washOn = false;
   private washK = 0;
@@ -465,10 +467,10 @@ export class LobuleView {
       // a stagnant sinusoid: the chevrons fade out over the first half of the stasis, the smoke (soft bands, drifting slowly) in over the second, and back
       if (mk.smokes) goal *= this.stasis < 0.5 ? 1 - 2 * this.stasis : 2 * this.stasis - 1;
       if (mk.amount !== goal) { mk.amount = Math.abs(goal - mk.amount) <= k ? goal : mk.amount + Math.sign(goal - mk.amount) * k; moving = true; }
-      if (mk.amount > 0.001) moving = true;   // marks run: keep asking for frames
+      if (mk.amount > 0.001 && this.rate > 0.0005) moving = true;   // marks run: keep asking for frames (a paused figure, settled, asks for none)
       // the heads' stream moves at the flow's speed (marks a second of the old period, the 2D painter's speeds), its distance kept here as 2D keeps sm.D; reduced motion holds it
       const sp = mk.speed() * mk.dir;
-      if (!this.reduce && mk.amount > 0.001) mk.phase = (((mk.phase + sp * mk.arc * HEAD_K * dt / 1000) % HEAD_PERIOD) + HEAD_PERIOD) % HEAD_PERIOD;
+      if (!this.reduce && mk.amount > 0.001) mk.phase = (((mk.phase + sp * this.rate * mk.arc * HEAD_K * dt / 1000) % HEAD_PERIOD) + HEAD_PERIOD) % HEAD_PERIOD;
       // an inlet whose portal flow runs backward carries orange heads with a second small one behind (the flag eases, as 2D's sm.rev)
       const revGoal = mk.part === 'inlets' && this.cur.portal < -0.02 ? 1 : 0;
       mk.rev += (revGoal - mk.rev) * (this.reduce ? 1 : 1 - Math.exp(-dt / 500));

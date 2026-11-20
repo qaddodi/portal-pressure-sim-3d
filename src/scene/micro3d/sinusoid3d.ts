@@ -170,7 +170,7 @@ export class Sinusoid3D {
   private pinned = false;
 
   /** One frame, after the flat view's own update (its state, palette and traffic are this frame's). `on` is the Settings switch. True while anything of this scene moves. */
-  update(on: boolean, running = true): boolean {
+  update(on: boolean, rate = 1): boolean {
     const f = this.flat;
     const changed = on !== this.on;
     this.on = on;
@@ -178,7 +178,7 @@ export class Sinusoid3D {
     // the flat view's own drawing stands aside while this one is on (it keeps its model, names and clock)
     f.tissue.visible = !on; f.sprites.visible = !on; f.cells.visible = !on;
     // (paused, the blood stands still: the red cells, the albumin and the streaks stop with the simulation, Mohammad 20 Nov 2026)
-    f.trafficSpeed = !running ? 0 : on ? PACE : 1;
+    f.trafficSpeed = (on ? PACE : 1) * rate;   // (the one eased flow rate, scene/flow-rate.ts: exactly 0 once a pause has settled)
     this.group.visible = shown;
     if (!shown) return changed;
     // the dive: the scene comes in over the lobule as the camera lands (the flat view's own share), whole at rest
