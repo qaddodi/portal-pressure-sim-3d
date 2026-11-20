@@ -43,6 +43,6 @@ test('the distal end is its own section: a wider creased bending cover, then a c
 
 test('the bending section is long (several tube widths), on both scopes', async () => {
   const m = await import('../src/scene/devices/probes/scope.ts');
-  assert.ok(m.BEND_LEN >= 35);
+  assert.ok(m.BEND_LEN >= 60, 'the cover reaches past the second depth mark from the tip (owner, 20 Nov)');
 });
 

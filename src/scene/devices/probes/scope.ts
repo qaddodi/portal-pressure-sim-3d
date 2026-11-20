@@ -122,7 +122,7 @@ export const SCOPE_DISTAL = (t: { scope: string; scopeTip: string }): string => 
 /** The distal end as the owner's photo has it (20 Nov 2026, "the tip end should look different"): a bending section a little WIDER than the insertion tube (its rubber cover, BEND_WIDE of the tube's radius),
  *  glossy black, with soft creases where its cover wrinkles (CREASES of them, the deepest CREASE_DEPTH of the radius, bunched toward its two ends as a bent cover bunches), then the cap, the cover's width, domed. */
 /** The bending section's length, figure units (about five of the slim tube's widths, as in the owner's photo). */
-export const BEND_LEN = 42;
+export const BEND_LEN = 63;   // (was 42: owner, 20 Nov 2026, marked on a shot: the cover reaches about 74 units back from the tip's end, past the 60-unit mark)
 export const BEND_RINGS = 90, BEND_WIDE = 1.12, TIP_WIDE = 1.12, CREASES = 7, CREASE_DEPTH = 0.07;
 export function bendRadius(u: number): number {
   const rise = Math.min(1, u / 0.08);   // (a short swell from the tube's width up to the cover's: a collar, not a step)
