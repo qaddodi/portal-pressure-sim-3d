@@ -65,7 +65,7 @@ export const startOrgan = (id: string): string | null => START_IN_ORGAN[id]?.org
  *  hepatic artery in anatomy"; "an artery cannot cross the veins"). The left one starts beyond the cava, which the portal vein itself crosses; each fades out with the portal branch. */
 const ALONG_VEIN: Readonly<Record<string, { hosts: readonly string[]; minX?: number; maxX?: number; off: number; above?: boolean }>> = {
   A_HR: { hosts: ['PVH_R', 'PVH_R_1', 'PVH_R_2'], off: 8, above: true },
-  A_HL: { hosts: ['PVH_L', 'PVH_L_1'], minX: 632, maxX: 668, off: 8 },   // (it ends short of the umbilical vein, which leaves the left portal vein's end below it)
+  A_HL: { hosts: ['PVH_L', 'PVH_L_1'], minX: 632, maxX: 652, off: 8 },   // (it ends short of the umbilical vein, which leaves the left portal vein's wall just beyond it, below)
 };
 export const ALONG_VEIN_IDS: ReadonlySet<string> = new Set(Object.keys(ALONG_VEIN));
 
@@ -97,4 +97,41 @@ export function alongVein(id: string, paths: Readonly<Record<string, readonly P2
   const L = cum[cum.length - 1]! || 1, res: P2[] = []; let k = 1;
   for (let i = 0; i < 64; i++) { const d = (L * i) / 63; while (k < out.length - 1 && cum[k]! < d) k++; const u = (d - cum[k - 1]!) / ((cum[k]! - cum[k - 1]!) || 1); res.push([out[k - 1]![0] + (out[k]![0] - out[k - 1]![0]) * u, out[k - 1]![1] + (out[k]![1] - out[k - 1]![1]) * u]); }
   return res;
+}
+
+/** A branch that leaves its parent's wall, not the parent's end (Mohammad, 20 Nov: "umbilical vein into the left portal vein still sucks"): the umbilical vein started at the end node of the left portal vein, where that vein has already
+ *  narrowed to a fraction of its width and splits into its fading tips, so a wider, separate tube hung off a thin tip. It now leaves the left portal vein `back` figure units before that end, where the vein is still wide:
+ *  one swept curve that starts on the vein's own axis, sets off along the vein's heading and bends over onto its own course by `reach` units along it, with matching tangents at both ends (no corner, no notch). */
+const LEAVE_VEIN: Readonly<Record<string, { hosts: readonly string[]; back: number; reach: number; lean: number }>> = {
+  C3: { hosts: ['PVH_L', 'PVH_L_1'], back: 30, reach: 48, lean: 0.6 },   // (lean: how far the branch's first heading is turned off the vein's, toward where it is going: a branch leaves a wall at an angle, it does not double back on the vein)
+};
+export const LEAVE_VEIN_IDS: ReadonlySet<string> = new Set(Object.keys(LEAVE_VEIN));
+const lenOf = (p: readonly P2[]): number => { let t = 0; for (let i = 1; i < p.length; i++) t += Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]); return t; };
+/** The point at arc length `d` along `p`, and the heading there. */
+function at(p: readonly P2[], d: number): { pt: P2; dir: P2; i: number } {
+  let acc = 0;
+  for (let i = 1; i < p.length; i++) {
+    const a = p[i - 1]!, b = p[i]!, l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (acc + l >= d || i === p.length - 1) { const t = l > 0 ? Math.min(1, Math.max(0, (d - acc) / l)) : 0; return { pt: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t], dir: l > 0 ? [(b[0] - a[0]) / l, (b[1] - a[1]) / l] : [0, 1], i }; }
+    acc += l;
+  }
+  return { pt: p[p.length - 1]!, dir: [0, 1], i: p.length - 1 };
+}
+/** `paths[id]` with its start moved onto the host vein's axis (see LEAVE_VEIN), or null for a vessel that does not leave a wall. `hostPath` is the drawn course of a host. */
+export function leaveVein(id: string, paths: Readonly<Record<string, readonly P2[]>>, hostPath: (host: string) => readonly P2[]): readonly P2[] | null {
+  const a = LEAVE_VEIN[id];
+  if (!a) return null;
+  let host: P2[] = [];
+  for (const h of a.hosts) { const hp = hostPath(h); host = host.concat(host.length ? hp.slice(1) : hp); }
+  const own = paths[id]!, Lh = lenOf(host);
+  const F = at(host, Math.max(0, Lh - a.back)), O = at(own, a.reach);
+  const FL = Math.hypot(O.pt[0] - F.pt[0], O.pt[1] - F.pt[1]) || 1;
+  const cd: P2 = [(O.pt[0] - F.pt[0]) / FL, (O.pt[1] - F.pt[1]) / FL], sd: P2 = [F.dir[0] * (1 - a.lean) + cd[0] * a.lean, F.dir[1] * (1 - a.lean) + cd[1] * a.lean], sl = Math.hypot(sd[0], sd[1]) || 1
+  const c1: P2 = [F.pt[0] + (sd[0] / sl) * 0.5 * FL, F.pt[1] + (sd[1] / sl) * 0.5 * FL], c2: P2 = [O.pt[0] - O.dir[0] * 0.5 * FL, O.pt[1] - O.dir[1] * 0.5 * FL];
+  const out: P2[] = [];
+  const n = 24;
+  for (let k = 0; k < n; k++) { const t = k / n, u = 1 - t; out.push([u * u * u * F.pt[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * O.pt[0], u * u * u * F.pt[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * O.pt[1]]); }
+  out.push(O.pt);
+  for (let i = O.i; i < own.length; i++) out.push(own[i]!);
+  return out;
 }

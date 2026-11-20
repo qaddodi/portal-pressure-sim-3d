@@ -64,6 +64,7 @@ uniform float dpr;   // device pixels to a CSS pixel (the renderer's pixel ratio
 // the fade at a free end (2D's TIP_FADE, ART_FADE, FADE_DOWN_Y, FADE_IN, SIN_FADE): mode 1 runs along the vessel (uv.x), mode 2 down the figure (y), mode 3 along a line (the 2D linear mask, solid from the offset), mode 4 along a line with a dip (faintest at the offset, solid at the end); (from, to, alpha at from, alpha at to); fadeKeep 1: the Circuit does not let go of it
 uniform float fadeMode;
 uniform vec4 fadeA;
+uniform vec2 cavaEnd;    // a hepatic vein: the share of its length at the cava end that eases to this alpha (fades.ts cavaEndSpan); 0 = none
 uniform vec4 fadeLine;   // modes 3 and 4: a line across the figure, scene (x1, y1, x2, y2); fadeA is then (offset, -, alpha at the start, alpha at the end)
 uniform float fadeKeep;
 uniform vec3 stump;   // a vein divided at surgery (2D divideLen / stumpPinch): x the divided stretch's length from its start (figure units, 0: whole), y where the tie pinches it (units from the start), z the pinch's share
@@ -153,6 +154,7 @@ ${CIRCUIT_VS_CALL}
   }
   // the fade zone (a tip into its organ, a bed through the lobe, a vein into the cava): the tube keeps its full width and fades by opacity, body and outline together (vFade, 1 outside a fade zone: opaque)
   if (stump.x > 0.0 && circShare < 0.001) fa *= step(stump.x, uv.x * len * vU);   // (the divided stretch is not there: body and outline)
+  if (cavaEnd.x > 0.0) fa *= mix(mix(1.0, cavaEnd.y, smoothstep(1.0 - cavaEnd.x, 1.0, uv.x)), 1.0, circT);
   vFade = fa;
   // THE OUTLINE is part of the tube (no second mesh, no stencil, no depth tie): the tube is built INK wider than its lumen, and the fragment shader paints the outer ink band, so the line is continuous by construction.
   // Its width is the figure's line (cel-style.ts LINE_R, LINE_MIN, LINE_MAX; 2D's tube-cel-glsl.js CEL is 0.14, 1.5, 3): a share of the tube's radius held between two device px widths, the same on a hairline and on the
@@ -289,11 +291,12 @@ vec2 chevOne(float s, float Lw, float se, float Bm, float Dm, float vd, float rv
   float n0 = floor(lv), P = 28.0 * exp2(n0);
   float j = floor((se - Dm) / P + 0.5);
   float x = (se - (Dm + j * P)) / (abs(Bm) < 0.05 ? (Bm < 0.0 ? -0.05 : 0.05) : Bm), sc = s - x;
-  float hw = chevHw(R, wpc), L = ${(2 * CHEV.LEN_OF_W).toFixed(1)} * hw;   // (a head is 6 CSS px tall from a tube 6 px across, as tall as the tube on a narrower one)
+  float kp = chevKeep(j, n0, lv);
+  float hw = chevHw(R, wpc) * chevSize(kp), L = ${(2 * CHEV.LEN_OF_W).toFixed(1)} * hw;   // (a head is 6 CSS px tall from a tube 6 px across, as tall as the tube on a narrower one)
   if (abs(x) > (0.6 + 0.4 * rv) * L + 0.15 * hw + 4.0 * px) return vec2(0.0);
   float lo = 0.6 * L, ramp = max(2.0 * L, 0.12 * Pt);
   float a0 = sc < lo ? 0.0 : smoothstep(lo, lo + ramp, sc), a1 = Lw - sc < lo ? 0.0 : smoothstep(lo, lo + ramp, Lw - sc);
-  float fade = min(mix(a0, 1.0, clamp(ends.x, 0.0, 1.0)), mix(a1, 1.0, clamp(ends.y, 0.0, 1.0))) * chevKeep(j, n0, lv);
+  float fade = min(mix(a0, 1.0, clamp(ends.x, 0.0, 1.0)), mix(a1, 1.0, clamp(ends.y, 0.0, 1.0))) * chevAlpha(kp);
   if (fade <= 0.0) return vec2(0.0);
   float dir = vd != 0.0 ? sign(vd) : (rv > 0.5 ? -1.0 : 1.0);
   return chevHead(dir * x, abs(across) * R, hw, px, rv) * fade;
@@ -395,8 +398,10 @@ void main() {
     gStreakPx = rCss;   // (the lumen's radius in CSS px: the field draws a core of CORE_PX on screen)
     gStreakWide = smoothstep(${F(STREAK.WIDE_R_PX[0])}, ${F(STREAK.WIDE_R_PX[1])}, rCss);
     gStreakLanes = rCss < ${F(STREAK.LANE_R_PX[0])} ? 1.0 : rCss < ${F(STREAK.LANE_R_PX[1])} ? 3.0 : 5.0;   // (the lanes by the width on screen: 1 under 8 px across, 3 to 16 px, 5 above)
-    float fld = streakField(across, vUv.x * len * vU * sc, smS.x * sc, 1.0, 1.0, 1.0);
-    float sOn = streakAmt * smoothstep(${F(STREAK.MIN_R_PX)}, ${F(STREAK.MIN_R_PX + 0.5)}, rCss) * smoothstep(0.02, 0.2, abs(smS.y));
+    gStreakSpan = len * vU * sc;   // (the vessel's own length in field units: a lane's period never runs past it)
+    // the streak distance (texel w: the stream's distance D, held to a speed no pattern wagon-wheels at, streams.ts) with the arc, as the heads ride D; the same gate as the heads' (the radius from MIN_R_PX), and none only where the flow is none
+    float fld = streakField(across, vUv.x * len * vU * sc, smS.w * sc, 1.0, 1.0, 1.0);
+    float sOn = streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCss) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
     streakCover = sOn * fld;
     cBody = c;
     c = mix(c, streakTone(c, vec3(1.0), gStreakK.x, gStreakK.y), streakCover);

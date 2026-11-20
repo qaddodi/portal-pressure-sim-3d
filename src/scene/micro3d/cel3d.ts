@@ -152,9 +152,10 @@ vec2 flowHeads() {
   float lv = max(${F(CHEV_LEVEL_MIN)}, log2(${F(CHEV.PITCH_PX)} * wpc / max(uFlowPitch, 1e-5)));
   float n0 = floor(lv), P = uFlowPitch * exp2(n0);
   float j = floor((vArc - uFlowT) / P + 0.5), x = vArc - uFlowT - j * P;
-  float hw = chevHw(R, wpc);
+  float kp = chevKeep(j, n0, lv);
+  float hw = chevHw(R, wpc) * chevSize(kp);
   if (abs(x) > 2.0 * hw + 4.0 * pxA) return vec2(0.0);
-  float k = chevKeep(j, n0, lv) * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R);
+  float k = chevAlpha(kp) * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R);
   return chevHead(x, abs(vAcross) * R, hw, pxA, 0.0) * k;
 }
 // the streaks: THE ONE STREAK field (blood/streak-glsl.ts, the Anatomy's and the sinusoid's), sized on the SCREEN as the Anatomy's are: 3, 5 or 7 lanes by the tube's radius in CSS px, each streak a long
@@ -163,7 +164,7 @@ float flowStreaks() {
   if (uFlowStreak <= 0.0 || vAcross > 2.0) return 0.0;
   float R = max(uFlowR, 1e-5);
   float wpc = max(length(vec2(dFdx(vArc), dFdy(vArc))), 1e-7) * uDpr, rPx = R / wpc;
-  if (rPx < ${F(STREAK.MIN_R_PX)}) return 0.0;   // (a tube under 3.5 px across carries none)
+  if (rPx < ${F(CHEV.MIN_R_PX)}) return 0.0;   // (a tube under 3.5 px across carries none)
   float lanes = rPx < ${F(STREAK.LANE_R_PX[0])} ? 1.0 : rPx < ${F(STREAK.LANE_R_PX[1])} ? 3.0 : 5.0;   // (1 under 8 px across, 3 to 16 px, 5 above)
   float s = ${F(STREAK_FIELD_PER_R)} / R * rPx / clamp(rPx, ${F(STREAK.LEN_R_PX[0])}, ${F(STREAK.LEN_R_PX[1])});   // field units per local unit: a streak's mean length about FIELD_LEN_R radii, held to 24 to 96 CSS px (STREAK.LEN_R_PX)
   gStreakPx = rPx; gStreakLanes = lanes; gStreakWide = smoothstep(${F(STREAK.WIDE_R_PX[0])}, ${F(STREAK.WIDE_R_PX[1])}, rPx);
@@ -344,6 +345,9 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
       uGaps: { value: o.gaps?.tex ?? NO_GAPS }, uGapX: { value: o.gaps?.x ?? new Vector4(0, 0, 0, 0) },
     },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
+    // (the shape always wins over its own ink where the two meet at one depth, just inside the outline at the rim: a slope-scaled hair toward the eye, so the ink never z-fights the fill
+    // pixel by pixel. That speckle was the stippled, broken outline round the red cells, the nuclei and every small shape, Mohammad 20 Nov 2026: "most certainly NOT continuous")
+    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2,
   });
   const ink = o.ink === null ? null : new ShaderMaterial({
     vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors,

@@ -16,7 +16,7 @@ import { flowRate, flowTarget } from './flow-rate.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
-import { fadeOf, HEPATIC_VEINS } from './vessels/fades.ts';
+import { fadeOf, HEPATIC_VEINS, cavaEndSpan, CAVA_RECEDE } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
@@ -193,6 +193,8 @@ export class CelScene {
   /** The cava's pieces, and the veins that fade into it: shown whole (2D's F_WHOLE) while the cava is picked or named, eased over FLOW_FADE_MS so nothing pops. */
   private readonly cava: VesselObject[] = [];
   private readonly ivcJoins: VesselObject[] = [];
+  /** The hepatic veins, whose last stretch eases to the faint cava's alpha (fades.ts cavaEndSpan). */
+  private readonly hvJoins: VesselObject[] = [];
   /** The vessels of the back tier: they ease toward the page on a turn (quiet depth). */
   private readonly back: VesselObject[] = [];
   private cavaGoal = 0;
@@ -328,6 +330,7 @@ export class CelScene {
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     const fade = fadeOf(def.id, def.tone === 'artery', def.feeder?.host);
     if (fade) { o.setTipFade(fade); this.tipFades.push({ o, connect: fade.connect }); if (fade.ivcJoin) this.ivcJoins.push(o); }
+    { const span = cavaEndSpan(def.id); if (span > 0) { o.setCavaEnd(span, CAVA_RECEDE); this.hvJoins.push(o); } }
     if (BACK_EDGES.has(def.id)) { o.setBehindOrgans(VESSEL_LAYER, IVC_EDGES.has(def.id)); this.back.push(o); if (IVC_EDGES.has(def.id)) this.cava.push(o); }
     this.add(o);
     this.vessels.push(o);
@@ -539,6 +542,7 @@ export class CelScene {
     this.cavaWhole = Math.abs(d) <= k ? this.cavaGoal : this.cavaWhole + Math.sign(d) * k;
     for (const o of this.cava) o.setWholeShare(this.cavaWhole);
     for (const o of this.ivcJoins) o.setIvcWhole(this.cavaWhole);
+    for (const o of this.hvJoins) o.setCavaEndWhole(this.cavaWhole);
     return true;
   }
 

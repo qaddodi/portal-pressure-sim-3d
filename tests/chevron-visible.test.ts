@@ -37,13 +37,13 @@ test('the heads follow the CHEV table: 55 percent of the lumen wide (4 px at lea
   assert.ok(CHEV.SHARE === 0.55 && CHEV.SHARE_MAX === 0.6 && CHEV.MIN_W_PX === 4 && CHEV.LEN_OF_W >= 1.3 && CHEV.LEN_OF_W <= 1.5 && CHEV.EDGE_PX <= 0.7 && CHEV.RING_PX <= 1);
   assert.match(VESSEL_FS, /float Pt = 60\.0 \* wpc;/);
   assert.match(VESSEL_FS, /smoothstep\(1\.5 \* wpc, 2\.1 \* wpc, R\)/);
-  assert.match(VESSEL_FS, /float hw = chevHw\(R, wpc\), L = 2\.8 \* hw;/);
+  assert.match(VESSEL_FS, /float hw = chevHw\(R, wpc\) \* chevSize\(kp\), L = 2\.8 \* hw;/);
   assert.match(CHEVRON_GLSL, /float chevHw\(float R, float wpc\) \{ return min\(0\.6 \* R, max\(0\.55 \* R, 2\.0 \* wpc\)\); \}/);
   assert.match(CHEVRON_GLSL, /float L = 2\.8 \* hw, tip = 0\.55 \* L/);
   assert.match(CHEVRON_GLSL, /float c = 1\.0 - smoothstep\(-0\.35 \* px, 0\.35 \* px, d\);/, 'an edge ramp of 0.7 px');
   assert.match(CHEVRON_GLSL, /float rw = 1\.0 \* px;/, 'a ring of 1 px at most, no halo');
   assert.match(VESSEL_FS, /chevInk\(celTubeBase\(base\), markDark, markLight\)/, 'the tone follows the tube as drawn');
-  assert.match(MICRO_FS, /float hw = chevHw\(R, wpc\);/, 'the lobule\'s and the sinusoid\'s micro tubes take the same head');
+  assert.match(MICRO_FS, /float hw = chevHw\(R, wpc\) \* chevSize\(kp\);/, 'the lobule\'s and the sinusoid\'s micro tubes take the same head');
   assert.match(MICRO_FS, /smoothstep\(1\.5 \* wpc, 2\.1 \* wpc, R\)/);
   for (const R of [1.6, 2, 2.5, 3, 3.3, 3.64, 4.5, 6, 12, 40]) {
     const w = 2 * headHw(R), lumen = 2 * R;

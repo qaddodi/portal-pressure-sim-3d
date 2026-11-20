@@ -49,7 +49,7 @@ test('every shader that draws streaks uses the stream\'s own sign, the heads\' s
   assert.match(STREAK_FIELD_GLSL, /float streakPace\(float seed\) \{ return 1\.0 \+ 0\.25 \* \(2\.0 \* seed - 1\.0\); \}/);
   assert.match(STREAK_FIELD_GLSL, /if \(dir < 0\.0\) t = 1\.0 - t;/);   // (the mark's shape only: it is the same both ways, and the drift is in x)
   // the Anatomy and the Circuit: the streak rides the stream's distance D (texel x) with the arc s, exactly where the heads' lattice is placed (Dm + j P along se = s)
-  assert.match(VESSEL_FS, /float fld = streakField\(across, vUv\.x \* len \* vU \* sc, smS\.x \* sc, 1\.0, 1\.0, 1\.0\);/);
+  assert.match(VESSEL_FS, /float fld = streakField\(across, vUv\.x \* len \* vU \* sc, smS\.w \* sc, 1\.0, 1\.0, 1\.0\);/);   // (texel w: the stream's distance, capped in speed)
   assert.match(VESSEL_FS, /float j = floor\(\(se - Dm\) \/ P \+ 0\.5\);/);
   assert.match(VESSEL_FS, /float dir = vd != 0\.0 \? sign\(vd\) : \(rv > 0\.5 \? -1\.0 : 1\.0\);/);
   assert.match(VESSEL_FS, /chevHead\(dir \* x, /);
