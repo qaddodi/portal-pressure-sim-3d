@@ -17,6 +17,11 @@ varying vec3 vInk;
 // organ depth (organ-depth.ts): how tucked in this vertex is, 0..1, baked at load (a geometry without it reads 0)
 attribute float depthAo;
 varying float vAo;
+// the normal the cel bands are cut by: the liver's at rest, before cirrhosis's nodule bumps (a hard band on a bumpy normal is a honeycomb); an organ without CEL_NORMAL uses its own
+#ifdef CEL_NORMAL
+attribute vec3 celNormal;
+#endif
+varying vec3 vCn;
 uniform vec4 box;
 varying vec3 vN;
 varying vec3 vV;
@@ -25,6 +30,11 @@ varying vec4 vClip;
 void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
   vN = normalize(normalMatrix * normal);
+#ifdef CEL_NORMAL
+  vCn = normalize(normalMatrix * celNormal);
+#else
+  vCn = vN;
+#endif
   vV = normalize(-mv.xyz);
   vAo = depthAo;
   // where this point sits in the organ's own 2D box: (0,0) top left, (1,1) bottom right, as the SVG gradient's objectBoundingBox
@@ -62,6 +72,7 @@ varying vec3 vN;
 varying vec3 vV;
 varying vec2 vBox;
 varying float vAo;
+varying vec3 vCn;
 // Cel shaded (organFill solid): the figure's one cel style (src/scene/cel-style.ts, injected below, never retyped): three flat tones, shade / base / lit, from the organ's own colour, 2D's og-dark and
 // og-light; the terminator is where the lambert of the screen's upper-left light crosses SHADE_LAM, the lit cap where it crosses LIT_LAM, and with organ depth on the baked tuck is one hard band of the
 // shade tone. An edge is EDGE_PX device pixels either side of the line (fwidth) and no softer. tests/organ-depth.test.ts mirrors this function with celBand.
@@ -132,10 +143,10 @@ void main() {
   if (solid > 0.001) {
     vec3 base = o2;
 #ifdef VERTEX_INK
-    base += (vInk - color) * inkAmount;
+    base += (vInk - color) * inkAmount * ${num(CEL_STYLE.ORGAN.PAINT)};   // (what varies over the organ, at its low-contrast share: the wash laid it at the layer's opacity)
 #endif
     float lean = dot(vBox - vec2(0.5), CEL_BOX_DIR);
-    vec2 b = celBands(dot(n, CEL_LIGHT) + CEL_BOX_BIAS * lean, clamp(vAo, 0.0, 1.0), mix(1.5, CEL_TUCK_AO, depthAmt));
+    vec2 b = celBands(dot(normalize(vCn), CEL_LIGHT) + CEL_BOX_BIAS * lean, clamp(vAo, 0.0, 1.0), mix(1.5, CEL_TUCK_AO, depthAmt));
     vec3 deep = dot(o3, CEL_LUMA) < dot(base, CEL_LUMA) ? o3 : ogDark.rgb;
     vec3 shadeTone = mix(base * (1.0 - ${num(CEL_STYLE.ORGAN.SHADE)}), deep, ${num(CEL_STYLE.ORGAN.DEEP)});
     vec3 litTone = mix(mix(base, o1, ${num(CEL_STYLE.ORGAN.LIT_O1)}), ogLight.rgb, ${num(CEL_STYLE.ORGAN.LIT)});
