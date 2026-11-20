@@ -11,7 +11,7 @@ import type { Shot } from '../camera/shots.ts';
 import type { V3 } from './batch.ts';
 import { LOBULE_SCALE, SIN_SCALE, lobuleWorld, sinusoidWorld } from './frames.ts';
 import { FILL } from '../camera/room.ts';
-import { acrossUm } from '../sinusoid/portrait.ts';
+import { shownUm } from '../sinusoid/portrait.ts';
 /** Micrometres across the stretch the sinusoid's own shot frames: `SPAN_UM` of sinusoid/view.ts, kept here so the shots do not import the view. */
 const SPAN_UM = 97.4;
 
@@ -63,13 +63,13 @@ export function lobuleShot(cam: LobuleCam): Shot {
 
 /** The sinusoid view's shot: the whole length of one cut sinusoid, portal end left (world units: inside the lobule). On a portrait screen (2D: W < H * 0.95) the sinusoid runs top to bottom (the view's
  *  plane is turned, sinusoid/portrait.ts), so the half extents swap. `shortPx`, the free room's short side in CSS px, gives 2D's own framing (sinusoid-view.js ensureGeo: lerp(40, 54, smooth(380, 720, short))
- *  µm across the short side, plates cut by the edges on a phone, both whole on a large screen); without it the whole stretch is kept in view. */
+ *  µm across the short side, at most 14 px per µm (shownUm), plates cut by the edges on a phone, both whole on a large screen); without it the whole stretch is kept in view. */
 export function sinusoidShot(portrait = false, shortPx?: number): Shot {
   const [ox, oy, oz] = SINUSOID_ORIGIN;
   const along = (SINUSOID_L / 2 + 0.4) * SIN_SCALE, across = 1.9 * SIN_SCALE;
-  // (the room fits the longer of the two needs: both halves at the short side's own half make the short side show exactly `acrossUm`, the long side as much as the screen's shape gives)
-  const short = shortPx != null && shortPx > 0 ? (acrossUm(shortPx) / 2) * FILL * (SINUSOID_L / SPAN_UM) * SIN_SCALE : null;   // (the room keeps FILL of itself for the subject: 2D shows `across` over the whole short side)
-  const half: [number, number] = short != null ? [short, short] : portrait ? [across, along] : [along, across];
+  const short = shortPx != null && shortPx > 0 ? (shownUm(shortPx) / 2) * FILL * (SINUSOID_L / SPAN_UM) * SIN_SCALE : null;   // (the room keeps FILL of itself for the subject: 2D shows `across` over the whole short side)
+  // (2D fits only the side it names, `short`: the screen's width on a tall stage, its height on a wide one; the other side shows whatever the screen's shape gives, so a short tall room never backs the camera out)
+  const half: [number, number] = short != null ? (portrait ? [short, 0] : [0, short]) : portrait ? [across, along] : [along, across];
   return { yaw: 0, pitch: 0, r: 3 * SIN_SCALE, target: sinusoidWorld([ox, oy, oz]), half };
 }
 

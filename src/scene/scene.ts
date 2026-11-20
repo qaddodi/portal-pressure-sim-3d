@@ -1,5 +1,6 @@
 import { Box3, Color, type DataTexture, Group, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
+import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
@@ -37,6 +38,7 @@ import { LobuleView, lobuleModel, sinusoidTargets, type LobuleHit, type LobuleLa
 import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
 import { LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L, lobuleShot } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
+import { shortSide } from './sinusoid/portrait.ts';
 import { SinusoidView, diveShare, isPortrait, restScale } from './sinusoid/index.ts';
 import { framePoint, measureScreen } from './sinusoid/portrait.ts';
 import { U as SIN_UNIT } from './sinusoid/view.ts';
@@ -316,11 +318,14 @@ export class CelScene {
   /** The clear colour now: the look's ground, on its way to the map's own ground (the dark looks) as the map comes in. */
   private readonly clear = new Color();
   private readonly mapGround = new Color();
-  clearColor(): Color {
+  clearColor(intoTexture = false): Color {
     const ground = MAP_LOOKS[this.look]?.ground;
     this.clear.set(PALETTES[this.look].bg);
     if (ground) this.clear.lerp(this.mapGround.set(ground), mapRamp(this.circuit.t));
-    return this.clear;
+    // Into the anti-aliasing pass's texture (post-aa.ts) three clears in its linear working space and the pass writes the canvas the picture's own numbers (every shader of the figure writes sRGB
+    // numbers as they are), so the ground would land as the LINEAR value of the page's colour: #F1EBE0 as #E0D4BE and Dark's #1A1917 as near black, a visible plate behind the figure against the
+    // chrome. The ground is therefore stored as its own numbers there (rawColor's rule); straight to the canvas three converts it itself.
+    return groundFor(this.clear, intoTexture);
   }
 
   setPhone(phone: boolean): void {
@@ -603,7 +608,8 @@ export class CelScene {
    *  camera flies between the lobule and the sinusoid (the view being left stays drawn until it lands) the tissue comes in over the lobule by how far the dive has gone (the pose's own distance: the
    *  shots' `r`, blended geometrically, whatever the room and the screen), as 2D's zoom does it. */
   private stepSinusDive(): void {
-    const flying = this.hideLeftBehind && this.sinus.isVisible;
+    // (only while the camera is really flying: a dive share kept past the landing would hold the tissue dim, its detail, names and arrows away)
+    const flying = this.hideLeftBehind && this.sinus.isVisible && this.rig.isMoving;
     this.sinus.setDive(flying ? diveShare(this.rig.pose.shot.r, 2.5 * LOBULE_SCALE, 3 * SIN_SCALE) : null);
   }
   /** The dive's cutaway window in the organs' wash and the field's focus: both are functions of the camera's distance to the place dived to, so the way in and the way out are one picture run both ways,
@@ -629,7 +635,7 @@ export class CelScene {
       this.moving = true;
     }
     // what the view needs of the screen to lay its end arrows and run its traffic as 2D does: px per µm along the flow (the hand's zoom included), the room's length and the canvas's along it
-    const short = Math.min(r.w, r.h), s = this.rig.stageSize;
+    const short = shortSide(p, r), s = this.rig.stageSize;
     // (measured on the screen, not modelled: where the sinusoid's middle and a point 10 µm down the flow land, against the free room's middle)
     if (!this.sinus.isVisible) return;   // (nothing of the view is read while it is away)
     const turn = this.sinus.turn, o = this.rig.project(this.sinusPt.set(...sinusoidWorld([0, 0, 0])), this.scrO), a = this.rig.project(this.sinusPt.set(...sinusoidWorld(framePoint(10, 0, SIN_UNIT, turn))), this.scrA);
@@ -819,7 +825,7 @@ export class CelScene {
   /** Until the camera has its first real shot and room only the background is drawn, so the figure's first picture is already in its place. */
   render(gl: WebGLRenderer): void {
     if (!this.rig.placed) { gl.clear(); return; }
-    gl.setClearColor(this.clearColor());
+    gl.setClearColor(this.clearColor(this.post.on));
     const dpr = gl.getPixelRatio?.() ?? 1;
     this.blood.shared.dpr.value = dpr;   // (the vessels' line is held in device px)
     this.disease.strands.setDpr(dpr);

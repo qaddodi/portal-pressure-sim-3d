@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Color } from 'three';
-import { CASING, CEL, RIM_A, TAPER_TO, celSpec, celTones, inkTaper, inkWidthDev } from '../src/scene/vessels/cel-ink.ts';
+import { CASING, CASING_2D, CEL, RIM_A, TAPER_TO, celSpec, celTones, inkTaper, inkWidthDev } from '../src/scene/vessels/cel-ink.ts';
 import { CEL_STYLE } from '../src/scene/cel-style.ts';
 import { CEL_TUBE_GLSL, glslNum as F } from '../src/scene/cel-glsl.ts';
 import { LOOK_IDS, PALETTES } from '../src/scene/palette.ts';
@@ -52,6 +52,7 @@ test('every look wears 2D\'s casing: its ink and alpha (the dark look\'s own in 
   const fl = (a: number) => Math.max(a, CEL_STYLE.INK_ALPHA_MIN);   // 2D's casing alphas (.64 light, .66 soft, .3 dark, .38 black/dark circuit, .34 navy), held at the ink's least
   assert.equal(CASING.light.a, fl(0.64)); assert.equal(CASING.soft.a, fl(0.66)); assert.equal(CASING.dark.a, fl(0.3)); assert.equal(CASING.dark.circ.a, fl(0.38)); assert.deepEqual(CASING.dark.circ.rgb, [0, 0, 0]); assert.equal(CASING.navy.circ.a, fl(0.34), 'only the dark look changes in the Circuit');
   for (const id of LOOK_IDS) assert.ok(CASING[id].a >= CEL_STYLE.INK_ALPHA_MIN && CASING[id].circ.a >= CEL_STYLE.INK_ALPHA_MIN, `${id}: ink, not a faint line`);
+  assert.equal(CASING_2D.light.a, 0.64); assert.equal(CASING_2D.dark.a, 0.3); assert.equal(CASING_2D.dark.circ.a, 0.38); assert.equal(CASING_2D.navy.circ.a, 0.34, '2D\'s own casing alphas are kept as CASING_2D');
   assert.equal(RIM_A.light, 0); assert.equal(RIM_A.dark, 0.3);
   const s = new CelScene();
   const o = s.vesselObject('PV_TRUNK')!;
