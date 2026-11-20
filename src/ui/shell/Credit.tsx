@@ -43,7 +43,19 @@ function obstacles(vw: number, vh: number): { l: number; t: number; r: number; b
     if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.05) continue;
     out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom });
   }
-  out.push(...cardContent(vw, vh));
+  out.push(...cardContent(vw, vh), ...figureLabels());
+  return out;
+}
+
+/** The figure's own words (the vessels' and organs' name labels, 2D's .lb): a label is a word on the picture, and the credit stays clear of it too (gastric varices 6 and 7: "SMV 23.8" printed over it). */
+function figureLabels(): { l: number; t: number; r: number; b: number }[] {
+  const out: { l: number; t: number; r: number; b: number }[] = [];
+  for (const el of document.querySelectorAll<HTMLElement>('.lb-layer:not(.lb-key-layer) .lb')) {
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) < 0.05) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width >= 1 && r.height >= 1) out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom });
+  }
   return out;
 }
 
@@ -64,6 +76,9 @@ function cardContent(vw: number, vh: number): { l: number; t: number; r: number;
       range.selectNodeContents(n);
       for (const r of range.getClientRects()) add(r);
     }
+    // the card's own edge (its border and rounded corners) is a line the credit keeps off too: it stood in the top padding of the HVPG cards with its glyphs touching the border
+    const c = card.getBoundingClientRect();
+    if (c.width > 4 && c.height > 4) for (const e of [new DOMRect(c.left, c.top, c.width, 2), new DOMRect(c.left, c.bottom - 2, c.width, 2), new DOMRect(c.left, c.top, 2, c.height), new DOMRect(c.right - 2, c.top, 2, c.height)]) add(e);
     for (const a of card.querySelectorAll<HTMLElement>(CARD_ART)) { if (!a.closest('[hidden]')) add(a.getBoundingClientRect()); }
   }
   return out;
@@ -86,6 +101,7 @@ export function Credit() {
     // the bars settle after the layout change (the dock's height, a card's transition): look again once they have, and again when one resizes
     function again() { clearTimeout(timer); timer = window.setTimeout(place, 260); }
     const place = () => {
+      if (cel.rig.isMoving) { el.classList.add('moving'); again(); return; }   // (the camera is flying: the figure's labels are not where they will stand; look again once it has landed)
       const vw = innerWidth, vh = innerHeight, h = M.creditFont * M.creditLine, w = el.offsetWidth || 220;
       // the figure is the screen inside the safe areas; the frame-rate counter stands at the bottom corner too, so the credit's bottom corner rides above it
       const rise = fps ? M.fpsInset + M.fpsFont * M.fpsLine + 4 : 0;
