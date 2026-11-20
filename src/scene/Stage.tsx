@@ -12,6 +12,7 @@ import { clock } from '../clock/frame.ts';
 import { VesselData, latest } from '../engine/index.ts';
 import { useEngine } from '../engine/store.ts';
 import { lookGlide } from '../looks/glide.ts';
+import { figureDrawn } from '../boot/ready.ts';
 import { useDeck } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
 import { figureDpr, msaaFor } from './quality.ts';
@@ -57,6 +58,7 @@ function SceneBridge() {
     // the canvas comes in once, with its first drawn frame (until then the page's own ground shows, never the context's black); a reduced-motion viewer gets it at once
     const el = gl.domElement;
     if (el.style.opacity !== '1') { el.style.transition = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'none' : 'opacity 200ms ease-out'; el.style.opacity = '1'; }
+    figureDrawn();   // (the splash waits for this: the first frame, then the labels it places; boot/ready.ts)
   }, 1);
 
   useEffect(() => {

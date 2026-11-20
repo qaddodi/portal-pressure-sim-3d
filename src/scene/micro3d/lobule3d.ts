@@ -224,12 +224,12 @@ export class Lobule3D {
     // (local units a second: the blood's chevrons about a cell length every half second at a normal flow, the lymph and the bile slower)
     if (running) { this.flowT.blood += dt * 0.11 * q; this.flowT.lymph += dt * 0.05; this.flowT.bile += dt * 0.035; }
     const W: RGB = [1, 1, 1], soft = (k: number) => k * this.fade.value;
-    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2]) p.setFlow(this.flowT.blood, 0.16, W, soft(0.3), 0.75);
-    this.sin.an.setFlow(this.flowT.blood, 0.12, W, soft(0.26), 0);
-    this.inlets.setFlow(this.flowT.blood, 0.3, W, soft(0.24), 0.6);
-    this.twigs.setFlow(this.flowT.blood * 1.6, 0.1, [1, 0.88, 0.86], soft(0.4), 0);
-    this.lt.setFlow(this.flowT.lymph, 0.12, W, soft(0.4), 0);
-    this.bile.setFlow(this.flowT.bile, 0.07, [1, 0.97, 0.7], soft(0.55), 0, 1);
+    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2]) p.setFlow(this.flowT.blood, 0.16, W, soft(0.3), 0.75, 0, 0.0082 * R, true);
+    this.sin.an.setFlow(this.flowT.blood, 0.12, W, soft(0.26), 0, 0, 0.0043 * R, true);
+    this.inlets.setFlow(this.flowT.blood, 0.3, W, soft(0.24), 0.6, 0, 0.012 * R, true);
+    this.twigs.setFlow(this.flowT.blood * 1.6, 0.1, [1, 0.88, 0.86], soft(0.4), 0, 0, 0.006 * R, true);
+    this.lt.setFlow(this.flowT.lymph, 0.12, W, soft(0.4), 0, 0, LT_R * R);
+    this.bile.setFlow(this.flowT.bile, 0.07, [1, 0.97, 0.7], soft(0.55), 0, 1, 0.004 * R);
     void lymphOn; void bileOn;
     return running;
   }

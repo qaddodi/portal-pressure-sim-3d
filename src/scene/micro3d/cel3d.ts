@@ -13,10 +13,13 @@ import {
   BackSide, BufferAttribute, BufferGeometry, Color, FrontSide, Group, InstancedMesh, LinearSRGBColorSpace, Matrix4, Mesh, ShaderMaterial, type Vector2, Vector4,
 } from 'three';
 import { CEL_STYLE } from '../cel-style.ts';
+import { CHEVRON_HEAD_GLSL } from '../blood/chevron-glsl.ts';
+import { LENS_SHARED } from '../lenses/tokens.copied.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 import { STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
 
+const hexRGB = (h: string): [number, number, number] => { const n = parseInt(h.slice(1), 16); return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; };
 const F = (x: number): string => (Number.isInteger(x) ? x.toFixed(1) : String(x));
 const L = CEL_LIGHT_UNIT;
 
@@ -105,26 +108,35 @@ uniform float uFlowT;      // how far the marks have run (local units)
 uniform float uFlowPitch;  // between chevrons (local units)
 uniform float uFlowK;      // how strong (0 none)
 uniform float uFlowStreak; // the streaks' share of uFlowK (0 none)
-uniform float uFlowHead;   // 1: filled arrowheads (the bile); 0: open chevrons
+uniform float uFlowHead;   // (kept for the API: every head is THE flow head now)
 uniform vec3 uFlowCol;
+uniform float uFlowR;      // the tube's radius (local units): the heads' size
+uniform float uFlowDark;   // 1: the blood's heads, near black as the Anatomy's
+uniform vec3 uFlowInk;     // their colour (LENS_SHARED.chevron)
 varying float vArc;
 varying float vAcross;
 float fh(float x) { return fract(sin(x * 91.7 + 13.3) * 43758.5453); }
-float flowMarks() {
-  float a = abs(vAcross), pitch = uFlowPitch, wa = max(fwidth(vArc), 1e-5);
-  float f = mod(vArc - uFlowT + a * pitch * 0.22, pitch);
-  float wid = pitch * mix(0.11, 0.3 * (1.0 - a / 0.6), uFlowHead);
-  float chev = smoothstep(0.0, wa, f) * (1.0 - smoothstep(wid - wa, wid, f)) * (1.0 - smoothstep(0.5, 0.6, a));
-  float m = chev;
-  if (uFlowStreak > 0.0) {
-    float u = (vAcross * 0.5 + 0.5) * 4.0, lane = floor(u), fu = fract(u), wu = max(fwidth(u), 1e-3);
-    float P = pitch * (2.4 + 1.2 * fh(lane)), len = pitch * (0.9 + 0.6 * fh(lane + 4.0));
-    float t = mod(vArc - uFlowT * (0.8 + 0.3 * (1.0 - abs(lane - 1.5) / 1.5)) + P * fh(lane + 9.0), P);
-    float along = smoothstep(0.0, wa, t) * (1.0 - smoothstep(len - wa, len, t));
-    float across = 1.0 - smoothstep(0.12 - wu, 0.12 + wu, abs(fu - 0.5));
-    m = max(m, along * across * uFlowStreak * step(abs(vAcross), 0.85));
-  }
-  return m * step(vAcross, 2.0);
+// the heads: THE flow head of every view (blood/chevron-glsl.ts, the Anatomy's own shape), one every uFlowPitch along the tube, as wide as 0.55 of its radius (uFlowR); the blood's are
+// near black with their dark ring (uFlowDark 1, uFlowInk), as the Anatomy's are; the lymph's and the bile's in their own lighter tone. Returns (coverage, ring).
+${CHEVRON_HEAD_GLSL}
+vec2 flowHeads() {
+  if (vAcross > 2.0) return vec2(0.0);
+  float R = max(uFlowR, 1e-5), pitch = uFlowPitch;
+  float f = mod(vArc - uFlowT, pitch) - 0.5 * pitch;
+  float u = f / R, ay = abs(vAcross);
+  float px = max(max(fwidth(vArc) / R, fwidth(vAcross)), 1e-4);
+  return chevHead(u, ay, 0.55, px, 0.0);
+}
+// the streaks between them (uFlowStreak: their share of uFlowK), slim lanes in the lighter tone
+float flowStreaks() {
+  if (uFlowStreak <= 0.0 || vAcross > 2.0) return 0.0;
+  float pitch = uFlowPitch, wa = max(fwidth(vArc), 1e-5);
+  float u = (vAcross * 0.5 + 0.5) * 4.0, lane = floor(u), fu = fract(u), wu = max(fwidth(u), 1e-3);
+  float P = pitch * (2.4 + 1.2 * fh(lane)), len = pitch * (0.9 + 0.6 * fh(lane + 4.0));
+  float t = mod(vArc - uFlowT * (0.8 + 0.3 * (1.0 - abs(lane - 1.5) / 1.5)) + P * fh(lane + 9.0), P);
+  float s = t / len, along = smoothstep(0.0, 0.3, s) * (1.0 - smoothstep(0.7, 1.0, s)) * step(t, len);
+  float across = 1.0 - smoothstep(0.12 - wu, 0.12 + wu, abs(fu - 0.5));
+  return along * across * uFlowStreak * step(abs(vAcross), 0.85);
 }
 #endif
 void main() {
@@ -142,7 +154,13 @@ void main() {
   c = mix(c, uProfile < 0.0 ? uStreakCol : streakTone(c, uStreakCol, gStreakK.x, gStreakK.y), uStreak * sk);   // (a streak's own tone between the surface's and the streak colour's)
 #endif
 #ifdef FLOW
-  c = mix(c, uFlowCol, uFlowK * flowMarks());
+  c = mix(c, uFlowCol, uFlowK * flowStreaks());
+  vec2 hd = flowHeads();
+  vec3 inkH = mix(uFlowInk, c * 0.3, 0.2), rimH = vec3(0.2314, 0.1725, 0.1333);   // (the Anatomy's: the head ink a touch of the lumen's own deep tone, the ring always the dark ink)
+  float hk = uFlowDark > 0.5 ? 1.0 : uFlowK * 1.6;
+  vec3 core = uFlowDark > 0.5 ? inkH : uFlowCol;
+  float ac = clamp(hd.x * hk, 0.0, 1.0), ar = clamp(hd.y * 0.75 * hk, 0.0, 1.0);
+  c = c * (1.0 - ac - ar * (1.0 - ac)) + core * ac + rimH * ar * (1.0 - ac);
 #endif
   c = mix(c, uHazeCol, hazeK());
   gl_FragColor = vec4(c * opacity, opacity);
@@ -237,6 +255,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
       uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakDir: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
+      uFlowR: { value: 0.02 }, uFlowDark: { value: 0 }, uFlowInk: { value: rawRGB(new Color(), hexRGB(LENS_SHARED.chevron)) },
     },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
@@ -273,9 +292,10 @@ export class MicroPart {
     u.uFlow.value = flow % 1e6; u.uHalf!.value = half; u.uStreak!.value = strength; u.uProfile!.value = profile; rawRGB(u.uStreakCol!.value as Color, rgb);
   }
   /** A flowing part's marks: how far they have run, their pitch (local units), their tone and strength, the streaks' share, and filled heads (the bile) or open chevrons. */
-  setFlow(t: number, pitch: number, rgb: RGB, k: number, streak = 0, head = 0): void {
+  setFlow(t: number, pitch: number, rgb: RGB, k: number, streak = 0, head = 0, r = 0.02, dark = false): void {
     const u = this.mats.toon.uniforms;
     u.uFlowT!.value = ((t % 1e4) + 1e4) % 1e4; u.uFlowPitch!.value = pitch; u.uFlowK!.value = k; u.uFlowStreak!.value = streak; u.uFlowHead!.value = head; rawRGB(u.uFlowCol!.value as Color, rgb);
+    u.uFlowR!.value = r; u.uFlowDark!.value = dark ? 1 : 0;
   }
   set renderOrder(o: number) { this.toonMesh.renderOrder = o; if (this.inkMesh) this.inkMesh.renderOrder = o; }
   dispose(): void { this.geometry.dispose(); this.mats.toon.dispose(); this.mats.ink?.dispose(); }
