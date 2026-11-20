@@ -380,16 +380,16 @@ export class CelScene {
   /** The patient's disease into the organ and disease layers (src/scene/disease/): the newest frame, the patient's parameters, the healthy pressures. */
   private feedDisease(f: NonNullable<typeof latest.frame>, first: boolean): void {
     this.disease.feed(f as never, (patient.params ?? null) as DiseaseParams | null, (patient.reference?.P as ArrayLike<number> | undefined) ?? null, {
-      instant: first || f.jump,
+      instant: first,   // (a new patient eases: the organs, the disease and the collaterals glide from the old patient to the new, never swap; only the very first frame is at once)
       presence: (id) => (this.presence.isDrawn(id) ? 1 : 0),
       recruit: (id, fr) => recruitFrac(id, fr as never),
-    }, f.jump);
+    }, false);
   }
 
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
   private syncPresence(f: NonNullable<typeof latest.frame>, instant: boolean): void {
-    for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn }, this.healthyQ), instant || f.jump);
-    this.shapes.onFrame(f as never, performance.now(), this.healthyQ, instant || !!f.jump);
+    for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn }, this.healthyQ), instant);
+    this.shapes.onFrame(f as never, performance.now(), this.healthyQ, instant);
     for (const t of this.tipFades) if (t.connect.length) t.o.setTipJoined(t.connect.some((c) => this.presence.stateOf(c) === 'shown'));
     const rexOn = this.presence.stateOf('REX') === 'shown';
     if (rexOn !== this.procs.isRexUnder) this.procs.setRexUnder(rexOn, (id) => this.vesselObject(id));
