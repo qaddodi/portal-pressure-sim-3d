@@ -100,3 +100,60 @@ test('the arrowheads stand on the drawn waist, a gap off the pinched wall, on ev
   }
   s.dispose?.();
 });
+
+// ── the cavernoma's hubs (Mohammad, 20 Nov: "the collaterals fan out from faceted star hubs"): the six channels meet at the two nodes, each ending in a fine tip, never a widened, collared, round-capped end ──
+import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
+import { TIP_K, buildTubes } from '../src/scene/vessels/tubes.ts';
+import { tubularOf } from '../src/scene/vessels/shape.ts';
+test('every cavernoma channel narrows to a tip at both ends: no widened end, collar or ball where they meet', () => {
+  const v = NETWORK_BY_ID.get('C8')!, cs = coursesOf(v, { ...REST, rec: 1, strandsOn: true });
+  assert.ok(cs.length > 2);
+  const b = buildTubes(cs, tubularOf(v, 16), v.radius), rk = b.geometry.getAttribute('rk') as BufferAttribute;
+  cs.slice(1).forEach((c, i) => {
+    assert.deepEqual(c.point, [true, true], `channel ${i}`);
+    assert.equal(c.flare, undefined, `channel ${i}: no collar`);
+    assert.equal(c.clamp, undefined);
+    const run = b.runs[i + 1]!;
+    for (const k of [0, run.tubular]) {
+      const r = rk.getX(run.tubeStart + k * (run.radial + 1)) * v.radius;
+      assert.ok(r <= c.radius * (TIP_K + 0.02), `channel ${i}: the end ring is ${(r / c.radius).toFixed(3)} of its radius`);
+    }
+    // the round caps are the same tip, not balls the width of the channel
+    for (const cap of [run.capStart, run.capStart + run.capCount]) assert.ok(rk.getX(cap) * v.radius <= c.radius * (TIP_K + 0.02), `channel ${i}: a cap is a point`);
+    // and it widens smoothly from the tip to its own width: monotone over the end stretch
+    let last = 0;
+    for (let k = 0; k <= Math.floor(run.tubular / 4); k++) { const r = rk.getX(run.tubeStart + k * (run.radial + 1)); assert.ok(r >= last - 1e-9, `channel ${i}: widens monotonically from its tip`); last = r; }
+  });
+});
+
+// ── every junction (Mohammad, 20 Nov: "this junction should be smooth. I thought you smoothened every junction": a dilated vein ended in a round cap against the thin collateral it feeds) ──
+import { RUN_ONS } from '../src/scene/vessels/network.ts';
+import { SMOOTH } from '../src/scene/vessels/smooth-joins.ts';
+import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
+import { radiusAtU } from '../src/scene/vessels/tubes.ts';
+test('every vessel that carries on into another (the 2D run-on rule), collateral or not, is mated to it, has no cap at the join, and meets it at one radius', () => {
+  const was = smoothJoinsOn(); setSmoothJoins(true);
+  try {
+    const endR = (id: string, end: 0 | 1): number => {
+      let best = 0;
+      for (const c of coursesOf(NETWORK_BY_ID.get(id)!, REST)) { if (c.radius <= 0) continue; const len = new CatmullRomCurve3(c.pts.map((p) => new Vector3(p[0], p[1], p[2]))).getLength(); best = Math.max(best, radiusAtU(c, end, len)); }
+      return best;
+    };
+    assert.ok(RUN_ONS.length > 20);
+    let collateralPairs = 0;
+    for (const r of RUN_ONS) {
+      const a = NETWORK_BY_ID.get(r.a), b = NETWORK_BY_ID.get(r.b);
+      if (!a || !b || (a.tone === 'artery') !== (b.tone === 'artery')) continue;
+      if (a.kind === 'collateral' && b.kind === 'collateral') continue;   // (two collaterals: both open and close by themselves, each keeps its own end)
+      if (a.kind === 'collateral' || b.kind === 'collateral') collateralPairs++;
+      assert.equal(SMOOTH.get(r.a)!.mate[r.ia], r.b, `${r.a} is mated to ${r.b} (its live width eases to it)`);
+      assert.equal(SMOOTH.get(r.b)!.mate[r.ib], r.a, `${r.b} is mated to ${r.a}`);
+      const ra = endR(r.a, r.ia), rb = endR(r.b, r.ib);
+      assert.ok(Math.max(ra, rb) / Math.min(ra, rb) < 1.15, `${r.a} and ${r.b} meet at one radius, not ${(ra * 300).toFixed(1)} against ${(rb * 300).toFixed(1)}`);
+      if (SMOOTH.get(r.a)!.joined[r.ia]) assert.ok(SMOOTH.get(r.b)!.joined[r.ib], `${r.a}|${r.b}: a join is capless on both sides`);
+    }
+    assert.ok(collateralPairs >= 1, 'the coronary vein into the varices is one');
+    const lgv = SMOOTH.get('LGV_CONF')!;
+    assert.equal(lgv.joined[0], true, 'the coronary vein has no round cap where the varices begin');
+  } finally { setSmoothJoins(was); }
+});
