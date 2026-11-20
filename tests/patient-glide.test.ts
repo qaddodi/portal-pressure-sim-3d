@@ -45,3 +45,10 @@ test('the wiring: the lens colours, stents, bands and tamponade ease on a jump; 
   assert.match(readFileSync('src/ui/patients/index.ts', 'utf8'), /switchBegins\(\)[\s\S]*switchLands\(\)/);
   assert.match(readFileSync('src/scene/Stage.tsx', 'utf8'), /vesselData\.easing\) clock\.invalidate/);
 });
+
+test('the numbers on the tap card, its stent panel and the dock roll while a patient switches (SwitchNum), plain otherwise', () => {
+  assert.match(readFileSync('src/ui/patients/SwitchNum.tsx', 'utf8'), /on && t \? <Roll text=\{t\} \/> : <>\{t\}<\/>/);
+  const card = readFileSync('src/ui/action/ActionCard.tsx', 'utf8');
+  for (const m of [/<SwitchNum text=\{snap\.value\.v\}/, /<SwitchNum text=\{vs\.text/, /<SwitchNum text=\{fmt\(s\.a, 1\)\}/, /<SwitchNum text=\{fmt\(s\.b, 1\)\}/, /<SwitchNum text=\{v\.format\(x\)\}/]) assert.match(card, m);
+  assert.match(readFileSync('src/ui/action/stent/StentPanel.tsx', 'utf8'), /<SwitchNum text=\{text\}/);
+});
