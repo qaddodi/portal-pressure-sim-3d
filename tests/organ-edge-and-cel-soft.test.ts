@@ -74,7 +74,7 @@ test('cel12, the subtle look: no grid, no wall, no line, dark only in valleys by
   const c = C.cel12!;
   assert.ok(c.field && c.ink === 0 && c.shade <= 0.1 && c.a <= 0.5 && c.raw === 0 && c.bump <= 0.05 && c.rim <= 0.4, 'subtle numbers');
   (globalThis as { location?: unknown }).location = { search: '?liver=cel12', pathname: '/', hostname: 'localhost' };
-  const m = await import('../src/scene/organs/liver-texture.ts?cel12');
+  const m = await import(`../src/scene/organs/liver-texture.ts?${'cel12'}`);
   let lo = 1, hi = 0, maxStep = 0, prev = softField(330, 300), valley = 0, n = 0, lightMax = -1, lightMin = 1;
   for (let x = 330.5; x < 880; x += 0.5) {
     const h = softField(x, 300); lo = Math.min(lo, h); hi = Math.max(hi, h); maxStep = Math.max(maxStep, Math.abs(h - prev)); prev = h;
