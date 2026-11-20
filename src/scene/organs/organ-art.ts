@@ -9,8 +9,7 @@ import type { LookId, Palette } from '../palette.ts';
 import { LOOK_IDS } from '../palette.ts';
 import { LUMA } from '../disease/copied/anatomy-b4.ts';
 import { type OrganInks, type OrganState, organColour, rgbOf } from './organ-look.ts';
-import { type Art, type ArtTokens, type Ctx2D, type Surface, type Tones, haustraOf, paintArt, paintBowelCel } from './organ-art-paint.ts';
-import { CEL_OF, celTones, lookOfOrgans } from './cel-tones.ts';
+import { type Art, type ArtTokens, type Ctx2D, type Surface, paintArt } from './organ-art-paint.ts';
 import { UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
 
 export interface ArtData {
@@ -87,17 +86,13 @@ export function patchedShaders(vs: string, fs: string, inkVs: string, inkFs: str
   if (o.art) {
     vd += 'uniform vec4 artBox;\nvarying vec2 vArt;\n';
     vb += '  vArt = vec2(position.x - artBox.x, artBox.y - position.y) / artBox.zw;\n';
-    fd += 'uniform sampler2D art;\nuniform sampler2D artCel;\nuniform vec2 artState;\nvarying vec2 vArt;\n';
+    fd += 'uniform sampler2D art;\nuniform vec2 artState;\nvarying vec2 vArt;\n';
     // the art is premultiplied in its texture (so its mips never bleed black); un-premultiply, take the lens's grey and the dim as organColour does, and lay it over the fill
-    // (Cel shaded: the same art painted in the cel tones, flat and matte, without 2D's light strokes, is laid in as the fill goes solid; both are premultiplied, so they mix)
     fb += `  vec4 ar = texture2D(art, vArt);
-  if (solid > 0.001) ar = mix(ar, texture2D(artCel, vArt), solid);
   if (ar.a > 0.002) {
     vec3 ac = ar.rgb / ar.a;
     float al = dot(ac, vec3(${LUMA.map(f).join(', ')}));
     ac = vec3(al) + (ac - vec3(al)) * artState.x;
-    // Cel shaded: the loops and haustra are painted opaque over the whole pillow, so they would hide its bands; they take the band's shift instead (their own differences stay, as ink-like detail on three flat tones)
-    ac = clamp(ac + celDelta, 0.0, 1.0);
     ac = mix(page, ac, artState.y);
     gl_FragColor.rgb = mix(gl_FragColor.rgb, ac, ar.a);
   }
@@ -118,10 +113,10 @@ export function patchedShaders(vs: string, fs: string, inkVs: string, inkFs: str
   vec2 xy2d = vec2(position.x * ${UNITS_PER_SCENE.toFixed(1)} + 700.0, 556.0 - position.y * ${UNITS_PER_SCENE.toFixed(1)});
   vEsoT = clamp(dot(vec2((xy2d.x - ${f(ex)}) / ${f(ew)}, (xy2d.y - ${f(ey)}) / ${f(eh)}) - vec2(0.15, 0.0), vec2(0.7, 1.0)) / 1.49, 0.0, 1.0);
 `;
-    fd += 'uniform vec3 eso1;\nuniform vec3 eso2;\nuniform vec3 celEso;\nvarying float vEso;\nvarying float vEsoT;\n';
+    fd += 'uniform vec3 eso1;\nuniform vec3 eso2;\nvarying float vEso;\nvarying float vEsoT;\n';
     // the stomach's gradient at this point, and the esophagus's: the esophagus's tone replaces it as vEso says; the figure fades out up the tube
     fb += `  float tS = clamp(dot(vBox - vec2(0.15, 0.0), vec2(0.7, 1.0)) / 1.49, 0.0, 1.0);
-  gl_FragColor.rgb += mix(mix(eso1, eso2, vEsoT) - mix(o1, o2, tS), celEso - celBase, solid) * vEso;   // (cel shaded: the esophagus's flat tone in place of the stomach's)
+  gl_FragColor.rgb += (mix(eso1, eso2, vEsoT) - mix(o1, o2, tS)) * vEso;
 `;
   }
   return {
@@ -130,10 +125,9 @@ export function patchedShaders(vs: string, fs: string, inkVs: string, inkFs: str
   };
 }
 
-interface Slot { id: string; art: Art; mat: ShaderMaterial; tex: Texture | null; texCel: Texture | null; w: number; h: number; scale: number }
+interface Slot { id: string; art: Art; mat: ShaderMaterial; tex: Texture | null; w: number; h: number; scale: number }
 
 const blank = (): Texture => { const t = new DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1); t.needsUpdate = true; return t; };
-const envOf = (s: Slot) => ({ path: () => new Path2D(), surface: () => canvasOf(s.w, s.h) });
 function canvasOf(w: number, h: number): Surface | null {
   if (typeof document === 'undefined') return null;
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -162,7 +156,7 @@ export class OrganArt {
       const [bx, by, bw, bh] = d.stomachBox;
       (u.box!.value as Vector4).set(x3(bx), y3(by), bw / UNITS_PER_SCENE, bh / UNITS_PER_SCENE);
       esoAttributes(g, d.eso);
-      u.eso1 = { value: new Vector3() }; u.eso2 = { value: new Vector3() }; u.celEso = { value: new Vector3() };
+      u.eso1 = { value: new Vector3() }; u.eso2 = { value: new Vector3() };
       this.stomach = toon;
     }
     if (id === 'colon') rectumAttribute(g, d.rectum);
@@ -170,8 +164,8 @@ export class OrganArt {
       const [bx, by, bw, bh] = art.box;
       const scale = Math.min(ART_PX_PER_UNIT, MAX_SIDE / Math.max(bw, bh));
       u.artBox = { value: new Vector4(x3(bx), y3(by), bw / UNITS_PER_SCENE, bh / UNITS_PER_SCENE) };
-      u.art = { value: blank() }; u.artCel = { value: blank() }; u.artState = { value: new Vector2(1, 1) };
-      this.slots.set(id, { id, art, mat: toon, tex: null, texCel: null, w: Math.ceil(bw * scale), h: Math.ceil(bh * scale), scale });
+      u.art = { value: blank() }; u.artState = { value: new Vector2(1, 1) };
+      this.slots.set(id, { id, art, mat: toon, tex: null, w: Math.ceil(bw * scale), h: Math.ceil(bh * scale), scale });
     }
     if (this.palette) this.applyLook(this.palette);
     return true;
@@ -188,31 +182,23 @@ export class OrganArt {
   }
 
   private paintSlot(s: Slot, p: Palette, tok: ArtTokens): void {
-    if (typeof document === 'undefined') return;   // no canvas (a test): the organ keeps its blank textures
-    const og = p.organs.tones[s.art.tone as keyof typeof p.organs.tones];
-    const hi = tok.hi.map((v) => v / 255) as unknown as ArtTokens['hi'], ao = tok.ao.map((v, i) => (i < 3 ? v / 255 : v)) as unknown as ArtTokens['ao'];
-    const wash: Tones = { o1: rgbOf(og[0]), o2: rgbOf(og[1]), o3: rgbOf(og[2]), light: p.organs.light.map((v, i) => (i < 3 ? v / 255 : v)) as unknown as readonly [number, number, number, number], tok: { ...tok, hi, ao }, soft: p.organs === ORGAN_TONES_2D.soft };
-    // Cel shaded: the organ's own 2D tone is the art's body (o1), the shade tone its deeper strokes (o2), a dark tone of the same hue its fine lines (o3) and the lit tone its highlight; 2D's white light strokes are gone (cel: true)
-    const ct = celTones(lookOfOrgans(p.organs), CEL_OF[s.id]!);
-    const cel: Tones = { o1: ct.base, o2: ct.shade, o3: ct.line, light: [ct.lit[0], ct.lit[1], ct.lit[2], 0.5], tok: { ...tok, hi: ct.lit, ao }, soft: false, cel: true };
-    s.tex?.dispose(); s.texCel?.dispose();
-    s.tex = this.paintTexture(s, (c, base) => paintArt(envOf(s), c, s.art, wash, base));
-    // Cel shaded: only the gut has art, and it is calm: the small bowel's broad loops by rule, the colon's haustra lines (organ-art-paint.ts); every other organ is the flat fill and its outline
-    if (s.id === 'bowel') s.texCel = this.paintTexture(s, (c, base) => paintBowelCel(c, s.art.box, cel, base));
-    else if (s.id === 'colon') s.texCel = this.paintTexture(s, (c, base) => paintArt(envOf(s), c, haustraOf(s.art), cel, base));
-    else s.texCel = null;
-    s.mat.uniforms.art!.value = s.tex ?? blank(); s.mat.uniforms.artCel!.value = s.texCel ?? blank();
-  }
-
-  private paintTexture(s: Slot, draw: (c: Ctx2D, base: (c: Ctx2D) => void) => void): Texture | null {
     const surf = canvasOf(s.w, s.h);
-    if (!surf) return null;
+    if (!surf) return;   // no canvas (a test): the organ keeps its blank texture
+    const og = p.organs.tones[s.art.tone as keyof typeof p.organs.tones];
+    const t = { o1: rgbOf(og[0]), o2: rgbOf(og[1]), o3: rgbOf(og[2]), light: p.organs.light.map((v, i) => (i < 3 ? v / 255 : v)) as unknown as readonly [number, number, number, number], tok: { ...tok, hi: tok.hi.map((v) => v / 255) as unknown as ArtTokens['hi'], ao: tok.ao.map((v, i) => (i < 3 ? v / 255 : v)) as unknown as ArtTokens['ao'] }, soft: p.organs === ORGAN_TONES_2D.soft };
     const [bx, by] = s.art.box;
-    draw(surf.ctx, (c) => { c.setTransform(s.scale, 0, 0, s.scale, -bx * s.scale, -by * s.scale); });
+    const base = (c: Ctx2D): void => { c.setTransform(s.scale, 0, 0, s.scale, -bx * s.scale, -by * s.scale); };
+    const env = {
+      path: () => new Path2D(),
+      surface: () => canvasOf(s.w, s.h),
+    };
+    paintArt(env, surf.ctx, s.art, t, base);
+    s.tex?.dispose();
     const tex = new CanvasTexture(surf.canvas as HTMLCanvasElement);
     tex.flipY = false; tex.premultiplyAlpha = true; tex.generateMipmaps = true; tex.minFilter = LinearMipmapLinearFilter; tex.anisotropy = 4;
     tex.needsUpdate = true;
-    return tex;
+    s.tex = tex;
+    s.mat.uniforms.art!.value = tex;
   }
 
   /** The organ's state for the next frames: the lens's grey and the dim, as organColour has them, and the esophagus's own tones (so they dim and grey with the organ). */
@@ -223,10 +209,8 @@ export class OrganArt {
       const eso = p.organs.tones.eso, u = this.stomach.uniforms;
       const c1 = organColour(rgbOf(eso[0]), s, k), c2 = organColour(rgbOf(eso[1]), s, k);
       (u.eso1!.value as Vector3).set(c1[0], c1[1], c1[2]); (u.eso2!.value as Vector3).set(c2[0], c2[1], c2[2]);
-      const ce = organColour(celTones(lookOfOrgans(p.organs), 'eso').base, s, k);
-      (u.celEso!.value as Vector3).set(ce[0], ce[1], ce[2]);
     }
   }
 
-  dispose(): void { for (const s of this.slots.values()) { s.tex?.dispose(); s.texCel?.dispose(); } this.slots.clear(); }
+  dispose(): void { for (const s of this.slots.values()) s.tex?.dispose(); this.slots.clear(); }
 }

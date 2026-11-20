@@ -46,25 +46,11 @@ export const CEL_STYLE = {
    *  EDGE_LO / EDGE_HI: the lightness jump over one device pixel from which a line is inked on the lobule's plate (a membrane is under, a cell's outline over); SIN_EDGE_LO / SIN_EDGE_HI the same as a share of the lightness on the sinusoid.
    *  Those two pairs are the painted lines' own contrast, so they do not move with SHADE (a stronger tone must not unink the cell outlines). */
   TISSUE: { SHADE_AT: -0.15, LIT_AT: 0.15, DETAIL: 0.5, EDGE_LO: 0.05, EDGE_HI: 0.12, SIN_EDGE_LO: 0.34, SIN_EDGE_HI: 0.51 },
-  /** Solid organs (organ-shader.ts, the cel fill): the band edges in n·L terms (lambert against the screen-space light), the same three tones; a shape too round to reach LIT_AT keeps two. */
+  /** The soft light of the figure's 3D parts (Organ depth in organ-shader.ts; the lobule's and the sinusoid's 3D cells, micro3d/cel3d.ts) and where their n.L tones change: the screen's upper left. The organs themselves are the see-through wash (the cel fill was dropped 20 Nov). */
   ORGAN: {
-    /** Where an organ's tones change, in n.L of its SMOOTH rest normal (a flat face-on organ sits at LIGHT.z / |LIGHT| = 0.6, between the two): the shade is one crescent along the lower right edge where the surface turns away from the light, the lit one crescent
-     *  along the upper left where it turns toward it, both following the silhouette; nothing is cut across the middle (no box lean, no baked tuck band: Mohammad, 20 Nov, "blotchy wedges ... a cut"). */
-    SHADE_LAM: 0.42,
-    LIT_LAM: 0.74,
+    SHADE_LAM: 0.5,
+    LIT_LAM: 0.75,
     LIGHT: [-0.5, 0.62, 0.6] as const,
-    /** Matte, flat and gentle (Mohammad, 20 Nov: "tone it down and fade a bit", so the vessels lead): the cel base is the organ's own 2D tone (og-N-2, organs/cel-tones.ts) with its saturation x BASE_SAT and, where it is darker than LIFT_FLOOR (the dark looks), lifted LIFT of the way to it;
-     *  the shade and the lit are the SAME hue one gentle lightness step away (HSL: the shade's lightness x (1 - SHADE_L) and at least SHADE_MIN less; the lit's x LIT_K and at least LIT_MIN more, never past LIT_MAX), never mixed toward white, black or the grey og-light / og-dark.
-     *  The art's fine lines are the shade tone LINE_L darker, the organ's outline the shade tone INK_L darker (a soft dark of the organ's own colour, not black). */
-    TONES: { BASE_SAT: 0.88, LIFT_FLOOR: 0.5, LIFT: 0.5, SHADE_L: 0.1, SHADE_MIN: 0.065, SHADE_SAT: 1.0, LIT_K: 1.1, LIT_MIN: 0.065, LIT_MAX: 0.88, LINE_L: 0.2, INK_L: 0.4 },
-    /** What varies over the organ's surface (the liver's nodules and septa, the dead spleen, the stomach's pool) is laid at this share of its wash strength: the wash dilutes it by the layer's opacity, the cel does not. */
-    PAINT: 0.5,
-    /** A vessel behind an organ (the cava: vessel-object.ts setBehindOrgans) is seen under the 2D wash at (1 - layer); cel organs are opaque, so its veil takes this share of that back: veil = 0.4 + 0.6 x VEIL_SEE x (1 - layer). */
-    VEIL_SEE: 1.0,
-    /** The cel organ's line, the same on every organ (the kidney too): the organ's own ink tone (cel-tones.ts: its shade, INK_L darker), fully opaque, LINE_PX figure units wide (it grows with the zoom, thicker on a Mac) and never under LINE_MIN_CSS CSS px (the part outside the organ's own edge). */
-    LINE_PX: 3.0,
-    LINE_MIN_CSS: 2.2,
-    LINE_ALPHA: 1.0,
   },
   /** The true-3D lobule and sinusoid (micro3d/, Settings > Figure depth > 3D lobule and sinusoid): solid shapes lit as the organs are (ORGAN.LIGHT, the same n.L edges),
    *  three flat tones and a bold ink round every shape. The tones are a little stronger than the vessels' so a cell's bevel, a nucleus's dome and the trough of the lumen read as form. */
