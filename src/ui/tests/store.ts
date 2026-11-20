@@ -28,7 +28,8 @@ interface TestsStore {
   heightRatio: number | null;
   widthPx: number | null;
   /** the phone's sheet: 0 Half, 1 Full (2D dock-sheet.js size); Half on every opening */
-  sheetSize: 0 | 1;
+  /** the phone's sheet: 0 Half, 1 Full, 2 Peek (the head row only, the figure free above it) */
+  sheetSize: 0 | 1 | 2;
   show(id: PaneId, o?: { alongside?: boolean }): void;
   toggle(): void;
   close(): void;
@@ -42,7 +43,7 @@ interface TestsStore {
   /** Esc (2D dock.js): ends a pick, else takes a focused instrument back to open, else closes the card */
   back(): void;
   setSize(o: { h?: number | null; w?: number | null }): void;
-  setSheetSize(n: 0 | 1): void;
+  setSheetSize(n: 0 | 1 | 2): void;
 }
 
 const saved = load();
