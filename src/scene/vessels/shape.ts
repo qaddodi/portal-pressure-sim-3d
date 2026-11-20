@@ -16,6 +16,8 @@ import { fadeOf } from './fades.ts';
 const len2d = (pts: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); return l; };
 /** the vessels the bands strangle (topology code C1: the coronary vein to the varices, and the varices to the azygos) */
 const BANDED = new Set(['C1a', 'C1b']);
+/** What a banded strand keeps of its width: a closed varix is a thin sclerosed cord, never gone (Mohammad, 20 Nov: banding left "stumps" and floating bands). The varices shrink as each band closes one, and the path from the coronary vein to the azygos stays one tube end to end. */
+export const BANDED_CORD = 0.28;
 /** whether a vessel beads (varix-bead.js BEAD_SITE): its strands do, and the gastrorenal shunt itself does */
 export const beadsOn = (id: string): boolean => !!(BEAD_SITE as Record<string, string>)[id];
 import { type Buried, type Course, tubularFor } from './tubes.ts';
@@ -136,9 +138,9 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     if (bundle) own.radius = 0;
     return [own, ...strands.map((c, i) => {
       if (!s.strandsOn) return own;
-      const live = (banded ? Math.min(1, Math.max(0, i + 1 - s.bands)) : 1) * (c.live ?? 1);
+      const live = (banded ? Math.max(BANDED_CORD, Math.min(1, Math.max(0, i + 1 - s.bands))) : 1) * (c.live ?? 1);
       return {
-        pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through), radius: Math.max(minR, rad * c.k) * live,   // (0: a closed channel, a strand a band has closed, a channel not yet grown: the shader draws none of it)
+        pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through), radius: Math.max(minR, rad * c.k) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
         ...(bundle && v.id !== 'C5' ? { taper: [(own.taper?.[0] ?? 1) / c.k, (own.taper?.[1] ?? 1) / c.k] as const, taperSpan: own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
         bead: beads && v.id !== 'C5' ? { b: s.bead, ph: c.ph * 1.7, u0: (STRAND_FROM_2D as Record<string, number>)[v.id] ?? 0, lambda, len: len2d(c.pts) } : undefined,
       };
