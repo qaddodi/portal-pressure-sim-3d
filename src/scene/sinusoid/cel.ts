@@ -11,15 +11,18 @@
 //                 3. puts the pixel back premultiplied, with 2D's own alpha (the dive's crossfade, `show`) untouched, so nothing shimmers while the tissue comes in.
 // The albumin sprites keep their own ring (their shader is not wrapped).
 import { CEL_QUANT_GLSL } from '../materials/cel-quant.ts';
+import { CEL_STYLE } from '../cel-style.ts';
 
-/** One band is this much wider than the one below it (the step in the natural logarithm of the lightness): 0.16 is about 17 %, so a flat 2D fill moves at most 8 % and a shaded lumen shows four to six tones. */
-export const CEL_STEP = 0.16;
-/** An edge is inked where the lightness changes by more than CEL_EDGE_LO of itself within one pixel, fully inked at CEL_EDGE_HI; the ink is the colour times CEL_INK, at most CEL_INK_A. */
-export const CEL_EDGE_LO = 0.1, CEL_EDGE_HI = 0.3, CEL_INK = 0.52, CEL_INK_A = 0.72;
+/** One band is the figure's own shade step wider than the one below: the shade tone is the base times (1 - SHADE) (cel-style.ts), so a step in the logarithm of the lightness of -ln(1 - SHADE) (about 0.186, 17 %)
+ *  is exactly one shade step: a flat 2D fill moves at most half a step and a shaded lumen shows the same stepped tones the vessels do. Nothing here is a number of its own. */
+export const CEL_STEP = -Math.log(1 - CEL_STYLE.SHADE);
+/** An edge is inked where the lightness changes by a whole shade step of itself within one pixel, fully inked at two; the ink is the colour shaded three times over (the vessels' casing is 2D's near-black: three shade steps
+ *  read as one tone of the same hue, the figure's ink), at the strength of the edge. The band edge is EDGE_PX device px across on each side. */
+export const CEL_EDGE_LO = CEL_STYLE.SHADE, CEL_EDGE_HI = 2 * CEL_STYLE.SHADE, CEL_INK = (1 - CEL_STYLE.SHADE) ** 3;
 
 export const CEL_MAIN_GLSL = /* glsl */ `
 ${CEL_QUANT_GLSL}
-const float CEL_STEP = ${CEL_STEP.toFixed(2)};
+const float CEL_STEP = ${CEL_STEP.toFixed(4)};
 void main() {
   main2d();
   float a = o.a;
@@ -27,11 +30,11 @@ void main() {
   float l = max(celLight(c), 0.004);
   // (every derivative before any branch)
   float q = log(l) / CEL_STEP;
-  float w = max(fwidth(q) * 0.75, 1e-3);
-  float edge = smoothstep(${CEL_EDGE_LO.toFixed(2)}, ${CEL_EDGE_HI.toFixed(2)}, fwidth(l) / l);
+  float w = max(fwidth(q) * ${CEL_STYLE.EDGE_PX.toFixed(2)}, 1e-3);
+  float edge = smoothstep(${CEL_EDGE_LO.toFixed(3)}, ${CEL_EDGE_HI.toFixed(3)}, fwidth(l) / l);
   float lvl = floor(q) + smoothstep(0.5 - w, 0.5 + w, fract(q));
   vec3 cq = c * (exp(lvl * CEL_STEP) / l);
-  cq = mix(cq, cq * ${CEL_INK.toFixed(2)}, edge * ${CEL_INK_A.toFixed(2)});
+  cq = mix(cq, cq * ${CEL_INK.toFixed(3)}, edge);
   o = vec4(mix(o.rgb, cq * a, step(0.003, a)), a);
 }
 `;
