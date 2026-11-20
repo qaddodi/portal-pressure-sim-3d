@@ -1,4 +1,4 @@
-// The lobule's dust routes (Mohammad, 20 Nov: "also same streaks in lobule view please"): the Anatomy's route table (blood/routes.ts) for the lobule's own network, built once. The blood runs from the inlet
+// The lobule's dust routes (Mohammad, 20 Nov: "also same streaks in lobule view please"; the lymph and the bile too, "the same kind of streaks we use for blood"): the Anatomy's route table (blood/routes.ts) for the lobule's own network, built once. The blood runs from the inlet
 // venules along the lobule's edges into the first sinusoids, which merge pairwise twice toward the central vein. Every particle keeps one identity on the way:
 //   a sinusoid leaving an inlet's SIDE takes a strip of the inlet's lanes on that side, as wide a share of the half still unclaimed as its flow is of what still leaves there (its own and every later one's),
 //   carried on from the inlet's arc at the branch point;
@@ -22,13 +22,15 @@ const arcs = (p: readonly (readonly [number, number])[]): number[] => { const a 
 
 /** The route segments of every course (by column). `tol`: how close two ends must be to be one node (local units). */
 export function lobuleRoutes(courses: readonly LobuleRouteCourse[], tol: number): Map<number, Seg[]> {
-  const sin = courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2');
+  // each family is joined only to itself (a bile channel's end beside a sinusoid's is no joint): the blood's sinusoids, the arterioles' twigs, the lymph, the bile. The inlets are roots the sinusoids leave from the side
+  const famOf = (k: string): string => (k === 's0' || k === 's1' || k === 's2' || k === 'an' ? 'sin' : k === 'in' ? 'in' : k.startsWith('bile') ? 'bile' : k);
+  const sin = courses.filter((c) => famOf(c.kind) !== 'in');
   const inlets = courses.filter((c) => c.kind === 'in');
-  // nodes: the sinusoids' ends that meet (a merge's two inflows end where the next begins)
-  const nodes: (readonly [number, number])[] = [];
-  const nodeOf = (p: readonly [number, number]): string => { let i = nodes.findIndex((q) => near(p, q, tol)); if (i < 0) { nodes.push(p); i = nodes.length - 1; } return `n${i}`; };
-  const ends = new Map(sin.map((c) => [c.col, { from: nodeOf(c.path[0]!), to: nodeOf(c.path[c.path.length - 1]!) }]));
-  // each sinusoid's flow: a first one 1, a merged one the sum of what runs into it
+  // nodes: the ends that meet, within a family (a merge's inflows end where the next begins)
+  const nodes: { p: readonly [number, number]; f: string }[] = [];
+  const nodeOf = (p: readonly [number, number], f: string): string => { let i = nodes.findIndex((q) => q.f === f && near(p, q.p, tol)); if (i < 0) { nodes.push({ p, f }); i = nodes.length - 1; } return `n${i}`; };
+  const ends = new Map(sin.map((c) => [c.col, { from: nodeOf(c.path[0]!, famOf(c.kind)), to: nodeOf(c.path[c.path.length - 1]!, famOf(c.kind)) }]));
+  // each course's flow: a first one 1, a merged one the sum of what runs into it
   const q = new Map<number, number>();
   const flowOf = (c: LobuleRouteCourse, seen = new Set<number>()): number => {
     const got = q.get(c.col);

@@ -42,3 +42,18 @@ test('sinusoids leaving one side of an inlet share its half without overlap', ()
   assert.ok(Math.min(a1, b1) - Math.max(a0, b0) <= 1e-9, 'no overlap');
   assert.ok(Math.abs((a1 - a0) + (b1 - b0) - 1) < 1e-9, 'the half is shared out whole');
 });
+
+test('each family joins only itself: a bile channel ending where a sinusoid ends is no joint, two bile channels meeting are', () => {
+  const fam: LobuleRouteCourse[] = [
+    ...courses,
+    { col: 4, kind: 'bile', path: line([2, 2], [2, 5]), radius: 0.02 },   // (starts where the sinusoids merge: another family)
+    { col: 5, kind: 'bile', path: line([0, 6], [2, 5]), radius: 0.02 },
+    { col: 6, kind: 'bile', path: line([4, 6], [2, 5]), radius: 0.02 },
+    { col: 7, kind: 'bile', path: line([2, 5], [2, 8]), radius: 0.02 },
+  ];
+  const r = lobuleRoutes(fam, 0.01);
+  assert.ok(r.get(4)!.every((g) => g.root === 4), 'the bile channel at the blood\'s node keeps its own particles');
+  const m = r.get(7)!;
+  assert.deepEqual(new Set(m.map((g) => g.root)), new Set([4, 5, 6]), 'three bile channels merge into the next, side by side');
+  assert.ok(r.get(3)!.every((g) => g.root === 0), 'the blood is untouched');
+});
