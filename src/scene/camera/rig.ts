@@ -29,14 +29,12 @@ export const orbitHome = (x0: number, t: number, omega = ORBIT_HOME_OMEGA): numb
 };
 
 export const easeInOutCubic =(t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-/** The move's progress at fraction `t` of its time when it starts already travelling: a cubic that begins with slope `m` (in whole-move units per whole-move time), ends at rest and never reverses
- *  (monotonic for m up to 3). With m = 0 it is the smooth ease-in-out; a move retargeted in flight starts at the speed the old one had, so the picture never slows to a stop and starts again. */
-export const easeCarry = (t: number, m: number): number => {
-  const c = Math.min(1, Math.max(0, t));
-  if (m <= 0) { const q = c * c * (3 - 2 * c); return q; }
-  const t2 = c * c, t3 = t2 * c;
-  return (t3 - 2 * t2 + c) * m + (-2 * t3 + 3 * t2);
-};
+/** 2D's camera ease (src/ui/ease.js easeMove): the quintic smoothstep 6t⁵ − 15t⁴ + 10t³. Its speed and its acceleration both start and end at zero, so a long glide has no catch half way. */
+export const easeMove = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * t * (t * (6 * t - 15) + 10));
+/** 2D's carry (ease.js carried, CARRY_MAX): a glide begun while another is still moving starts at the speed the view has, instead of from rest: p = ease(t) + c·t(1−t)², c the old speed in the new glide's own
+ *  progress per glide, capped at 0.8 so the progress never passes 1 on the way. With c = 0 it is easeMove. */
+export const CARRY_MAX = 0.8;
+export const easeCarry = (t: number, c: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : Math.min(1, easeMove(t) + (c > 0 ? Math.min(c, CARRY_MAX) * t * (1 - t) * (1 - t) : 0)));
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 
 /** Shortest way round between two angles, so a turn never spins the long way. */
@@ -200,7 +198,7 @@ export class CameraRig {
     if (this.active && this.dur > 0) {
       const k0 = Math.min(1, (now - this.t0) / this.dur), e0 = easeCarry(k0, this.carry), e1 = easeCarry(Math.min(1, k0 + 1e-3), this.carry);
       const left = 1 - e0, newDur = reducedMs(ms, this.reduceMotion || reduced());
-      if (left > 1e-3 && newDur > 0) carry = Math.min(2.5, Math.max(0, ((e1 - e0) / 1e-3 / this.dur) / left * newDur));
+      if (left > 1e-3 && newDur > 0) carry = Math.min(CARRY_MAX, Math.max(0, ((e1 - e0) / 1e-3 / this.dur) / left * newDur));
     }
     this.from = { shot: copyShot(this.cur.shot), room: copyRoom(this.cur.room) };
     this.to = { shot: copyShot(s), room: copyRoom(room) };

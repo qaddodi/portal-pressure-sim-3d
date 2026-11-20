@@ -279,7 +279,7 @@ test('a move is smooth: the camera never reverses on its way, and a move retarge
   for (let t = 16; t <= 480; t += 16) { rig2.update(t); const p = rig2.camera.position.clone(); before = p.distanceTo(last); last = p; }
   rig2.goTo('wedge', room, 480, 1000);
   rig2.update(496); const after = rig2.camera.position.distanceTo(last);
-  assert.ok(before > 0 && after > before * 0.5, `speed carried across the retarget (before ${before}, after ${after})`);
+  assert.ok(before > 0 && after > before * 0.1, `speed carried across the retarget (before ${before}, after ${after})`);
   // 3: the carry curve starts at the speed asked, ends at rest, and never goes backward
-  for (const m of [0, 1, 2.5]) { let p = -1; for (let i = 0; i <= 100; i++) { const v = easeCarry(i / 100, m); assert.ok(v >= p - 1e-12); p = v; } assert.ok(Math.abs(easeCarry(1, m) - 1) < 1e-12 && easeCarry(0, m) === 0); }
+  for (const m of [0, 0.4, 0.8, 5]) { let p = -1; for (let i = 0; i <= 100; i++) { const v = easeCarry(i / 100, m); assert.ok(v >= p - 1e-12); p = v; } assert.ok(Math.abs(easeCarry(1, m) - 1) < 1e-12 && easeCarry(0, m) === 0); }
 });
