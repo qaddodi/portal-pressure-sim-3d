@@ -2,7 +2,7 @@
 // with the reading a sonographer would report beside it: the direction, the velocity against the vessel's usual range, the waveform pattern, and tiles (Speed, Max, Trough, Pulsatility,
 // the portal vein's congestion index, a stent's three gates). The vessel menu, the display (Spectrum, Color, Variance), Invert and the sweep window are the 2D controls.
 // The words and judgements are the 2D app's (copied: copied/doppler-*.copied.js); the spectrum is drawn on the GPU by the shared chart drawer (model.ts says how).
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import './copied/doppler-2d.copied.css';
 import { I } from '../../shell/icons.tsx';
 import { EDGES } from '../../../engine/hales/portal/topology.js';
@@ -45,6 +45,14 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
   const h0 = Math.max(150, Math.round(p.plot)), cv = useCv(h0), h = cv.h, host = usePaneHost();
   const ctxRef = useRef<ChartCtx | null>(null);
   const aria = useRef('Spectral Doppler');
+  // (the box's height as the layout gives it now: the clock's draw is registered once, so it must read it here and not from the render it was made in; a draw at the first render's height drew a
+  //  trace 150 px tall in a panel laid out 226 px, Mohammad's phone, 20 Nov)
+  const hRef = useRef(h);
+  hRef.current = h;
+  // a slide's data card: the report sits over the monitor's top strip (2D --dop-ov), the trace begins under the strip's words (2D stripLayout: their bottom less the box's top, plus 4 px)
+  const reportRef = useRef<HTMLDivElement>(null);
+  const [ovTop, setOvTop] = useState<number | null>(null);
+  m.ovTop = p.slide ? ovTop : null;
 
   const refresh = () => {
     const r = m.report();
@@ -55,7 +63,7 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
     const c = ctxRef.current, pt = painter.current;
     if (!c || !pt) return;
     m.dpr = dprNow();
-    pt.show(m.frameFor(c.w, h, performance.now(), aria.current, c.pal.tok('doppler')), false);
+    pt.show(m.frameFor(c.w, hRef.current, performance.now(), aria.current, c.pal.tok('doppler')), false);
     if (m.busy) clock.invalidate('doppler');   // (a mark or a letter is easing: frames until it is still, with the model paused too)
   };
   // the spectrum's pixels are 2D's own shaders, drawn under the chart's shapes on the shared context (spectrum-gl.ts); where that cannot be built the shapes lay the spectrum instead
@@ -90,6 +98,26 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
     if (firstOpt.current) { firstOpt.current = false; return; }
     m.configure(p.options); setMode(m.mode); refresh(); dirty.current = true; clock.invalidate('doppler');
   }, [optKey]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const stripKey = `${rep?.dir}|${rep?.vel}|${rep?.pattern}|${rep?.none}|${rep?.acquiring}`;
+  useLayoutEffect(() => {
+    if (!p.slide) { setOvTop(null); return; }
+    const rp = reportRef.current, box = cv.ref.current;
+    if (!rp || !box) return;
+    const put = () => {
+      let b = -Infinity;
+      for (const e of Array.from(rp.querySelectorAll<HTMLElement>('.dop-dir, .dop-vel, .dop-pattern'))) { const r = e.getBoundingClientRect(); if (r.width > 0 && r.height > 0) b = Math.max(b, r.bottom); }
+      if (!Number.isFinite(b)) return;
+      const t = Math.ceil(b - box.getBoundingClientRect().top) + 4;
+      setOvTop((o) => (o != null && Math.abs(o - t) <= 4 && t <= o ? o : t));
+    };
+    put();
+    if (typeof ResizeObserver !== 'function') return;
+    const ro = new ResizeObserver(put);
+    ro.observe(rp); ro.observe(box);
+    return () => ro.disconnect();
+  }, [p.slide, stripKey, h]);  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { dirty.current = true; clock.invalidate('doppler'); }, [ovTop]);
 
   const modes = DOPPLER_MODES as { id: DopMode; label: string; short: string }[];
   const kind = rep?.kind ?? 'portal';
@@ -139,7 +167,7 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
       </div>
       <div className="dop-main">
         <div className="chart-box dark dop-box" style={host.box(h0)}>
-          <Cv at={cv.ref}><Chart tag="doppler" painter={painter} glide={false} deps={[mode, invert, sweepIndex, h, probe, gate, optKey]} label={rep?.aria || 'Spectral Doppler'}
+          <Cv at={cv.ref}><Chart tag="doppler" painter={painter} glide={false} deps={[mode, invert, sweepIndex, h, probe, gate, optKey, ovTop]} label={rep?.aria || 'Spectral Doppler'}
             build={(c) => {
               ctxRef.current = c;
               m.dpr = dprNow();
@@ -148,7 +176,7 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
               return m.frameFor(c.w, h, performance.now(), aria.current, c.pal.tok('doppler'));
             }} /></Cv>
         </div>
-        <div className="dop-report">
+        <div className="dop-report" ref={reportRef}>
           <b className="dop-dir" data-sev={rep?.sev || undefined}>{rep ? rep.dir : '—'}</b>
           <div className="dop-velrow">
             <span className="dop-vel" hidden={!!rep?.none} data-out={String(!!g?.out)}><b>{rep && !rep.acquiring ? rep.vel : '—'}</b><small>cm/s<span className="dop-mean" /></small></span>

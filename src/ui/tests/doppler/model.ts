@@ -89,6 +89,8 @@ export class DopplerModel {
 
   /** a slide's data card (2D `--dop-ov`): the reading is the slide's own steady one, not the beat-to-beat live mean (set by the pane) */
   slide = false;
+  /** On a slide's data card the report sits over the monitor's top strip (2D --dop-ov): the strip's height in px, the trace starting under it and the vessel and settings along the foot (doppler.js ovTop, yLab). Null: the Tests card's own, the words above the trace. */
+  ovTop: number | null = null;
   private steadySt = { probe: null as string | null, v: 0, t: 0, n: 0 };
   /** The running mean behind a slide's reading: eases toward the 3 s mean over about six seconds (about a second and a half after a clear change), and starts again on a new vessel or after a gap (2D steadyMean). */
   private steadyMean(x: number, now = performance.now()): number {
@@ -368,7 +370,7 @@ export class DopplerModel {
     if (w < 60 || h < 60) return out;
     this.sync();
     const rd = this.rd, f = this.frame;
-    const padL = PAD_L as number, padR = PAD_R as number, padT = 26, padB = 20, yLab = 13;
+    const padL = PAD_L as number, padR = PAD_R as number, ov = this.ovTop != null, padT = ov ? this.ovTop! : 26, padB = ov ? 34 : 20, yLab = ov ? h - 11 : 13;
     // (A slide's paired trace takes a band at the foot of the trace area: the main trace is shorter by it, the card the same size.)
     const W = Math.max(1, Math.round(w - padL - padR)), Hall = Math.max(1, Math.round(h - padT - padB)), PB = this.opts.pair ? pairBand(Hall) as number : 0, H = PB ? Hall - PB - PAIR_GAP : Hall;
     this.motion = false;
@@ -459,7 +461,7 @@ export class DopplerModel {
       shapes.push({ k: 'line', x1: padL + W + 3, y1: Math.round(y) + 0.5, x2: padL + W + 3 + (major ? 6 : 3), y2: Math.round(y) + 0.5, pen: { color: white(0.55), w: 1 } });
       if (major && y > padT + 5 && y < padT + H - 5) text(padL + W + 13, y, v === 0 ? '0' : num(v), { color: white(0.78), key: `tick${q}` });
     }
-    text(w - 6, 13, 'cm/s', { anchor: 'end', key: 'unit' });
+    text(w - 6, yLab, 'cm/s', { anchor: 'end', key: 'unit' });
     const xAt = (t: number) => padL + (RW - 1 - (cNow - Math.floor(t * cps))) / dpr;
     this.waveLetters(shapes, pm, tNow, sweep, sgn, k, pxPerV, padT, baseY, H, W, padL, xAt, nowMs);
     if (cal) this.calipersDraw(shapes, cal, nowMs, sgn, k, gf, pxPerV, padT, baseY, H, W, padL);
