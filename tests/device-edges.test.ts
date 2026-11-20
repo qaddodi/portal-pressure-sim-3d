@@ -13,7 +13,7 @@ import { DEVICE_TOKENS } from '../src/scene/procedures/copied/device-tokens.copi
 import { NEEDLE_EDGE, SCOPE_EDGE_A, mixHex, resolveEdge, scopeEdge, scopeSoftHex } from '../src/scene/devices/edges.ts';
 import { BEND_GROOVES, EndoScope, FAN_COLS, FAN_ROWS, MARK_EVERY, MARK_UNITS, SCOPE_BEND, SCOPE_CREAM, SCOPE_LIGHT, SCOPE_NEEDLE, SCOPE_SILVER, SCOPE_TUBE } from '../src/scene/devices/probes/scope.ts';
 import { DopplerProbe, WEDGE_STOPS, WEDGE_MID } from '../src/scene/devices/probes/doppler-probe.ts';
-import { FibroProbe, HEAD_MS, SCAN_FADE_MS, BODY_LIFT, tapAt, TAP_V } from '../src/scene/devices/probes/fibro-probe.ts';
+import { FibroProbe, HEAD_MS, SCAN_FADE_MS, BODY_LIFT, bodyFill, tapAt, TAP_V } from '../src/scene/devices/probes/fibro-probe.ts';
 import { ArriveTrack } from '../src/scene/devices/probes/ease-track.ts';
 import { Bands } from '../src/scene/devices/bands.ts';
 import type { DeviceObject } from '../src/scene/devices/device-object.ts';
@@ -99,11 +99,13 @@ for (const id of LOOK_IDS) {
     const f = new FibroProbe(sh);
     f.applyPalette(PALETTES[id]);
     const [body, pad, screen, cable, wave] = f.parts as unknown as DeviceObject[];
-    assert.equal(fill(body!), raw(mixHex(LOOKS[id].card, LOOKS[id].text2, BODY_LIFT)), 'the surface, lifted a little toward its line'); assert.equal(edge(body!), raw(LOOKS[id].text2)); assert.equal(edgeA(body!), 1);
+    assert.equal(fill(body!), raw(bodyFill(id)), 'the surface, lifted a little toward its line'); assert.equal(edge(body!), raw(LOOKS[id].text2)); assert.equal(edgeA(body!), 1);
     assert.equal(hex(body!.toon.uniforms.shade!.value as Color), fill(body!), 'flat: no dark band on the body (it read as heavy black)');
     assert.equal(fill(pad!), raw(LOOKS[id].text2)); assert.equal(edgeA(pad!), 0);
     assert.equal(fill(cable!), raw(LOOKS[id].text3)); assert.equal(edgeA(cable!), 0);
     assert.equal(edgeA(screen!), 0); assert.equal(edgeA(wave!), 0);
+    // root cause of "very dark from side": a tube is shaded by celTubeTone, which cuts a darker tone on its far side whatever `shade` is; a flat part must not use it, so it reads as one colour from every angle
+    for (const o of [body!, pad!, screen!, cable!, wave!]) assert.equal(o.toon.defines?.TUBE_TONES, undefined, 'a flat part has no tube tones');
     f.dispose();
   });
 }
@@ -267,4 +269,16 @@ test('the echoendoscope\'s sector is a see-through wash: faint at the apex, fain
   assert.ok(far(0) < far(Math.floor(FAN_COLS / 2)) && far(FAN_COLS - 1) < far(Math.floor(FAN_COLS / 2)), 'fading toward the sides');
   for (let r = 1; r < FAN_ROWS; r++) assert.ok(col.getW(1 + r * FAN_COLS + 9) <= col.getW(1 + (r - 1) * FAN_COLS + 9) + 1e-9, 'the wash only thins with the reach');
   sc.dispose();
+});
+
+test('every flat part on every device is plain-shaded (no tube tones): FibroScan, the Doppler\'s marks and rim', () => {
+  const f = new FibroProbe(sh), d = new DopplerProbe(sh);
+  f.applyPalette(PALETTES.black); d.applyPalette(PALETTES.black);
+  for (const o of [...f.parts, ...d.parts] as unknown as DeviceObject[]) {
+    const flat = (o.toon.uniforms.shade!.value as Color).equals(o.toon.uniforms.color!.value as Color);
+    if (flat) assert.equal(o.toon.defines?.TUBE_TONES, undefined, 'a flat part (shade = colour) never takes the tube shader');
+  }
+  const body = f.parts[0] as unknown as DeviceObject;
+  assert.ok(luma(fill(body)) > luma(raw(LOOKS.black.card)) + 0.08, 'the body is visibly lighter than the black surface');
+  f.dispose(); d.dispose();
 });

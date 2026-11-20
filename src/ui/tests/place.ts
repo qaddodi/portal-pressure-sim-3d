@@ -106,6 +106,20 @@ export function panRoom(room: Rect, place: TestsPlace | null): Rect {
   return { x: room.x + (cut.x + cut.w / 2 - (room.x + room.w / 2)), y: room.y + (cut.y + cut.h / 2 - (room.y + room.h / 2)), w: room.w, h: room.h };
 }
 
+/** How far the figure is moved, on top of panRoom, to bring the probe now up (the Doppler's gate, the FibroScan's tip) into the part the card leaves. `focus` is where the probe stands now on screen and `shift` the move already
+ *  applied. The figure is NOT centred on the probe (owner, 20 Nov 2026, "the centering of fit with spleen fibroscan is insane": the spleen is at the figure's right, and centring it pushed the whole figure hard left, cut off,
+ *  an empty middle beside the card): the picture stays where panRoom put it, centred in the free part, and moves only when the probe would stand in the card's edge strip or under it, and then only until it is a margin
+ *  (MARGIN of the free part) clear. It is judged where the probe stands with no shift (focus less the shift), so the answer never depends on the earlier one: a probe that is clear needs none, and a stale shift goes. */
+export const PROBE_MARGIN = 0.15, PROBE_SHIFT_MAX = 0.4;
+export function probeShift(base: Rect, place: TestsPlace | null, focus: { x: number; y: number } | null, shift: { x: number; y: number }): { x: number; y: number } {
+  if (!focus || !place) return { x: 0, y: 0 };
+  const cut = roomWith(base, place), side = place.kind === 'side';
+  const lim = PROBE_SHIFT_MAX * (side ? base.w : base.h);
+  const at = side ? focus.x - shift.x : focus.y - shift.y, lo = (side ? cut.x : cut.y) + PROBE_MARGIN * (side ? cut.w : cut.h), hi = (side ? cut.x + cut.w : cut.y + cut.h) - PROBE_MARGIN * (side ? cut.w : cut.h);
+  const d = Math.max(-lim, Math.min(lim, at < lo ? lo - at : at > hi ? hi - at : 0));
+  return side ? { x: d, y: 0 } : { x: 0, y: d };
+}
+
 /** The room the figure keeps when the card is up: the screen less the card (the camera frames it there). */
 export function roomWith(room: Rect, place: TestsPlace | null): Rect {
   if (!place) return room;
