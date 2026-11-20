@@ -2,6 +2,8 @@
 
 > **Cel shaded tissue (20 Nov 2026, C1).** The plate, the neighbours and the Zones are cel shaded from the figure's one style (`src/scene/cel-style.ts`): `lobule/cel.ts` puts 2D's painted colours in three flat tones (shade / base / lit about each pixel's own local lightness, hue and chroma kept, detail beyond two tones left as painted), hard edges one pixel wide, and 2D's casing ink on every strong edge of the plate (the neighbours carry none); the Zones are three hard zones with a shade line. The vessels' three tones and line are the same CEL_STYLE (`shading.ts`). The space of Disse band stays one flat tone with no outline, as 2D's.
 
+> **Hairlines (20 Nov 2026, play-test at 390 x 844: "thick olive ladder bars").** The cel line is 2 device px at least, so any tube under a pixel wide that carries one reads as a bar. The space of Disse (2D wall 0.2 px) and the bile canaliculi and canals of Hering (0.3 and 0.6 px) carry none (`px: 0`, one flat fill), the canaliculus is no wider than 2D's 0.0036 R, and the sleeve's colour is 2D's lymph teal (`lobule/disse.ts`, from `lyInkInto` / `DISSE_DEEP`), not the palette's green. `tests/scene-lobule-disse.test.ts` holds the sleeve to a 1.5 px rim at 390 x 844, no rung, no ink; the terminal lymphatics and the arteriole's twig still carry the 2 px line (2D walls 0.8 and 0.5).
+
 
 > **Lobule parity audit, 19 Nov 2026 (LOBULE worker, against the 2D pin b3058ef3; 2D's own code is copied by `node scripts/copy-lobule.mjs --from <2D checkout> [--check]`).**
 >
