@@ -171,7 +171,7 @@ export class Lobule3D {
   get enabled(): boolean { return this.on; }
 
   /** One frame, after the flat lobule's own update. `on` is the Settings switch. True while anything of this scene changed. */
-  update(on: boolean, under = 0, now = 0, running = true): boolean {
+  update(on: boolean, under = 0, now = 0, rate = 1): boolean {
     const f = this.flat, changed = on !== this.on;
     this.on = on;
     // `under`: how far the camera has gone down onto the sinusoid (0 on the lobule, 1 landed). The lobule dissolves away as the sinusoid comes in (Mohammad: "Should fade when zooming"), and once
@@ -210,19 +210,21 @@ export class Lobule3D {
     const kcv = f.cvRadiusNow / DISC_R.cv;
     this.mouthCv.group.scale.set(kcv, kcv, 1);
     this.buildGround(kcv, lymphOn);
-    return this.stepFlow(now, running, lymphOn, bileOn) || changed;
+    return this.stepFlow(now, rate, lymphOn, bileOn) || changed;
   }
 
   // ---- the flow marks (quiet chevrons inside each vessel, streaks in the blood; they stop at the central vein's mouth and with the simulation) ------------------------
 
   private flowAt = -1;
   private readonly flowT = { blood: 0, lymph: 0, bile: 0 };
-  private stepFlow(now: number, running: boolean, lymphOn: boolean, bileOn: boolean): boolean {
+  private stepFlow(now: number, rate: number, lymphOn: boolean, bileOn: boolean): boolean {
     const dt = this.flowAt < 0 ? 0 : clamp((now - this.flowAt) / 1000, 0, 0.1);
     this.flowAt = now;
     const f = this.flat, q = Math.sqrt(clamp(f.cur.flow || 0, 0.05, 2.5));
     // (local units a second: the blood's chevrons about a cell length every half second at a normal flow, the lymph and the bile slower)
-    if (running) { this.flowT.blood += dt * 0.11 * q; this.flowT.lymph += dt * 0.05; this.flowT.bile += dt * 0.035; }
+    // (`rate` is the scene's one eased pause/play rate, 0..1: Pause eases the flow to a stop and Play eases it back up, never at once)
+    const k = clamp(rate, 0, 1) * dt;
+    this.flowT.blood += k * 0.11 * q; this.flowT.lymph += k * 0.05; this.flowT.bile += k * 0.035;
     const W: RGB = [1, 1, 1], soft = (k: number) => k * this.fade.value, dpr = (this.flat as unknown as { dprU: { value: number } }).dprU.value || 2;
     for (const p of [this.sin.s0, this.sin.s1, this.sin.s2]) p.setFlow(this.flowT.blood, 0.16, W, soft(0.3), 0.75, 0, 0.0082 * R, true, dpr);
     this.sin.an.setFlow(this.flowT.blood, 0.12, W, soft(0.26), 0, 0, 0.0043 * R, true, dpr);
@@ -231,7 +233,7 @@ export class Lobule3D {
     this.lt.setFlow(this.flowT.lymph, 0.12, W, soft(0.4), 0, 0, LT_R * R, false, dpr);
     this.bile.setFlow(this.flowT.bile, 0.07, [1, 0.97, 0.7], soft(0.55), 0, 1, 0.004 * R, false, dpr);
     void lymphOn; void bileOn;
-    return running;
+    return rate > 0.001;
   }
 
   // ---- colours -------------------------------------------------------------------------------------------------------------------
