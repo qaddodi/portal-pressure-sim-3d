@@ -10,7 +10,7 @@ import { BEAD_LAMBDA_FUNDAL, BEAD_SITE, beadLambda } from './varix-bead.copied.j
 import { STRAND_FROM_2D } from './coil.copied.ts';
 import type { AtlasCourse } from '../atlas-art/types.ts';
 import { setSmoothJoins, smoothJoinsOn } from './join-mode.ts';
-import { ATTACH_REACH, BURY, END_SHARE, SMOOTH, endDepth, isPlain } from './smooth-joins.ts';
+import { ATTACH_REACH, BURY, CEIL, END_SHARE, SMOOTH, endDepth, isPlain } from './smooth-joins.ts';
 import { fadeOf } from './fades.ts';
 
 const len2d = (pts: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); return l; };
@@ -18,7 +18,7 @@ const len2d = (pts: readonly (readonly [number, number])[]): number => { let l =
 const BANDED = new Set(['C1a', 'C1b']);
 /** whether a vessel beads (varix-bead.js BEAD_SITE): its strands do, and the gastrorenal shunt itself does */
 export const beadsOn = (id: string): boolean => !!(BEAD_SITE as Record<string, string>)[id];
-import { type Course, tubularFor } from './tubes.ts';
+import { type Buried, type Course, tubularFor } from './tubes.ts';
 
 export interface ShapeState { wig: number; spr: number; /** how far the collaterals are recruited, 0 to 1 (the cavernoma's channels grow with it) */ rec: number; /** the varix's beading, 0 to 0.35 (varix-bead.js) */ bead: number; /** the bands on the esophageal varices, eased (band-ease.js) */ bands: number; /** strands drawn (a closed, dotted collateral has none) */ strandsOn: boolean; /** a feeder group's 0 to 1 live share */ live: number }
 export const REST: ShapeState = { wig: 0, spr: 1, rec: 1, bead: 0, bands: 0, strandsOn: true, live: 1 };
@@ -68,12 +68,17 @@ const nearestOn = (p: Vec3, poly: readonly Vec3[]): { at: Vec3; d: number } => {
 };
 
 /** What a branch's end is fitted to: where it ends, and the trunk's radius, so the tube's collar and cap stay inside it. */
-export interface Buried { max: number; d0: number; d1: number }
+export type { Buried } from './tubes.ts';
 /** Smooth joins: a branch's end moves onto the centreline of the trunk it ends on (the nearest of its candidates, if within `ATTACH_REACH` of that trunk's radii), easing back to its course over
  *  its first or last quarter, so no gap shows between its last ring and the trunk's wall; the radius its collar and cap may take is returned, so they never stand out of the trunk's far side. */
 export function fitEnds(v: NetVessel, pts: Vec3[]): { pts: Vec3[]; buried: readonly [Buried | null, Buried | null] } {
   const sm = SMOOTH.get(v.id), buried: [Buried | null, Buried | null] = [null, null];
-  if (!sm || !isPlain(v)) return { pts, buried };
+  if (!sm) return { pts, buried };
+  if (!isPlain(v)) {
+    // a collateral or a shunt keeps its own course (its strands braid along it), but its fillet is never wider than the trunk it ends on
+    for (const end of [0, 1] as const) { const r = sm.hostR[end]; if (r && v.flare?.[end]) buried[end] = { max: CEIL * r, d0: 0.5 * r, d1: 0.85 * r, ceil: CEIL * r }; }
+    return { pts, buried };
+  }
   const out = pts.map((p): Vec3 => [p[0], p[1], p[2]]), n = out.length;
   for (const end of [0, 1] as const) {
     const cands = sm.attach[end];
@@ -93,7 +98,7 @@ export function fitEnds(v: NetVessel, pts: Vec3[]): { pts: Vec3[]; buried: reado
       if (w <= 0) continue;
       out[i]![0] += delta[0]! * w; out[i]![1] += delta[1]! * w; out[i]![2] += delta[2]! * w;
     }
-    buried[end] = { max: BURY * best.r, d0: 0.5 * best.r, d1: 0.85 * best.r };
+    buried[end] = { max: BURY * best.r, d0: 0.5 * best.r, d1: 0.85 * best.r, ceil: CEIL * best.r };
   }
   return { pts: out, buried };
 }
@@ -134,7 +139,7 @@ function classicCourses(v: NetVessel, s: ShapeState): Course[] {
     const banded = BANDED.has(v.id), rad = banded ? v.radius * (1 - 0.14 * Math.min(4, s.bands)) : v.radius;
     // the varices bead by their size: every strand, and the gastrorenal shunt itself (varix-bead.js)
     const lambda = beadLambda(v.id) as number, beads = s.bead > 0 && beadsOn(v.id);
-    const own: Course = { pts: m, radius: rad, taper: sj ? sj.taper : v.taper, flare: v.flare, capless: sj ? sj.joined : v.joined, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? sj.free : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
+    const own: Course = { pts: m, radius: rad, taper: sj ? sj.taper : v.taper, taperSpan: sj?.taper ? sj.span : undefined, flare: v.flare, capless: sj ? sj.joined : v.joined, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? sj.free : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
     return [own, ...strands.map((c, i) => {
       if (!s.strandsOn) return own;
       const live = (banded ? Math.min(1, Math.max(0, i + 1 - s.bands)) : 1) * (c.live ?? 1);
