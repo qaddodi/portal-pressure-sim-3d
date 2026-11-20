@@ -142,24 +142,24 @@ export class OrganArt {
 
   /** Patches the organ's materials when the art knows it (and the file is in). Returns whether it did. Call after the organ painter is on the material, before the first draw. */
   attach(id: string, toon: ShaderMaterial, ink: ShaderMaterial, g: BufferGeometry): boolean {
-    const d = data;
-    if (!d) return false;
-    const art = d.arts[id] ?? null, isStomach = id === 'stomach';
-    if (!art && !isStomach) return false;
-    const eso = isStomach ? d.eso : null;
-    const p = patchedShaders(toon.vertexShader, toon.fragmentShader, ink.vertexShader, ink.fragmentShader, { art: !!art, eso, fade: id === 'colon' });
+    const d = data, tail = id === 'duodenum' && !!g.getAttribute('esoA');   // (the duodenum has no art: it is patched only for its tail's fade, with or without the file)
+    if (!d && !tail) return false;
+    const art = d?.arts[id] ?? null, isStomach = id === 'stomach' && !!d;
+    if (!art && !isStomach && !tail) return false;
+    const eso = isStomach ? d!.eso : null;
+    const p = patchedShaders(toon.vertexShader, toon.fragmentShader, ink.vertexShader, ink.fragmentShader, { art: !!art, eso, fade: id === 'colon' || tail });
     toon.vertexShader = p.vs; toon.fragmentShader = p.fs; ink.vertexShader = p.inkVs; ink.fragmentShader = p.inkFs;
     toon.needsUpdate = ink.needsUpdate = true;
     const u = toon.uniforms;
     if (isStomach) {
       // 2D's stomach gradient runs over the stomach's own outline, not over the pillow it shares with the esophagus (which is 2.4 times as tall)
-      const [bx, by, bw, bh] = d.stomachBox;
+      const [bx, by, bw, bh] = d!.stomachBox;
       (u.box!.value as Vector4).set(x3(bx), y3(by), bw / UNITS_PER_SCENE, bh / UNITS_PER_SCENE);
-      esoAttributes(g, d.eso);
+      esoAttributes(g, d!.eso);
       u.eso1 = { value: new Vector3() }; u.eso2 = { value: new Vector3() };
       this.stomach = toon;
     }
-    if (id === 'colon') rectumAttribute(g, d.rectum);
+    if (id === 'colon' && d) rectumAttribute(g, d.rectum);
     if (art) {
       const [bx, by, bw, bh] = art.box;
       const scale = Math.min(ART_PX_PER_UNIT, MAX_SIDE / Math.max(bw, bh));
