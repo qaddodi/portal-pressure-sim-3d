@@ -7,7 +7,7 @@
 //   - iPad upright: left of the nav pill at the card's left (15 % + 13 px), 29 px from the foot; too long for the room beside the pill, a row above it (73 px).
 // Pure: node judges it on every screen.
 import type { Rect, Viewport } from '../../ui/layout/device.ts';
-import { barOf } from '../../ui/layout/plan.ts';
+import { barOf, footDrop } from '../../ui/layout/plan.ts';
 import { clamp, isSideways, layoutOf, pzh } from '../../ui/layout/rules2d.ts';
 import { LABEL_NAMES } from './names.copied.ts';
 import { hits, type Box } from './geometry.ts';
@@ -76,10 +76,10 @@ export function dockKey(i: DockIn): Dock {
       const s = sized(w, h, wrap), hh = Math.max(s.h, minH);
       return { box: { x0: left, y0: vp.h - bottom - hh, x1: left + s.w, y1: vp.h - bottom }, wrap, minH, at };
     };
-    const rowBottom = foot + safe.bottom;
+    const drop = tab ? 0 : footDrop(vp), rowBottom = foot + safe.bottom - drop;
     if (natural.w <= room) return place(natural.w, natural.h, rowBottom, null, 'beside-pill');
     if (!tab && natural.w <= 2 * room && room > 0 && natural.h * TWO_LINES <= D.pillH + 1.5) return place(room, natural.h * TWO_LINES, rowBottom, room, 'beside-pill');
-    const up = (tab ? TAB_UP_FOOT : PHONE_UP_FOOT) + safe.bottom;
+    const up = (tab ? TAB_UP_FOOT : PHONE_UP_FOOT) + safe.bottom - drop;
     return natural.w <= full ? place(natural.w, natural.h, up, null, 'above-pill') : place(full, natural.h * Math.ceil(natural.w / full), up, full, 'above-pill');
   }
   // wide screens and a phone on its side: on top of the pill, right-aligned with it
