@@ -12,6 +12,7 @@
 // Everything reads the flat view's own state (its eased targets, palette, traffic, places), so the two can never disagree: this file draws, the flat view keeps the model, the names and
 // the clock. Every place is 2D's (layout.ts and the copied widths); every colour is 2D's palette for the look. Nothing here is per-pixel painting: the shapes are meshes, cel shaded
 // (cel3d.ts), and only the albumin, the red cells and the fenestrae's gap table are rewritten while the view is up.
+import { useSettings } from '../../state/settings.ts';
 import { DataTexture, Group, Matrix4, NearestFilter, RGBAFormat, UnsignedByteType, Vector4, type Vector3 } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
@@ -563,8 +564,10 @@ export class Sinusoid3D {
   private stepStreaks(P: Pal): void {
     const f = this.flat, flow = f.traffic.flowX, lym = f.traffic.lymX;
     const blood = mix3(P.cLumen, [1, 1, 1], 0.42), lymph = mix3(P.cLymph, [1, 1, 1], 0.2);
-    this.trough.setStreaks(flow, Math.max(1, f.g.halfW(0)), blood, 1, 1);
-    this.troughFar.setStreaks(flow, UM.lum + UM.endo * 0.5, blood, 0.5, 1);
+    // (the blood's streaks follow Settings > Blood streaks, as every view's do; the lymph's in Disse always run)
+    const bs = useSettings.getState().particles ? 1 : 0;
+    this.trough.setStreaks(flow, Math.max(1, f.g.halfW(0)), blood, bs, 1);
+    this.troughFar.setStreaks(flow, UM.lum + UM.endo * 0.5, blood, 0.5 * bs, 1);
     // (the lymph's own run is slow beside the blood's: its streaks go LYMPH_PACE times as fast, so they are seen to move, Mohammad 20 Nov "faster in lymph")
     // (quiet streaks one shade off Disse's own colour, never chevrons: the bold arrowheads that filled the band were wrong, Mohammad 20 Nov "WTF ARE THOSE CHEVRONS"; the shared
     // streak look of the Anatomy replaces these when it lands)
