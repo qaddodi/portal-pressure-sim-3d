@@ -66,7 +66,7 @@ test('the Back / Next pill: lower right of a wide screen with the talk\'s title 
   assert.equal(mac.rect.x + mac.rect.w, SCREENS.mac.vp.w - margin(1280, 800, 'short'));
   const ph = barOf(SCREENS['iphone-portrait'].vp);
   assert.equal(ph.edge, 'card'); assert.equal(ph.title, null);
-  assert.equal(Math.round(ph.rect.x + PILL_W / 2), Math.round(393 / 2), 'centred in the card');
+  assert.equal(ph.rect.x + ph.rect.w, 393 - 8 - 13, 'the card\'s lower right corner, inside it');
   const ip = barOf(SCREENS['ipad-portrait'].vp);
   assert.equal(ip.edge, 'card'); assert.ok(ip.rect.x + ip.rect.w <= 820 * 0.85 + 0.5, 'the right of the 70 % card');
   const sw = barOf(SCREENS['iphone-landscape'].vp);

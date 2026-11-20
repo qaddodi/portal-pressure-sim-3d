@@ -236,6 +236,8 @@ uniform float smokeOn;
 uniform vec3 hiColor;
 uniform float inkOn;
 uniform vec3 stump;   // (the vertex stage's: a divided vein's stump and its tie)
+uniform vec2 seam;   // a surgical shunt's stitch rings: the distance in from its start and from its end (figure units, 0: none)
+uniform vec4 stentU;   // a stent in this vessel, drawn on the tube in the Circuit (where the 3D device is faded out): x its share shown (0 none), y and z where it starts and ends along the course (0..1), w where its graft starts
 // smooth joins, as in the vertex shader: the ends that carry on into another vessel (x < 0 where nothing); their last stretch draws no ink, so no flat cut is outlined where a branch meets its trunk
 uniform vec3 mate0;
 uniform vec3 mate1;
@@ -289,7 +291,7 @@ vec2 chevOne(float s, float Lw, float se, float Bm, float Dm, float vd, float rv
   float n0 = floor(lv), P = 28.0 * exp2(n0);
   float j = floor((se - Dm) / P + 0.5);
   float x = (se - (Dm + j * P)) / (abs(Bm) < 0.05 ? (Bm < 0.0 ? -0.05 : 0.05) : Bm), sc = s - x;
-  float hw = min(R + ${F(CHEV.OVER_PX)} * wpc, clamp(0.5 * R, ${F(CHEV.MIN_HW_PX)} * wpc, ${F(CHEV.MAX_HW_PX)} * wpc)), L = 1.6 * hw;   // (a head is 6 CSS px tall from a tube 6 px across, as tall as the tube on a narrower one)
+  float hw = chevHw(R, wpc), L = ${(2 * CHEV.LEN_OF_W).toFixed(1)} * hw;   // (a head is 6 CSS px tall from a tube 6 px across, as tall as the tube on a narrower one)
   if (abs(x) > (0.6 + 0.4 * rv) * L + 0.15 * hw + 4.0 * px) return vec2(0.0);
   float lo = 0.6 * L, ramp = max(2.0 * L, 0.12 * Pt);
   float a0 = sc < lo ? 0.0 : smoothstep(lo, lo + ramp, sc), a1 = Lw - sc < lo ? 0.0 : smoothstep(lo, lo + ramp, Lw - sc);
@@ -440,7 +442,7 @@ void main() {
       ch = c4.w >= 1.0 ? cc : mix(ch, cc, c4.w);
     }
     // heads are on every tube down to about 4 CSS px across (R 1.5 px: the spacing never depends on the width), and are cut at the wall (never on the ink)
-    float fade = flowAmount * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));   // (a head may stand a pixel over a wall: the ink outline, drawn after it, clips it to the tube)
+    float fade = flowAmount * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));   // (a head stands inside the lumen, 55 percent of it: this is only the wall's own cut)
     fade *= mix(0.3, 1.0, smoothstep(0.5, 3.0, abs(vd)));
     if (fade > 0.0 && ch.x + ch.y > 0.0) {
       float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);
@@ -471,6 +473,44 @@ void main() {
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
     vec3 inkH = mix(inkColor, celTubeBase(baseH) * mix(${F(CEL_STYLE.TUBE.INK_TONE)}, ${F(CEL_STYLE.TUBE.INK_TONE_DARK)}, tubeDark), ${F(CEL_STYLE.TUBE.INK_OWN)});
     c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (a selected vessel's line is its own: the glow is a separate halo, glow.ts)
+  }
+  // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
+  // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph
+  if (stentU.x > 0.001 && circT > 0.001 && vUv.x > stentU.y && vUv.x < stentU.z) {
+    float kS = stentU.x * circT, Lw = len * vU, s = vUv.x * Lw, un = max(vR, 0.3) / 12.0, s0 = stentU.y * Lw, sB = stentU.w * Lw, sE = stentU.z * Lw;
+    float th = asin(clamp(across, -1.0, 1.0)), px = max(pxArc, 1e-4), cov = 0.0, gold = 0.0;
+    float bEnd = sB > s0 + 6.0 * un ? sB : sE - 1.2 * un, t0 = s0 + 1.2 * un;
+    float Nb = max(1.0, floor((bEnd - t0) / (17.0 * un) + 0.5)), Pb = (bEnd - t0) / Nb, Ab = 0.5 * Pb;
+    float jb = floor((s - t0) / Pb);
+    for (int i = -1; i <= 1; i++) {
+      float j = jb + float(i);
+      if (j < 0.0 || j >= Nb || s > bEnd + Ab) continue;
+      float ph = mod(j, 2.0) > 0.5 ? 3.14159265 : 0.0;
+      cov = max(cov, 1.0 - smoothstep(0.4 * px, 1.1 * px, abs(s - (t0 + Ab + j * Pb + Ab * cos(5.0 * th + ph)))));
+    }
+    if (sB > s0 + 6.0 * un) {
+      float Pc = 11.0 * un, Ac = 0.42 * Pc, c0 = sB + Ac + 2.5 * un, Kc = max(0.0, floor((sE - 1.2 * un - Ac - c0) / Pc));
+      float jc = floor((s - c0) / Pc + 0.5);
+      for (int i = -1; i <= 1; i++) {
+        float j = jc + float(i);
+        if (j < 0.0 || j > Kc) continue;
+        cov = max(cov, 1.0 - smoothstep(0.4 * px, 1.1 * px, abs(s - (c0 + j * Pc + Ac * cos(5.0 * th)))));
+      }
+      c = mix(c, vec3(1.0), 0.16 * kS * smoothstep(sB - px, sB + px, s));
+      gold = 1.0 - smoothstep(0.5 * px, 1.4 * px, abs(s - (sB + 1.5 * un * (1.0 - abs(cos(th))))));
+    }
+    c = mix(c, inkColor, 0.85 * cov * kS);
+    c = mix(c, vec3(0.86, 0.66, 0.2), gold * kS);
+  }
+  // the running stitch at a surgical shunt's sewn end (suture-marks.js seamDashes): a ring of thread dashes round the tube where it meets its host's wall, with the 2D's thread and edge colours
+  if ((seam.x > 0.0 || seam.y > 0.0) && circT < 0.001) {
+    float Lw = len * vU, aF = vUv.x * Lw, ph = vUv.y * 6.2831853, dsh = smoothstep(0.35, 0.5, fract(ph / 6.2831853 * 9.0)) * (1.0 - smoothstep(0.85, 1.0, fract(ph / 6.2831853 * 9.0)));
+    float dd = 1e3;
+    if (seam.x > 0.0) dd = min(dd, abs(aF - seam.x));
+    if (seam.y > 0.0) dd = min(dd, abs(Lw - aF - seam.y));
+    float tw = (1.0 - smoothstep(0.32, 0.5, dd)) * dsh, te = (1.0 - smoothstep(0.7, 1.0, dd)) * dsh;
+    c = mix(c, vec3(0.227, 0.114, 0.039), te * 0.4);
+    c = mix(c, vec3(0.910, 0.455, 0.165), tw);
   }
   // the tie on a divided vein's stump (suture-marks.js woundTie): three turns of thread, 2.2 units apart, a little slanted across the vein, with the 2D's own thread and edge colours (--suture-thread, --suture-edge)
   if (stump.z > 0.001 && circT < 0.001) {

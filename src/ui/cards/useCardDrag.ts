@@ -35,7 +35,8 @@ export function useCardDrag(o: Opts) {
     const drop = (g: NonNullable<typeof st.current>, e: RPE) => { try { (e.currentTarget as Element).releasePointerCapture?.(g.id); } catch { /* (no capture held) */ } };
     return {
       onPointerDown: (e: RPE) => {
-        if ((e.target as HTMLElement).closest?.('button, a, input')) { st.current = null; return; }
+        // a press on a slider, a link or the hold-to-strain button is its own; a press on any other button can still turn into a swipe (the quick check's questions are buttons that fill the card: a swipe back from the last page started on one and never began)
+        if ((e.target as HTMLElement).closest?.('a, input, .pz-strain, [data-no-swipe]')) { st.current = null; return; }
         st.current = { x: e.clientX, y: e.clientY, t: e.timeStamp, id: e.pointerId, touch: e.pointerType !== 'mouse', on: false, pts: [[e.clientX, e.timeStamp]], cards: [], f: { x: 0, o: 1 } };
       },
       onPointerMove: (e: RPE) => {

@@ -5,7 +5,8 @@
 import { BufferAttribute, type BufferGeometry, CatmullRomCurve3, Group, Mesh, Vector3 } from 'three';
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
-import { courseOf, NETWORK_BY_ID, radiusOf, widthPx } from '../../vessels/network.ts';
+import { NETWORK_BY_ID, radiusOf, widthPx } from '../../vessels/network.ts';
+import { vesselFit, type VesselFit } from './fit.ts';
 import type { VesselObject } from '../../vessels/vessel-object.ts';
 import { UNITS_PER_SCENE } from '../../frame2d.ts';
 import { DeviceObject } from '../device-object.ts';
@@ -44,13 +45,15 @@ export class StentDevice {
   private key = '';
   private readonly curve: CatmullRomCurve3;
   private readonly L: number;
+  private readonly fitOf: VesselFit;
   private vessel: VesselObject | null = null;
   private lastPalette: Palette | null = null;
   private dirty = false;
 
   constructor(id: 'TIPS' | 'DIPS', shared: CelShared) {
     this.id = id;
-    const pts = courseOf(id).map((p) => new Vector3(...p));
+    this.fitOf = vesselFit(id);
+    const pts = this.fitOf.pts.map((p) => new Vector3(...p));   // (the vessel's own drawn course: its depth, not the tier's)
     this.curve = new CatmullRomCurve3(pts, false, 'centripetal');
     this.L = this.curve.getLength();
     const empty = mergeTubes([], WIRE_RADIAL);
@@ -86,6 +89,7 @@ export class StentDevice {
       at: (a, out) => curve.getPointAt(Math.min(1, Math.max(0, (INSET + a) / L)), out),
       tan: (a, out) => curve.getTangentAt(Math.min(1, Math.max(0, (INSET + a) / L)), out),
       A, R, lenCm: 8, geom, s: endOf(params, this.id) as number, site, covered: true,
+      fit: (a) => this.fitOf.at(Math.min(1, Math.max(0, (INSET + a) / L))),
     };
   }
 
@@ -137,6 +141,8 @@ export class StentDevice {
     this.group.visible = a > 0.002 && !!this.paths;
     this.graft.setAlpha(a * GRAFT_ALPHA); this.back.setAlpha(a * BACK_ALPHA); this.wires.setAlpha(a * FRONT_ALPHA); this.glint.setAlpha(a * GLINT_ALPHA); this.gold.setAlpha(a);
     if (this.lastPalette) for (const o of this.objects) o.applyPalette(this.lastPalette);
+    // the Circuit draws the stent on the shunt's own tube (the device is the body's, and fades with it): the same share, so both ease with the stent's own clock
+    this.vessel?.setStent(this.paths ? a : 0, INSET / this.L, 1 - INSET / this.L, this.paths ? (INSET + this.paths.bareEnd) / this.L : 0);
     if (!this.paths) return;
     // the vessel's own narrowing eases with the stent: it is only there while the stent is
     if (a < 0.999 && this.vessel) { /* the vessel keeps the narrowing while it fades; the stent leaves with the vessel */ }

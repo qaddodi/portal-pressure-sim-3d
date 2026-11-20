@@ -13,12 +13,17 @@ export type PartColour = string | ((t: DeviceTokens, look: LookId) => string);
 
 const lookOf = (p: Palette): LookId => ((Object.keys(PALETTES) as LookId[]).find((id) => PALETTES[id] === p) ?? 'light');
 
+/** How a part's look is fixed whatever the theme: `flat` (its shade is its colour: a mark is one white, never a grey in the dark) and `rim` (its outline's own colour, not the look's ink). */
+export interface PartStyle { flat?: boolean; rim?: string }
+
 export class ProbePart extends DeviceObject {
   private colour: PartColour | null;
   private pal: Palette | null = null;
-  constructor(geometry: BufferGeometry, tone: DeviceTone, shared: CelShared, colour: PartColour | null = null, o: DeviceOptions = {}) {
+  private readonly style: PartStyle;
+  constructor(geometry: BufferGeometry, tone: DeviceTone, shared: CelShared, colour: PartColour | null = null, o: DeviceOptions = {}, style: PartStyle = {}) {
     super(geometry, tone, shared, o, 'ink');
     this.colour = colour;
+    this.style = style;
     this.group.visible = false;
   }
   /** Changes the colour the part wears (a ring that is the portal vein's, then the hepatic vein's) and paints it in the look it is in. */
@@ -30,7 +35,8 @@ export class ProbePart extends DeviceObject {
     const look = lookOf(p), hex = typeof this.colour === 'function' ? this.colour(DEVICE_TOKENS[look], look) : this.colour;
     const base = rawColor(hex);
     (this.toon.uniforms.color!.value as Color).copy(base);
-    (this.toon.uniforms.shade!.value as Color).copy(base).multiplyScalar(p.shade);
+    (this.toon.uniforms.shade!.value as Color).copy(base).multiplyScalar(this.style.flat ? 1 : p.shade);
+    if (this.style.rim) (this.ink.uniforms.color!.value as Color).copy(rawColor(this.style.rim));
   }
 }
 
@@ -55,8 +61,8 @@ export class TubeBuf {
 }
 
 /** A straight tube part from a to b. Two rings do for a line; more give a taper's shading. */
-export function linePart(shared: CelShared, tone: DeviceTone, colour: PartColour | null, rings = 2, px = 0.8, order = 0): { part: ProbePart; buf: TubeBuf } {
+export function linePart(shared: CelShared, tone: DeviceTone, colour: PartColour | null, rings = 2, px = 0.8, order = 0, style: PartStyle = {}): { part: ProbePart; buf: TubeBuf } {
   const buf = new TubeBuf(rings);
-  const part = new ProbePart(buf.geometry, tone, shared, colour, { px, order });
+  const part = new ProbePart(buf.geometry, tone, shared, colour, { px, order }, style);
   return { part, buf };
 }

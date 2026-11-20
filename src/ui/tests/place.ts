@@ -6,7 +6,7 @@ import { isPhone } from '../layout/device.ts';
 import { footHeight, usesBottomBar } from '../shell/room.ts';
 import { M } from '../shell/metrics.ts';
 import { clamp } from './copied/num.copied.js';
-import { testsHalfPx } from './copied/stack-plan.copied.js';
+import { testsHalfPx, MIN_HALF } from './copied/stack-plan.copied.js';
 import { sheetDockVars } from './copied/dock-vars.copied.js';
 
 export const SIDE_W = 500, SIDE_W_WIDE = 600;
@@ -22,11 +22,12 @@ export const SIDE_MAX_H = 760;
 export const TESTS_HALF_PX = 520;
 /** The sheet's third stop, Peek (owner, 20 Nov: swipe the instrument panel down out of the way to see more of the figure, and bring it back): the head row, tabs and grab handle only. */
 export const PEEK_H = 72;
-/** A phone's Half is 2D's (testsHalfPx: about 90 % of the room, 520 px at most), so a pane is never squeezed into a scroll inside the card (owner, 20 Nov: cards not opening full, unlike 2D);
- *  the figure is seen over it by pulling the card down to Peek. */
+/** A phone's Half is 2D's (testsHalfPx: about 90 % of the room, 520 px at most) but never more than HALF_SHARE of the screen: tall enough for a pane's own content (owner, 20 Nov: cards not opening full, unlike 2D),
+ *  low enough that it does not open high up. The figure is not zoomed out under it (panRoom) and is seen over it by pulling the card down to Peek. */
+export const HALF_SHARE = 0.52;
 export function sheetStops(device: DeviceClass, H: number, R: number, vesselCard = false): [number, number] {
   if (device === 'tablet-portrait') return [Math.round(Math.min(1, testsHalfPx(R, 0.45 * H, vesselCard) / R) * R), Math.round(Math.min(1, (0.62 * H) / R) * R)];
-  const half = Math.round(Math.min(0.9, testsHalfPx(R, TESTS_HALF_PX, vesselCard) / R) * R);
+  const half = Math.min(Math.round(Math.min(0.9, testsHalfPx(R, TESTS_HALF_PX, vesselCard) / R) * R), Math.max(MIN_HALF, Math.round(HALF_SHARE * H)), Math.round(R));
   return [half, Math.round(R)];
 }
 /** The sizes a card on the right hands its panes (dock.js sizeObserver): the plots share the body's height, a square is the card's width less its padding. */
@@ -93,8 +94,16 @@ export function testsPlace(vp: Viewport, device: DeviceClass, o: PlaceOpts = {})
   const R = Math.max(1, vp.h - vp.safe.top - M.topSafe - bottom - 22);
   const stops = sheetStops(device, vp.h, R, !!o.vesselCard);
   const maxH = stops[1];
-  const h = o.sheetSize === 2 ? PEEK_H : contentH > 0 ? Math.min(contentH, maxH) : o.heightRatio != null ? Math.max(140, Math.min(maxH, Math.max(180, vp.h * o.heightRatio))) : stops[o.sheetSize === 1 ? 1 : 0];
+  // (a sheet has its stops and nothing else: a remembered side-card ratio or a content height never sets it, so it never opens at some height in between, owner 20 Nov)
+  const h = o.sheetSize === 2 ? PEEK_H : stops[o.sheetSize === 1 ? 1 : 0];
   return { kind: 'sheet', rect: { x: vp.safe.left + margin, y: vp.h - bottom - h, w, h }, maxH, vars: sheetDockVars(h, isPhone(device)), focus: false, stops };
+}
+
+/** The room the figure is FRAMED in while the card is up (owner, 20 Nov: opening a Tests card must not squeeze or zoom out the figure; it may pan to keep its middle in the free part): the same size as the
+ *  full room, so the fit's zoom is unchanged, its centre moved to the centre of what the card leaves. */
+export function panRoom(room: Rect, place: TestsPlace | null): Rect {
+  const cut = roomWith(room, place);
+  return { x: room.x + (cut.x + cut.w / 2 - (room.x + room.w / 2)), y: room.y + (cut.y + cut.h / 2 - (room.y + room.h / 2)), w: room.w, h: room.h };
 }
 
 /** The room the figure keeps when the card is up: the screen less the card (the camera frames it there). */

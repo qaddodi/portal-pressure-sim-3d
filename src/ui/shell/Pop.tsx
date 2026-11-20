@@ -1,7 +1,7 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { useUi } from '../ui-store.ts';
+import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { useShell, type Sheet } from './store.ts';
 import { InApp } from './InApp.tsx';
+import { placePopover } from './place.ts';
 
 /** Closes the open sheet when a press lands outside it and outside the control that opened it. A press on the opener is the opener's own business (it toggles). */
 export function useOutside(sheet: Exclude<Sheet, null>, ref: React.RefObject<HTMLElement | null>) {
@@ -34,21 +34,22 @@ export function Anchored({ sheet, place = 'below', align = 'start', width, cls, 
   const pop = useRef<HTMLDivElement>(null);
   const id = useId();
   const open = useOutside(sheet, pop);
-  const vp = useUi((s) => s.vp);
-  const [at, setAt] = useState<{ left: number; top: number }>({ left: 0, top: -9999 });
+  // 2D's one placer (shell/place.ts placePopover, util.js popover `put`), written once as the menu opens and again when the window or the visual viewport moves (the on-screen keyboard coming up on a phone
+  // lifts the room's floor): `translate` from the window's corner, clear of the notch and of the keyboard, flipped to the other side of its button where there is no room.
   useLayoutEffect(() => {
     const b = btn.current, p = pop.current;
     if (!open || !b || !p) return;
-    const r = b.getBoundingClientRect(), w = p.offsetWidth, h = p.offsetHeight, vw = innerWidth, vh = innerHeight, m = 8;
-    const left = align === 'end' ? r.right - w : align === 'center' ? r.left + r.width / 2 - w / 2 : r.left;
-    const top = place === 'above' ? r.top - m - h : r.bottom + m;
-    setAt({ left: Math.max(m, Math.min(left, vw - m - w)), top: Math.max(m, Math.min(top, vh - m - h)) });
-  }, [open, align, place, vp.w, vp.h, width]);
+    const put = () => { placePopover(p, b, { align, place }); };
+    put();
+    const vv = window.visualViewport;
+    addEventListener('resize', put); vv?.addEventListener('resize', put); vv?.addEventListener('scroll', put);
+    return () => { removeEventListener('resize', put); vv?.removeEventListener('resize', put); vv?.removeEventListener('scroll', put); };
+  }, [open, align, place, width]);
   const toggle = () => useShell.getState().toggle(sheet);
   return (
     <>
       {button({ id, open, toggle, ref: (el) => { btn.current = el; } })}
-      <InApp><div ref={pop} id={id} className={`sh-pop${cls ? ` ${cls}` : ''}`} data-open={open} data-place={place} role="dialog" aria-label={label} inert={!open} style={{ left: at.left, top: at.top, right: 'auto', bottom: 'auto', ...(width ? { width } : {}) }}>{children}</div></InApp>
+      <InApp><div ref={pop} id={id} className={`sh-pop${cls ? ` ${cls}` : ''}`} data-open={open} data-place={place} role="dialog" aria-label={label} inert={!open} style={{ left: 0, top: 0, right: 'auto', bottom: 'auto', ...(width ? { width } : {}) }}>{children}</div></InApp>
     </>
   );
 }

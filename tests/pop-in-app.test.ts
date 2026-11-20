@@ -17,9 +17,11 @@ test('the Mac dock is centred with a transform (why a popover inside it cannot b
   assert.doesNotMatch(chrome, /(^|\n)\s*(\.sh-root > )?(#app|\.app)\s*\{[^}]*(transform|filter|contain)\s*:/);
 });
 
-test('a popover is put by `left` and `top` alone: bottom and right are auto, or a fixed box stretched between `top` and the CSS `bottom: calc(100% + 8px)` has no height (no panel, rows spilled over the figure)', () => {
+test('a popover is put by the 2D placer (`translate` from the corner, left and top 0, bottom and right auto), or a fixed box stretched between `top` and the CSS `bottom: calc(100% + 8px)` has no height (no panel, rows spilled over the figure)', () => {
   const src = readFileSync('src/ui/shell/Pop.tsx', 'utf8');
-  assert.match(src, /style=\{\{ left: at\.left, top: at\.top, right: 'auto', bottom: 'auto'/);
+  assert.match(src, /style=\{\{ left: 0, top: 0, right: 'auto', bottom: 'auto'/);
+  assert.match(src, /placePopover\(p, b, \{ align, place \}\)/);
+  assert.match(src, /vv\?\.addEventListener\('resize', put\)/, 'a keyboard coming up moves it');
   const css = readFileSync('src/ui/shell/shell.css', 'utf8');
   assert.match(css, /\.sh-pop\[data-place="above"\] \{ bottom: calc\(100% \+ 8px\)/);
 });

@@ -146,13 +146,13 @@ float fh(float x) { return fract(sin(x * 91.7 + 13.3) * 43758.5453); }
 vec2 flowHeads() {
   if (vAcross > 2.0) return vec2(0.0);
   // the Anatomy's rules, in its CSS px (blood/chevron-glsl.ts CHEV, the one table: vessels/shaders.ts chevOne): one head every PITCH_PX CSS px along the tube on the SCREEN, on a lattice that halves and doubles with the zoom (nothing jumps),
-  // a half width of half the radius held between MIN_HW_PX and MAX_HW_PX (a head 7 px long and 8.8 tall from a tube 9 px across) and never past the radius plus OVER_PX, and none on a tube under MIN_R_PX of radius
+  // a head 55 percent of the lumen wide (at least 4 px, never over 60 percent), 1.4 x its width long, sharp: blood/chevron-glsl.ts CHEV, chevHw; and none on a tube under MIN_R_PX of radius
   float R = max(uFlowR, 1e-5);
   float pxA = max(length(vec2(dFdx(vArc), dFdy(vArc))), 1e-7), wpc = pxA * uDpr;
   float lv = max(${F(CHEV_LEVEL_MIN)}, log2(${F(CHEV.PITCH_PX)} * wpc / max(uFlowPitch, 1e-5)));
   float n0 = floor(lv), P = uFlowPitch * exp2(n0);
   float j = floor((vArc - uFlowT) / P + 0.5), x = vArc - uFlowT - j * P;
-  float hw = min(R + ${F(CHEV.OVER_PX)} * wpc, clamp(0.5 * R, ${F(CHEV.MIN_HW_PX)} * wpc, ${F(CHEV.MAX_HW_PX)} * wpc));
+  float hw = chevHw(R, wpc);
   if (abs(x) > 2.0 * hw + 4.0 * pxA) return vec2(0.0);
   float k = chevKeep(j, n0, lv) * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R);
   return chevHead(x, abs(vAcross) * R, hw, pxA, 0.0) * k;
@@ -256,14 +256,18 @@ void main() {
 #endif
   p += normal * inflate;   // (as its shape swells or shrinks: a dilated sinusoid keeps its line)
   vHy = p.y;
-  // the hull sits a hair behind its shape (0.15 % farther from the eye, which moves nothing on screen): drawn on both sides, its faces that face the viewer lie just under the shape's own and
+  // the hull's faces toward the viewer sit a hair behind the shape (0.15 % farther from the eye, which moves nothing on screen): drawn on both sides, they lie just under the shape's own and
   // never show, and everything pushed out past the outline shows whichever way its triangles ended up wound. (A back-face cull dropped the thin rim strips the push turned over, and a
   // cull by the normal dropped the hull at every rim vertex: the red cells' outline came out dotted, Mohammad 20 Nov: "the RBC outline is interrupted".)
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
-  mv.xyz *= 1.0 + ${F(INK_BACK)};
-  vec4 c = projectionMatrix * mv;
-  if (projectionMatrix[2][3] == 0.0) c.z += ${F(INK_BACK)} * c.w;
   vec3 vn = normalize(normalMatrix * n);
+  // only what faces the viewer goes back (it must hide under the shape's own face); the rim and the far side stay at their true depth, so the line pushed out past the outline is never sunk
+  // under a surface just behind the shape (Disse behind a microvillus, the plate under a lobule vessel: there a push of the whole hull hid the line, Mohammad 20 Nov: "the microvilli need a black outline")
+  bool ortho = projectionMatrix[2][3] == 0.0;
+  float back = ${F(INK_BACK)} * smoothstep(0.05, 0.35, dot(vn, ortho ? vec3(0.0, 0.0, 1.0) : normalize(-mv.xyz)));
+  mv.xyz *= 1.0 + back;
+  vec4 c = projectionMatrix * mv;
+  if (ortho) c.z += back * c.w;
   vec2 nd = (projectionMatrix * vec4(vn, 0.0)).xy;
   float l = length(nd);
   nd = l > 1e-6 ? nd / l : vec2(0.0);

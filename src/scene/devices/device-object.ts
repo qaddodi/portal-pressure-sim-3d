@@ -88,6 +88,13 @@ export class DeviceObject extends CelObject {
     (this.ink.uniforms.color!.value as Color).copy(ink);
   }
 
+  /** The fill and the outline fade apart (a translucent balloon: a faint body inside a firmer rim). */
+  setAlphas(fill: number, ink: number): void {
+    const f = Math.min(1, Math.max(0, fill)), k = Math.min(1, Math.max(0, ink));
+    this.toon.uniforms.alpha!.value = f; this.ink.uniforms.alpha!.value = k;
+    this.group.visible = Math.max(f, k) > 0.002;
+  }
+
   /** 0 (gone) to 1 (whole). The passes always blend (see the constructor) and write no depth. */
   setAlpha(a: number): void {
     const v = Math.min(1, Math.max(0, a));
