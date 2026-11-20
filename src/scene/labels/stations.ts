@@ -3,7 +3,7 @@
 // Words and priorities are copied; only the 3D anchors are written here. The vessels are the scene's (anatomy/vessels.ts), named by
 // topology edge, so a station whose vessel is not drawn yet simply has no label (a test lists them).
 import { CatmullRomCurve3, Vector3 } from 'three';
-import { NETWORK_BY_ID, NODE_Z } from '../vessels/network.ts';
+import { NETWORK_BY_ID, NODE_Z, MAPPED, type NetVessel } from '../vessels/network.ts';
 import { REST, coursesOf } from '../vessels/shape.ts';
 import { NODE_POS_2D } from '../vessels/paths.copied.ts';
 import { x3, y3 } from '../frame2d.ts';
@@ -34,6 +34,10 @@ export interface Station {
   at: (u: number, out: Vector3) => Vector3;
   /** Whether the dot may slide along a course. */
   slides: boolean;
+  /** Where along the course the dot stands at rest (0..1): the middle (the 2D app's LABEL_VESSEL), or the nearest clear place to it where the middle is within `DOT_UNITS` of a more important
+   *  station's dot. Fixed here, in scene units, so it never depends on the screen or the zoom (it was spread in px at solve time: at the default zoom "Lower IVC" slid down the cava off the
+   *  portal confluence it passes, zoomed in the dots stood far enough apart in px and it jumped back to its middle, beside the confluence; Mac play-test, 20 Nov). */
+  u0: number;
   /** The vessel family's colour on the pill's dot. */
   tone: 'portal' | 'sys' | null;
 }
@@ -93,7 +97,7 @@ function vesselStation(id: string): Station | null {
   if (!edge || !c) return null;
   return {
     id, kind: 'vessel', name: names[id] ?? id, abbr: abbrs[id] ?? null, vessel: edge, pri: pri[id] ?? 5, core: chips.has(id) && !extra.has(id),
-    node: id, dirs: DIRS[id] ?? [], at: (u, out) => c.getPointAt(Math.min(1, Math.max(0, u)), out), slides: true,
+    node: id, dirs: DIRS[id] ?? [], at: (u, out) => c.getPointAt(Math.min(1, Math.max(0, u)), out), slides: true, u0: 0.5,
     tone: NETWORK_BY_ID.get(edge)!.tone === 'portal' ? 'portal' : 'sys',
   };
 }
@@ -103,7 +107,7 @@ function pointStation(id: string): Station | null {
   if (!p) return null;
   return {
     id, kind: 'point', name: names[id] ?? id, abbr: abbrs[id] ?? null, vessel: null, pri: pri[id] ?? 5, core: chips.has(id) && !extra.has(id),
-    node: id, dirs: DIRS[id] ?? [], at: (_u, out) => out.set(p[0], p[1], p[2]), slides: false,
+    node: id, dirs: DIRS[id] ?? [], at: (_u, out) => out.set(p[0], p[1], p[2]), slides: false, u0: 0.5,
     tone: id === 'RA' ? 'sys' : 'portal',
   };
 }
@@ -112,7 +116,7 @@ function organStation(id: string): Station {
   const p = ORGAN_POINTS[id];
   // the 2D app's own word for the organ (ORGAN_LABELS), so the name is copied, not typed
   const word = (N.ORGAN_NAMES as readonly string[]).find((w) => w === ORGAN_WORD[id]) ?? ORGAN_WORD[id];
-  return { id: `organ:${id}`, kind: 'organ', at2d: (N.ORGAN_AT as Record<string, readonly [number, number]>)[word] as readonly [number, number], name: word, abbr: null, vessel: null, pri: 2, core: false, node: null, dirs: [], at: (_u, out) => out.set(p[0], p[1], p[2]), slides: false, tone: null };
+  return { id: `organ:${id}`, kind: 'organ', at2d: (N.ORGAN_AT as Record<string, readonly [number, number]>)[word] as readonly [number, number], name: word, abbr: null, vessel: null, pri: 2, core: false, node: null, dirs: [], at: (_u, out) => out.set(p[0], p[1], p[2]), slides: false, u0: 0.5, tone: null };
 }
 
 /** Every station the 3D scene can label now, in the 2D app's order of importance. */
@@ -121,6 +125,29 @@ export const STATIONS: readonly Station[] = [
   ...['RA', 'SIN_R', 'VAR', 'GV'].map(pointStation).filter((s): s is Station => !!s),
   ...Object.keys(ORGAN_POINTS).map(organStation),
 ].sort((a, b) => b.pri - a.pri || (a.id < b.id ? -1 : 1));
+
+/** The least distance between two stations' dots at rest, scene units (about 40 px on a phone: solver.ts DOT_ROOM; a laptop's figure is larger, so its dots are farther apart still). */
+export const DOT_UNITS = 0.3;
+const U_TRIES = [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74, 0.18, 0.82, 0.1, 0.9];
+(function spreadAtRest() {
+  const dots: Vector3[] = [], tmp = new Vector3();
+  // (the names the figure shows from the start first: a name only the slide or the viewer asks for keeps clear of them, never the other way round)
+  for (const s of [...STATIONS.filter((x) => x.core), ...STATIONS.filter((x) => !x.core)]) {
+    if (s.kind === 'organ') continue;
+    const apart = (p: Vector3) => dots.every((q) => Math.hypot(q.x - p.x, q.y - p.y) >= DOT_UNITS);
+    if (s.slides) {
+      let best = s.u0, bestD = -1;
+      for (const u of U_TRIES) {
+        s.at(u, tmp);
+        if (apart(tmp)) { best = u; bestD = Infinity; break; }
+        const d = Math.min(...dots.map((q) => Math.hypot(q.x - tmp.x, q.y - tmp.y)));
+        if (d > bestD) { best = u; bestD = d; }
+      }
+      s.u0 = best;
+    }
+    dots.push(s.at(s.u0, new Vector3()));
+  }
+})();
 
 export const stationById = (id: string): Station | undefined => STATIONS.find((s) => s.id === id);
 
@@ -143,4 +170,17 @@ export function stationsOfTerms(terms: readonly string[]): Set<string> {
     for (const id of s) out.add(id);
   }
   return out;
+}
+
+/** Every vessel the figure draws, as a polyline of at most `FIGURE_SAMPLES` points (the course as drawn, REST): what a name keeps off. Until 20 Nov the solver knew only the courses of the named
+ *  vessels, so a name stood across a vessel with no station (the hepatic artery, a collateral, the gut's branches; phone play-test: strokes through "Portal vein", "SMV", "Right hepatic vein"). */
+export const FIGURE_SAMPLES = 24;
+let drawnCourses: { v: NetVessel; pts: Vector3[] }[] | null = null;
+export function figureCourses(): readonly { v: NetVessel; pts: readonly Vector3[] }[] {
+  return (drawnCourses ??= MAPPED.map((v) => {
+    const all = coursesOf(v, REST)[0]!.pts, n = Math.min(FIGURE_SAMPLES, all.length);
+    const pts: Vector3[] = [];
+    for (let i = 0; i < n; i++) { const p = all[Math.round((i * (all.length - 1)) / Math.max(1, n - 1))]!; pts.push(new Vector3(p[0], p[1], p[2])); }
+    return { v, pts };
+  }));
 }

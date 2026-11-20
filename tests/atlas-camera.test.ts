@@ -123,3 +123,35 @@ test('the cava rises toward the hepatic veins, and the dot rises with it: "IVC" 
   const ivc = STATIONS.find((x) => x.id === 'IVCS')!;
   assert.ok(Math.abs(ivc.at(0, new Vector3()).z - cava[0]![2]) < 1e-6, 'the dot at the junction end is at the depth the tube is drawn at there, not the tier\'s');
 });
+
+// ── a station's dot does not move with the zoom ──
+import { DOT_UNITS, stationById } from '../src/scene/labels/stations.ts';
+import { LabelController, NO_STATE as NO_LABEL_STATE, type LabelDeps as LDeps } from '../src/scene/labels/controller.ts';
+import { CameraRig as Rig } from '../src/scene/camera/rig.ts';
+import { Vector3 as Vec } from 'three';
+
+test('every station keeps its dot at every zoom: "Lower IVC" stands on the cava below the portal confluence, not beside it, zoomed in or out (Mac play-test, 20 Nov)', () => {
+  const vp = { w: 1440, h: 900, safe: { top: 0, right: 0, bottom: 0, left: 0 } }, room = { x: 0, y: 0, w: 1440, h: 900 };
+  const measure: LDeps['measure'] = (t, size, _w, track = 0) => t.length * size * 0.56 + track * t.length;
+  const at = (k: number) => {
+    const rig = new Rig('play', room); rig.resize(vp.w, vp.h); rig.goTo('play', room, 0, 0); rig.update(0); rig.setHand({ k, x: 0, y: 0 }); rig.update(0);
+    let t = 1000;
+    const deps = { now: () => t, project: (p: Vec, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: vp.w, y1: vp.h }), view: () => ({ x0: 0, y0: 56, x1: vp.w, y1: vp.h }), vp: () => vp, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0 } as unknown as LDeps;
+    const ctl = new LabelController(deps); ctl.setState({ ...NO_LABEL_STATE, organNames: true });
+    for (let i = 0; i < 120; i++) { t += 16; ctl.tick(); }
+    const out = new Map<string, { x: number; y: number }>();
+    for (const d of ctl.out) if (d.dot) out.set(d.id, d.dot);
+    return { rig, out };
+  };
+  const iv = stationById('IVCI')!, conf = stationById('CONF')!;
+  assert.ok(Math.hypot(iv.at(iv.u0, new Vec()).x - conf.at(conf.u0, new Vec()).x, iv.at(iv.u0, new Vec()).y - conf.at(conf.u0, new Vec()).y) >= DOT_UNITS - 1e-6, 'at rest the two dots are a fixed distance apart in the plate');
+  for (const k of [0.8, 1, 1.6, 2.4]) {
+    const { rig, out } = at(k);
+    for (const id of ['IVCI', 'CONF', 'RHV', 'SMV']) {
+      const s = stationById(id)!, want = rig.project(s.at(s.u0, new Vec()), { x: 0, y: 0 }), got = out.get(id);
+      if (!got) continue;   // (off the screen at that zoom: not placed)
+      assert.ok(Math.hypot(got.x - want.x, got.y - want.y) < 1.5, `${id} at zoom ${k}: dot ${got.x.toFixed(0)},${got.y.toFixed(0)} is not where its fixed place projects (${want.x.toFixed(0)},${want.y.toFixed(0)})`);
+    }
+    assert.ok(out.has('IVCI') || k > 2, `Lower IVC stands at zoom ${k}`);
+  }
+});
