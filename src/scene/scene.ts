@@ -3,6 +3,7 @@ import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
+import { DIVIDED, PV_START, stumpOf } from './vessels/divide.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
@@ -414,6 +415,17 @@ export class CelScene {
     }, false);
   }
 
+  /** The divided veins (vessels/divide.ts): the splenic vein under a Warren shunt, the portal trunk under a portocaval one, opening and closing with the shunt's drawing on and off. */
+  private syncStumps(): void {
+    const side = !!(patient.params as { portocavalSide?: boolean } | null)?.portocavalSide;
+    for (const [shunt, vein] of DIVIDED) {
+      const o = this.byEdge.get(vein) as VesselObject | undefined;
+      if (!o) continue;
+      const [cut, tie, k] = stumpOf(shunt, vein, this.presence.amountOf(shunt), vein === PV_START && side);
+      if (o.setStump(cut, tie, k)) this.moving = true;
+    }
+  }
+
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
   private syncPresence(f: NonNullable<typeof latest.frame>, instant: boolean): void {
     for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn, circuit: this.figureView === 'circuit' }, this.healthyQ), instant);
@@ -479,10 +491,12 @@ export class CelScene {
     this.body.localToWorld(tip); this.body.localToWorld(ahead);
     return true;
   }
-  setCatheter(s: CatheterState & { ring?: 'free' | 'wedge' | 'bad' | null }): void {
-    this.catheter.set(s);
+  setCatheter(s: CatheterState & { ring?: 'free' | 'wedge' | 'bad' | null; column?: number; clock?: number }): void {
+    // (the still column fills after the balloon is up and the WHVP pill comes after the column, 2D cathTo: the labels read the slice's balloon as "wedged" at 0.999, so it says so only once the column is full)
+    const col = s.column ?? s.balloon;
+    this.catheter.set({ advance: s.advance, balloon: col >= 0.999 ? s.balloon : Math.min(s.balloon, 0.99) });
     this.catheter.group.visible = false;
-    this.procs.showHvpgState(this.catheter.current.advance, this.catheter.current.balloon, s.ring ?? null, performance.now());
+    this.procs.showHvpgState(s.advance, s.balloon, s.ring ?? null, s.clock ?? performance.now(), col);
     this.moving = true;
   }
 
@@ -894,6 +908,7 @@ export class CelScene {
     const lensMoving = this.lens.step(now);
     const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving });
     const presMoving = this.presence.step(dt);
+    this.syncStumps();
     this.updateCaps();
     const shapeMoving = this.shapes.step(dt);
     this.stepSinusDive();

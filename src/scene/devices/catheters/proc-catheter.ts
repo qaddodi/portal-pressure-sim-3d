@@ -109,6 +109,11 @@ export class ProcCatheter {
 
   /** Where the tip is for a share u of its way (scene units), for tags and the camera. */
   tipAt(u = this.last.u, out = new Vector3()): Vector3 { return this.r3.point(this.r3.tipD(u), out); }
+  /** The point just ahead of the tip, where a wedged reading hangs. On the HVPG's route that is 2D's own place (stage-cath.js: the route's point 6.4 of the free vein's radii on, which runs on past the end of the tip's way); on the others, `share` of the way on. */
+  aheadAt(u: number, out = new Vector3(), share = 0.04): Vector3 {
+    const { r3 } = this, r = r3.route;
+    return r.kind === 'hvpg' ? r3.point(Math.min(r.total, r3.tipD(u) + r3.lumen(r.free) * U * 6.4), out) : r3.point(r3.tipD(Math.min(1, u + share)), out);
+  }
   get current(): Readonly<CatheterState> { return this.last; }
 
   set(s: CatheterState): void {

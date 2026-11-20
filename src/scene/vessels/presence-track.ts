@@ -33,6 +33,8 @@ export class PresenceTracks {
     t.obj.group.visible = amount > 0.002;
     t.obj.setReveal(amount);
   }
+  /** How far a vessel is drawn on (0 not at all, 1 whole): what its retracting and drawing on have reached. */
+  amountOf(id: string): number { const t = this.tracks.get(id); return !t || t.shown === 'hidden' ? 0 : t.amount; }
   stateOf(id: string): Presence { return this.tracks.get(id)?.goal ?? 'hidden'; }
   isDrawn(id: string): boolean { const t = this.tracks.get(id); return !!t && t.shown !== 'hidden' && t.amount > 0.001; }
 

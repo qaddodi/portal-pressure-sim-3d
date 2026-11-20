@@ -2,10 +2,10 @@
 // scene/procedures), its `stented` veins, the lobule's `layers`, the sinusoid's `wash`, and the blocked hepatic vein's catheter. It follows the presenter's position as linkScene does
 // and clears everything a slide put on the figure when the slide is left. The scene never reads the deck; this and scene-link.ts are the only places that tell it.
 //
-// A procedure plays as the 2D app plays it (presenter-proc.js procPlay): the figure turns to the anatomy, the catheter goes in with the camera following its tip, each step holds at
-// its stop, and the live model takes the change as the sequence passes the procedure's `apply` time (a patient who already has the result has it taken back first). The slide's card
-// lists the steps and has the Play button (ui/cards/ProcRow.tsx); a slide that says `auto` plays as it lands going forward, and so does any procedure going forward here (the
-// presenter has no per-step Next yet), after the camera and the cards have settled.
+// A procedure is guided by Next, as the 2D app does it (presenter.js procNext / procBack, "guided by Next", his ask 29 Oct): the first Next turns the figure to the anatomy and puts the catheter in (to step 1's
+// stop, the camera following its tip), each Next after it plays exactly one step and holds at its stop, Back runs the step before it backwards (from step 1, back to before the start: the slide as it was), and
+// the Next after the last step moves on. The live model takes the change as the sequence passes the procedure's `apply` time (a patient who already has the result has it taken back first, and put back).
+// The presenter's move asks this link first (ui/deck/proc-step.ts, called from ui/ui-store.ts move); a slide that says `auto` starts as it lands going forward, like a time-lapse.
 import { sceneApi } from '../../scene/api.ts';
 import { clock } from '../../clock/frame.ts';
 import { useUi } from '../ui-store.ts';
@@ -20,15 +20,16 @@ import { CATH_END } from '../../scene/procedures/copied/cath-arrival.js';
 import { OSTIUM_U } from '../../scene/procedures/ostium.ts';
 import { UNITS_PER_SCENE } from '../../scene/frame2d.ts';
 import { Vector3 } from 'three';
-import { ADVANCE_MS } from './scene-link.ts';
-import { askOf, layersWant, legsOf, specFor, stepsOfPlan, tipShot, type ProcPlan } from './procs-plan.ts';
+import { ARRIVE_MS } from './scene-link.ts';
+import { askOf, layersWant, procKey, specFor, stepsOfPlan, stopOf, tipShot, type ProcCursor, type ProcPhase, type ProcPlan } from './procs-plan.ts';
+import { setProcStep } from './proc-step.ts';
 import { clearProc, setProc, useProc } from './procs-state.ts';
 import type { CopiedSlide } from '../../decks/hp/types.ts';
 
 /** How long after a slide lands (its camera, its cards) a procedure starts by itself. */
 export const PLAY_DELAY_MS = 1800;
-/** How long a step holds at its stop before the next goes on (2D AUTO_HOLD). */
-export const STEP_HOLD_MS = 1600;
+/** The camera's glide to a step's shot, and the beat after it lands before the step moves (2D LAND_MS): no step starts with the camera on its way. */
+export const GLIDE_MS = 1100, LAND_MS = 160;
 /** The dive between the body and the lobule takes this long (scene/api.ts DIVE_MS): layers and the wash wait for it where they must. */
 const DIVE_MS = 1250;
 /** The three short pushes the catheter makes against a blocked vein (stage-cath.js probe): how long they take, how hard (in catheter widths of the vein) and how far (of the route). */
@@ -50,15 +51,26 @@ export function linkProcs(): () => void {
   const later = (fn: () => void, ms: number) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
   const room = () => useUi.getState().boxes.free;
 
-  // ── the playing ──
+  // ── the playing: guided by Next (2D presenter.js procPlay / procNext / procBack) ──
+  // `ctl` is the run on the figure: its kind, the card's index of its first step, how many steps it has, the step Next or Back has navigated to (`at`, the ring) and whether it is still going to that step's stop.
+  // The first Next puts the catheter in (to step 1's stop), each Next after it plays the next step, Back runs the step before it backwards, and the Next after the last moves on. The figure's own clock runs
+  // the sequence (scene/procedures/layer.ts drive/aimAt: a time that runs to a stop, turns round without a jump); this link only says which stop.
+  interface Ctl { kind: string; base: number; n: number; at: number; hold: boolean; applied: boolean; original: unknown; last: { name: string; at: number } }
+  let ctl: Ctl | null = null;
+  let phase: ProcPhase = 'wait';
+  let starting = false;              // the figure is turning to the anatomy before the first step: a Next waits with it
+  const cursor = (): ProcCursor => ({ phase, run: !!ctl, at: ctl?.at ?? -1, n: ctl?.n ?? 0, moving: !!sceneApi.procedure.driven?.moving });
+
   function stopPlay(): void {
     gen++;
     timers.forEach(clearTimeout); timers = [];
     sceneApi.follow(null);
     if (playing || held) { sceneApi.procedure.stop(); playing = false; held = false; }
+    ctl = null; starting = false; phase = 'wait';
     useProbes.getState().setEndoscope({ on: false });
   }
 
+  /** The step's shot, glided to once; nothing moves while the camera is on its way (2D `still`: a step starts with its shot landed). */
   function camera(shot: string, last: { name: string; at: number }): void {
     if (!shot) return;
     const tip = sceneApi.procedure.tip(V);
@@ -70,6 +82,7 @@ export function linkProcs(): () => void {
         if (!sh) return;
         last.name = shot; last.at = performance.now();
         sceneApi.goTo(sh, room(), 1100);
+        sceneApi.procedure.pause(GLIDE_MS + LAND_MS);
       }
       sceneApi.follow([tip.x, tip.y, tip.z]);
       return;
@@ -80,66 +93,145 @@ export function linkProcs(): () => void {
     sceneApi.follow(null);
     last.name = shot; last.at = performance.now();
     sceneApi.goTo(sh, room(), 1100);
+    sceneApi.procedure.pause(GLIDE_MS + LAND_MS);
   }
 
-  /** One kind, move by move: each step plays to its stop and holds there; the model takes the change as T.apply passes. `base` is the card's index of the kind's first step. */
-  function playKind(kind: string, base: number, g: number, done: () => void): void {
-    const sp = specFor(kind)!, hold = HOLD_KINDS.has(kind), legs = hold ? legsOf(kind).slice(0, -1) : legsOf(kind), last = { name: '', at: 0 };
-    let applied = false, li = 0;
-    const eus = kind === 'eus';
-    const leg = (): void => {
-      if (g !== gen) return;
-      const [from, to] = legs[li]!, final = li === legs.length - 1;
-      playing = true;
-      sceneApi.procedure.play(kind, {
-        from, to, keep: !final || hold,
-        onFrame: (rec) => {
-          if (g !== gen) return;
-          if (rec.step >= 0 && base + rec.step !== useProc.getState().at) setProc({ at: base + rec.step });
-          const t = sceneApi.procedure.playing?.t ?? 0;
-          if (!applied && t >= sp.T.apply) { applied = true; updateParams((p) => sp.apply(p) as never, { history: false, label: sp.name }); }
-          if (eus && rec.step >= 0) useProbes.getState().setEndoscope({ on: true, mode: 'eus', station: sp.steps[rec.step]?.[0] === 'hv' ? 'hv' : 'pv' });
-          camera(String(rec.shot || ''), last);
-        },
-        onEnd: () => {
-          if (g !== gen) return;
-          if (!final) { later(() => { li++; leg(); }, STEP_HOLD_MS); return; }
-          playing = false; held = hold;
-          if (!applied) { applied = true; updateParams((p) => sp.apply(p) as never, { history: false, label: sp.name }); }
-          done();
-        },
-      });
-    };
-    leg();
+  /** The card: the step the figure is on (the fill), the step Next navigated to (the ring) and the phase. */
+  const paint = (): void => {
+    if (!ctl) return;
+    setProc({ ring: ctl.base + ctl.at, phase: phase === 'run' ? 'play' : phase === 'done' ? 'done' : 'wait' });
+  };
+
+  /** Start one kind of the slide's procedure standing before its first step, then send it to a stop. `base` is the card's index of the kind's first step. */
+  function begin(kind: string, base: number, g: number, onOver: (done: boolean) => void, params0: unknown): void {
+    const sp = specFor(kind)!, eus = kind === 'eus', hold = HOLD_KINDS.has(kind), n = sp.steps.length;
+    const c: Ctl = { kind, base, n, at: -1, hold, applied: false, original: params0, last: { name: '', at: 0 } };
+    ctl = c; playing = true; phase = 'run';
+    sceneApi.procedure.drive(kind, {
+      keep: hold,
+      onFrame: (rec) => {
+        if (g !== gen || ctl !== c) return;
+        if (rec.step >= 0 && base + rec.step !== useProc.getState().at) setProc({ at: base + rec.step });
+        const t = sceneApi.procedure.driven?.t ?? 0;
+        // the live model takes the change as the sequence passes the procedure's `apply` time, and gives it back going back past it
+        if (!c.applied && t >= sp.T.apply) { c.applied = true; updateParams((p) => sp.apply(p) as never, { history: false, label: sp.name }); }
+        else if (c.applied && t < sp.T.apply) { c.applied = false; updateParams((p) => sp.undo(p) as never, { history: false, label: `${sp.name} undone` }); }
+        if (eus && rec.step >= 0) useProbes.getState().setEndoscope({ on: true, mode: 'eus', station: sp.steps[rec.step]?.[0] === 'hv' ? 'hv' : 'pv' });
+        camera(String(rec.shot || ''), c.last);
+      },
+      onArrive: () => {
+        if (g !== gen || ctl !== c) return;
+        // a kind that holds its last frame (the glue slide's scope over the varix) is played through on reaching its last stop: it stands there until the slide is left
+        if (c.hold && c.at === n - 1) { held = true; phase = 'done'; setProc({ phase: 'done', at: base + n - 1, ring: base + n - 1 }); }
+      },
+      onEnd: ({ done, rewound }) => {
+        if (g !== gen || ctl !== c) return;
+        playing = false; held = false; ctl = null; sceneApi.follow(null);
+        if (rewound) {
+          // Back from the first step: the slide as it was (the patient who had the result has it again)
+          if (c.original) updateParams(() => c.original as never, { history: false, label: sp.name });   // (the patient as he was, who may have had the result: unapply took it off as the sequence went back past it)
+          if (eus) useProbes.getState().setEndoscope({ on: false });   // (the scope goes out with the run it was part of)
+          phase = base > 0 ? 'between' : 'wait'; setProc({ phase: 'wait', at: base - 1, ring: base - 1 });
+        } else if (done) {
+          if (!c.applied) { c.applied = true; updateParams((p) => sp.apply(p) as never, { history: false, label: sp.name }); }
+        }
+        const v = viewNow();
+        if (v) sceneApi.goTo(v.shot, room());
+        onOver(!rewound);
+      },
+    });
+    aimStep(0);
   }
 
-  /** Play the slide's procedure from its start (the Play button, and the landing). */
-  function play(): void {
-    if (!plan || !key) return;
+  /** Send the run to step k's stop (the ring on it at once; the fill follows the catheter). */
+  function aimStep(k: number, rush = false): void {
+    const c = ctl;
+    if (!c) return;
+    c.at = k; phase = 'run';
+    const goal = k < 0 ? 0 : stopOf(c.kind, k);
+    if (goal === null) return;
+    sceneApi.procedure.aim(goal, rush);
+    paint();
+  }
+
+  /** Whether the slide's procedure can play on this patient now: the spec's own refusal ('why') stands on the card. */
+  function ready(): { p: ProcPlan; params: unknown } | null {
+    if (!plan || !key) return null;
     const s = slideNow();
-    if (!s || sceneApi.figureView !== 'body') return;
-    stopPlay();
-    const g = gen, p = plan, sp = specFor(p.kind);
-    if (!sp) return;
+    if (!s) return null;
+    const sp = specFor(plan.kind);
+    if (!sp) return null;
     const params = currentParams(), m = latestMetrics() as never;
     // (A patient who already has the result has it taken back first, and the play puts it back.)
     const had = !!params && sp.had(params);
     const before = had ? (sp.undo(structuredClone(params)) as unknown) : params;
     const why = params ? sp.can(before, m) || '' : '';
-    if (why) { setProc({ why, phase: 'idle' }); return; }
-    if (had) updateParams((q) => sp.undo(q) as never, { history: false, label: `${sp.name} undone` });
-    setProc({ why: '', phase: 'play', at: -1 });
-    const chain = (kind: string, base: number, next: (() => void) | null): void => {
-      playKind(kind, base, g, () => {
-        if (g !== gen) return;
-        if (next) { next(); return; }
-        setProc({ phase: 'done', at: useProc.getState().steps.length - 1 });
-        const v = viewNow();
-        if (v) sceneApi.goTo(v.shot, room());
-      });
+    if (why) { setProc({ why, phase: 'idle' }); return null; }
+    return { p: plan, params };
+  }
+
+  /** The first Next: the figure turns to the anatomy, the catheter goes in. Returns whether the key was spent (a procedure that cannot play lets the slide move on). */
+  function start(): boolean {
+    const r = ready();
+    if (!r) return false;
+    const view = viewNow()?.scene?.view ?? 'body';
+    if (view !== 'body') return false;
+    stopPlay();
+    const g = gen, sp = specFor(r.p.kind)!, params = r.params;
+    const go = (): void => {
+      if (g !== gen) return;
+      starting = false;
+      const had = !!params && sp.had(params);
+      if (had) updateParams((q) => sp.undo(q) as never, { history: false, label: `${sp.name} undone` });
+      setProc({ why: '', phase: 'play', at: -1, ring: 0 });
+      const then = r.p.then && specFor(r.p.then) ? r.p.then : null;
+      begin(r.p.kind, 0, g, (done) => {
+        if (g !== gen || !done) return;
+        if (then) { phase = 'between'; setProc({ phase: 'wait', at: sp.steps.length - 1, ring: sp.steps.length }); return; }
+        phase = 'done'; setProc({ phase: 'done', at: useProc.getState().steps.length - 1, ring: -1 });
+      }, params);
     };
-    const then = p.then && specFor(p.then) ? p.then : null;
-    chain(p.kind, 0, then ? () => { const w = specFor(then)!.can(currentParams(), m); if (w) { setProc({ phase: 'done' }); return; } chain(then, sp.steps.length, null); } : null);
+    // (the figure may still be turning back from the lobule: a Next waits with it, for a few seconds at most, rather than leaving)
+    if (sceneApi.figureView === 'body') go();
+    else { starting = true; let tries = 0; const poll = (): void => { if (g !== gen) return; if (sceneApi.figureView === 'body') go(); else if (++tries > 40) { starting = false; } else later(poll, 100); }; later(poll, 100); }
+    return true;
+  }
+
+  /** The reading after the main run (TIPS, then its gradient): one more run on the same card. */
+  function startThen(): boolean {
+    const then = plan?.then && specFor(plan.then) ? plan.then : null, sp = plan ? specFor(plan.kind) : null;
+    if (!plan || !then || !sp) return false;
+    const w = specFor(then)!.can(currentParams(), latestMetrics() as never);
+    if (w) { phase = 'done'; setProc({ phase: 'done' }); return false; }
+    const g = gen;
+    setProc({ phase: 'play', ring: sp.steps.length });
+    begin(then, sp.steps.length, g, (done) => {
+      if (g !== gen) return;
+      if (!done) { phase = 'between'; setProc({ phase: 'wait', at: sp.steps.length - 1, ring: sp.steps.length - 1 }); return; }
+      phase = 'done'; setProc({ phase: 'done', at: useProc.getState().steps.length - 1, ring: -1 });
+    }, currentParams());
+    return true;
+  }
+
+  /** Next (dir 1) or Back (dir -1) on a slide that has a procedure: true when the procedure took the key, false when the slide moves on. Registered with the presenter's move (ui/deck/proc-step.ts). */
+  function onKey(dir: 1 | -1): boolean {
+    if (!plan || !key) return false;
+    if (starting) return dir > 0;   // (the figure is turning to the anatomy: a Next waits with it, a Back leaves)
+    const a = procKey(cursor(), dir);
+    switch (a.act) {
+      case 'pass': return false;
+      case 'start': return start();
+      case 'then': return startThen();
+      case 'aim': aimStep(a.at); return true;
+      case 'rush': aimStep(ctl!.n - 1, true); return true;
+      case 'rewind': aimStep(-1); return true;
+    }
+  }
+
+  /** The card's button: the first press starts the procedure, each press after it plays the next step (the same as Next); on a played-through slide it plays it again from the start. */
+  function press(): void {
+    if (phase === 'done') { stopPlay(); start(); return; }
+    onKey(1);
   }
 
   const viewNow = () => { const { stops, pos } = useUi.getState(); return stops.length ? viewAt(stops, pos) : null; };
@@ -197,9 +289,12 @@ export function linkProcs(): () => void {
       plan = ask.procedure;
       if (plan) {
         const sp = specFor(plan.kind), steps = stepsOfPlan(plan);
-        setProc({ key: k, steps, at: dir < 0 ? steps.length - 1 : -1, phase: dir < 0 ? 'done' : 'wait', why: '', name: sp?.name ?? plan.kind });
-        // (Back onto a played-through slide: it stands done, the Play button plays it again.)
-        if (dir > 0 && sp) { const g = gen; later(() => { if (g === gen) play(); }, PLAY_DELAY_MS); }
+        // (why: the spec's own refusal for this patient, on the card from the start, as 2D's procEl)
+        const params = currentParams(), why = sp && params && !sp.had(params) ? sp.can(params, latestMetrics() as never) || '' : '';
+        setProc({ key: k, steps, at: dir < 0 ? steps.length - 1 : -1, ring: dir < 0 ? -1 : 0, phase: dir < 0 ? 'done' : 'wait', why, name: sp?.name ?? plan.kind });
+        // (Back onto a played-through slide: it stands done; Next moves on, the button plays it again.) Going forward the first Next starts it; `auto` starts it as the slide lands, after the camera and the cards have settled.
+        phase = dir < 0 ? 'done' : 'wait';
+        if (dir > 0 && sp && plan.auto) { const g = gen; later(() => { if (g === gen) start(); }, PLAY_DELAY_MS); }
       }
     }
     if (!key || !s) return;
@@ -210,7 +305,7 @@ export function linkProcs(): () => void {
       const ring = cath ? (CATH_END[cath as keyof typeof CATH_END]?.ring ?? null) : null;
       sceneApi.setCatheterRing(ring as 'free' | 'wedge' | 'bad' | null);
       stopProbe();
-      if (cath === 'blocked') { later(probe, ADVANCE_MS + 300); }
+      if (cath === 'blocked') { later(probe, ARRIVE_MS + 300); }
     }
     // the wedge's wash, counted from when the view has landed
     if (askOf(s).wash && washKey !== key && (sceneApi.figureView === 'lobule' || sceneApi.figureView === 'sinusoid')) { washKey = key; sceneApi.setWash(true, performance.now() + washLand); }
@@ -218,8 +313,9 @@ export function linkProcs(): () => void {
 
   sync();
   const off = useUi.subscribe((s, prev) => { if (s.pos !== prev.pos || s.stops !== prev.stops || s.boxes.free !== prev.boxes.free) sync(); });
-  const offPlay = onPlay(() => play());
-  return () => { off(); offPlay(); release(); };
+  const offPlay = onPlay(() => press());
+  setProcStep(onKey);
+  return () => { off(); offPlay(); setProcStep(null); release(); };
 }
 
 // The card's Play button asks the link to play (the link is one per talk; the card does not hold it).
