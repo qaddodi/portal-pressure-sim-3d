@@ -244,7 +244,11 @@ test('the tubes ease in with the map and their own presence, and the caudate lan
   assert.equal(t.objects[caud]!.group.visible, false);
   for (let i = 0; i < 20; i++) t.update(50, ctx({ caudPin: true }));
   assert.equal(t.objects[caud]!.group.visible, true);
-  for (let i = 0; i < 20; i++) t.update(50, ctx({ ramp: 0 }));
+  // (a liver branch grows with the change's share: part way it is part drawn, and the body showing it is gone)
+  for (let i = 0; i < 20; i++) t.update(50, ctx({ ramp: 0.2, t: 0.45 }));
+  const mid = (t.objects[tree]!.toon.uniforms.reveal as { value: number }).value;
+  assert.ok(mid > 0 && mid < 1, `part grown at the change's middle: ${mid}`);
+  for (let i = 0; i < 20; i++) t.update(50, ctx({ ramp: 0, t: 0 }));
   assert.equal(t.objects[tree]!.group.visible, false, 'with the body showing, the map\'s own tubes are gone');
   t.dispose();
 });
@@ -416,4 +420,53 @@ test('the Circuit\'s outline is seen on a dark map: a soft near-black line that 
   const sh = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
   assert.match(sh, /mix\(1\.0, \$\{F\(CIRC_INK_K\)\}, circT\)/);
   assert.match(readFileSync(new URL('../src/scene/circuit/map-layer.ts', import.meta.url), 'utf8'), /DOT_RING_DARK/);
+});
+
+test('a hidden or a big layer never walls off a side of the Circuit: every left-hand station and the first tier name stand on a wide screen', async () => {
+  const { isChip } = await import('../src/scene/circuit/ui-walls.ts');
+  const { solve } = await import('../src/scene/labels/solver.ts');
+  assert.ok(isChip(1600, 52, 1600, 870), 'the top bar');
+  assert.ok(isChip(560, 120, 1600, 870), 'the dock');
+  assert.ok(isChip(44, 120, 1600, 870), 'the zoom pill');
+  assert.ok(!isChip(520, 800, 1600, 870), 'a card or a layer down a side');
+  assert.ok(!isChip(1580, 860, 1600, 870), 'a layer over the screen');
+  const view = { x0: 0, y0: 56, x1: 1600, y1: 870 };
+  const b = buildCaptions(fakeCtx({ proj: (x, y) => [(88 + (x - 140) * 1.475) * 0.8, (190 + (y - 191) * 1.46) * 0.8 + 100], vp: { w: 1600, h: 870 }, view }));
+  const out = solve({ items: b.items, view, blockers: [], lines: [] });
+  const placed = new Set(out.placed.map((p) => p.id));
+  for (const id of ['INT', 'COL', 'SPL', 'STO', 'SMV', 'IMV', 'SV', 'LGV', 'GV', 'z:Splanchnic beds']) assert.ok(placed.has(id), `${id} stands`);
+  const src = readFileSync(new URL('../src/scene/circuit/CircuitCaptions.tsx', import.meta.url), 'utf8');
+  assert.match(src, /view: room,/, 'the tier names and the lanes are kept to the screen, not to the cards\' leftovers');
+});
+
+// ── the liver's branches grow with the change ──
+test('the portal venules, the sinusoids and the hepatic venules grow along their flow on the change\'s share, in that order, whole when the map lands, gone when the body is', async () => {
+  const { GROW, growAt, growOf, stageOf } = await import('../src/scene/circuit/grow.ts');
+  assert.equal(stageOf('PRE_R'), 'portal'); assert.equal(stageOf('SIN_LL'), 'sinusoid'); assert.equal(stageOf('POST_R_RHV'), 'hepatic'); assert.equal(stageOf('PV_TRUNK'), null);
+  assert.equal(growOf('PV_TRUNK', 0.5), null);
+  for (const s of ['portal', 'sinusoid', 'hepatic'] as const) {
+    assert.equal(growAt(s, 0), 0); assert.equal(growAt(s, 1), 1);
+    let last = 0;
+    for (let i = 0; i <= 100; i++) { const g = growAt(s, i / 100); assert.ok(g >= last - 1e-12, `${s} never shrinks as the change goes on`); last = g; }
+  }
+  assert.ok(GROW.portal[0] < GROW.sinusoid[0] && GROW.sinusoid[0] < GROW.hepatic[0] && GROW.portal[1] < GROW.sinusoid[1] && GROW.sinusoid[1] < GROW.hepatic[1], 'portal, then sinusoid, then hepatic');
+  assert.ok(growAt('portal', 0.5) > growAt('sinusoid', 0.5) && growAt('sinusoid', 0.5) > growAt('hepatic', 0.5), 'half way, the portal side is furthest');
+  assert.ok(GROW.hepatic[1] < 1 && GROW.portal[0] > 0, 'nothing is cut at either end of the change');
+});
+test('a liver branch\'s drawing is handed to the change: its presence only keeps state, `drive` writes the reveal, and the tubes grow the trees by the same stages', async () => {
+  const { PresenceTracks } = await import('../src/scene/vessels/presence-track.ts');
+  const log: number[] = [];
+  const o = { edge: { id: 'PRE_R' }, group: { visible: true }, setReveal: (r: number) => log.push(r), setDotted: () => {} } as never;
+  const p = new PresenceTracks([o]);
+  p.own(['PRE_R']);
+  assert.ok(p.set('PRE_R', 'hidden'));
+  assert.equal(p.stateOf('PRE_R'), 'hidden'); assert.equal(p.isDrawn('PRE_R'), false);
+  assert.equal(p.step(16), false, 'nothing eased here'); assert.deepEqual(log, [], 'and nothing written by the presence');
+  p.set('PRE_R', 'shown');
+  p.drive('PRE_R', 0.4); assert.deepEqual(log, [0.4]); assert.equal((o as { group: { visible: boolean } }).group.visible, true);
+  p.drive('PRE_R', 0); assert.equal((o as { group: { visible: boolean } }).group.visible, false);
+  const tubes = readFileSync(new URL('../src/scene/circuit/tubes.ts', import.meta.url), 'utf8');
+  assert.match(tubes, /growOf\(e\.parent, c\.t\)/); assert.match(tubes, /setReveal\(grown\)/);
+  const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  assert.match(scene, /this\.presence\.own\(this\.grownIds\)/); assert.match(scene, /this\.growLiver\(t\)/);
 });

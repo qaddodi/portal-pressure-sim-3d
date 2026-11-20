@@ -20,6 +20,7 @@ import { BloodField } from './blood/field.ts';
 import { BloodCells } from './blood/cells/cells.ts';
 import { CameraRig } from './camera/rig.ts';
 import { cutUniform, fieldSoft } from './camera/dive.ts';
+import { fieldWide } from './lobule/field.ts';
 import { ORGAN_CUT } from './organs/layer.ts';
 import { quietOf } from './camera/quiet.ts';
 import { effectiveDistance, type Room } from './camera/room.ts';
@@ -49,6 +50,7 @@ import { sinusoidBox } from './lobule/shots.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
 import { ProbeLayer } from './devices/probes/layer.ts';
+import { VESSEL_LAYER, inVesselPass } from './layers.ts';
 import type { EusDrive } from './devices/probes/scope.ts';
 import { probeCards } from './devices/probes/cards.ts';
 import { probeAvoid } from './labels/probe-boxes.ts';
@@ -57,6 +59,7 @@ import { organsReady } from './organs/meshes.ts';
 import { artReady } from './organs/organ-art.ts';
 import { clock } from '../clock/frame.ts';
 import { COURSES } from './circuit/course.ts';
+import { growOf, stageOf } from './circuit/grow.ts';
 import { attachRuns, slicesFor } from './circuit/geometry.ts';
 import { mapToScene, turnScenePt } from './circuit/map.ts';
 import { MapLayer, mapRamp } from './circuit/map-layer.ts';
@@ -235,12 +238,13 @@ export class CelScene {
         presenting: () => useUi.getState().deck != null,
       },
     });
-    this.body.add(this.probes.group);
+    this.body.add(inVesselPass(this.probes.group));
 
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
     this.flow = new BloodMarks(this.vessels);
     this.cells = new BloodCells({ vessels: NETWORK, object: (id) => this.vesselObject(id), shared: this.shared, lens: this.lens.shared, blood: this.blood.shared, parent: this.body, layer: VESSEL_LAYER, phone: () => this.phone });
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
+    this.presence.own(this.grownIds);
     this.shapes = new ShapeTracks(NETWORK, this.byEdge as unknown as Map<string, VesselObject>);
     this.lens.setContext({ healthy: null, ref: null });
     const vo = { look: this.look, phone: this.phone, flowMode: opts.flowMode ?? DEFAULT_FLOW_MODE, reduceMotion: opts.reduceMotion };
@@ -659,10 +663,13 @@ export class CelScene {
   private stepCutaway(): void {
     const cam = this.rig.camera, d = this.inDive() ? cam.position.distanceTo(this.livePoint) : Infinity;
     const p = this.divePt.copy(this.livePoint).project(cam);
-    cutUniform(d, p.x, p.y, cam.aspect, this.cutArr, this.diveIn());
+    // (owner, 20 Nov: no cut-out. The circular window drew a dark-ringed disc in the liver with nothing in it; the body now dissolves evenly over the lobules' field, which
+    //  fills the screen from the moment the camera is inside. The window stays shut: cutUniform at an infinite distance.)
+    cutUniform(Infinity, p.x, p.y, cam.aspect, this.cutArr, this.diveIn());
     const was = ORGAN_CUT.value.z;
     ORGAN_CUT.value.set(this.cutArr[0], this.cutArr[1], this.cutArr[2], this.cutArr[3]);
     this.lobule.field.setSoft(fieldSoft(d, this.lobuleRest()));
+    this.lobule.field.setWide(fieldWide(d, this.lobuleRest()));   // (from afar the field reaches every edge: the liver's inside is lobules throughout the dive)
     if (was !== this.cutArr[2] && (was > -1 || this.cutArr[2] > -1)) this.moving = true;
   }
   /** A portrait room (narrower than tall, 2D's `W < H * 0.95`) runs the sinusoid top to bottom: the sinusoid view takes it (SinusoidView.setPortrait, the sinusoid worker's), and the shot asks for it (sinusoidShot(portrait)). */
@@ -880,6 +887,15 @@ export class CelScene {
     return needs;
   }
 
+  /** The liver's own branches (portal venules, sinusoids, hepatic venules) draw on along their flow as the body turns into the map, and back, on the change's eased share (circuit/grow.ts). */
+  private growLiver(t: number): void {
+    if (t === this.lastGrow) return;
+    this.lastGrow = t;
+    for (const id of this.grownIds) this.presence.drive(id, growOf(id, t) ?? 0);
+  }
+  private lastGrow = -1;
+  private readonly grownIds: readonly string[] = NETWORK.filter((v) => v.kind === 'liver' && stageOf(v.id)).map((v) => v.id);
+
   /** The change and the turn, the organs leaving, the map coming in and its stations' dots. */
   private stepCircuit(now: number, dt: number): boolean {
     const moving = this.circuit.update(now), t = this.circuit.t;
@@ -892,6 +908,7 @@ export class CelScene {
     this.mapLayer.set(mapRamp(t), this.circuit.rr);
     this.procs.setFade(fade);
     const ramp = mapRamp(t);
+    this.growLiver(t);
     const tubesMoving = this.tubes.update(dt, { ramp, t, body: this.fadeNow, drawn: (id) => this.vesselDrawn(id), caudPin: this.caudPin, open: this.openShunts });
     this.resistors.setAlpha(ramp);
     let resMoving = false;
@@ -958,7 +975,6 @@ const NETWORK_MATE: ReadonlyMap<string, NetVessel> = new Map(NETWORK.map((v) => 
 
 /** The camera layer of everything drawn over the organs: the vessels, the catheter, the varices. */
 /** The organs a tap opens a card for in the body view (2D ORGAN_KEYS: the heart, the liver, the spleen; the heart is two meshes). */
-const VESSEL_LAYER = 1;
 
 /** Where each named place is: the vessel's id and how far along its 2D course (0 to 1). */
 const ANCHORS = {
