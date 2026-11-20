@@ -4,6 +4,7 @@
 import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import './shell.css';
 import './chrome-3d.css';
+import './tap-cells.css';
 import { DeckUi } from '../DeckUi.tsx';
 import { useUi } from '../ui-store.ts';
 import { useShell } from './store.ts';
