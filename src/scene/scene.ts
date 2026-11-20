@@ -18,6 +18,7 @@ import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-o
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
 import { centrelineOf, type Centreline } from './vessels/centreline.ts';
 import { SIDE_BRANCHES, mouthOf } from './vessels/mouth.ts';
+import { cavaTailOf } from './vessels/cava-tail.ts';
 import { fadeOf, HEPATIC_VEINS, cavaEndSpan, CAVA_RECEDE } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
@@ -357,6 +358,7 @@ export class CelScene {
     if (fade) { o.setTipFade(fade); this.tipFades.push({ o, connect: fade.connect }); if (fade.ivcJoin) this.ivcJoins.push(o); }
     this.applyMouth(def, o);
     { const span = cavaEndSpan(def.id); if (span > 0) { o.setCavaEnd(span, CAVA_RECEDE); this.hvJoins.push(o); } }
+    { const tail = cavaTailOf(def.id, courses, built.length); if (tail > 0) o.setCavaTail(tail); }
     if (BACK_EDGES.has(def.id)) { o.setBehindOrgans(VESSEL_LAYER, IVC_EDGES.has(def.id)); this.back.push(o); if (IVC_EDGES.has(def.id)) this.cava.push(o); }
     this.add(o);
     this.vessels.push(o);

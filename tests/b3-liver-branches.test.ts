@@ -209,3 +209,24 @@ test('flow marks hold back inside the vessel a tube leaves: the shader multiplie
   assert.match(VESSEL_FS, /float sOn = markK\(/);
   assert.match(VESSEL_FS, /float fade = markK\(/);
 });
+
+test('a hepatic vein is not a tube inside the cava it opens into: the last cava radius of it, which lies in the cava\'s lumen, fades out (root cause of the round disc, wall line and dark wedge inside the IVC at every hepatic vein)', async () => {
+  const { cavaTailOf } = await import('../src/scene/vessels/cava-tail.ts');
+  const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
+  const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
+  const { VESSEL_FS, VESSEL_VS } = await import('../src/scene/vessels/shaders.ts');
+  const lenOf = (cs: ReturnType<typeof coursesOf>): number => { const c = cs[0]!; let L = 0; for (let i = 1; i < c.pts.length; i++) L += Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1], c.pts[i]![2] - c.pts[i - 1]![2]); return L; };
+  for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) { const cs = coursesOf(B.get(id)!, REST), t = cavaTailOf(id, cs, lenOf(cs)); assert.ok(t > 0.03 && t <= 0.5, `${id} tail ${t}`); }
+  for (const id of ['PVH_R_2', 'IVC_IS', 'RHV_IVC_1']) { const cs = coursesOf(B.get(id)!, REST); assert.equal(cavaTailOf(id, cs, lenOf(cs)), 0, `${id} has none`); }
+  assert.match(VESSEL_VS, /uniform float cavaTail;/);
+  assert.match(VESSEL_VS, /fa \*= mix\(1\.0 - smoothstep\(1\.0 - cavaTail, 1\.0, uv\.x\), 1\.0, circT\)/);
+  assert.match(VESSEL_FS, /if \(vFade < 0\.004\) discard;/);
+});
+
+test('at a fork the vein keeps its outline over the stretch where the branch\'s own outline has not yet begun, and the shade band is lit across the mouth', async () => {
+  const { mouthOf } = await import('../src/scene/vessels/mouth.ts');
+  const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
+  const m = mouthOf('PVH_R_2~F:b')!;
+  assert.ok(m.u0 > 0.23, `the window starts after the branch's start (0.222), at ${m.u0}`);
+  assert.match(VESSEL_FS, /celTubeTone\(base, mix\(sT, 1\.0, mouthK\)/);
+});
