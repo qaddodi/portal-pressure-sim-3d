@@ -201,6 +201,9 @@ uniform float lensSmooth;   // smooth joins on (1): the lens colour runs through
 uniform float smokeOn;
 uniform vec3 hiColor;
 uniform float hullOn;
+// smooth joins, as in the vertex shader: the ends that carry on into another vessel (x < 0 where nothing); their last stretch draws no ink, so no flat cut is outlined where a branch meets its trunk
+uniform vec3 mate0;
+uniform vec3 mate1;
 uniform sampler2D streamTex;
 uniform sampler2D chainTex;
 uniform float projY;
@@ -323,7 +326,14 @@ void main() {
     if (gl_FrontFacing || hullOn < 0.5) discard;
     // the outline in the look's casing colour at its alpha (2D: --casing-a, and the Circuit's own on the dark look (.stage-wrap.cmap), by the Circuit's share, whole on a vessel behind an organ too; a picked vessel's ring is solid)
     float ca = mix(casingA, casingCircA, circT);
-    gl_FragColor = vec4(mix(mix(inkColor, inkColorCirc, circT), hiColor, clamp(vHi, 0.0, 1.0)), mix(ca, 1.0, clamp(vHi, 0.0, 1.0)) * VEIL_A * vFade);
+    // a joined end is buried in its trunk: no ink on its last stretch, so the cut is never outlined
+    float endU = min(mate0.x >= 0.0 ? vUv.x : 1e9, mate1.x >= 0.0 ? 1.0 - vUv.x : 1e9) * len * 300.0;
+    if (endU < ${F(CEL_STYLE.TUBE.END_R)} * vR && vHi < 0.001) discard;
+    // the line's colour: the look's casing ink taken most of the way to a deep tone of the vessel's own colour (never black, never white)
+    vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
+    vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
+    vec3 inkH = mix(inkColor, celTubeBase(baseH) * ${F(CEL_STYLE.TUBE.INK_TONE)}, ${F(CEL_STYLE.TUBE.INK_OWN)});
+    gl_FragColor = vec4(mix(mix(inkH, inkColorCirc, circT), hiColor, clamp(vHi, 0.0, 1.0)), mix(ca, 1.0, clamp(vHi, 0.0, 1.0)) * VEIL_A * vFade);
     return;
   }
   if (!gl_FrontFacing) discard;
