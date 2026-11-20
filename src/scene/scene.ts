@@ -1,5 +1,6 @@
 import { Box3, Color, type DataTexture, Group, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
+import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
@@ -325,11 +326,14 @@ export class CelScene {
   /** The clear colour now: the look's ground, on its way to the map's own ground (the dark looks) as the map comes in. */
   private readonly clear = new Color();
   private readonly mapGround = new Color();
-  clearColor(): Color {
+  clearColor(intoTexture = false): Color {
     const ground = MAP_LOOKS[this.look]?.ground;
     this.clear.set(PALETTES[this.look].bg);
     if (ground) this.clear.lerp(this.mapGround.set(ground), mapRamp(this.circuit.t));
-    return this.clear;
+    // Into the anti-aliasing pass's texture (post-aa.ts) three clears in its linear working space and the pass writes the canvas the picture's own numbers (every shader of the figure writes sRGB
+    // numbers as they are), so the ground would land as the LINEAR value of the page's colour: #F1EBE0 as #E0D4BE and Dark's #1A1917 as near black, a visible plate behind the figure against the
+    // chrome. The ground is therefore stored as its own numbers there (rawColor's rule); straight to the canvas three converts it itself.
+    return groundFor(this.clear, intoTexture);
   }
 
   setPhone(phone: boolean): void {
@@ -830,7 +834,7 @@ export class CelScene {
   /** Until the camera has its first real shot and room only the background is drawn, so the figure's first picture is already in its place. */
   render(gl: WebGLRenderer): void {
     if (!this.rig.placed) { gl.clear(); return; }
-    gl.setClearColor(this.clearColor());
+    gl.setClearColor(this.clearColor(this.post.on));
     const dpr = gl.getPixelRatio?.() ?? 1;
     this.blood.shared.dpr.value = dpr;   // (the vessels' line is held in device px)
     this.disease.strands.setDpr(dpr);

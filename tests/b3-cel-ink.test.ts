@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Color } from 'three';
-import { CASING, CEL, RIM_A, TAPER_TO, celTones, inkTaper, inkWidthDev } from '../src/scene/vessels/cel-ink.ts';
+import { CASING, CASING_2D, CEL, RIM_A, TAPER_TO, celTones, inkTaper, inkWidthDev } from '../src/scene/vessels/cel-ink.ts';
 import { LOOK_IDS, PALETTES } from '../src/scene/palette.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { CelScene } from '../src/scene/scene.ts';
@@ -40,7 +40,7 @@ test('the shader holds the same numbers, and has no specular and no world-lit ba
 
 test('every look wears 2D\'s casing: its ink and alpha (the dark look\'s own in the Circuit, by its share, not by a lens being on), a veiled vessel half, and the dark looks\' light rim', () => {
   assert.deepEqual(Object.keys(CASING).sort(), [...LOOK_IDS].sort());
-  assert.equal(CASING.light.a, 0.64); assert.equal(CASING.soft.a, 0.66); assert.equal(CASING.dark.a, 0.3); assert.equal(CASING.dark.circ.a, 0.38); assert.deepEqual(CASING.dark.circ.rgb, [0, 0, 0]); assert.equal(CASING.navy.circ.a, 0.34, 'only the dark look changes in the Circuit');
+  assert.equal(CASING_2D.light.a, 0.64); assert.equal(CASING_2D.soft.a, 0.66); assert.equal(CASING_2D.dark.a, 0.3); assert.equal(CASING_2D.dark.circ.a, 0.38); assert.deepEqual(CASING.dark.circ.rgb, [0, 0, 0]); assert.equal(CASING_2D.navy.circ.a, 0.34, 'only the dark look changes in the Circuit');
   assert.equal(RIM_A.light, 0); assert.equal(RIM_A.dark, 0.3);
   const s = new CelScene();
   const o = s.vesselObject('PV_TRUNK')!;
