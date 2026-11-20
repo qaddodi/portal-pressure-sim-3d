@@ -91,11 +91,11 @@ export class VesselObject extends CelObject {
       uniforms: {
         ...u,
         inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, inkOn: { value: 1 },
-        lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, bury: { value: new Vector2(0, 0) }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, seam: { value: new Vector2(0, 0) }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
+        lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, bury: { value: new Vector2(0, 0) }, mouth: { value: new Vector4(0, 0, 0, 0) }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, seam: { value: new Vector2(0, 0) }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circFlat: { value: 0 }, circAnchA: { value: new Vector3() }, circAnchC: { value: new Vector3() }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
-        veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 }, cavaEnd: { value: new Vector2(0, 1) },
-        lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, streakAmt: blood.streakAmt, chainTex: blood.chainTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, quietK: { value: 0 }, wallLine: { value: this.artery ? 1 : 0 }, pageCol: { value: new Color() }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 0 },
+        veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 }, cavaEnd: { value: new Vector2(0, 1) }, cavaTail: { value: 0 },
+        lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, streakAmt: blood.streakAmt, chainTex: blood.chainTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, quietK: { value: 0 }, wedge: { value: new Vector4(0, 2, 0.6, 0) }, wedgeCol: { value: new Color() }, wallLine: { value: this.artery ? 1 : 0 }, pageCol: { value: new Color() }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 0 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
       },
@@ -173,6 +173,8 @@ export class VesselObject extends CelObject {
     if (v.x === start && v.y === end) return false;
     v.set(start, end); return true;
   }
+  /** Where a side branch leaves this vein (mouth.ts): the vein draws no outline over that stretch of its wall, on that side. */
+  setMouth(u0: number, u1: number, side: number, margin: number): void { (this.toon.uniforms.mouth!.value as Vector4).set(u0, u1, side, margin); }
   setBury(start: number, end: number): void { (this.toon.uniforms.bury!.value as Vector2).set(start, end); }
   setMates(start: { index: number; baseD: number; widthKind: number } | null, end: { index: number; baseD: number; widthKind: number } | null): void {
     const u = this.toon.uniforms;
@@ -181,6 +183,12 @@ export class VesselObject extends CelObject {
   }
 
   /** Quiet depth on a turn (camera/quiet.ts quietOf, 0..1): the back tier eases toward the page; for the vessels behind the organs only (the scene sets it). */
+  /** The wedge's amber column as a tint on this vessel: `amount` 0..1, `cut` the share of its course (from the outer end, 0) it reaches up to (2: all of it), `fade` the stretch from the outer end over which it comes to full (0: none). */
+  setWedge(amount: number, cut: number, fade: number, color?: Color): void {
+    const w = this.toon.uniforms.wedge!.value as Vector4;
+    w.set(amount, cut, fade, fade > 0 ? 1 : 0);
+    if (color) (this.toon.uniforms.wedgeCol!.value as Color).copy(color);
+  }
   setQuiet(q: number): void { this.toon.uniforms.quietK!.value = q; }
 
   private tip: { a0: number; a1: number } | null = null;
@@ -206,6 +214,8 @@ export class VesselObject extends CelObject {
     this.toon.transparent = true;
     if (this.veil) this.veil.mat.transparent = true;
   }
+  /** A hepatic vein that opens into the cava ends on the cava's axis: the last `share` of it (the cava's radius) lies in its lumen and fades out, whatever the cava's own alpha. */
+  setCavaTail(share: number): void { this.toon.uniforms.cavaTail!.value = share; this.toon.transparent = true; if (this.veil) this.veil.mat.transparent = true; }
   setCavaEndWhole(whole: number): void { (this.toon.uniforms.cavaEnd!.value as Vector2).y = this.cavaEndA + (1 - this.cavaEndA) * whole; }
   /** A vein fading into the faint cava (fades.ts ivcJoin): `whole` 0..1 is how far the cava is shown whole, and the fade lets go by as much (its alpha at the wall rises from its own to 1). */
   setIvcWhole(whole: number): void {

@@ -3,19 +3,19 @@
 // 2D deck's own fields by batch B13b (src/decks/hp), exactly as every other ported deck; their numbers, like the slice's, come from each slide's own state.
 
 import { HVPG_COPIED } from './hvpg.copied.ts';
-import type { Deck, Slide, ShotName, ReadingKey } from './schema.ts';
+import type { Deck, Slide, ShotName } from './schema.ts';
 import { DECK as HVPG_2D } from './hp/data/hvpg.copied.ts';
 import { toDeck } from './hp/deck.ts';
 
-interface Plate { shot: ShotName; ladder?: { rows: ReadingKey[]; result?: 'hvpg' }; model?: { preset: string } }
+interface Plate { shot: ShotName; model?: { preset: string } }
 
-/** What the 3D adds to each copied slide. The ladder grows with the teaching: the free slide shows what is free, the wedge adds the wedged
- *  pressure, the result slide adds the subtraction. The route slide has no data card (nothing is measured yet). */
+/** What the 3D adds to each copied slide. The route slide has no data card (nothing is measured yet). */
 const THREE_D: Record<string, Plate> = {
   route: { shot: 'route', model: { preset: 'csph' } },   // (the patient the talk opens on, as the 2D deck's `preset`)
-  free: { shot: 'free', ladder: { rows: ['ivc', 'fhvp'] } },
-  wedge: { shot: 'wedge', ladder: { rows: ['ivc', 'fhvp', 'whvp'] } },
-  hvpg: { shot: 'hvpg', ladder: { rows: ['whvp', 'fhvp', 'ivc'], result: 'hvpg' } },
+  // (the three catheter slides carry the HVPG monitor, not a pressures ladder: 2D's card for them is the one instrument, so the free and the wedge slide are the SAME card and the tracing runs on across the Next that inflates the balloon, card-keep.js)
+  free: { shot: 'free' },
+  wedge: { shot: 'wedge' },
+  hvpg: { shot: 'hvpg' },
 };
 
 /** The shot of the title stop (the whole plate, settling slowly) and of the quick check (the figure stays where the result left it). */
@@ -32,7 +32,7 @@ export const HVPG_DECK: Deck = (() => {
   }));
   const full = toDeck(HVPG_2D);
   // (the slice's slides keep their plates; the fields the cards carry beyond the words come from the 2D deck's own slide: the level tab, the guidelines side by side, the causes, the beats)
-  const CARD_FIELDS = ['site', 'rail', 'sides', 'pill', 'causes', 'causesHead', 'beats'] as const;
+  const CARD_FIELDS = ['site', 'rail', 'sides', 'pill', 'causes', 'causesHead', 'beats', 'tool'] as const;   // ('tool': the HVPG monitor the free, wedge and result slides ask for; the slice's plates left it out, so its card was the pressures alone)
   for (const [id, p] of plates) { const f = full.slides.find((x) => x.id === id); if (f) for (const k of CARD_FIELDS) if (k in f) (p as unknown as Record<string, unknown>)[k] = f[k]; }
   for (const id of plates.keys()) if (!full.slides.some((s) => s.id === id)) throw new Error(`the slice's slide "${id}" is not in the 2D deck`);
   // (the quick check is the 2D deck's four questions: the check card pages them on an iPhone on its side, cards/CheckCard.tsx)

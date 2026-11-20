@@ -64,6 +64,7 @@ uniform float dpr;   // device pixels to a CSS pixel (the renderer's pixel ratio
 // the fade at a free end (2D's TIP_FADE, ART_FADE, FADE_DOWN_Y, FADE_IN, SIN_FADE): mode 1 runs along the vessel (uv.x), mode 2 down the figure (y), mode 3 along a line (the 2D linear mask, solid from the offset), mode 4 along a line with a dip (faintest at the offset, solid at the end); (from, to, alpha at from, alpha at to); fadeKeep 1: the Circuit does not let go of it
 uniform float fadeMode;
 uniform vec4 fadeA;
+uniform float cavaTail;   // a hepatic vein that ends inside the cava: the share of its length that lies in the cava's lumen, which it fades out over (0 = none)
 uniform vec2 cavaEnd;    // a hepatic vein: the share of its length at the cava end that eases to this alpha (fades.ts cavaEndSpan); 0 = none
 uniform vec4 fadeLine;   // modes 3 and 4: a line across the figure, scene (x1, y1, x2, y2); fadeA is then (offset, -, alpha at the start, alpha at the end)
 uniform float fadeKeep;
@@ -155,6 +156,7 @@ ${CIRCUIT_VS_CALL}
   // the fade zone (a tip into its organ, a bed through the lobe, a vein into the cava): the tube keeps its full width and fades by opacity, body and outline together (vFade, 1 outside a fade zone: opaque)
   if (stump.x > 0.0 && circShare < 0.001) fa *= step(stump.x, uv.x * len * vU);   // (the divided stretch is not there: body and outline)
   if (cavaEnd.x > 0.0) fa *= mix(mix(1.0, cavaEnd.y, smoothstep(1.0 - cavaEnd.x, 1.0, uv.x)), 1.0, circT);
+  if (cavaTail > 0.0) fa *= mix(1.0 - smoothstep(1.0 - cavaTail, 1.0, uv.x), 1.0, circT);   // (the part inside the cava's lumen is not a tube there: no round end, no wall line, no dark wedge over the cava's marks)
   vFade = fa;
   // THE OUTLINE is part of the tube (no second mesh, no stencil, no depth tie): the tube is built INK wider than its lumen, and the fragment shader paints the outer ink band, so the line is continuous by construction.
   // Its width is the figure's line (cel-style.ts LINE_R, LINE_MIN, LINE_MAX; 2D's tube-cel-glsl.js CEL is 0.14, 1.5, 3): a share of the tube's radius held between two device px widths, the same on a hairline and on the
@@ -242,6 +244,7 @@ uniform vec4 stentU;   // a stent in this vessel, drawn on the tube in the Circu
 uniform vec3 mate0;
 uniform vec3 mate1;
 uniform vec2 bury;   // the ink is held back ONLY inside a declared branch's trunk: how far from the branch's start and end (figure units per radius unit, 0: none: a run-on, a crossing, a free end keep their whole outline)
+uniform vec4 mouth;   // where a side branch leaves this vein (vessels/mouth.ts): x, y the stretch of the vein (0..1) whose wall the branch's lumen covers, z the side it leaves (+1 left of the heading, -1 right, 0 none), w the ease at each end
 uniform sampler2D streamTex;
 uniform sampler2D chainTex;
 uniform float streakAmt;   // how much of the streak layer shows (the Blood streaks setting, the view, the Circuit): 0 none
@@ -253,6 +256,8 @@ uniform float casingCircA;  // and in the Circuit (2D .stage-wrap.cmap), by circ
 uniform vec3 inkColorCirc;
 uniform float circT;
 uniform vec2 circCap;       // the Circuit rounds this vessel's start / end (1): the ends nothing joins
+uniform vec4 wedge;       // the wedged vein's static column as a tint on the vessels themselves: x how much, y the share of the course (u) it reaches up to (2 = all of it), z how far the fade to the branch tip runs, w how much of it fades
+uniform vec3 wedgeCol;
 uniform float quietK;       // quiet depth on a turn (camera/quiet.ts): the back tier eases toward the page by QUIET_BACK of this, 0 face on
 uniform vec3 pageCol;       // the plate colour it eases toward
 uniform vec4 rimInk;        // (kept for the palette's API: no light rim is drawn)
@@ -262,6 +267,12 @@ varying float vU;
 float buryK(float d0, float d1) {   // d0, d1: the figure units from the start and from the end of the tube
   float k0 = bury.x > 0.0 ? smoothstep(0.5 * bury.x * vU, bury.x * vU, d0) : 1.0;
   float k1 = bury.y > 0.0 ? smoothstep(0.5 * bury.y * vU, bury.y * vU, d1) : 1.0;
+  return k0 * k1;
+}
+// no flow marks (chevrons, streaks) inside the vessel a tube leaves or opens into: where the tube lies in its parent's lumen its marks would be drawn over the parent's own (a torn chevron at every fork). They begin a little beyond where the ink does.
+float markK(float d0, float d1) {
+  float k0 = bury.x > 0.0 ? smoothstep(1.2 * bury.x * vU, 3.0 * bury.x * vU, d0) : 1.0;
+  float k1 = bury.y > 0.0 ? smoothstep(1.2 * bury.y * vU, 3.0 * bury.y * vU, d1) : 1.0;
   return k0 * k1;
 }
 varying float vFade;
@@ -362,6 +373,7 @@ void main() {
   vec3 cBody = vec3(0.0);    // (the tube's tone before the streaks)
   if (frontOut(vUv.x, reveal)) discard;
   if (fadedOut()) discard;
+  if (vFade < 0.004) discard;
   vec3 n = normalize(vN);
   // (a tube seen end on has no sideways direction: a fixed one keeps the fragment finite, never a NaN, which a device draws black)
   vec3 sideX = cross(normalize(vT), normalize(vV));
@@ -384,9 +396,21 @@ void main() {
   // changes nothing; no rim, no highlight. rDev: the tube's radius in device px; the tones fade in over the radius (never across the tube) and a hairline is one tone.
   float wpc0 = vW * 2.0 / (res.y * projY) * vU;
   float rDev = vR / max(wpc0, 1e-6) * dpr;
+  // the screen's own frame at this pixel: the tube's heading on screen, the pixel's offset from its axis, and its distance from it (device px)
+  vec2 tS = vT.xy;
+  float tl = length(tS);
+  vec2 dvPx = gl_FragCoord.xy - (vCen.xy / vCen.z * 0.5 + 0.5) * res * dpr;
+  float dLat = tl > 1e-3 ? abs(dot(dvPx, vec2(-tS.y, tS.x) / tl)) : length(dvPx);
+  // the outline of the two tubes together is the outline of their union: along the stretch of this vein's wall that a side branch's lumen covers, on the side it leaves, this vein draws no outline (and no fill outside its lumen,
+  // where the branch behind it shows) and no shade band (the branch's lumen opens there, lit), so no line closes the branch's mouth and no dark wedge lies between the two. It eases back in at each end, where the two outlines meet in the crotch.
+  float mouthK = 0.0;
+  if (mouth.z != 0.0 && tl > 1e-3) {
+    float sdSide = dot(dvPx, vec2(-tS.y, tS.x)) / tl, mg = max(mouth.w, 1e-4);
+    mouthK = smoothstep(mouth.x - mg, mouth.x + mg, vUv.x) * (1.0 - smoothstep(mouth.y - mg, mouth.y + mg, vUv.x)) * smoothstep(-0.5, 0.5, sdSide * mouth.z) * (1.0 - circT);
+  }
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
-  vec3 c = celTubeTone(base, sT, fwidth(sT), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
+  vec3 c = celTubeTone(base, mix(sT, 1.0, mouthK), fwidth(sT) * (1.0 - mouthK), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
   // THE STREAKS (blood/streak-glsl.ts, the one streak) are part of the tube: painted here, in its own fragment shader, so they are inside the lumen (the field draws nothing past FIELD_EDGE of its half width,
   // never touching the ink) and follow the tube's own alpha and fade zones by construction: there is no second mesh to stray past a tube's end, a taper or a fade. Under the chevrons, which come after.
@@ -401,7 +425,7 @@ void main() {
     gStreakSpan = len * vU * sc;   // (the vessel's own length in field units: a lane's period never runs past it)
     // the streak distance (texel w: the stream's distance D, held to a speed no pattern wagon-wheels at, streams.ts) with the arc, as the heads ride D; the same gate as the heads' (the radius from MIN_R_PX), and none only where the flow is none
     float fld = streakField(across, vUv.x * len * vU * sc, smS.w * sc, 1.0, 1.0, 1.0);
-    float sOn = streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCss) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
+    float sOn = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCss) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
     streakCover = sOn * fld;
     cBody = c;
     c = mix(c, streakTone(c, vec3(1.0), gStreakK.x, gStreakK.y), streakCover);
@@ -445,7 +469,7 @@ void main() {
       ch = c4.w >= 1.0 ? cc : mix(ch, cc, c4.w);
     }
     // heads are on every tube down to about 4 CSS px across (R 1.5 px: the spacing never depends on the width), and are cut at the wall (never on the ink)
-    float fade = flowAmount * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));   // (a head stands inside the lumen, 55 percent of it: this is only the wall's own cut)
+    float fade = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * flowAmount * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));   // (a head stands inside the lumen, 55 percent of it: this is only the wall's own cut)
     fade *= mix(0.3, 1.0, smoothstep(0.5, 3.0, abs(vd)));
     if (fade > 0.0 && ch.x + ch.y > 0.0) {
       float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);
@@ -462,12 +486,10 @@ void main() {
   // THE OUTLINE: the band between the lumen's edge and the tube's (it is built INK wider, see the vertex stage). The exact lateral distance from the pixel to the tube's axis, in device pixels, against the lumen's radius:
   // the line is continuous by construction (no second mesh, no stencil, no depth tie), constant in device pixels (the vertex stage widened the tube by the same line) and antialiased half a pixel each side. It follows the fade
   // (the same alpha as the body), is not drawn on a joined end's last stretch (a smooth join buries the cut) and is the look's casing ink taken most of the way to a deep tone of the vessel's own colour (never black, never white).
-  vec2 tS = vT.xy;
-  float tl = length(tS);
-  vec2 dvPx = gl_FragCoord.xy - (vCen.xy / vCen.z * 0.5 + 0.5) * res * dpr;
-  float dLat = tl > 1e-3 ? abs(dot(dvPx, vec2(-tS.y, tS.x) / tl)) : length(dvPx);
   float endK = vHi > 0.001 ? 1.0 : buryK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU);
   float inkT = smoothstep(rDevAx - 0.5, rDevAx + 0.5, dLat) * endK * inkOn;
+  inkT *= 1.0 - mouthK;
+  if (mouthK > 0.5 && dLat > rDevAx + 0.5) discard;
   // in the Circuit the outline also sits a little inside the vessel and fades inward, so on a dark map the edge still reads (the ink outside it is lost on the ground)
   float inDepth = clamp(${F(CIRC_INNER.R)} * rDevAx, ${F(CIRC_INNER.MIN_PX)}, ${F(CIRC_INNER.MAX_PX)});
   c = mix(c, inkColorCirc, circT * ${F(CIRC_INNER.K)} * smoothstep(rDevAx - inDepth, rDevAx, dLat) * endK * inkOn);
@@ -525,6 +547,12 @@ void main() {
     }
     c = mix(c, vec3(0.227, 0.114, 0.039), te * 0.4 * stump.z);
     c = mix(c, vec3(0.910, 0.455, 0.165), tw * stump.z);
+  }
+  // the amber column of the wedge: everything upstream of the balloon in that vein and its branches, a tint on the tube itself that thins toward each branch's tip
+  if (wedge.x > 0.001 && circT < 0.001) {
+    float wa = wedge.x * (1.0 - smoothstep(wedge.y - 0.08, wedge.y, vUv.x));
+    wa *= mix(1.0, smoothstep(0.0, max(wedge.z, 0.001), vUv.x), wedge.w);
+    c = mix(c, wedgeCol, 0.78 * wa);
   }
   gl_FragColor = vec4(c, vFade);
 }`;

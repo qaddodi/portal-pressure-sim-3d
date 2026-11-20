@@ -17,3 +17,14 @@ export function levelsOf(m: Rec | null | undefined): { fhvp: number; whvp: numbe
   return typeof f === 'number' && typeof w === 'number' && Number.isFinite(f) && Number.isFinite(w) ? { fhvp: f, whvp: w, hvpg: (tenthGap as (a: number, b: number, c: unknown) => number)(w, f, m?.hvpg) } : null;
 }
 
+
+/** Where on the HVPG script a card that has just come up starts its tracing, so it reads as it is taken:
+ *  - a card that came within a moment of another slide's (the next slide of the same measurement) carries on from where that one stopped;
+ *  - a card that follows the catheter reads the figure's own script time (`figure`, while the deck holds the catheter), so the free pressure scrolls in as the catheter parks and the balloon's rise is
+ *    the figure's balloon: never a finished picture of a reading that is still being taken. A figure already at or past the reading's time (a jump) shows the finished tracing;
+ *  - a card that steps on its own, stepped onto going forward, starts at the free sweep and waits; otherwise (a jump, or back) it shows the finished tracing at once. */
+export function startAt(o: { to: number; carry: number | null; follow: boolean; figure: number | null; forward: boolean }): number {
+  if (o.carry != null) return o.carry;
+  if (o.follow) return o.figure != null ? Math.min(o.to, Math.max(0, o.figure)) : o.to;
+  return o.forward ? T.free - 300 : o.to;
+}

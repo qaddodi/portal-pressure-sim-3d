@@ -42,7 +42,7 @@ import { MeshBuilder, MicroPart, type P2, type RGB, ellipsoid, microMaterials, p
 
 const R = LOBULE_R;
 /** Heights (local units, toward the viewer; R = 3): the hexagon's ground, the tiles' tops and bottoms, the tubes' centre line, Disse's sleeve, the mouths' lips and depth, the marks' plate. */
-export const LZ = { ground: -0.03, cellTop: 0.026, cellBot: -0.05, tube: 0.008, disse: -0.012, lip: 0.03, mouthDepth: 0.22, marks: 0.031 } as const;
+export const LZ = { ground: -0.03, cellTop: 0.026, cellBot: -0.026, tube: 0.008, disse: -0.012, lip: 0.03, mouthDepth: 0.22, marks: 0.031 } as const;   // (cellBot a hair over the ground: a tile's wall ended under it, and its line, drawn down the wall, dipped in and out of the ground in dashes, eyes 20 Nov)
 /** The lobule vessels' line (CSS px): the Anatomy's vessels' weight (about 2 px at the fit). */
 export const VESSEL_LINE = 2;
 /** Segments round a tube and round a mouth. */
@@ -54,6 +54,12 @@ const BILE_ID = 2_000_000;
 /** The vessels that run over the plates (the sinusoids, their cross-links, the arteriole's twigs) lie with their axis at the tiles' tops: lower, a thin one was buried under every tile it
  *  crossed and showed only in the gaps, as short pieces floating between the cords (Mohammad, 20 Nov: "disconnected vessels in the middle"). */
 export const OVER_Z = LZ.cellTop + 0.002;
+/** The scene's fade is taken as whole from here up (FADE_GLSL's screen pattern drops pixels below 0.999). */
+export const FADE_SNAP = 0.98;
+/** How far from each end of a vessel (in its own radii) no flow mark is drawn: where it runs into another vessel. */
+export const END_HUSH_R = 3;
+/** Where the sinusoids stop inside the central vein, as a share of its radius: just inside its rim, so each meets the rim and none is drawn over the pool. */
+export const CV_HOLE_K = 0.96;
 /** The tract's arteriole and ductule openings are drawn this much larger than 2D's dots, so each corner reads as one triad: venule, artery and duct side by side (Mohammad, 20 Nov). */
 const HA_K = 1.7, BD_K = 1.4;
 /** The bile canaliculi and the canals of Hering: hairlines (radius, local units at R = 1) lying in the clefts between cells, not tubes as wide as a sinusoid ("bile is a mess"). */
@@ -193,7 +199,9 @@ export class Lobule3D {
     // (and on the way in from the body it comes in as the field narrows onto it: the hex lobules tile the liver from afar, the neighbours resolve, then this lobule's own detail fades in until the
     //  landing, and the reverse on the way out; the field's breadth is the camera's distance against the lobule's framing, field.ts fieldWide)
     const come = 1 - f.field.wideNow;
-    this.fade.value = (1 - under) * come; this.marksMat.uniforms.opacity!.value = (1 - under) * come;
+    // (whole once it is all but whole: the fade dissolves pixels in a screen pattern below 0.999, and a field that settles a hair short of 0 left the lobule speckled at rest, its lines dotted)
+    const fv = (1 - under) * come, fs = fv > FADE_SNAP ? 1 : fv;
+    this.fade.value = fs; this.marksMat.uniforms.opacity!.value = fs;
     const shown = on && f.isVisible && under < 1;
     this.group.visible = shown;
     // (the whole lobule, its neighbouring field too: the sinusoid's own ground lies below the lobule's plane, so the field would show through the clefts between its cells)
@@ -220,6 +228,10 @@ export class Lobule3D {
     // the central vein opens and narrows with congestion and its collagen (the flat view's radius)
     const kcv = f.cvRadiusNow / DISC_R.cv;
     this.mouthCv.group.scale.set(kcv, kcv, 1);
+    // (the sinusoids end in the central vein's pool as one surface: nothing of a sinusoid, its shade or its line, is drawn inside the pool's rim, Mohammad 20 Nov 2026: "I hate that the vessels look
+    //  like they have shadows inside the central vein"; congestion swells them over the pool's top, which is what showed. The vessels' own rule, a child's line masked inside its parent.)
+    const hole = f.cvRadiusNow * R * CV_HOLE_K;
+    for (const k of ['s0', 's1', 's2', 'an'] as const) this.sin[k].setHole(hole);
     this.stepCvScar(c.fibPost, kcv);
     this.buildGround(kcv, lymphOn);
     const washing = this.stepWash(now);
@@ -359,8 +371,18 @@ export class Lobule3D {
     const net = this.flat.net, crn = net.corners.map((p) => new Vector2(p[0] * 1.015 * R, -p[1] * 1.015 * R));
     if (ShapeUtils.isClockWise(crn)) crn.reverse();
     const holes: Vector2[][] = [];
+    // (a hole only where its disc lies wholly inside the hexagon: a hole across the edge (a triad on a vertex) made the triangulation throw spikes out past the vertices, which read as the
+    //  lobule cut off at the sides of a phone; the mouth there sits over the ground's edge as it is)
+    const inside = (x: number, y: number, rr: number) => {
+      for (let i = 0; i < crn.length; i++) {
+        const A = crn[i]!, B = crn[(i + 1) % crn.length]!, ex = B.x - A.x, ey = B.y - A.y, l = Math.hypot(ex, ey);
+        if (((x - A.x) * ey - (y - A.y) * ex) / l > -rr) return false;   // (counter-clockwise: inside is to the left of each edge)
+      }
+      return true;
+    };
     const hole = (c: Course, r: number) => {
       const p = c.pts[Math.floor(c.pts.length / 2)]!, h: Vector2[] = [];
+      if (!inside(p[0] * R, -p[1] * R, r * R)) return;
       for (let s = 0; s < 40; s++) { const a = -(s / 40) * Math.PI * 2; h.push(new Vector2(p[0] * R + Math.cos(a) * r * R * 0.97, -p[1] * R + Math.sin(a) * r * R * 0.97)); }
       holes.push(h);
     };
@@ -420,7 +442,7 @@ export class Lobule3D {
         for (let i = 0; i < c.pts.length; i++) for (let s = 0; s < TUBE_SEG; s++) { W.push(w(c, i)); K.push(1); }
         for (let v = 0; v < capVerts; v++) { W.push(w(c, 0)); K.push(1); }
         for (let v = 0; v < capVerts; v++) { W.push(w(c, c.pts.length - 1)); K.push(1); }
-        flowAux(b, before, pts, ringVerts, capVerts, c.id * 0.137, (i) => (c.kind[0] === 's' || c.kind === 'an') && c.rho[i]! < DISC_R.cv * 1.6);
+        flowAux(b, before, pts, ringVerts, capVerts, c.id * 0.137, (i) => (c.kind[0] === 's' || c.kind === 'an') && c.rho[i]! < DISC_R.cv * 1.6, TUBE_SEG, END_HUSH_R * radius(c, 0) * R);
       }
       return { b, W, K };
     };
@@ -593,18 +615,22 @@ export function mouth(b: MeshBuilder, x: number, y: number, r: number, zTop: num
 
 /** The flow marks' place on a tube's vertices (tube() just wrote them from `before`): aux, how far along the path in its own direction (local units, from a per-tube offset), and
  *  aux2, across it (-1 .. 1, the in-plane side of the vertex's normal against the path); `hush(i)` true at a sample marks no chevron there (aux2 3: the central vein's mouth). */
-export function flowAux(b: MeshBuilder, before: number, pts: readonly (readonly [number, number, number])[], ringVerts: number, capVerts: number, phase: number, hush: ((i: number) => boolean) | null, seg = TUBE_SEG): void {
+export function flowAux(b: MeshBuilder, before: number, pts: readonly (readonly [number, number, number])[], ringVerts: number, capVerts: number, phase: number, hush: ((i: number) => boolean) | null, seg = TUBE_SEG, endHush = 0): void {
   const m = pts.length, arc: number[] = [phase];
   for (let i = 1; i < m; i++) arc.push(arc[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
+  // (no marks within endHush of either end: there a vessel runs into another, and a chevron half under the other's wall showed as a dark speck, eyes 20 Nov on the RHF lobule)
+  const nearEnd = (i: number) => endHush > 0 && (arc[i]! - arc[0]! < endHush || arc[m - 1]! - arc[i]! < endHush);
   const across = (v: number, i: number) => {
     const a = pts[Math.max(0, i - 1)]!, c = pts[Math.min(m - 1, i + 1)]!;
     let tx = c[0] - a[0], ty = c[1] - a[1]; const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
     const nx = b.n[v * 3]!, ny = b.n[v * 3 + 1]!;
-    return hush?.(i) ? 3 : -ty * nx + tx * ny;
+    return hush?.(i) || nearEnd(i) ? 3 : -ty * nx + tx * ny;
   };
   for (let v = before; v < before + ringVerts; v++) { const i = Math.floor((v - before) / seg); b.aux.push(arc[i]!); b.aux2.push(across(v, i)); }
-  for (let v = before + ringVerts; v < before + ringVerts + capVerts; v++) { b.aux.push(arc[0]!); b.aux2.push(across(v, 0)); }
-  for (let v = before + ringVerts + capVerts; v < before + ringVerts + 2 * capVerts; v++) { b.aux.push(arc[m - 1]!); b.aux2.push(across(v, m - 1)); }
+  // (the round ends carry no flow marks: their along-the-vessel place is one number across the whole cap, so a chevron that fell on it filled the cap, a black square at every
+  //  end and kink, eyes 20 Nov on the RHF lobule; 3 hushes the marks, as inside the central vein)
+  for (let v = before + ringVerts; v < before + ringVerts + capVerts; v++) { b.aux.push(arc[0]!); b.aux2.push(3); }
+  for (let v = before + ringVerts + capVerts; v < before + ringVerts + 2 * capVerts; v++) { b.aux.push(arc[m - 1]!); b.aux2.push(3); }
 }
 
 /** The Bile layer's courses, as the flat view builds them (lobule/view.ts channel()): the canaliculi midway between neighbouring sinusoids, and from each the first generation's canal of Hering to its tract's ductule. */

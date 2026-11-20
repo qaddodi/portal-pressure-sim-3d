@@ -21,11 +21,33 @@ test('the ink never z-fights its shape, is thick enough to read and near black (
   const { CEL_STYLE } = await import('../src/scene/cel-style.ts');
   const { Vector2 } = await import('three');
   const m = microMaterials({ value: new Vector2(1, 1) }, { value: 1 } as never, { haze: hazeUniforms() } as never);
-  assert.equal(m.toon.polygonOffset, true, 'the fill is offset toward the eye, so it always wins over its own ink at one depth');
-  assert.ok(m.toon.polygonOffsetFactor < 0 && m.toon.polygonOffsetUnits < 0);
+  assert.equal(m.ink!.polygonOffset, true, 'the line wins over any surface at its own depth (one rule for every outline)');
+  assert.ok(m.ink!.polygonOffsetFactor < 0 && m.ink!.polygonOffsetFactor >= -1 && m.ink!.polygonOffsetUnits < 0, 'a hair toward the eye, never across a face toward the viewer');
+  assert.equal(m.toon.polygonOffset, false, 'no shape is offset');
+  assert.match(MICRO_INK_FS, /uHole > 0\.0 && length\(vXY\) < uHole\) discard/, 'the ink is cut by the same hole as its shape');
+  assert.equal(m.ink!.uniforms.uHole, m.toon.uniforms.uHole, 'one hole for the shape and its line');
   assert.ok(CEL_STYLE.MICRO.LINE >= 1.25 && CEL_STYLE.MICRO.LINE <= 2 && CEL_STYLE.MICRO.LINE_SMALL <= 1, 'a confident line round big bodies, a hairline round fine things (Mohammad 20 Nov: "too much")');
   assert.ok(CEL_STYLE.MICRO.INK_K <= 0.3, 'the ink is dark');
   const fs = await import('node:fs');
   const src = fs.readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
-  for (const part of ['rbc', 'nuclei', 'kup', 'hsc', 'albumin', 'bile']) assert.match(src, new RegExp(`this\\.${part}\\.setInk\\(inkOf\\(`), `${part} uses the one near-black ink rule`);
+  for (const part of ['rbc', 'nuclei', 'hsc', 'albumin', 'bile']) assert.match(src, new RegExp(`this\\.${part}\\.setInk\\(inkOf\\(`), `${part} uses the one near-black ink rule`);
+});
+
+test('no micro line is thinner than MIN_LINE, and the lobule tiles\' walls stand clear of the ground (eyes 20 Nov: dotted hepatocytes, stippled nucleus rings)', async () => {
+  const { MIN_LINE, microMaterials: mm, hazeUniforms: hu } = await import('../src/scene/micro3d/cel3d.ts');
+  const { LZ } = await import('../src/scene/micro3d/lobule3d.ts');
+  assert.ok(MIN_LINE >= 1);
+  const thin = mm({ value: new Vector2(1, 1) }, { value: 1 } as never, { haze: hu(), px: 0.3 } as never);
+  assert.equal(thin.ink!.uniforms.px!.value, MIN_LINE, 'a part asking for a hairline gets the least line that draws whole');
+  assert.ok(LZ.cellBot > LZ.ground, 'the tile\'s wall ends over the ground, so its line never dips under it');
+});
+
+test('a vessel\'s round ends carry no flow marks (the black squares at the RHF lobule\'s kinks)', async () => {
+  const { flowAux } = await import('../src/scene/micro3d/lobule3d.ts');
+  const { MeshBuilder, tube } = await import('../src/scene/micro3d/cel3d.ts');
+  const b = new MeshBuilder(), pts: [number, number, number][] = [[0, 0, 0], [1, 0, 0], [2, 0.3, 0]];
+  tube(b, pts, () => 0.1, [1, 1, 1], 8, true);
+  const ring = 3 * 8, cap = (b.count - ring) / 2;
+  flowAux(b, 0, pts, ring, cap, 0, null, 8);
+  for (let v = ring; v < ring + 2 * cap; v++) assert.equal(b.aux2[v], 3, 'hushed');
 });

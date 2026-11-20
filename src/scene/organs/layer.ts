@@ -14,12 +14,12 @@ import { LIVER_PIVOT, SPLEEN_CENTER, LENS_GREY } from '../disease/copied/anatomy
 import { liverShrink, liverSurface } from '../disease/copied/liver-morph.js';
 import { Eased, LiverFollow } from '../disease/follow.ts';
 import { type BodyTargets, SPLENIC_GHOST, poolFill } from '../disease/targets.ts';
-import { PLAIN, type OrganState, organColour, organInk, mix, rgbOf, type RGB } from './organ-look.ts';
+import { PLAIN, type OrganState, organColour, organInk, mix, rgbOf, setLiverTint, type RGB } from './organ-look.ts';
 import { PAINTED, VertexPaint } from './vertex-paint.ts';
 import { lumenSurface } from '../disease/copied/stomach-lumen.js';
 import { POOL_SHARE } from '../disease/copied/bleed-shapes.js';
-import { LiverShape, liverLook } from './liver-shape.ts';
-import { bake, lookShade, lookTone, TEX_H, TEX_PH, TEX_PW, TEX_W, TEX_X0, TEX_Y0 } from './liver-texture.ts';
+import { LiverShape } from './liver-shape.ts';
+import { bake, celLook, shadeNow, TONE, TEX_H, TEX_PH, TEX_PW, TEX_W, TEX_X0, TEX_Y0 } from './liver-texture.ts';
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import { bakeOrganDepth } from './organ-depth.ts';
 import { OrganArt } from './organ-art.ts';
@@ -134,7 +134,6 @@ export class OrganLayer {
   /** 2D's art on the organs (the bowel's loops, the colon's haustra, the stomach's rugae) and the esophagus's fade: organ-art.ts */
   private readonly art = new OrganArt();
   private liverShape: LiverShape | null = null;
-  private nodLook = false;
   private liverGeometry: BufferGeometry | null = null;
   private lastClock = -1;
   private dirtyColours = true;
@@ -167,7 +166,7 @@ export class OrganLayer {
       g.setAttribute('depthAo', new BufferAttribute(baked[id]!, 1, true));
       // the outline is pushed out along the mesh's SMOOTHED normal: the mesh's own normals jag along a coarse rim, and the hull's edge with them (a sawtooth halo)
       g.setAttribute('hullN', new Float32BufferAttribute(smoothRestNormals(g.getAttribute('position').array, g.getAttribute('normal').array, g.index ? g.index.array : []), 3));
-      if (id === 'liver' && liverLook()) {   // the look's texture (liver-texture.ts): each vertex's place in it is its rest place in the 2D figure
+      if (id === 'liver') {   // the surface's texture (liver-texture.ts): each vertex's place in it is its rest place in the 2D figure
         const pos = g.getAttribute('position'), uv = new Float32Array(pos.count * 2);
         for (let i = 0; i < pos.count; i++) { uv[i * 2] = (x2d(pos.getX(i)) - TEX_X0) / TEX_W; uv[i * 2 + 1] = (y2d(pos.getY(i)) - TEX_Y0) / TEX_H; }
         g.setAttribute('restUV', new Float32BufferAttribute(uv, 2));
@@ -181,14 +180,7 @@ export class OrganLayer {
       o.ink.uniforms.px!.value = ORGAN_STYLE[id]!.px;
       this.objects.push(o); this.byId.set(id, o); this.group.add(o.group);
       if (id === 'liver') {
-        const look = liverLook();
-        if (look) {
-          const tex = new DataTexture(bake(look), TEX_PW, TEX_PH);
-          tex.magFilter = LinearFilter; tex.minFilter = LinearMipmapLinearFilter; tex.generateMipmaps = true; tex.anisotropy = 4; tex.needsUpdate = true;
-          o.toon.uniforms.nodTex!.value = tex;
-          (o.toon.uniforms.nodK!.value as Vector2).set(lookShade(look), lookTone(look));
-          this.nodLook = true;
-        }
+        (o.toon.uniforms.nodK!.value as Vector2).set(shadeNow(), TONE);   // (the texture itself is baked the first time the liver is scarred: paint())
         this.liverGeometry = g;
         this.liverShape = new LiverShape(g.getAttribute('position') as never, g.getAttribute('normal').array);
       }
@@ -261,6 +253,7 @@ export class OrganLayer {
       if (id === 'spleen') s.ghost = this.ghost.value;
       const st = ORGAN_STYLE[id]!, og = p.organs.tones[st.og];
       const t1 = rgbOf(og[0]), t2 = rgbOf(og[1]), base = mix(t1, t2, 0.5);
+      if (id === 'liver') { const cel = celLook(); setLiverTint(cel ? { rgb: rgbOf(cel.colour), a: cel.a } : null); }
       const c = organColour(base, s, k);
       this.setColours(id, o, organColour(t1, s, k), organColour(t2, s, k), c, organInk(rgbOf(og[2]), s, k), st.inkA, organLayerAlpha(p, id), page, p.organs, s.dim * s.ghost);
       this.art.setState(id, s, k, p);
@@ -269,13 +262,20 @@ export class OrganLayer {
       if (!vp) continue;
       // what varies over the surface: the vertices carry it (an organ that has none of it shows its one colour)
       let on = false;
-      if (id === 'liver' && this.nodLook) {
-        // the look's septum is per pixel: the vertices carry the nodule colour only, the shader adds the wall (sepDelta) and the dome's light and tone (nodAmt)
-        const wall = organColour(base, { ...s, septum: 1 }, k);
+      if (id === 'liver') {
+        if (s.cirrhosisNod > 0.004 && o.toon.uniforms.nodTex!.value === NO_TEX) {   // a healthy liver never pays for the texture
+          const tex = new DataTexture(bake(), TEX_PW, TEX_PH);
+          tex.magFilter = LinearFilter; tex.minFilter = LinearMipmapLinearFilter; tex.generateMipmaps = true; tex.anisotropy = 4; tex.needsUpdate = true;
+          o.toon.uniforms.nodTex!.value = tex;
+        }
+        // the septum is per pixel: the vertices carry the nodule colour only, the shader adds the wall (sepDelta) and the dome's light and tone (nodAmt)
+        let wall = organColour(base, { ...s, septum: 1 }, k);
+        const cel = celLook();
+        if (cel) wall = mix(c, rgbOf(og[2]), 0.8 * s.cirrhosisNod * cel.ink);   // the cel's line is the organ's own ink tone, bold
         (o.toon.uniforms.sepDelta!.value as Vector3).set(wall[0] - c[0], wall[1] - c[1], wall[2] - c[2]);
         o.toon.uniforms.nodAmt!.value = s.cirrhosisNod;
       }
-      if (id === 'liver' && s.cirrhosisNod > 0.004) { vp.fillLiver(c, organColour(base, { ...s, septum: 1 }, k)); on = true; }
+      if (id === 'liver' && s.cirrhosisNod > 0.004) { vp.fillLiver(c); on = true; }
       else if (id === 'spleen' && this.infarct.value > 0.004) {
         const dead = organColour(base, { ...s, dead: 1 }, k);
         vp.fillSpleen(c, dead, mix(organInk(rgbOf(og[2]), s, k), c, 0.1), this.infarct.value); on = true;

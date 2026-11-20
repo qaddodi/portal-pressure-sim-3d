@@ -17,6 +17,8 @@ import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
 import { centrelineOf, type Centreline } from './vessels/centreline.ts';
+import { SIDE_BRANCHES, mouthOf } from './vessels/mouth.ts';
+import { cavaTailOf } from './vessels/cava-tail.ts';
 import { fadeOf, HEPATIC_VEINS, cavaEndSpan, CAVA_RECEDE } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
@@ -101,6 +103,8 @@ const STUB_Q: Record<string, number> = {
 //  the screen showing the bare page between the body going and the 1/1500 lobule growing: the near-white flash in the Anatomy -> Lobule dive.)
 /** The dive share (sinusoid/view.ts diveShare) below which nothing of the sinusoid is drawn on the way in from the lobule. */
 export const SIN_SHOW_FROM = 0.4;
+/** The dive share from which the 3D lobule stands aside under the sinusoid: once the sinusoid (sinusoid3d.ts, whole from 0.86) covers it. */
+export const LOBULE_UNDER_FROM = 0.86;
 export const DIVE_OUT = 1.9, DIVE_IN = 40 * LOBULE_SCALE;
 /** How much of the body is drawn with the camera `d` scene units from the lobule's place: 1 whole, 0 gone (smoothstep between DIVE_IN and DIVE_OUT). */
 // (in log distance: the zoom is geometric, so the dissolve runs evenly through the whole dive instead of all at once at its end)
@@ -189,6 +193,18 @@ export class CelScene {
   private healthyQ: ArrayLike<number> | undefined;
   private collateralsOn = false;
   private procQuietWas = false;
+  private wedgeSet = new Set<string>();
+  /** The HVPG's amber column: a tint on the vessels upstream of the balloon (their own shader), thinning toward the branch tips. Eases with the column (one eased number from the procedure's clock). */
+  private syncWedge(): void {
+    const w = this.procs.wedgeTint(), now = new Set<string>();
+    if (w) for (const o of this.vessels) {
+      const id = o.edge?.id, p = id ? w.pieces.get(id) : undefined;
+      if (!id || !p) continue;
+      (o as VesselObject).setWedge(w.amount, p.cut, p.fade, w.color); now.add(id);
+    }
+    for (const id of this.wedgeSet) if (!now.has(id)) (this.vessels.find((o) => o.edge?.id === id) as VesselObject | undefined)?.setWedge(0, 2, 0);
+    this.wedgeSet = now;
+  }
   private bloodOpts = { chevrons: true, keyChevrons: false };
   private readonly byEdge = new Map<string, CelObject>();
   /** the vessels that fade at a free end (fades.ts), and the collaterals whose opening makes the tip solid */
@@ -298,6 +314,13 @@ export class CelScene {
     }
   }
 
+  /** A vein whose side branch leaves it draws no outline across the branch's mouth (vessels/mouth.ts). */
+  private applyMouth(def: NetVessel, o: VesselObject): void {
+    const kids = SIDE_BRANCHES.get(def.id);
+    const m = kids ? mouthOf(kids[0]!) : null;
+    if (m) o.setMouth(m.u0, m.u1, m.side, m.margin); else o.setMouth(0, 0, 0, 0);
+  }
+
   /** Settings > Figure depth > Smooth vessel joins changed: every tube is rewritten in place (same vertices, new positions and widths: the joins are geometry), then drawn once. */
   private useSmoothJoins(on: boolean): void {
     if (!setSmoothJoins(on)) return;
@@ -307,6 +330,7 @@ export class CelScene {
       const built = buildTubes(coursesOf(def, this.shapes.stateOf(def.id) ?? REST), tubularOf(def, slicesFor(def.id)), def.radius);
       o.reshape(built.geometry, built.length);
       built.geometry.dispose();
+      this.applyMouth(def, o);
     }
     this.applyMates();
     this.moving = true;
@@ -332,7 +356,9 @@ export class CelScene {
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     const fade = fadeOf(def.id, def.tone === 'artery', def.feeder?.host);
     if (fade) { o.setTipFade(fade); this.tipFades.push({ o, connect: fade.connect }); if (fade.ivcJoin) this.ivcJoins.push(o); }
+    this.applyMouth(def, o);
     { const span = cavaEndSpan(def.id); if (span > 0) { o.setCavaEnd(span, CAVA_RECEDE); this.hvJoins.push(o); } }
+    { const tail = cavaTailOf(def.id, courses, built.length); if (tail > 0) o.setCavaTail(tail); }
     if (BACK_EDGES.has(def.id)) { o.setBehindOrgans(VESSEL_LAYER, IVC_EDGES.has(def.id)); this.back.push(o); if (IVC_EDGES.has(def.id)) this.cava.push(o); }
     this.add(o);
     this.vessels.push(o);
@@ -944,10 +970,13 @@ export class CelScene {
     this.sinus3d.pinTraffic(this.micro3d);
     const lobMoving = this.lobule.update(now), sinMoving = this.sinus.update(now);
     // (the 3D lobule dissolves as the camera goes down onto the sinusoid, and stands aside once landed: its solid tiles and tubes rise above the sinusoid's plane and would cross it in the foreground)
-    const dv = this.sinus.diveShareNow, under = !this.sinus.isVisible ? 0 : dv == null ? 1 : smoothstep01(0.4, 0.78, dv);
+    // (the lobule stays whole under the sinusoid until the sinusoid is whole over it, then stands aside: the two dissolving at once let the page show through both, the pale washed frame of
+    //  the Lobule -> Sinusoid handoff, eyes 20 Nov. The sinusoid is drawn over it, lifted, from SIN_SHOW_FROM, so nothing of the lobule shows once it is whole.)
+    const dv = this.sinus.diveShareNow, under = !this.sinus.isVisible ? 0 : dv == null ? 1 : smoothstep01(LOBULE_UNDER_FROM, LOBULE_UNDER_FROM + 0.04, dv);
     const lob3 = this.lobule3d.update(this.micro3d, under, now, this.flowRate.value), sin3 = this.sinus3d.update(this.micro3d, this.flowRate.value);
     const viewMoving = lob3 || sin3 || lobMoving || sinMoving;
     const procMoving = this.procs.update(now);
+    this.syncWedge();
     const diseaseMoving = this.disease.update(now);
     if (diseaseMoving) this.tagOverOrgans();
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
@@ -985,7 +1014,7 @@ export class CelScene {
     const tubesMoving = this.tubes.update(dt, { ramp, t, body: this.fadeNow, drawn: (id) => this.vesselDrawn(id), caudPin: this.caudPin, open: this.openShunts });
     this.resistors.setAlpha(ramp);
     let resMoving = false;
-    if (ramp > 0) { this.resistors.set(this.resNow, this.mapScale()); resMoving = this.resistors.step(dt); }
+    if (ramp > 0) { this.resistors.set(this.resNow, this.mapScale()); resMoving = this.resistors.step(dt); this.mapLayer.setScale(this.mapScale()); }
     let dots = false;
     if (t > 0) dots = this.mapLayer.stepDots((id) => (this.stationsOf.get(id) ?? []).some((e) => this.presence.stateOf(e) === 'shown'), Math.min(1, dt / 280));
     return moving || dots || tubesMoving || resMoving;

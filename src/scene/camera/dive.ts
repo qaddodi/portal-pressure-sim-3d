@@ -8,7 +8,7 @@
 import { FOV } from './shots.ts';
 
 /** How long each dive takes (ms): body to lobule 1.5 s (2D's LOBULE_MS_MAX), lobule to sinusoid 1.1 s, body straight to the sinusoid the two together (and back). A move that is none of those keeps `fallback`. */
-export const DIVE_BODY_MS = 1500, DIVE_SINUSOID_MS = 1100;
+export const DIVE_BODY_MS = 1500, DIVE_SINUSOID_MS = 1800;   // (lobule <-> sinusoid 1.8 s, cubic: the crossfade gets about 0.6 s, a zoom, not a cut)
 export type DiveView = 'body' | 'circuit' | 'lobule' | 'sinusoid';
 export function diveMs(from: DiveView, to: DiveView, fallback?: number): number | undefined {
   if (from === to) return fallback;

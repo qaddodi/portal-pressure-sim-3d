@@ -18,11 +18,11 @@ const near = (a: number, b: number, e = 1e-9) => assert.ok(Math.abs(a - b) <= e,
 const dist = (rig: CameraRig) => rig.camera.position.distanceTo({ x: LIVER_POINT[0], y: LIVER_POINT[1], z: LIVER_POINT[2] } as never);
 const rigOn = (reduce = false) => { const r = new CameraRig('play', room, reduce); r.resize(1000, 700); r.goTo('play', room, 0); r.update(0); return r; };
 
-test('how long each dive takes: the body to the lobule 1.6 s, the lobule to the sinusoid 1.1 s, the body straight to the sinusoid both, and each backward the same', () => {
-  assert.equal(DIVE_BODY_MS, 1500); assert.equal(DIVE_SINUSOID_MS, 1100);
+test('how long each dive takes: the body to the lobule 1.6 s, the lobule to the sinusoid 1.8 s, the body straight to the sinusoid both, and each backward the same', () => {
+  assert.equal(DIVE_BODY_MS, 1500); assert.equal(DIVE_SINUSOID_MS, 1800);
   assert.equal(diveMs('body', 'lobule'), 1500); assert.equal(diveMs('lobule', 'body'), 1500);
-  assert.equal(diveMs('lobule', 'sinusoid'), 1100); assert.equal(diveMs('sinusoid', 'lobule'), 1100);
-  assert.equal(diveMs('body', 'sinusoid'), 2600); assert.equal(diveMs('sinusoid', 'body'), 2600);
+  assert.equal(diveMs('lobule', 'sinusoid'), 1800); assert.equal(diveMs('sinusoid', 'lobule'), 1800);
+  assert.equal(diveMs('body', 'sinusoid'), 3300); assert.equal(diveMs('sinusoid', 'body'), 3300);
   assert.equal(diveMs('circuit', 'lobule'), 1500, 'the Circuit is the body to the camera');
   assert.equal(diveMs('lobule', 'lobule'), undefined); assert.equal(diveMs('body', 'circuit', 700), 700);
 });

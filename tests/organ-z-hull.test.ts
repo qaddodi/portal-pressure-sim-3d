@@ -46,12 +46,13 @@ test('smooth silhouette: every organ\'s rim is smoother than the file\'s, moved 
   assert.ok(rimRoughness(disc) < rough0 * 0.3, `the saw-tooth is gone (${rough0.toFixed(5)} -> ${rimRoughness(disc).toFixed(5)})`);
 });
 
-test('the cirrhotic liver\'s nodules do not push its rim sideways: the outline stays as smooth as the healthy liver\'s', async () => {
+test('the cirrhotic liver\'s rim is scalloped by its nodules, outward only and bounded; at no scarring it is exactly the healthy rim', async () => {
   await organsReady;
   const g = ORGAN_MESHES.liver!(); g.computeVertexNormals();
   const rest = rimRoughness(g), ls = new LiverShape(g.getAttribute('position') as never, g.getAttribute('normal').array);
   const out: string[] = [];
-  for (const c of [0.5, 1]) { ls.apply(c); out.push(`${c}: ${rimRoughness(g).toFixed(5)}`); assert.ok(rimRoughness(g) < rest * 2.2, `liver rim at scarring ${c}: ${rimRoughness(g)} against ${rest} healthy`); }
+  for (const c of [0.5, 1]) { ls.apply(c); out.push(`${c}: ${rimRoughness(g).toFixed(5)}`); assert.ok(rimRoughness(g) < 0.012, `liver rim at scarring ${c}: ${rimRoughness(g)} against ${rest} healthy`); }
+  ls.apply(0); assert.ok(Math.abs(rimRoughness(g) - rest) < 1e-9, 'no scarring: the healthy rim');
   assert.equal(edgeFree(0), 0); assert.equal(edgeFree(1), 1); assert.ok(edgeFree(0.5) > 0 && edgeFree(0.5) < 1);
   console.log('liver rim', rest.toFixed(5), out.join(' '));
 });

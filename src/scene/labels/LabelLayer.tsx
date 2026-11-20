@@ -83,6 +83,7 @@ interface Rec {
 export function LabelLayer() {
   const layer = useRef<HTMLDivElement>(null);
   const keyHost = useRef<HTMLDivElement>(null);
+  const probeHost = useRef<HTMLDivElement>(null);
   const look = useSettings((s) => s.look);
   const key = useLabels((s) => s.key);
   const dark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
@@ -182,14 +183,16 @@ export function LabelLayer() {
     const ro = new ResizeObserver((entries) => {
       for (const e of entries) {
         const t = e.target as HTMLElement;
-        if (t.classList.contains('lb-key-twin')) ctl.setKeyNatural(t.offsetWidth, t.offsetHeight); else ctl.setKeySize(t.offsetWidth, t.offsetHeight);
+        if (t.classList.contains('lb-key-twin')) ctl.setKeyNatural(t.offsetWidth, t.offsetHeight); else if (!t.classList.contains('lb-key-out')) ctl.setKeySize(t.offsetWidth, t.offsetHeight);
       }
       clock.invalidate('labels-key');
     });
-    const watchKey = () => { ro.disconnect(); keyHost.current?.querySelectorAll('.lb-key').forEach((k) => ro.observe(k)); };
+    // (both: the drawn key in the wrap AND its twin in the probe: the dock decides by the twin, so a twin nobody watches leaves it deciding by the wrapped key's own size, which flips it
+    //  between one line and two for ever: the key flickered and stood at two heights)
+    const watchKey = () => { ro.disconnect(); layer.current?.querySelectorAll('.lb-key').forEach((k) => ro.observe(k)); };
     watchKey();
     const keyMo = new MutationObserver(watchKey);
-    keyMo.observe(keyHost.current!, { childList: true });
+    for (const h of [keyHost.current!, probeHost.current!]) keyMo.observe(h, { childList: true });
 
     // ── state in ──
     const pushState = () => {
@@ -243,7 +246,7 @@ export function LabelLayer() {
           {keyNow && <KeyBody key={keyNow.lens} model={keyNow} vp={vpNow} fade={keyOut ? 'in' : undefined} />}
         </div>
         {/* its twin: never wrapped, never seen; reports the key's size on one line, which is what the dock decides by */}
-        <div className="lb-key-probe">{keyNow && <KeyBody model={keyNow} vp={vpNow} twin />}</div>
+        <div ref={probeHost} className="lb-key-probe">{keyNow && <KeyBody model={keyNow} vp={vpNow} twin />}</div>
       </div>
       <VesselWalk />
     </>

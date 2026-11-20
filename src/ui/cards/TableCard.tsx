@@ -47,7 +47,8 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
   const showCut = (k: string, label: string, cutText?: string) => () => setCut({ label, text: cutText || (CUT as Record<string, string>)[k] || '' });
   const nc = model.cols.length;
   // (a Doppler column is wider than a pressure's: the grid's columns follow what each holds)
-  const grid = `minmax(6.2rem, 1.7fr) ${model.cols.map((c) => (c.k === 'wave' ? 'minmax(0, 3.4fr)' : 'minmax(0, 1fr)')).join(' ')}`;
+  // (the name's column takes what the value columns leave: fewer columns, a wider name; the site stands over its rows as a heading row on a phone, so a name has its column to itself)
+  const grid = `minmax(calc(14.5rem - ${nc} * 1.1rem), 2fr) ${model.cols.map((c) => (c.k === 'wave' ? 'minmax(0, 3.4fr)' : 'minmax(0, 1fr)')).join(' ')}`;
   return (
     <div className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-grid' as string]: grid }}>
       <table>
@@ -65,6 +66,8 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
             const go = r.i >= 0 ? () => useUi.getState().go(r.i) : undefined;
             return (
               <Fragment key={`${r.key}:${n}`}>
+                {/* a phone's group heading: the site, once, over the rows that share it (the wide table keeps it over the name, in the row) */}
+                {!r.cont && r.head ? <tr className="dk-tgroup"><th scope="rowgroup" colSpan={nc + 1}><span className="pz-kick" data-site={r.site || 'none'}>{r.head}</span></th></tr> : null}
                 <tr className={`${r.i >= 0 ? '' : 'static'}${r.focus ? ' pzv-focus' : ''}${r.cont ? ' pz-cont' : ''}`.trim() || undefined} data-ref={r.ref || undefined}
                   tabIndex={r.i >= 0 ? 0 : undefined} aria-label={r.i >= 0 ? `${r.title}: go to this slide` : undefined}
                   onClick={go} onKeyDown={go ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); go(); } } : undefined}>

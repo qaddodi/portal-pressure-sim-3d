@@ -38,3 +38,12 @@ test('in the decks: slides on another lens show their key, every key is a lens t
   assert.ok(keyed > 20, `slides with a key (${keyed})`);
   assert.ok(panels > 20, `panels (${panels})`);
 });
+
+test('the layer watches the key AND its hidden twin, and the controller never docks by the drawn size', async () => {
+  const { readFileSync } = await import('node:fs');
+  const layer = readFileSync(new URL('../src/scene/labels/LabelLayer.tsx', import.meta.url), 'utf8');
+  const ctl = readFileSync(new URL('../src/scene/labels/controller.ts', import.meta.url), 'utf8');
+  assert.match(layer, /layer\.current\?\.querySelectorAll\('\.lb-key'\)/, 'the twin sits in the probe, outside the key wrap: the observer looks through the layer');
+  assert.match(layer, /keyMo\.observe\(h, \{ childList: true \}\)/);
+  assert.doesNotMatch(ctl, /keyNatural \?\? this\.keySize/, 'no fall-back to the drawn size');
+});

@@ -70,9 +70,9 @@ export function stepShot(kind: string, shot: string, at: { x: number; y: number;
   const p = new Vector3(), step = Math.max(R * 0.5, 1);
   for (let s = a; s <= b + 1e-6; s += step) { r3.point(Math.min(s, b), p); x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); zs += p.z; n++; }
   if (!n) return null;
-  const pad = (R / U) * 3.2;
+  const pad = (R / U) * 4.5;
   // (the least a frame holds, so a short stretch never shows a speck of the figure: the way in keeps its surroundings, the tip its balloon, a fill or the finished work the vein it runs in)
-  const [fx, fy] = shot === 'way' ? [0.5, 0.45] : shot === 'tip' ? [0.14, 0.12] : [0.3, 0.25];
+  const [fx, fy] = shot === 'way' ? [0.5, 0.45] : shot === 'tip' ? [0.26, 0.22] : [0.3, 0.25];
   const half: [number, number] = [Math.max(fx, (x1 - x0) / 2 + pad), Math.max(fy, (y1 - y0) / 2 + pad)];
   // (a "way" is followed by the rig: it frames the point it follows, so its target is the tip itself and the window is only its size)
   const target: [number, number, number] = shot === 'way' ? [at.x, at.y, at.z] : [(x0 + x1) / 2, (y0 + y1) / 2, zs / n];

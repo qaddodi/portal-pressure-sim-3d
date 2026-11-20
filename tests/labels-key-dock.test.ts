@@ -72,3 +72,18 @@ test('the key\'s type is the 2D pill\'s: 0.9 of the caption size (0.78 for a gra
 test('every lens\'s key stays one pill: a name and either a scale or swatches', () => {
   for (const lens of KEY_LENSES) { const k = keyModel(lens, 'light')!; assert.ok(k.name && (k.scale || k.swatches)); }
 });
+
+// Root cause of the key's flicker and its two heights (20 Nov, eyes on 7ac0595): the hidden twin that reports the key's size on one line was never watched, so the dock fell back on the size the key
+// is DRAWN at, which depends on the dock's own answer (wrapped, it looks short enough for one line; on one line it is too long and wraps): it flipped for ever and the key faded in and out at two heights.
+test('the dock decides by the key on one line alone: the size it is drawn at never changes the answer', () => {
+  const vp = SCREENS['iphone-portrait'];
+  const words = planLayout(vp, need(vp), 'words').cards.find((c) => c.slot === 'words')?.rect ?? null;
+  for (const natural of [{ w: 150, h: 28 }, { w: 230, h: 28 }, { w: 300, h: 28 }]) {
+    const a = dockKey({ vp, words, natural });
+    const drawnWide = dockKey({ vp, words, natural, wrapped: { w: natural.w, h: natural.h } });
+    const drawnNarrow = dockKey({ vp, words, natural, wrapped: a.wrap ? { w: a.wrap, h: natural.h * 2 } : { w: natural.w, h: natural.h } });
+    assert.equal(drawnWide.wrap, a.wrap, `${natural.w}: wrap`);
+    assert.equal(drawnNarrow.wrap, a.wrap, `${natural.w}: wrap (drawn narrow)`);
+    assert.equal(drawnNarrow.at, a.at, `${natural.w}: place`);
+  }
+});

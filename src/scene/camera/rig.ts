@@ -179,6 +179,12 @@ export class CameraRig {
   private plunge = false;
   /** The share of the way the room has gone in the move now (see update). */
   private roomP = 0;
+  /** The room size the camera's distance is fitted to (owner, 20 Nov: opening a card or a sheet never zooms the figure out, it only pans it into the free room). Only an explicit fit, a
+   *  goTo (a view, a slide, a test's own shot, Fit), sets it; a change of room alone (setRoom) moves the picture's centre into the new room and keeps this, so the zoom stays. */
+  private scaleFrom = { w: 0, h: 0 };
+  private scaleTo = { w: 0, h: 0 };
+  private scaleNow = { w: 0, h: 0 };
+  private keepScale = false;
   private lateRoom: { from: Room; e0: number } | null = null;
   private width = 1;
   private height = 1;
@@ -254,6 +260,7 @@ export class CameraRig {
       this.placedFirst = true;
       this.cur = { shot: copyShot(s), room: copyRoom(room) };
       this.from = this.to = this.cur;
+      this.scaleFrom = { w: room.w, h: room.h }; this.scaleTo = { w: room.w, h: room.h }; this.scaleNow = { w: room.w, h: room.h };
       this.orbit = this.orbitFrom = 0; this.active = false; this.handTween = false; this.dirty = true;
       return;
     }
@@ -291,8 +298,14 @@ export class CameraRig {
     if (ease) { carry = 0; hv = null; }
     this.hv = hv;
     this.easeFn = ease;
+    // a dive between the lobule and the sinusoid from a standstill takes the gentler cubic ease: the quintic packs its middle (where the sinusoid crossfades over the lobule, share 0.42 to
+    // 0.86) into a quarter of the move, which read as a cut; the cubic spends a third of it there (with DIVE_SINUSOID_MS, about 0.6 s)
+    if (!ease && carry === 0 && !hv && isDive(this.from, this.to) && Math.max(this.from.shot.r, this.to.shot.r) / Math.max(1e-12, Math.min(this.from.shot.r, this.to.shot.r)) < PLUNGE_RATIO) this.easeFn = (k: number) => k * k * (3 - 2 * k);
     this.from = { shot: copyShot(this.cur.shot), room: copyRoom(this.cur.room) };
     this.to = { shot: copyShot(s), room: copyRoom(room) };
+    this.scaleFrom = { ...this.scaleNow };
+    if (!this.keepScale || !(this.scaleTo.w > 1)) this.scaleTo = { w: room.w, h: room.h };
+    if (!(this.scaleFrom.w > 1)) this.scaleFrom = { ...this.scaleTo };
     this.carry = this.reduceMotion || reduced() ? 0 : carry;
     this.long = LONG_ARC && !ease && !isDive(this.from, this.to) && !(this.reduceMotion || reduced()) && this.longPath.fill(this.from.shot, this.to.shot, SHOTS.play.half[0] * 2).arc ? this.longPath : null;
     // a new shot takes the hand's zoom and pan back to the shot's own framing, in the same move
@@ -312,9 +325,10 @@ export class CameraRig {
   }
 
   /** The cards changed room (a card opened, the phone turned): move the room alone, same curve; the hand's zoom and the viewer's turn stay (cards opening keep both). `homeTurn`: a guided step brings the turn home with the move. */
-  setRoom(room: Room, now: number, ms?: number, homeTurn = false): void {
+  setRoom(room: Room, now: number, ms?: number, homeTurn = false, refit = false): void {
     // a card opening in the middle of a dive keeps the dive's own time: it lands when it was going to, in the new room (not a fresh 950 ms from a standstill)
     // a move in flight whose room alone changes (a card opening or closing): the same move, the same clock and the same curve, with only its destination room swapped, so the picture never stops or restarts
+    if (refit) this.scaleTo = { w: room.w, h: room.h };
     if (this.active && ms == null && !homeTurn && this.dur > 0) {
       // (the room's own share, not the clock's: in a dive the room follows the aim (q). Rebuilding it with the clock's share made the picture jump each time a card arrived mid-dive,
       //  a zoom-out and a shift right per card: the Lobule -> Sinusoid staircase)
@@ -334,7 +348,10 @@ export class CameraRig {
       }
     }
     const left = this.active ? Math.max(1, this.t0 + this.dur - now) : undefined;
+    // (a room change alone keeps the zoom: the camera only pans into the new room. A guided step (homeTurn: a slide on the same shot) is an explicit fit and may refit)
+    this.keepScale = !homeTurn && !refit;
     this.goTo(this.to.shot, room, now, ms ?? (left != null ? Math.max(left, 200) : undefined), true);
+    this.keepScale = false;
     // a guided step (a slide, a catheter step) that asks for the shot the camera is already on still brings the turn home: the viewer's angle is theirs only between guided poses
     if (homeTurn) this.orbitTo = 0;
   }
@@ -427,6 +444,7 @@ export class CameraRig {
       this.cur = blendPose(this.from, this.to, e, 0);
       // the share of the way the room has gone (blendPose: e, or in a dive the aim's share q): what setRoom must rebuild a retargeted room from, or the picture jumps
       this.roomP = isDive(this.from, this.to) ? roomShareOf(this.from, this.to, this.cur) : e;
+      this.scaleNow = { w: lerp(this.scaleFrom.w, this.scaleTo.w, this.roomP), h: lerp(this.scaleFrom.h, this.scaleTo.h, this.roomP) };
       if (this.lateRoom) {   // a card that came after the room had all but arrived (see setRoom): the room goes the rest of the way on the clock, from where it was
         const L = this.lateRoom, u = easeMove(Math.min(1, Math.max(0, (e - L.e0) / Math.max(1e-6, 1 - L.e0)))), c = this.cur.room = copyRoom(this.cur.room), b = this.to.room;
         c.x = lerp(L.from.x, b.x, u); c.y = lerp(L.from.y, b.y, u); c.w = lerp(L.from.w, b.w, u); c.h = lerp(L.from.h, b.h, u);
@@ -470,7 +488,8 @@ export class CameraRig {
     const w = this.width, h = this.height;
     const fov = fovAt(this.bump);
     // (the dolly zoom: as the lens widens the camera comes in by the same ratio, so what the dive aims at keeps its size and the world opens round it)
-    const r = dollyDistance(effectiveDistance(shot, room.w > 1 ? room : { x: 0, y: 0, w, h }, h, w), fov);
+    const sc = this.scaleNow.w > 1 ? { x: 0, y: 0, w: this.scaleNow.w, h: this.scaleNow.h } : room.w > 1 ? room : { x: 0, y: 0, w, h };
+    const r = dollyDistance(effectiveDistance(shot, sc, h, w), fov);
     this.camera.fov = fov;
     // the tilt is added here, at render time, on top of the shot and the viewer's turn; `project` and every pick use this same camera, so tags and taps agree with what is drawn
     const yaw = shot.yaw + this.orbit + (this.noTilt ? 0 : this.tilt.yaw), pitch = shot.pitch + this.pitchOrbit + (this.noTilt ? 0 : this.tilt.pitch);

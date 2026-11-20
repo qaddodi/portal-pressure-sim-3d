@@ -6,7 +6,6 @@ import { BufferAttribute, type BufferGeometry, Float32BufferAttribute } from 'th
 import { SPLEEN_PSE_EDGE } from '../disease/copied/anatomy-b4.ts';
 import { outlinePolygon } from '../disease/ascites.ts';
 import { x2d, y2d } from '../frame2d.ts';
-import { septumAt } from './liver-shape.ts';
 import { PSE_EDGE_A, type RGB } from './organ-look.ts';
 
 /** The organs that carry per-vertex colour. */
@@ -35,7 +34,7 @@ export class VertexPaint {
   readonly attr: BufferAttribute;
   /** the vertices' places in the 2D figure at rest */
   private readonly xs: Float32Array; private readonly ys: Float32Array;
-  private readonly sep: Float32Array | null; private readonly dead: Float32Array | null; private readonly line: Float32Array | null;
+  private readonly dead: Float32Array | null; private readonly line: Float32Array | null;
   readonly count: number;
   /** Adds the `ink` attribute to `g` (it must be there before the CelObject is made: the shader reads it only then) and works out each vertex's share of the organ's effect. */
   constructor(g: BufferGeometry, id: 'liver' | 'spleen' | 'stomach') {
@@ -43,7 +42,6 @@ export class VertexPaint {
     const n = this.count = pos.count;
     this.xs = new Float32Array(n); this.ys = new Float32Array(n);
     for (let i = 0; i < n; i++) { this.xs[i] = x2d(pos.getX(i)); this.ys[i] = y2d(pos.getY(i)); }
-    this.sep = id === 'liver' ? Float32Array.from(this.xs, (x, i) => septumAt(x, this.ys[i]!)) : null;
     if (id === 'spleen') {
       this.dead = new Float32Array(n); this.line = new Float32Array(n);
       for (let i = 0; i < n; i++) { const q = infarctAt(this.xs[i]!, this.ys[i]!); this.dead[i] = q.dead; this.line[i] = q.line; }
@@ -53,10 +51,9 @@ export class VertexPaint {
   }
   private put(i: number, c: RGB): void { const a = this.attr.array as Float32Array; a[i * 3] = c[0]; a[i * 3 + 1] = c[1]; a[i * 3 + 2] = c[2]; }
 
-  /** Liver: `inside` a nodule, `wall` on a septum; every vertex takes the mix its septum share says. */
-  fillLiver(inside: RGB, wall: RGB): void {
-    const s = this.sep!;
-    for (let i = 0; i < this.count; i++) { const t = s[i]!; this.put(i, [inside[0] + (wall[0] - inside[0]) * t, inside[1] + (wall[1] - inside[1]) * t, inside[2] + (wall[2] - inside[2]) * t]); }
+  /** Liver: every vertex the nodule colour; the septum and the dome's light are drawn per pixel by the organ shader (liver-texture.ts). */
+  fillLiver(inside: RGB): void {
+    for (let i = 0; i < this.count; i++) this.put(i, inside);
     this.attr.needsUpdate = true;
   }
   /** Spleen: the live part `c`, the dead part `dead`, and the line along the edge in `edge` (at PSE_EDGE_A); `amount` 0..1 is how far the infarct has come in. */
