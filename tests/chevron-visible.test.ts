@@ -96,7 +96,7 @@ test('at the default fit the streaks are sleek and seen: a core of about 1 px, 2
       const R = v.radius * k, lanes = lanesForPx(R);
       if (R < STREAK.MIN_R_PX) { assert.equal(lanes, 0, `${v.id}: none under 3.5 px across`); continue; }
       assert.ok(lanes === 1 || lanes === 3 || lanes === 5, `${v.id} lanes ${lanes}`);
-      if (R < 4) assert.equal(lanes, 1, `${name} ${v.id}: ${lanes} lanes on a ${(2 * R).toFixed(1)} px vessel`);
+      if (R < STREAK.LANE_R_PX[0]) assert.equal(lanes, 1, `${name} ${v.id}: ${lanes} lanes on a ${(2 * R).toFixed(1)} px vessel`);
       assert.ok(streakCorePx(R, lanes, true) >= 0.8 && streakCorePx(R, lanes, false) <= (R < STREAK.WIDE_R_PX[0] ? 1.1 : STREAK.CORE_MAX_PX), `${name} ${v.id}: core ${streakCorePx(R, lanes, true).toFixed(2)} px`);
       const meanLen = STREAK.FIELD_LEN_R * R;   // (px: the field's 5 units to a radius)
       if (R >= 2 && R <= 5) assert.ok(meanLen >= 24 && meanLen <= 60, `${name} ${v.id}: a streak ${meanLen.toFixed(0)} px long`);

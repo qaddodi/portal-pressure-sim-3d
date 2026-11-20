@@ -152,3 +152,11 @@ test('streaks are SEEN at the default fit, not only present (the eyes, 20 Nov: f
   assert.ok(streakToneJs(lit, [1, 1, 1], 0, 0.5, 0)[0]! > lit[0]!, 'the faintest streak is still lighter than the body');
   assert.ok(STREAK.WALL_SPEED >= 0.7, 'the wall lane keeps up with the blood: it is not a crawl beside the chevrons');
 });
+
+test('a streak\'s share of the face does not depend on the width of the tube (root cause of the branches reading as a smooth fill beside the trunk, 20 Nov: with 3 lanes from 4 to 6 px of radius the face was 8 to 9 percent streaks, with 5 lanes 15 percent, so the branches showed none where the trunk showed some)', () => {
+  const at: number[] = [];
+  for (let R = 3; R <= 12; R += 0.25) at.push(streakCoverage(R, lanesForPx(R)));
+  const lo = Math.min(...at), hi = Math.max(...at);
+  assert.ok(lo >= 0.1, `the sparsest width carries ${lo.toFixed(3)} of its face`);
+  assert.ok(hi / lo <= 1.7, `the densest is ${(hi / lo).toFixed(2)} x the sparsest (${lo.toFixed(3)} to ${hi.toFixed(3)})`);
+});
