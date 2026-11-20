@@ -4,7 +4,7 @@ import { type BufferGeometry, Matrix4, type Mesh, type Object3D, Vector3 } from 
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { Sinusoid3D } from '../src/scene/micro3d/sinusoid3d.ts';
-import { GAP_SLOTS, GAP_X0, REACH, TRAFFIC_REACH, cellOutline } from '../src/scene/micro3d/sinusoid3d.ts';
+import { GAP_SLOTS, GAP_X0, REACH, TRAFFIC_REACH, cellOutline, CLEFT_HALF, CANAL_R, Z } from '../src/scene/micro3d/sinusoid3d.ts';
 const GAP_REACH = REACH;
 import { UM } from '../src/scene/sinusoid/layout.ts';
 
@@ -283,4 +283,12 @@ test('each microvillus roots inside its cell, just under the cell\'s top face, s
   const m = new Matrix4(), p = new Vector3();
   v.getMatrixAt(0, m); p.setFromMatrixPosition(m);
   assert.ok(p.z + VILLUS_R <= Z.cell && p.z + VILLUS_R > Z.cell - 0.2, `its top just under the cell's face (${(p.z + VILLUS_R).toFixed(2)})`);
+});
+
+test('a cleft between hepatocytes is a thin light gap between two outlines, never a deep black bar (coordinator from the crops, 20 Nov 2026)', async () => {
+  const fs = await import('node:fs');
+  const src = fs.readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
+  assert.match(src, /this\.ground\.setTint\(mix3\(P\.cCell, P\.cBg/, 'the cleft floor is the cell colour toward the page, not 2D\'s deep under-tone');
+  assert.ok(Z.cellBot > Z.disse - 0.5 && Z.cellBot < Z.disse, 'the cell walls stop just under Disse, so no deep wall shows down a cleft');
+  assert.ok(CLEFT_HALF >= 0.5 && CLEFT_HALF < CANAL_R, 'the cleft is wide enough for two outlines side by side, and the canaliculus still spans it');
 });
