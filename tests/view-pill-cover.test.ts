@@ -29,7 +29,7 @@ function check(from: ViewId[], to: ViewId[]) {
     for (let i = 0; i < frames.length - 1; i++) for (let t = 0; t <= 1; t += 0.1) {
       const a = frames[i]!, b = frames[i + 1]!, u = a.offset + (b.offset - a.offset) * t, o = a.opacity + (b.opacity - a.opacity) * t;
       const half = (before.w + (after.w - before.w) * ease(u)) / 2 - (after.inset ?? 0), dx = m.dx0 + (m.dx1 - m.dx0) * ease(u);
-      const wl = box.l + box.pl + dx, wr = box.l + box.w - box.pr + dx;
+      const wl = box.l + box.pl! + dx, wr = box.l + box.w - box.pr! + dx;
       if (wl < -half - 1e-6 || wr > half + 1e-6) assert.ok(o < 1e-6, `${from}->${to} ${id}: word outside the face at ${u.toFixed(2)} drawn at ${o.toFixed(3)}`);
     }
     const rest = was ? frames[0]! : frames.at(-1)!;
