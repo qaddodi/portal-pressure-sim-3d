@@ -129,7 +129,8 @@ test('the organ layer wears the art: the stomach\'s materials are patched, the c
   const st = layer.byId.get('stomach')!, co = layer.byId.get('colon')!, du = layer.byId.get('duodenum')!;
   assert.match(st.toon.fragmentShader, /main_organ/); assert.match(st.ink.fragmentShader, /vEsoA/);
   assert.match(co.ink.fragmentShader, /vEsoA/); assert.doesNotMatch(co.toon.fragmentShader, /eso1/);
-  assert.doesNotMatch(du.toon.fragmentShader, /main_organ/, 'the duodenum is the painter\'s own tube');
+  assert.doesNotMatch(du.toon.fragmentShader, /vArt/, 'the duodenum has no art: the painter\'s own tube, patched only for its tail\'s fade');
+  assert.match(du.toon.fragmentShader, /gl_FragColor\.a \*= vEsoA/, 'the duodenum\'s free end fades out');
   const box = st.toon.uniforms.box!.value as { z: number; w: number };
   assert.ok(Math.abs(box.w - 319 / 300) < 1e-6, 'the stomach\'s gradient runs over its own outline, not the esophagus\'s length too');
   layer.setBody({ spleenScale: 1, splenicRx: 0, bleed: { active: false, total: 0 }, cirrhosis: 0, congestion: 0, tint: 0 } as never, true);
