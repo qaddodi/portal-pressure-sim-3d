@@ -33,7 +33,7 @@ test('the 3D sinusoid builds every part, finite, and stands in for the flat draw
     const m = ms.find((x) => x.name === n);
     assert.ok(m && (m.geometry.getAttribute('position')?.count ?? 0) > 50, `${n} is built`);
   }
-  assert.ok(verts < 300_000, `a phone draws it: ${verts} vertices`);
+  assert.ok(verts < 320_000, `a phone draws it: ${verts} vertices`);   // (two sinusoids and plates beyond each side now, the outer ones coarser)
 });
 
 test('off: the flat view draws again and the 3D scene is hidden', () => {
@@ -213,4 +213,23 @@ test('the Kupffer cell sits on bare lining, never on top of an endothelial cell,
     for (let n = -6; n <= 6; n++) assert.ok(Math.abs(xk - nucAt(n, SEED.nucDn)) >= KUP_CLEAR - 1e-9, `portrait ${p}: clear of the nucleus at ${nucAt(n, SEED.nucDn).toFixed(1)} (xk ${xk.toFixed(1)})`);
   }
   for (const sd of [SEED.nucUp, SEED.nucDn]) for (let n = -8; n <= 8; n++) assert.ok(nucAt(n + 1, sd) - nucAt(n, sd) > 2 * 4.6, 'neighbouring endothelial cells never overlap');
+});
+
+test('two more sinusoids and plates lie beyond the main plates each way, and the blur starts only past the first hepatocyte row and grows gradually', async () => {
+  const { BEYOND, PERIOD, ACROSS } = await import('../src/scene/micro3d/sinusoid3d.ts');
+  assert.equal(BEYOND, 2);
+  assert.ok(ACROSS >= UM.lum + UM.endo + UM.disse + UM.hep + 2 * PERIOD, 'the ground reaches past the last plate');
+  const { flat, s3 } = scene();
+  const G = (flat as unknown as { g: { hepIn(x: number): number } }).g;
+  s3.update(true);
+  const far = meshes(s3.group).find((m) => m.name === 'sinusoid3d/lumen-beyond')!;
+  const pos = far.geometry.getAttribute('position')!;
+  let ymax = 0; for (let i = 0; i < pos.count; i++) ymax = Math.max(ymax, Math.abs(pos.getY(i)));
+  assert.ok(ymax > G.hepIn(0) + UM.hep + PERIOD + UM.disse, `a second lumen beyond each side (${ymax.toFixed(1)} µm)`);
+  const a = new Vector3(), b = new Vector3(), e0 = new Vector3(), e1 = new Vector3();
+  s3.focusBand(a, b, e0, e1);
+  const inv = new Matrix4().copy(s3.group.matrixWorld).invert();
+  const y0 = Math.abs(e0.clone().applyMatrix4(inv).y), y1 = Math.abs(e1.clone().applyMatrix4(inv).y);
+  assert.ok(Math.abs(y0 - (G.hepIn(0) + UM.hep)) < 1e-6, 'sharp through the whole first hepatocyte row');
+  assert.ok(y1 - y0 > PERIOD, `then gradual, over more than a whole repeat (${(y1 - y0).toFixed(0)} µm)`);
 });
