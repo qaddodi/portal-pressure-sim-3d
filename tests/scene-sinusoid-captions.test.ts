@@ -92,6 +92,6 @@ test('a leader ends in 2D\'s ringed dot on the part it names: the layer draws on
   for (const p of placed.filter((q) => q.leader)) assert.ok(Number.isFinite(p.leader!.x2) && Number.isFinite(p.leader!.y2), `${p.key}'s dot has a place`);
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/scene/sinusoid/SinusoidCaptions.tsx', import.meta.url), 'utf8');
-  assert.match(src, /className = 'lb-anchor'/, 'a ring element per name');
+  assert.doesNotMatch(src, /className = 'lb-anchor'/, 'no ring at the leader\'s end (it read as a white circle on the Kupffer cell, Mohammad 20 Nov)');
   assert.match(src, /translate\(\$\{Math\.round\(p\.leader\.x2/, 'put at the leader\'s end');
 });

@@ -216,7 +216,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
         <>
           {sn.dslide?.tiles || (sn.dslide && hasToolChart(sn.dslide)) ? <TilesHead deckId={deck.id} slideId={sn.dslide.id} /> : null}
           {sn.dslide && hasToolChart(sn.dslide) ? <ToolCard deck={deck} slide={sn.dslide} /> : null}
-          {sn.dslide?.ladder ? <LadderCard ladder={sn.dslide.ladder} readings={readings} /> : sn.dslide?.tiles ? <TilesCard deckId={deck.id} slideId={sn.dslide.id} /> : null}
+          {sn.dslide?.ladder && !sn.dslide.tool ? <LadderCard ladder={sn.dslide.ladder} readings={readings} /> : sn.dslide?.tiles ? <TilesCard deckId={deck.id} slideId={sn.dslide.id} /> : null}
         </>
       );
       case 'visual': return sn.slide ? <VisualCard deck={deck} slide={sn.slide} read={read} /> : null;

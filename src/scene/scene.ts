@@ -189,6 +189,18 @@ export class CelScene {
   private healthyQ: ArrayLike<number> | undefined;
   private collateralsOn = false;
   private procQuietWas = false;
+  private wedgeSet = new Set<string>();
+  /** The HVPG's amber column: a tint on the vessels upstream of the balloon (their own shader), thinning toward the branch tips. Eases with the column (one eased number from the procedure's clock). */
+  private syncWedge(): void {
+    const w = this.procs.wedgeTint(), now = new Set<string>();
+    if (w) for (const o of this.vessels) {
+      const id = o.edge?.id, p = id ? w.pieces.get(id) : undefined;
+      if (!id || !p) continue;
+      (o as VesselObject).setWedge(w.amount, p.cut, p.fade, w.color); now.add(id);
+    }
+    for (const id of this.wedgeSet) if (!now.has(id)) (this.vessels.find((o) => o.edge?.id === id) as VesselObject | undefined)?.setWedge(0, 2, 0);
+    this.wedgeSet = now;
+  }
   private bloodOpts = { chevrons: true, keyChevrons: false };
   private readonly byEdge = new Map<string, CelObject>();
   /** the vessels that fade at a free end (fades.ts), and the collaterals whose opening makes the tip solid */
@@ -948,6 +960,7 @@ export class CelScene {
     const lob3 = this.lobule3d.update(this.micro3d, under, now, this.flowRate.value), sin3 = this.sinus3d.update(this.micro3d, this.flowRate.value);
     const viewMoving = lob3 || sin3 || lobMoving || sinMoving;
     const procMoving = this.procs.update(now);
+    this.syncWedge();
     const diseaseMoving = this.disease.update(now);
     if (diseaseMoving) this.tagOverOrgans();
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
@@ -985,7 +998,7 @@ export class CelScene {
     const tubesMoving = this.tubes.update(dt, { ramp, t, body: this.fadeNow, drawn: (id) => this.vesselDrawn(id), caudPin: this.caudPin, open: this.openShunts });
     this.resistors.setAlpha(ramp);
     let resMoving = false;
-    if (ramp > 0) { this.resistors.set(this.resNow, this.mapScale()); resMoving = this.resistors.step(dt); }
+    if (ramp > 0) { this.resistors.set(this.resNow, this.mapScale()); resMoving = this.resistors.step(dt); this.mapLayer.setScale(this.mapScale()); }
     let dots = false;
     if (t > 0) dots = this.mapLayer.stepDots((id) => (this.stationsOf.get(id) ?? []).some((e) => this.presence.stateOf(e) === 'shown'), Math.min(1, dt / 280));
     return moving || dots || tubesMoving || resMoving;

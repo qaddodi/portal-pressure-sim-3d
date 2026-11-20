@@ -253,6 +253,8 @@ uniform float casingCircA;  // and in the Circuit (2D .stage-wrap.cmap), by circ
 uniform vec3 inkColorCirc;
 uniform float circT;
 uniform vec2 circCap;       // the Circuit rounds this vessel's start / end (1): the ends nothing joins
+uniform vec4 wedge;       // the wedged vein's static column as a tint on the vessels themselves: x how much, y the share of the course (u) it reaches up to (2 = all of it), z how far the fade to the branch tip runs, w how much of it fades
+uniform vec3 wedgeCol;
 uniform float quietK;       // quiet depth on a turn (camera/quiet.ts): the back tier eases toward the page by QUIET_BACK of this, 0 face on
 uniform vec3 pageCol;       // the plate colour it eases toward
 uniform vec4 rimInk;        // (kept for the palette's API: no light rim is drawn)
@@ -262,6 +264,12 @@ varying float vU;
 float buryK(float d0, float d1) {   // d0, d1: the figure units from the start and from the end of the tube
   float k0 = bury.x > 0.0 ? smoothstep(0.5 * bury.x * vU, bury.x * vU, d0) : 1.0;
   float k1 = bury.y > 0.0 ? smoothstep(0.5 * bury.y * vU, bury.y * vU, d1) : 1.0;
+  return k0 * k1;
+}
+// no flow marks (chevrons, streaks) inside the vessel a tube leaves or opens into: where the tube lies in its parent's lumen its marks would be drawn over the parent's own (a torn chevron at every fork). They begin a little beyond where the ink does.
+float markK(float d0, float d1) {
+  float k0 = bury.x > 0.0 ? smoothstep(1.2 * bury.x * vU, 3.0 * bury.x * vU, d0) : 1.0;
+  float k1 = bury.y > 0.0 ? smoothstep(1.2 * bury.y * vU, 3.0 * bury.y * vU, d1) : 1.0;
   return k0 * k1;
 }
 varying float vFade;
@@ -401,7 +409,7 @@ void main() {
     gStreakSpan = len * vU * sc;   // (the vessel's own length in field units: a lane's period never runs past it)
     // the streak distance (texel w: the stream's distance D, held to a speed no pattern wagon-wheels at, streams.ts) with the arc, as the heads ride D; the same gate as the heads' (the radius from MIN_R_PX), and none only where the flow is none
     float fld = streakField(across, vUv.x * len * vU * sc, smS.w * sc, 1.0, 1.0, 1.0);
-    float sOn = streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCss) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
+    float sOn = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCss) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
     streakCover = sOn * fld;
     cBody = c;
     c = mix(c, streakTone(c, vec3(1.0), gStreakK.x, gStreakK.y), streakCover);
@@ -445,7 +453,7 @@ void main() {
       ch = c4.w >= 1.0 ? cc : mix(ch, cc, c4.w);
     }
     // heads are on every tube down to about 4 CSS px across (R 1.5 px: the spacing never depends on the width), and are cut at the wall (never on the ink)
-    float fade = flowAmount * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));   // (a head stands inside the lumen, 55 percent of it: this is only the wall's own cut)
+    float fade = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * flowAmount * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));   // (a head stands inside the lumen, 55 percent of it: this is only the wall's own cut)
     fade *= mix(0.3, 1.0, smoothstep(0.5, 3.0, abs(vd)));
     if (fade > 0.0 && ch.x + ch.y > 0.0) {
       float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);
@@ -525,6 +533,12 @@ void main() {
     }
     c = mix(c, vec3(0.227, 0.114, 0.039), te * 0.4 * stump.z);
     c = mix(c, vec3(0.910, 0.455, 0.165), tw * stump.z);
+  }
+  // the amber column of the wedge: everything upstream of the balloon in that vein and its branches, a tint on the tube itself that thins toward each branch's tip
+  if (wedge.x > 0.001 && circT < 0.001) {
+    float wa = wedge.x * (1.0 - smoothstep(wedge.y - 0.08, wedge.y, vUv.x));
+    wa *= mix(1.0, smoothstep(0.0, max(wedge.z, 0.001), vUv.x), wedge.w);
+    c = mix(c, wedgeCol, 0.6 * wa);
   }
   gl_FragColor = vec4(c, vFade);
 }`;

@@ -54,6 +54,10 @@ const BILE_ID = 2_000_000;
 /** The vessels that run over the plates (the sinusoids, their cross-links, the arteriole's twigs) lie with their axis at the tiles' tops: lower, a thin one was buried under every tile it
  *  crossed and showed only in the gaps, as short pieces floating between the cords (Mohammad, 20 Nov: "disconnected vessels in the middle"). */
 export const OVER_Z = LZ.cellTop + 0.002;
+/** The scene's fade is taken as whole from here up (FADE_GLSL's screen pattern drops pixels below 0.999). */
+export const FADE_SNAP = 0.98;
+/** Where the sinusoids stop inside the central vein, as a share of its radius: just inside its rim, so each meets the rim and none is drawn over the pool. */
+export const CV_HOLE_K = 0.96;
 /** The tract's arteriole and ductule openings are drawn this much larger than 2D's dots, so each corner reads as one triad: venule, artery and duct side by side (Mohammad, 20 Nov). */
 const HA_K = 1.7, BD_K = 1.4;
 /** The bile canaliculi and the canals of Hering: hairlines (radius, local units at R = 1) lying in the clefts between cells, not tubes as wide as a sinusoid ("bile is a mess"). */
@@ -193,7 +197,9 @@ export class Lobule3D {
     // (and on the way in from the body it comes in as the field narrows onto it: the hex lobules tile the liver from afar, the neighbours resolve, then this lobule's own detail fades in until the
     //  landing, and the reverse on the way out; the field's breadth is the camera's distance against the lobule's framing, field.ts fieldWide)
     const come = 1 - f.field.wideNow;
-    this.fade.value = (1 - under) * come; this.marksMat.uniforms.opacity!.value = (1 - under) * come;
+    // (whole once it is all but whole: the fade dissolves pixels in a screen pattern below 0.999, and a field that settles a hair short of 0 left the lobule speckled at rest, its lines dotted)
+    const fv = (1 - under) * come, fs = fv > FADE_SNAP ? 1 : fv;
+    this.fade.value = fs; this.marksMat.uniforms.opacity!.value = fs;
     const shown = on && f.isVisible && under < 1;
     this.group.visible = shown;
     // (the whole lobule, its neighbouring field too: the sinusoid's own ground lies below the lobule's plane, so the field would show through the clefts between its cells)
@@ -220,6 +226,10 @@ export class Lobule3D {
     // the central vein opens and narrows with congestion and its collagen (the flat view's radius)
     const kcv = f.cvRadiusNow / DISC_R.cv;
     this.mouthCv.group.scale.set(kcv, kcv, 1);
+    // (the sinusoids end in the central vein's pool as one surface: nothing of a sinusoid, its shade or its line, is drawn inside the pool's rim, Mohammad 20 Nov 2026: "I hate that the vessels look
+    //  like they have shadows inside the central vein"; congestion swells them over the pool's top, which is what showed. The vessels' own rule, a child's line masked inside its parent.)
+    const hole = f.cvRadiusNow * R * CV_HOLE_K;
+    for (const k of ['s0', 's1', 's2', 'an'] as const) this.sin[k].setHole(hole);
     this.stepCvScar(c.fibPost, kcv);
     this.buildGround(kcv, lymphOn);
     const washing = this.stepWash(now);
@@ -359,8 +369,18 @@ export class Lobule3D {
     const net = this.flat.net, crn = net.corners.map((p) => new Vector2(p[0] * 1.015 * R, -p[1] * 1.015 * R));
     if (ShapeUtils.isClockWise(crn)) crn.reverse();
     const holes: Vector2[][] = [];
+    // (a hole only where its disc lies wholly inside the hexagon: a hole across the edge (a triad on a vertex) made the triangulation throw spikes out past the vertices, which read as the
+    //  lobule cut off at the sides of a phone; the mouth there sits over the ground's edge as it is)
+    const inside = (x: number, y: number, rr: number) => {
+      for (let i = 0; i < crn.length; i++) {
+        const A = crn[i]!, B = crn[(i + 1) % crn.length]!, ex = B.x - A.x, ey = B.y - A.y, l = Math.hypot(ex, ey);
+        if (((x - A.x) * ey - (y - A.y) * ex) / l > -rr) return false;   // (counter-clockwise: inside is to the left of each edge)
+      }
+      return true;
+    };
     const hole = (c: Course, r: number) => {
       const p = c.pts[Math.floor(c.pts.length / 2)]!, h: Vector2[] = [];
+      if (!inside(p[0] * R, -p[1] * R, r * R)) return;
       for (let s = 0; s < 40; s++) { const a = -(s / 40) * Math.PI * 2; h.push(new Vector2(p[0] * R + Math.cos(a) * r * R * 0.97, -p[1] * R + Math.sin(a) * r * R * 0.97)); }
       holes.push(h);
     };
