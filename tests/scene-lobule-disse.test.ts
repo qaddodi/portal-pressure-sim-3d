@@ -145,7 +145,7 @@ test('the bile channels (olive, the thing a phone showed as thick bars between t
     // the widest ring of the tube, in px at the phone fit
     const rad = o.toonMesh.geometry.getAttribute('rad');
     let r = 0; for (let i = 0; i < rad.count; i++) r = Math.max(r, rad.getX(i));
-    assert.ok((r / LOBULE_R) * k <= 0.0075 * k + 1e-4, 'no wider than the canal of Hering');
+    assert.ok((r / LOBULE_R) * k <= 0.0078 * k + 1e-4, 'no wider than the canal of Hering (2D\'s lobule-bile.js leg: 0.004 to 0.0078 R at its ductule)');
   }
   const bc = bile.find((o) => (o.toonMesh.geometry.getAttribute('rad') as { getX(i: number): number }).getX(0) < 0.0075 * LOBULE_R - 1e-6)!;
   const rad = bc.toonMesh.geometry.getAttribute('rad'); let rc = 0; for (let i = 0; i < rad.count; i++) rc = Math.max(rc, rad.getX(i));

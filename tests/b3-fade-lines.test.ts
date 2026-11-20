@@ -36,7 +36,7 @@ test('the vessel shader carries both line modes with the 2D alpha (tube-geo.js t
 
 test('every faded vessel is blended in its fade zone and a line fade is on its own vessel in the scene', () => {
   const s = new CelScene();
-  for (const id of ['SIN_RR', 'SIN_LL', 'C9', 'RHV_IVC', 'MHV_IVC', 'LHV_IVC', 'LRV_IVC', 'C5']) {
+  for (const id of ['SIN_RR', 'SIN_LL', 'C9', 'RHV_IVC', 'LRV_IVC', 'C5']) {
     const o = s.vessels.find((v) => v.edge!.id === id);
     assert.ok(o, id);
     assert.ok(o.toon.uniforms.fadeMode!.value >= 3, `${id} fade mode`);

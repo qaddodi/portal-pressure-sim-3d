@@ -21,10 +21,10 @@ import type { LookId } from '../../looks/looks.ts';
 import type { Course, LobuleNet, P2 as LP2 } from '../lobule/geometry.ts';
 import { LOBULE_R } from '../lobule/shots.ts';
 import { DISC_R, LT_R, RS_N, inletRadius, sinRadius, twigR } from '../lobule/widths.ts';
+import { CASING } from '../vessels/cel-ink.ts';
 import { type InkContext, type Seg, inkAt, sinW } from '../lobule/ink.ts';
 import { lookColours } from '../lobule/lz-colours.ts';
 import { LOBULE_PALETTES } from '../lobule/tones.ts';
-import { DISC_EDGE } from '../lobule/from2d/disc-glsl.generated.js';
 import { cordToneInto } from '../lobule/from2d/lobule-look.generated.js';
 import { paintWorldInto, useTokens } from '../lobule/from2d/lobule-paint.generated.js';
 import { LOBULE_PLATE_FS, LOBULE_PLATE_VS, PLATE_BOX, PLATE_PX, PLATE_S, type PlateState, plateInput, plateKey, plateShape } from '../lobule/plate.ts';
@@ -125,12 +125,12 @@ export class Lobule3D {
     this.ground = mk('ground', { ink: null, vertexColors: false });
     this.cells = mk('hepatocytes', { px: S.LINE_SMALL });
     this.nuclei = mk('nuclei', { ink: null });
-    this.sin = { s0: mk('sinusoids-0', { px: S.LINE_SMALL, flow: true }), s1: mk('sinusoids-1', { px: S.LINE_SMALL, flow: true }), s2: mk('sinusoids-2', { px: S.LINE_SMALL, flow: true }), an: mk('sinusoids-links', { px: S.LINE_SMALL * 0.8, flow: true }) };
-    this.inlets = mk('inlets', { px: S.LINE_SMALL, flow: true });
+    this.sin = { s0: mk('sinusoids-0', { px: S.LINE, flow: true }), s1: mk('sinusoids-1', { px: S.LINE, flow: true }), s2: mk('sinusoids-2', { px: S.LINE, flow: true }), an: mk('sinusoids-links', { px: S.LINE_SMALL, flow: true }) };
+    this.inlets = mk('inlets', { px: S.LINE, flow: true });
     this.twigs = mk('arteriole-twigs', { px: S.LINE_SMALL * 0.8, flow: true });
     this.lt = mk('terminal-lymphatics', { px: S.LINE_SMALL * 0.8, flow: true });
     this.disse = mk('disse', { ink: null });
-    this.bile = mk('canaliculi', { px: S.LINE_SMALL * 0.45, flow: true });
+    this.bile = mk('canaliculi', { px: S.LINE_SMALL * 0.7, flow: true });
     this.mouthPv = mk('portal-venules', { px: S.LINE });
     this.mouthHa = mk('arterioles', { px: S.LINE_SMALL });
     this.mouthBd = mk('ductules', { px: S.LINE_SMALL });
@@ -233,11 +233,11 @@ export class Lobule3D {
     const L = lookColours(look), P = LOBULE_PALETTES[look].tones;
     const gap = L.rgb01('--og-liver-2'), bg = L.text('--stage-bg') ? L.rgb01('--stage-bg') : L.rgb01('--bg');
     this.ground.setTint(groundOf(bg, gap, L.dark));
-    // every outline is 2D's casing over the cell colour (the flat view's rule); the tract's venule, arteriole and ductule and the inlets their own dark edge
-    const ink = tissueInk(look), cellC = cellBase(look);
-    const edge = (e: readonly number[]) => [cellC[0] + (e[0]! - cellC[0]) * 0.92, cellC[1] + (e[1]! - cellC[1]) * 0.92, cellC[2] + (e[2]! - cellC[2]) * 0.92];
-    for (const p of [this.cells, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.twigs, this.lt, this.bile, this.mouthCv, this.mouthLv]) p.setInk(ink);
-    this.mouthPv.setInk(edge(DISC_EDGE.pv)); this.inlets.setInk(edge(DISC_EDGE.in)); this.mouthHa.setInk(edge(DISC_EDGE.ha)); this.mouthBd.setInk(edge(DISC_EDGE.bd));
+    const ink = tissueInk(look);
+    // the hepatocytes keep the tissue's casing; every vessel (sinusoids, inlets, twigs, lymphatics, canaliculi, the tract's mouths, the central vein) the Anatomy's dark line of its own colour
+    this.cells.setInk(ink);
+    const cas = CASING[look].rgb.map((v) => v / 255);
+    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.twigs, this.lt, this.bile, this.mouthCv, this.mouthLv, this.mouthPv, this.inlets, this.mouthHa, this.mouthBd]) p.setVesselInk(cas);
     // the parts of one tone (the lens does not colour them, as in 2D)
     const tone = (k: string) => hexToRgb01((P as Record<string, string>)[k]!);
     this.twigs.setTint(tone('artery')); this.mouthHa.setTint(tone('artery'));
