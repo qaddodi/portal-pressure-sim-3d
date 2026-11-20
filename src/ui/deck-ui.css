@@ -109,6 +109,12 @@
 /* the 2D app's pill (.pz-bar.pzb-pill): 44 px tall, back, where you are, next, settings; a wide screen's lower right, a phone's inside the words card's foot */
 .dk-bar { position: absolute; z-index: 4; pointer-events: auto; box-sizing: border-box; }   /* above the cards: on a phone the pill stands inside the words card's foot, and the cards come after it in the page */
 .deck-ui .pz-jump { z-index: 5; }   /* the slide list over the pill */
+.deck-ui[data-layout="stack"] .dk-bar.phone { display: inline-flex; border-radius: 16px; }
+/* the phone's pill is small: 32 px, its icons 16 px; every button keeps its 44 px tap box by reaching over its neighbours' edges (a 6 px negative margin each side), so a smaller look is not a smaller target */
+.deck-ui[data-layout="stack"] .dk-bar.phone .ib { width: 44px; height: 44px; margin: -6px -6px; }
+.deck-ui[data-layout="stack"] .dk-bar.phone .ib :is(svg, .ic) { width: 16px; height: 16px; }
+.deck-ui[data-layout="stack"] .dk-bar.phone > button.pzb-n { min-width: 3.8em; min-height: 44px; margin-block: -6px; padding: 0 2px; font-size: 13px; }
+.deck-ui[data-layout="stack"] .dk-bar.phone .pzb-pips { bottom: 10px; }
 .dk-bar-title { position: absolute; display: flex; align-items: center; justify-content: flex-end; pointer-events: none; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font: 600 var(--fs-data) / 1.2 var(--display, "Source Serif 4", Georgia, serif); color: var(--text-2); }
 

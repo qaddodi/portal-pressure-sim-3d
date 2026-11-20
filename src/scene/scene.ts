@@ -221,6 +221,7 @@ export class CelScene {
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
     this.disease = new DiseaseLayer(this.shared, this.vessels);
     this.body.add(this.disease.group);
+    this.disease.bleed.still = !!opts.reduceMotion;   // (the jet holds still under Reduce Motion)
     // The organs' vertex data is a static file (src/scene/organs/meshes.ts): the organ layer builds them when it is in, in the patient's state, and asks for a frame.
     Promise.all([organsReady, artReady]).then(() => { this.disease.organs.build(); this.moving = true; clock.invalidate('organs'); }, (e) => console.error(e));
     this.catheter = new Catheter(this.shared);
