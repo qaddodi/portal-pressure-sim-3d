@@ -204,6 +204,52 @@ export function mountInspect(): void {
   jr.append(jrList, el('div', { className: 'hint', textContent: 'Red: left out of its node\'s skin. Orange: the node\'s skin could not be built. Violet: a braid of strands. Yellow: a collateral or shunt that is not an arm of any skin (the fork method). Blue: a junction with no skin. Body only; the Circuit\'s list is the node names above. Marks stay where the report found them: Refresh after a change.' }));
   jr.addEventListener('toggle', () => { if (jr.open) report(); });
 
+  // ---- Overlaps and id labels ----
+  const ov = section('Overlaps and id labels', false);
+  const ovList = el('div'); ovList.style.cssText = 'max-height:200px;overflow:auto;border:1px solid #fff3;border-radius:6px;padding:2px 4px;margin:4px 0';
+  let ovMarks = false;
+  const overlaps = (): void => {
+    const o = cel.inspectOverlaps();
+    ovList.textContent = '';
+    ovList.append(el('div', { className: 'hint', textContent: `${o.length} pair(s) of drawn vessels run through each other (centrelines closer than 0.8 of their radii together; the ends of each vessel are left out). Worst first.` }));
+    for (const x of o) {
+      const name = el('label', { textContent: `${x.a} × ${x.b} · ${Math.round(x.depth * 100)}% deep` }); name.style.cssText = 'flex:1;min-width:0';
+      const go = el('button', { textContent: 'Solo', title: 'Draw only these two and mark where they overlap' });
+      go.onclick = () => { commit({ solo: [x.a, x.b] }); drawList(); msg.textContent = `${cel.setInspectOverlapMarks(true, [x.a, x.b])} overlap marked.`; };
+      ovList.append(el('div', { className: 'row' }, [name, go]));
+    }
+    if (ovMarks) cel.setInspectOverlapMarks(true);
+  };
+  check(ov, 'Mark every overlap in the figure (hot pink)', () => ovMarks, (v) => { ovMarks = v; msg.textContent = `${cel.setInspectOverlapMarks(v)} overlap(s) marked.`; });
+  buttons(ov, [{ label: 'Find overlaps', title: 'Look again (after forcing vessels on or changing the solo list)', run: overlaps }]);
+  ov.append(ovList);
+  ov.addEventListener('toggle', () => { if (ov.open) overlaps(); });
+
+  // vessel id labels: one small tag per drawn vessel at the middle of its course, moved by a clock system (transform and opacity only), never through React
+  let labelsOn = false, labelPts: { id: string; at: readonly [number, number, number]; tag: HTMLElement }[] = [], labelSig = '';
+  const labelLayer = el('div'); labelLayer.id = 'inspect-labels'; labelLayer.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:var(--z-perf,100)';
+  document.body.append(labelLayer);
+  const buildLabels = (): void => {
+    labelLayer.textContent = '';
+    const keep = new Set(visible().map((v) => v.id)), only = !!(textNow || kindNow);
+    const drawnIds = cel.inspectLabelPoints().filter((p) => !only || keep.has(p.id));
+    labelPts = drawnIds.map((p) => {
+      const tag = el('div', { textContent: p.id }); tag.style.cssText = 'position:absolute;left:0;top:0;padding:0 4px;border-radius:4px;background:rgba(0,0,0,.72);color:#fff;font:600 9px/13px ui-monospace,Menlo,monospace;white-space:nowrap;opacity:0;will-change:transform,opacity';
+      labelLayer.append(tag); return { ...p, tag };
+    });
+    labelSig = cel.inspectVesselList().filter((v) => v.drawn).map((v) => v.id).join(',');
+    clock.invalidate('inspect');
+  };
+  const pt = { x: 0, y: 0 };
+  clock.on('tags', () => {
+    if (!labelsOn) return;
+    for (const l of labelPts) { const inView = cel.inspectScreen(l.at, pt); l.tag.style.opacity = inView ? '1' : '0'; if (inView) l.tag.style.transform = `translate(${pt.x.toFixed(1)}px,${pt.y.toFixed(1)}px) translate(-50%,-50%)`; }
+  });
+  check(ov, 'Vessel id on every drawn vessel (follows the list filter)', () => labelsOn, (v) => { labelsOn = v; if (v) buildLabels(); else { labelLayer.textContent = ''; labelPts = []; } });
+  ov.append(el('div', { className: 'hint', textContent: 'The tags sit at the middle of each vessel\'s course. Type in the Vessel list filter to label only some. A tag turns to a new vessel when the drawn set changes.' }));
+  const labelsAgain = () => { if (labelsOn) buildLabels(); };
+  filter.addEventListener('input', labelsAgain); kindSel.addEventListener('change', labelsAgain);
+
   // ---- Layers ----
   const ly = section('Layers');
   const tbl = el('table'); ly.append(tbl);
@@ -230,6 +276,7 @@ export function mountInspect(): void {
   // the angles follow a drag on the figure (a timer, not a frame: the panel is not part of the picture)
   window.setInterval(() => {
     if (box.style.display === 'block' && vl.open) { const now = new Map(cel.inspectVesselList().map((v) => [v.id, v.drawn])); for (const [id, r] of rows) r.dot.style.color = now.get(id) ? '#7fe39a' : '#667'; }
+    if (labelsOn && cel.inspectVesselList().filter((v) => v.drawn).map((v) => v.id).join(',') !== labelSig) buildLabels();
     if (box.style.display !== 'block' || !cel.rig.inspectOn) return;
     const a = cel.rig.inspectAngles, y = wrapDeg(a.yaw / RAD), p = Math.max(-INSPECT_PITCH / RAD, Math.min(INSPECT_PITCH / RAD, a.pitch / RAD));
     if (Math.abs(y - state.yawDeg) > 0.4 || Math.abs(p - state.pitchDeg) > 0.4) { state.yawDeg = y; state.pitchDeg = p; syncAll(); }
