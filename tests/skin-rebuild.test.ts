@@ -14,7 +14,7 @@ import type { VesselObject } from '../src/scene/vessels/vessel-object.ts';
 class Rec implements SkinDraw {
   readonly object = { name: 'rec' } as unknown as Object3D;
   disposed = false;
-  setArm(): void {} setArc(): void {} setTransparent(): void {}
+  setArm(): void {} setArc(): void {} setPres(): void {} setTransparent(): void {}
   dispose(): void { this.disposed = true; }
 }
 

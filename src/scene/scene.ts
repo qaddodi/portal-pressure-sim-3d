@@ -498,6 +498,7 @@ export class CelScene {
     this.lens.onFrame(f, !!f?.jump && this.sawFrame, performance.now());   // (a new patient: the colours glide from the old patient's)
     this.blood.streams.onFrame(f);
     if (f) { this.syncPresence(f, !this.sawFrame); this.feedDisease(f, !this.sawFrame); }
+    if (this.procs.setLive((f as { D?: ArrayLike<number> } | null)?.D ?? null)) this.moving = true;   // (the catheters follow the veins' live width)
     this.procs.syncStents(f, patient.params, f ? !this.sawFrame : false);
     this.procs.syncBands((f as { bands?: number } | null)?.bands ?? 0, f ? !this.sawFrame : false);
     this.procs.syncTamponade(patient.params as never, f ? !this.sawFrame : false);

@@ -13,6 +13,7 @@
 //   armData[4]   vec4   (dataIndex, baseD, widthKind, lensIndex) per arm, in arm order; an unused arm has dataIndex < 0 (and weight 0 everywhere)
 //   armLensU[4]  float  the arm's lens ramp position at its seam (lensSpan already applied)
 //   armFade[4]   float  the arm tube's alpha at its seam ring (the JS twin, fade-alpha.ts)
+//   armPres[4]   float  + how much of the arm's tube is there at its seam: its group visible, its draw-on (`reveal`) at the seam's u and its dive fade (arm-twins.ts armPresenceAt): the skin dissolves in the tubes' own pattern as they do, so it never stands alone
 //   armHi[4]     float  the arm tube's highlight weight vHi at its seam
 //   armNarrow[4] float  + (vertex stage only) the arm tube's stenosis waist at its seam: its live width there is swell x (1 - narrow), as the tube's is, so a seam inside a short piece's waist meets the tube with no step
 //   armColor[4]  vec4 + the arm tube's own `color` uniform (rgb: an artery wears the look's artery red, a vein its portal or systemic tone) and, in a, its `lensUse` (an artery 0, a vein 1)
@@ -128,6 +129,7 @@ uniform vec4 armData[${SKIN_ARMS}];
 uniform float armLensU[${SKIN_ARMS}];
 uniform float armFade[${SKIN_ARMS}];
 uniform float armHi[${SKIN_ARMS}];
+uniform float armPres[${SKIN_ARMS}];
 uniform vec4 armColor[${SKIN_ARMS}];
 uniform vec3 armAxis[${SKIN_ARMS * 3}];
 uniform float armAxisR[${SKIN_ARMS * 3}];
@@ -197,7 +199,9 @@ void main() {
   float sT = dot(n, celLightView());   // n.L against the WORLD light, as the tube (a camera that moves changes no shade)
   float swT = fwidth(sT);              // (a derivative: taken outside any branch)
   if (!gl_FrontFacing) discard;
-  if (fadedOut()) discard;
+  // the skin is there only as much as its arms are (a tube not yet drawn on, retracted, dissolved or hidden has none at its seam): the tube's own screen pattern, so the skin comes and goes with the vessels, never beside them
+  float pres = dot(vWeight, ${ARMS4('armPres')});
+  if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) discard;
   // the arms' alphas, blended by weight: the junction fade rule already holds on the tubes, so their seam alphas agree and the skin runs through them. On the Circuit's map the tubes become flat lines and the map draws its own
   // joins, so the skin fades out over the first SKIN_CIRCUIT_FADE of the morph (the arm tubes' cut fades back in over the same)
   float alpha = dot(vWeight, ${ARMS4('armFade')}) * (1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT));
