@@ -79,7 +79,7 @@ test('the caput medusae fan and the tributaries are vessels of their own, on the
   const fan = NETWORK_BY_ID.get('C3~F:caput')!;
   assert.equal(fan.lensId, 'C3'); assert.equal(fan.host, 'C3');
   assert.equal(coursesOf(fan, REST).length, 40);
-  assert.ok(NETWORK_BY_ID.has('AZY_SVC~F') && NETWORK_BY_ID.has('CAUD~F') && NETWORK_BY_ID.has('CAUD~F:caudate'));
+  assert.ok(NETWORK_BY_ID.has('AZY_SVC~F') && !NETWORK_BY_ID.has('CAUD~F') && !NETWORK_BY_ID.has('CAUD~F:caudate'));
   const f = { Q: [], D: [] };
   assert.equal(feederLive({ host: 'AZY_SVC', when: null }, f as never), 1);
 });
@@ -109,7 +109,7 @@ test('a vessel that runs on into exactly one other meets it at the mean width: n
 });
 
 test('a shape that changes keeps its vertex count, so its positions are rewritten in place', () => {
-  for (const id of ['C1a', 'C2', 'C4', 'C7', 'C8', 'C3~F:caput', 'CAUD~F:caudate']) {
+  for (const id of ['C1a', 'C2', 'C4', 'C7', 'C8', 'C3~F:caput']) {
     const v = NETWORK_BY_ID.get(id)!, tub = tubularOf(v);
     const a = buildTubes(coursesOf(v, REST), tub, v.radius).geometry, b = buildTubes(coursesOf(v, { wig: 5, spr: 0.55, rec: 0.5, bead: 0.2, bands: 2, strandsOn: false, live: 0.5 }), tub, v.radius).geometry;
     assert.equal(a.getAttribute('position').count, b.getAttribute('position').count, id);

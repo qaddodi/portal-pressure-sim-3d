@@ -40,18 +40,3 @@ export function startInOrganShare(id: string, path: readonly P2[]): number {
 
 /** The organ a vessel starts in, if it does. */
 export const startOrgan = (id: string): string | null => START_IN_ORGAN[id]?.organ ?? null;
-
-/** A clean tributary fan for the caudate lobe: its short veins into the cava (the lobe drains straight into the IVC, so it is spared in Budd-Chiari), drawn as a few smooth gently bowed
- *  twigs to one hub, never the 2D figure's tangle of wiggling strands (Mohammad, 20 Nov: "a squiggly worm"). The thick twigs of the 2D fan are kept as their ends, bowed one way
- *  by a quadratic curve; the thin ones, which are the tangle, are dropped. */
-export function cleanFeeders<T extends { k: number; fan: boolean; pts: readonly P2[] }>(host: string, list: readonly T[]): readonly T[] {
-  if (host !== 'CAUD') return list;
-  return list.flatMap((f) => {
-    if (!f.fan) return [f];   // (the portal inflows are smooth already)
-    if (f.k < 0.9) return [];
-    const a = f.pts[0]!, b = f.pts[f.pts.length - 1]!, dx = b[0] - a[0], dy = b[1] - a[1], bow = 0.12;
-    const cx = (a[0] + b[0]) / 2 - dy * bow, cy = (a[1] + b[1]) / 2 + dx * bow;
-    const pts = f.pts.map((_, i): P2 => { const t = i / (f.pts.length - 1), u = 1 - t; return [u * u * a[0] + 2 * u * t * cx + t * t * b[0], u * u * a[1] + 2 * u * t * cy + t * t * b[1]]; });
-    return [{ ...f, pts }];
-  });
-}
