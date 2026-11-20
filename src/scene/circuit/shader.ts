@@ -54,7 +54,8 @@ vec3 circFrameN(vec3 T) {
   return normalize(ref - T * dot(ref, T));
 }
 void circuitMorph(inout vec3 P, inout vec3 Nn, inout vec3 Tn) {
-  if (circT <= 0.0) return;
+  // (a vessel with no map course (a fan of tributaries, the liver's branching veins) carries no cl (its course lengths): it stays where it is and dissolves with the organs; before, its missing course flew every vertex to the map's origin and it grew back out of a point on the way to the body)
+  if (circT <= 0.0 || cl.y <= 0.0) return;
   // the body course's centre at this vertex, from the vertex's own offset (so w = 0 gives back the body's vertex exactly)
   vec3 N0 = circFrameN(tang);
   vec3 cA = position - radius * rk * (fr.x * N0 + fr.y * cross(tang, N0) + fr.z * tang);

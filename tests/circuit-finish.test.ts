@@ -523,3 +523,15 @@ test('a name never hangs from a leader drawn across the vessels when it can stan
   assert.ok(careful.placed[0]!.dy > 0, `with it, it stands south, clear: ${careful.placed[0]!.dy}`);
   assert.match(readFileSync(new URL('../src/scene/circuit/CircuitCaptions.tsx', import.meta.url), 'utf8'), /leaderLineCost: LEADER_LINE_COST/);
 });
+
+test('a vessel with no map course (the tributary fans, the liver\'s branching veins) stays where it is while the figure turns: it dissolves with the organs, in either direction, never flying to the map\'s origin and growing back out of a point', async () => {
+  assert.match(CIRCUIT_VS_HEAD, /if \(circT <= 0\.0 \|\| cl\.y <= 0\.0\) return;/);
+  const { NETWORK } = await import('../src/scene/vessels/network.ts');
+  const { MAPPED } = await import('../src/scene/vessels/network.ts');
+  const feeders = NETWORK.filter((v) => v.id.includes('~F'));
+  assert.ok(feeders.length >= 2, 'there are fans');
+  assert.ok(feeders.every((v) => !COURSES.has(v.id)), 'none has a map course, so none carries cl (its length of the map course is 0 by default)');
+  assert.ok(MAPPED.every((v) => COURSES.get(v.id)!.lenC > 0), 'every mapped vessel has a map course of some length');
+  const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  assert.match(scene, /else this\.leaving\.push\(o\)/, 'and a vessel without one leaves on the dissolve (1 - t) as the organs do');
+});
