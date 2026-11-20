@@ -13,7 +13,7 @@ export const HIT_SLACK = 4;
 export function labelNodeAt(out: readonly Draw[], x: number, y: number, slack = HIT_SLACK): string | null {
   for (let i = out.length - 1; i >= 0; i--) {
     const d = out[i]!;
-    if (d.kind !== 'station' || d.alpha < HIT_ALPHA) continue;
+    if (d.kind !== 'station' || d.ghost || d.alpha * d.mix < HIT_ALPHA) continue;
     const st = stationById(d.id);
     if (!st?.node) continue;   // (an organ's name has no node: it is not a button)
     if (x >= d.x - slack && x <= d.x + d.w + slack && y >= d.y - slack && y <= d.y + d.h + slack) return st.node;

@@ -25,7 +25,7 @@ function world(place: TestsPlace | null, state = NO_STATE) {
   const figureH = () => Math.abs(rig.project(new Vector3(mid, PLATE_BOUNDS.y0, FIGURE_Z), b).y - rig.project(new Vector3(mid, PLATE_BOUNDS.y1, FIGURE_Z), a).y);
   const view = labelView(phone, BAR, place), blockers = placeBlockers(place);
   let t = 1000;
-  const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => rectToBox(room), view: () => view, vp: () => phone, reversed: () => false, words: () => null, blockers: () => blockers, measure, pressure: () => 5, reading: () => null, cathere: () => 0, figureH } as unknown as LabelDeps;
+  const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => rectToBox(room), view: () => view, vp: () => phone, reversed: () => false, words: () => null, blockers: () => blockers, measure, pressure: () => 5, reading: () => null, cathere: () => 0, level: () => 'all', figureH } as unknown as LabelDeps;
   const ctl = new LabelController(deps); ctl.setState({ ...state, organNames: true });
   for (let i = 0; i < 120; i++) { t += 16; ctl.tick(); }
   return { room, rig, ctl, figureH };
@@ -58,7 +58,7 @@ test('the names come back with a little margin (no flicker at the edge): hidden 
   assert.ok(FIG_BACK > FIG_MIN_H);
   let h = 100;
   const t = 1000;
-  const ctl = new LabelController({ now: () => t, project: (_p: Vector3, o: { x: number; y: number }) => o, cameraMoving: () => false, free: () => ({ x0: 0, y0: 0, x1: 1, y1: 1 }), view: () => ({ x0: 0, y0: 0, x1: 1, y1: 1 }), vp: () => phone, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0, figureH: () => h } as unknown as LabelDeps);
+  const ctl = new LabelController({ now: () => t, project: (_p: Vector3, o: { x: number; y: number }) => o, cameraMoving: () => false, free: () => ({ x0: 0, y0: 0, x1: 1, y1: 1 }), view: () => ({ x0: 0, y0: 0, x1: 1, y1: 1 }), vp: () => phone, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0, level: () => 'all', figureH: () => h } as unknown as LabelDeps);
   ctl.setState(NO_STATE);
   const count = () => { ctl.tick(); return ctl.active().length; };
   void count;
@@ -82,7 +82,7 @@ test('with every drawn vessel known to the solver the phone\'s names cross fewer
   const run = (all: boolean) => {
     const rig = new CameraRig('play', room); rig.resize(phone.w, phone.h); rig.goTo('play', room, 0, 0); rig.update(0);
     let t = 1000;
-    const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: phone.w, y1: phone.h }), view: () => ({ x0: 0, y0: 56, x1: phone.w, y1: phone.h }), vp: () => phone, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0, ...(all ? { drawn: atRest } : {}) } as unknown as LabelDeps;
+    const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: phone.w, y1: phone.h }), view: () => ({ x0: 0, y0: 56, x1: phone.w, y1: phone.h }), vp: () => phone, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0, level: () => 'all', ...(all ? { drawn: atRest } : {}) } as unknown as LabelDeps;
     const ctl = new LabelController(deps); ctl.setState({ ...NO_STATE, organNames: true });
     for (let i = 0; i < 120; i++) { t += 16; ctl.tick(); }
     const segs: number[][] = [];
@@ -105,7 +105,7 @@ test('a label draws the words of its own form: a station with no abbreviation ne
   const room = roomWith(freeRoom(phone, layoutClass(true)), null);
   const rig = new CameraRig('play', room); rig.resize(phone.w, phone.h); rig.goTo('play', room, 0, 0); rig.update(0);
   let t = 1000;
-  const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: phone.w, y1: phone.h }), view: () => ({ x0: 0, y0: 56, x1: 220, y1: 420 }), vp: () => phone, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0 } as unknown as LabelDeps;
+  const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: phone.w, y1: phone.h }), view: () => ({ x0: 0, y0: 56, x1: 220, y1: 420 }), vp: () => phone, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0, level: () => 'all' } as unknown as LabelDeps;
   const ctl = new LabelController(deps); ctl.setState({ ...NO_STATE, organNames: true });
   for (let i = 0; i < 120; i++) { t += 16; ctl.tick(); }
   let narrow = 0;
@@ -131,7 +131,7 @@ test('no leader runs through another label, organ names included (the right atri
     const room = roomWith(freeRoom(vp, layoutClass(thumb)), null);
     const rig = new CameraRig('play', room); rig.resize(vp.w, vp.h); rig.goTo('play', room, 0, 0); rig.update(0);
     let t = 1000;
-    const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: vp.w, y1: vp.h }), view: () => ({ x0: 0, y0: 56, x1: vp.w, y1: vp.h }), vp: () => vp, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0 } as unknown as LabelDeps;
+    const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: vp.w, y1: vp.h }), view: () => ({ x0: 0, y0: 56, x1: vp.w, y1: vp.h }), vp: () => vp, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0, level: () => 'all' } as unknown as LabelDeps;
     const ctl = new LabelController(deps); ctl.setState({ ...NO_STATE, organNames: true });
     for (let i = 0; i < 120; i++) { t += 16; ctl.tick(); }
     for (const d of ctl.out) {
@@ -151,7 +151,7 @@ test('a name stands close to its own vessel: no leader of the figure\'s own name
     const room = roomWith(freeRoom(vp, layoutClass(thumb)), null);
     const rig = new CameraRig('play', room); rig.resize(vp.w, vp.h); rig.goTo('play', room, 0, 0); rig.update(0);
     let t = 1000;
-    const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: vp.w, y1: vp.h }), view: () => ({ x0: 0, y0: 56, x1: vp.w, y1: vp.h }), vp: () => vp, reversed: () => false, words: () => null, blockers: () => [], measure: wide, pressure: () => 5, reading: () => null, cathere: () => 0, drawn: atRest } as unknown as LabelDeps;
+    const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: vp.w, y1: vp.h }), view: () => ({ x0: 0, y0: 56, x1: vp.w, y1: vp.h }), vp: () => vp, reversed: () => false, words: () => null, blockers: () => [], measure: wide, pressure: () => 5, reading: () => null, cathere: () => 0, level: () => 'all', drawn: atRest } as unknown as LabelDeps;
     const ctl = new LabelController(deps); ctl.setState({ ...NO_STATE, organNames: true });
     for (let i = 0; i < 120; i++) { t += 16; ctl.tick(); }
     for (const d of ctl.out) if (d.leader) assert.ok(d.leader.len <= 90, `${name}: the leader of ${d.id} is ${d.leader.len.toFixed(0)} px`);

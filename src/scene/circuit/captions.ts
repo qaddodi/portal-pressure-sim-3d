@@ -65,9 +65,10 @@ export interface CapCtx {
 }
 
 /** The zone titles that open a card (2D stage-label-solve.js: `{ 'Liver · sinusoids': 'liver', Heart: 'heart' }`). */
-/** A tier's name: its size, px, and its letter-spacing, em. */
-export const ZONE_PX = 9.5;
-export const ZONE_TRACK = 0.08;
+/** A tier's name: its design size and weight, as the 2D app's zone title is (stage-label-solve.js: size 10.5, weight 650, mixed case, no tracking, --text-3). */
+export const ZONE_PX = 10.5;
+export const ZONE_WEIGHT = 650;
+export const ZONE_TRACK = 0;
 export const ZONE_ORGAN: Readonly<Record<string, string>> = { 'Liver · sinusoids': 'liver', Heart: 'heart' };
 /** The places along a lane its caption tries, in order (2D stage.js `laneAlt`: the middle first, then 0.3, 0.7, 0.15, 0.85 of its run). */
 export const LANE_SPOTS: readonly number[] = [0.5, 0.3, 0.7, 0.15, 0.85];
@@ -163,10 +164,10 @@ export function buildCaptions(ctx: CapCtx): Built {
   // (Upright, the title runs up the map's left edge, turned to read bottom to top, centred on the visible part of its band; it keeps 8 px from the canvas's edge, and a wide one 14 px from its top.)
   for (const [txt, x0, x1] of CIRCUIT_ZONES) {
     const span = bandSpan(ctx, x0, x1);
-    const tries = [txt, ...(ZONE_SHORT[txt] ?? [])].map((t) => t.toUpperCase());
+    const tries = [txt, ...(ZONE_SHORT[txt] ?? [])];   // (mixed case, as the 2D app writes them: "Liver · sinusoids", never capitals)
     for (const t of tries) {
-      // (a tier's name is set in small capitals, a little spaced out: the box takes the spacing's width too)
-      const b0 = boxSize([{ ...nameRun(t), size: ZONE_PX, weight: 700 }], vp, measure), b = { ...b0, w: b0.w + ZONE_TRACK * ZONE_PX * t.length };
+      // (a tier's name: 2D's 10.5 px at 650, no tracking)
+      const b0 = boxSize([{ ...nameRun(t), size: ZONE_PX, weight: ZONE_WEIGHT }], vp, measure), b = { ...b0, w: b0.w + ZONE_TRACK * ZONE_PX * t.length };
       const need = span.vertical ? b.h : b.w;
       if (span.hi - span.lo < need + 8) continue;
       const along = (span.lo + span.hi) / 2;

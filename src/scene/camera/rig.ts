@@ -383,7 +383,7 @@ export class CameraRig {
   }
 
   /** The cards changed room (a card opened, the phone turned): move the room alone, same curve; the hand's zoom and the viewer's turn stay (cards opening keep both). `homeTurn`: a guided step brings the turn home with the move. */
-  setRoom(room: Room, now: number, ms?: number, homeTurn = false, refit = false): void {
+  setRoom(room: Room, now: number, ms?: number, homeTurn = false, refit = false, ease: ((k: number) => number) | null = null): void {
     // a card opening in the middle of a dive keeps the dive's own time: it lands when it was going to, in the new room (not a fresh 950 ms from a standstill)
     // a move in flight whose room alone changes (a card opening or closing): the same move, the same clock and the same curve, with only its destination room swapped, so the picture never stops or restarts
     if (refit) { this.scaleTo = { w: room.w, h: room.h }; this.zoomEnds = this.measureZoom(); }
@@ -408,7 +408,7 @@ export class CameraRig {
     const left = this.active ? Math.max(1, this.dur - this.at) : undefined;
     // (a room change alone keeps the zoom: the camera only pans into the new room. A guided step (homeTurn: a slide on the same shot) is an explicit fit and may refit)
     this.keepScale = !homeTurn && !refit;
-    this.goTo(this.to.shot, room, now, ms ?? (left != null ? Math.max(left, 200) : undefined), true);
+    this.goTo(this.to.shot, room, now, ms ?? (left != null ? Math.max(left, 200) : undefined), true, ease);
     this.keepScale = false;
     // a guided step (a slide, a catheter step) that asks for the shot the camera is already on still brings the turn home: the viewer's angle is theirs only between guided poses
     if (homeTurn) this.orbitTo = 0;

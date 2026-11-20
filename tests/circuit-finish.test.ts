@@ -8,7 +8,7 @@ import { COURSES } from '../src/scene/circuit/course.ts';
 import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, CIRCUIT_TREES, CIRCUIT_ZONES, CUSTOM_EDGES, CUSTOM_SHUNT_PATH, LANE_CAPTIONS, NODE_CIRCUIT, RES_LABEL, RES_LIVER, RES_SIZES, ROUTER_STATIONS, ZONE_SHORT } from '../src/scene/circuit/data.copied.ts';
 import { mapToScene } from '../src/scene/circuit/map.ts';
 import { PEEL_SPAN, peelAt, peelRank, peelSlope } from '../src/scene/circuit/peel.ts';
-import { TURN_DIR, ZONE_ORGAN, LANE_SPOTS, along, buildCaptions, type CapCtx } from '../src/scene/circuit/captions.ts';
+import { TURN_DIR, ZONE_ORGAN, ZONE_PX, ZONE_WEIGHT, ZONE_TRACK, LANE_SPOTS, along, buildCaptions, type CapCtx } from '../src/scene/circuit/captions.ts';
 import { RES_KEYS, RES_TEETH, quantScale, resAmp, resHeat, resInk, resText, resWidth, resWidthFit, zigzag } from '../src/scene/circuit/res-model.ts';
 import { resShape } from '../src/scene/circuit/resistors.ts';
 import { courseOf } from '../src/scene/circuit/paths.ts';
@@ -367,10 +367,13 @@ test('a Circuit slide frames its region of the map, draws the resistors its site
   assert.ok(Math.abs(circuitShot(true).half[0] - whole.half[1]) < 1e-9);
 });
 
-test('a tier is named in small capitals at its band, and the tiers are drawn as soft full-width washes and the dot grid eases off when zoomed in', () => {
+test('a tier is named in 2D\'s mixed case at 10.5 px / 650 at its band, and the tiers are drawn as soft full-width washes and the dot grid eases off when zoomed in', () => {
   const b = buildCaptions(fakeCtx({ compact: true })), zones = b.items.filter((i) => b.meta.get(i.id)?.kind === 'zone');
   assert.ok(zones.length >= 3, 'the tiers are named');
-  for (const z of zones) { const n = b.meta.get(z.id)!.forms[0]!.name; assert.equal(n, n.toUpperCase()); }
+  for (const z of zones) { const n = b.meta.get(z.id)!.forms[0]!.name; assert.notEqual(n, n.toUpperCase(), `${n}: mixed case, as 2D writes it`); }
+  assert.equal(ZONE_PX, 10.5); assert.equal(ZONE_WEIGHT, 650); assert.equal(ZONE_TRACK, 0);
+  const css = readFileSync(new URL('../src/scene/circuit/captions.css', import.meta.url), 'utf8').match(/\.lb\.cc-zone \.lb-name \{[^}]*\}/)![0];
+  assert.doesNotMatch(css, /letter-spacing|opacity|uppercase/, 'no tracking, no fade, no capitals: 2D\'s .lb-zone');
   const layer = readFileSync(new URL('../src/scene/circuit/map-layer.ts', import.meta.url), 'utf8');
   assert.match(layer, /DOT_CALM/);
   assert.doesNotMatch(layer, /TIER_LINE/, 'no line is drawn between the tiers');

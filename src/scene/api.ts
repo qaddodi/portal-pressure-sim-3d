@@ -120,12 +120,14 @@ export const sceneApi = {
   /** The cards changed room (a card opened, the phone turned): move the room alone; the viewer's turn stays. `homeTurn`: a slide or catheter step asked for the shot the camera is already on, and still brings the turn home. */
   /** Where the probe now up (the Doppler's gate, the FibroScan's tip) stands on the screen, CSS px; null with none. */
   testFocus(out: { x: number; y: number } = { x: 0, y: 0 }): { x: number; y: number } | null { return cel.testFocus(out); },
+  /** Whether the camera is already in (or on its way to) this room: a card that lands where its glide already sent the camera asks for nothing. */
+  roomIs(room: Room): boolean { const t = cel.rig.targetRoom; return Math.abs(t.x - room.x) < 0.5 && Math.abs(t.y - room.y) < 0.5 && Math.abs(t.w - room.w) < 0.5 && Math.abs(t.h - room.h) < 0.5; },
   /** `refit`: the screen itself changed (a resize, the phone turned): the zoom is fitted again. Otherwise a room change only pans. */
-  setRoom(room: Room, ms?: number, homeTurn = false, refit = false): void {
+  setRoom(room: Room, ms?: number, homeTurn = false, refit = false, ease?: (k: number) => number): void {
     if (homeTurn) gesturesRef.current?.turnOff();
     // the phone turned while the sinusoid is up: its shot is a different one on the other screen shape (top to bottom, 2D's framing), so the move is to that
     if (cel.view === 'sinusoid' && stagePortrait() !== cel.isPortrait) { this.goTo(sinusoidShot(stagePortrait(), shortSide(stagePortrait(), room)), room, ms); return; }
-    cel.rig.setRoom(room, performance.now(), ms, homeTurn, refit);
+    cel.rig.setRoom(room, performance.now(), ms, homeTurn, refit, ease ?? null);
     clock.invalidate('room');
   },
   /** Glide the hand's zoom and pan home to the shot's own framing (a second tap on the active view, a Fit button). */

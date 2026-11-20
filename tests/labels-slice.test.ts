@@ -24,6 +24,8 @@ const SCREENS = {
 } as const;
 
 const stops = stopsOf(HVPG_DECK);
+/** What a slide's own `labels` add to the stations its words light: the slide shows these too (2D presentLabels). A slide shows only these and the stations it lights, never the free-play set. */
+const SHOWN_WITH = new Set(['CONF', 'SV', 'SMV', 'SIN_R', 'RHV', 'IVCS', 'IVCI', 'RA']);
 const measure: LabelDeps['measure'] = (t, size, _w, track = 0) => t.length * size * 0.56 + track * t.length;
 
 function harness(screen: keyof typeof SCREENS, stop: number, beat = 0) {
@@ -47,7 +49,7 @@ function harness(screen: keyof typeof SCREENS, stop: number, beat = 0) {
   };
   const ctl = new LabelController(deps);
   const lab = labelsAt(stops, pos);
-  ctl.setState({ ...NO_STATE, named: lab.named, cath: lab.cath });
+  ctl.setState({ ...NO_STATE, named: lab.named, shown: SHOWN_WITH, cath: lab.cath, presenting: true });
   const settle = (ms = 1200) => { for (let i = 0; i < ms / 16; i++) { t += 16; ctl.tick(); } };
   return { ctl, settle, blockers, vp, plan, lab, rig, setMoving: (m: boolean) => { moving = m; }, advance: (ms: number) => { t += ms; } };
 }
@@ -112,18 +114,19 @@ for (const [name, vp] of Object.entries(SCREENS) as [keyof typeof SCREENS, (type
   });
 }
 
-test('labels are hidden while the camera moves and return only after it has stopped for the settle time', () => {
+test('labels ride the camera while it moves (they stay, carried by their dots) and are placed again once it has landed', () => {
   const h = harness('mac', 10);
   h.settle();
-  assert.ok(h.ctl.out.length > 0);
+  const before = h.ctl.out.filter((d) => d.kind === 'station').map((d) => d.id).sort();
+  assert.ok(before.length > 0);
   h.setMoving(true);
   h.settle(300);
-  assert.equal(h.ctl.out.length, 0, 'everything has faded out');
+  const during = h.ctl.out.filter((d) => d.kind === 'station');
+  assert.deepEqual(during.map((d) => d.id).sort(), before, 'nothing leaves while the camera moves');
+  assert.ok(during.every((d) => d.alpha > 0.5), 'and nothing fades');
   h.setMoving(false);
-  h.settle(FADE.settleMs - 40);
-  assert.equal(h.ctl.out.length, 0, 'nothing returns before the settle time');
   h.settle(600);
-  assert.ok(h.ctl.out.length > 0, 'they come back');
+  assert.deepEqual(h.ctl.out.filter((d) => d.kind === 'station').map((d) => d.id).sort(), before, 'the same names stand once it has landed');
 });
 
 test('on the first frame nothing pops in: every label starts invisible and fades up', () => {
@@ -157,8 +160,9 @@ test('the figure key stands where the 2D app docks it, clear of every label, and
     assert.deepEqual([key.x, key.y, key.w, key.h].map(Math.round), [want.box.x0, want.box.y0, want.box.x1 - want.box.x0, want.box.y1 - want.box.y0].map(Math.round), `${screen}: at its 2D dock`);
     const kb: Box = { x0: key.x, y0: key.y, x1: key.x + key.w, y1: key.y + key.h };
     for (const d of h.ctl.out) if (d.kind !== 'key') assert.ok(!hits(kb, { x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h }), `${screen}: ${d.id} overlaps the key`);
-    h.setMoving(true); h.settle(300);
-    assert.equal(h.ctl.out.length, 0, 'the key fades with the labels while the picture moves');
+    h.ctl.setState({ ...NO_STATE, named: new Set(), cath: null, key: null });
+    h.settle(600);
+    assert.ok(!h.ctl.out.some((d) => d.kind === 'key'), 'the key fades out with its words');
   }
 });
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { caseOf, type Deck, type ReadingKey, type Slide } from '../../decks/schema.ts';
 import { useUi, atEnd } from '../ui-store.ts';
+import { dock } from './dock.ts';
 import { finishTalk } from './finish.ts';
 import { dataKeys } from './keep.ts';
 import { useDockSwipe, openDock, justDocked } from './useDockSwipe.ts';
@@ -96,6 +97,12 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const dataKey = here?.key ?? 'ladder';
   const needs: Need[] = view ? [{ id: view.words, slot: 'words', visual: view.slide?.visual, h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey) }] : [])] : [];
   const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step, docked), [vp, wallet.active, step, docked, needs.map((n) => `${n.id}:${n.slot}:${n.h}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The dock glide sets off: the figure's room for where the card is going is told at once, with the glide's length, so the camera reframes with the card, not after it lands (2D presenter-zoom.js dockTo:
+  // layout() then reframe(ms)). `plan` above is for the settled state only, and publishes when the card has come to rest.
+  const planFor = useRef<(docked: boolean) => Plan>(() => plan);
+  planFor.current = (d) => planLayout(vp, needs, wallet.active, step, d);
+  useEffect(() => { dock.onGlide = (to, ms) => { const p = planFor.current(to === 1); useUi.getState().hintRoom(p.free, ms); }; return () => { dock.onGlide = null; }; }, []);
 
   const wordsShown = plan.cards.find((c) => c.slot === 'words');
   // (a docked data card stays up where it was, slid away to its handle: the plan says where)
