@@ -166,7 +166,9 @@ export class Sinusoid3D {
     this.troughFar = mk('lumen-beyond', { ink: null, streaks: true });
     // (the fenestrae are real gaps through the lining, the bead and its edges alike: one texel a 1 µm slot, each side; stepPores writes how open each is)
     const gaps = { tex: this.gapTex, x: new Vector4(GAP_X0, GAP_SLOTS, 0.5, 0) };
-    this.bead = mk('endothelium', { ink: null, gaps });
+    // (the lining's two edges are its own line, drawn in its fill against the plate's up: its rounded bead turns square to the plate at the lumen's rim and at Disse's side. They were thin ribbons
+    //  laid over it, half buried in the bead and under the lining cells' lenses, so the lumen's edge read as a dark line with holes 6-12 px long, eyes 20 Nov)
+    this.bead = mk('endothelium', { ink: null, gaps, rim: S.LINE_SMALL, rimUp: true });
     this.beadLine = mk('endothelium-edge', { ink: null, gaps });
     this.disse = mk('disse', { ink: null, streaks: true });
     this.cells = mk('hepatocytes', { px: S.LINE });
@@ -330,7 +332,7 @@ export class Sinusoid3D {
     this.ground.setTint(cellInk);
     this.trough.setTint(P.cLumen); this.trough.setInk(deep(P.cEndoE, 0.9));
     this.troughFar.setTint(mix3(P.cLumen, P.cBg, 0.2)); this.troughFar.setInk(deep(P.cEndoE, 0.9));
-    this.bead.setTint(P.cEndo); this.beadLine.setTint(P.cEndoE);
+    this.bead.setTint(P.cEndo); this.bead.setInk(P.cEndoE); this.beadLine.setTint(P.cEndoE);
     this.disse.setTint(P.cLymph);
     this.cells.setTint(P.cCell); this.cells.setInk(cellInk);
     this.nuclei.setTint(mix3(P.cCell, P.cNuc, 0.55)); this.nuclei.setInk(inkOf(P.cNuc));
@@ -398,9 +400,8 @@ export class Sinusoid3D {
         for (let i = 0; i < rows.length - 1; i++) { if (s > 0) b.strip(rows[i]!, rows[i + 1]!, K + 2); else b.strip(rows[i + 1]!, rows[i]!, K + 2); }
       }
       b.build(this.bead.geometry);
-      // the lining's two edges, inked as 2D draws them (the endothelium's edge colour): thin ribbons on the lumen's rim and on Disse's side
+      // (the lining's two edges: the bead's own rim, above; the ribbons are gone)
       const L = new MeshBuilder();
-      for (const s of [-1, 1] as Side[]) for (const edge of [0, 1]) band(L, xs, (x) => Y(s * ((edge ? g.wallIn(x) : g.halfW(x)) - 0.11)), (x) => Y(s * ((edge ? g.wallIn(x) : g.halfW(x)) + 0.11)), 0.06);
       L.build(this.beadLine.geometry);
     }
 
