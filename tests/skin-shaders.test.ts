@@ -88,7 +88,7 @@ test('?joins=debug paints each pixel the skin would drop, in the colour of its r
   const { joinsMode, skinDebugOn } = await import('../src/scene/vessels/skin/joins-mode.ts');
   assert.equal(skinDebugOn('?joins=debug'), true); assert.equal(skinDebugOn('?joins=old'), false); assert.equal(skinDebugOn(''), false);
   assert.equal(joinsMode('?joins=debug'), 'mesh2', 'debug builds every skin');
-  for (const [why, col] of [['!gl_FrontFacing', '1.0, 0.0, 0.0'], ['alpha < 0.004', '1.0, 1.0, 0.0'], ['sdPx > inkDev + 0.5', '1.0, 0.0, 1.0']] as const) {
+  for (const [why, col] of [['!gl_FrontFacing', '1.0, 0.0, 0.0'], ['alpha < 0.004', '1.0, 1.0, 0.0'], ['sdPx > inkDev + 0.5 + seamPad', '1.0, 0.0, 1.0']] as const) {
     assert.ok(SKIN_FS.includes(`#ifdef SKIN_DEBUG\n  if (${why}) { gl_FragColor = vec4(${col}, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }\n#endif\n`), why);
   }
   assert.ok(SKIN_FS.includes('vec4(0.0, 1.0, 1.0, 1.0); gl_FragDepth'), 'the presence dither is cyan; a painted pixel is pushed a little behind, so a real surface in front of it hides it and only a true hole shows its colour');
@@ -107,4 +107,12 @@ test('the skin\'s flow marks can read no NaN: normal and eye vector length-check
     const body = SKIN_FS.slice(SKIN_FS.indexOf(f), SKIN_FS.indexOf(f) + 260);
     assert.match(body, /dEdgeOk\(/, `${f} checks its route edge`);
   }
+});
+
+// THE SPECKS ALONG THE WALLS (Mohammad, 20 Nov: black on the black background, brown on the liver, in rows at every junction): holes, not marks. The outline's band trimmed a pixel or two of the seam's silhouette, which
+// the cut tube past the seam no longer covers. Root cause: the band decided at the seam where the tube's exact polygon should. Invariant: on a seam (one arm's weight near 1) the band is padded.
+test('the outline band is padded on a seam so it never trims the silhouette of the cut tube', () => {
+  assert.match(SKIN_FS, /float seamPad = 1\.5\d* \* dpr \* smoothstep\(0\.75, 0\.97, wMax\);/);
+  assert.match(SKIN_FS, /if \(sdPx > inkDev \+ 0\.5 \+ seamPad\) discard;/);
+  assert.match(SKIN_FS, /float wMax = 0\.0;\n\s+for \(int i = 0; i < 6; i\+\+\) wMax = max\(wMax, wAt\(i\)\);/);
 });
