@@ -72,7 +72,7 @@ test('with the switch off the shader adds nothing: the depth block is behind dep
   assert.match(ORGAN_FS, /uniform float depthAmt;/);
   assert.match(ORGAN_FS, /if \(depthAmt > 0\.001\) \{/);
   // everything the depth adds is inside that block and scaled by depthAmt; the wash above it is untouched
-  const block = ORGAN_FS.slice(ORGAN_FS.indexOf('if (depthAmt > 0.001)'), ORGAN_FS.indexOf('float a = mix(layer'));
+  const block = ORGAN_FS.slice(ORGAN_FS.indexOf('if (depthAmt > 0.001)'), ORGAN_FS.indexOf('// Cel shaded: the wash'));
   assert.equal((block.match(/depthAmt/g) ?? []).length, 3);
   assert.match(block, /fill = mix\(fill, ogDark\.rgb,.*\* depthAmt\)/);
   assert.match(block, /fill = mix\(fill, ogLight\.rgb,.*\* depthAmt\)/);

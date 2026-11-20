@@ -23,7 +23,7 @@ export const CEL_STYLE = {
   /** A band's edge is this many device px across in each direction: crisp, antialiased by fwidth, never a gradient. */
   EDGE_PX: 0.5,
   /** Solid organs (organ-shader.ts, the cel fill): the band edges in n·L terms (lambert against the screen-space light), the same three tones; a shape too round to reach LIT_AT keeps two. */
-  ORGAN: { SHADE_LAM: 0.3, LIT_LAM: 0.7, LIGHT: [-0.5, 0.62, 0.6] as const },
+  ORGAN: { SHADE_LAM: 0.3, LIT_LAM: 0.7, LIGHT: [-0.5, 0.62, 0.6] as const, /** the baked tuck (organ-depth.ts, 0..1) above which an organ with Organ depth on wears one hard band of the shade tone */ TUCK_AO: 0.45 },
 } as const;
 
 /** The band a measure `s` falls in, 0 shade, 1 base, 2 lit, with the hard edge `edge` wide (in the same units as s; 0 is a pure step). The JS twin of the shaders' step, for tests. */
