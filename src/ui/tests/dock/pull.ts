@@ -112,12 +112,15 @@ export function attachPull(card: HTMLElement, pos: HTMLElement, api: PullApi): (
   card.addEventListener('pointermove', onMove);
   card.addEventListener('pointerup', end);
   card.addEventListener('pointercancel', end);
-  card.addEventListener('lostpointercapture', end);
+  // (Not a child's: a touch is first captured by what is under the finger (a tab, a chart), and handing the capture to the card at 6 px makes that one lose it, an event that bubbles up here
+  //  and would end the pull at once. 2D dock-sheet.js: `e.target === el`.)
+  const onLost = (e: PointerEvent) => { if (e.target === card) end(e); };
+  card.addEventListener('lostpointercapture', onLost);
   card.addEventListener('touchmove', onTouchMove, { passive: false });
   card.addEventListener('click', onClick, true);
   return () => {
     card.removeEventListener('pointerdown', onDown); card.removeEventListener('pointermove', onMove);
-    card.removeEventListener('pointerup', end); card.removeEventListener('pointercancel', end); card.removeEventListener('lostpointercapture', end);
+    card.removeEventListener('pointerup', end); card.removeEventListener('pointercancel', end); card.removeEventListener('lostpointercapture', onLost);
     card.removeEventListener('touchmove', onTouchMove); card.removeEventListener('click', onClick, true);
     run?.stop(); st?.m?.stop(); pos.style.translate = '';
   };
