@@ -53,3 +53,9 @@ export const SKIN_CIRC_SPAN = 0.35;
 
 /** The tube's cut is judged this far (in u) inside the seam, so the interpolated uv.x of the seam ring itself (which rounds to the ring's u within a few ulp) is never discarded: no hairline gap at the seam. */
 export const SKIN_CUT_EPS = 2e-5;
+
+/** A junction the skin cannot be built for (the hull misses a seam ring, the mesh will not settle): the scene falls back to today's method for that node and warns once. */
+export class SkinBuildError extends Error {
+  readonly node: string;
+  constructor(node: string, why: string) { super(`skin ${node}: ${why}`); this.name = 'SkinBuildError'; this.node = node; }
+}
