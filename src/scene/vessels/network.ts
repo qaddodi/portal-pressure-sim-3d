@@ -139,7 +139,7 @@ const JOIN_LIST: JoinEdge[] = edges.filter(isDrawnEdge).map((e) => ({ id: e.id, 
 // (the hepatic artery and its two branches are one tree: they meet at the hilum's node, each end joined to the others, none a blunt cap)
 export const isCut = (id: string): boolean => SPLIT_AT[id] != null && SPLIT_AT[id]! < 0.9;   // (the left portal vein splits at its very end, where the umbilical vein joins: it is drawn whole)
 // (a vein that branches is drawn only up to its split: the end it was cut at carries on into its children, not into the vessel it ran on into in the full course)
-const cutEnd = (id: string): number | null => (SPLIT_AT[id] == null || !isCut(id) ? null : (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id) ? 1 : 0);
+export const cutEnd = (id: string): number | null => (SPLIT_AT[id] == null || !isCut(id) ? null : (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id) ? 1 : 0);
 export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST).filter((r) => cutEnd(r.a) !== r.ia && cutEnd(r.b) !== r.ib);
 const SMOOTH = smoothRunOns(new Map(JOIN_LIST.map((j) => [j.id, j.path])), RUN_ONS);
 /** A vessel's 2D course as drawn: smooth through the joins where it runs on into another. */

@@ -41,11 +41,12 @@ export const Z = { cell: 0.55, cellBot: -12.5, bead: 0.5, disse: -1.0, ground: -
 /** How far (µm) the scene stands toward the viewer from the lobule's plate. */
 const LIFT = 8;
 /** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), the lymph streaks' pace against the lymph's own run, and the haze: how far out it takes to be whole (µm) and how deep it goes. */
-const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_RUN = 60, HAZE_K = 0.45;
-/** The focus band's run (µm past the end of the first hepatocyte row) to a whole blur (post-dof.ts bandFrame): everything to the middle of the first row each side is sharp, then the blur grows GRADUALLY with the
- *  distance, over the next sinusoid and its plate to the one past it (Mohammad, 20 Nov 2026: "you're blurring too aggressively right away, make it gradual blur as we go further away after the end of
- *  the first hepatocyte"). The haze follows the same run, lighter, so the neighbours' disease still shows. */
-const BLUR_RUN = 64;
+const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_K = 0.45;
+/** The focus band's run (µm) to a whole blur: from the middle of the first hepatocyte row out to the middle of the next sinusoid's lumen, rising fast at first (post-dof.ts bandCoc eases out), so
+ *  the next sinusoid is already well out of focus (Mohammad, 20 Nov 2026: "the blur should really start earlier and be more intense quickly"). The haze follows the same run, lighter, so the
+ *  neighbours' disease still shows. */
+export const BLUR_RUN = UM.hep * 0.5 + UM.disse + UM.endo + UM.lum * 0.5;
+const HAZE_RUN = BLUR_RUN;
 /** The scene's ends: the blur along the sinusoid starts this far (µm) inside each end and is whole this far in. */
 const END_BLUR = [95, 55] as const;
 /** Red cells in this sinusoid's lumen, and in each of the two next ones (beyond the plates). */
@@ -167,7 +168,7 @@ export class Sinusoid3D {
     this.hscN = mk('stellate-nucleus', { ink: null });
     this.bm = mk('basement', { ink: null, transparent: true });
     this.arrows = mk('ends', { px: S.LINE_SMALL });
-    this.villi = many('microvilli', unitRod(6), 900, { ink: null });
+    this.villi = many('microvilli', unitRod(8), 900, { px: S.LINE_SMALL });
     this.fibres = many('collagen', unitRod(6), 800, { ink: null });
     this.albumin = many('albumin', unitSphere(12, 8), 2000, { px: S.LINE_SMALL });
     this.rbc = many('red-cells', unitRbc(22), RBC_N + 2 * RBC_FAR, { px: S.LINE });
@@ -237,7 +238,8 @@ export class Sinusoid3D {
   // ---- colours -------------------------------------------------------------------------------------------------------------------
 
   private colour(P: Pal, act: number): void {
-    const cellInk = deep(P.cUnder, 0.62);
+    // the hepatocytes' line: near black in their own warm tone, run round every microvillus too (Mohammad 20 Nov 2026: "the hepatocytes should have a black outline that extended to their microvilli")
+    const cellInk = mul3(P.cCell, 0.18);
     this.ground.setTint(P.cUnder);
     this.trough.setTint(P.cLumen); this.trough.setInk(deep(P.cEndoE, 0.9));
     this.troughFar.setTint(mix3(P.cLumen, P.cBg, 0.2)); this.troughFar.setInk(deep(P.cEndoE, 0.9));
@@ -253,7 +255,7 @@ export class Sinusoid3D {
     const hc = mix3(P.cHscQ, P.cHscA, clamp(act, 0, 1));
     this.hsc.setTint(hc); this.hsc.setInk(deep(hc, 0.5)); this.hscN.setTint(P.cHscN);
     this.bm.setTint(P.cBm);
-    this.villi.setTint(mix3(P.cLymph, P.cCell, 0.45));
+    this.villi.setTint(P.cCell); this.villi.setInk(cellInk);   // (the hepatocyte's own colour, outlined: "outline the villi")
     this.fibres.setTint(P.cCol);
     this.albumin.setTint(P.cAlb); this.albumin.setInk(deep(P.cAlbE, 0.8));
     // (a red cell is a clear, bright red in two tones with a bold dark line of its own red, as every solid here: 2D's darker red read as brown under the shade, Mohammad 20 Nov "should not be colored brown")
@@ -462,7 +464,7 @@ export class Sinusoid3D {
       if (mv > 0.03) for (const s of [-1, 1] as Side[]) for (let x = -REACH + 0.4; x < REACH; x += 1.7) {
         if (n >= this.villi.capacity) break;
         const yd = s * (g.hepIn(x) - len * 0.5 + 0.1);
-        placeAt(this.m4, x, Y(yd), Z.disse + 0.35, len, 0.12, 0.12, Math.PI / 2 + 0.25 * Math.sin(x * 1.7));
+        placeAt(this.m4, x, Y(yd), Z.disse + 0.35, len, 0.2, 0.2, Math.PI / 2 + 0.25 * Math.sin(x * 1.7));   // (thick enough that the fill reads inside its line)
         this.villi.setAt(n++, this.m4);
       }
       this.villi.commit(n);

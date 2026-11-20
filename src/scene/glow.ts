@@ -1,6 +1,7 @@
 // The selection glow (owner, 20 Nov: "instead of an outline, make it a glow"): a soft halo in the item's own tone round what is selected, strongest at its edge and thinning to nothing a short way out,
 // that fades away along the vessel toward both ends and eases in and out. A vessel's is a ribbon laid along its course, behind nothing and over nothing of its own (it is clear over the lumen), with an
 // alpha across the ribbon; the organs' is a few hulls of growing width (highlight.ts OrganPins); the lobule's is the same ribbon (lobule/mark.ts). No outline is widened or recoloured.
+import { VESSEL_LAYER } from './layers.ts';
 import { BufferGeometry, DoubleSide, Float32BufferAttribute, Mesh, MeshBasicMaterial, type Group } from 'three';
 
 /** How far past the lumen's edge the halo reaches, scene units (a figure unit is 1/300 of one): a few device px at the fit, as the figure itself grows. */
@@ -40,6 +41,7 @@ export class VesselGlow {
   constructor(parent: Group) {
     this.mesh = new Mesh(new BufferGeometry(), this.mat);
     this.mesh.frustumCulled = false; this.mesh.visible = false; this.mesh.name = 'highlight/glow'; this.mesh.renderOrder = 30;
+    this.mesh.layers.set(VESSEL_LAYER);   // (the vessels' own pass: scene.ts draws layer 0, then the vessels over the cleared depth; a glow left on layer 0 was drawn before them)
     parent.add(this.mesh);
   }
   /** Lay the halo along `pts` with this strength along the vessel. */

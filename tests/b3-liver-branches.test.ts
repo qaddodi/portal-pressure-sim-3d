@@ -97,3 +97,20 @@ test('a vein that branches is drawn only up to its split, and each child leaves 
 test('the umbilical vein is one vessel: no tributaries are drawn on it', () => {
   assert.ok(!LIVER_BRANCHES.some((b) => b.host === 'C3'), 'no branch set on C3');
 });
+
+test('with smooth joins on, a vein that branches keeps its full width and a round end at the split (the node rule\'s funnel and open end would pinch it where its children leave)', async () => {
+  const { setSmoothJoins } = await import('../src/scene/vessels/join-mode.ts');
+  const { NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
+  const { coursesOf, REST } = await import('../src/scene/vessels/shape.ts');
+  const { SPLIT_AT } = await import('../src/scene/vessels/liver-branches.ts');
+  setSmoothJoins(true);
+  try {
+    for (const id of ['PVH_R_2', 'RHV_IVC_1', 'LHV_IVC']) {
+      const c = coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!, end = (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id) ? 1 : 0;
+      assert.ok(SPLIT_AT[id] != null);
+      assert.equal(c.taper?.[end] ?? 1, 1, `${id}: no narrowing at the split`);
+      assert.equal(c.capless?.[end] ?? false, false, `${id}: a round end at the split`);
+      assert.ok(!c.point?.[end], `${id}: not drawn to a point at the split`);
+    }
+  } finally { setSmoothJoins(false); }
+});
