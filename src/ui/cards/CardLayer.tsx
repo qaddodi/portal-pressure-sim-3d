@@ -199,7 +199,9 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // a data card of tiles wears the 2D card's own state classes (presenter.js dataIn): every such card is tiles-only, a floating screen's is a column under the words, an instrument's has-tool and tool-only
   const dataClass = (e: Entry) => { const sl = snaps[e.key]?.slide; return sl?.tiles || (sl && hasToolChart(sl)) ? ['tiles-only', stacked ? '' : 'col', sl.tool ? 'has-tool tool-only' : ''].filter(Boolean).join(' ') : undefined; };
   const frames = (stack: ReturnType<typeof useStack>, slot: 'words' | 'data') => stack.entries.map((e) => {
-    const placed = e.phase === 'in' ? (slot === 'words' ? wordsShown : dataShown)?.rect : undefined;
+    // (only the card the plan is for takes its place: for a render the card on its way out is still 'in', and it must not be given the new card's box)
+    const wantedKey = slot === 'words' ? wordsWanted?.key : dataWanted?.key;
+    const placed = e.phase === 'in' && e.key === wantedKey ? (slot === 'words' ? wordsShown : dataShown)?.rect : undefined;
     const rect = placed ?? last.current[e.key] ?? ZERO;
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
