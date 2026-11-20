@@ -159,3 +159,25 @@ test('every fluid of the 3D lobule is seen to move at the fit: streaks in every 
   assert.match(src, /this\.lt\.setFlow\([^;]*soft\(0\.8\)/);
   assert.match(src, /this\.bile\.setFlow\([^;]*soft\(0\.85\)/);
 });
+
+test('the wedge\'s wash (HVPG slide 5) is drawn on the 3D lobule\'s sinusoids and central vein, a front from the centre out, easing in and back out', async () => {
+  const { WASH_DELAY_MS, WASH_MS } = await import('../src/scene/lobule/wash.ts');
+  const sh = createShared(), host = new LobuleView(sh), m3 = new Lobule3D(host, sh);
+  const parts = (m3 as unknown as { sin: Record<string, { mats: { toon: { uniforms: Record<string, { value: unknown }> } } }> }).sin;
+  const wash = () => (parts.s1!.mats.toon.uniforms.uWash!.value as { x: number; w: number });
+  host.setVisible(true);
+  let t = 0; const run = (ms: number) => { for (const end = t + ms; t < end; t += 16) { host.update(t); m3.update(true, 0, t, 1); } };
+  run(500);
+  assert.equal(wash().x, 0, 'no wash on a plain slide');
+  host.startWash(t); run(WASH_DELAY_MS + WASH_MS * 0.5);
+  const mid = { ...wash() };
+  assert.ok(mid.x > 0.5, `the amber is in (${mid.x})`);
+  assert.equal(parts.s1!.mats.toon.uniforms.uWashR!.value, LOBULE_R, 'a radial front, in lobule radii');
+  run(WASH_MS);
+  assert.ok(wash().w > mid.w && wash().w > 1, 'the front runs out past the portal edge');
+  host.stopWash(); run(32);
+  assert.ok(wash().x > 0.3, 'it goes away gradually, never at once');
+  run(3000);
+  assert.ok(wash().x < 1e-3, 'and is gone');
+  assert.ok((m3 as unknown as { mouthCv: { mats: { toon: { uniforms: Record<string, { value: { x: number } }> } } } }).mouthCv.mats.toon.uniforms.uWash!.value.x < 1e-3);
+});
