@@ -97,3 +97,4 @@ test('a callout stands clear of the cards and its pointer reaches its point', ()
   // in the open it keeps the full gap; only a band too narrow for it squeezes the gap
   assert.ok(p.tail!.below ? b.y0 >= it.ay + 18 : b.y1 <= it.ay - 18, 'with room it stands the usual 18 px or more from its point');
 });
+

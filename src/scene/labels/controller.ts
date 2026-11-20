@@ -98,8 +98,10 @@ export interface Draw {
   alpha: number;
   /** The box's top-left corner on the canvas, and its size. */
   x: number; y: number; w: number; h: number;
-  /** Which of the item's forms is drawn (0 full name, 1 abbreviation, 2 number alone). */
+  /** Which of the item's forms is drawn (an index into the station's forms: they are the full name, the abbreviation when it has one, and the number alone). */
   form: number;
+  /** The words of that form (empty for the number alone): the layer writes these, never a name it guesses from the form's index (a station with no abbreviation has its number alone at index 1, which was drawn as its full name over its number: "P16.6nusoids", "IV4.9"). */
+  word: string;
   /** The station's reading, formatted. */
   value: string;
   /** The colour token the slide's words give this station (null: its own ink). */
@@ -308,7 +310,7 @@ export class LabelController {
     for (const [id, s] of this.fader.frame) {
       if (s.alpha <= 0) continue;
       if (id === 'key') {
-        this.out.push({ id, kind: 'key', alpha: s.alpha, x: s.p.dx, y: s.p.dy, w: s.p.w, h: s.p.h, form: 0, value: '', tone: null, dot: null, rev: false, pad: { x: 0, y: 0 }, leader: null, dock: this.dock });
+        this.out.push({ id, kind: 'key', alpha: s.alpha, x: s.p.dx, y: s.p.dy, w: s.p.w, h: s.p.h, form: 0, word: '', value: '', tone: null, dot: null, rev: false, pad: { x: 0, y: 0 }, leader: null, dock: this.dock });
         continue;
       }
       const m = this.metas.get(id) ?? next.get(id);
@@ -322,7 +324,7 @@ export class LabelController {
       const organ = m.station.kind === 'organ', ringed = !organ;
       const pad = organ ? { x: LS.ORGAN.padX, y: LS.ORGAN.padY } : { x: LS.PAD.x, y: LS.PAD.y };
       this.out.push({
-        id, kind: m.kind, alpha: labelOpacity(s.alpha, dim), x: box.x0, y: box.y0, w: s.p.w, h: s.p.h, form: s.p.form,
+        id, kind: m.kind, alpha: labelOpacity(s.alpha, dim), x: box.x0, y: box.y0, w: s.p.w, h: s.p.h, form: s.p.form, word: m.forms[s.p.form]?.text ?? '',
         value: this.valueOf(m), tone: this.state.tones[m.station.id] ?? null, dot: ringed ? { x: ax, y: ay } : null, rev: !!m.rev, pad,
         leader: s.p.leader && ringed ? leaderGeom(ax, ay, { x0: box.x0 + pad.x, y0: box.y0 + pad.y, x1: box.x1 - pad.x, y1: box.y1 - pad.y }) : null,
       });

@@ -80,7 +80,7 @@ export const useShell = create<ShellState>((set, get) => ({
   sheet: null, dialog: null, aboutSection: null, menuTab: 'present', menuQuery: '', helpSection: null, toast: null,
   figure: loadFigure(),
   transport: { running: false, speed: 1, lapse: 0, time: '0:00', day: 0 },
-  patientId: 'csph',
+  patientId: 'healthy',
   refit: 0,
   set: (p) => set(p),
   open: (sheet) => set({ sheet }),

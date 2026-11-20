@@ -19,7 +19,7 @@ import { LOBULE_PLATE_FS, LOBULE_PLATE_VS } from '../scene/lobule/plate.ts';
 import { LOBULE_ZONES_FS, LOBULE_ZONES_VS } from '../scene/lobule/zones.ts';
 import { LOBULE_FIELD_FS, LOBULE_FIELD_VS } from '../scene/lobule/field.ts';
 import { AA_FS, AA_VS } from '../scene/post-aa.ts';
-import { ATLAS_ASCITES_FS, ATLAS_FS, ATLAS_INK_FS, ATLAS_INK_VS, ATLAS_VS, stripVersion } from '../scene/atlas-art/shaders.ts';
+import { ATLAS_ASCITES_FS, ATLAS_POOL_VS, ATLAS_FS, ATLAS_INK_FS, ATLAS_INK_VS, ATLAS_VS, stripVersion } from '../scene/atlas-art/shaders.ts';
 import { DOF_GATHER_FS, DOF_MIX_FS, DOF_VS } from '../scene/post-dof.ts';
 import { CELLS_FS, CELLS_VS } from '../scene/blood/cells/shader.ts';
 
@@ -67,7 +67,7 @@ export function atlasPrograms(): Program[] {
     const a = assemble({ vertexShader: stripVersion(vs), fragmentShader: stripVersion(fs), isRawShaderMaterial: true, glslVersion: '300 es' });
     return { name, vertex: vs, fragment: fs, ...a };
   };
-  return [make('atlas organ', ATLAS_VS, ATLAS_FS), make('atlas organ ink', ATLAS_INK_VS, ATLAS_INK_FS), make('atlas ascites', ATLAS_VS, ATLAS_ASCITES_FS)];
+  return [make('atlas organ', ATLAS_VS, ATLAS_FS), make('atlas organ ink', ATLAS_INK_VS, ATLAS_INK_FS), make('atlas ascites', ATLAS_POOL_VS, ATLAS_ASCITES_FS)];
 }
 
 /** The programs the scene graph does not hold until something happens (a Circuit, a dye bolus) and the ones outside the scene (charts, Doppler, FibroScan). */

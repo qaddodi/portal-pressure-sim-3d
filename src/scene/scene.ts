@@ -314,7 +314,7 @@ export class CelScene {
     this.procs.applyPalette(p); this.probes.applyPalette(p);
     this.tubes.applyPalette(p); this.resistors.setLook(look);
     this.disease.applyLook(look, p); this.disease.setPhone(this.phone);
-    this.atlas.applyLook(look, p.highlight === 'white');
+    this.atlas.applyLook(look, p.highlight === 'white', p);
     this.lens.setLook(look);
     this.lobule.applyLook(look); this.sinus.applyLook(look); this.feedSinusInk();
     this.moving = true;
