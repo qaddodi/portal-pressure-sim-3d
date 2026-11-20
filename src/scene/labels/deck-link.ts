@@ -40,12 +40,13 @@ const sameTones = (a: Readonly<Record<string, string>>, b: Readonly<Record<strin
 
 export function linkLabelsToDeck(): () => void {
   const sync = () => {
-    const { stops, pos } = useUi.getState();
-    const next = labelsAt(stops, pos, useUi.getState().deck?.id);
+    const { stops, pos, deck } = useUi.getState();
+    // no talk, no names asked for and no catheter: the slide a talk left on (its store is kept until the next talk opens) must not hold the figure's labels back
+    const next = deck ? labelsAt(stops, pos, deck.id) : NONE();
     const cur = useLabels.getState();
     const same = cur.cath === next.cath && sameSet(cur.named, next.named) && sameSet(cur.shown, next.shown) && sameTones(cur.tones, next.tones);
     if (!same) cur.set(next);
   };
   sync();
-  return useUi.subscribe((s, p) => { if (s.pos !== p.pos || s.stops !== p.stops) sync(); });
+  return useUi.subscribe((s, p) => { if (s.pos !== p.pos || s.stops !== p.stops || s.deck !== p.deck) sync(); });
 }
