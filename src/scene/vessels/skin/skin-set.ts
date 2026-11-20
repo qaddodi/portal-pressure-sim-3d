@@ -17,7 +17,7 @@ import { planSkins, type ArmTube } from './cuts.ts';
 import { buildSkin, hullCovers } from './mesh.ts';
 import type { Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, SKIN_HIDDEN, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
-import { hiWeightAt, lensUAt, liveFadeAt, type FadeState, type HiState } from './arm-twins.ts';
+import { hiWeightAt, lensUAt, liveFadeAt, revealAt, type FadeState, type HiState } from './arm-twins.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import type { ArmAxis, ArmColour } from './skin-object.ts';
 import { SKIN_FIGURE_UNITS } from './shaders.ts';
@@ -28,6 +28,8 @@ export interface SkinDraw {
   /** the live handover for arm `i`: its tube's alpha at its seam, its highlight weight there, and its lens ramp's position there */
   setArm(i: number, fade: number, hi: number, lensU: number, colour: ArmColour, narrow: number): void;
   setArc(i: number, seamArc: number, dir: number, length: number, restR: number, flow: number): void;
+  /** arm `i`'s shares of the three copies (front, solid, veil) as its tube has them, times what is drawn of the tube at its seam: a skin copy shows where its arms' shares of it are, and nowhere else (spec 10.4) */
+  setArmCopy(i: number, front: number, solid: number, veil: number): void;
   /** a skin blends only when one of its arms does (a fade zone): opaque otherwise, as the tubes are */
   setTransparent(on: boolean): void;
   dispose(): void;
@@ -47,7 +49,7 @@ export interface SkinSetDeps {
 }
 
 /** One arm as the per-frame handover reads it: its tube, the seam's place along it and in the figure. */
-interface ArmLink { /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[] }
+interface ArmLink { /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[] }
 interface Built { node: string; mesh: SkinMesh; draw: SkinDraw; arms: ArmLink[] }
 
 /** The seam ring's vertices and normals of one arm, read from the tube `buildTubes` made (spec 4.4: not recomputed): `RADIAL` of them, in the tube's ring order. */
@@ -164,7 +166,7 @@ export class SkinSet {
           const cut = plan.cuts[i]!, ring = pos[i]!;
           let x = 0, y = 0;
           for (let v = 0; v < TUBE_RADIAL; v++) { x += ring[v * 3]!; y += ring[v * 3 + 1]!; }
-          return { vi: cut.ring * (TUBE_RADIAL + 1), obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [] };
+          return { vi: cut.ring * (TUBE_RADIAL + 1), obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [], cp: [NaN, NaN, NaN] };
         });
         this.built.push({ node: j.node, mesh, draw, arms });
         // the tubes: cut at their seams, both ends of a vessel that two skins share in ONE cut (the second never overwrites the first); a vessel a merged skin replaces whole is hidden (2, -1)
@@ -179,6 +181,7 @@ export class SkinSet {
     }
     for (const [id, c] of cutOf) this.deps.vessel(id)?.setSkinCut(c[0], c[1]);
     for (const t of tubes.values()) t.geometry.dispose();
+    this.sync();   // (the skins start from what their arms have NOW: a hidden or still drawing arm gives its skin nothing from the first frame, never a stray one)
   }
 
   private fail(node: string, message: string, warn: (m: string) => void): void {
@@ -218,7 +221,11 @@ export class SkinSet {
           a.last[8] = ln; a.last[9] = fl;
           const arc = armArcOf(a.end, a.u, ln, rd); b.draw.setArc(i, arc.seamArc, arc.dir, arc.length, arc.restR, fl); any = true;
         }
-        if (a.obj.toon.transparent) blend = true;
+        // the arm's three copies (spec 10.4): its tube's own shares of its front, solid and veil copies, times what is there of the tube at its seam (a vessel the scene has hidden, or one still drawing on that has not reached its seam, gives its skin nothing)
+        const sh = a.obj.copyShares(), drawn = a.obj.group.visible ? revealAt(u.reveal!.value as number, a.u) : 0;
+        const cf = sh[0] * drawn, cs = sh[1] * drawn, cv = sh[2] * drawn;
+        if (a.cp[0] !== cf || a.cp[1] !== cs || a.cp[2] !== cv) { a.cp = [cf, cs, cv]; b.draw.setArmCopy(i, cf, cs, cv); any = true; }
+        if (a.obj.toon.transparent || a.obj.behindOrgans) blend = true;   // (a skin copy is fractional wherever an arm's share of it is: it blends)
       });
       if (any) changed = true;
       b.draw.setTransparent(blend);

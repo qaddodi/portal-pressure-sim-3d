@@ -54,6 +54,10 @@ export function hiWeightAt(h: HiState, u: number): number {
   return h.on * (Math.abs(h.dir) > 0.5 ? 1 - sstep(0, Math.max(limitH, 1e-4), distH) : ownH);
 }
 
+/** How much of a tube is drawn at `u` along it while it draws on or retracts (`reveal` rv, 0 to 1): the JS twin of `frontOut` (materials/shaders.ts: a soft front a tenth of the length wide, `k = clamp((rv * 1.1 - u) / 0.1, 0, 1)`), 1 once whole.
+ *  The skin takes it at each arm's seam as part of that arm's share, so the mouth of a vessel that is drawing on is never drawn ahead of the vessel (spec 10.2: a skin is never visible where its arms are not). */
+export const revealAt = (rv: number, u: number): number => (rv >= 0.9999 ? 1 : clamp01((rv * 1.1 - u) / 0.1));
+
 /** The lens ramp's position at the seam: the stretch `span` of the host's ramp the vessel wears, at `u` along the vessel (`lensOf`: mix(lensSpan.x, lensSpan.y, vUv.x)). */
 export const lensUAt = (span: readonly [number, number], u: number): number => mix(span[0], span[1], u);
 
@@ -64,4 +68,12 @@ export const lensUAt = (span: readonly [number, number], u: number): number => m
  */
 export function normalShift(R: number, swell: number, narrowK: number, inkW: number, inflate: number): number {
   return inflate + R * (swell * narrowK - 1) + inkW + (R * swell * narrowK + inkW) * TUBE_SAG;
+}
+
+/** The alpha of one copy (0 front, 1 solid, 2 veil) of a skin at a point whose arm weights are `w`: the JS twin of the fragment stage's `dot(vWeight, armFade * armCopy[.][SKIN_COPY])` (skin/shaders.ts, spec 10.4). On a seam ring one weight is 1 and this is
+ *  that arm tube's own alpha of that copy there (its share of the copy times its fade), which tests/skin-copies.test.ts holds to the tube's own state. */
+export function copyAlpha(w: readonly number[], shares: readonly (readonly number[])[], fades: readonly number[], copy: 0 | 1 | 2): number {
+  let a = 0;
+  for (let i = 0; i < w.length; i++) a += (w[i] ?? 0) * (shares[i]?.[copy] ?? 0) * (fades[i] ?? 0);
+  return a;
 }

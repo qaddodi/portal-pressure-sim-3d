@@ -344,7 +344,11 @@ test('one outline rule at every junction: a vein that opens into the cava, and a
     const s = new CelScene();
     const bury = (id: string) => (s.vesselObject(id) as unknown as { toon: { uniforms: { bury: { value: { x: number; y: number } } } } }).toon.uniforms.bury.value;
     assert.ok(bury('RHV_IVC').y > 0, 'a hepatic vein\'s end is held back inside the cava');
-    assert.ok(bury('LRV_IVC').y > 0, 'so is a renal vein\'s');
+    // (a renal vein's end at the cava is a skin's arm since spec 10.4 (node IVCI): the tube stops at the skin's seam, outside the wall, so nothing is held back there; with `?joins=old` it is held back as before)
+    assert.equal(bury('LRV_IVC').y, 0, 'a renal vein\'s end is a skin\'s: no ink held back');
+    const old = new CelScene({ joins: 'old' });
+    assert.ok(((old.vesselObject('LRV_IVC') as unknown as { toon: { uniforms: { bury: { value: { y: number } } } } }).toon.uniforms.bury.value).y > 0, 'so is a renal vein\'s, with the old joins');
+    old.dispose();
     assert.ok(bury('PVH_R_2~F:b').x > 0, 'a portal branch\'s start is held back inside the vein it leaves');
     assert.ok(bury('RHV_IVC_1~F:b').y > 0, 'a hepatic vein\'s side branch holds back its end (the flow end, at the vein)');
     assert.equal(bury('PVH_R_2').x, 0, 'a vein\'s own free end keeps its whole outline');

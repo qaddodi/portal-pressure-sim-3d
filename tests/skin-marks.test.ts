@@ -27,7 +27,7 @@ function built(): { scene: CelScene; made: Made[]; was: boolean } {
     make: (mesh, axes, arms) => {
       const m: Made = { mesh, axes, arms, arcs: [] };
       made.push(m);
-      return { mesh, object: new Group(), setArm() {}, setArc(i, seamArc, dir, length, restR, flow) { m.arcs[i] = { seamArc, dir, length, restR, flow }; }, setTransparent() {}, dispose() {} };
+      return { mesh, object: new Group(), setArm() {}, setArc(i, seamArc, dir, length, restR, flow) { m.arcs[i] = { seamArc, dir, length, restR, flow }; }, setArmCopy() {}, setTransparent() {}, dispose() {} };
     },
     add: (o: Object3D) => parent.add(o), remove: (o: Object3D) => parent.remove(o), warn: () => {},
   });

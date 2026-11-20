@@ -97,6 +97,8 @@ export function rawPrograms(fibroText: string): Program[] {
     lateMaterialProgram('circuit resistors', RES_VS, RES_FS),
     lateMaterialProgram('dye overlay', DYE_VS, DYE_FS),
     lateMaterialProgram('skin', SKIN_VS, SKIN_FS),
+    lateMaterialProgram('skin (solid copy)', SKIN_VS, SKIN_FS, { SKIN_COPY: 1 }),
+    lateMaterialProgram('skin (veil copy)', SKIN_VS, SKIN_FS, { SKIN_COPY: 2 }),   // (spec 10.4: one source, three programs: the front copy is the one above)
     ...clotPrograms(),
     lateMaterialProgram('organ wash', ORGAN_VS, ORGAN_FS),
     ...organArtPrograms(),

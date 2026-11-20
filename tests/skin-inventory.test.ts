@@ -22,13 +22,16 @@ const TABLE: Record<string, readonly string[]> = {
   PVH: ['PV_TRUNK:1', 'PVH_R:0', 'PVH_L:0'],
   HA: ['A_HEP:1', 'A_HR:0', 'A_HL:0'],
   CV_R: ['SIN_RR:1', 'POST_R_RHV:0', 'POST_R_MHV:0'],
+  IVCI: ['IVC_IS_1:0', 'LRV_IVC:1', 'ILI_IVC_1:1'],
+  SVC_E: ['EPI_SVC:1', 'SVC_RA_1:1', 'SVC_RA:0'],
+  SVC: ['V_UP:1', 'AZY_SVC:1', 'SVC_RA_1:0'],
   SIN_R: ['A_HR:1', 'PRE_R:1', 'SIN_RR:0'],
   SIN_L: ['A_HL:1', 'PRE_L:1', 'SIN_LL:0'],
 };
-const PHASE_2 = ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R'];
+const PHASE_2 = ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'SVC_E', 'SVC'];
 const armKeys = (j: SkinJunction): string[] => j.arms.map((a) => `${a.vesselId}:${a.end}`).sort();
 
-test('the inventory is the table of the spec exactly: eight nodes, their arms and ends, nothing else (SVC_E, in the spec table, is out: its arms are BACK_EDGES, spec 4.8)', () => {
+test('the inventory is the table of the spec exactly: eleven nodes, their arms and ends, nothing else (spec 10.4: the nodes with an end behind the organs, IVCI, SVC_E and SVC, are in; IVCS, five arms, joins with the six-arm foundation)', () => {
   const js = on(() => findSkinJunctions());
   assert.deepEqual(js.map((j) => j.node).sort(), Object.keys(TABLE).sort());
   for (const j of js) assert.deepEqual(armKeys(j), [...TABLE[j.node]!].sort(), j.node);
@@ -60,14 +63,17 @@ test('every arm is a permanent tube: no collateral, shunt, feeder or strand is e
   for (const v of NETWORK) if (v.kind === 'collateral' || v.kind === 'shunt' || v.feeder) assert.ok(!isPermanent(v), v.id);
 });
 
-test('the node where a faded cava or a vessel behind the organs meets is out, and so is the end of a vein that branches into a through-tube', () => {
+test('a node with an end behind the organs is in (its skin is drawn as three copies, spec 10.4); a vein that branches into a through-tube still ends short of its node; IVCS (five arms) waits for the six-arm foundation', () => {
   const nodes = new Set(on(() => findSkinJunctions()).map((j) => j.node));
-  for (const n of ['IVCS', 'IVCI', 'SVC_E']) assert.ok(!nodes.has(n), n);
-  for (const j of on(() => findSkinJunctions())) for (const a of j.arms) { assert.ok(!IVC_EDGES.has(a.vesselId), a.vesselId); assert.notEqual(cutEnd(a.vesselId), a.end, a.vesselId); }
+  for (const n of ['IVCI', 'SVC_E', 'SVC']) assert.ok(nodes.has(n), n);
+  assert.ok(!nodes.has('IVCS'), 'IVCS has five arms: the inventory takes 3 or 4 until the foundation lands');
+  for (const j of on(() => findSkinJunctions())) for (const a of j.arms) assert.notEqual(cutEnd(a.vesselId), a.end, a.vesselId);
 });
 
-test('no arm is drawn behind the organs (BACK_EDGES): a skin is drawn on the vessel layer only', () => {
-  for (const j of on(() => findSkinJunctions())) for (const a of j.arms) assert.ok(!BACK_EDGES.has(a.vesselId), `${j.node}: ${a.vesselId}`);
+test('the junctions with an arm behind the organs are exactly the ones whose skin has more than a front copy (BACK_EDGES is the rule the scene draws the copies by)', () => {
+  const behind = on(() => findSkinJunctions()).filter((j) => j.arms.some((a) => BACK_EDGES.has(a.vesselId))).map((j) => j.node).sort();
+  assert.deepEqual(behind, ['IVCI', 'SVC', 'SVC_E']);
+  assert.ok(IVC_EDGES.has('IVC_IS_1') && IVC_EDGES.has('ILI_IVC_1'), 'IVCI joins two pieces of the cava');
 });
 
 test('J is the end point of the widest arm\'s course; with smooth joins on every arm of a phase node ends within SKIN_REACH (2 radii) of it', () => {

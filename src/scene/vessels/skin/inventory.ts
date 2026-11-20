@@ -1,6 +1,5 @@
 // Junction skins, WP1 (spec 4.1 and 4.2): which nodes of the network get a skin, which tubes are its arms, and where its centre is. Computed from the network's own data, never from a list of ids:
 // the one literal here is the kind filter (a permanent vessel is a vein, an artery, an arteriole or a liver bed). Nothing is drawn here; the scene reads this once and builds the skins from it.
-import { BACK_EDGES } from '../paths.copied.ts';
 import { NETWORK, cutEnd, type NetVessel } from '../network.ts';
 import { REST, coursesOf, type ShapeState } from '../shape.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../join-mode.ts';
@@ -36,8 +35,8 @@ function endPoint(v: NetVessel, end: 0 | 1, state: ShapeState): Vec3 {
 
 /**
  * Every junction that gets a skin, in the network's order of nodes (spec 4.1). A node gets one when 3 or 4 permanent tube ends meet there, except:
- *   - a node where one of the ends is drawn behind the organs (BACK_EDGES: the cava and its faint run-ons, the SVC's pieces): the skin is one mesh on the vessel layer (spec 4.8), so it cannot be half behind an organ. This also keeps the faded cava
- *     (it has no wall to blend into: network.ts leaves it out of the fork collar too) and node SVC_E, where the spec's table lists SVC_RA_1 and SVC_RA, both BACK_EDGES, as phase 2 against its own test of 4.8 (reported to the lead);
+ *   - (a node with an end drawn behind the organs (BACK_EDGES: the cava and its run-ons, the SVC's pieces) used to be left out, because one mesh on the vessel layer cannot be half behind an organ. Spec 10.4, Mohammad 20 Nov "all the junctions":
+ *     it is in now, and the skin is drawn the way the tubes are, as three COPIES of one geometry (front, solid, veil: skin-object.ts), each weighted by the arms' own shares of those copies, so a skin is never visible where its arms are not);
  *   - a vein that branches is one through-tube to the tip of its through branch (liver-branches.ts `cutEnd`): that end is not a node of the figure.
  * The arms are the main courses of those tubes, widest first (ties keep the network's order). `J` is the end point of the widest arm's course (4.2).
  * Read with Smooth vessel joins on (the scene builds skins only then): off, the branch ends are the 2D rule's own and lie where the art put them.
@@ -46,7 +45,7 @@ export function findSkinJunctions(network: readonly NetVessel[] = NETWORK, state
   const out: SkinJunction[] = [];
   for (const [node, ends] of permanentEndsByNode(network)) {
     if (ends.length < MIN_ARMS || ends.length > MAX_ARMS) continue;
-    if (ends.some((e) => BACK_EDGES.has(e.v.id) || cutEnd(e.v.id) === e.end)) continue;
+    if (ends.some((e) => cutEnd(e.v.id) === e.end)) continue;
     const sorted = ends.map((e, i) => ({ ...e, i })).sort((a, b) => b.v.radius - a.v.radius || a.i - b.i);
     const arms: SkinArm[] = sorted.map(({ v, end }) => ({
       vesselId: v.id, end, courseIndex: 0, dataIndex: indexOf(v.lensId), lensIndex: indexOf(v.lensId), baseD: v.baseD, widthKind: v.widthKind, restR: v.radius,
@@ -57,10 +56,10 @@ export function findSkinJunctions(network: readonly NetVessel[] = NETWORK, state
   return out;
 }
 
-/** The nodes whose skins are built in each phase (spec 4.1, 6): phase 1 the SMV-SV confluence alone, phase 2 every node the table marks 2 that the BACK_EDGES rule keeps. The liver beds' nodes (SIN_R, SIN_L) are phase 3 and are in neither. */
+/** The nodes whose skins are built in each phase (spec 4.1, 6): phase 1 the SMV-SV confluence alone, phase 2 every node the table marks 2 (and, spec 10.4, those with an end behind the organs). The liver beds' nodes (SIN_R, SIN_L) are phase 3 and are in neither. */
 export const PHASE_1_NODES: ReadonlySet<string> = new Set(['CONF']);
-// (SVC_E is marked 2 in the spec's table but its arms are BACK_EDGES, so the inventory leaves it out, see findSkinJunctions)
-export const PHASE_2_NODES: ReadonlySet<string> = new Set(['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R']);
+// (the nodes with an end behind the organs, spec 10.4: SVC_E and SVC where the superior cava's pieces meet the epigastric and azygos veins, IVCI where the left renal vein and the iliac run-on meet the cava. IVCS has five arms and joins with the six-arm foundation: MAX_ARMS keeps it out until then)
+export const PHASE_2_NODES: ReadonlySet<string> = new Set(['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'SVC_E', 'SVC']);
 export function skinNodesForPhase(phase: 1 | 2): ReadonlySet<string> {
   return phase === 1 ? PHASE_1_NODES : PHASE_2_NODES;
 }
