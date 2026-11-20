@@ -127,11 +127,16 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     // the varices bead by their size: every strand, and the gastrorenal shunt itself (varix-bead.js)
     const lambda = beadLambda(v.id) as number, beads = s.bead > 0 && beadsOn(v.id);
     const own: Course = { pts: m, radius: rad, taper: sj ? sj.taper : v.taper, taperSpan: sj?.taper ? sj.span : undefined, flare: v.flare, capless: sj ? sj.joined : v.joined, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? sj.free : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
+    // a varix is its few strands, each running whole from the vessel that feeds it to the one that drains it: the trunk's own tube, a solid fill the width of the bundle, is not drawn while
+    // they are (Mohammad, 20 Nov: "what's that red mesh"); each strand widens to the trunk's width at its two ends, so it meets the vessels there without a step
+    const bundle = s.strandsOn && strands.length > 0 && v.kind === 'collateral' && v.id !== 'C8';
+    if (bundle) own.radius = 0;
     return [own, ...strands.map((c, i) => {
       if (!s.strandsOn) return own;
       const live = (banded ? Math.min(1, Math.max(0, i + 1 - s.bands)) : 1) * (c.live ?? 1);
       return {
         pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through), radius: Math.max(minR, rad * c.k) * live,   // (0: a closed channel, a strand a band has closed, a channel not yet grown: the shader draws none of it)
+        ...(bundle && v.id !== 'C5' ? { taper: [(own.taper?.[0] ?? 1) / c.k, (own.taper?.[1] ?? 1) / c.k] as const, taperSpan: own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
         bead: beads && v.id !== 'C5' ? { b: s.bead, ph: c.ph * 1.7, u0: (STRAND_FROM_2D as Record<string, number>)[v.id] ?? 0, lambda, len: len2d(c.pts) } : undefined,
       };
     })];

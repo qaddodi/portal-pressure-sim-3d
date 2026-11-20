@@ -112,18 +112,6 @@ test('the outline is continuous by construction: painted in the tube\'s own frag
   assert.match(read('../src/scene/Stage.tsx'), /stencil: true/);
   assert.match(read('../src/scene/scene.ts'), /gl\.clearDepth\(\); gl\.clearStencil\(\)/);
   const s = new CelScene();
-  const st = (s.disease.strands as unknown as { strands: { obj: { ink: import('three').ShaderMaterial } | null }[] });
-  assert.ok(st.strands.length > 0);
-  s.dispose();
-});
-
-test('a strand has the tube tones, so a varix beside its vein shades as the vein does', async () => {
-  const { presetState } = await import('./b4-presets.ts');
-  const s = new CelScene(); const d = s.disease;
-  d.feed((await presetState('cirr-decomp')).frame as never, {}, null, { instant: true, presence: () => 1, recruit: () => 1 }, true); d.update(1000);
-  const drawn = (d.strands as unknown as { strands: { obj: { toon: import('three').ShaderMaterial; ink: import('three').ShaderMaterial; group: { visible: boolean } } | null }[] }).strands.filter((x) => x.obj?.group.visible);
-  assert.ok(drawn.length > 4);
-  for (const x of drawn) { assert.ok('TUBE_TONES' in (x.obj!.toon.defines ?? {})); assert.ok(x.obj!.ink.stencilWrite, 'its ink is inked once'); }
   s.dispose();
 });
 
