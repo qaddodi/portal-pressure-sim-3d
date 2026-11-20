@@ -48,7 +48,9 @@ test('a vein into the cava takes the cava\'s opacity at its wall and is cut alon
       if (!opensIntoCava(v.id)) continue;
       n++;
       const u = s.vesselObject(v.id)!.toon.uniforms as unknown as { cavaCut: { value: number }; cavaA: { value: number } };
-      assert.equal(u.cavaCut.value, 1, `${v.id} opens into the cava`);
+      // (a skin that has taken the cava end of the vein is the opening: no cut there, spec 10.4)
+      const skinned = !!(s as unknown as { skins: { endsOf(id: string): readonly [boolean, boolean] } | null }).skins?.endsOf(v.id)[1];
+      assert.equal(u.cavaCut.value, skinned ? 0 : 1, `${v.id} opens into the cava`);
       assert.equal(u.cavaA.value, CAVA_RECEDE, `${v.id} comes to the cava's opacity at its wall`);
     }
     assert.ok(n >= 3, `${n} veins open into the cava`);
