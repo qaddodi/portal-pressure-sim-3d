@@ -18,7 +18,11 @@ import { VesselObject, type LensShared } from '../vessels/vessel-object.ts';
 import { attachCircuit } from './geometry.ts';
 import { CIRCUIT_D, CIRCUIT_TREES, CUSTOM_EDGES, CUSTOM_SHUNT_PATH, NODE_CIRCUIT, ROUTER_STATIONS, VB_CIRC } from './data.copied.ts';
 import { mapCurve } from './course.ts';
-import { mapToScene } from './map.ts';
+import { MAP_K, mapToScene } from './map.ts';
+import { circuitWidthMap } from './width.ts';
+import { permanentEndsByNode } from '../vessels/skin/inventory.ts';
+import { NETWORK } from '../vessels/network.ts';
+import { BURY } from '../vessels/smooth-joins.ts';
 import { flatOf, growOf } from './grow.ts';
 import { courseOf, cumulative, resample } from './paths.ts';
 import type { CircuitShared } from './uniforms.ts';
@@ -27,6 +31,26 @@ import { createRouter, route as routeText } from './router.copied.js';
 type Edge = { id: string; from: string; to: string; kind: string; shunt?: string; portal?: boolean; d?: number; dMax?: number; label?: string; zone?: string };
 const edges = EDGES as Edge[];
 const edgeById = new Map(edges.map((e) => [e.id, e]));
+
+/** A vessel's radius on the map (scene units, at boost 1: what circuit/skins.ts builds its rings at). */
+const mapRadius = (v: { widthKind: 0 | 1 | 2; baseD: number; circFine?: number }): number => 0.5 * circuitWidthMap(v.widthKind, v.baseD, 1, v.circFine ?? 1) * MAP_K;
+/** The radius of the widest permanent vessel at a node (the trunk a map-only tube ends in), 0 where there is none. */
+const trunkRadius = (node: string): number => Math.max(0, ...(permanentEndsByNode(NETWORK).get(node) ?? []).map((e) => mapRadius(e.v)));
+/** The map's own tubes (the liver's branches, the caudate lane, the custom shunts) end INSIDE the vessel they leave or reach, as every declared branch of the body does: their outline is not drawn there (the body's rule, scene.ts applyMates: "a child's outline is not drawn where it lies inside its parent's lumen"). `BURY` of the trunk's radius, per end. */
+const buryOf = (startTrunk: number, endTrunk: number): [number, number] => [BURY * startTrunk, BURY * endTrunk];
+/** How wide the tube a liver branch leaves is, as a share of the lane's: 1 for a branch off the lane itself, the parent branch's `k` for a branch of a branch (its start lies on that branch's course). */
+function parentShare(list: readonly { d: string; k: number }[], i: number): number {
+  const start = courseOf(list[i]!.d)[0]!;
+  for (let j = 0; j < i; j++) {
+    const pts = courseOf(list[j]!.d);
+    for (let q = 1; q < pts.length; q++) {   // (the nearest point of each segment: a straight run has no points of its own along it)
+      const a = pts[q - 1]!, b = pts[q]!, dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+      const u = l2 > 0 ? Math.max(0, Math.min(1, ((start[0] - a[0]) * dx + (start[1] - a[1]) * dy) / l2)) : 0;
+      if (Math.hypot(a[0] + dx * u - start[0], a[1] + dy * u - start[1]) < 1.5) return list[j]!.k;
+    }
+  }
+  return 1;
+}
 
 /** The least a branch is drawn: 1.2 figure units wide (the 2D app's `Math.max(1.2, w * k)`). */
 const MIN_BRANCH_W = 1.2;
@@ -87,16 +111,16 @@ export class CircuitTubes {
     for (const [id, list] of Object.entries(CIRCUIT_TREES)) {
       const parent = NETWORK_BY_ID.get(id);
       if (!parent) continue;
-      list.forEach((b, i) => this.add(`${id}#${i}`, 'tree', id, courseOf(b.d), Math.max(len3(MIN_BRANCH_W / 2), parent.radius * b.k), parent.tone === 'artery' ? 'portal' : parent.tone, parent.baseD, 2, undefined, treeCircW(parent.widthKind, parent.baseD, parent.circFine ?? 1, b.k), [0, 1]));
+      list.forEach((b, i) => this.add(`${id}#${i}`, 'tree', id, courseOf(b.d), Math.max(len3(MIN_BRANCH_W / 2), parent.radius * b.k), parent.tone === 'artery' ? 'portal' : parent.tone, parent.baseD, 2, undefined, treeCircW(parent.widthKind, parent.baseD, parent.circFine ?? 1, b.k), [0, 1], undefined, buryOf(mapRadius(parent) * parentShare(list, i), 0)));
     }
     // the caudate's own vein, drawn only while a slide is about the caudate lobe
     const caud = edgeById.get('CAUD');
     const d = CIRCUIT_D.CAUD;
-    if (caud && d && hasVessel('CAUD')) this.add('CAUD', 'caud', 'CAUD', courseOf(d), radiusOf(widthPx(caud, caud.d ?? caud.dMax ?? 2)), 'sys', caud.d ?? caud.dMax ?? 2, 0);
+    if (caud && d && hasVessel('CAUD')) this.add('CAUD', 'caud', 'CAUD', courseOf(d), radiusOf(widthPx(caud, caud.d ?? caud.dMax ?? 2)), 'sys', caud.d ?? caud.dMax ?? 2, 0, undefined, undefined, undefined, undefined, buryOf(trunkRadius('CV_R'), trunkRadius('IVCS')));
   }
 
   /** `body`: the body course of a vessel that lies on the body too (a custom shunt: custom-shunt-paths.js); the tube is built along it and the map course carries it, as every vessel of the figure is. */
-  private add(id: string, kind: TubeKind, edge: string, dense: [number, number][], radius: number, tone: 'portal' | 'sys' | 'artery', baseD: number, widthKind: 0 | 1 | 2, body?: string, circW?: readonly [number, number, number, number], circCap?: readonly [number, number], host?: string): Entry {
+  private add(id: string, kind: TubeKind, edge: string, dense: [number, number][], radius: number, tone: 'portal' | 'sys' | 'artery', baseD: number, widthKind: 0 | 1 | 2, body?: string, circW?: readonly [number, number, number, number], circCap?: readonly [number, number], host?: string, bury?: readonly [number, number]): Entry {
     const mapPts = scenePoints(dense);
     let built, courseLens: readonly [number, number] | undefined;
     if (body) {
@@ -116,6 +140,7 @@ export class CircuitTubes {
       tone, artery: tone === 'artery', lensIndex: indexOf(edge), widthKind, circW, circCap, bands: 2, spec: 1, px: kind === 'tree' ? 0.9 : 1.2,
       vessel: { index: indexOf(edge), len: built.length, stubSpeed: markSpeed(1), radius, baseD },
     }, shared, lens, blood, circuit);
+    if (bury) o.setBury(bury[0], bury[1]);
     o.edge = { id: edge, from: edgeById.get(edge)?.from ?? '', to: edgeById.get(edge)?.to ?? '', length: built.length };
     o.group.visible = false;
     o.setFade(0);
