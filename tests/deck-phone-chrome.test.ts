@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { planLayout, barOf, PILL_W, PILL_W_SIDE, STRIP_H, type Need } from '../src/ui/layout/plan.ts';
+import { planLayout, barOf, PILL_W, PILL_W_SIDE, type Need } from '../src/ui/layout/plan.ts';
+import { GRIP } from '../src/ui/layout/rules2d.ts';
 import { useUi } from '../src/ui/ui-store.ts';
 
 // The phone's talk chrome (Mohammad, 20 Nov, iPhone): he could not close a talk, could not see which slide he was on, could not hide the top card as in 2D, and could move the figure in a talk.
@@ -34,7 +35,8 @@ test('the dock (2D): a phone with both cards up puts the data card away to a str
   const open = planLayout(phone, needs), away = planLayout(phone, needs, 'words', 0, true);
   assert.equal(open.docked, false); assert.equal(away.docked, true);
   assert.deepEqual(away.cards.map((c) => c.id), ['teach'], 'only the words stay');
-  assert.equal(away.strip?.slot, 'data'); assert.equal(away.strip?.id, 'ladder'); assert.equal(away.strip?.rect.h, STRIP_H);
+  assert.equal(away.strip?.slot, 'data'); assert.equal(away.strip?.id, 'ladder'); assert.equal(away.strip?.rect.h, GRIP); assert.equal(GRIP, 34, '2D\'s closed card edge');
+  const css = read('src/ui/deck-ui.css'); assert.match(css, /\.dk-strip\[data-dock\] \{ height: 34px; \}/);
   assert.deepEqual(away.cards[0].rect, open.cards.find((c) => c.slot === 'words')!.rect, 'the words do not move');
   assert.ok(away.free.h > open.free.h, `the figure's room grows (${open.free.h} -> ${away.free.h})`);
   assert.ok(!hit(away.free, away.strip!.rect) && !hit(away.free, away.cards[0].rect), 'and it clears the strip and the words');

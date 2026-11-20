@@ -81,6 +81,9 @@
 /* the strip is the 2D wallet's: its glass, hairline and radius are .pz-shade.pz-card, its grab bar and name the .pz-shuf pseudo-elements; the planner places it (.dk-pos) */
 .deck-ui.pz .dk-strip.pz-shade { position: relative; inset: auto; left: auto; right: auto; top: auto; bottom: auto; width: 100%; max-height: none; margin: 0; padding: 0; }
 .deck-ui.pz .dk-strip.pz-shuf::after { opacity: 1; }
+.dk-strip[data-dock] { height: 34px; }   /* the data card put away: 2D's closed card's edge, 34 px, its grab bar in the foot (.pz-grip's place) and no name */
+.deck-ui.pz .dk-strip[data-dock].pz-shuf::after { content: none; }
+.deck-ui.pz .dk-strip[data-dock].pz-shuf::before { top: auto; bottom: 3px; width: 34px; height: 3px; margin-left: -17px; }
 .dk-strip[data-phase="wait"] { opacity: 0; visibility: hidden; }
 .dk-strip[data-phase="in"] { animation: dk-in var(--move) var(--ease) both; }
 .dk-strip[data-phase="out"] { animation: dk-out 220ms cubic-bezier(0.4, 0, 1, 1) both; pointer-events: none; }
