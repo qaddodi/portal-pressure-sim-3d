@@ -65,6 +65,6 @@ test('every shader that draws streaks uses the stream\'s own sign, the heads\' s
   assert.match(MICRO_FS, /return streakField\(vAcross, vArc \* s, uFlowT \* s, 1\.0, 1\.0, 1\.0\) \* uFlowStreak;/);
   // the sinusoid's streaked parts: the field's flow is the stream's run (uFlow), the heads' lattice stands at vP.x - uFlow and points toward sign(uFlow)
   assert.match(MICRO_FS, /streakField\(vAux, vP\.x, uFlow, uHalf, uProfile, uStreakDir\)/);
-  assert.match(MICRO_FS, /chevLattice\(vP\.x - uFlow, vAux, 6\.0, max\(fwidth\(vP\.x\), 1e-5\), dir\)/);
+  assert.match(MICRO_FS, /chevLattice\(vP\.x - uFlow, vAux, 6\.0, gXF, dir\)/);
   assert.match(MICRO_FS, /float dir = uFlow >= 0\.0 \? 1\.0 : -1\.0;/);
 });
