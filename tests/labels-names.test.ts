@@ -22,7 +22,9 @@ test('the label words are the 2D app\'s (when the 2D checkout at the pin is at h
 test('every name a station shows is the 2D name for that station; abbreviations are the 2D ones', () => {
   for (const s of STATIONS.filter((x) => x.kind !== 'organ')) {
     assert.equal(s.name, (LABEL_NAMES.SHORT as Record<string, string>)[s.id], `${s.id} name`);
-    const ab = (LABEL_NAMES.ABBR as Record<string, string>)[s.id] ?? null;
+    // (the 2D short forms, except one that is another station's own name: "Lower IVC" is not shortened to "IVC", the IVC above it with another number; Mohammad's play-test, 20 Nov)
+    const ab0 = (LABEL_NAMES.ABBR as Record<string, string>)[s.id] ?? null;
+    const ab = ab0 && STATIONS.some((o) => o.id !== s.id && o.name === ab0) ? null : ab0;
     assert.equal(s.abbr, ab, `${s.id} abbreviation`);
     assert.ok(!/\.$/.test(s.name) && !/\.$/.test(s.abbr ?? ''), `${s.id}: no name ends in a full stop (17 Oct design review)`);
   }

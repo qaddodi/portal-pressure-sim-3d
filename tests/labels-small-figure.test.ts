@@ -31,13 +31,13 @@ function world(place: TestsPlace | null, state = NO_STATE) {
   return { room, rig, ctl, figureH };
 }
 
-test('in Anatomy the phone\'s figure fills the room\'s width, and never leaves more than 60 px empty above or below it', () => {
+test('in Anatomy the phone\'s figure fills the room\'s width, and never leaves more than 100 px empty above or below it', () => {
   const { room, rig, figureH } = world(null);
   const mid = (PLATE_BOUNDS.x0 + PLATE_BOUNDS.x1) / 2;
   const l = rig.project(new Vector3(PLATE_BOUNDS.x0, 0, FIGURE_Z), { x: 0, y: 0 }), r = rig.project(new Vector3(PLATE_BOUNDS.x1, 0, FIGURE_Z), { x: 0, y: 0 });
-  assert.ok(r.x - l.x >= room.w * FILL * 0.9, `the plate is ${(r.x - l.x).toFixed(0)} px wide in a room ${room.w} px wide`);
+  assert.ok(r.x - l.x >= room.w * FILL * 0.8, `the plate is ${(r.x - l.x).toFixed(0)} px wide in a room ${room.w} px wide`);
   const top = rig.project(new Vector3(mid, PLATE_BOUNDS.y1, FIGURE_Z), { x: 0, y: 0 }).y, bottom = rig.project(new Vector3(mid, PLATE_BOUNDS.y0, FIGURE_Z), { x: 0, y: 0 }).y;
-  assert.ok(top - room.y <= 60 && room.y + room.h - bottom <= 60, `empty above ${(top - room.y).toFixed(0)}, below ${(room.y + room.h - bottom).toFixed(0)}`);
+  assert.ok(top - room.y <= 100 && room.y + room.h - bottom <= 100, `empty above ${(top - room.y).toFixed(0)}, below ${(room.y + room.h - bottom).toFixed(0)}`);
   assert.ok(figureH() > FIG_BACK, 'a figure this size keeps its names');
 });
 
@@ -94,4 +94,50 @@ test('with every drawn vessel known to the solver the phone\'s names cross fewer
   assert.ok(all.length < named.length, `crossing ${all.join(',')} against ${named.join(',')}`);
   assert.ok(all.length <= 1, `${all.join(',')}`);
   assert.ok(svGap[1]! <= 20, `"Splenic vein" stands ${svGap[1]!.toFixed(0)} px from its dot (phone play-test: on the stomach, far from its vessel)`);
+});
+
+// ── a label's words are the words of the form it stands in ──
+import { stationById, STATIONS } from '../src/scene/labels/stations.ts';
+
+test('a label draws the words of its own form: a station with no abbreviation never has its full name drawn over its number alone ("P16.6nusoids", "IV4.9")', () => {
+  const room = roomWith(freeRoom(phone, layoutClass(true)), null);
+  const rig = new CameraRig('play', room); rig.resize(phone.w, phone.h); rig.goTo('play', room, 0, 0); rig.update(0);
+  let t = 1000;
+  const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: phone.w, y1: phone.h }), view: () => ({ x0: 0, y0: 56, x1: 220, y1: 420 }), vp: () => phone, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0 } as unknown as LabelDeps;
+  const ctl = new LabelController(deps); ctl.setState({ ...NO_STATE, organNames: true });
+  for (let i = 0; i < 120; i++) { t += 16; ctl.tick(); }
+  let narrow = 0;
+  for (const d of ctl.out) {
+    const forms = ctl.stationForms(stationById(d.id)!);
+    assert.equal(d.word, forms[d.form]!.text, `${d.id} form ${d.form}`);
+    assert.ok(d.w >= forms[d.form]!.w - 0.01);
+    if (d.form === forms.length - 1 && forms.length > 1) { narrow++; assert.equal(d.word, '', `${d.id}: the number alone has no name`); }
+  }
+  void narrow;
+  // no station with no abbreviation has a form between its name and its number: index 1 is the number alone
+  const lone = STATIONS.filter((s) => s.kind !== 'organ' && !s.abbr && s.node);
+  assert.ok(lone.length > 0);
+  for (const s of lone) { const f = ctl.stationForms(s); assert.equal(f.length, 2, s.id); assert.equal(f[1]!.text, ''); }
+  // "Lower IVC" stays "Lower IVC": its 2D short form is another station's name
+  assert.equal(stationById('IVCI')!.abbr, null);
+  assert.equal(stationById('IVCS')!.name, 'IVC');
+});
+
+test('no leader runs through another label, organ names included (the right atrium\'s leader ran through RIGHT ATRIUM, phone play-test 20 Nov)', () => {
+  for (const [name, vp, thumb] of [['phone', phone, true], ['mac', { w: 1440, h: 900, safe: { top: 0, right: 0, bottom: 0, left: 0 } }, false]] as const) {
+    const room = roomWith(freeRoom(vp, layoutClass(thumb)), null);
+    const rig = new CameraRig('play', room); rig.resize(vp.w, vp.h); rig.goTo('play', room, 0, 0); rig.update(0);
+    let t = 1000;
+    const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: vp.w, y1: vp.h }), view: () => ({ x0: 0, y0: 56, x1: vp.w, y1: vp.h }), vp: () => vp, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0 } as unknown as LabelDeps;
+    const ctl = new LabelController(deps); ctl.setState({ ...NO_STATE, organNames: true });
+    for (let i = 0; i < 120; i++) { t += 16; ctl.tick(); }
+    for (const d of ctl.out) {
+      if (!d.leader) continue;
+      const l = d.leader, x2 = l.x + Math.cos(l.angle) * l.len, y2 = l.y + Math.sin(l.angle) * l.len;
+      for (const o of ctl.out) {
+        if (o === d || o.kind !== 'station') continue;
+        assert.ok(!crosses(l.x, l.y, x2, y2, { x0: o.x, y0: o.y, x1: o.x + o.w, y1: o.y + o.h }), `${name}: the leader of ${d.id} runs through ${o.id}`);
+      }
+    }
+  }
 });

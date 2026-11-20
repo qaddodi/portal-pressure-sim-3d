@@ -4,11 +4,15 @@ import { readFileSync } from 'node:fs';
 import { CEL } from '../src/scene/vessels/cel-ink.ts';
 import { CEL_BANDS, CEL_STYLE, celBand } from '../src/scene/cel-style.ts';
 
-test('the figure has one cel style: three tones, and the vessels\' numbers are 2D\'s own', () => {
+test('the figure has one cel style: three tones, and the vessels read every number from it', () => {
   assert.equal(CEL_BANDS, 3);
-  const S = CEL_STYLE;   // (the true-toon numbers of 20 Nov: stronger than 2D's -0.16 / 0.24 / 0.17 / 0.15 / 1.5 px, one place to change back)
-  assert.deepEqual({ ...CEL }, { DIR: S.DIR, SHADE_AT: S.SHADE_AT, LIT_AT: S.LIT_AT, SHADE: S.SHADE, LIT: S.LIT, LINE_MIN: S.LINE_MIN, LINE_MAX: S.LINE_MAX, LINE_R: S.LINE_R });
-  assert.ok(S.SHADE >= 0.17 && S.LIT >= 0.15 && S.LINE_MIN >= 1.5 && S.LIT_AT > S.SHADE_AT, 'never softer than 2D');
+  const { DIR, SHADE_AT, LIT_AT, SHADE, LIT, LINE_MIN, LINE_MAX, LINE_R } = CEL_STYLE;
+  assert.deepEqual({ ...CEL }, { DIR, SHADE_AT, LIT_AT, SHADE, LIT, LINE_MIN, LINE_MAX, LINE_R });
+  // the relationships a toon look needs, whatever the numbers: the tones are told apart, the shade side is wide, the line is bold and its floor is under its cap, a band edge is under a pixel
+  assert.ok(SHADE_AT < 0 && LIT_AT > SHADE_AT && LIT_AT < 1, 'three bands in order inside -1..1');
+  assert.ok(SHADE >= 0.3 && LIT >= 0.2, 'tones clearly different, not soft shading');
+  assert.ok(LINE_MIN >= 2 && LINE_MIN < LINE_MAX && CEL_STYLE.INK_ALPHA_MIN >= 0.85 && CEL_STYLE.EDGE_PX <= 1);
+  assert.ok(CEL_STYLE.SPEC.AT > LIT_AT && CEL_STYLE.SPEC.MIN_PX >= 3, 'the highlight sits in the lit band and not on a hairline');
 });
 
 test('celBand: three bands with a hard edge', () => {
@@ -22,6 +26,6 @@ test('celBand: three bands with a hard edge', () => {
 test('no second copy of the vessels\' band thresholds outside cel-style.ts', () => {
   for (const f of ['src/scene/vessels/cel-ink.ts']) {
     const t = readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
-    assert.ok(!/SHADE_AT:\s*-0\.16|LIT_AT:\s*0\.24/.test(t), `${f} reads CEL_STYLE, it does not carry its own thresholds`);
+    assert.ok(!/SHADE_AT:\s*-?\d|LIT_AT:\s*\d/.test(t), `${f} reads CEL_STYLE, it does not carry its own thresholds`);
   }
 });

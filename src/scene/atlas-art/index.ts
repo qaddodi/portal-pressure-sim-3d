@@ -15,6 +15,7 @@ import { setAtlasStatus } from './status.ts';
 import type { Specimen } from './types.ts';
 import type { VesselObject } from '../vessels/vessel-object.ts';
 import type { LookId } from '../../looks/looks.ts';
+import type { Palette } from '../palette.ts';
 import { bodyTargets, type DiseaseFrame, type DiseaseParams } from '../disease/targets.ts';
 
 /** What the atlas needs from the scene. */
@@ -101,7 +102,7 @@ export class AtlasArt {
     const t = bodyTargets(f, params ?? {}, healthyP);
     this.specimen = specimenOf(params as SpecimenParams | null);
     this.organs.setSpecimen(this.specimen);
-    this.organs.setBody(t.ascites, t.spleenScale, t.splenicRx, instant);
+    this.organs.setBody(t.ascites, t.spleenScale, t.splenicRx, instant, t);
     this.syncFiles();
   }
 
@@ -114,8 +115,8 @@ export class AtlasArt {
     }
   }
 
-  /** The look: the artist's palette for it and the figure's own casing ink for the line. */
-  applyLook(look: LookId, dark: boolean): void { this.organs.setLook(look, dark); }
+  /** The look: 2D's organ tones for it (the palette) and the figure's own casing ink for the pool's waterline. */
+  applyLook(look: LookId, dark: boolean, palette: Palette): void { this.organs.setLook(look, dark, palette); }
 
   /** Steps the crossfades, and swaps the vessels to the patient's form once that form's organs are in (the two change together). True while anything moves. */
   update(now: number): boolean {

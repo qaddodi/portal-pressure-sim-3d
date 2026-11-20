@@ -53,11 +53,17 @@ uniform vec3 o3;
 uniform vec3 color;
 uniform vec4 ogLight;
 uniform vec4 ogDark;
-uniform vec4 volShade;
 // the cel tones (organs/cel-tones.ts, through organColour): flat, matte, the organ's own 2D tone and a lightness step either side of it
 uniform vec3 celShade;
 uniform vec3 celBase;
 uniform vec3 celLit;
+uniform vec4 volLight;   // see-through fill: #ogVol's light stop (--light-ink and its opacity)
+uniform vec4 volShade;   // its shade stop: --og-vol-shade and its opacity
+uniform vec4 volGeo;     // its centre (cx, cy), radius, and the offset where the light has ended
+uniform float volShadeAt;
+uniform vec3 shadeSteps; // the inner shade's three strokes' opacities (the right atrium's are fainter)
+uniform float rimK;      // the rim light's opacity (0 on the liver and the stomach: too shiny, owner 20 Nov)
+uniform float wash;      // 1 minus the cel fill's share (layer.ts uWash): the see-through fill's own terms fade out with it
 uniform vec3 page;
 uniform float layer;
 uniform float inkAmount;
@@ -110,12 +116,12 @@ void main() {
   // what varies over the surface (nodules, the dead spleen, the pool) moves the fill by as much as it moves the organ's one colour
   fill += (vInk - color) * inkAmount;
 #endif
-  // og-vol: light at (.34,.26), the volume shade toward the rim
-  // (2D's #ogVol, stage.js: light out to r = .46 of the box, shade from .74 to .92)
-  float r = distance(vBox, vec2(0.34, 0.26)) / 0.92;
-  fill = mix(fill, ogLight.rgb, ogLight.a * 0.22 / 0.55 * (1.0 - clamp(r / 0.5, 0.0, 1.0)));
-  fill = mix(fill, volShade.rgb, volShade.a * 0.17 * clamp((r - 0.8) / 0.2, 0.0, 1.0));
-  // the inner shade: three soft steps of the turn away from the eye (2D strokes 30/18/8 px at .09/.15/.24)
+  // The terms below that 2D adds on top of the plain gradient belong to the see-through fill: wash (1 at the wash, 0 once the fill is cel shaded, eased with it) fades each out.
+  // #ogVol (2D stage.js): --light-ink at its first stop's opacity from the centre out to the light's end, then --og-vol-shade from its start to the rim
+  float r = distance(vBox, volGeo.xy) / volGeo.z;
+  fill = mix(fill, volLight.rgb, volLight.a * (1.0 - clamp(r / volGeo.w, 0.0, 1.0)) * wash);
+  fill = mix(fill, volShade.rgb, volShade.a * clamp((r - volShadeAt) / (1.0 - volShadeAt), 0.0, 1.0) * wash);
+  // the inner shade: three soft steps of the turn away from the eye (2D strokes 30/18/8 px)
   float ndv = clamp(dot(n, normalize(vV)), 0.0, 1.0);
   float turn = 1.0 - ndv;
   float w = max(fwidth(turn), 1e-4);
@@ -123,11 +129,11 @@ void main() {
   // strokes by (-3.5, -5) inside the organ's clip, so the upper left edge gets almost none
   vec2 side = length(n.xy) > 1e-4 ? normalize(n.xy) : vec2(0.0);
   float lowerRight = smoothstep(-0.35, 0.65, dot(side, vec2(0.57, -0.82)));
-  float k = 1.0 - (1.0 - 0.09 * smoothstep(0.45 - w, 0.45 + w, turn)) * (1.0 - 0.15 * smoothstep(0.68 - w, 0.68 + w, turn)) * (1.0 - 0.24 * smoothstep(0.86 - w, 0.86 + w, turn));
+  float k = 1.0 - (1.0 - shadeSteps.x * smoothstep(0.45 - w, 0.45 + w, turn)) * (1.0 - shadeSteps.y * smoothstep(0.68 - w, 0.68 + w, turn)) * (1.0 - shadeSteps.z * smoothstep(0.86 - w, 0.86 + w, turn));
   fill = mix(fill, ogDark.rgb, ogDark.a * k * lowerRight);
   // the rim light on the edge that faces the top left
   float lit = smoothstep(0.62, 0.8, turn) * clamp(dot(side, vec2(-0.6, 0.8)), 0.0, 1.0);
-  fill = mix(fill, ogLight.rgb, ogLight.a * 0.58 * lit);
+  fill = mix(fill, ogLight.rgb, ogLight.a * rimK * lit);
   // Organ depth (a step beyond 2D; with depthAmt 0 nothing below runs and the fill is exactly the wash above). Three soft steps, in the look's own tones:
   // the baked tuck (creases, where one organ meets another) in og-dark, the side turned from a light at the upper left of the screen in og-dark, the side facing it in og-light
   // (the tuck keeps the light out). One baked byte per vertex and one dot: no texture, no pass.

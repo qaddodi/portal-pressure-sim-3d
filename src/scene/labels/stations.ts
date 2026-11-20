@@ -43,7 +43,7 @@ export interface Station {
 }
 
 const names = N.SHORT as Record<string, string>;
-const abbrs = N.ABBR as Record<string, string>;
+const abbrs = Object.fromEntries(Object.entries(N.ABBR as Record<string, string>).filter(([id, a]) => !Object.entries(names).some(([o, n]) => o !== id && n === a))) as Record<string, string>;   // (2D's short forms, except one that is another station's own name: "Lower IVC" never shortens to "IVC", which is the IVC above it, with another number)
 const lv = N.LABEL_VESSEL as Record<string, string>;
 const pri = N.ANAT_PRI as Record<string, number>;
 const extra = new Set<string>(N.ANAT_EXTRA);
