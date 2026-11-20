@@ -1,3 +1,4 @@
+import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { ORGAN_Z } from '../src/scene/organs/z.ts';
 import { readFileSync } from 'node:fs';
 import manifest from '../src/scene/organs/organs-manifest.json' with { type: 'json' };
@@ -134,10 +135,16 @@ test('the vessels lie in one plane through the organs, not in front of them: eve
   const b = readFileSync('public/anatomy/organs.bin'), buf = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
   const M = manifest as unknown as { q: number; organs: Record<string, [number, number]> };
   const zr = (id: string) => { const [pb, nv] = M.organs[id]!, q = new Int16Array(buf, pb, nv * 3); let lo = Infinity, hi = -Infinity; for (let i = 0; i < nv; i++) { const z = q[i * 3 + 2]! / M.q; lo = Math.min(lo, z); hi = Math.max(hi, z); } return { lo, hi }; };
-  const zs = Object.values(TIER_Z);
-  for (const id of ['liver', 'heart', 'kidney-l', 'stomach']) { const r0 = zr(id), r = { lo: r0.lo + ORGAN_Z[id]!, hi: r0.hi + ORGAN_Z[id]! }; for (const t of Object.entries(TIER_Z)) assert.ok(t[1] > r.lo && t[1] < r.hi, `${t[0]} (${t[1]}) is inside ${id} (${r.lo} to ${r.hi})`); }
+  const zs = Object.entries(TIER_Z).filter(([k]) => k !== 'fwd').map(([, z]) => z);
+  for (const id of ['liver', 'heart', 'kidney-l', 'stomach']) { const r0 = zr(id), r = { lo: r0.lo + ORGAN_Z[id]!, hi: r0.hi + ORGAN_Z[id]! }; for (const t of Object.entries(TIER_Z).filter(([k]) => k !== 'fwd')) assert.ok(t[1] > r.lo && t[1] < r.hi, `${t[0]} (${t[1]}) is inside ${id} (${r.lo} to ${r.hi})`); }
   { const r0 = zr('spleen'), z = NZ.get('SPL')!; assert.ok(z > r0.lo + ORGAN_Z.spleen! && z < r0.hi + ORGAN_Z.spleen!, 'the splenic vein starts inside the spleen'); }
   assert.ok(Math.max(...zs) - Math.min(...zs) <= 0.2, 'one plane: the tiers differ by a crossing only');
+  // the paraumbilical vein runs in front of the main portal vein where they cross, by more than both their radii (never through it)
+  { const c3 = NETWORK_BY_ID.get('C3')!, pv = NETWORK_BY_ID.get('PV_TRUNK')!, a = coursesOf(c3, REST)[0]!.pts, b = coursesOf(pv, REST)[0]!.pts;
+    let min = Infinity, near = 0;
+    for (const p of a) for (const q of b) { if (Math.hypot(p[0] - q[0], p[1] - q[1]) < c3.radius + pv.radius) { near++; min = Math.min(min, p[2] - q[2] - c3.radius - pv.radius); } }
+    assert.ok(near > 0, 'they cross');
+    assert.ok(min > 0, `C3 passes ${min.toFixed(3)} clear in front of the portal trunk`); }
   // a vessel's own depth never moves more than that along its course (a jog of a quarter unit in z was a 14 degree sideways zigzag)
   for (const v of NETWORK) if (!v.feeder) { const zz = v.pts.map((p) => p[2]); assert.ok(Math.max(...zz) - Math.min(...zz) <= 0.2, `${v.id} stays in the plane`); }
 });
