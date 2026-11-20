@@ -16,6 +16,7 @@ import { flowRate, flowTarget } from './flow-rate.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
+import { centrelineOf, type Centreline } from './vessels/centreline.ts';
 import { fadeOf, HEPATIC_VEINS, cavaEndSpan, CAVA_RECEDE } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
@@ -338,6 +339,8 @@ export class CelScene {
 
   /** The vessel object of an edge, or undefined. */
   vesselObject(id: string): VesselObject | undefined { return this.byEdge.get(id) as VesselObject | undefined; }
+  /** The drawn centreline and radius of vessel `id` at its present shape: what anything that lies in a vessel (the HVPG column, a catheter, a probe) binds to (vessels/centreline.ts). */
+  vesselCentreline(id: string): Centreline | null { return centrelineOf(id, this.shapes.stateOf(id) ?? REST); }
 
   // ---- looks ---------------------------------------------------------------------------------
 
