@@ -62,6 +62,8 @@ const smooth = (a: number, b: number, x: number) => { const t = clamp((x - a) / 
 const mix3 = (a: RGB, b: RGB, t: number): [number, number, number] => [lerp(a[0]!, b[0]!, t), lerp(a[1]!, b[1]!, t), lerp(a[2]!, b[2]!, t)];
 const mul3 = (a: RGB, k: number): [number, number, number] => [a[0]! * k, a[1]! * k, a[2]! * k];
 /** A colour's own ink: the colour much deeper (2D's cell clefts and organ lines are the colour darkened, never black). */
+/** A cell's or particle's ink: its own colour taken near black (CEL_STYLE.MICRO.INK_K), one rule for all of them. */
+const inkOf = (a: RGB): [number, number, number] => mul3(a, CEL_STYLE.MICRO.INK_K);
 const deep = (a: RGB, k = 0.48): [number, number, number] => mul3(a, k);
 
 /** What this scene reads of its host (sinusoid/view.ts: the state, palette, traffic and places). */
@@ -241,7 +243,7 @@ export class Sinusoid3D {
 
   private colour(P: Pal, act: number): void {
     // the hepatocytes' line: near black in their own warm tone, run round every microvillus too (Mohammad 20 Nov 2026: "the hepatocytes should have a black outline that extended to their microvilli")
-    const cellInk = mul3(P.cCell, 0.18);
+    const cellInk = inkOf(P.cCell);
     // (the floor of the clefts: light, the cell's colour toward the page, so a cleft reads as a thin clean gap between two outlines, never one black bar; the cells' walls stop just under
     // Disse's floor, so no deep dark wall shows down a cleft off the axis; coordinator from Mohammad's crops, 20 Nov 2026)
     this.ground.setTint(mix3(P.cCell, P.cBg, 0.5));
@@ -250,20 +252,20 @@ export class Sinusoid3D {
     this.bead.setTint(P.cEndo); this.beadLine.setTint(P.cEndoE);
     this.disse.setTint(P.cLymph);
     this.cells.setTint(P.cCell); this.cells.setInk(cellInk);
-    this.nuclei.setTint(mix3(P.cCell, P.cNuc, 0.55)); this.nuclei.setInk(deep(P.cNuc, 0.7));
+    this.nuclei.setTint(mix3(P.cCell, P.cNuc, 0.55)); this.nuclei.setInk(inkOf(P.cNuc));
     this.nucleoli.setTint(mix3(P.cNuc, P.cCell, 0.15));
-    this.bile.setTint(P.cBile); this.bile.setInk(deep(P.cBile, 0.5));
-    this.endoN.setTint(P.cEndoS); this.endoN.setInk(P.cEndoE);
+    this.bile.setTint(P.cBile); this.bile.setInk(inkOf(P.cBile));
+    this.endoN.setTint(P.cEndoS); this.endoN.setInk(inkOf(P.cEndoE));
     this.endoNi.setTint(P.cEndoN);
-    this.kup.setTint(mix3(P.cKup, P.cLumen, 0.25)); this.kup.setInk(mix3(P.cKupE, P.cKup, 0.35)); this.kupN.setTint(mix3(P.cKupN, P.cKup, 0.3));
+    this.kup.setTint(mix3(P.cKup, P.cLumen, 0.25)); this.kup.setInk(inkOf(P.cKupE)); this.kupN.setTint(mix3(P.cKupN, P.cKup, 0.3));
     const hc = mix3(P.cHscQ, P.cHscA, clamp(act, 0, 1));
-    this.hsc.setTint(hc); this.hsc.setInk(deep(hc, 0.5)); this.hscN.setTint(P.cHscN);
+    this.hsc.setTint(hc); this.hsc.setInk(inkOf(hc)); this.hscN.setTint(P.cHscN);
     this.bm.setTint(P.cBm);
     this.villi.setTint(P.cCell); this.villi.setInk(cellInk);   // (the hepatocyte's own colour, outlined: "outline the villi")
     this.fibres.setTint(P.cCol);
-    this.albumin.setTint(P.cAlb); this.albumin.setInk(deep(P.cAlbE, 0.8));
+    this.albumin.setTint(P.cAlb); this.albumin.setInk(inkOf(P.cAlbE));
     // (a red cell is a clear, bright red in two tones with a bold dark line of its own red, as every solid here: 2D's darker red read as brown under the shade, Mohammad 20 Nov "should not be colored brown")
-    this.rbc.setTint(mix3(P.cRbc, [0.96, 0.3, 0.32], 0.45)); this.rbc.setInk(deep(P.cRbc, 0.55));
+    this.rbc.setTint(mix3(P.cRbc, [0.96, 0.3, 0.32], 0.45)); this.rbc.setInk(inkOf(P.cRbc));
   }
 
   // ---- the shapes that follow the state (rebuilt at 1/64 steps of it) ------------------------------------------------------------

@@ -344,6 +344,9 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
       uGaps: { value: o.gaps?.tex ?? NO_GAPS }, uGapX: { value: o.gaps?.x ?? new Vector4(0, 0, 0, 0) },
     },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
+    // (the shape always wins over its own ink where the two meet at one depth, just inside the outline at the rim: a slope-scaled hair toward the eye, so the ink never z-fights the fill
+    // pixel by pixel. That speckle was the stippled, broken outline round the red cells, the nuclei and every small shape, Mohammad 20 Nov 2026: "most certainly NOT continuous")
+    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2,
   });
   const ink = o.ink === null ? null : new ShaderMaterial({
     vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors,
