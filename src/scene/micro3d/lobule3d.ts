@@ -56,6 +56,8 @@ const BILE_ID = 2_000_000;
 export const OVER_Z = LZ.cellTop + 0.002;
 /** The scene's fade is taken as whole from here up (FADE_GLSL's screen pattern drops pixels below 0.999). */
 export const FADE_SNAP = 0.98;
+/** How far from each end of a vessel (in its own radii) no flow mark is drawn: where it runs into another vessel. */
+export const END_HUSH_R = 3;
 /** Where the sinusoids stop inside the central vein, as a share of its radius: just inside its rim, so each meets the rim and none is drawn over the pool. */
 export const CV_HOLE_K = 0.96;
 /** The tract's arteriole and ductule openings are drawn this much larger than 2D's dots, so each corner reads as one triad: venule, artery and duct side by side (Mohammad, 20 Nov). */
@@ -440,7 +442,7 @@ export class Lobule3D {
         for (let i = 0; i < c.pts.length; i++) for (let s = 0; s < TUBE_SEG; s++) { W.push(w(c, i)); K.push(1); }
         for (let v = 0; v < capVerts; v++) { W.push(w(c, 0)); K.push(1); }
         for (let v = 0; v < capVerts; v++) { W.push(w(c, c.pts.length - 1)); K.push(1); }
-        flowAux(b, before, pts, ringVerts, capVerts, c.id * 0.137, (i) => (c.kind[0] === 's' || c.kind === 'an') && c.rho[i]! < DISC_R.cv * 1.6);
+        flowAux(b, before, pts, ringVerts, capVerts, c.id * 0.137, (i) => (c.kind[0] === 's' || c.kind === 'an') && c.rho[i]! < DISC_R.cv * 1.6, TUBE_SEG, END_HUSH_R * radius(c, 0) * R);
       }
       return { b, W, K };
     };
@@ -613,14 +615,16 @@ export function mouth(b: MeshBuilder, x: number, y: number, r: number, zTop: num
 
 /** The flow marks' place on a tube's vertices (tube() just wrote them from `before`): aux, how far along the path in its own direction (local units, from a per-tube offset), and
  *  aux2, across it (-1 .. 1, the in-plane side of the vertex's normal against the path); `hush(i)` true at a sample marks no chevron there (aux2 3: the central vein's mouth). */
-export function flowAux(b: MeshBuilder, before: number, pts: readonly (readonly [number, number, number])[], ringVerts: number, capVerts: number, phase: number, hush: ((i: number) => boolean) | null, seg = TUBE_SEG): void {
+export function flowAux(b: MeshBuilder, before: number, pts: readonly (readonly [number, number, number])[], ringVerts: number, capVerts: number, phase: number, hush: ((i: number) => boolean) | null, seg = TUBE_SEG, endHush = 0): void {
   const m = pts.length, arc: number[] = [phase];
   for (let i = 1; i < m; i++) arc.push(arc[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
+  // (no marks within endHush of either end: there a vessel runs into another, and a chevron half under the other's wall showed as a dark speck, eyes 20 Nov on the RHF lobule)
+  const nearEnd = (i: number) => endHush > 0 && (arc[i]! - arc[0]! < endHush || arc[m - 1]! - arc[i]! < endHush);
   const across = (v: number, i: number) => {
     const a = pts[Math.max(0, i - 1)]!, c = pts[Math.min(m - 1, i + 1)]!;
     let tx = c[0] - a[0], ty = c[1] - a[1]; const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
     const nx = b.n[v * 3]!, ny = b.n[v * 3 + 1]!;
-    return hush?.(i) ? 3 : -ty * nx + tx * ny;
+    return hush?.(i) || nearEnd(i) ? 3 : -ty * nx + tx * ny;
   };
   for (let v = before; v < before + ringVerts; v++) { const i = Math.floor((v - before) / seg); b.aux.push(arc[i]!); b.aux2.push(across(v, i)); }
   // (the round ends carry no flow marks: their along-the-vessel place is one number across the whole cap, so a chevron that fell on it filled the cap, a black square at every
