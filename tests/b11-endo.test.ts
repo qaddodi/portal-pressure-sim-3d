@@ -44,7 +44,7 @@ test('banding deflates the banded columns and cinches their knuckles, then holds
   assert.equal(m.state.kn.every((x) => x === 0), true);
 });
 
-test('the scope frame is whole: the clips balance, and bands, red marks and the bleed add to it', () => {
+test('the scope frame is whole: the clips balance and the bleed adds to it', () => {
   const pal = paletteOf('light');
   const m = new FieldMotion();
   run(m, base, 3000);
@@ -56,8 +56,6 @@ test('the scope frame is whole: the clips balance, and bands, red marks and the 
   run(b, { ...base, bands: 4 }, 4000);
   const banded = scopeFrame({ field: b.state, over: { balloon: 0, jet: 0, pool: 0, seconds: 1, tearGrow: b.state.g } }, 300, pal);
   assert.equal(depth(banded), 0);
-  const rings = (f: typeof plain) => f.shapes.filter((s) => s.k === 'circle' && 'pen' in s && s.pen).length;
-  assert.ok(rings(banded) >= rings(plain) + 4, 'a band ring is drawn on each of four knuckles');
   const bleed = scopeFrame({ field: m.state, over: { balloon: 0, jet: 1, pool: 0.5, rate: 80, hr: 100, seconds: 1, tearGrow: m.state.g } }, 300, pal);
   assert.equal(depth(bleed), 0);
   assert.ok(bleed.shapes.length > plain.shapes.length, 'the bleed is drawn');
@@ -183,25 +181,6 @@ test('the fine vessel net is a set of thin lines along the wall, faded in from t
   assert.ok(thickest <= 24);
 });
 
-test('the scope frame carries the mottling and the net, under the columns, in the shader\'s own vessel colour', () => {
-  const pal = paletteOf('light');
-  const m = new FieldMotion();
-  run(m, base, 3000);
-  const f = scopeFrame({ field: m.state, over: { balloon: 0, jet: 0, pool: 0, seconds: 1, tearGrow: m.state.g } }, 300, pal);
-  const white = f.shapes.filter((s) => s.k === 'circle' && s.fill && s.fill[0] === 1 && s.fill[2] === 1 && s.fill[3] < 0.2).length;
-  const black = f.shapes.filter((s) => s.k === 'circle' && s.fill && s.fill[0] === 0 && s.fill[2] === 0 && s.fill[3] < 0.2).length;
-  assert.ok(white > 50 && black > 50, 'patches lighter and darker than the wall');
-  const net = f.shapes.filter((s) => s.k === 'path' && !s.closed && s.pen && s.pen.cap === 'round' && s.pen.color[3] <= 0.5 && s.pen.w <= 2.5);
-  assert.ok(net.length > 100, 'the net');
-  const vessels = parseColour(SCOPE_TOKENS['endo-vessels']);
-  const hot = net.filter((s) => s.k === 'path' && s.pen!.color[0] > s.pen!.color[1] && s.pen!.color[0] > s.pen!.color[2]);
-  assert.ok(hot.length > net.length * 0.9, 'red-violet, lit by the tip light');
-  assert.ok(vessels[0] > vessels[1]);
-  // the net is laid before the first column's ribbon (the shader mixes the vein over it)
-  const lastNet = f.shapes.lastIndexOf(net[net.length - 1]!), firstCol = f.shapes.findIndex((s) => s.k === 'grid');
-  assert.ok(firstCol > lastNet, 'columns over the net');
-});
-
 // ── a slide's options for the scope ──
 test('a slide\'s air, red and readings change what the tiles print, as 2D configure does', () => {
   assert.deepEqual(scopeOptions({ air: 10, red: false, readings: true }), { air: 10, red: false, readings: true });
@@ -217,30 +196,44 @@ test('a slide\'s air, red and readings change what the tiles print, as 2D config
   assert.equal(ENDO_WORDS.pressures.length, 3);
 });
 
-test('the scope is smooth, not stepped: the wall is one gradient, each column a shaded grid that bulges, the knuckle a dome (Mohammad, 20 Nov: "smooth somehow, and bulging")', () => {
+test('the field is the 2D shader, per pixel, under the frame: the frame carries only what goes over it (balloon, bleed, bezel), and the shader has its colours, state and origin', async () => {
+  const { endoShaderSource } = await import('../src/ui/tests/endo/endo-under.ts');
   const pal = paletteOf('light');
   const m = new FieldMotion();
   run(m, { ...base, bands: 2 }, 4000);
   const f = scopeFrame({ field: m.state, over: { balloon: 0, jet: 0, pool: 0, seconds: 1, tearGrow: m.state.g } }, 300, pal);
-  const radial = f.shapes.filter((s) => s.k === 'radial');
-  assert.ok(radial.some((s) => s.k === 'radial' && s.stops.length >= 30), 'the mucosa is one radial gradient with a colour at every depth');
-  assert.equal(f.shapes.filter((s) => s.k === 'path' && s.closed && s.fill && s.fill[3] === 1).length, 0, 'no opaque flat piece of a column or ring is left');
-  const grids = f.shapes.filter((s) => s.k === 'grid' && s.cols > 3);
-  assert.ok(grids.length >= 1);
-  for (const g of grids) {
-    if (g.k !== 'grid') continue;
-    // across the column the colour changes smoothly and the crest stands out of its flanks (a bulge: lighter at the crest than where it meets the wall)
-    const row = Math.floor(g.rows / 3), at = (j: number) => g.colors[row * g.cols + j]!;
-    const lum = (c: readonly number[]) => c[0]! + c[1]! + c[2]!;
-    const mid = Math.floor(g.cols / 2);
-    let maxStep = 0; for (let j = 1; j < g.cols; j++) maxStep = Math.max(maxStep, Math.abs(lum(at(j)) - lum(at(j - 1))));
-    assert.ok(maxStep < 0.35, `no hard step across a column (${maxStep})`);
-    assert.ok(g.cols >= 15 && g.rows >= 40, 'sampled finely');
-    void mid;
-  }
-  // the mesh the GPU gets blends colour between its corners: a cell of a grid has different colours at its corners
-  const mesh = tessellate({ w: 300, h: 300, shapes: grids, label: '' });
-  assert.ok(mesh.triangles > 1000);
-  const colours = new Set<string>(); for (let i = 0; i < mesh.verts.length; i += 6) colours.add(mesh.verts[i + 2]!.toFixed(3));
-  assert.ok(colours.size > 200, 'many colours, not a few flat ones');
+  assert.ok(f.shapes.every((s) => s.k === 'clip' || s.k === 'unclip' || s.k === 'circle'), 'no stepped wall, column or knuckle is drawn from shapes any more');
+  const src = endoShaderSource();
+  assert.ok(src.startsWith('#version 300 es') && !src.includes('${') && !src.includes('gl_FragColor'));
+  for (const u of ['uSize', 'uOrigin', 'uGrow', 'uVis', 'uRed', 'uC0', 'uC1', 'uDef', 'uKn']) assert.ok(src.includes(`uniform`) && src.includes(u), u);
+  // the colours of the 2D tokens are written in (the mucosa's pale salmon)
+  const mucosa = parseColour(SCOPE_TOKENS['endo-mucosa']);
+  assert.ok(src.includes(`vec3(${(mucosa[0] * 255).toFixed(1)}, ${(mucosa[1] * 255).toFixed(1)}, ${(mucosa[2] * 255).toFixed(1)})`));
+});
+
+test('the field draws under the chart: one full-field triangle in a viewport that is the lumen\'s square, the state in its uniforms, and the drawer\'s state put back', async () => {
+  const { endoUnder } = await import('../src/ui/tests/endo/endo-under.ts');
+  const calls: string[] = [];
+  const uni: Record<string, unknown> = {};
+  const gl = new Proxy({} as Record<string, unknown>, {
+    get: (_t, k: string) => {
+      if (k === 'COMPILE_STATUS' || k === 'LINK_STATUS') return k;
+      if (k === 'getShaderParameter' || k === 'getProgramParameter') return () => true;
+      if (/^[A-Z_0-9]+$/.test(k)) return k;
+      if (k.startsWith('uniform')) return (loc: string, ...v: unknown[]) => { uni[loc] = v.length === 1 ? v[0] : v; calls.push(k); };
+      if (k === 'getUniformLocation') return (_p: unknown, n: string) => n;
+      if (k === 'viewport') return (...a: number[]) => calls.push(`viewport ${a.join(',')}`);
+      if (k === 'drawArrays') return (...a: number[]) => calls.push(`draw ${a.join(',')}`);
+      return () => ({});
+    },
+  }) as unknown as WebGL2RenderingContext;
+  const m = new FieldMotion();
+  run(m, base, 3000);
+  const under = endoUnder(() => ({ st: m.state, size: 300 }));
+  under(gl, 600, 600, 1);
+  assert.ok(calls.includes('draw TRIANGLES,0,3'));
+  assert.ok(calls.includes('viewport 8,8,584,584'), 'the lumen\'s square: the box less 4 CSS px each side, at two device px to a CSS px');
+  assert.equal(uni.uSize, 584);
+  assert.equal(uni.uGrow, m.state.grow);
+  assert.equal(calls[calls.length - 1], 'viewport 0,0,600,600', 'the drawer\'s viewport is put back');
 });

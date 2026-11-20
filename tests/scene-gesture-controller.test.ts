@@ -346,3 +346,17 @@ test('a turn springs home by itself 2 s after the last finger lifts; a new touch
   assert.match(src, /if \(!pointers\.size\) homeLater\(\);/);
   assert.match(src, /const onDown = \(ev: PtrEv\) => \{\n    homeCancel\(\);/);
 });
+
+test('two fingers: sliding together tilts (no zoom), spreading zooms (no tilt); one finger pans', () => {
+  let pitch = 0;
+  const r = rig({ free: () => true, orbitPitch: () => pitch, setOrbitPitch: (p: number) => { const ch = p !== pitch; pitch = p; return ch; } });
+  const t = { pointerType: 'touch' };
+  r.ptr('pointerdown', 1, 300, 300, t); r.ptr('pointerdown', 2, 400, 300, t);
+  for (let i = 1; i <= 6; i++) { r.advance(16); r.ptr('pointermove', 1, 300, 300 - i * 8, t); r.ptr('pointermove', 2, 400, 300 - i * 8, t); }
+  assert.notEqual(pitch, 0, 'the slide tilted'); assert.equal(r.hand.k, 1, 'and did not zoom');
+  r.ptr('pointerup', 1, 300, 252, t); r.ptr('pointerup', 2, 400, 252, t);
+  const p0 = pitch;
+  r.ptr('pointerdown', 3, 300, 300, t); r.ptr('pointerdown', 4, 400, 300, t);
+  for (let i = 1; i <= 6; i++) { r.advance(16); r.ptr('pointermove', 3, 300 - i * 8, 300, t); r.ptr('pointermove', 4, 400 + i * 8, 300, t); }
+  assert.ok(r.hand.k > 1, 'the spread zoomed'); assert.equal(pitch, p0, 'and did not tilt');
+});

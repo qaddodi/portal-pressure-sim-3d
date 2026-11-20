@@ -280,18 +280,6 @@ export function tessellate(frame: Frame | readonly Shape[]): Mesh {
         }
         break;
       }
-      case 'grid': {
-        out.grow((s.rows - 1) * (s.cols - 1) * 6);
-        for (let r = 0; r + 1 < s.rows; r++) {
-          for (let c = 0; c + 1 < s.cols; c++) {
-            const i00 = r * s.cols + c, i01 = i00 + 1, i10 = i00 + s.cols, i11 = i10 + 1;
-            const P = (i: number, q: Rgba) => out.v(s.pts[i * 2]!, s.pts[i * 2 + 1]!, q);
-            P(i00, s.colors[i00]!); P(i01, s.colors[i01]!); P(i10, s.colors[i10]!);
-            P(i01, s.colors[i01]!); P(i11, s.colors[i11]!); P(i10, s.colors[i10]!);
-          }
-        }
-        break;
-      }
       case 'clip': {
         flush();
         fillConvex(out, roundRectPoints(s.x, s.y, s.w, s.h, s.r ?? 0), [0, 0, 0, 1]);
