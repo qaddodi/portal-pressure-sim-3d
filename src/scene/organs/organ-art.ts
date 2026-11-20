@@ -141,7 +141,7 @@ export class OrganArt {
   private stomach: ShaderMaterial | null = null;
 
   /** Patches the organ's materials when the art knows it (and the file is in). Returns whether it did. Call after the organ painter is on the material, before the first draw. */
-  attach(id: string, toon: ShaderMaterial, ink: ShaderMaterial, g: BufferGeometry): boolean {
+  attach(id: string, toon: ShaderMaterial, ink: ShaderMaterial, g: BufferGeometry, seat?: ShaderMaterial | null): boolean {
     const d = data, tail = id === 'duodenum' && !!g.getAttribute('esoA');   // (the duodenum has no art: it is patched only for its tail's fade, with or without the file)
     if (!d && !tail) return false;
     const art = d?.arts[id] ?? null, isStomach = id === 'stomach' && !!d;
@@ -150,6 +150,11 @@ export class OrganArt {
     const p = patchedShaders(toon.vertexShader, toon.fragmentShader, ink.vertexShader, ink.fragmentShader, { art: !!art, eso, fade: id === 'colon' || tail });
     toon.vertexShader = p.vs; toon.fragmentShader = p.fs; ink.vertexShader = p.inkVs; ink.fragmentShader = p.inkFs;
     toon.needsUpdate = ink.needsUpdate = true;
+    // the AO seat (the soft halo round the outline) fades with the line: left whole it keeps a hollow outline where the fill and ink have gone (a faint box at the esophagus's top)
+    if (seat && eso !== null || seat && id === 'colon') {
+      const q = patchedShaders(seat.vertexShader, seat.fragmentShader, seat.vertexShader, seat.fragmentShader, { art: false, eso: null, fade: true });
+      seat.vertexShader = q.inkVs; seat.fragmentShader = q.inkFs; seat.needsUpdate = true;
+    }
     const u = toon.uniforms;
     if (isStomach) {
       // 2D's stomach gradient runs over the stomach's own outline, not over the pillow it shares with the esophagus (which is 2.4 times as tall)

@@ -10,6 +10,8 @@ import { x3, y3 } from '../frame2d.ts';
 import type { LookId } from '../../looks/looks.ts';
 
 export const FLUID_Z = 0.28;
+/** 2D paints the pool over the organ plate and the vessels (veins-gl.js fluidAt), so it is drawn after every organ and its ink (organs run to renderOrder 2 * 9 + 1) and ignores depth: the pool washes what lies in it, as in 2D. */
+export const POOL_ORDER = 19;
 /** The pool's ink in each look: tokens.css --ascites (the straw) and --ascites-a (its opacity at depth). Dark, Navy and Black share the dark block's; Soft has its own. */
 export const ASCITES_INK: Readonly<Record<LookId, { hex: string; a: number }>> = {
   light: { hex: '#E0C677', a: 0.4 }, soft: { hex: '#DCB95E', a: 0.42 },
@@ -83,8 +85,8 @@ export class AscitesLayer {
     for (let c = 0; c < COLS - 1; c++) for (let r = 0; r < ROWS - 1; r++) { const a = c * ROWS + r, b = a + ROWS; idx.push(a, a + 1, b, a + 1, b + 1, b); }
     g.setIndex(idx);
     // (the colours are written as the figure's own numbers, the way materials/cel.ts rawColor does: the picture goes through the anti-aliasing pass as it is)
-    const m = new Mesh(g, new MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false }));
-    m.renderOrder = 2; m.frustumCulled = false; m.visible = false;
+    const m = new Mesh(g, new MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false, depthTest: false }));
+    m.renderOrder = POOL_ORDER; m.frustumCulled = false; m.visible = false;
     this.group.add(m);
     this.fill = m;
   }
