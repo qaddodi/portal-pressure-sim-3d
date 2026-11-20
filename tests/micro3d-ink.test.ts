@@ -72,7 +72,7 @@ test('a flat shape on the plate measures its line against the plate\'s up, so it
   assert.match(MICRO_FS, /shadeT \* \(1\.0 - uRimUp\)/, 'one tone');
   assert.match(MICRO_FS, /uRimUp > 0\.5 \? vec3\(0\.0, 0\.0, 1\.0\) : normalize\(vVD\)/);
   const src = (await import('node:fs')).readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
-  for (const name of ['nuclei', 'canaliculi', 'endothelial-cells', 'stellate']) assert.match(src, new RegExp(`mk\\('${name}', \\{[^}]*rimUp: true`), name);
+  for (const name of ['nuclei', 'canaliculi', 'endothelial-nuclei', 'stellate']) assert.match(src, new RegExp(`mk\\('${name}', \\{[^}]*rimUp: true`), name);
 });
 
 test('a flat shape on the plate is a dome open below, so nothing of it shows past the equator its line is drawn on (eyes 20 Nov: the lining cell\'s edge beaded with gaps of pale fill)', async () => {
@@ -96,7 +96,7 @@ test('the lining lens draws its line from its own ellipse, exact whatever its tr
     assert.ok(Math.abs((x * c + y * s) / 4 - ux.getX(i)) < 1e-6 && Math.abs((-x * s + y * c) / 1.5 - uy.getX(i)) < 1e-6);
   }
   const src = (await import('node:fs')).readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
-  assert.match(src, /mk\('endothelial-cells', \{[^}]*rimUV: true/);
+  for (const name of ['endothelial-nuclei', 'endothelium-cut']) assert.match(src, new RegExp(`mk\\('${name}', \\{[^}]*rimUV: true`), name);   // (the nucleus's section and the cut's edges: their lines from the unit circle / the band's own edges; the cell itself has none)
 });
 
 test('far off, the sinusoid\'s small shapes lose their line before they are all line (eyes 20 Nov: dark dots across the lumen in the dive)', async () => {

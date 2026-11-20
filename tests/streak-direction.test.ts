@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { STREAK, STREAK_FIELD_GLSL, streakAlong } from '../src/scene/blood/streak-glsl.ts';
+import { DUST_GLSL } from '../src/scene/blood/dust-glsl.ts';
 import { advanceStreamAt } from '../src/scene/blood/blood.copied.js';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { MICRO_FS } from '../src/scene/micro3d/cel3d.ts';
@@ -49,7 +50,11 @@ test('every shader that draws streaks uses the stream\'s own sign, the heads\' s
   assert.match(STREAK_FIELD_GLSL, /float streakPace\(float seed\) \{ return 1\.0 \+ 0\.25 \* \(2\.0 \* seed - 1\.0\); \}/);
   assert.match(STREAK_FIELD_GLSL, /if \(dir < 0\.0\) t = 1\.0 - t;/);   // (the mark's shape only: it is the same both ways, and the drift is in x)
   // the Anatomy and the Circuit: the streak rides the stream's distance D (texel x) with the arc s, exactly where the heads' lattice is placed (Dm + j P along se = s)
-  assert.match(VESSEL_FS, /float fld = streakField\(across, vUv\.x \* len \* vU \* sc, smS\.w \* sc, 1\.0, 1\.0, 1\.0\);/);   // (texel w: the stream's distance, capped in speed)
+  // (the tubes draw the dust now: the same phase, the arc minus the stream's distance times a positive pace; texel w is the stream's distance, capped in speed)
+  assert.match(VESSEL_FS, /dustField\(across, sD, 0\.0, 1\.0, smS\.w, /);   // (its own: A 0, B 1)
+  assert.match(VESSEL_FS, /dustField\(across, sD, chD\.y, chD\.z, texelFetch\(streamTex, ivec2\(rootIx, 0\), 0\)\.w, /);   // (the chain's: the chevrons' A and B along the root's distance)
+  assert.match(DUST_GLSL, /float xs = \(se - flowFig \* sp\) \/ Pf \+ 0\.37 \* fk;/);
+  assert.match(DUST_GLSL, /float ae = \(\(jj \+ 0\.1 \+ 0\.8 \* h1 - 0\.37 \* fk\) \* Pf \+ flowFig \* sp - A0\) \/ Bs;/);
   assert.match(VESSEL_FS, /float j = floor\(\(se - Dm\) \/ P \+ 0\.5\);/);
   assert.match(VESSEL_FS, /float dir = vd != 0\.0 \? sign\(vd\) : \(rv > 0\.5 \? -1\.0 : 1\.0\);/);
   assert.match(VESSEL_FS, /chevHead\(dir \* x, /);

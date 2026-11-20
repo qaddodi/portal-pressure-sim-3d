@@ -2,7 +2,7 @@
 // builds. A vessel whose blood comes on from another (its parent: the largest inflow at the node where its blood enters) draws the parent's heads, carried on at its own speed: the
 // shader reads a head's place as se = A + B s along the root's stream, so a head runs out of one vessel and into the next instead of fading at each end. Each link eases its
 // weight in and out, so nothing pops. One 208 x 2 float texture goes to the GPU (row 0: root + 1, A, B, weight; row 1: the weights of a link at the vessel's from and to end,
-// parent + 1); nothing is made per frame once the items exist.
+// parent + 1, the root's tube radius); nothing is made per frame once the items exist.
 // What is not here is the 2D's head-run bookkeeping (stage-blood.js headRun: the lattice each row keeps while a link forms, lets go or moves, and the zoom's level swap): the
 // weights' easing hides a link changing, and the spacing follows the zoom in the shader (shaders.ts chevOne).
 import { DataTexture, FloatType, NearestFilter, RGBAFormat } from 'three';
@@ -32,6 +32,9 @@ export const INFO: readonly (EdgeInfo | null)[] = edges.map((e) => {
   for (let i = 1; i < path.length; i++) len += Math.hypot(path[i]![0] - path[i - 1]![0], path[i]![1] - path[i - 1]![1]);
   return len > 0 ? { id: e.id, from: e.from, to: e.to, path, len } : null;
 });
+
+/** Each edge's tube radius (the vessel shader's `radius`): the dust's lattice is the ROOT's, so a chained vessel is handed it (row 1, w; 0 where it has no link). */
+const RADIUS: readonly number[] = edges.map((e) => NETWORK_BY_ID.get(e.id)?.radius ?? 0);
 
 const sstep = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** A head carried on through a join is cut by the tube's end and drawn again, turned, on the next tube: past this turn between the two courses it shows as a black wedge at the fork,
@@ -114,7 +117,7 @@ export class StreamChain {
       for (let i = 0; i < n; i++) {
         const k = items[i]!.key, w = c.w[i]!, ef = exF[i]!, et = exT[i]!;
         const o = k * 4, o2 = NE * 4 + k * 4;
-        if (w > 0) { d[o] = c.root[i]! + 1; d[o + 1] = c.A[i]!; d[o + 2] = c.B[i]!; d[o + 3] = w; d[o2 + 2] = c.par[i]! + 1; }
+        if (w > 0) { d[o] = c.root[i]! + 1; d[o + 1] = c.A[i]!; d[o + 2] = c.B[i]!; d[o + 3] = w; d[o2 + 2] = c.par[i]! + 1; d[o2 + 3] = RADIUS[c.root[i]!] ?? 0; }
         d[o2] = ef; d[o2 + 1] = et;
       }
       this.texture.needsUpdate = true;

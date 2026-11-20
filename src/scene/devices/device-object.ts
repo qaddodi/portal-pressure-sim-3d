@@ -73,6 +73,15 @@ export class DeviceObject extends CelObject {
     // showed through the faint fill as a solid dark barrel (20 Nov 2026, "the balloon is black").
     this.toon.uniforms.rimFill = { value: 0 }; this.ink.uniforms.rimOnly = { value: 0 };
     this.toon.fragmentShader = 'uniform float rimFill;\n' + withAlpha(this.toon.fragmentShader, 'gl_FragColor = vec4(c, alpha * tailK(vUv.x));', 'float fr = 1.0 - abs(dot(normalize(vN), normalize(vV)));\n  float alpha = clamp(alpha * (1.0 + rimFill * fr * fr * 6.0), 0.0, 1.0);\n  gl_FragColor = vec4(c, alpha * tailK(vUv.x));');
+    // Depth rings (an endoscope's insertion tube has thin white rings every few cm, a heavier one every fifth): bands across the tube, by distance along it (uv.x), counted back from `stripeOff` (where the tip is, in uv),
+    // none within `stripeSkip` of it (the bending section has none). `stripeP` is the spacing in uv (0: none, the default).
+    this.toon.uniforms.stripeP = { value: 0 }; this.toon.uniforms.stripeOff = { value: 0 }; this.toon.uniforms.stripeW = { value: 0 }; this.toon.uniforms.stripeSkip = { value: 0 }; this.toon.uniforms.stripeCol = { value: new Color(1, 1, 1) }; this.toon.uniforms.stripeHeavy = { value: 2.4 };
+    this.toon.fragmentShader = 'uniform float stripeP;\nuniform float stripeOff;\nuniform float stripeW;\nuniform float stripeSkip;\nuniform vec3 stripeCol;\nuniform float stripeHeavy;\n' + withAlpha(this.toon.fragmentShader, '  gl_FragColor = vec4(c, alpha * tailK(vUv.x));', `  if (stripeP > 0.0) {
+    float sd = (stripeOff - vUv.x) / stripeP, sn = floor(sd + 0.5), sw = mod(abs(sn), 5.0) < 0.5 ? stripeW * stripeHeavy : stripeW;
+    float sk = step(stripeSkip, stripeOff - vUv.x) * step(0.5, sn);
+    c = mix(c, stripeCol, sk * (1.0 - smoothstep(sw * 0.55, sw, abs(sd - sn) * stripeP)));
+  }
+  gl_FragColor = vec4(c, alpha * tailK(vUv.x));`);
     this.ink.vertexShader = 'varying float vRim;\n' + withAlpha(this.ink.vertexShader, '  vU = uv.x;', '  vU = uv.x;\n  { vec4 q = modelViewMatrix * vec4(p, 1.0); vRim = abs(dot(normalize(normalMatrix * normal), normalize(-q.xyz))); }');
     this.ink.fragmentShader = 'varying float vRim;\nuniform float rimOnly;\n' + withAlpha(this.ink.fragmentShader, ' * alpha * tailK(vU)', ' * alpha * tailK(vU) * (rimOnly > 0.0 ? 1.0 - smoothstep(0.0, rimOnly, vRim) : 1.0)');
     const fat = o.fat ?? FAT_PX;
@@ -105,6 +114,14 @@ export class DeviceObject extends CelObject {
     (this.toon.uniforms.color!.value as Color).copy(base);
     (this.toon.uniforms.shade!.value as Color).copy(base).multiplyScalar(p.shade).lerp(ink, 0.08);
     (this.ink.uniforms.color!.value as Color).copy(ink);
+  }
+
+  /** Rings across the tube: every `period` (uv) back from `tip` (uv), a heavier one every fifth, `half` (uv) half width, none within `skip` (uv) of the tip. `period` 0 takes them away. */
+  setStripes(period: number, tip: number, half: number, skip: number, hex = '#F4F2EC', heavy = 2.4): void {
+    const u = this.toon.uniforms;
+    u.stripeHeavy!.value = heavy;
+    u.stripeP!.value = period; u.stripeOff!.value = tip; u.stripeW!.value = half; u.stripeSkip!.value = skip;
+    rawColor(hex, u.stripeCol!.value as Color);
   }
 
   /** Glass: `fill` makes the body firmer toward its rim, `rim` (n.v width, 0 off) keeps only the outline that is at the silhouette. */

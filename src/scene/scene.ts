@@ -30,6 +30,7 @@ import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
 import { BloodField } from './blood/field.ts';
 import { BloodCells } from './blood/cells/cells.ts';
+import { dustTuner } from './blood/dust.ts';
 import { CameraRig } from './camera/rig.ts';
 import { cutUniform, fieldSoft } from './camera/dive.ts';
 import { MICRO_DPR } from './micro3d/cel3d.ts';
@@ -305,6 +306,9 @@ export class CelScene {
 
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])), (id) => GLOW_COURSES.get(id));
     this.flow = new BloodMarks(this.vessels);
+    // the dust's settings (blood/dust.ts; the hidden ?dust panel writes them): a change wakes the figure for the frames its glide takes
+    dustTuner.onWake = () => { this.moving = true; clock.invalidate('dust'); };
+    dustTuner.setPhone(this.phone);
     this.cells = new BloodCells({ vessels: NETWORK, object: (id) => this.vesselObject(id), shared: this.shared, lens: this.lens.shared, blood: this.blood.shared, parent: this.body, layer: VESSEL_LAYER, phone: () => this.phone });
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
     this.presence.own(this.grownIds);
@@ -437,6 +441,7 @@ export class CelScene {
     for (const o of this.objects) o.setPhone(phone);
     this.procs.setPhone(phone); this.probes.setPhone(phone); this.tubes.setPhone(phone);
     this.disease.setPhone(phone);
+    dustTuner.setPhone(phone);
     this.sinus.setPhone(phone);
     this.moving = true;
   }
@@ -1024,6 +1029,7 @@ export class CelScene {
     const occMoving = this.stepOcclusion(dt);
     const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || this.stepCava(dt) || occMoving;
     const lensMoving = this.lens.step(now);
+    const dustMoving = dustTuner.step(dt);
     const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving, quiet: procQuiet });
     const presMoving = this.presence.step(dt) || this.feeders.step(dt, () => this.pushFades());
     this.syncStumps();
@@ -1046,7 +1052,7 @@ export class CelScene {
     const diseaseMoving = this.disease.update(now);
     if (diseaseMoving) this.tagOverOrgans();
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
-    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || lensMoving || presMoving || shapeMoving || viewMoving;
+    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || dustMoving || lensMoving || presMoving || shapeMoving || viewMoving;
     this.moving = false;
     return needs;
   }
@@ -1099,6 +1105,7 @@ export class CelScene {
     gl.setClearColor(this.clearColor(this.post.on));
     const dpr = gl.getPixelRatio?.() ?? 1;
     this.blood.shared.dpr.value = dpr;   // (the vessels' line is set in CSS px and converted with it)
+    dustTuner.setView(this.phone, this.width * this.height * dpr * dpr);   // (the dust's samples a pixel follow the device and the canvas: blood/dust-spec.ts dustBudget)
     this.lobule3d.setDpr(dpr);
     this.disease.organs.setDpr(dpr);
     MICRO_DPR.value = dpr;   // (the micro parts' lines drawn in the fill are CSS px wide on every screen)
