@@ -20,7 +20,7 @@ import { indexOf } from '../../engine/vessel-data.ts';
 import { GROW_REACH, MAX_ARMS, MIN_ARMS, PHASE_2_NODES, SKIN_REACH, growerEndsByNode, permanentEndsByNode } from '../vessels/skin/inventory.ts';
 import { armPresenceAt, hiWeightAt, lensUAt, type HiState } from '../vessels/skin/arm-twins.ts';
 import { armWalk, planSkins, type ArmTube, type HullOk } from '../vessels/skin/cuts.ts';
-import { buildSkinSteady, hullCovers } from '../vessels/skin/mesh.ts';
+import { PACES, buildSkinSteady, hullCovers } from '../vessels/skin/mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins } from '../vessels/skin/baked.ts';
 import { sdArm, skinKOf } from '../vessels/skin/sdf.ts';
 import { weldThrough } from '../vessels/skin/through.ts';
@@ -156,6 +156,8 @@ export class CircuitSkinSet {
   private readonly ends = new Map<string, [boolean, boolean]>();
   private readonly cuts = new Map<string, [number, number]>();
   private readonly paces = new Map<string, number>();
+  /** the nodes meshed from the surface (skin/sheet.ts), because the hull of their seam rings could not be covered */
+  private readonly surfaced = new Set<string>();
   private digest = '';
   /** Where the last build's meshes came from: the baked file (nothing meshed on the page) or the live planner (a stall of a second or more, the first Circuit change's cost on a device). */
   source: 'none' | 'baked' | 'live' = 'none';
@@ -164,6 +166,8 @@ export class CircuitSkinSet {
   readonly fellBack: string[] = [];
   /** the growing arms the map's skins could not take (`node:vessel`): they keep their plain lines, named so a new one fails tests/circuit-skins.test.ts until someone looks */
   readonly dropped: string[] = [];
+  /** why each growing arm the retry ladder dropped was dropped (the failure that made it: a named SkinBuildError message), for the tests and the inspector */
+  readonly why: Record<string, string> = {};
   private readonly warned = new Set<string>();
   private shown = false;
   private readonly deps: CircuitSkinDeps;
@@ -188,20 +192,28 @@ export class CircuitSkinSet {
     return { pos: r.map((x) => x.pos), nor: r.map((x) => x.nor), rest: r.map((x) => x.rest) };
   }
 
-  /** Rule 4.4.1 on the arms as the skin draws them (skin-set.ts clearOfAxes): every seam vertex is at least the blend width from every other arm's drawn capsule. */
-  private clearOfAxes(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube & { radius: number }>, cuts: SkinCut[]): boolean {
+  /** Rule 4.4.1 on the arms as the skin draws them (skin-set.ts clearOfAxes): every seam vertex is at least the blend width from every other arm's drawn capsule. The first arm whose seam stands too near another's, or -1. */
+  private clearOfAxes(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube & { radius: number }>, cuts: SkinCut[]): number {
     const caps = j.arms.map((a, i) => capsuleOf(axisOf(tubes.get(a.vesselId)!, a.restR, cuts[i]!, j.J)));
     const k = skinKOf(j.arms), { pos } = this.ringsFor(tubes, cuts);
     for (let i = 0; i < j.arms.length; i++) for (let o = 0; o < j.arms.length; o++) {
       if (o === i) continue;
-      for (let v = 0; v < TUBE_RADIAL; v++) if (sdArm(caps[o]!, pos[i]![3 * v]!, pos[i]![3 * v + 1]!, pos[i]![3 * v + 2]!) < k) return false;
+      for (let v = 0; v < TUBE_RADIAL; v++) if (sdArm(caps[o]!, pos[i]![3 * v]!, pos[i]![3 * v + 1]!, pos[i]![3 * v + 2]!) < k) return i;
     }
-    return true;
+    return -1;
   }
+
+  /** Whether a junction (or the merge of nodes of which one is) is meshed from the surface itself: the hull of its seam rings is not asked for, the clearance alone places the seams (see `produce`). */
+  private onSurface(j: SkinJunction): boolean { return !!j.surface || j.node.split('+').some((n) => this.surfaced.has(n)); }
 
   /** Plans (cuts.ts) the junctions on the map's rings: a set of cuts is good when the hull has every ring and every ring is clear of the other arms as the skin draws them. */
   private plan(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube & { radius: number }>): ReturnType<typeof planSkins> {
-    return planSkins(js, tubes, (j) => { const ok: HullOk = (cs) => hullCovers(this.ringsFor(tubes, cs).pos) && this.clearOfAxes(j, tubes, cs); return ok; });
+    return planSkins(js, tubes, (j) => {
+      let blamed = -1;
+      const ok: HullOk = (cs) => { blamed = -1; if (!(this.onSurface(j) || hullCovers(this.ringsFor(tubes, cs).pos))) return false; blamed = this.clearOfAxes(j, tubes, cs); return blamed < 0; };
+      ok.blame = () => (this.onSurface(j) ? blamed : -1);   // (the arm whose seam stands too near another arm moves out, not the seam nearest J)
+      return ok;
+    });
   }
 
   /**
@@ -225,13 +237,15 @@ export class CircuitSkinSet {
         for (const n of f.nodes) {
           const j = todo.find((x) => x.node === n);
           if (!j || again.has(n)) continue;
+          // the first remedy is the surface rung (sheet.ts), where the hull of the seam rings is the thing that refuses (a growing arm that leaves a short arm at a sharp angle, the map's REX and S_DSR): the same junction meshed from the surface, no arm lost
+          if (!this.surfaced.has(n) && (f.nodes.length === 1 || j.arms.some((a) => a.grow))) { this.surfaced.add(n); again.add(n); next.push(j); continue; }
           const g = j.arms.filter((a) => a.grow);
           if (!g.length) {
             if (f.nodes.length > 1 && f.nodes.some((m) => m !== n && todo.find((x) => x.node === m)?.arms.some((a) => a.grow))) { again.add(n); next.push(j); continue; }
             lost.push({ node: f.nodes.join('+'), message: f.message }); continue;
           }
           const drop = g[g.length - 1]!, arms = j.arms.filter((a) => a !== drop);
-          this.dropped.push(`${n}:${drop.vesselId}`);
+          this.dropped.push(`${n}:${drop.vesselId}`); this.why[`${n}:${drop.vesselId}`] = f.message;
           again.add(n);
           if (arms.length >= MIN_ARMS) next.push({ ...j, arms });
         }
@@ -249,15 +263,23 @@ export class CircuitSkinSet {
       for (const j of todo) latest.set(j.node, j);
     }
     for (const j of todo) lost.push({ node: j.node, message: `skin: junction ${j.node}: no skin after ${SKIN_GROWERS + 1} rounds of dropping growing arms` });
+    // a growing arm a merged skin did not carry (it takes the widest SKIN_GROWERS of both nodes') is named too, whatever left it out
+    for (const j of js) for (const a of j.arms) {
+      if (!a.grow || made.some((m) => m.mesh.junction.arms.some((x) => x.grow && x.vesselId === a.vesselId && x.end === a.end))) continue;
+      const key = `${j.node}:${a.vesselId}`;
+      if (!this.dropped.includes(key) && !lost.some((l) => l.node.split('+').includes(j.node))) this.dropped.push(key);
+    }
     return { made, lost };
   }
 
-  private makeBuilt(plan: ReturnType<typeof planSkins>['plans'][number], tubes: ReadonlyMap<string, ArmTube & { radius: number }>, ready?: BakedSkin): Built | null {
+  private makeBuilt(made: ReturnType<typeof planSkins>['plans'][number], tubes: ReadonlyMap<string, ArmTube & { radius: number }>, ready?: BakedSkin): Built | null {
+    const plan = !ready && this.onSurface(made.junction) && !made.junction.surface ? { ...made, junction: { ...made.junction, surface: true } } : made;
     const j = plan.junction, objs = j.arms.map((a) => this.deps.vessel(a.vesselId));
     if (objs.some((o) => !o)) return null;
     const { pos, nor, rest } = this.ringsFor(tubes, plan.cuts);
     const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined, false); }), j.arms.map((a) => !!a.grow));
     if (ready) this.paces.set(j.node, ready.pace);
+    else if (j.surface) this.paces.set(j.node, PACES.length - 1);   // (meshed from the surface from the start: no hull to fold)
     const mesh = ready?.mesh ?? buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
     if (!ready) mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));   // (the seam ring's rest radius is the tube's own, exactly)
     const draw = this.deps.make(mesh, axes, objs as VesselObject[]);
@@ -267,7 +289,7 @@ export class CircuitSkinSet {
 
   /** Builds the Circuit's skins (or lays in the baked ones when they were made for exactly these junctions and tubes). Any skin built before is removed first. A node that cannot be built keeps its tubes as they were, is named in `fellBack` and warned once. */
   build(): void {
-    this.clear();
+    this.clear(); this.surfaced.clear(); for (const k of Object.keys(this.why)) delete this.why[k];
     const js = findCircuitJunctions();
     if (!js.length) return;
     const tubes = this.tubesOf(js), warn = this.deps.warn ?? ((m: string) => console.warn(m));
