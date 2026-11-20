@@ -15,8 +15,8 @@ import { FILL } from '../src/scene/camera/room.ts';
 
 const measure: LabelDeps['measure'] = (t, size, _w, track = 0) => t.length * size * 0.56 + track * t.length;
 const phone = { w: 375, h: 812, safe: { top: 47, right: 0, bottom: 34, left: 0 } };
-// the sheet as the Tests card places it on this phone (Half: 520 px over the dock)
-const sheet: TestsPlace = testsPlace(phone, 'phone-portrait', {});
+// the sheet as the Tests card places it on this phone (its Full stop: the room above it is a thin strip)
+const sheet: TestsPlace = testsPlace(phone, 'phone-portrait', { sheetSize: 1 });
 
 function world(place: TestsPlace | null, state = NO_STATE) {
   const room = roomWith(freeRoom(phone, layoutClass(true)), place);
@@ -47,7 +47,9 @@ test('with the Tests sheet up the phone\'s figure is too small for its names: on
   const w = world(sheet);
   assert.ok(w.figureH() < FIG_MIN_H, `the figure is ${w.figureH().toFixed(0)} px tall with the sheet up`);
   assert.equal(w.ctl.out.filter((d) => d.alpha > 0.01).length, 0, 'no name stands over a figure that small');
-  const named = world(sheet, { ...NO_STATE, named: new Set(['CONF']) });
+  const mid: TestsPlace = { ...sheet, rect: { ...sheet.rect, y: 300, h: 300 } };   // (a sheet that leaves the figure about 170 px, under the 200 line, with room for a name)
+  const named = world(mid, { ...NO_STATE, named: new Set(['CONF']) });
+  assert.ok(named.figureH() < FIG_MIN_H, `${named.figureH().toFixed(0)} px`);
   const ids = named.ctl.out.filter((d) => d.alpha > 0.99).map((d) => d.id);
   assert.deepEqual(ids, ['CONF'], 'a station the slide names still stands');
 });
@@ -154,4 +156,12 @@ test('a name stands close to its own vessel: no leader of the figure\'s own name
     for (let i = 0; i < 120; i++) { t += 16; ctl.tick(); }
     for (const d of ctl.out) if (d.leader) assert.ok(d.leader.len <= 90, `${name}: the leader of ${d.id} is ${d.leader.len.toFixed(0)} px`);
   }
+});
+
+test('an organ\'s name is not said twice: the right atrium\'s reading names it, so "RIGHT ATRIUM" is left out; the other organs keep theirs', () => {
+  const w = world(null);
+  const ids = w.ctl.out.map((d) => d.id);
+  assert.ok(ids.includes('RA'), 'the right atrium\'s reading stands');
+  assert.ok(!ids.includes('organ:heart'), 'its organ name does not stand with it');
+  assert.ok(ids.includes('organ:liver'));
 });

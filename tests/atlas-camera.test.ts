@@ -117,9 +117,10 @@ test('the deck link tells the camera a step happened, so a slide on the same sho
   assert.ok(/homeTurn\) gesturesRef\.current\?\.turnOff\(\)/.test(api));
 });
 
-test('the cava rises toward the hepatic veins, and the dot rises with it: "IVC" at the junction end is on the tube in a turned view (iPhone, 19 Nov: 15 px left of the cava)', () => {
-  const cava = drawn('IVCS_RA');
-  assert.ok(cava[0]![2] > cava[Math.floor(cava.length / 2)]![2] + 0.2, 'the drawn cava is nearer the viewer at the junction than at its middle');
+test('the cava runs straight up the figure at one depth to the hepatic junction, with no rise there (a rise and a fall to the atrium was the kink at its upper end: Mohammad, 20 Nov), and the dot is on the tube at the junction end (iPhone, 19 Nov)', () => {
+  const low = drawn('IVC_IS'), cava = drawn('IVCS_RA');
+  for (const p of low) assert.ok(Math.abs(p[2] - low[0]![2]) < 1e-6, 'the lower cava is at one depth');
+  assert.ok(Math.abs(cava[0]![2] - low[low.length - 1]![2]) < 1e-6, 'the cava leaves the junction at the depth it arrived at');
   const ivc = STATIONS.find((x) => x.id === 'IVCS')!;
   assert.ok(Math.abs(ivc.at(0, new Vector3()).z - cava[0]![2]) < 1e-6, 'the dot at the junction end is at the depth the tube is drawn at there, not the tier\'s');
 });

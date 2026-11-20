@@ -6,11 +6,17 @@ import { CelScene } from '../src/scene/scene.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
 
+import { startInOrganShare } from '../src/scene/vessels/starts.ts';
+import { EDGE_PATH_2D } from '../src/scene/vessels/paths.copied.ts';
+
 test('a vein that ends in its organ fades in from nothing over the 2D share of its length', () => {
   const spl = fadeOf('V_SPL', false)!;
-  assert.deepEqual([spl.mode, spl.from, spl.to, spl.a0, spl.a1, spl.keep], [1, 0, 0.66, 0, 1, false]);
-  for (const id of ['V_INT', 'V_COL', 'V_KID_L', 'LGV_CONF']) assert.ok(fadeOf(id, false), id);
-  assert.deepEqual([...fadeOf('LGV_CONF', false)!.connect], ['C1a'], 'the coronary vein is solid while the varices are open');
+  // (the splenic vein is carried on into the spleen, so its fade-in covers that carried-on stretch: solid where it leaves the organ; see starts.ts)
+  assert.deepEqual([spl.mode, spl.from, spl.a0, spl.a1, spl.keep], [1, 0, 0, 1, false]);
+  assert.ok(spl.to > 0.05 && spl.to < 0.5, `fade-in covers the stretch inside the spleen (${spl.to})`);
+  assert.equal(spl.to, startInOrganShare('V_SPL', EDGE_PATH_2D.V_SPL!));
+  for (const id of ['V_INT', 'V_COL', 'V_KID_L']) assert.ok(fadeOf(id, false), id);
+  assert.equal(fadeOf('LGV_CONF', false), null, 'the coronary vein is solid along the lesser curvature to the oesophagus (Mohammad, 20 Nov)');
 });
 
 test('the hepatic artery fades in at its start and its branches out at their ends, in both views', () => {

@@ -146,7 +146,8 @@ test('the edge rows: static numbers once, live numbers when they change, the len
 });
 
 test('the shader reads the chevrons\' stream and the engine\'s flow, owns no clock and takes no time', () => {
-  assert.match(CELLS_VS, /texelFetch\(streamTex, ivec2\(e, 0\), 0\)\.x/, 'the distance the chevrons ride');
+  assert.match(CELLS_VS, /stm = texelFetch\(streamTex, ivec2\(e, 0\), 0\)/, 'the stream the chevrons ride');
+  assert.match(CELLS_VS, /stm\.x \/ Lw/, 'its distance');
   assert.match(CELLS_VS, /texelFetch\(vdata, tc, 0\)/, 'the engine\'s per-vessel texture');
   assert.match(CELLS_VS, /abs\(td\.g\)/, 'the flow, by its size (direction is the stream\'s)');
   assert.match(CELLS_VS, /td\.b/, 'the diameter');

@@ -37,31 +37,31 @@ export const CEL_STYLE = {
    *  hue-preserving lightness steps, never a mix toward white.
    *  SAT: chroma x this about the colour's own grey; LCAP: no tube is lighter than this luminance, nor has a channel above VCAP (a pale end of a ramp is darkened, hue kept, and the lit tone has headroom to lift); LIT_K: the lit tone is the base x (1 + this), channels held to 1;
    *  SHADE_SAT: the shade tone's chroma x this (a touch more saturated, as a painter's shade is); VEIL_FLOOR: a vessel behind an organ (the cava) is drawn at no less than this alpha, so it stays a colour and does not go grey;
-   *  RIM_SHARE: the share of 2D's light inner rim a vessel keeps (0: no pale halo or white rim, the ink is the only edge). */
-  TUBE: { SAT: 1.5, LCAP: 0.62, VCAP: 0.78, LIT_K: 0.3, SHADE_SAT: 1.2, VEIL_FLOOR: 0.7, RIM_SHARE: 0 },
+   *  RIM_SHARE: the share of 2D's light inner rim a vessel keeps (0: no pale halo or white rim, the ink is the only edge);
+   *  LUMEN_W / LUMEN_DARK: the see-through wall (20 Nov, "I want to see INSIDE the blood vessels"): inside |across| < LUMEN_W the lumen is seen through the wall as ONE flat darker step (the far wall: x (1 - LUMEN_DARK), a hard edge, no gradient),
+   *  with the wall's three tones on the rim outside it; no blending, so a join never shows a double layer and the outline stays one per pixel; devices draw over the vessels (no depth test), so a catheter in the lumen is whole;
+   *  INK_OWN / INK_TONE: the outline is the look's casing ink mixed INK_OWN of the way to a deep tone (x INK_TONE) of the vessel's own colour, so it is a soft dark of the tube and never black or white, on every look;
+   *  END_R: a joined end (smooth joins) draws no ink for this many radii from the end: the cut is buried in the trunk, never outlined. */
+  TUBE: { SAT: 1.5, LCAP: 0.62, VCAP: 0.78, LIT_K: 0.3, SHADE_SAT: 1.2, VEIL_FLOOR: 0.7, RIM_SHARE: 0, LUMEN_W: 0.58, LUMEN_DARK: 0.22, INK_OWN: 0.75, INK_TONE: 0.32, END_R: 1.2 },
   /** The painted plates (the lobule's tissue, the sinusoid's) step in their own measures, not the tubes' `s`: a painted colour's lightness against its local lightness, so SHADE_AT / LIT_AT above (made for -1..1) do not apply.
    *  SHADE_AT / LIT_AT: where the relative lightness changes tone (a dead zone of +-0.15 around a flat cell); DETAIL: further than this from the base the pixel is detail (a membrane, a nucleolus) and stays as painted;
    *  EDGE_LO / EDGE_HI: the lightness jump over one device pixel from which a line is inked on the lobule's plate (a membrane is under, a cell's outline over); SIN_EDGE_LO / SIN_EDGE_HI the same as a share of the lightness on the sinusoid.
    *  Those two pairs are the painted lines' own contrast, so they do not move with SHADE (a stronger tone must not unink the cell outlines). */
   TISSUE: { SHADE_AT: -0.15, LIT_AT: 0.15, DETAIL: 0.5, EDGE_LO: 0.05, EDGE_HI: 0.12, SIN_EDGE_LO: 0.34, SIN_EDGE_HI: 0.51 },
-  /** Solid organs (organ-shader.ts, the cel fill): the band edges in n·L terms (lambert against the screen-space light), the same three tones; a shape too round to reach LIT_AT keeps two. */
+  /** The soft light of the figure's 3D parts (Organ depth in organ-shader.ts; the lobule's and the sinusoid's 3D cells, micro3d/cel3d.ts) and where their n.L tones change: the screen's upper left. The organs themselves are the see-through wash (the cel fill was dropped 20 Nov). */
   ORGAN: {
-    /** Where an organ's tones change, in n.L of its SMOOTH rest normal (a flat face-on organ sits at LIGHT.z / |LIGHT| = 0.6, between the two): the shade is one crescent along the lower right edge where the surface turns away from the light, the lit one crescent
-     *  along the upper left where it turns toward it, both following the silhouette; nothing is cut across the middle (no box lean, no baked tuck band: Mohammad, 20 Nov, "blotchy wedges ... a cut"). */
-    SHADE_LAM: 0.1,
-    LIT_LAM: 0.9,
+    SHADE_LAM: 0.5,
+    LIT_LAM: 0.75,
     LIGHT: [-0.5, 0.62, 0.6] as const,
-    /** Matte and flat (Mohammad, 20 Nov: "like glass ... not too shiny"; "the colors are wrong"): the cel base is the organ's own 2D tone (og-N-2, organs/cel-tones.ts), the shade and the lit are the SAME hue and saturation one flat lightness step away
-     *  (HSL: the shade's lightness x (1 - SHADE_L) and at least SHADE_MIN less, the lit LIT_L of the way to white and at least LIT_MIN more), never mixed toward white, black or the grey og-light / og-dark. The line tone, for the art's fine lines, is darker still (LINE_L). */
-    TONES: { SHADE_L: 0.3, SHADE_MIN: 0.12, LIT_L: 0.27, LIT_MIN: 0.1, LINE_L: 0.6 },
-    /** What varies over the organ's surface (the liver's nodules and septa, the dead spleen, the stomach's pool) is laid at this share of its wash strength: the wash dilutes it by the layer's opacity, the cel does not. */
-    PAINT: 0.5,
-    /** A vessel behind an organ (the cava: vessel-object.ts setBehindOrgans) is seen under the 2D wash at (1 - layer); cel organs are opaque, so its veil takes this share of that back: veil = 0.4 + 0.6 x VEIL_SEE x (1 - layer). */
-    VEIL_SEE: 1.0,
-    /** The cel organ's line, the same on every organ (the kidney too): the look's casing ink, fully opaque, LINE_PX figure units wide (it grows with the zoom, thicker on a Mac) and never under LINE_MIN_CSS CSS px (the part outside the organ's own edge: 3 px on a phone). */
-    LINE_PX: 4.0,
-    LINE_MIN_CSS: 3.0,
-    LINE_ALPHA: 1.0,
+  },
+  /** The true-3D lobule and sinusoid (micro3d/, Settings > Figure depth > 3D lobule and sinusoid): solid shapes lit as the organs are (ORGAN.LIGHT, the same n.L edges),
+   *  three flat tones and a bold ink round every shape. The tones are a little stronger than the vessels' so a cell's bevel, a nucleus's dome and the trough of the lumen read as form. */
+  MICRO: {
+    SHADE: 0.24,
+    LIT: 0.16,
+    /** The ink, in CSS px: round the big shapes (hepatocytes, the trough, the cells), round the small ones (pores, albumin, microvilli). */
+    LINE: 1.25,
+    LINE_SMALL: 0.8,
   },
 } as const;
 

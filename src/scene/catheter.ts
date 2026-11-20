@@ -42,6 +42,9 @@ export class Catheter {
     this.tip = new CelObject(new SphereGeometry(CATHETER_RADIUS, 12, 8), { tone: 'cath', bands: 2, spec: 1, px: 0.9 }, shared);
     this.balloonObj = new CelObject(blob(...BALLOON_RADII, 0, 0, 20), { tone: 'balloon', bands: 2, spec: 1, px: 1.1 }, shared);
     this.group.add(this.shaft.group, this.tip.group, this.balloonObj.group);
+    // The slice's own catheter is not drawn any more: the procedure layer draws the deck's catheter on the HVPG route (scene.ts setCatheter keeps this group hidden). It starts hidden too: until the first
+    // setCatheter its balloon (a glossy amber ellipsoid, the 'balloon' tone) hung in empty space left of the portal confluence (20 Nov 2026), because the Circuit's leave/return puts every body object back on.
+    this.group.visible = false;
     this.set({ advance: 0, balloon: 0 });
   }
 

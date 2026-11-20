@@ -14,7 +14,7 @@
 //
 // Lymph chevrons run on the ducts (the terminal lymphatics, the tracts' lymphatics and the space of Disse beside each sinusoid) while the Lymph layer is
 // on, out along Disse toward the tract (owner, 5d3b7e86: hepatic lymph rises in cirrhosis, and the chevrons quicken with it). The sinusoid view shows none.
-import { type BufferGeometry, type Camera, Color, Group, Matrix4, Plane, type Ray, type Object3D, Vector3 } from 'three';
+import { type BufferGeometry, type Camera, Color, Group, LinearSRGBColorSpace, Matrix4, Plane, type Ray, type Object3D, Vector3 } from 'three';
 import { CelObject, type CelShared, rawColor } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
 import type { LookId } from '../../looks/looks.ts';
@@ -24,7 +24,8 @@ import { Batch, type V3 } from './batch.ts';
 import { shadeUniforms } from './shading.ts';
 import { type LobuleHit, type PickTube, lobuleHit } from './pick.ts';
 import { type Course, type LobuleNet, type P2, buildLobule, zoneOf } from './geometry.ts';
-import { type LobuleModel, easeToward, lymphRate, lymphSeal, smooth } from './model.ts';
+import { type LobuleModel, easeToward, lymphProtein, lymphRate, lymphSeal, smooth } from './model.ts';
+import { disseColour } from './disse.ts';
 import { LOBULE_PARTS, type LobulePartName, PartSet } from './parts.ts';
 import { LOBULE_PALETTES, tone } from './tones.ts';
 import { LOBULE_R, lobuleToScene, slabZ } from './shots.ts';
@@ -53,7 +54,7 @@ const markOffset = (p: P2): number => { const h = Math.sin(p[0] * 127.1 + p[1] *
 const RAD = {
   // (2D's own, healthy: widths.ts, lobule-zoom-field.js radiusAt; a sinusoid's is the radius at the middle of its course, the profile along it is drawn from sinRadius)
   s0: RS_N * 1.15 * R, s1: RS_N * 1.15 * R, s2: RS_N * 1.15 * R, an: RS_N * AN_K * R, in: 0.012 * R, tw: TW_R.base * R,
-  pv: DISC_R.pv * R, ha: DISC_R.ha * R, bd: DISC_R.bd * R, lv: DISC_R.lv * R, cv: DISC_R.cv * R, lt: LT_R * R, ly: 0.0132 * R, bc: 0.0046 * R, bh: 0.0075 * R,
+  pv: DISC_R.pv * R, ha: DISC_R.ha * R, bd: DISC_R.bd * R, lv: DISC_R.lv * R, cv: DISC_R.cv * R, lt: LT_R * R, ly: 0.0132 * R, bc: 0.0036 * R, bh: 0.0075 * R,   // (bc: 2D's widest canaliculus, at the edge: R * lerp(0.0004, 0.0036, smooth(0.22, 1, rho)), lobule-bile.js)
 } as const;
 /** 2D's three dark shares of a sinusoid kind that congestion widens (zone 3: 1 - smooth(0.24, 0.56, rho), at the middle of each generation): radiusAt's `1 + 1.5 congU z3`. */
 const CONG_Z3 = { s0: 0, s1: 0.4, s2: 0.95, an: 0.3 } as const;
@@ -106,9 +107,9 @@ const GREY_MS = 350;
 /** The eased scalars the drawing reads (all move toward the model's targets). */
 interface Cur {
   fibSin: number; fibPre: number; fibPost: number; congU: number; septU: number; act: number; lum: number;
-  flow: number; portal: number; art: number; lymphRate: number; seal: number;
+  flow: number; portal: number; art: number; lymphRate: number; seal: number; prot: number;
 }
-const REST: Cur = { fibSin: 0, fibPre: 0, fibPost: 0, congU: 0, septU: 0, act: 0, lum: 1, flow: 1, portal: 1, art: 1, lymphRate: 1, seal: 0 };
+const REST: Cur = { fibSin: 0, fibPre: 0, fibPost: 0, congU: 0, septU: 0, act: 0, lum: 1, flow: 1, portal: 1, art: 1, lymphRate: 1, seal: 0, prot: 1 };
 
 /** A chevron-carrying object: its pitch and how much of its marks show now. */
 interface Marked { obj: CelObject; part: LobulePartName; amount: number; dir: 1 | -1; speed: () => number; layer: 'blood' | 'lymph' | 'bile'; smokes: boolean; /** Scene units to one chevron period of uv.x. */ arc: number; /** The stream's distance along its flow, head-world units (2D's sm.D): advanced here, never read from the clock. */ phase: number; /** The reversed flag, eased (an inlet whose portal flow runs backward). */ rev: number }
@@ -327,8 +328,9 @@ export class LobuleView {
     channel(s0c, 2, 22, true);
     channel(by('s1'), 2, 20, false);
     channel(by('s2'), 3, 22, false);
-    const bc = this.make('bile', chB, 'bile', { bands: 2, flat: true, px: INK.thin, chevrons: { pitch: RAD.bc * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
-    const bh = this.make('bile', hrB, 'bile', { bands: 2, flat: true, px: INK.thin, chevrons: { pitch: RAD.bh * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
+    // (no outline on either: 2D's wall is 0.3 px on a canaliculus and 0.6 on a canal of Hering, a faint olive hairline; the cel line's 2 px floor on a tube under a pixel wide made them dark bars, thick olive rungs between the sinusoids)
+    const bc = this.make('bile', chB, 'bile', { bands: 2, flat: true, px: 0, chevrons: { pitch: RAD.bc * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
+    const bh = this.make('bile', hrB, 'bile', { bands: 2, flat: true, px: 0, chevrons: { pitch: RAD.bh * MARK_PITCHES, speed: bileSpeed, dir: -1, bile: true } });
     this.bileObjs = [bc, bh];
     // the ductule's wall opens where a canal of Hering joins it (2D: mouths while the Bile layer is on, mouthsNoBile while it is off)
     this.discInfo.get('bd')!.setPool(canalPool);
@@ -368,6 +370,7 @@ export class LobuleView {
     for (const [o, e] of edges) (o.ink.uniforms.color.value as Color).setRGB(cell.r + (e[0]! - cell.r) * 0.92, cell.g + (e[1]! - cell.g) * 0.92, cell.b + (e[2]! - cell.b) * 0.92);
     // the space of Disse is one flat tone (no light, no outline); the lymph's marks are soft bands with an amber core, as 2D's
     for (const o of this.flat) (o.toon.uniforms.shade.value as Color).copy(o.toon.uniforms.color.value as Color);
+    this.paintDisse();
     // the flow heads' inks: 2D's near-black and cream (the lumen's luminance picks) and the reversed orange of the look (the lymph's and the bile's are their own, in the shader)
     for (const mk of this.marked) {
       const u = mk.obj.toon.uniforms;
@@ -375,6 +378,12 @@ export class LobuleView {
     }
     this.zones.applyLook(look);
     this.dirty = true;
+  }
+  /** The space of Disse's one flat colour (2D LYD: the lymph's teal deepened with filtration, disse.ts), shade and fill the same: no tone, no line, no marks. */
+  private paintDisse(): void {
+    const u = this.o.ly.toon.uniforms, c = disseColour(this.cur.prot, this.cur.lymphRate, lookColours(this.look).dark);
+    (u.color.value as Color).setRGB(c[0], c[1], c[2], LinearSRGBColorSpace);
+    (u.shade.value as Color).copy(u.color.value as Color);
   }
   setPhone(phone: boolean): void { this.phone = phone; for (const o of this.objects) o.setPhone(phone); this.dirty = true; }
 
@@ -401,7 +410,7 @@ export class LobuleView {
     g.portal = m.rev.pre ? -Math.abs(m.portal) : Math.abs(m.portal);
     g.art = Math.abs(m.art);
     g.lymphRate = Math.min(6, Math.max(0.2, lymphRate(m)));
-    g.seal = lymphSeal(m);
+    g.seal = lymphSeal(m); g.prot = lymphProtein(m);
     this.dirty = true;
   }
   /** The state at once, no ease (the view opens on the first frame already as the model has it). */
@@ -499,6 +508,7 @@ export class LobuleView {
     // lymph: the whole part shrinks away with its layer; no group is hidden until it has gone
     const f = this.lyFade;
     this.set.get('lymph').group.visible = f > 0.002;
+    this.paintDisse();
     infl(o.lt, -RAD.lt * (1 - f)); infl(o.ly, -RAD.ly * (1 - f) + 0.004 * c.seal);
     this.updateDiscs();
     // bile: the Bile layer's canaliculi and canals shrink away with it; the ductules at the tracts swell a little while it is on

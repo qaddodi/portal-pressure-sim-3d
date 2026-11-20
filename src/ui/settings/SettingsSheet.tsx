@@ -4,7 +4,7 @@
 // Model: Advanced physiology is a page of this menu (Advanced.tsx, the 2D panel's own rows); From readings opens the 2D flow in its own menu (readings/FromReadings.tsx).
 import { Fragment, useEffect, useState } from 'react';
 import { UI } from '../strings.generated.ts';
-import { useSettings, FIGURE_DETAIL, ORGAN_FILLS, type OrganFill } from '../../state/settings.ts';
+import { useSettings, FIGURE_DETAIL } from '../../state/settings.ts';
 import { DEPTH_ROWS } from './depth-rows.ts';
 import type { LookChoice } from '../../looks/looks.ts';
 import { useShell } from '../shell/store.ts';
@@ -109,21 +109,7 @@ function DepthGroup() {
   return (
     <MenuGroup title="Figure depth (3D only)">
       {DEPTH_ROWS.map((r) => <DepthSwitch key={r.key} row={r} />)}
-      <OrganFillChoice />
     </MenuGroup>
-  );
-}
-const FILL_WORDS: Record<OrganFill, string> = { solid: 'Cel shaded', seethrough: 'See-through' };
-/** Organ fill: how the organs are painted, as two steps of the same segmented control the Figure detail uses (see-through wash by default; solid is opaque with 2D-style 3-tone shade). */
-function OrganFillChoice() {
-  const at = useSettings((s) => s.organFill);
-  return (
-    <>
-      <div className="menu-title">Organ fill</div>
-      <div className="seg full menu-seg" role="group" aria-label="Organ fill">
-        {ORGAN_FILLS.map((f) => <button key={f} type="button" aria-pressed={at === f} onClick={() => useSettings.getState().set('organFill', f)}>{FILL_WORDS[f]}</button>)}
-      </div>
-    </>
   );
 }
 function DepthSwitch({ row }: { row: (typeof DEPTH_ROWS)[number] }) {

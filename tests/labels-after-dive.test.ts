@@ -69,3 +69,28 @@ test('the Portal vein and Lower IVC dots stand apart in free play, so the Portal
   const conf = dots.find((d) => d.id === 'CONF')!;
   assert.ok(conf.box.x + conf.box.w <= conf.x + 4, 'the Portal vein callout stands left of its dot, over the liver, not east of it toward the stomach');
 });
+
+test('a turn by hand: the names stay, each leader dot rides its own 3D point every frame, and the names are placed again once the picture is still (Mohammad, 20 Nov: "the labels should know we are tilting and still call out the correct thing")', async () => {
+  const { stationById } = await import('../src/scene/labels/stations.ts');
+  const { Vector3: V } = await import('three');
+  const w = world();
+  w.run(1500);
+  const before = w.ctl.out.filter((d) => d.alpha > 0.99 && d.kind === 'station');
+  assert.ok(before.length >= 5);
+  let minAlpha = 1;
+  for (let i = 1; i <= 30; i++) {
+    w.rig.setOrbit(i * 0.012);                 // a drag: about 0.7 degrees a frame
+    w.run(16);
+    for (const d of w.ctl.out) if (d.kind === 'station' && before.some((b) => b.id === d.id)) minAlpha = Math.min(minAlpha, d.alpha);
+    for (const d of w.ctl.out) {
+      if (!d.dot || d.alpha < 0.99) continue;
+      const st = stationById(d.id)!;
+      const want = w.rig.project(st.at(0.5 + 0, new V()), { x: 0, y: 0 });
+      if (!st.slides) assert.ok(Math.hypot(d.dot.x - want.x, d.dot.y - want.y) < 2, `${d.id}'s dot is off its point while turning`);
+    }
+  }
+  assert.ok(minAlpha > 0.99, `the names stayed (lowest opacity ${minAlpha.toFixed(2)}) while the figure turned`);
+  w.run(1500);
+  const after = w.ctl.out.filter((d) => d.alpha > 0.99 && d.kind === 'station');
+  assert.ok(after.length >= before.length - 1, `the names stand again after the turn (${after.length} of ${before.length})`);
+});
