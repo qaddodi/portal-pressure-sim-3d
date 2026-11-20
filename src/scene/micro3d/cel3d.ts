@@ -61,7 +61,7 @@ varying float vAux;
 varying float vArc;
 varying float vAcross;
 #endif
-#ifdef DUST
+#if defined(DUST) && defined(FLOW)
 attribute vec4 fcourse;   // the dust's route (blood/routes.ts): this course's column of the route table, the arc from its start, its length (local units), the true place across (-1 .. 1, never hushed)
 varying vec4 vCourse;
 #endif
@@ -98,7 +98,7 @@ void main() {
 #ifdef FLOW
   vArc = aux; vAcross = aux2;
 #endif
-#ifdef DUST
+#if defined(DUST) && defined(FLOW)
   vCourse = fcourse;
 #endif
 #if defined(GAPS) || defined(HOLES)
@@ -229,11 +229,19 @@ float flowStreaks() {
 // THE ANATOMY'S DUST in the lobule (Mohammad, 20 Nov: "also same streaks in lobule view please"): the same particles (blood/dust-glsl.ts), each with one identity through every joint of the lobule's
 // network (micro3d/lobule-routes.ts: a sinusoid leaving an inlet venule takes the venule's lanes on its side; two sinusoids merging lie side by side), all riding the lobule's one flow (uFlowT).
 // The lobule is seen from above: the section's N axis (the course's left in the plate) is the screen's sideways axis, its B axis faces the eye.
-varying vec4 vCourse;
 uniform float uDustK;     // how strong (the Blood streaks setting, the view's own fade)
+// how far the stream has run: the lobule's tubes their one flow (uFlowT), a stream of the Sinusoid view (STREAKS: the lumen, the lymph in Disse) its own µm run (uFlow)
+#ifdef FLOW
+float dRun() { return uFlowT; }
 #define time (uFlowT * 3.0)
-${dustGlsl('return uFlowT / max(D_flowK, 1e-4);')}
+#else
+float dRun() { return uFlow; }   // (the particles run as far as the lanes did: µm)
+#define time (uFlow * 0.15)
+#endif
+${dustGlsl('return dRun() / max(D_flowK, 1e-4);')}
 #undef time
+#ifdef FLOW
+varying vec4 vCourse;
 vec4 flowDustMicro(vec3 lit) {
   if (uDustK <= 0.0 || abs(vCourse.w) >= 0.97) return vec4(0.0);
   float R = max(uFlowR, 1e-5);
@@ -244,6 +252,19 @@ vec4 flowDustMicro(vec3 lit) {
   vec4 d = dustTube(Fd, lit, lit * 0.35, 0.0);
   return vec4(d.rgb * dOn, d.a * dOn);
 }
+#else
+// THE SAME DUST in a stream of the Sinusoid view (Mohammad 20 Nov: the same streaks everywhere, the lymph's in its own colour): a straight stream along x (µm), aux its place across, one lane table of its own
+// (routeTex: one column, its lattice's pitch the stream's half width), seen square on
+vec4 flowDustStream(vec3 lit) {
+  if (uDustK <= 0.0 || abs(vAux) >= 0.97) return vec4(0.0);
+  float R = max(uHalf, 1e-3), wpc = max(length(vec2(dFdx(vP.x), dFdy(vP.x))), 1e-7), rPx = R / wpc;
+  float dOn = uDustK * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rPx);
+  if (dOn <= 0.002) return vec4(0.0);
+  DFrame Fd = DFrame(vAux, vec2(1.0, 0.0), vec2(0.0, 1.0), vP.x + 5.0e4, 1.0e5, R, R, rPx, 1.0, 0.0, 0.0, 1.0);
+  vec4 d = dustTube(Fd, lit, lit * 0.35, 0.0);
+  return vec4(d.rgb * dOn, d.a * dOn);
+}
+#endif
 #endif
 #if defined(GAPS) || defined(HOLES)
 // real gaps through a sheet (the sinusoid's fenestrae, Mohammad 20 Nov 2026: "complete, not just circle holes: actually a gap in the membrane"): one texel per 1 µm slot along x, per side (row 0 the
@@ -301,7 +322,9 @@ void main() {
   c = mix(c, c * 0.35, holeCut());
 #endif
   float wz = washA();
-#ifdef STREAKS
+#if defined(STREAKS) && defined(DUST)
+  { vec4 dd = flowDustStream(c) * (1.0 - 0.9 * wz); c = c * (1.0 - dd.a) + dd.rgb; c = mix(c, uWashCol, 0.85 * wz); }
+#elif defined(STREAKS)
   if (uProfile < 0.0) {
     vec2 ch = chevrons();
     c = mix(c, uStreakCol, uStreak * ch.x);
@@ -484,7 +507,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
   const haze = o.haze ?? hazeUniforms();
   const toon = new ShaderMaterial({
     vertexShader: MICRO_VS, fragmentShader: MICRO_FS, vertexColors: !!o.vertexColors,
-    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps && !o.holes ? { GAPS: '' } : {}), ...(o.gaps && o.holes ? { HOLES: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.dust && o.flow ? { DUST: '' } : {}) },
+    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps && !o.holes ? { GAPS: '' } : {}), ...(o.gaps && o.holes ? { HOLES: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.dust && (o.flow || o.streaks) ? { DUST: '' } : {}) },
     uniforms: {
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, uSwell: { value: new Vector2(0, 0) }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
@@ -535,6 +558,7 @@ export class MicroPart {
   setStreaks(flow: number, half: number, rgb: RGB, strength: number, profile: number): void {
     const u = this.mats.toon.uniforms;
     u.uFlow.value = flow % 1e6; u.uHalf!.value = half; u.uStreak!.value = strength; u.uProfile!.value = profile; rawRGB(u.uStreakCol!.value as Color, rgb);
+    if (u.uDustK) u.uDustK.value = Math.min(1, Math.max(0, strength));   // (a part with the dust draws it at the streaks' strength, in place of the lanes)
   }
   /** The wedged column's wash on a streaked stream: its strength, the portal and central ends (µm along) and how far it has come from the central end (0 to 1), in its colour. */
   setWash(k: number, portalX: number, centralX: number, progress: number, rgb: RGB): void {
