@@ -108,7 +108,7 @@ export class LobuleView {
   // ---- what the slide and the model say -------------------------------------------------------------------------------------------
 
   setVisible(v: boolean): void {
-    this.visible = v; this.group.visible = v; this.dirty = true; if (!v) this.washOn = false;
+    this.visible = v; this.group.visible = v; this.dirty = true; if (!v) { this.washOn = false; this.washK = 0; }
     if (v) { this.wantTissue(); this.greyK = this.greyGoal(); this.field.setGrey(this.greyK); }
   }
   get isVisible(): boolean { return this.visible; }
