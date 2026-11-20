@@ -13,7 +13,7 @@
 // the clock. Every place is 2D's (layout.ts and the copied widths); every colour is 2D's palette for the look. Nothing here is per-pixel painting: the shapes are meshes, cel shaded
 // (cel3d.ts), and only the albumin, the red cells and the fenestrae's gap table are rewritten while the view is up.
 import { useSettings } from '../../state/settings.ts';
-import { DataTexture, Group, Matrix4, NearestFilter, RGBAFormat, UnsignedByteType, Vector4, type ShaderMaterial, type Vector3 } from 'three';
+import { DataTexture, Group, Matrix4, NearestFilter, RGBAFormat, UnsignedByteType, Vector3, Vector4, type ShaderMaterial } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
 import type { SinusoidView } from '../sinusoid/view.ts';
@@ -212,6 +212,22 @@ export class Sinusoid3D {
   private pinned = false;
 
   /** One frame, after the host's own update (its state, palette and traffic are this frame's). `on`: always true now (everything is 3D); false only hides it in tests. True while anything of this scene moves. */
+  /** The lift (toward the eye, over the lobule while the two cross) never changes the scene's size on screen: the group shrinks by the eye's distance to its plane against the lifted
+   *  distance, about the point under the eye, so the lumen stays exactly as wide as the lobule's tube it grows out of (eyes 20 Nov: lumen 70 px against the tube's 40, a 1.7x step at the
+   *  handoff, with the camera smooth: the lift of 8 µm was near half the eye's height there). Call after the camera has moved and update() has set the lift. */
+  holdScale(eyeWorld: Vector3): void {
+    const g = this.group, lift = g.position.z, p = g.parent;
+    let k = 1, fx = 0, fy = 0;
+    if (lift > 0 && p) {
+      p.updateWorldMatrix(true, false);
+      const e = p.worldToLocal(this.eyeL.copy(eyeWorld));
+      if (e.z > lift * 1.01) { k = (e.z - lift) / e.z; fx = e.x; fy = e.y; }
+    }
+    g.scale.setScalar(U * k);
+    g.position.x = fx * (1 - k); g.position.y = fy * (1 - k);
+  }
+  private readonly eyeL = new Vector3();
+
   update(on: boolean, rate = 1): boolean {
     const f = this.flat;
     const changed = on !== this.on;

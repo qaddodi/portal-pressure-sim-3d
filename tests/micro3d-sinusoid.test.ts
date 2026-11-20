@@ -325,3 +325,15 @@ test('the Kupffer cell is smaller and see-through, its line never showing throug
   assert.ok(m.transparent && m.depthWrite && m.premultipliedAlpha, 'blends, but still hides what lies behind it');
   assert.ok(!ms.find((o) => o.name === 'sinusoid3d/kupffer/ink'), 'its line is drawn in its fill, so nothing of a hull shows through the see-through body');
 });
+
+test('the lift over the lobule never changes the sinusoid\'s size on screen: a point of its plane projects where it lands (eyes 20 Nov: lumen 1.7x the tube at the handoff)', () => {
+  const { s3 } = scene();
+  const eye = new Vector3(0.3, -0.2, 2.0), lift = 0.8;
+  const proj = (p: Vector3) => { const d = p.clone().sub(eye); return [d.x / -d.z, d.y / -d.z]; };
+  const pt = (x: number, y: number) => s3.group.localToWorld(new Vector3(x, y, 0));
+  s3.group.position.set(0, 0, 0); s3.holdScale(eye); s3.group.updateMatrixWorld(true);
+  const landed = [pt(10, 0), pt(-7, 4)].map(proj);
+  s3.group.position.z = lift; s3.holdScale(eye); s3.group.updateMatrixWorld(true);
+  const lifted = [pt(10, 0), pt(-7, 4)].map(proj);
+  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) assert.ok(Math.abs(lifted[i]![j]! - landed[i]![j]!) < 1e-9, `point ${i} axis ${j}: ${lifted[i]![j]} against ${landed[i]![j]}`);
+});
