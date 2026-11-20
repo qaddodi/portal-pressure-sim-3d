@@ -59,3 +59,23 @@ test('every device object puts its ink under its fill, whatever its order', asyn
   const a = new DeviceObject(allocTube(8, 8), 'poly', shared, { order: 1 }, 'ink'), b = new DeviceObject(allocTube(8, 8), 'poly', shared, { order: 2 }, 'ink');
   assert.ok(a.toonMesh.renderOrder < (b.group.children.find((c: any) => c !== b.toonMesh)!).renderOrder, 'a higher device order still draws wholly over a lower one');
 });
+
+test('a device grows by a pixel or so each side, the fill first and the outline outside it, so a thin catheter always shows its colour', async () => {
+  const { DeviceObject, FAT_PX } = await import('../src/scene/devices/device-object.ts');
+  const { allocTube } = await import('../src/scene/devices/tube-rings.ts');
+  const { createShared } = await import('../src/scene/materials/cel.ts');
+  const o = new DeviceObject(allocTube(8, 8), 'poly', createShared(), {}, 'ink');
+  assert.ok(FAT_PX >= 0.75);
+  assert.match(o.toon.vertexShader, /gp\.xy \+= fatN \* fatPx \* 2\.0 \/ res \* gp\.w/);
+  assert.match(o.ink.vertexShader, /\(px \+ fatPx \+ hiPx \* vHi\)/);
+  assert.equal((o.toon.uniforms.fatPx as { value: number }).value, FAT_PX);
+  assert.equal((o.ink.uniforms.fatPx as { value: number }).value, FAT_PX);
+});
+
+test('devices draw in the blended list, after the whole opaque one (the organs\' wash and a fading vessel end were drawn over them), at any fade', async () => {
+  const { DeviceObject } = await import('../src/scene/devices/device-object.ts');
+  const { allocTube } = await import('../src/scene/devices/tube-rings.ts');
+  const { createShared } = await import('../src/scene/materials/cel.ts');
+  const o = new DeviceObject(allocTube(8, 8), 'poly', createShared(), {}, 'ink');
+  for (const a of [1, 0.5, 1]) { o.setAlpha(a); assert.equal(o.toon.transparent, true); assert.equal(o.ink.transparent, true); assert.equal(o.toon.depthWrite, false); }
+});

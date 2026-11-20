@@ -64,6 +64,9 @@ export const HEP_FADE_IN = 0.85;
 export const LIVER_FADE_OUT: Readonly<Record<string, number>> = { PVH_R_2: 0.6, PVH_L_1: 0.6 };
 export const LIVER_FADE_IN: Readonly<Record<string, number>> = { RHV_IVC_1: 0.6, MHV_IVC: 0.6, LHV_IVC: 0.6 };
 
+/** A vein whose start joins only a collateral (closed in health) would end blunt: the azygos arch's left end, over the top of the right atrium (Mohammad, 20 Nov: "this guy should also fade out on the left"). The share of its length it fades in over. */
+export const FREE_START_FADE: Readonly<Record<string, number>> = { AZY_SVC: 0.55 };
+
 /** The fade of a vessel, or null for one that has none. A tributary fan (`feederHost`, the vein it feeds) fades as its host's FEEDER_FADE_Y says (the azygos's runs out down the figure, never ends in a cap). */
 export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
   // the children that branch off these ends in the liver (liver-branches.ts) fade the way their host does, along each one's own length
@@ -79,7 +82,7 @@ export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipF
   if (art?.out) return { mode: 1, from: 1 - art.out, to: 1, a0: 1, a1: 0, keep: true, connect: [] };
   const inOrgan = startInOrganShare(id, EDGE_PATH_2D[id] ?? []);
   if (inOrgan > 0 && !isArtery) return { mode: 1, from: 0, to: inOrgan, a0: 0, a1: 1, keep: false, connect: TIP_CONNECT_2D[id] ?? [] };
-  const tip = TIP_FADE_2D[id];
+  const tip = TIP_FADE_2D[id] ?? FREE_START_FADE[id];
   if (tip && !isArtery) return { mode: 1, from: 0, to: tip, a0: 0, a1: 1, keep: false, connect: TIP_CONNECT_2D[id] ?? [] };
   const join = isArtery ? 0 : ivcJoinSpan(id);
   if (join > 0) return { mode: 1, from: 1 - join, to: 1, a0: 1, a1: IVC_JOIN_ALPHA, keep: false, connect: [], ivcJoin: true };

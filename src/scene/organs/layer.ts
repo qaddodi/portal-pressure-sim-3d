@@ -42,6 +42,8 @@ export function organLayerAlpha(p: Palette, id: string): number {
   if (!st) return p.organLayer;
   return st.layer === 'kidney' ? p.kidneyLayer : st.layer === 'gut' ? p.organs.gutA : p.organLayer;
 }
+/** The colour of a selected organ's outline: its own colour lifted toward white, more on the dark looks (where the fill is deep) than the light ones (where the line must stay off the cream page). */
+export const organHighlight = (c: RGB, dark: boolean): [number, number, number] => mix(c, [1, 1, 1], dark ? 0.5 : 0.3);
 const rgba = (v: readonly number[]) => new Vector4(v[0]! / 255, v[1]! / 255, v[2]! / 255, v[3]!);
 
 /** 2D's drawing order (back to front), the gut last: the gut is depth-tested behind the organs already drawn, which is 2D's #gutHide (the gut cut away under the
@@ -271,6 +273,9 @@ export class OrganLayer {
     u.rimK!.value = st.noRim ? 0 : st.atrium ? og.raRim : og.rim;   // (no rim light on the liver and the stomach: too shiny)
     const ink = mix(page, o3, inkA * layer);   // (the organ's own third tone at its alpha under the layer, pre-mixed against the page)
     (o.ink.uniforms.color!.value as Color).setRGB(ink[0], ink[1], ink[2]);
+    // a pinned or tapped organ's heavy line is the organ's own colour, brighter (never the vessel's white: highlightColour is white on the dark looks, which an organ must not take)
+    const hi = organHighlight(c, this.palette?.highlight === 'white');
+    (o.ink.uniforms.hiColor!.value as Color).setRGB(hi[0], hi[1], hi[2]);
     const seat = this.seats.get(id);
     if (seat) {
       // 2D's .org-ao seat

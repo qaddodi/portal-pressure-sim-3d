@@ -48,14 +48,16 @@ export function twoChildren(host: readonly P2[], at: number, ext: number, spread
 const item = (c: { pts: P2[]; dz: number[] }, when: string | null): BranchItem => ({ k: K, fan: true, when, src: null, out: false, pts: c.pts, dz: c.dz });
 
 const rev = <T,>(a: readonly T[]): T[] => [...a].reverse();
-/** The portal branches' ends, the hepatic veins' beginnings and the umbilical vein's start. */
-export const LIVER_BRANCH_HOSTS = { out: ['PVH_R_2', 'PVH_L_1'], in: ['RHV_IVC_1', 'MHV_IVC', 'LHV_IVC'], umb: ['C3'] } as const;
+/** The portal branches' ends, the hepatic veins' beginnings and the umbilical vein's start. The middle hepatic vein does not branch (Mohammad, 20 Nov: its children crossed the right's). */
+export const LIVER_BRANCH_HOSTS = { out: ['PVH_R_2', 'PVH_L_1'], in: ['RHV_IVC_1', 'LHV_IVC'], umb: ['C3'] } as const;
 
 function build(): readonly BranchSet[] {
   const sets: BranchSet[] = [];
   for (const h of LIVER_BRANCH_HOSTS.out) sets.push({ host: h, when: null, list: twoChildren(EDGE_PATH_2D[h]!, 0.35, 0.55, 0.3).map((c) => item(c, null)) });
   // (a hepatic vein begins in the liver: its children run in from the liver toward the vein, so each is the mirror of a portal branch, with its depth easing in from the far end)
-  for (const h of LIVER_BRANCH_HOSTS.in) sets.push({ host: h, when: null, list: twoChildren(rev(EDGE_PATH_2D[h]!), 0.35, 0.55, 0.3).map((c) => item({ pts: rev(c.pts), dz: rev(c.dz) }, null)) });
+  // (they split well inside the liver, 0.7 of the way from the cava: `at`, and spread only as far as the liver reaches, never into a sibling's or another vein's way: tests/b3-liver-branches.test.ts)
+  const IN_SHAPE: Readonly<Record<string, readonly [number, number, number]>> = { RHV_IVC_1: [0.72, 0.4, 0.35], LHV_IVC: [0.62, 0.4, 0.3] };
+  for (const h of LIVER_BRANCH_HOSTS.in) { const [at, ext, spread] = IN_SHAPE[h]!; sets.push({ host: h, when: null, list: twoChildren(rev(EDGE_PATH_2D[h]!), at, ext, spread).map((c) => item({ pts: rev(c.pts), dz: rev(c.dz) }, null)) }); }
   // (the umbilical vein: its first stretch, run backward, carried on past the left portal vein into the liver and branched; drawn while the paraumbilical collateral is open)
   for (const h of LIVER_BRANCH_HOSTS.umb) sets.push({ host: h, when: 'umb', list: twoChildren(rev(EDGE_PATH_2D[h]!.slice(0, 14)), 0.4, 0.7, 0.3).map((c) => item(c, 'umb')) });
   return sets;
