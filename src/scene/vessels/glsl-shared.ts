@@ -8,7 +8,7 @@ import { STREAK } from '../blood/streak-glsl.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import { glslNum as F } from '../cel-glsl.ts';
 import { TAPER_FROM, TAPER_TO } from './cel-ink.ts';
-import { GLOW_A, GLOW_GATE_T, GLOW_LIFT, GLOW_PX, GLOW_RK } from '../glow.ts';
+import { GLOW_GATE_T, GLOW_LIFT } from '../glow.ts';
 
 /** swellOf(idx, bD, kind): a vessel's live width against the one its tube was built at (the engine's diameter by the 2D figure's rule). Reads: useData, vdata, vdataSize. */
 export const SWELL_OF_GLSL = /* glsl */ `// a vessel's live width against the one its tube was built at (the engine's diameter by the 2D figure's rule), as the body of main() reads it for this vessel
@@ -62,12 +62,8 @@ float chevCreamOf(vec4 la, sampler2D grad, float mode, float idx, vec3 col) {
 export const inkColourGlsl = (base: string): string =>
   `mix(inkColor, celTubeBase(${base}) * mix(${F(CEL_STYLE.TUBE.INK_TONE)}, ${F(CEL_STYLE.TUBE.INK_TONE_DARK)}, tubeDark), ${F(CEL_STYLE.TUBE.INK_OWN)})`;
 
-/** The glow's reach in CSS px for a lumen of `rCss` CSS px (a GLSL expression): glow.ts glowReach. The vertex stage grows the `GLOW` program's hull by it (times the pick's weight), the fragment stage fades the halo over it. */
-export const glowReachGlsl = (rCss: string): string => `(${F(GLOW_PX)} + ${F(GLOW_RK)} * ${rCss})`;
-
-/** The halo's alpha (a GLSL expression) `s` CSS px past the line's outer edge for a `reach` already weighted by the pick's weight `hi`: glow.ts glowAlpha. Reads: dpr. */
-export const glowAlphaGlsl = (s: string, reach: string, hi: string): string =>
-  `(${F(GLOW_A)} * pow(1.0 - smoothstep(0.0, max(${reach}, 1e-3), ${s}), 2.0) * smoothstep(-0.5, 0.5, ${s} * dpr) * smoothstep(0.0, 1.0, ${hi}) * (1.0 - smoothstep(0.0, ${F(GLOW_GATE_T)}, circT)))`;
+/** The glow mask's weight (a GLSL expression) for a pick weight `hi`: eased, and taken away by the Circuit's change: glow.ts glowWeight. Reads: circT. */
+export const glowWeightGlsl = (hi: string): string => `(smoothstep(0.0, 1.0, ${hi}) * (1.0 - smoothstep(0.0, ${F(GLOW_GATE_T)}, circT)))`;
 
 /** The halo's colour (a GLSL expression) on a body colour `base`: the vessel's own colour as drawn, lifted toward white on the dark looks. Reads: tubeDark, celTubeBase. */
 export const glowToneGlsl = (base: string): string => `mix(celTubeBase(${base}), vec3(1.0), ${F(GLOW_LIFT)} * tubeDark)`;

@@ -119,7 +119,7 @@ test('the vessel shader holds the same taper and leaves the picked ring alone', 
   const { inkPxGlsl } = await import('../src/scene/vessels/glsl-shared.ts');
   assert.match(inkPxGlsl('r', 't'), /smoothstep\([\d.]+, [\d.]+, t\)/, 'the taper is in the shared expression');
   assert.match(VESSEL_VS, INK_RE);
-  assert.match(src, /\(inkPx \* endK \+ hiReach \* vHi\)/);
+  assert.match(src, /\(inkPx \* endK \+ hiPx \* vHi\)/);
 });
 
 test('the outline is continuous by construction: painted in the tube\'s own fragment shader from its exact lateral distance to the axis (no second mesh, no stencil, no depth tie); a strand\'s ink still shares the one stencil (2D tube-joint.js)', async () => {
@@ -228,7 +228,7 @@ test('the tube is built ink wider than its lumen, by the figure\'s line, with it
   const { TUBE_SAG } = await import('../src/scene/vessels/shaders.ts');
   const { TUBE_RADIAL } = await import('../src/scene/vessels/tubes.ts');
   assert.ok(Math.abs(TUBE_SAG - (1 / Math.cos(Math.PI / TUBE_RADIAL) - 1)) < 1e-12 && TUBE_SAG > 0 && TUBE_SAG < 0.05);
-  assert.match(VESSEL_VS, /float inkW = \(inkPx \* endK \+ hiReach \* vHi\) \* inkOn \* wpcV \/ vU;/);
+  assert.match(VESSEL_VS, /float inkW = \(inkPx \* endK \+ hiPx \* vHi\) \* inkOn \* wpcV \/ vU;/);
   assert.match(VESSEL_VS, /vec3 p = aPos \+ aNor \* \(inflate \+ radius \* rkE \* \(swell \* narrowK - 1\.0\) \+ inkW \+ \(lumenW \+ inkW\) \* /);
   const src = readFileSync(new URL('../src/scene/vessels/vessel-object.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /polygonOffset|stencil|addGroup|makeHull|hullMat/, 'no hull material is left');

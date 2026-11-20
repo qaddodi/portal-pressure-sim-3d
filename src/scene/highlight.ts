@@ -121,6 +121,8 @@ export class Highlight {
   private hostOf: ReadonlyMap<string, string>;
 
   private glowShown = 1;
+  /** Whether any vessel's glow is showing now (glow-fx.ts makes and lays the mask only then). */
+  glowing = false;
 
   constructor(objects: readonly CelObject[], range: HighlightRange = DEFAULT_RANGE, hostOf: ReadonlyMap<string, string> = new Map()) {
     this.hostOf = hostOf;
@@ -182,7 +184,7 @@ export class Highlight {
 
   step(dtMs: number): boolean {
     const k = Math.min(1, dtMs / HIGHLIGHT_FADE_MS); // linear: the full fade takes HIGHLIGHT_FADE_MS
-    let moving = false;
+    let moving = false, glowing = false;
     for (const t of this.tracks.values()) {
       if (t.on !== t.target || t.boost !== t.boostTarget) {
         t.on = approach(t.on, t.target, k);
@@ -192,7 +194,9 @@ export class Highlight {
       t.obj.ink.uniforms.hiOn.value = t.on;
       if (t.obj.toon.uniforms.glowK) t.obj.toon.uniforms.glowK.value = 1 + HOVER_GLOW * t.boost * t.boost * (3 - 2 * t.boost);   // (the shunt target under the pointer: a stronger glow, eased)
       this.glow(t);
+      if (t.obj.glowMesh?.visible) glowing = true;
     }
+    this.glowing = glowing;
     return moving;
   }
 

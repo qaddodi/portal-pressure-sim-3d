@@ -37,7 +37,7 @@
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../../cel-glsl.ts';
 import { FADE_GLSL } from '../../materials/shaders.ts';
 import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
-import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowReachGlsl, glowAlphaGlsl, glowToneGlsl } from '../glsl-shared.ts';
+import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowWeightGlsl, glowToneGlsl } from '../glsl-shared.ts';
 import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
 import { DUST_GLSL } from '../../blood/dust-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
@@ -150,12 +150,7 @@ void main() {
   float hi = ${BLEND('armAF', 'wAt', '.z')};
   // the tube's own ink width (no stenosis waist at a seam, narrowK 1) plus the picked vein's extra line, blended
   float inkPx = ${inkPxGlsl('rCssV', 'rCssV')};
-#ifdef GLOW
-  float hiReach = ${glowReachGlsl('rCssV')};   // (the glow's hull: the skin's own live radius, so the halo runs on from the arm tubes' with no seam)
-#else
-  float hiReach = hiPx;
-#endif
-  float inkW = (inkPx + hiReach * hi) * wpcV / SKIN_U;   // scene units
+  float inkW = (inkPx + hiPx * hi) * wpcV / SKIN_U;   // scene units
   // the tube's vertex rule (vessels/shaders.ts) with its radius * rk replaced by this vertex's own rest radius and its swell by the blend; the ring is a polygon, so its corners stand TUBE_SAG farther out
   vec3 p = pos + nor * (inflate + rst * (swellE - 1.0) + inkW + (lumenW + inkW) * ${F(TUBE_SAG)});
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
@@ -339,12 +334,7 @@ void main() {
   float vR = vRest * swellB * SKIN_U;
   float rCssAx = vR / max(wpcAx, 1e-6);
   float hi = ${BLEND('armAF', 'wAt', '.z')};
-#ifdef GLOW
-  float hiReachF = ${glowReachGlsl('rCssAx')};
-#else
-  float hiReachF = hiPx;
-#endif
-  float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx')} + hiReachF * hi) * dpr;
+  float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx')} + hiPx * hi) * dpr;
   float kPx = skinK / max(wpcAx / SKIN_U, 1e-9) * dpr;
   float sdPx = skinSdPx(kPx);
 #ifdef SKIN_DEBUG
@@ -366,12 +356,12 @@ void main() {
     base += wAt(i) * mix(mix(armColor[i].rgb, la.rgb, la.a), mix(armColor[i].rgb, lb.rgb, lb.a), lensMix);
   }
 #ifdef GLOW
-  // THE GLOW (glow.ts): the skin grown by the glow's reach, drawn as a halo outside the line only, the arms' blended pick weight giving its reach and alpha: the tubes' halo carried on through the junction
+  // THE GLOW'S MASK (glow.ts, glow-fx.ts): the skin as it is drawn, weighted by the arms' blended pick weight, painted into the mask texture by max with the tubes' own: the junction is part of the one mask the blur turns into a halo
   {
     float sG = sdPx / dpr - ${inkPxGlsl('rCssAx', 'rCssAx')};   // CSS px past the line's outer edge
-    float aG = ${glowAlphaGlsl('sG', glowReachGlsl('rCssAx') + ' * hi', 'hi')} * alpha;
-    if (aG < 0.002) discard;
-    gl_FragColor = vec4(${glowToneGlsl('base')}, aG);
+    float wG = ${glowWeightGlsl('hi')} * alpha * (1.0 - smoothstep(-0.5, 0.5, sG * dpr));
+    if (wG < 0.002) discard;
+    gl_FragColor = vec4(${glowToneGlsl('base')} * wG, wG);
     return;
   }
 #endif

@@ -270,12 +270,7 @@ void main() {
   // (the line thins with a lumen that is hairline by NATURE, a small branch; a pinch is not one: the taper is judged on the radius the vessel would have without it, so the outline runs on through a stenosis at the figure's least weight)
   float inkPx = clamp(0.3 * rCssV, 1.6, 3.0) * smoothstep(0.15, 1.6, rCssV / narrowK);   // CSS px
   inkPx *= mix(1.0, 1.1, circT);   // (the Circuit's line is bolder: its tubes are thick and its ground flat)
-#ifdef GLOW
-  float hiReach = (6.0 + 0.55 * rCssV);   // (the glow's hull: the lumen's LIVE radius here, so the halo narrows at a stenosis and swells with the engine's diameter)
-#else
-  float hiReach = hiPx;
-#endif
-  float inkW = (inkPx * endK + hiReach * vHi) * inkOn * wpcV / vU;   // scene units
+  float inkW = (inkPx * endK + hiPx * vHi) * inkOn * wpcV / vU;   // scene units
   float lumenW = radius * rkE * swell * narrowK;
   // (the ring is a polygon: its flats sit at the radius, its corners 0.025716863272553958 of the radius farther out, so the silhouette never falls inside the line)
   vec3 p = aPos + aNor * (inflate + radius * rkE * (swell * narrowK - 1.0) + inkW + (lumenW + inkW) * 0.025716863272553958);
