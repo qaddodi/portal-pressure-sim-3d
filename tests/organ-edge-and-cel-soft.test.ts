@@ -62,3 +62,9 @@ test('the soft cirrhosis looks (cel8..cel11): defined, cel7 still the default, b
   }
   delete (globalThis as { location?: unknown }).location;
 });
+
+test('C: the outline\'s pixel is the drawing buffer\'s (scene.render hands the canvas ratio to the organs), not the screen\'s', () => {
+  const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  assert.match(scene, /this\.disease\.organs\.setDpr\(dpr\);/);
+  assert.match(readFileSync(new URL('../src/scene/organs/layer.ts', import.meta.url), 'utf8'), /setDpr\(d: number\): void \{ for \(const o of this\.objects\)/);
+});

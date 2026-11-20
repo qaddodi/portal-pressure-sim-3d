@@ -196,6 +196,9 @@ export class OrganLayer {
     this.dirtyColours = true; this.instant = true;
   }
 
+  /** The canvas's pixel ratio (the drawing buffer's, which Settings > Figure detail caps: 1.5 on a 2x screen), so the outline's one-pixel feather and floor are one pixel of the buffer drawn, not of the screen. */
+  setDpr(d: number): void { for (const o of this.objects) if (o.ink.uniforms.dpr) o.ink.uniforms.dpr.value = d; }
+
   /** Organ depth on or off (Settings > Figure depth): the baked crease and contact shade and the soft light. It eases in with the clock; `instant` takes it at once (the first call). */
   setDepth(on: boolean, instant = false): void { this.depthGoal = on ? 1 : 0; if (instant) this.fillInstant = true; }
 
