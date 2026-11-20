@@ -44,7 +44,7 @@ test('the cel organs are painted in 2D\'s order, outline first and fill over it,
   for (const [id, o] of ol.byId) {
     const i = ORGAN_ORDER.indexOf(id);
     const hull = o.group.children.find((c) => c !== o.toonMesh)!;
-    if (ORGAN_STYLE[id]!.layer === 'gut') { assert.equal(o.toon.depthFunc, 3, `${id}: the gut keeps its depth test`); assert.ok(hull.renderOrder > o.toonMesh.renderOrder); continue; }
+    if (ORGAN_STYLE[id]!.layer === 'gut') { assert.equal(o.toon.depthFunc, 3, `${id}: the gut keeps its depth test`); assert.equal(o.ink.depthWrite, false, `${id}: its outline writes no depth`); assert.ok(hull.renderOrder < o.toonMesh.renderOrder, `${id}: its outline first, its fill over it: only the whole gut's silhouette shows, no ink across the loops`); continue; }
     assert.equal(o.toon.depthFunc, 1, `${id}: no depth test (AlwaysDepth)`);
     assert.equal(o.ink.depthWrite, false);
     assert.equal(hull.renderOrder, 2 * i); assert.equal(o.toonMesh.renderOrder, 2 * i + 1, `${id}: the outline, then the fill over it`);
@@ -101,5 +101,27 @@ test('cel shaded: every organ is OPAQUE and matte (alpha 1, normal blending, wri
   const p = patchedShaders('void main() {}', ORGAN_FS, 'void main() {}', 'void main() {}', { art: true, eso: { poly: [0, 0], box: [0, 0, 1, 1], fade: [0, 1], seam: [0, 1] }, fade: true });
   const writes = p.fs.match(/gl_FragColor\.a[^\n]*/g) ?? [];
   assert.deepEqual(writes, ['gl_FragColor.a *= vEsoA;'], 'the only alpha the art writes is the two fades');
+  s.dispose?.();
+});
+
+test('cel shaded: the crescents read on the real meshes: each organ\'s share of shade and lit from its smooth rest normal (front-facing vertices, printed per organ)', async () => {
+  const { celBand } = await import('../src/scene/cel-style.ts');
+  const { s, organs: ol } = await organs();
+  const l = Math.hypot(...O.LIGHT), N = O.LIGHT.map((v) => v / l) as unknown as [number, number, number];
+  const rows: string[] = [];
+  for (const [id, o] of ol.byId) {
+    const at = o.toonMesh.geometry.getAttribute('celNormal'), pos = o.toonMesh.geometry.getAttribute('position');
+    let n = 0, sh = 0, li = 0;
+    for (let i = 0; i < at.count; i++) {
+      if (at.getZ(i) <= 0.05) continue;   // (the back of the pillow is never seen)
+      n++;
+      const b = celBand(at.getX(i) * N[0] + at.getY(i) * N[1] + at.getZ(i) * N[2], 0, O.SHADE_LAM, O.LIT_LAM);
+      if (b === 0) sh++; else if (b === 2) li++;
+    }
+    rows.push(`${id.padEnd(9)} shade ${(100 * sh / Math.max(1, n)).toFixed(0)}%  lit ${(100 * li / Math.max(1, n)).toFixed(0)}%  (${n} of ${pos.count} vertices face the eye)`);
+    assert.ok(n > 0 && sh / n < 0.7 && li / n < 0.4, `${id}: the crescents do not swallow it (shade ${(sh / n).toFixed(2)}, lit ${(li / n).toFixed(2)})`);
+    if (['liver', 'stomach', 'spleen', 'heart'].includes(id)) assert.ok(sh / n >= 0.12 && li / n >= 0.1, `${id}: both crescents big enough to read (shade ${(sh / n).toFixed(2)}, lit ${(li / n).toFixed(2)})`);
+  }
+  console.log(`crescent shares per organ:\n  ${rows.join('\n  ')}`);
   s.dispose?.();
 });
