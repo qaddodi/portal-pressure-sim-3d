@@ -6,5 +6,17 @@ export const BADGE_H = 16;
 
 /** This copy's service worker scope and cache-name prefix (2D: `pps@<scope path>@`; the 3D app's caches use `pps3d@`). */
 export const cachePrefix = (href: string) => `pps3d@${new URL('./', href).pathname}@`;
-/** The address to reload to: this page's own, with `r` set to now. */
-export function reloadUrl(href: string, now: number): string { const u = new URL(href); u.searchParams.set('r', String(now)); return u.href; }
+/** The address to reload to: this page's own, with `r` set to now, and (when `state` is given: the link to what is on the screen, share-wire.ts shareLinkNow) the talk and slide, or the
+ *  patient with its settings, view, selection and camera, in place of whatever the address said when the page was opened (the page's address does not follow the screen, so reloading it
+ *  alone went back to where the page had started: Mohammad, 20 Nov, "when I hit the preview pill to refresh we should be in the same slide again"). The page's other query words stay. */
+export function reloadUrl(href: string, now: number, state?: string | null): string {
+  const u = new URL(href);
+  if (state) {
+    const s = new URL(state, href);
+    for (const k of ['script', 'slide', 'preset', 'home']) u.searchParams.delete(k);
+    for (const k of ['script', 'slide']) { const v = s.searchParams.get(k); if (v != null) u.searchParams.set(k, v); }
+    u.hash = s.hash;
+  }
+  u.searchParams.set('r', String(now));
+  return u.href;
+}
