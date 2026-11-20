@@ -14,6 +14,7 @@ import { mountPerf } from './ui/perf/mount.ts';
 import { hasWebGL2 } from './boot/webgl.ts';
 import { NoWebGL } from './ui/shell/NoWebGL.tsx';
 import { BootCrash } from './ui/shell/BootCrash.tsx';
+import { installNoPageZoom } from './ui/shell/no-page-zoom.ts';
 import { registerPwa } from './pwa/register.ts';
 import { warmLater } from './boot/warm.ts';
 import { mountCharts } from './ui/charts/gallery/mount.tsx';
@@ -32,6 +33,7 @@ useSettings.subscribe(paint);
 applyGlass(useSettings.getState().blur);
 useSettings.subscribe((s, prev) => { if (s.blur !== prev.blur) applyGlass(s.blur); });
 dark.addEventListener('change', paint);
+installNoPageZoom();   // the browser's page zoom never fires: every pinch is the figure's
 
 async function start() {
   // ?parity: the build's progress page needs neither fonts nor the engine; it is its own small chunk.

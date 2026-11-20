@@ -255,3 +255,31 @@ test('Tilt all around: off keeps the ±25° turn and no tilt; on turns without l
   rig.update(1000);
   assert.equal(rig.orbitAngle, 0); assert.equal(rig.pitchAngle, 0);
 });
+
+import { easeCarry } from '../src/scene/camera/rig.ts';
+test('a move is smooth: the camera never reverses on its way, and a move retargeted in flight carries its speed on (no stop and restart)', () => {
+  const room = { x: 0, y: 0, w: 800, h: 600 };
+  const rig = new CameraRig('play', room); rig.resize(800, 600); rig.goTo('play', room, 0);
+  const pos = () => rig.camera.position.clone();
+  // 1: one move, sampled every frame: the distance to the goal only falls, and the yaw only goes one way
+  rig.goTo('free', room, 0, 1000);
+  let prev = pos(), prevD = Infinity, prevYaw = rig.pose.shot.yaw; const goal = rig.pose.shot.target;
+  const steps: number[] = [];
+  for (let t = 16; t <= 1000; t += 16) {
+    rig.update(t); const p = pos(); steps.push(p.distanceTo(prev)); prev = p;
+    const d = Math.hypot(...(rig.pose.shot.target.map((v, i) => v - SHOTS.free.target[i]!) as [number, number, number]));
+    assert.ok(d <= prevD + 1e-9, 'the aim only closes in'); prevD = d;
+    assert.ok(rig.pose.shot.yaw <= prevYaw + 1e-9, 'the yaw goes one way'); prevYaw = rig.pose.shot.yaw;
+  }
+  void goal;
+  // 2: retargeted half way: the step just after is about the step just before (not near zero)
+  const rig2 = new CameraRig('play', room); rig2.resize(800, 600); rig2.goTo('play', room, 0);
+  rig2.goTo('free', room, 0, 1000);
+  let last = rig2.camera.position.clone(), before = 0;
+  for (let t = 16; t <= 480; t += 16) { rig2.update(t); const p = rig2.camera.position.clone(); before = p.distanceTo(last); last = p; }
+  rig2.goTo('wedge', room, 480, 1000);
+  rig2.update(496); const after = rig2.camera.position.distanceTo(last);
+  assert.ok(before > 0 && after > before * 0.1, `speed carried across the retarget (before ${before}, after ${after})`);
+  // 3: the carry curve starts at the speed asked, ends at rest, and never goes backward
+  for (const m of [0, 0.4, 0.8, 5]) { let p = -1; for (let i = 0; i <= 100; i++) { const v = easeCarry(i / 100, m); assert.ok(v >= p - 1e-12); p = v; } assert.ok(Math.abs(easeCarry(1, m) - 1) < 1e-12 && easeCarry(0, m) === 0); }
+});

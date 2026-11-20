@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { planLayout, centredBox, centredKind, pzhOf, type Need } from '../src/ui/layout/plan.ts';
+import { viewAt } from '../src/ui/deck/presenter-machine.ts';
 import { maxPages } from '../src/ui/cards/pages.ts';
 
 // Mohammad, 20 Nov: "the objectives should cover the entire screen card just like 2D; the case card should be a big centered card, not on the left (also on phone)".
@@ -18,19 +19,34 @@ test('which cards stand alone: the outline, the quick check and a case', () => {
   assert.equal(centredKind('teach'), null); assert.equal(centredKind('ladder'), null); assert.equal(centredKind('table'), null);
 });
 
-test('the outline is 2D\'s panel: on a Mac up to 1560 px wide inside 3vw of margin, on a phone the width less 16 px, centred, the whole screen\'s room', () => {
-  const m = centredBox(mac, 'panel');
-  assert.equal(m.w, Math.round(Math.min(1560, 1440 - 2 * Math.max(Math.min(64, Math.max(16, 0.03 * 1440)), 0))));
-  assert.equal(m.maxH, Math.round(900 - 2 * Math.min(56, Math.max(16, 4 * 9))));
+test('the outline is 2D\'s panel: on a Mac its reading width (50 body sizes, 82% at most), on a phone the width less 16 px, centred, the screen\'s room', () => {
+  const B = Math.min(28, Math.max(17, 2.311 * 9));   // 2D --pz-b on a 900 px high window
+  assert.equal(centredBox(mac, 'panel', 'outline').w, Math.round(Math.min(50 * B, 0.82 * 1440)));
+  assert.equal(centredBox(mac, 'panel', 'check').w, Math.round(Math.min(42 * B, 0.82 * 1440)));
+  assert.equal(centredBox(mac, 'panel', 'table').w, Math.round(Math.min(54 * B, 0.82 * 1440)));
+  assert.equal(centredBox(mac, 'panel', 'plane').w, Math.round(Math.min(48 * B, 0.74 * 1440)));
+  assert.equal(centredBox(mac, 'panel', 'walls').w, Math.round(Math.min(54 * B, 0.82 * 1440)), 'any other chart takes the table\'s width');
+  assert.equal(centredBox(mac, 'panel').maxH, Math.round(900 - 2 * Math.min(56, Math.max(16, 4 * 9))));
   const p = planLayout(mac, need('title', 600));
   assert.equal(p.cards.length, 1); assert.equal(p.strip, null);
   assert.ok(centred(p.cards[0]!.rect, mac) && Math.abs(p.cards[0]!.rect.y + p.cards[0]!.rect.h / 2 - 450) <= 1, 'centred both ways');
-  assert.ok(p.cards[0]!.rect.w > 0.9 * mac.w, `covers the width (${p.cards[0]!.rect.w})`);
+  assert.equal(centredBox(side, 'panel', 'outline').w, Math.round(Math.min(1560, 852 - 2 * Math.max(Math.min(64, Math.max(16, 0.03 * 852)), 59))), 'a phone on its side keeps the whole width (2D .pz.low)');
   const ph = centredBox(phone, 'panel');
   assert.equal(ph.w, 393 - 16); assert.equal(ph.maxH, 852 - 72 - 34);
   const q = planLayout(phone, need('title', 500)).cards[0]!.rect;
   assert.equal(q.x, 8); assert.equal(q.w, 377); assert.equal(q.y, Math.round(8 + (ph.maxH - 500) / 2), 'centred between 8 px from the top and the pill\'s foot');
   assert.equal(centredBox(ipad, 'panel').w, Math.round(0.7 * 820), 'an upright iPad\'s is 70% wide');
+});
+
+test('a summary table or a chart slide is one centred panel (2D visual): no words card, no data card, the table\'s own width', () => {
+  assert.equal(centredKind('visual'), 'panel');
+  const slide = { id: 's', kicker: '', title: 'T', line: '', visual: 'table', table: { rows: [] } } as never;
+  const v = viewAt([{ kind: 'slide', slide } as never], { stop: 0, beat: 0 } as never);
+  assert.equal(v.words, 'visual'); assert.equal(v.data, null);
+  const p = planLayout(mac, [{ id: 'visual', slot: 'words', visual: 'plane', h: 500 }]);
+  assert.equal(p.cards.length, 1); assert.equal(p.cards[0]!.rect.w, centredBox(mac, 'panel', 'plane').w);
+  const t = readFileSync(new URL('../src/ui/cards/VisualCard.tsx', import.meta.url), 'utf8');
+  assert.match(t, /TeachingCard panel/); assert.match(t, /TableCard/); assert.match(t, /ToolCard/);
 });
 
 test('the case is 2D\'s big centred card: 920 px at most (the width less 32 px on a phone), 70% on an upright iPad, centred both ways, never left', () => {
@@ -59,6 +75,19 @@ test('the figure is framed whole behind them (nothing of the card is a blocker),
   const t = planLayout(mac, [{ id: 'teach', slot: 'words', h: 300 }, { id: 'ladder', slot: 'data', h: 200 }]);
   assert.equal(t.cards.length, 2); assert.ok(t.cards[0]!.rect.x < 100, 'a teaching card stays at the left');
   assert.equal(pzhOf({ w: 800, h: 1200, safe: phone.safe }), Math.min(12, 6), '2D\'s --pzh on a portrait tablet');
+});
+
+test('behind a case card the camera backs out to the whole patient and the figure dips to 22%; a long outline zooms its contents down to fit (never under 12 px) before it splits', () => {
+  const slide = { id: 'c', kicker: '', title: 'T', line: 'L.', shot: 'liver', vignette: 'A patient.' } as never;
+  const stops = [{ kind: 'slide', slide } as never];
+  assert.equal(viewAt(stops, { stop: 0, beat: 0 } as never).words, 'case');
+  assert.equal(viewAt(stops, { stop: 0, beat: 0 } as never).shot, viewAt([{ kind: 'title' } as never], { stop: 0, beat: 0 } as never).shot, 'the whole patient');
+  assert.notEqual(viewAt(stops, { stop: 0, beat: 1 } as never).shot, viewAt([{ kind: 'title' } as never], { stop: 0, beat: 0 } as never).shot, 'the slide\'s own framing once the card is lifted');
+  const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
+  assert.match(layer, /' on dip'/);
+  assert.match(readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8'), /\.pz-veil\.dip \{ opacity: 0\.85/);
+  const frame = readFileSync(new URL('../src/ui/cards/CardFrame.tsx', import.meta.url), 'utf8');
+  assert.match(frame, /--pz-fit/); assert.match(frame, /12 \/ lb/);
 });
 
 test('the card layer dresses them in 2D\'s own surfaces and veils the page behind the outline and the quick check', () => {
