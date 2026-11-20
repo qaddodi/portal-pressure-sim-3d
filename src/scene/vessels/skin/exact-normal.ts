@@ -1,0 +1,111 @@
+// THE SKIN'S SHADING NORMAL, EXACT PER PIXEL (Mohammad, 20 Nov: "ragged torn edge" where the hepatic veins meet the cava, a dark polygon with straight sides in the cel shade, the pale pinch at the PV fork). The cel shade is a HARD
+// threshold of n.L and the lens lanes and the dust read the normal's across: all of them are contours of the normal. The skin handed the fragment stage its vertices' normals, INTERPOLATED over a triangle. A triangle spans
+// the fillet where two arms meet, where the true normal turns 30 to 60 degrees in a few pixels, so the interpolated one is wrong by up to 56 degrees (p99 18 to 35 on every skin; tests/skin-exact-normal.test.ts measures it)
+// and every contour of it is a polygon with corners at the triangles. ROOT CAUSE: a function with a crease in it (the smooth union's gradient) was sampled at the vertices and lerped. So the pixel takes the gradient of the
+// smooth union itself, the very function the vertices' normals were sampled from (sdf.ts sdUnionGrad: the chain rule through the pairwise smooth-min), from the arms' four axis points and radii it already holds: on a seam ring
+// one arm is all there is and it is that arm's own tube normal, in a crease it is the crease. Pure arithmetic on uniforms and the pixel's rest position: no derivative, no texture, no branch on a pixel's neighbour.
+/** The blend width the SHADE reads the union at, in times the skin's own k. At a crotch the true gradient turns 50 to 140 degrees in a fillet a few pixels wide, and a hard two-tone band there is a dark line (the 2D figure hid it by easing the shade toward
+ *  the neighbour): the mesh used to do that by easing a sharp vertex's normal toward its neighbours', which depends on how the triangles happen to lie. The same softening as a property of the SURFACE: the gradient of the union blended 1.5 times wider. Measured
+ *  against those eased vertex normals over every skin: 8 degrees at p90, 16 at p99 (tests/skin-exact-normal.test.ts), from 3 degrees p50 at 2x and 7 at 3x. The outline and the weights keep k. */
+export const SKIN_SHADE_K = 1.5;
+/** A seam ring's normal is the TUBE's (the cut tube and the skin meet on one shade), which on the side of a crotch differs from the union's gradient by up to 13 degrees. A vertex of the ring belongs wholly to its own arm (weight 1, mesh.ts weightsAt), so the
+ *  pixel keeps the lerped vertex normal where its arm's weight is within this of 1 and takes the gradient below it: a ring pixel is the tube's pixel exactly, and the hand-over is a smoothstep over the first triangle. */
+export const SKIN_RING_W_FROM = 0.97;
+
+/** The polynomial smooth-min's gradient and the arm distances, as GLSL. Needs: armAxisP, armData, armCopy and swAt() declared above it; `absent(sw)` is the GLSL of SKIN_ARM_ABSENT's smoothstep (the outline's own rule). Returns the unit gradient of the union at the point `p`. */
+export const skinNormalGlsl = (arms: number, SKIN_AXIS_PTS: number, absent: (sw: string) => string): string => /* glsl */ `
+// one arm's signed distance to its live capsule (the radius at the closest point of its four-point axis, times the arm's live width) and the distance's gradient: sdf.ts sdArmGrad
+float skinArmSd3(vec3 p, int arm, float sw, out vec3 g) {
+  float best = 1.0e20, bt = 0.0;
+  int bi = 0;
+  for (int s = 0; s < ${SKIN_AXIS_PTS - 1}; s++) {
+    vec3 a = armAxisP[arm * ${SKIN_AXIS_PTS} + s].xyz, b = armAxisP[arm * ${SKIN_AXIS_PTS} + s + 1].xyz - a, q = p - a;
+    float bb = dot(b, b), t = bb > 0.0 ? clamp(dot(q, b) / bb, 0.0, 1.0) : 0.0;
+    vec3 dv = q - t * b;
+    float d2 = dot(dv, dv);
+    if (d2 < best) { best = d2; bt = t; bi = s; }
+  }
+  vec3 a0 = armAxisP[arm * ${SKIN_AXIS_PTS} + bi].xyz, bv = armAxisP[arm * ${SKIN_AXIS_PTS} + bi + 1].xyz - a0;
+  float r0 = armAxisP[arm * ${SKIN_AXIS_PTS} + bi].w, r1 = armAxisP[arm * ${SKIN_AXIS_PTS} + bi + 1].w;
+  float d = sqrt(best), inv = d > 1.0e-12 ? 1.0 / d : 0.0;
+  g = (p - (a0 + bv * bt)) * inv;
+  float bb = dot(bv, bv);
+  if (bt > 0.0 && bt < 1.0 && bb > 0.0) g -= (r1 - r0) * sw / bb * bv;
+  return d - mix(r0, r1, bt) * sw;
+}
+// the unit gradient of the smooth union of the live arms at p (sdf.ts sdUnionGrad), arm order, the two halves of a run through the node taken as the plain minimum first; fallback if there is none
+vec3 skinNormalExact(vec3 p, float k, vec3 fallback) {
+  float acc = 0.0;
+  vec3 g = vec3(0.0);
+  bool first = true;
+  for (int i = 0; i < ${arms}; i++) {
+    if (armData[i].x < 0.0) continue;
+    float m = armCopy[i].w;
+    if (m > -0.5 && m < float(i) - 0.5) continue;
+    vec3 ug;
+    float swi = swAt(i);
+    float b = skinArmSd3(p, i, swi, ug) + 2.0 * k * (1.0 - ${absent('swi')});
+    if (m > float(i) + 0.5) {
+      int mi = int(m + 0.5);
+      vec3 mg;
+      float swm = swAt(mi);
+      float o = skinArmSd3(p, mi, swm, mg) + 2.0 * k * (1.0 - ${absent('swm')});
+      if (o < b) { b = o; ug = mg; }
+    }
+    if (first) { acc = b; g = ug; first = false; continue; }
+    float a = acc, raw = 0.5 + 0.5 * (b - a) / max(k, 1.0e-6), h = clamp(raw, 0.0, 1.0);
+    bool inside = raw > 0.0 && raw < 1.0;
+    float dfdh = a - b - k + 2.0 * k * h, dha = inside ? -0.5 / max(k, 1.0e-6) : 0.0, dhb = inside ? 0.5 / max(k, 1.0e-6) : 0.0;
+    g = (h + dfdh * dha) * g + (1.0 - h + dfdh * dhb) * ug;
+    acc = b + (a - b) * h - k * h * (1.0 - h);
+  }
+  float gl = length(g);
+  return gl > 1.0e-4 ? g / gl : fallback;
+}`;
+
+// ---- the JS twin (tests/skin-exact-normal.test.ts reads it against sdf.ts) ---------------------------------------------------------------------------------------------------------------------------------------
+export interface TwinArm { pts: ArrayLike<number>; r: ArrayLike<number>; mate?: number; /** the arm's live width (1 at rest) */ sw?: number; /** absent from the skin */ off?: boolean }
+const absentOf = (sw: number, from: number): number => { const t = Math.min(1, Math.max(0, sw / from)); return t * t * (3 - 2 * t); };
+/** The twin of skinArmSd3: the distance and its gradient (into g). */
+function armSd3(a: TwinArm, x: number, y: number, z: number, sw: number, g: number[]): number {
+  const P = a.pts, R = a.r, n = 4;
+  let best = Infinity, bt = 0, bi = 0;
+  for (let s = 0; s < n - 1; s++) {
+    const ax = P[3 * s]!, ay = P[3 * s + 1]!, az = P[3 * s + 2]!, bx = P[3 * s + 3]! - ax, by = P[3 * s + 4]! - ay, bz = P[3 * s + 5]! - az;
+    const qx = x - ax, qy = y - ay, qz = z - az, bb = bx * bx + by * by + bz * bz;
+    const t = bb > 0 ? Math.min(1, Math.max(0, (qx * bx + qy * by + qz * bz) / bb)) : 0;
+    const dx = qx - t * bx, dy = qy - t * by, dz = qz - t * bz, d2 = dx * dx + dy * dy + dz * dz;
+    if (d2 < best) { best = d2; bt = t; bi = s; }
+  }
+  const ax = P[3 * bi]!, ay = P[3 * bi + 1]!, az = P[3 * bi + 2]!, bx = P[3 * bi + 3]! - ax, by = P[3 * bi + 4]! - ay, bz = P[3 * bi + 5]! - az;
+  const d = Math.sqrt(best), inv = d > 1e-12 ? 1 / d : 0;
+  g[0] = (x - (ax + bx * bt)) * inv; g[1] = (y - (ay + by * bt)) * inv; g[2] = (z - (az + bz * bt)) * inv;
+  const bb = bx * bx + by * by + bz * bz;
+  if (bt > 0 && bt < 1 && bb > 0) { const dr = ((R[bi + 1]! - R[bi]!) * sw) / bb; g[0] = g[0]! - dr * bx; g[1] = g[1]! - dr * by; g[2] = g[2]! - dr * bz; }
+  return d - (R[bi]! + (R[bi + 1]! - R[bi]!) * bt) * sw;
+}
+/** The twin of skinNormalExact: the UNIT gradient of the live union at (x, y, z), or `fallback` when there is none. `absentFrom` is SKIN_ARM_ABSENT. */
+export function skinNormalTwin(arms: readonly TwinArm[], k: number, x: number, y: number, z: number, absentFrom: number, fallback: [number, number, number] = [0, 0, 1]): [number, number, number] {
+  let acc = 0, first = true;
+  const g = [0, 0, 0], ug = [0, 0, 0], mg = [0, 0, 0];
+  for (let i = 0; i < arms.length; i++) {
+    const A = arms[i]!;
+    if (A.off) continue;
+    const m = A.mate ?? -1;
+    if (m >= 0 && m < i) continue;
+    const swi = A.sw ?? 1;
+    let b = armSd3(A, x, y, z, swi, ug) + 2 * k * (1 - absentOf(swi, absentFrom));
+    if (m > i) {
+      const M = arms[m]!, swm = M.sw ?? 1, o = armSd3(M, x, y, z, swm, mg) + 2 * k * (1 - absentOf(swm, absentFrom));
+      if (o < b) { b = o; ug[0] = mg[0]!; ug[1] = mg[1]!; ug[2] = mg[2]!; }
+    }
+    if (first) { acc = b; g[0] = ug[0]!; g[1] = ug[1]!; g[2] = ug[2]!; first = false; continue; }
+    const a = acc, raw = 0.5 + (0.5 * (b - a)) / Math.max(k, 1e-6), h = Math.min(1, Math.max(0, raw)), inside = raw > 0 && raw < 1;
+    const dfdh = a - b - k + 2 * k * h, dha = inside ? -0.5 / Math.max(k, 1e-6) : 0, dhb = inside ? 0.5 / Math.max(k, 1e-6) : 0;
+    const fa = h + dfdh * dha, fb = 1 - h + dfdh * dhb;
+    g[0] = fa * g[0]! + fb * ug[0]!; g[1] = fa * g[1]! + fb * ug[1]!; g[2] = fa * g[2]! + fb * ug[2]!;
+    acc = b + (a - b) * h - k * h * (1 - h);
+  }
+  const gl = Math.hypot(g[0]!, g[1]!, g[2]!);
+  return gl > 1e-4 ? [g[0]! / gl, g[1]! / gl, g[2]! / gl] : fallback;
+}

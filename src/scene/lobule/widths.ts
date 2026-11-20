@@ -35,17 +35,21 @@ export function twigR(u: number, rs: number): number {
 
 const smooth01 = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
+/** The rim's share left at distance `rho` from the centre: whole from rho 0.42 out, none at 0.13 (about 90 % of the way from the portal edge to the central vein), eased between. Mohammad, 20 Nov 2026: "taper to nothing
+ *  closer to 90% of the way to the central vein" (2D's own rim only thins to about a quarter there: this is the one place the 3D sleeve is narrower than 2D's, chosen by him). */
+export function disseTaper(rho: number): number { return smooth01(0.13, 0.42, rho); }
+
 /** How far the space of Disse's sleeve stands out beyond its sinusoid's wall at distance `rho` from the centre, in lobule radii, for the fluid `j` filtered there (a multiple of the healthy mean; model.ts disseProfile).
- *  2D lobule-zoom-field.js radiusAt, case 'ly': `rs * sinK(rho) + g.rs0 * (0.12 + 0.42 * sqrt(j)) * (0.55 + 0.45 * smooth(0.07, 0.24, rho))`, the part after the sinusoid's own radius. A healthy liver's is a
- *  hairline by the central vein (a little over a tenth of rs0 times a half) and a little over half of rs0 at the portal end. */
+ *  2D lobule-zoom-field.js radiusAt, case 'ly': `rs * sinK(rho) + g.rs0 * (0.12 + 0.42 * sqrt(j)) * (0.55 + 0.45 * smooth(0.07, 0.24, rho))`, the part after the sinusoid's own radius, times `disseTaper`.
+ *  A healthy liver's: a little over half of rs0 at the portal end, nothing by the central vein. */
 export function disseRim(rho: number, j: number): number {
-  return RS0 * (0.12 + 0.42 * Math.sqrt(Math.max(0, j))) * (0.55 + 0.45 * smooth01(0.07, 0.24, rho));
+  return RS0 * (0.12 + 0.42 * Math.sqrt(Math.max(0, j))) * (0.55 + 0.45 * smooth01(0.07, 0.24, rho)) * disseTaper(rho);
 }
 /** The sleeve's own half width at rho: the sinusoid's radius there (`scale` is the state's widening of it, view.sinScaleAt; 1 healthy; no trumpet flare, which 2D's `ly` does not take) and the rim beyond it. */
 export function sleeveRadius(rho: number, j: number, scale = 1): number {
   return RS_N * sinK(rho) * scale + disseRim(rho, j);
 }
-/** The sleeve of a healthy liver (j = 1) at rho (a rim of 0.0025 to 0.0046 R beyond the sinusoid; tests/scene-lobule-fit-2d.test.ts). */
+/** The sleeve of a healthy liver (j = 1) at rho (a rim of up to 0.0046 R beyond the sinusoid; tests/scene-lobule-fit-2d.test.ts). */
 export function disseRadius(rho: number): number { return sleeveRadius(rho, 1); }
 
 /** How much of congestion's widening a sinusoid takes at rho (0 to 0.95): most round the central vein (zone 3), none at the portal side, smoothly in between. It was one number per

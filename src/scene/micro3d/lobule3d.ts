@@ -65,6 +65,8 @@ export const OVER_Z = LZ.cellTop + 0.002;
 export const SLEEVE_Z = OVER_Z;
 /** Where the sleeve's draw order falls: after the bile (which lies under the lymph, 2D lobule-pick.js tiers), before every blood vessel and the lymphatics (all -1). */
 export const SLEEVE_ORDER = -1.5, BILE_ORDER = -1.7;
+/** The radius the sleeve's streaks are laid for (lobule radii): a sinusoid's and a rim's, about the middle of its width. */
+export const SLEEVE_DUST_R = 0.0085;
 /** The scene's fade is taken as whole from here up (FADE_GLSL's screen pattern drops pixels below 0.999). */
 export const FADE_SNAP = 0.98;
 /** How far from each end of a vessel (in its own radii) no flow mark is drawn: where it runs into another vessel. */
@@ -216,7 +218,7 @@ export class Lobule3D {
     this.inlets = mk('inlets', { px: VESSEL_LINE, flow: true, dust });
     this.twigs = mk('arteriole-twigs', { px: S.LINE_SMALL * 0.8, flow: true, dust });
     this.lt = mk('terminal-lymphatics', { px: S.LINE_SMALL * 0.8, flow: true, dust });
-    this.duct = mk('lymph-channels', { ink: null });   // (2D's space of Disse: a flat sleeve under its sinusoid with no line of its own; a line round each sleeve would cross where two meet)
+    this.duct = mk('lymph-channels', { ink: null, flow: true, dust });   // (2D's space of Disse: a flat sleeve under its sinusoid with no line of its own; a line round each sleeve would cross where two meet)
     this.bile = mk('canaliculi', { px: S.LINE_SMALL * 0.7, flow: true, dust });   // (the lymph and the bile carry the same dust, in their own colours: Mohammad 20 Nov, "the bile and lymph should have the same kind of streaks we use for blood")
     this.mouthPv = mk('portal-venules', { px: VESSEL_LINE });
     this.mouthHa = mk('arterioles', { px: VESSEL_LINE * 0.8 });
@@ -343,8 +345,8 @@ export class Lobule3D {
   }
 
   /** The space of Disse's ribbons at the state's widths: each sample's half width is its sinusoid's radius now (the state's widening of it) plus the rim the fluid filtered there makes, the rim taking the layer's
-   *  fade (so as the layer goes off the sleeve closes up under the vessel and nothing pops); a first-generation sleeve's reach out to its terminal lymphatic narrows from the sinusoid's width to the lymphatic's own,
-   *  so it ends inside the lymphatic's tube with no step (2D hides that step with a blob; here the lymphatic is solid) and takes the whole fade. Written only when a width changes. */
+   *  fade (so as the layer goes off the sleeve closes up under the vessel and nothing pops); a first-generation sleeve's reach out to its terminal lymphatic is as wide as 2D's radiusAt there (the whole of it takes
+   *  the fade). Written only when a width changes. */
   private stepSleeve(f: Flat, lyF: number): void {
     const S = this.sleeve;
     if (!S || lyF <= 0.002) return;
@@ -406,10 +408,11 @@ export class Lobule3D {
     this.sin.an.setFlow(this.flowT.blood, 0.12, W, soft(1), bs, 0, 0.0043 * R, true, dpr);
     this.inlets.setFlow(this.flowT.blood, 0.3, W, soft(1), bs, 0, 0.012 * R, true, dpr);
     for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs]) { const u = p.mats.toon.uniforms.uDustK; if (u) u.value = bs > 0 ? soft(1) : 0; }
-    { const u = this.lt.mats.toon.uniforms.uDustK; if (u) u.value = soft(0.8); }
+    for (const p of [this.lt, this.duct]) { const u = p.mats.toon.uniforms.uDustK; if (u) u.value = soft(0.8); }
     { const u = this.bile.mats.toon.uniforms.uDustK; if (u) u.value = soft(0.85); }   // (the dust replaces the streak lanes in the blood's tubes, under the same switch)
     this.twigs.setFlow(this.flowT.blood * 1.6, 0.1, [1, 0.88, 0.86], soft(1), bs, 0, 0.006 * R, true, dpr);
     this.lt.setFlow(this.flowT.lymph, 0.12, W, soft(0.4), soft(0.8), 0, LT_R * R, false, dpr);
+    this.duct.setFlow(this.flowT.lymph, 0.12, W, 0, soft(0.8), 0, SLEEVE_DUST_R * R, false, dpr);   // (no chevrons on the sleeve, its streaks only, in the lymph's own tone)
     this.bile.setFlow(this.flowT.bile, 0.07, [1, 0.97, 0.7], soft(0.55), soft(0.85), 1, 0.004 * R, false, dpr);
     void lymphOn; void bileOn;
     return rate > 0.001;
@@ -656,27 +659,38 @@ export class Lobule3D {
     // its rim shows beside the vessel; a round cap at each end, so where two meet (a merge, a branch) the sleeve is one shape with no notch. Its vertices move out from the axis by their sample's half width
     // (`stepSleeve`: the state's widening of the sinusoid, the fluid filtered there, the layer's fade), so the numbers are kept beside the geometry rather than baked into it.
     {
-      const b = new MeshBuilder(), K: number[] = [], W: number[] = [], S: SleeveData = { x: [], y: [], dx: [], dy: [], s: [], cs: [] };
+      const b = new MeshBuilder(), K: number[] = [], W: number[] = [], FC: number[] = [], S: SleeveData = { x: [], y: [], dx: [], dy: [], s: [], cs: [] };
       let sample = 0;
-      const vert = (x: number, y: number, dx: number, dy: number, s: number) => { b.v(x * R, -y * R, SLEEVE_Z, 0, 0, 1, [1, 1, 1]); K.push(1); W.push(0); S.x.push(x * R); S.y.push(-y * R); S.dx.push(dx); S.dy.push(-dy); S.s.push(s); };
+      // (the streaks run the way the lymph does, from the central vein out to the terminal lymphatic: the arc is counted from the vein's end, and `col` is the course's own column of the dust's route table)
+      let col = 0, arcAt = 0, Lw = 1;
+      const vert = (x: number, y: number, dx: number, dy: number, s: number, arc: number, across: number) => {
+        b.v(x * R, -y * R, SLEEVE_Z, 0, 0, 1, [1, 1, 1]); b.aux.push(arc); b.aux2.push(3); K.push(1); W.push(0); FC.push(col, arc, Lw, across);
+        S.x.push(x * R); S.y.push(-y * R); S.dx.push(dx); S.dy.push(-dy); S.s.push(s);
+      };
+      void arcAt;
       for (const c of by('ly').map((c) => trimInside(c, DISC_R.cv * 0.78))) {
         const n = c.pts.length, r0 = b.count, s0 = sample, tan = (i: number): [number, number] => {
           const a = c.pts[Math.max(0, i - 1)]!, d = c.pts[Math.min(n - 1, i + 1)]!; const l = Math.hypot(d[0] - a[0], d[1] - a[1]) || 1; return [(d[0] - a[0]) / l, (d[1] - a[1]) / l];
         };
-        for (let i = 0; i < n; i++) { const [tx, ty] = tan(i), q = c.pts[i]!; vert(q[0], q[1], -ty, tx, s0 + i); vert(q[0], q[1], ty, -tx, s0 + i); }
+        const arc = [0];
+        for (let i = 1; i < n; i++) arc.push(arc[i - 1]! + Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1]) * R);
+        Lw = arc[n - 1]!; col = dustCourses.length;
+        dustCourses.push({ col, kind: `ly${c.id}`, path: c.pts.map((q) => [q[0] * R, -q[1] * R] as const).reverse(), radius: SLEEVE_DUST_R * R });
+        const rev = (i: number) => Lw - arc[i]!;
+        for (let i = 0; i < n; i++) { const [tx, ty] = tan(i), q = c.pts[i]!; vert(q[0], q[1], -ty, tx, s0 + i, rev(i), 1); vert(q[0], q[1], ty, -tx, s0 + i, rev(i), -1); }
         for (let i = 0; i < n - 1; i++) { const q = r0 + i * 2; b.quad(q, q + 2, q + 3, q + 1); b.quad(q, q + 1, q + 3, q + 2); }
-        // a round cap at each end: a fan of CAP_SEG triangles round the end sample
+        // a round cap at each end: a fan of CAP_SEG triangles round the end sample (no streaks on it: across 3)
         for (const i of [0, n - 1]) {
           const q = c.pts[i]!, centre = b.count;
-          vert(q[0], q[1], 0, 0, s0 + i);
-          for (let k = 0; k < SLEEVE_CAP; k++) { const a = (k / SLEEVE_CAP) * Math.PI * 2; vert(q[0], q[1], Math.cos(a), Math.sin(a), s0 + i); }
+          vert(q[0], q[1], 0, 0, s0 + i, rev(i), 3);
+          for (let k = 0; k < SLEEVE_CAP; k++) { const a = (k / SLEEVE_CAP) * Math.PI * 2; vert(q[0], q[1], Math.cos(a), Math.sin(a), s0 + i, rev(i), 3); }
           for (let k = 0; k < SLEEVE_CAP; k++) { const u = centre + 1 + k, v = centre + 1 + ((k + 1) % SLEEVE_CAP); b.tri(centre, u, v); b.tri(centre, v, u); }
         }
         S.cs.push({ course: c, from: s0, n, v0: r0 });
         sample += n;
       }
       S.wmax = new Float32Array(sample);
-      coloured(this.duct, b, null, W, K);
+      coloured(this.duct, b, null, W, K); this.duct.geometry.setAttribute('fcourse', new Float32BufferAttribute(FC, 4));
       this.sleeve = S; this.sleeveKey = '';
     }
     // the Bile layer, laid out as 2D lays it (bile.ts, a port of lobule-bile.js): a channel beside each plate's sinusoid from a quarter of the way out, thickening outward, a short
@@ -808,7 +822,7 @@ export function sleeveWidths(S: Pick<SleeveData, 'cs'>, f: Pick<Flat, 'sleeveNow
     const k = c.reach ?? 0;
     for (let i = 0; i < n; i++) {
       const rho = c.rho[Math.max(i, k)]!, full = f.sleeveNow(rho);
-      if (i < k) { const t = i / k, e = t * t * (3 - 2 * t); out[from + i] = (LT_R + (full - LT_R) * e) * lyF * R; }
+      if (i < k) out[from + i] = f.sleeveNow(c.rho[i]!) * lyF * R;   // (the reach is as wide as 2D draws it, radiusAt at its own place; it takes the whole fade)
       else out[from + i] = (sinPart(rho) + (full - sinPart(rho)) * lyF) * R;
     }
   }
