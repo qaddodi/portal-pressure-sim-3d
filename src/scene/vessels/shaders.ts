@@ -158,7 +158,7 @@ ${CIRCUIT_VS_CALL}
   // the fade zone (a tip into its organ, a bed through the lobe, a vein into the cava): the tube keeps its full width and fades by opacity, body and outline together (vFade, 1 outside a fade zone: opaque)
   if (stump.x > 0.0 && circShare < 0.001) fa *= step(stump.x, uv.x * len * vU);   // (the divided stretch is not there: body and outline)
   if (cavaEnd.x > 0.0) fa *= mix(mix(1.0, cavaEnd.y, smoothstep(1.0 - cavaEnd.x, 1.0, uv.x)), 1.0, circT);
-  if (cavaTail > 0.0) fa *= mix(pow(1.0 - smoothstep(1.0 - cavaTail, 1.0, uv.x), 2.0), 1.0, circT);   // (the part inside the cava's lumen is not a tube there: no round end, no wall line, no dark wedge over the cava's marks)
+  if (cavaTail > 0.0) fa *= mix(pow(1.0 - smoothstep(1.0 - cavaTail, 1.0 - 0.35 * cavaTail, uv.x), 2.0), 1.0, circT);   // (the part inside the cava's lumen is not a tube there: no round end, no wall line, no dark wedge over the cava's marks)
   vFade = fa;
   vNbr = nbr;
   // THE OUTLINE is part of the tube (no second mesh, no stencil, no depth tie): the tube is built INK wider than its lumen, and the fragment shader paints the outer ink band, so the line is continuous by construction.

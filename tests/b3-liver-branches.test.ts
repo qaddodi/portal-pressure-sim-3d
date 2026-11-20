@@ -230,6 +230,20 @@ test('a hepatic vein is not a tube inside the cava it opens into: the last cava 
   for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) { const cs = coursesOf(B.get(id)!, REST), t = cavaTailOf(id, cs, lenOf(cs)); assert.ok(t > 0.03 && t <= 0.5, `${id} tail ${t}`); }
   for (const id of ['PVH_R_2', 'IVC_IS', 'RHV_IVC_1']) { const cs = coursesOf(B.get(id)!, REST); assert.equal(cavaTailOf(id, cs, lenOf(cs)), 0, `${id} has none`); }
   assert.match(VESSEL_VS, /uniform float cavaTail;/);
-  assert.match(VESSEL_VS, /fa \*= mix\(pow\(1\.0 - smoothstep\(1\.0 - cavaTail, 1\.0, uv\.x\), 2\.0\), 1\.0, circT\)/);
+  assert.match(VESSEL_VS, /fa \*= mix\(pow\(1\.0 - smoothstep\(1\.0 - cavaTail, 1\.0 - 0\.35 \* cavaTail, uv\.x\), 2\.0\), 1\.0, circT\)/);
   assert.match(VESSEL_FS, /if \(vFade < 0\.004\) discard;/);
+});
+
+test('a side branch starts narrower than it is and widens over its first stretch, so its flat start never stands out of the vein\'s wall as a square ledge', async () => {
+  const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
+  const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
+  const { radiusAtU } = await import('../src/scene/vessels/tubes.ts');
+  const { JOIN_K } = await import('../src/scene/vessels/liver-branches.ts');
+  for (const id of ['PVH_R_2~F:b', 'PVH_L_1~F:b', 'RHV_IVC_1~F:b']) {
+    const v = B.get(id)!, c = coursesOf(v, REST)[0]!, join = (v.plan as unknown as { list: { join: 0 | 1 }[] }).list[0]!.join;
+    let L = 0; for (let i = 1; i < c.pts.length; i++) L += Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1], c.pts[i]![2] - c.pts[i - 1]![2]);
+    const at = (u: number): number => radiusAtU(c, join === 0 ? u : 1 - u, L);
+    assert.ok(at(0) <= (JOIN_K + 0.1) * at(0.3), `${id}: ${at(0).toFixed(4)} at the join against ${at(0.3).toFixed(4)} further on`);
+    let prev = 0; for (let u = 0; u <= 0.14; u += 0.02) { const r = at(u); assert.ok(r >= prev - 1e-9, `${id}: widens`); prev = r; }
+  }
 });

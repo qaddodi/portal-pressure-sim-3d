@@ -12,6 +12,8 @@ export interface BranchItem { /** the width at its start as a share of its vein'
 export interface BranchSet { host: string; when: string | null; list: readonly BranchItem[]; /** the stretch (0 to 1) of the host's lens ramp the children wear: the part they leave, so there is no step in colour at the branch point */ span: readonly [number, number] }
 
 const N = 64, Z_FWD = 0.1;
+/** The share of its width a side branch has where it starts inside its vein, and the share of its length it widens over. */
+export const JOIN_K = 0.5, JOIN_SPAN = 0.14;
 /** A branch begins this far behind the vein it leaves, rising to its own depth over its first third, so the vein's wall covers the branch's start and its outline is not drawn across the vein (a crease where it joins). */
 const Z_TUCK = 0.02;
 const tuck = (u: number): number => -Z_TUCK * (1 - smooth(u / 0.35));
@@ -105,7 +107,8 @@ export const splitShare = (id: string): number | null => { const t = treeOf(id);
 
 const item = (c: { pts: P2[]; dz: number[] }, k: number, out: boolean): BranchItem => ({
   k, fan: true, when: null, src: null, out: false, pts: c.pts, dz: c.dz,
-  taper: out ? [1, TIP / k] : [TIP / k, 1], taperSpan: out ? [0, 1] : [1, 0], join: out ? 0 : 1,
+  // (the end inside the vein is narrower than the branch and widens over its first stretch: a flat cut as wide as the branch would stand out of the vein's wall as a square corner, a ledge, where the branch leaves it)
+  taper: out ? [JOIN_K, TIP / k] : [TIP / k, JOIN_K], taperSpan: out ? [JOIN_SPAN, 1] : [1, JOIN_SPAN], join: out ? 0 : 1,
 });
 
 /** Two children of the whole course `host` (flow order): they leave it at `at` of its length, follow it, run on past its end by `ext` and spread to ±`spread` of that run, one forward in depth and one back. */
