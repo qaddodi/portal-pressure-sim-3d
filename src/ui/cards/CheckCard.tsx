@@ -13,6 +13,7 @@ export function CheckCard({ deck, page = 0, pages = 1 }: { deck: Deck; page?: nu
   const list = useRef<HTMLOListElement>(null);
   const tops = useRef<number[] | null>(null);
   const opened = useRef<number | null>(null);
+  const height = useRef(0);
   const readings = useUi((s) => s.readings);
   const read = (k: string, at?: string) => readings[at ? `${k}@${at}` : k];
   const one = useUi((s) => s.vp.h <= 500 && s.vp.w > s.vp.h);
@@ -24,6 +25,7 @@ export function CheckCard({ deck, page = 0, pages = 1 }: { deck: Deck; page?: nu
   const toggle = (k: number) => {
     const li = list.current?.children;
     tops.current = li ? Array.from(li, (e) => e.getBoundingClientRect().top) : null;
+    height.current = list.current?.getBoundingClientRect().height ?? 0;
     opened.current = open.has(k) ? null : k;
     setOpen((cur) => { const n = new Set(one ? [] : cur); if (cur.has(k)) n.delete(k); else n.add(k); return n; });
   };
@@ -36,8 +38,11 @@ export function CheckCard({ deck, page = 0, pages = 1 }: { deck: Deck; page?: nu
     // wait for the card's edge to reach them (clear for the first third of the glide), then come in, so the words are never outside the card
     const a = fresh == null ? null : list.current?.querySelector<HTMLElement>(`#pzc-a${fresh}`);
     if (a && typeof a.animate === 'function') a.animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: 320, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' });
+    // a card on the foot (a phone's) grows and shrinks at its TOP: in this same frame, before it is drawn, the card takes its new height and every row stands g higher (g = what the list gained),
+    // so a row's way from where it was to where it will be is its measured way plus g (a row under the answer: no way at all; a row above it: g up)
+    const g = list.current?.closest('.dk-pos')?.hasAttribute('data-up') ? (list.current?.getBoundingClientRect().height ?? 0) - height.current : 0;
     Array.from(li).forEach((e, i) => {
-      const dy = (from[i] ?? 0) - e.getBoundingClientRect().top;
+      const dy = (from[i] ?? 0) - e.getBoundingClientRect().top + g;
       if (Math.abs(dy) > 1 && typeof e.animate === 'function') e.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' });
     });
   }, [open]);

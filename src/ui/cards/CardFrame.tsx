@@ -63,10 +63,14 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   const [live, setLive] = useState(false);          // the card has landed: from now on a move of its place glides
   const shownH = useRef<number | null>(null);        // the height the card is drawn at (for the glide)
   const anims = useRef<Animation[]>([]);
-  const now = useRef({ live: false, out: false, overflow: false, r: 0, rr: '' });   // (what the measuring callback, made once, needs to know of the latest render)
+  const now = useRef({ live: false, out: false, overflow: false, r: 0, rr: '', up: false });   // (what the measuring callback, made once, needs to know of the latest render)
   const out = entry.phase === 'out';
   const ready = rect.h > 0;
-  now.current = { live, out, overflow: !!overflow, r, rr: round(r) };
+  // A phone's (and an upright tablet's) words card stands on the screen's foot: its BOTTOM edge is the fixed one (the card hangs from the foot: deck-ui.css `[data-up]`), so a card that grows
+  // rises and one that shrinks sinks, by its own height, in the same frame, with no plan to wait for. Before, the card kept its top and grew down past the foot at its old place, and the plan's
+  // new place came a React round trip later: the answer stood outside the card, then the card jumped up by the growth (eyes on c70021f, 20 Nov: "overshoots and jumps 65 px").
+  const lay0 = layoutOf(vp.w, vp.h), up = !data && !centredKind(entry.id) && (lay0 === 'stack' || lay0 === 'tab');
+  now.current = { live, out, overflow: !!overflow, r, rr: round(r), up };
 
   // A card whose own words grow (an answer opens under its question) is that tall at once and revealed down to it by the same glide the rows under the question ease down by,
   // started in the measuring callback itself, before the frame is painted: the height the plan gives it comes a React round trip later, and until then the words stood below the
@@ -78,14 +82,36 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     card.style.height = `${h}px`; plate.style.height = `${h}px`;
     reveal(prev, h);
   };
+  // the same for a card that gets shorter (an answer shuts): it is its new height at once for the words (they take their final places: the top padding stands in for the height it has lost),
+  // and its frame sinks to it by the glide: clipped from the top (a card on the foot) or from the foot, its shadow plate scaled to match
+  const shrinkNow = (h: number) => {
+    const card = cardRef.current, n = now.current, prev = shownH.current;
+    if (!card || prev == null || !n.live || n.out || n.overflow || h >= prev - 1 || typeof card.animate !== 'function' || reduced()) return;
+    shownH.current = h;
+    sink(prev, h);
+  };
+  const sink = (prev: number, next: number, opts?: KeyframeAnimationOptions) => {
+    const card = cardRef.current, plate = plateRef.current;
+    if (!card || !plate) return;
+    const o = opts ?? { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'forwards' }, d = prev - next, up = now.current.up, rr = now.current.rr, org = up ? '50% 100%' : '50% 0%';
+    anims.current.forEach((a) => a.cancel());
+    setAnimH(prev);
+    if (up) card.style.paddingTop = `${d}px`;
+    anims.current = [
+      card.animate([{ clipPath: `inset(0 0 0 0 round ${rr})` }, { clipPath: up ? `inset(${d}px 0 0 0 round ${rr})` : `inset(0 0 ${d}px 0 round ${rr})` }], o),
+      plate.animate([{ transform: 'scaleY(1)', transformOrigin: org }, { transform: `scaleY(${next / prev})`, transformOrigin: org }], o),
+    ];
+    anims.current[0].onfinish = () => setAnimH(null);
+  };
   const reveal = (prev: number, next: number, opts?: KeyframeAnimationOptions) => {
     const card = cardRef.current, plate = plateRef.current;
     if (!card || !plate) return;
     const o = opts ?? { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'forwards' };
     anims.current.forEach((a) => a.cancel());
+    const up = now.current.up, rr = now.current.rr, org = up ? '50% 100%' : '50% 0%';
     anims.current = [
-      card.animate([{ clipPath: `inset(0 0 ${next - prev}px 0 round ${now.current.rr})` }, { clipPath: `inset(0 0 0 0 round ${now.current.rr})` }], o),
-      plate.animate([{ transform: `scaleY(${prev / next})` }, { transform: 'scaleY(1)' }], o),
+      card.animate([{ clipPath: up ? `inset(${next - prev}px 0 0 0 round ${rr})` : `inset(0 0 ${next - prev}px 0 round ${rr})` }, { clipPath: `inset(0 0 0 0 round ${rr})` }], o),
+      plate.animate([{ transform: `scaleY(${prev / next})`, transformOrigin: org }, { transform: 'scaleY(1)', transformOrigin: org }], o),
     ];
     anims.current[0].onfinish = () => anims.current.forEach((a) => a.cancel());
   };
@@ -108,7 +134,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
         for (let n = 0; n < 8 && hgt > room && k > floor; n++) { k = Math.max(floor, k * Math.min(0.97, (room / hgt) ** 0.9)); card.style.setProperty('--pz-fit', k.toFixed(3)); hgt = size(); }
       }
       const h = Math.ceil(el.getBoundingClientRect().height + pad) + 2;
-      growNow(h);
+      growNow(h); shrinkNow(h);
       onHeight(entry.key, Math.round(rect.w), h);
     };
     report();
@@ -135,18 +161,11 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     if (rect.h > prev) {
       reveal(prev, rect.h, opts);
     } else {
-      anims.current.forEach((a) => a.cancel());
-      setAnimH(prev);
-      const k = rect.h / prev;
-      anims.current = [
-        card.animate([{ clipPath: `inset(0 0 0 0 round ${round(r)})` }, { clipPath: `inset(0 0 ${prev - rect.h}px 0 round ${round(r)})` }], opts),
-        plate.animate([{ transform: 'scaleY(1)' }, { transform: `scaleY(${k})` }], opts),
-      ];
-      anims.current[0].onfinish = () => setAnimH(null);
+      sink(prev, rect.h, opts);
     }
   }, [rect.h, ready, live, out]);
   // the new height is in place: let go of the glide (cancelled here, after the commit, so no frame shows the full old card)
-  useLayoutEffect(() => { if (animH == null && anims.current.length) { anims.current.forEach((a) => a.cancel()); anims.current = []; } }, [animH]);
+  useLayoutEffect(() => { if (animH == null) { cardRef.current?.style.removeProperty('padding-top'); if (anims.current.length) { anims.current.forEach((a) => a.cancel()); anims.current = []; } } }, [animH]);
 
   // a card comes in only when its whole group can (every card measured at its final height, the fonts in), never on its own measure:
   // once let in it stays in, whatever the group does after
@@ -178,7 +197,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   const alone = centredKind(entry.id);
   const surface = alone === 'panel' ? `pz-panel${extra ? ` ${extra}` : ''}` : alone === 'case' ? 'pz-case on' : entry.id === 'ladder' ? `pz-data${extra ? ` ${extra}` : ''}` : `pz-shade pz-card${stackCls}`;
   return (
-    <div className="dk-pos" data-live={live && !out} data-centred={alone || undefined} data-slot={data ? 'data' : 'words'} data-tucked={tuck || undefined} style={{ width: rect.w, transform: `translate3d(${rect.x}px, ${rect.y}px, 0)`, ...(tuck ? { translate: `0 ${-closedPx(rect.h)}px` } : null), ...(swap && !reduced() ? { transition: `transform ${IN_MS}ms ${RAIL_CSS} ${OUT_DONE}ms` } : null) }}>
+    <div className="dk-pos" data-up={up || undefined} data-live={live && !out} data-centred={alone || undefined} data-slot={data ? 'data' : 'words'} data-tucked={tuck || undefined} style={{ width: rect.w, transform: `translate3d(${rect.x}px, ${up ? rect.y + rect.h : rect.y}px, 0)`, ...(tuck ? { translate: `0 ${-closedPx(rect.h)}px` } : null), ...(swap && !reduced() ? { transition: `transform ${IN_MS}ms ${RAIL_CSS} ${OUT_DONE}ms` } : null) }}>
       <div ref={plateRef} className="dk-plate" data-phase={phase} style={{ height: ready ? (animH ?? rect.h) : undefined, ...(bottomR != null ? { borderRadius: round(r) } : null) }} aria-hidden="true" />
       <div ref={cardRef} className={`dk-card ${surface}`} data-card={entry.id} data-phase={phase} data-overflow={overflow || undefined}
         role="group" aria-label={label} onClick={onTap} data-zoomable={zoomable || undefined} data-visual={entry.id === 'title' ? 'outline' : entry.id === 'check' ? 'check' : entry.id === 'visual' ? visual || 'table' : undefined} style={{ height: ready ? (animH ?? rect.h) : undefined, ...(bottomR != null ? { borderRadius: round(r) } : null) }} {...pointer}>
