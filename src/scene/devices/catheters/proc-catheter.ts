@@ -126,6 +126,8 @@ export class ProcCatheter {
   /** The point just ahead of the tip, where a wedged reading hangs. On the HVPG's route that is 2D's own place (stage-cath.js: the route's point 6.4 of the free vein's radii on, which runs on past the end of the tip's way); on the others, `share` of the way on. */
   aheadAt(u: number, out = new Vector3(), share = 0.04): Vector3 {
     const { r3 } = this, r = r3.route;
+    // (inside the amber column, which runs from the tip to the end of the vein it is in: 2D's place, held to 0.6 of that stretch so the reading hangs IN the column, never past it)
+    if (r.kind === 'hvpg') { const d = r3.tipD(u), end = r.parts.find((q) => q.id && d <= q.d1 + 1e-6 && d >= q.d0 - 1e-6)?.d1 ?? r.total; return r3.point(d + Math.min(r3.lumen(r.free) * U * 6.4, (end - d) * 0.6), out); }
     return r.kind === 'hvpg' ? r3.point(Math.min(r.total, r3.tipD(u) + r3.lumen(r.free) * U * 6.4), out) : r3.point(r3.tipD(Math.min(1, u + share)), out);
   }
   get current(): Readonly<CatheterState> { return this.last; }
