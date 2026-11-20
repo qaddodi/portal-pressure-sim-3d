@@ -21,9 +21,9 @@ import type { LobuleView } from '../lobule/view.ts';
 import type { LookId } from '../../looks/looks.ts';
 import type { Course, LobuleNet, P2 as LP2 } from '../lobule/geometry.ts';
 import { LOBULE_R } from '../lobule/shots.ts';
-import { AN_K, DISC_R, DUCT_R, LT_R, RS_N, congShare, inletRadius, sinRadius, twigR } from '../lobule/widths.ts';
+import { AN_K, DISC_R, DUCT_R, LT_R, RS_N, lyTaper, congShare, inletRadius, sinRadius, twigR } from '../lobule/widths.ts';
 /** The space of Disse's band and the widest bile canaliculus (lobule radii), which shrink to nothing as their layers go off (2D: lobule-zoom-field.js, lobule-bile.js). */
-const LYMPH_DISSE_R = 0.0132, BILE_BC_R = 0.0036;
+const BILE_BC_R = 0.0036;
 import { CASING } from '../vessels/cel-ink.ts';
 import { type InkContext, type Seg, inkAt, sinW } from '../lobule/ink.ts';
 import { lookColours } from '../lobule/lz-colours.ts';
@@ -117,22 +117,6 @@ export function weldRequest(net: LobuleNet): WeldRequest {
   return { courses: [...bloodWeldCourses(net, h, segs), ...bileWeldCourses(net, h, segs)], avoid };
 }
 
-/** The lymph ductule of each space of Disse that leaves a lymphatic channel (`ly` level 0 runs from the channel to its sinusoid, geometry.ts): the stretch from the channel to where the sinusoid starts, as a course of its own
- *  (drawn as a thin lymph tube with the terminal lymphatics), and the sample the Disse sleeve begins at (the sinusoid's own start, so nothing of it stands outside the sinusoid). */
-export function disseDuctules(ly: readonly Course[], all: readonly Course[]): { src: Course; conn: Course; from: number }[] {
-  const out: { src: Course; conn: Course; from: number }[] = [];
-  for (const c of ly) {
-    if (c.lvl !== 0 || c.sib == null) continue;
-    const sib = all.find((x) => x.id === c.sib), p0 = sib?.pts[0];
-    if (!p0) continue;
-    let from = 0, best = Infinity;
-    c.pts.forEach((q, i) => { const d = Math.hypot(q[0] - p0[0], q[1] - p0[1]); if (d < best) { best = d; from = i; } });
-    if (from < 1) continue;
-    out.push({ src: c, from, conn: { ...c, kind: 'lt', pts: c.pts.slice(0, from + 1), rho: c.rho.slice(0, from + 1), len: c.len * from / (c.pts.length - 1), lvl: undefined } });
-  }
-  return out;
-}
-
 /** Each terminal lymphatic runs on into the middle of the lymphatic's pool it ends at (2D ends it on the pool's rim, under the pool's drawing; here the pool is a solid with a wall, and a tube that stopped at
  *  the rim met that wall end to end, a butt joint with the outline between: Mohammad 20 Nov 2026, "they don't join the actual ductule at the end"). The bile's canals already end at their ductule's middle. */
 export function lymphIntoPools(lt: readonly Course[], lv: readonly Course[]): Course[] {
@@ -146,10 +130,6 @@ export function lymphIntoPools(lt: readonly Course[], lv: readonly Course[]): Co
   });
 }
 
-/** How many samples a space of Disse's sleeve takes to open out to its full width from where it begins (a point under the sinusoid's foot). */
-export const DISSE_OPEN = 6;
-/** The share of its width the sleeve has `k` samples from its start. */
-export function disseOpen(k: number): number { const t = Math.min(1, Math.max(0, k / DISSE_OPEN)); return t * t * (3 - 2 * t); }
 
 export class Lobule3D {
   readonly group = new Group();
@@ -171,9 +151,8 @@ export class Lobule3D {
   private readonly inlets: MicroPart;
   private readonly twigs: MicroPart;
   private readonly lt: MicroPart;
-  /** The lymph ductules: 2D's `ly` stretch from its channel to the sinusoid, half the channel's width (2D rs0 * 0.5 against R * 0.0075). */
+  /** The lymph channels beside the sinusoids (2D's `ly`): thin tubes tapering toward the central vein. */
   private readonly duct: MicroPart;
-  private readonly disse: MicroPart;
   private readonly bile: MicroPart;
   private readonly mouthPv: MicroPart;
   private readonly mouthHa: MicroPart;
@@ -215,8 +194,7 @@ export class Lobule3D {
     this.inlets = mk('inlets', { px: VESSEL_LINE, flow: true, dust });
     this.twigs = mk('arteriole-twigs', { px: S.LINE_SMALL * 0.8, flow: true, dust });
     this.lt = mk('terminal-lymphatics', { px: S.LINE_SMALL * 0.8, flow: true, dust });
-    this.duct = mk('lymph-ductules', { px: S.LINE_SMALL * 0.8, flow: true, dust });
-    this.disse = mk('disse', { ink: null });
+    this.duct = mk('lymph-channels', { px: S.LINE_SMALL * 0.8, flow: true, swell: true, dust });
     this.bile = mk('canaliculi', { px: S.LINE_SMALL * 0.7, flow: true, dust });   // (the lymph and the bile carry the same dust, in their own colours: Mohammad 20 Nov, "the bile and lymph should have the same kind of streaks we use for blood")
     this.mouthPv = mk('portal-venules', { px: VESSEL_LINE });
     this.mouthHa = mk('arterioles', { px: VESSEL_LINE * 0.8 });
@@ -241,7 +219,7 @@ export class Lobule3D {
     this.marks = new Mesh(new PlaneGeometry(side, side), this.marksMat);
     this.marks.position.z = LZ.marks; this.marks.name = 'lobule3d/marks'; this.marks.frustumCulled = false;
     // draw order: the ground and the tiles, then the marks over them, then every vessel (depth-tested against the tiles)
-    this.ground.renderOrder = -6; this.cells.renderOrder = -5; this.nuclei.renderOrder = -5; this.disse.renderOrder = -5;
+    this.ground.renderOrder = -6; this.cells.renderOrder = -5; this.nuclei.renderOrder = -5;
     const vessels = [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv];
     // (the flat view's field of neighbour lobules is see-through and so draws after every solid part; the marks, drawn among the solids, were painted over by it outside the hexagon, which
     // cut the periportal scar off at the edge: Mohammad 20 Nov "it's clipped like at the hexagon". The marks and the vessels draw in the see-through list after the field instead, the vessels
@@ -253,7 +231,7 @@ export class Lobule3D {
     }
     this.cvScar.renderOrder = 0;
     { const m = this.cvScar.toonMesh.material as ShaderMaterial; m.depthWrite = false; m.premultipliedAlpha = true; }   // (the toon writes its colour already times its opacity)
-    for (const p of [this.ground, this.cells, this.nuclei, this.disse, ...vessels, this.cvScar]) this.group.add(p.group);
+    for (const p of [this.ground, this.cells, this.nuclei, ...vessels, this.cvScar]) this.group.add(p.group);
     this.group.add(this.marks);
     this.buildVessels();
     this.group.visible = false;
@@ -323,9 +301,9 @@ export class Lobule3D {
     const inf = (p: MicroPart, v: number) => { p.mats.toon.uniforms.inflate!.value = v; };
     { const sw = f.sinSwell; for (const k of ['s0', 's1', 's2', 'an'] as const) this.sin[k].setSwell(sw.whole, sw.share); }   // (per vertex: its own radius and its place's share, cel3d SWELL)
     const lyF = f.lyFade, biF = f.bileFade;
-    inf(this.lt, -LT_R * R * (1 - lyF)); inf(this.duct, -DUCT_R * R * (1 - lyF)); inf(this.disse, -LYMPH_DISSE_R * R * (1 - lyF) + 0.004 * c.seal); inf(this.bile, -BILE_BC_R * R * (1 - biF));
+    inf(this.lt, -LT_R * R * (1 - lyF)); this.duct.setSwell(-(1 - lyF), 0); inf(this.bile, -BILE_BC_R * R * (1 - biF));
     const lymphOn = lyF > 0.002, bileOn = biF > 0.002;
-    this.lt.group.visible = lymphOn; this.duct.group.visible = lymphOn; this.disse.group.visible = lymphOn; this.mouthLv.group.visible = lymphOn; this.bile.group.visible = bileOn;
+    this.lt.group.visible = lymphOn; this.duct.group.visible = lymphOn; this.mouthLv.group.visible = lymphOn; this.bile.group.visible = bileOn;
     // the central vein opens and narrows with congestion and its collagen (the flat view's radius)
     const kcv = f.cvRadiusNow / DISC_R.cv;
     this.mouthCv.group.scale.set(kcv, kcv, 1);
@@ -409,7 +387,6 @@ export class Lobule3D {
     this.twigs.setTint(tone('artery')); this.mouthHa.setTint(tone('artery'));
     this.mouthBd.setTint(tone('bile')); this.bile.setTint(tone('bile'));
     this.lt.setTint(tone('lymph')); this.duct.setTint(tone('lymph')); this.mouthLv.setTint(tone('lymph'));
-    this.disse.setTint(tone('disse'));
     this.cvScar.setTint(tone('collagen'));
     this.inkKey = '';
   }
@@ -629,28 +606,24 @@ export class Lobule3D {
     else { const t = tubes(by('in'), (c, i) => inletRadius(i, c.pts.length, Math.hypot(c.pts[i]![0] - c.pts[0]![0], c.pts[i]![1] - c.pts[0]![1])), (c, i) => i / (c.pts.length - 1)); coloured(this.inlets, t.b, 'in', t.W, t.K); this.inlets.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
     if (plan) { const d = welded(by('tw'), TUBE_SEG, false, null, () => false); coloured(this.twigs, d.b, null, d.W, d.K); this.twigs.geometry.setAttribute('fcourse', new Float32BufferAttribute(d.fc!, 4)); }
     else { const t = tubes(by('tw'), (c, i) => twigR(i / (c.pts.length - 1), RS_N), () => 0, OVER_Z); coloured(this.twigs, t.b, null, t.W, t.K); this.twigs.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
-    // (the terminal lymphatics, and the lymph ductules: where a space of Disse leaves its channel it is a thin lymph tube as 2D draws it (`ly`, lymph-coloured, tapering), not a flat sleeve, up to where the sinusoid's
-    //  own sleeve begins; Mohammad 20 Nov 2026: a grey plate stood out beside each inlet, at the end of a ductule)
-    const ductules = disseDuctules(by('ly'), net.courses);
+    // the terminal lymphatics along the edges
     { const t = tubes(lymphIntoPools(by('lt'), by('lv')), () => LT_R, () => 0); coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
-    { const t = tubes(ductules.map((d) => d.conn), () => DUCT_R, () => 0); coloured(this.duct, t.b, null, t.W, t.K); this.duct.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
-    // the space of Disse: a flat pale sleeve under each sinusoid (2D's Wet Disse), no light of its own
+    // the lymph channels (2D's `ly`, "a thin channel beside each sinusoid, between the sinusoid and its plate", geometry.ts): a thin lymph tube along the OUTSIDE of its sinusoid, from the limiting plate in, tapering
+    // to a thread before the central vein (widths.ts lyTaper); it runs out against the blood, so the course is laid from the vein to the edge. Mohammad 20 Nov 2026: "those lymph vessels should be drawn like on the
+    // outside of the blood vessels and taper to nothing closer to 90% of the way to the central vein". They were a flat sleeve centred ON each sinusoid, a third wider than the sinusoid each side: where two sinusoids
+    // part at a small angle the two sleeves covered the cleft between them, the broad grey-green wedges. Each vertex keeps its own radius in `swell`, so the layer's fade shrinks every width by its own share (no tube inverts).
     {
-      const b = new MeshBuilder(), K: number[] = [], W: number[] = [], rly = 0.0132;
-      for (const c of by('ly')) {
-        const from = ductules.find((d) => d.src === c)?.from ?? 0, n = c.pts.length, r0 = b.count;
-        for (let i = from; i < n; i++) {
-          const a = c.pts[Math.max(0, i - 1)]!, d = c.pts[Math.min(n - 1, i + 1)]!;
-          let tx = d[0] - a[0], ty = -(d[1] - a[1]); const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
-          const p = at3(c.pts[i]!, LZ.disse);
-          // (it opens out from a point over its first DISSE_OPEN samples: a square start, wider than the inlet it begins under, stood out as a small grey plate beside every sinusoid's foot, Mohammad 20 Nov 2026)
-          const wd = rly * disseOpen(i - from);
-          b.v(p[0] - ty * wd * R, p[1] + tx * wd * R, p[2], 0, 0, 1, [1, 1, 1]); b.v(p[0] + ty * wd * R, p[1] - tx * wd * R, p[2], 0, 0, 1, [1, 1, 1]);
-          K.push(1, 1); W.push(0, 0);
-        }
-        for (let i = 0; i < n - 1 - from; i++) { const q = r0 + i * 2; b.quad(q, q + 2, q + 3, q + 1); b.quad(q, q + 1, q + 3, q + 2); }
+      const lym = by('ly').map((c) => ({ ...c, pts: [...c.pts].reverse(), rho: [...c.rho].reverse() }));
+      const r = (c: Course, i: number) => DUCT_R * lyTaper(c.rho[i]!);
+      const t = tubes(lym, r, () => 0, OVER_Z), sw: number[] = [];
+      for (const c of lym) {
+        const n = c.pts.length, at = (i: number) => { const v = Math.max(1e-4, r(c, i) * R); sw.push(v, 0); };
+        for (let i = 0; i < n; i++) for (let k = 0; k < TUBE_SEG; k++) at(i);
+        const cap = t.caps.get(c)!;
+        for (let v = 0; v < cap; v++) at(0);
+        for (let v = 0; v < cap; v++) at(n - 1);
       }
-      coloured(this.disse, b, null, W, K);
+      coloured(this.duct, t.b, null, t.W, t.K); this.duct.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); this.duct.geometry.setAttribute('swell', new Float32BufferAttribute(sw, 2));
     }
     // the Bile layer, laid out as 2D lays it (bile.ts, a port of lobule-bile.js): a channel beside each plate's sinusoid from a quarter of the way out, thickening outward, a short
     // canal of Hering square into a duct along the edge outside the lymphatic, each half edge's duct into its corner's ductule; 2D's radii; arrowheads toward the ductule
@@ -721,11 +694,11 @@ export class Lobule3D {
   /** Vertex count of everything this scene draws (tests and the budget). */
   get vertexCount(): number {
     let n = 0;
-    for (const p of [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.disse, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar]) n += p.geometry.getAttribute('position')?.count ?? 0;
+    for (const p of [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar]) n += p.geometry.getAttribute('position')?.count ?? 0;
     return n;
   }
   /** The parts (tests). */
-  get partsForTest(): MicroPart[] { return [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.disse, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar]; }
+  get partsForTest(): MicroPart[] { return [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar]; }
   /** Builds the tiles for a look and state without the flat view's frame (tests). */
   buildForTest(look: LookId, congU = 0, septU = 0): void { this.buildCells(look, congU, septU); this.applyLook(look); this.buildGround(1, true); }
 
