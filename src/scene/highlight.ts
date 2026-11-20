@@ -1,10 +1,10 @@
 import { BackSide, Mesh, ShaderMaterial } from 'three';
 import type { CelObject } from './materials/cel.ts';
+import { HI_NONE } from './materials/shaders.ts';
 
-// Vessel highlight (look-and-feel.md section 9): the picked vessel gets a bolder outline in its own deep colour (white on the dark
-// looks) that runs on downstream and fades, and reaches only a short way upstream ("long ahead, short behind"). It lifts a hair.
-// Nothing else is dimmed. Downstream is read from the topology (edge `from` to `to`), so the highlight follows the blood through
-// branches (the portal trunk into both portal branches) with no per-vessel hand tuning.
+// Vessel highlight (look-and-feel.md section 9): the picked vein (every piece the engine cuts it into) gets a bolder outline in its own tone lifted, thin, that fades
+// away at the vein's two ends and is full in the middle. It lifts a hair. Nothing else is lit or dimmed. (`computeHighlight` can still walk the flow past the ends
+// when given a range, read from the topology: edge `from` to `to`; a pick gives none.)
 
 export interface HighlightEdge {
   id: string;
@@ -19,6 +19,11 @@ export interface HighlightSpec {
   dir: -1 | 0 | 1;
   /** Distance along the flow from the picked vessel's end (downstream) or start (upstream) to this vessel's near end. */
   offset: number;
+  /** The picked vein itself (dir 0): how far this piece's start is from the vein's outer start, and its end from the vein's outer end (HI_NONE when that end runs on into
+   *  another piece of the same vein), and how far in from an outer end the line takes to come to full. The line is nothing at an outer end and full a `fade` in. */
+  start?: number;
+  end?: number;
+  fade?: number;
 }
 
 export interface HighlightRange {
@@ -28,8 +33,13 @@ export interface HighlightRange {
   behind: number;
 }
 
-/** A pick lights its own vein and fades out along the flow a short way past each end (Mohammad, 20 Nov: only the vein I tap; 2.4 ahead ran through the liver and lit the cava, the shunts and every collateral). */
-export const DEFAULT_RANGE: HighlightRange = { ahead: 0.5, behind: 0.2 };
+/** A pick lights its own vein and nothing else: the line fades away at the vein's two ends (Mohammad, 20 Nov: "the outline fades away at both ends"; only the vein I tap, not the
+ *  cava, the shunts and every collateral that 2.4 ahead lit). Nothing runs on into the next vessel, so the range is none; `computeHighlight` still walks the flow when given one. */
+export const DEFAULT_RANGE: HighlightRange = { ahead: 0, behind: 0 };
+/** The share of a vein's length each end takes to fade in (the middle third holds full). */
+export const END_FADE = 0.35;
+/** The picked outline's width over the vessel's own line, CSS px (it was 1.6: "less thick", 20 Nov). */
+export const HI_PX = 0.8;
 /** Outline lift on the picked vessel (scene units), mocks: 0.012. */
 export const PICK_LIFT = 0.012;
 /** Fade in and out of the outline, ms. */
@@ -43,7 +53,17 @@ export function computeHighlight(pick: string | readonly string[], edges: readon
   const group = ids.map((id) => byId.get(id)).filter((e): e is HighlightEdge => !!e);
   const out = new Map<string, HighlightSpec>();
   if (!group.length) return out;
-  for (const e of group) out.set(e.id, { dir: 0, offset: 0 });
+  // the vein's own line: nothing at an outer end (one no other piece of the vein runs into), full a fade in; ends that join another piece of the same vein run on
+  const total = group.reduce((a, e) => a + e.length, 0), fade = Math.max(END_FADE * total, 1e-4);
+  const reach = (e: HighlightEdge, forward: boolean, seen: ReadonlySet<string> = new Set()): number => {
+    if (seen.has(e.id)) return HI_NONE;
+    const next = group.filter((g) => g !== e && (forward ? g.from === e.to : g.to === e.from));
+    if (!next.length) return 0;
+    const s2 = new Set(seen).add(e.id);
+    return Math.min(HI_NONE, Math.min(...next.map((g) => g.length + reach(g, forward, s2))));
+  };
+  // (for a piece's start: the distance back along the pieces to the vein's outer start; for its end: on to the outer end. An end with nothing beyond it is an outer end: 0)
+  for (const e of group) out.set(e.id, { dir: 0, offset: 0, start: reach(e, false), end: reach(e, true), fade });
   const nodes = new Set(group.flatMap((e) => [e.from, e.to]));
 
   // downstream: edges that leave any node of the pick
@@ -73,7 +93,11 @@ export function computeHighlight(pick: string | readonly string[], edges: readon
 
 /** Outline strength 0 to 1 at a distance along the flow, as the ink shader computes it (smoothstep fade). */
 export function outlineStrength(spec: HighlightSpec, arc: number, length: number, range: HighlightRange = DEFAULT_RANGE): number {
-  if (spec.dir === 0) return 1;
+  if (spec.dir === 0) {   // the vein's own line: nothing at an outer end, full a `fade` in
+    if (spec.fade === undefined) return 1;
+    const d = Math.min((spec.start ?? HI_NONE) + arc, (spec.end ?? HI_NONE) + (length - arc)), t = Math.min(1, Math.max(0, d / spec.fade));
+    return t * t * (3 - 2 * t);
+  }
   const dist = spec.dir > 0 ? spec.offset + arc : spec.offset + (length - arc);
   const limit = spec.dir < 0 ? range.behind : range.ahead;
   const t = Math.min(1, Math.max(0, dist / Math.max(limit, 1e-4)));
@@ -105,6 +129,7 @@ export class Highlight {
       const u = o.ink.uniforms;
       u.hiAhead.value = range.ahead;
       u.hiBehind.value = range.behind;
+      u.hiPx.value = HI_PX;
     }
   }
 
@@ -119,6 +144,8 @@ export class Highlight {
         const u = t.obj.ink.uniforms;
         u.hiDir.value = s.dir;
         u.hiOffset.value = s.offset;
+        (u.hiEnds!.value as { set(x: number, y: number): void }).set(s.start ?? HI_NONE, s.end ?? HI_NONE);
+        u.hiFade!.value = s.fade ?? 1;
       }
     }
   }
@@ -131,7 +158,7 @@ export class Highlight {
       const on = hosts.has(this.hostOf.get(eid) ?? eid);
       t.target = on ? 1 : 0;
       t.liftTarget = 0;
-      if (on) { const u = t.obj.ink.uniforms; u.hiDir.value = 0; u.hiOffset.value = 0; }
+      if (on) { const u = t.obj.ink.uniforms; u.hiDir.value = 0; u.hiOffset.value = 0; (u.hiEnds!.value as { set(x: number, y: number): void }).set(HI_NONE, HI_NONE); }
     }
   }
 
@@ -161,7 +188,7 @@ export class Highlight {
 export const PIN_FADE_MS = 300;
 /** The thin line of the normal-sized spleen inside an enlarged one (2D OL_LOOK.normal: 1.4 px, half an alpha). */
 /** What a slide's pin and a tapped organ add to the organ's own 1.1 line: a modest step up (Mohammad, 20 Nov: "insanely thick"). */
-export const PIN_PX = 0.7, SELECT_PX = 1.1;   // (figure units, as the organ's own 1.1 line is: 1.6 and 3.6 drew a white band several times the line when zoomed, 20 Nov)
+export const PIN_PX = 0.4, SELECT_PX = 0.6;   // (figure units, as the organ's own 1.1 line is: 1.6 and 3.6 drew a white band several times the line when zoomed, 20 Nov)
 export const NORMAL_LINE = { px: 1.4, alpha: 0.5 };
 
 /** A slide's outlined organs (2D `pinOrgans`: the organ's own deep tone, a wider line, fading in and out), by the organs' own ids. The line is the organ's ink hull at the

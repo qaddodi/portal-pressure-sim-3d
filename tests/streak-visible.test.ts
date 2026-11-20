@@ -13,7 +13,7 @@ import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 
 const hex = (c: readonly number[]) => '#' + c.map((v) => Math.round(Math.min(255, Math.max(0, v * 255))).toString(16).padStart(2, '0')).join('');
 // typical vessels at the pane's 2x zoom: [radius in CSS px, lanes] (the lumen's own radius picks the lanes: 3, 5 or 7)
-const TYPICAL: [number, number][] = [[4, 3], [6, 5], [9, 7], [14, 7]];
+const TYPICAL: [number, number][] = [[3.5, 1], [4, 3], [6, 5], [9, 7], [14, 7]];
 
 test('the Blood streaks switch is on by default (the first cause: nothing ran with it off)', () => {
   assert.equal(DEPTH_DEFAULTS.particles, true);
@@ -31,7 +31,7 @@ test('a streak is at least 2 CSS px thick wherever its lane allows, in a typical
   assert.match(VESSEL_FS, /gStreakPx = rCss;/);
 });
 
-test('the lighter tone is a visible step from the body in Light and Dark: 1.15:1 or more at the faintest streak, 1.4:1 or more at the brightest, for the portal and the systemic vessel, lit side and shade side', () => {
+test('the lighter tone is a visible step from the body in Light and Dark: 1.25:1 or more at the faintest streak, 1.5:1 or more at the brightest, for the portal and the systemic vessel, lit side and shade side', () => {
   for (const id of ['light', 'soft', 'dark', 'navy', 'black'] as const) {
     const p = PALETTES[id], dark = id === 'dark' || id === 'navy' || id === 'black';
     for (const v of ['portal', 'sys'] as const) {
@@ -41,8 +41,8 @@ test('the lighter tone is a visible step from the body in Light and Dark: 1.15:1
         const light = body.map((x) => x + (1 - x) * STREAK.LIFT);
         const faint = streakToneJs(body, light, 0, 0.5), bright = streakToneJs(body, light, 1, 0.5);
         const cf = contrast(hex(faint), hex(body)), cb = contrast(hex(bright), hex(body));
-        assert.ok(cf >= 1.15, `${id} ${v} ${name}: faintest ${cf.toFixed(2)}:1`);
-        assert.ok(cb >= 1.4, `${id} ${v} ${name}: brightest ${cb.toFixed(2)}:1`);
+        assert.ok(cf >= 1.25, `${id} ${v} ${name}: faintest ${cf.toFixed(2)}:1`);
+        assert.ok(cb >= 1.5, `${id} ${v} ${name}: brightest ${cb.toFixed(2)}:1`);
         for (let i = 0; i < 3; i++) assert.ok(bright[i]! <= 1 && faint[i]! >= body[i]! - 1e-9, 'never darker than the body, never past white');
       }
     }

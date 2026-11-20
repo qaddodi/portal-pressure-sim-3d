@@ -1,7 +1,7 @@
 import {
   BackSide, type BufferGeometry, Color, DataTexture, FloatType, Group, KeepStencilOp, LinearSRGBColorSpace, Mesh, NearestFilter, NotEqualStencilFunc, ReplaceStencilOp, RGBAFormat, ShaderMaterial, type Texture, Vector2, Vector3,
 } from 'three';
-import { INK_FS, INK_VS, TOON_FS, TOON_VS } from './shaders.ts';
+import { HI_NONE, INK_FS, INK_VS, TOON_FS, TOON_VS } from './shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 import { type Palette, type ToneKey, flowMarkColours, highlightColour } from '../palette.ts';
 
@@ -99,7 +99,7 @@ export class CelObject {
       uniforms: {
         color: { value: new Color() }, hiColor: { value: new Color() }, inflate: this.toon.uniforms.inflate, fade: this.toon.uniforms.fade,
         px: { value: opts.px }, res: shared.res, len: this.toon.uniforms.len, reveal: this.toon.uniforms.reveal,
-        hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiPx: { value: 1.6 }, inkA: { value: 1 },
+        hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 }, inkA: { value: 1 },
       },
     });
     const inkMesh = new Mesh(geometry, this.ink);
