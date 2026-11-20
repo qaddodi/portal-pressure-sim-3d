@@ -357,7 +357,7 @@ void main() {
   float kT = celTubeK(sideS);
   vec3 c = celTubeTone(base, across, kT, rDev);
   // the hard highlight: a flat pale streak on the lit side, at the middle of each stretch of the vessel (a long one has one every SPEC.PERIOD figure units, a short one has one), none on a hairline
-  float lenU = len * 300.0, cntS = max(1.0, floor(lenU / ${F(CEL_STYLE.SPEC.PERIOD)} + 0.5));
+  float lenU = len * vU, cntS = max(1.0, floor(lenU / ${F(CEL_STYLE.SPEC.PERIOD)} + 0.5));
   float alongR = (fract(vUv.x * cntS) - 0.5) * lenU / cntS / max(vR, 1e-4);
   c = mix(c, vec3(1.0), celTubeSpec(across, kT, rDev, alongR) * (dotted > 0.5 ? 0.0 : 1.0));
   // a dark lumen on the dark looks (where the outline is no darker than the ground) gets a light edge a device pixel wide just inside its wall, hard-edged (2D rimInk)
