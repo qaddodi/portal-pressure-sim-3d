@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { CelScene } from '../src/scene/scene.ts';
-import { DEFAULT_RANGE, computeHighlight } from '../src/scene/highlight.ts';
+import { DEFAULT_RANGE, HI_PX, computeHighlight } from '../src/scene/highlight.ts';
 import { buildLobule } from '../src/scene/lobule/geometry.ts';
 import { lobuleHit } from '../src/scene/lobule/pick.ts';
 import { markShapes, ribbon, type MarkEnv } from '../src/scene/lobule/mark.ts';
@@ -11,7 +11,8 @@ import { markShapes, ribbon, type MarkEnv } from '../src/scene/lobule/mark.ts';
 test('a pick reaches only a short way: nothing beyond the range along the flow is lit, and the cava stays out of a portal pick', () => {
   const s = new CelScene();
   const edges = s.vessels.filter((o) => o.edge).map((o) => ({ id: o.edge!.id, from: o.edge!.from, to: o.edge!.to, length: o.edge!.length }));
-  assert.ok(DEFAULT_RANGE.ahead <= 0.6 && DEFAULT_RANGE.behind <= 0.25, 'a few tenths of a scene unit');
+  assert.ok(DEFAULT_RANGE.ahead <= 0.6 && DEFAULT_RANGE.behind <= 0.25, 'a few tenths of a scene unit at most');
+  assert.ok(HI_PX <= 1, 'thin (20 Nov: less thick)');
   for (const pick of ['PV_TRUNK', 'SMV_CONF', 'IVC_IS_1', 'A_HEP']) {
     if (!edges.some((e) => e.id === pick)) continue;
     const m = computeHighlight(pick, edges);
@@ -19,7 +20,7 @@ test('a pick reaches only a short way: nothing beyond the range along the flow i
       if (v.dir === 0) continue;
       assert.ok(v.offset < (v.dir > 0 ? DEFAULT_RANGE.ahead : DEFAULT_RANGE.behind), `${pick}: ${id} starts within the range (${v.offset.toFixed(2)})`);
     }
-    assert.ok(m.size < 25, `${pick} lights ${m.size} edges`);
+    assert.ok(m.size < 25 && [...m.values()].every((v) => v.dir === 0), `${pick} lights ${m.size} edges`);
   }
   const pv = computeHighlight('PV_TRUNK', edges);
   for (const far of ['IVC_IS_1', 'IVC_IS', 'IVCS_RA', 'LHV_IVC', 'MHV_IVC', 'RHV_IVC', 'RHV_IVC_1', 'EPI_ILI', 'EPI_SVC', 'POST_L_LHV', 'POST_R_RHV']) assert.ok(!pv.has(far), `${far} is not lit by the portal vein`);

@@ -1,41 +1,26 @@
-// The sinusoid's one legend: a dot in the albumin's colour and the word "Protein", at the top left under the view's name pill (2D: sinusoid-view.js legend, layoutEnds: lx = free.l + 2, ly = top inset + 12;
-// its look is 2D's own .sv-legend rule, copied with the rest of 2D's CSS). It stands only while the sinusoid is the view, goes with it, and is never over the names: they keep below it in a portrait room.
-import { useEffect, useRef } from 'react';
-import { clock } from '../../clock/frame.ts';
-import { BAR } from '../../ui/layout/plan.ts';
-import { useUi } from '../../ui/ui-store.ts';
-import { cel } from '../api.ts';
-import { Vector3 } from 'three';
-import { sinusoidWorld } from '../lobule/frames.ts';
-import { FACE_UM, legendBox, legendOn } from './legend.ts';
-import { framePoint } from './portrait.ts';
-import { U } from './view.ts';
-import { namesFree } from './captions.ts';
+// The sinusoid's one legend: a dot in the albumin's colour and the word "Protein". It stands in the top bar, beside the lens key (owner, 20 Nov: "move protein legend next to the lens legend"): to the left of
+// the figure's pill on a laptop, and under it on a phone, where the bar has no room beside it. Every view's key is then in one place: the lens key and this one. It stands only while the sinusoid is
+// the view and fades in and out with it. Its look is 2D's own .sv-legend rule (copied with the rest of 2D's CSS); where it stands is legend.css.
+import { useEffect, useLayoutEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useShell } from '../../ui/shell/store.ts';
+import { legendOn } from './legend.ts';
+import './legend.css';
+
+const FADE_MS = 240;
 
 export function ProteinLegend() {
-  const el = useRef<HTMLDivElement>(null);
+  const on = legendOn(useShell((s) => s.view), true);
+  const [host, setHost] = useState<HTMLElement | null>(() => (typeof document === 'undefined' ? null : document.getElementById('stageTop')));
+  useLayoutEffect(() => { setHost((o) => document.getElementById('stageTop') ?? o); }, []);
+  const [shown, setShown] = useState(on), [leaving, setLeaving] = useState(false);
   useEffect(() => {
-    const root = el.current!;
-    let tx = '', op = '', mw = '';
-    const v3 = new Vector3(), pt = { x: 0, y: 0 }, f3: [number, number, number] = [0, 0, 0];
-    /** where the hepatocytes' face on the left of a tall sinusoid lands on the screen (CSS px) */
-    const faceX = () => { const w = sinusoidWorld(framePoint(0, FACE_UM, U, cel.sinus.turn, f3)); cel.rig.project(v3.set(w[0], w[1], w[2]), pt); return pt.x; };
-    const tick = () => {
-      const on = legendOn(cel.view, cel.sinus.group.visible);
-      const { vp } = useUi.getState();
-      const free = namesFree(cel.rig.targetRoom, { w: vp.w, h: vp.h });
-      const b = legendBox(free, (vp as { safe?: { top: number } }).safe?.top ?? 0, BAR, cel.sinus.isPortrait ? faceX() - 8 : vp.w - 12);
-      const t = `translate(${b.x}px, ${b.y}px)`, o = on ? '1' : '0', m = `${b.maxW}px`;
-      if (t !== tx) { tx = t; root.style.transform = t; }
-      if (o !== op) { op = o; root.style.opacity = o; }
-      if (m !== mw) { mw = m; root.style.maxWidth = m; }
-    };
-    const off = clock.on('tags', tick, 1);
-    const wake = () => clock.invalidate('sinusoid-legend');
-    const offUi = useUi.subscribe(wake);
-    wake();
-    return () => { off(); offUi(); };
-  }, []);
-  // (inside a layer of its own, the same as the names': the one coordinate space the figure's words stand in)
-  return <div className="lb-layer cc-layer sv-layer" aria-hidden="true"><div ref={el} className="sv-legend" style={{ opacity: 0 }}><span><i className="alb" />Protein</span></div></div>;
+    if (on) { setShown(true); setLeaving(false); return; }
+    if (!shown) return;
+    setLeaving(true);
+    const t = window.setTimeout(() => { setShown(false); setLeaving(false); }, FADE_MS + 40);
+    return () => window.clearTimeout(t);
+  }, [on, shown]);
+  if (!host || !shown) return null;
+  return createPortal(<div className={`sv-legend${leaving ? ' out' : ''}`} aria-hidden="true"><span><i className="alb" />Protein</span></div>, host);
 }

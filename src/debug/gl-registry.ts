@@ -6,8 +6,6 @@ import { type Program, assemble, collectMaterials, lateMaterialProgram, rawProgr
 import { INK_FS, INK_VS, TOON_FS, TOON_VS } from '../scene/materials/shaders.ts';
 import { VESSEL_FS, VESSEL_VS } from '../scene/vessels/shaders.ts';
 import { DOT_FS, DOT_VS, PLATE_FS, PLATE_VS } from '../scene/circuit/map-layer.ts';
-import { SINUSOID_PFS, SINUSOID_PVS, SINUSOID_VS } from '../scene/sinusoid/gl.copied.ts';
-import { SINUSOID_CEL_FS } from '../scene/sinusoid/view.ts';
 import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from '../scene/organs/organ-shader.ts';
 import { patchedShaders } from '../scene/organs/organ-art.ts';
 import { RES_FS, RES_VS } from '../scene/circuit/resistors.ts';
@@ -30,7 +28,6 @@ export const GL_FILES: Record<string, string> = {
   'scene/blood/streak-glsl.ts': 'the one streak (lanes, comets), spliced into the blood streaks, the 3D lobule and the 3D sinusoid programs: part of those',
   'scene/cel-glsl.ts': 'the cel style\'s shared tube GLSL (two tones, the world light), spliced into the vessel, toon and lobule programs: part of those',
   'scene/vessels/shaders.ts': 'the vessel, with its veil (VEIL define): found on the scene graph',
-  'scene/sinusoid/gl.copied.ts': 'the sinusoid (2D\'s shader, copied): RawShaderMaterials found on the scene graph',
   'scene/sinusoid/view.ts': 'where the sinusoid\'s RawShaderMaterials are made (version moved to glslVersion): found on the scene graph',
   'scene/organs/organ-shader.ts': 'the organ wash (WP1): registered by name until the scene wears it, then also found on the scene graph',
   'scene/circuit/shader.ts': 'the Circuit morph, spliced into the vessel shader: part of the vessel program',
@@ -56,9 +53,7 @@ export const GL_FILES: Record<string, string> = {
 
 /** Source text → name, so a program found on the scene graph is called what it is. */
 export function namedSources(): Map<string, string> {
-  const bare = (s: string) => s.replace(/^#version 300 es\n/, '');   // (the sinusoid view makes its materials without the version line)
   return new Map<string, string>([
-    [bare(SINUSOID_VS), 'sinusoid'], [bare(SINUSOID_CEL_FS), 'sinusoid'], [bare(SINUSOID_PVS), 'sinusoid particles'], [bare(SINUSOID_PFS), 'sinusoid particles'],
     [VESSEL_VS, 'vessel'], [VESSEL_FS, 'vessel'], [TOON_VS, 'toon'], [TOON_FS, 'toon'], [INK_VS, 'ink'], [INK_FS, 'ink'], [LOBULE_TOON_VS, 'lobule toon'], [LOBULE_TOON_FS, 'lobule toon'], [LOBULE_INK_VS, 'lobule ink'], [LOBULE_INK_FS, 'lobule ink'],
     [ORGAN_VS, 'organ wash'], [ORGAN_FS, 'organ wash'], [DYE_VS, 'dye overlay'], [DYE_FS, 'dye overlay'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [LOBULE_PLATE_VS, 'lobule plate'], [LOBULE_PLATE_FS, 'lobule plate'], [LOBULE_ZONES_VS, 'lobule zones'], [LOBULE_ZONES_FS, 'lobule zones'], [LOBULE_FIELD_VS, 'lobule field'], [LOBULE_FIELD_FS, 'lobule field'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'], [DOF_GATHER_FS, 'post dof'], [DOF_MIX_FS, 'post dof mix'], [CELLS_VS, 'blood cells'], [CELLS_FS, 'blood cells'], [MICRO_VS, 'micro3d toon'], [MICRO_FS, 'micro3d toon'], [MICRO_INK_VS, 'micro3d ink'], [MICRO_INK_FS, 'micro3d ink'],
   ]);

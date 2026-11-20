@@ -233,7 +233,7 @@ export class Lobule3D {
     const W: RGB = [1, 1, 1], soft = (k: number) => k * this.fade.value, dpr = (this.flat as unknown as { dprU: { value: number } }).dprU.value || 2;
     // every fluid is seen to move at the fit (Mohammad, 20 Nov 2026): the blood's dark heads (few and small on these thin tubes, the shader's screen rules) and THE ONE STREAK in every vessel, the blood's
     // only while Settings > Blood streaks is on (off: chevrons only); the lymph's and the bile's always, in their own tones
-    const bs = useSettings.getState().particles ? soft(0.9) : 0;
+    const bs = useSettings.getState().particles ? soft(0.6) : 0;   // (quiet: sleek lanes a shade off the lumen, never bold white dashes, Mohammad 20 Nov 2026 "should be more sleek")
     for (const p of [this.sin.s0, this.sin.s1, this.sin.s2]) p.setFlow(this.flowT.blood, 0.16, W, soft(1), bs, 0, 0.0082 * R, true, dpr);
     this.sin.an.setFlow(this.flowT.blood, 0.12, W, soft(1), bs, 0, 0.0043 * R, true, dpr);
     this.inlets.setFlow(this.flowT.blood, 0.3, W, soft(1), bs, 0, 0.012 * R, true, dpr);

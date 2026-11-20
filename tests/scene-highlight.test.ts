@@ -1,18 +1,47 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeHighlight, outlineStrength, DEFAULT_RANGE, Highlight } from '../src/scene/highlight.ts';
+import { computeHighlight as walk, outlineStrength, DEFAULT_RANGE, END_FADE, Highlight, type HighlightEdge, type HighlightRange } from '../src/scene/highlight.ts';
 import { CelScene } from '../src/scene/scene.ts';
 
+// the flow walk past the ends, when asked for (a pick asks for none: DEFAULT_RANGE is 0)
+const WALK: HighlightRange = { ahead: 0.5, behind: 0.2 };
+const computeHighlight = (pick: string | readonly string[], e: readonly HighlightEdge[]) => walk(pick, e, WALK);
 const edges = (() => { const s = new CelScene(); const e = s.vessels.map((o) => o.edge!); s.dispose(); return e; })();
 
 test('a picked vessel is always on, whole, and a vein the engine cuts in pieces is one vein', () => {
   const m = computeHighlight(['PV_TRUNK_1', 'PV_TRUNK'], edges);
-  assert.deepEqual(m.get('PV_TRUNK'), { dir: 0, offset: 0 });
-  assert.deepEqual(m.get('PV_TRUNK_1'), { dir: 0, offset: 0 });
+  assert.equal(m.get('PV_TRUNK')?.dir, 0);
+  assert.equal(m.get('PV_TRUNK_1')?.dir, 0);
   assert.equal(outlineStrength({ dir: 0, offset: 0 }, 0.5, 1), 1);
 });
 
-test('the outline runs on downstream through both portal branches', () => {
+test('a pick runs on into nothing by default (the range is none), and the vein\'s own line fades away at its two outer ends and comes to full a fade in', () => {
+  assert.deepEqual(DEFAULT_RANGE, { ahead: 0, behind: 0 });
+  const m = walk(['PV_TRUNK_1', 'PV_TRUNK'], edges);
+  assert.deepEqual([...m.keys()].sort(), ['PV_TRUNK', 'PV_TRUNK_1'], 'only the vein itself');
+  const a = m.get('PV_TRUNK')!, b = m.get('PV_TRUNK_1')!;
+  const len = edges.filter((e) => e.id === 'PV_TRUNK' || e.id === 'PV_TRUNK_1').reduce((t, e) => t + e.length, 0);
+  assert.ok(Math.abs(a.fade! - END_FADE * len) < 1e-9);
+  // the shader's line at a distance d from the nearest outer end: 0 at the end, 1 a fade in (smoothstep)
+  const at = (d: number) => { const t = Math.min(1, Math.max(0, d / a.fade!)); return t * t * (3 - 2 * t); };
+  assert.equal(at(0), 0); assert.equal(at(a.fade!), 1); assert.ok(at(a.fade! / 2) > 0.4 && at(a.fade! / 2) < 0.6);
+  // exactly one end of each piece is an outer end, the other runs on into the other piece
+  const outer = [a, b].map((x) => [x.start === 0, x.end === 0]);
+  assert.equal(outer.flat().filter(Boolean).length, 2, 'the vein has two outer ends');
+  for (const x of [a, b]) for (const v of [x.start!, x.end!]) assert.ok(v === 0 || v < 1e3, 'a joint is a distance along the vein, not a fade');
+});
+
+test('a lone vessel fades at both its ends; the lit set of a shunt\'s targets has no fade (whole)', () => {
+  const m = walk('V_KID_L', edges).get('V_KID_L')!;
+  assert.equal(m.start, 0); assert.equal(m.end, 0); assert.ok(m.fade! > 0);
+  const s = new CelScene();
+  s.highlight.setOnly(['V_KID_L']);
+  const u = s.vessels.find((o) => o.edge!.id === 'V_KID_L')!.ink.uniforms;
+  assert.deepEqual((u.hiEnds!.value as { x: number; y: number }).x, 1e3, 'targets are whole: no end to fade');
+  s.dispose();
+});
+
+test('the outline runs on downstream through both portal branches (when a range is asked for)', () => {
   const m = computeHighlight(['PV_TRUNK_1', 'PV_TRUNK'], edges);
   assert.equal(m.get('PVH_R')?.dir, 1);
   assert.equal(m.get('PVH_L')?.dir, 1);
@@ -28,15 +57,15 @@ test('and reaches only a short way upstream: the three feeding veins, nothing fu
 
 test('long ahead, short behind: the same distance is stronger ahead than behind', () => {
   const d = 0.15;
-  const ahead = outlineStrength({ dir: 1, offset: 0 }, d, 5);
-  const behind = outlineStrength({ dir: -1, offset: 0 }, 5 - d, 5);
+  const ahead = outlineStrength({ dir: 1, offset: 0 }, d, 5, WALK);
+  const behind = outlineStrength({ dir: -1, offset: 0 }, 5 - d, 5, WALK);
   assert.ok(ahead > 0.75 && behind < 0.2, `ahead ${ahead.toFixed(2)} behind ${behind.toFixed(2)}`);
 });
 
 test('the outline fades to nothing by the end of its range', () => {
-  assert.ok(outlineStrength({ dir: 1, offset: DEFAULT_RANGE.ahead }, 0, 1) < 0.001);
-  assert.ok(outlineStrength({ dir: 1, offset: 0 }, 0, 1) > 0.999);
-  const a = outlineStrength({ dir: 1, offset: 0 }, 0.1, 5), b = outlineStrength({ dir: 1, offset: 0 }, 0.3, 5);
+  assert.ok(outlineStrength({ dir: 1, offset: WALK.ahead }, 0, 1, WALK) < 0.001);
+  assert.ok(outlineStrength({ dir: 1, offset: 0 }, 0, 1, WALK) > 0.999);
+  const a = outlineStrength({ dir: 1, offset: 0 }, 0.1, 5, WALK), b = outlineStrength({ dir: 1, offset: 0 }, 0.3, 5, WALK);
   assert.ok(a > b, 'monotone fade');
 });
 
