@@ -29,6 +29,8 @@ import { resText } from './res-model.ts';
 import { selectStructure } from '../../ui/action/selection.ts';
 
 const NODE_AT = new Map<string, number>((NODES as unknown as { id: string }[]).map((n, i) => [n.id, i]));
+/** What a leader crossing a vessel costs the solver, per line (the hepatic artery's name hung from a leader across the whole sinusoid bundle). */
+const LEADER_LINE_COST = 10;
 const SETTLE_MS = 180, FADE_MS = 180, VALUE_EVERY_MS = 250;
 
 interface El { root: HTMLElement; name: HTMLElement | null; val: HTMLElement | null; key: HTMLElement | null; lead: HTMLElement | null; tx: string; text: string; valText: string; form: number; size: string }
@@ -154,7 +156,7 @@ export function CircuitCaptions() {
         clear,
         halfW: (id) => halfWidthPx(id, cel.mapScale()),
       });
-      const out = solve({ items: level === 'none' ? built.items.filter((it) => !it.id.startsWith('lane:') && (it.id.startsWith('res:') || it.id.startsWith('z:') || must.has(it.id))) : built.items, view: view(), blockers: blockers(), lines });
+      const out = solve({ items: level === 'none' ? built.items.filter((it) => !it.id.startsWith('lane:') && (it.id.startsWith('res:') || it.id.startsWith('z:') || must.has(it.id))) : built.items, view: view(), blockers: blockers(), lines, leaderLineCost: LEADER_LINE_COST });
       placed = new Map(out.placed.map((p) => [p.id, p]));
       metas = built.meta;
       itemsNow = new Map(built.items.map((it) => [it.id, it]));

@@ -28,7 +28,6 @@ const L = CEL_LIGHT_UNIT;
 export const MICRO_VS = /* glsl */ `
 uniform float inflate;
 varying vec3 vN;
-varying vec3 vVN;
 varying vec3 vVD;
 varying vec3 vC;
 varying float vHy;
@@ -75,8 +74,7 @@ void main() {
   vG = position.xy;
 #endif
   vec4 mvR = modelViewMatrix * vec4(p + normal * inflate, 1.0);
-  vVN = normalize(normalMatrix * n);
-  vVD = projectionMatrix[2][3] == 0.0 ? vec3(0.0, 0.0, 1.0) : -mvR.xyz;
+  vVD = cameraPosition - (modelMatrix * vec4(p, 1.0)).xyz;   // (toward the eye in WORLD axes, beside the world normal vN: the rim's n.v needs no view-space normal)
   gl_Position = projectionMatrix * mvR;
 }`;
 
@@ -99,7 +97,6 @@ uniform float uHole;
 uniform float uRim;
 uniform float uMicroDpr;
 uniform vec3 uRimCol;
-varying vec3 vVN;
 varying vec3 vVD;
 varying vec3 vP;
 // the wedged column's wash (2D sinusoid-gl.js wedgeA): an amber column in the stream from the central vein's end (uWash.z) toward the portal venule's (uWash.y), as far as uWash.w of the way, soft at
@@ -243,8 +240,8 @@ void main() {
   c = mix(c, uWashCol, 0.85 * wz);
 #endif
   if (uRim > 0.0) {
-    float nv = abs(dot(normalize(vVN), normalize(vVD)));
-    float dpx = 0.5 * nv / max(fwidth(nv), 1e-5);
+    float nv = abs(dot(normalize(vN), normalize(vVD)));
+    float dpx = 0.5 * nv / max(length(vec2(dFdx(nv), dFdy(nv))), 1e-5);   // (the gradient's length, not fwidth: fwidth reads a diagonal edge up to 1.4 times steep, so a ring was thicker on its diagonals)
     float rp = uRim * uMicroDpr;
     c = mix(c, uRimCol, 1.0 - smoothstep(rp - 0.6, rp + 0.6, dpx));
   }
@@ -585,10 +582,12 @@ export function pillow(b: MeshBuilder, outline: readonly P2[], zTop: number, zBo
 }
 
 /** An ellipsoid (a sphere scaled by rx, ry, rz) at (x, y, z), its own axes turned by `a` about z. */
-export function ellipsoid(b: MeshBuilder, x: number, y: number, z: number, rx: number, ry: number, rz: number, a = 0, col?: RGB, seg = 18, rings = 10): void {
+export function ellipsoid(b: MeshBuilder, x: number, y: number, z: number, rx: number, ry: number, rz: number, a = 0, col?: RGB, seg = 18, rings = 10, even = false): void {
   const ca = Math.cos(a), sa = Math.sin(a), base = b.count;
   for (let r = 0; r <= rings; r++) {
-    const th = (r / rings) * Math.PI, st = Math.sin(th), ct = Math.cos(th);
+    // (even: the rings even in their width seen from above, not in angle, so a flat lens's outline falls off over a whole band and not one sliver of a ring at its edge: the line drawn in
+    // the fill (uRim) reads its width from that fall-off, and a sliver gave a ring one device pixel wide and uneven, eyes 20 Nov)
+    const th = even ? ellipsoidRingAngle(r, rings) : (r / rings) * Math.PI, st = Math.sin(th), ct = Math.cos(th);
     for (let i = 0; i <= seg; i++) {
       const ph = (i / seg) * Math.PI * 2, cp = Math.cos(ph), sp = Math.sin(ph);
       const ux = st * cp, uy = st * sp, uz = ct;
@@ -600,6 +599,12 @@ export function ellipsoid(b: MeshBuilder, x: number, y: number, z: number, rx: n
     const a0 = base + r * (seg + 1) + i, b0 = a0 + seg + 1;
     b.quad(a0, b0, b0 + 1, a0 + 1);
   }
+}
+
+/** Ring r of `rings` (even count) at even steps of its radius seen from above, the top half mirrored below: 0 and π at the poles, π/2 at the equator. */
+export function ellipsoidRingAngle(r: number, rings: number): number {
+  const h = rings / 2;
+  return r <= h ? Math.asin(Math.min(1, r / h)) : Math.PI - Math.asin(Math.min(1, (rings - r) / h));
 }
 
 /** A round tube along a path (x, y, z points) with a radius per point and round ends, its normals smooth round the tube. */
