@@ -179,7 +179,7 @@ export function mountPage(kind: 'gallery' | 'check' | 'full' | 'frame'): void {
 
   attach('vessels', () => cel.probeVessels());
   attach('rigProject', (pts: number[][]) => pts.map((q) => { const o = cel.rig.project(new Vector3(q[0], q[1], q[2] ?? 0)); return [o.x, o.y]; }));   // where scene points are on the canvas now (CSS px): what the picture does, which the target alone does not show (the room moves the picture without moving the target)
-  attach('rig', () => { const p = cel.rig.pose; return { target: [...p.shot.target], half: [...p.shot.half], yaw: p.shot.yaw, pitch: p.shot.pitch, r: p.shot.r }; });   // the camera's pose now, for a per-frame measurement (pps.rig() in a rAF loop)
+  attach('rig', () => { const p = cel.rig.pose, c = cel.rig.camera, t = p.shot.target; return { target: [...t], half: [...p.shot.half], yaw: p.shot.yaw, pitch: p.shot.pitch, r: p.shot.r, d: Math.hypot(c.position.x - t[0], c.position.y - t[1], c.position.z - t[2]), zoom: c.zoom, fov: c.fov, room: { ...p.room }, fit: cel.rig.fitSize, view: cel.view, moving: cel.rig.isMoving }; });   // the camera's pose now, for a per-frame measurement (pps.rig() in a rAF loop)
   attach('debug', { catalog: () => cat, open: (id: string) => { const e = byId(cat, id); return e ? open(e) : Promise.reject(new Error(`no specimen ${id}`)); }, settle, sweep: (s: string, l: string[]) => sweep(s, l), check: (full = false) => walk(full), packet: packetNow, report: () => outText });
 
   // ── what the address asks for ──
