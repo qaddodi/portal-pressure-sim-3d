@@ -144,7 +144,7 @@ test('the liver\'s cutaway window and the field\'s focus follow the camera\'s di
   }
   // the window's wash cut is in the organs' own shader (compiled with the rest in glsl-compile.test.ts)
   assert.match(ORGAN_FS, /uniform vec4 cut;/); assert.match(ORGAN_FS, /vClip\.xy \/ vClip\.w - cut\.xy/); assert.match(ORGAN_VS, /vClip = gl_Position;/);
-  assert.match(ORGAN_FS, /gl_FragColor = vec4\(fill, fade \* win\)/);
+  assert.match(ORGAN_FS, /gl_FragColor = vec4\(fill, layer \* fade \* win\)/);
 });
 
 const flyTo = (s: CelScene, view: Parameters<CelScene['setView']>[0], shot: Parameters<CelScene['goTo']>[0], t0: number, ms: number, until = t0 + ms + 64): number => {
