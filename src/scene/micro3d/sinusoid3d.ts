@@ -49,6 +49,8 @@ const BLUR_RUN = 64;
 /** The scene's ends: the blur along the sinusoid starts this far (µm) inside each end and is whole this far in. */
 const END_BLUR = [95, 55] as const;
 /** Red cells in this sinusoid's lumen, and in each of the two next ones (beyond the plates). */
+/** The bile canaliculus's radius (µm): a round lumen about 1.6 µm across between two hepatocytes. */
+export const CANAL_R = 0.8;
 const RBC_N = 50, RBC_FAR = 20, RBC_R = 1.05;
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
@@ -366,12 +368,11 @@ export class Sinusoid3D {
             ellipsoid(nol, x + r * 0.3 * Math.cos(a), Y(yd) + r * 0.3 * Math.sin(a), Z.cell + 0.32, r * 0.13, r * 0.13, 0.12, 0, undefined, 12, 6);
           };
           if (c.bi) { const dx = (c.x1 - c.x0) * 0.17; put(xn - dx, c.nr * 0.8); put(xn + dx, c.nr * 0.8); } else put(xn, c.nr);
-          // the canaliculus on this cell's leading border: a slim channel running down the cleft between the two cells over the middle of the plate, tapering to a point at each end
-          // (Mohammad 20 Nov 2026: "the bile ductule here should look better"; it was a short pill across the border)
+          // the canaliculus between this cell and the one before it: a small round lumen in the cleft at the middle of the plate, seen in cross-section as a circle (Mohammad 20 Nov 2026:
+          // "the bile ductule should be like a circle in between each hepatocyte"; it was a long tapering channel down the border)
           if (!beyond) {
-            const M = 14, path: [number, number, number][] = [];
-            for (let i = 0; i <= M; i++) { const v = UM.hep * lerp(0.16, 0.84, i / M); path.push([edgeAt(j, sd, v), Y(s * (face(edgeAt(j, sd, v)) + v)), Z.cell - 0.4]); }
-            tube(bile, path, (i) => 0.5 * Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, (i / M) * 0.9 + 0.05))), 0.45), undefined, 10, true);
+            const v = UM.hep * 0.5, x = edgeAt(j, sd, v);
+            ellipsoid(bile, x, Y(s * (face(x) + v)), Z.cell + 0.1, CANAL_R, CANAL_R, 0.3, 0, undefined, 24, 6);
           }
         }
       };
