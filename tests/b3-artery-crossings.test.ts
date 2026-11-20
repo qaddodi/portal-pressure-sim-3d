@@ -81,19 +81,21 @@ test('the sinusoid beds are not drawn: the portal branches fade out into the liv
   const { fadeOf } = await import('../src/scene/vessels/fades.ts');
   const f = { Q: new Array(200).fill(1), D: new Array(200).fill(5) } as never;
   for (const id of ['SIN_RR', 'SIN_LL', 'PRE_R', 'PRE_L', 'POST_R_RHV', 'POST_L_LHV']) assert.equal(presenceOf(N.find((v) => v.id === id)!, f, { collaterals: true }), 'hidden', id);
-  // (a vein that branches is drawn only up to its split; its children fade out of / in from the liver: they carry its fade)
-  for (const id of ['PVH_R_2', 'PVH_L_1']) { assert.equal(fadeOf(id, false), null, `${id} ends in its split`); const x = fadeOf(`${id}~F:b`, false, id)!; assert.equal(x.mode, 1); assert.deepEqual([x.to, x.a0, x.a1], [0.92, 1, 0], `${id}'s children end in the liver's tissue`); }
-  for (const id of ['RHV_IVC_1', 'LHV_IVC']) { { const h = fadeOf(id, false); assert.ok(!h || h.a0 !== 0, `${id} begins at its split, not in a fade-in`); } const x = fadeOf(`${id}~F:b`, false, id)!; assert.equal(x.mode, 1); assert.deepEqual([x.from, x.a0, x.a1], [0.08, 0, 1], `${id}'s children begin in the liver's tissue`); }
+  // (a vein that branches is one tube to its tip: it fades out of / in from the liver over the same stretch of its course as its side branch, to nothing a little before the tip)
+  for (const id of ['PVH_R_2']) { const h = fadeOf(id, false)!; assert.equal(h.mode, 1); assert.deepEqual([h.a0, h.a1], [1, 0], `${id} fades out along its through branch`); assert.ok(h.from > 0.3 && h.to < 1 && h.to > h.from, `${id} fades over its liver stretch`); const x = fadeOf(`${id}~F:b`, false, id)!; assert.deepEqual([x.to, x.a0, x.a1], [0.92, 1, 0], `${id}'s side branch ends in the liver's tissue`); }
+  for (const id of ['RHV_IVC_1', 'LHV_IVC']) { const h = fadeOf(id, false)!; assert.equal(h.mode, 1); assert.deepEqual([h.a0, h.a1], [0, 1], `${id} fades in along its through branch`); assert.ok(h.from >= 0 && h.to < 1 && h.to > h.from); }
+  { const x = fadeOf('PVH_L_1~F:b', false, 'PVH_L_1')!; assert.deepEqual([x.to, x.a0, x.a1], [0.92, 1, 0], 'the left portal vein\'s branches end in the liver\'s tissue'); assert.equal(fadeOf('PVH_L_1', false), null, 'the left portal vein is whole to its end'); }
+  { const x = fadeOf('RHV_IVC_1~F:b', false, 'RHV_IVC_1')!; assert.deepEqual([x.from, x.a0, x.a1], [0.08, 0, 1], 'the right hepatic vein\'s side branch begins in the liver\'s tissue'); }
   { const x = fadeOf('MHV_IVC', false)!; assert.equal(x.mode, 1); assert.deepEqual([x.from, x.a0, x.a1], [0, 0, 1], 'the middle hepatic vein, which does not branch, begins in the liver\'s tissue'); }
 });
 
-test('each portal-branch end, and hepatic-vein start branches once more into the liver: two children, one forward and one back in depth, leaving the host\'s own course', async () => {
+test('each portal branch and the right hepatic vein branches once more into the liver, one branch forward in depth, leaving the vein\'s own course', async () => {
   const { LIVER_BRANCHES } = await import('../src/scene/vessels/liver-branches.ts');
   const { EDGE_PATH_2D: PATHS } = await import('../src/scene/vessels/paths.copied.ts');
-  assert.deepEqual(LIVER_BRANCHES.map((b) => b.host).sort(), ['LHV_IVC', 'PVH_L_1', 'PVH_R_2', 'RHV_IVC_1']);
+  assert.deepEqual(LIVER_BRANCHES.map((b) => b.host).sort(), ['PVH_L_1', 'PVH_R_2', 'RHV_IVC_1']);   // (the left hepatic vein has only its through branch, bent down into the left lobe)
   for (const b of LIVER_BRANCHES) {
-    // (the left hepatic vein has one child, into the left lobe: none goes into the capsule)
-    assert.equal(b.list.length, b.host === 'LHV_IVC' ? 1 : 2, `${b.host}: children`);
+    // (the left portal vein ends in two branches; the right portal vein and the right hepatic vein run on as one tube and have one side branch; the left hepatic vein has none)
+    assert.equal(b.list.length, b.host === 'PVH_L_1' ? 2 : 1, `${b.host}: branches`);
     const [a, c = a] = b.list as readonly { pts: readonly (readonly [number, number])[]; dz: readonly number[] }[];
     if (b.list.length === 2) assert.ok(Math.max(...a!.dz) > 0.05 && Math.min(...c!.dz) < 0, `${b.host}: one goes forward, one back`);
     const host = PATHS[b.host]!, onHost = (p: readonly [number, number]) => Math.min(...host.map((q) => Math.hypot(p[0] - q[0], p[1] - q[1])));

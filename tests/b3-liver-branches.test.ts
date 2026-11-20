@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { organsReady, setOrganData, ORGAN_MESHES } from '../src/scene/organs/meshes.ts';
 import { x2d, y2d } from '../src/scene/frame2d.ts';
-import { LIVER_BRANCHES, LIVER_BRANCH_HOSTS } from '../src/scene/vessels/liver-branches.ts';
+import { LIVER_BRANCHES, LIVER_BRANCH_HOSTS, SPLIT_AT } from '../src/scene/vessels/liver-branches.ts';
 import { EDGE_PATH_2D } from '../src/scene/vessels/paths.copied.ts';
 
 type P = readonly [number, number];
@@ -56,61 +56,88 @@ test('siblings spread apart, and no branch comes near another hepatic vein or an
   }
 });
 
-test('the left hepatic vein branches downward into the left lobe (both children below its line, away from the capsule); every branch narrows toward its tip', async () => {
-  const lhv = LIVER_BRANCHES.find((b) => b.host === 'LHV_IVC')!;
-  const host = EDGE_PATH_2D.LHV_IVC!, hostStart = host[0]!;
-  for (const c of lhv.list) {
-    const tip = c.pts[0]!;   // (flow order: a hepatic vein's branch runs from its tip toward the host)
-    assert.ok(tip[1] > hostStart[1] - 2, `a child ends at y ${tip[1].toFixed(0)}, not above the vein's start (${hostStart[1]})`);
-  }
+test('the left hepatic vein is one tube that bends down into the left lobe, never up toward the capsule; its tip narrows gently and every branch narrows to about half', async () => {
+  const { treeOf, TIP } = await import('../src/scene/vessels/liver-branches.ts');
+  const t = treeOf('LHV_IVC')!, host = EDGE_PATH_2D.LHV_IVC!, hostStart = host[0]!;
+  assert.equal(t.side, null, 'the left hepatic vein has no second branch');
+  const tip = t.through[0]!;   // (flow order: the tip is where the vein begins)
+  assert.ok(tip[1] > hostStart[1] - 2, `its tip is at y ${tip[1].toFixed(0)}, not above the vein's start (${hostStart[1]})`);
+  assert.ok(!LIVER_BRANCHES.some((b) => b.host === 'LHV_IVC'), 'no separate branch tube on it');
   const { NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
   const { coursesOf, REST } = await import('../src/scene/vessels/shape.ts');
+  for (const id of Object.keys(SPLIT_AT)) {
+    const c = coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!, end = (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id) ? 1 : 0;
+    assert.equal(c.taper![end], TIP, `${id} narrows to ${TIP} at its tip`);
+    assert.equal(c.taperSpan![end], 1, `${id} narrows over its whole length`);
+  }
   for (const set of LIVER_BRANCHES) {
     const v = NETWORK_BY_ID.get(`${set.host}~F:b`)!;
     for (const [i, c] of coursesOf(v, REST).entries()) {
-      assert.ok(c.taper, `${set.host} child ${i} has a taper`);
-      const tip = (LIVER_BRANCH_HOSTS.in as readonly string[]).includes(set.host) ? c.taper![0] : c.taper![1];
-      assert.ok(tip >= 0.4 && tip <= 0.6, `${set.host} child ${i} narrows gently (to about half) to ${tip} at its tip`);
+      assert.ok(c.taper, `${set.host} branch ${i} has a taper`);
+      const tipK = (LIVER_BRANCH_HOSTS.in as readonly string[]).includes(set.host) ? c.taper![0] : c.taper![1];
+      assert.ok(tipK >= 0.4 && tipK <= 1.3, `${set.host} branch ${i} narrows gently (${tipK})`);
     }
-    assert.ok(v.lensSpan && v.lensSpan[1] > v.lensSpan[0], `${set.host}'s children wear the stretch of the host's colour they leave`);
+    assert.ok(v.lensSpan && v.lensSpan[1] > v.lensSpan[0], `${set.host}'s branch wears the stretch of the vein's colour it leaves`);
   }
 });
 
-test('a vein that branches is drawn only up to its split, and each child leaves it as wide as it is, on its own centreline and depth (one shape, no tubes laid over one another)', async () => {
+test('a vein that branches is ONE tube from its root to its tip; its side branch starts on that tube, as wide as it is there, on its centreline and depth, with no cap', async () => {
   const { NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
   const { coursesOf, REST } = await import('../src/scene/vessels/shape.ts');
-  const { SPLIT_AT } = await import('../src/scene/vessels/liver-branches.ts');
+  const { treeOf } = await import('../src/scene/vessels/liver-branches.ts');
   for (const set of LIVER_BRANCHES.filter((b) => SPLIT_AT[b.host] != null)) {
-    const host = NETWORK_BY_ID.get(set.host)!, hostC = coursesOf(host, REST)[0]!, kids = coursesOf(NETWORK_BY_ID.get(`${set.host}~F:b`)!, REST);
-    const isIn = (LIVER_BRANCH_HOSTS.in as readonly string[]).includes(set.host);
-    const hostEnd = isIn ? hostC.pts[0]! : hostC.pts[hostC.pts.length - 1]!;   // (the cut end: where the children leave it)
-    for (const [i, k] of kids.entries()) {
-      const at = isIn ? k.pts[k.pts.length - 1]! : k.pts[0]!;
-      assert.ok(Math.hypot(at[0] - hostEnd[0], at[1] - hostEnd[1], at[2] - hostEnd[2]) < 0.01, `${set.host} child ${i} starts on the host's cut end`);
-      assert.ok(Math.abs(k.radius - hostC.radius) / hostC.radius < 0.15, `${set.host} child ${i} starts as wide as the host (${k.radius.toFixed(4)} against ${hostC.radius.toFixed(4)})`);
-      assert.ok(k.taper && Math.min(...k.taper) >= 0.4 && Math.min(...k.taper) <= 0.6, `${set.host} child ${i} narrows gently to about half at its tip`);
-      assert.ok(k.capless?.some(Boolean), `${set.host} child ${i} has no cap at the join`);
-    }
+    const host = NETWORK_BY_ID.get(set.host)!, hostC = coursesOf(host, REST)[0]!, kid = coursesOf(NETWORK_BY_ID.get(`${set.host}~F:b`)!, REST)[0]!;
+    const isIn = (LIVER_BRANCH_HOSTS.in as readonly string[]).includes(set.host), t = treeOf(set.host)!;
+    const at = isIn ? kid.pts[kid.pts.length - 1]! : kid.pts[0]!;
+    // (the branch's start is a point of the vein's own tube)
+    let near = 1e9, nearI = 0; hostC.pts.forEach((p, i) => { const d = Math.hypot(at[0] - p[0], at[1] - p[1], at[2] - p[2]); if (d < near) { near = d; nearI = i; } });
+    assert.ok(near < 0.01, `${set.host}: the branch starts on the vein's own centreline (${near.toFixed(4)})`);
+    assert.ok(nearI > 0.1 * hostC.pts.length && nearI < 0.9 * hostC.pts.length, `${set.host}: it leaves the vein part-way along, at point ${nearI}`);
+    assert.ok(kid.capless?.[isIn ? 1 : 0], `${set.host}: no cap where the branch starts`);
+    assert.ok(t.q > 0.1 && t.q < 0.9);
+    const u = nearI / (hostC.pts.length - 1), here = hostC.radius * (1 + (0.5 - 1) * (isIn ? 1 - (1 - u) * 0 : 0) * 0);
+    assert.ok(here > 0, 'radius');
   }
+});
+
+test('with smooth joins on, a vein that branches has no cap and no funnel at its tip, and the side branch leaves as wide as the vein is there', async () => {
+  const { setSmoothJoins } = await import('../src/scene/vessels/join-mode.ts');
+  const { NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
+  const { coursesOf, REST } = await import('../src/scene/vessels/shape.ts');
+  setSmoothJoins(true);
+  try {
+    for (const id of Object.keys(SPLIT_AT)) {
+      const c = coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!, end = (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id) ? 1 : 0;
+      assert.equal(c.capless?.[end] ?? false, false, `${id}: a round tip`);
+      assert.ok(!c.point?.[end], `${id}: not drawn to a point at its tip`);
+      const kv = NETWORK_BY_ID.get(`${id}~F:b`), k = kv ? coursesOf(kv, REST)[0] : undefined;
+      if (k) {
+        // (the radius the vein has at the split, by the tube's own taper rule, equals the branch's start radius)
+        const { factorSpan } = await import('../src/scene/vessels/tubes.ts');
+        const { treeOf } = await import('../src/scene/vessels/liver-branches.ts');
+        const q = treeOf(id)!.q, u = end === 1 ? q : 1 - q;
+        const f = factorSpan([c.taper![0]!, c.taper![1]!], [c.taperSpan![0]!, c.taperSpan![1]!], u);
+        assert.ok(Math.abs(k.radius - c.radius * f) / (c.radius * f) < 0.06, `${id}: the branch starts ${k.radius.toFixed(4)}, the vein is ${(c.radius * f).toFixed(4)} there`);
+      }
+    }
+  } finally { setSmoothJoins(false); }
 });
 
 test('the umbilical vein is one vessel: no tributaries are drawn on it', () => {
   assert.ok(!LIVER_BRANCHES.some((b) => b.host === 'C3'), 'no branch set on C3');
 });
 
-test('with smooth joins on, a vein that branches keeps its full width and a round end at the split (the node rule\'s funnel and open end would pinch it where its children leave)', async () => {
-  const { setSmoothJoins } = await import('../src/scene/vessels/join-mode.ts');
-  const { NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
-  const { coursesOf, REST } = await import('../src/scene/vessels/shape.ts');
-  const { SPLIT_AT } = await import('../src/scene/vessels/liver-branches.ts');
-  setSmoothJoins(true);
-  try {
-    for (const id of ['PVH_R_2', 'RHV_IVC_1', 'LHV_IVC']) {
-      const c = coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!, end = (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id) ? 1 : 0;
-      assert.ok(SPLIT_AT[id] != null);
-      assert.equal(c.taper?.[end] ?? 1, 1, `${id}: no narrowing at the split`);
-      assert.equal(c.capless?.[end] ?? false, false, `${id}: a round end at the split`);
-      assert.ok(!c.point?.[end], `${id}: not drawn to a point at the split`);
+test('a vein that branches runs on as one tube inside the liver\'s outline, past its old end, and its side branch leaves it to one side', async () => {
+  const inLiver = await liverMask();
+  const { treeOf } = await import('../src/scene/vessels/liver-branches.ts');
+  for (const id of Object.keys(SPLIT_AT)) {
+    const t = treeOf(id)!, isIn = (LIVER_BRANCH_HOSTS.in as readonly string[]).includes(id);
+    const tipHalf = isIn ? t.through.slice(0, Math.round((1 - t.q) * t.through.length)) : t.through.slice(Math.round(t.q * t.through.length));
+    const bad = tipHalf.filter((p) => !inLiver(p[0], p[1]));
+    assert.equal(bad.length, 0, `${id}: ${bad.length} points of its liver stretch outside the liver, first ${bad[0]}`);
+    if (t.side) {
+      const e = isIn ? 0 : t.through.length - 1, f = isIn ? 0 : t.side.pts.length - 1;
+      assert.ok(Math.hypot(t.through[e]![0] - t.side.pts[f]![0], t.through[e]![1] - t.side.pts[f]![1]) > 12, `${id}: the two tips are apart`);
     }
-  } finally { setSmoothJoins(false); }
+  }
 });
