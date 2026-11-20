@@ -4,3 +4,4 @@ dist
 .DS_Store
 look/*
 !look/README.md
+public/lobule/

@@ -204,8 +204,10 @@ export function turnsFor(Hc: number, lenFig: number, pitchFig: number): number {
 }
 const smooth = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** The shader's swirl strength (dust-glsl.ts): a narrowed vessel, a fast one. `nar` its diameter against its healthy one, `vd` its display speed, `swirl` and `turb` the dust's settings. */
-export const swirlHc = (nar: number, vd: number, swirl: number, turb: number, tSten: number, tFlow: number): number =>
-  Math.min(1, swirl * turb * Math.min(1, Math.max(0, tSten * (1 - smooth(0.5, 0.85, nar)) + tFlow * smooth(25, 45, Math.abs(vd)))));
+/** Only a narrowing swirls the blood: a healthy vessel's is laminar however fast it runs (Mohammad, 20 Nov: "the blood streaks seem to think there is stenoses everywhere"; the speed term twisted every fast vein
+ *  into several turns, and the twist's slope drew its front and back particles as crossing slashes). `vd` and `tFlow` are kept in the signature for the callers and do nothing. */
+export const swirlHc = (nar: number, _vd: number, swirl: number, turb: number, tSten: number, _tFlow: number): number =>
+  Math.min(1, swirl * turb * Math.min(1, Math.max(0, tSten * (1 - smooth(0.5, 0.85, nar)))));
 
 /** The scene's side: builds the list from the streams each frame, keeps the last table and the one fading out, and writes the texture. */
 export class StreamRoutes {
