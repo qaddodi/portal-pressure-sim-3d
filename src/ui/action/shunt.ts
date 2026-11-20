@@ -2,6 +2,7 @@
 // (TIPS, DIPS, portocaval, distal splenorenal, mesocaval or a custom shunt between the two stations), says "<name> created." and selects the new vessel. A tap on nothing, Esc or Cancel calls it off
 // ("Shunt canceled."). The card is put away while it waits (2D: a card is not shown while shunting) and comes back when it is called off. Registered as the 'shunt' feature by startShunting().
 import { create } from 'zustand';
+import { clock } from '../../clock/frame.ts';
 import { registerFeature } from '../shell/features.ts';
 import { useShell } from '../shell/store.ts';
 import { sceneApi } from '../../scene/api.ts';
@@ -16,7 +17,7 @@ export interface Shunting { src: string; only: string | null; targets: ReadonlyM
 export const useShunting = create<{ now: Shunting | null }>(() => ({ now: null }));
 
 let release: (() => void)[] = [];
-function end(): void { for (const f of release) f(); release = []; useShunting.setState({ now: null }); sceneApi.markVessels([]); }
+function end(): void { for (const f of release) f(); release = []; useShunting.setState({ now: null }); sceneApi.markVessels([]); sceneApi.shunt.guide(null, 0, 0, ''); sceneApi.shunt.hover(null); }
 
 /** Call the shunt off (Esc, Cancel, a tap on nothing): the vessel it started from is selected again, as 2D leaves it. */
 export function cancelShunt(silent = false): void {
@@ -38,6 +39,35 @@ function drop(id: string): void {
   selectStructure({ type: 'edge', id: c.select });
 }
 
+/** While a shunt waits (2D stage-hover.js shuntMove): a dashed line from the vessel it starts at follows the pointer, in the accent colour and in the danger colour over a vessel it cannot join; the target under the pointer
+ *  stands out and its name for the shunt it would make ("Distal splenorenal shunt") follows the pointer. Written once a frame by the clock, in transforms and opacity only (the line is drawn by the scene). */
+function aim(src: string, targets: ReadonlyMap<string, ShuntRule>): () => void {
+  if (typeof document === 'undefined') return () => undefined;
+  const tip = document.createElement('div');
+  tip.className = 'shunt-aim';
+  tip.setAttribute('aria-hidden', 'true');
+  tip.style.cssText = 'position:fixed;left:0;top:0;z-index:60;pointer-events:none;opacity:0;white-space:nowrap;padding:3px 9px;border-radius:9px;font:600 13px/1.3 var(--font-ui, system-ui, sans-serif);color:var(--accent);background:var(--surface, #fff);box-shadow:0 1px 6px rgba(0,0,0,.25);will-change:transform,opacity;transition:opacity 120ms ease-out;';
+  document.body.append(tip);
+  const cs = getComputedStyle(document.documentElement), accent = cs.getPropertyValue('--accent').trim() || '#2f7cf6', danger = cs.getPropertyValue('--danger').trim() || '#d64545';
+  let at: { x: number; y: number } | null = null, hover: string | null = null, word = '', done = '';
+  const move = (e: PointerEvent) => { if (e.pointerType === 'touch') return; at = { x: e.clientX, y: e.clientY }; clock.invalidate('shunt-aim'); };
+  const leave = () => { at = null; clock.invalidate('shunt-aim'); };
+  window.addEventListener('pointermove', move, true);
+  document.documentElement.addEventListener('pointerleave', leave);
+  const off = clock.on('tween', () => {
+    const key = at ? `${Math.round(at.x)}|${Math.round(at.y)}` : '';
+    if (key === done) return;   // (nothing moved: nothing is asked for, so the figure rests)
+    done = key;
+    if (!at) { sceneApi.shunt.guide(null, 0, 0, ''); if (hover) { hover = null; sceneApi.shunt.hover(null); } tip.style.opacity = '0'; return; }
+    const over = sceneApi.shunt.vesselAt(at.x, at.y), ok = over != null && targets.has(over), bad = over != null && !ok && over !== src;
+    if ((ok ? over : null) !== hover) { hover = ok ? over : null; sceneApi.shunt.hover(hover); }
+    sceneApi.shunt.guide(src, at.x, at.y, bad ? danger : accent);
+    if (ok) { const l = targets.get(over!)!.label; if (l !== word) { word = l; tip.textContent = l; } tip.style.opacity = '1'; } else tip.style.opacity = '0';
+    tip.style.transform = `translate3d(${Math.round(at.x + 14)}px, ${Math.round(at.y - 30)}px, 0)`;
+  }, 6);
+  return () => { window.removeEventListener('pointermove', move, true); document.documentElement.removeEventListener('pointerleave', leave); off(); tip.remove(); };
+}
+
 /** Start a shunt from vessel `src` (the selected one by default); false when there is nowhere to connect it. `only` limits it to one kind ('tips'). */
 export function startShunt(src?: string, o: { only?: string | null } = {}): boolean {
   const sel = useSelection.getState().sel;
@@ -55,6 +85,7 @@ export function startShunt(src?: string, o: { only?: string | null } = {}): bool
     else if (!id) cancelShunt();
     else sceneApi.markVessels([...targets.keys()]);   // (another vessel: nothing happens, the targets stay lit)
   }));
+  release.push(aim(from, targets));
   const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); cancelShunt(); } };
   window.addEventListener('keydown', esc, true);
   release.push(() => window.removeEventListener('keydown', esc, true));

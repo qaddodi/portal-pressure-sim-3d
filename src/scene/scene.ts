@@ -1,7 +1,7 @@
 import { Box3, Color, type DataTexture, Group, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
-import { MAPPED, NETWORK, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
+import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
@@ -53,6 +53,7 @@ import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
 import { ProbeLayer } from './devices/probes/layer.ts';
 import { VESSEL_LAYER, inVesselPass } from './layers.ts';
+import { ShuntGuide } from './shunt-guide.ts';
 import type { EusDrive } from './devices/probes/scope.ts';
 import { probeCards } from './devices/probes/cards.ts';
 import { probeAvoid } from './labels/probe-boxes.ts';
@@ -126,6 +127,8 @@ export class CelScene {
   readonly scene = new Scene();
   /** Everything of the body (organs, vessels, catheter): hidden as one while the lobule or the sinusoid is the view. */
   private readonly body = new Group();
+  private readonly shuntGuide = new ShuntGuide();
+  private readonly shuntRay = new Raycaster();
   readonly rig: CameraRig;
   readonly shared: CelShared = createShared();
   readonly objects: CelObject[] = [];
@@ -241,6 +244,7 @@ export class CelScene {
       },
     });
     this.body.add(inVesselPass(this.probes.group));
+    this.body.add(this.shuntGuide.mesh);
 
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])), (id) => GLOW_COURSES.get(id));
     this.flow = new BloodMarks(this.vessels);
@@ -501,6 +505,29 @@ export class CelScene {
 
   /** Light a set of vessels at once (the shunt's valid targets); an empty list puts them out. */
   markVessels(ids: readonly string[]): void { this.highlight.setOnly(ids); this.moving = true; }
+  /** The vessel under a point of the canvas (CSS px), or null: what a shunt's pointer is over. */
+  vesselAtPoint(x: number, y: number): string | null { const h = this.pickTargetAt(x, y, this.shuntRay, false); return h && h.type === 'edge' ? h.id : null; }
+  /** The shunt's target under the pointer stands out a little more than the lit others (2D shuntGlow); null lets it go. */
+  hoverVessel(id: string | null): void { this.highlight.setHover(id); this.moving = true; }
+  /** The shunt's dashed guide, from the middle of vessel `src` to the canvas point (x, y); null (or no src) takes it away. */
+  setShuntGuide(src: string | null, x: number, y: number, color: string): void {
+    const v = src ? NETWORK_BY_ID.get(src) : null;
+    if (!v || !v.pts.length) { if (this.shuntGuide.shown) { this.shuntGuide.hide(); this.moving = true; } return; }
+    let total = 0;
+    for (let i = 1; i < v.pts.length; i++) total += Math.hypot(v.pts[i]![0] - v.pts[i - 1]![0], v.pts[i]![1] - v.pts[i - 1]![1], v.pts[i]![2] - v.pts[i - 1]![2]);
+    let at = 0; const a = new Vector3(...(v.pts[0] as [number, number, number]));
+    for (let i = 1; i < v.pts.length; i++) {
+      const p0 = v.pts[i - 1]!, p1 = v.pts[i]!, l = Math.hypot(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]);
+      if (at + l >= total / 2 && l > 0) { const k = (total / 2 - at) / l; a.set(p0[0] + (p1[0] - p0[0]) * k, p0[1] + (p1[1] - p0[1]) * k, p0[2] + (p1[2] - p0[2]) * k); break; }
+      at += l;
+    }
+    this.shuntRay.setFromCamera(new Vector2((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1), this.rig.camera);
+    const b = this.shuntRay.ray.intersectPlane(new Plane(new Vector3(0, 0, 1), -a.z), new Vector3());
+    if (!b) return;
+    const p0 = this.rig.project(a, { x: 0, y: 0 }), p1 = this.rig.project(a.clone().add(new Vector3(0.1, 0, 0)), { x: 0, y: 0 });
+    this.shuntGuide.set(a, b, Math.hypot(p1.x - p0.x, p1.y - p0.y) / 0.1, color);
+    this.moving = true;
+  }
 
   /** Outline these organs (organ ids: liver, spleen, heart, bowel, colon, duodenum, kidney-l...); [] clears. */
   /** The lobule's tapped part gets a halo (null lets it go). */

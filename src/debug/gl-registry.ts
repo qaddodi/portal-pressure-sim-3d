@@ -32,6 +32,7 @@ export const GL_FILES: Record<string, string> = {
   'scene/circuit/map-layer.ts': 'the Circuit plate and dots: found on the scene graph',
   'scene/circuit/resistors.ts': 'the Circuit resistor ribbons (made when the Circuit opens): registered by name',
   'scene/disease/dye.ts': 'the dye overlay (made when a bolus is given): registered by name',
+  'scene/shunt-guide.ts': 'the shunt\'s dashed guide (a quad on the vessels\' pass, in the body group): found on the scene graph',
   'scene/devices/device-object.ts': 'a device wears the toon shader with an alpha: found on the scene graph',
   'scene/lobule/plate.ts': 'the lobule\'s tissue plate under the 3D cells (2D\'s painter on a canvas texture): found on the scene graph',
   'scene/lobule/field.ts': 'the neighbouring lobules out of focus: found on the scene graph',
