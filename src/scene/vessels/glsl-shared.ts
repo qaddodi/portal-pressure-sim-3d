@@ -22,6 +22,7 @@ float swellOf(float idx, float bD, float kind) {
 
 /** lensOfAt(lensIx, u, grad, lanes, mode, pal, across): the colour of one lens set at the place u along a vessel's ramp; .a says whether the lens colours it. Reads: lensUse, lensTail, lensSmooth. */
 export const LENS_OF_AT_GLSL = /* glsl */ `// the colour of one lens set at this pixel; .a says whether the lens colours this vessel (0: it keeps its tone)
+float lensAcrossFw = 0.0;   // fwidth of the lane position (across * 0.5 + 0.5): set by main BEFORE its first discard, because a derivative after a discard is garbage on a device that drops the lane
 vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float across) {
   if (mode < 0.5 || lensUse < 0.5) return vec4(0.0);
   ivec2 i0 = ivec2(int(lensIx), 0), i1 = ivec2(int(lensIx), 1);
@@ -39,7 +40,7 @@ vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode
   }
   vec4 c = mix(texelFetch(lanes, i0, 0), texelFetch(lanes, i1, 0), t);
   float f = across * 0.5 + 0.5;
-  float w = max(fwidth(f) * 1.2, 0.002);
+  float w = max(lensAcrossFw * 1.2, 0.002);
   vec3 col = pal[4];
   col = mix(col, pal[3], 1.0 - smoothstep(c.w - w, c.w + w, f));
   col = mix(col, pal[2], 1.0 - smoothstep(c.z - w, c.z + w, f));
