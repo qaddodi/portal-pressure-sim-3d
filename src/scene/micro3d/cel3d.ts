@@ -19,6 +19,11 @@ import { FADE_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 import { STREAK, STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
 import { dustGlsl } from '../blood/dust-glsl.ts';
+import { staticRouteTexture } from '../blood/routes.ts';
+import { dustTuner } from '../blood/dust.ts';
+/** The route table a material without dust is given (one empty column): the uniform always has a real texture, never null (tests/glsl-compile.test.ts). Made once, shared. */
+let noRoute: { value: DataTexture } | null = null;
+const noRouteTex = (): { value: DataTexture } => (noRoute ??= { value: staticRouteTexture(1, new Map(), () => 0) });
 /** The streak field's units to a tube radius, so a streak's mean length (FIELD_LEN) is LEN_OF_R radii, as the Anatomy's are. */
 const STREAK_FIELD_PER_R = (STREAK.FIELD_LEN[0] + STREAK.FIELD_LEN[1] / 2) / STREAK.FIELD_LEN_R;
 
@@ -488,7 +493,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
       // (always given, dust or not: the shader text declares them, and a uniform a material lacks keeps the value the last program drew with, tests/uniforms-declared.test.ts)
-      routeTex: o.dust?.routeTex ?? { value: null }, dustP: o.dust?.dustP ?? { value: [] }, uDustK: { value: 0 },
+      routeTex: o.dust?.routeTex ?? noRouteTex(), dustP: o.dust?.dustP ?? dustTuner.uniform, uDustK: { value: 0 },
       uFlowR: { value: 0.02 }, uDpr: { value: 2 }, uFlowDark: { value: 0 }, uFlowInk: { value: rawRGB(new Color(), hexRGB(LENS_SHARED.chevron)) },
       // (every toon carries the gaps' uniforms too, a blank texture and no slots where it has none, so a program read without GAPS still finds each one)
       uGaps: { value: o.gaps?.tex ?? NO_GAPS }, uGapX: { value: o.gaps?.x ?? new Vector4(0, 0, 0, 0) }, uHoleP: { value: new Vector2(o.holes?.s ?? 0, o.holes?.dx ?? 0) },
