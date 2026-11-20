@@ -20,6 +20,7 @@ import { FluidCard } from '../charts/fluid/FluidCard.tsx';
 import { StentCard } from '../charts/stent/StentCard.tsx';
 import { LumenCard } from '../charts/lumen/LumenCard.tsx';
 import { FlowsCard } from '../charts/flows/FlowsCard.tsx';
+import { flowsInputOf } from '../charts/flows/parts.ts';
 import { PlaneCard } from '../charts/plane/PlaneCard.tsx';
 import { loadPoints, trailStops } from '../charts/plane/data.ts';
 import { TrialCard } from '../charts/trial/TrialCard.tsx';
@@ -62,9 +63,10 @@ const FibroPane = lazy(() => import('../tests/fibro/FibroPane.tsx').then((m) => 
 const EndoPane = lazy(() => import('../tests/endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));
 
 /** The kinds that draw the live model's frames. */
-const FRAMED = new Set(['fluid', 'stent', 'flows']);
+const FRAMED = new Set(['fluid', 'stent']);
 
 type Rec = Record<string, unknown>;
+
 type Fp = Record<string, number | null | undefined>;
 
 /** A trial's fit for the patient a slide stands on (its own state, or the state of the slide the tool names with `at`, and the case facts it gives). */
@@ -129,7 +131,8 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'fluid': return <FluidCard fp={fp as never} frame={frame as never} params={(params ?? patient.params) as never} window={!!tool.window} forces={!!tool.forces} caveat={!!tool.caveat} compare={(cs.compare as never) ?? null} />;
     case 'stent': return <StentCard vessel={tool.vessel as never} show={tool.show as never} lens={tool.lens as never} color={tool.color as never} colorSwitch={tool.colorSwitch !== false} pick={tool.pick as never} panels={tool.panels as never} to={tool.to as never} max={tool.max as number | undefined} gate={tool.gate as never} fp={fp as never} frame={frame as never} params={params ?? patient.params} />;
     case 'lumen': return <LumenCard params={(params ?? patient.params ?? null) as never} vessel={(tool.vessel as string | undefined) ?? 'PV_TRUNK'} site={(tool.site as string | undefined) ?? null} name={(tool.name as string | undefined) ?? null} />;
-    case 'flows': return frame ? <FlowsCard of={tool.of === 'inflow' ? 'inflow' : 'portal'} input={{ Q: frame.Q, shunt: ((patient.params as { shunt?: number } | null)?.shunt ?? 0) as number, customShunts: ((patient.params as { customShunts?: Rec } | null)?.customShunts ?? null) as never }} /> : null;
+    // (the slide's own fingerprint, as 2D's tool-flows reads it (fp.at.Q): never the live frame, whose flows pulse with every beat and made the bar jump between 57 % and 81 %)
+    case 'flows': return <FlowsCard of={tool.of === 'inflow' ? 'inflow' : 'portal'} input={flowsInputOf(fp as never)} healthy={flowsInputOf(healthy as never)} />;
     case 'plane': return <PlaneCard plane={tool.plane as never} ring={fp as never} stops={trailStops(tool.trail as never, fpOf as never) ?? undefined} />;
     case 'trial': return typeof tool.id === 'string' ? <TrialCard id={tool.id} fit={fitFor(tool, fp, params, fpOf, results, copied.slides as CopiedSlide[])} head /> : null;
     case 'flowtime': return <FlowTime deck={deck} slide={slide} i={i} tool={tool} trail={(results?.[i]?.trail as never) ?? null} />;
