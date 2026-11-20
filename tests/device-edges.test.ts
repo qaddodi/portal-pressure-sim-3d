@@ -11,7 +11,7 @@ import { PALETTES } from '../src/scene/palette.ts';
 import { LOOK_IDS, LOOKS } from '../src/looks/looks.ts';
 import { DEVICE_TOKENS } from '../src/scene/procedures/copied/device-tokens.copied.ts';
 import { NEEDLE_EDGE, SCOPE_EDGE_A, mixHex, resolveEdge, scopeEdge, scopeSoftHex } from '../src/scene/devices/edges.ts';
-import { EndoScope } from '../src/scene/devices/probes/scope.ts';
+import { BEND_GROOVES, EndoScope, FAN_COLS, FAN_ROWS, MARK_EVERY, MARK_UNITS, SCOPE_BEND, SCOPE_CREAM, SCOPE_LIGHT, SCOPE_NEEDLE, SCOPE_SILVER } from '../src/scene/devices/probes/scope.ts';
 import { DopplerProbe, WEDGE_STOPS, WEDGE_MID } from '../src/scene/devices/probes/doppler-probe.ts';
 import { FibroProbe, HEAD_MS, SCAN_FADE_MS, BODY_LIFT, tapAt, TAP_V } from '../src/scene/devices/probes/fibro-probe.ts';
 import { ArriveTrack } from '../src/scene/devices/probes/ease-track.ts';
@@ -25,6 +25,8 @@ const raw = (h: string): string => hex(rawColor(h));
 const fill = (o: DeviceObject): string => hex(o.toon.uniforms.color!.value as Color);
 const edge = (o: DeviceObject): string => hex(o.ink.uniforms.color!.value as Color);
 const edgeA = (o: DeviceObject): number => o.ink.uniforms.edgeA!.value as number;
+const luma = (h: string): number => { const n = parseInt(h.slice(1), 16); return (((n >> 16) & 255) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114) / 255; };
+const rawLuma = luma;
 const sh = createShared();
 
 test('the device table carries 2D\'s scope, port and Doppler head tokens for every look, and the copy is current', () => {
@@ -56,12 +58,18 @@ for (const id of LOOK_IDS) {
   test(`${id}: the endoscope is black polymer with a soft edge, its needle steel in the dark edge, its port and rings with none`, () => {
     const t = DEVICE_TOKENS[id], sc = new EndoScope(sh);
     sc.applyPalette(PALETTES[id]);
-    const [shaft, bend, tip, lens, , band, needle, face, port, ...rings] = sc.parts as unknown as DeviceObject[];
-    for (const o of [shaft!, bend!]) { assert.equal(fill(o), raw(t.scope), 'insertion tube: --dev-scope'); assert.equal(edge(o), raw(scopeSoftHex(t))); assert.equal(edgeA(o), SCOPE_EDGE_A); }
-    assert.equal(fill(tip!), raw(t.scopeTip)); assert.equal(edgeA(tip!), SCOPE_EDGE_A);
-    assert.equal(fill(face!), raw(t.scopeFace)); assert.ok(Math.abs(edgeA(face!) - SCOPE_EDGE_A * 0.8) < 1e-9);
+    const [shaft, bend, tip, lens, , band, needle, face, port, array, light0, light1, chan, ...rings] = sc.parts as unknown as DeviceObject[];
+    // (the redesign, 20 Nov 2026: the shaft is 2D's black polymer; the bending section a lifted black; the distal housing polished silver; the transducer cap cream with a dark face; the needle bright steel)
+    assert.equal(fill(shaft!), raw(t.scope), 'insertion tube: --dev-scope'); assert.equal(edge(shaft!), raw(scopeSoftHex(t))); assert.equal(edgeA(shaft!), SCOPE_EDGE_A);
+    assert.equal(fill(bend!), raw(SCOPE_BEND(t))); assert.equal(edge(bend!), raw(scopeSoftHex(t))); assert.equal(edgeA(bend!), SCOPE_EDGE_A);
+    assert.equal(fill(tip!), raw(SCOPE_SILVER(t)), 'the distal housing is silver'); assert.ok(edgeA(tip!) > SCOPE_EDGE_A, 'a firmer edge on the silver');
+    assert.ok(rawLuma(fill(tip!)) > rawLuma(raw(t.scopeTip)) + 0.1, 'lighter than 2D\'s tip grey');
+    assert.equal(fill(face!), raw(SCOPE_CREAM(t))); assert.ok(edgeA(face!) > SCOPE_EDGE_A);
+    assert.equal(fill(array!), raw(t.port), 'the transducer\'s face is dark'); assert.equal(edgeA(array!), 0);
+    assert.equal(fill(light0!), raw(SCOPE_LIGHT)); assert.equal(fill(light1!), raw(SCOPE_LIGHT)); assert.equal(fill(chan!), raw(t.port)); assert.equal(fill(lens!), raw(t.port), 'the lens is dark glass');
     assert.equal(fill(port!), raw(t.port)); assert.equal(edgeA(port!), 0); assert.equal(port!.ink.visible, false);
-    assert.equal(edge(needle!), raw(t.polyEdge)); assert.equal(edgeA(needle!), 0.8);
+    assert.equal(fill(needle!), raw(SCOPE_NEEDLE)); assert.equal(edge(needle!), raw(t.polyEdge)); assert.equal(edgeA(needle!), 0.8);
+    assert.equal(bend!.toon.uniforms.stripeP!.value, 1 / (BEND_GROOVES + 1), 'the bending section is grooved');
     assert.equal(edgeA(band!), 0, 'the ligator\'s band is plain platinum');
     assert.ok(lens && rings.length === 4); for (const r of rings) assert.equal(edgeA(r as unknown as DeviceObject), 0, 'the hit\'s rings are discs with no outline');
     assert.notEqual(fill(shaft!), raw(DEVICE_TOKENS[id].steel), 'no longer the grey steel');
@@ -186,4 +194,77 @@ test('the Doppler probe is not faded out and in, nor hidden, while the view is m
   for (let i = 0; i < 250; i++, t += 16) { d.update(16, true, 'PV_TRUNK', null, make(Math.sin(i / 25) * 0.9, 1.5 + 0.5 * Math.sin(i / 40), 420 + i * 1.6) as never, t); min = Math.min(min, d.shown); }
   assert.ok(min > 0.99, `it never faded while the view moved (lowest ${min})`);
   d.dispose();
+});
+
+// The scope redesign (owner, 20 Nov 2026, from photos of echoendoscopes and a forward-viewing endoscope).
+const driveScope = (mode: 'scope' | 'eus', station: 'pv' | 'hv' = 'pv'): EndoScope => { const sc = new EndoScope(sh); sc.applyPalette(PALETTES.light); for (let t = 0; t < 14000; t += 16) sc.update(16, true, mode, station); return sc; };
+
+test('both scopes carry thin white depth rings along the tube, a heavier one every fifth, counted from the tip so they travel with it', () => {
+  for (const mode of ['scope', 'eus'] as const) {
+    const sc = driveScope(mode), shaft = sc.parts[0] as unknown as DeviceObject, u = shaft.toon.uniforms;
+    assert.ok((u.stripeP!.value as number) > 0, `${mode}: the tube has marks`);
+    assert.equal(hex(u.stripeCol!.value as Color), raw('#F4F2EC'), 'white');
+    // the spacing is MARK_UNITS figure units along the way, the half width a fraction of it, the heavy ring wider than the thin
+    const P = u.stripeP!.value as number, half = u.stripeW!.value as number;
+    assert.ok(half > 0 && half < P / 6, `${mode}: a thin ring (${half} of ${P})`);
+    assert.ok((u.stripeHeavy!.value as number) > 1.5 && MARK_EVERY === 5);
+    sc.dispose();
+  }
+  assert.ok(MARK_UNITS > 10, 'spaced well apart, not a barcode');
+});
+
+test('the marks move with the tip: the origin of the rings is the tip\'s own place along the way', () => {
+  const sc = new EndoScope(sh); sc.applyPalette(PALETTES.light);
+  const shaft = sc.parts[0] as unknown as DeviceObject, offs: number[] = [];
+  for (const u of [0.3, 0.6, 1]) { for (let t = 0; t < 14000; t += 16) sc.update(16, true, 'scope', 'pv', u); offs.push(shaft.toon.uniforms.stripeOff!.value as number); }
+  assert.ok(offs[0]! < offs[1]! && offs[1]! < offs[2]!, `the origin follows the tip down the way (${offs})`);
+  sc.dispose();
+});
+
+test('every scope has a bending section behind its rigid tip: straight and grooved on the plain scope, the tube\'s black lifted a shade', () => {
+  for (const mode of ['scope', 'eus'] as const) {
+    const sc = driveScope(mode), parts = sc.parts as unknown as DeviceObject[], p = sc as unknown as { bendOn: boolean };
+    assert.equal(p.bendOn, true, `${mode}: the bending section is laid`);
+    assert.equal(parts[1]!.group.visible, true);
+    assert.equal(fill(parts[1]!), raw(SCOPE_BEND(DEVICE_TOKENS.light)));
+    sc.dispose();
+  }
+});
+
+test('the plain endoscope has a tip face (lens, two light guides, the working channel); the echoendoscope has its transducer (cream cap, dark face), a bright needle and a see-through fan', () => {
+  const plain = driveScope('scope'), pp = plain.parts as unknown as DeviceObject[];
+  const [, , , lens, , , , face, , array, l0, l1, chan] = pp;
+  for (const o of [lens!, l0!, l1!, chan!]) assert.equal(o.group.visible, true, 'plain scope: the tip face is drawn');
+  for (const o of [face!, array!]) assert.equal(o.group.visible, false, 'plain scope: no transducer');
+  assert.equal(fill(l0!), raw(SCOPE_LIGHT));
+  plain.dispose();
+  const eus = driveScope('eus'), ep = eus.parts as unknown as DeviceObject[];
+  const [, , tip, elens, , , needle, eface, , earray, el0, el1, echan] = ep;
+  assert.equal(eface!.group.visible, true); assert.equal(earray!.group.visible, true);
+  for (const o of [el0!, el1!, echan!]) assert.equal(o.group.visible, false, 'echoendoscope: the light guides and channel face are not drawn');
+  assert.equal(elens!.group.visible, true);
+  assert.equal(fill(eface!), raw(SCOPE_CREAM(DEVICE_TOKENS.light)));
+  assert.ok(luma(fill(eface!)) > luma(fill(earray!)) + 0.4, 'the cap is cream and its face dark');
+  assert.ok(luma(fill(tip!)) > luma(fill(ep[0]!)) + 0.3, 'the housing is silver against the black tube');
+  assert.equal(fill(needle!), raw(SCOPE_NEEDLE)); assert.equal(needle!.group.visible, true);
+  // the cap stands proud of the housing on the wall's side (its rings are wider than the tip's half way along)
+  const k = eus as unknown as { faceBuf: { rings: { r: number }[] }; arrayBuf: { rings: { r: number }[] }; tip: { rings: { r: number }[] } };
+  const mid = k.faceBuf.rings[Math.floor(k.faceBuf.rings.length / 2)]!.r, ends = k.faceBuf.rings[0]!.r;
+  assert.ok(mid > ends * 1.2, 'rounded at its ends');
+  assert.ok(mid > 0.5 * k.tip.rings[0]!.r, 'a real cap, not a hairline');
+  eus.dispose();
+});
+
+test('the echoendoscope\'s sector is a see-through wash: faint at the apex, fainter out at the far arc and at the two sides, never opaque', () => {
+  const sc = driveScope('eus'), k = sc as unknown as { fanGeo: { getAttribute(n: string): { getW(i: number): number; count: number } }; fanMesh: { visible: boolean }; fanMat: { opacity: number; transparent: boolean } };
+  assert.equal(k.fanMesh.visible, true); assert.equal(k.fanMat.transparent, true);
+  const col = k.fanGeo.getAttribute('color'), n = 1 + FAN_ROWS * FAN_COLS;
+  assert.equal(col.count, n);
+  let max = 0; for (let i = 0; i < n; i++) max = Math.max(max, col.getW(i));
+  assert.ok(max <= 0.3 && max > 0.1, `the apex alpha ${max}`);
+  const far = (j: number): number => col.getW(1 + (FAN_ROWS - 1) * FAN_COLS + j);
+  assert.ok(far(Math.floor(FAN_COLS / 2)) < col.getW(0) * 0.25, 'the far arc is a fifth of the apex');
+  assert.ok(far(0) < far(Math.floor(FAN_COLS / 2)) && far(FAN_COLS - 1) < far(Math.floor(FAN_COLS / 2)), 'fading toward the sides');
+  for (let r = 1; r < FAN_ROWS; r++) assert.ok(col.getW(1 + r * FAN_COLS + 9) <= col.getW(1 + (r - 1) * FAN_COLS + 9) + 1e-9, 'the wash only thins with the reach');
+  sc.dispose();
 });

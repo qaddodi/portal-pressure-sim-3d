@@ -14,8 +14,8 @@
 import { CIRCUIT_VS_CALL, CIRCUIT_VS_HEAD } from '../circuit/shader.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { CHEV, CHEVRON_GLSL, CHEV_INK_ROW, CHEV_LEVEL_MIN } from '../blood/chevron-glsl.ts';
-import { STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
 import { STREAK } from '../blood/streak-glsl.ts';
+import { DUST_GLSL } from '../blood/dust-glsl.ts';
 import { QUIET_BACK } from '../camera/quiet.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL, glslNum as F } from '../cel-glsl.ts';
@@ -183,7 +183,11 @@ ${CIRCUIT_VS_CALL}
   // THE OUTLINE is part of the tube (no second mesh, no stencil, no depth tie): the tube is built INK wider than its lumen, and the fragment shader paints the outer ink band, so the line is continuous by construction.
   // Its width is the figure's line (cel-style.ts LINE_R, LINE_MIN, LINE_MAX; 2D's tube-cel-glsl.js CEL is 0.14, 1.5, 3): a share of the tube's radius held between two widths in CSS px (never device px: a device-px clamp drew
   // the line a third as heavy on a 3x iPhone as on a 1x screen), the same on a hairline and on the portal trunk, on a 1x Mac and a 3x iPhone; thinned with a lumen under LINE_MIN CSS px of radius (cel-ink.ts inkTaper), so the smallest branches keep their colour.
-  vR = radius * rkE * swell * vU;   // the lumen's half width in the 2D figure's units
+  // THE DRAWN LUMEN: the tube's half width AFTER a stenosis has pinched it (the narrow attribute, which the geometry below applies). Every width the fragment stage and the line are made from (the ink band's place, the heads' size, the dust, the
+  // tones) is this one radius, so a narrowed stretch keeps its outline and its flow marks are sized to the lumen they are drawn in. They were made from the radius WITHOUT the pinch: the line was placed at the old wall, outside the pinched tube, so
+  // the outline vanished through the narrowing, and the heads were built for a wide tube and spilled over a thin one (Mohammad, 20 Nov, the stenosed portal vein).
+  float narrowK = 1.0 - clamp(narrow, 0.0, 0.97);
+  vR = radius * rkE * swell * narrowK * vU;   // the lumen's half width in the 2D figure's units
   vec3 cenW = aPos - aNor * (radius * rkE);   // the ring's centre
   vec4 cc = projectionMatrix * (modelViewMatrix * vec4(cenW, 1.0));
   vCen = vec3(cc.x, cc.y, cc.w);
@@ -196,12 +200,13 @@ ${CIRCUIT_VS_CALL}
   vHi = hiOn * (abs(hiDir) > 0.5 ? 1.0 - smoothstep(0.0, max(limitH, 0.0001), distH) : ownH);
   // the ink is held back ONLY on the part of a declared branch's end that lies inside its trunk (bury: the trunk's radius, per end): never along a vessel's own sides, never at a run-on's ring, never where vessels merely cross
   float endK = vHi > 0.001 ? 1.0 : buryK(uv.x * len * vU, (1.0 - uv.x) * len * vU);
-  float inkPx = clamp(${F(CEL_STYLE.LINE_R)} * rCssV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rCssV);   // CSS px
+  // (the line thins with a lumen that is hairline by NATURE, a small branch; a pinch is not one: the taper is judged on the radius the vessel would have without it, so the outline runs on through a stenosis at the figure's least weight)
+  float inkPx = clamp(${F(CEL_STYLE.LINE_R)} * rCssV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rCssV / narrowK);   // CSS px
   inkPx *= mix(1.0, ${F(CIRC_INK_K)}, circT);   // (the Circuit's line is bolder: its tubes are thick and its ground flat)
   float inkW = (inkPx * endK + hiPx * vHi) * inkOn * wpcV / vU;   // scene units
-  float lumenW = radius * rkE * swell * (1.0 - narrow);
+  float lumenW = radius * rkE * swell * narrowK;
   // (the ring is a polygon: its flats sit at the radius, its corners ${F(TUBE_SAG)} of the radius farther out, so the silhouette never falls inside the line)
-  vec3 p = aPos + aNor * (inflate + radius * rkE * (swell * (1.0 - narrow) - 1.0) + inkW + (lumenW + inkW) * ${F(TUBE_SAG)});
+  vec3 p = aPos + aNor * (inflate + radius * rkE * (swell * narrowK - 1.0) + inkW + (lumenW + inkW) * ${F(TUBE_SAG)});
   // where this tube carries on into another (a mate), its end ring runs on a hair (under a CSS px) into the next: two flat rings that meet exactly leave a light line between them where their edges are smoothed, along the whole of a straight join
   // (only where the tube is opaque: a faint tube (the cava at 0.45, a fading vein) drawn twice over those 1.5 px is a darker band, a faint dashed line across it at every join of its pieces; Mohammad, 20 Nov)
   float runOn = RUN_ON_PX * smoothstep(0.97, 1.0, fa);
@@ -235,6 +240,7 @@ uniform float spec;
 uniform float len;
 uniform float radius;
 uniform float time;
+uniform float baseD;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
 uniform float vindex;
@@ -327,7 +333,7 @@ float meanVelocity(float q, float dmm) {
 }
 // ---- the 2D app's flow heads (chevron-glsl.js, blood-heads.js) ----
 ${CHEVRON_GLSL}
-${STREAK_FIELD_GLSL}
+${DUST_GLSL}
 // (chevKeep, the lattice's keep, is in the one chevron chunk above: blood/chevron-glsl.ts)
 // One vessel's heads placed by a stream's pattern (veins-gl.js chevOne): se = A + B s is the vessel's arc along that stream (B = 1, se = s for its own), Dm the stream's distance. The
 // spacing is the zoom's, by the arc a head takes here (B), so a parcel that slows on entering a vessel bunches up as the blood does. ends: the weights of a link at the vessel's from and
@@ -480,23 +486,30 @@ void main() {
   if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT));
   vec3 c = celTubeTone(base, mix(sT, 1.0, nbrT), fwidth(sT) * (1.0 - nbrT), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
-  // THE STREAKS (blood/streak-glsl.ts, the one streak) are part of the tube: painted here, in its own fragment shader, so they are inside the lumen (the field draws nothing past FIELD_EDGE of its half width,
-  // never touching the ink) and follow the tube's own alpha and fade zones by construction: there is no second mesh to stray past a tube's end, a taper or a fade. Under the chevrons, which come after.
-  if (streakAmt > 0.001 && vR > 0.0) {
+  // THE DUST (blood/dust-glsl.ts, the Dust Lab's particles, Mohammad 20 Nov) is part of the tube: painted here, in its own fragment shader, so it is inside the lumen (dustField draws nothing past 0.96 of the half width,
+  // never touching the ink) and follows the tube's own alpha and fade zones by construction: there is no second mesh to stray past a tube's end, a taper or a fade. Under the chevrons, which come after.
+  if (streakAmt > 0.001 && vR > 0.0 && abs(across) < 0.97) {
     vec4 smS = texelFetch(streamTex, ivec2(int(lensIndex), 0), 0);   // the blood's own distance and speed on this vessel: reversed runs back, none stands
-    float rFix = max(radius * vU, 1e-3);   // (the vessel's own radius, not its live width: the pattern does not slip when a stenosis narrows it)
-    float rCss = vR / max(vW * 2.0 / (res.y * projY) * vU, 1e-6);
-    float sc = ${F(STREAK.FIELD_AT_R)} / rFix * rCss / clamp(rCss, ${F(STREAK.LEN_R_PX[0])}, ${F(STREAK.LEN_R_PX[1])});   // (the pattern's scale: a streak is 24 to 96 CSS px long whatever the zoom, STREAK.LEN_R_PX)
-    gStreakPx = rCss;   // (the lumen's radius in CSS px: the field draws a core of CORE_PX on screen)
-    gStreakWide = smoothstep(${F(STREAK.WIDE_R_PX[0])}, ${F(STREAK.WIDE_R_PX[1])}, rCss);
-    gStreakLanes = rCss < ${F(STREAK.LANE_R_PX[0])} ? 1.0 : rCss < ${F(STREAK.LANE_R_PX[1])} ? 3.0 : 5.0;   // (the lanes by the width on screen: 1 under 8 px across, 3 to 12 px, 5 above)
-    gStreakSpan = len * vU * sc;   // (the vessel's own length in field units: a lane's period never runs past it)
-    // the streak distance (texel w: the stream's distance D, held to a speed no pattern wagon-wheels at, streams.ts) with the arc, as the heads ride D; the same gate as the heads' (the radius from MIN_R_PX), and none only where the flow is none
-    float fld = streakField(across, vUv.x * len * vU * sc, smS.w * sc, 1.0, 1.0, 1.0);
-    float sOn = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCss) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
-    streakCover = sOn * fld;
-    cBody = c;
-    c = mix(c, streakTone(c, vec3(1.0), gStreakK.x, gStreakK.y), streakCover);
+    float rCssD = vR / max(vW * 2.0 / (res.y * projY) * vU, 1e-6);
+    float nar = 1.0;
+    if (useData > 0.5) { ivec2 tcn = ivec2(int(mod(vindex, vdataSize.x)), int(floor(vindex / vdataSize.x))); nar = texelFetch(vdata, tcn, 0).b / max(baseD, 0.1); }
+    vec4 chD = texelFetch(chainTex, ivec2(int(lensIndex), 0), 0);
+    float dOn = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCssD) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
+    if (dOn > 0.002) {
+      // (the streak distance, texel w: the stream's distance D held to a speed no pattern wagon-wheels at, streams.ts; the same arc and gate the heads have, and none only where the flow is none)
+      float sD = vUv.x * len * vU, rOwn = max(radius * vU, 1e-3), wl = chD.w;
+      vec3 litD = celTubeBase(base);
+      vec4 dust = vec4(0.0);
+      if (wl < 1.0) dust = dustField(across, sD, 0.0, 1.0, smS.w, rOwn, rOwn, vR, rCssD, len * vU, nar, smS.y, smS.z, fract(lensIndex * 0.6180339) * 50.0, lensIndex + 1.0, litD, inkColor);
+      if (wl > 0.0) {   // the blood runs on from the parent: the root's particles, at the root's distance, A + B s along its stream (the chevrons' own placing)
+        int rootIx = int(chD.x + 0.5) - 1;
+        vec4 dc = dustField(across, sD, chD.y, chD.z, texelFetch(streamTex, ivec2(rootIx, 0), 0).w, rOwn, max(texelFetch(chainTex, ivec2(int(lensIndex), 1), 0).w * vU, 1e-3), vR, rCssD, len * vU, nar, smS.y, smS.z, fract(float(rootIx) * 0.6180339) * 50.0, chD.x, litD, inkColor);
+        dust = wl >= 1.0 ? dc : mix(dust, dc, wl);   // (a link forming or letting go cross-fades the two sets: nothing pops)
+      }
+      streakCover = dOn * dust.a;
+      cBody = c;
+      c = c * (1.0 - streakCover) + dust.rgb * dOn;
+    }
   }
 
   float vel = 0.0;

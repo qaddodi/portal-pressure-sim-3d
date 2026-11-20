@@ -9,6 +9,7 @@ import { CELLS_FS, CELLS_VS } from '../src/scene/blood/cells/shader.ts';
 import { STREAK, laneSpeed, lanesFor, layoutCells } from '../src/scene/blood/cells/core.ts';
 import { STREAK_MARK_GLSL, STREAK_FIELD_GLSL, STREAK_LANE_GLSL, bendLength, fieldReach, streakFit, streakInside, streakReach } from '../src/scene/blood/streak-glsl.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
+import { DUST_GLSL } from '../src/scene/blood/dust-glsl.ts';
 import { useSettings } from '../src/state/settings.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { MICRO_FS, MICRO_VS } from '../src/scene/micro3d/cel3d.ts';
@@ -154,10 +155,11 @@ test('CONTAINED BY CONSTRUCTION (Mohammad, 20 Nov: "the streaks are flowing outs
   // the clip is in the shared field itself, which every site includes
   assert.match(STREAK_FIELD_GLSL, /float ca = across \/ 0\.9;\n\s*float inLumen = step\(abs\(ca\), 1\.0\);/);
   assert.match(STREAK_FIELD_GLSL, /return inLumen \* cov \* fe \* op \* on;/, 'nothing past the edge');
-  assert.ok(VESSEL_FS.includes(STREAK_FIELD_GLSL), 'the Anatomy: in the tube shader');
+  assert.ok(VESSEL_FS.includes(DUST_GLSL), 'the Anatomy: the Dust Lab\'s particles (blood/dust-glsl.ts) in the tube shader, clipped to the lumen the same way');
+  assert.match(DUST_GLSL, /return acc \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(across\)\)\);/, 'nothing past the lumen\'s edge');
   assert.ok(MICRO_FS.includes(STREAK_FIELD_GLSL), 'the 3D lobule and sinusoid');
-  assert.match(VESSEL_FS, /float fld = streakField\(across, /);
-  assert.match(VESSEL_FS, /if \(streakAmt > 0\.001 && vR > 0\.0\) \{/);
+  assert.match(VESSEL_FS, /dust = dustField\(across, /);
+  assert.match(VESSEL_FS, /if \(streakAmt > 0\.001 && vR > 0\.0 && abs\(across\) < 0\.97\) \{/);
   // the JS twin: every lane count keeps every mark inside FIELD_EDGE of the half width, short of the ink (which starts at 1)
   for (const L of [3, 5, 7]) assert.ok(fieldReach(L) <= STREAK.FIELD_EDGE + 1e-9 && fieldReach(L) < 1, `${L} lanes: reach ${fieldReach(L)}`);
   assert.ok(!streakInside(0.95) && !streakInside(-1) && streakInside(0.9));
@@ -170,7 +172,8 @@ test('CONTAINED BY CONSTRUCTION (Mohammad, 20 Nov: "the streaks are flowing outs
   for (const o of sc.vessels) {
     const m = o.toonMesh.material as import('three').ShaderMaterial;
     assert.ok(m.uniforms.streakAmt, `${o.edge!.id}: the streak amount reaches the tube`);
-    assert.equal(m.fragmentShader.includes(STREAK_FIELD_GLSL.trim().split('\n')[1]!), true, `${o.edge!.id}: the tube paints them`);
+    assert.ok(m.uniforms.dustP, `${o.edge!.id}: the dust's numbers reach the tube`);
+    assert.equal(m.fragmentShader.includes('vec4 dustField('), true, `${o.edge!.id}: the tube paints them`);
     n++;
   }
   assert.ok(n > 50, `${n} vessels`);
@@ -185,7 +188,7 @@ test('sparse and thin (streak-visible.test.ts holds the numbers); and they lie U
   assert.equal(STREAK.LANES, 7);
   // the Anatomy: the streaks are mixed into the body tone first, the chevron's pixels are taken back to the body tone before the head is laid on
   const fs = VESSEL_FS;
-  assert.ok(fs.indexOf('streakCover = sOn * fld;') < fs.indexOf('c = c * (1.0 - ha) + core * ac'), 'chevrons after streaks');
+  assert.ok(fs.indexOf('streakCover = dOn * dust.a;') < fs.indexOf('c = c * (1.0 - ha) + core * ac'), 'chevrons after the dust');
   assert.match(fs, /if \(streakCover > 0\.0\) c = mix\(c, cBody, ha\);/, 'a chevron pixel is never tinted by a streak');
   // the 3D lobule and sinusoid: the flow streaks are held back where a head is
   assert.match(MICRO_FS, /flowStreaks\(\) \* \(1\.0 - clamp\(hd\.x \+ hd\.y, 0\.0, 1\.0\)\)/);

@@ -174,6 +174,14 @@ export function readingText(read: CapMeta['read'], m: { P1: number; P2: number; 
   return (v < 0 && Number(f) !== 0 ? '−' : '') + f;
 }
 
+/** What a reading changes about where the words may stand: only how wide each prints (its characters), never its value. A pressure that moves by a tenth between two frames must not send the words
+ *  through a fade out, a new solve and a fade in (Mohammad, 20 Nov: "the labels in the lobule view are flashing"): the signature the layout is judged by holds these lengths, and the text itself is
+ *  written again in place (LobuleCaptions refreshReadings). */
+export function readingSig(m: { P1: number; P2: number; P3: number; lymph: number } | null | undefined): string {
+  if (!m) return '-';
+  return (['P1', 'P2', 'P3', 'lymph'] as const).map((k) => readingText(k, m, false).length).join(',');
+}
+
 /** The canvas the lobule's names may use: the screen inside its safe areas and under the top bar, down to the foot of the room the lobule is framed in plus 8 px (2D lobule-zoom.js liveFreeInto: the room
  *  ends 8 px over --bot-occ, the dock and the view pill; its labels keep to the free space, `fr`, which ends at --bot-occ). Nothing of a name stands over the dock. */
 export function lobuleLabelView(vp: { w: number; h: number; safe: { top: number; bottom: number; left: number; right: number } }, topBar: number, room: { y: number; h: number } | null): { x0: number; y0: number; x1: number; y1: number } {

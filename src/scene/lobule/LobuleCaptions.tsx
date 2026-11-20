@@ -16,7 +16,7 @@ import { type Box, leaderGeom, rectToBox } from '../labels/geometry.ts';
 import { makeMeasure } from '../labels/LabelLayer.tsx';
 import { type Placement, solve } from '../labels/solver.ts';
 import { LS, baselineAt, fontPx, lookVars, typeVars } from '../labels/type.ts';
-import { type CapMeta, buildLobuleCaptions, lobuleLabelView, readingText } from './captions.ts';
+import { type CapMeta, buildLobuleCaptions, lobuleLabelView, readingSig, readingText } from './captions.ts';
 import { footBlocker, useFootNote } from '../../ui/shell/foot-note.ts';
 import { Ride, RoomFade, boxesFit } from '../labels/ride.ts';
 
@@ -117,12 +117,24 @@ export function LobuleCaptions() {
     };
     let itemsNow = new Map<string, import('../labels/solver.ts').Item>();
 
+    /** The readings as the model has them now, written in place into the names that stand (no solve, no fade): the numbers move with the pulse and the treatments, the places do not. */
+    const refreshReadings = () => {
+      const m = cel.lobule.inkContext()?.model ?? null;
+      for (const [id, p] of placed) {
+        const mt = metas.get(id), e = els.get(id);
+        if (!mt || !e?.val) continue;
+        const f = mt.forms[Math.min(p.form, mt.forms.length - 1)]!;
+        const v = !f.value ? '' : m ? readingText(mt.read, m, false) : '?';
+        if (e.valText !== v) { e.valText = v; e.val.textContent = v; }
+      }
+    };
+
     /** Everything that decides what the words say and where they may stand but the picture's place on the screen (a pan only carries them). */
     const layoutSig = (): string => {
       const { vp, boxes } = useUi.getState();
       const L = cel.lobule.currentLayers, m = cel.lobule.inkContext()?.model;
       return [vp.w, vp.h, L.zones, L.lymph, useShell.getState().figure.labelLevel, boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'), boxKey(view()), lookRef.current,
-        m ? [m.P1, m.P2, m.P3].map((x) => x.toFixed(1)).join(',') + Math.round(m.lymph * 100) : '-'].join('|');
+        readingSig(m)].join('|');   // (the readings' widths, never their values: a value that moves a tenth is written in place, refreshReadings, and sends nothing through a fade)
     };
     const boxesOf = () => {
       const out: { ax: number; ay: number; dx: number; dy: number; w: number; h: number }[] = [];
@@ -135,7 +147,7 @@ export function LobuleCaptions() {
       const on = cel.view === 'lobule' && cel.lobule.group.visible;
       if (on) { const a = proj(0, 0), b = proj(1, 0); pa.x = a[0]; pa.y = a[1]; pb.x = b[0]; pb.y = b[1]; } else { pa.x = pa.y = pb.x = pb.y = 0; }
       const g = gate.step({ now, dt, on, moving: cel.rig.isMoving, a: pa, b: pb, layout: layoutSig, fits: (ride) => boxesFit(boxesOf(), ride, view(), blockers()) });
-      if (g.solve) solveNow();
+      if (g.solve) solveNow(); else if (alpha > 0) refreshReadings();
       alpha = g.alpha;
       if (alpha > 0 || wasShown) {
         const walls = blockers(), room = view();

@@ -59,8 +59,19 @@ function build(): ReadonlyMap<string, SmoothEnds> {
   };
   const taken = new Set<string>();
   const pair = (a: { v: NetVessel; end: 0 | 1 }, b: { v: NetVessel; end: 0 | 1 }) => {
-    if (a.v === b.v || isCollateral(a.v) || isCollateral(b.v) || (a.v.tone === 'artery') !== (b.v.tone === 'artery')) return;
+    if (a.v === b.v || (a.v.tone === 'artery') !== (b.v.tone === 'artery')) return;
     if (taken.has(`${a.v.id}|${a.end}`) || taken.has(`${b.v.id}|${b.end}`)) return;
+    // A COLLATERAL THAT CARRIES ON A VESSEL (the 2D rule's run-on: the coronary vein into the varices) is one tube with it: no cap at the join and the live widths eased to one, so a dilated vein never ends in a round cap against the thin
+    // strands it feeds (Mohammad, 20 Nov: "this junction should be smooth. I thought you smoothened every junction"). Only the live width and the cap: a collateral keeps its own end radius (shape.ts narrowTo, the strands' own taper), so
+    // no `taper`, no funnel here.
+    if (isCollateral(a.v) || isCollateral(b.v)) {
+      if (isCollateral(a.v) && isCollateral(b.v)) return;
+      taken.add(`${a.v.id}|${a.end}`); taken.add(`${b.v.id}|${b.end}`);
+      const da = outward(a.v, a.end), db = outward(b.v, b.end);
+      const straight = !!da && !!db && da[0] * db[0] + da[1] * db[1] + da[2] * db[2] < -0.9;
+      for (const [x, y] of [[a, b], [b, a]] as const) { const i = get(x.v); i.mate[x.end] = y.v.id; if (straight) i.joined[x.end] = true; }
+      return;
+    }
     taken.add(`${a.v.id}|${a.end}`); taken.add(`${b.v.id}|${b.end}`);
     // two of nearly one caliber ease to their mean (the 2D tubes' own end profile); a big vein into a thin bed (more than a quarter apart) is the wider one narrowing to the thin one's width, which keeps
     // the thin one as drawn (a mean would swell the bed's first stretch into a bulb)

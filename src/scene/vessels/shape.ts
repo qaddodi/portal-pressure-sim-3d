@@ -191,7 +191,11 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
       const live = (banded ? Math.max(BANDED_CORD, Math.min(1, Math.max(0, i + 1 - s.bands))) : 1) * (c.live ?? 1);
       return {
         pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through), radius: Math.max(minR, rad * c.k * thick) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
-        ...(bundle && v.id !== 'C5' ? { taper: [(own.taper?.[0] ?? 1) / (c.k * thick), (own.taper?.[1] ?? 1) / (c.k * thick)] as const, taperSpan: fit ? FAN_SPAN : own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
+        // THE CAVERNOMA'S CHANNELS end in a tip, not in a widened, collared, round-capped end: six channels each opened out to the whole C8 width (and a collar, and a ball) where they all meet at the node stood as a faceted star of overlapping
+        // ends, a hub the trunk did not cover once it was narrowed or clotted (Mohammad, 20 Nov: "the collaterals fan out from faceted star hubs"). Each narrows to a fine point over its last few radii, so the bundle runs together into the vein
+        // at the node (the same free-end taper every other tube's end has, tubes.ts `point`), and nothing is a ball.
+        ...(bundle && v.id === 'C8' ? { taper: undefined, taperSpan: undefined, flare: undefined, capless: [false, false] as const, clamp: undefined, point: [true, true] as const } : {}),
+        ...(bundle && v.id !== 'C5' && v.id !== 'C8' ? { taper: [(own.taper?.[0] ?? 1) / (c.k * thick), (own.taper?.[1] ?? 1) / (c.k * thick)] as const, taperSpan: fit ? FAN_SPAN : own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
         bead: beads && v.id !== 'C5' ? { b: s.bead, ph: c.ph * 1.7, u0: (STRAND_FROM_2D as Record<string, number>)[v.id] ?? 0, lambda, len: len2d(c.pts) } : undefined,
       };
     })];
