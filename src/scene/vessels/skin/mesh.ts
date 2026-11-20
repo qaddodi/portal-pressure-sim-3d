@@ -30,6 +30,8 @@ export const SHRINK_PULL = 0.5;
 export const GENTLE: BuildPace = { rounds: 40, shrinkRounds: 20, pull: 0.3 };
 /** How fast the remesh pulls the hull sheet onto the surface. */
 export interface BuildPace { rounds: number; shrinkRounds: number; pull: number }
+/** The slowest schedule, for a sheet that starts very far from the surface (five arms spread along a long host: the cava's three hepatic veins, 9 radii of cava in the skin): a seventh of the pull for 30 rounds, 48 in all. The quick schedule folds there and `GENTLE` leaves 8 triangles folded. */
+export const SLOW: BuildPace = { rounds: 48, shrinkRounds: 30, pull: 0.15 };
 export const MAX_VERTS = 12000;
 /** Tangential smoothing per round: how far a free vertex moves toward its neighbours' mean, and the final rounds of smoothing and projecting (spec 4.5.6). */
 export const SMOOTH_LAMBDA = 0.6;
@@ -96,6 +98,17 @@ export function ringHull(rings: readonly Float32Array[]): RingHull {
 
 /** Rule 4.4.3 for WP1's `chooseCuts`: does the hull of these seam rings (14 xyz each) cover every ring vertex and leave every ring edge on one face? */
 export const hullCovers = (seamRings: readonly Float32Array[]): boolean => ringHull(seamRings).ok;
+
+/** `buildSkin` with the schedules tried in turn on a fold (the surface doubling back on itself, which a sheet pulled onto the surface too fast does): the usual one, then `GENTLE`, then `SLOW`. The first that closes is the skin; the last error stands if none does.
+ *  Every junction that closed at the usual pace is built exactly as before. */
+export function buildSkinSteady(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS): SkinMesh {
+  let last: unknown;
+  for (const pace of [undefined, GENTLE, SLOW]) {
+    try { return buildSkin(j, cuts, seamRings, seamNormals, axes, maxVerts, pace); }
+    catch (e) { last = e; if (!(e instanceof SkinBuildError) || !e.message.includes('folds')) throw e; }
+  }
+  throw last;
+}
 
 /** The tube's rest axis recovered from a seam ring alone, for callers that give no axes: a polyline J, ring centre, then straight on to `ARM_REACH` radii, at the ring's mean radius. */
 function axisFromRing(ring: Float32Array, J: Vec3): Capsule {
@@ -494,14 +507,8 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
     grow.push(m);
   }
   // a face turned against its own vertex normals is a fold: the hull was too far from the surface for the remesh to follow, so this junction falls back to today's method
-  for (let i = 0; i < index.length; i += 3) {
-    const a = index[i]!, b = index[i + 1]!, c = index[i + 2]!;
-    const ux = position[3 * b]! - position[3 * a]!, uy = position[3 * b + 1]! - position[3 * a + 1]!, uz = position[3 * b + 2]! - position[3 * a + 2]!, vx = position[3 * c]! - position[3 * a]!, vy = position[3 * c + 1]! - position[3 * a + 1]!, vz = position[3 * c + 2]! - position[3 * a + 2]!;
-    const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
-    let d = 0;
-    for (const v of [a, b, c]) d += fx * normal[3 * v]! + fy * normal[3 * v + 1]! + fz * normal[3 * v + 2]!;
-    if (d <= 0) { throw new SkinBuildError(j.node, `the surface folds at triangle ${i / 3}`); }
-  }
+  const folds = foldedTriangles(position, normal, index);
+  if (folds.length) throw new SkinBuildError(j.node, `the surface folds at triangle ${folds[0]} (${folds.length} in all)`);
   const seamVerts: Uint32Array[] = [];
   for (let a = 0; a < A; a++) { const ids = new Uint32Array(n); for (let q = 0; q < n; q++) ids[q] = a * n + q; seamVerts.push(ids); }
   return { junction: j, cuts, position, normal, cen, weight, weight2, restR, index, seamVerts, grow };
@@ -528,4 +535,18 @@ export function minAngleDeg(pos: ArrayLike<number>, a: number, b: number, c: num
     lo = Math.min(lo, (Math.acos(Math.max(-1, Math.min(1, cs))) * 180) / Math.PI);
   }
   return lo;
+}
+
+/** The triangles turned against the normals of their own vertices (a fold: the surface doubles back on itself). */
+export function foldedTriangles(position: ArrayLike<number>, normal: ArrayLike<number>, index: ArrayLike<number>): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < index.length; i += 3) {
+    const a = index[i]!, b = index[i + 1]!, c = index[i + 2]!;
+    const ux = position[3 * b]! - position[3 * a]!, uy = position[3 * b + 1]! - position[3 * a + 1]!, uz = position[3 * b + 2]! - position[3 * a + 2]!, vx = position[3 * c]! - position[3 * a]!, vy = position[3 * c + 1]! - position[3 * a + 1]!, vz = position[3 * c + 2]! - position[3 * a + 2]!;
+    const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
+    let d = 0;
+    for (const v of [a, b, c]) d += fx * normal[3 * v]! + fy * normal[3 * v + 1]! + fz * normal[3 * v + 2]!;
+    if (d <= 0) out.push(i / 3);
+  }
+  return out;
 }

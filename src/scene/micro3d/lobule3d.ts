@@ -398,7 +398,7 @@ export class Lobule3D {
   private applyLook(look: LookId): void {
     const L = lookColours(look), P = LOBULE_PALETTES[look].tones;
     const gap = L.rgb01('--og-liver-2'), bg = L.text('--stage-bg') ? L.rgb01('--stage-bg') : L.rgb01('--bg');
-    this.ground.setTint(groundOf(bg, gap, L.dark));
+    this.ground.setTint(floorOf(bg, gap, L.dark, tissueInk(look)));
     const ink = tissueInk(look);
     // the hepatocytes keep the tissue's casing; every vessel (sinusoids, inlets, twigs, lymphatics, canaliculi, the tract's mouths, the central vein) the Anatomy's dark line of its own colour
     this.cells.setInk(ink);
@@ -737,6 +737,15 @@ export class Lobule3D {
 }
 
 // ---- helpers ---------------------------------------------------------------------------------------------------------------------
+
+/** What shows between the cells: where the tiles do not reach (the wedges beside a sinusoid, where the cords part around it) and in the narrow gaps between them, one colour, the dark of the tile's own casing.
+ *  2D's gap colour (groundOf) is pale, and 2D's cells have only a hair of line, so there the clefts read as tissue; here every tile is outlined and its gap is dark, so the same pale ground in a
+ *  wider cleft stood out as a grey-green plate (Mohammad 20 Nov 2026: "those big plates"). The cells keep their colours (buildCells mixes them over groundOf, as 2D). */
+export function floorOf(bg: RGB, gap: RGB, dark: boolean, ink: RGB): [number, number, number] {
+  return mix3(groundOf(bg, gap, dark), ink, FLOOR_INK);
+}
+/** The share of the casing's ink in the floor: nearly all, a trace of the gap's hue. */
+export const FLOOR_INK = 0.85;
 
 /** 2D's hexagon fill under the cells: the page and the gap colour mixed (MIXC), then the gap laid over at half. */
 function groundOf(bg: RGB, gap: RGB, dark: boolean): [number, number, number] {
