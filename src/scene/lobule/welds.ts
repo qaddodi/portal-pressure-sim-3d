@@ -12,9 +12,10 @@
 // Pure (numbers in, numbers out): the scene (micro3d/lobule3d.ts) lays the tubes out from the plan and gives the skins to the part that holds their host. A junction that cannot be built (no
 // seam clears, the hull misses a ring, two junctions too close on one course) is left as it was: both tubes keep their round ends and overlap, and the planner says so in `skipped`.
 import { SkinBuildError, type SkinArm, type SkinCut, type SkinJunction, type SkinMesh } from '../vessels/skin/types.ts';
-import { buildSkin, ringHull } from '../vessels/skin/mesh.ts';
+import { buildSkin, ringHull, GENTLE, type BuildPace } from '../vessels/skin/mesh.ts';
 import { sdArm, skinKOf, type Capsule } from '../vessels/skin/sdf.ts';
 import { tubeFrames } from '../micro3d/cel3d.ts';
+import { splayCourses } from './weld-splay.ts';
 
 export type V3 = [number, number, number];
 
@@ -40,10 +41,10 @@ export const SEAM_MIN_R = 1.5, SEAM_CLEAR_R = 0.5;
 export const ARM_REACH_R = 40, SEAM_ROOM = 0.85;
 /** The shaping capsule of an arm runs this many of its radii past the seam (so the smooth union is whole where the skin meets the tube). */
 export const SKIN_TAIL_R = 2;
-/** The most vertices a skin may grow to (a fillet of these thin tubes is a few hundred; more is a remesh running away on a bad shape, and the junction is left as it was). */
-export const MAX_SKIN_VERTS = 1400;
+/** The most vertices a skin may grow to, live (a fillet of these thin tubes is a few hundred, and the first round of a far-seamed one splits to a thousand and collapses back; more is a remesh running away on a bad shape, and the junction is left as it was). */
+export const MAX_SKIN_VERTS = 2000;
 /** How many times a build that fails (a fold, too many vertices) is tried again with the seams a ring further out. */
-export const BUILD_RETRIES = 4;
+export const BUILD_RETRIES = 2;
 /** The most rings a seam is pushed out (spec 4.4: 40 tries). */
 export const MAX_PUSH = 40;
 /** The fewest tube rings between the seams of two junctions on one course (a seam shared by two skins is two skins that touch: no gap, no crack, nothing between). */
@@ -190,13 +191,43 @@ const arcsOf = (pts: readonly V3[]): number[] => { const a = [0]; for (let i = 1
 /** The room an arm has outward from index `at`: the plan length of the path beyond it (the tube is only kept to its far end). */
 const roomOf = (arc: readonly number[], at: number, dir: 1 | -1): number => (dir === 1 ? arc[arc.length - 1]! - arc[at]! : arc[at]!);
 
+/** The first seam candidate on a refined arm is this many radii from the end, and each further one this many times as far as the last. */
+export const REFINE_FIRST_R = 1.6, REFINE_GROW = 1.45;
+/** A segment at an end is refined when it is longer than this many of the end's radii. */
+export const REFINE_OVER_R = 3;
+
+/** A copy of `cs` with extra samples in the first segment at each end of a course whose radius is small beside its sample spacing (the bile canaliculi: a hair of 0.0002 on samples 0.026 apart, so the
+ *  first sample is 130 radii from the junction and the seam, one of the samples, was 450 radii out and the skin a thousand vertices of nothing). The new samples lie on the segment itself, at
+ *  distances growing by REFINE_GROW from REFINE_FIRST_R radii, so the seam can stand a few radii from the junction. The tube is the same line; it only has more rings there. */
+export function refineEnds(cs: readonly WeldCourse[]): WeldCourse[] {
+  return cs.map((c) => {
+    const n = c.pts.length;
+    if (n < 3) return c;
+    const pts = c.pts.map((p) => [...p] as V3), rad = [...c.rad], w = [...c.w];
+    const refine = (end: 0 | 1) => {
+      const i0 = end === 0 ? 0 : pts.length - 1, i1 = end === 0 ? 1 : pts.length - 2, a = pts[i0]!, b = pts[i1]!, R = rad[i0]!, L = hyp(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+      if (!(L > REFINE_OVER_R * R)) return;
+      const add: { d: number }[] = [];
+      for (let d = REFINE_FIRST_R * R; d < L * 0.97; d *= REFINE_GROW) add.push({ d });
+      const made = add.map(({ d }) => { const t = d / L; return { p: [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)] as V3, r: lerp(rad[i0]!, rad[i1]!, t), w: lerp(w[i0]!, w[i1]!, t) }; });
+      if (end === 0) { pts.splice(1, 0, ...made.map((m) => m.p)); rad.splice(1, 0, ...made.map((m) => m.r)); w.splice(1, 0, ...made.map((m) => m.w)); }
+      else { const at = pts.length - 1; pts.splice(at, 0, ...made.reverse().map((m) => m.p)); rad.splice(at, 0, ...made.map((m) => m.r)); w.splice(at, 0, ...made.map((m) => m.w)); }
+    };
+    refine(0); refine(1);
+    return pts.length === n ? c : { ...c, pts, rad, w };
+  });
+}
+
 /** Plans every junction of `courses`. */
-export function planWelds(courses: readonly WeldCourse[], opts: { avoid?: readonly { x: number; y: number; r: number }[] } = {}): WeldPlan {
+export function planWelds(coarse: readonly WeldCourse[], opts: { avoid?: readonly { x: number; y: number; r: number }[]; splay?: boolean; trace?: (node: string, msg: string) => void } = {}): WeldPlan {
+  const courses = refineEnds(coarse);
   const skipped: WeldPlan['skipped'] = [];
   // (a meeting inside a vessel's mouth is not a junction: the tubes run into the pool and are lost in it, whatever they do there)
   const nodes = findNodes(courses).filter((n) => !(opts.avoid ?? []).some((d) => hyp(n.J[0] - d.x, n.J[1] - d.y) < d.r));
   // the planned paths: a copy of each course with every T's junction point inserted into its host
-  const P = courses.map((c) => ({ pts: c.pts.map((p) => [...p] as V3), rad: [...c.rad], w: [...c.w], mark: new Array<string | null>(c.pts.length).fill(null) }));
+  // (arms that meet at a shallow V are bent apart over their last stretch first: weld-splay.ts)
+  const bent = opts.splay === false ? courses : splayCourses(courses, nodes, undefined, opts.trace);
+  const P = bent.map((c) => ({ pts: c.pts.map((p) => [...p] as V3), rad: [...c.rad], w: [...c.w], mark: new Array<string | null>(c.pts.length).fill(null) }));
   const hostSpots = new Map<number, { node: Node; pos: number }[]>();
   for (const n of nodes) if (n.host) { const l = hostSpots.get(n.host.c) ?? []; l.push({ node: n, pos: n.host.seg + n.host.t }); hostSpots.set(n.host.c, l); }
   for (const [ci, spots] of hostSpots) {
@@ -283,12 +314,25 @@ export function planWelds(courses: readonly WeldCourse[], opts: { avoid?: readon
       const cuts: SkinCut[] = arms.map((a, ai) => ({ vesselId: courses[a.c]!.key, end: a.dir === 1 ? 0 : 1, ring: seam[ai]!, u: seam[ai]! / Math.max(1, P[a.c]!.pts.length - 1) }));
       // (the fillet is shaped by each arm out to a little past its seam: a longer capsule only slows the build, closestOnArm being what it spends its time in)
       const shaped: Capsule[] = caps.map((c, ai) => { const sc = P[arms[ai]!.c]!.pts[seam[ai]!]!; return trimmedCapsule(c, hyp(sc[0] - J[0], sc[1] - J[1], sc[2] - J[2]) + SKIN_TAIL_R * P[arms[ai]!.c]!.rad[seam[ai]!]!); });
-      let mesh: SkinMesh | null = null;
+      let mesh: SkinMesh | null = null, pace: BuildPace | undefined;
       for (let again = 0; !mesh; again++) {
-        try { mesh = buildSkin({ node: n.id, J, arms: skArms } as SkinJunction, cuts, rings.map((r) => r.pos), rings.map((r) => r.nor), shaped, MAX_SKIN_VERTS); }
+        try { mesh = buildSkin({ node: n.id, J, arms: skArms } as SkinJunction, cuts, rings.map((r) => r.pos), rings.map((r) => r.nor), shaped, MAX_SKIN_VERTS, pace); }
         catch (e) {
-          // a remesh that folds or outgrows its limit on this seam is tried again a ring further out on every arm (the fillet is then a gentler shape), a few times
           if (!(e instanceof SkinBuildError) || again >= BUILD_RETRIES) throw e;
+          // A remesh that folds or outgrows its limit is tried again at the gentle pace first (the hull sheet of far seams folds if pulled in at the usual rate: skin/mesh.ts GENTLE), then
+          // with the seams a ring further out on every arm (a gentler fillet), a few times.
+          opts.trace?.(n.id, `retry ${again}: ${e.message.replace(/.*: /, '')} | ${arms.map((a, ai) => `${courses[a.c]!.key} seam ${seam[ai]} at ${(hyp(P[a.c]!.pts[seam[ai]!]![0] - J[0], P[a.c]!.pts[seam[ai]!]![1] - J[1], P[a.c]!.pts[seam[ai]!]![2] - J[2]) / P[a.c]!.rad[a.at]!).toFixed(1)}R`).join(', ')}`);
+          if (!pace && opts.trace) for (let ai = 0; ai < arms.length; ai++) {
+            const a = arms[ai]!, line: string[] = [];
+            for (let st = 1; st <= 16; st++) {
+              const idx = a.at + a.dir * st; if (idx < 0 || idx >= P[a.c]!.pts.length) break;
+              const ring = ringOf(ai, idx).pos; let worst = 1e9, who = -1;
+              for (let o = 0; o < arms.length; o++) { if (o === ai) continue; for (let q = 0; q < ring.length / 3; q++) { const d = sdArm(caps[o]!, ring[3 * q]!, ring[3 * q + 1]!, ring[3 * q + 2]!); if (d < worst) { worst = d; who = o; } } }
+              line.push(`${st}:${((worst - k - SEAM_CLEAR_R * P[a.c]!.rad[idx]!) / P[a.c]!.rad[a.at]!).toFixed(1)}(${who})`);
+            }
+            opts.trace(n.id, `clear ${courses[a.c]!.key}: ${line.join(' ')}`);
+          }
+          if (!pace) { pace = GENTLE; continue; }
           for (let ai = 0; ai < arms.length; ai++) {
             const a = arms[ai]!, nx = seam[ai]! + a.dir;
             if (nx < 0 || nx > P[a.c]!.pts.length - 1) throw e;

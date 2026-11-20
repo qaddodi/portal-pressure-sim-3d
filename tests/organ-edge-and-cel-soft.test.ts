@@ -41,8 +41,8 @@ test('C: ringDistance is 0 on the rim, rises inward to the cap, and the liver ha
   }
 });
 
-test('the soft cirrhosis looks (cel8..cel11): defined, cel13 the default, bands eased and dome wall rounded', async () => {
-  assert.equal(DEFAULT_CEL, 'cel13', 'the soft nodules are the standing cirrhotic liver');
+test('the soft cirrhosis looks (cel8..cel11): defined, cel14 the default, bands eased and dome wall rounded', async () => {
+  assert.equal(DEFAULT_CEL, 'cel14', 'the irregular, outline-led nodules are the standing cirrhotic liver');
   for (const k of ['cel8', 'cel9', 'cel10', 'cel11']) assert.ok(CELS[k]!.soft! > 0 && CELS[k]!.raw! <= 0.6, `${k} is soft`);
   assert.equal(CELS.cel7!.soft, undefined);
   // sample each look through the real surface function (the page's address picks it: flags.ts)
@@ -88,7 +88,7 @@ test('cel12, the subtle look: no grid, no wall, no line, soft shade in valleys a
   delete (globalThis as { location?: unknown }).location;
 });
 
-test('cel13, the standing look: distinct rounded nodules (not a grid), soft shade, no line, a bumpy but smooth rim', async () => {
+test('cel13 (no longer the default): distinct rounded nodules (not a grid), soft shade, no line, a bumpy but smooth rim', async () => {
   const c = CELS.cel13!;
   assert.ok(c.ink === 0 && c.soft! > 0 && c.warp! > 0 && c.jit >= 0.2 && c.round, 'no line, eased bands, warped, jittered, round domes');
   assert.ok(c.shade >= 0.18 && c.shade <= 0.3 && c.a <= 0.5, 'soft: between cel12 (0.22) and cel7 (0.38)');
@@ -107,5 +107,31 @@ test('cel13, the standing look: distinct rounded nodules (not a grid), soft shad
   let sep = 0, lo = 1, hi = -1, step = 0, prev = m.surfaceAt(330, 300).dome;
   for (let x = 330.25; x < 880; x += 0.25) { const s = m.surfaceAt(x, 300); sep += s.sep; lo = Math.min(lo, s.light); hi = Math.max(hi, s.light); step = Math.max(step, Math.abs(s.dome - prev)); prev = s.dome; }
   assert.equal(sep, 0, 'no wall, no line'); assert.ok(lo < -0.5 && hi > 0.2, `shade and a faint lit shoulder (${lo}..${hi})`); assert.ok(step < 0.3, `no wall in the dome (${step.toFixed(2)})`);
+  delete (globalThis as { location?: unknown }).location;
+});
+
+test('cel14, the standing look: nodular by its outline, a faint soft relief on the face, mixed sizes, nothing drawn between', async () => {
+  const c = CELS.cel14!;
+  assert.ok(c.height && c.ink === 0 && c.micro && c.micro.size < c.size / 1.8, 'a height field of macro lumps and smaller ones');
+  assert.ok(c.shade <= 0.12, `the face is faint (shade ${c.shade})`);
+  assert.ok(c.rim >= 1.5, `the outline is strongly lumpy (rim ${c.rim})`);
+  (globalThis as { location?: unknown }).location = { search: '?liver=cel14', pathname: '/', hostname: 'localhost' };
+  const m = await import(`../src/scene/organs/liver-texture.ts?${'cel14'}`);
+  let sep = 0, sum = 0, n = 0, step = 0, prev = m.surfaceAt(330, 300), levels = new Set<number>(), tall = 0;
+  for (let x = 330.25; x < 880; x += 0.25) {
+    const s = m.surfaceAt(x, 300); sep += s.sep; sum += Math.abs(s.light); n++; step = Math.max(step, Math.abs(s.dome - prev.dome)); prev = s; levels.add(Math.round(s.light * 40)); if (s.dome > 0.9) tall++;
+  }
+  assert.equal(sep, 0, 'no wall, no line');
+  assert.ok(sum / n < 0.5, `faint: the mean light on the face is ${(sum / n).toFixed(2)} of full`);
+  assert.ok(levels.size > 15, 'continuous light, not bands');
+  assert.ok(step < 0.15, `rounded, no wall (${step.toFixed(3)} per quarter unit)`);
+  assert.ok(tall > 0, 'the lumps reach their full height');
+  // the outline follows the broad lumps with a little of the small ones: in 0..1 and varied along a run of the rim
+  let lo = 1, hi = 0; for (let x = 330; x < 880; x += 2) { const r = m.rimDomeAt(x, 150); lo = Math.min(lo, r); hi = Math.max(hi, r); assert.ok(r >= 0 && r <= 1); }
+  assert.ok(hi - lo > 0.5, `the rim height varies from lump to valley (${lo.toFixed(2)}..${hi.toFixed(2)})`);
+  // the baked texture: no septum, a varied light
+  const t: Uint8Array = m.bake(); let sepMax = 0, bMin = 255, bMax = 0;
+  for (let i = 0; i < t.length; i += 4 * 97) { sepMax = Math.max(sepMax, t[i]!); bMin = Math.min(bMin, t[i + 2]!); bMax = Math.max(bMax, t[i + 2]!); }
+  assert.equal(sepMax, 0); assert.ok(bMax - bMin > 40, `the light varies (${bMin}..${bMax})`);
   delete (globalThis as { location?: unknown }).location;
 });

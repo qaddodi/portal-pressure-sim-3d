@@ -3,7 +3,7 @@
 // The mesh keeps its z; the 2D figure's own rule is that the vessels never move, so the field is gentle (CIRR.field 0.5).
 import { CIRR, liverField, liverSurface } from '../disease/copied/liver-morph.js';
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
-import { domeAt, noduleBumpAt, rimScale, surfaceAt } from './liver-texture.ts';
+import { noduleBumpAt, rimDomeAt, rimScale, surfaceAt } from './liver-texture.ts';
 
 
 /** Nodule bump height at full strength, scene units (the 2D nodules stand out about 2 to 3 units: 0.01). */
@@ -49,7 +49,7 @@ export class LiverShape {
         // the outline is nodular too (Mohammad 20 Nov): at the rim the nodules stand out along the in-plane normal, by the same dome the surface has, so the edge is scalloped by the same cells. Outward only.
         {
           const m = Math.hypot(n[i]!, n[i + 1]!);
-          if (m > 1e-3) { const r = (1 - k) * RIM_HEIGHT * rimScale() * nodS * domeAt(x2d(x0), y2d(y0)) / m; x += n[i]! * r; y += n[i + 1]! * r; }
+          if (m > 1e-3) { const r = (1 - k) * RIM_HEIGHT * rimScale() * nodS * rimDomeAt(x2d(x0), y2d(y0)) / m; x += n[i]! * r; y += n[i + 1]! * r; }
         }
         pos[i + 2] = r[i + 2]! + n[i + 2]! * h;
       } else pos[i + 2] = r[i + 2]!;

@@ -26,6 +26,10 @@ export const SETTLED = 0.02;
 /** The first `SHRINK_ROUNDS` rounds pull each vertex `SHRINK_PULL` of the way to the surface per round (the sheet shrinks over them); the polish rounds pull all the way. */
 export const SHRINK_ROUNDS = 6;
 export const SHRINK_PULL = 0.5;
+/** The gentle schedule for a sheet that starts far from the surface (seams many radii from the junction: the long hull faces fold if pulled in at the usual rate): a third of the pull for 20 rounds, 40 in all. */
+export const GENTLE: BuildPace = { rounds: 40, shrinkRounds: 20, pull: 0.3 };
+/** How fast the remesh pulls the hull sheet onto the surface. */
+export interface BuildPace { rounds: number; shrinkRounds: number; pull: number }
 export const MAX_VERTS = 12000;
 /** Tangential smoothing per round: how far a free vertex moves toward its neighbours' mean, and the final rounds of smoothing and projecting (spec 4.5.6). */
 export const SMOOTH_LAMBDA = 0.6;
@@ -120,7 +124,7 @@ function axisFromRing(ring: Float32Array, J: Vec3): Capsule {
  * tube's own radial normals there. They are copied bit for bit into the skin, so there is no crack. `axes`, when given (`armCapsule` of each arm), shapes the fillet;
  * without them each arm's axis is recovered from its ring. Throws `SkinBuildError` when the hull misses a ring (spec 4.4.3).
  */
-export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS): SkinMesh {
+export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS, pace?: BuildPace): SkinMesh {
   const A = j.arms.length, n = seamRings[0]!.length / 3, S = A * n;   // S: the ring vertices, ids 0..S-1 (arm * n + j), fixed for ever
   if (A < 2 || A > MAX_SKIN_ARMS || seamRings.length !== A || seamNormals.length !== A || cuts.length !== A) throw new SkinBuildError(j.node, 'needs 2 to 6 arms with a ring, a normal set and a cut each');
   const hull = ringHull(seamRings);
@@ -155,6 +159,17 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   };
 
   // --- remeshing operations. Each works on `tris` (flat, outward) and leaves the mesh closed, welded and the seam rings untouched.
+  /** Drop the vertices no triangle uses (collapsed away), keeping the order and the ring ids (the first S), and renumber the triangles. */
+  const dropUnused = () => {
+    const V = pos.length / 3, used = new Uint8Array(V);
+    for (let i = 0; i < tris.length; i++) used[tris[i]!] = 1;
+    for (let v = 0; v < S; v++) used[v] = 1;
+    const remap = new Int32Array(V).fill(-1), np: number[] = [];
+    for (let v = 0; v < V; v++) if (used[v]) { remap[v] = np.length / 3; np.push(pos[3 * v]!, pos[3 * v + 1]!, pos[3 * v + 2]!); }
+    if (np.length === pos.length) return;
+    pos.length = 0; for (const x of np) pos.push(x);
+    tris = tris.map((v) => remap[v]!);
+  };
   /** Split every free-to-split edge longer than SPLIT_AT targets at its midpoint (red-green: 1, 2 or 3 split edges in a triangle each have a conforming pattern). Returns how many split. */
   const split = (): number => {
     const want = new Set<number>(), seen = new Set<number>();
@@ -165,7 +180,13 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
       if (!ringEdge.has(kk) && dist(a, b) > SPLIT_AT * target(a, b)) want.add(kk);
     }
     if (!want.size) return 0;
-    if (pos.length / 3 + want.size > maxVerts) throw new SkinBuildError(j.node, 'the mesh grew past its vertex limit');
+    // (the vertices the collapses left unused count for nothing: the first round splits the hull's long triangles into a thousand and the collapses take most away again, so they are dropped
+    // before the limit is judged. A runaway remesh is one that is LIVE past it.)
+    if (pos.length / 3 + want.size > maxVerts) {
+      dropUnused();
+      if (pos.length / 3 + want.size > maxVerts) throw new SkinBuildError(j.node, 'the mesh grew past its vertex limit');
+      return split();
+    }
     const mid = new Map<number, number>();
     const midOf = (a: number, b: number): number => {
       const kk = ekey(a, b);
@@ -323,15 +344,16 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   };
 
   // the remeshing loop (spec 4.5.4 to 4.5.6, with the topology kept welded and closed throughout)
-  for (let r = 0; r < REMESH_ROUNDS; r++) {
+  const rounds = pace?.rounds ?? REMESH_ROUNDS, shrinkRounds = pace?.shrinkRounds ?? SHRINK_ROUNDS, shrinkPull = pace?.pull ?? SHRINK_PULL;
+  for (let r = 0; r < rounds; r++) {
     let changes = 0;
     for (let s = 0; s < 4; s++) { const c = split(); changes += c; if (!c) break; }
     let c1 = 0;
     for (let s = 0; s < COLLAPSE_PASSES; s++) { const c = collapse(); c1 += c; if (c < 3) break; }   // (a pass locks every neighbour of what it collapsed, so a crowded patch needs several)
     changes += c1;
     changes += flip();
-    smooth(r < SHRINK_ROUNDS ? SHRINK_PULL : 1);
-    if (r >= SHRINK_ROUNDS && changes <= Math.max(2, SETTLED * tris.length / 3)) break;   // settled: only a stray edge still changes
+    smooth(r < shrinkRounds ? shrinkPull : 1);
+    if (r >= shrinkRounds && changes <= Math.max(2, SETTLED * tris.length / 3)) break;   // settled: only a stray edge still changes
   }
   for (let r = 0; r < POLISH_ROUNDS; r++) { flip(); smooth(1); }
   for (let v = S; v < pos.length / 3; v++) project(v, 2);
