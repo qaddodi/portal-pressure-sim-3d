@@ -68,3 +68,16 @@ test('the skin is back-face culled in the fragment stage like the tube, and fade
 test('the skin\'s program is registered for the compile check and the ?gl page', () => {
   assert.ok(rawPrograms(FIBRO).some((p) => p.name === 'skin'), 'rawPrograms lists the skin');
 });
+
+// The seam down a fork's skin (Mohammad, 20 Nov: "i still see a seam at the blood vessels junction", PV into RPV and LPV): the dust is drawn in the two heaviest arms' frames, and on the line where the
+// second and third arms weigh the same the pair changes. The second's share is taken less the third's weight, so it is 0 on both sides of that line and the change is continuous.
+test('the skin dust\'s second-arm share is 0 where the second and third arms tie (no seam between a fork\'s branches)', () => {
+  assert.match(SKIN_FS, /else wD2 = max\(wD2, wI\);/);
+  assert.match(SKIN_FS, /float w1 = max\(wD1 - wD2, 0\.0\) \/ max\(wD0 \+ wD1 - 2\.0 \* wD2, 1e-4\);/);
+  const share = (w: number[]) => { const s = [...w].sort((a, b) => b - a); return Math.max(s[1]! - (s[2] ?? 0), 0) / Math.max(s[0]! + s[1]! - 2 * (s[2] ?? 0), 1e-4); };
+  for (const e of [1e-3, 1e-5]) {
+    const a = share([0.5, 0.25 + e, 0.25 - e]), b = share([0.5, 0.25 - e, 0.25 + e]);
+    assert.ok(a < 0.01 && b < 0.01, `continuous across the tie: ${a}, ${b}`);
+  }
+  assert.ok(Math.abs(share([0.5, 0.5, 0]) - 0.5) < 1e-9, 'a plain two-arm seam keeps its even blend');
+});

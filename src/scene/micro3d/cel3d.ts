@@ -487,7 +487,8 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
       uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakDir: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
-      ...(o.dust ? { routeTex: o.dust.routeTex, dustP: o.dust.dustP } : {}), uDustK: { value: 0 },
+      // (always given, dust or not: the shader text declares them, and a uniform a material lacks keeps the value the last program drew with, tests/uniforms-declared.test.ts)
+      routeTex: o.dust?.routeTex ?? { value: null }, dustP: o.dust?.dustP ?? { value: [] }, uDustK: { value: 0 },
       uFlowR: { value: 0.02 }, uDpr: { value: 2 }, uFlowDark: { value: 0 }, uFlowInk: { value: rawRGB(new Color(), hexRGB(LENS_SHARED.chevron)) },
       // (every toon carries the gaps' uniforms too, a blank texture and no slots where it has none, so a program read without GAPS still finds each one)
       uGaps: { value: o.gaps?.tex ?? NO_GAPS }, uGapX: { value: o.gaps?.x ?? new Vector4(0, 0, 0, 0) }, uHoleP: { value: new Vector2(o.holes?.s ?? 0, o.holes?.dx ?? 0) },
