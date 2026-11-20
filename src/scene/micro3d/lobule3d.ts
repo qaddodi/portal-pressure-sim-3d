@@ -152,9 +152,16 @@ export class Lobule3D {
     this.marks = new Mesh(new PlaneGeometry(side, side), this.marksMat);
     this.marks.position.z = LZ.marks; this.marks.name = 'lobule3d/marks'; this.marks.frustumCulled = false;
     // draw order: the ground and the tiles, then the marks over them, then every vessel (depth-tested against the tiles)
-    this.ground.renderOrder = -6; this.cells.renderOrder = -5; this.nuclei.renderOrder = -5; this.disse.renderOrder = -5; this.marks.renderOrder = -4;
+    this.ground.renderOrder = -6; this.cells.renderOrder = -5; this.nuclei.renderOrder = -5; this.disse.renderOrder = -5;
     const vessels = [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv];
-    for (const v of vessels) v.renderOrder = -3;
+    // (the flat view's field of neighbour lobules is see-through and so draws after every solid part; the marks, drawn among the solids, were painted over by it outside the hexagon, which
+    // cut the periportal scar off at the edge: Mohammad 20 Nov "it's clipped like at the hexagon". The marks and the vessels draw in the see-through list after the field instead, the vessels
+    // still writing and testing depth, opaque as before)
+    this.marksMat.transparent = true; this.marks.renderOrder = -2;
+    for (const v of vessels) {
+      v.renderOrder = -1;
+      for (const m of [v.toonMesh, v.inkMesh]) if (m) { const mat = m.material as ShaderMaterial; mat.transparent = true; mat.depthWrite = true; }
+    }
     for (const p of [this.ground, this.cells, this.nuclei, this.disse, ...vessels]) this.group.add(p.group);
     this.group.add(this.marks);
     this.buildVessels();
