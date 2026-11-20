@@ -12,5 +12,6 @@ test('the micro ink hull is double-sided, sits just behind its shape, keeps ever
   assert.match(MICRO_INK_VS, /mv\.xyz \*= 1\.0 \+ /);
   assert.doesNotMatch(MICRO_INK_FS, /vFace/, 'no cull by the normal (it dropped the hull at every rim vertex: a dotted outline)');
   assert.match(MICRO_INK_VS, /p \+= normal \* inflate;/);
+  assert.match(MICRO_INK_VS, /float back = [^;]*smoothstep\(0\.05, 0\.35, dot\(vn,/, 'only the faces toward the viewer go back: the rim keeps its depth, so a surface just behind never sinks the line');
   assert.equal(m.ink!.uniforms.inflate, m.toon.uniforms.inflate, 'one inflate for the shape and its line');
 });

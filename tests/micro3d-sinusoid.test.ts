@@ -273,3 +273,14 @@ test('the blur starts at the middle of the first hepatocyte row and is whole by 
   const src = (await import('node:fs')).readFileSync(new URL('../src/scene/post-dof.ts', import.meta.url), 'utf8');
   assert.match(src, /k = t \* \(2\.0 - t\)/, 'eases out: most of the blur in the first half of the run');
 });
+
+test('each microvillus roots inside its cell, just under the cell\'s top face, so cell and villi read as one outlined shape (no line across a villus\'s root)', async () => {
+  const { VILLUS_R, VILLUS_ROOT, Z } = await import('../src/scene/micro3d/sinusoid3d.ts');
+  assert.ok(VILLUS_ROOT >= 0.4 && VILLUS_R >= 0.2);
+  const { s3 } = scene(); s3.update(true);
+  const v = meshes(s3.group).find((o) => o.name === 'sinusoid3d/microvilli') as unknown as { count: number; getMatrixAt(i: number, m: Matrix4): void };
+  assert.ok(v.count > 50);
+  const m = new Matrix4(), p = new Vector3();
+  v.getMatrixAt(0, m); p.setFromMatrixPosition(m);
+  assert.ok(p.z + VILLUS_R <= Z.cell && p.z + VILLUS_R > Z.cell - 0.2, `its top just under the cell's face (${(p.z + VILLUS_R).toFixed(2)})`);
+});
