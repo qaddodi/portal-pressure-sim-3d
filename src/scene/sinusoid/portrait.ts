@@ -19,6 +19,12 @@ const smooth = (a: number, b: number, x: number) => { const t = clamp((x - a) / 
 
 /** How many micrometres show across the free room's short side (2D: lerp(40, 54, smooth(380, 720, short))): both plates whole on a large screen, closer in on a phone. */
 export const acrossUm = (shortPx: number): number => lerp(40, 54, smooth(380, 720, shortPx));
+/** The side of the free room the plates fill (2D: `short = geo.vert ? fw : fh`): its width when the sinusoid runs down a tall stage, its height when it runs across a wide one. Not the room's smaller side: a short tall room (a small phone, a card up) still fills its width. */
+export const shortSide = (portrait: boolean, room: { w: number; h: number }): number => (portrait ? room.w : room.h);
+/** 2D's closest scale (VW.tk = clamp(short / across, 3, 14)): never more than this many px per µm, so a big screen (an iPad, a Mac) shows `short / TK_MAX` µm across, not fewer. */
+export const TK_MAX = 14, TK_MIN = 3;
+/** How many micrometres the camera shows across the free room's short side: 2D's `across`, widened when 14 px per µm would show less (2D clamps the scale, not the µm). */
+export const shownUm = (shortPx: number): number => Math.min(shortPx / TK_MIN, Math.max(acrossUm(shortPx), shortPx / TK_MAX));
 /** Pixels per micrometre the camera rests at in a free room whose short side is `shortPx`: `across` µm fill FILL of that side (sinusoidShot frames it so; 2D: VW.tk = short / across, kept to 3 at least).
  *  The scene gives it to the view (setScreen) and the names lay themselves out against it, so the arrows and the names agree with the picture. */
 export const restScale = (shortPx: number): number => Math.max(3, (shortPx * FILL) / acrossUm(shortPx));
