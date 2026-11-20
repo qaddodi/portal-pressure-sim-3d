@@ -70,7 +70,7 @@ export function lerpAngle(a: number, b: number, k: number): number {
 
 interface Pose { shot: Shot; room: Room }
 
-const copyShot = (s: Shot): Shot => ({ yaw: s.yaw, pitch: s.pitch, r: s.r, target: [...s.target], half: [...s.half], ...(s.halfNarrow ? { halfNarrow: [...s.halfNarrow] as [number, number] } : {}) });
+const copyShot = (s: Shot): Shot => ({ yaw: s.yaw, pitch: s.pitch, r: s.r, target: [...s.target], half: [...s.half], ...(s.roll ? { roll: s.roll } : {}), ...(s.halfNarrow ? { halfNarrow: [...s.halfNarrow] as [number, number] } : {}) });
 /** A blend's narrow-stage extents: only where one of the two shots has its own (a shot without one frames a phone as any other screen). */
 const narrowOf = (a: Shot, b: Shot, f: (x: number, y: number) => number): { halfNarrow?: [number, number] } => {
   if (!a.halfNarrow && !b.halfNarrow) return {};
@@ -78,6 +78,13 @@ const narrowOf = (a: Shot, b: Shot, f: (x: number, y: number) => number): { half
   return { halfNarrow: [f(p[0], q[0]), f(p[1], q[1])] };
 };
 const copyRoom = (r: Room): Room => ({ ...r });
+/** A blend's roll: the two shots' rolls on the move's own eased share, so the picture turns in the same move that zooms and pans it (the lobule and the sinusoid turn together, Mohammad 20 Nov 2026). Left out when
+ *  both are square (exact at both ends: a move lands on its shot's own roll to the last digit). */
+const rollOf = (a: Shot, b: Shot, k: number): { roll?: number } => {
+  const p = a.roll ?? 0, q = b.roll ?? 0;
+  if (p === 0 && q === 0) return {};
+  return { roll: k <= 0 ? p : k >= 1 ? q : lerp(p, q, k) };
+};
 
 /** Beyond this ratio between two shots' distances the move is a dive (body to lobule is 200 to 1, lobule to sinusoid 20 to 1): see `blendPose`. */
 export const DIVE_RATIO = 6;
@@ -123,6 +130,7 @@ export function blendPose(a0: Pose, b0: Pose, k: number, arc = 1, z?: ZoomEnds):
       yaw: lerpAngle(a.shot.yaw, b.shot.yaw, k), pitch: lerp(a.shot.pitch, b.shot.pitch, k), r: geo(a.shot.r, b.shot.r, k),
       target: [tx, ty, lerp(ta[2], tb[2], q)],
       half: [geo(a.shot.half[0], b.shot.half[0], k), geo(a.shot.half[1], b.shot.half[1], k)],
+      ...rollOf(a.shot, b.shot, k),
       ...narrowOf(a.shot, b.shot, (x, y) => geo(x, y, k)),
     },
     // (a move that is not a dive: the room goes with the zoom's share q, as blendDive's does)
@@ -161,6 +169,7 @@ function blendDive(a: Pose, b: Pose, k: number, arc = 1): Pose {
       yaw: lerpAngle(a.shot.yaw, b.shot.yaw, k) + ARC_YAW * swing, pitch: lerp(a.shot.pitch, b.shot.pitch, k) + ARC_PITCH * swing, r,
       target: [lerp(a.shot.target[0], b.shot.target[0], q), lerp(a.shot.target[1], b.shot.target[1], q), lerp(a.shot.target[2], b.shot.target[2], q)],
       half: [geo(a.shot.half[0], b.shot.half[0], k), geo(a.shot.half[1], b.shot.half[1], k)],
+      ...rollOf(a.shot, b.shot, k),
       ...narrowOf(a.shot, b.shot, (x, y) => geo(x, y, k)),
     },
     room: (() => { const m = diveRoomShare(a.shot.r, b.shot.r, r); return { x: lerp(a.room.x, b.room.x, m), y: lerp(a.room.y, b.room.y, m), w: lerp(a.room.w, b.room.w, m), h: lerp(a.room.h, b.room.h, m) }; })(),
@@ -556,12 +565,16 @@ export class CameraRig {
     const r = dollyDistance(effectiveDistance(shot, sc, h, w), fov);
     this.camera.fov = fov;
     // the tilt is added here, at render time, on top of the shot and the viewer's turn; `project` and every pick use this same camera, so tags and taps agree with what is drawn
-    const yaw = shot.yaw + this.orbit + (this.noTilt ? 0 : this.tilt.yaw), pitch = shot.pitch + this.pitchOrbit + (this.noTilt ? 0 : this.tilt.pitch);
+    // (the viewer's turn and tilt are about the SCREEN's axes: a rolled camera (the sinusoid on a portrait screen) carries them round with the roll, so a drag to the right still swings the picture to the right)
+    const roll = shot.roll ?? 0, oy = this.orbit + (this.noTilt ? 0 : this.tilt.yaw), op = this.pitchOrbit + (this.noTilt ? 0 : this.tilt.pitch);
+    const cr = Math.cos(roll), sr = Math.sin(roll);
+    const yaw = shot.yaw + (roll === 0 ? oy : cr * oy - sr * op), pitch = shot.pitch + (roll === 0 ? op : sr * oy + cr * op);
     const cp = Math.cos(pitch);
     const [tx, ty, tz] = shot.target;
     this.pos.set(tx + Math.sin(yaw) * cp * r, ty + Math.sin(pitch) * r, tz + Math.cos(yaw) * cp * r);
     this.camera.position.copy(this.pos);
     this.camera.lookAt(tx, ty, tz);
+    if (roll !== 0) this.camera.rotateZ(roll);   // (about its own view axis, after the aim: the whole picture turns, the lobule and the sinusoid with it)
     const off = viewOffset(room.w > 1 ? room : { x: 0, y: 0, w, h }, w, h);
     // near and far follow the distance, so a dive from the body to a sinusoid (a few hundred to one) keeps its depth precision and nothing is cut early
     this.camera.near = Math.max(1e-6, r * 0.02); this.camera.far = r * 120;

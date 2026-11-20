@@ -13,6 +13,9 @@ export interface Shot {
   /** The nearest the camera may sit, scene units. The room solver pulls back when the subject would not fit. */
   r: number;
   target: Vec3;
+  /** The camera's roll about its view axis, radians (0 when left out): the picture turns the other way. A shot's own (the sinusoid on a portrait screen: sinusoid/portrait.ts), carried through every move so the
+   *  whole picture (the lobule and the sinusoid with it) turns as ONE camera move, never one thing turning alone. */
+  roll?: number;
   /** Half extents (scene units, in the view plane) of what the shot must keep in the free room. */
   half: [number, number];
   /** The half extents on a narrow stage (a phone, under `NARROW_STAGE` px wide), where the shot is framed differently (the lobule's: 2D's phone frame box). */

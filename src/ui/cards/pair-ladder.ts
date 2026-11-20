@@ -25,3 +25,11 @@ export { TITLE_RATIO };
 
 /** The custom properties a step writes (the 2D names: the lifted stylesheets read them). Step 0 writes none. */
 export const stepVars = (s: PairStep | undefined): Record<string, string | number> | undefined => (s && (s.tk !== 1 || s.dk !== 1) ? { '--pz-tk': s.tk, '--pz-dk': s.dk } : undefined);
+
+/** The data card's own fit, the last step (2D presenter-zoom.js fitEach): the zoom that brings its height `h` to the room `cap` it has, never so far that its smallest lettering (`minPx`, at a zoom of 1)
+ *  goes under 12 px on the screen, never over 1. A card whose lettering is already at 12 px or less, or one with no height or room known, takes none. */
+export function dataFitOf(h: number, cap: number, minPx: number): number {
+  if (!(h > 0) || !(cap > 0) || h <= cap) return 1;
+  const floor = Number.isFinite(minPx) && minPx > 12 ? 12 / minPx : 1;
+  return Math.max(floor, Math.min(1, (cap / h) * 0.985));
+}

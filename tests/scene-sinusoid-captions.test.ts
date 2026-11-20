@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView, U } from '../src/scene/sinusoid/view.ts';
-import { restScale, framePoint } from '../src/scene/sinusoid/portrait.ts';
+import { restScale, framePoint, PORTRAIT_ANGLE } from '../src/scene/sinusoid/portrait.ts';
 import { SV_NOTE, SV_TARGET } from '../src/scene/sinusoid/names.ts';
 import { buildSinusoidNames, linesOf, namesOn, placeOf, readings } from '../src/scene/sinusoid/captions.ts';
 import { clearSinusoidExplain, setSinusoidPlaced, sinusoidTap, useSinusoidNames } from '../src/scene/sinusoid/explain-store.ts';
@@ -22,7 +22,7 @@ function build(W: number, H: number, explain: Parameters<typeof buildSinusoidNam
   const free = { l: 12, t: 90, r: W - 12, b: H - 80 }, short = portrait ? free.r - free.l : free.b - free.t, k = restScale(short);
   const C: [number, number] = [(free.l + free.r) / 2, (free.t + free.b) / 2];
   // (a plane seen square on: a place of the plane on the canvas, turned as the view is, the way the layer projects it)
-  const proj = (x: number, y: number): [number, number] => { const f: [number, number, number] = [0, 0, 0]; framePoint(x, y, U, v.turn, f); return [C[0] + (f[0] / U) * k, C[1] - (f[1] / U) * k]; };
+  const proj = (x: number, y: number): [number, number] => { const f: [number, number, number] = [0, 0, 0]; framePoint(x, y, U, portrait ? PORTRAIT_ANGLE : 0, f); return [C[0] + (f[0] / U) * k, C[1] - (f[1] / U) * k]; };
   const placed = buildSinusoidNames({ view: v, proj, vp: { w: W, h: H }, measure, stage: { w: W, h: H }, free, insTop: 70, model: MODEL, explain });
   return { placed, v, free, W, H };
 }
