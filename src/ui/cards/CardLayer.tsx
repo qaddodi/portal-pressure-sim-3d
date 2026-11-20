@@ -192,7 +192,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   return (
     <>
       {/* (2D's dip behind a case card: the figure at 22%, as this wash over it) */}
-      <div className={`pz-veil${veil ? ' on' : view.words === 'case' ? ' on dip' : ''}`} aria-hidden="true" />
+      <div className={`pz-veil${view.words === 'check' ? ' on soft' : veil ? ' on' : view.words === 'case' ? ' on dip' : ''}`} aria-hidden="true" />
       {frames(wordsStack, 'words')}
       {frames(dataStack, 'data')}
       {stripStack.entries.map((e) => {
