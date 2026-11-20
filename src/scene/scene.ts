@@ -17,10 +17,10 @@ const CAVA_BURY = 0.9;
 import { flowRate, flowTarget } from './flow-rate.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
-import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
+import { BACK_EDGES } from './vessels/paths.copied.ts';
 import { centrelineOf, type Centreline } from './vessels/centreline.ts';
 import { cavaMateOf, forkMateOf, neighbourAttr } from './vessels/neighbour.ts';
-import { fadeOf, opensIntoCava, cavaEndSpan, CAVA_RECEDE } from './vessels/fades.ts';
+import { fadeOf, opensIntoCava, cavaEndSpan, CAVA_LIKE, CAVA_RECEDE } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
@@ -368,7 +368,7 @@ export class CelScene {
     const fade = fadeOf(def.id, def.tone === 'artery', def.feeder?.host);
     if (fade) { o.setTipFade(fade); this.tipFades.push({ o, connect: fade.connect }); if (fade.ivcJoin) this.ivcJoins.push(o); }
     { const span = cavaEndSpan(def.id); if (span > 0) { o.setCavaEnd(span, CAVA_RECEDE); this.hvJoins.push(o); } }
-    if (BACK_EDGES.has(def.id)) { o.setBehindOrgans(VESSEL_LAYER, IVC_EDGES.has(def.id)); this.back.push(o); if (IVC_EDGES.has(def.id)) this.cava.push(o); }
+    if (BACK_EDGES.has(def.id)) { o.setBehindOrgans(VESSEL_LAYER, CAVA_LIKE.has(def.id)); this.back.push(o); if (CAVA_LIKE.has(def.id)) this.cava.push(o); }
     this.add(o);
     this.vessels.push(o);
     this.byEdge.set(def.id, o);
@@ -572,7 +572,7 @@ export class CelScene {
     const ids = new Set(this.named);
     const picked = this.highlight.picked;
     if (picked) { const host = NETWORK.find((v) => v.id === picked)?.host; for (const v of NETWORK) if (v.host === host) ids.add(v.id); }
-    this.cavaGoal = [...ids].some((id) => IVC_EDGES.has(id)) ? 1 : 0;
+    this.cavaGoal = [...ids].some((id) => CAVA_LIKE.has(id)) ? 1 : 0;
     this.moving = true;
   }
 

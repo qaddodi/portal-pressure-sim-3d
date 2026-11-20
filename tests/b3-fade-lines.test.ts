@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { fadeOf } from '../src/scene/vessels/fades.ts';
+import { CAVA_RECEDE, fadeOf } from '../src/scene/vessels/fades.ts';
 import { NODE_POS_2D } from '../src/scene/vessels/paths.copied.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
 import { CelScene } from '../src/scene/scene.ts';
@@ -23,7 +23,7 @@ test('the hepatic veins fade into the cava (solid at the offset, to FADE_IN\'s a
   assert.equal(fadeOf('C5', false)!.from, 0.6);
   assert.equal(fadeOf('C5', false)!.a1, 0.3, 'the default end alpha of FADE_IN is 0.3');
   const c9 = fadeOf('C9', false)!;
-  assert.equal(c9.mode, 4); assert.equal(c9.from, 0.65); assert.equal(c9.a1, 0.55);
+  assert.equal(c9.mode, 4); assert.equal(c9.from, 0.65); assert.equal(c9.a0, CAVA_RECEDE); assert.ok(Math.abs(c9.a1 - 0.55 * CAVA_RECEDE) < 1e-12, 'the 2D dip (0.55), receded as the cava is (Mohammad, 20 Nov: faded just like the IVC)');
   assert.ok(c9.line![1] < c9.line![3], 'the line runs up the figure (2D y 520 to 172)');
 });
 

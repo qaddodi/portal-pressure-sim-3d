@@ -92,6 +92,9 @@ export const RECEDE: Readonly<Record<string, number>> = { V_KID_L: 0.55, V_KID_L
 /** The cava is a background vessel too (Mohammad, 20 Nov: "IVC should be faded not prominent"): drawn at this share of its opacity, body, outline and chevrons together, lens colour kept. It rises to whole (1) when the cava is
  *  selected or named (the HVPG catheter, a slide about it: scene.ts stepCava eases it), and its end at the right atrium climbs back to full over its last stretch, where the superior cava arrives whole. */
 export const CAVA_RECEDE = 0.45;
+/** The vessels drawn as the cava is: behind the liver, receded to CAVA_RECEDE, whole when named. The ascending lumbar collateral is the cava's own collateral, lying behind the liver beside it (Mohammad, 20 Nov: "the ascending lumbar vein
+ *  should be faded just like the IVC, and behind the liver"); its 2D dip behind the liver (SIN_FADE.C9) keeps its shape, scaled, and it comes out solid above the dome where it joins the azygos. */
+export const CAVA_LIKE: ReadonlySet<string> = new Set([...IVC_EDGES, 'C9']);
 const CAVA_RA_RAMP = 0.5;
 /** The hepatic veins open into the cava at full strength; their last stretch (as a share of their length) eases to the cava's alpha, so no solid vein end lies in a faint cava. */
 export const CAVA_END_LEN = 40;
@@ -103,7 +106,7 @@ export function cavaEndSpan(id: string): number {
 }
 export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
   const f = fadeOf0(id, isArtery, feederHost);
-  if (IVC_EDGES.has(id)) {
+  if (CAVA_LIKE.has(id)) {
     if (id === 'IVCS_RA') return { mode: 1, from: 1 - CAVA_RA_RAMP, to: 1, a0: CAVA_RECEDE, a1: 1, keep: false, connect: [] };
     return f ? { ...f, a0: f.a0 * CAVA_RECEDE, a1: f.a1 * CAVA_RECEDE } : { mode: 1, from: 0, to: 1, a0: CAVA_RECEDE, a1: CAVA_RECEDE, keep: false, connect: [] };
   }
