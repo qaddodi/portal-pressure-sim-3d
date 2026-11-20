@@ -100,8 +100,13 @@ export function circuitFallbacks(network: readonly NetVessel[] = NETWORK): { nod
  * What the map still draws the old way, as tubes that run into one another (named, so that a new one fails tests/circuit-skins.test.ts until someone looks): the map's OWN tubes (circuit/tubes.ts), which are not vessels of the network and so not arms of any skin yet:
  * the four liver trees' branches (`PRE_R#0`: the lane and the index of the branch), the caudate lane, and the custom shunts a learner opens (routed on the map when they open, never at build time).
  */
-export function circuitOldJoins(): { trees: string[]; caudate: string[]; custom: string[] } {
+export function circuitOldJoins(): { trees: string[]; caudate: string[]; custom: string[]; why: Readonly<Record<'trees' | 'caudate' | 'custom', string>> } {
   return {
+    why: {
+      trees: 'map-only tubes (no network vessel, no ArmTube): each branch leaves its lane\'s side (a host hole on the map, a skinHoleC, does not exist) or ends in it within 1 radius of the cava end, and its width is the tree rule treeCircW, which the skin shader has no term for',
+      caudate: 'a map-only tube between CV_R and IVCS: IVCS and its run-on are one skin of six arms already (no seventh), and CV_R alone would weld one end only',
+      custom: 'routed on the map when a learner opens one (circuit/tubes.ts routeOpen), after the baked skins are laid in: a weld needs a live build of the node\'s skin (a stall of seconds) per shunt',
+    },
     trees: Object.entries(CIRCUIT_TREES).flatMap(([lane, list]) => list.map((_, i) => `${lane}#${i}`)),
     caudate: CIRCUIT_D.CAUD ? ['CAUD'] : [],
     custom: CUSTOM_EDGES.map((c) => c[0]),
