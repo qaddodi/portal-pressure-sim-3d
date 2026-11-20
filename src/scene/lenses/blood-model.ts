@@ -72,7 +72,7 @@ function byFlow(Q: ArrayLike<number>, P: ArrayLike<number>): void {
 export interface OriginResult {
   /** per edge: the blend along its own length (channel 0..3 fractions; the rest is systemic), ORIGIN_N per edge */
   own: Float32Array;
-  /** per edge: the blend it ends in (the junction's, when that differs from its own by more than ORIGIN_STEP_MIN) */
+  /** per edge: the blend it ends in: its own (the junction's blend belongs to the vessel downstream, never back up its tributaries) */
   end: Float32Array;
 }
 
@@ -111,11 +111,8 @@ export function originFractions(Q: ArrayLike<number>, P: ArrayLike<number>, pass
       if (raw > 1e-4) { res.end[k * N + 1] = res.own[k * N + 1]! + raw; res.end[k * N] = 0; }
       continue;
     }
-    const d = isFwd(Q[k]!) ? ET[k]! : EF[k]!;
-    if (!(d >= 0)) continue;
-    let step = 0;
-    for (let i = 0; i < N; i++) step += Math.abs(node[d * N + i]! - res.own[k * N + i]!);
-    if (step > ORIGIN_STEP_MIN) for (let i = 0; i < N; i++) res.end[k * N + i] = node[d * N + i]!;
+    // (a vessel keeps its own blood to its very end: the junction's blend begins in the vessel downstream, whose own blend it is. A tributary that took the blend over its last stretch
+    //  read as its blood running back up into the others: the SMV's gut blood in the splenic vein, the splenic vein's spleen blood down the SMV. Mohammad, 20 Nov.)
   }
   return res;
 }

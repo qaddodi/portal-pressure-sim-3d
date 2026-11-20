@@ -19,11 +19,12 @@ test('the hepatic artery crosses no vein (and an arterioportal shunt, which ends
     for (const v of NETWORK) {
       if (v.feeder || v.tone === 'artery' || v.kind === 'shunt' || v.kind === 'liver' || v.id === 'C9') continue;   // (the hidden sinusoid beds; C9, the lumbar collateral behind everything, only when it is open)
       const pv = P(v.id);
-      // (the one place the 2D plan makes an artery pass a vein: the hilum, where the hepatic artery, anterior to the portal vein and the cava, passes behind them: one tier back, checked below)
+      // (the one place the 2D plan makes an artery pass a vein: the hilum, where the hepatic artery, anterior to the portal vein and the cava, passes in front of the cava and behind the portal veins, checked below)
       const hilum = HEPATIC.has(a.id) && (v.id === 'PVH_L' || v.id === 'PVH_R' || v.id === 'PV_TRUNK' || v.tier === 'back');
       for (let i = 1; i < pa.length; i++) for (let j = 1; j < pv.length; j++) {
         const x = cross(pa[i - 1]!, pa[i]!, pv[j - 1]!, pv[j]!);
         if (!hilum) assert.ok(!x, `${a.id} crosses ${v.id}`);
+        else if (x && v.tier === 'back') assert.ok(a.pts[i]![2] > v.pts[j]![2] + 0.008, `${a.id} passes ${v.id} (the cava) at the hilum in front of it`);
         else if (x) assert.ok(a.pts[i]![2] < v.pts[j]![2] - 0.008, `${a.id} passes ${v.id} at the hilum behind it`);
       }
     }
