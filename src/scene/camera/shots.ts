@@ -40,8 +40,9 @@ export const SHOTS: Readonly<Record<ShotName, Shot>> = {
   wedge: { yaw: -0.18, pitch: 0.04, r: lensDistance(3.0), target: [x3(540), y3(250), -0.25], half: [0.87, 0.7] },
   hvpg: { yaw: -0.18, pitch: 0.04, r: lensDistance(3.0), target: [x3(540), y3(250), -0.25], half: [0.87, 0.7] },
   // free play (outside the deck): the whole splanchnic bed, then a pick on the portal tree
-  // (half: what the figure draws, a little over the plate (PLATE_BOUNDS, x 380 to 1100 in the 2D units, 1.2 units): the systemic loop on the left and the organs stand outside it, so 1.24 cut the liver and the loop off at a phone's left edge. 1.55 until 20 Nov left a phone's figure a tenth too small)
-  play: { yaw: 0, pitch: 0, r: lensDistance(7.6), target: [x3(740), y3(500), 0.2], half: [1.42, 1.72] },
+  // (what the figure draws, measured: the organs' outlines and the vessels' courses together run x 321 to 1104 and y -90 to 1072 in the 2D units (the esophagus's top to the colon's foot), so the middle is (712, 491) and
+  // the half extents 1.31 by 1.94. The plate (PLATE_BOUNDS, 380 to 1100 by 0 to 1000) is less than that: framing it cut the foot off in a short room, with the Tests sheet up and in a talk. tests/atlas-camera.test.ts measures them.)
+  play: { yaw: 0, pitch: 0, r: lensDistance(7.6), target: [x3(712), y3(491), 0.2], half: [1.32, 1.94] },
   pick: { yaw: 0, pitch: 0, r: lensDistance(5.5), target: [x3(740), y3(500), 0.2], half: [1.15, 1.1] },
 };
 

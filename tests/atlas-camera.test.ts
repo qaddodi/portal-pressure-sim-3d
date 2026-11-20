@@ -155,3 +155,18 @@ test('every station keeps its dot at every zoom: "Lower IVC" stands on the cava 
     assert.ok(out.has('IVCI') || k > 2, `Lower IVC stands at zoom ${k}`);
   }
 });
+
+// ── the play shot frames what the figure draws, not the plate ──
+import { ORGANS as ORGANS_2D } from '../src/scene/labels/organ2d/outlines.copied.js';
+import { flattenPath as flatten2D } from '../src/scene/labels/organ2d/flatten.js';
+import { figureCourses } from '../src/scene/labels/stations.ts';
+
+test('the play shot\'s middle and half extents hold every organ outline and every vessel course at rest (it framed the plate, which is less: the foot was cut off in a short room: Tests sheet up, a slide)', () => {
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  const grow = (x: number, y: number) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
+  for (const o of ORGANS_2D as { ring?: string; d?: string }[]) for (const p of flatten2D((o.ring ?? o.d)!, 4) as { pts: number[] }[]) for (let i = 0; i < p.pts.length; i += 2) grow(p.pts[i]!, p.pts[i + 1]!);
+  for (const c of figureCourses()) { if (c.v.kind === 'collateral' || c.v.kind === 'shunt') continue; for (const q of c.pts) grow(q.x * 300 + 700, -q.y * 300 + 556); }
+  const s = SHOTS.play, cx = s.target[0] * 300 + 700, cy = -s.target[1] * 300 + 556;
+  assert.ok(cx - s.half[0] * 300 <= x0 + 3 && cx + s.half[0] * 300 >= x1 - 3, `x ${x0.toFixed(0)}..${x1.toFixed(0)} against ${(cx - s.half[0] * 300).toFixed(0)}..${(cx + s.half[0] * 300).toFixed(0)}`);
+  assert.ok(cy - s.half[1] * 300 <= y0 + 3 && cy + s.half[1] * 300 >= y1 - 3, `y ${y0.toFixed(0)}..${y1.toFixed(0)} against ${(cy - s.half[1] * 300).toFixed(0)}..${(cy + s.half[1] * 300).toFixed(0)}`);
+});

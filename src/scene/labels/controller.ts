@@ -236,7 +236,7 @@ export class LabelController {
       const has = !!s.node;
       forms.push(form(s.name, stationRuns(s.name, has, reversed)));
       if (s.abbr && s.abbr !== s.name) forms.push(form(s.abbr, stationRuns(s.abbr, has, reversed)));
-      if (has) forms.push(form('', stationRuns('', true, reversed)));
+      // (never the number alone: a reading with no name beside it says nothing, "5.0" floating in the liver. A name that has no room as its short form is left out, as the 2D app's solver does when none fits; Mohammad's play-test, 20 Nov)
     }
     this.formCache.set(key, forms);
     return forms;
