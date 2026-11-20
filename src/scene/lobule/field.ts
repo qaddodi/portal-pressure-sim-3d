@@ -5,6 +5,7 @@
 // drains it (saturation 0.45), lays the page's colour over it (0.42, then NEIGHBOUR_FLAT), fades it into the page from 1.1 R of the lobule in focus
 // (FADE_MID halfway, never more than EDGE_FADE at any screen corner) and softens it with distance (fieldDof's mip bias). One draw, no dither.
 // The page shows through where it fades (the clear colour is the page's), so on the dive in it never stands as an opaque square inside the liver.
+import { CEL_TISSUE_GLSL, FIELD_EDGE_PER_MIP } from './cel.ts';
 import { CanvasTexture, Color, Mesh, PlaneGeometry, RepeatWrapping, LinearFilter, LinearMipmapLinearFilter, ShaderMaterial, Vector2 } from 'three';
 import { makeDrawTile } from './from2d/field-tile.generated.js';
 import { useTokens } from './from2d/lobule-paint.generated.js';
@@ -74,6 +75,7 @@ void main() {
   gl_Position = vClip;
 }`;
 export const LOBULE_FIELD_FS = /* glsl */ `
+${CEL_TISSUE_GLSL}
 uniform sampler2D tile;
 uniform vec3 bg;
 uniform vec2 grey;
@@ -98,6 +100,10 @@ void main() {
   float bias = 1.6 * smoothstep(r0d, r1d, d) + 4.0 * soft;
   vec2 uv = vec2(vLob.x / 6.0, vLob.y / 3.4641016151377544);
   vec3 col = texture2D(tile, uv, bias).rgb;
+  // the neighbours in the same three flat tones as the lobule (cel.ts), about their own local lightness; the blur they are drawn at softens the edge, and they carry no ink: they stay quiet
+  float lbN = celLight(texture2D(tile, uv, bias + 3.0).rgb);
+  float dvN = (celLight(col) - lbN) / max(lbN, 0.08);
+  col = celTissue(col, lbN, max(fwidth(dvN) * CEL_EDGE_PX * 1.5, 1e-3) + ${FIELD_EDGE_PER_MIP.toFixed(4)} * bias);
   // the quiet copy (tile-gl.js): toward its luma by 0.45, the page's colour over it at 0.42, then NEIGHBOUR_FLAT more
   float l = dot(col, vec3(0.3, 0.59, 0.11));
   col = mix(col, vec3(l), 0.45);
