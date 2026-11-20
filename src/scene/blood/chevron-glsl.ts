@@ -23,7 +23,7 @@ export const chevLum = (c: readonly number[]): number => 0.2126 * Math.max(c[0]!
 export const chevCreamSoftJs = (lum: number): number => { const t = Math.min(1, Math.max(0, (lum - (CHEV_INK.AT - CHEV_INK.BAND)) / (2 * CHEV_INK.BAND))); return 1 - t * t * (3 - 2 * t); };
 /** The latch (a Schmitt trigger): was the ink cream (true) and the lumen now `lum`? Cream under AT - HYST, dark over AT + HYST, else unchanged. */
 export const chevLatchJs = (wasCream: boolean, lum: number): boolean => (lum < CHEV_INK.AT - CHEV_INK.HYST ? true : lum > CHEV_INK.AT + CHEV_INK.HYST ? false : wasCream);
-export const CHEV = { PITCH_PX: 60, MIN_R_PX: 1.5, SHARE: 0.55, SHARE_MAX: 0.6, MIN_W_PX: 4, LEN_OF_W: 1.4, EDGE_PX: 0.7, RING_PX: 1, SIZE_MIN: 0.4, ALPHA_KEEP: 0.12 } as const;
+export const CHEV = { PITCH_PX: 130, MIN_R_PX: 1.5, SHARE: 0.55, SHARE_MAX: 0.6, MIN_W_PX: 4, LEN_OF_W: 1.4, EDGE_PX: 0.7, RING_PX: 1, SIZE_MIN: 0.4, ALPHA_KEEP: 0.12 } as const;
 /** The twin of chevSize / chevAlpha: how big and how opaque a head that keeps `keep` (0 to 1) of itself is drawn. Whole at 1; at SIZE_MIN of its size and fully inked until the last ALPHA_KEEP of its keep, then gone: never half transparent. */
 export const chevSizeJs = (keep: number): number => CHEV.SIZE_MIN + (1 - CHEV.SIZE_MIN) * keep;
 export const chevAlphaJs = (keep: number): number => { const t = Math.min(1, Math.max(0, keep / CHEV.ALPHA_KEEP)); return t * t * (3 - 2 * t); };

@@ -1,3 +1,4 @@
+import type { Vector3 } from 'three';
 // How the FibroScan probe turns to keep itself on the screen and clear of the cards: stage-scan.js scanTurn, scanBody, scanHead and scanClear, in the 2D app's own numbers, on the screen's pixels.
 // (They are closures inside 2D's stage and cannot be copied by script; every number below is read from there: the body's corners 92 px back along the axis and 13 px either side, the body proper 76 px
 // back and 13.8 either side, the screen edge 8 px, the top edge 4 px, the turn from 45 up to 80 degrees and down to 10, in steps of 5.) Pure: node judges all of it.
@@ -61,3 +62,6 @@ export function headCovered(tx: number, y: number, turn: number, cards: readonly
   for (const r of cards) if (r.x0 < q.x1 && r.x1 > q.x0 && r.y0 < q.y1 && r.y1 > q.y0) return true;
   return false;
 }
+
+/** Where an organ's silhouette is on the line through `anchor` along `aim` (the probe's inward direction), written into `out` (scene units); false when the organ has none there (the scene's: organ-edge.ts). */
+export type OrganEdge = (organ: 'liver' | 'spleen', anchor: Vector3, aim: Vector3, out: Vector3) => boolean;

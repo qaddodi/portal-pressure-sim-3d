@@ -12,7 +12,7 @@ const ZOOMS = [0.25, 0.35, 0.5, 0.71, 1, 1.41, 2, 2.83, 4, 5.66, 8];
 /** CSS px to a figure unit at the default fit (1 scene unit = 300 figure units; the fit is min(w / 2.64, h / 3.88) px to a scene unit) times the zoom. */
 const pxPerUnit = (w: number, h: number, z: number): number => Math.min(w / (2 * 1.32), h / (2 * 1.94)) / 300 * z;
 
-test('at 0.25x to 8x of the default fit the full heads are 60 to 120 px apart, the whole lattice 30 to 60 px, and the density is one head per 60 px exactly', () => {
+test('at 0.25x to 8x of the default fit the full heads are 1 to 2 pitches apart, the whole lattice 0.5 to 1 pitch, and the density is one head per PITCH_PX exactly', () => {
   for (const [name, w, h] of FITS) for (const z of ZOOMS) {
     const ppu = pxPerUnit(w, h, z), lvl = chevLevel(CHEV.PITCH_PX / ppu, BASE);
     const coarse = 2 * lvl.P * ppu, fine = lvl.P * ppu;
@@ -48,11 +48,31 @@ test('the two weights across an octave sum to 1 where they trade (the odd heads 
 test('the shaders choose the octave from the screen px with no floor short of CHEV_LEVEL_MIN, and the lattice stands on the stream\'s distance (the flow phase carries over)', () => {
   assert.ok(CHEV_LEVEL_MIN <= -8);
   assert.match(VESSEL_FS, /float lv = max\(-10\.0, log2\(Pt \* max\(abs\(Bm\), 0\.05\) \/ 28\.0\)\);/);
-  assert.match(VESSEL_FS, /float Pt = 60\.0 \* wpc;/);
+  assert.match(VESSEL_FS, new RegExp(`float Pt = ${CHEV.PITCH_PX}\\.0 \\* wpc;`));
   assert.match(VESSEL_FS, /float n0 = floor\(lv\), P = 28\.0 \* exp2\(n0\);/);
   assert.match(VESSEL_FS, /float j = floor\(\(se - Dm\) \/ P \+ 0\.5\);/);
   assert.match(VESSEL_FS, /chevKeep\(j, n0, lv\)/);
-  assert.match(MICRO_FS, /float lv = max\(-10\.0, log2\(60\.0 \* wpc \/ max\(uFlowPitch, 1e-5\)\)\);/);
+  assert.match(MICRO_FS, new RegExp(`float lv = max\\(-10\\.0, log2\\(${CHEV.PITCH_PX}\\.0 \\* wpc / max\\(uFlowPitch, 1e-5\\)\\)\\);`));
   assert.match(MICRO_FS, /float j = floor\(\(vArc - uFlowT\) \/ P \+ 0\.5\), x = vArc - uFlowT - j \* P;/);
   assert.match(MICRO_FS, /chevKeep\(j, n0, lv\)/);
+});
+
+// Mohammad, 20 Nov: "WAY TOO MANY chevrons" (the portal vein packed nose to tail, two sizes alternating). The spacing is one table: CHEV.PITCH_PX, 2D's own 130 CSS px (b3058ef3 CHEV_PITCH). It had been 60 since the Mac fit was judged "no chevrons":
+// at 60 the lattice (0.5 to 1 pitch) was 30 to 60 px and the density 2.2x 2D's. The pitch is a CSS-px length at every device pixel ratio and every zoom, never a device-px or a per-zoom number.
+test('the spacing is 2D\'s 130 CSS px at every device pixel ratio and zoom: the shader\'s pitch comes from CSS px (wpc), never from dpr', () => {
+  assert.equal(CHEV.PITCH_PX, 130, '2D\'s pitch');
+  for (const dpr of [1, 2, 3]) for (const [name, w, h] of FITS) for (const z of ZOOMS) {
+    const ppuCss = pxPerUnit(w, h, z), wpc = 1 / ppuCss * 300 / 300;   // figure units under one CSS px (the canvas is w x h CSS px at every ratio: only the drawing buffer is x dpr)
+    const lvl = chevLevel(CHEV.PITCH_PX * (1 / ppuCss), BASE);
+    const fineCss = lvl.P * ppuCss, fineDev = fineCss * dpr;
+    assert.ok(fineCss >= CHEV.PITCH_PX / 2 - 1e-6 && fineCss <= CHEV.PITCH_PX + 1e-6, `${name} ${z}x @${dpr}x: lattice ${fineCss.toFixed(1)} CSS px`);
+    assert.ok(Math.abs(fineDev / dpr - fineCss) < 1e-9, 'the same CSS spacing on every screen');
+    void wpc;
+  }
+  // no per-device term in the head lattice: the pitch line, the octave and the head's size read wpc (CSS px) and nothing of dpr
+  const chev = VESSEL_FS.slice(VESSEL_FS.indexOf('vec2 chevOne('), VESSEL_FS.indexOf('float chevOrange('));
+  assert.doesNotMatch(chev, /dpr/);
+  const pitchLine = VESSEL_FS.split('\n').find((l) => l.includes('float Pt ='))!;
+  assert.doesNotMatch(pitchLine, /dpr/); assert.match(pitchLine, /\* wpc;/);
+  assert.match(VESSEL_FS, /float wpc = vW \* 2\.0 \/ \(res\.y \* projY\) \* vU;/, 'wpc: scene units under one CSS px (res is the canvas in CSS px)');
 });

@@ -1,3 +1,4 @@
+import { edgeOnLine, maskOf } from './devices/probes/organ-edge.ts';
 import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
@@ -281,6 +282,12 @@ export class CelScene {
     for (const id of ['TIPS', 'DIPS'] as const) this.procs.addStent(id, this.byEdge.get(id) as VesselObject);
     this.probes = new ProbeLayer(this.shared, {
       organBox: (organ) => { const o = this.disease.organs.byId.get(organ); return o ? new Box3().setFromObject(o.group) : null; },
+      organEdge: (organ, anchor, aim, out) => {
+        const o = this.disease.organs.byId.get(organ);
+        if (!o) return false;
+        o.group.updateWorldMatrix(true, false);
+        return edgeOnLine(maskOf(o.toonMesh.geometry), o.group.matrixWorld, anchor, aim, out);
+      },
       kpa: (organ) => { const m = latest.frame?.metrics as Record<string, number | null | undefined> | undefined; return m?.[organ === 'spleen' ? 'ssm' : 'lsm'] ?? null; },
       eus: () => { const pl = this.procs.playing; return pl && pl.kind === 'eus' ? this.procs.frame as unknown as EusDrive : null; },
       screen: {
