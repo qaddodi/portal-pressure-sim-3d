@@ -50,6 +50,8 @@ export interface Route3D {
   /** the scene point at length d, and the unit direction there */
   point(d: number, out?: Vector3): Vector3;
   dir(d: number, out?: Vector3): Vector3;
+  /** the scene point at length d ON the vessel's own centreline (the shaft is rounded off it at the corners; a balloon that fills the lumen is not) */
+  centre(d: number, out?: Vector3): Vector3;
   /** the vessel's lumen radius at d, in scene units */
   lumen(d: number): number;
   /** the catheter's radius, scene units */
@@ -124,6 +126,7 @@ export function route3d(kind: string): Route3D | null {
   // through an elbow kinks. The path is smoothed along its arc length with a Gaussian whose width is a minimum bend radius (BEND_RADII catheter radii), and each sample may move off the
   // centreline only as far as the lumen has room beyond the shaft (SAFE of it), so the catheter takes a generous bend and still lies wholly inside its vessel at any tilt.
   const rcS = (kind === 'hvpg' ? Math.max(0.5, routeAt(r, r.free, { p: [0, 0], t: [1, 0], w: [0, 0], r: 0 }).r * 0.27) : catheterRadius(r)) / UNITS_PER_SCENE;
+  const z0 = Float32Array.from(z), offX0 = Float32Array.from(offX), offY0 = Float32Array.from(offY);   // (the vessels' own centreline, before the bends are rounded: what a device that fills the lumen sits on)
   smoothBends(r, rcS, z, offX, offY);
   const pos = r.pts.map((p, i) => new Vector3(x3(p[0]) + offX[i]!, y3(p[1]) + offY[i]!, z[i]!));
   const bracket = (d: number): [number, number] => {
@@ -137,11 +140,16 @@ export function route3d(kind: string): Route3D | null {
   const offAt = (d: number, o: Vector3): Vector3 => { const [i, u] = bracket(d); return o.set(o.x + offX[i - 1]! + (offX[i]! - offX[i - 1]!) * u, o.y + offY[i - 1]! + (offY[i]! - offY[i - 1]!) * u, o.z); };
   const pt = { p: [0, 0] as [number, number], t: [1, 0] as [number, number], w: [0, 0] as [number, number], r: 0 };
   const A = new Vector3(), B = new Vector3();
+  const centre = (d: number, o = new Vector3()): Vector3 => {
+    routeAt(r, d, pt); const [i, u] = bracket(d);
+    const zz = z0[i - 1]! + (z0[i]! - z0[i - 1]!) * u;
+    return o.set(x3(pt.p[0]) + offX0[i - 1]! + (offX0[i]! - offX0[i - 1]!) * u, y3(pt.p[1]) + offY0[i - 1]! + (offY0[i]! - offY0[i - 1]!) * u, zz);
+  };
   const point = (d: number, o = new Vector3()): Vector3 => { routeAt(r, d, pt); return offAt(d, o.set(x3(pt.p[0]), y3(pt.p[1]), zAt(d))); };
   const out: Route3D = {
     route: r, z, pos,
     tipD: (u) => r.start + (r.free - r.start) * Math.min(1, Math.max(0, u)),
-    point,
+    point, centre,
     // the direction is the path's own (a difference across the smoothed samples), so a ring's frame follows the bend the tube is swept through
     dir(d, o = new Vector3()) {
       const e = 2.4, lo = Math.max(0, d - e), hi = Math.min(r.total, d + e);
