@@ -1,4 +1,4 @@
-// The lobule's dust routes (Mohammad, 20 Nov: "also same streaks in lobule view please"): the Anatomy's route table (blood/routes.ts) for the lobule's own network, built once. The blood runs from the inlet
+// The lobule's dust routes (Mohammad, 20 Nov: "also same streaks in lobule view please"; the lymph and the bile too, "the same kind of streaks we use for blood"): the Anatomy's route table (blood/routes.ts) for the lobule's own network, built once. The blood runs from the inlet
 // venules along the lobule's edges into the first sinusoids, which merge pairwise twice toward the central vein. Every particle keeps one identity on the way:
 //   a sinusoid leaving an inlet's SIDE takes a strip of the inlet's lanes on that side, as wide a share of the half still unclaimed as its flow is of what still leaves there (its own and every later one's),
 //   carried on from the inlet's arc at the branch point;
@@ -22,13 +22,15 @@ const arcs = (p: readonly (readonly [number, number])[]): number[] => { const a 
 
 /** The route segments of every course (by column). `tol`: how close two ends must be to be one node (local units). */
 export function lobuleRoutes(courses: readonly LobuleRouteCourse[], tol: number): Map<number, Seg[]> {
-  const sin = courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2');
+  // each family is joined only to itself (a bile channel's end beside a sinusoid's is no joint): the blood's sinusoids, the arterioles' twigs, the lymph, the bile. The inlets are roots the sinusoids leave from the side
+  const famOf = (k: string): string => (k === 's0' || k === 's1' || k === 's2' || k === 'an' ? 'sin' : k === 'in' ? 'in' : k.startsWith('bile') ? 'bile' : k);
+  const sin = courses.filter((c) => famOf(c.kind) !== 'in');
   const inlets = courses.filter((c) => c.kind === 'in');
-  // nodes: the sinusoids' ends that meet (a merge's two inflows end where the next begins)
-  const nodes: (readonly [number, number])[] = [];
-  const nodeOf = (p: readonly [number, number]): string => { let i = nodes.findIndex((q) => near(p, q, tol)); if (i < 0) { nodes.push(p); i = nodes.length - 1; } return `n${i}`; };
-  const ends = new Map(sin.map((c) => [c.col, { from: nodeOf(c.path[0]!), to: nodeOf(c.path[c.path.length - 1]!) }]));
-  // each sinusoid's flow: a first one 1, a merged one the sum of what runs into it
+  // nodes: the ends that meet, within a family (a merge's inflows end where the next begins)
+  const nodes: { p: readonly [number, number]; f: string }[] = [];
+  const nodeOf = (p: readonly [number, number], f: string): string => { let i = nodes.findIndex((q) => q.f === f && near(p, q.p, tol)); if (i < 0) { nodes.push({ p, f }); i = nodes.length - 1; } return `n${i}`; };
+  const ends = new Map(sin.map((c) => [c.col, { from: nodeOf(c.path[0]!, famOf(c.kind)), to: nodeOf(c.path[c.path.length - 1]!, famOf(c.kind)) }]));
+  // each course's flow: a first one 1, a merged one the sum of what runs into it
   const q = new Map<number, number>();
   const flowOf = (c: LobuleRouteCourse, seen = new Set<number>()): number => {
     const got = q.get(c.col);
@@ -79,5 +81,39 @@ export function lobuleRoutes(courses: readonly LobuleRouteCourse[], tol: number)
     return { k: c.col, from: e.from, to: e.to, path: c.path, len, fwd: true, m: 1, q: q.get(c.col) ?? 1 };
   });
   const out = buildRoutes(list, undefined, seed);
+  // a channel that ends on the SIDE of another of its family (a bile canal into a duct partway along, no node there): it carries the host's own particles on a strip of the host's lanes on that side, at the host's
+  // place along it, so at the join each particle runs on into the host where the host carries it (the host's segments composed, so a host that is itself a merge hands on its roots). Only a channel nothing runs into
+  for (const c of sin) {
+    if (famOf(c.kind) === 'sin') continue;
+    const e = ends.get(c.col)!, f = famOf(c.kind);
+    if (sin.some((o) => o !== c && ends.get(o.col)!.from === e.to) || sin.some((o) => o !== c && ends.get(o.col)!.to === e.from)) continue;
+    const P = c.path[c.path.length - 1]!;
+    let best: { host: LobuleRouteCourse; arc: number; side: number; d: number } | null = null;
+    for (const h of sin) {
+      if (h === c || famOf(h.kind) !== f) continue;
+      const a = arcs(h.path), reach = Math.max(tol, 1.5 * h.radius + c.radius);
+      for (let i = 0; i < h.path.length - 1; i++) {
+        const p0 = h.path[i]!, p1 = h.path[i + 1]!, bx = p1[0] - p0[0], by = p1[1] - p0[1], bb = bx * bx + by * by;
+        const t = bb > 0 ? Math.min(1, Math.max(0, ((P[0] - p0[0]) * bx + (P[1] - p0[1]) * by) / bb)) : 0;
+        const d = Math.hypot(P[0] - p0[0] - t * bx, P[1] - p0[1] - t * by);
+        if (d > reach || (best && d >= best.d)) continue;
+        const arc = a[i]! + t * Math.sqrt(bb), L = a.at(-1)!;
+        if (arc < tol || L - arc < tol) continue;   // (at the host's end: a node, handled above)
+        const q = c.path[Math.max(0, c.path.length - 4)]!;
+        best = { host: h, arc, side: bx * (q[1] - p0[1]) - by * (q[0] - p0[0]) >= 0 ? 1 : -1, d };
+      }
+    }
+    if (!best) continue;
+    const len = arcs(c.path).at(-1)!, w = 0.35, cm = best.side * (1 - w / 2), cw = w / 2;
+    const segs: Seg[] = [];
+    for (const g of out.get(best.host.col) ?? []) {
+      // the channel's lanes y whose host lane cm + cw y lies in this segment
+      let y0 = (g.y0 - cm) / cw, y1 = (g.y1 - cm) / cw;
+      y0 = Math.max(-1, y0); y1 = Math.min(1, y1);
+      if (y1 - y0 < 1e-6) continue;
+      segs.push({ y0, y1, root: g.root, c0: g.c0 + g.c1 * cm, c1: g.c1 * cw, A: g.A + g.B * (best.arc - len), B: g.B });
+    }
+    if (segs.length) { segs[0]!.y0 = -1; segs[segs.length - 1]!.y1 = 1; out.set(c.col, segs); }
+  }
   return out;
 }

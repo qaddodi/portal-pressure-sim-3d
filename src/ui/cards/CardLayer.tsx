@@ -25,6 +25,9 @@ import { TableCard } from './TableCard.tsx';
 import { VisualCard } from './VisualCard.tsx';
 import { ToolCard } from '../talk/ToolCard.tsx';
 import { hasToolChart } from '../../decks/charts.ts';
+import { copiedOf } from '../../decks/hp/deck.ts';
+import { useStates, ensureStates } from '../../decks/hp/calc.ts';
+import { inputsIn, GIVE_UP_MS } from './inputs-in.ts';
 import { Strip } from '../wallet/Strip.tsx';
 import { useCardDrag, justDragged } from './useCardDrag.ts';
 import { cardZoom, emptyTap, zoomPlan } from './card-zoom.ts';
@@ -176,7 +179,19 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const measured = needs.length > 0 && needs.every((n) => (n.h > 0 && (n.slot === 'data' || hit(wordsKey)?.sig === sig)) || (plan.docked && n.slot === 'data'));
   const [late, setLate] = useState('');
   useEffect(() => { const t = setTimeout(() => setLate(pagesKey), 320); return () => clearTimeout(t); }, [pagesKey]);
-  const go = fonts && !growing && (measured || late === pagesKey);
+  // (the instrument's numbers: a card with a chart waits for its slide's step from the second engine, and asks for it again if the first run failed)
+  const states = useStates((st) => st.results[deck.id]);
+  const toolAt = view?.data && here?.key.startsWith('tool:') && carried && copiedOf(deck.id) ? deck.slides.findIndex((x) => x.id === carried.id) : -1;
+  const numbers = inputsIn(toolAt, states);
+  const [gaveUp, setGaveUp] = useState('');
+  useEffect(() => {
+    if (numbers) return;
+    const c = copiedOf(deck.id);
+    if (c) void ensureStates(c);
+    const t = setTimeout(() => setGaveUp(`${deck.id}:${toolAt}`), GIVE_UP_MS);
+    return () => clearTimeout(t);
+  }, [numbers, deck.id, toolAt]);
+  const go = fonts && !growing && (numbers || gaveUp === `${deck.id}:${toolAt}`) && (measured || late === pagesKey);
   // the first cards of a talk fade in where they stand; every later one slides in from the side the talk comes from (2D's first card has no way to come from)
   const seen = useRef(false);
   const fresh = !seen.current;

@@ -53,7 +53,9 @@ test('a skin is ONE geometry on three meshes, one source in three programs (SKIN
       assert.equal(mats[0]!.uniforms, mats[1]!.uniforms, 'one uniforms object: a value written once reaches every copy'); assert.equal(mats[0]!.uniforms, mats[2]!.uniforms);
       assert.ok(mats.every((m) => m.fragmentShader === SKIN_FS && m.fragmentShader === mats[0]!.fragmentShader));
       c.forEach((m, k) => { assert.equal(m.layers.mask, 1 << COPY_LAYER[k]!, `${b.node} copy ${k} layer`); assert.equal(m.renderOrder, COPY_ORDER[k]!, `${b.node} copy ${k} order`); });
-      assert.equal(b.draw.object.children.length, 3);
+      assert.equal(b.draw.object.children.length, 4, 'the three copies and the selection glow\'s hull');
+      assert.ok(b.draw.object.children.includes(b.draw.glow) && !b.draw.glow.visible, 'the glow is hidden until an arm is picked');
+      assert.equal((b.draw.glow.material as ShaderMaterial).defines.GLOW, 1); assert.equal((b.draw.glow.material as ShaderMaterial).uniforms, mats[0]!.uniforms, 'the skin\'s own uniforms');
     }
   });
   assert.match(SKIN_FS, /#ifndef SKIN_COPY[\s\S]*#define SKIN_COPY 0/, 'a skin with no define is its front copy');

@@ -87,10 +87,3 @@ export function tubeInk(look: LookId, base: readonly [number, number, number]): 
   const cas = CASING[look].rgb;
   return [0, 1, 2].map((i) => (cas[i]! / 255) * (1 - T.INK_OWN) + b[i]! * tone * T.INK_OWN) as [number, number, number];
 }
-
-/** The twin of a picked vessel's outline colour (glsl-shared.ts inkHiColourGlsl): the ink `tubeInk` taken HI_INK x smoothstep(`hi`) of the way to the vessel's own colour as drawn (the lit tone x HI_DEEP on the light looks, lifted HI_LIFT toward white on the dark ones). `hi` 0 is the plain ink. */
-export function tubeInkPicked(look: LookId, base: readonly [number, number, number], hi: number): [number, number, number] {
-  const T = CEL_STYLE.TUBE, dark = DARK_LOOKS.has(look), b = celTubeBase(base, dark), ink = tubeInk(look, base);
-  const x = clamp(hi, 0, 1), k = T.HI_INK * x * x * (3 - 2 * x);
-  return [0, 1, 2].map((i) => { const own = dark ? b[i]! + (1 - b[i]!) * T.HI_LIFT : b[i]! * T.HI_DEEP; return ink[i]! + (own - ink[i]!) * k; }) as [number, number, number];
-}

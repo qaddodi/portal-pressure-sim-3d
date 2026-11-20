@@ -6,9 +6,11 @@ import type { BufferAttribute } from 'three';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { LobuleView } from '../src/scene/lobule/view.ts';
 import { DISC_R } from '../src/scene/lobule/widths.ts';
-import { Lobule3D, LZ, OVER_Z, TUBE_SEG } from '../src/scene/micro3d/lobule3d.ts';
+import { readFileSync } from 'node:fs';
+import { Lobule3D, LZ, OVER_Z, TUBE_SEG, weldRequest } from '../src/scene/micro3d/lobule3d.ts';
 import { bileWeldCourses, bloodWeldCourses } from '../src/scene/lobule/weld-courses.ts';
 import { planWelds, TOUCH, type V3, type WeldCourse, type WeldPlan } from '../src/scene/lobule/welds.ts';
+import { decodePlan, encodePlan, weldDigest } from '../src/scene/lobule/weld-codec.ts';
 import { tubeFrames } from '../src/scene/micro3d/cel3d.ts';
 import { joinsMode } from '../src/scene/vessels/skin/joins-mode.ts';
 
@@ -122,7 +124,7 @@ test('two junctions too close to be two skins (a T on a tube a few radii before 
 });
 
 /** The junctions of the real Lobule that still keep today's round ends (the planner cannot weld them yet). This list only ever shrinks: a new fallback fails the test until someone looks. */
-const KNOWN_FALLBACKS = new Set(['Y(s032.1+s033.1+s179.0)', 'Y(s050.1+s051.1+s188.0)', 'Y(s056.1+s057.1+s191.0)', 'T(an127.1>s058)', 'T(an134.1>s072)', 'T(s038.0>in20)', 'Y(bile1.0+bile2.0+bile3.0+bile4.0)', 'Y(bile11.0+bile12.0+bile13.0+bile14.0)', 'Y(bile26.0+bile27.0)', 'Y(bile28.0+bile29.0)', 'Y(bile31.0+bile32.0+bile33.0)', 'Y(bile36.0+bile37.0)', 'Y(bile48.0+bile49.0)', 'Y(bile53.0+bile54.0)', 'Y(bile58.0+bile59.0)', 'Y(bile6.0+bile7.0+bile8.0+bile9.0)', 'Y(s058.1+s059.1+s192.0)', 'Y(s066.1+s067.1+s196.0)', 'Y(s072.1+s073.1+s199.0)', 'Y(s076.1+s077.1+s1101.0)', 'Y(s182.1+s183.1+s2104.0)', 'Y(s044.1+s045.1+s185.0)']);
+const KNOWN_FALLBACKS = new Set(['T(tw150.1>s030)', 'T(tw151.1>s038)', 'T(tw153.1>s054)', 'T(tw155.1>s070)', 'Y(bile1.0+bile2.0+bile3.0+bile4.0)', 'Y(bile11.0+bile12.0+bile13.0+bile14.0)', 'Y(bile26.0+bile27.0)', 'Y(bile28.0+bile29.0)', 'Y(bile31.0+bile32.0+bile33.0)', 'Y(bile36.0+bile37.0)', 'Y(bile48.0+bile49.0)', 'Y(bile53.0+bile54.0)', 'Y(bile58.0+bile59.0)', 'Y(bile6.0+bile7.0+bile8.0+bile9.0)', 'Y(s050.1+s051.1+s188.0)', 'Y(s076.1+s077.1+s1101.0)', 'T(tw152.1>s046)']);
 test('no junction of the real Lobule falls back that is not on the known list (the list only shrinks)', () => {
   const fresh = plan.skipped.filter((x) => !KNOWN_FALLBACKS.has(x.node));
   assert.deepEqual(fresh, [], `new fallbacks: ${fresh.map((x) => `${x.node} (${x.why})`).join('; ')}`);
@@ -195,4 +197,52 @@ test('laid in, the Lobule\'s vessel parts stay finite and whole: attributes the 
 
 test('?joins=old is the way back: it asks for no welds', () => {
   assert.equal(joinsMode('?joins=old'), 'old');
+});
+
+test('the arteriole\'s twigs are weld courses, and the ones that can be built are welded to their sinusoid (their skin eases from the artery tone: ink.ts \'art\'); the rest lie along it for 20 radii and keep their ends', () => {
+  const twigs = courses.filter((c) => c.key.startsWith('tw'));
+  assert.equal(twigs.length, 6, 'one twig per triad');
+  const welded = plan.skins.filter((s) => s.arms.some((a) => a.key.startsWith('tw')));
+  const left = plan.skipped.filter((s) => s.node.startsWith('T(tw'));
+  assert.equal(welded.length + left.length, 6, 'every twig is either welded or on the fallback list');
+  assert.ok(welded.length >= 1, 'at least one twig welds');
+  for (const s of welded) assert.ok(s.arms.some((a) => a.key.startsWith('s') || a.key.startsWith('an')), 'on a sinusoid');
+});
+
+// ---- the baked plan (a phone plans nothing: scripts/bake-welds.mjs makes it at build time, weld-codec.ts packs it) -----------------
+
+test('the baked plan unpacks to the same plan, and only for the numbers it was made from', () => {
+  const digest = weldDigest({ courses, avoid }), bin = encodePlan(plan, digest);
+  const buf = bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength) as ArrayBuffer;
+  const back = decodePlan(buf, digest)!;
+  assert.ok(back, 'the file is known by its own digest');
+  assert.equal(back.skins.length, plan.skins.length);
+  assert.deepEqual([...back.courses.keys()], [...plan.courses.keys()]);
+  assert.deepEqual(back.skipped, plan.skipped);
+  for (const i of [0, 7, plan.skins.length - 1]) {
+    const a = plan.skins[i]!, b = back.skins[i]!;
+    assert.equal(b.node, a.node); assert.deepEqual(b.absorbed, a.absorbed); assert.deepEqual(b.arms, a.arms);
+    assert.deepEqual(b.mesh.position, a.mesh.position); assert.deepEqual(b.mesh.index, a.mesh.index); assert.deepEqual(b.mesh.weight, a.mesh.weight);
+    assert.ok(b.mesh.position instanceof Float32Array && b.mesh.index instanceof Uint32Array);
+  }
+  const k0 = [...plan.courses.keys()][5]!;
+  assert.deepEqual(back.courses.get(k0), plan.courses.get(k0));
+  assert.equal(decodePlan(buf, digest + 'x'), null, 'a file for other numbers is never laid in');
+  assert.equal(decodePlan(new ArrayBuffer(4), digest), null);
+});
+
+test('the digest is what the scene asks the planner with: the same for the same network, to the last bits of sin and cos, and different for a moved course', () => {
+  const req = weldRequest(net), d = weldDigest(req);
+  assert.equal(d, weldDigest({ courses, avoid }), 'weldRequest is the one place the planner\'s inputs are made');
+  const noisy = JSON.parse(JSON.stringify(req)); noisy.courses[3].pts[2][0] += 1e-9;
+  assert.equal(weldDigest(noisy), d, 'ulp noise between engines does not change it');
+  const moved = JSON.parse(JSON.stringify(req)); moved.courses[3].pts[2][0] += 1e-3;
+  assert.notEqual(weldDigest(moved), d);
+});
+
+test('the build bakes the plan before the bundler, and the page asks for that file first and a worker only after', () => {
+  const build = readFileSync(new URL('../scripts/build.mjs', import.meta.url), 'utf8');
+  assert.ok(build.indexOf('bake-welds.mjs') > 0 && build.indexOf('bake-welds.mjs') < build.indexOf('vite.js'));
+  const client = readFileSync(new URL('../src/scene/lobule/weld-client.ts', import.meta.url), 'utf8');
+  assert.ok(client.indexOf('await baked(req)') > 0 && client.indexOf('await baked(req)') < client.indexOf('new Worker('));
 });

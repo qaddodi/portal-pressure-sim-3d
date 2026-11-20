@@ -37,7 +37,7 @@
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../../cel-glsl.ts';
 import { FADE_GLSL } from '../../materials/shaders.ts';
 import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
-import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkHiColourGlsl, inkPxGlsl, wpcGlsl } from '../glsl-shared.ts';
+import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowReachGlsl, glowAlphaGlsl, glowToneGlsl } from '../glsl-shared.ts';
 import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
 import { DUST_GLSL } from '../../blood/dust-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
@@ -150,7 +150,12 @@ void main() {
   float hi = ${BLEND('armAF', 'wAt', '.z')};
   // the tube's own ink width (no stenosis waist at a seam, narrowK 1) plus the picked vein's extra line, blended
   float inkPx = ${inkPxGlsl('rCssV', 'rCssV')};
-  float inkW = (inkPx + hiPx * hi) * wpcV / SKIN_U;   // scene units
+#ifdef GLOW
+  float hiReach = ${glowReachGlsl('rCssV')};   // (the glow's hull: the skin's own live radius, so the halo runs on from the arm tubes' with no seam)
+#else
+  float hiReach = hiPx;
+#endif
+  float inkW = (inkPx + hiReach * hi) * wpcV / SKIN_U;   // scene units
   // the tube's vertex rule (vessels/shaders.ts) with its radius * rk replaced by this vertex's own rest radius and its swell by the blend; the ring is a polygon, so its corners stand TUBE_SAG farther out
   vec3 p = pos + nor * (inflate + rst * (swellE - 1.0) + inkW + (lumenW + inkW) * ${F(TUBE_SAG)});
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
@@ -280,9 +285,36 @@ float skinSdPx(float kPx) {
   return d;
 }
 void main() {
-  vec3 n = normalize(vN);
+  // (a welded skin's normal is interpolated between vertices whose normals can face apart at a crease: its length can come to nothing, and normalize() of nothing is NaN, which the flow marks turned into
+  // specks of any colour, one channel lost reading green on a blue lumen. Mohammad 20 Nov, gone with ?joins=nomarks. The length is checked first, everywhere in this shader)
+  float nLen = length(vN);
+  vec3 n = nLen > 1e-5 ? vN / nLen : vec3(0.0, 0.0, 1.0);
   float sT = dot(n, celLightView());   // n.L against the WORLD light, as the tube (a camera that moves changes no shade)
   float swT = fwidth(sT);              // (a derivative: taken outside any branch)
+#ifndef SKIN_NOMARKS
+  // EVERY derivative the flow marks need is taken HERE, before the first discard: after a discard a quad's other pixels get no usable neighbour (a device like Apple's drops the discarded lane, and fwidth is then garbage), so at a crotch or a silhouette, where
+  // pixels beside each other are dropped (back faces, the ink band, the presence dither), the marks of the pixels that stay came out as clusters of blocky, wrongly coloured specks (Mohammad, 20 Nov: green and navy specks at every junction, gone with ?joins=nomarks)
+  float vLen = length(vV);
+  vec3 viewDir = vLen > 1e-6 ? vV / vLen : vec3(0.0, 0.0, 1.0);
+  float sIa[${SKIN_ARMS}], acA[${SKIN_ARMS}], pxA[${SKIN_ARMS}], awA[${SKIN_ARMS}];
+  vec3 sideA[${SKIN_ARMS}], headA[${SKIN_ARMS}];
+  for (int i = 0; i < ${SKIN_ARMS}; i++) {
+    sIa[i] = 0.0; acA[i] = 0.0; pxA[i] = 0.0; awA[i] = 0.03; sideA[i] = vec3(1.0, 0.0, 0.0); headA[i] = vec3(0.0);
+    if (armData[i].x < 0.0) continue;
+    vec3 toJ = armAxisP[i * ${SKIN_AXIS_PTS} + 1].xyz - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;   // (toward the node along the straight line through the seam)
+    float tl = length(toJ);
+    vec3 tJ = tl > 1e-6 ? toJ / tl : vec3(1.0, 0.0, 0.0);
+    sIa[i] = armArc[i].x + armArc[i].y * dot(vPos - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz, tJ) * SKIN_U;
+    headA[i] = mat3(modelViewMatrix) * (armArc[i].y * tJ);   // (a heading of zero length would normalise to NaN, and a NaN pixel is a speck of any colour: the length is checked first)
+    float headL = length(headA[i]);
+    vec3 sideX = headL > 1e-6 ? cross(headA[i] / headL, viewDir) : vec3(0.0);
+    float sideL = length(sideX);
+    sideA[i] = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
+    acA[i] = clamp(dot(n, sideA[i]), -1.0, 1.0);
+    pxA[i] = fwidth(sIa[i]);
+    awA[i] = max(fwidth(acA[i]), 0.03);
+  }
+#endif
 #ifdef SKIN_DEBUG
   if (!gl_FrontFacing) { gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
 #endif
@@ -307,7 +339,12 @@ void main() {
   float vR = vRest * swellB * SKIN_U;
   float rCssAx = vR / max(wpcAx, 1e-6);
   float hi = ${BLEND('armAF', 'wAt', '.z')};
-  float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx')} + hiPx * hi) * dpr;
+#ifdef GLOW
+  float hiReachF = ${glowReachGlsl('rCssAx')};
+#else
+  float hiReachF = hiPx;
+#endif
+  float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx')} + hiReachF * hi) * dpr;
   float kPx = skinK / max(wpcAx / SKIN_U, 1e-9) * dpr;
   float sdPx = skinSdPx(kPx);
 #ifdef SKIN_DEBUG
@@ -328,39 +365,40 @@ void main() {
     laArm[i] = la; lbArm[i] = lb;
     base += wAt(i) * mix(mix(armColor[i].rgb, la.rgb, la.a), mix(armColor[i].rgb, lb.rgb, lb.a), lensMix);
   }
+#ifdef GLOW
+  // THE GLOW (glow.ts): the skin grown by the glow's reach, drawn as a halo outside the line only, the arms' blended pick weight giving its reach and alpha: the tubes' halo carried on through the junction
+  {
+    float sG = sdPx / dpr - ${inkPxGlsl('rCssAx', 'rCssAx')};   // CSS px past the line's outer edge
+    float aG = ${glowAlphaGlsl('sG', glowReachGlsl('rCssAx') + ' * hi', 'hi')} * alpha;
+    if (aG < 0.002) discard;
+    gl_FragColor = vec4(${glowToneGlsl('base')}, aG);
+    return;
+  }
+#endif
   float rDev = vR / max(${wpcGlsl('vW', 'projY', 'SKIN_U')}, 1e-6) * dpr;
   vec3 c = celTubeTone(base, sT, swT, rDev);   // two flat tones, matte and opaque: the tube's own
   // THE FLOW MARKS (Mohammad, 20 Nov: "the streaks still break between vessels", "the particles should cross at the junction, not disappear"). The tube draws its dust and chevrons from its own arc and the stream chain's A and B
   // (vessels/shaders.ts); the skin draws the SAME, once per arm, on that arm's arc carried on past its seam along the arm's axis (armArc: the arc at the seam, which way it grows, the length), across taken from the arm's own heading, and blends
   // the arms by their weights: on a seam ring one weight is 1 and this is the tube's pixel, so a streak or a head runs out of one tube, through the skin and into the next (a chained arm carries its parent's particles at the stream's place).
+#ifndef SKIN_NOMARKS
   vec3 cBody = c;
   vec4 dustAcc = vec4(0.0), headAcc = vec4(0.0);
   float wpcM = ${wpcGlsl('vW', 'projY', 'SKIN_U')};
   float rCssM = vR / max(wpcM, 1e-6);
   vec3 litD = celTubeBase(base);
-  vec3 viewDir = normalize(vV);
   DFrame FD0, FD1;
   float wD0 = 0.0, wD1 = 0.0, wD2 = 0.0, onD0 = 0.0, onD1 = 0.0, revD0 = 0.0, revD1 = 0.0;
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
     if (armData[i].x < 0.0) continue;
-    // the arm's own frame: its arc here, and the across the tube would have (its heading, in the view's frame, grows with its arc)
-    vec3 toJ = armAxisP[i * ${SKIN_AXIS_PTS} + 1].xyz - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;   // (toward the node along the straight line through the seam)
-    float tl = length(toJ);
-    vec3 tJ = tl > 1e-6 ? toJ / tl : vec3(1.0, 0.0, 0.0);
-    float sI = armArc[i].x + armArc[i].y * dot(vPos - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz, tJ) * SKIN_U;
-    vec3 headV = mat3(modelViewMatrix) * (armArc[i].y * tJ);   // (a heading of zero length would normalise to NaN, and a NaN pixel is a speck of any colour: the length is checked first)
-    float headL = length(headV);
-    vec3 sideX = headL > 1e-6 ? cross(headV / headL, viewDir) : vec3(0.0);
-    float sideL = length(sideX);
-    float acrossI = dot(n, sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0));
-    float pxI = fwidth(sI);        // (derivatives are taken here, before any branch that depends on the weight)
-    float acrossW = max(fwidth(acrossI), 0.03);
+    // the arm's own frame, taken at the top of main (sIa, acA, pxA, awA, sideA, headA): its arc here, and the across the tube would have (its heading, in the view's frame, grows with its arc)
+    float sI = sIa[i], acrossI = acA[i], pxI = pxA[i], acrossW = awA[i];
+    vec3 sideDir = sideA[i];
     float wI = wAt(i);
     if (wI < 0.004 || vR <= 0.0) continue;
     float lensI = armData[i].w, Lw = armArc[i].z, rOwn = max(armArc[i].w, 1e-3);
     // the dust (blood/dust-glsl.ts dustSkin): this arm's frame, kept for the two heaviest arms; the particles are drawn once below, each at the blend of its places in the two (never two ghosts)
     DFrame FI; float revI;
-    float onI = flowFrame(acrossI, dustFrame(mat3(modelViewMatrix) * (armArc[i].y * tJ), mat3(modelViewMatrix) * vec3(0.0, 0.0, 1.0), viewDir, sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0)), sI, Lw, rOwn, vR, rCssM, lensI, armData[i].x, armData[i].y, SKIN_U, FI, revI);
+    float onI = flowFrame(acrossI, dustFrame(headA[i], mat3(modelViewMatrix) * vec3(0.0, 0.0, 1.0), viewDir, sideDir), sI, Lw, rOwn, vR, rCssM, lensI, armData[i].x, armData[i].y, SKIN_U, FI, revI);
     if (wI > wD0) { wD2 = wD1; FD1 = FD0; wD1 = wD0; onD1 = onD0; revD1 = revD0; FD0 = FI; wD0 = wI; onD0 = onI; revD0 = revI; }
     else if (wI > wD1) { wD2 = wD1; FD1 = FI; wD1 = wI; onD1 = onI; revD1 = revI; }
     else wD2 = max(wD2, wI);
@@ -374,13 +412,17 @@ void main() {
     float dOn = mix(onD0, onD1, w1);
     if (dOn > 0.002) {
       vec4 dust = w1 > 0.004 ? dustSkin(FD0, FD1, w1, litD, inkColor, mix(revD0, revD1, w1)) : dustTube(FD0, litD, inkColor, revD0);
-      dustAcc = vec4(dust.rgb * dOn, dust.a * dOn);
+      dustAcc = clamp(vec4(dust.rgb * dOn, dust.a * dOn), 0.0, 1.0);
     }
   }
+  headAcc = clamp(headAcc, 0.0, 1.0);   // (the arms' weights can sum past 1 while an arm grows: premultiplied marks never past 0 .. 1, or the lumen under them is inverted)
   c = c * (1.0 - dustAcc.a) + dustAcc.rgb;
   c = mix(c, cBody, headAcc.a);   // (the streaks lie UNDER the heads: a head's pixel is never tinted by one)
   c = c * (1.0 - headAcc.a) + headAcc.rgb;
+#endif
   float inkT = smoothstep(-0.5, 0.5, sdPx);   // the outline: ink outside the live lumen, antialiased half a pixel each side
-  c = mix(c, mix(${inkHiColourGlsl('base', 'hi')}, inkColorCirc, circT), inkT);
+#ifndef SKIN_NOINK
+  c = mix(c, mix(${inkColourGlsl('base')}, inkColorCirc, circT), inkT);
+#endif
   gl_FragColor = vec4(c, alpha);
 }`;
