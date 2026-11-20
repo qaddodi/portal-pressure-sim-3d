@@ -56,6 +56,6 @@ test('a slide change puts it back at once; a card that would not grow is not zoo
 test('it is wired: a tap on the empty part of a card on a wide screen, Esc first closes it', () => {
   const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
   const input = readFileSync(new URL('../src/ui/deck/useDeckInput.ts', import.meta.url), 'utf8');
-  assert.match(layer, /plan\.layout === 'wide'/); assert.match(layer, /emptyTap/); assert.match(layer, /cardZoom\.reset\(\)/);
+  assert.match(layer, /plan\.layout === 'wide'/); assert.match(layer, /emptyTap/); assert.match(layer, /cardZoom\.close\(\{ reduce: reduceMotion\(\) \}\); \}, \[wordsKey/, 'a slide change glides it back');
   assert.match(input, /cardZoom\.on\) void cardZoom\.close\(\)/);
 });

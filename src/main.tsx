@@ -6,6 +6,7 @@ import './ui/shell/global.css';
 import './ui/css2d/index.css';   // the 2D app's stylesheets, copied unchanged (scripts/copy-2d-css.mjs); the lifted chrome is styled by them
 import './ui/glass.css';   // the one glass for every panel, menu, pill and card (tests/glass.test.ts)
 import { applyLook, resolveLook } from './looks/looks.ts';
+import { lookGlide } from './looks/glide.ts';
 import { useSettings, applyGlass } from './state/settings.ts';
 import { fontsReady } from './boot/fonts.ts';
 import { bootEngine, useEngine } from './engine/index.ts';
@@ -27,7 +28,8 @@ import { isFrameRequest } from './ui/debug/frame/request.ts';
 import { flagOn, flagValue, debugPage } from './ui/debug/flags.ts';
 
 const dark = window.matchMedia('(prefers-color-scheme: dark)');
-const paint = () => applyLook(resolveLook(useSettings.getState().look, dark.matches));
+lookGlide.onLook((id) => applyLook(id));   // (the page's colours; the figure's applier is Stage's)
+const paint = () => lookGlide.change(resolveLook(useSettings.getState().look, dark.matches));
 paint();
 useSettings.subscribe(paint);
 applyGlass(useSettings.getState().blur);
