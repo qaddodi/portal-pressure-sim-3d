@@ -1,0 +1,56 @@
+// The skin's arms, read on the CPU (docs/junction-skin-spec.md 4.8, WP5): the skin draws a junction by blending its arms' LIVE alpha, highlight and lens position by weight, so the scene hands the skin shader, for each arm, what that
+// arm's own tube has at its seam ring. These are the JS twins of the tube's vertex stage (vessels/shaders.ts: `fa`, `vHi`) and of the lens span mapping (`lensOf`), read from the tube's own uniforms, so the two never disagree. Pure:
+// they read plain numbers, never a three.js object, so a node test pins them.
+
+const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
+const sstep = (a: number, b: number, x: number): number => { const t = clamp01((x - a) / (b - a || 1e-9)); return t * t * (3 - 2 * t); };
+const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
+
+/** The uniform values the fade reads (vessel-object.ts: fadeMode, fadeA, fadeLine, cavaEnd, stump, len). */
+export interface FadeState {
+  mode: number;
+  /** (from, to, alpha at from, alpha at to), as `fadeA` */
+  a: readonly [number, number, number, number];
+  /** scene (x1, y1, x2, y2), as `fadeLine` */
+  line: readonly [number, number, number, number];
+  /** (the share of its length at the cava end that eases to this alpha, that alpha), as `cavaEnd` */
+  cavaEnd: readonly [number, number];
+  /** the divided stretch's length from the start in figure units (0: whole), as `stump.x` */
+  stumpCut: number;
+  /** the vessel's length in scene units (`len`) and the figure's units in a scene unit (300) */
+  len: number; units: number;
+}
+
+/** The vertex stage's `fa` (the vFade a tube carries) at `u` along the vessel, for a point at scene (x, y), at rest on the body (no Circuit: the skin crossfades with the map on its own). */
+export function liveFadeAt(f: FadeState, u: number, x: number, y: number): number {
+  let fa = 1;
+  if (f.mode > 2.5) {
+    const dx = f.line[2] - f.line[0], dy = f.line[3] - f.line[1];
+    let fv = ((x - f.line[0]) * dx + (y - f.line[1]) * dy) / Math.max(dx * dx + dy * dy, 1e-9);
+    if (f.mode > 3.5) {
+      fv = clamp01(fv);
+      fa = fv < f.a[0] ? mix(f.a[2], f.a[3], sstep(0, Math.max(f.a[0], 1e-4), fv)) : mix(f.a[3], 1, sstep(f.a[0], 1, fv));
+    } else fa = mix(f.a[2], f.a[3], clamp01((fv - f.a[0]) / Math.max(1 - f.a[0], 1e-4)));
+  } else if (f.mode > 0.5) {
+    const fs = f.mode < 1.5 ? u : y;
+    fa = mix(f.a[2], f.a[3], clamp01((fs - f.a[0]) / (Math.abs(f.a[1] - f.a[0]) < 1e-5 ? 1e-5 : f.a[1] - f.a[0])));
+  }
+  if (f.stumpCut > 0) fa *= u * f.len * f.units >= f.stumpCut ? 1 : 0;
+  if (f.cavaEnd[0] > 0) fa *= mix(1, f.cavaEnd[1], sstep(1 - f.cavaEnd[0], 1, u));
+  return fa;
+}
+
+/** The uniform values the highlight weight reads (hiOn, hiDir, hiOffset, hiAhead, hiBehind, hiEnds, hiFade, len). */
+export interface HiState { on: number; dir: number; offset: number; ahead: number; behind: number; ends: readonly [number, number]; fade: number; len: number }
+
+/** The vertex stage's `vHi`: how much of the picked vein's own line (or the glow that runs ahead of or behind a tracked bolus) this tube has at `u`. */
+export function hiWeightAt(h: HiState, u: number): number {
+  const aU = u * h.len;
+  const distH = h.dir > 0.5 ? h.offset + aU : h.dir < -0.5 ? h.offset + (h.len - aU) : 0;
+  const limitH = h.dir < -0.5 ? h.behind : h.ahead;
+  const ownH = sstep(0, Math.max(h.fade, 1e-4), Math.min(h.ends[0] + aU, h.ends[1] + (h.len - aU)));
+  return h.on * (Math.abs(h.dir) > 0.5 ? 1 - sstep(0, Math.max(limitH, 1e-4), distH) : ownH);
+}
+
+/** The lens ramp's position at the seam: the stretch `span` of the host's ramp the vessel wears, at `u` along the vessel (`lensOf`: mix(lensSpan.x, lensSpan.y, vUv.x)). */
+export const lensUAt = (span: readonly [number, number], u: number): number => mix(span[0], span[1], u);
