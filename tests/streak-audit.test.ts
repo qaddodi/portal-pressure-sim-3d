@@ -11,7 +11,7 @@ import { NETWORK } from '../src/scene/vessels/network.ts';
 import { Streams } from '../src/scene/blood/streams.ts';
 import { edgeIndex } from '../src/scene/lenses/model.ts';
 import { CHEV, chevAlphaJs, chevSizeJs } from '../src/scene/blood/chevron-glsl.ts';
-import { STREAK, laneSpeed, lanesForPx, streakBoxJs, streakCoverage, streakDCap } from '../src/scene/blood/streak-glsl.ts';
+import { STREAK, laneSpeed, lanesForPx, streakBoxJs, streakCoverage, streakDCap, streakToneJs } from '../src/scene/blood/streak-glsl.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { UNITS_PER_SCENE } from '../src/scene/frame2d.ts';
 
@@ -140,4 +140,15 @@ test('the chevron lattice\'s second octave is never translucent: a head leaves b
     assert.ok(sz >= CHEV.SIZE_MIN - 1e-9 && sz <= 1 + 1e-9);
   }
   assert.equal(chevAlphaJs(0), 0); assert.equal(chevAlphaJs(1), 1); assert.equal(chevSizeJs(1), 1); assert.equal(chevSizeJs(0), CHEV.SIZE_MIN);
+});
+
+test('streaks are SEEN at the default fit, not only present (the eyes, 20 Nov: faint smears on the trunk and a smooth fill on the portal and hepatic branches; the audit only asked for 0.5 percent of the face): a tube 4 px of radius or more shows filaments over at least 5 percent of its face (it was 3 to 4 percent: the pre-20-Nov-07:00 numbers), and the average streak is a clear step lighter than the body', () => {
+  for (let r = 4; r <= 12; r += 0.5) {
+    const l = lanesForPx(r);
+    assert.ok(streakCoverage(r, l) >= 0.055, `a lumen of ${r} px radius: streaks cover ${streakCoverage(r, l).toFixed(3)} of the face`);
+  }
+  const lit = [0.29, 0.5, 0.82], lum = (c: number[]): number => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * c[2]!;
+  assert.ok(lum(streakToneJs(lit, [1, 1, 1], 0.5, 0.5, 0.5)) - lum(lit) >= 0.08, 'the average streak is at least 0.08 lighter in luminance (the tone itself stays within the 1.12 to 1.8:1 the owner set)');
+  assert.ok(streakToneJs(lit, [1, 1, 1], 0, 0.5, 0)[0]! > lit[0]!, 'the faintest streak is still lighter than the body');
+  assert.ok(STREAK.WALL_SPEED >= 0.7, 'the wall lane keeps up with the blood: it is not a crawl beside the chevrons');
 });
