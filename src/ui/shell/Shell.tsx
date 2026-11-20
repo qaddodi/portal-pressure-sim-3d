@@ -14,6 +14,7 @@ import { useThumb } from './thumb.ts';
 import { ZoomGroup } from './ZoomGroup.tsx';
 import { Sheets } from './Sheets.tsx';
 import { Toast } from './Toast.tsx';
+import { startFirstHint } from './first-hint.ts';
 import { Diagnostics } from './Diagnostics.tsx';
 import { useKeys } from '../keys/useKeys.ts';
 import { syncTransport } from './transport.ts';
@@ -81,6 +82,9 @@ function usePublishedLayout(app: React.RefObject<HTMLDivElement | null>, thumb: 
     const occ = thumb ? dockInset(d) + dockHeight(d) + 8 : 0;
     root.style.setProperty('--thumb-occ', px(occ)); root.style.setProperty('--sheet-foot-screen', px(occ));
     root.style.setProperty('--thumb-top', thumb ? px(vp.safe.top + M.topSafe) : '0px');
+    // the foot's height (the dock and the view pill over it) for what stands outside .app, the toast (2D: --toast-foot / --bot-occ, main.js)
+    const lv = layoutVars(vp, d);
+    if (lv['--bot-occ']) root.style.setProperty('--bot-occ', lv['--bot-occ']);
   }, [app, vp, thumb]);
 }
 
@@ -96,6 +100,7 @@ export function Shell() {
   useEffect(() => syncTransport(), []);
   useEffect(() => { const offs = [startTimeline(), startCompare(), startHistory()]; return () => offs.forEach((o) => o()); }, []);
   useEffect(() => startActions(), []);
+  useEffect(() => startFirstHint(), []);   // (2D's once-per-device hint: shell/first-hint.ts)
   useEffect(() => { const f = useShell.getState().figure; sceneApi.setLobuleLayers({ lymph: f.lymph, zones: f.zones, bile: f.bile }); }, []);
   // what the Blood menu remembers goes to the scene and the labels once at boot (the menu then tells them itself)
   useEffect(() => { const b = useBlood.getState(); sceneApi.setBlood({}); useLabels.getState().set({ organNames: b.labels }); }, []);

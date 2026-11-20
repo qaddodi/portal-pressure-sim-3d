@@ -2,7 +2,7 @@
 // as the 2D figure does it (stage-diaphragm.js updateOrgans): the liver's shape (cirrhosis) and dusk (congestion), a scale of the spleen with the model's size, a ghost of
 // a removed spleen, the grey of a lens other than Pressure, blood in the stomach. Meshes come from meshes.ts (the organs thread) in the shared frame; this file never
 // builds one. Everything moves on the clock: `update(now)` returns true while something eases, and nothing is touched when nothing moves.
-import { type BufferGeometry, Color, Group, type Raycaster, Vector3, Vector4 } from 'three';
+import { type BufferGeometry, BufferAttribute, Color, Group, type Raycaster, Vector3, Vector4 } from 'three';
 import { PICK_OF } from './pick.ts';
 import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from './organ-shader.ts';
 import type { OrganTones2D } from '../../looks/organ-tones.copied.ts';
@@ -19,6 +19,8 @@ import { lumenSurface } from '../disease/copied/stomach-lumen.js';
 import { POOL_SHARE } from '../disease/copied/bleed-shapes.js';
 import { LiverShape } from './liver-shape.ts';
 import { x3, y3 } from '../frame2d.ts';
+import { bakeOrganDepth } from './organ-depth.ts';
+import type { OrganFill } from '../../state/settings.ts';
 
 type Og = keyof OrganTones2D['tones'];
 /** The tone each 2D organ takes, its 2D painter's tones (--og-<og>-1/2/3; anatomy.js `tone`), the outline's width (2D: 1.1 px, the kidney 1.4) and alpha (.62, the kidney .95, the atrium .35),
@@ -48,13 +50,13 @@ export const ORGAN_ORDER = ['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach'
 /** The dive's cutaway window, one for every organ (scene.ts writes it each frame from the camera's distance to the place dived to; camera/dive.ts cutUniform). Nothing cleared at rest. */
 export const ORGAN_CUT: { value: Vector4 } = { value: new Vector4(0, 0, -1, 1) };
 
-function useOrganShader(o: CelObject, g: BufferGeometry, id: string): void {
+function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { value: number }, solid: { value: number }): void {
   if (!g.boundingBox) g.computeBoundingBox();
   const b = g.boundingBox!;
   const m = o.toon;
   m.vertexShader = ORGAN_VS; m.fragmentShader = ORGAN_FS;
   Object.assign(m.uniforms, {
-    cut: ORGAN_CUT, o1: { value: new Color() }, o2: { value: new Color() }, page: { value: new Color() }, layer: { value: 0.55 },
+    cut: ORGAN_CUT, depthAmt: depth, solid, o1: { value: new Color() }, o2: { value: new Color() }, page: { value: new Color() }, layer: { value: 0.55 },
     ogLight: { value: new Vector4() }, ogDark: { value: new Vector4() }, volShade: { value: new Vector4() },
     box: { value: new Vector4(b.min.x, b.max.y, b.max.x - b.min.x, b.max.y - b.min.y) },
   });
@@ -93,6 +95,12 @@ export class OrganLayer {
   private readonly pool = new Eased(0.12, 0.6);
   /** how far the embolized spleen's dead lower part has come in */
   private readonly infarct = new Eased(0, 0.24);
+  /** Settings > Figure depth: the organ depth switch and the organ fill, eased (420 ms like the lens) and shared by every organ's shader (depthAmt, solid) */
+  private readonly uDepth = { value: 0 };
+  private readonly uSolid = { value: 0 };
+  private readonly depthE = new Eased(0, 0.14);
+  private readonly solidE = new Eased(0, 0.14);
+  private depthGoal = 0; private solidGoal = 0; private fillInstant = true;
   private readonly paints = new Map<string, VertexPaint>();
   private liverShape: LiverShape | null = null;
   private liverGeometry: BufferGeometry | null = null;
@@ -112,13 +120,19 @@ export class OrganLayer {
   build(meshes: Record<string, () => BufferGeometry> = ORGAN_MESHES): void {
     if (this.built) return;
     this.built = true;
-    for (const [id, make] of Object.entries(meshes)) {
-      const st = ORGAN_STYLE[id];
-      if (!st) continue;
-      const g = make();
+    // every organ's geometry first: the baked depth term (organ-depth.ts) needs them all together (where one organ meets another)
+    const made: [string, BufferGeometry][] = [];
+    for (const [id, make] of Object.entries(meshes)) if (ORGAN_STYLE[id]) made.push([id, make()]);
+    const baked = bakeOrganDepth(Object.fromEntries(made.map(([id, g]) => {
+      if (!g.getAttribute('normal')) g.computeVertexNormals();
+      return [id, { pos: g.getAttribute('position').array, normal: g.getAttribute('normal').array, index: g.index ? g.index.array : [] }];
+    })));
+    for (const [id, g] of made) {
+      const st = ORGAN_STYLE[id]!;
+      g.setAttribute('depthAo', new BufferAttribute(baked[id]!, 1, true));
       if (PAINTED.has(id)) { if (!g.getAttribute('normal')) g.computeVertexNormals(); this.paints.set(id, new VertexPaint(g, id as 'liver' | 'spleen' | 'stomach')); }
       const o = new CelObject(g, { tone: st.tone, bands: 3, spec: 0, px: st.px }, this.shared);
-      useOrganShader(o, g, id);
+      useOrganShader(o, g, id, this.uDepth, this.uSolid);
       if (this.phone) o.setPhone(true);
       o.ink.uniforms.px!.value = st.px;
       this.objects.push(o); this.byId.set(id, o); this.group.add(o.group);
@@ -130,6 +144,11 @@ export class OrganLayer {
     }
     this.dirtyColours = true; this.instant = true;
   }
+
+  /** Organ depth on or off (Settings > Figure depth): the baked crease and contact shade and the soft light. It eases in with the clock; `instant` takes it at once (the first call). */
+  setDepth(on: boolean, instant = false): void { this.depthGoal = on ? 1 : 0; if (instant) this.fillInstant = true; }
+  /** The organ fill: 'solid' (the default since 20 Nov) is the colours opaque, pre-mixed against the page; 'seethrough' is the wash at the layer's opacity. */
+  setFill(f: OrganFill, instant = false): void { this.solidGoal = f === 'solid' ? 1 : 0; if (instant) this.fillInstant = true; }
 
   /** How big the spleen is drawn now (1: normal): a caliper along its axis grows with it. */
   get spleenScaleNow(): number { return this.spleenScale.value; }
@@ -148,8 +167,14 @@ export class OrganLayer {
   update(now: number): boolean {
     const dt = this.lastClock < 0 ? 0.016 : Math.min(0.1, (now - this.lastClock) / 1000);
     this.lastClock = now;
+    const sw = this.fillInstant; this.fillInstant = false;
+    let eased = this.depthE.to(this.depthGoal, dt, sw);
+    const before = this.solidE.value;
+    eased = this.solidE.to(this.solidGoal, dt, sw) || eased;
+    if (this.solidE.value !== before) this.dirtyColours = true;   // (the cel-shaded outline's strength follows the fill: setColours)
+    this.uDepth.value = this.depthE.value; this.uSolid.value = this.solidE.value;
     const t = this.body;
-    if (!t) { if (this.dirtyColours) { this.paint(); this.dirtyColours = false; } return false; }
+    if (!t) { if (this.dirtyColours) { this.paint(); this.dirtyColours = false; } return eased; }
     const inst = this.instant; this.instant = false;
     let moving = false;
     moving = this.liverFollow.follow(t, dt, inst) || moving;
@@ -175,7 +200,7 @@ export class OrganLayer {
     moving = this.blood.to(t.bleed.active ? 1 : 0, dt, inst) || moving;
     if (t.bleed.active) moving = this.pool.to(poolFill(t.bleed.total), dt, inst) || moving;
     if (moving || this.dirtyColours) { this.paint(); this.dirtyColours = false; }
-    return moving;
+    return moving || eased;
   }
 
   private paint(): boolean {
@@ -216,7 +241,8 @@ export class OrganLayer {
     (u.color!.value as Color).setRGB(c[0], c[1], c[2]); (u.page!.value as Color).setRGB(page[0], page[1], page[2]);
     u.layer!.value = layer;
     (u.ogLight!.value as Vector4).copy(rgba(og.light)); (u.ogDark!.value as Vector4).copy(rgba(og.dark)); (u.volShade!.value as Vector4).copy(rgba(og.volShade));
-    const ink = mix(page, o3, Math.min(1, inkA * layer));
+    // cel shaded (solid): the organ's line is 2D's alpha (.62, the kidney .95) laid on the page whole, not thinned by the layer's opacity, so the silhouette and the edge where one organ passes over another read as ink
+    const ink = mix(page, o3, Math.min(1, inkA * (layer + (1 - layer) * this.uSolid.value)));
     (o.ink.uniforms.color!.value as Color).setRGB(ink[0], ink[1], ink[2]);
   }
 

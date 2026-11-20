@@ -32,7 +32,7 @@ export class TextLayer {
     words.forEach((w, i) => {
       const sl = this.slots[i]!;
       const style = [
-        'position:absolute;left:0;top:0;white-space:pre;line-height:1;will-change:transform;',
+        'position:absolute;left:0;top:0;white-space:pre;line-height:1;will-change:transform;transform-origin:0 0;',
         `font:${w.italic ? 'italic ' : ''}${w.weight ?? 500} ${w.size}px/1 var(${w.font === 'display' ? '--display' : '--ui'}, system-ui, sans-serif);`,
         `color:${toCss(w.color)};`,
         w.upper ? 'text-transform:uppercase;' : '',

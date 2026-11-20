@@ -16,17 +16,19 @@ import { cel } from '../api.ts';
 import { leaderGeom } from '../labels/geometry.ts';
 import { DIM_ALPHA, labelOpacity } from '../labels/alpha.ts';
 import { makeMeasure } from '../labels/LabelLayer.tsx';
-import { LS, baselineAt, lineSize, lookVars, nameRun, typeVars, valueRun } from '../labels/type.ts';
+import { LS, lookVars, typeVars } from '../labels/type.ts';
 import { sinusoidWorld } from '../lobule/frames.ts';
 import { SINUSOID_L } from '../lobule/shots.ts';
-import { type NamePlacement } from './names.ts';
-import { buildSinusoidNames, linesOf, namesFree, namesOn, placeOf } from './captions.ts';
+import { type NameKey, type NamePlacement } from './names.ts';
+import { SV_NOTE } from './names.ts';
+import { buildSinusoidNames, namesFree, namesOn, placeOf } from './captions.ts';
+import { type RNode, dotCss, regionClass, regionTree, treeKey } from './region.ts';
 import { U } from './view.ts';
 import { framePoint } from './portrait.ts';
 import { setSinusoidPlaced, useSinusoidNames } from './explain-store.ts';
 
 const SETTLE_MS = 180, FADE_MS = 180;
-interface El { root: HTMLElement; rows: HTMLElement[]; lead: HTMLElement | null; tx: string; size: string; words: string }
+interface El { root: HTMLElement; lead: HTMLElement | null; ring: HTMLElement | null; ringTx: string; tx: string; words: string }
 
 export function SinusoidCaptions() {
   const layer = useRef<HTMLDivElement>(null);
@@ -47,6 +49,7 @@ export function SinusoidCaptions() {
     const putVars = () => {
       const { vp } = useUi.getState();
       for (const [k, v] of Object.entries({ ...typeVars(vp), ...lookVars(lookRef.current, vp) })) root.style.setProperty(k, v);
+      { const d = dotCss(); root.style.setProperty('--sv-dot', `${d.size}px`); root.style.setProperty('--sv-dot-w', `${d.ring}px`); root.style.setProperty('--sv-dot-halo', `${d.halo}px`); }
       root.style.setProperty('--cc-ink', (LS.LOOKS as Record<string, Record<string, string>>)[lookRef.current]!['text-3']!);
       sig = '';
     };
@@ -64,13 +67,38 @@ export function SinusoidCaptions() {
     const key = (p: NamePlacement) => p.key;
     const make = (id: string): El => {
       const r = document.createElement('div');
-      r.className = `lb cc sv-name sv-${id === 'in' || id === 'out' ? 'end' : id}`;
+      r.className = regionClass(id as NameKey);   // (2D's own caption: its stylesheet sets the type, the case and the colour)
       r.dataset.target = `sinusoid:${id}`;
       root.appendChild(r);
       const lead = document.createElement('i'); lead.className = 'lb-lead'; root.appendChild(lead);
-      const e: El = { root: r, rows: [], lead, tx: '', size: '', words: '' };
+      // (2D's leader ends in a dot on the part it names, the stage's paper round it and the text ink's ring: label-captions.js leadMarks)
+      const ring = document.createElement('i'); ring.className = 'lb-anchor'; root.appendChild(ring);
+      const e: El = { root: r, lead, ring, ringTx: '', tx: '', words: '' };
       els.set(id, e);
       return e;
+    };
+
+    const node = (n: RNode | string): Node => {
+      if (typeof n === 'string') return document.createTextNode(n);
+      const e = document.createElement(n.tag);
+      if (n.cls) e.className = n.cls;
+      e.append(...n.kids.map(node));
+      return e;
+    };
+    /** a caption's words written as 2D's pageRun writes them (only when they changed), and its element returned */
+    const fill = (e: El, name: string, value: string, key: NameKey, explain: NameKey | null): El => {
+      const tree = regionTree(name, value, explain === key ? SV_NOTE[key] ?? null : null), words = treeKey(tree);
+      if (e.words !== words) {
+        e.words = words;
+        e.root.replaceChildren(...tree.map(node));
+        e.root.setAttribute('aria-label', [name.replace(/\n/g, ' '), ...value.split(' · ').map((l) => l.replace('~', ' '))].join(' '));
+      }
+      return e;
+    };
+    /** a caption's size as the page sets it (2D: the stylesheet's type, read once when its words change; never in a frame) */
+    const size = (key: NameKey, name: string, value: string, note: string | null): readonly [number, number] => {
+      const e = fill(els.get(key) ?? make(key), name, value, key, note ? key : null);
+      return [e.root.offsetWidth, e.root.offsetHeight];
     };
 
     const solveNow = () => {
@@ -80,29 +108,16 @@ export function SinusoidCaptions() {
       const st = useSinusoidNames.getState();
       const free = namesFree(cel.rig.targetRoom, { w: vp.w, h: vp.h });
       const built = buildSinusoidNames({
-        view: cel.sinus, proj, vp, measure, stage: { w: vp.w, h: vp.h }, free, insTop: vp.safe.top + BAR,
+        view: cel.sinus, proj, vp, measure, size, stage: { w: vp.w, h: vp.h }, free, insTop: vp.safe.top + BAR,
         model: m ? { P1: m.P1, P2: m.P2, P3: m.P3, lymph: m.lymph, lyProt: m.lyProt } : null, explain: st.explain, lit: st.lit,
       });
       placed = level === 'none' ? [] : built;
       setSinusoidPlaced(placed);
       const stand = new Set<string>(placed.map(key));
-      for (const [id, e] of els) if (!stand.has(id)) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); }
+      for (const [id, e] of els) if (!stand.has(id)) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); e.ring?.removeAttribute('data-on'); }
       for (const p of placed) {
         const e = els.get(p.key) ?? make(p.key);
-        const ln = linesOf(p.name, p.value, p.key, st.explain);
-        const words = JSON.stringify(ln), size = `${Math.round(p.w * 10)}x${Math.round(p.hh * 10)}`;
-        if (e.words !== words) {
-          e.words = words;
-          const rows: [string, string][] = [...ln.name.map((t): [string, string] => [t, 'lb-name']), ...ln.value.map((t): [string, string] => [t, 'lb-val']), ...(ln.note ? [[ln.note, 'sv-note'] as [string, string]] : [])];
-          while (e.rows.length > rows.length) e.rows.pop()!.remove();
-          rows.forEach(([t, cls], i) => {
-            const r = e.rows[i] ?? (e.rows[i] = e.root.appendChild(document.createElement('span')));
-            r.className = `sv-row ${cls}`; r.textContent = t;
-            r.style.height = `${Math.round(lineSize([cls === 'lb-val' ? valueRun(t) : nameRun(t)], vp, measure).h * 100) / 100}px`;
-          });
-          e.root.setAttribute('aria-label', [...ln.name, ...ln.value].join(' '));
-        }
-        if (e.size !== size) { e.size = size; e.root.style.width = `${Math.round(p.w * 100) / 100}px`; e.root.style.height = `${Math.round(p.hh * 100) / 100}px`; e.root.style.setProperty('--b', `${Math.round(baselineAt(p.hh, LS.PAD.y) * 100) / 100}px`); }
+        fill(e, p.name, p.value, p.key, st.explain);
       }
     };
 
@@ -144,8 +159,15 @@ export function SinusoidCaptions() {
               e.lead.style.opacity = String(Math.round(o * 1000) / 1000); e.lead.setAttribute('data-on', '');
             } else e.lead.removeAttribute('data-on');
           }
+          if (e.ring) {
+            if (p.leader) {
+              const rt = `translate(${Math.round(p.leader.x2 * 100) / 100}px,${Math.round(p.leader.y2 * 100) / 100}px)`;
+              if (rt !== e.ringTx) { e.ring.style.transform = rt; e.ringTx = rt; }
+              e.ring.style.opacity = String(Math.round(o * 1000) / 1000); e.ring.setAttribute('data-on', '');
+            } else e.ring.removeAttribute('data-on');
+          }
         }
-        if (alpha === 0) for (const e of els.values()) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); }
+        if (alpha === 0) for (const e of els.values()) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); e.ring?.removeAttribute('data-on'); }
       }
       // the end arrows follow their names (2D: a presenter slide that is not about an end dims both; outside a talk, 1)
       const endA = on ? Math.max(0, Math.min(1, alpha)) : 0;
@@ -161,7 +183,7 @@ export function SinusoidCaptions() {
     const offEx = useSinusoidNames.subscribe((s, p) => { if (s.explain !== p.explain || s.lit !== p.lit) wake(); });
     void document.fonts?.ready.then(wake);
     void DIM_ALPHA; void SINUSOID_L;
-    return () => { off(); offShell(); offUi(); offUi2(); offEx(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); } };
+    return () => { off(); offShell(); offUi(); offUi2(); offEx(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
   }, []);
 
   return <div ref={layer} className="lb-layer cc-layer sv-layer" aria-hidden="true" />;

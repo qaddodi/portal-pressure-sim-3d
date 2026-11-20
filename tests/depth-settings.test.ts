@@ -19,3 +19,9 @@ test('every switch has a row in Settings, in order, with words', () => {
   assert.deepEqual(DEPTH_ROWS.map((r) => r.key), [...DEPTH_KEYS]);
   for (const r of DEPTH_ROWS) assert.ok(r.label.length > 3 && r.hint.length > 10);
 });
+
+test('Organ fill: solid cel-shaded by default, see-through is the alternative, anything else is the default', () => {
+  assert.equal(DEFAULTS.organFill, 'solid');
+  assert.equal(parseSettings('{"organFill":"seethrough"}').organFill, 'seethrough');
+  assert.equal(parseSettings('{"organFill":"opaque"}').organFill, 'solid');
+});

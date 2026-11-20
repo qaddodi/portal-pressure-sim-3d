@@ -11,6 +11,9 @@ import { useCompare } from '../compare/store.ts';
 import { useTimeline } from '../timeline/store.ts';
 import { restartPatient } from '../patients/index.ts';
 import { CMP } from '../compare/words.ts';
+import { envNow } from '../action/env.ts';
+import { lobuleOf } from '../action/read.ts';
+import { LOBULE_TILES, type Scale } from './lobule-strip.ts';
 // @ts-ignore the pinned engine copy is plain JS
 import * as cuts from '../../engine/hales/portal/pressure-cuts.js';
 
@@ -46,25 +49,58 @@ function JumpMenu({ compare }: { compare: boolean }) {
 }
 
 const SCALE_MAX = 25;   // (2D dock.js TILES: scale [0, 25] for both)
-const pos = (v: number) => Math.min(1, Math.max(0, v / SCALE_MAX));
+const MMHG: Scale = { lo: 0, hi: SCALE_MAX };
+const posIn = (sc: Scale, v: number) => Math.min(1, Math.max(0, (v - sc.lo) / (sc.hi - sc.lo)));
 
 /** One headline reading, as 2D's tile-el.js builds it: .metric.primary.inert > .k, .v (.val, .unit), .rb (.rb-fill, .rb-tick), .s (.status). */
-function Tile({ id, k, value, from, sev, word, ticks }: { id: string; k: string; value: number | null; from: number; sev: string; word: string; ticks: number[] }) {
-  const shown = value == null ? null : value.toFixed(1);
+function Tile({ id, k, value, from, sev, word, ticks, scale = MMHG, unit = 'mmHg', unitWords = '', fixed = 1 }: { id: string; k: string; value: number | null; from: number; sev: string; word: string; ticks: number[]; scale?: Scale; unit?: string; unitWords?: string; fixed?: number }) {
+  const shown = value == null ? null : value.toFixed(fixed);
+  const pos = (v: number) => posIn(scale, v);
   return (
     <div className={`metric inert primary${value == null ? ' hidden-val' : ''}`} data-id={id} data-sev={value == null ? 'none' : sev} role="group"
-      aria-label={value == null ? k : `${k}: ${shown} mmHg, ${word}`} title={k}>
+      aria-label={value == null ? k : `${k}: ${shown} ${unit}${unitWords}, ${word}`} title={k}>
       <span className="k">{k}</span>
-      <span className="v"><span className="val" style={{ ['--vr' as string]: 'round(up, calc(3ch + 0.26em), 1px)' }}>{shown ?? '—'}</span><span className="unit">mmHg</span><span className="tr" aria-hidden="true" /></span>
+      <span className="v"><span className="val" style={{ ['--vr' as string]: 'round(up, calc(3ch + 0.26em), 1px)' }}>{shown ?? '—'}</span><span className={unit === '%' ? 'unit pct' : 'unit'}>{unit}{unitWords ? <span className="u-x">{unitWords}</span> : null}</span><span className="tr" aria-hidden="true" /></span>
       <span className="rb" aria-hidden="true"><i className="rb-fill" style={{ ['--fl' as string]: pos(from), ['--fw' as string]: value == null ? 0 : pos(value) - pos(from) }} />{ticks.map((t) => <i key={t} className="rb-tick" style={{ left: `${pos(t) * 100}%` }} />)}</span>
       <span className="s"><span className="status">{word}</span><span className="cmp" /></span>
     </div>
   );
 }
 
-/** The dock's readout strip: HVPG and PPG (2D dock.js PRIMARY). */
+/** The lobule's flows against the healthy patient's, in percent (2D lobuleFlows × 100): the sinusoids' and the portal venule's; null before the model has run. */
+export function lobuleFlowPct(): { 'lz-sin': number; 'lz-pv': number } | null {
+  const env = envNow();
+  if (!env) return null;
+  const m = lobuleOf(env);
+  return { 'lz-sin': (m.flow) * 100, 'lz-pv': (m.portal) * 100 };
+}
+
+function LobuleReadouts() {
+  useEngine((s) => s.hvpg);   // (a new frame: the reading is worked out from the engine's newest, as the cards are)
+  const v = lobuleFlowPct();
+  return (
+    <section className="readouts lob" id="strip" aria-label="Clinical readouts" data-lobule="">
+      <div className="ro-row">
+        <div className="ro-group" data-group="lobule" role="group" aria-label="Lobule, % of normal" style={{ ['--n' as string]: LOBULE_TILES.length }}>
+          <span className="ro-cap" aria-hidden="true">Lobule, % of normal</span>
+          <div className="ro-tiles">
+            {LOBULE_TILES.map((t) => {
+              const x = v ? v[t.id] : null;
+              return <Tile key={t.id} id={t.id} k={t.k} value={x} from={0} sev={x == null ? 'ok' : t.sev(x)} word={x == null ? '' : t.word(x)} ticks={[...t.ticks]} scale={t.scale} unit="%" unitWords={t.reversible && x != null && x < -2 ? ' of healthy, reversed' : ' of healthy'} fixed={0} />;
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** The dock's readout strip: HVPG and PPG (2D dock.js PRIMARY); the lobule's two key flows in the Lobule and Sinusoid views (2D LOBULE_PRIMARY). */
 export function Readouts() {
+  const view = useShell((s) => s.view);
   const hvpg = useEngine((s) => s.hvpg), pv = useEngine((s) => s.pv), ivc = useEngine((s) => s.ivc);
+  if (view === 'lobule' || view === 'sinusoid') return <LobuleReadouts />;
+  const pos = (v: number) => posIn(MMHG, v);
   const ppg = pv != null && ivc != null ? pv - ivc : null;
   return (
     <section className="readouts" id="strip" aria-label="Clinical readouts">

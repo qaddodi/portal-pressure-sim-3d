@@ -23,3 +23,9 @@ test('every icon the shell draws from the atlas has its cell in the stylesheet (
   const atlas = read('src/ui/shell/icons.tsx').match(/ATLAS = new Set\(\[(.*?)\]\)/s)![1]!.match(/'([^']+)'/g)!.map((x) => x.slice(1, -1));
   assert.deepEqual(atlas.filter((n) => !have.has(n)), []);
 });
+
+test('Treat is `hidden` while closed, as in 2D (its stylesheet puts the phone view pill away only while #treatCard is not hidden), and stays displayed so it can fade', () => {
+  assert.match(read('src/ui/treat/TreatCard.tsx'), /id="treatCard" hidden=\{!open\}/);
+  assert.match(read('src/ui/treat/treat.css'), /\.sh-root #treatCard\.treat-card\[hidden\]\s*\{\s*display:\s*block !important/);
+  assert.match(read('src/ui/css2d/app-10-thumb-dock.css'), /:has\(#treatCard:not\(\[hidden\]\)\)/);   // (the 2D rule this answers)
+});

@@ -1,6 +1,6 @@
 /* Global ground rules. Look tokens (--bg, --surface, --text…) come from the 2D stylesheet (src/ui/css2d/tokens.css) by html[data-theme] and [data-palette], set by applyLook (src/looks/looks.ts); the scene's own tones are written inline. */
 :root {
-  --ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ui: 'Inter', 'Inter Fallback', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;   /* (2D tokens.css --font-ui, whole: the fallbacks size the text the same before Inter is in) */
   --display: 'Source Serif 4', Georgia, serif;
   --safe-t: env(safe-area-inset-top, 0px); --safe-r: env(safe-area-inset-right, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px); --safe-l: env(safe-area-inset-left, 0px);

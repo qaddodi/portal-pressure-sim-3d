@@ -6,6 +6,9 @@
    3. the page's slide and the card's glide move children by `translate` and `transform` (page-push.ts, card-glide.copied.ts);
    4. the bounds the 2D rules read from #app (--top-safe, --vdock-h…) arrive as inline custom properties (TreatCard.tsx). */
 
+/* 2D keeps the closed card `hidden` and its stylesheets read it (app-10-thumb-dock.css: `.app.thumb:has(#treatCard:not([hidden])) .vdock > .nb-views { opacity: 0 }` puts the phone's view pill away while Treat is up).
+   Here the card is always in the page and fades by visibility, so `hidden` is only the marker: it stays displayed (this rule outweighs `[hidden] { display: none !important }`), and nothing pops. Without the marker the pill was away for good. */
+.sh-root #treatCard.treat-card[hidden] { display: block !important; }
 .treat-card.tr-card { animation: none; visibility: hidden; pointer-events: none; transform: translateY(10px); transition: transform 240ms var(--ease, ease), visibility 0s linear 240ms; }
 .treat-card.tr-card[data-open="true"] { visibility: visible; pointer-events: auto; transform: none; transition-delay: 0s; }
 .treat-card.tr-card > .tr-in, .treat-card.tr-card > .sheet-plate { opacity: 0; transition: opacity 240ms var(--ease, ease); }

@@ -123,3 +123,17 @@ The lobule is a histology plate, as 2D draws it (`/mnt/project-files/rebuild-3d/
 ### The sinusoid's names on screen (19 Nov 2026)
 
 `sinusoid/SinusoidCaptions.tsx` mounts 2D's names (`names.ts`, laid out by `captions.ts` from where the plane stands on the canvas, the free room and the model's numbers) in the figure's label type: ends, sinusoid, Kupffer, stellate, fenestrae, Disse, lymph, hepatocyte (and the canaliculus when a slide lights `sinusoid:canaliculus`), with leaders, always level, in the wide and the tall (portrait) layout. They are mounted only while the sinusoid is the view, come in once the figure is still and go when it moves; only transform and opacity are written per frame. The end names carry the end arrows (`setEndShown`). A tap on a name, in a talk only (as in 2D), adds its note line and lights `sinusoid:<target>` (`explain-store.ts`, wired in `Stage.tsx` ahead of the free-mode return). The layout is 2D's own within the free room, so the label solver is not used for these names.
+
+## Depth of field in the dive (depth upgrade 4, desktop only)
+
+`src/scene/post-dof.ts`, behind Settings > Figure depth > depth of field (`useSettings.dof`, on by default). Only a laptop or desktop (`dofAllowed`: fine pointer, hover, window of 900 CSS px or more, not an iPad that says "Mac",
+no reduced motion); a phone or an iPad never makes the depth texture, the half-size target or the programs. Its strength is a function of the camera's distance to the place dived to (`dofShare`: 1 from the lobule's framing
+in, 0 where the body is gone, `DIVE_IN`), so the way in and the way out are one picture. The figure's FXAA texture carries a depth texture; a half-size gather (10 golden-angle taps, each weighted by its own circle of confusion, so
+ink lines in focus never bloom) and a full-size blend run before the FXAA pass, and only while the strength is above 0. The lobule's plates, the neighbour field and the sinusoid's tissue write no depth, so a pixel with none
+is taken to lie on the plane through the camera's target facing +z (`planeUniform`): with the camera square on, the plane is all in focus and only what stands off it (a vessel past the sharp slab) blurs; tilt and turn
+put the far side of the plane out of focus. While the pass runs the vessels' pass does not clear the depth (it draws nothing once the body is gone). A refused program turns the blur off (shader guard) and the figure is
+drawn as before.
+
+## Sinusoid, cel shaded (20 Nov 2026)
+2D's tissue shader stays a byte-for-byte copy (`gl.copied.ts`, `scripts/copy-sinusoid.mjs --check`). `src/scene/sinusoid/cel.ts` wraps it: 2D's `main` becomes `main2d`, and a new `main` steps the pixel's lightness onto hard bands one shade step wide
+(`-ln(1 - CEL_STYLE.SHADE)`, so the bands are the figure's own shade step), keeps hue and chroma, inks sharp colour changes (the colour shaded three times) and puts the pixel back premultiplied with 2D's alpha. Every number comes from `src/scene/cel-style.ts`.

@@ -15,6 +15,7 @@ import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
 import { BloodField } from './blood/field.ts';
+import { BloodCells } from './blood/cells/cells.ts';
 import { CameraRig } from './camera/rig.ts';
 import { cutUniform, fieldSoft } from './camera/dive.ts';
 import { ORGAN_CUT } from './organs/layer.ts';
@@ -37,6 +38,8 @@ import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, 
 import { LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L, lobuleShot } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
 import { SinusoidView, diveShare, isPortrait, restScale } from './sinusoid/index.ts';
+import { framePoint, measureScreen } from './sinusoid/portrait.ts';
+import { U as SIN_UNIT } from './sinusoid/view.ts';
 import { sinusoidBox } from './lobule/shots.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
@@ -120,6 +123,8 @@ export class CelScene {
   /** The organs a slide outlines (and the normal spleen's line). */
   readonly pins = new OrganPins();
   readonly flow: BloodMarks;
+  /** Blood-cell particles (Settings > Figure depth): built the first time they are switched on, one draw call. */
+  readonly cells: BloodCells;
   /** The colour lens (src/scene/lenses/): what colour every vein wears, crossfaded on the clock. */
   readonly lens = new LensField();
   /** The blood's streams (the chevrons' distance, speed and reversed flag, from the 2D app's own stream model). */
@@ -217,6 +222,7 @@ export class CelScene {
 
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
     this.flow = new BloodMarks(this.vessels);
+    this.cells = new BloodCells({ vessels: NETWORK, object: (id) => this.vesselObject(id), shared: this.shared, lens: this.lens.shared, blood: this.blood.shared, parent: this.body, layer: VESSEL_LAYER, phone: () => this.phone });
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
     this.shapes = new ShapeTracks(NETWORK, this.byEdge as unknown as Map<string, VesselObject>);
     this.lens.setContext({ healthy: null, ref: null });
@@ -612,6 +618,7 @@ export class CelScene {
   }
   /** A portrait room (narrower than tall, 2D's `W < H * 0.95`) runs the sinusoid top to bottom: the sinusoid view takes it (SinusoidView.setPortrait, the sinusoid worker's), and the shot asks for it (sinusoidShot(portrait)). */
   private portrait = false;
+  private readonly sinusPt = new Vector3(); private readonly scrO = { x: 0, y: 0 }; private readonly scrA = { x: 0, y: 0 };
   private stepPortrait(): void {
     const r = this.rig.targetRoom, st = this.rig.stageSize, p = isPortrait(st.w, st.h);   // (2D's rule on the stage: ensureGeo(W, H))
     if (p !== this.portrait) {
@@ -622,7 +629,11 @@ export class CelScene {
     }
     // what the view needs of the screen to lay its end arrows and run its traffic as 2D does: px per µm along the flow (the hand's zoom included), the room's length and the canvas's along it
     const short = Math.min(r.w, r.h), s = this.rig.stageSize;
-    this.sinus.setScreen(restScale(short) * this.rig.handZoom, p ? r.h : r.w, p ? s.h : s.w);
+    // (measured on the screen, not modelled: where the sinusoid's middle and a point 10 µm down the flow land, against the free room's middle)
+    if (!this.sinus.isVisible) return;   // (nothing of the view is read while it is away)
+    const turn = this.sinus.turn, o = this.rig.project(this.sinusPt.set(...sinusoidWorld([0, 0, 0])), this.scrO), a = this.rig.project(this.sinusPt.set(...sinusoidWorld(framePoint(10, 0, SIN_UNIT, turn))), this.scrA);
+    const m = measureScreen(o, a, this.rig.roomCentre());
+    this.sinus.setScreen(m.k > 0 ? m.k : restScale(short) * this.rig.handZoom, p ? r.h : r.w, p ? s.h : s.w, m.k > 0 ? m.centreUm : 0);
   }
   get isPortrait(): boolean { return this.portrait; }
   /** The distance the camera sits at with the whole lobule framed in the room it has (kept per room size). */
@@ -760,6 +771,7 @@ export class CelScene {
     const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id));
     const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || this.stepCava(dt);
     const lensMoving = this.lens.step(now);
+    const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving });
     const presMoving = this.presence.step(dt);
     const shapeMoving = this.shapes.step(dt);
     this.stepSinusDive();
@@ -770,7 +782,7 @@ export class CelScene {
     const diseaseMoving = this.disease.update(now);
     if (diseaseMoving) this.tagOverOrgans();
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
-    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || lensMoving || presMoving || shapeMoving || viewMoving;
+    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || lensMoving || presMoving || shapeMoving || viewMoving;
     this.moving = false;
     return needs;
   }
@@ -815,15 +827,18 @@ export class CelScene {
     this.lobule.setDpr(gl.getPixelRatio?.() ?? 1);
     const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;
     // the figure is drawn into a texture of the canvas's size and filtered onto the canvas once (post-aa.ts), unless the pass is off or the device refused it
+    // depth of field in the dive (desktop only, post-dof.ts): zero cost unless its strength is above 0; the vessels' pass then keeps the depth the first pass drew (it draws nothing once the body is gone)
+    const dofShare = this.post.dof.frame(this.figureView, cam, this.rig.pose.shot.target, cam.position.distanceTo(this.livePoint), this.lobuleRest(), DIVE_IN);
     const into = this.post.target(gl);
+    const dof = dofShare > 0 && !!into?.depthTexture;
     if (into) gl.setRenderTarget(into);
     cam.layers.set(0);
     gl.render(this.scene, cam);
     gl.autoClear = false;
-    gl.clearDepth(); gl.clearStencil();   // (the outlines' stencil goes with the depth: each pass inks a pixel once, vessel-object.ts hullMat)
+    if (!dof) { gl.clearDepth(); gl.clearStencil(); }   // (the outlines' stencil goes with the depth: each pass inks a pixel once, vessel-object.ts hullMat)
     cam.layers.set(VESSEL_LAYER);
     gl.render(this.scene, cam);
-    if (into) { gl.setRenderTarget(null); this.post.resolve(gl); }
+    if (into) { if (dof) this.post.dof.run(gl, into); gl.setRenderTarget(null); this.post.resolve(gl); }
     gl.autoClear = ac;
     cam.layers.mask = mask;
   }
@@ -831,6 +846,7 @@ export class CelScene {
   dispose(): void {
     this.unJoins();
     this.lens.dispose();
+    this.cells.dispose();
     this.disease.dispose();
     this.blood.streams.texture.dispose();
     this.blood.chain.texture.dispose();

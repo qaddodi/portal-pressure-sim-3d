@@ -83,3 +83,15 @@ test('outside a talk, and on nothing, a tap is not taken', () => {
   assert.equal(useSinusoidNames.getState().explain, null);
   assert.equal(sinusoidTap(-500, -500, true), false);
 });
+
+test('a leader ends in 2D\'s ringed dot on the part it names: the layer draws one at every leader\'s end, and across a wide screen the names that stand on their part (the cells, the Disse) have none', async () => {
+  const { placed } = build(1440, 900);
+  const led = placed.filter((p) => p.leader).map((p) => p.key).sort();
+  for (const k of led) assert.ok(['fen', 'lymph', 'bc'].includes(k), `${k} has a leader across a wide screen`);   // (2D: layoutTags gives the lymph and the fenestrae one, the bile canaliculus's own function its short one)
+  assert.ok(led.includes('fen'), 'the fenestrae are tied to their pore');
+  for (const p of placed.filter((q) => q.leader)) assert.ok(Number.isFinite(p.leader!.x2) && Number.isFinite(p.leader!.y2), `${p.key}'s dot has a place`);
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/scene/sinusoid/SinusoidCaptions.tsx', import.meta.url), 'utf8');
+  assert.match(src, /className = 'lb-anchor'/, 'a ring element per name');
+  assert.match(src, /translate\(\$\{Math\.round\(p\.leader\.x2/, 'put at the leader\'s end');
+});

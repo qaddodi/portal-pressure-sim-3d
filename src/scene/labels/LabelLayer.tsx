@@ -11,6 +11,8 @@ import { useSettings } from '../../state/settings.ts';
 import { resolveLook } from '../../looks/looks.ts';
 import { BAR } from '../../ui/layout/plan.ts';
 import { useUi } from '../../ui/ui-store.ts';
+import { useTestsRoom } from '../../ui/tests/room.ts';
+import { labelView, placeBlockers } from './room.ts';
 import { cel, sceneApi, usePick } from '../api.ts';
 import { rectToBox, type Box } from './geometry.ts';
 import { LabelController, type Draw, type LabelDeps } from './controller.ts';
@@ -30,7 +32,7 @@ import { FigureCards } from './figure-cards.ts';
 import { toneCss } from '../../ui/deck/figure-plan.ts';
 import { VesselWalk } from './VesselWalk.tsx';
 import { Vector3 } from 'three';
-import { MOTION } from '../../clock/tween.ts';
+import { roll } from './roll.ts';
 
 const NODE_AT = new Map<string, number>((NODES as unknown as { id: string }[] | [string][]).map((n, i) => [Array.isArray(n) ? n[0] : (n as { id: string }).id, i]));
 
@@ -97,8 +99,8 @@ export function LabelLayer() {
       project: (p, out) => sceneApi.project(p, out),
       cameraMoving: () => sceneApi.cameraMoving,
       free: () => rectToBox(ui.getState().boxes.free),
-      view: () => { const { vp } = ui.getState(); return { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom }; },
-      blockers: () => { const b = ui.getState().boxes; return [...[b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox), ...figCards.boxes]; },
+      view: () => labelView(ui.getState().vp, BAR, useTestsRoom.getState().place),
+      blockers: () => { const b = ui.getState().boxes; return [...[b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox), ...placeBlockers(useTestsRoom.getState().place), ...figCards.boxes]; },
       measure: makeMeasure(),
       vp: () => ui.getState().vp,
       words: () => ui.getState().boxes.words,
@@ -123,7 +125,7 @@ export function LabelLayer() {
     // what the slide stands on the figure besides the names (marks, sites, steps, calipers); the station names keep clear of its cards
     const figCards: FigureCards = new FigureCards(root, {
       project: deps.project, cameraMoving: deps.cameraMoving,
-      view: () => deps.view(), blockers: () => { const b = ui.getState().boxes; return [b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox); },
+      view: () => deps.view(), blockers: () => { const b = ui.getState().boxes; return [b.words, b.data, b.strip].filter((r): r is NonNullable<typeof r> => !!r).map(rectToBox).concat(placeBlockers(useTestsRoom.getState().place)); },
       vp: () => ui.getState().vp, measure: deps.measure, now: deps.now, spleenScale: () => cel.disease.organs.spleenScaleNow,
       circuit: () => (cel.view === 'circuit' && cel.circuit.t >= 1 ? { k: cel.mapScale(), project: (x, y, out) => cel.mapPoint(x, y, out) } : null),
       lobule: (name, out) => { if (cel.view !== 'lobule') return null; const a = cel.lobule.anchor(name, [0, 0, 0]); return out.set(a[0], a[1], a[2]); },
@@ -187,6 +189,7 @@ export function LabelLayer() {
     const putVars = (v: Record<string, string>) => { for (const [k, val] of Object.entries(v)) root.style.setProperty(k, val); };
     const applyType = () => { const { vp } = ui.getState(); putVars(typeVars(vp)); putVars(lookVars(lookRef.current, vp)); putVars(cathVars(vp)); putVars(cathLook(lookRef.current)); ctl.invalidateForms(); clock.invalidate('labels-type'); };
     applyType();
+    const offTests = useTestsRoom.subscribe(() => { ctl.markDirty(); clock.invalidate('labels-tests'); });
     const offUi = ui.subscribe((s, p) => { if (s.vp !== p.vp) applyType(); if (s.boxes !== p.boxes || s.vp !== p.vp) { ctl.markDirty(); clock.invalidate('labels-boxes'); } });
     applyTypeRef.current = applyType;
     const offLink = linkLabelsToDeck();
@@ -213,7 +216,7 @@ export function LabelLayer() {
       else if (!wantFrames && hold) { hold.release(); hold = null; }
     }, 0);
 
-    return () => { figCards.destroy(); offFigure(); cath.destroy(); probeLabels.destroy(); offHits(); offTags(); offLabels(); offPick(); offUi(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
+    return () => { figCards.destroy(); offFigure(); cath.destroy(); probeLabels.destroy(); offHits(); offTags(); offLabels(); offPick(); offUi(); offTests(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
   }, []);
 
   return (
@@ -282,21 +285,6 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
       } else { r.lead.removeAttribute('data-on'); r.lead.style.opacity = '0'; }
     }
   }
-}
-
-/** A number that changes rolls: the old one goes up and out, the new one comes up from below (400 ms, transform and opacity). */
-function roll(r: Rec, next: string, was: string): void {
-  const cur = r.cur!;
-  const box = cur.parentElement!;
-  box.querySelectorAll('.lb-old').forEach((e) => e.remove());
-  const old = document.createElement('span');
-  old.className = 'lb-old'; old.textContent = was;
-  box.appendChild(old);
-  cur.textContent = next;
-  const ease = 'cubic-bezier(.2, .7, .2, 1)';
-  const out = old.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-0.55em)' }], { duration: MOTION.rollMs, easing: ease, fill: 'both' });
-  out.onfinish = () => old.remove();
-  cur.animate([{ opacity: 0, transform: 'translateY(0.55em)' }, { opacity: 1, transform: 'none' }], { duration: MOTION.rollMs, easing: ease });
 }
 
 /** The key's pill: the lens named, then its scale or its named swatches (the 2D app's presenter.js keyNodes). */
