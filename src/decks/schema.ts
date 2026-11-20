@@ -88,6 +88,10 @@ export interface Slide {
   /** The live controls on the teaching card: compare buttons, a what-if slider, the beta-blocker response, the scale pill (decks/controls.ts). */
   controls?: SlideControls;
   terms?: Record<string, string>;
+  /** What the 2D line typesetter reads (presenter-words.js rich): the slide's `terms` as written (a list of station ids or { word: id }), its `key` tiles and `bold` words. */
+  lineTerms?: Record<string, string> | string[];
+  lineKey?: string[];
+  lineBold?: string[];
   eq?: EqPart[];
   /** The ladder (data) card: which readings, which one is the result. Absent: no data card on this slide. */
   ladder?: { rows: ReadingKey[]; result?: 'hvpg' };

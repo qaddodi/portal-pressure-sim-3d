@@ -4,10 +4,10 @@ import { TableCard } from './TableCard.tsx';
 import { ToolCard } from '../talk/ToolCard.tsx';
 
 /** A slide whose card is a summary table or a chart, as 2D draws it: one centred panel with the slide's title and line at its head and the table or chart under them (2D's `visual` slides). */
-export function VisualCard({ deck, slide, read }: { deck: Deck; slide: Slide; read: (k: string, at?: string) => number | null | undefined }) {
+export function VisualCard({ deck, slide, read, fp }: { deck: Deck; slide: Slide; fp?: Readonly<Record<string, number | null | undefined>>; read: (k: string, at?: string) => number | null | undefined }) {
   return (
     <>
-      <TeachingCard panel slide={slide} deck={deck} read={read} page={0} pages={1} />
+      <TeachingCard panel slide={slide} deck={deck} read={read} fp={fp} page={0} pages={1} />
       {slide.table ? <TableCard deck={deck} slide={slide} /> : <ToolCard deck={deck} slide={slide} />}
     </>
   );

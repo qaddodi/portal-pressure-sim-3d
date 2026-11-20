@@ -1,42 +1,68 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { parseLine } from '../text/line.ts';
 import { valueText } from '../text/tokens.ts';
 import { Roll } from './Roll.tsx';
+import { nb } from '../text/glue.ts';
+import { typesetter, toneVar, stationTone, type Node, type RichSlide } from '../text/rich.ts';
+import { rateShown, tipsGoal, tileShown } from '../deck/from2d/table-marks.js';
+import { TOKEN_OF_RATE } from '../../engine/hales/portal/pressure-cuts.js';
+
+type Fp = Readonly<Record<string, number | null | undefined>>;
+/** A reading's pill colour, as 2D valTone: the rating its tile gives (green, amber, red), else the station it is read at. After a TIPS the PPG is read against its 12 mmHg reference line, as its tile reads it. */
+export function pillTone(k: string, fp: Fp | undefined, tips = false): { tone: string | null; rate: string | null } {
+  const v = fp?.[k];
+  const rate = v == null ? null : tips && k === 'ppg' ? (tipsGoal(tileShown(k, v))[0] as string) : ((rateShown(k, fp) as string[])[0] ?? null);
+  const token = rate ? (TOKEN_OF_RATE as Record<string, string | undefined>)[rate] : undefined;
+  return { tone: token ?? stationTone(k), rate: rate && rate !== 'none' ? rate : null };
+}
+const style = (tone: string | null) => (tone ? { ['--tone' as string]: toneVar(tone) } : undefined);
 
 /** A slide's line, typeset: live readings roll, cut-offs and bold words are bold, figure terms are tagged for the scene.
  *  `pill`: the value a line without a braced one sets in a quiet pill (card-fields.ts autoPill). */
-export function Line({ text, read, terms, pill }: { text: string; read: (k: string, at?: string) => number | null | undefined; terms?: Record<string, string>; pill?: string | null }): ReactNode {
-  const pieces = parseLine(text);
+export function Line({ text, read, slide, fp, pill }: { text: string; read: (k: string, at?: string) => number | null | undefined; /** the slide's own terms, key and bold words (2D rich): what to set in a pill or in bold */ slide?: RichSlide; /** the slide's readings, for the colour of a value's pill */ fp?: Fp; pill?: string | null }): ReactNode {
+  // (2D rich: the line is glued first, so a number keeps its unit and a name its dash on one line)
+  const pieces = parseLine(nb(text));
+  pill = pill ? nb(pill) : pill;
   let done = false;
+  // (the spleen's word wears its status colour while it is not normal, as 2D rateTone gives it)
+  const set = typesetter(slide ?? {}, () => { const r = fp ? (rateShown('spleen', fp) as string[])[0] : null; return r && r !== 'ok' ? (TOKEN_OF_RATE as Record<string, string | undefined>)[r] ?? null : null; });
+  const words = (t: string, k: string): ReactNode => nodes(set.set(t), k);
   return pieces.map((p, i) => {
     switch (p.t) {
       case 'text': {
         // (the line's one pill: the first value with a unit, in the first piece of plain words that holds it)
         const at = pill && !done ? p.text.indexOf(pill) : -1;
-        if (at < 0) return <TermText key={i} text={p.text} terms={terms} />;
+        if (at < 0) return <Fragment key={i}>{words(p.text, 'w')}</Fragment>;
         done = true;
-        return <span key={i}><TermText text={p.text.slice(0, at)} terms={terms} /><b className="pz-nw">{pill!.replace(/\s(?=mmHg|g\/dL|mL|kPa|cm\/s|mm\b|%)/, '\u00a0')}</b><TermText text={p.text.slice(at + pill!.length)} terms={terms} /></span>;
+        return <Fragment key={i}>{words(p.text.slice(0, at), 'a')}<b className="pz-nw">{pill!.replace(/\s(?=mmHg|g\/dL|mL|kPa|cm\/s|mm\b|%)/, '\u00a0')}</b>{words(p.text.slice(at + pill!.length), 'b')}</Fragment>;
       }
       case 'step': return <span key={i} className="pz-nw"><span className="pz-step" role="img" aria-label={`Step ${p.n}`}>{p.n}</span></span>;
       case 'bold': return <b key={i}>{p.text}</b>;
-      case 'term': return <span key={i} className="pz-term dk-term" data-term={p.term}>{p.label}</span>;
+      case 'term': return <Fragment key={i}>{node(set.term(p.label, p.term), 't')}</Fragment>;
       case 'cutoff': return <b key={i} className="pz-nw">{p.text}</b>;
       case 'literal': return <b key={i} className="pz-nw">{p.text}</b>;
       case 'value': {
         // a reading as its tile prints it, with its unit (the blood pressure beside its two numbers, the platelets in thousands)
         const v = read(p.key, p.at);
         const text = v == null ? '…' : valueText(p.key, { [p.key]: v, sbp: read('sbp', p.at), dbp: read('dbp', p.at) }, p.decimals === 0);
-        return <span key={i} className="pz-val dk-num"><Roll text={text} /></span>;
+        const { tone, rate } = v == null ? { tone: null, rate: null } : pillTone(p.key, p.at ? { ...fp, [p.key]: fp?.[`${p.key}@${p.at}`] } : fp);
+        return <span key={i} className="pz-nw"><span className={`pz-val dk-num${tone ? ' tone' : ''}`} data-rate={rate ?? undefined} data-k={p.key} style={style(tone)}><Roll text={text} /></span></span>;
       }
     }
   });
 }
 
-/** Words the slide's `terms` field names get their term tag on first mention, so the scene can light the matching part of the figure. */
-function TermText({ text, terms }: { text: string; terms?: Record<string, string> }) {
-  if (!terms) return <>{text}</>;
-  const keys = Object.keys(terms).sort((a, b) => b.length - a.length);
-  if (!keys.length) return <>{text}</>;
-  const re = new RegExp(`(${keys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g');
-  return <>{text.split(re).map((part, i) => (terms[part] ? <span key={i} className="pz-term dk-term" data-term={terms[part]}>{part}</span> : part))}</>;
+/** One typeset node as an element: a figure term keeps its tag for the scene (dk-term, data-term) and wears its station's colour. */
+function node(n: Node, key: string): ReactNode {
+  switch (n.t) {
+    case 'text': return n.s;
+    case 'bold': return <b key={key}>{n.s}</b>;
+    case 'disease': return <span key={key} className={n.s.length <= 25 ? 'pz-dz pz-nw' : 'pz-dz'}>{n.s}</span>;
+    case 'lens': return <span key={key} className="pz-term pz-lens-t" style={style(n.tone)}>{n.s}</span>;
+    case 'term': {
+      const el = <span className="pz-term dk-term" data-term={n.term} data-target={n.term} style={style(n.tone)}>{n.s}</span>;
+      return n.stop ? <span key={key} className="pz-nw pz-stop">{el}{n.stop}</span> : <span key={key} className="contents">{el}</span>;
+    }
+  }
 }
+const nodes = (ns: Node[], key: string): ReactNode => ns.map((n, i) => node(n, `${key}${i}`));

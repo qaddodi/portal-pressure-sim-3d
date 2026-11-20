@@ -235,7 +235,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     switch (e.id) {
       case 'title': return <TitleCard deck={deck} page={sn.at} pages={sn.pages} />;
       case 'case': return sn.slide ? <CaseCard slide={sn.slide} page={sn.at} pages={sn.pages} /> : null;   // (a leaving card with no snapshot falls back to the view now, which on the title or the quick check has no slide: Back from slide 2 crashed the app)
-      case 'teach': return sn.slide ? <TeachingCard slide={sn.slide} deck={deck} read={read} page={sn.at} pages={sn.pages} trim={sn.trim} /> : null;
+      case 'teach': return sn.slide ? <TeachingCard slide={sn.slide} deck={deck} read={read} fp={readings} page={sn.at} pages={sn.pages} trim={sn.trim} /> : null;
       case 'table': return sn.dslide?.table ? <TableCard deck={deck} slide={sn.dslide} /> : sn.dslide ? <ToolCard deck={deck} slide={sn.dslide} /> : null;
       case 'ladder': return (
         <>
@@ -244,7 +244,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
           {sn.dslide?.ladder && !sn.dslide.tool ? <LadderCard ladder={sn.dslide.ladder} readings={readings} /> : sn.dslide?.tiles ? <TilesCard deckId={deck.id} slideId={sn.dslide.id} /> : null}
         </>
       );
-      case 'visual': return sn.slide ? <VisualCard deck={deck} slide={sn.slide} read={read} /> : null;
+      case 'visual': return sn.slide ? <VisualCard deck={deck} slide={sn.slide} read={read} fp={readings} /> : null;
       case 'check': return <CheckCard deck={deck} page={sn.at} pages={sn.pages} />;
     }
   };
