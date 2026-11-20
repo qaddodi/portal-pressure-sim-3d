@@ -45,6 +45,7 @@ attribute vec2 dctr;     // the disc's centre
 attribute vec3 mouth;    // the rim mask's three words (lobule-mouths.js)
 uniform float discK;     // how much of its healthy radius the disc has now
 varying vec3 vDisc;
+varying vec2 vDiscP;     // where in the unit disc this fragment is (the plane position over the radius, so length() is the exact share of the radius and atan() the exact direction: not a per-triangle slope)
 flat varying vec3 vMouth;
 #endif
 `;
@@ -53,6 +54,7 @@ const VS_POS = /* glsl */ `
 #ifdef DISC
   pos0.xy = dctr + (position.xy - dctr) * discK;
   vDisc = disc; vMouth = mouth;
+  vDiscP = disc.x >= 0.0 ? disc.x * disc.yz : disc.yz;   // (the cap: 0 at its centre, the unit direction at its rim, so the fan carries the plane position itself; the wall: its direction)
 #endif`;
 const VS_RDEV = /* glsl */ `
   float pxU = length(modelMatrix[0].xyz) * projectionMatrix[1][1] * res.y * 0.5 * dpr / max(-mv.z, 1e-6);
@@ -156,7 +158,9 @@ ${HEADS_DECL}
 #ifdef DISC
 uniform float discJoin;   // 1 where vessels join the disc (its wall opens at their mouths), 0 where nothing does (it keeps its own inner line)
 uniform vec3 discInk;
+uniform float discK;
 varying vec3 vDisc;
+varying vec2 vDiscP;
 flat varying vec3 vMouth;
 ${DISC_GLSL}
 #endif
@@ -166,11 +170,12 @@ const FS_TONES = /* glsl */ `
 #ifdef TONES3
   c = base;
 #ifdef DISC
-  float fwR = fwidth(vDisc.x);
-  if (vDisc.x >= 0.0 && fwR > 1e-6) {
-    float Rpx = 1.0 / fwR, Dd = (vDisc.x - 1.0) * Rpx;
+  // (the radius in device pixels is the one the vertex stage works out from the camera, not fwidth(): fwidth is |dx|+|dy|, 1.0 to 1.41 times the slope by direction, and flat per triangle of the fan: a star-shaped, faceted vein)
+  float Rpx = vRdev * discK;
+  if (vDisc.x >= 0.0 && Rpx > 1e-3) {
+    float Dd = (length(vDiscP) - 1.0) * Rpx;
     float wl = clamp(${num(CEL.LINE_R)} * Rpx, ${num(CEL.LINE_MIN)}, ${num(CEL.LINE_MAX)});
-    float open = discJoin > 0.5 ? smoothstep(0.15, 0.85, ringOpen(vMouth, vec2(vDisc.y, vDisc.z))) : 0.0;
+    float open = discJoin > 0.5 ? smoothstep(0.15, 0.85, ringOpen(vMouth, vDiscP)) : 0.0;
     c = celDisc(c, discInk, Dd, Rpx, discLine(discJoin, wl), 1.0, open);
   }
 #else
@@ -207,11 +212,12 @@ attribute vec2 dctr;
 attribute vec3 mouth;
 uniform float discK;
 varying vec3 vDisc;
+varying vec2 vDiscP;
 flat varying vec3 vMouth;
 #endif
 `;
 export const LOBULE_INK_VS: string = (() => {
-  let t = patch(INK_VS, 'varying float vU;\nvoid main() {', `varying float vU;${INK_VS_DECL}\nvoid main() {\n  vec3 pos0 = position;\n#ifdef DISC\n  pos0.xy = dctr + (position.xy - dctr) * discK;\n  vDisc = disc; vMouth = mouth;\n#endif`);
+  let t = patch(INK_VS, 'varying float vU;\nvoid main() {', `varying float vU;${INK_VS_DECL}\nvoid main() {\n  vec3 pos0 = position;\n#ifdef DISC\n  pos0.xy = dctr + (position.xy - dctr) * discK;\n  vDisc = disc; vMouth = mouth;\n  vDiscP = disc.x >= 0.0 ? disc.x * disc.yz : disc.yz;\n#endif`);
   t = patch(t, 'vec3 p = position + normal * inflate;', 'vec3 p = pos0 + normal * inflate;');
   // the line is 2D's: clamp(0.14 R, 1.5, 3) device px; a part drawn with no line (px 0: the space of Disse's band) keeps none
   t = patch(t, '  c.xy += nd * (px + hiPx * vHi) * 2.0 / res * c.w;',
@@ -222,8 +228,8 @@ export const LOBULE_INK_VS: string = (() => {
 })();
 
 export const LOBULE_INK_FS: string = (() => {
-  let t = patch(INK_FS, 'varying float vU;\n', `varying float vU;\n#ifdef DISC\nuniform float discJoin;\nvarying vec3 vDisc;\nflat varying vec3 vMouth;\n${DISC_GLSL}\n#endif\n`);
-  t = patch(t, 'if (fadedOut()) discard;', 'if (fadedOut()) discard;\n#ifdef DISC\n  if (discJoin > 0.5 && smoothstep(0.15, 0.85, ringOpen(vMouth, vec2(vDisc.y, vDisc.z))) > 0.5) discard;   // (the wall is one line, none where a vessel joins)\n#endif\n ');
+  let t = patch(INK_FS, 'varying float vU;\n', `varying float vU;\n#ifdef DISC\nuniform float discJoin;\nvarying vec3 vDisc;\nvarying vec2 vDiscP;\nflat varying vec3 vMouth;\n${DISC_GLSL}\n#endif\n`);
+  t = patch(t, 'if (fadedOut()) discard;', 'if (fadedOut()) discard;\n#ifdef DISC\n  if (discJoin > 0.5 && smoothstep(0.15, 0.85, ringOpen(vMouth, vDiscP)) > 0.5) discard;   // (the wall is one line, none where a vessel joins)\n#endif\n ');
   return t;
 })();
 

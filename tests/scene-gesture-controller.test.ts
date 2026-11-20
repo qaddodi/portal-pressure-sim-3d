@@ -313,3 +313,12 @@ test('in a talk the camera is the slide\'s: a drag, a pinch and a wheel move not
   r.ptr('pointerdown', 1, 300, 200); r.ptr('pointerup', 1, 301, 200);
   assert.deepEqual(r.taps, [[301, 200]], 'a tap still lands (the sinusoid\'s explain)');
 });
+
+test('in a talk a right click or long press opens no card and a zoom key or button does not zoom the figure', () => {
+  let ctx = 0;
+  const r = rig({ context: () => { ctx++; } }, true);
+  r.el.emit('contextmenu', { clientX: 300, clientY: 200 });
+  assert.equal(ctx, 0);
+  r.g.zoomStep(2); r.run(600);
+  assert.equal(r.hand.k, 1);
+});
