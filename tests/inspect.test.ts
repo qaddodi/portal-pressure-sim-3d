@@ -197,3 +197,34 @@ test('every diagnostic the skin\'s program can carry is one the inspector switch
   const src = SKIN_FS;
   for (const d of Object.values(want).concat('SKIN_DEBUG')) assert.ok(src.includes(d), `${d} is in the skin shader`);
 });
+
+test('solo and mute by vessel id: only the soloed are drawn for the frame, a skin stays while any of its arms is, and every flag is put back', async () => {
+  const { CelScene } = await import('../src/scene/scene.ts');
+  const { useSettings } = await import('../src/state/settings.ts');
+  useSettings.setState({ smoothJoins: true });
+  const s = new CelScene({ joins: 'mesh2' });
+  const priv = s as unknown as { inspectBegin(): (() => void) | null; skins: { drawnArms(): { object: { visible: boolean }; arms: readonly string[] }[] } };
+  const begin = () => priv.inspectBegin();
+  const vis = () => s.vessels.map((o) => o.group.visible);
+  const skinVis = () => priv.skins.drawnArms().map((k) => k.object.visible);
+  assert.equal(begin(), null, 'nothing asked: nothing touched');
+  const before = vis(), skinBefore = skinVis();
+  assert.ok(skinBefore.length >= 4, 'there are skins');
+  const any = (id: string) => priv.skins.drawnArms().map((k, i) => skinBefore[i]! && k.arms.includes(id));
+  s.setInspectVessels(['SMV_CONF'], []);
+  let end = begin()!;
+  assert.deepEqual(s.vessels.filter((o) => o.group.visible).map((o) => o.edge!.id), before[s.vessels.findIndex((o) => o.edge!.id === 'SMV_CONF')] ? ['SMV_CONF'] : [], 'only the soloed vessel');
+  assert.deepEqual(skinVis(), any('SMV_CONF'), 'a skin stays while one of its arms is soloed, the others go');
+  assert.ok(any('SMV_CONF').some(Boolean) && any('SMV_CONF').some((v) => !v), 'SMV_CONF stands in some skins and not others');
+  end();
+  assert.deepEqual(vis(), before, 'the flags come back exactly'); assert.deepEqual(skinVis(), skinBefore);
+  s.setInspectVessels([], ['SMV_CONF', 'SV_MID']);
+  end = begin()!;
+  const g = (id: string) => s.vessels.find((o) => o.edge!.id === id)!.group.visible;
+  assert.ok(!g('SMV_CONF') && !g('SV_MID'), 'muted: not drawn'); assert.equal(g('PV_TRUNK'), before[s.vessels.findIndex((o) => o.edge!.id === 'PV_TRUNK')], 'the rest stay as they were');
+  end();
+  assert.equal(s.inspectVesselList().length, s.vessels.length, 'the list names every vessel');
+  s.setInspectVessels([], []);
+  assert.equal(begin(), null);
+  s.dispose();
+});

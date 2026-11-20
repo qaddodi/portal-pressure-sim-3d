@@ -102,6 +102,9 @@ export function rawPrograms(fibroText: string): Program[] {
     lateMaterialProgram('skin', SKIN_VS, SKIN_FS),
     lateMaterialProgram('skin (solid copy)', SKIN_VS, SKIN_FS, { SKIN_COPY: 1 }),
     lateMaterialProgram('skin (veil copy)', SKIN_VS, SKIN_FS, { SKIN_COPY: 2 }),
+    lateMaterialProgram('skin (Circuit)', SKIN_VS, SKIN_FS, { SKIN_COPY: 0, SKIN_CIRC: 1 }),   // (the map's own skins, circuit/skins.ts: the same source with the map's widths and lines)
+    lateMaterialProgram('skin (Circuit, solid copy)', SKIN_VS, SKIN_FS, { SKIN_COPY: 1, SKIN_CIRC: 1 }),
+    lateMaterialProgram('skin (Circuit, veil copy)', SKIN_VS, SKIN_FS, { SKIN_COPY: 2, SKIN_CIRC: 1 }),
     // the inspector's programs (?inspect: scene/vessels/debug-view.ts): the same sources with the VDBG hooks, and the skin's three build-time diagnostics, so every variant a panel switch can reach has been through the compile check
     lateMaterialProgram('vessel (inspector)', VESSEL_VS, VESSEL_FS, { VDBG: 1 }),
     lateMaterialProgram('skin (inspector)', SKIN_VS, SKIN_FS, { SKIN_COPY: 0, VDBG: 1, SKIN_DEBUG: 1 }),

@@ -6,7 +6,8 @@
 // tube: same position (VERTEX), same colour, same line. The skin differs from the tube in exactly four ways:
 //   1. It has no single centreline, so its ink is the OUTLINE OF THE SMOOTH UNION of its arms' live capsules in screen pixels (the 2D figure's own rule, fork-joins.copied.js), not a distance to one axis.
 //   2. Its flow marks (chevrons, streaks, dust) are the tubes' own, drawn once per arm on that arm's arc and blended by the arm weights (Mohammad, 20 Nov: they cross a junction, they do not break at the seam): see THE FLOW MARKS below.
-//   3. It has no Circuit morph: on the map the tubes become flat lines and the map draws its own joins, so the skin fades out with `circT` (section 4.9).
+//   3. It has no Circuit MORPH: the body's skin fades out with `circT` (section 4.9). The Circuit has skins of its own (circuit/skins.ts, the program built with SKIN_CIRC): the same mesh builder on the map's courses, the map's widths (circSwellOf: 2D's
+//      widthAt, the zoom's boost and the least width on the screen), the map's bolder line and its inner line, and in at the END of the change (SKIN_CIRC_IN). The map's turn is the object's matrix.
 //   4. It does no run-on mate easing: the weights do the blending.
 //
 // THE UNIFORMS (the scene wiring, skin-object.ts, spreads the shared ones by reference and writes the per-arm ones; the table is the spec's section 3, plus the three marked +):
@@ -42,6 +43,9 @@ import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL
 import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
 import { DUST_GLSL } from '../../blood/dust-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
+import { CIRC_INK_K, CIRC_INNER } from '../cel-ink.ts';
+import { MAP_K } from '../../circuit/map.ts';
+import { SKIN_CIRC_IN } from './types.ts';
 
 /** How many arms a skin blends (a junction of three or four tubes): the weights are one vec4. */
 export const SKIN_ARMS = 6;
@@ -83,7 +87,11 @@ uniform vec2 growG;                    // the growth of the first and of the sec
 `;
 
 export const SKIN_VS = /* glsl */ `
+#ifdef SKIN_CIRC
+const float SKIN_U = ${F(1 / MAP_K)};   // (the map's units in one scene unit: the vessel's own vU at circShare 1)
+#else
 const float SKIN_U = ${F(SKIN_FIGURE_UNITS)};
+#endif
 #ifndef SKIN_GROW
 #define SKIN_GROW 0   // how many growing arms the skin morphs (the material's define; a skin with none has no morph)
 #endif
@@ -113,6 +121,23 @@ varying vec4 vSwell;
 varying vec2 vSwell2;    // the arms' live widths against their built ones, read once here so the fragment stage does not fetch them again
 varying vec3 vPos;       // the rest position: each arm's arc at this pixel (the flow marks) is read from it
 ${SWELL_OF_GLSL}
+#ifdef SKIN_CIRC
+uniform float circBoost;
+uniform float circPerPx;
+// 2D's width on the map (widthAt at t = 1; the tube's own circWidthOf): a vein clamp(1.3 max(2.6, 2 d^0.72) 0.95, 6, 15) times the boost, an artery 3, a liver bed 8 times the boost
+float circWidthAt(float d, float kind, float boost) {
+  if (kind > 1.5) return 8.0 * boost;
+  if (kind > 0.5) return 3.0;
+  return clamp(1.3 * max(2.6, 2.0 * pow(max(d, 0.1), 0.72)) * 0.95, 6.0, 15.0) * boost;
+}
+// an arm's live width on the map against the width its rings were built at (boost 1, no floor): the tube's circSwell, with no mate (a skinned end has none)
+float circSwellOf(vec4 a) {
+  float d = a.y;
+  if (useData > 0.5 && a.z < 0.5) { ivec2 tc = ivec2(int(mod(a.x, vdataSize.x)), int(floor(a.x / vdataSize.x))); d = texelFetch(vdata, tc, 0).b; }
+  float least = (a.z > 1.5 ? 4.5 : (a.z > 0.5 ? 3.0 : 5.0)) * circPerPx;
+  return max(circWidthAt(d, a.z, circBoost), least) / circWidthAt(a.y, a.z, 1.0);
+}
+#endif
 vec4 wgA;   // the weights now (the mesh's, less what each growing arm has still to grow)
 vec2 wgB;
 float wAt(int i) { return i < 4 ? wgA[i] : wgB[i - 4]; }
@@ -143,7 +168,11 @@ void main() {
   for (int i = 0; i < ${SKIN_ARMS}; i++) { swT[i] = 1.0; swE[i] = 1.0; }
   // (an arm's waist at its seam is part of its width there, as the tube's own narrowK is: the same share kept, 1 - narrow clamped as the tube clamps it)
   for (int i = 0; i < ${SKIN_ARMS}; i++) if (armData[i].x >= 0.0) {
+#ifdef SKIN_CIRC
+    float sw = circSwellOf(armData[i]) * (1.0 - clamp(armNarrow[i], 0.0, 0.97));
+#else
     float sw = swellOf(armData[i].x, armData[i].y, armData[i].z) * (1.0 - clamp(armNarrow[i], 0.0, 0.97));
+#endif
     float gi = 1.0;
 #if SKIN_GROW > 0
     gi = armGrow[i];
@@ -159,6 +188,9 @@ void main() {
   float hi = ${BLEND('armAF', 'wAt', '.z')};
   // the tube's own ink width (no stenosis waist at a seam, narrowK 1) plus the picked vein's extra line, blended
   float inkPx = ${inkPxGlsl('rCssV', 'rCssV')};
+#ifdef SKIN_CIRC
+  inkPx *= ${F(CIRC_INK_K)};   // (the Circuit's line is bolder: the tube's own, vessels/shaders.ts)
+#endif
   float inkW = (inkPx + hiPx * hi) * wpcV / SKIN_U;   // scene units
   // the tube's vertex rule (vessels/shaders.ts) with its radius * rk replaced by this vertex's own rest radius and its swell by the blend; the ring is a polygon, so its corners stand TUBE_SAG farther out
   vec3 p = pos + nor * (inflate + rst * (swellE - 1.0) + inkW + (lumenW + inkW) * sagK);
@@ -189,7 +221,11 @@ ${CEL_LIGHT_GLSL}
 ${VDBG_GLSL}
 uniform mat4 projectionMatrix;
 uniform mat4 modelViewMatrix;
+#ifdef SKIN_CIRC
+const float SKIN_U = ${F(1 / MAP_K)};
+#else
 const float SKIN_U = ${F(SKIN_FIGURE_UNITS)};
+#endif
 uniform vec3 inkColor;
 uniform vec3 inkColorCirc;
 uniform float circT;
@@ -355,7 +391,12 @@ void main() {
   if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) discard;
   // the arms' alphas, blended by weight: the junction fade rule already holds on the tubes, so their seam alphas agree and the skin runs through them. On the Circuit's map the tubes become flat lines and the map draws its own
   // joins, so the skin fades out over the first SKIN_CIRCUIT_FADE of the morph (the arm tubes' cut fades back in over the same)
-  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * armAF[${i}].y * ${COPY_OF(i)}`).join(' + ')}) * (1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT));
+  float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * armAF[${i}].y * ${COPY_OF(i)}`).join(' + ')}) 
+#ifdef SKIN_CIRC
+    * smoothstep(${F(SKIN_CIRC_IN)}, 1.0, circT);   // (the map's own skin: in over the end of the change, as the arm tubes' map cut takes their ends away)
+#else
+    * (1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT));
+#endif
 #ifdef SKIN_DEBUG
   if (alpha < 0.004) { gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0); gl_FragDepth = min(gl_FragCoord.z + 0.002, 1.0); return; }
 #endif
@@ -367,7 +408,11 @@ void main() {
   float vR = vRest * swellB * SKIN_U;
   float rCssAx = vR / max(wpcAx, 1e-6);
   float hi = ${BLEND('armAF', 'wAt', '.z')};
+#ifdef SKIN_CIRC
+  float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx')} * ${F(CIRC_INK_K)} + hiPx * hi) * dpr;
+#else
   float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx')} + hiPx * hi) * dpr;
+#endif
   float kPx = skinK / max(wpcAx / SKIN_U, 1e-9) * dpr;
   float sdPx = skinSdPx(kPx);
   // NEAR A SEAM THE TUBE'S OWN SILHOUETTE DECIDES, NOT THE OUTLINE'S APPROXIMATION OF IT (the black and brown specks along the walls at every junction: they are the background, a pixel or two of the seam's edge that the band
@@ -487,6 +532,14 @@ void main() {
 #endif
 #ifndef SKIN_NOINK
   c = mix(c, mix(${inkColourGlsl('base')}, inkColorCirc, circT), inkT);
+#endif
+#ifdef SKIN_CIRC
+  {
+    // the Circuit's INNER line (vessels/shaders.ts: the outline also sits a little inside the vessel and fades inward, so on a dark map the edge still reads): the lumen's own radius in device px sets its depth, the distance inside the wall is -sdPx
+    float rDevIn = rCssAx * dpr;
+    float inDepth = clamp(${F(CIRC_INNER.R)} * rDevIn, ${F(CIRC_INNER.MIN_PX)} * dpr, ${F(CIRC_INNER.MAX_PX)} * dpr);
+    c = mix(c, inkColorCirc, circT * ${F(CIRC_INNER.K)} * smoothstep(-inDepth, 0.0, sdPx));
+  }
 #endif
 #ifdef VDBG
   c = dbgEnd(c, armData[0].x + 0.5);

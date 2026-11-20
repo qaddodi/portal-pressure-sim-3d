@@ -84,7 +84,7 @@ export class DiseaseLayer {
   }
 
   /** Steps everything on the clock; true while anything moves (draw another frame). */
-  update(now: number): boolean {
+  update(now: number, flowRate = 1): boolean {
     const dt = this.lastNow < 0 ? 0.016 : Math.min(0.1, (now - this.lastNow) / 1000);
     this.lastNow = now;
     const t = this.targets, f = this.frame, ctx = this.ctx;
@@ -95,6 +95,7 @@ export class DiseaseLayer {
     moving = this.organs.update(now) || moving;
     moving = this.fluid.follow(t.ascites, dt, inst) || moving;
     this.ascites.set(this.fluid.shown);
+    moving = this.ascites.step(dt, flowRate) || moving;   // (the ripple runs with the eased flow rate, the slosh with the level's speed, the Living fluid switch glides)
     this.organs.setBowelLift(this.ascites.bulge / 34 * 26);
     this.landmarks.setAscites(this.fluid.shown);
     moving = this.landmarks.setCaput(ctx.recruit('C3', f), dt, inst) || moving;

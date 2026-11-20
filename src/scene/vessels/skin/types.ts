@@ -79,6 +79,12 @@ export const SKIN_HOLE_NONE: readonly [number, number] = [2, -1];
 /** How far the Circuit's change must have gone (0..1 of circT) before a cut tube is whole again and the skin gone (spec 4.9). */
 export const SKIN_CIRC_SPAN = 0.35;
 
+/** The Circuit's skins (circuit/skins.ts) come in over the END of the change: the share of circT at which the map's own skins start to show, and at which the arm tubes' second cut (`skinCutC`) starts to take its ends away. The body's skins are gone by SKIN_CIRC_SPAN (0.35) and the tubes whole between the two, so no junction is ever two skins at once. */
+export const SKIN_CIRC_IN = 0.65;
+
+/** The tube's `skinCutC` uniform when the Circuit has no cut on it: as SKIN_CUT_NONE. */
+export const SKIN_CUT_C_NONE: readonly [number, number] = [-1, 2];
+
 /** The tube's cut is judged this far (in u) inside the seam, so the interpolated uv.x of the seam ring itself (which rounds to the ring's u within a few ulp) is never discarded: no hairline gap at the seam. */
 export const SKIN_CUT_EPS = 2e-5;
 

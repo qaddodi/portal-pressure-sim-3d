@@ -73,13 +73,17 @@ export interface UiState {
 }
 
 const emptyFree: Rect = { x: 0, y: 0, w: 0, h: 0 };
+/** No card is up: what free play has (and a fresh page). */
+export const noBoxes = (): Boxes => ({ words: null, data: null, strip: null, free: emptyFree });
 const sameRect = (a: Rect | null, b: Rect | null) => (a === b) || (!!a && !!b && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h);
 
 export const useUi = create<UiState>((set, get) => ({
   deck: null,
   startAt: 0,
   nonce: 0,
-  openDeck: (deck, at = 0) => set({ deck, startAt: at, nonce: get().nonce + 1, black: false, jump: false, docked: false, dockShown: false }),
+  // (Leaving a talk (deck null) takes its cards' boxes with it: they are what every label layer keeps its names off, and free play publishes none. Left behind, the last slide's words card went on walling
+  //  off a side of the figure for good: after a talk the Circuit had no names left of the cards' place (Mohammad, 20 Nov: "no labels on circuit"), and the Anatomy's and the Lobule's kept off it too.)
+  openDeck: (deck, at = 0) => set({ deck, startAt: at, nonce: get().nonce + 1, black: false, jump: false, docked: false, dockShown: false, ...(deck ? {} : { boxes: noBoxes(), roomHint: null }) }),
   black: false,
   jump: false,
   setBlack: (on) => set({ black: on ?? !get().black }),
@@ -91,7 +95,7 @@ export const useUi = create<UiState>((set, get) => ({
   device: 'desktop',
   wallet: walletStart(),
   readings: {},
-  boxes: { words: null, data: null, strip: null, free: emptyFree },
+  boxes: noBoxes(),
   page: 0,
   pageCount: 1,
   setPageCount: (n) => { if (get().pageCount !== n) set({ pageCount: n }); },

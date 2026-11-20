@@ -89,6 +89,10 @@ export function balloonFit(r3: Route3D, rc: number, bl: number, tipD: number, sp
   return { dC, rx, ol };
 }
 
+/** One vessel's share of the wedge tint (vessel-object.ts setWedge): `cut` where it stops on the balloon's side and `edge` how softly (both u, 1 at the piece's start on the route to 0 at its outer end), `front` how far toward the outer end the tint has come and `frontEdge` how softly. */
+export interface WedgePiece { cut: number; fade: number; edge: number; front: number; frontEdge: number }
+const smoother = (k: number): number => { const x = clamp01(k); return x * x * x * (x * (x * 6 - 15) + 10); };
+
 export class ProcCatheter {
   readonly group = new Group();
   readonly objects: DeviceObject[] = [];
@@ -192,21 +196,31 @@ export class ProcCatheter {
 
   /** The wedge's amber column on the HVPG route, as a tint on the vessels themselves: everything upstream of the balloon in the vein the tip is in, and the branches that leave it, fading out toward their tips.
    *  `pieces`: for each vessel id, how far up its own course the tint reaches (a share of the course from its outer end; 2 is all of it) and over how much of it it thins toward the tip. Null when there is none. */
-  wedgeTint(): { amount: number; color: Color; pieces: Map<string, { cut: number; fade: number }> } | null {
+  wedgeTint(): { amount: number; color: Color; pieces: Map<string, WedgePiece> } | null {
     const { r3 } = this, r = r3.route, s = this.last, col = clamp01(s.column);
     if (r.kind !== 'hvpg' || col <= 0.001 || !this.group.visible) return null;
-    // (the column starts at the balloon's distal end, a little behind the tip: no untinted gap between the glass and the amber)
-    const tipD = r3.tipD(s.u) - this.rc * U * 4.0, pieces = new Map<string, { cut: number; fade: number }>();
+    // The tint starts AT the balloon's distal edge (the glass ends 4.2 shaft radii behind the tip: fitBalloon's `gap`) and its front travels forward from there, into the vein and then its branches, as the column
+    // fills (Mohammad, 20 Nov: "the yellow/orange highlighting should start basically from the balloon edge and move forward into the hepatic vein and branches to cover it"). The front is one distance along the route,
+    // so it crosses the vein's pieces and runs on into the branch in order; at a full column it covers all of it. The tint is whole at the edge (it was 0 there and rose over 8% of the vein's course, so an
+    // untinted stretch of about ten shaft radii stood between the balloon and the amber).
+    const edgeD = r3.tipD(s.u) - this.rc * U * 4.2, soft = this.rc * U * 2;
+    const front = edgeD + smoother(col) * Math.max(1e-6, r.total - edgeD) * 1.02;
+    const pieces = new Map<string, WedgePiece>();
+    // (u runs 1 at a piece's start on the route to 0 at its outer end: a piece is tinted from the front's u to the cut's u)
+    const uAt = (sub: { d0: number; d1: number; fa: number; fb: number }, d: number) => sub.fa + (sub.fb - sub.fa) * clamp01((d - sub.d0) / Math.max(1e-6, sub.d1 - sub.d0));
+    const edgeU = (sub: { d0: number; d1: number; fa: number; fb: number }) => soft * Math.abs(sub.fb - sub.fa) / Math.max(1e-6, sub.d1 - sub.d0);
     const hv = r.parts.find((q) => q.name === 'hv');
     for (const sub of hv?.subs?.length ? hv.subs : hv ? [hv] : []) {
-      if (!sub.id || tipD >= sub.d1 - 1e-6) continue;   // (downstream of the balloon: not tinted)
-      const frac = tipD <= sub.d0 ? 0 : (tipD - sub.d0) / Math.max(1e-6, sub.d1 - sub.d0);
-      pieces.set(sub.id, { cut: tipD <= sub.d0 ? 2 : sub.fa + (sub.fb - sub.fa) * frac, fade: 0 });
-      for (const v of NETWORK) if (v.id.startsWith(`${sub.id}~F`)) pieces.set(v.id, { cut: 2, fade: 0.6 });
+      if (!sub.id || edgeD >= sub.d1 - 1e-6) continue;   // (downstream of the balloon: not tinted)
+      if (front <= sub.d0) continue;   // (the front has not reached it yet)
+      const cut = edgeD <= sub.d0 ? 2 : uAt(sub, edgeD), e = edgeU(sub);
+      pieces.set(sub.id, { cut, fade: 0, edge: e, front: uAt(sub, front), frontEdge: e * 3 });
+      const into = (front - sub.d1) / Math.max(1e-6, (r.total - sub.d1) * 0.5);
+      if (into > 0) for (const v of NETWORK) if (v.id.startsWith(`${sub.id}~F`)) pieces.set(v.id, { cut: 2, fade: 0.6, edge: 0.02, front: 1 - clamp01(into), frontEdge: 0.08 });
     }
     const br = r.parts.find((q) => q.name === 'branch');
-    if (br?.id && NETWORK_BY_ID.has(br.id)) pieces.set(br.id, { cut: 2, fade: 0.6 });
-    return { amount: col * clamp01(s.opacity), color: this.wedgeColor, pieces };
+    if (br?.id && NETWORK_BY_ID.has(br.id) && front > br.d0) pieces.set(br.id, { cut: 2, fade: 0.6, edge: 0.02, front: 1 - clamp01((front - br.d0) / Math.max(1e-6, br.d1 - br.d0)), frontEdge: 0.08 });
+    return { amount: clamp01(col * 6) * clamp01(s.opacity), color: this.wedgeColor, pieces };
   }
   private readonly wedgeColor = new Color();
 
@@ -289,9 +303,9 @@ export class ProcCatheter {
     const ol = balloonFit(r3, rc, Math.max(sw, 1e-4), tipD, this.span, (this.ballRings ||= makeRings(BALLOON_N + 1)));
     const rings = this.ballRings!, dC = ol.dC, rx = ol.rx;
     writeRings(this.balloonGeo, rings, BALLOON_RADIAL);
-    // clear glass: the body is barely there (the vein and the shaft read straight through it), the outline is crisp and eases in with the swelling
+    // a solid-looking latex balloon: a body that reads against the vein (0.42, it was a barely-there 0.12 and the balloon vanished into the vessel; Mohammad, 20 Nov: "make the HVPG balloon less transparent") with a firm outline that eases in with the swelling
     const e = bl * bl * (3 - 2 * bl);
-    this.balloon.setAlphas(0.12 * Math.min(1, e * 2.2) * op, (0.25 + 0.5 * e) * op * Math.min(1, bl * 4));
+    this.balloon.setAlphas(0.42 * Math.min(1, e * 2.2) * op, (0.45 + 0.5 * e) * op * Math.min(1, bl * 4));
     this.lay(ol.ol, rings, e, op);
     // its two collars, where the glass meets the shaft
     [-1, 1].forEach((side, i) => {
