@@ -14,6 +14,7 @@ export const cavaRamp = (cdR: number): number => sstep(-CAVA_RAMP_R, 0, cdR);
 
 /** A fade's alpha at `u` (0 to 1 along the vessel) for a point at scene (x, y). */
 export function tipAlpha(f: TipFade, u: number, x: number, y: number): number {
+  if (f.mode === 5) return mix(f.a0, f.a1, 1 - sstep(f.to, f.to + Math.max(f.line![0], 1e-4), Math.abs(y - f.from)));
   if (f.mode > 2) {
     const [x1, y1, x2, y2] = f.line!, dx = x2 - x1, dy = y2 - y1;
     let fv = ((x - x1) * dx + (y - y1) * dy) / Math.max(dx * dx + dy * dy, 1e-9);

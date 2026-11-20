@@ -8,7 +8,8 @@ import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { radiusAtU } from '../src/scene/vessels/tubes.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
-import { CAVA_RECEDE, cavaEndSpan, opensIntoCava } from '../src/scene/vessels/fades.ts';
+import { CAVA_RECEDE, cavaEndSpan, fadeOf, opensIntoCava } from '../src/scene/vessels/fades.ts';
+import { cavaMateOf } from '../src/scene/vessels/neighbour.ts';
 import { CelScene } from '../src/scene/scene.ts';
 
 /** The steepest a drawn vessel's radius may change along its own length (radius per unit run): about 14 degrees. 2D's SVC step made 0.40. */
@@ -49,7 +50,7 @@ test('a vein into the cava takes the cava\'s opacity at its wall and is cut alon
       n++;
       const u = s.vesselObject(v.id)!.toon.uniforms as unknown as { cavaCut: { value: number }; cavaA: { value: number } };
       assert.equal(u.cavaCut.value, 1, `${v.id} opens into the cava`);
-      assert.equal(u.cavaA.value, CAVA_RECEDE, `${v.id} comes to the cava's opacity at its wall`);
+      assert.equal(u.cavaA.value, fadeOf(cavaMateOf(v.id)!, false)!.a1, `${v.id} comes to the cava's opacity at its wall`);
     }
     assert.ok(n >= 3, `${n} veins open into the cava`);
     assert.equal(cavaEndSpan('RHV_IVC'), 0, 'no end ramp');

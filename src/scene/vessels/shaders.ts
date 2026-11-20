@@ -157,7 +157,11 @@ ${CIRCUIT_VS_CALL}
   if (stump.x > 0.0 && circShare < 0.001) swell *= stumpK(uv.x * len * vU, radius * rk * swell * vU);
   float fa = 1.0;
   float rkE = mix(rk, rkc, circShare);   // (the tube's radius share here: on the map the course's own, not the body's tapers)
-  if (fadeMode > 2.5) {
+  if (fadeMode > 4.5) {
+    // a window down the figure (the cava where the hepatic veins join it): alpha fadeA.w on the plateau (half height fadeA.y about the height fadeA.x), fadeA.z away from it, over the feather fadeLine.x each side
+    fa = mix(fadeA.z, fadeA.w, 1.0 - smoothstep(fadeA.y, fadeA.y + max(fadeLine.x, 1e-4), abs(position.y - fadeA.x)));
+    fa = mix(fa, 1.0, circT);
+  } else if (fadeMode > 2.5) {
     // tube-geo.js tubeAlpha: the projection of the point on the line
     vec2 fd = fadeLine.zw - fadeLine.xy;
     float fv = dot(position.xy - fadeLine.xy, fd) / max(dot(fd, fd), 1e-9);
