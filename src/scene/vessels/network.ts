@@ -9,7 +9,9 @@ import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
 import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts';
 import { ORGAN_Z } from '../organs/z.ts';
-import { cleanFeeders, withStartInOrgan } from './starts.ts';
+import { ALONG_VEIN_IDS, alongVein } from './starts.ts';
+import { LIVER_BRANCHES } from './liver-branches.ts';
+import { withStartInOrgan } from './starts.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { TIER_Z, type Tier, UNITS_PER_SCENE, len3, x3, y3 } from '../frame2d.ts';
 
@@ -39,7 +41,7 @@ export interface NetVessel {
   /** the edge whose data texel (pressure, flow, diameter) this vessel wears: its own, or its host's for a feeder */
   lensId: string;
   /** how its shape is made: a vessel's own course, coiled and with strands (a collateral or a liver bed), or a fan of tributaries on a host */
-  plan?: { kind: 'coil'; base: readonly (readonly [number, number])[]; coils: boolean; strands: boolean } | { kind: 'feeder'; list: readonly Feeder2D[]; cfgK: number; hostW: number; when: string | null };
+  plan?: { kind: 'coil'; base: readonly (readonly [number, number])[]; coils: boolean; strands: boolean } | { kind: 'feeder'; list: readonly (Feeder2D & { dz?: readonly number[] })[]; cfgK: number; hostW: number; when: string | null };
   /** the radius at each end as a share of `radius`, where this vessel runs on into exactly one other (no branch): both ease to their mean, so no step shows at the join */
   taper?: readonly [number, number];
   /** where this vessel ends on a trunk without running on into it (a branch of a fork): a collar that blooms where the branch meets the host's wall, the 2D figure's fillet (the smooth union of the
@@ -70,6 +72,7 @@ export function widthPx(e: Edge, dmm: number): number {
   if (isArteryEdge(e)) return Math.max(1.8, vesselPx(dmm) * 0.5 * (e.shunt === 'ap' ? AP_FINE : 1));
   let w = vesselPx(IVC_EDGES.has(e.id) ? IVC_ONE_D() : dmm) * (IVC_EDGES.has(e.id) || e.id === 'SVC_RA' || e.id === 'V_UP' ? 0.72 : 1);
   if (e.id === 'C8') w *= 0.6;
+  if (e.id === 'C3') w *= 0.6;   // the paraumbilical vein is a branch of the left portal vein, not as wide as it: it leaves it as a filleted Y (the fork rule), not a blunt stack of equal tubes (Mohammad, 20 Nov)
   if (e.id === 'LGV_CONF') w *= 0.85;
   return w;
 }
@@ -86,8 +89,12 @@ for (const [host, pieces] of Object.entries(JUNCTION_PIECES as Record<string, st
 /** The renal vein runs at the cava's depth, and the kidney is placed there too (Mohammad, 20 Nov: "the renal vein and the kidney should be at the same depth as the IVC"). Depth only:
  *  it is still drawn the way the 2D figure draws it (BACK_EDGES, in the scene, is what puts a vessel behind the organs). */
 export const RENAL_VEIN_IDS: ReadonlySet<string> = new Set(['V_KID_L', 'V_KID_L_1', 'LRV_IVC']);
+/** The hepatic veins lie on the cava's plane too: they join it level, with no depth to ease, so a tilted view shows no twist where they meet (Mohammad, 20 Nov). */
+export const HEPATIC_VEIN_IDS: ReadonlySet<string> = new Set(['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC']);
 function tierOf(e: Edge): Tier {
   if (BACK_EDGES.has(e.id) || RENAL_VEIN_IDS.has(e.id)) return 'back';
+  if (HEPATIC_VEIN_IDS.has(e.id)) return 'hv';   // (the cava's plane, 0.016 in front of it: the lumbar collaterals that cross them stay apart in depth)
+  if (e.id === 'C3') return 'fwd';   // the paraumbilical vein rises forward over the portal trunk to the umbilicus
   if (isArteryEdge(e)) return 'art';
   if (OVER_IDS.has(e.id)) return 'over';
   if (e.kind === 'collateral') return 'mid';
@@ -112,23 +119,26 @@ const SHUNT_BASE_D: Record<string, number> = { TIPS: 8, DIPS: 8 };
 export function isDrawnEdge(e: Edge): boolean {
   if (HIDDEN_EDGES.has(e.id) || ANAT_HIDDEN.has(e.id) || e.id === 'CAUD' || e.id === 'V_UP') return false;
   if (e.kind === 'wedge' || e.kind === 'diode') return false;
-  // the red arteriole strands into the sinusoid fans are not drawn (Mohammad, 20 Nov: "fuck those"); the hepatic artery trunk stays
-  if (e.id === 'A_HR' || e.id === 'A_HL') return false;
   if (e.kind === 'shunt') return e.id === 'AP_R' || e.id === 'AP_L' || SHUNT_IDS.has(e.id);
   return true;
 }
 
+/** Tributary fans that are not drawn: the caudate lobe's twigs hung in the middle of the liver joined to nothing (Mohammad, 20 Nov: "random veins in the middle of the liver not
+ *  connected to anything, remove them"). The caudate's own drainage stays in its card (details: CAUD). */
+const NOT_DRAWN_FEEDERS: ReadonlySet<string> = new Set(['CAUD', 'AZY_SVC']);   // (AZY_SVC: the azygos' tributary strand ran up the figure's right and arched over the SVC's top as a cane with a needle end; the SVC comes in from above and the azygos is its short side branch, Mohammad, 20 Nov)
 /** anatomy.js FEEDERS[host].k: the share of the host's width its tributaries take. */
 const FEEDER_K: Record<string, number> = { AZY_SVC: 1, C3: 0.5, CAUD: 0.55 };
 const NETWORK_HOST_W = (e: Edge): number => widthPx(e, e.d ?? e.dMax ?? (dMinOf(e) || 3));
 
 // ---- joins: the 2D figure's run-ons (joins.ts): the pairs that continue one another, and their courses redrawn smooth through the join ----
 const JOIN_LIST: JoinEdge[] = edges.filter(isDrawnEdge).map((e) => ({ id: e.id, from: e.from, to: e.to, art: isArteryEdge(e), kind: e.kind, path: EDGE_PATH_2D[e.id]! }));
+const ARTERY_OWN: ReadonlySet<string> = new Set(['A_HEP', ...ALONG_VEIN_IDS]);
 /** The pairs of vessels that run on into one another, by the 2D rule. */
-export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST);
+// (the hepatic artery and its two branches are drawn on courses of their own beside the portal branches, so they no longer run on into one another)
+export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST).filter((r) => !ARTERY_OWN.has(r.a) && !ARTERY_OWN.has(r.b));
 const SMOOTH = smoothRunOns(new Map(JOIN_LIST.map((j) => [j.id, j.path])), RUN_ONS);
 /** A vessel's 2D course as drawn: smooth through the joins where it runs on into another. */
-const pathOf = (id: string): readonly (readonly [number, number])[] => withStartInOrgan(id, SMOOTH.get(id) ?? EDGE_PATH_2D[id]!);
+const pathOf = (id: string): readonly (readonly [number, number])[] => alongVein(id, EDGE_PATH_2D) ?? withStartInOrgan(id, SMOOTH.get(id) ?? EDGE_PATH_2D[id]!);
 
 function build(): NetVessel[] {
   const out: NetVessel[] = [];
@@ -144,9 +154,10 @@ function build(): NetVessel[] {
   }
   // The tributaries (stage-geo.js feedGeo): each host's, grouped by the rule that shows them, one vessel a group.
   for (const [host, list] of Object.entries(FEEDERS_2D)) {
+    if (NOT_DRAWN_FEEDERS.has(host)) continue;
     const e = edgeById.get(host)!, hv = NETWORK_HOST_W(e);
     for (const when of [...new Set(list.map((f) => f.when))]) {
-      const group = cleanFeeders(host, list.filter((f) => f.when === when));
+      const group = list.filter((f) => f.when === when);
       const cfgK = FEEDER_K[host] ?? 1, baseD = e.d ?? e.dMax ?? (dMinOf(e) || 3);
       out.push({
         id: `${host}~F${when ? `:${when}` : ''}`, host, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(Math.max(1.2, hv * cfgK)), label: e.label ?? host,
@@ -154,6 +165,15 @@ function build(): NetVessel[] {
         plan: { kind: 'feeder', list: group, cfgK, hostW: hv, when }, feeder: { host, when },
       });
     }
+  }
+  // The liver branches (liver-branches.ts): two children per portal-branch end, hepatic-vein start and the umbilical vein, into the liver and into depth.
+  for (const b of LIVER_BRANCHES) {
+    const e = edgeById.get(b.host)!, hv = NETWORK_HOST_W(e), baseD = e.d ?? e.dMax ?? (dMinOf(e) || 3);
+    out.push({
+      id: `${b.host}~F:b`, host: b.host, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(Math.max(1.2, hv)), label: e.label ?? b.host,
+      pts: b.list[0]!.pts.map(([x, y]): Vec3 => [x3(x), y3(y), TIER_Z[tierOf(e)]]), kind: 'feeder', tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: b.host,
+      plan: { kind: 'feeder', list: b.list, cfgK: 1, hostW: hv, when: b.when }, feeder: { host: b.host, when: b.when },
+    });
   }
   return out;
 }
@@ -166,7 +186,7 @@ export const NETWORK: readonly NetVessel[] = build();
  *  changes tier eases over its length). At a fork, a node of three or more, the widest vessels keep their own tier and the narrower ones ease to it: the mean would pull a trunk toward
  *  the camera at every branch (the cava, a back-tier vein, bulged forward at each hepatic and renal vein, and the 14 degree view turned each bulge into a sideways jog: Mohammad, 20 Nov). */
 /** A vessel that starts in an organ starts at the organ's own depth: the splenic vein at the spleen's (organs/z.ts ORGAN_Z), and rises to the plane on its way to the confluence. */
-const NODE_Z_AT: Readonly<Record<string, number>> = { SPL: ORGAN_Z.spleen };
+const NODE_Z_AT: Readonly<Record<string, number>> = { SPL: ORGAN_Z.spleen, EPI: TIER_Z.fwd };   // (EPI: the umbilicus, on the anterior wall)
 export const NODE_Z: ReadonlyMap<string, number> = (() => {
   const acc = new Map<string, { z: number; r: number; main: boolean }[]>();
   for (const v of NETWORK) if (!v.feeder) for (const n of [v.from, v.to]) { const a = acc.get(n) ?? []; a.push({ z: TIER_Z[v.tier], r: v.radius, main: v.kind !== 'shunt' && v.kind !== 'collateral' }); acc.set(n, a); }
@@ -220,7 +240,11 @@ export const MAPPED: readonly NetVessel[] = NETWORK.filter((v) => !v.feeder);
     const mains = list.filter((e) => e.v.kind !== 'collateral');
     // (a trunk drawn faint, the cava behind the organs, has no wall to blend into: the collar would show as a bulb on the branch's end)
     if (list.some((e) => IVC_EDGES.has(e.v.id))) continue;
-    const hostR = Math.max(...(mains.length ? mains : list).map((e) => e.v.radius));
+    // (the trunk's width AT the node: two vessels that run on into one another meet at the mean of their widths, so a branch is fitted to that, not to the wider one's full width)
+    const pair = list.filter((e) => runOn.has(`${e.v.id}|${e.end}`) && e.v.kind !== 'collateral');
+    const meet = pair.length === 2 ? (pair[0]!.v.radius + pair[1]!.v.radius) / 2 : null;
+    const widthHere = (e: { v: NetVessel; end: 0 | 1 }) => (meet != null && pair.includes(e) ? meet : e.v.radius);
+    const hostR = Math.max(...(mains.length ? mains : list).map(widthHere));
     for (const { v, end } of list) {
       if (runOn.has(`${v.id}|${end}`) || v.radius >= 0.9 * hostR) continue;
       // 2D's blend width in its own units (vein-joins.js kOf: 1.2 times the smallest radius at the join plus 1.2, 1.5 to 11), here in scene units
@@ -262,7 +286,11 @@ export function presenceOf(v: Pick<NetVessel, 'id' | 'kind' | 'feeder'>, f: Pres
   const k = indexOf.get(v.id);
   if (k == null) return 'hidden';
   if (NEEDS_C3.has(v.id)) return recruitFrac('C3', f) > C3_FRAC ? 'shown' : 'hidden';
-  if (v.kind === 'collateral') return collateralOpen(v.id, f) ? 'shown' : o.collaterals ? 'ghost' : 'hidden';
+  // (the lumbar-azygos collateral C9 runs through the right sinusoid fan: while closed it is not drawn as a dotted pink thread there; Mohammad, 20 Nov)
+  // the sinusoid beds (the "light bulb" fans, their feeding arterioles and their strands) are not drawn: the portal veins fade out into the liver and the hepatic veins fade in from it,
+  // and the liver tissue implies the sinusoids between (Mohammad, 20 Nov). They stay in the network (the flows, the labels and the Lobule read them), only never shown.
+  if (v.kind === 'liver') return 'hidden';
+  if (v.kind === 'collateral') return collateralOpen(v.id, f) ? 'shown' : o.collaterals && v.id !== 'C9' ? 'ghost' : 'hidden';
   if (SHUNT_IDS.has(v.id)) return f.D[k]! > 0 ? 'shown' : 'hidden';   // a procedure's shunt is there while it has a diameter
   if (v.kind === 'shunt') return (f.Qf ?? f.Q)[k]! > AP_Q ? 'shown' : 'hidden';
   return 'shown';
@@ -271,7 +299,7 @@ export function presenceOf(v: Pick<NetVessel, 'id' | 'kind' | 'feeder'>, f: Pres
 /** How far a tributary group is on, 0 to 1 (stage-tubes.js feeders): the epigastric network fills in as the paraumbilical route opens; the caudate vein's own collaterals
  *  as its flow rises to twice and then four times the healthy one; the rest always. */
 export function feederLive(fd: { host: string; when: string | null }, f: PresenceFrame, healthyQ?: ArrayLike<number>): number {
-  if (fd.when === 'caput') return Math.min(1, Math.max(0, (recruitFrac('C3', f) - 0.15) / 0.3));
+  if (fd.when === 'caput' || fd.when === 'umb') return Math.min(1, Math.max(0, (recruitFrac('C3', f) - 0.15) / 0.3));
   if (fd.when === 'caudate') {
     const k = indexOf.get(fd.host)!, ref = healthyQ?.[k], q = Math.abs((f.Qf ?? f.Q)[k]!);
     return ref ? Math.min(1, Math.max(0, (q / Math.abs(ref) - 2) / 2)) : 0;

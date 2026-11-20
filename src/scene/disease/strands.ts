@@ -27,7 +27,7 @@ const HOSTS = Object.keys(STRANDS);
 export const RED_WALE = rgbOf('#E8404A');
 export const waleEnvelope = (u: number): number => { const k = (a: number, b: number) => { const t = Math.min(1, Math.max(0, (u - a) / (b - a))); return t * t * (3 - 2 * t); }; return k(0.1, 0.25) * (1 - k(0.75, 0.9)); };
 /** The faint colour of a sinusoid strand: the portal tone most of the way to the plate (SIN_PERFUSION.fade, 0.4 of its strength). */
-const faint = (tone: RGB, plate: RGB): RGB => mix(plate, tone, SIN_PERFUSION.fade);
+const faint = (tone: RGB, _plate: RGB): RGB => tone;   // (a bed's strand is the portal tone itself, solid, two tones and its ink: 20 Nov, "the sinusoid strands are dashed")
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 export interface StrandInputs {
@@ -115,7 +115,7 @@ export class StrandLayer {
   private line(s: Strand): void {
     if (!s.obj) return;
     const c = CASING[this.look], sin = SIN_EDGES.has(s.host);
-    s.obj.setSoftInk(c.rgb, c.a * (sin ? 0.5 : 1), sin ? 0.75 : CEL.LINE_MIN, this.dpr);   // (a bed's hairline strands: half a line, as a thin lumen keeps its colour, cel-ink.ts inkTaper)
+    s.obj.setSoftInk(c.rgb, c.a, CEL.LINE_MIN, this.dpr);   // (solid ink, the figure's line, on a bed's hairline strands too: a half line on a sub-pixel tube read as dashes)
   }
   setPhone(phone: boolean): void { for (const s of this.strands) s.obj?.setPhone(phone); }
 

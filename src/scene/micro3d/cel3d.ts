@@ -1,6 +1,7 @@
-// The one material of the true-3D lobule and sinusoid (Settings > Figure depth > 3D lobule and sinusoid): solid shapes in the figure's cel style. Three flat tones (shade, base,
-// lit) from n.L against the organs' screen light (CEL_STYLE.ORGAN.LIGHT and its n.L edges), a hard but antialiased edge between them, no gloss, no rim, and a bold ink round every
-// shape (an inverted hull pushed out a fixed number of CSS px on screen, as the figure's other inks). Colours are raw sRGB numbers, as every cel shader of the app writes them.
+// The one material of the true-3D lobule and sinusoid (Settings > Figure depth > 3D lobule and sinusoid): solid shapes in the figure's cel style. EXACTLY TWO flat tones (the base and the shade, one hard but
+// antialiased edge at CEL_STYLE.VESSEL_STEP_AT: the same two tones as the vessels), matte: no lit tone toward white, no gloss, no rim, no gradient. The light is THE WORLD light (CEL_STYLE.LIGHT): n.L is taken with the
+// normal in world axes (the model matrix), so orbiting, zooming or tilting the camera never changes a shade; only a shape's own motion does. A bold ink round every shape (an inverted hull pushed out a fixed number
+// of CSS px on screen, as the figure's other inks). Colours are raw sRGB numbers, as every cel shader of the app writes them.
 //
 // A part's colour is its `tint` times its vertex colours (when the geometry has them) times its instance colours (an InstancedMesh with setColorAt). Instances may be scaled
 // unevenly: the normal is carried through the instance matrix's inverse transpose, so a squashed sphere still shades as a squashed sphere.
@@ -9,22 +10,32 @@
 //   const part = microPart(geometry, m);                group.add(part.group)
 //   const many = microInstanced(geometry, m, count);    many.toon.setMatrixAt(i, m4); many.ink.setMatrixAt(i, m4) (or `many.setAt(i, m4, colour)`)
 import {
-  BackSide, BufferAttribute, BufferGeometry, Color, FrontSide, Group, InstancedMesh, LinearSRGBColorSpace, Matrix4, Mesh, ShaderMaterial, type Vector2,
+  BackSide, BufferAttribute, BufferGeometry, Color, FrontSide, Group, InstancedMesh, LinearSRGBColorSpace, Matrix4, Mesh, ShaderMaterial, type Vector2, Vector4,
 } from 'three';
 import { CEL_STYLE } from '../cel-style.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
+import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
+import { STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
 
 const F = (x: number): string => (Number.isInteger(x) ? x.toFixed(1) : String(x));
-const L = CEL_STYLE.ORGAN.LIGHT, LN = Math.hypot(L[0], L[1], L[2]);
+const L = CEL_LIGHT_UNIT;
 
 export const MICRO_VS = /* glsl */ `
 uniform float inflate;
 varying vec3 vN;
 varying vec3 vC;
-#ifdef STREAKS
+varying float vHy;
+#if defined(STREAKS) || defined(FLOW)
 attribute float aux;
+#endif
+#ifdef STREAKS
 varying vec3 vP;
 varying float vAux;
+#endif
+#ifdef FLOW
+attribute float aux2;
+varying float vArc;
+varying float vAcross;
 #endif
 void main() {
   vec3 p = position;
@@ -42,9 +53,13 @@ void main() {
 #ifdef USE_INSTANCING_COLOR
   vC *= instanceColor;
 #endif
-  vN = normalize(normalMatrix * n);
+  vN = normalize(mat3(modelMatrix) * n);   // the normal in WORLD axes: the light is fixed in the world, not on the screen
+  vHy = p.y;
 #ifdef STREAKS
   vP = p; vAux = aux;
+#endif
+#ifdef FLOW
+  vArc = aux; vAcross = aux2;
 #endif
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p + normal * inflate, 1.0);
 }`;
@@ -55,53 +70,98 @@ uniform vec3 tint;
 uniform float opacity;
 varying vec3 vN;
 varying vec3 vC;
+// the haze: what lies away from the scene's subject (|y| past uHaze.x, whole by uHaze.y, local units) melts toward uHazeCol by up to uHaze.z, its detail and line with it, as a lens's
+// depth of field would soften it (the next sinusoids, their Disse and plates must not pull the eye from the one in focus, Mohammad 20 Nov 2026); uHaze.z 0: none
+uniform vec4 uHaze;
+uniform vec3 uHazeCol;
+varying float vHy;
+float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
 #ifdef STREAKS
-// streaks in a stream (the blood in a lumen, the lymph in Disse), fixed to the tissue (µm along x) and carried by the flow: lanes across the stream (aux: -1 .. 1 across it),
-// each with its own phase and length, the middle lanes fastest (2D's lanes: 1.5 (1 - a^2) + 0.08); one hard-edged lighter tone, never a gradient
+// streaks in a stream (the blood in a lumen, the lymph in Disse), fixed to the tissue (µm along x) and carried by the flow: lanes across the stream (aux: -1 .. 1 across it), the middle lanes fastest;
+// one flat lighter tone (one shade above the lumen's), never a gradient
 uniform float uFlow;      // how far the stream has run (µm)
 uniform float uHalf;      // the stream's half width (µm): the lanes' pitch is across it
 uniform float uStreak;    // how strong the streaks are (0 none)
-uniform float uProfile;   // 1: the parabolic lanes of the blood; 0: one speed (the lymph)
+uniform float uProfile;   // 1: the parabolic lanes of the blood; 0: one speed; under 0: chevrons across the stream (the lymph), pointing the way it runs
 uniform vec3 uStreakCol;  // the streaks' one tone
 varying vec3 vP;
 varying float vAux;
-float h11(float x) { return fract(sin(x * 127.1 + 311.7) * 43758.5453); }
-// one lane's streak at this pixel (1 inside, 0 out): long and slim, round at both ends, its edge antialiased over a pixel
-float streaks() {
-  float lanes = max(2.0, floor(uHalf * 2.0 / 0.6));
-  float u = (vAux * 0.5 + 0.5) * lanes, lane = floor(u), fu = fract(u);
-  float a = (lane + 0.5) / lanes * 2.0 - 1.0;
-  float sp = mix(1.0, 1.5 * (1.0 - a * a) + 0.08, uProfile);
-  float period = 30.0 + 22.0 * h11(lane * 3.1), len = 11.0 + 12.0 * h11(lane * 7.7 + 1.3);
-  float t = mod(vP.x - uFlow * sp + period * h11(lane * 1.7 + 9.1), period);
-  float q = clamp(t / len * 2.0 - 1.0, -1.0, 1.0);
-  float hw = 0.2 * sqrt(max(0.0, 1.0 - q * q)) * step(t, len);
-  float d = abs(fu - 0.5) - hw, w = max(fwidth(u), 1e-3);
-  return (1.0 - smoothstep(-w, w, d)) * step(0.3, h11(lane * 5.3 + 2.0));
+// the ONE streak (blood/streak-glsl.ts: 3, 5 or 7 lanes, slim rounded lozenges feathered at both ends, a tone and a pace of their own, parabolic lanes): the same as the Anatomy's vessels
+${STREAK_FIELD_GLSL}
+uniform float uStreakDir; // +1: the heads lead toward +x (the way the stream runs); -1: toward -x (a reversed flow)
+float streaks() { return streakField(vAux, vP.x, uFlow, uHalf, uProfile, uStreakDir); }
+// a chevron every 6 µm across the whole stream, its point leading the way the stream runs (the flow's sign), quiet and hard-edged
+float chevrons() {
+  float a = abs(vAux), dir = uFlow >= 0.0 ? 1.0 : -1.0, pitch = 6.0, w = 1.1;
+  float f = mod((vP.x - uFlow) * dir + a * 1.4, pitch), wx = max(fwidth(vP.x) * 1.2, 1e-3);
+  return smoothstep(0.0, wx, f) * (1.0 - smoothstep(w - wx, w, f)) * (1.0 - smoothstep(0.82, 0.95, a));
+}
+#endif
+#ifdef FLOW
+// the flow along a tube (Mohammad, 20 Nov 2026: "chevrons + streaks ... quiet and inside the vessel"): aux is the place along it in the blood's own direction (local units),
+// aux2 the place across it (-1 .. 1 over the face the viewer sees; 3 where no mark may be, at the central vein's mouth). Chevrons, their point leading, in the middle of the tube
+// only; with uFlowStreak, a few slim streaks in lanes between them. One lighter tone, hard-edged, never a gradient.
+uniform float uFlowT;      // how far the marks have run (local units)
+uniform float uFlowPitch;  // between chevrons (local units)
+uniform float uFlowK;      // how strong (0 none)
+uniform float uFlowStreak; // the streaks' share of uFlowK (0 none)
+uniform float uFlowHead;   // 1: filled arrowheads (the bile); 0: open chevrons
+uniform vec3 uFlowCol;
+varying float vArc;
+varying float vAcross;
+float fh(float x) { return fract(sin(x * 91.7 + 13.3) * 43758.5453); }
+float flowMarks() {
+  float a = abs(vAcross), pitch = uFlowPitch, wa = max(fwidth(vArc), 1e-5);
+  float f = mod(vArc - uFlowT + a * pitch * 0.22, pitch);
+  float wid = pitch * mix(0.11, 0.3 * (1.0 - a / 0.6), uFlowHead);
+  float chev = smoothstep(0.0, wa, f) * (1.0 - smoothstep(wid - wa, wid, f)) * (1.0 - smoothstep(0.5, 0.6, a));
+  float m = chev;
+  if (uFlowStreak > 0.0) {
+    float u = (vAcross * 0.5 + 0.5) * 4.0, lane = floor(u), fu = fract(u), wu = max(fwidth(u), 1e-3);
+    float P = pitch * (2.4 + 1.2 * fh(lane)), len = pitch * (0.9 + 0.6 * fh(lane + 4.0));
+    float t = mod(vArc - uFlowT * (0.8 + 0.3 * (1.0 - abs(lane - 1.5) / 1.5)) + P * fh(lane + 9.0), P);
+    float along = smoothstep(0.0, wa, t) * (1.0 - smoothstep(len - wa, len, t));
+    float across = 1.0 - smoothstep(0.12 - wu, 0.12 + wu, abs(fu - 0.5));
+    m = max(m, along * across * uFlowStreak * step(abs(vAcross), 0.85));
+  }
+  return m * step(vAcross, 2.0);
 }
 #endif
 void main() {
   if (fadedOut()) discard;
   vec3 n = normalize(vN);
   if (!gl_FrontFacing) n = -n;
-  // the light is the organs' own, fixed to the SCREEN (view space): upper left, toward the viewer
-  float s = dot(n, vec3(${F(L[0] / LN)}, ${F(L[1] / LN)}, ${F(L[2] / LN)}));
+  // the world light (CEL_STYLE.LIGHT): n.L with n in world axes. TWO tones: the base, and the shade below the step
+  float s = dot(n, vec3(${F(L[0])}, ${F(L[1])}, ${F(L[2])}));
   float w = max(fwidth(s) * 0.75, 1e-3);
-  float shadeT = 1.0 - smoothstep(${F(CEL_STYLE.ORGAN.SHADE_LAM)} - w, ${F(CEL_STYLE.ORGAN.SHADE_LAM)} + w, s);
-  float litT = smoothstep(${F(CEL_STYLE.ORGAN.LIT_LAM)} - w, ${F(CEL_STYLE.ORGAN.LIT_LAM)} + w, s);
+  float shadeT = 1.0 - smoothstep(${F(CEL_STYLE.VESSEL_STEP_AT)} - w, ${F(CEL_STYLE.VESSEL_STEP_AT)} + w, s);
   vec3 c = tint * vC;
   c *= 1.0 - ${F(CEL_STYLE.MICRO.SHADE)} * shadeT;
-  c = mix(c, vec3(1.0), ${F(CEL_STYLE.MICRO.LIT)} * litT);
 #ifdef STREAKS
-  c = mix(c, uStreakCol, uStreak * streaks());
+  float sk = uProfile < 0.0 ? chevrons() : streaks();
+  c = mix(c, uProfile < 0.0 ? uStreakCol : streakTone(c, uStreakCol, gStreakK.x, gStreakK.y), uStreak * sk);   // (a streak's own tone between the surface's and the streak colour's)
 #endif
+#ifdef FLOW
+  c = mix(c, uFlowCol, uFlowK * flowMarks());
+#endif
+  c = mix(c, uHazeCol, hazeK());
   gl_FragColor = vec4(c * opacity, opacity);
 }`;
 
 export const MICRO_INK_VS = /* glsl */ `
 uniform float px;
 uniform vec2 res;
+uniform vec3 tint;
+varying float vHy;
+varying vec3 vOwnC;
 void main() {
+  vOwnC = tint;
+#ifdef USE_COLOR
+  vOwnC *= color.rgb;
+#endif
+#ifdef USE_INSTANCING_COLOR
+  vOwnC *= instanceColor;
+#endif
   vec3 p = position;
   vec3 n = normal;
 #ifdef USE_INSTANCING
@@ -110,6 +170,7 @@ void main() {
   n = im * (n / max(s2, vec3(1e-12)));
   p = (instanceMatrix * vec4(p, 1.0)).xyz;
 #endif
+  vHy = p.y;
   vec4 c = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
   vec3 vn = normalize(normalMatrix * n);
   vec2 nd = (projectionMatrix * vec4(vn, 0.0)).xy;
@@ -125,7 +186,17 @@ export const MICRO_INK_FS = /* glsl */ `
 ${FADE_GLSL}
 uniform vec3 color;
 uniform float opacity;
-void main() { if (fadedOut()) discard; gl_FragColor = vec4(color * opacity, opacity); }`;
+// a vessel's line is the Anatomy's (vessels/shaders.ts): the look's casing taken uOwn of the way to a deep tone (x ${F(CEL_STYLE.TUBE.INK_TONE)}) of the part's own colour (Mohammad 20 Nov: "lobule
+// vessels should have black outlines just like other vessels"); uOwn 0: the flat ink colour (the tissue's)
+uniform float uOwn;
+varying vec3 vOwnC;
+// the haze: what lies away from the scene's subject (|y| past uHaze.x, whole by uHaze.y, local units) melts toward uHazeCol by up to uHaze.z, its detail and line with it, as a lens's
+// depth of field would soften it (the next sinusoids, their Disse and plates must not pull the eye from the one in focus, Mohammad 20 Nov 2026); uHaze.z 0: none
+uniform vec4 uHaze;
+uniform vec3 uHazeCol;
+varying float vHy;
+float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
+void main() { if (fadedOut()) discard; vec3 c = mix(color, vOwnC * ${F(CEL_STYLE.TUBE.INK_TONE)}, uOwn); gl_FragColor = vec4(mix(c, uHazeCol, hazeK()) * opacity, opacity); }`;
 
 export type RGB = readonly [number, number, number] | readonly number[];
 
@@ -137,6 +208,10 @@ export interface MicroOptions {
   vertexColors?: boolean;
   /** Streaks carried by a flow (the geometry has an `aux` attribute: the place across the stream, -1 to 1): set uFlow, uHalf, uStreak, uProfile, uStreakCol. */
   streaks?: boolean;
+  /** The haze's uniforms, shared by every part of a scene (hazeUniforms()); none by default. */
+  haze?: HazeUniforms;
+  /** Flow marks along a tube (the geometry has `aux`, the place along it, and `aux2`, across it): set them with MicroPart.setFlow. */
+  flow?: boolean;
   /** Draw both sides (a thin sheet seen from either side). */
   doubleSide?: boolean;
   /** Drawn see-through (opacity below 1): sorted after the solid parts, no depth written. */
@@ -147,20 +222,27 @@ export interface MicroOptions {
 export const rawRGB = (c: Color, rgb: RGB): Color => c.setRGB(rgb[0]!, rgb[1]!, rgb[2]!, LinearSRGBColorSpace);
 
 /** The toon and ink materials of a part. `fade` is the view's one dissolve uniform (the dive). */
+/** A scene's haze uniforms (see MICRO_FS): x where it starts and y where it is whole (|y|, local units), z how far toward the colour; w unused. */
+export interface HazeUniforms { uHaze: { value: Vector4 }; uHazeCol: { value: Color } }
+export const hazeUniforms = (): HazeUniforms => ({ uHaze: { value: new Vector4(1e9, 2e9, 0, 0) }, uHazeCol: { value: new Color() } });
+
 export function microMaterials(res: { value: Vector2 }, fade: { value: number }, o: MicroOptions = {}): MicroMats {
+  const haze = o.haze ?? hazeUniforms();
   const toon = new ShaderMaterial({
     vertexShader: MICRO_VS, fragmentShader: MICRO_FS, vertexColors: !!o.vertexColors,
-    ...(o.streaks ? { defines: { STREAKS: '' } } : {}),
+    ...(o.streaks ? { defines: { STREAKS: '' } } : o.flow ? { defines: { FLOW: '' } } : {}),
     uniforms: {
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
-      uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
+      uFlow: { value: 0 }, uHalf: { value: 5 }, uStreak: { value: 0.3 }, uProfile: { value: 1 }, uStreakDir: { value: 1 }, uStreakCol: { value: new Color(1, 1, 1) },
+      uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
+      uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
     },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   const ink = o.ink === null ? null : new ShaderMaterial({
-    vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS,
-    uniforms: { color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, px: { value: o.px ?? CEL_STYLE.MICRO.LINE }, res, fade },
+    vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors,
+    uniforms: { color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, uOwn: { value: 0 }, px: { value: o.px ?? CEL_STYLE.MICRO.LINE }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
     side: BackSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   return { toon, ink };
@@ -182,11 +264,18 @@ export class MicroPart {
   }
   setTint(rgb: RGB): void { rawRGB(this.mats.toon.uniforms.tint!.value as Color, rgb); }
   setInk(rgb: RGB): void { if (this.mats.ink) rawRGB(this.mats.ink.uniforms.color!.value as Color, rgb); }
+  /** A vessel's line: `rgb` (the look's casing) taken `own` of the way to a deep tone of the part's own colour, as the Anatomy's vessels are inked. */
+  setVesselInk(rgb: RGB, own: number = CEL_STYLE.TUBE.INK_OWN): void { if (!this.mats.ink) return; this.setInk(rgb); this.mats.ink.uniforms.uOwn!.value = own; }
   setOpacity(a: number): void { this.mats.toon.uniforms.opacity!.value = a; this.group.visible = a > 0.002; }
   /** A streaked part's flow (µm run), the stream's half width (µm), the streaks' tone and strength and whether the lanes have the blood's profile. */
   setStreaks(flow: number, half: number, rgb: RGB, strength: number, profile: number): void {
     const u = this.mats.toon.uniforms;
     u.uFlow.value = flow % 1e6; u.uHalf!.value = half; u.uStreak!.value = strength; u.uProfile!.value = profile; rawRGB(u.uStreakCol!.value as Color, rgb);
+  }
+  /** A flowing part's marks: how far they have run, their pitch (local units), their tone and strength, the streaks' share, and filled heads (the bile) or open chevrons. */
+  setFlow(t: number, pitch: number, rgb: RGB, k: number, streak = 0, head = 0): void {
+    const u = this.mats.toon.uniforms;
+    u.uFlowT!.value = ((t % 1e4) + 1e4) % 1e4; u.uFlowPitch!.value = pitch; u.uFlowK!.value = k; u.uFlowStreak!.value = streak; u.uFlowHead!.value = head; rawRGB(u.uFlowCol!.value as Color, rgb);
   }
   set renderOrder(o: number) { this.toonMesh.renderOrder = o; if (this.inkMesh) this.inkMesh.renderOrder = o; }
   dispose(): void { this.geometry.dispose(); this.mats.toon.dispose(); this.mats.ink?.dispose(); }
@@ -232,6 +321,8 @@ export class MeshBuilder {
   p: number[] = []; n: number[] = []; c: number[] = []; idx: number[] = [];
   /** One number per vertex for a shader's own use (`aux`): push it right after each v(), for every vertex or none. */
   aux: number[] = [];
+  /** A second number per vertex (`aux2`), the same rule. */
+  aux2: number[] = [];
   get count(): number { return this.p.length / 3; }
   v(x: number, y: number, z: number, nx: number, ny: number, nz: number, col?: RGB): number {
     const l = Math.hypot(nx, ny, nz) || 1;
@@ -248,6 +339,7 @@ export class MeshBuilder {
   }
   build(into?: BufferGeometry): BufferGeometry {
     const g = into ?? new BufferGeometry();
+    this.orient();
     const set = (name: string, arr: number[], k: number) => {
       const old = g.getAttribute(name) as BufferAttribute | undefined;
       if (old && old.array.length === arr.length) { (old.array as Float32Array).set(arr); old.needsUpdate = true; } else g.setAttribute(name, new BufferAttribute(new Float32Array(arr), k));
@@ -255,10 +347,25 @@ export class MeshBuilder {
     set('position', this.p, 3); set('normal', this.n, 3);
     if (this.c.length) set('color', this.c, 3);
     if (this.aux.length) set('aux', this.aux, 1);
+    if (this.aux2.length) set('aux2', this.aux2, 1);
     const ix = g.getIndex();
     if (ix && ix.array.length === this.idx.length) { (ix.array as Uint32Array).set(this.idx); ix.needsUpdate = true; } else g.setIndex(new BufferAttribute(new Uint32Array(this.idx), 1));
     g.computeBoundingSphere();
     return g;
+  }
+  /** Every triangle wound to face the way its vertices' normals do. A triangle wound against its normals is culled by its toon (front faces only) and drawn by its ink (back faces),
+   *  so it shows as a hole of ink colour: the dark red cells (a lathe wound inside out) and the X across every hepatocyte (the top's fan folding where the inset ring crosses itself at a
+   *  rounded corner), 20 Nov 2026. Turning each one here fixes every shape built, whatever builds it. */
+  private orient(): void {
+    const p = this.p, n = this.n, ix = this.idx;
+    for (let t = 0; t + 2 < ix.length; t += 3) {
+      const a = ix[t]! * 3, b = ix[t + 1]! * 3, c = ix[t + 2]! * 3;
+      const e1x = p[b]! - p[a]!, e1y = p[b + 1]! - p[a + 1]!, e1z = p[b + 2]! - p[a + 2]!;
+      const e2x = p[c]! - p[a]!, e2y = p[c + 1]! - p[a + 1]!, e2z = p[c + 2]! - p[a + 2]!;
+      const fx = e1y * e2z - e1z * e2y, fy = e1z * e2x - e1x * e2z, fz = e1x * e2y - e1y * e2x;
+      const d = fx * (n[a]! + n[b]! + n[c]!) + fy * (n[a + 1]! + n[b + 1]! + n[c + 1]!) + fz * (n[a + 2]! + n[b + 2]! + n[c + 2]!);
+      if (d < 0) { const k = ix[t + 1]!; ix[t + 1] = ix[t + 2]!; ix[t + 2] = k; }
+    }
   }
 }
 

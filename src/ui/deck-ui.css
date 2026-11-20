@@ -27,7 +27,7 @@
 /* "Soft lift" (19 Nov pick): surface, 1 px hairline, two-layer shadow in the look's shadow colour. The glass (frosted blur) is the block at the end of this file. */
 .dk-card {
   position: relative; box-sizing: border-box; overflow: hidden; pointer-events: auto;
-  touch-action: pan-x pan-y;
+  touch-action: pan-y;   /* (sideways is the finger's, the card follows it: useCardDrag) */
 }
 /* The card's surface, type and colours are the 2D app's own rules, lifted unchanged (src/ui/css2d: .pz-shade, .pz-text, .pz-data, .pz-bar). Those rules also place the cards on
    their screen; here the planner has placed them (.dk-pos), so the place-taking properties are taken back, at a specificity above the 2D selectors that set them. */
@@ -36,18 +36,26 @@
 }
 .deck-ui.pz .dk-card[data-card] > .dk-in.pz-text { position: static; inset: auto; left: auto; right: auto; top: auto; bottom: auto; width: auto; max-height: none; height: auto; margin: 0; }
 .deck-ui.pz .dk-card[data-card].pz-data > .dk-in { display: flex; flex-direction: column; gap: var(--pz-gap); }
+/* ── the cards that stand alone in the middle: 2D's `.pz-panel` (the outline, the quick check) and `.pz-case` ──
+   Their surface, type, padding, gap, corner and shadow are the lifted 2D rules (src/ui/css2d/app-04-presenter.css, app-05); the planner places them (plan.ts centredBox, the same
+   measures as 2D's CSS), so the place-taking properties are taken back here and the card's words sit in a column that carries 2D's own gap. The padding stays on the card, as in 2D. */
+.deck-ui.pz .dk-card.pz-panel, .deck-ui.pz .dk-card.pz-case { position: relative; inset: auto; left: auto; right: auto; top: auto; bottom: auto; width: auto; max-height: none; margin: 0; translate: none; pointer-events: auto; }
+.deck-ui.pz .dk-card.pz-case { opacity: 1; }
+.deck-ui.pz .dk-card:is(.pz-panel, .pz-case) > .dk-in { display: flex; flex-direction: column; gap: inherit; align-items: inherit; align-self: stretch; min-width: 0; padding: 0; }
+.dk-pos[data-centred] > .dk-plate { display: none; }
+.deck-ui .pz-veil { z-index: 0; }
+.deck-ui .pz-veil.dip { opacity: 0.85; }
+.deck-ui .pz-veil.soft { opacity: 0.5; }   /* the quick check (2D has none): the figure the talk ended on stays in view behind it, never a black screen in a dark look */   /* behind a case card the figure dips to 22% (2D `.pz-out`): the page's own colour over it at .92 x .85 */
+
 /* the outer shadow is the plate's (a height glide clips the card); the card keeps the 2D hairline */
 .deck-ui.pz .dk-card[data-card].pz-shade, .deck-ui.pz .dk-card[data-card].pz-data { box-shadow: inset 0 0 0 1px var(--glass-edge); }
 /* the shadow lives on a plate behind the card so a height glide can scale it (clip-path would cut a shadow off) */
 .dk-plate { position: absolute; left: 0; top: 0; width: 100%; border-radius: var(--r); transform-origin: 50% 0; pointer-events: none;
   box-shadow: var(--glass-shadow, 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 12px 32px -10px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.6))); }
 .dk-plate[data-phase="wait"] { opacity: 0; visibility: hidden; }
-.dk-plate[data-phase="in"] { animation: dk-in var(--move) var(--ease) both; }
-.dk-plate[data-phase="out"] { animation: dk-out 220ms cubic-bezier(0.4, 0, 1, 1) both; }
 /* a card is invisible until its words are laid out and its fonts are in (nothing shows before it is whole), then it rises in */
 .dk-card[data-phase="wait"] { opacity: 0; visibility: hidden; }
-.dk-card[data-phase="in"] { animation: dk-in var(--move) var(--ease) both; }
-.dk-card[data-phase="out"] { animation: dk-out 220ms cubic-bezier(0.4, 0, 1, 1) both; pointer-events: none; }
+.dk-card[data-phase="out"] { pointer-events: none; }   /* (in and out are the rail's: rail.ts writes the card's transform and opacity on the one clock) */
 @keyframes dk-in { from { opacity: 0; transform: translateY(var(--rise)); } to { opacity: 1; transform: none; } }
 @keyframes dk-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(var(--drop)); } }
 .dk-in { padding: var(--pad-y) var(--pad-x); }
@@ -198,3 +206,12 @@
 
 /* A table row's note names its column (2D: the note column's head, "Choice"), as a small label before the words. */
 .dk-tnote .dk-tnh { margin-right: .5em; font-weight: 600; color: var(--text-3); }
+
+/* ── card zoom (2D card-zoom.js, app.css .pz-zscrim): the tapped card grows to the middle, the page dims a little, the figure's labels sit out ── */
+.deck-ui .pz-zveil { position: absolute; inset: 0; z-index: 1; background: color-mix(in srgb, var(--stage-bg) 20%, transparent); opacity: 0; pointer-events: none; cursor: zoom-out; transition: opacity var(--d-zoom-out, 440ms) var(--ease); }
+.deck-ui .pz-zveil.on { opacity: 1; pointer-events: auto; transition-duration: var(--d-zoom-in, 520ms); }
+.deck-ui .dk-card[data-zoomable] { cursor: zoom-in; }
+body[data-card-zoom] .deck-ui .dk-card[data-zoomable] { cursor: zoom-out; }
+body[data-card-zoom] .lb-layer { opacity: 0; transition: opacity 240ms var(--ease); }
+.dk-card { z-index: 2; }
+.dk-pos { z-index: 2; }

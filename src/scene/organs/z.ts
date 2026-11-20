@@ -12,6 +12,6 @@ export const ORGAN_Z: Readonly<Record<string, number>> = {
   bowel: -0.04,
   colon: -0.04,
   heart: -0.03,
-  'heart-ra': 0.01,
+  'heart-ra': -0.13,   // (the atrium's mesh stands 0.02 to 0.20, centre 0.11: this puts its centre on the cava's plane, TIER_Z.back, so the IVC enters it level)
   liver: 0.03,
 };

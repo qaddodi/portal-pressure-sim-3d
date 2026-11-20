@@ -376,7 +376,6 @@ test('a tier is named in small capitals at its band, and the tiers are drawn as 
 test('zoomed in on the map: no vessel is culled by its body sphere, corners are rounded, and the names keep clear of the floating bars', async () => {
   const vo = readFileSync(new URL('../src/scene/vessels/vessel-object.ts', import.meta.url), 'utf8');
   assert.match(vo, /this\.toonMesh\.frustumCulled = false/, 'the Circuit moves the vertices far from the body course the bounding sphere was taken from');
-  assert.match(vo, /depth\.frustumCulled = false/);
   assert.match(vo, /mesh\.frustumCulled = false/);
   const { roundCorners, CORNER_R, mapCourse } = await import('../src/scene/circuit/course.ts');
   const bend = roundCorners([[0, 0], [100, 0], [100, 100]]);

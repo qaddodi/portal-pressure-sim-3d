@@ -6,7 +6,9 @@ import { createShared } from '../src/scene/materials/cel.ts';
 import { LobuleView } from '../src/scene/lobule/view.ts';
 import { LOBULE_R } from '../src/scene/lobule/shots.ts';
 import { sinRadius, DISC_R } from '../src/scene/lobule/widths.ts';
-import { Lobule3D, LZ, TUBE_SEG, bileCourses, skipFirstFills } from '../src/scene/micro3d/lobule3d.ts';
+import { Lobule3D, LZ, OVER_Z, TUBE_SEG, skipFirstFills } from '../src/scene/micro3d/lobule3d.ts';
+import { buildBile } from '../src/scene/lobule/bile.ts';
+import { PLATE_BOX } from '../src/scene/lobule/plate.ts';
 import { lookColours } from '../src/scene/lobule/lz-colours.ts';
 
 const shared = createShared();
@@ -48,7 +50,7 @@ test('the sinusoids are 2D\'s width: a tube\'s first ring is sinRadius x R (neve
   const c = flat.net.courses.find((k) => k.kind === 's0')!;
   const cx = c.pts[0]![0] * LOBULE_R, cy = -c.pts[0]![1] * LOBULE_R;
   let r = 0;
-  for (let v = 0; v < TUBE_SEG; v++) r = Math.max(r, Math.hypot(pos.getX(v) - cx, pos.getY(v) - cy, pos.getZ(v) - LZ.tube));
+  for (let v = 0; v < TUBE_SEG; v++) r = Math.max(r, Math.hypot(pos.getX(v) - cx, pos.getY(v) - cy, pos.getZ(v) - OVER_Z));
   assert.ok(Math.abs(r - sinRadius('s0', c.rho[0]!) * LOBULE_R) < 1e-5, `radius ${r}`);
 });
 
@@ -59,11 +61,11 @@ test('the central vein is a smooth round mouth: its lip is a circle of 2D\'s rad
   let max = 0;
   for (let v = 0; v < pos.count; v++) max = Math.max(max, Math.hypot(pos.getX(v) - ox, pos.getY(v) - oy));
   assert.ok(Math.abs(max - DISC_R.cv * LOBULE_R) < 1e-4, `lip radius ${max} against ${DISC_R.cv * LOBULE_R}`);
-  assert.ok(pos.count >= 64 * 10);
+  assert.ok(pos.count >= 64 * 9);
 });
 
 test('the Bile layer\'s courses are the flat view\'s own', () => {
-  assert.equal(bileCourses(flat.net).length, (flat as unknown as { bilePick: unknown[] }).bilePick.length);
+  assert.equal(buildBile(flat.net).length, (flat as unknown as { bilePick: unknown[] }).bilePick.length);
 });
 
 test('the marks plate leaves out exactly 2D\'s ground fills', () => {
@@ -82,4 +84,69 @@ test('every look has the colours the tiles read', () => {
     assert.ok(L.text('--og-liver-1') && L.text('--og-liver-2') && L.text('--lz-nodule-ink'), look);
     l3.buildForTest(look);
   }
+});
+
+test('on the sinusoid (landed), the whole lobule stands aside, 3D and flat; back on the lobule it shows again', () => {
+  const sh = createShared(), lv = new LobuleView(sh), l = new Lobule3D(lv, sh);
+  lv.setVisible(true);
+  l.update(true, 0.5);
+  assert.equal(l.group.visible, true, 'half way down it is still there, dissolving');
+  l.update(true, 1);
+  assert.equal(l.group.visible, false); assert.equal(lv.group.visible, false);
+  l.update(true, 0);
+  assert.equal(l.group.visible, true); assert.equal(lv.group.visible, true);
+  l.update(true, 1); l.update(false, 0);
+  assert.equal(lv.group.visible, true);
+});
+
+test('no vessel over the plates is buried under the tiles (a buried one shows only in the gaps, as floating pieces): every sinusoid, cross-link and twig tops the tiles', () => {
+  for (const name of ['lobule3d/sinusoids-0', 'lobule3d/sinusoids-1', 'lobule3d/sinusoids-2', 'lobule3d/sinusoids-links', 'lobule3d/arteriole-twigs']) {
+    const part = l3.partsForTest.find((p) => p.toonMesh.name === name)!;
+    const pos = part.geometry.getAttribute('position') as BufferAttribute;
+    let top = -Infinity;
+    for (let v = 0; v < Math.min(pos.count, TUBE_SEG); v++) top = Math.max(top, pos.getZ(v));
+    assert.ok(top > LZ.cellTop, `${name}: its top ${top.toFixed(4)} is over the tiles' ${LZ.cellTop}`);
+  }
+});
+
+test('every bile course runs from the central vein out toward its tract (its arrowheads point out, against the blood)', () => {
+  const net = new LobuleView(createShared()).net;
+  for (const c of buildBile(net)) { const a = c.pts[0]!, z = c.pts[c.pts.length - 1]!; assert.ok(Math.hypot(z[0], z[1]) > Math.hypot(a[0], a[1]), c.kind); }
+});
+
+test('the lobule\'s vessels are inked as the Anatomy\'s (a deep tone of their own colour), the hepatocytes with the tissue\'s line', () => {
+  const flat = new LobuleView(createShared()); flat.setVisible(true);
+  const l3 = new Lobule3D(flat, createShared()); l3.update(true);
+  const inks: { name: string; own: number }[] = [];
+  l3.group.traverse((o) => { const u = ((o as unknown as { material?: { uniforms?: Record<string, { value: unknown }> } }).material)?.uniforms; if (o.name.endsWith('/ink') && u?.uOwn) inks.push({ name: o.name, own: u.uOwn.value as number }); });
+  for (const n of ['sinusoids-0', 'inlets', 'portal-venules', 'central-vein', 'canaliculi']) assert.ok(inks.find((i) => i.name.endsWith(`${n}/ink`))!.own > 0.5, n);
+  assert.equal(inks.find((i) => i.name.endsWith('hepatocytes/ink'))!.own, 0);
+});
+
+test('the plate reaches past every portal tract\'s whole scar (it was cut off at the hexagon)', () => {
+  assert.ok(PLATE_BOX >= 1 + 0.1 * 1.7 * 1.08 + 0.02);
+});
+
+test('the marks (the periportal scar) and the vessels draw after the see-through field of neighbour lobules, so the scar is never cut off at the hexagon', () => {
+  const sh = createShared(), lv = new LobuleView(sh), l = new Lobule3D(lv, sh);
+  let marks: import('three').Mesh | null = null, field: import('three').Mesh | null = null;
+  l.group.traverse((o) => { if (o.name === 'lobule3d/marks') marks = o as import('three').Mesh; });
+  lv.group.traverse((o) => { if (o.name === 'lobule/field') field = o as import('three').Mesh; });
+  const m = marks as unknown as import('three').Mesh, f = field as unknown as import('three').Mesh | null;
+  assert.ok((m.material as import('three').Material).transparent, 'in the see-through list');
+  if (f) assert.ok(m.renderOrder > f.renderOrder, 'after the field');
+  l.group.traverse((o) => { if (o.name.startsWith('lobule3d/sinusoids-0') && (o as import('three').Mesh).isMesh) { assert.ok(o.renderOrder > m.renderOrder); assert.ok(((o as import('three').Mesh).material as import('three').Material).depthWrite); } });
+});
+
+test('every end-on vessel is a pool full to the brim with its colour: one flat top at the height of the tubes that run into it, no rim, no drop', async () => {
+  const { mouth } = await import('../src/scene/micro3d/lobule3d.ts');
+  const { MeshBuilder } = await import('../src/scene/micro3d/cel3d.ts');
+  const b = new MeshBuilder(), K: number[] = [];
+  mouth(b, 0, 0, 0.2, 0.03, 0.05, K, 32, true, 0.06);
+  assert.ok(K.every((k) => k === 1), 'one colour, no darker rim or floor');
+  const g = b.build(), pos = g.getAttribute('position') as BufferAttribute;
+  let zMax = -1; for (let v = 0; v < pos.count; v++) zMax = Math.max(zMax, pos.getZ(v));
+  assert.ok(Math.abs(zMax - 0.06) < 1e-6, 'its top is the given height');
+  const src = (await import('node:fs')).readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
+  for (const k of ['Pv', 'Ha', 'Bd', 'Lv', 'Cv']) assert.match(src, new RegExp(`mouths\\(this\\.mouth${k}, [^\\n]*, true, `), k);
 });

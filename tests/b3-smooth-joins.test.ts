@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { MAPPED, NETWORK_BY_ID, NODE_Z, RUN_ONS } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { TIP_K, buildTubes, buriedRadius, pointFactor, pointLength } from '../src/scene/vessels/tubes.ts';
+import { ORGAN_Z } from '../src/scene/organs/z.ts';
 import { CEIL, NODE_RISE, SMOOTH, UNEQUAL, joinSwell } from '../src/scene/vessels/smooth-joins.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { VESSEL_VS } from '../src/scene/vessels/shaders.ts';
@@ -185,7 +186,7 @@ test('the cava and the SVC end in the right atrium: they run on one monotone slo
     return { zmin, zmax };
   })();
   const ra = NODE_RISE.get('RA')!;
-  assert.ok(ra.z > heart.zmin && ra.z < heart.zmax, `the end depth ${ra.z} is inside the atrium (${heart.zmin} to ${heart.zmax})`);
+  assert.ok(ra.z > heart.zmin + ORGAN_Z['heart-ra']! && ra.z < heart.zmax + ORGAN_Z['heart-ra']!, `the end depth ${ra.z} is inside the atrium (${heart.zmin} to ${heart.zmax})`);
   on(() => {
     const ivc = coursesOf(NETWORK_BY_ID.get('IVCS_RA')!, REST)[0]!.pts, svc = coursesOf(NETWORK_BY_ID.get('SVC_RA')!, REST)[0]!.pts;
     const eI = ivc[ivc.length - 1]!, eS = svc[svc.length - 1]!;
@@ -254,14 +255,12 @@ test('pressure colour runs smoothly along a chain: the two vessels of a run-on w
   for (let k = 0; k < NE; k++) { if (f.grad[k * 4 + 3] === 0) continue; for (let i = 0; i < 3; i++) { const a = f.grad[k * 4 + i]!, b = f.grad[(NE + k) * 4 + i]!; assert.ok(Math.abs(f.grad[(2 * NE + k) * 4 + i]! - (a + (b - a) / 3)) < 1e-6); assert.ok(Math.abs(f.grad[(3 * NE + k) * 4 + i]! - (a + (b - a) * 2 / 3)) < 1e-6); } }
 });
 
-test('every vessel\'s ink shares the one stencil (an outline round the union, never doubled at a fork), with the switch on or off', () => {
+test('no vessel shares a stencil bit with another: every tube is one opaque draw with the outline in its own fragments, so a crossing is never merged and a join is buried only by the mates (the same on or off)', () => {
   const s = new CelScene();
   let n = 0;
   for (const v of MAPPED) {
-    const o = s.vesselObject(v.id) as unknown as { hullMat: { stencilWrite: boolean; stencilRef: number; stencilFunc: number; stencilZPass: number; stencilFail: number; stencilZFail: number } };
-    const h = o.hullMat;
-    assert.ok(h.stencilWrite && h.stencilRef === 1, v.id);
-    assert.deepEqual([h.stencilFunc, h.stencilZPass, h.stencilFail, h.stencilZFail], [517, 7681, 7680, 7680], v.id);   // NotEqual, Replace, Keep, Keep
+    const m = s.vesselObject(v.id)!.toonMesh.material as import('three').ShaderMaterial;
+    assert.ok(!Array.isArray(m) && !m.stencilWrite, v.id);
     n++;
   }
   assert.ok(n > 50);

@@ -1,10 +1,8 @@
-// Mohammad, 20 Nov: "Artery cannot cross the veins"; the red arteriole strands into the sinusoid fans are not drawn; the caudate lobe's short veins are one clean smooth fan, not a worm.
+// Mohammad, 20 Nov: "Artery cannot cross the veins"; the red arteriole strands into the sinusoid fans are not drawn; the caudate lobe's fan (unconnected twigs in the liver) is not drawn.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { x2d, y2d } from '../src/scene/frame2d.ts';
-import { FEEDERS_2D } from '../src/scene/vessels/coil.copied.ts';
-import { cleanFeeders } from '../src/scene/vessels/starts.ts';
 
 const P = (id: string): [number, number][] => NETWORK_BY_ID.get(id)!.pts.map((p) => [x2d(p[0]), y2d(p[1])]);
 const cross = (a: number[], b: number[], c: number[], d: number[]) => {
@@ -18,34 +16,78 @@ test('the hepatic artery crosses no vein (and an arterioportal shunt, which ends
   for (const a of arts) {
     const pa = P(a.id);
     for (const v of NETWORK) {
-      if (v.feeder || v.tone === 'artery' || v.kind === 'shunt') continue;
+      if (v.feeder || v.tone === 'artery' || v.kind === 'shunt' || v.kind === 'liver' || v.id === 'C9') continue;   // (the hidden sinusoid beds; C9, the lumbar collateral behind everything, only when it is open)
       const pv = P(v.id);
       for (let i = 1; i < pa.length; i++) for (let j = 1; j < pv.length; j++) assert.ok(!cross(pa[i - 1]!, pa[i]!, pv[j - 1]!, pv[j]!), `${a.id} crosses ${v.id}`);
     }
   }
 });
 
-test('the arterioles into the sinusoid fans are not drawn', () => {
-  assert.ok(!NETWORK_BY_ID.has('A_HR') && !NETWORK_BY_ID.has('A_HL'));
+test('the left and right hepatic arteries run beside their portal branches, a little below them, and fade out with them', () => {
+  for (const [a, host] of [['A_HR', 'PVH_R_1'], ['A_HL', 'PVH_L_1']] as const) {
+    const art = P(a), v = P(host);
+    assert.equal(art.length, 64);
+    const near = Math.min(...art.map((p) => Math.min(...v.map((q) => Math.hypot(p[0] - q[0], p[1] - q[1])))));
+    assert.ok(near > 3 && near < 14, `${a} runs ${near.toFixed(1)} units from ${host}`);
+    if (a === 'A_HR') assert.ok(art.reduce((t, p) => t + p[1], 0) / 64 > v.reduce((t, p) => t + p[1], 0) / 64 - 5, `${a} is below its vein`);
+  }
 });
 
-test('the caudate lobe\'s veins are a few smooth twigs: each a gentle bow, none wiggling', () => {
-  const fan = NETWORK.find((v) => v.id.startsWith('CAUD~F'))!;
-  const list = (fan.plan as unknown as { list: { pts: readonly (readonly [number, number])[]; fan: boolean }[] }).list.filter((f) => f.fan);
-  assert.ok(list.length >= 2 && list.length <= 5, `${list.length} twigs`);
-  assert.ok(list.length < FEEDERS_2D.CAUD!.filter((f) => f.fan).length, 'the thin tangle is gone');
-  for (const f of list) {
-    let len = 0, turn = 0, prev = 0;
-    for (let i = 1; i < f.pts.length; i++) {
-      const dx = f.pts[i]![0] - f.pts[i - 1]![0], dy = f.pts[i]![1] - f.pts[i - 1]![1];
-      len += Math.hypot(dx, dy);
-      const ang = Math.atan2(dy, dx);
-      if (i > 1) { let d = ang - prev; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; turn += Math.abs(d); }
-      prev = ang;
-    }
-    const chord = Math.hypot(f.pts.at(-1)![0] - f.pts[0]![0], f.pts.at(-1)![1] - f.pts[0]![1]);
-    assert.ok(len / chord < 1.1, `a twig is nearly straight (${(len / chord).toFixed(3)})`);
-    assert.ok(turn < 0.6, `and turns one way, smoothly (${turn.toFixed(2)} rad in all)`);
+test('no vein hangs unconnected in the middle of the liver: the caudate fan is not drawn', () => {
+  assert.ok(!NETWORK.some((v) => v.id.startsWith('CAUD')));
+});
+
+test('the closed lumbar-azygos collateral is not a dotted pink thread through the sinusoid fan; other closed collaterals still are', async () => {
+  const { presenceOf, NETWORK: N } = await import('../src/scene/vessels/network.ts');
+  const f = { Q: new Array(200).fill(0), D: new Array(200).fill(0) } as never;
+  const of = (id: string) => presenceOf(N.find((v) => v.id === id)!, f, { collaterals: true });
+  assert.equal(of('C9'), 'hidden');
+  assert.equal(of('C1a'), 'ghost');
+});
+
+test('the paraumbilical vein leaves the left portal branch as a filleted Y: thinner than the trunk, its fillet no wider than the trunk is at the node (no blunt stack of equal tubes)', async () => {
+  const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
+  const c3 = B.get('C3')!, lpv = B.get('PVH_L_1')!, pre = B.get('PRE_L')!;
+  assert.ok(c3.radius < 0.7 * lpv.radius, 'narrower than the left portal vein');
+  const fl = c3.flare?.[0];
+  assert.ok(fl, 'a fillet at its start');
+  assert.ok(fl!.wall <= 0.8 * (lpv.radius + pre.radius) / 2 + 1e-9, 'fitted to the trunk\'s width at the node (the mean of the pair that runs on there), not its full width');
+});
+
+test('the cava, the hepatic veins and the right atrium lie in one plane: no S in depth (a side-tilted view showed one: Mohammad, 20 Nov)', async () => {
+  const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
+  const { TIER_Z } = await import('../src/scene/frame2d.ts');
+  const { ORGAN_Z } = await import('../src/scene/organs/z.ts');
+  const { NODE_RISE } = await import('../src/scene/vessels/smooth-joins.ts');
+  for (const id of ['IVC_IS_1', 'IVC_IS', 'IVCS_RA', 'SVC_RA', 'RHV_IVC', 'LRV_IVC']) {
+    const z = coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts.map((p) => p[2]);
+    assert.ok(Math.max(...z) - Math.min(...z) < 0.02, `${id} is level`);
+    assert.ok(Math.abs(z[0]! - TIER_Z.back) < 0.02, `${id} is on the cava's plane`);
   }
-  assert.equal(cleanFeeders('AZY_SVC', FEEDERS_2D.AZY_SVC!).length, FEEDERS_2D.AZY_SVC!.length, 'only the caudate fan is redrawn');
+  assert.equal(NODE_RISE.get('RA')!.z, TIER_Z.back, 'the cava enters the atrium level');
+  assert.ok(Math.abs(ORGAN_Z['heart-ra']! + 0.11 - TIER_Z.back) < 1e-9, 'the atrium (mesh centre 0.11) is centred on the same plane');
+});
+
+test('the sinusoid beds are not drawn: the portal branches fade out into the liver and the hepatic veins fade in from it (Mohammad, 20 Nov)', async () => {
+  const { presenceOf, NETWORK: N } = await import('../src/scene/vessels/network.ts');
+  const { fadeOf } = await import('../src/scene/vessels/fades.ts');
+  const f = { Q: new Array(200).fill(1), D: new Array(200).fill(5) } as never;
+  for (const id of ['SIN_RR', 'SIN_LL', 'PRE_R', 'PRE_L', 'POST_R_RHV', 'POST_L_LHV']) assert.equal(presenceOf(N.find((v) => v.id === id)!, f, { collaterals: true }), 'hidden', id);
+  for (const id of ['PVH_R_2', 'PVH_L_1']) { const x = fadeOf(id, false)!; assert.equal(x.mode, 1); assert.deepEqual([x.to, x.a0, x.a1], [1, 1, 0], `${id} ends in the liver's tissue`); }
+  for (const id of ['RHV_IVC_1', 'MHV_IVC', 'LHV_IVC']) { const x = fadeOf(id, false)!; assert.equal(x.mode, 1); assert.deepEqual([x.from, x.a0, x.a1], [0, 0, 1], `${id} begins in the liver's tissue`); }
+});
+
+test('each portal-branch end, hepatic-vein start and the umbilical vein branches once more into the liver: two children, one forward and one back in depth, leaving the host\'s own course', async () => {
+  const { LIVER_BRANCHES } = await import('../src/scene/vessels/liver-branches.ts');
+  const { EDGE_PATH_2D: PATHS } = await import('../src/scene/vessels/paths.copied.ts');
+  assert.deepEqual(LIVER_BRANCHES.map((b) => b.host).sort(), ['C3', 'LHV_IVC', 'MHV_IVC', 'PVH_L_1', 'PVH_R_2', 'RHV_IVC_1']);
+  for (const b of LIVER_BRANCHES) {
+    assert.equal(b.list.length, 2, `${b.host}: two children`);
+    const [a, c] = b.list as readonly { pts: readonly (readonly [number, number])[]; dz: readonly number[] }[];
+    assert.ok(Math.max(...a!.dz) > 0.05 && Math.min(...c!.dz) < 0, `${b.host}: one goes forward, one back`);
+    const host = PATHS[b.host]!, onHost = (p: readonly [number, number]) => Math.min(...host.map((q) => Math.hypot(p[0] - q[0], p[1] - q[1])));
+    const near = [a!.pts[0]!, a!.pts[a!.pts.length - 1]!, c!.pts[0]!, c!.pts[c!.pts.length - 1]!].map(onHost);
+    assert.ok(Math.min(...near) < 2, `${b.host}: the children are the host's own course where they leave it`);
+    assert.ok(NETWORK_BY_ID.has(`${b.host}~F:b`) && NETWORK_BY_ID.get(`${b.host}~F:b`)!.feeder, `${b.host}: drawn as a tributary group`);
+  }
 });

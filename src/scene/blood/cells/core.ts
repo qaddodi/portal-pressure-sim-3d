@@ -1,3 +1,4 @@
+import { STREAK, laneSpeed, lanesFor } from '../streak-glsl.ts';
 // Blood-cell particles, the node-testable core (no three.js, no GPU): how many cells each vessel gets, where each one starts, how a cell's place follows the blood's distance
 // (wrap and reversal), how many of a vessel's cells show at a given flow, the data rows the shader reads, and when the layer is on. The GPU side is shader.ts and cells.ts.
 //
@@ -24,21 +25,9 @@ export const MIN_PER_EDGE = 2;
 /** A cell's widest diameter in CSS px: the biggest veins take bigger cells no further. */
 export const MAX_CELL_CSS = 7;
 
-/** The streak's numbers (shader.ts): fine, faint, one flat tone, under the chevrons. Lengths and thickness in CSS px. */
-export const STREAK = {
-  /** a streak at the wall runs at this share of the mean speed (the middle runs at 1.5 of it, the mean over the section is 1) */
-  WALL_SPEED: 0.3,
-  LEN_MIN: 4, LEN_MAX: 15, LEN_FLOOR: 3, LEN_OF_R: 2.4,
-  THICK: 1.1,
-  /** how far across the tube (of its radius) a streak may sit */
-  SPAN: 0.88,
-  /** the turbulence's weights: near a vessel's end (a fork), in a narrowed vessel, in a vessel at its design flow */
-  T_END: 0.4, T_STENOSIS: 0.9, T_FLOW: 0.5,
-  /** the most a streak wanders across (of the tube's half width) and tilts (radians) at full turbulence */
-  WANDER: 0.45, TILT: 0.6,
-  /** the colour lifted toward white, the streak's faintness, and how faint its tail is against its head */
-  LIFT: 0.6, ALPHA: 0.55, TAIL: 0.15,
-} as const;
+/** The figure's units to a scene unit: the vessels' lengths and radii are held in the 2D figure's units (a scene length times this). */
+export const UNITS = 300;
+export { STREAK, laneSpeed, lanesFor };
 /** The design flow of a vessel as a multiple of its resting flow: the flow at which all its slots show. */
 export const DESIGN_HEADROOM = 1.5;
 /** The flow below which a vessel counts as not flowing (flow.ts markSpeed: 0.05 mL/s). */
@@ -62,9 +51,9 @@ export interface BudgetEdge {
 /** The most cells a vessel's tube holds: cells in a row 1.7 diameters apart, one to three rows across (never fewer than the minimum). 0 for a hairline or a vessel with no flow or length. */
 export function edgeCapacity(e: BudgetEdge): number {
   if (!(e.flow > 0) || !(e.length > 0) || e.radius < MIN_RADIUS) return 0;
-  const d = Math.max(cellDiameter(e.radius), 2.6);
-  const rows = Math.min(3, Math.max(1, Math.floor((2 * e.radius * 0.9) / d)));
-  return Math.max(MIN_PER_EDGE, Math.floor(e.length / (d * 1.7)) * rows);
+  const rows = lanesFor(e.radius);
+  const gap = Math.max(STREAK.LEN_OF_R * e.radius * 1.4, 6);   // (a streak and the clear stretch behind it)
+  return Math.max(MIN_PER_EDGE, Math.floor(e.length / gap) * rows);
 }
 
 /**
@@ -140,7 +129,7 @@ export function layoutCells(counts: readonly number[]): CellLayout {
       place[at * 3 + 1] = (j + 0.5 + (hash2(e, j) - 0.5) * 0.5) / n;
       place[at * 3 + 2] = thinOrder(j);
       extra[at * 4] = n;
-      extra[at * 4 + 1] = ((j * 0.6180339887 + hash2(j, e) * 0.2) % 1) * 2 - 1;
+      extra[at * 4 + 1] = (Math.floor(((j * 0.6180339887 + hash2(j, e) * 0.2) % 1) * STREAK.LANES) - (STREAK.LANES - 1) / 2) / ((STREAK.LANES - 1) / 2);   // a lane: -1, -2/3 ... 1
       extra[at * 4 + 2] = hash2(e + 977, j);
       extra[at * 4 + 3] = hash2(e + 31, j + 4001);
     }

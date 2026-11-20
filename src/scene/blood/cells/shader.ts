@@ -1,8 +1,9 @@
 // The blood's streaks: one vertex a streak, drawn as a point sprite (one draw call for every streak of the figure). Nothing is placed on the CPU: the vertex shader finds its vessel's
 // place from the textures the figure already keeps on the GPU, slides along the vessel's course with the blood's own distance, and lays itself on the tube's front like the chevrons.
 // A streak is a fine line along the flow (Mohammad, 20 Nov: "make them streaks with laminar flow and turbulence"), not a disc:
-//   laminar      a streak's lateral place sets its speed: parabolic, fastest in the middle, slow at the wall, the mean speed the stream's own (so the chevrons and the streaks agree)
-//   length       grows with the speed it runs at, so the middle streaks are long and the wall's are short dashes
+//   laminar      a streak's lane sets its speed: parabolic, the outer lane at 0.15 of the middle one's, so the flow shears; the mean over the lanes is the stream's own (so the chevrons and the streaks agree)
+//   shape        (Mohammad, 20 Nov, the design he approved) LANES across the tube (3, 5 or 7 by its radius), many short thin streaks to a lane, each a comet: a blunt round head, a tail tapering to a point; a small seeded jitter of length and width
+//   tone         the vessel's lit tone one shade lighter (celTubeBase lifted toward white, never white), flat, whole inside the lumen
 //   turbulence   (no clock: a fixed field along the vessel that the streaks run through) a lateral wander and a tilt of the line, by how near a vessel's end (a fork), how high its flow, and how
 //                narrowed it is (a stenosis): none in a quiet straight vein
 //   colour       the tube's colour (the lens over it) lifted toward white, one flat tone, no ink ring, faint: it sits under the chevrons, never over them
@@ -17,10 +18,15 @@
 //
 // Depth: a streak sits on the tube's centre line and is drawn in front of the tube's own surface by the tube's radius (along the view ray, so it does not move on screen): it is
 // painted on the lumen like the chevrons, inside the silhouette, and a vessel that really lies in front still hides it.
-import { CELL_SAMPLES, NO_FLOW, STREAK } from './core.ts';
+import { CEL_TUBE_GLSL } from '../../cel-glsl.ts';
+import { CELL_SAMPLES, NO_FLOW, STREAK, UNITS } from './core.ts';
+import { STREAK_MARK_GLSL, STREAK_LANE_GLSL } from '../streak-glsl.ts';
 
 export const CELLS_VS = /* glsl */ `
 attribute vec4 aB;
+uniform float tubeDark;   // 1 on the dark looks (cel-glsl.ts celTubeBase: the vessel's lit tone)
+${CEL_TUBE_GLSL}
+${STREAK_LANE_GLSL}
 uniform sampler2D streamTex;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
@@ -89,12 +95,16 @@ void main() {
   if (show <= 0.001) CULL
 
   // the cell's place along the course: its phase carried by the blood's distance (forward runs on, a reversed flow runs back, none stands)
-  // (laminar: a streak runs at its place's share of the mean speed, 1.5 (1 - lat^2) over the section, never less than a third of it at the wall, so the mean is the stream's own)
+  // (laminar, by lane: see below)
   vec4 stm = texelFetch(streamTex, ivec2(e, 0), 0);
-  float prof = 1.5 * (1.0 - aB.y * aB.y);
-  float u = fract(position.y + stm.x / Lw * (${STREAK.WALL_SPEED.toFixed(2)} + ${(1 - STREAK.WALL_SPEED).toFixed(2)} * prof));
+  // (LANES across the width, 3, 5 or 7 by the vessel's radius: the lane's place is quantised, and its speed is parabolic over the lanes, the outer lane at WALL_SPEED of the middle one's, the mean over the lanes 1)
+  float r2d = r0.y * ${UNITS.toFixed(1)};
+  float hL = r2d >= ${STREAK.LANE_7.toFixed(1)} ? 3.0 : r2d >= ${STREAK.LANE_5.toFixed(1)} ? 2.0 : 1.0;
+  float lane = clamp(floor(aB.y * 3.0 + 0.5), -hL, hL) / hL;
+  float prof = streakLaneSpeed(lane, hL);   // (streak-glsl.ts: the one lane profile)
+  float u = fract(position.y + stm.x / Lw * prof * streakPace(streakHash(aB.z * 17.3 + aB.w * 5.1)));   // (each streak's own pace, seeded, +-25 percent on its lane's)
   if (u > r4.x) CULL
-  float s = u * Lw, ee = max(10.0, 0.06 * Lw);
+  float s = u * Lw, ee = max(${STREAK.END_R.toFixed(1)} * r2d, 4.0);   // (a streak fades out over END_R radii at each end: it never crosses a junction)
   float ends = smooth01(s / ee) * (1.0 - smooth01((s - (Lw - ee)) / ee));
 
   float f = u * float(SAMPLES - 1);
@@ -131,18 +141,17 @@ void main() {
   float wob = sin(s * 0.11 + ph) * cos(s * 0.047 + 3.0 * aB.z);
   float tilt = cos(s * 0.11 + ph) * 0.6 + 0.4 * sin(s * 0.047 + 2.0 * aB.z);
 
-  // the line: its length grows with the speed it runs at, its thickness is fixed, both in CSS px; a tumbling streak is shorter
-  float speed = abs(stm.y) * prof;
-  float lenCss = mix(${STREAK.LEN_MIN.toFixed(1)}, ${STREAK.LEN_MAX.toFixed(1)}, smoothstep(0.2, 3.0, speed)) * (0.85 + 0.3 * aB.z) * (1.0 - 0.4 * T);
-  lenCss = clamp(lenCss, ${STREAK.LEN_FLOOR.toFixed(1)}, max(${STREAK.LEN_FLOOR.toFixed(1)}, ${STREAK.LEN_OF_R.toFixed(1)} * Rcss));
-  float thickCss = ${STREAK.THICK.toFixed(2)} + 0.4 * aB.z;
+  // the comet: a few tube radii long and a share of the radius thick, both in CSS px (so a wide vein has long streaks, a thin one short); a tumbling streak is a little shorter
+  // a streak's own length and width jitter (seeded by its slot, the same on every device), the flow's share making it longer
+  float lenCss = clamp(${STREAK.LEN_OF_R.toFixed(1)} * Rcss * (1.0 + ${STREAK.LEN_JITTER.toFixed(2)} * (aB.z - 0.5)) * mix(${STREAK.LEN_FLOW[0].toFixed(2)}, ${STREAK.LEN_FLOW[1].toFixed(2)}, share) * (1.0 - 0.3 * T), ${STREAK.LEN_FLOOR.toFixed(1)}, ${STREAK.LEN_MAX.toFixed(1)});
+  float thickCss = clamp(${STREAK.THICK_OF_R.toFixed(2)} * Rcss * (1.0 + ${STREAK.THICK_JITTER.toFixed(2)} * (aB.w - 0.5)), ${STREAK.THICK_MIN.toFixed(1)}, ${STREAK.THICK_MAX.toFixed(1)});
 
   // across the tube: its place in the width, in the screen plane, with the turbulent wander
   vec3 Tv = mat3(modelViewMatrix) * (p1 - p0);
   vec3 side = cross(Tv, normalize(-mv.xyz));
   float sl = length(side);
   side = sl > 1e-9 ? side / sl : vec3(1.0, 0.0, 0.0);
-  float latN = clamp(aB.y + T * ${STREAK.WANDER.toFixed(2)} * wob, -1.0, 1.0);
+  float latN = clamp(lane + T * ${STREAK.WANDER.toFixed(2)} * wob, -1.0, 1.0);
   float lat = latN * ${STREAK.SPAN.toFixed(2)} * R;
   vec3 pv = mv.xyz + side * lat;
   // in front of the tube's own surface along the view ray (it does not move on screen), so the lumen shows it and a vessel truly in front still hides it
@@ -160,18 +169,19 @@ void main() {
   dir = vec2(dir.x * cos(ang) - dir.y * sin(ang), dir.x * sin(ang) + dir.y * cos(ang)) * sgn;
   vDir = dir;
   vLen = lenCss * dpr;
-  vThick = max(thickCss * dpr, 1.0);
+  vThick = thickCss * dpr;
   gl_PointSize = vLen + 4.0;
   vSize = gl_PointSize;
 
   // the colour the vessel shows here: its tone, or the lens over it (an artery keeps its own colour under every lens)
   vec3 base = tone < 0.5 ? colPortal : tone < 1.5 ? colSys : colArt;
   if (tone < 1.5) {
-    vec4 la = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, e, u, aB.y);
-    vec4 lb = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, e, u, aB.y);
+    vec4 la = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, e, u, lane);
+    vec4 lb = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, e, u, lane);
     base = mix(mix(base, la.rgb, la.a), mix(base, lb.rgb, lb.a), lensMix);
   }
-  vFill = mix(base, vec3(1.0), ${STREAK.LIFT.toFixed(2)});
+  vec3 lit = celTubeBase(base);   // the vessel's lit tone; the streak's own tone lies between it and one shade lighter (seeded), never white, never darker than the lit tone
+  vFill = streakTone(lit, mix(lit, vec3(1.0), ${STREAK.LIFT.toFixed(2)}), streakHash(aB.w * 53.0 + 1.7), streakHash(aB.z * 37.0 + 4.2));
 
   // the vessel's own fade (a tip fading in or out, a bed fading along its line), its veil behind the organs and the layer's amount
   float fa = 1.0;
@@ -198,6 +208,7 @@ void main() {
 }`;
 
 export const CELLS_FS = /* glsl */ `
+${STREAK_MARK_GLSL}
 varying vec3 vFill;
 varying float vA;
 varying float vSize;
@@ -210,12 +221,8 @@ void main() {
   vec2 q = (gl_PointCoord * 2.0 - 1.0) * vSize * 0.5;
   q.y = -q.y;
   vec2 p = vec2(dot(q, vDir), dot(q, vec2(-vDir.y, vDir.x)));
-  // a capsule: a flat line with round ends, a device pixel of antialiasing, bright at its head (the way it runs) and fading toward its tail
-  float hl = max(0.5 * vLen - 0.5 * vThick, 0.0);
-  float d = length(vec2(max(abs(p.x) - hl, 0.0), p.y)) - 0.5 * vThick;
-  float a = 1.0 - smoothstep(-0.6, 0.6, d);
+  // the mark (streak-glsl.ts, the one streak of the Anatomy, the 3D lobule and the 3D sinusoid): a slim rounded lozenge, its alpha feathered at both ends, half a device pixel of antialiasing each side
+  float a = streakMark(p.x / max(vLen, 1e-3) + 0.5, p.y, 0.5 * vThick, 0.6);   // (a slim lozenge feathered at both ends)
   if (a <= 0.003) discard;
-  float head = clamp(p.x / max(0.5 * vLen, 1e-3) * 0.5 + 0.5, 0.0, 1.0);
-  a *= mix(${STREAK.TAIL.toFixed(2)}, 1.0, head);
   gl_FragColor = vec4(vFill, a * vA);
 }`;

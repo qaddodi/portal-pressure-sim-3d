@@ -57,19 +57,28 @@ function fadeIn(id: string): TipFade | null {
   return { mode: 3, from: r[4]!, to: 1, a0: 1, a1: r[5] ?? 0.3, line: sceneLine(r[0]!, r[1]!, r[2]!, r[3]!), keep: false, connect: [] };
 }
 
-/** Veins whose 2D tip fade is dropped in 3D. */
-export const SOLID_TIPS: ReadonlySet<string> = new Set(['LGV_CONF']);
+/** The share of the hepatic artery's drawn length it fades in over (2D: 0.28 of its whole run, most of which is not drawn now). */
+export const HEP_FADE_IN = 0.85;
+
+/** The portal branches end, and the hepatic veins begin, in the liver's tissue (the sinusoids between are not drawn): the share of each one's length it fades over. */
+export const LIVER_FADE_OUT: Readonly<Record<string, number>> = { PVH_R_2: 0.6, PVH_L_1: 0.6 };
+export const LIVER_FADE_IN: Readonly<Record<string, number>> = { RHV_IVC_1: 0.6, MHV_IVC: 0.6, LHV_IVC: 0.6 };
 
 /** The fade of a vessel, or null for one that has none. A tributary fan (`feederHost`, the vein it feeds) fades as its host's FEEDER_FADE_Y says (the azygos's runs out down the figure, never ends in a cap). */
 export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
+  // the children that branch off these ends in the liver (liver-branches.ts) fade the way their host does, along each one's own length
+  if (feederHost && LIVER_FADE_OUT[feederHost]) return { mode: 1, from: 0.25, to: 1, a0: 1, a1: 0, keep: false, connect: [] };
+  if (feederHost && LIVER_FADE_IN[feederHost]) return { mode: 1, from: 0, to: 0.75, a0: 0, a1: 1, keep: false, connect: [] };
+  if (feederHost === 'C3' && id.endsWith('~F:b')) return { mode: 1, from: 0.25, to: 1, a0: 1, a1: 0, keep: false, connect: [] };
   if (feederHost) { const yy = FEEDER_FADE_Y_2D[feederHost]; return yy ? { mode: 2, from: y3(yy[0]), to: y3(yy[1]), a0: 1, a1: 0, keep: false, connect: [] } : null; }
   const art = ART_FADE_2D[id];
-  if (art?.in) return { mode: 1, from: 0, to: art.in, a0: 0, a1: 1, keep: true, connect: [] };
+  if (!isArtery && LIVER_FADE_OUT[id]) return { mode: 1, from: 1 - LIVER_FADE_OUT[id]!, to: 1, a0: 1, a1: 0, keep: false, connect: [] };
+  if (!isArtery && LIVER_FADE_IN[id]) return { mode: 1, from: 0, to: LIVER_FADE_IN[id]!, a0: 0, a1: 1, keep: false, connect: [] };
+  // (the hepatic artery is cut short beside the portal trunk, starts/stub-free: it grows out of nothing over nearly all of what is drawn: starts.ts TRIM)
+  if (art?.in) return { mode: 1, from: 0, to: id === 'A_HEP' ? HEP_FADE_IN : art.in, a0: 0, a1: 1, keep: true, connect: [] };
   if (art?.out) return { mode: 1, from: 1 - art.out, to: 1, a0: 1, a1: 0, keep: true, connect: [] };
   const inOrgan = startInOrganShare(id, EDGE_PATH_2D[id] ?? []);
   if (inOrgan > 0 && !isArtery) return { mode: 1, from: 0, to: inOrgan, a0: 0, a1: 1, keep: false, connect: TIP_CONNECT_2D[id] ?? [] };
-  // the coronary vein runs solid along the lesser curvature right up to the oesophagus: 2D fades its stomach end (TIP_FADE LGV_CONF), 3D does not (Mohammad, 20 Nov)
-  if (SOLID_TIPS.has(id)) return null;
   const tip = TIP_FADE_2D[id];
   if (tip && !isArtery) return { mode: 1, from: 0, to: tip, a0: 0, a1: 1, keep: false, connect: TIP_CONNECT_2D[id] ?? [] };
   const join = isArtery ? 0 : ivcJoinSpan(id);

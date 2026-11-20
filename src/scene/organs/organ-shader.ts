@@ -2,12 +2,12 @@
 // laid at the organ layer's opacity over whatever is behind (atlas-look-plan.md 2.5 and 2.6; the visual review's 2.1 to 2.4). layer.ts blends the organs in 2D's order,
 // each once per pixel, so they show through each other as 2D's groups do. Plain strings so the tests can read them without a GPU.
 import { FADE_GLSL } from '../materials/shaders.ts';
-import { CEL_STYLE } from '../cel-style.ts';
+import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 
 const num = (n: number) => (Number.isInteger(n) ? `${n}.0` : String(n));
 
-/** The soft light of Organ depth, from the upper left of the screen (x right, y up, z toward the eye), as a unit vector. */
-const ORGAN_LIGHT: readonly [number, number, number] = (() => { const [x, y, z] = CEL_STYLE.ORGAN.LIGHT; const l = Math.hypot(x, y, z); return [x / l, y / l, z / l]; })();
+/** The soft light of Organ depth: the one WORLD light (cel-style.ts LIGHT), as a unit vector; n.L is taken with the normal in world axes (vNw), so the camera never changes it. */
+const ORGAN_LIGHT = CEL_LIGHT_UNIT;
 
 export const ORGAN_VS = /* glsl */ `
 #ifdef VERTEX_INK
@@ -19,12 +19,14 @@ attribute float depthAo;
 varying float vAo;
 uniform vec4 box;
 varying vec3 vN;
+varying vec3 vNw;   // the normal in WORLD axes (the model matrix: the light is fixed in the world, not on the screen)
 varying vec3 vV;
 varying vec2 vBox;
 varying vec4 vClip;
 void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
   vN = normalize(normalMatrix * normal);
+  vNw = normalize(mat3(modelMatrix) * normal);
   vV = normalize(-mv.xyz);
   vAo = depthAo;
   // where this point sits in the organ's own 2D box: (0,0) top left, (1,1) bottom right, as the SVG gradient's objectBoundingBox
@@ -62,6 +64,7 @@ varying vec4 vClip;
 varying vec3 vInk;
 #endif
 varying vec3 vN;
+varying vec3 vNw;
 varying vec3 vV;
 varying vec2 vBox;
 varying float vAo;
@@ -104,7 +107,7 @@ void main() {
     float ao = clamp(vAo, 0.0, 1.0);
     float wa = 0.12;
     float tuck = (smoothstep(0.2 - wa, 0.2 + wa, ao) + smoothstep(0.5 - wa, 0.5 + wa, ao) + smoothstep(0.8 - wa, 0.8 + wa, ao)) * (1.0 / 3.0);
-    float lam = dot(n, LIGHT);
+    float lam = dot(normalize(vNw), LIGHT);   // n.L in the world: the camera never changes it
     float wl = 0.08 + fwidth(lam);
     float away = 1.0 - smoothstep(0.3 - wl, 0.3 + wl, lam);
     float toward = smoothstep(0.7 - wl, 0.7 + wl, lam) * (1.0 - ao);
@@ -122,14 +125,16 @@ uniform float px;
 uniform float dpr;
 attribute vec3 hullN;   // the smoothed normal the outline is pushed out along (normal-smooth.ts): the mesh's own normals jag at a coarse rim
 uniform vec2 res;
+uniform float hiOn;   // 0..1: a slide's pin or a tapped organ (highlight.ts OrganPins): the line widens by hiPx CSS px and takes the organ's highlight colour
+uniform float hiPx;
 varying float vHi;
 varying float vU;
 void main() {
   vec4 c = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   vU = uv.x;
-  vHi = 0.0;
+  vHi = hiOn;
   float wpc = c.w * 2.0 / (res.y * projectionMatrix[1][1]) * 300.0;   // the figure's units under one CSS px here
-  float w = max(1.0 / max(dpr, 1.0), px / max(wpc, 1e-6));
+  float w = max(1.0 / max(dpr, 1.0), (px + hiOn * hiPx) / max(wpc, 1e-6));
   vec2 nd = (projectionMatrix * vec4(normalMatrix * hullN, 0.0)).xy;
   float l = length(nd);
   nd = l > 1e-5 ? nd / l : vec2(0.0);

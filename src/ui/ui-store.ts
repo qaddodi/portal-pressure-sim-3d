@@ -9,7 +9,11 @@ import type { Rect, Viewport } from './layout/device.ts';
 import { deviceClass, type DeviceClass } from './layout/device.ts';
 import type { Plan } from './layout/plan.ts';
 import { walletStart, swap as walletSwap, resetForSlide, type WalletState } from './wallet/wallet-machine.ts';
-import { first, apply, goto, samePos, type Pos, type Move, type Stop } from './deck/presenter-machine.ts';
+import { first, apply, goto, samePos, isLast, type Pos, type Move, type Stop } from './deck/presenter-machine.ts';
+
+/** The talk is on its last stop with no page left to turn: a Next from here ends the talk (2D presenter.js next(): `else stop()`). */
+export const atEnd = (s: { stops: Stop[]; pos: Pos; page: number | 'last'; pageCount: number }): boolean =>
+  s.stops.length > 0 && isLast(s.stops, s.pos) && (s.page === 'last' || s.page >= s.pageCount - 1);
 
 /** The numbers the cards print, by tile key (the engine's fingerprint names: hvpg, whvp, co, lsm …; `key@slide` is a reading at another slide of the deck). */
 export type Readings = Partial<Record<string, number | null>>;

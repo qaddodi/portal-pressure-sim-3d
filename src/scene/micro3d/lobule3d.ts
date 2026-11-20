@@ -21,16 +21,17 @@ import type { LookId } from '../../looks/looks.ts';
 import type { Course, LobuleNet, P2 as LP2 } from '../lobule/geometry.ts';
 import { LOBULE_R } from '../lobule/shots.ts';
 import { DISC_R, LT_R, RS_N, inletRadius, sinRadius, twigR } from '../lobule/widths.ts';
+import { CASING } from '../vessels/cel-ink.ts';
 import { type InkContext, type Seg, inkAt, sinW } from '../lobule/ink.ts';
 import { lookColours } from '../lobule/lz-colours.ts';
 import { LOBULE_PALETTES } from '../lobule/tones.ts';
-import { DISC_EDGE } from '../lobule/from2d/disc-glsl.generated.js';
 import { cordToneInto } from '../lobule/from2d/lobule-look.generated.js';
 import { paintWorldInto, useTokens } from '../lobule/from2d/lobule-paint.generated.js';
 import { LOBULE_PLATE_FS, LOBULE_PLATE_VS, PLATE_BOX, PLATE_PX, PLATE_S, type PlateState, plateInput, plateKey, plateShape } from '../lobule/plate.ts';
 import { tissueInk } from '../lobule/cel.ts';
 import { hexToRgb01 } from '../lenses/oklab.ts';
 import { CEL_STYLE } from '../cel-style.ts';
+import { buildBile } from '../lobule/bile.ts';
 import { MeshBuilder, MicroPart, type P2, type RGB, ellipsoid, microMaterials, pillow, tube } from './cel3d.ts';
 
 const R = LOBULE_R;
@@ -42,6 +43,13 @@ export const TUBE_SEG = 10, MOUTH_SEG = 64;
 const BEVEL = 0.28;
 /** 2D's three dark shares of a sinusoid kind that congestion widens (the flat view's CONG_Z3). */
 const BILE_ID = 2_000_000;
+/** The vessels that run over the plates (the sinusoids, their cross-links, the arteriole's twigs) lie with their axis at the tiles' tops: lower, a thin one was buried under every tile it
+ *  crossed and showed only in the gaps, as short pieces floating between the cords (Mohammad, 20 Nov: "disconnected vessels in the middle"). */
+export const OVER_Z = LZ.cellTop + 0.002;
+/** The tract's arteriole and ductule openings are drawn this much larger than 2D's dots, so each corner reads as one triad: venule, artery and duct side by side (Mohammad, 20 Nov). */
+const HA_K = 1.7, BD_K = 1.4;
+/** The bile canaliculi and the canals of Hering: hairlines (radius, local units at R = 1) lying in the clefts between cells, not tubes as wide as a sinusoid ("bile is a mess"). */
+const CANALICULUS_R = 0.0016, HERING_R = 0.003;
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -58,6 +66,7 @@ interface Flat {
   lyFade: number; bileFade: number; zoneFade: number;
   look: LookId;
   isVisible: boolean;
+  group: Group;
   objects: CelObject[];
   plate: { group: Group };
   zones: { mesh: Mesh };
@@ -77,6 +86,7 @@ export class Lobule3D {
   private readonly flat: Flat;
   private readonly fade = { value: 1 };
   private on = false;
+  private hidLobule = false;
   private cellKey = '';
   private inkKey = '';
   private lookKey = '';
@@ -115,12 +125,12 @@ export class Lobule3D {
     this.ground = mk('ground', { ink: null, vertexColors: false });
     this.cells = mk('hepatocytes', { px: S.LINE_SMALL });
     this.nuclei = mk('nuclei', { ink: null });
-    this.sin = { s0: mk('sinusoids-0', { px: S.LINE_SMALL }), s1: mk('sinusoids-1', { px: S.LINE_SMALL }), s2: mk('sinusoids-2', { px: S.LINE_SMALL }), an: mk('sinusoids-links', { px: S.LINE_SMALL * 0.8 }) };
-    this.inlets = mk('inlets', { px: S.LINE_SMALL });
-    this.twigs = mk('arteriole-twigs', { px: S.LINE_SMALL * 0.8 });
-    this.lt = mk('terminal-lymphatics', { px: S.LINE_SMALL * 0.8 });
+    this.sin = { s0: mk('sinusoids-0', { px: S.LINE, flow: true }), s1: mk('sinusoids-1', { px: S.LINE, flow: true }), s2: mk('sinusoids-2', { px: S.LINE, flow: true }), an: mk('sinusoids-links', { px: S.LINE_SMALL, flow: true }) };
+    this.inlets = mk('inlets', { px: S.LINE, flow: true });
+    this.twigs = mk('arteriole-twigs', { px: S.LINE_SMALL * 0.8, flow: true });
+    this.lt = mk('terminal-lymphatics', { px: S.LINE_SMALL * 0.8, flow: true });
     this.disse = mk('disse', { ink: null });
-    this.bile = mk('canaliculi', { px: S.LINE_SMALL * 0.7 });
+    this.bile = mk('canaliculi', { px: S.LINE_SMALL * 0.7, flow: true });
     this.mouthPv = mk('portal-venules', { px: S.LINE });
     this.mouthHa = mk('arterioles', { px: S.LINE_SMALL });
     this.mouthBd = mk('ductules', { px: S.LINE_SMALL });
@@ -142,9 +152,16 @@ export class Lobule3D {
     this.marks = new Mesh(new PlaneGeometry(side, side), this.marksMat);
     this.marks.position.z = LZ.marks; this.marks.name = 'lobule3d/marks'; this.marks.frustumCulled = false;
     // draw order: the ground and the tiles, then the marks over them, then every vessel (depth-tested against the tiles)
-    this.ground.renderOrder = -6; this.cells.renderOrder = -5; this.nuclei.renderOrder = -5; this.disse.renderOrder = -5; this.marks.renderOrder = -4;
+    this.ground.renderOrder = -6; this.cells.renderOrder = -5; this.nuclei.renderOrder = -5; this.disse.renderOrder = -5;
     const vessels = [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv];
-    for (const v of vessels) v.renderOrder = -3;
+    // (the flat view's field of neighbour lobules is see-through and so draws after every solid part; the marks, drawn among the solids, were painted over by it outside the hexagon, which
+    // cut the periportal scar off at the edge: Mohammad 20 Nov "it's clipped like at the hexagon". The marks and the vessels draw in the see-through list after the field instead, the vessels
+    // still writing and testing depth, opaque as before)
+    this.marksMat.transparent = true; this.marks.renderOrder = -2;
+    for (const v of vessels) {
+      v.renderOrder = -1;
+      for (const m of [v.toonMesh, v.inkMesh]) if (m) { const mat = m.material as ShaderMaterial; mat.transparent = true; mat.depthWrite = true; }
+    }
     for (const p of [this.ground, this.cells, this.nuclei, this.disse, ...vessels]) this.group.add(p.group);
     this.group.add(this.marks);
     this.buildVessels();
@@ -154,11 +171,18 @@ export class Lobule3D {
   get enabled(): boolean { return this.on; }
 
   /** One frame, after the flat lobule's own update. `on` is the Settings switch. True while anything of this scene changed. */
-  update(on: boolean): boolean {
+  update(on: boolean, under = 0, now = 0, running = true): boolean {
     const f = this.flat, changed = on !== this.on;
     this.on = on;
-    const shown = on && f.isVisible;
+    // `under`: how far the camera has gone down onto the sinusoid (0 on the lobule, 1 landed). The lobule dissolves away as the sinusoid comes in (Mohammad: "Should fade when zooming"), and once
+    // landed neither this scene nor the flat lobule is drawn: the lobule's solid tiles and tubes stand above the sinusoid's plane and would cut across it in the foreground
+    this.fade.value = 1 - under; this.marksMat.uniforms.opacity!.value = 1 - under;
+    const shown = on && f.isVisible && under < 1;
     this.group.visible = shown;
+    // (the whole lobule, its neighbouring field too: the sinusoid's own ground lies below the lobule's plane, so the field would show through the clefts between its cells)
+    const hide = on && under >= 1 && f.isVisible;
+    if (hide !== this.hidLobule) { this.hidLobule = hide; f.group.visible = !hide && f.isVisible; }
+    if (hide) return changed;
     if (changed && !on) {
       // give the flat view its drawing back (its own update puts the managed visibilities right on the next frame)
       for (const o of f.objects) o.group.visible = true;
@@ -186,7 +210,28 @@ export class Lobule3D {
     const kcv = f.cvRadiusNow / DISC_R.cv;
     this.mouthCv.group.scale.set(kcv, kcv, 1);
     this.buildGround(kcv, lymphOn);
-    return changed;
+    return this.stepFlow(now, running, lymphOn, bileOn) || changed;
+  }
+
+  // ---- the flow marks (quiet chevrons inside each vessel, streaks in the blood; they stop at the central vein's mouth and with the simulation) ------------------------
+
+  private flowAt = -1;
+  private readonly flowT = { blood: 0, lymph: 0, bile: 0 };
+  private stepFlow(now: number, running: boolean, lymphOn: boolean, bileOn: boolean): boolean {
+    const dt = this.flowAt < 0 ? 0 : clamp((now - this.flowAt) / 1000, 0, 0.1);
+    this.flowAt = now;
+    const f = this.flat, q = Math.sqrt(clamp(f.cur.flow || 0, 0.05, 2.5));
+    // (local units a second: the blood's chevrons about a cell length every half second at a normal flow, the lymph and the bile slower)
+    if (running) { this.flowT.blood += dt * 0.11 * q; this.flowT.lymph += dt * 0.05; this.flowT.bile += dt * 0.035; }
+    const W: RGB = [1, 1, 1], soft = (k: number) => k * this.fade.value;
+    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2]) p.setFlow(this.flowT.blood, 0.16, W, soft(0.3), 0.75);
+    this.sin.an.setFlow(this.flowT.blood, 0.12, W, soft(0.26), 0);
+    this.inlets.setFlow(this.flowT.blood, 0.3, W, soft(0.24), 0.6);
+    this.twigs.setFlow(this.flowT.blood * 1.6, 0.1, [1, 0.88, 0.86], soft(0.4), 0);
+    this.lt.setFlow(this.flowT.lymph, 0.12, W, soft(0.4), 0);
+    this.bile.setFlow(this.flowT.bile, 0.07, [1, 0.97, 0.7], soft(0.55), 0, 1);
+    void lymphOn; void bileOn;
+    return running;
   }
 
   // ---- colours -------------------------------------------------------------------------------------------------------------------
@@ -195,11 +240,11 @@ export class Lobule3D {
     const L = lookColours(look), P = LOBULE_PALETTES[look].tones;
     const gap = L.rgb01('--og-liver-2'), bg = L.text('--stage-bg') ? L.rgb01('--stage-bg') : L.rgb01('--bg');
     this.ground.setTint(groundOf(bg, gap, L.dark));
-    // every outline is 2D's casing over the cell colour (the flat view's rule); the tract's venule, arteriole and ductule and the inlets their own dark edge
-    const ink = tissueInk(look), cellC = cellBase(look);
-    const edge = (e: readonly number[]) => [cellC[0] + (e[0]! - cellC[0]) * 0.92, cellC[1] + (e[1]! - cellC[1]) * 0.92, cellC[2] + (e[2]! - cellC[2]) * 0.92];
-    for (const p of [this.cells, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.twigs, this.lt, this.bile, this.mouthCv, this.mouthLv]) p.setInk(ink);
-    this.mouthPv.setInk(edge(DISC_EDGE.pv)); this.inlets.setInk(edge(DISC_EDGE.in)); this.mouthHa.setInk(edge(DISC_EDGE.ha)); this.mouthBd.setInk(edge(DISC_EDGE.bd));
+    const ink = tissueInk(look);
+    // the hepatocytes keep the tissue's casing; every vessel (sinusoids, inlets, twigs, lymphatics, canaliculi, the tract's mouths, the central vein) the Anatomy's dark line of its own colour
+    this.cells.setInk(ink);
+    const cas = CASING[look].rgb.map((v) => v / 255);
+    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.twigs, this.lt, this.bile, this.mouthCv, this.mouthLv, this.mouthPv, this.inlets, this.mouthHa, this.mouthBd]) p.setVesselInk(cas);
     // the parts of one tone (the lens does not colour them, as in 2D)
     const tone = (k: string) => hexToRgb01((P as Record<string, string>)[k]!);
     this.twigs.setTint(tone('artery')); this.mouthHa.setTint(tone('artery'));
@@ -279,7 +324,7 @@ export class Lobule3D {
       holes.push(h);
     };
     for (const c of net.courses) {
-      if (c.kind === 'pv') hole(c, DISC_R.pv); else if (c.kind === 'ha') hole(c, DISC_R.ha); else if (c.kind === 'bd') hole(c, DISC_R.bd);
+      if (c.kind === 'pv') hole(c, DISC_R.pv); else if (c.kind === 'ha') hole(c, DISC_R.ha * HA_K); else if (c.kind === 'bd') hole(c, DISC_R.bd * BD_K);
       else if (c.kind === 'lv' && lymph) hole(c, DISC_R.lv); else if (c.kind === 'cv') hole(c, DISC_R.cv * kcv);
     }
     const tris = ShapeUtils.triangulateShape(crn, holes), all = [crn, ...holes].flat();
@@ -323,7 +368,7 @@ export class Lobule3D {
       part.setTint([1, 1, 1]);
     };
     /** Tubes along courses: radius per sample, colour place per sample (w), brightness 1. */
-    const tubes = (cs: Course[], radius: (c: Course, i: number) => number, w: (c: Course, i: number) => number, z = LZ.tube) => {
+    const tubes = (cs: Course[], radius: (c: Course, i: number) => number, w: (c: Course, i: number) => number, z: number = LZ.tube) => {
       const b = new MeshBuilder(), W: number[] = [], K: number[] = [];
       for (const c of cs) {
         const pts = c.pts.map((p) => at3(p, z));
@@ -334,6 +379,7 @@ export class Lobule3D {
         for (let i = 0; i < c.pts.length; i++) for (let s = 0; s < TUBE_SEG; s++) { W.push(w(c, i)); K.push(1); }
         for (let v = 0; v < capVerts; v++) { W.push(w(c, 0)); K.push(1); }
         for (let v = 0; v < capVerts; v++) { W.push(w(c, c.pts.length - 1)); K.push(1); }
+        flowAux(b, before, pts, ringVerts, capVerts, c.id * 0.137, (i) => (c.kind[0] === 's' || c.kind === 'an') && c.rho[i]! < DISC_R.cv * 1.6);
       }
       return { b, W, K };
     };
@@ -342,11 +388,11 @@ export class Lobule3D {
     for (const kind of ['s0', 's1', 's2', 'an'] as const) {
       // (a sinusoid ends inside the central vein's mouth: its last samples there are dropped, so it pours over the lip rather than lying across the opening)
       const cs = by(kind).map((c) => trimInside(c, DISC_R.cv * 0.78));
-      const t = tubes(cs, sinR, sinWAt);
+      const t = tubes(cs, sinR, sinWAt, OVER_Z);
       coloured(this.sin[kind], t.b, 'sin', t.W, t.K);
     }
     { const t = tubes(by('in'), (c, i) => inletRadius(i, c.pts.length, Math.hypot(c.pts[i]![0] - c.pts[0]![0], c.pts[i]![1] - c.pts[0]![1])), (c, i) => i / (c.pts.length - 1)); coloured(this.inlets, t.b, 'in', t.W, t.K); }
-    { const t = tubes(by('tw'), (c, i) => twigR(i / (c.pts.length - 1), RS_N), () => 0); coloured(this.twigs, t.b, null, t.W, t.K); }
+    { const t = tubes(by('tw'), (c, i) => twigR(i / (c.pts.length - 1), RS_N), () => 0, OVER_Z); coloured(this.twigs, t.b, null, t.W, t.K); }
     { const t = tubes(by('lt'), () => LT_R, () => 0); coloured(this.lt, t.b, null, t.W, t.K); }
     // the space of Disse: a flat pale sleeve under each sinusoid (2D's Wet Disse), no light of its own
     {
@@ -364,31 +410,38 @@ export class Lobule3D {
       }
       coloured(this.disse, b, null, W, K);
     }
-    // the Bile layer: the canaliculi between neighbouring plates and the canals of Hering into each ductule (the flat view's own courses)
+    // the Bile layer, laid out as 2D lays it (bile.ts, a port of lobule-bile.js): a channel beside each plate's sinusoid from a quarter of the way out, thickening outward, a short
+    // canal of Hering square into a duct along the edge outside the lymphatic, each half edge's duct into its corner's ductule; 2D's radii; arrowheads toward the ductule
     {
       const b = new MeshBuilder(), W: number[] = [], K: number[] = [];
-      for (const pts of bileCourses(net)) {
-        const before = b.count;
-        tube(b, pts.pts.map((p) => at3(p, LZ.cellTop - 0.002)), () => (pts.canal ? 0.0075 : 0.0046) * R, [1, 1, 1], 6, true);
+      buildBile(net).forEach((c, n) => {
+        const pts = c.pts.map((p) => at3(p, LZ.cellTop + 0.001)), before = b.count;
+        tube(b, pts, (i) => Math.max(2e-4, c.radius[i]! * R), [1, 1, 1], 6, true);
         for (let v = before; v < b.count; v++) { W.push(0); K.push(1); }
-      }
+        const ringVerts = pts.length * 6;
+        flowAux(b, before, pts, ringVerts, (b.count - before - ringVerts) / 2, n * 0.29, null, 6);
+      });
       coloured(this.bile, b, null, W, K);
     }
-    // the mouths: each end-on vessel a round opening down into the slab
-    const mouths = (part: MicroPart, cs: Course[], r: number, seg: Seg | null) => {
+    // the mouths: each end-on vessel (venule, arteriole, ductule, lymphatic, central vein) a round wall FULL of its own colour, never an empty cylinder (Mohammad 20 Nov 2026: "the blood vessels
+    // and bile should not look like empty cyllindars, just filll them with the color")
+    const mouths = (part: MicroPart, cs: Course[], r: number, seg: Seg | null, vessel = false, top?: number) => {
       const b = new MeshBuilder(), W: number[] = [], K: number[] = [];
       for (const c of cs) {
         const p = c.pts[Math.floor(c.pts.length / 2)]!;
-        mouth(b, p[0] * R, -p[1] * R, r * R, LZ.lip, LZ.mouthDepth * Math.min(1, r / DISC_R.pv), K);
+        mouth(b, p[0] * R, -p[1] * R, r * R, LZ.lip, LZ.mouthDepth * Math.min(1, r / DISC_R.pv), K, MOUTH_SEG, vessel, top);
       }
       for (let v = 0; v < b.count; v++) W.push(seg === 'cv' ? 1 : 0);
       coloured(part, b, seg, W, K);
     };
-    mouths(this.mouthPv, by('pv'), DISC_R.pv, 'pv');
-    mouths(this.mouthHa, by('ha'), DISC_R.ha, null);
-    mouths(this.mouthBd, by('bd'), DISC_R.bd, null);
-    mouths(this.mouthLv, by('lv'), DISC_R.lv, null);
-    mouths(this.mouthCv, by('cv'), DISC_R.cv, 'cv');
+    // each pool's top: a hair above the tallest tube that runs into it (the inlets into the venule, the twigs into the arteriole, the canals of Hering into the ductule, the terminal
+    // lymphatics into the lymphatic, the sinusoids into the central vein), so a tube that reaches it is lost inside it and none runs over it
+    const POUR = 1.04, N_IN = by('in')[0]?.pts.length ?? 40;
+    mouths(this.mouthPv, by('pv'), DISC_R.pv, 'pv', true, (LZ.tube + inletRadius(0, N_IN, 0) * R) * POUR);
+    mouths(this.mouthHa, by('ha'), DISC_R.ha * HA_K, null, true, (OVER_Z + twigR(0, RS_N) * R) * POUR);
+    mouths(this.mouthBd, by('bd'), DISC_R.bd * BD_K, null, true, (LZ.cellTop + 0.001 + 0.0078 * R) * POUR);
+    mouths(this.mouthLv, by('lv'), DISC_R.lv, null, true, (LZ.tube + LT_R * R) * POUR);
+    mouths(this.mouthCv, by('cv'), DISC_R.cv, 'cv', true, (OVER_Z + sinRadius('s2', DISC_R.cv) * R) * POUR);
   }
 
   /** Vertex count of everything this scene draws (tests and the budget). */
@@ -442,16 +495,34 @@ function trimInside(c: Course, r: number): Course {
 }
 
 /** A round opening at (x, y) of radius r going down into the slab: a rounded lip, the wall inside it and a dark floor. `K` gets each vertex's brightness (lip 1, wall deeper, floor deepest). */
-export function mouth(b: MeshBuilder, x: number, y: number, r: number, zTop: number, depth: number, K: number[], seg = MOUTH_SEG): void {
-  const lip = Math.max(r * 0.2, 0.004), rows: number[] = [], start = b.count;
+export function mouth(b: MeshBuilder, x: number, y: number, r: number, zTop: number, depth: number, K: number[], seg = MOUTH_SEG, vessel = false, top?: number): void {
+  // a vessel cut end on (the central vein, the tract's venule, arteriole, ductule and lymphatic): a solid round pool FULL to the brim with its own colour, its top flush with the tubes
+  // that join it (`top`), so they run into it and are lost in it, with no rim and no drop (Mohammad 20 Nov 2026: "fill to the brim, without noticable drop in depth", "blend better")
+  if (vessel) {
+    const zT = top ?? zTop, lip = Math.min(Math.max(r * 0.22, 0.004), (zT - LZ.ground) * 0.8), rows: number[] = [];
+    const prof: [number, number, number, number][] = [[r, LZ.ground - 0.012, 1, 0], [r, zT - lip, 1, 0]];
+    for (let i = 1; i <= 6; i++) { const t = (i / 6) * Math.PI / 2; prof.push([r - lip + lip * Math.cos(t), zT - lip + lip * Math.sin(t), Math.cos(t), Math.sin(t)]); }
+    prof.push([(r - lip) * 0.5, zT, 0, 1]);
+    for (const [pr, pz, nr, nz] of prof) {
+      rows.push(b.count);
+      for (let s = 0; s < seg; s++) { const a = (s / seg) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a); b.v(x + ca * pr, y + sa * pr, pz, ca * nr, sa * nr, nz, [1, 1, 1]); K.push(1); }
+    }
+    for (let i = 0; i < rows.length - 1; i++) b.strip(rows[i]!, rows[i + 1]!, seg, true);
+    const c = b.v(x, y, zT, 0, 0, 1, [1, 1, 1]); K.push(1);
+    const last = rows[rows.length - 1]!;
+    for (let s = 0; s < seg; s++) b.tri(c, last + s, last + ((s + 1) % seg));
+    return;
+  }
+  const kIn = [0.86, 0.74, 0.62, 0.55];
+  const lip = Math.max(r * 0.2, 0.004), rows: number[] = [];
   // the profile from outside in: outer wall foot, over the lip, down the inner wall, the floor's edge
   const prof: [number, number, number, number, number][] = [];   // radius, z, normal r, normal z, brightness
   prof.push([r, Math.min(zTop - lip * 1.6, LZ.ground - 0.012), 1, 0, 1]);
   for (let i = 0; i <= 6; i++) { const t = (i / 6) * Math.PI, cr = Math.cos(t), sr = Math.sin(t); prof.push([r - lip / 2 + (lip / 2) * cr, zTop - lip / 2 + (lip / 2) * sr, cr, sr, 1]); }
-  prof.push([r - lip, zTop - lip * 0.9, -1, 0, 0.86]);
-  prof.push([r - lip, zTop - depth * 0.5, -1, 0, 0.74]);
-  prof.push([r - lip, zTop - depth, -1, 0, 0.62]);
-  prof.push([r - lip * 1.0001, zTop - depth, 0, 1, 0.55]);
+  prof.push([r - lip, zTop - lip * 0.9, -1, 0, kIn[0]!]);
+  prof.push([r - lip, zTop - depth * 0.5, -1, 0, kIn[1]!]);
+  prof.push([r - lip, zTop - depth, -1, 0, kIn[2]!]);
+  prof.push([r - lip * 1.0001, zTop - depth, 0, 1, kIn[3]!]);
   for (const [pr, pz, nr, nz, k] of prof) {
     rows.push(b.count);
     for (let s = 0; s < seg; s++) {
@@ -461,10 +532,25 @@ export function mouth(b: MeshBuilder, x: number, y: number, r: number, zTop: num
   }
   for (let i = 0; i < rows.length - 1; i++) b.strip(rows[i]!, rows[i + 1]!, seg, true);
   // the floor
-  const c = b.v(x, y, zTop - depth, 0, 0, 1, [1, 1, 1]); K.push(0.55);
+  const c = b.v(x, y, zTop - depth, 0, 0, 1, [1, 1, 1]); K.push(kIn[3]!);
   const last = rows[rows.length - 1]!;
   for (let s = 0; s < seg; s++) b.tri(c, last + s, last + ((s + 1) % seg));
-  void start;
+}
+
+/** The flow marks' place on a tube's vertices (tube() just wrote them from `before`): aux, how far along the path in its own direction (local units, from a per-tube offset), and
+ *  aux2, across it (-1 .. 1, the in-plane side of the vertex's normal against the path); `hush(i)` true at a sample marks no chevron there (aux2 3: the central vein's mouth). */
+export function flowAux(b: MeshBuilder, before: number, pts: readonly (readonly [number, number, number])[], ringVerts: number, capVerts: number, phase: number, hush: ((i: number) => boolean) | null, seg = TUBE_SEG): void {
+  const m = pts.length, arc: number[] = [phase];
+  for (let i = 1; i < m; i++) arc.push(arc[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
+  const across = (v: number, i: number) => {
+    const a = pts[Math.max(0, i - 1)]!, c = pts[Math.min(m - 1, i + 1)]!;
+    let tx = c[0] - a[0], ty = c[1] - a[1]; const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
+    const nx = b.n[v * 3]!, ny = b.n[v * 3 + 1]!;
+    return hush?.(i) ? 3 : -ty * nx + tx * ny;
+  };
+  for (let v = before; v < before + ringVerts; v++) { const i = Math.floor((v - before) / seg); b.aux.push(arc[i]!); b.aux2.push(across(v, i)); }
+  for (let v = before + ringVerts; v < before + ringVerts + capVerts; v++) { b.aux.push(arc[0]!); b.aux2.push(across(v, 0)); }
+  for (let v = before + ringVerts + capVerts; v < before + ringVerts + 2 * capVerts; v++) { b.aux.push(arc[m - 1]!); b.aux2.push(across(v, m - 1)); }
 }
 
 /** The Bile layer's courses, as the flat view builds them (lobule/view.ts channel()): the canaliculi midway between neighbouring sinusoids, and from each the first generation's canal of Hering to its tract's ductule. */

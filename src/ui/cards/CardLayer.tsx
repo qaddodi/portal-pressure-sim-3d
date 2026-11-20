@@ -1,8 +1,8 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { caseOf, type Deck, type ReadingKey, type Slide } from '../../decks/schema.ts';
 import { useUi } from '../ui-store.ts';
 import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
-import { planLayout, widthOf, stepsFor, type CardId, type Need, type Plan } from '../layout/plan.ts';
+import { planLayout, widthOf, stepsFor, centredKind, centredBox, panelVisual, type CardId, type Need, type Plan } from '../layout/plan.ts';
 import { isSideways, layoutOf } from '../layout/rules2d.ts';
 import type { Rect } from '../layout/device.ts';
 import { useStack } from './useStack.ts';
@@ -14,15 +14,25 @@ import { TeachingCard } from './TeachingCard.tsx';
 import { LadderCard } from './LadderCard.tsx';
 import { TilesCard, TilesHead } from './TilesCard.tsx';
 import { CheckCard } from './CheckCard.tsx';
+import { nameTabOf } from './NameTab.tsx';
 import { TableCard } from './TableCard.tsx';
+import { VisualCard } from './VisualCard.tsx';
 import { ToolCard } from '../talk/ToolCard.tsx';
 import { hasToolChart } from '../../decks/charts.ts';
 import { Strip } from '../wallet/Strip.tsx';
-import { useGesture } from '../wallet/useSwipe.ts';
+import { useCardDrag, justDragged } from './useCardDrag.ts';
+import { cardZoom, emptyTap } from './card-zoom.ts';
 import { isSwapSwipe } from '../wallet/wallet-machine.ts';
-import { swipeMove } from '../deck/presenter-machine.ts';
+import { swipeMove, apply, samePos } from '../deck/presenter-machine.ts';
 import { gapOf } from './ladder-model.ts';
 import { maxPages, clampPage } from './pages.ts';
+
+/** True once the page's fonts are in (cards show only then). */
+function useFontsReady(): boolean {
+  const [ok, setOk] = useState(() => typeof document === 'undefined' || !document.fonts || document.fonts.status === 'loaded');
+  useEffect(() => { if (!ok) void document.fonts.ready.then(() => setOk(true)); }, [ok]);
+  return ok;
+}
 
 const ZERO: Rect = { x: 0, y: 0, w: 0, h: 0 };
 interface Snap { slide: Slide | null; pages: number; at: number; trim: boolean }
@@ -52,7 +62,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const page = useUi((s) => s.page);
   const setPageCount = useUi((s) => s.setPageCount);
 
-  const wordsKey = view ? (view.slide && (view.words === 'teach' || view.words === 'case') ? `${view.words}:${view.slide.id}` : view.words) : '';
+  const wordsKey = view ? (view.slide && (view.words === 'teach' || view.words === 'case' || view.words === 'visual') ? `${view.words}:${view.slide.id}` : view.words) : '';
   const pagesKey = `${wordsKey}@${vp.w}x${vp.h}`;
   // iPhone on its side: the cards take the narrowest column that holds them, widening a step at a time (fewer lines of the same type), never a smaller type
   const sideways = isSideways(vp.w, vp.h), pair = !!view?.data;
@@ -61,7 +71,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // past the widest column the title takes one step down (never under 1.4× the words), then the words page: the body never shrinks
   const stepAt = sideways ? Math.min(stepMap[pagesKey] ?? 0, nSteps) : 0;
   const step = Math.min(stepAt, nSteps - 1), trim = stepAt >= nSteps;
-  const wide = Math.round(widthOf(vp, pair, step));
+  const alone = view && !view.data ? centredKind(view.words) : null;   // the outline, the quick check and a case stand alone in the middle at 2D's own width
+  const wide = alone ? centredBox(vp, alone, panelVisual({ id: view!.words, visual: view!.slide?.visual })).w : Math.round(widthOf(vp, pair, step));
   const hit = (key: string) => heights[`${key}@${wide}`];
   const h = (key: string) => hit(key)?.h ?? 0;
   const capOf = (v: NonNullable<typeof view>) => maxPages(v.words, v.slide && v.words === 'case' ? caseOf(v.slide)?.text : v.slide?.line, v.words === 'check' ? deck.checks.length : 0);
@@ -71,7 +82,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   sigRef.current = sig;
 
   const dataKey = view?.data === 'table' && view.slide ? `table:${view.slide.id}` : view?.data === 'ladder' && view.slide && hasToolChart(view.slide) ? `tool:${view.slide.id}` : 'ladder';
-  const needs: Need[] = view ? [{ id: view.words, slot: 'words', h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey) }] : [])] : [];
+  const needs: Need[] = view ? [{ id: view.words, slot: 'words', visual: view.slide?.visual, h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey) }] : [])] : [];
   const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step, docked), [vp, wallet.active, step, docked, needs.map((n) => `${n.id}:${n.slot}:${n.h}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const wordsShown = plan.cards.find((c) => c.slot === 'words');
@@ -102,17 +113,60 @@ export function CardLayer({ deck }: { deck: Deck }) {
   if (dataShown && dataWanted) last.current[dataWanted.key] = dataShown.rect;
   if (plan.strip && stripWanted) last.current[stripWanted.key] = plan.strip.rect;
 
+  // The cards come in together, whole: only when every card of the slide is measured on the page now showing, nothing is still to widen or split,
+  // and the fonts are in (a card that came in on its own measure then grew, and the second card showed up after the first). A slow measure never
+  // holds a slide back for good: past 320 ms the cards come in as they are.
+  const fonts = useFontsReady();
+  const growing = (tooTallPair && stepAt < nSteps) || (tooTall && pages < (view ? capOf(view) : 1));
+  const measured = needs.length > 0 && needs.every((n) => (n.h > 0 && (n.slot === 'data' || hit(wordsKey)?.sig === sig)) || (plan.docked && n.slot === 'data'));
+  const [late, setLate] = useState('');
+  useEffect(() => { const t = setTimeout(() => setLate(pagesKey), 320); return () => clearTimeout(t); }, [pagesKey]);
+  const go = fonts && !growing && (measured || late === pagesKey);
+  // the first cards of a talk fade in where they stand; every later one slides in from the side the talk comes from (2D's first card has no way to come from)
+  const seen = useRef(false);
+  const fresh = !seen.current;
+  useLayoutEffect(() => { if (wordsStack.entries.length || dataStack.entries.length) seen.current = true; });
+
+  // 2D's card zoom (card-zoom.js): a tap on the empty part of a card on a wide screen zooms it to the middle, the other card riding along; a tap on the veil,
+  // Esc, a slide change or a new size puts it back. Only a card that stands whole (nothing leaving or waiting to come in).
+  const zoomsHere = plan.layout === 'wide' && !alone && !!(dataShown || wordsShown);
+  const veilRef = useRef<HTMLDivElement>(null), zveilRef = useRef<HTMLDivElement>(null);
+  const reduceMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const zoomTap = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = e.currentTarget;
+    if (justDragged() || !zoomsHere) return;
+    if (cardZoom.up) { void cardZoom.close({ reduce: reduceMotion() }); return; }
+    if (cardZoom.on || !emptyTap(e.target, card)) return;
+    const live = [...document.querySelectorAll<HTMLElement>('.dk-card[data-card]:not([data-phase="out"])')];
+    if (live.some((c) => c.getAttribute('data-phase') === 'wait')) return;
+    const els = (c: HTMLElement) => [c, ...(c.previousElementSibling?.classList.contains('dk-plate') ? [c.previousElementSibling as HTMLElement] : [])];
+    cardZoom.open({
+      focus: els(card), others: live.filter((c) => c !== card).map(els), reduce: reduceMotion(), veil: zveilRef.current, mark: document.body,
+      area: { left: 0, top: 0, width: vp.w, height: vp.h },
+    });
+  };
+  // a slide change, a new size or a leaving layout glides the zoom back (nothing in the app snaps: Mohammad, 20 Nov), as the slide's own cards go out and come in on the rail
+  useEffect(() => { void cardZoom.close({ reduce: reduceMotion() }); }, [wordsKey, dataKey, vp.w, vp.h, zoomsHere]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => cardZoom.reset(), []);
+
   // the cards' boxes go to the scene once per layout change, when every card up has been measured
   const settled = needs.length > 0 && needs.every((n) => n.h > 0 || (plan.docked && n.slot === 'data'));   // (a card put away is not measured: it is not up)
   useLayoutEffect(() => { if (settled) publishPlan(plan); }, [plan, settled, publishPlan]);
 
   // phones: a vertical swipe on a card swaps the wallet; anywhere: a sideways swipe on a card moves the talk
-  const swipe = useGesture((g, e) => {
-    // 2D's dock: a push up on the data card puts it away to its edge (both cards up, a phone or an upright iPad); a tap or a pull down on the edge brings it back (Strip)
-    if (!plan.strip && (plan.layout === 'stack' || plan.layout === 'tab') && dataShown && g.dy < 0 && isSwapSwipe(g) && (e.target as HTMLElement).closest?.('[data-card]')?.getAttribute('data-card') === dataShown.id && wordsShown) { setDocked(true); return; }
-    if (plan.strip && isSwapSwipe(g)) { swapWallet(); return; }
-    const m = swipeMove(g.dx, g.dy, g.ms);
-    if (m) move(m);
+  const swipe = useCardDrag({
+    onEnd: (g, e) => {
+      // 2D's dock: a push up on the data card puts it away to its edge (both cards up, a phone or an upright iPad); a tap or a pull down on the edge brings it back (Strip)
+      if (!plan.strip && (plan.layout === 'stack' || plan.layout === 'tab') && dataShown && g.dy < 0 && isSwapSwipe(g) && (e.target as HTMLElement).closest?.('[data-card]')?.getAttribute('data-card') === dataShown.id && wordsShown) { setDocked(true); return; }
+      if (plan.strip && isSwapSwipe(g)) { swapWallet(); return; }
+      const m = swipeMove(g.dx, g.dy, g.ms);
+      if (m) move(m);
+    },
+    onMove: move,
+    // a drag follows only where it will do something: a slide to go to (or a page to turn), not the first slide's Back
+    can: (dx) => pages > 1 || !samePos(apply(stops, pos, dx < 0 ? 'next' : 'back'), pos),
+    width: vp.w,
+    cards: () => [...document.querySelectorAll<HTMLElement>('.dk-card[data-card]:not([data-phase="out"])')].map((card) => ({ els: [card, ...(card.previousElementSibling?.classList.contains('dk-plate') ? [card.previousElementSibling as HTMLElement] : [])], data: card.getAttribute('data-card') === 'ladder' || card.getAttribute('data-card') === 'table' })),
   });
 
   if (!view) return null;
@@ -137,26 +191,35 @@ export function CardLayer({ deck }: { deck: Deck }) {
           {sn.slide?.ladder ? <LadderCard ladder={sn.slide.ladder} readings={readings} /> : sn.slide?.tiles ? <TilesCard deckId={deck.id} slideId={sn.slide.id} /> : null}
         </>
       );
+      case 'visual': return sn.slide ? <VisualCard deck={deck} slide={sn.slide} read={read} /> : null;
       case 'check': return <CheckCard deck={deck} page={sn.at} pages={sn.pages} />;
     }
   };
-  const labelOf = (id: CardId) => ({ title: 'Talk', case: 'Case', teach: 'Slide', ladder: 'Pressures', table: 'Summary', check: 'Quick check' })[id];
+  const labelOf = (id: CardId) => ({ title: 'Talk', case: 'Case', teach: 'Slide', ladder: 'Pressures', table: 'Summary', check: 'Quick check', visual: 'Summary' })[id];
   // a data card of tiles wears the 2D card's own state classes (presenter.js dataIn): every such card is tiles-only, a floating screen's is a column under the words, an instrument's has-tool and tool-only
   const dataClass = (e: Entry) => { const sl = snaps[e.key]?.slide; return sl?.tiles || (sl && hasToolChart(sl)) ? ['tiles-only', stacked ? '' : 'col', sl.tool ? 'has-tool tool-only' : ''].filter(Boolean).join(' ') : undefined; };
   const frames = (stack: ReturnType<typeof useStack>, slot: 'words' | 'data') => stack.entries.map((e) => {
-    const placed = e.phase === 'in' ? (slot === 'words' ? wordsShown : dataShown)?.rect : undefined;
+    // (only the card the plan is for takes its place: for a render the card on its way out is still 'in', and it must not be given the new card's box)
+    const wantedKey = slot === 'words' ? wordsWanted?.key : dataWanted?.key;
+    const placed = e.phase === 'in' && e.key === wantedKey ? (slot === 'words' ? wordsShown : dataShown)?.rect : undefined;
     const rect = placed ?? last.current[e.key] ?? ZERO;
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
       <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onGone={stack.gone} label={labelOf(e.id)}
-        pointer={swipe} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? dataClass(e) : undefined}>
+        pointer={swipe} go={go} data={slot === 'data'} fresh={fresh} zoomable={zoomsHere && e.phase === 'in'} onTap={e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsHere && e.phase === 'in' ? zoomTap : undefined} visual={view.slide?.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? dataClass(e) : [(e.id === 'check' || e.id === 'visual') && nameTabOf(deck) ? 'tabbed' : '', e.id === 'visual' && view.slide?.visual === 'ladders' ? 'fill' : ''].filter(Boolean).join(' ') || undefined}>
         {content(e)}
       </CardFrame>
     );
   });
 
+  // 2D's veil: behind the outline and the quick check the page is washed to its own colour (92%), so the card stands on a clear field
+  const veil = view.words === 'title' || view.words === 'check' || view.words === 'visual';
   return (
     <>
+      {/* (2D's dip behind a case card: the figure at 22%, as this wash over it) */}
+      <div className={`pz-veil${view.words === 'check' ? ' on soft' : veil ? ' on' : view.words === 'case' ? ' on dip' : ''}`} aria-hidden="true" />
+      {/* 2D's zoom veil: the page dims a little and a tap on it puts the card back */}
+      <div ref={zveilRef} className="pz-zveil" aria-hidden="true" onClick={() => { void cardZoom.close({ reduce: reduceMotion() }); }} />
       {frames(wordsStack, 'words')}
       {frames(dataStack, 'data')}
       {stripStack.entries.map((e) => {

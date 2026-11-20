@@ -66,6 +66,11 @@ export function SinusoidCaptions() {
       return [pt.x, pt.y];
     };
     const key = (p: NamePlacement) => p.key;
+    /** an end's arrow, pointing toward its vessel off the view on the screen as it stands (the portal venule's back upstream, the central vein's on downstream) */
+    const endArrow = (k: 'in' | 'out'): string => {
+      const a = proj(0, 0), b = proj(1, 0), d = (k === 'in' ? -1 : 1) * cel.sinus.flowDir, dx = (b[0] - a[0]) * d, dy = (b[1] - a[1]) * d;
+      return Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? '\u2192' : '\u2190') : (dy > 0 ? '\u2193' : '\u2191');
+    };
     const make = (id: string): El => {
       const r = document.createElement('div');
       r.className = regionClass(id as NameKey);   // (2D's own caption: its stylesheet sets the type, the case and the colour)
@@ -88,7 +93,11 @@ export function SinusoidCaptions() {
     };
     /** a caption's words written as 2D's pageRun writes them (only when they changed), and its element returned */
     const fill = (e: El, name: string, value: string, key: NameKey, explain: NameKey | null): El => {
-      const tree = regionTree(name, value, explain === key ? SV_NOTE[key] ?? null : null), words = treeKey(tree);
+      const tree = regionTree(name, value, explain === key ? SV_NOTE[key] ?? null : null);
+      // the ends' arrows are part of their names, flat in the label and moving with it (Mohammad 20 Nov 2026: "the arrow should not be a 3D thing; just make it part of the label")
+      const arrow = (key === 'in' || key === 'out') && useSettings.getState().micro3d ? endArrow(key) : '';
+      if (arrow) { const head = tree[0]!; if (typeof head !== 'string') head.kids = key === 'in' ? [{ tag: 'span', cls: 'sv-arrow', kids: [arrow] }, ...head.kids] : [...head.kids, { tag: 'span', cls: 'sv-arrow', kids: [arrow] }]; }
+      const words = treeKey(tree);
       if (e.words !== words) {
         e.words = words;
         e.root.replaceChildren(...tree.map(node));

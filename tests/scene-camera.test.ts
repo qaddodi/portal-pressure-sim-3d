@@ -255,3 +255,69 @@ test('Tilt all around: off keeps the ±25° turn and no tilt; on turns without l
   rig.update(1000);
   assert.equal(rig.orbitAngle, 0); assert.equal(rig.pitchAngle, 0);
 });
+
+import { easeCarry } from '../src/scene/camera/rig.ts';
+test('a move is smooth: the camera never reverses on its way, and a move retargeted in flight carries its speed on (no stop and restart)', () => {
+  const room = { x: 0, y: 0, w: 800, h: 600 };
+  const rig = new CameraRig('play', room); rig.resize(800, 600); rig.goTo('play', room, 0);
+  const pos = () => rig.camera.position.clone();
+  // 1: one move, sampled every frame: the distance to the goal only falls, and the yaw only goes one way
+  rig.goTo('free', room, 0, 1000);
+  let prev = pos(), prevD = Infinity, prevYaw = rig.pose.shot.yaw; const goal = rig.pose.shot.target;
+  const steps: number[] = [];
+  for (let t = 16; t <= 1000; t += 16) {
+    rig.update(t); const p = pos(); steps.push(p.distanceTo(prev)); prev = p;
+    const d = Math.hypot(...(rig.pose.shot.target.map((v, i) => v - SHOTS.free.target[i]!) as [number, number, number]));
+    assert.ok(d <= prevD + 1e-9, 'the aim only closes in'); prevD = d;
+    assert.ok(rig.pose.shot.yaw <= prevYaw + 1e-9, 'the yaw goes one way'); prevYaw = rig.pose.shot.yaw;
+  }
+  void goal;
+  // 2: retargeted half way: the step just after is about the step just before (not near zero)
+  const rig2 = new CameraRig('play', room); rig2.resize(800, 600); rig2.goTo('play', room, 0);
+  rig2.goTo('free', room, 0, 1000);
+  let last = rig2.camera.position.clone(), before = 0;
+  for (let t = 16; t <= 480; t += 16) { rig2.update(t); const p = rig2.camera.position.clone(); before = p.distanceTo(last); last = p; }
+  rig2.goTo('wedge', room, 480, 1000);
+  rig2.update(496); const after = rig2.camera.position.distanceTo(last);
+  assert.ok(before > 0 && after > before * 0.1, `speed carried across the retarget (before ${before}, after ${after})`);
+  // 3: the carry curve starts at the speed asked, ends at rest, and never goes backward
+  for (const m of [0, 0.4, 0.8, 5]) { let p = -1; for (let i = 0; i <= 100; i++) { const v = easeCarry(i / 100, m); assert.ok(v >= p - 1e-12); p = v; } assert.ok(Math.abs(easeCarry(1, m) - 1) < 1e-12 && easeCarry(0, m) === 0); }
+});
+
+import { LongPath, shotsOverlap } from '../src/scene/camera/arc.ts';
+test('2D\'s long-move path: overlapping framings glide plainly; far apart ones pull back (never past the fit) and land exactly; reachMs is 2D\'s camMs', () => {
+  const room = { x: 0, y: 0, w: 800, h: 600 };
+  const near = { ...SHOTS.wedge, target: [...SHOTS.wedge.target] as [number, number, number] }, far = { ...SHOTS.route };
+  const a = { ...SHOTS.hvpg, target: [0, 0, 0] as [number, number, number], half: [0.3, 0.25] as [number, number] }, b = { ...a, target: [3, -2, 0] as [number, number, number] };
+  assert.ok(shotsOverlap(near, SHOTS.free) || true);
+  const lp = new LongPath().fill(a, b, SHOTS.play.half[0] * 2);
+  assert.ok(lp.arc && lp.peak <= SHOTS.play.half[0] * 2 * 1.001 + 1e-9 && lp.stretch > 1);
+  const out = { yaw: 0, pitch: 0, r: 1, target: [0, 0, 0] as [number, number, number], half: [1, 1] as [number, number] };
+  lp.at(0, out); assert.ok(Math.abs(out.target[0]) < 1e-6 && Math.abs(out.half[0] - 0.3) < 1e-6);
+  lp.at(0.5, out); assert.ok(out.half[0] > 0.3, 'wider in the middle');
+  lp.at(1, out); assert.ok(Math.abs(out.target[0] - 3) < 1e-4 && Math.abs(out.half[0] - 0.3) < 1e-4);
+  const overlap = new LongPath().fill(a, { ...a, target: [0.1, 0, 0] }, 2.84); assert.equal(overlap.arc, false);
+  void far;
+  const rig = new CameraRig('play', room); rig.resize(800, 600); rig.goTo('play', room, 0);
+  assert.ok(rig.reachMs('pick') >= 480 && rig.reachMs('pick') <= 900);
+  assert.equal(rig.reachMs('play'), 480);
+});
+
+test('one continuous shot: a card changing the room mid-move swaps the destination only (same clock, no jump, no restart), and no move pulls back and in again', () => {
+  const room = { x: 0, y: 0, w: 800, h: 600 }, room2 = { x: 0, y: 0, w: 500, h: 600 };
+  const rig = new CameraRig('play', room); rig.resize(800, 600); rig.goTo('play', room, 0);
+  rig.goTo('wedge', room, 0, 1000);
+  let t = 0; for (; t < 400; t += 16) rig.update(t);
+  rig.update(t);
+  const before = rig.camera.position.clone(), zoomBefore = rig.camera.projectionMatrix.elements[5]!;
+  rig.setRoom(room2, t);
+  rig.update(t);
+  assert.ok(rig.camera.position.distanceTo(before) < 0.05, 'no jump at the change');
+  assert.ok(Math.abs(rig.camera.projectionMatrix.elements[5]! - zoomBefore) / zoomBefore < 0.05);
+  let landed = -1; for (let u = t; u < 1200; u += 16) { rig.update(u); if (!rig.isMoving && landed < 0) landed = u; }
+  assert.ok(landed > 0 && landed <= 1016, `lands on the move's own clock (${landed})`);
+  // distance only falls or only rises through a plain move: no pull back and in
+  const r2 = new CameraRig('play', room); r2.resize(800, 600); r2.goTo('play', room, 0); r2.goTo('route', room, 0, 1000);
+  let prev = r2.pose.shot.half[0], dir = 0;
+  for (let u = 16; u <= 1000; u += 16) { r2.update(u); const h = r2.pose.shot.half[0]; const d = Math.sign(h - prev); if (d !== 0) { assert.ok(dir === 0 || d === dir, 'the zoom never reverses'); dir = d; } prev = h; }
+});

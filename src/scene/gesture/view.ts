@@ -19,10 +19,10 @@ export const BAND = 0.4;
 export const clamp = (v: number, a: number, b: number): number => (v < a ? a : v > b ? b : v);
 
 /** The zoom a pinch shows: past the limits it stretches a little (exponent .3) and springs back when the hand lets go. */
-export const softK = (k: number): number => (k > K_MAX ? K_MAX * Math.pow(k / K_MAX, 0.3) : k < K_MIN ? K_MIN * Math.pow(k / K_MIN, 0.3) : k);
+export const softK = (k: number, kMin = K_MIN): number => (k > K_MAX ? K_MAX * Math.pow(k / K_MAX, 0.3) : k < kMin ? kMin * Math.pow(k / kMin, 0.3) : k);
 
 /** The zoom inside the limits, where the spring-back puts it. */
-export const limitK = (k: number): number => clamp(k, K_MIN, K_MAX);
+export const limitK = (k: number, kMin = K_MIN): number => clamp(k, kMin, K_MAX);
 
 /** The view after zooming by `factor` about the canvas point `at`, with `c` the middle of the free room: the figure under `at` stays under it. */
 export function zoomAbout(v: View, factor: number, at: Pt, c: Pt, out: View = { k: 1, x: 0, y: 0 }): View {
@@ -79,10 +79,12 @@ export const IDENTITY: Readonly<View> = { k: 1, x: 0, y: 0 };
 export const sameView = (a: View, b: View): boolean => Math.abs(a.k - b.k) < 1e-3 && Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5;
 
 /** Where the spring-back sends a view the hand let go of: inside the zoom limits, back to the fit framing at or below the fit zoom, and never lost (the middle of the room outside the figure is pulled to its edge). */
-export function restingView(v: View, r0: Rect, c: Pt): View {
-  const k = limitK(v.k);
+export function restingView(v: View, r0: Rect, c: Pt, kMin = K_MIN, recentre = false): View {
+  const k = limitK(v.k, kMin);
   if (k <= FIT_K) return { k, x: 0, y: 0 };
   // zooming back inside the limits keeps the figure under the middle of the room, as the 2D spring-back does
   const kept = k === v.k ? v : zoomAbout(v, k / v.k, c, c);
-  return hardPan(kept, r0, c);
+  const held = hardPan(kept, r0, c);
+  // `recentre` (the sinusoid): a pan let go outside the allowed area goes all the way back to the middle of the view, not just to its edge (owner, 20 Nov)
+  return recentre && !sameView(held, kept) ? { k, x: 0, y: 0 } : held;
 }

@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { type BufferGeometry, type Mesh, type Object3D } from 'three';
+import { type BufferGeometry, Matrix4, type Mesh, type Object3D, Vector3 } from 'three';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { Sinusoid3D } from '../src/scene/micro3d/sinusoid3d.ts';
-import { cellOutline } from '../src/scene/micro3d/sinusoid3d.ts';
+import { REACH, TRAFFIC_REACH, cellOutline } from '../src/scene/micro3d/sinusoid3d.ts';
 import { UM } from '../src/scene/sinusoid/layout.ts';
 
 function meshes(root: Object3D): Mesh[] { const out: Mesh[] = []; root.traverse((o) => { if ((o as Mesh).isMesh) out.push(o as Mesh); }); return out; }
@@ -56,9 +56,9 @@ test('on, the traffic is fixed to the tissue (a camera move never slides it); of
   flat.setScreen(8, 390, 390, 12);
   const before = [...F.VW.vis];
   s3.pinTraffic(true);
-  assert.deepEqual(F.VW.vis, [-130, 130]);
+  assert.deepEqual(F.VW.vis, [-TRAFFIC_REACH, TRAFFIC_REACH]);
   flat.setScreen(8, 390, 390, 30); s3.pinTraffic(true);   // (a pan: the screen's stretch moves, the traffic's does not)
-  assert.deepEqual(F.VW.vis, [-130, 130]);
+  assert.deepEqual(F.VW.vis, [-TRAFFIC_REACH, TRAFFIC_REACH]);
   s3.pinTraffic(false);
   assert.equal(F.screen, null);
   flat.setScreen(8, 390, 390, 12);
@@ -73,4 +73,90 @@ test('every streaked stream carries its place across (aux) on every vertex', () 
     const aux = m.geometry.getAttribute('aux'), pos = m.geometry.getAttribute('position');
     assert.ok(aux && aux.count === pos!.count, `${n}: aux on every vertex`);
   }
+});
+
+test('every triangle of every part faces the way its normals do (one wound against them is a hole of ink: the dark red cells and the X across each hepatocyte, 20 Nov)', () => {
+  const { s3 } = scene();
+  s3.update(true);
+  const seen = new Set<BufferGeometry>();
+  for (const m of meshes(s3.group)) {
+    const g = m.geometry;
+    if (seen.has(g)) continue; seen.add(g);
+    const p = g.getAttribute('position')?.array, n = g.getAttribute('normal')?.array, ix = g.getIndex()?.array;
+    if (!p || !n || !ix) continue;
+    let bad = 0;
+    for (let t = 0; t < ix.length; t += 3) {
+      const a = ix[t]! * 3, b = ix[t + 1]! * 3, c = ix[t + 2]! * 3;
+      const e1 = [p[b]! - p[a]!, p[b + 1]! - p[a + 1]!, p[b + 2]! - p[a + 2]!], e2 = [p[c]! - p[a]!, p[c + 1]! - p[a + 1]!, p[c + 2]! - p[a + 2]!];
+      const f = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+      if (f[0]! * (n[a]! + n[b]! + n[c]!) + f[1]! * (n[a + 1]! + n[b + 1]! + n[c + 1]!) + f[2]! * (n[a + 2]! + n[b + 2]! + n[c + 2]!) < 0) bad++;
+    }
+    assert.equal(bad, 0, `${m.name}: ${bad} triangles wound against their normals`);
+  }
+});
+
+test('the next sinusoids are hazed (from past this one\'s plates outward) and the traffic runs a little faster while on, 2D\'s pace again off', () => {
+  const { flat, s3 } = scene();
+  s3.update(true);
+  const m = meshes(s3.group).find((x) => x.name === 'sinusoid3d/lumen-beyond')!;
+  const h = ((m.material as unknown as { uniforms: Record<string, { value: { x: number; y: number; z: number } }> }).uniforms.uHaze!.value);
+  assert.ok(h.x > UM.lum + UM.endo + UM.disse + UM.hep * 0.5 && h.y > h.x && h.z > 0.3, `haze ${h.x}..${h.y} x${h.z}`);
+  const F = flat as unknown as { trafficSpeed: number };
+  assert.ok(F.trafficSpeed > 1);
+  s3.update(false);
+  assert.equal(F.trafficSpeed, 1);
+});
+
+test('paused, the blood stands still: the traffic stops, and the view asks for no frames for it', () => {
+  const { flat, s3 } = scene();
+  s3.update(true, false);
+  const F = flat as unknown as { trafficSpeed: number; traffic: { flowX: number } };
+  assert.equal(F.trafficSpeed, 0);
+  const x0 = F.traffic.flowX;
+  flat.update(2000); flat.update(2100);
+  assert.equal(F.traffic.flowX, x0);
+});
+
+test('the sinusoid has streaks only, never chevrons (Mohammad 20 Nov: "sinusoids view ONLY STREAKS")', () => {
+  const { s3 } = scene();
+  s3.update(true);
+  for (const m of meshes(s3.group)) { const u = (m.material as { uniforms?: Record<string, { value: unknown }> }).uniforms; if (u?.uProfile) assert.ok((u.uProfile.value as number) >= 0, `${m.name}: no chevrons`); }
+});
+
+test('the neighbours carry the disease more lightly: collagen in their Disse and a stellate cell each', () => {
+  const { flat, s3 } = scene();
+  (flat as unknown as { cur: { col: number; act: number } }).cur.col = 1; (flat as unknown as { cur: { col: number; act: number } }).cur.act = 1;
+  s3.update(true);
+  const fib = meshes(s3.group).find((m) => m.name === 'sinusoid3d/collagen')! as unknown as { count: number; getMatrixAt(i: number, m: Matrix4): void };
+  let far = 0; const m4 = new Matrix4(); const g = (flat as unknown as { g: { hepIn(x: number): number } }).g;
+  for (let i = 0; i < fib.count; i++) { fib.getMatrixAt(i, m4); const x = m4.elements[12]!, y = Math.abs(m4.elements[13]!); if (y > g.hepIn(x) + UM.hep - 1) far++; }
+  assert.ok(far > 5 && far < fib.count / 2, `fewer fibres in the neighbours' Disse: ${far} of ${fib.count}`);
+});
+
+test('the focus band: nothing when the scene is off, its blur starting past this sinusoid\'s plates', () => {
+  const { s3, flat } = scene();
+  const a = new Vector3(), b = new Vector3(), e0 = new Vector3(), e1 = new Vector3();
+  assert.equal(s3.focusBand(a, b, e0, e1), 0, 'off: no band');
+  s3.update(true);
+  assert.ok(s3.focusBand(a, b, e0, e1) > 0);
+  const toLocal = (v: Vector3) => s3.group.worldToLocal(v.clone());
+  assert.ok(Math.abs(toLocal(e0).y) > (flat as unknown as { g: { hepIn(x: number): number } }).g.hepIn(0) && Math.abs(toLocal(e1).y) > Math.abs(toLocal(e0).y));
+});
+
+test('the sinusoid never visibly ends: the scene runs well past the traffic, and the blur along it melts both ends', () => {
+  assert.ok(REACH >= TRAFFIC_REACH + 40);
+  const { s3 } = scene(); s3.update(true);
+  const a = new Vector3(), b = new Vector3(), e0 = new Vector3(), e1 = new Vector3(), ends = { mid: new Vector3(), f0: new Vector3(), f1: new Vector3() };
+  s3.focusBand(a, b, e0, e1, ends);
+  const x = (v: Vector3) => Math.abs(s3.group.worldToLocal(v.clone()).x);
+  assert.ok(x(ends.f0) < x(ends.f1) && x(ends.f1) < REACH - 30, 'whole before the end');
+});
+
+test('the ends\' arrows are never 3D objects in the scene: they are part of the names (SinusoidCaptions endArrow)', async () => {
+  const { s3 } = scene(); s3.update(true);
+  const arrows = meshes(s3.group).find((m) => m.name === 'sinusoid3d/ends')!;
+  let shown = true; for (let o: Object3D | null = arrows; o; o = o.parent) if (!o.visible) { shown = false; break; }
+  assert.equal(shown, false);
+  const src = (await import('node:fs')).readFileSync('src/scene/sinusoid/SinusoidCaptions.tsx', 'utf8');
+  assert.match(src, /endArrow\(key\)/);
 });

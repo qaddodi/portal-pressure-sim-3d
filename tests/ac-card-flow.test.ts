@@ -22,3 +22,14 @@ test('the card\'s body (and its Details face, also an .ac-body) is placed in the
   const card = rules(css('action/action.css')).find((r) => r.sel === '.ac-card')!;
   assert.match(card.body, /display:\s*flex/); assert.match(card.body, /max-height/);
 });
+
+test('the card\'s sliders are 2D\'s .range-wrap (a visible track and fill) and the card never prints its key', async () => {
+  const { readFileSync } = await import('node:fs');
+  for (const f of ['src/ui/action/ActionCard.tsx', 'src/ui/action/stent/StentPanel.tsx']) {
+    const src = readFileSync(f, 'utf8');
+    assert.ok(src.includes('className="range-wrap"') && !/ac-range/.test(src), `${f} uses range-wrap`);
+  }
+  const css = readFileSync('src/ui/action/action.css', 'utf8');
+  assert.ok(!/\.ac-range/.test(css), 'no second slider look that 2D\'s input[type=range] rules override');
+  assert.match(css, /\.ac-card \[data-key\]::after \{ display: none; \}/);
+});
