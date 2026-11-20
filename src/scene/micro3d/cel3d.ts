@@ -138,7 +138,8 @@ void main() {
   vec3 c = tint * vC;
   c *= 1.0 - ${F(CEL_STYLE.MICRO.SHADE)} * shadeT;
 #ifdef STREAKS
-  c = mix(c, uStreakCol, uStreak * (uProfile < 0.0 ? chevrons() : streaks()));
+  float sk = uProfile < 0.0 ? chevrons() : streaks();
+  c = mix(c, uProfile < 0.0 ? uStreakCol : streakTone(c, uStreakCol, gStreakK.x, gStreakK.y), uStreak * sk);   // (a streak's own tone between the surface's and the streak colour's)
 #endif
 #ifdef FLOW
   c = mix(c, uFlowCol, uFlowK * flowMarks());

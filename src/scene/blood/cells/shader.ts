@@ -20,7 +20,7 @@
 // painted on the lumen like the chevrons, inside the silhouette, and a vessel that really lies in front still hides it.
 import { CEL_TUBE_GLSL } from '../../cel-glsl.ts';
 import { CELL_SAMPLES, NO_FLOW, STREAK, UNITS } from './core.ts';
-import { STREAK_COMET_GLSL, STREAK_LANE_GLSL } from '../streak-glsl.ts';
+import { STREAK_MARK_GLSL, STREAK_LANE_GLSL } from '../streak-glsl.ts';
 
 export const CELLS_VS = /* glsl */ `
 attribute vec4 aB;
@@ -102,7 +102,7 @@ void main() {
   float hL = r2d >= ${STREAK.LANE_7.toFixed(1)} ? 3.0 : r2d >= ${STREAK.LANE_5.toFixed(1)} ? 2.0 : 1.0;
   float lane = clamp(floor(aB.y * 3.0 + 0.5), -hL, hL) / hL;
   float prof = streakLaneSpeed(lane, hL);   // (streak-glsl.ts: the one lane profile)
-  float u = fract(position.y + stm.x / Lw * prof);
+  float u = fract(position.y + stm.x / Lw * prof * streakPace(streakHash(aB.z * 17.3 + aB.w * 5.1)));   // (each streak's own pace, seeded, +-25 percent on its lane's)
   if (u > r4.x) CULL
   float s = u * Lw, ee = max(${STREAK.END_R.toFixed(1)} * r2d, 4.0);   // (a streak fades out over END_R radii at each end: it never crosses a junction)
   float ends = smooth01(s / ee) * (1.0 - smooth01((s - (Lw - ee)) / ee));
@@ -180,7 +180,8 @@ void main() {
     vec4 lb = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, e, u, lane);
     base = mix(mix(base, la.rgb, la.a), mix(base, lb.rgb, lb.a), lensMix);
   }
-  vFill = mix(celTubeBase(base), vec3(1.0), ${STREAK.LIFT.toFixed(2)});   // the vessel's lit tone, one shade lighter: flat, never white
+  vec3 lit = celTubeBase(base);   // the vessel's lit tone; the streak's own tone lies between it and one shade lighter (seeded), never white, never darker than the lit tone
+  vFill = streakTone(lit, mix(lit, vec3(1.0), ${STREAK.LIFT.toFixed(2)}), streakHash(aB.w * 53.0 + 1.7), streakHash(aB.z * 37.0 + 4.2));
 
   // the vessel's own fade (a tip fading in or out, a bed fading along its line), its veil behind the organs and the layer's amount
   float fa = 1.0;
@@ -207,7 +208,7 @@ void main() {
 }`;
 
 export const CELLS_FS = /* glsl */ `
-${STREAK_COMET_GLSL}
+${STREAK_MARK_GLSL}
 varying vec3 vFill;
 varying float vA;
 varying float vSize;
@@ -220,8 +221,8 @@ void main() {
   vec2 q = (gl_PointCoord * 2.0 - 1.0) * vSize * 0.5;
   q.y = -q.y;
   vec2 p = vec2(dot(q, vDir), dot(q, vec2(-vDir.y, vDir.x)));
-  // the comet (streak-glsl.ts, the one streak of the Anatomy, the 3D lobule and the 3D sinusoid): a blunt round head (the way it runs: p.x up), a tail tapering to a point, one flat tone, half a device pixel of antialiasing each side
-  float a = streakComet(p.x / max(vLen, 1e-3) + 0.5, p.y, 0.5 * vThick, 0.6);
+  // the mark (streak-glsl.ts, the one streak of the Anatomy, the 3D lobule and the 3D sinusoid): a slim rounded lozenge, its alpha feathered at both ends, half a device pixel of antialiasing each side
+  float a = streakMark(p.x / max(vLen, 1e-3) + 0.5, p.y, 0.5 * vThick, 0.6);   // (a slim lozenge feathered at both ends)
   if (a <= 0.003) discard;
   gl_FragColor = vec4(vFill, a * vA);
 }`;

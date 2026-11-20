@@ -1,12 +1,12 @@
 // THE ONE STREAK (Mohammad, 20 Nov: "i want the streaks to be unified"): the blood's flow marks inside a lumen, the same in the Anatomy's vessels (blood/cells/shader.ts), the 3D lobule and the 3D sinusoid
-// (micro3d/cel3d.ts). LANES across the stream (3, 5 or 7 by its width), many short thin streaks to a lane, each a COMET (a blunt round head, a tail tapering to a point) with a seeded jitter of length and width;
+// (micro3d/cel3d.ts). LANES across the stream (3, 5 or 7 by its width), many short thin streaks to a lane, each a slim rounded LOZENGE, its alpha feathered at BOTH ends, with a seeded jitter of length, width, speed (+-25 percent) and tone;
 // the speed over the lanes parabolic (the outer lane at WALL_SPEED of the middle one's, the mean over the lanes 1, so the stream's own mean stands and the chevrons agree), the middle lanes fastest, so the flow
-// visibly shears; ONE flat tone, one shade lighter than the lumen's lit tone, never white. The JS table (STREAK, lanesFor, laneSpeed) and the GLSL (STREAK_LANE_GLSL, STREAK_COMET_GLSL, STREAK_FIELD_GLSL) say
+// visibly shears; a tone between the lumen's lit tone and one shade lighter (seeded per streak, a few degrees warmer or cooler), never white, never darker than the lit tone. The JS table (STREAK, lanesFor, laneSpeed) and the GLSL (STREAK_LANE_GLSL, STREAK_MARK_GLSL, STREAK_FIELD_GLSL) say
 // the same numbers: the GLSL is built from the table, and tests/b3-streaks.test.ts pins that all three sites include it.
 //   STREAK_LANE_GLSL    any stage: streakLaneSpeed(lane, h), streakHash(x)
-//   STREAK_COMET_GLSL   any stage: streakComet(t, y, halfW, aa), the comet's coverage at t along (0 tail .. 1 head) and y across, half width halfW, edge aa (the same unit as y)
+//   STREAK_MARK_GLSL   any stage: streakMark(t, y, halfW, aa), the comet's coverage at t along (0 tail .. 1 head) and y across, half width halfW, edge aa (the same unit as y)
 //   STREAK_FIELD_GLSL   fragment only (fwidth): streakField(across, along, flow, halfWidth, profile, dir): the whole field of lanes for a shape that carries (-1..1 across, an along coordinate in um, the flow's run in um)
-/** The streak's numbers (shader.ts): LANES across a wide vessel, many short thin streaks to a lane, each a comet (a blunt round head, a tail tapering to a point), one flat lighter tone. Lengths and thickness in CSS px, of the tube's radius where it says so. */
+/** The streak's numbers (shader.ts): LANES across a wide vessel, many short thin streaks to a lane, each a slim rounded lozenge feathered at both ends, one flat lighter tone. Lengths and thickness in CSS px, of the tube's radius where it says so. */
 export const STREAK = {
   /** the lanes across the widest tube (odd, so one runs down the middle); a thinner tube takes fewer (lanesFor), never under 3 */
   LANES: 7,
@@ -20,8 +20,12 @@ export const STREAK = {
   THICK_OF_R: 0.16, THICK_MIN: 1.3, THICK_MAX: 3, THICK_JITTER: 0.3,
   /** the field's own numbers (a shape with an across and an along, um): a lane's pitch, a comet's period and length (base + spread), its half width in lane units, the share of the cycles left empty */
   FIELD_PITCH: 0.9, FIELD_PERIOD: [34, 26], FIELD_LEN: [12, 14], FIELD_THICK: 0.3, FIELD_GAP: 0.25,
-  /** the head's share of the length: blunt and round; behind it the width tapers to a point */
-  HEAD: 0.22,
+  /** both ends are feathered: the alpha ramps 0 to 1 over this share of the length at each end, whole between (a slim rounded lozenge, never a blunt head nor a point) */
+  FEATHER: 0.3,
+  /** each streak's own speed, seeded: +-this on top of its lane's (symmetric, so the mean stands) */
+  SPEED_JITTER: 0.25,
+  /** each streak's own tone, seeded: between the vessel's lit tone and the lighter one, from TONE_MIN of the way up, with a warm or cool shift of up to HUE (a share of a channel), never darker than the lit tone, never white */
+  TONE_MIN: 0.2, HUE: 0.03,
   /** how far across the tube (of its radius) the outer lane sits */
   SPAN: 0.78,
   /** a streak fades out over this many tube radii at each end of its vessel, so it never crosses a junction */
@@ -51,29 +55,41 @@ float streakLaneSpeed(float lane, float h) {
   return (${F(STREAK.WALL_SPEED)} + ${F(1 - STREAK.WALL_SPEED)} * (1.0 - lane * lane)) / (${F(STREAK.WALL_SPEED)} + ${F(1 - STREAK.WALL_SPEED)} * (1.0 - (h + 1.0) / (3.0 * h)));
 }
 float streakHash(float x) { return fract(sin(x * 127.1 + 311.7) * 43758.5453); }
+// a streak's own speed over its lane's: 1 +- SPEED_JITTER from its seed in 0 .. 1 (symmetric, so the mean stands)
+float streakPace(float seed) { return 1.0 + ${F(STREAK.SPEED_JITTER)} * (2.0 * seed - 1.0); }
+// a streak's own tone: k (0 .. 1) of the way from the lit tone to the lighter one (from TONE_MIN up), a warm or cool shift of a few degrees (s in 0 .. 1), never darker than the lit tone (never lighter than the lighter one's hue shift)
+vec3 streakTone(vec3 lit, vec3 light, float k, float s) {
+  vec3 t = mix(lit, light, ${F(STREAK.TONE_MIN)} + ${F(1 - STREAK.TONE_MIN)} * k);
+  t *= vec3(1.0 + ${F(STREAK.HUE)} * (2.0 * s - 1.0), 1.0, 1.0 - ${F(STREAK.HUE)} * (2.0 * s - 1.0));
+  return clamp(max(t, min(lit, light)), 0.0, 1.0);
+}
 `;
 
-/** The comet's coverage (any stage; used in a fragment). */
-export const STREAK_COMET_GLSL = /* glsl */ `
-// t along the comet (0 at the tail's point, 1 at the head's front), y across it from its axis, halfW its half width at the widest, aa the edge's antialiasing (y's unit): a tail tapering to a point, a blunt round head
-float streakComet(float t, float y, float halfW, float aa) {
-  float hd = ${F(STREAK.HEAD)};
-  float w = halfW * (t < 1.0 - hd ? pow(max(t, 0.0) / (1.0 - hd), 1.3) : sqrt(max(1.0 - ((t - (1.0 - hd)) / hd) * ((t - (1.0 - hd)) / hd), 0.0)));
-  return (1.0 - smoothstep(-aa, aa, abs(y) - w)) * step(0.0, t) * step(t, 1.0);
+/** The mark's coverage (any stage; used in a fragment). */
+export const STREAK_MARK_GLSL = /* glsl */ `
+// t along the mark (0 at one end, 1 at the other), y across it from its axis, halfW its half width at the widest, aa the edge's antialiasing (y's unit): a slim rounded lozenge, its alpha feathered
+// 0 to 1 over ${F(STREAK.FEATHER)} of the length at BOTH ends and whole between
+float streakMark(float t, float y, float halfW, float aa) {
+  float c = 2.0 * clamp(t, 0.0, 1.0) - 1.0;
+  float w = halfW * sqrt(max(1.0 - c * c, 0.0));
+  float fe = smoothstep(0.0, ${F(STREAK.FEATHER)}, t) * smoothstep(0.0, ${F(STREAK.FEATHER)}, 1.0 - t);
+  return (1.0 - smoothstep(-aa, aa, abs(y) - w)) * fe;
 }
 `;
 
 /** The whole field of lanes for a shape with an across and an along coordinate (fragment stage). */
 export const STREAK_FIELD_GLSL = /* glsl */ `
 ${STREAK_LANE_GLSL}
-${STREAK_COMET_GLSL}
+${STREAK_MARK_GLSL}
+// gStreakK: the seeds (k, s) of the tone of the last streak streakField found, for streakTone (a per-streak colour between the surface's and the streak colour's)
+vec2 gStreakK = vec2(1.0, 0.5);
 // across -1 .. 1 over the stream, along in um (fixed to the tissue), flow the um the stream has run (negative runs back), halfWidth the stream's half width (um: one lane to ${F(STREAK.FIELD_PITCH)} um, 3 to 7 of them),
-// profile 1 the blood's parabolic lanes and 0 one speed (the lymph), dir +1 the head leads toward +along, -1 toward -along. 1 inside a comet, 0 out.
+// profile 1 the blood's parabolic lanes and 0 one speed (the lymph), dir +1 or -1: the way the stream runs (the mark is the same both ways). 1 inside a mark, 0 out.
 float streakField(float across, float along, float flow, float halfWidth, float profile, float dir) {
   float lanes = clamp(2.0 * floor(floor(halfWidth * 2.0 / ${F(STREAK.FIELD_PITCH)}) * 0.5) + 1.0, 3.0, ${F(STREAK.LANES)});
   float u = (across * 0.5 + 0.5) * lanes, idx = clamp(floor(u), 0.0, lanes - 1.0), fu = fract(u);
   float h = (lanes - 1.0) * 0.5;
-  float sp = mix(1.0, streakLaneSpeed((idx - h) / h, h), profile);
+  float sp = mix(1.0, streakLaneSpeed((idx - h) / h, h), profile) * streakPace(streakHash(idx * 5.9 + 0.7));   // (the lane's own pace: a field's marks of one lane move as one pattern)
   float period = ${F(STREAK.FIELD_PERIOD[0])} + ${F(STREAK.FIELD_PERIOD[1])} * streakHash(idx * 3.1);
   float x = along - flow * sp + period * streakHash(idx * 1.7 + 9.1);
   float cyc = floor(x / period), xl = x - cyc * period;
@@ -83,6 +99,7 @@ float streakField(float across, float along, float flow, float halfWidth, float 
   if (dir < 0.0) t = 1.0 - t;
   float hw = ${F(STREAK.FIELD_THICK)} * (1.0 - ${F(STREAK.THICK_JITTER)} * 0.5 + ${F(STREAK.THICK_JITTER)} * streakHash(seed + 4.1));
   float aa = max(fwidth(u), 1e-3);
-  return streakComet(t, fu - 0.5, hw, aa) * step(${F(STREAK.FIELD_GAP)}, streakHash(seed * 1.9 + 2.0));
+  gStreakK = vec2(streakHash(seed + 8.3), streakHash(seed + 6.1));
+  return streakMark(t, fu - 0.5, hw, aa) * step(${F(STREAK.FIELD_GAP)}, streakHash(seed * 1.9 + 2.0));
 }
 `;
