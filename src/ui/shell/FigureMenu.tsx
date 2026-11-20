@@ -44,6 +44,17 @@ function StreaksSwitch() {
   );
 }
 
+/** Key streaks only (Mohammad, 20 Nov: "add option for only key streaks to show up just like chevrons"): the streaks on the main routes only, the vessels Key chevrons only keeps; the others ease out. */
+export const KEY_STREAKS_ROW = { label: 'Key streaks only', hint: 'Just the main routes, not every vessel' } as const;
+function KeyStreaksSwitch() {
+  const on = useBlood((s) => s.keyStreaks);
+  return (
+    <button type="button" role="switch" className="sh-row" aria-checked={on} onClick={() => sceneApi.setBlood({ keyStreaks: !on }, useShell.getState().mode === 'deck')}>
+      <Icon n={STREAKS_ROW.icon} /><span className="sh-t">{KEY_STREAKS_ROW.label}</span><span className="sh-sw" aria-hidden="true" /><span className="sh-d">{KEY_STREAKS_ROW.hint}</span>
+    </button>
+  );
+}
+
 /** The rows of the Blood menu (moving blood, what the figure shows, how many labels) or of the lobule's Layers: the 2D app's rows with its words. */
 export function FigureRows({ kind }: { kind: 'blood' | 'layers' }) {
   const level = useShell((s) => s.figure.labelLevel);
@@ -55,7 +66,7 @@ export function FigureRows({ kind }: { kind: 'blood' | 'layers' }) {
         <div key={sec}>
           <div className="sh-title">{sec}</div>
           {rows.filter((r) => ('section' in r ? r.section : '') === sec && sec !== 'Labels').map((r) => <Switch key={r.label} label={r.label} hint={'hint' in r ? r.hint : undefined} />)}
-          {kind === 'blood' && sec === 'Moving blood' && <StreaksSwitch />}
+          {kind === 'blood' && sec === 'Moving blood' && <><StreaksSwitch /><KeyStreaksSwitch /></>}
           {sec === 'Labels' && (
             <div className="sh-seg-row" role="group" aria-label="Labels on the figure">
               {rows.filter((r) => 'section' in r && r.section === 'Labels').map((r) => {

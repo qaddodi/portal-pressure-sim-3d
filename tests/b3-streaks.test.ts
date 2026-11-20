@@ -156,7 +156,7 @@ test('CONTAINED BY CONSTRUCTION (Mohammad, 20 Nov: "the streaks are flowing outs
   assert.match(STREAK_FIELD_GLSL, /float ca = across \/ 0\.9;\n\s*float inLumen = step\(abs\(ca\), 1\.0\);/);
   assert.match(STREAK_FIELD_GLSL, /return inLumen \* cov \* fe \* op \* on;/, 'nothing past the edge');
   assert.ok(VESSEL_FS.includes(DUST_GLSL), 'the Anatomy: the Dust Lab\'s particles (blood/dust-glsl.ts) in the tube shader, clipped to the lumen the same way');
-  assert.match(DUST_GLSL, /return clamp\(acc, 0\.0, 1\.0\) \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(F\.across\)\)\);/, 'nothing past the lumen\'s edge');
+  assert.match(DUST_GLSL, /return clamp\(acc, 0\.0, 1\.0\) \* keepT \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(F\.across\)\)\);/, 'nothing past the lumen\'s edge');
   assert.ok(MICRO_FS.includes(STREAK_FIELD_GLSL), 'the 3D lobule and sinusoid');
   assert.match(VESSEL_FS, /vec4 dust = dustTube\(F, lit, inkColor, rev\);/);
   assert.match(VESSEL_FS, /if \(streakAmt <= 0\.001 \|\| vR <= 0\.0 \|\| abs\(across\) >= 0\.97\) return 0\.0;/);

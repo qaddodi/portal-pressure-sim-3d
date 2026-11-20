@@ -134,3 +134,29 @@ test('EVERY JOINT of the app\'s own figure (Mohammad, 20 Nov: "can we do everywh
     assert.ok(joints > 30, `${joints} lanes checked across joints`);
   }
 });
+
+// "Key streaks only" (Mohammad, 20 Nov: "add option for only key streaks to show up just like chevrons"): the vessels Key chevrons only keeps keep their dust; the others ease out, never pop.
+test('key streaks only: the key vessels keep their dust, the others ease out over KEEP_FADE_MS and back', async () => {
+  const { StreamRoutes, KEEP_FADE_MS, KEEP_ROW } = await import('../src/scene/blood/routes.ts');
+  const { keyChevron } = await import('../src/scene/blood/marks.ts');
+  const { EDGES } = await import('../src/engine/hales/portal/topology.js');
+  const ids = (EDGES as { id: string }[]).map((e) => e.id);
+  const key = ids.findIndex((id) => keyChevron(id)), other = ids.findIndex((id) => !keyChevron(id));
+  assert.ok(key >= 0 && other >= 0);
+  const streams = { stream: () => ({ sgn: 1, vSlow: 0 }), flowOf: () => 0, speedOf: () => 0, diamOf: () => 0 } as never;
+  const r = new StreamRoutes(), turns = new Float32Array(ids.length);
+  let t = 0;
+  r.step(t, streams, () => false, turns);
+  r.setKeyOnly(true);
+  t += KEEP_FADE_MS / 2; r.step(t, streams, () => false, turns);
+  const half = r.keepOf(other);
+  assert.ok(half > 0.2 && half < 0.8, `eases, no pop: ${half}`);
+  assert.equal(r.keepOf(key), 1, 'a key vessel keeps its dust');
+  for (let i = 0; i < 20; i++) { t += 100; r.step(t, streams, () => false, turns); }
+  assert.equal(r.keepOf(other), 0);
+  const NE = ids.length, d = (r.texture.image as { data: Float32Array }).data;
+  assert.equal(d[(KEEP_ROW * NE + other) * 4], 0, 'the shader reads it from the route table');
+  r.setKeyOnly(false);
+  for (let i = 0; i < 20; i++) { t += 100; r.step(t, streams, () => false, turns); }
+  assert.equal(r.keepOf(other), 1, 'and back');
+});

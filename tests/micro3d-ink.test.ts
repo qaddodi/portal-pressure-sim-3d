@@ -26,7 +26,7 @@ test('the ink never z-fights its shape, is thick enough to read and near black (
   assert.equal(r.ink, null, 'a small solid shape has no hull');
   assert.equal(r.toon.uniforms.uRim!.value, 1.5, 'its line is drawn in its fill');
   const { MICRO_FS } = await import('../src/scene/micro3d/cel3d.ts');
-  assert.match(MICRO_FS, /dpx = nv \/ max\(length\(vec2\(dFdx\(nv\), dFdy\(nv\)\)\)/, 'measured in screen pixels from the outline, the same on a diagonal as on an axis (not fwidth)');
+  assert.match(MICRO_FS, /float nvG = length\(vec2\(dFdx\(nvR\), dFdy\(nvR\)\)\);[\s\S]*dpx = nv \/ max\(nvG, 1e-5\)/, 'measured in screen pixels from the outline, the same on a diagonal as on an axis (not fwidth)');
   assert.match(MICRO_INK_FS, /uHole > 0\.0 && length\(vXY\) < uHole\) discard/, 'the ink is cut by the same hole as its shape');
   assert.equal(m.ink!.uniforms.uHole, m.toon.uniforms.uHole, 'one hole for the shape and its line');
   assert.ok(CEL_STYLE.MICRO.LINE >= 1.25 && CEL_STYLE.MICRO.LINE <= 2 && CEL_STYLE.MICRO.LINE_SMALL <= 1, 'a confident line round big bodies, a hairline round fine things (Mohammad 20 Nov: "too much")');
@@ -87,7 +87,7 @@ test('a flat shape on the plate is a dome open below, so nothing of it shows pas
 
 test('the lining lens draws its line from its own ellipse, exact whatever its triangles (eyes 20 Nov: nicks along its long edge between corners)', async () => {
   const { MICRO_FS, ellipsoid, MeshBuilder } = await import('../src/scene/micro3d/cel3d.ts');
-  assert.match(MICRO_FS, /dpx = \(1\.0 - rr\) \/ max\(length\(vec2\(dFdx\(rr\), dFdy\(rr\)\)\), 1e-5\);/);
+  assert.match(MICRO_FS, /rrG = length\(vec2\(dFdx\(rrR\), dFdy\(rrR\)\)\);[\s\S]*dpx = \(1\.0 - rrR\) \/ max\(rrG, 1e-5\);/);
   const b = new MeshBuilder(); ellipsoid(b, 0, 0, 0, 4, 1.5, 1, 0.3, undefined, 16, 10, true, true, true);
   const g = b.build(), pos = g.getAttribute('position'), ux = g.getAttribute('aux'), uy = g.getAttribute('aux2');
   assert.equal(ux.count, pos.count); assert.equal(uy.count, pos.count);
@@ -126,4 +126,22 @@ test('a congested lobule\'s sinusoids widen by place, not by generation: one wid
   assert.ok(joins > 20, `${joins} joins checked`);
   const src = (await import('node:fs')).readFileSync(new URL('../src/scene/micro3d/lobule3d.ts', import.meta.url), 'utf8');
   for (const n of ['sinusoids-0', 'sinusoids-1', 'sinusoids-2', 'sinusoids-links']) assert.match(src, new RegExp(`mk\\('${n}', \\{[^}]*swell: true`), n);
+});
+
+// Derivatives before any discard (Mohammad 20 Nov, the specks: a quad with a discarded or branched neighbour hands back garbage derivatives on Apple GPUs). The micro programs (the Lobule's and the Sinusoid's tubes,
+// their dust, streaks and heads) take every dFdx/dFdy/fwidth at the top of main(), before its first discard; no function takes one.
+test('the micro shader takes every derivative at the top of main, before the first discard', async () => {
+  const { MICRO_FS } = await import('../src/scene/micro3d/cel3d.ts');
+  const code = MICRO_FS.replace(/\/\/[^\n]*/g, '');
+  const main = code.indexOf('void main()'), firstDiscard = code.indexOf('discard', main);
+  assert.ok(main > 0 && firstDiscard > main);
+  const at = [...code.matchAll(/\b(dFdx|dFdy|fwidth)\s*\(/g)].map((m) => m.index!);
+  // (streakField's own fwidth is its fallback, used only when the caller hands none: the micro program always hands gStreakFw)
+  const field = code.indexOf('float streakField('), fieldEnd = code.indexOf('\n}', field);
+  for (const i of at) {
+    if (i > field && i < fieldEnd) continue;
+    assert.ok(i > main && i < firstDiscard, `a derivative outside main's top: …${code.slice(i - 60, i + 30).replace(/\n/g, ' ')}…`);
+  }
+  assert.match(code, /gStreakFw = max\(fwidth\(vAcross\), 1e-6\)/);
+  assert.match(code, /gStreakFw = max\(fwidth\(vAux\), 1e-6\)/);
 });

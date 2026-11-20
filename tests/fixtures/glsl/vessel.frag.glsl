@@ -77,6 +77,7 @@ uniform vec2 lensSpan;
 uniform float lensSmooth;   // smooth joins on (1): the lens colour runs through the colours a third and two thirds along (grad rows 2 and 3), not straight from one end's to the other's
 uniform float smokeOn;
 uniform vec3 hiColor;
+uniform float glowK;   // the glow's strength (1; a shunt's target under the pointer more: highlight.ts HOVER_GLOW)
 uniform float inkOn;
 uniform vec3 stump;   // (the vertex stage's: a divided vein's stump and its tie)
 uniform vec4 seamA[2];   // a surgical shunt's stitches, its start's then its end's (seams.ts): the seam's distance in from the end as a quartic in the place across (c0..c3 here, c0 = 0: none)
@@ -431,9 +432,13 @@ vec2 dLaneWin(DFrame F) {
 float dFlow(float root) { return texelFetch(streamTex, ivec2(int(root), 0), 0).w; }
 
 // THE TUBE: every lane segment the pixel can see, of the current layout and (while it fades out) the last one
+// how much of the vessel's dust shows ("Key streaks only" eases a vessel's out: routes.ts KEEP_ROW)
+float dKeep(float edge) { return texelFetch(routeTex, ivec2(int(edge), 25), 0).x; }
 bool dEdgeOk(float edge) { return edge >= 0.0 && edge < float(textureSize(routeTex, 0).x); }   // (a fetch outside the table is undefined: garbage, or NaN, on some GPUs)
 vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
   if (!dEdgeOk(F.edge)) return vec4(0.0);
+  float keepT = dKeep(F.edge);
+  if (keepT <= 0.001) return vec4(0.0);
   vec3 t0, t1, t2, t3; dTones(lit, t0, t1, t2, t3);
   vec4 hd = texelFetch(routeTex, ivec2(int(F.edge), 0), 0);
   vec2 win = dLaneWin(F);
@@ -464,7 +469,7 @@ vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
     }
   }
   // nothing past the lumen's edge: the dust stops short of the ink, with a soft fall (never a hard cut)
-  return clamp(acc, 0.0, 1.0) * (1.0 - smoothstep(0.90, 0.96, abs(F.across)));   // (premultiplied: never past 0 .. 1, or the lumen under it would be inverted)
+  return clamp(acc, 0.0, 1.0) * keepT * (1.0 - smoothstep(0.90, 0.96, abs(F.across)));   // (premultiplied: never past 0 .. 1, or the lumen under it would be inverted)
 }
 // the segment of edge edge (current layout) that carries the root's lane yl, if any: its index (-1 none) and the particle's lane there and membership
 vec3 dFind(float edge, float root, float yl) {
@@ -490,6 +495,8 @@ DMark dMix(DMark a, DMark b, float t) {
 vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
   if (!dEdgeOk(F0.edge)) return vec4(0.0);
   if (!dEdgeOk(F1.edge)) w1 = 0.0;
+  float keepS = mix(dKeep(F0.edge), w1 > 0.0 ? dKeep(F1.edge) : dKeep(F0.edge), w1);
+  if (keepS <= 0.001) return vec4(0.0);
   vec3 t0, t1, t2, t3; dTones(lit, t0, t1, t2, t3);
   int K = min(int(D_nCls + 0.5), 4), N = min(int(D_win + 0.5), 9);   // (the loops' bounds are runtime numbers, GLSL ES 3.0: no compiler unrolls them into hundreds of copies)
   vec4 acc = vec4(0.0);
@@ -529,7 +536,7 @@ vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
       }
     }
   }
-  return clamp(acc, 0.0, 1.0) * (1.0 - smoothstep(0.90, 0.96, abs(mix(F0.across, F1.across, w1))));
+  return clamp(acc, 0.0, 1.0) * keepS * (1.0 - smoothstep(0.90, 0.96, abs(mix(F0.across, F1.across, w1))));
 }
 
 // (chevKeep, the lattice's keep, is in the one chevron chunk above: blood/chevron-glsl.ts)
@@ -736,6 +743,18 @@ void main() {
 #else
   fadeHere *= solidK;
 #endif
+#ifdef GLOW
+  // THE GLOW (glow.ts): the same tube, grown by the glow's reach in the vertex stage, drawn here as a halo outside the line only, in the vessel's colour as drawn. The reach and the alpha follow the pick's weight vHi (nothing at the vein's ends).
+  {
+    float rCssG = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6);
+    float lineG = clamp(0.3 * rCssG, 1.6, 3.0) * smoothstep(0.15, 1.6, rCssG) * mix(1.0, 1.1, circT) * inkOn;
+    float sG = dLat / dpr - rCssG - lineG;   // CSS px past the line's outer edge
+    float aG = (0.62 * pow(1.0 - smoothstep(0.0, max((6.0 + 0.55 * rCssG) * vHi, 1e-3), sG), 2.0) * smoothstep(-0.5, 0.5, sG * dpr) * smoothstep(0.0, 1.0, vHi) * (1.0 - smoothstep(0.0, 0.15, circT))) * glowK * fadeHere * cavA;
+    if (aG < 0.002) discard;
+    gl_FragColor = vec4(mix(celTubeBase(base), vec3(1.0), 0.25 * tubeDark), aG);
+    return;
+  }
+#endif
   if (fadeHere < 0.004) discard;
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
@@ -794,8 +813,8 @@ void main() {
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
-    vec3 inkH = mix(mix(inkColor, celTubeBase(baseH) * mix(0.32, 0.55, tubeDark), 0.75), mix(celTubeBase(baseH) * 0.88, mix(celTubeBase(baseH), vec3(1.0), 0.25), tubeDark), 0.9 * smoothstep(0.0, 1.0, vHi));   // (a picked vessel's line is its own colour as drawn, eased by the pick's weight: the glow is a separate halo, glow.ts)
-    c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (the glow is a separate halo, glow.ts)
+    vec3 inkH = mix(inkColor, celTubeBase(baseH) * mix(0.32, 0.55, tubeDark), 0.75);
+    c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (a selected vessel's line is its own: the glow is a separate halo, glow.ts)
   }
   // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
   // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph

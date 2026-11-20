@@ -135,7 +135,7 @@ test('GLSL: parses; the lab\'s shapes are in it; the dust is computed from a cel
   assert.match(DUST_GLSL, /for \(int n = -N; n <= N; n\+\+\)/);
   assert.match(DUST_GLSL, new RegExp(`int K = min\\(int\\(D_nCls \\+ 0\\.5\\), ${DUST_KMAX}\\), N = min\\(int\\(D_win \\+ 0\\.5\\), ${DUST_NMAX}\\);`), 'the loops stay inside their bounds');
   assert.match(DUST_GLSL, /\(D_densK - dHash\(sd\)\) \* 12\.0/, 'density thins by a threshold: single particles fade, nothing pops');
-  assert.match(DUST_GLSL, /return clamp\(acc, 0\.0, 1\.0\) \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(F\.across\)\)\);/, 'contained: nothing on the ink');
+  assert.match(DUST_GLSL, /return clamp\(acc, 0\.0, 1\.0\) \* keepT \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(F\.across\)\)\);/, 'contained: nothing on the ink');
   // in the vessel: the tube paints it, gated by the amount, the flow and the marks' own junction rule; chevrons after
   for (const m of [/vec4 dust = dustTube\(F, lit, inkColor, rev\);/, /return streakAmt \* smoothstep/, /smoothstep\(0\.0, [\d.]+, abs\(smS\.y\)\)/, /\* markK\(skinCut\.x >= 0\.0 \? 1e6 : sD, skinCut\.y <= 1\.0 \? 1e6 : \(1\.0 - vUv\.x\) \* len \* vU\)/]) assert.match(VESSEL_FS, m);
   assert.ok(VESSEL_FS.indexOf('streakCover = fd.a;') < VESSEL_FS.indexOf('c = c * (1.0 - hd.a) + hd.rgb;'), 'chevrons draw ABOVE the particles');
@@ -221,7 +221,7 @@ test('the Blood menu has the streaks switch under Moving blood, in the chevrons\
   assert.equal(STREAKS_ROW.label, 'Blood streaks');
   assert.ok(STREAKS_ROW.hint.length > 10 && STREAKS_ROW.hint.length < 48, 'one short caption');
   assert.ok(DEPTH_ROWS.some((r) => r.key === STREAKS_ROW.key), 'Settings keeps its row: the same setting, so the two agree');
-  assert.match(menu, /kind === 'blood' && sec === 'Moving blood' && <StreaksSwitch \/>/, 'under the chevrons, in Moving blood');
+  assert.match(menu, /kind === 'blood' && sec === 'Moving blood' && <><StreaksSwitch \/><KeyStreaksSwitch \/><\/>/, 'under the chevrons, in Moving blood, with Key streaks only under it');
   assert.match(menu, /role="switch" className="sh-row" aria-checked=\{on\} onClick=\{\(\) => useSettings\.getState\(\)\.set\(STREAKS_ROW\.key, !on\)\}/, 'the chevrons\' row: icon, title, switch, caption');
   assert.match(menu, /<Icon n=\{STREAKS_ROW\.icon\} \/><span className="sh-t">\{STREAKS_ROW\.label\}<\/span><span className="sh-sw" aria-hidden="true" \/><span className="sh-d">/);
   assert.match(read('../src/ui/shell/icons.tsx'), /\bdust: 'M/, 'the icon exists');

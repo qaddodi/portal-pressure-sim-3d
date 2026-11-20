@@ -119,6 +119,17 @@ export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>,
 // ---- two skins on one vessel (spec 4.4 rule 1c) ----
 /** The least tube rings that must stay between the two cuts of a vessel that is an arm at both of its nodes (PV_TRUNK_1: CONF at its start, PVT_L at its end). */
 export const MIN_RINGS_BETWEEN = 2;
+/** Rule 1c in length too: two skins on one vessel also merge when the piece of the vessel left between their seams is shorter than this many of its radii (the SVC's stub between the azygos and the epigastric junctions was 0.9 R: two seam rings and a
+ *  sliver of tube between them, a ring of ink and a calibre step across the trunk; Mohammad, 20 Nov: "very very wobbly junction"). Rings alone do not say it: a long, finely ringed vessel has many rings in a short length. */
+export const MIN_STUB_R = 1.5;
+/** The length of the piece of an arm's tube between ring `lo` and ring `hi` (the sum of the distances between the ring centres), in its own radii `r`. */
+export function stubLengthR(tube: ArmTube, lo: number, hi: number, r: number): number {
+  const pos = tube.geometry.getAttribute('position'), W = RADIAL + 1;
+  const centre = (k: number): Vec3 => { let x = 0, y = 0, z = 0; for (let j = 0; j < RADIAL; j++) { const i = k * W + j; x += pos.getX(i); y += pos.getY(i); z += pos.getZ(i); } return [x / RADIAL, y / RADIAL, z / RADIAL]; };
+  let len = 0, prev = centre(lo);
+  for (let k = lo + 1; k <= hi; k++) { const c = centre(k); len += Math.hypot(c[0] - prev[0], c[1] - prev[1], c[2] - prev[2]); prev = c; }
+  return len / r;
+}
 /** The most permanent arms a merged skin has (spec 4.4.1c: 3 or 4), and the most of all: its growing arms ride along (spec 10.2), the six arms of the foundation. */
 export const MERGED_MAX_PERMANENT = 4;
 export const MERGED_MAX_ARMS = 6;
@@ -156,7 +167,8 @@ export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string
         const cb = pb.cuts.find((c) => c.vesselId === ca.vesselId && c.end !== ca.end);
         if (!cb) continue;
         const lo = ca.end === 0 ? ca : cb, hi = ca.end === 0 ? cb : ca;   // (the cut at the vessel's start, the cut at its end)
-        if (hi.ring - lo.ring - 1 >= minBetween) continue;
+        const tb = tubes.get(ca.vesselId), rr = pa.junction.arms.find((m) => m.vesselId === ca.vesselId)?.restR ?? 1;
+        if (hi.ring - lo.ring - 1 >= minBetween && !(tb && stubLengthR(tb, lo.ring, hi.ring, rr) < MIN_STUB_R)) continue;
         // two skins would crowd or cross on this vessel: one skin for both nodes
         merged = true; done.add(a); done.add(b);
         const A = js[a]!, B = js[b]!;
