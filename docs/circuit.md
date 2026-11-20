@@ -39,6 +39,19 @@ Source of truth is the 2D app (`qaddodi/portal-pressure-simulator`, `claude/sett
 - **The peel's tangent** is exact now: `shader.ts` adds the peel's slope term (`peelSlope`, vertex attribute `cl` = the two course lengths), mirrored on the CPU in `tests/circuit-finish.test.ts`.
 - **Procedure devices** (catheters, stents, bands, tamponade) fade out with the change (`ProcedureLayer.setFade`).
 
+## Junction skins on the map (`circuit/skins.ts`)
+The Anatomy's welds (`vessels/skin`, docs/junction-skin-spec.md) are on the map too: the same pipeline, the map's frame.
+- **Which junctions**: the body's permanent nodes, read on the map (`findCircuitJunctions`): HA, SV, CONF, PVT_L, PVH, CV_R, IVCS, IVCI, SVC_E, SVC (ten). Every arm ends exactly on its station. SIN_R and SIN_L stay lines (named in `circuitFallbacks`): the map
+  draws the arteriole beside the bed's comb, 30 units off its station, so it is not a junction there. Pinned by `tests/circuit-skins.test.ts`.
+- **Rings** (`circuitTube`): the tube the vertex shader draws at circT 1 (circuit/shader.ts), computed on the CPU from the body tube's own mesh (map centre `cC`, offset `fr` in the frame fixed by `tC`, the map radius). Ring k is where a cut at u = k / tubular lies, so the
+  skin starts on the tube's own vertices. Built on the unturned map; the quarter turn is the skin's object matrix (`setTurn`, the same turn as `turnScenePt`).
+- **Widths**: rings are built at the map width at boost 1 (circuit/width.ts); the live width is the skin shader's `circSwellOf` (2D's widthAt, `circBoost`, the least width on the screen), so a zoom or a changed diameter eases the junction with its arms.
+- **In and out**: the body's skins are gone by circT 0.35; the map's come in over `SKIN_CIRC_IN` 0.65 to 1 while the arm tubes' second cut (`skinCutC`) takes their ends away, by one screen pattern (never two layers on a pixel). The tubes are whole between.
+  A skinned end has no map taper of its own (`applyMates` writes the map's mates without it); the skin's weights blend the widths.
+- **Marks, line, colour**: the arms' chevrons, streaks and dust, lens colours, fade and highlight come through the same handover as the body's (`CircuitSkinSet.sync`); the line is the map's bolder one (`CIRC_INK_K`) with its inner line (`CIRC_INNER`).
+- **Baked**: `scripts/bake-skins.mjs` also writes `anatomy/circuit-skins.bin` (digest `circuit/...`); the page fetches it with the Anatomy's and builds live when it is not the file for this figure.
+- **Not welded yet**: the liver branch trees, the caudate lane, the custom shunts and the collaterals' mouths on the map (they are the map's own tubes, `circuit/tubes.ts`), and the two beds. Never seen on a device.
+
 ## Not done yet (gaps)
 - Nothing here has run on a real GPU (the new tangent GLSL, the ribbons and the caption layer are only checked in node): Mac play-test first.
 - Deck wiring: Circuit slides still go through `scene-link` as view 'body', so no slide yet calls `setResistors` or `setCaudatePin`.
