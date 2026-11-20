@@ -114,7 +114,7 @@ test('the shot: halves swap on a tall screen; with the room\'s short side the pl
   assert.ok(phone.half[0] < ipad.half[0], 'closer in on a phone');
   const µm = (s: ReturnType<typeof sinusoidShot>) => (s.half[0] * 2) / FILL / SIN_SCALE / (SINUSOID_L / 97.4);
   assert.ok(Math.abs(µm(phone) - acrossUm(390)) < 1e-6, `a phone shows ${acrossUm(390).toFixed(1)} µm across its width, shows ${µm(phone).toFixed(1)}`);
-  assert.ok(Math.abs(µm(ipad) - acrossUm(820)) < 1e-6);
+  assert.ok(Math.abs(µm(ipad) - 820 / 14) < 1e-6, '2D clamps the scale to 14 px per µm: an iPad shows more µm across, never fewer');
   assert.ok(restScale(390) >= 3);
   assert.ok(Math.abs(restScale(820) - (820 * FILL) / acrossUm(820)) < 1e-9, 'the camera\'s own scale: across µm fill FILL of the short side');
 });
