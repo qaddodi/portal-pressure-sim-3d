@@ -3,6 +3,7 @@
 import type { Rect, Viewport } from '../layout/device.ts';
 import type { DeviceClass } from '../layout/device.ts';
 import { M, botOcc, viewPillHeight } from './metrics.ts';
+import { isSideways } from '../layout/rules2d.ts';
 
 /** The class whose room the figure has: the 2D app's thumb layout (a screen up to 1100 px wide, held upright) has the bottom bar; everything else keeps the laptop's bars (a phone held sideways too, compacted by the stylesheet). */
 export const layoutClass = (thumb: boolean): DeviceClass => (thumb ? 'phone-portrait' : 'desktop');
@@ -10,6 +11,14 @@ export const layoutClass = (thumb: boolean): DeviceClass => (thumb ? 'phone-port
 export const usesBottomBar = (d: DeviceClass): boolean => d === 'phone-portrait' || d === 'phone-landscape' || d === 'tablet-portrait';
 /** Who shows the Blood / Layers rows: the top bar's popover (a laptop, an iPad on its side) or the Layers sheet from the foot (the bottom bar). Never both: they answer the same `sheet === 'layers'`. */
 export const figureRowsOwner = (d: DeviceClass): 'topbar' | 'sheet' => (usesBottomBar(d) ? 'sheet' : 'topbar');
+
+/** The top bar's own height, from the safe area down (2D main.js: `tbH = topbar.offsetHeight`, published as `--top-safe`): its padding and its pill, so a laptop or an iPad on its side 10 + 46 = 56, a phone or an upright
+ *  tablet 8 + 42 = 50, a phone held sideways 6 + 42 = 48. The figure's room and the Tests card's top are measured from it. It was a fixed 64 (2D's CSS fallback), 8 to 14 px too tall on every screen: the Tests card stood
+ *  12 px lower than 2D's, and the figure kept that much more clear above it (20 Nov 2026, play-test). */
+export function topBarH(vp: Viewport, d: DeviceClass): number {
+  const pill = M.pillH - (usesBottomBar(d) || isSideways(vp.w, vp.h) ? 4 : 0);
+  return (usesBottomBar(d) && !isSideways(vp.w, vp.h) ? M.topPadPhone : isSideways(vp.w, vp.h) ? M.topPadSideways : M.topPad) + pill;
+}
 
 /** The dock's own height: the timeline row (and on a phone the tab row under it). */
 export function dockHeight(d: DeviceClass): number {
@@ -25,7 +34,7 @@ export function footHeight(d: DeviceClass): number {
 export { botOcc };
 
 export function freeRoom(vp: Viewport, d: DeviceClass): Rect {
-  const top = vp.safe.top + M.topSafe;
+  const top = vp.safe.top + topBarH(vp, d);
   const bottom = vp.safe.bottom + footHeight(d) + M.zoomAboveDock;
   const x = vp.safe.left, w = vp.w - vp.safe.left - vp.safe.right;
   return { x, y: top, w: Math.max(0, w), h: Math.max(0, vp.h - top - bottom) };
@@ -37,7 +46,7 @@ export function layoutVars(vp: Viewport, d: DeviceClass): Record<string, string>
   const gap = dockInset(d), vdH = dockHeight(d), nbvH = M.viewGapAbove + viewPillHeight();
   const vdock = vdH + nbvH, px = (n: number) => `${Math.round(n)}px`;
   return {
-    '--top-safe': px(vp.safe.top + M.topSafe), '--vdock-h': px(vdock), '--vdock-top': px(gap + vdH + nbvH), '--vdock-edge': px(gap + vdH),
+    '--top-safe': px(vp.safe.top + topBarH(vp, d)), '--vdock-h': px(vdock), '--vdock-top': px(gap + vdH + nbvH), '--vdock-edge': px(gap + vdH),
     '--bot-occ': px(vdock + gap), '--dock-occ': px(vdock + gap),
   };
 }
@@ -52,7 +61,7 @@ export interface FigureRoomInputs {
 }
 /** The inputs free play gives 2D's rules, from the same sums layoutVars publishes. */
 export function figureRoomInputs(vp: Viewport, d: DeviceClass): FigureRoomInputs {
-  return { topSafe: vp.safe.top + M.topSafe, cmpH: 0, pzT: 0, pzB: 0, pzL: 0, pzR: 0, botOcc: vp.safe.bottom + footHeight(d), presenting: false };
+  return { topSafe: vp.safe.top + topBarH(vp, d), cmpH: 0, pzT: 0, pzB: 0, pzL: 0, pzR: 0, botOcc: vp.safe.bottom + footHeight(d), presenting: false };
 }
 
 /** The room the Sinusoid is centred and sized in: 2D's `freeRect(W, H)` (sinusoid-view.js), the same sums from the same inputs, rounded the same. The side panels are hidden in the view, so

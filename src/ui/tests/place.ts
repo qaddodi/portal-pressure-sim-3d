@@ -3,7 +3,7 @@
 // it has; a pane that does not fit the room the card has scrolls (owner, 20 Nov 2026, for a phone's Half). Pure numbers: the scene frames the figure in what is left.
 import type { DeviceClass, Rect, Viewport } from '../layout/device.ts';
 import { isPhone } from '../layout/device.ts';
-import { footHeight, usesBottomBar } from '../shell/room.ts';
+import { footHeight, usesBottomBar, topBarH } from '../shell/room.ts';
 import { M } from '../shell/metrics.ts';
 import { clamp } from './copied/num.copied.js';
 import { testsHalfPx, MIN_HALF } from './copied/stack-plan.copied.js';
@@ -68,7 +68,7 @@ export interface PlaceOpts {
 }
 
 export function testsPlace(vp: Viewport, device: DeviceClass, o: PlaceOpts = {}): TestsPlace {
-  const top = vp.safe.top + M.topSafe + 8;
+  const barH = topBarH(vp, device), top = vp.safe.top + barH + 4;
   // (a phone held sideways has the laptop's bars, compacted, so its foot is the laptop's: shell.ts layoutClass(thumb) says the same to the figure)
   const bottom = vp.safe.bottom + footHeight(device === 'phone-landscape' ? 'desktop' : device);
   const room = Math.max(0, vp.h - top - bottom);
@@ -77,7 +77,7 @@ export function testsPlace(vp: Viewport, device: DeviceClass, o: PlaceOpts = {})
   const bodyOf = (h: number) => o.bodyH ?? Math.max(0, h - HEAD_H);
   if (o.focus) {
     // the instrument in focus (app-07-floating.css .app.instrument-focus .instrument-workspace): the whole screen but the bars, a gap in from each side
-    const gap = device === 'desktop' ? M.gap : 8, y = vp.safe.top + M.topSafe + 4, h = Math.max(0, vp.h - bottom - y - gap);
+    const gap = device === 'desktop' ? M.gap : 8, y = vp.safe.top + barH + 4, h = Math.max(0, vp.h - bottom - y - gap);
     const w = Math.max(0, vp.w - vp.safe.left - vp.safe.right - 2 * gap);
     return { kind: side ? 'side' : 'sheet', rect: { x: vp.safe.left + gap, y, w, h }, maxH: h, vars: sideVars(w, bodyOf(h), count), focus: true, stops: null };
   }
@@ -91,7 +91,7 @@ export function testsPlace(vp: Viewport, device: DeviceClass, o: PlaceOpts = {})
   }
   // a sheet over the foot of the figure: the full width less the margins, rising from just above the bottom bars; Half or Full (dock-sheet.js)
   const margin = 8, w = vp.w - vp.safe.left - vp.safe.right - 2 * margin;
-  const R = Math.max(1, vp.h - vp.safe.top - M.topSafe - bottom - 22);
+  const R = Math.max(1, vp.h - vp.safe.top - barH - bottom - 22);
   const stops = sheetStops(device, vp.h, R, !!o.vesselCard);
   const maxH = stops[1];
   // (a sheet has its stops and nothing else: a remembered side-card ratio or a content height never sets it, so it never opens at some height in between, owner 20 Nov)

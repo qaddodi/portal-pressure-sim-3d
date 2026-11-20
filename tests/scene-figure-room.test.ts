@@ -41,7 +41,7 @@ test('the Sinusoid room is 2D\'s freeRect: centre equal at 800x600, 1024x768, 14
 
 test('free play on a laptop gives the Sinusoid 2D\'s numbers: 12 px sides, the top bar + 48, the foot (--bot-occ 122) + 8 under it', () => {
   const r = viewRoom('sinusoid', vpOf(1440, 900), 'desktop');
-  assert.deepEqual(r, { x: 12, y: 64 + 48, w: 1440 - 24, h: 900 - 130 - 112 });
+  assert.deepEqual(r, { x: 12, y: 56 + 48, w: 1440 - 24, h: 900 - 130 - 104 });
 });
 
 test('the Lobule room is 2D\'s liveFreeInto: centre equal at the same sizes, with and without a card\'s room', () => {
@@ -58,9 +58,9 @@ test('the Lobule room is 2D\'s liveFreeInto: centre equal at the same sizes, wit
 test('a phone: the thumb bar\'s foot takes the same sum 2D publishes (--bot-occ), the room follows it', () => {
   const vp = { w: 390, h: 844, safe: { top: 47, right: 0, bottom: 34, left: 0 } };
   const i = figureRoomInputs(vp, layoutClass(true));
-  assert.equal(i.topSafe, 47 + 64);
+  assert.equal(i.topSafe, 47 + 50, 'a phone\'s top bar: 8 px of padding and a 42 px pill (2D main.js measures it into --top-safe)');
   const r = sinusoidRoom(vp, i);
-  assert.equal(r.y, 47 + 64 + 48);
+  assert.equal(r.y, 47 + 50 + 48);
   assert.equal(r.y + r.h, Math.round(844 - (i.botOcc + 8)));
 });
 
