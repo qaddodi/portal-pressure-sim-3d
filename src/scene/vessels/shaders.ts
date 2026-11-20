@@ -20,6 +20,7 @@ import { QUIET_BACK } from '../camera/quiet.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL, glslNum as F } from '../cel-glsl.ts';
 import { TUBE_RADIAL } from './tubes.ts';
+import { MARK_FADE_R, SKIN_CIRC_SPAN, SKIN_CUT_EPS } from './skin/types.ts';
 
 /** The tube's ring is a polygon of TUBE_RADIAL sides: its corners stand 1 / cos(pi / n) - 1 of the radius outside its flats. The tube is built that much fatter, so the silhouette never falls inside the outline. */
 export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
@@ -283,6 +284,7 @@ uniform float solidK;    // a vessel drawn behind the organs: how much of its so
 uniform float veilK;     // and of its veil copy (drawn over the organs, shown through them)
 uniform float cavaA;     // the cava's opacity where the vein joins it: the vein's own comes to it at the wall (no step in alpha)
 uniform vec2 cavaRef;    // the cava piece's lens index and the share along it where the vein joins: the colour the vein takes on
+uniform vec2 skinCut;   // junction skins (skin/types.ts, WP4): the tube is drawn only between u = skinCut.x and u = skinCut.y; past either the skin (one welded mesh at the junction) takes over. (-1, 2): no cut, every branch it guards a no-op
 uniform float nbrOn;   // 1 on the two tubes of a fork: the outline is the union's (neighbour.ts), so the buried end does not hold the ink back
 uniform sampler2D streamTex;
 uniform sampler2D chainTex;
@@ -323,6 +325,19 @@ varying vec3 vN;
 varying vec3 vV;
 varying vec3 vT;
 varying vec2 vUv;
+
+// junction skins (skin/types.ts): the tube has a seam at either end
+bool skinCutOn() { return skinCut.x >= 0.0 || skinCut.y <= 1.0; }
+bool skinPast() { return (skinCut.x >= 0.0 && vUv.x < skinCut.x - ${F(SKIN_CUT_EPS)}) || (skinCut.y <= 1.0 && vUv.x > skinCut.y + ${F(SKIN_CUT_EPS)}); }
+// the figure's units from this pixel to the nearest seam along the tube
+float skinSeamDist() {
+  float Lw = len * vU, d = 1e9;
+  if (skinCut.x >= 0.0) d = (vUv.x - skinCut.x) * Lw;
+  if (skinCut.y <= 1.0) d = min(d, (skinCut.y - vUv.x) * Lw);
+  return d;
+}
+// the flow marks (chevrons, streaks, dust) die away over MARK_FADE_R radii before the seam: the skin draws none, and the stream chain carries the heads on into the next vessel past the junction
+float skinMarkK() { return skinCutOn() ? smoothstep(0.0, ${F(MARK_FADE_R)} * max(vR, 1e-3), skinSeamDist()) : 1.0; }
 
 float lum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 
@@ -426,6 +441,11 @@ void main() {
   // a part with no map course (a fan, a strand) fades out over the first half of the Circuit's change in the same screen pattern as the dive's dissolve (circuit/shader.ts)
   if (circStay < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= circStay) discard;
   if (vFade < 0.004) discard;
+  // past the seam the skin draws this junction. On the Circuit's map the tubes morph into flat lines and the map draws its own joins, so the cut part comes back as the skin goes (SKIN_CIRC_SPAN of the change), by the same screen pattern as circStay's; at rest it is a plain discard
+  if (skinCutOn() && skinPast()) {
+    float cutA = smoothstep(0.0, ${F(SKIN_CIRC_SPAN)}, circT);
+    if (cutA <= 0.0 || fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= cutA) discard;
+  }
   vec3 n = normalize(vN);
   // (a tube seen end on has no sideways direction: a fixed one keeps the fragment finite, never a NaN, which a device draws black)
   vec3 sideX = cross(normalize(vT), normalize(vV));
@@ -494,7 +514,7 @@ void main() {
     float nar = 1.0;
     if (useData > 0.5) { ivec2 tcn = ivec2(int(mod(vindex, vdataSize.x)), int(floor(vindex / vdataSize.x))); nar = texelFetch(vdata, tcn, 0).b / max(baseD, 0.1); }
     vec4 chD = texelFetch(chainTex, ivec2(int(lensIndex), 0), 0);
-    float dOn = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCssD) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
+    float dOn = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * skinMarkK() * streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCssD) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
     if (dOn > 0.002) {
       // (the streak distance, texel w: the stream's distance D held to a speed no pattern wagon-wheels at, streams.ts; the same arc and gate the heads have, and none only where the flow is none)
       float sD = vUv.x * len * vU, rOwn = max(radius * vU, 1e-3), wl = chD.w;
@@ -550,7 +570,7 @@ void main() {
       ch = c4.w >= 1.0 ? cc : mix(ch, cc, c4.w);
     }
     // heads are on every tube down to about 4 CSS px across (R 1.5 px: the spacing never depends on the width), and are cut at the wall (never on the ink)
-    float fade = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * flowAmount * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));   // (a head stands inside the lumen, 55 percent of it: this is only the wall's own cut)
+    float fade = markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * skinMarkK() * flowAmount * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));   // (a head stands inside the lumen, 55 percent of it: this is only the wall's own cut)
     fade *= mix(0.3, 1.0, smoothstep(0.5, 3.0, abs(vd)));
     if (fade > 0.0 && ch.x + ch.y > 0.0) {
       float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);
