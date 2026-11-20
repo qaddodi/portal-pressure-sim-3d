@@ -95,11 +95,11 @@ varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
 uniform float uHole;
 uniform float uReveal;
-// the reveal (uReveal > 0, local units): only what lies within uReveal across the flow (|y|) is drawn, its edge a soft dissolve REVEAL_SOFT wide in the fade's own screen pattern: the sinusoid
+// the reveal (uReveal > 0, local units): only what lies within uReveal of the part's origin is drawn (a disc: a band across the flow ran straight on where the lobule's tube curves away, and showed the tube beside it, eyes 20 Nov), its edge a soft dissolve REVEAL_SOFT wide in the fade's own screen pattern: the sinusoid
 // grows out from its lumen over the lobule's tube as the camera lands, in place of a crossfade of the whole frame, which showed two scenes at once (eyes 20 Nov). 0: drawn whole.
-bool unrevealed(float y) {
+bool unrevealed(vec2 xy) {
   if (uReveal <= 0.0) return false;
-  float k = clamp((uReveal - abs(y)) / ${F(REVEAL_SOFT)}, 0.0, 1.0);
+  float k = clamp((uReveal - length(xy)) / ${F(REVEAL_SOFT)}, 0.0, 1.0);
   return k < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= k;
 }
 // the shape's own line, drawn in its fill (uRim CSS px wide, uMicroDpr the canvas's pixel ratio, ink uRimCol, 0: none): where the surface turns away from the eye, measured in screen pixels from the outline by the
@@ -215,7 +215,7 @@ void main() {
   if (fadedOut()) discard;
   // (a hole: what lies within uHole of the part's own origin is not drawn: the sinusoids' ends inside the central vein's pool, so they merge into it with no shade or line of theirs inside)
   if (uHole > 0.0 && length(vP.xy) < uHole) discard;
-  if (unrevealed(vP.y)) discard;
+  if (unrevealed(vP.xy)) discard;
   vec3 n = normalize(vN);
   if (!gl_FrontFacing) n = -n;
   // the world light (CEL_STYLE.LIGHT): n.L with n in world axes. TWO tones: the base, and the shade below the step
@@ -336,15 +336,15 @@ varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
 uniform float uHole;
 uniform float uReveal;
-// the reveal (uReveal > 0, local units): only what lies within uReveal across the flow (|y|) is drawn, its edge a soft dissolve REVEAL_SOFT wide in the fade's own screen pattern: the sinusoid
+// the reveal (uReveal > 0, local units): only what lies within uReveal of the part's origin is drawn (a disc: a band across the flow ran straight on where the lobule's tube curves away, and showed the tube beside it, eyes 20 Nov), its edge a soft dissolve REVEAL_SOFT wide in the fade's own screen pattern: the sinusoid
 // grows out from its lumen over the lobule's tube as the camera lands, in place of a crossfade of the whole frame, which showed two scenes at once (eyes 20 Nov). 0: drawn whole.
-bool unrevealed(float y) {
+bool unrevealed(vec2 xy) {
   if (uReveal <= 0.0) return false;
-  float k = clamp((uReveal - abs(y)) / ${F(REVEAL_SOFT)}, 0.0, 1.0);
+  float k = clamp((uReveal - length(xy)) / ${F(REVEAL_SOFT)}, 0.0, 1.0);
   return k < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= k;
 }
 varying vec2 vXY;
-void main() { if (fadedOut()) discard; if (uHole > 0.0 && length(vXY) < uHole) discard; if (unrevealed(vXY.y)) discard; vec3 c = mix(color, vOwnC * ${F(CEL_STYLE.TUBE.INK_TONE)}, uOwn); gl_FragColor = vec4(mix(c, uHazeCol, hazeK()) * opacity, opacity); }`;
+void main() { if (fadedOut()) discard; if (uHole > 0.0 && length(vXY) < uHole) discard; if (unrevealed(vXY)) discard; vec3 c = mix(color, vOwnC * ${F(CEL_STYLE.TUBE.INK_TONE)}, uOwn); gl_FragColor = vec4(mix(c, uHazeCol, hazeK()) * opacity, opacity); }`;
 
 export type RGB = readonly [number, number, number] | readonly number[];
 
