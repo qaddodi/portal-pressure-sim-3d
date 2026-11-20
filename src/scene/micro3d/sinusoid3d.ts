@@ -40,6 +40,8 @@ export const Z = { cell: 0.55, cellBot: -1.3, bead: 0.5, disse: -1.0, ground: -1
 /** The red cells in the stream (2D's palette has their colour; the host draws none). */
 /** How far (µm) the scene stands toward the viewer from the lobule's plate. */
 const LIFT = 8;
+/** The dive share over which the scene grows out from its lumen (see update): from nothing to whole, which the lobule's standing aside follows (scene.ts LOBULE_UNDER_FROM). */
+export const REVEAL_FROM = 0.6, REVEAL_TO = 0.86;
 /** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), the lymph streaks' pace against the lymph's own run, and the haze: how far out it takes to be whole (µm) and how deep it goes. */
 const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_K = 0.45;
 /** The focus band's run (µm) to a whole blur: from the middle of the first hepatocyte row out to the middle of the next sinusoid's lumen, rising fast at first (post-dof.ts bandCoc eases out), so
@@ -157,8 +159,8 @@ export class Sinusoid3D {
     // the scene is built in micrometres, the plane's y up: one group scales it to the host's units (it turns with the host's group in a portrait room)
     this.group.scale.setScalar(U);
     // (while the camera dives in it stands a little proud of the lobule's plate it sits in, so it is drawn over the lobule, never through it; at rest it lies in the host's own plane, where the names are pinned)
-    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, ...o }), `sinusoid3d/${name}`);
-    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, ...o }), cap, `sinusoid3d/${name}`);
+    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, reveal: this.reveal, ...o }), `sinusoid3d/${name}`);
+    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, reveal: this.reveal, ...o }), cap, `sinusoid3d/${name}`);
     const S = CEL_STYLE.MICRO;
     this.ground = mk('ground', { ink: null });
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
@@ -230,6 +232,8 @@ export class Sinusoid3D {
     g.position.x = fx * (1 - k); g.position.y = fy * (1 - k);
   }
   private readonly eyeL = new Vector3();
+  /** How far across the flow (µm) the scene is drawn while the camera lands (cel3d unrevealed; 0: whole). */
+  private readonly reveal = { value: 0 };
 
   update(on: boolean, rate = 1): boolean {
     const f = this.flat;
@@ -242,8 +246,10 @@ export class Sinusoid3D {
     if (!shown) return changed;
     // the dive: the scene comes in over the lobule as the camera lands (the host's own share), whole at rest
     const d = f.dive;
-    // (a short crossfade, over the last part of the dive where the lobule's tube and this lumen are one width on screen: a long one showed both scenes at once, a ghosted double image, eyes 20 Nov)
-    this.fade.value = d == null ? 1 : smooth(0.6, 0.86, d);
+    // (no crossfade of the whole frame: it showed both scenes at once, a pale ghosted double image, eyes 20 Nov. The scene grows out from its lumen instead, over the lobule's tube, which is
+    //  the same width on screen there (scene-dive-handoff.test.ts): the lumen first, then the lining, Disse and the plates outward, whole by REVEAL_TO, when the lobule stands aside under it)
+    this.fade.value = d == null || d >= REVEAL_FROM ? 1 : 0;
+    this.reveal.value = d == null ? 0 : Math.max(1e-3, (ACROSS + 30) * smooth(REVEAL_FROM, REVEAL_TO, d));
     this.group.position.z = d == null ? 0 : LIFT * U * (1 - smooth(0.86, 1, d));
     const dark = LOOKS[f.look].scheme === 'dark';
     const P = f.pal.palette(dark) as unknown as Pal;
