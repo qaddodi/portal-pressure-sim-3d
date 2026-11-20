@@ -760,10 +760,23 @@ export class CelScene {
     this.moving = true;
   }
 
-  /** 2D's circBoost for the camera now: how wide the map's lines are drawn, 1 to 1.75, from the map's CSS pixels per map unit. */
-  private circuitBoost(): number {
-    const cam = this.rig.camera, h = this.rig.stageSize.h, d = cam.position.distanceTo(this.mapPt);
-    return circBoostOf(mapPxPerUnit(h, cam.projectionMatrix.elements[5]!, d));
+  private capSig = 0;
+  /** The Circuit rounds the ends no other drawn vessel meets (a collateral that opens covers its own join again; a closed one leaves a clean end). Only when the set of drawn vessels changes. */
+  private updateCaps(): void {
+    let sig = 17;
+    for (const v of MAPPED) sig = (sig * 31 + (this.presence.stateOf(v.id) === 'shown' ? 1 : 0)) | 0;
+    if (sig === this.capSig) return;
+    this.capSig = sig;
+    const shown = (id: string) => this.presence.stateOf(id) === 'shown';
+    const free = (node: string, self: string) => !(this.stationsOf.get(node) ?? []).some((e) => e !== self && shown(e));
+    for (const v of MAPPED) { const o = this.byEdge.get(v.id) as VesselObject | undefined; if (o && shown(v.id)) o.setCircCap(free(v.from, v.id) ? 1 : 0, free(v.to, v.id) ? 1 : 0); }
+  }
+
+  /** The map's size on the screen now: 2D's circBoost (the lines widen as it is zoomed out, 1 to 1.75) and the map units under one CSS pixel (the floor of every line's width). */
+  private circuitScale(): void {
+    const cam = this.rig.camera, h = this.rig.stageSize.h, sc = mapPxPerUnit(h, cam.projectionMatrix.elements[5]!, cam.position.distanceTo(this.mapPt));
+    this.circuit.shared.circBoost.value = circBoostOf(sc);
+    this.circuit.shared.circPerPx.value = sc > 0 ? Math.min(40, 1 / sc) : 1;
   }
 
   /** Steps everything on the clock. Returns true while the scene moves, so the clock asks for another frame; false means draw nothing. */
@@ -772,7 +785,7 @@ export class CelScene {
     this.lastNow = now;
     this.shared.time.value = (now / 1000) % 1000;
     const camMoving = this.rig.update(now);
-    this.circuit.shared.circBoost.value = this.circuitBoost();   // (the map's lines widen as it is zoomed out, as 2D's circBoost)
+    this.circuitScale();   // (the map's lines widen as it is zoomed out, as 2D's circBoost)
     const quiet = quietOf(this.rig.orbitAngle);
     for (const o of this.back) o.setQuiet(quiet);
     { const lift = this.disease.organs.veilLift; for (const o of this.back) o.setVeilLift(lift); }   // (cel shaded organs are opaque: the vessels behind them take the wash's see-through back, vessel-object.ts)
@@ -789,6 +802,7 @@ export class CelScene {
     const lensMoving = this.lens.step(now);
     const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving });
     const presMoving = this.presence.step(dt);
+    this.updateCaps();
     const shapeMoving = this.shapes.step(dt);
     this.stepSinusDive();
     this.stepCutaway();
