@@ -48,7 +48,6 @@ import { Catheter, type CatheterState } from './catheter.ts';
 import { DEFAULT_FLOW_MODE, FLOW_FADE_MS, type FlowMarkMode, markSpeed } from './flow.ts';
 import { Highlight, OrganPins, glowGate } from './highlight.ts';
 /** Each vessel's course and radius, for the selection's glow (glow.ts). */
-const GLOW_COURSES: ReadonlyMap<string, { pts: readonly (readonly [number, number, number])[]; radius: number }> = new Map(NETWORK.map((v) => [v.id, { pts: v.pts, radius: v.radius }]));
 import { CelObject, type CelShared, createShared } from './materials/cel.ts';
 import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
@@ -318,7 +317,7 @@ export class CelScene {
     this.body.add(inVesselPass(this.probes.group));
     this.body.add(this.shuntGuide.mesh);
 
-    this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])), (id) => GLOW_COURSES.get(id));
+    this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
     this.flow = new BloodMarks(this.vessels);
     // the dust's settings (blood/dust.ts; the hidden ?dust panel writes them): a change wakes the figure for the frames its glide takes
     dustTuner.onWake = () => { this.moving = true; clock.invalidate('dust'); };
@@ -342,7 +341,7 @@ export class CelScene {
     this.lobule.setVisible(false); this.sinus.setVisible(false);
     this.dive.visible = false;   // (the whole dive frame is off at the body's rest: nothing of the lobule or the sinusoid, or anything added to them later, can show on the liver)
     this.sinus3d = new Sinusoid3D(this.sinus, this.shared); this.sinus.group.add(this.sinus3d.group);
-    this.lobule3d = new Lobule3D(this.lobule, this.shared); this.lobule.group.add(this.lobule3d.group);
+    this.lobule3d = new Lobule3D(this.lobule, this.shared);   // (it mounts itself under the Lobule's root: lobule/one-fade.ts)
     this.applyLook(this.look);
   }
 
@@ -587,7 +586,8 @@ export class CelScene {
   /** The lobule's colours count from the Since reference while that lens is on, from the healthy patient otherwise (2D: lobule-model.js sinceOf). */
   private feedLobuleRef(): void { this.lobule.setReference(this.lens.lens === 'since' ? this.lens.sinceReference : this.healthyP); }
   /** The Blood menu: chevrons on or off, key routes only, and potential collaterals (dotted routes). */
-  setBlood(o: Partial<BloodOptions> & { collaterals?: boolean }): void {
+  setBlood(o: Partial<BloodOptions> & { collaterals?: boolean; keyStreaks?: boolean }): void {
+    if (o.keyStreaks !== undefined) this.blood.routes.setKeyOnly(o.keyStreaks);
     if (o.collaterals !== undefined && o.collaterals !== this.collateralsOn) {
       this.collateralsOn = o.collaterals;
       if (latest.frame) this.syncPresence(latest.frame, false);
@@ -1168,6 +1168,7 @@ export class CelScene {
     const dof = dofShare > 0 && !!into?.depthTexture;
     // the sinusoid's focus band (every device): its own lumen and plates sharp, the neighbours and whatever drifts off them blurring by distance (post-dof.ts bandFrame)
     const bandK = into && (this.figureView === 'sinusoid' || this.sinus.diveShareNow != null) ? this.sinus3d.focusBand(_bA, _bB, _bE0, _bE1, _bEnds) : 0;
+    this.post.dof.bandOpen = this.sinus3d.focusOpen;
     const band = bandK > 0 && this.post.dof.bandFrame(cam, _bA, _bB, _bE0, _bE1, into!.width, into!.height, bandK, _bEnds) > 0;
     if (!band) this.post.dof.bandShare = 0;
     if (into) gl.setRenderTarget(into);

@@ -12,6 +12,7 @@
 //   easing       when the layout's structure changes (a reversal, a vessel starting or stopping, a link made or let go) the new table fades in over FADE_S while the old one fades out (two sets in the texture); while the
 //                structure holds, the lanes and arcs glide with the flows. Nothing pops.
 // One NE x ROWS float texture goes to the GPU. Nothing is made per frame once the items exist.
+import { keyChevron } from './marks.ts';
 import { DataTexture, FloatType, NearestFilter, RGBAFormat } from 'three';
 import { EDGES } from '../../engine/hales/portal/topology.js';
 import { displaySpeed } from './blood.copied.js';
@@ -33,8 +34,11 @@ export const B_MIN = 1 / 8, B_MAX = 8;
 export const FADE_S = 0.6;
 /** The swirl's turn count eases at this rate (turns a second). */
 export const TURN_RATE = 1.2;
-/** Rows of the texture: 0 (nCur, mix, nPrev, turns), then SEG_MAX segments of 2 texels for the current set, then the same for the previous one. */
-export const ROWS = 1 + 4 * SEG_MAX;
+/** Rows of the texture: 0 (nCur, mix, nPrev, turns), then SEG_MAX segments of 2 texels for the current set, then the same for the previous one, then KEEP_ROW (x: how much of the vessel's dust shows, eased). */
+export const KEEP_ROW = 1 + 4 * SEG_MAX;
+export const ROWS = KEEP_ROW + 1;
+/** "Key streaks only" (Mohammad, 20 Nov: "add option for only key streaks to show up just like chevrons"): a vessel's dust eases in or out over this long (ms). */
+export const KEEP_FADE_MS = 400;
 
 const edges = EDGES as { id: string; from: string; to: string; kind: string }[];
 const NE = edges.length;
@@ -204,8 +208,10 @@ export function turnsFor(Hc: number, lenFig: number, pitchFig: number): number {
 }
 const smooth = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** The shader's swirl strength (dust-glsl.ts): a narrowed vessel, a fast one. `nar` its diameter against its healthy one, `vd` its display speed, `swirl` and `turb` the dust's settings. */
-export const swirlHc = (nar: number, vd: number, swirl: number, turb: number, tSten: number, tFlow: number): number =>
-  Math.min(1, swirl * turb * Math.min(1, Math.max(0, tSten * (1 - smooth(0.5, 0.85, nar)) + tFlow * smooth(25, 45, Math.abs(vd)))));
+/** Only a narrowing swirls the blood: a healthy vessel's is laminar however fast it runs (Mohammad, 20 Nov: "the blood streaks seem to think there is stenoses everywhere"; the speed term twisted every fast vein
+ *  into several turns, and the twist's slope drew its front and back particles as crossing slashes). `vd` and `tFlow` are kept in the signature for the callers and do nothing. */
+export const swirlHc = (nar: number, _vd: number, swirl: number, turb: number, tSten: number, _tFlow: number): number =>
+  Math.min(1, swirl * turb * Math.min(1, Math.max(0, tSten * (1 - smooth(0.5, 0.85, nar)))));
 
 /** The scene's side: builds the list from the streams each frame, keeps the last table and the one fading out, and writes the texture. */
 export class StreamRoutes {
@@ -217,6 +223,13 @@ export class StreamRoutes {
   private readonly turns = new Float32Array(NE);
   private readonly sig: string[] = new Array(NE).fill('');
   private lastNow = -1;
+  /** How much of each vessel's dust shows (eased toward keepGoal) and whether only the key vessels keep it. */
+  private readonly keep = new Float32Array(NE).fill(1);
+  private keyOnly = false;
+  private readonly isKey: readonly boolean[] = edges.map((e) => keyChevron(e.id));
+  /** "Key streaks only": only the vessels that keep their chevrons under "Key chevrons only" (marks.ts keyChevron) keep their dust; the others ease out (KEEP_FADE_MS). */
+  setKeyOnly(on: boolean): void { this.keyOnly = on; }
+  keepOf(k: number): number { return this.keep[k]!; }
 
   constructor() {
     const t = new DataTexture(this.data, NE, ROWS, RGBAFormat, FloatType);
@@ -256,6 +269,8 @@ export class StreamRoutes {
       if (this.mix[k]! < 1) { this.mix[k] = Math.min(1, this.mix[k]! + dt / FADE_S); easing = true; }
       const tt = turnTarget[k] ?? 0, tn = this.turns[k]!;
       if (tt !== tn) { const st = TURN_RATE * dt; this.turns[k] = Math.abs(tt - tn) <= st ? tt : tn + Math.sign(tt - tn) * st; easing = true; }
+      const kg = this.keyOnly && !this.isKey[k] ? 0 : 1, kn = this.keep[k]!;
+      if (kg !== kn) { const st = dt * 1000 / KEEP_FADE_MS; this.keep[k] = Math.abs(kg - kn) <= st ? kg : kn + Math.sign(kg - kn) * st; easing = true; }
       this.put(k, segs, this.turns[k]!, this.mix[k]!);
     }
     this.texture.needsUpdate = true;
@@ -263,12 +278,12 @@ export class StreamRoutes {
   }
 
   private put(k: number, segs: readonly Seg[], turns: number, mix: number): void {
-    writeRoute(this.data, NE, k, segs, this.prev.get(k) ?? own(k), turns, mix, (r) => RADIUS[r] ?? 0);
+    writeRoute(this.data, NE, k, segs, this.prev.get(k) ?? own(k), turns, mix, (r) => RADIUS[r] ?? 0, this.keep[k]!);
   }
 }
 
 /** Writes one vessel's column of a route table (the layout the shader reads, dust-glsl.ts dSeg): `n` columns, the current set, the one fading out, the swirl's turns, the fade, and each root's lattice radius. */
-export function writeRoute(d: Float32Array, n: number, k: number, segs: readonly Seg[], prev: readonly Seg[], turns: number, mix: number, radius: (root: number) => number): void {
+export function writeRoute(d: Float32Array, n: number, k: number, segs: readonly Seg[], prev: readonly Seg[], turns: number, mix: number, radius: (root: number) => number, keep = 1): void {
   {
     const NE = n, row = (r: number): number => (r * NE + k) * 4;
     let o = row(0);
@@ -285,6 +300,7 @@ export function writeRoute(d: Float32Array, n: number, k: number, segs: readonly
     };
     write(segs, 1);
     write(prev, 1 + 2 * SEG_MAX);
+    o = row(KEEP_ROW); d[o] = keep; d[o + 1] = d[o + 2] = d[o + 3] = 0;
   }
 }
 

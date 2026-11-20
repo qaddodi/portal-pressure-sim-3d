@@ -57,6 +57,8 @@ export class CelObject {
   readonly toon: ShaderMaterial;
   /** The mesh the toon pass draws; the raycaster hits this one. */
   readonly toonMesh: Mesh;
+  /** The vessel's selection glow (glow.ts): its own hull, drawn by the vessel's program built with `GLOW`; null on anything but a vessel. Hidden until a pick lights it (highlight.ts). */
+  glowMesh: Mesh | null = null;
   readonly ink: ShaderMaterial;
   readonly tone: ToneKey;
   basePx: number;

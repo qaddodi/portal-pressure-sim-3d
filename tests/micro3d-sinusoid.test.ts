@@ -143,6 +143,15 @@ test('the focus band: nothing when the scene is off, its blur starting past this
   assert.ok(Math.abs(toLocal(e0).y) > (flat as unknown as { g: { hepIn(x: number): number } }).g.hepIn(0) && Math.abs(toLocal(e1).y) > Math.abs(toLocal(e0).y));
 });
 
+test('in a dive the band keeps its resting geometry (the blur eases in amount, it never opens as a window)', () => {
+  const { s3, flat } = scene(); s3.update(true);
+  const a = new Vector3(), b = new Vector3(), e0 = new Vector3(), e1 = new Vector3(), ends = { mid: new Vector3(), f0: new Vector3(), f1: new Vector3() };
+  const at = (d: number | null) => { flat.setDive(d); s3.focusBand(a, b, e0, e1, ends); return [e0.clone(), e1.clone(), ends.f0.clone(), ends.f1.clone(), s3.focusOpen] as const; };
+  const rest = at(null);
+  for (const d of [0.5, 0.7, 0.85]) { const g = at(d); for (let i = 0; i < 4; i++) assert.ok((g[i] as Vector3).distanceTo(rest[i] as Vector3) < 1e-9, `the band's edge ${i} stands where it rests at dive ${d}`); }
+  assert.equal(at(0.5)[4], 0, 'closed: the same blur everywhere'); assert.equal(at(null)[4], 1);
+});
+
 test('the sinusoid never visibly ends: the scene runs well past the traffic, and the blur along it melts both ends', () => {
   assert.ok(REACH >= TRAFFIC_REACH + 40);
   const { s3 } = scene(); s3.update(true);

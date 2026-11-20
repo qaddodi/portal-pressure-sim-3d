@@ -20,7 +20,7 @@ test('the Anatomy\'s vessels and the 3D lobule and sinusoid include the one chev
   assert.equal(VESSEL_FS.split('float chevD(').length - 1, 1);
   assert.equal(MICRO_FS.split('float chevD(').length - 1, 1);
   // the cel3d marks are the shared head on a lattice, not a stripe
-  assert.match(MICRO_FS, /return chevLattice\(vP\.x - uFlow, vAux, 6\.0, max\(fwidth\(vP\.x\), 1e-5\), dir\);/);
+  assert.match(MICRO_FS, /return chevLattice\(vP\.x - uFlow, vAux, 6\.0, gXF, dir\);/);
   assert.match(MICRO_FS, /return chevHead\(x, abs\(vAcross\) \* R, hw, pxA, 0\.0\) \* k;/);
   assert.doesNotMatch(MICRO_FS, /float chev = smoothstep\(0\.0, wa, f\)/, 'no stripe chevron left');
 });

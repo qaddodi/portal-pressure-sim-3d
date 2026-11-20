@@ -228,9 +228,10 @@ export function refineEnds(cs: readonly WeldCourse[]): WeldCourse[] {
 }
 
 /** Plans every junction of `courses`. */
-export interface PlanOpts { avoid?: readonly { x: number; y: number; r: number }[]; splay?: boolean; merge?: boolean; trace?: (node: string, msg: string) => void }
+export interface PlanOpts { /** Builds already made (the planner's second pass finds most of the first's again): set by planWelds. */ memo?: Map<string, SkinMesh | SkinBuildError>; avoid?: readonly { x: number; y: number; r: number }[]; splay?: boolean; merge?: boolean; trace?: (node: string, msg: string) => void }
 
 export function planWelds(coarse: readonly WeldCourse[], opts: PlanOpts = {}): WeldPlan {
+  opts = { ...opts, memo: opts.memo ?? new Map() };
   const first = planOnce(coarse, opts, []);
   if (opts.merge === false || !first.conflicts?.length) return first;
   // Junctions whose seams met on one course are too close to be two skins: each connected set of them is built as one (up to 4 arms), and the plan is made again
@@ -286,6 +287,8 @@ function planOnce(coarse: readonly WeldCourse[], opts: PlanOpts, merge: string[]
     clusters.push({ id: parts.map((n) => n.id).join('&'), J, parts });
   }
   const conflicts: [string, string][] = [];
+  const coursesOf = (nd: Node): Set<number> => { const r = new Set<number>(nd.ends.map((e) => e.c)); if (nd.host) r.add(nd.host.c); return r; };
+  const shares = (a: Node, b: Node): boolean => { const ca = coursesOf(a); for (const c of coursesOf(b)) if (ca.has(c)) return true; return false; };
   const sorted = clusters.sort((a, b) => a.id < b.id ? -1 : 1);
   for (const n of sorted) {
     try {
@@ -355,7 +358,16 @@ function planOnce(coarse: readonly WeldCourse[], opts: PlanOpts, merge: string[]
         }
         rings = arms.map((_, ai) => ringOf(ai, seam[ai]!));
         if (ringHull(rings.map((r) => r.pos)).ok) ok = true;
-        else for (let ai = 0; ai < arms.length; ai++) { const a = arms[ai]!, nx = seam[ai]! + a.dir; if (nx < 0 || nx > P[a.c]!.pts.length - 1) throw new SkinBuildError(n.id, 'the hull misses a ring and the arm is out of room'); seam[ai] = nx; }
+        else {
+          // a ring the hull of the others swallows stands too near them: that arm's seam goes a ring further out (or all of them, when the hull does not say which)
+          const hull = ringHull(rings.map((r) => r.pos)), which = /^ring (\d+) /.exec(hull.why), only = which ? Number(which[1]) : -1;
+          for (let ai = 0; ai < arms.length; ai++) {
+            if (only >= 0 && ai !== only) continue;
+            const a = arms[ai]!, nx = seam[ai]! + a.dir;
+            if (nx < 0 || nx > P[a.c]!.pts.length - 1) { opts.trace?.(n.id, `hull: arm ${courses[a.c]!.key} out of room at seams ${seam.join(',')}: ${hull.why}`); throw new SkinBuildError(n.id, 'the hull misses a ring and the arm is out of room'); }
+            seam[ai] = nx;
+          }
+        }
       }
       if (!ok) throw new SkinBuildError(n.id, 'the hull never covered the seam rings');
       // the junction must not overlap one already accepted on a course: the seams and what lies between them
@@ -367,8 +379,14 @@ function planOnce(coarse: readonly WeldCourse[], opts: PlanOpts, merge: string[]
       const shaped: Capsule[] = caps.map((c, ai) => { const sc = P[arms[ai]!.c]!.pts[seam[ai]!]!; return trimmedCapsule(c, hyp(sc[0] - J[0], sc[1] - J[1], sc[2] - J[2]) + SKIN_TAIL_R * P[arms[ai]!.c]!.rad[seam[ai]!]!); });
       let mesh: SkinMesh | null = null, pace: BuildPace | undefined = n.tight ? GENTLE : undefined;
       for (let again = 0; !mesh; again++) {
-        try { mesh = buildSkin({ node: n.id, J, arms: skArms } as SkinJunction, cuts, rings.map((r) => r.pos), rings.map((r) => r.nor), shaped, MAX_SKIN_VERTS, pace); }
+        try {
+          const mk = `${n.id}|${pace ? 'g' : 's'}|${seam.join(',')}`, hit = opts.memo?.get(mk);
+          if (hit instanceof SkinBuildError) throw hit;
+          mesh = hit ?? buildSkin({ node: n.id, J, arms: skArms } as SkinJunction, cuts, rings.map((r) => r.pos), rings.map((r) => r.nor), shaped, MAX_SKIN_VERTS, pace);
+          if (!hit) opts.memo?.set(mk, mesh);
+        }
         catch (e) {
+          if (e instanceof SkinBuildError) opts.memo?.set(`${n.id}|${pace ? 'g' : 's'}|${seam.join(',')}`, e);
           if (!(e instanceof SkinBuildError) || again >= BUILD_RETRIES) throw e;
           // A remesh that folds or outgrows its limit is tried again at the gentle pace first (the hull sheet of far seams folds if pulled in at the usual rate: skin/mesh.ts GENTLE), then
           // with the seams a ring further out on every arm (a gentler fillet), a few times.
@@ -411,10 +429,12 @@ function planOnce(coarse: readonly WeldCourse[], opts: PlanOpts, merge: string[]
     } catch (e) {
       if (!(e instanceof SkinBuildError)) throw e;
       // a merged skin that cannot be built falls back to its junctions one by one (they were made to wait on each other, so each may still weld alone)
-      if (n.parts.length > 1) { for (const part of n.parts) sorted.push({ id: part.id, J: part.J, parts: [part] }); continue; }
+      if (n.parts.length > 1) { opts.trace?.(n.id, `merged skin not built (${e.message.replace(/.*: /, '')}): its junctions are tried one by one`); for (const part of n.parts) sorted.push({ id: part.id, J: part.J, parts: [part] }); continue; }
       // a junction whose far seams (the other arms' blend takes 8 radii and more to clear) the builder could not close is tried once more with its seams close to the junction, past the clearance:
       // the fillet there is a little fuller than the tubes' own union, but it is closed and welded (the tubes lie over one another there anyway)
       if (!n.tight && !/meet another/.test(e.message)) { sorted.push({ ...n, tight: true }); continue; }
+      // (a junction with no room on a short course, beside another junction on it: the two are one skin in the next pass)
+      if (/room/.test(e.message)) for (const part of n.parts) for (const other of nodes) if (other !== part && shares(part, other)) conflicts.push([part.id, other.id]);
       skipped.push({ node: n.id, why: e.message });
     }
   }

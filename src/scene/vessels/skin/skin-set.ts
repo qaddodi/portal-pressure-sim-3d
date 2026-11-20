@@ -26,6 +26,7 @@ import { armPresenceAt, hiWeightAt, lensUAt, liveFadeAt, type FadeState, type Hi
 import type { VesselObject } from '../vessel-object.ts';
 import type { ArmAxis, ArmColour } from './skin-object.ts';
 import { SKIN_FIGURE_UNITS } from './shaders.ts';
+import { weldThrough } from './through.ts';
 
 /** What the skin's drawing object offers the set (skin-object.ts is the real one; a test hands in a plain recorder). */
 export interface SkinDraw {
@@ -149,7 +150,7 @@ export function armArcOf(end: 0 | 1, u: number, len: number, radius: number): { 
 }
 
 /** An axis as the mesh builder's capsule (sdf.ts): the same three points and radii. */
-const capsuleOf = (a: ArmAxis): Capsule => ({ n: a.pts.length, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii) });
+const capsuleOf = (a: ArmAxis): Capsule => ({ n: a.pts.length, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii), mate: a.mate });
 
 /** The holes a skin's cuts leave (spec 10.1): a vessel with a side-wall arm on each side of the junction is not drawn between their seams; with an arm on one side only its cut is an ordinary one (the rest of the tube is inside the skin's reach). */
 export function holesOf(cuts: readonly SkinCut[]): { id: string; lo: number; hi: number }[] {
@@ -288,7 +289,7 @@ export class SkinSet {
     if (objs.some((o) => !o)) return null;   // (a vessel not in this scene: no skin; the tubes are untouched)
     const { pos, nor, rest } = this.ringsFor(tubes, plan.cuts);
     // the arms' axes: the tubes' own ring centres and radii, the SAME three-point polylines the skin's fragment stage draws its ink from, so the mesh's fillet and its outline are one shape
-    const axes = j.arms.map((a, i) => { const t = tubes.get(a.vesselId)!; return axisOf(t, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, t.tubular).from : undefined); });
+    const axes = weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
     const mesh = buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf));
     // on a seam ring the skin's rest radius is the tube's own, exactly (the mesh builder measures the ring's mean radius, a few parts in 10^4 off the tube's `radius * rk`): the live move of a seam vertex is then the tube's to the last bit (spec 4.6)
     mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));

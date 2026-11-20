@@ -173,5 +173,14 @@ them, `weld-splay.ts`, `weld-worker.ts` / `weld-client.ts`) and `src/scene/micro
   3. the bile hairlines (radius 0.0002) have their first sample 130 radii from J: `refineEnds` inserts samples near each end so a seam can stand a few radii out;
   4. two junctions on one course took the same stretch: a first pass notes such pairs, and a second builds each connected set as one skin (up to 4 arms, the stretch between their touch points absorbed);
   5. last try for a junction that would not build: seams 2.2 radii from J, past the usual clearance.
-- **Not welded yet:** the 22 listed in `KNOWN_FALLBACKS` (tight 2-arm bends of the bile ducts, bile hairline hubs, a few far-seamed sinusoid merges), the arteriole's twigs (a different colour from the sinusoid
-  they land on: needs an artery colour ramp) and the terminal lymphatics (they only enter their pool). The vessels' mouths already flare as 2D's do (`flareAt`, `twigRadius` in widths.ts).
+  6. a hull that swallows one arm's ring: only that arm is pushed out (it used to move every arm and lose the others).
+- **Twigs** (`kind 'tw'`, radius from `twigR`) are welded where they land on their sinusoid, and the skin eases its colour along the arm from the arteriole's colour (Seg `'art'`, a constant palette
+  tone in `ink.ts`) to the sinusoid's, through the same alt-colour (`seg2/w2/m`) the Anatomy uses for the hepatic artery. A twig lies along its sinusoid for about 20 radii (its arteriole pool
+  is about 3 radii off the sinusoid axis, 2D parity), so the tubes overlap by design and most of them stay as plain tubes.
+- **Not welded yet:** the 17 listed in `KNOWN_FALLBACKS` (5 of the 6 twigs, tight 2-arm bends of the bile ducts under about 100 degrees, bile hairline hubs of 4 canals, two far-seamed sinusoid
+  merges) and the terminal lymphatics (they only enter their pool). The vessels' mouths already flare as 2D's do (`flareAt`, `twigRadius` in widths.ts). 211 of 228 junctions are welded.
+
+## The Lobule's one fade (structural, 20 Nov 2026)
+Every object under the Lobule root takes its fade from `LobuleFade` (`src/scene/lobule/one-fade.ts`); the root (`LobuleView.group`, a `LobuleRoot`) adopts whatever is added to it, and `group.setFade(detail, ground)` is the only writer
+(called once, from `Lobule3D.update`). `detail` (dither, `1 - under` times the field's breadth) is for the lobule's tiles, tubes, marks and plate; `ground` (alpha, `1 - under`) is for the neighbours' plate
+(`userData.fadeKind = 'ground'`). A stock material (the tap halo) is patched to scale its alpha by the same value. `tests/lobule-one-fade.test.ts` walks the whole graph and fails on any mesh or material that does not read it.

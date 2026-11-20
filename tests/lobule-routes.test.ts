@@ -42,3 +42,31 @@ test('sinusoids leaving one side of an inlet share its half without overlap', ()
   assert.ok(Math.min(a1, b1) - Math.max(a0, b0) <= 1e-9, 'no overlap');
   assert.ok(Math.abs((a1 - a0) + (b1 - b0) - 1) < 1e-9, 'the half is shared out whole');
 });
+
+test('each family joins only itself: a bile channel ending where a sinusoid ends is no joint, two bile channels meeting are', () => {
+  const fam: LobuleRouteCourse[] = [
+    ...courses,
+    { col: 4, kind: 'bile', path: line([2, 2], [2, 5]), radius: 0.02 },   // (starts where the sinusoids merge: another family)
+    { col: 5, kind: 'bile', path: line([0, 6], [2, 5]), radius: 0.02 },
+    { col: 6, kind: 'bile', path: line([4, 6], [2, 5]), radius: 0.02 },
+    { col: 7, kind: 'bile', path: line([2, 5], [2, 8]), radius: 0.02 },
+  ];
+  const r = lobuleRoutes(fam, 0.01);
+  assert.ok(r.get(4)!.every((g) => g.root === 4), 'the bile channel at the blood\'s node keeps its own particles');
+  const m = r.get(7)!;
+  assert.deepEqual(new Set(m.map((g) => g.root)), new Set([4, 5, 6]), 'three bile channels merge into the next, side by side');
+  assert.ok(r.get(3)!.every((g) => g.root === 0), 'the blood is untouched');
+});
+
+test('a bile canal ending on the side of a duct carries the duct\'s particles, so each runs on into the duct at the join', () => {
+  const fam: LobuleRouteCourse[] = [
+    { col: 0, kind: 'bile', path: line([0, 0], [10, 0], 20), radius: 0.2 },   // the duct
+    { col: 1, kind: 'bile', path: line([4, 3], [4, 0.1]), radius: 0.05 },      // a canal into its side at arc 4, from its left (y > 0)
+  ];
+  const r = lobuleRoutes(fam, 0.01);
+  const g = r.get(1)!;
+  assert.ok(g.every((s) => s.root === 0), 'the duct\'s own particles');
+  const len = 2.9;
+  for (const s of g) assert.ok(Math.abs(s.A + s.B * len - 4) < 0.15, `at the join it is at the duct's place: ${s.A + s.B * len}`);
+  for (const s of g) { const lo = s.c0 + s.c1 * s.y0, hi = s.c0 + s.c1 * s.y1; assert.ok(Math.min(lo, hi) >= 0.6 - 1e-9 && Math.max(lo, hi) <= 1 + 1e-9, 'a strip on the duct\'s left wall'); }
+});

@@ -13,6 +13,7 @@ import type { SeamCurve } from './seams.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import type { CircuitShared } from '../circuit/uniforms.ts';
 import { SKIN_CUT_NONE, SKIN_HOLE_NONE } from './skin/types.ts';
+import { VESSEL_LAYER } from '../layers.ts';
 
 /** Uniforms every vessel shares: the two lens textures held for the crossfade, their stream colours, and the cross-fade itself. */
 export interface LensShared {
@@ -117,6 +118,12 @@ export class VesselObject extends CelObject {
     const iu = this.ink.uniforms, tu = toon.uniforms;
     iu.color = tu.inkColor!; iu.hiColor = tu.hiColor!; iu.inflate = tu.inflate!; iu.px = tu.px!; iu.res = tu.res!; iu.len = tu.len!; iu.reveal = tu.reveal!;
     for (const k of ['hiOn', 'hiDir', 'hiOffset', 'hiAhead', 'hiBehind', 'hiEnds', 'hiFade', 'hiPx']) iu[k] = tu[k]!;
+    // THE GLOW (glow.ts): the same geometry and the very same uniforms (so every width, fade, join and pick weight is the tube's own), through the program built with GLOW: a halo outside the line, never over the body
+    const glow = new ShaderMaterial({ vertexShader: VESSEL_VS, fragmentShader: VESSEL_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: false, defines: { GLOW: 1 }, uniforms: tu });
+    const gm = (this.glowMesh = new Mesh(this.toonMesh.geometry, glow));
+    gm.frustumCulled = false; gm.visible = false; gm.name = 'highlight/glow'; gm.renderOrder = 30;
+    gm.layers.set(VESSEL_LAYER);   // (the vessels' own pass: scene.ts draws layer 0, then the vessels over the cleared depth)
+    this.group.add(gm);
   }
 
   /** Colours for a look. An artery wears the look's artery red; a vein its portal or systemic tone; a lens covers veins on top of it. The scene
@@ -332,7 +339,7 @@ export class VesselObject extends CelObject {
     this.lift = lift;
     v.mat.uniforms.veilA!.value = Math.min(1, 0.4 + 0.6 * this.whole + lift * (1 - this.whole));
   }
-  override dispose(): void { this.veil?.mat.dispose(); super.dispose(); }
+  override dispose(): void { this.veil?.mat.dispose(); (this.glowMesh?.material as ShaderMaterial | undefined)?.dispose(); super.dispose(); }
 
   /** A closed potential collateral: a dotted thread with no ink. */
   setDotted(on: boolean): void { this.toon.uniforms.dotted!.value = on ? 1 : 0; this.toon.uniforms.inkOn!.value = on ? 0 : 1; }

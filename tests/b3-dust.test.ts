@@ -99,7 +99,7 @@ test('the swirl (real flow, Mohammad 20 Nov): a whole number of turns over a ves
     assert.ok(Math.abs(sum - a1) < 1e-4 * a1, 'the rate is the slope of the angle');
   }
   assert.match(DUST_GLSL, /return vec2\(6\.2831853 \* turns \* u \* u \* \(3\.0 - 2\.0 \* u\), 6\.2831853 \* turns \* 6\.0 \* u \* \(1\.0 - u\) \/ max\(Lw, 1e-3\)\);/, 'the same curve as the twin');
-  assert.match(DUST_GLSL, /float T = clamp\(D_turb \* \(TcRaw \+ [\d.]+ \* wEnd\), 0\.0, 1\.3\) \* smoothstep\(0\.0, 0\.5 \* Wd, d\);/, 'the wobble (it moves with time) is held to nothing at the ends');
+  assert.match(DUST_GLSL, /float T = clamp\(D_turb \* TcRaw, 0\.0, 1\.3\) \* smoothstep\(0\.0, 0\.5 \* Wd, d\);/, 'the wobble (it moves with time) is held to nothing at the ends');
   // the strip: the root's lane on the wall stays on the wall, a lane carried whole is the identity, and the depth never leaves the section
   for (const [yr, zr] of [[0.3, 0.5], [-0.7, 0.1], [0, -0.79]] as const) {
     const [y, z] = dustStrip(yr, zr, yr / 0.8, 0.8); assert.ok(Math.abs(y - yr) < 1e-9 && Math.abs(z - zr) < 1e-9, 'one to one');
@@ -135,7 +135,7 @@ test('GLSL: parses; the lab\'s shapes are in it; the dust is computed from a cel
   assert.match(DUST_GLSL, /for \(int n = -N; n <= N; n\+\+\)/);
   assert.match(DUST_GLSL, new RegExp(`int K = min\\(int\\(D_nCls \\+ 0\\.5\\), ${DUST_KMAX}\\), N = min\\(int\\(D_win \\+ 0\\.5\\), ${DUST_NMAX}\\);`), 'the loops stay inside their bounds');
   assert.match(DUST_GLSL, /\(D_densK - dHash\(sd\)\) \* 12\.0/, 'density thins by a threshold: single particles fade, nothing pops');
-  assert.match(DUST_GLSL, /return clamp\(acc, 0\.0, 1\.0\) \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(F\.across\)\)\);/, 'contained: nothing on the ink');
+  assert.match(DUST_GLSL, /return clamp\(acc, 0\.0, 1\.0\) \* keepT \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(F\.across\)\)\);/, 'contained: nothing on the ink');
   // in the vessel: the tube paints it, gated by the amount, the flow and the marks' own junction rule; chevrons after
   for (const m of [/vec4 dust = dustTube\(F, lit, inkColor, rev\);/, /return streakAmt \* smoothstep/, /smoothstep\(0\.0, [\d.]+, abs\(smS\.y\)\)/, /\* markK\(skinCut\.x >= 0\.0 \? 1e6 : sD, skinCut\.y <= 1\.0 \? 1e6 : \(1\.0 - vUv\.x\) \* len \* vU\)/]) assert.match(VESSEL_FS, m);
   assert.ok(VESSEL_FS.indexOf('streakCover = fd.a;') < VESSEL_FS.indexOf('c = c * (1.0 - hd.a) + hd.rgb;'), 'chevrons draw ABOVE the particles');
@@ -221,7 +221,7 @@ test('the Blood menu has the streaks switch under Moving blood, in the chevrons\
   assert.equal(STREAKS_ROW.label, 'Blood streaks');
   assert.ok(STREAKS_ROW.hint.length > 10 && STREAKS_ROW.hint.length < 48, 'one short caption');
   assert.ok(DEPTH_ROWS.some((r) => r.key === STREAKS_ROW.key), 'Settings keeps its row: the same setting, so the two agree');
-  assert.match(menu, /kind === 'blood' && sec === 'Moving blood' && <StreaksSwitch \/>/, 'under the chevrons, in Moving blood');
+  assert.match(menu, /kind === 'blood' && sec === 'Moving blood' && <><StreaksSwitch \/><KeyStreaksSwitch \/><\/>/, 'under the chevrons, in Moving blood, with Key streaks only under it');
   assert.match(menu, /role="switch" className="sh-row" aria-checked=\{on\} onClick=\{\(\) => useSettings\.getState\(\)\.set\(STREAKS_ROW\.key, !on\)\}/, 'the chevrons\' row: icon, title, switch, caption');
   assert.match(menu, /<Icon n=\{STREAKS_ROW\.icon\} \/><span className="sh-t">\{STREAKS_ROW\.label\}<\/span><span className="sh-sw" aria-hidden="true" \/><span className="sh-d">/);
   assert.match(read('../src/ui/shell/icons.tsx'), /\bdust: 'M/, 'the icon exists');
@@ -243,4 +243,18 @@ test('the dust frame is finite and unit for every heading, the degenerate ones i
   assert.match(DUST_GLSL, /\/ \(g\.c1 < 0\.0 \? min\(g\.c1, -1e-4\) : max\(g\.c1, 1e-4\)\)/, 'a strip of no width never divides 0 by 0');
   assert.equal((DUST_GLSL.match(/return clamp\(acc, 0\.0, 1\.0\)/g) ?? []).length, 2, 'tube and skin dust stay inside 0 .. 1 premultiplied');
   assert.match(DUST_GLSL, /if \(!dNear\(Fa, g, ma\.x, P\) && \(fb\.x < 0\.0 \|\| !dNear\(Fb, gb, fb\.y, P\)\)\) continue;/, 'the skin culls a particle out of reach in both frames');
+});
+
+// Healthy blood is laminar (Mohammad, 20 Nov: "the blood streaks seem to think there is stenoses everywhere"): the swirl and the wobble came from the vessel's SPEED and from every joint as well as from a narrowing,
+// so a fast healthy portal vein turned several times and its front and back particles were drawn as crossing slashes. Only a narrowing swirls or stirs the blood now.
+test('a healthy vessel, however fast, has no swirl, no turns and no wobble: calm lanes along the wall; a narrowed one keeps them', async () => {
+  const { swirlHc, turnsFor } = await import('../src/scene/blood/routes.ts');
+  for (const vd of [0, 10, 30, 60, 200]) {
+    assert.equal(swirlHc(1, vd, 1, 1, 0.9, 0.5), 0, `healthy at speed ${vd}`);
+    assert.equal(turnsFor(swirlHc(1, vd, 1, 1, 0.9, 0.5), 2000, 10), 0, 'no turns over a long healthy vessel');
+  }
+  assert.ok(swirlHc(0.4, 30, 1, 1, 0.9, 0.5) > 0.5, 'a tight narrowing swirls');
+  assert.doesNotMatch(DUST_GLSL, /T_FLOW|smoothstep\(25\.0, 45\.0, abs\(F\.vd\)\)/, 'no turbulence from speed');
+  assert.doesNotMatch(DUST_GLSL, /wEnd/, 'no turbulence from a joint');
+  assert.match(DUST_GLSL, /float TcRaw = clamp\([\d.]+ \* \(1\.0 - smoothstep\(0\.5, 0\.85, F\.nar\)\), 0\.0, 1\.0\);/);
 });

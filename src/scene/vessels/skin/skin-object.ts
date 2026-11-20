@@ -6,13 +6,13 @@
 // and its veil copy (over the organs, seen through them). A skin that has such an arm is drawn the same way: ONE geometry, three meshes with a material each (`defines: { SKIN_COPY: 0 | 1 | 2 }`: one source, three programs), every copy's alpha the sum over the
 // arms of weight x that arm's share of that copy x its fade (skin/shaders.ts), the shares being the arm tube's own (VesselObject.copyShares, written through `setArmCopy`). A copy whose arms all have no share of it is not visible, so a plain junction (every
 // arm (1, 0, 0)) draws only its front copy, as before, and a skin is never visible where its arms are not: it has no visibility of its own, it inherits the arms' shares, fades, layers and grow state.
-import { BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, ShaderMaterial, Vector2, Vector3, Vector4, type IUniform, type Object3D } from 'three';
+import { BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, ShaderMaterial, Vector2, Vector4, type IUniform, type Object3D } from 'three';
 import { VESSEL_LAYER } from '../../layers.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import { SKIN_ARMS, SKIN_AXIS_PTS, SKIN_FS, SKIN_VS } from './shaders.ts';
 import type { SkinDraw } from './skin-set.ts';
 import { skinKOf } from './sdf.ts';
-import { skinDebugOn } from './joins-mode.ts';
+import { skinDebugOn, skinLeaveOut } from './joins-mode.ts';
 import type { SkinMesh, Vec3 } from './types.ts';
 
 /** The uniforms the skin shares with its arm tubes, by reference (taken from the first arm: every vessel's copy has the same value, and each one follows the same writers: the look, the lens, the engine, the Circuit). */
@@ -24,7 +24,7 @@ export const SHARED_WITH_TUBES = [
 
 /** The four points of an arm's axis the fragment stage draws its ink from, with the rest radius at each: the node J (the bridge over the art's gap, spec 10.5; the next point again when the arm's end is at J), the start of the straight line
  *  through the seam, the seam, the far point. */
-export interface ArmAxis { pts: readonly [Vec3, Vec3, Vec3, Vec3]; radii: readonly [number, number, number, number] }
+export interface ArmAxis { pts: readonly [Vec3, Vec3, Vec3, Vec3]; radii: readonly [number, number, number, number]; /** the arm this one runs THROUGH the node with (through.ts): their union is a plain minimum, no blend */ mate?: number }
 
 /** An arm's own `color` uniform (rgb) and whether a lens colours it (a: its `lensUse`). */
 export interface ArmColour { r: number; g: number; b: number; a: number }
@@ -38,15 +38,26 @@ export const COPY_LAYER = [VESSEL_LAYER, 0, VESSEL_LAYER] as const;
 /** The veil copy is drawn after the vessels, as the tube's own veil is (vessel-object.ts setBehindOrgans). */
 export const COPY_ORDER = [0, 0, 2] as const;
 
+/** The program's defines for copy `c` (the page's `?joins=` diagnostics: debug paints dropped pixels, nomarks and noink leave a part out). */
+function skinDefines(c: number, grow: number): Record<string, number> {
+  const d: Record<string, number> = { SKIN_COPY: c, SKIN_GROW: grow }, out = skinLeaveOut();
+  if (skinDebugOn()) d.SKIN_DEBUG = 1;
+  if (out === 'marks') d.SKIN_NOMARKS = 1;
+  if (out === 'ink') d.SKIN_NOINK = 1;
+  return d;
+}
+
 export class SkinObject implements SkinDraw {
   /** the front copy (the only one a plain junction draws), kept under its old names */
   readonly mesh: Mesh;
   readonly material: ShaderMaterial;
   /** the three copies of the one geometry: front, solid, veil */
   readonly copies: readonly Mesh[];
+  /** the selection glow (glow.ts): the same geometry and uniforms through the program built with `GLOW`, drawn only while some arm's pick weight is above nothing */
+  readonly glow: Mesh;
   /** the group the copies stand in (it is what the scene adds) */
   readonly object: Object3D;
-  private readonly armAF: Vector4[]; private readonly armCopy: Vector3[];
+  private readonly armAF: Vector4[]; private readonly armCopy: Vector4[];
   private readonly armData: Vector4[]; private readonly armColor: Vector4[]; private readonly armArc: Vector4[];
   /** the arms (indices) that grow, in the order of the mesh's morphs, and each arm's growth (1 whole) as the shader reads it */
   private readonly growArms: number[];
@@ -84,7 +95,7 @@ export class SkinObject implements SkinDraw {
     const armAxisP = Array.from({ length: SKIN_ARMS * SKIN_AXIS_PTS }, () => new Vector4());
     axes.forEach((ax, i) => ax.pts.forEach((p, k) => armAxisP[i * SKIN_AXIS_PTS + k]!.set(p[0], p[1], p[2], ax.radii[k]!)));
     this.armAF = Array.from({ length: SKIN_ARMS }, () => new Vector4(0, 1, 0, 1));
-    this.armCopy = Array.from({ length: SKIN_ARMS }, () => new Vector3(0, 0, 0));   // (an arm no arm fills has no share of any copy)
+    this.armCopy = Array.from({ length: SKIN_ARMS }, (_, i) => new Vector4(0, 0, 0, axes[i]?.mate ?? -1));   // (an arm no arm fills has no share of any copy; w is the arm it runs through the node with)
     // ONE uniforms object for the three programs (as the tube's veil shares the tube's): a value written once reaches every copy
     const uniforms: Record<string, IUniform> = {
       ...shared,
@@ -99,7 +110,7 @@ export class SkinObject implements SkinDraw {
     this.copies = Array.from({ length: SKIN_COPIES }, (_, c) => {
       const material = new ShaderMaterial({
         name: 'skin',
-        vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: skinDebugOn() ? { SKIN_COPY: c, SKIN_GROW: this.growArms.length, SKIN_DEBUG: 1 } : { SKIN_COPY: c, SKIN_GROW: this.growArms.length },
+        vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: skinDefines(c, this.growArms.length),
         uniforms,
       });
       const mesh = new Mesh(g, material);
@@ -110,11 +121,16 @@ export class SkinObject implements SkinDraw {
       mesh.visible = c === 0;   // (until the arms say which copies they have: a plain junction's arms are (1, 0, 0), so only the front copy ever shows)
       return mesh;
     });
+    const glowMat = new ShaderMaterial({ name: 'skin-glow', vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: false, defines: { ...skinDefines(0, this.growArms.length), GLOW: 1 }, uniforms });
+    this.glow = new Mesh(g, glowMat);
+    this.glow.frustumCulled = false; this.glow.visible = false; this.glow.name = `skin:${skin.junction.node}:glow`; this.glow.renderOrder = 30;
+    this.glow.layers.set(VESSEL_LAYER);
     this.mesh = this.copies[0]!;
     this.material = this.mesh.material as ShaderMaterial;
     const group = new Group();
     group.name = `skin:${skin.junction.node}`;
     for (const m of this.copies) group.add(m);
+    group.add(this.glow);
     this.object = group;
     armObjs.forEach((o, i) => { this.setColour(i, o); this.setArmCopy(i, ...o.copyShares()); });
   }
@@ -127,6 +143,7 @@ export class SkinObject implements SkinDraw {
   setArm(i: number, fade: number, hi: number, lensU: number, colour?: ArmColour, narrow = 0): void {
     const u = this.material.uniforms;
     this.armAF[i]!.set(lensU, fade, hi, this.armAF[i]!.w); (u.armNarrow!.value as number[])[i] = narrow;
+    this.showGlow();
     if (colour) this.armColor[i]!.set(colour.r, colour.g, colour.b, colour.a);
   }
 
@@ -138,7 +155,7 @@ export class SkinObject implements SkinDraw {
 
   /** The shares arm `i` has of the three copies (its tube's `copyShares`), and which copies show now: one is visible while the arms' shares of it add up to something and some arm of the skin is there at all. */
   setArmCopy(i: number, front: number, solid: number, veil: number): void {
-    this.armCopy[i]!.set(front, solid, veil);
+    this.armCopy[i]!.set(front, solid, veil, this.armCopy[i]!.w);
     this.showCopies();
   }
   /** The shares arm `i` has now (front, solid, veil), as written by the handover. */
@@ -169,10 +186,14 @@ export class SkinObject implements SkinDraw {
   /** A copy is drawn when the arms' shares of it add up to something (`COPY_SEEN`), counting only an arm that is there (its presence): a skin has no visibility of its own, it inherits its arms'. */
   private showCopies(): void {
     this.copies.forEach((m, c) => { m.visible = this.armCopy.reduce((t, v, k) => t + (this.armData[k]!.x >= 0 && this.isThere(k) ? (c === 0 ? v.x : c === 1 ? v.y : v.z) : 0), 0) > COPY_SEEN; });
+    this.showGlow();
   }
+
+  /** The glow shows while the front copy does and some arm has a pick weight (the shader weights its reach and alpha by it, so it is nothing where no arm is picked). */
+  private showGlow(): void { this.glow.visible = this.armAF.some((a, k) => a.z > 0.001 && this.armData[k]!.x >= 0 && this.isThere(k)) && this.copies[0]!.visible; }
 
   setTransparent(on: boolean): void { for (const m of this.copies) { const mat = m.material as ShaderMaterial; if (mat.transparent !== on) { mat.transparent = on; mat.needsUpdate = true; } } }
 
-  dispose(): void { this.mesh.geometry.dispose(); for (const m of this.copies) (m.material as ShaderMaterial).dispose(); }
+  dispose(): void { this.mesh.geometry.dispose(); for (const m of this.copies) (m.material as ShaderMaterial).dispose(); (this.glow.material as ShaderMaterial).dispose(); }
 }
 

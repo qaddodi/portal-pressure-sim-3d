@@ -2,7 +2,7 @@
 // own tube builder uses (micro3d/lobule3d.ts buildVessels), so a welded tube's rings are the rings the unwelded tube would have had. Pure.
 import type { Course, LobuleNet } from './geometry.ts';
 import { buildBile } from './bile.ts';
-import { DISC_R, inletRadius, sinRadius } from './widths.ts';
+import { DISC_R, RS_N, inletRadius, sinRadius, twigR } from './widths.ts';
 import { sinW } from './ink.ts';
 import type { WeldCourse } from './welds.ts';
 
@@ -21,7 +21,7 @@ export function trimmedInside(c: Course, r: number): Course {
 
 const at3 = (p: readonly [number, number], z: number, R: number): [number, number, number] => [p[0] * R, -p[1] * R, z];
 
-/** The blood vessels that weld to each other: the inlets, the three generations of sinusoids and their links. */
+/** The blood vessels that weld to each other: the inlets, the three generations of sinusoids and their links, and the arteriole's twigs. */
 export function bloodWeldCourses(net: LobuleNet, h: WeldHeights, segs: WeldSegs): WeldCourse[] {
   const out: WeldCourse[] = [];
   const add = (c: Course, z: number, rad: (i: number) => number, w: (i: number) => number) => {
@@ -34,7 +34,10 @@ export function bloodWeldCourses(net: LobuleNet, h: WeldHeights, segs: WeldSegs)
       const t = trimmedInside(c, DISC_R.cv * 0.78);
       out.push({ key: `${c.kind}${c.id}`, phase: c.id * 0.137, family: 'blood', pts: t.pts.map((p) => at3(p, h.over, h.R)), rad: t.pts.map((_, i) => Math.max(1e-4, sinRadius(c.kind as 's0' | 's1' | 's2' | 'an', t.rho[i]!) * h.R)), w: t.pts.map((_, i) => sinW(t.rho[i]!)), seg: segs.vessel });
     }
-    // (the arteriole's twigs are not welded to their sinusoid yet: they are a different colour from it, and each ends where the sinusoid also meets its inlet)
+    else if (c.kind === 'tw') {
+      // the arteriole's twig: it opens into its sinusoid, so it welds to it; its skin eases from the arteriole's colour to the sinusoid's (ink.ts 'art')
+      add(c, h.over, (i) => twigR(i / (c.pts.length - 1), RS_N), () => 0);
+    }
   }
   return out;
 }

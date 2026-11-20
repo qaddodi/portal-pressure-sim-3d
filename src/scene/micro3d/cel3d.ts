@@ -19,6 +19,11 @@ import { FADE_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 import { STREAK, STREAK_FIELD_GLSL } from '../blood/streak-glsl.ts';
 import { dustGlsl } from '../blood/dust-glsl.ts';
+import { staticRouteTexture } from '../blood/routes.ts';
+import { dustTuner } from '../blood/dust.ts';
+/** The route table a material without dust is given (one empty column): the uniform always has a real texture, never null (tests/glsl-compile.test.ts). Made once, shared. */
+let noRoute: { value: DataTexture } | null = null;
+const noRouteTex = (): { value: DataTexture } => (noRoute ??= { value: staticRouteTexture(1, new Map(), () => 0) });
 /** The streak field's units to a tube radius, so a streak's mean length (FIELD_LEN) is LEN_OF_R radii, as the Anatomy's are. */
 const STREAK_FIELD_PER_R = (STREAK.FIELD_LEN[0] + STREAK.FIELD_LEN[1] / 2) / STREAK.FIELD_LEN_R;
 
@@ -56,7 +61,7 @@ varying float vAux;
 varying float vArc;
 varying float vAcross;
 #endif
-#ifdef DUST
+#if defined(DUST) && defined(FLOW)
 attribute vec4 fcourse;   // the dust's route (blood/routes.ts): this course's column of the route table, the arc from its start, its length (local units), the true place across (-1 .. 1, never hushed)
 varying vec4 vCourse;
 #endif
@@ -93,7 +98,7 @@ void main() {
 #ifdef FLOW
   vArc = aux; vAcross = aux2;
 #endif
-#ifdef DUST
+#if defined(DUST) && defined(FLOW)
   vCourse = fcourse;
 #endif
 #if defined(GAPS) || defined(HOLES)
@@ -123,6 +128,14 @@ uniform vec4 uHaze;
 uniform vec3 uHazeCol;
 varying float vHy;
 float hazeK() { return uHaze.z * smoothstep(uHaze.x, uHaze.y, abs(vHy)); }
+// EVERY DERIVATIVE IS TAKEN AT THE TOP OF main(), before the first discard and before any branch (derivatives.read below): a quad whose neighbour was discarded, or that took another branch, hands
+// back garbage on Apple GPUs, which the flow marks drew as specks (Mohammad 20 Nov; the skin's and the tube's own fix, d33358bd). The functions read these, never dFdx/dFdy/fwidth themselves
+float gArcW = 1e-7;    // |grad vArc| (FLOW): the arc's run per device px
+float gXW = 1e-7;      // |grad vP.x| (STREAKS): µm per device px
+float gXF = 1e-5;      // fwidth(vP.x)
+float gGapW = 1e-5;    // fwidth of the gap slots' u (GAPS) and the bores' (HOLES)
+float gSW = 1e-3;      // fwidth of n.L, the shade step's
+float gNvW = 1e-5;     // |grad n.v| and |grad |vRimUV|| for the rim line
 uniform float uHole;
 // the shape's own line, drawn in its fill (uRim CSS px wide, uMicroDpr the canvas's pixel ratio, ink uRimCol, 0: none): where the surface turns away from the eye, measured in screen pixels from the outline by the
 // rate the facing changes (a dome's facing falls as the square root of the distance to its rim, so half the facing over its screen rate is that distance). It lies inside the shape: it
@@ -170,7 +183,7 @@ float streaks() { return streakField(vAux, vP.x, uFlow, uHalf, uProfile, uStreak
 // the Anatomy's chevron (blood/chevron-glsl.ts), every 6 µm across the stream, its point leading the way the stream runs (the flow's sign): (core, ring)
 vec2 chevrons() {
   float dir = uFlow >= 0.0 ? 1.0 : -1.0;
-  return chevLattice(vP.x - uFlow, vAux, 6.0, max(fwidth(vP.x), 1e-5), dir);
+  return chevLattice(vP.x - uFlow, vAux, 6.0, gXF, dir);
 }
 #endif
 #ifdef FLOW
@@ -197,7 +210,7 @@ vec2 flowHeads() {
   // the Anatomy's rules, in its CSS px (blood/chevron-glsl.ts CHEV, the one table: vessels/shaders.ts chevOne): one head every PITCH_PX CSS px along the tube on the SCREEN, on a lattice that halves and doubles with the zoom (nothing jumps),
   // a head 55 percent of the lumen wide (at least 4 px, never over 60 percent), 1.4 x its width long, sharp: blood/chevron-glsl.ts CHEV, chevHw; and none on a tube under MIN_R_PX of radius
   float R = max(uFlowR, 1e-5);
-  float pxA = max(length(vec2(dFdx(vArc), dFdy(vArc))), 1e-7), wpc = pxA * uDpr;
+  float pxA = gArcW, wpc = pxA * uDpr;
   float lv = max(${F(CHEV_LEVEL_MIN)}, log2(${F(CHEV.PITCH_PX)} * wpc / max(uFlowPitch, 1e-5)));
   float n0 = floor(lv), P = uFlowPitch * exp2(n0);
   float j = floor((vArc - uFlowT) / P + 0.5), x = vArc - uFlowT - j * P;
@@ -212,7 +225,7 @@ vec2 flowHeads() {
 float flowStreaks() {
   if (uFlowStreak <= 0.0 || vAcross > 2.0) return 0.0;
   float R = max(uFlowR, 1e-5);
-  float wpc = max(length(vec2(dFdx(vArc), dFdy(vArc))), 1e-7) * uDpr, rPx = R / wpc;
+  float wpc = gArcW * uDpr, rPx = R / wpc;
   if (rPx < ${F(CHEV.MIN_R_PX)}) return 0.0;   // (a tube under 3.5 px across carries none)
   float lanes = rPx < ${F(STREAK.LANE_R_PX[0])} ? 1.0 : rPx < ${F(STREAK.LANE_R_PX[1])} ? 3.0 : 5.0;   // (1 under 8 px across, 3 to 16 px, 5 above)
   float s = ${F(STREAK_FIELD_PER_R)} / R * rPx / clamp(rPx, ${F(STREAK.LEN_R_PX[0])}, ${F(STREAK.LEN_R_PX[1])});   // field units per local unit: a streak's mean length about FIELD_LEN_R radii, held to 24 to 96 CSS px (STREAK.LEN_R_PX)
@@ -224,21 +237,42 @@ float flowStreaks() {
 // THE ANATOMY'S DUST in the lobule (Mohammad, 20 Nov: "also same streaks in lobule view please"): the same particles (blood/dust-glsl.ts), each with one identity through every joint of the lobule's
 // network (micro3d/lobule-routes.ts: a sinusoid leaving an inlet venule takes the venule's lanes on its side; two sinusoids merging lie side by side), all riding the lobule's one flow (uFlowT).
 // The lobule is seen from above: the section's N axis (the course's left in the plate) is the screen's sideways axis, its B axis faces the eye.
-varying vec4 vCourse;
 uniform float uDustK;     // how strong (the Blood streaks setting, the view's own fade)
+// how far the stream has run: the lobule's tubes their one flow (uFlowT), a stream of the Sinusoid view (STREAKS: the lumen, the lymph in Disse) its own µm run (uFlow)
+#ifdef FLOW
+float dRun() { return uFlowT; }
 #define time (uFlowT * 3.0)
-${dustGlsl('return uFlowT / max(D_flowK, 1e-4);')}
+#else
+float dRun() { return uFlow; }   // (the particles run as far as the lanes did: µm)
+#define time (uFlow * 0.15)
+#endif
+${dustGlsl('return dRun() / max(D_flowK, 1e-4);')}
 #undef time
+#ifdef FLOW
+varying vec4 vCourse;
 vec4 flowDustMicro(vec3 lit) {
   if (uDustK <= 0.0 || abs(vCourse.w) >= 0.97) return vec4(0.0);
   float R = max(uFlowR, 1e-5);
-  float wpc = max(length(vec2(dFdx(vArc), dFdy(vArc))), 1e-7) * uDpr, rPx = R / wpc;
+  float wpc = gArcW * uDpr, rPx = R / wpc;
   float dOn = uDustK * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rPx);
   if (dOn <= 0.002) return vec4(0.0);
   DFrame Fd = DFrame(vCourse.w, vec2(1.0, 0.0), vec2(0.0, 1.0), vCourse.y, vCourse.z, R, R, rPx, 1.0, 0.0, vCourse.x, 1.0);
   vec4 d = dustTube(Fd, lit, lit * 0.35, 0.0);
   return vec4(d.rgb * dOn, d.a * dOn);
 }
+#else
+// THE SAME DUST in a stream of the Sinusoid view (Mohammad 20 Nov: the same streaks everywhere, the lymph's in its own colour): a straight stream along x (µm), aux its place across, one lane table of its own
+// (routeTex: one column, its lattice's pitch the stream's half width), seen square on
+vec4 flowDustStream(vec3 lit) {
+  if (uDustK <= 0.0 || abs(vAux) >= 0.97) return vec4(0.0);
+  float R = max(uHalf, 1e-3), wpc = gXW, rPx = R / wpc;
+  float dOn = uDustK * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rPx);
+  if (dOn <= 0.002) return vec4(0.0);
+  DFrame Fd = DFrame(vAux, vec2(1.0, 0.0), vec2(0.0, 1.0), vP.x + 5.0e4, 1.0e5, R, R, rPx, 1.0, 0.0, 0.0, 1.0);
+  vec4 d = dustTube(Fd, lit, lit * 0.35, 0.0);
+  return vec4(d.rgb * dOn, d.a * dOn);
+}
+#endif
 #endif
 #if defined(GAPS) || defined(HOLES)
 // real gaps through a sheet (the sinusoid's fenestrae, Mohammad 20 Nov 2026: "complete, not just circle holes: actually a gap in the membrane"): one texel per 1 µm slot along x, per side (row 0 the
@@ -257,7 +291,7 @@ float gapCut() {
   if (j < 0.0 || j >= uGapX.y) return 0.0;
   float hw = texture2D(uGaps, vec2((j + 0.5) / uGapX.y, vG.y > 0.0 ? 0.25 : 0.75)).r * uGapX.z;
   if (hw <= 0.0) return 0.0;
-  float d = abs(u - j - 0.5) - hw, wpx = max(fwidth(u), 1e-5);
+  float d = abs(u - j - 0.5) - hw, wpx = gGapW;
   if (d < 0.0) discard;
   return 1.0 - smoothstep(0.6 * wpx, 1.8 * wpx, d);
 }
@@ -271,20 +305,39 @@ float holeCut() {
   if (j < 0.0 || j >= uGapX.y) return 0.0;
   float hw = texture2D(uGaps, vec2((j + 0.5) / uGapX.y, vG.y > 0.0 ? 0.25 : 0.75)).r * uGapX.z;
   if (hw <= 0.0) return 0.0;
-  float d = length(vec2(u - j - 0.5 - uHoleP.y, vH.y - uHoleP.x)) - hw, wpx = max(fwidth(u), 1e-5);
+  float d = length(vec2(u - j - 0.5 - uHoleP.y, vH.y - uHoleP.x)) - hw, wpx = gGapW;
   if (d < 0.0) discard;
   return 1.0 - smoothstep(0.6 * wpx, 1.8 * wpx, d);
 }
 #endif
 void main() {
-  if (fadedOut()) discard;
-  // (a hole: what lies within uHole of the part's own origin is not drawn: the sinusoids' ends inside the central vein's pool, so they merge into it with no shade or line of theirs inside)
-  if (uHole > 0.0 && length(vP.xy) < uHole) discard;
+  // the derivatives first (see gArcW): every one this program reads, before any discard or branch
   vec3 n = normalize(vN);
   if (!gl_FrontFacing) n = -n;
   // the world light (CEL_STYLE.LIGHT): n.L with n in world axes. TWO tones: the base, and the shade below the step
   float s = dot(n, vec3(${F(L[0])}, ${F(L[1])}, ${F(L[2])}));
-  float w = max(fwidth(s) * 0.75, 1e-3);
+  gSW = max(fwidth(s) * 0.75, 1e-3);
+#ifdef FLOW
+  gArcW = max(length(vec2(dFdx(vArc), dFdy(vArc))), 1e-7); gStreakFw = max(fwidth(vAcross), 1e-6);
+#endif
+#ifdef STREAKS
+  gXW = max(length(vec2(dFdx(vP.x), dFdy(vP.x))), 1e-7); gXF = max(fwidth(vP.x), 1e-5); gStreakFw = max(fwidth(vAux), 1e-6);
+#endif
+#ifdef GAPS
+  gGapW = max(fwidth(vG.x), 1e-5);
+#endif
+#ifdef HOLES
+  gGapW = max(fwidth(vH.x), 1e-5);
+#endif
+  float nvR = abs(dot(normalize(vN), uRimUp > 0.5 ? vec3(0.0, 0.0, 1.0) : normalize(vVD)));
+  float nvG = length(vec2(dFdx(nvR), dFdy(nvR)));
+#ifdef RIM_UV
+  float rrR = length(vRimUV), rrG = length(vec2(dFdx(rrR), dFdy(rrR)));
+#endif
+  if (fadedOut()) discard;
+  // (a hole: what lies within uHole of the part's own origin is not drawn: the sinusoids' ends inside the central vein's pool, so they merge into it with no shade or line of theirs inside)
+  if (uHole > 0.0 && length(vP.xy) < uHole) discard;
+  float w = gSW;
   float shadeT = 1.0 - smoothstep(${F(CEL_STYLE.VESSEL_STEP_AT)} - w, ${F(CEL_STYLE.VESSEL_STEP_AT)} + w, s);
   vec3 c = tint * vC;
   // (a flat shape on the plate (uRimUp) is one tone: its shade fell as a thin crescent just inside its ring on the side away from the light, and read as the ring twice as thick there, eyes 20 Nov)
@@ -296,7 +349,9 @@ void main() {
   c = mix(c, c * 0.35, holeCut());
 #endif
   float wz = washA();
-#ifdef STREAKS
+#if defined(STREAKS) && defined(DUST)
+  { vec4 dd = flowDustStream(c) * (1.0 - 0.9 * wz); c = c * (1.0 - dd.a) + dd.rgb; c = mix(c, uWashCol, 0.85 * wz); }
+#elif defined(STREAKS)
   if (uProfile < 0.0) {
     vec2 ch = chevrons();
     c = mix(c, uStreakCol, uStreak * ch.x);
@@ -325,16 +380,15 @@ void main() {
   c = mix(c, uWashCol, 0.85 * wz);
 #endif
   if (uRim > 0.0) {
-    float nv = abs(dot(normalize(vN), uRimUp > 0.5 ? vec3(0.0, 0.0, 1.0) : normalize(vVD)));
+    float nv = nvR;
     // (the distance to where n.v is 0, in device px: n.v over its gradient's length, exact where the normals are interpolated linearly across a band of the mesh, which is what every edge band
     //  is at the zooms these parts are seen at; a half of it, for a smooth surface's square-root fall-off, drew the line twice its width on the nuclei, eyes 20 Nov. The gradient's length, not
     //  fwidth: fwidth reads a diagonal edge up to 1.4 times steep, so a ring was thicker on its diagonals)
-    float dpx = nv / max(length(vec2(dFdx(nv), dFdy(nv))), 1e-5);
+    float dpx = nv / max(nvG, 1e-5);
 #ifdef RIM_UV
     // (a dome on the plate that carries its own ellipse (aux, aux2: where each vertex lies in the unit circle of its outline): the distance to its outline from that, which is linear in
     //  position over every facet, so the line is exact whatever the triangles: from the normal, a long lens's line came and went in nicks between its corners, eyes 20 Nov)
-    float rr = length(vRimUV);
-    dpx = (1.0 - rr) / max(length(vec2(dFdx(rr), dFdy(rr))), 1e-5);
+    dpx = (1.0 - rrR) / max(rrG, 1e-5);
 #endif
     float rp = uRim * uMicroDpr * uRimK;   // (uRimK: the scene's share of the line by how big its shapes are on screen, see MicroOptions.rimK)
     c = mix(c, uRimCol, 1.0 - smoothstep(rp - 0.6, rp + 0.6, dpx));
@@ -479,7 +533,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
   const haze = o.haze ?? hazeUniforms();
   const toon = new ShaderMaterial({
     vertexShader: MICRO_VS, fragmentShader: MICRO_FS, vertexColors: !!o.vertexColors,
-    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps && !o.holes ? { GAPS: '' } : {}), ...(o.gaps && o.holes ? { HOLES: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.dust && o.flow ? { DUST: '' } : {}) },
+    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps && !o.holes ? { GAPS: '' } : {}), ...(o.gaps && o.holes ? { HOLES: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.dust && (o.flow || o.streaks) ? { DUST: '' } : {}) },
     uniforms: {
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, uSwell: { value: new Vector2(0, 0) }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
@@ -488,7 +542,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
       // (always given, dust or not: the shader text declares them, and a uniform a material lacks keeps the value the last program drew with, tests/uniforms-declared.test.ts)
-      routeTex: o.dust?.routeTex ?? { value: null }, dustP: o.dust?.dustP ?? { value: [] }, uDustK: { value: 0 },
+      routeTex: o.dust?.routeTex ?? noRouteTex(), dustP: o.dust?.dustP ?? dustTuner.uniform, uDustK: { value: 0 },
       uFlowR: { value: 0.02 }, uDpr: { value: 2 }, uFlowDark: { value: 0 }, uFlowInk: { value: rawRGB(new Color(), hexRGB(LENS_SHARED.chevron)) },
       // (every toon carries the gaps' uniforms too, a blank texture and no slots where it has none, so a program read without GAPS still finds each one)
       uGaps: { value: o.gaps?.tex ?? NO_GAPS }, uGapX: { value: o.gaps?.x ?? new Vector4(0, 0, 0, 0) }, uHoleP: { value: new Vector2(o.holes?.s ?? 0, o.holes?.dx ?? 0) },
@@ -530,6 +584,7 @@ export class MicroPart {
   setStreaks(flow: number, half: number, rgb: RGB, strength: number, profile: number): void {
     const u = this.mats.toon.uniforms;
     u.uFlow.value = flow % 1e6; u.uHalf!.value = half; u.uStreak!.value = strength; u.uProfile!.value = profile; rawRGB(u.uStreakCol!.value as Color, rgb);
+    if (u.uDustK) u.uDustK.value = Math.min(1, Math.max(0, strength));   // (a part with the dust draws it at the streaks' strength, in place of the lanes)
   }
   /** The wedged column's wash on a streaked stream: its strength, the portal and central ends (µm along) and how far it has come from the central end (0 to 1), in its colour. */
   setWash(k: number, portalX: number, centralX: number, progress: number, rgb: RGB): void {
