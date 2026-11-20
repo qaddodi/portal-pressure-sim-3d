@@ -124,15 +124,15 @@ function ringPlaneNormal(g: BufferGeometry, ring: number): Vec3 | null {
 export const AXIS_REACH_R = 6;
 /** An arm whose end ring lies more than this many of its radii from J gets J put in front of its capsule (spec 10.5). */
 export const BRIDGE_MIN_R = 0.1;
-export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, startRing?: number): ArmAxis {
+export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, startRing?: number, planeHeading = false): ArmAxis {
   const out = cut.end ? -1 : 1, last = tube.tubular;
   const end = startRing ?? (cut.end ? last : 0), a = ringCentre(tube.geometry, end), s = ringCentre(tube.geometry, cut.ring);
   const lo = Math.min(last, Math.max(0, cut.ring - out)), hi = Math.min(last, Math.max(0, cut.ring + out));   // (the ring nearer the node, the ring farther from it)
   const cl = ringCentre(tube.geometry, lo).c, ch = ringCentre(tube.geometry, hi).c;
-  // the heading is the seam ring's own plane normal (the way the tube's flow marks and ink are laid across it), turned to run away from the node; the neighbouring ring centres give the sense and, for a degenerate ring, the heading itself
+  // with `planeHeading` the heading is the seam ring's own plane normal (the way the tube's flow marks and ink are laid across it), turned to run away from the node; the neighbouring ring centres give the sense and, for a degenerate ring, the heading itself
   let tx = ch[0] - cl[0], ty = ch[1] - cl[1], tz = ch[2] - cl[2];
   const tl = Math.hypot(tx, ty, tz) || 1; tx /= tl; ty /= tl; tz /= tl;
-  const rn = ringPlaneNormal(tube.geometry, cut.ring);
+  const rn = planeHeading ? ringPlaneNormal(tube.geometry, cut.ring) : null;
   if (rn) { const sgn = rn[0] * tx + rn[1] * ty + rn[2] * tz < 0 ? -1 : 1; tx = rn[0] * sgn; ty = rn[1] * sgn; tz = rn[2] * sgn; }
   const d0 = Math.hypot(s.c[0] - a.c[0], s.c[1] - a.c[1], s.c[2] - a.c[2]), d2 = Math.max(AXIS_REACH_R * restR - d0, restR);
   let far = cut.ring, at = s.c;
@@ -289,7 +289,8 @@ export class SkinSet {
     if (objs.some((o) => !o)) return null;   // (a vessel not in this scene: no skin; the tubes are untouched)
     const { pos, nor, rest } = this.ringsFor(tubes, plan.cuts);
     // the arms' axes: the tubes' own ring centres and radii, the SAME three-point polylines the skin's fragment stage draws its ink from, so the mesh's fillet and its outline are one shape
-    const axes = weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
+    const sided = j.arms.some((a) => !!a.side);   // (a skin with a side-wall arm: its arms' headings are the seam rings' own plane normals; every other skin keeps the neighbouring-ring heading it always had)
+    const axes = weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided); }), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
     const mesh = buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf));
     // on a seam ring the skin's rest radius is the tube's own, exactly (the mesh builder measures the ring's mean radius, a few parts in 10^4 off the tube's `radius * rk`): the live move of a seam vertex is then the tube's to the last bit (spec 4.6)
     mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));
