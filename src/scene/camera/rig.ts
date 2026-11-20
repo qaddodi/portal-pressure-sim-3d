@@ -7,7 +7,13 @@ import type { Rect } from '../gesture/view.ts';
 import { type Room, effectiveDistance, viewOffset } from './room.ts';
 import { PLUNGE_RATIO, dollyDistance, fovAt, fovBump } from './dive.ts';
 import { Tilt } from './tilt.ts';
+import { LongPath } from './arc.ts';
 import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
+
+/** The lens swell in a plunge (dive.ts: 14 -> 35 degrees and back). OFF (20 Nov 2026, owner: the camera moves as 2D's do, 1:1; 2D has no lens): the dive is the distance and the framing alone. */
+export const LENS_SWELL = false;
+/** 2D's long-move pull-back (arc.ts). OFF (20 Nov 2026, owner: "zoom in and out should still be ONE shot, not zigzaggy"): a zoom out and in again inside one move reads as a zigzag. Every move is one continuous glide. */
+export const LONG_ARC = false;
 
 /** Radians of turn per pixel of drag. */
 export const ORBIT_PER_PX = 0.006;
@@ -29,6 +35,12 @@ export const orbitHome = (x0: number, t: number, omega = ORBIT_HOME_OMEGA): numb
 };
 
 export const easeInOutCubic =(t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+/** 2D's camera ease (src/ui/ease.js easeMove): the quintic smoothstep 6t⁵ − 15t⁴ + 10t³. Its speed and its acceleration both start and end at zero, so a long glide has no catch half way. */
+export const easeMove = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * t * (t * (6 * t - 15) + 10));
+/** 2D's carry (ease.js carried, CARRY_MAX): a glide begun while another is still moving starts at the speed the view has, instead of from rest: p = ease(t) + c·t(1−t)², c the old speed in the new glide's own
+ *  progress per glide, capped at 0.8 so the progress never passes 1 on the way. With c = 0 it is easeMove. */
+export const CARRY_MAX = 0.8;
+export const easeCarry = (t: number, c: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : Math.min(1, easeMove(t) + (c > 0 ? Math.min(c, CARRY_MAX) * t * (1 - t) * (1 - t) : 0)));
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 
 /** Shortest way round between two angles, so a turn never spins the long way. */
@@ -75,6 +87,7 @@ export function blendPose(a: Pose, b: Pose, k: number, arc = 1): Pose {
 /** The cinematic arc of a dive: the camera swings a little to one side and rises as it plunges, then settles square on the place it dives to, instead of a straight push. A bell in k (zero at both ends, so a
  *  move that lands or starts leaves the shots' own yaw and pitch exactly; the same both ways, so the way out is the way in run backward). Its size grows with how deep the move goes (body to lobule 0.2 rad
  *  of yaw and 0.09 of pitch, lobule to sinusoid about half that); Reduce Motion passes `arc` 0. */
+// (OFF in the rig since 20 Nov: the swing read as a zigzag; the rig passes arc 0. blendPose(…, arc = 1) still computes it for the test.)
 export const ARC_YAW = 0.2, ARC_PITCH = 0.09;
 export function arcBell(k: number): number { const s = Math.sin(Math.PI * Math.min(1, Math.max(0, k))); return s * s; }
 export function arcSize(ra: number, rb: number): number {
@@ -108,6 +121,13 @@ export class CameraRig {
   private cur: Pose;
   private t0 = 0;
   private dur = 0;
+  /** The speed the move began with (easeCarry's slope): zero from a standstill. */
+  private carry = 0;
+  /** The progress the last frame was drawn at (the eased value the pose is at now). */
+  private eNow = 0;
+  /** 2D's long-move path (arc.ts) for this move, or null for the plain glide. */
+  private long: LongPath | null = null;
+  private readonly longPath = new LongPath();
   private active = false;
   private orbit = 0;
   private orbitFrom = 0;
@@ -163,6 +183,14 @@ export class CameraRig {
   }
 
   get isMoving(): boolean { return this.active; }
+  /** 2D's glide time (ease.js camMs): 480 ms up to half a screen of reach (the pan in screens wide and the zoom, a doubling counting half a screen), then in proportion, at most 900 ms; a dive (the distance changes by more than DIVE_RATIO) has the lobule's 1500 ms. */
+  reachMs(shot: ShotName | Shot): number {
+    const t = typeof shot === 'string' ? SHOTS[shot] : shot, a = this.cur.shot;
+    const pan = Math.hypot(t.target[0] - a.target[0], t.target[1] - a.target[1]) / Math.max(1e-6, a.half[0] + t.half[0]);
+    const zoom = Math.abs(Math.log(Math.max(1e-6, t.half[0]) / Math.max(1e-6, a.half[0]))) / (2 * Math.LN2);
+    const dive = Math.max(a.r, t.r) / Math.max(1e-9, Math.min(a.r, t.r)) > DIVE_RATIO;
+    return Math.round(Math.min(dive ? 1500 : 900, 480 * Math.max(1, Math.hypot(pan, zoom) / 0.5)));
+  }
   /** The lens's field of view now (degrees): the long lens at rest, wider in the middle of a plunge. */
   get fov(): number { return fovAt(this.bump); }
   /** Whether the camera has its first real shot and room; nothing is drawn before. */
@@ -184,16 +212,25 @@ export class CameraRig {
       this.orbit = this.orbitFrom = 0; this.active = false; this.handTween = false; this.dirty = true;
       return;
     }
+    // retargeted in flight: carry the speed on (the old move's progress rate over what it had left, in the new move's own units), so nothing slows to a stop and starts again
+    let carry = 0;
+    if (this.active && this.dur > 0) {
+      const k0 = Math.min(1, (now - this.t0) / this.dur), e0 = easeCarry(k0, this.carry), e1 = easeCarry(Math.min(1, k0 + 1e-3), this.carry);
+      const left = 1 - e0, newDur = reducedMs(ms, this.reduceMotion || reduced());
+      if (left > 1e-3 && newDur > 0) carry = Math.min(CARRY_MAX, Math.max(0, ((e1 - e0) / 1e-3 / this.dur) / left * newDur));
+    }
     this.from = { shot: copyShot(this.cur.shot), room: copyRoom(this.cur.room) };
     this.to = { shot: copyShot(s), room: copyRoom(room) };
+    this.carry = this.reduceMotion || reduced() ? 0 : carry;
+    this.long = LONG_ARC && !isDive(this.from, this.to) && !(this.reduceMotion || reduced()) && this.longPath.fill(this.from.shot, this.to.shot, SHOTS.play.half[0] * 2).arc ? this.longPath : null;
     // a new shot takes the hand's zoom and pan back to the shot's own framing, in the same move
     this.handFrom = { ...this.hand };
     this.handTween = keepHand ? this.handTween : this.hand.k !== 1 || this.hand.x !== 0 || this.hand.y !== 0;
     // the lens: a plunge into the figure (the body to the lobule or the sinusoid, or back) widens it and narrows it again (dive.ts); Reduce Motion keeps the long lens throughout
     this.bumpFrom = this.bump;
-    this.plunge = !(this.reduceMotion || reduced()) && Math.max(this.from.shot.r, this.to.shot.r) / Math.max(1e-9, Math.min(this.from.shot.r, this.to.shot.r)) > PLUNGE_RATIO;
-    this.t0 = now;
-    this.dur = reducedMs(ms, this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
+    this.plunge = LENS_SWELL && !(this.reduceMotion || reduced()) && Math.max(this.from.shot.r, this.to.shot.r) / Math.max(1e-9, Math.min(this.from.shot.r, this.to.shot.r)) > PLUNGE_RATIO;
+    this.t0 = now; this.eNow = 0;
+    this.dur = reducedMs(ms * (this.long ? this.long.stretch : 1), this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
     this.orbitTo = keepHand ? (this.active ? this.orbitTo : this.orbit) : 0;
     this.orbitFrom = this.orbit;
     this.pitchTo = keepHand ? (this.active ? this.pitchTo : this.pitchOrbit) : 0;
@@ -205,6 +242,16 @@ export class CameraRig {
   /** The cards changed room (a card opened, the phone turned): move the room alone, same curve; the hand's zoom and the viewer's turn stay (cards opening keep both). `homeTurn`: a guided step brings the turn home with the move. */
   setRoom(room: Room, now: number, ms?: number, homeTurn = false): void {
     // a card opening in the middle of a dive keeps the dive's own time: it lands when it was going to, in the new room (not a fresh 950 ms from a standstill)
+    // a move in flight whose room alone changes (a card opening or closing): the same move, the same clock and the same curve, with only its destination room swapped, so the picture never stops or restarts
+    if (this.active && ms == null && !homeTurn && this.dur > 0) {
+      const e = this.eNow;
+      if (e < 0.98) {
+        const c = this.cur.room, r = room;
+        this.from.room = { x: (c.x - e * r.x) / (1 - e), y: (c.y - e * r.y) / (1 - e), w: (c.w - e * r.w) / (1 - e), h: (c.h - e * r.h) / (1 - e) };
+        this.to.room = copyRoom(room); this.dirty = true;
+        return;
+      }
+    }
     const left = this.active ? Math.max(1, this.t0 + this.dur - now) : undefined;
     this.goTo(this.to.shot, room, now, ms ?? (left != null ? Math.max(left, 200) : undefined), true);
     // a guided step (a slide, a catheter step) that asks for the shot the camera is already on still brings the turn home: the viewer's angle is theirs only between guided poses
@@ -277,12 +324,15 @@ export class CameraRig {
     let moving = false;
     if (this.active) {
       const k = this.dur <= 0 ? 1 : Math.min(1, (now - this.t0) / this.dur);
-      this.cur = blendPose(this.from, this.to, easeInOutCubic(k), this.reduceMotion || reduced() ? 0 : 1);
+      const e = easeCarry(k, this.carry);
+      this.eNow = e;
+      this.cur = blendPose(this.from, this.to, e, 0);
+      if (this.long && e < 1) this.long.at(e, this.cur.shot);
       this.bump = fovBump(k, this.bumpFrom, this.plunge);
       // the orbit eases back to centre with the shot (a new shot always starts square on), but a change of room alone (a card opening) leaves the turn the viewer chose
-      this.orbit = lerp(this.orbitFrom, this.orbitTo, easeInOutCubic(k));
-      this.pitchOrbit = lerp(this.pitchFrom, this.pitchTo, easeInOutCubic(k));
-      if (this.handTween) { lerpView(this.handFrom, { k: 1, x: 0, y: 0 }, easeInOutCubic(k), this.hand); if (k >= 1) this.handTween = false; }
+      this.orbit = lerp(this.orbitFrom, this.orbitTo, e);
+      this.pitchOrbit = lerp(this.pitchFrom, this.pitchTo, e);
+      if (this.handTween) { lerpView(this.handFrom, { k: 1, x: 0, y: 0 }, e, this.hand); if (k >= 1) this.handTween = false; }
       if (k >= 1) this.active = false; else moving = true;
       this.dirty = true;
     }

@@ -8,6 +8,7 @@ import { LOBULE_R } from '../src/scene/lobule/shots.ts';
 import { sinRadius, DISC_R } from '../src/scene/lobule/widths.ts';
 import { Lobule3D, LZ, OVER_Z, TUBE_SEG, skipFirstFills } from '../src/scene/micro3d/lobule3d.ts';
 import { buildBile } from '../src/scene/lobule/bile.ts';
+import { PLATE_BOX } from '../src/scene/lobule/plate.ts';
 import { lookColours } from '../src/scene/lobule/lz-colours.ts';
 
 const shared = createShared();
@@ -106,4 +107,43 @@ test('no vessel over the plates is buried under the tiles (a buried one shows on
     for (let v = 0; v < Math.min(pos.count, TUBE_SEG); v++) top = Math.max(top, pos.getZ(v));
     assert.ok(top > LZ.cellTop, `${name}: its top ${top.toFixed(4)} is over the tiles' ${LZ.cellTop}`);
   }
+});
+
+test('every bile course runs from the central vein out toward its tract (its arrowheads point out, against the blood)', () => {
+  const net = new LobuleView(createShared()).net;
+  for (const c of buildBile(net)) { const a = c.pts[0]!, z = c.pts[c.pts.length - 1]!; assert.ok(Math.hypot(z[0], z[1]) > Math.hypot(a[0], a[1]), c.kind); }
+});
+
+test('the lobule\'s vessels are inked as the Anatomy\'s (a deep tone of their own colour), the hepatocytes with the tissue\'s line', () => {
+  const flat = new LobuleView(createShared()); flat.setVisible(true);
+  const l3 = new Lobule3D(flat, createShared()); l3.update(true);
+  const inks: { name: string; own: number }[] = [];
+  l3.group.traverse((o) => { const u = ((o as unknown as { material?: { uniforms?: Record<string, { value: unknown }> } }).material)?.uniforms; if (o.name.endsWith('/ink') && u?.uOwn) inks.push({ name: o.name, own: u.uOwn.value as number }); });
+  for (const n of ['sinusoids-0', 'inlets', 'portal-venules', 'central-vein', 'canaliculi']) assert.ok(inks.find((i) => i.name.endsWith(`${n}/ink`))!.own > 0.5, n);
+  assert.equal(inks.find((i) => i.name.endsWith('hepatocytes/ink'))!.own, 0);
+});
+
+test('the plate reaches past every portal tract\'s whole scar (it was cut off at the hexagon)', () => {
+  assert.ok(PLATE_BOX >= 1 + 0.1 * 1.7 * 1.08 + 0.02);
+});
+
+test('the marks (the periportal scar) and the vessels draw after the see-through field of neighbour lobules, so the scar is never cut off at the hexagon', () => {
+  const sh = createShared(), lv = new LobuleView(sh), l = new Lobule3D(lv, sh);
+  let marks: import('three').Mesh | null = null, field: import('three').Mesh | null = null;
+  l.group.traverse((o) => { if (o.name === 'lobule3d/marks') marks = o as import('three').Mesh; });
+  lv.group.traverse((o) => { if (o.name === 'lobule/field') field = o as import('three').Mesh; });
+  const m = marks as unknown as import('three').Mesh, f = field as unknown as import('three').Mesh | null;
+  assert.ok((m.material as import('three').Material).transparent, 'in the see-through list');
+  if (f) assert.ok(m.renderOrder > f.renderOrder, 'after the field');
+  l.group.traverse((o) => { if (o.name.startsWith('lobule3d/sinusoids-0') && (o as import('three').Mesh).isMesh) { assert.ok(o.renderOrder > m.renderOrder); assert.ok(((o as import('three').Mesh).material as import('three').Material).depthWrite); } });
+});
+
+test('every end-on vessel is filled with its colour, never an empty cylinder: a shallow, bright floor', async () => {
+  const { mouth } = await import('../src/scene/micro3d/lobule3d.ts');
+  const { MeshBuilder } = await import('../src/scene/micro3d/cel3d.ts');
+  const b = new MeshBuilder(), K: number[] = [];
+  mouth(b, 0, 0, 0.05, 0.1, 0.05, K, 32, true);
+  assert.ok(Math.min(...K.slice(-33)) >= 0.95, 'the floor is the vessel\'s own colour');
+  const src = (await import('node:fs')).readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
+  for (const k of ['Pv', 'Ha', 'Bd', 'Lv', 'Cv']) assert.match(src, new RegExp(`mouths\\(this\\.mouth${k}, [^\\n]*, true\\);`), k);
 });

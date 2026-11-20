@@ -18,11 +18,10 @@ import { slicesFor } from '../../circuit/geometry.ts';
 import type { BloodShared } from '../field.ts';
 import { CELLS_FS, CELLS_VS } from './shader.ts';
 import {
-  CELL_SAMPLES, EDGE_ROWS, type BudgetEdge, type EdgeLive, cellCap, cellsWanted, designFlow, easeAmount, layoutCells, particleBudget, resample, ringCentres, writeCourse, writeEdgeLength, writeEdgeLive, writeEdgeStatic,
+  CELL_SAMPLES, EDGE_ROWS, UNITS, type BudgetEdge, type EdgeLive, cellCap, cellsWanted, designFlow, easeAmount, layoutCells, particleBudget, resample, ringCentres, writeCourse, writeEdgeLength, writeEdgeLive, writeEdgeStatic,
 } from './core.ts';
 
 /** The scene units to the figure's own 2D units (the vessel shader's `* 300`). */
-const UNITS = 300;
 /** The vessel behind the organs shows through them at 0.4 (the veil, vessel-object.ts), the cava at a fraction of that: its cells follow. */
 const VEIL = 0.4, CAVA_VEIL = 0.2;
 const FADE_MS = 240;
@@ -149,6 +148,7 @@ export class BloodCells {
       uniforms: {
         streamTex: b.streamTex as { value: Texture }, projY: b.projY, dpr: b.dpr, res: sh.res, vdata: sh.vdata, vdataSize: sh.vdataSize,
         courseTex: { value: this.courseTex }, edgeTex: { value: this.edgeTex }, amount: { value: 0 },
+        tubeDark: ((deps.object(deps.vessels.find((x) => !x.feeder)?.id ?? '')?.toon.uniforms.tubeDark as { value: number } | undefined) ?? { value: 0 }),
         colPortal: tone('portal'), colSys: tone('sys'), colArt: tone('artery'),
         lensMix: lens.lensMix, lensTail: lens.lensTail, lensModeA: lens.lensModeA, lensModeB: lens.lensModeB,
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, laneColA: lens.laneColA, laneColB: lens.laneColB,

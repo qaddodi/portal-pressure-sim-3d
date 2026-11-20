@@ -18,8 +18,9 @@ import type { LookId } from '../../looks/looks.ts';
 /** The painting's world units per lobule radius: the 2D app's lobule is about this many CSS px across on an iPad, so every pixel rule in its painter
  *  (a 0.6 px membrane, a 0.9 px nucleus at least, the fibres' widths) lands as it does in 2D. */
 export const PLATE_S = 400;
-/** The canvas covers the lobule out to this many radii each way (the hexagon's own fill reaches 1.015). */
-export const PLATE_BOX = 1.04;
+/** The canvas covers the lobule out to this many radii each way: the hexagon's own fill reaches 1.015, but a portal tract's scar rings its corner whole (out to rt x 1.7 x 1.08 = 0.18 past it at the most), so
+ *  the canvas reaches past that: at 1.04 the scar was cut off square just outside the hexagon (Mohammad 20 Nov: "it's clipped like at the hexagon"). */
+export const PLATE_BOX = 1.22;
 /** The canvas's side in pixels: a whole lobule at twice the fit on an iPad Pro stays sharp; mipmapped for the fit. */
 export const PLATE_PX = 2048;
 /** The plate's depth under the courses (the vessels lie at 0, their lowest edge about -0.07 when congested zone 3 dilates). */

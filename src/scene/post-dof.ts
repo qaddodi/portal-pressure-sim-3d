@@ -51,6 +51,8 @@ export function dofShare(view: 'body' | 'circuit' | 'lobule' | 'sinusoid', d: nu
 export const DOF_MAX_FRAC = 0.005, DOF_SPAN = 0.35;
 /** The half thickness kept sharp either side of the focus (scene units): the lobule's slab with a margin for its vessels, and the sinusoid's own. */
 export const DOF_SLAB_LOBULE = 0.75 * LOBULE_T * LOBULE_SCALE, DOF_SLAB_SINUSOID = 1.0 * SIN_SCALE;
+/** The focus band's biggest circle, as a share of the picture's height (1.4%: about 24 px on an iPhone's 1688 px). */
+export const DOF_BAND_FRAC = 0.014;
 /** The taps of the gather. */
 export const DOF_TAPS = 10;
 
@@ -62,7 +64,7 @@ export function cocPx(z: number, zf: number, slab: number, share: number, maxPx:
   return smooth(0, span, rel) * share * maxPx;
 }
 
-const _inv = new Matrix4(), _t = new Vector3(), _n = new Vector3(), _q = new Vector4();
+const _inv = new Matrix4(), _t = new Vector3(), _n = new Vector3(), _q = new Vector4(), _p = new Vector3(), _a = new Vector2(), _b = new Vector2(), _c = new Vector2();
 /** The plane through the focus, facing +z of the scene (the lobule's, the field's and the sinusoid's planes face it), as the shader takes it: view distance t = w / dot(xyz, (1, ndc.x, ndc.y)). Returns the focus distance
  *  (the view distance of the target). A view straight on gives xyz = (k, 0, 0): the same distance across the picture. */
 export function planeUniform(cam: PerspectiveCamera, target: ArrayLike<number>, out: Vector4): number {
@@ -99,6 +101,14 @@ uniform vec2 proj;
 uniform vec4 plane;
 uniform vec4 focus;
 uniform vec2 gate;
+// the focus band (the sinusoid: its own lumen and plates sharp, the neighbours and whatever drifts off it out of focus, Mohammad 20 Nov 2026): band.xy the band's unit normal and band.z its
+// centre line's offset, in the full-size picture's pixels; bandK x the half width kept sharp, y the run to whole, z the biggest circle (px), w the strength (0: none)
+uniform vec4 band;
+uniform vec4 bandK;
+// and along it (the scene's two ends: never seen to end, Mohammad 20 Nov "don't let me see the end of the sinusoid"): bandA.xy the line's unit direction, z the offset of its middle, bandA.w unused;
+// bandAK x the half length kept sharp, y the run to whole (px; 0: none)
+uniform vec4 bandA;
+uniform vec2 bandAK;
 varying vec2 vUv;
 #define TAPS ${DOF_TAPS}
 float distAt(vec2 uv) {
@@ -114,7 +124,15 @@ float cocAt(float z) {
   float rel = max(abs(z - focus.x) - focus.y, 0.0) / max(z, 1e-9);
   return smoothstep(0.0, focus.z, rel) * gate.x * focus.w;
 }
-float cocOf(vec2 uv) { return cocAt(distAt(uv)); }
+float bandCoc(vec2 uv) {
+  if (bandK.w <= 0.0) return 0.0;
+  vec2 p = uv / texel;
+  float d = abs(dot(band.xy, p) - band.z);
+  float k = smoothstep(bandK.x, bandK.x + bandK.y, d);
+  if (bandAK.y > 0.0) k = max(k, smoothstep(bandAK.x, bandAK.x + bandAK.y, abs(dot(bandA.xy, p) - bandA.z)));
+  return k * bandK.z * bandK.w;
+}
+float cocOf(vec2 uv) { return max(gate.x > 0.0 ? cocAt(distAt(uv)) : 0.0, bandCoc(uv)); }
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 void main() {
   vec2 h = texel * 0.5;
@@ -139,7 +157,7 @@ void main() {
     sum += texture2D(tColor, uv).rgb * w;
     weight += w;
   }
-  gl_FragColor = vec4(sum / weight, clamp(cMin / focus.w, 0.0, 1.0));
+  gl_FragColor = vec4(sum / weight, clamp(cMin / max(max(focus.w * gate.x, bandK.z * bandK.w), 1e-3), 0.0, 1.0));
 }`;
 
 // PASS 2, at full size, blended over the picture (SRC_ALPHA, ONE_MINUS_SRC_ALPHA): the blur where its texels are all out of focus.
@@ -176,6 +194,7 @@ export class PostDof {
     const uniforms = {
       tColor: { value: null }, tDepth: { value: null }, texel: { value: new Vector2(1, 1) }, proj: { value: new Vector2(-1, -1) },
       plane: { value: new Vector4(1, 0, 0, 1) }, focus: { value: new Vector4(1, 0, DOF_SPAN, 1) }, gate: { value: new Vector2(0, 1) },
+      band: { value: new Vector4(0, 1, 0, 0) }, bandK: { value: new Vector4(1, 1, 0, 0) }, bandA: { value: new Vector4(1, 0, 0, 0) }, bandAK: { value: new Vector2(0, 0) },
     };
     this.gather = new ShaderMaterial({ name: 'post dof', vertexShader: DOF_VS, fragmentShader: DOF_GATHER_FS, depthTest: false, depthWrite: false, blending: NoBlending, uniforms });
     this.mix = new ShaderMaterial({ name: 'post dof mix', vertexShader: DOF_VS, fragmentShader: DOF_MIX_FS, depthTest: false, depthWrite: false, transparent: true, uniforms: { tBlur: { value: null } } });
@@ -201,9 +220,36 @@ export class PostDof {
     this.off = () => { window.removeEventListener('resize', again); for (const m of mqs) m?.removeEventListener?.('change', again); };
   }
 
+  /** The focus band's strength this frame (0: none). Unlike the depth's, it is wanted on every device (Mohammad tests on an iPhone) and needs no depth texture: it is only the picture blurred by a
+   *  circle that grows with the distance from a line on the screen. */
+  bandShare = 0;
+  /** This frame's focus band: `a`, `b` two points on its centre line and `e0`, `e1` a point where the blur starts and one where it is whole (world points), `w`, `h` the picture's size in px,
+   *  `k` the strength; `ends`, when given: the middle of the line and a point on it where the blur along it starts and one where it is whole (the scene's two ends, symmetric about the middle). Returns the strength. */
+  bandFrame(cam: PerspectiveCamera, a: Vector3, b: Vector3, e0: Vector3, e1: Vector3, w: number, h: number, k: number, ends?: { mid: Vector3; f0: Vector3; f1: Vector3 }): number {
+    this.bandShare = 0;
+    if (this.failed || !(k > 0) || this.env?.reducedMotion) return 0;
+    const px = (v: Vector3, o: Vector2) => { _p.copy(v).project(cam); return o.set((_p.x * 0.5 + 0.5) * w, (_p.y * 0.5 + 0.5) * h); };
+    px(a, _a); px(b, _b);
+    const dx = _b.x - _a.x, dy = _b.y - _a.y, l = Math.hypot(dx, dy);
+    if (!(l > 1e-6)) return 0;
+    const nx = -dy / l, ny = dx / l, c = nx * _a.x + ny * _a.y;
+    const d0 = Math.abs(nx * px(e0, _c).x + ny * _c.y - c), d1 = Math.abs(nx * px(e1, _c).x + ny * _c.y - c);
+    const u = this.gather.uniforms;
+    (u.band!.value as Vector4).set(nx, ny, c, 0);
+    (u.bandK!.value as Vector4).set(d0, Math.max(d1 - d0, 1), DOF_BAND_FRAC * h, k);
+    if (ends) {
+      const tx = dx / l, ty = dy / l, cm = tx * px(ends.mid, _c).x + ty * _c.y;
+      const g0 = Math.abs(tx * px(ends.f0, _c).x + ty * _c.y - cm), g1 = Math.abs(tx * px(ends.f1, _c).x + ty * _c.y - cm);
+      (u.bandA!.value as Vector4).set(tx, ty, cm, 0); (u.bandAK!.value as Vector2).set(g0, Math.max(g1 - g0, 1));
+    } else (u.bandAK!.value as Vector2).set(0, 0);
+    this.bandShare = k;
+    return k;
+  }
+
   /** One frame's numbers: the strength, and the focus (the camera's target and the plane through it) into the gather's uniforms. `d` is the camera's distance to the place dived to. Returns the strength; 0 costs nothing. */
   frame(view: 'body' | 'circuit' | 'lobule' | 'sinusoid', cam: PerspectiveCamera, target: ArrayLike<number>, d: number, rest: number, edge: number): number {
     this.share = 0;
+    (this.gather.uniforms.gate!.value as Vector2).x = 0;
     if (!this.wants) return 0;
     const s = dofShare(view, d, rest, edge);
     if (s <= 0) return 0;
@@ -219,7 +265,10 @@ export class PostDof {
 
   /** The two passes, with the scene already drawn into `into` (which carries a depth texture): the blur at half size, then over the picture. Leaves `into` as the render target; the caller puts the canvas back. */
   run(gl: Pick<WebGLRenderer, 'render' | 'setRenderTarget'>, into: WebGLRenderTarget): void {
-    if (this.failed || !into.depthTexture || this.share <= 0) return;
+    if (this.failed || (this.share <= 0 || !into.depthTexture) && this.bandShare <= 0) return;
+    // (the depth's part only with a depth texture; the band's on its own otherwise)
+    if (!into.depthTexture) (this.gather.uniforms.gate!.value as Vector2).x = 0;
+    if (this.bandShare <= 0) (this.gather.uniforms.bandK!.value as Vector4).w = 0;
     const hw = Math.max(1, Math.ceil(into.width / 2)), hh = Math.max(1, Math.ceil(into.height / 2));
     if (!this.half || this.half.width !== hw || this.half.height !== hh) {
       this.half?.dispose();

@@ -60,10 +60,16 @@ function fadeIn(id: string): TipFade | null {
 /** The share of the hepatic artery's drawn length it fades in over (2D: 0.28 of its whole run, most of which is not drawn now). */
 export const HEP_FADE_IN = 0.85;
 
+/** The portal branches end, and the hepatic veins begin, in the liver's tissue (the sinusoids between are not drawn): the share of each one's length it fades over. */
+export const LIVER_FADE_OUT: Readonly<Record<string, number>> = { PVH_R_2: 1, PVH_R_1: 0, PVH_L_1: 1 };
+export const LIVER_FADE_IN: Readonly<Record<string, number>> = { RHV_IVC_1: 0.7, MHV_IVC: 0.45, LHV_IVC: 0.45 };
+
 /** The fade of a vessel, or null for one that has none. A tributary fan (`feederHost`, the vein it feeds) fades as its host's FEEDER_FADE_Y says (the azygos's runs out down the figure, never ends in a cap). */
 export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
   if (feederHost) { const yy = FEEDER_FADE_Y_2D[feederHost]; return yy ? { mode: 2, from: y3(yy[0]), to: y3(yy[1]), a0: 1, a1: 0, keep: false, connect: [] } : null; }
   const art = ART_FADE_2D[id];
+  if (!isArtery && LIVER_FADE_OUT[id]) return { mode: 1, from: 1 - LIVER_FADE_OUT[id]!, to: 1, a0: 1, a1: 0, keep: false, connect: [] };
+  if (!isArtery && LIVER_FADE_IN[id]) return { mode: 1, from: 0, to: LIVER_FADE_IN[id]!, a0: 0, a1: 1, keep: false, connect: [] };
   // (the hepatic artery is cut short beside the portal trunk, starts/stub-free: it grows out of nothing over nearly all of what is drawn: starts.ts TRIM)
   if (art?.in) return { mode: 1, from: 0, to: id === 'A_HEP' ? HEP_FADE_IN : art.in, a0: 0, a1: 1, keep: true, connect: [] };
   if (art?.out) return { mode: 1, from: 1 - art.out, to: 1, a0: 1, a1: 0, keep: true, connect: [] };

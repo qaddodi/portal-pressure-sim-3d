@@ -7,8 +7,8 @@
 //     so going in and coming out is the same picture run both ways, and reversing mid-move is the same picture run back.
 import { FOV } from './shots.ts';
 
-/** How long each dive takes (ms): body to lobule 1.6 s, lobule to sinusoid 1.1 s, body straight to the sinusoid the two together (and back). A move that is none of those keeps `fallback`. */
-export const DIVE_BODY_MS = 1600, DIVE_SINUSOID_MS = 1100;
+/** How long each dive takes (ms): body to lobule 1.5 s (2D's LOBULE_MS_MAX), lobule to sinusoid 1.1 s, body straight to the sinusoid the two together (and back). A move that is none of those keeps `fallback`. */
+export const DIVE_BODY_MS = 1500, DIVE_SINUSOID_MS = 1100;
 export type DiveView = 'body' | 'circuit' | 'lobule' | 'sinusoid';
 export function diveMs(from: DiveView, to: DiveView, fallback?: number): number | undefined {
   if (from === to) return fallback;

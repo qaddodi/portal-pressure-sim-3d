@@ -21,10 +21,10 @@ import type { LookId } from '../../looks/looks.ts';
 import type { Course, LobuleNet, P2 as LP2 } from '../lobule/geometry.ts';
 import { LOBULE_R } from '../lobule/shots.ts';
 import { DISC_R, LT_R, RS_N, inletRadius, sinRadius, twigR } from '../lobule/widths.ts';
+import { CASING } from '../vessels/cel-ink.ts';
 import { type InkContext, type Seg, inkAt, sinW } from '../lobule/ink.ts';
 import { lookColours } from '../lobule/lz-colours.ts';
 import { LOBULE_PALETTES } from '../lobule/tones.ts';
-import { DISC_EDGE } from '../lobule/from2d/disc-glsl.generated.js';
 import { cordToneInto } from '../lobule/from2d/lobule-look.generated.js';
 import { paintWorldInto, useTokens } from '../lobule/from2d/lobule-paint.generated.js';
 import { LOBULE_PLATE_FS, LOBULE_PLATE_VS, PLATE_BOX, PLATE_PX, PLATE_S, type PlateState, plateInput, plateKey, plateShape } from '../lobule/plate.ts';
@@ -125,12 +125,12 @@ export class Lobule3D {
     this.ground = mk('ground', { ink: null, vertexColors: false });
     this.cells = mk('hepatocytes', { px: S.LINE_SMALL });
     this.nuclei = mk('nuclei', { ink: null });
-    this.sin = { s0: mk('sinusoids-0', { px: S.LINE_SMALL, flow: true }), s1: mk('sinusoids-1', { px: S.LINE_SMALL, flow: true }), s2: mk('sinusoids-2', { px: S.LINE_SMALL, flow: true }), an: mk('sinusoids-links', { px: S.LINE_SMALL * 0.8, flow: true }) };
-    this.inlets = mk('inlets', { px: S.LINE_SMALL, flow: true });
+    this.sin = { s0: mk('sinusoids-0', { px: S.LINE, flow: true }), s1: mk('sinusoids-1', { px: S.LINE, flow: true }), s2: mk('sinusoids-2', { px: S.LINE, flow: true }), an: mk('sinusoids-links', { px: S.LINE_SMALL, flow: true }) };
+    this.inlets = mk('inlets', { px: S.LINE, flow: true });
     this.twigs = mk('arteriole-twigs', { px: S.LINE_SMALL * 0.8, flow: true });
     this.lt = mk('terminal-lymphatics', { px: S.LINE_SMALL * 0.8, flow: true });
     this.disse = mk('disse', { ink: null });
-    this.bile = mk('canaliculi', { px: S.LINE_SMALL * 0.45, flow: true });
+    this.bile = mk('canaliculi', { px: S.LINE_SMALL * 0.7, flow: true });
     this.mouthPv = mk('portal-venules', { px: S.LINE });
     this.mouthHa = mk('arterioles', { px: S.LINE_SMALL });
     this.mouthBd = mk('ductules', { px: S.LINE_SMALL });
@@ -152,9 +152,16 @@ export class Lobule3D {
     this.marks = new Mesh(new PlaneGeometry(side, side), this.marksMat);
     this.marks.position.z = LZ.marks; this.marks.name = 'lobule3d/marks'; this.marks.frustumCulled = false;
     // draw order: the ground and the tiles, then the marks over them, then every vessel (depth-tested against the tiles)
-    this.ground.renderOrder = -6; this.cells.renderOrder = -5; this.nuclei.renderOrder = -5; this.disse.renderOrder = -5; this.marks.renderOrder = -4;
+    this.ground.renderOrder = -6; this.cells.renderOrder = -5; this.nuclei.renderOrder = -5; this.disse.renderOrder = -5;
     const vessels = [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv];
-    for (const v of vessels) v.renderOrder = -3;
+    // (the flat view's field of neighbour lobules is see-through and so draws after every solid part; the marks, drawn among the solids, were painted over by it outside the hexagon, which
+    // cut the periportal scar off at the edge: Mohammad 20 Nov "it's clipped like at the hexagon". The marks and the vessels draw in the see-through list after the field instead, the vessels
+    // still writing and testing depth, opaque as before)
+    this.marksMat.transparent = true; this.marks.renderOrder = -2;
+    for (const v of vessels) {
+      v.renderOrder = -1;
+      for (const m of [v.toonMesh, v.inkMesh]) if (m) { const mat = m.material as ShaderMaterial; mat.transparent = true; mat.depthWrite = true; }
+    }
     for (const p of [this.ground, this.cells, this.nuclei, this.disse, ...vessels]) this.group.add(p.group);
     this.group.add(this.marks);
     this.buildVessels();
@@ -233,11 +240,11 @@ export class Lobule3D {
     const L = lookColours(look), P = LOBULE_PALETTES[look].tones;
     const gap = L.rgb01('--og-liver-2'), bg = L.text('--stage-bg') ? L.rgb01('--stage-bg') : L.rgb01('--bg');
     this.ground.setTint(groundOf(bg, gap, L.dark));
-    // every outline is 2D's casing over the cell colour (the flat view's rule); the tract's venule, arteriole and ductule and the inlets their own dark edge
-    const ink = tissueInk(look), cellC = cellBase(look);
-    const edge = (e: readonly number[]) => [cellC[0] + (e[0]! - cellC[0]) * 0.92, cellC[1] + (e[1]! - cellC[1]) * 0.92, cellC[2] + (e[2]! - cellC[2]) * 0.92];
-    for (const p of [this.cells, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.twigs, this.lt, this.bile, this.mouthCv, this.mouthLv]) p.setInk(ink);
-    this.mouthPv.setInk(edge(DISC_EDGE.pv)); this.inlets.setInk(edge(DISC_EDGE.in)); this.mouthHa.setInk(edge(DISC_EDGE.ha)); this.mouthBd.setInk(edge(DISC_EDGE.bd));
+    const ink = tissueInk(look);
+    // the hepatocytes keep the tissue's casing; every vessel (sinusoids, inlets, twigs, lymphatics, canaliculi, the tract's mouths, the central vein) the Anatomy's dark line of its own colour
+    this.cells.setInk(ink);
+    const cas = CASING[look].rgb.map((v) => v / 255);
+    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.twigs, this.lt, this.bile, this.mouthCv, this.mouthLv, this.mouthPv, this.inlets, this.mouthHa, this.mouthBd]) p.setVesselInk(cas);
     // the parts of one tone (the lens does not colour them, as in 2D)
     const tone = (k: string) => hexToRgb01((P as Record<string, string>)[k]!);
     this.twigs.setTint(tone('artery')); this.mouthHa.setTint(tone('artery'));
@@ -416,7 +423,8 @@ export class Lobule3D {
       });
       coloured(this.bile, b, null, W, K);
     }
-    // the mouths: each end-on vessel a round opening down into the slab
+    // the mouths: each end-on vessel (venule, arteriole, ductule, lymphatic, central vein) a round wall FULL of its own colour, never an empty cylinder (Mohammad 20 Nov 2026: "the blood vessels
+    // and bile should not look like empty cyllindars, just filll them with the color")
     const mouths = (part: MicroPart, cs: Course[], r: number, seg: Seg | null, vessel = false) => {
       const b = new MeshBuilder(), W: number[] = [], K: number[] = [];
       for (const c of cs) {
@@ -426,10 +434,10 @@ export class Lobule3D {
       for (let v = 0; v < b.count; v++) W.push(seg === 'cv' ? 1 : 0);
       coloured(part, b, seg, W, K);
     };
-    mouths(this.mouthPv, by('pv'), DISC_R.pv, 'pv');
-    mouths(this.mouthHa, by('ha'), DISC_R.ha * HA_K, null);
-    mouths(this.mouthBd, by('bd'), DISC_R.bd * BD_K, null);
-    mouths(this.mouthLv, by('lv'), DISC_R.lv, null);
+    mouths(this.mouthPv, by('pv'), DISC_R.pv, 'pv', true);
+    mouths(this.mouthHa, by('ha'), DISC_R.ha * HA_K, null, true);
+    mouths(this.mouthBd, by('bd'), DISC_R.bd * BD_K, null, true);
+    mouths(this.mouthLv, by('lv'), DISC_R.lv, null, true);
     mouths(this.mouthCv, by('cv'), DISC_R.cv, 'cv', true);
   }
 
@@ -487,7 +495,7 @@ function trimInside(c: Course, r: number): Course {
 export function mouth(b: MeshBuilder, x: number, y: number, r: number, zTop: number, depth: number, K: number[], seg = MOUTH_SEG, vessel = false): void {
   // a vessel (the central vein, Mohammad 20 Nov 2026: "just a void; not a blood vessel"): a wall (the lip, a darker tone of the blood) round a lumen full of blood (a shallow floor in the
   // blood's own colour), not a dark hole
-  if (vessel) { depth *= 0.18; }
+  if (vessel) { depth *= 0.1; }
   const kW = vessel ? 0.7 : 1, kIn = vessel ? [0.82, 0.92, 0.97, 1] : [0.86, 0.74, 0.62, 0.55];
   const lip = Math.max(r * (vessel ? 0.16 : 0.2), 0.004), rows: number[] = [], start = b.count;
   // the profile from outside in: outer wall foot, over the lip, down the inner wall, the floor's edge

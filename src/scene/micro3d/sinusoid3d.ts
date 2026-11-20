@@ -12,7 +12,7 @@
 // Everything reads the flat view's own state (its eased targets, palette, traffic, places), so the two can never disagree: this file draws, the flat view keeps the model, the names and
 // the clock. Every place is 2D's (layout.ts and the copied widths); every colour is 2D's palette for the look. Nothing here is per-pixel painting: the shapes are meshes, cel shaded
 // (cel3d.ts), and only the albumin, the red cells and the pores are rewritten while the view is up.
-import { Group, Matrix4 } from 'three';
+import { Group, Matrix4, type Vector3 } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
 import type { SinusoidView } from '../sinusoid/view.ts';
@@ -24,7 +24,9 @@ import {
 } from './cel3d.ts';
 
 /** How far along the sinusoid (µm each way) the scene is built: past anything the camera can hold (the flat view's reach). */
-export const REACH = 130;
+export const REACH = 200;
+/** The traffic runs this far each way (µm): past the ends' blur, short of the scene's ends, so its density stays 2D's. */
+export const TRAFFIC_REACH = 150;
 /** How far across (µm each way, from the axis): the main plates and, beyond each, one more sinusoid and plate, as 2D repeats them outward. */
 export const ACROSS = 80;
 /** Depths (µm, toward the viewer): the plates' tops, the lining's crest, Disse's floor, the ground under the clefts, the trough's depth as a share of the lumen's half width. */
@@ -33,9 +35,13 @@ export const Z = { cell: 0.55, cellBot: -12.5, bead: 0.5, disse: -1.0, ground: -
 /** How far (µm) the scene stands toward the viewer from the lobule's plate. */
 const LIFT = 8;
 /** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), the lymph streaks' pace against the lymph's own run, and the haze: how far out it takes to be whole (µm) and how deep it goes. */
-const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_RUN = 8, HAZE_K = 0.88;
+const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_RUN = 8, HAZE_K = 0.45;
+/** The focus band's run (µm past the haze's start) to a whole blur (post-dof.ts bandFrame): the next lumen soft, the plate past it gone. The haze is lighter with the blur, so the neighbours' disease still shows. */
+const BLUR_RUN = 9;
+/** The scene's ends: the blur along the sinusoid starts this far (µm) inside each end and is whole this far in. */
+const END_BLUR = [95, 55] as const;
 /** Red cells in this sinusoid's lumen, and in each of the two next ones (beyond the plates). */
-const RBC_N = 34, RBC_FAR = 14, RBC_R = 1.05;
+const RBC_N = 50, RBC_FAR = 20, RBC_R = 1.05;
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -140,8 +146,8 @@ export class Sinusoid3D {
     this.arrows = mk('ends', { px: S.LINE_SMALL });
     this.pores = many('fenestrae', unitSphere(10, 6), 1200, { ink: null });
     this.villi = many('microvilli', unitRod(6), 900, { ink: null });
-    this.fibres = many('collagen', unitRod(6), 400, { ink: null });
-    this.albumin = many('albumin', unitSphere(12, 8), 1400, { px: S.LINE_SMALL });
+    this.fibres = many('collagen', unitRod(6), 800, { ink: null });
+    this.albumin = many('albumin', unitSphere(12, 8), 2000, { px: S.LINE_SMALL });
     this.rbc = many('red-cells', unitRbc(22), RBC_N + 2 * RBC_FAR, { px: S.LINE });
     // (order: the ground first, then the solid shapes; the see-through membrane and the arrows last)
     for (const p of [this.ground, this.disse, this.troughFar, this.trough, this.bead, this.beadLine, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoN, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) this.group.add(p.group);
@@ -158,7 +164,7 @@ export class Sinusoid3D {
    *  which moves with the camera: a pan or a turn slid every albumin and red cell the other way). Off again, the flat view lays its stretch for the screen afresh. */
   pinTraffic(on: boolean): void {
     const f = this.flat;
-    if (on) { f.VW.vis[0] = -REACH; f.VW.vis[1] = REACH; this.pinned = true; }
+    if (on) { f.VW.vis[0] = -TRAFFIC_REACH; f.VW.vis[1] = TRAFFIC_REACH; this.pinned = true; }
     else if (this.pinned) { this.pinned = false; (f as unknown as { screen: unknown }).screen = null; }
   }
   private pinned = false;
@@ -194,6 +200,18 @@ export class Sinusoid3D {
     this.stepArrows(P);
     this.bm.setOpacity(clamp(S.bm, 0, 1) * (dark ? 0.6 : 0.8));
     return true;
+  }
+
+  /** The focus band for the depth of field's band (post-dof.ts bandFrame): two points on this sinusoid's axis, where the blur starts (just past its own plates, as the haze) and where it is
+   *  whole, in world space; returns the strength (0 when the scene is not shown: no blur). */
+  focusBand(a: Vector3, b: Vector3, e0: Vector3, e1: Vector3, ends?: { mid: Vector3; f0: Vector3; f1: Vector3 }): number {
+    if (!this.on || !this.group.visible) return 0;
+    this.group.updateWorldMatrix(true, false);
+    const y0 = this.flat.g.hepIn(0) + UM.hep * 0.45, w = (v: Vector3, x: number, y: number) => this.group.localToWorld(v.set(x, y, 0));
+    w(a, -20, 0); w(b, 20, 0); w(e0, 0, y0); w(e1, 0, y0 + BLUR_RUN);
+    // the two ends melt away well before the scene stops (Mohammad 20 Nov: "don't let me see the end of the sinusoid like that ... blur the ends")
+    if (ends) { w(ends.mid, 0, 0); w(ends.f0, REACH - END_BLUR[0], 0); w(ends.f1, REACH - END_BLUR[1], 0); }
+    return this.fade.value;
   }
 
   // ---- colours -------------------------------------------------------------------------------------------------------------------
@@ -324,9 +342,13 @@ export class Sinusoid3D {
             ellipsoid(nol, x + r * 0.3 * Math.cos(a), Y(yd) + r * 0.3 * Math.sin(a), Z.cell + 0.32, r * 0.13, r * 0.13, 0.12, 0, undefined, 12, 6);
           };
           if (c.bi) { const dx = (c.x1 - c.x0) * 0.17; put(xn - dx, c.nr * 0.8); put(xn + dx, c.nr * 0.8); } else put(xn, c.nr);
-          // the canaliculus on this cell's leading border, half way into the plate: a small capsule across the border
-          const xb = canaliculusAt(j, sd), yb = s * (face(xb) + UM.hep * 0.5);
-          tube(bile, [[xb, Y(yb) - 1.05, Z.cell - 0.45], [xb, Y(yb) + 1.05, Z.cell - 0.45]], () => 0.62, undefined, 10, true);
+          // the canaliculus on this cell's leading border: a slim channel running down the cleft between the two cells over the middle of the plate, tapering to a point at each end
+          // (Mohammad 20 Nov 2026: "the bile ductule here should look better"; it was a short pill across the border)
+          {
+            const M = 14, path: [number, number, number][] = [];
+            for (let i = 0; i <= M; i++) { const v = UM.hep * lerp(0.16, 0.84, i / M); path.push([edgeAt(j, sd, v), Y(s * (face(edgeAt(j, sd, v)) + v)), Z.cell - 0.4]); }
+            tube(bile, path, (i) => 0.5 * Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, (i / M) * 0.9 + 0.05))), 0.45), undefined, 10, true);
+          }
         }
       };
       const seeds: Record<Side, number> = { [-1]: SEED.plateUp, 1: SEED.plateDn } as Record<Side, number>;
@@ -385,6 +407,17 @@ export class Sinusoid3D {
         tube(b, path, (i) => lerp(r0 * (1 + 0.3 * a), 0.1, i / 14), undefined, 8, true);
       }
       ellipsoid(bn, x0, Y(mid(x0) - 0.4 * a), Z.disse + 1.25 + 0.25 * a, 2.1, 0.75 * (1 + 0.3 * a), 0.85, 0, undefined, 16, 8);
+      // one in each neighbour's Disse too (the next Disse past each plate), activated as this one is, a little smaller, away from this one along the flow
+      for (const [s, xo] of [[-1, 21], [1, -27]] as [Side, number][]) {
+        const xf = x0 + xo, sc = 0.8, farMid = (x: number) => s * (g.hepIn(x) + UM.hep + UM.disse * 0.5);
+        ellipsoid(b, xf, Y(farMid(xf)), Z.disse + 0.9, body * sc, thick * sc, (1.1 + 0.3 * a) * sc, 0, undefined, 22, 10);
+        for (const dir of [-1, 1]) {
+          const path: [number, number, number][] = [], len = (18 + 7 * a) * sc;
+          for (let i = 0; i <= 12; i++) { const t = i / 12, x = xf + dir * (body * sc * 0.7 + t * len); path.push([x, Y(farMid(x) + 0.25 * Math.sin(t * 5 + dir)), Z.disse + 0.8 - 0.25 * t]); }
+          tube(b, path, (i) => lerp(0.5 * (1 + 0.3 * a), 0.1, i / 12), undefined, 8, true);
+        }
+        ellipsoid(bn, xf, Y(farMid(xf)), Z.disse + 1.2, 1.7, 0.65 * (1 + 0.3 * a), 0.75, 0, undefined, 14, 8);
+      }
       b.build(this.hsc.geometry); bn.build(this.hscN.geometry);
     }
 
@@ -392,6 +425,8 @@ export class Sinusoid3D {
     {
       const b = new MeshBuilder();
       for (const s of [-1, 1] as Side[]) band(b, xs, (x) => Y(s * (g.wallIn(x) - 0.05)), (x) => Y(s * (g.wallIn(x) + 0.55)), Z.disse + 0.12);
+      // and on the neighbour's lining side of its Disse
+      for (const s of [-1, 1] as Side[]) band(b, xs, (x) => Y(s * (g.hepIn(x) + UM.hep + UM.disse - 0.55)), (x) => Y(s * (g.hepIn(x) + UM.hep + UM.disse + 0.05)), Z.disse + 0.12);
       b.build(this.bm.geometry);
     }
 
@@ -417,6 +452,14 @@ export class Sinusoid3D {
         const xc = x + 3.5 * h, yd = s * lerp(g.wallIn(xc) + 0.5, g.hepIn(xc) - 0.5, k);
         placeAt(this.m4, xc, Y(yd), Z.disse + 0.25 + 0.15 * row, 5 + 3 * h, 0.16 + 0.22 * col, 0.16 + 0.22 * col, 0.08 * (h - 0.5));
         if (h < col * 1.3) this.fibres.setAt(n++, this.m4);
+      }
+      // and in the next Disse past each plate (the neighbour's), fewer and finer: the same disease, more lightly
+      if (col > 0.03) for (const s of [-1, 1] as Side[]) for (let row = 0; row < 2; row++) for (let x = -REACH; x < REACH; x += 8) {
+        if (n >= this.fibres.capacity) break;
+        const k = (row + 0.5) / 2, h = hash(x * 5 + row * 23 + (s > 0 ? 11 : 3));
+        const xc = x + 4 * h, base = g.hepIn(xc) + UM.hep, yd = s * lerp(base + 0.4, base + UM.disse - 0.4, k);
+        placeAt(this.m4, xc, Y(yd), Z.disse + 0.25 + 0.15 * row, 4.5 + 3 * h, 0.14 + 0.2 * col, 0.14 + 0.2 * col, 0.08 * (h - 0.5));
+        if (h < col) this.fibres.setAt(n++, this.m4);
       }
       this.fibres.commit(n);
     }
@@ -456,6 +499,15 @@ export class Sinusoid3D {
       const rr = r * 0.75 * Math.min(1, a * 1.6);
       placeAt(this.m4, x, Y(yd), z, rr, rr, rr);
       this.albumin.setAt(n++, this.m4);
+      // the next sinusoids carry the same disease, more lightly (Mohammad 20 Nov 2026: "fibrosis and proteins and stuff should be on the unfocused sinusoids too ... to a less degree"):
+      // one of every three of this lumen's protein rides in each neighbour, shifted along so the two never mirror
+      if (ay < h && i % 3 === 0) for (const s of [-1, 1] as Side[]) {
+        if (n >= this.albumin.capacity) break;
+        let xf = x + s * 41 + 13 * hash(i * 0.73); if (xf > REACH) xf -= 2 * REACH; else if (xf < -REACH) xf += 2 * REACH;
+        const farH = UM.lum + UM.endo * 0.5, t = Math.min(0.85, ay / h), mid = g.hepIn(xf) + UM.hep + UM.disse + UM.endo + UM.lum;
+        placeAt(this.m4, xf, Y(s * mid + Math.sign(yd || 1) * t * farH * 0.8), -farH * 0.7 * Math.sqrt(1 - t * t) * 0.5 + 0.1, rr * 0.9, rr * 0.9, rr * 0.9);
+        this.albumin.setAt(n++, this.m4);
+      }
     }
     this.albumin.commit(n);
   }
@@ -490,12 +542,13 @@ export class Sinusoid3D {
   /** The streaks: the blood's in every lumen (lighter, at the lanes' speeds, the middle fastest) and the lymph's in Disse (darker, slow, back toward the portal tract), fixed to the tissue. */
   private stepStreaks(P: Pal): void {
     const f = this.flat, flow = f.traffic.flowX, lym = f.traffic.lymX;
-    const blood = mix3(P.cLumen, [1, 1, 1], 0.75), lymph = mix3(P.cLymph, [1, 1, 1], 0.55);
-    this.trough.setStreaks(flow, Math.max(1, f.g.halfW(0)), blood, 0.85, 1);
-    this.troughFar.setStreaks(flow, UM.lum + UM.endo * 0.5, blood, 0.4, 1);
+    const blood = mix3(P.cLumen, [1, 1, 1], 0.42), lymph = mix3(P.cLymph, [1, 1, 1], 0.2);
+    this.trough.setStreaks(flow, Math.max(1, f.g.halfW(0)), blood, 1, 1);
+    this.troughFar.setStreaks(flow, UM.lum + UM.endo * 0.5, blood, 0.5, 1);
     // (the lymph's own run is slow beside the blood's: its streaks go LYMPH_PACE times as fast, so they are seen to move, Mohammad 20 Nov "faster in lymph")
-    // (chevrons, not streaks: the lymph's way reads at a glance, Mohammad 20 Nov "i can't tell that it's flowing"; a negative profile asks the shader for chevrons)
-    this.disse.setStreaks(lym * LYMPH_PACE, UM.disse * 0.5 + 0.5, lymph, 0.85, -1);
+    // (quiet streaks one shade off Disse's own colour, never chevrons: the bold arrowheads that filled the band were wrong, Mohammad 20 Nov "WTF ARE THOSE CHEVRONS"; the shared
+    // streak look of the Anatomy replaces these when it lands)
+    this.disse.setStreaks(lym * LYMPH_PACE, UM.disse * 0.5 + 0.5, lymph, 0.7, 1);
     // the haze: from just past this sinusoid's plates (the next Disse, lining and lumen beyond them) toward the page, whole HAZE_RUN µm further out
     const y0 = f.g.hepIn(0) + UM.hep * 0.6;
     this.haze.uHaze.value.set(y0, y0 + HAZE_RUN, HAZE_K, 0);

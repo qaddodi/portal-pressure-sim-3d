@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { MAPPED, NETWORK_BY_ID, NODE_Z, RUN_ONS } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { TIP_K, buildTubes, buriedRadius, pointFactor, pointLength } from '../src/scene/vessels/tubes.ts';
+import { ORGAN_Z } from '../src/scene/organs/z.ts';
 import { CEIL, NODE_RISE, SMOOTH, UNEQUAL, joinSwell } from '../src/scene/vessels/smooth-joins.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { VESSEL_VS } from '../src/scene/vessels/shaders.ts';
@@ -185,7 +186,7 @@ test('the cava and the SVC end in the right atrium: they run on one monotone slo
     return { zmin, zmax };
   })();
   const ra = NODE_RISE.get('RA')!;
-  assert.ok(ra.z > heart.zmin && ra.z < heart.zmax, `the end depth ${ra.z} is inside the atrium (${heart.zmin} to ${heart.zmax})`);
+  assert.ok(ra.z > heart.zmin + ORGAN_Z['heart-ra']! && ra.z < heart.zmax + ORGAN_Z['heart-ra']!, `the end depth ${ra.z} is inside the atrium (${heart.zmin} to ${heart.zmax})`);
   on(() => {
     const ivc = coursesOf(NETWORK_BY_ID.get('IVCS_RA')!, REST)[0]!.pts, svc = coursesOf(NETWORK_BY_ID.get('SVC_RA')!, REST)[0]!.pts;
     const eI = ivc[ivc.length - 1]!, eS = svc[svc.length - 1]!;
