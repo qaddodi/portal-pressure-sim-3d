@@ -33,7 +33,7 @@ function sinusoidVessel() {
 
 /** What the credit keeps clear of: every floating bar, card and chip on screen (the bottom dock with its view pill, the top bar's chips, the zoom pill, a card), as rectangles. */
 // (the view pill stands above the dock as its child: the dock's own box stops under it, so the pill is named too. Phone play-test, 20 Nov: the credit ran half under the pill.)
-const OBSTACLES = '.float-ui, .stage-blocker, .vdock, .nb-views, .zoom-pill';
+const OBSTACLES = '.float-ui, .stage-blocker, .vdock, .nb-views, .zoom-pill, .dk-bar';   // (.dk-bar: a talk's slide pill)
 function obstacles(vw: number, vh: number): { l: number; t: number; r: number; b: number }[] {
   const out: { l: number; t: number; r: number; b: number }[] = [];
   for (const el of document.querySelectorAll<HTMLElement>(OBSTACLES)) {
@@ -50,7 +50,7 @@ function obstacles(vw: number, vh: number): { l: number; t: number; r: number; b
 /** What a deck's cards hold: each line of their words and each picture, chart or tile, as rectangles. The credit may stand on a card's bare glass (Mohammad, 20 Nov: "(C) over the card is ok"), never on its text:
  *  on the HVPG slides it printed over the words of the card. A corner that these cover rises above them, as it does above a bar. */
 const CARDS = '.pz-shade, .pz-data, .pz-case, .pz-panel';
-const CARD_ART = 'canvas, img, svg, .pz-tool, .pz-tile, .pz-tiles';
+const CARD_ART = 'canvas, img, svg, .pz-tool, .pz-tile, .pz-tiles, .pz-sitetab, .pz-kick, button';
 function cardContent(vw: number, vh: number): { l: number; t: number; r: number; b: number }[] {
   const out: { l: number; t: number; r: number; b: number }[] = [];
   const add = (r: DOMRect) => { if (r.width >= 1 && r.height >= 1 && r.right > 0 && r.bottom > 0 && r.left < vw && r.top < vh) out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom }); };
@@ -60,11 +60,11 @@ function cardContent(vw: number, vh: number): { l: number; t: number; r: number;
     if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.05 || card.closest('[hidden]')) continue;
     const walk = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-      if (!n.nodeValue?.trim() || n.parentElement?.closest('button, [aria-hidden="true"], [hidden], .stage-credit')) continue;
+      if (!n.nodeValue?.trim() || n.parentElement?.closest('[hidden], .stage-credit')) continue;   // (aria-hidden words are drawn words too: the card's tab, CARDIAC, is one)
       range.selectNodeContents(n);
       for (const r of range.getClientRects()) add(r);
     }
-    for (const a of card.querySelectorAll<HTMLElement>(CARD_ART)) { if (!a.closest('button, [hidden]')) add(a.getBoundingClientRect()); }
+    for (const a of card.querySelectorAll<HTMLElement>(CARD_ART)) { if (!a.closest('[hidden]')) add(a.getBoundingClientRect()); }
   }
   return out;
 }
@@ -110,7 +110,13 @@ export function Credit() {
     const late = window.setTimeout(place, 900);   // (a slide's cards come in after their measure and a short fade)
     const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(again) : null;
     for (const e of document.querySelectorAll(OBSTACLES)) ro?.observe(e);
-    return () => { clearTimeout(timer); clearTimeout(hop); clearTimeout(late); ro?.disconnect(); };
+    // a talk's cards come and go (a slide, a page, a card's measure, its fade): look again once each change has settled, and once more after its entry
+    let settle = 0;
+    const changed = () => { again(); clearTimeout(settle); settle = window.setTimeout(place, 1100); };
+    const deck = document.querySelector('.deck-ui');
+    const mo = deck && typeof MutationObserver === 'function' ? new MutationObserver(changed) : null;
+    mo?.observe(deck!, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'data-phase'] });
+    return () => { clearTimeout(timer); clearTimeout(hop); clearTimeout(late); clearTimeout(settle); ro?.disconnect(); mo?.disconnect(); };
   }, [view, slideKey, vp.w, vp.h, vp.safe.bottom, vp.safe.left, vp.safe.top, vp.safe.right, fps, thumb]);
   return <div className="stage-credit" ref={ref} aria-hidden="true">{CREDIT}</div>;
 }

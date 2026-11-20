@@ -223,7 +223,8 @@ export class Sinusoid3D {
     if (!shown) return changed;
     // the dive: the scene comes in over the lobule as the camera lands (the host's own share), whole at rest
     const d = f.dive;
-    this.fade.value = d == null ? 1 : smooth(0.42, 0.86, d);
+    // (a short crossfade, over the last part of the dive where the lobule's tube and this lumen are one width on screen: a long one showed both scenes at once, a ghosted double image, eyes 20 Nov)
+    this.fade.value = d == null ? 1 : smooth(0.6, 0.86, d);
     this.group.position.z = d == null ? 0 : LIFT * U * (1 - smooth(0.86, 1, d));
     const dark = LOOKS[f.look].scheme === 'dark';
     const P = f.pal.palette(dark) as unknown as Pal;
@@ -258,7 +259,7 @@ export class Sinusoid3D {
       const b = new MeshBuilder(), bn = new MeshBuilder();
       // (smaller and see-through, so it sits in the stream without stopping the eye: Mohammad 20 Nov 2026, "a bit transparent translucent and smaller so it's not too disruptive")
       const K = KUP_SCALE, x = f.geo.xk, h = g.halfW(x), yd = h - 2.3 * K, z = -1.6 * K;
-      ellipsoid(b, x, Y(yd), z, 3.0 * K, 2.3 * K, 1.9 * K, 0.2, undefined, 22, 12);
+      ellipsoid(b, x, Y(yd), z, 3.0 * K, 2.3 * K, 1.9 * K, 0.2, undefined, 22, 12, true);
       const arms: [number, number, number][] = [[-1.3, 4.6, 0.1], [-0.55, 5.4, 0.25], [0.25, 3.8, 0.3], [0.85, 5.0, 0.05], [1.4, 3.6, 0.0]];
       arms.forEach(([a, L, dz], k) => {
         const path: [number, number, number][] = [];
@@ -434,7 +435,7 @@ export class Sinusoid3D {
           const c = cellOf(j, sd), xn = lerp(c.x0, c.x1, c.nu), v = c.nv * UM.hep;
           const put = (x: number, r: number) => {
             const yd = s * (face(x) + v);
-            ellipsoid(nuc, x, Y(yd), Z.cell + NUC_LIFT, r, r * 1.08, 0.42, 0, undefined, far ? 14 : 28, far ? 5 : 10);   // (its rim a hair over the cell's top, so its line never shares the cell's depth)
+            ellipsoid(nuc, x, Y(yd), Z.cell + NUC_LIFT, r, r * 1.08, 0.42, 0, undefined, far ? 14 : 28, far ? 6 : 10, true);   // (its rim a hair over the cell's top, so its line never shares the cell's depth)
             if (far) return;
             const a = 1.7 + 2.2 * ((j * 7 + sd) % 5) / 5;
             ellipsoid(nol, x + r * 0.3 * Math.cos(a), Y(yd) + r * 0.3 * Math.sin(a), Z.cell + 0.32, r * 0.13, r * 0.13, 0.12, 0, undefined, 12, 6);
@@ -444,7 +445,7 @@ export class Sinusoid3D {
           // "the bile ductule should be like a circle in between each hepatocyte"; it was a long tapering channel down the border)
           if (!beyond) {
             const v = UM.hep * 0.5, x = edgeAt(j, sd, v);
-            ellipsoid(bile, x, Y(s * (face(x) + v)), Z.cell + 0.1, CANAL_R, CANAL_R, 0.3, 0, undefined, 24, 6);
+            ellipsoid(bile, x, Y(s * (face(x) + v)), Z.cell + 0.1, CANAL_R, CANAL_R, 0.3, 0, undefined, 24, 6, true);
           }
         }
       };
@@ -462,7 +463,7 @@ export class Sinusoid3D {
       for (const [s, nsd] of [[-1, SEED.nucUp], [1, SEED.nucDn]] as [Side, number][]) {
         for (let n = Math.floor(X0 / 38) - 1; n <= Math.ceil(X1 / 38) + 1; n++) {
           const x = nucAt(n, nsd), h = g.halfW(x);
-          ellipsoid(b, x, Y(s * (h - 0.35)), -0.35, 4.6, 1.45, 1.05, 0, undefined, 24, 10);
+          ellipsoid(b, x, Y(s * (h - 0.35)), -0.35, 4.6, 1.45, 1.05, 0, undefined, 24, 10, true);
           ellipsoid(bi, x, Y(s * (h - 0.45)), -0.2, 3.1, 0.82, 0.98, 0, undefined, 18, 8);
         }
       }
@@ -478,7 +479,7 @@ export class Sinusoid3D {
       const a = clamp(S.act, 0, 1), x0 = geo.xs;
       const mid = (x: number) => -(g.wallIn(x) + g.disseW(x) * 0.5 + 0.2);
       const body = 5.2 * (1 + 0.35 * a), thick = 1.25 * (1 + 0.45 * a);
-      ellipsoid(b, x0, Y(mid(x0) - 0.4 * a), Z.disse + 0.9, body, thick, 1.1 + 0.3 * a, 0, undefined, 26, 12);
+      ellipsoid(b, x0, Y(mid(x0) - 0.4 * a), Z.disse + 0.9, body, thick, 1.1 + 0.3 * a, 0, undefined, 26, 12, true);
       for (const dir of [-1, 1]) for (const [len, off, r0] of [[22 + 8 * a, 0, 0.62], [12 + 5 * a, -1.0, 0.42]] as [number, number, number][]) {
         const path: [number, number, number][] = [];
         for (let i = 0; i <= 14; i++) {
@@ -491,7 +492,7 @@ export class Sinusoid3D {
       // one in each neighbour's Disse too (the next Disse past each plate), activated as this one is, a little smaller, away from this one along the flow
       for (const [s, xo] of [[-1, 21], [1, -27]] as [Side, number][]) {
         const xf = x0 + xo, sc = 0.8, farMid = (x: number) => s * (g.hepIn(x) + UM.hep + UM.disse * 0.5);
-        ellipsoid(b, xf, Y(farMid(xf)), Z.disse + 0.9, body * sc, thick * sc, (1.1 + 0.3 * a) * sc, 0, undefined, 22, 10);
+        ellipsoid(b, xf, Y(farMid(xf)), Z.disse + 0.9, body * sc, thick * sc, (1.1 + 0.3 * a) * sc, 0, undefined, 22, 10, true);
         for (const dir of [-1, 1]) {
           const path: [number, number, number][] = [], len = (18 + 7 * a) * sc;
           for (let i = 0; i <= 12; i++) { const t = i / 12, x = xf + dir * (body * sc * 0.7 + t * len); path.push([x, Y(farMid(x) + 0.25 * Math.sin(t * 5 + dir)), Z.disse + 0.8 - 0.25 * t]); }

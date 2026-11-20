@@ -64,6 +64,8 @@ export interface SolveInput {
   lines?: readonly (readonly [number, number, number, number])[];
   /** Discs of vessels seen end-on (a portal venule's, a central vein's): a label never stands on one nor does a leader run across one, except the item that names it (`id`); 2D's lobule keeps the same (lobule-tract-labels.js fanCost). */
   keep?: readonly { id: string; x: number; y: number; r: number }[];
+  /** A cost for each vessel line a label's leader crosses (past the vessel the dot stands on), up to four: a name never hangs from a long leader drawn across the sinusoids when it could stand clear (Circuit, phone and iPad, 20 Nov). 0 or absent: none. */
+  leaderLineCost?: number;
 }
 
 export interface Placement {
@@ -206,7 +208,7 @@ function candidates(it: Anchored, f: Form, wide: boolean): Cand[] {
 }
 
 export function solve(input: SolveInput): Solved {
-  const { view, lines = [], keep = [] } = input;
+  const { view, lines = [], keep = [], leaderLineCost = 0 } = input;
   const blockersAir = input.blockers.map((b) => grow(b, AIR_BLOCKER));
   // (the last resort for a label that must stand: it may touch a card's edge, never lie under it)
   const blockersRaw = input.blockers;
@@ -265,6 +267,12 @@ export function solve(input: SolveInput): Solved {
             const len = Math.hypot(px - it.ax, py - it.ay);
             if (len > (it.reach ?? LONG_LEAD + (it.vw ?? 0) + 10) && c.cost < 100) continue;
             if (len > SHORT_LEAD) pen += (len - SHORT_LEAD) * 0.2;
+            if (leaderLineCost > 0 && len > 1) {
+              const k = Math.min(1, ((it.vw ?? 0) + 4) / len), from: Seg = [seg[0] + (seg[2] - seg[0]) * k, seg[1] + (seg[3] - seg[1]) * k, seg[2], seg[3]];
+              let n = 0;
+              for (const l of lines) if (segsCross(from, [l[0], l[1], l[2], l[3]])) n++;
+              pen += leaderLineCost * Math.min(n, 4);
+            }
             for (const b of blockers) if (crosses(seg[0], seg[1], seg[2], seg[3], b)) { bad = true; break; }
             if (bad) continue;
             for (const p of placedBoxes) if (crosses(seg[0], seg[1], seg[2], seg[3], grow(p.box, 1))) { bad = true; break; }

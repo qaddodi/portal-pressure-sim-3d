@@ -179,23 +179,34 @@ test('no vessel dives at the camera: along every course, depth changes by no mor
   setSmoothJoins(true);
 });
 
-test('a vein draws no outline across the mouth of the side branch that leaves it: its wall is open on the branch\'s side, from where the branch reaches it to where it has cleared it', async () => {
-  const { SIDE_BRANCHES, mouthOf } = await import('../src/scene/vessels/mouth.ts');
-  const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
+test('the two tubes of a fork know each other: every vertex carries its distance from the other tube\'s axis and the other\'s radius, so the outline is the union\'s (no line across the branch\'s mouth, none where the branch\'s own outline has not begun)', async () => {
+  const { SIDE_BRANCHES, forkMateOf, neighbourAttr } = await import('../src/scene/vessels/neighbour.ts');
+  const { VESSEL_FS, VESSEL_VS } = await import('../src/scene/vessels/shaders.ts');
   const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
   const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
   assert.deepEqual([...SIDE_BRANCHES.keys()].sort(), ['PVH_L_1', 'PVH_R_2', 'RHV_IVC_1']);
   for (const [host, kids] of SIDE_BRANCHES) for (const k of kids) {
-    const m = mouthOf(k)!;
-    assert.ok(m && m.u1 > m.u0 && m.u0 >= 0 && m.u1 <= 1 && m.margin > 0 && m.margin <= 0.5 * (m.u1 - m.u0), `${host}: a mouth`);
-    // the branch really leaves on that side: its far end lies on side `side` of the vein's heading
-    const h = coursesOf(B.get(host)!, REST).reduce((a, b) => (b.radius > a.radius ? b : a)), c = coursesOf(B.get(k)!, REST)[0]!;
-    const far = c.pts.reduce((a, p) => { let bj = 0, bd = Infinity; h.pts.forEach((q, j) => { const d = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2; if (d < bd) { bd = d; bj = j; } }); const t = h.pts[Math.min(h.pts.length - 1, bj + 1)]!, t0 = h.pts[Math.max(0, bj - 1)]!; const l = ((t[0] - t0[0]) * (p[1] - h.pts[bj]![1]) - (t[1] - t0[1]) * (p[0] - h.pts[bj]![0])); return Math.abs(l) > Math.abs(a) ? l : a; }, 0);
-    assert.equal(Math.sign(far), m.side, `${host}: the branch leaves on the mouth's side`);
+    assert.equal(forkMateOf(host), k); assert.equal(forkMateOf(k), host);
+    const rad = (id: string): number => coursesOf(B.get(id)!, REST)[0]!.radius;
+    for (const id of [host, k]) {
+      const c = coursesOf(B.get(id)!, REST)[0]!, flat = c.pts.flatMap((p) => [p[0], p[1], p[2]]);
+      const a = neighbourAttr(id, flat)!;
+      assert.equal(a.length, c.pts.length * 2, `${id}: two numbers a vertex`);
+      let inside = 0, outside = 0;
+      for (let i = 0; i < c.pts.length; i++) { const lat = Math.abs(a[i * 2]!), r = a[i * 2 + 1]!; if (r > 0) { if (lat < r) inside++; else outside++; } }
+      assert.ok(inside > 0 && outside > 0, `${id}: part of its axis lies in its mate's lumen and part outside it (${inside} in, ${outside} out)`);
+    }
+    // the branch's start lies on the vein's axis; the vein's axis there lies inside the branch's lumen
+    const kc = coursesOf(B.get(k)!, REST)[0]!, join = (B.get(k)!.plan as unknown as { list: { join: 0 | 1 }[] }).list[0]!.join;
+    const p = kc.pts[join === 0 ? 0 : kc.pts.length - 1]!, a = neighbourAttr(k, [p[0], p[1], p[2]])!;
+    assert.ok(Math.abs(a[0]!) < 0.2 * rad(host), `${k}: its join stands on the vein's axis`);
   }
-  assert.equal(mouthOf('PVH_R_2'), null, 'a vein is not a side branch');
-  assert.match(VESSEL_FS, /uniform vec4 mouth;/);
-  assert.match(VESSEL_FS, /inkT \*= 1\.0 - mouthK;/);
+  assert.equal(forkMateOf('PV_TRUNK'), null);
+  assert.match(VESSEL_VS, /attribute vec2 nbr;/);
+  assert.match(VESSEL_FS, /nbrK = smoothstep\(-0\.5, 0\.5, \(vNbr\.y - abs\(vNbr\.x\)\)/);
+  assert.match(VESSEL_FS, /inkT \*= 1\.0 - nbrK;/);
+  assert.match(VESSEL_FS, /if \(nbrK > 0\.5 && dLat > rDevAx \+ 0\.5\) discard;/);
+  assert.match(VESSEL_FS, /celTubeTone\(base, mix\(sT, 1\.0, nbrK\)/);
 });
 
 test('the bed that continues a vein which branches wears no fork collar (root cause of the fat bulb on the left portal vein in the Circuit: the cut stopped counting the pair as a run-on, so the bed was dressed as a branch on a wall, and the Circuit draws the beds)', async () => {
@@ -221,12 +232,4 @@ test('a hepatic vein is not a tube inside the cava it opens into: the last cava 
   assert.match(VESSEL_VS, /uniform float cavaTail;/);
   assert.match(VESSEL_VS, /fa \*= mix\(pow\(1\.0 - smoothstep\(1\.0 - cavaTail, 1\.0, uv\.x\), 2\.0\), 1\.0, circT\)/);
   assert.match(VESSEL_FS, /if \(vFade < 0\.004\) discard;/);
-});
-
-test('at a fork the vein keeps its outline over the stretch where the branch\'s own outline has not yet begun, and the shade band is lit across the mouth', async () => {
-  const { mouthOf } = await import('../src/scene/vessels/mouth.ts');
-  const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
-  const m = mouthOf('PVH_R_2~F:b')!;
-  assert.ok(m.u0 > 0.23, `the window starts after the branch's start (0.222), at ${m.u0}`);
-  assert.match(VESSEL_FS, /celTubeTone\(base, mix\(sT, 1\.0, mouthK\)/);
 });

@@ -14,6 +14,12 @@ test('the credit looks at the words and art of the cards, and again when the sli
   assert.match(src, /const CARDS = '\.pz-shade, \.pz-data, \.pz-case, \.pz-panel'/);
   assert.match(src, /createTreeWalker\(card, NodeFilter\.SHOW_TEXT\)/);
   assert.match(src, /\[view, slideKey,/);
+  // eb39090 (phone): the credit sat over the card's tab (CARDIAC, an aria-hidden word) and under the slide pill, and was placed before the cards had come in
+  assert.ok(!/closest\('button, \[aria-hidden/.test(src), 'aria-hidden words are drawn words: the card tab is one');
+  assert.match(src, /OBSTACLES = '[^']*\.dk-bar/, 'the talk\'s slide pill is an obstacle');
+  assert.match(src, /\.pz-sitetab/, 'the card tab is art');
+  assert.match(src, /new MutationObserver\(changed\)/, 'it looks again whenever the talk\'s cards change, not on a timer');
+  assert.match(src, /querySelector\('\.deck-ui'\)/);
 });
 test('with the last line of a card at the foot the bottom-left corner rises above it; with room under the words it stays', () => {
   const fig = { l: 0, t: 0, r: 390, b: 844 };

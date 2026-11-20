@@ -41,7 +41,7 @@ test('no two tubes share anything that would merge a crossing: one opaque depth-
   }
   s.dispose();
   assert.match(VESSEL_VS, /float endK = vHi > 0\.001 \? 1\.0 : buryK\(uv\.x \* len \* vU, \(1\.0 - uv\.x\) \* len \* vU\);/, 'the burial reads the declared branch ends only');
-  assert.match(VESSEL_FS, /float endK = vHi > 0\.001 \? 1\.0 : buryK\(vUv\.x \* len \* vU, \(1\.0 - vUv\.x\) \* len \* vU\);/);
+  assert.match(VESSEL_FS, /float endK = vHi > 0\.001 \|\| nbrOn > 0\.5 \? 1\.0 : buryK\(vUv\.x \* len \* vU, \(1\.0 - vUv\.x\) \* len \* vU\);/);
   assert.doesNotMatch(VESSEL_VS + VESSEL_FS, /END_R|mate[01]\.x >= 0\.0 \? (vUv|uv)\.x : 1e9/, 'a run-on or a crossing is never a burial');
 });
 
