@@ -37,6 +37,8 @@ export interface Settings {
   tilt: boolean;
   dof: boolean;
   particles: boolean;
+  /** The lobule and the sinusoid as true 3D scenes (micro3d/): extruded cells and nuclei, round vessels, a cut sinusoid with its lining, Disse and flowing cells. Off: the flat 2D-style views. */
+  micro3d: boolean;
   /** Organ fill (3D only): solid cel-shaded organs (the default since 20 Nov: "I want the organs to be cell shaded") or the see-through wash (adopted 19 Nov, kept as the alternative); solid is (opaque, the page colour pre-mixed, 2D-style 3-tone shade). Mohammad: "It really depends on how it's gonna look". */
   organFill: OrganFill;
   /** Atlas art: Classic (the default) or Atlas, the external artist's organs and vessel courses, loaded only when chosen. */
@@ -51,10 +53,10 @@ interface Store extends Settings {
 const KEY = 'pps3d.settings.v1';
 /** Everything this app stores on the device starts with this, so Reset everything can clear it and nothing else. */
 export const STORAGE_PREFIX = 'pps3d.';
-/** The five "Figure depth" switches (owner, 19 Nov 2026: "Yes do all properly"): a deliberate exception to match-2D, each behind its own switch. All on by default, except blood-cell particles (chevrons stay the flow mark). */
-export const DEPTH_KEYS = ['smoothJoins', 'organDepth', 'tilt', 'dof', 'particles'] as const;
+/** The "Figure depth" switches (owner, 19 Nov 2026: "Yes do all properly"): a deliberate exception to match-2D, each behind its own switch. All on by default, except blood-cell particles (chevrons stay the flow mark). */
+export const DEPTH_KEYS = ['smoothJoins', 'organDepth', 'tilt', 'dof', 'particles', 'micro3d'] as const;
 export type DepthKey = (typeof DEPTH_KEYS)[number];
-export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { smoothJoins: true, organDepth: true, tilt: true, dof: true, particles: false };
+export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { smoothJoins: true, organDepth: true, tilt: true, dof: true, particles: false, micro3d: true };
 export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS, organFill: ORGAN_FILL_DEFAULT, atlasArt: ATLAS_ART_DEFAULT };
 
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
@@ -67,14 +69,14 @@ export function parseSettings(raw: string | null): Settings {
       blur: bool(o.blur, DEFAULTS.blur),
       figureDetail: Number.isInteger(o.figureDetail) && o.figureDetail >= 0 && o.figureDetail < FIGURE_DETAIL.length ? o.figureDetail : DEFAULTS.figureDetail,
       sharpMoving: bool(o.sharpMoving, DEFAULTS.sharpMoving), keys: bool(o.keys, true), showFps: bool(o.showFps, false), showBreakdown: bool(o.showBreakdown, false),
-      smoothJoins: bool(o.smoothJoins, DEPTH_DEFAULTS.smoothJoins), organDepth: bool(o.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(o.tilt, DEPTH_DEFAULTS.tilt), dof: bool(o.dof, DEPTH_DEFAULTS.dof), particles: bool(o.particles, DEPTH_DEFAULTS.particles),
+      smoothJoins: bool(o.smoothJoins, DEPTH_DEFAULTS.smoothJoins), organDepth: bool(o.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(o.tilt, DEPTH_DEFAULTS.tilt), dof: bool(o.dof, DEPTH_DEFAULTS.dof), particles: bool(o.particles, DEPTH_DEFAULTS.particles), micro3d: bool(o.micro3d, DEPTH_DEFAULTS.micro3d),
       organFill: (ORGAN_FILLS as readonly unknown[]).includes(o.organFill) ? o.organFill : ORGAN_FILL_DEFAULT,
       atlasArt: (ATLAS_ARTS as readonly unknown[]).includes(o.atlasArt) ? o.atlasArt : ATLAS_ART_DEFAULT,
     };
   } catch { return { ...DEFAULTS }; }
 }
 const read = (): Settings => { try { return parseSettings(localStorage.getItem(KEY)); } catch { return parseSettings(null); } };
-const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, smoothJoins: s.smoothJoins, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, organFill: s.organFill, atlasArt: s.atlasArt });
+const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, smoothJoins: s.smoothJoins, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, micro3d: s.micro3d, organFill: s.organFill, atlasArt: s.atlasArt });
 const save = (s: Settings) => { try { localStorage.setItem(KEY, JSON.stringify(pick(s))); } catch { /* private window: the choice lasts for this visit */ } };
 
 export const useSettings = create<Store>((set, get) => ({

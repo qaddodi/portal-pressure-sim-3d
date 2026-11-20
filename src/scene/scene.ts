@@ -38,6 +38,8 @@ import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, 
 import { LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L, lobuleShot } from './lobule/shots.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
 import { SinusoidView, diveShare, isPortrait, restScale } from './sinusoid/index.ts';
+import { Sinusoid3D } from './micro3d/sinusoid3d.ts';
+import { Lobule3D } from './micro3d/lobule3d.ts';
 import { framePoint, measureScreen } from './sinusoid/portrait.ts';
 import { U as SIN_UNIT } from './sinusoid/view.ts';
 import { sinusoidBox } from './lobule/shots.ts';
@@ -138,6 +140,10 @@ export class CelScene {
   readonly atlas: AtlasArt;
   readonly lobule: LobuleView;
   readonly sinus: SinusoidView;
+  /** The same two views as true 3D scenes (Settings > Figure depth > 3D lobule and sinusoid): drawn in place of the flat ones while the switch is on; the flat views keep the model, names, taps and clock. */
+  readonly sinus3d: Sinusoid3D;
+  readonly lobule3d: Lobule3D;
+  private micro3d = useSettings.getState().micro3d;
   /** The Circuit: the change between the body and the map, and the map's quarter turn (src/scene/circuit/). */
   readonly circuit = new CircuitView();
   private readonly mapLayer = new MapLayer();
@@ -242,10 +248,14 @@ export class CelScene {
     this.sinFrame.position.set(...SIN_LOCAL); this.sinFrame.scale.setScalar(SIN_REL);
     this.sinFrame.add(this.sinus.group); this.dive.add(this.lobule.group, this.sinFrame); this.scene.add(this.dive, this.mapLayer.group);
     this.lobule.setVisible(false); this.sinus.setVisible(false);
+    this.sinus3d = new Sinusoid3D(this.sinus, this.shared); this.sinus.group.add(this.sinus3d.group);
+    this.lobule3d = new Lobule3D(this.lobule, this.shared); this.lobule.group.add(this.lobule3d.group);
+    this.unMicro = useSettings.subscribe((st, prev) => { if (st.micro3d !== prev.micro3d) { this.micro3d = st.micro3d; this.moving = true; } });
     this.applyLook(this.look);
   }
 
   private unJoins: () => void = () => {};
+  private unMicro: () => void = () => {};
 
   /** The vessels each vessel's ends carry on into, for the shader's live-width easing (smooth joins on); none with it off. */
   private applyMates(): void {
@@ -789,7 +799,9 @@ export class CelScene {
     this.stepSinusDive();
     this.stepCutaway();
     this.stepPortrait();
-    const viewMoving = this.lobule.update(now) || this.sinus.update(now);
+    const lobMoving = this.lobule.update(now), sinMoving = this.sinus.update(now);
+    const lob3 = this.lobule3d.update(this.micro3d), sin3 = this.sinus3d.update(this.micro3d);
+    const viewMoving = lob3 || sin3 || lobMoving || sinMoving;
     const procMoving = this.procs.update(now);
     const diseaseMoving = this.disease.update(now);
     const atlasMoving = this.atlas.update(now);
@@ -857,7 +869,8 @@ export class CelScene {
   }
 
   dispose(): void {
-    this.unJoins();
+    this.unJoins(); this.unMicro();
+    this.sinus3d.dispose(); this.lobule3d.dispose();
     this.lens.dispose();
     this.cells.dispose();
     this.disease.dispose();
