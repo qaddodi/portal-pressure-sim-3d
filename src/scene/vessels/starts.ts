@@ -42,8 +42,7 @@ export function startInOrganShare(id: string, path: readonly P2[]): number {
 export const startOrgan = (id: string): string | null => START_IN_ORGAN[id]?.organ ?? null;
 
 /** The hepatic artery is one tree (Mohammad, 20 Nov: "hepatic artery is not connected to its branches"): the proper hepatic artery runs beside the portal trunk to the hilum, where it splits at a real junction F
- *  (its own last point, the node the left and right arteries start at) into the left one, which runs on under the left portal vein, and the right one, which passes in front of the portal bifurcation (the artery lies anterior
- *  to the vein; a Y cannot reach both arms of another Y without it) to run on over the right portal vein. Each fades out into the liver alongside its portal branch.
+ *  (its own last point, the node the left and right arteries start at) into the left one, which runs on under the left portal vein, and the right one, which passes behind the portal bifurcation (a Y cannot reach both arms of another Y without it) to run on over the right portal vein. Each fades out into the liver alongside its portal branch.
  *
  *  The left and right hepatic arteries run beside their portal branches, a little below them (the portal triad), and cross no vein (Mohammad, 20 Nov: "I want to see the left and right
  *  hepatic artery in anatomy"; "an artery cannot cross the veins"). The left one starts beyond the cava, which the portal vein itself crosses; each fades out with the portal branch. */
