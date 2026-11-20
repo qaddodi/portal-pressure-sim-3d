@@ -51,6 +51,15 @@ export const ALB_RIM_FULL_PX = 8;
  *  FOCUS[1]-FOCUS[2] the sinusoid comes in over the lobule inside that blur (its screen-door fade, which the blur turns into a true dissolve), and over FOCUS[2]-1 it sharpens to its own
  *  focus band: one picture coming into focus, no edge or shape anywhere. Going out it runs back the same way. */
 export const FOCUS = [0.2, 0.45, 0.68] as const;
+/** The focus pull's blur at the dissolve's middle, against the rest's (Mohammad 20 Nov: the blur came in "kinda quickly too strongly"): only as soft as the dissolve needs, eased in with
+ *  a smootherstep from FOCUS[0] so it has no start, peaking at the dissolve's middle, then held while the sinusoid's own band opens over FOCUS[2]-1 and its sides settle to the rest's. */
+export const FOCUS_PEAK = 0.4;
+const smoother = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * t * (t * (t * 6 - 15) + 10); };
+/** The blur's strength at dive share `d` (FOCUS_PEAK at the dissolve's middle, 1 landed, as at rest). */
+export function focusBlur(d: number): number {
+  const mid = (FOCUS[1] + FOCUS[2]) / 2;
+  return d < mid ? FOCUS_PEAK * smoother(FOCUS[0], mid, d) : FOCUS_PEAK + (1 - FOCUS_PEAK) * smoother(FOCUS[2], 1, d);
+}
 /** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), the lymph streaks' pace against the lymph's own run, and the haze: how far out it takes to be whole (µm) and how deep it goes. */
 const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_K = 0.45;
 /** The focus band's run (µm) to a whole blur: from the middle of the first hepatocyte row out to the middle of the next sinusoid's lumen, rising fast at first (post-dof.ts bandCoc eases out), so
@@ -340,7 +349,7 @@ export class Sinusoid3D {
     w(a, -20, 0); w(b, 20, 0); w(e0, 0, y0); w(e1, 0, y0 + BLUR_RUN);
     // the two ends melt away well before the scene stops (Mohammad 20 Nov: "don't let me see the end of the sinusoid like that ... blur the ends")
     if (ends) { w(ends.mid, 0, 0); w(ends.f0, (REACH - END_BLUR[0]) * open, 0); w(ends.f1, Math.max((REACH - END_BLUR[1]) * open, (REACH - END_BLUR[0]) * open + 2), 0); }
-    return d == null ? this.fade.value : smooth(FOCUS[0], FOCUS[1], d);
+    return d == null ? this.fade.value : focusBlur(d);
   }
 
   // ---- colours -------------------------------------------------------------------------------------------------------------------
