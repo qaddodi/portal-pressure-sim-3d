@@ -4,6 +4,7 @@ import { cardZoom } from '../cards/card-zoom.ts';
 import { useShell } from '../shell/store.ts';
 import { clickerKey, addDigit, DIGIT_MS, type ClickAct } from './clicker.ts';
 import { leaveTalk } from '../shell/talk.ts';
+import { finishTalk } from '../cards/finish.ts';
 import { openPresenterView } from './presenter-link.ts';
 import { W } from './words.ts';
 import { createLaser, type Laser } from './laser.ts';
@@ -58,7 +59,7 @@ function carryOut(a: ClickAct, ui: ReturnType<typeof useUi.getState>, sh: Return
   switch (a.type) {
     case 'digit': { const v = addDigit(d.digits(), a.digit); d.set(v); sh.say(W.slideNumber(v)); break; }
     case 'go': d.clear(); ui.go(Math.min(a.stop, ui.stops.length - 1)); break;
-    case 'move': if (a.to === 'next' && atEnd(ui)) leaveTalk(); else ui.move(a.to); break;
+    case 'move': if (a.to === 'next' && atEnd(ui)) finishTalk(); else ui.move(a.to); break;
     case 'swap': ui.swapWallet(); break;
     case 'black': ui.setBlack(); break;
     case 'full': toggleFull(); break;

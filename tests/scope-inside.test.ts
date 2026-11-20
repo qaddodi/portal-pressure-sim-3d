@@ -79,3 +79,35 @@ test('devices draw in the blended list, after the whole opaque one (the organs\'
   const o = new DeviceObject(allocTube(8, 8), 'poly', createShared(), {}, 'ink');
   for (const a of [1, 0.5, 1]) { o.setAlpha(a); assert.equal(o.toon.transparent, true); assert.equal(o.ink.transparent, true); assert.equal(o.toon.depthWrite, false); }
 });
+
+test('a free end fades out as a gradient: the scope\'s top and a catheter\'s lead-in take the tail fade, and the plain scope stops above the junction', async () => {
+  const { DeviceObject, TAIL_UNITS } = await import('../src/scene/devices/device-object.ts');
+  const { allocTube } = await import('../src/scene/devices/tube-rings.ts');
+  const { createShared } = await import('../src/scene/materials/cel.ts');
+  const { workD, scopeWay, SCOPE_UP } = await import('../src/scene/devices/probes/scope.ts');
+  const o = new DeviceObject(allocTube(8, 8), 'poly', createShared(), {}, 'ink');
+  assert.match(o.toon.fragmentShader, /alpha \* tailK\(vUv\.x\)/);
+  assert.match(o.ink.fragmentShader, /\* alpha \* tailK\(vU\)/);
+  o.setTailFade(0.2);
+  assert.equal((o.toon.uniforms.tailFade as { value: number }).value, 0.2);
+  assert.equal((o.ink.uniforms.tailFade as { value: number }).value, 0.2);
+  o.setTailFade(5); assert.equal((o.toon.uniforms.tailFade as { value: number }).value, 1);
+  assert.ok(TAIL_UNITS >= 80);
+  assert.ok(Math.abs(workD('scope', 'pv') - (scopeWay().cardiaD - SCOPE_UP)) < 1e-6);
+  const src = (p: string) => readFileSync(new URL(`../src/scene/devices/${p}`, import.meta.url), 'utf8');
+  assert.match(src('probes/scope.ts'), /shaft\.setTailFade\(/);
+  assert.match(src('catheters/proc-catheter.ts'), /\[this\.shaft, this\.needle, this\.wire\]\) o\.setTailFade\(/);
+});
+
+test('a soft light at the scope\'s tip fades in over about a second and follows the tip', async () => {
+  const { EndoScope, GLOW_MS, GLOW_R, workD } = await import('../src/scene/devices/probes/scope.ts');
+  const { createShared } = await import('../src/scene/materials/cel.ts');
+  const sc = new EndoScope(createShared());
+  const glow = () => (sc as unknown as { glowMesh: { visible: boolean }; glowMat: { opacity: number } });
+  for (let t = 0; t < 12000 && !(Math.abs(sc.d - workD('scope', 'pv')) < 1e-3); t += 16) sc.update(16, true, 'scope', 'pv');
+  const early = glow().glowMat.opacity;
+  for (let t = 0; t < GLOW_MS + 100; t += 16) sc.update(16, true, 'scope', 'pv');
+  assert.ok(glow().glowMesh.visible, 'the light is shown on the figure');
+  assert.ok(glow().glowMat.opacity > 0.99, `fully up after ${GLOW_MS} ms (was ${early.toFixed(2)})`);
+  assert.ok(GLOW_R > 6, 'wider than the scope');
+});

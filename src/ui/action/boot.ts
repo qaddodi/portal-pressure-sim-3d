@@ -43,12 +43,18 @@ export function startActions(): () => void {
   const outline = (sel: ReturnType<typeof useSelection.getState>['sel']) => sceneApi.selectOrgans(sel?.type === 'organ' ? MESHES_OF[sel.id] ?? [] : []);
   outline(useSelection.getState().sel);
   off.push(useSelection.subscribe((s, prev) => { if (s.sel !== prev.sel) outline(s.sel); }));
+  // the lobule's tapped part is marked while its card is the selection (and let go when the card goes)
+  const mark = () => sceneApi.markLobule(useSelection.getState().sel?.type === 'lobule' ? useLobulePick.getState().hit : null);
+  off.push(useSelection.subscribe((s, prev) => { if (s.sel !== prev.sel) mark(); }));
+  // (two sinusoids are one card, so a tap from one to the other changes the mark but not the selection)
+  const markTap = useLobulePick.subscribe(() => mark());
   // a tap on the lobule: its part's card (2D hitInto), and a second tap on the same part puts it away; a tap on nothing clears a lobule card
   off.push(useLobulePick.subscribe((s) => {
     const cur = useSelection.getState().sel, p = s.picked;
     if (!p) { if (cur?.type === 'lobule') selectStructure(null); return; }
     selectStructure(cur?.type === 'lobule' && cur.part === p.part && cur.zone === p.zone ? null : p);
   }));
+  off.push(markTap);
   // a structure selected on a phone puts Treat away (2D onSelect)
   off.push(useSelection.subscribe((s, prev) => { if (s.sel && s.sel !== prev.sel && isPhone(useUi.getState().device) && useTreat.getState().open) useTreat.getState().setOpen(false); }));
   // a phone has room for one sheet (2D openPanel, openTreat): the Tests card coming up puts Treat away (Treat's Paracentesis opens Ascites), and Treat coming up puts Tests away

@@ -22,7 +22,8 @@ export function allocTube(n: number, radial: number): BufferGeometry {
   let k = 0;
   for (let i = 0; i < n - 1; i++) for (let j = 0; j < radial; j++) {
     const a = i * (radial + 1) + j, b = a + radial + 1;
-    idx[k++] = a; idx[k++] = b; idx[k++] = a + 1; idx[k++] = a + 1; idx[k++] = b; idx[k++] = b + 1;
+    // (counter-clockwise seen from outside: the toon pass draws front faces and the ink hull back faces; wound the other way the far wall was drawn in colour and the near wall in ink, a hollow tube)
+    idx[k++] = a; idx[k++] = a + 1; idx[k++] = b; idx[k++] = a + 1; idx[k++] = b + 1; idx[k++] = b;
   }
   g.setIndex(new BufferAttribute(idx, 1));
   return g;

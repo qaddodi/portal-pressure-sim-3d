@@ -141,7 +141,7 @@ function SceneBridge() {
       tap: (x, y, touch) => {
         if (cel.view === 'sinusoid' && sinusoidTap(x, y, useDeck.getState().mode === 'deck')) return;   // (2D's explain rule: a tap on a sinusoid name, in a talk: sinusoid/explain-store.ts)
         if (useDeck.getState().mode !== 'free') return;
-        if (cel.view === 'lobule') { const h = cel.pickLobule(x, y, raycaster.current); lobulePicked(h ? lobuleSel(h) : null); return; }   // (the lobule's parts, by 2D's own rule: lobule/pick.ts)
+        if (cel.view === 'lobule') { const h = cel.pickLobule(x, y, raycaster.current); lobulePicked(h ? lobuleSel(h) : null, h); return; }   // (the lobule's parts, by 2D's own rule: lobule/pick.ts)
         // a station's label above the figure takes the tap first and opens the structure it stands for (2D's label is a button over the stage: src/ui/action/label-tap.ts)
         const node = cel.view === 'body' ? labelAt(x, y) : null;
         tapSelect((node ? labelHit(node) : null) ?? cel.pickTargetAt(x, y, raycaster.current, !!touch), { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: cel.view === 'body' });

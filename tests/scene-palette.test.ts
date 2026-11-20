@@ -23,8 +23,13 @@ test('Soft carries the deeper vessel tones the owner accepted', () => {
   assert.equal(PALETTES.soft.tones.sys, '#3A74B8');
 });
 
-test('highlight is white on the dark looks and half the vessel tone on the light ones', () => {
-  for (const id of ['dark', 'navy', 'black'] as const) assert.equal(highlightColour(PALETTES[id], 'portal'), '#FFFFFF');
+test('highlight is the vessel tone lifted toward white (never pure white) on the dark looks and half the vessel tone on the light ones', () => {
+  for (const id of ['dark', 'navy', 'black'] as const) for (const tone of ['portal', 'sys'] as const) {
+    const h = highlightColour(PALETTES[id], tone), t = PALETTES[id].tones[tone];
+    assert.notEqual(h.toUpperCase(), '#FFFFFF', `${id} ${tone}`);
+    const hv = hexToRgb255(h), tv = hexToRgb255(t);
+    for (let i = 0; i < 3; i++) assert.ok(hv[i]! >= tv[i]!, `${id} ${tone} channel ${i} is lifted`);
+  }
   assert.equal(highlightColour(PALETTES.light, 'portal'), '#5c1938');
 });
 
