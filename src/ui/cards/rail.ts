@@ -151,7 +151,10 @@ export function createRail(clock: Clock = theClock) {
     leave(els: Styled[], o: { dir: Dir; dist?: number; par?: number; reduce?: boolean; done?: () => void }) {
       const par = o.par ?? 1, from = here(els, par);
       if (o.reduce) { start(els, 'out', from, { x: from.x, o: 0 }, D_SMALL, 0, 1, o.done); return; }
-      start(els, 'out', from, { x: (-o.dir * THROW_OUT) / par, o: 0 }, OUT_MS, 0, par, o.done);
+      // A finger's place is carried ON the way it was going: a card dragged 120 px left goes on left, never back toward a fixed end (that put its end at 56 px, so a card the finger had taken further
+      // went left, then drifted right as it faded: Mohammad, 20 Nov, "it goes to the left then bounces right before disappearing"). From its own place, or a drag the other way, it is the usual 56 px.
+      const by = (-o.dir * THROW_OUT) / par;
+      start(els, 'out', from, { x: Math.sign(from.x) === Math.sign(by) ? from.x + by : by, o: 0 }, OUT_MS, 0, par, o.done);
     },
     /** A card let go short of a swipe eases back to its place from where the finger left it. */
     back(els: Styled[], x: number, o: number, par = 1) { start(els, 'back', { x, o }, { x: 0, o: 1 }, BACK_MS, 0, par); },

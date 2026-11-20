@@ -3,19 +3,19 @@
 // 2D deck's own fields by batch B13b (src/decks/hp), exactly as every other ported deck; their numbers, like the slice's, come from each slide's own state.
 
 import { HVPG_COPIED } from './hvpg.copied.ts';
-import type { Deck, Slide, ShotName, ReadingKey } from './schema.ts';
+import type { Deck, Slide, ShotName } from './schema.ts';
 import { DECK as HVPG_2D } from './hp/data/hvpg.copied.ts';
 import { toDeck } from './hp/deck.ts';
 
-interface Plate { shot: ShotName; ladder?: { rows: ReadingKey[]; result?: 'hvpg' }; model?: { preset: string } }
+interface Plate { shot: ShotName; model?: { preset: string } }
 
-/** What the 3D adds to each copied slide. The ladder grows with the teaching: the free slide shows what is free, the wedge adds the wedged
- *  pressure, the result slide adds the subtraction. The route slide has no data card (nothing is measured yet). */
+/** What the 3D adds to each copied slide. The route slide has no data card (nothing is measured yet). */
 const THREE_D: Record<string, Plate> = {
   route: { shot: 'route', model: { preset: 'csph' } },   // (the patient the talk opens on, as the 2D deck's `preset`)
-  free: { shot: 'free', ladder: { rows: ['ivc', 'fhvp'] } },
-  wedge: { shot: 'wedge', ladder: { rows: ['ivc', 'fhvp', 'whvp'] } },
-  hvpg: { shot: 'hvpg', ladder: { rows: ['whvp', 'fhvp', 'ivc'], result: 'hvpg' } },
+  // (the three catheter slides carry the HVPG monitor, not a pressures ladder: 2D's card for them is the one instrument, so the free and the wedge slide are the SAME card and the tracing runs on across the Next that inflates the balloon, card-keep.js)
+  free: { shot: 'free' },
+  wedge: { shot: 'wedge' },
+  hvpg: { shot: 'hvpg' },
 };
 
 /** The shot of the title stop (the whole plate, settling slowly) and of the quick check (the figure stays where the result left it). */

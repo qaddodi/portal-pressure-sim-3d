@@ -548,7 +548,7 @@ void main() {
   if (wedge.x > 0.001 && circT < 0.001) {
     float wa = wedge.x * (1.0 - smoothstep(wedge.y - 0.08, wedge.y, vUv.x));
     wa *= mix(1.0, smoothstep(0.0, max(wedge.z, 0.001), vUv.x), wedge.w);
-    c = mix(c, wedgeCol, 0.6 * wa);
+    c = mix(c, wedgeCol, 0.78 * wa);
   }
   gl_FragColor = vec4(c, vFade);
 }`;

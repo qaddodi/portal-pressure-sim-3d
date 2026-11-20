@@ -11,7 +11,8 @@ for (const kind of ['hvpg']) {
     const r3 = route3d(kind)!, r = r3.route, U = UNITS_PER_SCENE, step = r3.rc * U * 1.2;
     const a = new Vector3(), b = new Vector3();
     let worst = 0;
-    for (let d = step; d < r.total - step; d += step) {
+    // (only the stretch the shaft lies on: it ends at the tip, and the route runs on past it into a branch the catheter never enters)
+    for (let d = step; d < r.free - step; d += step) {
       r3.dir(d - step, a); r3.dir(d + step, b);
       worst = Math.max(worst, Math.acos(Math.min(1, a.dot(b))));
     }

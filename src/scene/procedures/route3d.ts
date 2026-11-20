@@ -50,6 +50,8 @@ export interface Route3D {
   /** the scene point at length d, and the unit direction there */
   point(d: number, out?: Vector3): Vector3;
   dir(d: number, out?: Vector3): Vector3;
+  /** the scene point at length d ON the vessel's own centreline (the shaft is rounded off it at the corners; a balloon that fills the lumen is not) */
+  centre(d: number, out?: Vector3): Vector3;
   /** the vessel's lumen radius at d, in scene units */
   lumen(d: number): number;
   /** the catheter's radius, scene units */
@@ -76,21 +78,28 @@ export const BEND_RADII = 6;
 export const SAFE = 0.92;
 /** Rounds the route's corners in place: moves each sample (offX, offY, z) toward the Gaussian-smoothed path, by no more than SAFE of its vessel's room beyond the shaft. Ends and stretches with no room stay put. */
 export function smoothBends(r: Route, rc: number, z: Float32Array, offX: Float32Array, offY: Float32Array): void {
-  const n = r.pts.length, U = UNITS_PER_SCENE, sigma = Math.max(rc * U * BEND_RADII, 1e-6), reach = sigma * 2.6;
-  const X = new Float64Array(n), Y = new Float64Array(n), Z = new Float64Array(n);
-  for (let i = 0; i < n; i++) { X[i] = x3(r.pts[i]![0]) + offX[i]!; Y[i] = y3(r.pts[i]![1]) + offY[i]!; Z[i] = z[i]!; }
+  const n = r.pts.length, U = UNITS_PER_SCENE, sig0 = Math.max(rc * U * BEND_RADII, 1e-6);
+  const X = new Float64Array(n), Y = new Float64Array(n), Z = new Float64Array(n), room = new Float64Array(n);
+  for (let i = 0; i < n; i++) { X[i] = x3(r.pts[i]![0]) + offX[i]!; Y[i] = y3(r.pts[i]![1]) + offY[i]!; Z[i] = z[i]!; room[i] = Math.max(0, (r.rad[i] ?? 0) / U - rc) * SAFE; }
+  // The room to move off the centreline can change no faster than a bend allows (ROOM_SLOPE per unit of path): a corner from a wide vein (the cava) into a narrow one (a renal or hepatic vein) is then entered along
+  // an arc that begins in the wide vein, instead of a sharp turn at the node where the room drops at once.
+  for (let i = 1; i < n; i++) room[i] = Math.min(room[i]!, room[i - 1]! + (ROOM_SLOPE * (r.cum[i]! - r.cum[i - 1]!)) / U);
+  for (let i = n - 2; i >= 0; i--) room[i] = Math.min(room[i]!, room[i + 1]! + (ROOM_SLOPE * (r.cum[i + 1]! - r.cum[i]!)) / U);
   for (let i = 0; i < n; i++) {
-    const room = Math.max(0, (r.rad[i] ?? 0) / U - rc) * SAFE;
-    if (room < 1e-6) continue;
+    if (room[i]! < 1e-6) continue;
+    // the bend radius is at least the shaft's, and about the vein's own width where the vein is wide
+    const sigma = Math.max(sig0, (r.rad[i] ?? 0) * 0.9), reach = sigma * 2.6;
     let sx = 0, sy = 0, sz = 0, w = 0;
     for (let j = i; j >= 0 && r.cum[i]! - r.cum[j]! <= reach; j--) { const k = Math.exp(-((r.cum[i]! - r.cum[j]!) ** 2) / (2 * sigma * sigma)); sx += X[j]! * k; sy += Y[j]! * k; sz += Z[j]! * k; w += k; }
     for (let j = i + 1; j < n && r.cum[j]! - r.cum[i]! <= reach; j++) { const k = Math.exp(-((r.cum[j]! - r.cum[i]!) ** 2) / (2 * sigma * sigma)); sx += X[j]! * k; sy += Y[j]! * k; sz += Z[j]! * k; w += k; }
     let dx = sx / w - X[i]!, dy = sy / w - Y[i]!, dz = sz / w - Z[i]!;
     const m = Math.hypot(dx, dy, dz);
-    if (m > room) { const f = room / m; dx *= f; dy *= f; dz *= f; }
+    if (m > room[i]!) { const f = room[i]! / m; dx *= f; dy *= f; dz *= f; }
     offX[i] = offX[i]! + dx; offY[i] = offY[i]! + dy; z[i] = z[i]! + dz;
   }
 }
+/** How fast the room to cut a corner may change along the path (scene units per scene unit of path): about 27 degrees. */
+export const ROOM_SLOPE = 0.5;
 
 const kept = new Map<string, Route3D>();
 export function route3d(kind: string): Route3D | null {
@@ -123,7 +132,8 @@ export function route3d(kind: string): Route3D | null {
   // ROUNDED CORNERS (20 Nov 2026): snapping each sample to its vessel's centreline leaves a sharp elbow where one vessel turns into the next (the cava into a hepatic vein), and a tube swept
   // through an elbow kinks. The path is smoothed along its arc length with a Gaussian whose width is a minimum bend radius (BEND_RADII catheter radii), and each sample may move off the
   // centreline only as far as the lumen has room beyond the shaft (SAFE of it), so the catheter takes a generous bend and still lies wholly inside its vessel at any tilt.
-  const rcS = (kind === 'hvpg' ? Math.max(0.5, routeAt(r, r.free, { p: [0, 0], t: [1, 0], w: [0, 0], r: 0 }).r * 0.27) : catheterRadius(r)) / UNITS_PER_SCENE;
+  const rcS = (kind === 'hvpg' ? Math.max(0.5, routeAt(r, r.free, { p: [0, 0], t: [1, 0], w: [0, 0], r: 0 }).r * 0.27) : catheterRadius(r) * 0.8) / UNITS_PER_SCENE;
+  const z0 = Float32Array.from(z), offX0 = Float32Array.from(offX), offY0 = Float32Array.from(offY);   // (the vessels' own centreline, before the bends are rounded: what a device that fills the lumen sits on)
   smoothBends(r, rcS, z, offX, offY);
   const pos = r.pts.map((p, i) => new Vector3(x3(p[0]) + offX[i]!, y3(p[1]) + offY[i]!, z[i]!));
   const bracket = (d: number): [number, number] => {
@@ -137,11 +147,16 @@ export function route3d(kind: string): Route3D | null {
   const offAt = (d: number, o: Vector3): Vector3 => { const [i, u] = bracket(d); return o.set(o.x + offX[i - 1]! + (offX[i]! - offX[i - 1]!) * u, o.y + offY[i - 1]! + (offY[i]! - offY[i - 1]!) * u, o.z); };
   const pt = { p: [0, 0] as [number, number], t: [1, 0] as [number, number], w: [0, 0] as [number, number], r: 0 };
   const A = new Vector3(), B = new Vector3();
+  const centre = (d: number, o = new Vector3()): Vector3 => {
+    routeAt(r, d, pt); const [i, u] = bracket(d);
+    const zz = z0[i - 1]! + (z0[i]! - z0[i - 1]!) * u;
+    return o.set(x3(pt.p[0]) + offX0[i - 1]! + (offX0[i]! - offX0[i - 1]!) * u, y3(pt.p[1]) + offY0[i - 1]! + (offY0[i]! - offY0[i - 1]!) * u, zz);
+  };
   const point = (d: number, o = new Vector3()): Vector3 => { routeAt(r, d, pt); return offAt(d, o.set(x3(pt.p[0]), y3(pt.p[1]), zAt(d))); };
   const out: Route3D = {
     route: r, z, pos,
     tipD: (u) => r.start + (r.free - r.start) * Math.min(1, Math.max(0, u)),
-    point,
+    point, centre,
     // the direction is the path's own (a difference across the smoothed samples), so a ring's frame follows the bend the tube is swept through
     dir(d, o = new Vector3()) {
       const e = 2.4, lo = Math.max(0, d - e), hi = Math.min(r.total, d + e);

@@ -68,12 +68,15 @@ function useFreeCamera() {
     const base = viewRoom(useShell.getState().view, vp, layoutClass(thumb)), r = panRoom(base, testsPlace), b = bias.current;
     return { base, room: { x: r.x + b.x, y: r.y + b.y, w: r.w, h: r.h } };
   };
+  const lastScreen = useRef('');
   useEffect(() => {
     if (mode !== 'free' || vp.w <= 0) { entered.current = false; return; }
     if (!testsPlace) bias.current = { x: 0, y: 0 };   // (the card is away: the figure's own room again)
     const { room } = roomNow();
     if (room.w <= 0 || room.h <= 0) return;
-    if (!entered.current) { entered.current = true; showView(useShell.getState().view); } else sceneApi.setRoom(room);
+    // (the screen changed (size, the phone turned): the figure is fitted again; a card or a sheet alone only pans it, never zooms it out (owner, 20 Nov))
+    const screen = `${vp.w}x${vp.h}:${thumb}`, refit = screen !== lastScreen.current; lastScreen.current = screen;
+    if (!entered.current) { entered.current = true; showView(useShell.getState().view); } else sceneApi.setRoom(room, undefined, false, refit);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, vp, thumb, testsPlace]);
   useEffect(() => {

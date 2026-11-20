@@ -1,7 +1,6 @@
 // The view pills (Circuit, Anatomy, Lobule, Sinusoid) and what a tap on one does, as the 2D app does it (view-tap.js and main.js wireViewSeg):
 //  - a second tap on the active view refits it (Mohammad, 17 Nov: "Second tap on active view = refit");
-//  - the Sinusoid pill shows only while the lobule (or the sinusoid) is the view, and keeps the full view pill (17 Nov midday);
-//  - from the sinusoid, a tap on Anatomy or Circuit leaves it for that view; a tap on Lobule steps out to the lobule;
+//  - the pill shows the current view and its neighbours on the path Circuit - Anatomy - Lobule - Sinusoid (20 Nov: Circuit has Anatomy, Anatomy has Circuit and Lobule, Lobule has Anatomy and Sinusoid, Sinusoid has Lobule);
 //  - A turns the figure between Anatomy and Circuit (not in the sinusoid).
 import { UI } from '../strings.generated.ts';
 
@@ -17,8 +16,17 @@ export function tapView(tapped: ViewId, cur: ViewId): ViewTap {
   return { type: 'go', view: tapped, from: cur };
 }
 
-/** The Sinusoid pill is there only while the lobule or the sinusoid is up. */
-export const pillHidden = (id: ViewId, cur: ViewId): boolean => id === 'sinusoid' && cur !== 'lobule' && cur !== 'sinusoid';
+/** The views as a path, in the pill's order: Circuit - Anatomy - Lobule - Sinusoid. A view is one step from the one beside it, and no more (Mohammad, 20 Nov). */
+export const VIEW_PATH: readonly ViewId[] = ['circuit', 'anatomic', 'lobule', 'sinusoid'];
+
+/** The views one step from `cur` along the path: Circuit has Anatomy; Anatomy has Circuit and Lobule; Lobule has Anatomy and Sinusoid; Sinusoid has Lobule. */
+export function neighbours(cur: ViewId): ViewId[] {
+  const i = VIEW_PATH.indexOf(cur);
+  return [VIEW_PATH[i - 1], VIEW_PATH[i + 1]].filter((v): v is ViewId => !!v);
+}
+
+/** The pill shows the view it is on, selected, and its neighbours; nothing else (one rule for every view). */
+export const pillHidden = (id: ViewId, cur: ViewId): boolean => id !== cur && !neighbours(cur).includes(id);
 
 /** The A key: Anatomy and Circuit turn into each other; nothing from the lobule or the sinusoid views (the 2D app's key does not apply there either). */
 export function toggleKey(cur: ViewId): ViewId | null {
