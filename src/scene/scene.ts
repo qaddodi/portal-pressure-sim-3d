@@ -1207,6 +1207,14 @@ export class CelScene {
       { id: 'dive', label: 'Lobule and sinusoid', objects: () => [this.dive] },
     ];
   }
+  private inspectSolo = new Set<string>();
+  private inspectMute = new Set<string>();
+  /** Solo and mute by vessel id (`?inspect`, the panel's vessel list): with a solo set only those are drawn, a muted one never; a junction skin is drawn while any of its arms is. */
+  setInspectVessels(solo: readonly string[], mute: readonly string[]): void { this.inspectSolo = new Set(solo); this.inspectMute = new Set(mute); this.moving = true; clock.invalidate('inspect'); }
+  /** Every vessel the scene has (id, kind, label), and whether it is drawn now, for the panel's list. */
+  inspectVesselList(): readonly { id: string; kind: string; label: string; drawn: boolean }[] {
+    return NETWORK.map((v) => ({ id: v.id, kind: v.kind, label: v.label, drawn: this.presence.isDrawn(v.id) }));
+  }
   /** Shows or hides one of `inspectLayers` (drawn or not; what the scene itself shows and hides is not touched: the flag is put on for the draw and taken off after it). */
   setInspectShown(id: string, shown: boolean): void { if (shown) this.inspectHidden.delete(id); else this.inspectHidden.add(id); this.moving = true; clock.invalidate('inspect'); }
   isInspectShown(id: string): boolean { return !this.inspectHidden.has(id); }
@@ -1221,8 +1229,13 @@ export class CelScene {
   }
   /** Before the draw: the hidden layers' flags go off and the wired layers' materials are set; returns what puts the flags back, or null when the inspector asked for nothing. */
   private inspectBegin(): (() => void) | null {
-    if (!this.inspectHidden.size && !this.inspectWired.size) return null;
+    if (!this.inspectHidden.size && !this.inspectWired.size && !this.inspectSolo.size && !this.inspectMute.size) return null;
     const back: Object3D[] = [];
+    if (this.inspectSolo.size || this.inspectMute.size) {
+      const shown = (id: string | undefined) => !!id && !this.inspectMute.has(id) && (!this.inspectSolo.size || this.inspectSolo.has(id));
+      for (const o of this.vessels) if (o.group.visible && !shown(o.edge?.id)) { o.group.visible = false; back.push(o.group); }
+      for (const s of this.skins?.drawnArms() ?? []) if (s.object.visible && !s.arms.some(shown)) { s.object.visible = false; back.push(s.object); }
+    }
     for (const l of this.inspectLayers()) {
       const hide = this.inspectHidden.has(l.id), wire = this.inspectWired.has(l.id);
       if (!hide && !wire) continue;

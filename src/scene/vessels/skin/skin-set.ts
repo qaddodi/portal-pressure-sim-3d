@@ -204,6 +204,8 @@ export class SkinSet {
   get nodes(): readonly string[] { return this.drawn.map((b) => b.node); }
   /** The vessel ids of a built skin's arms, in arm order (the draw returned by `make`). */
   armIdsOf(draw: SkinDraw): readonly string[] { return this.built.find((b) => b.draw === draw)?.arms.map((a) => a.id) ?? []; }
+  /** The drawn skins' objects, each with the vessel ids of its arms (the inspector hides a skin when none of its arms is shown). */
+  drawnArms(): { object: Object3D; node: string; arms: readonly string[] }[] { return this.drawn.map((b) => ({ object: b.draw.object, node: b.node, arms: b.arms.map((a) => a.id) })); }
   /** The built skin of a node, or undefined. */
   skinOf(node: string): SkinMesh | undefined { return this.drawn.find((b) => b.node === node)?.mesh ?? undefined; }
   /** How many rebuilds ran, what the last and the worst cost (ms), and which node was the last. */

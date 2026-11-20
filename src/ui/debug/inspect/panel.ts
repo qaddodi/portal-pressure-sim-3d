@@ -9,6 +9,7 @@
 import { cel, gesturesRef } from '../../../scene/api.ts';
 import { clock } from '../../../clock/frame.ts';
 import { useBlood } from '../../../scene/blood/options.ts';
+import { useSelection } from '../../action/selection.ts';
 import { setForce } from '../../../engine/force-all.ts';
 import { setPart, SHADE_NAMES, type PartView, type ShadeMode } from '../../../scene/vessels/debug-view.ts';
 import { clearJoinsOverride, joinsMode, setJoinsOverride, skinDebugOn, skinLeaveOut, type JoinsMode } from '../../../scene/vessels/skin/joins-mode.ts';
@@ -54,7 +55,7 @@ export function mountInspect(): void {
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, kids: (Node | string)[] = []): HTMLElementTagNameMap[K] => { const e = document.createElement(tag); Object.assign(e, props); e.append(...kids); return e; };
   const msg = el('div', { className: 'msg' });
   const syncers: (() => void)[] = [];
-  const section = (title: string, open = true): HTMLElement => { const d = el('details', { open }, [el('summary', { textContent: title })]); box.append(d); return d; };
+  const section = (title: string, open = true): HTMLDetailsElement => { const d = el('details', { open }, [el('summary', { textContent: title })]); box.append(d); return d; };
   const check = (host: HTMLElement, label: string, get: () => boolean, set: (v: boolean) => void): void => {
     const c = el('input', { type: 'checkbox' }); c.checked = get(); c.onchange = () => { set(c.checked); syncAll(); };
     syncers.push(() => { c.checked = get(); });
@@ -88,6 +89,7 @@ export function mountInspect(): void {
     if (!setForce({ collaterals: state.allCollaterals, shunts: state.allShunts, freeze: state.freeze })) { msg.textContent = 'Compare is holding the figure: close it first.'; state.allCollaterals = state.allShunts = state.freeze = false; }
     if (state.ghosts !== ghostsSet) { ghostsSet = state.ghosts; cel.setBlood({ collaterals: state.ghosts }); }
     cel.post.setMode(state.aa ? 'fxaa' : 'off');
+    cel.setInspectVessels(state.solo, state.mute);
     cel.rig.setInspect(state.free);
     clock.invalidate('inspect');
   }
@@ -139,6 +141,46 @@ export function mountInspect(): void {
   partUi('Tubes', 'tube');
   partUi('Skins', 'skin');
 
+  // ---- Vessel list: solo and mute by id ----
+  const vl = section('Vessel list (solo, mute)', false);
+  const vessels = cel.inspectVesselList();
+  const kinds = [...new Set(vessels.map((v) => v.kind))].sort();
+  let kindNow = '', textNow = '';
+  const filter = el('input', { type: 'search', placeholder: 'filter by id or name' }); filter.style.cssText = 'flex:1;min-width:0;font:11px ui-monospace,Menlo,monospace;color:#fff;background:#fff2;border:1px solid #fff6;border-radius:6px;padding:3px 6px';
+  const kindSel = el('select'); kindSel.append(el('option', { value: '', textContent: 'all kinds' }), ...kinds.map((k) => el('option', { value: k, textContent: k })));
+  vl.append(el('div', { className: 'row' }, [filter, kindSel]));
+  const listBox = el('div'); listBox.style.cssText = 'max-height:240px;overflow:auto;border:1px solid #fff3;border-radius:6px;padding:2px 4px';
+  const rows = new Map<string, { dot: HTMLElement; s: HTMLInputElement; m: HTMLInputElement }>();
+  const visible = () => vessels.filter((v) => (!kindNow || v.kind === kindNow) && (!textNow || `${v.id} ${v.label}`.toLowerCase().includes(textNow)));
+  const toggle = (list: string[], id: string, on: boolean) => (on ? (list.includes(id) ? list : [...list, id]) : list.filter((x) => x !== id));
+  const drawList = () => {
+    listBox.textContent = ''; rows.clear();
+    for (const v of visible()) {
+      const dot = el('span', { textContent: '●' }), sc = el('input', { type: 'checkbox', title: 'solo' }), mc = el('input', { type: 'checkbox', title: 'mute' });
+      sc.checked = state.solo.includes(v.id); mc.checked = state.mute.includes(v.id);
+      sc.onchange = () => { commit({ solo: toggle(state.solo, v.id, sc.checked) }); };
+      mc.onchange = () => { commit({ mute: toggle(state.mute, v.id, mc.checked) }); };
+      const name = el('label', { textContent: `${v.id} · ${v.label}` }); name.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      dot.style.color = v.drawn ? '#7fe39a' : '#667';
+      rows.set(v.id, { dot, s: sc, m: mc });
+      listBox.append(el('div', { className: 'row' }, [dot, name, el('span', { textContent: 'S' }), sc, el('span', { textContent: 'M' }), mc]));
+    }
+  };
+  filter.oninput = () => { textNow = filter.value.trim().toLowerCase(); drawList(); };
+  kindSel.onchange = () => { kindNow = kindSel.value; drawList(); };
+  vl.append(listBox);
+  buttons(vl, [
+    { label: 'Solo these', title: 'Only the vessels in the list (after the filter) are drawn', run: () => { commit({ solo: visible().map((v) => v.id) }); drawList(); } },
+    { label: 'Solo the drawn', title: 'Only the vessels the figure draws now', run: () => { commit({ solo: cel.inspectVesselList().filter((v) => v.drawn).map((v) => v.id) }); drawList(); } },
+    { label: 'Mute these', run: () => { commit({ mute: [...new Set([...state.mute, ...visible().map((v) => v.id)])] }); drawList(); } },
+    { label: 'Clear', run: () => { commit({ solo: [], mute: [] }); drawList(); } },
+  ]);
+  check(vl, 'A tap on a vessel solos it', () => state.tapSolo, (v) => commit({ tapSolo: v }));
+  vl.append(el('div', { className: 'hint', textContent: 'A green dot is drawn now. A junction skin is drawn while any of its arms is. Collateral braids (strands) are not vessels here and stay.' }));
+  syncers.push(() => { for (const [id, r] of rows) { r.s.checked = state.solo.includes(id); r.m.checked = state.mute.includes(id); } });
+  drawList();
+  useSelection.subscribe((st) => { if (state.tapSolo && st.sel?.type === 'edge') { commit({ solo: [st.sel.id] }); drawList(); } });
+
   // ---- Layers ----
   const ly = section('Layers');
   const tbl = el('table'); ly.append(tbl);
@@ -164,6 +206,7 @@ export function mountInspect(): void {
 
   // the angles follow a drag on the figure (a timer, not a frame: the panel is not part of the picture)
   window.setInterval(() => {
+    if (box.style.display === 'block' && vl.open) { const now = new Map(cel.inspectVesselList().map((v) => [v.id, v.drawn])); for (const [id, r] of rows) r.dot.style.color = now.get(id) ? '#7fe39a' : '#667'; }
     if (box.style.display !== 'block' || !cel.rig.inspectOn) return;
     const a = cel.rig.inspectAngles, y = wrapDeg(a.yaw / RAD), p = Math.max(-INSPECT_PITCH / RAD, Math.min(INSPECT_PITCH / RAD, a.pitch / RAD));
     if (Math.abs(y - state.yawDeg) > 0.4 || Math.abs(p - state.pitchDeg) > 0.4) { state.yawDeg = y; state.pitchDeg = p; syncAll(); }

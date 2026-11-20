@@ -20,6 +20,10 @@ export interface InspectState {
   allShunts: boolean;
   freeze: boolean;
   ghosts: boolean;
+  /** vessels soloed (only these drawn) and muted (never drawn), by id, and whether a tap on the figure solos the vessel it picks */
+  solo: string[];
+  mute: string[];
+  tapSolo: boolean;
   /** the anti-aliasing pass */
   aa: boolean;
   /** the free orbit: the drag turns the figure all the way round, and nothing springs back */
@@ -28,7 +32,7 @@ export interface InspectState {
   pitchDeg: number;
 }
 
-export const defaultState = (joins: JoinsMode = 'mesh2'): InspectState => ({ joins, drop: false, leave: '', tube: partDefault(), skin: partDefault(), hidden: [], wired: [], allCollaterals: false, allShunts: false, freeze: false, ghosts: false, aa: true, free: false, yawDeg: 0, pitchDeg: 0 });
+export const defaultState = (joins: JoinsMode = 'mesh2'): InspectState => ({ joins, drop: false, leave: '', tube: partDefault(), skin: partDefault(), hidden: [], wired: [], allCollaterals: false, allShunts: false, freeze: false, ghosts: false, solo: [], mute: [], tapSolo: false, aa: true, free: false, yawDeg: 0, pitchDeg: 0 });
 
 /** The camera's named views: the yaw (0 the front, positive swings the camera to the viewer's right) and the tilt above the horizon, in degrees. */
 export const VIEWS: readonly { id: string; label: string; yaw: number; pitch: number }[] = [
@@ -65,6 +69,7 @@ export function stateText(s: InspectState, build = ''): string {
     `tubes ${part(s.tube)}`,
     `skins ${part(s.skin)}`,
     `hidden=[${s.hidden.join(',')}] wire=[${s.wired.join(',')}]`,
+    `solo=[${s.solo.join(',')}] mute=[${s.mute.join(',')}]`,
     `forced collaterals=${+s.allCollaterals} shunts=${+s.allShunts} freeze=${+s.freeze} ghosts=${+s.ghosts}`,
     `camera free=${+s.free} yaw=${s.yawDeg.toFixed(1)} pitch=${s.pitchDeg.toFixed(1)}`,
   ].join('\n');
