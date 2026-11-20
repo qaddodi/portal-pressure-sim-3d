@@ -488,6 +488,8 @@ export class CelScene {
   markVessels(ids: readonly string[]): void { this.highlight.setOnly(ids); this.moving = true; }
 
   /** Outline these organs (organ ids: liver, spleen, heart, bowel, colon, duodenum, kidney-l...); [] clears. */
+  /** The tapped organ gets a heavy outline (the selection's mark); [] puts it out. */
+  selectOrgans(ids: readonly string[]): void { this.pins.select(ids); this.moving = true; }
   pinOrgans(ids: readonly string[], normalSpleen = false): void { this.pins.set(ids); this.pins.setNormalOutline(normalSpleen); this.moving = true; }
 
   /** Free play: pick a vessel by edge ID (or clear it with null). */

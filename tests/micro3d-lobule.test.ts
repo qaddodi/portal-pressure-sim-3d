@@ -126,3 +126,24 @@ test('the lobule\'s vessels are inked as the Anatomy\'s (a deep tone of their ow
 test('the plate reaches past every portal tract\'s whole scar (it was cut off at the hexagon)', () => {
   assert.ok(PLATE_BOX >= 1 + 0.1 * 1.7 * 1.08 + 0.02);
 });
+
+test('the marks (the periportal scar) and the vessels draw after the see-through field of neighbour lobules, so the scar is never cut off at the hexagon', () => {
+  const sh = createShared(), lv = new LobuleView(sh), l = new Lobule3D(lv, sh);
+  let marks: import('three').Mesh | null = null, field: import('three').Mesh | null = null;
+  l.group.traverse((o) => { if (o.name === 'lobule3d/marks') marks = o as import('three').Mesh; });
+  lv.group.traverse((o) => { if (o.name === 'lobule/field') field = o as import('three').Mesh; });
+  const m = marks as unknown as import('three').Mesh, f = field as unknown as import('three').Mesh | null;
+  assert.ok((m.material as import('three').Material).transparent, 'in the see-through list');
+  if (f) assert.ok(m.renderOrder > f.renderOrder, 'after the field');
+  l.group.traverse((o) => { if (o.name.startsWith('lobule3d/sinusoids-0') && (o as import('three').Mesh).isMesh) { assert.ok(o.renderOrder > m.renderOrder); assert.ok(((o as import('three').Mesh).material as import('three').Material).depthWrite); } });
+});
+
+test('every end-on vessel is filled with its colour, never an empty cylinder: a shallow, bright floor', async () => {
+  const { mouth } = await import('../src/scene/micro3d/lobule3d.ts');
+  const { MeshBuilder } = await import('../src/scene/micro3d/cel3d.ts');
+  const b = new MeshBuilder(), K: number[] = [];
+  mouth(b, 0, 0, 0.05, 0.1, 0.05, K, 32, true);
+  assert.ok(Math.min(...K.slice(-33)) >= 0.95, 'the floor is the vessel\'s own colour');
+  const src = (await import('node:fs')).readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
+  for (const k of ['Pv', 'Ha', 'Bd', 'Lv', 'Cv']) assert.match(src, new RegExp(`mouths\\(this\\.mouth${k}, [^\\n]*, true\\);`), k);
+});

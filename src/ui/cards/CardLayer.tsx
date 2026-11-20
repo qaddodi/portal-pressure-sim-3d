@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { caseOf, type Deck, type ReadingKey, type Slide } from '../../decks/schema.ts';
 import { useUi } from '../ui-store.ts';
 import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
@@ -20,11 +20,19 @@ import { VisualCard } from './VisualCard.tsx';
 import { ToolCard } from '../talk/ToolCard.tsx';
 import { hasToolChart } from '../../decks/charts.ts';
 import { Strip } from '../wallet/Strip.tsx';
-import { useGesture } from '../wallet/useSwipe.ts';
+import { useCardDrag, justDragged } from './useCardDrag.ts';
+import { cardZoom, emptyTap } from './card-zoom.ts';
 import { isSwapSwipe } from '../wallet/wallet-machine.ts';
-import { swipeMove } from '../deck/presenter-machine.ts';
+import { swipeMove, apply, samePos } from '../deck/presenter-machine.ts';
 import { gapOf } from './ladder-model.ts';
 import { maxPages, clampPage } from './pages.ts';
+
+/** True once the page's fonts are in (cards show only then). */
+function useFontsReady(): boolean {
+  const [ok, setOk] = useState(() => typeof document === 'undefined' || !document.fonts || document.fonts.status === 'loaded');
+  useEffect(() => { if (!ok) void document.fonts.ready.then(() => setOk(true)); }, [ok]);
+  return ok;
+}
 
 const ZERO: Rect = { x: 0, y: 0, w: 0, h: 0 };
 interface Snap { slide: Slide | null; pages: number; at: number; trim: boolean }
@@ -105,17 +113,60 @@ export function CardLayer({ deck }: { deck: Deck }) {
   if (dataShown && dataWanted) last.current[dataWanted.key] = dataShown.rect;
   if (plan.strip && stripWanted) last.current[stripWanted.key] = plan.strip.rect;
 
+  // The cards come in together, whole: only when every card of the slide is measured on the page now showing, nothing is still to widen or split,
+  // and the fonts are in (a card that came in on its own measure then grew, and the second card showed up after the first). A slow measure never
+  // holds a slide back for good: past 320 ms the cards come in as they are.
+  const fonts = useFontsReady();
+  const growing = (tooTallPair && stepAt < nSteps) || (tooTall && pages < (view ? capOf(view) : 1));
+  const measured = needs.length > 0 && needs.every((n) => (n.h > 0 && (n.slot === 'data' || hit(wordsKey)?.sig === sig)) || (plan.docked && n.slot === 'data'));
+  const [late, setLate] = useState('');
+  useEffect(() => { const t = setTimeout(() => setLate(pagesKey), 320); return () => clearTimeout(t); }, [pagesKey]);
+  const go = fonts && !growing && (measured || late === pagesKey);
+  // the first cards of a talk fade in where they stand; every later one slides in from the side the talk comes from (2D's first card has no way to come from)
+  const seen = useRef(false);
+  const fresh = !seen.current;
+  useLayoutEffect(() => { if (wordsStack.entries.length || dataStack.entries.length) seen.current = true; });
+
+  // 2D's card zoom (card-zoom.js): a tap on the empty part of a card on a wide screen zooms it to the middle, the other card riding along; a tap on the veil,
+  // Esc, a slide change or a new size puts it back. Only a card that stands whole (nothing leaving or waiting to come in).
+  const zoomsHere = plan.layout === 'wide' && !alone && !!(dataShown || wordsShown);
+  const veilRef = useRef<HTMLDivElement>(null), zveilRef = useRef<HTMLDivElement>(null);
+  const reduceMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const zoomTap = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = e.currentTarget;
+    if (justDragged() || !zoomsHere) return;
+    if (cardZoom.up) { void cardZoom.close({ reduce: reduceMotion() }); return; }
+    if (cardZoom.on || !emptyTap(e.target, card)) return;
+    const live = [...document.querySelectorAll<HTMLElement>('.dk-card[data-card]:not([data-phase="out"])')];
+    if (live.some((c) => c.getAttribute('data-phase') === 'wait')) return;
+    const els = (c: HTMLElement) => [c, ...(c.previousElementSibling?.classList.contains('dk-plate') ? [c.previousElementSibling as HTMLElement] : [])];
+    cardZoom.open({
+      focus: els(card), others: live.filter((c) => c !== card).map(els), reduce: reduceMotion(), veil: zveilRef.current, mark: document.body,
+      area: { left: 0, top: 0, width: vp.w, height: vp.h },
+    });
+  };
+  // a slide change, a new size or a leaving layout puts the zoom back at once (2D closes it first; here the slide's own cards come in on the rail)
+  useEffect(() => { cardZoom.reset(); }, [wordsKey, dataKey, vp.w, vp.h, zoomsHere]);
+  useEffect(() => () => cardZoom.reset(), []);
+
   // the cards' boxes go to the scene once per layout change, when every card up has been measured
   const settled = needs.length > 0 && needs.every((n) => n.h > 0 || (plan.docked && n.slot === 'data'));   // (a card put away is not measured: it is not up)
   useLayoutEffect(() => { if (settled) publishPlan(plan); }, [plan, settled, publishPlan]);
 
   // phones: a vertical swipe on a card swaps the wallet; anywhere: a sideways swipe on a card moves the talk
-  const swipe = useGesture((g, e) => {
-    // 2D's dock: a push up on the data card puts it away to its edge (both cards up, a phone or an upright iPad); a tap or a pull down on the edge brings it back (Strip)
-    if (!plan.strip && (plan.layout === 'stack' || plan.layout === 'tab') && dataShown && g.dy < 0 && isSwapSwipe(g) && (e.target as HTMLElement).closest?.('[data-card]')?.getAttribute('data-card') === dataShown.id && wordsShown) { setDocked(true); return; }
-    if (plan.strip && isSwapSwipe(g)) { swapWallet(); return; }
-    const m = swipeMove(g.dx, g.dy, g.ms);
-    if (m) move(m);
+  const swipe = useCardDrag({
+    onEnd: (g, e) => {
+      // 2D's dock: a push up on the data card puts it away to its edge (both cards up, a phone or an upright iPad); a tap or a pull down on the edge brings it back (Strip)
+      if (!plan.strip && (plan.layout === 'stack' || plan.layout === 'tab') && dataShown && g.dy < 0 && isSwapSwipe(g) && (e.target as HTMLElement).closest?.('[data-card]')?.getAttribute('data-card') === dataShown.id && wordsShown) { setDocked(true); return; }
+      if (plan.strip && isSwapSwipe(g)) { swapWallet(); return; }
+      const m = swipeMove(g.dx, g.dy, g.ms);
+      if (m) move(m);
+    },
+    onMove: move,
+    // a drag follows only where it will do something: a slide to go to (or a page to turn), not the first slide's Back
+    can: (dx) => pages > 1 || !samePos(apply(stops, pos, dx < 0 ? 'next' : 'back'), pos),
+    width: vp.w,
+    cards: () => [...document.querySelectorAll<HTMLElement>('.dk-card[data-card]:not([data-phase="out"])')].map((card) => ({ els: [card, ...(card.previousElementSibling?.classList.contains('dk-plate') ? [card.previousElementSibling as HTMLElement] : [])], data: card.getAttribute('data-card') === 'ladder' || card.getAttribute('data-card') === 'table' })),
   });
 
   if (!view) return null;
@@ -153,7 +204,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
       <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onGone={stack.gone} label={labelOf(e.id)}
-        pointer={swipe} onTap={e.id === 'case' && e.phase === 'in' ? () => move('next') : undefined} visual={view.slide?.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? dataClass(e) : (e.id === 'check' || e.id === 'visual') && nameTabOf(deck) ? 'tabbed' : undefined}>
+        pointer={swipe} go={go} data={slot === 'data'} fresh={fresh} zoomable={zoomsHere && e.phase === 'in'} onTap={e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsHere && e.phase === 'in' ? zoomTap : undefined} visual={view.slide?.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? dataClass(e) : (e.id === 'check' || e.id === 'visual') && nameTabOf(deck) ? 'tabbed' : undefined}>
         {content(e)}
       </CardFrame>
     );
@@ -164,7 +215,9 @@ export function CardLayer({ deck }: { deck: Deck }) {
   return (
     <>
       {/* (2D's dip behind a case card: the figure at 22%, as this wash over it) */}
-      <div className={`pz-veil${veil ? ' on' : view.words === 'case' ? ' on dip' : ''}`} aria-hidden="true" />
+      <div className={`pz-veil${view.words === 'check' ? ' on soft' : veil ? ' on' : view.words === 'case' ? ' on dip' : ''}`} aria-hidden="true" />
+      {/* 2D's zoom veil: the page dims a little and a tap on it puts the card back */}
+      <div ref={zveilRef} className="pz-zveil" aria-hidden="true" onClick={() => { void cardZoom.close({ reduce: reduceMotion() }); }} />
       {frames(wordsStack, 'words')}
       {frames(dataStack, 'data')}
       {stripStack.entries.map((e) => {
