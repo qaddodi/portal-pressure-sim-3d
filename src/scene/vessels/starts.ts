@@ -65,11 +65,16 @@ export function alongVein(id: string, paths: Readonly<Record<string, readonly P2
   let below = 0; for (let i = 0; i < n; i++) below += normal(i)[1];
   const side = (below >= 0 ? 1 : -1) * (a.above ? -1 : 1);
   for (let i = 0; i < n; i++) { const [nx, ny] = normal(i); out.push([host[i]![0] + side * nx * a.off, host[i]![1] + side * ny * a.off]); }
-  // the junction: the artery leaves its parent's end F and eases onto the curve beside its vein (three rounds of corner cutting, the ends held)
-  const F = paths[id]![0]!;
-  let line: P2[] = [F, ...out];
-  for (let r = 0; r < 3; r++) { const nx: P2[] = [line[0]!]; for (let i = 0; i < line.length - 1; i++) { const p = line[i]!, q = line[i + 1]!; nx.push([0.75 * p[0] + 0.25 * q[0], 0.75 * p[1] + 0.25 * q[1]], [0.25 * p[0] + 0.75 * q[0], 0.25 * p[1] + 0.75 * q[1]]); } nx.push(line[line.length - 1]!); line = nx; }
-  out.length = 0; out.push(...line);
+  // the junction: both branches leave the parent's end F along the parent's own heading and bend away from one another over the first stretch (a cubic from F onto the curve beside the vein),
+  // so the fork is a smooth Y with a rounded crotch, not two lines meeting at an angle (Mohammad, 20 Nov: "a crude Y")
+  const F = paths[id]![0]!, par = paths.A_HEP!, pa = par[Math.max(0, par.length - 9)]!, pl = Math.hypot(F[0] - pa[0], F[1] - pa[1]) || 1, d: P2 = [(F[0] - pa[0]) / pl, (F[1] - pa[1]) / pl];
+  let j0 = 0; while (j0 < out.length - 2 && Math.hypot(out[j0]![0] - F[0], out[j0]![1] - F[1]) < 26) j0++;
+  const O = out[j0]!, T0 = out[Math.max(0, j0 - 1)]!, T1 = out[Math.min(out.length - 1, j0 + 1)]!, tl = Math.hypot(T1[0] - T0[0], T1[1] - T0[1]) || 1, tO: P2 = [(T1[0] - T0[0]) / tl, (T1[1] - T0[1]) / tl];
+  const FL = Math.hypot(O[0] - F[0], O[1] - F[1]), c1: P2 = [F[0] + d[0] * 0.25 * FL, F[1] + d[1] * 0.25 * FL], c2: P2 = [O[0] - tO[0] * 0.3 * FL, O[1] - tO[1] * 0.3 * FL];
+  const bez: P2[] = [];
+  for (let k = 0; k < 16; k++) { const t = k / 16, u = 1 - t; bez.push([u * u * u * F[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * O[0], u * u * u * F[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * O[1]]); }
+  const rest = out.slice(j0);
+  out.length = 0; out.push(...bez, ...rest);
   // (back to the 64 points every course has)
   const cum = [0]; for (let i = 1; i < out.length; i++) cum.push(cum[i - 1]! + Math.hypot(out[i]![0] - out[i - 1]![0], out[i]![1] - out[i - 1]![1]));
   const L = cum[cum.length - 1]! || 1, res: P2[] = []; let k = 1;
