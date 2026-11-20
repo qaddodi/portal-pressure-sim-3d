@@ -63,3 +63,6 @@ export class SkinBuildError extends Error {
     this.node = node;
   }
 }
+
+/** The tube's `skinCut` when a merged skin replaces the vessel whole (rule 1c: PV_TRUNK_1 between CONF and PVT_L): every u is below 2, so none of it is drawn. */
+export const SKIN_HIDDEN: readonly [number, number] = [2, -1];

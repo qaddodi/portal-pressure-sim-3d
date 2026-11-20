@@ -388,6 +388,7 @@ export class CelScene {
       o.reshape(built.geometry, built.length);
       built.geometry.dispose();
       }
+    this.refreshSkins();   // (the tubes were rewritten: the skins are built again on them, or taken away with the switch)
     this.applyMates();
     this.moving = true;
     clock.invalidate('smooth-joins');
@@ -1059,6 +1060,7 @@ export class CelScene {
     this.syncStumps();
     this.updateCaps();
     const shapeMoving = this.shapes.step(dt);
+    const skinMoving = this.skins?.sync() ?? false;   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
     this.stepSinusDive();
     this.stepCutaway();
     this.stepPortrait();
@@ -1076,7 +1078,7 @@ export class CelScene {
     const diseaseMoving = this.disease.update(now);
     if (diseaseMoving) this.tagOverOrgans();
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
-    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || dustMoving || lensMoving || presMoving || shapeMoving || viewMoving;
+    const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || dustMoving || lensMoving || presMoving || shapeMoving || viewMoving || skinMoving;
     this.moving = false;
     return needs;
   }
@@ -1159,6 +1161,7 @@ export class CelScene {
 
   dispose(): void {
     this.unJoins();
+    this.skins?.dispose();
     this.sinus3d.dispose(); this.lobule3d.dispose();
     this.lens.dispose();
     this.cells.dispose();

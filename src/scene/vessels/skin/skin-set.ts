@@ -13,9 +13,9 @@ import { REST, coursesOf, tubularOf, type ShapeState } from '../shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { slicesFor } from '../../circuit/geometry.ts';
 import { findSkinJunctions, skinNodesForPhase } from './inventory.ts';
-import { chooseCuts, type ArmTube } from './cuts.ts';
+import { planSkins, type ArmTube } from './cuts.ts';
 import { buildSkin, hullCovers } from './mesh.ts';
-import { SKIN_CUT_NONE, type SkinCut, type SkinJunction, type SkinMesh } from './types.ts';
+import { SKIN_CUT_NONE, SKIN_HIDDEN, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
 import { hiWeightAt, lensUAt, liveFadeAt, type FadeState, type HiState } from './arm-twins.ts';
 import type { VesselObject } from '../vessel-object.ts';
 import type { ArmAxis, ArmColour } from './skin-object.ts';
@@ -88,7 +88,8 @@ export class SkinSet {
   /** the nodes that fell back to today's method (named, once) */
   readonly fellBack: string[] = [];
 
-  constructor(private readonly deps: SkinSetDeps) {}
+  private readonly deps: SkinSetDeps;
+  constructor(deps: SkinSetDeps) { this.deps = deps; }
 
   /** The skinned ends of vessel `id` (both false: its joins are today's). */
   endsOf(id: string): readonly [boolean, boolean] { return this.ends.get(id) ?? [false, false]; }
@@ -99,10 +100,11 @@ export class SkinSet {
   /** The built skin of a node, or undefined. */
   skinOf(node: string): SkinMesh | undefined { return this.built.find((b) => b.node === node)?.mesh; }
 
-  /** The tubes of a junction's arms exactly as the scene draws them at rest: the vessel's own course first, `buildTubes`' vertex layout. */
-  private tubesOf(j: SkinJunction): Map<string, ArmTube> {
+  /** The tubes of the junctions' arms exactly as the scene draws them at rest: the vessel's own course first, `buildTubes`' vertex layout. */
+  private tubesOf(js: readonly SkinJunction[]): Map<string, ArmTube> {
     const m = new Map<string, ArmTube>();
-    for (const a of j.arms) {
+    for (const j of js) for (const a of j.arms) {
+      if (m.has(a.vesselId)) continue;
       const def = NETWORK_BY_ID.get(a.vesselId)!;
       const b = buildTubes(coursesOf(def, this.deps.stateOf(a.vesselId) ?? REST), tubularOf(def, slicesFor(a.vesselId)), def.radius);
       m.set(a.vesselId, { geometry: b.geometry, tubular: b.runs[0]!.tubular });
@@ -110,52 +112,55 @@ export class SkinSet {
     return m;
   }
 
-  /** Builds the skins of `phase` (spec 4.1) with the joins as they stand now (Smooth vessel joins on). Any skin built before is removed first. */
+  /** Builds the skins of `phase` (spec 4.1) with the joins as they stand now (Smooth vessel joins on). Any skin built before is removed first. Planned together (cuts.ts planSkins: two skins on one vessel merge when they would crowd); a node that cannot be
+   *  built keeps today's joins, is named in `fellBack` and warned once. */
   build(phase: 1 | 2): void {
     this.clear();
     const nodes = skinNodesForPhase(phase);
-    for (const j of findSkinJunctions()) {
-      if (!nodes.has(j.node)) continue;
-      try { this.buildOne(j); } catch (e) {
-        // (never crashes the scene: this node keeps today's joins)
-        this.fellBack.push(j.node);
-        if (!this.warned.has(j.node)) { this.warned.add(j.node); (this.deps.warn ?? ((m) => console.warn(m)))(`${(e as Error).message} (keeping today's joins there)`); }
-      }
-    }
-  }
-
-  private buildOne(j: SkinJunction): void {
-    const tubes = this.tubesOf(j);
+    const js = findSkinJunctions().filter((j) => nodes.has(j.node));
+    if (!js.length) return;
+    const tubes = this.tubesOf(js);
+    const warn = this.deps.warn ?? ((m: string) => console.warn(m));
     const ringsFor = (cuts: SkinCut[]): { pos: Float32Array[]; nor: Float32Array[] } => {
       const r = cuts.map((c) => ringOf(tubes.get(c.vesselId)!.geometry, c.ring));
       return { pos: r.map((x) => x.pos), nor: r.map((x) => x.nor) };
     };
-    const cuts = chooseCuts(j, tubes, (cs) => hullCovers(ringsFor(cs).pos));
-    const { pos, nor } = ringsFor(cuts);
-    const mesh = buildSkin(j, cuts, pos, nor);
-    for (const t of tubes.values()) t.geometry.dispose();
-    const objs = j.arms.map((a) => this.deps.vessel(a.vesselId));
-    if (objs.some((o) => !o)) return;   // (a vessel not in this scene: no skin; the tubes are untouched)
-    const draw = this.deps.make(mesh, j.arms.map((a, i) => axisOf(tubes.get(a.vesselId)!, a.restR, cuts[i]!)), objs as VesselObject[]);
-    this.deps.add(draw.object);
-    const arms: ArmLink[] = j.arms.map((a, i) => {
-      const cut = cuts[i]!, ring = pos[i]!;
-      let x = 0, y = 0;
-      for (let v = 0; v < TUBE_RADIAL; v++) { x += ring[v * 3]!; y += ring[v * 3 + 1]!; }
-      const def = NETWORK_BY_ID.get(a.vesselId)!;
-      return { obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: def.lensSpan ?? [0, 1], last: [] };
-    });
-    // the tubes: cut at the seam, their ends' mates and burial off (the scene's applyMates reads `endsOf`)
+    const { plans, failures } = planSkins(js, tubes, () => (cs) => hullCovers(ringsFor(cs).pos));
+    for (const f of failures) this.fail(f.node, f.message, warn);
     const cutOf = new Map<string, [number, number]>();
-    for (const a of arms) {
-      const c = cutOf.get(a.id) ?? [SKIN_CUT_NONE[0], SKIN_CUT_NONE[1]];
-      if (a.end === 0) c[0] = a.u; else c[1] = a.u;
-      cutOf.set(a.id, c);
-      const e = this.ends.get(a.id) ?? [false, false];
-      e[a.end] = true; this.ends.set(a.id, e);
+    for (const plan of plans) {
+      const j = plan.junction;
+      try {
+        const objs = j.arms.map((a) => this.deps.vessel(a.vesselId));
+        if (objs.some((o) => !o)) continue;   // (a vessel not in this scene: no skin; the tubes are untouched)
+        const { pos, nor } = ringsFor(plan.cuts);
+        const mesh = buildSkin(j, plan.cuts, pos, nor);
+        const draw = this.deps.make(mesh, j.arms.map((a, i) => axisOf(tubes.get(a.vesselId)!, a.restR, plan.cuts[i]!)), objs as VesselObject[]);
+        this.deps.add(draw.object);
+        const arms: ArmLink[] = j.arms.map((a, i) => {
+          const cut = plan.cuts[i]!, ring = pos[i]!;
+          let x = 0, y = 0;
+          for (let v = 0; v < TUBE_RADIAL; v++) { x += ring[v * 3]!; y += ring[v * 3 + 1]!; }
+          return { obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [] };
+        });
+        this.built.push({ node: j.node, mesh, draw, arms });
+        // the tubes: cut at their seams, both ends of a vessel that two skins share in ONE cut (the second never overwrites the first); a vessel a merged skin replaces whole is hidden (2, -1)
+        for (const a of arms) {
+          const c = cutOf.get(a.id) ?? [SKIN_CUT_NONE[0], SKIN_CUT_NONE[1]];
+          if (a.end === 0) c[0] = a.u; else c[1] = a.u;
+          cutOf.set(a.id, c);
+          const e = this.ends.get(a.id) ?? [false, false]; e[a.end] = true; this.ends.set(a.id, e);
+        }
+        for (const id of plan.hidden) { cutOf.set(id, [SKIN_HIDDEN[0], SKIN_HIDDEN[1]]); this.ends.set(id, [true, true]); }
+      } catch (e) { this.fail(j.node, (e as Error).message, warn); }   // (never crashes the scene: this node keeps today's joins)
     }
-    for (const [id, c] of cutOf) this.deps.vessel(id)!.setSkinCut(c[0], c[1]);
-    this.built.push({ node: j.node, mesh, draw, arms });
+    for (const [id, c] of cutOf) this.deps.vessel(id)?.setSkinCut(c[0], c[1]);
+    for (const t of tubes.values()) t.geometry.dispose();
+  }
+
+  private fail(node: string, message: string, warn: (m: string) => void): void {
+    this.fellBack.push(node);
+    if (!this.warned.has(node)) { this.warned.add(node); warn(`${message} (keeping today's joins there)`); }
   }
 
   /** Every cut, skin and flag back to today's joins (the caller runs applyMates afterwards, which reads `endsOf` again). */

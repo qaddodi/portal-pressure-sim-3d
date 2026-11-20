@@ -2,6 +2,8 @@
 // arm's own tube has at its seam ring. These are the JS twins of the tube's vertex stage (vessels/shaders.ts: `fa`, `vHi`) and of the lens span mapping (`lensOf`), read from the tube's own uniforms, so the two never disagree. Pure:
 // they read plain numbers, never a three.js object, so a node test pins them.
 
+import { TUBE_SAG } from '../shaders.ts';
+
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 const sstep = (a: number, b: number, x: number): number => { const t = clamp01((x - a) / (b - a || 1e-9)); return t * t * (3 - 2 * t); };
 const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
@@ -54,3 +56,12 @@ export function hiWeightAt(h: HiState, u: number): number {
 
 /** The lens ramp's position at the seam: the stretch `span` of the host's ramp the vessel wears, at `u` along the vessel (`lensOf`: mix(lensSpan.x, lensSpan.y, vUv.x)). */
 export const lensUAt = (span: readonly [number, number], u: number): number => mix(span[0], span[1], u);
+
+/**
+ * How far along its normal a vertex of the TUBE is moved from its rest place (vessels/shaders.ts, VESSEL_VS, `p = aPos + aNor * (...)`): `R` the vertex's rest radius (`radius * rk`), `swell` the live width share, `narrowK` the stenosis waist's share kept
+ * (1 at rest), `inkW` the line's width in scene units, `inflate` the lift. The skin's vertex stage (skin/shaders.ts) is THE SAME expression with `R` = the vertex's `restR` and `swell` = the weights' blend of the arms' swells and `narrowK` = 1,
+ * so on a seam ring, where one weight is 1, the two stages move a vertex by the same amount (spec 4.6; tests/skin-agreement.test.ts).
+ */
+export function normalShift(R: number, swell: number, narrowK: number, inkW: number, inflate: number): number {
+  return inflate + R * (swell * narrowK - 1) + inkW + (R * swell * narrowK + inkW) * TUBE_SAG;
+}
