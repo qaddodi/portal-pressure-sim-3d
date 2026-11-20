@@ -18,7 +18,7 @@ export const len3 = (u: number): number => u / UNITS_PER_SCENE;
  *  its back at the cava; the stomach, kidney and heart contain the band; the spleen's vein has its own end, vessels/network.ts). The 14 degree view turns a depth difference into a
  *  sideways shift, so the old 0.3 to 0.9 gaps between tiers (and the easing of a vessel from one to the next) were the zigzags; with 0.02 a jog is under one 2D unit. The cava and the
  *  renal vein are the lowest tier, the portal tree and the shunts in front of them; the kidney sits at the cava's depth (ORGAN_Z). */
-export const TIER_Z = { back: -0.02, hv: -0.004, art: 0.0, mid: 0.01, net: 0.02, front: 0.035, over: 0.05, fwd: 0.2 } as const;
+export const TIER_Z = { back: -0.02, hv: -0.004, art: 0.0, mid: 0.01, net: 0.02, front: 0.035, over: 0.05, fwd: 0.2, hep: -0.03 } as const;
 /** (`fwd`, the one tier outside the plane: the paraumbilical vein leaves the left portal branch and runs forward, toward the viewer and the umbilicus on the anterior wall, over the
  *  main portal vein and never through it: Mohammad, 20 Nov.) */
 /** The plane's middle: where the cava, the right atrium and the hepatic veins meet. */

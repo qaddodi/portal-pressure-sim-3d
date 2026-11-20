@@ -16,6 +16,8 @@ interface Chained { par: number[]; root: number[]; A: number[]; B: number[]; w: 
 
 /** The cava's two stretches below the hepatic veins are one vein cut where the DIPS joins it: they keep their own pattern (stage-blood.js NO_CHAIN). */
 export const NO_CHAIN: ReadonlySet<string> = new Set(['IVC_IS', 'IVC_IS_1', 'IVCS_RA']);
+/** The hepatic artery is the one artery whose blood runs on through a junction into both its branches (Mohammad, 20 Nov: "the streaks don't continue to both branches"). */
+export const CHAIN_ARTERIES: ReadonlySet<string> = new Set(['A_HEP', 'A_HR', 'A_HL']);
 
 interface EdgeInfo { id: string; from: string; to: string; path: readonly (readonly [number, number])[]; len: number }
 const edges = EDGES as { id: string; from: string; to: string; kind: string; shunt?: string }[];
@@ -24,7 +26,7 @@ const NE = edges.length;
 /** Each chainable vessel's 2D course (the figure's own units: the chain's ends sit within CHAIN_NEAR of one another there) and its length. Arteries and the NO_CHAIN veins carry none. */
 export const INFO: readonly (EdgeInfo | null)[] = edges.map((e) => {
   const v = NETWORK_BY_ID.get(e.id);
-  if (!v || v.feeder || isArteryEdge(e as never) || NO_CHAIN.has(e.id) || v.plan?.kind !== 'coil') return null;
+  if (!v || v.feeder || (isArteryEdge(e as never) && !CHAIN_ARTERIES.has(e.id)) || NO_CHAIN.has(e.id) || v.plan?.kind !== 'coil') return null;
   const path = v.plan.base;
   let len = 0;
   for (let i = 1; i < path.length; i++) len += Math.hypot(path[i]![0] - path[i - 1]![0], path[i]![1] - path[i - 1]![1]);

@@ -54,21 +54,32 @@ export function linkProcs(): () => void {
   function stopPlay(): void {
     gen++;
     timers.forEach(clearTimeout); timers = [];
+    sceneApi.follow(null);
     if (playing || held) { sceneApi.procedure.stop(); playing = false; held = false; }
     useProbes.getState().setEndoscope({ on: false });
   }
 
   function camera(shot: string, last: { name: string; at: number }): void {
-    const now = performance.now();
     if (!shot) return;
-    // the way in follows the tip (re-aimed every beat); a stop's shot is taken once
-    if (shot === last.name && (shot !== 'way' || now - last.at < 700)) return;
     const tip = sceneApi.procedure.tip(V);
     if (!tip) return;
+    // the way in follows the tip as one smooth glide (the rig eases its aim after the point every frame: scene/camera/rig.ts follow); a stop's shot is one move, taken once
+    if (shot === 'way') {
+      if (last.name !== 'way') {
+        const sh = tipShot(shot, tip);
+        if (!sh) return;
+        last.name = shot; last.at = performance.now();
+        sceneApi.goTo(sh, room(), 1100);
+      }
+      sceneApi.follow([tip.x, tip.y, tip.z]);
+      return;
+    }
+    if (shot === last.name) return;
     const sh = tipShot(shot, tip);
     if (!sh) return;
-    last.name = shot; last.at = now;
-    sceneApi.goTo(sh, room(), shot === 'way' ? 900 : 1100);
+    sceneApi.follow(null);
+    last.name = shot; last.at = performance.now();
+    sceneApi.goTo(sh, room(), 1100);
   }
 
   /** One kind, move by move: each step plays to its stop and holds there; the model takes the change as T.apply passes. `base` is the card's index of the kind's first step. */

@@ -145,7 +145,7 @@ export class EndoScope {
       return { part, buf };
     };
     const N = Math.max(this.way.pts.length, this.glueWay.pts.length);
-    const sh = mk('poly', (t) => t.polyEdge, N, 1, 1), bd = mk('poly', (t) => t.polyEdge, 17, 1, 1), tp = mk('steel', null, 4, 1, 2), ln = mk('poly', (t) => t.polyEdge, 2, 0.7, 3);
+    const sh = mk('poly', (t) => t.steel, N, 1, 1), bd = mk('poly', (t) => t.steel, 17, 1, 1), tp = mk('steel', null, 4, 1, 2), ln = mk('poly', (t) => t.polyEdge, 2, 0.7, 3);
     const cp = mk('graft', null, 2, 0.8, 3), bn = mk('platinum', null, 18, 0.9, 4), nd = mk('steel', null, NEEDLE_RINGS, 0.8, 5);
     // the transducer's curved array (its pale face on the side that meets the wall) and the working channel's port, where the needle leaves (2D --dev-scope-face, --dev-port)
     const fc = mk('graft', '#C7C9CC', 2, 0.6, 3), pt = mk('graft', '#0D0D0F', 2, 0.4, 4);

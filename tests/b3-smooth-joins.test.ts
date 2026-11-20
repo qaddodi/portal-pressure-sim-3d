@@ -317,6 +317,7 @@ test('a fork\'s collar is never wider than the trunk it blends into (no blob at 
     let forks = 0;
     for (const v of MAPPED) {
       const c = coursesOf(v, REST)[0]!;
+      if (!c.radius) continue;   // (a varix's own tube is not drawn: its strands are, vessels/shape.ts)
       for (const end of [0, 1] as const) {
         const cl = c.clamp?.[end];
         if (!cl || !v.flare?.[end]) continue;

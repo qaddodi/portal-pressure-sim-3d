@@ -95,7 +95,7 @@ export class CircuitTubes {
   }
 
   /** `body`: the body course of a vessel that lies on the body too (a custom shunt: custom-shunt-paths.js); the tube is built along it and the map course carries it, as every vessel of the figure is. */
-  private add(id: string, kind: TubeKind, edge: string, dense: [number, number][], radius: number, tone: 'portal' | 'sys', baseD: number, widthKind: 0 | 1 | 2, body?: string, circW?: readonly [number, number, number, number], circCap?: readonly [number, number]): Entry {
+  private add(id: string, kind: TubeKind, edge: string, dense: [number, number][], radius: number, tone: 'portal' | 'sys' | 'artery', baseD: number, widthKind: 0 | 1 | 2, body?: string, circW?: readonly [number, number, number, number], circCap?: readonly [number, number], host?: string): Entry {
     const mapPts = scenePoints(dense);
     let built, courseLens: readonly [number, number] | undefined;
     if (body) {
@@ -112,7 +112,7 @@ export class CircuitTubes {
     }
     const { shared, lens, blood, circuit } = this.deps;
     const o = new VesselObject(built.geometry, {
-      tone, artery: false, lensIndex: indexOf(edge), widthKind, circW, circCap, bands: 2, spec: 1, px: kind === 'tree' ? 0.9 : 1.2,
+      tone, artery: tone === 'artery', lensIndex: indexOf(edge), widthKind, circW, circCap, bands: 2, spec: 1, px: kind === 'tree' ? 0.9 : 1.2,
       vessel: { index: indexOf(edge), len: built.length, stubSpeed: markSpeed(1), radius, baseD },
     }, shared, lens, blood, circuit);
     o.edge = { id: edge, from: edgeById.get(edge)?.from ?? '', to: edgeById.get(edge)?.to ?? '', length: built.length };
@@ -124,7 +124,7 @@ export class CircuitTubes {
     o.setPhone(this.phone);
     o.setUseData(this.useData);
     this.group.add(o.group);
-    const e: Entry = { id, kind, obj: o, parent: edge, goal: 0, amount: 0, lens: courseLens };
+    const e: Entry = { id, kind, obj: o, parent: host ?? edge, goal: 0, amount: 0, lens: courseLens };
     this.entries.push(e);
     return e;
   }

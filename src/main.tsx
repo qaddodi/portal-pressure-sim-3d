@@ -4,8 +4,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './ui/shell/global.css';
 import './ui/css2d/index.css';   // the 2D app's stylesheets, copied unchanged (scripts/copy-2d-css.mjs); the lifted chrome is styled by them
+import './ui/shell/ease.css';   // every control eases its state changes (zero weight: a control's own transition wins)
 import './ui/glass.css';   // the one glass for every panel, menu, pill and card (tests/glass.test.ts)
 import { applyLook, resolveLook } from './looks/looks.ts';
+import { lookGlide } from './looks/glide.ts';
 import { useSettings, applyGlass } from './state/settings.ts';
 import { fontsReady } from './boot/fonts.ts';
 import { bootEngine, useEngine } from './engine/index.ts';
@@ -15,6 +17,7 @@ import { hasWebGL2 } from './boot/webgl.ts';
 import { NoWebGL } from './ui/shell/NoWebGL.tsx';
 import { BootCrash } from './ui/shell/BootCrash.tsx';
 import { installNoPageZoom } from './ui/shell/no-page-zoom.ts';
+import { holdSplash } from './boot/ready.ts';
 import { registerPwa } from './pwa/register.ts';
 import { warmLater } from './boot/warm.ts';
 import { mountCharts } from './ui/charts/gallery/mount.tsx';
@@ -27,7 +30,8 @@ import { isFrameRequest } from './ui/debug/frame/request.ts';
 import { flagOn, flagValue, debugPage } from './ui/debug/flags.ts';
 
 const dark = window.matchMedia('(prefers-color-scheme: dark)');
-const paint = () => applyLook(resolveLook(useSettings.getState().look, dark.matches));
+lookGlide.onLook((id) => applyLook(id));   // (the page's colours; the figure's applier is Stage's)
+const paint = () => lookGlide.change(resolveLook(useSettings.getState().look, dark.matches));
 paint();
 useSettings.subscribe(paint);
 applyGlass(useSettings.getState().blur);
@@ -68,6 +72,7 @@ async function start() {
   if (eng.status === 'crashed' || !eng.presetId) { createRoot(document.getElementById('root')!).render(<StrictMode><BootCrash reason={eng.crash} /></StrictMode>); return; }
   installCaught();
   if (isPreview() && flagOn('capture')) { const m = await import('./debug/look-app.ts'); m.applyBefore(location.search); }   // ?capture: one look-board state (WP11)
+  holdSplash();   // the splash stays until the figure has drawn and its labels are placed (boot/ready.ts), then eases away over the app
   createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
   if (isPreview() && flagOn('capture')) void import('./debug/look-app.ts').then((m) => m.mountLookCapture(location.search));
   mountA11y();   // the live region, the figure's description, slide announcements, Reduce Motion fades (batch B14)

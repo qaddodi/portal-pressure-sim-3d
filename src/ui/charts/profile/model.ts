@@ -219,3 +219,12 @@ export function spansFor(want: readonly string[] | null | undefined, fp: Fp | nu
   const list = spansOf(want);
   return hasStent(fp) ? spansStented(list) : list;
 }
+
+/** The ladder's height in its own layout, as 2D's CSS gives it (app-11 `--prof-h`): beside the words on a wide screen `min(max(62 % of the width, 28 pzh), 40 pzh) - 1.6 em`
+ *  (the card has the window's height to itself, so the plot is as tall as it needs, never the stacked card's flat 270 px); a phone on its side `min(62 % of the width, max(170, 48 pzh)) - 1.6 em`;
+ *  a stacked phone keeps the model's own default (undefined). pzh is the window's height over 100 (2D --pzh). */
+export function layoutHeight(w: number, f: number, layout: 'wide' | 'short' | 'stack' | 'tab' | string, sideways: boolean, pzh: number): number | undefined {
+  if (layout === 'stack' || layout === 'tab') return undefined;
+  if (sideways) return Math.round(Math.min(0.62 * w, Math.max(170, 48 * pzh)) - 1.6 * f);
+  return Math.round(Math.min(Math.max(0.62 * w, 28 * pzh), 40 * pzh) - 1.6 * f);
+}

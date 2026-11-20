@@ -12,6 +12,7 @@ import { useLobulePick } from '../../scene/lobule/pick-store.ts';
 import { onParamsChange, presetBase, presetStarted } from './params.ts';
 import { activeInterventions } from './changes.ts';
 import { setInterventionLabels, timeline } from '../timeline/index.ts';
+import { MESHES_OF } from '../../scene/organs/pick.ts';
 import { useUi } from '../ui-store.ts';
 import { isPhone } from '../layout/device.ts';
 import { injectDye } from './dye.ts';
@@ -38,6 +39,10 @@ export function startActions(): () => void {
   off.push(startShunting());   // Add shunt: the targets glow, a tap on one makes the shunt (shunt.ts)
   bindScene((id) => { if (usePick.getState().picked !== id) sceneApi.pick(id); });
   off.push(usePick.subscribe((s) => scenePicked(s.picked)));
+  // a tapped organ is outlined heavily on the figure while it is the selection (the vessel's own glow is the pick's)
+  const outline = (sel: ReturnType<typeof useSelection.getState>['sel']) => sceneApi.selectOrgans(sel?.type === 'organ' ? MESHES_OF[sel.id] ?? [] : []);
+  outline(useSelection.getState().sel);
+  off.push(useSelection.subscribe((s, prev) => { if (s.sel !== prev.sel) outline(s.sel); }));
   // a tap on the lobule: its part's card (2D hitInto), and a second tap on the same part puts it away; a tap on nothing clears a lobule card
   off.push(useLobulePick.subscribe((s) => {
     const cur = useSelection.getState().sel, p = s.picked;

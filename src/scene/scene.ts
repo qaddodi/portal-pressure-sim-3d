@@ -368,12 +368,12 @@ export class CelScene {
   /** Call after the texture's data changed, so the next frame draws. */
   dataChanged(): void {
     const f = latest.frame;
-    this.lens.onFrame(f);
+    this.lens.onFrame(f, !!f?.jump && this.sawFrame, performance.now());   // (a new patient: the colours glide from the old patient's)
     this.blood.streams.onFrame(f);
     if (f) { this.syncPresence(f, !this.sawFrame); this.feedDisease(f, !this.sawFrame); }
-    this.procs.syncStents(f, patient.params, f ? (f.jump || !this.sawFrame) : false);
-    this.procs.syncBands((f as { bands?: number } | null)?.bands ?? 0, f ? (f.jump || !this.sawFrame) : false);
-    this.procs.syncTamponade(patient.params as never, f ? (f.jump || !this.sawFrame) : false);
+    this.procs.syncStents(f, patient.params, f ? !this.sawFrame : false);
+    this.procs.syncBands((f as { bands?: number } | null)?.bands ?? 0, f ? !this.sawFrame : false);
+    this.procs.syncTamponade(patient.params as never, f ? !this.sawFrame : false);
     this.sawFrame = !!f;
     this.syncCircuitData(f);
     if (this.figureView !== 'body') this.feedViews(false);
@@ -384,16 +384,16 @@ export class CelScene {
   /** The patient's disease into the organ and disease layers (src/scene/disease/): the newest frame, the patient's parameters, the healthy pressures. */
   private feedDisease(f: NonNullable<typeof latest.frame>, first: boolean): void {
     this.disease.feed(f as never, (patient.params ?? null) as DiseaseParams | null, (patient.reference?.P as ArrayLike<number> | undefined) ?? null, {
-      instant: first || f.jump,
+      instant: first,   // (a new patient eases: the organs, the disease and the collaterals glide from the old patient to the new, never swap; only the very first frame is at once)
       presence: (id) => (this.presence.isDrawn(id) ? 1 : 0),
       recruit: (id, fr) => recruitFrac(id, fr as never),
-    }, f.jump);
+    }, false);
   }
 
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
   private syncPresence(f: NonNullable<typeof latest.frame>, instant: boolean): void {
-    for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn }, this.healthyQ), instant || f.jump);
-    this.shapes.onFrame(f as never, performance.now(), this.healthyQ, instant || !!f.jump);
+    for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn, circuit: this.figureView === 'circuit' }, this.healthyQ), instant);
+    this.shapes.onFrame(f as never, performance.now(), this.healthyQ, instant);
     for (const t of this.tipFades) if (t.connect.length) t.o.setTipJoined(t.connect.some((c) => this.presence.stateOf(c) === 'shown'));
     const rexOn = this.presence.stateOf('REX') === 'shown';
     if (rexOn !== this.procs.isRexUnder) this.procs.setRexUnder(rexOn, (id) => this.vesselObject(id));
@@ -492,6 +492,8 @@ export class CelScene {
   markVessels(ids: readonly string[]): void { this.highlight.setOnly(ids); this.moving = true; }
 
   /** Outline these organs (organ ids: liver, spleen, heart, bowel, colon, duodenum, kidney-l...); [] clears. */
+  /** The tapped organ gets a heavy outline (the selection's mark); [] puts it out. */
+  selectOrgans(ids: readonly string[]): void { this.pins.select(ids); this.moving = true; }
   pinOrgans(ids: readonly string[], normalSpleen = false): void { this.pins.set(ids); this.pins.setNormalOutline(normalSpleen); this.moving = true; }
 
   /** Free play: pick a vessel by edge ID (or clear it with null). */
@@ -505,7 +507,9 @@ export class CelScene {
   get view(): FigureView { return this.figureView; }
   /** Show the body, the lobule or the sinusoid: the others are hidden and cost nothing (nothing is built or compiled here; the views were made at start). The camera is the caller's. */
   setView(v: FigureView, now = performance.now()): void {
+    const wasCircuit = this.figureView === 'circuit';
     this.figureView = v;
+    if (wasCircuit !== (v === 'circuit') && latest.frame) this.syncPresence(latest.frame, false);   // (the liver's beds are drawn on the map only: they draw on as the body turns into it, and draw back as it returns)
     this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? (sinusoidBox(this.portrait) as Vec3[]) : null);
     // the view being left stays drawn until the camera has landed on the new one (nothing pops while it flies); then it is hidden
     this.body.visible ||= v === 'body' || v === 'circuit';
@@ -612,7 +616,8 @@ export class CelScene {
   }
   /** The body dissolves as the camera goes into the liver and comes back as it leaves (a function of the camera's distance to the lobule's place, so the dive in and the way out are the same picture run both ways). */
   private fadeBody(): void {
-    const f = bodyFade(this.rig.camera.position.distanceTo(this.livePoint));
+    // the dive's effects belong to a dive (or to the lobule and the sinusoid): a close-up of the body at rest (a deck's zoom on the liver) is outside every dive and never fades the organs or opens the window
+    const f = this.inDive() ? bodyFade(this.rig.camera.position.distanceTo(this.livePoint)) : 1;
     if (f === this.fadeNow || (Math.abs(f - this.fadeNow) < 1e-3 && f > 0 && f < 1)) return;
     this.fadeNow = f;
     for (const o of this.objects) o.setFade(f);
@@ -621,6 +626,8 @@ export class CelScene {
     this.moving = true;
   }
   private readonly livePoint = new Vector3(...LIVER_POINT);
+  /** Whether the camera is in, or on its way into or out of, the liver (the lobule, the sinusoid, or a view change still flying): the only time the dive's fade, window and field apply. */
+  private inDive(): boolean { return this.figureView === 'lobule' || this.figureView === 'sinusoid' || this.hideLeftBehind; }
   private readonly mapPt = new Vector3(MAP_CENTRE.x, MAP_CENTRE.y, MAP_CENTRE.z);
   /** The sinusoid's tissue is one opaque plane to every edge of the screen once the camera has landed on it (the lobule is then hidden: nothing of the lobule is ever seen through or around it). While the
    *  camera flies between the lobule and the sinusoid (the view being left stays drawn until it lands) the tissue comes in over the lobule by how far the dive has gone (the pose's own distance: the
@@ -633,7 +640,7 @@ export class CelScene {
   /** The dive's cutaway window in the organs' wash and the field's focus: both are functions of the camera's distance to the place dived to, so the way in and the way out are one picture run both ways,
    *  however the move is reversed, held or resized by a card (camera/dive.ts). Nothing changes at rest: every body shot is outside the window. */
   private stepCutaway(): void {
-    const cam = this.rig.camera, d = cam.position.distanceTo(this.livePoint);
+    const cam = this.rig.camera, d = this.inDive() ? cam.position.distanceTo(this.livePoint) : Infinity;
     const p = this.divePt.copy(this.livePoint).project(cam);
     cutUniform(d, p.x, p.y, cam.aspect, this.cutArr);
     const was = ORGAN_CUT.value.z;
@@ -777,6 +784,19 @@ export class CelScene {
     this.moving = true;
   }
 
+  /** What every vessel is doing now, for the debug page (`pps.vessels()` on `?debug`): which are drawn, with what fade, reveal, caps and widths, and why one is not. */
+  probeVessels(): Record<string, unknown>[] {
+    const rows: Record<string, unknown>[] = [];
+    const row = (o: VesselObject, extra: Record<string, unknown>) => {
+      const u = o.toon.uniforms, v = (n: string) => { const x = (u[n] as { value: unknown } | undefined)?.value; return x && typeof x === 'object' && 'toArray' in x ? (x as { toArray(): number[] }).toArray().map((n2) => +n2.toFixed(3)) : x; };
+      rows.push({ id: o.edge?.id, visible: o.group.visible, fade: v('fade'), reveal: v('reveal'), circT: v('circT'), circW: v('circW'), circCap: v('circCap'), circRow: v('circRow'), len: v('len'), radius: v('radius'), transparent: o.toon.transparent, ...extra });
+    };
+    for (const o of this.vessels) row(o as VesselObject, { kind: 'vessel', presence: this.presence.stateOf(o.edge?.id ?? ''), drawn: this.vesselDrawn(o.edge?.id ?? '') });
+    this.tubes.objects.forEach((o, i) => row(o, { kind: 'tube', tube: this.tubes.ids[i]?.id }));
+    rows.push({ id: '*', fadeNow: this.fadeNow, circBoost: this.circuit.shared.circBoost.value, circPerPx: this.circuit.shared.circPerPx.value, t: this.circuit.t, rr: this.circuit.rr, bodyVisible: this.body.visible, view: this.figureView });
+    return rows;
+  }
+
   private capSig = 0;
   /** The Circuit rounds the ends no other drawn vessel meets (a collateral that opens covers its own join again; a closed one leaves a clean end). Only when the set of drawn vessels changes. */
   private updateCaps(): void {
@@ -886,8 +906,8 @@ export class CelScene {
     const into = this.post.target(gl);
     const dof = dofShare > 0 && !!into?.depthTexture;
     // the sinusoid's focus band (every device): its own lumen and plates sharp, the neighbours and whatever drifts off them blurring by distance (post-dof.ts bandFrame)
-    const bandK = into && this.figureView === 'sinusoid' ? this.sinus3d.focusBand(_bA, _bB, _bE0, _bE1) : 0;
-    const band = bandK > 0 && this.post.dof.bandFrame(cam, _bA, _bB, _bE0, _bE1, into!.width, into!.height, bandK) > 0;
+    const bandK = into && this.figureView === 'sinusoid' ? this.sinus3d.focusBand(_bA, _bB, _bE0, _bE1, _bEnds) : 0;
+    const band = bandK > 0 && this.post.dof.bandFrame(cam, _bA, _bB, _bE0, _bE1, into!.width, into!.height, bandK, _bEnds) > 0;
     if (!band) this.post.dof.bandShare = 0;
     if (into) gl.setRenderTarget(into);
     cam.layers.set(0);
@@ -930,4 +950,4 @@ export { SHOTS };
 
 /** 0 below a, 1 above b, smooth between. */
 function smoothstep01(a: number, b: number, x: number): number { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
-const _bA = new Vector3(), _bB = new Vector3(), _bE0 = new Vector3(), _bE1 = new Vector3();
+const _bA = new Vector3(), _bB = new Vector3(), _bE0 = new Vector3(), _bE1 = new Vector3(), _bEnds = { mid: new Vector3(), f0: new Vector3(), f1: new Vector3() };

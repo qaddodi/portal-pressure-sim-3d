@@ -302,3 +302,61 @@ test('2D\'s long-move path: overlapping framings glide plainly; far apart ones p
   assert.ok(rig.reachMs('pick') >= 480 && rig.reachMs('pick') <= 900);
   assert.equal(rig.reachMs('play'), 480);
 });
+
+test('one continuous shot: a card changing the room mid-move swaps the destination only (same clock, no jump, no restart), and no move pulls back and in again', () => {
+  const room = { x: 0, y: 0, w: 800, h: 600 }, room2 = { x: 0, y: 0, w: 500, h: 600 };
+  const rig = new CameraRig('play', room); rig.resize(800, 600); rig.goTo('play', room, 0);
+  rig.goTo('wedge', room, 0, 1000);
+  let t = 0; for (; t < 400; t += 16) rig.update(t);
+  rig.update(t);
+  const before = rig.camera.position.clone(), zoomBefore = rig.camera.projectionMatrix.elements[5]!;
+  rig.setRoom(room2, t);
+  rig.update(t);
+  assert.ok(rig.camera.position.distanceTo(before) < 0.05, 'no jump at the change');
+  assert.ok(Math.abs(rig.camera.projectionMatrix.elements[5]! - zoomBefore) / zoomBefore < 0.05);
+  let landed = -1; for (let u = t; u < 1200; u += 16) { rig.update(u); if (!rig.isMoving && landed < 0) landed = u; }
+  assert.ok(landed > 0 && landed <= 1016, `lands on the move's own clock (${landed})`);
+  // distance only falls or only rises through a plain move: no pull back and in
+  const r2 = new CameraRig('play', room); r2.resize(800, 600); r2.goTo('play', room, 0); r2.goTo('route', room, 0, 1000);
+  let prev = r2.pose.shot.half[0], dir = 0;
+  for (let u = 16; u <= 1000; u += 16) { r2.update(u); const h = r2.pose.shot.half[0]; const d = Math.sign(h - prev); if (d !== 0) { assert.ok(dir === 0 || d === dir, 'the zoom never reverses'); dir = d; } prev = h; }
+});
+
+test('a camera that is re-aimed every 700 ms (the way in following a catheter tip) keeps its speed: the speed changes smoothly across a retarget, never to a stop and start again', () => {
+  const room = { x: 0, y: 0, w: 800, h: 600 };
+  const rig = new CameraRig('play', room); rig.resize(800, 600); rig.goTo('play', room, 0);
+  const shots = ['route', 'free', 'wedge', 'pick', 'play'] as const;
+  rig.goTo(shots[0], room, 0, 900);
+  let i = 0, L = [...rig.pose.shot.target], H = rig.pose.shot.half[0]; const sp: number[] = [], retarget: number[] = [];
+  for (let t = 16; t <= 3000; t += 16) {
+    if (t % 700 < 16 && i < shots.length - 1) { i++; rig.goTo(shots[i]!, room, t, 900); retarget.push(sp.length); }
+    rig.update(t); const s = rig.pose.shot;
+    sp.push(Math.hypot(s.target[0] - L[0]!, s.target[1] - L[1]!) + Math.abs(s.half[0] - H)); L = [...s.target]; H = s.half[0];
+  }
+  for (const r of retarget) {
+    const before = sp[r - 1]!, after = sp[r]!;
+    assert.ok(after > 0, 'the retarget frame moves');
+    if (before > 0.02) assert.ok(after > before * 0.4, `speed carried across the retarget (${before.toFixed(4)} -> ${after.toFixed(4)})`);
+  }
+});
+
+test('follow: the aim eases after a moving point as one smooth glide (no steps, no restart), and a new shot ends it', () => {
+  const room = { x: 0, y: 0, w: 800, h: 600 };
+  const rig = new CameraRig('play', room); rig.resize(800, 600); rig.goTo('route', room, 0);
+  rig.update(0);
+  rig.follow([0, 0, 0]);
+  let prev = rig.pose.shot.target[0], prevStep = 0, t = 16, maxJerk = 0;
+  for (; t < 2000; t += 16) {
+    rig.follow([t / 4000, -t / 4000, 0]);   // the point moves steadily
+    rig.update(t);
+    const x = rig.pose.shot.target[0], step = x - prev; prev = x;
+    if (t > 200) maxJerk = Math.max(maxJerk, Math.abs(step - prevStep));
+    prevStep = step;
+  }
+  assert.ok(maxJerk < 0.002, `no steps in the follow (jerk ${maxJerk})`);
+  assert.ok(Math.abs(rig.pose.shot.target[0] - 2000 / 4000) < 0.2, 'it keeps up with the point');
+  rig.goTo('play', room, t, 500);
+  const at = rig.pose.shot.target[0]; rig.follow(null);
+  rig.update(t + 700); rig.update(t + 800);
+  assert.ok(Math.abs(rig.pose.shot.target[0] - SHOTS.play.target[0]) < 1e-6 && at !== rig.pose.shot.target[0], 'a new shot goes where it was asked');
+});

@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type PointerEventHandler } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type PointerEventHandler, type MouseEvent } from 'react';
 import type { Rect } from '../layout/device.ts';
 import type { Entry } from './stack.ts';
-import { rail, outDistance, STAGGER, PARALLAX, RAIL_MS, type Dir } from './rail.ts';
+import { reduced } from '../a11y/motion.ts';
+import { rail, STAGGER, PARALLAX, RAIL_MS, type Dir } from './rail.ts';
 import { useUi } from '../ui-store.ts';
 import { layoutOf, radius } from '../layout/rules2d.ts';
 import { centredKind, centredBox, panelVisual } from '../layout/plan.ts';
@@ -20,7 +21,7 @@ interface Props {
   /** the 2D data card's own state classes (tiles-only, col, has-tool, tool-only: presenter.js dataIn), written on the data card only */
   extra?: string;
   /** a tap on the card (2D: a case card is lifted by a tap, as by Next) */
-  onTap?(): void;
+  onTap?(e: MouseEvent<HTMLDivElement>): void;
   /** a visual panel's 2D visual (table, plane, walls…) */
   visual?: string;
   /** the whole group of cards on this slide is measured and its fonts are in: a card comes in only then, so the cards arrive together and at their final size */
@@ -29,10 +30,23 @@ interface Props {
   data?: boolean;
   /** the first cards of a talk fade in where they stand; every later one slides in */
   fresh?: boolean;
+  /** a tap on the card's empty part zooms it to the middle (a wide screen; 2D card-zoom.js) */
+  zoomable?: boolean;
+}
+
+/** 2D's markLong (presenter.js): a title that sets in more than 2.4 lines is a long one and takes the smaller step (`.pz-h.long`, --s-big), so a long title never fills the card.
+ *  Judged at the full size each time (the class is taken off, measured, put back), so a resize or a new title is judged afresh. A phone's stacked card has its own small title. */
+export function markLong(root: HTMLElement | null, on: boolean): void {
+  const ttl = root?.querySelector<HTMLElement>('.pz-h');
+  if (!ttl) return;
+  ttl.classList.remove('long');
+  if (!on) return;
+  const lh = parseFloat(getComputedStyle(ttl).lineHeight) || ttl.offsetHeight;
+  if (ttl.offsetHeight > lh * 2.4) ttl.classList.add('long');
 }
 
 /** One card: placed by transform, sized exactly to its content with a glide, invisible until its words are laid out, then it rises in. */
-export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow, extra, onTap, visual, go = true, data = false, fresh = false }: Props) {
+export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow, extra, onTap, visual, go = true, data = false, fresh = false, zoomable = false }: Props) {
   const vp = useUi((s) => s.vp);
   const r = Math.round(radius(vp.w, vp.h, layoutOf(vp.w, vp.h)));
   const cardRef = useRef<HTMLDivElement>(null);
@@ -49,6 +63,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     if (!el) return;
     // a centred card (2D's panel and case) keeps its padding on the card itself, so its height is its words' and that padding
     const report = () => {
+      markLong(innerRef.current, layoutOf(vp.w, vp.h) !== 'stack' && layoutOf(vp.w, vp.h) !== 'tab');
       const card = cardRef.current, cs = card && centredKind(entry.id) ? getComputedStyle(card) : null;
       const pad = cs ? (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) : 0;
       // 2D's fit (presenter-zoom.js): a panel taller than its room zooms its contents down (--pz-fit, `.pz-panel > *`) until they fit, the words never under 12 px; only past that does the card split
@@ -79,8 +94,9 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     if (!card || !plate || !ready) return;
     const prev = shownH.current;
     shownH.current = rect.h;
-    if (prev == null || prev === rect.h || !live || out) return;
-    if (typeof card.animate !== 'function' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    if (out) { anims.current.forEach((a) => a.cancel()); anims.current = []; return; }   // (a card on its way out is never clipped by a height glide)
+    if (prev == null || prev === rect.h || !live) return;
+    if (typeof card.animate !== 'function' || reduced()) return;
     const opts: KeyframeAnimationOptions = { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'forwards' };
     anims.current.forEach((a) => a.cancel());
     if (rect.h > prev) {
@@ -104,7 +120,6 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
 
   // a card comes in only when its whole group can (every card measured at its final height, the fonts in), never on its own measure:
   // once let in it stays in, whatever the group does after
-  const firstFade = useRef(fresh);   // (the card's own: the cards of a talk's first slide fade in; it is read when the card comes in, not when the talk has moved on)
   const gate = useRef(false);
   if (go && ready) gate.current = true;
   const phase = out ? 'out' : ready && gate.current ? 'in' : 'wait';
@@ -112,20 +127,19 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   // The rail (rail.ts, 2D's card throw): in from the side the talk comes from, out the way it goes, on the one clock; no CSS animation
   const dir: Dir = useUi((s) => s.dir);
   const par = data ? PARALLAX.data : PARALLAX.words;
-  const vw = vp.w, cardW = rect.w;
-  useLayoutEffect(() => {
+    useLayoutEffect(() => {
     const card = cardRef.current, plate = plateRef.current;
     if (!card || !plate) return;
-    const els = [card, plate], reduce = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (phase === 'in') rail.enter(els, { dir, delay: data ? STAGGER : 0, par, fade: firstFade.current, reduce, done: () => setLive(true) });
-    else if (phase === 'out') rail.leave(els, { dir, dist: outDistance(cardW, vw), par, reduce, done: () => onGone(entry.key) });
+    const els = [card, plate], reduce = reduced();
+    if (phase === 'in') rail.enter(els, { dir, delay: data ? STAGGER : 0, par, reduce, fresh, done: () => setLive(true) });
+    else if (phase === 'out') rail.leave(els, { dir, par, reduce, done: () => onGone(entry.key) });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
   useLayoutEffect(() => () => { const card = cardRef.current, plate = plateRef.current; if (card && plate) rail.forget([card, plate]); }, []);
   // (the net, if the clock never reports a landing)
   useEffect(() => {
     if (!out) return;
-    const t = setTimeout(() => onGone(entry.key), RAIL_MS + 300);
+    const t = setTimeout(() => onGone(entry.key), RAIL_MS + 500);
     return () => clearTimeout(t);
   }, [out, entry.key, onGone]);
   // the 2D app's own classes (src/ui/css2d): the words' card is its glass `pz-shade` with `pz-text` inside; the data card is `pz-data`
@@ -137,7 +151,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     <div className="dk-pos" data-live={live && !out} data-centred={alone || undefined} style={{ width: rect.w, transform: `translate3d(${rect.x}px, ${rect.y}px, 0)` }}>
       <div ref={plateRef} className="dk-plate" data-phase={phase} style={{ height: ready ? (animH ?? rect.h) : undefined }} aria-hidden="true" />
       <div ref={cardRef} className={`dk-card ${surface}`} data-card={entry.id} data-phase={phase} data-overflow={overflow || undefined}
-        role="group" aria-label={label} onClick={onTap} data-visual={entry.id === 'title' ? 'outline' : entry.id === 'check' ? 'check' : entry.id === 'visual' ? visual || 'table' : undefined} style={{ height: ready ? (animH ?? rect.h) : undefined }} {...pointer}>
+        role="group" aria-label={label} onClick={onTap} data-zoomable={zoomable || undefined} data-visual={entry.id === 'title' ? 'outline' : entry.id === 'check' ? 'check' : entry.id === 'visual' ? visual || 'table' : undefined} style={{ height: ready ? (animH ?? rect.h) : undefined }} {...pointer}>
         <div ref={innerRef} className={entry.id === 'ladder' || alone ? 'dk-in' : 'dk-in pz-text'}>{children}</div>
         {/* 2D's handle in the data card's foot (a touch screen, both cards up): a push up on the card puts it away */}
         {entry.id === 'ladder' && lay !== 'wide' && lay !== 'short' && <span className="pz-grip" aria-hidden="true" />}

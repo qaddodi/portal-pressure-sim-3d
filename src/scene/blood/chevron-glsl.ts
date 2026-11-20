@@ -39,3 +39,5 @@ vec2 chevLattice(float arc, float across, float pitch, float px, float dir) {
   return chevHead(dir * x, abs(across) * hw / 0.6, hw, px, 0.0);
 }
 `;
+/** The name the first lobule wiring used: the same chunk. */
+export const CHEVRON_HEAD_GLSL = CHEVRON_GLSL;

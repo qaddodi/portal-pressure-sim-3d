@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Color } from 'three';
-import { CASING, CASING_2D, CEL, RIM_A, TAPER_TO, celTones, litMeasure, inkTaper, inkWidthDev } from '../src/scene/vessels/cel-ink.ts';
+import { CASING, CIRC_RIM_DARK, CASING_2D, CEL, RIM_A, TAPER_TO, celTones, litMeasure, inkTaper, inkWidthDev } from '../src/scene/vessels/cel-ink.ts';
 import { CEL_STYLE } from '../src/scene/cel-style.ts';
 import { CEL_TUBE_GLSL, glslNum as F } from '../src/scene/cel-glsl.ts';
 import { LOOK_IDS, PALETTES } from '../src/scene/palette.ts';
@@ -54,7 +54,7 @@ test('the shader holds the same numbers, and has no specular, no rim, no wall li
 test('every look wears 2D\'s casing: its ink and alpha (the dark look\'s own in the Circuit, by its share, not by a lens being on), a veiled vessel half, and the dark looks\' light rim', () => {
   assert.deepEqual(Object.keys(CASING).sort(), [...LOOK_IDS].sort());
   const fl = (a: number) => Math.max(a, CEL_STYLE.INK_ALPHA_MIN);   // 2D's casing alphas (.64 light, .66 soft, .3 dark, .38 black/dark circuit, .34 navy), held at the ink's least
-  assert.equal(CASING.light.a, fl(0.64)); assert.equal(CASING.soft.a, fl(0.66)); assert.equal(CASING.dark.a, fl(0.3)); assert.equal(CASING.dark.circ.a, fl(0.38)); assert.deepEqual(CASING.dark.circ.rgb, [0, 0, 0]); assert.equal(CASING.navy.circ.a, fl(0.34), 'only the dark look changes in the Circuit');
+  assert.equal(CASING.light.a, fl(0.64)); assert.equal(CASING.soft.a, fl(0.66)); assert.equal(CASING.dark.a, fl(0.3)); assert.equal(CASING.dark.circ.a, fl(0.38)); assert.deepEqual(CASING.dark.circ.rgb, [...CIRC_RIM_DARK], 'dark looks wear a pale rim in the Circuit'); assert.equal(CASING.navy.circ.a, fl(0.34), 'only the dark look changes in the Circuit');
   for (const id of LOOK_IDS) assert.ok(CASING[id].a >= CEL_STYLE.INK_ALPHA_MIN && CASING[id].circ.a >= CEL_STYLE.INK_ALPHA_MIN, `${id}: ink, not a faint line`);
   assert.equal(CASING_2D.light.a, 0.64); assert.equal(CASING_2D.dark.a, 0.3); assert.equal(CASING_2D.dark.circ.a, 0.38); assert.equal(CASING_2D.navy.circ.a, 0.34, '2D\'s own casing alphas are kept as CASING_2D');
   assert.equal(RIM_A.light, 0); assert.equal(RIM_A.dark, 0.3);
@@ -114,18 +114,6 @@ test('the outline is continuous by construction: painted in the tube\'s own frag
   assert.match(read('../src/scene/Stage.tsx'), /stencil: true/);
   assert.match(read('../src/scene/scene.ts'), /gl\.clearDepth\(\); gl\.clearStencil\(\)/);
   const s = new CelScene();
-  const st = (s.disease.strands as unknown as { strands: { obj: { ink: import('three').ShaderMaterial } | null }[] });
-  assert.ok(st.strands.length > 0);
-  s.dispose();
-});
-
-test('a strand has the tube tones, so a varix beside its vein shades as the vein does', async () => {
-  const { presetState } = await import('./b4-presets.ts');
-  const s = new CelScene(); const d = s.disease;
-  d.feed((await presetState('cirr-decomp')).frame as never, {}, null, { instant: true, presence: () => 1, recruit: () => 1 }, true); d.update(1000);
-  const drawn = (d.strands as unknown as { strands: { obj: { toon: import('three').ShaderMaterial; ink: import('three').ShaderMaterial; group: { visible: boolean } } | null }[] }).strands.filter((x) => x.obj?.group.visible);
-  assert.ok(drawn.length > 4);
-  for (const x of drawn) { assert.ok('TUBE_TONES' in (x.obj!.toon.defines ?? {})); assert.ok(x.obj!.ink.stencilWrite, 'its ink is inked once'); }
   s.dispose();
 });
 

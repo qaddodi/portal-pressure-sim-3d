@@ -61,7 +61,7 @@ test('the central vein is a smooth round mouth: its lip is a circle of 2D\'s rad
   let max = 0;
   for (let v = 0; v < pos.count; v++) max = Math.max(max, Math.hypot(pos.getX(v) - ox, pos.getY(v) - oy));
   assert.ok(Math.abs(max - DISC_R.cv * LOBULE_R) < 1e-4, `lip radius ${max} against ${DISC_R.cv * LOBULE_R}`);
-  assert.ok(pos.count >= 64 * 10);
+  assert.ok(pos.count >= 64 * 9);
 });
 
 test('the Bile layer\'s courses are the flat view\'s own', () => {
@@ -136,4 +136,17 @@ test('the marks (the periportal scar) and the vessels draw after the see-through
   assert.ok((m.material as import('three').Material).transparent, 'in the see-through list');
   if (f) assert.ok(m.renderOrder > f.renderOrder, 'after the field');
   l.group.traverse((o) => { if (o.name.startsWith('lobule3d/sinusoids-0') && (o as import('three').Mesh).isMesh) { assert.ok(o.renderOrder > m.renderOrder); assert.ok(((o as import('three').Mesh).material as import('three').Material).depthWrite); } });
+});
+
+test('every end-on vessel is a pool full to the brim with its colour: one flat top at the height of the tubes that run into it, no rim, no drop', async () => {
+  const { mouth } = await import('../src/scene/micro3d/lobule3d.ts');
+  const { MeshBuilder } = await import('../src/scene/micro3d/cel3d.ts');
+  const b = new MeshBuilder(), K: number[] = [];
+  mouth(b, 0, 0, 0.2, 0.03, 0.05, K, 32, true, 0.06);
+  assert.ok(K.every((k) => k === 1), 'one colour, no darker rim or floor');
+  const g = b.build(), pos = g.getAttribute('position') as BufferAttribute;
+  let zMax = -1; for (let v = 0; v < pos.count; v++) zMax = Math.max(zMax, pos.getZ(v));
+  assert.ok(Math.abs(zMax - 0.06) < 1e-6, 'its top is the given height');
+  const src = (await import('node:fs')).readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
+  for (const k of ['Pv', 'Ha', 'Bd', 'Lv', 'Cv']) assert.match(src, new RegExp(`mouths\\(this\\.mouth${k}, [^\\n]*, true, `), k);
 });

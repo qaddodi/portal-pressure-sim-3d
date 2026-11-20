@@ -105,6 +105,10 @@ uniform vec2 gate;
 // centre line's offset, in the full-size picture's pixels; bandK x the half width kept sharp, y the run to whole, z the biggest circle (px), w the strength (0: none)
 uniform vec4 band;
 uniform vec4 bandK;
+// and along it (the scene's two ends: never seen to end, Mohammad 20 Nov "don't let me see the end of the sinusoid"): bandA.xy the line's unit direction, z the offset of its middle, bandA.w unused;
+// bandAK x the half length kept sharp, y the run to whole (px; 0: none)
+uniform vec4 bandA;
+uniform vec2 bandAK;
 varying vec2 vUv;
 #define TAPS ${DOF_TAPS}
 float distAt(vec2 uv) {
@@ -122,8 +126,11 @@ float cocAt(float z) {
 }
 float bandCoc(vec2 uv) {
   if (bandK.w <= 0.0) return 0.0;
-  float d = abs(dot(band.xy, uv / texel) - band.z);
-  return smoothstep(bandK.x, bandK.x + bandK.y, d) * bandK.z * bandK.w;
+  vec2 p = uv / texel;
+  float d = abs(dot(band.xy, p) - band.z);
+  float k = smoothstep(bandK.x, bandK.x + bandK.y, d);
+  if (bandAK.y > 0.0) k = max(k, smoothstep(bandAK.x, bandAK.x + bandAK.y, abs(dot(bandA.xy, p) - bandA.z)));
+  return k * bandK.z * bandK.w;
 }
 float cocOf(vec2 uv) { return max(gate.x > 0.0 ? cocAt(distAt(uv)) : 0.0, bandCoc(uv)); }
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
@@ -187,7 +194,7 @@ export class PostDof {
     const uniforms = {
       tColor: { value: null }, tDepth: { value: null }, texel: { value: new Vector2(1, 1) }, proj: { value: new Vector2(-1, -1) },
       plane: { value: new Vector4(1, 0, 0, 1) }, focus: { value: new Vector4(1, 0, DOF_SPAN, 1) }, gate: { value: new Vector2(0, 1) },
-      band: { value: new Vector4(0, 1, 0, 0) }, bandK: { value: new Vector4(1, 1, 0, 0) },
+      band: { value: new Vector4(0, 1, 0, 0) }, bandK: { value: new Vector4(1, 1, 0, 0) }, bandA: { value: new Vector4(1, 0, 0, 0) }, bandAK: { value: new Vector2(0, 0) },
     };
     this.gather = new ShaderMaterial({ name: 'post dof', vertexShader: DOF_VS, fragmentShader: DOF_GATHER_FS, depthTest: false, depthWrite: false, blending: NoBlending, uniforms });
     this.mix = new ShaderMaterial({ name: 'post dof mix', vertexShader: DOF_VS, fragmentShader: DOF_MIX_FS, depthTest: false, depthWrite: false, transparent: true, uniforms: { tBlur: { value: null } } });
@@ -217,8 +224,8 @@ export class PostDof {
    *  circle that grows with the distance from a line on the screen. */
   bandShare = 0;
   /** This frame's focus band: `a`, `b` two points on its centre line and `e0`, `e1` a point where the blur starts and one where it is whole (world points), `w`, `h` the picture's size in px,
-   *  `k` the strength. Returns the strength. */
-  bandFrame(cam: PerspectiveCamera, a: Vector3, b: Vector3, e0: Vector3, e1: Vector3, w: number, h: number, k: number): number {
+   *  `k` the strength; `ends`, when given: the middle of the line and a point on it where the blur along it starts and one where it is whole (the scene's two ends, symmetric about the middle). Returns the strength. */
+  bandFrame(cam: PerspectiveCamera, a: Vector3, b: Vector3, e0: Vector3, e1: Vector3, w: number, h: number, k: number, ends?: { mid: Vector3; f0: Vector3; f1: Vector3 }): number {
     this.bandShare = 0;
     if (this.failed || !(k > 0) || this.env?.reducedMotion) return 0;
     const px = (v: Vector3, o: Vector2) => { _p.copy(v).project(cam); return o.set((_p.x * 0.5 + 0.5) * w, (_p.y * 0.5 + 0.5) * h); };
@@ -230,6 +237,11 @@ export class PostDof {
     const u = this.gather.uniforms;
     (u.band!.value as Vector4).set(nx, ny, c, 0);
     (u.bandK!.value as Vector4).set(d0, Math.max(d1 - d0, 1), DOF_BAND_FRAC * h, k);
+    if (ends) {
+      const tx = dx / l, ty = dy / l, cm = tx * px(ends.mid, _c).x + ty * _c.y;
+      const g0 = Math.abs(tx * px(ends.f0, _c).x + ty * _c.y - cm), g1 = Math.abs(tx * px(ends.f1, _c).x + ty * _c.y - cm);
+      (u.bandA!.value as Vector4).set(tx, ty, cm, 0); (u.bandAK!.value as Vector2).set(g0, Math.max(g1 - g0, 1));
+    } else (u.bandAK!.value as Vector2).set(0, 0);
     this.bandShare = k;
     return k;
   }

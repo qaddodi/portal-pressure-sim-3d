@@ -17,7 +17,7 @@ import { HIDDEN_EDGES } from '../src/scene/vessels/paths.copied.ts';
 const nodeIds = new Set((NODES as { id: string }[]).map((n) => n.id));
 const edge = new Map((EDGES as { id: string; kind: string; from: string; to: string }[]).map((e) => [e.id, e]));
 
-import { withStartInOrgan } from '../src/scene/vessels/starts.ts';
+import { ALONG_VEIN_IDS, withStartInOrgan } from '../src/scene/vessels/starts.ts';
 
 test('every vessel the 2D figure draws is a vessel here, named by its engine edge id', () => {
   const have = new Set(NETWORK.map((v) => v.id));
@@ -120,6 +120,7 @@ test('the vessel vertex shader parses; there is no hull attribute and the outlin
 test('every vessel is its 2D course through the one linear map: back through it, each point is the 2D point', () => {
   for (const v of NETWORK) {
     if (v.feeder) continue;   // (a fan of tributaries: its own test, below)
+    if (ALONG_VEIN_IDS.has(v.id)) continue;   // (the hepatic arteries run beside their portal branches: starts.ts alongVein)
     const c = withStartInOrgan(v.id, EDGE_PATH_2D[v.id]!);   // (the splenic vein is carried on into the spleen: starts.ts)
     assert.equal(v.pts.length, c.length, v.id);
     // (the 2D figure redraws the last 11 samples either side of a run-on as one smooth cubic through the join: joins.ts)
@@ -173,7 +174,7 @@ test('over and under follow the 2D tiers: the portal tree over the network, the 
   assert.ok(z('PV_TRUNK') > z('RHV_IVC'), 'portal trunk over the hepatic vein');
   assert.ok(z('RHV_IVC') > z('C1a') || z('RHV_IVC') < z('C1a'), 'distinct tiers');
   assert.equal(z('PV_TRUNK'), TIER_Z.front);
-  assert.equal(z('A_HEP'), TIER_Z.art);
+  assert.equal(z('A_HEP'), TIER_Z.hep, 'the hepatic artery lies behind the portal vein and the cava it passes at the hilum');
   assert.ok(z('IVCS_RA') < z('PV_TRUNK') && z('IVCS_RA') <= TIER_Z.back + 1e-9, 'the cava is the rearmost tier');
   assert.ok(TIER_Z.back < TIER_Z.art && TIER_Z.art < TIER_Z.mid && TIER_Z.mid < TIER_Z.net && TIER_Z.net < TIER_Z.front && TIER_Z.front < TIER_Z.over);
   for (const v of NETWORK) assert.ok(v.pts.every((p) => p[2] === TIER_Z[v.tier]), `${v.id} is one plane`);

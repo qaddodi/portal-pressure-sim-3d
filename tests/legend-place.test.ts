@@ -13,7 +13,7 @@ test('the legend is in the top bar\'s lens pill and nowhere at the foot of the f
   // the 2D markup: #legend inside .lens-btn (#btnLayers), built by LensKey from the lens model
   assert.match(top, /<LensKey \/>/);
   assert.ok(top.indexOf('className="lens-btn"') < top.indexOf('<LensKey'));
-  assert.match(readFileSync('src/ui/shell/LensKey.tsx', 'utf8'), /id="legend"/);
+  assert.match(readFileSync('src/ui/shell/LensKey.tsx', 'utf8'), /id=("legend"|\{out \? undefined : 'legend'\})/);
 });
 
 test('its scale, bar, notches, numbers and caption breakpoint are the 2D app\'s (the copied 2D stylesheet itself)', () => {

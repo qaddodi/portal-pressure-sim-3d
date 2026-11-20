@@ -11,6 +11,7 @@
 import { DataTexture, FloatType, NearestFilter, RGBAFormat } from 'three';
 import { EDGES, NODES } from './hales/portal/topology.js';
 import type { EngineFrame } from './protocol.ts';
+import { easeInOutCubic } from '../clock/tween.ts';
 
 interface Edge { id: string; from: string; to: string }
 const edges = EDGES as Edge[];
@@ -44,22 +45,49 @@ export function fillVesselData(f: Pick<EngineFrame, 'Pf' | 'Qf' | 'D'>, out: Flo
   return out;
 }
 
-/** The texture the scene's materials sample. Created once; `update` is called from the clock's engine phase. */
+/** How long what is drawn takes to travel from the old patient's numbers to the new one's (the 2D app's surface time). */
+export const PATIENT_EASE_MS = 420;
+const reduced = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** The texture the scene's materials sample. Created once; `update` is called from the clock's engine phase.
+ *  The model's numbers are never blended (a new patient's first frame is a `jump`: nothing the model reports blends across it). What is DRAWN does: the texture holds the display's copy,
+ *  which glides from the old patient's numbers to the new one's (pressure, flow, width) over PATIENT_EASE_MS while the model's own are already the new patient's. */
 export class VesselData {
   readonly data = new Float32Array(EDGE_COUNT * 4);
   readonly texture = new DataTexture(this.data, TEXTURE_WIDTH, 1, RGBAFormat, FloatType);
+  private readonly target = new Float32Array(EDGE_COUNT * 4);
+  private readonly from = new Float32Array(EDGE_COUNT * 4);
   private seen = -1;
+  private had = false;
+  private t0 = 0;
+  private gliding = false;
+  /** Whether the last `update` took a newer frame (the scene's other layers then read it too), as opposed to only stepping the glide. */
+  fresh = false;
   constructor() {
     this.texture.minFilter = NearestFilter; this.texture.magFilter = NearestFilter;
     this.texture.generateMipmaps = false; this.texture.needsUpdate = true;
   }
-  /** Adopt a frame if it is newer than the one already in the texture. Returns whether the texture changed. */
-  update(frame: EngineFrame | null, version: number): boolean {
-    if (!frame || version === this.seen) return false;
-    this.seen = version;
-    fillVesselData(frame, this.data);
-    this.texture.needsUpdate = true;
-    return true;
+  /** True while the drawn numbers are still travelling to the new patient's (the clock goes on asking for frames). */
+  get easing(): boolean { return this.gliding; }
+  /** Adopt a frame if it is newer than the one already in the texture, and step the glide. Returns whether the texture changed. */
+  update(frame: EngineFrame | null, version: number, now: number = performance.now()): boolean {
+    this.fresh = false;
+    let changed = false;
+    if (frame && version !== this.seen) {
+      this.seen = version; this.fresh = true; changed = true;
+      fillVesselData(frame, this.target);
+      if (frame.jump && this.had && !reduced()) { this.from.set(this.data); this.t0 = now; this.gliding = true; }
+      else if (!this.gliding) this.data.set(this.target);
+      this.had = true;
+    }
+    if (this.gliding) {
+      const k = Math.min(1, Math.max(0, (now - this.t0) / PATIENT_EASE_MS)), e = easeInOutCubic(k);
+      for (let i = 0; i < this.data.length; i++) this.data[i] = this.from[i]! + (this.target[i]! - this.from[i]!) * e;
+      if (k >= 1) this.gliding = false;
+      changed = true;
+    }
+    if (changed) this.texture.needsUpdate = true;
+    return changed;
   }
   dispose() { this.texture.dispose(); }
 }

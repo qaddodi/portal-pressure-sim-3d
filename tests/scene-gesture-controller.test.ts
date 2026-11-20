@@ -49,18 +49,18 @@ function rig(over: Partial<GestureHost> = {}, locked = false) {
   const g = createGestures(el, host, env, win);
   const frame = (ms = 16) => { t += ms; const q = [...asks]; asks.clear(); for (const [, cb] of q) cb(t); for (const [i, x] of [...timers]) if (x.at <= t) { timers.delete(i); x.fn(); } };
   const run = (ms: number) => { for (let e = t + ms; t < e;) frame(); };
-  const ptr = (type: string, pointerId: number, x: number, y: number, extra: object = {}) => { const e = { type, pointerId, pointerType: 'touch', isPrimary: pointerId === 1, clientX: x, clientY: y, ...extra }; win.emit(type, e); el.emit(type, e); };
+  const ptr = (type: string, pointerId: number, x: number, y: number, extra: object = {}) => { const e = { type, pointerId, pointerType: 'mouse', isPrimary: pointerId === 1, clientX: x, clientY: y, ...extra }; win.emit(type, e); el.emit(type, e); };
   return { g, el, win, host, env, frame, run, ptr, taps, log, get hand() { return hand; }, get orbit() { return orbit; }, get asks() { return asks.size; }, get timers() { return timers.size; }, get picked() { return picked; }, advance: (ms: number) => { t += ms; } };
 }
 
-test('one finger turns the figure with the hand, the same rule as a mouse (dragToOrbit), inside ±25°', () => {
+test('a mouse drag turns the figure with the hand (dragToOrbit), inside ±25°', () => {
   const r = rig();
   r.ptr('pointerdown', 1, 400, 300);
   r.ptr('pointermove', 1, 405, 300);       // inside the tap slop: not yet a drag
   assert.equal(r.orbit, 0);
   r.ptr('pointermove', 1, 440, 300); r.advance(16);
-  r.ptr('pointermove', 1, 500, 300);
-  assert.equal(r.orbit, dragToOrbit(0, 500 - 440), 'it measures from where the drag began');
+  r.ptr('pointermove', 1, 450, 300);
+  assert.equal(r.orbit, dragToOrbit(0, 450 - 405), 'it measures from where the drag began');
   assert.ok(r.orbit !== 0);
   r.ptr('pointermove', 1, 5000, 300);
   assert.equal(Math.abs(r.orbit), ORBIT_LIMIT, 'never past the limit');
@@ -164,9 +164,9 @@ test('a double click zooms in ×2 about the point and puts back what the first c
   r.run(1500);
   assert.ok(Math.abs(r.hand.k - 2) < 1e-6, `k ${r.hand.k}`);
   assert.equal(r.taps.length, 1, 'the second click is not a pick');
-  const t = rig();
-  t.ptr('pointerdown', 1, 300, 300); t.ptr('pointerup', 1, 300, 300); t.advance(100);
-  t.ptr('pointerdown', 1, 300, 300); t.ptr('pointerup', 1, 300, 300);
+  const t = rig(); const T = { pointerType: 'touch' };
+  t.ptr('pointerdown', 1, 300, 300, T); t.ptr('pointerup', 1, 300, 300, T); t.advance(100);
+  t.ptr('pointerdown', 1, 300, 300, T); t.ptr('pointerup', 1, 300, 300, T);
   t.run(1500);
   assert.equal(t.hand.k, 1);
   assert.equal(t.taps.length, 2);
@@ -192,7 +192,8 @@ test('touches that start at the screen edge belong to the system and are ignored
   assert.equal(isSystemEdge({ pointerType: 'touch', clientX: 5, clientY: 300 }, vp), true);
   assert.equal(isSystemEdge({ pointerType: 'mouse', clientX: 5, clientY: 300 }, vp), false);
   const r = rig();
-  r.ptr('pointerdown', 1, 5, 300); r.ptr('pointermove', 1, 200, 300); r.advance(16); r.ptr('pointermove', 1, 300, 300);
+  const T = { pointerType: 'touch' };
+  r.ptr('pointerdown', 1, 5, 300, T); r.ptr('pointermove', 1, 200, 300, T); r.advance(16); r.ptr('pointermove', 1, 300, 300, T);
   assert.equal(r.orbit, 0);
 });
 
@@ -327,4 +328,12 @@ test('Anatomy never rests zoomed out past its fit: the host gives kMin 1 for the
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/scene/Stage.tsx', import.meta.url), 'utf8');
   assert.match(src, /cel\.view === 'body' \? 1 : K_MIN/);
+});
+
+test('one finger pans in every view, whatever the setting; it never turns the figure', () => {
+  const r = rig();
+  const T = { pointerType: 'touch' };
+  r.ptr('pointerdown', 1, 400, 300, T); r.ptr('pointermove', 1, 440, 300, T); r.advance(16); r.ptr('pointermove', 1, 520, 300, T);
+  assert.equal(r.orbit, 0, 'a finger does not turn');
+  assert.ok(r.hand.x !== 0, `it pans: ${r.hand.x}`);
 });

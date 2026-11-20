@@ -12,6 +12,10 @@ import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, SHOTS, SHOT_MS, type Shot, type Sho
 
 /** The lens swell in a plunge (dive.ts: 14 -> 35 degrees and back). OFF (20 Nov 2026, owner: the camera moves as 2D's do, 1:1; 2D has no lens): the dive is the distance and the framing alone. */
 export const LENS_SWELL = false;
+/** 2D's long-move pull-back (arc.ts). OFF (20 Nov 2026, owner: "zoom in and out should still be ONE shot, not zigzaggy"): a zoom out and in again inside one move reads as a zigzag. Every move is one continuous glide. */
+export const LONG_ARC = false;
+/** How quickly the aim eases after a followed point (ms): about a third of a second, so a moving tip is followed as one smooth glide, never in steps. */
+export const FOLLOW_TAU_MS = 350;
 
 /** Radians of turn per pixel of drag. */
 export const ORBIT_PER_PX = 0.006;
@@ -35,10 +39,19 @@ export const orbitHome = (x0: number, t: number, omega = ORBIT_HOME_OMEGA): numb
 export const easeInOutCubic =(t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 /** 2D's camera ease (src/ui/ease.js easeMove): the quintic smoothstep 6t⁵ − 15t⁴ + 10t³. Its speed and its acceleration both start and end at zero, so a long glide has no catch half way. */
 export const easeMove = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * t * (t * (6 * t - 15) + 10));
-/** 2D's carry (ease.js carried, CARRY_MAX): a glide begun while another is still moving starts at the speed the view has, instead of from rest: p = ease(t) + c·t(1−t)², c the old speed in the new glide's own
- *  progress per glide, capped at 0.8 so the progress never passes 1 on the way. With c = 0 it is easeMove. */
-export const CARRY_MAX = 0.8;
-export const easeCarry = (t: number, c: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : Math.min(1, easeMove(t) + (c > 0 ? Math.min(c, CARRY_MAX) * t * (1 - t) * (1 - t) : 0)));
+/** The carry of a glide begun while another is moving (2D's idea, ease.js carried: start at the speed the view has, not from rest). 2D adds c·t(1−t)² to the ease and caps c at 0.8 so the progress never passes 1; that cap cannot hold a
+ *  fast move's speed across a retarget (the camera following a catheter tip, a slide changed mid-move), so the speed dipped at every retarget and the picture pulsed. Here the progress is the cubic Hermite from 0 to 1 that starts with slope c and ends at
+ *  rest (never reverses for c up to 3), blended into easeMove so a carry of 0 is exactly 2D's curve and a small one is 2D's too. */
+export const CARRY_MAX = 3;
+export const easeCarry = (t: number, c: number): number => {
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  if (!(c > 0)) return easeMove(t);
+  const m = Math.min(c, CARRY_MAX), t2 = t * t, t3 = t2 * t;
+  const hermite = (t3 - 2 * t2 + t) * m + (3 * t2 - 2 * t3);
+  const w = Math.min(1, m / 0.8);   // (a carry of 0.8 or more is all Hermite; a smaller one eases in from the quintic)
+  return Math.min(1, Math.max(0, easeMove(t) * (1 - w) + hermite * w));
+};
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 
 /** Shortest way round between two angles, so a turn never spins the long way. */
@@ -121,6 +134,16 @@ export class CameraRig {
   private dur = 0;
   /** The speed the move began with (easeCarry's slope): zero from a standstill. */
   private carry = 0;
+  /** The progress the last frame was drawn at (the eased value the pose is at now). */
+  private eNow = 0;
+  /** A point the aim follows (the catheter's tip on the way in), or null. Smoothed, never a restart: while a move is on its way its destination drifts to the point, and once it lands the aim eases after it. */
+  private followAt: [number, number, number] | null = null;
+  private followT = 0;
+  /** A move retargeted in flight starts with the velocity it had (a Hermite curve for the aim and the width: the curve bends toward the new target instead of stopping at a corner); null from a standstill. */
+  private hv: { x: number; y: number; lh: number } | null = null;
+  /** The aim's speed per ms (x, y in world units, lh the log of the framing's width), sampled each frame of a move: what a retarget carries on. */
+  private readonly vel = { on: false, t: 0, x: 0, y: 0, lh: 0 };
+  private velLast = { t: 0, x: 0, y: 0, lh: 0, ok: false };
   /** 2D's long-move path (arc.ts) for this move, or null for the plain glide. */
   private long: LongPath | null = null;
   private readonly longPath = new LongPath();
@@ -151,6 +174,11 @@ export class CameraRig {
   /** The plate the hand may pan the figure within (the body's plate, or the Circuit's map), as a rectangle in the plane at depth z. */
   private bounds: { x0: number; x1: number; y0: number; y1: number; z: number } = { ...PLATE_BOUNDS, z: FIGURE_Z };
   readonly reduceMotion: boolean;
+  /** Follow a world point with the aim (null stops following). */
+  follow(p: readonly [number, number, number] | null): void {
+    this.followAt = p ? [p[0], p[1], p[2]] : null;
+    if (p) this.dirty = true;
+  }
   /** Whether the viewer may turn the figure without limit on both axes (Stage: the setting is on and the view is the body). */
   freeGate: (() => boolean) | null = null;
   get free(): boolean { return !!this.freeGate && this.freeGate(); }
@@ -198,6 +226,7 @@ export class CameraRig {
   /** Fly to a shot (and a room) in one straight move. Called again mid-flight, the new move starts from where the camera is now. */
   goTo(shot: ShotName | Shot, room: Room, now: number, ms = SHOT_MS, keepHand = false): void {
     const s = typeof shot === 'string' ? SHOTS[shot] : shot;
+    if (!keepHand) this.followAt = null;   // a new shot ends a follow (the caller that wants one asks again after it)
     // The first shot with a real room is where the camera starts, not somewhere it flies to: until then it has no pose worth showing (the constructor's
     // title shot filling a canvas that has no size yet), so it is put there at once and nothing is drawn before. (Mohammad, 19 Nov: the figure started at the
     // top left and zoomed in.)
@@ -208,24 +237,38 @@ export class CameraRig {
       this.orbit = this.orbitFrom = 0; this.active = false; this.handTween = false; this.dirty = true;
       return;
     }
-    // retargeted in flight: carry the speed on (the old move's progress rate over what it had left, in the new move's own units), so nothing slows to a stop and starts again
+    // retargeted in flight: carry the speed on, 2D's carryRate: the view's speed (the aim in screens a second, the zoom with a doubling counting half a screen) projected on the way to the new framing,
+    // in the new glide's own progress per glide, so nothing slows to a stop and starts again whatever the new target is
     let carry = 0;
-    if (this.active && this.dur > 0) {
-      const k0 = Math.min(1, (now - this.t0) / this.dur), e0 = easeCarry(k0, this.carry), e1 = easeCarry(Math.min(1, k0 + 1e-3), this.carry);
-      const left = 1 - e0, newDur = reducedMs(ms, this.reduceMotion || reduced());
-      if (left > 1e-3 && newDur > 0) carry = Math.min(CARRY_MAX, Math.max(0, ((e1 - e0) / 1e-3 / this.dur) / left * newDur));
+    const newDur = reducedMs(ms, this.reduceMotion || reduced());
+    if (this.active && this.vel.on && now - this.vel.t < 80 && newDur > 0) {
+      const a = this.cur.shot, w = Math.max(1e-6, a.half[0] + s.half[0]);
+      const T0 = Math.log(Math.max(1e-6, s.half[0]) / Math.max(1e-6, a.half[0])) / (2 * Math.LN2), T1 = (s.target[0] - a.target[0]) / w, T2 = (s.target[1] - a.target[1]) / w;
+      const tt = T0 * T0 + T1 * T1 + T2 * T2;
+      if (tt > 1e-12) carry = Math.min(CARRY_MAX, Math.max(0, ((this.vel.lh / (2 * Math.LN2)) * T0 + (this.vel.x / w) * T1 + (this.vel.y / w) * T2) / tt * newDur));
     }
+    let hv: { x: number; y: number; lh: number } | null = null;
+    if (this.active && this.vel.on && now - this.vel.t < 80 && newDur > 0 && !(this.reduceMotion || reduced())) {
+      const a = this.cur.shot, dx = s.target[0] - a.target[0], dy = s.target[1] - a.target[1], dl = Math.log(Math.max(1e-6, s.half[0]) / Math.max(1e-6, a.half[0]));
+      let vx = this.vel.x * newDur, vy = this.vel.y * newDur, vl = this.vel.lh * newDur;
+      const w = a.half[0] + s.half[0], mv = Math.hypot(vx / w, vy / w, vl / (2 * Math.LN2)), md = Math.hypot(dx / w, dy / w, dl / (2 * Math.LN2));
+      if (mv > 1e-9 && md > 1e-9) {
+        const f = Math.min(1, (2.5 * md) / mv);   // (never carry so much that the curve overshoots its target)
+        vx *= f; vy *= f; vl *= f; hv = { x: vx, y: vy, lh: vl };
+      }
+    }
+    this.hv = hv;
     this.from = { shot: copyShot(this.cur.shot), room: copyRoom(this.cur.room) };
     this.to = { shot: copyShot(s), room: copyRoom(room) };
     this.carry = this.reduceMotion || reduced() ? 0 : carry;
-    this.long = !isDive(this.from, this.to) && !(this.reduceMotion || reduced()) && this.longPath.fill(this.from.shot, this.to.shot, SHOTS.play.half[0] * 2).arc ? this.longPath : null;
+    this.long = LONG_ARC && !isDive(this.from, this.to) && !(this.reduceMotion || reduced()) && this.longPath.fill(this.from.shot, this.to.shot, SHOTS.play.half[0] * 2).arc ? this.longPath : null;
     // a new shot takes the hand's zoom and pan back to the shot's own framing, in the same move
     this.handFrom = { ...this.hand };
     this.handTween = keepHand ? this.handTween : this.hand.k !== 1 || this.hand.x !== 0 || this.hand.y !== 0;
     // the lens: a plunge into the figure (the body to the lobule or the sinusoid, or back) widens it and narrows it again (dive.ts); Reduce Motion keeps the long lens throughout
     this.bumpFrom = this.bump;
     this.plunge = LENS_SWELL && !(this.reduceMotion || reduced()) && Math.max(this.from.shot.r, this.to.shot.r) / Math.max(1e-9, Math.min(this.from.shot.r, this.to.shot.r)) > PLUNGE_RATIO;
-    this.t0 = now;
+    this.t0 = carry > 0 || hv ? now - 16 : now; this.eNow = 0;   // (carrying speed: the first frame is one frame in, so the retarget frame is not a stand-still)
     this.dur = reducedMs(ms * (this.long ? this.long.stretch : 1), this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
     this.orbitTo = keepHand ? (this.active ? this.orbitTo : this.orbit) : 0;
     this.orbitFrom = this.orbit;
@@ -238,6 +281,16 @@ export class CameraRig {
   /** The cards changed room (a card opened, the phone turned): move the room alone, same curve; the hand's zoom and the viewer's turn stay (cards opening keep both). `homeTurn`: a guided step brings the turn home with the move. */
   setRoom(room: Room, now: number, ms?: number, homeTurn = false): void {
     // a card opening in the middle of a dive keeps the dive's own time: it lands when it was going to, in the new room (not a fresh 950 ms from a standstill)
+    // a move in flight whose room alone changes (a card opening or closing): the same move, the same clock and the same curve, with only its destination room swapped, so the picture never stops or restarts
+    if (this.active && ms == null && !homeTurn && this.dur > 0) {
+      const e = this.eNow;
+      if (e < 0.98) {
+        const c = this.cur.room, r = room;
+        this.from.room = { x: (c.x - e * r.x) / (1 - e), y: (c.y - e * r.y) / (1 - e), w: (c.w - e * r.w) / (1 - e), h: (c.h - e * r.h) / (1 - e) };
+        this.to.room = copyRoom(room); this.dirty = true;
+        return;
+      }
+    }
     const left = this.active ? Math.max(1, this.t0 + this.dur - now) : undefined;
     this.goTo(this.to.shot, room, now, ms ?? (left != null ? Math.max(left, 200) : undefined), true);
     // a guided step (a slide, a catheter step) that asks for the shot the camera is already on still brings the turn home: the viewer's angle is theirs only between guided poses
@@ -305,13 +358,33 @@ export class CameraRig {
     return rect;
   }
 
+  /** The aim and the width of a retargeted move on a cubic Hermite from where it was, starting at the speed it had and ending at rest. */
+  private hermiteAim(k: number): void {
+    const hv = this.hv!, a = this.from.shot, b = this.to.shot, c = this.cur.shot, k2 = k * k, k3 = k2 * k;
+    const h01 = 3 * k2 - 2 * k3, h10 = k3 - 2 * k2 + k;
+    c.target[0] = a.target[0] + (b.target[0] - a.target[0]) * h01 + hv.x * h10;
+    c.target[1] = a.target[1] + (b.target[1] - a.target[1]) * h01 + hv.y * h10;
+    const la = Math.log(Math.max(1e-6, a.half[0])), lb = Math.log(Math.max(1e-6, b.half[0])), lc = la + (lb - la) * h01 + hv.lh * h10;
+    const q = Math.abs(lb - la) > 1e-6 ? Math.min(1, Math.max(0, (lc - la) / (lb - la))) : this.eNow, f = Math.exp(lc - la);
+    c.half[0] = a.half[0] * f;
+    c.half[1] = (a.half[1] + (b.half[1] - a.half[1]) * q) * (c.half[0] / (a.half[0] + (b.half[0] - a.half[0]) * q));
+    c.r = a.r * Math.pow(b.r / a.r, q);
+  }
+  private sampleVel(now: number): void {
+    const c = this.cur.shot, L = this.velLast, lh = Math.log(Math.max(1e-6, c.half[0]));
+    if (L.ok && now > L.t && now - L.t < 100) { const dt = now - L.t; this.vel.x = (c.target[0] - L.x) / dt; this.vel.y = (c.target[1] - L.y) / dt; this.vel.lh = (lh - L.lh) / dt; this.vel.t = now; this.vel.on = true; }
+    L.t = now; L.x = c.target[0]; L.y = c.target[1]; L.lh = lh; L.ok = true;
+  }
   /** Steps the tween and writes the camera. Returns true while the camera is still moving (the clock needs another frame). */
   update(now: number): boolean {
     let moving = false;
     if (this.active) {
       const k = this.dur <= 0 ? 1 : Math.min(1, (now - this.t0) / this.dur);
       const e = easeCarry(k, this.carry);
+      this.eNow = e;
       this.cur = blendPose(this.from, this.to, e, 0);
+      if (this.hv && e < 1) this.hermiteAim(k);
+      this.sampleVel(now);
       if (this.long && e < 1) this.long.at(e, this.cur.shot);
       this.bump = fovBump(k, this.bumpFrom, this.plunge);
       // the orbit eases back to centre with the shot (a new shot always starts square on), but a change of room alone (a card opening) leaves the turn the viewer chose
@@ -321,6 +394,16 @@ export class CameraRig {
       if (k >= 1) this.active = false; else moving = true;
       this.dirty = true;
     }
+    if (this.followAt) {
+      const f = this.followAt;
+      if (this.active) { this.to.shot.target[0] = f[0]; this.to.shot.target[1] = f[1]; this.to.shot.target[2] = f[2]; moving = true; }
+      else {
+        const dt = this.followT > 0 ? Math.min(100, Math.max(0, now - this.followT)) : 16, k = this.reduceMotion || reduced() ? 1 : 1 - Math.exp(-dt / FOLLOW_TAU_MS), t = this.cur.shot.target;
+        const dx = f[0] - t[0], dy = f[1] - t[1], dz = f[2] - t[2];
+        if (Math.hypot(dx, dy, dz) > 1e-5) { t[0] += dx * k; t[1] += dy * k; t[2] += dz * k; this.dirty = true; moving = true; }
+      }
+      this.followT = now;
+    } else this.followT = 0;
     if (this.stepTilt(now)) moving = true;
     if (this.dirty) { this.apply(); this.dirty = false; }
     return moving;

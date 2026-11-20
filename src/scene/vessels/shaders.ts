@@ -23,7 +23,7 @@ import { TUBE_RADIAL } from './tubes.ts';
 
 /** The tube's ring is a polygon of TUBE_RADIAL sides: its corners stand 1 / cos(pi / n) - 1 of the radius outside its flats. The tube is built that much fatter, so the silhouette never falls inside the outline. */
 export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
-import { TAPER_FROM, TAPER_TO } from './cel-ink.ts';
+import { CIRC_INK_K, TAPER_FROM, TAPER_TO } from './cel-ink.ts';
 
 export const VESSEL_VS = /* glsl */ `
 attribute vec3 tang;
@@ -154,6 +154,7 @@ ${CIRCUIT_VS_CALL}
   // the ink is held back ONLY on the part of a declared branch's end that lies inside its trunk (bury: the trunk's radius, per end): never along a vessel's own sides, never at a run-on's ring, never where vessels merely cross
   float endK = vHi > 0.001 ? 1.0 : buryK(uv.x * len * vU, (1.0 - uv.x) * len * vU);
   float inkPx = clamp(${F(CEL_STYLE.LINE_R)} * rDevV, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rDevV) / dpr;
+  inkPx *= mix(1.0, ${F(CIRC_INK_K)}, circT);   // (the Circuit's line is bolder: its tubes are thick and its ground flat)
   float inkW = (inkPx * endK + hiPx * vHi) * inkOn * wpcV / vU;   // scene units
   float lumenW = radius * rk * swell * (1.0 - narrow);
   // (the ring is a polygon: its flats sit at the radius, its corners ${F(TUBE_SAG)} of the radius farther out, so the silhouette never falls inside the line)
@@ -330,7 +331,7 @@ bool capCarved(float across) {
   if (circCap.y > 0.5) dd = min(dd, (1.0 - vUv.x) * len * vU);
   float wpc = vCen.z * 2.0 / (res.y * projY) * vU;   // (the axis's depth, the one the vertex stage built the line from)
   float rDev = vR / max(wpc, 1e-6) * dpr;
-  float ink = clamp(${F(CEL_STYLE.LINE_R)} * rDev, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) / dpr * wpc * inkOn;
+  float ink = clamp(${F(CEL_STYLE.LINE_R)} * rDev, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * mix(1.0, ${F(CIRC_INK_K)}, circT) / dpr * wpc * inkOn;
   float R = (vR + ink) * k, a = dd + ink * k;
   if (a >= R) return false;
   float q = 1.0 - a / R;

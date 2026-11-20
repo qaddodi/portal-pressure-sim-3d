@@ -8,7 +8,7 @@ export const ORGAN_Z: Readonly<Record<string, number>> = {
   'kidney-l': TIER_Z.back,
   spleen: -0.12,
   stomach: -0.06,
-  duodenum: -0.06,
+  duodenum: -0.12,   // (behind the colon: the transverse colon crosses in front of it)
   bowel: -0.04,
   colon: -0.04,
   heart: -0.03,

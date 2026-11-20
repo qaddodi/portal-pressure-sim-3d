@@ -48,6 +48,8 @@ export interface GestureHost {
   orbit(): number;
   /** The least zoom the hand may rest at for the view now (absent: K_MIN). The sinusoid keeps its own vessel framed: never under its fit (Mohammad, 20 Nov 2026: "i shouldn't be able to zoom this much in sinusoid; spring me back"). */
   kMin?(): number;
+  /** A pan let go outside the allowed area glides back to the middle of the view (the sinusoid), not just to its edge. */
+  recentre?(): boolean;
   /** Returns whether the orbit changed. */
   setOrbit(rad: number): boolean;
   /** Tilt all around (Settings): whether the free turn is on, and the tilt up or down. Absent: only the ±25° turn. */
@@ -155,7 +157,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     springAsk = 0;
     if (drag || flicking || wheelGlide.active) { if (wheelGlide.active) settleSoon(60); return; }
     const v0 = hand.take(env.now(), handAge);
-    const to = restingView(host.hand(), fitRect(), host.centre(), kMin());
+    const to = restingView(host.hand(), fitRect(), host.centre(), kMin(), !!host.recentre?.());
     if (!sameView(to, host.hand())) animateTo(to, undefined, v0);
   }
   const settleSoon = (ms = 220) => { env.clearTimer(settleT); settleT = env.timer(springBack, ms); };
@@ -317,8 +319,8 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     const touch = ev.pointerType === 'touch';
     // a mouse turns the figure; Shift or the middle button pans (a trackpad's own two fingers pan through wheel events)
     const free = !!host.free?.();
-    // Tilt all around: a finger pans (two tilt, see startPinch); a mouse drag turns the figure on both axes
-    drag = ev.shiftKey || ev.button === 1 || (free && touch) ? startPan(ev.clientX, ev.clientY, touch) : { type: 'rotate', x: ev.clientX, y: ev.clientY, orbit0: host.orbit(), pitch0: free ? host.orbitPitch?.() ?? 0 : undefined, moved: false, trail: trail(ev.clientX, ev.clientY), touch };
+    // A finger always pans, in every view and whatever the setting (two fingers pinch, or tilt when Tilt all around is on, see startPinch); a mouse drag turns the figure (both axes with Tilt all around)
+    drag = ev.shiftKey || ev.button === 1 || touch ? startPan(ev.clientX, ev.clientY, touch) : { type: 'rotate', x: ev.clientX, y: ev.clientY, orbit0: host.orbit(), pitch0: free ? host.orbitPitch?.() ?? 0 : undefined, moved: false, trail: trail(ev.clientX, ev.clientY), touch };
   };
   const pushTrail = (tr: number[], x: number, y: number) => {
     const now = env.now();

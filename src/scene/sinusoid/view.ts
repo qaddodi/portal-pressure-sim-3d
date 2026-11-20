@@ -81,6 +81,8 @@ export class SinusoidView {
   private readonly uni = uniformsOf();
   private readonly mats: RawShaderMaterial[] = [];
   private cur: Cur = { ...REST };
+  /** The way the blood runs along the sinusoid (+1 toward the central vein, -1 reversed). */
+  get flowDir(): number { return Math.sign(this.cur.v || 1); }
   private goal: Cur = { ...REST };
   private visible = false;
   private lastNow = -1;

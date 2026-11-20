@@ -77,12 +77,11 @@ test('the figure is framed whole behind them (nothing of the card is a blocker),
   assert.equal(pzhOf({ w: 800, h: 1200, safe: phone.safe }), Math.min(12, 6), '2D\'s --pzh on a portrait tablet');
 });
 
-test('behind a case card the camera backs out to the whole patient and the figure dips to 22%; a long outline zooms its contents down to fit (never under 12 px) before it splits', () => {
+test('behind a case card the camera keeps the slide\'s own framing (one shot, no back-out; owner 20 Nov) and the figure dips to 22%; a long outline zooms its contents down to fit (never under 12 px) before it splits', () => {
   const slide = { id: 'c', kicker: '', title: 'T', line: 'L.', shot: 'liver', vignette: 'A patient.' } as never;
   const stops = [{ kind: 'slide', slide } as never];
   assert.equal(viewAt(stops, { stop: 0, beat: 0 } as never).words, 'case');
-  assert.equal(viewAt(stops, { stop: 0, beat: 0 } as never).shot, viewAt([{ kind: 'title' } as never], { stop: 0, beat: 0 } as never).shot, 'the whole patient');
-  assert.notEqual(viewAt(stops, { stop: 0, beat: 1 } as never).shot, viewAt([{ kind: 'title' } as never], { stop: 0, beat: 0 } as never).shot, 'the slide\'s own framing once the card is lifted');
+  assert.equal(viewAt(stops, { stop: 0, beat: 0 } as never).shot, viewAt(stops, { stop: 0, beat: 1 } as never).shot, 'the case card and the lifted card share one framing: no second move');
   const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
   assert.match(layer, /' on dip'/);
   assert.match(readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8'), /\.pz-veil\.dip \{ opacity: 0\.85/);
@@ -109,4 +108,11 @@ test('the measures are 2D\'s CSS (the lifted copy): the panel, the stacked panel
   assert.match(lifted, /\.pz\.stack\.tab \.pz-panel \{ width: 70%; \}/);
   assert.match(lifted, /\.pz-case \{[^}]*width: min\(calc\(100% - 32px - 2 \* max\(env\(safe-area-inset-left, 0px\), env\(safe-area-inset-right, 0px\)\)\), 920px\)[^}]*max-height: calc\(100% - 2 \* max\(84px, 11vh\)\)/);
   assert.match(lifted, /\.pz\.stack\.tab \.pz-case \{ width: 70%; \}/);
+});
+
+test('the six ladders are 2D\'s `.pz-panel.fill`: the screen\'s width, not a reading width', () => {
+  const full = centredBox(mac, 'panel', 'ladders').w, table = centredBox(mac, 'panel', 'table').w;
+  assert.ok(full > table, 'wider than a table');
+  assert.equal(full, Math.round(Math.min(1560, 1440 - 2 * Math.max(Math.min(64, Math.max(16, 0.03 * 1440)), 0))));
+  assert.match(readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8'), /visual === 'ladders' \? 'fill'/);
 });
