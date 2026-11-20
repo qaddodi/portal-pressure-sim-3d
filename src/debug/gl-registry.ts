@@ -5,6 +5,7 @@ import type { Object3D } from 'three';
 import { type Program, assemble, collectMaterials, lateMaterialProgram, rawProgram, templateConstants } from './gl-programs.ts';
 import { INK_FS, INK_VS, TOON_FS, TOON_VS } from '../scene/materials/shaders.ts';
 import { VESSEL_FS, VESSEL_VS } from '../scene/vessels/shaders.ts';
+import { SKIN_FS, SKIN_VS } from '../scene/vessels/skin/shaders.ts';
 import { DOT_FS, DOT_VS, PLATE_FS, PLATE_VS } from '../scene/circuit/map-layer.ts';
 import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from '../scene/organs/organ-shader.ts';
 import { patchedShaders } from '../scene/organs/organ-art.ts';
@@ -33,6 +34,7 @@ export const GL_FILES: Record<string, string> = {
   'scene/blood/dust-glsl.ts': 'the dust (the Dust Lab\'s particles, drawn by the vessel\'s own fragment shader), spliced into the vessel program: part of that',
   'scene/cel-glsl.ts': 'the cel style\'s shared tube GLSL (two tones, the world light), spliced into the vessel, toon and lobule programs: part of those',
   'scene/vessels/shaders.ts': 'the vessel, with its veil (VEIL define): found on the scene graph',
+  'scene/vessels/skin/shaders.ts': 'the junction skin (one merged mesh where 3 or 4 vessels meet; behind ?joins=mesh): registered by name until the scene wears it, then also found on the scene graph',
   'scene/sinusoid/view.ts': 'where the sinusoid\'s RawShaderMaterials are made (version moved to glslVersion): found on the scene graph',
   'scene/organs/organ-shader.ts': 'the organ wash (WP1): registered by name until the scene wears it, then also found on the scene graph',
   'scene/circuit/shader.ts': 'the Circuit morph, spliced into the vessel shader: part of the vessel program',
@@ -62,7 +64,7 @@ export const GL_FILES: Record<string, string> = {
 /** Source text → name, so a program found on the scene graph is called what it is. */
 export function namedSources(): Map<string, string> {
   return new Map<string, string>([
-    [VESSEL_VS, 'vessel'], [VESSEL_FS, 'vessel'], [TOON_VS, 'toon'], [TOON_FS, 'toon'], [INK_VS, 'ink'], [INK_FS, 'ink'],
+    [VESSEL_VS, 'vessel'], [VESSEL_FS, 'vessel'], [SKIN_VS, 'skin'], [SKIN_FS, 'skin'], [TOON_VS, 'toon'], [TOON_FS, 'toon'], [INK_VS, 'ink'], [INK_FS, 'ink'],
     [ORGAN_VS, 'organ wash'], [ORGAN_FS, 'organ wash'], [DYE_VS, 'dye overlay'], [DYE_FS, 'dye overlay'], [JET_INK_VS, 'bleed jet ink'], [JET_INK_FS, 'bleed jet ink'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [LOBULE_PLATE_VS, 'lobule plate'], [LOBULE_PLATE_FS, 'lobule plate'], [LOBULE_FIELD_VS, 'lobule field'], [LOBULE_FIELD_FS, 'lobule field'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'], [DOF_GATHER_FS, 'post dof'], [DOF_MIX_FS, 'post dof mix'], [CELLS_VS, 'blood cells'], [CELLS_FS, 'blood cells'], [MICRO_VS, 'micro3d toon'], [MICRO_FS, 'micro3d toon'], [MICRO_INK_VS, 'micro3d ink'], [MICRO_INK_FS, 'micro3d ink'],
   ]);
 }
@@ -94,6 +96,7 @@ export function rawPrograms(fibroText: string): Program[] {
   const out = [
     lateMaterialProgram('circuit resistors', RES_VS, RES_FS),
     lateMaterialProgram('dye overlay', DYE_VS, DYE_FS),
+    lateMaterialProgram('skin', SKIN_VS, SKIN_FS),
     ...clotPrograms(),
     lateMaterialProgram('organ wash', ORGAN_VS, ORGAN_FS),
     ...organArtPrograms(),
