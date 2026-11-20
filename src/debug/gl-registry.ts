@@ -47,6 +47,7 @@ export const GL_FILES: Record<string, string> = {
   'scene/devices/device-object.ts': 'a device wears the toon shader with an alpha: found on the scene graph',
   'scene/lobule/plate.ts': 'the lobule\'s tissue plate under the 3D cells (2D\'s painter on a canvas texture): found on the scene graph',
   'scene/lobule/field.ts': 'the neighbouring lobules out of focus: found on the scene graph',
+  'scene/lobule/one-fade.ts': 'the one-line GLSL patch that scales a stock material\'s alpha by the lobule\'s fade (the tap halo\'s MeshBasicMaterial): the halo\'s program is found on the scene graph',
   'scene/micro3d/cel3d.ts': 'the true-3D lobule and sinusoid (Settings > Figure depth): the cel toon and its ink hull, plain and instanced: found on the scene graph',
   'scene/organs/organ-art.ts': 'the organ wash wrapped for the organs\' art and the esophagus\'s fade (made when the art file is in): registered by name',
   'scene/blood/cells/shader.ts': 'the blood-cell particles (Settings > Figure depth; built when first switched on): registered by name, and found on the scene graph once they are in it',
