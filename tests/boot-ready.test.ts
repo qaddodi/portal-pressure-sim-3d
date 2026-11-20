@@ -34,3 +34,12 @@ test('the wiring: the page lifts its cover for the app only on the ready signal,
   assert.match(readFileSync('src/scene/Stage.tsx', 'utf8'), /figureDrawn\(\);/);
   assert.match(readFileSync('src/main.tsx', 'utf8'), /holdSplash\(\);[\s\S]{0,200}render\(<StrictMode><App \/>/);
 });
+
+test('index.html\'s inline boot script is valid JavaScript (a syntax error there takes the whole cover logic with it: the splash then never lifts, not even by its failsafe)', async () => {
+  const { Script } = await import('node:vm');
+  const html = readFileSync('index.html', 'utf8');
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!);
+  assert.ok(scripts.length >= 1);
+  for (const code of scripts) assert.doesNotThrow(() => new Script(code), 'an inline script must parse');
+  assert.match(html, /w\.ppsBootLift=lift/);
+});

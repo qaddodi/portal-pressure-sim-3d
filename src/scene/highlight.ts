@@ -159,8 +159,8 @@ export class Highlight {
 /** Fade in and out of a pinned organ's outline, ms (2D OL_FADE: a flip's step). */
 export const PIN_FADE_MS = 300;
 /** The thin line of the normal-sized spleen inside an enlarged one (2D OL_LOOK.normal: 1.4 px, half an alpha). */
-/** The line a slide's pin adds to an organ's own, CSS px (the default `hiPx`), and a tapped organ's heavy outline (Mohammad, 20 Nov: "when I click on an organ it should outline heavy"). */
-export const PIN_PX = 1.6, SELECT_PX = 3.6;
+/** What a slide's pin and a tapped organ add to the organ's own 1.1 line: a modest step up (Mohammad, 20 Nov: "insanely thick"). */
+export const PIN_PX = 0.7, SELECT_PX = 1.1;   // (figure units, as the organ's own 1.1 line is: 1.6 and 3.6 drew a white band several times the line when zoomed, 20 Nov)
 export const NORMAL_LINE = { px: 1.4, alpha: 0.5 };
 
 /** A slide's outlined organs (2D `pinOrgans`: the organ's own deep tone, a wider line, fading in and out), by the organs' own ids. The line is the organ's ink hull at the

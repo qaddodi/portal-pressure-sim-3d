@@ -8,9 +8,9 @@ import { MICRO_FS } from '../src/scene/micro3d/cel3d.ts';
 const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
 test('the shared head is the Anatomy\'s chevD and chevHead, word for word', () => {
   const src = norm(readFileSync('src/scene/vessels/shaders.ts', 'utf8'));
-  for (const fn of ['float chevD(float u, float ay, float hw) {', 'vec2 chevHead(float u, float ay, float hw, float px, float rev) {']) assert.ok(src.includes(fn) || /CHEVRON_HEAD_GLSL/.test(src), fn);
+  for (const fn of ['float chevD(float u, float ay, float hw) {', 'vec2 chevHead(float u, float ay, float hw, float px, float rev) {']) assert.ok(src.includes(fn) || /CHEVRON_(HEAD_)?GLSL/.test(src), fn);
   const body = norm(CHEVRON_HEAD_GLSL);
-  if (!/CHEVRON_HEAD_GLSL/.test(src)) assert.ok(src.includes(body), 'the same text as vessels/shaders.ts');
+  if (!/CHEVRON_(HEAD_)?GLSL/.test(src)) assert.ok(src.includes(body), 'the same text as vessels/shaders.ts');
 });
 test('the Lobule\'s 3D vessels draw THE head, the blood\'s near black', () => {
   assert.ok(MICRO_FS.includes('vec2 chevHead('), 'the toon carries the head');

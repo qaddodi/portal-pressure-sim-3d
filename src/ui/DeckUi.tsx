@@ -8,6 +8,7 @@ import { stopsOf } from './deck/presenter-machine.ts';
 import { typeFor } from './layout/device.ts';
 import { layoutOf, isSideways, cardPad, radius } from './layout/rules2d.ts';
 import { CardLayer } from './cards/CardLayer.tsx';
+import { CardBoundary } from './cards/CardBoundary.tsx';
 import { PresenterBar } from './deck/PresenterBar.tsx';
 import { useDeckInput } from './deck/useDeckInput.ts';
 import { linkScene } from './deck/scene-link.ts';
@@ -29,6 +30,7 @@ export function DeckUi() {
   const deck = useUi((s) => s.deck);
   const nonce = useUi((s) => s.nonce);
   const hasStops = useUi((s) => s.stops.length > 0);
+  const stopKey = useUi((s) => JSON.stringify(s.pos) + ':' + String(s.page));
   useDeckInput();
 
   // the talk: its stops, mirrored into the deck store the scene reads (slide 0 is the title)
@@ -97,7 +99,7 @@ export function DeckUi() {
     <div ref={root} className={cls} data-device={device} data-layout={layout} data-sideways={sideways || undefined} style={{ position: 'fixed', zIndex: 'var(--z-cards)' as unknown as number, ...vars }}>
       <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'env(safe-area-inset-top, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }} />
       {deck && hasStops && <PresenterBar title={deck.title} />}
-      {deck && hasStops && <CardLayer deck={deck} />}
+      {deck && hasStops && <CardBoundary resetKey={`${deck.id}:${stopKey}`}><CardLayer deck={deck} /></CardBoundary>}
       {deck && hasStops && <JumpList />}
       {deck && <BlackScreen />}
     </div>

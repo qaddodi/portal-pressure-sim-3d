@@ -183,7 +183,8 @@ test('on: one Points, one draw call, within the cap, on the vessels\' layer; fad
   assert.equal(o.geometry.index, null, 'one vertex a cell');
   assert.equal(o.layers.mask, 1 << 1, 'drawn in the vessels\' pass, over the organs');
   assert.equal(o.parent, (s as unknown as { body: unknown }).body);
-  assert.equal(o.visible, true);
+  assert.equal(o.visible, false, 'the streaks are drawn by the tubes (vessels/shaders.ts), never by this layer\'s sprites');
+  assert.equal((s as unknown as { blood: { shared: { streakAmt: { value: number } } } }).blood.shared.streakAmt.value > 0, true, 'the amount is handed to the tubes');
   for (let i = 0; i < 40; i++) s.cells.step(16, frame);
   assert.equal(s.cells.shown, 1);
   assert.equal(s.cells.step(16, { ...frame, flowMoving: false }), false, 'on, settled and the blood still: no frame');

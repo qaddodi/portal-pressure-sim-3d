@@ -4,7 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { NETWORK } from '../src/scene/vessels/network.ts';
-import { SMOOTH } from '../src/scene/vessels/smooth-joins.ts';
+import { BURY, SMOOTH } from '../src/scene/vessels/smooth-joins.ts';
+import { useSettings } from '../src/state/settings.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 
@@ -38,8 +39,9 @@ test('no two tubes share anything that would merge a crossing: one opaque depth-
     assert.ok(!m.stencilWrite && m.depthTest !== false && m.depthWrite, `${o.edge!.id}: depth-tested and written, no stencil`);
   }
   s.dispose();
-  assert.match(VESSEL_VS, /float endU = min\(mate0\.x >= 0\.0 \? uv\.x : 1e9, mate1\.x >= 0\.0 \? 1\.0 - uv\.x : 1e9\)/, 'the burial reads the mates only');
-  assert.match(VESSEL_FS, /float endR = min\(mate0\.x >= 0\.0 \? vUv\.x : 1e9, mate1\.x >= 0\.0 \? 1\.0 - vUv\.x : 1e9\)/);
+  assert.match(VESSEL_VS, /float endK = vHi > 0\.001 \? 1\.0 : buryK\(uv\.x \* len \* vU, \(1\.0 - uv\.x\) \* len \* vU\);/, 'the burial reads the declared branch ends only');
+  assert.match(VESSEL_FS, /float endK = vHi > 0\.001 \? 1\.0 : buryK\(vUv\.x \* len \* vU, \(1\.0 - vUv\.x\) \* len \* vU\);/);
+  assert.doesNotMatch(VESSEL_VS + VESSEL_FS, /END_R|mate[01]\.x >= 0\.0 \? (vUv|uv)\.x : 1e9/, 'a run-on or a crossing is never a burial');
 });
 
 test('where vessels that do not connect cross on the screen, their centrelines are apart in depth (a quarter of their radii at least), so the nearer one\'s whole outline wins the depth test: the SMV over the renal vein above all', () => {
@@ -61,4 +63,30 @@ test('where vessels that do not connect cross on the screen, their centrelines a
   assert.ok(crossings > 5, `${crossings} crossings`);
   assert.deepEqual(problems, [], `pairs too close in depth to separate: ${problems.join('; ')}`);
   void named;
+});
+
+test('the ink is held back ONLY inside a declared branch\'s trunk: over the real network, a run-on end, a free end, a crossing and the renal vein\'s end on the cava keep their whole outline; only a branch\'s end (attach) is buried, and only the length of its trunk', () => {
+  const was = useSettings.getState().smoothJoins;
+  useSettings.getState().set('smoothJoins', true);
+  const s = new CelScene();
+  const unburied = ['SMV_CONF', 'PV_TRUNK', 'PV_TRUNK_1', 'PVH_R', 'SV_MID', 'V_INT_1', 'V_KID_L', 'V_KID_L_1', 'LRV_IVC', 'IVC_IS', 'IVC_IS_1'];
+  for (const id of unburied) assert.deepEqual((s.vesselObject(id)!.toon.uniforms.bury!.value as import('three').Vector2).toArray(), [0, 0], `${id}: whole outline (a run-on, a crossing or an end on the cava)`);
+  let buried = 0;
+  for (const v of NETWORK) {
+    const sj = SMOOTH.get(v.id), o = s.vesselObject(v.id);
+    if (!o) continue;
+    const got = (o.toon.uniforms.bury!.value as import('three').Vector2).toArray();
+    for (const e of [0, 1] as const) {
+      const want = sj?.attach[e] ? BURY * (sj.hostR[e] ?? v.radius) : 0;
+      assert.ok(Math.abs(got[e]! - want) < 1e-9, `${v.id} end ${e}: buried ${got[e]} (declared ${want})`);
+      if (want > 0) { buried++; assert.ok(want <= BURY * 1.0001 * Math.max(...(sj!.attach[e] ?? []).map((id) => NETWORK.find((x) => x.id === id)!.radius), v.radius), 'no longer than its trunk'); }
+      // a run-on end (a mate) is never buried unless it is also a declared branch end
+      if (sj?.mate[e] && !sj.attach[e]) assert.equal(got[e], 0, `${v.id} end ${e}: a run-on keeps its ink`);
+    }
+  }
+  assert.ok(buried >= 2, `${buried} declared branch ends are buried (PVH_L on the portal trunk, SV_CONF on the confluence)`);
+  assert.ok((s.vesselObject('PVH_L')!.toon.uniforms.bury!.value as import('three').Vector2).x > 0, 'the left portal branch is buried in the trunk at the hepatic fork');
+  assert.ok((s.vesselObject('SV_CONF')!.toon.uniforms.bury!.value as import('three').Vector2).y > 0, 'the splenic vein is buried in the portal confluence');
+  s.dispose();
+  useSettings.getState().set('smoothJoins', was);
 });

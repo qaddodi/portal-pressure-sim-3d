@@ -125,7 +125,7 @@ uniform float px;
 uniform float dpr;
 attribute vec3 hullN;   // the smoothed normal the outline is pushed out along (normal-smooth.ts): the mesh's own normals jag at a coarse rim
 uniform vec2 res;
-uniform float hiOn;   // 0..1: a slide's pin or a tapped organ (highlight.ts OrganPins): the line widens by hiPx CSS px and takes the organ's highlight colour
+uniform float hiOn;   // 0..1: a slide's pin or a tapped organ (highlight.ts OrganPins): the line widens by hiPx figure units and takes the organ's highlight colour
 uniform float hiPx;
 varying float vHi;
 varying float vU;
