@@ -141,7 +141,7 @@ test('the stenosis waist: nothing on any seam ring at rest; with a stenosis the 
 
 test('the skin\'s vertex stage takes each arm\'s waist into its live width, and the set hands the seam\'s narrow attribute over', () => {
   assert.match(SKIN_VS, /uniform float armNarrow\[6\];/);
-  assert.match(SKIN_VS, /swellOf\(armData\[i\]\.x, armData\[i\]\.y, armData\[i\]\.z\) \* \(1\.0 - clamp\(armNarrow\[i\], 0\.0, 0\.97\)\)/);
+  assert.match(SKIN_VS, /swellOf\(armData\[i\]\.x, armData\[i\]\.y, armData\[i\]\.z\)\) \* \(1\.0 - clamp\(armNarrow\[i\], 0\.0, 0\.97\)\)/);
   const b = built();
   try {
     const sk = b.draws[0]!.mesh, id = sk.junction.arms[0]!.vesselId;
