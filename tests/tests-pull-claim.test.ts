@@ -15,9 +15,10 @@ const rig = (scrollTop = 0, size: 0 | 1 = 0) => {
   const pos: any = { style: {} };
   const calls: string[] = [];
   attachPull(card, pos, { enabled: () => true, heights: () => ({ h0: 520, half: 520, full: 700, size }), setSize: (n) => calls.push(`size${n}`), close: () => calls.push('close') });
+  const tab: any = { parentElement: card, closest: () => null };
   const ptr = (k: string, y: number, x = 100, extra: object = {}) => L[k]!.forEach((f) => f({ target: pane, pointerId: 7, pointerType: 'touch', button: 0, buttons: 1, clientX: x, clientY: y, ...extra }));
   const touch = (y: number, x = 100) => { let stopped = false; const e: any = { target: pane, touches: [{ clientX: x, clientY: y }], cancelable: true, preventDefault: () => { stopped = true; } }; L.touchmove!.forEach((f) => f(e)); return stopped; };
-  return { ptr, touch, calls, pos };
+  return { ptr, touch, calls, pos, card, tab };
 };
 
 test('a touch-type pointer drag down 300 px (pointerdown, 10 moves, pointerup) closes a sheet at Half', () => {
@@ -70,4 +71,20 @@ test('a phone\'s sheet always shows its 36 x 4 grab bar (2D hides it until focus
   const css = readFileSync(new URL('../src/ui/tests/tests.css', import.meta.url), 'utf8');
   assert.match(css, /\.t-pos\[data-kind="sheet"\] \.sheet-grab \{ opacity: 1;/);
   assert.match(css, /\.sheet-grab::before \{[^}]*width: 36px; height: 4px;/);
+});
+
+test('a drag that starts on a tab (a button) pulls the sheet, and the capture handed to the card does not end it', () => {
+  const r = rig();
+  r.ptr('pointerdown', 120, 100, { target: r.tab });
+  for (let i = 1; i <= 10; i++) {
+    r.ptr('pointermove', 120 + i * 30, 100, { target: r.tab });
+    // (a touch is first captured by the tab; the card taking the capture at 6 px makes the tab lose it, and that event bubbles to the card)
+    if (i === 1) r.ptr('lostpointercapture', 0, 0, { target: r.tab });
+  }
+  r.ptr('pointerup', 420, 100, { target: r.tab });
+  assert.deepEqual(r.calls, ['close']);
+  // a tap on a tab moves nothing and leaves the click alone
+  const tap = rig();
+  tap.ptr('pointerdown', 120, 100, { target: tap.tab }); tap.ptr('pointermove', 122, 100, { target: tap.tab }); tap.ptr('pointerup', 122, 100, { target: tap.tab });
+  assert.deepEqual(tap.calls, []);
 });
