@@ -46,11 +46,18 @@ export function chevKeepJs(j: number, n0: number, lv: number): number {
   if (q < 0.5) m = 10;
   return Math.min(1, Math.max(0, Math.pow(2, 1 - (lv - n0 - m)) - 1));
 }
+/** The head's outline as chevD draws it, in shares of its length L (2 x LEN_OF_W x its half width): the point stands TIP of L ahead of the middle, the back BACK of L behind it, and the notch cuts NOTCH of L into the back. One set, read by the shader and by the flat marks that point at a stenosis (labels/clamp-marks.ts). */
+export const CHEV_SHAPE = { TIP: 0.55, BACK: 0.45, NOTCH: 0.32 } as const;
+/** A head of half width `hw` as a polygon in its own frame: the point at the origin, the head's back running along +x (so it points the way -x), the corners and the notch as chevD draws them. */
+export function chevPolygon(hw: number): [number, number][] {
+  const L = 2 * CHEV.LEN_OF_W * hw, tipU = CHEV_SHAPE.TIP * L, backU = -CHEV_SHAPE.BACK * L, notchU = backU + CHEV_SHAPE.NOTCH * L;
+  return [[0, 0], [tipU - backU, hw], [tipU - notchU, 0], [tipU - backU, -hw]];
+}
 export const CHEVRON_GLSL = /* glsl */ `
 // a head's half width: SHARE of the lumen's radius, at least MIN_W_PX wide (wpc: the units under one CSS px), never over SHARE_MAX of the radius
 float chevHw(float R, float wpc) { return min(${CHEV.SHARE_MAX} * R, max(${CHEV.SHARE} * R, ${(0.5 * CHEV.MIN_W_PX).toFixed(1)} * wpc)); }
 float chevD(float u, float ay, float hw) {
-  float L = ${(2 * CHEV.LEN_OF_W).toFixed(1)} * hw, tip = 0.55 * L, back = -0.45 * L, notch = 0.32 * L, k = L / hw;
+  float L = ${(2 * CHEV.LEN_OF_W).toFixed(1)} * hw, tip = ${CHEV_SHAPE.TIP} * L, back = -${CHEV_SHAPE.BACK} * L, notch = ${CHEV_SHAPE.NOTCH} * L, k = L / hw;
   float side = (u - tip + ay * k) / sqrt(1.0 + k * k);
   float rear = back + notch * (1.0 - clamp(ay / hw, 0.0, 1.0)) - u;
   return max(max(side, rear), ay - hw);
