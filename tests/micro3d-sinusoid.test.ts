@@ -4,7 +4,8 @@ import { type BufferGeometry, Matrix4, type Mesh, type Object3D, Vector3 } from 
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { Sinusoid3D } from '../src/scene/micro3d/sinusoid3d.ts';
-import { REACH, TRAFFIC_REACH, cellOutline } from '../src/scene/micro3d/sinusoid3d.ts';
+import { GAP_SLOTS, GAP_X0, REACH, TRAFFIC_REACH, cellOutline } from '../src/scene/micro3d/sinusoid3d.ts';
+const GAP_REACH = REACH;
 import { UM } from '../src/scene/sinusoid/layout.ts';
 
 function meshes(root: Object3D): Mesh[] { const out: Mesh[] = []; root.traverse((o) => { if ((o as Mesh).isMesh) out.push(o as Mesh); }); return out; }
@@ -174,4 +175,32 @@ test('Pause eases the 3D sinusoid traffic to a stop and Play back up: traffic sp
   s3.update(true, 0.5); assert.ok(Math.abs(flat.trafficSpeed - full * 0.5) < 1e-9, 'half the rate, half the pace');
   s3.update(true, 0); assert.equal(flat.trafficSpeed, 0, 'stood at rest');
   s3.update(false, 0.25); assert.ok(Math.abs(flat.trafficSpeed - 0.25) < 1e-9, 'the flat view eases too');
+});
+
+test('the fenestrae are real gaps through the lining (bead and edges cut through to Disse), not dark dots; they close as the lining capillarizes', () => {
+  const { flat, s3 } = scene();
+  const S = s3 as unknown as { bead: { mats: { toon: { defines: Record<string, string>; uniforms: Record<string, { value: unknown }> } } }; beadLine: { mats: { toon: { defines: Record<string, string> } } }; gapData: Uint8Array; gapKey: number; stepPores(p: number): void };
+  assert.ok('GAPS' in S.bead.mats.toon.defines && 'GAPS' in S.beadLine.mats.toon.defines, 'the bead and its edge lines are cut');
+  assert.ok(!meshes(s3.group).some((m) => m.name.startsWith('sinusoid3d/fenestrae')), 'no pore dots drawn over the lining');
+  s3.update(true, 1);
+  S.gapKey = -1; S.stepPores(1);
+  const open = (d: Uint8Array) => { let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i]! > 0) n++; return n; };
+  const n1 = open(S.gapData);
+  // ±200 µm of lining both sides, sieve plates of five in most stretches of ten (minus the nuclei's swells)
+  assert.ok(n1 > 2 * 2 * GAP_REACH * 0.25, `healthy: many gaps (${n1})`);
+  let far = 0; for (let side = 0; side < 2; side++) for (let j = 0; j < GAP_SLOTS; j++) if (Math.abs(GAP_X0 + j) > 140 && Math.abs(GAP_X0 + j) < REACH && S.gapData[(side * GAP_SLOTS + j) * 4]! > 0) far++;
+  assert.ok(far > 20, `gaps run on past the flat view's 130 µm, out to the blurred ends (${far})`);
+  S.stepPores(0.05);
+  assert.ok(open(S.gapData) < n1 * 0.2, 'capillarized: nearly all closed');
+  void flat;
+});
+
+test('Disse lies under the whole lining, so a gap shows the space of Disse, never the ground', () => {
+  const { s3 } = scene();
+  s3.update(true);
+  const d = meshes(s3.group).find((m) => m.name === 'sinusoid3d/disse')!;
+  const pos = d.geometry.getAttribute('position')!, aux = d.geometry.getAttribute('aux')!;
+  assert.equal(aux.count, pos.count, 'one aux per vertex');
+  let inner = Infinity; for (let i = 0; i < pos.count; i++) inner = Math.min(inner, Math.abs(pos.getY(i)));
+  assert.ok(inner < UM.lum + 0.1, `Disse reaches in under the bead (${inner.toFixed(2)} µm from the axis)`);
 });
