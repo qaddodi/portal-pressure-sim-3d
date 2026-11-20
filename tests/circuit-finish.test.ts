@@ -486,3 +486,16 @@ test('a growing liver branch is squeezed toward its start and stretches out as i
     assert.match(s, /frontOut\(/);
   }
 });
+
+test('the station dots are 2D\'s metro stops: a ring in the text\'s colour (light on a dark ground) over the ground, never smaller than 4 px, drawn over the vessels, not under them', async () => {
+  const m = await import('../src/scene/circuit/map-layer.ts');
+  assert.equal(m.DOT_MIN_PX, 4);
+  assert.ok(m.DOT_RING_MIN_PX >= 0.6 && m.DOT_RING_HALF === 0.8);
+  const lum = (h: string) => (0.299 * parseInt(h.slice(1, 3), 16) + 0.587 * parseInt(h.slice(3, 5), 16) + 0.114 * parseInt(h.slice(5, 7), 16)) / 255;
+  assert.ok(lum(m.DOT_RING_DARK) > 0.8, 'a light ring on the dark looks');
+  assert.match(m.DOT_VS, /max\(iRO\.x, MIN_PX \/ up\)/); assert.match(m.DOT_VS, /max\(RING_HALF, RING_PX \/ up\)/);
+  const src = readFileSync(new URL('../src/scene/circuit/map-layer.ts', import.meta.url), 'utf8');
+  assert.match(src, /this\.dots\.layers\.set\(VESSEL_LAYER\)/, 'in the vessels\' pass, over every vessel');
+  assert.match(src, /setScale\(px: number\)/);
+  assert.match(readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8'), /this\.mapLayer\.setScale\(this\.mapScale\(\)\)/);
+});
