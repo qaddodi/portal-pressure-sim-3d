@@ -39,7 +39,7 @@ import { ZonesOverlay } from './zones.ts';
 import { NeighbourField, fieldQuantizer } from './field.ts';
 import { lookColours } from './lz-colours.ts';
 import { DISC_EDGE } from './from2d/disc-glsl.generated.js';
-import { AN_K, DISC_R, LT_R, RS_N, TW_R, inletRadius, sinRadius, twigR } from './widths.ts';
+import { AN_K, DISC_R, LT_R, RS_N, TW_R, disseRadius, inletRadius, sinRadius, twigR } from './widths.ts';
 import { type Disc, type Joiner, buildDiscs, writeMouths } from './mouths.ts';
 import { lobuleShade } from './shading.ts';
 
@@ -286,8 +286,9 @@ export class LobuleView {
     // the space of Disse: a flat pale band under its sinusoid, so only its rim shows either side (2D's Wet Disse sleeve, drawn under the sinusoid), with no
     // outline and no light of its own: no second tube wound round the first (the "rope" of IMG_5637). Its course runs inward, the lymph outward, so the marks run backwards
     const lyB = new Batch();
-    for (const c of by('ly')) lyB.tube(c.pts.map((p) => p3(p, -DISSE_DZ)), { radius: RAD.ly, radial: 8, squash: 0.08, uvx: (_i, arc) => arc / (RAD.ly * MARK_PITCHES) });
-    const ly = this.make('lymph', lyB, 'lymph', { bands: 2, flat: true, px: 0, chevrons: { pitch: RAD.ly * MARK_PITCHES, speed: lymphSpeed, dir: -1, lymph: true } });
+    for (const c of by('ly')) lyB.tube(c.pts.map((p) => p3(p, -DISSE_DZ)), { radius: (i) => disseRadius(c.rho[i]!) * R, radial: 8, squash: 0.08, uvx: () => 0 });
+    // (no marks of its own: 2D fits them to the rim, and a rim of the width 2D shows carries none but specks, which read as a yellow edge on every sinusoid)
+    const ly = this.make('lymph', lyB, 'lymph', { bands: 2, flat: true, px: 0 });
     this.flat.add(ly);
 
     // bile (the Bile layer): the canaliculi run between neighbouring plates, from the centre out toward the edge (the blood runs the other way), the canals of Hering gather them
@@ -511,7 +512,7 @@ export class LobuleView {
     if (k === 'in') return inletRadius(i, n, Math.hypot(t.pts[i]![0] - t.pts[0]![0], t.pts[i]![1] - t.pts[0]![1])) / (1 + 0.45 * c.fibPre);
     if (k === 'tw') return twigR(i / (n - 1), RS_N);
     if (k === 'lt' || k === 'lv') return LT_R * lyWr(c.lymphRate, 0.4);
-    if (k === 'ly') return RAD.ly / R;
+    if (k === 'ly') return disseRadius((t as Course).rho[i]!);
     if (k === 'bs') return RAD.bc / R;
     return RAD.bh / R;
   }
