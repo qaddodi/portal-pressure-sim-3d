@@ -284,11 +284,14 @@ export class CelScene {
     this.unJoins = useSettings.subscribe((st, prev) => {
       if (st.smoothJoins !== prev.smoothJoins) this.useSmoothJoins(st.smoothJoins);
       if (st.hideBehind !== prev.hideBehind) { this.occGoal = st.hideBehind ? 1 : 0; this.moving = true; }
+      if (st.fluidSurface !== prev.fluidSurface) { this.disease.ascites.setLiving(st.fluidSurface); this.moving = true; clock.invalidate('living-fluid'); }
     });
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
     this.disease = new DiseaseLayer(this.shared, this.vessels);
     this.body.add(this.disease.group);
     this.disease.bleed.still = !!opts.reduceMotion;   // (the jet holds still under Reduce Motion)
+    this.disease.ascites.still = !!opts.reduceMotion;   // (so does the pool's surface: no ripple, no slosh)
+    this.disease.ascites.setLiving(useSettings.getState().fluidSurface, true);   // (Settings > Figure depth > Living fluid: read at boot, then glided)
     // The organs' vertex data is a static file (src/scene/organs/meshes.ts): the organ layer builds them when it is in, in the patient's state, and asks for a frame.
     Promise.all([organsReady, artReady]).then(() => { this.disease.organs.build(); this.moving = true; clock.invalidate('organs'); }, (e) => console.error(e));
     this.catheter = new Catheter(this.shared);
@@ -1133,7 +1136,7 @@ export class CelScene {
     const viewMoving = lob3 || sin3 || lobMoving || sinMoving;
     const procMoving = this.procs.update(now);
     this.syncWedge();
-    const diseaseMoving = this.disease.update(now);
+    const diseaseMoving = this.disease.update(now, this.flowRate.value);
     if (diseaseMoving) this.tagOverOrgans();
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
     const needs = probesMoving || diseaseMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || dustMoving || lensMoving || presMoving || shapeMoving || viewMoving || skinMoving;
