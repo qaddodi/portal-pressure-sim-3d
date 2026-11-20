@@ -3,7 +3,7 @@
 // the camera of the flat view (sinusoid/view.ts, which stays as the switch's off state) fit it unchanged:
 //
 //   the lumen       an open trough cut along the sinusoid, the blood's pressure colour, red cells and albumin riding in it (fastest in the middle, 2D's lanes)
-//   the lining      a rounded bead of endothelium each side, its fenestrae dark pores in sieve plates of five that close as the lining capillarizes; the endothelial nuclei as lenses
+//   the lining      a rounded bead of endothelium each side, its fenestrae real gaps through it (to Disse) in sieve plates of five that close as the lining capillarizes; the endothelial nuclei as lenses
 //   Disse           a recessed channel between the lining and the plate (the lymph's colour), the hepatocytes' microvilli reaching into it, collagen and a basement membrane as they build up,
 //                   the stellate cell lying in it (it swells and darkens as it activates and pinches the lumen), albumin that crossed the wall running back toward the portal tract
 //   the plates      hepatocytes as raised tiles with a rounded bevel and a domed nucleus, bile canaliculi on their borders; the next sinusoid and plate beyond each, as 2D repeats them outward
@@ -11,13 +11,13 @@
 //
 // Everything reads the flat view's own state (its eased targets, palette, traffic, places), so the two can never disagree: this file draws, the flat view keeps the model, the names and
 // the clock. Every place is 2D's (layout.ts and the copied widths); every colour is 2D's palette for the look. Nothing here is per-pixel painting: the shapes are meshes, cel shaded
-// (cel3d.ts), and only the albumin, the red cells and the pores are rewritten while the view is up.
-import { Group, Matrix4, type Vector3 } from 'three';
+// (cel3d.ts), and only the albumin, the red cells and the fenestrae's gap table are rewritten while the view is up.
+import { DataTexture, Group, Matrix4, NearestFilter, RGBAFormat, UnsignedByteType, Vector4, type Vector3 } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
 import type { SinusoidView } from '../sinusoid/view.ts';
 import { U } from '../sinusoid/view.ts';
-import { CELL, SEED, UM, canaliculusAt, cellOf, edgeAt, nucAt, poreOpenness, underNucleus, type Pore } from '../sinusoid/layout.ts';
+import { CELL, SEED, SLOT, UM, canaliculusAt, cellOf, edgeAt, nucAt, poreAt, poreOpenness, underNucleus, type Pore } from '../sinusoid/layout.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import {
   MeshBuilder, MicroMany, MicroPart, type P2, type RGB, chaikin, ellipsoid, hazeUniforms, microMaterials, rawRGB, outlineNormals, pillow, placeAt, tube, unitRbc, unitRod, unitSphere,
@@ -77,6 +77,13 @@ interface Pal {
 type Side = -1 | 1;
 /** The plane's y (up) for 2D's y across (down). */
 const Y = (yDown: number): number => -yDown;
+/** The fenestrae's slots (1 µm each) the gap texture holds: from GAP_X0, GAP_SLOTS of them, past the lining's reach both ways. */
+export const GAP_X0 = -256, GAP_SLOTS = 512;
+const gapTexture = (data: Uint8Array): DataTexture => {
+  const t = new DataTexture(data, GAP_SLOTS, 2, RGBAFormat, UnsignedByteType);
+  t.magFilter = NearestFilter; t.minFilter = NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
+  return t;
+};
 
 export class Sinusoid3D {
   readonly group = new Group();
@@ -108,7 +115,10 @@ export class Sinusoid3D {
   private readonly hscN: MicroPart;
   private readonly bm: MicroPart;
   private readonly arrows: MicroPart;
-  private readonly pores: MicroMany;
+  /** The fenestrae's gaps: one texel a slot (GAP_X0 + j .. + 1 µm), row 0 the lining at local y > 0 (the upper, side -1), row 1 the lower; red is the gap's half width over 0.5 µm. */
+  private readonly gapData = new Uint8Array(GAP_SLOTS * 2 * 4);
+  private readonly gapTex = gapTexture(this.gapData);
+  private gapKey = -1;
   private readonly villi: MicroMany;
   private readonly fibres: MicroMany;
   private readonly albumin: MicroMany;
@@ -129,8 +139,10 @@ export class Sinusoid3D {
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
     this.trough = mk('lumen', { ink: null, streaks: true });
     this.troughFar = mk('lumen-beyond', { ink: null, streaks: true });
-    this.bead = mk('endothelium', { ink: null });
-    this.beadLine = mk('endothelium-edge', { ink: null });
+    // (the fenestrae are real gaps through the lining, the bead and its edges alike: one texel a 1 µm slot, each side; stepPores writes how open each is)
+    const gaps = { tex: this.gapTex, x: new Vector4(GAP_X0, GAP_SLOTS, 0.5, 0) };
+    this.bead = mk('endothelium', { ink: null, gaps });
+    this.beadLine = mk('endothelium-edge', { ink: null, gaps });
     this.disse = mk('disse', { ink: null, streaks: true });
     this.cells = mk('hepatocytes', { px: S.LINE });
     this.nuclei = mk('nuclei', { px: S.LINE_SMALL });
@@ -144,14 +156,13 @@ export class Sinusoid3D {
     this.hscN = mk('stellate-nucleus', { ink: null });
     this.bm = mk('basement', { ink: null, transparent: true });
     this.arrows = mk('ends', { px: S.LINE_SMALL });
-    this.pores = many('fenestrae', unitSphere(10, 6), 1200, { ink: null });
     this.villi = many('microvilli', unitRod(6), 900, { ink: null });
     this.fibres = many('collagen', unitRod(6), 800, { ink: null });
     this.albumin = many('albumin', unitSphere(12, 8), 2000, { px: S.LINE_SMALL });
     this.rbc = many('red-cells', unitRbc(22), RBC_N + 2 * RBC_FAR, { px: S.LINE });
     // (order: the ground first, then the solid shapes; the see-through membrane and the arrows last)
     for (const p of [this.ground, this.disse, this.troughFar, this.trough, this.bead, this.beadLine, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoN, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) this.group.add(p.group);
-    for (const p of [this.pores, this.villi, this.fibres, this.albumin, this.rbc]) this.group.add(p.group);
+    for (const p of [this.villi, this.fibres, this.albumin, this.rbc]) this.group.add(p.group);
     this.bm.renderOrder = 20;
     const r = mulberry(91);
     for (let i = 0; i < RBC_N + 2 * RBC_FAR; i++) this.rbcs.push({ u: r(), y: r() * 1.5 - 0.75, z: r(), tilt: 0.2 + r() * 0.7, spin: (r() - 0.5) * 0.8, ph: r() * Math.PI * 2, lane: i < RBC_N ? 0 : i < RBC_N + RBC_FAR ? -1 : 1 });
@@ -233,7 +244,6 @@ export class Sinusoid3D {
     const hc = mix3(P.cHscQ, P.cHscA, clamp(act, 0, 1));
     this.hsc.setTint(hc); this.hsc.setInk(deep(hc, 0.5)); this.hscN.setTint(P.cHscN);
     this.bm.setTint(P.cBm);
-    this.pores.setTint(deep(P.cEndoE, 0.85));
     this.villi.setTint(mix3(P.cLymph, P.cCell, 0.45));
     this.fibres.setTint(P.cCol);
     this.albumin.setTint(P.cAlb); this.albumin.setInk(deep(P.cAlbE, 0.8));
@@ -302,6 +312,9 @@ export class Sinusoid3D {
       const bandZ = (y0: (x: number) => number, y1: (x: number) => number, z: number) => band(b, xs, y0, y1, z, true);
       for (const s of [-1, 1] as Side[]) {
         bandZ((x) => Y(s * (g.wallIn(x) - 0.1)), (x) => Y(s * (g.hepIn(x) + 1.0)), Z.disse);
+        // (and under the lining itself, unstreaked: a fenestra is a real gap through the lining, so the space of Disse is what shows in it, never the ground)
+        band(b, xs, (x) => Y(s * (g.halfW(x) - 0.1)), (x) => Y(s * (g.wallIn(x) - 0.1)), Z.disse);
+        for (let i = 0; i < xs.length * 2; i++) b.aux.push(-1);
         // beyond the plate: Disse, the lining, the next lumen, its lining, Disse, then the next plate (flat bands; the next lumen is a shallow trough below)
         const base = (x: number) => g.hepIn(x) + UM.hep;
         bandZ((x) => Y(s * (base(x) - 1.0)), (x) => Y(s * (base(x) + UM.disse + 0.1)), Z.disse);
@@ -467,21 +480,28 @@ export class Sinusoid3D {
 
   // ---- what moves every frame ----------------------------------------------------------------------------------------------------
 
-  /** The fenestrae: dark pores along the crest of each lining, as wide as they are open (they close as the lining capillarizes); none under an endothelial cell's swell. */
+  /** The fenestrae: real gaps through the lining (the bead and its edges, from the lumen to Disse), each as wide as it is open (they close as the lining capillarizes); none under an endothelial
+   *  cell's swell. The same slots as the flat view's (poreAt, its seeds), out past the scene's reach so no stretch of lining is without them. Rewritten only when the open share moves. */
   private stepPores(por: number): void {
-    const g = this.flat.g, pores = this.flat.geo.pores;
-    let n = 0;
+    const key = Math.round(Math.max(0, Math.min(1, por)) * 1024);
+    if (key === this.gapKey) return;
+    this.gapKey = key;
+    const d = this.gapData;
+    d.fill(0);
     for (let side = 0; side < 2; side++) {
-      const s: Side = side === 0 ? -1 : 1, nsd = side === 0 ? SEED.nucUp : SEED.nucDn;
-      for (const p of pores[side]!) {
+      const sd = side === 0 ? SEED.poreUp : SEED.poreDn, nsd = side === 0 ? SEED.nucUp : SEED.nucDn;
+      for (let j = GAP_X0; j < GAP_X0 + GAP_SLOTS; j++) {
+        const p = poreAt(j, sd);
+        if (!p) continue;
         const o = poreOpenness(p.th, por);
-        if (o < 0.04 || underNucleus(p.x, nsd) || n >= this.pores.capacity) continue;
-        const yd = s * (g.halfW(p.x) + UM.endo * 0.5);
-        placeAt(this.m4, p.x, Y(yd), Z.bead - 0.04, p.w * 0.45 * o, 0.28, 0.12);
-        this.pores.setAt(n++, this.m4);
+        if (o < 0.04 || underNucleus(p.x, nsd)) continue;
+        // (the slot of a pore at x is floor(x): the shader cuts |x - slot - 0.5| under the half width)
+        const slot = Math.floor(p.x / SLOT) - GAP_X0;
+        if (slot < 0 || slot >= GAP_SLOTS) continue;
+        d[(side * GAP_SLOTS + slot) * 4] = Math.round(Math.min(1, (p.w * 0.5 * o) / 0.5) * 255);
       }
     }
-    this.pores.commit(n);
+    this.gapTex.needsUpdate = true;
   }
 
   /** The albumin: the flat view's own traffic (2D's), as small amber beads, in the stream inside the trough, through the wall and back along Disse. */
@@ -576,7 +596,8 @@ export class Sinusoid3D {
 
   dispose(): void {
     for (const p of [this.ground, this.trough, this.troughFar, this.bead, this.beadLine, this.disse, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoN, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) p.dispose();
-    for (const p of [this.pores, this.villi, this.fibres, this.albumin, this.rbc]) p.dispose();
+    for (const p of [this.villi, this.fibres, this.albumin, this.rbc]) p.dispose();
+    this.gapTex.dispose();
   }
 }
 

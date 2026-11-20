@@ -10,7 +10,7 @@
 //   const part = microPart(geometry, m);                group.add(part.group)
 //   const many = microInstanced(geometry, m, count);    many.toon.setMatrixAt(i, m4); many.ink.setMatrixAt(i, m4) (or `many.setAt(i, m4, colour)`)
 import {
-  BackSide, BufferAttribute, BufferGeometry, Color, FrontSide, Group, InstancedMesh, LinearSRGBColorSpace, Matrix4, Mesh, ShaderMaterial, type Vector2, Vector4,
+  BackSide, BufferAttribute, BufferGeometry, Color, FrontSide, Group, InstancedMesh, LinearSRGBColorSpace, Matrix4, Mesh, ShaderMaterial, type Texture, type Vector2, Vector4,
 } from 'three';
 import { CEL_STYLE } from '../cel-style.ts';
 import { CHEVRON_GLSL } from '../blood/chevron-glsl.ts';
@@ -40,6 +40,9 @@ attribute float aux2;
 varying float vArc;
 varying float vAcross;
 #endif
+#ifdef GAPS
+varying vec2 vG;
+#endif
 void main() {
   vec3 p = position;
   vec3 n = normal;
@@ -63,6 +66,9 @@ void main() {
 #endif
 #ifdef FLOW
   vArc = aux; vAcross = aux2;
+#endif
+#ifdef GAPS
+  vG = position.xy;
 #endif
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p + normal * inflate, 1.0);
 }`;
@@ -147,6 +153,22 @@ float flowStreaks() {
   return along * across * uFlowStreak * step(abs(vAcross), 0.85);
 }
 #endif
+#ifdef GAPS
+// real gaps through a sheet (the sinusoid's fenestrae, Mohammad 20 Nov 2026: "complete, not just circle holes: actually a gap in the membrane"): one texel per 1 µm slot along x, per side (row 0 the
+// side at local y > 0, row 1 the other), holding the gap's half width (red, 0..1 of 0.5 µm). A fragment within it is not drawn at all, across the whole bead and its wall, so the space of Disse shows through;
+// the cut's own edge is a slim dark line (screen px wide, antialiased), as the sheet's other edges are inked.
+uniform sampler2D uGaps;
+uniform vec4 uGapX;   // x: the first slot's x (µm), y: the slots (the texture's width), z: 0.5 µm per unit of red
+float gapCut() {
+  float u = vG.x - uGapX.x, j = floor(u);
+  if (j < 0.0 || j >= uGapX.y) return 0.0;
+  float hw = texture2D(uGaps, vec2((j + 0.5) / uGapX.y, vG.y > 0.0 ? 0.25 : 0.75)).r * uGapX.z;
+  if (hw <= 0.0) return 0.0;
+  float d = abs(u - j - 0.5) - hw, wpx = max(fwidth(u), 1e-5);
+  if (d < 0.0) discard;
+  return 1.0 - smoothstep(0.6 * wpx, 1.8 * wpx, d);
+}
+#endif
 void main() {
   if (fadedOut()) discard;
   vec3 n = normalize(vN);
@@ -157,6 +179,9 @@ void main() {
   float shadeT = 1.0 - smoothstep(${F(CEL_STYLE.VESSEL_STEP_AT)} - w, ${F(CEL_STYLE.VESSEL_STEP_AT)} + w, s);
   vec3 c = tint * vC;
   c *= 1.0 - ${F(CEL_STYLE.MICRO.SHADE)} * shadeT;
+#ifdef GAPS
+  c = mix(c, c * 0.35, gapCut());
+#endif
 #ifdef STREAKS
   if (uProfile < 0.0) {
     vec2 ch = chevrons();
@@ -244,6 +269,8 @@ export interface MicroOptions {
   haze?: HazeUniforms;
   /** Flow marks along a tube (the geometry has `aux`, the place along it, and `aux2`, across it): set them with MicroPart.setFlow. */
   flow?: boolean;
+  /** Real gaps through the sheet along x (the geometry's local x and y): `gaps.tex` holds one texel per slot per side, `gaps.x` its layout (see MICRO_FS GAPS). */
+  gaps?: { tex: Texture; x: Vector4 };
   /** Draw both sides (a thin sheet seen from either side). */
   doubleSide?: boolean;
   /** Drawn see-through (opacity below 1): sorted after the solid parts, no depth written. */
@@ -262,7 +289,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
   const haze = o.haze ?? hazeUniforms();
   const toon = new ShaderMaterial({
     vertexShader: MICRO_VS, fragmentShader: MICRO_FS, vertexColors: !!o.vertexColors,
-    ...(o.streaks ? { defines: { STREAKS: '' } } : o.flow ? { defines: { FLOW: '' } } : {}),
+    defines: { ...(o.streaks ? { STREAKS: '' } : o.flow ? { FLOW: '' } : {}), ...(o.gaps ? { GAPS: '' } : {}) },
     uniforms: {
       tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, fade,
       // (every toon carries the streaks' uniforms, so a program read without its define still finds each one it declares)
@@ -270,6 +297,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowStreak: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
       uFlowR: { value: 0.02 }, uDpr: { value: 2 }, uFlowDark: { value: 0 }, uFlowInk: { value: rawRGB(new Color(), hexRGB(LENS_SHARED.chevron)) },
+      ...(o.gaps ? { uGaps: { value: o.gaps.tex }, uGapX: { value: o.gaps.x } } : {}),
     },
     side: o.doubleSide ? 2 : FrontSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
