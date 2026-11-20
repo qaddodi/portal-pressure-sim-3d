@@ -163,3 +163,12 @@ test('a view may keep its own least zoom: the sinusoid rests no further out than
   assert.deepEqual(r, { k: 1, x: 0, y: 0 });
   assert.equal(v.limitK(0.7), 0.7);
 });
+
+test('recentre (the sinusoid): a pan let go outside the allowed area goes to the middle of the view, not to its edge; inside it stays', () => {
+  const r0 = { x0: 100, y0: 100, x1: 700, y1: 500 }, c = { x: 400, y: 300 };
+  const out = { k: 2, x: 900, y: 0 }, inside = { k: 2, x: 20, y: 0 };
+  const edge = restingView(out, r0, c, 0.6, false), mid = restingView(out, r0, c, 0.6, true);
+  assert.ok(edge.x !== 0 && edge.x < 900, 'by default it goes to the edge');
+  assert.deepEqual(mid, { k: 2, x: 0, y: 0 });
+  assert.deepEqual(restingView(inside, r0, c, 0.6, true), restingView(inside, r0, c, 0.6, false));
+});

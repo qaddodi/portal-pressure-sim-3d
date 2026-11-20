@@ -106,7 +106,8 @@ export function centredBox(vp: Viewport, kind: CentredKind, visual = 'outline'):
   if (!isSideways(vp.w, vp.h)) {
     // a wide screen's reading widths (app-09 .pz-rw-*): the outline, the table, the quick check, a chart, a plane, in the teaching card's body size B
     const B = clampN(2.311 * pzh, 17, 28), at = (n: number, share: number) => Math.min(n * B, share * vp.w);
-    w = visual === 'outline' ? at(50, 0.82) : visual === 'check' ? at(42, 0.82) : visual === 'plane' ? at(48, 0.74) : at(54, 0.82);
+    // (the six ladders, 2D's `.pz-panel.fill`, keep the screen's width: every other panel is a reading width)
+    if (visual !== 'ladders') w = visual === 'outline' ? at(50, 0.82) : visual === 'check' ? at(42, 0.82) : visual === 'plane' ? at(48, 0.74) : at(54, 0.82);
   }
   return { w: Math.round(w), maxH: Math.round(vp.h - 2 * m), top: m, room: vp.h - 2 * m };
 }

@@ -79,10 +79,12 @@ export const IDENTITY: Readonly<View> = { k: 1, x: 0, y: 0 };
 export const sameView = (a: View, b: View): boolean => Math.abs(a.k - b.k) < 1e-3 && Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5;
 
 /** Where the spring-back sends a view the hand let go of: inside the zoom limits, back to the fit framing at or below the fit zoom, and never lost (the middle of the room outside the figure is pulled to its edge). */
-export function restingView(v: View, r0: Rect, c: Pt, kMin = K_MIN): View {
+export function restingView(v: View, r0: Rect, c: Pt, kMin = K_MIN, recentre = false): View {
   const k = limitK(v.k, kMin);
   if (k <= FIT_K) return { k, x: 0, y: 0 };
   // zooming back inside the limits keeps the figure under the middle of the room, as the 2D spring-back does
   const kept = k === v.k ? v : zoomAbout(v, k / v.k, c, c);
-  return hardPan(kept, r0, c);
+  const held = hardPan(kept, r0, c);
+  // `recentre` (the sinusoid): a pan let go outside the allowed area goes all the way back to the middle of the view, not just to its edge (owner, 20 Nov)
+  return recentre && !sameView(held, kept) ? { k, x: 0, y: 0 } : held;
 }
