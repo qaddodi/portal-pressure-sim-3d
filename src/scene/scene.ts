@@ -11,7 +11,7 @@ import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
-import { SkinSet } from './vessels/skin/skin-set.ts';
+import { SkinSet, SKIN_BUILD_TAG } from './vessels/skin/skin-set.ts';
 import { SkinObject } from './vessels/skin/skin-object.ts';
 import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
@@ -325,6 +325,7 @@ export class CelScene {
     this.presence.own(this.feeders.ids());
     for (const id of this.grownIds) { const g = COURSES.get(id); if (g) this.vesselObject(id)?.setStretchAnchors(g.curveA.getPointAt(0), g.curveC.getPointAt(0)); }
     this.shapes = new ShapeTracks(NETWORK, this.byEdge as unknown as Map<string, VesselObject>);
+    this.shapes.onReshaped = (id) => this.skins?.markDirty(id);   // (an arm's course changed: the skin on it is rebuilt in the render phase, skins.step below)
     this.lens.setContext({ healthy: null, ref: null });
     const vo = { look: this.look, phone: this.phone, flowMode: opts.flowMode ?? DEFAULT_FLOW_MODE, reduceMotion: opts.reduceMotion };
     this.lobule = new LobuleView(this.shared, vo); this.sinus = new SinusoidView(this.shared, vo);
@@ -355,6 +356,7 @@ export class CelScene {
       make: (skin, axes, arms) => new SkinObject(skin, arms[0]!, axes, arms),
       add: (o) => { this.body.add(o); },
       remove: (o) => { this.body.remove(o); },
+      endsChanged: () => { this.applyMates(); },   // (a rebuild that failed or came back: the mates and burial of its ends follow)
     });
     this.skins.build(phase);
   }
@@ -1066,7 +1068,10 @@ export class CelScene {
     this.syncStumps();
     this.updateCaps();
     const shapeMoving = this.shapes.step(dt);
-    const skinMoving = this.skins?.sync() ?? false;   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
+    // (one junction skin rebuilt at most, here in the render phase and before the handover, so the tubes and the skin change together; while one still waits, the clock is asked for the next frame under the tag `skin-build`)
+    const skinPending = this.skins?.step() ?? false;
+    if (skinPending) clock.invalidate(SKIN_BUILD_TAG);
+    const skinMoving = (this.skins?.sync() ?? false) || skinPending;   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
     this.stepSinusDive();
     this.stepCutaway();
     this.stepPortrait();
