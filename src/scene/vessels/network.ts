@@ -3,7 +3,7 @@
 // own tiers (frame2d.ts TIER_Z): nothing is placed by hand, warped or smoothed. A vessel's width is the 2D figure's (widthAt: vesselPx of its diameter, the
 // liver's beds fixed, the arteries half, the cava three quarters, with the few named exceptions), in the same units, so it is the same width on the plate.
 import { Vector3 } from 'three';
-import { EDGES, JUNCTION_PIECES, PORTAL_TERRITORY, dMinOf } from '../../engine/hales/portal/topology.js';
+import { EDGES, JUNCTION_PIECES, PART_OF, PORTAL_TERRITORY, dMinOf } from '../../engine/hales/portal/topology.js';
 import { ANAT_HIDDEN, BACK_EDGES, EDGE_PATH_2D, HIDDEN_EDGES, IVC_EDGES, NEEDS_C3 } from './paths.copied.ts';
 import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
 import { isCoiling } from './coil.ts';
@@ -72,10 +72,13 @@ const IVC_ONE_D = () => edgeById.get('IVC_IS')!.d!;
 export function widthPx(e: Edge, dmm: number): number {
   if (e.kind === 'liver') return e.zone === 'sin' || e.zone === 'inter' || e.zone === 'post' ? 3.6 : 5.2;
   if (isArteryEdge(e)) return Math.max(1.8, vesselPx(dmm) * 0.5 * (e.shunt === 'ap' ? AP_FINE : 1));
-  let w = vesselPx(IVC_EDGES.has(e.id) ? IVC_ONE_D() : dmm) * (IVC_EDGES.has(e.id) || e.id === 'SVC_RA' || e.id === 'V_UP' ? 0.72 : 1);
+  // (a vein the engine cuts in pieces where a shunt or a collateral joins it is ONE vein: every exception is keyed by the whole vein's id, not the piece's, or its pieces are drawn at different calibres and the vein steps
+  //  where they meet: the superior cava's upper piece was 1.39 times as wide as its lower one, 2D's own step (stage-tubes.js keys the 0.72 by the piece), which the smooth joins could only soften into a bulge. Mohammad, 20 Nov: "smooth calibres across the entirety of the app")
+  const whole = (PART_OF as Record<string, string | undefined>)[e.id] ?? e.id;
+  let w = vesselPx(IVC_EDGES.has(e.id) ? IVC_ONE_D() : dmm) * (IVC_EDGES.has(e.id) || whole === 'SVC_RA' || whole === 'V_UP' ? 0.72 : 1);
   if (e.id === 'C8') w *= 0.6;
   if (e.id === 'C3') w *= 0.6;   // the paraumbilical vein is a branch of the left portal vein, not as wide as it: it leaves it as a filleted Y (the fork rule), not a blunt stack of equal tubes (Mohammad, 20 Nov)
-  if (e.id === 'LGV_CONF') w *= 0.85;
+  if (whole === 'LGV_CONF') w *= 0.85;
   return w;
 }
 /** The tube's smallest radius in the figure's units (stage-tubes.js tubeRadius: max(0.35, w / 2)). */

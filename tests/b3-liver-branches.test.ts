@@ -243,7 +243,7 @@ test('a hepatic vein opens into the cava with a clean edge: it is cut away exact
   }
   assert.match(VESSEL_FS, /uniform float cavaCut;/);
   assert.match(VESSEL_FS, /if \(cavA < 0\.004\) discard;/);
-  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade \* cavA\);/);
+  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, fadeHere \* cavA\);/);
 });
 
 test('a side branch starts as wide as it is where it leaves its vein (a half-width start made a step on the vein\'s outline where the branch\'s own begins: eyes, v8 of 5b59c0a)', async () => {
@@ -267,7 +267,9 @@ test('a vein that opens into the cava takes the cava\'s colour as it nears the w
   const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
   assert.match(VESSEL_FS, /vec4 lensOfAt\(float lensIx, float u,/);
   assert.match(VESSEL_FS, /base = mix\(base, mix\(mix\(color, la2\.rgb, la2\.a\), mix\(color, lb2\.rgb, lb2\.a\), lensMix\), wB\);/);
-  assert.match(VESSEL_FS, /cavA = mix\(1\.0 - smoothstep\(-0\.8 \* vNbr\.y, 0\.0, cd\), 1\.0, circT\);/);
+  assert.match(VESSEL_FS, /fadeHere = mix\(vFade, cavaA, wB\);/, 'the vein comes to the cava\'s opacity at the wall');
+  assert.match(VESSEL_FS, /cavA = mix\(1\.0 - smoothstep\(-0\.5, 0\.5, cdPx\), 1\.0, circT\);/, 'and is cut along the wall\'s line, a pixel wide');
+  assert.doesNotMatch(VESSEL_FS, /smoothstep\(-0\.8 \* vNbr\.y, 0\.0, cd\)/, 'no dissolve over the last stretch before the wall (a gap, Mohammad 20 Nov)');
   const s = new CelScene();
   try {
     const ref = (id: string) => (s.vesselObject(id)!.toon.uniforms as unknown as { cavaRef: { value: { x: number; y: number } } }).cavaRef.value;

@@ -269,6 +269,7 @@ uniform vec3 mate0;
 uniform vec3 mate1;
 uniform vec2 bury;   // the ink is held back ONLY inside a declared branch's trunk: how far from the branch's start and end (figure units per radius unit, 0: none: a run-on, a crossing, a free end keep their whole outline)
 uniform float cavaCut;   // 1 on a vein that opens into the cava (nbr is the cava's): it takes the cava's colour and alpha as it nears the wall and is not drawn inside the lumen, so it ends exactly at the wall with no step
+uniform float cavaA;     // the cava's opacity where the vein joins it (the vein's own comes to it at the wall: no step in alpha)
 uniform vec2 cavaRef;    // the cava piece's lens index and the share along it where the vein joins: the colour the vein takes on
 uniform float nbrOn;   // 1 on the two tubes of a fork: the outline is the union's (neighbour.ts), so the buried end does not hold the ink back
 uniform sampler2D streamTex;
@@ -438,15 +439,18 @@ void main() {
   // lumen opens there, lit). nbrK: how far inside, in device px, from 0 (on the other's wall) to 1 (half a pixel in).
   float nbrK = 0.0;
   if (vNbr.y > 0.0) nbrK = smoothstep(-0.5, 0.5, (vNbr.y - abs(vNbr.x)) / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr) * (1.0 - circT);
-  // A VEIN INTO THE CAVA takes the cava's colour as it nears the wall (wB: 0 more than 1.6 cava radii before it, 1 at it) and dissolves over the last 0.8 of a cava radius before it (cavA), so it is gone at the wall: nothing is cut (a hard cut left a seam
-  // and a step in colour, eyes v9, v13), no ground shows through a half-opaque vein, and nothing of it is drawn inside the lumen
-  float cavA = 1.0;
+  // A VEIN INTO THE CAVA runs whole to the cava's wall and merges with it as one surface (Mohammad, 20 Nov: "the hepatic veins don't connect to the IVC"; "seamless and smooth"). As it nears the wall it takes the cava's COLOUR (wB: 0 more
+  // than 1.6 cava radii before it, 1 at it) and the cava's OPACITY (cavaA), so at the wall the two are the same pixel colour and the same alpha; it is drawn up to the wall and not inside the lumen, cut along the wall's own line (cavA: a pixel wide, so the
+  // cut is anti-aliased and follows the slant of the vein, never the cava's axis). It used to dissolve to nothing over the last 0.8 of a cava radius, cut along the axis: an oblique vein ended in a pale wedge short of the wall, a gap.
+  float cavA = 1.0, fadeHere = vFade;
   if (cavaCut > 0.5 && vNbr.y > 0.0) {
     float cd = vNbr.y - abs(vNbr.x);
     float wB = smoothstep(-1.6 * vNbr.y, 0.0, cd) * (1.0 - circT);
     vec4 la2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradA, lensLaneA, lensModeA, laneColA, across), lb2 = lensOfAt(cavaRef.x, cavaRef.y, lensGradB, lensLaneB, lensModeB, laneColB, across);
     base = mix(base, mix(mix(color, la2.rgb, la2.a), mix(color, lb2.rgb, lb2.a), lensMix), wB);
-    cavA = mix(1.0 - smoothstep(-0.8 * vNbr.y, 0.0, cd), 1.0, circT);
+    fadeHere = mix(vFade, cavaA, wB);
+    float cdPx = cd / max(vW * 2.0 / (res.y * projY), 1e-9) * dpr;
+    cavA = mix(1.0 - smoothstep(-0.5, 0.5, cdPx), 1.0, circT);
   }
   if (cavA < 0.004) discard;
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
@@ -613,5 +617,5 @@ void main() {
     wa *= mix(1.0, smoothstep(0.0, max(wedge.z, 0.001), vUv.x), wedge.w);
     c = mix(c, wedgeCol, 0.78 * wa);
   }
-  gl_FragColor = vec4(c, vFade * cavA);
+  gl_FragColor = vec4(c, fadeHere * cavA);
 }`;
