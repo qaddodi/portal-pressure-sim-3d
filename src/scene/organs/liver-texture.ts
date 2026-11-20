@@ -69,7 +69,9 @@ export const CELS: Record<string, Cel> = {
   cel6: { name: 'terracotta, chunkier bumps', colour: '#A95A3B', a: 0.74, bands: 3, ink: 0.16, shade: 0.42, size: 12, rLo: 0.4, rHi: 0.9, jit: 0.3, cap: 0.22, foot: -0.2, bump: 0.6, rim: 1.7 },
   cel7: { name: 'warm brown, finest bumps', colour: '#9A5238', a: 0.76, bands: 3, ink: 0.12, shade: 0.38, size: 6.5, rLo: 0.45, rHi: 0.92, jit: 0.32, cap: 0.2, foot: -0.18, bump: 0.4, rim: 1.2 },
 };
-export const celLook = (): Cel | null => { const v = flagValue('liver'); return v !== null && CELS[v] ? CELS[v]! : null; };
+/** The standing cirrhotic liver is cel7 (Mohammad 20 Nov: "Cel7 for now"); `?liver=cel1..cel6` shows the other cel options and `?liver=c2b` the earlier pale-nodule surface. */
+export const DEFAULT_CEL = 'cel7';
+export const celLook = (): Cel | null => { const v = flagValue('liver'); if (v === 'c2b') return null; return CELS[v ?? ''] ?? CELS[DEFAULT_CEL]!; };
 function celSurface(x: number, y: number, cel: Cel): Surface {
   const c = disc(x, y, cel.size, cel.rLo, cel.rHi, cel.jit, 61), w = Math.max(2, c.r * 0.6);
   const l = lit(c, w, 0.2);

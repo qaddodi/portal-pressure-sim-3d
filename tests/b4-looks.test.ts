@@ -28,10 +28,10 @@ test('the kidney has its own plum in every look (2D --organ-kidney), not the spl
   for (const id of LOOK_IDS) assert.notEqual(PALETTES[id].tones.kidney, PALETTES[id].tones.spleen, id);
 });
 
-test('the septa: a thin pale wall between nodules, not a blur over the liver', () => {
+test('the septa: a faint crevice between nodules (cel7), not a blur over the liver', () => {
   let walls = 0, n = 0;
-  for (let x = 300; x < 900; x += 3) for (let y = 150; y < 540; y += 3) { const s = septumAt(x, y); assert.ok(s >= 0 && s <= 1); n++; if (s > 0.2) walls++; }
-  assert.ok(walls / n > 0.1 && walls / n < 0.4, `septa cover ${(100 * walls / n).toFixed(1)}% of the liver`);
+  for (let x = 300; x < 900; x += 3) for (let y = 150; y < 540; y += 3) { const s = septumAt(x, y); assert.ok(s >= 0 && s <= 1); n++; if (s > 0.05) walls++; }
+  assert.ok(walls / n > 0.1 && walls / n < 0.6, `septa cover ${(100 * walls / n).toFixed(1)}% of the liver`);
 });
 
 test('cirrhosis: a septum is paler than a nodule, which is tawny on pale; no cirrhosis, no difference', () => {
@@ -154,7 +154,7 @@ test('a cirrhotic liver is painted with its septa; a healthy one is one colour',
   assert.ok(hi - lo < 1e-6, 'one colour on the vertices');
   const u = liver.toon.uniforms, sd = u.sepDelta!.value as { x: number; y: number; z: number };
   assert.ok(u.nodAmt!.value as number > 0.5, 'the dome light is on');
-  assert.ok(sd.x + sd.y + sd.z > 0.01, 'the wall is paler than the nodule');
+  assert.ok(Math.abs(sd.x) + Math.abs(sd.y) + Math.abs(sd.z) > 0.001, 'the crevice differs from the nodule');
   assert.ok((u.nodTex!.value as { image: { width: number } }).image.width > 100, 'the texture is baked once the liver is scarred');
   o.dispose(); s.dispose?.();
 });
