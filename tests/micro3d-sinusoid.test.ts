@@ -151,3 +151,12 @@ test('the sinusoid never visibly ends: the scene runs well past the traffic, and
   const x = (v: Vector3) => Math.abs(s3.group.worldToLocal(v.clone()).x);
   assert.ok(x(ends.f0) < x(ends.f1) && x(ends.f1) < REACH - 30, 'whole before the end');
 });
+
+test('the ends\' arrows are never 3D objects in the scene: they are part of the names (SinusoidCaptions endArrow)', async () => {
+  const { s3 } = scene(); s3.update(true);
+  const arrows = meshes(s3.group).find((m) => m.name === 'sinusoid3d/ends')!;
+  let shown = true; for (let o: Object3D | null = arrows; o; o = o.parent) if (!o.visible) { shown = false; break; }
+  assert.equal(shown, false);
+  const src = (await import('node:fs')).readFileSync('src/scene/sinusoid/SinusoidCaptions.tsx', 'utf8');
+  assert.match(src, /endArrow\(key\)/);
+});

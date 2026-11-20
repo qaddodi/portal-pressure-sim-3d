@@ -12,6 +12,8 @@ import { useTimeline } from '../timeline/store.ts';
 import { restartPatient } from '../patients/index.ts';
 import { CMP } from '../compare/words.ts';
 import { envNow } from '../action/env.ts';
+import { Roll } from '../cards/Roll.tsx';
+import { useSwitching } from '../patients/switching.ts';
 import { lobuleOf } from '../action/read.ts';
 import { LOBULE_TILES, type Scale } from './lobule-strip.ts';
 // @ts-ignore the pinned engine copy is plain JS
@@ -55,12 +57,13 @@ const posIn = (sc: Scale, v: number) => Math.min(1, Math.max(0, (v - sc.lo) / (s
 /** One headline reading, as 2D's tile-el.js builds it: .metric.primary.inert > .k, .v (.val, .unit), .rb (.rb-fill, .rb-tick), .s (.status). */
 function Tile({ id, k, value, from, sev, word, ticks, scale = MMHG, unit = 'mmHg', unitWords = '', fixed = 1 }: { id: string; k: string; value: number | null; from: number; sev: string; word: string; ticks: number[]; scale?: Scale; unit?: string; unitWords?: string; fixed?: number }) {
   const shown = value == null ? null : value.toFixed(fixed);
+  const switching = useSwitching((s) => s.on);   // (a new patient: the number rolls to the new one; live ticks stay plain)
   const pos = (v: number) => posIn(scale, v);
   return (
     <div className={`metric inert primary${value == null ? ' hidden-val' : ''}`} data-id={id} data-sev={value == null ? 'none' : sev} role="group"
       aria-label={value == null ? k : `${k}: ${shown} ${unit}${unitWords}, ${word}`} title={k}>
       <span className="k">{k}</span>
-      <span className="v"><span className="val" style={{ ['--vr' as string]: 'round(up, calc(3ch + 0.26em), 1px)' }}>{shown ?? '—'}</span><span className={unit === '%' ? 'unit pct' : 'unit'}>{unit}{unitWords ? <span className="u-x">{unitWords}</span> : null}</span><span className="tr" aria-hidden="true" /></span>
+      <span className="v"><span className="val" style={{ ['--vr' as string]: 'round(up, calc(3ch + 0.26em), 1px)' }}>{switching && shown != null ? <Roll text={shown} /> : (shown ?? '—')}</span><span className={unit === '%' ? 'unit pct' : 'unit'}>{unit}{unitWords ? <span className="u-x">{unitWords}</span> : null}</span><span className="tr" aria-hidden="true" /></span>
       <span className="rb" aria-hidden="true"><i className="rb-fill" style={{ ['--fl' as string]: pos(from), ['--fw' as string]: value == null ? 0 : pos(value) - pos(from) }} />{ticks.map((t) => <i key={t} className="rb-tick" style={{ left: `${pos(t) * 100}%` }} />)}</span>
       <span className="s"><span className="status">{word}</span><span className="cmp" /></span>
     </div>

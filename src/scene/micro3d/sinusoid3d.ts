@@ -570,7 +570,8 @@ export class Sinusoid3D {
     // (2D lays the arrow in the labels' ink at half strength over the blood: here the same mix, opaque, so its ink never shows through it)
     const k = Math.max(sh[0], sh[1]);
     this.arrows.setTint(mix3(P.cLumen, P.cEndF, 0.5 * k)); this.arrows.setInk(mix3(P.cLumen, P.cEndE, 0.45 * k));
-    this.arrows.group.visible = k > 0.02;
+    // (none in the scene: the ends' arrows are part of their names, flat in the labels: SinusoidCaptions endArrow; Mohammad 20 Nov "the arrow should not be a 3D thing")
+    this.arrows.group.visible = false;
   }
 
   dispose(): void {

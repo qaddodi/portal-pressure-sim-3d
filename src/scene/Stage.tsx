@@ -37,7 +37,7 @@ import { labelAt } from './labels/hit.ts';
 
 const vesselData = new VesselData();
 cel.bindData(vesselData.texture);
-clock.on('engine', () => { if (vesselData.update(latest.frame, latest.version)) { cel.dataChanged(); clock.invalidate('vessel-data'); } }, 0);
+clock.on('engine', (f) => { if (vesselData.update(latest.frame, latest.version, f.time)) { if (vesselData.fresh) cel.dataChanged(); clock.invalidate('vessel-data'); } if (vesselData.easing) clock.invalidate('patient-glide'); }, 0);
 clock.on('tween', (f) => frames.run(f.time), 0);
 clock.on('camera', (f) => { if (cel.update(f.time)) clock.invalidate('scene'); }, 0);
 export { vesselData };
