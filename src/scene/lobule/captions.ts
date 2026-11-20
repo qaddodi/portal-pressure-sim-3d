@@ -42,6 +42,12 @@ const WORDS: Record<CapKey, { name: string; short: string; pri: number; tone: st
   bd: { name: 'Bile ductule', short: 'Bile ductule', pri: 55, tone: 'bile', target: 'lobule:ductule' },
   lymph: { name: 'Hepatic lymph', short: 'Lymph', pri: 50, tone: 'lymph', target: 'lobule:lymph' },
 };
+/** The courses a name stands clear of or avoids: the blood's sinusoids and cross-links, the inlets and the arteriole's twigs. */
+export const LINE_KINDS: ReadonlySet<string> = new Set(['s0', 's1', 's2', 'an', 'in', 'tw']);
+/** The words of a station stand at least this far from its vessel's edge, so its leader and ring always show (2D keeps a visible stretch, lobule-zoom-records.js solve: 16 px from the vessel's middle; here from its edge, over the 12 px a leader needs, so the least that always shows). */
+export const MIN_LEAD = 13;
+/** The central vein's name may stand this far from the vein (px) to find a place clear of the sinusoids that run into it (on a phone the hexagon fills the width, so the nearest clear band is past its rim). */
+export const CV_REACH = 300;
 const READ: Record<CapKey, CapMeta['read']> = { triad: 'P1', sin: 'P2', cv: 'P3', ha: null, bd: null, lymph: 'lymph' };
 
 const UNIT: Record<Dir, readonly [number, number]> = {
@@ -56,12 +62,16 @@ export function sidesToward(dx: number, dy: number): Dir[] {
 /** The tract the tract names are about: the one lowest on the canvas now (2D labels the lobule's bottom tract, where its zone names stand too). */
 export function labelledTriad(ctx: Pick<CapCtx, 'proj' | 'net' | 'inView'>): number {
   let best = -1, by = -Infinity;
-  for (const t of ctx.net.triads) {
-    const [x, y] = ctx.proj(t.x, t.y);
-    if (ctx.inView && !ctx.inView(x, y)) continue;   // (a tract off screen has no names to put: the lowest one in view takes them)
-    if (y > by + 1e-6) { by = y; best = t.i; }
+  // (a tract whose arteriole, ductule or lymphatic is off the view or under a card has one of its four names with no dot to stand by, "hidden" by the solver: the lowest tract with all four in view takes the names)
+  for (const whole of [true, false]) {
+    for (const t of ctx.net.triads) {
+      const [x, y] = ctx.proj(t.x, t.y);
+      if (ctx.inView && !ctx.inView(x, y)) continue;   // (a tract off screen has no names to put: the lowest one in view takes them)
+      if (whole && ctx.inView && [t.ha, t.bd, t.lv].some((q) => { const [qx, qy] = ctx.proj(q[0], q[1]); return !ctx.inView!(qx, qy); })) continue;
+      if (y > by + 1e-6) { by = y; best = t.i; }
+    }
+    if (best >= 0) return best;
   }
-  if (best >= 0) return best;
   for (const t of ctx.net.triads) { const y = ctx.proj(t.x, t.y)[1]; if (y > by + 1e-6) { by = y; best = t.i; } }
   return best;
 }
@@ -126,11 +136,12 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
     if (k === 'lymph' && !ctx.layers.lymph) continue;
     const a = ctx.proj(...stationAt(ctx.net, tri, k)); keep.push({ id: k, x: a[0], y: a[1], r: rOf(k) });
   }
-  // the courses (sinusoids, inlets, twigs): a name avoids standing across one (a soft cost in the solver)
+  // the courses drawn under the names (sinusoids, cross-links, inlets, twigs), every sample of each: a name avoids standing across one (a soft cost in the solver), and the central vein's, where they all
+  // converge, stands wholly clear of them (`clearLines`)
   for (const c of ctx.net.courses) {
-    if (c.kind !== 's0' && c.kind !== 's1' && c.kind !== 's2' && c.kind !== 'in') continue;
+    if (!LINE_KINDS.has(c.kind)) continue;
     let prev: [number, number] | null = null;
-    for (let i = 0; i < c.pts.length; i += 3) { const q = ctx.proj(c.pts[i]![0], c.pts[i]![1]); if (prev) lines.push([prev[0], prev[1], q[0], q[1]]); prev = q; }
+    for (let i = 0; i < c.pts.length; i++) { const q = ctx.proj(c.pts[i]![0], c.pts[i]![1]); if (prev) lines.push([prev[0], prev[1], q[0], q[1]]); prev = q; }
   }
   for (const k of keys) {
     const w = WORDS[k], at = stationAt(ctx.net, tri, k), [ax, ay] = ctx.proj(at[0], at[1]);
@@ -140,11 +151,11 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
     const forms: Form[] = [mk(w.name, reads)];
     if (w.short !== w.name) { forms.push(mk(w.short, reads)); formsM.push({ name: w.short, value: reads }); }
     if (reads) { forms.push(mk(w.short, false)); formsM.push({ name: w.short, value: false }); }
-    forms.push(mk('', reads)); formsM.push({ name: '', value: reads });
+    if (reads) { forms.push(mk('', true)); formsM.push({ name: '', value: true }); }   // (the number alone; a station with no reading has no nameless form: it would stand as an empty box with a ring)
     // a tract name stands out along the ray from the venule through what it names (its spoke); the others on the side their dot faces
     const spoke = spokeOf[k] ?? (k === 'cv' ? [0, 1] : [0, -1]);
     const must = !!ctx.must?.has(k);
-    items.push({ id: k, ax, ay, au: 0.5, forms, pri: must ? 100 : w.pri, must, dirs: sidesToward(spoke[0]!, spoke[1]!), vw: rOf(k), ...(k === 'triad' || k === 'ha' || k === 'bd' || k === 'lymph' ? { face: { cx: venule[0], cy: venule[1], ux: spoke[0]!, uy: spoke[1]! } } : {}) });
+    items.push({ id: k, ax, ay, au: 0.5, forms, pri: must ? 100 : w.pri, must, dirs: sidesToward(spoke[0]!, spoke[1]!), vw: rOf(k), minLead: MIN_LEAD, ...(k === 'cv' ? { clearLines: true, reach: CV_REACH, prefer: [-out[0], -out[1]] as const } : {}), ...(k === 'triad' || k === 'ha' || k === 'bd' || k === 'lymph' ? { face: { cx: venule[0], cy: venule[1], ux: spoke[0]!, uy: spoke[1]! } } : {}) });
     meta.set(k, { id: k, kind: 'station', forms: formsM, read: READ[k], label: w.name, target: w.target });
   }
   return { items, meta, tri, keep, lines };
