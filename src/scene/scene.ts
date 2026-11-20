@@ -232,6 +232,8 @@ export class CelScene {
   private readonly cavaCuts: VesselObject[] = [];
   /** The vessels of the back tier: they ease toward the page on a turn (quiet depth). */
   private readonly back: VesselObject[] = [];
+  /** Settings > Hide vessels behind organs: the share (0 show-through, 1 normal occlusion) the vessels of the back tier are at, and where it is going; eased on the clock. */
+  private occNow = 0; private occGoal = 0;
   private cavaGoal = 0;
   private cavaWhole = 0;
   private lumbarGoal = 0; private lumbarWhole = 0;
@@ -253,7 +255,12 @@ export class CelScene {
     setSmoothJoins(useSettings.getState().smoothJoins);   // (Settings > Figure depth > Smooth vessel joins: read before any tube is built)
     for (const def of NETWORK) this.addVessel(def);
     this.applyMates();
-    this.unJoins = useSettings.subscribe((st, prev) => { if (st.smoothJoins !== prev.smoothJoins) this.useSmoothJoins(st.smoothJoins); });
+    this.occGoal = this.occNow = useSettings.getState().hideBehind ? 1 : 0;
+    for (const o of this.back) o.setOcclusion(this.occNow);
+    this.unJoins = useSettings.subscribe((st, prev) => {
+      if (st.smoothJoins !== prev.smoothJoins) this.useSmoothJoins(st.smoothJoins);
+      if (st.hideBehind !== prev.hideBehind) { this.occGoal = st.hideBehind ? 1 : 0; this.moving = true; }
+    });
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
     this.disease = new DiseaseLayer(this.shared, this.vessels);
     this.body.add(this.disease.group);
@@ -582,6 +589,15 @@ export class CelScene {
     this.cavaGoal = [...ids].some((id) => IVC_EDGES.has(id)) ? 1 : 0;
     this.lumbarGoal = ids.has(LUMBAR_ID) ? 1 : 0;
     this.moving = true;
+  }
+
+  /** Eases the back tier between show-through and normal occlusion (Settings > Hide vessels behind organs); true while it moves. */
+  private stepOcclusion(dtMs: number): boolean {
+    if (this.occNow === this.occGoal) return false;
+    const k = Math.min(1, dtMs / FLOW_FADE_MS), d = this.occGoal - this.occNow;
+    this.occNow = Math.abs(d) <= k ? this.occGoal : this.occNow + Math.sign(d) * k;
+    for (const o of this.back) o.setOcclusion(this.occNow);
+    return true;
   }
 
   /** Eases the cava toward whole or veiled; true while it moves. */
@@ -998,7 +1014,8 @@ export class CelScene {
     if (procQuiet !== this.procQuietWas) { this.procQuietWas = procQuiet; this.flow.setOptions({ quiet: procQuiet }); }
     const streamsMoving = this.blood.streams.step(now, this.flowRate.value);
     const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id));
-    const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || this.stepCava(dt);
+    const occMoving = this.stepOcclusion(dt);
+    const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || this.stepCava(dt) || occMoving;
     const lensMoving = this.lens.step(now);
     const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving, quiet: procQuiet });
     const presMoving = this.presence.step(dt) || this.feeders.step(dt, () => this.pushFades());
