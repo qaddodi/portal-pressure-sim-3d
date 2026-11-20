@@ -169,7 +169,9 @@ export class OrganLayer {
     this.lastClock = now;
     const sw = this.fillInstant; this.fillInstant = false;
     let eased = this.depthE.to(this.depthGoal, dt, sw);
+    const before = this.solidE.value;
     eased = this.solidE.to(this.solidGoal, dt, sw) || eased;
+    if (this.solidE.value !== before) this.dirtyColours = true;   // (the cel-shaded outline's strength follows the fill: setColours)
     this.uDepth.value = this.depthE.value; this.uSolid.value = this.solidE.value;
     const t = this.body;
     if (!t) { if (this.dirtyColours) { this.paint(); this.dirtyColours = false; } return eased; }
@@ -239,7 +241,8 @@ export class OrganLayer {
     (u.color!.value as Color).setRGB(c[0], c[1], c[2]); (u.page!.value as Color).setRGB(page[0], page[1], page[2]);
     u.layer!.value = layer;
     (u.ogLight!.value as Vector4).copy(rgba(og.light)); (u.ogDark!.value as Vector4).copy(rgba(og.dark)); (u.volShade!.value as Vector4).copy(rgba(og.volShade));
-    const ink = mix(page, o3, Math.min(1, inkA * layer));
+    // cel shaded (solid): the organ's line is 2D's alpha (.62, the kidney .95) laid on the page whole, not thinned by the layer's opacity, so the silhouette and the edge where one organ passes over another read as ink
+    const ink = mix(page, o3, Math.min(1, inkA * (layer + (1 - layer) * this.uSolid.value)));
     (o.ink.uniforms.color!.value as Color).setRGB(ink[0], ink[1], ink[2]);
   }
 

@@ -55,6 +55,20 @@ varying vec3 vN;
 varying vec3 vV;
 varying vec2 vBox;
 varying float vAo;
+// Cel shaded (organFill solid): three flat tones with hard edges, light / base / shade, from 2D's og-light, the organ's own colour and og-dark; the terminator is where the lambert of a
+// light at the screen's upper left (the one organ depth uses) crosses CEL_SHADE, the lit cap where it crosses CEL_LIT, and with organ depth on the baked tuck is one hard band of the
+// shade tone. An edge is one pixel wide (fwidth) and no softer. tests/organ-depth.test.ts mirrors this function and these numbers.
+const float CEL_SHADE = 0.35;
+const float CEL_LIT = 0.78;
+const float CEL_TUCK = 0.45;
+const vec3 CEL_L = vec3(-0.5015, 0.6219, 0.6018);
+// how much of the shade tone (x) and the light tone (y) a point wears, each 0 or 1 but for the one pixel of an edge; `tuckAt` is where the tuck band starts (above 1: no band)
+vec2 celBands(float lam, float ao, float tuckAt) {
+  float wl = max(fwidth(lam), 1e-5), wa = max(fwidth(ao), 1e-5);
+  float shade = max(1.0 - smoothstep(CEL_SHADE - wl, CEL_SHADE + wl, lam), smoothstep(tuckAt - wa, tuckAt + wa, ao));
+  float lit = smoothstep(CEL_LIT - wl, CEL_LIT + wl, lam) * (1.0 - shade);
+  return vec2(shade, lit);
+}
 void main() {
   // the window: the wash clears round the dive point, soft at its edge, so the lobule shows inside
   vec2 q = vClip.xy / vClip.w - cut.xy;
@@ -100,6 +114,16 @@ void main() {
     float toward = smoothstep(0.7 - wl, 0.7 + wl, lam) * (1.0 - ao);
     fill = mix(fill, ogDark.rgb, clamp(ogDark.a * (1.5 * tuck + 0.6 * away), 0.0, 1.0) * depthAmt);
     fill = mix(fill, ogLight.rgb, clamp(ogLight.a * 0.5 * toward, 0.0, 1.0) * depthAmt);
+  }
+  // Cel shaded: the wash's soft shade is replaced (eased by `solid`) by the three hard tones; the base is the organ's one colour with what varies over it (nodules, the dead spleen, the pool)
+  if (solid > 0.001) {
+    vec3 base = color;
+#ifdef VERTEX_INK
+    base += (vInk - color) * inkAmount;
+#endif
+    vec2 b = celBands(dot(n, CEL_L), clamp(vAo, 0.0, 1.0), mix(1.5, CEL_TUCK, depthAmt));
+    vec3 cel = mix(mix(base, mix(base, ogDark.rgb, clamp(ogDark.a * 2.4, 0.0, 1.0)), b.x), mix(base, ogLight.rgb, clamp(ogLight.a * 1.2, 0.0, 1.0)), b.y);
+    fill = mix(fill, cel, solid);
   }
   // the organ lies on whatever is behind it at the layer's opacity, as 2D's organ groups do (blended in 2D's order: layer.ts); the dive fades the layer, no dots.
   // Solid: the same colour pre-mixed against the page and laid opaque (alpha 1), so nothing shows through it; the dive's fade and window still thin it, never pop it
