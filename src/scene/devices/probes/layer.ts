@@ -9,10 +9,11 @@ import { EndoScope, type EusDrive, type ScopeDrive } from './scope.ts';
 import { glueTarget3 } from '../glue-cast.ts';
 import { useProbes, type FibroOrgan } from './state.ts';
 import type { ScreenEnv } from './screen.ts';
+import type { OrganEdge } from './fibro-place.ts';
 import { probeLabel } from '../../labels/probe-labels.ts';
 
 /** What the layer asks of the scene: an organ's box in the figure (null while it is not built), and the stiffness the FibroScan reads (kPa). */
-export interface ProbeEnv { organBox(organ: FibroOrgan): Box3 | null; kpa(organ: FibroOrgan): number | null; /** the screen the devices keep clear of the cards on (the scene's; tests leave it out) */ screen?: ScreenEnv; /** the EUS-PPG's procedure frame while it plays (null otherwise): the echoendoscope follows it */ eus?(): EusDrive | null }
+export interface ProbeEnv { organBox(organ: FibroOrgan): Box3 | null; /** where an organ's silhouette is on a line (organ-edge.ts): the FibroScan tip rests there; tests leave it out */ organEdge?: OrganEdge; kpa(organ: FibroOrgan): number | null; /** the screen the devices keep clear of the cards on (the scene's; tests leave it out) */ screen?: ScreenEnv; /** the EUS-PPG's procedure frame while it plays (null otherwise): the echoendoscope follows it */ eus?(): EusDrive | null }
 
 export class ProbeLayer {
   readonly group = new Group();
@@ -38,7 +39,7 @@ export class ProbeLayer {
     const s = useProbes.getState();
     const on = (b: boolean) => b && !away;
     const a = this.doppler.update(dt, on(s.doppler.on), s.doppler.edge, s.doppler.seg, this.env.screen ?? null, now);
-    const f = this.fibro.update(dt, now, on(s.fibro.on), s.fibro.organ, this.env.organBox, this.env.kpa(s.fibro.organ), this.env.screen ?? null);
+    const f = this.fibro.update(dt, now, on(s.fibro.on), s.fibro.organ, this.env.organBox, this.env.kpa(s.fibro.organ), this.env.screen ?? null, this.env.organEdge ?? null);
     let e: boolean;
     if (drive) {
       // the glue slide's procedure plays the scope (the procedure layer's frame: the 2D record, not the Tests card's store); the figure leaving the body takes it too

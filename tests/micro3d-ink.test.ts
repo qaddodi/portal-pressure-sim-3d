@@ -82,7 +82,7 @@ test('a flat shape on the plate is a dome open below, so nothing of it shows pas
   let minZ = Infinity; for (let i = 0; i < pos.count; i++) minZ = Math.min(minZ, pos.getZ(i));
   assert.ok(minZ > -1e-9, `lowest point ${minZ}`);
   const src = (await import('node:fs')).readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
-  assert.match(src, /ellipsoid\(nuc,[^;]*, true, true\);/); assert.match(src, /ellipsoid\(b, x, Y\(s \* \(h - 0\.35\)\)[^;]*, true, true\);/);
+  assert.match(src, /ellipsoid\(nuc,[^;]*, true, true\);/);   // (the lining's cell is no solid any more: it is a patch on the wall, tests/micro3d-endothelium.test.ts)
 });
 
 test('the lining lens draws its line from its own ellipse, exact whatever its triangles (eyes 20 Nov: nicks along its long edge between corners)', async () => {

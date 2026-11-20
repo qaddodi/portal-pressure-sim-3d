@@ -30,7 +30,7 @@ const STEP = 1.2;
 /** The tip's light: its radius in figure units, its centre's alpha, the disc's segments, and the time it takes to come up (ms). */
 export const GLOW_R = 16, GLOW_ALPHA = 0.55, GLOW_SEGS = 24, GLOW_MS = 900;
 /** The plain scope (the distal oesophagus view) stops this far above the cardia, figure units, so the tip is in the oesophagus a little above the gastro-oesophageal junction. */
-export const SCOPE_UP = 40;
+export const SCOPE_UP = 86;   // (was 40: 20 Nov, "a bit higher looking down at the esophagus, maybe 10% higher": 10 % of the way's length from the top of the figure to the cardia, about 46 units, more)
 
 /** The scope's way as the 2D app lays it: the lead-in above the figure, the esophagus, the cardia and the proximal stomach, resampled every STEP units. */
 export interface ScopeWay {
@@ -242,7 +242,7 @@ export class EndoScope {
     this.shaft.commit();
     this.parts_.shaft.setTailFade(Math.min(0.5, TAIL_UNITS / way.total));
     const k = Math.max(0, Math.min(way.pts.length - 1, Math.floor(shaftEnd / STEP)));
-    showRings(this.shaft.geometry, 0, k, this.shaft.radial);
+    showRings(this.shaft.geometry, 0, Math.min(way.pts.length - 1, k + 1), this.shaft.radial);   // (one ring more, so the shaft runs under the tip's start)
     this.pose.shaftRings = k;
     // the bending section: BEND_N + 1 points walked from the way's own direction at its start, turning by phi across it (eus-scope.js bendWalk)
     const showBend = eus && bendLen > 0.01 && Math.abs(phi) > 1e-4;
@@ -261,7 +261,10 @@ export class EndoScope {
     }
     // the rigid tip, from the bend's end (or the way at D - RIGID) to the end, with the lens a hair beyond it
     at3(tipFrom, v); at3(end, w); dir3(a1, dv);
-    for (let i = 0; i < this.tip.n; i++) { const r = this.tip.rings[i]!, u = i / (this.tip.n - 1); r.c.lerpVectors(v, w, u); r.t.copy(dv); r.r = R * (i === this.tip.n - 1 ? 1.04 : 1.08); }
+    // (One tube with the shaft: the tip is the shaft's own width from end to end, and it starts a ring's length back inside the shaft, so there is no step and no gap at the seam: owner, 20 Nov 2026, "the tip of the
+    //  scope is disconnected from its body". It was 8 % wider than the shaft and started where the shaft's last ring stopped.)
+    v.addScaledVector(dv, -len3(STEP * 1.5));
+    for (let i = 0; i < this.tip.n; i++) { const r = this.tip.rings[i]!, u = i / (this.tip.n - 1); r.c.lerpVectors(v, w, u); r.t.copy(dv); r.r = R; }
     this.tip.commit();
     const lensA = this.v.copy(w), lensB = this.w.copy(w).addScaledVector(dv, len3(0.6));
     this.lens.line(lensA, lensB, R * 0.8);
