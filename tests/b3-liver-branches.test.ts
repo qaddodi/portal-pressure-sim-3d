@@ -142,3 +142,16 @@ test('a vein that branches runs on as one tube inside the liver\'s outline, past
     }
   }
 });
+
+test('a side branch stays behind its vein for as long as the two overlap and comes forward only once it is clear of it (so no outline or darker fill is drawn across the vein at a fork)', async () => {
+  const { LIVER_BRANCHES, tuckedDepth } = await import('../src/scene/vessels/liver-branches.ts');
+  assert.ok(tuckedDepth(0, 10, 0.1) < 0 && tuckedDepth(3, 10, 0.1) < 0, 'behind while on the vein');
+  assert.ok(tuckedDepth(6, 10, 0.1) < 0.02, 'still behind or level at the vein\'s wall');
+  assert.ok(Math.abs(tuckedDepth(14, 10, 0.1) - 0.1) < 1e-9, 'forward once clear');
+  let prev = -1;
+  for (let w = 0; w < 20; w += 0.5) { const z = tuckedDepth(w, 10, 0.1); assert.ok(z >= prev - 1e-12, 'never goes back'); prev = z; }
+  for (const b of LIVER_BRANCHES) {
+    const item = b.list[0]! as { dz: readonly number[]; pts: readonly (readonly [number, number])[] };
+    assert.ok(item.dz.length === item.pts.length && item.dz.every(Number.isFinite), b.host);
+  }
+});
