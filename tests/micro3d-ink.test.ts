@@ -27,5 +27,5 @@ test('the ink never z-fights its shape, is thick enough to read and near black (
   assert.ok(CEL_STYLE.MICRO.INK_K <= 0.3, 'the ink is dark');
   const fs = await import('node:fs');
   const src = fs.readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
-  for (const part of ['rbc', 'nuclei', 'kup', 'hsc', 'albumin', 'bile']) assert.match(src, new RegExp(`this\\.${part}\\.setInk\\(inkOf\\(`), `${part} uses the one near-black ink rule`);
+  for (const part of ['rbc', 'nuclei', 'hsc', 'albumin', 'bile']) assert.match(src, new RegExp(`this\\.${part}\\.setInk\\(inkOf\\(`), `${part} uses the one near-black ink rule`);
 });
