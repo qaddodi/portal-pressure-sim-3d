@@ -10,11 +10,14 @@ import { AtlasCourses, KEEP_CLASSIC, SOURCE_ORDER, type CourseFile } from '../sr
 import { parseGlb } from '../src/scene/atlas-art/glb.ts';
 import { specimenOf } from '../src/scene/atlas-art/specimen.ts';
 import { ATLAS_ASCITES_FS, ATLAS_FS, ATLAS_INK_FS, ATLAS_INK_VS, ATLAS_VS } from '../src/scene/atlas-art/shaders.ts';
-import { ATLAS_PALETTE } from '../src/scene/atlas-art/palette.ts';
+import { PALETTES } from '../src/scene/palette.ts';
+import { LOOK_IDS } from '../src/looks/looks.ts';
+import { CEL_STYLE } from '../src/scene/cel-style.ts';
+import { ORGAN_STYLE } from '../src/scene/organs/layer.ts';
+import { PLAIN, mix, organColour, rgbOf } from '../src/scene/organs/organ-look.ts';
 import { AtlasOrgans } from '../src/scene/atlas-art/organs.ts';
 import { POOL_WASH } from '../src/scene/atlas-art/pool.ts';
 import { calmWash, smoothNormals } from '../src/scene/atlas-art/smooth.ts';
-import { LIVER_SHINE } from '../src/scene/atlas-art/organs.ts';
 import { STEP, X0, bulgeStep } from '../src/scene/disease/ascites.ts';
 import { fluidBase, fluidLevel } from '../src/scene/disease/copied/fluid-step.js';
 import { y3 } from '../src/scene/frame2d.ts';
@@ -22,7 +25,6 @@ import { AtlasVessels } from '../src/scene/atlas-art/vessels.ts';
 import { ATLAS_COURSE, NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { profileAt } from '../src/scene/vessels/tubes.ts';
 import { tubularOf } from '../src/scene/vessels/shape.ts';
-import { CEL } from '../src/scene/vessels/cel-ink.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { atlasPrograms } from '../src/debug/gl-registry.ts';
 import type { Specimen } from '../src/scene/atlas-art/types.ts';
@@ -117,7 +119,7 @@ test('the atlas organs: the healthy form shows, a diseased patient crossfades it
   const cut = { value: new Vector4(0, 0, -1, 1) }, res = { value: new Vector2(800, 600) };
   const o = new AtlasOrgans(cut, res);
   o.add('healthy', parseGlb(organFile('healthy')));
-  o.setVisible(true); o.setLook('light', false); o.setBody(0, 1, 0, true); o.setSpecimen('healthy'); o.snap();
+  o.setVisible(true); o.setLook('light', false, PALETTES.light); o.setBody(0, 1, 0, true); o.setSpecimen('healthy'); o.snap();
   o.update(0);
   const shown = () => o.group.children.filter((g) => g.visible).map((g) => g.name).sort();
   assert.deepEqual(shown(), ['atlas bowel', 'atlas colon', 'atlas duodenum', 'atlas heart', 'atlas heart-ra', 'atlas kidney-l', 'atlas kidney-r', 'atlas liver', 'atlas spleen', 'atlas stomach']);
@@ -194,12 +196,15 @@ test('Atlas on and off: every vessel is reshaped in place, nothing is NaN, and g
   }
 });
 
-test('the atlas shader is cel stepped with the figure\'s own constants, has the dive window, and the ink hull is a screen-space outline', () => {
-  assert.match(ATLAS_FS, new RegExp(`#define CEL_SHADE ${CEL.SHADE}\\b`));
-  assert.match(ATLAS_FS, new RegExp(`#define CEL_LIT ${CEL.LIT}\\b`));
+test('the atlas shader is the figure\'s one matte organ cel: CEL_STYLE\'s bands, flat tones, no specular, no gloss, no pale highlight', () => {
+  const f = (n: number) => (Number.isInteger(n) ? n.toFixed(1) : String(n));
+  assert.match(ATLAS_FS, new RegExp(`const float CEL_SHADE_LAM = ${f(CEL_STYLE.ORGAN.SHADE_LAM)};`));
+  assert.match(ATLAS_FS, new RegExp(`const float CEL_LIT_LAM = ${f(CEL_STYLE.ORGAN.LIT_LAM)};`));
+  assert.match(ATLAS_FS, new RegExp(`const float CEL_BOX_BIAS = ${f(CEL_STYLE.ORGAN.BOX_BIAS)};`));
+  assert.match(ATLAS_FS, /mix\(mix\(uBase, uShade, shade\), uLit, lit\)/, 'three flat tones');
   assert.match(ATLAS_FS, /smoothstep\(cut\.z, cut\.z \+ 0\.3/);
-  assert.doesNotMatch(ATLAS_FS, /uVessel|uDevice|uFlow|pow\(max\(0\.0, nl\), 6/, 'the package\'s smooth satin and vessel branches are gone: stepped tones only');
-  assert.match(ATLAS_FS, /stepAt\(nl,/);
+  assert.doesNotMatch(ATLAS_FS, /uVessel|uDevice|uFlow|pow\(|pale|\bspec|gloss|shine|reflect|fresnel|linearToSrgb/i, 'the package\'s satin, his pale highlight and every kind of shine are gone');
+  assert.doesNotMatch(ATLAS_ASCITES_FS, /pale|\bspec|gloss|shine|linearToSrgb/i);
   assert.match(ATLAS_VS, /normalMatrix \* normal/);
   assert.match(ATLAS_INK_VS, /res\.y \* projectionMatrix\[1\]\[1\]/);
   assert.match(ATLAS_INK_FS, /inkA \* uAlpha \* win/);
@@ -210,10 +215,32 @@ test('the atlas shader is cel stepped with the figure\'s own constants, has the 
   assert.deepEqual(atlasPrograms().map((p) => p.name), ['atlas organ', 'atlas organ ink', 'atlas ascites']);
 });
 
-test('both palettes name every organ the files carry, and each is a hex colour', () => {
-  for (const pal of [ATLAS_PALETTE.light, ATLAS_PALETTE.dark]) {
-    for (const id of ['heart', 'heart-ra', 'kidney-l', 'kidney-r', 'duodenum', 'stomach', 'colon', 'liver', 'liver.cirr', 'liver.budd', 'spleen', 'bowel', 'ascites']) assert.match((pal as Record<string, string>)[id] ?? '', /^#[0-9a-f]{6}$/, id);
+test('the atlas organs wear 2D\'s colours in every look: the base is the organ\'s second tone, the shade and lit tones are the classic painter\'s, the outline is 2D\'s own', () => {
+  const o = new AtlasOrgans({ value: new Vector4(0, 0, -1, 1) }, { value: new Vector2(800, 600) });
+  o.add('healthy', parseGlb(organFile('healthy')));
+  o.setVisible(true); o.setSpecimen('healthy'); o.setBody(0, 1, 0, true); o.snap();
+  const uni = (id: string) => (o.group.children.find((g) => g.name === `atlas ${id}`)!.children as unknown as { material: { uniforms: Record<string, { value: { r: number; g: number; b: number } | number }> } }[]);
+  const close = (c: { r: number; g: number; b: number }, v: readonly number[], what: string) => { for (const [i, k] of (['r', 'g', 'b'] as const).entries()) assert.ok(Math.abs(c[k] - v[i]!) < 1e-6, `${what} ${k}: ${c[k]} against ${v[i]}`); };
+  const lum = (c: readonly number[]) => 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
+  for (const look of LOOK_IDS) {
+    const pal = PALETTES[look];
+    o.setLook(look, pal.highlight === 'white', pal); o.update(16 * (LOOK_IDS.indexOf(look) + 1));
+    for (const id of ['heart', 'heart-ra', 'kidney-l', 'kidney-r', 'duodenum', 'stomach', 'colon', 'liver', 'spleen', 'bowel']) {
+      const m = uni(id)[0]!.material.uniforms, og = pal.organs.tones[ORGAN_STYLE[id === 'kidney-r' ? 'kidney-l' : id]!.og];
+      const k = { plate: rgbOf(pal.bg), dark: pal.highlight === 'white', bleed: rgbOf('#8E1A20'), bg: rgbOf(pal.bg) };
+      const base = organColour(rgbOf(og[1]), PLAIN, k);
+      close(m.uBase!.value as never, base, `${look} ${id} base`);
+      const shade = m.uShade!.value as { r: number; g: number; b: number }, lit = m.uLit!.value as { r: number; g: number; b: number };
+      assert.ok(lum([shade.r, shade.g, shade.b]) < lum(base) && lum([lit.r, lit.g, lit.b]) > lum(base) - 1e-9, `${look} ${id}: shade darker, lit lighter than the base`);
+      // the lit tone is the painter's: LIT_O1 toward the first tone, then LIT toward og-light
+      const want = mix(mix(base, organColour(rgbOf(og[0]), PLAIN, k), CEL_STYLE.ORGAN.LIT_O1), [pal.organs.light[0] / 255, pal.organs.light[1] / 255, pal.organs.light[2] / 255], CEL_STYLE.ORGAN.LIT);
+      close(lit, want, `${look} ${id} lit`);
+    }
   }
+  // the liver goes dusky with congestion as Classic's does
+  const plain = (uni('liver')[0]!.material.uniforms.uBase!.value as { r: number }).r;
+  o.setBody(0, 1, 0, true, { cirrhosis: 0, congestion: 1, tint: 0 }); o.update(1000); o.update(1016);
+  assert.ok((uni('liver')[0]!.material.uniforms.uBase!.value as { r: number }).r < plain, 'a congested liver is darker');
 });
 
 test('Classic is untouched: nothing of the atlas is in the boot chunk\'s path and no file is fetched until it is chosen', () => {
@@ -249,10 +276,9 @@ test('the cirrhotic liver is calm for the cel look: its normals are smoothed, it
   for (let i = 0; i < heavy.length; i += 3) assert.ok(Math.abs(Math.hypot(heavy[i]!, heavy[i + 1]!, heavy[i + 2]!) - 1) < 1e-4, 'unit normals');
   const sd = (a: ArrayLike<number>) => { let s1 = 0, s2 = 0; for (let i = 0; i < a.length; i++) { s1 += a[i]!; s2 += a[i]! * a[i]!; } return Math.sqrt(s2 / a.length - (s1 / a.length) ** 2); };
   assert.ok(sd(calmWash(liver.color!, liver.index, 6, 0.3, 0.55)) < 0.6 * sd(liver.color!), 'the wash has well under its mottle');
-  assert.match(ATLAS_VS, /in vec3 detail;/); assert.match(ATLAS_FS, /uNod \* CEL_SHADE \* nod/); assert.match(ATLAS_FS, /CEL_LIT \* lit \* uShine/);
-  assert.ok(LIVER_SHINE <= 0.3);
+  assert.match(ATLAS_VS, /in vec3 detail;/); assert.match(ATLAS_FS, /mix\(cel, uShade, 0\.5 \* uNod \* nod\)/);
   const o = new AtlasOrgans({ value: new Vector4(0, 0, -1, 1) }, { value: new Vector2(800, 600) });
   o.add('cirr-decomp', parseGlb(organFile('cirr-decomp')));
   const mat = (o.group.children.find((g) => g.name === 'atlas liver')!.children[0] as unknown as { material: { uniforms: Record<string, { value: number }> } }).material;
-  assert.equal(mat.uniforms.uShine!.value, LIVER_SHINE); assert.ok(mat.uniforms.uNod!.value > 0);
+  assert.ok(mat.uniforms.uNod!.value > 0);
 });
