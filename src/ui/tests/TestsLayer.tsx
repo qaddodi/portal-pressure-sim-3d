@@ -292,7 +292,7 @@ export function TestsLayer() {
   const dividerNow = side ? Math.round((place.rect.w / Math.max(1, vp.w)) * 100) : Math.round(((heightRatio ?? place.rect.h / Math.max(1, vp.h))) * 100);
   return (
     <div ref={posRef} className="t-pos" data-open={open} data-live={open} data-narrow={narrow} data-kind={place.kind} data-device={device} style={style}>
-      <section ref={cardRef} className={`t-card dock instrument-workspace float-ui stage-blocker${side ? ' side' : ''}${picking ? ' picking' : ''}`} id="dock" role="dialog" aria-label="Tests" data-state={tstate} data-peek={peeking || undefined} data-safe={side ? 'right' : 'bottom'} inert={!open} style={card} onKeyDown={onCardKey}>
+      <section ref={cardRef} className={`t-card dock instrument-workspace float-ui stage-blocker${side ? ' side' : ''}${picking ? ' picking' : ''}${place.kind === 'sheet' && sheetSize === 0 ? ' sheet-half' : ''}`} id="dock" role="dialog" aria-label="Tests" data-state={tstate} data-peek={peeking || undefined} data-safe={side ? 'right' : 'bottom'} inert={!open} style={card} onKeyDown={onCardKey}>
         <button type="button" className="sheet-grab" aria-label="Resize the Tests card" onClick={onGrab} />
         <i className="sh-grabbar" aria-hidden="true" />
         <div ref={dividerRef} className="workspace-divider" role="separator" tabIndex={0} aria-label="Instruments size" aria-orientation={side ? 'vertical' : 'horizontal'} aria-valuenow={dividerNow} hidden={tstate !== 'open' || (side && device !== 'phone-landscape')}><span /></div>
