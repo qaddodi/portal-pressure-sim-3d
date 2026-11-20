@@ -273,13 +273,17 @@ float skinSdPx(float kPx) {
   return d;
 }
 void main() {
-  vec3 n = normalize(vN);
+  // (a welded skin's normal is interpolated between vertices whose normals can face apart at a crease: its length can come to nothing, and normalize() of nothing is NaN, which the flow marks turned into
+  // specks of any colour, one channel lost reading green on a blue lumen. Mohammad 20 Nov, gone with ?joins=nomarks. The length is checked first, everywhere in this shader)
+  float nLen = length(vN);
+  vec3 n = nLen > 1e-5 ? vN / nLen : vec3(0.0, 0.0, 1.0);
   float sT = dot(n, celLightView());   // n.L against the WORLD light, as the tube (a camera that moves changes no shade)
   float swT = fwidth(sT);              // (a derivative: taken outside any branch)
 #ifndef SKIN_NOMARKS
   // EVERY derivative the flow marks need is taken HERE, before the first discard: after a discard a quad's other pixels get no usable neighbour (a device like Apple's drops the discarded lane, and fwidth is then garbage), so at a crotch or a silhouette, where
   // pixels beside each other are dropped (back faces, the ink band, the presence dither), the marks of the pixels that stay came out as clusters of blocky, wrongly coloured specks (Mohammad, 20 Nov: green and navy specks at every junction, gone with ?joins=nomarks)
-  vec3 viewDir = normalize(vV);
+  float vLen = length(vV);
+  vec3 viewDir = vLen > 1e-6 ? vV / vLen : vec3(0.0, 0.0, 1.0);
   float sIa[${SKIN_ARMS}], acA[${SKIN_ARMS}], pxA[${SKIN_ARMS}], awA[${SKIN_ARMS}];
   vec3 sideA[${SKIN_ARMS}], headA[${SKIN_ARMS}];
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
@@ -294,7 +298,7 @@ void main() {
     vec3 sideX = headL > 1e-6 ? cross(headA[i] / headL, viewDir) : vec3(0.0);
     float sideL = length(sideX);
     sideA[i] = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
-    acA[i] = dot(n, sideA[i]);
+    acA[i] = clamp(dot(n, sideA[i]), -1.0, 1.0);
     pxA[i] = fwidth(sIa[i]);
     awA[i] = max(fwidth(acA[i]), 0.03);
   }
@@ -381,9 +385,10 @@ void main() {
     float dOn = mix(onD0, onD1, w1);
     if (dOn > 0.002) {
       vec4 dust = w1 > 0.004 ? dustSkin(FD0, FD1, w1, litD, inkColor, mix(revD0, revD1, w1)) : dustTube(FD0, litD, inkColor, revD0);
-      dustAcc = vec4(dust.rgb * dOn, dust.a * dOn);
+      dustAcc = clamp(vec4(dust.rgb * dOn, dust.a * dOn), 0.0, 1.0);
     }
   }
+  headAcc = clamp(headAcc, 0.0, 1.0);   // (the arms' weights can sum past 1 while an arm grows: premultiplied marks never past 0 .. 1, or the lumen under them is inverted)
   c = c * (1.0 - dustAcc.a) + dustAcc.rgb;
   c = mix(c, cBody, headAcc.a);   // (the streaks lie UNDER the heads: a head's pixel is never tinted by one)
   c = c * (1.0 - headAcc.a) + headAcc.rgb;

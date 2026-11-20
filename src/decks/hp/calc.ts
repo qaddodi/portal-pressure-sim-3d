@@ -24,6 +24,7 @@ export const useStates = create<StatesStore>(() => ({ results: {}, failed: {} })
 
 let queue: Promise<void> = Promise.resolve();
 const started = new Set<string>();
+const retries = new Map<string, number>();   // (a run that failed asks again, twice at most: a card waiting for its numbers never waits on a failure nobody retried)
 let nextReq = 1;
 
 /** Start computing a deck's states (once); resolves when the last is in. */
@@ -45,7 +46,12 @@ export function ensureStates(deck: CopiedDeck): Promise<void> {
       }
     });
     c.post({ type: 'sequence', steps, reqId });
-    try { await seq.done; } catch (e) { useStates.setState((s) => ({ failed: { ...s.failed, [deck.id]: String((e as Error).message) } })); started.delete(deck.id); }
+    try { await seq.done; } catch (e) {
+      useStates.setState((s) => ({ failed: { ...s.failed, [deck.id]: String((e as Error).message) } }));
+      started.delete(deck.id);
+      const n = retries.get(deck.id) ?? 0;
+      if (n < 2) { retries.set(deck.id, n + 1); setTimeout(() => void ensureStates(deck), 1500 * (n + 1)); }
+    }
   });
   return queue;
 }
