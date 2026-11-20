@@ -21,7 +21,7 @@ import type { LobuleView } from '../lobule/view.ts';
 import type { LookId } from '../../looks/looks.ts';
 import type { Course, LobuleNet, P2 as LP2 } from '../lobule/geometry.ts';
 import { LOBULE_R } from '../lobule/shots.ts';
-import { AN_K, DISC_R, DUCT_R, LT_R, RS_N, lyTaper, congShare, inletRadius, sinRadius, twigR } from '../lobule/widths.ts';
+import { AN_K, DISC_R, LT_R, RS_N, congShare, inletRadius, sinRadius, twigR } from '../lobule/widths.ts';
 /** The space of Disse's band and the widest bile canaliculus (lobule radii), which shrink to nothing as their layers go off (2D: lobule-zoom-field.js, lobule-bile.js). */
 const BILE_BC_R = 0.0036;
 import { CASING } from '../vessels/cel-ink.ts';
@@ -38,7 +38,6 @@ import { WASH_AMOUNT, washAmount, washFront } from '../lobule/wash.ts';
 const WASH_EASE_MS = 350;
 import { CEL_STYLE } from '../cel-style.ts';
 import { buildBile } from '../lobule/bile.ts';
-import { endTaper, lymphCover, type Cover } from '../lobule/lymph.ts';
 import { lobuleRoutes, type LobuleRouteCourse } from './lobule-routes.ts';
 import { dustTuner } from '../blood/dust.ts';
 import { staticRouteTexture } from '../blood/routes.ts';
@@ -62,10 +61,10 @@ const BILE_ID = 2_000_000;
 /** The vessels that run over the plates (the sinusoids, their cross-links, the arteriole's twigs) lie with their axis at the tiles' tops: lower, a thin one was buried under every tile it
  *  crossed and showed only in the gaps, as short pieces floating between the cords (Mohammad, 20 Nov: "disconnected vessels in the middle"). */
 export const OVER_Z = LZ.cellTop + 0.002;
-/** How deep a lymph channel lies where it passes under a blood vessel (below the vessel's own underside, above the ground). */
-/** Beside a sinusoid the channel lies a hair below the sinusoid's own level, so the vessel's wall just covers the channel's inner edge (no daylight between them). */
-export const LYMPH_Z = OVER_Z - 0.004;
-export const LYMPH_UNDER_Z = LZ.disse - 0.01;
+/** The space of Disse's flat sleeve lies at the sinusoids' own level and is drawn BEFORE every blood vessel without writing depth, so each vessel is drawn over it (2D: the lymph is tier 1, under the blood, tier 2). */
+export const SLEEVE_Z = OVER_Z;
+/** Where the sleeve's draw order falls: after the bile (which lies under the lymph, 2D lobule-pick.js tiers), before every blood vessel and the lymphatics (all -1). */
+export const SLEEVE_ORDER = -1.5, BILE_ORDER = -1.7;
 /** The scene's fade is taken as whole from here up (FADE_GLSL's screen pattern drops pixels below 0.999). */
 export const FADE_SNAP = 0.98;
 /** How far from each end of a vessel (in its own radii) no flow mark is drawn: where it runs into another vessel. */
@@ -97,6 +96,10 @@ interface Flat {
   look: LookId;
   isVisible: boolean;
   readonly sinSwell: { whole: number; share: number };
+  /** The space of Disse's half width and its sinusoid's widening at rho, as drawn now (lobule/view.ts). */
+  sleeveNow(rho: number): number;
+  readonly modelStamp: number;
+  sinScaleAt(rho: number): number;
   cvRadiusNow: number;
   /** The wedge's wash, 0..1 (0 when no slide runs it). */
   readonly washProgress: number;
@@ -136,6 +139,17 @@ export function lymphIntoPools(lt: readonly Course[], lv: readonly Course[]): Co
 }
 
 
+/** Segments of the round cap at each end of a sleeve's ribbon. */
+export const SLEEVE_CAP = 12;
+/** The sleeve's ribbons: each vertex's centre (scene units) and the unit way it moves out from it (times its sample's half width), and which sample's width it takes; the courses' samples laid end to end. */
+export interface SleeveData {
+  x: number[]; y: number[]; dx: number[]; dy: number[]; s: number[];
+  /** Each ribbon's course (trimmed at the central vein), where its samples begin in the width list, and how many. */
+  cs: { course: Course; from: number; n: number; v0: number }[];
+  /** The half width each sample has now, scene units (what stepSleeve last wrote). */
+  wmax?: Float32Array;
+}
+
 export class Lobule3D {
   readonly group = new Group();
   private readonly flat: Flat;
@@ -156,8 +170,11 @@ export class Lobule3D {
   private readonly inlets: MicroPart;
   private readonly twigs: MicroPart;
   private readonly lt: MicroPart;
-  /** The lymph channels beside the sinusoids (2D's `ly`): thin tubes tapering toward the central vein. */
+  /** The space of Disse (2D's `ly`): a flat sleeve along each sinusoid under it, so a rim of it shows beside the vessel; ribbons, not tubes. */
   private readonly duct: MicroPart;
+  /** The space of Disse's ribbons: each vertex's centre and the way it moves out, and each course's samples (stepSleeve writes the positions). */
+  private sleeve: SleeveData | null = null;
+  private sleeveKey = '';
   private readonly bile: MicroPart;
   private readonly mouthPv: MicroPart;
   private readonly mouthHa: MicroPart;
@@ -199,7 +216,7 @@ export class Lobule3D {
     this.inlets = mk('inlets', { px: VESSEL_LINE, flow: true, dust });
     this.twigs = mk('arteriole-twigs', { px: S.LINE_SMALL * 0.8, flow: true, dust });
     this.lt = mk('terminal-lymphatics', { px: S.LINE_SMALL * 0.8, flow: true, dust });
-    this.duct = mk('lymph-channels', { px: S.LINE_SMALL * 0.8, flow: true, swell: true, dust });
+    this.duct = mk('lymph-channels', { ink: null });   // (2D's space of Disse: a flat sleeve under its sinusoid with no line of its own; a line round each sleeve would cross where two meet)
     this.bile = mk('canaliculi', { px: S.LINE_SMALL * 0.7, flow: true, dust });   // (the lymph and the bile carry the same dust, in their own colours: Mohammad 20 Nov, "the bile and lymph should have the same kind of streaks we use for blood")
     this.mouthPv = mk('portal-venules', { px: VESSEL_LINE });
     this.mouthHa = mk('arterioles', { px: VESSEL_LINE * 0.8 });
@@ -234,6 +251,9 @@ export class Lobule3D {
       v.renderOrder = -1;
       for (const m of [v.toonMesh, v.inkMesh]) if (m) { const mat = m.material as ShaderMaterial; mat.transparent = true; mat.depthWrite = true; }
     }
+    // (the space of Disse is drawn first among the vessels and writes no depth: every blood vessel and the lymphatics then draw over it wherever they cross it, which is how the lymph passes UNDER them; the bile lies under the lymph)
+    this.duct.renderOrder = SLEEVE_ORDER; this.bile.renderOrder = BILE_ORDER;
+    { const m = this.duct.toonMesh.material as ShaderMaterial; m.depthWrite = false; }
     this.cvScar.renderOrder = 0;
     { const m = this.cvScar.toonMesh.material as ShaderMaterial; m.depthWrite = false; m.premultipliedAlpha = true; }   // (the toon writes its colour already times its opacity)
     for (const p of [this.ground, this.cells, this.nuclei, ...vessels, this.cvScar]) this.group.add(p.group);
@@ -306,7 +326,7 @@ export class Lobule3D {
     const inf = (p: MicroPart, v: number) => { p.mats.toon.uniforms.inflate!.value = v; };
     { const sw = f.sinSwell; for (const k of ['s0', 's1', 's2', 'an'] as const) this.sin[k].setSwell(sw.whole, sw.share); }   // (per vertex: its own radius and its place's share, cel3d SWELL)
     const lyF = f.lyFade, biF = f.bileFade;
-    inf(this.lt, -LT_R * R * (1 - lyF)); this.duct.setSwell(-(1 - lyF), 0); inf(this.bile, -BILE_BC_R * R * (1 - biF));
+    inf(this.lt, -LT_R * R * (1 - lyF)); this.stepSleeve(f, lyF); inf(this.bile, -BILE_BC_R * R * (1 - biF));
     const lymphOn = lyF > 0.002, bileOn = biF > 0.002;
     this.lt.group.visible = lymphOn; this.duct.group.visible = lymphOn; this.mouthLv.group.visible = lymphOn; this.bile.group.visible = bileOn;
     // the central vein opens and narrows with congestion and its collagen (the flat view's radius)
@@ -320,6 +340,26 @@ export class Lobule3D {
     this.buildGround(kcv, lymphOn);
     const washing = this.stepWash(now);
     return this.stepFlow(now, rate, lymphOn, bileOn) || washing || changed;
+  }
+
+  /** The space of Disse's ribbons at the state's widths: each sample's half width is its sinusoid's radius now (the state's widening of it) plus the rim the fluid filtered there makes, the rim taking the layer's
+   *  fade (so as the layer goes off the sleeve closes up under the vessel and nothing pops); a first-generation sleeve's reach out to its terminal lymphatic narrows from the sinusoid's width to the lymphatic's own,
+   *  so it ends inside the lymphatic's tube with no step (2D hides that step with a blob; here the lymphatic is solid) and takes the whole fade. Written only when a width changes. */
+  private stepSleeve(f: Flat, lyF: number): void {
+    const S = this.sleeve;
+    if (!S || lyF <= 0.002) return;
+    // (nothing it depends on moved: the layer's fade, the eased widening and lymph rate, the model)
+    const c = f.cur, key = `${lyF}|${c.lum}|${c.congU}|${c.lymphRate}|${f.modelStamp}`;
+    if (key === this.sleeveKey && S.wmax) return;
+    this.sleeveKey = key;
+    const w = sleeveWidths(S, f, lyF), prev = S.wmax;
+    let same = !!prev;
+    if (prev) for (let i = 0; i < w.length; i++) if (Math.abs(w[i]! - prev[i]!) > 1e-7) { same = false; break; }
+    if (same) return;
+    S.wmax = w;
+    const pos = this.duct.geometry.getAttribute('position') as BufferAttribute, a = pos.array as Float32Array;
+    for (let v = 0; v < S.s.length; v++) { const k = w[S.s[v]!]!; a[v * 3] = S.x[v]! + S.dx[v]! * k; a[v * 3 + 1] = S.y[v]! + S.dy[v]! * k; }
+    pos.needsUpdate = true;
   }
 
   // ---- the flow marks (quiet chevrons inside each vessel, streaks in the blood; they stop at the central vein's mouth and with the simulation) ------------------------
@@ -366,11 +406,10 @@ export class Lobule3D {
     this.sin.an.setFlow(this.flowT.blood, 0.12, W, soft(1), bs, 0, 0.0043 * R, true, dpr);
     this.inlets.setFlow(this.flowT.blood, 0.3, W, soft(1), bs, 0, 0.012 * R, true, dpr);
     for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs]) { const u = p.mats.toon.uniforms.uDustK; if (u) u.value = bs > 0 ? soft(1) : 0; }
-    for (const p of [this.lt, this.duct]) { const u = p.mats.toon.uniforms.uDustK; if (u) u.value = soft(0.8); }
+    { const u = this.lt.mats.toon.uniforms.uDustK; if (u) u.value = soft(0.8); }
     { const u = this.bile.mats.toon.uniforms.uDustK; if (u) u.value = soft(0.85); }   // (the dust replaces the streak lanes in the blood's tubes, under the same switch)
     this.twigs.setFlow(this.flowT.blood * 1.6, 0.1, [1, 0.88, 0.86], soft(1), bs, 0, 0.006 * R, true, dpr);
     this.lt.setFlow(this.flowT.lymph, 0.12, W, soft(0.4), soft(0.8), 0, LT_R * R, false, dpr);
-    this.duct.setFlow(this.flowT.lymph, 0.12, W, soft(0.4), soft(0.8), 0, DUCT_R * R, false, dpr);
     this.bile.setFlow(this.flowT.bile, 0.07, [1, 0.97, 0.7], soft(0.55), soft(0.85), 1, 0.004 * R, false, dpr);
     void lymphOn; void bileOn;
     return rate > 0.001;
@@ -613,33 +652,32 @@ export class Lobule3D {
     else { const t = tubes(by('tw'), (c, i) => twigR(i / (c.pts.length - 1), RS_N), () => 0, OVER_Z); coloured(this.twigs, t.b, null, t.W, t.K); this.twigs.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
     // the terminal lymphatics along the edges
     { const t = tubes(lymphIntoPools(by('lt'), by('lv')), () => LT_R, () => 0); coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
-    // the lymph channels (2D's `ly`, "a thin channel beside each sinusoid, between the sinusoid and its plate", geometry.ts): a thin lymph tube along the OUTSIDE of its sinusoid, from the limiting plate in, tapering
-    // to a thread before the central vein (widths.ts lyTaper); it runs out against the blood, so the course is laid from the vein to the edge. Mohammad 20 Nov 2026: "those lymph vessels should be drawn like on the
-    // outside of the blood vessels and taper to nothing closer to 90% of the way to the central vein". They were a flat sleeve centred ON each sinusoid, a third wider than the sinusoid each side: where two sinusoids
-    // part at a small angle the two sleeves covered the cleft between them, the broad grey-green wedges. Each vertex keeps its own radius in `swell`, so the layer's fade shrinks every width by its own share (no tube inverts).
+    // the space of Disse (2D's `ly`, lobule-zoom.js: "a sleeve centred on its sinusoid, drawn under it"): a flat ribbon along each sinusoid's own samples, its width from lobule/widths.ts sleeveRadius, so only
+    // its rim shows beside the vessel; a round cap at each end, so where two meet (a merge, a branch) the sleeve is one shape with no notch. Its vertices move out from the axis by their sample's half width
+    // (`stepSleeve`: the state's widening of the sinusoid, the fluid filtered there, the layer's fade), so the numbers are kept beside the geometry rather than baked into it.
     {
-      const lym = by('ly').map((c) => ({ ...c, pts: [...c.pts].reverse(), rho: [...c.rho].reverse(), ...(c.free ? { free: [c.free[1], c.free[0]] as [boolean, boolean] } : {}) }));
-      const r = (c: Course, i: number) => DUCT_R * lyTaper(c.rho[i]!) * endTaper(c, i);
-      // ... and where one passes a blood vessel it goes UNDER it, not through it (Mohammad, 20 Nov 2026: "pass UNDER the sinusoid's blood vessel not through it to connect to their interportal vessels"): the channel's reach
-      // from the terminal lymphatic crosses the inlet venule, and nothing else; its depth eases from the beside-the-sinusoid level to LYMPH_UNDER_Z over a few tube widths (lymphCover), so it dives as it nears the vessel, runs
-      // wholly beneath it and rises again on the far side, joined to the lymphatic's own axis at its end (no blunt stub standing in the blue)
-      const covers: Cover[] = [
-        ...by('in').map((c) => ({ pts: c.pts, rad: c.pts.map((q, i) => inletRadius(i, c.pts.length, Math.hypot(q[0] - c.pts[0]![0], q[1] - c.pts[0]![1]))), band: 3 })),
-        ...by('lt').map((c) => ({ pts: c.pts, rad: c.pts.map(() => LT_R), band: 3 })),
-        ...[...by('s0'), ...by('s1'), ...by('s2')].map((c) => ({ pts: c.pts, rad: c.pts.map((_, i) => sinRadius(c.kind as 's0', c.rho[i]!)), band: 0.9 })),
-        // (a cross-link meets the sinusoid's side where its lymph runs: the channel dives under it over a few tube widths rather than stopping at its mouth)
-        ...by('an').map((c) => ({ pts: c.pts, rad: c.pts.map((_, i) => sinRadius('an', c.rho[i]!)), band: 2.5 })),
-      ];
-      const under = new Map(lym.map((c) => [c, lymphCover(c.pts, (i) => r(c, i), covers)]));
-      const t = tubes(lym, r, () => 0, (c, i) => LYMPH_Z + (LYMPH_UNDER_Z - LYMPH_Z) * under.get(c)![i]!), sw: number[] = [];
-      for (const c of lym) {
-        const n = c.pts.length, at = (i: number) => { const v = Math.max(1e-4, r(c, i) * R); sw.push(v, 0); };
-        for (let i = 0; i < n; i++) for (let k = 0; k < TUBE_SEG; k++) at(i);
-        const cap = t.caps.get(c)!;
-        for (let v = 0; v < cap; v++) at(0);
-        for (let v = 0; v < cap; v++) at(n - 1);
+      const b = new MeshBuilder(), K: number[] = [], W: number[] = [], S: SleeveData = { x: [], y: [], dx: [], dy: [], s: [], cs: [] };
+      let sample = 0;
+      const vert = (x: number, y: number, dx: number, dy: number, s: number) => { b.v(x * R, -y * R, SLEEVE_Z, 0, 0, 1, [1, 1, 1]); K.push(1); W.push(0); S.x.push(x * R); S.y.push(-y * R); S.dx.push(dx); S.dy.push(-dy); S.s.push(s); };
+      for (const c of by('ly').map((c) => trimInside(c, DISC_R.cv * 0.78))) {
+        const n = c.pts.length, r0 = b.count, s0 = sample, tan = (i: number): [number, number] => {
+          const a = c.pts[Math.max(0, i - 1)]!, d = c.pts[Math.min(n - 1, i + 1)]!; const l = Math.hypot(d[0] - a[0], d[1] - a[1]) || 1; return [(d[0] - a[0]) / l, (d[1] - a[1]) / l];
+        };
+        for (let i = 0; i < n; i++) { const [tx, ty] = tan(i), q = c.pts[i]!; vert(q[0], q[1], -ty, tx, s0 + i); vert(q[0], q[1], ty, -tx, s0 + i); }
+        for (let i = 0; i < n - 1; i++) { const q = r0 + i * 2; b.quad(q, q + 2, q + 3, q + 1); b.quad(q, q + 1, q + 3, q + 2); }
+        // a round cap at each end: a fan of CAP_SEG triangles round the end sample
+        for (const i of [0, n - 1]) {
+          const q = c.pts[i]!, centre = b.count;
+          vert(q[0], q[1], 0, 0, s0 + i);
+          for (let k = 0; k < SLEEVE_CAP; k++) { const a = (k / SLEEVE_CAP) * Math.PI * 2; vert(q[0], q[1], Math.cos(a), Math.sin(a), s0 + i); }
+          for (let k = 0; k < SLEEVE_CAP; k++) { const u = centre + 1 + k, v = centre + 1 + ((k + 1) % SLEEVE_CAP); b.tri(centre, u, v); b.tri(centre, v, u); }
+        }
+        S.cs.push({ course: c, from: s0, n, v0: r0 });
+        sample += n;
       }
-      coloured(this.duct, t.b, null, t.W, t.K); this.duct.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); this.duct.geometry.setAttribute('swell', new Float32BufferAttribute(sw, 2));
+      S.wmax = new Float32Array(sample);
+      coloured(this.duct, b, null, W, K);
+      this.sleeve = S; this.sleeveKey = '';
     }
     // the Bile layer, laid out as 2D lays it (bile.ts, a port of lobule-bile.js): a channel beside each plate's sinusoid from a quarter of the way out, thickening outward, a short
     // canal of Hering square into a duct along the edge outside the lymphatic, each half edge's duct into its corner's ductule; 2D's radii; arrowheads toward the ductule
@@ -715,6 +753,8 @@ export class Lobule3D {
   }
   /** The parts (tests). */
   get partsForTest(): MicroPart[] { return [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar]; }
+  /** The space of Disse's ribbons as laid (tests): the data and the live vertex positions. */
+  get sleeveForTest(): { data: SleeveData; positions: Float32Array } | null { return this.sleeve ? { data: this.sleeve, positions: this.duct.geometry.getAttribute('position').array as Float32Array } : null; }
   /** Builds the tiles for a look and state without the flat view's frame (tests). */
   buildForTest(look: LookId, congU = 0, septU = 0): void { this.buildCells(look, congU, septU); this.applyLook(look); this.buildGround(1, true); }
 
@@ -756,6 +796,21 @@ export function roundRect(cx: number, cy: number, lw: number, ww: number, rad: n
     const t = a0 + (i / (perCorner - 1)) * Math.PI / 2, u = ox + Math.cos(t) * r, v = oy + Math.sin(t) * r;
     const x = cx + u * ca - v * sa, y = cy + u * sa + v * ca;
     out.push([x * R, -y * R]);
+  }
+  return out;
+}
+
+/** Every sample's half width of the space of Disse's sleeve, scene units, at the view's state and the layer's fade `lyF` (see Lobule3D.stepSleeve). Pure: tests read the result. */
+export function sleeveWidths(S: Pick<SleeveData, 'cs'>, f: Pick<Flat, 'sleeveNow' | 'sinScaleAt'>, lyF: number): Float32Array {
+  const total = S.cs.reduce((n, c) => n + c.n, 0), out = new Float32Array(total);
+  const sinPart = (rho: number) => sinRadius('s0', rho) * f.sinScaleAt(rho);
+  for (const { course: c, from, n } of S.cs) {
+    const k = c.reach ?? 0;
+    for (let i = 0; i < n; i++) {
+      const rho = c.rho[Math.max(i, k)]!, full = f.sleeveNow(rho);
+      if (i < k) { const t = i / k, e = t * t * (3 - 2 * t); out[from + i] = (LT_R + (full - LT_R) * e) * lyF * R; }
+      else out[from + i] = (sinPart(rho) + (full - sinPart(rho)) * lyF) * R;
+    }
   }
   return out;
 }

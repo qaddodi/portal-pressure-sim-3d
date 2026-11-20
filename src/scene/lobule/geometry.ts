@@ -5,8 +5,6 @@
 // beside each sinusoid. The bile layer is not drawn here (it is not one of B8's rows).
 // Same seed (7) and same order of random draws as the 2D build, so the 3D lobule is the same lobule.
 
-import { flareAt, sinK } from './from2d/lobule-mouths.generated.js';
-import { lymphRuns, resampleRun, lyTaper } from './lymph.ts';
 
 export type P2 = [number, number];
 
@@ -28,8 +26,8 @@ export interface Course {
   /** The sinusoid a space-of-Disse course sits beside. */
   sib?: number;
   parent?: number;
-  /** A lymph channel's two ends (first, last) that join nothing: they taper to a thread (lymph.ts endTaper). */
-  free?: [boolean, boolean];
+  /** A space of Disse's first `reach` samples are its reach from the terminal lymphatic to where its sinusoid begins (generation 0 only); the rest run along the sinusoid's own samples. */
+  reach?: number;
 }
 
 export interface Triad { i: number; x: number; y: number; a: number; ha: P2; bd: P2; lv: P2; pv: number; haT: number; bdT: number; lvT: number }
@@ -58,8 +56,6 @@ export const TRIAD_D = 0.09, TRIAD_A = 0.98;
  *  It was 0.016 (drawn twice as wide "to read at the fit"), which put the cords of cells 1.9 times too far apart and the tubes 1.5 times too wide (visual review, 19 Nov). */
 export const RS0 = 0.0085;
 export const SIN_NARROW = 0.75;
-/** The lymph channel's (and the ductule's) own radius at the portal end (2D: rs0 * 0.5 * lyWr, lyWr = 1 at the healthy rate): half a sinusoid's. */
-export const DUCT_R = RS0 * 0.5;
 /** An anastomosis is 0.68 of a sinusoid (2D: rs * 0.68). */
 export const AN_K = 0.68;
 const TAU = Math.PI * 2;
@@ -266,16 +262,22 @@ export function buildLobule(seed = 7): LobuleNet {
     lt[k] = t;
   }
   for (const tr of triads) join(tr.lv[0], tr.lv[1], 0.008);
-  // The lymph channels HUG the sinusoids, one tube on each side of every one, and branch where they branch (lymph.ts: the sinusoids' own outline at one gap, cut where it meets another vessel). A first-generation
-  // channel's two tubes begin on the terminal lymphatic it drains into (2D: the channel starts on it). Each run is a course of its own (`sib`: its sinusoid, `sign`: its side), in the sinusoid's direction.
-  const wallOf = (kind: TubeKind, rho: number): number => kind === 'an' ? rsN * AN_K : rsN * sinK(rho) * (kind === 's2' ? flareAt(rho - rcv0, rsN * 1.3) : 1);
+  // The space of Disse (2D at the pin, lobule-zoom.js: `lyOff = 0`, "Wet Disse, 16 Nov 2026: the space of Disse is a sleeve centred on its sinusoid, drawn under it"): one course along each sinusoid's own samples, so it
+  // branches, joins and ends exactly where its sinusoid does, and a first-generation one reaches back out to its terminal lymphatic (2D: `poly = [E, ...P]`, E the nearest point of the lymphatic it drains into).
+  // Its width is a rim round the sinusoid (widths.ts sleeveRadius), so only that rim shows; the sinusoid lies over it.
   const channelOf = (t: Course): Course => (t.tri === t.edge ? lt[t.edge! * 2]! : lt[((t.edge! + 1) % 6) * 2 + 1]!);
-  const runs = lymphRuns({
-    carry: [...L0, ...L1, ...L2], clear: courses.filter((c) => c.kind === 's0' || c.kind === 's1' || c.kind === 's2'),   // (a cross-link does not cut the lymph: the channel runs under it)
-    wall: wallOf, radius: (rho) => DUCT_R * lyTaper(rho), rcv: rcv0,
-    join: (c, p) => { if (c.kind !== 's0') return null; let E: P2 | null = null, bd = Infinity; for (const q of channelOf(c).pts) { const d = Math.hypot(q[0] - p[0], q[1] - p[1]); if (d < bd) { bd = d; E = q; } } return E; },
-  });
-  for (const run of runs) { const f = resampleRun(run.pts, undefined, run.lvl === 0 ? 0.1 : 0); add('ly', f, { lvl: run.lvl, sib: run.sib, sign: run.side, free: [run.freeHead, run.freeTail] }); }
+  const along = (pts: P2[]) => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); return l; };
+  for (const t of L0) {
+    const P0 = t.pts[0]!;
+    let E: P2 = channelOf(t).pts[0]!, bd = Infinity;
+    for (const q of channelOf(t).pts) { const d = Math.hypot(q[0] - P0[0], q[1] - P0[1]); if (d < bd) { bd = d; E = q; } }
+    const k = Math.max(2, Math.ceil(bd / 0.012)), pts: P2[] = [];
+    for (let j = 0; j < k; j++) pts.push([lerp(E[0], P0[0], j / k), lerp(E[1], P0[1], j / k)]);
+    pts.push(...t.pts.map((q) => [q[0], q[1]] as P2));
+    add('ly', { pts, len: along(pts) }, { lvl: 0, sib: t.id, reach: k });
+  }
+  for (const t of L1) add('ly', { pts: t.pts.map((q) => [q[0], q[1]] as P2), len: t.len }, { lvl: 1, sib: t.id });
+  for (const t of L2) add('ly', { pts: t.pts.map((q) => [q[0], q[1]] as P2), len: t.len }, { lvl: 2, sib: t.id });
 
   return { R: 1, rs0, rsN, rcv0, rt, courses, triads, corners: C, cells, stellate, septa, joins };
 }

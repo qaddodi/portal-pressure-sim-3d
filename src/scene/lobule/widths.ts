@@ -1,11 +1,10 @@
 // How wide each lobule vessel is, as the 2D app draws it: lobule-zoom-field.js radiusAt (healthy, in lobule radii: R = 1), so the 3D lobule's sinusoids are no wider than 2D's (the visual review of 19 Nov:
 // they were 1.5 to 1.9 times wider, and the cords of cells between them slivers). The numbers are 2D's own; tests/scene-lobule-widths.test.ts holds every one to the pinned 2D file's text.
 // 2D works in pixels (rs0 = clamp(0.0085 R, 1.7, 3) px, a floor and a ceiling that depend on the screen); here the figure is in lobule radii, the 0.0085 share an iPad or a Mac shows.
-import { SIN_NARROW, RS0, DUCT_R, AN_K } from './geometry.ts';
-import { lyTaper } from './lymph.ts';
+import { SIN_NARROW, RS0, AN_K } from './geometry.ts';
 import { flareAt, sinK, twigRadius } from './from2d/lobule-mouths.generated.js';
 
-export { RS0, SIN_NARROW, DUCT_R, AN_K, lyTaper };
+export { RS0, SIN_NARROW, AN_K };
 /** A sinusoid as drawn, before the widening toward the central vein (2D: rsN). */
 export const RS_N = RS0 * SIN_NARROW;
 /** The end-on vessels' radii (2D radiusAt, healthy). */
@@ -34,12 +33,20 @@ export function twigR(u: number, rs: number): number {
   return twigRadius(Math.max(TW_R.base, 0), leave, TW_R.join * rs, u);
 }
 
-/** The space of Disse's sleeve at distance `rho` from the centre (lobule radii): the sinusoid's own radius there and a rim beside it (2D lobule-zoom-field.js radiusAt, case 'ly':
- *  rs * sinK + rs0 * (0.12 + 0.42 sqrt(j)) * (0.55 + 0.45 smooth(0.07, 0.24, rho)), here at j = 1, the healthy liver's mean). The sleeve lies under its sinusoid, so only that rim shows. */
-export function disseRadius(rho: number): number {
-  const t = Math.min(1, Math.max(0, (rho - 0.07) / 0.17)), sm = t * t * (3 - 2 * t);
-  return RS_N * sinK(rho) + RS0 * (0.12 + 0.42) * (0.55 + 0.45 * sm);
+const smooth01 = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+/** How far the space of Disse's sleeve stands out beyond its sinusoid's wall at distance `rho` from the centre, in lobule radii, for the fluid `j` filtered there (a multiple of the healthy mean; model.ts disseProfile).
+ *  2D lobule-zoom-field.js radiusAt, case 'ly': `rs * sinK(rho) + g.rs0 * (0.12 + 0.42 * sqrt(j)) * (0.55 + 0.45 * smooth(0.07, 0.24, rho))`, the part after the sinusoid's own radius. A healthy liver's is a
+ *  hairline by the central vein (a little over a tenth of rs0 times a half) and a little over half of rs0 at the portal end. */
+export function disseRim(rho: number, j: number): number {
+  return RS0 * (0.12 + 0.42 * Math.sqrt(Math.max(0, j))) * (0.55 + 0.45 * smooth01(0.07, 0.24, rho));
 }
+/** The sleeve's own half width at rho: the sinusoid's radius there (`scale` is the state's widening of it, view.sinScaleAt; 1 healthy; no trumpet flare, which 2D's `ly` does not take) and the rim beyond it. */
+export function sleeveRadius(rho: number, j: number, scale = 1): number {
+  return RS_N * sinK(rho) * scale + disseRim(rho, j);
+}
+/** The sleeve of a healthy liver (j = 1) at rho (a rim of 0.0025 to 0.0046 R beyond the sinusoid; tests/scene-lobule-fit-2d.test.ts). */
+export function disseRadius(rho: number): number { return sleeveRadius(rho, 1); }
 
 /** How much of congestion's widening a sinusoid takes at rho (0 to 0.95): most round the central vein (zone 3), none at the portal side, smoothly in between. It was one number per
  *  sinusoid generation (2D's CONG_Z3: 0, 0.4, 0.95), so in a congested liver (Budd-Chiari) each generation stood at its own width and stepped where it met the next, Mohammad 20 Nov 2026:

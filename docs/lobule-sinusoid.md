@@ -185,12 +185,21 @@ Every object under the Lobule root takes its fade from `LobuleFade` (`src/scene/
 (called once, from `Lobule3D.update`). `detail` (dither, `1 - under` times the field's breadth) is for the lobule's tiles, tubes, marks and plate; `ground` (alpha, `1 - under`) is for the neighbours' plate
 (`userData.fadeKind = 'ground'`). A stock material (the tap halo) is patched to scale its alpha by the same value. `tests/lobule-one-fade.test.ts` walks the whole graph and fails on any mesh or material that does not read it.
 
-## The lymph hugs the blood (20 Nov 2026)
+## The lymph is the space of Disse, as 2D draws it (20 Nov 2026)
 
-`src/scene/lobule/lymph.ts` draws the lymph as the sinusoids' own outline: one tube on EACH side of every sinusoid (generations 0 to 2) at one gap off its wall (wall + 1.05 of the tube's radius, the tube being half a sinusoid
-and tapering to a thread by the central vein, 2D's `lyTaper`). Each side line is cut where it would run into another vessel's wall, so the lymph branches exactly where the sinusoids do, with nothing placed by hand: at a merge
-the two inner lines turn the crotch together (their ends meet in one point), the outer lines run on into the trunk's lines, and a side branch stops the host's line at its mouth. A first-generation channel begins on the terminal
-lymphatic it drains into. The tubes are `ly` courses (`sib`: their sinusoid, `sign`: their side) of as many points as their length needs.
+What 2D shows at the pin (b3058ef3, lobule-zoom.js: `const lyOff = 0`, "Wet Disse, 16 Nov 2026: the space of Disse is a sleeve centred on its sinusoid, drawn under it"; lobule-zoom-field.js radiusAt, case 'ly'): one sleeve per sinusoid,
+on the sinusoid's own centre line, drawn UNDER it (Z_OF ly 0.05, the sinusoids 0.1 to 0.12), so only its rim shows, on both sides. The 3D lobule does the same and nothing else:
 
-Where a channel passes a blood vessel (its reach across the inlet venule, the terminal lymphatic) it goes UNDER it: `lymphCover` gives the depth (0 beside, 1 inside the vessel's footprint, eased over a few tube widths) and
-`lobule3d.ts` lays the tube at `LYMPH_UNDER_Z` there. Tests: `tests/lobule-lymph.test.ts` (pairing, hugging, branch-following, the Y and the T, the cover, the reach), `tests/lobule-ductules.test.ts` (the drawn part).
+- **Geometry** (`geometry.ts`): one `ly` course per sinusoid of generations 0 to 2 (none for a cross-link), made of the sinusoid's own samples. A first-generation one has `reach` samples in front of them, a straight run
+  from the nearest point of the terminal lymphatic it drains into (2D: `poly = [E, ...P]`). It branches, merges and ends exactly where its sinusoid does, because it IS its sinusoid's line.
+- **Width** (`widths.ts`): the sinusoid's own radius plus `rs0 (0.12 + 0.42 sqrt j)(0.55 + 0.45 smooth(0.07, 0.24, rho))`, j the Starling profile along the sinusoid (`model.ts` disseProfile, 2D disseJ), scaled by the
+  eased lymph rate. A healthy liver: a rim of 0.0057 R at the portal end, 0.0031 by rho 0.25, 0.0015 at the vein (the sinusoid itself widens there). `view.sleeveNow` is the one function; the pick uses it too.
+- **Drawn** (`lobule3d.ts`): flat ribbons at the sinusoids' level with a round cap at each end (so a merge is one shape, no notch), no outline of their own, drawn first among the vessels (`SLEEVE_ORDER`) with depth writing off,
+  so every blood vessel, the inlet venule and the terminal lymphatics are drawn over them: that is how the lymph passes UNDER the blood. The bile lies under the lymph (`BILE_ORDER`). Vertex positions follow the state
+  (`stepSleeve`: the sinusoid's widening, the filtered fluid, the layer's fade; written only when one changes), so the layer going off closes the sleeve up under its vessel.
+- **Differences from 2D, on purpose**: the reach narrows from the sinusoid's width to the terminal lymphatic's own and ends inside its tube (2D hides that step with a join blob; here the lymphatic is solid); there are no
+  streaks on the sleeve (its rim is a hairline; the terminal lymphatics and the portal lymphatic keep theirs).
+
+It replaced two earlier drawings: a flat sleeve of one fixed width (0.0132 a side, which filled the cleft between sinusoids that part at a small angle) and tubes laid BESIDE each sinusoid (a gap where two outlines met,
+strands where the next vessel cut one, loops at a branch, a width of their own). Tests: `tests/lobule-disse-sleeve.test.ts` reads the rendered vertices against 2D's numbers and the pinned file's text
+(`PPS_2D_REPO=<worktree at the pin>`), `tests/scene-lobule-disse.test.ts` (the courses), `tests/lobule-ductules.test.ts` (the terminal lymphatics into their pools).
