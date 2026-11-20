@@ -188,6 +188,8 @@ test('more streaks (about 1.6x the first design), still thin, in 3/5/7 lanes; an
   assert.ok(fs.indexOf('streakCover = sOn * fld;') < fs.indexOf('c = c * (1.0 - ha) + core * ac'), 'chevrons after streaks');
   assert.match(fs, /if \(streakCover > 0\.0\) c = mix\(c, cBody, ha\);/, 'a chevron pixel is never tinted by a streak');
   // the 3D lobule and sinusoid: the flow streaks are held back where a head is
-  assert.match(MICRO_FS, /uFlowK \* flowStreaks\(\) \* \(1\.0 - clamp\(hd\.x \+ hd\.y, 0\.0, 1\.0\)\)/);
-  assert.ok(MICRO_FS.indexOf('vec2 hd = flowHeads();') < MICRO_FS.indexOf('uFlowK * flowStreaks()'));
+  assert.match(MICRO_FS, /flowStreaks\(\) \* \(1\.0 - clamp\(hd\.x \+ hd\.y, 0\.0, 1\.0\)\)/);
+  assert.ok(MICRO_FS.indexOf('vec2 hd = flowHeads();') < MICRO_FS.indexOf('flowStreaks() * (1.0'));
+  // (and the lobule's tubes carry THE ONE STREAK field, sized on the screen, not a field of their own)
+  assert.match(MICRO_FS, /return streakField\(vAcross \* one, vArc \* s, uFlowT \* s/);
 });
