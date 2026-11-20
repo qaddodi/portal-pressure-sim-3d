@@ -114,8 +114,8 @@ export function compactName(name: string): string | null {
 
 /** The least priority a station shows at (every one: the azygos, the lower IVC and the renal vein are named on a phone as on a desktop). */
 export const MIN_PRI = 2;
-/** How far a reading may stand from its station to be clear of the vessels, px past the vessel's edge (2D's rings: 44 to 76). */
-export const CLEAR_REACH = 76;
+/** How far a reading may stand from its station to be clear of the vessels, px past the vessel's edge (2D's rings 44 to 76, and its rescue's 90 to 118). */
+export const CLEAR_REACH = 118;
 function shows(id: string, ctx: CapCtx): boolean {
   const k = CIRCUIT_LABELS[id];
   if (!k) return false;
@@ -198,7 +198,8 @@ export function buildCaptions(ctx: CapCtx): Built {
     // (a name with no abbreviation of its own is shortened before it is given up: "Left sinusoids 7.3" beside the right one's on a phone stood as a bare "7.3", Mohammad 20 Nov)
     const short = abbr && abbr !== name ? abbr : compactName(name);
     if (short && short !== name) { forms.push(mk(short, val)); formMeta.push({ name: short, value: val }); }
-    if (val) { forms.push(mk('', true)); formMeta.push({ name: '', value: true }); }
+    // (No form is a number alone: "5.8" with no name says nothing, and Mohammad had it reported once already, 20 Nov. A station with no room for its shortest name is left to its dot, as 2D leaves it:
+    // a reading is never shown without the name it belongs to.)
     const dirs = CIRCUIT_LABELS[id]!.dirs.map((d) => (ctx.upright ? TURN_DIR[d] : d) as Dir);
     // (A reading that would stand on a vessel takes the nearest clear spot, on a short leader, as 2D's does; only with none does it keep the cheapest one with a line under it: `clearLines`.)
     items.push({ id, ax, ay, au: 0.5, forms: forms.map((x) => x.f), pri: ctx.must.has(id) ? 100 : pri[id] ?? CIRCUIT_LABELS[id]!.pri, must: ctx.must.has(id), dirs, vw: ctx.halfW?.(id) ?? 5, clearLines: true, reach: CLEAR_REACH + (ctx.halfW?.(id) ?? 5) });
