@@ -125,10 +125,11 @@ export function LabelLayer() {
         return id === 'VAR' ? !!m?.varix?.present : (m?.gastricVarix?.d ?? 0) > 0 && !!m?.gastricVarix?.present;
       },
       cathere: (tip: Vector3, ahead: Vector3) => {
+        // The tip and the point ahead of it are the DRAWN catheter's (the procedure layer's HVPG route, in the amber column), never the slice catheter's own old curve, which is not drawn any more:
+        // read from it the point "ahead" was a fixed 0.4 scene units on, far off the vein, and the WHVP card pointed at nothing (20 Nov 2026).
         const c = cel.catheter;
         if (c.current.advance < 0.999) return 0;
-        c.curve.getPointAt(1, tip);
-        ahead.copy(tip).addScaledVector(c.curve.getTangentAt(1), 0.4);
+        if (!cel.procPoints('hvpg', tip, ahead)) return 0;
         return c.current.balloon >= 0.999 ? 2 : 1;
       },
     };
