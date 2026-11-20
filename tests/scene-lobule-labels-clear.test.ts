@@ -30,7 +30,7 @@ for (const s of SIZES) for (const pill of [true, false]) for (const zones of [fa
       if (p.id.startsWith('z:')) continue;
       const it = c.items.find((i) => i.id === p.id)!, box = boxOf(p, it.ax, it.ay), form = it.forms[p.form]!;
       assert.ok(p.w > 12 && p.h > 8, `${p.id}: a real box (${p.w}x${p.h})`);
-      assert.ok(form.text !== '' || c.meta.get(p.id)!.forms[p.form]!.value, `${p.id}: carries its name or its reading`);
+      assert.ok(form.text !== '' && c.meta.get(p.id)!.forms[p.form]!.name !== '', `${p.id}: carries its name (2D never shows a lobule reading alone)`);
       const gap = boxGap(box, it.ax, it.ay) - (it.vw ?? 0);
       assert.ok(gap > LEAD_ON, `${p.id}: its words stand ${gap.toFixed(1)} px from the vessel's edge, over ${LEAD_ON}`);
       assert.equal(p.leader, true, `${p.id}: has its leader`);

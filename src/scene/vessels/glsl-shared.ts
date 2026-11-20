@@ -4,6 +4,7 @@
 // A chunk is a piece of GLSL spliced exactly where it stood, so the assembled VESSEL_VS and VESSEL_FS are byte for byte what they were before the move (tests/glsl-shared.test.ts holds them to a snapshot).
 // A chunk names the uniforms it reads; the program that includes it declares them. The JS functions return an EXPRESSION (a string) for a rule that is one line at its call sites, in the caller's own variable names.
 import { CHEV, CHEV_INK_ROW, CHEV_LEVEL_MIN } from '../blood/chevron-glsl.ts';
+import { STREAK } from '../blood/streak-glsl.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import { glslNum as F } from '../cel-glsl.ts';
 import { TAPER_FROM, TAPER_TO } from './cel-ink.ts';
@@ -47,12 +48,12 @@ vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode
   return vec4(col, 1.0);
 }`;
 
-/** chevCreamOf(la, grad, mode): the flow heads' tone on a vessel under one lens set. Only the tube draws heads; the skin draws none and does not include this. Reads: color, lensIndex, chevCreamSoft (blood/chevron-glsl.ts). */
-export const CHEV_CREAM_GLSL = /* glsl */ `// the flow heads' tone on this vessel under one lens set (1 cream .. 0 dark ink): the vessel's latched, eased ink from the fifth row of the colour texture (lenses/chevron-ink.ts) where the lens runs a colour along it (la.a, a set of
+/** chevCreamOf(la, grad, mode, idx, col): the flow heads' tone on a vessel (its lens index `idx`, its own colour `col`) under one lens set. Used by flowHeads below, so the tube and the skin's arms read one rule. Reads: chevCreamSoft (blood/chevron-glsl.ts), celTubeBase. */
+export const CHEV_CREAM_GLSL = /* glsl */ `// the flow heads' tone on a vessel under one lens set (1 cream .. 0 dark ink): the vessel's latched, eased ink from the fifth row of the colour texture (lenses/chevron-ink.ts) where the lens runs a colour along it (la.a, a set of
 // colours and not lanes), else the short eased step on the colour it is drawn in
-float chevCreamOf(vec4 la, sampler2D grad, float mode) {
-  if (la.a > 0.5 && mode < 1.5) return smoothstep(0.0, 1.0, texelFetch(grad, ivec2(int(lensIndex), ${CHEV_INK_ROW}), 0).r);
-  return chevCreamSoft(celTubeBase(mix(color, la.rgb, la.a)));
+float chevCreamOf(vec4 la, sampler2D grad, float mode, float idx, vec3 col) {
+  if (la.a > 0.5 && mode < 1.5) return smoothstep(0.0, 1.0, texelFetch(grad, ivec2(int(idx), ${CHEV_INK_ROW}), 0).r);
+  return chevCreamSoft(celTubeBase(mix(col, la.rgb, la.a)));
 }`;
 
 /** The ink's own colour on a body colour `base` (a GLSL expression): the look's casing ink taken INK_OWN of the way to a deep tone of the vessel's own colour (never black, never white). Reads: inkColor, tubeDark, celTubeBase. */
@@ -87,4 +88,59 @@ vec2 chevOne(float s, float Lw, float se, float Bm, float Dm, float vd, float rv
 }
 float chevOrange(vec3 c) {
   return smoothstep(0.35, 0.55, c.r - c.b) * smoothstep(0.65, 0.8, c.r) * smoothstep(0.25, 0.35, c.g) * (1.0 - smoothstep(0.62, 0.78, c.g));
+}`;
+
+/**
+ * THE FLOW MARKS of one vessel at one pixel, written once: the tube (vessels/shaders.ts) calls them with its own arc and the skin (skin/shaders.ts) calls them once per ARM with that arm's arc, so a streak or a head is the same code on both
+ * (Mohammad, 20 Nov: "the streaks still break between vessels"; the dust, chevrons and the stream chain's routes are drawn by these two functions and nowhere else).
+ *   flowDust(across, fr, s, Lw, rOwn, vR, rCss, lensI, dataI, baseDv, lit, vUn)   (fr: the section frame, blood/dust-glsl.ts dustFrame; flowFrame gives a skin arm's frame and gate)   the dust, premultiplied (rgb, a), already scaled by the streak amount, the flow gate and the lumen's width gate. s the arc along the vessel (figure units), Lw its length,
+ *                                                                        rOwn its rest radius, vR the lumen's radius now, rCss the same in CSS px, lensI its lens index (stream and chain texels), dataI and baseDv its data texel and built diameter, lit its lit tone, vUn the figure's units in a scene unit here (the chain hands a root's radius in scene units).
+ *   flowHeads(across, acrossW, s, Lw, vR, wpc, pxArc, lensI, flowAmt, endK, la, lb, col, base)   the heads, premultiplied (rgb, coverage); endK the tube's end fade (1 where nothing buries the end), la/lb the lens colours of the two sets at this pixel, col the vessel's own colour, base the colour it is drawn in.
+ * Reads: streakAmt, streamTex, chainTex, useData, vdata, vdataSize, markDark, markLight, markRev, lensMix, lensModeA/B, lensGradA/B, inkColor, and dustTube, dustSkin, DFrame, chevOne, chevOrange, chevInk, chevCreamOf, CHEV_RIM.
+ */
+export const FLOW_MARKS_GLSL = /* glsl */ `// the dust's frame for one vessel at this pixel (blood/dust-glsl.ts DFrame): fr the section frame (dustFrame), and the gate it shows by (the streak amount, the flow, the lumen's width), returned; rev its stream's eased reversed flag
+float flowFrame(float across, vec4 fr, float s, float Lw, float rOwn, float vR, float rCss, float lensI, float dataI, float baseDv, float vUn, out DFrame F, out float rev) {
+  vec4 smS = texelFetch(streamTex, ivec2(int(lensI), 0), 0);   // the blood's own distance and speed on this vessel: reversed runs back, none stands
+  float nar = 1.0;
+  if (useData > 0.5) { ivec2 tcn = ivec2(int(mod(dataI, vdataSize.x)), int(floor(dataI / vdataSize.x))); nar = texelFetch(vdata, tcn, 0).b / max(baseDv, 0.1); }
+  F = DFrame(across, fr.xy, fr.zw, s, Lw, rOwn, vR, rCss, nar, smS.y, lensI, vUn);
+  rev = smS.z;
+  if (streakAmt <= 0.001 || vR <= 0.0 || abs(across) >= 0.97) return 0.0;
+  // (none only where the flow is none: the particles ride the root's own distance, streams.ts texel w, through the route table, blood/routes.ts)
+  return streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCss) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
+}
+// the dust of one vessel at this pixel (the tube's), premultiplied and gated: its roots' particles in its own section frame (dustTube). The skin blends its two heaviest arms' frames instead (dustSkin), from the same flowFrame.
+vec4 flowDust(float across, vec4 fr, float s, float Lw, float rOwn, float vR, float rCss, float lensI, float dataI, float baseDv, vec3 lit, float vUn) {
+  DFrame F; float rev;
+  float dOn = flowFrame(across, fr, s, Lw, rOwn, vR, rCss, lensI, dataI, baseDv, vUn, F, rev);
+  if (dOn <= 0.002) return vec4(0.0);
+  vec4 dust = dustTube(F, lit, inkColor, rev);
+  return vec4(dust.rgb * dOn, dOn * dust.a);
+}
+vec4 flowHeads(float across, float acrossW, float s, float Lw, float vR, float wpc, float pxArc, float lensI, float flowAmt, float endK, vec4 la, vec4 lb, vec3 col, vec3 base) {
+  if (flowAmt <= 0.001 || vR <= 0.0) return vec4(0.0);
+  vec4 stm = texelFetch(streamTex, ivec2(int(lensI), 0), 0);
+  float Dm = stm.x, vd = stm.y, rv = stm.z;
+  float R = max(vR, 0.3);
+  float px = clamp(pxArc, 0.15 * wpc, 1.5 * wpc);   // (held to a CSS pixel: at a grazing silhouette the arc's derivative runs away and would smear a head)
+  float Pt = ${F(CHEV.PITCH_PX)} * wpc;
+  vec4 c4 = texelFetch(chainTex, ivec2(int(lensI), 0), 0), c5 = texelFetch(chainTex, ivec2(int(lensI), 1), 0);
+  vec2 ch = vec2(0.0);
+  if (c4.w < 1.0) ch = chevOne(s, Lw, s, 1.0, Dm, vd, rv, c5.xy, R, across, wpc, Pt, px);
+  if (c4.w > 0.0) {
+    float rootD = texelFetch(streamTex, ivec2(int(c4.x + 0.5) - 1, 0), 0).x;
+    vec2 cc = chevOne(s, Lw, c4.y + c4.z * s, c4.z, rootD, vd, rv, c5.xy, R, across, wpc, Pt, px);
+    ch = c4.w >= 1.0 ? cc : mix(ch, cc, c4.w);
+  }
+  // heads are on every tube down to about 4 CSS px across (R 1.5 px: the spacing never depends on the width), and are cut at the wall (never on the ink)
+  float fade = endK * flowAmt * smoothstep(${F(CHEV.MIN_R_PX)} * wpc, ${F(CHEV.MIN_R_PX + 0.6)} * wpc, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(across)));
+  fade *= mix(0.3, 1.0, smoothstep(0.5, 3.0, abs(vd)));
+  if (fade <= 0.0 || ch.x + ch.y <= 0.0) return vec4(0.0);
+  float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);
+  // one flat tone for the head, never a grey halfway: dark ink on a light lumen, cream on a dark one. The tone is the VESSEL's own latched, eased value (lenses/chevron-ink.ts), read from the lens texture's fifth row
+  float rk = rv * (1.0 - origin), warm = rk * chevOrange(base);
+  float cream = mix(chevCreamOf(la, lensGradA, lensModeA, lensI, col), chevCreamOf(lb, lensGradB, lensModeB, lensI, col), lensMix);
+  vec3 core = mix(mix(chevInk(cream, markDark, markLight), markRev, rk), markLight, warm);   // (the one chevron's tone: blood/chevron-glsl.ts)
+  float ar = clamp(ch.y * 0.75 * fade, 0.0, 1.0), ac = clamp(ch.x * fade, 0.0, 1.0);
+  return vec4(core * ac + CHEV_RIM * ar * (1.0 - ac), ac + ar * (1.0 - ac));   // (the head's outline is always the dark ink: a flat head with a dark line, never a pale ring)
 }`;

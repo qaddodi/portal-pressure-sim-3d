@@ -7,7 +7,7 @@ import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
 import { TIER_Z, x3, y3 } from '../../frame2d.ts';
 import { DeviceObject } from '../device-object.ts';
-import { allocTube, makeRings, type Ring, writeRings } from '../tube-rings.ts';
+import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, type Ring, writeRings } from '../tube-rings.ts';
 import { BALLOON, BALLOON_MS, balloonShape, esoAt } from '../../procedures/copied/balloon-eso.js';
 import { GAS, gasShape, pathAt, pullArrow, sheathArcs, tubePath, tubeTip } from '../../procedures/copied/balloon-gas.js';
 import { easeMove } from '../../procedures/copied/ease.js';
@@ -15,7 +15,7 @@ import { easeMove } from '../../procedures/copied/ease.js';
 const U = 300;
 const Z = TIER_Z.mid;
 const PULL_N = 5;
-const TUBE_N = 120, ESO_N = 64, GAS_N = 48, RADIAL = 16, MARK_N = 3, HEAD_N = 6;
+const TUBE_N = 120, ESO_N = 64, GAS_N = 48, RADIAL = DEVICE_SIDES, MARK_N = 3, HEAD_N = 6;
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 
 export interface TamponadeState { adv: number; gas: number; eso: number }
@@ -40,12 +40,12 @@ export class Tamponade {
   private readonly v = new Vector3();
 
   constructor(shared: CelShared) {
-    this.tube = new DeviceObject(allocTube(TUBE_N, 8), 'poly', shared, { px: 0.8, order: 0 }, 'polyEdge');
+    this.tube = new DeviceObject(allocTube(TUBE_N, DEVICE_SIDES), 'poly', shared, { px: 0.8, order: 0 }, 'polyEdge');
     this.gas = new DeviceObject(allocTube(GAS_N, RADIAL), 'latex', shared, { px: 1, order: 1 }, 'latexEdge');
     this.eso = new DeviceObject(allocTube(ESO_N, RADIAL), 'latex', shared, { px: 1, order: 2 }, 'latexEdge');
-    this.marks = [0, 1].map(() => new DeviceObject(allocTube(MARK_N, 12), 'platinum', shared, { px: 0.8, order: 3 }, 'ink')) as unknown as [DeviceObject, DeviceObject];
-    this.pullLine = new DeviceObject(allocTube(PULL_N, 8), 'accent', shared, { px: 0.8, order: 4 }, 'ink');
-    this.pullHead = new DeviceObject(allocTube(HEAD_N, 12), 'accent', shared, { px: 0.8, order: 4 }, 'ink');
+    this.marks = [0, 1].map(() => new DeviceObject(allocTube(MARK_N, DEVICE_SIDES), 'platinum', shared, { px: 0.8, order: 3 }, 'ink')) as unknown as [DeviceObject, DeviceObject];
+    this.pullLine = new DeviceObject(allocTube(PULL_N, WIRE_SIDES), 'accent', shared, { px: 0.8, order: 4 }, 'ink');
+    this.pullHead = new DeviceObject(allocTube(HEAD_N, DEVICE_SIDES), 'accent', shared, { px: 0.8, order: 4 }, 'ink');
     this.objects = [this.tube, this.gas, this.eso, ...this.marks, this.pullLine, this.pullHead];
     for (const o of this.objects) { this.group.add(o.group); o.group.visible = false; }
     this.group.visible = false;

@@ -509,9 +509,9 @@ test('a station name with no abbreviation of its own is shortened before its rea
   assert.equal(compactName('Azygos'), null); assert.equal(compactName('Portal vein'), null);
   const b = buildCaptions(fakeCtx({ zoomed: true, liverOpen: true }));
   const l = b.items.find((i) => i.id === 'SIN_L')!, m = b.meta.get('SIN_L')!;
-  assert.deepEqual(m.forms.map((f) => f.name), ['Left sinusoids', 'L sinusoids', '']);
-  assert.ok(l.forms[1]!.w < l.forms[0]!.w && l.forms[2]!.w < l.forms[1]!.w, 'each form is narrower than the last');
-  assert.deepEqual(b.meta.get('RPV')!.forms.map((f) => f.name), ['Right portal vein', 'RPV', ''], '2D\'s own abbreviation is kept');
+  assert.deepEqual(m.forms.map((f) => f.name), ['Left sinusoids', 'L sinusoids'], 'no form is a reading alone (65878f1a: 2D leaves a name with no room to its dot)');
+  assert.ok(l.forms[1]!.w < l.forms[0]!.w, 'each form is narrower than the last');
+  assert.deepEqual(b.meta.get('RPV')!.forms.map((f) => f.name), ['Right portal vein', 'RPV'], '2D\'s own abbreviation is kept');
 });
 
 test('a name never hangs from a leader drawn across the vessels when it can stand clear: the hepatic artery\'s name stood north of the sinusoids on a leader through all of them', async () => {

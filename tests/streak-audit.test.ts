@@ -33,7 +33,7 @@ const lanePace = (lanes: number, k: number): number => (lanes === 1 ? 1 : laneSp
 
 test('every tube of the network, every preset, phone and Mac: where the flow is not none and the tube is 3 px across or more it carries filaments at the chevrons\' gate, the wall lane runs at 0.7 of the stream\'s mean or more, and the same tubes carry chevrons', () => {
   assert.equal(STREAK.MIN_R_PX, CHEV.MIN_R_PX, 'one gate: a tube shows a streak exactly where it shows a head');
-  assert.match(VESSEL_FS, /smoothstep\(1\.5, 2\.1, rCssD\)/, 'the dust opens at the chevrons\' gate');
+  assert.match(VESSEL_FS, /smoothstep\(1\.5, 2\.1, rCss\)/, 'the dust opens at the chevrons\' gate');
   assert.match(VESSEL_FS, /smoothstep\(0\.0, 2\.0, abs\(smS\.y\)\)/);
   const report: string[] = [];
   let carrying = 0, none = 0;

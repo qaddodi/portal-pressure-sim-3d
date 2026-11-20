@@ -13,6 +13,7 @@
 //   armData[4]   vec4   (dataIndex, baseD, widthKind, lensIndex) per arm, in arm order; an unused arm has dataIndex < 0 (and weight 0 everywhere)
 //   armLensU[4]  float  the arm's lens ramp position at its seam (lensSpan already applied)
 //   armFade[4]   float  the arm tube's alpha at its seam ring (the JS twin, fade-alpha.ts)
+//   armPres[4]   float  + how much of the arm's tube is there at its seam: its group visible, its draw-on (`reveal`) at the seam's u and its dive fade (arm-twins.ts armPresenceAt): the skin dissolves in the tubes' own pattern as they do, so it never stands alone
 //   armHi[4]     float  the arm tube's highlight weight vHi at its seam
 //   armNarrow[4] float  + (vertex stage only) the arm tube's stenosis waist at its seam: its live width there is swell x (1 - narrow), as the tube's is, so a seam inside a short piece's waist meets the tube with no step
 //   armColor[4]  vec4 + the arm tube's own `color` uniform (rgb: an artery wears the look's artery red, a vein its portal or systemic tone) and, in a, its `lensUse` (an artery 0, a vein 1)
@@ -30,10 +31,9 @@
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../../cel-glsl.ts';
 import { FADE_GLSL } from '../../materials/shaders.ts';
 import { TUBE_DEPTH_SHARE, TUBE_SAG } from '../shaders.ts';
-import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl } from '../glsl-shared.ts';
-import { CHEV, CHEVRON_GLSL, CHEV_INK_ROW } from '../../blood/chevron-glsl.ts';
+import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl } from '../glsl-shared.ts';
+import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
 import { DUST_GLSL } from '../../blood/dust-glsl.ts';
-import { STREAK } from '../../blood/streak-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
 
 /** How many arms a skin blends (a junction of three or four tubes): the weights are one vec4. */
@@ -129,6 +129,7 @@ uniform vec4 armData[${SKIN_ARMS}];
 uniform float armLensU[${SKIN_ARMS}];
 uniform float armFade[${SKIN_ARMS}];
 uniform float armHi[${SKIN_ARMS}];
+uniform float armPres[${SKIN_ARMS}];
 uniform vec4 armColor[${SKIN_ARMS}];
 uniform vec3 armAxis[${SKIN_ARMS * 3}];
 uniform float armAxisR[${SKIN_ARMS * 3}];
@@ -157,11 +158,8 @@ ${LENS_OF_AT_GLSL}
 ${CHEVRON_GLSL}
 ${DUST_GLSL}
 ${CHEV_ONE_GLSL}
-// the flow heads' tone under one lens set on one ARM (shared.ts chevCreamOf, with the arm's own lens index and colour): the vessel's latched, eased ink where the lens runs a colour along it, else the short eased step on the colour it is drawn in
-float armCream(vec4 la, sampler2D grad, float mode, float idx, vec3 col) {
-  if (la.a > 0.5 && mode < 1.5) return smoothstep(0.0, 1.0, texelFetch(grad, ivec2(int(idx), ${CHEV_INK_ROW}), 0).r);
-  return chevCreamSoft(celTubeBase(mix(col, la.rgb, la.a)));
-}
+${CHEV_CREAM_GLSL}
+${FLOW_MARKS_GLSL}
 // the polynomial smooth-min of the 2D figure's own join (fork-joins.copied.js; spec 4.3): a blend k wide, and never lower than the smaller of the two
 float skinSmin(float a, float b, float k) {
   float h = clamp(0.5 + 0.5 * (b - a) / max(k, 1e-4), 0.0, 1.0);
@@ -201,7 +199,9 @@ void main() {
   float sT = dot(n, celLightView());   // n.L against the WORLD light, as the tube (a camera that moves changes no shade)
   float swT = fwidth(sT);              // (a derivative: taken outside any branch)
   if (!gl_FrontFacing) discard;
-  if (fadedOut()) discard;
+  // the skin is there only as much as its arms are (a tube not yet drawn on, retracted, dissolved or hidden has none at its seam): the tube's own screen pattern, so the skin comes and goes with the vessels, never beside them
+  float pres = dot(vWeight, ${ARMS4('armPres')});
+  if (pres < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= pres) discard;
   // the arms' alphas, blended by weight: the junction fade rule already holds on the tubes, so their seam alphas agree and the skin runs through them. On the Circuit's map the tubes become flat lines and the map draws its own
   // joins, so the skin fades out over the first SKIN_CIRCUIT_FADE of the morph (the arm tubes' cut fades back in over the same)
   float alpha = dot(vWeight, ${ARMS4('armFade')}) * (1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT));
@@ -258,47 +258,17 @@ void main() {
     float wI = vWeight[i];
     if (wI < 0.004 || vR <= 0.0) continue;
     float lensI = armData[i].w, Lw = armArc[i].z, rOwn = max(armArc[i].w, 1e-3);
-    vec4 smS = texelFetch(streamTex, ivec2(int(lensI), 0), 0);   // the blood's own distance and speed on this vessel
-    vec4 chD = texelFetch(chainTex, ivec2(int(lensI), 0), 0), chE = texelFetch(chainTex, ivec2(int(lensI), 1), 0);
-    // the dust (blood/dust-glsl.ts dustSkin): this arm's frame, kept for the two heaviest arms; the particles are drawn once below, each at the blend of its places in the two
-    if (streakAmt > 0.001) {
-      float nar = 1.0;
-      if (useData > 0.5) { ivec2 tcn = ivec2(int(mod(armData[i].x, vdataSize.x)), int(floor(armData[i].x / vdataSize.x))); nar = texelFetch(vdata, tcn, 0).b / max(armData[i].y, 0.1); }
-      vec4 frI = dustFrame(mat3(modelViewMatrix) * (armArc[i].y * tJ), mat3(modelViewMatrix) * vec3(0.0, 0.0, 1.0), viewDir, sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0));
-      DFrame FI = DFrame(acrossI, frI.xy, frI.zw, sI, Lw, rOwn, vR, rCssM, nar, smS.y, lensI, SKIN_U);
-      float dOnI = smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
-      if (wI > wD0) { FD1 = FD0; wD1 = wD0; onD1 = onD0; revD1 = revD0; FD0 = FI; wD0 = wI; onD0 = dOnI; revD0 = smS.z; }
-      else if (wI > wD1) { FD1 = FI; wD1 = wI; onD1 = dOnI; revD1 = smS.z; }
-    }
-    if (armFlow[i] > 0.001) {
-      float Dm = smS.x, vd = smS.y, rv = smS.z;
-      float R = max(vR, 0.3);
-      float px = clamp(pxI, 0.15 * wpcM, 1.5 * wpcM);
-      float Pt = ${F(CHEV.PITCH_PX)} * wpcM;
-      vec2 ch = vec2(0.0);
-      if (chD.w < 1.0) ch = chevOne(sI, Lw, sI, 1.0, Dm, vd, rv, chE.xy, R, acrossI, wpcM, Pt, px);
-      if (chD.w > 0.0) {
-        float rootD = texelFetch(streamTex, ivec2(int(chD.x + 0.5) - 1, 0), 0).x;
-        vec2 cc = chevOne(sI, Lw, chD.y + chD.z * sI, chD.z, rootD, vd, rv, chE.xy, R, acrossI, wpcM, Pt, px);
-        ch = chD.w >= 1.0 ? cc : mix(ch, cc, chD.w);
-      }
-      float fade = armFlow[i] * smoothstep(${F(CHEV.MIN_R_PX)} * wpcM, ${F(CHEV.MIN_R_PX + 0.6)} * wpcM, R) * (1.0 - smoothstep(1.0, 1.0 + acrossW, abs(acrossI)));
-      fade *= mix(0.3, 1.0, smoothstep(0.5, 3.0, abs(vd)));
-      if (fade > 0.0 && ch.x + ch.y > 0.0) {
-        float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);
-        float rk = rv * (1.0 - origin), warm = rk * chevOrange(base);
-        float cream = mix(armCream(laArm[i], lensGradA, lensModeA, lensI, armColor[i].rgb), armCream(lbArm[i], lensGradB, lensModeB, lensI, armColor[i].rgb), lensMix);
-        vec3 core = mix(mix(chevInk(cream, markDark, markLight), markRev, rk), markLight, warm);
-        float ar = clamp(ch.y * 0.75 * fade, 0.0, 1.0), ac = clamp(ch.x * fade, 0.0, 1.0);
-        float ha = ac + ar * (1.0 - ac);
-        headAcc += wI * vec4(core * ac + CHEV_RIM * ar * (1.0 - ac), ha);
-      }
-    }
+    // the dust (blood/dust-glsl.ts dustSkin): this arm's frame, kept for the two heaviest arms; the particles are drawn once below, each at the blend of its places in the two (never two ghosts)
+    DFrame FI; float revI;
+    float onI = flowFrame(acrossI, dustFrame(mat3(modelViewMatrix) * (armArc[i].y * tJ), mat3(modelViewMatrix) * vec3(0.0, 0.0, 1.0), viewDir, sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0)), sI, Lw, rOwn, vR, rCssM, lensI, armData[i].x, armData[i].y, SKIN_U, FI, revI);
+    if (wI > wD0) { FD1 = FD0; wD1 = wD0; onD1 = onD0; revD1 = revD0; FD0 = FI; wD0 = wI; onD0 = onI; revD0 = revI; }
+    else if (wI > wD1) { FD1 = FI; wD1 = wI; onD1 = onI; revD1 = revI; }
+    headAcc += wI * flowHeads(acrossI, acrossW, sI, Lw, vR, wpcM, pxI, lensI, armFlow[i], 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
   }
-  if (wD0 > 0.0 && vR > 0.0) {
-    // the two heaviest arms' share (renormalised): on a seam ring one weight is 1 and this is the tube's own dustTube pixel
+  if (wD0 > 0.0) {
+    // the two heaviest arms' share (renormalised): on a seam ring one weight is 1 and this is the tube's own pixel (dustTube)
     float w1 = wD1 / max(wD0 + wD1, 1e-4);
-    float dOn = streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCssM) * mix(onD0, onD1, w1);
+    float dOn = mix(onD0, onD1, w1);
     if (dOn > 0.002) {
       vec4 dust = wD1 > 0.004 ? dustSkin(FD0, FD1, w1, litD, inkColor, mix(revD0, revD1, w1)) : dustTube(FD0, litD, inkColor, revD0);
       dustAcc = vec4(dust.rgb * dOn, dust.a * dOn);

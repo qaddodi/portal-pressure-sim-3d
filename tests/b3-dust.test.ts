@@ -137,9 +137,9 @@ test('GLSL: parses; the lab\'s shapes are in it; the dust is computed from a cel
   assert.match(DUST_GLSL, /\(D_densK - dHash\(sd\)\) \* 12\.0/, 'density thins by a threshold: single particles fade, nothing pops');
   assert.match(DUST_GLSL, /return acc \* \(1\.0 - smoothstep\(0\.90, 0\.96, abs\(F\.across\)\)\);/, 'contained: nothing on the ink');
   // in the vessel: the tube paints it, gated by the amount, the flow and the marks' own junction rule; chevrons after
-  for (const m of [/vec4 dust = dustTube\(F, litD, inkColor, smS\.z\);/, /markK\(skinCut\.x >= 0\.0 \? 1e6 : vUv\.x \* len \* vU, skinCut\.y <= 1\.0 \? 1e6 : \(1\.0 - vUv\.x\) \* len \* vU\) \* streakAmt/, /smoothstep\(0\.0, [\d.]+, abs\(smS\.y\)\)/, /litD, inkColor, smS\.z\)/]) assert.match(VESSEL_FS, m);
-  assert.ok(VESSEL_FS.indexOf('streakCover = dOn * dust.a;') < VESSEL_FS.indexOf('c = c * (1.0 - ha) + core * ac'), 'chevrons draw ABOVE the particles');
-  assert.match(VESSEL_FS, /if \(streakCover > 0\.0\) c = mix\(c, cBody, ha\);/);
+  for (const m of [/vec4 dust = dustTube\(F, lit, inkColor, rev\);/, /return streakAmt \* smoothstep/, /smoothstep\(0\.0, [\d.]+, abs\(smS\.y\)\)/, /\* markK\(skinCut\.x >= 0\.0 \? 1e6 : sD, skinCut\.y <= 1\.0 \? 1e6 : \(1\.0 - vUv\.x\) \* len \* vU\)/]) assert.match(VESSEL_FS, m);
+  assert.ok(VESSEL_FS.indexOf('streakCover = fd.a;') < VESSEL_FS.indexOf('c = c * (1.0 - hd.a) + hd.rgb;'), 'chevrons draw ABOVE the particles');
+  assert.match(VESSEL_FS, /if \(streakCover > 0\.0\) c = mix\(c, cBody, hd\.a\);/);
   assert.doesNotMatch(VESSEL_FS, /END_R|streakField\(/, 'no fade at a vessel\'s ends: the dust runs through the junction (no old streak field in the tube)');
   assert.doesNotMatch(read('../src/scene/blood/dust-glsl.ts') + read('../src/scene/blood/dust.ts') + read('../src/ui/debug/dust-panel.ts'), /requestAnimationFrame/, 'one clock');
   assert.doesNotMatch(read('../src/scene/blood/dust.ts'), /from 'three'/, 'no per-frame objects: a Float32Array');

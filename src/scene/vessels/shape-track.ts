@@ -22,6 +22,8 @@ const keyOf = (s: ShapeState) => `${s.wig.toFixed(2)}|${s.spr.toFixed(3)}|${s.re
 
 export class ShapeTracks {
   private items: Item[] = [];
+  /** Told whenever a vessel's course was rewritten (the junction skins stand on its ends and are rebuilt: vessels/skin/skin-set.ts markDirty). */
+  onReshaped: ((id: string) => void) | null = null;
   /** the bands the model counts, and the count drawn (it follows in a moment, band-ease.js: a strand a band closes fades out rather than vanishing in a frame) */
   private bandsGoal = 0;
   private bandsShown: number | null = null;
@@ -94,6 +96,7 @@ export class ShapeTracks {
       it.obj.reshape(geometry, length);
       geometry.dispose();
       it.built = key;
+      this.onReshaped?.(it.v.id);
     }
     return moving;
   }
