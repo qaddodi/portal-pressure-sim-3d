@@ -95,7 +95,7 @@ export function CircuitCaptions() {
     const view = (): Box => { const { vp } = useUi.getState(); return { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom }; };
     // the floating bars are read at rest (once the layout has settled after a change), not in a frame
     let uiWalls: Box[] = [], wallTimer = 0;
-    const readWalls = () => { uiWalls = readUiWalls(); gate.invalidate(); clock.invalidate('circuit-captions'); };
+    const readWalls = () => { uiWalls = readUiWalls(); clock.invalidate('circuit-captions'); };   // (the signature holds the walls' boxes: a changed wall is seen there, never forced)
     const wallsLater = () => { clearTimeout(wallTimer); wallTimer = window.setTimeout(readWalls, 260); };
     wallsLater();
     addEventListener('resize', wallsLater);
@@ -285,10 +285,12 @@ export function CircuitCaptions() {
       return out;
     };
     const off = clock.on('tags', tick, 1);
-    const offLabels = useLabels.subscribe(() => { gate.invalidate(); clock.invalidate('circuit-captions'); });
-    const offPick = usePick.subscribe(() => { gate.invalidate(); clock.invalidate('circuit-captions'); });
-    const offShell = useShell.subscribe(() => { gate.invalidate(); clock.invalidate('circuit-captions'); });
-    const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) { gate.invalidate(); clock.invalidate('circuit-captions'); } });
+    // (a store change only asks for a frame: everything these captions depend on is in the layout signature, which is compared at rest. They used to force a new placement on ANY change of the shell
+    //  store, and the shell store changes all the time, so the words faded out and in again and again: the flashing. Only what the signature cannot see, a font or a measure, forces one.)
+    const offLabels = useLabels.subscribe(() => { clock.invalidate('circuit-captions'); });
+    const offPick = usePick.subscribe(() => { clock.invalidate('circuit-captions'); });
+    const offShell = useShell.subscribe(() => { clock.invalidate('circuit-captions'); });
+    const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) { clock.invalidate('circuit-captions'); } });
     void document.fonts?.ready.then(() => { measureReset(); });
     const measureReset = () => { gate.invalidate(); clock.invalidate('circuit-captions'); };
     return () => { off(); offLabels(); offPick(); offShell(); offUi(); offUi2(); offWalls(); clearTimeout(wallTimer); removeEventListener('resize', wallsLater); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); } };

@@ -45,3 +45,21 @@ test('the sinusoid signature holds the readings\' widths, never their values, an
   assert.doesNotMatch(src, /toFixed\(1\)/);
   assert.match(src, /else refreshReadings\(\)/);
 });
+
+// The real trigger of the flash (measured on the preview with ?capwhy: every re-place logged `sig  => ...`, an EMPTY old signature): the captions' store subscriptions called gate.invalidate() /
+// `sig = ''` on ANY change of the shell store, which changes all the time, so the placed words were thrown away and faded out and in again and again. A store change only asks for a frame now;
+// the layout signature (compared at rest) sees whatever matters. Only a font or the type variables force a new placement.
+test('no caption layer forces a new placement from a store subscription', () => {
+  for (const f of ['src/scene/lobule/LobuleCaptions.tsx', 'src/scene/circuit/CircuitCaptions.tsx', 'src/scene/sinusoid/SinusoidCaptions.tsx']) {
+    const src = readFileSync(f, 'utf8');
+    for (const m of src.matchAll(/(use\w+)\.subscribe\(([^;]*)\);/g)) {
+      assert.doesNotMatch(m[0], /gate\.invalidate|sig = ''/, `${f}: ${m[1]}.subscribe forces a placement`);
+    }
+    assert.doesNotMatch(src, /const wake = \(\) => \{ (gate\.invalidate|sig = '')/, `${f}: wake forces a placement`);
+  }
+  assert.doesNotMatch(readFileSync('src/scene/circuit/CircuitCaptions.tsx', 'utf8'), /const readWalls = \(\) => \{[^}]*gate\.invalidate/);
+});
+test('a font still forces one', () => {
+  assert.match(readFileSync('src/scene/lobule/LobuleCaptions.tsx', 'utf8'), /fonts\?\.ready\.then\(refont\)/);
+  assert.match(readFileSync('src/scene/sinusoid/SinusoidCaptions.tsx', 'utf8'), /fonts\?\.ready\.then\(refont\)/);
+});

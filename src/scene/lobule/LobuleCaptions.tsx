@@ -187,11 +187,14 @@ export function LobuleCaptions() {
       else if (!busy && hold) { hold.release(); hold = null; }
     };
     const off = clock.on('tags', tick, 1);
-    const wake = () => { gate.invalidate(); clock.invalidate('lobule-captions'); };
+    // (a store change only asks for a frame: everything the words depend on is in the layout signature, compared at rest. They used to force a new placement on ANY change of the shell store, which
+    //  changes all the time, so the names faded out and in again and again: the flashing, 20 Nov. Only what the signature cannot see, a font or the type variables, forces one.)
+    const wake = () => { clock.invalidate('lobule-captions'); };
+    const refont = () => { gate.invalidate(); clock.invalidate('lobule-captions'); };
     const offShell = useShell.subscribe(wake);
     const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) wake(); });
     const offFoot = useFootNote.subscribe(wake);
-    void document.fonts?.ready.then(wake);
+    void document.fonts?.ready.then(refont);
     return () => { off(); offShell(); offUi(); offUi2(); offFoot(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
   }, []);
 
