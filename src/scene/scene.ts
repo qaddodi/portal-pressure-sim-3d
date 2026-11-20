@@ -1,7 +1,7 @@
 import { Box3, Color, type DataTexture, Group, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
-import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
+import { MAPPED, NETWORK, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
@@ -276,27 +276,6 @@ export class CelScene {
     this.applyMates();
     this.moving = true;
     clock.invalidate('smooth-joins');
-  }
-
-  /** Edit shapes (scene/edit/): the vessel's course or depth was edited, so its tubes are rewritten in place. The tube counts stay as the vessel was built with (a longer or shorter course never changes the vertex count). */
-  private readonly editTubular = new Map<string, number[]>();
-  reshapeVessel(id: string): void {
-    const def = NETWORK_BY_ID.get(id), o = this.byEdge.get(id) as VesselObject | undefined;
-    if (!def || !o || !def.plan) return;
-    const tub = this.editTubular.get(id) ?? tubularOf(def, slicesFor(id));
-    this.editTubular.set(id, tub);
-    const built = buildTubes(coursesOf(def, this.shapes.stateOf(id) ?? REST), tub, def.radius);
-    o.reshape(built.geometry, built.length);
-    built.geometry.dispose();
-    this.moving = true;
-    clock.invalidate('edit-shapes');
-  }
-  /** Edit shapes: draw the next frame (an organ was moved). */
-  invalidateScene(): void { this.moving = true; clock.invalidate('edit-shapes'); }
-  /** The tube counts of a vessel as built, taken before its first edit (edit/store.ts). */
-  freezeTubular(id: string): void {
-    const def = NETWORK_BY_ID.get(id);
-    if (def?.plan && !this.editTubular.has(id)) this.editTubular.set(id, tubularOf(def, slicesFor(id)));
   }
 
   private add(o: CelObject): void { this.objects.push(o); this.body.add(o.group); }

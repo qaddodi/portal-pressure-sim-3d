@@ -9,14 +9,10 @@ import { SinusoidCaptions } from './scene/sinusoid/SinusoidCaptions.tsx';
 import { ProteinLegend } from './scene/sinusoid/ProteinLegend.tsx';
 import { Shell } from './ui/shell/Shell.tsx';
 import { useEngine } from './engine/index.ts';
-import { EditShapes } from './scene/edit/EditShapes.tsx';
-import { bindEditMode } from './scene/edit/store.ts';
-import { useEffect } from 'react';
 import { BuildPill } from './ui/shell/BuildPill.tsx';
 
 export function App() {
   const status = useEngine((s) => s.status);
-  useEffect(() => bindEditMode(), []);
   return (
     <>
       <Stage />
@@ -26,7 +22,6 @@ export function App() {
       <SinusoidCaptions />
       <ProteinLegend />
       <Shell />
-      <EditShapes />
       {import.meta.env.VITE_CHANNEL === 'preview' && <BuildPill />}
       {status === 'crashed' && <CrashNotice />}
     </>

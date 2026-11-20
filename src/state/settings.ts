@@ -31,8 +31,6 @@ export interface Settings {
   particles: boolean;
   /** The lobule and the sinusoid as true 3D scenes (micro3d/): extruded cells and nuclei, round vessels, a cut sinusoid with its lining, Disse and flowing cells. Off: the flat 2D-style views. */
   micro3d: boolean;
-  /** Edit shapes (scene/edit/): the builder's tool for dragging vessel points and organs. Hidden (shown in Settings only with ?edit in the address), never saved, off at every start. */
-  editShapes: boolean;
 }
 interface Store extends Settings {
   setLook(l: LookChoice): void; setBlur(on: boolean): void;
@@ -51,7 +49,7 @@ export const STORAGE_PREFIX = 'pps3d.';
 export const DEPTH_KEYS = ['smoothJoins', 'organDepth', 'tilt', 'freeTilt', 'dof', 'particles', 'micro3d'] as const;
 export type DepthKey = (typeof DEPTH_KEYS)[number];
 export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { smoothJoins: true, organDepth: true, tilt: true, freeTilt: false, dof: true, particles: false, micro3d: false };
-export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, keys: true, showFps: false, showBreakdown: false, editShapes: false, ...DEPTH_DEFAULTS };
+export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS };
 
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
 export function parseSettings(raw: string | null): Settings {
@@ -64,13 +62,12 @@ export function parseSettings(raw: string | null): Settings {
       blur: bool(o.blur, DEFAULTS.blur),
       figureDetail: Number.isInteger(o.figureDetail) && o.figureDetail >= 0 && o.figureDetail < FIGURE_DETAIL.length ? o.figureDetail : DEFAULTS.figureDetail,
       sharpMoving: bool(o.sharpMoving, DEFAULTS.sharpMoving), keys: bool(o.keys, true), showFps: bool(o.showFps, false), showBreakdown: bool(o.showBreakdown, false),
-      editShapes: false,
       smoothJoins: bool(fig.smoothJoins, DEPTH_DEFAULTS.smoothJoins), organDepth: bool(fig.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(fig.tilt, DEPTH_DEFAULTS.tilt), freeTilt: bool(fig.freeTilt, DEPTH_DEFAULTS.freeTilt), dof: bool(fig.dof, DEPTH_DEFAULTS.dof), particles: bool(fig.particles, DEPTH_DEFAULTS.particles), micro3d: bool(fig.micro3d, DEPTH_DEFAULTS.micro3d),
     };
   } catch { return { ...DEFAULTS }; }
 }
 const read = (): Settings => { try { return parseSettings(localStorage.getItem(KEY)); } catch { return parseSettings(null); } };
-const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, smoothJoins: s.smoothJoins, organDepth: s.organDepth, tilt: s.tilt, freeTilt: s.freeTilt, dof: s.dof, particles: s.particles, micro3d: s.micro3d, editShapes: false });
+const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, smoothJoins: s.smoothJoins, organDepth: s.organDepth, tilt: s.tilt, freeTilt: s.freeTilt, dof: s.dof, particles: s.particles, micro3d: s.micro3d });
 const save = (s: Settings) => { try { localStorage.setItem(KEY, JSON.stringify({ ...pick(s), figureV: FIGURE_SETTINGS_VERSION })); } catch { /* private window: the choice lasts for this visit */ } };
 
 export const useSettings = create<Store>((set, get) => ({
