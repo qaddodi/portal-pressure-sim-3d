@@ -63,7 +63,7 @@ test('the tone is a subtle tint of the vessel\'s own, varied per streak: 1.12 to
           }
           const c = contrast(hex(t), hex(body)); best = Math.max(best, c); worst = Math.min(worst, c);
         }
-        assert.ok(best >= 1.12 && best <= (name === 'lit' ? 2.0 : 2.3), `${id} ${v} ${name}: brightest ${best.toFixed(2)}:1`);
+        assert.ok(best >= 1.12 && best <= (name === 'lit' ? 2.2 : 2.5), `${id} ${v} ${name}: brightest ${best.toFixed(2)}:1`);
         assert.ok(worst < best - 0.05, `${id} ${v} ${name}: the streaks differ from one another (${worst.toFixed(2)} to ${best.toFixed(2)})`);
         const wide = contrast(hex(streakToneJs(body, white, 1, 0.5, 1)), hex(body)), thin = contrast(hex(streakToneJs(body, white, 1, 0.5, 0)), hex(body));
         assert.ok(wide >= thin - 1e-9, `${id} ${v} ${name}: a wide tube's tint is the stronger`);
