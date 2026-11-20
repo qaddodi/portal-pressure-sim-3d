@@ -16,8 +16,20 @@ export interface Course {
   /** the ends that carry on into another tube, which need no cap (network.ts `joined`) */
   capless?: readonly [boolean, boolean];
   flare?: readonly [{ add: number; wall: number; span: number } | null, { add: number; wall: number; span: number } | null];
+  /** Atlas art only (atlas-art/courses.ts): the radius along the course as a share of `radius`, flat pairs [arc-length share, share, ...], read by linear interpolation. Absent: the course is not changed by it. */
+  profile?: readonly number[];
 }
 const smooth = (u: number) => u * u * (3 - 2 * u);
+/** The atlas course's radius share at arc-length share `u` (flat [u0, f0, u1, f1, ...], u rising). */
+export function profileAt(p: readonly number[], u: number): number {
+  const n = p.length / 2;
+  if (u <= p[0]!) return p[1]!;
+  for (let i = 1; i < n; i++) {
+    const u1 = p[2 * i]!;
+    if (u <= u1) { const u0 = p[2 * i - 2]!, t = u1 > u0 ? (u - u0) / (u1 - u0) : 1; return p[2 * i - 1]! + (p[2 * i + 1]! - p[2 * i - 1]!) * t; }
+  }
+  return p[2 * n - 1]!;
+}
 const factorAt = (t: readonly [number, number] | undefined, u: number): number => (!t ? 1 : u < 0.3 ? t[0] + (1 - t[0]) * smooth(u / 0.3) : u > 0.7 ? 1 + (t[1] - 1) * smooth((u - 0.7) / 0.3) : 1);
 
 /** Tube segments for a course of `len` scene units, with `room` to grow into when it coils. */
@@ -56,7 +68,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     const P = new Vector3(), pos = tube.attributes.position as Float32BufferAttribute;
     for (let k = 0; k <= seg; k++) {
       const u = k / seg;
-      const f = open ? (factorAt(c.taper, u) + (flareAdd(c.flare?.[0], u * clen) + flareAdd(c.flare?.[1], (1 - u) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) : 1) : 1;
+      const f = open ? (factorAt(c.taper, u) + (flareAdd(c.flare?.[0], u * clen) + flareAdd(c.flare?.[1], (1 - u) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) : 1) * (c.profile ? profileAt(c.profile, u) : 1) : 1;
       curve.getPointAt(k / seg, P);
       for (let j = 0; j <= RADIAL; j++) {
         const at = k * (RADIAL + 1) + j;
@@ -70,7 +82,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     tube.setAttribute('tang', new Float32BufferAttribute(tang, 3));
     const group: BufferGeometry[] = [tube];
     for (const end of [0, 1]) {
-      const capR = open && !c.capless?.[end] ? c.radius * factorAt(c.taper, end) + flareAdd(c.flare?.[end], 0) : HAIR;
+      const capR = open && !c.capless?.[end] ? c.radius * factorAt(c.taper, end) * (c.profile ? profileAt(c.profile, end) : 1) + flareAdd(c.flare?.[end], 0) : HAIR;
       const s = new SphereGeometry(capR, 14, 10);
       const pos = curve.getPointAt(end), t = curve.getTangentAt(end);
       s.translate(pos.x, pos.y, pos.z);
@@ -80,7 +92,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
       s.setAttribute('tang', new Float32BufferAttribute(tg, 3));
       group.push(s);
     }
-    for (const e of [1, 2]) group[e]!.setAttribute('rk', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(open && !c.capless?.[e - 1] ? (c.radius * factorAt(c.taper, e - 1) + flareAdd(c.flare?.[e - 1], 0)) / radius0 : 0), 1));
+    for (const e of [1, 2]) group[e]!.setAttribute('rk', new Float32BufferAttribute(new Float32Array(group[e]!.attributes.position!.count).fill(open && !c.capless?.[e - 1] ? (c.radius * factorAt(c.taper, e - 1) * (c.profile ? profileAt(c.profile, e - 1) : 1) + flareAdd(c.flare?.[e - 1], 0)) / radius0 : 0), 1));
     const tubeCount = tube.attributes.position!.count, capCount = group[1]!.attributes.position!.count;
     runs.push({ curve, tubular: seg, radial: RADIAL, tubeStart: at, tubeCount, capStart: at + tubeCount, capCount });
     at += tubeCount + 2 * capCount;

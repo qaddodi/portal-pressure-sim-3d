@@ -4,10 +4,11 @@ import type { Vec3 } from '../anatomy/vessels.ts';
 import { len3, x3, y3 } from '../frame2d.ts';
 import { TIER_Z } from '../frame2d.ts';
 import { coilCourses } from './coil.ts';
-import { NETWORK_BY_ID, NODE_Z, type NetVessel } from './network.ts';
+import { ATLAS_COURSE, NETWORK_BY_ID, NODE_Z, type NetVessel } from './network.ts';
 import { CAV, cavChannels, cavGrowth } from './cav.ts';
 import { BEAD_LAMBDA_FUNDAL, BEAD_SITE, beadLambda } from './varix-bead.copied.js';
 import { STRAND_FROM_2D } from './coil.copied.ts';
+import type { AtlasCourse } from '../atlas-art/types.ts';
 
 const len2d = (pts: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); return l; };
 /** the vessels the bands strangle (topology code C1: the coronary vein to the varices, and the varices to the azygos) */
@@ -29,8 +30,20 @@ const to3 = (pts: readonly (readonly [number, number])[], z: number, from?: numb
 });
 const minR = len3(0.35);
 
-/** The courses (the vessel's own first) at `s`. */
+/** The courses (the vessel's own first) at `s`. With Atlas art on and the artist having drawn this vessel, its first course is the artist's (atlasCourses); otherwise the 2D figure's, untouched. */
 export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
+  const base = classicCourses(v, s), a = ATLAS_COURSE.get(v.id);
+  return a ? atlasCourses(v, a, base) : base;
+}
+
+/** Atlas art: the artist's centreline and radii are the vessel's one tube. The classic shape's other tubes (a varix's strands, the cavernoma's channels, a fan of tributaries) stay in the
+ *  geometry at no radius (rk 0, kept off the screen) so the vertex count is the one the vessel was built with and VesselObject.reshape can swap the shape in place. The radius is the vessel's
+ *  own (what the live width and the Circuit read against); the artist's calibre is the profile along it. */
+function atlasCourses(v: NetVessel, a: AtlasCourse, base: Course[]): Course[] {
+  return base.map((c, i) => (i === 0 ? { pts: a.pts, radius: v.radius, profile: a.profile, capless: a.joined } : { pts: c.pts, radius: 0 }));
+}
+
+function classicCourses(v: NetVessel, s: ShapeState): Course[] {
   const plan = v.plan!, z = TIER_Z[v.tier];
   if (plan.kind === 'coil') {
     const coiled = coilCourses(v.id, plan.base as [number, number][], plan.coils, s.wig, s.spr);

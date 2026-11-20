@@ -25,6 +25,13 @@ test('the tester guides are served but not held offline', () => {
   assert.deepEqual(listFiles(d), ['index.html']);
 });
 
+test('the atlas art (Settings > Figure depth) is served but never part of an install', () => {
+  const d = mkdtempSync(join(tmpdir(), 'pwa-'));
+  mkdirSync(join(d, 'atlas'));
+  for (const f of ['index.html', 'atlas/organs-healthy.glb', 'atlas/courses.json', 'atlas/atlas-grain.png']) writeFileSync(join(d, f), 'x');
+  assert.deepEqual(listFiles(d), ['index.html']);
+});
+
 test('the worker\'s cache is one per scope and build, with the prefix the build pill drops', () => {
   const sw = buildSw({ build: 'abc1234', files: ['index.html', 'assets/a-1.js'] });
   assert.ok(sw.includes('const BUILD = "abc1234"'));

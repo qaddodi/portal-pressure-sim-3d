@@ -1,7 +1,7 @@
 // The list of every shader source in the app, by file, and the programs they make. tests/glsl-compile.test.ts compiles them all in glslang (node, no browser); the ?gl page
 // (gl-check.tsx) compiles them on the device. A file that holds GLSL and is not in GL_FILES fails the test: add it here, with how its programs are found.
 import type { Object3D } from 'three';
-import { type Program, collectMaterials, lateMaterialProgram, rawProgram, templateConstants } from './gl-programs.ts';
+import { type Program, assemble, collectMaterials, lateMaterialProgram, rawProgram, templateConstants } from './gl-programs.ts';
 import { INK_FS, INK_VS, TOON_FS, TOON_VS } from '../scene/materials/shaders.ts';
 import { VESSEL_FS, VESSEL_VS } from '../scene/vessels/shaders.ts';
 import { DOT_FS, DOT_VS, PLATE_FS, PLATE_VS } from '../scene/circuit/map-layer.ts';
@@ -17,6 +17,7 @@ import { LOBULE_PLATE_FS, LOBULE_PLATE_VS } from '../scene/lobule/plate.ts';
 import { LOBULE_ZONES_FS, LOBULE_ZONES_VS } from '../scene/lobule/zones.ts';
 import { LOBULE_FIELD_FS, LOBULE_FIELD_VS } from '../scene/lobule/field.ts';
 import { AA_FS, AA_VS } from '../scene/post-aa.ts';
+import { ATLAS_FS, ATLAS_INK_FS, ATLAS_INK_VS, ATLAS_VS, stripVersion } from '../scene/atlas-art/shaders.ts';
 import { DOF_GATHER_FS, DOF_MIX_FS, DOF_VS } from '../scene/post-dof.ts';
 
 /** Where the app's GLSL lives (a path under src/), and how its programs reach the check. A new file with a shader goes here, or the test fails. */
@@ -37,6 +38,7 @@ export const GL_FILES: Record<string, string> = {
   'scene/lobule/field.ts': 'the neighbouring lobules out of focus: found on the scene graph',
   'scene/post-aa.ts': 'the anti-aliasing pass over the whole figure (FXAA on a full-screen quad, outside the scene graph): registered by name',
   'scene/post-dof.ts': 'the depth of field of the dive (desktop only: a half-size gather and a full-size blend on a full-screen quad, outside the scene graph): registered by name',
+  'scene/atlas-art/shaders.ts': 'the artist\'s atlas organ material (cel-stepped) and its ink hull, RawShaderMaterials made only when Atlas art is chosen (Settings > Figure depth): registered by name',
   'ui/charts/gl.ts': 'the charts\' shared drawer: registered by name',
   'ui/tests/copied/doppler-synth.copied.js': 'the Doppler spectrum: registered by name',
   'ui/tests/doppler/spectrum-gl.ts': 'the Doppler spectrum on the chart drawer (2D\'s line shader and display pass joined, with the grain): registered by name',
@@ -54,10 +56,20 @@ export function namedSources(): Map<string, string> {
   ]);
 }
 
+/** The atlas art's two programs, as three gives them to a RawShaderMaterial with `glslVersion: GLSL3` (organs.ts): made only when Atlas is chosen, so registered by name. */
+export function atlasPrograms(): Program[] {
+  const make = (name: string, vs: string, fs: string): Program => {
+    const a = assemble({ vertexShader: stripVersion(vs), fragmentShader: stripVersion(fs), isRawShaderMaterial: true, glslVersion: '300 es' });
+    return { name, vertex: vs, fragment: fs, ...a };
+  };
+  return [make('atlas organ', ATLAS_VS, ATLAS_FS), make('atlas organ ink', ATLAS_INK_VS, ATLAS_INK_FS)];
+}
+
 /** The programs the scene graph does not hold until something happens (a Circuit, a dye bolus) and the ones outside the scene (charts, Doppler, FibroScan). */
 export function rawPrograms(fibroText: string): Program[] {
   const fibro = templateConstants(fibroText);
   const out = [
+    ...atlasPrograms(),
     lateMaterialProgram('circuit resistors', RES_VS, RES_FS),
     lateMaterialProgram('dye overlay', DYE_VS, DYE_FS),
     lateMaterialProgram('organ wash', ORGAN_VS, ORGAN_FS),

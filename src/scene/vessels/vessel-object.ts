@@ -139,7 +139,8 @@ export class VesselObject extends CelObject {
   /** Swaps in a new shape of the same vertex count (a collateral coiling, a fan changing width): the positions are written in place, so nothing is rebuilt. */
   reshape(g: BufferGeometry, len: number): void {
     const geo = this.toonMesh.geometry;
-    for (const name of ['position', 'normal', 'uv', 'tang', 'rk']) {
+    // (the Circuit's morph attributes ride along when the new shape carries them: Atlas art swaps a vessel's whole course and rebuilds them with it, atlas-art/vessels.ts)
+    for (const name of ['position', 'normal', 'uv', 'tang', 'rk', ...CIRCUIT_ATTRIBUTES]) {
       const src = g.getAttribute(name), dst = geo.getAttribute(name);
       if (!src || !dst) continue;
       const a = src.array as Float32Array, b = dst.array as Float32Array;
