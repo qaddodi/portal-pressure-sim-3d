@@ -32,7 +32,7 @@ export const STREAK = {
   SPEED_JITTER: 0.25,
   /** each streak's own tone, seeded, a subtle tint of the vessel's OWN tone: from the body x TONE_LO to the body mixed TONE_HI toward white (TONE_HI x (1 + TONE_WIDE_UP) on a wide tube), x (1 +- LIGHT_VAR) in lightness, a warm or cool shift of up to HUE (a share of a channel),
    *  never darker than the body and never more than WHITE_CAP of the way to white */
-  TONE_LO: 1.16, TONE_HI: 0.28, TONE_WIDE_UP: 0.6, WHITE_CAP: 0.45, DEEP_SHARE: 0.6, LIGHT_VAR: 0.08, HUE: 0.03,
+  TONE_LO: 1.22, TONE_HI: 0.34, TONE_WIDE_UP: 0.4, WHITE_CAP: 0.5, DEEP_SHARE: 0.6, LIGHT_VAR: 0.08, HUE: 0.03,
   /** how far across the tube (of its radius) the outer lane sits */
   SPAN: 0.78,
   /** a streak fades out over this many tube radii at each end of its vessel, so it never crosses a junction */
