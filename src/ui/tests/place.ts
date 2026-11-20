@@ -3,7 +3,7 @@
 // it has; a pane that does not fit the room the card has scrolls (owner, 20 Nov 2026, for a phone's Half). Pure numbers: the scene frames the figure in what is left.
 import type { DeviceClass, Rect, Viewport } from '../layout/device.ts';
 import { isPhone } from '../layout/device.ts';
-import { footHeight, usesBottomBar, topBarH } from '../shell/room.ts';
+import { footHeight, usesBottomBar, topBarH, dockHeight, dockInset } from '../shell/room.ts';
 import { M } from '../shell/metrics.ts';
 import { clamp } from './copied/num.copied.js';
 import { testsHalfPx, MIN_HALF } from './copied/stack-plan.copied.js';
@@ -90,13 +90,14 @@ export function testsPlace(vp: Viewport, device: DeviceClass, o: PlaceOpts = {})
     return { kind: 'side', rect: { x, y: top, w, h }, maxH, vars: sideVars(w, bodyOf(h), count), focus: false, stops: null };
   }
   // a sheet over the foot of the figure: the full width less the margins, rising from just above the bottom bars; Half or Full (dock-sheet.js)
-  const margin = 8, w = vp.w - vp.safe.left - vp.safe.right - 2 * margin;
-  const R = Math.max(1, vp.h - vp.safe.top - barH - bottom - 22);
+  // (its foot is the dock's top edge less 8 px, 2D's --thumb-occ: the view pill over the dock goes with the card, so the sheet does not stand above the room it leaves, a 50 px gap over the dock, 20 Nov play-test)
+  const margin = 8, w = vp.w - vp.safe.left - vp.safe.right - 2 * margin, foot = vp.safe.bottom + dockInset(device) + dockHeight(device) + 8;
+  const R = Math.max(1, vp.h - vp.safe.top - barH - foot - 22);
   const stops = sheetStops(device, vp.h, R, !!o.vesselCard);
   const maxH = stops[1];
   // (a sheet has its stops and nothing else: a remembered side-card ratio or a content height never sets it, so it never opens at some height in between, owner 20 Nov)
   const h = o.sheetSize === 2 ? PEEK_H : stops[o.sheetSize === 1 ? 1 : 0];
-  return { kind: 'sheet', rect: { x: vp.safe.left + margin, y: vp.h - bottom - h, w, h }, maxH, vars: sheetDockVars(h, isPhone(device)), focus: false, stops };
+  return { kind: 'sheet', rect: { x: vp.safe.left + margin, y: vp.h - foot - h, w, h }, maxH, vars: sheetDockVars(h, isPhone(device)), focus: false, stops };
 }
 
 /** The room the figure is FRAMED in while the card is up (owner, 20 Nov: opening a Tests card must not squeeze or zoom out the figure; it may pan to keep its middle in the free part): the same size as the
