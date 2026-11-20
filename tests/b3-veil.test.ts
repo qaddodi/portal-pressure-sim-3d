@@ -51,11 +51,11 @@ test('a faint-only vessel can still be picked', () => {
   assert.ok(o.toonMesh.layers.isEnabled(FAINT_ONLY_LAYER));
 });
 
-test('the copy over the organs is the vessel\'s own two draws: an opaque body that writes depth, then the ink once per pixel (stencil) pushed a firm offset behind the body, so no tick of ink lands over the lumen', () => {
+test('the copy over the organs is the vessel\'s own one draw: an opaque (outside a fade zone) body that writes depth, the outline part of the tube', () => {
   for (const id of ['IVC_IS', 'IVCS_RA', 'ILI_IVC']) {
-    const [body, hull] = matsOf(veilAll(id)[0]);
-    assert.ok(body && hull, `${id} has both draws`);
-    assert.equal(body!.transparent, (s.vesselObject(id)!.toon.uniforms.fadeMode!.value as number) > 0); assert.equal(body!.depthWrite, true);
-    assert.equal(hull!.stencilWrite, true, 'one outline per pixel'); assert.equal(hull!.depthWrite, false); assert.equal(hull!.polygonOffset, true);
+    const ms = matsOf(veilAll(id)[0]);
+    assert.equal(ms.length, 1, `${id}: one material`);
+    assert.equal(ms[0]!.transparent, (s.vesselObject(id)!.toon.uniforms.fadeMode!.value as number) > 0); assert.equal(ms[0]!.depthWrite, true);
+    assert.equal(ms[0]!.stencilWrite, false, 'no stencil bit to share');
   }
 });

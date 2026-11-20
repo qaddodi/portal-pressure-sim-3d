@@ -46,8 +46,8 @@ function SliderCtl({ v, d, p }: { v: Ctl; d: number; p: unknown }) {
   return (
     <div className="se-ctl" data-ctl={v.id}>
       <div className="se-cap"><span>{name}</span><b className="se-cv">{text}</b></div>
-      <div className="ac-rangewrap">
-        <input type="range" className="ac-range" min={lo} max={hi} step={step} value={y} aria-label={name} aria-valuetext={lum ? (shown > 0.004 ? `${mm1(y)} mm` : 'open') : v.format(shown)}
+      <div className="range-wrap" style={{ '--p': Math.min(1, Math.max(0, (y - lo) / (hi - lo || 1))) } as CSSProperties}>
+        <input type="range" min={lo} max={hi} step={step} value={y} aria-label={name} aria-valuetext={lum ? (shown > 0.004 ? `${mm1(y)} mm` : 'open') : v.format(shown)}
           onPointerDown={() => { fresh.current = true; }} onKeyDown={() => { fresh.current = true; }}
           onInput={(e) => { const s = fromIn(parseFloat((e.target as HTMLInputElement).value)); setDrag(s); updateParams((q) => { v.set(q, s); return q; }, { history: fresh.current, label: v.hist || v.label }); fresh.current = false; }}
           onPointerUp={() => setDrag(null)} onBlur={() => setDrag(null)} onChange={() => { /* (the input event carries it) */ }} />

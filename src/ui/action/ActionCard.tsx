@@ -74,8 +74,8 @@ function Slider({ v, vs, index, setRef }: { v: Extract<Verb, { type: 'slider' }>
   return (
     <div className="ac-c ac-slider">
       <div className="ctl-top">{v.icon && <OrderIcon n={v.icon} className="ac-ic" />}<span className="ctl-name">{name}</span><span className="ctl-val">{v.format(x)}</span></div>
-      <div className="ac-rangewrap">
-        <input ref={(el) => setRef(index, el)} type="range" className="ac-range" min={v.min} max={v.max} step={v.step} value={x} aria-label={v.label ?? ''} aria-description={v.tickNames}
+      <div className="range-wrap" style={{ '--p': Math.min(1, Math.max(0, (x - v.min) / (v.max - v.min))) } as CSSProperties}>
+        <input ref={(el) => setRef(index, el)} type="range" min={v.min} max={v.max} step={v.step} value={x} aria-label={v.label ?? ''} aria-description={v.tickNames}
           onPointerDown={() => { fresh.current = true; }} onKeyDown={() => { fresh.current = true; }}
           onInput={(e) => { const val = parseFloat((e.target as HTMLInputElement).value); setDrag(val); send(val); }}
           onPointerUp={() => setDrag(null)} onBlur={() => setDrag(null)} onChange={() => { /* (the input event carries it) */ }} />

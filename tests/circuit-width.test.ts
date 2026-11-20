@@ -106,8 +106,8 @@ test('no line is a hairline: a floor in CSS px for every kind, whatever the zoom
 test('the Circuit holds nothing faint: the tip fades let go, the bands run full width and soft, free ends are round', async () => {
   const sh = readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(sh, /circT \* \(1\.0 - fadeKeep\)/, 'the artery\'s fades no longer hold in the Circuit');
-  assert.match(sh, /bool capCarved\(float across, bool hull\)/);
-  assert.match(sh, /if \(capCarved\(across, vHull > 0\.5\)\) discard;/);
+  assert.match(sh, /bool capCarved\(float across\)/);
+  assert.match(sh, /if \(capCarved\(across\)\) discard;/);
   const layer = readFileSync(new URL('../src/scene/circuit/map-layer.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(layer, /float iy = /, 'the bands are not cut off across the map');
   assert.match(layer, /\/ BAND_SOFT \+ 0\.5/);
