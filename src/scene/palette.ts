@@ -58,13 +58,17 @@ export function organTone(hex: string, ink: string): string {
 /** Light's organ layer: a deliberate step from 2D's .55 (Mohammad, 19 Nov 2026: "Richer Light (layer .72)"), the same as Soft's, so the Light liver reads brown, not chalky. */
 export const LIGHT_ORGAN_LAYER = 0.72;
 
+/** The dark looks' organ layer (Dark, Navy, Black): 2D's .55 let the organs sink into the ground (Mohammad, 20 Nov: "the anatomy view should be more contrast, it's very basically dark now"); this is the step that lifts them clear of it
+ *  while the vessels (brighter caps, cel-style TUBE.LCAP_DARK) still stand off them. Pinned by tests/dark-contrast.test.ts. */
+export const DARK_ORGAN_LAYER = 0.72;
+
 export function paletteFor(id: LookId): Palette {
   const l = LOOKS[id];
   const organ = (hex: string) => organTone(hex, l.ink);
   return {
     bg: l.bg, body: l.plate, ink: l.ink, shade: l.shadeK,
     highlight: l.scheme === 'dark' ? 'white' : 'deep',
-    organs: ORGAN_TONES_2D[id], organLayer: id === 'light' ? LIGHT_ORGAN_LAYER : ORGAN_TONES_2D[id].layer, kidneyLayer: ORGAN_TONES_2D[id].kidney,
+    organs: ORGAN_TONES_2D[id], organLayer: id === 'light' ? LIGHT_ORGAN_LAYER : l.scheme === 'dark' ? DARK_ORGAN_LAYER : ORGAN_TONES_2D[id].layer, kidneyLayer: ORGAN_TONES_2D[id].kidney,
     tones: {
       liver: organ(l.liver), spleen: organ(l.spleen), kidney: organ(l.kidney), gut: organ(l.gut), stomach: organ(l.stomach), heart: organ(l.heart), portal: l.portal, sys: l.systemic,
       cath: id === 'light' ? CATHETER_LIGHT : id === 'soft' ? CATHETER_SOFT : CATHETER_DARK, balloon: l.caution,

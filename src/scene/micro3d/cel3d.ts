@@ -1,6 +1,7 @@
-// The one material of the true-3D lobule and sinusoid (Settings > Figure depth > 3D lobule and sinusoid): solid shapes in the figure's cel style. Three flat tones (shade, base,
-// lit) from n.L against the organs' screen light (CEL_STYLE.ORGAN.LIGHT and its n.L edges), a hard but antialiased edge between them, no gloss, no rim, and a bold ink round every
-// shape (an inverted hull pushed out a fixed number of CSS px on screen, as the figure's other inks). Colours are raw sRGB numbers, as every cel shader of the app writes them.
+// The one material of the true-3D lobule and sinusoid (Settings > Figure depth > 3D lobule and sinusoid): solid shapes in the figure's cel style. EXACTLY TWO flat tones (the base and the shade, one hard but
+// antialiased edge at CEL_STYLE.VESSEL_STEP_AT: the same two tones as the vessels), matte: no lit tone toward white, no gloss, no rim, no gradient. The light is THE WORLD light (CEL_STYLE.LIGHT): n.L is taken with the
+// normal in world axes (the model matrix), so orbiting, zooming or tilting the camera never changes a shade; only a shape's own motion does. A bold ink round every shape (an inverted hull pushed out a fixed number
+// of CSS px on screen, as the figure's other inks). Colours are raw sRGB numbers, as every cel shader of the app writes them.
 //
 // A part's colour is its `tint` times its vertex colours (when the geometry has them) times its instance colours (an InstancedMesh with setColorAt). Instances may be scaled
 // unevenly: the normal is carried through the instance matrix's inverse transpose, so a squashed sphere still shades as a squashed sphere.
@@ -13,9 +14,10 @@ import {
 } from 'three';
 import { CEL_STYLE } from '../cel-style.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
+import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 
 const F = (x: number): string => (Number.isInteger(x) ? x.toFixed(1) : String(x));
-const L = CEL_STYLE.ORGAN.LIGHT, LN = Math.hypot(L[0], L[1], L[2]);
+const L = CEL_LIGHT_UNIT;
 
 export const MICRO_VS = /* glsl */ `
 uniform float inflate;
@@ -43,7 +45,7 @@ void main() {
 #ifdef USE_INSTANCING_COLOR
   vC *= instanceColor;
 #endif
-  vN = normalize(normalMatrix * n);
+  vN = normalize(mat3(modelMatrix) * n);   // the normal in WORLD axes: the light is fixed in the world, not on the screen
   vHy = p.y;
 #ifdef STREAKS
   vP = p; vAux = aux;
@@ -92,14 +94,12 @@ void main() {
   if (fadedOut()) discard;
   vec3 n = normalize(vN);
   if (!gl_FrontFacing) n = -n;
-  // the light is the organs' own, fixed to the SCREEN (view space): upper left, toward the viewer
-  float s = dot(n, vec3(${F(L[0] / LN)}, ${F(L[1] / LN)}, ${F(L[2] / LN)}));
+  // the world light (CEL_STYLE.LIGHT): n.L with n in world axes. TWO tones: the base, and the shade below the step
+  float s = dot(n, vec3(${F(L[0])}, ${F(L[1])}, ${F(L[2])}));
   float w = max(fwidth(s) * 0.75, 1e-3);
-  float shadeT = 1.0 - smoothstep(${F(CEL_STYLE.ORGAN.SHADE_LAM)} - w, ${F(CEL_STYLE.ORGAN.SHADE_LAM)} + w, s);
-  float litT = smoothstep(${F(CEL_STYLE.ORGAN.LIT_LAM)} - w, ${F(CEL_STYLE.ORGAN.LIT_LAM)} + w, s);
+  float shadeT = 1.0 - smoothstep(${F(CEL_STYLE.VESSEL_STEP_AT)} - w, ${F(CEL_STYLE.VESSEL_STEP_AT)} + w, s);
   vec3 c = tint * vC;
   c *= 1.0 - ${F(CEL_STYLE.MICRO.SHADE)} * shadeT;
-  c = mix(c, vec3(1.0), ${F(CEL_STYLE.MICRO.LIT)} * litT);
 #ifdef STREAKS
   c = mix(c, uStreakCol, uStreak * streaks());
 #endif

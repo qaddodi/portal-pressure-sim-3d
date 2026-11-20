@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Color } from 'three';
-import { CASING, CASING_2D, CEL, RIM_A, TAPER_TO, celSpec, celTones, inkTaper, inkWidthDev } from '../src/scene/vessels/cel-ink.ts';
+import { CASING, CASING_2D, CEL, RIM_A, TAPER_TO, celTones, litMeasure, inkTaper, inkWidthDev } from '../src/scene/vessels/cel-ink.ts';
 import { CEL_STYLE } from '../src/scene/cel-style.ts';
 import { CEL_TUBE_GLSL, glslNum as F } from '../src/scene/cel-glsl.ts';
 import { LOOK_IDS, PALETTES } from '../src/scene/palette.ts';
@@ -22,29 +22,31 @@ test('the outline is LINE_R of the radius held between LINE_MIN and LINE_MAX dev
   assert.match(VESSEL_VS, INK_RE);
 });
 
-test('three tones lit from the top left of the screen: shadow on the far side, lift on the near, nothing on a hairline, and the same wherever the tube lies in the view', () => {
-  const side: [number, number] = [1, 0];                     // a vertical tube: its cross axis points right
-  const lit = celTones(-1, side, 20), dark = celTones(1, side, 20), mid = celTones(0, side, 20);
-  assert.ok(Math.abs(mid.mul - 1) < 1e-9 && mid.lift === 0, 'the middle is the plain fill');
-  assert.ok(Math.abs(dark.mul - (1 - CEL.SHADE)) < 1e-9, 'the right side, away from the light, is the shadow tone');
-  assert.ok(Math.abs(lit.lift - CEL_STYLE.TUBE.LIT_K) < 1e-9 && lit.mul === 1, 'the left side, toward the light, is lifted');
-  const hair = celTones(1, side, 1);
-  assert.equal(hair.mul, 1); assert.equal(hair.lift, 0);
-  // the tone steps depend on the screen only: a tube the other way round (cross axis flipped, across flipped) is the same picture
-  const a = celTones(0.7, side, 20), b = celTones(-0.7, [-1, 0], 20);
-  assert.equal(a.mul, b.mul); assert.equal(a.lift, b.lift);
+test('two tones lit by the world light: the shade below the step, the base above it, nothing on a hairline, and the same wherever the camera is', () => {
+  const sw = 1 / 20, step = CEL_STYLE.VESSEL_STEP_AT;
+  assert.equal(celTones(step + 0.3, sw, 20).mul, 1, 'toward the light: the plain fill (no lift)');
+  assert.ok(Math.abs(celTones(step - 0.3, sw, 20).mul - (1 - CEL.SHADE)) < 1e-9, 'away from the light: the shadow tone');
+  assert.equal(celTones(-1, sw, 1).mul, 1, 'a hairline has one tone');
+  // the measure is n.L of a world normal: a normal facing the light is lit, the one facing away is shade, and the camera is not an input at all
+  const L = CEL_STYLE.LIGHT, l = Math.hypot(...L);
+  assert.ok(Math.abs(litMeasure([L[0] / l, L[1] / l, L[2] / l]) - 1) < 1e-9);
+  assert.ok(Math.abs(litMeasure([-L[0] / l, -L[1] / l, -L[2] / l]) + 1) < 1e-9);
+  assert.ok(celTones(litMeasure([-L[0], -L[1], -L[2]]), sw, 20).mul < 1);
 });
 
-test('the shader holds the same numbers, and has no specular and no world-lit band on a vessel', () => {
+test('the shader holds the same numbers, and has no specular, no rim, no wall line and no world-lit band on a vessel', () => {
   assert.ok(VESSEL_FS.includes(CEL_TUBE_GLSL), 'the tones are the one shared GLSL, written from CEL_STYLE');
-  for (const n of [`vec2(${F(CEL_STYLE.DIR[0])}, ${F(CEL_STYLE.DIR[1])})`, `${F(CEL_STYLE.SHADE_AT)} - et`, `${F(CEL_STYLE.LIT_AT)} - et`, `b * (1.0 - ${F(CEL_STYLE.SHADE)})`, `b * (1.0 + ${F(CEL_STYLE.TUBE.LIT_K)})`]) assert.ok(CEL_TUBE_GLSL.includes(n), n);
-  assert.match(VESSEL_FS, /celTubeTone\(base, across, kT, rDev\)/);
-  assert.match(VESSEL_FS, /celTubeSpec\(/, 'the one hard highlight');
+  for (const n of [`${F(CEL_STYLE.VESSEL_STEP_AT)} - et`, `b * (1.0 - ${F(CEL_STYLE.SHADE)})`]) assert.ok(CEL_TUBE_GLSL.includes(n), n);
+  assert.doesNotMatch(CEL_TUBE_GLSL, /celTubeSpec|LIT_AT|window/, 'no highlight, no third band, no lumen window');
+  assert.match(VESSEL_FS, /celTubeTone\(base, sT, fwidth\(sT\), rDev\)/);
+  assert.match(VESSEL_FS, /float sT = dot\(n, celLightView\(\)\)/, 'lit by the world light');
+  assert.doesNotMatch(VESSEL_FS, /celTubeSpec|rimLight|wallT|fresnel|FAR_WALL|NEAR_WALL/, 'matte: no highlight, no rim light, no wall pass');
   assert.ok(!/sp \* 0\.32/.test(VESSEL_FS) && !/rim \* 0\.10/.test(VESSEL_FS), 'no old specular dot and no rim lift');
   assert.match(VESSEL_FS, /if \(smokeOn > 0\.5 &&/, 'the smoke is gated');
   assert.match(VESSEL_FS, /dk = 1\.0 - step\(0\.19/, 'a head is one flat tone, not a grey halfway');
   assert.match(VESSEL_FS, /vec3 rimc = vec3\(0\.2314, 0\.1725, 0\.1333\);/, 'the head\'s outline is always dark');
   assert.ok(!/dot\(n, l\) \* 0\.5/.test(VESSEL_FS), 'no world-lit bands');
+  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, 1\.0\);/, 'opaque: alpha 1');
 });
 
 test('every look wears 2D\'s casing: its ink and alpha (the dark look\'s own in the Circuit, by its share, not by a lens being on), a veiled vessel half, and the dark looks\' light rim', () => {
@@ -66,23 +68,23 @@ test('every look wears 2D\'s casing: its ink and alpha (the dark look\'s own in 
     assert.ok(Math.abs(c.r - CASING[id].rgb[0] / 255) < 1e-6 && Math.abs(c.b - CASING[id].rgb[2] / 255) < 1e-6, `${id} ink`);
   }
   assert.doesNotMatch(VESSEL_FS, /ca \*= 0\.5;/, 'the ink is whole behind an organ too');
-  assert.match(VESSEL_FS, new RegExp(`max\\(veilA, ${F(CEL_STYLE.TUBE.VEIL_FLOOR).replace('.', '\\.')}\\)`), 'a veiled vessel keeps its colour');
+  assert.doesNotMatch(VESSEL_FS, /veilA|VEIL_A/, 'a veiled vessel (the cava) is whole: no alpha');
   s.dispose();
 });
 
-test('a vessel is three draws of its tube: the far wall (opaque), the near wall (blended, writes depth so the ink never lands on the lumen), then the ink (blended): one set of uniforms, the body\'s index range twice and the hull\'s once', () => {
+test('a vessel is two draws of one opaque matte tube: the body (opaque, no alpha, no near-wall pass), then the ink (opaque too, one outline per pixel): one set of uniforms, the body\'s index range once and the hull\'s once', () => {
   const s = new CelScene();
   const o = s.vesselObject('PV_TRUNK')!;
   const mats = o.toonMesh.material as unknown as { transparent: boolean; depthWrite: boolean; uniforms: unknown; defines: Record<string, string>; stencilRef: number; stencilFuncMask: number; stencilWriteMask: number }[];
-  assert.equal(mats.length, 3);
-  const [far, near, hull] = mats as [typeof mats[0], typeof mats[0], typeof mats[0]];
-  assert.ok('FAR_WALL' in far.defines && far.transparent === false, 'the far wall is opaque');
-  assert.ok('NEAR_WALL' in near.defines && near.transparent === true && near.depthWrite === true, 'the near wall is blended and writes depth, so the ink (drawn after it) fails the depth test over the lumen');
-  assert.equal(hull.transparent, true); assert.equal(hull.depthWrite, false);
-  assert.equal(far.uniforms, hull.uniforms, 'one set of uniforms'); assert.equal(far.uniforms, near.uniforms);
-  assert.ok(near.stencilRef === 2 && near.stencilFuncMask === 2 && near.stencilWriteMask === 2 && hull.stencilRef === 1 && hull.stencilFuncMask === 1 && hull.stencilWriteMask === 1, 'two stencil bits: one near wall and one outline per pixel');
+  assert.equal(mats.length, 2);
+  const [body, hull] = mats as [typeof mats[0], typeof mats[0]];
+  assert.ok(!('FAR_WALL' in body.defines) && !('NEAR_WALL' in body.defines), 'no far/near wall split');
+  assert.equal(body.transparent, false, 'the body is opaque'); assert.equal(body.depthWrite, true);
+  assert.equal(hull.transparent, false, 'the outline is solid ink'); assert.equal(hull.depthWrite, false);
+  assert.equal(body.uniforms, hull.uniforms, 'one set of uniforms');
+  assert.ok(hull.stencilRef === 1 && hull.stencilFuncMask === 1 && hull.stencilWriteMask === 1, 'one outline per pixel');
   const g = o.toonMesh.geometry, n = g.getIndex()!.count;
-  assert.deepEqual(g.groups.map((x) => [x.start, x.count, x.materialIndex]), [[0, n / 2, 0], [0, n / 2, 1], [n / 2, n / 2, 2]], 'the near wall is drawn before the ink');
+  assert.deepEqual(g.groups.map((x) => [x.start, x.count, x.materialIndex]), [[0, n / 2, 0], [n / 2, n / 2, 1]]);
   s.dispose();
 });
 
@@ -110,9 +112,9 @@ test('one outline round the union: the hull marks the stencil once per pixel, th
   const s = new CelScene();
   const o = s.vesselObject('PV_TRUNK')!;
   const mats = (o.toonMesh.material as import('three').ShaderMaterial[]);
-  const hull = mats[2]!;
+  const hull = mats[1]!;
   assert.ok(hull.stencilWrite && hull.stencilRef === 1 && hull.stencilFunc === NotEqualStencilFunc && hull.stencilZPass === ReplaceStencilOp, 'the hull inks a pixel once');
-  assert.ok(!mats[0]!.stencilWrite, 'the far wall does not touch the stencil');
+  assert.ok(!mats[0]!.stencilWrite, 'the body does not touch the stencil');
   const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
   assert.match(read('../src/scene/Stage.tsx'), /stencil: true/);
   assert.match(read('../src/scene/scene.ts'), /gl\.clearDepth\(\); gl\.clearStencil\(\)/);
@@ -131,68 +133,30 @@ test('a strand has the tube tones, so a varix beside its vein shades as the vein
   s.dispose();
 });
 
-// ---- true cel across a tube: exactly three flat tones, and one small hard highlight ----
-const SIDES: [number, number][] = [[1, 0], [-1, 0], [0.8, 0.6], [0.6, -0.8], [-0.6, 0.8]];   // cross axes within 45 degrees of the light's cross reach all three tones; the others fewer
-
-test('across a tube there are exactly three flat tones: a hard step at SHADE_AT and LIT_AT, nothing in between but the edge, and nothing graded', () => {
-  const rDev = 20, N = 4000, edgeAcross = 0.5 * CEL_STYLE.EDGE_PX / rDev * 2;   // the edge's width across the tube, in `across` units
-  const side: [number, number] = [1, 0];   // a vertical tube: its cross axis points right (to the light's cross: all three tones)
+// ---- true cel across a tube: exactly two flat tones, matte, no highlight ----
+test('over the whole range of n.L there are exactly two flat tones: one hard step at VESSEL_STEP_AT, nothing in between but the edge, and nothing graded', () => {
+  assert.equal(CEL_STYLE.VESSEL_BANDS, 2); assert.equal(CEL_STYLE.BANDS, 3, 'organs and the lobule keep their three');
+  const rDev = 20, N = 4000, sw = 1 / rDev, edge = 0.5 * CEL_STYLE.EDGE_PX * sw * 2;   // the edge's width in the measure
   const tones = new Map<string, number>(); let between = 0;
-  for (let i = 0; i <= N; i++) {
-    const t = celTones(-1 + (2 * i) / N, side, rDev);
-    const key = `${t.mul.toFixed(6)}/${t.lift.toFixed(6)}`;
-    tones.set(key, (tones.get(key) ?? 0) + 1);
-  }
-  const pure = [...tones.entries()].filter(([k]) => ['1.000000/0.000000', `${(1 - CEL_STYLE.SHADE).toFixed(6)}/0.000000`, `1.000000/${CEL_STYLE.TUBE.LIT_K.toFixed(6)}`].includes(k));
-  assert.equal(pure.length, 3, 'shade, base and lit are all there');
-  for (const [k, n] of tones) if (!pure.some(([p]) => p === k)) between += n;
-  // what is not one of the three is the two edges: each EDGE_PX device px wide of a tube 2 x rDev px across
-  assert.ok(between / N <= (2 * edgeAcross) / 2 * 1.5 + 0.002, `edges are ${(100 * between / N).toFixed(2)} % of the width, EDGE_PX ${CEL_STYLE.EDGE_PX} px of ${2 * rDev} each`);
-  // the order across: the left (toward the light) is lit, the middle base, the right shade
-  assert.deepEqual([-0.95, 0, 0.9].map((a) => celTones(a, side, rDev)).map((t) => (t.lift > 0 ? 'lit' : t.mul < 1 ? 'shade' : 'base')), ['lit', 'base', 'shade']);
-  // the same for a diagonal tube: its three tones too (the lean), and none is a gradient
-  for (const sd of SIDES.filter(([x, y]) => Math.abs(x * CEL_STYLE.DIR[0] + y * CEL_STYLE.DIR[1]) >= 0.7)) {
-    const ks = new Set<string>();
-    for (let i = 0; i <= 400; i++) { const t = celTones(-1 + i / 200, sd, rDev); if (Math.abs(t.mul - 1) < 1e-9 || Math.abs(t.mul - (1 - CEL_STYLE.SHADE)) < 1e-9) ks.add(`${t.mul.toFixed(5)}/${t.lift.toFixed(5)}`); }
-    assert.ok(ks.size >= 2, `a tube ${sd} shows its tones`);
-  }
+  for (let i = 0; i <= N; i++) { const key = celTones(-1 + (2 * i) / N, sw, rDev).mul.toFixed(6); tones.set(key, (tones.get(key) ?? 0) + 1); }
+  const pure = [...tones.keys()].filter((k) => [(1).toFixed(6), (1 - CEL_STYLE.SHADE).toFixed(6)].includes(k));
+  assert.equal(pure.length, 2, 'shade and base are both there');
+  for (const [k, n] of tones) if (!pure.includes(k)) between += n;
+  assert.ok(between / N <= edge / 2 * 1.5 + 0.002, `the edge is ${(100 * between / N).toFixed(2)} % of the range`);
+  assert.ok(CEL_STYLE.VESSEL_STEP_AT > -0.2 && CEL_STYLE.VESSEL_STEP_AT < 0.5, 'a tube shows both tones for any light that is not behind it');
 });
 
-test('the tones follow the radius, never the position: a thin tube is all one tone, a wide one is three at full strength', () => {
-  const side: [number, number] = [1, 0];
-  for (const a of [-0.9, 0, 0.9]) { const t = celTones(a, side, CEL_STYLE.TONES_FROM - 0.01); assert.equal(t.mul, 1); assert.equal(t.lift, 0); }
-  assert.equal(celTones(0.9, side, CEL_STYLE.TONES_TO).mul, 1 - CEL_STYLE.SHADE);
-  assert.ok(Math.abs(celTones(-0.9, side, CEL_STYLE.TONES_TO).lift - CEL_STYLE.TUBE.LIT_K) < 1e-9);
+test('the tones follow the radius, never the position: a thin tube is all one tone, a wide one is two at full strength', () => {
+  for (const m of [-0.9, 0, 0.9]) assert.equal(celTones(m, 0.05, CEL_STYLE.TONES_FROM - 0.01).mul, 1);
+  assert.equal(celTones(-0.9, 0.05, CEL_STYLE.TONES_TO).mul, 1 - CEL_STYLE.SHADE);
 });
 
-test('the highlight is small, flat, hard-edged, on the lit side, absent on a hairline', () => {
-  const S = CEL_STYLE.SPEC, side: [number, number] = [1, 0], rDev = 20;
-  const at = (across: number, along = 0, r = rDev) => celSpec(across, side, r, along);
-  const aLit = -S.AT;   // the lit side of a vertical tube is its left
-  assert.equal(at(aLit), S.ALPHA, 'at the streak: ALPHA toward white, flat');
-  assert.equal(at(-aLit), 0, 'none on the shade side'); assert.equal(at(0), 0, 'none in the middle');
-  assert.equal(at(aLit, S.LEN + S.SIZE + 0.5), 0, 'a short streak: none further along than its length');
-  // hard: of 2000 samples across the tube, all but its two edges (EDGE_PX across each) are 0 or ALPHA exactly
-  let soft = 0; const N = 2000;
-  for (let i = 0; i < N; i++) { const v = at(-1 + (2 * i) / N); if (v !== 0 && v !== S.ALPHA) soft++; }
-  assert.ok(soft / N <= (2 * CEL_STYLE.EDGE_PX / (2 * rDev)) * 1.2, `${soft} of ${N} samples are in an edge (two edges, EDGE_PX across each, of ${2 * rDev} px)`);
-  // small: well under a quarter of the tube's width across, ALPHA stays a share
-  let width = 0; for (let i = 0; i < N; i++) if (at(-1 + (2 * i) / N) > 0) width++;
-  assert.ok(width / N < 0.25, `${(100 * width / N).toFixed(0)} % of the width`);
-  // hairlines: none under MIN_PX, whole from MIN_PX + 1
-  for (const r of [0.5, 1.5, S.MIN_PX - 0.01]) assert.equal(at(aLit, 0, r), 0, `radius ${r}`);
-  assert.equal(at(aLit, 0, S.MIN_PX + 1), S.ALPHA);
-  assert.ok(S.AT > CEL_STYLE.LIT_AT, 'it sits inside the lit band');
-  // the shader writes it from the style, fades with the radius and is skipped on a dotted collateral
-  assert.ok(CEL_TUBE_GLSL.includes(`smoothstep(${F(S.MIN_PX)}, ${F(S.MIN_PX + 1)}, rDev)`) && CEL_TUBE_GLSL.includes(F(S.ALPHA)));
-  assert.match(VESSEL_FS, /dotted > 0\.5 \? 0\.0 : 1\.0/);
-});
-
-test('nothing inside the tube but the three tones, the hard highlight and the flow heads: no soft rings, heads clipped inside the wall, no dot-sized heads', () => {
+test('nothing inside the tube but the two tones and the flow heads: no highlight, no soft rings, heads clipped inside the wall, no dot-sized heads', () => {
   assert.doesNotMatch(VESSEL_FS, /smoothstep\(0\.0, 1\.8 \* px/, 'a head\'s ring is a hard outline, not a halo');
   assert.match(VESSEL_FS, /abs\(across\)\)\);/, 'heads are cut inside the wall');
   assert.match(VESSEL_FS, /smoothstep\(5\.8 \* wpc, 7\.0 \* wpc, R\)/, 'a head needs a tube wide enough to read as one');
   assert.match(VESSEL_FS, /float hw = min\(0\.6 \* R/, 'a head and its ring stay inside the lumen');
+  assert.ok(!('SPEC' in CEL_STYLE), 'the style has no highlight');
 });
 
 // ---- saturated, deep, hue-kept: the vessels are never pale or washed out ----
@@ -210,15 +174,13 @@ test('a pale lens colour (the ramp\'s icy end) becomes a deeper, more saturated 
   }
 });
 
-test('the tones are hue-preserving lightness steps: the lit is lighter than the base but is not a mix to white, the shade is darker and as saturated or more', () => {
-  const base: [number, number, number] = [0.482, 0.631, 0.988], side: [number, number] = [1, 0], rDev = 20, b = celTubeBase(base);
-  const lit = celTubeColor(base, -0.95, side, rDev), mid = celTubeColor(base, 0, side, rDev), shade = celTubeColor(base, 0.9, side, rDev);
-  const k = 1 - CEL_STYLE.TUBE.LUMEN_DARK;
-  for (let i = 0; i < 3; i++) assert.ok(Math.abs(mid[i]! - b[i]! * k) < 1e-9, 'the middle is the saturated base seen through the wall (one darker step)');
-  assert.ok(lumA(lit) > lumA(mid) && lumA(shade) < lumA(b), 'lit over the wall, shade under the base');
-  assert.ok(chroma(lit) >= chroma(mid) - 1e-9, 'the lit tone does not wash toward white');
-  assert.ok(chroma(shade) / Math.max(...shade) >= chroma(mid) / Math.max(...mid) - 1e-9, 'the shade is a touch more saturated');
-  for (const c of [lit, shade]) assert.ok(Math.abs(hueOf(c) - hueOf(mid)) < 6, 'hue kept');
+test('the two tones are hue-preserving: the lit side is the saturated base, never a mix to white; the shade is darker and as saturated or more', () => {
+  const base: [number, number, number] = [0.482, 0.631, 0.988], sw = 0.05, rDev = 20, b = celTubeBase(base);
+  const lit = celTubeColor(base, 0.9, sw, rDev), shade = celTubeColor(base, -0.9, sw, rDev);
+  for (let i = 0; i < 3; i++) assert.ok(Math.abs(lit[i]! - b[i]!) < 1e-9, 'the lit side is the saturated base');
+  assert.ok(lumA(shade) < lumA(b), 'the shade is darker than the base');
+  assert.ok(chroma(shade) / Math.max(...shade) >= chroma(b) / Math.max(...b) - 1e-9, 'the shade is a touch more saturated');
+  assert.ok(Math.abs(hueOf(shade) - hueOf(b)) < 6, 'hue kept');
 });
 
 test('no pale halo: the vessel keeps no white inner rim, a veiled one keeps its colour, and the ink is whole', async () => {
@@ -226,7 +188,7 @@ test('no pale halo: the vessel keeps no white inner rim, a veiled one keeps its 
   const { Vector4 } = await import('three');
   const s = new CelScene(), o = s.vesselObject('PV_TRUNK')!;
   for (const id of LOOK_IDS) { o.applyPalette(PALETTES[id]); assert.equal((o.toon.uniforms.rimInk!.value as InstanceType<typeof Vector4>).w, 0, `${id}: no rim`); }
-  assert.equal(CEL_STYLE.TUBE.RIM_SHARE, 0); assert.ok(CEL_STYLE.TUBE.VEIL_FLOOR >= 0.6);
+  assert.equal(CEL_STYLE.TUBE.RIM_SHARE, 0);
   s.dispose();
 });
 
@@ -243,26 +205,18 @@ test('the outline is a soft dark of the vessel\'s own colour, never white or bla
   assert.ok(hw >= 3.4 && 1.6 * hw > hw, `smallest head half width ${hw}`);
 });
 
-test('see inside: across a wide tube the lumen is one flat darker step inside the wall, the wall keeps its three tones, a hairline has none, the outline and chevrons are unchanged', () => {
-  const side: [number, number] = [1, 0], rDev = 24, T = CEL_STYLE.TUBE, base: [number, number, number] = [0.5, 0.45, 0.9];
-  const b = celTubeBase(base), cols = new Map<string, number>(); let between = 0;
+test('over a wide tube there are exactly two flat colours, the edge between them thin; a hairline has one; the outline and chevrons are unchanged', () => {
+  const rDev = 24, sw = 1 / rDev, base: [number, number, number] = [0.5, 0.45, 0.9];
+  const b = celTubeBase(base), cols = new Map<string, number>();
   const N = 4000;
-  for (let i = 0; i <= N; i++) {
-    const a = -1 + (2 * i) / N, c = celTubeColor(base, a, side, rDev), key = c.map((v) => v.toFixed(5)).join(',');
-    cols.set(key, (cols.get(key) ?? 0) + 1);
-  }
-  // wall: shade, base, lit (3), lumen window: the three seen through it, each one flat step darker, so at most 3 + 3 plus the edges
+  for (let i = 0; i <= N; i++) { const c = celTubeColor(base, -1 + (2 * i) / N, sw, rDev), key = c.map((v) => v.toFixed(5)).join(','); cols.set(key, (cols.get(key) ?? 0) + 1); }
   const big = [...cols].filter(([, n]) => n > N * 0.01);
-  assert.ok(big.length <= 5 && big.length >= 4, `${big.length} flat tones (the wall's three, the lumen's darker steps)`);
-  between = [...cols].filter(([, n]) => n <= N * 0.01).reduce((t, [, n]) => t + n, 0);
-  assert.ok(between / N < 0.06, `edges only: ${(100 * between / N).toFixed(1)} %`);
-  const inside = celTubeColor(base, 0, side, rDev), wall = celTubeColor(base, 0.8, side, rDev);
-  assert.ok(lumA(inside) < lumA(b) - 1e-6 && Math.abs(lumA(inside) / lumA(b) - (1 - T.LUMEN_DARK)) < 1e-6, 'the lumen is one step darker than the base');
-  assert.ok(lumA(wall) < lumA(b), 'the wall on the shade side is its shade tone');
-  for (const a of [-0.3, 0, 0.3]) assert.ok(Math.abs(hueOf(celTubeColor(base, a, side, rDev)) - hueOf(b)) < 6, 'same hue');
-  const hair = celTubeColor(base, 0, side, TONES_HAIR); assert.deepEqual(hair, celTubeBase(base), 'a hairline is its saturated base, no window');
-  assert.ok(T.LUMEN_W > 0.3 && T.LUMEN_W < CEL_STYLE.SPEC.AT, 'the window is inside the wall rim and the highlight sits on the rim');
-  assert.match(CEL_TUBE_GLSL, /float window = 1\.0 - smoothstep\(/);
+  assert.equal(big.length, 2, `${big.length} flat colours`);
+  const between = [...cols].filter(([, n]) => n <= N * 0.01).reduce((t, [, n]) => t + n, 0);
+  assert.ok(between / N < 0.04, `edge only: ${(100 * between / N).toFixed(1)} %`);
+  assert.ok(lumA(celTubeColor(base, -0.8, sw, rDev)) < lumA(b), 'the far side is the shade');
+  assert.deepEqual(celTubeColor(base, -0.8, sw, TONES_HAIR), celTubeBase(base), 'a hairline is its saturated base');
+  assert.doesNotMatch(CEL_TUBE_GLSL, /window/, 'no lumen window');
 });
 const TONES_HAIR = CEL_STYLE.TONES_FROM - 0.01;
 
@@ -271,5 +225,5 @@ test('the cava\'s one-layer veil is not left to the odds of a depth tie: the dep
   const src = readFileSync(new URL('../src/scene/vessels/vessel-object.ts', import.meta.url), 'utf8');
   const m = /colorWrite: false, depthWrite: true, polygonOffset: true, polygonOffsetFactor: (\d+), polygonOffsetUnits: (\d+)/.exec(src);
   assert.ok(m && Number(m[1]) >= 2 && Number(m[2]) >= 4, 'factor and units');
-  assert.match(src, /geo\.addGroup\(0, half, 0\); geo\.addGroup\(0, half, 1\); geo\.addGroup\(half, half, 2\)/, 'the near wall before the ink');
+  assert.match(src, /geo\.addGroup\(0, half, 0\); geo\.addGroup\(half, half, 1\)/, 'the body, then the ink');
 });

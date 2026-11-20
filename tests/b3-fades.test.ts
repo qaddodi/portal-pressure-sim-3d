@@ -32,14 +32,14 @@ test('the veins that run on out of the plate fade out down it', () => {
   assert.ok(d.a0 === 1 && d.a1 === 0 && d.from !== d.to);
 });
 
-test('the vessels that have a free end in the 2D figure all have a fade in the scene, and are blended', () => {
+test('the vessels that have a free end in the 2D figure all have a fade in the scene, and stay OPAQUE (the tube thins, never goes see-through)', () => {
   const s = new CelScene();
   const faded = NETWORK.filter((v) => !v.feeder && fadeOf(v.id, v.tone === 'artery'));
   assert.ok(faded.length >= 9);
   for (const v of faded) {
     const o = s.vesselObject(v.id)!;
     assert.equal(o.toon.uniforms.fadeMode!.value > 0, true, v.id);
-    assert.equal(o.toon.transparent, true, v.id);
+    assert.equal(o.toon.transparent, false, v.id);
   }
   // a vessel with no fade stays opaque
   assert.equal(s.vesselObject('PV_TRUNK')!.toon.transparent, false);
@@ -48,7 +48,7 @@ test('the vessels that have a free end in the 2D figure all have a fade in the s
 });
 
 test('the shader carries the fade into both the body and the ink, and lets go of it in the Circuit', () => {
-  assert.match(VESSEL_VS, /vFade = fa;/);
+  assert.match(VESSEL_VS, /swell \*= mix\([0-9.]+, 1\.0, fa\);/, 'a fade thins the tube');
   assert.match(VESSEL_VS, /fa = mix\(fa, 1\.0, circT\)/, "the Circuit lets go of every fade, the artery's too: no vessel is faint on the map");
-  assert.equal((VESSEL_FS.match(/VEIL_A \* vFade/g) ?? []).length, 3, "the ink, the near wall and the far wall");
+  assert.doesNotMatch(VESSEL_FS, /vFade/, 'a fade is never an alpha');
 });
