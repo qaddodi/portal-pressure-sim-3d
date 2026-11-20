@@ -21,16 +21,21 @@ try { const m = await import(parserName); parse = (s) => m.parser.parse(s, { qui
 const VARIX_PICK = { scenario: 'varix', look: 'dark', density: 1700, maxN: 12000, size: 1.4, sizeVar: 0.4, soft: 1, opacity: 0.75, opVar: 0.5, stretch: 0.2, lenK: 0.31, feather: 0.95, ring: 0.1, twinkle: 0, depthSize: 0, depthDim: 0.2, hueSpread: 40, lightSpread: 0.3, lightBias: 0.06, satShift: 0, steps: 0, sourceTint: 0.5, warm: 0.35, speed: 44, uMax: 5, uMin: 0.25, flat: 0.5, pulse: 0, pulseHz: 1.2, radExp: 0.5, rhoMax: 0.95, sev: 0.38, bulb: 0.75, turb: 1, swirl: 1.9, pitch: 46, wobble: 0.8, turbFreq: 1, turbSpeed: 1, rhoJit: 1, shrink: 1, radius: 5.5, inkW: 1.7, chevSize: 1, chevPitch: 58, tiltY: -25, tiltX: 4, zoom: 1.9, colorBy: 'random', partColor: 'auto', vel: 'local', vessel: 'blue', bgMode: 'custom', partHex: '#9ec4ff', vesselHex: '#5f8fe8', bgHex: '#eaddc3', chevOn: true, hull: true };
 const STENOSIS_PICK = { scenario: 'stenosis', look: 'light', density: 1400, maxN: 14000, size: 1.5, sizeVar: 0.35, soft: 0.75, opacity: 0.7, opVar: 0.5, stretch: 1, lenK: 0.18, feather: 1, ring: 0, twinkle: 0, depthSize: 0, depthDim: 0.5, hueSpread: 40, lightSpread: 0.3, lightBias: 0.06, satShift: 0, steps: 0, sourceTint: 0.5, warm: 0.35, speed: 44, uMax: 5, uMin: 0.25, flat: 0.5, pulse: 0, pulseHz: 1.2, radExp: 0.5, rhoMax: 0.8, sev: 0.55, bulb: 1, turb: 1, swirl: 1.9, pitch: 46, wobble: 0.8, turbFreq: 1, turbSpeed: 1, rhoJit: 1, shrink: 1, radius: 5.5, inkW: 1.7, chevSize: 1, chevPitch: 58, tiltY: -14, tiltX: 8, zoom: 1, colorBy: 'random', partColor: 'auto', vel: 'local', vessel: 'blue', bgMode: 'look', partHex: '#9ec4ff', vesselHex: '#5f8fe8', bgHex: '#e6dbc5', chevOn: true, hull: true };
 
-test('the defaults are his stenosis pick and the presets his two picks, key for key (what he pasted, 20 Nov)', () => {
+// What Mohammad pasted at 15:53 UTC, 20 Nov, word for word: "I like those particles; make them default".
+const LATEST_PICK = { density: 2400, size: 1, sizeVar: 0.35, soft: 0.4, opacity: 1, opVar: 0.5, stretch: 1, lenK: 0.33, feather: 1, ring: 0, twinkle: 0, depthSize: 0, depthDim: 0.5, hueSpread: 24, lightSpread: 0.3, lightBias: 0.06, satShift: 0, steps: 0, warm: 0.35, speed: 44, uMax: 4.5, uMin: 0.3, flat: 0.5, radExp: 0.5, rhoMax: 0.8, turb: 1, swirl: 1.6, pitch: 60, wobble: 0.8, turbFreq: 1, turbSpeed: 1, rhoJit: 1, shrink: 0.5, budget: 0, colorBy: 'random', partColor: 'auto', vel: 'local', partHex: '#9ec4ff' };
+
+test('the defaults are his latest pick, key for key, and the presets keep his two earlier picks (what he pasted, 20 Nov)', () => {
   const d = dustDefaults();
-  for (const [k, v] of Object.entries(STENOSIS_PICK)) if (!LAB_ONLY.has(k)) assert.equal(d[k], v, `default ${k}`);
-  assert.deepEqual(parseDust(JSON.stringify(STENOSIS_PICK)), { ...d, budget: 0 }, 'the lab\'s paste applies and changes nothing: it is the default');
-  const varix = parseDust(JSON.stringify(VARIX_PICK));
-  for (const [k, v] of Object.entries(VARIX_PICK)) if (!LAB_ONLY.has(k)) assert.equal(varix[k], v, `varix ${k}`);
-  const preset = { ...d, ...DUST_PRESETS[1]![1] };
-  for (const k of Object.keys(DUST_PRESETS[1]![1])) assert.equal(preset[k], varix[k], `the varix preset's ${k}`);
-  assert.deepEqual(preset, varix, 'the preset IS the varix pick');
-  assert.match(DUST_PRESETS[0]![0], /stenosis/i); assert.match(DUST_PRESETS[1]![0], /varix/i);
+  for (const [k, v] of Object.entries(LATEST_PICK)) assert.equal(d[k], v, `default ${k}`);
+  assert.deepEqual(parseDust(JSON.stringify(LATEST_PICK)), d, 'the paste applies and changes nothing: it is the default');
+  assert.deepEqual(DUST_PRESETS[0]![1], {}, 'the first preset is the default');
+  for (const [i, pick] of [[1, STENOSIS_PICK], [2, VARIX_PICK]] as const) {
+    const pasted = parseDust(JSON.stringify(pick));
+    for (const [k, v] of Object.entries(pick)) if (!LAB_ONLY.has(k)) assert.equal(pasted[k], v, `pick ${i} ${k}`);
+    const preset = { ...d, ...DUST_PRESETS[i]![1] };
+    for (const k of Object.keys(pick)) if (!LAB_ONLY.has(k) && k !== 'maxN') assert.equal(preset[k], pasted[k], `preset ${i}'s ${k}`);
+  }
+  assert.match(DUST_PRESETS[0]![0], /default/i); assert.match(DUST_PRESETS[1]![0], /stenosis/i); assert.match(DUST_PRESETS[2]![0], /varix/i);
 });
 
 test('every row is in range with a step that lands on its default; the clamp, the selects and the colour hold; lab-only keys are read and skipped; bad text says why', () => {
@@ -81,7 +86,7 @@ test('adaptive (the iPhone\'s count is not measured yet): a phone carries fewer 
   // a dot needs a finer grid than a streak for the same samples (the grid is as fine as the budget allows for the longest mark)
   const dots = dustDerive({ ...base, stretch: 0 }, w, [0, 0, 0], { phone: false, devicePixels: 4.5e6 });
   assert.ok(dots.cellP < mac.cellP / 3, 'the dot grid is much finer');
-  assert.ok(mac.densK > 0.5 && mac.densK < 1, 'Density thins the grid from its full 2400: the default leaves headroom both ways');
+  assert.ok(mac.densK > 0.5 && mac.densK <= 1, 'Density thins the grid from its full 2400: his pick is the full grid');
 });
 
 test('the swirl\'s phase is a closed form: the end ramp\'s integral equals its numeric integral, on long and on short vessels', () => {
@@ -205,4 +210,19 @@ test('THE ROUTE (Mohammad, 20 Nov: "the particles should cross at the junction, 
   const { StreamChain } = await import('../src/scene/blood/chain.ts');
   assert.match(read('../src/scene/blood/chain.ts'), /d\[o2 \+ 3\] = RADIUS\[c\.root\[i\]!\] \?\? 0;/);
   assert.ok(StreamChain, 'the chain');
+});
+
+test('the Blood menu has the streaks switch under Moving blood, in the chevrons\' own row, on the one setting (Mohammad, 20 Nov), and the dust eases in and out', async () => {
+  const { STREAKS_ROW, DEPTH_ROWS } = await import('../src/ui/settings/depth-rows.ts');
+  const menu = read('../src/ui/shell/FigureMenu.tsx');
+  assert.equal(STREAKS_ROW.key, 'particles');
+  assert.equal(STREAKS_ROW.label, 'Blood streaks');
+  assert.ok(STREAKS_ROW.hint.length > 10 && STREAKS_ROW.hint.length < 48, 'one short caption');
+  assert.ok(DEPTH_ROWS.some((r) => r.key === STREAKS_ROW.key), 'Settings keeps its row: the same setting, so the two agree');
+  assert.match(menu, /kind === 'blood' && sec === 'Moving blood' && <StreaksSwitch \/>/, 'under the chevrons, in Moving blood');
+  assert.match(menu, /role="switch" className="sh-row" aria-checked=\{on\} onClick=\{\(\) => useSettings\.getState\(\)\.set\(STREAKS_ROW\.key, !on\)\}/, 'the chevrons\' row: icon, title, switch, caption');
+  assert.match(menu, /<Icon n=\{STREAKS_ROW\.icon\} \/><span className="sh-t">\{STREAKS_ROW\.label\}<\/span><span className="sh-sw" aria-hidden="true" \/><span className="sh-d">/);
+  assert.match(read('../src/ui/shell/icons.tsx'), /\bdust: 'M/, 'the icon exists');
+  assert.match(read('../src/scene/blood/cells/cells.ts'), /this\.amount = easeAmount\(this\.amount, goal, dtMs, FADE_MS\)/, 'the amount that scales the dust eases');
+  assert.match(read('../src/scene/blood/cells/cells.ts'), /streakAmt\.value = drawn \? this\.amount/, 'and is what the vessels read');
 });
