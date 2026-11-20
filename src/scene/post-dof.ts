@@ -51,8 +51,8 @@ export function dofShare(view: 'body' | 'circuit' | 'lobule' | 'sinusoid', d: nu
 export const DOF_MAX_FRAC = 0.005, DOF_SPAN = 0.35;
 /** The half thickness kept sharp either side of the focus (scene units): the lobule's slab with a margin for its vessels, and the sinusoid's own. */
 export const DOF_SLAB_LOBULE = 0.75 * LOBULE_T * LOBULE_SCALE, DOF_SLAB_SINUSOID = 1.0 * SIN_SCALE;
-/** The focus band's biggest circle, as a share of the picture's height (1%: about 17 px on an iPhone's 1688 px). */
-export const DOF_BAND_FRAC = 0.01;
+/** The focus band's biggest circle, as a share of the picture's height (1.4%: about 24 px on an iPhone's 1688 px). */
+export const DOF_BAND_FRAC = 0.014;
 /** The taps of the gather. */
 export const DOF_TAPS = 10;
 

@@ -126,3 +126,14 @@ test('the lobule\'s vessels are inked as the Anatomy\'s (a deep tone of their ow
 test('the plate reaches past every portal tract\'s whole scar (it was cut off at the hexagon)', () => {
   assert.ok(PLATE_BOX >= 1 + 0.1 * 1.7 * 1.08 + 0.02);
 });
+
+test('the marks (the periportal scar) and the vessels draw after the see-through field of neighbour lobules, so the scar is never cut off at the hexagon', () => {
+  const sh = createShared(), lv = new LobuleView(sh), l = new Lobule3D(lv, sh);
+  let marks: import('three').Mesh | null = null, field: import('three').Mesh | null = null;
+  l.group.traverse((o) => { if (o.name === 'lobule3d/marks') marks = o as import('three').Mesh; });
+  lv.group.traverse((o) => { if (o.name === 'lobule/field') field = o as import('three').Mesh; });
+  const m = marks as unknown as import('three').Mesh, f = field as unknown as import('three').Mesh | null;
+  assert.ok((m.material as import('three').Material).transparent, 'in the see-through list');
+  if (f) assert.ok(m.renderOrder > f.renderOrder, 'after the field');
+  l.group.traverse((o) => { if (o.name.startsWith('lobule3d/sinusoids-0') && (o as import('three').Mesh).isMesh) { assert.ok(o.renderOrder > m.renderOrder); assert.ok(((o as import('three').Mesh).material as import('three').Material).depthWrite); } });
+});

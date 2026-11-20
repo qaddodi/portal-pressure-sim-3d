@@ -35,7 +35,7 @@ const LIFT = 8;
 /** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), the lymph streaks' pace against the lymph's own run, and the haze: how far out it takes to be whole (µm) and how deep it goes. */
 const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_RUN = 8, HAZE_K = 0.45;
 /** The focus band's run (µm past the haze's start) to a whole blur (post-dof.ts bandFrame): the next lumen soft, the plate past it gone. The haze is lighter with the blur, so the neighbours' disease still shows. */
-const BLUR_RUN = 14;
+const BLUR_RUN = 9;
 /** Red cells in this sinusoid's lumen, and in each of the two next ones (beyond the plates). */
 const RBC_N = 34, RBC_FAR = 14, RBC_R = 1.05;
 
@@ -203,7 +203,7 @@ export class Sinusoid3D {
   focusBand(a: Vector3, b: Vector3, e0: Vector3, e1: Vector3): number {
     if (!this.on || !this.group.visible) return 0;
     this.group.updateWorldMatrix(true, false);
-    const y0 = this.flat.g.hepIn(0) + UM.hep * 0.6, w = (v: Vector3, x: number, y: number) => this.group.localToWorld(v.set(x, y, 0));
+    const y0 = this.flat.g.hepIn(0) + UM.hep * 0.45, w = (v: Vector3, x: number, y: number) => this.group.localToWorld(v.set(x, y, 0));
     w(a, -20, 0); w(b, 20, 0); w(e0, 0, y0); w(e1, 0, y0 + BLUR_RUN);
     return this.fade.value;
   }
@@ -398,7 +398,7 @@ export class Sinusoid3D {
       }
       ellipsoid(bn, x0, Y(mid(x0) - 0.4 * a), Z.disse + 1.25 + 0.25 * a, 2.1, 0.75 * (1 + 0.3 * a), 0.85, 0, undefined, 16, 8);
       // one in each neighbour's Disse too (the next Disse past each plate), activated as this one is, a little smaller, away from this one along the flow
-      for (const [s, xo] of [[-1, 47], [1, -61]] as [Side, number][]) {
+      for (const [s, xo] of [[-1, 21], [1, -27]] as [Side, number][]) {
         const xf = x0 + xo, sc = 0.8, farMid = (x: number) => s * (g.hepIn(x) + UM.hep + UM.disse * 0.5);
         ellipsoid(b, xf, Y(farMid(xf)), Z.disse + 0.9, body * sc, thick * sc, (1.1 + 0.3 * a) * sc, 0, undefined, 22, 10);
         for (const dir of [-1, 1]) {
@@ -448,8 +448,8 @@ export class Sinusoid3D {
         if (n >= this.fibres.capacity) break;
         const k = (row + 0.5) / 2, h = hash(x * 5 + row * 23 + (s > 0 ? 11 : 3));
         const xc = x + 4 * h, base = g.hepIn(xc) + UM.hep, yd = s * lerp(base + 0.4, base + UM.disse - 0.4, k);
-        placeAt(this.m4, xc, Y(yd), Z.disse + 0.25 + 0.15 * row, 4.5 + 3 * h, 0.12 + 0.16 * col, 0.12 + 0.16 * col, 0.08 * (h - 0.5));
-        if (h < col * 0.85) this.fibres.setAt(n++, this.m4);
+        placeAt(this.m4, xc, Y(yd), Z.disse + 0.25 + 0.15 * row, 4.5 + 3 * h, 0.14 + 0.2 * col, 0.14 + 0.2 * col, 0.08 * (h - 0.5));
+        if (h < col) this.fibres.setAt(n++, this.m4);
       }
       this.fibres.commit(n);
     }
