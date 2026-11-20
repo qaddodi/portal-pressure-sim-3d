@@ -18,7 +18,7 @@ import { DISC_GLSL, DISC_LINE } from './from2d/disc-glsl.generated.js';
 import { CEL } from '../vessels/cel-ink.ts';
 import { BILE_HEADS, CHEV_FLIP, CHEV_GLSL, CHEV_ORANGE_GLSL, CHEV_PITCH_GLSL, LYMPH_INK, LY_OCT, LY_PITCH } from './from2d/chevron.generated.js';
 import { LOBULE_R } from './shots.ts';
-import { CEL_TUBE_GLSL } from '../cel-glsl.ts';
+import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../cel-glsl.ts';
 
 /** `text` with `from` replaced by `to`; `from` must be there, once (a change in the shared shader that moves an anchor fails here, in node, not on a phone). */
 function patch(text: string, from: string, to: string): string {
@@ -153,6 +153,7 @@ const FS_HEADS = /* glsl */ `
 `;
 const FS_DECL = /* glsl */ `
 ${CEL_TUBE_GLSL}
+${CEL_LIGHT_GLSL}
 varying float vRdev;
 ${HEADS_DECL}
 #ifdef DISC
@@ -181,12 +182,9 @@ const FS_TONES = /* glsl */ `
 #else
 #ifndef FLATFILL
   {
-    vec3 sideT = normalize(cross(normalize(vT), normalize(vV)));
-    float acrossT = dot(n, sideT);
-    vec2 sideS = sideT.xy;
-    float sl = length(sideS);
-    sideS = sl > 1e-4 ? sideS / sl : vec2(1.0, 0.0);
-    c = celTubeTone(c, acrossT, celTubeK(sideS), vRdev);   // (the figure's one tube GLSL: three flat tones, a hard edge)
+    float sT = dot(n, celLightView());
+    float sTw = fwidth(sT);
+    c = celTubeTone(c, sT, sTw, vRdev);   // (the figure's one tube GLSL: two flat tones lit by the world light, a hard edge)
   }
 #endif
 #endif

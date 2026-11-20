@@ -26,6 +26,7 @@ import { CELLS_FS, CELLS_VS } from '../scene/blood/cells/shader.ts';
 /** Where the app's GLSL lives (a path under src/), and how its programs reach the check. A new file with a shader goes here, or the test fails. */
 export const GL_FILES: Record<string, string> = {
   'scene/materials/shaders.ts': 'cel toon and ink (every organ, lobule and sinusoid part, the devices): found on the scene graph',
+  'scene/cel-glsl.ts': 'the cel style\'s shared tube GLSL (two tones, the world light), spliced into the vessel, toon and lobule programs: part of those',
   'scene/vessels/shaders.ts': 'the vessel, with its veil (VEIL define): found on the scene graph',
   'scene/sinusoid/gl.copied.ts': 'the sinusoid (2D\'s shader, copied): RawShaderMaterials found on the scene graph',
   'scene/sinusoid/view.ts': 'where the sinusoid\'s RawShaderMaterials are made (version moved to glslVersion): found on the scene graph',

@@ -42,6 +42,6 @@ test('picking the cava shows it whole: the veil rises to 1 and the cava is drawn
   s.dispose();
 });
 
-test('the veil alpha is a uniform the cava eases, declared once', () => {
-  assert.equal(VESSEL_FS.match(/uniform float veilA;/g)!.length, 1);
+test('the cava is whole at every ease: the shader has no veil alpha to ease (it is opaque, two tones)', () => {
+  assert.doesNotMatch(VESSEL_FS, /veilA/);
 });
