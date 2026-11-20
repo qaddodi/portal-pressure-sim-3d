@@ -15,6 +15,7 @@ import { setPart, SHADE_NAMES, type PartView, type ShadeMode } from '../../../sc
 import { clearJoinsOverride, joinsMode, setJoinsOverride, skinDebugOn, skinLeaveOut, type JoinsMode } from '../../../scene/vessels/skin/joins-mode.ts';
 import { reapplySkinDefines } from '../../../scene/vessels/skin/skin-object.ts';
 import { INSPECT_PITCH } from '../../../scene/camera/rig.ts';
+import { WHY_COLOUR, WHY_TEXT } from '../../../scene/vessels/skin/join-report.ts';
 import { flagValue } from '../flags.ts';
 import { PRESETS, VIEWS, defaultState, stateText, wrapDeg, type InspectState, type Leave } from './state.ts';
 
@@ -180,6 +181,28 @@ export function mountInspect(): void {
   syncers.push(() => { for (const [id, r] of rows) { r.s.checked = state.solo.includes(id); r.m.checked = state.mute.includes(id); } });
   drawList();
   useSelection.subscribe((st) => { if (state.tapSolo && st.sel?.type === 'edge') { commit({ solo: [st.sel.id] }); drawList(); } });
+
+  // ---- Joins report: what the skins did not weld ----
+  const jr = section('Joins report (unwelded ends)', false);
+  const jrList = el('div'); jrList.style.cssText = 'max-height:220px;overflow:auto;border:1px solid #fff3;border-radius:6px;padding:2px 4px;margin:4px 0';
+  let marksOn = false;
+  const report = (): void => {
+    const r = cel.inspectJoinsReport();
+    jrList.textContent = '';
+    jrList.append(el('div', { className: 'hint', textContent: `${r.built.length} skins built, ${r.dropped.length} arms left out, ${r.fellBack.length} nodes kept tube joins${r.circuitFellBack.length ? ` (Circuit: ${r.circuitFellBack.join(', ')})` : ''}, ${r.unwelded.length} unwelded ends.${cel.joinsNow === 'old' ? ' Joins are Old: nothing is welded.' : ''}` }));
+    for (const u of r.unwelded) {
+      const dot = el('span', { textContent: '●' }); dot.style.color = WHY_COLOUR[u.why];
+      const name = el('label', { textContent: `${u.id} ${u.end ? 'end' : 'start'} @ ${u.node} · ${WHY_TEXT[u.why]}` }); name.style.cssText = 'flex:1;min-width:0';
+      const go = el('button', { textContent: 'Mark', title: 'Solo this vessel and mark only its unwelded ends' });
+      go.onclick = () => { commit({ solo: [u.id] }); drawList(); msg.textContent = `${cel.setInspectMarks(true, u.id)} marker(s) on ${u.id}.`; };
+      jrList.append(el('div', { className: 'row' }, [dot, name, go]));
+    }
+    if (marksOn) cel.setInspectMarks(true);
+  };
+  check(jr, 'Mark every unwelded end in the figure', () => marksOn, (v) => { marksOn = v; msg.textContent = `${cel.setInspectMarks(v)} marker(s).`; });
+  buttons(jr, [{ label: 'Refresh', title: 'Read the skins again (after a joins change, a forced vessel, a recompile)', run: report }]);
+  jr.append(jrList, el('div', { className: 'hint', textContent: 'Red: left out of its node\'s skin. Orange: the node\'s skin could not be built. Violet: a braid of strands. Yellow: a collateral or shunt that is not an arm of any skin (the fork method). Blue: a junction with no skin. Body only; the Circuit\'s list is the node names above. Marks stay where the report found them: Refresh after a change.' }));
+  jr.addEventListener('toggle', () => { if (jr.open) report(); });
 
   // ---- Layers ----
   const ly = section('Layers');

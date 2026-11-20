@@ -1,5 +1,5 @@
 import { edgeOnLine, maskOf } from './devices/probes/organ-edge.ts';
-import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, type Object3D, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Object3D, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, feederLive, presenceOf, recruitFrac } from './vessels/network.ts';
@@ -12,6 +12,7 @@ import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
 import { SkinSet, SKIN_BUILD_TAG } from './vessels/skin/skin-set.ts';
+import { WHY_COLOUR, joinsReport, type JoinsReport } from './vessels/skin/join-report.ts';
 import { SkinObject } from './vessels/skin/skin-object.ts';
 import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
 import { bakedCircuitSkins, bakedPending, bakedReady, bakedSkins } from './vessels/skin/baked.ts';
@@ -1215,6 +1216,31 @@ export class CelScene {
   inspectVesselList(): readonly { id: string; kind: string; label: string; drawn: boolean }[] {
     return NETWORK.map((v) => ({ id: v.id, kind: v.kind, label: v.label, drawn: this.presence.isDrawn(v.id) }));
   }
+  /** What the junction skins did not weld (`?inspect`, the panel's Joins report): arms left out, nodes that kept tube joins, every unwelded tube end with its place. Read when asked, never per frame. */
+  inspectJoinsReport(): JoinsReport {
+    return joinsReport({
+      endsOf: (id) => this.skins?.endsOf(id) ?? [false, false], dropped: this.skins?.dropped ?? [], fellBack: this.skins?.fellBack ?? [], built: this.skinNodes,
+      circuitFellBack: this.circuitSkins?.fellBack ?? [], stateOf: (id) => this.shapes?.stateOf(id),
+    });
+  }
+  private inspectMarks: Group | null = null;
+  /** Marks the unwelded ends in the figure (a ball at each, in the colour of its reason, drawn over everything), or only those of vessel `only`; none when `on` is false. Built from the report at the time of the call: press it again after a change. Returns how many. */
+  setInspectMarks(on: boolean, only: string | null = null): number {
+    if (this.inspectMarks) { this.body.remove(this.inspectMarks); this.inspectMarks.traverse((c) => { if (c instanceof Mesh) { c.geometry.dispose(); (c.material as MeshBasicMaterial).dispose(); } }); this.inspectMarks = null; }
+    let n = 0;
+    if (on) {
+      const g = new Group(); g.name = 'inspect-marks';
+      for (const u of this.inspectJoinsReport().unwelded) {
+        if (only && u.id !== only) continue;
+        const m = new Mesh(new SphereGeometry(Math.max(u.radius * 1.5, 2.5), 12, 8), new MeshBasicMaterial({ color: WHY_COLOUR[u.why], transparent: true, opacity: 0.8, depthTest: false, depthWrite: false }));
+        m.position.set(u.pos[0], u.pos[1], u.pos[2]); m.renderOrder = 999; m.name = `unwelded:${u.id}:${u.end}`; g.add(m); n++;
+      }
+      g.traverse((c) => c.layers.set(VESSEL_LAYER));
+      this.body.add(g); this.inspectMarks = g;
+    }
+    this.moving = true; clock.invalidate('inspect');
+    return n;
+  }
   /** Shows or hides one of `inspectLayers` (drawn or not; what the scene itself shows and hides is not touched: the flag is put on for the draw and taken off after it). */
   setInspectShown(id: string, shown: boolean): void { if (shown) this.inspectHidden.delete(id); else this.inspectHidden.add(id); this.moving = true; clock.invalidate('inspect'); }
   isInspectShown(id: string): boolean { return !this.inspectHidden.has(id); }
@@ -1288,6 +1314,7 @@ export class CelScene {
   dispose(): void {
     this.disposed = true;
     this.unJoins();
+    if (this.inspectMarks) this.setInspectMarks(false);
     this.skins?.dispose();
     this.circuitSkins?.dispose();
     this.sinus3d.dispose(); this.lobule3d.dispose();
