@@ -7,6 +7,7 @@ import type { BufferAttribute } from 'three';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { LobuleView } from '../src/scene/lobule/view.ts';
 import { DISC_R, DUCT_R } from '../src/scene/lobule/widths.ts';
+import { tissueInk } from '../src/scene/lobule/cel.ts';
 import { Lobule3D, DISSE_OPEN, disseDuctules, disseOpen, lymphIntoPools } from '../src/scene/micro3d/lobule3d.ts';
 
 const flat = new LobuleView(createShared()), net = flat.net;
@@ -74,4 +75,14 @@ test('the ductules are their own part, at 2D\'s width: a thread half a sinusoid\
   const ext = (p: typeof duct) => { const a = (p.geometry.getAttribute('position') as BufferAttribute).array; let z0 = Infinity, z1 = -Infinity; for (let i = 2; i < a.length; i += 3) { z0 = Math.min(z0, a[i]!); z1 = Math.max(z1, a[i]!); } return (z1 - z0) / 2; };
   assert.ok(Math.abs(ext(duct) - DUCT_R * R) < 1e-3, `ductule radius ${ext(duct)}`);
   assert.ok(Math.abs(ext(lt) - 0.0075 * R) < 1e-3, `channel radius ${ext(lt)}`);
+});
+
+test('the floor between the cells reads as the gap between tiles, never as a plate: as dark as the tile casing in every look (the open wedges beside a sinusoid showed 2D\'s pale gap colour, big grey-green plates)', () => {
+  const luma = (c: readonly number[]) => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * c[2]!;
+  for (const look of ['light', 'soft', 'dark', 'navy', 'black'] as const) {
+    const l3 = new Lobule3D(flat, createShared());
+    l3.buildForTest(look);
+    const ground = l3.partsForTest.find((p) => p.toonMesh.name === 'lobule3d/ground')!, tint = (ground.mats.toon.uniforms.tint!.value as { r: number; g: number; b: number }), t = [tint.r, tint.g, tint.b], ink = tissueInk(look);
+    assert.ok(luma(t) <= luma(ink) + 0.06, `${look}: the floor (${luma(t).toFixed(2)}) is lighter than the tile casing (${luma(ink).toFixed(2)})`);
+  }
 });
