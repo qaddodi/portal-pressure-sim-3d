@@ -3,6 +3,7 @@
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { len3, x3, y3 } from '../frame2d.ts';
 import { TIER_Z } from '../frame2d.ts';
+import { dzOf } from '../edit/dz.ts';
 import { coilCourses } from './coil.ts';
 import { NETWORK_BY_ID, NODE_Z, type NetVessel } from './network.ts';
 import { CAV, cavChannels, cavGrowth } from './cav.ts';
@@ -43,13 +44,15 @@ function depthEnds(v: NetVessel): { zf: number | undefined; zt: number | undefin
 
 /** The 3D course of an edge with every end's depth, before any end is fitted to a trunk: what a branch ends on (smooth joins). */
 const baseCache = new Map<string, Vec3[]>();
+/** (Edit shapes: a moved course is read again.) */
+export const forgetBase = (id: string): void => { baseCache.delete(id); };
 function baseCourse(v: NetVessel): Vec3[] {
   let c = baseCache.get(v.id);
   if (!c) {
     const plan = v.plan!;
     const base = plan.kind === 'coil' ? plan.base : [];
     const d = depthEnds(v);
-    c = to3(base, TIER_Z[v.tier], d.zf, d.zt, d.sf, d.st, d.through);
+    c = to3(base, TIER_Z[v.tier] + dzOf(v.id), d.zf, d.zt, d.sf, d.st, d.through);
     baseCache.set(v.id, c);
   }
   return c;
@@ -105,7 +108,7 @@ const minR = len3(0.35);
 
 /** The courses (the vessel's own first) at `s`. */
 export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
-  const plan = v.plan!, z = TIER_Z[v.tier];
+  const plan = v.plan!, z = TIER_Z[v.tier] + dzOf(v.id);
   if (plan.kind === 'coil') {
     const coiled = coilCourses(v.id, plan.base as [number, number][], plan.coils, s.wig, s.spr);
     const { main } = coiled;

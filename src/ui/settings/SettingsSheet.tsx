@@ -109,8 +109,15 @@ function DepthGroup() {
   return (
     <MenuGroup title="Figure depth (3D only)">
       {DEPTH_ROWS.map((r) => <DepthSwitch key={r.key} row={r} />)}
+      {EDIT_SHOWN ? <EditSwitch /> : null}
     </MenuGroup>
   );
+}
+/** Edit shapes (scene/edit/): a builder's switch, in the menu only when the address has ?edit. */
+const EDIT_SHOWN = typeof location !== 'undefined' && /[?&]edit(=|&|$)/.test(location.search);
+function EditSwitch() {
+  const on = useSettings((s) => s.editShapes);
+  return <MenuToggle checked={on} icon="route" label="Edit shapes" sub="Drag vessel points and organs, set their depth, Copy the result (builder)" onChange={(v) => useSettings.getState().set('editShapes', v)} />;
 }
 function DepthSwitch({ row }: { row: (typeof DEPTH_ROWS)[number] }) {
   const on = useSettings((s) => s[row.key]);
