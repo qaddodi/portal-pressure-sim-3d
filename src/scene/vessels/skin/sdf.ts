@@ -84,6 +84,9 @@ export function sdArmGrad(c: Capsule, x: number, y: number, z: number, g: Float6
   return d - scratch[3]!;
 }
 
+/** The most arms a skin blends (spec 10.1): the weights are two attributes, `weight` (arms 0 to 3) and `weight2` (arms 4 and 5). */
+export const MAX_SKIN_ARMS = 6;
+
 /** The blend width of a junction: `SKIN_K` times the narrowest arm's rest radius (spec 4.3). */
 export const skinKOf = (arms: readonly Pick<SkinArm, 'restR'>[]): number => SKIN_K * Math.min(...arms.map((a) => a.restR));
 
@@ -102,18 +105,18 @@ export function sdUnion(caps: readonly Capsule[], k: number, x: number, y: numbe
 
 /**
  * How much the point belongs to each arm (spec 4.3): a softmax of `-sdArm / k`, then sharpened `w^4 / sum(w^4)` so an arm's own stretch is weight 1.
- * Writes 4 numbers into `out` in arm order (an unused arm gets 0).
+ * Writes `MAX_SKIN_ARMS` (6) numbers into `out` in arm order (an unused arm gets 0).
  */
 export function weights(caps: readonly Capsule[], k: number, x: number, y: number, z: number, out: Float64Array | number[]): void {
   let lo = Infinity;
-  for (let i = 0; i < 4; i++) { out[i] = i < caps.length ? sdArm(caps[i]!, x, y, z) : Infinity; if (out[i]! < lo) lo = out[i]!; }
+  for (let i = 0; i < MAX_SKIN_ARMS; i++) { out[i] = i < caps.length ? sdArm(caps[i]!, x, y, z) : Infinity; if (out[i]! < lo) lo = out[i]!; }
   let sum = 0;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < MAX_SKIN_ARMS; i++) {
     const w = i < caps.length ? Math.exp(-(out[i]! - lo) / k) : 0;
     const s = w * w, q = s * s;   // w^4
     out[i] = q; sum += q;
   }
-  for (let i = 0; i < 4; i++) out[i] = out[i]! / sum;
+  for (let i = 0; i < MAX_SKIN_ARMS; i++) out[i] = out[i]! / sum;
 }
 
 /** The central-difference gradient of `sdUnion` with step `h` (spec 4.5 uses 0.05 k), written into `out` (3 numbers, not normalised). */

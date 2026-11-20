@@ -317,7 +317,7 @@ export class ProcCatheter {
         r.c.copy(q.c).addScaledVector(this.n2, -c * q.r * 0.9).addScaledVector(this.n1, -sn * q.r * 0.9);
         r.t.copy(tt); r.r = Math.max(this.rc * 0.075 * Math.sin(Math.PI * (i / (GLINT_N - 1))) + this.rc * 0.01, 0.0003);
       }
-      writeRings(this.glints[k]!.g, out, 6);
+      writeRings(this.glints[k]!.g, out, GLINT_SIDES);
       this.glints[k]!.o.setAlpha(arc.a * e * op);
     });
   }

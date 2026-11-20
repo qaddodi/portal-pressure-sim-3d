@@ -1,6 +1,5 @@
 // Junction skins, WP1 (spec 4.1 and 4.2): which nodes of the network get a skin, which tubes are its arms, and where its centre is. Computed from the network's own data, never from a list of ids:
 // the one literal here is the kind filter (a permanent vessel is a vein, an artery, an arteriole or a liver bed). Nothing is drawn here; the scene reads this once and builds the skins from it.
-import { BACK_EDGES } from '../paths.copied.ts';
 import { NETWORK, cutEnd, type NetVessel } from '../network.ts';
 import { REST, coursesOf, type ShapeState } from '../shape.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../join-mode.ts';
@@ -10,10 +9,14 @@ import type { SkinArm, SkinJunction, Vec3 } from './types.ts';
 /** The kinds of vessel that are permanent (spec 4.1): a skin is built only where these meet. Collaterals and shunts grow from nothing and keep the fork method (`nbr`, `bury`); feeders are strands of a host. */
 export const PERMANENT_KINDS: ReadonlySet<string> = new Set(['vein', 'artery', 'arteriole', 'liver']);
 /** How far (in radii of the widest arm) an arm's end may lie from J (spec 4.2, amended): fitEnds puts the branches onto the trunk (within ATTACH_REACH of 1.6), and the one gap the 2D art leaves, CV_R's liver beds at 1.72, is spanned by the skin's hull. */
-export const SKIN_REACH = 2.0;
+export const SKIN_REACH = 6;
+/** The nodes whose arms the art leaves further apart than `SKIN_REACH` (spec 10.5, 10.6): not a junction but the art's own spacing, so they keep the old join. Named, never hidden: tests/skin-inventory.test.ts pins this list. */
+export function nodesBeyondReach(js: readonly SkinJunction[], network: readonly NetVessel[] = NETWORK, state: ShapeState = REST): string[] {
+  return js.filter((j) => Math.max(...armReach(j, network, state)) > SKIN_REACH).map((j) => j.node);
+}
 /** A node needs this many permanent ends for a skin, and at most this many (the shader's `armData[4]`). */
 export const MIN_ARMS = 3;
-export const MAX_ARMS = 4;
+export const MAX_ARMS = 6;
 
 /** Whether a vessel is a permanent tube: one of the kinds above and not a feeder strand (`~F:`). */
 export const isPermanent = (v: NetVessel): boolean => !v.feeder && !v.id.includes('~F') && PERMANENT_KINDS.has(v.kind);
@@ -36,8 +39,8 @@ function endPoint(v: NetVessel, end: 0 | 1, state: ShapeState): Vec3 {
 
 /**
  * Every junction that gets a skin, in the network's order of nodes (spec 4.1). A node gets one when 3 or 4 permanent tube ends meet there, except:
- *   - a node where one of the ends is drawn behind the organs (BACK_EDGES: the cava and its faint run-ons, the SVC's pieces): the skin is one mesh on the vessel layer (spec 4.8), so it cannot be half behind an organ. This also keeps the faded cava
- *     (it has no wall to blend into: network.ts leaves it out of the fork collar too) and node SVC_E, where the spec's table lists SVC_RA_1 and SVC_RA, both BACK_EDGES, as phase 2 against its own test of 4.8 (reported to the lead);
+ *   - (a node with an end drawn behind the organs (BACK_EDGES: the cava and its run-ons, the SVC's pieces) used to be left out, because one mesh on the vessel layer cannot be half behind an organ. Spec 10.4, Mohammad 20 Nov "all the junctions":
+ *     it is in now, and the skin is drawn the way the tubes are, as three COPIES of one geometry (front, solid, veil: skin-object.ts), each weighted by the arms' own shares of those copies, so a skin is never visible where its arms are not);
  *   - a vein that branches is one through-tube to the tip of its through branch (liver-branches.ts `cutEnd`): that end is not a node of the figure.
  * The arms are the main courses of those tubes, widest first (ties keep the network's order). `J` is the end point of the widest arm's course (4.2).
  * Read with Smooth vessel joins on (the scene builds skins only then): off, the branch ends are the 2D rule's own and lie where the art put them.
@@ -46,7 +49,7 @@ export function findSkinJunctions(network: readonly NetVessel[] = NETWORK, state
   const out: SkinJunction[] = [];
   for (const [node, ends] of permanentEndsByNode(network)) {
     if (ends.length < MIN_ARMS || ends.length > MAX_ARMS) continue;
-    if (ends.some((e) => BACK_EDGES.has(e.v.id) || cutEnd(e.v.id) === e.end)) continue;
+    if (ends.some((e) => cutEnd(e.v.id) === e.end)) continue;
     const sorted = ends.map((e, i) => ({ ...e, i })).sort((a, b) => b.v.radius - a.v.radius || a.i - b.i);
     const arms: SkinArm[] = sorted.map(({ v, end }) => ({
       vesselId: v.id, end, courseIndex: 0, dataIndex: indexOf(v.lensId), lensIndex: indexOf(v.lensId), baseD: v.baseD, widthKind: v.widthKind, restR: v.radius,
@@ -57,10 +60,10 @@ export function findSkinJunctions(network: readonly NetVessel[] = NETWORK, state
   return out;
 }
 
-/** The nodes whose skins are built in each phase (spec 4.1, 6): phase 1 the SMV-SV confluence alone, phase 2 every node the table marks 2 that the BACK_EDGES rule keeps. The liver beds' nodes (SIN_R, SIN_L) are phase 3 and are in neither. */
+/** The nodes whose skins are built in each phase (spec 4.1, 6, 10): phase 1 the SMV-SV confluence alone, phase 2 every node the table marks 2, those with an end behind the organs (spec 10.4) and the liver beds' nodes (SIN_R, SIN_L, spec 10.5: the node's far arm decides whether it is a junction, `SKIN_REACH`, below). */
 export const PHASE_1_NODES: ReadonlySet<string> = new Set(['CONF']);
-// (SVC_E is marked 2 in the spec's table but its arms are BACK_EDGES, so the inventory leaves it out, see findSkinJunctions)
-export const PHASE_2_NODES: ReadonlySet<string> = new Set(['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R']);
+// (the nodes with an end behind the organs, spec 10.4: SVC_E and SVC where the superior cava's pieces meet the epigastric and azygos veins, IVCI where the left renal vein and the iliac run-on meet the cava, IVCS with its five arms)
+export const PHASE_2_NODES: ReadonlySet<string> = new Set(['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'SIN_R', 'SIN_L', 'IVCI', 'SVC_E', 'SVC', 'IVCS']);
 export function skinNodesForPhase(phase: 1 | 2): ReadonlySet<string> {
   return phase === 1 ? PHASE_1_NODES : PHASE_2_NODES;
 }

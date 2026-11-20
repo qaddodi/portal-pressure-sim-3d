@@ -153,10 +153,17 @@ test('laid in, the Lobule\'s vessel parts stay finite and whole: attributes the 
   assert.ok(l3.vertexCount > before && l3.vertexCount < 260_000, `vertices ${before} -> ${l3.vertexCount}`);
   for (const p of l3.partsForTest) {
     const g = p.geometry, n = (g.getAttribute('position') as BufferAttribute).count;
-    for (const name of ['normal', 'color', 'aux', 'aux2', 'swell']) { const a = g.getAttribute(name) as BufferAttribute | undefined; if (a) assert.equal(a.count, n, `${p.toonMesh.name} ${name}`); }
+    for (const name of ['normal', 'color', 'aux', 'aux2', 'swell', 'fcourse']) { const a = g.getAttribute(name) as BufferAttribute | undefined; if (a) assert.equal(a.count, n, `${p.toonMesh.name} ${name}`); }
     for (const v of (g.getAttribute('position') as BufferAttribute).array) assert.ok(Number.isFinite(v), p.toonMesh.name);
     const sw = g.getAttribute('swell') as BufferAttribute | undefined;
     if (sw) for (const v of sw.array) assert.ok(Number.isFinite(v) && v >= 0, `${p.toonMesh.name} swell ${v}`);
+    // the dust's place (cel3d fcourse): finite, a whole column, and ONE column over every triangle (an interpolated column would read a third course's lanes: specks)
+    const fc = g.getAttribute('fcourse') as BufferAttribute | undefined, ix = g.getIndex();
+    if (fc) {
+      for (const v of fc.array) assert.ok(Number.isFinite(v), `${p.toonMesh.name} fcourse ${v}`);
+      for (let i = 0; i < fc.count; i++) assert.equal(fc.getX(i), Math.round(fc.getX(i)));
+      if (ix) for (let i = 0; i < ix.count; i += 3) { const col0: number = fc.getX(ix.getX(i)); assert.ok(col0 === fc.getX(ix.getX(i + 1)) && col0 === fc.getX(ix.getX(i + 2)), `${p.toonMesh.name}: a triangle spans two dust columns`); }
+    }
   }
   const part = l3.partsForTest.find((p) => p.toonMesh.name === 'lobule3d/sinusoids-0')!;
   const pos = part.geometry.getAttribute('position') as BufferAttribute, nor = part.geometry.getAttribute('normal') as BufferAttribute, ix = part.geometry.getIndex()!;

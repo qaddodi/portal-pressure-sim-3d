@@ -27,7 +27,7 @@ function built(): { scene: CelScene; made: Made[]; was: boolean } {
     make: (mesh, axes, arms) => {
       const m: Made = { mesh, axes, arms, arcs: [] };
       made.push(m);
-      return { mesh, object: new Group(), setArm() {}, setArc(i, seamArc, dir, length, restR, flow) { m.arcs[i] = { seamArc, dir, length, restR, flow }; }, setPres() {}, setTransparent() {}, dispose() {} };
+      return { mesh, object: new Group(), setArm() {}, setArc(i, seamArc, dir, length, restR, flow) { m.arcs[i] = { seamArc, dir, length, restR, flow }; }, setPres() {}, setArmCopy() {}, setTransparent() {}, dispose() {} };
     },
     add: (o: Object3D) => parent.add(o), remove: (o: Object3D) => parent.remove(o), warn: () => {},
   });
@@ -38,7 +38,7 @@ function built(): { scene: CelScene; made: Made[]; was: boolean } {
 
 /** The skin shader's arc at a rest position (the twin of THE FLOW MARKS' `sI`): the arc at the seam, plus which way it grows, times the distance toward the node along the arm's axis, in figure units. */
 const arcAt = (axis: ArmAxis, seamArc: number, dir: number, p: readonly number[]): number => {
-  const a = axis.pts[0], b = axis.pts[1];
+  const a = axis.pts[1], b = axis.pts[2];
   const tx = a[0] - b[0], ty = a[1] - b[1], tz = a[2] - b[2], tl = Math.hypot(tx, ty, tz) || 1;
   return seamArc + dir * (((p[0]! - b[0]) * tx + (p[1]! - b[1]) * ty + (p[2]! - b[2]) * tz) / tl) * SKIN_FIGURE_UNITS;
 };
@@ -102,4 +102,10 @@ test('the tube and the skin call ONE flow-marks code (glsl-shared.ts flowDust / 
   assert.match(FLOW_MARKS_GLSL, /vec4 dust = dustTube\(F, lit, inkColor, rev\);/);
   assert.match(FLOW_MARKS_GLSL, /chevOne\(s, Lw, c4\.y \+ c4\.z \* s, c4\.z, rootD,/);
   assert.match(FLOW_MARKS_GLSL, /F = DFrame\(across, fr\.xy, fr\.zw, s, Lw, rOwn, vR, rCss, nar, smS\.y, lensI, vUn\);/, 'the root\'s radius (route table, scene units) is scaled by the program\'s own figure units (the Circuit\'s map is not 300)');
+});
+
+test('no NaN can leave the skin\'s flow marks: a heading is normalised only after its length is checked (a NaN pixel is a speck of any colour, Mohammad 20 Nov: green and dark blue specks on the welds)', () => {
+  assert.ok(!/normalize\(mat3\(modelViewMatrix\) \* \(armArc/.test(SKIN_FS), 'the arm heading is never normalised unchecked');
+  assert.match(SKIN_FS, /float headL = length\(headV\);/);
+  assert.match(SKIN_FS, /headL > 1e-6 \? cross\(headV \/ headL, viewDir\)/);
 });

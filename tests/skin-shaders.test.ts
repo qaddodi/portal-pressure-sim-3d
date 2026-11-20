@@ -24,7 +24,7 @@ test('the varyings stay within 12 vec4s (an iPhone must have room: the floor is 
   const b = budget(program);
   assert.ok(b.varyings <= 12, `${b.varyings} varying vectors`);
   const names = declarations(SKIN_VS).filter((d) => d.storage === 'varying').map((d) => d.name).sort();
-  assert.deepEqual(names, ['vCenW', 'vN', 'vPos', 'vRest', 'vSwell', 'vV', 'vW', 'vWeight'], 'the vertex stage hands the fragment stage exactly these');
+  assert.deepEqual(names, ['vCenW', 'vN', 'vPos', 'vRest', 'vSwell', 'vSwell2', 'vV', 'vW', 'vWeight', 'vWeight2'], 'the vertex stage hands the fragment stage exactly these');
   const fs = declarations(SKIN_FS).filter((d) => d.storage === 'varying').map((d) => d.name).sort();
   assert.deepEqual(fs, names, 'the fragment stage declares the same varyings');
 });
@@ -38,8 +38,7 @@ test('the skin asks no more of the GPU than the floor, and the fragment stage le
 test('the per-arm uniforms are the spec\'s section 3 names, with its sizes', () => {
   const u = new Map(declarations(SKIN_FS).filter((d) => d.storage === 'uniform').map((d) => [d.name, d]));
   const want: Array<[string, string, number]> = [
-    ['armData', 'vec4', SKIN_ARMS], ['armLensU', 'float', SKIN_ARMS], ['armFade', 'float', SKIN_ARMS], ['armHi', 'float', SKIN_ARMS],
-    ['armAxis', 'vec3', 12], ['armAxisR', 'float', 12], ['skinK', 'float', 1],
+    ['armData', 'vec4', SKIN_ARMS], ['armAF', 'vec4', SKIN_ARMS], ['armAxisP', 'vec4', SKIN_ARMS * 4], ['skinK', 'float', 1],
   ];
   for (const [name, type, n] of want) {
     const d = u.get(name);
@@ -49,12 +48,12 @@ test('the per-arm uniforms are the spec\'s section 3 names, with its sizes', () 
   }
   const v = new Map(declarations(SKIN_VS).filter((d) => d.storage === 'uniform').map((d) => [d.name, d]));
   assert.equal(v.get('armData')?.array, SKIN_ARMS, 'the vertex stage reads the arms\' data texels');
-  assert.equal(v.get('armHi')?.array, SKIN_ARMS, 'and their highlight');
+  assert.equal(v.get('armAF')?.array, SKIN_ARMS, 'and their highlight');
 });
 
 test('the vertex attributes are the spec\'s (cen, weight, restR) on top of three\'s position and normal', () => {
   const a = declarations(SKIN_VS).filter((d) => d.storage === 'attribute').map((d) => `${d.type} ${d.name}`).sort();
-  assert.deepEqual(a, ['float restR', 'vec3 cen', 'vec4 weight']);
+  assert.deepEqual(a, ['float restR', 'vec2 weight2', 'vec3 cen', 'vec4 weight']);
 });
 
 test('the skin draws the tubes\' flow marks, once per arm, with the tubes\' own code (tests/skin-marks.test.ts holds the rest)', () => {
@@ -68,4 +67,17 @@ test('the skin is back-face culled in the fragment stage like the tube, and fade
 
 test('the skin\'s program is registered for the compile check and the ?gl page', () => {
   assert.ok(rawPrograms(FIBRO).some((p) => p.name === 'skin'), 'rawPrograms lists the skin');
+});
+
+// The seam down a fork's skin (Mohammad, 20 Nov: "i still see a seam at the blood vessels junction", PV into RPV and LPV): the dust is drawn in the two heaviest arms' frames, and on the line where the
+// second and third arms weigh the same the pair changes. The second's share is taken less the third's weight, so it is 0 on both sides of that line and the change is continuous.
+test('the skin dust\'s second-arm share is 0 where the second and third arms tie (no seam between a fork\'s branches)', () => {
+  assert.match(SKIN_FS, /else wD2 = max\(wD2, wI\);/);
+  assert.match(SKIN_FS, /float w1 = max\(wD1 - wD2, 0\.0\) \/ max\(wD0 \+ wD1 - 2\.0 \* wD2, 1e-4\);/);
+  const share = (w: number[]) => { const s = [...w].sort((a, b) => b - a); return Math.max(s[1]! - (s[2] ?? 0), 0) / Math.max(s[0]! + s[1]! - 2 * (s[2] ?? 0), 1e-4); };
+  for (const e of [1e-3, 1e-5]) {
+    const a = share([0.5, 0.25 + e, 0.25 - e]), b = share([0.5, 0.25 - e, 0.25 + e]);
+    assert.ok(a < 0.01 && b < 0.01, `continuous across the tie: ${a}, ${b}`);
+  }
+  assert.ok(Math.abs(share([0.5, 0.5, 0]) - 0.5) < 1e-9, 'a plain two-arm seam keeps its even blend');
 });

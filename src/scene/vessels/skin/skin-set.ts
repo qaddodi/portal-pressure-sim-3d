@@ -17,7 +17,7 @@ import { NETWORK_BY_ID } from '../network.ts';
 import { REST, coursesOf, tubularOf, type ShapeState } from '../shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { slicesFor } from '../../circuit/geometry.ts';
-import { findSkinJunctions, skinNodesForPhase } from './inventory.ts';
+import { findSkinJunctions, nodesBeyondReach, skinNodesForPhase } from './inventory.ts';
 import { planSkins, type ArmTube } from './cuts.ts';
 import { buildSkin, hullCovers } from './mesh.ts';
 import type { Capsule } from './sdf.ts';
@@ -34,6 +34,8 @@ export interface SkinDraw {
   setArm(i: number, fade: number, hi: number, lensU: number, colour: ArmColour, narrow: number): void;
   setArc(i: number, seamArc: number, dir: number, length: number, restR: number, flow: number): void;
   setPres(i: number, p: number): void;
+  /** arm `i`'s shares of the three copies (front, solid, veil) as its tube has them: a skin copy shows where its arms' shares of it are, and nowhere else (spec 10.4) */
+  setArmCopy(i: number, front: number, solid: number, veil: number): void;
   /** a skin blends only when one of its arms does (a fade zone): opaque otherwise, as the tubes are */
   setTransparent(on: boolean): void;
   dispose(): void;
@@ -66,7 +68,7 @@ export const SKIN_BUILD_TAG = 'skin-build';
 export interface SkinBuildStats { rebuilds: number; lastMs: number; worstMs: number; lastNode: string }
 
 /** One arm as the per-frame handover reads it: its tube, the seam's place along it and in the figure. */
-interface ArmLink { /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[] }
+interface ArmLink { /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[] }
 /** One skin of the set. `draw` is null for a node that fell back at a rebuild (today's joins there): it stays listed so a later change of an arm tries it again. */
 interface Built {
   node: string; mesh: SkinMesh | null; draw: SkinDraw | null; arms: ArmLink[];
@@ -103,7 +105,9 @@ function ringCentre(g: BufferGeometry, ring: number): { c: Vec3; r: number } {
  *  (the difference of the neighbouring ring centres), the first as far back toward the node as the arm's end ring is, the last `AXIS_REACH_R` radii from that end: a straight capsule through the seam never kinks against the tube's smooth curve at it, which a polyline of the
  *  tube's own, coarse, ring centres does (HA's left branch turns 45 degrees between two rings, a half pixel of ink off at the seam). Their radii are the end ring's and the tube's radius where the far point's ring is. */
 export const AXIS_REACH_R = 6;
-export function axisOf(tube: ArmTube, restR: number, cut: SkinCut): ArmAxis {
+/** An arm whose end ring lies more than this many of its radii from J gets J put in front of its capsule (spec 10.5). */
+export const BRIDGE_MIN_R = 0.1;
+export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3): ArmAxis {
   const out = cut.end ? -1 : 1, last = tube.tubular;
   const end = cut.end ? last : 0, a = ringCentre(tube.geometry, end), s = ringCentre(tube.geometry, cut.ring);
   const lo = Math.min(last, Math.max(0, cut.ring - out)), hi = Math.min(last, Math.max(0, cut.ring + out));   // (the ring nearer the node, the ring farther from it)
@@ -114,7 +118,10 @@ export function axisOf(tube: ArmTube, restR: number, cut: SkinCut): ArmAxis {
   let far = cut.ring, at = s.c;
   for (let k = cut.ring; k >= 0 && k <= last; k += out) { far = k; at = ringCentre(tube.geometry, k).c; if (Math.hypot(at[0] - a.c[0], at[1] - a.c[1], at[2] - a.c[2]) >= AXIS_REACH_R * restR) break; }
   const f = ringCentre(tube.geometry, far);
-  return { pts: [[s.c[0] - tx * d0, s.c[1] - ty * d0, s.c[2] - tz * d0], s.c, [s.c[0] + tx * d2, s.c[1] + ty * d2, s.c[2] + tz * d2]], radii: [a.r, s.r, f.r] };
+  const p1: Vec3 = [s.c[0] - tx * d0, s.c[1] - ty * d0, s.c[2] - tz * d0];
+  // THE BRIDGE (spec 10.5): every capsule starts AT J. Where the art leaves a gap (the arm's end more than a tenth of a radius from J) J is put in front, with the end ring's radius, so the union bridges the gap with the arm's own width and the hull (the rings alone) is unchanged
+  const bridged = J && Math.hypot(J[0] - a.c[0], J[1] - a.c[1], J[2] - a.c[2]) > BRIDGE_MIN_R * restR;   // (judged on the tube's own end ring: a tube that reaches J but bends on the way is not a gap)
+  return { pts: [bridged ? J! : p1, p1, s.c, [s.c[0] + tx * d2, s.c[1] + ty * d2, s.c[2] + tz * d2]], radii: [a.r, a.r, s.r, f.r] };
 }
 
 /** An arm's arc numbers for the skin's flow marks (the tube's `vUv.x * len * vU` at the seam, 300 figure units to the scene unit on the body): the arc at the seam, which way it grows toward the node, the vessel's length and its rest radius, all in figure units. */
@@ -123,7 +130,7 @@ export function armArcOf(end: 0 | 1, u: number, len: number, radius: number): { 
 }
 
 /** An axis as the mesh builder's capsule (sdf.ts): the same three points and radii. */
-const capsuleOf = (a: ArmAxis): Capsule => ({ n: 3, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii) });
+const capsuleOf = (a: ArmAxis): Capsule => ({ n: a.pts.length, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii) });
 
 export class SkinSet {
   private built: Built[] = [];
@@ -189,7 +196,7 @@ export class SkinSet {
     if (objs.some((o) => !o)) return null;   // (a vessel not in this scene: no skin; the tubes are untouched)
     const { pos, nor, rest } = this.ringsFor(tubes, plan.cuts);
     // the arms' axes: the tubes' own ring centres and radii, the SAME three-point polylines the skin's fragment stage draws its ink from, so the mesh's fillet and its outline are one shape
-    const axes = j.arms.map((a, i) => axisOf(tubes.get(a.vesselId)!, a.restR, plan.cuts[i]!));
+    const axes = j.arms.map((a, i) => axisOf(tubes.get(a.vesselId)!, a.restR, plan.cuts[i]!, j.J));
     const mesh = buildSkin(j, plan.cuts, pos, nor, axes.map(capsuleOf));
     // on a seam ring the skin's rest radius is the tube's own, exactly (the mesh builder measures the ring's mean radius, a few parts in 10^4 off the tube's `radius * rk`): the live move of a seam vertex is then the tube's to the last bit (spec 4.6)
     mesh.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { mesh.restR[v] = rest[a]![q]!; }));
@@ -198,7 +205,7 @@ export class SkinSet {
       const cut = plan.cuts[i]!, ring = pos[i]!;
       let x = 0, y = 0;
       for (let v = 0; v < TUBE_RADIAL; v++) { x += ring[v * 3]!; y += ring[v * 3 + 1]!; }
-      return { vi: cut.ring * (TUBE_RADIAL + 1), obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [] };
+      return { vi: cut.ring * (TUBE_RADIAL + 1), obj: objs[i]!, id: a.vesselId, end: a.end, u: cut.u, x: x / TUBE_RADIAL, y: y / TUBE_RADIAL, span: NETWORK_BY_ID.get(a.vesselId)!.lensSpan ?? [0, 1], last: [], cp: [NaN, NaN, NaN] };
     });
     const sources = plan.merged ?? [j.node];
     const vessels = new Set<string>(this.sources.filter((s) => sources.includes(s.node)).flatMap((s) => s.arms.map((a) => a.vesselId)));
@@ -242,7 +249,10 @@ export class SkinSet {
   build(phase: 1 | 2): void {
     this.clear();
     const nodes = skinNodesForPhase(phase);
-    const js = findSkinJunctions().filter((j) => nodes.has(j.node));
+    const all = findSkinJunctions().filter((j) => nodes.has(j.node));
+    const far = new Set(nodesBeyondReach(all));   // (the art's own spacing, not a junction: the old join stays, named in `fellBack` and not warned)
+    for (const n of far) if (!this.fellBack.includes(n)) this.fellBack.push(n);
+    const js = all.filter((j) => !far.has(j.node));
     this.sources = js;
     if (!js.length) return;
     const tubes = this.tubesOf(js);
@@ -262,6 +272,7 @@ export class SkinSet {
     }
     for (const id of touched) { const c = this.cuts.get(id)!; this.deps.vessel(id)?.setSkinCut(c[0], c[1]); }
     for (const t of tubes.values()) t.geometry.dispose();
+    this.sync();   // (the skins start from what their arms have NOW, from the first frame: a hidden or still drawing arm gives its skin nothing, never a stray one)
   }
 
   /** A node that has no skin (it fell back): kept in the list, undrawn, so a change of one of its arms plans it again. */
@@ -378,7 +389,10 @@ export class SkinSet {
           a.last[8] = ln; a.last[9] = fl;
           const arc = armArcOf(a.end, a.u, ln, rd); b.draw.setArc(i, arc.seamArc, arc.dir, arc.length, arc.restR, fl); any = true;
         }
-        if (a.obj.toon.transparent) blend = true;
+        // the arm's three copies (spec 10.4): its tube's own shares of its front, solid and veil copies (a plain vessel (1, 0, 0)); how much of the tube is THERE at the seam is `armPres` above
+        const sh = a.obj.copyShares();
+        if (a.cp[0] !== sh[0] || a.cp[1] !== sh[1] || a.cp[2] !== sh[2]) { a.cp = [sh[0], sh[1], sh[2]]; b.draw.setArmCopy(i, sh[0], sh[1], sh[2]); any = true; }
+        if (a.obj.toon.transparent || a.obj.behindOrgans) blend = true;   // (a skin copy is fractional wherever an arm's share of it is: it blends)
       });
       if (any) changed = true;
       b.draw.setTransparent(blend);

@@ -292,10 +292,15 @@ DSeg dSeg(float edge, int row) {
   return DSeg(p.x, p.y, p.z - 1.0, p.w, q.x, q.y, q.z, q.w);
 }
 // the section's frame from the course's heading T, the figure's normal Z and the eye V (all in the view's frame) and the screen's sideways axis side: x, y the N and B axes on the side, z, w toward the eye
+// Every input can be degenerate on some pixel (a skin arm's heading of zero length, a heading along the eye, a figure normal along the heading): normalize() of a zero vector is NaN, and a NaN particle is drawn as
+// a speck of any colour (Mohammad, 20 Nov: green and dark blue specks on the joints). So nothing here is normalised without a length check, and the frame always comes out unit and finite.
 vec4 dustFrame(vec3 T, vec3 Z, vec3 V, vec3 side) {
-  vec3 t = normalize(T), N = cross(t, normalize(Z));
+  float tl = length(T), zl = length(Z);
+  if (tl < 1e-6) return vec4(1.0, 0.0, 0.0, 1.0);   // (no heading: a plain section seen square on)
+  vec3 t = T / tl, N = zl > 1e-6 ? cross(t, Z / zl) : vec3(0.0);
   float nl = length(N);
-  N = nl > 0.2 ? N / nl : side;   // (a course heading out of the figure: the screen's own side stands in)
+  if (nl > 0.2) N /= nl;
+  else { N = side - t * dot(side, t); float sl = length(N); N = sl > 1e-4 ? N / sl : vec3(-t.y, t.x, 0.0) / max(length(t.xy), 1e-4); }   // (a course heading out of the figure: the screen's own side, square to the heading, stands in)
   vec3 B = cross(t, N);
   return vec4(dot(N, side), dot(B, side), dot(N, V), dot(B, V));
 }
@@ -311,7 +316,7 @@ struct DMark { vec2 dp; float slope; float depth; float len; float dia; float sp
 float dTurns(float edge) { return texelFetch(routeTex, ivec2(int(edge), 0), 0).w; }
 // the particle's lane in this segment, and how much of it is there (soft at a dividing line; whole at a wall)
 vec2 dMember(DSeg g, float yl) {
-  float y = (yl - g.c0) / g.c1, e = 0.04;
+  float y = (yl - g.c0) / (g.c1 < 0.0 ? min(g.c1, -1e-4) : max(g.c1, 1e-4)), e = 0.04;   // (a strip of no width: never 0 / 0)
   float m = (g.y0 <= -0.999 ? 1.0 : smoothstep(g.y0 - e, g.y0 + e, y)) * (g.y1 >= 0.999 ? 1.0 : 1.0 - smoothstep(g.y1 - e, g.y1 + e, y));
   return vec2(y, m);
 }
@@ -456,7 +461,7 @@ vec4 dustTube(DFrame F, vec3 lit, vec3 ink, float rev) {
     }
   }
   // nothing past the lumen's edge: the dust stops short of the ink, with a soft fall (never a hard cut)
-  return acc * (1.0 - smoothstep(0.90, 0.96, abs(F.across)));
+  return clamp(acc, 0.0, 1.0) * (1.0 - smoothstep(0.90, 0.96, abs(F.across)));   // (premultiplied: never past 0 .. 1, or the lumen under it would be inverted)
 }
 // the segment of edge edge (current layout) that carries the root's lane yl, if any: its index (-1 none) and the particle's lane there and membership
 vec3 dFind(float edge, float root, float yl) {
@@ -501,14 +506,16 @@ vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
           DPart P = dPart(g.root, k, j0 + float(n), Pf, flowFig);
           if (P.alive <= 0.0) continue;
           vec2 ma = dMember(g, P.yl);
-          if (ma.y <= 0.0 || (wb <= 0.004 && !dNear(Fa, g, ma.x, P))) continue;
+          if (ma.y <= 0.0) continue;
           vec3 fb = wb > 0.004 ? dFind(Fb.edge, g.root, P.yl) : vec3(-1.0, 0.0, 0.0);
           if (arm == 1 && fb.x >= 0.0) continue;   // (the first arm drew it)
+          DSeg gb = dSeg(Fb.edge, 1 + 2 * int(max(fb.x, 0.0) + 0.5));
+          if (!dNear(Fa, g, ma.x, P) && (fb.x < 0.0 || !dNear(Fb, gb, fb.y, P))) continue;   // (out of reach in both frames: its blend is too)
           DMark M = dPlace(Fa, g, ma.x, P);
           float sa = wa * ma.y, sb = 0.0;
           if (fb.x >= 0.0) {
             sb = wb * fb.z;
-            M = dMix(M, dPlace(Fb, dSeg(Fb.edge, 1 + 2 * int(fb.x + 0.5)), fb.y, P), sb / max(sa + sb, 1e-4));
+            M = dMix(M, dPlace(Fb, gb, fb.y, P), sb / max(sa + sb, 1e-4));
           }
           vec4 c = dDraw(M, P, t0, t1, t2, t3, ink, rev) * (sa + sb);
           acc = c + acc * (1.0 - c.a);
@@ -516,7 +523,7 @@ vec4 dustSkin(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
       }
     }
   }
-  return acc * (1.0 - smoothstep(0.90, 0.96, abs(mix(F0.across, F1.across, w1))));
+  return clamp(acc, 0.0, 1.0) * (1.0 - smoothstep(0.90, 0.96, abs(mix(F0.across, F1.across, w1))));
 }
 
 // (chevKeep, the lattice's keep, is in the one chevron chunk above: blood/chevron-glsl.ts)
@@ -772,8 +779,8 @@ void main() {
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
-    vec3 inkH = mix(inkColor, celTubeBase(baseH) * mix(0.32, 0.55, tubeDark), 0.75);
-    c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (a selected vessel's line is its own: the glow is a separate halo, glow.ts)
+    vec3 inkH = mix(mix(inkColor, celTubeBase(baseH) * mix(0.32, 0.55, tubeDark), 0.75), mix(celTubeBase(baseH) * 0.88, mix(celTubeBase(baseH), vec3(1.0), 0.25), tubeDark), 0.9 * smoothstep(0.0, 1.0, vHi));   // (a picked vessel's line is its own colour as drawn, eased by the pick's weight: the glow is a separate halo, glow.ts)
+    c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (the glow is a separate halo, glow.ts)
   }
   // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
   // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph

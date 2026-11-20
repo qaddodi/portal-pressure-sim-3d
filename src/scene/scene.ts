@@ -241,6 +241,8 @@ export class CelScene {
   private readonly hvJoins: VesselObject[] = [];
   /** Every vein that opens into the cava (the hepatic and the renal veins): the opacity it comes to at the cava's wall follows the cava's (named: whole). */
   private readonly cavaCuts: VesselObject[] = [];
+  /** what each cut hepatic vein's `setCavaCut` was given (the cava piece's lens, where along it, its alpha), so a skin that takes the end over can switch the cut off and the scene put it back */
+  private readonly cavaCutArgs = new Map<string, [number, number, number]>();
   /** The vessels of the back tier: they ease toward the page on a turn (quiet depth). */
   private readonly back: VesselObject[] = [];
   /** Settings > Hide vessels behind organs: the share (0 show-through, 1 normal occlusion) the vessels of the back tier are at, and where it is going; eased on the clock. */
@@ -380,7 +382,11 @@ export class CelScene {
       const bury: [number, number] = [0, 0];
       for (const e of [0, 1] as const) if (on && sj?.attach[e]) bury[e] = BURY * (sj.hostR[e] ?? def.radius);
       for (const e of [0, 1] as const) if (sk[e]) bury[e] = 0;   // (the part of the tube the bury guarded is cut away)
-      if (on && (this.ivcJoins.includes(o) || opensIntoCava(def.id))) bury[1] = Math.max(bury[1], CAVA_BURY * (NETWORK_BY_ID.get('IVC_IS')?.radius ?? def.radius));
+      // THE CAVA'S CUT RULES (spec 10.4): a hepatic vein that opens into the cava is cut away inside the cava's lumen (`cavaCut`, shaders.ts cavA) and its ink held back there (`CAVA_BURY`). Where a skin has taken over that end of it the skin IS the
+      // opening (the tube stops at its seam ring, outside the cava's wall), so both are off there and come back, exactly, with the skin. (Its `cavaEnd` ease is zero for every vein now: fades.ts cavaEndSpan.)
+      const cc = this.cavaCutArgs.get(def.id);
+      if (cc) o.setCavaCut(!sk[1], ...cc);
+      if (on && !sk[1] && (this.ivcJoins.includes(o) || opensIntoCava(def.id))) bury[1] = Math.max(bury[1], CAVA_BURY * (NETWORK_BY_ID.get('IVC_IS')?.radius ?? def.radius));
       const joinEnd = def.plan?.kind === 'feeder' ? def.plan.list[0]?.join : undefined;
       if (on && joinEnd != null) bury[joinEnd] = Math.max(bury[joinEnd], BURY * def.radius * (def.plan?.kind === 'feeder' ? (def.plan.list[0]?.k ?? 1) : 1));
       o.setBury(bury[0], bury[1]);
@@ -421,7 +427,7 @@ export class CelScene {
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
     else this.fans.set(o, def.id);   // a fan of tributaries has no map course: it never morphs, and the Circuit's shader fades it as 2D does (clamp(1 - 2 * T0))
     { const nm = nbrMatesOf(def.id)[0], md = nm ? NETWORK_BY_ID.get(nm) : undefined; if (md) { o.setNbrOn(true); o.setNbrMate(indexOf(md.lensId), md.baseD, md.widthKind); } }
-    { const cm = cavaMateOf(def.id); if (cm) { o.setCavaCut(true, indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1, fadeOf(cm, false)?.a0 ?? 1); this.cavaCuts.push(o); } }
+    { const cm = cavaMateOf(def.id); if (cm) { const args: [number, number, number] = [indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1, fadeOf(cm, false)?.a0 ?? 1]; o.setCavaCut(true, ...args); this.cavaCuts.push(o); this.cavaCutArgs.set(def.id, args); } }
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));

@@ -22,16 +22,26 @@ test('every vessel that ends on the faint cava comes to the cava\'s own opacity 
   assert.match(VESSEL_FS, /fadeHere = mix\(vFade, cavaA, wA\);/);
   const s = new CelScene();
   try {
-    let n = 0;
+    let n = 0, skinned = 0;
+    const ends = (id: string): readonly [boolean, boolean] => (s as unknown as { skins: { endsOf(id: string): readonly [boolean, boolean] } | null }).skins?.endsOf(id) ?? [false, false];
     for (const v of NETWORK) {
       if (!opensIntoCava(v.id)) continue;
       n++;
       const o = s.vesselObject(v.id)!, u = o.toon.uniforms as unknown as { cavaCut: { value: number }; cavaA: { value: number }; bury: { value: { y: number } } };
-      assert.equal(u.cavaCut.value, 1, v.id);
       assert.ok(Math.abs(u.cavaA.value - CAVA_RECEDE) < 1e-9, `${v.id} cava opacity`);
-      assert.ok(u.bury.value.y > 0, `${v.id}: its outline is buried at the junction`);
+      if (ends(v.id)[1]) {
+        // (spec 10.4: where a skin has taken the cava end of the vein, the skin IS the opening: the tube stops at its seam outside the wall, so there is no cut inside the lumen and no outline to bury there; the skin blends the vein's alpha at
+        //  its seam into the cava piece's, as a gradient through the junction)
+        skinned++;
+        assert.equal(u.cavaCut.value, 0, `${v.id}: a skin's seam, not a cut`);
+        assert.equal(u.bury.value.y, 0, `${v.id}: nothing of the tube lies inside the cava to bury`);
+      } else {
+        assert.equal(u.cavaCut.value, 1, v.id);
+        assert.ok(u.bury.value.y > 0, `${v.id}: its outline is buried at the junction`);
+      }
     }
     assert.ok(n >= 3);
+    assert.ok(skinned >= 1, 'at least the renal vein at IVCI is a skin\'s arm');
   } finally { s.dispose(); }
 });
 
