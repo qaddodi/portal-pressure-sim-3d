@@ -4,6 +4,7 @@
 
 import { sceneApi } from '../../scene/api.ts';
 import { clock, type Hold } from '../../clock/frame.ts';
+import { easeArrive } from '../../clock/tween.ts';
 import { useUi } from '../ui-store.ts';
 import { viewAt, cathPlace } from './presenter-machine.ts';
 import { makeCathClock, aimCath, stepCath, poseAt, cathScript, rankOf, ARRIVE_MS, type CathPose } from './cath-clock.ts';
@@ -55,12 +56,14 @@ export function linkScene(): () => void {
       // a ported slide says its own view and its lens; the slice's slides are the body. A Circuit slide frames its region of the map and draws the resistors it names.
       if (v.scene?.view === 'circuit') sceneApi.showCircuit(room, { box: v.scene.circuit?.box ?? null, kMax: v.scene.circuit?.kMax ?? null, resistors: (v.scene.circuit?.resistors ?? []) as never, caudate: !!v.scene.circuit?.caudate });
       else sceneApi.showShot(v.scene ? v.scene.view : 'body', want, room, want === v.shot);   // (the slide's own framing takes a slide's time; the catheter's tip close-ups keep the hand's glide)
-    } else sceneApi.setRoom(room, undefined, stepped);   // a step on to a slide with the same shot still brings the viewer's turn home
+    } else if (stepped || !sceneApi.roomIs(room)) sceneApi.setRoom(room, undefined, stepped);   // (a dock glide that has landed where it told the camera to go asks for nothing more)   // a step on to a slide with the same shot still brings the viewer's turn home
     if (v.scene && v.scene.lens !== lens) { lens = v.scene.lens; sceneApi.setLens(lens); }
   };
 
   sync();
+  // a dock glide has set off: the figure reframes for where the card is going, in the glide's own time, not once it has landed (2D presenter-zoom.js dockTo: layout() then reframe(ms))
+  const offHint = useUi.subscribe((s, prev) => { const h = s.roomHint; if (h && h !== prev.roomHint && h.free.w > 0 && h.free.h > 0) sceneApi.setRoom(h.free, h.ms, false, false, easeArrive); });
   const off = useUi.subscribe((s, prev) => { if (s.pos !== prev.pos || s.boxes.free !== prev.boxes.free || s.stops !== prev.stops) sync(s.pos !== prev.pos || s.stops !== prev.stops); });
   // (leaving the talk takes the catheter out: it never stays on the free figure)
-  return () => { off(); offClock(); hold?.release(); cathScript.on = false; cathScript.t = 0; sceneApi.setCatheter({ advance: 0, balloon: 0, column: 0 }); };
+  return () => { off(); offHint(); offClock(); hold?.release(); cathScript.on = false; cathScript.t = 0; sceneApi.setCatheter({ advance: 0, balloon: 0, column: 0 }); };
 }
