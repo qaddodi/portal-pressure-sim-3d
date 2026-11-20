@@ -7,6 +7,7 @@
 // (The stent's picture above the numbers is the charts thread's: the stent pictures are still to come in src/ui/charts.)
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { create } from 'zustand';
+import { SwitchNum } from '../../patients/SwitchNum.tsx';
 import { LUMEN_STEP, lumenShown, shareFor } from '../../../engine/hales/portal/stent-geom.js';
 import { latest, useEngine } from '../../../engine/index.ts';
 import { fmt } from '../../charts/fmt.ts';
@@ -45,7 +46,7 @@ function SliderCtl({ v, d, p }: { v: Ctl; d: number; p: unknown }) {
   const name = v.id === 'diameter' ? 'Diameter' : CAPTION[v.id as keyof typeof CAPTION] || v.label;
   return (
     <div className="se-ctl" data-ctl={v.id}>
-      <div className="se-cap"><span>{name}</span><b className="se-cv">{text}</b></div>
+      <div className="se-cap"><span>{name}</span><b className="se-cv"><SwitchNum text={text} /></b></div>
       <div className="range-wrap" style={{ '--p': Math.min(1, Math.max(0, (y - lo) / (hi - lo || 1))) } as CSSProperties}>
         <input type="range" min={lo} max={hi} step={step} value={y} aria-label={name} aria-valuetext={lum ? (shown > 0.004 ? `${mm1(y)} mm` : 'open') : v.format(shown)}
           onPointerDown={() => { fresh.current = true; }} onKeyDown={() => { fresh.current = true; }}
