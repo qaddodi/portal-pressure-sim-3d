@@ -299,3 +299,36 @@ test('turnOff (a guided step is bringing the turn home) stops the turn\'s moment
   assert.equal(r.orbit, mid, 'a Fit glide stopped too');
   assert.equal(r.g.active, false);
 });
+
+test('a locked figure (a talk is playing) never turns, pans, zooms or holds the shot: no drag, wheel, pinch, gesture, double click or context menu moves it; only a still tap reaches the host', () => {
+  let locked = true, ctx = 0;
+  const r = rig({ locked: () => locked, context: () => { ctx++; } });
+  r.ptr('pointerdown', 1, 400, 300); r.ptr('pointermove', 1, 440, 300); r.advance(16); r.ptr('pointermove', 1, 560, 300); r.advance(8); r.ptr('pointerup', 1, 560, 300);
+  r.run(600);
+  assert.equal(r.orbit, 0, 'a drag never turns it');
+  assert.deepEqual(r.hand, { k: 1, x: 0, y: 0 }, 'a drag never pans it');
+  assert.equal(r.taps.length, 0, 'a drag is not a tap');
+  r.ptr('pointerdown', 1, 350, 300); r.ptr('pointerdown', 2, 450, 300); r.ptr('pointermove', 2, 600, 300); r.ptr('pointerup', 2, 600, 300); r.ptr('pointerup', 1, 350, 300);
+  assert.deepEqual(r.hand, { k: 1, x: 0, y: 0 }, 'a pinch never zooms it');
+  assert.equal(r.taps.length, 0, 'a pinch is not a tap');
+  r.ptr('pointerdown', 1, 400, 300, { pointerType: 'mouse', shiftKey: true }); r.ptr('pointermove', 1, 500, 340, { pointerType: 'mouse' }); r.ptr('pointerup', 1, 500, 340, { pointerType: 'mouse' });
+  assert.deepEqual(r.hand, { k: 1, x: 0, y: 0 }, 'Shift-drag never pans it');
+  r.el.emit('wheel', { deltaMode: 0, deltaX: 0, deltaY: -100, wheelDeltaY: 120, clientX: 600, clientY: 200 });
+  r.el.emit('wheel', { deltaMode: 0, deltaX: 0, deltaY: -100, wheelDeltaY: 120, ctrlKey: true, clientX: 600, clientY: 200 });
+  r.el.emit('wheel', { deltaMode: 0, deltaX: 6, deltaY: 9, wheelDeltaY: -27, clientX: 500, clientY: 300 });
+  r.el.emit('gesturestart', {}); r.el.emit('gesturechange', { scale: 2, clientX: 400, clientY: 300 }); r.run(600);
+  assert.deepEqual(r.hand, { k: 1, x: 0, y: 0 }, 'the wheel, the trackpad and Safari\'s gestures never move it');
+  r.g.zoomStep(2); r.run(600);
+  assert.equal(r.hand.k, 1, 'a zoom button or key never zooms it');
+  r.ptr('pointerdown', 1, 300, 200, { pointerType: 'mouse' }); r.ptr('pointerup', 1, 300, 200, { pointerType: 'mouse' });
+  r.advance(100);
+  r.ptr('pointerdown', 1, 301, 200, { pointerType: 'mouse' }); r.ptr('pointerup', 1, 301, 200, { pointerType: 'mouse' });
+  assert.equal(r.hand.k, 1, 'a double click never zooms it');
+  assert.equal(r.taps.length, 2, 'a press that stays put is still a tap');
+  r.el.emit('contextmenu', { clientX: 300, clientY: 200 });
+  assert.equal(ctx, 0, 'the context menu opens nothing');
+  assert.equal(r.log.held, 0, 'the shot\'s own glide is never held');
+  locked = false;
+  r.ptr('pointerdown', 1, 400, 300); r.ptr('pointermove', 1, 440, 300); r.advance(16); r.ptr('pointermove', 1, 500, 300);
+  assert.ok(r.orbit !== 0, 'unlocked (the talk is over) it turns again');
+});

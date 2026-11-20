@@ -145,6 +145,8 @@ function SceneBridge() {
       picked: () => useSelection.getState().sel,
       setPicked: (sel) => selectStructure(sel as Sel | null),
       // right click and long press open the card of what is under the pointer and never close it (2D's contextmenu)
+      // a talk plays the figure: the viewer does not move it (2D presenter.js offFig)
+      locked: () => useDeck.getState().mode === 'deck',
       context: (x, y, touch) => { const hit = cel.pickTargetAt(x, y, raycaster.current, !!touch); if (hit) tapSelect(hit, { picked: cel.highlight.picked, pick: (id) => sceneApi.pick(id), body: true }, false); },
     }, {
       now: () => performance.now(),
@@ -161,7 +163,7 @@ function SceneBridge() {
   // Locked (it eases to square) while a gesture runs or the view is not the body; a camera move locks it in the rig itself.
   useEffect(() => {
     const rig = cel.rig;
-    rig.tiltGate = { on: () => useSettings.getState().tilt, locked: () => !!gesturesRef.current?.active || cel.view !== 'body' || cel.circuit.t > 0 };
+    rig.tiltGate = { on: () => useSettings.getState().tilt, locked: () => !!gesturesRef.current?.active || cel.view !== 'body' || cel.circuit.t > 0 || useDeck.getState().mode === 'deck' };
     const off = installTilt({
       rig, wake: (tag) => clock.invalidate(tag), on: () => useSettings.getState().tilt, reduced,
       onSwitch: (fn) => { let was = useSettings.getState().tilt; return useSettings.subscribe((s) => { if (s.tilt !== was) { was = s.tilt; fn(was); } }); },
