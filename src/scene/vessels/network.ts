@@ -146,7 +146,7 @@ export const cutEnd = (id: string): number | null => (SPLIT_AT[id] == null || !i
 export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST).filter((r) => cutEnd(r.a) !== r.ia && cutEnd(r.b) !== r.ib);
 const SMOOTH = smoothRunOns(new Map(JOIN_LIST.map((j) => [j.id, j.path])), RUN_ONS);
 /** A vessel's 2D course as drawn: smooth through the joins where it runs on into another. */
-const pathOf = (id: string): readonly (readonly [number, number])[] => trimHost(id, alongVein(id, EDGE_PATH_2D) ?? leaveVein(id, EDGE_PATH_2D, (h) => SMOOTH.get(h) ?? EDGE_PATH_2D[h]!) ?? withStartInOrgan(id, (id === 'A_HEP' ? undefined : SMOOTH.get(id)) ?? EDGE_PATH_2D[id]!));   // (the hepatic artery's end is the node its branches start at, as it is)
+const pathOf = (id: string): readonly (readonly [number, number])[] => trimHost(id, alongVein(id, EDGE_PATH_2D, (h) => SMOOTH.get(h) ?? EDGE_PATH_2D[h]!) ?? leaveVein(id, EDGE_PATH_2D, (h) => SMOOTH.get(h) ?? EDGE_PATH_2D[h]!) ?? withStartInOrgan(id, (id === 'A_HEP' ? undefined : SMOOTH.get(id)) ?? EDGE_PATH_2D[id]!));   // (the hepatic artery's end is the node its branches start at, as it is)
 
 function build(): NetVessel[] {
   const out: NetVessel[] = [];

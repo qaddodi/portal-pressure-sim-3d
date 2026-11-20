@@ -7,7 +7,7 @@ import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
 
 import { HEP_FADE_IN } from '../src/scene/vessels/fades.ts';
-import { startInOrganShare } from '../src/scene/vessels/starts.ts';
+import { alongVeinStretch, startInOrganShare } from '../src/scene/vessels/starts.ts';
 import { EDGE_PATH_2D } from '../src/scene/vessels/paths.copied.ts';
 
 test('a vein that ends in its organ fades in from nothing over the 2D share of its length', () => {
@@ -23,7 +23,9 @@ test('a vein that ends in its organ fades in from nothing over the 2D share of i
 test('the hepatic artery fades in at its start and its branches out at their ends, in both views', () => {
   const a = fadeOf('A_HEP', true)!, r = fadeOf('A_HR', true)!;
   assert.deepEqual([a.from, a.to, a.a0, a.a1, a.keep], [0, HEP_FADE_IN, 0, 1, true]);
-  assert.deepEqual([r.from, r.to, r.a0, r.a1, r.keep], [0.4, 1, 1, 0, false], 'the right artery fades out over the last 60%, as the portal branch beside it does');
+  assert.deepEqual([r.to, r.a0, r.a1, r.keep], [1, 1, 0, false]);
+  // (the artery runs on to its bed's node: the fade starts where it did along the portal branch, 40% of the old course in, so at that share of the longer one)
+  assert.ok(Math.abs(r.from - 0.4 * alongVeinStretch('A_HR', EDGE_PATH_2D)) < 1e-12 && r.from < 0.4 && r.from > 0.2, 'the right artery fades out over the last stretch, as the portal branch beside it does');
 });
 
 test('the veins that run on out of the plate fade out down it', () => {

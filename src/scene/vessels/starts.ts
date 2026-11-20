@@ -68,13 +68,13 @@ export const startOrgan = (id: string): string | null => START_IN_ORGAN[id]?.org
  *
  *  The left and right hepatic arteries run beside their portal branches, a little below them (the portal triad), and cross no vein (Mohammad, 20 Nov: "I want to see the left and right
  *  hepatic artery in anatomy"; "an artery cannot cross the veins"). The left one starts beyond the cava, which the portal vein itself crosses; each fades out with the portal branch. */
-const ALONG_VEIN: Readonly<Record<string, { hosts: readonly string[]; minX?: number; maxX?: number; off: number; above?: boolean }>> = {
+const ALONG_VEIN: Readonly<Record<string, { hosts: readonly string[]; minX?: number; maxX?: number; off: number; above?: boolean; fork?: number }>> = {
   A_HR: { hosts: ['PVH_R', 'PVH_R_1', 'PVH_R_2'], off: 8, above: true },
-  A_HL: { hosts: ['PVH_L', 'PVH_L_1'], minX: 632, maxX: 652, off: 8 },   // (it ends short of the umbilical vein, which leaves the left portal vein's wall just beyond it, below)
+  A_HL: { hosts: ['PVH_L', 'PVH_L_1'], minX: 632, maxX: 676, off: 8, above: true, fork: 40 },   // (it ends short of the umbilical vein, which leaves the left portal vein's wall just beyond it, below)
 };
 export const ALONG_VEIN_IDS: ReadonlySet<string> = new Set(Object.keys(ALONG_VEIN));
 
-export function alongVein(id: string, paths: Readonly<Record<string, readonly P2[]>>): readonly P2[] | null {
+function alongVeinBase(id: string, paths: Readonly<Record<string, readonly P2[]>>): P2[] | null {
   const a = ALONG_VEIN[id];
   if (!a) return null;
   let host: P2[] = [];
@@ -90,7 +90,7 @@ export function alongVein(id: string, paths: Readonly<Record<string, readonly P2
   // the junction: both branches leave the parent's end F along the parent's own heading and bend away from one another over the first stretch (a cubic from F onto the curve beside the vein),
   // so the fork is a smooth Y with a rounded crotch, not two lines meeting at an angle (Mohammad, 20 Nov: "a crude Y")
   const F = paths[id]![0]!, par = paths.A_HEP!, pa = par[Math.max(0, par.length - 9)]!, pl = Math.hypot(F[0] - pa[0], F[1] - pa[1]) || 1, d: P2 = [(F[0] - pa[0]) / pl, (F[1] - pa[1]) / pl];
-  let j0 = 0; while (j0 < out.length - 2 && Math.hypot(out[j0]![0] - F[0], out[j0]![1] - F[1]) < 26) j0++;
+  let j0 = 0; while (j0 < out.length - 2 && Math.hypot(out[j0]![0] - F[0], out[j0]![1] - F[1]) < (a.fork ?? 26)) j0++;
   const O = out[j0]!, T0 = out[Math.max(0, j0 - 1)]!, T1 = out[Math.min(out.length - 1, j0 + 1)]!, tl = Math.hypot(T1[0] - T0[0], T1[1] - T0[1]) || 1, tO: P2 = [(T1[0] - T0[0]) / tl, (T1[1] - T0[1]) / tl];
   const FL = Math.hypot(O[0] - F[0], O[1] - F[1]), c1: P2 = [F[0] + d[0] * 0.25 * FL, F[1] + d[1] * 0.25 * FL], c2: P2 = [O[0] - tO[0] * 0.3 * FL, O[1] - tO[1] * 0.3 * FL];
   const bez: P2[] = [];
@@ -103,6 +103,43 @@ export function alongVein(id: string, paths: Readonly<Record<string, readonly P2
   for (let i = 0; i < 64; i++) { const d = (L * i) / 63; while (k < out.length - 1 && cum[k]! < d) k++; const u = (d - cum[k - 1]!) / ((cum[k]! - cum[k - 1]!) || 1); res.push([out[k - 1]![0] + (out[k]![0] - out[k - 1]![0]) * u, out[k - 1]![1] + (out[k]![1] - out[k - 1]![1]) * u]); }
   return res;
 }
+
+/** The bed each hepatic artery runs on to (Mohammad, 20 Nov: "extend the arteriole"): the lobar artery used to end beside the start of the portal venule it follows, 20 radii of that venule from the sinusoid bed's node, so it could not be welded to it.
+ *  It now carries on to the bed's node and ends there, as the arteriole that opens into the sinusoids does: one curve from where it ended to the node, arriving from its own side of the venule at BED_ANGLE degrees off the venule's heading. */
+const BED_OF: Readonly<Record<string, string>> = { A_HR: 'PRE_R', A_HL: 'PRE_L' };
+export const BED_ANGLE = 55;
+const bedCache = new Map<string, { path: P2[]; stretch: number }>();
+function reachBed(id: string, base: P2[], bed: readonly P2[]): { path: P2[]; stretch: number } {
+  const n = bed.length, E = base[base.length - 1]!, tb = base[Math.max(0, base.length - 4)]!;
+  const J: P2 = bed[n - 1]!, B = bed[Math.max(0, n - 4)]!;
+  const unit = (x: number, y: number): P2 => { const l = Math.hypot(x, y) || 1; return [x / l, y / l]; };
+  const H = unit(J[0] - B[0], J[1] - B[1]), T0 = unit(E[0] - tb[0], E[1] - tb[1]);
+  // the side of the venule's line the artery is on, and the heading it arrives with: the venule's, turned toward the venule by BED_ANGLE
+  const nrm: P2 = [H[1], -H[0]], side = Math.sign((E[0] - J[0]) * nrm[0] + (E[1] - J[1]) * nrm[1]) || 1, a = (BED_ANGLE * Math.PI) / 180;
+  const T1 = unit(H[0] * Math.cos(a) - side * nrm[0] * Math.sin(a), H[1] * Math.cos(a) - side * nrm[1] * Math.sin(a));
+  const L = Math.hypot(J[0] - E[0], J[1] - E[1]), c1: P2 = [E[0] + T0[0] * 0.4 * L, E[1] + T0[1] * 0.4 * L], c2: P2 = [J[0] - T1[0] * 0.4 * L, J[1] - T1[1] * 0.4 * L];
+  const out: P2[] = [...base];
+  const m = 24;
+  for (let k = 1; k <= m; k++) { const t = k / m, u = 1 - t; out.push([u * u * u * E[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * J[0], u * u * u * E[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * J[1]]); }
+  const cum = [0]; for (let i = 1; i < out.length; i++) cum.push(cum[i - 1]! + Math.hypot(out[i]![0] - out[i - 1]![0], out[i]![1] - out[i - 1]![1]));
+  const Lt = cum[cum.length - 1]! || 1, res: P2[] = []; let k = 1;
+  for (let i = 0; i < 64; i++) { const d = (Lt * i) / 63; while (k < out.length - 1 && cum[k]! < d) k++; const u = (d - cum[k - 1]!) / ((cum[k]! - cum[k - 1]!) || 1); res.push([out[k - 1]![0] + (out[k]![0] - out[k - 1]![0]) * u, out[k - 1]![1] + (out[k]![1] - out[k - 1]![1]) * u]); }
+  return { path: res, stretch: lenOf(base) / lenOf(res) };
+}
+function alongVeinFull(id: string, paths: Readonly<Record<string, readonly P2[]>>, drawn?: (id: string) => readonly P2[]): { path: P2[]; stretch: number } | null {
+  let c = bedCache.get(id);
+  if (!c) {
+    const base = alongVeinBase(id, paths);
+    if (!base) return null;
+    c = BED_OF[id] ? reachBed(id, base, drawn?.(BED_OF[id]!) ?? paths[BED_OF[id]!]!) : { path: base, stretch: 1 };
+    if (drawn || !BED_OF[id]) bedCache.set(id, c);   // (only the drawn course is kept: a caller without it gets the 2D one, for the stretch of a fade, and leaves the cache to the network's)
+  }
+  return c;
+}
+/** `drawn`: the course a vessel is drawn on (the bed's node is where its venule's DRAWN course ends, smoothed through the run-on, not where its 2D course does). */
+export function alongVein(id: string, paths: Readonly<Record<string, readonly P2[]>>, drawn?: (id: string) => readonly P2[]): readonly P2[] | null { return alongVeinFull(id, paths, drawn)?.path ?? null; }
+/** How much of the drawn course the part beside the portal branch is (1 for a course that does not run on to a bed): a fade that was laid over the last share of the old course starts at the same place on the longer one. */
+export const alongVeinStretch = (id: string, paths: Readonly<Record<string, readonly P2[]>>): number => alongVeinFull(id, paths)?.stretch ?? 1;
 
 /** A branch that leaves its parent's wall, not the parent's end (Mohammad, 20 Nov: "umbilical vein into the left portal vein still sucks"): the umbilical vein started at the end node of the left portal vein, where that vein has already
  *  narrowed to a fraction of its width and splits into its fading tips, so a wider, separate tube hung off a thin tip. It now leaves the left portal vein `back` figure units before that end, where the vein is still wide:

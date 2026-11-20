@@ -5,7 +5,7 @@ import { EDGES } from '../../engine/hales/portal/topology.js';
 import { x3, y3 } from '../frame2d.ts';
 import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, FEEDER_FADE_Y_2D, SIN_EDGES_2D, SIN_FADE_C9_2D, SIN_FADE_ROW_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
 import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D } from './paths.copied.ts';
-import { startInOrganShare } from './starts.ts';
+import { alongVeinStretch, startInOrganShare } from './starts.ts';
 import { END_JOIN, LIVER_BRANCH_HOSTS, splitShare } from './liver-branches.ts';
 
 /** The cava is a background vessel too (Mohammad, 20 Nov: "IVC should be faded not prominent"): drawn at this share of its opacity, body, outline and chevrons together, lens colour kept. It rises to whole (1) when the cava is
@@ -132,7 +132,8 @@ function fadeOf0(id: string, isArtery: boolean, feederHost?: string): TipFade | 
   // (the hepatic artery is cut short beside the portal trunk, starts/stub-free: it grows out of nothing over nearly all of what is drawn: starts.ts TRIM)
   if (art?.in) return { mode: 1, from: 0, to: id === 'A_HEP' ? HEP_FADE_IN : art.in, a0: 0, a1: 1, keep: true, connect: [] };
   // (the lobar arteries fade out with the portal branch they run beside, over the same share of their length: Mohammad, 20 Nov, "the right branch doesn't fade at the end")
-  if (art?.out) return { mode: 1, from: 1 - (ART_OUT_SHARE[id] ?? art.out), to: 1, a0: 1, a1: 0, keep: false, connect: [] };
+  // (the artery runs on to its bed's node now, starts.ts alongVein: the fade starts where it always did along the portal branch)
+  if (art?.out) return { mode: 1, from: (1 - (ART_OUT_SHARE[id] ?? art.out)) * alongVeinStretch(id, EDGE_PATH_2D), to: 1, a0: 1, a1: 0, keep: false, connect: [] };
   const inOrgan = startInOrganShare(id, EDGE_PATH_2D[id] ?? []);
   if (inOrgan > 0 && !isArtery) return { mode: 1, from: 0, to: inOrgan, a0: 0, a1: 1, keep: false, connect: TIP_CONNECT_2D[id] ?? [] };
   const tip = TIP_FADE_2D[id] ?? FREE_START_FADE[id];

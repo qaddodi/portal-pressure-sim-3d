@@ -31,11 +31,10 @@ test('every inventory node builds a skin, with no fallback to the old join', () 
     if (j.arms.filter((a) => !a.grow).length >= 3) assert.ok(skinned, `${j.node} has a skin`);
     else assert.ok(skinned || j.arms.filter((a) => a.grow).every((a) => set.dropped.includes(`${j.node}:${a.vesselId}`)), `${j.node}: a skin, or every growing arm named as dropped`);
   }
-  // the nodes the 2D art leaves too far apart for a junction (spec 10.6) keep the old join, named here so a new one fails until someone looks:
-  // SIN_R and SIN_L, where the hepatic arteriole ends 20 and 38 radii of the bed's inflow from J. Measured (tests/skin-side-wall.test.ts): A_HR ends 3.2 radii of PRE_R from the start of PRE_R and 5.4 of the right portal vein's end from RPV, which is no junction (a
-  // through branch's tip); A_HL ends 1.8 radii from LPV_A, the left portal vein's bend, where the cuts' hull rule refuses PVH_L_1. Neither lands on the SIDE of a tube, so the side-wall rule (spec 10.1) cannot weld them without drawing new tube.
-  // IVCS is no longer here: the hepatic veins end on the cava's SIDE, 1.7 to 7.1 radii down its axis, so it is a side-wall junction (T3): the cava is a side arm and the skin stands mid-cava.
-  assert.deepEqual([...set.fellBack].sort(), ['SIN_L', 'SIN_R'], 'the pinned list of nodes that keep the old join');
+  // no node keeps the old join. SIN_R and SIN_L, the liver beds, did until 21 Nov: the hepatic arteriole ended 20 and 38 radii of the bed's inflow from the node, beside the start of the portal venule it follows, which is no junction. Mohammad chose to extend it: A_HR and A_HL
+  // now run on to the bed's node (starts.ts alongVein, BED_ANGLE), so the beds are three-arm junctions like any other (tests/skin-sheet.test.ts).
+  // IVCS is a side-wall junction (T3): the cava is a side arm and the skin stands mid-cava.
+  assert.deepEqual([...set.fellBack].sort(), [], 'the pinned list of nodes that keep the old join: none (the liver beds SIN_R and SIN_L are welded since the hepatic arteries run on to them)');
   assert.ok(set.nodes.includes('IVCS'), 'IVCS is welded as a side-wall junction');
 });
 
