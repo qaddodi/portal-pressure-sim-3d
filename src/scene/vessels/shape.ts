@@ -4,11 +4,10 @@ import type { Vec3 } from '../anatomy/vessels.ts';
 import { len3, x3, y3 } from '../frame2d.ts';
 import { TIER_Z } from '../frame2d.ts';
 import { coilCourses } from './coil.ts';
-import { ATLAS_COURSE, NETWORK_BY_ID, NODE_Z, type NetVessel } from './network.ts';
+import { NETWORK_BY_ID, NODE_Z, type NetVessel } from './network.ts';
 import { CAV, cavChannels, cavGrowth } from './cav.ts';
 import { BEAD_LAMBDA_FUNDAL, BEAD_SITE, beadLambda } from './varix-bead.copied.js';
 import { STRAND_FROM_2D } from './coil.copied.ts';
-import type { AtlasCourse } from '../atlas-art/types.ts';
 import { setSmoothJoins, smoothJoinsOn } from './join-mode.ts';
 import { ATTACH_REACH, BURY, CEIL, END_SHARE, SMOOTH, endDepth, isPlain } from './smooth-joins.ts';
 import { fadeOf } from './fades.ts';
@@ -104,20 +103,8 @@ export function fitEnds(v: NetVessel, pts: Vec3[]): { pts: Vec3[]; buried: reado
 }
 const minR = len3(0.35);
 
-/** The courses (the vessel's own first) at `s`. With Atlas art on and the artist having drawn this vessel, its first course is the artist's (atlasCourses); otherwise the 2D figure's, untouched. */
+/** The courses (the vessel's own first) at `s`. */
 export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
-  const base = classicCourses(v, s), a = ATLAS_COURSE.get(v.id);
-  return a ? atlasCourses(v, a, base) : base;
-}
-
-/** Atlas art: the artist's centreline and radii are the vessel's one tube. The classic shape's other tubes (a varix's strands, the cavernoma's channels, a fan of tributaries) stay in the
- *  geometry at no radius (rk 0, kept off the screen) so the vertex count is the one the vessel was built with and VesselObject.reshape can swap the shape in place. The radius is the vessel's
- *  own (what the live width and the Circuit read against); the artist's calibre is the profile along it. */
-function atlasCourses(v: NetVessel, a: AtlasCourse, base: Course[]): Course[] {
-  return base.map((c, i) => (i === 0 ? { pts: a.pts, radius: v.radius, profile: a.profile, capless: a.joined } : { pts: c.pts, radius: 0 }));
-}
-
-function classicCourses(v: NetVessel, s: ShapeState): Course[] {
   const plan = v.plan!, z = TIER_Z[v.tier];
   if (plan.kind === 'coil') {
     const coiled = coilCourses(v.id, plan.base as [number, number][], plan.coils, s.wig, s.spr);
@@ -155,10 +142,10 @@ function classicCourses(v: NetVessel, s: ShapeState): Course[] {
 
 /** The tube segments each course is built with, fixed at rest so a coil changes positions and never the vertex count. */
 export function tubularOf(v: NetVessel, minFirst = 0): number[] {
-  // (always counted on the 2D rule's courses, so the vertex count never depends on the smooth-joins switch or on Atlas art: either one rewrites the tubes in place, VesselObject.reshape)
+  // (always counted on the 2D rule's courses, so the vertex count never depends on the smooth-joins switch: a toggle rewrites the tubes in place, VesselObject.reshape)
   const was = smoothJoinsOn();
   setSmoothJoins(false);
-  const rest = (() => { try { return classicCourses(v, REST); } finally { setSmoothJoins(was); } })(), plan = v.plan!;
+  const rest = (() => { try { return coursesOf(v, REST); } finally { setSmoothJoins(was); } })(), plan = v.plan!;
   return rest.map((c, i) => {
     let len = 0;
     for (let i = 1; i < c.pts.length; i++) len += Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1], c.pts[i]![2] - c.pts[i - 1]![2]);
