@@ -798,7 +798,6 @@ export class CelScene {
     this.circuitScale();   // (the map's lines widen as it is zoomed out, as 2D's circBoost)
     const quiet = quietOf(this.rig.orbitAngle);
     for (const o of this.back) o.setQuiet(quiet);
-    { const lift = this.disease.organs.veilLift; for (const o of this.back) o.setVeilLift(lift); }   // (cel shaded organs are opaque: the vessels behind them take the wash's see-through back, vessel-object.ts)
     this.disease.organs.setQuiet(quiet);   // (quiet depth on a turn: the organs' wash eases back as the figure turns)
     const circMoving = this.stepCircuit(now, dt);
     this.fadeBody();
