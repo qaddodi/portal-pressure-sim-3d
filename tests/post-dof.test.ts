@@ -200,3 +200,16 @@ test('scene.ts: the second pass keeps the depth while the pass runs, the pass ru
   assert.match(readFileSync('src/scene/Stage.tsx', 'utf8'), /cel\.post\.dof\.materials/);
   assert.match(scene, /DIVE_IN\);\n/, 'the strength ends where the body is gone');
 });
+
+test('the focus band: drawn without a depth texture (every device), sharp on its line and blurred off it', () => {
+  const d = new PostDof(() => false, null);
+  const cam = new PerspectiveCamera(40, 1, 0.1, 100); cam.position.set(0, 0, 10); cam.updateMatrixWorld(); cam.updateProjectionMatrix();
+  const k = d.bandFrame(cam, new Vector3(-1, 0, 0), new Vector3(1, 0, 0), new Vector3(0, 1, 0), new Vector3(0, 2, 0), 1000, 1000, 1);
+  assert.equal(k, 1);
+  const band = d.gather.uniforms.band!.value as Vector4, bk = d.gather.uniforms.bandK!.value as Vector4;
+  assert.ok(Math.abs(Math.abs(band.y) - 1) < 1e-9 && Math.abs(band.x) < 1e-9, 'a horizontal line: its normal is vertical');
+  assert.ok(Math.abs(Math.abs(band.z) - 500) < 1e-6, 'through the middle of the picture');
+  assert.ok(bk.x > 0 && bk.y > 0 && bk.z > 0, 'sharp half width, a run, a biggest circle');
+  assert.equal(d.bandFrame(cam, new Vector3(), new Vector3(), new Vector3(), new Vector3(), 1000, 1000, 0), 0, 'strength 0: none');
+  assert.match(DOF_GATHER_FS, /bandCoc/);
+});

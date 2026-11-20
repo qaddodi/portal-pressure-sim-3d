@@ -302,7 +302,7 @@ test('with the Bile layer off (2D starts with it on) the vessels are gone; turni
   v.update(t += 16); assert.ok(bile.visible, 'on at the first frame of the fade');
   assert.ok((objs[0]!.toon.uniforms.inflate!.value as number) < 0, 'still growing');
   t = settle(v, t);
-  for (const o of objs) { assert.ok(Math.abs(o.toon.uniforms.inflate!.value as number) < 1e-6, 'full size'); assert.equal(flowOf(o), 1, 'arrowheads on'); assert.ok(speedOf(o) < 0, 'run against the blood'); }
+  for (const o of objs) { assert.ok(Math.abs(o.toon.uniforms.inflate!.value as number) < 1e-6, 'full size'); assert.equal(flowOf(o), 1, 'arrowheads on'); assert.ok(speedOf(o) > 0, 'run against the blood (bile.ts lays every course from the central vein out to the tract, so forward is out)'); }
   v.setLayers({ bile: false }); t = settle(v, t);
   assert.equal(bile.visible, false);
 });

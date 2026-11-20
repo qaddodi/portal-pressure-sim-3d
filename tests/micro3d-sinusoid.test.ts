@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { type BufferGeometry, type Mesh, type Object3D } from 'three';
+import { type BufferGeometry, Matrix4, type Mesh, type Object3D, Vector3 } from 'three';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { Sinusoid3D } from '../src/scene/micro3d/sinusoid3d.ts';
@@ -115,4 +115,30 @@ test('paused, the blood stands still: the traffic stops, and the view asks for n
   const x0 = F.traffic.flowX;
   flat.update(2000); flat.update(2100);
   assert.equal(F.traffic.flowX, x0);
+});
+
+test('the sinusoid has streaks only, never chevrons (Mohammad 20 Nov: "sinusoids view ONLY STREAKS")', () => {
+  const { s3 } = scene();
+  s3.update(true);
+  for (const m of meshes(s3.group)) { const u = (m.material as { uniforms?: Record<string, { value: unknown }> }).uniforms; if (u?.uProfile) assert.ok((u.uProfile.value as number) >= 0, `${m.name}: no chevrons`); }
+});
+
+test('the neighbours carry the disease more lightly: collagen in their Disse and a stellate cell each', () => {
+  const { flat, s3 } = scene();
+  (flat as unknown as { cur: { col: number; act: number } }).cur.col = 1; (flat as unknown as { cur: { col: number; act: number } }).cur.act = 1;
+  s3.update(true);
+  const fib = meshes(s3.group).find((m) => m.name === 'sinusoid3d/collagen')! as unknown as { count: number; getMatrixAt(i: number, m: Matrix4): void };
+  let far = 0; const m4 = new Matrix4(); const g = (flat as unknown as { g: { hepIn(x: number): number } }).g;
+  for (let i = 0; i < fib.count; i++) { fib.getMatrixAt(i, m4); const x = m4.elements[12]!, y = Math.abs(m4.elements[13]!); if (y > g.hepIn(x) + UM.hep - 1) far++; }
+  assert.ok(far > 5 && far < fib.count / 2, `fewer fibres in the neighbours' Disse: ${far} of ${fib.count}`);
+});
+
+test('the focus band: nothing when the scene is off, its blur starting past this sinusoid\'s plates', () => {
+  const { s3, flat } = scene();
+  const a = new Vector3(), b = new Vector3(), e0 = new Vector3(), e1 = new Vector3();
+  assert.equal(s3.focusBand(a, b, e0, e1), 0, 'off: no band');
+  s3.update(true);
+  assert.ok(s3.focusBand(a, b, e0, e1) > 0);
+  const toLocal = (v: Vector3) => s3.group.worldToLocal(v.clone());
+  assert.ok(Math.abs(toLocal(e0).y) > (flat as unknown as { g: { hepIn(x: number): number } }).g.hepIn(0) && Math.abs(toLocal(e1).y) > Math.abs(toLocal(e0).y));
 });
