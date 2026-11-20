@@ -37,7 +37,13 @@ export function lerpAngle(a: number, b: number, k: number): number {
 
 interface Pose { shot: Shot; room: Room }
 
-const copyShot = (s: Shot): Shot => ({ yaw: s.yaw, pitch: s.pitch, r: s.r, target: [...s.target], half: [...s.half] });
+const copyShot = (s: Shot): Shot => ({ yaw: s.yaw, pitch: s.pitch, r: s.r, target: [...s.target], half: [...s.half], ...(s.halfNarrow ? { halfNarrow: [...s.halfNarrow] as [number, number] } : {}) });
+/** A blend's narrow-stage extents: only where one of the two shots has its own (a shot without one frames a phone as any other screen). */
+const narrowOf = (a: Shot, b: Shot, f: (x: number, y: number) => number): { halfNarrow?: [number, number] } => {
+  if (!a.halfNarrow && !b.halfNarrow) return {};
+  const p = a.halfNarrow ?? a.half, q = b.halfNarrow ?? b.half;
+  return { halfNarrow: [f(p[0], q[0]), f(p[1], q[1])] };
+};
 const copyRoom = (r: Room): Room => ({ ...r });
 
 /** Beyond this ratio between two shots' distances the move is a dive (body to lobule is 200 to 1, lobule to sinusoid 20 to 1): see `blendPose`. */
@@ -56,6 +62,7 @@ export function blendPose(a: Pose, b: Pose, k: number, arc = 1): Pose {
       yaw: lerpAngle(a.shot.yaw, b.shot.yaw, k), pitch: lerp(a.shot.pitch, b.shot.pitch, k), r: lerp(a.shot.r, b.shot.r, k),
       target: [lerp(a.shot.target[0], b.shot.target[0], k), lerp(a.shot.target[1], b.shot.target[1], k), lerp(a.shot.target[2], b.shot.target[2], k)],
       half: [lerp(a.shot.half[0], b.shot.half[0], k), lerp(a.shot.half[1], b.shot.half[1], k)],
+      ...narrowOf(a.shot, b.shot, (x, y) => lerp(x, y, k)),
     },
     room: { x: lerp(a.room.x, b.room.x, k), y: lerp(a.room.y, b.room.y, k), w: lerp(a.room.w, b.room.w, k), h: lerp(a.room.h, b.room.h, k) },
   };
@@ -82,6 +89,7 @@ function blendDive(a: Pose, b: Pose, k: number, arc = 1): Pose {
       yaw: lerpAngle(a.shot.yaw, b.shot.yaw, k) + ARC_YAW * swing, pitch: lerp(a.shot.pitch, b.shot.pitch, k) + ARC_PITCH * swing, r,
       target: [lerp(a.shot.target[0], b.shot.target[0], q), lerp(a.shot.target[1], b.shot.target[1], q), lerp(a.shot.target[2], b.shot.target[2], q)],
       half: [geo(a.shot.half[0], b.shot.half[0], k), geo(a.shot.half[1], b.shot.half[1], k)],
+      ...narrowOf(a.shot, b.shot, (x, y) => geo(x, y, k)),
     },
     room: { x: lerp(a.room.x, b.room.x, k), y: lerp(a.room.y, b.room.y, k), w: lerp(a.room.w, b.room.w, k), h: lerp(a.room.h, b.room.h, k) },
   };
@@ -268,7 +276,7 @@ export class CameraRig {
     const w = this.width, h = this.height;
     const fov = fovAt(this.bump);
     // (the dolly zoom: as the lens widens the camera comes in by the same ratio, so what the dive aims at keeps its size and the world opens round it)
-    const r = dollyDistance(effectiveDistance(shot, room.w > 1 ? room : { x: 0, y: 0, w, h }, h), fov);
+    const r = dollyDistance(effectiveDistance(shot, room.w > 1 ? room : { x: 0, y: 0, w, h }, h, w), fov);
     this.camera.fov = fov;
     // the tilt is added here, at render time, on top of the shot and the viewer's turn; `project` and every pick use this same camera, so tags and taps agree with what is drawn
     const yaw = shot.yaw + this.orbit + (this.noTilt ? 0 : this.tilt.yaw), pitch = shot.pitch + (this.noTilt ? 0 : this.tilt.pitch);

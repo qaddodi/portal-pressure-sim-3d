@@ -39,7 +39,7 @@ import { ZonesOverlay } from './zones.ts';
 import { NeighbourField, fieldQuantizer } from './field.ts';
 import { lookColours } from './lz-colours.ts';
 import { DISC_EDGE } from './from2d/disc-glsl.generated.js';
-import { AN_K, DISC_R, LT_R, RS_N, TW_R, inletRadius, sinRadius, twigR } from './widths.ts';
+import { AN_K, DISC_R, LT_R, RS_N, TW_R, disseRadius, inletRadius, sinRadius, twigR } from './widths.ts';
 import { type Disc, type Joiner, buildDiscs, writeMouths } from './mouths.ts';
 import { HEAD_K, HEAD_KIND, HEAD_PERIOD, lobuleShade } from './shading.ts';
 import { LENS_SHARED, LENS_TOKENS } from '../lenses/tokens.copied.ts';
@@ -60,6 +60,8 @@ const CONG_Z3 = { s0: 0, s1: 0.4, s2: 0.95, an: 0.3 } as const;
 
 /** A disc's half thickness (an end-on vessel is a flat disc on the plate) and how far under its sinusoid the space of Disse's band lies. */
 const DISC_T = 0.008, DISSE_DZ = 0.03;
+/** A disc's sides: the rim is a polygon of this many, its sag from the true circle 0.0005 of the radius (0.3 px on a 600 px vein; at 48 it was twice that and showed as facets at 6x). */
+export const DISC_RADIAL = 96;
 /** Outline widths (CSS px). 2D's rule is clamp(0.14 × radius, 1.5, 3) device px: on these thin tubes about half a CSS px on a phone. */
 const INK = { sin: 0.55, thin: 0.45, inlet: 0.65, disc: 0.75 } as const;
 
@@ -248,7 +250,7 @@ export class LobuleView {
     // column standing out of it (the hexagonal prism of IMG_5637). Its face looks at the camera, so it is one flat tone inside its outline.
     const axial = (cs: Course[], radius: number) => {
       const b = new Batch();
-      for (const c of cs) { const p = c.pts[Math.floor(c.pts.length / 2)]!; b.tube([p3(p, -DISC_T), p3(p, DISC_T)], { radius, radial: 48, capped: true, disc: true, uvx: () => 0 }); }
+      for (const c of cs) { const p = c.pts[Math.floor(c.pts.length / 2)]!; b.tube([p3(p, -DISC_T), p3(p, DISC_T)], { radius, radial: DISC_RADIAL, capped: true, disc: true, uvx: () => 0 }); }
       return b;
     };
     const sinR = (c: Course) => (i: number) => sinRadius(c.kind as 's0' | 's1' | 's2' | 'an', c.rho[i]!) * R;
@@ -289,8 +291,9 @@ export class LobuleView {
     // the space of Disse: a flat pale band under its sinusoid, so only its rim shows either side (2D's Wet Disse sleeve, drawn under the sinusoid), with no
     // outline and no light of its own: no second tube wound round the first (the "rope" of IMG_5637). Its course runs inward, the lymph outward, so the marks run backwards
     const lyB = new Batch();
-    for (const c of by('ly')) { const off = markOffset(c.pts[0]!); lyB.tube(c.pts.map((p) => p3(p, -DISSE_DZ)), { radius: RAD.ly, radial: 8, squash: 0.08, uvx: (_i, arc) => arc / (RAD.ly * MARK_PITCHES) + off }); }
-    const ly = this.make('lymph', lyB, 'lymph', { bands: 2, flat: true, px: 0, chevrons: { pitch: RAD.ly * MARK_PITCHES, speed: lymphSpeed, dir: -1, lymph: true } });
+    for (const c of by('ly')) lyB.tube(c.pts.map((p) => p3(p, -DISSE_DZ)), { radius: (i) => disseRadius(c.rho[i]!) * R, radial: 8, squash: 0.08, uvx: () => 0 });
+    // (no marks of its own: 2D fits them to the rim, and a rim of the width 2D shows carries none but specks, which read as a yellow edge on every sinusoid)
+    const ly = this.make('lymph', lyB, 'lymph', { bands: 2, flat: true, px: 0 });
     this.flat.add(ly);
 
     // bile (the Bile layer): the canaliculi run between neighbouring plates, from the centre out toward the edge (the blood runs the other way), the canals of Hering gather them
@@ -530,7 +533,7 @@ export class LobuleView {
     if (k === 'in') return inletRadius(i, n, Math.hypot(t.pts[i]![0] - t.pts[0]![0], t.pts[i]![1] - t.pts[0]![1])) / (1 + 0.45 * c.fibPre);
     if (k === 'tw') return twigR(i / (n - 1), RS_N);
     if (k === 'lt' || k === 'lv') return LT_R * lyWr(c.lymphRate, 0.4);
-    if (k === 'ly') return RAD.ly / R;
+    if (k === 'ly') return disseRadius((t as Course).rho[i]!);
     if (k === 'bs') return RAD.bc / R;
     return RAD.bh / R;
   }

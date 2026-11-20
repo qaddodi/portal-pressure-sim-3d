@@ -21,8 +21,9 @@ import { type Placement, solve } from '../labels/solver.ts';
 import { LS, baselineAt, fontPx, lookVars, typeVars } from '../labels/type.ts';
 import { COURSES } from './course.ts';
 import { type CapMeta, buildCaptions } from './captions.ts';
-import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, LIVER_EDGES } from './data.copied.ts';
+import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, CIRCUIT_TREES, LIVER_EDGES } from './data.copied.ts';
 import { courseOf } from './paths.ts';
+import { halfWidthPx } from './cap-width.ts';
 import { resText } from './res-model.ts';
 import { selectStructure } from '../../ui/action/selection.ts';
 
@@ -111,6 +112,19 @@ export function CircuitCaptions() {
           px = tmp.x; py = tmp.y;
         }
       }
+      // the liver's branches (the sinusoid bundle) are lines a caption keeps off too, drawn with their parent
+      for (const [id, list] of Object.entries(CIRCUIT_TREES)) {
+        if (!cel.vesselDrawn(id)) continue;
+        for (const b of list) {
+          const p = courseOf(b.d);
+          let px = NaN, py = NaN;
+          for (let i = 0; i < p.length; i += Math.max(1, Math.floor(p.length / 12))) {
+            cel.mapPoint(p[i]![0], p[i]![1], tmp);
+            if (!Number.isNaN(px)) { lines.push([px, py, tmp.x, tmp.y]); owned.push({ id: `${id}~tree`, s: [px, py, tmp.x, tmp.y] }); }
+            px = tmp.x; py = tmp.y;
+          }
+        }
+      }
       const walls = blockers();
       const clear = (box: Box, own: string): boolean => within(box, free) && !walls.some((w) => hits(box, w)) && !owned.some((o) => o.id !== own && crosses(o.s[0], o.s[1], o.s[2], o.s[3], box));
       const built = buildCaptions({
@@ -130,6 +144,7 @@ export function CircuitCaptions() {
         resLane: (k) => laneOf(k === 'rGut' ? 'A_SMA' : 'C1b'),
         must: level === 'none' ? new Set([...must]) : must,
         clear,
+        halfW: (id) => halfWidthPx(id, cel.mapScale()),
       });
       const out = solve({ items: level === 'none' ? built.items.filter((it) => !it.id.startsWith('lane:') && (it.id.startsWith('res:') || it.id.startsWith('z:') || must.has(it.id))) : built.items, view: view(), blockers: blockers(), lines });
       placed = new Map(out.placed.map((p) => [p.id, p]));

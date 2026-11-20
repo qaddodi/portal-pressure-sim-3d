@@ -1,5 +1,6 @@
 // The lobule's vessels are shaded as 2D's Tube shades them (shading.ts): three screen-space tones, no world light or specular, the line by caliber, and the end-on vessels as celDisc (a pale band, the
 // wall opened where a vessel joins, an inner line where nothing does). The GLSL is compiled by glsl-compile.test.ts; here the text and the masks are held to 2D's numbers.
+import { CEL_TUBE_GLSL } from '../src/scene/cel-glsl.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createShared } from '../src/scene/materials/cel.ts';
@@ -9,6 +10,8 @@ import { CEL } from '../src/scene/vessels/cel-ink.ts';
 import { DISC_GLSL, DISC_EDGE } from '../src/scene/lobule/from2d/disc-glsl.generated.js';
 import { binOpen } from '../src/scene/lobule/from2d/lobule-mouths.generated.js';
 import { DISC_R } from '../src/scene/lobule/widths.ts';
+import { Batch } from '../src/scene/lobule/batch.ts';
+import { DISC_RADIAL } from '../src/scene/lobule/view.ts';
 
 interface Priv { discInfo: Map<string, { geo: { getAttribute(n: string): { count: number; getX(i: number): number; getY(i: number): number; getZ(i: number): number } | undefined }; discs: { site: { list: { ang: number }[] } | null; start: number; count: number }[] }> }
 const open = (g: Priv['discInfo'] extends Map<string, infer I> ? I : never, k: number) => {
@@ -16,18 +19,18 @@ const open = (g: Priv['discInfo'] extends Map<string, infer I> ? I : never, k: n
   return Array.from({ length: 72 }, (_, b) => binOpen(w, b));
 };
 
-test('a tube is three tones lit from the top left of the screen, 2D\'s numbers, with no specular and no band', () => {
+test('a tube is three tones lit from the top left of the screen, the figure\'s numbers (the one shared tube GLSL), with no specular and no band', () => {
   const t = LOBULE_TOON_FS;
   assert.match(t, /#ifdef TONES3/);
-  assert.ok(t.includes(`vec2(${CEL.DIR[0]}, ${CEL.DIR[1]})`));
-  assert.ok(t.includes(`${CEL.SHADE_AT} - etT`) && t.includes(`${CEL.LIT_AT} - etT`));
-  assert.ok(t.includes(`* ${CEL.SHADE} * shadowT`) && t.includes(`${CEL.LIT} * hwT * litT`));
-  assert.ok(t.includes('smoothstep(1.5, 3.5, vRdev)'), 'left out on a hairline');
+  assert.ok(t.includes(CEL_TUBE_GLSL), 'the same program text as the vessels\'');
+  assert.match(t, /celTubeTone\(c, acrossT, celTubeK\(sideS\), vRdev\)/);
+  assert.ok(CEL_TUBE_GLSL.includes('celTubeHw(rDev)') && /smoothstep\(1\.0, 2\.0, rDev\)/.test(CEL_TUBE_GLSL), 'left out on a hairline');
   assert.match(t, /#ifndef TONES3\s+c \+= rim \* 0\.10 \+ sp \* 0\.32;\s+#endif/, 'no rim light and no specular glint in the tones path');
 });
 
-test('the line is 2D\'s: 0.14 of the radius held between 1.5 and 3 device px, by the tube\'s own radius on screen', () => {
-  assert.ok(LOBULE_INK_VS.includes(`clamp(${CEL.LINE_R} * rDev, ${CEL.LINE_MIN}, ${CEL.LINE_MAX.toFixed(1)}) / dpr`));
+test('the line is the figure\'s: LINE_R of the radius held between LINE_MIN and LINE_MAX device px, by the tube\'s own radius on screen', () => {
+  const g = (x: number) => (Number.isInteger(x) ? x.toFixed(1) : String(x));
+  assert.ok(LOBULE_INK_VS.includes(`clamp(${g(CEL.LINE_R)} * rDev, ${g(CEL.LINE_MIN)}, ${g(CEL.LINE_MAX)}) / dpr`));
   assert.ok(LOBULE_INK_VS.includes('px > 0.0'), 'a part drawn with no line (the space of Disse\'s band) keeps none');
 });
 
@@ -79,4 +82,31 @@ test('the discs\' radii follow the state as 2D\'s radiusAt does', () => {
   assert.ok(Math.abs(k('pv') - 1 / 1.35) < 1e-9);
   assert.ok(Math.abs(k('ha') - 2 ** 0.3) < 1e-9);
   assert.equal(DISC_R.cv, 0.07);
+});
+
+test('a disc is a smooth circle: its radius and direction come from the unit-disc position, never from fwidth\'s per-triangle slope', () => {
+  for (const f of [LOBULE_TOON_FS, LOBULE_INK_FS]) assert.ok(!/fwidth\s*\(\s*vDisc/.test(f), 'no radius worked out from a derivative of the fan\'s own ramp (|dx|+|dy| is 1 to 1.41 times the slope by direction: a faceted, star-shaped vein)');
+  assert.match(LOBULE_TOON_FS, /float Dd = \(length\(vDiscP\) - 1\.0\) \* Rpx;/, 'the distance to the rim is length() of the unit-disc position');
+  assert.match(LOBULE_TOON_FS, /float Rpx = vRdev \* discK;/, 'the radius in device pixels is the camera\'s, scaled by how much of its radius the disc has');
+  assert.match(LOBULE_TOON_FS, /ringOpen\(vMouth, vDiscP\)/);
+  assert.match(LOBULE_INK_FS, /ringOpen\(vMouth, vDiscP\)/);
+  for (const v of [LOBULE_TOON_VS, LOBULE_INK_VS]) assert.match(v, /vDiscP = disc\.x >= 0\.0 \? disc\.x \* disc\.yz : disc\.yz;/);
+});
+
+test('a disc\'s cap carries the plane position over its radius: 0 at the centre, a unit vector at every rim vertex, so the fan interpolates the true circle', () => {
+  assert.ok(DISC_RADIAL >= 96, 'a rim of at least 96 sides');
+  const b = new Batch();
+  b.tube([[0.3, -0.2, -0.01], [0.3, -0.2, 0.01]], { radius: 0.07, radial: DISC_RADIAL, capped: true, disc: true, uvx: () => 0 });
+  const g = b.build(), p = g.getAttribute('position'), d = g.getAttribute('disc');
+  let centres = 0, rims = 0;
+  for (let i = 0; i < d.count; i++) {
+    if (d.getX(i) < 0) continue;   // (the wall: no cap tone)
+    const q = d.getX(i) * Math.hypot(d.getY(i), d.getZ(i));
+    if (d.getX(i) === 0) { assert.equal(q, 0); centres++; continue; }
+    assert.ok(Math.abs(q - 1) < 1e-6, 'a unit vector at the rim'); rims++;
+    // and it is the vertex's own direction from the centre, y down
+    const dx = (p.getX(i) - 0.3) / 0.07, dy = -(p.getY(i) + 0.2) / 0.07;
+    assert.ok(Math.hypot(dx - d.getY(i), dy - d.getZ(i)) < 1e-4, 'its direction from the centre');
+  }
+  assert.equal(centres, 2); assert.equal(rims, 2 * (DISC_RADIAL + 1));
 });

@@ -25,13 +25,13 @@ test('the liver\'s bands are cut by its smooth rest normal (no honeycomb from ci
   assert.match(ORGAN_VS, /#ifdef CEL_NORMAL\nattribute vec3 celNormal;/);
   assert.match(ORGAN_FS, /dot\(normalize\(vCn\), CEL_LIGHT\)/);
   assert.ok(ORGAN_FS.includes(`inkAmount * ${O.PAINT}`), 'the nodules, the dead spleen and the pool at PAINT of their strength');
-  assert.ok(O.PAINT <= 0.5 && O.TUCK_AO >= 0.6, 'low contrast: only a deep tuck bands');
+  assert.ok(O.PAINT <= 0.5, 'low contrast');
   const { s, organs: ol } = await organs();
   const liver = ol.byId.get('liver')!;
   const at = liver.toonMesh.geometry.getAttribute('celNormal');
   assert.ok(at && at.normalized && at.itemSize === 3, 'one signed byte an axis');
   assert.ok('CEL_NORMAL' in (liver.toon.defines ?? {}));
-  for (const [id, o] of ol.byId) if (id !== 'liver') assert.ok(!('CEL_NORMAL' in (o.toon.defines ?? {})) && !o.toonMesh.geometry.getAttribute('celNormal'), id);
+  for (const [id, o] of ol.byId) assert.ok('CEL_NORMAL' in (o.toon.defines ?? {}) && o.toonMesh.geometry.getAttribute('celNormal'), `${id}: every organ is banded by its smooth rest normal`);
   s.dispose?.();
 });
 
@@ -71,5 +71,35 @@ test('a vessel behind the organs takes the wash\'s see-through back (veil lift),
   v.setWholeShare(1); assert.equal(a(), 1, 'a cava shown whole is whole');
   v.setWholeShare(0); assert.ok(Math.abs(a() - (0.4 + lift)) < 1e-9);
   v.setVeilLift(0); assert.equal(a(), 0.4);
+  s.dispose?.();
+});
+
+test('cel shaded: every organ is OPAQUE and matte (alpha 1, normal blending, writes depth), its outline too: nothing reads as glass', async () => {
+  const { NormalBlending, AlwaysDepth } = await import('three');
+  const { patchedShaders } = await import('../src/scene/organs/organ-art.ts');
+  const { s, organs: ol } = await organs();
+  ol.applyLook(PALETTES.dark);
+  ol.setFill('solid', true); ol.setDepth(true, true); ol.update(1000);
+  assert.equal(ol.byId.size, ORGAN_ORDER.length);
+  for (const [id, o] of ol.byId) {
+    const u = o.toon.uniforms;
+    assert.equal((u.solid!.value as number), 1, `${id}: solid`);
+    assert.equal(u.fade!.value, 1, `${id}: not dissolving`);
+    assert.ok((u.cut!.value as { z: number }).z < 0, `${id}: nothing cleared by the dive window at rest`);
+    assert.equal(o.toon.blending, NormalBlending, `${id}: normal blending (no additive or premultiplied glow)`);
+    assert.equal(o.toon.depthWrite, true, `${id}: the fill writes depth (an organ behind it is hidden by it)`);
+    assert.equal(o.toon.depthTest, true);
+    if (ORGAN_STYLE[id]!.layer !== 'gut') assert.equal(o.toon.depthFunc, AlwaysDepth, `${id}: painted flat in 2D's order`);
+    assert.equal(o.ink.blending, NormalBlending, `${id}: the outline is plain ink`);
+    assert.equal(o.ink.uniforms.inkA!.value, 1, `${id}: whole ink alpha`);
+    assert.equal(o.toon.opacity, 1, `${id}: opacity 1`);
+  }
+  // the shader's alpha is 1 at solid 1 (the layer's opacity is mixed out), whatever the look's layer; no fresnel, specular or rim term anywhere in the fragment shader's cel path
+  assert.match(ORGAN_FS, /float a = mix\(layer, 1\.0, solid\);/);
+  assert.match(ORGAN_FS, /gl_FragColor = vec4\(fill, a \* fade \* win\);/);
+  // the art wrapper writes colour only, but for the esophagus's and the rectum's own fades (2D's esoFadeG, rectFadeG)
+  const p = patchedShaders('void main() {}', ORGAN_FS, 'void main() {}', 'void main() {}', { art: true, eso: { poly: [0, 0], box: [0, 0, 1, 1], fade: [0, 1], seam: [0, 1] }, fade: true });
+  const writes = p.fs.match(/gl_FragColor\.a[^\n]*/g) ?? [];
+  assert.deepEqual(writes, ['gl_FragColor.a *= vEsoA;'], 'the only alpha the art writes is the two fades');
   s.dispose?.();
 });

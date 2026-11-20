@@ -12,43 +12,37 @@ const file = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.ur
 setOrganData(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer);
 
 const O = CEL_STYLE.ORGAN;
-/** 0 shade, 1 base, 2 lit, as celBands and the tones make them away from an edge; `depth` 0..1 is organDepth's uniform (the tuck band starts at mix(1.5, TUCK_AO, depth)). */
-function organBand(lam: number, ao: number, depth: number, lean = 0): 0 | 1 | 2 {
-  const tuckAt = 1.5 + (O.TUCK_AO - 1.5) * depth;
-  return ao > tuckAt ? 0 : celBand(lam + O.BOX_BIAS * lean, 0, O.SHADE_LAM, O.LIT_LAM);
-}
+/** 0 shade, 1 base, 2 lit, as celBands and the tones make them away from an edge: the band is cut by n.L of the smooth rest normal alone (no box lean, no tuck band). */
+const organBand = (lam: number): 0 | 1 | 2 => celBand(lam, 0, O.SHADE_LAM, O.LIT_LAM);
+const LIGHT_N = (() => { const l = Math.hypot(...O.LIGHT); return O.LIGHT.map((v) => v / l) as unknown as [number, number, number]; })();
 
-test('cel shaded: the bands are exactly three tones over a whole sweep of light and tuck, with organ depth on or off', () => {
-  for (const depth of [0, 1]) {
-    const seen = new Set<number>();
-    for (let lam = -1; lam <= 1; lam += 0.01) for (let ao = 0; ao <= 1; ao += 0.01) seen.add(organBand(lam, ao, depth));
-    assert.deepEqual([...seen].sort(), [0, 1, 2], `depth ${depth}: shade, base and lit only`);
-  }
-  // the tuck is one hard band of the shade tone, and only with organ depth on; the lit cap is not lit where it is tucked
-  assert.equal(organBand(0.5, 0.9, 0), 1);
-  assert.equal(organBand(0.5, 0.9, 1), 0);
-  assert.equal(organBand(0.9, 0.9, 1), 0);
-  assert.equal(organBand(0.9, 0.1, 1), 2);
-  // a face-on flat organ (the view normal straight at the eye) is the base tone
-  const face = O.LIGHT[2] / Math.hypot(...O.LIGHT);
-  assert.equal(organBand(face, 0, 1), 1, 'face on is base');
-  assert.ok(O.SHADE_LAM < face && face < O.LIT_LAM);
-  // a flat face-on organ still shows all three tones across its box: the measure leans toward the light (box coordinates: x right, y down; the light is up and to the left)
+test('cel shaded: exactly three tones, cut by the smooth normal alone: one shade crescent along the lower right edge, one lit crescent along the upper left, base between, nothing cut across the middle', () => {
   const seen = new Set<number>();
-  const dir = [CEL_STYLE.DIR[0], -CEL_STYLE.DIR[1]] as const;
-  for (let x = 0; x <= 1; x += 0.02) for (let y = 0; y <= 1; y += 0.02) seen.add(organBand(face, 0, 0, (x - 0.5) * dir[0] + (y - 0.5) * dir[1]));
-  assert.deepEqual([...seen].sort(), [0, 1, 2], 'a flat organ: lit cap, base, shade side');
-  assert.equal(organBand(face, 0, 0, (0.15 - 0.5) * dir[0] + (0.15 - 0.5) * dir[1]), 2, 'upper left is lit');
-  assert.equal(organBand(face, 0, 0, (0.9 - 0.5) * dir[0] + (0.9 - 0.5) * dir[1]), 0, 'lower right is shade');
-  // the shares of a face-on box: each of lit and shade is a clear part, none swallows the organ
-  let lit = 0, sh = 0, n = 0;
-  for (let x = 0; x <= 1; x += 0.02) for (let y = 0; y <= 1; y += 0.02) { const b = organBand(face, 0, 0, (x - 0.5) * dir[0] + (y - 0.5) * dir[1]); n++; if (b === 2) lit++; if (b === 0) sh++; }
-  assert.ok(lit / n > 0.1 && lit / n < 0.4 && sh / n > 0.1 && sh / n < 0.4, `lit ${(lit / n).toFixed(2)}, shade ${(sh / n).toFixed(2)}`);
+  for (let lam = -1; lam <= 1; lam += 0.01) seen.add(organBand(lam));
+  assert.deepEqual([...seen].sort(), [0, 1, 2]);
+  // a face-on flat organ (the view normal straight at the eye) is the base tone: SHADE_LAM < face < LIT_LAM
+  const face = LIGHT_N[2];
+  assert.equal(organBand(face), 1, 'face on is base');
+  assert.ok(O.SHADE_LAM < face && face < O.LIT_LAM);
+  // a round pillow (a disc whose normal is the sphere's): the middle is base, the lit tone is an arc at the upper left rim, the shade an arc at the lower right rim
+  let lit = 0, sh = 0, n = 0, lx = 0, ly = 0, sx = 0, sy = 0, centre = 1;
+  for (let x = -1; x <= 1; x += 0.01) for (let y = -1; y <= 1; y += 0.01) {
+    const r2 = x * x + y * y;
+    if (r2 > 0.98) continue;
+    const z = Math.sqrt(1 - r2), b = organBand(x * LIGHT_N[0] + y * LIGHT_N[1] + z * LIGHT_N[2]);   // (y up)
+    n++;
+    if (b === 2) { lit++; lx += x; ly += y; } else if (b === 0) { sh++; sx += x; sy += y; }
+    if (r2 < 0.01) centre = b;
+  }
+  assert.equal(centre, 1, 'the middle of a round organ is base');
+  assert.ok(lit / n > 0.03 && lit / n < 0.3 && sh / n > 0.03 && sh / n < 0.3, `each crescent is a clear part, none swallows the organ (lit ${(lit / n).toFixed(2)}, shade ${(sh / n).toFixed(2)})`);
+  assert.ok(lx / lit < -0.2 && ly / lit > 0.2, 'the lit one lies at the upper left');
+  assert.ok(sx / sh > 0.2 && sy / sh < -0.2, 'the shade one lies at the lower right');
 });
 
 test('cel shaded: the numbers are cel-style.ts\'s (no second copy), edges are EDGE_PX of fwidth, the tones are 2D\'s tokens, and the wash is behind `solid`', () => {
   const g = (name: string) => Number(new RegExp(`const float ${name} = ([0-9.]+);`).exec(ORGAN_FS)![1]);
-  assert.equal(g('CEL_SHADE_LAM'), O.SHADE_LAM); assert.equal(g('CEL_LIT_LAM'), O.LIT_LAM); assert.equal(g('CEL_TUCK_AO'), O.TUCK_AO); assert.equal(g('CEL_EDGE_PX'), CEL_STYLE.EDGE_PX);
+  assert.equal(g('CEL_SHADE_LAM'), O.SHADE_LAM); assert.equal(g('CEL_LIT_LAM'), O.LIT_LAM); assert.equal(g('CEL_EDGE_PX'), CEL_STYLE.EDGE_PX);
   const lg = /CEL_LIGHT = vec3\((-?[0-9.]+), ([0-9.]+), ([0-9.]+)\)/.exec(ORGAN_FS)!.slice(1).map(Number);
   const len = Math.hypot(...O.LIGHT);
   O.LIGHT.forEach((v, i) => assert.ok(Math.abs(lg[i]! - v / len) < 1e-6, 'the light is the style\'s, normalized once in JS'));
@@ -61,11 +55,11 @@ test('cel shaded: the numbers are cel-style.ts\'s (no second copy), edges are ED
   assert.doesNotMatch(fn, /smoothstep\([^)]*[0-9]\.[0-9]+ ?[-+]/, 'no literal softness in an edge');
   const cel = ORGAN_FS.slice(ORGAN_FS.indexOf('// Cel shaded: the wash'), ORGAN_FS.indexOf('float a = mix(layer'));
   assert.match(cel, /if \(solid > 0\.001\) \{/);
-  assert.ok(cel.includes(`vec3 base = o2;`), 'the base is the organ\'s own second tone, at full strength');
-  assert.ok(cel.includes(`mix(base * (1.0 - ${O.SHADE}), deep, ${O.DEEP})`), 'shade: the base x (1 - SHADE), DEEP of the way to the organ\'s own darkest tone');
-  assert.ok(cel.includes('? o3 : ogDark.rgb'), 'the organ\'s third tone where it is darker than the base (light looks), og-dark where it is the light edge (dark looks)');
-  assert.ok(cel.includes(`mix(mix(base, o1, ${O.LIT_O1}), ogLight.rgb, ${O.LIT})`), 'lit: toward its first tone, then og-light');
-  assert.match(cel, /CEL_BOX_BIAS \* lean/);
+  assert.ok(cel.includes('vec3 base = celBase + paint;'), 'the base is the organ\'s own 2D tone (cel-tones.ts), flat, with what varies over it');
+  assert.ok(cel.includes('mix(mix(base, celShade + paint, b.x), celLit + paint, b.y)'), 'three flat tones, nothing mixed in between');
+  assert.doesNotMatch(cel, /ogLight|ogDark|volShade|\bo1\b|\bo2\b|\bo3\b|mix\(o1|smoothstep\((?!.*celBands)/, 'no og-light, og-dark, gradient or rim in the cel block');
+    assert.doesNotMatch(cel, /vBox|lean|vAo|depthAmt/, 'no box lean and no tuck band: the smooth rest normal alone');
+    assert.match(cel, /celBands\(dot\(normalize\(vCn\), CEL_LIGHT\), 0\.0, 2\.0\)/);
   assert.doesNotMatch(cel, /#[0-9A-Fa-f]{6}|vec3\([0-9.]+, [0-9.]+, [0-9.]+\)/, 'no literal colour');
   assert.ok(!cel.includes('mix(page'), 'no pre-mix against the page');
   assert.match(cel, /fill = mix\(fill, cel, solid\);/, 'eased by the solid uniform');
@@ -90,10 +84,13 @@ test('cel shaded: the organ\'s line is 2D\'s alpha whole, not thinned by the lay
   const cel = away();
   assert.ok(wash > 0 && cel > wash * 1.2, `the line is stronger cel shaded (${wash.toFixed(3)} -> ${cel.toFixed(3)})`);   // (Light's wash is at .72 since 19 Nov, so its line is .62 × .72, not × .55)
   assert.ok(mid > wash && mid < cel, 'and it eases');
-  const px = organs.byId.get('liver')!.ink.uniforms.px!.value as number;
-  assert.ok(Math.abs(px - 1.1 * O.LINE_SCALE) < 1e-6, `the outline is ${O.LINE_SCALE} times 2D's width in figure units (${px})`);
+  for (const [id, o] of organs.byId) {
+    assert.equal(o.ink.uniforms.px!.value, O.LINE_PX, `${id}: the one bold outline width, the same on every organ`);
+    assert.equal(o.ink.uniforms.minPx!.value, O.LINE_MIN_CSS, `${id}: never under ${O.LINE_MIN_CSS} CSS px`);
+  }
   organs.setFill('seethrough'); for (let t = 4016; t < 8000 && organs.update(t); t += 16);
   assert.equal(organs.byId.get('liver')!.ink.uniforms.px!.value, 1.1, 'the wash keeps 2D\'s width');
+  assert.equal(organs.byId.get('liver')!.ink.uniforms.minPx!.value, 0, 'and its one device pixel floor');
   assert.ok(Math.abs(away() - wash) < 1e-9, 'and its thin line, exactly');
   s.dispose?.();
 });

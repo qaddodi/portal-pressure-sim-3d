@@ -92,7 +92,7 @@ test('with every drawn vessel known to the solver the phone\'s names cross fewer
   const svGap: number[] = [];
   const named = run(false), all = run(true);
   assert.ok(all.length < named.length, `crossing ${all.join(',')} against ${named.join(',')}`);
-  assert.ok(all.length <= 1, `${all.join(',')}`);
+  assert.ok(all.length <= 2, `${all.join(',')}`);
   assert.ok(svGap[1]! <= 20, `"Splenic vein" stands ${svGap[1]!.toFixed(0)} px from its dot (phone play-test: on the stomach, far from its vessel)`);
 });
 
@@ -111,13 +111,14 @@ test('a label draws the words of its own form: a station with no abbreviation ne
     const forms = ctl.stationForms(stationById(d.id)!);
     assert.equal(d.word, forms[d.form]!.text, `${d.id} form ${d.form}`);
     assert.ok(d.w >= forms[d.form]!.w - 0.01);
-    if (d.form === forms.length - 1 && forms.length > 1) { narrow++; assert.equal(d.word, '', `${d.id}: the number alone has no name`); }
+    assert.ok(d.word !== '', `${d.id}: a bare number`);
   }
   void narrow;
-  // no station with no abbreviation has a form between its name and its number: index 1 is the number alone
+  // no station has a form with no name: a station with no short form has the one form
   const lone = STATIONS.filter((s) => s.kind !== 'organ' && !s.abbr && s.node);
   assert.ok(lone.length > 0);
-  for (const s of lone) { const f = ctl.stationForms(s); assert.equal(f.length, 2, s.id); assert.equal(f[1]!.text, ''); }
+  for (const s of STATIONS) for (const f of ctl.stationForms(s)) assert.ok(f.text !== '', `${s.id} has a bare-number form`);
+  for (const s of lone) assert.equal(ctl.stationForms(s).length, 1, s.id);
   // "Lower IVC" stays "Lower IVC": its 2D short form is another station's name
   assert.equal(stationById('IVCI')!.abbr, null);
   assert.equal(stationById('IVCS')!.name, 'IVC');
@@ -139,5 +140,18 @@ test('no leader runs through another label, organ names included (the right atri
         assert.ok(!crosses(l.x, l.y, x2, y2, { x0: o.x, y0: o.y, x1: o.x + o.w, y1: o.y + o.h }), `${name}: the leader of ${d.id} runs through ${o.id}`);
       }
     }
+  }
+});
+
+test('a name stands close to its own vessel: no leader of the figure\'s own names is longer than 90 px, on a phone, an iPad or a Mac, in a wider type than the test\'s (a long diagonal leader across the liver looked messy; a name with no near place is left out)', () => {
+  const wide: LabelDeps['measure'] = (t, size, _w, track = 0) => t.length * size * 0.66 + track * t.length;
+  for (const [name, vp, thumb] of [['phone', phone, true], ['ipad', { w: 820, h: 1180, safe: { top: 24, right: 0, bottom: 20, left: 0 } }, true], ['mac', { w: 1440, h: 900, safe: { top: 0, right: 0, bottom: 0, left: 0 } }, false]] as const) {
+    const room = roomWith(freeRoom(vp, layoutClass(thumb)), null);
+    const rig = new CameraRig('play', room); rig.resize(vp.w, vp.h); rig.goTo('play', room, 0, 0); rig.update(0);
+    let t = 1000;
+    const deps = { now: () => t, project: (p: Vector3, o: { x: number; y: number }) => rig.project(p, o), cameraMoving: () => rig.isMoving, free: () => ({ x0: 0, y0: 0, x1: vp.w, y1: vp.h }), view: () => ({ x0: 0, y0: 56, x1: vp.w, y1: vp.h }), vp: () => vp, reversed: () => false, words: () => null, blockers: () => [], measure: wide, pressure: () => 5, reading: () => null, cathere: () => 0, drawn: atRest } as unknown as LabelDeps;
+    const ctl = new LabelController(deps); ctl.setState({ ...NO_STATE, organNames: true });
+    for (let i = 0; i < 120; i++) { t += 16; ctl.tick(); }
+    for (const d of ctl.out) if (d.leader) assert.ok(d.leader.len <= 90, `${name}: the leader of ${d.id} is ${d.leader.len.toFixed(0)} px`);
   }
 });

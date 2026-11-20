@@ -1,4 +1,4 @@
-import { FOV, type Shot } from './shots.ts';
+import { FOV, NARROW_STAGE, type Shot } from './shots.ts';
 
 // Room first (look-and-feel.md section 8): the cards take their room, then the camera frames the subject in the free room left over,
 // by shifting the projection centre. The art is never squeezed and the camera never fights the cards.
@@ -21,8 +21,9 @@ export function fitDistance(half: [number, number], room: Room, viewportH: numbe
 }
 
 /** The distance to use: the shot's own, or further out when the free room is too small for it. */
-export function effectiveDistance(shot: Pick<Shot, 'r' | 'half'>, room: Room, viewportH: number): number {
-  return Math.max(shot.r, fitDistance(shot.half, room, viewportH));
+export function effectiveDistance(shot: Pick<Shot, 'r' | 'half' | 'halfNarrow'>, room: Room, viewportH: number, viewportW = Infinity): number {
+  const half = shot.halfNarrow && viewportW < NARROW_STAGE ? shot.halfNarrow : shot.half;
+  return Math.max(shot.r, fitDistance(half, room, viewportH));
 }
 
 /** The projection shift (pixels) that moves the picture's centre from the middle of the canvas to the middle of the room. */

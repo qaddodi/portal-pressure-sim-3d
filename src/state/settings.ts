@@ -12,12 +12,6 @@ export const ORGAN_FILLS = ['solid', 'seethrough'] as const;
 export type OrganFill = (typeof ORGAN_FILLS)[number];
 export const ORGAN_FILL_DEFAULT: OrganFill = 'solid';
 
-/** Atlas art (3D only; Settings > Figure depth): the artist's organ meshes, shading and vessel centrelines (src/scene/atlas-art/), or Classic, the figure as it was. Classic is the default and
- *  the one way back: with Classic nothing of the atlas is loaded or drawn. */
-export const ATLAS_ARTS = ['classic', 'atlas'] as const;
-export type AtlasArt = (typeof ATLAS_ARTS)[number];
-export const ATLAS_ART_DEFAULT: AtlasArt = 'classic';
-
 export interface Settings {
   look: LookChoice;
   /** True once the viewer picked a look in Settings: until then the app follows the device (System), as the 2D app does with no saved look (looks.js: a missing pps.theme is System): dark on a dark device, light on a light one. */
@@ -41,8 +35,6 @@ export interface Settings {
   micro3d: boolean;
   /** Organ fill (3D only): solid cel-shaded organs (the default since 20 Nov: "I want the organs to be cell shaded") or the see-through wash (adopted 19 Nov, kept as the alternative); solid is (opaque, the page colour pre-mixed, 2D-style 3-tone shade). Mohammad: "It really depends on how it's gonna look". */
   organFill: OrganFill;
-  /** Atlas art: Classic (the default) or Atlas, the external artist's organs and vessel courses, loaded only when chosen. */
-  atlasArt: AtlasArt;
 }
 interface Store extends Settings {
   setLook(l: LookChoice): void; setBlur(on: boolean): void;
@@ -51,33 +43,37 @@ interface Store extends Settings {
 }
 
 const KEY = 'pps3d.settings.v1';
+/** The Figure depth switches and Organ fill are saved with this version. Every Settings change saves ALL the settings, so a phone that changed its look while See-through was still the default
+ *  stored 'seethrough' as if it had been chosen (20 Nov 2026: "still glass" on an iPhone while the Mac was cel). A saved figure choice older than this is dropped and the defaults apply; raise it
+ *  when a default changes. */
+export const FIGURE_SETTINGS_VERSION = 2;
 /** Everything this app stores on the device starts with this, so Reset everything can clear it and nothing else. */
 export const STORAGE_PREFIX = 'pps3d.';
 /** The "Figure depth" switches (owner, 19 Nov 2026: "Yes do all properly"): a deliberate exception to match-2D, each behind its own switch. All on by default, except blood-cell particles (chevrons stay the flow mark). */
 export const DEPTH_KEYS = ['smoothJoins', 'organDepth', 'tilt', 'dof', 'particles', 'micro3d'] as const;
 export type DepthKey = (typeof DEPTH_KEYS)[number];
 export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { smoothJoins: true, organDepth: true, tilt: true, dof: true, particles: false, micro3d: true };
-export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS, organFill: ORGAN_FILL_DEFAULT, atlasArt: ATLAS_ART_DEFAULT };
+export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS, organFill: ORGAN_FILL_DEFAULT };
 
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
 export function parseSettings(raw: string | null): Settings {
   try {
     const o = raw ? JSON.parse(raw) : {};
+    const fig = o.figureV === FIGURE_SETTINGS_VERSION ? o : {};   // (an older save never chose the figure switches: the defaults)
     return {
       look: o.lookChosen === true && (o.look === 'system' || LOOK_IDS.includes(o.look)) ? o.look : DEFAULTS.look,
       lookChosen: o.lookChosen === true && (o.look === 'system' || LOOK_IDS.includes(o.look)),
       blur: bool(o.blur, DEFAULTS.blur),
       figureDetail: Number.isInteger(o.figureDetail) && o.figureDetail >= 0 && o.figureDetail < FIGURE_DETAIL.length ? o.figureDetail : DEFAULTS.figureDetail,
       sharpMoving: bool(o.sharpMoving, DEFAULTS.sharpMoving), keys: bool(o.keys, true), showFps: bool(o.showFps, false), showBreakdown: bool(o.showBreakdown, false),
-      smoothJoins: bool(o.smoothJoins, DEPTH_DEFAULTS.smoothJoins), organDepth: bool(o.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(o.tilt, DEPTH_DEFAULTS.tilt), dof: bool(o.dof, DEPTH_DEFAULTS.dof), particles: bool(o.particles, DEPTH_DEFAULTS.particles), micro3d: bool(o.micro3d, DEPTH_DEFAULTS.micro3d),
-      organFill: (ORGAN_FILLS as readonly unknown[]).includes(o.organFill) ? o.organFill : ORGAN_FILL_DEFAULT,
-      atlasArt: (ATLAS_ARTS as readonly unknown[]).includes(o.atlasArt) ? o.atlasArt : ATLAS_ART_DEFAULT,
+      smoothJoins: bool(fig.smoothJoins, DEPTH_DEFAULTS.smoothJoins), organDepth: bool(fig.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(fig.tilt, DEPTH_DEFAULTS.tilt), dof: bool(fig.dof, DEPTH_DEFAULTS.dof), particles: bool(fig.particles, DEPTH_DEFAULTS.particles), micro3d: bool(fig.micro3d, DEPTH_DEFAULTS.micro3d),
+      organFill: (ORGAN_FILLS as readonly unknown[]).includes(fig.organFill) ? fig.organFill : ORGAN_FILL_DEFAULT,
     };
   } catch { return { ...DEFAULTS }; }
 }
 const read = (): Settings => { try { return parseSettings(localStorage.getItem(KEY)); } catch { return parseSettings(null); } };
-const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, smoothJoins: s.smoothJoins, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, micro3d: s.micro3d, organFill: s.organFill, atlasArt: s.atlasArt });
-const save = (s: Settings) => { try { localStorage.setItem(KEY, JSON.stringify(pick(s))); } catch { /* private window: the choice lasts for this visit */ } };
+const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, smoothJoins: s.smoothJoins, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, micro3d: s.micro3d, organFill: s.organFill });
+const save = (s: Settings) => { try { localStorage.setItem(KEY, JSON.stringify({ ...pick(s), figureV: FIGURE_SETTINGS_VERSION })); } catch { /* private window: the choice lasts for this visit */ } };
 
 export const useSettings = create<Store>((set, get) => ({
   ...read(),

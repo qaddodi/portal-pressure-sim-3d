@@ -96,6 +96,8 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
         role="group" aria-label={label} style={{ height: ready ? (animH ?? rect.h) : undefined }} {...pointer}
         onAnimationEnd={(e) => { if (e.target !== e.currentTarget) return; if (out) onGone(entry.key); else if (e.animationName === 'dk-in') setLive(true); }}>
         <div ref={innerRef} className={entry.id === 'ladder' ? 'dk-in' : 'dk-in pz-text'}>{children}</div>
+        {/* 2D's handle in the data card's foot (a touch screen, both cards up): a push up on the card puts it away */}
+        {entry.id === 'ladder' && lay !== 'wide' && lay !== 'short' && <span className="pz-grip" aria-hidden="true" />}
       </div>
     </div>
   );

@@ -100,7 +100,7 @@ function controller(over: Partial<LabelDeps> = {}) {
   return new LabelController(deps);
 }
 
-test('a station\'s forms are its 2D line and padding, widest first: name and reading, short name and reading, reading alone', () => {
+test('a station\'s forms are its 2D line and padding, widest first: name and reading, short name and reading; never the reading alone', () => {
   const ctl = controller();
   const pv = STATIONS.find((s) => s.id === 'CONF')!;
   const forms = ctl.stationForms(pv);
@@ -108,7 +108,7 @@ test('a station\'s forms are its 2D line and padding, widest first: name and rea
   const full = boxSize(stationRuns(pv.name, true, false), LAPTOP, measure);
   assert.ok(Math.abs(forms[0].w - Math.ceil(full.w * 100) / 100) < 1e-9 && Math.abs(forms[0].h - Math.ceil(full.h * 100) / 100) < 1e-9);
   const alone = forms[forms.length - 1];
-  assert.equal(alone.text, '');
+  assert.ok(alone.text !== '', 'no form is a bare number: a reading with no name says nothing (play-test, 20 Nov)');
   assert.ok(alone.w < forms[0].w);
   assert.ok(ctl.stationForms(pv, true)[0].w > forms[0].w, 'a reversed station has room for its mark');
   const organ = STATIONS.find((s) => s.kind === 'organ')!;

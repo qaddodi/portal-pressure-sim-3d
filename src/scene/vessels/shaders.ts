@@ -15,6 +15,9 @@
 import { CIRCUIT_VS_CALL, CIRCUIT_VS_HEAD } from '../circuit/shader.ts';
 import { FADE_GLSL } from '../materials/shaders.ts';
 import { QUIET_BACK } from '../camera/quiet.ts';
+import { CEL_STYLE } from '../cel-style.ts';
+import { CEL_TUBE_GLSL, glslNum as F } from '../cel-glsl.ts';
+import { TAPER_FROM, TAPER_TO } from './cel-ink.ts';
 
 export const VESSEL_VS = /* glsl */ `
 attribute vec3 tang;
@@ -59,6 +62,10 @@ varying float vHi;
 ${CIRCUIT_VS_HEAD}
 varying float vW;
 varying float vR;
+varying float vU;   // the figure's units in one scene unit here: 300 on the body, 1 / MAP_K on the map (the Circuit share of this vertex)
+uniform float circBoost;   // 2D's circBoost: the map's lines are drawn up to 1.75 times wide when it is zoomed out (stage-tubes.js)
+uniform float circPerPx;   // map units under one CSS pixel here
+uniform vec4 circW;   // the vessel's width in the Circuit, map units: (fixed width or -1 for the engine's diameter, 1 if circBoost applies, the least width, the least width on the screen in CSS px)
 // a vessel's live width against the one its tube was built at (the engine's diameter by the 2D figure's rule), as the body of main() reads it for this vessel
 float swellOf(float idx, float bD, float kind) {
   if (useData < 0.5 || kind > 1.5) return 1.0;
@@ -67,6 +74,19 @@ float swellOf(float idx, float bD, float kind) {
   float m1 = 1.3 * max(2.6, 2.0 * pow(max(dm, 0.1), 0.72)), m0 = 1.3 * max(2.6, 2.0 * pow(max(bD, 0.1), 0.72));
   if (kind > 0.5) { m1 = max(1.8, m1 * 0.5); m0 = max(1.8, m0 * 0.5); }
   return clamp(m1 / m0, 0.2, 8.0);
+}
+// the swell the tube has at the map's end (2D stage-tubes.js widthAt, t = 1): a vein clamp(vesselPx(D) * 0.95, 6, 15) map units, an artery 3, a liver bed 8, the boost on veins and beds;
+// as a share of the radius the tube was built at, so the shared morph can ease the width with the line (the map's units are MAP_K scene units, the body's 1 / 300)
+float circSwell() {
+  float wc;
+  if (circW.x >= 0.0) wc = max(circW.z, circW.x * mix(1.0, circBoost, circW.y));
+  else {
+    float d = baseD;
+    if (useData > 0.5) { ivec2 tc = ivec2(int(mod(vindex, vdataSize.x)), int(floor(vindex / vdataSize.x))); d = texelFetch(vdata, tc, 0).b; }
+    wc = clamp(1.3 * max(2.6, 2.0 * pow(max(d, 0.1), 0.72)) * 0.95, 6.0, 15.0) * circBoost;
+  }
+  wc = max(wc, circW.w * circPerPx);
+  return 0.5 * wc * CIRC_MAPK / max(radius, 1e-6);
 }
 void main() {
 ${CIRCUIT_VS_CALL}
@@ -84,6 +104,8 @@ ${CIRCUIT_VS_CALL}
   // last 30 %), so the ring they share has one radius and no step or seam shows when the engine widens one of them and not the other (smooth-joins.ts joinSwell)
   if (mate0.x >= 0.0) { float k0 = 1.0 - smoothstep(0.0, 0.3, uv.x); if (k0 > 0.0) swell += k0 * (0.5 * (swell + swellOf(mate0.x, mate0.y, mate0.z)) - swell); }
   if (mate1.x >= 0.0) { float k1 = smoothstep(0.7, 1.0, uv.x); if (k1 > 0.0) swell += k1 * (0.5 * (swell + swellOf(mate1.x, mate1.y, mate1.z)) - swell); }
+  if (circShare > 0.0) swell = mix(swell, circSwell(), circShare);
+  vU = mix(300.0, 1.0 / CIRC_MAPK, circShare);
   vec3 p = aPos + aNor * (inflate + radius * rk * (swell * (1.0 - narrow) - 1.0));
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vN = normalize(normalMatrix * aNor);
@@ -102,16 +124,16 @@ ${CIRCUIT_VS_CALL}
     } else {
       fa = mix(fadeA.z, fadeA.w, clamp((fv - fadeA.x) / max(1.0 - fadeA.x, 1e-4), 0.0, 1.0));
     }
-    fa = mix(fa, 1.0, circT * (1.0 - fadeKeep));
+    fa = mix(fa, 1.0, circT);
   } else if (fadeMode > 0.5) {
     float fs = fadeMode < 1.5 ? uv.x : position.y;
     float ft = clamp((fs - fadeA.x) / (abs(fadeA.y - fadeA.x) < 1e-5 ? 1e-5 : fadeA.y - fadeA.x), 0.0, 1.0);
     fa = mix(fadeA.z, fadeA.w, ft);
-    fa = mix(fa, 1.0, circT * (1.0 - fadeKeep));
+    fa = mix(fa, 1.0, circT);
   }
   vFade = fa;
   vHi = 0.0;
-  vR = radius * rk * swell * 300.0;   // the tube's half width in the 2D figure's units
+  vR = radius * rk * swell * vU;   // the tube's half width in the 2D figure's units
   vec4 c = projectionMatrix * mv;
   if (hull > 0.5) {
     float a = uv.x * len;
@@ -121,12 +143,12 @@ ${CIRCUIT_VS_CALL}
     vec2 nd = (projectionMatrix * vec4(normalMatrix * aNor, 0.0)).xy;
     float l = length(nd);
     nd = l > 1e-5 ? nd / l : vec2(0.0);
-    // the 2D figure's line (tube-cel-glsl.js CEL): 0.14 of the tube's radius, held between 1.5 and 3 device px, the same on a hairline and on the portal trunk, on a 1x Mac and a 3x iPhone
-    // (the line was a fixed 1.2 to 1.8 CSS px, 3.6 to 5.4 device px on a phone, a black rope on every thin strand)
-    float wpc = c.w * 2.0 / (res.y * projectionMatrix[1][1]) * 300.0;   // the figure's units under one CSS px here
+    // the figure's line (cel-style.ts LINE_R, LINE_MIN, LINE_MAX; 2D's tube-cel-glsl.js CEL is 0.14, 1.5, 3): a share of the tube's radius held between two device px widths, the same on a hairline and on the portal trunk,
+    // on a 1x Mac and a 3x iPhone (the line was a fixed 1.2 to 1.8 CSS px, 3.6 to 5.4 device px on a phone, a black rope on every thin strand)
+    float wpc = c.w * 2.0 / (res.y * projectionMatrix[1][1]) * vU;   // the figure's units under one CSS px here
     float rDev = vR / max(wpc, 1e-6) * dpr;
-    // (thinned with a lumen under 1.5 device px of radius, so the smallest branches keep their colour: cel-ink.ts inkTaper)
-    float inkPx = clamp(0.14 * rDev, 1.5, 3.0) * smoothstep(0.3, 1.5, rDev) / dpr;
+    // (thinned with a lumen under LINE_MIN device px of radius, so the smallest branches keep their colour: cel-ink.ts inkTaper)
+    float inkPx = clamp(${F(CEL_STYLE.LINE_R)} * rDev, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) * smoothstep(${F(TAPER_FROM)}, ${F(TAPER_TO)}, rDev) / dpr;
     c.xy += nd * (inkPx + hiPx * vHi) * 2.0 / res * c.w;
   }
   vW = c.w;
@@ -137,10 +159,11 @@ ${CIRCUIT_VS_CALL}
 
 export const VESSEL_FS = /* glsl */ `
 ${FADE_GLSL}
+${CEL_TUBE_GLSL}
 // a vessel behind the organs is drawn a second time over them with VEIL defined: the organ's veil (stage's VEIL_K 0.6: a vessel behind an organ shows at 0.4)
 #ifdef VEIL
-uniform float veilA;   // 0.4 while the vessel is veiled; eases to 1 as the cava is shown whole
-#define VEIL_A veilA
+uniform float veilA;   // 0.4 while the vessel is veiled; eases to 1 as the cava is shown whole (drawn at no less than TUBE.VEIL_FLOOR: a vessel behind an organ stays a colour, never grey)
+#define VEIL_A max(veilA, ${F(CEL_STYLE.TUBE.VEIL_FLOOR)})
 #else
 const float VEIL_A = 1.0;
 #endif
@@ -189,12 +212,14 @@ uniform float casingA;      // the look's casing alpha (2D --casing-a)
 uniform float casingCircA;  // and in the Circuit (2D .stage-wrap.cmap), by circT
 uniform vec3 inkColorCirc;
 uniform float circT;
+uniform vec2 circCap;       // the Circuit rounds this vessel's start / end (1): the ends nothing joins
 uniform float wallLine;     // 1 on an artery: a lighter inner line, the wall, at a quarter of the radius in from the edge (visual review 10.5), so an artery reads apart from a vein without colour
 uniform float quietK;       // quiet depth on a turn (camera/quiet.ts): the back tier eases toward the page by QUIET_BACK of this, 0 face on
 uniform vec3 pageCol;       // the plate colour it eases toward
 uniform vec4 rimInk;        // a dark lumen's light rim on the dark looks: rgb, alpha (0 on the light looks)
 varying float vW;
 varying float vR;
+varying float vU;
 varying float vHull;
 varying float vFade;
 varying float vHi;
@@ -220,11 +245,13 @@ float chevD(float u, float ay, float hw) {
 vec2 chevHead(float u, float ay, float hw, float px, float rev) {
   float d = chevD(u, ay, hw);
   float c = 1.0 - smoothstep(-0.7 * px, 0.7 * px, d);
-  float rim = 1.0 - smoothstep(0.0, 1.8 * px + 0.1 * hw, d);
+  float rw = 1.8 * px + 0.1 * hw;   // the head's ring: a hard-edged outline of this width, never a halo
+  float rim = 1.0 - smoothstep(rw - 0.7 * px, rw + 0.7 * px, d);
   if (rev > 0.0) {
     float d2 = 0.6 * chevD((u + 1.088 * hw) / 0.6, ay / 0.6, hw);
     c = max(c, rev * (1.0 - smoothstep(-0.7 * px, 0.7 * px, d2)));
-    rim = max(rim, rev * (1.0 - smoothstep(0.0, 1.8 * px + 0.06 * hw, d2)));
+    float rw2 = 1.8 * px + 0.06 * hw;
+    rim = max(rim, rev * (1.0 - smoothstep(rw2 - 0.7 * px, rw2 + 0.7 * px, d2)));
   }
   return vec2(c, rim * (1.0 - c));
 }
@@ -243,7 +270,7 @@ vec2 chevOne(float s, float Lw, float se, float Bm, float Dm, float vd, float rv
   float n0 = floor(lv), P = 28.0 * exp2(n0);
   float j = floor((se - Dm) / P + 0.5);
   float x = (se - (Dm + j * P)) / (abs(Bm) < 0.05 ? (Bm < 0.0 ? -0.05 : 0.05) : Bm), sc = s - x;
-  float hw = min(0.8 * R, clamp(0.5 * R, 4.0 * wpc, 8.0 * wpc)), L = 1.6 * hw;
+  float hw = min(0.6 * R, clamp(0.5 * R, 4.0 * wpc, 8.0 * wpc)), L = 1.6 * hw;   // (a head's half width is at most 0.6 of the tube's radius, so it and its ring stay inside the lumen)
   if (abs(x) > (0.6 + 0.4 * rv) * L + 0.15 * hw + 4.0 * px) return vec2(0.0);
   float lo = 0.6 * L, ramp = max(2.0 * L, 0.12 * Pt);
   float a0 = sc < lo ? 0.0 : smoothstep(lo, lo + ramp, sc), a1 = Lw - sc < lo ? 0.0 : smoothstep(lo, lo + ramp, Lw - sc);
@@ -291,17 +318,38 @@ vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float acro
   return vec4(col, 1.0);
 }
 
+// A free end in the Circuit is round: the pixels outside a half circle of the tube's own radius at the end are carved away (the outline's hull the same, a line's width wider, so the ink runs round the cap).
+// Exact at any ring spacing, which a geometry dome is not (a tube has a ring every 1/24 of a scene unit, about a radius).
+bool capCarved(float across, bool hull) {
+  float k = smoothstep(0.7, 1.0, circT);
+  if (k <= 0.0 || circCap.x + circCap.y < 0.5) return false;
+  float dd = 1e9;
+  if (circCap.x > 0.5) dd = vUv.x * len * vU;
+  if (circCap.y > 0.5) dd = min(dd, (1.0 - vUv.x) * len * vU);
+  float wpc = vW * 2.0 / (res.y * projY) * vU;
+  float rDev = vR / max(wpc, 1e-6) * dpr;
+  float ink = hull ? clamp(${F(CEL_STYLE.LINE_R)} * rDev, ${F(CEL_STYLE.LINE_MIN)}, ${F(CEL_STYLE.LINE_MAX)}) / dpr * wpc : 0.0;
+  float R = (vR + ink) * k, a = dd + ink * k;
+  if (a >= R) return false;
+  float q = 1.0 - a / R;
+  return across * across + q * q > 1.0;
+}
+
 void main() {
   if (reveal < 0.9999 && vUv.x > reveal) discard;
   if (fadedOut()) discard;
+  vec3 n = normalize(vN);
+  // (a tube seen end on has no sideways direction: a fixed one keeps the fragment finite, never a NaN, which a device draws black)
+  vec3 sideX = cross(normalize(vT), normalize(vV));
+  float sideL = length(sideX);
+  vec3 side = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
+  float across = dot(n, side);
+  if (capCarved(across, vHull > 0.5)) discard;
   if (vHull > 0.5) {
     // the ink: the hull's back faces only, in the ink colour, warming to the highlight colour where the vessel is picked
     if (gl_FrontFacing || hullOn < 0.5) discard;
-    // the outline in the look's casing colour at its alpha (2D: --casing-a, and the Circuit's own on the dark look (.stage-wrap.cmap), by the Circuit's share; a vessel behind an organ keeps half of it; a picked vessel's ring is solid)
+    // the outline in the look's casing colour at its alpha (2D: --casing-a, and the Circuit's own on the dark look (.stage-wrap.cmap), by the Circuit's share, whole on a vessel behind an organ too; a picked vessel's ring is solid)
     float ca = mix(casingA, casingCircA, circT);
-#ifdef VEIL
-    ca *= 0.5;
-#endif
     gl_FragColor = vec4(mix(mix(inkColor, inkColorCirc, circT), hiColor, clamp(vHi, 0.0, 1.0)), mix(ca, 1.0, clamp(vHi, 0.0, 1.0)) * VEIL_A * vFade);
     return;
   }
@@ -311,37 +359,31 @@ void main() {
     float dash = fract(vUv.x * len / 0.09);
     if (dash > 0.45) discard;
   }
-  vec3 n = normalize(vN);
   vec3 l = normalize((viewMatrix * vec4(light, 0.0)).xyz);
-  // (a tube seen end on has no sideways direction: a fixed one keeps the fragment finite, never a NaN, which a device draws black)
-  vec3 sideX = cross(normalize(vT), normalize(vV));
-  float sideL = length(sideX);
-  vec3 side = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
-  float across = dot(n, side);
 
   vec4 la = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, across);
   vec4 lb = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, across);
   vec3 base = mix(mix(color, la.rgb, la.a), mix(color, lb.rgb, lb.a), lensMix);
 
-  // the fill: exactly three tones lit from the top left of the screen (tube-cel-glsl.js celTones), so two pieces of one vein shade alike at their join and a turned vein keeps its tones;
-  // no specular, no rim, no world-lit band. rDev: the tube's radius in device px; the tones fade out on a hairline.
-  float wpc0 = vW * 2.0 / (res.y * projY) * 300.0;
+  // the fill: exactly three FLAT tones across the tube, lit from the top left of the screen (cel-glsl.ts: shade, base, lit, a hard edge EDGE_PX device px across, no gradient), so two pieces of one vein shade alike at
+  // their join and a turned vein keeps its tones; no rim, no world-lit band. rDev: the tube's radius in device px; the tones fade in over the radius (never across the tube) and a hairline is one tone.
+  float wpc0 = vW * 2.0 / (res.y * projY) * vU;
   float rDev = vR / max(wpc0, 1e-6) * dpr;
   vec2 sideS = side.xy;
   float sl = length(sideS);
   sideS = sl > 1e-4 ? sideS / sl : vec2(1.0, 0.0);
-  float sT = across * dot(sideS, vec2(-0.70710678, 0.70710678));
-  float etT = 0.5 / max(rDev, 1e-3), hwT = smoothstep(1.5, 3.5, rDev);
-  float shadowT = 1.0 - smoothstep(-0.16 - etT, -0.16 + etT, sT);
-  float litT = smoothstep(0.24 - etT, 0.24 + etT, sT);
-  vec3 c = base * (1.0 - hwT * 0.17 * shadowT);
-  c = mix(c, vec3(1.0), 0.15 * hwT * litT);
-  // a dark lumen on the dark looks (where the outline is no darker than the ground) gets a light edge a device pixel wide just inside its wall (2D rimInk)
+  float kT = celTubeK(sideS);
+  vec3 c = celTubeTone(base, across, kT, rDev);
+  // the hard highlight: a flat pale streak on the lit side, at the middle of each stretch of the vessel (a long one has one every SPEC.PERIOD figure units, a short one has one), none on a hairline
+  float lenU = len * vU, cntS = max(1.0, floor(lenU / ${F(CEL_STYLE.SPEC.PERIOD)} + 0.5));
+  float alongR = (fract(vUv.x * cntS) - 0.5) * lenU / cntS / max(vR, 1e-4);
+  c = mix(c, vec3(1.0), celTubeSpec(across, kT, rDev, alongR) * (dotted > 0.5 ? 0.0 : 1.0));
+  // a dark lumen on the dark looks (where the outline is no darker than the ground) gets a light edge a device pixel wide just inside its wall, hard-edged (2D rimInk)
   float lumY = dot(base, vec3(0.299, 0.587, 0.114));
-  c = mix(c, rimInk.rgb, rimInk.a * (1.0 - smoothstep(0.2, 0.4, lumY)) * smoothstep(-2.0, -1.0, (abs(across) - 1.0) * rDev) * smoothstep(1.5, 3.5, rDev));
+  c = mix(c, rimInk.rgb, rimInk.a * (1.0 - smoothstep(0.2, 0.4, lumY)) * (1.0 - smoothstep(1.0 - ${F(CEL_STYLE.EDGE_PX * 0.5)}, 1.0 + ${F(CEL_STYLE.EDGE_PX * 0.5)}, (1.0 - abs(across)) * rDev)) * celTubeHw(rDev));
 
-  // (an artery's wall: a line a device pixel wide, 0.25 R inside the edge, 22% toward white, on a tube wide enough to carry it)
-  c = mix(c, vec3(1.0), 0.22 * wallLine * smoothstep(3.0, 6.0, rDev) * (1.0 - smoothstep(0.3, 1.0, abs(abs(across) - 0.75) * rDev)));
+  // (an artery's wall: a hard line a device pixel wide, 0.25 R inside the edge, 22% toward white, on a tube wide enough to carry it)
+  c = mix(c, vec3(1.0), 0.22 * wallLine * smoothstep(3.0, 6.0, rDev) * (1.0 - smoothstep(0.5 - ${F(CEL_STYLE.EDGE_PX * 0.5)}, 0.5 + ${F(CEL_STYLE.EDGE_PX * 0.5)}, abs(abs(across) - 0.75) * rDev)));
   c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
 
   float vel = 0.0;
@@ -353,23 +395,25 @@ void main() {
     vel = meanVelocity(td.g, dmm);
   }
 
-  // stagnant blood in a big vein: slow, but not none (FLOW_CUTS none 1, stasis 9 cm/s), drifts as smoke
+  // stagnant blood in a big vein: slow, but not none (FLOW_CUTS none 1, stasis 9 cm/s), drifts as smoke. OFF by default (vessel-object.ts smokeOn 0, setSmoke(true) for a slide that asks for stasis): inside a tube there
+  // are only the three flat tones and the flow heads, never blobs. When on, the smoke is flat patches of one tone with a hard edge, never a soft cloud.
   if (smokeOn > 0.5 && useData > 0.5 && dmm > 5.0 && abs(vel) > 1.0 && abs(vel) < 9.0) {
     float drift = time * 0.04;
     float nz = vnoise(vec2(vUv.x * len * 5.0 + drift * 6.0, across * 3.0 + drift)) * 0.65 + vnoise(vec2(vUv.x * len * 11.0 - drift * 4.0, across * 6.0)) * 0.35;
     float amt = (1.0 - smoothstep(1.0, 9.0, abs(vel))) * 0.5 + 0.12;
-    c = mix(c, mix(base, vec3(lum(base) > 0.5 ? 0.15 : 0.92), 0.5), nz * amt * 0.55);
+    float nzW = max(fwidth(nz) * 0.75, 1e-3);
+    c = mix(c, mix(base, vec3(lum(base) > 0.5 ? 0.15 : 0.92), 0.5), smoothstep(0.62 - amt - nzW, 0.62 - amt + nzW, nz) * 0.3);
   }
 
-
   // the flow heads, over the lit lumen as the 2D composite lays them
-  float pxArc = fwidth(vUv.x * len * 300.0);   // (a derivative: taken outside any branch)
+  float pxArc = fwidth(vUv.x * len * vU);   // (a derivative: taken outside any branch)
+  float acrossW = max(fwidth(across), 0.03);
   if (flowAmount > 0.001 && vR > 0.0) {
     vec4 stm = texelFetch(streamTex, ivec2(int(lensIndex), 0), 0);
     float Dm = stm.x, vd = stm.y, rv = stm.z;
-    float wpc = vW * 2.0 / (res.y * projY) * 300.0;      // the figure's units under one CSS px here
-    float R = max(vR, 0.3), Lw = len * 300.0, s = vUv.x * Lw;
-    float px = max(pxArc, 0.15 * wpc);
+    float wpc = vW * 2.0 / (res.y * projY) * vU;      // the figure's units under one CSS px here
+    float R = max(vR, 0.3), Lw = len * vU, s = vUv.x * Lw;
+    float px = clamp(pxArc, 0.15 * wpc, 1.5 * wpc);   // (held to a CSS pixel: at a grazing silhouette the arc's derivative runs away and would smear a head)
     float Pt = 130.0 * wpc;
     vec4 c4 = texelFetch(chainTex, ivec2(int(lensIndex), 0), 0), c5 = texelFetch(chainTex, ivec2(int(lensIndex), 1), 0);
     vec2 ch = vec2(0.0);
@@ -379,16 +423,18 @@ void main() {
       vec2 cc = chevOne(s, Lw, c4.y + c4.z * s, c4.z, rootD, vd, rv, c5.xy, R, across, wpc, Pt, px);
       ch = c4.w >= 1.0 ? cc : mix(ch, cc, c4.w);
     }
-    float hwv = min(0.8 * R, clamp(0.5 * R, 4.0 * wpc, 8.0 * wpc));
-    float fade = flowAmount * smoothstep(1.5 * wpc, 2.5 * wpc, R) * smoothstep(0.85 * hwv, 1.15 * hwv, R);
+    float hwv = min(0.6 * R, clamp(0.5 * R, 4.0 * wpc, 8.0 * wpc));
+    // heads come in only on a tube wide enough to carry one that reads as a head (half width 3.5 CSS px, so R from 5.8 px: a smaller one is a dot), and are cut a little inside the wall (never on the ink or the edge)
+    float fade = flowAmount * smoothstep(5.8 * wpc, 7.0 * wpc, R) * (1.0 - smoothstep(0.78, 0.78 + acrossW, abs(across)));
     fade *= mix(0.3, 1.0, smoothstep(0.5, 3.0, abs(vd)));
     if (fade > 0.0 && ch.x + ch.y > 0.0) {
       float origin = mix(lensModeA > 1.5 ? 1.0 : 0.0, lensModeB > 1.5 ? 1.0 : 0.0, lensMix);
-      float dk = 1.0 - smoothstep(0.175, 0.205, dot(pow(max(base, vec3(0.0)), vec3(2.2)), vec3(0.2126, 0.7152, 0.0722)));
+      // one flat tone for the head, never a grey halfway: dark ink on a light lumen, cream on a dark one, decided by a hard step on the lumen's luminance (2D blended over 0.175 to 0.205, which on a mid lavender is a grey head)
+      float dk = 1.0 - step(0.19, dot(pow(max(base, vec3(0.0)), vec3(2.2)), vec3(0.2126, 0.7152, 0.0722)));
       float rk = rv * (1.0 - origin), warm = rk * chevOrange(base);
       vec3 ink = mix(markDark, base * 0.3, 0.2);
       vec3 core = mix(mix(mix(ink, markLight, dk), markRev, rk), markLight, warm);
-      vec3 rimc = mix(vec3(0.2314, 0.1725, 0.1333), markLight, dk);
+      vec3 rimc = vec3(0.2314, 0.1725, 0.1333);   // the head's outline is always the dark ink: a flat head with a dark line, never a pale ring
       float ar = clamp(ch.y * 0.75 * fade, 0.0, 1.0), ac = clamp(ch.x * fade, 0.0, 1.0);
       float ha = ac + ar * (1.0 - ac);
       c = c * (1.0 - ha) + core * ac + rimc * ar * (1.0 - ac);

@@ -5,4 +5,4 @@ export { sinusoidTargets } from '../lobule/model.ts';
 export { sinusoidShot, sinusoidBox, SINUSOID_L, SINUSOID_ORIGIN } from '../lobule/shots.ts';
 export { SINUSOID_PARTS } from '../lobule/parts.ts';
 export type { SinusoidPartName } from '../lobule/parts.ts';
-export { PORTRAIT_ANGLE, acrossUm, endsFor, isPortrait, restScale } from './portrait.ts';
+export { PORTRAIT_ANGLE, acrossUm, shownUm, endsFor, isPortrait, restScale } from './portrait.ts';
