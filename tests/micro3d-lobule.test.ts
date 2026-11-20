@@ -6,7 +6,8 @@ import { createShared } from '../src/scene/materials/cel.ts';
 import { LobuleView } from '../src/scene/lobule/view.ts';
 import { LOBULE_R } from '../src/scene/lobule/shots.ts';
 import { sinRadius, DISC_R } from '../src/scene/lobule/widths.ts';
-import { Lobule3D, LZ, OVER_Z, TUBE_SEG, bileCourses, skipFirstFills } from '../src/scene/micro3d/lobule3d.ts';
+import { Lobule3D, LZ, OVER_Z, TUBE_SEG, skipFirstFills } from '../src/scene/micro3d/lobule3d.ts';
+import { buildBile } from '../src/scene/lobule/bile.ts';
 import { lookColours } from '../src/scene/lobule/lz-colours.ts';
 
 const shared = createShared();
@@ -63,7 +64,7 @@ test('the central vein is a smooth round mouth: its lip is a circle of 2D\'s rad
 });
 
 test('the Bile layer\'s courses are the flat view\'s own', () => {
-  assert.equal(bileCourses(flat.net).length, (flat as unknown as { bilePick: unknown[] }).bilePick.length);
+  assert.equal(buildBile(flat.net).length, (flat as unknown as { bilePick: unknown[] }).bilePick.length);
 });
 
 test('the marks plate leaves out exactly 2D\'s ground fills', () => {
