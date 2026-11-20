@@ -24,6 +24,7 @@ import { bakeOrganDepth } from './organ-depth.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import type { OrganFill } from '../../state/settings.ts';
 import { OrganArt } from './organ-art.ts';
+import { smoothRestNormals } from './cel-normal.ts';
 import { CEL_OF, celTones, lookOfOrgans } from './cel-tones.ts';
 
 type Og = keyof OrganTones2D['tones'];
@@ -66,11 +67,12 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
     volLight: { value: new Vector4() }, volGeo: { value: new Vector4() }, volShadeAt: { value: 0.8 }, shadeSteps: { value: new Vector3() }, rimK: { value: 0.58 },
     box: { value: new Vector4(b.min.x, b.max.y, b.max.x - b.min.x, b.max.y - b.min.y) },
   });
-  if (id === 'liver') m.defines = { ...m.defines, CEL_NORMAL: '' };   // (its cel normal, set in build)
+  m.defines = { ...m.defines, CEL_NORMAL: '' };   // (every organ's cel normal: its smooth rest normal, set in build)
   m.transparent = true; m.depthWrite = true;
   m.needsUpdate = true;
   const ink = o.ink;
   ink.vertexShader = ORGAN_INK_VS;
+  ink.uniforms.minPx = { value: 0 };
   ink.uniforms.dpr = { value: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1 };
   // in the sorted (transparent) list too, so it keeps its place right after its own fill; it stays opaque (pre-mixed against the page)
   ink.transparent = true;
@@ -83,7 +85,7 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
   // depth test, so it shows only where the fill is not, and before the outline, so the line lies over it. The see-through fill's only: cel shaded organs have none (setColours fades it by solid).
   const seat = new ShaderMaterial({
     vertexShader: ORGAN_INK_VS, fragmentShader: INK_FS, side: BackSide, transparent: true, depthWrite: false,
-    uniforms: { color: { value: new Color() }, hiColor: { value: new Color() }, fade: m.uniforms.fade!, reveal: ink.uniforms.reveal!, inkA: { value: 0 }, px: { value: 0 }, dpr: ink.uniforms.dpr!, res: ink.uniforms.res! },
+    uniforms: { color: { value: new Color() }, hiColor: { value: new Color() }, fade: m.uniforms.fade!, reveal: ink.uniforms.reveal!, inkA: { value: 0 }, px: { value: 0 }, minPx: { value: 0 }, dpr: ink.uniforms.dpr!, res: ink.uniforms.res! },
   });
   const mesh = new Mesh(g, seat);
   mesh.renderOrder = 2 * i + 0.5;
@@ -162,13 +164,14 @@ export class OrganLayer {
       if (seat) this.seats.set(id, seat);
       this.art.attach(id, o.toon, o.ink, g);
       if (this.phone) o.setPhone(true);
-      o.ink.uniforms.px!.value = this.inkPx(id);
+      this.inkWidth(id, o);
       this.objects.push(o); this.byId.set(id, o); this.group.add(o.group);
+      // the cel bands are cut by the organ's smooth rest normal, one byte an axis (for the liver, the healthy one: cirrhosis's nodule bumps would make a hard-edged honeycomb of them)
+      if (!g.getAttribute('normal')) g.computeVertexNormals();
+      const sm = smoothRestNormals(g.getAttribute('position').array, g.getAttribute('normal').array, g.index ? g.index.array : []);
+      g.setAttribute('celNormal', new Int8BufferAttribute(Int8Array.from(sm, (v) => Math.round(v * 127)), 3, true));
       if (id === 'liver') {
         this.liverGeometry = g;
-        if (!g.getAttribute('normal')) g.computeVertexNormals();
-        // the cel bands are cut by the healthy liver's smooth normal, one byte an axis: cirrhosis's nodule bumps would make a hard-edged honeycomb of them
-        g.setAttribute('celNormal', new Int8BufferAttribute(Int8Array.from(g.getAttribute('normal').array, (v) => Math.round(v * 127)), 3, true));
         this.liverShape = new LiverShape(g.getAttribute('position') as never, g.getAttribute('normal').array);
       }
     }
@@ -201,9 +204,13 @@ export class OrganLayer {
   /** How much more a vessel behind the organs (the cava's veil) shows once the organs are opaque: the share of it the 2D wash let through (1 - layer) that the veil takes back (cel-style ORGAN.VEIL_SEE), eased with the fill. */
   get veilLift(): number { return this.uSolid.value * 0.6 * CEL_STYLE.ORGAN.VEIL_SEE * (1 - (this.palette?.organLayer ?? 0.55)); }
   /** The organ outline is in the figure's units (ORGAN_INK_VS), so it needs no phone trim: keep 2D's 1.1 (kidney 1.4) on every device. */
-  setPhone(phone: boolean): void { this.phone = phone; for (const [id, o] of this.byId) { o.setPhone(phone); o.ink.uniforms.px!.value = this.inkPx(id); } }
-  /** The organ outline's width in the figure's units: 2D's (1.1, the kidney 1.4), wider by LINE_SCALE as the fill goes cel shaded. */
-  private inkPx(id: string): number { return ORGAN_STYLE[id]!.px * (1 + (CEL_STYLE.ORGAN.LINE_SCALE - 1) * this.uSolid.value); }
+  setPhone(phone: boolean): void { this.phone = phone; for (const [id, o] of this.byId) { o.setPhone(phone); this.inkWidth(id, o); } }
+  /** The organ outline's width: the wash keeps 2D's (1.1 figure units, the kidney 1.4); as the fill goes cel shaded every organ takes the one bold line (LINE_PX figure units, never under LINE_MIN_CSS CSS px). */
+  private inkWidth(id: string, o: CelObject): void {
+    const k = this.uSolid.value;
+    o.ink.uniforms.px!.value = ORGAN_STYLE[id]!.px + (CEL_STYLE.ORGAN.LINE_PX - ORGAN_STYLE[id]!.px) * k;
+    o.ink.uniforms.minPx!.value = CEL_STYLE.ORGAN.LINE_MIN_CSS * k;
+  }
   /** A lens other than Pressure greys the organs (organ-dim.js: saturation 0.12, opacity 0.72) and eases in 420 ms (D_SURFACE). */
   setLensGrey(on: boolean): void { this.grey = on; }
   /** The turn's quiet depth (0..1 in steps): the organs' wash eases toward the page; repaints only when the step changes. */
@@ -270,7 +277,7 @@ export class OrganLayer {
       const ct = celTones(lookOfOrgans(p.organs), CEL_OF[id]!), cu = o.toon.uniforms;
       (cu.celShade!.value as Color).setRGB(...organColour(ct.shade, s, k)); (cu.celBase!.value as Color).setRGB(...organColour(ct.base, s, k)); (cu.celLit!.value as Color).setRGB(...organColour(ct.lit, s, k));
       this.art.setState(id, s, k, p);
-      o.ink.uniforms.px!.value = this.inkPx(id);
+      this.inkWidth(id, o);
       const vp = this.paints.get(id);
       if (!vp) continue;
       // what varies over the surface: the vertices carry it (an organ that has none of it shows its one colour)
@@ -301,10 +308,10 @@ export class OrganLayer {
     (u.volGeo!.value as Vector4).set(v.cx, v.cy, v.r, v.lightEnd); u.volShadeAt!.value = v.shadeStart;
     (u.shadeSteps!.value as Vector3).set(...(st.atrium ? [og.raShade, og.raShade, og.raShade] : og.shade) as [number, number, number]);
     u.rimK!.value = st.noRim ? 0 : st.atrium ? og.raRim : og.rim;   // (no rim light on the liver and the stomach: too shiny; the cel fill has its own tones)
-    // cel shaded (solid): the organ's line is the look's casing ink (the vessels' line) at INK_ALPHA_MIN or more, whole (not thinned by the layer's opacity), so the silhouette and the edge where one organ passes over another read as bold ink;
+    // cel shaded (solid): the organ's line is the look's casing ink (the vessels' line), fully opaque and the same on every organ (not thinned by the layer's opacity), so the silhouette and the edge where one organ passes over another read as bold ink;
     // the wash keeps 2D's thin line in the organ's own third tone. The two ease with the fill.
     const k = this.uSolid.value, washInk = mix(page, o3, inkA * layer);
-    const cel = mix(page, casing, Math.max(CEL_STYLE.INK_ALPHA_MIN, inkA));
+    const cel = mix(page, casing, CEL_STYLE.ORGAN.LINE_ALPHA);
     const ink = mix(washInk, cel, k);
     (o.ink.uniforms.color!.value as Color).setRGB(ink[0], ink[1], ink[2]);
     const seat = this.seats.get(id);

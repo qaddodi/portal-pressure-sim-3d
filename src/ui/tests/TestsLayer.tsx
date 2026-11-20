@@ -292,6 +292,7 @@ export function TestsLayer() {
     <div ref={posRef} className="t-pos" data-open={open} data-live={open} data-narrow={narrow} data-kind={place.kind} data-device={device} style={style}>
       <section ref={cardRef} className={`t-card dock instrument-workspace float-ui stage-blocker${side ? ' side' : ''}${picking ? ' picking' : ''}`} id="dock" role="dialog" aria-label="Tests" data-state={tstate} data-safe={side ? 'right' : 'bottom'} inert={!open} style={card} onKeyDown={onCardKey}>
         <button type="button" className="sheet-grab" aria-label="Resize the Tests card" onClick={onGrab} />
+        <i className="sh-grabbar" aria-hidden="true" />
         <div ref={dividerRef} className="workspace-divider" role="separator" tabIndex={0} aria-label="Instruments size" aria-orientation={side ? 'vertical' : 'horizontal'} aria-valuenow={dividerNow} hidden={tstate !== 'open' || (side && device !== 'phone-landscape')}><span /></div>
         <div className="dock-head card-head tabbed">
           <h2 className={`dock-title card-title${status.vessel ? ' dop-on' : ''}`}><span>Tests</span><span className="dt-l">{status.vessel}</span></h2>

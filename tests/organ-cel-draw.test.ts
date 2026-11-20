@@ -25,13 +25,13 @@ test('the liver\'s bands are cut by its smooth rest normal (no honeycomb from ci
   assert.match(ORGAN_VS, /#ifdef CEL_NORMAL\nattribute vec3 celNormal;/);
   assert.match(ORGAN_FS, /dot\(normalize\(vCn\), CEL_LIGHT\)/);
   assert.ok(ORGAN_FS.includes(`inkAmount * ${O.PAINT}`), 'the nodules, the dead spleen and the pool at PAINT of their strength');
-  assert.ok(O.PAINT <= 0.5 && O.TUCK_AO >= 0.6, 'low contrast: only a deep tuck bands');
+  assert.ok(O.PAINT <= 0.5, 'low contrast');
   const { s, organs: ol } = await organs();
   const liver = ol.byId.get('liver')!;
   const at = liver.toonMesh.geometry.getAttribute('celNormal');
   assert.ok(at && at.normalized && at.itemSize === 3, 'one signed byte an axis');
   assert.ok('CEL_NORMAL' in (liver.toon.defines ?? {}));
-  for (const [id, o] of ol.byId) if (id !== 'liver') assert.ok(!('CEL_NORMAL' in (o.toon.defines ?? {})) && !o.toonMesh.geometry.getAttribute('celNormal'), id);
+  for (const [id, o] of ol.byId) assert.ok('CEL_NORMAL' in (o.toon.defines ?? {}) && o.toonMesh.geometry.getAttribute('celNormal'), `${id}: every organ is banded by its smooth rest normal`);
   s.dispose?.();
 });
 

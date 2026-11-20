@@ -11,6 +11,9 @@
 .sh-root > .app :is(.topbar, .vdock, .zoom-pill)[data-hidden="true"], .sh-root[data-mode="deck"] > .app :is(.topbar, .vdock, .zoom-pill, .stage-credit) { opacity: 0; pointer-events: none !important; }
 .sh-root[data-mode="deck"] > .app * { pointer-events: none !important; }
 .sh-root > .app .stage-credit.placed { opacity: 1; }
+/* The credit fades, never pops (2D's page shows and hides it at once; here the Sinusoid's vessel takes its corner away on a phone and it comes back when the view is left). The class is `.covered` (no bare spot) or `.moving` (a new spot: out, move, in). */
+.sh-root > .app .stage-credit { transition: opacity .24s ease; }
+.sh-root > .app .stage-credit:is(.covered, .moving) { opacity: 0; }
 /* the 2D dialog (About the model, References, Privacy) sits in the shell, whose root takes no taps */
 .sh-root > .modal-back.show { pointer-events: auto; }
 /* the 2D menus, the palette and the sheet scrim sit in the shell, whose root takes no taps */
@@ -49,3 +52,9 @@ html.thumb-ui .sh-root > .menu.as-sheet.from-dock { --ride-extra: 8px; }
 /* A finger has a sheet (shell/sheet-swipe.ts): its entrance and exit give way to it, so the only motion is the finger's and the let-go's. `pulled` stays until the sheet is shut and open again (an animation taken off and put back would play again). */
 [data-pulling], [data-swiped] { transition: none !important; animation: none !important; }
 [data-pulled] { animation: none !important; }
+
+/* The grab bar of a phone's sheet (36 x 4, the action card's own): the one sign that it can be pulled down. 2D draws it on none of its thumb sheets (15 Oct: it covered the titles); Mohammad asked for it on all (20 Nov), so it sits in
+   the top 10 px, above every head's padding, and is only a picture: the whole sheet is the handle (shell/sheet-swipe.ts). Shown where the sheet is a bottom sheet. */
+.sh-grabbar { display: none; position: absolute; z-index: 3; top: 6px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: color-mix(in srgb, var(--text) 22%, transparent); pointer-events: none; }
+html.thumb-ui .sh-grabbar, .sh-root[data-bottom="true"][data-mode="free"] .sh-sheet > .sh-grabbar, .menu.as-sheet > .sh-grabbar, .umenu.sheet > .sh-grabbar { display: block; }
+.app:not(.thumb) .sh-grabbar, .sh-root:not([data-bottom="true"]) .sh-sheet > .sh-grabbar { display: none; }

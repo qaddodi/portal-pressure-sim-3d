@@ -162,8 +162,8 @@ ${FADE_GLSL}
 ${CEL_TUBE_GLSL}
 // a vessel behind the organs is drawn a second time over them with VEIL defined: the organ's veil (stage's VEIL_K 0.6: a vessel behind an organ shows at 0.4)
 #ifdef VEIL
-uniform float veilA;   // 0.4 while the vessel is veiled; eases to 1 as the cava is shown whole
-#define VEIL_A veilA
+uniform float veilA;   // 0.4 while the vessel is veiled; eases to 1 as the cava is shown whole (drawn at no less than TUBE.VEIL_FLOOR: a vessel behind an organ stays a colour, never grey)
+#define VEIL_A max(veilA, ${F(CEL_STYLE.TUBE.VEIL_FLOOR)})
 #else
 const float VEIL_A = 1.0;
 #endif
@@ -348,11 +348,8 @@ void main() {
   if (vHull > 0.5) {
     // the ink: the hull's back faces only, in the ink colour, warming to the highlight colour where the vessel is picked
     if (gl_FrontFacing || hullOn < 0.5) discard;
-    // the outline in the look's casing colour at its alpha (2D: --casing-a, and the Circuit's own on the dark look (.stage-wrap.cmap), by the Circuit's share; a vessel behind an organ keeps half of it; a picked vessel's ring is solid)
+    // the outline in the look's casing colour at its alpha (2D: --casing-a, and the Circuit's own on the dark look (.stage-wrap.cmap), by the Circuit's share, whole on a vessel behind an organ too; a picked vessel's ring is solid)
     float ca = mix(casingA, casingCircA, circT);
-#ifdef VEIL
-    ca *= 0.5;
-#endif
     gl_FragColor = vec4(mix(mix(inkColor, inkColorCirc, circT), hiColor, clamp(vHi, 0.0, 1.0)), mix(ca, 1.0, clamp(vHi, 0.0, 1.0)) * VEIL_A * vFade);
     return;
   }

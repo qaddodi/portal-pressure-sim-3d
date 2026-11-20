@@ -2,6 +2,7 @@
 // `.menu-item` / `.lens.lens-opt` rows. A popover under (or over) the button that opened it, or a bottom sheet with a head and a scrim on the stacked layout (STACK_MQ).
 // It is in the page only while open: it comes in on the 2D stylesheet's own entrance (slide-from-edge / scale-settle), and leaves by `.leaving`, then goes. Its stylesheet is the 2D app's
 // (src/ui/css2d), copied unchanged; nothing here styles it. The frost is the one glass (glass.css).
+import { useSheetSwipe } from './use-sheet-swipe.ts';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useShell, type Sheet } from './store.ts';
@@ -105,9 +106,11 @@ export function MenuPop({ kind, label, title, cls = 'app-menu', align = 'end', s
     addEventListener('resize', put);
     return () => removeEventListener('resize', put);
   }, [shown, sheet, from, align, side]);
+  useSheetSwipe(ref, () => useShell.getState().close(), () => sheet, shown);   // (2D util.js: a popover that is a sheet follows a pull down; it is in the page only while shown)
   if (!shown || !root) return null;
   const close = () => useShell.getState().close();
   const rows = (<>
+    {sheet && <i className="sh-grabbar" aria-hidden="true" />}
     {sheet && <div className="sheet-head"><span className="sheet-t">{title}</span><button type="button" className="ib" aria-label="Close" onClick={close}><I n="close" /></button></div>}
     {children}
   </>);

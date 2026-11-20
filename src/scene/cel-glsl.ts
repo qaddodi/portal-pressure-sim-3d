@@ -14,13 +14,24 @@ float celTubeK(vec2 sideS) { return clamp(dot(sideS, vec2(${F(CEL_STYLE.DIR[0])}
 float celTubeHw(float rDev) { return smoothstep(${F(CEL_STYLE.TONES_FROM)}, ${F(CEL_STYLE.TONES_TO)}, rDev); }
 // the half width of a band edge in the lit-side measure: EDGE_PX device px across in all, never wider (k scales the measure's change per pixel)
 float celTubeEt(float k, float rDev) { return 0.5 * ${F(CEL_STYLE.EDGE_PX)} * max(abs(k), 0.05) / max(rDev, 1e-3); }
-// the fill: three flat tones across the tube. across -1..1, k celTubeK, rDev the radius in device px
+// the lens colour made saturated and deep (a pale end of a ramp is darkened, its hue kept): the one flat base every tone is cut from
+float celTubeLum(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+vec3 celTubeBase(vec3 b) {
+  float l = celTubeLum(b);
+  vec3 c = clamp(mix(vec3(l), b, ${F(CEL_STYLE.TUBE.SAT)}), 0.0, 1.0);
+  return c * min(min(1.0, ${F(CEL_STYLE.TUBE.LCAP)} / max(celTubeLum(c), 1e-3)), ${F(CEL_STYLE.TUBE.VCAP)} / max(max(c.r, max(c.g, c.b)), 1e-3));
+}
+// the fill: three flat tones across the tube, hue-preserving lightness steps (the shade a little more saturated, the lit the base lifted, never a mix to white). across -1..1, k celTubeK, rDev the radius in device px
 vec3 celTubeTone(vec3 base, float across, float k, float rDev) {
   float s = across * k, et = celTubeEt(k, rDev), hw = celTubeHw(rDev);
   float shadowT = 1.0 - smoothstep(${F(CEL_STYLE.SHADE_AT)} - et, ${F(CEL_STYLE.SHADE_AT)} + et, s);
   float litT = smoothstep(${F(CEL_STYLE.LIT_AT)} - et, ${F(CEL_STYLE.LIT_AT)} + et, s);
-  vec3 c = base * (1.0 - hw * ${F(CEL_STYLE.SHADE)} * shadowT);
-  return mix(c, vec3(1.0), ${F(CEL_STYLE.LIT)} * hw * litT);
+  vec3 b = celTubeBase(base);
+  vec3 sh = b * (1.0 - ${F(CEL_STYLE.SHADE)});
+  sh = clamp(mix(vec3(celTubeLum(sh)), sh, ${F(CEL_STYLE.TUBE.SHADE_SAT)}), 0.0, 1.0);
+  vec3 li = b * (1.0 + ${F(CEL_STYLE.TUBE.LIT_K)});
+  li /= max(1.0, max(li.r, max(li.g, li.b)));   // (over 1 the whole colour is scaled, so its hue never slides)
+  return mix(mix(b, sh, hw * shadowT), li, hw * litT);
 }
 // the hard highlight: a flat pale streak (a capsule, round ends) on the lit side, none on a hairline. alongR: the distance along the tube from the streak's centre, in radii
 float celTubeSpec(float across, float k, float rDev, float alongR) {
