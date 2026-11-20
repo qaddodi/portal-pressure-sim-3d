@@ -1,5 +1,5 @@
 import { edgeOnLine, maskOf } from './devices/probes/organ-edge.ts';
-import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, type Object3D, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Object3D, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, feederLive, presenceOf, recruitFrac } from './vessels/network.ts';
@@ -12,6 +12,8 @@ import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
 import { SkinSet, SKIN_BUILD_TAG } from './vessels/skin/skin-set.ts';
+import { WHY_COLOUR, joinsReport, type JoinsReport } from './vessels/skin/join-report.ts';
+import { findOverlaps, type Overlap } from './vessels/overlaps.ts';
 import { SkinObject } from './vessels/skin/skin-object.ts';
 import { joinsMode, joinsPhase, type JoinsMode } from './vessels/skin/joins-mode.ts';
 import { bakedCircuitSkins, bakedPending, bakedReady, bakedSkins } from './vessels/skin/baked.ts';
@@ -1215,6 +1217,60 @@ export class CelScene {
   inspectVesselList(): readonly { id: string; kind: string; label: string; drawn: boolean }[] {
     return NETWORK.map((v) => ({ id: v.id, kind: v.kind, label: v.label, drawn: this.presence.isDrawn(v.id) }));
   }
+  /** What the junction skins did not weld (`?inspect`, the panel's Joins report): arms left out, nodes that kept tube joins, every unwelded tube end with its place. Read when asked, never per frame. */
+  inspectJoinsReport(): JoinsReport {
+    return joinsReport({
+      endsOf: (id) => this.skins?.endsOf(id) ?? [false, false], dropped: this.skins?.dropped ?? [], fellBack: this.skins?.fellBack ?? [], built: this.skinNodes,
+      circuitFellBack: this.circuitSkins?.fellBack ?? [], stateOf: (id) => this.shapes?.stateOf(id),
+    });
+  }
+  private readonly inspectMarks = new Map<string, Group>();
+  /** Balls drawn over everything at `spots` (the inspector's markers), under the name `kind`; none (and the old ones gone) when `spots` is null. One set per kind. Returns how many. */
+  private putInspectMarks(kind: string, spots: readonly { at: readonly [number, number, number]; r: number; colour: string; name: string }[] | null): number {
+    const old = this.inspectMarks.get(kind);
+    if (old) { this.body.remove(old); old.traverse((c) => { if (c instanceof Mesh) { c.geometry.dispose(); (c.material as MeshBasicMaterial).dispose(); } }); this.inspectMarks.delete(kind); }
+    if (spots) {
+      const g = new Group(); g.name = `inspect-marks:${kind}`;
+      for (const u of spots) {
+        const m = new Mesh(new SphereGeometry(u.r, 12, 8), new MeshBasicMaterial({ color: u.colour, transparent: true, opacity: 0.8, depthTest: false, depthWrite: false }));
+        m.position.set(u.at[0], u.at[1], u.at[2]); m.renderOrder = 999; m.name = u.name; g.add(m);
+      }
+      g.traverse((c) => c.layers.set(VESSEL_LAYER));
+      this.body.add(g); this.inspectMarks.set(kind, g);
+    }
+    this.moving = true; clock.invalidate('inspect');
+    return spots?.length ?? 0;
+  }
+  /** Marks the unwelded ends in the figure (a ball at each, in the colour of its reason), or only those of vessel `only`; none when `on` is false. Built from the report at the time of the call: press it again after a change. Returns how many. */
+  setInspectMarks(on: boolean, only: string | null = null): number {
+    if (!on) return this.putInspectMarks('unwelded', null);
+    return this.putInspectMarks('unwelded', this.inspectJoinsReport().unwelded.filter((u) => !only || u.id === only).map((u) => ({ at: u.pos, r: Math.max(u.radius * 1.5, 0.02), colour: WHY_COLOUR[u.why], name: `unwelded:${u.id}:${u.end}` })));
+  }
+  /** Every pair of drawn vessels whose tubes run through each other now (vessels/overlaps.ts), worst first. */
+  inspectOverlaps(): readonly Overlap[] { return findOverlaps({ drawn: (id) => this.presence.isDrawn(id), stateOf: (id) => this.shapes?.stateOf(id) }); }
+  /** Marks the overlaps (a hot-pink ball at the deepest point of each pair, or only the pair `pair`); none when `on` is false. Returns how many. */
+  setInspectOverlapMarks(on: boolean, pair: readonly [string, string] | null = null): number {
+    if (!on) return this.putInspectMarks('overlaps', null);
+    return this.putInspectMarks('overlaps', this.inspectOverlaps().filter((o) => !pair || (o.a === pair[0] && o.b === pair[1])).map((o) => ({ at: o.at, r: Math.max(o.limit * 0.9, 0.015), colour: '#ff2d95', name: `overlap:${o.a}:${o.b}` })));
+  }
+  /** Where each drawn vessel's id label goes: the middle of its main course, in the figure's own space, for the panel's labels. */
+  inspectLabelPoints(): readonly { id: string; at: readonly [number, number, number] }[] {
+    const out: { id: string; at: readonly [number, number, number] }[] = [];
+    for (const v of NETWORK) {
+      if (v.feeder || v.id.includes('~F') || !this.presence.isDrawn(v.id)) continue;
+      const pts = coursesOf(v, this.shapes?.stateOf(v.id) ?? REST)[0]?.pts;
+      const p = pts?.[Math.floor(pts.length / 2)];
+      if (p) out.push({ id: v.id, at: [p[0], p[1], p[2]] });
+    }
+    return out;
+  }
+  private readonly labelV = new Vector3();
+  /** Where a point of the figure lands on the canvas now (CSS px), and whether it is in front of the camera and inside the view. */
+  inspectScreen(at: readonly [number, number, number], out: { x: number; y: number }): boolean {
+    const v = this.body.localToWorld(this.labelV.set(at[0], at[1], at[2])).project(this.rig.camera);
+    out.x = (v.x * 0.5 + 0.5) * this.rig.stageSize.w; out.y = (-v.y * 0.5 + 0.5) * this.rig.stageSize.h;
+    return v.z > -1 && v.z < 1 && Math.abs(v.x) <= 1.05 && Math.abs(v.y) <= 1.05;
+  }
   /** Shows or hides one of `inspectLayers` (drawn or not; what the scene itself shows and hides is not touched: the flag is put on for the draw and taken off after it). */
   setInspectShown(id: string, shown: boolean): void { if (shown) this.inspectHidden.delete(id); else this.inspectHidden.add(id); this.moving = true; clock.invalidate('inspect'); }
   isInspectShown(id: string): boolean { return !this.inspectHidden.has(id); }
@@ -1288,6 +1344,7 @@ export class CelScene {
   dispose(): void {
     this.disposed = true;
     this.unJoins();
+    for (const k of [...this.inspectMarks.keys()]) this.putInspectMarks(k, null);
     this.skins?.dispose();
     this.circuitSkins?.dispose();
     this.sinus3d.dispose(); this.lobule3d.dispose();
