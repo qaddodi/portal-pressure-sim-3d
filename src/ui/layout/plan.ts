@@ -18,11 +18,11 @@ import {
   layoutOf, isSideways, margin, cardWidth, pairGap, FIG_MIN, figFloorOf, phonePlan, GRIP, SHUF, WALLET_STEPS, shufCol, shufMaxH, shufTop, type Layout,
 } from './rules2d.ts';
 
-export type CardId = 'title' | 'case' | 'teach' | 'ladder' | 'table' | 'check';
+export type CardId = 'title' | 'case' | 'teach' | 'ladder' | 'table' | 'check' | 'visual';
 /** `words` is the left or top card (title, case, teaching line, quick check); `data` is the card of numbers. */
 export type Slot = 'words' | 'data';
 
-export interface Need { id: CardId; slot: Slot; /** natural height at this plan's width for it (px); 0 until measured */ h: number }
+export interface Need { id: CardId; slot: Slot; /** a `visual` card's 2D visual (table, plane, walls…): its width is that kind's */ visual?: string; /** natural height at this plan's width for it (px); 0 until measured */ h: number }
 export interface Placed { id: CardId; slot: Slot; rect: Rect }
 export interface Strip { id: CardId; slot: Slot; rect: Rect }
 export interface Plan {
@@ -83,11 +83,13 @@ export function barOf(vp: Viewport, colRight = 0): BarPlace {
 /** The cards that stand alone in the middle of the screen (2D: the outline's and the quick check's `.pz-panel`, a case's `.pz-case`): they have no data card beside them and the page behind them is veiled.
  *  Measures are 2D's own CSS (styles app-04-presenter.css .pz-panel, .pz-case; app-05 .pz.stack .pz-panel), worked out from the screen. */
 export type CentredKind = 'panel' | 'case';
-export const centredKind = (id: CardId): CentredKind | null => (id === 'title' || id === 'check' ? 'panel' : id === 'case' ? 'case' : null);
+export const centredKind = (id: CardId): CentredKind | null => (id === 'title' || id === 'check' || id === 'visual' ? 'panel' : id === 'case' ? 'case' : null);
 const clampN = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 /** 2D's `--pzh`: 1vh, and on a portrait screen 700 px or wider the smaller of 1vh and .75vw. */
 export const pzhOf = (vp: Viewport) => (vp.h > vp.w && vp.w >= 700 ? Math.min(vp.h / 100, (0.75 * vp.w) / 100) : vp.h / 100);
-export function centredBox(vp: Viewport, kind: CentredKind): { w: number; maxH: number; top: number; room: number } {
+/** The 2D visual a centred panel is (its width is that kind's): the outline, the quick check, or a visual slide's own. */
+export const panelVisual = (n: { id: CardId; visual?: string }): string => (n.id === 'title' ? 'outline' : n.id === 'check' ? 'check' : n.visual || 'table');
+export function centredBox(vp: Viewport, kind: CentredKind, visual = 'outline'): { w: number; maxH: number; top: number; room: number } {
   const layout = layoutOf(vp.w, vp.h), pzh = pzhOf(vp), { safe } = vp;
   const stack = layout === 'stack' || layout === 'tab';
   if (kind === 'case') {
@@ -99,7 +101,13 @@ export function centredBox(vp: Viewport, kind: CentredKind): { w: number; maxH: 
     const sb = Math.max(safe.bottom, 0), w = layout === 'tab' ? 0.7 * vp.w : vp.w - 16;
     return { w: Math.round(w), maxH: Math.round(vp.h - 72 - sb), top: 8, room: vp.h - 72 - sb };
   }
-  const w = Math.min(1560, vp.w - 2 * Math.max(clampN(0.03 * vp.w, 16, 64), safe.left, safe.right)), m = clampN(4 * pzh, 16, 56);
+  const m = clampN(4 * pzh, 16, 56);
+  let w = Math.min(1560, vp.w - 2 * Math.max(clampN(0.03 * vp.w, 16, 64), safe.left, safe.right));   // (a phone held sideways keeps the whole width: 2D's `.pz.low`)
+  if (!isSideways(vp.w, vp.h)) {
+    // a wide screen's reading widths (app-09 .pz-rw-*): the outline, the table, the quick check, a chart, a plane, in the teaching card's body size B
+    const B = clampN(2.311 * pzh, 17, 28), at = (n: number, share: number) => Math.min(n * B, share * vp.w);
+    w = visual === 'outline' ? at(50, 0.82) : visual === 'check' ? at(42, 0.82) : visual === 'plane' ? at(48, 0.74) : at(54, 0.82);
+  }
   return { w: Math.round(w), maxH: Math.round(vp.h - 2 * m), top: m, room: vp.h - 2 * m };
 }
 
@@ -145,7 +153,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
   const alone = words && !data ? centredKind(words.id) : null;
   if (alone) {
     // the outline, the quick check and a case: one card in the middle, as tall as its words need (never past its room), the figure framed whole behind the veil
-    const c = centredBox(vp, alone), h = Math.min(words!.h, c.maxH);
+    const c = centredBox(vp, alone, panelVisual(words!)), h = Math.min(words!.h, c.maxH);
     maxH.words = maxH.data = c.maxH;
     const x = Math.round((vp.w - c.w) / 2), y = Math.round(c.top + (c.room - h) / 2);
     placed.push({ id: words!.id, slot: 'words', rect: { x, y: alone === 'case' ? Math.round((vp.h - h) / 2) : y, w: c.w, h } });
