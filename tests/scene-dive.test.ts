@@ -88,3 +88,15 @@ test('the hand\'s limits are the lobule\'s own box: panning or zooming it keeps 
   const s = rig.fitRect();
   assert.ok(Math.abs((s.x0 + s.x1) / 2 - 500) < 150);
 });
+
+import { arcBell, arcSize, ARC_YAW } from '../src/scene/camera/rig.ts';
+test('the dive arc is zero at both ends, peaks mid-move, and Reduce Motion (arc 0) is the straight path', () => {
+  const sh = (r: number, yaw: number) => ({ shot: { yaw, pitch: 0, r, target: [0, 0, 0] as [number, number, number], half: [1, 1] as [number, number] }, room: { x: 0, y: 0, w: 1, h: 1 } });
+  const a = sh(100, 0), b = sh(0.5, 0.1);
+  assert.equal(blendPose(a, b, 0).shot.yaw, 0);
+  assert.ok(Math.abs(blendPose(a, b, 1).shot.yaw - 0.1) < 1e-12);
+  assert.ok(blendPose(a, b, 0.5).shot.yaw > blendPose(a, b, 0.5, 0).shot.yaw + 0.05);
+  assert.ok(blendPose(a, b, 0.5).shot.yaw - blendPose(a, b, 0.5, 0).shot.yaw <= ARC_YAW + 1e-9);
+  assert.ok(arcBell(0) < 1e-12 && arcBell(1) < 1e-12); assert.ok(arcBell(0.5) > 0.99);
+  assert.ok(arcSize(200, 1) > arcSize(20, 1) && arcSize(20, 1) > 0);
+});

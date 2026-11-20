@@ -49,8 +49,8 @@ const isDive = (a: Pose, b: Pose) => Math.max(a.shot.r, b.shot.r) / Math.max(1e-
  *  A dive (the two distances differ by more than DIVE_RATIO: into the liver, the lobule, the sinusoid, and back out) zooms the way the eye does: the distance and the
  *  framing change by the same ratio every moment (geometric, so the picture grows evenly instead of nothing happening and then a plunge at the end), and the aim
  *  settles on the target as the distance closes (the target's share is the distance covered), so the place dived to stays in the middle of the picture all the way. */
-export function blendPose(a: Pose, b: Pose, k: number): Pose {
-  if (isDive(a, b)) return blendDive(a, b, k);
+export function blendPose(a: Pose, b: Pose, k: number, arc = 1): Pose {
+  if (isDive(a, b)) return blendDive(a, b, k, arc);
   return {
     shot: {
       yaw: lerpAngle(a.shot.yaw, b.shot.yaw, k), pitch: lerp(a.shot.pitch, b.shot.pitch, k), r: lerp(a.shot.r, b.shot.r, k),
@@ -61,15 +61,25 @@ export function blendPose(a: Pose, b: Pose, k: number): Pose {
   };
 }
 
+/** The cinematic arc of a dive: the camera swings a little to one side and rises as it plunges, then settles square on the place it dives to, instead of a straight push. A bell in k (zero at both ends, so a
+ *  move that lands or starts leaves the shots' own yaw and pitch exactly; the same both ways, so the way out is the way in run backward). Its size grows with how deep the move goes (body to lobule 0.2 rad
+ *  of yaw and 0.09 of pitch, lobule to sinusoid about half that); Reduce Motion passes `arc` 0. */
+export const ARC_YAW = 0.2, ARC_PITCH = 0.09;
+export function arcBell(k: number): number { const s = Math.sin(Math.PI * Math.min(1, Math.max(0, k))); return s * s; }
+export function arcSize(ra: number, rb: number): number {
+  const ratio = Math.max(ra, rb) / Math.max(1e-9, Math.min(ra, rb));
+  return Math.min(1, Math.log(ratio / DIVE_RATIO + 1) / Math.log(200 / DIVE_RATIO + 1));
+}
 const geo = (a: number, b: number, k: number) => (a > 0 && b > 0 ? a * Math.pow(b / a, k) : lerp(a, b, k));
-function blendDive(a: Pose, b: Pose, k: number): Pose {
+function blendDive(a: Pose, b: Pose, k: number, arc = 1): Pose {
+  const swing = arc * arcSize(a.shot.r, b.shot.r) * arcBell(k);
   const r = geo(a.shot.r, b.shot.r, k);
   // the share of the way the aim has gone: 0 at the start, 1 at the end, and most of it early when diving in (the distance is still large), so the target is centred before the close part
   const span = a.shot.r - b.shot.r;
   const q = Math.abs(span) < 1e-12 ? k : Math.min(1, Math.max(0, (a.shot.r - r) / span));
   return {
     shot: {
-      yaw: lerpAngle(a.shot.yaw, b.shot.yaw, k), pitch: lerp(a.shot.pitch, b.shot.pitch, k), r,
+      yaw: lerpAngle(a.shot.yaw, b.shot.yaw, k) + ARC_YAW * swing, pitch: lerp(a.shot.pitch, b.shot.pitch, k) + ARC_PITCH * swing, r,
       target: [lerp(a.shot.target[0], b.shot.target[0], q), lerp(a.shot.target[1], b.shot.target[1], q), lerp(a.shot.target[2], b.shot.target[2], q)],
       half: [geo(a.shot.half[0], b.shot.half[0], k), geo(a.shot.half[1], b.shot.half[1], k)],
     },
@@ -232,7 +242,7 @@ export class CameraRig {
     let moving = false;
     if (this.active) {
       const k = this.dur <= 0 ? 1 : Math.min(1, (now - this.t0) / this.dur);
-      this.cur = blendPose(this.from, this.to, easeInOutCubic(k));
+      this.cur = blendPose(this.from, this.to, easeInOutCubic(k), this.reduceMotion || reduced() ? 0 : 1);
       this.bump = fovBump(k, this.bumpFrom, this.plunge);
       // the orbit eases back to centre with the shot (a new shot always starts square on), but a change of room alone (a card opening) leaves the turn the viewer chose
       this.orbit = lerp(this.orbitFrom, this.orbitTo, easeInOutCubic(k));
