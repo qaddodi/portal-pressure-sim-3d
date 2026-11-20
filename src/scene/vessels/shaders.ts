@@ -23,7 +23,7 @@ import { TUBE_RADIAL } from './tubes.ts';
 
 /** The tube's ring is a polygon of TUBE_RADIAL sides: its corners stand 1 / cos(pi / n) - 1 of the radius outside its flats. The tube is built that much fatter, so the silhouette never falls inside the outline. */
 export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
-import { CIRC_INK_K, TAPER_FROM, TAPER_TO } from './cel-ink.ts';
+import { CIRC_INK_K, CIRC_INNER, TAPER_FROM, TAPER_TO } from './cel-ink.ts';
 
 export const VESSEL_VS = /* glsl */ `
 attribute vec3 tang;
@@ -258,13 +258,7 @@ float meanVelocity(float q, float dmm) {
 // ---- the 2D app's flow heads (chevron-glsl.js, blood-heads.js) ----
 ${CHEVRON_GLSL}
 ${STREAK_FIELD_GLSL}
-// how much of head j of the lattice of level n0 shows at level lv (coarser heads are a subset of finer ones; nothing jumps)
-float chevKeep(float j, float n0, float lv) {
-  float m = 0.0, q = abs(j);
-  for (int i = 0; i < 10; i++) { if (q < 0.5 || mod(q, 2.0) > 0.5) break; q *= 0.5; m += 1.0; }
-  if (q < 0.5) m = 10.0;
-  return clamp(exp2(1.0 - (lv - n0 - m)) - 1.0, 0.0, 1.0);
-}
+// (chevKeep, the lattice's keep, is in the one chevron chunk above: blood/chevron-glsl.ts)
 // One vessel's heads placed by a stream's pattern (veins-gl.js chevOne): se = A + B s is the vessel's arc along that stream (B = 1, se = s for its own), Dm the stream's distance. The
 // spacing is the zoom's, by the arc a head takes here (B), so a parcel that slows on entering a vessel bunches up as the blood does. ends: the weights of a link at the vessel's from and
 // to end (above 0: a chained end, through which the heads run on instead of fading). Returns the head's coverage and its rim, already faded by its place and its lattice.
@@ -445,6 +439,9 @@ void main() {
   float dLat = tl > 1e-3 ? abs(dot(dvPx, vec2(-tS.y, tS.x) / tl)) : length(dvPx);
   float endK = vHi > 0.001 ? 1.0 : buryK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU);
   float inkT = smoothstep(rDevAx - 0.5, rDevAx + 0.5, dLat) * endK * inkOn;
+  // in the Circuit the outline also sits a little inside the vessel and fades inward, so on a dark map the edge still reads (the ink outside it is lost on the ground)
+  float inDepth = clamp(${F(CIRC_INNER.R)} * rDevAx, ${F(CIRC_INNER.MIN_PX)}, ${F(CIRC_INNER.MAX_PX)});
+  c = mix(c, inkColorCirc, circT * ${F(CIRC_INNER.K)} * smoothstep(rDevAx - inDepth, rDevAx, dLat) * endK * inkOn);
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);

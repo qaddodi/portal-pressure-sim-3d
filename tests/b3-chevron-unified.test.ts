@@ -21,7 +21,7 @@ test('the Anatomy\'s vessels and the 3D lobule and sinusoid include the one chev
   assert.equal(MICRO_FS.split('float chevD(').length - 1, 1);
   // the cel3d marks are the shared head on a lattice, not a stripe
   assert.match(MICRO_FS, /return chevLattice\(vP\.x - uFlow, vAux, 6\.0, max\(fwidth\(vP\.x\), 1e-5\), dir\);/);
-  assert.match(MICRO_FS, /return chevHead\(u, ay, 0\.55, px, 0\.0\);/);
+  assert.match(MICRO_FS, /return chevHead\(x, abs\(vAcross\) \* R, hw, pxA, 0\.0\) \* k;/);
   assert.doesNotMatch(MICRO_FS, /float chev = smoothstep\(0\.0, wa, f\)/, 'no stripe chevron left');
 });
 
@@ -39,5 +39,6 @@ test('the blood chevron is black like the Anatomy\'s: the look\'s chevron ink on
 
 test('chevrons stay in the lumen: the head is confined to the middle 0.6 of the face (its half width is the lattice\'s hw at |across| 0.6)', () => {
   assert.match(CHEVRON_GLSL, /return chevHead\(dir \* x, abs\(across\) \* hw \/ 0\.6, hw, px, 0\.0\);/);
-  assert.match(MICRO_FS, /float u = f \/ R, ay = abs\(vAcross\);/);
+  // (the lobule's tubes: the Anatomy's own rule, a half width never past 0.6 of the radius)
+  assert.match(MICRO_FS, /float hw = min\(0\.6 \* R, clamp\(0\.5 \* R, 4\.0 \* wpc, 8\.0 \* wpc\)\);/);
 });

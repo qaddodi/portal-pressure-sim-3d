@@ -33,3 +33,8 @@
 /* The grab bar is always drawn on a phone's sheet (owner, 20 Nov 2026; 2D keeps it hidden until focused): 36 x 4, centred on the card's top edge. */
 .t-pos[data-kind="sheet"] .sheet-grab { opacity: 1; width: 56px; height: 14px; }
 .t-pos[data-kind="sheet"] .sheet-grab::before { top: 5px; width: 36px; height: 4px; border-radius: 2px; background: var(--border-strong); }
+
+/* Peek, the sheet's third stop (owner, 20 Nov): only the head row, tabs and handle stay; the instrument itself fades out and in with the sheet's glide, and is not reachable while hidden */
+.t-card .dock-body { transition: opacity .22s var(--ease, cubic-bezier(.22, 1, .36, 1)); }
+.t-card[data-peek] .dock-body { opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .t-card .dock-body { transition: none; } }

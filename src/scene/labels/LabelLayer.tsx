@@ -15,6 +15,7 @@ import { useTestsRoom } from '../../ui/tests/room.ts';
 import { labelView, placeBlockers } from './room.ts';
 import { cel, sceneApi, usePick } from '../api.ts';
 import { rectToBox, type Box } from './geometry.ts';
+import { labelsShown } from '../../boot/ready.ts';
 import { LabelController, type Draw, type LabelDeps } from './controller.ts';
 import { baselineAt, lookVars, typeVars } from './type.ts';
 import { keyVars } from './key-dock.ts';
@@ -217,6 +218,7 @@ export function LabelLayer() {
       for (const d of ctl.out) { const r = recs.get(d.id); if (r) { seen.add(d.id); paint(r, d, ctl); } }
       for (const [id, r] of recs) if (!seen.has(id)) hide(r);
       cath.paint(ctl.cath);
+      if (ctl.out.length > 1 && ctl.out.every((d) => d.alpha >= 0.999)) labelsShown();   // (the splash waits for the labels to be fully in, boot/ready.ts)
       // the boxes the Doppler probe keeps off, and the probes' own readings
       beginLabelBoxes();
       for (const d of ctl.out) if (d.kind === 'station' && d.alpha > 0.05) addLabelBox(d.x, d.y, d.w, d.h);

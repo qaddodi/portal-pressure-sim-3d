@@ -26,6 +26,13 @@ vec2 chevHead(float u, float ay, float hw, float px, float rev) {
   }
   return vec2(c, rim * (1.0 - c));
 }
+// how much of head j of the lattice of level n0 shows at level lv (coarser heads are a subset of finer ones; nothing jumps)
+float chevKeep(float j, float n0, float lv) {
+  float m = 0.0, q = abs(j);
+  for (int i = 0; i < 10; i++) { if (q < 0.5 || mod(q, 2.0) > 0.5) break; q *= 0.5; m += 1.0; }
+  if (q < 0.5) m = 10.0;
+  return clamp(exp2(1.0 - (lv - n0 - m)) - 1.0, 0.0, 1.0);
+}
 // the head's ring: always the dark ink, never a pale ring
 const vec3 CHEV_RIM = vec3(0.2314, 0.1725, 0.1333);
 // one flat tone for the head, never a grey halfway: dark ink on a light lumen, cream on a dark one, a hard step on the lumen's luminance (2D blended over 0.175 to 0.205, which on a mid lavender is a grey head)

@@ -54,3 +54,7 @@ test('the shader carries the fade into both the body and the ink, and lets go of
   assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, vFade\);/, 'the body fades by its alpha');
   assert.match(VESSEL_FS, /c = mix\(c, mix\(mix\(inkH, inkColorCirc, circT\), hiColor, clamp\(vHi, 0\.0, 1\.0\)\), inkT\);[\s\S]*gl_FragColor = vec4\(c, vFade\);/, 'the outline is painted into the body\'s colour, so it has the body\'s alpha: no ink ring floats at a faded end');
 });
+
+test('the superior cava runs into the right atrium as solid as the inferior cava meets it: no fade to 0.3 at the atrium (a hard step in colour there)', () => {
+  for (const id of ['SVC_RA', 'SVC_RA_1']) { const f = fadeOf(id, false); assert.ok(!f || !f.ivcJoin, `${id} is the cava, not a vein joining it`); }
+});

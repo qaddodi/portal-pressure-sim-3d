@@ -110,7 +110,7 @@ test('the Circuit holds nothing faint: the tip fades let go, the bands run full 
   assert.match(sh, /if \(capCarved\(across\)\) discard;/);
   const layer = readFileSync(new URL('../src/scene/circuit/map-layer.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(layer, /float iy = /, 'the bands are not cut off across the map');
-  assert.match(layer, /\/ BAND_SOFT \+ 0\.5/);
+  assert.match(layer, /\/ \(BAND_SOFT \* pxW\) \+ 0\.5/);
   const sc = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
   assert.match(sc, /setCircCap\(free\(v\.from, v\.id\) \? 1 : 0, free\(v\.to, v\.id\) \? 1 : 0\)/);
   const cap = readFileSync(new URL('../src/scene/circuit/CircuitCaptions.tsx', import.meta.url), 'utf8');

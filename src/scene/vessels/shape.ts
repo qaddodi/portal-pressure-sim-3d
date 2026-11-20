@@ -129,7 +129,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     const own: Course = { pts: m, radius: rad, taper: sj ? sj.taper : v.taper, taperSpan: sj?.taper ? sj.span : undefined, flare: v.flare, capless: sj ? sj.joined : v.joined, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? sj.free : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
     // a varix is its few strands, each running whole from the vessel that feeds it to the one that drains it: the trunk's own tube, a solid fill the width of the bundle, is not drawn while
     // they are (Mohammad, 20 Nov: "what's that red mesh"); each strand widens to the trunk's width at its two ends, so it meets the vessels there without a step
-    const bundle = s.strandsOn && strands.length > 0 && v.kind === 'collateral' && v.id !== 'C8';
+    const bundle = s.strandsOn && strands.length > 0 && v.kind === 'collateral';   // (the cavernoma too: its trunk tube showed as a hard violet block where the clot does not cover the portal vein)
     if (bundle) own.radius = 0;
     return [own, ...strands.map((c, i) => {
       if (!s.strandsOn) return own;

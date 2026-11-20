@@ -20,6 +20,8 @@ export const sidewaysWidth = (W: number, widthPx: number | null): number => clam
 export const SIDE_MAX_H = 760;
 /** The sheet's two heights, Half and Full (dock-sheet.js stops): a phone's Half is one fixed 520 px (testsHalfPx), Full the room; a tablet held upright 45 % and 62 % of the screen. */
 export const TESTS_HALF_PX = 520;
+/** The sheet's third stop, Peek (owner, 20 Nov: swipe the instrument panel down out of the way to see more of the figure, and bring it back): the head row, tabs and grab handle only. */
+export const PEEK_H = 72;
 /** The share of the screen the figure keeps above a phone's Half sheet (owner, 20 Nov 2026: at 520 px the figure was left with 62 px, then 'about 55 %'; the sheet's content scrolls instead). */
 export const FIGURE_KEEPS = 0.55;
 /** The tallest a phone's Half may be: the card's top edge stays at least FIGURE_KEEPS of the screen down (`foot` is the card's distance from the screen's bottom); never under MIN_HALF. */
@@ -52,8 +54,8 @@ export interface PlaceOpts {
   widthPx?: number | null;
   /** the remembered height of a sheet that is not over the thumb dock, a share of the stage */
   heightRatio?: number | null;
-  /** the phone's sheet: 0 Half, 1 Full */
-  sheetSize?: 0 | 1;
+  /** the phone's sheet: 0 Half, 1 Full, 2 Peek */
+  sheetSize?: 0 | 1 | 2;
   /** instrument-focus: the card fills the screen */
   focus?: boolean;
   /** the body's measured height, px (the plot sizes follow it); the head's estimate until it is measured */
@@ -93,7 +95,7 @@ export function testsPlace(vp: Viewport, device: DeviceClass, o: PlaceOpts = {})
   const R = Math.max(1, vp.h - vp.safe.top - M.topSafe - bottom - 22);
   const stops = sheetStops(device, vp.h, R, !!o.vesselCard, bottom);
   const maxH = stops[1];
-  const h = contentH > 0 ? Math.min(contentH, maxH) : o.heightRatio != null ? Math.max(140, Math.min(maxH, Math.max(180, vp.h * o.heightRatio))) : stops[o.sheetSize === 1 ? 1 : 0];
+  const h = o.sheetSize === 2 ? PEEK_H : contentH > 0 ? Math.min(contentH, maxH) : o.heightRatio != null ? Math.max(140, Math.min(maxH, Math.max(180, vp.h * o.heightRatio))) : stops[o.sheetSize === 1 ? 1 : 0];
   return { kind: 'sheet', rect: { x: vp.safe.left + margin, y: vp.h - bottom - h, w, h }, maxH, vars: sheetDockVars(h, isPhone(device)), focus: false, stops };
 }
 
