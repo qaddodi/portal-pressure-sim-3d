@@ -4,6 +4,8 @@ import { BufferGeometry, CatmullRomCurve3, Float32BufferAttribute, SphereGeometr
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { beadRadius } from './varix-bead.copied.js';
+import { flareScale, sideEndScale } from './fork-joins.copied.js';
+import type { ShuntEnd } from './shunt-ends.ts';
 
 export interface Course {
   pts: Vec3[]; radius: number;
@@ -20,6 +22,8 @@ export interface Course {
   clamp?: readonly [Buried | null, Buried | null];
   /** smooth joins: the share of the course each end's `taper` eases over (0.3 as the 2D tubes do; a vein narrowing into a thin bed funnels over the whole of it, so it never swells into a bulb) */
   taperSpan?: readonly [number, number];
+  /** a surgical shunt's sewn ends (shunt-ends.ts): the end inside its host narrows to nothing past the wall (2D sideEndScale) and the heel flares toward it (flareScale) */
+  sewn?: readonly [ShuntEnd | null, ShuntEnd | null];
   /** smooth joins: nothing meets this end, so the tube tapers to a point over its last stretch (`pointLength`) instead of ending in a round cap */
   point?: readonly [boolean, boolean];
 }
@@ -31,6 +35,8 @@ export const factorSpan = (t: readonly [number, number], sp: readonly [number, n
   const fs = u < sp[0] ? t[0] + (1 - t[0]) * smooth(u / sp[0]) : 1, fe = u > 1 - sp[1] ? 1 + (t[1] - 1) * smooth((u - (1 - sp[1])) / sp[1]) : 1;
   return fs < 1 && fe < 1 ? Math.min(fs, fe) : fs * fe;   // (two narrowings that overlap, a funnel and a tapered end, take the narrower: the radius then rises from each end to the middle and never dips on the way)
 };
+/** A shunt's sewn end (shunt-ends.ts) as a share of the tube's radius at distance `d` from that end: narrowed inside its host (2D sideEndScale), flared in front of the wall (flareScale, the far end only). */
+const sewnAt = (e: ShuntEnd | null | undefined, end: number, d: number): number => (!e ? 1 : (e.inside && !e.sink ? (sideEndScale(d, e.hostR) as number) : 1) * (end === 1 && e.flare ? (flareScale(d, e.hostR) as number) : 1));
 const factorAt = (t: readonly [number, number] | undefined, u: number): number => (!t ? 1 : u < 0.3 ? t[0] + (1 - t[0]) * smooth(u / 0.3) : u > 0.7 ? 1 + (t[1] - 1) * smooth((u - 0.7) / 0.3) : 1);
 
 /** The share of its radius a free end tapers down to (a point, not a hole: the tube stays closed). */
@@ -86,6 +92,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
       const u = k / seg;
       let f = open ? ((c.taper && c.taperSpan ? factorSpan(c.taper, c.taperSpan, u) : factorAt(c.taper, u)) + (collar(0, u * clen) + collar(1, (1 - u) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) : 1) : 1;
       curve.getPointAt(k / seg, P);
+      if (open && c.sewn) f *= sewnAt(c.sewn[0], 0, u * clen) * sewnAt(c.sewn[1], 1, (1 - u) * clen);
       if (open && (c.clamp || c.point)) {
         // (smooth joins) the buried ends keep their collar inside the trunk, and a free end narrows to a point
         const d0 = u * clen, d1 = (1 - u) * clen;
@@ -107,7 +114,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     tube.setAttribute('tang', new Float32BufferAttribute(tang, 3));
     // the radius a round cap is built at: the tube's own at that end (the collar's, a buried end's held inside its trunk, a free end's tip); none at an end that carries on
     const capRadius = (end: number): number => {
-      let r = open && !c.capless?.[end] ? c.radius * factorAt(c.taper, end) + collar(end, 0) : HAIR;
+      let r = open && !c.capless?.[end] ? c.radius * factorAt(c.taper, end) * sewnAt(c.sewn?.[end], end, 0) + collar(end, 0) : HAIR;
       if (open && r > HAIR && c.clamp?.[end]) r = Math.min(r, c.clamp[end]!.max);
       if (open && r > HAIR && c.point?.[end]) r *= TIP_K;
       return r;

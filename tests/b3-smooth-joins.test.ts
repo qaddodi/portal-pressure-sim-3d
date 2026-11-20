@@ -48,6 +48,7 @@ test('the switch is off in the vessel code until the scene sets it, and off the 
   for (const v of MAPPED) {
     const c = coursesOf(v, REST)[0]!;
     assert.equal(c.clamp, undefined, v.id); assert.equal(c.point, undefined, v.id);
+    if (c.sewn) continue;   // (a shunt sewn onto a vein narrows to its host's caliber there, shunt-ends.ts, switch or not)
     if (cutEnd(v.id) != null) continue;   // (a vein that branches narrows to its tip whatever the switch says: liver-branches.ts)
     assert.deepEqual(c.capless, v.joined, v.id); assert.deepEqual(c.taper, v.taper, v.id);
   }
@@ -94,7 +95,7 @@ test('tapers are monotone: along the first and last 30 % the radius moves from t
     let checked = 0;
     for (const v of MAPPED) {
       const c = coursesOf(v, REST)[0]!;
-      if (!c.taper || v.flare || v.id.startsWith('C')) continue;
+      if (!c.taper || v.flare || v.id.startsWith('C') || c.sewn) continue;   // (a sewn shunt's heel flares over its taper: shunt-ends.ts)
       const { b: bt, run } = built(v.id), rk = bt.geometry.getAttribute('rk');
       const at = (k: number) => rk.getX(run.tubeStart + k * (run.radial + 1));
       const N = run.tubular, lo = Math.ceil(0.3 * N);
