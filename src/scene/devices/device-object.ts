@@ -45,7 +45,9 @@ export class DeviceObject extends CelObject {
     // (the ink's alpha is the soft ink's own `inkA` (1 for a hard ink) and the pick's solid ring: a device's fade multiplies the first)
     this.ink.fragmentShader = 'uniform float alpha;\n' + withAlpha(INK_FS, 'mix(inkA, 1.0, clamp(vHi, 0.0, 1.0))', 'mix(inkA, 1.0, clamp(vHi, 0.0, 1.0)) * alpha');
     for (const m of [this.toon, this.ink]) { m.depthTest = false; m.depthWrite = false; m.needsUpdate = true; }
-    this.group.traverse((c) => { c.renderOrder = DEVICE_RENDER_ORDER + (o.order ?? 0); c.frustumCulled = false; });
+    // (A device draws with no depth test, so its draw order IS its picture: the ink (the back faces, grown a hairline) first and the fill over it. Left at one shared order, three sorts equal ones by material, the fill's
+    //  made first, so the ink hull was drawn last and covered the whole device in its dark outline colour: a near-black catheter, probe and scope on a dark ground. Two orders a device: ink 2n, fill 2n + 1.)
+    this.group.traverse((c) => { c.renderOrder = DEVICE_RENDER_ORDER + 2 * (o.order ?? 0) + (c === this.toonMesh ? 1 : 0); c.frustumCulled = false; });
   }
 
   /** Changes the material (a ring's colour, a column's) and paints it in the look it is in. */
