@@ -13,13 +13,13 @@ export const STREAK = {
   /** a vessel of this radius (2D units) or more takes all 7 lanes, 5 from LANE_5, 3 below */
   LANE_7: 5, LANE_5: 3,
   /** the lane at the wall runs at this share of the middle lane's speed: parabolic between, so the flow visibly shears (each lane's speed is divided by the mean over the lanes, so the stream's own mean stands and the chevrons agree) */
-  WALL_SPEED: 0.55,
+  WALL_SPEED: 0.72,
   /** the streak's length: this many tube radii (a little varied by streak, longer with the flow), never under LEN_FLOOR nor over LEN_MAX px */
   LEN_OF_R: 2.6, LEN_FLOOR: 6, LEN_MAX: 30, LEN_JITTER: 0.3, LEN_FLOW: [0.8, 1.25],
   /** its thickness at the widest: this share of the tube's radius, between THICK_MIN and THICK_MAX px, a little varied by streak */
   THICK_OF_R: 0.16, THICK_MIN: 1.3, THICK_MAX: 3, THICK_JITTER: 0.3,
   /** the field's own numbers (a shape with an across and an along, um): a lane's pitch, a comet's period and length (base + spread), its half width in lane units, the share of the cycles left empty */
-  FIELD_PITCH: 0.9, FIELD_EDGE: 0.9, FIELD_AT_R: 5, FIELD_PERIOD: [90, 60], FIELD_LEN: [40, 40], FIELD_THICK: 0.18, FIELD_GAP: 0.12,
+  FIELD_PITCH: 0.9, FIELD_EDGE: 0.9, FIELD_AT_R: 5, FIELD_PERIOD: [84, 24], FIELD_LEN: [40, 40], FIELD_THICK: 0.18, FIELD_GAP: 0.12,
   /** SLEEK (Mohammad, 20 Nov: "those streaks are horrendous... more sleek", "much thinner, variable in colour, not too white"): a streak is a LONG soft lozenge, FIELD_LEN_R tube radii on average (the field's units are 5 to the radius, so 40 to 80 units are 8 to 16 radii), with a period of 150 to 250 units so
    *  a lane is mostly empty (at least 3 x a streak's length on a thin tube); its core is CORE_PX CSS px thick (CORE_WIDE_PX on a wide tube), its edge feathered EDGE_FEATHER_PX px. */
   FIELD_LEN_R: 12, CORE_PX: 1, CORE_WIDE_PX: 1, EDGE_FEATHER_PX: 0.6,
@@ -46,7 +46,7 @@ export const STREAK = {
   /** the streak's alpha (whole inside the lumen band) */
   ALPHA: 1,
   /** on screen (CSS px of the lumen's radius): none under MIN_R_PX (a tube under 3.5 px across), 1 lane under LANE_R_PX[0], 3 lanes up to LANE_R_PX[1], 5 above; the wide tube's thicker core and stronger tint come in over WIDE_R_PX */
-  MIN_R_PX: 1.5, LANE_R_PX: [4, 8], WIDE_R_PX: [5.5, 7.5],
+  MIN_R_PX: 1.5, LANE_R_PX: [4, 6], WIDE_R_PX: [5.5, 7.5],
   /** FILAMENTS (round 3, Mohammad 20 Nov: "the streaks of blood need a lot of work... stagnant sometimes... dotted"): each one is a strip of constant width CORE_PX whose coverage is the exact AREA of its overlap with the pixel (a 1 px filament is never dotted
    *  and never crawls), its ends soft in alpha (FEATHER), its own opacity from OPACITY_LO to 1, drifting sideways by DRIFT of its lane's width over DRIFT_LEN field units. The wall lane runs at WALL_SPEED (never under half) of the middle one's. A flow of FLOW_ON
    *  display units a second or more shows them whole; none at none. A pattern never advances more than MAX_STEP of its (shortest) period per frame at FRAME_HZ (streakDCap: the streak distance the shaders read is capped there; the chevrons' D is not). */
