@@ -271,8 +271,8 @@ export class VesselObject extends CelObject {
   }
   /** A hepatic vein that opens into the cava ends on the cava's axis: the last `share` of it (the cava's radius) lies in its lumen and fades out, whatever the cava's own alpha. */
   /** A vein that opens into the cava (its `nbr` is the cava's): it takes the cava's colour (the lens colour of cava piece `lensIndex`, `u` of the way along it) and alpha as it nears the wall, and is not drawn inside the lumen (shaders.ts cavA). */
-  setCavaCut(on: boolean, lensIndex = 0, u = 1, cavaAlpha = 1): void {
-    this.toon.uniforms.cavaCut!.value = on ? 1 : 0; (this.toon.uniforms.cavaRef!.value as Vector2).set(lensIndex, u);
+  setCavaCut(on: boolean | 'fade', lensIndex = 0, u = 1, cavaAlpha = 1): void {
+    this.toon.uniforms.cavaCut!.value = on === 'fade' ? 2 : on ? 1 : 0; (this.toon.uniforms.cavaRef!.value as Vector2).set(lensIndex, u);
     this.cavaJoinA = cavaAlpha; this.toon.uniforms.cavaA!.value = cavaAlpha;
     if (on) { this.toon.transparent = true; if (this.veil) this.veil.mat.transparent = true; }
   }

@@ -422,9 +422,9 @@ export class CelScene {
       for (const e of [0, 1] as const) if (on && sj?.attach[e]) bury[e] = BURY * (sj.hostR[e] ?? def.radius);
       for (const e of [0, 1] as const) if (sk[e]) bury[e] = 0;   // (the part of the tube the bury guarded is cut away)
       // THE CAVA'S CUT RULES (spec 10.4): a hepatic vein that opens into the cava is cut away inside the cava's lumen (`cavaCut`, shaders.ts cavA) and its ink held back there (`CAVA_BURY`). Where a skin has taken over that end of it the skin IS the
-      // opening (the tube stops at its seam ring, outside the cava's wall), so both are off there and come back, exactly, with the skin. (Its `cavaEnd` ease is zero for every vein now: fades.ts cavaEndSpan.)
+      // opening (the tube stops at its seam ring, outside the cava's wall), so the cut and the cava's colour are off there ('fade': only the opacity ramp stays, which the skin carries on) and come back, exactly, with the skin. (Its `cavaEnd` ease is zero for every vein now: fades.ts cavaEndSpan.)
       const cc = this.cavaCutArgs.get(def.id);
-      if (cc) o.setCavaCut(!sk[1], ...cc);
+      if (cc) o.setCavaCut(sk[1] ? 'fade' : true, ...cc);
       if (on && !sk[1] && (this.ivcJoins.includes(o) || opensIntoCava(def.id))) bury[1] = Math.max(bury[1], CAVA_BURY * (NETWORK_BY_ID.get('IVC_IS')?.radius ?? def.radius));
       const joinEnd = def.plan?.kind === 'feeder' ? def.plan.list[0]?.join : undefined;
       if (on && joinEnd != null) bury[joinEnd] = Math.max(bury[joinEnd], BURY * def.radius * (def.plan?.kind === 'feeder' ? (def.plan.list[0]?.k ?? 1) : 1));

@@ -14,6 +14,7 @@ import type { VesselObject } from '../vessel-object.ts';
 import { SKIN_ARMS, SKIN_AXIS_PTS, SKIN_FS, SKIN_VS } from './shaders.ts';
 import type { SkinDraw } from './skin-set.ts';
 import { skinKOf } from './sdf.ts';
+import { opensIntoCava } from '../fades.ts';
 import { skinDebugOn, skinLeaveOut } from './joins-mode.ts';
 import { vdbgDefines, vdbgUniforms } from '../debug-view.ts';
 import type { SkinMesh, Vec3 } from './types.ts';
@@ -124,7 +125,7 @@ export class SkinObject implements SkinDraw {
     const armAxisP = Array.from({ length: SKIN_ARMS * SKIN_AXIS_PTS }, () => new Vector4());
     axes.forEach((ax, i) => ax.pts.forEach((p, k) => armAxisP[i * SKIN_AXIS_PTS + k]!.set(p[0], p[1], p[2], ax.radii[k]!)));
     this.armAF = Array.from({ length: SKIN_ARMS }, () => new Vector4(0, 1, 0, 1));
-    this.armCopy = Array.from({ length: SKIN_ARMS }, (_, i) => new Vector4(0, 0, 0, axes[i]?.mate ?? -1));   // (an arm no arm fills has no share of any copy; w is the arm it runs through the node with)
+    this.armCopy = Array.from({ length: SKIN_ARMS }, (_, i) => new Vector4(0, 0, 0, axes[i]?.mate ?? (skin.junction.arms[i] && opensIntoCava(skin.junction.arms[i]!.vesselId) && skin.junction.arms[i]!.end === 1 ? -2 : -1)));   // (an arm no arm fills has no share of any copy; w is the arm it runs through the node with, -1 none, -2 none and it opens into the side of the trunk: its opacity eases to the trunk's, the fade rule)
     // ONE uniforms object for the three programs (as the tube's veil shares the tube's): a value written once reaches every copy
     const uniforms: Record<string, IUniform> = {
       ...shared,
