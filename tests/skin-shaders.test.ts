@@ -122,7 +122,7 @@ test('?joins=nodust and ?joins=noheads split the marks for the A/B that finds a 
   assert.equal(skinLeaveOut('?joins=nodust'), 'dust');
   assert.equal(skinLeaveOut('?joins=noheads'), 'heads');
   assert.equal(skinLeaveOut('?joins=nomarks'), 'marks');
-  assert.match(SKIN_FS, /#ifndef SKIN_NOHEADS\s+headAcc \+= wI \* flowHeads\([^\n]*\n#endif/);
+  assert.match(SKIN_FS, /#ifndef SKIN_NOHEADS[^#]*vec4 hI = flowHeads\([^]*?headAcc \+= hI;\s*\}\s*\n#endif/);
   assert.match(SKIN_FS, /#ifndef SKIN_NODUST\s+if \(dOn > 0\.002\) \{/);
 });
 

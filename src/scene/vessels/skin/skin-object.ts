@@ -23,6 +23,7 @@ export const SHARED_WITH_TUBES = [
   'inflate', 'vdata', 'vdataSize', 'useData', 'res', 'hiPx', 'tubeDark', 'fade', 'inkColor', 'inkColorCirc', 'circT', 'dpr', 'projY',
   'streamTex', 'chainTex', 'routeTex', 'streakAmt', 'dustP', 'time', 'markDark', 'markLight', 'markRev',
   'lensGradA', 'lensLaneA', 'lensModeA', 'lensGradB', 'lensLaneB', 'lensModeB', 'laneColA', 'laneColB', 'lensMix', 'lensTail', 'lensSmooth',
+  'circBoost', 'circPerPx',   // (the Circuit's width rule: the map's skins read them, circuit/skins.ts; the body's skin declares neither)
 ] as const;
 
 /** The four points of an arm's axis the fragment stage draws its ink from, with the rest radius at each: the node J (the bridge over the art's gap, spec 10.5; the next point again when the arm's end is at J), the start of the straight line
@@ -42,8 +43,9 @@ export const COPY_LAYER = [VESSEL_LAYER, 0, VESSEL_LAYER] as const;
 export const COPY_ORDER = [0, 0, 2] as const;
 
 /** The program's defines for copy `c` (the page's `?joins=` diagnostics: debug paints dropped pixels, nomarks and noink leave a part out). */
-function skinDefines(c: number, grow: number): Record<string, number> {
+function skinDefines(c: number, grow: number, circuit = false): Record<string, number> {
   const d: Record<string, number> = { SKIN_COPY: c, SKIN_GROW: grow, ...vdbgDefines() }, out = skinLeaveOut();
+  if (circuit) d.SKIN_CIRC = 1;   // (the Circuit's own skin: the map's widths and lines, circuit/skins.ts)
   if (skinDebugOn()) d.SKIN_DEBUG = 1;
   if (out === 'marks') d.SKIN_NOMARKS = 1;
   if (out === 'ink') d.SKIN_NOINK = 1;
@@ -61,7 +63,7 @@ export function reapplySkinDefines(root: Object3D): number {
   root.traverse((o) => {
     const m = (o as Mesh).material as ShaderMaterial | undefined;
     if (!m || !(m instanceof ShaderMaterial) || (m.name !== 'skin' && m.name !== 'skin-glow')) return;
-    const d = m.defines ?? (m.defines = {}), want = skinDefines(Number(d.SKIN_COPY ?? 0), Number(d.SKIN_GROW ?? 0));
+    const d = m.defines ?? (m.defines = {}), want = skinDefines(Number(d.SKIN_COPY ?? 0), Number(d.SKIN_GROW ?? 0), d.SKIN_CIRC !== undefined);
     let changed = false;
     for (const k of SKIN_DIAGNOSTICS) {
       if (want[k] !== undefined && d[k] === undefined) { d[k] = want[k]!; changed = true; }
@@ -89,7 +91,8 @@ export class SkinObject implements SkinDraw {
   private readonly armGrow: number[] = new Array(SKIN_ARMS).fill(1);
   private readonly growG = new Vector2(1, 1);
 
-  constructor(skin: SkinMesh, donor: VesselObject, axes: readonly ArmAxis[], armObjs: readonly VesselObject[]) {
+  /** `circuit`: this is a skin of the Circuit's map (circuit/skins.ts): its mesh is built on the map's courses, its program is the one built with SKIN_CIRC and its name says so. */
+  constructor(skin: SkinMesh, donor: VesselObject, axes: readonly ArmAxis[], armObjs: readonly VesselObject[], circuit = false) {
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(skin.position, 3));
     g.setAttribute('normal', new BufferAttribute(skin.normal, 3));
@@ -137,26 +140,26 @@ export class SkinObject implements SkinDraw {
     this.copies = Array.from({ length: SKIN_COPIES }, (_, c) => {
       const material = new ShaderMaterial({
         name: 'skin',
-        vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: skinDefines(c, this.growArms.length),
+        vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: false, depthWrite: true, defines: skinDefines(c, this.growArms.length, circuit),
         uniforms,
       });
       const mesh = new Mesh(g, material);
       mesh.frustumCulled = false;   // (the vertex stage moves the skin by the live widths: its rest sphere is not where it is drawn)
-      mesh.name = `skin:${skin.junction.node}${c ? (c === 1 ? ':solid' : ':veil') : ''}`;
+      mesh.name = `skin:${circuit ? 'circuit:' : ''}${skin.junction.node}${c ? (c === 1 ? ':solid' : ':veil') : ''}`;
       mesh.layers.set(COPY_LAYER[c]!);
       mesh.renderOrder = COPY_ORDER[c]!;
       mesh.visible = c === 0;   // (until the arms say which copies they have: a plain junction's arms are (1, 0, 0), so only the front copy ever shows)
       return mesh;
     });
-    const glowMat = new ShaderMaterial({ name: 'skin-glow', vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: false, defines: { ...skinDefines(0, this.growArms.length), GLOW: 1 }, uniforms,
+    const glowMat = new ShaderMaterial({ name: 'skin-glow', vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: false, defines: { ...skinDefines(0, this.growArms.length, circuit), GLOW: 1 }, uniforms,
       blending: CustomBlending, blendEquation: MaxEquation, blendSrc: OneFactor, blendDst: OneFactor });   // (the glow's mask, painted by max with the tubes': glow-fx.ts)
     this.glow = new Mesh(g, glowMat);
-    this.glow.frustumCulled = false; this.glow.visible = false; this.glow.name = `skin:${skin.junction.node}:glow`; this.glow.renderOrder = 30;
+    this.glow.frustumCulled = false; this.glow.visible = false; this.glow.name = `skin:${circuit ? 'circuit:' : ''}${skin.junction.node}:glow`; this.glow.renderOrder = 30;
     this.glow.layers.set(GLOW_LAYER);
     this.mesh = this.copies[0]!;
     this.material = this.mesh.material as ShaderMaterial;
     const group = new Group();
-    group.name = `skin:${skin.junction.node}`;
+    group.name = `skin:${circuit ? 'circuit:' : ''}${skin.junction.node}`;
     for (const m of this.copies) group.add(m);
     group.add(this.glow);
     this.object = group;

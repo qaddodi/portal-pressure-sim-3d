@@ -89,7 +89,7 @@ interface Built {
 }
 
 /** The seam ring's vertices and normals of one arm, read from the tube `buildTubes` made (spec 4.4: not recomputed): `RADIAL` of them, in the tube's ring order. */
-function ringOf(g: BufferGeometry, ring: number, radius: number): { pos: Float32Array; nor: Float32Array; rest: Float32Array } {
+export function ringOf(g: BufferGeometry, ring: number, radius: number): { pos: Float32Array; nor: Float32Array; rest: Float32Array } {
   const p = g.getAttribute('position'), n = g.getAttribute('normal'), rk = g.getAttribute('rk');
   const pos = new Float32Array(TUBE_RADIAL * 3), nor = new Float32Array(TUBE_RADIAL * 3), rest = new Float32Array(TUBE_RADIAL);
   for (let j = 0; j < TUBE_RADIAL; j++) {
@@ -155,7 +155,7 @@ export function armArcOf(end: 0 | 1, u: number, len: number, radius: number): { 
 }
 
 /** An axis as the mesh builder's capsule (sdf.ts): the same three points and radii. */
-const capsuleOf = (a: ArmAxis): Capsule => ({ n: a.pts.length, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii), mate: a.mate });
+export const capsuleOf = (a: ArmAxis): Capsule => ({ n: a.pts.length, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii), mate: a.mate });
 
 /** Whether a junction has a liver vein's second branch among its arms (inventory.ts `isLiverBranch`). */
 const hasLiverBranch = (j: SkinJunction): boolean => j.arms.some((a) => { const v = NETWORK_BY_ID.get(a.vesselId); return !!v && isLiverBranch(v); });
@@ -209,6 +209,8 @@ export class SkinSet {
   armIdsOf(draw: SkinDraw): readonly string[] { return this.built.find((b) => b.draw === draw)?.arms.map((a) => a.id) ?? []; }
   /** The drawing objects of the skins as they stand (the ones a retried plan took back are not among them). */
   liveDraws(): readonly SkinDraw[] { return this.drawn.map((b) => b.draw!).filter(Boolean); }
+  /** The drawn skins' objects, each with the vessel ids of its arms (the inspector hides a skin when none of its arms is shown). */
+  drawnArms(): { object: Object3D; node: string; arms: readonly string[] }[] { return this.drawn.map((b) => ({ object: b.draw.object, node: b.node, arms: b.arms.map((a) => a.id) })); }
   /** The built skin of a node, or undefined. */
   skinOf(node: string): SkinMesh | undefined { return this.drawn.find((b) => b.node === node)?.mesh ?? undefined; }
   /** How many rebuilds ran, what the last and the worst cost (ms), and which node was the last. */

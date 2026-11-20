@@ -8,10 +8,16 @@
 // Normal mode never loads this file: the shaders carry their hooks only behind the VDBG define (scene/vessels/debug-view.ts).
 import { cel, gesturesRef } from '../../../scene/api.ts';
 import { clock } from '../../../clock/frame.ts';
+import { useBlood } from '../../../scene/blood/options.ts';
+import { useSelection } from '../../action/selection.ts';
+import { setForce } from '../../../engine/force-all.ts';
+import { currentParams, updateParams } from '../../action/params.ts';
+import { CIRCUIT_ROOM, CUSTOM_SHUNTS, GROUPS, PAGE_SIZES, customRecord, inGroup, pageCount, pageOf, type ShuntGroup } from './pager.ts';
 import { setPart, SHADE_NAMES, type PartView, type ShadeMode } from '../../../scene/vessels/debug-view.ts';
 import { clearJoinsOverride, joinsMode, setJoinsOverride, skinDebugOn, skinLeaveOut, type JoinsMode } from '../../../scene/vessels/skin/joins-mode.ts';
 import { reapplySkinDefines } from '../../../scene/vessels/skin/skin-object.ts';
 import { INSPECT_PITCH } from '../../../scene/camera/rig.ts';
+import { WHY_COLOUR, WHY_TEXT } from '../../../scene/vessels/skin/join-report.ts';
 import { flagValue } from '../flags.ts';
 import { PRESETS, VIEWS, defaultState, stateText, wrapDeg, type InspectState, type Leave } from './state.ts';
 
@@ -20,6 +26,8 @@ const RAD = Math.PI / 180;
 export function mountInspect(): void {
   if (document.getElementById('inspect-panel')) return;
   const state: InspectState = defaultState(joinsMode());
+  const ghosts0 = useBlood.getState().collaterals;   // (the Blood menu's own choice: the panel starts from it and Reset all goes back to it)
+  state.ghosts = ghosts0; let ghostsSet = ghosts0;
   state.drop = skinDebugOn(); state.leave = skinLeaveOut();   // (what the address already asked for)
   const wantJoins = state.joins;
 
@@ -50,7 +58,7 @@ export function mountInspect(): void {
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, kids: (Node | string)[] = []): HTMLElementTagNameMap[K] => { const e = document.createElement(tag); Object.assign(e, props); e.append(...kids); return e; };
   const msg = el('div', { className: 'msg' });
   const syncers: (() => void)[] = [];
-  const section = (title: string, open = true): HTMLElement => { const d = el('details', { open }, [el('summary', { textContent: title })]); box.append(d); return d; };
+  const section = (title: string, open = true): HTMLDetailsElement => { const d = el('details', { open }, [el('summary', { textContent: title })]); box.append(d); return d; };
   const check = (host: HTMLElement, label: string, get: () => boolean, set: (v: boolean) => void): void => {
     const c = el('input', { type: 'checkbox' }); c.checked = get(); c.onchange = () => { set(c.checked); syncAll(); };
     syncers.push(() => { c.checked = get(); });
@@ -81,7 +89,10 @@ export function mountInspect(): void {
     if (ch.includes('drop') || ch.includes('leave')) { const n = reapplySkinDefines(cel.scene); msg.textContent = n ? `Compiling ${n} skin programs…` : ''; }
     setPart('tube', state.tube); setPart('skin', state.skin);
     for (const l of cel.inspectLayers()) { cel.setInspectShown(l.id, !state.hidden.includes(l.id)); cel.setInspectWire(l.id, state.wired.includes(l.id)); }
+    if (!setForce({ collaterals: state.allCollaterals, shunts: state.allShunts, freeze: state.freeze })) { msg.textContent = 'Compare is holding the figure: close it first.'; state.allCollaterals = state.allShunts = state.freeze = false; }
+    if (state.ghosts !== ghostsSet) { ghostsSet = state.ghosts; cel.setBlood({ collaterals: state.ghosts }); }
     cel.post.setMode(state.aa ? 'fxaa' : 'off');
+    cel.setInspectVessels(state.solo, state.mute);
     cel.rig.setInspect(state.free);
     clock.invalidate('inspect');
   }
@@ -100,6 +111,14 @@ export function mountInspect(): void {
     { label: 'Reset', title: 'Back to the shot: turn, tilt, zoom and pan', run: () => { gesturesRef.current?.refit(); cel.rig.inspectTo(0, 0); state.yawDeg = 0; state.pitchDeg = 0; syncAll(); clock.invalidate('inspect'); } },
   ]);
   cam.append(el('div', { className: 'hint', textContent: 'One finger or the mouse turns; two fingers tilt; Shift or a middle drag pans. A talk locks the camera.' }));
+
+  // ---- Show everything ----
+  const all = section('Show everything');
+  check(all, 'All collaterals open', () => state.allCollaterals, (v) => commit({ allCollaterals: v }));
+  check(all, 'All fixed shunts in (TIPS, DIPS, PC, DSRS, MC, Rex)', () => state.allShunts, (v) => commit({ allShunts: v }));
+  check(all, 'Dotted potential collaterals', () => state.ghosts, (v) => commit({ ghosts: v }));
+  check(all, 'Freeze the model', () => state.freeze, (v) => commit({ freeze: v }));
+  all.append(el('div', { className: 'hint', textContent: 'These forge the engine frame the figure draws (a copy; the model is untouched), in the body and the Circuit alike. While one is on, numbers, labels and lens colours are not the patient\'s. The Vessel list below solos one vessel.' }));
 
   // ---- Joins ----
   const jn = section('Joins and diagnostics');
@@ -125,6 +144,144 @@ export function mountInspect(): void {
   partUi('Tubes', 'tube');
   partUi('Skins', 'skin');
 
+  // ---- Vessel list: solo and mute by id ----
+  const vl = section('Vessel list (solo, mute)', false);
+  const vessels = cel.inspectVesselList();
+  const kinds = [...new Set(vessels.map((v) => v.kind))].sort();
+  let kindNow = '', textNow = '';
+  const filter = el('input', { type: 'search', placeholder: 'filter by id or name' }); filter.style.cssText = 'flex:1;min-width:0;font:11px ui-monospace,Menlo,monospace;color:#fff;background:#fff2;border:1px solid #fff6;border-radius:6px;padding:3px 6px';
+  const kindSel = el('select'); kindSel.append(el('option', { value: '', textContent: 'all kinds' }), ...kinds.map((k) => el('option', { value: k, textContent: k })));
+  vl.append(el('div', { className: 'row' }, [filter, kindSel]));
+  const listBox = el('div'); listBox.style.cssText = 'max-height:240px;overflow:auto;border:1px solid #fff3;border-radius:6px;padding:2px 4px';
+  const rows = new Map<string, { dot: HTMLElement; s: HTMLInputElement; m: HTMLInputElement }>();
+  const visible = () => vessels.filter((v) => (!kindNow || v.kind === kindNow) && (!textNow || `${v.id} ${v.label}`.toLowerCase().includes(textNow)));
+  const toggle = (list: string[], id: string, on: boolean) => (on ? (list.includes(id) ? list : [...list, id]) : list.filter((x) => x !== id));
+  const drawList = () => {
+    listBox.textContent = ''; rows.clear();
+    for (const v of visible()) {
+      const dot = el('span', { textContent: '●' }), sc = el('input', { type: 'checkbox', title: 'solo' }), mc = el('input', { type: 'checkbox', title: 'mute' });
+      sc.checked = state.solo.includes(v.id); mc.checked = state.mute.includes(v.id);
+      sc.onchange = () => { commit({ solo: toggle(state.solo, v.id, sc.checked) }); };
+      mc.onchange = () => { commit({ mute: toggle(state.mute, v.id, mc.checked) }); };
+      const name = el('label', { textContent: `${v.id} · ${v.label}` }); name.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      dot.style.color = v.drawn ? '#7fe39a' : '#667';
+      rows.set(v.id, { dot, s: sc, m: mc });
+      listBox.append(el('div', { className: 'row' }, [dot, name, el('span', { textContent: 'S' }), sc, el('span', { textContent: 'M' }), mc]));
+    }
+  };
+  filter.oninput = () => { textNow = filter.value.trim().toLowerCase(); drawList(); };
+  kindSel.onchange = () => { kindNow = kindSel.value; drawList(); };
+  vl.append(listBox);
+  buttons(vl, [
+    { label: 'Solo these', title: 'Only the vessels in the list (after the filter) are drawn', run: () => { commit({ solo: visible().map((v) => v.id) }); drawList(); } },
+    { label: 'Solo the drawn', title: 'Only the vessels the figure draws now', run: () => { commit({ solo: cel.inspectVesselList().filter((v) => v.drawn).map((v) => v.id) }); drawList(); } },
+    { label: 'Mute these', run: () => { commit({ mute: [...new Set([...state.mute, ...visible().map((v) => v.id)])] }); drawList(); } },
+    { label: 'Clear', run: () => { commit({ solo: [], mute: [] }); drawList(); } },
+  ]);
+  check(vl, 'A tap on a vessel solos it', () => state.tapSolo, (v) => commit({ tapSolo: v }));
+  vl.append(el('div', { className: 'hint', textContent: 'A green dot is drawn now. A junction skin is drawn while any of its arms is. Collateral braids (strands) are not vessels here and stay.' }));
+  syncers.push(() => { for (const [id, r] of rows) { r.s.checked = state.solo.includes(id); r.m.checked = state.mute.includes(id); } });
+  drawList();
+  useSelection.subscribe((st) => { if (state.tapSolo && st.sel?.type === 'edge') { commit({ solo: [st.sel.id] }); drawList(); } });
+
+  // ---- Joins report: what the skins did not weld ----
+  const jr = section('Joins report (unwelded ends)', false);
+  const jrList = el('div'); jrList.style.cssText = 'max-height:220px;overflow:auto;border:1px solid #fff3;border-radius:6px;padding:2px 4px;margin:4px 0';
+  let marksOn = false;
+  const report = (): void => {
+    const r = cel.inspectJoinsReport();
+    jrList.textContent = '';
+    jrList.append(el('div', { className: 'hint', textContent: `${r.built.length} skins built, ${r.dropped.length} arms left out, ${r.fellBack.length} nodes kept tube joins${r.circuitFellBack.length ? ` (Circuit: ${r.circuitFellBack.join(', ')})` : ''}, ${r.unwelded.length} unwelded ends.${cel.joinsNow === 'old' ? ' Joins are Old: nothing is welded.' : ''}` }));
+    for (const u of r.unwelded) {
+      const dot = el('span', { textContent: '●' }); dot.style.color = WHY_COLOUR[u.why];
+      const name = el('label', { textContent: `${u.id} ${u.end ? 'end' : 'start'} @ ${u.node} · ${WHY_TEXT[u.why]}` }); name.style.cssText = 'flex:1;min-width:0';
+      const go = el('button', { textContent: 'Mark', title: 'Solo this vessel and mark only its unwelded ends' });
+      go.onclick = () => { commit({ solo: [u.id] }); drawList(); msg.textContent = `${cel.setInspectMarks(true, u.id)} marker(s) on ${u.id}.`; };
+      jrList.append(el('div', { className: 'row' }, [dot, name, go]));
+    }
+    if (marksOn) cel.setInspectMarks(true);
+  };
+  check(jr, 'Mark every unwelded end in the figure', () => marksOn, (v) => { marksOn = v; msg.textContent = `${cel.setInspectMarks(v)} marker(s).`; });
+  buttons(jr, [{ label: 'Refresh', title: 'Read the skins again (after a joins change, a forced vessel, a recompile)', run: report }]);
+  jr.append(jrList, el('div', { className: 'hint', textContent: 'Red: left out of its node\'s skin. Orange: the node\'s skin could not be built. Violet: a braid of strands. Yellow: a collateral or shunt that is not an arm of any skin (the fork method). Blue: a junction with no skin. Body only; the Circuit\'s list is the node names above. Marks stay where the report found them: Refresh after a change.' }));
+  jr.addEventListener('toggle', () => { if (jr.open) report(); });
+
+  // ---- Custom shunts, a page at a time ----
+  const cs = section('Custom shunts (pager)', false);
+  let group: ShuntGroup = 'all', size = 6, page = 0, shown = false;
+  let kept: Record<string, number> | null = null;   // (the patient's own custom shunts before the pager touched them: given back on Clear)
+  const csInfo = el('div', { className: 'hint' });
+  const pageIds = () => pageOf(inGroup(group), size, page);
+  const putShown = (on: boolean): void => {
+    const cur = (currentParams()?.customShunts ?? {}) as Record<string, number>;
+    if (on && !kept) kept = { ...cur };
+    const base = kept ?? cur, ids = on ? pageIds().map((x) => x.id) : [];
+    const next = on ? customRecord(base, ids) : { ...base };
+    if (!updateParams((p) => { p.customShunts = next; }, { label: 'Inspector: custom shunts', history: false })) { msg.textContent = 'No patient loaded yet.'; return; }
+    shown = on; if (!on) kept = null;
+    msg.textContent = on ? `${ids.length} custom shunt(s) open.` : 'Custom shunts back to the patient\'s own.';
+  };
+  const csRefresh = (): void => {
+    const n = inGroup(group).length, pc = pageCount(n, size), ids = pageIds();
+    csInfo.textContent = `${n} shunts in this group, page ${((page % pc) + pc) % pc + 1} of ${pc}${shown ? ' (open now)' : ''}: ${ids.map((x) => x.id).join(', ') || 'none'}. ${CUSTOM_SHUNTS.length} in all; the Circuit routes at most ${CIRCUIT_ROOM} at once.`;
+  };
+  select(cs, 'Group', GROUPS.map((g) => [g.id, g.label] as const), () => group, (v) => { group = v as ShuntGroup; page = 0; if (shown) putShown(true); csRefresh(); });
+  select(cs, 'Per page', PAGE_SIZES.map((n) => [String(n), String(n)] as const), () => String(size), (v) => { size = Number(v); page = 0; if (shown) putShown(true); csRefresh(); });
+  buttons(cs, [
+    { label: 'Prev', run: () => { page -= 1; if (shown) putShown(true); csRefresh(); } },
+    { label: 'Next', run: () => { page += 1; if (shown) putShown(true); csRefresh(); } },
+    { label: 'Open this page', title: 'Opens these shunts at 10 mm, as the stent tool would (the patient\'s own stay open)', run: () => { putShown(true); csRefresh(); } },
+    { label: 'Clear', title: 'Back to the patient\'s own custom shunts', run: () => { putShown(false); csRefresh(); } },
+  ]);
+  cs.append(csInfo, el('div', { className: 'hint', textContent: 'This changes the patient (the same way the stent tool does, with no History entry): every number moves with the opened shunts, and Clear gives the patient\'s own back. A shunt shows in the body as the stent the tool draws, and in the Circuit as a routed tube (the first 12 only).' }));
+  csRefresh();
+
+  // ---- Overlaps and id labels ----
+  const ov = section('Overlaps and id labels', false);
+  const ovList = el('div'); ovList.style.cssText = 'max-height:200px;overflow:auto;border:1px solid #fff3;border-radius:6px;padding:2px 4px;margin:4px 0';
+  let ovMarks = false;
+  const overlaps = (): void => {
+    const o = cel.inspectOverlaps();
+    ovList.textContent = '';
+    ovList.append(el('div', { className: 'hint', textContent: `${o.length} pair(s) of drawn vessels run through each other (centrelines closer than 0.8 of their radii together; the ends of each vessel are left out). Worst first.` }));
+    for (const x of o) {
+      const name = el('label', { textContent: `${x.a} × ${x.b} · ${Math.round(x.depth * 100)}% deep` }); name.style.cssText = 'flex:1;min-width:0';
+      const go = el('button', { textContent: 'Solo', title: 'Draw only these two and mark where they overlap' });
+      go.onclick = () => { commit({ solo: [x.a, x.b] }); drawList(); msg.textContent = `${cel.setInspectOverlapMarks(true, [x.a, x.b])} overlap marked.`; };
+      ovList.append(el('div', { className: 'row' }, [name, go]));
+    }
+    if (ovMarks) cel.setInspectOverlapMarks(true);
+  };
+  check(ov, 'Mark every overlap in the figure (hot pink)', () => ovMarks, (v) => { ovMarks = v; msg.textContent = `${cel.setInspectOverlapMarks(v)} overlap(s) marked.`; });
+  buttons(ov, [{ label: 'Find overlaps', title: 'Look again (after forcing vessels on or changing the solo list)', run: overlaps }]);
+  ov.append(ovList);
+  ov.addEventListener('toggle', () => { if (ov.open) overlaps(); });
+
+  // vessel id labels: one small tag per drawn vessel at the middle of its course, moved by a clock system (transform and opacity only), never through React
+  let labelsOn = false, labelPts: { id: string; at: readonly [number, number, number]; tag: HTMLElement }[] = [], labelSig = '';
+  const labelLayer = el('div'); labelLayer.id = 'inspect-labels'; labelLayer.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:var(--z-perf,100)';
+  document.body.append(labelLayer);
+  const buildLabels = (): void => {
+    labelLayer.textContent = '';
+    const keep = new Set(visible().map((v) => v.id)), only = !!(textNow || kindNow);
+    const drawnIds = cel.inspectLabelPoints().filter((p) => !only || keep.has(p.id));
+    labelPts = drawnIds.map((p) => {
+      const tag = el('div', { textContent: p.id }); tag.style.cssText = 'position:absolute;left:0;top:0;padding:0 4px;border-radius:4px;background:rgba(0,0,0,.72);color:#fff;font:600 9px/13px ui-monospace,Menlo,monospace;white-space:nowrap;opacity:0;will-change:transform,opacity';
+      labelLayer.append(tag); return { ...p, tag };
+    });
+    labelSig = cel.inspectVesselList().filter((v) => v.drawn).map((v) => v.id).join(',');
+    clock.invalidate('inspect');
+  };
+  const pt = { x: 0, y: 0 };
+  clock.on('tags', () => {
+    if (!labelsOn) return;
+    for (const l of labelPts) { const inView = cel.inspectScreen(l.at, pt); l.tag.style.opacity = inView ? '1' : '0'; if (inView) l.tag.style.transform = `translate(${pt.x.toFixed(1)}px,${pt.y.toFixed(1)}px) translate(-50%,-50%)`; }
+  });
+  check(ov, 'Vessel id on every drawn vessel (follows the list filter)', () => labelsOn, (v) => { labelsOn = v; if (v) buildLabels(); else { labelLayer.textContent = ''; labelPts = []; } });
+  ov.append(el('div', { className: 'hint', textContent: 'The tags sit at the middle of each vessel\'s course. Type in the Vessel list filter to label only some. A tag turns to a new vessel when the drawn set changes.' }));
+  const labelsAgain = () => { if (labelsOn) buildLabels(); };
+  filter.addEventListener('input', labelsAgain); kindSel.addEventListener('change', labelsAgain);
+
   // ---- Layers ----
   const ly = section('Layers');
   const tbl = el('table'); ly.append(tbl);
@@ -143,13 +300,15 @@ export function mountInspect(): void {
   hunt.append(el('div', { className: 'hint', textContent: 'Each press changes only what it says; press Reset all to start over. A speck that goes was that part.' }));
   buttons(hunt, PRESETS.map((p) => ({ label: p.label, title: p.hint, run: () => { Object.assign(state, p.make(state)); apply(); syncAll(); msg.textContent = p.hint; } })));
   buttons(hunt, [
-    { label: 'Reset all', run: () => { clearJoinsOverride(); const cur = { yaw: state.yawDeg, pitch: state.pitchDeg, free: state.free }; Object.assign(state, defaultState(wantJoins), { yawDeg: cur.yaw, pitchDeg: cur.pitch, free: cur.free }); apply(); syncAll(); msg.textContent = 'Everything as drawn.'; } },
+    { label: 'Reset all', run: () => { if (shown) { putShown(false); csRefresh(); } clearJoinsOverride(); const cur = { yaw: state.yawDeg, pitch: state.pitchDeg, free: state.free }; Object.assign(state, defaultState(wantJoins), { ghosts: ghosts0, yawDeg: cur.yaw, pitchDeg: cur.pitch, free: cur.free }); apply(); syncAll(); msg.textContent = 'Everything as drawn.'; } },
     { label: 'Copy', title: 'What is on, as text for a thread', run: () => { const t = stateText(state, document.title); void navigator.clipboard?.writeText(t).then(() => { msg.textContent = 'Copied.'; }, () => { msg.textContent = t; }); } },
   ]);
   box.append(msg);
 
   // the angles follow a drag on the figure (a timer, not a frame: the panel is not part of the picture)
   window.setInterval(() => {
+    if (box.style.display === 'block' && vl.open) { const now = new Map(cel.inspectVesselList().map((v) => [v.id, v.drawn])); for (const [id, r] of rows) r.dot.style.color = now.get(id) ? '#7fe39a' : '#667'; }
+    if (labelsOn && cel.inspectVesselList().filter((v) => v.drawn).map((v) => v.id).join(',') !== labelSig) buildLabels();
     if (box.style.display !== 'block' || !cel.rig.inspectOn) return;
     const a = cel.rig.inspectAngles, y = wrapDeg(a.yaw / RAD), p = Math.max(-INSPECT_PITCH / RAD, Math.min(INSPECT_PITCH / RAD, a.pitch / RAD));
     if (Math.abs(y - state.yawDeg) > 0.4 || Math.abs(p - state.pitchDeg) > 0.4) { state.yawDeg = y; state.pitchDeg = p; syncAll(); }

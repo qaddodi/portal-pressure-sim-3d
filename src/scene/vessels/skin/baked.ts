@@ -78,23 +78,28 @@ export function decodeSkins(buf: ArrayBuffer): BakedSkins | null {
 
 // ---- the page's side: fetched once, as early as the scene module loads, waited for by the boot -------------------------------------------------
 
-/** Where the baked file is, next to the page (the same folder in a preview and on the live site). */
+/** Where the baked files are, next to the page (the same folder in a preview and on the live site): the Anatomy's skins and the Circuit's (circuit/skins.ts, made by the same script). */
 export const BAKED_SKINS = 'anatomy/skins.bin';
+export const BAKED_CIRCUIT_SKINS = 'anatomy/circuit-skins.bin';
 
 let held: BakedSkins | null = null;
+let heldCircuit: BakedSkins | null = null;
 const browser = typeof window !== 'undefined' && typeof fetch !== 'undefined' && typeof DecompressionStream !== 'undefined';
-async function load(): Promise<void> {
+async function fetchSkins(name: string): Promise<BakedSkins | null> {
   try {
     const env = (import.meta as { env?: { BASE_URL?: string } }).env;
-    const r = await fetch(`${env?.BASE_URL ?? '/'}${BAKED_SKINS}`);
-    if (!r.ok || !r.body) return;
-    held = decodeSkins(await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
-  } catch { held = null; }
+    const r = await fetch(`${env?.BASE_URL ?? '/'}${name}`);
+    if (!r.ok || !r.body) return null;
+    return decodeSkins(await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+  } catch { return null; }
 }
+async function load(): Promise<void> { [held, heldCircuit] = await Promise.all([fetchSkins(BAKED_SKINS), fetchSkins(BAKED_CIRCUIT_SKINS)]); }
 const loading: Promise<void> | null = browser ? load() : null;
 
 /** The skins baked for this build, once `bakedReady` has settled (null: none, or not the file for this figure: the set then plans live). */
 export const bakedSkins = (): BakedSkins | null => held;
+/** The Circuit's skins baked for this build (the same file's twin: null when none, or not for this figure). */
+export const bakedCircuitSkins = (): BakedSkins | null => heldCircuit;
 /** Whether the page is still fetching the baked file (always false off the page: a test, a script). */
 export const bakedPending = (): boolean => loading !== null && !settled;
 let settled = !loading;

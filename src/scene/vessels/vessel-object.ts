@@ -13,7 +13,7 @@ import { CASING, RIM_A, RIM_INK } from './cel-ink.ts';
 import type { SeamCurve } from './seams.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import type { CircuitShared } from '../circuit/uniforms.ts';
-import { SKIN_CUT_NONE, SKIN_HOLE_NONE } from './skin/types.ts';
+import { SKIN_CUT_C_NONE, SKIN_CUT_NONE, SKIN_HOLE_NONE } from './skin/types.ts';
 import { GLOW_LAYER } from '../glow.ts';
 
 /** Uniforms every vessel shares: the two lens textures held for the crossfade, their stream colours, and the cross-fade itself. */
@@ -99,11 +99,11 @@ export class VesselObject extends CelObject {
       uniforms: {
         ...u,
         inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, inkOn: { value: 1 },
-        liveW: { value: 1 }, lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, cmate0: { value: new Vector3(-1, 1, 0) }, cmate1: { value: new Vector3(-1, 1, 0) }, cease: { value: new Vector2(0, 0) }, bury: { value: new Vector2(0, 0) }, skinCut: { value: new Vector2(SKIN_CUT_NONE[0], SKIN_CUT_NONE[1]) }, skinHole: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, skinHole2: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, nbrOn: { value: 0 }, nbrMate: { value: new Vector3(-1, 1, 0) }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, seamA: { value: [new Vector4(), new Vector4()] }, seamB: { value: [new Vector4(), new Vector4()] }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
+        liveW: { value: 1 }, lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, cmate0: { value: new Vector3(-1, 1, 0) }, cmate1: { value: new Vector3(-1, 1, 0) }, cease: { value: new Vector2(0, 0) }, bury: { value: new Vector2(0, 0) }, skinCut: { value: new Vector2(SKIN_CUT_NONE[0], SKIN_CUT_NONE[1]) }, skinCutC: { value: new Vector2(SKIN_CUT_C_NONE[0], SKIN_CUT_C_NONE[1]) }, skinHole: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, skinHole2: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, nbrOn: { value: 0 }, nbrMate: { value: new Vector3(-1, 1, 0) }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, seamA: { value: [new Vector4(), new Vector4()] }, seamB: { value: [new Vector4(), new Vector4()] }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circFlat: { value: 0 }, circAnchA: { value: new Vector3() }, circAnchC: { value: new Vector3() }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
         glowK: { value: 1 }, veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 }, cavaEnd: { value: new Vector2(0, 1) }, cavaCut: { value: 0 }, cavaA: { value: 1 }, solidK: { value: 1 }, veilK: { value: 1 }, cavaRef: { value: new Vector2(0, 1) },
-        lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, streakAmt: blood.streakAmt, dustP: blood.dustP, chainTex: blood.chainTex, routeTex: blood.routeTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, quietK: { value: 0 }, wedge: { value: new Vector4(0, 2, 0.6, 0) }, wedgeCol: { value: new Color() }, wallLine: { value: this.artery ? 1 : 0 }, pageCol: { value: new Color() }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 0 },
+        lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, streakAmt: blood.streakAmt, dustP: blood.dustP, chainTex: blood.chainTex, routeTex: blood.routeTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, quietK: { value: 0 }, wedge: { value: new Vector4(0, 2, 0.6, 0) }, wedgeB: { value: new Vector3(0.02, -1, 0.02) }, wedgeCol: { value: new Color() }, wallLine: { value: this.artery ? 1 : 0 }, pageCol: { value: new Color() }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 0 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix, lensTail: lens.lensTail,
         ...vdbgUniforms('tube'),   // (the inspector's view of the tubes: none without ?inspect, debug-view.ts)
@@ -214,6 +214,13 @@ export class VesselObject extends CelObject {
     v.set(u0, u1); return true;
   }
   skinHole(slot: 0 | 1): readonly [number, number] { const v = this.toon.uniforms[slot ? 'skinHole2' : 'skinHole']!.value as Vector2; return [v.x, v.y]; }
+  /** The Circuit's own skin cut (circuit/skins.ts): the tube is not drawn past u0 or u1 on the map once the change has gone far enough (SKIN_CIRC_IN). SKIN_CUT_C_NONE is the whole tube. Returns whether it changed. */
+  setSkinCutC(u0: number, u1: number): boolean {
+    const v = this.toon.uniforms.skinCutC!.value as Vector2;
+    if (v.x === u0 && v.y === u1) return false;
+    v.set(u0, u1); return true;
+  }
+  skinCutC(): readonly [number, number] { const v = this.toon.uniforms.skinCutC!.value as Vector2; return [v.x, v.y]; }
   skinCut(): readonly [number, number] { const v = this.toon.uniforms.skinCut!.value as Vector2; return [v.x, v.y]; }
   setBury(start: number, end: number): void { (this.toon.uniforms.bury!.value as Vector2).set(start, end); }
   /** What each end carries on into on the Circuit's MAP (circuit/mates.ts), and the half length of their taper there (map units): set once, whatever the joins switch or a skin says. */
@@ -230,10 +237,11 @@ export class VesselObject extends CelObject {
   }
 
   /** Quiet depth on a turn (camera/quiet.ts quietOf, 0..1): the back tier eases toward the page; for the vessels behind the organs only (the scene sets it). */
-  /** The wedge's amber column as a tint on this vessel: `amount` 0..1, `cut` the share of its course (from the outer end, 0) it reaches up to (2: all of it), `fade` the stretch from the outer end over which it comes to full (0: none). */
-  setWedge(amount: number, cut: number, fade: number, color?: Color): void {
+  /** The wedge's amber column as a tint on this vessel: `amount` 0..1, `cut` the share of its course (from the outer end, 0) it reaches up to (2: all of it) and `edge` how softly it ends there (on the balloon's side), `front` how far toward the outer end it has come (the column filling; -1: all the way) and `frontEdge` how softly, `fade` the stretch from the outer end over which it comes to full (0: none). */
+  setWedge(amount: number, cut: number, fade: number, color?: Color, edge = 0.02, front = -1, frontEdge = 0.02): void {
     const w = this.toon.uniforms.wedge!.value as Vector4;
     w.set(amount, cut, fade, fade > 0 ? 1 : 0);
+    (this.toon.uniforms.wedgeB!.value as Vector3).set(edge, front, frontEdge);
     if (color) (this.toon.uniforms.wedgeCol!.value as Color).copy(color);
   }
   setQuiet(q: number): void { this.toon.uniforms.quietK!.value = q; }

@@ -97,7 +97,7 @@ test('the tube and the skin call ONE flow-marks code (glsl-shared.ts flowDust / 
   assert.match(SKIN_FS, /float onI = flowFrame\(acrossI, dustFrame\(/);
   assert.match(SKIN_FS, /dustSkin\(FD0, FD1, w1, litD, inkColor, /);
   assert.doesNotMatch(SKIN_FS, /dustAcc \+= wI/);
-  assert.match(SKIN_FS, /headAcc \+= wI \* flowHeads\(/);
+  assert.match(SKIN_FS, /vec4 hI = flowHeads\(/);   // (each arm's heads, kept whole by the arm that owns their centre: tests/skin-head-owner.test.ts)
   assert.doesNotMatch(SKIN_FS + VESSEL_FS, /skinMarkK|skinSeamDist|MARK_FADE/);
   assert.match(FLOW_MARKS_GLSL, /vec4 dust = dustTube\(F, lit, inkColor, rev\);/);
   assert.match(FLOW_MARKS_GLSL, /chevOne\(s, Lw, c4\.y \+ c4\.z \* s, c4\.z, rootD,/);

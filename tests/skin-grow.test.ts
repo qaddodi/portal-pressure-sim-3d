@@ -31,8 +31,8 @@ const GROWERS: Record<string, readonly string[]> = {
 const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 /** The growing arms a skin could not take on the real network (`node:vessel`), each for a reason a person can read: a landing on a host's wall (GROW_REACH), or an arm that runs along another (the surface cannot clear the blend: PVH's DIPS lies 12 degrees from PVH_R, SVD's S_DSR and LRV_S's S_DSR run along C6). */
 // (RHV_T:TIPS: the hepatic vein's run-on RHV_T lies on the piece RHV_IVC that the cava's IVCS skin takes 15 of 20 rings of, so the two skins crowd; they cannot merge (the hull refuses the seven rings), and the cava's weld is the one kept (Mohammad, 20 Nov: "did you weld the hepatic veins into the IVC?"). TIPS keeps the fork method at that end.)
-// (21 Nov: LRV_S:S_DSR builds now: the sheet that starts on the surface, skin/sheet.ts, closes it where the hull sheet folded. RPV_T keeps its TIPS arm beside the right portal vein's second branch: the planner no longer asks the hull rule of a junction with a liver branch.)
-const DROPPED = ['EPI:C3', 'IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'PVH:DIPS', 'RHV_T:TIPS', 'SVD:S_DSR'];
+// (21 Nov: RPV_T keeps its TIPS arm beside the right portal vein's second branch: the planner no longer asks the hull rule of a junction with a liver branch. LRV_S:S_DSR stays dropped: the sheet started on the surface is the liver forks' rung only, a pair of growers that run along one another has no closed shape on the trunk, tests/skin-closed-footprint.test.ts)
+const DROPPED = ['EPI:C3', 'IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'LRV_S:S_DSR', 'PVH:DIPS', 'RHV_T:TIPS', 'SVD:S_DSR'];
 
 const armKey = (a: { vesselId: string; end: number }) => `${a.vesselId}:${a.end}`;
 

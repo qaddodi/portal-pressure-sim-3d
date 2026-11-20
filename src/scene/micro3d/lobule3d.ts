@@ -38,6 +38,7 @@ import { WASH_AMOUNT, washAmount, washFront } from '../lobule/wash.ts';
 const WASH_EASE_MS = 350;
 import { CEL_STYLE } from '../cel-style.ts';
 import { buildBile } from '../lobule/bile.ts';
+import { endTaper, lymphCover, type Cover } from '../lobule/lymph.ts';
 import { lobuleRoutes, type LobuleRouteCourse } from './lobule-routes.ts';
 import { dustTuner } from '../blood/dust.ts';
 import { staticRouteTexture } from '../blood/routes.ts';
@@ -61,6 +62,10 @@ const BILE_ID = 2_000_000;
 /** The vessels that run over the plates (the sinusoids, their cross-links, the arteriole's twigs) lie with their axis at the tiles' tops: lower, a thin one was buried under every tile it
  *  crossed and showed only in the gaps, as short pieces floating between the cords (Mohammad, 20 Nov: "disconnected vessels in the middle"). */
 export const OVER_Z = LZ.cellTop + 0.002;
+/** How deep a lymph channel lies where it passes under a blood vessel (below the vessel's own underside, above the ground). */
+/** Beside a sinusoid the channel lies a hair below the sinusoid's own level, so the vessel's wall just covers the channel's inner edge (no daylight between them). */
+export const LYMPH_Z = OVER_Z - 0.004;
+export const LYMPH_UNDER_Z = LZ.disse - 0.01;
 /** The scene's fade is taken as whole from here up (FADE_GLSL's screen pattern drops pixels below 0.999). */
 export const FADE_SNAP = 0.98;
 /** How far from each end of a vessel (in its own radii) no flow mark is drawn: where it runs into another vessel. */
@@ -559,10 +564,10 @@ export class Lobule3D {
       for (let v = 0; v < 2 * capVerts; v++) FC.push(col, v < capVerts ? 0 : Lw, Lw, 3);
     };
     /** Tubes along courses: radius per sample, colour place per sample (w), brightness 1. */
-    const tubes = (cs: Course[], radius: (c: Course, i: number) => number, w: (c: Course, i: number) => number, z: number = LZ.tube) => {
+    const tubes = (cs: Course[], radius: (c: Course, i: number) => number, w: (c: Course, i: number) => number, z: number | ((c: Course, i: number) => number) = LZ.tube) => {
       const b = new MeshBuilder(), W: number[] = [], K: number[] = [], caps = new Map<Course, number>(), FC: number[] = [];
       for (const c of cs) {
-        const pts = c.pts.map((p) => at3(p, z));
+        const pts = c.pts.map((p, i) => at3(p, typeof z === 'number' ? z : z(c, i)));
         const before = b.count;
         tube(b, pts, (i) => Math.max(1e-4, radius(c, i) * R), [1, 1, 1], TUBE_SEG, true);
         // (tube() writes the rings in order, then the two caps: the first cap's rings are the first sample's, the last's the last's)
@@ -572,7 +577,7 @@ export class Lobule3D {
         for (let v = 0; v < capVerts; v++) { W.push(w(c, 0)); K.push(1); }
         for (let v = 0; v < capVerts; v++) { W.push(w(c, c.pts.length - 1)); K.push(1); }
         flowAux(b, before, pts, ringVerts, capVerts, c.id * 0.137, (i) => (c.kind[0] === 's' || c.kind === 'an') && c.rho[i]! < DISC_R.cv * 1.6, TUBE_SEG, END_HUSH_R * radius(c, 0) * R);
-        dustFC(FC, b, before, ringVerts, capVerts, TUBE_SEG, pts, c.kind, radius(c, 0) * R);
+        dustFC(FC, b, before, ringVerts, capVerts, TUBE_SEG, pts, c.kind === 'ly' ? `ly${c.id}` : c.kind, radius(c, 0) * R);
       }
       return { b, W, K, caps, FC };
     };
@@ -613,9 +618,20 @@ export class Lobule3D {
     // outside of the blood vessels and taper to nothing closer to 90% of the way to the central vein". They were a flat sleeve centred ON each sinusoid, a third wider than the sinusoid each side: where two sinusoids
     // part at a small angle the two sleeves covered the cleft between them, the broad grey-green wedges. Each vertex keeps its own radius in `swell`, so the layer's fade shrinks every width by its own share (no tube inverts).
     {
-      const lym = by('ly').map((c) => ({ ...c, pts: [...c.pts].reverse(), rho: [...c.rho].reverse() }));
-      const r = (c: Course, i: number) => DUCT_R * lyTaper(c.rho[i]!);
-      const t = tubes(lym, r, () => 0, OVER_Z), sw: number[] = [];
+      const lym = by('ly').map((c) => ({ ...c, pts: [...c.pts].reverse(), rho: [...c.rho].reverse(), ...(c.free ? { free: [c.free[1], c.free[0]] as [boolean, boolean] } : {}) }));
+      const r = (c: Course, i: number) => DUCT_R * lyTaper(c.rho[i]!) * endTaper(c, i);
+      // ... and where one passes a blood vessel it goes UNDER it, not through it (Mohammad, 20 Nov 2026: "pass UNDER the sinusoid's blood vessel not through it to connect to their interportal vessels"): the channel's reach
+      // from the terminal lymphatic crosses the inlet venule, and nothing else; its depth eases from the beside-the-sinusoid level to LYMPH_UNDER_Z over a few tube widths (lymphCover), so it dives as it nears the vessel, runs
+      // wholly beneath it and rises again on the far side, joined to the lymphatic's own axis at its end (no blunt stub standing in the blue)
+      const covers: Cover[] = [
+        ...by('in').map((c) => ({ pts: c.pts, rad: c.pts.map((q, i) => inletRadius(i, c.pts.length, Math.hypot(q[0] - c.pts[0]![0], q[1] - c.pts[0]![1]))), band: 3 })),
+        ...by('lt').map((c) => ({ pts: c.pts, rad: c.pts.map(() => LT_R), band: 3 })),
+        ...[...by('s0'), ...by('s1'), ...by('s2')].map((c) => ({ pts: c.pts, rad: c.pts.map((_, i) => sinRadius(c.kind as 's0', c.rho[i]!)), band: 0.9 })),
+        // (a cross-link meets the sinusoid's side where its lymph runs: the channel dives under it over a few tube widths rather than stopping at its mouth)
+        ...by('an').map((c) => ({ pts: c.pts, rad: c.pts.map((_, i) => sinRadius('an', c.rho[i]!)), band: 2.5 })),
+      ];
+      const under = new Map(lym.map((c) => [c, lymphCover(c.pts, (i) => r(c, i), covers)]));
+      const t = tubes(lym, r, () => 0, (c, i) => LYMPH_Z + (LYMPH_UNDER_Z - LYMPH_Z) * under.get(c)![i]!), sw: number[] = [];
       for (const c of lym) {
         const n = c.pts.length, at = (i: number) => { const v = Math.max(1e-4, r(c, i) * R); sw.push(v, 0); };
         for (let i = 0; i < n; i++) for (let k = 0; k < TUBE_SEG; k++) at(i);

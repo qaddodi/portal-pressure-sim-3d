@@ -52,7 +52,7 @@ test('Mac and iPad on its side: the data card stands under the words at the same
 
 test('Mac: a pair a few px too tall rises into its top margin (never nearer than 4 px); one that is much too tall stays stacked and its words page', () => {
   const { vp } = SCREENS.mac;
-  const a = planLayout(vp, needs(260, 200 + 560 - 260 - 200 + 20 + 40));   // a little too tall
+  const a = planLayout(vp, needs(260, 460));   // a little too tall (760 against the 734 the margins leave)
   assert.ok(a.cards[0].rect.y >= 4 - 0.5 && a.cards[0].rect.y < margin(vp.w, vp.h, layoutOf(vp.w, vp.h)));
   const tall = planLayout(vp, needs(420, 400));
   const [w, d] = [tall.cards.find((c) => c.slot === 'words')!.rect, tall.cards.find((c) => c.slot === 'data')!.rect];
