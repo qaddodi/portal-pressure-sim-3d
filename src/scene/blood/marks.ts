@@ -20,12 +20,13 @@ export function keyChevron(id0: string, open: (id: string) => boolean = () => fa
   return (KEY_CHEV_LANES[id] ?? []).some(open);
 }
 
-export interface BloodOptions { chevrons: boolean; keyChevrons: boolean; presenting: boolean }
+/** `quiet`: a procedure is on the figure (the HVPG, TIPS, BRTO, EUS, a shunt's surgery…): no chevrons and no streaks while it runs (Mohammad, 20 Nov), easing out as it starts and back as it ends. */
+export interface BloodOptions { chevrons: boolean; keyChevrons: boolean; presenting: boolean; quiet?: boolean }
 
 /** Whether a vessel carries heads (1) or not (0), before fading: the 2D app has one style of flow head and the Blood menu's two choices (Chevrons, Key
  *  chevrons only, which is always on while presenting); a vessel that is not drawn (a closed collateral) carries none. */
 export function markGoal(o: BloodOptions, key: boolean, drawn: boolean): number {
-  if (!o.chevrons || !drawn) return 0;
+  if (!o.chevrons || !drawn || o.quiet) return 0;
   return o.keyChevrons || o.presenting ? (key ? 1 : 0) : 1;
 }
 
