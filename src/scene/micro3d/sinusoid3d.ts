@@ -1,6 +1,6 @@
 // The sinusoid as a true 3D scene (Settings > Figure depth > 3D lobule and sinusoid; Mohammad, 20 Nov 2026: "You just rebuild in 3D then. And make it perfect. It should look 100% the
 // same if not better"). The same cut through one sinusoid that 2D paints (sinusoid-gl.js), built as solid, cel-shaded shapes in the same micrometres, so the names, the arrows, the taps and
-// the camera of the flat view (sinusoid/view.ts, which stays as the switch's off state) fit it unchanged:
+// the camera of the host (sinusoid/view.ts, the model with no picture of its own) fit it unchanged:
 //
 //   the lumen       an open trough cut along the sinusoid, the blood's pressure colour, red cells and albumin riding in it (fastest in the middle, 2D's lanes)
 //   the lining      a rounded bead of endothelium each side, its fenestrae real gaps through it (to Disse) in sieve plates of five that close as the lining capillarizes; the endothelial nuclei as lenses
@@ -9,7 +9,7 @@
 //   the plates      hepatocytes as raised tiles with a rounded bevel and a domed nucleus, bile canaliculi on their borders; the next sinusoid and plate beyond each, as 2D repeats them outward
 //   the Kupffer cell on the lower lining, its arms in the lumen
 //
-// Everything reads the flat view's own state (its eased targets, palette, traffic, places), so the two can never disagree: this file draws, the flat view keeps the model, the names and
+// Everything reads the host's own state (its eased targets, palette, traffic, places), so the two can never disagree: this file draws, the host keeps the model, the names and
 // the clock. Every place is 2D's (layout.ts and the copied widths); every colour is 2D's palette for the look. Nothing here is per-pixel painting: the shapes are meshes, cel shaded
 // (cel3d.ts), and only the albumin, the red cells and the fenestrae's gap table are rewritten while the view is up.
 import { useSettings } from '../../state/settings.ts';
@@ -24,7 +24,7 @@ import {
   MeshBuilder, MicroMany, MicroPart, type P2, type RGB, chaikin, ellipsoid, hazeUniforms, microMaterials, rawRGB, outlineNormals, pillow, placeAt, tube, unitRbc, unitRod, unitSphere,
 } from './cel3d.ts';
 
-/** How far along the sinusoid (µm each way) the scene is built: past anything the camera can hold (the flat view's reach). */
+/** How far along the sinusoid (µm each way) the scene is built: past anything the camera can hold (the host's reach). */
 export const REACH = 200;
 /** The traffic runs this far each way (µm): past the ends' blur, short of the scene's ends, so its density stays 2D's. */
 export const TRAFFIC_REACH = 150;
@@ -37,18 +37,20 @@ export const PERIOD = UM.hep + 2 * (UM.disse + UM.endo) + 2 * UM.lum;
 export const ACROSS = UM.lum + UM.endo + UM.disse + UM.hep + BEYOND * PERIOD + 12;
 /** Depths (µm, toward the viewer): the plates' tops, the lining's crest, Disse's floor, the ground under the clefts, the trough's depth as a share of the lumen's half width. */
 export const Z = { cell: 0.55, cellBot: -12.5, bead: 0.5, disse: -1.0, ground: -12.0, trough: 0.92, nucleus: 0.55 } as const;
-/** The red cells in the stream (2D's palette has their colour; the flat view draws none). */
+/** The red cells in the stream (2D's palette has their colour; the host draws none). */
 /** How far (µm) the scene stands toward the viewer from the lobule's plate. */
 const LIFT = 8;
 /** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), the lymph streaks' pace against the lymph's own run, and the haze: how far out it takes to be whole (µm) and how deep it goes. */
 const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_RUN = 60, HAZE_K = 0.45;
-/** The focus band's run (µm past the end of the first hepatocyte row) to a whole blur (post-dof.ts bandFrame): everything through the first row each side is sharp, then the blur grows GRADUALLY with the
+/** The focus band's run (µm past the end of the first hepatocyte row) to a whole blur (post-dof.ts bandFrame): everything to the middle of the first row each side is sharp, then the blur grows GRADUALLY with the
  *  distance, over the next sinusoid and its plate to the one past it (Mohammad, 20 Nov 2026: "you're blurring too aggressively right away, make it gradual blur as we go further away after the end of
  *  the first hepatocyte"). The haze follows the same run, lighter, so the neighbours' disease still shows. */
 const BLUR_RUN = 64;
 /** The scene's ends: the blur along the sinusoid starts this far (µm) inside each end and is whole this far in. */
 const END_BLUR = [95, 55] as const;
 /** Red cells in this sinusoid's lumen, and in each of the two next ones (beyond the plates). */
+/** The bile canaliculus's radius (µm): a round lumen about 1.6 µm across between two hepatocytes. */
+export const CANAL_R = 0.8;
 const RBC_N = 50, RBC_FAR = 20, RBC_R = 1.05;
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
@@ -59,7 +61,7 @@ const mul3 = (a: RGB, k: number): [number, number, number] => [a[0]! * k, a[1]! 
 /** A colour's own ink: the colour much deeper (2D's cell clefts and organ lines are the colour darkened, never black). */
 const deep = (a: RGB, k = 0.48): [number, number, number] => mul3(a, k);
 
-/** What this scene reads of the flat view (its own fields: the state, palette, traffic and places it keeps for its shader). */
+/** What this scene reads of its host (sinusoid/view.ts: the state, palette, traffic and places). */
 interface Flat {
   cur: { por: number; col: number; bm: number; mv: number; act: number; lum: number; pinch: number; v: number; filt: number; prot: number };
   pal: { palette(dark: boolean): Record<string, unknown> };
@@ -69,7 +71,8 @@ interface Flat {
   endShown: [number, number];
   dive: number | null;
   look: LookId;
-  tissue: { visible: boolean }; sprites: { visible: boolean; geometry: { drawRange: { count: number } } }; cells: { visible: boolean };
+  spriteCount: number;
+  readonly washProgress: number;
   VW: { vis: [number, number] };
   isVisible: boolean;
   trafficSpeed: number;
@@ -137,9 +140,9 @@ export class Sinusoid3D {
     this.flat = flat as unknown as Flat;
     this.res = shared.res;
     this.group.name = 'sinusoid3d';
-    // the scene is built in micrometres, the plane's y up: one group scales it to the flat view's units (it turns with the flat view's group in a portrait room)
+    // the scene is built in micrometres, the plane's y up: one group scales it to the host's units (it turns with the host's group in a portrait room)
     this.group.scale.setScalar(U);
-    // (while the camera dives in it stands a little proud of the lobule's plate it sits in, so it is drawn over the lobule, never through it; at rest it lies in the flat view's own plane, where the names are pinned)
+    // (while the camera dives in it stands a little proud of the lobule's plate it sits in, so it is drawn over the lobule, never through it; at rest it lies in the host's own plane, where the names are pinned)
     const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, ...o }), `sinusoid3d/${name}`);
     const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, ...o }), cap, `sinusoid3d/${name}`);
     const S = CEL_STYLE.MICRO;
@@ -179,8 +182,8 @@ export class Sinusoid3D {
 
   get enabled(): boolean { return this.on; }
 
-  /** Before the flat view's update, each frame: while this scene is on, the flat view's traffic runs over the whole built stretch (fixed to the tissue), not over the stretch on screen (2D's VW.vis,
-   *  which moves with the camera: a pan or a turn slid every albumin and red cell the other way). Off again, the flat view lays its stretch for the screen afresh. */
+  /** Before the host's update, each frame: while this scene is on, the host's traffic runs over the whole built stretch (fixed to the tissue), not over the stretch on screen (2D's VW.vis,
+   *  which moves with the camera: a pan or a turn slid every albumin and red cell the other way). Off again, the host lays its stretch for the screen afresh. */
   pinTraffic(on: boolean): void {
     const f = this.flat;
     if (on) { f.VW.vis[0] = -TRAFFIC_REACH; f.VW.vis[1] = TRAFFIC_REACH; this.pinned = true; }
@@ -188,19 +191,17 @@ export class Sinusoid3D {
   }
   private pinned = false;
 
-  /** One frame, after the flat view's own update (its state, palette and traffic are this frame's). `on` is the Settings switch. True while anything of this scene moves. */
+  /** One frame, after the host's own update (its state, palette and traffic are this frame's). `on`: always true now (everything is 3D); false only hides it in tests. True while anything of this scene moves. */
   update(on: boolean, rate = 1): boolean {
     const f = this.flat;
     const changed = on !== this.on;
     this.on = on;
     const shown = on && f.isVisible;
-    // the flat view's own drawing stands aside while this one is on (it keeps its model, names and clock)
-    f.tissue.visible = !on; f.sprites.visible = !on; f.cells.visible = !on;
     // (paused, the blood stands still: the red cells, the albumin and the streaks stop with the simulation, Mohammad 20 Nov 2026; `rate` is the scene's one eased pause/play rate, so they ease to a stop and back up)
     f.trafficSpeed = Math.min(1, Math.max(0, rate)) * (on ? PACE : 1);
     this.group.visible = shown;
     if (!shown) return changed;
-    // the dive: the scene comes in over the lobule as the camera lands (the flat view's own share), whole at rest
+    // the dive: the scene comes in over the lobule as the camera lands (the host's own share), whole at rest
     const d = f.dive;
     this.fade.value = d == null ? 1 : smooth(0.42, 0.86, d);
     this.group.position.z = d == null ? 0 : LIFT * U * (1 - smooth(0.86, 1, d));
@@ -226,7 +227,7 @@ export class Sinusoid3D {
   focusBand(a: Vector3, b: Vector3, e0: Vector3, e1: Vector3, ends?: { mid: Vector3; f0: Vector3; f1: Vector3 }): number {
     if (!this.on || !this.group.visible) return 0;
     this.group.updateWorldMatrix(true, false);
-    const y0 = this.flat.g.hepIn(0) + UM.hep, w = (v: Vector3, x: number, y: number) => this.group.localToWorld(v.set(x, y, 0));
+    const y0 = this.flat.g.hepIn(0) + UM.hep * 0.5, w = (v: Vector3, x: number, y: number) => this.group.localToWorld(v.set(x, y, 0));
     w(a, -20, 0); w(b, 20, 0); w(e0, 0, y0); w(e1, 0, y0 + BLUR_RUN);
     // the two ends melt away well before the scene stops (Mohammad 20 Nov: "don't let me see the end of the sinusoid like that ... blur the ends")
     if (ends) { w(ends.mid, 0, 0); w(ends.f0, REACH - END_BLUR[0], 0); w(ends.f1, REACH - END_BLUR[1], 0); }
@@ -367,12 +368,11 @@ export class Sinusoid3D {
             ellipsoid(nol, x + r * 0.3 * Math.cos(a), Y(yd) + r * 0.3 * Math.sin(a), Z.cell + 0.32, r * 0.13, r * 0.13, 0.12, 0, undefined, 12, 6);
           };
           if (c.bi) { const dx = (c.x1 - c.x0) * 0.17; put(xn - dx, c.nr * 0.8); put(xn + dx, c.nr * 0.8); } else put(xn, c.nr);
-          // the canaliculus on this cell's leading border: a slim channel running down the cleft between the two cells over the middle of the plate, tapering to a point at each end
-          // (Mohammad 20 Nov 2026: "the bile ductule here should look better"; it was a short pill across the border)
+          // the canaliculus between this cell and the one before it: a small round lumen in the cleft at the middle of the plate, seen in cross-section as a circle (Mohammad 20 Nov 2026:
+          // "the bile ductule should be like a circle in between each hepatocyte"; it was a long tapering channel down the border)
           if (!beyond) {
-            const M = 14, path: [number, number, number][] = [];
-            for (let i = 0; i <= M; i++) { const v = UM.hep * lerp(0.16, 0.84, i / M); path.push([edgeAt(j, sd, v), Y(s * (face(edgeAt(j, sd, v)) + v)), Z.cell - 0.4]); }
-            tube(bile, path, (i) => 0.5 * Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, (i / M) * 0.9 + 0.05))), 0.45), undefined, 10, true);
+            const v = UM.hep * 0.5, x = edgeAt(j, sd, v);
+            ellipsoid(bile, x, Y(s * (face(x) + v)), Z.cell + 0.1, CANAL_R, CANAL_R, 0.3, 0, undefined, 24, 6);
           }
         }
       };
@@ -493,7 +493,7 @@ export class Sinusoid3D {
   // ---- what moves every frame ----------------------------------------------------------------------------------------------------
 
   /** The fenestrae: real gaps through the lining (the bead and its edges, from the lumen to Disse), each as wide as it is open (they close as the lining capillarizes); none under an endothelial
-   *  cell's swell. The same slots as the flat view's (poreAt, its seeds), out past the scene's reach so no stretch of lining is without them. Rewritten only when the open share moves. */
+   *  cell's swell. The same slots as the host's (poreAt, its seeds), out past the scene's reach so no stretch of lining is without them. Rewritten only when the open share moves. */
   private stepPores(por: number): void {
     const key = Math.round(Math.max(0, Math.min(1, por)) * 1024);
     if (key === this.gapKey) return;
@@ -516,9 +516,9 @@ export class Sinusoid3D {
     this.gapTex.needsUpdate = true;
   }
 
-  /** The albumin: the flat view's own traffic (2D's), as small amber beads, in the stream inside the trough, through the wall and back along Disse. */
+  /** The albumin: the host's own traffic (2D's), as small amber beads, in the stream inside the trough, through the wall and back along Disse. */
   private stepAlbumin(): void {
-    const f = this.flat, g = f.g, pts = f.traffic.pts, cnt = f.sprites.geometry.drawRange.count;
+    const f = this.flat, g = f.g, pts = f.traffic.pts, cnt = f.spriteCount;
     let n = 0;
     for (let i = 0; i < cnt && n < this.albumin.capacity; i++) {
       const o = i * 5, x = pts[o]!, yd = pts[o + 1]!, r = pts[o + 2]!, a = pts[o + 3]!, k = pts[o + 4]!;
@@ -577,19 +577,21 @@ export class Sinusoid3D {
     const blood = mix3(P.cLumen, [1, 1, 1], 0.42), lymph = mix3(P.cLymph, [1, 1, 1], 0.2);
     // (the blood's streaks follow Settings > Blood streaks, as every view's do; the lymph's in Disse always run)
     const bs = useSettings.getState().particles ? 1 : 0;
+    // the wedged column's wash (a slide that asks for it, once landed): amber from the central vein's end toward the portal venule's, the blood in it still (2D's wedgeA, now drawn here)
+    { const wk = f.washProgress, E = f.ends, W = (P as unknown as { cWedge?: RGB }).cWedge ?? [0.95, 0.66, 0.2]; this.trough.setWash(wk > 0 ? 1 : 0, E[0], E[1], wk, W); }
     this.trough.setStreaks(flow, Math.max(1, f.g.halfW(0)), blood, bs, 1);
     this.troughFar.setStreaks(flow, UM.lum + UM.endo * 0.5, blood, 0.5 * bs, 1);
     // (the lymph's own run is slow beside the blood's: its streaks go LYMPH_PACE times as fast, so they are seen to move, Mohammad 20 Nov "faster in lymph")
     // (quiet streaks one shade off Disse's own colour, never chevrons: the bold arrowheads that filled the band were wrong, Mohammad 20 Nov "WTF ARE THOSE CHEVRONS"; the shared
     // streak look of the Anatomy replaces these when it lands)
     this.disse.setStreaks(lym * LYMPH_PACE, UM.disse * 0.5 + 0.5, lymph, 0.7, 1);
-    // the haze: from the end of the first hepatocyte row (the next Disse, lining and lumen beyond it) toward the page, growing gradually, whole HAZE_RUN µm further out
-    const y0 = f.g.hepIn(0) + UM.hep;
+    // the haze: from the middle of the first hepatocyte row toward the page, growing steadily, whole HAZE_RUN µm further out (Mohammad 20 Nov: "start from the middle of the hepatocyte, then increase as we move further out")
+    const y0 = f.g.hepIn(0) + UM.hep * 0.5;
     this.haze.uHaze.value.set(y0, y0 + HAZE_RUN, HAZE_K, 0);
     rawRGB(this.haze.uHazeCol.value, P.cBg);
   }
 
-  /** The two end arrows (2D's: the text's colour inside the labels' halo), in the lumen at the flat view's places, pointing the way the blood goes, fading with their names. */
+  /** The two end arrows (2D's: the text's colour inside the labels' halo), in the lumen at the host's places, pointing the way the blood goes, fading with their names. */
   private arrowKey = '';
   private stepArrows(P: Pal): void {
     const f = this.flat, E = f.ends, dir = Math.sign(f.cur.v || 1), sh = f.endShown;

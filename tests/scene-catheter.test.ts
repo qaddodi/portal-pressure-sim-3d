@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
 import { BALLOON_RADII, CATHETER_RADIUS, CATHETER_ROUTE } from '../src/scene/catheter.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
+import { EDGE_PATH_2D } from '../src/scene/vessels/paths.copied.ts';
 import { NETWORK_BY_ID, courseOf } from '../src/scene/vessels/network.ts';
 import { TIP_ALONG_RHV } from '../src/scene/catheter-route.ts';
 import { CelScene } from '../src/scene/scene.ts';
@@ -75,7 +76,7 @@ test('the route runs on the 2D figure\'s own vessels: neck, SVC, atrium, IVC, th
 
 test('the tip ends 62 % of the way along the right hepatic vein, inside its course, and the catheter is thinner than the vein', () => {
   const end = CATHETER_ROUTE.at(-1)!;
-  const a = courseOf('RHV_IVC'), b = courseOf('RHV_IVC_1');
+  const sc = (p: readonly (readonly [number, number])[]) => p.map(([x, y]): [number, number] => [x3(x), y3(y)]), a = sc(EDGE_PATH_2D.RHV_IVC!), b = sc(EDGE_PATH_2D.RHV_IVC_1!);   // (the vein's whole 2D course: the drawn host stops at its split, its children carry the course on)
   const chain = [...[...a].reverse(), ...[...b].reverse()];
   const near = Math.min(...chain.map((p) => Math.hypot(p[0] - end[0], p[1] - end[1])));
   assert.ok(near < 0.01, `tip is on the vein (${near})`);

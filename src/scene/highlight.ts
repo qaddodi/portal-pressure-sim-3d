@@ -36,8 +36,8 @@ export interface HighlightRange {
 /** A pick lights its own vein and nothing else: the line fades away at the vein's two ends (Mohammad, 20 Nov: "the outline fades away at both ends"; only the vein I tap, not the
  *  cava, the shunts and every collateral that 2.4 ahead lit). Nothing runs on into the next vessel, so the range is none; `computeHighlight` still walks the flow when given one. */
 export const DEFAULT_RANGE: HighlightRange = { ahead: 0, behind: 0 };
-/** The share of a vein's length each end takes to fade in (the middle third holds full). */
-export const END_FADE = 0.35;
+/** The share of a vein's length each end takes to fade in (the middle half holds full). */
+export const END_FADE = 0.25;
 /** The picked outline's width over the vessel's own line, CSS px (it was 1.6: "less thick", 20 Nov). */
 export const HI_PX = 0.8;
 /** Outline lift on the picked vessel (scene units), mocks: 0.012. */
@@ -188,7 +188,7 @@ export class Highlight {
 export const PIN_FADE_MS = 300;
 /** The thin line of the normal-sized spleen inside an enlarged one (2D OL_LOOK.normal: 1.4 px, half an alpha). */
 /** What a slide's pin and a tapped organ add to the organ's own 1.1 line: a modest step up (Mohammad, 20 Nov: "insanely thick"). */
-export const PIN_PX = 0.4, SELECT_PX = 0.6;   // (figure units, as the organ's own 1.1 line is: 1.6 and 3.6 drew a white band several times the line when zoomed, 20 Nov)
+export const PIN_PX = 0.6, SELECT_PX = 0.9;   // (figure units, as the organ's own 1.1 line is: 1.6 and 3.6 drew a white band several times the line when zoomed, 20 Nov)
 export const NORMAL_LINE = { px: 1.4, alpha: 0.5 };
 
 /** A slide's outlined organs (2D `pinOrgans`: the organ's own deep tone, a wider line, fading in and out), by the organs' own ids. The line is the organ's ink hull at the
