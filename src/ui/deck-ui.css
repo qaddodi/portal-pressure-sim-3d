@@ -50,6 +50,8 @@
 .deck-ui .pz-veil.dip { opacity: 0.85; }
 .deck-ui .pz-veil.soft { opacity: 0.5; }   /* the quick check (2D has none): the figure the talk ended on stays in view behind it, never a black screen in a dark look */   /* behind a case card the figure dips to 22% (2D `.pz-out`): the page's own colour over it at .92 x .85 */
 
+/* every touch that lands on the slide's own pieces (the root, the cards' places, the pill) is the deck's: nothing here lets the browser take a touch over as a pan or a zoom (a touch that did was cancelled after its first move, and the swipe never began) */
+.deck-ui, .deck-ui .dk-pos, .deck-ui .dk-bar, .deck-ui .dk-card :not(input) { touch-action: none; }
 /* the quick check's list is a scroll box in 2D's rules, and a touch inside a scroll box takes that box's own touch-action, not the card's: the list never scrolls here (a card pages, it does not scroll), so a swipe that starts on a question is the card's */
 .deck-ui .dk-card .pz-check { overflow: visible; }
 .deck-ui[data-layout="stack"] .dk-card .pz-check, .deck-ui[data-layout="tab"] .dk-card .pz-check, .deck-ui[data-layout="stack"] .dk-card .pz-check *, .deck-ui[data-layout="tab"] .dk-card .pz-check * { touch-action: none; }
