@@ -1,4 +1,4 @@
-import { Box3, Color, type DataTexture, Group, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
@@ -17,7 +17,7 @@ import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
 import { centrelineOf, type Centreline } from './vessels/centreline.ts';
-import { SIDE_BRANCHES, mouthOf } from './vessels/mouth.ts';
+import { forkMateOf, neighbourAttr } from './vessels/neighbour.ts';
 import { cavaTailOf } from './vessels/cava-tail.ts';
 import { fadeOf, HEPATIC_VEINS, cavaEndSpan, CAVA_RECEDE } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
@@ -130,6 +130,12 @@ export interface SceneOptions {
   phone?: boolean;
   flowMode?: FlowMarkMode;
   reduceMotion?: boolean;
+}
+
+/** A fork's two tubes know each other (vessels/neighbour.ts): `nbr` on every vertex. */
+function withNeighbour(id: string, g: BufferGeometry): void {
+  const a = neighbourAttr(id, g.getAttribute('position').array);
+  if (a) g.setAttribute('nbr', new Float32BufferAttribute(a, 2));
 }
 
 export class CelScene {
@@ -314,13 +320,6 @@ export class CelScene {
     }
   }
 
-  /** A vein whose side branch leaves it draws no outline across the branch's mouth (vessels/mouth.ts). */
-  private applyMouth(def: NetVessel, o: VesselObject): void {
-    const kids = SIDE_BRANCHES.get(def.id);
-    const m = kids ? mouthOf(kids[0]!) : null;
-    if (m) o.setMouth(m.u0, m.u1, m.side, m.margin); else o.setMouth(0, 0, 0, 0);
-  }
-
   /** Settings > Figure depth > Smooth vessel joins changed: every tube is rewritten in place (same vertices, new positions and widths: the joins are geometry), then drawn once. */
   private useSmoothJoins(on: boolean): void {
     if (!setSmoothJoins(on)) return;
@@ -328,10 +327,10 @@ export class CelScene {
       const o = this.byEdge.get(def.id) as VesselObject | undefined;
       if (!o) continue;
       const built = buildTubes(coursesOf(def, this.shapes.stateOf(def.id) ?? REST), tubularOf(def, slicesFor(def.id)), def.radius);
+      withNeighbour(def.id, built.geometry);
       o.reshape(built.geometry, built.length);
       built.geometry.dispose();
-      this.applyMouth(def, o);
-    }
+      }
     this.applyMates();
     this.moving = true;
     clock.invalidate('smooth-joins');
@@ -342,6 +341,7 @@ export class CelScene {
   private addVessel(def: NetVessel): void {
     const courses = coursesOf(def, REST);
     const built = buildTubes(courses, tubularOf(def, slicesFor(def.id)), def.radius);
+    withNeighbour(def.id, built.geometry);
     const circ = COURSES.get(def.id);
     if (circ) attachRuns(built.geometry, built.runs, circ, def.radius);
     const q = STUB_Q[def.lensId] ?? 1;
@@ -351,12 +351,12 @@ export class CelScene {
     }, this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
     else this.leaving.push(o);   // a fan of tributaries has no map course: it leaves with the organs as the figure turns into the map
+    if (forkMateOf(def.id)) o.setNbrOn(true);
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
     o.edge = { id: def.id, from: def.from, to: def.to, length: built.length };
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     const fade = fadeOf(def.id, def.tone === 'artery', def.feeder?.host);
     if (fade) { o.setTipFade(fade); this.tipFades.push({ o, connect: fade.connect }); if (fade.ivcJoin) this.ivcJoins.push(o); }
-    this.applyMouth(def, o);
     { const span = cavaEndSpan(def.id); if (span > 0) { o.setCavaEnd(span, CAVA_RECEDE); this.hvJoins.push(o); } }
     { const tail = cavaTailOf(def.id, courses, built.length); if (tail > 0) o.setCavaTail(tail); }
     if (BACK_EDGES.has(def.id)) { o.setBehindOrgans(VESSEL_LAYER, IVC_EDGES.has(def.id)); this.back.push(o); if (IVC_EDGES.has(def.id)) this.cava.push(o); }

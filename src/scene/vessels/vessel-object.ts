@@ -52,7 +52,7 @@ export const circuitWidth = (widthKind: 0 | 1 | 2, fine = 1): readonly [number, 
 /** The tube's geometry with the attributes the vessel shader reads (a missing `rk`, the tube's radius share, is 1). One copy: the outline is part of the tube (vessels/shaders.ts), not a second mesh. */
 export function withRk(g: BufferGeometry): BufferGeometry {
   const out = new BufferGeometry();
-  for (const name of ['position', 'normal', 'uv', 'tang', 'rk', ...CIRCUIT_ATTRIBUTES]) {
+  for (const name of ['position', 'normal', 'uv', 'tang', 'rk', 'nbr', ...CIRCUIT_ATTRIBUTES]) {
     const a = g.getAttribute(name);
     if (a) out.setAttribute(name, a.clone());   // (a copy: reshape writes in place)
   }
@@ -92,7 +92,7 @@ export class VesselObject extends CelObject {
       uniforms: {
         ...u,
         inkColor: { value: new Color() }, shadeK: { value: 0.62 }, dotted: { value: 0 }, inkOn: { value: 1 },
-        lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, bury: { value: new Vector2(0, 0) }, mouth: { value: new Vector4(0, 0, 0, 0) }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, seamA: { value: [new Vector4(), new Vector4()] }, seamB: { value: [new Vector4(), new Vector4()] }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
+        lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, bury: { value: new Vector2(0, 0) }, nbrOn: { value: 0 }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, seamA: { value: [new Vector4(), new Vector4()] }, seamB: { value: [new Vector4(), new Vector4()] }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circFlat: { value: 0 }, circAnchA: { value: new Vector3() }, circAnchC: { value: new Vector3() }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
         veilA: { value: 0.4 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 }, cavaEnd: { value: new Vector2(0, 1) }, cavaTail: { value: 0 },
@@ -142,7 +142,7 @@ export class VesselObject extends CelObject {
   /** Swaps in a new shape of the same vertex count (a collateral coiling, a fan changing width): the positions are written in place, so nothing is rebuilt. */
   reshape(g: BufferGeometry, len: number): void {
     const geo = this.toonMesh.geometry;
-    for (const name of ['position', 'normal', 'uv', 'tang', 'rk']) {
+    for (const name of ['position', 'normal', 'uv', 'tang', 'rk', 'nbr']) {
       const src = g.getAttribute(name), dst = geo.getAttribute(name);
       if (!src || !dst) continue;
       const a = src.array as Float32Array, b = dst.array as Float32Array;
@@ -180,8 +180,8 @@ export class VesselObject extends CelObject {
     });
     return changed;
   }
-  /** Where a side branch leaves this vein (mouth.ts): the vein draws no outline over that stretch of its wall, on that side. */
-  setMouth(u0: number, u1: number, side: number, margin: number): void { (this.toon.uniforms.mouth!.value as Vector4).set(u0, u1, side, margin); }
+  /** This vessel is one of a fork's two (neighbour.ts): its outline is the union's, so the ink is not also held back by its buried end. */
+  setNbrOn(on: boolean): void { this.toon.uniforms.nbrOn!.value = on ? 1 : 0; }
   setBury(start: number, end: number): void { (this.toon.uniforms.bury!.value as Vector2).set(start, end); }
   setMates(start: { index: number; baseD: number; widthKind: number } | null, end: { index: number; baseD: number; widthKind: number } | null): void {
     const u = this.toon.uniforms;
