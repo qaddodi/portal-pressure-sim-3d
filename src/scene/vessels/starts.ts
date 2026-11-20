@@ -6,7 +6,9 @@ type P2 = readonly [number, number];
 
 /** The extra start of a vessel: the 2D points before its first point, in order (the vein runs from the first of these on). */
 const START_IN_ORGAN: Readonly<Record<string, { to: P2; organ: string }>> = {
-  V_SPL: { to: [1060, 337], organ: 'spleen' },   // scene (1.20, 0.73): inside the spleen's outline (x 1.05 to 1.35 at that height)
+  V_SPL: { to: [1060, 337], organ: 'spleen' },
+  // (the azygos arch: it fades in at its left end, so the esophageal collateral, which meets it at its 2D start, must meet it where it is solid: the arch is carried on 30 units to the left, along the way it leaves the node, and fades in over that stretch alone; Mohammad, 20 Nov: "this collateral should join the azygous vein not where it is fading away")
+  AZY_SVC: { to: [547, 43], organ: 'thorax' },   // scene (1.20, 0.73): inside the spleen's outline (x 1.05 to 1.35 at that height)
 };
 
 const STEP = 3;   // 2D units between added points (the copied courses are sampled about every 1.8)
