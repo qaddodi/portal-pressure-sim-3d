@@ -10,9 +10,9 @@ import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
-/** A hepatic vein that opens into the cava is cut away at the cava's wall (shaders.ts cavaCut), so its outline is whole up to it; only its flow marks are held back, from the wall (one cava radius from the vein's end) inwards: this, in the cava's radii,
- *  times the marks' ramp (2.0 to 3.6, shaders.ts markK) puts their start at the wall. */
-const CAVA_BURY = 0.5;
+/** A hepatic vein that opens into the cava dissolves over the last 0.8 of a cava radius before its wall (shaders.ts cavA) and is not there inside it: its flow marks are held back from where the dissolve starts, 1.8 cava radii from the vein's end
+ *  (times the marks' ramp, 2.0 to 3.6, shaders.ts markK), so no chevron is ever caught half faded in it (eyes, v11). */
+const CAVA_BURY = 0.9;
 import { flowRate, flowTarget } from './flow-rate.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
