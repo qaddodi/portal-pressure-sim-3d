@@ -144,3 +144,62 @@ test('the Circuit\'s and the Lobule\'s captions use the one rule, and keep no hi
   }
   assert.ok(!/private roomOf|room = new Map/.test(readFileSync('src/scene/labels/controller.ts', 'utf8')), 'the controller uses RoomFade, not a copy');
 });
+
+// Mohammad 20 Nov ("random labels"): the Lobule's tract names stood in the empty field right of the lobule, their dots far off the vessels they name. Root cause: the dots were carried by a similarity
+// read from two points, which cannot follow a tilted plate (or a dolly over one), and at rest a carry whose boxes still fit was kept as the new truth, so the error stayed. Four references now give the
+// plate's own perspective map: exact for every dot on the plate, under any camera.
+test('with four references a dot rides a tilted plate exactly: every carried dot stays on the plate point it names, after a zoom out and a tilt', () => {
+  /** A pinhole camera at height dist over the plate's point (cx, cy), tilted by `tilt` about the screen's x axis: plate (x, y, 0) to screen px. */
+  const cam = (dist: number, tilt: number, cx: number, cy: number) => (x: number, y: number): Pt => {
+    const px = x - cx, py = y - cy, c = Math.cos(tilt), s = Math.sin(tilt);
+    const yy = py * c, zz = dist + py * s, f = 900;
+    return { x: 640 + f * px / zz, y: 400 + f * yy / zz };
+  };
+  const plate: [number, number][] = [[0, 0], [0.9, 0.05], [-0.7, 0.6], [0.95, -0.4], [0.3, 0.85], [-0.9, -0.5]];
+  const r = new Ride();
+  let t = 1000;
+  const feed = (P: (x: number, y: number) => Pt, moving: boolean) => r.step({ now: (t += 16), dt: 16, on: true, moving, a: P(0, 0), b: P(1, 0), c: P(1, 1), d: P(0, 1), layout: () => 'a', fits: () => true });
+  const before = cam(2.2, 0, 0.1, 0);
+  for (let i = 0; i < 80; i++) feed(before, false);
+  assert.equal(r.alpha, 1);
+  const solved = plate.map(([x, y]) => before(x, y));
+  // zoom out and tilt 25 degrees, a frame at a time, then rest
+  let after = before;
+  for (let i = 1; i <= 40; i++) { after = cam(2.2 + 1.3 * i / 40, (25 * Math.PI / 180) * i / 40, 0.1 - 0.2 * i / 40, 0); feed(after, true); }
+  for (let i = 0; i < 80; i++) feed(after, false);
+  const p: Pt = { x: 0, y: 0 };
+  plate.forEach(([x, y], i) => {
+    r.ride(solved[i]!.x, solved[i]!.y, p);
+    const want = after(x, y);
+    assert.ok(Math.hypot(p.x - want.x, p.y - want.y) < 0.01, `plate point ${x},${y}: carried to ${p.x.toFixed(1)},${p.y.toFixed(1)}, drawn at ${want.x.toFixed(1)},${want.y.toFixed(1)}`);
+  });
+  // (the two-point similarity it replaces misses by many px on the same move)
+  const two = new Ride();
+  t = 1000;
+  for (let i = 0; i < 80; i++) two.step({ now: (t += 16), dt: 16, on: true, moving: false, a: before(0, 0), b: before(1, 0), layout: () => 'a', fits: () => true });
+  two.step({ now: (t += 16), dt: 16, on: true, moving: true, a: after(0, 0), b: after(1, 0), layout: () => 'a', fits: () => true });
+  two.ride(solved[2]!.x, solved[2]!.y, p);
+  assert.ok(Math.hypot(p.x - after(-0.7, 0.6).x, p.y - after(-0.7, 0.6).y) > 5, 'a similarity cannot carry a tilted plate');
+});
+
+test('the Circuit\'s and the Lobule\'s captions give the ride four corners of a square on their plate', () => {
+  for (const f of ['src/scene/circuit/CircuitCaptions.tsx', 'src/scene/lobule/LobuleCaptions.tsx']) assert.match(readFileSync(f, 'utf8'), /a: pa, b: pb, c: pc, d: pd/, f);
+});
+
+test('after a pan comes to rest and the words still fit, the dots stay where the picture took them (they snapped back to where they stood before the pan: "random labels", 20 Nov)', () => {
+  const g = rig(); standing(g);
+  g.set({ moving: true });
+  for (let i = 1; i <= 10; i++) { g.set({ at: { x: 300 - i * 20, y: 200 } }); g.step(); }
+  g.set({ moving: false, k: 1 });
+  let solves = 0;
+  for (let i = 0; i < 80; i++) if (g.step().solve) solves++;
+  assert.equal(solves, 0, 'kept, not placed again');
+  const p: Pt = { x: 0, y: 0 };
+  g.r.ride(320, 230, p);
+  assert.ok(Math.abs(p.x - 120) < 1e-9 && Math.abs(p.y - 230) < 1e-9, `the dot stays on the picture at rest: ${p.x},${p.y}`);
+  // and after a zoom at rest as well
+  g.set({ moving: true, k: 1.5 }); g.step(); g.set({ moving: false });
+  for (let i = 0; i < 80; i++) g.step();
+  g.r.ride(350, 200, p);   // 50 px right of the reference when solved
+  assert.ok(Math.abs(p.x - (100 + 75)) < 1e-9, `scaled about the picture at rest: ${p.x}`);
+});
