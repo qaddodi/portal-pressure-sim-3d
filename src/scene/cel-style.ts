@@ -8,7 +8,11 @@ export const CEL_BANDS = 3;
 
 export const CEL_STYLE = {
   BANDS: CEL_BANDS,
-  /** The direction toward the light on the SCREEN (x right, y up): the top left. 2D's is y down: (-0.707, -0.707). */
+  /** THE light, fixed in WORLD space (x right, y up, z toward the default viewer; not unit, the shaders normalise it): upper left, in front. Every 3D surface (Organ depth, the vessels' and strands' tubes, the lobule's and
+   *  sinusoid's solids) is lit by n.L against this, with the normal taken to the world (the model matrix, or the view matrix's inverse), so orbiting, zooming, tilting and parallax of the CAMERA never change a shade; only a model's
+   *  own motion does (Mohammad, 20 Nov: "I'm moving the camera NOT the figure"). tests/cel-world-light.test.ts fails a lighting shader that lights in view space. */
+  LIGHT: [-0.5, 0.62, 0.6] as const,
+  /** The direction toward the light on the SCREEN (x right, y up): the top left. 2D's is y down: (-0.707, -0.707). No 3D shader reads it (they all use LIGHT, in the world); it stays as the 2D figure's pinned number. */
   DIR: [-0.70710678, 0.70710678] as const,
   /** Where the tones change, in the lit-side measure `s` (-1 away from the light .. 1 toward it): below SHADE_AT is the shade tone, above LIT_AT the lit tone. (A tube's `s` is across the tube; a solid's is n·L.) */
   SHADE_AT: -0.05,   // (2D: -0.16; wider bands: the shade side is nearly half the tube)
@@ -21,47 +25,33 @@ export const CEL_STYLE = {
   LINE_MIN: 2.0,   // (2D: 1.5)
   LINE_MAX: 3.0,
   /** The ink's least alpha on every look (2D's casing is .64 on Light and .3 on Dark: a line that fades into the page is not a toon line). */
-  INK_ALPHA_MIN: 0.85,
+  INK_ALPHA_MIN: 1.0,
   /** A band's edge is this many device px across in each direction: crisp, antialiased by fwidth, never a gradient. */
   EDGE_PX: 0.4,
-  /** A tube's three tones fade in with its radius (device px): none under TONES_FROM (a hairline is one tone and its line), whole from TONES_TO. The strength follows the radius, never the position across the tube, so across it stays three flat tones. */
+  /** A tube's two tones fade in with its radius (device px): none under TONES_FROM (a hairline is one tone and its line), whole from TONES_TO. The strength follows the radius, never the position across the tube, so across it stays three flat tones. */
   TONES_FROM: 1.0,
   TONES_TO: 2.0,
-  /** A tube's lit-side measure is cos(angle between its cross axis and the light) x TUBE_LEAN, held to -1..1: a tube up to 45 degrees off the light's cross still reaches all three tones (a tube running along the light would otherwise be one tone). */
-  TUBE_LEAN: 1.41421356,
-  /** The hard specular on a vessel: a flat pale streak on the lit side, no gradient (vessels/cel-ink.ts celSpec is its JS twin).
-   *  AT: where it sits across the tube, in the lit-side measure (inside the lit band, which starts at LIT_AT); SIZE: its half thickness and LEN its half length (the ends are round), both as a share of the tube's radius, the thickness never under
-   *  MIN_THICK_PX device px; ALPHA: how far toward white; MIN_PX: the radius (device px) under which a vessel is a hairline and has none (it fades in over the next device px); PERIOD: figure units between streaks along a long vessel (every vessel has at least one). */
-  SPEC: { AT: 0.62, SIZE: 0.1, LEN: 0.45, ALPHA: 0.6, MIN_PX: 3.0, MIN_THICK_PX: 0.8, PERIOD: 160 },
-  /** A tube's colour (every vessel, strand and the lobule's vessels; 5 Nov-style review, 20 Nov: "the vessels are pale and washed out"): the lens colour is made SATURATED and DEEP before it is cut into tones, and the tones are
-   *  hue-preserving lightness steps, never a mix toward white.
-   *  SAT: chroma x this about the colour's own grey; LCAP: no tube is lighter than this luminance, nor has a channel above VCAP (a pale end of a ramp is darkened, hue kept, and the lit tone has headroom to lift); LIT_K: the lit tone is the base x (1 + this), channels held to 1;
-   *  SHADE_SAT: the shade tone's chroma x this (a touch more saturated, as a painter's shade is); VEIL_FLOOR: a vessel behind an organ (the cava) is drawn at no less than this alpha, so it stays a colour and does not go grey;
+  /** VESSELS are TWO flat tones, not three (Mohammad, 20 Nov: "Vessels are two gradients is enough for cel shading. Not glassy please."): a lit tone (the saturated base) and a shade tone, one hard step between them at VESSEL_STEP_AT in the
+   *  lit-side measure (a 3D tube's is n.L against LIGHT, in the world), opaque and matte: no highlight, no rim light, no specular, no fresnel, no translucent wall, no lumen showing through. The organs and the lobule's tissue keep CEL_BANDS. */
+  VESSEL_BANDS: 2,
+  VESSEL_STEP_AT: 0.25,
+  /** A tube's colour (every vessel, strand and the lobule's vessels): the lens colour is made SATURATED and DEEP before it is cut into its two tones, and the shade is a hue-preserving darker step, never a mix toward white.
+   *  SAT: chroma x this about the colour's own grey; LCAP: no tube is lighter than this luminance, nor has a channel above VCAP (a pale end of a ramp is darkened, hue kept);
+   *  LCAP_DARK / VCAP_DARK: the same caps on the dark looks (Dark, Navy, Black), where a vessel must stand BRIGHTER than the organs behind it and the ground (Mohammad, 20 Nov: "the anatomy view should be more contrast, it's very basically dark now");
+   *  SHADE_SAT: the shade tone's chroma x this (a touch more saturated, as a painter's shade is); FADE_R: a fade (a tip, a bed, a vein into the cava) thins the tube to this share of its radius instead of making it see-through (no vessel is ever alpha < 1);
    *  RIM_SHARE: the share of 2D's light inner rim a vessel keeps (0: no pale halo or white rim, the ink is the only edge);
-   *  FAR_DARK / NEAR_A: a vessel is three draws of its tube, each only on the tube's own pixels: the FAR wall (its back faces, opaque, ONE flat tone x (1 - FAR_DARK), carrying the flow heads), the devices over it (they draw after the
-   *  opaque pass with no depth test), then the NEAR wall (its front faces, its three flat tones at alpha NEAR_A, written once per pixel by stencil bit 2), then the ink (stencil bit 1);
-   *  LUMEN_W / LUMEN_DARK: the same see-through on the opaque tubes (a strand, the lobule's vessels, a veiled vessel) (20 Nov, "I want to see INSIDE the blood vessels"): inside |across| < LUMEN_W the lumen is seen through the wall as ONE flat darker step (the far wall: x (1 - LUMEN_DARK), a hard edge, no gradient),
-   *  with the wall's three tones on the rim outside it; no blending, so a join never shows a double layer and the outline stays one per pixel; devices draw over the vessels (no depth test), so a catheter in the lumen is whole;
    *  INK_OWN / INK_TONE: the outline is the look's casing ink mixed INK_OWN of the way to a deep tone (x INK_TONE) of the vessel's own colour, so it is a soft dark of the tube and never black or white, on every look;
    *  END_R: a joined end (smooth joins) draws no ink for this many radii from the end: the cut is buried in the trunk, never outlined. */
-  TUBE: { SAT: 1.5, LCAP: 0.62, VCAP: 0.78, LIT_K: 0.3, SHADE_SAT: 1.2, VEIL_FLOOR: 0.7, RIM_SHARE: 0, FAR_DARK: 0.4, NEAR_A: 0.5, LUMEN_W: 0.58, LUMEN_DARK: 0.22, INK_OWN: 0.75, INK_TONE: 0.32, END_R: 1.2 },
+  TUBE: { SAT: 1.5, LCAP: 0.62, VCAP: 0.78, LCAP_DARK: 0.82, VCAP_DARK: 0.96, SHADE_SAT: 1.2, FADE_R: 0.05, RIM_SHARE: 0, INK_OWN: 0.75, INK_TONE: 0.32, END_R: 1.2 },
   /** The painted plates (the lobule's tissue, the sinusoid's) step in their own measures, not the tubes' `s`: a painted colour's lightness against its local lightness, so SHADE_AT / LIT_AT above (made for -1..1) do not apply.
    *  SHADE_AT / LIT_AT: where the relative lightness changes tone (a dead zone of +-0.15 around a flat cell); DETAIL: further than this from the base the pixel is detail (a membrane, a nucleolus) and stays as painted;
    *  EDGE_LO / EDGE_HI: the lightness jump over one device pixel from which a line is inked on the lobule's plate (a membrane is under, a cell's outline over); SIN_EDGE_LO / SIN_EDGE_HI the same as a share of the lightness on the sinusoid.
    *  Those two pairs are the painted lines' own contrast, so they do not move with SHADE (a stronger tone must not unink the cell outlines). */
   TISSUE: { SHADE_AT: -0.15, LIT_AT: 0.15, DETAIL: 0.5, EDGE_LO: 0.05, EDGE_HI: 0.12, SIN_EDGE_LO: 0.34, SIN_EDGE_HI: 0.51 },
-  /** The soft light of the figure's 3D parts (Organ depth in organ-shader.ts; the lobule's and the sinusoid's 3D cells, micro3d/cel3d.ts) and where their n.L tones change: the screen's upper left. The organs themselves are the see-through wash (the cel fill was dropped 20 Nov). */
-  ORGAN: {
-    SHADE_LAM: 0.5,
-    LIT_LAM: 0.75,
-    LIGHT: [-0.5, 0.62, 0.6] as const,
-  },
-  /** The true-3D lobule and sinusoid (micro3d/, Settings > Figure depth > 3D lobule and sinusoid): solid shapes lit as the organs are (ORGAN.LIGHT, the same n.L edges),
-   *  three flat tones and a bold ink round every shape. The tones are a little stronger than the vessels' so a cell's bevel, a nucleus's dome and the trough of the lumen read as form. */
+  /** The true-3D lobule and sinusoid (micro3d/, Settings > Figure depth > 3D lobule and sinusoid): solid shapes lit by the one world LIGHT, EXACTLY TWO flat tones (the base and a shade, one hard edge at VESSEL_STEP_AT, no lit tone
+   *  toward white, no gloss) and a bold ink round every shape. The shade is a little stronger than the vessels' on the cell's small forms (a bevel, a nucleus's dome, the trough of the lumen) so they read as form. */
   MICRO: {
-    SHADE: 0.24,
-    /** Two tones only (Mohammad, 20 Nov 2026: "All 2 shades grades ONLY"): base and shade, no lit band. */
-    LIT: 0,
+    SHADE: 0.3,
     /** The ink, in CSS px: round the big shapes (hepatocytes, the trough, the cells), round the small ones (pores, albumin, microvilli). */
     LINE: 1.25,
     LINE_SMALL: 0.8,

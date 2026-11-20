@@ -23,7 +23,7 @@ test('a tube is three tones lit from the top left of the screen, the figure\'s n
   const t = LOBULE_TOON_FS;
   assert.match(t, /#ifdef TONES3/);
   assert.ok(t.includes(CEL_TUBE_GLSL), 'the same program text as the vessels\'');
-  assert.match(t, /celTubeTone\(c, acrossT, celTubeK\(sideS\), vRdev\)/);
+  assert.match(t, /celTubeTone\(c, sT, sTw, vRdev\)/);
   assert.ok(CEL_TUBE_GLSL.includes('celTubeHw(rDev)') && /smoothstep\(1\.0, 2\.0, rDev\)/.test(CEL_TUBE_GLSL), 'left out on a hairline');
   assert.match(t, /#ifndef TONES3\s+c \+= rim \* 0\.10 \+ sp \* 0\.32;\s+#endif/, 'no rim light and no specular glint in the tones path');
 });

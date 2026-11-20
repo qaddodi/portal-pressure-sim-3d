@@ -17,7 +17,7 @@ test('every drawn strand has a soft ink in the look\'s casing, LINE_MIN device p
     s.applyLook(look); d.strands.setDpr(3);
     for (const { host, obj } of objs()) {
       const u = obj!.ink.uniforms, c = CASING[look];
-      assert.ok(obj!.ink.transparent && !obj!.ink.depthWrite, `${host}: the ink is blended`);
+      assert.ok(!obj!.ink.transparent && !obj!.ink.depthWrite, `${host}: the ink is solid, drawn once per pixel`);
       const a = u.inkA!.value as number;
       assert.ok(Math.abs(a - c.a) < 1e-6 || Math.abs(a - c.a * 0.5) < 1e-6, `${host}: alpha ${a}`);
       assert.ok(Math.abs((u.px!.value as number) - (host.startsWith('SIN') ? 0.25 : CEL_STYLE.LINE_MIN / 3)) < 1e-6, `${host}: LINE_MIN device px (a bed's hairlines 0.75) on a 3x screen`);
