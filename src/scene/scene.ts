@@ -650,8 +650,8 @@ export class CelScene {
   /** The distance the camera sits at with the whole lobule framed in the room it has (kept per room size). */
   private restKey = ''; private restD = 0.1;
   private lobuleRest(): number {
-    const r = this.rig.targetRoom, key = `${r.w}x${r.h}x${this.height}`;
-    if (key !== this.restKey) { this.restKey = key; this.restD = effectiveDistance(lobuleShot('lobule'), r, this.height); }
+    const r = this.rig.targetRoom, key = `${r.w}x${r.h}x${this.height}x${this.width}`;
+    if (key !== this.restKey) { this.restKey = key; this.restD = effectiveDistance(lobuleShot('lobule'), r, this.height, this.width); }
     return this.restD;
   }
   private readonly divePt = new Vector3();
