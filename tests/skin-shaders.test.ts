@@ -93,3 +93,18 @@ test('?joins=debug paints each pixel the skin would drop, in the colour of its r
   }
   assert.ok(SKIN_FS.includes('vec4(0.0, 1.0, 1.0, 1.0); gl_FragDepth'), 'the presence dither is cyan; a painted pixel is pushed a little behind, so a real surface in front of it hides it and only a true hole shows its colour');
 });
+
+// Specks of any colour on the junction skins, gone with ?joins=nomarks (Mohammad, 20 Nov): the flow marks read a NaN. A welded skin's interpolated normal (or eye vector) can come to nothing at a crease and normalize() of
+// nothing is NaN; a fetch past the route table's width is undefined. Every one is checked before use, and the marks' sums are held inside 0 .. 1.
+test('the skin\'s flow marks can read no NaN: normal and eye vector length-checked, across clamped, route edges in range, mark sums clamped', () => {
+  const fs = SKIN_FS.slice(SKIN_FS.indexOf('void main()'));
+  assert.doesNotMatch(fs, /normalize\(vN\)|normalize\(vV\)/, 'no unguarded normalize of an interpolated vector');
+  assert.match(fs, /vec3 n = nLen > 1e-5 \? vN \/ nLen : vec3\(0\.0, 0\.0, 1\.0\);/);
+  assert.match(fs, /float acrossI = clamp\(dot\(n, /);
+  assert.match(fs, /headAcc = clamp\(headAcc, 0\.0, 1\.0\);/);
+  assert.match(fs, /dustAcc = clamp\(vec4\(dust\.rgb \* dOn, dust\.a \* dOn\), 0\.0, 1\.0\);/);
+  for (const f of ['vec4 dustTube(DFrame F', 'vec3 dFind(float edge', 'vec4 dustSkin(DFrame F0']) {
+    const body = SKIN_FS.slice(SKIN_FS.indexOf(f), SKIN_FS.indexOf(f) + 260);
+    assert.match(body, /dEdgeOk\(/, `${f} checks its route edge`);
+  }
+});
