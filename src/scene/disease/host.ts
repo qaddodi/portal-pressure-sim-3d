@@ -11,7 +11,7 @@ import { centrelineOf } from '../vessels/centreline.ts';
 import { vesselAlphaAt } from '../vessels/fade-alpha.ts';
 import { widthSwell } from '../vessels/live-width.ts';
 import { neighbourAttr } from '../vessels/neighbour.ts';
-import { CAVA_RECEDE, opensIntoCava } from '../vessels/fades.ts';
+import { CAVA_RECEDE, cavaPieceOf, opensIntoCava } from '../vessels/fades.ts';
 import { cavaRamp } from '../vessels/fade-alpha.ts';
 
 /** Samples along each piece (the clot reads its place between them). */
@@ -72,8 +72,12 @@ export function drawnHost(id: string): Host | null {
 }
 
 /** Each piece's live swell (its drawn width over the width it was built at) for the engine's diameters `D` (per edge, mm); 1 each where `D` is not known. */
-export function swellsOf(h: Host, D: ArrayLike<number> | null | undefined): number[] {
-  return h.pieces.map((p) => widthSwell(p.widthKind, p.baseD, D ? D[p.lens] : undefined));
+export type Swells = number[] & { /** the swell of the cava piece a vein that opens into the cava meets (1 for any other vein) */ cava?: number };
+export function swellsOf(h: Host, D: ArrayLike<number> | null | undefined): Swells {
+  const out: Swells = h.pieces.map((p) => widthSwell(p.widthKind, p.baseD, D ? D[p.lens] : undefined));
+  const last = h.pieces[h.pieces.length - 1], cm = last && opensIntoCava(last.id) ? NETWORK_BY_ID.get(cavaPieceOf(last.id)) : undefined;
+  if (cm) out.cava = widthSwell(cm.widthKind, cm.baseD, D ? D[indexOf(cm.lensId)] : undefined);
+  return out;
 }
 
 export interface HostPoint { p: Vector3; t: Vector3; /** the live lumen radius */ r: number; a: number }
@@ -95,27 +99,23 @@ export function hostAt(h: Host, swells: readonly number[], shares: readonly numb
   return out;
 }
 
-const wallCache = new Map<string, number | null>();
-/** Where a vein that opens into the cava meets the cava's wall, as a share (0 to 1) of the drawn vein's arc length: the last place at which the vein's centre is still outside the cava's lumen (the tube is cut away inside it, shaders.ts cavaCut).
- *  Null for a vein that does not open into the cava. A clot in such a vein runs to here, so it reaches the junction as the vein does (Mohammad, 20 Nov: "the clots stop well short of the junction"). */
-export function cavaWallShare(h: Host): number | null {
-  if (wallCache.has(h.id)) return wallCache.get(h.id)!;
+const nbCache = new Map<string, Float32Array | null>();
+/** Where a vein that opens into the cava meets the cava's wall, as a share (0 to 1) of the drawn vein's arc length: the last place at which the vein's centre is still outside the cava's lumen (the tube is cut away inside it, shaders.ts cavaCut), the
+ *  lumen at the radius the cava is DRAWN at (`cavaSwell`: its live width over the width it was built at). Null for a vein that does not open into the cava. A clot in such a vein runs to here, so it reaches the junction as the vein does. */
+export function cavaWallShare(h: Host, cavaSwell = 1): number | null {
   const last = h.pieces[h.pieces.length - 1];
-  let out: number | null = null;
-  if (last && opensIntoCava(last.id)) {
+  if (!last || !opensIntoCava(last.id)) return null;
+  if (!nbCache.has(h.id)) {
     const flat = new Float32Array(h.pts.length * 3);
     h.pts.forEach((p, i) => { flat[i * 3] = p.x; flat[i * 3 + 1] = p.y; flat[i * 3 + 2] = p.z; });
-    const nb = neighbourAttr(last.id, flat);
-    if (nb) {
-      let k = h.pts.length - 1;
-      while (k > 0 && Math.abs(nb[k * 2]!) < nb[k * 2 + 1]!) k--;
-      if (k < h.pts.length - 1) {
-        const d0 = Math.abs(nb[k * 2]!) - nb[k * 2 + 1]!, d1 = Math.abs(nb[(k + 1) * 2]!) - nb[(k + 1) * 2 + 1]!;
-        const w = d1 === d0 ? 0 : Math.min(1, Math.max(0, -d0 / (d1 - d0)));
-        out = (h.s[k]! + (h.s[k + 1]! - h.s[k]!) * w) / h.length;
-      } else out = 1;
-    }
+    nbCache.set(h.id, neighbourAttr(last.id, flat));
   }
-  wallCache.set(h.id, out);
-  return out;
+  const nb = nbCache.get(h.id);
+  if (!nb) return null;
+  const wall = (i: number): number => Math.abs(nb[i * 2]!) - nb[i * 2 + 1]! * cavaSwell;   // (> 0 outside the lumen)
+  let k = h.pts.length - 1;
+  while (k > 0 && wall(k) < 0) k--;
+  if (k >= h.pts.length - 1) return 1;
+  const d0 = wall(k), d1 = wall(k + 1), w = d1 === d0 ? 0 : Math.min(1, Math.max(0, -d0 / (d1 - d0)));
+  return (h.s[k]! + (h.s[k + 1]! - h.s[k]!) * w) / h.length;
 }

@@ -76,7 +76,7 @@ test('every preset: every clot it has is built inside its vein, as a ClotObject 
       if (!(v > 0.003)) continue;
       const shape = c.shapeOf(vein, st.frame.D);
       assert.ok(shape, `${id}: clot ${vein} is built`);
-      const h = drawnHost(vein)!, sw = swellsOf(h, st.frame.D), on = hostAt(h, sw, clotShares(h, v));
+      const h = drawnHost(vein)!, sw = swellsOf(h, st.frame.D), on = hostAt(h, sw, clotShares(h, v, sw.cava));
       for (let i = 0; i < CLOT_RINGS; i++) assert.ok(shape!.centres[i]!.distanceTo(on[i]!.p) + shape!.radii[i]! <= CLOT_INSIDE * on[i]!.r + 1e-9, `${id}: ${vein} ring ${i}`);
     }
     for (const m of c.group.children) for (const k of m.children) { const g = (k as unknown as { geometry: { getAttribute(n: string): { count: number } | undefined; getAttribute2?: never } }).geometry; assert.ok(g.getAttribute('lumA'), `${id}: a clot's vertices carry the vein's opacity`); assert.equal(g.getAttribute('lumA')!.count, g.getAttribute('position')!.count); }
