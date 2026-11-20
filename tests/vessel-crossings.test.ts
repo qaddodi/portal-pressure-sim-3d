@@ -69,7 +69,7 @@ test('where vessels that do not connect cross on the screen, their centrelines a
 test('the ink is held back ONLY inside a declared branch\'s trunk: over the real network, a run-on end, a free end and a crossing keep their whole outline; only a branch\'s end (attach), and a hepatic or renal vein\'s end inside the cava, is buried, and only the length of its trunk', () => {
   const was = useSettings.getState().smoothJoins;
   useSettings.getState().set('smoothJoins', true);
-  const s = new CelScene();
+  const s = new CelScene({ joins: 'old' });
   const unburied = ['SMV_CONF', 'PV_TRUNK', 'PV_TRUNK_1', 'PVH_R', 'SV_MID', 'V_INT_1', 'V_KID_L', 'V_KID_L_1', 'IVC_IS', 'IVC_IS_1'];
   for (const id of unburied) assert.deepEqual((s.vesselObject(id)!.toon.uniforms.bury!.value as import('three').Vector2).toArray(), [0, 0], `${id}: whole outline (a run-on or a crossing)`);
   let buried = 0;

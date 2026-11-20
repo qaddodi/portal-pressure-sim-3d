@@ -122,3 +122,15 @@ test('an upright iPad\'s Tests sheet is the 70 % column in the middle, as 2D\'s 
   const ph = testsPlace({ w: 390, h: 844, safe: { top: 47, right: 0, bottom: 34, left: 0 } }, 'phone-portrait');
   assert.equal(ph.rect.x, 8); assert.equal(ph.rect.w, 374, 'a phone keeps its 8 px margins');
 });
+
+test('a phone on its side: the Tests card stands left of the toolbar rail and runs from the top bar to 6 px above the bottom, as 2D\'s (402 to 782, 50..384 at 844 x 390 measured)', async () => {
+  const { testsPlace, RAIL_W } = await import('../src/ui/tests/place.ts');
+  const vp = { w: 844, h: 390, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
+  const pl = testsPlace(vp, 'phone-landscape');
+  assert.equal(RAIL_W, 54);
+  assert.ok(Math.abs(pl.rect.x + pl.rect.w - (844 - 8 - 54)) < 1e-9, 'it ends 8 px left of the 54 px rail, so the rail\'s Tests, History, Settings and Search stay reachable');
+  assert.ok(Math.abs(pl.rect.w - 379.8) < 1e-9);
+  assert.equal(pl.rect.y, 50, 'the top bar (48) + 2');
+  assert.equal(pl.rect.y + pl.rect.h, 390 - 6, 'down to 6 px above the bottom edge');
+  assert.equal(testsPlace(vp, 'phone-landscape', { contentH: 100 }).rect.h, pl.rect.h, 'it does not shrink to its content: 2D\'s card spans top to bottom');
+});

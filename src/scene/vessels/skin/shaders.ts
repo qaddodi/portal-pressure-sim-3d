@@ -14,6 +14,7 @@
 //   armLensU[4]  float  the arm's lens ramp position at its seam (lensSpan already applied)
 //   armFade[4]   float  the arm tube's alpha at its seam ring (the JS twin, fade-alpha.ts)
 //   armHi[4]     float  the arm tube's highlight weight vHi at its seam
+//   armNarrow[4] float  + (vertex stage only) the arm tube's stenosis waist at its seam: its live width there is swell x (1 - narrow), as the tube's is, so a seam inside a short piece's waist meets the tube with no step
 //   armColor[4]  vec4 + the arm tube's own `color` uniform (rgb: an artery wears the look's artery red, a vein its portal or systemic tone) and, in a, its `lensUse` (an artery 0, a vein 1)
 //   armAxis[12]  vec3   per arm three points of its axis, the junction side first, rest positions, model space
 //   armAxisR[12] float  the rest radius at those points
@@ -51,6 +52,7 @@ uniform vec2 res;
 uniform float hiPx;
 uniform vec4 armData[${SKIN_ARMS}];
 uniform float armHi[${SKIN_ARMS}];
+uniform float armNarrow[${SKIN_ARMS}];   // each arm tube's stenosis waist at its seam (the narrow attribute there): 0 at rest and at a vessel's ends, a little more where a cut lies inside a short piece's waist
 varying vec3 vN;
 varying vec3 vV;
 varying float vW;        // the surface's clip depth
@@ -62,7 +64,8 @@ ${SWELL_OF_GLSL}
 void main() {
   // each arm's live width (the engine's diameter by the 2D figure's rule), then the blend: on a seam ring the weight is 1 on its own arm, so this IS the tube's swell and the ring lands where the tube's ring lands
   vec4 sw = vec4(1.0);
-  for (int i = 0; i < ${SKIN_ARMS}; i++) if (armData[i].x >= 0.0) sw[i] = swellOf(armData[i].x, armData[i].y, armData[i].z);
+  // (an arm's waist at its seam is part of its width there, as the tube's own narrowK is: the same share kept, 1 - narrow clamped as the tube clamps it)
+  for (int i = 0; i < ${SKIN_ARMS}; i++) if (armData[i].x >= 0.0) sw[i] = swellOf(armData[i].x, armData[i].y, armData[i].z) * (1.0 - clamp(armNarrow[i], 0.0, 0.97));
   float swell = dot(weight, sw);
   vec4 cc = projectionMatrix * (modelViewMatrix * vec4(cen, 1.0));
   float wpcV = ${wpcGlsl('cc.w', 'projectionMatrix[1][1]', 'SKIN_U')};   // the figure's units under one CSS px here
