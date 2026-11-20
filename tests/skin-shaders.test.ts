@@ -100,7 +100,7 @@ test('the skin\'s flow marks can read no NaN: normal and eye vector length-check
   const fs = SKIN_FS.slice(SKIN_FS.indexOf('void main()'));
   assert.doesNotMatch(fs, /normalize\(vN\)|normalize\(vV\)/, 'no unguarded normalize of an interpolated vector');
   assert.match(fs, /vec3 n = nLen > 1e-5 \? vN \/ nLen : vec3\(0\.0, 0\.0, 1\.0\);/);
-  assert.match(fs, /float acrossI = clamp\(dot\(n, /);
+  assert.match(fs, /acA\[i\] = clamp\(dot\(n, /);
   assert.match(fs, /headAcc = clamp\(headAcc, 0\.0, 1\.0\);/);
   assert.match(fs, /dustAcc = clamp\(vec4\(dust\.rgb \* dOn, dust\.a \* dOn\), 0\.0, 1\.0\);/);
   for (const f of ['vec4 dustTube(DFrame F', 'vec3 dFind(float edge', 'vec4 dustSkin(DFrame F0']) {

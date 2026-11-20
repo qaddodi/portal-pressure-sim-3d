@@ -53,6 +53,8 @@ export class SkinObject implements SkinDraw {
   readonly material: ShaderMaterial;
   /** the three copies of the one geometry: front, solid, veil */
   readonly copies: readonly Mesh[];
+  /** the selection glow (glow.ts): the same geometry and uniforms through the program built with `GLOW`, drawn only while some arm's pick weight is above nothing */
+  readonly glow: Mesh;
   /** the group the copies stand in (it is what the scene adds) */
   readonly object: Object3D;
   private readonly armAF: Vector4[]; private readonly armCopy: Vector3[];
@@ -119,11 +121,16 @@ export class SkinObject implements SkinDraw {
       mesh.visible = c === 0;   // (until the arms say which copies they have: a plain junction's arms are (1, 0, 0), so only the front copy ever shows)
       return mesh;
     });
+    const glowMat = new ShaderMaterial({ name: 'skin-glow', vertexShader: SKIN_VS, fragmentShader: SKIN_FS, precision: 'highp', side: DoubleSide, transparent: true, depthWrite: false, depthTest: false, defines: { ...skinDefines(0, this.growArms.length), GLOW: 1 }, uniforms });
+    this.glow = new Mesh(g, glowMat);
+    this.glow.frustumCulled = false; this.glow.visible = false; this.glow.name = `skin:${skin.junction.node}:glow`; this.glow.renderOrder = 30;
+    this.glow.layers.set(VESSEL_LAYER);
     this.mesh = this.copies[0]!;
     this.material = this.mesh.material as ShaderMaterial;
     const group = new Group();
     group.name = `skin:${skin.junction.node}`;
     for (const m of this.copies) group.add(m);
+    group.add(this.glow);
     this.object = group;
     armObjs.forEach((o, i) => { this.setColour(i, o); this.setArmCopy(i, ...o.copyShares()); });
   }
@@ -136,6 +143,7 @@ export class SkinObject implements SkinDraw {
   setArm(i: number, fade: number, hi: number, lensU: number, colour?: ArmColour, narrow = 0): void {
     const u = this.material.uniforms;
     this.armAF[i]!.set(lensU, fade, hi, this.armAF[i]!.w); (u.armNarrow!.value as number[])[i] = narrow;
+    this.showGlow();
     if (colour) this.armColor[i]!.set(colour.r, colour.g, colour.b, colour.a);
   }
 
@@ -178,10 +186,14 @@ export class SkinObject implements SkinDraw {
   /** A copy is drawn when the arms' shares of it add up to something (`COPY_SEEN`), counting only an arm that is there (its presence): a skin has no visibility of its own, it inherits its arms'. */
   private showCopies(): void {
     this.copies.forEach((m, c) => { m.visible = this.armCopy.reduce((t, v, k) => t + (this.armData[k]!.x >= 0 && this.isThere(k) ? (c === 0 ? v.x : c === 1 ? v.y : v.z) : 0), 0) > COPY_SEEN; });
+    this.showGlow();
   }
+
+  /** The glow shows while the front copy does and some arm has a pick weight (the shader weights its reach and alpha by it, so it is nothing where no arm is picked). */
+  private showGlow(): void { this.glow.visible = this.armAF.some((a, k) => a.z > 0.001 && this.armData[k]!.x >= 0 && this.isThere(k)) && this.copies[0]!.visible; }
 
   setTransparent(on: boolean): void { for (const m of this.copies) { const mat = m.material as ShaderMaterial; if (mat.transparent !== on) { mat.transparent = on; mat.needsUpdate = true; } } }
 
-  dispose(): void { this.mesh.geometry.dispose(); for (const m of this.copies) (m.material as ShaderMaterial).dispose(); }
+  dispose(): void { this.mesh.geometry.dispose(); for (const m of this.copies) (m.material as ShaderMaterial).dispose(); (this.glow.material as ShaderMaterial).dispose(); }
 }
 

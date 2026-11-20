@@ -13,6 +13,8 @@ export const DISC_R = { pv: 0.042, cv: 0.07, ha: 0.0115, bd: 0.0145, lv: 0.016 }
 export const IN_R: readonly [number, number] = [0.015, 0.009];
 /** The terminal lymphatic (2D: R * 0.0075 at a normal rate). */
 export const LT_R = 0.0075;
+/** The lymph ductule from its channel to the sinusoid, the space of Disse's `ly` at the portal end (2D: max(1.1 px, rs0 * 0.5 * lyWr) * lyTaper, lyWr = 1 at the healthy rate, taper 1 out there): half a sinusoid's own radius. */
+export const DUCT_R = RS0 * 0.5;
 /** The twig's thread (2D: R * 0.0026), where it leaves the arteriole (0.62 of the arteriole's) and where it opens into its sinusoid (0.55 of the sinusoid's). */
 export const TW_R = { base: 0.0026, leave: 0.62, join: 0.55 } as const;
 /** An anastomosis is 0.68 of a sinusoid (2D: rs * 0.68). */

@@ -563,6 +563,7 @@ float vnoise(vec2 p) {
 }
 
 // the colour of one lens set at this pixel; .a says whether the lens colours this vessel (0: it keeps its tone)
+float lensAcrossFw = 0.0;   // fwidth of the lane position (across * 0.5 + 0.5): set by main BEFORE its first discard, because a derivative after a discard is garbage on a device that drops the lane
 vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float across) {
   if (mode < 0.5 || lensUse < 0.5) return vec4(0.0);
   ivec2 i0 = ivec2(int(lensIx), 0), i1 = ivec2(int(lensIx), 1);
@@ -580,7 +581,7 @@ vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode
   }
   vec4 c = mix(texelFetch(lanes, i0, 0), texelFetch(lanes, i1, 0), t);
   float f = across * 0.5 + 0.5;
-  float w = max(fwidth(f) * 1.2, 0.002);
+  float w = max(lensAcrossFw * 1.2, 0.002);
   vec3 col = pal[4];
   col = mix(col, pal[3], 1.0 - smoothstep(c.w - w, c.w + w, f));
   col = mix(col, pal[2], 1.0 - smoothstep(c.z - w, c.z + w, f));
@@ -664,6 +665,14 @@ bool capCarved(float across) {
 
 void main() {
   float streakCover = 0.0;   // (how much a streak covers this pixel: a chevron's pixel is never tinted by one)
+  // THE DERIVATIVES, before any discard: a quad whose other pixels have been discarded (the cut, the dissolve, a cap, a back face) gives a garbage fwidth on a device that drops the lane (Apple's), and the flow heads, the shade band and the
+  // marks of the pixels that stay came out as blocky, wrongly coloured specks along the seam rings (Mohammad, 20 Nov). So every one the body needs is taken here, in uniform control flow, and used below.
+  vec3 nD = normalize(vN);
+  vec3 sideD = cross(normalize(vT), normalize(vV));
+  float sideDL = length(sideD);
+  sideD = sideDL > 1e-4 ? sideD / sideDL : vec3(1.0, 0.0, 0.0);
+  float fwSt = fwidth(dot(nD, celLightView())), fwPx = fwidth(vUv.x * len * vU), fwAw = max(fwidth(dot(nD, sideD)), 0.03);
+  lensAcrossFw = fwidth(dot(nD, sideD) * 0.5 + 0.5);
   vec3 cBody = vec3(0.0);    // (the tube's tone before the streaks)
   if (frontOut(vUv.x, reveal)) discard;
   if (fadedOut()) discard;
@@ -727,13 +736,25 @@ void main() {
 #else
   fadeHere *= solidK;
 #endif
+#ifdef GLOW
+  // THE GLOW (glow.ts): the same tube, grown by the glow's reach in the vertex stage, drawn here as a halo outside the line only, in the vessel's colour as drawn. The reach and the alpha follow the pick's weight vHi (nothing at the vein's ends).
+  {
+    float rCssG = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6);
+    float lineG = clamp(0.3 * rCssG, 1.6, 3.0) * smoothstep(0.15, 1.6, rCssG) * mix(1.0, 1.1, circT) * inkOn;
+    float sG = dLat / dpr - rCssG - lineG;   // CSS px past the line's outer edge
+    float aG = (0.62 * pow(1.0 - smoothstep(0.0, max((6.0 + 0.55 * rCssG) * vHi, 1e-3), sG), 2.0) * smoothstep(-0.5, 0.5, sG * dpr) * smoothstep(0.0, 1.0, vHi) * (1.0 - smoothstep(0.0, 0.15, circT))) * fadeHere * cavA;
+    if (aG < 0.002) discard;
+    gl_FragColor = vec4(mix(celTubeBase(base), vec3(1.0), 0.25 * tubeDark), aG);
+    return;
+  }
+#endif
   if (fadeHere < 0.004) discard;
   float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
   float rDevAx = vR / max(vCen.z * 2.0 / (res.y * projY) * vU, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
   // (the shade band is not cut off at the other tube's wall: two tubes of a fork are one surface that blends, so the band thins and is gone by the time it reaches the other's lumen, over 0.8 of the other's radius: no ledge and no dash where the band would otherwise end)
   float nbrT = nbrK;
   if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT));
-  vec3 c = celTubeTone(base, mix(sT, 1.0, nbrT), fwidth(sT) * (1.0 - nbrT), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
+  vec3 c = celTubeTone(base, mix(sT, 1.0, nbrT), fwSt * (1.0 - nbrT), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, 0.080 * quietK);   // (0 for every tier but the back one)
   // THE DUST (blood/dust-glsl.ts, the Dust Lab's particles, Mohammad 20 Nov) is part of the tube: painted here, in its own fragment shader, so it is inside the lumen (dustTube draws nothing past 0.96 of the half width,
   // never touching the ink) and follows the tube's own alpha and fade zones by construction: there is no second mesh to stray past a tube's end, a taper or a fade. Under the chevrons, which come after.
@@ -765,8 +786,8 @@ void main() {
   }
 
   // the flow heads, on the tube's surface as the 2D composite lays them
-  float pxArc = fwidth(vUv.x * len * vU);   // (a derivative: taken outside any branch)
-  float acrossW = max(fwidth(across), 0.03);
+  float pxArc = fwPx;   // (derivatives taken at the top of main, before any discard)
+  float acrossW = fwAw;
   vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, vW * 2.0 / (res.y * projY) * vU, pxArc, lensIndex, flowAmount, markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU), la, lb, color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
   if (hd.a > 0.0) {
     if (streakCover > 0.0) c = mix(c, cBody, hd.a);   // the streaks lie UNDER the chevrons: a head's pixel is never tinted by one
@@ -785,8 +806,8 @@ void main() {
   if (inkT > 0.0) {
     vec4 laH = lensOf(lensGradA, lensLaneA, lensModeA, laneColA, 0.0), lbH = lensOf(lensGradB, lensLaneB, lensModeB, laneColB, 0.0);
     vec3 baseH = mix(mix(color, laH.rgb, laH.a), mix(color, lbH.rgb, lbH.a), lensMix);
-    vec3 inkH = mix(mix(inkColor, celTubeBase(baseH) * mix(0.32, 0.55, tubeDark), 0.75), mix(celTubeBase(baseH) * 0.88, mix(celTubeBase(baseH), vec3(1.0), 0.25), tubeDark), 0.9 * smoothstep(0.0, 1.0, vHi));   // (a picked vessel's line is its own colour as drawn, eased by the pick's weight: the glow is a separate halo, glow.ts)
-    c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (the glow is a separate halo, glow.ts)
+    vec3 inkH = mix(inkColor, celTubeBase(baseH) * mix(0.32, 0.55, tubeDark), 0.75);
+    c = mix(c, mix(inkH, inkColorCirc, circT), inkT);   // (a selected vessel's line is its own: the glow is a separate halo, glow.ts)
   }
   // the stent in the Circuit (the 3D device is the body's; the map draws it on the shunt's own lane, as 2D does): the bare open cells (rings of five crowns, every other one turned half a crown), the gold band where the
   // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph
