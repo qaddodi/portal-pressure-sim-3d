@@ -4,10 +4,11 @@
 import { CatmullRomCurve3, Group, Vector3 } from 'three';
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
-import { courseOf, NETWORK_BY_ID, radiusOf, widthPx } from '../../vessels/network.ts';
+import { NETWORK_BY_ID, radiusOf, widthPx } from '../../vessels/network.ts';
 import { UNITS_PER_SCENE } from '../../frame2d.ts';
 import { DeviceObject } from '../device-object.ts';
 import { mergeTubes } from '../tube-rings.ts';
+import { vesselFit, type VesselFit } from './fit.ts';
 import { buildStent, WIRE_MAX_R, type StentSpec } from './stent-build.ts';
 import { indexOf } from '../../../engine/vessel-data.ts';
 
@@ -30,13 +31,15 @@ export class VeinStent {
   amount = 0; goal = 0;
   private readonly curve: CatmullRomCurve3;
   private readonly L: number;
+  private readonly fitOf: VesselFit;
   private key = '';
   private dirty = false;
   private lastPalette: Palette | null = null;
 
   constructor(id: string, shared: CelShared) {
     this.id = id;
-    this.curve = new CatmullRomCurve3(courseOf(id).map((p) => new Vector3(...p)), false, 'centripetal');
+    this.fitOf = vesselFit(id);
+    this.curve = new CatmullRomCurve3(this.fitOf.pts.map((p) => new Vector3(...p)), false, 'centripetal');   // (the vein's own drawn course: its depth)
     this.L = this.curve.getLength();
     this.wires = new DeviceObject(mergeTubes([], WIRE_RADIAL), 'stentWire', shared, { px: 0.7, order: 3 }, 'ink');
     this.objects = [this.wires];
@@ -55,6 +58,7 @@ export class VeinStent {
       at: (t, out) => curve.getPointAt(Math.min(1, Math.max(0, (s0 + t) / L)), out),
       tan: (t, out) => curve.getTangentAt(Math.min(1, Math.max(0, (s0 + t) / L)), out),
       A, R, lenCm: 8, geom: { len: 8, waist: 0, trans: 0, red: 0 }, s: 0, site: 0, covered: false,
+      fit: (t) => this.fitOf.at(Math.min(1, Math.max(0, (s0 + t) / L))),
     };
   }
 

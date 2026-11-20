@@ -139,7 +139,7 @@ test('nothing inside the tube but the two tones and the flow heads: no highlight
   assert.doesNotMatch(VESSEL_FS, /smoothstep\(0\.0, 1\.8 \* px/, 'a head\'s ring is a hard outline, not a halo');
   assert.match(VESSEL_FS, /abs\(across\)\)\);/, 'heads are cut inside the wall');
   assert.match(VESSEL_FS, /smoothstep\(1\.5 \* wpc, 2\.1 \* wpc, R\)/, 'a head needs a tube 3 px across or more (chevron-visible.test.ts)');
-  assert.match(VESSEL_FS, /float hw = min\(R \+ 1\.0 \* wpc/, "a head is never more than a pixel over each wall (the ink clips it)");
+  assert.match(VESSEL_FS, /float hw = chevHw\(R, wpc\)/, "a head is 55 percent of the lumen (chevHw), never touching the wall");
   assert.ok(!('SPEC' in CEL_STYLE), 'the style has no highlight');
 });
 

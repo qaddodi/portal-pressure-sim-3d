@@ -150,11 +150,35 @@ export function computeLens(lens: LensId, f: FrameLike, look: LookId, ctx: LensC
     const gm = (2 * NE + k) * 4, g0 = k * 4, g1 = (NE + k) * 4, G = out.grad;
     if (G[g0 + 3]! > 0 && G[gm + 3] === 0) for (let i = 0; i < 3; i++) { G[gm + i] = G[g0 + i]! + (G[g1 + i]! - G[g0 + i]!) / 3; G[gm + 4 * NE + i] = G[g0 + i]! + (G[g1 + i]! - G[g0 + i]!) * 2 / 3; G[gm + 3] = G[gm + 4 * NE + 3] = 1; }
   }
+  if (lens === 'drop' || lens === 'direction' || lens === 'flow' || lens === 'velocity' || lens === 'system') meetAtNodes(out, Q);
   return out;
 }
 
-/** The colour a vessel wears under a lens at one end (0 upstream, 1 downstream), as sRGB 0..1; null when it keeps its tone. For tests and labels. */
-export function lensColourAt(d: LensData, id: string, end: 0 | 1): Rgb | null {
+/** The lenses that give a whole vessel one colour (drop, direction, flow, velocity, system) change it at a junction with a hard line where the vessels differ (Mohammad, 20 Nov: "vessels colours should always gradually
+ *  change when continuous"). Every vein that meets at a node now ends in one colour there, the mean of what meets, by the flow each carries, and keeps its own colour through its middle, so the colour runs from a
+ *  vessel's own value to the junction's and on into the next vessel's with no step: its ends are the node's colour, and the third and two thirds along (what the shader's ramp reads) are its own. */
+export function meetAtNodes(out: LensData, Q: ArrayLike<number>): void {
+  const G = out.grad, n = nodeIx.size, sum = new Float64Array(n * 4);
+  for (let k = 0; k < NE; k++) {
+    if (G[k * 4 + 3]! <= 0) continue;
+    const w = Math.abs(Q[k] ?? 0) + 1e-6;
+    for (const nd of [EF[k]!, ET[k]!]) { if (nd < 0) continue; for (let i = 0; i < 3; i++) sum[nd * 4 + i]! += w * G[k * 4 + i]!; sum[nd * 4 + 3]! += w; }
+  }
+  for (let k = 0; k < NE; k++) {
+    if (G[k * 4 + 3]! <= 0) continue;
+    const own = [G[k * 4]!, G[k * 4 + 1]!, G[k * 4 + 2]!];
+    const a = EF[k]!, b = ET[k]!, g1 = (NE + k) * 4, gm = (2 * NE + k) * 4, gn = (3 * NE + k) * 4;
+    for (let i = 0; i < 3; i++) {
+      G[k * 4 + i] = a >= 0 && sum[a * 4 + 3]! > 0 ? sum[a * 4 + i]! / sum[a * 4 + 3]! : own[i]!;
+      G[g1 + i] = b >= 0 && sum[b * 4 + 3]! > 0 ? sum[b * 4 + i]! / sum[b * 4 + 3]! : own[i]!;
+      G[gm + i] = own[i]!; G[gn + i] = own[i]!;
+    }
+    G[gm + 3] = G[gn + 3] = 1;
+  }
+}
+
+/** The colour a vessel wears under a lens at one end (0 upstream, 1 downstream; 2 and 3 a third and two thirds along), as sRGB 0..1; null when it keeps its tone. For tests and labels. */
+export function lensColourAt(d: LensData, id: string, end: 0 | 1 | 2 | 3): Rgb | null {
   const k = edgeIndex.get(id);
   if (k == null) return null;
   const i = (end * NE + k) * 4;

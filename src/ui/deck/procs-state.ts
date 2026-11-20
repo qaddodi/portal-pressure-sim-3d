@@ -9,12 +9,14 @@ export interface ProcState {
   steps: string[][];
   /** the step the figure is on (-1 none yet), and the one the card rings (the last reached) */
   at: number;
+  /** the step Next or Back has navigated to, set at once (2D's ring: after three quick Nexts it is on step 4 while the fill, `at`, is still on its way; on the last step it says the next Next moves on), -1 none */
+  ring: number;
   phase: 'idle' | 'wait' | 'play' | 'done';
   /** why it cannot play on this patient ('' it can) */
   why: string;
   name: string;
 }
-export const NO_PROC: ProcState = { key: '', steps: [], at: -1, phase: 'idle', why: '', name: '' };
+export const NO_PROC: ProcState = { key: '', steps: [], at: -1, ring: -1, phase: 'idle', why: '', name: '' };
 export const useProc = create<ProcState>(() => NO_PROC);
 export const setProc = (p: Partial<ProcState>): void => useProc.setState(p);
 export const clearProc = (): void => useProc.setState(NO_PROC, true);

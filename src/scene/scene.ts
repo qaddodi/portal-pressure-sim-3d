@@ -3,16 +3,20 @@ import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
+import { DIVIDED, PV_START, stumpOf } from './vessels/divide.ts';
+import { SEWN_IDS, seamsFor } from './vessels/seams.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
+/** How far into a vein's last stretch the ink is held back where it opens into the cava: past the cava's wall, to its middle (in the cava's radii). */
+const CAVA_BURY = 1.3;
 import { flowRate, flowTarget } from './flow-rate.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
-import { fadeOf } from './vessels/fades.ts';
+import { fadeOf, HEPATIC_VEINS } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
@@ -277,7 +281,14 @@ export class CelScene {
       if (!o) continue;
       const mate = (id: string | null | undefined) => { const m = on && id ? NETWORK_MATE.get(id) : undefined; return m ? { index: indexOf(m.lensId), baseD: m.baseD, widthKind: m.widthKind } : null; };
       o.setMates(mate(sj?.mate[0]), mate(sj?.mate[1]));
-      o.setBury(...([0, 1] as const).map((e) => (on && sj?.attach[e] ? BURY * (sj.hostR[e] ?? def.radius) : 0)) as [number, number]);   // (a declared branch's end buried in its trunk: the ink stays off inside it, and only there)
+      // (a declared branch's end buried in its trunk: the ink stays off inside it, and only there. One rule for every junction, Mohammad 20 Nov: a child's outline is not drawn where it lies inside its parent's lumen.
+      //  Besides the declared branches: a hepatic vein's last stretch inside the cava, and a liver branch's first stretch inside the vein it leaves, as far as that vein is wide)
+      const bury: [number, number] = [0, 0];
+      for (const e of [0, 1] as const) if (on && sj?.attach[e]) bury[e] = BURY * (sj.hostR[e] ?? def.radius);
+      if (on && (this.ivcJoins.includes(o) || HEPATIC_VEINS.has(def.id))) bury[1] = Math.max(bury[1], CAVA_BURY * (NETWORK_BY_ID.get('IVC_IS')?.radius ?? def.radius));
+      const joinEnd = def.plan?.kind === 'feeder' ? def.plan.list[0]?.join : undefined;
+      if (on && joinEnd != null) bury[joinEnd] = Math.max(bury[joinEnd], BURY * def.radius * (def.plan?.kind === 'feeder' ? (def.plan.list[0]?.k ?? 1) : 1));
+      o.setBury(bury[0], bury[1]);
       o.setSmoothColour(on);
     }
   }
@@ -405,6 +416,24 @@ export class CelScene {
     }, false);
   }
 
+  /** The divided veins (vessels/divide.ts): the splenic vein under a Warren shunt, the portal trunk under a portocaval one, opening and closing with the shunt's drawing on and off. */
+  private syncStumps(): void {
+    const side = !!(patient.params as { portocavalSide?: boolean } | null)?.portocavalSide;
+    for (const [shunt, vein] of DIVIDED) {
+      const o = this.byEdge.get(vein) as VesselObject | undefined;
+      if (!o) continue;
+      const [cut, tie, k] = stumpOf(shunt, vein, this.presence.amountOf(shunt), vein === PV_START && side);
+      if (o.setStump(cut, tie, k)) this.moving = true;
+    }
+    // the stitch rings at a surgical shunt's sewn ends: where the shunt is drawn at all (they ease with its drawing on, as the tube does)
+    for (const id of SEWN_IDS) {
+      const o = this.byEdge.get(id) as VesselObject | undefined;
+      if (!o) continue;
+      const [a, b] = seamsFor(id, side);
+      if (o.setSeam(a, b)) this.moving = true;
+    }
+  }
+
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
   private syncPresence(f: NonNullable<typeof latest.frame>, instant: boolean): void {
     for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn, circuit: this.figureView === 'circuit' }, this.healthyQ), instant);
@@ -470,10 +499,12 @@ export class CelScene {
     this.body.localToWorld(tip); this.body.localToWorld(ahead);
     return true;
   }
-  setCatheter(s: CatheterState & { ring?: 'free' | 'wedge' | 'bad' | null }): void {
-    this.catheter.set(s);
+  setCatheter(s: CatheterState & { ring?: 'free' | 'wedge' | 'bad' | null; column?: number; clock?: number }): void {
+    // (the still column fills after the balloon is up and the WHVP pill comes after the column, 2D cathTo: the labels read the slice's balloon as "wedged" at 0.999, so it says so only once the column is full)
+    const col = s.column ?? s.balloon;
+    this.catheter.set({ advance: s.advance, balloon: col >= 0.999 ? s.balloon : Math.min(s.balloon, 0.99) });
     this.catheter.group.visible = false;
-    this.procs.showHvpgState(this.catheter.current.advance, this.catheter.current.balloon, s.ring ?? null, performance.now());
+    this.procs.showHvpgState(s.advance, s.balloon, s.ring ?? null, s.clock ?? performance.now(), col);
     this.moving = true;
   }
 
@@ -885,6 +916,7 @@ export class CelScene {
     const lensMoving = this.lens.step(now);
     const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving });
     const presMoving = this.presence.step(dt);
+    this.syncStumps();
     this.updateCaps();
     const shapeMoving = this.shapes.step(dt);
     this.stepSinusDive();

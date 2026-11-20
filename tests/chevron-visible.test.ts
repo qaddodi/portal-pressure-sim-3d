@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MAPPED, courseOf } from '../src/scene/vessels/network.ts';
 import { SHOTS } from '../src/scene/camera/shots.ts';
-import { CHEV } from '../src/scene/blood/chevron-glsl.ts';
+import { CHEV, CHEVRON_GLSL, chevHalfWidthPx } from '../src/scene/blood/chevron-glsl.ts';
 import { STREAK, lanesForPx, streakCorePx, streakToneJs } from '../src/scene/blood/streak-glsl.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { LENS_SHARED } from '../src/scene/lenses/tokens.copied.ts';
@@ -19,7 +19,7 @@ import { MICRO_FS } from '../src/scene/micro3d/cel3d.ts';
 const fit = (w: number, h: number): number => Math.min(w / (2 * SHOTS.play.half[0]), h / (2 * SHOTS.play.half[1]));
 const ROOMS: [string, number, number][] = [['iPhone 390 x 844', 390, 844], ['Mac 800 x 600', 800, 600], ['Mac 1440 x 900', 1440, 900], ['iPhone room 390 x 560', 390, 560], ['Mac pane room 800 x 520', 800, 520]];
 /** The head's size in CSS px by the shader's own rule (vessels/shaders.ts chevOne). */
-const headHw = (R: number): number => Math.min(R + CHEV.OVER_PX, Math.min(CHEV.MAX_HW_PX, Math.max(CHEV.MIN_HW_PX, 0.5 * R)));
+const headHw = chevHalfWidthPx;
 const smooth = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const headShown = (R: number): number => smooth(CHEV.MIN_R_PX, CHEV.MIN_R_PX + 0.6, R);
 const len = (pts: readonly (readonly number[])[]): number => { let s = 0; for (let i = 1; i < pts.length; i++) s += Math.hypot(pts[i]![0]! - pts[i - 1]![0]!, pts[i]![1]! - pts[i - 1]![1]!); return s; };
@@ -32,30 +32,43 @@ const chevCore = (lit: readonly number[]): [number, number, number] => {
   void lit; return L < 0.26 ? light : dark.map((v) => v * 0.5) as [number, number, number];
 };
 
-test('the heads follow the CHEV table: a spacing of 40 to 80 px, from a tube 3 px across, 8.8 px tall and 7 px long from a tube 9 px across', () => {
-  assert.ok(CHEV.PITCH_PX >= 55 && CHEV.PITCH_PX <= 65 && CHEV.MIN_R_PX <= 1.5 && CHEV.MIN_HW_PX >= 4.4);
+test('the heads follow the CHEV table: 55 percent of the lumen wide (4 px at least on a thin tube, never over 60 percent), 1.4 x as long as wide, sharp, centred, from a tube 3 px across', () => {
+  assert.ok(CHEV.PITCH_PX >= 55 && CHEV.PITCH_PX <= 65 && CHEV.MIN_R_PX <= 1.5);
+  assert.ok(CHEV.SHARE === 0.55 && CHEV.SHARE_MAX === 0.6 && CHEV.MIN_W_PX === 4 && CHEV.LEN_OF_W >= 1.3 && CHEV.LEN_OF_W <= 1.5 && CHEV.EDGE_PX <= 0.7 && CHEV.RING_PX <= 1);
   assert.match(VESSEL_FS, /float Pt = 60\.0 \* wpc;/);
   assert.match(VESSEL_FS, /smoothstep\(1\.5 \* wpc, 2\.1 \* wpc, R\)/);
-  assert.match(VESSEL_FS, /min\(R \+ 1\.0 \* wpc, clamp\(0\.5 \* R, 4\.4 \* wpc, 9\.0 \* wpc\)\)/);
+  assert.match(VESSEL_FS, /float hw = chevHw\(R, wpc\), L = 2\.8 \* hw;/);
+  assert.match(CHEVRON_GLSL, /float chevHw\(float R, float wpc\) \{ return min\(0\.6 \* R, max\(0\.55 \* R, 2\.0 \* wpc\)\); \}/);
+  assert.match(CHEVRON_GLSL, /float L = 2\.8 \* hw, tip = 0\.55 \* L/);
+  assert.match(CHEVRON_GLSL, /float c = 1\.0 - smoothstep\(-0\.35 \* px, 0\.35 \* px, d\);/, 'an edge ramp of 0.7 px');
+  assert.match(CHEVRON_GLSL, /float rw = 1\.0 \* px;/, 'a ring of 1 px at most, no halo');
   assert.match(VESSEL_FS, /chevInk\(celTubeBase\(base\), markDark, markLight\)/, 'the tone follows the tube as drawn');
-  assert.match(MICRO_FS, /min\(R \+ 1\.0 \* wpc, clamp\(0\.5 \* R, 4\.4 \* wpc, 9\.0 \* wpc\)\)/, 'the lobule\'s and the sinusoid\'s micro tubes take the same head');
+  assert.match(MICRO_FS, /float hw = chevHw\(R, wpc\);/, 'the lobule\'s and the sinusoid\'s micro tubes take the same head');
   assert.match(MICRO_FS, /smoothstep\(1\.5 \* wpc, 2\.1 \* wpc, R\)/);
-  assert.doesNotMatch(VESSEL_FS, /smoothstep\(5\.8 \* wpc/);
-  for (const R of [4.5, 6, 12]) { assert.ok(2 * headHw(R) >= 7 - 1e-9 && 1.6 * headHw(R) >= 7 - 1e-9, `R ${R}: head ${(2 * headHw(R)).toFixed(1)} tall, ${(1.6 * headHw(R)).toFixed(1)} long`); }
-  for (const R of [1.6, 2, 2.5, 3]) assert.ok(2 * headHw(R) >= 2 * R + 2 - 1e-9, `R ${R}: a pixel over each wall at most, clipped by the ink`);
+  for (const R of [1.6, 2, 2.5, 3, 3.3, 3.64, 4.5, 6, 12, 40]) {
+    const w = 2 * headHw(R), lumen = 2 * R;
+    assert.ok(w <= CHEV.SHARE_MAX * lumen + 1e-9, `R ${R}: ${w.toFixed(2)} px is ${(100 * w / lumen).toFixed(0)} percent of the lumen`);
+    assert.ok(w >= Math.min(CHEV.MIN_W_PX, CHEV.SHARE_MAX * lumen) - 1e-9, `R ${R}: ${w.toFixed(2)} px wide`);
+    if (R >= 3.64) assert.ok(Math.abs(w - CHEV.SHARE * lumen) < 1e-9, `R ${R}: 55 percent of the lumen`);
+    assert.ok(lumen - w >= 0.4 * lumen - 1e-9, `R ${R}: clear blood both sides (at least 20 percent of the lumen each), never touching the ink`);
+    const length = CHEV.LEN_OF_W * w;
+    assert.ok(length / w >= 1.3 && length / w <= 1.5);
+  }
+  // the point: half angle atan(hw / L), L = 2.8 hw: 19.7 degrees, an apex of about 39 degrees
+  assert.ok(Math.atan(1 / (2 * CHEV.LEN_OF_W)) * 360 / Math.PI < 45);
   assert.ok(headShown(1.4) === 0 && headShown(2.1) === 1, 'none only under 3 px across');
   // the lattice: heads are added at the level's pitch Pt and the finer ones have all left by 1.33 Pt (chevKeep: odd heads keep exp2(1 - f) - 1 of themselves at f of a level, gone from f = 0.585)
   const lo = CHEV.PITCH_PX * Math.pow(2, -0.585), hi = CHEV.PITCH_PX * Math.pow(2, 0.415);
   assert.ok(lo >= 39.9 && hi <= 80.1, `spacing ${lo.toFixed(0)} to ${hi.toFixed(0)} px`);
 });
 
-test('at the default fit every labelled vessel 4.2 px across or more shows heads at least 7 px tall (a pixel over each wall of a thin one, never past it), over the real network', () => {
+test('at the default fit every labelled vessel 4.2 px across or more shows a head 55 percent of its lumen (4 px at least, 60 percent at most), over the real network', () => {
   for (const [name, w, h] of ROOMS) {
     const k = fit(w, h);
     const px = MAPPED.map((v) => ({ id: v.id, label: v.label, R: v.radius * k }));
     const carried = px.filter((x) => x.label && x.R >= 2.1);
     assert.ok(carried.length >= 10, `${name}: ${carried.length} labelled vessels 4.2 px across or more`);
-    for (const x of carried) { assert.equal(headShown(x.R), 1, `${name} ${x.id}`); assert.ok(2 * headHw(x.R) >= Math.min(7, 2 * x.R + 2) - 1e-9, `${name} ${x.id}: head ${(2 * headHw(x.R)).toFixed(1)} px in ${(2 * x.R).toFixed(1)}`); }
+    for (const x of carried) { assert.equal(headShown(x.R), 1, `${name} ${x.id}`); const wd = 2 * headHw(x.R); assert.ok(wd <= 1.2 * x.R + 1e-9 && wd >= Math.min(4, 1.2 * x.R) - 1e-9, `${name} ${x.id}: head ${wd.toFixed(1)} px in ${(2 * x.R).toFixed(1)}`); }
     for (const x of px.filter((y) => headShown(y.R) < 1)) assert.ok(x.R < 2.1, `${name} ${x.id}: none only on tubes under 3 px across (R ${x.R.toFixed(2)})`);
     const thick = Math.max(...px.map((x) => x.R));
     assert.ok(thick <= 16, `${name}: widest R ${thick.toFixed(1)} px`);

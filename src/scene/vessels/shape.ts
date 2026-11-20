@@ -12,6 +12,9 @@ import { STRAND_FROM_2D } from './coil.copied.ts';
 import { setSmoothJoins, smoothJoinsOn } from './join-mode.ts';
 import { ATTACH_REACH, BURY, CEIL, END_SHARE, SMOOTH, endDepth, isPlain } from './smooth-joins.ts';
 import { fadeOf } from './fades.ts';
+import { endShare, shuntEnds } from './shunt-ends.ts';
+import { DIVIDED } from './divide.ts';
+const DIVIDED_IDS: ReadonlySet<string> = new Set(DIVIDED.map(([, v]) => v));
 
 const len2d = (pts: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); return l; };
 /** the vessels the bands strangle (topology code C1: the coronary vein to the varices, and the varices to the azygos) */
@@ -146,7 +149,10 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
       t[cut] = TIP; sp[cut] = 1; taper = t; taperSpan = sp;
       if (capless) { const cl: [boolean, boolean] = [capless[0], capless[1]]; cl[cut] = false; capless = cl; }
     }
-    const own: Course = { pts: m, radius: rad, taper, taperSpan, flare: v.flare, capless, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? (cut != null ? ([sj.free?.[0] && cut !== 0, sj.free?.[1] && cut !== 1] as unknown as typeof sj.free) : sj.free) : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
+    // (a surgical shunt sewn onto a vein narrows to the host's caliber at that end, sinks inside its wall and flares at its heel: 2D SIDE_HOSTS / SINK / FLARED)
+    const sewn = shuntEnds(v.id);
+    if (sewn) taper = [Math.min(taper?.[0] ?? 1, endShare(sewn[0], rad)), Math.min(taper?.[1] ?? 1, endShare(sewn[1], rad))];
+    const own: Course = { pts: m, radius: rad, taper, taperSpan, flare: v.flare, ...(sewn ? { sewn } : {}), capless, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? (cut != null ? ([sj.free?.[0] && cut !== 0, sj.free?.[1] && cut !== 1] as unknown as typeof sj.free) : sj.free) : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
     // a varix is its few strands, each running whole from the vessel that feeds it to the one that drains it: the trunk's own tube, a solid fill the width of the bundle, is not drawn while
     // they are (Mohammad, 20 Nov: "what's that red mesh"); each strand widens to the trunk's width at its two ends, so it meets the vessels there without a step
     const bundle = s.strandsOn && strands.length > 0 && v.kind === 'collateral';   // (the cavernoma too: its trunk tube showed as a hard violet block where the clot does not cover the portal vein)
@@ -174,6 +180,6 @@ export function tubularOf(v: NetVessel, minFirst = 0): number[] {
   return rest.map((c, i) => {
     let len = 0;
     for (let i = 1; i < c.pts.length; i++) len += Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1], c.pts[i]![2] - c.pts[i - 1]![2]);
-    return Math.max(i === 0 ? minFirst : 0, tubularFor(len, plan.kind === 'coil' && !(plan.coils || plan.strands) ? 1 : 2));
+    return Math.max(i === 0 ? minFirst : 0, tubularFor(len, (plan.kind === 'coil' && !(plan.coils || plan.strands) ? 1 : 2) * (DIVIDED_IDS.has(v.id) ? 3 : 1)));   // (a divided vein's round stump is built from rings a third as far apart: vessels/divide.ts)
   });
 }
