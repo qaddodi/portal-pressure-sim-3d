@@ -43,7 +43,23 @@ export function celTones(across: number, side: readonly [number, number], rDev: 
   const k = tubeK(side), s = across * k;
   const et = 0.5 * CEL_STYLE.EDGE_PX * Math.max(Math.abs(k), 0.05) / Math.max(rDev, 1e-3), hw = smoothstep(CEL_STYLE.TONES_FROM, CEL_STYLE.TONES_TO, rDev);
   const shadow = 1 - smoothstep(CEL.SHADE_AT - et, CEL.SHADE_AT + et, s), lit = smoothstep(CEL.LIT_AT - et, CEL.LIT_AT + et, s);
-  return { mul: 1 - hw * CEL.SHADE * shadow, lift: CEL.LIT * hw * lit };
+  return { mul: 1 - hw * CEL.SHADE * shadow, lift: CEL_STYLE.TUBE.LIT_K * hw * lit };
+}
+const lumOf = (c: readonly number[]): number => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * c[2]!;
+/** The twin of celTubeBase: the lens colour made saturated and deep (chroma x SAT, no lighter than LCAP, hue kept). */
+export function celTubeBase(b: readonly [number, number, number]): [number, number, number] {
+  const T = CEL_STYLE.TUBE, l = lumOf(b);
+  const c = b.map((v) => clamp(l + (v - l) * T.SAT, 0, 1)) as [number, number, number];
+  const k = Math.min(1, T.LCAP / Math.max(lumOf(c), 1e-3), T.VCAP / Math.max(...c, 1e-3));
+  return [c[0] * k, c[1] * k, c[2] * k];
+}
+/** The twin of celTubeTone: the colour of the tube at `across` (hue-preserving lightness steps: shade = base x (1 - SHADE) a touch more saturated, lit = base x (1 + LIT_K), never toward white). */
+export function celTubeColor(base: readonly [number, number, number], across: number, side: readonly [number, number], rDev: number): [number, number, number] {
+  const T = CEL_STYLE.TUBE, t = celTones(across, side, rDev), b = celTubeBase(base);
+  const shadeAmt = (1 - t.mul) / CEL.SHADE, litAmt = t.lift / T.LIT_K;
+  const sh0 = b.map((v) => v * (1 - CEL.SHADE)), ls = lumOf(sh0);
+  const sh = sh0.map((v) => clamp(ls + (v - ls) * T.SHADE_SAT, 0, 1)), li0 = b.map((v) => v * (1 + T.LIT_K)), li = li0.map((v) => v / Math.max(1, ...li0));
+  return b.map((v, i) => { const m = v + (sh[i]! - v) * shadeAmt; return m + (li[i]! - m) * litAmt; }) as [number, number, number];
 }
 /** The lit-side slope of a tube whose cross axis points `side` on the screen: cos to the light, leaned (TUBE_LEAN) and held to -1..1. */
 export const tubeK = (side: readonly [number, number]): number => clamp((side[0] * CEL.DIR[0] + side[1] * CEL.DIR[1]) * CEL_STYLE.TUBE_LEAN, -1, 1);
