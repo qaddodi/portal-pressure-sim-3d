@@ -212,8 +212,8 @@ export class Sinusoid3D {
     this.villi.setTint(mix3(P.cLymph, P.cCell, 0.45));
     this.fibres.setTint(P.cCol);
     this.albumin.setTint(P.cAlb); this.albumin.setInk(deep(P.cAlbE, 0.8));
-    // (a red cell is its own red in two tones with a bold dark line of it, as every solid here)
-    this.rbc.setTint(mix3(P.cRbc, P.cLumen, 0.12)); this.rbc.setInk(deep(P.cRbc, 0.42));
+    // (a red cell is a clear, bright red in two tones with a bold dark line of its own red, as every solid here: 2D's darker red read as brown under the shade, Mohammad 20 Nov "should not be colored brown")
+    this.rbc.setTint(mix3(P.cRbc, [0.96, 0.3, 0.32], 0.45)); this.rbc.setInk(deep(P.cRbc, 0.55));
   }
 
   // ---- the shapes that follow the state (rebuilt at 1/64 steps of it) ------------------------------------------------------------
