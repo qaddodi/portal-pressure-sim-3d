@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { testsPlace, sideWidth, sideFixed, sidewaysWidth, sheetStops, sideVars, SIDE_MAX_H, TESTS_HALF_PX } from '../src/ui/tests/place.ts';
+import { testsPlace, sideWidth, sideFixed, sidewaysWidth, sheetStops, sideVars, SIDE_MAX_H, TESTS_HALF_PX, HALF_SHARE } from '../src/ui/tests/place.ts';
 import { deviceClass } from '../src/ui/layout/device.ts';
 import { useTests } from '../src/ui/tests/store.ts';
 import { appClasses, GRADIENT_PANES } from '../src/ui/tests/dock/app-classes.ts';
@@ -52,8 +52,9 @@ test('placement numbers: the fixed side width, the sideways phone\'s remembered 
   assert.equal(dl, 'phone-landscape');
   assert.ok(Math.abs(testsPlace(ls, dl).rect.w - 379.8) < 1e-9); assert.equal(testsPlace(ls, dl, { widthPx: 430 }).rect.w, 430, 'the divider\'s width is kept');
   assert.ok(testsPlace(ls, dl).rect.h > 150, 'a phone held sideways has the laptop\'s foot, not the thumb dock\'s (the card was 134 px tall)');
-  assert.deepEqual(sheetStops('phone-portrait', 844, 600), [TESTS_HALF_PX, 600]);
-  assert.deepEqual(sheetStops('phone-portrait', 844, 500), [450, 500], 'Half is 90 % of the room at most');
+  assert.deepEqual(sheetStops('phone-portrait', 844, 600), [Math.round(HALF_SHARE * 844), 600], 'Half is 2D\'s 520 px, held under HALF_SHARE of the screen');
+  assert.deepEqual(sheetStops('phone-portrait', 1200, 600), [TESTS_HALF_PX, 600]);
+  assert.deepEqual(sheetStops('phone-portrait', 844, 400), [360, 400], 'Half is 90 % of the room at most');
   assert.deepEqual(sheetStops('tablet-portrait', 1180, 900), [531, 732]);
   assert.equal(testsHalfPx(600, 520, true), 600 - 200 - 56 - 6, 'the vessel card above takes its strip, the figure keeps its band');
   const phone = { w: 390, h: 844, safe: { top: 47, right: 0, bottom: 34, left: 0 } }, dp = deviceClass(phone.w, phone.h);
@@ -229,11 +230,25 @@ test('the glide finds the one chosen button of a control (a fold\'s ghost, a hid
   assert.equal(handOver(keep, 'sheet', [top, null]), true); assert.equal(top.scrollTop, 0);
 });
 
-test('a phone\'s Half is 2D\'s (about 90 % of the room, 520 px at most): a pane is not squeezed into a scroll inside the card', () => {
+test('a phone\'s Half is 2D\'s (about 90 % of the room, 520 px at most) held under HALF_SHARE of the screen: a pane has its content and the card does not open high up', () => {
   const H = 812, R = H - 100 - 90 - 22;
   const [half, full] = sheetStops('phone-portrait', H, R);
   assert.equal(full, Math.round(R));
-  assert.ok(half >= 400 && half <= TESTS_HALF_PX, `Half ${half} is a full pane's worth, as 2D`);
-  assert.equal(half, Math.round(Math.min(0.9, testsHalfPx(R, TESTS_HALF_PX, false) / R) * R));
+  assert.ok(half >= 380 && half <= TESTS_HALF_PX, `Half ${half} is a pane's worth`);
+  assert.ok(half <= Math.round(HALF_SHARE * H));
   assert.equal(sheetStops('phone-portrait', 1400, 1200)[0], TESTS_HALF_PX);
+  // a remembered side-card ratio or a content height never sets a sheet's height: it has its two stops (and Peek)
+  const phone = { w: 390, h: 844, safe: { top: 47, right: 0, bottom: 34, left: 0 } }, dp = deviceClass(phone.w, phone.h);
+  assert.equal(testsPlace(phone, dp, { heightRatio: 0.9 }).rect.h, testsPlace(phone, dp).rect.h);
+  assert.equal(testsPlace(phone, dp, { contentH: 150 }).rect.h, testsPlace(phone, dp).rect.h);
+});
+
+test('the figure is framed in a room as large as the full one, moved to the middle of what the card leaves: opening a card pans, never zooms', async () => {
+  const { panRoom } = await import('../src/ui/tests/place.ts');
+  const phone = { w: 390, h: 844, safe: { top: 47, right: 0, bottom: 34, left: 0 } }, dp = deviceClass(phone.w, phone.h);
+  const room = { x: 0, y: 60, w: 390, h: 640 }, pl = testsPlace(phone, dp);
+  const r = panRoom(room, pl);
+  assert.equal(r.w, room.w); assert.equal(r.h, room.h, 'the same size: the same zoom');
+  assert.ok(r.y < room.y, 'the middle moved up to the free part');
+  assert.deepEqual(panRoom(room, null), room);
 });

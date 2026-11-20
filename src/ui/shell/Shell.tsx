@@ -26,7 +26,7 @@ import { showView } from './view-actions.ts';
 import { useBlood } from '../../scene/blood/options.ts';
 import { useLabels } from '../../scene/labels/store.ts';
 import { useTestsRoom } from '../tests/room.ts';
-import { roomWith } from '../tests/place.ts';
+import { panRoom } from '../tests/place.ts';
 import { TestsLayer } from '../tests/TestsLayer.tsx';
 import { useTestsAppClasses } from '../tests/dock/app-classes.ts';
 import { CompareBanner } from '../compare/CompareUi.tsx';
@@ -61,7 +61,7 @@ function useFreeCamera() {
   const entered = useRef(false);
   useEffect(() => {
     if (mode !== 'free' || vp.w <= 0) { entered.current = false; return; }
-    const room = roomWith(viewRoom(useShell.getState().view, vp, layoutClass(thumb)), testsPlace);
+    const room = panRoom(viewRoom(useShell.getState().view, vp, layoutClass(thumb)), testsPlace);   // (pans, never zooms: place.ts panRoom)
     if (room.w <= 0 || room.h <= 0) return;
     if (!entered.current) { entered.current = true; showView(useShell.getState().view); } else sceneApi.setRoom(room);
   }, [mode, vp, thumb, testsPlace]);
