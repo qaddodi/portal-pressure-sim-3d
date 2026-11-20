@@ -5,8 +5,8 @@
 // What the atlas organs follow from the live patient: the specimen, the spleen's size (the healthy form; the diseased forms are already drawn enlarged) and its ghost after a splenectomy,
 // the ascites volume (the pool's height and its fade-in, the 2D rules' own numbers), the grey of a lens other than Pressure, the body's dissolve (the dive, the Circuit) and the dive's
 // cutaway window. What they do not follow: a live liver shape (the specimens are the three shapes), the spleen's partial-embolization infarct, and the quiet depth of a turn.
-import { BackSide, BufferAttribute, BufferGeometry, Color, DoubleSide, Group, GLSL3, type Mesh as MeshT, Mesh, type Raycaster, RawShaderMaterial, type Texture, Vector3, type Vector2, type Vector4 } from 'three';
-import { ATLAS_FS, ATLAS_INK_FS, ATLAS_INK_VS, ATLAS_VS, stripVersion } from './shaders.ts';
+import { BackSide, BufferAttribute, BufferGeometry, Color, DoubleSide, Group, GLSL3, type Mesh as MeshT, Mesh, type Raycaster, RawShaderMaterial, type Texture, Vector3, type Vector2, Vector4 } from 'three';
+import { ATLAS_ASCITES_FS, ATLAS_FS, ATLAS_INK_FS, ATLAS_INK_VS, ATLAS_VS, stripVersion } from './shaders.ts';
 import { CASING } from '../vessels/cel-ink.ts';
 import type { LookId } from '../../looks/looks.ts';
 import { ATLAS_PALETTE, type AtlasKey } from './palette.ts';
@@ -21,10 +21,10 @@ import { x3, y3 } from '../frame2d.ts';
 /** The organs that never change with the disease (the artist's healthy file); liver, spleen and bowel swap, and the ascites comes with the diseased files. */
 export const FIXED_ORGANS = ['heart', 'heart-ra', 'kidney-l', 'kidney-r', 'duodenum', 'stomach', 'colon'] as const;
 export const SWAP_ORGANS = ['liver', 'spleen', 'bowel'] as const;
-/** Back to front, as the classic layer draws them (the gut last); the pool after all of them. */
-const ORDER = ['heart', 'heart-ra', 'kidney-l', 'kidney-r', 'spleen', 'stomach', 'duodenum', 'liver', 'bowel', 'colon', 'ascites'];
+/** Back to front, as the classic layer draws them (the gut last); the pool BEHIND all of them (it pools round the organs; shaders.ts ATLAS_ASCITES_FS). */
+const ORDER = ['ascites', 'heart', 'heart-ra', 'kidney-l', 'kidney-r', 'spleen', 'stomach', 'duodenum', 'liver', 'bowel', 'colon'];
 /** The artist's alpha for the fluid proxy (the node's extras) and how long a crossfade takes. */
-export const ASCITES_ALPHA = 0.28;
+export const ASCITES_ALPHA = 0.36;
 const FADE_TAU = 0.12;   // seconds
 /** The fluid's full height as a share of the proxy at the fullest belly, and the least it shows at: the proxy is a fixed trapezoid, so a pool is the proxy squeezed up from its floor. */
 const POOL_LEAST = 0.22;
@@ -99,12 +99,15 @@ export class AtlasOrgans {
       if (!(swap || asc || (fixed && s === 'healthy'))) continue;
       const g = geometryOf(m);
       const mat = new RawShaderMaterial({
-        glslVersion: GLSL3, vertexShader: stripVersion(ATLAS_VS), fragmentShader: stripVersion(ATLAS_FS), transparent: true, depthWrite: !asc, side: asc ? DoubleSide : 0,
-        uniforms: {
-          uGrain: { value: this.grain }, uColor: { value: new Color() }, uDark: { value: 0 }, uAlpha: { value: 1 }, uFlat: { value: asc ? 1 : 0 }, cut: this.cut,
+        glslVersion: GLSL3, vertexShader: stripVersion(ATLAS_VS), fragmentShader: stripVersion(asc ? ATLAS_ASCITES_FS : ATLAS_FS), transparent: true, depthWrite: !asc, side: asc ? DoubleSide : 0,
+        uniforms: asc ? {
+          uColor: { value: new Color() }, uAlpha: { value: 1 }, uWash: { value: ASCITES_ALPHA }, uBox: { value: new Vector4(g.boundingBox!.min.y, g.boundingBox!.max.y, g.boundingBox!.min.z, g.boundingBox!.max.z) },
+          uBand: { value: 0.02 }, inkColor: { value: new Color() }, inkA: { value: 0.5 }, cut: this.cut,
+        } : {
+          uGrain: { value: this.grain }, uColor: { value: new Color() }, uDark: { value: 0 }, uAlpha: { value: 1 }, cut: this.cut,
         },
       });
-      const order = Math.max(0, ORDER.indexOf(m.name));
+      const order = ORDER.indexOf(m.name) - 1;   // (the pool is -1, behind the organs)
       const grp = new Group();
       grp.name = asc ? `atlas ascites (${s})` : `atlas ${m.name}`;
       grp.visible = false;
@@ -204,9 +207,9 @@ export class AtlasOrgans {
       this.c.set(pal[key] ?? pal.liver);
       if (this.sat !== 1) { const l = 0.2126 * this.c.r + 0.7152 * this.c.g + 0.0722 * this.c.b; this.c.r = l + (this.c.r - l) * this.sat; this.c.g = l + (this.c.g - l) * this.sat; this.c.b = l + (this.c.b - l) * this.sat; }
       (p.mat.uniforms.uColor!.value as Color).copy(this.c);
-      p.mat.uniforms.uDark!.value = this.dark ? 1 : 0;
       const asc = p.id === 'ascites';
-      let a = this.body * p.mix * (asc ? ASCITES_ALPHA * poolFade(this.ascites) : this.dim);
+      if (!asc) p.mat.uniforms.uDark!.value = this.dark ? 1 : 0;
+      let a = this.body * p.mix * (asc ? poolFade(this.ascites) : this.dim);
       if (p.id === 'spleen') a *= this.spleenGhost;
       p.mat.uniforms.uAlpha!.value = a;
       p.g.visible = this.visible && a > 0.003;
@@ -215,7 +218,14 @@ export class AtlasOrgans {
         (p.inkMat.uniforms.inkColor!.value as Color).setRGB(k.rgb[0] / 255, k.rgb[1] / 255, k.rgb[2] / 255);   // (sRGB as is: the ink pass writes it unconverted, as the cel shaders do)
         p.inkMat.uniforms.inkA!.value = k.a; p.inkMat.uniforms.uAlpha!.value = a;
       }
-      if (asc) { p.g.scale.y = pool; p.g.position.y = p.floorY * (1 - pool); }
+      if (asc) {
+        p.g.scale.y = pool; p.g.position.y = p.floorY * (1 - pool);
+        // the waterline's ink is the look's casing; the meniscus keeps its width on screen as the pool is squeezed
+        const k = CASING[this.look];
+        (p.mat.uniforms.inkColor!.value as Color).setRGB(k.rgb[0] / 255, k.rgb[1] / 255, k.rgb[2] / 255);
+        p.mat.uniforms.inkA!.value = Math.min(0.6, k.a);
+        p.mat.uniforms.uBand!.value = 0.02 / pool;
+      }
       if (p.id === 'spleen') {
         // the healthy form's spleen is the model's size about its centre, as the classic one is (the diseased forms are drawn enlarged already)
         const s = p.specimen === 'healthy' ? this.spleenScale : 1, cx = x3(SPLEEN_CENTER[0]), cy = y3(SPLEEN_CENTER[1]);

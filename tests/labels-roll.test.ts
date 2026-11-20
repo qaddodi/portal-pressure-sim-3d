@@ -60,3 +60,32 @@ test('a second roll before the first ends leaves one old number and holds the ne
   firstIn.onfinish!();
   assert.equal(cur.style.opacity, '0', 'the first roll finishing does not reveal the second\'s number before its animation starts');
 });
+
+// ── a reading that flickers round a rounding boundary swaps in place and never rolls ──
+import { rollsFor, showNumber } from '../src/scene/labels/roll.ts';
+
+test('a change under half an mmHg is swapped in place, a real change rolls', () => {
+  assert.equal(rollsFor('4.6', '4.5'), false);
+  assert.equal(rollsFor('4.5', '4.6'), false);
+  assert.equal(rollsFor('5.1', '4.6'), true);
+  assert.equal(rollsFor('—', '4.6'), false, 'a word is not rolled');
+  assert.equal(rollsFor('4.6', ''), false);
+});
+
+test('a flicker 4.5 / 4.6 / 4.5 leaves exactly one number and no old one, however often it flips', () => {
+  const { box, cur, r } = setup();
+  for (let i = 0; i < 20; i++) showNumber(r, i % 2 ? '4.5' : '4.6', i % 2 ? '4.6' : '4.5');
+  assert.equal(box.children.filter((c) => c.className === 'lb-old').length, 0);
+  assert.equal(cur.anims.length, 0, 'no animation was started');
+  assert.equal(cur.style.opacity, '');
+});
+
+test('a flicker that comes while a real roll is running clears it: the old number is not left under the new one', () => {
+  const { box, cur, r } = setup();
+  showNumber(r, '5.6', '4.5');
+  assert.equal(box.children.filter((c) => c.className === 'lb-old').length, 1);
+  showNumber(r, '5.5', '5.6');
+  assert.equal(box.children.filter((c) => c.className === 'lb-old').length, 0);
+  assert.equal(cur.textContent, '5.5');
+  assert.equal(cur.style.opacity, '');
+});
