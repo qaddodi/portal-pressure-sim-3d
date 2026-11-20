@@ -155,3 +155,15 @@ test('a side branch stays behind its vein for as long as the two overlap and com
     assert.ok(item.dz.length === item.pts.length && item.dz.every(Number.isFinite), b.host);
   }
 });
+
+test('the bed that continues a vein which branches wears no fork collar (root cause of the fat bulb on the left portal vein in the Circuit: the cut stopped counting the pair as a run-on, so the bed was dressed as a branch on a wall, and the Circuit draws the beds)', async () => {
+  const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
+  for (const id of ['PRE_L', 'PRE_R', 'POST_R_RHV', 'POST_L_LHV']) { const v = B.get(id); if (v) assert.ok(!v.flare?.[0] && !v.flare?.[1], `${id} has no collar`); }
+});
+
+test('flow marks hold back inside the vessel a tube leaves: the shader multiplies the chevrons and the streaks by the buried share', async () => {
+  const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
+  assert.match(VESSEL_FS, /float markK\(float d0, float d1\)/);
+  assert.match(VESSEL_FS, /float sOn = markK\(/);
+  assert.match(VESSEL_FS, /float fade = markK\(/);
+});

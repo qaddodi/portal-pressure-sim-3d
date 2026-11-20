@@ -242,6 +242,9 @@ export const MAPPED: readonly NetVessel[] = NETWORK.filter((v) => !v.feeder);
   for (const r of RUN_ONS) { runOn.add(`${r.a}|${r.ia}`); runOn.add(`${r.b}|${r.ib}`); }
   for (const list of at.values()) {
     if (list.length < 3) continue;
+    // (a vein that branches is one tube to its tip: the bed it used to run on into still continues it, so it is not a branch on a wall and wears no collar. Without this the left portal vein's bed grew a fork collar the cut had stopped
+    //  counting as a run-on: in the Circuit, where the beds are drawn, a fat bulb with a slanted end stood on the vein; Mohammad, 20 Nov: "wtf happened to LPV here")
+    if (list.some((e) => cutEnd(e.v.id) === e.end)) continue;
     const mains = list.filter((e) => e.v.kind !== 'collateral');
     // (a trunk drawn faint, the cava behind the organs, has no wall to blend into: the collar would show as a bulb on the branch's end)
     if (list.some((e) => IVC_EDGES.has(e.v.id))) continue;
