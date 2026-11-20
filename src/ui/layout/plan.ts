@@ -34,7 +34,7 @@ export interface Plan {
   strip: Strip | null;
   /** The data card is closed to a strip because the figure and the words need the room (iPhone upright). */
   shut: boolean;
-  /** The reader put the data card away (2D's dock: a swipe up on it, a tap on its edge brings it back): it stands as a strip at the top and the figure has the room it left (a phone or an upright iPad, both cards up). */
+  /** The reader put the data card away (2D's dock: a swipe up on it, a tap on its edge brings it back): it stands as a GRIP-px edge at the top and the figure has the room it left (a phone or an upright iPad, both cards up). */
   docked: boolean;
   /** The largest empty rectangle the cards leave: the figure's room. */
   free: Rect;
@@ -154,7 +154,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
       // 2D's dock: the reader's choice (kept from slide to slide) puts the data card away to its edge at the top; the words stay where they are
       docked = dock && !!data && !!words;
       if (data && !docked) placed.push({ id: data.id, slot: 'data', rect: { x, y: dtop, w, h: dh } });
-      if (data && docked) strip = { id: data.id, slot: 'data', rect: { x, y: dtop, w, h: STRIP_H } };
+      if (data && docked) strip = { id: data.id, slot: 'data', rect: { x, y: dtop, w, h: GRIP } };   // (2D's closed data card: its edge, GRIP px)
       if (words) placed.push({ id: words.id, slot: 'words', rect: { x, y: Math.round(bottom - wh), w, h: wh } });
     } else {
       const shown = active === 'data' ? data! : words!, other = shown === data ? words! : data!;
