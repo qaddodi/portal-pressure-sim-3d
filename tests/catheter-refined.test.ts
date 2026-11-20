@@ -126,3 +126,46 @@ test('no kink: every route turns by less than a radian over two steps of its own
     assert.ok(worst < (kind === 'hvpg' || kind === 'tips' ? 0.5 : 1.1), `${kind}: sharpest turn ${worst.toFixed(2)} rad`);
   }
 });
+
+// ---- the stray hairline (owner, 20 Nov 2026: "wtf is that line from the balloon?") -------------------------------------------------------------------------------------------------------------------
+// Root cause: the balloon's two glints were allocated 8-sided (the sides fix) and still written 6-sided, so each ring filled 7 of its 9 vertex slots and the rest stayed at the origin, the figure's centre: a thin black
+// triangle from the balloon to the portal confluence. A tube's sides are now the tube's own (allocTube keeps them), so no caller can disagree, and no vertex of any catheter part may lie away from its route.
+import { allocTube, makeRings, writeRings } from '../src/scene/devices/tube-rings.ts';
+import { createShared } from '../src/scene/materials/cel.ts';
+import { ProcCatheter, CATHETER_IDLE } from '../src/scene/devices/catheters/proc-catheter.ts';
+
+test('a tube is written with the sides it was allocated with, whatever the caller passes: no ring leaves a vertex at the origin', () => {
+  const rings = makeRings(5);
+  rings.forEach((q, i) => { q.c.set(1 + i, 2, 3); q.t.set(1, 0, 0); q.r = 0.1; });
+  const g = allocTube(5, 24);
+  writeRings(g, rings, 6);
+  const pa = g.getAttribute('position');
+  for (let i = 0; i < pa.count; i++) assert.ok(Math.hypot(pa.getX(i) - (1 + Math.floor(i / 25)), pa.getY(i) - 2, pa.getZ(i) - 3) < 0.11, `vertex ${i} sits on its ring`);
+});
+
+for (const [kind, st] of [['hvpg', { u: 1, balloon: 1, column: 1, opacity: 1 }], ['hvpg', { u: 0.6, balloon: 0.5, column: 0.3, opacity: 1 }], ['tips', { u: 1, balloon: 0, column: 0, opacity: 1, needle: 0.9, wire: 0.95, flash: 0.4 }], ['brto', { u: 1, balloon: 1, column: 0.8, opacity: 1 }]] as const) {
+  test(`${kind} (${JSON.stringify(st)}): no vertex of any drawn catheter part lies away from its route, at built and at a narrowed live width`, () => {
+    for (const live of [false, true]) {
+      const r3 = route3d(kind)!, c = new ProcCatheter(r3, createShared());
+      if (live) c.setLive(diameters(kind, 0.45));
+      c.set({ ...CATHETER_IDLE, ...st });
+      const pts: Vector3[] = [];
+      for (let d = 0; d <= r3.route.total; d += 2) pts.push(r3.point(d));
+      const v = new Vector3(), bad: string[] = [];
+      c.group.traverse((m) => {
+        const mesh = m as unknown as { isMesh?: boolean; geometry: { getAttribute(n: string): { count: number } & Record<string, never> }; parent: { position: Vector3; quaternion: import('three').Quaternion; scale: Vector3 } };
+        if (!mesh.isMesh) return;
+        let shown = true;
+        for (let p: { visible?: boolean; parent?: unknown } | null | undefined = m; p; p = p.parent as typeof p) if (p.visible === false) shown = false;
+        if (!shown) return;
+        const pa = mesh.geometry.getAttribute('position') as unknown as import('three').BufferAttribute, M = new (v.constructor as typeof Vector3)();
+        void M;
+        const mat = new (m.matrixWorld.constructor as typeof import('three').Matrix4)().compose(mesh.parent.position, mesh.parent.quaternion, mesh.parent.scale);
+        let far = 0;
+        for (let i = 0; i < pa.count; i++) { v.fromBufferAttribute(pa, i).applyMatrix4(mat); let best = Infinity; for (const p of pts) best = Math.min(best, p.distanceTo(v)); if (best > 0.12) far++; }
+        if (far) bad.push(`${far} of ${pa.count} vertices`);
+      });
+      assert.deepEqual(bad, [], `${kind}${live ? ' (narrowed)' : ''}: ${bad.join('; ')}`);
+    }
+  });
+}

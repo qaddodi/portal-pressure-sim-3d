@@ -16,7 +16,7 @@ export const makeRings = (n: number): Ring[] => Array.from({ length: n }, () => 
 /** Allocates the geometry for `n` rings with `radial` vertices round each. */
 export function allocTube(n: number, radial: number): BufferGeometry {
   const g = new BufferGeometry(), v = n * (radial + 1);
-  g.userData.ringTube = true;
+  g.userData.ringTube = true; g.userData.radial = radial;
   g.setAttribute('position', new BufferAttribute(new Float32Array(v * 3), 3));
   g.setAttribute('normal', new BufferAttribute(new Float32Array(v * 3), 3));
   g.setAttribute('tang', new BufferAttribute(new Float32Array(v * 3), 3));
@@ -34,7 +34,10 @@ export function allocTube(n: number, radial: number): BufferGeometry {
 
 const n1 = new Vector3(), n2 = new Vector3(), d = new Vector3(), tt = new Vector3();
 /** Writes the rings into the geometry allocated for them. `u0` and `u1` set uv.x along the rings (a part of a longer route keeps the route's own fractions); `us` gives it ring by ring (rings that are not evenly spaced). */
-export function writeRings(g: BufferGeometry, rings: readonly Ring[], radial: number, u0 = 0, u1 = 1, us?: ArrayLike<number>): void {
+export function writeRings(g: BufferGeometry, rings: readonly Ring[], radialArg: number, u0 = 0, u1 = 1, us?: ArrayLike<number>): void {
+  // (the sides a tube was allocated with are the tube's own, `userData.radial`: a caller that passes another number would fill part of each ring and leave the rest of its vertices at the origin, a hairline from the tube to the figure's
+  //  centre (20 Nov 2026, the balloon's glints, allocated 8-sided and written 6): the argument is only for a geometry made elsewhere)
+  const radial = (g.userData.radial as number | undefined) ?? radialArg;
   const pos = g.getAttribute('position') as BufferAttribute, nor = g.getAttribute('normal') as BufferAttribute, tan = g.getAttribute('tang') as BufferAttribute, uv = g.getAttribute('uv') as BufferAttribute;
   const n = rings.length;
   for (let i = 0; i < n; i++) {
@@ -61,7 +64,8 @@ export function writeRings(g: BufferGeometry, rings: readonly Ring[], radial: nu
 }
 
 /** The part of a tube between ring `i0` and ring `i1` (draw range over its index buffer): a column that fills part of a route without rebuilding. */
-export function showRings(g: BufferGeometry, i0: number, i1: number, radial: number): void {
+export function showRings(g: BufferGeometry, i0: number, i1: number, radialArg: number): void {
+  const radial = (g.userData.radial as number | undefined) ?? radialArg;
   const a = Math.max(0, Math.floor(i0)), b = Math.max(a, Math.floor(i1));
   g.setDrawRange(a * radial * 6, Math.max(0, (b - a) * radial * 6));
 }
@@ -74,7 +78,7 @@ export function mergeTubes(paths: readonly (readonly Ring[])[], radial: number):
   let vTotal = 0, iTotal = 0;
   for (const g of parts) { vTotal += g.getAttribute('position').count; iTotal += g.index!.count; }
   const out = new BufferGeometry();
-  out.userData.ringTube = true;
+  out.userData.ringTube = true; out.userData.radial = radial;
   const attr = (name: string, size: number) => { const a = new Float32Array(vTotal * size); out.setAttribute(name, new BufferAttribute(a, size)); return a; };
   const P = attr('position', 3), N = attr('normal', 3), T = attr('tang', 3), U = attr('uv', 2), I = new Uint32Array(iTotal);
   let vo = 0, io = 0;

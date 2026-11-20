@@ -225,7 +225,7 @@ export function route3d(kind: string): Route3D | null {
   const zAt = (d: number): number => { const [i, u] = bracket(d); return z[i - 1]! + (z[i]! - z[i - 1]!) * u; };
   const offAt = (d: number, o: Vector3): Vector3 => { const [i, u] = bracket(d); return o.set(o.x + offX[i - 1]! + (offX[i]! - offX[i - 1]!) * u, o.y + offY[i - 1]! + (offY[i]! - offY[i - 1]!) * u, o.z); };
   const pt = { p: [0, 0] as [number, number], t: [1, 0] as [number, number], w: [0, 0] as [number, number], r: 0 };
-  const A = new Vector3(), B = new Vector3();
+  const A = new Vector3(), B = new Vector3(), C = new Vector3();
   const centre = (d: number, o = new Vector3()): Vector3 => {
     routeAt(r, d, pt); const [i, u] = bracket(d);
     const zz = z0[i - 1]! + (z0[i]! - z0[i - 1]!) * u;
@@ -244,7 +244,7 @@ export function route3d(kind: string): Route3D | null {
     if (!anyNarrow) return o;
     const k = Math.min(1, swellAt(d));
     if (k >= 0.9999) return o;
-    return o.lerpVectors(centre(d, B), o, k);
+    return o.lerpVectors(centre(d, C), o, k);   // (its own scratch: `dir` passes B as the out, and a shared one would hand back the centre itself)
   };
   const out: Route3D = {
     route: r, z, pos,
