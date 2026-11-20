@@ -1,7 +1,8 @@
 // The label layer: the figure's station pills, their leaders, the catheter's reading cards and the colour key, drawn as DOM over the canvas
 // and moved by the clock. React builds the skeleton once; the clock's `tags` phase writes transform and opacity straight on the elements
 // (never through React state). The decisions (what is shown, where, when) are in controller.ts, the solver, the fader.
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { reduced } from '../../ui/a11y/motion.ts';
 import './labels.css';
 import { clock } from '../../clock/frame.ts';
 import { latest, patient, indexOf } from '../../engine/index.ts';
@@ -91,6 +92,8 @@ export function LabelLayer() {
   const applyTypeRef = useRef<() => void>(() => {});
   useEffect(() => { applyTypeRef.current(); }, [lookId]);
   const model = useMemo(() => keyModel(key, scheme), [key, scheme]);
+  // The key never pops: one that goes (no key, or another lens) stays drawn while the layer eases its pill out (the controller's alpha), and a lens that follows another fades in over the old one fading out.
+  const { now: keyNow, leaving: keyOut } = useKeyBlend(model);
   const vpNow = useUi((s) => s.vp);
 
   // a lens key can be asked for by the address while the lenses are not built yet: ?key=velocity
@@ -118,6 +121,7 @@ export function LabelLayer() {
       pressure: (node) => { const f = latest.frame, i = NODE_AT.get(node); return f && i !== undefined ? (f.Pf[i] ?? null) : null; },
       reading: (k) => ui.getState().readings[k] ?? null,
       hidden: () => cel.circuit.t > 0 || cel.circuit.toCircuit,
+      anatomy: () => cel.view === 'body' && cel.circuit.t === 0 && !cel.circuit.toCircuit,
       // the varices and the fundal varices: 2D's hasVarices (a label only where the patient has them; the one whose card is open stays)
       present: (id) => {
         const sel = useSelection.getState().sel, m = (latest.frame as unknown as { metrics?: { varix?: { present?: boolean }; gastricVarix?: { present?: boolean; d?: number } } } | null)?.metrics;
@@ -190,7 +194,7 @@ export function LabelLayer() {
     // ── state in ──
     const pushState = () => {
       const l = useLabels.getState();
-      ctl.setState({ named: l.named, shown: l.shown, tones: l.tones, picked: usePick.getState().picked, cath: l.cath, organNames: l.organNames, quiet: l.quiet, proc: l.proc, key: l.key });
+      ctl.setState({ named: l.named, shown: l.shown, tones: l.tones, picked: usePick.getState().picked, cath: l.cath, organNames: l.organNames, quiet: l.quiet, panel: l.panel, proc: l.proc, key: l.key });
       clock.invalidate('labels-state');
     };
     pushState();
@@ -234,9 +238,12 @@ export function LabelLayer() {
   return (
     <>
       <div ref={layer} className="lb-layer" aria-hidden="true">
-        <div ref={keyHost} className="lb-key-wrap">{model && <KeyBody model={model} vp={vpNow} />}</div>
+        <div ref={keyHost} className="lb-key-wrap">
+          {keyOut && <KeyBody key={`out:${keyOut.lens}`} model={keyOut} vp={vpNow} fade="out" />}
+          {keyNow && <KeyBody key={keyNow.lens} model={keyNow} vp={vpNow} fade={keyOut ? 'in' : undefined} />}
+        </div>
         {/* its twin: never wrapped, never seen; reports the key's size on one line, which is what the dock decides by */}
-        <div className="lb-key-probe">{model && <KeyBody model={model} vp={vpNow} twin />}</div>
+        <div className="lb-key-probe">{keyNow && <KeyBody model={keyNow} vp={vpNow} twin />}</div>
       </div>
       <VesselWalk />
     </>
@@ -299,10 +306,29 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
 }
 
 /** The key's pill: the lens named, then its scale or its named swatches (the 2D app's presenter.js keyNodes). */
-function KeyBody({ model, vp, twin = false }: { model: NonNullable<ReturnType<typeof keyModel>>; vp: ReturnType<typeof useUi.getState>['vp']; twin?: boolean }) {
+type KeyM = NonNullable<ReturnType<typeof keyModel>>;
+const KEY_BLEND_MS = 240;
+/** The key on show, kept through its fade-out, and the one it replaces while it cross-fades (nothing pops). */
+function useKeyBlend(model: KeyM | null): { now: KeyM | null; leaving: KeyM | null } {
+  const last = useRef<KeyM | null>(model);
+  const [leaving, setLeaving] = useState<KeyM | null>(null);
+  useEffect(() => {
+    const was = last.current;
+    if (!model) return;
+    last.current = model;
+    if (!was || was.lens === model.lens) return;
+    if (reduced()) return;
+    setLeaving(was);
+    const t = setTimeout(() => setLeaving(null), KEY_BLEND_MS + 40);
+    return () => clearTimeout(t);
+  }, [model]);
+  return { now: model ?? last.current, leaving: leaving && model && leaving.lens !== model.lens ? leaving : null };
+}
+
+function KeyBody({ model, vp, twin = false, fade }: { model: KeyM; vp: ReturnType<typeof useUi.getState>['vp']; twin?: boolean; fade?: 'in' | 'out' }) {
   const grad = !!model.scale;
   return (
-    <div className={twin ? 'lb-key lb-key-twin' : 'lb-key'} role={twin ? undefined : 'img'} aria-label={twin ? undefined : model.aria} aria-hidden={twin ? true : undefined}
+    <div className={twin ? 'lb-key lb-key-twin' : `lb-key${fade ? ` lb-key-${fade}` : ''}`} role={twin ? undefined : 'img'} aria-label={twin ? undefined : model.aria} aria-hidden={twin ? true : undefined}
       data-lens={model.lens} data-grad={grad ? '' : undefined} style={keyVars(vp, grad) as React.CSSProperties}>
       <b>{model.name}</b>
       {model.scale && (model.scale.ends

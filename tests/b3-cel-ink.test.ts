@@ -15,11 +15,11 @@ const INK_RE = new RegExp(esc(`clamp(${F(CEL_STYLE.LINE_R)} * rDevV, ${F(CEL_STY
 test('the outline is LINE_R of the radius held between LINE_MIN and LINE_MAX device px: a hairline keeps a line, the trunk does not grow a rope', () => {
   const { LINE_R, LINE_MIN, LINE_MAX } = CEL_STYLE;
   assert.equal(inkWidthDev(LINE_MIN / LINE_R / 2 + 1), LINE_MIN, 'the floor');
-  assert.equal(inkWidthDev(LINE_MIN / LINE_R), LINE_MIN);
+  assert.ok(Math.abs(inkWidthDev(LINE_MIN / LINE_R) - LINE_MIN) < 1e-9);
   const mid = (LINE_MIN + LINE_MAX) / 2 / LINE_R;
   assert.ok(Math.abs(inkWidthDev(mid) - (LINE_MIN + LINE_MAX) / 2) < 1e-9, 'in between it is LINE_R of the radius');
   assert.equal(inkWidthDev(4 * LINE_MAX / LINE_R), LINE_MAX, 'the cap');
-  assert.ok(LINE_MIN >= 2 && LINE_MAX <= 3, 'a bold line, 2 to 3 device px');
+  assert.ok(LINE_MIN >= 3 && LINE_MAX <= 6.5, 'a confident line, 3 to 6 device px (Mohammad, 20 Nov: veins outlines thicker everywhere)');
   assert.match(VESSEL_VS, INK_RE);
 });
 

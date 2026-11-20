@@ -31,6 +31,8 @@ export interface LabelsState {
   key: string | null;
   /** A procedure that wants the figure's names out of its way while it works (2D proc-anim.js `quiet`: the EUS-PPG's and the IR pressures' needles). */
   quiet: boolean;
+  /** A centred panel (the outline, a table, a chart, the quick check) stands over the figure: its names stand aside, as they do for the catheter (they ease out, and back). */
+  panel: boolean;
   proc: ProcCards | null;
   /** Blood menu option: organ names on the figure (off until the Blood menu lands in batch B1/B3). */
   organNames: boolean;
@@ -38,7 +40,7 @@ export interface LabelsState {
 }
 
 export const useLabels = create<LabelsState>((set) => ({
-  named: new Set(), shown: new Set(), tones: {}, cath: null, key: null, organNames: false, quiet: false, proc: null,
+  named: new Set(), shown: new Set(), tones: {}, cath: null, key: null, organNames: false, quiet: false, panel: false, proc: null,
   set: (p) => set(p),
 }));
 

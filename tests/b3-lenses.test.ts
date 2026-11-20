@@ -260,3 +260,15 @@ test('a lens that gives a vessel one colour still changes gradually: every vein 
     }
   }
 });
+
+test('every drawn vessel that carries a vein\'s blood keeps its chevrons exactly when that vein does: the liver branches and tributary fans are their vein\'s story (root cause: they are not engine edges, so the key rule found nothing under "Key chevrons only")', async () => {
+  const { NETWORK } = await import('../src/scene/vessels/network.ts');
+  let n = 0;
+  for (const v of NETWORK) {
+    if (!v.feeder) continue;
+    assert.equal(keyChevron(v.id), keyChevron(v.host), `${v.id} follows ${v.host}`);
+    n++;
+  }
+  assert.ok(n >= 3);
+  for (const id of ['PVH_R_2~F:b', 'PVH_L_1~F:b', 'RHV_IVC_1~F:b']) assert.equal(keyChevron(id), true, `${id} keeps its chevrons in "key chevrons only"`);
+});
