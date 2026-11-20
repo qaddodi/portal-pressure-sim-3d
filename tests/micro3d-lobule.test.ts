@@ -150,3 +150,12 @@ test('every end-on vessel is a pool full to the brim with its colour: one flat t
   const src = (await import('node:fs')).readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
   for (const k of ['Pv', 'Ha', 'Bd', 'Lv', 'Cv']) assert.match(src, new RegExp(`mouths\\(this\\.mouth${k}, [^\\n]*, true, `), k);
 });
+
+test('every fluid of the 3D lobule is seen to move at the fit: streaks in every vessel (the blood\'s with Settings > Blood streaks), dark heads fading with the view', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/scene/micro3d/lobule3d.ts', import.meta.url), 'utf8');
+  assert.match(src, /const bs = useSettings\.getState\(\)\.particles \? soft\(0\.6\) : 0;/);
+  for (const part of ['this.inlets', 'this.twigs', 'this.sin.an']) assert.match(src, new RegExp(`${part.replace(/\./g, '\\.')}\\.setFlow\\([^;]*, soft\\(1\\), bs,`));
+  assert.match(src, /this\.lt\.setFlow\([^;]*soft\(0\.8\)/);
+  assert.match(src, /this\.bile\.setFlow\([^;]*soft\(0\.85\)/);
+});

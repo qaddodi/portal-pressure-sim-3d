@@ -107,6 +107,11 @@ export function arcSize(ra: number, rb: number): number {
   return Math.min(1, Math.log(ratio / DIVE_RATIO + 1) / Math.log(200 / DIVE_RATIO + 1));
 }
 const geo = (a: number, b: number, k: number) => (a > 0 && b > 0 ? a * Math.pow(b / a, k) : lerp(a, b, k));
+/** The room's share in a dive (blendDive's q) at the pose `c` between `a` and `b`. */
+function roomShareOf(a: Pose, b: Pose, c: Pose): number {
+  const span = a.shot.r - b.shot.r;
+  return Math.abs(span) < 1e-12 ? 1 : Math.min(1, Math.max(0, (a.shot.r - c.shot.r) / span));
+}
 function blendDive(a: Pose, b: Pose, k: number, arc = 1): Pose {
   const swing = arc * arcSize(a.shot.r, b.shot.r) * arcBell(k);
   const r = geo(a.shot.r, b.shot.r, k);
@@ -161,6 +166,9 @@ export class CameraRig {
   private bump = 0;
   private bumpFrom = 0;
   private plunge = false;
+  /** The share of the way the room has gone in the move now (see update). */
+  private roomP = 0;
+  private lateRoom: { from: Room; e0: number } | null = null;
   private width = 1;
   private height = 1;
   private dirty = true;
@@ -254,8 +262,18 @@ export class CameraRig {
       let vx = this.vel.x * newDur, vy = this.vel.y * newDur, vl = this.vel.lh * newDur;
       const w = a.half[0] + s.half[0], mv = Math.hypot(vx / w, vy / w, vl / (2 * Math.LN2)), md = Math.hypot(dx / w, dy / w, dl / (2 * Math.LN2));
       if (mv > 1e-9 && md > 1e-9) {
-        const f = Math.min(1, (2.5 * md) / mv);   // (never carry so much that the curve overshoots its target)
-        vx *= f; vy *= f; vl *= f; hv = { x: vx, y: vy, lh: vl };
+        // only the part of the speed that already heads to the new framing is carried, along the straight way there: the path stays one straight shot. Carrying the whole
+        // velocity (sideways or backwards parts too) bent the path out and back, the zigzag of a slide that retargets while the camera still moves (outline -> first slide).
+        const along = ((vx / w) * (dx / w) + (vy / w) * (dy / w) + (vl / (2 * Math.LN2)) * (dl / (2 * Math.LN2))) / (md * md);
+        if (along > 1e-6) {
+          const f = Math.min(along, 2.5);   // (never carry so much that the curve overshoots its target)
+          hv = { x: dx * f, y: dy * f, lh: dl * f };
+        } else {
+          // the new framing is behind or beside the way it was going: a straight line would stop dead (a jolt), so the old speed runs out over one short bulge (half the speed it had,
+          // never more than the old cap) and the camera turns back once, smoothly: one bend, never a zig and a zag
+          const f = Math.min(0.5, (2.5 * md) / mv);
+          hv = { x: vx * f, y: vy * f, lh: vl * f };
+        }
       }
     }
     this.hv = hv;
@@ -269,7 +287,7 @@ export class CameraRig {
     // the lens: a plunge into the figure (the body to the lobule or the sinusoid, or back) widens it and narrows it again (dive.ts); Reduce Motion keeps the long lens throughout
     this.bumpFrom = this.bump;
     this.plunge = LENS_SWELL && !(this.reduceMotion || reduced()) && Math.max(this.from.shot.r, this.to.shot.r) / Math.max(1e-9, Math.min(this.from.shot.r, this.to.shot.r)) > PLUNGE_RATIO;
-    this.t0 = carry > 0 || hv ? now - 16 : now; this.eNow = 0;   // (carrying speed: the first frame is one frame in, so the retarget frame is not a stand-still)
+    this.t0 = carry > 0 || hv || (this.active && this.vel.on) ? now - 16 : now; this.eNow = 0; this.roomP = 0; this.lateRoom = null;   // (carrying speed: the first frame is one frame in, so the retarget frame is not a stand-still)
     this.dur = reducedMs(ms * (this.long ? this.long.stretch : 1), this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
     this.orbitTo = keepHand ? (this.active ? this.orbitTo : this.orbit) : 0;
     this.orbitFrom = this.orbit;
@@ -284,7 +302,16 @@ export class CameraRig {
     // a card opening in the middle of a dive keeps the dive's own time: it lands when it was going to, in the new room (not a fresh 950 ms from a standstill)
     // a move in flight whose room alone changes (a card opening or closing): the same move, the same clock and the same curve, with only its destination room swapped, so the picture never stops or restarts
     if (this.active && ms == null && !homeTurn && this.dur > 0) {
-      const e = this.eNow;
+      // (the room's own share, not the clock's: in a dive the room follows the aim (q). Rebuilding it with the clock's share made the picture jump each time a card arrived mid-dive,
+      //  a zoom-out and a shift right per card: the Lobule -> Sinusoid staircase)
+      const e = this.roomP;
+      if (e >= 0.98 && this.eNow < 0.98) {
+        // (in a dive diving in, the room's share runs ahead of the clock: it can be home while the move still has a while to go. Rebuilding from a share that near 1 would throw
+        //  the room far off; instead the rest of the room's way runs on the move's own clock from where it is, so it lands with the move, and nothing jumps)
+        this.lateRoom = { from: copyRoom(this.cur.room), e0: this.eNow };
+        this.to.room = copyRoom(room); this.dirty = true;
+        return;
+      }
       if (e < 0.98) {
         const c = this.cur.room, r = room;
         this.from.room = { x: (c.x - e * r.x) / (1 - e), y: (c.y - e * r.y) / (1 - e), w: (c.w - e * r.w) / (1 - e), h: (c.h - e * r.h) / (1 - e) };
@@ -384,6 +411,12 @@ export class CameraRig {
       const e = easeCarry(k, this.carry);
       this.eNow = e;
       this.cur = blendPose(this.from, this.to, e, 0);
+      // the share of the way the room has gone (blendPose: e, or in a dive the aim's share q): what setRoom must rebuild a retargeted room from, or the picture jumps
+      this.roomP = isDive(this.from, this.to) ? roomShareOf(this.from, this.to, this.cur) : e;
+      if (this.lateRoom) {   // a card that came after the room had all but arrived (see setRoom): the room goes the rest of the way on the clock, from where it was
+        const L = this.lateRoom, u = easeMove(Math.min(1, Math.max(0, (e - L.e0) / Math.max(1e-6, 1 - L.e0)))), c = this.cur.room = copyRoom(this.cur.room), b = this.to.room;
+        c.x = lerp(L.from.x, b.x, u); c.y = lerp(L.from.y, b.y, u); c.w = lerp(L.from.w, b.w, u); c.h = lerp(L.from.h, b.h, u);
+      }
       if (this.hv && e < 1) this.hermiteAim(k);
       this.sampleVel(now);
       if (this.long && e < 1) this.long.at(e, this.cur.shot);

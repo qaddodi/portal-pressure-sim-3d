@@ -17,8 +17,17 @@ import type { LookId } from '../../looks/looks.ts';
 
 /** The tile's lobule radius in pixels (2D's FIELD_RS step that a lobule on an iPad's screen uses). */
 export const FIELD_TILE_R = 160;
-/** The field's half side, in lobule radii: past every screen at the widest the hand can pull the lobule out. */
-export const FIELD_HALF = 12;
+/** The field's half side, in lobule radii: past every screen through the whole dive, from where the body begins to dissolve (the camera DIVE_OUT from the liver's point, about 950 lobule radii away)
+ *  to the landing, so the liver's inside is lobules to every edge however far out the camera is (a single quad: the tile repeats, its mips keep the far ones calm). */
+export const FIELD_HALF = 900;
+/** The dive's breadth (0 at the lobule's framing, 1 from FIELD_WIDE_FAR of it out): how far the field reaches past the lobule in focus. At the framing it fades into the page from 1.1 of the lobule's
+ *  radius as 2D's does; as the camera draws back it reaches the screen's edges, so from afar the liver's inside is hex lobules everywhere, never a patch on an empty page (Mohammad, 20 Nov 2026). */
+export const FIELD_WIDE_NEAR = 1.15, FIELD_WIDE_FAR = 3;
+export function fieldWide(d: number, rest: number): number {
+  if (!(rest > 0) || !Number.isFinite(d)) return 0;
+  const t = Math.min(1, Math.max(0, Math.log(d / (rest * FIELD_WIDE_NEAR)) / Math.log(FIELD_WIDE_FAR / FIELD_WIDE_NEAR)));
+  return t * t * (3 - 2 * t);
+}
 export const FIELD_Z = PLATE_Z - 0.1;
 
 /** The field's state as 2D quantizes it (lobule-zoom-field.js fsQ: eighths, with a little hysteresis so a value on a step does not flip tiles). */
@@ -80,6 +89,7 @@ uniform sampler2D tile;
 uniform vec3 bg;
 uniform vec2 grey;
 uniform float ready;
+uniform float wide;   // the dive's breadth (fieldWide): 0 at the lobule's framing (the field fades into the page past the lobule), 1 from afar (lobules to every edge of the screen)
 uniform float soft;   // the dive's focus (camera/dive.ts fieldSoft): 1 as the camera comes in, the neighbours out of focus; 0 once it has landed
 varying vec2 vLob;
 varying vec4 vClip;
@@ -97,7 +107,7 @@ void main() {
   float rd = max(1e-4, length(e - c)), d = length(p - c);
   // depth of field (lobule-look.js fieldDof at rest): sharp to 2.4 rd, 1.6 mip levels softer by 10 rd (or 0.6 of the diagonal)
   float diag = 2.0 * length(sc), r0d = rd * 2.4, r1d = max(r0d + 1e-3, min(rd * 10.0, diag * 0.6));
-  float bias = 1.6 * smoothstep(r0d, r1d, d) + 4.0 * soft;
+  float bias = mix(1.6 * smoothstep(r0d, r1d, d), 0.0, wide) + 4.0 * soft * (1.0 - 0.6 * wide);   // (from afar the mips alone keep the far tiles calm: the hexes read as a pattern, then blur, then resolve as the camera lands)
   vec2 uv = vec2(vLob.x / 6.0, vLob.y / 3.4641016151377544);
   vec3 col = texture2D(tile, uv, bias).rgb;
   // the neighbours in the same three flat tones as the lobule (cel.ts), about their own local lightness; the blur they are drawn at softens the edge, and they carry no ink: they stay quiet
@@ -119,7 +129,7 @@ void main() {
   float r1 = max(r0 * ${FADE_SPAN.toFixed(6)}, r0 + max(0.0, reach - r0) / s);
   // (the fade is laid as transparency over the page, which is the same picture at rest, where the page is all there is behind it; on the way in, while the
   // body still shows, the field comes in as the lobule grows on screen, as 2D's dive field does, instead of standing as a square in the liver)
-  float a = (1.0 - fadeAt(d, r0, r1)) * smoothstep(0.05, 0.25, rd) * ready;
+  float a = mix((1.0 - fadeAt(d, r0, r1)) * smoothstep(0.05, 0.25, rd), 1.0, wide) * ready;
   gl_FragColor = vec4(col, a);
 }`;
 
@@ -134,7 +144,7 @@ export class NeighbourField {
     this.mk = mk;
     this.mat = new ShaderMaterial({
       vertexShader: LOBULE_FIELD_VS, fragmentShader: LOBULE_FIELD_FS,
-      uniforms: { tile: { value: blankTexture() }, bg: { value: new Color() }, grey: { value: new Vector2(1, 1) }, ready: { value: 0 }, soft: { value: 0 } },
+      uniforms: { tile: { value: blankTexture() }, bg: { value: new Color() }, grey: { value: new Vector2(1, 1) }, ready: { value: 0 }, soft: { value: 0 }, wide: { value: 0 } },
       transparent: true, depthWrite: false,
     });
     const side = 2 * FIELD_HALF * LOBULE_R;
@@ -167,6 +177,9 @@ export class NeighbourField {
   /** The surround's grey in a lens other than Pressure, k 0 (as drawn) … 1 (the lens's grey liver): 2D's surroundGrade. */
   /** The dive's focus, 0 sharp to 1 out of focus (the neighbours resolve as the camera lands). */
   setSoft(k: number): void { this.mat.uniforms.soft!.value = k; }
+  /** The dive's breadth (fieldWide): 0 at the lobule's framing, 1 from afar. */
+  setWide(k: number): void { this.mat.uniforms.wide!.value = k; }
+  get wideNow(): number { return this.mat.uniforms.wide!.value as number; }
   get softNow(): number { return this.mat.uniforms.soft!.value as number; }
   setGrey(k: number): void {
     const g = surroundGrade(k) as [number, number];

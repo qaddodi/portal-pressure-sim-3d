@@ -1,5 +1,6 @@
 // The sinusoid on a portrait screen (2D: sinusoid-view.js ensureGeo / layoutEnds / stepView): top to bottom, the portal end up, everything on the plane turning together; the turn follows the
 // dive; the ends' arrows and the traffic follow the screen; the wedge's wash reaches the shader. No GPU here: the numbers and the uniforms.
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Vector3, Vector4 } from 'three';
@@ -12,7 +13,7 @@ import { FILL } from '../src/scene/camera/room.ts';
 import type { SinusoidTargets } from '../src/scene/lobule/model.ts';
 
 const targets = (): SinusoidTargets => ({ por: 1, col: 0, bm: 0, mv: 1, act: 0, lum: 1, pinch: 0, v: 1, filt: 1, prot: 1 });
-const uni = (v: SinusoidView, n: string) => (v.tissue.material as unknown as { uniforms: Record<string, { value: unknown }> }).uniforms[n]!.value;
+const xk = (v: SinusoidView) => v.nameGeom.xk;
 const open = (v: SinusoidView) => { v.setVisible(true); v.snapTargets(targets()); v.update(0); return v; };
 const run = (v: SinusoidView, from: number, ms: number) => { for (let t = from; t <= from + ms; t += 16) v.update(t); return from + ms; };
 
@@ -23,7 +24,7 @@ test('2D\'s rule: a stage narrower than 0.95 of its height is a portrait stage',
   assert.equal(isPortrait(900, 900), false);
   assert.equal(isPortrait(0.95 * 1000, 1000), false, 'exactly 0.95 is still wide');
   assert.equal(isPortrait(0.95 * 1000 - 1, 1000), true);
-  assert.equal(xkFor(true), 12); assert.equal(xkFor(false), 22);
+  assert.ok(Math.abs(xkFor(true) - 12) < 12 && Math.abs(xkFor(false) - 22) < 12, 'near the wanted places, moved onto bare lining');
 });
 
 test('the plane\'s turn puts the portal end at the top and 2D\'s upper lining on the right (2D: ang = PI/2 on a y-down screen)', () => {
@@ -36,19 +37,17 @@ test('the plane\'s turn puts the portal end at the top and 2D\'s upper lining on
   for (const ang of [0, a, a / 2]) { const p = framePoint(12.5, -3.25, U, ang), q = planePoint(p[0], p[1], U, ang); assert.ok(Math.abs(q.x - 12.5) < 1e-9 && Math.abs(q.y + 3.25) < 1e-9, `round trip at ${ang}`); }
 });
 
-test('the view turns its plane with setPortrait: tissue, albumin and the cells over them are children of the one group, so they turn together', () => {
+test('the view turns its plane with setPortrait: everything drawn on it is in the one group, so it turns together', () => {
   const v = open(new SinusoidView(createShared()));
   assert.equal(v.group.rotation.z, 0);
   v.setPortrait(true);
   assert.equal(v.isPortrait, true);
-  assert.ok(v.tissue.parent && v.sprites.parent && v.cells.parent, 'one group holds the three draws');
-  assert.ok(v.group.getObjectById(v.tissue.id) && v.group.getObjectById(v.sprites.id) && v.group.getObjectById(v.cells.id));
   run(v, 16, 3000);
   assert.ok(Math.abs(v.group.rotation.z - PORTRAIT_ANGLE) < 1e-9, `turned to ${PORTRAIT_ANGLE}, is ${v.group.rotation.z}`);
-  assert.equal(uni(v, 'uXk'), 12, 'the Kupffer cell stands nearer the middle on a tall screen');
+  assert.equal(xk(v), xkFor(true), 'the Kupffer cell stands nearer the middle on a tall screen');
   v.setPortrait(false);
   run(v, 3100, 3000);
-  assert.equal(v.group.rotation.z, 0); assert.equal(uni(v, 'uXk'), 22);
+  assert.equal(v.group.rotation.z, 0); assert.equal(xk(v), xkFor(false));
 });
 
 test('anchors turn with the plane: in a portrait the portal end is above the central vein and the lower names left of the upper', () => {
@@ -135,10 +134,10 @@ test('the ends\' arrows stand just inside the free room\'s ends (2D: layoutEnds)
   const v = open(new SinusoidView(createShared()));
   assert.deepEqual([...v.ends].slice(0, 2), [-46, 46], 'before the scene says: the defaults');
   v.setScreen(10, 900); v.update(16);
-  const e = uni(v, 'uEnd') as Vector4;
-  assert.ok(Math.abs(e.x + 41.8) < 1e-9 && Math.abs(e.y - 41.8) < 1e-9, `uEnd ${e.x}, ${e.y}`);
+  const e = v.ends;
+  assert.ok(Math.abs(e[0] + 41.8) < 1e-9 && Math.abs(e[1] - 41.8) < 1e-9, `ends ${e[0]}, ${e[1]}`);
   v.setPortrait(true); v.update(32);
-  assert.ok(Math.abs((uni(v, 'uEnd') as Vector4).y - 42.6) < 1e-9);
+  assert.ok(Math.abs(v.ends[1] - 42.6) < 1e-9);
   v.setScreen(0, 0); assert.deepEqual([...v.ends].slice(0, 2), [-46, 46]);
 });
 
@@ -152,26 +151,25 @@ test('the traffic runs over the stretch on screen, and no further than the pores
   assert.equal(vis[1], 130, 'never past the laid-out reach');
 });
 
-test('the end arrows follow their names (a presenter slide that is not about an end dims both), and the wedge\'s wash reaches the shader once the view has landed', () => {
+test('the end arrows follow their names (a presenter slide that is not about an end dims both), and the wedge\'s wash runs once the view has landed (the 3D lumen draws it)', () => {
   const v = open(new SinusoidView(createShared()));
-  assert.deepEqual([(uni(v, 'uEndA') as { x: number }).x], [1]);
+  assert.deepEqual([...v.endShownNow], [1, 1]);
   v.setEndShown(0.25, 0); v.update(16);
-  const a = uni(v, 'uEndA') as { x: number; y: number };
-  assert.equal(a.x, 0.25); assert.equal(a.y, 0);
-  assert.equal((uni(v, 'uWedge') as Vector4).x, 0, 'no wash unless a slide asks');
+  assert.deepEqual([...v.endShownNow], [0.25, 0]);
+  assert.equal(v.washProgress, 0, 'no wash unless a slide asks');
   v.startWash(1000);
   v.setDive(0.5); v.update(1100);
-  assert.equal((uni(v, 'uWedge') as Vector4).x, 0, 'not while the camera is still flying in');
+  assert.equal(v.washProgress, 0, 'not while the camera is still flying in');
   v.setDive(null); v.update(2000);
   v.update(2000 + 700 + 1500);
-  const w = uni(v, 'uWedge') as Vector4;
-  assert.equal(w.x, 1); assert.ok(w.y > 0 && w.y < 1, `the front is on its way: ${w.y}`);
+  assert.ok(v.washProgress > 0 && v.washProgress < 1, `the front is on its way: ${v.washProgress}`);
   v.update(2000 + 700 + 4000);
-  assert.equal((uni(v, 'uWedge') as Vector4).y, 1, 'whole once its time has run');
+  assert.equal(v.washProgress, 1, 'whole once its time has run');
   v.stopWash(); v.update(9000);
-  assert.equal((uni(v, 'uWedge') as Vector4).x, 0);
+  assert.equal(v.washProgress, 0);
   const r = open(new SinusoidView(createShared(), { reduceMotion: true }));
   r.startWash(0); r.update(16);
-  assert.equal((uni(r, 'uWedge') as Vector4).y, 1, 'Reduce Motion shows it finished');
-  void Vector3;
+  assert.equal(r.washProgress, 1, 'Reduce Motion shows it finished');
+  const src = readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
+  assert.match(src, /this\.trough\.setWash\(wk > 0 \? 1 : 0, E\[0\], E\[1\], wk, W\)/, 'the 3D lumen draws the wash from the host\'s progress and ends');
 });

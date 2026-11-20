@@ -109,7 +109,7 @@ export function SinusoidCaptions() {
       // the ends' arrows are 2D's (sinusoid-view.js layoutEnds and its shader's end arrow: a short broad shaft and a wide head, 22 px, in the name's ink on its halo), part of the name and
       // moving with it, outside it toward its vessel: left of the portal venule and right of the central vein on a wide screen, above the one and below the other on a tall one
       // (Mohammad 20 Nov 2026: "the arrow should not be a 3D thing; just make it part of the label", "should still be like the 2D version")
-      const arrow = (key === 'in' || key === 'out') && useSettings.getState().micro3d ? endArrow(key) : '';
+      const arrow = key === 'in' || key === 'out' ? endArrow(key) : '';
       const words = treeKey(tree) + arrow;
       if (e.words !== words) {
         e.words = words;

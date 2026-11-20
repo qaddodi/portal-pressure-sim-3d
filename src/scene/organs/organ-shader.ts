@@ -17,6 +17,9 @@ varying vec3 vInk;
 // organ depth (organ-depth.ts): how tucked in this vertex is, 0..1, baked at load (a geometry without it reads 0)
 attribute float depthAo;
 varying float vAo;
+// the liver look's place in its texture (liver-texture.ts): the vertex's rest place in the 2D figure; the other organs leave it 0
+attribute vec2 restUV;
+varying vec2 vRest;
 uniform vec4 box;
 varying vec3 vN;
 varying vec3 vNw;   // the normal in WORLD axes (the model matrix: the light is fixed in the world, not on the screen)
@@ -29,6 +32,7 @@ void main() {
   vNw = normalize(mat3(modelMatrix) * normal);
   vV = normalize(-mv.xyz);
   vAo = depthAo;
+  vRest = restUV;
   // where this point sits in the organ's own 2D box: (0,0) top left, (1,1) bottom right, as the SVG gradient's objectBoundingBox
   vBox = vec2((position.x - box.x) / max(box.z, 1e-5), (box.y - position.y) / max(box.w, 1e-5));
 #ifdef VERTEX_INK
@@ -55,6 +59,12 @@ uniform float rimK;      // the rim light's opacity (0 on the liver and the stom
 uniform vec3 page;
 uniform float layer;
 uniform float inkAmount;
+// the liver look (liver-texture.ts): R septum, G tone, B light; nodAmt 0 when the organ has none
+uniform sampler2D nodTex;
+uniform float nodAmt;
+uniform vec3 sepDelta;
+uniform vec2 nodK;
+varying vec2 vRest;
 // Settings > Figure depth: organDepth (0 off, 1 on, eased) adds the baked crease and contact shade and a soft light from the upper left
 uniform float depthAmt;
 // the dive's cutaway window (atlas-look-plan 3.1): x, y the dive point on the screen (ndc), z the radius that is cleared (ndc half-heights; below 0 nothing is), w the aspect; the same for every organ
@@ -83,17 +93,27 @@ void main() {
   // what varies over the surface (nodules, the dead spleen, the pool) moves the fill by as much as it moves the organ's one colour
   fill += (vInk - color) * inkAmount;
 #endif
+  if (nodAmt > 0.0) {
+    vec4 nt = texture2D(nodTex, vRest);
+    fill += sepDelta * nt.r;
+    fill *= 1.0 + (nt.g - 0.5) * nodK.y * nodAmt;
+    float nl = (nt.b - 0.5) * 2.0;
+    fill = mix(fill, nl > 0.0 ? ogLight.rgb : ogDark.rgb, abs(nl) * nodK.x * nodAmt * (1.0 - nt.r));
+  }
   // #ogVol (2D stage.js): --light-ink at its first stop's opacity from the centre out to the light's end, then --og-vol-shade from its start to the rim
   float r = distance(vBox, volGeo.xy) / volGeo.z;
   fill = mix(fill, volLight.rgb, volLight.a * (1.0 - clamp(r / volGeo.w, 0.0, 1.0)));
   fill = mix(fill, volShade.rgb, volShade.a * clamp((r - volShadeAt) / (1.0 - volShadeAt), 0.0, 1.0));
   // the inner shade: three soft steps of the turn away from the eye (2D strokes 30/18/8 px)
-  float ndv = clamp(dot(n, normalize(vV)), 0.0, 1.0);
+  // (the turn is measured against the figure's own facing axis (+z in the world), not the camera's: tilting or orbiting must never change an organ's shading, Mohammad 20 Nov 2026
+  //  "when i tilt, the organs and everything loses shading or becomes darker"; at the rest view the eye is on that axis, so the look there is exactly 2D's)
+  vec3 nw = normalize(vNw);
+  float ndv = clamp(nw.z, 0.0, 1.0);
   float turn = 1.0 - ndv;
   float w = max(fwidth(turn), 1e-4);
   // the steps stack as 2D's strokes do (each over the last), at og-dark's own alpha, and sit on the lower right edge: 2D moves its shade
   // strokes by (-3.5, -5) inside the organ's clip, so the upper left edge gets almost none
-  vec2 side = length(n.xy) > 1e-4 ? normalize(n.xy) : vec2(0.0);
+  vec2 side = length(nw.xy) > 1e-4 ? normalize(nw.xy) : vec2(0.0);
   float lowerRight = smoothstep(-0.35, 0.65, dot(side, vec2(0.57, -0.82)));
   float k = 1.0 - (1.0 - shadeSteps.x * smoothstep(0.45 - w, 0.45 + w, turn)) * (1.0 - shadeSteps.y * smoothstep(0.68 - w, 0.68 + w, turn)) * (1.0 - shadeSteps.z * smoothstep(0.86 - w, 0.86 + w, turn));
   fill = mix(fill, ogDark.rgb, ogDark.a * k * lowerRight);

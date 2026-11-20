@@ -21,6 +21,12 @@ export const VESSEL_TEXEL = {
 export const FADE_GLSL = /* glsl */ `
 uniform float fade;
 bool fadedOut() { return fade < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= fade; }
+// A tube drawing on or retracting along its length (\`reveal\`, 0 to 1 over u): the front is a soft gradient, a tenth of the length, dissolved in the same screen pattern, never a hard cut.
+bool frontOut(float u, float rv) {
+  if (rv >= 0.9999) return false;
+  float k = clamp((rv * 1.1 - u) / 0.1, 0.0, 1.0);
+  return k < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= k;
+}
 `;
 
 export const TOON_VS = /* glsl */ `
@@ -117,7 +123,7 @@ float flowMask(float speed, float across) {
 }
 
 void main() {
-  if (reveal < 0.9999 && vUv.x > reveal) discard;
+  if (frontOut(vUv.x, reveal)) discard;
   if (fadedOut()) discard;
   vec3 n = normalize(vN);
   vec3 l = normalize((viewMatrix * vec4(light, 0.0)).xyz);   // the world light turned by the camera: a world-fixed n.L
@@ -145,9 +151,8 @@ void main() {
 #else
   vec3 c = mix(sh, base, clamp(b, 0.0, 1.0));
 #endif
-  float ndv = max(dot(n, vV), 0.0);
-  float rim = smoothstep(0.66, 0.70, 1.0 - ndv) * step(0.5, d);
-  float sp = spec * smoothstep(0.962, 0.972, max(dot(reflect(-l, n), vV), 0.0));
+  // (no rim light and no specular: both turned with the eye, so a tilt or an orbit changed a catheter's or a strand's shading, and the look is matte, Mohammad 20 Nov 2026; spec stays a uniform, unused; rim and sp stay as zero so the lobule's patch point holds)
+  float rim = 0.0, sp = 0.0;
 
   if (flowAmount > 0.001) {
     float speed = stubSpeed;
@@ -169,6 +174,9 @@ void main() {
   gl_FragColor = vec4(c, 1.0);
 }`;
 
+/** "No outer end here": the highlight's distance to an end the vein does not have (it runs on into another piece of the same vein). */
+export const HI_NONE = 1e3;
+
 export const INK_VS = /* glsl */ `
 uniform float inflate;
 uniform float px;
@@ -180,6 +188,8 @@ uniform float hiDir;
 uniform float hiOffset;
 uniform float hiAhead;
 uniform float hiBehind;
+uniform vec2 hiEnds;   // the picked vein's own outline: its distance to the vein's outer start and outer end (HI_NONE: that end runs on, no fade)
+uniform float hiFade;  // how far in from an outer end the outline takes to come to full
 uniform float hiPx;
 varying float vHi;
 varying float vU;
@@ -190,7 +200,8 @@ void main() {
   float a = uv.x * len;
   float dist = hiDir > 0.5 ? hiOffset + a : (hiDir < -0.5 ? hiOffset + (len - a) : 0.0);
   float limit = hiDir < -0.5 ? hiBehind : hiAhead;
-  vHi = hiOn * (1.0 - smoothstep(0.0, max(limit, 0.0001), dist));
+  float own = smoothstep(0.0, max(hiFade, 0.0001), min(hiEnds.x + a, hiEnds.y + (len - a)));
+  vHi = hiOn * (abs(hiDir) > 0.5 ? 1.0 - smoothstep(0.0, max(limit, 0.0001), dist) : own);
   vec2 nd = (projectionMatrix * vec4(normalMatrix * normal, 0.0)).xy;
   float l = length(nd);
   nd = l > 1e-5 ? nd / l : vec2(0.0);
@@ -206,4 +217,4 @@ uniform float reveal;
 uniform float inkA;   // the line's own alpha: 1 for an organ's or a part's solid ink, the look's casing alpha for a strand (setSoftInk)
 varying float vHi;
 varying float vU;
-void main() { if (reveal < 0.9999 && vU > reveal) discard; if (fadedOut()) discard; gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), mix(inkA, 1.0, clamp(vHi, 0.0, 1.0))); }`;
+void main() { if (frontOut(vU, reveal)) discard; if (fadedOut()) discard; gl_FragColor = vec4(mix(color, hiColor, clamp(vHi, 0.0, 1.0)), mix(inkA, 1.0, clamp(vHi, 0.0, 1.0))); }`;

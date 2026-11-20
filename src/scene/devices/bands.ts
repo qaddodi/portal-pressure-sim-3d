@@ -6,6 +6,7 @@ import type { CelShared } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
 import { TIER_Z, x3, y3 } from '../frame2d.ts';
 import { DeviceObject } from './device-object.ts';
+import { inVesselPass } from '../layers.ts';
 import { allocTube, makeRings, writeRings } from './tube-rings.ts';
 import { BAND, bandRing } from '../procedures/copied/band-ring.js';
 import { bandsStep } from '../procedures/copied/band-ease.js';
@@ -35,7 +36,7 @@ export class Bands {
       writeRings(g, rings, 6);
       const o = new DeviceObject(g, 'platinum', shared, { px: 0.7, order: 5 }, 'ink');
       o.group.visible = false;
-      this.rings.push(o); this.group.add(o.group);
+      this.rings.push(o); this.group.add(inVesselPass(o.group));
     }
   }
   get objects(): DeviceObject[] { return this.rings; }

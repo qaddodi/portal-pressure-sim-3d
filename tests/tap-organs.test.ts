@@ -197,6 +197,16 @@ test('an organ\'s highlight colour is its own colour lifted, never white, in eve
       assert.ok(h[0] + h[1] + h[2] > c[0] + c[1] + c[2], `${look} ${og} is brighter`);
     }
   }
+  // the selection's line, in every look: not white, and on a light look darker than the organ's fill (a lifted tone was invisible on the page)
+  const { organSelectLine } = await import('../src/scene/organs/layer.ts');
+  for (const [look, p] of Object.entries(PALETTES)) {
+    const dark = p.highlight === 'white';
+    for (const og of ['heart', 'liver', 'spleen', 'stomach'] as const) {
+      const c = rgbOf(p.organs.tones[og][1]), ink = rgbOf(p.organs.tones[og][2]), h = organSelectLine(c, ink, dark);
+      assert.ok(!(h[0] > 0.96 && h[1] > 0.96 && h[2] > 0.96), `${look} ${og} is not white`);
+      if (!dark) assert.ok(h[0] + h[1] + h[2] < c[0] + c[1] + c[2], `${look} ${og}: darker than its fill, so it shows`);
+    }
+  }
   // what the layer writes into the ink after a paint, in every look: not the white of highlightColour
   for (const [look, p] of Object.entries(PALETTES)) {
     s.disease.organs.applyLook(p); s.disease.organs.update(2000 + Object.keys(PALETTES).indexOf(look));
@@ -205,3 +215,23 @@ test('an organ\'s highlight colour is its own colour lifted, never white, in eve
   s.dispose?.();
 });
 const byId = (s: CelScene, id: string) => s.disease.organs.byId.get(id)!;
+
+test('selecting any one organ lights that organ only: no other organ and no vessel carries a highlight (iPhone, 20 Nov: "when i select spleen; i see every organ highlighted")', async () => {
+  const s = await scene();
+  const byId = s.disease.organs.byId, pins = new OrganPins();
+  for (const pick of ['spleen', 'liver', 'heart']) {
+    pins.select(MESHES_OF[pick]!);
+    for (let i = 0; i < 40; i++) pins.step(16, byId);
+    for (const [id, o] of byId) assert.equal(o.ink.uniforms.hiOn!.value, MESHES_OF[pick]!.includes(id) ? 1 : 0, `${pick} selected: ${id}`);
+    for (const o of s.vessels) assert.equal(o.ink.uniforms.hiOn!.value, 0, `${pick} selected: vessel ${o.edge?.id} is not lit`);
+    // the organs' lines are not shared uniform objects: one organ's cannot write another's
+    const seen = new Set<object>();
+    for (const o of byId.values()) { for (const k of ['hiOn', 'hiPx', 'hiColor']) { const u = o.ink.uniforms[k]!; assert.ok(!seen.has(u), `${k} is its own`); seen.add(u); } }
+    seen.clear();
+  }
+  pins.select([]);
+  for (let i = 0; i < 40; i++) pins.step(16, byId);
+  for (const o of byId.values()) assert.equal(o.ink.uniforms.hiOn!.value, 0);
+  assert.ok(SELECT_PX <= 1.0 && PIN_PX < SELECT_PX, 'thin: the tapped line is a little over the organ\'s own 1.1');
+  s.dispose?.();
+});
