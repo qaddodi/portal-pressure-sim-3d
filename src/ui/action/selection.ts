@@ -32,6 +32,17 @@ export function selectStructure(sel: Sel | null): void {
 let pickHold: ((id: string | null) => void) | null = null;
 export function holdScenePicks(f: (id: string | null) => void): () => void { pickHold = f; return () => { if (pickHold === f) pickHold = null; }; }
 
+/** Whether a selection belongs on a view: a lobule part is drawn only in the lobule and the sinusoid, a vessel, an organ or a station only in the body and the circuit. */
+export function selectionFitsView(sel: Sel | null, view: string): boolean {
+  if (!sel) return true;
+  const micro = view === 'lobule' || view === 'sinusoid';
+  return sel.type === 'lobule' ? micro : !micro;
+}
+/** A view change puts away a selection the new view cannot show (the TIPS card used to stay open over the lobule); its card eases out like any other close. */
+export function dropSelectionForView(view: string): void {
+  if (!selectionFitsView(useSelection.getState().sel, view)) selectStructure(null);
+}
+
 /** The scene picked (or un-picked) a vessel by a tap: the selection follows it. */
 export function scenePicked(id: string | null): void {
   if (pickHold) { pickHold(id); return; }

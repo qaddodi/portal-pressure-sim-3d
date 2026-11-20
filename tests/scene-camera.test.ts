@@ -321,3 +321,21 @@ test('one continuous shot: a card changing the room mid-move swaps the destinati
   let prev = r2.pose.shot.half[0], dir = 0;
   for (let u = 16; u <= 1000; u += 16) { r2.update(u); const h = r2.pose.shot.half[0]; const d = Math.sign(h - prev); if (d !== 0) { assert.ok(dir === 0 || d === dir, 'the zoom never reverses'); dir = d; } prev = h; }
 });
+
+test('a camera that is re-aimed every 700 ms (the way in following a catheter tip) keeps its speed: the speed changes smoothly across a retarget, never to a stop and start again', () => {
+  const room = { x: 0, y: 0, w: 800, h: 600 };
+  const rig = new CameraRig('play', room); rig.resize(800, 600); rig.goTo('play', room, 0);
+  const shots = ['route', 'free', 'wedge', 'pick', 'play'] as const;
+  rig.goTo(shots[0], room, 0, 900);
+  let i = 0, L = [...rig.pose.shot.target], H = rig.pose.shot.half[0]; const sp: number[] = [], retarget: number[] = [];
+  for (let t = 16; t <= 3000; t += 16) {
+    if (t % 700 < 16 && i < shots.length - 1) { i++; rig.goTo(shots[i]!, room, t, 900); retarget.push(sp.length); }
+    rig.update(t); const s = rig.pose.shot;
+    sp.push(Math.hypot(s.target[0] - L[0]!, s.target[1] - L[1]!) + Math.abs(s.half[0] - H)); L = [...s.target]; H = s.half[0];
+  }
+  for (const r of retarget) {
+    const before = sp[r - 1]!, after = sp[r]!;
+    assert.ok(after > 0, 'the retarget frame moves');
+    if (before > 0.02) assert.ok(after > before * 0.4, `speed carried across the retarget (${before.toFixed(4)} -> ${after.toFixed(4)})`);
+  }
+});

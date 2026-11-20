@@ -389,3 +389,14 @@ test('zoomed in on the map: no vessel is culled by its body sphere, corners are 
   assert.match(caps, /readUiWalls/);
   assert.match(readFileSync(new URL('../src/scene/circuit/ui-walls.ts', import.meta.url), 'utf8'), /\.nb-views/, 'the view pill is a wall');
 });
+
+test('the Circuit keeps the hepatic artery\'s two branches to the lobes, as map-only strands on the artery\'s own width (the body figure leaves them out)', async () => {
+  const { ARTERIOLES, ARTERIOLE_HOST } = await import('../src/scene/circuit/tubes.ts');
+  const { NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
+  const { CIRCUIT_D } = await import('../src/scene/circuit/data.copied.ts');
+  assert.deepEqual([...ARTERIOLES], ['A_HR', 'A_HL']);
+  assert.ok(NETWORK_BY_ID.has(ARTERIOLE_HOST) && !NETWORK_BY_ID.has('A_HR') && !NETWORK_BY_ID.has('A_HL'), 'the body has the trunk only');
+  for (const id of ARTERIOLES) assert.ok(CIRCUIT_D[id], `${id} has a map course`);
+  const src = readFileSync(new URL('../src/scene/circuit/tubes.ts', import.meta.url), 'utf8');
+  assert.match(src, /'arteriole', id, courseOf\(dd\)/);
+});
