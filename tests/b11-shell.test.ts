@@ -170,9 +170,10 @@ test('a vertical pull settles the sheet at Half or Full, or closes it; a pull th
     enabled: () => true, heights: () => ({ h0: size ? 700 : 520, half: 520, full: 700, size }), setSize: (n) => { size = n; calls.push(`size ${n}`); }, close: () => { calls.push('close'); },
   });
   // (slow pulls: the finger rests before it lifts, so only how far it went counts; a flick has its own case below)
+  const ptr = (target: unknown, x: number, y: number) => ({ target, pointerId: 1, pointerType: 'touch', button: 0, buttons: 1, clientX: x, clientY: y });
   const pull = async (dy: number, dx = 0, flick = false) => {
-    card.fire('touchstart', touch(card, 200, 400)); card.fire('touchmove', touch(card, 200 + dx / 2, 400 + dy / 2)); if (!flick) await sleep(100);
-    card.fire('touchmove', touch(card, 200 + dx, 400 + dy)); if (!flick) await sleep(100); card.fire('touchend', {});
+    card.fire('pointerdown', ptr(card, 200, 400)); card.fire('pointermove', ptr(card, 200 + dx / 2, 400 + dy / 2)); if (!flick) await sleep(100);
+    card.fire('pointermove', ptr(card, 200 + dx, 400 + dy)); if (!flick) await sleep(100); card.fire('pointerup', ptr(card, 200 + dx, 400 + dy));
   };
   await pull(-90); await sleep(450);
   assert.deepEqual(calls, ['size 1'], 'a pull up from Half goes to Full');
@@ -188,7 +189,7 @@ test('a vertical pull settles the sheet at Half or Full, or closes it; a pull th
   await pull(30, 0, true); await sleep(450);
   assert.deepEqual(calls, ['close'], 'a short pull, even a quick one, is not a flick past 40 px: it eases back');
   const field = el({ closest: (sel: string) => (/input/.test(sel) ? field : null) });
-  card.fire('touchstart', touch(field, 200, 400)); card.fire('touchmove', touch(field, 200, 480)); card.fire('touchend', {}); await sleep(30);
+  card.fire('pointerdown', ptr(field, 200, 400)); card.fire('pointermove', ptr(field, 200, 480)); card.fire('pointerup', ptr(field, 200, 480)); await sleep(30);
   assert.deepEqual(calls, ['close'], 'a field keeps its own drag');
   off();
 });
@@ -222,13 +223,13 @@ test('the glide finds the one chosen button of a control (a fold\'s ghost, a hid
   assert.equal(handOver(keep, 'sheet', [top, null]), true); assert.equal(top.scrollTop, 0);
 });
 
-test('a phone\'s Half leaves the figure about 45 % of the screen (the sheet\'s content scrolls instead)', async () => {
+test('a phone\'s Half leaves the figure about 55 % of the screen (the sheet\'s content scrolls instead)', async () => {
   const { halfCap, FIGURE_KEEPS } = await import('../src/ui/tests/place.ts');
   const H = 812, foot = 90, R = H - 100 - foot - 22;
   const [half, full] = sheetStops('phone-portrait', H, R, false, foot);
   assert.ok(half < TESTS_HALF_PX, `Half ${half} is under the old 520`);
   assert.equal(half, halfCap(H, foot));
-  assert.ok(H - foot - half >= FIGURE_KEEPS * H - 1, 'the card\'s top edge is at least 45 % down the screen');
+  assert.ok(H - foot - half >= FIGURE_KEEPS * H - 1, 'the card\'s top edge is at least 55 % down the screen');
   assert.ok(half >= 240 && full === Math.round(R), 'Full is unchanged and Half keeps its tabs and a chart\'s worth');
   assert.ok(half <= full);
   // a tall screen keeps the 520 px Half where it already leaves the figure that much
