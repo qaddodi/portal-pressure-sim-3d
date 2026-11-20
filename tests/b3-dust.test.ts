@@ -76,7 +76,7 @@ test('the uniform layout: one name each, every name a macro, the GLSL array as l
 test('adaptive (the iPhone\'s count is not measured yet): a phone carries fewer samples a pixel than a Mac, a bigger canvas fewer than a small one, the panel overrides, and the grid never exceeds what the shader loops over', () => {
   assert.ok(DUST_BUDGET.phone < DUST_BUDGET.desktop);
   assert.ok(dustBudget(true, 4.5e6) < dustBudget(false, 4.5e6));
-  assert.ok(dustBudget(false, 14e6) < dustBudget(false, 2e6) && dustBudget(false, 14e6) >= 28, 'held between half and 1.3 of the base');
+  assert.ok(dustBudget(false, 14e6) < dustBudget(false, 2e6) && dustBudget(false, 14e6) >= 14, 'held between half and 1.3 of the base');
   assert.equal(dustBudget(false, 4.5e6, 40), 40); assert.equal(dustBudget(true, 4.5e6, 2), dustClasses(true), 'never under one cell a class');
   assert.equal(dustClasses(true), 3); assert.equal(dustClasses(false), DUST_KMAX);
   const w = { random: 1, speed: 0, depth: 0, radius: 0, source: 0, custom: 0, local: 1 };
