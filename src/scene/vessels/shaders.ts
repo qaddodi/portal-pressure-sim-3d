@@ -532,18 +532,19 @@ void main() {
     float Nb = max(1.0, floor((bEnd - t0) / (17.0 * un) + 0.5)), Pb = (bEnd - t0) / Nb, Ab = 0.5 * Pb;
     float jb = floor((s - t0) / Pb);
     for (int i = -1; i <= 1; i++) {
-      float j = jb + float(i);
-      if (j < 0.0 || j >= Nb || s > bEnd + Ab) continue;
+      float j = jb + float(i), ok = (j < 0.0 || j >= Nb || s > bEnd + Ab) ? 0.0 : 1.0;
       float ph = mod(j, 2.0) > 0.5 ? 3.14159265 : 0.0;
-      cov = max(cov, 1.0 - smoothstep(0.4 * px, 1.1 * px, abs(s - (t0 + Ab + j * Pb + Ab * cos(5.0 * th + ph)))));
+      // (a wire's distance in SCREEN pixels, the distance over its own slope: a crown's steep flank stays one even line instead of breaking into dashes)
+      float dv = s - (t0 + Ab + j * Pb + Ab * cos(5.0 * th + ph));
+      cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwidth(dv), 1e-5))));
     }
     if (sB > s0 + 6.0 * un) {
       float Pc = 11.0 * un, Ac = 0.42 * Pc, c0 = sB + Ac + 2.5 * un, Kc = max(0.0, floor((sE - 1.2 * un - Ac - c0) / Pc));
       float jc = floor((s - c0) / Pc + 0.5);
       for (int i = -1; i <= 1; i++) {
-        float j = jc + float(i);
-        if (j < 0.0 || j > Kc) continue;
-        cov = max(cov, 1.0 - smoothstep(0.4 * px, 1.1 * px, abs(s - (c0 + j * Pc + Ac * cos(5.0 * th)))));
+        float j = jc + float(i), ok = (j < 0.0 || j > Kc) ? 0.0 : 1.0;
+        float dv = s - (c0 + j * Pc + Ac * cos(5.0 * th));
+        cov = max(cov, ok * (1.0 - smoothstep(0.5, 1.4, abs(dv) / max(fwidth(dv), 1e-5))));
       }
       c = mix(c, vec3(1.0), 0.16 * kS * smoothstep(sB - px, sB + px, s));
       gold = 1.0 - smoothstep(0.5 * px, 1.4 * px, abs(s - (sB + 1.5 * un * (1.0 - abs(cos(th))))));
