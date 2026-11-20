@@ -75,10 +75,13 @@ void main() {
   p = (instanceMatrix * vec4(p, 1.0)).xyz;
 #endif
   vec4 c = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-  vec2 nd = (projectionMatrix * vec4(normalMatrix * n, 0.0)).xy;
+  vec3 vn = normalize(normalMatrix * n);
+  vec2 nd = (projectionMatrix * vec4(vn, 0.0)).xy;
   float l = length(nd);
   nd = l > 1e-6 ? nd / l : vec2(0.0);
-  c.xy += nd * px * 2.0 / res * c.w;
+  // only a normal that faces sideways on screen pushes the line out: a face toward the viewer (a tile's top, the inner ring of a bevel) stays put, so the hull never folds
+  // over the face and draws creases across it
+  c.xy += nd * px * smoothstep(0.2, 0.6, length(vn.xy)) * 2.0 / res * c.w;
   gl_Position = c;
 }`;
 
