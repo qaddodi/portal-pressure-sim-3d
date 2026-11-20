@@ -26,6 +26,7 @@ const unit = (x: number, y: number): P2 => { const L = Math.hypot(x, y) || 1; re
 const smoothPoly = (P: P2[], n = 1): P2[] => { let Q = P; for (let k = 0; k < n; k++) { const R = Q; Q = R.map((q, i) => (i === 0 || i === R.length - 1 ? q : [(R[i - 1]![0] + 2 * q[0] + R[i + 1]![0]) / 4, (R[i - 1]![1] + 2 * q[1] + R[i + 1]![1]) / 4] as P2)); } return Q; };
 const nearIdx = (pts: readonly P2[], x: number, y: number) => { let b = 0, bd = Infinity; for (let i = 0; i < pts.length; i++) { const d = Math.hypot(pts[i]![0] - x, pts[i]![1] - y); if (d < bd) { bd = d; b = i; } } return b; };
 const RS_K: Record<string, number> = { s0: 1, s1: 1.15, s2: 1.3 };
+const distToPath = (q: readonly number[], P: readonly P2[]): number => { let best = Infinity; for (let i = 0; i + 1 < P.length; i++) { const a = P[i]!, b = P[i + 1]!, bx = b[0] - a[0], by = b[1] - a[1], bb = bx * bx + by * by, t = bb ? Math.min(1, Math.max(0, ((q[0]! - a[0]) * bx + (q[1]! - a[1]) * by) / bb)) : 0; best = Math.min(best, Math.hypot(q[0]! - a[0] - t * bx, q[1]! - a[1] - t * by)); } return best; };
 const rhoOf = (pts: readonly P2[]) => pts.map(([x, y]) => Math.hypot(x, y));
 
 type LanePt = P2 & { bx?: number; by?: number; hug?: number };
@@ -46,6 +47,7 @@ export function buildBile(net: LobuleNet): BileCourse[] {
   };
   const outN = (inl: Course, i: number): P2 => { const a = inl.pts[Math.max(0, i - 1)]!, b = inl.pts[Math.min(N - 1, i + 1)]!, [tx, ty] = unit(b[0] - a[0], b[1] - a[1]); let nx = -ty, ny = tx; if (nx * (inl.pts[i]![0] - cx) + ny * (inl.pts[i]![1] - cy) < 0) { nx = -nx; ny = -ny; } return [nx, ny]; };
   const rIn = R * 0.012, start = R * 0.25;
+  const taken: P2[][] = [];
   const halves = new Map<number, { inl: Course; conn: { pts: P2[]; P: P2; nO: P2; ic: number }[] }>();
   L0.forEach((leaf, li) => {
     const e = leaf.edge!, k = li % N0, h = k < N0 / 2 ? 0 : 1, jj = h === 0 ? k : N0 - 1 - k;
@@ -64,6 +66,14 @@ export function buildBile(net: LobuleNet): BileCourse[] {
     // it starts against its sinusoid, in the space of Disse, and eases out to its lane over the first stretch
     let eased: P2[];
     { let s = 0; eased = poly.map((q, i) => { if (i) s += Math.hypot(q[0] - poly[i - 1]![0], q[1] - poly[i - 1]![1]); if (q.bx == null) return [q[0], q[1]] as P2; const f = lerp(q.hug!, 1, smooth(0, R * 0.14, s)); return [q.bx + (q[0] - q.bx) * f, q.by! + (q[1] - q.by!) * f] as P2; }); }
+    // it never starts inside another blood vessel: the lane begins where it first stands clear of every sinusoid and cross-link but its own chain (Mohammad, 20 Nov 2026: bile went through blood vessels)
+    { const own = new Set<number>([leaf.id, ...(P1 ? [P1.id] : []), ...(P2c ? [P2c.id] : [])]), others = tubes.filter((t) => (t.kind === 's0' || t.kind === 's1' || t.kind === 's2' || t.kind === 'an') && !own.has(t.id));
+      const clear = (q: P2) => others.every((o) => distToPath(q, o.pts) >= rsN * (o.kind === 'an' ? 0.68 : (RS_K[o.kind] ?? 1)) + R * 0.0005);
+      let k = 0; while (k < eased.length - 3 && !clear(eased[k]!)) k++;
+      // (two lanes that share a stretch of the chain run on one path: the later one begins where it parts from the earlier, not on it, so no two hairlines lie on each other or end on each other)
+      while (k < eased.length - 3 && taken.some((L) => distToPath(eased[k]!, L) < R * 0.004)) k++;
+      if (k > 0) eased = eased.slice(k);
+      taken.push(eased); }
     // near the edge it leaves its sinusoid for the plate's centre line and ends just inside the inlet venule
     const nb = L0[li + (h === 0 ? 1 : -1)], mid = jj === N0 / 2 - 1 || !nb || nb.edge !== e ? inl.pts[N - 1]! : nb.pts[0]!;
     const ic = nearIdx(inl.pts, (q0[0] + mid[0]) / 2, (q0[1] + mid[1]) / 2), P = inl.pts[ic]!, nO = outN(inl, ic), dEnd = rIn + R * 0.012;

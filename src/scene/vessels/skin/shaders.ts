@@ -470,7 +470,7 @@ void main() {
   float rCssM = vR / max(wpcM, 1e-6);
   vec3 litD = celTubeBase(base);
   DFrame FD0, FD1;
-  float wD0 = 0.0, wD1 = 0.0, wD2 = 0.0, onD0 = 0.0, onD1 = 0.0, revD0 = 0.0, revD1 = 0.0;
+  float wD0 = 0.0, wD1 = 0.0, wD2 = 0.0, onD0 = 0.0, onD1 = 0.0, revD0 = 0.0, revD1 = 0.0, inD0 = 0.0, inD1 = 0.0;   // (inD: how far inside the arm's own cylinder the pixel is: 1 inside, 0 outside)
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
     if (armData[i].x < 0.0) continue;
     // the arm's own frame, taken at the top of main (sIa, acA, pxA, awA, sideA, headA): its arc here, and the across the tube would have (its heading, in the view's frame, grows with its arc)
@@ -496,8 +496,11 @@ void main() {
     // the dust (blood/dust-glsl.ts dustSkin): this arm's frame, kept for the two heaviest arms; the particles are drawn once below, each at the blend of its places in the two (never two ghosts)
     DFrame FI; float revI;
     float onI = flowFrame(acrossI, dustFrame(headA[i], mat3(modelViewMatrix) * vec3(0.0, 0.0, 1.0), viewDir, sideDir), sI, Lw, rOwn, vR, rCssM, lensI, armData[i].x, armData[i].y, SKIN_U, FI, revI);
-    if (wI > wD0) { wD2 = wD1; FD1 = FD0; wD1 = wD0; onD1 = onD0; revD1 = revD0; FD0 = FI; wD0 = wI; onD0 = onI; revD0 = revI; }
-    else if (wI > wD1) { wD2 = wD1; FD1 = FI; wD1 = wI; onD1 = onI; revD1 = revI; }
+    // AN ARM'S FRAME IS TRUE ONLY WITHIN ITS OWN CYLINDER (the heads' rule above): beside it, in the fillet or on the other arm's wall, its across and arc are those of a line that does not pass here, and its particles are specks of the wrong lane
+    vec3 relD = vPos - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;
+    float inI = 1.0 - smoothstep(${F(SKIN_HEAD_LAT_FROM)}, ${F(SKIN_HEAD_LAT_TO)}, length(relD - tJA[i] * dot(relD, tJA[i])) * SKIN_U / max(rOwn * swAt(i), 1e-4));
+    if (wI > wD0) { wD2 = wD1; FD1 = FD0; wD1 = wD0; onD1 = onD0; revD1 = revD0; inD1 = inD0; FD0 = FI; wD0 = wI; onD0 = onI; revD0 = revI; inD0 = inI; }
+    else if (wI > wD1) { wD2 = wD1; FD1 = FI; wD1 = wI; onD1 = onI; revD1 = revI; inD1 = inI; }
     else wD2 = max(wD2, wI);
   }
   if (wD0 > 0.0) {
@@ -514,10 +517,20 @@ void main() {
 #ifdef SKIN_DUSTBLEND
       vec4 dust = w1 > 0.004 ? dustSkin(FD0, FD1, w1, litD, inkColor, mix(revD0, revD1, w1)) : dustTube(FD0, litD, inkColor, revD0);
 #else
-      vec4 dust = dustTube(FD0, litD, inkColor, revD0);
-      if (w1 > 0.004) dust = mix(dust, dustTube(FD1, litD, inkColor, revD1), w1);
+      // each frame's dust by its own gate (on) and by how far inside its own cylinder the pixel is (in), renormalised by those shares: a frame that does not hold here gives way to the one that does, never half a ghost
+      float a0 = (1.0 - w1) * inD0, a1 = w1 * inD1, aN = a0 + a1;
+      vec4 dust = vec4(0.0);
+      if (aN > 1e-4) {
+        if (a0 > 0.004 && onD0 > 0.002) dust += dustTube(FD0, litD, inkColor, revD0) * (onD0 * a0);
+        if (a1 > 0.004 && onD1 > 0.002) dust += dustTube(FD1, litD, inkColor, revD1) * (onD1 * a1);
+        dust /= aN;
+      }
 #endif
+#ifdef SKIN_DUSTBLEND
       dustAcc = clamp(vec4(dust.rgb * dOn, dust.a * dOn), 0.0, 1.0);
+#else
+      dustAcc = clamp(dust, 0.0, 1.0);
+#endif
     }
 #endif
   }

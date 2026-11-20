@@ -46,6 +46,7 @@ import { MICRO_DPR, MeshBuilder, MicroPart, type P2, type RGB, ellipsoid, microM
 import { joinsMode } from '../vessels/skin/joins-mode.ts';
 import { bileWeldCourses, bloodWeldCourses, trimmedInside } from '../lobule/weld-courses.ts';
 import { requestWelds, type WeldRequest } from '../lobule/weld-client.ts';
+import { HA_K, BD_K } from '../lobule/weld-bend.ts';
 import type { WeldCourseOut, WeldPlan } from '../lobule/welds.ts';
 import { type EmitOpts, type PartData, emitCourse, emitSkin } from './lobule-welded.ts';
 
@@ -74,8 +75,7 @@ export const FADE_SNAP = 0.98;
 export const END_HUSH_R = 3;
 /** Where the sinusoids stop inside the central vein, as a share of its radius: just inside its rim, so each meets the rim and none is drawn over the pool. */
 export const CV_HOLE_K = 0.96;
-/** The tract's arteriole and ductule openings are drawn this much larger than 2D's dots, so each corner reads as one triad: venule, artery and duct side by side (Mohammad, 20 Nov). */
-const HA_K = 1.7, BD_K = 1.4;
+/** The tract's arteriole and ductule openings are drawn this much larger than 2D's dots, so each corner reads as one triad: venule, artery and duct side by side (Mohammad, 20 Nov): HA_K and BD_K, in weld-bend.ts. */
 /** The bile canaliculi and the canals of Hering: hairlines (radius, local units at R = 1) lying in the clefts between cells, not tubes as wide as a sinusoid ("bile is a mess"). */
 const CANALICULUS_R = 0.0016, HERING_R = 0.003;
 
@@ -201,7 +201,7 @@ export class Lobule3D {
     this.inlets = mk('inlets', { px: VESSEL_LINE, flow: true, dust });
     this.twigs = mk('arteriole-twigs', { px: S.LINE_SMALL * 0.8, flow: true, dust });
     this.lt = mk('terminal-lymphatics', { px: S.LINE_SMALL * 0.8, flow: true, dust });
-    this.duct = mk('lymph-channels', { px: S.LINE_SMALL * 0.8, flow: true, swell: true, dust });
+    this.duct = mk('lymph-channels', { px: S.LINE_SMALL * 0.8, flow: true, swell: true, hug: true, dust });
     this.bile = mk('canaliculi', { px: S.LINE_SMALL * 0.7, flow: true, dust });   // (the lymph and the bile carry the same dust, in their own colours: Mohammad 20 Nov, "the bile and lymph should have the same kind of streaks we use for blood")
     this.mouthPv = mk('portal-venules', { px: VESSEL_LINE });
     this.mouthHa = mk('arterioles', { px: VESSEL_LINE * 0.8 });
@@ -312,7 +312,7 @@ export class Lobule3D {
     const inf = (p: MicroPart, v: number) => { p.mats.toon.uniforms.inflate!.value = v; };
     { const sw = f.sinSwell; for (const k of ['s0', 's1', 's2', 'an'] as const) this.sin[k].setSwell(sw.whole, sw.share); }   // (per vertex: its own radius and its place's share, cel3d SWELL)
     const lyF = f.lyFade, biF = f.bileFade;
-    inf(this.lt, -LT_R * R * (1 - lyF)); this.duct.setSwell(-(1 - lyF), 0); inf(this.bile, -BILE_BC_R * R * (1 - biF));
+    inf(this.lt, -LT_R * R * (1 - lyF)); this.duct.setSwell(-(1 - lyF), 0); this.duct.setHug(f.sinSwell.whole, f.sinSwell.share); inf(this.bile, -BILE_BC_R * R * (1 - biF));
     const lymphOn = lyF > 0.002, bileOn = biF > 0.002;
     this.lt.group.visible = lymphOn; this.duct.group.visible = lymphOn; this.mouthLv.group.visible = lymphOn; this.bile.group.visible = bileOn;
     // the central vein opens and narrows with congestion and its collagen (the flat view's radius)
@@ -637,15 +637,27 @@ export class Lobule3D {
         ...by('an').map((c) => ({ pts: c.pts, rad: c.pts.map((_, i) => sinRadius('an', c.rho[i]!)), band: 2.5 })),
       ];
       const under = new Map(lym.map((c) => [c, lymphCover(c.pts, (i) => r(c, i), covers)]));
-      const t = tubes(lym, r, () => 0, (c, i) => LYMPH_Z + (LYMPH_UNDER_Z - LYMPH_Z) * under.get(c)![i]!), sw: number[] = [];
+      const t = tubes(lym, r, () => 0, (c, i) => LYMPH_Z + (LYMPH_UNDER_Z - LYMPH_Z) * under.get(c)![i]!), sw: number[] = [], hg: number[] = [];
       for (const c of lym) {
-        const n = c.pts.length, at = (i: number) => { const v = Math.max(1e-4, r(c, i) * R); sw.push(v, 0); };
+        // (the tube hugs its sinusoid's wall: each vertex carries the plan direction out from the sinusoid's axis, the wall's radius and the place's share of congestion's widening, so the vertex shader moves it out by the
+        //  wall's own growth, cel3d HUG: a swollen sinusoid takes its lymph with it instead of covering it)
+        const sib = net.courses[c.sib!]!, hug = c.pts.map((q) => {
+          let bd = Infinity, fx = q[0], fy = q[1], rho = c.rho[0]!;
+          for (let j = 0; j + 1 < sib.pts.length; j++) {
+            const a = sib.pts[j]!, e = sib.pts[j + 1]!, bx = e[0] - a[0], by2 = e[1] - a[1], bb = bx * bx + by2 * by2, u = bb ? Math.min(1, Math.max(0, ((q[0] - a[0]) * bx + (q[1] - a[1]) * by2) / bb)) : 0, x = a[0] + bx * u, y = a[1] + by2 * u, d = Math.hypot(q[0] - x, q[1] - y);
+            if (d < bd) { bd = d; fx = x; fy = y; rho = sib.rho[j]! + (sib.rho[j + 1]! - sib.rho[j]!) * u; }
+          }
+          const l = Math.hypot(q[0] - fx, q[1] - fy) || 1;
+          // (a stretch that does not stand against its sinusoid, the reach across the inlet to the terminal lymphatic, does not move with it)
+          return [(q[0] - fx) / l, -(q[1] - fy) / l, bd < sinRadius(sib.kind as 's0', rho) + 3 * DUCT_R ? sinRadius(sib.kind as 's0', rho) * R : 0, congShare(rho)] as const;
+        });
+        const n = c.pts.length, at = (i: number) => { const v = Math.max(1e-4, r(c, i) * R); sw.push(v, 0); hg.push(...hug[i]!); };
         for (let i = 0; i < n; i++) for (let k = 0; k < TUBE_SEG; k++) at(i);
         const cap = t.caps.get(c)!;
         for (let v = 0; v < cap; v++) at(0);
         for (let v = 0; v < cap; v++) at(n - 1);
       }
-      coloured(this.duct, t.b, null, t.W, t.K); this.duct.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); this.duct.geometry.setAttribute('swell', new Float32BufferAttribute(sw, 2));
+      coloured(this.duct, t.b, null, t.W, t.K); this.duct.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); this.duct.geometry.setAttribute('swell', new Float32BufferAttribute(sw, 2)); this.duct.geometry.setAttribute('hug', new Float32BufferAttribute(hg, 4));
     }
     // the Bile layer, laid out as 2D lays it (bile.ts, a port of lobule-bile.js): a channel beside each plate's sinusoid from a quarter of the way out, thickening outward, a short
     // canal of Hering square into a duct along the edge outside the lymphatic, each half edge's duct into its corner's ductule; 2D's radii; arrowheads toward the ductule

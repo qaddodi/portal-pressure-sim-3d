@@ -3,5 +3,5 @@ import { planWelds } from './welds.ts';
 import type { WeldRequest } from './weld-client.ts';
 
 self.onmessage = (e: MessageEvent<WeldRequest>) => {
-  (self as unknown as { postMessage(m: unknown): void }).postMessage(planWelds(e.data.courses, { avoid: e.data.avoid }));
+  (self as unknown as { postMessage(m: unknown): void }).postMessage(planWelds(e.data.courses, { avoid: e.data.avoid, splay: false }));
 };

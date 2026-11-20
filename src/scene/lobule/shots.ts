@@ -12,12 +12,13 @@ import type { Shot } from '../camera/shots.ts';
 export type V3 = [number, number, number];
 import { LOBULE_SCALE, SIN_SCALE, lobuleWorld, sinusoidWorld } from './frames.ts';
 import { FILL } from '../camera/room.ts';
+import { LOBULE_R } from './sizes.ts';
 import { PORTRAIT_ROLL, shownUm } from '../sinusoid/portrait.ts';
 /** Micrometres across the stretch the sinusoid's own shot frames: `SPAN_UM` of sinusoid/view.ts, kept here so the shots do not import the view. */
 const SPAN_UM = 97.4;
 
 /** The lobule's radius in scene units (the body plate is about 4.6 wide) and the slab's thickness. */
-export const LOBULE_R = 3;
+export { LOBULE_R };
 export const LOBULE_T = 0.9;
 /** The views' own origins: each is built around its own (0, 0, 0); frames.ts puts the lobule inside the liver and the sinusoid inside the lobule. */
 export const LOBULE_ORIGIN: V3 = [0, 0, 0];

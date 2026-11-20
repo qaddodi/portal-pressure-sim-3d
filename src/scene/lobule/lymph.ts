@@ -31,9 +31,21 @@ const hyp = Math.hypot;
 
 interface Axis { c: Course; seg: [number, number, number, number][]; }
 
+/** Where two lines cross, looking at the last stretch of each (the crotch is at their ends): the first crossing along `a`, as the index of the segment's start on each line and the point. */
+function firstCrossing(a: readonly P2[], b: readonly P2[]): { ia: number; ib: number; p: P2 } | null {
+  const lo = (l: readonly P2[]) => Math.max(0, l.length - 90);
+  for (let i = lo(a); i + 1 < a.length; i++) for (let j = lo(b); j + 1 < b.length; j++) {
+    const p = a[i]!, q = a[i + 1]!, r = b[j]!, t = b[j + 1]!, d1x = q[0] - p[0], d1y = q[1] - p[1], d2x = t[0] - r[0], d2y = t[1] - r[1], den = d1x * d2y - d1y * d2x;
+    if (Math.abs(den) < 1e-18) continue;
+    const u = ((r[0] - p[0]) * d2y - (r[1] - p[1]) * d2x) / den, v = ((r[0] - p[0]) * d1y - (r[1] - p[1]) * d1x) / den;
+    if (u >= 0 && u <= 1 && v >= 0 && v <= 1) return { ia: i, ib: j, p: [p[0] + d1x * u, p[1] + d1y * u] };
+  }
+  return null;
+}
+
 /** The lymph tubes of a lobule: each carried sinusoid's two side lines, the outer ones continued into the trunk's, the inner ones left to end at the crotch. */
 export function lymphRuns(inp: LymphInput): LymphRun[] {
-  const { carry, wall, radius, rcv } = inp, out = new Map<string, LymphRun>(), byId = new Map(carry.map((c) => [c.id, c]));
+  const { carry, wall, radius, rcv } = inp, out = new Map<string, LymphRun>(), byId = new Map(carry.map((c) => [c.id, c])), outerOf = new Map<number, 1 | -1>();
   for (const c of carry) {
     const n = c.pts.length, tn: P2[] = c.pts.map((_, i) => { const a = c.pts[Math.max(0, i - 1)]!, b = c.pts[Math.min(n - 1, i + 1)]!, l = hyp(b[0] - a[0], b[1] - a[1]) || 1; return [-(b[1] - a[1]) / l, (b[0] - a[0]) / l] as P2; });
     const X: P2[] = [], Nn: P2[] = [], Rho: number[] = [];
@@ -75,6 +87,17 @@ export function lymphRuns(inp: LymphInput): LymphRun[] {
     const mine = out.get(`${c.id}:${outer}`), trunk = out.get(`${p.id}:${outer}`);
     if (!mine || !trunk) continue;
     mine.pts.push(trunk.pts[0]!); mine.freeTail = false; trunk.freeHead = false;
+    outerOf.set(c.id, outer);
+  }
+  // the two INNER lines of a pair of branches meet where they cross, at the crotch: each ends exactly there (one thin line round the crotch, hugging both walls), so nothing is left free and nothing fills the wedge
+  for (const c of carry) {
+    const sib = c.parent != null ? carry.find((o) => o.id > c.id && o.parent === c.parent) : undefined, oc = outerOf.get(c.id);
+    if (!sib || oc == null || outerOf.get(sib.id) == null) continue;
+    const a = out.get(`${c.id}:${-oc}`), b = out.get(`${sib.id}:${-outerOf.get(sib.id)!}`);
+    if (!a || !b) continue;
+    const x = firstCrossing(a.pts, b.pts);
+    if (!x) continue;
+    a.pts.length = x.ia + 1; a.pts.push(x.p); b.pts.length = x.ib + 1; b.pts.push(x.p); a.freeTail = b.freeTail = false;
   }
   return [...out.values()];
 }
