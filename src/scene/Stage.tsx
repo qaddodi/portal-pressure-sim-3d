@@ -144,6 +144,7 @@ function SceneBridge() {
       orbit: () => cel.rig.orbitAngle,
       setOrbit: (rad) => { const changed = cel.rig.setOrbit(rad); if (changed) clock.invalidate('orbit'); return changed; },
       free: () => cel.rig.free,
+      holdTurn: () => cel.rig.inspectOn,
       orbitPitch: () => cel.rig.pitchAngle,
       setOrbitPitch: (rad) => { const changed = cel.rig.setOrbitPitch(rad); if (changed) clock.invalidate('orbit'); return changed; },
       // a tap picks what 2D's does (src/ui/action/tap-select.ts): a vessel, an organ (liver with its lobe, heart, spleen) or the belly's fluid; a tap on nothing puts the selection away

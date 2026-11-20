@@ -15,6 +15,7 @@ import { SKIN_ARMS, SKIN_AXIS_PTS, SKIN_FS, SKIN_VS } from './shaders.ts';
 import type { SkinDraw } from './skin-set.ts';
 import { skinKOf } from './sdf.ts';
 import { skinDebugOn, skinLeaveOut } from './joins-mode.ts';
+import { vdbgDefines, vdbgUniforms } from '../debug-view.ts';
 import type { SkinMesh, Vec3 } from './types.ts';
 
 /** The uniforms the skin shares with its arm tubes, by reference (taken from the first arm: every vessel's copy has the same value, and each one follows the same writers: the look, the lens, the engine, the Circuit). */
@@ -42,11 +43,28 @@ export const COPY_ORDER = [0, 0, 2] as const;
 
 /** The program's defines for copy `c` (the page's `?joins=` diagnostics: debug paints dropped pixels, nomarks and noink leave a part out). */
 function skinDefines(c: number, grow: number): Record<string, number> {
-  const d: Record<string, number> = { SKIN_COPY: c, SKIN_GROW: grow }, out = skinLeaveOut();
+  const d: Record<string, number> = { SKIN_COPY: c, SKIN_GROW: grow, ...vdbgDefines() }, out = skinLeaveOut();
   if (skinDebugOn()) d.SKIN_DEBUG = 1;
   if (out === 'marks') d.SKIN_NOMARKS = 1;
   if (out === 'ink') d.SKIN_NOINK = 1;
   return d;
+}
+
+/** The inspector's switch for the three build-time diagnostics (`?joins=debug`, `nomarks`, `noink`): every skin program under `root` has its defines set from the page's live answer and is compiled again (a second or so on a phone). A skin built later takes them from `skinDefines` itself. Returns how many programs changed. */
+export function reapplySkinDefines(root: Object3D): number {
+  let n = 0;
+  root.traverse((o) => {
+    const m = (o as Mesh).material as ShaderMaterial | undefined;
+    if (!m || !(m instanceof ShaderMaterial) || (m.name !== 'skin' && m.name !== 'skin-glow')) return;
+    const d = m.defines ?? (m.defines = {}), want = skinDefines(Number(d.SKIN_COPY ?? 0), Number(d.SKIN_GROW ?? 0));
+    let changed = false;
+    for (const k of ['SKIN_DEBUG', 'SKIN_NOMARKS', 'SKIN_NOINK']) {
+      if (want[k] !== undefined && d[k] === undefined) { d[k] = want[k]!; changed = true; }
+      else if (want[k] === undefined && d[k] !== undefined) { delete d[k]; changed = true; }
+    }
+    if (changed) { m.needsUpdate = true; n++; }
+  });
+  return n;
 }
 
 export class SkinObject implements SkinDraw {
@@ -109,6 +127,7 @@ export class SkinObject implements SkinDraw {
       armCopy: { value: this.armCopy },
       armAxisP: { value: armAxisP }, skinK: { value: skinKOf(skin.junction.arms) },
       armGrow: { value: this.armGrow }, growG: { value: this.growG },
+      ...vdbgUniforms('skin'),   // (the inspector's view of the skins: none without ?inspect, debug-view.ts)
     };
     this.copies = Array.from({ length: SKIN_COPIES }, (_, c) => {
       const material = new ShaderMaterial({

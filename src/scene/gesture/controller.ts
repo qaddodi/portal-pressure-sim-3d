@@ -62,6 +62,8 @@ export interface GestureHost {
   free?(): boolean;
   orbitPitch?(): number;
   setOrbitPitch?(rad: number): boolean;
+  /** The turn stays where the viewer left it: no spring home after 2 s, no soft stop (the inspector's free turn, `?inspect`). Absent: false. */
+  holdTurn?(): boolean;
   /** A tap on the figure at canvas point (x, y); `touch` when a finger made it (a finger's reach is wider). */
   tap(x: number, y: number, touch?: boolean): void;
   /** What is selected now (a vessel or an organ: the host's own token), and a way to put it back (a double click's first click selected one). */
@@ -202,7 +204,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
       v *= Math.pow(FLICK.decay, dt);
       const o = host.orbit() + v * dt;
       host.setOrbit(o);
-      if (Math.abs(o) >= ORBIT_LIMIT) v *= Math.pow(FLICK.brake, dt / 16);
+      if (!host.holdTurn?.() && Math.abs(o) >= ORBIT_LIMIT) v *= Math.pow(FLICK.brake, dt / 16);
       if (Math.abs(v) > 0.00006) orbitId = env.ask(step);
     };
     orbitId = env.ask(step);
@@ -213,6 +215,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   function stopOrbitHome() { if (homeId) env.cancel(homeId); homeId = 0; }
   function orbitToShot() {
     stopOrbitHome();
+    if (host.holdTurn?.()) return;   // (the inspector holds the turn: only its own Reset brings it home)
     const o0 = host.orbit(), p0 = host.orbitPitch?.() ?? 0;
     if (o0 === 0 && p0 === 0) return;
     if (env.reduceMotion()) { host.setOrbit(0); host.setOrbitPitch?.(0); return; }
@@ -233,6 +236,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   const HOME_AFTER_MS = 2000;
   let homeTimer = 0;
   function homeLater() {
+    if (host.holdTurn?.()) return;
     if (homeTimer) env.clearTimer(homeTimer);
     homeTimer = env.timer(() => { homeTimer = 0; if (drag || orbitId) homeLater(); else orbitToShot(); }, HOME_AFTER_MS);
   }

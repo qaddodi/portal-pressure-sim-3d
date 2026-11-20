@@ -31,6 +31,7 @@ export const TUBE_SAG = 1 / Math.cos(Math.PI / TUBE_RADIAL) - 1;
  *  (at most 0.15 x 0.035 = 0.005, under the narrowest gap that has to hold, cava to artery 0.02) only sorts two tubes of one tier. */
 export const TUBE_DEPTH_SHARE = 0.15;
 import { CIRC_INK_K, CIRC_INNER } from './cel-ink.ts';
+import { VDBG_GLSL } from './debug-view.ts';
 
 export const VESSEL_VS = /* glsl */ `
 const float RUN_ON_PX = 0.75;   // CSS px
@@ -235,6 +236,7 @@ ${FADE_GLSL}
 uniform float tubeDark;   // 1 on the dark looks: brighter tube caps (cel-glsl.ts celTubeBase)
 ${CEL_TUBE_GLSL}
 ${CEL_LIGHT_GLSL}
+${VDBG_GLSL}
 // a vessel behind the organs (the cava) is drawn a second time over them with VEIL defined: OPAQUE, as every vessel is (no alpha at rest: two flat tones and the ink; Mohammad, 20 Nov: "Why is the venacava glassy")
 uniform vec3 color;
 uniform vec3 inkColor;
@@ -478,12 +480,18 @@ void main() {
   if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * (1.0 - circT));
   vec3 c = celTubeTone(base, mix(sT, 1.0, nbrT), fwSt * (1.0 - nbrT), rDev);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, ${QUIET_BACK.toFixed(3)} * quietK);   // (0 for every tier but the back one)
+#ifdef VDBG
+  c = dbgBody(c, base, n);   // (the inspector's shade mode: debug-view.ts)
+#endif
   // THE DUST (blood/dust-glsl.ts, the Dust Lab's particles, Mohammad 20 Nov) is part of the tube: painted here, in its own fragment shader, so it is inside the lumen (dustTube draws nothing past 0.96 of the half width,
   // never touching the ink) and follows the tube's own alpha and fade zones by construction: there is no second mesh to stray past a tube's end, a taper or a fade. Under the chevrons, which come after.
   float sD = vUv.x * len * vU;
   // REAL FLOW (blood/routes.ts): the particles of the roots this vessel's lanes carry, in its own section, at their place on their root's stream. No fade at a skin's seam (the skin draws the same particles on); where tubes
   // still overlap at a joint with no skin they fade as the chevrons do (markK), the vessel it opens into drawing the same particles.
   vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(${wpcGlsl('vW', 'projY', 'vU')}, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(skinCut.x >= 0.0 ? 1e6 : sD, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU);
+#ifdef VDBG
+  if (dbgDust < 0.5) fd = vec4(0.0);
+#endif
   cBody = c;
   streakCover = fd.a;
   c = c * (1.0 - fd.a) + fd.rgb;
@@ -511,6 +519,9 @@ void main() {
   float pxArc = fwPx;   // (derivatives taken at the top of main, before any discard)
   float acrossW = fwAw;
   vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, ${wpcGlsl('vW', 'projY', 'vU')}, pxArc, lensIndex, flowAmount, markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU), la, lb, color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
+#ifdef VDBG
+  if (dbgHeads < 0.5) hd = vec4(0.0);
+#endif
   if (hd.a > 0.0) {
     if (streakCover > 0.0) c = mix(c, cBody, hd.a);   // the streaks lie UNDER the chevrons: a head's pixel is never tinted by one
     c = c * (1.0 - hd.a) + hd.rgb;
@@ -520,6 +531,9 @@ void main() {
   // (the same alpha as the body), is not drawn on a joined end's last stretch (a smooth join buries the cut) and is the look's casing ink taken most of the way to a deep tone of the vessel's own colour (never black, never white).
   float endK = vHi > 0.001 || nbrOn > 0.5 ? 1.0 : buryK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU);
   float inkT = smoothstep(rDevAx - 0.5, rDevAx + 0.5, dLat) * endK * inkOn;
+#ifdef VDBG
+  if (dbgInk < 0.5) inkT = 0.0;
+#endif
   inkT *= 1.0 - nbrK;
   if (nbrK > 0.5 && dLat > rDevAx + 0.5) discard;
   // in the Circuit the outline also sits a little inside the vessel and fades inward, so on a dark map the edge still reads (the ink outside it is lost on the ground)
@@ -601,5 +615,8 @@ void main() {
     wa *= mix(1.0, smoothstep(0.0, max(wedge.z, 0.001), vUv.x), wedge.w);
     c = mix(c, wedgeCol, 0.78 * wa);
   }
+#ifdef VDBG
+  c = dbgEnd(c, vindex);
+#endif
   gl_FragColor = vec4(c, fadeHere * cavA);
 }`;

@@ -10,7 +10,8 @@ export interface Flag { id: string; group: 'Measure' | 'Pages' | 'Open'; gate: G
 export const FLAGS: readonly Flag[] = Object.freeze([
   { id: 'perf', group: 'Measure', gate: 'live', meaning: "The clock's frame panel: median, p95 and worst frame work, the frames over 20 ms with the phase and who asked for them; Copy (src/ui/perf)." },
   { id: 'dust', group: 'Measure', gate: 'live', meaning: "Tunes the blood's dust (dust-panel.ts)." },
-  { id: 'joins', group: 'Measure', gate: 'live', meaning: 'Vessel junctions as one merged mesh (docs/junction-skin-spec.md): on by default; ?joins=old is the old overlapping tubes, mesh only the SMV-SV confluence, mesh2 every junction; debug, nomarks, noink: weld diagnostics.' },
+  { id: 'joins', group: 'Measure', gate: 'live', meaning: 'Vessel junctions as one merged mesh (docs/junction-skin-spec.md): on by default; ?joins=old is the old overlapping tubes, mesh only the SMV-SV confluence, mesh2 every junction; debug, nomarks, noink: weld diagnostics (every one of them is a switch in the ?inspect panel, and debug opens it).' },
+  { id: 'inspect', group: 'Measure', gate: 'live', meaning: "The inspector (src/ui/debug/inspect; ?joins=debug opens it too): an on-screen panel that turns the figure all the way round and changes the joins mode, the junction diagnostics (debug tint, no marks, no ink), the shade mode, the flow marks, the ink, the colours and the wireframe of the tubes and of the skins, and which layers are drawn, live, with Copy. The programs carry its hooks only on a page that asks for it." },
   { id: 'gl', group: 'Measure', gate: 'live', meaning: "Every shader program the app can use, compiled on this device: one line each, green or red, with the driver's own log and Copy (src/debug/gl-check.tsx). Open it once per build on the iPhone, the iPad and the Mac." },
   { id: 'watch', group: 'Measure', gate: 'local', meaning: 'The motion recorder (preview copy or a local run): keeps 20 seconds of camera, label and card numbers, judges them with the motion rules and shows a red dot with the findings (src/ui/debug/watch).' },
   { id: 'debug', group: 'Pages', gate: 'local', meaning: 'The debug page (the card gallery, with Report and Full check on its bar; the motion recorder is on by default). ?debug=check is the Phone check, ?debug=full its long walk, ?debug=frame the device frame.' },
@@ -64,6 +65,8 @@ export function flagValue(id: string, at?: At): string | null {
 /** True when the flag is in the address (and its gate is open here). */
 export const flagOn = (id: string, at?: At): boolean => flagValue(id, at) !== null;
 export const flagNumber = (id: string, at?: At): number | null => { const v = flagValue(id, at); const n = v === null || v === '' ? NaN : Number(v); return Number.isFinite(n) ? n : null; };
+/** Whether the address asks for the inspector panel: `?inspect`, or `?joins=debug` (the diagnostics it replaced). */
+export const inspectRequested = (at?: At): boolean => flagOn('inspect', at) || flagValue('joins', at) === 'debug';
 /** Every flag, for the doc table and the tests. */
 export const knownFlags = () => FLAGS.map((f) => ({ id: f.id, group: f.group, gate: f.gate, meaning: f.meaning, alias: f.alias ?? null }));
 
