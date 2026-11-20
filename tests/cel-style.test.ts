@@ -12,7 +12,8 @@ test('the figure has one cel style: three tones, and the vessels read every numb
   assert.ok(SHADE_AT < 0 && LIT_AT > SHADE_AT && LIT_AT < 1, 'three bands in order inside -1..1');
   assert.ok(SHADE >= 0.3 && LIT >= 0.2, 'tones clearly different, not soft shading');
   assert.ok(LINE_MIN >= 2 && LINE_MIN < LINE_MAX && CEL_STYLE.INK_ALPHA_MIN >= 0.85 && CEL_STYLE.EDGE_PX <= 1);
-  assert.ok(CEL_STYLE.SPEC.AT > LIT_AT && CEL_STYLE.SPEC.MIN_PX >= 3, 'the highlight sits in the lit band and not on a hairline');
+  assert.equal(CEL_STYLE.VESSEL_BANDS, 2, 'a vessel is two flat tones (lit and shade), not glassy');
+  assert.ok(CEL_STYLE.VESSEL_STEP_AT > SHADE_AT && CEL_STYLE.VESSEL_STEP_AT < LIT_AT);
 });
 
 test('celBand: three bands with a hard edge', () => {

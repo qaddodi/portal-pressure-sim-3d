@@ -1,7 +1,7 @@
 // The 2D figure's vessel line and shading, in one place (tube-cel-glsl.js CEL and styles/tokens.css --casing-rgb / --casing-a), with the JS twin of the arithmetic the vertex and fragment
 // shaders run (shaders.ts), so a test can hold the shader's numbers to the 2D app's: the outline is `LINE_R` of the radius held between LINE_MIN and LINE_MAX device px, in the look's casing
-// colour at the look's casing alpha; the fill is exactly three tones lit from the top left of the SCREEN (shade, base, lit toward white, the strengths in cel-style.ts), so two pieces of one vein shade the
-// same at a join and a vein turned 20 degrees keeps its tones; there is no world-lit band; the one highlight is a small hard streak (celSpec).
+// colour at the look's casing alpha; the fill is exactly two tones lit from the top left of the SCREEN (shade, base, lit toward white, the strengths in cel-style.ts), so two pieces of one vein shade the
+// same at a join and a vein turned 20 degrees keeps its tones; there is no world-lit band and no highlight.
 import type { LookId } from '../../looks/looks.ts';
 import { CEL_STYLE } from '../cel-style.ts';   // (the figure's one cel style: every surface reads its bands and its line from there)
 
@@ -38,12 +38,12 @@ export const TAPER_FROM = 0.3, TAPER_TO: number = CEL_STYLE.LINE_MIN;
 export const inkTaper = (rDev: number): number => smoothstep(TAPER_FROM, TAPER_TO, rDev);
 
 /** The tones at a pixel (the JS twin of cel-glsl.ts celTubeTone): `across` -1..1 across the tube, `side` the unit screen direction (view axes, y up) of the tube's cross axis, `rDev` its radius in device px. Returns the
- *  multiplier on the fill (1 - SHADE in the shade) and the share lifted toward white (LIT in the lit); across the tube there are exactly three tones, the edge between two EDGE_PX device px wide; both are 0 on a hairline. */
-export function celTones(across: number, side: readonly [number, number], rDev: number): { mul: number; lift: number } {
+ *  multiplier on the fill (1 - SHADE in the shade, 1 in the lit); across the tube there are exactly TWO tones (CEL_STYLE.VESSEL_BANDS), one hard step at VESSEL_STEP_AT, the edge EDGE_PX device px wide; 1 on a hairline. */
+export function celTones(across: number, side: readonly [number, number], rDev: number): { mul: number } {
   const k = tubeK(side), s = across * k;
   const et = 0.5 * CEL_STYLE.EDGE_PX * Math.max(Math.abs(k), 0.05) / Math.max(rDev, 1e-3), hw = smoothstep(CEL_STYLE.TONES_FROM, CEL_STYLE.TONES_TO, rDev);
-  const shadow = 1 - smoothstep(CEL.SHADE_AT - et, CEL.SHADE_AT + et, s), lit = smoothstep(CEL.LIT_AT - et, CEL.LIT_AT + et, s);
-  return { mul: 1 - hw * CEL.SHADE * shadow, lift: CEL_STYLE.TUBE.LIT_K * hw * lit };
+  const shadow = 1 - smoothstep(CEL_STYLE.VESSEL_STEP_AT - et, CEL_STYLE.VESSEL_STEP_AT + et, s);
+  return { mul: 1 - hw * CEL.SHADE * shadow };
 }
 const lumOf = (c: readonly number[]): number => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * c[2]!;
 /** The twin of celTubeBase: the lens colour made saturated and deep (chroma x SAT, no lighter than LCAP, hue kept). */
@@ -53,21 +53,13 @@ export function celTubeBase(b: readonly [number, number, number]): [number, numb
   const k = Math.min(1, T.LCAP / Math.max(lumOf(c), 1e-3), T.VCAP / Math.max(...c, 1e-3));
   return [c[0] * k, c[1] * k, c[2] * k];
 }
-/** The twin of celTubeTone: the colour of the tube at `across` (hue-preserving lightness steps: shade = base x (1 - SHADE) a touch more saturated, lit = base x (1 + LIT_K), never toward white). */
+/** The twin of celTubeTone: the colour of the tube at `across`: the saturated base on the lit side, the shade (base x (1 - SHADE), a touch more saturated, hue kept) on the other, never toward white. */
 export function celTubeColor(base: readonly [number, number, number], across: number, side: readonly [number, number], rDev: number): [number, number, number] {
   const T = CEL_STYLE.TUBE, t = celTones(across, side, rDev), b = celTubeBase(base);
-  const shadeAmt = (1 - t.mul) / CEL.SHADE, litAmt = t.lift / T.LIT_K;
+  const shadeAmt = (1 - t.mul) / CEL.SHADE;
   const sh0 = b.map((v) => v * (1 - CEL.SHADE)), ls = lumOf(sh0);
-  const sh = sh0.map((v) => clamp(ls + (v - ls) * T.SHADE_SAT, 0, 1)), li0 = b.map((v) => v * (1 + T.LIT_K)), li = li0.map((v) => v / Math.max(1, ...li0));
-  const hw = smoothstep(CEL_STYLE.TONES_FROM, CEL_STYLE.TONES_TO, rDev), e = 0.5 * CEL_STYLE.EDGE_PX / Math.max(rDev, 1e-3);
-  const window = 1 - smoothstep(T.LUMEN_W - e, T.LUMEN_W + e, Math.abs(across));   // the lumen seen through the wall: one flat darker step
-  return b.map((v, i) => { const m = v + (sh[i]! - v) * shadeAmt; return (m + (li[i]! - m) * litAmt) * (1 - hw * T.LUMEN_DARK * window); }) as [number, number, number];
+  const sh = sh0.map((v) => clamp(ls + (v - ls) * T.SHADE_SAT, 0, 1));
+  return b.map((v, i) => v + (sh[i]! - v) * shadeAmt) as [number, number, number];
 }
 /** The lit-side slope of a tube whose cross axis points `side` on the screen: cos to the light, leaned (TUBE_LEAN) and held to -1..1. */
 export const tubeK = (side: readonly [number, number]): number => clamp((side[0] * CEL.DIR[0] + side[1] * CEL.DIR[1]) * CEL_STYLE.TUBE_LEAN, -1, 1);
-/** The hard highlight (the twin of celTubeSpec): how far toward white the pixel at `across` is lifted by the streak whose centre is `alongR` radii away along the tube. 0 outside the streak and on a hairline, SPEC.ALPHA inside, an edge EDGE_PX across. */
-export function celSpec(across: number, side: readonly [number, number], rDev: number, alongR: number): number {
-  const S = CEL_STYLE.SPEC, s = across * tubeK(side), th = Math.max(S.SIZE, S.MIN_THICK_PX / Math.max(rDev, 1e-3));
-  const d = (Math.hypot(Math.max(Math.abs(alongR) - S.LEN, 0), s - S.AT) - th) * rDev, e = 0.5 * CEL_STYLE.EDGE_PX;
-  return (1 - smoothstep(-e, e, d)) * smoothstep(S.MIN_PX, S.MIN_PX + 1, rDev) * S.ALPHA;
-}

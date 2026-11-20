@@ -25,10 +25,6 @@ test('the back tier eases toward the plate with the turn, and only the back tier
   assert.match(VESSEL_FS, /mix\(c, pageCol, 0\.080 \* quietK\)/);
 });
 
-test('an artery has the wall line, a vein has none', () => {
-  const s = new CelScene();
-  for (const o of s.vessels) assert.equal(o.toon.uniforms.wallLine!.value, o.toon.uniforms.lensUse!.value === 0 ? 1 : 0, o.edge!.id);
-  assert.ok(s.vessels.some((o) => o.toon.uniforms.wallLine!.value === 1));
-  assert.match(VESSEL_FS, /0\.22 \* wallLine \* smoothstep\(3\.0, 6\.0, rDev\)/);
-  s.dispose();
+test('a vessel has no painted wall line, artery or vein: two flat tones and the outline, nothing inside (the matte look)', () => {
+  assert.doesNotMatch(VESSEL_FS, /wallLine/, 'the shader draws no wall line');
 });
