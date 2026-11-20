@@ -81,3 +81,21 @@ test('the lobule at its fit stays whole inside the free room on a phone, a table
     }
   }
 });
+test('a card or sheet changing the room only pans: the camera distance (the zoom) stays; a refit (the screen changed) may change it', async () => {
+  const { CameraRig } = await import('../src/scene/camera/rig.ts');
+  const full = { x: 0, y: 0, w: 390, h: 700 };
+  const rig = new CameraRig('play', full); rig.resize(390, 844); rig.goTo('play', full, 0); rig.update(0);
+  const d0 = rig.camera.position.distanceTo(new (await import('three')).Vector3(...rig.pose.shot.target));
+  for (const room of [{ x: 0, y: 0, w: 390, h: 300 }, { x: 0, y: 0, w: 200, h: 700 }, full]) {
+    rig.setRoom(room, 100); for (let t = 100; t < 2000; t += 16) rig.update(t);
+    const d = rig.camera.position.distanceTo(new (await import('three')).Vector3(...rig.pose.shot.target));
+    assert.ok(Math.abs(d - d0) < d0 * 1e-6, `zoom kept (${d0.toFixed(4)} -> ${d.toFixed(4)})`);
+  }
+});
+test('the Tests card never squeezes the room the instruments frame in (cutRoom keeps the size, moves the centre)', async () => {
+  const { cutRoom, useTestsRoom } = await import('../src/ui/tests/room.ts');
+  useTestsRoom.setState({ place: { kind: 'bottom', rect: { x: 0, y: 400, w: 390, h: 444 } } as never });
+  const r = cutRoom({ x: 0, y: 50, w: 390, h: 700 });
+  assert.equal(r.w, 390); assert.equal(r.h, 700);
+  useTestsRoom.setState({ place: null });
+});
