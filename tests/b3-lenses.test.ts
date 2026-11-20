@@ -176,9 +176,9 @@ test('heads fade at the highlight\'s speed, never switch', () => {
   assert.ok(fake.amount < 1 && fake.amount > 0);
 });
 
-test('newLensData has the 208 x 2 x RGBA layout the shader reads', () => {
+test('newLensData has the 208 x 4 x RGBA gradient layout (ends, then a third and two thirds along) and the 208 x 2 lanes the shader reads', () => {
   const d = newLensData();
-  assert.equal(d.grad.length, 208 * 2 * 4); assert.equal(d.lanes.length, 208 * 2 * 4);
+  assert.equal(d.grad.length, 208 * 4 * 4); assert.equal(d.lanes.length, 208 * 2 * 4);
   assert.equal(LENS_EDGE_COUNT, 208);
 });
 

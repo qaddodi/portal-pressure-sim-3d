@@ -5,6 +5,9 @@ import { PresenceTracks } from './vessels/presence-track.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
 import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
+import { setSmoothJoins } from './vessels/join-mode.ts';
+import { SMOOTH } from './vessels/smooth-joins.ts';
+import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
 import { fadeOf } from './vessels/fades.ts';
@@ -12,6 +15,7 @@ import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
 import { BloodField } from './blood/field.ts';
+import { BloodCells } from './blood/cells/cells.ts';
 import { CameraRig } from './camera/rig.ts';
 import { cutUniform, fieldSoft } from './camera/dive.ts';
 import { ORGAN_CUT } from './organs/layer.ts';
@@ -120,6 +124,8 @@ export class CelScene {
   /** The organs a slide outlines (and the normal spleen's line). */
   readonly pins = new OrganPins();
   readonly flow: BloodMarks;
+  /** Blood-cell particles (Settings > Figure depth): built the first time they are switched on, one draw call. */
+  readonly cells: BloodCells;
   /** The colour lens (src/scene/lenses/): what colour every vein wears, crossfaded on the clock. */
   readonly lens = new LensField();
   /** The blood's streams (the chevrons' distance, speed and reversed flag, from the 2D app's own stream model). */
@@ -180,7 +186,10 @@ export class CelScene {
 
     this.scene.add(this.body);
 
+    setSmoothJoins(useSettings.getState().smoothJoins);   // (Settings > Figure depth > Smooth vessel joins: read before any tube is built)
     for (const def of NETWORK) this.addVessel(def);
+    this.applyMates();
+    this.unJoins = useSettings.subscribe((st, prev) => { if (st.smoothJoins !== prev.smoothJoins) this.useSmoothJoins(st.smoothJoins); });
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
     this.disease = new DiseaseLayer(this.shared, this.vessels);
     this.body.add(this.disease.group);
@@ -221,6 +230,7 @@ export class CelScene {
 
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
     this.flow = new BloodMarks(this.vessels);
+    this.cells = new BloodCells({ vessels: NETWORK, object: (id) => this.vesselObject(id), shared: this.shared, lens: this.lens.shared, blood: this.blood.shared, parent: this.body, layer: VESSEL_LAYER, phone: () => this.phone });
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
     this.shapes = new ShapeTracks(NETWORK, this.byEdge as unknown as Map<string, VesselObject>);
     this.lens.setContext({ healthy: null, ref: null });
@@ -232,6 +242,35 @@ export class CelScene {
     this.sinFrame.add(this.sinus.group); this.dive.add(this.lobule.group, this.sinFrame); this.scene.add(this.dive, this.mapLayer.group);
     this.lobule.setVisible(false); this.sinus.setVisible(false);
     this.applyLook(this.look);
+  }
+
+  private unJoins: () => void = () => {};
+
+  /** The vessels each vessel's ends carry on into, for the shader's live-width easing (smooth joins on); none with it off. */
+  private applyMates(): void {
+    const on = useSettings.getState().smoothJoins;
+    for (const def of NETWORK) {
+      const o = this.byEdge.get(def.id) as VesselObject | undefined, sj = SMOOTH.get(def.id);
+      if (!o) continue;
+      const mate = (id: string | null | undefined) => { const m = on && id ? NETWORK_MATE.get(id) : undefined; return m ? { index: indexOf(m.lensId), baseD: m.baseD, widthKind: m.widthKind } : null; };
+      o.setMates(mate(sj?.mate[0]), mate(sj?.mate[1]));
+      o.setSmoothColour(on);
+    }
+  }
+
+  /** Settings > Figure depth > Smooth vessel joins changed: every tube is rewritten in place (same vertices, new positions and widths: the joins are geometry), then drawn once. */
+  private useSmoothJoins(on: boolean): void {
+    if (!setSmoothJoins(on)) return;
+    for (const def of NETWORK) {
+      const o = this.byEdge.get(def.id) as VesselObject | undefined;
+      if (!o) continue;
+      const built = buildTubes(coursesOf(def, this.shapes.stateOf(def.id) ?? REST), tubularOf(def, slicesFor(def.id)), def.radius);
+      o.reshape(built.geometry, built.length);
+      built.geometry.dispose();
+    }
+    this.applyMates();
+    this.moving = true;
+    clock.invalidate('smooth-joins');
   }
 
   private add(o: CelObject): void { this.objects.push(o); this.body.add(o.group); }
@@ -742,6 +781,7 @@ export class CelScene {
     const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id));
     const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || this.stepCava(dt);
     const lensMoving = this.lens.step(now);
+    const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving });
     const presMoving = this.presence.step(dt);
     const shapeMoving = this.shapes.step(dt);
     this.stepSinusDive();
@@ -753,7 +793,7 @@ export class CelScene {
     const atlasMoving = this.atlas.update(now);
     if (diseaseMoving) this.tagOverOrgans();
     const probesMoving = this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive);
-    const needs = probesMoving || diseaseMoving || atlasMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || lensMoving || presMoving || shapeMoving || viewMoving;
+    const needs = probesMoving || diseaseMoving || atlasMoving || this.moving || procMoving || camMoving || circMoving || hiMoving || pinMoving || flowActive || cellsMoving || lensMoving || presMoving || shapeMoving || viewMoving;
     this.moving = false;
     return needs;
   }
@@ -815,7 +855,9 @@ export class CelScene {
   }
 
   dispose(): void {
+    this.unJoins();
     this.lens.dispose();
+    this.cells.dispose();
     this.disease.dispose();
     this.blood.streams.texture.dispose();
     this.blood.chain.texture.dispose();
@@ -824,6 +866,8 @@ export class CelScene {
     this.tubes.dispose(); this.resistors.dispose(); this.post.dispose();
   }
 }
+
+const NETWORK_MATE: ReadonlyMap<string, NetVessel> = new Map(NETWORK.map((v) => [v.id, v]));
 
 /** The camera layer of everything drawn over the organs: the vessels, the catheter, the varices. */
 /** The organs a tap opens a card for in the body view (2D ORGAN_KEYS: the heart, the liver, the spleen; the heart is two meshes). */

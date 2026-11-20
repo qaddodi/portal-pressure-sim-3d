@@ -15,6 +15,7 @@ import { AtlasOrgans } from '../src/scene/atlas-art/organs.ts';
 import { AtlasVessels } from '../src/scene/atlas-art/vessels.ts';
 import { ATLAS_COURSE, NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { profileAt } from '../src/scene/vessels/tubes.ts';
+import { tubularOf } from '../src/scene/vessels/shape.ts';
 import { CEL } from '../src/scene/vessels/cel-ink.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { atlasPrograms } from '../src/debug/gl-registry.ts';
@@ -204,4 +205,13 @@ test('Classic is untouched: nothing of the atlas is in the boot chunk\'s path an
   assert.match(idx, /if \(!this\.active\) return;/, 'feed stores and returns in Classic');
   assert.doesNotMatch(loader, /^\s*(void\s+)?(fetch|get)\(/m, 'nothing is fetched when the module loads');
   assert.equal(ATLAS_COURSE.size, 0);
+});
+
+test('the tube segment counts are the 2D courses\' whatever atlas course is set (so a smooth-joins toggle or the atlas swap reshapes in place)', () => {
+  const classic = new Map(NETWORK.map((v) => [v.id, tubularOf(v, 0)]));
+  try {
+    for (const v of NETWORK) { const c = courses.courseOf(v.id, 'cirr-decomp', v.radius, (id) => NETWORK_BY_ID.has(id)); if (c) ATLAS_COURSE.set(v.id, c); }
+    assert.ok(ATLAS_COURSE.size > 50);
+    for (const v of NETWORK) assert.deepEqual(tubularOf(v, 0), classic.get(v.id), v.id);
+  } finally { ATLAS_COURSE.clear(); }
 });

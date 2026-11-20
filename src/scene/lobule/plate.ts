@@ -7,7 +7,8 @@
 //   const plate = new LobulePlate(net);          group.add(plate.group)
 //   plate.want(state, look)                       the state the tissue should show (cheap: compares a key)
 //   plate.step(dtMs) → true while it fades        paints at most one state at a time, in the frame after it was asked for
-import { CanvasTexture, CustomBlending, DataTexture, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial } from 'three';
+import { CEL_TISSUE_GLSL, tissueInk } from './cel.ts';
+import { CanvasTexture, Color, CustomBlending, DataTexture, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial } from 'three';
 import { paintWorldInto, useTokens } from './from2d/lobule-paint.generated.js';
 import type { LobuleNet, Course, P2 } from './geometry.ts';
 import { LOBULE_R } from './shots.ts';
@@ -78,10 +79,25 @@ void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(
 // (The canvas is sent premultiplied, so its transparent edge filters to nothing rather than to a dark fringe; the colours are the canvas's sRGB as they are,
 // as the cel shaders write theirs.)
 export const LOBULE_PLATE_FS = /* glsl */ `
+${CEL_TISSUE_GLSL}
 uniform sampler2D map;
 uniform float opacity;
+uniform vec3 ink;   // 2D's casing over the cell colour: the colour of the clean line on every strong edge (cel.ts)
 varying vec2 vUv;
-void main() { vec4 c = texture2D(map, vUv); gl_FragColor = c * opacity; }`;
+void main() {
+  vec4 p = texture2D(map, vUv);
+  if (p.a < 0.002) { gl_FragColor = vec4(0.0); return; }
+  vec3 c = p.rgb / p.a;
+  // the tissue in three flat tones about its own local lightness (the painted colour blurred a few mip levels), hard edges one pixel wide
+  vec4 m = texture2D(map, vUv, 3.0);
+  float lb = celLight(m.rgb / max(m.a, 1e-3));
+  float dv = (celLight(c) - lb) / max(lb, 0.08);
+  c = celTissue(c, lb, max(fwidth(dv) * CEL_EDGE_PX * 1.5, 1e-3));
+  // the clean ink: every strong edge of the painting takes 2D's casing line, LINE_MIN device px across
+  vec2 uvPerPx = vec2(length(vec2(dFdx(vUv.x), dFdy(vUv.x))), length(vec2(dFdx(vUv.y), dFdy(vUv.y))));
+  c = mix(c, ink, smoothstep(CEL_EDGE_LO, CEL_EDGE_HI, celEdge(map, vUv, uvPerPx)));
+  gl_FragColor = vec4(c * p.a, p.a) * opacity;
+}`;
 
 /** A clear 1 × 1 texture, so a sampler always has a value (no canvas: node, or a browser that gave none). */
 export const blankTexture = (): DataTexture => { const t = new DataTexture(new Uint8Array(4), 1, 1); t.needsUpdate = true; return t; };
@@ -121,7 +137,7 @@ export class LobulePlate {
         tex.flipY = true; tex.premultiplyAlpha = true; tex.generateMipmaps = true; tex.minFilter = LinearMipmapLinearFilter; tex.magFilter = LinearFilter; tex.anisotropy = 4;
       }
       const mat = new ShaderMaterial({
-        vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: tex ?? blankTexture() }, opacity: { value: 0 } },
+        vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: tex ?? blankTexture() }, opacity: { value: 0 }, ink: { value: new Color() } },
         transparent: true, depthWrite: false, side: DoubleSide,
         blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
       });
@@ -138,7 +154,11 @@ export class LobulePlate {
   get key(): string { return this.shown; }
   get pending(): boolean { return this.wanted !== this.shown || this.fade < 1; }
 
-  want(s: PlateState, look: LookId): void { this.wanted = plateKey(s, look); }
+  want(s: PlateState, look: LookId): void {
+    this.wanted = plateKey(s, look);
+    if (look !== this.inkLook) { this.inkLook = look; const c = tissueInk(look); for (const sl of this.slots) (sl.mat.uniforms.ink!.value as Color).setRGB(c[0], c[1], c[2]); }
+  }
+  private inkLook: LookId | '' = '';
 
   /** Paints the wanted state straight onto the front plate, no crossfade (the view opening, a new look). */
   snap(): void { if (this.wanted && this.wanted !== this.shown) { this.paintInto(this.slots[this.front]!, this.wanted); this.shown = this.wanted; } this.fade = 1; this.show(); }

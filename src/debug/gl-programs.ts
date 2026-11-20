@@ -106,7 +106,19 @@ export function collectMaterials(root: Object3D, named: ReadonlyMap<string, stri
       byKey.set(key, { name, vertex: m.vertexShader, fragment: m.fragmentShader, ...a, material: m });
     }
   });
-  return [...byKey.values()];
+  return uniqueNames([...byKey.values()]);
+}
+
+/** Two different programs can be named alike (a define's VALUE differs, not its name: the same ink or toon built for two kinds of mesh), and the ?gl page keys its rows by name: a second
+ *  "toon opaque" made React warn about two children with one key. Each repeat gets a number, in scene order, so a name is one program and the page's rows are unique. */
+export function uniqueNames(list: Program[]): Program[] {
+  const seen = new Map<string, number>();
+  for (const p of list) {
+    const n = (seen.get(p.name) ?? 0) + 1;
+    seen.set(p.name, n);
+    if (n > 1) p.name = `${p.name} #${n}`;
+  }
+  return list;
 }
 
 /** A ShaderMaterial the scene makes late (a Circuit resistor, a dye overlay), as three.js would build it: transparent, front faces, no defines. */

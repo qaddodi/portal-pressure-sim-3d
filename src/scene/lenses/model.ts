@@ -47,12 +47,14 @@ export interface LensData {
   lens: LensId;
   /** 0 = no colouring (the vessel keeps its tone), 1 = a colour at each end, 2 = lanes */
   mode: Mode;
-  /** RGBA per edge per end: sRGB 0..1; a = 1 when the lens colours the vessel, 0 when it keeps its tone. Layout [end][edge][4]. */
+  /** RGBA per edge per end: sRGB 0..1; a = 1 when the lens colours the vessel, 0 when it keeps its tone. Layout [end][edge][4]; ends 0 and 1 are the upstream and downstream colours, and ends 2 and 3 the
+   *  colours a third and two thirds of the way along (the ramp read at the pressure there, so a vessel that crosses a threshold passes through the ramp's own colours rather than a blend of its two ends'.
+   *  The shader reads them with Smooth vessel joins on; a lens whose colour does not run along the vessel gives its ends' blend there). */
   grad: Float32Array;
   /** Cumulative lane boundaries per edge per end (channels 0..3), [end][edge][4]; the fifth lane is the rest. Only mode 2 reads it. */
   lanes: Float32Array;
 }
-export const newLensData = (): LensData => ({ lens: 'neutral', mode: 0, grad: new Float32Array(NE * 2 * 4), lanes: new Float32Array(NE * 2 * 4) });
+export const newLensData = (): LensData => ({ lens: 'neutral', mode: 0, grad: new Float32Array(NE * 4 * 4), lanes: new Float32Array(NE * 2 * 4) });
 
 const samplers = new Map<string, Sampler>();
 export const samplerFor = (look: LookId, name: keyof Pick<LensTokens, 'pressure' | 'flow' | 'velocity' | 'heat' | 'drop' | 'oxygen'>): Sampler => {
@@ -74,7 +76,7 @@ export function systemOf(e: Edge): 'pv' | 'ivc' | 'var' {
   return portal.has(e.from) || portal.has(e.to) ? 'pv' : 'ivc';
 }
 
-const put = (d: LensData, end: 0 | 1, k: number, c: Rgb, on = 1) => { const i = (end * NE + k) * 4; d.grad[i] = c[0]; d.grad[i + 1] = c[1]; d.grad[i + 2] = c[2]; d.grad[i + 3] = on; };
+const put = (d: LensData, end: 0 | 1 | 2 | 3, k: number, c: Rgb, on = 1) => { const i = (end * NE + k) * 4; d.grad[i] = c[0]; d.grad[i + 1] = c[1]; d.grad[i + 2] = c[2]; d.grad[i + 3] = on; };
 const putLane = (d: LensData, end: 0 | 1, k: number, cum: ArrayLike<number>, o: number) => { const i = (end * NE + k) * 4; for (let j = 0; j < 4; j++) d.lanes[i + j] = cum[o + j]!; };
 
 /** Whether an edge is an artery (the lenses colour veins; an artery keeps its own colour, as in the 2D figure). */
@@ -102,7 +104,7 @@ export function computeLens(lens: LensId, f: FrameLike, look: LookId, ctx: LensC
     const e = edges[k]!, a = EF[k]!, b = ET[k]!, P1 = a >= 0 ? P[a]! : 0, P2 = b >= 0 ? P[b]! : 0;
     const refA = refP && a >= 0 ? refP[a]! : null, refB = refP && b >= 0 ? refP[b]! : null;
     switch (lens) {
-      case 'pressure': put(out, 0, k, pr().at(P1, [0, 0, 0])); put(out, 1, k, pr().at(P2, [0, 0, 0])); break;
+      case 'pressure': put(out, 0, k, pr().at(P1, [0, 0, 0])); put(out, 1, k, pr().at(P2, [0, 0, 0])); put(out, 2, k, pr().at(P1 + (P2 - P1) / 3, [0, 0, 0])); put(out, 3, k, pr().at(P1 + (P2 - P1) * 2 / 3, [0, 0, 0])); break;
       case 'drop': { const col = dropS!.at(Math.abs(P1 - P2) / DROP_MAX, [0, 0, 0]); put(out, 0, k, col); put(out, 1, k, col); break; }
       case 'direction': {
         const ref = healthy ? (healthy.Q[k] ?? 0) : 0;
@@ -115,14 +117,22 @@ export function computeLens(lens: LensId, f: FrameLike, look: LookId, ctx: LensC
         const col = norm ? velS!.at(velPos(dopplerVel(f, k), norm), [0, 0, 0]) : NEUTRAL;
         put(out, 0, k, col); put(out, 1, k, col); break;
       }
-      case 'oxygen': put(out, 0, k, oxS!.at(oxygenPos(oxy!.far[2 * k]!), [0, 0, 0])); put(out, 1, k, oxS!.at(oxygenPos(oxy!.far[2 * k + 1]!), [0, 0, 0])); break;
+      case 'oxygen': {
+        const o1 = oxy!.far[2 * k]!, o2 = oxy!.far[2 * k + 1]!;
+        put(out, 0, k, oxS!.at(oxygenPos(o1), [0, 0, 0])); put(out, 1, k, oxS!.at(oxygenPos(o2), [0, 0, 0]));
+        put(out, 2, k, oxS!.at(oxygenPos(o1 + (o2 - o1) / 3), [0, 0, 0])); put(out, 3, k, oxS!.at(oxygenPos(o1 + (o2 - o1) * 2 / 3), [0, 0, 0])); break;
+      }
       case 'heat': {
-        const s = heatS!;
-        put(out, 0, k, s.at(refA == null ? 0 : Math.max(0, P1 - refA) / HEAT_MAX, [0, 0, 0])); put(out, 1, k, s.at(refB == null ? 0 : Math.max(0, P2 - refB) / HEAT_MAX, [0, 0, 0])); break;
+        const s = heatS!, d1 = refA == null ? 0 : P1 - refA, d2 = refB == null ? 0 : P2 - refB;
+        put(out, 0, k, s.at(Math.max(0, d1) / HEAT_MAX, [0, 0, 0])); put(out, 1, k, s.at(Math.max(0, d2) / HEAT_MAX, [0, 0, 0]));
+        put(out, 2, k, s.at(Math.max(0, d1 + (d2 - d1) / 3) / HEAT_MAX, [0, 0, 0])); put(out, 3, k, s.at(Math.max(0, d1 + (d2 - d1) * 2 / 3) / HEAT_MAX, [0, 0, 0])); break;
       }
       case 'system': { const col = sysCol[systemOf(e)]; put(out, 0, k, col); put(out, 1, k, col); break; }
-      case 'delta': case 'since':
-        put(out, 0, k, delta(refA == null ? 0 : P1 - refA).slice() as Rgb); put(out, 1, k, delta(refB == null ? 0 : P2 - refB).slice() as Rgb); break;
+      case 'delta': case 'since': {
+        const d1 = refA == null ? 0 : P1 - refA, d2 = refB == null ? 0 : P2 - refB;
+        put(out, 0, k, delta(d1).slice() as Rgb); put(out, 1, k, delta(d2).slice() as Rgb);
+        put(out, 2, k, delta(d1 + (d2 - d1) / 3).slice() as Rgb); put(out, 3, k, delta(d1 + (d2 - d1) * 2 / 3).slice() as Rgb); break;
+      }
       case 'origin': case 'firstpass': {
         // lanes: cumulative shares of the four named sources; the rest is systemic (the fifth colour). The vessel's plain colour is the blend, for a reader without lanes.
         for (let j = 0; j < 4; j++) { cum[j] = org!.own[k * ORIGIN_N + j]!; cum[4 + j] = org!.end[k * ORIGIN_N + j]!; }
@@ -136,6 +146,9 @@ export function computeLens(lens: LensId, f: FrameLike, look: LookId, ctx: LensC
         break;
       }
     }
+    // a lens whose colour does not run along the vessel (flow, direction, system, the lanes' blend...) gives its ends' own blend a third and two thirds along, which is what the shader drew before
+    const gm = (2 * NE + k) * 4, g0 = k * 4, g1 = (NE + k) * 4, G = out.grad;
+    if (G[g0 + 3]! > 0 && G[gm + 3] === 0) for (let i = 0; i < 3; i++) { G[gm + i] = G[g0 + i]! + (G[g1 + i]! - G[g0 + i]!) / 3; G[gm + 4 * NE + i] = G[g0 + i]! + (G[g1 + i]! - G[g0 + i]!) * 2 / 3; G[gm + 3] = G[gm + 4 * NE + 3] = 1; }
   }
   return out;
 }

@@ -18,7 +18,7 @@ import { startFirstHint } from './first-hint.ts';
 import { Diagnostics } from './Diagnostics.tsx';
 import { useKeys } from '../keys/useKeys.ts';
 import { syncTransport } from './transport.ts';
-import { freeRoom, layoutVars, layoutClass, dockHeight, dockInset } from './room.ts';
+import { viewRoom, layoutVars, layoutClass, dockHeight, dockInset } from './room.ts';
 import { M } from './metrics.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { applyDeepLink } from './open-link.ts';
@@ -61,7 +61,7 @@ function useFreeCamera() {
   const entered = useRef(false);
   useEffect(() => {
     if (mode !== 'free' || vp.w <= 0) { entered.current = false; return; }
-    const room = roomWith(freeRoom(vp, layoutClass(thumb)), testsPlace);
+    const room = roomWith(viewRoom(useShell.getState().view, vp, layoutClass(thumb)), testsPlace);
     if (room.w <= 0 || room.h <= 0) return;
     if (!entered.current) { entered.current = true; showView(useShell.getState().view); } else sceneApi.setRoom(room);
   }, [mode, vp, thumb, testsPlace]);

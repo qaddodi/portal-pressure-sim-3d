@@ -5,7 +5,7 @@ import { useUi } from '../ui-store.ts';
 import type { ViewId } from './views.ts';
 import { toggleKey } from './views.ts';
 import { notYet } from './words.ts';
-import { freeRoom } from './room.ts';
+import { freeRoom, viewRoom } from './room.ts';
 import { cutRoom } from '../tests/room.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { useCircuitTurn } from '../../scene/circuit/pref.ts';
@@ -16,7 +16,7 @@ const label = (v: ViewId) => UI.views.find((x) => x.id === v)!.label;
 /** Put the figure's view on the scene and fly the camera to it (the Circuit: the body's vessels fly onto the map, the camera on the same clock). */
 export function showView(v: ViewId): void {
   const { vp, device } = useUi.getState();
-  const room = cutRoom(freeRoom(vp, device));
+  const room = cutRoom(viewRoom(v, vp, device));
   sceneApi.showView(v === 'lobule' ? 'lobule' : v === 'sinusoid' ? 'sinusoid' : v === 'circuit' ? 'circuit' : 'body', room);
 }
 

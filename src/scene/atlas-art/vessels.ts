@@ -29,10 +29,7 @@ export class AtlasVessels {
   private tubularOfClassic(id: string): number[] {
     let t = this.tubular.get(id);
     if (!t) {
-      const had = ATLAS_COURSE.get(id);
-      ATLAS_COURSE.delete(id);
-      t = tubularOf(NETWORK_BY_ID.get(id)!, slicesFor(id));
-      if (had) ATLAS_COURSE.set(id, had);
+      t = tubularOf(NETWORK_BY_ID.get(id)!, slicesFor(id));   // (counted on the 2D courses whatever is set: shape.ts tubularOf)
       this.tubular.set(id, t);
     }
     return t;

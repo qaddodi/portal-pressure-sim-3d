@@ -29,10 +29,13 @@ import { type Pore, SEED, SLOT, UM, cellEdge, nucAt, poreAt, poreOpenness } from
 import { type NameGeom, type NamePlacement, type NamesInput, layoutNames } from './names.ts';
 import { PORTRAIT_ANGLE, endsFor, framePoint, glideTurn, planePoint, turnAt, xkFor } from './portrait.ts';
 import { SINUSOID_FS, SINUSOID_PFS, SINUSOID_PVS, SINUSOID_UNIFORMS, SINUSOID_VS } from './gl.copied.ts';
+import { celSinusoidFS } from './cel.ts';
 import { createGeom, createTraffic } from './traffic.copied.js';
 import { createPalette } from './palette.copied.js';
 
 /** Micrometres across the stretch the shot frames (four hepatocytes of the 2D plate), and the plane's local units per micrometre. */
+/** 2D's tissue shader with the cel step over it (cel.ts). */
+export const SINUSOID_CEL_FS = celSinusoidFS(SINUSOID_FS);
 export const SPAN_UM = 97.4;
 export const U = SINUSOID_L / SPAN_UM;
 /** The plane's half size in local units: far past any frame the camera can hold, so its edge is never on screen (the tissue repeats outward in the shader). */
@@ -150,8 +153,8 @@ export class SinusoidView {
       return m;
     };
     const u0 = { ...this.uni, uPass: { value: 0 } }, u1 = { ...this.uni, uPass: { value: 1 } };
-    this.tissue = new Mesh(quad, mk(SINUSOID_VS, SINUSOID_FS, u0));
-    this.cells = new Mesh(quad, mk(SINUSOID_VS, SINUSOID_FS, u1));
+    this.tissue = new Mesh(quad, mk(SINUSOID_VS, SINUSOID_CEL_FS, u0));
+    this.cells = new Mesh(quad, mk(SINUSOID_VS, SINUSOID_CEL_FS, u1));
     const sg = new BufferGeometry();
     const pa = new BufferAttribute(this.pos, 3), ka = new BufferAttribute(this.ak, 2);
     pa.setUsage(DynamicDrawUsage); ka.setUsage(DynamicDrawUsage);
