@@ -10,6 +10,7 @@ import { BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, MeshBa
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
 import { len3 } from '../../frame2d.ts';
+import type { OrganEdge } from './fibro-place.ts';
 import { SCAN } from './copied/scan-probe.copied.js';
 import { ProbePart, TubeBuf, linePart, type PartStyle } from './parts.ts';
 import { ArriveTrack } from './ease-track.ts';
@@ -25,18 +26,27 @@ const clamp = (x: number, a: number, b: number): number => Math.min(b, Math.max(
 /** The front's speed in px/s for a stiffness (scanSpeed). */
 export const waveSpeed = (kpa: number | null): number => SCAN.SPEED.base * (clamp(kpa ?? SCAN.SPEED.dflt, SCAN.SPEED.lo, SCAN.SPEED.hi) / SCAN.SPEED.ref) ** SCAN.SPEED.pow;
 const ARC_RINGS = 14;
+/** A packet: a ripple, the crest, a ripple. Each arc's half width in px and its stroke opacity (app-06-plate.css .sp-rip 1.4 px at .35, .sp-front 2.2 px at .95). */
+export const WAVE_ARCS = 3;
+export const WAVE_HALF_PX = [0.7, 1.1, 0.7] as const, WAVE_STROKE_A = [0.35, 0.95, 0.35] as const;
+/** A packet's opacity by how far it has gone of its span (stage-scan.js scanTick): in from nothing, full in the middle, away again, a little less the further it is. */
+export const fadeOf = (u: number): number => Math.sin(Math.PI * Math.min(1, u * 1.15 + 0.04)) ** 1.2 * (1 - u * 0.35);
 /** The whole probe fades in and out over D_SURFACE (420 ms) and its head and cable over D_SMALL (240 ms), each on the arrive curve (2D: scanEase op, headOp, cableOp; app-06-plate.css .scan-probe). */
 export const SCAN_FADE_MS = D_SURFACE, HEAD_MS = D_SMALL;
 /** The turn eases over D_SURFACE (2D: scanEase ang). */
 const TURN_TAU = 0.14;
 
 /** Where the tip stands on an organ's box (2D: fractions from its left and its top) and the direction the beam points, in the figure's plane. */
-export function fibroPlace(box: Box3, organ: FibroOrgan, out: { tip: Vector3; dir: Vector3 } = { tip: new Vector3(), dir: new Vector3() }): { tip: Vector3; dir: Vector3 } {
+export function fibroPlace(box: Box3, organ: FibroOrgan, out: { tip: Vector3; dir: Vector3 } = { tip: new Vector3(), dir: new Vector3() }, edge: OrganEdge | null = null): { tip: Vector3; dir: Vector3 } {
   const [fx, fy] = SCAN.AT[organ] as [number, number], turn = (SCAN.TURN[organ] as number) * RAD;
   out.tip.set(box.min.x + (box.max.x - box.min.x) * fx, box.max.y - (box.max.y - box.min.y) * fy, box.max.z + 0.02);
   out.dir.set(Math.cos(turn), -Math.sin(turn), 0);   // (the 2D turn is clockwise on a y-down screen)
+  // The 2D point is a fraction of the organ's outline box, which is on the outline there; a fraction of the 3D mesh's box is not (the mesh is inflated, scaled, a different shape). The tip is the silhouette on the
+  // line through that point along the probe's aim: on the organ's edge, the beam going in.
+  if (edge && edge(organ, out.tip, out.dir, SNAP)) { out.tip.copy(SNAP); out.tip.z += 0.02; }
   return out;
 }
+const SNAP = new Vector3();
 
 export class FibroProbe {
   readonly group = new Group();
@@ -46,7 +56,9 @@ export class FibroProbe {
   organ: FibroOrgan = 'liver';
   private placedOrgan: FibroOrgan | null = null;
   private readonly place = { tip: new Vector3(), dir: new Vector3() };
+  private readonly again = { tip: new Vector3(), dir: new Vector3() };
   private readonly body: TubeBuf; private readonly pad: TubeBuf; private readonly screen: TubeBuf; private readonly cable: TubeBuf;
+  /** SCAN.N packets of three arcs each (2D .sp-pk: a ripple ahead, the crest, a ripple behind), WAVE_ARCS per packet */
   private readonly waves: { buf: TubeBuf; part: ProbePart; r: number }[] = [];
   private readonly beamGeo = new BufferGeometry();
   private readonly beamMat = new MeshBasicMaterial({ transparent: true, vertexColors: true, depthTest: false, depthWrite: false, side: DoubleSide });
@@ -86,8 +98,10 @@ export class FibroProbe {
     this.pad = mk('steel', (_t, look) => LOOKS[look].text2, 3, 0.9, 3, true, { edge: 'none' }).buf;
     this.screen = mk('marker', () => fixed(this.organ), 2, 0.7, 4, true, { edge: 'none' }).buf;
     this.cable = mk('steel', (_t, look) => LOOKS[look].text3, 2, 0.8, 1, true, { edge: 'none' }).buf;
-    for (let i = 0; i < SCAN.N; i++) {
-      const { part, buf } = mk('marker', () => fixed(this.organ), ARC_RINGS, 0.6, 5, false, { edge: 'none' });
+    // The waves are 2D's packets (app-06-plate.css .sp-rip, .sp-front: strokes in the exam's colour, never filled, no outline, no highlight): the crest 2.2 px at .95, the ripples 1.4 px at .35, each arc see-through
+    // at the packet's own opacity (fadeOf), so the organ and the vessels show through them.
+    for (let i = 0; i < SCAN.N * WAVE_ARCS; i++) {
+      const { part, buf } = mk('marker', () => fixed(this.organ), ARC_RINGS, 0.6, 5, false, { edge: 'none', flat: true, fat: 0, spec: 0 });
       this.waves.push({ buf, part, r: -1 });
     }
     const pos = new Float32Array((ARC_RINGS + 1) * 3), col = new Float32Array((ARC_RINGS + 1) * 4);
@@ -143,8 +157,8 @@ export class FibroProbe {
   }
 
   /** The box of the organ the exam reads, and where its probe stands: laid on the figure once per organ. */
-  private anchor(box: Box3): void {
-    fibroPlace(box, this.organ, this.place);
+  private anchor(box: Box3, edge: OrganEdge | null): void {
+    fibroPlace(box, this.organ, this.place, edge);
     for (const w of this.waves) w.r = -1;
     this.fronts = []; this.next = 0; this.shapeKey = '';
     this.colour.set(SCAN.COLOUR[this.organ] as string);
@@ -156,7 +170,7 @@ export class FibroProbe {
   }
 
   /** One front at radius r px: an arc of the beam's half angle about the axis. */
-  private layArc(w: { buf: TubeBuf; part: ProbePart; r: number }, rPx: number, alpha: number, env: ScreenEnv | null): void {
+  private layArc(w: { buf: TubeBuf; part: ProbePart; r: number }, rPx: number, alpha: number, env: ScreenEnv | null, halfPx: number): void {
     const { tip } = this.place;
     for (let i = 0; i < ARC_RINGS; i++) {
       const a = (-SCAN.HALF + (2 * SCAN.HALF * i) / (ARC_RINGS - 1)) / RAD, g = w.buf.rings[i]!;
@@ -164,19 +178,19 @@ export class FibroProbe {
       g.c.set(tip.x + d.x, tip.y + d.y, tip.z);
       // the front's tangent is square to its radius
       const n = this.vec(this.turn + a + 90, this.b, env).normalize();
-      g.t.copy(n); g.r = this.U * 1.1;
+      g.t.copy(n); g.r = this.U * halfPx;
     }
     w.buf.commit(); w.part.setAlpha(alpha);
   }
 
   /** Steps the probe: eases in or out, moves to the other organ by easing out and in, and sends its waves. `box(organ)` is the organ's box in the figure (null while it is not built); `kpa` the stiffness it reads.
    *  `env`: the screen (the scene's), for its turn, its head and its size. True while anything moves. */
-  update(dtMs: number, nowMs: number, on: boolean, organ: FibroOrgan, box: (o: FibroOrgan) => Box3 | null, kpa: number | null, env: ScreenEnv | null = null): boolean {
+  update(dtMs: number, nowMs: number, on: boolean, organ: FibroOrgan, box: (o: FibroOrgan) => Box3 | null, kpa: number | null, env: ScreenEnv | null = null, edge: OrganEdge | null = null): boolean {
     let want = on ? 1 : 0;
     if (on && this.placedOrgan && organ !== this.placedOrgan && this.shown > 0.001) want = 0;
     if (this.shown <= 0.001 && want === 1 && organ !== this.placedOrgan) {
       const b = box(organ);
-      if (b) { this.organ = organ; this.placedOrgan = organ; this.anchor(b); this.turn = this.turnGoal = SCAN.TURN[organ] as number; this.deg = 45; this.headT.set(1); this.headGoal = 1; } else want = 0;
+      if (b) { this.organ = organ; this.placedOrgan = organ; this.anchor(b, edge); this.turn = this.turnGoal = SCAN.TURN[organ] as number; this.deg = 45; this.headT.set(1); this.headGoal = 1; } else want = 0;
     }
     const prev = this.shown;
     this.opT.go(want, SCAN_FADE_MS, nowMs);
@@ -191,6 +205,14 @@ export class FibroProbe {
     }
     this.screenAt.placed = vis;
     if (!vis) { this.fronts = []; this.reading = null; return moving; }
+    // The tip stays on the organ's edge as the organ changes (a spleen that grows, a liver that shrinks): found again from the organ now, the tip following its edge.
+    if (edge && this.placedOrgan) {
+      const b = box(this.organ);
+      if (b) {
+        fibroPlace(b, this.organ, this.again, edge);
+        if (this.again.tip.distanceToSquared(this.place.tip) > 1e-10) { this.place.tip.copy(this.again.tip); this.shapeKey = ''; moving = true; }
+      }
+    }
     if (kpa != null && Number.isFinite(kpa)) {
       const was = this.reading;
       this.reading = was == null || (env?.reduceMotion?.() ?? false) ? kpa : was + (kpa - was) * (1 - Math.exp(-Math.max(0, dtMs) / 1000 / 0.6));
@@ -219,14 +241,16 @@ export class FibroProbe {
     for (const o of this.headPartsList) { const a = this.shown * this.headOp; if (a > 0.002) o.setAlpha(a); o.group.visible = a > 0.002; }
     // the shear wave: a front every EVERY seconds; each spreads at the pace the stiffness gives and fades by the time it has crossed `span`
     const v = waveSpeed(kpa), span = clamp(v * 2.5, 70, SCAN.SPAN);
-    if (nowMs >= this.next) { this.fronts.push(SCAN.GAP); this.next = nowMs + SCAN.EVERY * 1000; }
+    if (nowMs >= this.next) { this.fronts.push(0); this.next = nowMs + SCAN.EVERY * 1000; }   // (a front starts at the tip: 2D scan.fronts.push(0); SCAN.GAP is the ripples' widest gap)
     for (let i = 0; i < this.fronts.length; i++) this.fronts[i]! += v * dt;
     this.fronts = this.fronts.filter((r) => r < span).slice(-SCAN.N);
+    // (the ripples tighten when fronts are close, so neighbours never merge: 2D gap)
+    const gap = clamp(v * SCAN.EVERY * 0.4, 2, SCAN.GAP);
     this.waves.forEach((w, i) => {
-      const r = this.fronts[i];
+      const pk = Math.floor(i / WAVE_ARCS), j = i % WAVE_ARCS, r = this.fronts[pk];
       if (r == null) { w.part.group.visible = false; return; }
       w.part.group.visible = true;
-      this.layArc(w, r, this.shown * (1 - r / span) * 0.95, env);
+      this.layArc(w, Math.max(1, r + (j - 1) * gap), this.shown * fadeOf(r / span) * WAVE_STROKE_A[j]!, env, WAVE_HALF_PX[j]!);
     });
     return true;
   }
