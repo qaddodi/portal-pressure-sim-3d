@@ -217,7 +217,7 @@ test('the bed that continues a vein which branches wears no fork collar (root ca
 test('flow marks hold back inside the vessel a tube leaves: the shader multiplies the chevrons and the streaks by the buried share', async () => {
   const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
   assert.match(VESSEL_FS, /float markK\(float d0, float d1\)/);
-  assert.match(VESSEL_FS, /float sOn = markK\(/);
+  assert.match(VESSEL_FS, /float dOn = markK\(/, 'the dust');
   assert.match(VESSEL_FS, /float fade = markK\(/);
 });
 
