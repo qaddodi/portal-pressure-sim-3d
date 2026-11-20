@@ -34,6 +34,8 @@ export const STREAK = {
   T_END: 0.4, T_STENOSIS: 0.9, T_FLOW: 0.5,
   /** the most a streak wanders across (of the tube's half width) and tilts (radians) at full turbulence */
   WANDER: 0.3, TILT: 0.45,
+  /** CONTAINED 100 percent (Mohammad, 20 Nov: "the streaks should be CONTAINED within the vessels 100%"): a streak's whole extent, across, stays within EDGE of the lumen's radius (the lane, the wander, its width and the sideways reach of its tilt all count), so it never touches the ink; SAG: how far a straight streak may stand off a bending course (of the radius) */
+  EDGE: 0.8, SAG: 0.1,
   /** the vessel's lit tone lifted this far toward white (one shade lighter, never white) and the streak's alpha (whole inside the lumen band) */
   LIFT: 0.28, ALPHA: 1,
 } as const;
@@ -46,6 +48,20 @@ export function laneSpeed(k: number, h: number): number {
   return at(k) / m;
 }
 
+/** The streak's fit inside the tube (the twin of streakFit in GLSL), all in CSS px: `lat` the centre's offset from the axis, `ang` its tilt, `len` and `thick` its size, `R` the tube's radius, `bendLen` the longest a streak may be on this bend. */
+export function streakFit(lat: number, ang: number, len: number, thick: number, R: number, bendLen: number): { lat: number; ang: number; len: number } {
+  const room = Math.max(STREAK.EDGE * R - 0.5 * thick, 0);
+  const l = Math.min(len, bendLen);
+  const la = Math.min(room, Math.max(-room, lat));
+  const sm = Math.min(1, Math.max(0, (room - Math.abs(la)) / Math.max(0.5 * l, 1e-3)));
+  const lim = Math.asin(sm);
+  return { lat: la, ang: Math.min(lim, Math.max(-lim, ang)), len: l };
+}
+/** The longest a straight streak may be on a bend of radius of curvature `rho` (CSS px) in a tube of radius R: its ends stand off the curve by at most SAG of R. */
+export const bendLength = (rho: number, R: number): number => 2 * Math.sqrt(2 * rho * STREAK.SAG * R);
+/** The whole sideways extent of a streak from the axis (CSS px): its offset, half its width and the reach of its tilt. Always within EDGE of R after streakFit. */
+export const streakReach = (lat: number, ang: number, len: number, thick: number): number => Math.abs(lat) + 0.5 * thick * Math.abs(Math.cos(ang)) + 0.5 * len * Math.abs(Math.sin(ang));
+
 const F = (x: number): string => (Number.isInteger(x) ? x.toFixed(1) : String(x));
 
 /** Lane speed, comet shape and hash (any stage). */
@@ -53,6 +69,15 @@ export const STREAK_LANE_GLSL = /* glsl */ `
 // lane: -1 .. 1 across the lanes (the outer lane's centre is +-1), h: half the lanes less a half (1, 2 or 3): the lane's speed over the stream's mean, parabolic, WALL_SPEED at the outer lane
 float streakLaneSpeed(float lane, float h) {
   return (${F(STREAK.WALL_SPEED)} + ${F(1 - STREAK.WALL_SPEED)} * (1.0 - lane * lane)) / (${F(STREAK.WALL_SPEED)} + ${F(1 - STREAK.WALL_SPEED)} * (1.0 - (h + 1.0) / (3.0 * h)));
+}
+// the streak's fit inside the tube (CSS px; streak-glsl.ts streakFit): the centre's offset and tilt are pulled in so that the offset, half the width and the sideways reach of the tilt stay within EDGE of the radius R; the length is held to bendLen
+vec3 streakFit(float lat, float ang, float len, float thick, float R, float bendLen) {
+  float room = max(${F(STREAK.EDGE)} * R - 0.5 * thick, 0.0);
+  float l = min(len, bendLen);
+  float la = clamp(lat, -room, room);
+  float sm = clamp((room - abs(la)) / max(0.5 * l, 1e-3), 0.0, 1.0);
+  float lim = asin(sm);
+  return vec3(la, clamp(ang, -lim, lim), l);
 }
 float streakHash(float x) { return fract(sin(x * 127.1 + 311.7) * 43758.5453); }
 // a streak's own speed over its lane's: 1 +- SPEED_JITTER from its seed in 0 .. 1 (symmetric, so the mean stands)

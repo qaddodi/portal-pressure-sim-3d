@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CELLS_FS, CELLS_VS } from '../src/scene/blood/cells/shader.ts';
 import { STREAK, laneSpeed, lanesFor, layoutCells } from '../src/scene/blood/cells/core.ts';
-import { STREAK_MARK_GLSL, STREAK_FIELD_GLSL, STREAK_LANE_GLSL } from '../src/scene/blood/streak-glsl.ts';
+import { STREAK_MARK_GLSL, STREAK_FIELD_GLSL, STREAK_LANE_GLSL, bendLength, streakFit, streakReach } from '../src/scene/blood/streak-glsl.ts';
 import { MICRO_FS, MICRO_VS } from '../src/scene/micro3d/cel3d.ts';
 
 const have = spawnSync('glslangValidator', ['--version']).status === 0;
@@ -121,4 +121,28 @@ test('variation: each streak\'s tone lies between the lit tone and one shade lig
   assert.match(STREAK_FIELD_GLSL, /streakPace\(streakHash\(idx \* 5\.9 \+ 0\.7\)\)/, 'and the pace');
   // the whole body stays opaque: only the streak sprites blend, inside the lumen
   assert.match(readFileSync(new URL('../src/scene/blood/cells/cells.ts', import.meta.url), 'utf8'), /transparent: true, depthWrite: false/);
+});
+
+test('CONTAINED 100 percent: sampled at full turbulence, every lane, every size and every bend, a streak\'s whole sideways extent stays within EDGE of the lumen, short of the ink', () => {
+  let worst = 0, n = 0;
+  for (const R of [2.5, 4, 8, 16, 40, 90]) for (const h of [1, 2, 3]) for (let k = -h; k <= h; k++) for (const wob of [-1, -0.4, 0, 0.7, 1]) for (const tilt of [-1, -0.5, 0, 0.5, 1]) for (const rho of [4, 20, 80, 1e6]) {
+    const thick = Math.min(STREAK.THICK_MAX, Math.max(STREAK.THICK_MIN, STREAK.THICK_OF_R * R * (1 + STREAK.THICK_JITTER / 2)));
+    const len = Math.min(STREAK.LEN_MAX, Math.max(STREAK.LEN_FLOOR, STREAK.LEN_OF_R * R * (1 + STREAK.LEN_JITTER / 2) * STREAK.LEN_FLOW[1]));
+    const T = 1;   // full turbulence
+    const latN = Math.min(1, Math.max(-1, k / h + T * STREAK.WANDER * wob));
+    const bend = bendLength(rho, R);
+    const f = streakFit(latN * STREAK.SPAN * R, T * STREAK.TILT * tilt, len, thick, R, bend);
+    const reach = streakReach(f.lat, f.ang, f.len, thick) / R;
+    worst = Math.max(worst, reach); n++;
+    assert.ok(reach <= STREAK.EDGE + 1e-9, `R ${R} lane ${k}/${h} wob ${wob} tilt ${tilt} rho ${rho}: reach ${reach.toFixed(3)} of the radius`);
+    // a streak on a bend stands off the curve by at most SAG of the radius (the sagitta of its chord)
+    assert.ok(f.len * f.len / (8 * rho) <= STREAK.SAG * R * (1 + 1e-6) || f.len <= 1e-9 || f.len === Math.min(len, bend), 'the sagitta');
+  }
+  assert.ok(n > 5000 && worst <= STREAK.EDGE + 1e-9 && worst < 1 - 0.05, `${n} samples, worst reach ${worst.toFixed(3)}`);
+  assert.ok(STREAK.EDGE + STREAK.SAG <= 0.95 || STREAK.EDGE <= 0.8, 'a gap is left to the ink');
+  // the shader runs the same fit
+  assert.match(CELLS_VS, /vec3 fit = streakFit\(latN \* 0\.78 \* Rcss, T \* 0\.45 \* tilt, lenCss, thickCss, Rcss, bendLen\);/);
+  assert.match(CELLS_VS, /float bendLen = 2\.0 \* sqrt\(2\.0 \* rho \* 0\.10 \* Rcss\);/);
+  assert.match(STREAK_LANE_GLSL, /float room = max\(0\.8 \* R - 0\.5 \* thick, 0\.0\);/);
+  assert.match(CELLS_VS, /float ang = fit\.y;/);
 });
