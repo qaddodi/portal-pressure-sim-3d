@@ -42,7 +42,7 @@ import { MeshBuilder, MicroPart, type P2, type RGB, ellipsoid, microMaterials, p
 
 const R = LOBULE_R;
 /** Heights (local units, toward the viewer; R = 3): the hexagon's ground, the tiles' tops and bottoms, the tubes' centre line, Disse's sleeve, the mouths' lips and depth, the marks' plate. */
-export const LZ = { ground: -0.03, cellTop: 0.026, cellBot: -0.05, tube: 0.008, disse: -0.012, lip: 0.03, mouthDepth: 0.22, marks: 0.031 } as const;
+export const LZ = { ground: -0.03, cellTop: 0.026, cellBot: -0.026, tube: 0.008, disse: -0.012, lip: 0.03, mouthDepth: 0.22, marks: 0.031 } as const;   // (cellBot a hair over the ground: a tile's wall ended under it, and its line, drawn down the wall, dipped in and out of the ground in dashes, eyes 20 Nov)
 /** The lobule vessels' line (CSS px): the Anatomy's vessels' weight (about 2 px at the fit). */
 export const VESSEL_LINE = 2;
 /** Segments round a tube and round a mouth. */
@@ -623,8 +623,10 @@ export function flowAux(b: MeshBuilder, before: number, pts: readonly (readonly 
     return hush?.(i) ? 3 : -ty * nx + tx * ny;
   };
   for (let v = before; v < before + ringVerts; v++) { const i = Math.floor((v - before) / seg); b.aux.push(arc[i]!); b.aux2.push(across(v, i)); }
-  for (let v = before + ringVerts; v < before + ringVerts + capVerts; v++) { b.aux.push(arc[0]!); b.aux2.push(across(v, 0)); }
-  for (let v = before + ringVerts + capVerts; v < before + ringVerts + 2 * capVerts; v++) { b.aux.push(arc[m - 1]!); b.aux2.push(across(v, m - 1)); }
+  // (the round ends carry no flow marks: their along-the-vessel place is one number across the whole cap, so a chevron that fell on it filled the cap, a black square at every
+  //  end and kink, eyes 20 Nov on the RHF lobule; 3 hushes the marks, as inside the central vein)
+  for (let v = before + ringVerts; v < before + ringVerts + capVerts; v++) { b.aux.push(arc[0]!); b.aux2.push(3); }
+  for (let v = before + ringVerts + capVerts; v < before + ringVerts + 2 * capVerts; v++) { b.aux.push(arc[m - 1]!); b.aux2.push(3); }
 }
 
 /** The Bile layer's courses, as the flat view builds them (lobule/view.ts channel()): the canaliculi midway between neighbouring sinusoids, and from each the first generation's canal of Hering to its tract's ductule. */

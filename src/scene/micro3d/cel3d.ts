@@ -235,6 +235,9 @@ void main() {
 
 /** How far behind its shape the ink hull sits, as a share of its distance from the eye. */
 export const INK_BACK = 0.0015;
+/** No line thinner than this (CSS px): the canvas has no multisampling, and a hull band under about 1.5 device px breaks into dashes as it crosses the pixel grid (the dotted
+ *  hepatocytes, the stippled nucleus rings, eyes 20 Nov). Every micro part's line is held to it, so no part can ask for a line too thin to draw. */
+export const MIN_LINE = 1.0;
 export const MICRO_INK_VS = /* glsl */ `
 uniform float px;
 uniform vec2 res;
@@ -360,7 +363,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
   });
   const ink = o.ink === null ? null : new ShaderMaterial({
     vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors,
-    uniforms: { color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: o.px ?? CEL_STYLE.MICRO.LINE }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
+    uniforms: { color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: Math.max(MIN_LINE, o.px ?? CEL_STYLE.MICRO.LINE) }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
     side: DoubleSide, transparent: !!o.transparent, depthWrite: !o.transparent,
   });
   return { toon, ink };
