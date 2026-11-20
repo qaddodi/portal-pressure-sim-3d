@@ -14,6 +14,8 @@ import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
 /** A hepatic vein that opens into the cava dissolves over the last 0.8 of a cava radius before its wall (shaders.ts cavA) and is not there inside it: its flow marks are held back from where the dissolve starts, 1.8 cava radii from the vein's end
  *  (times the marks' ramp, 2.0 to 3.6, shaders.ts markK), so no chevron is ever caught half faded in it (eyes, v11). */
 const CAVA_BURY = 0.9;
+/** The ascending lumbar collateral, drawn like the cava (fades.ts CAVA_LIKE) but named on its own. */
+const LUMBAR_ID = 'C9';
 import { flowRate, flowTarget } from './flow-rate.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
@@ -21,6 +23,7 @@ import { BACK_EDGES } from './vessels/paths.copied.ts';
 import { centrelineOf, type Centreline } from './vessels/centreline.ts';
 import { cavaMateOf, forkMateOf, neighbourAttr } from './vessels/neighbour.ts';
 import { fadeOf, opensIntoCava, cavaEndSpan, CAVA_LIKE, CAVA_RECEDE } from './vessels/fades.ts';
+import { IVC_EDGES } from './vessels/paths.copied.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
@@ -231,6 +234,7 @@ export class CelScene {
   private readonly back: VesselObject[] = [];
   private cavaGoal = 0;
   private cavaWhole = 0;
+  private lumbarGoal = 0; private lumbarWhole = 0;
   private readonly tipFades: { o: VesselObject; connect: readonly string[] }[] = [];
   private look: LookId;
   private phone: boolean;
@@ -574,16 +578,19 @@ export class CelScene {
     const ids = new Set(this.named);
     const picked = this.highlight.picked;
     if (picked) { const host = NETWORK.find((v) => v.id === picked)?.host; for (const v of NETWORK) if (v.host === host) ids.add(v.id); }
-    this.cavaGoal = [...ids].some((id) => CAVA_LIKE.has(id)) ? 1 : 0;
+    // (the cava is whole only when the cava itself is named or picked: naming the lumbar collateral, which is drawn like the cava, raises its own tone and never the cava's: the whole cava is opaque and hid the arteries that cross it, Mohammad 20 Nov)
+    this.cavaGoal = [...ids].some((id) => IVC_EDGES.has(id)) ? 1 : 0;
+    this.lumbarGoal = ids.has(LUMBAR_ID) ? 1 : 0;
     this.moving = true;
   }
 
   /** Eases the cava toward whole or veiled; true while it moves. */
   private stepCava(dtMs: number): boolean {
-    if (this.cavaWhole === this.cavaGoal) return false;
-    const k = Math.min(1, dtMs / FLOW_FADE_MS), d = this.cavaGoal - this.cavaWhole;
+    if (this.cavaWhole === this.cavaGoal && this.lumbarWhole === this.lumbarGoal) return false;
+    const k = Math.min(1, dtMs / FLOW_FADE_MS), d = this.cavaGoal - this.cavaWhole, dl = this.lumbarGoal - this.lumbarWhole;
     this.cavaWhole = Math.abs(d) <= k ? this.cavaGoal : this.cavaWhole + Math.sign(d) * k;
-    for (const o of this.cava) o.setWholeShare(this.cavaWhole);
+    this.lumbarWhole = Math.abs(dl) <= k ? this.lumbarGoal : this.lumbarWhole + Math.sign(dl) * k;
+    for (const o of this.cava) o.setWholeShare(o.edge?.id === LUMBAR_ID ? this.lumbarWhole : this.cavaWhole);
     for (const o of this.ivcJoins) o.setIvcWhole(this.cavaWhole);
     for (const o of this.hvJoins) o.setCavaEndWhole(this.cavaWhole);
     for (const o of this.cavaCuts) o.setCavaJoinWhole(this.cavaWhole);
