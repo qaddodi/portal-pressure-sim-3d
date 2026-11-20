@@ -7,6 +7,7 @@ import { dataKeys } from './keep.ts';
 import { useDockSwipe, openDock, justDocked } from './useDockSwipe.ts';
 import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
 import { DataCap } from '../talk/tool-room.ts';
+import { pairSteps, stepVars, type PairBase } from './pair-ladder.ts';
 import { planLayout, widthOf, stepsFor, centredKind, centredBox, panelVisual, type CardId, type Need, type Plan } from '../layout/plan.ts';
 import { isSideways, layoutOf } from '../layout/rules2d.ts';
 import type { Rect } from '../layout/device.ts';
@@ -81,6 +82,10 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // iPhone on its side: the cards take the narrowest column that holds them, widening a step at a time (fewer lines of the same type), never a smaller type
   const sideways = isSideways(vp.w, vp.h), pair = !!view?.data;
   const [stepMap, setStepMap] = useState<Record<string, number>>({});
+  // 2D's steps for a stacked pair too tall for the screen (pair-ladder.ts): the title, then the data card's blocks; one index per slide and size, taken before the words page
+  const [ladMap, setLadMap] = useState<Record<string, number>>({});
+  const [ladBase, setLadBase] = useState<Record<string, PairBase>>({});
+  const stacked0 = layoutOf(vp.w, vp.h) === 'stack' || layoutOf(vp.w, vp.h) === 'tab';
   const nSteps = stepsFor(vp, pair);
   // past the widest column the title takes one step down (never under 1.4× the words), then the words page: the body never shrinks
   const stepAt = sideways ? Math.min(stepMap[pagesKey] ?? 0, nSteps) : 0;
@@ -92,7 +97,11 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const capOf = (v: NonNullable<typeof view>) => maxPages(v.words, v.slide && v.words === 'case' ? caseOf(v.slide)?.text : v.slide?.line, v.words === 'check' ? deck.checks.length : 0);
   const pages = view ? Math.min(pagesMap[pagesKey] ?? 1, capOf(view)) : 1;
   const at = clampPage(page, pages);
-  const sig = `${wordsKey}|${pages}|${at}|${stepAt}|${vp.w}x${vp.h}`;
+  const ladOn = pair && !sideways && !stacked0 && !!view && !centredKind(view.words);
+  const cands = useMemo(() => (ladBase[pagesKey] ? pairSteps(ladBase[pagesKey]) : []), [ladBase, pagesKey]);
+  const lad = ladOn ? Math.min(ladMap[pagesKey] ?? 0, Math.max(0, cands.length - 1)) : 0;
+  const ladVars = ladOn ? stepVars(cands[lad]) : undefined;
+  const sig = `${wordsKey}|${pages}|${at}|${stepAt}|${vp.w}x${vp.h}|${lad}`;
   sigRef.current = sig;
 
   const dataKey = here?.key ?? 'ladder';
@@ -116,15 +125,26 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // a words card taller than its room asks for one more page (only on a measurement of the page now showing); the count goes to the presenter
   const wordsHit = view ? hit(wordsKey) : undefined;
   const dataHit = view?.data ? hit(dataKey) : undefined;
-  const tooTall = !!view && plan.overflow.includes(view.words) && wordsHit?.sig === sig;
+  // the pair is too tall for the screen as measured at this step of the ladder (both cards judged at it)
+  const pairOver = ladOn && plan.overflow.length > 0 && wordsHit?.sig === sig && dataHit?.sig === sig;
+  const ladBusy = pairOver && (!ladBase[pagesKey] || lad < cands.length - 1);
+  const tooTall = !!view && plan.overflow.includes(view.words) && wordsHit?.sig === sig && !ladBusy;
   // a pair that does not fit its column at this step widens to the next step first; only past the widest does the words card split
   const tooTallPair = sideways && (tooTall || (pair && plan.overflow.includes(view?.data ?? 'ladder') && dataHit?.sig === sig));
   useLayoutEffect(() => {
     if (!view) return;
+    if (ladBusy) {
+      // the first measure at the full size gives the ladder its sizes (the title's, the words', the tiles' names), read where they stand; each step after it is the next index
+      if (!ladBase[pagesKey]) {
+        const px = (sel: string) => { const e = document.querySelector<HTMLElement>(sel); return e ? parseFloat(getComputedStyle(e).fontSize) || 0 : 0; };
+        setLadBase((m) => ({ ...m, [pagesKey]: { titlePx: px('.dk-pos[data-slot="words"] .pz-h'), bodyPx: px('.dk-pos[data-slot="words"] .pz-line, .dk-pos[data-slot="words"] p'), labelPx: px('.dk-pos[data-slot="data"] .pz-tiles .pzt-k') } }));
+      } else setLadMap((m) => ({ ...m, [pagesKey]: lad + 1 }));
+      return;
+    }
     const cap = capOf(view);
     if (tooTallPair && stepAt < nSteps) { setStepMap((m) => ({ ...m, [pagesKey]: stepAt + 1 })); return; }
     if (tooTall && pages < cap) setPagesMap((m) => ({ ...m, [pagesKey]: pages + 1 }));
-  }, [tooTall, tooTallPair, stepAt, nSteps, pages, pagesKey, view, deck.checks.length]);
+  }, [tooTall, tooTallPair, ladBusy, lad, stepAt, nSteps, pages, pagesKey, view, deck.checks.length]);
   useLayoutEffect(() => { setPageCount(pages); }, [pages, setPageCount, wordsKey]);
 
   // a leaving card stays where it was while it goes
@@ -138,7 +158,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // and the fonts are in (a card that came in on its own measure then grew, and the second card showed up after the first). A slow measure never
   // holds a slide back for good: past 320 ms the cards come in as they are.
   const fonts = useFontsReady();
-  const growing = (tooTallPair && stepAt < nSteps) || (tooTall && pages < (view ? capOf(view) : 1));
+  const growing = ladBusy || (tooTallPair && stepAt < nSteps) || (tooTall && pages < (view ? capOf(view) : 1));
   const measured = needs.length > 0 && needs.every((n) => (n.h > 0 && (n.slot === 'data' || hit(wordsKey)?.sig === sig)) || (plan.docked && n.slot === 'data'));
   const [late, setLate] = useState('');
   useEffect(() => { const t = setTimeout(() => setLate(pagesKey), 320); return () => clearTimeout(t); }, [pagesKey]);
@@ -261,7 +281,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
       <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onGone={stack.gone} label={labelOf(e.id)}
-        pointer={swipe} go={go} data={slot === 'data'} fresh={fresh} swap={slot === 'data' && swapping} tuck={slot === 'data' && plan.docked} zoomable={zoomsHere && e.phase === 'in'} onTap={slot === 'data' && plan.docked && e.phase === 'in' ? () => { if (!justDocked()) openDock(setDocked); } : e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsHere && e.phase === 'in' ? zoomTap : undefined} visual={view.slide?.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? [dataClass(e), zoomableData && e.phase === 'in' ? 'pz-zoomable' : ''].filter(Boolean).join(' ') || undefined : [(e.id === 'check' || e.id === 'visual') && nameTabOf(deck) ? 'tabbed' : '', e.id === 'visual' && view.slide?.visual === 'ladders' ? 'fill' : ''].filter(Boolean).join(' ') || undefined}>
+        pointer={swipe} go={go} data={slot === 'data'} vars={ladVars as never} remeasure={sig} fresh={fresh} swap={slot === 'data' && swapping} tuck={slot === 'data' && plan.docked} zoomable={zoomsHere && e.phase === 'in'} onTap={slot === 'data' && plan.docked && e.phase === 'in' ? () => { if (!justDocked()) openDock(setDocked); } : e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsHere && e.phase === 'in' ? zoomTap : undefined} visual={view.slide?.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? [dataClass(e), zoomableData && e.phase === 'in' ? 'pz-zoomable' : ''].filter(Boolean).join(' ') || undefined : [(e.id === 'check' || e.id === 'visual') && nameTabOf(deck) ? 'tabbed' : '', e.id === 'visual' && view.slide?.visual === 'ladders' ? 'fill' : ''].filter(Boolean).join(' ') || undefined}>
         {slot === 'data' ? <DataCap.Provider value={stacked || alone ? 0 : plan.maxH.data}>{content(e)}</DataCap.Provider> : content(e)}
       </CardFrame>
     );
