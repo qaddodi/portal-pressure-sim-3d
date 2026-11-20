@@ -660,7 +660,9 @@ export class CelScene {
   private stepCutaway(): void {
     const cam = this.rig.camera, d = this.inDive() ? cam.position.distanceTo(this.livePoint) : Infinity;
     const p = this.divePt.copy(this.livePoint).project(cam);
-    cutUniform(d, p.x, p.y, cam.aspect, this.cutArr, this.diveIn());
+    // (owner, 20 Nov: no cut-out. The circular window drew a dark-ringed disc in the liver with nothing in it; the body now dissolves evenly over the lobules' field, which
+    //  fills the screen from the moment the camera is inside. The window stays shut: cutUniform at an infinite distance.)
+    cutUniform(Infinity, p.x, p.y, cam.aspect, this.cutArr, this.diveIn());
     const was = ORGAN_CUT.value.z;
     ORGAN_CUT.value.set(this.cutArr[0], this.cutArr[1], this.cutArr[2], this.cutArr[3]);
     this.lobule.field.setSoft(fieldSoft(d, this.lobuleRest()));
