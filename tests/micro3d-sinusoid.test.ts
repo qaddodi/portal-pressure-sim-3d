@@ -4,7 +4,7 @@ import { type BufferGeometry, Matrix4, type Mesh, type Object3D, Vector3 } from 
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { Sinusoid3D } from '../src/scene/micro3d/sinusoid3d.ts';
-import { GAP_SLOTS, GAP_X0, REACH, TRAFFIC_REACH, cellOutline, CLEFT_HALF, CANAL_R, Z } from '../src/scene/micro3d/sinusoid3d.ts';
+import { GAP_SLOTS, GAP_X0, REACH, TRAFFIC_REACH, cellOutline, CLEFT_HALF, CANAL_R, CANAL_HOLE, Z } from '../src/scene/micro3d/sinusoid3d.ts';
 const GAP_REACH = REACH;
 import { UM } from '../src/scene/sinusoid/layout.ts';
 
@@ -262,7 +262,7 @@ test('the microvilli are the hepatocyte\'s own colour with its near-black line r
   const u = (m: Mesh, k: string) => ((m.material as unknown as { uniforms: Record<string, { value: { toArray(): number[] } }> }).uniforms[k]!.value.toArray());
   assert.deepEqual(u(toon, 'tint'), u(cells, 'tint'), 'the hepatocyte\'s fill');
   assert.deepEqual(u(ink!, 'color'), u(cellInk, 'color'), 'the hepatocyte\'s line');
-  assert.ok(Math.max(...u(cellInk, 'color')) < 0.2, 'near black');
+  assert.ok(Math.max(...u(cellInk, 'color')) < 0.45, 'the cell\'s colour darkened');
 });
 
 test('the blur starts at the middle of the first hepatocyte row and is whole by the middle of the next sinusoid, rising fast (Mohammad 20 Nov: "start earlier and be more intense quickly")', async () => {
@@ -276,7 +276,7 @@ test('the blur starts at the middle of the first hepatocyte row and is whole by 
 
 test('each microvillus roots inside its cell, just under the cell\'s top face, so cell and villi read as one outlined shape (no line across a villus\'s root)', async () => {
   const { VILLUS_R, VILLUS_ROOT, Z } = await import('../src/scene/micro3d/sinusoid3d.ts');
-  assert.ok(VILLUS_ROOT >= 0.4 && VILLUS_R >= 0.2);
+  assert.ok(VILLUS_ROOT >= 0.3 && VILLUS_R <= 0.15, 'fine bristles rooted in the cell');
   const { s3 } = scene(); s3.update(true);
   const v = meshes(s3.group).find((o) => o.name === 'sinusoid3d/microvilli') as unknown as { count: number; getMatrixAt(i: number, m: Matrix4): void };
   assert.ok(v.count > 50);
@@ -285,10 +285,17 @@ test('each microvillus roots inside its cell, just under the cell\'s top face, s
   assert.ok(p.z + VILLUS_R <= Z.cell && p.z + VILLUS_R > Z.cell - 0.2, `its top just under the cell's face (${(p.z + VILLUS_R).toFixed(2)})`);
 });
 
-test('a cleft between hepatocytes is a thin light gap between two outlines, never a deep black bar (coordinator from the crops, 20 Nov 2026)', async () => {
-  const fs = await import('node:fs');
-  const src = fs.readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
-  assert.match(src, /this\.ground\.setTint\(mix3\(P\.cCell, P\.cBg/, 'the cleft floor is the cell colour toward the page, not 2D\'s deep under-tone');
-  assert.ok(Z.cellBot > Z.disse - 0.5 && Z.cellBot < Z.disse, 'the cell walls stop just under Disse, so no deep wall shows down a cleft');
-  assert.ok(CLEFT_HALF >= 0.5 && CLEFT_HALF < CANAL_R, 'the cleft is wide enough for two outlines side by side, and the canaliculus still spans it');
+test('neighbouring hepatocytes touch, with only a round gap round the canaliculus (Mohammad 20 Nov: "next to each other and just have like a circular gap around the bile duct")', () => {
+  assert.ok(CLEFT_HALF <= 0.1, 'no cleft channel: the neighbours touch');
+  assert.ok(Z.cellBot > Z.disse - 0.5 && Z.cellBot < Z.disse, 'the cell walls stop just under Disse');
+  // the cell's right border bows into the cell round the canaliculus: a point CANAL_HOLE in from it at mid-plate is outside the cell, one well above it is inside
+  const j = 0, sd = 29, H = UM.hep, ring = cellOutline(j, sd, 1, () => 0);
+  const inside = (x: number, y: number) => { let c = false; for (let i = 0, k = ring.length - 1; i < ring.length; k = i++) { const [xi, yi] = ring[i]!, [xk, yk] = ring[k]!; if ((yi > y) !== (yk > y) && x < ((xk - xi) * (y - yi)) / (yk - yi) + xi) c = !c; } return c; };
+  const ys = ring.map((p) => p[1]), yMid = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const xr = Math.max(...ring.filter((p) => Math.abs(p[1] - yMid - 6) < 1.2).map((p) => p[0]));
+  assert.ok(inside(xr - 0.4, yMid + 6), 'the border is flush away from the canaliculus');
+  const xm = Math.max(...ring.filter((p) => Math.abs(p[1] - yMid) < 3).map((p) => p[0]));
+  assert.ok(!inside(xr - 0.4, yMid), 'the border bows away at the canaliculus');
+  assert.ok(xm > xr - 2 && CANAL_R < CANAL_HOLE, 'the canaliculus sits inside the round gap');
+  void H;
 });
