@@ -6,7 +6,8 @@ import { INK_FS, INK_VS, TOON_FS, TOON_VS } from '../scene/materials/shaders.ts'
 import { VESSEL_FS, VESSEL_VS } from '../scene/vessels/shaders.ts';
 import { DOT_FS, DOT_VS, PLATE_FS, PLATE_VS } from '../scene/circuit/map-layer.ts';
 import { SINUSOID_FS, SINUSOID_PFS, SINUSOID_PVS, SINUSOID_VS } from '../scene/sinusoid/gl.copied.ts';
-import { ORGAN_FS, ORGAN_VS } from '../scene/organs/organ-shader.ts';
+import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from '../scene/organs/organ-shader.ts';
+import { patchedShaders } from '../scene/organs/organ-art.ts';
 import { RES_FS, RES_VS } from '../scene/circuit/resistors.ts';
 import { DYE_FS, DYE_VS } from '../scene/disease/dye.ts';
 import { CHART_FS, CHART_VS } from '../ui/charts/gl.ts';
@@ -25,6 +26,7 @@ export const GL_FILES: Record<string, string> = {
   'scene/vessels/shaders.ts': 'the vessel, with its veil (VEIL define): found on the scene graph',
   'scene/sinusoid/gl.copied.ts': 'the sinusoid (2D\'s shader, copied): RawShaderMaterials found on the scene graph',
   'scene/sinusoid/view.ts': 'where the sinusoid\'s RawShaderMaterials are made (version moved to glslVersion): found on the scene graph',
+  'scene/organs/organ-art.ts': 'the organ wash wrapped for the organs\' art and the esophagus\'s fade (made when the art file is in): registered by name',
   'scene/organs/organ-shader.ts': 'the organ wash (WP1): registered by name until the scene wears it, then also found on the scene graph',
   'scene/circuit/shader.ts': 'the Circuit morph, spliced into the vessel shader: part of the vessel program',
   'scene/circuit/map-layer.ts': 'the Circuit plate and dots: found on the scene graph',
@@ -54,6 +56,18 @@ export function namedSources(): Map<string, string> {
   ]);
 }
 
+/** The organ wash wrapped for the art (the heart's line: art only), the stomach (art, the esophagus's tone and fade; its fill has vertex paint) and the colon (art, the rectum's fade): fill and outline. */
+function organArtPrograms(): Program[] {
+  const eso = { poly: [775, -90, 799, -90, 813, 266, 792, 266], box: [775, -90, 38, 356] as [number, number, number, number], fade: [40, -40] as [number, number], seam: [226, 262] as [number, number] };
+  const out: Program[] = [];
+  for (const [name, o, defines] of [['art', { art: true, eso: null }, undefined], ['stomach', { art: true, eso }, { VERTEX_INK: '' }], ['colon', { art: true, eso: null, fade: true }, undefined]] as const) {
+    const p = patchedShaders(ORGAN_VS, ORGAN_FS, ORGAN_INK_VS, INK_FS, o);
+    out.push(lateMaterialProgram(`organ wash + ${name}`, p.vs, p.fs, defines));
+    if (name !== 'art') out.push(lateMaterialProgram(`organ outline + ${name}`, p.inkVs, p.inkFs));
+  }
+  return out;
+}
+
 /** The programs the scene graph does not hold until something happens (a Circuit, a dye bolus) and the ones outside the scene (charts, Doppler, FibroScan). */
 export function rawPrograms(fibroText: string): Program[] {
   const fibro = templateConstants(fibroText);
@@ -64,6 +78,7 @@ export function rawPrograms(fibroText: string): Program[] {
     lateMaterialProgram('post aa', AA_VS, AA_FS),
     lateMaterialProgram('post dof', DOF_VS, DOF_GATHER_FS),
     lateMaterialProgram('post dof mix', DOF_VS, DOF_MIX_FS),
+    ...organArtPrograms(),
     rawProgram('charts', CHART_VS, CHART_FS),
     rawProgram('doppler spectrum', SYNTH_VS, SYNTH_FS),
     rawProgram('doppler spectrum (chart)', SPECTRUM_VS, SPECTRUM_FS),
