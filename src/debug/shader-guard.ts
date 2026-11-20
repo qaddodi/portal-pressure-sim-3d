@@ -45,8 +45,8 @@ export function installShaderGuard(renderer: GuardRenderer, root: Object3D, afte
       if ((m.defines as Record<string, unknown> | undefined)?.VEIL) mesh.visible = false;
       else mesh.material = plainFor(m);
     }
-    reportShaderFailure({ kind: worn.length ? kindOf(worn[0]!.m, worn[0]!.mesh) : lent.length ? 'post aa' : 'scene', meshes: worn.length + lent.length, log });
-    console.error(`[shader] a program the device refused; ${worn.length} mesh(es) drawn plain${lent.length ? ', the anti-aliasing pass is off' : ''}\n${log}`);
+    reportShaderFailure({ kind: worn.length ? kindOf(worn[0]!.m, worn[0]!.mesh) : lent.length ? lent[0]!.name || 'post aa' : 'scene', meshes: worn.length + lent.length, log });
+    console.error(`[shader] a program the device refused; ${worn.length} mesh(es) drawn plain${lent.length ? `, the ${lent[0]!.name || 'post aa'} pass is off` : ''}\n${log}`);
     after();
   };
   renderer.debug.onShaderError = handler;

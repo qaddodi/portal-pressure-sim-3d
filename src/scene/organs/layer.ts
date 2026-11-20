@@ -147,7 +147,7 @@ export class OrganLayer {
 
   /** Organ depth on or off (Settings > Figure depth): the baked crease and contact shade and the soft light. It eases in with the clock; `instant` takes it at once (the first call). */
   setDepth(on: boolean, instant = false): void { this.depthGoal = on ? 1 : 0; if (instant) this.fillInstant = true; }
-  /** The organ fill: 'seethrough' is the wash at the layer's opacity (the default), 'solid' the same colours opaque, pre-mixed against the page. */
+  /** The organ fill: 'solid' (the default since 20 Nov) is the colours opaque, pre-mixed against the page; 'seethrough' is the wash at the layer's opacity. */
   setFill(f: OrganFill, instant = false): void { this.solidGoal = f === 'solid' ? 1 : 0; if (instant) this.fillInstant = true; }
 
   /** How big the spleen is drawn now (1: normal): a caliper along its axis grows with it. */

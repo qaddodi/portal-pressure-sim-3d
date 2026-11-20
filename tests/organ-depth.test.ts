@@ -118,10 +118,10 @@ test('every organ carries the baked byte, as a normalized attribute, and the sha
 
   const calls: string[] = [];
   const un = bindOrganSettings(organs, useSettings, (why) => calls.push(why));
-  // the saved choice is taken at once on the first update: defaults are depth on, see-through
+  // the saved choice is taken at once on the first update: defaults are depth on, cel-shaded solid
   organs.update(1000);
   assert.ok(u('depthAmt').every((v) => v === 1), 'Organ depth on by default: the uniform is 1');
-  assert.ok(u('solid').every((v) => v === 0), 'see-through by default: solid is 0');
+  assert.ok(u('solid').every((v) => v === 1), 'cel-shaded solid by default: solid is 1');
   // off: it eases to zero on the clock, then is exactly zero (the shader then skips the whole block)
   useSettings.getState().set('organDepth', false);
   assert.ok(calls.length >= 2, 'a frame is asked for');
@@ -129,8 +129,7 @@ test('every organ carries the baked byte, as a normalized attribute, and the sha
   assert.ok(moving && u('depthAmt')[0]! < 1 && u('depthAmt')[0]! > 0, 'it eases, it does not pop');
   for (let t = 1032; t < 4000 && organs.update(t); t += 16);
   assert.ok(u('depthAmt').every((v) => v === 0), 'off: the uniform ends at exactly 0');
-  // depth is independent of the fill: solid on with depth off, then depth on again
-  useSettings.getState().set('organFill', 'solid');
+  // depth is independent of the fill: solid (the default) with depth off, then depth on again
   for (let t = 4016; t < 8000 && organs.update(t); t += 16);
   assert.ok(u('solid').every((v) => v === 1) && u('depthAmt').every((v) => v === 0), 'solid, no depth');
   useSettings.getState().set('organDepth', true);
@@ -138,7 +137,7 @@ test('every organ carries the baked byte, as a normalized attribute, and the sha
   assert.ok(u('solid').every((v) => v === 1) && u('depthAmt').every((v) => v === 1), 'solid with depth');
   useSettings.getState().set('organFill', 'seethrough');
   for (let t = 12016; t < 16000 && organs.update(t); t += 16);
-  assert.ok(u('solid').every((v) => v === 0), 'back to the wash');
+  assert.ok(u('solid').every((v) => v === 0), 'the see-through wash, the alternative');
   // the layer's own opacity never changes with either setting
   const layers = organs.objects.map((o) => o.toon.uniforms.layer!.value as number);
   assert.ok(layers.every((v) => v > 0 && v < 1), 'the see-through opacity logic is untouched');
