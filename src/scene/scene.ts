@@ -1,8 +1,9 @@
 import { Box3, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Plane, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
-import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, presenceOf, recruitFrac } from './vessels/network.ts';
+import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, feederLive, presenceOf, recruitFrac } from './vessels/network.ts';
 import { PresenceTracks } from './vessels/presence-track.ts';
+import { FeederLives, LIVE_FLOOR } from './vessels/feeder-live.ts';
 import { DIVIDED, PV_START, stumpOf } from './vessels/divide.ts';
 import { SEWN_IDS, seamsFor } from './vessels/seams.ts';
 import { ShapeTracks } from './vessels/shape-track.ts';
@@ -35,7 +36,7 @@ import { effectiveDistance, type Room } from './camera/room.ts';
 import { SHOTS, type Shot, type ShotName } from './camera/shots.ts';
 import { Catheter, type CatheterState } from './catheter.ts';
 import { DEFAULT_FLOW_MODE, FLOW_FADE_MS, type FlowMarkMode, markSpeed } from './flow.ts';
-import { Highlight, OrganPins } from './highlight.ts';
+import { Highlight, OrganPins, glowGate } from './highlight.ts';
 /** Each vessel's course and radius, for the selection's glow (glow.ts). */
 const GLOW_COURSES: ReadonlyMap<string, { pts: readonly (readonly [number, number, number])[]; radius: number }> = new Map(NETWORK.map((v) => [v.id, { pts: v.pts, radius: v.radius }]));
 import { CelObject, type CelShared, createShared } from './materials/cel.ts';
@@ -189,6 +190,10 @@ export class CelScene {
   /** The organs, varices and catheter: what leaves as the figure turns into the map (the vessels stay and fly). */
   private readonly leaving: CelObject[] = [];
   private lastFade = 1;
+  /** the vessels with no map course (the tributary fans, the liver's branching veins): the Circuit's shader fades them by 2D's `1 - 2 * T0` (circuit/shader.ts), the model's `live` and the dive's dissolve are composed into their one `fade` (composeFade) */
+  private readonly fans = new Map<CelObject, string>();
+  private readonly leavingSet = new Set<CelObject>();
+  private feeders!: FeederLives;
   private figureView: FigureView = 'body';
   /** The anti-aliasing pass over the whole figure (post-aa.ts). */
   readonly post = new PostAA();
@@ -252,7 +257,7 @@ export class CelScene {
     this.catheter = new Catheter(this.shared);
     this.body.add(this.catheter.group);
     this.catheter.group.traverse((c) => c.layers.set(VESSEL_LAYER));
-    this.objects.push(...this.catheter.objects); this.leaving.push(...this.catheter.objects);
+    this.objects.push(...this.catheter.objects); this.leaving.push(...this.catheter.objects); for (const o of this.catheter.objects) this.leavingSet.add(o);
     this.tubes = new CircuitTubes(this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
     this.body.add(this.tubes.group);
     this.resistors = new ResistorLayer(this.shared.res);
@@ -283,6 +288,9 @@ export class CelScene {
     this.cells = new BloodCells({ vessels: NETWORK, object: (id) => this.vesselObject(id), shared: this.shared, lens: this.lens.shared, blood: this.blood.shared, parent: this.body, layer: VESSEL_LAYER, phone: () => this.phone });
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
     this.presence.own(this.grownIds);
+    // the tributary groups are graded by the model's `live` (feeder-live.ts), not drawn on along their flow: their presence keeps only its state
+    this.feeders = new FeederLives([...this.fans].map(([obj, id]) => ({ obj: obj as VesselObject, id, conditional: !!NETWORK_BY_ID.get(id)?.feeder?.when })));
+    this.presence.own(this.feeders.ids());
     for (const id of this.grownIds) { const g = COURSES.get(id); if (g) this.vesselObject(id)?.setStretchAnchors(g.curveA.getPointAt(0), g.curveC.getPointAt(0)); }
     this.shapes = new ShapeTracks(NETWORK, this.byEdge as unknown as Map<string, VesselObject>);
     this.lens.setContext({ healthy: null, ref: null });
@@ -351,7 +359,7 @@ export class CelScene {
       vessel: { index: indexOf(def.lensId), len: built.length, stubSpeed: markSpeed(q), radius: def.radius, baseD: def.baseD },
     }, this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
     if (circ) this.circuit.attach({ id: def.id, len: o.toon.uniforms.len as { value: number }, circRow: o.toon.uniforms.circRow as { value: number } });
-    else this.leaving.push(o);   // a fan of tributaries has no map course: it leaves with the organs as the figure turns into the map
+    else this.fans.set(o, def.id);   // a fan of tributaries has no map course: it never morphs, and the Circuit's shader fades it as 2D does (clamp(1 - 2 * T0))
     if (forkMateOf(def.id) || cavaMateOf(def.id)) o.setNbrOn(true);
     { const cm = cavaMateOf(def.id); if (cm) o.setCavaCut(true, indexOf(NETWORK_BY_ID.get(cm)!.lensId), cm === 'IVC_IS_1' ? 0 : 1); }
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
@@ -479,6 +487,8 @@ export class CelScene {
   /** Which vessels are drawn now (a collateral opens by its flow and size; the 2D figure's rules, network.ts presenceOf). */
   private syncPresence(f: NonNullable<typeof latest.frame>, instant: boolean): void {
     for (const v of NETWORK) this.presence.set(v.id, presenceOf(v, f, { collaterals: this.collateralsOn, circuit: this.figureView === 'circuit' }, this.healthyQ), instant);
+    for (const v of NETWORK) if (v.feeder) this.feeders.set(v.id, feederLive(v.feeder, f, this.healthyQ), instant);
+    this.pushFades();
     this.shapes.onFrame(f as never, performance.now(), this.healthyQ, instant);
     for (const t of this.tipFades) if (t.connect.length) t.o.setTipJoined(t.connect.some((c) => this.presence.stateOf(c) === 'shown'));
     const rexOn = this.presence.stateOf('REX') === 'shown';
@@ -738,10 +748,30 @@ export class CelScene {
     if (this.dive.visible !== dv) { this.dive.visible = dv; this.moving = true; }
     if (f === this.fadeNow || (Math.abs(f - this.fadeNow) < 1e-3 && f > 0 && f < 1)) return;
     this.fadeNow = f;
-    for (const o of this.objects) o.setFade(f);
+    this.pushFades();
     this.disease.setFade(Math.min(f, this.lastFade));
     this.body.visible = f > 0 || this.figureView === 'body';
     this.moving = true;
+  }
+  /** What an object's `fade` is: ONE value composed of everything that dissolves it (before, the dive's dissolve and the Circuit's change both wrote the uniform and the last writer won): the dive's
+   *  dissolve of the body, the Circuit's change for what leaves with the organs (1 - t), and a conditional tributary group's own `live`. (A fan's Circuit fade, 2D's 1 - 2 * T0, is the vertex shader's.) */
+  private composeFade(o: CelObject): number {
+    let f = this.fadeNow;
+    if (this.leavingSet.has(o)) f = Math.min(f, this.lastFade);
+    const id = this.fans.get(o);
+    if (id !== undefined) f = Math.min(f, this.feeders.liveOf(id));
+    return f;
+  }
+  /** Writes the composed fade to every object (only a change reaches it: the dive, the Circuit's change, the model's `live`). A tributary group is drawn only while it has something to show and the change has not taken it (the shader fades it out by the half-way point). */
+  private pushFades(): void {
+    let changed = false;
+    for (const o of this.objects) { const f = this.composeFade(o); if (o.fade !== f) { o.setFade(f); changed = true; } }
+    const half = this.circuit.t < 0.5;
+    for (const [o, id] of this.fans) {
+      const vis = half && (!NETWORK_BY_ID.get(id)!.feeder?.when || this.feeders.liveOf(id) > LIVE_FLOOR);
+      if (o.group.visible !== vis) { o.group.visible = vis; changed = true; }
+    }
+    if (changed) this.moving = true;
   }
   private readonly livePoint = new Vector3(...LIVER_POINT);
   /** Whether the camera is in, or on its way into or out of, the liver (the lobule, the sinusoid, or a view change still flying): the only time the dive's fade, window and field apply. */
@@ -948,7 +978,7 @@ export class CelScene {
     this.fadeBody();
     // (the camera's own move, not the gentle tilt still easing or a hand on the figure: the view left behind goes the moment the move lands)
     if (this.hideLeftBehind && !this.rig.isMoving && !this.circuit.moving) this.settleViews();
-    this.highlight.setGlowShown(this.circuit.t < 0.02 && !this.circuit.toCircuit);
+    this.highlight.setGlowShown(glowGate(this.circuit.t));   // (it eases away over the change's first 15 %, never snaps at the switch)
     const hiMoving = this.highlight.step(dt);
     const pinMoving = this.pins.step(dt, this.disease.organs.byId);
     this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
@@ -961,7 +991,7 @@ export class CelScene {
     const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || this.stepCava(dt);
     const lensMoving = this.lens.step(now);
     const cellsMoving = this.cells.step(dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: streamsMoving, quiet: procQuiet });
-    const presMoving = this.presence.step(dt);
+    const presMoving = this.presence.step(dt) || this.feeders.step(dt, () => this.pushFades());
     this.syncStumps();
     this.updateCaps();
     const shapeMoving = this.shapes.step(dt);
@@ -1006,7 +1036,8 @@ export class CelScene {
     const fade = 1 - t;
     if (fade !== this.lastFade) {
       this.lastFade = fade;
-      for (const o of [...this.leaving, ...this.disease.organs.objects]) { o.setFade(fade); o.group.visible = fade > 0.001; }
+      for (const o of [...this.leaving, ...this.disease.organs.objects]) o.group.visible = fade > 0.001;
+      this.pushFades();   // (the fades are composed in one place: the leaving objects, the fans' visibility)
       this.disease.setFade(Math.min(fade, this.fadeNow));
     }
     this.mapLayer.set(mapRamp(t), this.circuit.rr);

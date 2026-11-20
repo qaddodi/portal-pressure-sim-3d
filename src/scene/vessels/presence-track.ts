@@ -1,18 +1,29 @@
 // A vessel that comes and goes (a collateral opening or closing, an arterioportal shunt, the epigastric veins) never pops: it draws on along its flow
 // and retracts back, as the 2D figure does (stage-tubes.js startExit). A change between solid and dotted (an open collateral that closes while
 // potential collaterals are on) retracts the one and draws on the other. All of it is the shader's `reveal`, so nothing is rebuilt.
-import type { Presence } from './network.ts';
+import { NETWORK_BY_ID, type Presence } from './network.ts';
 import type { VesselObject } from './vessel-object.ts';
+import { easeMove } from '../gesture/ease.ts';
 
-export const PRESENCE_MS = 320;
+/** How long each kind of vessel takes to draw on and to retract, ms, and the one curve they share: 2D's `easeInOut` (the quintic `easeMove`), never a straight line. Copied from 2D, which keeps them in
+ *  stage-transitions.js (trackChanges, startExit: the Meso-Rex graft REX_GROW_MS 2600 in and 1200 out, a shunt 900 and 700, a caput vein or the caudate's own lane 1500 and 1100) and collateral-front.js (FRONT_MS 1150
+ *  both ways: a collateral opens from its high-pressure end in "about a second"). */
+export const PRESENCE_TIMES = { rex: { in: 2600, out: 1200 }, shunt: { in: 900, out: 700 }, collateral: { in: 1150, out: 1150 }, other: { in: 1500, out: 1100 } } as const;
+/** The draw-on and retract times of the vessel `id`: by its kind, as 2D's. */
+export function presenceMs(id: string): { in: number; out: number } {
+  const v = NETWORK_BY_ID.get(id);
+  if (!v) return PRESENCE_TIMES.other;
+  if (id === 'REX') return PRESENCE_TIMES.rex;
+  return v.kind === 'shunt' ? PRESENCE_TIMES.shunt : v.kind === 'collateral' ? PRESENCE_TIMES.collateral : PRESENCE_TIMES.other;
+}
 
-interface Track { obj: VesselObject; goal: Presence; shown: Presence; amount: number; /** its drawing is another clock's (the Circuit's change): this only keeps its state */ driven?: boolean }
+interface Track { obj: VesselObject; ms: { in: number; out: number }; /** the linear share of the time gone (0 not drawn, 1 whole): `amount` is its curve */ p: number; goal: Presence; shown: Presence; amount: number; /** its drawing is another clock's (the Circuit's change): this only keeps its state */ driven?: boolean }
 
 export class PresenceTracks {
   private tracks = new Map<string, Track>();
   /** vessels start shown; the first `set` of each moves them to where they belong without animating (instant) */
   constructor(objects: readonly VesselObject[]) {
-    for (const o of objects) if (o.edge) this.tracks.set(o.edge.id, { obj: o, goal: 'shown', shown: 'shown', amount: 1 });
+    for (const o of objects) if (o.edge) this.tracks.set(o.edge.id, { obj: o, ms: presenceMs(o.edge.id), p: 1, goal: 'shown', shown: 'shown', amount: 1 });
   }
 
   /** Where a vessel should be. `instant` settles it at once (a new patient, the first frame). */
@@ -20,8 +31,8 @@ export class PresenceTracks {
     const t = this.tracks.get(id);
     if (!t || (t.goal === goal && !instant)) return false;
     t.goal = goal;
-    if (t.driven) { t.shown = goal; t.amount = goal === 'hidden' ? 0 : 1; return true; }   // (its reveal and visibility are `drive`n, never eased here)
-    if (instant) { t.shown = goal; t.amount = goal === 'hidden' ? 0 : 1; this.apply(t); }
+    if (t.driven) { t.shown = goal; t.p = goal === 'hidden' ? 0 : 1; t.amount = t.p; return true; }   // (its reveal and visibility are `drive`n, never eased here)
+    if (instant) { t.shown = goal; t.p = goal === 'hidden' ? 0 : 1; t.amount = t.p; this.apply(t); }
     return true;
   }
   /** Hands a vessel's drawing to another clock (the Circuit's change grows the liver's branches with the camera's glide): from here `drive` writes its reveal, this keeps only its state. */
@@ -45,21 +56,23 @@ export class PresenceTracks {
     o.setReveal(t.amount);
   }
 
-  /** Returns true while anything is drawing on or retracting. */
+  /** Returns true while anything is drawing on or retracting. A vessel draws on over its kind's `in` time and retracts over its `out` time (PRESENCE_TIMES), both on 2D's easeInOut: the share of the time gone moves
+   *  straight, and what is drawn is its curve, so one that turns round half way (a collateral that closes as it opens) turns from where it is, never from a jump. */
   step(dtMs: number): boolean {
-    const k = Math.min(1, dtMs / PRESENCE_MS);
     let moving = false;
     for (const t of this.tracks.values()) {
       if (t.driven) continue;
       if (t.shown === t.goal) {
         const want = t.goal === 'hidden' ? 0 : 1;
-        if (t.amount === want) continue;
-        t.amount = Math.abs(want - t.amount) <= k ? want : t.amount + Math.sign(want - t.amount) * k;
-      } else if (t.amount > 0) {
+        if (t.p === want) continue;
+        const k = dtMs / (want > t.p ? t.ms.in : t.ms.out);
+        t.p = Math.abs(want - t.p) <= k ? want : t.p + Math.sign(want - t.p) * k;
+      } else if (t.p > 0) {
         // the vessel as it is retracts first
-        t.amount = Math.max(0, t.amount - k);
-        if (t.amount === 0) { t.shown = t.goal; }
+        t.p = Math.max(0, t.p - dtMs / t.ms.out);
+        if (t.p === 0) { t.shown = t.goal; }
       } else { t.shown = t.goal; }
+      t.amount = easeMove(t.p);
       this.apply(t);
       moving = true;
     }
