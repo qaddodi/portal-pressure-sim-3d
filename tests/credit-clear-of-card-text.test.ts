@@ -10,7 +10,7 @@ const freeSpots = spots as unknown as (fig: unknown, obs: unknown[], w: number, 
 
 test('the credit looks at the words and art of the cards, and again when the slide changes', () => {
   const src = readFileSync('src/ui/shell/Credit.tsx', 'utf8');
-  assert.match(src, /out\.push\(\.\.\.cardContent\(vw, vh\)\)/);
+  assert.match(src, /out\.push\(\.\.\.cardContent\(vw, vh\), \.\.\.figureLabels\(\)\)/);
   assert.match(src, /const CARDS = '\.pz-shade, \.pz-data, \.pz-case, \.pz-panel'/);
   assert.match(src, /createTreeWalker\(card, NodeFilter\.SHOW_TEXT\)/);
   assert.match(src, /\[view, slideKey,/);
@@ -20,6 +20,10 @@ test('the credit looks at the words and art of the cards, and again when the sli
   assert.match(src, /\.pz-sitetab/, 'the card tab is art');
   assert.match(src, /new MutationObserver\(changed\)/, 'it looks again whenever the talk\'s cards change, not on a timer');
   assert.match(src, /querySelector\('\.deck-ui'\)/);
+  // eyes on e74e946: "SMV 23.8" printed over the credit (gastric varices 7), and its glyphs touched the card's top border (HVPG 3 and 4)
+  assert.match(src, /\.lb-layer:not\(\.lb-key-layer\) \.lb/, 'the figure\'s name labels are obstacles');
+  assert.match(src, /new DOMRect\(c\.left, c\.top, c\.width, 2\)/, 'the card\'s own edge is a line');
+  assert.match(src, /cel\.rig\.isMoving\) \{ el\.classList\.add\('moving'\)/, 'it waits for the camera to land');
 });
 test('with the last line of a card at the foot the bottom-left corner rises above it; with room under the words it stays', () => {
   const fig = { l: 0, t: 0, r: 390, b: 844 };
