@@ -29,7 +29,7 @@ test('the lobule is the 2D app\'s: six corners, six triads, 48 + 24 + 12 sinusoi
   assert.equal(kind('cv').length, 1);
   assert.equal(kind('tw').length, 6, 'an arteriole twig into each tract\'s first sinusoid');
   assert.equal(kind('lt').length, 12, 'terminal lymphatics along both of each tract\'s edges');
-  assert.equal(kind('ly').length, 48 + 24 + 12, 'a space of Disse beside every sinusoid');
+  assert.ok(kind('ly').length >= (48 + 24 + 12) * 2, 'a lymph channel on each side of every sinusoid');
   assert.ok(kind('an').length > 10, 'cross-links between neighbouring sinusoids');
   assert.equal(net.septa.length, 3);
   assert.deepEqual(net.corners.map((c) => Math.round(Math.hypot(c[0], c[1]) * 1e6) / 1e6), [1, 1, 1, 1, 1, 1]);
@@ -41,12 +41,12 @@ test('it is built from the same seed, in the same order, every time (the 3D lobu
   assert.equal(again.cells.length, net.cells.length);
 });
 
-test('blood runs inlet to central vein: every sinusoid course starts at the portal side and ends near the centre, and the courses have N evenly spaced points', () => {
-  for (const c of net.courses) assert.equal(c.pts.length, N, `${c.kind} ${c.id}`);
+test('blood runs inlet to central vein: every sinusoid course starts at the portal side and ends near the centre, and the courses have N evenly spaced points (the lymph channels, cut where they meet a vessel, as many as their length needs)', () => {
+  for (const c of net.courses) if (c.kind !== 'ly') assert.equal(c.pts.length, N, `${c.kind} ${c.id}`);
   for (const c of kind('s0')) { assert.ok(c.rho[0]! > 0.7, `s0 starts at rho ${c.rho[0]}`); assert.ok(c.rho[N - 1]! < 0.75); }
   for (const c of kind('s2')) { assert.ok(c.rho[0]! < 0.5); assert.ok(c.rho[N - 1]! < net.rcv0 * 1.4, 'the third generation enters the central vein'); }
   for (const c of net.courses) {
-    if (AXIAL_KINDS.has(c.kind)) continue;
+    if (AXIAL_KINDS.has(c.kind) || c.kind === 'ly') continue;
     const steps = c.pts.slice(1).map((p, i) => Math.hypot(p[0] - c.pts[i]![0], p[1] - c.pts[i]![1]));
     const mean = steps.reduce((a, b) => a + b, 0) / steps.length;
     assert.ok(steps.every((s) => Math.abs(s - mean) < mean * 0.35 + 1e-9), `${c.kind} ${c.id} evenly spaced`);
