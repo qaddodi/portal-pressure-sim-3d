@@ -25,5 +25,6 @@ test('every inventory node builds a skin, with no fallback to the old join', () 
   for (const j of all) if (!far.includes(j.node)) assert.ok(built.some((b) => b.split('+').includes(j.node)), `${j.node} has a skin`);
   // the nodes the 2D art leaves too far apart for a junction (spec 10.6) keep the old join, named here so a new one fails until someone looks:
   // SIN_R and SIN_L, where the hepatic arteriole ends 20 and 38 radii of the bed's inflow from J (the arteriole feeds the bed from beside it; there is no fork to weld)
-  assert.deepEqual([...set.fellBack].sort(), ['SIN_L', 'SIN_R'], 'the pinned list of nodes that keep the old join');
+  // IVCS too: the hepatic veins end on the cava's SIDE, 1.7 to 7 radii down its axis from the node (MHV 7.1): a side-wall junction (spec 10.1), which the side-wall arms (T3) weld; as a star at the node it is not a shape the art has
+  assert.deepEqual([...set.fellBack].sort(), ['IVCS', 'SIN_L', 'SIN_R'], 'the pinned list of nodes that keep the old join');
 });

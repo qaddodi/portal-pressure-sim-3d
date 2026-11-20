@@ -79,7 +79,7 @@ test('at every arm\'s seam each copy\'s alpha is the arm tube\'s own alpha of th
       sync(s);
       for (const b of back) {
         const m = b.mesh, shares = b.arms.map((a) => a.obj.copyShares());
-        const fades = (b.draw.material.uniforms.armFade!.value as number[]).slice(0, b.arms.length);
+        const fades = (b.draw.material.uniforms.armAF!.value as Array<{ y: number }>).map((v) => v.y).slice(0, b.arms.length);
         b.arms.forEach((a, i) => {
           const tube = tubeCopies(a.obj), seam = m.seamVerts[i]![0]!;
           const w = Array.from(m.weight.subarray(seam * 4, seam * 4 + 4));
