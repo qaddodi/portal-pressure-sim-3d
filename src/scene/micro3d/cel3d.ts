@@ -158,8 +158,8 @@ void main() {
   }
 #endif
 #ifdef FLOW
-  c = mix(c, uFlowCol, uFlowK * flowMarks());
   vec2 hd = flowHeads();
+  c = mix(c, uFlowCol, uFlowK * flowMarks() * (1.0 - clamp(hd.x + hd.y, 0.0, 1.0)));   // (the streaks lie UNDER the chevrons: a head's pixel is never tinted by one)
   float hk = uFlowInk > 0.5 ? clamp(uFlowK * 3.0, 0.0, 1.0) : uFlowK;   // (the blood's chevrons are the Anatomy's, whole; the view's dissolve is carried in uFlowK)
   vec3 hcore = uFlowInk > 0.5 ? chevInk(c, uMarkDark, uMarkLight) : uFlowCol;
   c = mix(c, hcore, hk * hd.x);

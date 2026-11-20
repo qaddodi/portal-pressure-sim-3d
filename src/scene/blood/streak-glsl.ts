@@ -19,7 +19,7 @@ export const STREAK = {
   /** its thickness at the widest: this share of the tube's radius, between THICK_MIN and THICK_MAX px, a little varied by streak */
   THICK_OF_R: 0.16, THICK_MIN: 1.3, THICK_MAX: 3, THICK_JITTER: 0.3,
   /** the field's own numbers (a shape with an across and an along, um): a lane's pitch, a comet's period and length (base + spread), its half width in lane units, the share of the cycles left empty */
-  FIELD_PITCH: 0.9, FIELD_EDGE: 0.9, FIELD_AT_R: 5, FIELD_PERIOD: [34, 26], FIELD_LEN: [12, 14], FIELD_THICK: 0.3, FIELD_GAP: 0.25,
+  FIELD_PITCH: 0.9, FIELD_EDGE: 0.9, FIELD_AT_R: 5, FIELD_PERIOD: [21, 16], FIELD_LEN: [12, 14], FIELD_THICK: 0.3, FIELD_GAP: 0.12,
   /** both ends are feathered: the alpha ramps 0 to 1 over this share of the length at each end, whole between (a slim rounded lozenge, never a blunt head nor a point) */
   FEATHER: 0.3,
   /** each streak's own speed, seeded: +-this on top of its lane's (symmetric, so the mean stands) */

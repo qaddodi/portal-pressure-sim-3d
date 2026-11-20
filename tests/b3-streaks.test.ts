@@ -177,3 +177,17 @@ test('CONTAINED BY CONSTRUCTION (Mohammad, 20 Nov: "the streaks are flowing outs
   assert.ok(sc.vessels.some((o) => (o.toon.uniforms.fadeMode!.value as number) > 0), 'the fade-zone vessels are among them');
   sc.dispose();
 });
+
+test('more streaks (about 1.6x the first design), still thin, in 3/5/7 lanes; and they lie UNDER the chevrons in every site', () => {
+  assert.ok(34 / STREAK.FIELD_PERIOD[0] >= 1.55 && 26 / STREAK.FIELD_PERIOD[1] >= 1.55, 'the period is 1.6 times shorter');
+  assert.ok(STREAK.FIELD_GAP <= 0.15, 'few empty cycles');
+  assert.ok(STREAK.FIELD_THICK <= 0.3 && STREAK.THICK_MAX <= 4, 'still thin');
+  assert.equal(STREAK.LANES, 7);
+  // the Anatomy: the streaks are mixed into the body tone first, the chevron's pixels are taken back to the body tone before the head is laid on
+  const fs = VESSEL_FS;
+  assert.ok(fs.indexOf('streakCover = sOn * fld;') < fs.indexOf('c = c * (1.0 - ha) + core * ac'), 'chevrons after streaks');
+  assert.match(fs, /if \(streakCover > 0\.0\) c = mix\(c, cBody, ha\);/, 'a chevron pixel is never tinted by a streak');
+  // the 3D lobule and sinusoid: the flow streaks are held back where a head is
+  assert.match(MICRO_FS, /uFlowK \* flowMarks\(\) \* \(1\.0 - clamp\(hd\.x \+ hd\.y, 0\.0, 1\.0\)\)/);
+  assert.ok(MICRO_FS.indexOf('vec2 hd = flowHeads();') < MICRO_FS.indexOf('uFlowK * flowMarks()'));
+});

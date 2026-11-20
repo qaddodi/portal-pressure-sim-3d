@@ -339,6 +339,7 @@ bool capCarved(float across) {
 
 void main() {
   float streakCover = 0.0;   // (how much a streak covers this pixel: a chevron's pixel is never tinted by one)
+  vec3 cBody = vec3(0.0);    // (the tube's tone before the streaks)
   if (reveal < 0.9999 && vUv.x > reveal) discard;
   if (fadedOut()) discard;
   vec3 n = normalize(vN);
@@ -377,6 +378,7 @@ void main() {
     float rCss = vR / max(vW * 2.0 / (res.y * projY) * vU, 1e-6);
     float sOn = streakAmt * smoothstep(2.5, 3.5, rCss) * smoothstep(0.02, 0.2, abs(smS.y));
     streakCover = sOn * fld;
+    cBody = c;
     c = mix(c, streakTone(c, mix(c, vec3(1.0), ${F(STREAK.LIFT)}), gStreakK.x, gStreakK.y), streakCover);
   }
 
@@ -429,6 +431,7 @@ void main() {
       vec3 rimc = CHEV_RIM;   // the head's outline is always the dark ink: a flat head with a dark line, never a pale ring
       float ar = clamp(ch.y * 0.75 * fade, 0.0, 1.0), ac = clamp(ch.x * fade, 0.0, 1.0);
       float ha = ac + ar * (1.0 - ac);
+      if (streakCover > 0.0) c = mix(c, cBody, ha);   // the streaks lie UNDER the chevrons: a head's pixel is never tinted by one
       c = c * (1.0 - ha) + core * ac + rimc * ar * (1.0 - ac);
     }
   }
