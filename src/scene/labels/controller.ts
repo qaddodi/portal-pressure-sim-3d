@@ -193,7 +193,8 @@ export class LabelController {
   /** Where the key docks (key-dock.ts: the 2D app's own places), or null when it has no words or no size yet. */
   keyDock(): Dock | null {
     if (!this.state.key) return null;
-    const natural = this.keyNatural ?? this.keySize;
+    // (decided by the key on one line only: the size it is drawn at depends on this very decision, so using it would never settle)
+    const natural = this.keyNatural;
     if (!natural) return null;
     return dockKey({ vp: this.deps.vp(), words: this.deps.words(), natural, wrapped: this.keySize });
   }

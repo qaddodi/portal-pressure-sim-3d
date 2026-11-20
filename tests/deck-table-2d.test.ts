@@ -38,3 +38,15 @@ test('every deck table has compared cells with a direction, and a reference row 
   }
   assert.ok(tables >= 10 && compared > 0, `${tables} tables`);
 });
+
+// Eyes on 7ac0595 (20 Nov): on an iPhone "CENTRAL VEINS" took two lines, "Sinusoidal obstruction syndrome" three, and every patient was a block of three or four lines. Root cause: the site stood over the name
+// inside the name's own narrow column. On a phone the site is a heading row, once over its group; the name has its column to itself, wider the fewer value columns there are.
+test('a phone\'s table: the site heads its group, the name has the column to itself', async () => {
+  const { readFileSync } = await import('node:fs');
+  const tsx = readFileSync(new URL('../src/ui/cards/TableCard.tsx', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8');
+  assert.match(tsx, /!r\.cont && r\.head \? <tr className="dk-tgroup">/, 'a group heading row over the first row of each site');
+  assert.match(tsx, /minmax\(calc\(14\.5rem - \$\{nc\} \* 1\.1rem\), 2fr\)/, 'the name column follows the value columns');
+  assert.match(css, /tbody tr th\[scope="row"\] \.pz-kick \{ display: none; \}/, 'the site is not in the patient\'s row on a phone');
+  assert.match(css, /\.pz-table tr\.dk-tgroup \{ display: none; \}/, 'the wide table keeps the site over the name');
+});

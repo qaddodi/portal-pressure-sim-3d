@@ -177,11 +177,19 @@
 .dk-tnone { display: block; text-align: center; color: var(--text-3); }
 .pz-table td.wave { padding-block: 2px; }
 .pz-table td.wave .dk-wave { display: block; width: 100%; }
+.pz-table tr.dk-tgroup { display: none; }
 .pz-table .dk-tnrow td { white-space: normal; text-align: left; font-weight: 400; }
 .dk-tnote { margin: 0; font: 400 var(--fs-data) / 1.35 var(--ui); color: var(--text-2); }
 @media (max-width: 767px), (max-width: 1100px) and (orientation: portrait) {
   .pz-table.dk-pztable tr { grid-template-columns: var(--dk-grid); }
-  .pz-table.dk-pztable tr.dk-tnrow { grid-template-columns: minmax(0, 1fr); }
+  .pz-table.dk-pztable tr.dk-tnrow, .pz-table.dk-pztable tr.dk-tgroup { grid-template-columns: minmax(0, 1fr); }
+  /* a patient is one line: the site is not in its row (it heads the group, once, quietly), and the name has the column to itself */
+  .deck-ui .pz-table.dk-pztable tbody tr th[scope="row"] .pz-kick { display: none; }
+  .pz-table.dk-pztable tbody tr.dk-tgroup { display: grid; cursor: default; background: none; border-top: 0; }
+  .pz-table.dk-pztable tbody tr.dk-tgroup th { display: block; padding: .7em 10px .05em; text-align: left; font-weight: inherit; }
+  .pz-table.dk-pztable tbody tr.dk-tgroup .pz-kick { display: block; font-size: var(--s-cap); letter-spacing: .08em; opacity: .85; }
+  .pz-table.dk-pztable tbody tr.dk-tgroup + tr { border-top: 0; }
+  .pz-table.dk-pztable tbody tr:not(.dk-tgroup):not(.dk-tnrow) th[scope="row"] { padding-block: .3em; }
   .pz-table.dk-pztable .dk-tnrow td { grid-column: 1 / -1; padding: 0 10px 8px; }
 }
 
