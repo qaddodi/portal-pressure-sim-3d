@@ -279,6 +279,7 @@ uniform vec2 lensSpan;
 uniform float lensSmooth;   // smooth joins on (1): the lens colour runs through the colours a third and two thirds along (grad rows 2 and 3), not straight from one end's to the other's
 uniform float smokeOn;
 uniform vec3 hiColor;
+uniform float glowK;   // the glow's strength (1; a shunt's target under the pointer more: highlight.ts HOVER_GLOW)
 uniform float inkOn;
 uniform vec3 stump;   // (the vertex stage's: a divided vein's stump and its tie)
 uniform vec4 seamA[2];   // a surgical shunt's stitches, its start's then its end's (seams.ts): the seam's distance in from the end as a quartic in the place across (c0..c3 here, c0 = 0: none)
@@ -465,7 +466,7 @@ void main() {
     float rCssG = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6);
     float lineG = ${inkPxGlsl('rCssG', 'rCssG')} * mix(1.0, ${F(CIRC_INK_K)}, circT) * inkOn;
     float sG = dLat / dpr - rCssG - lineG;   // CSS px past the line's outer edge
-    float aG = ${glowAlphaGlsl('sG', glowReachGlsl('rCssG') + ' * vHi', 'vHi')} * fadeHere * cavA;
+    float aG = ${glowAlphaGlsl('sG', glowReachGlsl('rCssG') + ' * vHi', 'vHi')} * glowK * fadeHere * cavA;
     if (aG < 0.002) discard;
     gl_FragColor = vec4(${glowToneGlsl('base')}, aG);
     return;

@@ -74,7 +74,7 @@ test('a hepatic vein pick runs on into the cava and the atrium', () => {
   assert.equal(m.get('IVCS_RA')?.dir, 1);
 });
 
-test('nothing else is dimmed: only outline and lift uniforms ever change', () => {
+test('nothing else is dimmed: only the pick uniforms ever change', () => {
   const s = new CelScene();
   const toonBefore = s.vessels.map((o) => [o.toon.uniforms.color.value.getHex(), o.toon.uniforms.shade.value.getHex()]);
   s.pick('PV_TRUNK');
@@ -83,7 +83,7 @@ test('nothing else is dimmed: only outline and lift uniforms ever change', () =>
   const toonAfter = s.vessels.map((o) => [o.toon.uniforms.color.value.getHex(), o.toon.uniforms.shade.value.getHex()]);
   assert.deepEqual(toonAfter, toonBefore);
   const pv = s.vessels.find((o) => o.edge!.id === 'PV_TRUNK')!;
-  assert.ok(pv.toon.uniforms.inflate.value > 0, 'the pick lifts a hair');
+  assert.equal(pv.toon.uniforms.inflate.value, 0, 'the pick does not grow the tube (glow-hull.test.ts: the dark bands)');
   assert.equal(pv.ink.uniforms.hiOn.value, 1);
   const first = s.vessels.find((o) => o.edge!.id === 'PV_TRUNK_1')!;
   assert.equal(first.ink.uniforms.hiOn.value, 1, 'picking either piece picks the whole vein');

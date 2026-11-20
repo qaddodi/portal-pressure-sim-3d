@@ -2,8 +2,8 @@ import { BackSide, Color, Mesh, ShaderMaterial } from 'three';
 import type { CelObject } from './materials/cel.ts';
 import { HI_NONE } from './materials/shaders.ts';
 
-// Vessel highlight (look-and-feel.md section 9): the picked vein (every piece the engine cuts it into) gets a bolder outline in its own tone lifted, thin, that fades
-// away at the vein's two ends and is full in the middle. It lifts a hair. Nothing else is lit or dimmed. (`computeHighlight` can still walk the flow past the ends
+// Vessel highlight (look-and-feel.md section 9): the picked vein (every piece the engine cuts it into) gets a glow (glow.ts) in its own tone, no outline of its own and no lift, that fades
+// away at the vein's two ends and is full in the middle. Nothing else is lit or dimmed. (`computeHighlight` can still walk the flow past the ends
 // when given a range, read from the topology: edge `from` to `to`; a pick gives none.)
 
 export interface HighlightEdge {
@@ -40,8 +40,8 @@ export const DEFAULT_RANGE: HighlightRange = { ahead: 0, behind: 0 };
 export const END_FADE = 0.25;
 /** The picked outline's extra width over the vessel's own line, CSS px: none (it was 1.6, then 0.8: "instead of an outline, make it a glow", 20 Nov; the glow is glow.ts). */
 export const HI_PX = 0;
-/** Outline lift on the picked vessel (scene units), mocks: 0.012. */
-export const PICK_LIFT = 0.012;
+/** How much stronger the glow of a shunt's target is while the pointer is over it (2D shuntGlow: stronger and wider). It is the glow only: a picked vessel's tube is never grown (the old 0.012 `inflate` lift widened the mesh but not the lumen, so the ink filled the difference: the thick dark bands along a picked vein's walls, ending square at each piece, 20 Nov). */
+export const HOVER_GLOW = 0.7;
 /** Fade in and out of the outline, ms. */
 export const HIGHLIGHT_FADE_MS = 180;
 /** The share of the glow still shown at `t` of the Circuit's change (eased, circuit.t): whole at rest, gone by the change's first 15 %, a smoothstep between (the glow lies along the body's course, which the change leaves). */
@@ -109,7 +109,7 @@ export function outlineStrength(spec: HighlightSpec, arc: number, length: number
 /** Moves `v` toward `goal` by at most `step`, landing on it exactly. */
 const approach = (v: number, goal: number, step: number): number => (Math.abs(goal - v) <= step ? goal : v + Math.sign(goal - v) * step);
 
-interface Track { obj: CelObject; on: number; target: number; lift: number; liftTarget: number; spec: HighlightSpec | null }
+interface Track { obj: CelObject; on: number; target: number; boost: number; boostTarget: number; spec: HighlightSpec | null }
 
 /** Applies a pick to the vessel objects and fades it in and out. `step` returns true while anything is still moving, so the clock keeps
  *  asking for frames and goes quiet afterwards (nothing is drawn when nothing moves). */
@@ -129,7 +129,7 @@ export class Highlight {
     for (const o of objects) {
       if (!o.isVessel || !o.edge) continue;
       this.edges.push({ id: o.edge.id, from: o.edge.from, to: o.edge.to, length: o.edge.length });
-      this.tracks.set(o.edge.id, { obj: o, on: 0, target: 0, lift: 0, liftTarget: 0, spec: null });
+      this.tracks.set(o.edge.id, { obj: o, on: 0, target: 0, boost: 0, boostTarget: 0, spec: null });
       const u = o.ink.uniforms;
       u.hiAhead.value = range.ahead;
       u.hiBehind.value = range.behind;
@@ -144,7 +144,7 @@ export class Highlight {
       const s = spec.get(eid);
       t.spec = s ?? t.spec;
       t.target = s ? 1 : 0;
-      t.liftTarget = s && s.dir === 0 ? PICK_LIFT : 0;
+      t.boostTarget = 0;
       if (s) {
         const u = t.obj.ink.uniforms;
         u.hiDir.value = s.dir;
@@ -162,16 +162,16 @@ export class Highlight {
     for (const [eid, t] of this.tracks) {
       const on = hosts.has(this.hostOf.get(eid) ?? eid);
       t.target = on ? 1 : 0;
-      t.liftTarget = 0;
+      t.boostTarget = 0;
       if (on) t.spec = { dir: 0, offset: 0 };
       if (on) { const u = t.obj.ink.uniforms; u.hiDir.value = 0; u.hiOffset.value = 0; (u.hiEnds!.value as { set(x: number, y: number): void }).set(HI_NONE, HI_NONE); }
     }
   }
 
-  /** The shunt's target under the pointer (the lit ones stay lit): its outline stands a little further out (2D shuntGlow: stronger and wider); null lets it go. */
+  /** The shunt's target under the pointer (the lit ones stay lit): its glow is stronger (2D shuntGlow); null lets it go. */
   setHover(id: string | null): void {
     const host = id ? (this.hostOf.get(id) ?? id) : null;
-    for (const [eid, t] of this.tracks) if (t.target === 1) t.liftTarget = host != null && (this.hostOf.get(eid) ?? eid) === host ? PICK_LIFT * 1.7 : 0;
+    for (const [eid, t] of this.tracks) if (t.target === 1) t.boostTarget = host != null && (this.hostOf.get(eid) ?? eid) === host ? 1 : 0;
   }
 
   /** All the pieces of the vein a picked piece belongs to. */
@@ -184,13 +184,13 @@ export class Highlight {
     const k = Math.min(1, dtMs / HIGHLIGHT_FADE_MS); // linear: the full fade takes HIGHLIGHT_FADE_MS
     let moving = false;
     for (const t of this.tracks.values()) {
-      if (t.on !== t.target || t.lift !== t.liftTarget) {
+      if (t.on !== t.target || t.boost !== t.boostTarget) {
         t.on = approach(t.on, t.target, k);
-        t.lift = approach(t.lift, t.liftTarget, k * PICK_LIFT);
+        t.boost = approach(t.boost, t.boostTarget, k);
         moving = true;
       }
       t.obj.ink.uniforms.hiOn.value = t.on;
-      t.obj.toon.uniforms.inflate.value = t.lift;
+      if (t.obj.toon.uniforms.glowK) t.obj.toon.uniforms.glowK.value = 1 + HOVER_GLOW * t.boost * t.boost * (3 - 2 * t.boost);   // (the shunt target under the pointer: a stronger glow, eased)
       this.glow(t);
     }
     return moving;

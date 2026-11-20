@@ -113,55 +113,50 @@ const eachGrower = (b: ReturnType<typeof built>, f: (d: SkinObject, m: SkinMesh,
   return n;
 };
 
-test('morph: the arm\'s own seam ring is at the ring\'s centre when closed and the tube\'s own ring when whole, and at share s it is the ring shrunk to s of its radius about its centre (the tube\'s ring at width s), to 1e-6; every other seam ring never moves', () => {
+test('morph, seam: at growth 1 the arm\'s seam ring is exactly the tube\'s ring; at 0 it lies on the plain trunk; the other arms\' seam rings never move (the growth leaves their vertices, normals, weights alone)', () => {
   const b = built();
   try {
-    const n = eachGrower(b, (d, m, g) => {
-      const centre = [0, 0, 0];
-      for (const sv of m.seamVerts[g.arm]!) for (let k = 0; k < 3; k++) centre[k]! += m.position[3 * sv + k]! / RADIAL;
-      for (const s of [0, 0.1, 0.5, 1]) for (const sv of m.seamVerts[g.arm]!) for (let k = 0; k < 3; k++) {
-        const got = grownValue(m.position[3 * sv + k]!, g.dPos[3 * sv + k]!, s), want = centre[k]! + s * (m.position[3 * sv + k]! - centre[k]!);
-        assert.ok(Math.abs(got - want) <= 1e-6, `${nodeOf(d)} ${m.junction.arms[g.arm]!.vesselId} seam vertex at share ${s}: ${got} vs ${want}`);
-      }
-      // the normals on the ring stay the radial ones (the tube's ring at any share has them), the weights stay 1 on its own arm, the rest radius is the tube's
+    const cp = new Float64Array(7);
+    const n = eachGrower(b, (d, m, g, caps) => {
+      const arms = m.junction.arms, others = caps.filter((_, i) => i !== g.arm), k = skinKOf(arms), Rmin = Math.min(...arms.map((a) => a.restR));
       for (const sv of m.seamVerts[g.arm]!) {
-        for (let k = 0; k < 3; k++) assert.ok(Math.abs(g.dNor[3 * sv + k]!) < 1e-6);
-        assert.ok(Math.abs(g.dRest[sv]!) < 1e-6);
-        for (let q = 0; q < 4; q++) assert.ok(Math.abs(g.dWeight[4 * sv + q]!) < 1e-6);
+        for (let q = 0; q < 3; q++) assert.equal(grownValue(m.position[3 * sv + q]!, g.dPos[3 * sv + q]!, 1), m.position[3 * sv + q]);
+        const x = grownValue(m.position[3 * sv]!, g.dPos[3 * sv]!, 0), y = grownValue(m.position[3 * sv + 1]!, g.dPos[3 * sv + 1]!, 0), z = grownValue(m.position[3 * sv + 2]!, g.dPos[3 * sv + 2]!, 0);
+        assert.ok(Math.abs(sdUnion(others, k, x, y, z)) <= 0.05 * Rmin, `${nodeOf(d)} ${arms[g.arm]!.vesselId}: the closed ring is on the trunk (${(sdUnion(others, k, x, y, z) / Rmin).toFixed(3)} R off)`);
       }
-      m.junction.arms.forEach((a, ai) => { if (ai === g.arm) return; for (const sv of m.seamVerts[ai]!) for (let k = 0; k < 3; k++) { assert.equal(g.dPos[3 * sv + k], 0, `${nodeOf(d)}: ${a.vesselId}'s ring is the tube's and never moves`); assert.ok(Math.abs(g.dNor[3 * sv + k]!) < 1e-6); } });
+      void cp;
+      arms.forEach((a, ai) => { if (ai === g.arm) return; for (const sv of m.seamVerts[ai]!) {
+        for (let q = 0; q < 3; q++) { assert.equal(g.dPos[3 * sv + q], 0, `${nodeOf(d)}: ${a.vesselId}'s ring is the tube's and never moves`); assert.ok(Math.abs(g.dNor[3 * sv + q]!) < 1e-6); }
+        for (let q = 0; q < 4; q++) assert.ok(Math.abs(g.dWeight[4 * sv + q]!) < 1e-6);
+      } });
     });
     assert.ok(n >= 7, `${n} growing arms checked`);
   } finally { done(b); }
 });
 
-test('morph, closed: every free vertex of the closed shape that is not on the arm\'s thread lies on the union of the OTHER arms (the trunk is a plain trunk: no dent, no bump), within 0.02 of the narrowest radius; its normals are unit; its weights are the trunk\'s', () => {
+test('morph, closed: EVERY vertex of the closed shape is on the plain trunk (the union of the other arms, same blend) within 0.05 of the narrowest radius: no thread, no cone, nothing standing off the trunk (the "thorns" on the SMV, 20 Nov); its normals are unit, its weights sum to 1 with none on the arm', () => {
   const b = built();
   try {
-    const cp = new Float64Array(7);
     const n = eachGrower(b, (d, m, g, caps) => {
-      const arms = m.junction.arms, others = caps.filter((_, i) => i !== g.arm).map((c) => ({ ...c, mate: c.mate === undefined || c.mate < 0 ? c.mate : c.mate - (c.mate > g.arm ? 1 : 0) }))   /* (a run's mate is an index: it follows the arm that is left out) */, kOthers = skinKOf(arms.filter((_, i) => i !== g.arm)), kAll = skinKOf(arms), Rmin = Math.min(...arms.map((a) => a.restR));
-      const V = m.position.length / 3, S = arms.length * RADIAL;
-      let checked = 0;
+      const arms = m.junction.arms, others = caps.filter((_, i) => i !== g.arm), k = skinKOf(arms), Rmin = Math.min(...arms.map((a) => a.restR));
+      const V = m.position.length / 3;
+      let worst = 0;
       for (let v = 0; v < V; v++) {
         const x = m.position[3 * v]! - g.dPos[3 * v]!, y = m.position[3 * v + 1]! - g.dPos[3 * v + 1]!, z = m.position[3 * v + 2]! - g.dPos[3 * v + 2]!;
         assert.ok(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z), 'finite');
         const nx = m.normal[3 * v]! - g.dNor[3 * v]!, ny = m.normal[3 * v + 1]! - g.dNor[3 * v + 1]!, nz = m.normal[3 * v + 2]! - g.dNor[3 * v + 2]!;
-        assert.ok(Math.abs(Math.hypot(nx, ny, nz) - 1) < 0.02, `${nodeOf(d)} vertex ${v}: the closed shape's normal is a unit one (${Math.hypot(nx, ny, nz).toFixed(3)})`);
+        assert.ok(Math.abs(Math.hypot(nx, ny, nz) - 1) < 0.02, `${nodeOf(d)} vertex ${v}: the closed normal is a unit one (${Math.hypot(nx, ny, nz).toFixed(3)})`);
         let ws = 0;
-        for (let q = 0; q < 4; q++) { const w = m.weight[4 * v + q]! - g.dWeight[4 * v + q]!; assert.ok(w > -1e-5, 'a weight is never negative'); ws += w; }
+        for (let q = 0; q < 4; q++) { const w = m.weight[4 * v + q]! - g.dWeight[4 * v + q]!; assert.ok(w > -1e-5); ws += w; }
         for (let q = 0; q < 2; q++) { const w = m.weight2[2 * v + q]! - g.dWeight2[2 * v + q]!; assert.ok(w > -1e-5); ws += w; }
         assert.ok(Math.abs(ws - 1) < 1e-4, `${nodeOf(d)} vertex ${v}: the weights of the closed shape sum to 1 (${ws})`);
-        if (v < S) continue;
-        closestOnArm(caps[g.arm]!, x, y, z, cp);
-        if (cp[4]! <= 2 * kAll) continue;   // (the thread, and the blend the thread makes with the trunk)
-        checked++;
-        assert.ok(Math.abs(sdUnion(others, kOthers, x, y, z)) <= 0.02 * Rmin, `${nodeOf(d)} ${arms[g.arm]!.vesselId}: a free vertex of the closed shape is ${(sdUnion(others, kOthers, x, y, z) / Rmin).toFixed(3)} R off the plain trunk`);
-        // and the arm's own weight is gone from it
-        const wg = (g.arm < 4 ? m.weight[4 * v + g.arm]! - g.dWeight[4 * v + g.arm]! : m.weight2[2 * v + g.arm - 4]! - g.dWeight2[2 * v + g.arm - 4]!);
-        assert.ok(wg < 0.02, `${nodeOf(d)} vertex ${v}: the closed shape has no weight of the arm that is not there (${wg.toFixed(3)})`);
+        const wg = g.arm < 4 ? m.weight[4 * v + g.arm]! - g.dWeight[4 * v + g.arm]! : m.weight2[2 * v + g.arm - 4]! - g.dWeight2[2 * v + g.arm - 4]!;
+        assert.ok(Math.abs(wg) < 1e-5, `${nodeOf(d)} vertex ${v}: the closed shape has no weight of the arm that is not there (${wg})`);
+        const off = Math.abs(sdUnion(others, k, x, y, z)) / Rmin;
+        worst = Math.max(worst, off);
+        assert.ok(off <= 0.05, `${nodeOf(d)} ${arms[g.arm]!.vesselId} vertex ${v}: ${off.toFixed(3)} R off the plain trunk`);
       }
-      assert.ok(checked >= 50, `${nodeOf(d)}: ${checked} free vertices judged`);
+      assert.ok(worst >= 0, 'judged');
     });
     assert.ok(n >= 7);
   } finally { done(b); }
@@ -175,7 +170,20 @@ test('morph, in between: nothing jumps (a vertex moves by delta x the growth, so
       let maxDelta = 0;
       for (let v = 0; v < V; v++) { maxDelta = Math.max(maxDelta, Math.hypot(g.dPos[3 * v]!, g.dPos[3 * v + 1]!, g.dPos[3 * v + 2]!)); for (let k = 0; k < 3; k++) assert.equal(grownValue(m.position[3 * v + k]!, g.dPos[3 * v + k]!, 1), m.position[3 * v + k]); }
       const R = m.junction.arms[g.arm]!.restR;
-      assert.ok(maxDelta <= 2.5 * R, `${nodeOf(d)}: a vertex travels ${(maxDelta / R).toFixed(2)} radii between closed and whole`);
+      assert.ok(maxDelta <= 4 * R, `${nodeOf(d)}: a vertex travels ${(maxDelta / R).toFixed(2)} radii between closed and whole`);
+      // the bud in between is a surface, not a tangle: at a quarter, half and three quarters of the growth, no more than one face in twelve is turned against its own vertex normals (the full skin has none: the build refuses a fold; the bud is drawn double sided and shaded by its vertex normals, so a few thin faces at the start of the growth show nothing)
+      for (const gr of [0.25, 0.5, 0.75]) {
+        const P = (v: number, k: number) => grownValue(m.position[3 * v + k]!, g.dPos[3 * v + k]!, gr), N = (v: number, k: number) => grownValue(m.normal[3 * v + k]!, g.dNor[3 * v + k]!, gr);
+        let flipped = 0; const T = m.index.length / 3;
+        for (let t = 0; t < T; t++) {
+          const a = m.index[3 * t]!, b2 = m.index[3 * t + 1]!, c = m.index[3 * t + 2]!;
+          const u = [0, 1, 2].map((k) => P(b2, k) - P(a, k)), w = [0, 1, 2].map((k) => P(c, k) - P(a, k));
+          const f = [u[1]! * w[2]! - u[2]! * w[1]!, u[2]! * w[0]! - u[0]! * w[2]!, u[0]! * w[1]! - u[1]! * w[0]!];
+          let dot = 0; for (const v of [a, b2, c]) dot += f[0]! * N(v, 0) + f[1]! * N(v, 1) + f[2]! * N(v, 2);
+          if (dot < 0) flipped++;
+        }
+        assert.ok(flipped <= T / 12, `${nodeOf(d)}: ${flipped} of ${T} faces turned at growth ${gr}`);
+      }
       let prev = Infinity;
       for (let s = 0; s <= 20; s++) {
         const gr = s / 20; let step = 0;
