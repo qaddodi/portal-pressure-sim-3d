@@ -8,6 +8,7 @@ import { REST, coursesOf, tubularOf } from './vessels/shape.ts';
 import { buildTubes } from './vessels/tubes.ts';
 import { setSmoothJoins } from './vessels/join-mode.ts';
 import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
+import { FlowRate } from './flow-rate.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
@@ -134,6 +135,8 @@ export class CelScene {
   readonly lens = new LensField();
   /** The blood's streams (the chevrons' distance, speed and reversed flag, from the 2D app's own stream model). */
   readonly blood = new BloodField();
+  /** The flow's one eased rate (flow-rate.ts): every visible phase that rides the blood's distance advances by it. */
+  readonly flowRate = new FlowRate();
   /** The lobule and sinusoid views (B8), built once, hidden until the view is chosen (setView). */
   /** The organs and the disease states on the figure (B4). */
   readonly disease: DiseaseLayer;
@@ -810,7 +813,8 @@ export class CelScene {
     const hiMoving = this.highlight.step(dt);
     const pinMoving = this.pins.step(dt, this.disease.organs.byId);
     this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
-    const streamsMoving = this.blood.streams.step(now);
+    this.flowRate.step(dt / 1000, (latest.frame?.running ?? true) ? 1 : 0);   // (Pause and Play ease the visible flow, 0.5 s each way; the model's own numbers pause at once)
+    const streamsMoving = this.blood.streams.step(now, this.flowRate.value);
     const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id));
     const flowActive = this.flow.step(dt) || streamsMoving || chainMoving || this.stepCava(dt);
     const lensMoving = this.lens.step(now);
