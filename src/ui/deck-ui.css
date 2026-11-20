@@ -22,6 +22,7 @@
 
 /* ── a card's place (transform only) and its surface ── */
 .dk-pos { position: absolute; left: 0; top: 0; will-change: transform; }
+.deck-ui.pz .dk-pos[data-up] > .dk-card[data-card], .dk-pos[data-up] > .dk-plate { position: absolute; left: 0; right: 0; top: auto; bottom: 0; width: auto; }   /* (a card on the foot hangs from it: its place is its foot) */
 .dk-pos[data-live="true"] { transition: transform var(--move) var(--ease), translate var(--move) var(--ease); }
 .dk-pos[data-slot="data"] .dk-in { transition: opacity 240ms var(--ease); }   /* (the dock: the docked card's words fade as it slides away; a finger or a glide writes them per frame) */
 
