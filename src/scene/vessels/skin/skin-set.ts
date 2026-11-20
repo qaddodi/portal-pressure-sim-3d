@@ -17,9 +17,10 @@ import { NETWORK_BY_ID } from '../network.ts';
 import { REST, coursesOf, tubularOf, type ShapeState } from '../shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { slicesFor } from '../../circuit/geometry.ts';
+import { wallJunctions, wallLandings } from './wall.ts';
 import { MIN_ARMS, dropFarGrowers, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
 import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
-import { PACES, buildSkinSteady, hullCovers } from './mesh.ts';
+import { PACES, buildSkinSteady, hullCovers, onWall } from './mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
@@ -157,9 +158,6 @@ export function armArcOf(end: 0 | 1, u: number, len: number, radius: number): { 
 /** An axis as the mesh builder's capsule (sdf.ts): the same three points and radii. */
 export const capsuleOf = (a: ArmAxis): Capsule => ({ n: a.pts.length, pts: Float64Array.from(a.pts.flat()), r: Float64Array.from(a.radii), mate: a.mate });
 
-/** Whether a junction has a liver vein's second branch among its arms (inventory.ts `isLiverBranch`). */
-const hasLiverBranch = (j: SkinJunction): boolean => j.arms.some((a) => { const v = NETWORK_BY_ID.get(a.vesselId); return !!v && isLiverBranch(v); });
-
 /** The holes a skin's cuts leave (spec 10.1): a vessel with a side-wall arm on each side of the junction is not drawn between their seams; with an arm on one side only its cut is an ordinary one (the rest of the tube is inside the skin's reach). */
 export function holesOf(cuts: readonly SkinCut[]): { id: string; lo: number; hi: number }[] {
   const out: { id: string; lo: number; hi: number }[] = [];
@@ -170,6 +168,9 @@ export function holesOf(cuts: readonly SkinCut[]): { id: string; lo: number; hi:
   }
   return out;
 }
+
+/** Whether a junction has a liver vein's second branch among its arms (inventory.ts `isLiverBranch`), or lands on a host's wall (wall.ts): meshed from the surface, no hull of the rings. */
+const hasLiverBranch = (j: SkinJunction): boolean => onWall(j) || j.arms.some((a) => { const v = NETWORK_BY_ID.get(a.vesselId); return !!v && isLiverBranch(v); });
 
 export class SkinSet {
   private built: Built[] = [];
@@ -190,6 +191,8 @@ export class SkinSet {
   readonly fellBack: string[] = [];
   /** the growing arms a skin could not take (`node:vessel`): they keep today's fork method (spec 10.6), named so a new one fails tests/skin-grow.test.ts until someone looks */
   readonly dropped: string[] = [];
+  /** why each growing arm the retry ladder dropped was dropped (the failure that made it: a named SkinBuildError message), for the tests and the inspector */
+  readonly why: Record<string, string> = {};
   /** the junctions of the phase built, as the inventory found them (a rebuild plans from these again) */
   private sources: SkinJunction[] = [];
   private step_ = 0;
@@ -294,7 +297,7 @@ export class SkinSet {
             lost.push({ node: f.nodes.join('+'), message: f.message }); continue;
           }
           const drop = g[g.length - 1]!, arms = j.arms.filter((a) => a !== drop);
-          this.dropped.push(`${n}:${drop.vesselId}`);
+          this.dropped.push(`${n}:${drop.vesselId}`); this.why[`${n}:${drop.vesselId}`] = f.message;
           again.set(n, f.message);
           if (arms.length >= MIN_ARMS) next.push({ ...j, arms });   // (a run-on pair with its collateral gone is no junction: it never had a skin, so it is not a fall back, only a dropped arm)
         }
@@ -412,7 +415,14 @@ export class SkinSet {
     // phase 2 also builds every node a collateral or a shunt lands on (spec 10.2); phase 1 (the confluence alone) has none of them
     const all: SkinJunction[] = findSkinJunctions().filter((j) => nodes.has(j.node) || (phase === 2 && (j.arms.some((a) => a.grow || isLiverBranch(NETWORK_BY_ID.get(a.vesselId)!))))).map((j) => (phase === 1 ? withoutGrowers(j) : j)).filter((j): j is SkinJunction => !!j);
     // a collateral or shunt whose end lies farther from J than SKIN_REACH is on a host's side, not at the node: it is left out of the skin (named in `dropped`), and never takes the node's skin with it
-    const near = all.map((j) => { const d = dropFarGrowers(j); for (const id of d.far) this.dropped.push(`${j.node}:${id}`); return d.junction; }).filter((j) => j.arms.length >= MIN_ARMS);
+    const farGone: { node: string; id: string }[] = [];
+    const near = all.map((j) => { const d = dropFarGrowers(j); for (const id of d.far) farGone.push({ node: j.node, id }); return d.junction; }).filter((j) => j.arms.length >= MIN_ARMS);
+    // ...and every growing vessel's end that is not an arm of a node's skin lands on a host's WALL (spec 10.1, wall.ts): each makes a virtual node on the host
+    const welded = new Set(near.flatMap((j) => j.arms.filter((a) => a.grow).map((a) => `${a.vesselId}:${a.end}`)));
+    const walls = wallJunctions(phase === 2 ? wallLandings(welded) : []);
+    near.push(...walls.junctions);
+    for (const l of walls.skipped) this.dropped.push(`wall:${l.host.id}:${l.v.id}`);
+    for (const f of farGone) this.dropped.push(`${f.node}:${f.id}`);   // (named whether or not a wall skin takes the end up: the node's own skin goes without it)
     all.length = 0; all.push(...near);
     const far = new Set(nodesBeyondReach(all));   // (the art's own spacing, not a junction: the old join stays, named in `fellBack` and not warned)
     for (const n of far) if (!this.fellBack.includes(n)) this.fellBack.push(n);

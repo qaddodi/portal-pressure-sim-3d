@@ -32,7 +32,9 @@ const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 /** The growing arms a skin could not take on the real network (`node:vessel`), each for a reason a person can read: a landing on a host's wall (GROW_REACH), or an arm that runs along another (the surface cannot clear the blend: PVH's DIPS lies 12 degrees from PVH_R, SVD's S_DSR and LRV_S's S_DSR run along C6). */
 // (RHV_T:TIPS: the hepatic vein's run-on RHV_T lies on the piece RHV_IVC that the cava's IVCS skin takes 15 of 20 rings of, so the two skins crowd; they cannot merge (the hull refuses the seven rings), and the cava's weld is the one kept (Mohammad, 20 Nov: "did you weld the hepatic veins into the IVC?"). TIPS keeps the fork method at that end.)
 // (21 Nov: RPV_T keeps its TIPS arm beside the right portal vein's second branch: the planner no longer asks the hull rule of a junction with a liver branch. LRV_S:S_DSR stays dropped: the sheet started on the surface is the liver forks' rung only, a pair of growers that run along one another has no closed shape on the trunk, tests/skin-closed-footprint.test.ts)
-const DROPPED = ['EPI:C3', 'IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'LRV_S:S_DSR', 'PVH:DIPS', 'RHV_T:TIPS', 'SVD:S_DSR'];
+// (the `wall:` entries are the landings on a host's wall that keep the fork method, wall.ts, tests/skin-wall.test.ts: each is named, none is silent)
+const DROPPED = ['EPI:C3', 'IVCI:C9', 'IVCI:S_PC', 'IVC_D:DIPS', 'LRV_S:S_DSR', 'PVH:DIPS', 'RHV_T:TIPS', 'SVD:S_DSR',
+  'wall:AZY_SVC:C9', 'wall:ILI_IVC_1:S_MC1:S_MC', 'wall:IVC_IS:DIPS1:DIPS', 'wall:IVC_IS_1:C9', 'wall:IVC_IS_1:S_PC1:S_PC', 'wall:PVH_L_1:C30:C3', 'wall:PVH_L_1:REX'];
 
 const armKey = (a: { vesselId: string; end: number }) => `${a.vesselId}:${a.end}`;
 
@@ -100,6 +102,7 @@ test('the real network builds the growing arms it can, names the ones it cannot,
     const grown = new Map(b.draws.map((d) => [nodeOf(d), meshOf(b, d).grow.map((m) => armKey(meshOf(b, d).junction.arms[m.arm]!))]));
     const want: Record<string, string[]> = {};
     for (const [n, gs] of Object.entries(GROWERS)) { const kept = gs.filter((g) => !DROPPED.includes(`${n}:${g.split(':')[0]}`)); if (kept.length) want[n] = kept; }
+    want['wall:AZY_SVC:C1b1'] = ['C1b:1'];   // (the one landing on a host's wall that builds so far, wall.ts)
     const got = Object.fromEntries([...grown].filter(([, g]) => g.length));
     assert.deepEqual(got, want);
     // the skins of the permanent junctions are all still there (the SVC's two are one: their seams were under 1.5 radii apart, cuts.ts MIN_STUB_R)
@@ -155,7 +158,8 @@ test('morph, closed: EVERY vertex of the closed shape is on the plain trunk (the
         assert.ok(Math.abs(ws - 1) < 1e-4, `${nodeOf(d)} vertex ${v}: the weights of the closed shape sum to 1 (${ws})`);
         const wg = g.arm < 4 ? m.weight[4 * v + g.arm]! - g.dWeight[4 * v + g.arm]! : m.weight2[2 * v + g.arm - 4]! - g.dWeight2[2 * v + g.arm - 4]!;
         assert.ok(Math.abs(wg) < 1e-5, `${nodeOf(d)} vertex ${v}: the closed shape has no weight of the arm that is not there (${wg})`);
-        const off = Math.abs(sdUnion(others, k, x, y, z)) / Rmin;
+        const own = v < arms.length * RADIAL ? Math.floor(v / RADIAL) : -1;   // (another arm's seam ring is that tube's own vertex, never moved: a curved or tapering host tube is not its capsule, so the ring is judged by the seam tests, not here)
+        const off = own >= 0 && own !== g.arm ? 0 : Math.abs(sdUnion(others, k, x, y, z)) / Rmin;
         worst = Math.max(worst, off);
         assert.ok(off <= 0.05, `${nodeOf(d)} ${arms[g.arm]!.vesselId} vertex ${v}: ${off.toFixed(3)} R off the plain trunk`);
       }

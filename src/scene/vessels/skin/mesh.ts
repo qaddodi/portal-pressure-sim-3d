@@ -113,11 +113,14 @@ export const hullCovers = (seamRings: readonly Float32Array[]): boolean => ringH
 /** The last rung: the sheet starts on the surface (sheet.ts), so the remesh has nothing to fold and the usual schedule evens it out. */
 export const FROM_SURFACE: BuildPace = { rounds: 20, shrinkRounds: 4, pull: 0.5, sdf: true, polish: 8 };
 export const PACES: readonly (BuildPace | undefined)[] = [undefined, GENTLE, SLOW, FROM_SURFACE];
+/** Whether a junction is meshed from the surface itself (the last rung, sheet.ts) and its seams need no hull of the rings: the forks of the liver (a fork child's id carries `~F:`) and a growing arm that lands on a host's wall (a virtual node `wall:`, wall.ts: the hull of two host rings and a ring that comes in at 40 to 70 degrees leaves the near vertices of the growing arm's ring inside it, tests/skin-wall.test.ts). */
+export const onWall = (j: SkinJunction): boolean => j.node.includes('wall:') && j.arms.some((a) => !!a.side);
+export const fromSurface = (j: SkinJunction): boolean => j.arms.some((a) => a.vesselId.includes('~F:')) || onWall(j);
 export function buildSkinSteady(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes?: readonly Capsule[], maxVerts: number = MAX_VERTS, memo?: Map<string, number>): SkinMesh {
   let last: unknown;
   // the last rung, the sheet started on the surface, is for the forks of the liver (a fork child's id carries `~F:`): another junction that needs it keeps the arms it could not take at the three rungs before it dropped, as before (a pair of growing arms
   // that run along one another has no closed shape on the trunk: tests/skin-closed-footprint.test.ts)
-  const top = j.arms.some((a) => a.vesselId.includes('~F:')) ? PACES.length : PACES.length - 1;
+  const top = fromSurface(j) ? PACES.length : PACES.length - 1;
   for (let i = Math.min(memo?.get(j.node) ?? 0, top - 1); i < top; i++) {
     try { const m = buildSkin(j, cuts, seamRings, seamNormals, axes, maxVerts, PACES[i]); memo?.set(j.node, i); return m; }
     catch (e) { last = e; if (!(e instanceof SkinBuildError) || !e.message.includes('folds')) throw e; }

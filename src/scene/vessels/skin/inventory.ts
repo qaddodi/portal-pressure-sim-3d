@@ -199,9 +199,9 @@ export function liverBranchJunctions(network: readonly NetVessel[] = NETWORK, st
 export const GROW_REACH = 2.2;
 /** The junction without the growing arms that end farther than `GROW_REACH` radii from J (a side-wall landing, spec 10.1: left to the side-wall arms), and which they were. The permanent arms decide whether the NODE is a junction (`nodesBeyondReach`); a far collateral or shunt is
  *  only left out of it, and keeps today's fork method. */
-export function dropFarGrowers(j: SkinJunction, network: readonly NetVessel[] = NETWORK, state: ShapeState = REST): { junction: SkinJunction; far: string[] } {
-  const reach = armReach(j, network, state), far = j.arms.filter((a, i) => a.grow && reach[i]! > GROW_REACH).map((a) => a.vesselId);
-  return far.length ? { junction: { ...j, arms: j.arms.filter((a) => !far.includes(a.vesselId)) }, far } : { junction: j, far };
+export function dropFarGrowers(j: SkinJunction, network: readonly NetVessel[] = NETWORK, state: ShapeState = REST): { junction: SkinJunction; far: string[]; farArms: SkinArm[] } {
+  const reach = armReach(j, network, state), farArms = j.arms.filter((a, i) => a.grow && reach[i]! > GROW_REACH), far = farArms.map((a) => a.vesselId);
+  return far.length ? { junction: { ...j, arms: j.arms.filter((a) => !far.includes(a.vesselId)) }, far, farArms } : { junction: j, far, farArms };
 }
 
 /** The same junction without its growing arms (what the scene falls back to when the skin cannot be built with them), or null when fewer than MIN_ARMS permanent arms are left (a run-on pair needs no skin). */
