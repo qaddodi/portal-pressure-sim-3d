@@ -851,7 +851,6 @@ export class CelScene {
     const dv = this.sinus.diveShareNow, under = !this.sinus.isVisible ? 0 : dv == null ? 1 : smoothstep01(0.4, 0.78, dv);
     const lob3 = this.lobule3d.update(this.micro3d, under, now, latest.frame?.running ?? true), sin3 = this.sinus3d.update(this.micro3d, latest.frame?.running ?? true);
     const viewMoving = lob3 || sin3 || lobMoving || sinMoving;
-    this.procs.group.traverse((c) => { if (c.layers.mask !== 2) c.layers.set(VESSEL_LAYER); });   // (a device built after the scene, a catheter, a wire, a balloon, belongs to the vessels' pass, drawn over them; on layer 0 the opaque vessel tubes drew over it)
     const procMoving = this.procs.update(now);
     const diseaseMoving = this.disease.update(now);
     if (diseaseMoving) this.tagOverOrgans();
