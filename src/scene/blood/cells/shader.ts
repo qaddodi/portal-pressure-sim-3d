@@ -192,7 +192,7 @@ void main() {
     base = mix(mix(base, la.rgb, la.a), mix(base, lb.rgb, lb.a), lensMix);
   }
   vec3 lit = celTubeBase(base);   // the vessel's lit tone; the streak's own tone lies between it and one shade lighter (seeded), never white, never darker than the lit tone
-  vFill = streakTone(lit, mix(lit, vec3(1.0), ${STREAK.LIFT.toFixed(2)}), streakHash(aB.w * 53.0 + 1.7), streakHash(aB.z * 37.0 + 4.2));
+  vFill = streakTone(lit, vec3(1.0), streakHash(aB.w * 53.0 + 1.7), streakHash(aB.z * 37.0 + 4.2));
 
   // the vessel's own fade (a tip fading in or out, a bed fading along its line), its veil behind the organs and the layer's amount
   float fa = 1.0;

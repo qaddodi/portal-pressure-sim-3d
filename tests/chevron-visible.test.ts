@@ -70,26 +70,21 @@ test('the head is 3:1 or more against the tube it is drawn on, in every look (th
   }
 });
 
-test('at the default fit the streaks are obvious: 2 px or more, 1 to 3 lanes on a thin vessel, several to a vessel', () => {
+test('at the default fit the streaks are sleek and seen: a core of about 1 px, 24 to 60 px long, 1 lane on a thin vessel, a few to a long vessel, none on a hairline', () => {
   for (const [name, w, h] of ROOMS) {
     const k = fit(w, h);
     let seen = 0;
     for (const v of MAPPED) {
-      const R = v.radius * k;
-      if (R < 2.6) continue;   // (the shader's gate: smoothstep(1.8, 2.6, R): on from a vessel 5 px across)
-      const lanes = lanesForPx(R);
-      assert.ok(lanes >= 1 && lanes <= 7 && lanes % 2 === 1, `${v.id} lanes ${lanes}`);
-      if (R < 6) assert.ok(lanes <= 3, `${name} ${v.id}: ${lanes} lanes on a ${(2 * R).toFixed(1)} px vessel`);
-      assert.ok(streakCorePx(R, lanes) >= STREAK.MIN_PX - 1e-9, `${name} ${v.id}: core ${streakCorePx(R, lanes).toFixed(2)} px`);
-      assert.ok(streakCoverage(R, lanes) > 0.12, `${name} ${v.id}: coverage ${(streakCoverage(R, lanes) * 100).toFixed(0)} percent`);
-      // marks on the vessel: a lane's period on screen is about 5.8 radii (the field's units follow the radius), the empty cycles left out
+      const R = v.radius * k, lanes = lanesForPx(R);
+      if (R < STREAK.MIN_R_PX) { assert.equal(lanes, 0, `${v.id}: none under 3.5 px across`); continue; }
+      assert.ok(lanes === 1 || lanes === 3 || lanes === 5, `${v.id} lanes ${lanes}`);
+      if (R < 4) assert.equal(lanes, 1, `${name} ${v.id}: ${lanes} lanes on a ${(2 * R).toFixed(1)} px vessel`);
+      assert.ok(streakCorePx(R, lanes, true) >= 0.8 && streakCorePx(R, lanes, false) <= 1.8, `${name} ${v.id}: core ${streakCorePx(R, lanes, true).toFixed(2)} px`);
+      const meanLen = STREAK.FIELD_LEN_R * R;   // (px: the field's 5 units to a radius)
+      if (R >= 2 && R <= 5) assert.ok(meanLen >= 24 && meanLen <= 60, `${name} ${v.id}: a streak ${meanLen.toFixed(0)} px long`);
       const L = len(courseOf(v.id)) * k, period = ((STREAK.FIELD_PERIOD[0] + STREAK.FIELD_PERIOD[1] * 0.5) / STREAK.FIELD_AT_R) * R;
-      if (L >= 100) { assert.ok((lanes * L) / period * (1 - STREAK.FIELD_GAP) >= 3, `${name} ${v.id}: ${((lanes * L) / period).toFixed(1)} marks over ${L.toFixed(0)} px`); seen++; }
+      if (L >= 100) { assert.ok((lanes * L) / period * (1 - STREAK.FIELD_GAP) >= 0.4, `${name} ${v.id}: ${((lanes * L) / period).toFixed(1)} streaks over ${L.toFixed(0)} px`); seen++; }
     }
     assert.ok(seen >= 2, `${name}: ${seen} long vessels checked`);
   }
-});
-
-test('the streak is a visible step from the body: the lighter tone is 1.25:1 or more (every look), set by LIFT and TONE_MIN', () => {
-  assert.ok(STREAK.LIFT >= 0.6 && STREAK.TONE_MIN >= 0.5);
 });
