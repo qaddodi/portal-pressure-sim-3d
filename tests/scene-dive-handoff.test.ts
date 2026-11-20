@@ -14,6 +14,19 @@ test('the 3D sinusoid\'s lumen is as wide as the 3D lobule\'s tube it grows out 
   assert.ok(Math.abs(lumen / tube - 1) < 0.05, `lumen ${lumen.toFixed(4)} against tube ${tube.toFixed(4)} (lobule units)`);
 });
 
+test('the focus pull is one blur over the whole screen that lets go everywhere at once: the band keeps its resting geometry and only its amount eases (Mohammad 20 Nov: "not a box, or to the right and left")', async () => {
+  const fs = await import('node:fs');
+  const src = fs.readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /\* open\b/, 'no band edge is multiplied by the dive\'s share: nothing opens outward from the axis or the ends');
+  assert.match(src, /this\.focusOpen = open;/);
+  const dof = fs.readFileSync(new URL('../src/scene/post-dof.ts', import.meta.url), 'utf8');
+  assert.match(dof, /return mix\(1\.0, k, bandO\) \* bandK\.z \* bandK\.w;/, 'each pixel eases from the one level to its own');
+  assert.match(fs.readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8'), /this\.post\.dof\.bandOpen = this\.sinus3d\.focusOpen;/);
+  // (the shader's own algebra: closed it is the same blur at every pixel, open it is the resting band)
+  const mix = (a: number, b: number, t: number) => a + (b - a) * t;
+  for (const k of [0, 0.3, 1]) { assert.equal(mix(1, k, 0), 1, 'closed: uniform everywhere'); assert.ok(Math.abs(mix(1, k, 1) - k) < 1e-12, 'open: the resting band'); }
+});
+
 test('the dive is a focus pull: the picture goes soft, the sinusoid dissolves in inside the blur, then sharpens; the lobule stands aside only once it is whole (Mohammad 20 Nov: "like an old TV")', async () => {
   const { FOCUS } = await import('../src/scene/micro3d/sinusoid3d.ts');
   assert.ok(SIN_SHOW_FROM <= FOCUS[0] && FOCUS[0] < FOCUS[1] && FOCUS[1] < FOCUS[2] && FOCUS[2] <= LOBULE_UNDER_FROM, 'blur, dissolve inside it, then the lobule goes');

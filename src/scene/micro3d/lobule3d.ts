@@ -115,6 +115,35 @@ export function weldRequest(net: LobuleNet): WeldRequest {
   return { courses: [...bloodWeldCourses(net, h, segs), ...bileWeldCourses(net, h, segs)], avoid };
 }
 
+/** The lymph ductule of each space of Disse that leaves a lymphatic channel (`ly` level 0 runs from the channel to its sinusoid, geometry.ts): the stretch from the channel to where the sinusoid starts, as a course of its own
+ *  (drawn as a thin lymph tube with the terminal lymphatics), and the sample the Disse sleeve begins at (the sinusoid's own start, so nothing of it stands outside the sinusoid). */
+export function disseDuctules(ly: readonly Course[], all: readonly Course[]): { src: Course; conn: Course; from: number }[] {
+  const out: { src: Course; conn: Course; from: number }[] = [];
+  for (const c of ly) {
+    if (c.lvl !== 0 || c.sib == null) continue;
+    const sib = all.find((x) => x.id === c.sib), p0 = sib?.pts[0];
+    if (!p0) continue;
+    let from = 0, best = Infinity;
+    c.pts.forEach((q, i) => { const d = Math.hypot(q[0] - p0[0], q[1] - p0[1]); if (d < best) { best = d; from = i; } });
+    if (from < 1) continue;
+    out.push({ src: c, from, conn: { ...c, kind: 'lt', pts: c.pts.slice(0, from + 1), rho: c.rho.slice(0, from + 1), len: c.len * from / (c.pts.length - 1), lvl: undefined } });
+  }
+  return out;
+}
+
+/** Each terminal lymphatic runs on into the middle of the lymphatic's pool it ends at (2D ends it on the pool's rim, under the pool's drawing; here the pool is a solid with a wall, and a tube that stopped at
+ *  the rim met that wall end to end, a butt joint with the outline between: Mohammad 20 Nov 2026, "they don't join the actual ductule at the end"). The bile's canals already end at their ductule's middle. */
+export function lymphIntoPools(lt: readonly Course[], lv: readonly Course[]): Course[] {
+  const mids = lv.map((c) => c.pts[Math.floor(c.pts.length / 2)]!);
+  return lt.map((c) => {
+    const e = c.pts[c.pts.length - 1]!;
+    let best: LP2 | null = null, bd = Infinity;
+    for (const m of mids) { const d = Math.hypot(m[0] - e[0], m[1] - e[1]); if (d < bd) { bd = d; best = m; } }
+    if (!best || bd > DISC_R.lv * 1.5 || bd < 1e-6) return c;
+    return { ...c, pts: [...c.pts, [best[0], best[1]] as LP2], rho: [...c.rho, c.rho[c.rho.length - 1]!] };
+  });
+}
+
 export class Lobule3D {
   readonly group = new Group();
   private readonly flat: Flat;
@@ -193,7 +222,7 @@ export class Lobule3D {
     if (this.tex) { this.tex.flipY = true; this.tex.premultiplyAlpha = true; this.tex.generateMipmaps = true; this.tex.minFilter = LinearMipmapLinearFilter; this.tex.magFilter = LinearFilter; this.tex.anisotropy = 4; }
     const blank = new DataTexture(new Uint8Array(4), 1, 1); blank.needsUpdate = true;
     this.marksMat = new ShaderMaterial({
-      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, opacity: { value: 1 }, uDpr: MICRO_DPR },
+      vertexShader: LOBULE_PLATE_VS, fragmentShader: LOBULE_PLATE_FS, uniforms: { map: { value: this.tex ?? blank }, opacity: { value: 1 }, uDpr: MICRO_DPR, fade: this.fade },
       transparent: false, depthWrite: false, depthTest: false, side: DoubleSide,
       blending: CustomBlending, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
     });
@@ -259,7 +288,7 @@ export class Lobule3D {
     const come = 1 - f.field.wideNow;
     // (whole once it is all but whole: the fade dissolves pixels in a screen pattern below 0.999, and a field that settles a hair short of 0 left the lobule speckled at rest, its lines dotted)
     const fv = (1 - under) * come, fs = fv > FADE_SNAP ? 1 : fv;
-    this.fade.value = fs; this.marksMat.uniforms.opacity!.value = fs;
+    this.fade.value = fs;   // (the ONE dissolve: every tile, tube, mark and the marks plate drop the same pixels of one screen pattern at this value, and nothing else is scaled by it)
     const shown = on && f.isVisible && under < 1;
     this.group.visible = shown;
     // (the whole lobule, its neighbouring field too: the sinusoid's own ground lies below the lobule's plane, so the field would show through the clefts between its cells)
@@ -311,7 +340,7 @@ export class Lobule3D {
     const was = this.washShown;
     this.washShown = Math.abs(goal - was) < 1e-3 ? goal : was + (goal - was) * (1 - Math.exp(-dt / WASH_EASE_MS));
     if (this.washShown === 0 && was === 0) return false;
-    const rgb = hexToRgb01((LOBULE_PALETTES[this.flat.look].tones as Record<string, string>).amber!) as RGB, a = this.washShown * this.fade.value;
+    const rgb = hexToRgb01((LOBULE_PALETTES[this.flat.look].tones as Record<string, string>).amber!) as RGB, a = this.washShown;
     for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.mouthCv]) p.setRadialWash(a, this.washFrontNow, R, rgb);
     return this.washShown !== goal;
   }
@@ -329,7 +358,9 @@ export class Lobule3D {
     // (`rate` is the scene's one eased pause/play rate, 0..1: Pause eases the flow to a stop and Play eases it back up, never at once)
     const k = clamp(rate, 0, 1) * dt;
     this.flowT.blood += k * 0.11 * q; this.flowT.lymph += k * 0.05; this.flowT.bile += k * 0.035;
-    const W: RGB = [1, 1, 1], soft = (k: number) => k * this.fade.value, dpr = this.dpr;
+    // (no mark is scaled by the dive's fade: the tube's own dissolve already drops its pixels, marks and all, at the scene's one fade. A mark that was ALSO scaled by it (soft = k * fade) went as the fade squared and
+    //  a weaker one (the lymph's 0.4) earlier still, so the lymph went first and the blood's vessels after it, and the lobule's vessels flashed: Mohammad 20 Nov 2026)
+    const W: RGB = [1, 1, 1], soft = (k: number) => k, dpr = this.dpr;
     // every fluid is seen to move at the fit (Mohammad, 20 Nov 2026): the blood's dark heads (few and small on these thin tubes, the shader's screen rules) and THE ONE STREAK in every vessel, the blood's
     // only while Settings > Blood streaks is on (off: chevrons only); the lymph's and the bile's always, in their own tones
     const bs = useSettings.getState().particles ? soft(0.6) : 0;   // (quiet: sleek lanes a shade off the lumen, never bold white dashes, Mohammad 20 Nov 2026 "should be more sleek")
@@ -582,20 +613,23 @@ export class Lobule3D {
     else { const t = tubes(by('in'), (c, i) => inletRadius(i, c.pts.length, Math.hypot(c.pts[i]![0] - c.pts[0]![0], c.pts[i]![1] - c.pts[0]![1])), (c, i) => i / (c.pts.length - 1)); coloured(this.inlets, t.b, 'in', t.W, t.K); this.inlets.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
     if (plan) { const d = welded(by('tw'), TUBE_SEG, false, null, () => false); coloured(this.twigs, d.b, null, d.W, d.K); this.twigs.geometry.setAttribute('fcourse', new Float32BufferAttribute(d.fc!, 4)); }
     else { const t = tubes(by('tw'), (c, i) => twigR(i / (c.pts.length - 1), RS_N), () => 0, OVER_Z); coloured(this.twigs, t.b, null, t.W, t.K); this.twigs.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
-    { const t = tubes(by('lt'), () => LT_R, () => 0); coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
+    // (the terminal lymphatics, and the lymph ductules: where a space of Disse leaves its channel it is a thin lymph tube as 2D draws it (`ly`, lymph-coloured, tapering), not a flat sleeve, up to where the sinusoid's
+    //  own sleeve begins; Mohammad 20 Nov 2026: a grey plate stood out beside each inlet, at the end of a ductule)
+    const ductules = disseDuctules(by('ly'), net.courses);
+    { const t = tubes([...lymphIntoPools(by('lt'), by('lv')), ...ductules.map((d) => d.conn)], () => LT_R, () => 0); coloured(this.lt, t.b, null, t.W, t.K); this.lt.geometry.setAttribute('fcourse', new Float32BufferAttribute(t.FC, 4)); }
     // the space of Disse: a flat pale sleeve under each sinusoid (2D's Wet Disse), no light of its own
     {
       const b = new MeshBuilder(), K: number[] = [], W: number[] = [], rly = 0.0132;
       for (const c of by('ly')) {
-        const n = c.pts.length, r0 = b.count;
-        for (let i = 0; i < n; i++) {
+        const from = ductules.find((d) => d.src === c)?.from ?? 0, n = c.pts.length, r0 = b.count;
+        for (let i = from; i < n; i++) {
           const a = c.pts[Math.max(0, i - 1)]!, d = c.pts[Math.min(n - 1, i + 1)]!;
           let tx = d[0] - a[0], ty = -(d[1] - a[1]); const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
           const p = at3(c.pts[i]!, LZ.disse);
           b.v(p[0] - ty * rly * R, p[1] + tx * rly * R, p[2], 0, 0, 1, [1, 1, 1]); b.v(p[0] + ty * rly * R, p[1] - tx * rly * R, p[2], 0, 0, 1, [1, 1, 1]);
           K.push(1, 1); W.push(0, 0);
         }
-        for (let i = 0; i < n - 1; i++) { const q = r0 + i * 2; b.quad(q, q + 2, q + 3, q + 1); b.quad(q, q + 1, q + 3, q + 2); }
+        for (let i = 0; i < n - 1 - from; i++) { const q = r0 + i * 2; b.quad(q, q + 2, q + 3, q + 1); b.quad(q, q + 1, q + 3, q + 2); }
       }
       coloured(this.disse, b, null, W, K);
     }

@@ -12,6 +12,8 @@
 // Everything reads the host's own state (its eased targets, palette, traffic, places), so the two can never disagree: this file draws, the host keeps the model, the names and
 // the clock. Every place is 2D's (layout.ts and the copied widths); every colour is 2D's palette for the look. Nothing here is per-pixel painting: the shapes are meshes, cel shaded
 // (cel3d.ts), and only the albumin, the red cells and the fenestrae's gap table are rewritten while the view is up.
+import { staticRouteTexture } from '../blood/routes.ts';
+import { dustTuner } from '../blood/dust.ts';
 import { useSettings } from '../../state/settings.ts';
 import { DataTexture, Group, Matrix4, NearestFilter, RGBAFormat, UnsignedByteType, Vector3, Vector4, type ShaderMaterial } from 'three';
 import type { CelShared } from '../materials/cel.ts';
@@ -188,8 +190,10 @@ export class Sinusoid3D {
     const S = CEL_STYLE.MICRO;
     this.ground = mk('ground', { ink: null });
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
-    this.trough = mk('lumen', { ink: null, streaks: true });
-    this.troughFar = mk('lumen-beyond', { ink: null, streaks: true });
+    // (the Anatomy's dust in place of the lanes, in the blood's and the lymph's own colours: Mohammad 20 Nov, the same streaks everywhere. Each stream one lane table, its lattice's pitch its half width in µm)
+    const dustOf = (half: number) => ({ routeTex: { value: staticRouteTexture(1, new Map(), () => half) }, dustP: dustTuner.uniform });
+    this.trough = mk('lumen', { ink: null, streaks: true, dust: dustOf(UM.lum) });
+    this.troughFar = mk('lumen-beyond', { ink: null, streaks: true, dust: dustOf(UM.lum) });
     // (the fenestrae are real gaps through the lining, the bead and its edges alike: one texel a 1 µm slot, each side; stepPores writes how open each is)
     const gaps = { tex: this.gapTex, x: new Vector4(GAP_X0, GAP_SLOTS, 0.5, 0) };
     // (the lining's two edges are its own line, drawn in its fill against the plate's up: its rounded bead turns square to the plate at the lumen's rim and at Disse's side. They were thin ribbons
@@ -200,7 +204,7 @@ export class Sinusoid3D {
     this.bead = mk('endothelium', { ink: null, gaps, holes: { s: WALL.s2, dx: WALL.dx2 }, rim: S.LINE_SMALL, vertexColors: true });
     this.beadLine = mk('endothelium-cut', { ink: null, gaps, rim: S.LINE_SMALL, rimUp: true, rimUV: true, vertexColors: true });
     this.bores = mk('endothelium-bores', { ink: null, vertexColors: true });
-    this.disse = mk('disse', { ink: null, streaks: true });
+    this.disse = mk('disse', { ink: null, streaks: true, dust: dustOf(UM.disse * 0.5 + 0.5) });
     this.cells = mk('hepatocytes', { px: S.LINE });
     // (the small solid shapes, the nuclei, the canaliculi, the lining's cells, the Kupffer and stellate cells, albumin and the red cells, draw their line inside their own fill (cel3d.ts uRim):
     //  whole and smooth on every screen, never fighting the surface behind; their hull lines broke into dashes and specks, eyes 20 Nov)
@@ -346,17 +350,21 @@ export class Sinusoid3D {
 
   /** The focus band for the depth of field's band (post-dof.ts bandFrame): two points on this sinusoid's axis, where the blur starts (just past its own plates, as the haze) and where it is
    *  whole, in world space; returns the strength (0 when the scene is not shown: no blur). */
+  /** How far the blur has eased from one level over the whole screen (0) to the resting band (1): the dive's share, see focusBand. */
+  focusOpen = 1;
   focusBand(a: Vector3, b: Vector3, e0: Vector3, e1: Vector3, ends?: { mid: Vector3; f0: Vector3; f1: Vector3 }): number {
     if (!this.on || !this.group.visible) return 0;
     this.group.updateWorldMatrix(true, false);
     const d = this.flat.dive, rest = this.flat.g.hepIn(0) + UM.hep * 0.5, w = (v: Vector3, x: number, y: number) => this.group.localToWorld(v.set(x, y, 0));
-    // (in a dive, the focus pull: the band's sharp part and its ends closed to nothing (the whole picture soft) at the strength rising over FOCUS[0]-FOCUS[1], then opening back out to
-    //  the rest's over FOCUS[2]-1, so the sinusoid sharpens out of the blur it came in under)
+    // (the focus pull is one blur over the WHOLE screen, never a window opening: the band keeps its resting geometry through the dive and `open` (0 closed: the picture blurs the same everywhere, 1 the
+    //  resting band) is only how far each pixel's blur has eased from that one level to its own, post-dof.ts bandOpen. The sharp strip used to open outward from the axis and the ends, which read as a
+    //  box or a reveal to the right and left, Mohammad 20 Nov 2026: "just blur as you zoom in, then unblur the entire screen")
     const open = d == null ? 1 : smooth(FOCUS[2], 1, d);
-    const y0 = rest * open;
+    this.focusOpen = open;
+    const y0 = rest;
     w(a, -20, 0); w(b, 20, 0); w(e0, 0, y0); w(e1, 0, y0 + BLUR_RUN);
     // the two ends melt away well before the scene stops (Mohammad 20 Nov: "don't let me see the end of the sinusoid like that ... blur the ends")
-    if (ends) { w(ends.mid, 0, 0); w(ends.f0, (REACH - END_BLUR[0]) * open, 0); w(ends.f1, Math.max((REACH - END_BLUR[1]) * open, (REACH - END_BLUR[0]) * open + 2), 0); }
+    if (ends) { w(ends.mid, 0, 0); w(ends.f0, REACH - END_BLUR[0], 0); w(ends.f1, Math.max(REACH - END_BLUR[1], REACH - END_BLUR[0] + 2), 0); }
     return d == null ? this.fade.value : focusBlur(d);
   }
 
