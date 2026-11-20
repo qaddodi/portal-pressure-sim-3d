@@ -175,7 +175,7 @@ export class OrganLayer {
       const o = new CelObject(g, { tone: st.tone, bands: 3, spec: 0, px: st.px }, this.shared);
       const seat = useOrganShader(o, g, id, this.uDepth);
       if (seat) this.seats.set(id, seat);
-      this.art.attach(id, o.toon, o.ink, g);
+      this.art.attach(id, o.toon, o.ink, g, seat);
       if (this.phone) o.setPhone(true);
       o.ink.uniforms.px!.value = ORGAN_STYLE[id]!.px;
       this.objects.push(o); this.byId.set(id, o); this.group.add(o.group);
