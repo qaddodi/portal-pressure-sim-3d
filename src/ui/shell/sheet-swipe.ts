@@ -14,6 +14,8 @@ export interface SwipeOpts {
   onClose(): void;
   /** a card that is a sheet only on a phone says when it is one (read at the touch) */
   enabled?(): boolean;
+  /** which CSS property carries the pull: `translate` (a sheet), or `transform` for a panel whose `translate` is its own place (a popover put by placePopover) */
+  prop?: 'translate' | 'transform';
 }
 
 const MOVE = 8, STRETCH = 0.25, CLICK_SWALLOW_MS = 350, AWAY_FALLBACK_MS = 700;
@@ -22,7 +24,7 @@ const OWN = 'input[type="range"], textarea, [contenteditable], [role="slider"], 
 
 interface Grab { via: 'pointer' | 'touch'; id: number; sc: HTMLElement | null; x: number; y: number; top: boolean; more: boolean; on: boolean; dy: number; t: number; h: number; here: number; trail: [number, number][]; m: ReturnType<typeof follow> | null }
 
-const write = (el: HTMLElement) => (v: number) => { el.style.translate = v ? `0px ${v}px` : ''; };
+const write = (el: HTMLElement, prop: 'translate' | 'transform' = 'translate') => (v: number) => { el.style[prop] = v ? (prop === 'translate' ? `0px ${v}px` : `translateY(${v}px)`) : ''; };
 
 /** The nearest ancestor of `target` (up to `panel`) that scrolls vertically. */
 function scroller(panel: HTMLElement, target: Element): HTMLElement | null {
@@ -47,7 +49,7 @@ export function attachSheetSwipe(panel: HTMLElement, o: SwipeOpts): () => void {
     const shut = () => panel.dataset.open === 'false' || panel.classList.contains('out') || panel.classList.contains('leaving') || panel.hasAttribute('inert');
     let seenShut = shut();
     const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => { const now = shut(); if (now) seenShut = true; else if (seenShut) clear(); });
-    const clear = () => { mo?.disconnect(); clearTimeout(tm); away = null; run?.stop(); run = null; off = 0; panel.style.translate = ''; delete panel.dataset.swiped; delete panel.dataset.pulled; };
+    const clear = () => { mo?.disconnect(); clearTimeout(tm); away = null; run?.stop(); run = null; off = 0; panel.style[o.prop ?? 'translate'] = ''; delete panel.dataset.swiped; delete panel.dataset.pulled; };
     mo?.observe(panel, { attributes: true, attributeFilter: ['data-open', 'class', 'inert'] });
     const tm = setTimeout(() => { if (!shut()) clear(); }, AWAY_FALLBACK_MS);   // (a close that did not happen: the sheet comes back)
     away = clear;
@@ -79,7 +81,7 @@ export function attachSheetSwipe(panel: HTMLElement, o: SwipeOpts): () => void {
       if (run) { s.here = off; run.stop(); run = null; }
       s.on = true; s.y = y - s.here; s.t = performance.now();
       panel.dataset.pulling = '1'; panel.dataset.pulled = '1';   // (the stylesheet's entrance, if it is still playing, gives way to the finger: pulled stays, so it is not played again when the finger lets go)
-      s.m = follow(write(panel), 'sheet-swipe');
+      s.m = follow(write(panel, o.prop), 'sheet-swipe');
       s.m.set(s.here);
       if (s.via === 'pointer') { try { panel.setPointerCapture(s.id); } catch { /* the touch is gone */ } }
     }
@@ -96,7 +98,7 @@ export function attachSheetSwipe(panel: HTMLElement, o: SwipeOpts): () => void {
     g.m?.flush(); g.m?.stop();
     const speed: number = releaseSpeed(g.trail, performance.now());   // (px per ms down, as the finger lifted: the settle starts at that speed)
     const gone = closes(g.dy, speed, g.dy / Math.max(1, performance.now() - g.t), g.h);
-    const to = gone ? g.h + 8 : 0, from = g.dy, w = write(panel);
+    const to = gone ? g.h + 8 : 0, from = g.dy, w = write(panel, o.prop);
     if (gone) { panel.dataset.swiped = '1'; awaitReopen(); }
     const curve = cssCurve(carryCurve(speed, to - from, D_SMALL) as string) as (u: number) => number;
     run = glide({ ms: D_SMALL, curve, tag: 'sheet-swipe', apply: (k) => { off = from + (to - from) * k; w(off); }, done: () => { run = null; if (!gone) { off = 0; w(0); delete panel.dataset.pulling; } } });
@@ -139,6 +141,6 @@ export function attachSheetSwipe(panel: HTMLElement, o: SwipeOpts): () => void {
     panel.removeEventListener('pointerdown', onPDown); panel.removeEventListener('pointermove', onPMove); panel.removeEventListener('pointerup', onPEnd); panel.removeEventListener('pointercancel', onPEnd);
     panel.removeEventListener('lostpointercapture', onLost); panel.removeEventListener('touchstart', onTStart); panel.removeEventListener('touchmove', onTMove);
     panel.removeEventListener('touchend', onTEnd); panel.removeEventListener('touchcancel', onTEnd); panel.removeEventListener('click', onClick, true);
-    run?.stop(); s?.m?.stop(); away?.(); panel.style.translate = ''; delete panel.dataset.pulling; delete panel.dataset.swiped; delete panel.dataset.pulled;
+    run?.stop(); s?.m?.stop(); away?.(); panel.style[o.prop ?? 'translate'] = ''; delete panel.dataset.pulling; delete panel.dataset.swiped; delete panel.dataset.pulled;
   };
 }

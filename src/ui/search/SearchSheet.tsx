@@ -10,6 +10,7 @@ import { startTalk } from '../shell/talk.ts';
 import { noMatch, NO_MATCH_HELP } from '../shell/words.ts';
 import { search } from './match.ts';
 import { visibleBottom } from '../shell/place.ts';
+import { useSheetSwipe, onPhone } from '../shell/use-sheet-swipe.ts';
 import { buildCommands } from './commands.ts';
 
 export function SearchSheet() {
@@ -17,7 +18,7 @@ export function SearchSheet() {
   const phone = usesBottomBar(useUi((s) => s.device));
   const [q, setQ] = useState('');
   const [at, setAt] = useState(0);
-  const input = useRef<HTMLInputElement>(null), back = useRef<HTMLDivElement>(null), listEl = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null), back = useRef<HTMLDivElement>(null), panel = useRef<HTMLDivElement>(null), listEl = useRef<HTMLDivElement>(null);
   const cmds = useMemo(() => (open ? buildCommands(startTalk) : []), [open]);
   const hits = useMemo(() => search(cmds, q, UI.search.emptyOrder), [cmds, q]);
   // Focus the field in the very commit that shows the palette (owner, 20 Nov: "when i hit search or / the search bar should be in focus right away so i can type"). A layout effect runs inside the
@@ -43,6 +44,7 @@ export function SearchSheet() {
     vv?.addEventListener('resize', fit); vv?.addEventListener('scroll', fit);
     return () => { vv?.removeEventListener('resize', fit); vv?.removeEventListener('scroll', fit); for (const k of ['--pal-kb', '--pal-vh', '--pal-room']) el.style.removeProperty(k); };
   }, [open]);
+  useSheetSwipe(panel, () => useShell.getState().close(), onPhone);   // (a phone's Search is a sheet: it follows a pull down and closes past a short one)
   useEffect(() => { setAt(0); }, [q]);
   useEffect(() => { document.getElementById(`pal-opt-${at}`)?.scrollIntoView({ block: 'nearest' }); }, [at]);
   const run = (i: number) => {
@@ -71,7 +73,7 @@ export function SearchSheet() {
   // 2D palette.js markup: .pal-back > .pal (.pal-top: icon, field, close; .pal-list of .pal-item; .pal-foot), on the 2D stylesheet
   return (
     <div ref={back} className={`pal-back${leaving ? ' leaving' : ''}`} hidden={!open && !shown} onPointerDown={(e) => { if (e.target === e.currentTarget) close(); }}>
-      <div className="pal" role="dialog" aria-modal="true" aria-label="Command palette" inert={!open}>
+      <div ref={panel} className="pal" role="dialog" aria-modal="true" aria-label="Command palette" inert={!open}>
         <div className="pal-top">
           <Icon n="search" className="pal-ic" />
           <input ref={input} className="pal-input" type="text" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKey} placeholder={UI.search.placeholder[phone ? 0 : 1]} aria-label={UI.topbar.find((t) => t.id === 'btnPalette')!.label!}

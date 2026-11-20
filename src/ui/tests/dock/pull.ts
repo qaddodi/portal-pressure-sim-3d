@@ -28,6 +28,9 @@ const scroller = (t: Element, card: HTMLElement): HTMLElement | null => {
 };
 const MOVE = 6, FLICK_UP = -0.5, FAR_UP = 40, STAY_FULL = 40, PEEK_UP = 24;
 const ty = (el: HTMLElement) => (v: number) => { el.style.translate = v ? `0px ${v}px` : ''; };
+/** The card's tail (tests.css): extra card below its foot, so that a card lifted off the screen's edge (a pull up from Half, a card that has just shrunk and eases down) never shows a gap under it. */
+const TAIL = '--sheet-tail', RUBBER = 60;
+const tail = (el: HTMLElement, px: number) => { if (px > 0) el.style.setProperty(TAIL, `${Math.ceil(px)}px`); else el.style.removeProperty(TAIL); };
 
 /** Wires the pull to the card (`card`) and the box that moves (`pos`). Returns the remover. */
 export function attachPull(card: HTMLElement, pos: HTMLElement, api: PullApi): () => void {
@@ -64,6 +67,7 @@ export function attachPull(card: HTMLElement, pos: HTMLElement, api: PullApi): (
       if (Math.abs(dx) > Math.abs(dy)) { st = null; return; }   // (sideways: the swipe between the tabs)
       if (s.sc && (s.scTop > 0 || (dy < 0 && s.size === 1))) { st = null; return; }   // (the content scrolls: scrolled away from its top, or up at Full)
       s.moved = true; s.m = follow(ty(pos), 'tests-pull');
+      tail(pos, (s.size === 0 ? s.full - s.h0 : s.size === 2 ? s.half - s.h0 : 0) + RUBBER - Math.min(0, s.carry));
       try { card.setPointerCapture(e.pointerId); } catch { /* (a pointer that is not down: nothing to capture) */ }
     }
     s.dy = dy;
@@ -97,16 +101,17 @@ export function attachPull(card: HTMLElement, pos: HTMLElement, api: PullApi): (
       const curve = cssCurve(carryCurve(speed, target - cur, D_SMALL) as string) as (u: number) => number, w = ty(pos);
       run = glide({ ms: D_SMALL, curve, tag: 'tests-pull', apply: (k) => { off = cur + (target - cur) * k; w(off); }, done: () => { run = null; off = 0; then(); } });
     };
-    if (to === 'close') { settle(s.h0 + 8, () => { api.close(); pos.style.translate = ''; }); return; }
-    if (to === from) { settle(0, () => { pos.style.translate = ''; }); return; }
+    if (to === 'close') { settle(s.h0 + 8, () => { api.close(); pos.style.translate = ''; tail(pos, 0); }); return; }
+    if (to === from) { settle(0, () => { pos.style.translate = ''; tail(pos, 0); }); return; }
     // the card takes its new height now; its edge stays where the finger left it and eases to its place
     const target = to === 1 ? s.full : to === 2 ? s.peek : s.half;
-    api.setSize(to);
     const start = cur + (target - s.h0);
+    tail(pos, -start + 1);   // (a card that shrinks lifts off the foot of the screen by -start: the tail keeps its surface down to the edge until it has eased in)
+    api.setSize(to);
     pos.style.translate = start ? `0px ${start}px` : '';
     off = start;
     const curve = cssCurve(carryCurve(speed, -start, D_SMALL) as string) as (u: number) => number, w = ty(pos);
-    run = glide({ ms: D_SMALL, curve, tag: 'tests-pull', apply: (k) => { off = start * (1 - k); w(off); }, done: () => { run = null; off = 0; pos.style.translate = ''; } });
+    run = glide({ ms: D_SMALL, curve, tag: 'tests-pull', apply: (k) => { off = start * (1 - k); w(off); }, done: () => { run = null; off = 0; pos.style.translate = ''; tail(pos, 0); } });
   };
   // (The click a drag's release makes is not a tap: swallowed if it comes within 350 ms.)
   const onClick = (e: MouseEvent) => { if (performance.now() < swallow) { swallow = 0; e.stopPropagation(); e.preventDefault(); } };
@@ -124,13 +129,14 @@ export function attachPull(card: HTMLElement, pos: HTMLElement, api: PullApi): (
     card.removeEventListener('pointerdown', onDown); card.removeEventListener('pointermove', onMove);
     card.removeEventListener('pointerup', end); card.removeEventListener('pointercancel', end); card.removeEventListener('lostpointercapture', onLost);
     card.removeEventListener('touchmove', onTouchMove); card.removeEventListener('click', onClick, true);
-    run?.stop(); st?.m?.stop(); pos.style.translate = '';
+    run?.stop(); st?.m?.stop(); pos.style.translate = ''; tail(pos, 0);
   };
 }
 
 /** The sheet's grab handle was tapped (Half to Full or back): the card has taken its new height; its edge, `from` px from where it settles, eases there (the same ease a pull's release takes). */
 export function easeBack(pos: HTMLElement, from: number): Glide {
   pos.style.translate = from ? `0px ${from}px` : '';
+  tail(pos, -from + 1);
   const f = cssCurve(EASE_ARRIVE) as (u: number) => number, w = ty(pos);
-  return glide({ ms: D_SMALL, curve: f, tag: 'tests-pull', apply: (k) => w(from * (1 - k)), done: () => { pos.style.translate = ''; } });
+  return glide({ ms: D_SMALL, curve: f, tag: 'tests-pull', apply: (k) => w(from * (1 - k)), done: () => { pos.style.translate = ''; tail(pos, 0); } });
 }

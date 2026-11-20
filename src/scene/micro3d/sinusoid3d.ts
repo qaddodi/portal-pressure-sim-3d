@@ -46,14 +46,14 @@ const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_K = 0.45;
  *  the next sinusoid is already well out of focus (Mohammad, 20 Nov 2026: "the blur should really start earlier and be more intense quickly"). The haze follows the same run, lighter, so the
  *  neighbours' disease still shows. */
 /** A microvillus's radius (µm, thick enough that its fill reads inside its line) and how far its root runs inside the cell. */
-export const VILLUS_R = 0.24, VILLUS_ROOT = 0.6;
+export const VILLUS_R = 0.13, VILLUS_ROOT = 0.4;
 export const BLUR_RUN = UM.hep * 0.5 + UM.disse + UM.endo + UM.lum * 0.5;
 const HAZE_RUN = BLUR_RUN;
 /** The scene's ends: the blur along the sinusoid starts this far (µm) inside each end and is whole this far in. */
 const END_BLUR = [95, 55] as const;
 /** Red cells in this sinusoid's lumen, and in each of the two next ones (beyond the plates). */
 /** The bile canaliculus's radius (µm): a round lumen about 1.6 µm across between two hepatocytes. */
-export const CANAL_R = 0.8;
+export const CANAL_R = 0.72;
 const RBC_N = 50, RBC_FAR = 20, RBC_R = 1.05;
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
@@ -63,6 +63,8 @@ const mix3 = (a: RGB, b: RGB, t: number): [number, number, number] => [lerp(a[0]
 const mul3 = (a: RGB, k: number): [number, number, number] => [a[0]! * k, a[1]! * k, a[2]! * k];
 /** A colour's own ink: the colour much deeper (2D's cell clefts and organ lines are the colour darkened, never black). */
 /** A cell's or particle's ink: its own colour taken near black (CEL_STYLE.MICRO.INK_K), one rule for all of them. */
+/** The hepatocytes' line and the tone of the contact and the ring round each canaliculus: 2D's cleft, the cell's colour darkened, never black. */
+const CELL_LINE_K = 0.42;
 const inkOf = (a: RGB): [number, number, number] => mul3(a, CEL_STYLE.MICRO.INK_K);
 const deep = (a: RGB, k = 0.48): [number, number, number] => mul3(a, k);
 
@@ -242,11 +244,11 @@ export class Sinusoid3D {
   // ---- colours -------------------------------------------------------------------------------------------------------------------
 
   private colour(P: Pal, act: number): void {
-    // the hepatocytes' line: near black in their own warm tone, run round every microvillus too (Mohammad 20 Nov 2026: "the hepatocytes should have a black outline that extended to their microvilli")
-    const cellInk = inkOf(P.cCell);
-    // (the floor of the clefts: light, the cell's colour toward the page, so a cleft reads as a thin clean gap between two outlines, never one black bar; the cells' walls stop just under
-    // Disse's floor, so no deep dark wall shows down a cleft off the axis; coordinator from Mohammad's crops, 20 Nov 2026)
-    this.ground.setTint(mix3(P.cCell, P.cBg, 0.5));
+    // the hepatocytes' line: their own colour darkened (2D's cleft tone), run round every microvillus too, the one thin line where two neighbours touch, and the ring round each canaliculus
+    // (the ground under the cells takes the same tone: it shows only in that hair of contact and in the round gap; Mohammad 20 Nov 2026: "next to each other and just have like a circular
+    // gap around the bile duct between them")
+    const cellInk = mul3(P.cCell, CELL_LINE_K);
+    this.ground.setTint(cellInk);
     this.trough.setTint(P.cLumen); this.trough.setInk(deep(P.cEndoE, 0.9));
     this.troughFar.setTint(mix3(P.cLumen, P.cBg, 0.2)); this.troughFar.setInk(deep(P.cEndoE, 0.9));
     this.bead.setTint(P.cEndo); this.beadLine.setTint(P.cEndoE);
@@ -365,8 +367,8 @@ export class Sinusoid3D {
         // (beyond: a plate in the blur has no canaliculi, too fine to read there; far: one deep in it keeps its tiles and nuclei, coarser, without the nucleoli: a phone still draws the whole scene)
         const j0 = Math.floor(X0 / CELL) - 1, j1 = Math.ceil(X1 / CELL) + 1;
         for (let j = j0; j <= j1; j++) {
-          const outline = cellOutline(j, sd, s, face);
-          pillow(cells, outline, Z.cell, Z.cellBot, 1.1, undefined, far ? 2 : 4);
+          const outline = cellOutline(j, sd, s, face, beyond);
+          pillow(cells, outline, Z.cell, Z.cellBot, CELL_BEVEL, undefined, far ? 2 : 4);
           const c = cellOf(j, sd), xn = lerp(c.x0, c.x1, c.nu), v = c.nv * UM.hep;
           const put = (x: number, r: number) => {
             const yd = s * (face(x) + v);
@@ -466,8 +468,8 @@ export class Sinusoid3D {
     // the microvilli: short fingers off each plate's face into Disse (they flatten in cirrhosis: 2D's mv)
     {
       let n = 0;
-      const mv = clamp(S.mv, 0, 1), len = 0.3 + 0.8 * mv;
-      if (mv > 0.03) for (const s of [-1, 1] as Side[]) for (let x = -REACH + 0.4; x < REACH; x += 1.7) {
+      const mv = clamp(S.mv, 0, 1), len = 0.25 + 0.55 * mv;   // (short fine bristles, Mohammad 20 Nov 2026: the outlined ones read "huge")
+      if (mv > 0.03) for (const s of [-1, 1] as Side[]) for (let x = -REACH + 0.4; x < REACH; x += 1.2) {
         if (n >= this.villi.capacity) break;
         // (each villus starts VILLUS_ROOT inside the cell, just under its top face, so the cell covers its root and the villus covers the cell's line there: cell and villi read as one shape with one
         //  outline round them all, Mohammad 20 Nov 2026: "the microvilli need a black outline so they look connected to the hepatocyte")
@@ -634,26 +636,41 @@ function band(b: MeshBuilder, xs: readonly number[], y0: (x: number) => number, 
   for (let i = 0; i < xs.length - 1; i++) { const a = r0 + i * 2; if (y1(xs[i]!) > y0(xs[i]!)) b.quad(a, a + 2, a + 3, a + 1); else b.quad(a, a + 1, a + 3, a + 2); }
 }
 
-/** Half the cleft between two hepatocytes (µm): wide enough that the two cells' outlines run side by side with the light floor between them. */
-export const CLEFT_HALF = 0.6;
+/** Half the contact between two hepatocytes (µm): next to nothing, so neighbours touch and their two lines read as one thin line (Mohammad 20 Nov 2026: "the hepatocytes should be next
+ *  to each other and just have like a circular gap around the bile duct between them"). */
+export const CLEFT_HALF = 0.08;
+/** The round gap the two neighbours bow apart into at the canaliculus (µm): a little wider than the canaliculus, so a thin ring of the gap's tone shows round it. */
+export const CANAL_HOLE = 1.05;
+/** The hepatocyte's rounded shoulder (µm): under the hole's radius, so the bevel never folds over itself round the canaliculus; a flatter, calmer tile. */
+export const CELL_BEVEL = 0.6;
 
-/** A hepatocyte's outline (plane units, counter-clockwise), from 2D's bent borders: the Disse face, the far side 20 µm in, the two borders; the cleft between cells taken off and the corners rounded. */
-export function cellOutline(j: number, sd: number, s: Side, face: (x: number) => number): P2[] {
-  const H = UM.hep, K = 6, pts: P2[] = [];
+/** A hepatocyte's outline (plane units, counter-clockwise), from 2D's bent borders: the Disse face, the far side 20 µm in, the two borders, each border bowed into a half circle round the
+ *  canaliculus at the middle of the plate; a hair taken off the border and the corners rounded. */
+export function cellOutline(j: number, sd: number, s: Side, face: (x: number) => number, coarse = false): P2[] {
+  const H = UM.hep, K = 5, KB = 6, A = 5, pts: P2[] = [];
   const at = (x: number, v: number): P2 => [x, Y(s * (face(x) + v))];
+  const vc = H * 0.5, R = CANAL_HOLE;
+  // (one border, from v0 to v1, the half circle round the canaliculus on it bowing into the cell: toward -x on the cell's right border, +x on its left)
+  const border = (e: number, v0: number, v1: number, into: number) => {
+    const dir = Math.sign(v1 - v0), xc = edgeAt(e, sd, vc);
+    // (the border up to the hole, the half circle, the border on from it; v1 itself is the next run's first point)
+    for (let i = 0; i < KB; i++) { const v = lerp(v0, v1, i / KB); if ((vc - v) * dir > R) pts.push(at(edgeAt(e, sd, v), v)); }
+    for (let k = 0; k <= A; k++) { const th = (k / A) * Math.PI; pts.push(at(xc + into * R * Math.sin(th), vc - dir * R * Math.cos(th))); }
+    for (let i = 0; i < KB; i++) { const v = lerp(v0, v1, i / KB); if ((v - vc) * dir > R) pts.push(at(edgeAt(e, sd, v), v)); }
+  };
   const xa0 = edgeAt(j, sd, 0), xb0 = edgeAt(j + 1, sd, 0);
   for (let i = 0; i < K; i++) { const x = lerp(xa0, xb0, i / K); pts.push(at(x, 0)); }
-  for (let i = 0; i < K; i++) { const v = (i / K) * H; pts.push(at(edgeAt(j + 1, sd, v), v)); }
+  border(j + 1, 0, H, -1);
   const xa1 = edgeAt(j, sd, H), xb1 = edgeAt(j + 1, sd, H);
   for (let i = 0; i < K; i++) { const x = lerp(xb1, xa1, i / K); pts.push(at(x, H)); }
-  for (let i = 0; i < K; i++) { const v = H - (i / K) * H; pts.push(at(edgeAt(j, sd, v), v)); }
-  // the cleft: every point pulled in by half its width (counter-clockwise first, so the normals face out)
+  border(j, H, 0, 1);
+  // the contact: every point pulled in by a hair (counter-clockwise first, so the normals face out)
   let ring = pts;
   let area = 0; for (let i = 0; i < ring.length; i++) { const p = ring[i]!, q = ring[(i + 1) % ring.length]!; area += p[0] * q[1] - q[0] * p[1]; }
   if (area < 0) ring = ring.slice().reverse();
   const nrm = outlineNormals(ring), GAP = CLEFT_HALF;
   ring = ring.map((p, i) => [p[0] - nrm[i]![0] * GAP, p[1] - nrm[i]![1] * GAP] as P2);
-  return chaikin(ring, 2, 0.22);
+  return chaikin(ring, coarse ? 1 : 2, 0.22);   // (a plate in the blur: one round of rounding)
 }
 
 /** The end arrow's outline (2D's: a short broad shaft and a wide head, pointing along +x when dir is 1), its size `r` µm (2D's END[2]), at (x, y). */
