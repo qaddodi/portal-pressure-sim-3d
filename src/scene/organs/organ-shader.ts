@@ -88,12 +88,15 @@ void main() {
   fill = mix(fill, volLight.rgb, volLight.a * (1.0 - clamp(r / volGeo.w, 0.0, 1.0)));
   fill = mix(fill, volShade.rgb, volShade.a * clamp((r - volShadeAt) / (1.0 - volShadeAt), 0.0, 1.0));
   // the inner shade: three soft steps of the turn away from the eye (2D strokes 30/18/8 px)
-  float ndv = clamp(dot(n, normalize(vV)), 0.0, 1.0);
+  // (the turn is measured against the figure's own facing axis (+z in the world), not the camera's: tilting or orbiting must never change an organ's shading, Mohammad 20 Nov 2026
+  //  "when i tilt, the organs and everything loses shading or becomes darker"; at the rest view the eye is on that axis, so the look there is exactly 2D's)
+  vec3 nw = normalize(vNw);
+  float ndv = clamp(nw.z, 0.0, 1.0);
   float turn = 1.0 - ndv;
   float w = max(fwidth(turn), 1e-4);
   // the steps stack as 2D's strokes do (each over the last), at og-dark's own alpha, and sit on the lower right edge: 2D moves its shade
   // strokes by (-3.5, -5) inside the organ's clip, so the upper left edge gets almost none
-  vec2 side = length(n.xy) > 1e-4 ? normalize(n.xy) : vec2(0.0);
+  vec2 side = length(nw.xy) > 1e-4 ? normalize(nw.xy) : vec2(0.0);
   float lowerRight = smoothstep(-0.35, 0.65, dot(side, vec2(0.57, -0.82)));
   float k = 1.0 - (1.0 - shadeSteps.x * smoothstep(0.45 - w, 0.45 + w, turn)) * (1.0 - shadeSteps.y * smoothstep(0.68 - w, 0.68 + w, turn)) * (1.0 - shadeSteps.z * smoothstep(0.86 - w, 0.86 + w, turn));
   fill = mix(fill, ogDark.rgb, ogDark.a * k * lowerRight);

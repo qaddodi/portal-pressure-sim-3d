@@ -5,8 +5,8 @@
 import { EDGE_PATH_2D } from './paths.copied.ts';
 
 type P2 = readonly [number, number];
-export interface BranchItem { k: number; fan: boolean; when: string | null; src: string | null; out: boolean; pts: readonly P2[]; dz: readonly number[] }
-export interface BranchSet { host: string; when: string | null; list: readonly BranchItem[] }
+export interface BranchItem { k: number; fan: boolean; when: string | null; src: string | null; out: boolean; pts: readonly P2[]; dz: readonly number[]; /** the width at each end as a share of its own: a branch narrows toward its tip */ taper: readonly [number, number] }
+export interface BranchSet { host: string; when: string | null; list: readonly BranchItem[]; /** the stretch (0 to 1) of the host's lens ramp the children wear: the part they leave, so there is no step in colour at the branch point */ span: readonly [number, number] }
 
 const K = 0.7, N = 64, Z_FWD = 0.1, Z_BACK = -0.03;
 const smooth = (t: number): number => t * t * (3 - 2 * t);
@@ -23,7 +23,7 @@ function resample(p: readonly P2[], n: number): P2[] {
 }
 
 /** Two children of the polyline `host` (in flow order): they leave it at `at` (0 to 1 along it), follow it, run on past its end by `ext` of its length and spread to `spread` of that. */
-export function twoChildren(host: readonly P2[], at: number, ext: number, spread: number): { pts: P2[]; dz: number[] }[] {
+export function twoChildren(host: readonly P2[], at: number, ext: number, spread: number, bias = 0): { pts: P2[]; dz: number[] }[] {
   const n = host.length, i0 = Math.min(n - 2, Math.round(at * (n - 1))), m = Math.min(6, n - 1);
   const dx = host[n - 1]![0] - host[n - 1 - m]![0], dy = host[n - 1]![1] - host[n - 1 - m]![1], dl = Math.hypot(dx, dy) || 1;
   const base: P2[] = host.slice(i0);
@@ -37,7 +37,7 @@ export function twoChildren(host: readonly P2[], at: number, ext: number, spread
     const pts: P2[] = [], dz: number[] = [];
     for (let i = 0; i < N; i++) {
       const a = b[Math.max(0, i - 1)]!, c = b[Math.min(N - 1, i + 1)]!, tx = c[0] - a[0], ty = c[1] - a[1], tl = Math.hypot(tx, ty) || 1, u = s[i]! / L;
-      const w = sgn * sp * Math.pow(u, 1.4);
+      const w = (sgn + bias) * sp * Math.pow(u, 1.4);
       pts.push([b[i]![0] - (ty / tl) * w, b[i]![1] + (tx / tl) * w]);
       dz.push(smooth(u) * (sgn > 0 ? Z_FWD : Z_BACK));
     }
@@ -45,7 +45,8 @@ export function twoChildren(host: readonly P2[], at: number, ext: number, spread
   });
 }
 
-const item = (c: { pts: P2[]; dz: number[] }, when: string | null): BranchItem => ({ k: K, fan: true, when, src: null, out: false, pts: c.pts, dz: c.dz });
+const TIP = 0.25;   // (a branch ends a quarter of its width: it tapers over nearly all its length)
+const item = (c: { pts: P2[]; dz: number[] }, when: string | null, tipAtStart = false): BranchItem => ({ k: K, fan: true, when, src: null, out: false, pts: c.pts, dz: c.dz, taper: tipAtStart ? [TIP, 1] : [1, TIP] });
 
 const rev = <T,>(a: readonly T[]): T[] => [...a].reverse();
 /** The portal branches' ends, the hepatic veins' beginnings and the umbilical vein's start. The middle hepatic vein does not branch (Mohammad, 20 Nov: its children crossed the right's). */
@@ -53,13 +54,14 @@ export const LIVER_BRANCH_HOSTS = { out: ['PVH_R_2', 'PVH_L_1'], in: ['RHV_IVC_1
 
 function build(): readonly BranchSet[] {
   const sets: BranchSet[] = [];
-  for (const h of LIVER_BRANCH_HOSTS.out) sets.push({ host: h, when: null, list: twoChildren(EDGE_PATH_2D[h]!, 0.35, 0.55, 0.3).map((c) => item(c, null)) });
+  for (const h of LIVER_BRANCH_HOSTS.out) sets.push({ host: h, when: null, span: [0.35, 1], list: twoChildren(EDGE_PATH_2D[h]!, 0.35, 0.55, 0.3).map((c) => item(c, null)) });
   // (a hepatic vein begins in the liver: its children run in from the liver toward the vein, so each is the mirror of a portal branch, with its depth easing in from the far end)
   // (they split well inside the liver, 0.7 of the way from the cava: `at`, and spread only as far as the liver reaches, never into a sibling's or another vein's way: tests/b3-liver-branches.test.ts)
-  const IN_SHAPE: Readonly<Record<string, readonly [number, number, number]>> = { RHV_IVC_1: [0.72, 0.4, 0.35], LHV_IVC: [0.62, 0.4, 0.3] };
-  for (const h of LIVER_BRANCH_HOSTS.in) { const [at, ext, spread] = IN_SHAPE[h]!; sets.push({ host: h, when: null, list: twoChildren(rev(EDGE_PATH_2D[h]!), at, ext, spread).map((c) => item({ pts: rev(c.pts), dz: rev(c.dz) }, null)) }); }
+  // (the left hepatic vein branches downward into the left lobe, both children, never up toward the capsule: `bias` 0.8 carries the pair to the lower side)
+  const IN_SHAPE: Readonly<Record<string, readonly [number, number, number, number]>> = { RHV_IVC_1: [0.72, 0.4, 0.35, 0], LHV_IVC: [0.62, 0.4, 0.3, 0.8] };
+  for (const h of LIVER_BRANCH_HOSTS.in) { const [at, ext, spread, bias] = IN_SHAPE[h]!; sets.push({ host: h, when: null, span: [0, 1 - at], list: twoChildren(rev(EDGE_PATH_2D[h]!), at, ext, spread, bias).map((c) => item({ pts: rev(c.pts), dz: rev(c.dz) }, null, true)) }); }
   // (the umbilical vein: its first stretch, run backward, carried on past the left portal vein into the liver and branched; drawn while the paraumbilical collateral is open)
-  for (const h of LIVER_BRANCH_HOSTS.umb) sets.push({ host: h, when: 'umb', list: twoChildren(rev(EDGE_PATH_2D[h]!.slice(0, 14)), 0.4, 0.7, 0.3).map((c) => item(c, 'umb')) });
+  for (const h of LIVER_BRANCH_HOSTS.umb) sets.push({ host: h, when: 'umb', span: [0, 1], list: twoChildren(rev(EDGE_PATH_2D[h]!.slice(0, 14)), 0.4, 0.7, 0.3).map((c) => item(c, 'umb')) });
   return sets;
 }
 export const LIVER_BRANCHES: readonly BranchSet[] = build();

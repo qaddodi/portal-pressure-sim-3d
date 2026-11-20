@@ -13,6 +13,7 @@
 // It reads the flat view's state (eased values, layers, widths as they swell and shrink, lens colours), so the two never disagree: this file draws, the flat view keeps the model, the
 // names, the taps and the clock. Flow marks: 2D's chevrons ride on the flat view's own tubes, which are hidden here, so this scene shows none (the blood's colour along each sinusoid
 // still runs from the portal's to the central vein's).
+import { useSettings } from '../../state/settings.ts';
 import { ShapeUtils, Vector2, CanvasTexture, Color, CustomBlending, DataTexture, DoubleSide, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, ShaderMaterial, type BufferAttribute } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import type { CelObject } from '../materials/cel.ts';
@@ -61,6 +62,7 @@ const at3 = (p: LP2, z: number): [number, number, number] => [p[0] * R, -p[1] * 
 /** What this scene reads of the flat lobule (its own fields). */
 interface Flat {
   net: LobuleNet;
+  field: { readonly wideNow: number };
   cur: { fibSin: number; fibPre: number; fibPost: number; congU: number; septU: number; act: number; lum: number; flow: number; portal: number; art: number; lymphRate: number; seal: number };
   layers: { lymph: boolean; zones: boolean; bile: boolean };
   lyFade: number; bileFade: number; zoneFade: number;
@@ -171,12 +173,15 @@ export class Lobule3D {
   get enabled(): boolean { return this.on; }
 
   /** One frame, after the flat lobule's own update. `on` is the Settings switch. True while anything of this scene changed. */
-  update(on: boolean, under = 0, now = 0, running = true): boolean {
+  update(on: boolean, under = 0, now = 0, rate = 1): boolean {
     const f = this.flat, changed = on !== this.on;
     this.on = on;
     // `under`: how far the camera has gone down onto the sinusoid (0 on the lobule, 1 landed). The lobule dissolves away as the sinusoid comes in (Mohammad: "Should fade when zooming"), and once
     // landed neither this scene nor the flat lobule is drawn: the lobule's solid tiles and tubes stand above the sinusoid's plane and would cut across it in the foreground
-    this.fade.value = 1 - under; this.marksMat.uniforms.opacity!.value = 1 - under;
+    // (and on the way in from the body it comes in as the field narrows onto it: the hex lobules tile the liver from afar, the neighbours resolve, then this lobule's own detail fades in until the
+    //  landing, and the reverse on the way out; the field's breadth is the camera's distance against the lobule's framing, field.ts fieldWide)
+    const come = 1 - f.field.wideNow;
+    this.fade.value = (1 - under) * come; this.marksMat.uniforms.opacity!.value = (1 - under) * come;
     const shown = on && f.isVisible && under < 1;
     this.group.visible = shown;
     // (the whole lobule, its neighbouring field too: the sinusoid's own ground lies below the lobule's plane, so the field would show through the clefts between its cells)
@@ -210,28 +215,33 @@ export class Lobule3D {
     const kcv = f.cvRadiusNow / DISC_R.cv;
     this.mouthCv.group.scale.set(kcv, kcv, 1);
     this.buildGround(kcv, lymphOn);
-    return this.stepFlow(now, running, lymphOn, bileOn) || changed;
+    return this.stepFlow(now, rate, lymphOn, bileOn) || changed;
   }
 
   // ---- the flow marks (quiet chevrons inside each vessel, streaks in the blood; they stop at the central vein's mouth and with the simulation) ------------------------
 
   private flowAt = -1;
   private readonly flowT = { blood: 0, lymph: 0, bile: 0 };
-  private stepFlow(now: number, running: boolean, lymphOn: boolean, bileOn: boolean): boolean {
+  private stepFlow(now: number, rate: number, lymphOn: boolean, bileOn: boolean): boolean {
     const dt = this.flowAt < 0 ? 0 : clamp((now - this.flowAt) / 1000, 0, 0.1);
     this.flowAt = now;
     const f = this.flat, q = Math.sqrt(clamp(f.cur.flow || 0, 0.05, 2.5));
     // (local units a second: the blood's chevrons about a cell length every half second at a normal flow, the lymph and the bile slower)
-    if (running) { this.flowT.blood += dt * 0.11 * q; this.flowT.lymph += dt * 0.05; this.flowT.bile += dt * 0.035; }
+    // (`rate` is the scene's one eased pause/play rate, 0..1: Pause eases the flow to a stop and Play eases it back up, never at once)
+    const k = clamp(rate, 0, 1) * dt;
+    this.flowT.blood += k * 0.11 * q; this.flowT.lymph += k * 0.05; this.flowT.bile += k * 0.035;
     const W: RGB = [1, 1, 1], soft = (k: number) => k * this.fade.value, dpr = (this.flat as unknown as { dprU: { value: number } }).dprU.value || 2;
-    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2]) p.setFlow(this.flowT.blood, 0.16, W, soft(0.3), 0.75, 0, 0.0082 * R, true, dpr);
-    this.sin.an.setFlow(this.flowT.blood, 0.12, W, soft(0.26), 0, 0, 0.0043 * R, true, dpr);
-    this.inlets.setFlow(this.flowT.blood, 0.3, W, soft(0.24), 0.6, 0, 0.012 * R, true, dpr);
-    this.twigs.setFlow(this.flowT.blood * 1.6, 0.1, [1, 0.88, 0.86], soft(0.4), 0, 0, 0.006 * R, true, dpr);
-    this.lt.setFlow(this.flowT.lymph, 0.12, W, soft(0.4), 0, 0, LT_R * R, false, dpr);
-    this.bile.setFlow(this.flowT.bile, 0.07, [1, 0.97, 0.7], soft(0.55), 0, 1, 0.004 * R, false, dpr);
+    // every fluid is seen to move at the fit (Mohammad, 20 Nov 2026): the blood's dark heads (few and small on these thin tubes, the shader's screen rules) and THE ONE STREAK in every vessel, the blood's
+    // only while Settings > Blood streaks is on (off: chevrons only); the lymph's and the bile's always, in their own tones
+    const bs = useSettings.getState().particles ? soft(0.9) : 0;
+    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2]) p.setFlow(this.flowT.blood, 0.16, W, soft(1), bs, 0, 0.0082 * R, true, dpr);
+    this.sin.an.setFlow(this.flowT.blood, 0.12, W, soft(1), bs, 0, 0.0043 * R, true, dpr);
+    this.inlets.setFlow(this.flowT.blood, 0.3, W, soft(1), bs, 0, 0.012 * R, true, dpr);
+    this.twigs.setFlow(this.flowT.blood * 1.6, 0.1, [1, 0.88, 0.86], soft(1), bs, 0, 0.006 * R, true, dpr);
+    this.lt.setFlow(this.flowT.lymph, 0.12, W, soft(0.4), soft(0.8), 0, LT_R * R, false, dpr);
+    this.bile.setFlow(this.flowT.bile, 0.07, [1, 0.97, 0.7], soft(0.55), soft(0.85), 1, 0.004 * R, false, dpr);
     void lymphOn; void bileOn;
-    return running;
+    return rate > 0.001;
   }
 
   // ---- colours -------------------------------------------------------------------------------------------------------------------

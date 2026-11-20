@@ -14,6 +14,7 @@ import { ORGAN_MESHES } from '../../organs/meshes.ts';
 import { bakeGeometry, centreAt, type CentreGrid } from '../../organs/centre-z.ts';
 import { BAND } from '../../procedures/copied/band-ring.js';
 import { EUS_GLUE_ROUTE, EUS_GLUE_STATION, EUS_GLUE_TARGET, EUS_ROUTE, EUS_SCOPE_R, EUS_STATIONS, EUS_TARGETS, EUS_BEND_MIN, EUS_RIGID, EUS_PORT_R, eusPose, newTip, pointOn } from './copied/eus-scope.copied.js';
+import { TAIL_UNITS } from '../device-object.ts';
 import { ProbePart, TubeBuf, linePart, type PartColour } from './parts.ts';
 import { showRings } from '../tube-rings.ts';
 import type { ScopeMode } from './state.ts';
@@ -24,6 +25,10 @@ export const SCOPE_Z = TIER_Z.mid + 0.03;
 export const SCOPE_SPEED = 170;
 const RAD = Math.PI / 180;
 const STEP = 1.2;
+/** The tip's light: its radius in figure units, its centre's alpha, the disc's segments, and the time it takes to come up (ms). */
+export const GLOW_R = 16, GLOW_ALPHA = 0.55, GLOW_SEGS = 24, GLOW_MS = 900;
+/** The plain scope (the distal oesophagus view) stops this far above the cardia, figure units, so the tip is in the oesophagus a little above the gastro-oesophageal junction. */
+export const SCOPE_UP = 40;
 
 /** The scope's way as the 2D app lays it: the lead-in above the figure, the esophagus, the cardia and the proximal stomach, resampled every STEP units. */
 export interface ScopeWay {
@@ -72,7 +77,7 @@ export function workD(mode: ScopeMode, station: 'pv' | 'hv', way: ScopeWay = sco
   if (mode === 'band') return way.bandD;
   if (mode === 'glue') return way.total;
   if (mode === 'eus') return station === 'hv' ? way.hvD : way.total;
-  return way.cardiaD;
+  return Math.max(0, way.cardiaD - SCOPE_UP);
 }
 
 /** The stomach organ's middle in depth (the oesophagus is part of it): the scope travels on it, inside the lumen. Baked once, when the organ file is in; until then the scope's own plane. */
@@ -129,6 +134,11 @@ export class EndoScope {
   private readonly fanGeo = new BufferGeometry();
   private readonly fanMat = new MeshBasicMaterial({ transparent: true, vertexColors: true, depthTest: false, depthWrite: false, side: DoubleSide });
   private readonly fanMesh: Mesh;
+  /** The soft light at the tip (owner, 20 Nov 2026): a round glow that fades in once the scope is on the figure, a centre of warm white easing to nothing at its edge. */
+  private readonly glowGeo = new BufferGeometry();
+  private readonly glowMat = new MeshBasicMaterial({ transparent: true, vertexColors: true, depthTest: false, depthWrite: false, side: DoubleSide });
+  private readonly glowMesh: Mesh;
+  private glow = 0;
   private readonly g = newTip() as { c1: P2; c2: P2; a1: P2; side: P2; exit: P2; nd: P2; p2: P2; end: P2; p0: P2; len: number; phi: number; d0: number; bend: number };
   private readonly v = new Vector3(); private readonly w = new Vector3(); private readonly dv = new Vector3();
   private mode: ScopeMode = 'scope';
@@ -163,6 +173,17 @@ export class EndoScope {
     this.fanMesh = new Mesh(this.fanGeo, this.fanMat);
     this.fanMesh.renderOrder = 1000; this.fanMesh.frustumCulled = false; this.fanMesh.visible = false;
     this.group.add(this.fanMesh);
+    {
+      const n = GLOW_SEGS, pos = new Float32Array((n + 1) * 3), col = new Float32Array((n + 1) * 4), idx: number[] = [];
+      col.set([1, 0.93, 0.74, GLOW_ALPHA], 0);
+      for (let i = 1; i <= n; i++) { col.set([1, 0.93, 0.74, 0], i * 4); idx.push(0, i, i === n ? 1 : i + 1); }
+      this.glowGeo.setAttribute('position', new BufferAttribute(pos, 3));
+      this.glowGeo.setAttribute('color', new BufferAttribute(col, 4));
+      this.glowGeo.setIndex(idx);
+      this.glowMesh = new Mesh(this.glowGeo, this.glowMat);
+      this.glowMesh.renderOrder = 1001; this.glowMesh.frustumCulled = false; this.glowMesh.visible = false;
+      this.group.add(this.glowMesh);
+    }
     this.group.visible = false;
     this.setTargets();
   }
@@ -212,6 +233,7 @@ export class EndoScope {
     // the shaft: the way's rings up to where the bend (or the rigid tip) begins
     way.pts.forEach((p, i) => { const r = this.shaft.rings[i]!; at3(p, r.c); const q = way.at(way, way.cum[i]!); dir3(q.t, r.t); });
     this.shaft.commit();
+    this.parts_.shaft.setTailFade(Math.min(0.5, TAIL_UNITS / way.total));
     const k = Math.max(0, Math.min(way.pts.length - 1, Math.floor(shaftEnd / STEP)));
     showRings(this.shaft.geometry, 0, k, this.shaft.radial);
     this.pose.shaftRings = k;
@@ -358,6 +380,18 @@ export class EndoScope {
       p.face.group.visible = eus; p.port.group.visible = eus && this.aim > 0.002; if (eus && this.aim > 0.002) p.port.setAlpha(0.9 * this.aim);
       this.fanMesh.visible = eus && this.fan > 0.002; this.fanMat.opacity = this.fan;
     }
+    // the light at the tip fades in once the scope is on the figure and goes with it
+    const glow0 = this.glow;
+    this.glow = vis ? Math.min(1, this.glow + Math.max(0, dtMs) / GLOW_MS) : 0;
+    if (this.glow !== glow0) moving = true;
+    this.glowMesh.visible = vis && this.glow > 0.002;
+    if (this.glowMesh.visible) {
+      const pos = this.glowGeo.getAttribute('position') as BufferAttribute, t = this.pose.tip, r = len3(GLOW_R), z = t.z + 0.01;
+      pos.setXYZ(0, t.x, t.y, z);
+      for (let i = 0; i < GLOW_SEGS; i++) { const a = (i / GLOW_SEGS) * Math.PI * 2; pos.setXYZ(i + 1, t.x + Math.cos(a) * r, t.y + Math.sin(a) * r, z); }
+      pos.needsUpdate = true; this.glowGeo.computeBoundingSphere();
+      this.glowMat.opacity = ease01(this.glow) * this.gloneK();
+    }
     this.layRings(now, vis);
     if (vis && this.mode === 'eus' && (this.read > 0 || this.flash > 0)) moving = true;   // (the ripples run on their own clock while a reading is taken)
     return moving;
@@ -374,6 +408,8 @@ export class EndoScope {
     this.group.visible = false; this.dirty = true;
     return false;
   }
+  /** The light follows the scope's own fade when the glue scope is parked and leaving. */
+  private gloneK(): number { return this.gone > 0 ? 1 - ease01(this.gone) : 1; }
   private restore(): void { this.gone = 0; for (const o of this.parts) o.setFade(1); this.fanMat.opacity = this.fan; }
   private bendShown(): boolean { return Math.abs(this.g.phi) > 1e-4 && this.g.bend > 0.01; }
 
@@ -385,6 +421,6 @@ export class EndoScope {
     col.needsUpdate = true;
   }
   setPhone(phone: boolean): void { for (const o of this.parts) o.setPhone(phone); }
-  dispose(): void { for (const o of this.parts) o.dispose(); for (const b of this.bufs) b.geometry.dispose(); this.fanGeo.dispose(); this.fanMat.dispose(); }
+  dispose(): void { for (const o of this.parts) o.dispose(); for (const b of this.bufs) b.geometry.dispose(); this.fanGeo.dispose(); this.fanMat.dispose(); this.glowGeo.dispose(); this.glowMat.dispose(); }
 }
 void EUS_BEND_MIN;

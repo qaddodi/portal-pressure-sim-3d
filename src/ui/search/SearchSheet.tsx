@@ -1,6 +1,6 @@
 // Search (Ctrl or Cmd K, "/", or the top bar's Search): the 2D palette. A field and a list; ↑ ↓ choose, Enter runs, Esc closes. A number in the field is the argument
 // ("tips 8"). An empty field offers a few of what works; "Nothing matches" says what to try.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { UI } from '../strings.generated.ts';
 import { useShell } from '../shell/store.ts';
 import { useUi } from '../ui-store.ts';
@@ -19,7 +19,12 @@ export function SearchSheet() {
   const input = useRef<HTMLInputElement>(null);
   const cmds = useMemo(() => (open ? buildCommands(startTalk) : []), [open]);
   const hits = useMemo(() => search(cmds, q, UI.search.emptyOrder), [cmds, q]);
-  useEffect(() => { if (open) { setQ(''); setAt(0); input.current?.focus(); } }, [open]);
+  // Focus the field in the very commit that shows the palette (owner, 20 Nov: "when i hit search or / the search bar should be in focus right away so i can type"). A layout effect runs inside the
+  // click or key press that opened it, which is also what lets a phone raise its keyboard (iOS only does so for a focus made by the gesture itself). The box is never `hidden` while `open` (below):
+  // a field in a display:none box cannot take focus, which is why the old effect, run before the box was shown, focused nothing. A second look after the commit settles catches a sheet that
+  // closed a moment ago handing focus back to its button.
+  useLayoutEffect(() => { if (open) { setQ(''); setAt(0); input.current?.focus({ preventScroll: true }); } }, [open]);
+  useEffect(() => { if (open && document.activeElement !== input.current) input.current?.focus({ preventScroll: true }); }, [open, q]);
   useEffect(() => { setAt(0); }, [q]);
   useEffect(() => { document.getElementById(`pal-opt-${at}`)?.scrollIntoView({ block: 'nearest' }); }, [at]);
   const run = (i: number) => {
@@ -47,7 +52,7 @@ export function SearchSheet() {
   const close = () => useShell.getState().close();
   // 2D palette.js markup: .pal-back > .pal (.pal-top: icon, field, close; .pal-list of .pal-item; .pal-foot), on the 2D stylesheet
   return (
-    <div className={`pal-back${leaving ? ' leaving' : ''}`} hidden={!shown} onPointerDown={(e) => { if (e.target === e.currentTarget) close(); }}>
+    <div className={`pal-back${leaving ? ' leaving' : ''}`} hidden={!open && !shown} onPointerDown={(e) => { if (e.target === e.currentTarget) close(); }}>
       <div className="pal" role="dialog" aria-modal="true" aria-label="Command palette" inert={!open}>
         <div className="pal-top">
           <Icon n="search" className="pal-ic" />

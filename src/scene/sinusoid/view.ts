@@ -131,7 +131,7 @@ export class SinusoidView {
     });
     let xs = cellEdge(0, SEED.plateUp);
     for (let j = -3; j <= 2; j++) { const b = cellEdge(j, SEED.plateUp); if (Math.abs(b + 10) < Math.abs(xs + 10)) xs = b; }
-    this.geo = { xs, xk: 22, pores };
+    this.geo = { xs, xk: xkFor(false), pores };
     const S = this.cur;
     this.g = createGeom({ S, geo: this.geo, UM });
     this.traffic = createTraffic({ S, geo: this.geo, VW: this.VW, model: this.model, rng, clamp, lerp, smooth, poreOpenness, ...this.g });

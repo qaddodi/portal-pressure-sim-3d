@@ -145,9 +145,8 @@ void main() {
 #else
   vec3 c = mix(sh, base, clamp(b, 0.0, 1.0));
 #endif
-  float ndv = max(dot(n, vV), 0.0);
-  float rim = smoothstep(0.66, 0.70, 1.0 - ndv) * step(0.5, d);
-  float sp = spec * smoothstep(0.962, 0.972, max(dot(reflect(-l, n), vV), 0.0));
+  // (no rim light and no specular: both turned with the eye, so a tilt or an orbit changed a catheter's or a strand's shading, and the look is matte, Mohammad 20 Nov 2026; spec stays a uniform, unused; rim and sp stay as zero so the lobule's patch point holds)
+  float rim = 0.0, sp = 0.0;
 
   if (flowAmount > 0.001) {
     float speed = stubSpeed;

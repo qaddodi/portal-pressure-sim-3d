@@ -49,14 +49,16 @@ export const dollyDistance = (r: number, fov: number, base = FOV): number => (r 
 // ---- what follows the camera's distance to the place dived to (the liver's point) -------------------------------------------------------------------------------
 
 /** The cutaway window in the liver's wash opens as the camera comes in from CUT_FAR to CUT_NEAR scene units from the place (the nearest body shot sits at about 6.5, the body dissolves from 1.9). */
-export const CUT_FAR = 5.5, CUT_NEAR = 1.9;
+// (20 Nov: the window opens with the body's dissolve, 1.9 down to the lobule's own neighbourhood (scene.ts DIVE_IN), in log distance. Opened earlier, from 5.5, it cleared the liver to the bare page
+//  before anything of the lobule could be seen: a whole-screen brightness jump in the dive.)
+export const CUT_FAR = 1.9, CUT_NEAR = 0.04;
 /** How far (ndc half-heights) the soft edge of the window reaches past its clear part. */
 export const CUT_SOFT = 0.3;
 /** How open the window is with the camera `d` from the place: 0 closed (every body shot), 1 open (the whole figure is cleared). */
-export function cutOpen(d: number): number { return 1 - smooth(CUT_NEAR, CUT_FAR, d); }
+export function cutOpen(d: number, near = CUT_NEAR): number { return d <= 0 ? 1 : 1 - smooth(Math.log(Math.min(near, CUT_FAR * 0.99)), Math.log(CUT_FAR), Math.log(d)); }
 /** The window as the organ shader takes it: x, y the dive point on the screen (ndc), z the clear radius (ndc half-heights; negative: nothing cleared), w the screen's aspect. */
-export function cutUniform(d: number, ndcX: number, ndcY: number, aspect: number, out: [number, number, number, number] = [0, 0, 0, 1]): [number, number, number, number] {
-  const k = cutOpen(d);
+export function cutUniform(d: number, ndcX: number, ndcY: number, aspect: number, out: [number, number, number, number] = [0, 0, 0, 1], near = CUT_NEAR): [number, number, number, number] {
+  const k = cutOpen(d, near);
   out[0] = ndcX; out[1] = ndcY; out[2] = k <= 0 ? -1 : -CUT_SOFT + k * (2 * Math.hypot(aspect, 1) + CUT_SOFT); out[3] = aspect;
   return out;
 }

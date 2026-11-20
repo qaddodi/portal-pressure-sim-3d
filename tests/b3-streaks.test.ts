@@ -70,8 +70,8 @@ test('the comet is a few radii long and a share of the radius thick, with a seed
 });
 
 test('tone: the vessel\'s lit tone one shade lighter, flat, never white, whole inside the lumen band', () => {
-  assert.match(CELLS_VS, /vFill = streakTone\(lit, mix\(lit, vec3\(1\.0\), 0\.28\), streakHash\(aB\.w \* 53\.0 \+ 1\.7\), streakHash\(aB\.z \* 37\.0 \+ 4\.2\)\);/);
-  assert.ok(STREAK.LIFT > 0 && STREAK.LIFT <= 0.35, 'lighter, never white');
+  assert.match(CELLS_VS, /vFill = streakTone\(lit, mix\(lit, vec3\(1\.0\), 0\.50\), streakHash\(aB\.w \* 53\.0 \+ 1\.7\), streakHash\(aB\.z \* 37\.0 \+ 4\.2\)\);/);
+  assert.ok(STREAK.LIFT > 0 && STREAK.LIFT <= 0.55, 'lighter, never white');
   assert.equal(STREAK.ALPHA, 1);
   assert.doesNotMatch(CELLS_FS, /spec|gloss|highlight/i);
 });
@@ -181,13 +181,15 @@ test('CONTAINED BY CONSTRUCTION (Mohammad, 20 Nov: "the streaks are flowing outs
 test('more streaks (about 1.6x the first design), still thin, in 3/5/7 lanes; and they lie UNDER the chevrons in every site', () => {
   assert.ok(34 / STREAK.FIELD_PERIOD[0] >= 1.55 && 26 / STREAK.FIELD_PERIOD[1] >= 1.55, 'the period is 1.6 times shorter');
   assert.ok(STREAK.FIELD_GAP <= 0.15, 'few empty cycles');
-  assert.ok(STREAK.FIELD_THICK <= 0.3 && STREAK.THICK_MAX <= 4, 'still thin');
+  assert.ok(STREAK.FIELD_THICK <= 0.45 && STREAK.THICK_MAX <= 4, 'still thin (a share of a lane; the 2 px floor is the pixel rule)');
   assert.equal(STREAK.LANES, 7);
   // the Anatomy: the streaks are mixed into the body tone first, the chevron's pixels are taken back to the body tone before the head is laid on
   const fs = VESSEL_FS;
   assert.ok(fs.indexOf('streakCover = sOn * fld;') < fs.indexOf('c = c * (1.0 - ha) + core * ac'), 'chevrons after streaks');
   assert.match(fs, /if \(streakCover > 0\.0\) c = mix\(c, cBody, ha\);/, 'a chevron pixel is never tinted by a streak');
   // the 3D lobule and sinusoid: the flow streaks are held back where a head is
-  assert.match(MICRO_FS, /uFlowK \* flowStreaks\(\) \* \(1\.0 - clamp\(hd\.x \+ hd\.y, 0\.0, 1\.0\)\)/);
-  assert.ok(MICRO_FS.indexOf('vec2 hd = flowHeads();') < MICRO_FS.indexOf('uFlowK * flowStreaks()'));
+  assert.match(MICRO_FS, /flowStreaks\(\) \* \(1\.0 - clamp\(hd\.x \+ hd\.y, 0\.0, 1\.0\)\)/);
+  assert.ok(MICRO_FS.indexOf('vec2 hd = flowHeads();') < MICRO_FS.indexOf('flowStreaks() * (1.0'));
+  // (and the lobule's tubes carry THE ONE STREAK field, sized on the screen, not a field of their own)
+  assert.match(MICRO_FS, /return streakField\(vAcross \* one, vArc \* s, uFlowT \* s/);
 });

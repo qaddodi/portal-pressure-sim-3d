@@ -40,8 +40,10 @@ export interface NetVessel {
   widthKind: 0 | 1 | 2;
   /** the edge whose data texel (pressure, flow, diameter) this vessel wears: its own, or its host's for a feeder */
   lensId: string;
+  /** a branch of a vessel (liver-branches.ts): the stretch of its host's lens ramp it wears, 0 to 1 */
+  lensSpan?: readonly [number, number];
   /** how its shape is made: a vessel's own course, coiled and with strands (a collateral or a liver bed), or a fan of tributaries on a host */
-  plan?: { kind: 'coil'; base: readonly (readonly [number, number])[]; coils: boolean; strands: boolean } | { kind: 'feeder'; list: readonly (Feeder2D & { dz?: readonly number[] })[]; cfgK: number; hostW: number; when: string | null };
+  plan?: { kind: 'coil'; base: readonly (readonly [number, number])[]; coils: boolean; strands: boolean } | { kind: 'feeder'; list: readonly (Feeder2D & { dz?: readonly number[]; taper?: readonly [number, number] })[]; cfgK: number; hostW: number; when: string | null };
   /** the radius at each end as a share of `radius`, where this vessel runs on into exactly one other (no branch): both ease to their mean, so no step shows at the join */
   taper?: readonly [number, number];
   /** where this vessel ends on a trunk without running on into it (a branch of a fork): a collar that blooms where the branch meets the host's wall, the 2D figure's fillet (the smooth union of the
@@ -91,12 +93,10 @@ for (const [host, pieces] of Object.entries(JUNCTION_PIECES as Record<string, st
 export const RENAL_VEIN_IDS: ReadonlySet<string> = new Set(['V_KID_L', 'V_KID_L_1', 'LRV_IVC']);
 /** The hepatic veins lie on the cava's plane too: they join it level, with no depth to ease, so a tilted view shows no twist where they meet (Mohammad, 20 Nov). */
 export const HEPATIC_VEIN_IDS: ReadonlySet<string> = new Set(['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC']);
-const HEPATIC_ARTERY_IDS: ReadonlySet<string> = new Set(['A_HEP', 'A_HR', 'A_HL']);
 function tierOf(e: Edge): Tier {
   if (BACK_EDGES.has(e.id) || RENAL_VEIN_IDS.has(e.id)) return 'back';
   if (HEPATIC_VEIN_IDS.has(e.id)) return 'hv';   // (the cava's plane, 0.016 in front of it: the lumbar collaterals that cross them stay apart in depth)
   if (e.id === 'C3') return 'fwd';   // the paraumbilical vein rises forward over the portal trunk to the umbilicus
-  if (HEPATIC_ARTERY_IDS.has(e.id)) return 'hep';   // (Mohammad, 20 Nov: "it should be behind the veins": the hepatic artery runs behind the portal veins and the cava it passes at the hilum, so it is hidden where it goes under them and joined, never blunt)
   if (isArteryEdge(e)) return 'art';
   if (OVER_IDS.has(e.id)) return 'over';
   if (e.kind === 'collateral') return 'mid';
@@ -173,7 +173,7 @@ function build(): NetVessel[] {
     out.push({
       id: `${b.host}~F:b`, host: b.host, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(Math.max(1.2, hv)), label: e.label ?? b.host,
       pts: b.list[0]!.pts.map(([x, y]): Vec3 => [x3(x), y3(y), TIER_Z[tierOf(e)]]), kind: 'feeder', tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: b.host,
-      plan: { kind: 'feeder', list: b.list, cfgK: 1, hostW: hv, when: b.when }, feeder: { host: b.host, when: b.when },
+      plan: { kind: 'feeder', list: b.list, cfgK: 1, hostW: hv, when: b.when }, feeder: { host: b.host, when: b.when }, lensSpan: b.span,
     });
   }
   return out;

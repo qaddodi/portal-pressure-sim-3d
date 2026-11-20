@@ -42,13 +42,13 @@ const KEY = 'pps3d.settings.v1';
 /** The Figure depth switches and Organ fill are saved with this version. Every Settings change saves ALL the settings, so a phone that changed its look while See-through was still the default
  *  stored 'seethrough' as if it had been chosen (20 Nov 2026: "still glass" on an iPhone while the Mac was cel). A saved figure choice older than this is dropped and the defaults apply; raise it
  *  when a default changes. */
-export const FIGURE_SETTINGS_VERSION = 3;
+export const FIGURE_SETTINGS_VERSION = 4;   // (4: the blood streaks default on; a save made before this carries the old default, so the figure switches are taken afresh once)
 /** Everything this app stores on the device starts with this, so Reset everything can clear it and nothing else. */
 export const STORAGE_PREFIX = 'pps3d.';
-/** The "Figure depth" switches (owner, 19 Nov 2026: "Yes do all properly"): a deliberate exception to match-2D, each behind its own switch. All on by default, except blood-cell particles (chevrons stay the flow mark). */
+/** The "Figure depth" switches (owner, 19 Nov 2026: "Yes do all properly"): a deliberate exception to match-2D, each behind its own switch. All on by default except Free tilt and the 3D lobule; the blood streaks went on by default on 20 Nov (play-test: "no laminar streak lanes are visible": the switch was off, so only the chevrons showed). */
 export const DEPTH_KEYS = ['smoothJoins', 'organDepth', 'tilt', 'freeTilt', 'dof', 'particles', 'micro3d'] as const;
 export type DepthKey = (typeof DEPTH_KEYS)[number];
-export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { smoothJoins: true, organDepth: true, tilt: true, freeTilt: true, dof: true, particles: false, micro3d: false };
+export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { smoothJoins: true, organDepth: true, tilt: true, freeTilt: true, dof: true, particles: true, micro3d: false };
 export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS };
 
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);

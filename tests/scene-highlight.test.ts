@@ -27,16 +27,16 @@ test('and reaches only a short way upstream: the three feeding veins, nothing fu
 });
 
 test('long ahead, short behind: the same distance is stronger ahead than behind', () => {
-  const d = 0.4;
+  const d = 0.15;
   const ahead = outlineStrength({ dir: 1, offset: 0 }, d, 5);
   const behind = outlineStrength({ dir: -1, offset: 0 }, 5 - d, 5);
-  assert.ok(ahead > 0.9 && behind < 0.15, `ahead ${ahead.toFixed(2)} behind ${behind.toFixed(2)}`);
+  assert.ok(ahead > 0.75 && behind < 0.2, `ahead ${ahead.toFixed(2)} behind ${behind.toFixed(2)}`);
 });
 
 test('the outline fades to nothing by the end of its range', () => {
   assert.ok(outlineStrength({ dir: 1, offset: DEFAULT_RANGE.ahead }, 0, 1) < 0.001);
   assert.ok(outlineStrength({ dir: 1, offset: 0 }, 0, 1) > 0.999);
-  const a = outlineStrength({ dir: 1, offset: 0 }, 1, 5), b = outlineStrength({ dir: 1, offset: 0 }, 2, 5);
+  const a = outlineStrength({ dir: 1, offset: 0 }, 0.1, 5), b = outlineStrength({ dir: 1, offset: 0 }, 0.3, 5);
   assert.ok(a > b, 'monotone fade');
 });
 

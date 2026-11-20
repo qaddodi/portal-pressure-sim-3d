@@ -174,7 +174,8 @@ test('over and under follow the 2D tiers: the portal tree over the network, the 
   assert.ok(z('PV_TRUNK') > z('RHV_IVC'), 'portal trunk over the hepatic vein');
   assert.ok(z('RHV_IVC') > z('C1a') || z('RHV_IVC') < z('C1a'), 'distinct tiers');
   assert.equal(z('PV_TRUNK'), TIER_Z.front);
-  assert.equal(z('A_HEP'), TIER_Z.hep, 'the hepatic artery lies behind the portal vein and the cava it passes at the hilum');
+  assert.equal(z('A_HEP'), TIER_Z.art);
+  assert.ok(z('IVCS_RA') < z('A_HEP') && z('A_HEP') < z('PV_TRUNK'), 'the hepatic artery runs in front of the cava and behind the portal vein (Mohammad, 20 Nov)');
   assert.ok(z('IVCS_RA') < z('PV_TRUNK') && z('IVCS_RA') <= TIER_Z.back + 1e-9, 'the cava is the rearmost tier');
   assert.ok(TIER_Z.back < TIER_Z.art && TIER_Z.art < TIER_Z.mid && TIER_Z.mid < TIER_Z.net && TIER_Z.net < TIER_Z.front && TIER_Z.front < TIER_Z.over);
   for (const v of NETWORK) assert.ok(v.pts.every((p) => p[2] === TIER_Z[v.tier]), `${v.id} is one plane`);

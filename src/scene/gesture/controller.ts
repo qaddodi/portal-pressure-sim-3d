@@ -217,6 +217,15 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     homeId = env.ask(step);
   }
 
+  // ── the turn comes home by itself (owner, 20 Nov): 2 s after the last finger lifts (and any spin has stopped) the tilt and turn spring back, critically damped (orbitToShot: no overshoot); a new touch restarts the wait
+  const HOME_AFTER_MS = 2000;
+  let homeTimer = 0;
+  function homeLater() {
+    if (homeTimer) env.clearTimer(homeTimer);
+    homeTimer = env.timer(() => { homeTimer = 0; if (drag || orbitId) homeLater(); else orbitToShot(); }, HOME_AFTER_MS);
+  }
+  function homeCancel() { if (homeTimer) env.clearTimer(homeTimer); homeTimer = 0; stopOrbitHome(); }
+
   // ── wheel, trackpad ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
   const wheelGlide = createWheelGlide({
     ask: env.ask, cancel: env.cancel,
@@ -307,6 +316,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   /** The one place a drag turns the figure (dragToOrbit): the one finger's or mouse's, or two fingers' middle. */
   const turnBy = (o0: number, dx: number) => host.setOrbit(dragToOrbit(o0, dx));
   const onDown = (ev: PtrEv) => {
+    homeCancel();
     if (isSystemEdge(ev, env.viewport())) return;
     if (ev.isPrimary) pointers.clear();
     pointers.set(ev.pointerId, [ev.clientX, ev.clientY]);
@@ -362,6 +372,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   };
   const onUp = (ev: PtrEv & { type: string }) => {
     if (!pointers.delete(ev.pointerId)) return;
+    if (!pointers.size) homeLater();
     const d = drag;
     if (!d) return;
     if (d.type === 'ignore') { if (!pointers.size) { drag = null; springBack(); } return; }
@@ -408,7 +419,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   return {
     get active() { return gestureOn() || wheelGlide.active || !!animId || !!orbitId || !!homeId; },
     handsOff,
-    turnOff() { stopOrbitMomentum(); stopOrbitHome(); },
+    turnOff() { stopOrbitMomentum(); homeCancel(); },
     refit() { handsOff(); fit = null; animateTo({ ...IDENTITY }, undefined, null); orbitToShot(); },
     animateTo(to, ms) { handsOff(); animateTo(to, ms, null); },
     zoomStep(factor) { if (env.locked?.()) return; handsOff(); const c = host.centre(); animZoomAt(c.x, c.y, factor); },
