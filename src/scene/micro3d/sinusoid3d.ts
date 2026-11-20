@@ -251,7 +251,7 @@ export class Sinusoid3D {
     // (no crossfade of the whole frame: it showed both scenes at once, a pale ghosted double image, eyes 20 Nov. The scene grows out from its lumen instead, over the lobule's tube, which is
     //  the same width on screen there (scene-dive-handoff.test.ts): the lumen first, then the lining, Disse and the plates outward, whole by REVEAL_TO, when the lobule stands aside under it)
     this.fade.value = d == null || d >= REVEAL_FROM ? 1 : 0;
-    this.reveal.value = d == null ? 0 : Math.max(1e-3, (ACROSS + 30) * smooth(REVEAL_FROM, REVEAL_TO, d));
+    this.reveal.value = d == null ? 0 : Math.max(1e-3, Math.hypot(REACH + 30, ACROSS + 30) * smooth(REVEAL_FROM, REVEAL_TO, d));
     this.group.position.z = d == null ? 0 : LIFT * U * (1 - smooth(0.9, 1, d));   // (down only once the lobule has stood aside, scene.ts LOBULE_UNDER_FROM + 0.04)
     const dark = LOOKS[f.look].scheme === 'dark';
     const P = f.pal.palette(dark) as unknown as Pal;
