@@ -211,13 +211,22 @@ export class VesselObject extends CelObject {
   setWholeShare(k: number): void {
     const v = this.veil;
     if (!v) return;
-    v.mat.uniforms.veilA!.value = 0.4 + 0.6 * k;
+    this.whole = k;
+    v.mat.uniforms.veilA!.value = Math.min(1, 0.4 + 0.6 * k + this.lift * (1 - k));
     const whole = k >= 1;
     v.mesh.visible = v.depth.visible = !whole;
     if (whole !== v.whole) {
       v.whole = whole;
       this.toonMesh.layers.set(whole ? v.overLayer : v.faint ? FAINT_ONLY_LAYER : 0);
     }
+  }
+  private whole = 0; private lift = 0;
+  /** Opaque (cel shaded) organs hide what the 2D wash let through, so a veiled vessel's veil takes `lift` of it back (OrganLayer.veilLift); 0 is the 2D veil exactly. */
+  setVeilLift(lift: number): void {
+    const v = this.veil;
+    if (!v || lift === this.lift) return;
+    this.lift = lift;
+    v.mat.uniforms.veilA!.value = Math.min(1, 0.4 + 0.6 * this.whole + lift * (1 - this.whole));
   }
   override dispose(): void { this.hullMat?.dispose(); this.veil?.mat.dispose(); this.veil?.pre.dispose(); super.dispose(); }
 
