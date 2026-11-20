@@ -121,7 +121,8 @@ const SHUNT_BASE_D: Record<string, number> = { TIPS: 8, DIPS: 8 };
 export function isDrawnEdge(e: Edge): boolean {
   if (HIDDEN_EDGES.has(e.id) || ANAT_HIDDEN.has(e.id) || e.id === 'CAUD' || e.id === 'V_UP') return false;
   if (e.kind === 'wedge' || e.kind === 'diode') return false;
-  if (e.kind === 'shunt') return e.id === 'AP_R' || e.id === 'AP_L' || SHUNT_IDS.has(e.id);
+  // (the arterioportal shunts are never drawn: Mohammad, 20 Nov, "remove the arterioportal fistulas completely no matter what"; the engine still has them, its numbers are unchanged)
+  if (e.kind === 'shunt') return e.shunt !== 'ap' && SHUNT_IDS.has(e.id);
   return true;
 }
 
