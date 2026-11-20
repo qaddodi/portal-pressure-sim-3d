@@ -190,7 +190,8 @@ export class Sinusoid3D {
     this.villi = many('microvilli', unitRod(8), 900, { px: S.LINE_SMALL });
     this.fibres = many('collagen', unitRod(6), 800, { ink: null });
     this.albumin = many('albumin', unitSphere(12, 8), 2000, { ink: null, rim: S.LINE_SMALL });
-    this.rbc = many('red-cells', unitRbc(22), RBC_N + 2 * RBC_FAR, { ink: null, rim: S.LINE });
+    // (40 round, not 22: a tumbling cell's outline crosses its lathe at a slant, and with 22 its faces ended before n.v reached 0 in places, a dashed line, eyes 20 Nov)
+    this.rbc = many('red-cells', unitRbc(40), RBC_N + 2 * RBC_FAR, { ink: null, rim: S.LINE });
     // (order: the ground first, then the solid shapes; the see-through membrane and the arrows last)
     for (const p of [this.ground, this.disse, this.troughFar, this.trough, this.bead, this.beadLine, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoN, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) this.group.add(p.group);
     for (const p of [this.villi, this.fibres, this.albumin, this.rbc]) this.group.add(p.group);

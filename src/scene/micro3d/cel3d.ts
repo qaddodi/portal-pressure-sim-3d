@@ -241,7 +241,10 @@ void main() {
 #endif
   if (uRim > 0.0) {
     float nv = abs(dot(normalize(vN), normalize(vVD)));
-    float dpx = 0.5 * nv / max(length(vec2(dFdx(nv), dFdy(nv))), 1e-5);   // (the gradient's length, not fwidth: fwidth reads a diagonal edge up to 1.4 times steep, so a ring was thicker on its diagonals)
+    // (the distance to where n.v is 0, in device px: n.v over its gradient's length, exact where the normals are interpolated linearly across a band of the mesh, which is what every edge band
+    //  is at the zooms these parts are seen at; a half of it, for a smooth surface's square-root fall-off, drew the line twice its width on the nuclei, eyes 20 Nov. The gradient's length, not
+    //  fwidth: fwidth reads a diagonal edge up to 1.4 times steep, so a ring was thicker on its diagonals)
+    float dpx = nv / max(length(vec2(dFdx(nv), dFdy(nv))), 1e-5);
     float rp = uRim * uMicroDpr;
     c = mix(c, uRimCol, 1.0 - smoothstep(rp - 0.6, rp + 0.6, dpx));
   }
