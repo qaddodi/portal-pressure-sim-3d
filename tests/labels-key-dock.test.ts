@@ -2,7 +2,7 @@
 // stylesheet (copied: LABEL_STYLE.KEY), judged on each screen and for keys of every length.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { barOf, planLayout } from '../src/ui/layout/plan.ts';
+import { barOf, planLayout, footDrop } from '../src/ui/layout/plan.ts';
 import { layoutOf, isSideways } from '../src/ui/layout/rules2d.ts';
 import { dockKey, keyFontPx, keyVars, GAP_ABOVE_PILL, GAP_ABOVE_PILL_SIDE, PHONE_SIDE, PHONE_MIN_H, PHONE_UP_FOOT, TAB_FOOT, TAB_UP_FOOT } from '../src/scene/labels/key-dock.ts';
 import { hits, type Box } from '../src/scene/labels/geometry.ts';
@@ -24,13 +24,13 @@ for (const [name, vp] of Object.entries(SCREENS)) {
     const words = planLayout(vp, need(vp), 'words').cards.find((c) => c.slot === 'words')?.rect ?? null;
     for (const natural of [{ w: 150, h: 40 }, { w: 230, h: 28 }, { w: 330, h: 28 }, { w: 520, h: 28 }]) {
       const d = dockKey({ vp, words, natural });
-      const b = d.box, on: Box = { x0: vp.safe.left, y0: vp.safe.top, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom };
+      const b = d.box, on: Box = { x0: vp.safe.left, y0: vp.safe.top, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom + (layout === 'stack' ? footDrop(vp) : 0) };   // (an iPhone's bottom card reaches down to the screen's corner, the pill and the key in its foot: footDrop)
       assert.ok(b.x0 >= on.x0 - 0.5 && b.x1 <= on.x1 + 0.5 && b.y0 >= on.y0 - 0.5 && b.y1 <= on.y1 + 0.5, `${name} ${natural.w}: inside the screen (${JSON.stringify(b)})`);
       assert.ok(!hits(b, box(bar)) || (layout === 'stack' || layout === 'tab') && d.at === 'beside-pill' && b.x1 <= bar.x - 1, `${name} ${natural.w}: never over the pill`);
       if (layout === 'stack') {
         assert.equal(b.x0, vp.safe.left + PHONE_SIDE, 'phone: 21 px in from the side');
-        if (d.at === 'beside-pill') { assert.equal(b.y1, vp.h - PHONE_SIDE - vp.safe.bottom, 'on the pill\'s row'); assert.ok(b.y1 - b.y0 >= PHONE_MIN_H, 'at least the row\'s height'); assert.ok(b.x1 <= bar.x - 8 + 0.5, 'beside the pill'); }
-        else assert.equal(b.y1, vp.h - PHONE_UP_FOOT - vp.safe.bottom, 'a row above the pill');
+        if (d.at === 'beside-pill') { assert.equal(b.y1, vp.h - PHONE_SIDE - vp.safe.bottom + footDrop(vp), 'on the pill\'s row'); assert.ok(b.y1 - b.y0 >= PHONE_MIN_H, 'at least the row\'s height'); assert.ok(b.x1 <= bar.x - 8 + 0.5, 'beside the pill'); }
+        else assert.equal(b.y1, vp.h - PHONE_UP_FOOT - vp.safe.bottom + footDrop(vp), 'a row above the pill');
       } else if (layout === 'tab') {
         assert.equal(b.y1, vp.h - (d.at === 'beside-pill' ? TAB_FOOT : TAB_UP_FOOT) - vp.safe.bottom);
         assert.ok(b.x0 >= (words ? words.x : 0), 'inside the card\'s left edge');

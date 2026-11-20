@@ -6,7 +6,7 @@ import { rail, STAGGER, PARALLAX, RAIL_MS, IN_MS, OUT_DONE, RAIL_CSS, type Dir }
 import { useUi } from '../ui-store.ts';
 import { closedPx } from './dock.ts';
 import { layoutOf, radius } from '../layout/rules2d.ts';
-import { centredKind, centredBox, panelVisual } from '../layout/plan.ts';
+import { centredKind, centredBox, panelVisual, footRadius } from '../layout/plan.ts';
 
 interface Props {
   entry: Entry;
@@ -54,16 +54,19 @@ export function markLong(root: HTMLElement | null, on: boolean): void {
 export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow, extra, onTap, visual, go = true, data = false, fresh = false, zoomable = false, swap = false, tuck = false }: Props) {
   const vp = useUi((s) => s.vp);
   const r = Math.round(radius(vp.w, vp.h, layoutOf(vp.w, vp.h)));
+  // the words card on an iPhone with rounded corners takes the screen's own corner (less its inset) at its bottom two corners
+  const bottomR = !data && layoutOf(vp.w, vp.h) === 'stack' && !centredKind(entry.id) ? footRadius(vp) : null;
+  const round = (n: number, b: number | null = bottomR) => `${n}px ${n}px ${b ?? n}px ${b ?? n}px`;
   const cardRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const plateRef = useRef<HTMLDivElement>(null);
   const [live, setLive] = useState(false);          // the card has landed: from now on a move of its place glides
   const shownH = useRef<number | null>(null);        // the height the card is drawn at (for the glide)
   const anims = useRef<Animation[]>([]);
-  const now = useRef({ live: false, out: false, overflow: false, r: 0 });   // (what the measuring callback, made once, needs to know of the latest render)
+  const now = useRef({ live: false, out: false, overflow: false, r: 0, rr: '' });   // (what the measuring callback, made once, needs to know of the latest render)
   const out = entry.phase === 'out';
   const ready = rect.h > 0;
-  now.current = { live, out, overflow: !!overflow, r };
+  now.current = { live, out, overflow: !!overflow, r, rr: round(r) };
 
   // A card whose own words grow (an answer opens under its question) is that tall at once and revealed down to it by the same glide the rows under the question ease down by,
   // started in the measuring callback itself, before the frame is painted: the height the plan gives it comes a React round trip later, and until then the words stood below the
@@ -81,7 +84,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     const o = opts ?? { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'forwards' };
     anims.current.forEach((a) => a.cancel());
     anims.current = [
-      card.animate([{ clipPath: `inset(0 0 ${next - prev}px 0 round ${now.current.r}px)` }, { clipPath: `inset(0 0 0 0 round ${now.current.r}px)` }], o),
+      card.animate([{ clipPath: `inset(0 0 ${next - prev}px 0 round ${now.current.rr})` }, { clipPath: `inset(0 0 0 0 round ${now.current.rr})` }], o),
       plate.animate([{ transform: `scaleY(${prev / next})` }, { transform: 'scaleY(1)' }], o),
     ];
     anims.current[0].onfinish = () => anims.current.forEach((a) => a.cancel());
@@ -136,7 +139,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
       setAnimH(prev);
       const k = rect.h / prev;
       anims.current = [
-        card.animate([{ clipPath: `inset(0 0 0 0 round ${r}px)` }, { clipPath: `inset(0 0 ${prev - rect.h}px 0 round ${r}px)` }], opts),
+        card.animate([{ clipPath: `inset(0 0 0 0 round ${round(r)})` }, { clipPath: `inset(0 0 ${prev - rect.h}px 0 round ${round(r)})` }], opts),
         plate.animate([{ transform: 'scaleY(1)' }, { transform: `scaleY(${k})` }], opts),
       ];
       anims.current[0].onfinish = () => setAnimH(null);
@@ -176,9 +179,9 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   const surface = alone === 'panel' ? `pz-panel${extra ? ` ${extra}` : ''}` : alone === 'case' ? 'pz-case on' : entry.id === 'ladder' ? `pz-data${extra ? ` ${extra}` : ''}` : `pz-shade pz-card${stackCls}`;
   return (
     <div className="dk-pos" data-live={live && !out} data-centred={alone || undefined} data-slot={data ? 'data' : 'words'} data-tucked={tuck || undefined} style={{ width: rect.w, transform: `translate3d(${rect.x}px, ${rect.y}px, 0)`, ...(tuck ? { translate: `0 ${-closedPx(rect.h)}px` } : null), ...(swap && !reduced() ? { transition: `transform ${IN_MS}ms ${RAIL_CSS} ${OUT_DONE}ms` } : null) }}>
-      <div ref={plateRef} className="dk-plate" data-phase={phase} style={{ height: ready ? (animH ?? rect.h) : undefined }} aria-hidden="true" />
+      <div ref={plateRef} className="dk-plate" data-phase={phase} style={{ height: ready ? (animH ?? rect.h) : undefined, ...(bottomR != null ? { borderRadius: round(r) } : null) }} aria-hidden="true" />
       <div ref={cardRef} className={`dk-card ${surface}`} data-card={entry.id} data-phase={phase} data-overflow={overflow || undefined}
-        role="group" aria-label={label} onClick={onTap} data-zoomable={zoomable || undefined} data-visual={entry.id === 'title' ? 'outline' : entry.id === 'check' ? 'check' : entry.id === 'visual' ? visual || 'table' : undefined} style={{ height: ready ? (animH ?? rect.h) : undefined }} {...pointer}>
+        role="group" aria-label={label} onClick={onTap} data-zoomable={zoomable || undefined} data-visual={entry.id === 'title' ? 'outline' : entry.id === 'check' ? 'check' : entry.id === 'visual' ? visual || 'table' : undefined} style={{ height: ready ? (animH ?? rect.h) : undefined, ...(bottomR != null ? { borderRadius: round(r) } : null) }} {...pointer}>
         <div ref={innerRef} className={entry.id === 'ladder' || alone ? 'dk-in' : 'dk-in pz-text'} style={tuck ? { opacity: 0 } : undefined}>{children}</div>
         {/* 2D's handle in the data card's foot (a touch screen, both cards up): a push up on the card puts it away */}
         {entry.id === 'ladder' && lay !== 'wide' && lay !== 'short' && <span className="pz-grip" aria-hidden="true" />}

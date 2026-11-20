@@ -2,6 +2,7 @@
 // `stented` (veins shown with a stent in them), `layers` (the lobule's layers the slide turns on), `wash` and `cath`/`cathKeep`. procs-link.ts carries each out on the scene; the node
 // test (tests/deck-procs-link.test.ts) holds every slide of every deck to a procedure kind the layer can play and a scene call that exists.
 import { procKindOf, specOf } from '../../scene/procedures/copied/proc-anim.js';
+import { stepShot } from './cath-shot.ts';
 import { lensDistance, type Shot } from '../../scene/camera/shots.ts';
 import type { CopiedSlide } from '../../decks/hp/types.ts';
 
@@ -69,7 +70,9 @@ export function askOf(s: CopiedSlide): ProcsAsk {
 /** The camera's own shots for a procedure's steps, on the tip (the 2D `way`, `tip`, `fill`, `work` legs). */
 const SHOT_R: Record<string, number> = { way: 3.7, tip: 2.4, fill: 2.4, work: 2.8 };
 const SHOT_HALF: Record<string, [number, number]> = { way: [0.9, 0.8], tip: [0.6, 0.5], fill: [0.6, 0.5], work: [0.7, 0.6] };
-export function tipShot(name: string, at: { x: number; y: number; z: number }): Shot | null {
+export function tipShot(name: string, at: { x: number; y: number; z: number }, kind?: string): Shot | null {
+  // a procedure with a route is framed from its own geometry (cath-shot.ts stepShot); the fixed table below is for the rest (a scope, a graft)
+  if (kind) { const route = specFor(kind)?.route ?? kind, d = stepShot(kind, name, at, route); if (d) return d; }
   const r = SHOT_R[name];
   return r ? { yaw: -0.12, pitch: 0.03, r: lensDistance(r), target: [at.x, at.y, at.z], half: SHOT_HALF[name]! } : null;
 }

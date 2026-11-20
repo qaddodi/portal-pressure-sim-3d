@@ -17,7 +17,7 @@ card. Clinical text is for US physicians: Baveno VIII (never VII) and AASLD.
 - **The engine copy is never edited.** `src/engine/hales/` and `src/engine/host/` come from `npm run sync:engine` (pinned commits in
   `src/engine/PINNED.json`). Fix the engine in `qaddodi/hales-engine`, then re-sync.
 - **Numbers equal the 2D app's** for the same preset (`tests/engine-numbers.test.ts`).
-- **Fix bugs at the root cause**, check the whole app for the same bug, add a test.
+- **Root cause, everywhere, every time (rule #1, owner, 20 Nov).** Every bug the owner reports or you find is fixed at its root cause in the shared place, not at the symptom; then check every view, vessel and card for the same cause, fix those too, and add a test that pins it. Name the root cause in the report.
 
 ## How to work (owner's standing rules)
 - **No headless browsers, no screenshots, no Playwright** in the cloud. Work from code. Play-tests run on the owner's Mac in the Claude

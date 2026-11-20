@@ -6,7 +6,7 @@ import { NETWORK_BY_ID, type NetVessel } from '../vessels/network.ts';
 import { REST, coursesOf } from '../vessels/shape.ts';
 import { smoothJoinsOn } from '../vessels/join-mode.ts';
 import { TIER_Z, UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
-import { type Route, type RoutePart, routeAt, routeOf } from './route.ts';
+import { type Route, type RoutePart, catheterRadius, routeAt, routeOf } from './route.ts';
 
 const lines = new Map<string, readonly (readonly [number, number, number])[]>();
 /** The centreline the vessel's tube is built on (shape.ts coursesOf at rest: depth eased to its nodes, ends fitted to their trunks with smooth joins); a fan of tributaries has none, so its own points. */
@@ -70,6 +70,28 @@ const tierZ = (id: string | null): number => {
   return v ? TIER_Z[v.tier] : TIER_Z.net;
 };
 
+/** The least bend radius a device takes, in catheter radii: the smoothing's width (a Gaussian this wide turns a right-angle elbow into an arc about this round). */
+export const BEND_RADII = 6;
+/** How much of the room the lumen has beyond the shaft a sample may use to cut a corner: under 1, so the shaft never touches the wall. */
+export const SAFE = 0.92;
+/** Rounds the route's corners in place: moves each sample (offX, offY, z) toward the Gaussian-smoothed path, by no more than SAFE of its vessel's room beyond the shaft. Ends and stretches with no room stay put. */
+export function smoothBends(r: Route, rc: number, z: Float32Array, offX: Float32Array, offY: Float32Array): void {
+  const n = r.pts.length, U = UNITS_PER_SCENE, sigma = Math.max(rc * U * BEND_RADII, 1e-6), reach = sigma * 2.6;
+  const X = new Float64Array(n), Y = new Float64Array(n), Z = new Float64Array(n);
+  for (let i = 0; i < n; i++) { X[i] = x3(r.pts[i]![0]) + offX[i]!; Y[i] = y3(r.pts[i]![1]) + offY[i]!; Z[i] = z[i]!; }
+  for (let i = 0; i < n; i++) {
+    const room = Math.max(0, (r.rad[i] ?? 0) / U - rc) * SAFE;
+    if (room < 1e-6) continue;
+    let sx = 0, sy = 0, sz = 0, w = 0;
+    for (let j = i; j >= 0 && r.cum[i]! - r.cum[j]! <= reach; j--) { const k = Math.exp(-((r.cum[i]! - r.cum[j]!) ** 2) / (2 * sigma * sigma)); sx += X[j]! * k; sy += Y[j]! * k; sz += Z[j]! * k; w += k; }
+    for (let j = i + 1; j < n && r.cum[j]! - r.cum[i]! <= reach; j++) { const k = Math.exp(-((r.cum[j]! - r.cum[i]!) ** 2) / (2 * sigma * sigma)); sx += X[j]! * k; sy += Y[j]! * k; sz += Z[j]! * k; w += k; }
+    let dx = sx / w - X[i]!, dy = sy / w - Y[i]!, dz = sz / w - Z[i]!;
+    const m = Math.hypot(dx, dy, dz);
+    if (m > room) { const f = room / m; dx *= f; dy *= f; dz *= f; }
+    offX[i] = offX[i]! + dx; offY[i] = offY[i]! + dy; z[i] = z[i]! + dz;
+  }
+}
+
 const kept = new Map<string, Route3D>();
 export function route3d(kind: string): Route3D | null {
   const key = `${kind}|${smoothJoinsOn()}`, hit = kept.get(key);
@@ -98,6 +120,11 @@ export function route3d(kind: string): Route3D | null {
     if (!best) continue;
     z[i] = best.z; offX[i] = best.x - px; offY[i] = best.y - py;
   }
+  // ROUNDED CORNERS (20 Nov 2026): snapping each sample to its vessel's centreline leaves a sharp elbow where one vessel turns into the next (the cava into a hepatic vein), and a tube swept
+  // through an elbow kinks. The path is smoothed along its arc length with a Gaussian whose width is a minimum bend radius (BEND_RADII catheter radii), and each sample may move off the
+  // centreline only as far as the lumen has room beyond the shaft (SAFE of it), so the catheter takes a generous bend and still lies wholly inside its vessel at any tilt.
+  const rcS = (kind === 'hvpg' ? Math.max(0.5, routeAt(r, r.free, { p: [0, 0], t: [1, 0], w: [0, 0], r: 0 }).r * 0.3) : catheterRadius(r)) / UNITS_PER_SCENE;
+  smoothBends(r, rcS, z, offX, offY);
   const pos = r.pts.map((p, i) => new Vector3(x3(p[0]) + offX[i]!, y3(p[1]) + offY[i]!, z[i]!));
   const bracket = (d: number): [number, number] => {
     d = Math.min(r.total, Math.max(0, d));
@@ -109,24 +136,27 @@ export function route3d(kind: string): Route3D | null {
   const zAt = (d: number): number => { const [i, u] = bracket(d); return z[i - 1]! + (z[i]! - z[i - 1]!) * u; };
   const offAt = (d: number, o: Vector3): Vector3 => { const [i, u] = bracket(d); return o.set(o.x + offX[i - 1]! + (offX[i]! - offX[i - 1]!) * u, o.y + offY[i - 1]! + (offY[i]! - offY[i - 1]!) * u, o.z); };
   const pt = { p: [0, 0] as [number, number], t: [1, 0] as [number, number], w: [0, 0] as [number, number], r: 0 };
+  const A = new Vector3(), B = new Vector3();
+  const point = (d: number, o = new Vector3()): Vector3 => { routeAt(r, d, pt); return offAt(d, o.set(x3(pt.p[0]), y3(pt.p[1]), zAt(d))); };
   const out: Route3D = {
     route: r, z, pos,
     tipD: (u) => r.start + (r.free - r.start) * Math.min(1, Math.max(0, u)),
-    point(d, o = new Vector3()) { routeAt(r, d, pt); return offAt(d, o.set(x3(pt.p[0]), y3(pt.p[1]), zAt(d))); },
+    point,
+    // the direction is the path's own (a difference across the smoothed samples), so a ring's frame follows the bend the tube is swept through
     dir(d, o = new Vector3()) {
-      routeAt(r, d, pt);
-      const e = 1.2, a = zAt(d - e), b = zAt(d + e);
-      return o.set(pt.t[0], -pt.t[1], ((b - a) / (2 * e)) * UNITS_PER_SCENE).normalize();
+      const e = 2.4, lo = Math.max(0, d - e), hi = Math.min(r.total, d + e);
+      if (hi - lo < 1e-6) return o.set(1, 0, 0);
+      point(lo, A); point(hi, B);
+      o.subVectors(B, A);
+      return o.lengthSq() > 1e-12 ? o.normalize() : o.set(1, 0, 0);
     },
     lumen(d) { routeAt(r, d, pt); return pt.r / UNITS_PER_SCENE; },
     rc: 0,
   };
-  out.rc = (kind === 'hvpg' ? Math.max(0.5, routeAt(r, r.free, pt).r * 0.3) : catheterRc(r)) / UNITS_PER_SCENE;
+  out.rc = rcS;
   kept.set(key, out);
   return out;
 }
-import { catheterRadius } from './route.ts';
-const catheterRc = catheterRadius;
 
 /** A route's named stretches as u (0..1 of the way in, the share `ProcCatheter` takes): the 2D stage.cathStops. `tract` is the TIPS's way through the liver, `rpv` the right portal vein. */
 export function stopsOf(r3: Route3D): Record<string, [number, number]> {

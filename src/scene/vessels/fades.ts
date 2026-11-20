@@ -78,8 +78,25 @@ const ART_OUT_SHARE: Readonly<Record<string, number>> = { A_HR: 0.6, A_HL: 0.5 }
 /** The veins that lie deep behind the main plane, not directly in view: they are drawn receded, at this share of their opacity everywhere, blended with whatever fade they already have (Mohammad, 20 Nov: "IVC and renal veins ... faded cuz they're
  *  not directly in view"). The cava itself is already drawn as the organs' veil (vessel-object.ts setBehindOrgans). */
 export const RECEDE: Readonly<Record<string, number>> = { V_KID_L: 0.55, V_KID_L_1: 0.55, V_KID_R: 0.55, LRV_IVC: 0.55, RRV_IVC: 0.55 };
+/** The cava is a background vessel too (Mohammad, 20 Nov: "IVC should be faded not prominent"): drawn at this share of its opacity, body, outline and chevrons together, lens colour kept. It rises to whole (1) when the cava is
+ *  selected or named (the HVPG catheter, a slide about it: scene.ts stepCava eases it), and its end at the right atrium climbs back to full over its last stretch, where the superior cava arrives whole. */
+export const CAVA_RECEDE = 0.45;
+const CAVA_RA_RAMP = 0.5;
+/** The hepatic veins open into the cava at full strength; their last stretch (as a share of their length) eases to the cava's alpha, so no solid vein end lies in a faint cava. */
+export const CAVA_END_LEN = 40;
+export function cavaEndSpan(id: string): number {
+  const path = EDGE_PATH_2D[id];
+  if (!path || !HEPATIC_VEINS.has(id) || id === 'LRV_IVC' || id === 'RRV_IVC') return 0;
+  const l = lenOfPath(path);
+  return l > 0 ? Math.min(CAVA_END_LEN, l) / l : 0;
+}
 export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
-  const f = fadeOf0(id, isArtery, feederHost), k = RECEDE[id];
+  const f = fadeOf0(id, isArtery, feederHost);
+  if (IVC_EDGES.has(id)) {
+    if (id === 'IVCS_RA') return { mode: 1, from: 1 - CAVA_RA_RAMP, to: 1, a0: CAVA_RECEDE, a1: 1, keep: false, connect: [] };
+    return f ? { ...f, a0: f.a0 * CAVA_RECEDE, a1: f.a1 * CAVA_RECEDE } : { mode: 1, from: 0, to: 1, a0: CAVA_RECEDE, a1: CAVA_RECEDE, keep: false, connect: [] };
+  }
+  const k = RECEDE[id];
   if (k == null) return f;
   return f ? { ...f, a0: f.a0 * k, a1: f.a1 * k } : { mode: 1, from: 0, to: 1, a0: k, a1: k, keep: false, connect: [] };
 }

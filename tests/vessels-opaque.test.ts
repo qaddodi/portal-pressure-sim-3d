@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import type { Material, Mesh } from 'three';
 import { CelScene } from '../src/scene/scene.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
-import { fadeOf } from '../src/scene/vessels/fades.ts';
+import { fadeOf, CAVA_RECEDE } from '../src/scene/vessels/fades.ts';
 import { CASING } from '../src/scene/vessels/cel-ink.ts';
 import { CEL_STYLE } from '../src/scene/cel-style.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
@@ -36,7 +36,7 @@ test('a vessel material is transparent only through a fade zone: the body, the o
 test('a fade zone is an opacity ramp 1 to 0 at the end, the outline fading with it, and the tube keeps its full width (no taper)', () => {
   // the ends: the splenic vein into the spleen starts at nothing, a vein out of the plate ends at nothing
   const spl = fadeOf('V_SPL', false)!, out = fadeOf('ILI_IVC', false)!;
-  assert.equal(spl.a0, 0); assert.equal(spl.a1, 1); assert.equal(out.a0, 1); assert.equal(out.a1, 0);
+  assert.equal(spl.a0, 0); assert.equal(spl.a1, 1); assert.equal(out.a0, CAVA_RECEDE); assert.equal(out.a1, 0);   // (the cava is a background vessel: faint, then nothing)
   // the shader: the fade factor reaches the body and the outline (vFade), and no radius is scaled by it
   assert.match(VESSEL_VS, /vFade = fa;/);
   assert.doesNotMatch(VESSEL_VS, /swell \*= [^;]*\bfa\b/, 'the tube is not thinned by a fade');

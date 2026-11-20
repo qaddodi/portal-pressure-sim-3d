@@ -1,6 +1,7 @@
 // The camera's close-up of the HVPG catheter's tip (2D presenter.js cathTo: cathFocus('tip', ..., { both: true })): centred between the tip and the vein ahead of it, where the wedged reading hangs, and
 // framed so the balloon just behind the tip fills the free room. 2D shows it about six times closer than the whole figure; the slice's old wedge shot was 2 to 3 times wider than that, so the balloon read as a speck.
 // The frame is read from the route itself (what the balloon is: fitBalloon in devices/catheters/proc-catheter.ts), so it follows the vein's real size. Pure: no scene, no clock.
+import { Vector3 } from 'three';
 import { route3d } from '../../scene/procedures/route3d.ts';
 import { OSTIUM_U } from '../../scene/procedures/ostium.ts';
 import { smoothJoinsOn } from '../../scene/vessels/join-mode.ts';
@@ -35,3 +36,42 @@ export function tipCloseShot(mode: 'tip' | 'ostium' = 'tip'): Shot | null {
 
 /** Whether a catheter state is read close up at the tip (the route slide shows the whole way in; the others stand at the tip). */
 export const closeUpOf = (c: string | null | undefined): 'tip' | 'ostium' | null => (c === 'free' || c === 'wedge' || c === 'result' ? 'tip' : c === 'blocked' ? 'ostium' : null);
+
+/** Where along a route (length, figure units) a scene point is: the nearest of its samples. */
+function lengthOf(kind: string, at: { x: number; y: number; z: number }): number | null {
+  const r3 = route3d(kind);
+  if (!r3) return null;
+  let best = Infinity, bi = 0;
+  r3.pos.forEach((p, i) => { const d = (p.x - at.x) ** 2 + (p.y - at.y) ** 2 + (p.z - at.z) ** 2; if (d < best) { best = d; bi = i; } });
+  return r3.route.cum[bi]!;
+}
+
+/**
+ * The frame of a procedure step, derived from the step's own geometry (no per-slide numbers): the stretch of the route the step works on, its bounds in the view plane plus a margin of vein radii,
+ * handed to the camera's room solver, which fits it into the free area (clear of the cards) on a phone and on a Mac alike.
+ *   way  the tip's surroundings as it travels (a window of vein radii either side, moving with the tip)
+ *   tip  the balloon behind the tip and the vein ahead of it; where the step works across a tract (the TIPS) the whole tract and the veins it joins
+ *   fill, work  the legs the procedure works in (the route's focus legs), with the tip's surroundings
+ * Pure. Null when the procedure has no route (a graft, a scope): the caller keeps its own frame.
+ */
+export function stepShot(kind: string, shot: string, at: { x: number; y: number; z: number }, route = kind): Shot | null {
+  const r3 = route3d(route);
+  if (!r3 || !['way', 'tip', 'fill', 'work'].includes(shot)) return null;
+  const r = r3.route, U = UNITS_PER_SCENE, d = lengthOf(route, at) ?? r3.tipD(1);
+  const R = Math.max(r3.lumen(Math.min(r.total, d)) * U, r3.rc * U * 2);
+  let a = d - R * (shot === 'way' ? 12 : BEHIND_RADII), b = d + R * (shot === 'way' ? 12 : AHEAD_RADII);
+  const acrossTract = r.spans.tract !== undefined;
+  if (shot === 'fill' || shot === 'work' || (shot === 'tip' && acrossTract)) { a = Math.min(a, r.focus[0] - R * 1.5); b = Math.max(b, r.focus[1] + R * 1.5); }
+  a = Math.max(0, a); b = Math.min(r.total, b);
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, zs = 0, n = 0;
+  const p = new Vector3(), step = Math.max(R * 0.5, 1);
+  for (let s = a; s <= b + 1e-6; s += step) { r3.point(Math.min(s, b), p); x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); zs += p.z; n++; }
+  if (!n) return null;
+  const pad = (R / U) * 3.2;
+  // (the least a frame holds, so a short stretch never shows a speck of the figure: the way in keeps its surroundings, the tip its balloon, a fill or the finished work the vein it runs in)
+  const [fx, fy] = shot === 'way' ? [0.5, 0.45] : shot === 'tip' ? [0.14, 0.12] : [0.3, 0.25];
+  const half: [number, number] = [Math.max(fx, (x1 - x0) / 2 + pad), Math.max(fy, (y1 - y0) / 2 + pad)];
+  // (a "way" is followed by the rig: it frames the point it follows, so its target is the tip itself and the window is only its size)
+  const target: [number, number, number] = shot === 'way' ? [at.x, at.y, at.z] : [(x0 + x1) / 2, (y0 + y1) / 2, zs / n];
+  return { yaw: YAW, pitch: PITCH, r: lensDistance(0.3), target, half };
+}

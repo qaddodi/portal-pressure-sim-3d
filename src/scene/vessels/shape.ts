@@ -4,7 +4,7 @@ import type { Vec3 } from '../anatomy/vessels.ts';
 import { len3, x3, y3 } from '../frame2d.ts';
 import { TIER_Z } from '../frame2d.ts';
 import { coilCourses } from './coil.ts';
-import { NETWORK_BY_ID, NODE_Z, cutEnd, type NetVessel } from './network.ts';
+import { NETWORK, NETWORK_BY_ID, NODE_Z, cutEnd, type NetVessel } from './network.ts';
 import { LIVER_BRANCH_HOSTS, SPLIT_AT, TIP } from './liver-branches.ts';
 import { CAV, cavChannels, cavGrowth } from './cav.ts';
 import { BEAD_LAMBDA_FUNDAL, BEAD_SITE, beadLambda } from './varix-bead.copied.js';
@@ -19,6 +19,22 @@ const DIVIDED_IDS: ReadonlySet<string> = new Set(DIVIDED.map(([, v]) => v));
 const len2d = (pts: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); return l; };
 /** the vessels the bands strangle (topology code C1: the coronary vein to the varices, and the varices to the azygos) */
 const BANDED = new Set(['C1a', 'C1b']);
+/** A collateral meets other vessels at its ends: where the vessel it runs into is thinner than it is, it narrows to that vessel's calibre over its end (Mohammad, 20 Nov: "coronary vein into EV is not smoothly connected": the varices'
+ *  strands ended as wide as their own trunk on a thinner vein, a blunt shoulder; the same step stood where the azygos collateral meets the azygos and where the paraumbilical vein meets the epigastric vein). Where it runs into a wider one it is a branch off a wall and keeps its own. */
+const NARROWS_INTO_NEIGHBOUR = (v: NetVessel): boolean => v.kind === 'collateral' && v.id !== 'C8' && v.id !== 'C5';
+/** The varices' strands part over this share of the course (the strands' own braid starts at 0.22): the easing from the vein's calibre to the columns' takes as long as they take to part, so no pinch shows between. */
+const FAN_SPAN: readonly [number, number] = [0.42, 0.3];
+const FAN_IDS: ReadonlySet<string> = new Set(['C1a']);
+/** The share of `v`'s own radius it narrows to at `end`, 1 where it does not. */
+const narrowTo = (v: NetVessel, end: 0 | 1): number => {
+  if (!NARROWS_INTO_NEIGHBOUR(v)) return 1;
+  const node = end ? v.to : v.from;
+  let r = 0;
+  for (const o of NETWORK) if (o !== v && !o.feeder && (o.from === node || o.to === node)) r = Math.max(r, o.radius);
+  return r > 0 && r < 0.9 * v.radius ? r / v.radius : 1;
+};
+/** The varices are drawn thicker than the 2D figure's strands, so they read at fit zoom on a phone (Mohammad, 20 Nov: "esophageal varices should be more prominent in anatomy view"); the banding and the beads work on top. */
+export const VARIX_THICK = 1.22;
 /** What a banded strand keeps of its width: a closed varix is a thin sclerosed cord, never gone (Mohammad, 20 Nov: banding left "stumps" and floating bands). The varices shrink as each band closes one, and the path from the coronary vein to the azygos stays one tube end to end. */
 export const BANDED_CORD = 0.28;
 /** whether a vessel beads (varix-bead.js BEAD_SITE): its strands do, and the gastrorenal shunt itself does */
@@ -150,6 +166,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
       if (capless) { const cl: [boolean, boolean] = [capless[0], capless[1]]; cl[cut] = false; capless = cl; }
     }
     // (a surgical shunt sewn onto a vein narrows to the host's caliber at that end, sinks inside its wall and flares at its heel: 2D SIDE_HOSTS / SINK / FLARED)
+    if (sj && NARROWS_INTO_NEIGHBOUR(v) && !sj.taper) { const n0 = narrowTo(v, 0), n1 = narrowTo(v, 1); if (n0 < 1 || n1 < 1) taper = [Math.min(taper?.[0] ?? 1, n0), Math.min(taper?.[1] ?? 1, n1)]; }
     const sewn = shuntEnds(v.id);
     if (sewn) taper = [Math.min(taper?.[0] ?? 1, endShare(sewn[0], rad)), Math.min(taper?.[1] ?? 1, endShare(sewn[1], rad))];
     const own: Course = { pts: m, radius: rad, taper, taperSpan, flare: v.flare, ...(sewn ? { sewn } : {}), capless, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? (cut != null ? ([sj.free?.[0] && cut !== 0, sj.free?.[1] && cut !== 1] as unknown as typeof sj.free) : sj.free) : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
@@ -157,12 +174,13 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     // they are (Mohammad, 20 Nov: "what's that red mesh"); each strand widens to the trunk's width at its two ends, so it meets the vessels there without a step
     const bundle = s.strandsOn && strands.length > 0 && v.kind === 'collateral';   // (the cavernoma too: its trunk tube showed as a hard violet block where the clot does not cover the portal vein)
     if (bundle) own.radius = 0;
+    const fit = bundle && FAN_IDS.has(v.id), thick = BANDED.has(v.id) ? VARIX_THICK : 1;
     return [own, ...strands.map((c, i) => {
       if (!s.strandsOn) return own;
       const live = (banded ? Math.max(BANDED_CORD, Math.min(1, Math.max(0, i + 1 - s.bands))) : 1) * (c.live ?? 1);
       return {
-        pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through), radius: Math.max(minR, rad * c.k) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
-        ...(bundle && v.id !== 'C5' ? { taper: [(own.taper?.[0] ?? 1) / c.k, (own.taper?.[1] ?? 1) / c.k] as const, taperSpan: own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
+        pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through), radius: Math.max(minR, rad * c.k * thick) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
+        ...(bundle && v.id !== 'C5' ? { taper: [(own.taper?.[0] ?? 1) / (c.k * thick), (own.taper?.[1] ?? 1) / (c.k * thick)] as const, taperSpan: fit ? FAN_SPAN : own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
         bead: beads && v.id !== 'C5' ? { b: s.bead, ph: c.ph * 1.7, u0: (STRAND_FROM_2D as Record<string, number>)[v.id] ?? 0, lambda, len: len2d(c.pts) } : undefined,
       };
     })];

@@ -12,5 +12,20 @@ test('the micro ink hull is double-sided, sits just behind its shape, keeps ever
   assert.match(MICRO_INK_VS, /mv\.xyz \*= 1\.0 \+ /);
   assert.doesNotMatch(MICRO_INK_FS, /vFace/, 'no cull by the normal (it dropped the hull at every rim vertex: a dotted outline)');
   assert.match(MICRO_INK_VS, /p \+= normal \* inflate;/);
+  assert.match(MICRO_INK_VS, /float back = [^;]*smoothstep\(0\.05, 0\.35, dot\(vn,/, 'only the faces toward the viewer go back: the rim keeps its depth, so a surface just behind never sinks the line');
   assert.equal(m.ink!.uniforms.inflate, m.toon.uniforms.inflate, 'one inflate for the shape and its line');
+});
+
+test('the ink never z-fights its shape, is thick enough to read and near black (Mohammad 20 Nov: the red cell outline "most certainly NOT continuous")', async () => {
+  const { microMaterials, hazeUniforms } = await import('../src/scene/micro3d/cel3d.ts');
+  const { CEL_STYLE } = await import('../src/scene/cel-style.ts');
+  const { Vector2 } = await import('three');
+  const m = microMaterials({ value: new Vector2(1, 1) }, { value: 1 } as never, { haze: hazeUniforms() } as never);
+  assert.equal(m.toon.polygonOffset, true, 'the fill is offset toward the eye, so it always wins over its own ink at one depth');
+  assert.ok(m.toon.polygonOffsetFactor < 0 && m.toon.polygonOffsetUnits < 0);
+  assert.ok(CEL_STYLE.MICRO.LINE >= 2 && CEL_STYLE.MICRO.LINE_SMALL >= 1.5, 'a line of 1.5 to 2 CSS px, never a sub-pixel stipple');
+  assert.ok(CEL_STYLE.MICRO.INK_K <= 0.25, 'the ink is near black');
+  const fs = await import('node:fs');
+  const src = fs.readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
+  for (const part of ['rbc', 'nuclei', 'kup', 'hsc', 'albumin', 'bile']) assert.match(src, new RegExp(`this\\.${part}\\.setInk\\(inkOf\\(`), `${part} uses the one near-black ink rule`);
 });

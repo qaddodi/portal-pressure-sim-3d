@@ -36,7 +36,7 @@ export const PERIOD = UM.hep + 2 * (UM.disse + UM.endo) + 2 * UM.lum;
 /** How far across (µm each way, from the axis): the main plates and the BEYOND sinusoids and plates past each. */
 export const ACROSS = UM.lum + UM.endo + UM.disse + UM.hep + BEYOND * PERIOD + 12;
 /** Depths (µm, toward the viewer): the plates' tops, the lining's crest, Disse's floor, the ground under the clefts, the trough's depth as a share of the lumen's half width. */
-export const Z = { cell: 0.55, cellBot: -12.5, bead: 0.5, disse: -1.0, ground: -12.0, trough: 0.92, nucleus: 0.55 } as const;
+export const Z = { cell: 0.55, cellBot: -1.3, bead: 0.5, disse: -1.0, ground: -12.0, trough: 0.92, nucleus: 0.55 } as const;
 /** The red cells in the stream (2D's palette has their colour; the host draws none). */
 /** How far (µm) the scene stands toward the viewer from the lobule's plate. */
 const LIFT = 8;
@@ -45,6 +45,8 @@ const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_K = 0.45;
 /** The focus band's run (µm) to a whole blur: from the middle of the first hepatocyte row out to the middle of the next sinusoid's lumen, rising fast at first (post-dof.ts bandCoc eases out), so
  *  the next sinusoid is already well out of focus (Mohammad, 20 Nov 2026: "the blur should really start earlier and be more intense quickly"). The haze follows the same run, lighter, so the
  *  neighbours' disease still shows. */
+/** A microvillus's radius (µm, thick enough that its fill reads inside its line) and how far its root runs inside the cell. */
+export const VILLUS_R = 0.24, VILLUS_ROOT = 0.6;
 export const BLUR_RUN = UM.hep * 0.5 + UM.disse + UM.endo + UM.lum * 0.5;
 const HAZE_RUN = BLUR_RUN;
 /** The scene's ends: the blur along the sinusoid starts this far (µm) inside each end and is whole this far in. */
@@ -60,6 +62,8 @@ const smooth = (a: number, b: number, x: number) => { const t = clamp((x - a) / 
 const mix3 = (a: RGB, b: RGB, t: number): [number, number, number] => [lerp(a[0]!, b[0]!, t), lerp(a[1]!, b[1]!, t), lerp(a[2]!, b[2]!, t)];
 const mul3 = (a: RGB, k: number): [number, number, number] => [a[0]! * k, a[1]! * k, a[2]! * k];
 /** A colour's own ink: the colour much deeper (2D's cell clefts and organ lines are the colour darkened, never black). */
+/** A cell's or particle's ink: its own colour taken near black (CEL_STYLE.MICRO.INK_K), one rule for all of them. */
+const inkOf = (a: RGB): [number, number, number] => mul3(a, CEL_STYLE.MICRO.INK_K);
 const deep = (a: RGB, k = 0.48): [number, number, number] => mul3(a, k);
 
 /** What this scene reads of its host (sinusoid/view.ts: the state, palette, traffic and places). */
@@ -239,27 +243,29 @@ export class Sinusoid3D {
 
   private colour(P: Pal, act: number): void {
     // the hepatocytes' line: near black in their own warm tone, run round every microvillus too (Mohammad 20 Nov 2026: "the hepatocytes should have a black outline that extended to their microvilli")
-    const cellInk = mul3(P.cCell, 0.18);
-    this.ground.setTint(P.cUnder);
+    const cellInk = inkOf(P.cCell);
+    // (the floor of the clefts: light, the cell's colour toward the page, so a cleft reads as a thin clean gap between two outlines, never one black bar; the cells' walls stop just under
+    // Disse's floor, so no deep dark wall shows down a cleft off the axis; coordinator from Mohammad's crops, 20 Nov 2026)
+    this.ground.setTint(mix3(P.cCell, P.cBg, 0.5));
     this.trough.setTint(P.cLumen); this.trough.setInk(deep(P.cEndoE, 0.9));
     this.troughFar.setTint(mix3(P.cLumen, P.cBg, 0.2)); this.troughFar.setInk(deep(P.cEndoE, 0.9));
     this.bead.setTint(P.cEndo); this.beadLine.setTint(P.cEndoE);
     this.disse.setTint(P.cLymph);
     this.cells.setTint(P.cCell); this.cells.setInk(cellInk);
-    this.nuclei.setTint(mix3(P.cCell, P.cNuc, 0.55)); this.nuclei.setInk(deep(P.cNuc, 0.7));
+    this.nuclei.setTint(mix3(P.cCell, P.cNuc, 0.55)); this.nuclei.setInk(inkOf(P.cNuc));
     this.nucleoli.setTint(mix3(P.cNuc, P.cCell, 0.15));
-    this.bile.setTint(P.cBile); this.bile.setInk(deep(P.cBile, 0.5));
-    this.endoN.setTint(P.cEndoS); this.endoN.setInk(P.cEndoE);
+    this.bile.setTint(P.cBile); this.bile.setInk(inkOf(P.cBile));
+    this.endoN.setTint(P.cEndoS); this.endoN.setInk(inkOf(P.cEndoE));
     this.endoNi.setTint(P.cEndoN);
-    this.kup.setTint(mix3(P.cKup, P.cLumen, 0.25)); this.kup.setInk(mix3(P.cKupE, P.cKup, 0.35)); this.kupN.setTint(mix3(P.cKupN, P.cKup, 0.3));
+    this.kup.setTint(mix3(P.cKup, P.cLumen, 0.25)); this.kup.setInk(inkOf(P.cKupE)); this.kupN.setTint(mix3(P.cKupN, P.cKup, 0.3));
     const hc = mix3(P.cHscQ, P.cHscA, clamp(act, 0, 1));
-    this.hsc.setTint(hc); this.hsc.setInk(deep(hc, 0.5)); this.hscN.setTint(P.cHscN);
+    this.hsc.setTint(hc); this.hsc.setInk(inkOf(hc)); this.hscN.setTint(P.cHscN);
     this.bm.setTint(P.cBm);
     this.villi.setTint(P.cCell); this.villi.setInk(cellInk);   // (the hepatocyte's own colour, outlined: "outline the villi")
     this.fibres.setTint(P.cCol);
-    this.albumin.setTint(P.cAlb); this.albumin.setInk(deep(P.cAlbE, 0.8));
+    this.albumin.setTint(P.cAlb); this.albumin.setInk(inkOf(P.cAlbE));
     // (a red cell is a clear, bright red in two tones with a bold dark line of its own red, as every solid here: 2D's darker red read as brown under the shade, Mohammad 20 Nov "should not be colored brown")
-    this.rbc.setTint(mix3(P.cRbc, [0.96, 0.3, 0.32], 0.45)); this.rbc.setInk(deep(P.cRbc, 0.55));
+    this.rbc.setTint(mix3(P.cRbc, [0.96, 0.3, 0.32], 0.45)); this.rbc.setInk(inkOf(P.cRbc));
   }
 
   // ---- the shapes that follow the state (rebuilt at 1/64 steps of it) ------------------------------------------------------------
@@ -463,8 +469,10 @@ export class Sinusoid3D {
       const mv = clamp(S.mv, 0, 1), len = 0.3 + 0.8 * mv;
       if (mv > 0.03) for (const s of [-1, 1] as Side[]) for (let x = -REACH + 0.4; x < REACH; x += 1.7) {
         if (n >= this.villi.capacity) break;
-        const yd = s * (g.hepIn(x) - len * 0.5 + 0.1);
-        placeAt(this.m4, x, Y(yd), Z.disse + 0.35, len, 0.2, 0.2, Math.PI / 2 + 0.25 * Math.sin(x * 1.7));   // (thick enough that the fill reads inside its line)
+        // (each villus starts VILLUS_ROOT inside the cell, just under its top face, so the cell covers its root and the villus covers the cell's line there: cell and villi read as one shape with one
+        //  outline round them all, Mohammad 20 Nov 2026: "the microvilli need a black outline so they look connected to the hepatocyte")
+        const L = len + VILLUS_ROOT, yd = s * (g.hepIn(x) + VILLUS_ROOT - L * 0.5);
+        placeAt(this.m4, x, Y(yd), Z.cell - 0.05 - VILLUS_R, L, VILLUS_R, VILLUS_R, Math.PI / 2 + 0.25 * Math.sin(x * 1.7));
         this.villi.setAt(n++, this.m4);
       }
       this.villi.commit(n);
@@ -626,6 +634,9 @@ function band(b: MeshBuilder, xs: readonly number[], y0: (x: number) => number, 
   for (let i = 0; i < xs.length - 1; i++) { const a = r0 + i * 2; if (y1(xs[i]!) > y0(xs[i]!)) b.quad(a, a + 2, a + 3, a + 1); else b.quad(a, a + 1, a + 3, a + 2); }
 }
 
+/** Half the cleft between two hepatocytes (µm): wide enough that the two cells' outlines run side by side with the light floor between them. */
+export const CLEFT_HALF = 0.6;
+
 /** A hepatocyte's outline (plane units, counter-clockwise), from 2D's bent borders: the Disse face, the far side 20 µm in, the two borders; the cleft between cells taken off and the corners rounded. */
 export function cellOutline(j: number, sd: number, s: Side, face: (x: number) => number): P2[] {
   const H = UM.hep, K = 6, pts: P2[] = [];
@@ -640,7 +651,7 @@ export function cellOutline(j: number, sd: number, s: Side, face: (x: number) =>
   let ring = pts;
   let area = 0; for (let i = 0; i < ring.length; i++) { const p = ring[i]!, q = ring[(i + 1) % ring.length]!; area += p[0] * q[1] - q[0] * p[1]; }
   if (area < 0) ring = ring.slice().reverse();
-  const nrm = outlineNormals(ring), GAP = 0.42;
+  const nrm = outlineNormals(ring), GAP = CLEFT_HALF;
   ring = ring.map((p, i) => [p[0] - nrm[i]![0] * GAP, p[1] - nrm[i]![1] * GAP] as P2);
   return chaikin(ring, 2, 0.22);
 }

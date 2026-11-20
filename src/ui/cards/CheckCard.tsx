@@ -12,6 +12,7 @@ export function CheckCard({ deck, page = 0, pages = 1 }: { deck: Deck; page?: nu
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
   const list = useRef<HTMLOListElement>(null);
   const tops = useRef<number[] | null>(null);
+  const opened = useRef<number | null>(null);
   const readings = useUi((s) => s.readings);
   const read = (k: string, at?: string) => readings[at ? `${k}@${at}` : k];
   const one = useUi((s) => s.vp.h <= 500 && s.vp.w > s.vp.h);
@@ -23,13 +24,18 @@ export function CheckCard({ deck, page = 0, pages = 1 }: { deck: Deck; page?: nu
   const toggle = (k: number) => {
     const li = list.current?.children;
     tops.current = li ? Array.from(li, (e) => e.getBoundingClientRect().top) : null;
+    opened.current = open.has(k) ? null : k;
     setOpen((cur) => { const n = new Set(one ? [] : cur); if (cur.has(k)) n.delete(k); else n.add(k); return n; });
   };
   // the rows under the one that opened or shut ease from where they were to where they are (transform only)
   useLayoutEffect(() => {
-    const from = tops.current, li = list.current?.children;
-    tops.current = null;
+    const from = tops.current, li = list.current?.children, fresh = opened.current;
+    tops.current = null; opened.current = null;
     if (!from || !li || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    // the answer that has just opened is in its place at once, but the card is still growing down to it (it is revealed by the same 280 ms glide the rows ease down by): its words
+    // wait for the card's edge to reach them (clear for the first third of the glide), then come in, so the words are never outside the card
+    const a = fresh == null ? null : list.current?.querySelector<HTMLElement>(`#pzc-a${fresh}`);
+    if (a && typeof a.animate === 'function') a.animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: 320, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' });
     Array.from(li).forEach((e, i) => {
       const dy = (from[i] ?? 0) - e.getBoundingClientRect().top;
       if (Math.abs(dy) > 1 && typeof e.animate === 'function') e.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' });

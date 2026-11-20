@@ -2,6 +2,8 @@
 // fan of tributaries thins and thickens as its rule comes on. The positions are rewritten in place (VesselObject.reshape), and only while a shape moves.
 import { type NetVessel, type PresenceFrame, collateralOpen, feederLive, recruitFrac } from './network.ts';
 import { CoilState, LOOK_SITE, varixGrowth, varixSize, varixSpreadK } from './coil.ts';
+/** The least beading of the esophageal varices (share of a strand's radius), at their full size; the 2D figure's own (varix-bead.js BEAD_MAX 0.35) takes over once it is larger. */
+export const VARIX_BEAD_FLOOR = 0.16;
 import { REST, type ShapeState, coursesOf, tubularOf } from './shape.ts';
 import { buildTubes } from './tubes.ts';
 import { BEAD_SITE, varixBead } from './varix-bead.copied.js';
@@ -59,6 +61,8 @@ export class ShapeTracks {
       const id = it.v.id, p = it.v.plan!;
       const bs = (BEAD_SITE as Record<string, string>)[id];
       it.bead = bs ? Math.round((varixBead(this.mean[bs === 'varix' ? 'VAR' : 'GV'].m ?? undefined) as number) * 100) / 100 : 0;
+      // the esophageal varices are always a little beaded, more so the bigger they are (Mohammad, 20 Nov: "make them beaded a little bit"): a floor under the 2D figure's beading, which stays smooth below 6 mm
+      if (bs === 'varix') it.bead = Math.max(it.bead, Math.round(VARIX_BEAD_FLOOR * varixSize('VAR', this.mean.VAR.m ?? undefined) * 100) / 100);
       if (p.kind === 'feeder') { it.live = feederLive(it.v.feeder!, f, healthyQ); continue; }
       const site = VARIX_CHANNELS[id], rf = recruitFrac(id, f);
       it.shown = site ? Math.max(rf, varixGrowth(pres[site], this.mean[site].m ?? undefined)) : rf;

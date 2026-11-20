@@ -10,7 +10,10 @@
  *  sides, never touching the ink. Its width is SHARE (55 percent) of the lumen's, never over SHARE_MAX (60 percent), at least MIN_W_PX CSS px wide on a thin tube (4 px: on a tube under 6.7 px across the floor would pass SHARE_MAX, and then 60 percent wins);
  *  its length along the vessel is LEN_OF_W x its width (1.4: a narrow point of about 39 degrees, the tip sharp, never rounded); its edge is ramped EDGE_PX px and its ring is RING_PX px wide at most. Spacing: the lattice's spacing is PITCH_PX at the level where a head is added and
  *  1.33 x PITCH_PX where the finer ones have just left (chevKeep), on every tube from MIN_R_PX of radius (under 3 px across there is none). */
-export const CHEV = { PITCH_PX: 60, MIN_R_PX: 1.5, SHARE: 0.55, SHARE_MAX: 0.6, MIN_W_PX: 4, LEN_OF_W: 1.4, EDGE_PX: 0.7, RING_PX: 1 } as const;
+export const CHEV = { PITCH_PX: 60, MIN_R_PX: 1.5, SHARE: 0.55, SHARE_MAX: 0.6, MIN_W_PX: 4, LEN_OF_W: 1.4, EDGE_PX: 0.7, RING_PX: 1, SIZE_MIN: 0.4, ALPHA_KEEP: 0.12 } as const;
+/** The twin of chevSize / chevAlpha: how big and how opaque a head that keeps `keep` (0 to 1) of itself is drawn. Whole at 1; at SIZE_MIN of its size and fully inked until the last ALPHA_KEEP of its keep, then gone: never half transparent. */
+export const chevSizeJs = (keep: number): number => CHEV.SIZE_MIN + (1 - CHEV.SIZE_MIN) * keep;
+export const chevAlphaJs = (keep: number): number => { const t = Math.min(1, Math.max(0, keep / CHEV.ALPHA_KEEP)); return t * t * (3 - 2 * t); };
 /** The twin of chevHw in the shaders: a head's half width, CSS px, on a lumen of radius `R` CSS px. */
 export const chevHalfWidthPx = (R: number): number => Math.min(CHEV.SHARE_MAX * R, Math.max(CHEV.SHARE * R, 0.5 * CHEV.MIN_W_PX));
 /** The finest octave of the lattice (Mohammad, 20 Nov: "too many chevrons when I zoom in and not many when zoomed out, spaced equally no matter what zoom"). The spacing is held in SCREEN px by octaves: the lattice level is lv = log2(PITCH_PX in world units / the base pitch),
@@ -58,6 +61,10 @@ float chevKeep(float j, float n0, float lv) {
   if (q < 0.5) m = 10.0;
   return clamp(exp2(1.0 - (lv - n0 - m)) - 1.0, 0.0, 1.0);
 }
+// the in-between heads of the finer octave leave by SHRINKING (chevSize: from whole to SIZE_MIN of themselves) and vanish in the last of their keep (chevAlpha), never by turning translucent: a half-faded head is a pale ghost
+// chevron beside the dark ones (Mohammad, 20 Nov: "pale slabs"), a smaller one in the same ink is not
+float chevSize(float keep) { return ${CHEV.SIZE_MIN} + ${(1 - CHEV.SIZE_MIN).toFixed(2)} * keep; }
+float chevAlpha(float keep) { return smoothstep(0.0, ${CHEV.ALPHA_KEEP}, keep); }
 // the head's ring: always the dark ink, never a pale ring
 const vec3 CHEV_RIM = vec3(0.2314, 0.1725, 0.1333);
 // one flat tone for the head, never a grey halfway: dark ink on a light lumen, cream on a dark one, a hard step on the lit tone's luminance (0.26: cream is 3:1 or more up to it, near black above it)

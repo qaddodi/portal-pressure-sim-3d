@@ -14,7 +14,7 @@ test('every chart kind in charts.ts has a case in ToolCard', () => {
   for (const k of CHART_VISUALS) assert.ok(src.includes(`case 'visual:${k}'`), `visual ${k}`);
 });
 
-test('slides with a chart tool or visual get a data card; the count of chart slides is what the 2D decks have', async () => {
+test('slides with a chart tool get a data card and a chart visual is the centred panel; the count of chart slides is what the 2D decks have', async () => {
   let charts = 0;
   for (const { id } of UI.decks) {
     const d = (await loadBuiltin(id))!;
@@ -24,8 +24,9 @@ test('slides with a chart tool or visual get a data card; the count of chart sli
       charts++;
       const pos = { stop: i + 1, beat: s.vignette || s.question ? 1 : 0 };
       const v = viewAt(stops, pos);
-      assert.ok(v.data, `${id}/${s.id} has a data card`);
-      assert.equal(v.data, hasToolChart(s) ? 'ladder' : 'table', `${id}/${s.id}`);
+      // a chart tool is the instrument's data card beside the words; a summary table or a chart visual is 2D's one centred panel (words 'visual', no data card beside it: c85413e)
+      if (hasToolChart(s)) { assert.equal(v.data, 'ladder', `${id}/${s.id} has a data card`); assert.equal(v.words, 'teach', `${id}/${s.id}`); }
+      else { assert.equal(v.data, null, `${id}/${s.id} is a centred panel`); assert.equal(v.words, 'visual', `${id}/${s.id}`); }
     });
   }
   assert.ok(charts >= 340, `chart slides (${charts})`);

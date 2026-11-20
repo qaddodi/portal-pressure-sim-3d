@@ -16,7 +16,7 @@ import { flowRate, flowTarget } from './flow-rate.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES, IVC_EDGES } from './vessels/paths.copied.ts';
-import { fadeOf, HEPATIC_VEINS } from './vessels/fades.ts';
+import { fadeOf, HEPATIC_VEINS, cavaEndSpan, CAVA_RECEDE } from './vessels/fades.ts';
 import { LensField } from './lenses/field.ts';
 import type { LensId } from './lenses/model.ts';
 import { BloodMarks, type BloodOptions } from './blood/marks.ts';
@@ -193,6 +193,8 @@ export class CelScene {
   /** The cava's pieces, and the veins that fade into it: shown whole (2D's F_WHOLE) while the cava is picked or named, eased over FLOW_FADE_MS so nothing pops. */
   private readonly cava: VesselObject[] = [];
   private readonly ivcJoins: VesselObject[] = [];
+  /** The hepatic veins, whose last stretch eases to the faint cava's alpha (fades.ts cavaEndSpan). */
+  private readonly hvJoins: VesselObject[] = [];
   /** The vessels of the back tier: they ease toward the page on a turn (quiet depth). */
   private readonly back: VesselObject[] = [];
   private cavaGoal = 0;
@@ -219,6 +221,7 @@ export class CelScene {
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
     this.disease = new DiseaseLayer(this.shared, this.vessels);
     this.body.add(this.disease.group);
+    this.disease.bleed.still = !!opts.reduceMotion;   // (the jet holds still under Reduce Motion)
     // The organs' vertex data is a static file (src/scene/organs/meshes.ts): the organ layer builds them when it is in, in the patient's state, and asks for a frame.
     Promise.all([organsReady, artReady]).then(() => { this.disease.organs.build(); this.moving = true; clock.invalidate('organs'); }, (e) => console.error(e));
     this.catheter = new Catheter(this.shared);
@@ -327,6 +330,7 @@ export class CelScene {
     o.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     const fade = fadeOf(def.id, def.tone === 'artery', def.feeder?.host);
     if (fade) { o.setTipFade(fade); this.tipFades.push({ o, connect: fade.connect }); if (fade.ivcJoin) this.ivcJoins.push(o); }
+    { const span = cavaEndSpan(def.id); if (span > 0) { o.setCavaEnd(span, CAVA_RECEDE); this.hvJoins.push(o); } }
     if (BACK_EDGES.has(def.id)) { o.setBehindOrgans(VESSEL_LAYER, IVC_EDGES.has(def.id)); this.back.push(o); if (IVC_EDGES.has(def.id)) this.cava.push(o); }
     this.add(o);
     this.vessels.push(o);
@@ -414,6 +418,13 @@ export class CelScene {
       presence: (id) => (this.presence.isDrawn(id) ? 1 : 0),
       recruit: (id, fr) => recruitFrac(id, fr as never),
     }, false);
+  }
+
+  private readonly focusP = new Vector3();
+  /** Where the exam the Tests card is about stands on the screen now, CSS px (a probe's gate or tip); null with no probe up. */
+  testFocus(out: { x: number; y: number }): { x: number; y: number } | null {
+    const p = this.probes.focus(this.focusP);
+    return p ? this.rig.project(this.body.localToWorld(p.clone()), out) : null;
   }
 
   /** The divided veins (vessels/divide.ts): the splenic vein under a Warren shunt, the portal trunk under a portocaval one, opening and closing with the shunt's drawing on and off. */
@@ -531,6 +542,7 @@ export class CelScene {
     this.cavaWhole = Math.abs(d) <= k ? this.cavaGoal : this.cavaWhole + Math.sign(d) * k;
     for (const o of this.cava) o.setWholeShare(this.cavaWhole);
     for (const o of this.ivcJoins) o.setIvcWhole(this.cavaWhole);
+    for (const o of this.hvJoins) o.setCavaEndWhole(this.cavaWhole);
     return true;
   }
 

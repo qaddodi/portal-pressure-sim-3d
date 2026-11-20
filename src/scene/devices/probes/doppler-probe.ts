@@ -16,7 +16,7 @@ import { STENT_SITES } from '../../../engine/hales/portal/topology.js';
 import { PROBE, SLACK, gateFrac, awayFromProbe, createProbeMind, fitPoseInto, makeProbePose, makeProbeGeom, probeGeomInto, probeSwing, probeTurn, probeFade } from './copied/dop-probe.copied.js';
 import { easeMove } from '../../../ui/tests/copied/ease.copied.js';
 import { smooth01 } from '../../../ui/tests/copied/num.copied.js';
-import { ProbePart, TubeBuf, linePart } from './parts.ts';
+import { ProbePart, TubeBuf, linePart, type PartStyle } from './parts.ts';
 import { basisAt, newBasis, toPlate, toScreen, type Basis, type Box, type Pt, type ScreenEnv } from './screen.ts';
 import type { DopplerSeg } from './state.ts';
 
@@ -93,7 +93,7 @@ export class DopplerProbe {
   private readonly headParts: ProbePart[] = []; private readonly markParts: ProbePart[] = [];
   private readonly wedgeGeo = new BufferGeometry();
   private readonly wedge: Mesh;
-  private readonly wedgeMat = new MeshBasicMaterial({ transparent: true, opacity: 0.2, depthTest: false, depthWrite: false, side: DoubleSide });
+  private readonly wedgeMat = new MeshBasicMaterial({ transparent: true, vertexColors: true, depthTest: false, depthWrite: false, side: DoubleSide });   // (the beam fades from the probe's face to nothing past the vessel: 2D #dpr-wedge, .46 to 0)
   private pose: DopplerPose | null = null;
   private readonly tmp = new Vector3();
   private readonly tmp2 = new Vector3();
@@ -130,20 +130,23 @@ export class DopplerProbe {
 
   constructor(shared: CelShared) {
     const add = (buf: TubeBuf, part: ProbePart, head: boolean) => { this.bufs.push(buf); this.parts.push(part); (head ? this.headParts : this.markParts).push(part); this.group.add(part.group); };
-    const mk = (tone: Parameters<typeof linePart>[1], colour: Parameters<typeof linePart>[2], rings: number, px: number, order: number, head = false): TubeBuf => {
-      const { part, buf } = linePart(shared, tone, colour, rings, px, order);
+    const mk = (tone: Parameters<typeof linePart>[1], colour: Parameters<typeof linePart>[2], rings: number, px: number, order: number, head = false, style: PartStyle = {}): TubeBuf => {
+      const { part, buf } = linePart(shared, tone, colour, rings, px, order, style);
       add(buf, part, head);
       return buf;
     };
     this.head = mk('poly', null, PROFILE.length, 0.9, 2, true);
     this.face = mk('steel', (t) => t.polyEdge, FACE.length, 0.9, 3, true);
     this.light = mk('graft', null, 2, 0.5, 4, true);
-    this.sight = mk('graft', null, 2, 0.9, 5);
-    this.axis = mk('graft', null, 2, 0.9, 5);
-    this.barA = mk('graft', null, 2, 0.9, 6);
-    this.barB = mk('graft', null, 2, 0.9, 6);
+    // the marks are the 2D's: white lines on a black rim in every theme (--dop-mark, --dop-rim), the rim 1.2 px outside a 2 px line (the gate's bars 3 px with 1.3)
+    const MARK: PartStyle = { flat: true, rim: '#000000' };
+    this.sight = mk('graft', '#FFFFFF', 2, 1.2, 5, false, MARK);
+    this.axis = mk('graft', '#FFFFFF', 2, 1.2, 5, false, MARK);
+    this.barA = mk('graft', '#FFFFFF', 2, 1.3, 6, false, MARK);
+    this.barB = mk('graft', '#FFFFFF', 2, 1.3, 6, false, MARK);
     this.closing = [this.parts[4]!, this.parts[5]!, this.parts[6]!];
     this.wedgeGeo.setAttribute('position', new BufferAttribute(new Float32Array(9), 3));
+    this.wedgeGeo.setAttribute('color', new BufferAttribute(new Float32Array([0, 0, 0, 0.46, 0, 0, 0, 0, 0, 0, 0, 0]), 4));
     this.wedge = new Mesh(this.wedgeGeo, this.wedgeMat);
     this.wedge.renderOrder = 1000; this.wedge.frustumCulled = false; this.wedge.visible = false;
     this.group.add(this.wedge);
@@ -167,12 +170,12 @@ export class DopplerProbe {
     // the light on the handle: a bead facing the viewer
     this.light.line(at(g.dh + 33 * S, 0, t).setZ(gate.z + 0.004), at(g.dh + 33 * S, 0, u).setZ(gate.z + 0.007), px(3), px(2.2));
     // the line of sight runs from the face to the near gate bar; the flow axis a little past both bars
-    this.sight.line(at(g.dh - PROBE.EDGE, 0, t), at(g.bx1, 0, u), U * 1.3);
+    this.sight.line(at(g.dh - PROBE.EDGE, 0, t), at(g.bx1, 0, u), U * 1.0);
     // the sample volume: two short bars across the line, `at` px either side of the gate, half-width `half`; the axis through the gate at the flow's angle
     const shut = !g.open;
-    this.barA.line(at(g.at, -g.half, t), at(g.at, g.half, u), U * 1.7);
-    this.barB.line(at(-g.at, -g.half, t), at(-g.at, g.half, u), U * 1.7);
-    this.axis.line(at(-g.axx, -g.axy, t), at(g.axx, g.axy, u), U * 1.3);
+    this.barA.line(at(g.at, -g.half, t), at(g.at, g.half, u), U * 1.5);
+    this.barB.line(at(-g.at, -g.half, t), at(-g.at, g.half, u), U * 1.5);
+    this.axis.line(at(-g.axx, -g.axy, t), at(g.axx, g.axy, u), U * 1.0);
     this.shut = shut;
     // the faded ultrasound beam: a narrow wedge from the probe's face, to past the vessel's far wall
     const pos = this.wedgeGeo.getAttribute('position') as BufferAttribute;
@@ -227,7 +230,7 @@ export class DopplerProbe {
     this.group.visible = vis;
     for (const o of this.markParts) { if (vis) o.setAlpha(a); o.group.visible = vis && !(this.shut && this.closing.includes(o)); }
     for (const o of this.headParts) { const h = a * headA; if (h > 0.002) o.setAlpha(h); o.group.visible = h > 0.002; }
-    this.wedge.visible = vis; this.wedgeMat.opacity = 0.2 * a;
+    this.wedge.visible = vis; this.wedgeMat.opacity = a;
   }
 
   // ── with a screen: the 2D probe's own rules ──
@@ -363,7 +366,9 @@ export class DopplerProbe {
 
   applyPalette(p: Palette): void {
     for (const o of this.parts) o.applyPalette(p);
-    this.wedgeMat.color = new Color(p.ink);
+    const c = new Color(p.ink), col = this.wedgeGeo.getAttribute('color') as BufferAttribute;
+    for (let i = 0; i < 3; i++) col.setXYZ(i, c.r, c.g, c.b);
+    col.needsUpdate = true;
   }
   setPhone(phone: boolean): void { for (const o of this.parts) o.setPhone(phone); }
   /** The pose the probe is laid at now (for tests and tags). */

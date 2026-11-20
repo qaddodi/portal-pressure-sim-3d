@@ -49,7 +49,8 @@ export function organColour(base: RGB, s: OrganState, k: OrganInks): [number, nu
   let c: [number, number, number] = [base[0], base[1], base[2]];
   // congestion: the dusk comes in with the congestion, and the tint (sinusoidal pressure) hands over to it across g 0..0.5 (stage-diaphragm.js updateOrgans)
   const tk = k.dark ? LIVER_TOKENS.dark : LIVER_TOKENS.light;
-  const dusk = Math.min(1, s.congestion * tk.congA * 1.6 + s.tint * (1 - smooth01(s.congestion / 0.5)) * 0.5);
+  // (2D: the dusk layer fades in by smooth01(g / 0.5) at its token alpha and no more: stage-organs.js lvFade(lv.cong, gn). The 3D wash had it as g x alpha x 1.6, uncapped by the smoothstep, so a fully congested liver (Budd-Chiari) took 0.70 of the maroon where 2D takes 0.44: a dark slab that hid the hepatic veins. Same for every congested liver.)
+  const dusk = Math.min(1, tk.congA * smooth01(s.congestion / 0.5) + s.tint * (1 - smooth01(s.congestion / 0.5)) * 0.5);
   if (dusk > 0) c = mix(c, tk.cong, dusk);
   // cirrhosis: the pale septa lie over the whole liver and the tawny nodules over them, so a nodule is tawny on pale and a septum only pale (stage-organs.js lv.sep, lv.nod)
   if (s.cirrhosisNod > 0) {
